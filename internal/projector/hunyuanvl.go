@@ -102,15 +102,15 @@ func (s HunyuanVLSpec) validate() error {
 func validateHunyuanVLCatalog(file *gguf.File, spec HunyuanVLSpec) ([]string, error) {
 	positionSide := spec.ImageSize / spec.PatchSize
 	required := map[string][]uint64{
-		"mm.pre_norm.weight": {uint64(spec.Hidden)},
-		"mm.0.weight":        {uint64(spec.MergeSize), uint64(spec.MergeSize), uint64(spec.Hidden), uint64(spec.ConvIntermediate)},
-		"mm.0.bias":          {uint64(spec.ConvIntermediate)},
-		"mm.2.weight":        {1, 1, uint64(spec.ConvIntermediate), uint64(spec.ProjectorInput)},
-		"mm.2.bias":          {uint64(spec.ProjectorInput)},
-		"v.image_newline":    {uint64(spec.ProjectorInput)},
-		"mm.model.fc.weight": {uint64(spec.ProjectorInput), uint64(spec.OutputHidden)},
-		"mm.model.fc.bias":   {uint64(spec.OutputHidden)},
-		"mm.image_begin":     {uint64(spec.OutputHidden)}, "mm.image_end": {uint64(spec.OutputHidden)},
+		"mm.pre_norm.weight":       {uint64(spec.Hidden)},
+		"mm.0.weight":              {uint64(spec.MergeSize), uint64(spec.MergeSize), uint64(spec.Hidden), uint64(spec.ConvIntermediate)},
+		"mm.0.bias":                {uint64(spec.ConvIntermediate)},
+		"mm.2.weight":              {1, 1, uint64(spec.ConvIntermediate), uint64(spec.ProjectorInput)},
+		"mm.2.bias":                {uint64(spec.ProjectorInput)},
+		visionImageNewlineTensor:   {uint64(spec.ProjectorInput)},
+		multimodalProjectionWeight: {uint64(spec.ProjectorInput), uint64(spec.OutputHidden)},
+		multimodalProjectionBias:   {uint64(spec.OutputHidden)},
+		"mm.image_begin":           {uint64(spec.OutputHidden)}, "mm.image_end": {uint64(spec.OutputHidden)},
 		"mm.post_norm.weight": {uint64(spec.OutputHidden)},
 	}
 	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, positionSide*positionSide, tensorOptional)

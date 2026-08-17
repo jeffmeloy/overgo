@@ -47,6 +47,16 @@
         signal: opts && opts.signal,
       }));
     },
+    async stream(path, body, opts) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(body),
+        signal: opts && opts.signal,
+      });
+      if (!response.ok) await readJSON(response);
+      return response;
+    },
   };
 
   // /analyze/model is fetched by the shell (capability gating), the Model tab,
@@ -112,6 +122,12 @@
     if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
     return String(n);
   }
+  function shortID(id) {
+    id = String(id || "");
+    const separator = id.indexOf(":");
+    const hash = separator < 0 ? id : id.slice(id.lastIndexOf(":") + 1);
+    return (separator < 0 ? "" : id.slice(0, separator) + ":") + hash.slice(0, 10);
+  }
 
   // displayToken: make an empty / whitespace-only / multiline token piece
   // visible without altering the underlying text. Shared by every tab that shows
@@ -149,14 +165,61 @@
     };
   }
 
+  function poller(task, interval) {
+    let active = false;
+    let controller = null;
+    let timer = null;
+
+    function cancel() {
+      if (timer != null) clearTimeout(timer);
+      timer = null;
+      if (controller) controller.abort();
+    }
+    function schedule() {
+      if (active && !document.hidden) timer = setTimeout(tick, interval);
+    }
+    async function tick() {
+      if (!active || document.hidden || controller) return;
+      const current = new AbortController();
+      controller = current;
+      try { await task(current.signal); }
+      catch (err) {
+        if (!err || err.name !== "AbortError") throw err;
+      } finally {
+        if (controller === current) controller = null;
+        schedule();
+      }
+    }
+    function start() {
+      if (active) return;
+      active = true;
+      if (!document.hidden) tick();
+    }
+    function stop() {
+      active = false;
+      cancel();
+    }
+    document.addEventListener("visibilitychange", () => {
+      cancel();
+      if (active && !document.hidden) tick();
+    });
+    return { start, stop };
+  }
+
+  function stat(label, value, unit) {
+    return el("div", { class: "stat" },
+      el("div", { class: "k", text: label }),
+      el("div", { class: "v" }, String(value), unit ? el("small", { text: " " + unit }) : null));
+  }
+
   const tabs = [];
   function registerTab(tab) { tabs.push(tab); }
 
   window.overgo = {
     api, el, clear, errorBanner, friendlyError, registerTab,
     getKey, setKey, modelInfo, invalidateModel,
-    displayToken, runner,
-    fmt: { grouped, bytes, compact },
+    displayToken, runner, poller, stat,
+    fmt: { grouped, bytes, compact, shortID },
   };
 
   // ---- shell wiring (runs after all deferred module scripts registered) ----
@@ -187,9 +250,12 @@
     activeSection = tabSection(tab);
     for (const t of tabs) {
       const on = t.id === id;
+      const wasActive = t.panel.classList.contains("active");
+      if (!on && wasActive && t.onDeactivate) t.onDeactivate();
       t.button.classList.toggle("active", on);
       t.panel.classList.toggle("active", on);
       if (on && !t.mounted) { t.mounted = true; safeMount(t); }
+      if (on && t.onActivate) t.onActivate();
     }
     syncSectionUI();
     if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
@@ -305,7 +371,10 @@
       setKey(keyInput.value.trim());
       invalidateModel(); // the cached model was fetched under the old key
       // Re-mount the active tab so its data reloads under the new key.
-      for (const tab of tabs) tab.mounted = false;
+      for (const tab of tabs) {
+        if (tab.onDeactivate) tab.onDeactivate();
+        tab.mounted = false;
+      }
       const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
       if (current) activate(current);
       refreshStatus();

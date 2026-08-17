@@ -18,7 +18,7 @@ func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4
 		return nil, errors.New("projector: Granite 4 Vision CUDA tile shape is inconsistent")
 	}
 	builder := tensor.NewBuilder()
-	pixels := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
+	pixels := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	hostFeeds := graph.hostFeeds
 	hostFeeds[pixels] = pixelsValue(pixels, tile.PixelValues)
@@ -73,7 +73,7 @@ func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4
 		ffn = granite4UnwindowGraph(builder, ffn, newSide, querySide)
 		output := graph.linear(ffn, prefix+".linear")
 		if tile.AddNewline {
-			output = builder.Concat(output, builder.Reshape(weight("v.image_newline"), uint64(r.spec.ProjectionDim), 1), 1)
+			output = builder.Concat(output, builder.Reshape(weight(visionImageNewlineTensor), uint64(r.spec.ProjectionDim), 1), 1)
 		}
 		outputs[block] = output
 	}

@@ -237,6 +237,13 @@ func (r *Runner) Residency() recipe.ResidencyPolicy {
 	return r.program.Residency
 }
 
+func (r *Runner) RecipeRuntimeDescription(task recipe.Task) (modelrecipe.RuntimeDescription, error) {
+	if r == nil || task != recipe.TaskInference {
+		return modelrecipe.RuntimeDescription{}, fmt.Errorf("inference: active %s recipe is unavailable", task)
+	}
+	return modelrecipe.Describe(r.program)
+}
+
 // DeviceResident: all execution weights have device residency.
 func (r *Runner) DeviceResident() bool { return r != nil && r.hasPreloadedWeights() }
 

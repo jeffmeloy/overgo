@@ -2,7 +2,6 @@ package artifact
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -75,12 +74,8 @@ func (r Relation) String() string {
 }
 
 func ParseRelation(value string) (Relation, error) {
-	for relation, name := range relationNames {
-		if relation > 0 && value == name {
-			return Relation(relation), nil
-		}
-	}
-	return RelationInvalid, fmt.Errorf("artifact: unknown relation %q", value)
+	parsed, err := parseEnum(value, relationNames[:], "relation")
+	return Relation(parsed), err
 }
 
 func (r Relation) MarshalText() ([]byte, error) {
@@ -91,11 +86,7 @@ func (r Relation) MarshalText() ([]byte, error) {
 }
 
 func (r Relation) MarshalJSON() ([]byte, error) {
-	text, err := r.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(string(text))
+	return marshalEnumJSON(int(r), relationNames[:], "relation")
 }
 
 func (r *Relation) UnmarshalText(data []byte) error {
@@ -111,11 +102,7 @@ func (r *Relation) UnmarshalText(data []byte) error {
 }
 
 func (r *Relation) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return fmt.Errorf("artifact: decode relation: %w", err)
-	}
-	return r.UnmarshalText([]byte(value))
+	return unmarshalEnumInto(r, data, relationNames[:], "relation")
 }
 
 // Lineage: immutable dependency edge

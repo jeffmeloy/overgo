@@ -90,26 +90,6 @@ func Qwen35Conversion(repository *hfrepo.Repository) ([]gguf.Metadata, []gguf.Te
 	return metadata, tensors, nil
 }
 
-// Qwen35TensorData: stream mapped Qwen 3.5 language payloads.
-func Qwen35TensorData(repository *hfrepo.Repository) ([]gguf.TensorData, error) {
-	if repository == nil || repository.Tensors == nil {
-		return nil, errors.New("HF/GGUF adapter: nil repository")
-	}
-	text, err := qwen35TextConfig(repository.Config)
-	if err != nil {
-		return nil, err
-	}
-	blockCount, err := required[uint32](text, "num_hidden_layers")
-	if err != nil {
-		return nil, err
-	}
-	mappings, err := qwen35TensorMappings(repository, blockCount)
-	if err != nil {
-		return nil, err
-	}
-	return mappedTensorData(mappings)
-}
-
 func qwen35Metadata(repository *hfrepo.Repository) ([]gguf.Metadata, uint32, error) {
 	if repository.Identity.ModelType != "qwen3_5" || repository.Identity.TextModelType != "qwen3_5_text" {
 		return nil, 0, fmt.Errorf(

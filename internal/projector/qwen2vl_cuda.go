@@ -18,8 +18,8 @@ func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qw
 		return Qwen2VLOutput{}, err
 	}
 	builder := tensor.NewBuilder()
-	input0 := builder.Input("pixel_values.0", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
-	input1 := builder.Input("pixel_values.1", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
+	input0 := builder.Input(visionInputTensor+".0", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
+	input1 := builder.Input(visionInputTensor+".1", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	weight := graph.weight
 	patch0 := builder.Reshape(weight(visionPatchWeightTensor), uint64(temporalWidth), uint64(r.spec.Hidden))

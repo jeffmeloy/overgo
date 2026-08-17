@@ -269,7 +269,7 @@ func (r *Qwen3VLRunner) EncodeImage(ctx context.Context, source image.Image, opt
 	if err != nil {
 		return Qwen3VLOutput{}, err
 	}
-	return r.encode(ctx, input)
+	return r.encodeGraph(ctx, input)
 }
 
 func (r *Qwen3VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, options Qwen3VLPreprocessOptions) (Qwen3VLOutput, error) {
@@ -280,10 +280,6 @@ func (r *Qwen3VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, 
 	if err != nil {
 		return Qwen3VLOutput{}, err
 	}
-	return r.encode(ctx, input)
-}
-
-func (r *Qwen3VLRunner) encode(ctx context.Context, input Qwen3VLImage) (Qwen3VLOutput, error) {
 	return r.encodeGraph(ctx, input)
 }
 

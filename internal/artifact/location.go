@@ -1,9 +1,7 @@
 package artifact
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 )
 
@@ -34,24 +32,11 @@ func (k LocationKind) String() string {
 }
 
 func (k LocationKind) MarshalJSON() ([]byte, error) {
-	if k == LocationInvalid || int(k) >= len(locationKindNames) {
-		return nil, errors.New("artifact: invalid location kind")
-	}
-	return json.Marshal(k.String())
+	return marshalEnumJSON(int(k), locationKindNames[:], "location kind")
 }
 
 func (k *LocationKind) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return fmt.Errorf("artifact: decode location kind: %w", err)
-	}
-	for kind, name := range locationKindNames {
-		if kind > 0 && value == name {
-			*k = LocationKind(kind)
-			return nil
-		}
-	}
-	return fmt.Errorf("artifact: unknown location kind %q", value)
+	return unmarshalEnumInto(k, data, locationKindNames[:], "location kind")
 }
 
 // LocationAction: append-only availability transition
@@ -63,31 +48,14 @@ const (
 	LocationRemove
 )
 
+var locationActionNames = [...]string{"invalid", "add", "remove"}
+
 func (a LocationAction) MarshalJSON() ([]byte, error) {
-	switch a {
-	case LocationAdd:
-		return json.Marshal("add")
-	case LocationRemove:
-		return json.Marshal("remove")
-	default:
-		return nil, errors.New("artifact: invalid location action")
-	}
+	return marshalEnumJSON(int(a), locationActionNames[:], "location action")
 }
 
 func (a *LocationAction) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return fmt.Errorf("artifact: decode location action: %w", err)
-	}
-	switch value {
-	case "add":
-		*a = LocationAdd
-	case "remove":
-		*a = LocationRemove
-	default:
-		return fmt.Errorf("artifact: unknown location action %q", value)
-	}
-	return nil
+	return unmarshalEnumInto(a, data, locationActionNames[:], "location action")
 }
 
 // Location: current physical artifact address

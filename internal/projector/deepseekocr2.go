@@ -90,7 +90,7 @@ func ReadDeepSeekOCR2Spec(file *gguf.File) (DeepSeekOCR2Spec, error) {
 func deepSeekOCR2TensorNames(file *gguf.File, spec DeepSeekOCR2Spec) []string {
 	names := append(deepSeekOCRSAMTensorNames(spec.DeepSeekOCRSpec),
 		"v.resample_query_768.weight", "v.resample_query_1024.weight",
-		"mm.model.fc.weight", "mm.model.fc.bias", "v.view_seperator")
+		multimodalProjectionWeight, multimodalProjectionBias, "v.view_seperator")
 	for _, name := range []string{visionPreNormWeightTensor, visionPreNormBiasTensor, visionPostNormWeightTensor, visionPostNormBiasTensor} {
 		if hasTensor(file, name) {
 			names = append(names, name)
@@ -144,8 +144,8 @@ func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
 			(spec.ImageSize / spec.PatchSize / deepSeekOCRPositionDownsample) *
 				(spec.ImageSize / spec.PatchSize / deepSeekOCRPositionDownsample),
 		)},
-		"mm.model.fc.weight": {uint64(spec.Hidden), uint64(spec.OutputHidden)},
-		"mm.model.fc.bias":   {uint64(spec.OutputHidden)},
+		multimodalProjectionWeight: {uint64(spec.Hidden), uint64(spec.OutputHidden)},
+		multimodalProjectionBias:   {uint64(spec.OutputHidden)},
 	}
 	if err := validateProjectorTensorShapes(file, requiredShapes); err != nil {
 		return err
@@ -192,7 +192,7 @@ func (r *DeepSeekOCR2Runner) encodeTile(ctx context.Context, source image.Image,
 		return reference.Value{}, errors.New("projector: DeepSeek-OCR-2 tile shape is invalid")
 	}
 	builder := tensor.NewBuilder()
-	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(rgbChannelCount, uint64(size), uint64(size)))
+	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(rgbChannelCount, uint64(size), uint64(size)))
 	shared := DeepSeekOCRRunner{spec: r.spec.DeepSeekOCRSpec}
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[input] = pixelsValue(input, shared.tilePixels(source))
@@ -272,8 +272,8 @@ func (r *DeepSeekOCR2Runner) buildGraph(builder *tensor.Builder, input *tensor.T
 		hidden = norm(hidden, "v.post_ln")
 	}
 	hidden = builder.FlatSlice(hidden, uint64(r.spec.Hidden)*patches, uint64(r.spec.Hidden), patches)
-	projected := builder.MulMat(weight("mm.model.fc.weight"), hidden)
-	return builder.Add(projected, builder.Reshape(weight("mm.model.fc.bias"), uint64(r.spec.OutputHidden), 1))
+	projected := builder.MulMat(weight(multimodalProjectionWeight), hidden)
+	return builder.Add(projected, builder.Reshape(weight(multimodalProjectionBias), uint64(r.spec.OutputHidden), 1))
 }
 
 func (r *DeepSeekOCR2Runner) assemble(values []reference.Value, gridW, gridH int) (reference.Value, error) {
@@ -298,7 +298,7 @@ func (r *DeepSeekOCR2Runner) validateGraphs() error {
 	}{{r.spec.TileSize, false}, {r.spec.ImageSize, true}} {
 		builder := tensor.NewBuilder()
 		input := builder.Input(
-			"pixel_values", dtype.F32,
+			visionInputTensor, dtype.F32,
 			tensor.MustShape(rgbChannelCount, uint64(item.size), uint64(item.size)),
 		)
 		hostFeeds := make(map[*tensor.Tensor]reference.Value)

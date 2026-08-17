@@ -51,6 +51,8 @@ const (
 	TaskVQA Task = "vqa"
 )
 
+func (task Task) Valid() bool { return validateTask(task) == nil }
+
 type Placement string
 
 const (

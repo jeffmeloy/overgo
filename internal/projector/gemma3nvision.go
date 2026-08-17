@@ -112,7 +112,7 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 	required := []string{
 		"v.conv_stem.conv.weight", "v.conv_stem.bn.weight",
 		"v.msfa.ffn.pw_exp.conv.weight", "v.msfa.ffn.pw_proj.conv.weight", "v.msfa.norm.weight",
-		"mm.input_projection.weight", "mm.soft_emb_norm.weight",
+		multimodalInputProjection, "mm.soft_emb_norm.weight",
 	}
 	for _, name := range []string{"v.msfa.ffn.pw_exp.bn.weight", "v.msfa.ffn.pw_proj.bn.weight"} {
 		if hasTensor(file, name) {
@@ -225,7 +225,7 @@ func (r *Gemma3nVisionRunner) EncodeImage(ctx context.Context, source image.Imag
 		return reference.Value{}, err
 	}
 	builder := tensor.NewBuilder()
-	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(3, uint64(r.spec.ImageSize), uint64(r.spec.ImageSize)))
+	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(3, uint64(r.spec.ImageSize), uint64(r.spec.ImageSize)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[input] = pixelsValue(input, pixels)
 	output := r.buildGraph(builder, input, graph.weight, graph.hostFeeds)
@@ -244,7 +244,7 @@ func tensorInfoShape(info gguf.TensorInfo) tensor.Shape {
 
 func (r *Gemma3nVisionRunner) validateGraph() error {
 	builder := tensor.NewBuilder()
-	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(3, uint64(r.spec.ImageSize), uint64(r.spec.ImageSize)))
+	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(3, uint64(r.spec.ImageSize), uint64(r.spec.ImageSize)))
 	weight := func(name string) *tensor.Tensor {
 		info, ok := r.file.Tensor(name)
 		if !ok {
@@ -376,7 +376,7 @@ func (r *Gemma3nVisionRunner) buildGraph(
 	cur = builder.Scale(cur, float32(math.Sqrt(float64(channels))))
 	softNorm := builder.Reshape(weight("mm.soft_emb_norm.weight"), channels)
 	cur = builder.WeightedRMSNorm(cur, softNorm, gemma3nVisionNormEpsilon)
-	cur = builder.MulMat(weight("mm.input_projection.weight"), cur)
+	cur = builder.MulMat(weight(multimodalInputProjection), cur)
 	return builder.RMSNorm(cur, gemma3nVisionNormEpsilon)
 }
 

@@ -109,10 +109,6 @@ func (d Document) Lineage() []artifact.Lineage {
 }
 
 func (d Document) Batch(key string, alias *artifact.AliasBinding) (artifact.Batch, error) {
-	content, err := d.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
 	var aliases []artifact.AliasBinding
 	if alias != nil {
 		if alias.Target != d.ID {
@@ -120,7 +116,7 @@ func (d Document) Batch(key string, alias *artifact.AliasBinding) (artifact.Batc
 		}
 		aliases = append(aliases, *alias)
 	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, d.Lineage(), aliases)
+	return documentCodec.Batch(key, d, d.Lineage(), aliases)
 }
 
 func canonicalize(document *Document) error {

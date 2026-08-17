@@ -223,7 +223,7 @@ func (r *Gemma4TowerRunner) encodeVisionPatches(
 
 	scaled := gemma4TowerInputAffine(pixels, spec.InputScale, spec.InputBias)
 	builder := tensor.NewBuilder()
-	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
+	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[input] = reference.Value{Shape: input.Shape, Data: scaled}
 
@@ -282,7 +282,7 @@ func (r *Gemma4TowerRunner) encodeVisionPatches(
 	stageNames = append(stageNames, "pooler")
 	stages = append(stages, pooled)
 	normalized := builder.RMSNorm(pooled, spec.RMSNormEpsilon)
-	embeddings := builder.MulMat(graph.weight("mm.input_projection.weight"), normalized)
+	embeddings := builder.MulMat(graph.weight(multimodalInputProjection), normalized)
 
 	targets := []*tensor.Tensor{embeddings}
 	if trace {

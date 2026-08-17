@@ -122,10 +122,10 @@ func validateLlama4VisionCatalog(file *gguf.File, spec Llama4VisionSpec) ([]stri
 	patches := spec.ImageSize / spec.PatchSize
 	shuffleWidth := spec.Hidden * spec.MergeSize * spec.MergeSize
 	required := map[string][]uint64{
-		"v.class_embd":          {uint64(spec.Hidden)},
-		"mm.model.mlp.1.weight": {uint64(shuffleWidth), uint64(spec.AdapterIntermediate)},
-		"mm.model.mlp.2.weight": {uint64(spec.AdapterIntermediate), uint64(spec.AdapterHidden)},
-		"mm.model.fc.weight":    {uint64(spec.AdapterHidden), uint64(spec.OutputHidden)},
+		visionClassEmbeddingTensor: {uint64(spec.Hidden)},
+		"mm.model.mlp.1.weight":    {uint64(shuffleWidth), uint64(spec.AdapterIntermediate)},
+		"mm.model.mlp.2.weight":    {uint64(spec.AdapterIntermediate), uint64(spec.AdapterHidden)},
+		multimodalProjectionWeight: {uint64(spec.AdapterHidden), uint64(spec.OutputHidden)},
 	}
 	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, patches*patches+1, tensorOptional)
 	if err := addOptionalVisionNormCatalog(file, required, spec.Hidden); err != nil {
@@ -281,7 +281,7 @@ func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionT
 		return reference.Value{}, err
 	}
 	hidden := hostmath.LinearF64BiasFirstNew(input.PixelValues, patchWeight.Data, patchBias, patchRows, patchWidth, r.spec.Hidden)
-	classEmbedding, err := r.load(ctx, "v.class_embd")
+	classEmbedding, err := r.load(ctx, visionClassEmbeddingTensor)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -333,7 +333,7 @@ func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionT
 	}
 	adapted = hostmath.LinearF64BiasFirstNew(adapted, mlp2.Data, nil, mergePlan.outputRows, r.spec.AdapterIntermediate, r.spec.AdapterHidden)
 	hostmath.GELUTanhInPlace(adapted)
-	projection, err := r.load(ctx, "mm.model.fc.weight")
+	projection, err := r.load(ctx, multimodalProjectionWeight)
 	if err != nil {
 		return reference.Value{}, err
 	}

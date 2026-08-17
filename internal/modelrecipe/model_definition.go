@@ -155,11 +155,7 @@ func (d ModelDefinitionDocument) Content() (artifact.Content, error) {
 }
 
 func (d ModelDefinitionDocument) Batch(key string) (artifact.Batch, error) {
-	content, err := d.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, []artifact.Lineage{
+	return modelDefinitionCodec.Batch(key, d, []artifact.Lineage{
 		{Child: d.ID, Parent: d.Model, Relation: artifact.RelationDerivedFrom},
 		{Child: d.ID, Parent: d.Profile, Relation: artifact.RelationDependsOn},
 		{Child: d.ID, Parent: d.TensorInventory, Relation: artifact.RelationDependsOn},

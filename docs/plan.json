@@ -3,20 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "sealed-external-authority",
-      "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
-          "status": "open",
-          "verify": "OVERGO_SEALED_AUTHORITY_TEST=1 go test ./internal/testevidence ./internal/protection -run '^TestCandidatePrincipalCannotWriteSealedAuthority$' -count=1 -v",
-          "rationale": "THE FIXED POINT. Goldens originate from HF transformers 4.57.1 / torch 2.12.0+cu126 and pinned llama.cpp; fixtures/carbon_golden.json stamps its producing versions and llama_*_grad_golden.json carry torch autograd gradients. The system cannot author them. Every Phase D row is safe exactly to the degree it is ultimately scored against artifacts the system did not produce."
-        }
-      ]
-    },
-    {
       "id": "bounded-exploration-budget",
       "title": "Issue GPU-hour budget tokens for autonomous proposal; enforce cancellation and containment; exceeding a budget requires an external decision",
       "status": "open",
@@ -30,6 +16,32 @@
           "depends_on": [
             "evaluation-isolation"
           ]
+        }
+      ]
+    },
+    {
+      "id": "tier0-dose-response",
+      "title": "Tier-0 dose-response: extend the shipped chain gain into a law -- vary draft length (4/8/16/32), window count (6 disjoint), and drafter direction (strong-to-weak vs weak-to-strong) under the recorded protocol; record the response curve and the direction asymmetry as generation records",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Tier-0 dose-response: extend the shipped chain gain into a law -- vary draft length (4/8/16/32), window count (6 disjoint), and drafter direction (strong-to-weak vs weak-to-strong) under the recorded protocol; record the response curve and the direction asymmetry as generation records",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestTier0ChainDoseResponse$' -count=1 -v -timeout 60m"
+        }
+      ]
+    },
+    {
+      "id": "residual-injection-connector",
+      "title": "Residual-injection connector probe: compose frozen models through a learned linear projection with magnitude-rescaled residual injection at 0.75 depth, trained with a feature-matching loss at the scorer's penultimate layer (never end-to-end task CE, the measured failure mode of the retired adapter tier); envelope verdict vs baseline and vs the Tier-0 chain; refusal recorded either way",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Residual-injection connector probe: compose frozen models through a learned linear projection with magnitude-rescaled residual injection at 0.75 depth, trained with a feature-matching loss at the scorer's penultimate layer (never end-to-end task CE, the measured failure mode of the retired adapter tier); envelope verdict vs baseline and vs the Tier-0 chain; refusal recorded either way",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestResidualInjectionConnector$' -count=1 -v -timeout 60m"
         }
       ]
     },
@@ -62,7 +74,6 @@
             "composition-viability",
             "typed-controller-action-language",
             "rollback-invariant-and-drill",
-            "sealed-external-authority",
             "evaluation-isolation",
             "independent-rsi-admission"
           ],
@@ -165,7 +176,6 @@
             "determinism-and-statistical-verdicts",
             "bounded-exploration-budget",
             "evaluation-isolation",
-            "sealed-external-authority",
             "independent-rsi-admission",
             "experiment-lifecycle",
             "runtime-resource-scheduler"
@@ -231,7 +241,6 @@
           "verify": "go test ./internal/... -run '^TestEvaluatorRanksKnownOutcomesUnderPriorAuthority$' -count=1 -v",
           "rationale": "The classic RSI failure is a system improving its evaluator into one that approves everything. Safe only because the ranking set is externally sourced and unauthorable, and because the approving authority predates the candidate.",
           "depends_on": [
-            "sealed-external-authority",
             "evaluation-isolation",
             "descendant-improvement"
           ]
@@ -289,6 +298,20 @@
             "runtime-resource-scheduler",
             "descendant-improvement"
           ]
+        }
+      ]
+    },
+    {
+      "id": "sealed-external-authority",
+      "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
+          "status": "open",
+          "verify": "OVERGO_SEALED_AUTHORITY_TEST=1 go test ./internal/testevidence ./internal/protection -run '^TestCandidatePrincipalCannotWriteSealedAuthority$' -count=1 -v",
+          "rationale": "Owner directive 2026-08-17: host sealing moved to the campaign end -- autonomous workers do not run yet, so the second OS principal and the sealing machinery arrive together when Phase C makes them load-bearing. Prior fixture-level machinery was backed out rather than committed unconsumed."
         }
       ]
     }

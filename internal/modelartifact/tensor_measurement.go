@@ -103,11 +103,7 @@ func (d TensorMeasurementDocument) Lineage() artifact.Lineage {
 }
 
 func (d TensorMeasurementDocument) Batch(key string) (artifact.Batch, error) {
-	content, err := d.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, []artifact.Lineage{d.Lineage()}, nil)
+	return tensorMeasurementCodec.Batch(key, d, []artifact.Lineage{d.Lineage()}, nil)
 }
 
 func measurementFromSamples(name string, elements uint64, samples []float64) (TensorMeasurement, error) {

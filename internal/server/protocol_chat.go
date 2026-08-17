@@ -726,6 +726,8 @@ type chatStreamResponse struct {
 	Created int64              `json:"created"`
 	Model   string             `json:"model"`
 	Choices []chatStreamChoice `json:"choices"`
+	Usage   *completionUsage   `json:"usage,omitempty"`
+	Timings *slotStatusTimings `json:"timings,omitempty"`
 }
 
 func (h *Handler) streamChatCompletion(
@@ -743,12 +745,16 @@ func (h *Handler) streamChatCompletion(
 	}
 	stream := newSSEEmitter(request.Context(), response, flusher)
 	created := time.Now().Unix()
+	var usage *completionUsage
+	var timings *slotStatusTimings
 	writeChunk := func(index int, delta chatStreamDelta, reason *string) error {
 		return stream.write(chatStreamResponse{
 			ID:      id,
 			Object:  "chat.completion.chunk",
 			Created: created,
 			Model:   h.config.ModelID,
+			Usage:   usage,
+			Timings: timings,
 			Choices: []chatStreamChoice{{
 				Index:        index,
 				Delta:        delta,
@@ -757,6 +763,8 @@ func (h *Handler) streamChatCompletion(
 		})
 	}
 	for choiceIndex := range n {
+		usage = nil
+		timings = nil
 		if err := writeChunk(choiceIndex, chatStreamDelta{Role: "assistant"}, nil); err != nil {
 			return
 		}
@@ -869,6 +877,14 @@ func (h *Handler) streamChatCompletion(
 				reason = "tool_calls"
 			}
 		}
+		terminalUsage := completionUsage{
+			PromptTokens:     result.promptTokens(),
+			CompletionTokens: result.pump.completion,
+			TotalTokens:      result.promptTokens() + result.pump.completion,
+		}
+		terminalTimings := h.slotStats[plan.slotID].metrics(true).Timings
+		usage = &terminalUsage
+		timings = &terminalTimings
 		_ = writeChunk(choiceIndex, chatStreamDelta{}, &reason)
 	}
 	_ = stream.done()

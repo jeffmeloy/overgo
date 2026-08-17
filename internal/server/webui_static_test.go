@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -23,9 +24,15 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/boot.js", "text/javascript; charset=utf-8", "window.overgo"},
 		{"/viz.js", "text/javascript; charset=utf-8", "sparkline"},
 		{"/md.js", "text/javascript; charset=utf-8", "overgo.md"},
+		{"/workflow.js", "text/javascript; charset=utf-8", "workflowWorkspace"},
 		{"/mod/chat.js", "text/javascript; charset=utf-8", "/v1/chat/completions"},
+		{"/mod/generation.js", "text/javascript; charset=utf-8", `scope: "generation"`},
+		{"/mod/runtime.js", "text/javascript; charset=utf-8", "/slots"},
 		{"/mod/datasets.js", "text/javascript; charset=utf-8", "/datasets"},
 		{"/mod/training.js", "text/javascript; charset=utf-8", "/runs"},
+		{"/mod/jobs.js", "text/javascript; charset=utf-8", "training-jobs"},
+		{"/mod/recipe.js", "text/javascript; charset=utf-8", "/recipes/active"},
+		{"/mod/artifacts.js", "text/javascript; charset=utf-8", "/artifacts"},
 		{"/mod/analyze_model.js", "text/javascript; charset=utf-8", "/analyze/model"},
 		{"/mod/analyze_vocab.js", "text/javascript; charset=utf-8", "/analyze/vocab"},
 		{"/mod/analyze_logits.js", "text/javascript; charset=utf-8", "completion_probabilities"},
@@ -44,6 +51,98 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		if !strings.Contains(response.Body.String(), testCase.needle) {
 			t.Fatalf("GET %s body missing %q", testCase.path, testCase.needle)
 		}
+	}
+}
+
+func TestWebUIRuntimeMonitor(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	get := func(path string) string {
+		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
+	}
+	runtime := get("/mod/runtime.js")
+	for _, token := range []string{"overgo.poller", "onActivate", "onDeactivate", `api.get("/slots"`} {
+		if !strings.Contains(runtime, token) {
+			t.Errorf("runtime module missing %q", token)
+		}
+	}
+	if strings.Contains(runtime, "include_text") {
+		t.Error("runtime monitor requests retained text")
+	}
+	boot := get("/boot.js")
+	for _, token := range []string{"function poller", "document.hidden", "t.onActivate", "t.onDeactivate"} {
+		if !strings.Contains(boot, token) {
+			t.Errorf("boot lifecycle missing %q", token)
+		}
+	}
+	if !strings.Contains(get("/app.html"), "/mod/runtime.js") {
+		t.Error("app shell does not load runtime module")
+	}
+}
+
+func TestWebUIChatUsesServerContextAndTiming(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	const requestBody = `{"messages":[{"role":"user","content":"hi"}],"stream":true,"max_tokens":1}`
+	count := serveTestRequest(handler, http.MethodPost, "/v1/chat/completions/input_tokens", requestBody)
+	var expected struct {
+		InputTokens int `json:"input_tokens"`
+	}
+	if err := json.Unmarshal(count.Body.Bytes(), &expected); err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/chat/completions",
+		strings.NewReader(requestBody),
+	)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("stream status = %d body=%s", response.Code, response.Body.String())
+	}
+	var terminal chatStreamResponse
+	for _, line := range strings.Split(response.Body.String(), "\n") {
+		if !strings.HasPrefix(line, "data: ") || strings.HasSuffix(line, "[DONE]") {
+			continue
+		}
+		var chunk chatStreamResponse
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &chunk); err != nil {
+			t.Fatal(err)
+		}
+		if chunk.Usage != nil {
+			terminal = chunk
+		}
+	}
+	if terminal.Usage == nil || terminal.Timings == nil {
+		t.Fatalf("terminal stream lacks facts: %s", response.Body.String())
+	}
+	if terminal.Usage.PromptTokens != expected.InputTokens ||
+		uint64(terminal.Usage.CompletionTokens) != terminal.Timings.PredictedN {
+		t.Fatalf("stream facts = usage %+v timings %+v count %d", terminal.Usage, terminal.Timings, expected.InputTokens)
+	}
+
+	get := func(path string) string {
+		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
+	}
+	chat := get("/mod/chat.js")
+	for _, token := range []string{
+		`api.get("/props")`,
+		`api.post("/v1/chat/completions/input_tokens"`,
+		"overgo.api.stream(",
+		"Context ratio",
+		"terminal.usage",
+		"terminal.timings",
+	} {
+		if !strings.Contains(chat, token) {
+			t.Errorf("chat module missing %q", token)
+		}
+	}
+	for _, embeddedDefault := range []string{`value: "0.7"`, `value: "512"`, `|| 512`} {
+		if strings.Contains(chat, embeddedDefault) {
+			t.Errorf("chat module embeds sampling default %q", embeddedDefault)
+		}
+	}
+	if !strings.Contains(get("/boot.js"), "async stream(path, body, opts)") {
+		t.Error("shared API client does not own streaming fetch")
 	}
 }
 

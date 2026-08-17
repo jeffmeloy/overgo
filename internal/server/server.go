@@ -20,6 +20,7 @@ import (
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/inference"
+	"overgo/internal/operation"
 	"overgo/internal/projector"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
@@ -224,6 +225,7 @@ type Config struct {
 	ResponseToolPolicy ResponseToolPolicy
 	MaxStoredResponses int
 	ResponseStoreBytes int
+	DatasetPreview     DatasetPreviewAPI
 	FFmpegPath         string
 	VideoFPS           float64
 	VideoMaxFrames     int
@@ -317,13 +319,16 @@ func (stats *slotRuntimeStats) appendGenerated(piece string) {
 	stats.textMu.Unlock()
 }
 
-func (stats *slotRuntimeStats) snapshot() (string, string, slotStatusParams) {
+func (stats *slotRuntimeStats) snapshot(includeText bool) (string, string, slotStatusParams) {
 	stats.textMu.RLock()
 	defer stats.textMu.RUnlock()
 	params := stats.params
 	params.Stop = slices.Clone(params.Stop)
 	params.Samplers = slices.Clone(params.Samplers)
-	return stats.prompt, stats.generated.String(), params
+	if includeText {
+		return stats.prompt, stats.generated.String(), params
+	}
+	return "", "", params
 }
 
 type Handler struct {
@@ -349,6 +354,7 @@ type Handler struct {
 	responseHistory    *responseHistoryStore
 	responseFiles      ResponseFileResolver
 	thinkingSigner     *anthropicThinkingSigner
+	operations         *operation.Manager
 }
 
 func New(config Config, generator Generator) (*Handler, error) {
@@ -443,6 +449,10 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("server defaults: %w", err)
 	}
+	operations, err := operation.NewManager(config.MaxStoredResponses)
+	if err != nil {
+		return nil, err
+	}
 	slots := make(chan int, config.MaxConcurrent)
 	for id := range config.MaxConcurrent {
 		slots <- id
@@ -481,12 +491,19 @@ func New(config Config, generator Generator) (*Handler, error) {
 		),
 		responseFiles:  config.ResponseFiles,
 		thinkingSigner: thinkingSigner,
+		operations:     operations,
 	}, nil
 }
 
 // Close: release fused scheduler state.
 func (h *Handler) Close() error {
-	if h == nil || h.continuous == nil {
+	if h == nil {
+		return nil
+	}
+	if h.operations != nil {
+		h.operations.Close()
+	}
+	if h.continuous == nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -576,7 +593,20 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/analyze/tensors" ||
 		request.URL.Path == "/analyze/tensors/similar" ||
 		request.URL.Path == "/datasets" ||
+		request.URL.Path == "/datasets/preview" ||
 		request.URL.Path == "/runs" ||
+		request.URL.Path == "/recipes/active" ||
+		request.URL.Path == "/operations" ||
+		request.URL.Path == "/operations/cancel" ||
+		request.URL.Path == "/operations/wait" ||
+		request.URL.Path == "/generation/capabilities" ||
+		request.URL.Path == "/generation/run" ||
+		request.URL.Path == "/training/capabilities" ||
+		request.URL.Path == "/training/run" ||
+		request.URL.Path == "/export/capabilities" ||
+		request.URL.Path == "/export/run" ||
+		request.URL.Path == "/artifacts" ||
+		request.URL.Path == "/artifacts/content" ||
 		request.URL.Path == "/completion" ||
 		request.URL.Path == "/completions" ||
 		request.URL.Path == "/infill" ||
@@ -657,8 +687,34 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.analyzeTensorsSimilar(response, request)
 	case "/datasets":
 		h.browseDatasets(response, request)
+	case "/datasets/preview":
+		h.previewDataset(response, request)
 	case "/runs":
 		h.browseRuns(response, request)
+	case "/recipes/active":
+		h.activeRecipe(response, request)
+	case "/operations":
+		h.operationStatus(response, request)
+	case "/operations/cancel":
+		h.operationCancel(response, request)
+	case "/operations/wait":
+		h.operationWait(response, request)
+	case "/generation/capabilities":
+		h.workflowCapabilities(response, request, WorkflowGeneration)
+	case "/generation/run":
+		h.workflowRun(response, request, WorkflowGeneration)
+	case "/training/capabilities":
+		h.workflowCapabilities(response, request, WorkflowTraining)
+	case "/training/run":
+		h.workflowRun(response, request, WorkflowTraining)
+	case "/export/capabilities":
+		h.workflowCapabilities(response, request, WorkflowExport)
+	case "/export/run":
+		h.workflowRun(response, request, WorkflowExport)
+	case "/artifacts":
+		h.artifactGallery(response, request)
+	case "/artifacts/content":
+		h.artifactContent(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

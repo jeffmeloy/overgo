@@ -72,7 +72,7 @@ func openDeepSeekOCR(ctx context.Context, file *gguf.File, options OpenOptions) 
 		return nil, err
 	}
 	runner.newline, runner.separator, err = loadProjectorHostTensorPair(
-		ctx, file, "v.image_newline", "v.view_seperator",
+		ctx, file, visionImageNewlineTensor, "v.view_seperator",
 	)
 	if err != nil {
 		return nil, err
@@ -168,7 +168,7 @@ func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string, tileSize, max
 	}
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
-	projector, ok := file.Tensor("mm.model.fc.weight")
+	projector, ok := file.Tensor(multimodalProjectionWeight)
 	if !ok || projector.Dimensions != 2 {
 		return DeepSeekOCRSpec{}, errors.New("projector: DeepSeek-OCR projection tensor is unavailable or invalid")
 	}
@@ -220,8 +220,8 @@ func (s DeepSeekOCRSpec) validate() error {
 func deepSeekOCRTensorNames(file *gguf.File, spec DeepSeekOCRSpec) []string {
 	names := deepSeekOCRSAMTensorNames(spec)
 	names = append(names,
-		"v.class_embd", visionPositionWeightTensor,
-		"mm.model.fc.weight", "mm.model.fc.bias", "v.image_newline", "v.view_seperator",
+		visionClassEmbeddingTensor, visionPositionWeightTensor,
+		multimodalProjectionWeight, multimodalProjectionBias, visionImageNewlineTensor, "v.view_seperator",
 	)
 	for layer := 0; layer < spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
@@ -284,13 +284,13 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 			(spec.ImageSize/spec.PatchSize/deepSeekOCRPositionDownsample)*
 				(spec.ImageSize/spec.PatchSize/deepSeekOCRPositionDownsample) + 1,
 		)},
-		"mm.model.fc.weight": {uint64(deepSeekOCRProjectionInputs * spec.Hidden), uint64(spec.OutputHidden)},
-		"mm.model.fc.bias":   {uint64(spec.OutputHidden)},
+		multimodalProjectionWeight: {uint64(deepSeekOCRProjectionInputs * spec.Hidden), uint64(spec.OutputHidden)},
+		multimodalProjectionBias:   {uint64(spec.OutputHidden)},
 	}
 	if err := validateProjectorTensorShapes(file, requiredShapes); err != nil {
 		return err
 	}
-	for _, name := range []string{"v.image_newline", "v.view_seperator"} {
+	for _, name := range []string{visionImageNewlineTensor, "v.view_seperator"} {
 		info, _ := file.Tensor(name)
 		elements := uint64(1)
 		for dimension := range info.Dimensions {
@@ -424,7 +424,7 @@ func (r *DeepSeekOCRRunner) encodeTile(ctx context.Context, source image.Image) 
 		return reference.Value{}, errors.New("projector: DeepSeek-OCR tile shape is invalid")
 	}
 	builder := tensor.NewBuilder()
-	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(rgbChannelCount, uint64(size), uint64(size)))
+	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(rgbChannelCount, uint64(size), uint64(size)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[input] = pixelsValue(input, r.tilePixels(source))
 	output := r.buildGraph(builder, input, size, graph.weight, graph.hostFeeds)
@@ -523,7 +523,7 @@ func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Te
 	cur := r.buildSAMGraph(builder, input, size, weight, hostFeeds)
 	patches := cur.Shape.Dims[1] * cur.Shape.Dims[2]
 	sam := builder.Reshape(cur, cur.Shape.Dims[0], patches)
-	hidden := builder.Concat(builder.Reshape(weight("v.class_embd"), uint64(r.spec.Hidden), 1), sam, 1)
+	hidden := builder.Concat(builder.Reshape(weight(visionClassEmbeddingTensor), uint64(r.spec.Hidden), 1), sam, 1)
 	clipPosition := builder.Input("clip_position", dtype.F32, tensor.MustShape(uint64(r.spec.Hidden), patches+1))
 	hostFeeds[clipPosition] = interpolateSpatialPosition(r.clipPosition, r.spec.Hidden, int(cur.Shape.Dims[1]), int(cur.Shape.Dims[2]), true)
 	hidden = builder.Add(hidden, clipPosition)
@@ -558,8 +558,8 @@ func (r *DeepSeekOCRRunner) buildGraph(builder *tensor.Builder, input *tensor.Te
 	}
 	clip := builder.FlatSlice(hidden, uint64(r.spec.Hidden), uint64(r.spec.Hidden), patches)
 	joined := builder.Concat(clip, sam, 0)
-	projected := builder.MulMat(weight("mm.model.fc.weight"), joined)
-	return builder.Add(projected, builder.Reshape(weight("mm.model.fc.bias"), uint64(r.spec.OutputHidden), 1))
+	projected := builder.MulMat(weight(multimodalProjectionWeight), joined)
+	return builder.Add(projected, builder.Reshape(weight(multimodalProjectionBias), uint64(r.spec.OutputHidden), 1))
 }
 
 func deepSeekOCRSpatialLayerNorm(builder *tensor.Builder, input, weight, bias *tensor.Tensor, epsilon float32) *tensor.Tensor {
@@ -663,7 +663,7 @@ func (r *DeepSeekOCRRunner) assemble(values []reference.Value, gridW, gridH int)
 func (r *DeepSeekOCRRunner) validateGraph() error {
 	builder := tensor.NewBuilder()
 	size := r.spec.ImageSize
-	input := builder.Input("pixel_values", dtype.F32, tensor.MustShape(rgbChannelCount, uint64(size), uint64(size)))
+	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(rgbChannelCount, uint64(size), uint64(size)))
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	weight := func(name string) *tensor.Tensor {
 		info, _ := r.file.Tensor(name)

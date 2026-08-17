@@ -78,15 +78,15 @@ func loadRecurrentMixerLayer(
 			}
 		} else {
 			if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-				requiredTensorPointer("attn_q.weight", &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
-				requiredTensorPointer("attn_k.weight", &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
-				requiredTensorPointer("attn_v.weight", &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
+				requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
+				requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
+				requiredTensorPointer(attentionValueWeightTensor, &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
 			}); itemErr != nil {
 				return true, itemErr
 			}
 		}
 		if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-			requiredTensorPointer("attn_output.weight", &layer.AttentionOutput,
+			requiredTensorPointer(attentionOutputWeightTensor, &layer.AttentionOutput,
 				attentionOutputLength, uint64(spec.EmbeddingLength)),
 		}); itemErr != nil {
 			return true, itemErr
@@ -183,13 +183,13 @@ func loadRecurrentMixerLayer(
 			}
 		} else {
 			if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-				requiredTensorPointer("attn_q.weight", &layer.AttentionQ,
+				requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ,
 					uint64(spec.EmbeddingLength), queryLength*2),
-				requiredTensorPointer("attn_k.weight", &layer.AttentionK,
+				requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK,
 					uint64(spec.EmbeddingLength), keyLength),
-				requiredTensorPointer("attn_v.weight", &layer.AttentionV,
+				requiredTensorPointer(attentionValueWeightTensor, &layer.AttentionV,
 					uint64(spec.EmbeddingLength), valueLength),
-				requiredTensorPointer("attn_output.weight", &layer.AttentionOutput,
+				requiredTensorPointer(attentionOutputWeightTensor, &layer.AttentionOutput,
 					attentionOutputLength, uint64(spec.EmbeddingLength)),
 			}); itemErr != nil {
 				return true, itemErr

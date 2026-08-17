@@ -252,10 +252,59 @@ func perTokenAndRate(tokens uint64, durationMS float64) (float64, float64) {
 	return durationMS / float64(tokens), 1000 * float64(tokens) / durationMS
 }
 
+type slotRuntimeMetrics struct {
+	PromptTokens    uint64
+	ProcessedTokens uint64
+	CachedTokens    uint64
+	GeneratedTokens uint64
+	Timings         slotStatusTimings
+}
+
+func (stats *slotRuntimeStats) metrics(processing bool) slotRuntimeMetrics {
+	promptTokens := stats.promptTokens.Load()
+	cachedTokens := min(stats.cachedTokens.Load(), promptTokens)
+	processedTokens := promptTokens - cachedTokens
+	generatedTokens := stats.generatedTokens.Load()
+	promptNanos := max(stats.promptNanos.Load(), 0)
+	totalNanos := max(stats.totalNanos.Load(), 0)
+	if processing {
+		started := stats.startedNanos.Load()
+		if started > 0 {
+			totalNanos = max(time.Now().UnixNano()-started, 0)
+		}
+	}
+	predictedNanos := max(totalNanos-promptNanos, 0)
+	if generatedTokens > 0 && predictedNanos == 0 {
+		predictedNanos = 1
+	}
+	promptMS := float64(promptNanos) / float64(time.Millisecond)
+	predictedMS := float64(predictedNanos) / float64(time.Millisecond)
+	promptPerTokenMS, promptPerSecond := perTokenAndRate(processedTokens, promptMS)
+	predictedPerTokenMS, predictedPerSecond := perTokenAndRate(generatedTokens, predictedMS)
+	return slotRuntimeMetrics{
+		PromptTokens:    promptTokens,
+		ProcessedTokens: processedTokens,
+		CachedTokens:    cachedTokens,
+		GeneratedTokens: generatedTokens,
+		Timings: slotStatusTimings{
+			CacheN:              cachedTokens,
+			PromptN:             processedTokens,
+			PromptMS:            promptMS,
+			PromptPerTokenMS:    promptPerTokenMS,
+			PromptPerSecond:     promptPerSecond,
+			PredictedN:          generatedTokens,
+			PredictedMS:         predictedMS,
+			PredictedPerTokenMS: predictedPerTokenMS,
+			PredictedPerSecond:  predictedPerSecond,
+		},
+	}
+}
+
 func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
+	includeText := request.URL.Query().Get("include_text") == "1"
 	if request.URL.Query().Has("fail_on_no_slot") && len(h.slots) == 0 {
 		writeError(response, http.StatusServiceUnavailable, "server_busy", "no slot available")
 		return
@@ -269,35 +318,16 @@ func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request
 		processing := h.slotBusy[id].Load()
 		stats := &h.slotStats[id]
 		task := h.slotTasks[id].Load()
-		promptTokens := stats.promptTokens.Load()
-		cachedTokens := min(stats.cachedTokens.Load(), promptTokens)
-		processedTokens := promptTokens - cachedTokens
-		generatedTokens := stats.generatedTokens.Load()
-		promptNanos := max(stats.promptNanos.Load(), 0)
-		totalNanos := max(stats.totalNanos.Load(), 0)
-		if processing {
-			started := stats.startedNanos.Load()
-			if started > 0 {
-				totalNanos = max(time.Now().UnixNano()-started, 0)
-			}
-		}
-		predictedNanos := max(totalNanos-promptNanos, 0)
-		if generatedTokens > 0 && predictedNanos == 0 {
-			predictedNanos = 1
-		}
-		promptMS := float64(promptNanos) / float64(time.Millisecond)
-		predictedMS := float64(predictedNanos) / float64(time.Millisecond)
-		promptPerTokenMS, promptPerSecond := perTokenAndRate(processedTokens, promptMS)
-		predictedPerTokenMS, predictedPerSecond := perTokenAndRate(generatedTokens, predictedMS)
-		prompt, generated, params := stats.snapshot()
+		metrics := stats.metrics(processing)
+		prompt, generated, params := stats.snapshot(includeText)
 		result[id] = slotStatusItem{
 			ID:                     id,
 			NCtx:                   contextLength,
 			Speculative:            false,
 			IsProcessing:           processing,
-			NPromptTokens:          promptTokens,
-			NPromptTokensProcessed: processedTokens,
-			NPromptTokensCache:     cachedTokens,
+			NPromptTokens:          metrics.PromptTokens,
+			NPromptTokensProcessed: metrics.ProcessedTokens,
+			NPromptTokensCache:     metrics.CachedTokens,
 			Prompt:                 prompt,
 			Generated:              generated,
 		}
@@ -311,20 +341,10 @@ func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request
 				// sampled token buffered between calls
 				HasNextToken: false,
 				HasNewLine:   false,
-				NRemain:      max(params.MaxTokens-int(generatedTokens), 0),
-				NDecoded:     generatedTokens,
+				NRemain:      max(params.MaxTokens-int(metrics.GeneratedTokens), 0),
+				NDecoded:     metrics.GeneratedTokens,
 			}
-			result[id].Timings = &slotStatusTimings{
-				CacheN:              cachedTokens,
-				PromptN:             processedTokens,
-				PromptMS:            promptMS,
-				PromptPerTokenMS:    promptPerTokenMS,
-				PromptPerSecond:     promptPerSecond,
-				PredictedN:          generatedTokens,
-				PredictedMS:         predictedMS,
-				PredictedPerTokenMS: predictedPerTokenMS,
-				PredictedPerSecond:  predictedPerSecond,
-			}
+			result[id].Timings = &metrics.Timings
 		}
 	}
 	writeJSON(response, http.StatusOK, result)

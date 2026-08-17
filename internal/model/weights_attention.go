@@ -35,15 +35,15 @@ func loadStandardAttentionCatalog(
 			}
 		}
 		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-			requiredTensorPointer("attn_q.weight", &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
-			requiredTensorPointer("attn_k.weight", &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
-			requiredTensorPointer("attn_v.weight", &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
+			requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
+			requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
+			requiredTensorPointer(attentionValueWeightTensor, &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
 		}); err != nil {
 			return err
 		}
 	}
 	output, err := catalog.required(
-		prefix+"attn_output.weight", outputLength, uint64(spec.EmbeddingLength),
+		prefix+attentionOutputWeightTensor, outputLength, uint64(spec.EmbeddingLength),
 	)
 	if err != nil {
 		return err

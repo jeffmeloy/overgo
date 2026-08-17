@@ -8,6 +8,24 @@ import (
 	"overgo/internal/tensorcatalog"
 )
 
+const (
+	attentionNormWeightTensor     = "attn_norm.weight"
+	attentionQueryWeightTensor    = "attn_q.weight"
+	attentionKeyWeightTensor      = "attn_k.weight"
+	attentionValueWeightTensor    = "attn_v.weight"
+	attentionOutputWeightTensor   = "attn_output.weight"
+	attentionQueryNormTensor      = "attn_q_norm.weight"
+	attentionKeyNormTensor        = "attn_k_norm.weight"
+	feedForwardNormWeightTensor   = "ffn_norm.weight"
+	feedForwardGateWeightTensor   = "ffn_gate.weight"
+	feedForwardUpWeightTensor     = "ffn_up.weight"
+	feedForwardDownWeightTensor   = "ffn_down.weight"
+	postAttentionNormWeightTensor = "post_attention_norm.weight"
+	tokenEmbeddingWeightTensor    = "token_embd.weight"
+	outputNormWeightTensor        = "output_norm.weight"
+	outputWeightTensor            = "output.weight"
+)
+
 // tensorRequirement: ordered catalog binding
 type tensorRequirement struct {
 	name        string

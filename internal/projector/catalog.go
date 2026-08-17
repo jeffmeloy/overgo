@@ -22,6 +22,12 @@ const (
 	projectionFirstBiasTensor    = "mm.0.bias"
 	projectionSecondWeightTensor = "mm.2.weight"
 	projectionSecondBiasTensor   = "mm.2.bias"
+	multimodalProjectionWeight   = "mm.model.fc.weight"
+	multimodalProjectionBias     = "mm.model.fc.bias"
+	multimodalInputProjection    = "mm.input_projection.weight"
+	visionInputTensor            = "pixel_values"
+	visionClassEmbeddingTensor   = "v.class_embd"
+	visionImageNewlineTensor     = "v.image_newline"
 )
 
 type tensorPresence uint8

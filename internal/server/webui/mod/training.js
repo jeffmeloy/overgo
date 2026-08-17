@@ -20,17 +20,29 @@
         el("div", { class: "section-title", text: "Training runs (read-only)" }),
         el("div", { class: "row", style: "margin-bottom:10px" }, prev, next, status));
       const host = el("div");
-      panel.appendChild(host);
+      const detail = el("div");
+      panel.append(host, detail);
+
+      async function loadDetail(id) {
+        try {
+          const run = await overgo.api.get("/runs?id=" + encodeURIComponent(id));
+          const lineage = [...(run.parents || []), ...(run.children || [])];
+          detail.replaceChildren(
+            el("div", { class: "section-title", text: "Run detail" }),
+            el("div", { class: "statgrid" },
+              overgo.stat("Outcome", run.outcome),
+              overgo.stat("Inputs", (run.inputs || []).length),
+              overgo.stat("Outputs", (run.outputs || []).length)),
+            el("div", { class: "mono", text: run.id }),
+            ...lineage.map((edge) => el("div", { class: "note", text: edge.child + " / " + edge.relation + " / " + edge.parent })));
+        } catch (err) {
+          detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
+        }
+      }
 
       function outcomeClass(outcome) {
         return outcome === "succeeded" ? "user_defined" : (outcome === "failed" ? "control" : "");
       }
-      function shortID(id) {
-        const colon = id.indexOf(":");
-        const hash = colon >= 0 ? id.slice(id.lastIndexOf(":") + 1) : id;
-        return (colon >= 0 ? id.slice(0, colon) + ":" : "") + hash.slice(0, 10);
-      }
-
       async function load() {
         host.replaceChildren(el("div", { class: "note", text: "loading /runs…" }));
         let data;
@@ -58,7 +70,7 @@
             .map((p) => p.phase + " " + p.ms.toFixed(0) + "ms").join(", ");
           table.appendChild(el("tr", {},
             el("td", {}, el("span", { class: "tag " + outcomeClass(run.outcome), text: run.outcome })),
-            el("td", { class: "mono", title: run.recipe, text: shortID(run.recipe) }),
+            el("td", {}, el("button", { class: "link-button mono", title: run.recipe, text: fmt.shortID(run.recipe), onclick: () => loadDetail(run.id) })),
             el("td", { class: "mono", text: (run.code_commit || "").slice(0, 10) || "—" }),
             el("td", { class: "mono", text: run.measured_ms ? run.measured_ms.toFixed(0) + " ms" : "—" }),
             el("td", { class: "dim", text: phases || "—" }),

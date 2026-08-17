@@ -13,6 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/densecausal"
+	artifactexport "overgo/internal/export"
 	"overgo/internal/hfbpe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/safetensors"
@@ -80,10 +81,6 @@ func run() error {
 
 	if *host && *freezeLexical {
 		return fmt.Errorf("-host and -freeze-lexical are mutually exclusive")
-	}
-	if resumed.ID().Valid() && (resumed.Dataset != dataAuthority.Dataset || resumed.Split != dataAuthority.Split ||
-		!slicesEqualIDs(resumed.Processors, []artifact.ID{dataAuthority.Processor})) {
-		return errors.New("resume checkpoint dataset, split, or processor authority differs")
 	}
 	authority, err := compileTrainingAuthority(model, inputDir, dataAuthority, streamState, *baseLR, resumed)
 	if err != nil {
@@ -208,12 +205,7 @@ func saveCheckpoint(srcDir, outDir string, m *densecausal.Model, spec trainingpr
 		if err := safetensors.Save(filepath.Join(stage, trainingprogram.CheckpointWeights), m.Weights, m.Shapes, meta); err != nil {
 			return err
 		}
-		for _, name := range []string{"config.json", "tokenizer.json"} {
-			if err := copyFile(filepath.Join(srcDir, name), filepath.Join(stage, name)); err != nil {
-				return fmt.Errorf("copy %s: %w", name, err)
-			}
-		}
-		return nil
+		return artifactexport.CopyFiles(srcDir, stage, []string{"config.json", "tokenizer.json"})
 	})
 }
 
@@ -262,9 +254,6 @@ func compileTrainingAuthority(model *densecausal.Model, modelDir string, data ba
 	if err != nil {
 		return trainingAuthority{}, err
 	}
-	if resumed.ID().Valid() && resumed.Program != program.ID() {
-		return trainingAuthority{}, errors.New("resume checkpoint program differs from trained model")
-	}
 	profile := func(name string) artifact.ID {
 		id, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/densecausal/"+name+"/v1"))
 		return id
@@ -291,6 +280,11 @@ func compileTrainingAuthority(model *densecausal.Model, modelDir string, data ba
 	})
 	if err != nil {
 		return trainingAuthority{}, err
+	}
+	if resumed.ID().Valid() {
+		if err := trainingprogram.ValidateResume(runPlan, resumed, stream.Identity); err != nil {
+			return trainingAuthority{}, err
+		}
 	}
 	rngAlgorithm, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/counter-rng/v1"))
 	rng := append([]trainingprogram.RNGState(nil), resumed.RNG...)
@@ -339,24 +333,4 @@ func (authority trainingAuthority) checkpointSpec(state densecausal.TrainState) 
 		Processors: []artifact.ID{authority.data.Processor}, Projectors: authority.projectors,
 		Codecs: authority.codecs, Lineage: authority.lineage,
 	}, nil
-}
-
-func slicesEqualIDs(left, right []artifact.ID) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
-}
-
-func copyFile(src, dst string) error {
-	data, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(dst, data, 0o644)
 }

@@ -173,11 +173,7 @@ func (a Advisory) Lineage() []artifact.Lineage {
 }
 
 func (a Advisory) Batch(key string) (artifact.Batch, error) {
-	content, err := a.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, a.Lineage(), nil)
+	return advisoryCodec.Batch(key, a, a.Lineage(), nil)
 }
 
 func validateObservation(observation Observation, metricName string) (Metric, error) {

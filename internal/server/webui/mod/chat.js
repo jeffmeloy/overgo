@@ -1,6 +1,3 @@
-/* Inference · Chat: a streaming chat console over /v1/chat/completions. Thin
-   client — the full message history lives here and is replayed on each request;
-   the server holds no conversation state. */
 (function () {
   "use strict";
   window.overgo.registerTab({
@@ -9,28 +6,37 @@
     section: "inference",
     requires: "logits",
     async mount(panel, overgo) {
-      const { el, clear } = overgo;
+      const { el, clear, fmt } = overgo;
       clear(panel);
 
-      let modelID = "overgo";
-      overgo.api.get("/models").then((m) => {
-        if (m && m.models && m.models[0] && m.models[0].name) modelID = m.models[0].name;
-      }).catch(() => {});
-
-      const messages = []; // {role, content}
+      let model;
+      let properties;
+      try {
+        [model, properties] = await Promise.all([overgo.modelInfo(), overgo.api.get("/props")]);
+      } catch (err) {
+        panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
+        return;
+      }
+      const modelID = model.model.id;
+      const defaults = properties.default_generation_settings;
+      const params = defaults.params;
+      const contextLength = defaults.n_ctx;
+      const messages = [];
       let controller = null;
 
-      const system = el("textarea", { class: "text", placeholder: "system prompt (optional)…", style: "min-height:52px" });
+      const system = el("textarea", { class: "text", placeholder: "system prompt (optional)", style: "min-height:52px" });
       const log = el("div", { class: "chat-log" });
-      const input = el("textarea", { class: "text", placeholder: "message…  (Enter to send, Shift+Enter for newline)" });
-      const temperature = el("input", { class: "keyfield", type: "number", value: "0.7", step: "0.1", min: "0", max: "2", style: "width:80px" });
-      const maxTokens = el("input", { class: "keyfield", type: "number", value: "512", min: "1", max: "4096", style: "width:90px" });
+      const facts = el("div", { class: "statgrid" });
+      const input = el("textarea", { class: "text", placeholder: "message (Enter to send, Shift+Enter for newline)" });
+      const temperature = el("input", { class: "keyfield", type: "number", value: params.temperature, style: "width:80px" });
+      const maxTokens = el("input", { class: "keyfield", type: "number", value: params.max_tokens, max: contextLength, style: "width:90px" });
       const send = el("button", { class: "btn", onclick: submit }, "send");
       const stop = el("button", { class: "btn alt", onclick: abort, style: "display:none" }, "stop");
       const reset = el("button", { class: "btn alt", onclick: clearChat }, "clear");
 
       panel.append(
         el("details", { style: "margin-bottom:10px" }, el("summary", { class: "note" }, "system prompt"), system),
+        facts,
         log,
         input,
         el("div", { class: "chat-controls" },
@@ -44,14 +50,11 @@
 
       function messageNode(message, streaming) {
         const body = el("div", { class: "body" });
-        // Completed assistant turns render as markdown (safe DOM, no innerHTML);
-        // the in-flight turn and user text stay plain so streaming stays cheap
-        // and partial code fences don't flicker.
         if (message.role === "assistant" && !streaming && message.content) {
           body.appendChild(overgo.md(message.content));
         } else {
           body.appendChild(document.createTextNode(message.content));
-          if (streaming) body.appendChild(el("span", { class: "cursor", text: "▋" }));
+          if (streaming) body.appendChild(el("span", { class: "cursor", text: "|" }));
         }
         const head = el("div", { class: "role" }, message.role);
         if (message.role === "assistant" && !streaming && message.content) {
@@ -69,61 +72,79 @@
         log.scrollTop = log.scrollHeight;
       }
 
+      function renderFacts(inputTokens, usage, timings) {
+        const cards = [];
+        if (inputTokens != null) {
+          cards.push(overgo.stat("Input", fmt.grouped(inputTokens), "tokens"));
+          if (contextLength != null) {
+            cards.push(overgo.stat("Available", fmt.grouped(Number(contextLength) - Number(inputTokens)), "tokens"));
+            cards.push(overgo.stat("Context ratio", inputTokens + " / " + contextLength));
+          }
+        }
+        if (usage && usage.completion_tokens != null) {
+          cards.push(overgo.stat("Completion", fmt.grouped(usage.completion_tokens), "tokens"));
+        }
+        if (timings) {
+          cards.push(overgo.stat("Cached", fmt.grouped(timings.cache_n), "tokens"));
+          if (timings.prompt_n && timings.prompt_ms > 0) {
+            cards.push(overgo.stat("Prefill", Number(timings.prompt_per_second).toFixed(2), "tok/s"));
+          }
+          if (timings.predicted_n && timings.predicted_ms > 0) {
+            cards.push(overgo.stat("Decode", Number(timings.predicted_per_second).toFixed(2), "tok/s"));
+          }
+          const elapsed = Number(timings.prompt_ms) + Number(timings.predicted_ms);
+          if (elapsed > 0) cards.push(overgo.stat("Elapsed", elapsed.toFixed(2), "ms"));
+        }
+        facts.replaceChildren(...cards);
+      }
+
       function clearChat() {
         messages.length = 0;
         renderLog(false);
+        facts.replaceChildren();
       }
 
       function abort() {
         if (controller) controller.abort();
       }
 
-      function authHeaders(base) {
-        const headers = Object.assign({}, base);
-        const key = overgo.getKey();
-        if (key) headers["Authorization"] = "Bearer " + key;
-        return headers;
+      function requestMessages(text) {
+        const payload = [];
+        if (system.value.trim()) payload.push({ role: "system", content: system.value.trim() });
+        payload.push(...messages, { role: "user", content: text });
+        return payload;
       }
 
       async function submit() {
         const text = input.value.trim();
         if (!text || controller) return;
+        const payload = requestMessages(text);
         input.value = "";
         messages.push({ role: "user", content: text });
         const assistant = { role: "assistant", content: "" };
         messages.push(assistant);
         renderLog(true);
 
-        const payload = [];
-        if (system.value.trim()) payload.push({ role: "system", content: system.value.trim() });
-        for (const message of messages.slice(0, -1)) payload.push({ role: message.role, content: message.content });
-
         controller = new AbortController();
         send.disabled = true;
         stop.style.display = "";
         try {
-          const response = await fetch("/v1/chat/completions", {
-            method: "POST",
-            headers: authHeaders({ "Content-Type": "application/json" }),
-            body: JSON.stringify({
-              model: modelID,
-              messages: payload,
-              stream: true,
-              temperature: Number(temperature.value),
-              max_tokens: Number(maxTokens.value) || 512,
-            }),
-            signal: controller.signal,
-          });
-          if (!response.ok) {
-            const body = await response.text();
-            throw new Error(response.status === 401 ? "API key required — enter it in the top bar." : (body || ("HTTP " + response.status)));
-          }
-          await consume(response, assistant);
+          const count = await overgo.api.post("/v1/chat/completions/input_tokens", {
+            model: modelID,
+            messages: payload,
+          }, { signal: controller.signal });
+          renderFacts(count.input_tokens, null, null);
+          const request = { model: modelID, messages: payload, stream: true };
+          if (temperature.value !== "") request.temperature = Number(temperature.value);
+          if (maxTokens.value !== "") request.max_tokens = Number(maxTokens.value);
+          const terminal = await consume(await overgo.api.stream(
+            "/v1/chat/completions", request, { signal: controller.signal }), assistant);
+          renderFacts(count.input_tokens, terminal.usage, terminal.timings);
         } catch (err) {
           if (err.name === "AbortError") {
             assistant.content += (assistant.content ? "\n" : "") + "[stopped]";
           } else {
-            assistant.content = "⚠ " + String(err.message || err);
+            assistant.content = "Error: " + overgo.friendlyError(err);
           }
         } finally {
           controller = null;
@@ -133,14 +154,14 @@
         }
       }
 
-      // consume: parse the OpenAI-style SSE stream, appending each delta live.
       async function consume(response, assistant) {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        const terminal = {};
         let buffer = "";
         for (;;) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) return terminal;
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split("\n");
           buffer = lines.pop();
@@ -148,9 +169,11 @@
             const trimmed = line.trim();
             if (!trimmed.startsWith("data:")) continue;
             const data = trimmed.slice(5).trim();
-            if (data === "[DONE]") return;
+            if (data === "[DONE]") return terminal;
             let parsed;
             try { parsed = JSON.parse(data); } catch (_) { continue; }
+            if (parsed.usage) terminal.usage = parsed.usage;
+            if (parsed.timings) terminal.timings = parsed.timings;
             const delta = parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
             if (delta && delta.content) {
               assistant.content += delta.content;

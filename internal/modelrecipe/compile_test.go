@@ -338,7 +338,11 @@ func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	batch, err := Batch("fixture/recipe/publish", definition)
+	content, err := Content(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := artifact.NewDocumentBatch("fixture/recipe/publish", []artifact.Content{content}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

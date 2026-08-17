@@ -35,7 +35,24 @@
         style: "max-width:440px;margin:8px 0",
       });
       const host = el("div");
-      panel.append(search, host);
+      const preview = el("div");
+      panel.append(search, host, preview);
+
+      async function showPreview(name) {
+        try {
+          const result = await overgo.api.post("/datasets/preview", { name, position: 0, limit: 1 });
+          preview.replaceChildren(
+            el("div", { class: "section-title", text: name }),
+            ...result.examples.map((example) => el("div", { class: "dataset-example" },
+              el("div", { class: "mono", text: example.id }),
+              ...example.values.map((value) => el("div", {},
+                el("span", { class: "tag", text: value.role + " / " + value.modality }),
+                value.text ? el("pre", { class: "preview-text", text: value.text }) :
+                  el("span", { class: "note", text: value.encoding + " / " + value.bytes + " bytes" }))))));
+        } catch (err) {
+          preview.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
+        }
+      }
 
       function render() {
         const query = search.value.trim().toLowerCase();
@@ -47,7 +64,7 @@
           el("th", { text: "language" }), el("th", { text: "provenance" })));
         for (const d of rows) {
           table.appendChild(el("tr", {},
-            el("td", { class: "mono", text: d.name }),
+            el("td", {}, el("button", { class: "link-button mono", text: d.name, onclick: () => showPreview(d.name) })),
             el("td", {}, el("span", { class: "tag", text: d.family || "—" })),
             el("td", { text: d.modality || "—" }),
             el("td", { text: d.language || "—" }),

@@ -88,3 +88,49 @@ func TestBrowseRunsReadsRepoDBRecords(t *testing.T) {
 		t.Fatalf("runs=%+v", result)
 	}
 }
+
+func TestRunDetailReconstructsImmutableEvidence(t *testing.T) {
+	root := t.TempDir()
+	store, err := repodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "detail-recipe")
+	inputID := testutil.ArtifactID(t, artifact.KindDataset, "detail-input")
+	outputID := testutil.ArtifactID(t, artifact.KindOutput, "detail-output")
+	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "detail/facts", Artifacts: []artifact.Descriptor{
+		{ID: recipeID}, {ID: inputID}, {ID: outputID},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, []artifact.ID{inputID}, []artifact.ID{outputID}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := run.Batch("detail/run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(context.Background(), batch); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := New(Config{RepoDBPath: root}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := serveTestRequest(handler, http.MethodGet, "/runs?id="+run.ID.String(), "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	var detail browseRunDetail
+	if err := json.Unmarshal(response.Body.Bytes(), &detail); err != nil {
+		t.Fatal(err)
+	}
+	if detail.ID != run.ID || detail.Recipe != recipeID || len(detail.Inputs) != 1 || len(detail.Outputs) != 1 ||
+		len(detail.Parents) != 2 || len(detail.Children) != 1 {
+		t.Fatalf("detail = %+v", detail)
+	}
+}

@@ -116,11 +116,7 @@ func (value GenerationRecord) Lineage() []artifact.Lineage {
 }
 
 func (value GenerationRecord) Batch(key string) (artifact.Batch, error) {
-	content, err := value.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, value.Lineage(), nil)
+	return generationCodec.Batch(key, value, value.Lineage(), nil)
 }
 
 func canonicalizeGeneration(value *GenerationRecord) error {

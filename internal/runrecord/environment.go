@@ -49,11 +49,7 @@ func (e Environment) Content() (artifact.Content, error) {
 }
 
 func (e Environment) Batch(key string) (artifact.Batch, error) {
-	content, err := e.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, nil, nil)
+	return environmentCodec.Batch(key, e, nil, nil)
 }
 
 func canonicalizeEnvironment(environment *Environment) error {

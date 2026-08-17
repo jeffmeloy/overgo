@@ -11,7 +11,7 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 		ConvNext: make([]WavConvNextWeights, spec.ConvNextBlockCount),
 	}
 	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
-		requiredTensor("token_embd.weight", &result.TokenEmbedding, uint64(spec.EmbeddingLength), uint64(spec.VocabularySize)),
+		requiredTensor(tokenEmbeddingWeightTensor, &result.TokenEmbedding, uint64(spec.EmbeddingLength), uint64(spec.VocabularySize)),
 		requiredTensor("conv1d.weight", &wav.InputConv, 7, uint64(spec.EmbeddingLength), width),
 		requiredTensor("conv1d.bias", &wav.InputConvBias, 1, width),
 	}); err != nil {
@@ -35,20 +35,20 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 			}
 		case sequenceResidualAttention:
 			requirements = []tensorRequirement{
-				requiredTensor("attn_norm.weight", &layer.AttentionNorm, 1, width),
+				requiredTensor(attentionNormWeightTensor, &layer.AttentionNorm, 1, width),
 				requiredTensor("attn_norm.bias", &layer.AttentionNormBias, 1, width),
 				requiredTensor("attn_q.bias", &layer.AttentionQBias, 1, width),
 				requiredTensor("attn_k.bias", &layer.AttentionKBias, 1, width),
 				requiredTensor("attn_v.bias", &layer.AttentionVBias, 1, width),
 				requiredTensor("attn_output.bias", &layer.AttentionOutBias, 1, width),
-				requiredTensor("attn_q.weight", &layer.AttentionQ, 1, width, width),
-				requiredTensor("attn_k.weight", &layer.AttentionK, 1, width, width),
-				requiredTensor("attn_v.weight", &layer.AttentionV, 1, width, width),
-				requiredTensor("attn_output.weight", &layer.AttentionOutput, 1, width, width),
+				requiredTensor(attentionQueryWeightTensor, &layer.AttentionQ, 1, width, width),
+				requiredTensor(attentionKeyWeightTensor, &layer.AttentionK, 1, width, width),
+				requiredTensor(attentionValueWeightTensor, &layer.AttentionV, 1, width, width),
+				requiredTensor(attentionOutputWeightTensor, &layer.AttentionOutput, 1, width, width),
 			}
 		case sequenceResidualNormalization:
 			requirements = []tensorRequirement{
-				requiredTensor("attn_norm.weight", &layer.AttentionNorm, 1, width),
+				requiredTensor(attentionNormWeightTensor, &layer.AttentionNorm, 1, width),
 				requiredTensor("attn_norm.bias", &layer.AttentionNormBias, 1, width),
 			}
 		}
@@ -80,9 +80,9 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 		}
 	}
 	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
-		requiredTensor("output_norm.weight", &wav.OutputNorm, width),
+		requiredTensor(outputNormWeightTensor, &wav.OutputNorm, width),
 		requiredTensor("output_norm.bias", &wav.OutputNormBias, width),
-		requiredTensor("output.weight", &wav.Output, width, uint64(spec.OutputEmbeddingLength)),
+		requiredTensor(outputWeightTensor, &wav.Output, width, uint64(spec.OutputEmbeddingLength)),
 		requiredTensor("output.bias", &wav.OutputBias, uint64(spec.OutputEmbeddingLength)),
 	}); err != nil {
 		return Weights{}, err

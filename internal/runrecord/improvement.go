@@ -145,19 +145,11 @@ func (value ImprovementDecision) Lineage() []artifact.Lineage {
 }
 
 func (value ImprovementAdmission) Batch(key string) (artifact.Batch, error) {
-	content, err := value.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, value.Lineage(), nil)
+	return improvementAdmissionCodec.Batch(key, value, value.Lineage(), nil)
 }
 
 func (value ImprovementDecision) Batch(key string) (artifact.Batch, error) {
-	content, err := value.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, value.Lineage(), nil)
+	return improvementDecisionCodec.Batch(key, value, value.Lineage(), nil)
 }
 
 func canonicalizeImprovementAdmission(value *ImprovementAdmission) error {

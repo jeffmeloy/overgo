@@ -102,11 +102,7 @@ func (d Document) Lineage() []artifact.Lineage {
 }
 
 func (d Document) Batch(key string) (artifact.Batch, error) {
-	content, err := d.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, d.Lineage(), nil)
+	return codec.Batch(key, d, d.Lineage(), nil)
 }
 
 // NewTextBatch packages an agent-authored finding and its textual owner and

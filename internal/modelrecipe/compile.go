@@ -62,6 +62,7 @@ type Plan struct {
 	Decode    DecodePlan
 	Residency recipe.ResidencyPolicy
 	Nodes     []recipe.Node
+	Evidence  []artifact.ID
 }
 
 // Runtime: compiled execution surface.
@@ -71,14 +72,14 @@ const RuntimeInference Runtime = "inference"
 
 // ProgramIdentity: exact serving bindings.
 type ProgramIdentity struct {
-	Model         artifact.ID
-	Profile       artifact.ID
-	Definition    artifact.ID
-	Recipe        artifact.ID
-	RecipeVersion uint16
-	Placement     recipe.Placement
-	Residency     recipe.ResidencyPolicy
-	Runtime       Runtime
+	Model         artifact.ID            `json:"model"`
+	Profile       artifact.ID            `json:"profile"`
+	Definition    artifact.ID            `json:"definition"`
+	Recipe        artifact.ID            `json:"recipe"`
+	RecipeVersion uint16                 `json:"recipe_version"`
+	Placement     recipe.Placement       `json:"placement"`
+	Residency     recipe.ResidencyPolicy `json:"residency"`
+	Runtime       Runtime                `json:"runtime"`
 }
 
 // DecodeSessionPolicy: compiled decode-graph lifetime.
@@ -579,14 +580,6 @@ func (p Plan) ValidateServing() error {
 
 func Content(definition recipe.Definition) (artifact.Content, error) {
 	return definition.ArtifactContent()
-}
-
-func Batch(key string, definition recipe.Definition) (artifact.Batch, error) {
-	content, err := Content(definition)
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, nil, nil)
 }
 
 func mustCatalog() *recipe.Catalog {

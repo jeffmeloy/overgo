@@ -172,10 +172,6 @@ func (r *MiMoVLRunner) EncodeImage(ctx context.Context, source image.Image) (MiM
 	if err != nil {
 		return MiMoVLOutput{}, err
 	}
-	return r.encode(ctx, input)
-}
-
-func (r *MiMoVLRunner) encode(ctx context.Context, input MiMoVLInput) (MiMoVLOutput, error) {
 	return r.encodeGraph(ctx, input)
 }
 

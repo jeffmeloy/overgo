@@ -3,23 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "bounded-exploration-budget",
-      "title": "Issue GPU-hour budget tokens for autonomous proposal; enforce cancellation and containment; exceeding a budget requires an external decision",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Issue GPU-hour budget tokens for autonomous proposal; enforce cancellation and containment; exceeding a budget requires an external decision",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestExplorationBudgetTokensEnforced$' -count=1 -v",
-          "rationale": "Bounded autonomy is the only kind that can be left running unattended. Query counts, GPU-hours and later resource dimensions use one common immutable budget/token mechanism with typed units, owner, subject, issued amount, consumed amount, expiry and external override evidence.",
-          "depends_on": [
-            "evaluation-isolation"
-          ]
-        }
-      ]
-    },
-    {
       "id": "tier0-dose-response",
       "title": "Tier-0 dose-response: extend the shipped chain gain into a law -- vary draft length (4/8/16/32), window count (6 disjoint), and drafter direction (strong-to-weak vs weak-to-strong) under the recorded protocol; record the response curve and the direction asymmetry as generation records",
       "status": "open",

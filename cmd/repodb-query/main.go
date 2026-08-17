@@ -50,6 +50,7 @@ func run(args []string, output io.Writer) error {
 	experiments := flags.Bool("experiments", false, "reconcile experiment lifecycle chains to their current state, flagging expired leases and runners")
 	components := flags.Bool("components", false, "list committed component decompositions with per-role counts (classification ledger)")
 	proposals := flags.Bool("proposals", false, "list committed bridge proposals with their blocked state, blocker and required verifier")
+	admissions := flags.Bool("admissions", false, "list admission bindings: per-generation proposer/evaluator/decider authority domains and prior-generation approvals")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -76,6 +77,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *proposals {
 		return writeProposals(output, *repository, *limit)
+	}
+	if *admissions {
+		return writeAdmissions(output, *repository, *limit)
 	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
@@ -395,6 +399,49 @@ func writeProposals(output io.Writer, repository string, limit int) error {
 		count++
 	}
 	fmt.Fprintf(output, "%d proposal(s); honesty: every row is promotion-blocked by construction; this ledger advises and never authorizes\n", count)
+	return nil
+}
+
+// writeAdmissions lists admission bindings: which authority domains hold the
+// proposer, evaluator and decider roles per generation, and which prior
+// approval admitted each succession.
+func writeAdmissions(output io.Writer, repository string, limit int) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	if err != nil {
+		return err
+	}
+	count := 0
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != runrecord.AdmissionBindingMediaType ||
+			descriptor.Schema != runrecord.AdmissionBindingSchema {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		binding, err := runrecord.ParseAdmissionBinding(content.Data)
+		if err != nil {
+			return err
+		}
+		line := fmt.Sprintf("admission %s generation=%d proposer=%s evaluator=%s decider=%s",
+			binding.ID, binding.Generation, binding.Proposer.Name, binding.Evaluator.Name, binding.Decider.Name)
+		if binding.PriorApproval.Valid() {
+			line += " prior_approval=" + binding.PriorApproval.String()
+		}
+		fmt.Fprintln(output, line)
+		count++
+	}
+	fmt.Fprintf(output, "%d admission binding(s); honesty: domains must be pairwise distinct by construction; succession validity requires the cited approval decision\n", count)
 	return nil
 }
 

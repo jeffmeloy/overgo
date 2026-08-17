@@ -3,20 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "independent-rsi-admission",
-      "title": "Bind proposer, evaluator and decider to distinct authority domains rather than merely distinct artifact IDs; re-evaluate from a clean worker against sealed inputs; require generation N-1 authority to approve generation N evaluator or policy changes",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bind proposer, evaluator and decider to distinct authority domains rather than merely distinct artifact IDs; re-evaluate from a clean worker against sealed inputs; require generation N-1 authority to approve generation N evaluator or policy changes",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/recipe -run '^TestProposerEvaluatorDeciderAuthorityDomainsAndPriorGeneration$' -count=1 -v",
-          "rationale": "Distinct artifact IDs do not prevent a single process from authoring all three. Authority separation and the no-self-approval generation edge must be enforced in immutable runtime evidence, not by naming or doctrine."
-        }
-      ]
-    },
-    {
       "id": "sealed-external-authority",
       "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
       "status": "open",

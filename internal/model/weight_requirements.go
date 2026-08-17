@@ -85,14 +85,6 @@ func requiredTensorPointerShapes(
 	return tensorRequirement{name: name, shapes: shapes, pointer: destination}
 }
 
-func requiredTensorShapes(
-	name string,
-	destination *gguf.TensorInfo,
-	shapes ...[]uint64,
-) tensorRequirement {
-	return tensorRequirement{name: name, shapes: shapes, destination: destination}
-}
-
 func loadTensorRequirements(
 	catalog weightCatalog,
 	prefix string,

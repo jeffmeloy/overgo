@@ -106,20 +106,6 @@ type Model struct {
 	Heads map[string]*Head
 }
 
-// Load reads both sub-model heads under directory (classification/ and
-// regression/, each config.json + model.safetensors).
-func Load(directory string) (*Model, error) {
-	m := &Model{Heads: make(map[string]*Head, len(taskNames))}
-	for _, task := range taskNames {
-		head, err := LoadHead(filepath.Join(directory, task))
-		if err != nil {
-			return nil, fmt.Errorf("tabularicl %s head: %w", task, err)
-		}
-		m.Heads[task] = head
-	}
-	return m, nil
-}
-
 // LoadTask materializes only the requested task head.
 func LoadTask(directory, task string) (*Model, error) {
 	if !validTask(task) {

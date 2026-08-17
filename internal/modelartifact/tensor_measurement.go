@@ -18,9 +18,6 @@ const (
 	TensorMeasurementVersion   uint16 = 3
 	TensorMeasurementMediaType        = "application/vnd.overgo.tensor-measurement+json"
 	TensorMeasurementSchema           = "overgo/tensor-measurement/v3"
-
-	minimumMeasurementSamples = 256
-	maximumMeasurementSamples = 1 << 20
 )
 
 // Spectral status for a tensor's normalized effective rank. Empty means spectral

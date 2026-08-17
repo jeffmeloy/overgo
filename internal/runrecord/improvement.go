@@ -103,14 +103,6 @@ func DecideImprovement(
 	})
 }
 
-func ParseImprovementAdmission(data []byte) (ImprovementAdmission, error) {
-	return improvementAdmissionCodec.Parse(data)
-}
-
-func ParseImprovementDecision(data []byte) (ImprovementDecision, error) {
-	return improvementDecisionCodec.Parse(data)
-}
-
 func (value ImprovementAdmission) ValidateIdentity() error {
 	return improvementAdmissionCodec.ValidateIdentity(value)
 }

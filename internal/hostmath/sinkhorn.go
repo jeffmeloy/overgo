@@ -22,29 +22,6 @@ import (
 // row from producing NaN rather than a finite (if uninformative) result.
 const SinkhornEpsilon = 1e-8
 
-// SinkhornFromLogits projects exp(logits) onto the Birkhoff polytope with a
-// fixed number of alternating normalisations.
-//
-// logits holds count row-major n*n matrices back to back; the result is written
-// in place over a copy, so the caller's slice is untouched. iters is the number
-// of row+column sweeps.
-//
-// Numerical shape (this matters, and it is not incidental): the exponential is
-// taken after subtracting each matrix's own maximum. Sinkhorn normalisation is
-// invariant to a global positive rescale of the matrix, so the subtraction
-// leaves the result unchanged while keeping every exp argument <= 0. Without
-// it, exp of a raw score overflows once the generating weights grow, and since
-// d/dx exp(x) = exp(x) the gradient overflows with the value.
-func SinkhornFromLogits(logits []float32, count, n, iters int) ([]float32, error) {
-	if n <= 0 || count < 0 || len(logits) != count*n*n {
-		return nil, errSinkhornShape(count, n, len(logits))
-	}
-	out := make([]float32, len(logits))
-	copy(out, logits)
-	SinkhornFromLogitsInPlace(out, count, n, iters)
-	return out, nil
-}
-
 // sinkhorn2x2FromLogits writes the EXACT doubly-stochastic projection of a 2x2
 // positive matrix, in closed form, with no iteration.
 //
@@ -65,8 +42,7 @@ func sinkhorn2x2FromLogits(mat []float32) {
 	mat[0], mat[1], mat[2], mat[3] = float32(p), q, q, float32(p)
 }
 
-// SinkhornFromLogitsInPlace is SinkhornFromLogits over the caller's storage;
-// it assumes the shape has already been validated.
+// SinkhornFromLogitsInPlace projects logits in caller-owned storage.
 func SinkhornFromLogitsInPlace(m []float32, count, n, iters int) {
 	stride := n * n
 	rowSum := make([]float64, n)

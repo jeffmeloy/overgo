@@ -269,17 +269,6 @@ func (value ReviewVerdict) ValidateIdentity() error {
 	return reviewVerdictCodec.ValidateIdentity(value)
 }
 
-func ParseReviewActor(data []byte) (ReviewActor, error)       { return reviewActorCodec.Parse(data) }
-func ParseReviewWorktree(data []byte) (ReviewWorktree, error) { return reviewWorktreeCodec.Parse(data) }
-func ParseReviewEvaluator(data []byte) (ReviewEvaluator, error) {
-	return reviewEvaluatorCodec.Parse(data)
-}
-func ParseReviewCandidate(data []byte) (ReviewCandidate, error) {
-	return reviewCandidateCodec.Parse(data)
-}
-func ParseReviewFinding(data []byte) (ReviewFinding, error) { return reviewFindingCodec.Parse(data) }
-func ParseReviewVerdict(data []byte) (ReviewVerdict, error) { return reviewVerdictCodec.Parse(data) }
-
 func (value ReviewEvaluator) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, value.Definition)
 }

@@ -177,10 +177,6 @@ func (p ValidationPolicy) hybridOneOf(policies ...HybridValidationPolicy) bool {
 	return policyOneOf(p.Hybrid, policies...)
 }
 
-func (p ValidationPolicy) recurrentOneOf(policies ...RecurrentValidationPolicy) bool {
-	return policyOneOf(p.Recurrent, policies...)
-}
-
 func (p ValidationPolicy) encoderOneOf(policies ...EncoderValidationPolicy) bool {
 	return policyOneOf(p.Encoder, policies...)
 }

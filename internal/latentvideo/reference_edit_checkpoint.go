@@ -169,12 +169,3 @@ func (p ReferenceEditCheckpoint) loadTextProjection() (projectionWeights, int64,
 	weights.Linear2W, weights.Linear2B = values[2], values[3]
 	return weights, bytes, nil
 }
-
-// ReferenceEditTextConditioning: shared encoder, checkpoint-owned projection.
-func ReferenceEditTextConditioning(spec TextConditioningSpec, prompt string, checkpoint ReferenceEditCheckpoint) (TextConditioningResult, error) {
-	weights, bytes, err := checkpoint.loadTextProjection()
-	if err != nil {
-		return TextConditioningResult{}, err
-	}
-	return textConditioningWithWeights(spec, prompt, weights, bytes)
-}

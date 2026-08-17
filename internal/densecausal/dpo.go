@@ -10,57 +10,65 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
-func (m *Model) TrainDPOExamples(
-	reference *Model,
-	examples []trainingdata.Example,
-	decode trainingdata.TokenDecoder,
-	baseLR, momentum, scale float64,
-) ([]float64, error) {
-	pairs, err := trainingdata.CompilePreferenceBatch(examples, decode)
-	if err != nil {
-		return nil, err
-	}
-	losses, _, err := m.TrainDPOPairsResume(reference, pairs, baseLR, momentum, scale, nil)
-	return losses, err
+type DPOState struct {
+	Optimizer TrainState
+	Stream    trainingdata.StreamState
 }
 
-func (m *Model) TrainDPOPairsResume(
+func (m *Model) TrainDPOBatchesResume(
 	reference *Model,
-	pairs []trainingdata.PreferencePair,
+	batches []trainingdata.PreferenceBatch,
 	baseLR, momentum, scale float64,
-	resume *TrainState,
-) ([]float64, TrainState, error) {
-	if reference == nil || len(pairs) == 0 {
-		return nil, TrainState{}, errors.New("densecausal: DPO reference or pairs absent")
+	resume *DPOState,
+) ([]float64, DPOState, error) {
+	if reference == nil || len(batches) == 0 {
+		return nil, DPOState{}, errors.New("densecausal: DPO reference or batches absent")
+	}
+	if resume != nil && !resume.Stream.Identity.Valid() {
+		return nil, DPOState{}, errors.New("densecausal: DPO resume stream authority absent")
 	}
 	names, weights, gradients, plan, resolvedLR, err := m.trainSetup(baseLR)
 	if err != nil {
-		return nil, TrainState{}, err
+		return nil, DPOState{}, err
 	}
 	update, err := optimizer.New(weights, gradients, plan, optimizer.Config{
 		BaseLearningRate: resolvedLR, Momentum: momentum, Schedule: optimizer.ScheduleConstant,
 	})
 	if err != nil {
-		return nil, TrainState{}, err
+		return nil, DPOState{}, err
 	}
 	if resume != nil {
-		if err := update.Restore(*resume); err != nil {
-			return nil, TrainState{}, err
+		if err := update.Restore(resume.Optimizer); err != nil {
+			return nil, DPOState{}, err
 		}
 	}
-	losses := make([]float64, len(pairs))
-	for index, pair := range pairs {
-		scatter(m, names, weights)
-		loss, grads, err := m.dpoLossAndGrads(reference, pair, scale)
-		if err != nil {
-			return nil, TrainState{}, err
+	stream := trainingdata.StreamState{}
+	if resume != nil {
+		stream = resume.Stream
+	}
+	losses := make([]float64, 0)
+	for _, batch := range batches {
+		if len(batch.Pairs) == 0 || !batch.State.Identity.Valid() ||
+			stream.Identity.Valid() && (batch.State.Identity != stream.Identity || batch.State.Position <= stream.Position) {
+			return nil, DPOState{}, errors.New("densecausal: DPO stream authority differs")
 		}
-		losses[index] = loss
-		m.gatherGrads(names, gradients, grads)
-		update.Step()
+		for _, pair := range batch.Pairs {
+			if pair.SharedPrefix <= 0 {
+				return nil, DPOState{}, errors.New("densecausal: DPO pair lacks exact prefix")
+			}
+			scatter(m, names, weights)
+			loss, grads, err := m.dpoLossAndGrads(reference, pair, scale)
+			if err != nil {
+				return nil, DPOState{}, err
+			}
+			losses = append(losses, loss)
+			m.gatherGrads(names, gradients, grads)
+			update.Step()
+		}
+		stream = batch.State
 	}
 	scatter(m, names, weights)
-	return losses, update.Snapshot(), nil
+	return losses, DPOState{Optimizer: update.Snapshot(), Stream: stream}, nil
 }
 
 func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePair, scale float64) (float64, Grads, error) {

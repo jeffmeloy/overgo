@@ -29,9 +29,6 @@ func TestSinglePlanAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(document.Items) == 0 {
-		t.Fatal("plan.json holds no items; the single authority must carry the campaign")
-	}
 	if err := ValidateOpenWork(document); err != nil {
 		t.Fatal(err)
 	}

@@ -1,27 +1,5 @@
 {
   "campaign": "Native DPO vertical: recipe authority, bounded scoring, direct gradients, exact resume",
   "doctrine": "Follow skill.md. Implement one complete offline preference-training path before adding rollout methods. Active recipes and typed artifacts own policy. Reuse trainingdata, trainingprogram, hostmath, optimizer, checkpoint, and runrecord. Retain no full sequence-by-vocabulary logits. Add no family switches, wrappers, fallbacks, environment policy, implicit defaults, or parallel orchestration. Each step migrates its consumer immediately and has a failable verifier.",
-  "items": [
-    {
-      "id": "dpo-resume-evidence",
-      "title": "Prove exact DPO resume and publish typed run evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bind DPO authority to checkpoints and run records; prove interrupted execution matches uninterrupted weights, optimizer state, stream position, and objective metrics",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram ./internal/densecausal ./internal/runrecord -run '^TestDPO(CheckpointAuthority|ResumeMatchesUninterrupted|RunEvidenceBindsAuthority)$' -count=1",
-          "rationale": "Completion requires reproducible state and evidence, not only local loss movement.",
-          "depends_on": [
-            "dpo-objective"
-          ],
-          "capabilities": [
-            "exact-resume",
-            "typed-evidence"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

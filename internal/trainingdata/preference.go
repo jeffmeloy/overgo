@@ -20,33 +20,38 @@ type PreferencePair struct {
 	Rejected     PreferenceSequence
 }
 
-func CompilePreferenceBatch(examples []Example, decode TokenDecoder) ([]PreferencePair, error) {
-	if len(examples) == 0 || decode == nil {
-		return nil, errors.New("training data: preference examples or decoder absent")
+type PreferenceBatch struct {
+	Pairs []PreferencePair
+	State StreamState
+}
+
+func CompilePreferenceBatch(batch Batch, decode TokenDecoder) (PreferenceBatch, error) {
+	if len(batch.Examples) == 0 || !batch.State.Identity.Valid() || decode == nil {
+		return PreferenceBatch{}, errors.New("training data: preference examples or decoder absent")
 	}
-	result := make([]PreferencePair, len(examples))
-	for index, example := range examples {
+	result := PreferenceBatch{Pairs: make([]PreferencePair, len(batch.Examples)), State: batch.State}
+	for index, example := range batch.Examples {
 		chosen, rejected, err := preferenceValues(example)
 		if err != nil {
-			return nil, err
+			return PreferenceBatch{}, err
 		}
 		chosenTokens, err := decode(chosen)
 		if err != nil {
-			return nil, err
+			return PreferenceBatch{}, err
 		}
 		rejectedTokens, err := decode(rejected)
 		if err != nil {
-			return nil, err
+			return PreferenceBatch{}, err
 		}
 		if !validPreferenceSequence(chosenTokens, chosen.Completion) ||
 			!validPreferenceSequence(rejectedTokens, rejected.Completion) {
-			return nil, errors.New("training data: invalid preference sequence")
+			return PreferenceBatch{}, errors.New("training data: invalid preference sequence")
 		}
 		prefix := commonTokenPrefix(chosenTokens, rejectedTokens)
 		if prefix == 0 {
-			return nil, errors.New("training data: preference pair has no exact prefix")
+			return PreferenceBatch{}, errors.New("training data: preference pair has no exact prefix")
 		}
-		result[index] = PreferencePair{
+		result.Pairs[index] = PreferencePair{
 			ID: example.ID, Group: example.Group, SharedPrefix: prefix,
 			Chosen:   PreferenceSequence{Tokens: slices.Clone(chosenTokens), Completion: slices.Clone(chosen.Completion)},
 			Rejected: PreferenceSequence{Tokens: slices.Clone(rejectedTokens), Completion: slices.Clone(rejected.Completion)},

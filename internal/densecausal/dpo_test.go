@@ -5,7 +5,9 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
 )
 
@@ -47,7 +49,7 @@ func TestDPOSelectedScoresMatchMaterialized(t *testing.T) {
 func TestDPOStepImprovesPreferenceMargin(t *testing.T) {
 	policy, reference, pair := dpoFixture(t)
 	before := dpoMargin(t, policy, pair)
-	if _, _, err := policy.TrainDPOPairsResume(reference, []trainingdata.PreferencePair{pair}, 0, 0.9, 0.1, nil); err != nil {
+	if _, _, err := policy.TrainDPOBatchesResume(reference, dpoBatches(t, pair, 1), 0, 0.9, 0.1, nil); err != nil {
 		t.Fatal(err)
 	}
 	after := dpoMargin(t, policy, pair)
@@ -75,7 +77,7 @@ func TestDPOReferenceRemainsFrozen(t *testing.T) {
 	for name, values := range reference.Weights {
 		want[name] = slices.Clone(values)
 	}
-	if _, _, err := policy.TrainDPOPairsResume(reference, []trainingdata.PreferencePair{pair}, 0, 0.9, 0.1, nil); err != nil {
+	if _, _, err := policy.TrainDPOBatchesResume(reference, dpoBatches(t, pair, 1), 0, 0.9, 0.1, nil); err != nil {
 		t.Fatal(err)
 	}
 	for name, values := range want {
@@ -83,4 +85,45 @@ func TestDPOReferenceRemainsFrozen(t *testing.T) {
 			t.Fatalf("reference tensor %q changed", name)
 		}
 	}
+}
+
+func TestDPOResumeMatchesUninterrupted(t *testing.T) {
+	uninterrupted, reference, pair := dpoFixture(t)
+	resumed, _, _ := dpoFixture(t)
+	batches := dpoBatches(t, pair, 2)
+	_, wantState, err := uninterrupted.TrainDPOBatchesResume(reference, batches, 0, 0.9, 0.1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, firstState, err := resumed.TrainDPOBatchesResume(reference, batches[:1], 0, 0.9, 0.1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, gotState, err := resumed.TrainDPOBatchesResume(reference, batches[1:], 0, 0.9, 0.1, &firstState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotState.Stream != wantState.Stream || gotState.Optimizer.Step != wantState.Optimizer.Step ||
+		gotState.Optimizer.PlanIdentity != wantState.Optimizer.PlanIdentity ||
+		!slices.Equal(gotState.Optimizer.Momentum, wantState.Optimizer.Momentum) {
+		t.Fatalf("resumed state differs: got=%+v want=%+v", gotState, wantState)
+	}
+	for name, want := range uninterrupted.Weights {
+		if !slices.Equal(resumed.Weights[name], want) {
+			t.Fatalf("resumed tensor %q differs", name)
+		}
+	}
+}
+
+func dpoBatches(t *testing.T, pair trainingdata.PreferencePair, count int) []trainingdata.PreferenceBatch {
+	t.Helper()
+	identity := testutil.ArtifactID(t, artifact.KindProfile, "dpo-stream")
+	batches := make([]trainingdata.PreferenceBatch, count)
+	for index := range batches {
+		batches[index] = trainingdata.PreferenceBatch{
+			Pairs: []trainingdata.PreferencePair{pair},
+			State: trainingdata.StreamState{Identity: identity, Position: uint64(index + 1)},
+		}
+	}
+	return batches
 }

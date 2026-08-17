@@ -9,7 +9,9 @@ import (
 	"io"
 	"os"
 	"slices"
+	"sort"
 	"strings"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
@@ -43,6 +45,7 @@ func run(args []string, output io.Writer) error {
 	generations := flags.Bool("generations", false, "list generation records with descendant depth derived from the committed graph")
 	refusals := flags.Bool("refusals", false, "list refused decisions with their measured evidence (the refusal ledger)")
 	budgets := flags.Bool("budgets", false, "list split partitions and query-budget grants with balances derived from committed charges")
+	experiments := flags.Bool("experiments", false, "reconcile experiment lifecycle chains to their current state, flagging expired leases and runners")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -60,6 +63,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *budgets {
 		return writeBudgets(output, *repository, *limit)
+	}
+	if *experiments {
+		return writeExperiments(output, *repository, *limit)
 	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
@@ -231,6 +237,64 @@ func writeRefusals(output io.Writer, repository string, limit int) error {
 		count++
 	}
 	fmt.Fprintf(output, "%d refusal(s); honesty: rows derive from committed decision documents only; refusals without measurement evidence cannot be committed\n", count)
+	return nil
+}
+
+// writeExperiments reconciles each experiment's immutable lifecycle chain to
+// its current state. Expired leases and runners are reported recoverable with
+// their next retry identity -- derived truth, never a mutable status file.
+func writeExperiments(output io.Writer, repository string, limit int) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	if err != nil {
+		return err
+	}
+	chains := map[artifact.ID][]runrecord.ExperimentLifecycle{}
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != runrecord.ExperimentLifecycleMediaType ||
+			descriptor.Schema != runrecord.ExperimentLifecycleSchema {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		record, err := runrecord.ParseExperimentLifecycle(content.Data)
+		if err != nil {
+			return err
+		}
+		chains[record.Experiment] = append(chains[record.Experiment], record)
+	}
+	ids := make([]string, 0, len(chains))
+	byText := map[string]artifact.ID{}
+	for id := range chains {
+		text := id.String()
+		ids = append(ids, text)
+		byText[text] = id
+	}
+	sort.Strings(ids)
+	now := time.Now()
+	for _, text := range ids {
+		status, err := runrecord.ReconcileExperiment(chains[byText[text]], now)
+		if err != nil {
+			return err
+		}
+		line := fmt.Sprintf("experiment %s state=%s retry=%d records=%d",
+			text, status.Tip.State, status.Tip.Retry, len(chains[byText[text]]))
+		if status.Expired {
+			line += fmt.Sprintf(" EXPIRED heartbeat=%s next_retry=%d", status.Tip.HeartbeatExpiry, status.NextRetry)
+		}
+		fmt.Fprintln(output, line)
+	}
+	fmt.Fprintf(output, "%d experiment(s); honesty: state derives from committed lifecycle chains only; a diverged or illegal chain errors rather than guesses\n", len(ids))
 	return nil
 }
 

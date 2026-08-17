@@ -3,52 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "experiment-generation-record",
-      "title": "Typed experiment/generation aggregate referencing the immutable identities for parents, components, bridge, training plan, data split, evaluator, code/kernel/environment, seeds, budget, run, outcome and decision",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Typed experiment/generation aggregate referencing the immutable identities for parents, components, bridge, training plan, data split, evaluator, code/kernel/environment, seeds, budget, run, outcome and decision",
-          "status": "open",
-          "verify": "go test ./internal/runrecord -run '^TestGenerationRecordBindsFullProvenance$' -count=1 -v",
-          "rationale": "Descendant depth is computed from this graph. The aggregate stores references rather than copies: RepoDB remains generic storage while runrecord owns generation semantics and existing recipe, dataset, evaluator, environment and decision artifacts retain their facts."
-        }
-      ]
-    },
-    {
-      "id": "refusal-ledger",
-      "title": "Record every refused candidate as an immutable measured refusal decision; expose the refusal ledger as a RepoDB query rather than a second mutable document",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Record every refused candidate as an immutable measured refusal decision; expose the refusal ledger as a RepoDB query rather than a second mutable document",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/recipe -run '^TestRefusalDecisionCarriesMeasuredReason$' -count=1 -v",
-          "rationale": "Audit trail, negative training signal for proposal-ranking-from-outcomes, and the mechanism preventing the system re-proposing the same dead end indefinitely. Reuse the existing decision lifecycle and keep RepoDB domain-neutral."
-        }
-      ]
-    },
-    {
-      "id": "experiment-lifecycle",
-      "title": "Implement the idempotent runtime experiment state machine: proposed, admitted, leased, running, evaluated, refused/promoted, contained, rolled-back; bind retry identity, heartbeat expiry, checkpoint recovery and reconciliation to immutable generation evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Implement the idempotent runtime experiment state machine: proposed, admitted, leased, running, evaluated, refused/promoted, contained, rolled-back; bind retry identity, heartbeat expiry, checkpoint recovery and reconciliation to immutable generation evidence",
-          "status": "open",
-          "verify": "go test ./internal/runrecord -run '^TestExperimentLifecycleIsIdempotentAndRecoverable$' -count=1 -v",
-          "rationale": "A generation record describes an experiment but does not operate it. This lifecycle is the runtime analogue of the prepared/finalized gate transaction: interruption cannot create two outcomes, silently lose a run, or promote without terminal evidence. Resource leases plug into the leased/running transitions when Phase E supplies them.",
-          "depends_on": [
-            "experiment-generation-record",
-            "refusal-ledger"
-          ]
-        }
-      ]
-    },
-    {
       "id": "component-decomposition",
       "title": "Derive typed components from tensor name, shape, dtype, family and modality across the eight organ axes; persist as artifacts with lineage to the source model; classification only, no retrieval index",
       "status": "open",

@@ -3,27 +3,6 @@
   "doctrine": "Follow skill.md. Implement one complete offline preference-training path before adding rollout methods. Active recipes and typed artifacts own policy. Reuse trainingdata, trainingprogram, hostmath, optimizer, checkpoint, and runrecord. Retain no full sequence-by-vocabulary logits. Add no family switches, wrappers, fallbacks, environment policy, implicit defaults, or parallel orchestration. Each step migrates its consumer immediately and has a failable verifier.",
   "items": [
     {
-      "id": "selected-logprob",
-      "title": "Compute selected token log probabilities and VJPs without retained logits",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add destination-based tiled projection log-sum-exp and backward primitives with extents derived from validated bindings",
-          "status": "open",
-          "verify": "go test ./internal/hostmath -run '^TestSelectedLogProb(IntoMatchesMaterialized|BackwardFiniteDifference|RejectsInvalidContract)$' -count=1",
-          "rationale": "Preference training needs only selected token likelihoods. Recompute bounded projection tiles during VJP instead of retaining logits.",
-          "depends_on": [
-            "preference-authority"
-          ],
-          "capabilities": [
-            "bounded-memory",
-            "direct-gradient"
-          ]
-        }
-      ]
-    },
-    {
       "id": "dpo-objective",
       "title": "Compile and evaluate the DPO objective",
       "status": "open",

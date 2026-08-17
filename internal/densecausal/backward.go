@@ -20,6 +20,15 @@ type Grads map[string][]float32
 // mean CE (positions 0..n-2 predict tokens 1..n-1), the full logits, and
 // every parameter gradient.
 func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
+	return m.lossAndGrads(tokens, true)
+}
+
+func (m *Model) trainingLossAndGrads(tokens []int) (float64, Grads, error) {
+	loss, _, gradients, err := m.lossAndGrads(tokens, false)
+	return loss, gradients, err
+}
+
+func (m *Model) lossAndGrads(tokens []int, retainLogits bool) (float64, []float32, Grads, error) {
 	if len(tokens) < 2 {
 		return 0, nil, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
@@ -28,7 +37,7 @@ func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
 		return 0, nil, nil, err
 	}
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
-	return m.lossAndGradsFromStates(tokens, states, func(
+	return m.lossAndGradsFromStates(tokens, states, retainLogits, func(
 		index int, input, outputGradient []float32, sequence int, gradients Grads,
 	) ([]float32, error) {
 		return m.layerBackward(index, input, outputGradient, invFreq, sequence, gradients)
@@ -45,6 +54,7 @@ type layerGradient func(
 func (m *Model) lossAndGradsFromStates(
 	tokens []int,
 	states [][]float32,
+	retainLogits bool,
 	backward layerGradient,
 ) (float64, []float32, Grads, error) {
 	d := m.Dims
@@ -53,17 +63,40 @@ func (m *Model) lossAndGradsFromStates(
 	normed := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormInto(normed, final, m.Weights["model.norm.weight"], seq, d.Hidden, d.RMSEps)
 	head := m.head()
-	logits := make([]float32, seq*d.Vocab)
-	hostmath.Linear(logits, normed, head, seq, d.Hidden, d.Vocab)
-
 	g := Grads{}
-	// Last position predicts nothing: its logits row carries zero gradient.
-	dLogits := make([]float32, seq*d.Vocab)
-	loss := hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
-
 	gradHead := hostmath.GradientSlot(g, m.headName(), len(head))
 	dNormed := make([]float32, seq*d.Hidden)
-	hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
+	var loss float64
+	var logits []float32
+	if retainLogits {
+		logits = make([]float32, seq*d.Vocab)
+		hostmath.Linear(logits, normed, head, seq, d.Hidden, d.Vocab)
+		dLogits := make([]float32, seq*d.Vocab)
+		loss = hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
+		hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
+	} else {
+		rows := seq - 1
+		selected := make([]bool, rows)
+		for index := range selected {
+			selected[index] = true
+		}
+		scores := make([]float64, rows)
+		workspace := make([]float32, d.Vocab)
+		if err := hostmath.SelectedLogProbInto(scores, normed[:rows*d.Hidden], head, nil, tokens[1:], selected, rows, d.Hidden, d.Vocab, workspace); err != nil {
+			return 0, nil, nil, err
+		}
+		coefficients := make([]float64, rows)
+		for index, score := range scores {
+			loss -= score / float64(rows)
+			coefficients[index] = -1 / float64(rows)
+		}
+		if err := hostmath.SelectedLogProbBackward(
+			dNormed[:rows*d.Hidden], gradHead, nil, normed[:rows*d.Hidden], head, nil,
+			tokens[1:], selected, coefficients, rows, d.Hidden, d.Vocab, workspace, false,
+		); err != nil {
+			return 0, nil, nil, err
+		}
+	}
 	dx := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, "model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
 

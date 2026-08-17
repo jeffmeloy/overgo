@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/inference"
 	"overgo/internal/projector"
+	"overgo/internal/strictjson"
 	"overgo/internal/tokenizer"
 )
 
@@ -82,11 +83,11 @@ func (h *Handler) infill(
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
-	if len(body.InputPrefix) == 0 || string(body.InputPrefix) == "null" {
+	if !strictjson.HasValue(body.InputPrefix) {
 		writeInvalidRequestMessage(response, "input_prefix is required")
 		return
 	}
-	if len(body.InputSuffix) == 0 || string(body.InputSuffix) == "null" {
+	if !strictjson.HasValue(body.InputSuffix) {
 		writeInvalidRequestMessage(response, "input_suffix is required")
 		return
 	}
@@ -101,7 +102,7 @@ func (h *Handler) infill(
 		return
 	}
 	var prompt []tokenizer.TokenID
-	if len(body.Prompt) != 0 && string(body.Prompt) != "null" {
+	if strictjson.HasValue(body.Prompt) {
 		var promptText string
 		if err := json.Unmarshal(body.Prompt, &promptText); err != nil {
 			writeInvalidRequestMessage(response, "prompt must be a string")
@@ -116,7 +117,7 @@ func (h *Handler) infill(
 	var extraRequests []infillExtraRequest
 	if len(body.InputExtra) != 0 {
 		if err := json.Unmarshal(body.InputExtra, &extraRequests); err != nil ||
-			string(body.InputExtra) == "null" {
+			!strictjson.HasValue(body.InputExtra) {
 			writeInvalidRequestMessage(response, "input_extra must be an array")
 			return
 		}

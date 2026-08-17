@@ -111,7 +111,7 @@ func decodeOptional(values map[string]json.RawMessage, key string, destination a
 		return nil
 	}
 	encoded, ok := values[key]
-	if !ok || string(encoded) == "null" {
+	if !ok || !strictjson.HasValue(encoded) {
 		return nil
 	}
 	if err := strictjson.DecodeBytes(encoded, destination); err != nil {

@@ -22,6 +22,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/projector"
 	"overgo/internal/sampling"
+	"overgo/internal/strictjson"
 	"overgo/internal/tokenizer"
 )
 
@@ -667,10 +668,6 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 	}
 }
 
-func rawJSONConfigured(raw json.RawMessage) bool {
-	return len(raw) != 0 && string(raw) != "null"
-}
-
 func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error) {
 	temperature := h.config.DefaultTemperature
 	if body.Temperature != nil {
@@ -841,7 +838,7 @@ func samplerForChoice(base *sampling.Sampler, index int) (*sampling.Sampler, err
 }
 
 func (h *Handler) parseLogitBias(raw json.RawMessage) ([]sampling.LogitBias, error) {
-	if len(raw) == 0 || string(raw) == "null" {
+	if !strictjson.HasValue(raw) {
 		return nil, nil
 	}
 	vocabulary, _ := h.generator.(SamplingVocabulary)

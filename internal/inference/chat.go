@@ -1,13 +1,13 @@
 package inference
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"sort"
 	"strings"
+
+	"overgo/internal/strictjson"
 )
 
 const (
@@ -105,12 +105,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 		ToolResultError  bool            `json:"is_error"`
 		ToolCalls        json.RawMessage `json:"tool_calls"`
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
-		return err
-	}
-	if err := requireChatJSONEOF(decoder); err != nil {
+	if err := strictjson.DecodeBytes(data, &wire); err != nil {
 		return err
 	}
 	if len(wire.Content) == 0 && len(wire.ToolCalls) == 0 {
@@ -118,7 +113,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 	}
 	var content string
 	var media []ChatMediaPart
-	if len(wire.Content) != 0 && string(wire.Content) != "null" {
+	if strictjson.HasValue(wire.Content) {
 		if err := json.Unmarshal(wire.Content, &content); err != nil {
 			var rawParts []json.RawMessage
 			if err := json.Unmarshal(wire.Content, &rawParts); err != nil {
@@ -219,7 +214,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 		}
 	}
 	var toolCalls []ChatToolCall
-	if len(wire.ToolCalls) != 0 && string(wire.ToolCalls) != "null" {
+	if strictjson.HasValue(wire.ToolCalls) {
 		if err := json.Unmarshal(wire.ToolCalls, &toolCalls); err != nil {
 			return fmt.Errorf("inference: invalid chat tool_calls: %w", err)
 		}
@@ -244,12 +239,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 }
 
 func decodeChatContentPart(raw json.RawMessage, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	return requireChatJSONEOF(decoder)
+	return strictjson.DecodeBytes(raw, target)
 }
 
 func (f *ChatToolFunction) UnmarshalJSON(data []byte) error {
@@ -257,12 +247,7 @@ func (f *ChatToolFunction) UnmarshalJSON(data []byte) error {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
 	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
-		return err
-	}
-	if err := requireChatJSONEOF(decoder); err != nil {
+	if err := strictjson.DecodeBytes(data, &wire); err != nil {
 		return err
 	}
 	if wire.Name == "" {
@@ -294,18 +279,6 @@ func validateChatToolCall(call ChatToolCall) error {
 		return errors.New("function arguments are required")
 	}
 	return nil
-}
-
-func requireChatJSONEOF(decoder *json.Decoder) error {
-	var extra any
-	err := decoder.Decode(&extra)
-	if errors.Is(err, io.EOF) {
-		return nil
-	}
-	if err == nil {
-		return errors.New("inference: unexpected JSON after message")
-	}
-	return err
 }
 
 // FormatChat: selects native formatter from boundary tokens in loaded

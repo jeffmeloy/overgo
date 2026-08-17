@@ -50,7 +50,7 @@ func validateAnthropicThinking(
 	raw json.RawMessage,
 	maxTokens *int,
 ) (bool, error) {
-	if !rawJSONConfigured(raw) {
+	if !strictjson.HasValue(raw) {
 		return false, nil
 	}
 	var config anthropicThinkingConfig

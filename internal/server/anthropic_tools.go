@@ -17,7 +17,7 @@ func selectAnthropicTools(
 	rawTools, rawChoice json.RawMessage,
 ) (chatToolSelection, error) {
 	var tools []inference.ChatTool
-	if rawJSONConfigured(rawTools) {
+	if strictjson.HasValue(rawTools) {
 		var definitions []struct {
 			Name        string         `json:"name"`
 			Description string         `json:"description"`
@@ -50,7 +50,7 @@ func selectAnthropicTools(
 
 	var openAIChoice json.RawMessage
 	parallel := true
-	if rawJSONConfigured(rawChoice) {
+	if strictjson.HasValue(rawChoice) {
 		var choice struct {
 			Type               string `json:"type"`
 			Name               string `json:"name"`

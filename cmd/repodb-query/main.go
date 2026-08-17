@@ -51,6 +51,7 @@ func run(args []string, output io.Writer) error {
 	components := flags.Bool("components", false, "list committed component decompositions with per-role counts (classification ledger)")
 	proposals := flags.Bool("proposals", false, "list committed bridge proposals with their blocked state, blocker and required verifier")
 	admissions := flags.Bool("admissions", false, "list admission bindings: per-generation proposer/evaluator/decider authority domains and prior-generation approvals")
+	composed := flags.Bool("composed", false, "list composed model artifacts with their recipes, parents and constituent counts")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -80,6 +81,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *admissions {
 		return writeAdmissions(output, *repository, *limit)
+	}
+	if *composed {
+		return writeComposed(output, *repository, *limit)
 	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
@@ -442,6 +446,45 @@ func writeAdmissions(output io.Writer, repository string, limit int) error {
 		count++
 	}
 	fmt.Fprintf(output, "%d admission binding(s); honesty: domains must be pairwise distinct by construction; succession validity requires the cited approval decision\n", count)
+	return nil
+}
+
+// writeComposed lists composed model artifacts: the assembly ledger, each row
+// naming the executable recipe, parent models and constituent counts.
+func writeComposed(output io.Writer, repository string, limit int) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindModel, MaxResults: limit})
+	if err != nil {
+		return err
+	}
+	count := 0
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != composition.ComposedModelMediaType ||
+			descriptor.Schema != composition.ComposedModelSchema {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		document, err := composition.ParseComposedModel(content.Data)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "composed %s architecture=%s recipe=%s parents=%d components=%d adapter=%t checkpoint=%t\n",
+			document.ID, document.Architecture, document.Recipe, len(document.Parents),
+			len(document.Components), document.Adapter.Valid(), document.Checkpoint.Valid())
+		count++
+	}
+	fmt.Fprintf(output, "%d composed artifact(s); honesty: rows derive from committed assembly documents; execution and lineage resolve through the store graph\n", count)
 	return nil
 }
 

@@ -3,24 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "compose-model-artifact",
-      "title": "Assemble components, adapter, architecture profile, recipe and checkpoint into one executable content-addressed model artifact with full lineage to every input",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Assemble components, adapter, architecture profile, recipe and checkpoint into one executable content-addressed model artifact with full lineage to every input",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestComposedArtifactExecutesAndResolvesLineage$' -count=1 -v",
-          "rationale": "Revision 1 listed compose as missing and never closed it. A trained adapter is not an assembled model; without this row nothing produces the descendant artifact that descendant-improvement measures.",
-          "depends_on": [
-            "bridge-synthesis",
-            "construction-profile-bridge"
-          ]
-        }
-      ]
-    },
-    {
       "id": "hdc-retrieval",
       "title": "Port the bit-packed hypervector index with catalog-derived signature width, combining the lexical organ signal with the existing distributional signal",
       "status": "open",

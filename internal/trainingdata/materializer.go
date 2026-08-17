@@ -19,7 +19,6 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/dataset"
 	"overgo/internal/recipecontract"
-	"overgo/internal/trainingprogram"
 )
 
 // Authority seals dataset, split, processor, and order facts.
@@ -30,13 +29,6 @@ type Authority struct {
 	Seed       uint64
 	Shuffle    bool
 	Signature  recipecontract.ModalitySignature
-}
-
-func AuthorityFromRun(plan trainingprogram.TrainingRunPlan, seed uint64) Authority {
-	return Authority{
-		Dataset: plan.Dataset(), Split: plan.Split(), Processors: plan.Processors(), Seed: seed, Shuffle: true,
-		Signature: plan.Signature(),
-	}
 }
 
 // RawRecord is one immutable source record before processor conversion.
@@ -236,17 +228,6 @@ func Materialize(
 		return nil, err
 	}
 	return &Dataset{authority: cloneAuthority(authority), identity: identity, members: members, processors: processors, files: state.files}, nil
-}
-
-// MaterializeRun binds the compiled training plan directly to dataset execution.
-func MaterializeRun(
-	ctx context.Context,
-	reader artifact.Reader,
-	plan trainingprogram.TrainingRunPlan,
-	seed uint64,
-	bindings []ProcessorBinding,
-) (*Dataset, error) {
-	return Materialize(ctx, reader, AuthorityFromRun(plan, seed), bindings)
 }
 
 // MaterializeDocuments routes in-memory documents through the same stream owner.

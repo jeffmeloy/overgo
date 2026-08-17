@@ -1,14 +1,12 @@
 package dataset
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"sort"
 
 	"overgo/internal/artifact"
-	"overgo/internal/strictjson"
 	"overgo/internal/textcheck"
 )
 
@@ -25,13 +23,11 @@ var documentContract = artifact.DocumentContract{
 	Kind: artifact.KindDataset, MediaType: MediaType, Schema: Schema,
 }
 
-var documentCodec = artifact.DocumentCodec[Document]{
-	Name: "dataset", Contract: documentContract,
-	Decode: func(data []byte, value *Document) error { return strictjson.DecodeBytes(data, value) },
-	Encode: documentContent, Canonicalize: canonicalize, Clone: cloneDocument,
-	Identity:    func(value Document) artifact.ID { return value.ID },
-	SetIdentity: func(value *Document, id artifact.ID) { value.ID = id },
-}
+var documentCodec = artifact.JSONDocumentCodec(
+	"dataset", documentContract.Kind, documentContract.MediaType, documentContract.Schema,
+	canonicalize, func(value Document) artifact.ID { return value.ID },
+	func(value *Document, id artifact.ID) { value.ID = id }, cloneDocument,
+)
 
 // Type: canonical dataset document form.
 type Type string
@@ -251,15 +247,6 @@ func canonicalizeMembers(members *[]Member) error {
 
 func datasetID(id *artifact.ID) bool {
 	return id != nil && id.Kind() == artifact.KindDataset
-}
-
-func documentContent(document Document) ([]byte, error) {
-	document.ID = artifact.ID{}
-	content, err := json.Marshal(document)
-	if err != nil {
-		return nil, fmt.Errorf("dataset: encode document: %w", err)
-	}
-	return content, nil
 }
 
 func cloneDocument(document Document) Document {

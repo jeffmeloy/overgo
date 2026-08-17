@@ -56,27 +56,15 @@ func (r *Runner) SaveEncoderDecoderSession(session *EncoderDecoderSession) ([]by
 
 // LoadEncoderDecoderSession: bounded model-bound restore.
 func (r *Runner) LoadEncoderDecoderSession(data []byte) (*EncoderDecoderSession, error) {
-	if r == nil {
-		return nil, errRunnerNil
+	decoder, err := r.modelStateDecoder(data, t5SessionMagic, "encoder-decoder session")
+	if err != nil {
+		return nil, err
 	}
-	decoder := statecodec.NewDecoder(data, uint64(math.MaxInt))
-	magic := decoder.Raw(8)
-	modelSignature := decoder.Raw(32)
 	width := decoder.U64()
 	tokens := decoder.U64()
 	cacheLength := decoder.U64()
 	if decoder.Err() != nil {
 		return nil, errors.New("inference: encoder-decoder session is truncated")
-	}
-	if string(magic) != t5SessionMagic {
-		return nil, errors.New("inference: encoder-decoder session has invalid magic or version")
-	}
-	signature, err := r.sessionModelSignature()
-	if err != nil {
-		return nil, err
-	}
-	if string(modelSignature) != string(signature[:]) {
-		return nil, errors.New("inference: encoder-decoder session belongs to a different model")
 	}
 	if width != uint64(r.spec.EmbeddingLength) || tokens == 0 ||
 		(r.spec.ContextLength > 0 && tokens > uint64(r.spec.ContextLength)) {

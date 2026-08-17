@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"sort"
 	"sync"
 
 	"overgo/internal/artifact"
+	"overgo/internal/strictjson"
 )
 
 var (
@@ -505,14 +505,9 @@ func encodeBatch(batch artifact.Batch) ([]byte, artifact.Batch, [sha256.Size]byt
 }
 
 func decodeBatch(payload []byte) (artifact.Batch, [sha256.Size]byte, error) {
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	decoder.DisallowUnknownFields()
 	var batch artifact.Batch
-	if err := decoder.Decode(&batch); err != nil {
+	if err := strictjson.DecodeBytes(payload, &batch); err != nil {
 		return artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("repodb: decode batch: %w", err)
-	}
-	if err := ensureJSONEnd(decoder); err != nil {
-		return artifact.Batch{}, [sha256.Size]byte{}, err
 	}
 	normalized, err := normalizeBatch(batch)
 	if err != nil {
@@ -526,18 +521,6 @@ func decodeBatch(payload []byte) (artifact.Batch, [sha256.Size]byte, error) {
 		return artifact.Batch{}, [sha256.Size]byte{}, errors.New("repodb: non-canonical batch payload")
 	}
 	return normalized, sha256.Sum256(payload), nil
-}
-
-func ensureJSONEnd(decoder *json.Decoder) error {
-	var extra any
-	err := decoder.Decode(&extra)
-	if errors.Is(err, io.EOF) {
-		return nil
-	}
-	if err == nil {
-		return errors.New("repodb: batch has trailing JSON value")
-	}
-	return fmt.Errorf("repodb: decode batch tail: %w", err)
 }
 
 func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {

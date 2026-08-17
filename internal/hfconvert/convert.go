@@ -20,6 +20,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelartifact"
 	"overgo/internal/safetensors"
+	"overgo/internal/strictjson"
 	"overgo/internal/tokenizer"
 )
 
@@ -348,7 +349,7 @@ type preTokenizerNode struct {
 }
 
 func preTokenizerName(raw json.RawMessage) (string, error) {
-	if len(raw) == 0 || string(raw) == "null" {
+	if !strictjson.HasValue(raw) {
 		return "gpt-2", nil
 	}
 	var root preTokenizerNode
@@ -384,7 +385,7 @@ type postProcessorNode struct {
 
 // postProcessorAddsBOS: TemplateProcessing with a leading special token prepends BOS.
 func postProcessorAddsBOS(raw json.RawMessage) bool {
-	if len(raw) == 0 || string(raw) == "null" {
+	if !strictjson.HasValue(raw) {
 		return false
 	}
 	var root postProcessorNode
@@ -510,7 +511,7 @@ func firstTokenID(rawID, rawContent json.RawMessage, fallback *string, tokenID m
 
 // decodeTokenID: accepts an integer or the first element of an integer array.
 func decodeTokenID(raw json.RawMessage) (int, bool) {
-	if len(raw) == 0 || string(raw) == "null" {
+	if !strictjson.HasValue(raw) {
 		return -1, false
 	}
 	var id int
@@ -526,7 +527,7 @@ func decodeTokenID(raw json.RawMessage) (int, bool) {
 
 // decodeTokenContent: accepts a string or an added-token object with content.
 func decodeTokenContent(raw json.RawMessage) (string, bool) {
-	if len(raw) == 0 || string(raw) == "null" {
+	if !strictjson.HasValue(raw) {
 		return "", false
 	}
 	var content string

@@ -75,7 +75,7 @@ func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
 	if denominator <= 0 || qkv.Shape[1]%uint64(denominator) != 0 {
 		return MiMoVLSpec{}, errors.New("projector: MiMo-VL fused QKV width is invalid")
 	}
-	merger, ok := file.Tensor("mm.0.weight")
+	merger, ok := file.Tensor(projectionFirstWeightTensor)
 	if !ok || merger.Dimensions != 2 {
 		return MiMoVLSpec{}, errors.New("projector: MiMo-VL merger tensor is unavailable")
 	}
@@ -112,16 +112,9 @@ func validateMiMoVLCatalog(file *gguf.File, spec MiMoVLSpec) ([]string, error) {
 		visionPatchWeightTensor:    {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
 		visionPatchWeightTensor1:   {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
 		visionPostNormWeightTensor: {uint64(spec.Hidden)},
-		"mm.0.weight":              {uint64(spec.Hidden * spec.MergeSize * spec.MergeSize), uint64(spec.MergerIntermediate)},
-		"mm.2.weight":              {uint64(spec.MergerIntermediate), uint64(spec.ProjectionDim)},
 	}
-	for name, width := range map[string]int{
-		visionPostNormBiasTensor: spec.Hidden,
-		"mm.0.bias":              spec.MergerIntermediate,
-		"mm.2.bias":              spec.ProjectionDim,
-	} {
-		addOptionalProjectorTensor(file, required, name, []uint64{uint64(width)})
-	}
+	addTwoLayerProjectionCatalog(file, required, spec.Hidden*spec.MergeSize*spec.MergeSize, spec.MergerIntermediate, spec.ProjectionDim, tensorOptional)
+	addOptionalProjectorTensor(file, required, visionPostNormBiasTensor, []uint64{uint64(spec.Hidden)})
 	for layer := 0; layer < spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		for name, shape := range map[string][]uint64{

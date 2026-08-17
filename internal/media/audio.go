@@ -23,14 +23,6 @@ const (
 	wavFormatMinimumBytes = 16
 )
 
-func EncodeFloat32LE(values []float32) []byte {
-	data := make([]byte, len(values)*float32Bytes)
-	for index, value := range values {
-		binary.LittleEndian.PutUint32(data[index*float32Bytes:], math.Float32bits(value))
-	}
-	return data
-}
-
 func DecodeFloat32LE(data []byte) ([]float32, error) {
 	if len(data) == 0 {
 		return nil, errors.New("media: audio is empty")

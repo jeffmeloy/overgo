@@ -8,7 +8,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,6 +16,7 @@ import (
 	"strings"
 
 	cudaKernel "overgo/internal/cuda/kernel"
+	"overgo/internal/strictjson"
 )
 
 const manifestPath = "kernels/manifest.json"
@@ -81,16 +81,8 @@ func run(root string, update bool) error {
 		return err
 	}
 	var document manifest
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&document); err != nil {
+	if err := strictjson.DecodeBytes(data, &document); err != nil {
 		return fmt.Errorf("kernel manifest: %w", err)
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return errors.New("kernel manifest: multiple JSON values")
-		}
-		return fmt.Errorf("kernel manifest: trailing data: %w", err)
 	}
 	if document.Schema != 2 || document.ABIVersion < 1 {
 		return errors.New("kernel manifest: unsupported schema or ABI version")

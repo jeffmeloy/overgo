@@ -46,7 +46,7 @@ func ReadQwen2VLSpec(file *gguf.File) (Qwen2VLSpec, error) {
 	if err := readRotaryVisionBackbone(file, qwen2VLProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
 		return Qwen2VLSpec{}, err
 	}
-	merger, ok := file.Tensor("mm.0.weight")
+	merger, ok := file.Tensor(projectionFirstWeightTensor)
 	if !ok || merger.Dimensions != 2 || merger.Shape[1] > uint64(^uint(0)>>1) {
 		return Qwen2VLSpec{}, errors.New("projector: merger input tensor is unavailable or invalid")
 	}
@@ -92,11 +92,8 @@ func validateQwen2VLCatalog(file *gguf.File, spec Qwen2VLSpec) ([]string, error)
 	required := map[string][]uint64{
 		visionPatchWeightTensor:  {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
 		visionPatchWeightTensor1: {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
-		"mm.0.weight":            {uint64(spec.Hidden * spec.MergeSize * spec.MergeSize), uint64(spec.MergerIntermediate)},
-		"mm.0.bias":              {uint64(spec.MergerIntermediate)},
-		"mm.2.weight":            {uint64(spec.MergerIntermediate), uint64(spec.OutputHidden)},
-		"mm.2.bias":              {uint64(spec.OutputHidden)},
 	}
+	addTwoLayerProjectionCatalog(file, required, spec.Hidden*spec.MergeSize*spec.MergeSize, spec.MergerIntermediate, spec.OutputHidden, tensorRequired)
 	if spec.PreLayerNorm {
 		required[visionPreNormWeightTensor] = []uint64{uint64(spec.Hidden)}
 		required[visionPreNormBiasTensor] = []uint64{uint64(spec.Hidden)}
@@ -109,36 +106,24 @@ func validateQwen2VLCatalog(file *gguf.File, spec Qwen2VLSpec) ([]string, error)
 	return validateProjectorTensorCatalog(file, required)
 }
 
-func PreprocessQwen2VLImage(source image.Image, spec Qwen2VLSpec, options Qwen2VLPreprocessOptions) (Qwen2VLImage, error) {
-	return PreprocessQwen3VLImage(source, spec.preprocessSpec(), options)
-}
-
-func PreprocessQwen2VLFrames(frames []image.Image, spec Qwen2VLSpec, options Qwen2VLPreprocessOptions) (Qwen2VLImage, error) {
-	return PreprocessQwen3VLFrames(frames, spec.preprocessSpec(), options)
-}
-
 func (r *Qwen2VLRunner) EncodeImage(ctx context.Context, source image.Image, options Qwen2VLPreprocessOptions) (Qwen2VLOutput, error) {
 	if r == nil || r.file == nil {
 		return Qwen2VLOutput{}, errRunnerClosed
 	}
-	input, err := PreprocessQwen2VLImage(source, r.spec, options)
+	input, err := PreprocessQwen3VLImage(source, r.spec.preprocessSpec(), options)
 	if err != nil {
 		return Qwen2VLOutput{}, err
 	}
-	return r.encode(ctx, input)
+	return r.encodeGraph(ctx, input)
 }
 
 func (r *Qwen2VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, options Qwen2VLPreprocessOptions) (Qwen2VLOutput, error) {
 	if r == nil || r.file == nil {
 		return Qwen2VLOutput{}, errRunnerClosed
 	}
-	input, err := PreprocessQwen2VLFrames(frames, r.spec, options)
+	input, err := PreprocessQwen3VLFrames(frames, r.spec.preprocessSpec(), options)
 	if err != nil {
 		return Qwen2VLOutput{}, err
 	}
-	return r.encode(ctx, input)
-}
-
-func (r *Qwen2VLRunner) encode(ctx context.Context, input Qwen2VLImage) (Qwen2VLOutput, error) {
 	return r.encodeGraph(ctx, input)
 }

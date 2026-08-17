@@ -1,16 +1,13 @@
 package runrecord
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"math"
 	"slices"
 	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/strictjson"
 	"overgo/internal/textcheck"
 )
 
@@ -31,13 +28,11 @@ var advisoryContract = artifact.DocumentContract{
 	Kind: artifact.KindEvidence, MediaType: AdvisoryMediaType, Schema: AdvisorySchema,
 }
 
-var advisoryCodec = artifact.DocumentCodec[Advisory]{
-	Name: "run record advisory", Contract: advisoryContract,
-	Decode: func(data []byte, value *Advisory) error { return strictjson.DecodeBytes(data, value) },
-	Encode: advisoryContent, Canonicalize: canonicalizeAdvisory, Clone: cloneAdvisory,
-	Identity:    func(value Advisory) artifact.ID { return value.ID },
-	SetIdentity: func(value *Advisory, id artifact.ID) { value.ID = id },
-}
+var advisoryCodec = artifact.JSONDocumentCodec(
+	"run record advisory", advisoryContract.Kind, advisoryContract.MediaType, advisoryContract.Schema,
+	canonicalizeAdvisory, func(value Advisory) artifact.ID { return value.ID },
+	func(value *Advisory, id artifact.ID) { value.ID = id }, cloneAdvisory,
+)
 
 type Observation struct {
 	Sequence   uint64
@@ -313,15 +308,6 @@ func canonicalizeAdvisory(advisory *Advisory) error {
 
 func finite(value float64) bool {
 	return !math.IsNaN(value) && !math.IsInf(value, 0)
-}
-
-func advisoryContent(advisory Advisory) ([]byte, error) {
-	advisory.ID = artifact.ID{}
-	content, err := json.Marshal(advisory)
-	if err != nil {
-		return nil, fmt.Errorf("run record: encode advisory: %w", err)
-	}
-	return content, nil
 }
 
 func cloneAdvisory(advisory Advisory) Advisory {

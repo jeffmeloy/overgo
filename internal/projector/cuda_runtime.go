@@ -178,6 +178,22 @@ func (runtime *projectorGraphRuntime) weight(name string) *tensor.Tensor {
 	return node
 }
 
+func visionActivationNode(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	hostFeeds map[*tensor.Tensor]reference.Value,
+	activation visionActivation,
+) *tensor.Tensor {
+	switch activation {
+	case visionGELU:
+		return qwen3VLGELUTanh(builder, input, hostFeeds)
+	case visionSiLU:
+		return builder.SiLU(input)
+	default:
+		return builder.Multiply(input, builder.Sigmoid(builder.Scale(input, quickGELUScale)))
+	}
+}
+
 func (runtime *projectorGraphRuntime) addOptionalBias(
 	input *tensor.Tensor,
 	name string,

@@ -8,6 +8,15 @@ import (
 
 var errRunnerClosed = errors.New("projector: runner is closed")
 
+type visionActivation uint8
+
+const (
+	visionQuickGELU visionActivation = iota
+	visionGELU
+	visionSiLU
+	quickGELUScale = 1.702
+)
+
 type gridImage struct {
 	PixelValues []float32
 	GridH       int

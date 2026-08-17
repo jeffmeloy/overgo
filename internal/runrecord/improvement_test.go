@@ -73,7 +73,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseImprovementDecision(content.Data)
+	parsed, err := improvementDecisionCodec.Parse(content.Data)
 	if err != nil || parsed.ID != decision.ID || parsed.RollbackTarget() != parent {
 		t.Fatalf("parsed decision = (%s, %s, %v)", parsed.ID, parsed.RollbackTarget(), err)
 	}

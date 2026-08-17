@@ -146,16 +146,6 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 
 var goTestRunFlag = regexp.MustCompile(`(?:^|[ \t])-run(?:=|[ \t]+)(?:'([^']*)'|"([^"]*)"|([^ \t;&|]+))`)
 
-// ValidateGoTestCommand checks that a declared verifier selects a named test.
-// Execution evidence remains the responsibility of VerifyGoTestTarget.
-func ValidateGoTestCommand(command string) error {
-	if !strings.Contains(command, "go test") {
-		return fmt.Errorf("verifier is not a go test command")
-	}
-	_, err := goTestTarget(command)
-	return err
-}
-
 // JSONCommand enables structured events for every go test in a verifier.
 func JSONCommand(command string) string {
 	if !strings.Contains(command, "go test -json") {

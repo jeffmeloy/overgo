@@ -7,7 +7,6 @@ import (
 
 	"overgo/internal/checked"
 	"overgo/internal/statecodec"
-	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -96,16 +95,13 @@ func (r *Runner) LoadMultiHeadMTPSession(data []byte) (*MultiHeadMTPSession, err
 	if err != nil {
 		return nil, err
 	}
-	decoder := statecodec.NewDecoder(data, uint64(math.MaxInt))
-	if string(decoder.Raw(8)) != multiHeadMTPStateMagic {
-		return nil, errors.New("inference: multi-head MTP state has invalid magic or version")
+	decoder, err := r.modelStateDecoder(data, multiHeadMTPStateMagic, "multi-head MTP")
+	if err != nil {
+		return nil, err
 	}
 	draftModel, err := r.sessionModelSignature()
 	if err != nil {
 		return nil, err
-	}
-	if string(decoder.Raw(32)) != string(draftModel[:]) {
-		return nil, errors.New("inference: multi-head MTP state belongs to a different model")
 	}
 	var targetModel [32]byte
 	copy(targetModel[:], decoder.Raw(32))
@@ -137,16 +133,7 @@ func (r *Runner) LoadMultiHeadMTPSession(data []byte) (*MultiHeadMTPSession, err
 	if !ok || !okElements || !okBytes || !okTokens || !okPayload || payload != decoder.Remaining() {
 		return nil, errors.New("inference: multi-head MTP state payload lengths are invalid")
 	}
-	readHidden := func() reference.Value {
-		hidden := reference.Value{
-			Shape: tensor.MustShape(width, 1), Data: make([]float32, int(width)),
-		}
-		for index := range hidden.Data {
-			hidden.Data[index] = decoder.F32()
-		}
-		return hidden
-	}
-	pendingHidden := readHidden()
+	pendingHidden := decodeHiddenState(decoder, width)
 	var draftTokens []tokenizer.TokenID
 	if draftCount > 0 {
 		draftTokens = make([]tokenizer.TokenID, int(draftCount))
@@ -159,7 +146,7 @@ func (r *Runner) LoadMultiHeadMTPSession(data []byte) (*MultiHeadMTPSession, err
 		draftHidden = make([]reference.Value, int(draftCount))
 	}
 	for index := range draftHidden {
-		draftHidden[index] = readHidden()
+		draftHidden[index] = decodeHiddenState(decoder, width)
 	}
 	trunk, err := r.LoadCache(decoder.Raw(trunkLength))
 	if err != nil {

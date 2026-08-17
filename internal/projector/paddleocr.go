@@ -15,14 +15,6 @@ const (
 	paddleOCRInputNormEpsilon = 1e-5
 )
 
-type paddleOCRActivation uint8
-
-const (
-	paddleOCRGELUQuick paddleOCRActivation = iota
-	paddleOCRGELU
-	paddleOCRSiLU
-)
-
 type PaddleOCRSpec struct {
 	visionBackboneSpec
 	ProjectorIntermediate int
@@ -30,7 +22,7 @@ type PaddleOCRSpec struct {
 	MergeSize             int
 	MinPixels             int
 	MaxPixels             int
-	Activation            paddleOCRActivation
+	Activation            visionActivation
 	PreLayerNorm          bool
 	PostLayerNorm         bool
 	FusedQKV              []bool
@@ -85,7 +77,7 @@ func ReadPaddleOCRSpec(file *gguf.File) (PaddleOCRSpec, error) {
 	return spec, nil
 }
 
-func readPaddleOCRActivation(file *gguf.File) (paddleOCRActivation, error) {
+func readPaddleOCRActivation(file *gguf.File) (visionActivation, error) {
 	useGELU, err := optionalMetadataBool(file, "clip.use_gelu")
 	if err != nil {
 		return 0, err
@@ -98,12 +90,12 @@ func readPaddleOCRActivation(file *gguf.File) (paddleOCRActivation, error) {
 		return 0, errors.New("projector: PaddleOCR GELU and SiLU are both enabled")
 	}
 	if useGELU {
-		return paddleOCRGELU, nil
+		return visionGELU, nil
 	}
 	if useSiLU {
-		return paddleOCRSiLU, nil
+		return visionSiLU, nil
 	}
-	return paddleOCRGELUQuick, nil
+	return visionQuickGELU, nil
 }
 
 func optionalMetadataBool(file *gguf.File, key string) (bool, error) {

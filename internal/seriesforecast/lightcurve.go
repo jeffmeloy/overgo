@@ -8,6 +8,7 @@ import (
 	"math"
 	"sort"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/recipecontract"
 	"overgo/internal/trainingdata"
 )
@@ -90,7 +91,7 @@ func finite64(value float64) bool { return !math.IsNaN(value) && !math.IsInf(val
 func seriesValue(role trainingdata.ValueRole, values []float32) trainingdata.Value {
 	return trainingdata.Value{
 		Role: role, Modality: recipecontract.ModalityTimeSeries, Encoding: trainingdata.EncodingFloat32LE,
-		Shape: []int{len(values)}, Data: trainingdata.EncodeFloat32(values),
+		Shape: []int{len(values)}, Data: binaryschema.LittleEndian.Float32s(values),
 	}
 }
 

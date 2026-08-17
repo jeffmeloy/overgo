@@ -89,7 +89,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 		len(body.Messages[0].Media) == 0 || len(body.Messages[0].Media) > 8 {
 		return nativePrompt{}, errors.New("multimodal chat requires one user message with one to eight media items")
 	}
-	if len(body.Tools) != 0 || rawJSONConfigured(body.ToolChoice) || body.ParallelTools != nil {
+	if len(body.Tools) != 0 || strictjson.HasValue(body.ToolChoice) || body.ParallelTools != nil {
 		return nativePrompt{}, errors.New("multimodal chat cannot use tools")
 	}
 	if body.AddPrompt != nil && !*body.AddPrompt {
@@ -192,7 +192,7 @@ func (h *Handler) parseChatMultimodalPrompt(
 	body chatCompletionRequest,
 	promptTools []inference.ChatTool,
 ) (nativePrompt, error) {
-	hasToolConfig := len(body.Tools) != 0 || rawJSONConfigured(body.ToolChoice) || body.ParallelTools != nil
+	hasToolConfig := len(body.Tools) != 0 || strictjson.HasValue(body.ToolChoice) || body.ParallelTools != nil
 	if len(body.Messages) == 1 && chatSingleMediaCompatible(body.Messages[0].Media) &&
 		!hasToolConfig && len(promptTools) == 0 {
 		return h.parseChatSingleMultimodalPrompt(ctx, body)
@@ -511,7 +511,7 @@ func selectChatTools(
 	body chatCompletionRequest,
 ) (chatToolSelection, error) {
 	if len(body.Tools) == 0 {
-		if rawJSONConfigured(body.ToolChoice) {
+		if strictjson.HasValue(body.ToolChoice) {
 			var choice string
 			if json.Unmarshal(body.ToolChoice, &choice) != nil ||
 				choice != "auto" {
@@ -532,8 +532,8 @@ func selectChatTools(
 			"custom grammar options cannot be combined with tools",
 		)
 	}
-	if rawJSONConfigured(body.JSONSchema) ||
-		rawJSONConfigured(body.ResponseFormat) {
+	if strictjson.HasValue(body.JSONSchema) ||
+		strictjson.HasValue(body.ResponseFormat) {
 		return chatToolSelection{}, errors.New(
 			"response_format and json_schema cannot be combined with tools",
 		)
@@ -542,7 +542,7 @@ func selectChatTools(
 		prompt: body.Tools,
 		active: body.Tools,
 	}
-	if rawJSONConfigured(body.ToolChoice) {
+	if strictjson.HasValue(body.ToolChoice) {
 		var choice string
 		if json.Unmarshal(body.ToolChoice, &choice) == nil {
 			switch choice {

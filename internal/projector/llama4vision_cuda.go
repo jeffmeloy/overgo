@@ -65,7 +65,7 @@ func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4Vis
 		hidden = builder.Add(hidden, projected)
 		norm = builder.AffineLayerNorm(hidden, weight(prefix+"ln2.weight"), weight(prefix+"ln2.bias"), r.spec.LayerNormEpsilon)
 		up := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), prefix+"ffn_up.bias")
-		up = r.llama4VisionActivationGraph(builder, up, hostFeeds)
+		up = visionActivationNode(builder, up, hostFeeds, r.spec.Activation)
 		down := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_down.weight"), up), prefix+"ffn_down.bias")
 		hidden = builder.Add(hidden, down)
 	}
@@ -99,19 +99,4 @@ func llama4VisionRoPEGraph(
 	w = builder.RoPEWithOptions(w, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: positionsW, RotaryDimensions: uint32(half), FrequencyBase: theta, FrequencyScale: 1})
 	h = builder.RoPEWithOptions(h, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: positionsH, RotaryDimensions: uint32(half), FrequencyBase: theta, FrequencyScale: 1})
 	return builder.Concat(w, h, 0)
-}
-
-func (r *Llama4VisionRunner) llama4VisionActivationGraph(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-) *tensor.Tensor {
-	switch r.spec.Activation {
-	case llama4GELU:
-		return qwen3VLGELUTanh(builder, input, hostFeeds)
-	case llama4SiLU:
-		return builder.SiLU(input)
-	default:
-		return builder.Multiply(input, builder.Sigmoid(builder.Scale(input, 1.702)))
-	}
 }

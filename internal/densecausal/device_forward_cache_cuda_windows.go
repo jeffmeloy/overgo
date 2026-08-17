@@ -8,9 +8,7 @@ import (
 	"overgo/internal/hostmath"
 )
 
-// layerCache holds the per-layer forward intermediates the device backward
-// consumes, so it need not recompute the forward on host. Saved by
-// layerForwardCached during forwardStatesCached.
+// layerCache holds device-backward intermediates.
 type layerCache struct {
 	xn       []float32 // RMSNorm(x, inLN)
 	tr       attnTrace // qScaled, kRoped, v, attnCore
@@ -50,31 +48,4 @@ func (m *Model) layerForwardCached(x []float32, l layer, invFreq []float64, seq 
 	hostmath.Linear(mlp, c.hMLP, l.down, seq, d.Intermediate, d.Hidden)
 	addInPlace(x, mlp)
 	return c
-}
-
-// forwardStatesCached runs the stack retaining each layer's input residual
-// stream AND its forward intermediates, so the device backward consumes the
-// cache instead of recomputing the forward per layer.
-func (m *Model) forwardStatesCached(tokens []int) ([][]float32, []layerCache, error) {
-	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
-	return m.cachedForwardStates(tokens, func(x []float32, index, seq int) (layerCache, error) {
-		l, err := m.layerWeights(index)
-		if err != nil {
-			return layerCache{}, err
-		}
-		return m.layerForwardCached(x, l, invFreq, seq), nil
-	})
-}
-
-func (m *Model) cachedForwardStates(
-	tokens []int,
-	forward func(x []float32, index, sequence int) (layerCache, error),
-) ([][]float32, []layerCache, error) {
-	caches := make([]layerCache, m.Dims.Layers)
-	states, err := m.retainedForwardStates(tokens, func(x []float32, index, sequence int) error {
-		var err error
-		caches[index], err = forward(x, index, sequence)
-		return err
-	})
-	return states, caches, err
 }

@@ -3,23 +3,12 @@
 package devicemath
 
 import (
-	"context"
 	"fmt"
 	"math"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 )
-
-// ZeroResidentF32 clears a persistent f32 buffer.
-func ZeroResidentF32(worker *device.Worker, buffer driver.DevicePtr, count int) error {
-	if worker == nil || buffer == 0 || count <= 0 {
-		return fmt.Errorf("ZeroResidentF32: invalid buffer or count")
-	}
-	return worker.Do(context.Background(), func(state *device.State) error {
-		return state.Driver.MemsetD32Async(buffer, 0, uint64(count), state.Stream)
-	})
-}
 
 // AddResident computes output = left + right on resident buffers.
 func AddResident(worker *device.Worker, left, right, output driver.DevicePtr, count int) error {

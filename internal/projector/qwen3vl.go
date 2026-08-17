@@ -120,7 +120,7 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 		}
 	}
 	spec.DeepstackLayers = deepstackLayers
-	merger, ok := file.Tensor("mm.0.weight")
+	merger, ok := file.Tensor(projectionFirstWeightTensor)
 	if !ok || merger.Dimensions != 2 || merger.Shape[1] > uint64(^uint(0)>>1) {
 		return Qwen3VLSpec{}, errors.New("projector: merger input tensor is unavailable or invalid")
 	}
@@ -149,11 +149,8 @@ func validateQwen3VLCatalog(file *gguf.File, spec Qwen3VLSpec) ([]string, error)
 		visionPatchWeightTensor1:   {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
 		visionPostNormWeightTensor: {uint64(spec.Hidden)},
 		visionPostNormBiasTensor:   {uint64(spec.Hidden)},
-		"mm.0.weight":              {uint64(spec.Hidden * spec.MergeSize * spec.MergeSize), uint64(spec.MergerIntermediate)},
-		"mm.0.bias":                {uint64(spec.MergerIntermediate)},
-		"mm.2.weight":              {uint64(spec.MergerIntermediate), uint64(spec.OutputHidden)},
-		"mm.2.bias":                {uint64(spec.OutputHidden)},
 	}
+	addTwoLayerProjectionCatalog(file, required, spec.Hidden*spec.MergeSize*spec.MergeSize, spec.MergerIntermediate, spec.OutputHidden, tensorRequired)
 	positionSide := spec.ImageSize / spec.PatchSize
 	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, positionSide*positionSide, tensorRequired)
 	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, nil, true, tensorRequired)
@@ -161,16 +158,12 @@ func validateQwen3VLCatalog(file *gguf.File, spec Qwen3VLSpec) ([]string, error)
 		if len(spec.DeepstackLayers) > layer && spec.DeepstackLayers[layer] {
 			deepstackPrefix := fmt.Sprintf("v.deepstack.%d.", layer)
 			mergedWidth := uint64(spec.Hidden * spec.MergeSize * spec.MergeSize)
-			for name, shape := range map[string][]uint64{
-				"norm.weight": {mergedWidth},
-				"norm.bias":   {mergedWidth},
-				"fc1.weight":  {mergedWidth, mergedWidth},
-				"fc1.bias":    {mergedWidth},
-				"fc2.weight":  {mergedWidth, uint64(spec.OutputHidden)},
-				"fc2.bias":    {uint64(spec.OutputHidden)},
-			} {
-				required[deepstackPrefix+name] = shape
-			}
+			required[deepstackPrefix+"norm.weight"] = []uint64{mergedWidth}
+			required[deepstackPrefix+"norm.bias"] = []uint64{mergedWidth}
+			required[deepstackPrefix+"fc1.weight"] = []uint64{mergedWidth, mergedWidth}
+			required[deepstackPrefix+"fc1.bias"] = []uint64{mergedWidth}
+			required[deepstackPrefix+"fc2.weight"] = []uint64{mergedWidth, uint64(spec.OutputHidden)}
+			required[deepstackPrefix+"fc2.bias"] = []uint64{uint64(spec.OutputHidden)}
 		}
 	}
 	return validateProjectorTensorCatalog(file, required)

@@ -14,6 +14,7 @@ import (
 	"slices"
 	"sort"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/recipecontract"
 )
 
@@ -94,7 +95,7 @@ func ImageProcessor(role ValueRole) Processor {
 		values := normalizedCHW(decoded)
 		return Example{ID: record.ID, Group: record.Group, Values: []Value{{
 			Role: role, Modality: recipecontract.ModalityImage, Encoding: EncodingFloat32LE,
-			Shape: []int{3, height, width}, Data: EncodeFloat32(values),
+			Shape: []int{3, height, width}, Data: binaryschema.LittleEndian.Float32s(values),
 		}}}, nil
 	}
 }

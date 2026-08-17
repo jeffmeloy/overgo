@@ -381,7 +381,7 @@ func requiredValues[T any](config map[string]json.RawMessage, keys ...string) ([
 func optional[T any](config map[string]json.RawMessage, key string) (T, bool, error) {
 	var value T
 	encoded, ok := config[key]
-	if !ok || string(encoded) == "null" {
+	if !ok || !strictjson.HasValue(encoded) {
 		return value, false, nil
 	}
 	if err := strictjson.DecodeBytes(encoded, &value); err != nil {

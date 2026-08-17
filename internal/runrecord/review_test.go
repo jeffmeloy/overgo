@@ -220,11 +220,11 @@ func TestReviewDocumentFamily(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseReviewActor(content.Data)
+	parsed, err := reviewActorCodec.Parse(content.Data)
 	if err != nil || parsed.ID != actor.ID {
 		t.Fatalf("shared document codec round trip = (%+v, %v)", parsed, err)
 	}
-	if _, err := ParseReviewActor([]byte(`{"version":1,"principal":"local:sqa","role":"sqa","unknown":true}`)); err == nil {
+	if _, err := reviewActorCodec.Parse([]byte(`{"version":1,"principal":"local:sqa","role":"sqa","unknown":true}`)); err == nil {
 		t.Fatal("shared document codec accepted an unknown field")
 	}
 

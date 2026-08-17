@@ -1,13 +1,12 @@
 package model
 
 import (
-	"bytes"
 	_ "embed"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
+
+	"overgo/internal/strictjson"
 )
 
 //go:embed architecture_profiles.json
@@ -22,14 +21,9 @@ func mustLoadArchitectureRegistry() map[string]ArchitectureProfile {
 }
 
 func parseArchitectureRegistry(content []byte) (map[string]ArchitectureProfile, error) {
-	decoder := json.NewDecoder(bytes.NewReader(content))
-	decoder.DisallowUnknownFields()
 	var profiles []ArchitectureProfile
-	if err := decoder.Decode(&profiles); err != nil {
+	if err := strictjson.DecodeBytes(content, &profiles); err != nil {
 		return nil, fmt.Errorf("model: decode architecture catalog: %w", err)
-	}
-	if err := requireCatalogEOF(decoder); err != nil {
-		return nil, err
 	}
 	if len(profiles) == 0 {
 		return nil, errors.New("model: architecture catalog is empty")
@@ -47,17 +41,6 @@ func parseArchitectureRegistry(content []byte) (map[string]ArchitectureProfile, 
 		previous = profile.Name
 	}
 	return registry, nil
-}
-
-func requireCatalogEOF(decoder *json.Decoder) error {
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return errors.New("model: architecture catalog has trailing content")
-		}
-		return fmt.Errorf("model: decode architecture catalog trailer: %w", err)
-	}
-	return nil
 }
 
 // ValidateArchitectureName checks the persisted profile key syntax.

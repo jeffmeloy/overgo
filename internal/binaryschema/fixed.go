@@ -1,6 +1,9 @@
 package binaryschema
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"math"
+)
 
 const (
 	Uint16Bytes = 2
@@ -37,4 +40,12 @@ func (s Fixed) PutUint32(data []byte, value uint32) {
 
 func (s Fixed) PutUint64(data []byte, value uint64) {
 	s.Order.PutUint64(data, value)
+}
+
+func (s Fixed) Float32s(values []float32) []byte {
+	data := make([]byte, len(values)*Uint32Bytes)
+	for index, value := range values {
+		s.PutUint32(data[index*Uint32Bytes:], math.Float32bits(value))
+	}
+	return data
 }

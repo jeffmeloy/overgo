@@ -10,14 +10,18 @@ import (
 )
 
 const (
-	visionPatchWeightTensor    = "v.patch_embd.weight"
-	visionPatchWeightTensor1   = visionPatchWeightTensor + ".1"
-	visionPatchBiasTensor      = "v.patch_embd.bias"
-	visionPositionWeightTensor = "v.position_embd.weight"
-	visionPreNormWeightTensor  = "v.pre_ln.weight"
-	visionPreNormBiasTensor    = "v.pre_ln.bias"
-	visionPostNormWeightTensor = "v.post_ln.weight"
-	visionPostNormBiasTensor   = "v.post_ln.bias"
+	visionPatchWeightTensor      = "v.patch_embd.weight"
+	visionPatchWeightTensor1     = visionPatchWeightTensor + ".1"
+	visionPatchBiasTensor        = "v.patch_embd.bias"
+	visionPositionWeightTensor   = "v.position_embd.weight"
+	visionPreNormWeightTensor    = "v.pre_ln.weight"
+	visionPreNormBiasTensor      = "v.pre_ln.bias"
+	visionPostNormWeightTensor   = "v.post_ln.weight"
+	visionPostNormBiasTensor     = "v.post_ln.bias"
+	projectionFirstWeightTensor  = "mm.0.weight"
+	projectionFirstBiasTensor    = "mm.0.bias"
+	projectionSecondWeightTensor = "mm.2.weight"
+	projectionSecondBiasTensor   = "mm.2.bias"
 )
 
 type tensorPresence uint8
@@ -116,6 +120,18 @@ func addOptionalVisionNormCatalog(file *gguf.File, required map[string][]uint64,
 	return addOptionalProjectorPair(file, required, visionPostNormWeightTensor, visionPostNormBiasTensor, shape)
 }
 
+func addTwoLayerProjectionCatalog(
+	file *gguf.File,
+	required map[string][]uint64,
+	input, hidden, output int,
+	bias tensorPresence,
+) {
+	required[projectionFirstWeightTensor] = []uint64{uint64(input), uint64(hidden)}
+	required[projectionSecondWeightTensor] = []uint64{uint64(hidden), uint64(output)}
+	addProjectorTensor(file, required, projectionFirstBiasTensor, []uint64{uint64(hidden)}, bias)
+	addProjectorTensor(file, required, projectionSecondBiasTensor, []uint64{uint64(output)}, bias)
+}
+
 func addStandardVisionLayerCatalog(
 	file *gguf.File,
 	required map[string][]uint64,
@@ -131,17 +147,13 @@ func addStandardVisionLayerCatalog(
 		}
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		hiddenShape := []uint64{uint64(hidden)}
-		for name, shape := range map[string][]uint64{
-			"attn_out.weight": {uint64(hidden), uint64(hidden)},
-			"ffn_up.weight":   {uint64(hidden), uint64(intermediate)},
-			"ffn_down.weight": {uint64(intermediate), uint64(hidden)},
-			"ln1.weight":      hiddenShape,
-			"ln1.bias":        hiddenShape,
-			"ln2.weight":      hiddenShape,
-			"ln2.bias":        hiddenShape,
-		} {
-			required[prefix+name] = shape
-		}
+		required[prefix+"attn_out.weight"] = []uint64{uint64(hidden), uint64(hidden)}
+		required[prefix+"ffn_up.weight"] = []uint64{uint64(hidden), uint64(intermediate)}
+		required[prefix+"ffn_down.weight"] = []uint64{uint64(intermediate), uint64(hidden)}
+		required[prefix+"ln1.weight"] = hiddenShape
+		required[prefix+"ln1.bias"] = hiddenShape
+		required[prefix+"ln2.weight"] = hiddenShape
+		required[prefix+"ln2.bias"] = hiddenShape
 		if fused {
 			required[prefix+"attn_qkv.weight"] = []uint64{uint64(hidden), uint64(3 * hidden)}
 			addProjectorTensor(file, required, prefix+"attn_qkv.bias", []uint64{uint64(3 * hidden)}, bias)

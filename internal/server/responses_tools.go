@@ -22,7 +22,7 @@ func selectResponsesTools(
 	policy ResponseToolPolicy,
 ) (chatToolSelection, error) {
 	var tools []inference.ChatTool
-	if rawJSONConfigured(rawTools) {
+	if strictjson.HasValue(rawTools) {
 		var rawDefinitions []json.RawMessage
 		if err := json.Unmarshal(rawTools, &rawDefinitions); err != nil {
 			return chatToolSelection{}, errors.New("tools must be an array of Responses tool definitions")
@@ -101,7 +101,7 @@ func selectResponsesTools(
 	}
 
 	var openAIChoice json.RawMessage
-	if rawJSONConfigured(rawChoice) {
+	if strictjson.HasValue(rawChoice) {
 		var mode string
 		if json.Unmarshal(rawChoice, &mode) == nil {
 			openAIChoice = rawChoice

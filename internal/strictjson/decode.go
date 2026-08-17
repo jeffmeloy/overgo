@@ -10,6 +10,12 @@ import (
 var ErrTrailingValue = errors.New("trailing JSON value")
 var ErrLimit = errors.New("JSON input exceeds size limit")
 
+var null = []byte("null")
+
+func HasValue(data []byte) bool {
+	return len(data) != 0 && !bytes.Equal(data, null)
+}
+
 func Decode(reader io.Reader, destination any) error {
 	decoder := json.NewDecoder(reader)
 	decoder.DisallowUnknownFields()

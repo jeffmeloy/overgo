@@ -94,31 +94,7 @@ func gatedDeltaMixForwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW,
 	return c, nil
 }
 
-// GatedDeltaMixBackwardDevice is the device VJP of hostmath's qwen3.5
-// linear_attention (gated-delta) mix -- the device counterpart of
-// hostmath.GatedDeltaMixBackward, composed op-for-op from the individually
-// parity-verified device ops (LinearForwardT/LinearBackwardT, ShortConvBackward
-// Device, L2NormBackwardDevice, GatedDeltaNetBackwardDevice, RMSNormForward/
-// RMSNormBackward) plus the host-side gate/beta/SiLU elementwise glue (exactly as
-// hostmath.GatedDeltaMixBackward and GatedMLPBackward do).
-//
-// The host forward cache (gatedDeltaMixCache) is package-private, so the device
-// path recomputes the forward intermediates the VJP consumes from the proven
-// forward primitives (device projections/norms, host ShortConv/L2Norm/GDN forward
-// for the pieces without a device forward wrapper); the recomputed activations
-// match the host cache within the ops' parity, so the composed grads match
-// hostmath.GatedDeltaMixBackward to the kernel-parity class. x is the normed mix
-// input [T,Hidden]; state is the GDN input state [hv,hd,hd]; dOut is [T,OutDim].
-func GatedDeltaMixBackwardDevice(worker *device.Worker, x []float32, w hostmath.GatedDeltaMixWeights, d hostmath.GatedDeltaMixDims, state, dOut []float32) (hostmath.GatedDeltaMixGrads, error) {
-	return gatedDeltaMixBackwardDeviceW(worker, x, gdnHostMatW(w), w, d, state, dOut)
-}
-
-// gatedDeltaMixBackwardDeviceW is GatedDeltaMixBackwardDevice over resident-or-host
-// matrix weights (mw); vector weights stay host-owned via w. It reads no matrix
-// weight back to host: the projection VJPs use linearBackwardTW over mw and the
-// forward recompute uses gatedDeltaMixForwardDeviceW over the same mw. The weight
-// GRADIENTS (DWq..DWout) still return as host slices -- grads are recomputed each
-// step and uploaded into the resident grad buffer by the caller.
+// gatedDeltaMixBackwardDeviceW computes the resident-or-host matrix VJP.
 func gatedDeltaMixBackwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW, w hostmath.GatedDeltaMixWeights, d hostmath.GatedDeltaMixDims, state, dOut []float32) (hostmath.GatedDeltaMixGrads, error) {
 	T, H, hk, hv, hd, K := d.Tokens, d.Hidden, d.KeyHeads, d.ValueHeads, d.HeadDim, d.ConvK
 	keyDim, valDim := hk*hd, hv*hd

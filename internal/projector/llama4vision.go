@@ -15,21 +15,13 @@ import (
 
 const llama4ProjectorType = "llama4"
 
-type llama4VisionActivation uint8
-
-const (
-	llama4QuickGELU llama4VisionActivation = iota
-	llama4GELU
-	llama4SiLU
-)
-
 type Llama4VisionSpec struct {
 	visionBackboneSpec
 	OutputHidden        int
 	AdapterIntermediate int
 	AdapterHidden       int
 	MergeSize           int
-	Activation          llama4VisionActivation
+	Activation          visionActivation
 	PreLayerNorm        bool
 	PostLayerNorm       bool
 	FusedQKV            []bool
@@ -101,9 +93,9 @@ func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
 		return Llama4VisionSpec{}, errors.New("projector: Llama-4 GELU and SiLU flags conflict")
 	}
 	if useGELU {
-		spec.Activation = llama4GELU
+		spec.Activation = visionGELU
 	} else if useSiLU {
-		spec.Activation = llama4SiLU
+		spec.Activation = visionSiLU
 	}
 	if err := spec.validate(); err != nil {
 		return Llama4VisionSpec{}, err
@@ -434,12 +426,12 @@ func llama4VisionRoPE(qkv []float32, gridH, gridW, hidden, heads int, theta floa
 
 func (r *Llama4VisionRunner) activate(value float32) float32 {
 	switch r.spec.Activation {
-	case llama4GELU:
+	case visionGELU:
 		return float32(hostmath.GELUTanh(float64(value)))
-	case llama4SiLU:
+	case visionSiLU:
 		return value / (1 + float32(math.Exp(float64(-value))))
 	default:
-		return value / (1 + float32(math.Exp(float64(-1.702*value))))
+		return value / (1 + float32(math.Exp(float64(-quickGELUScale*value))))
 	}
 }
 

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"overgo/internal/strictjson"
 )
 
 const (
@@ -140,12 +142,7 @@ func parseJSONToolCall(
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
 	}
-	decoder := json.NewDecoder(strings.NewReader(payload))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
-		return ChatToolCall{}, err
-	}
-	if err := requireChatJSONEOF(decoder); err != nil {
+	if err := strictjson.Decode(strings.NewReader(payload), &wire); err != nil {
 		return ChatToolCall{}, err
 	}
 	if wire.Name == "" {

@@ -8,10 +8,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"overgo/internal/strictjson"
 )
 
 func parseStopSequences(raw json.RawMessage) ([]string, error) {
-	if len(raw) == 0 || string(raw) == "null" {
+	if !strictjson.HasValue(raw) {
 		return nil, nil
 	}
 	var single string

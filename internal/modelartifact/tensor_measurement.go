@@ -1,16 +1,13 @@
 package modelartifact
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
 	"math"
 	"slices"
 	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/strictjson"
 	"overgo/internal/tensorstats"
 )
 
@@ -18,9 +15,6 @@ const (
 	TensorMeasurementVersion   uint16 = 3
 	TensorMeasurementMediaType        = "application/vnd.overgo.tensor-measurement+json"
 	TensorMeasurementSchema           = "overgo/tensor-measurement/v3"
-
-	minimumMeasurementSamples = 256
-	maximumMeasurementSamples = 1 << 20
 )
 
 // Spectral status for a tensor's normalized effective rank. Empty means spectral
@@ -35,19 +29,15 @@ var tensorMeasurementContract = artifact.DocumentContract{
 	Kind: artifact.KindTensorInventory, MediaType: TensorMeasurementMediaType, Schema: TensorMeasurementSchema,
 }
 
-var tensorMeasurementCodec = artifact.DocumentCodec[TensorMeasurementDocument]{
-	Name: "model artifact tensor measurement", Contract: tensorMeasurementContract,
-	Decode: func(data []byte, value *TensorMeasurementDocument) error {
-		return strictjson.DecodeBytes(data, value)
-	},
-	Encode: tensorMeasurementContent, Canonicalize: canonicalizeTensorMeasurements,
-	Clone: func(value TensorMeasurementDocument) TensorMeasurementDocument {
+var tensorMeasurementCodec = artifact.JSONDocumentCodec(
+	"model artifact tensor measurement", tensorMeasurementContract.Kind,
+	tensorMeasurementContract.MediaType, tensorMeasurementContract.Schema,
+	canonicalizeTensorMeasurements, func(value TensorMeasurementDocument) artifact.ID { return value.ID },
+	func(value *TensorMeasurementDocument, id artifact.ID) { value.ID = id }, func(value TensorMeasurementDocument) TensorMeasurementDocument {
 		value.Measurements = slices.Clone(value.Measurements)
 		return value
 	},
-	Identity:    func(value TensorMeasurementDocument) artifact.ID { return value.ID },
-	SetIdentity: func(value *TensorMeasurementDocument, id artifact.ID) { value.ID = id },
-}
+)
 
 type MeasurementPolicy struct {
 	MaxSamplesPerTensor uint64 `json:"max_samples_per_tensor"`
@@ -173,13 +163,4 @@ func validSpectralMeasurement(m TensorMeasurement) bool {
 
 func finiteMeasurement(value float64) bool {
 	return !math.IsNaN(value) && !math.IsInf(value, 0)
-}
-
-func tensorMeasurementContent(document TensorMeasurementDocument) ([]byte, error) {
-	document.ID = artifact.ID{}
-	content, err := json.Marshal(document)
-	if err != nil {
-		return nil, fmt.Errorf("model artifact: encode tensor measurement: %w", err)
-	}
-	return content, nil
 }

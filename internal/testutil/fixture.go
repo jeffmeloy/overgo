@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"io/fs"
-	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -12,18 +11,11 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/binaryschema"
 	"overgo/internal/gguf"
 )
 
-// Float32LE encodes float32 values as little-endian bytes for a GGUF/safetensors
-// tensor body.
-func Float32LE(values []float32) []byte {
-	out := make([]byte, len(values)*4)
-	for index, value := range values {
-		binary.LittleEndian.PutUint32(out[index*4:], math.Float32bits(value))
-	}
-	return out
-}
+var Float32LE = binaryschema.LittleEndian.Float32s
 
 const (
 	wavPCMFormat         = 1

@@ -27,3 +27,9 @@ func TestDecodeBoundedRejectsWhitespaceBeyondLimit(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestHasValue(t *testing.T) {
+	if HasValue(nil) || HasValue([]byte("null")) || !HasValue([]byte(`{"value":1}`)) {
+		t.Fatal("optional JSON classification failed")
+	}
+}

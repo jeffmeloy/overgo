@@ -206,14 +206,6 @@ type HyperConnectionBlockWeights struct {
 	NormEps   float64
 }
 
-// HyperConnectionBlockForward runs one block over a single sequence.
-//
-// x holds seq x n_hc x d_model values; bank holds slots x mem_dim (may be
-// empty). Returns the updated residual streams and the MoE balance auxiliary.
-func HyperConnectionBlockForward(x []float32, seq, slots int, bank []float32, w *HyperConnectionBlockWeights) ([]float32, float64, error) {
-	return hyperConnectionBlockForward(x, seq, slots, bank, w, nil)
-}
-
 func hyperConnectionBlockForward(x []float32, seq, slots int, bank []float32, w *HyperConnectionBlockWeights, captureAttentionInput func([]float32)) ([]float32, float64, error) {
 	n, d := w.NHC, w.DModel
 	flat := n * d

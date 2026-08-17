@@ -3,14 +3,11 @@ package dataset
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"slices"
 	"sort"
 
 	"overgo/internal/artifact"
-	"overgo/internal/strictjson"
 )
 
 const (
@@ -23,17 +20,14 @@ var membershipContract = artifact.DocumentContract{
 	Kind: artifact.KindDatasetShard, MediaType: MembershipMediaType, Schema: MembershipSchema,
 }
 
-var membershipCodec = artifact.DocumentCodec[Membership]{
-	Name: "dataset membership", Contract: membershipContract,
-	Decode: func(data []byte, value *Membership) error { return strictjson.DecodeBytes(data, value) },
-	Encode: membershipContent, Canonicalize: canonicalizeMembership,
-	Clone: func(value Membership) Membership {
+var membershipCodec = artifact.JSONDocumentCodec(
+	"dataset membership", membershipContract.Kind, membershipContract.MediaType, membershipContract.Schema,
+	canonicalizeMembership, func(value Membership) artifact.ID { return value.ID },
+	func(value *Membership, id artifact.ID) { value.ID = id }, func(value Membership) Membership {
 		value.Records = slices.Clone(value.Records)
 		return value
 	},
-	Identity:    func(value Membership) artifact.ID { return value.ID },
-	SetIdentity: func(value *Membership, id artifact.ID) { value.ID = id },
-}
+)
 
 type Record struct {
 	ID    string `json:"id"`
@@ -278,13 +272,4 @@ func selectPartition(seed uint64, group string, partitions []SplitPartition) int
 		target -= partition.Weight
 	}
 	return len(partitions) - 1
-}
-
-func membershipContent(membership Membership) ([]byte, error) {
-	membership.ID = artifact.ID{}
-	content, err := json.Marshal(membership)
-	if err != nil {
-		return nil, fmt.Errorf("dataset: encode membership: %w", err)
-	}
-	return content, nil
 }

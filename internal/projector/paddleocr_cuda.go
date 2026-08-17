@@ -68,7 +68,7 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 		hidden = builder.Add(hidden, projected)
 		norm = builder.AffineLayerNorm(hidden, weight(prefix+"ln2.weight"), weight(prefix+"ln2.bias"), r.spec.LayerNormEpsilon)
 		up := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), prefix+"ffn_up.bias")
-		up = r.paddleOCRActivationGraph(builder, up, hostFeeds)
+		up = visionActivationNode(builder, up, hostFeeds, r.spec.Activation)
 		down := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_down.weight"), up), prefix+"ffn_down.bias")
 		hidden = builder.Add(hidden, down)
 	}
@@ -80,7 +80,7 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	)
 	merged := mergePlan.graph(builder, hidden)
 	fc1 := builder.Add(builder.MulMat(weight("mm.1.weight"), merged), weight("mm.1.bias"))
-	fc1 = r.paddleOCRActivationGraph(builder, fc1, hostFeeds)
+	fc1 = visionActivationNode(builder, fc1, hostFeeds, r.spec.Activation)
 	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))
 	results, err := graph.execute(output)
 	if err != nil {
@@ -137,19 +137,4 @@ func (r *PaddleOCRRunner) paddleOCRPositionGraph(
 		}
 	}
 	return builder.Add(hidden, position)
-}
-
-func (r *PaddleOCRRunner) paddleOCRActivationGraph(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-) *tensor.Tensor {
-	switch r.spec.Activation {
-	case paddleOCRGELU:
-		return qwen3VLGELUTanh(builder, input, hostFeeds)
-	case paddleOCRSiLU:
-		return builder.SiLU(input)
-	default:
-		return builder.Multiply(input, builder.Sigmoid(builder.Scale(input, 1.702)))
-	}
 }

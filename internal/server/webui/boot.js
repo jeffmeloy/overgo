@@ -47,6 +47,16 @@
         signal: opts && opts.signal,
       }));
     },
+    async stream(path, body, opts) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(body),
+        signal: opts && opts.signal,
+      });
+      if (!response.ok) await readJSON(response);
+      return response;
+    },
   };
 
   // /analyze/model is fetched by the shell (capability gating), the Model tab,

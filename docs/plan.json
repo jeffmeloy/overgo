@@ -3,23 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE execution authority. Keep the browser thin; Go recipes, compiled plans, runtime sessions, RepoDB, and run evidence own behavior. Unsloth is workflow inventory or an oracle only. No family literals, guessed defaults, fixed warning thresholds, duplicate browser state, compatibility paths, or modality-specific job systems. Migrate each caller and delete displaced logic in the same wave.",
   "items": [
     {
-      "id": "gui-chat-context",
-      "title": "Show exact chat context use and server-measured timing without client tokenization or inferred values",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Count input through the protocol endpoint and display known context, cache, prefill, decode, completion, and elapsed facts",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestWebUIChatUsesServerContextAndTiming$' -count=1",
-          "rationale": "The server already owns tokenization, admission, and slot timing. The browser displays exact facts and leaves unknowns absent.",
-          "depends_on": [
-            "gui-runtime-monitor"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-recipe-inspector",
       "title": "Expose active recipe admission and compiled ordered stages without reconstructing policy in JavaScript",
       "status": "open",

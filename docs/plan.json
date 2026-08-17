@@ -3,20 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "typed-controller-action-language",
-      "title": "Define an allowlisted artifact-transformation action language the controller emits; deterministic Go executors compile those actions through recipes, neutral operators and shared training programs. No code, no shell, no arbitrary runtime orchestration",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define an allowlisted artifact-transformation action language the controller emits; deterministic Go executors compile those actions through recipes, neutral operators and shared training programs. No code, no shell, no arbitrary runtime orchestration",
-          "status": "open",
-          "verify": "go test ./internal/... -run '^TestControllerActionsAreAllowlistedTransformations$' -count=1 -v",
-          "rationale": "The automation boundary. A controller emitting code or shell is unrestricted self-modification wearing a recipe costume."
-        }
-      ]
-    },
-    {
       "id": "independent-rsi-admission",
       "title": "Bind proposer, evaluator and decider to distinct authority domains rather than merely distinct artifact IDs; re-evaluate from a clean worker against sealed inputs; require generation N-1 authority to approve generation N evaluator or policy changes",
       "status": "open",

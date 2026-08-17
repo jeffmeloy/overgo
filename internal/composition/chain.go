@@ -162,6 +162,13 @@ func RunChainViability(store *repodb.Store, config ChainConfig) (ChainResult, er
 	return result, nil
 }
 
+// ChainPrograms compiles the two content-addressed chain recipes for a
+// scorer/drafter model pair: the typed-port composition surface the probe and
+// the controller action language share.
+func ChainPrograms(scorer, drafter artifact.ID) (recipe.Program, recipe.Program, error) {
+	return chainPrograms(scorer, drafter)
+}
+
 // chainPrograms compiles the two content-addressed probe recipes: the
 // two-model chain (drafter text into scorer tokenizer over a typed text edge)
 // and the single-model baseline (the scorer drafting its own gap).

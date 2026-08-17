@@ -16,7 +16,7 @@ import (
 
 type generationWorkspaceGenerator struct {
 	*fakeGenerator
-	capability GenerationCapability
+	capability WorkflowCapability
 	run        artifact.ID
 	mu         sync.Mutex
 	request    generationWorkspaceInput
@@ -27,12 +27,16 @@ type generationWorkspaceInput struct {
 	Seed *int64 `json:"seed,omitempty"`
 }
 
-func (generator *generationWorkspaceGenerator) GenerationCapabilities(context.Context) ([]GenerationCapability, error) {
-	return []GenerationCapability{generator.capability}, nil
+func (generator *generationWorkspaceGenerator) WorkflowCapabilities(_ context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
+	if kind != WorkflowGeneration {
+		return nil, nil
+	}
+	return []WorkflowCapability{generator.capability}, nil
 }
 
-func (generator *generationWorkspaceGenerator) ExecuteGeneration(
+func (generator *generationWorkspaceGenerator) ExecuteWorkflow(
 	_ context.Context,
+	_ WorkflowKind,
 	task recipe.Task,
 	recipeID artifact.ID,
 	raw json.RawMessage,
@@ -55,12 +59,12 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 	generator := &generationWorkspaceGenerator{
 		fakeGenerator: &fakeGenerator{},
 		run:           runID,
-		capability: GenerationCapability{
+		capability: WorkflowCapability{
 			Task: recipe.TaskSpeech, Recipe: recipeID,
 			Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}},
-			Controls: []GenerationControl{
-				{Name: "text", Type: GenerationControlText, Required: true},
-				{Name: "seed", Type: GenerationControlInteger},
+			Controls: []WorkflowControl{
+				{Name: "text", Type: WorkflowControlText, Required: true},
+				{Name: "seed", Type: WorkflowControlInteger},
 			},
 		},
 	}
@@ -74,7 +78,7 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 	if accepted.Code != http.StatusAccepted {
 		t.Fatalf("run status=%d body=%s", accepted.Code, accepted.Body.String())
 	}
-	var submission generationResponse
+	var submission workflowResponse
 	if err := json.Unmarshal(accepted.Body.Bytes(), &submission); err != nil {
 		t.Fatal(err)
 	}
@@ -96,14 +100,15 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 		t.Fatalf("executor input = %+v", input)
 	}
 
-	module := serveTestRequest(handler, http.MethodGet, "/mod/generation.js", "").Body.String()
+	module := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
 	for _, token := range []string{"capability.controls", "capability.recipe", "/operations/wait"} {
 		if !strings.Contains(module, token) {
 			t.Errorf("generation module missing %q", token)
 		}
 	}
 	for _, taskLiteral := range []string{"speech", "image-gen", "video-gen"} {
-		if strings.Contains(module, taskLiteral) {
+		registration := serveTestRequest(handler, http.MethodGet, "/mod/generation.js", "").Body.String()
+		if strings.Contains(module, taskLiteral) || strings.Contains(registration, taskLiteral) {
 			t.Errorf("generation module embeds task %q", taskLiteral)
 		}
 	}

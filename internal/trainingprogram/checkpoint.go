@@ -220,6 +220,16 @@ func LoadCheckpoint(directory string) (Checkpoint, error) {
 	return checkpoint, nil
 }
 
+func ValidateResume(plan TrainingRunPlan, checkpoint Checkpoint, stream artifact.ID) error {
+	if plan.InitialMode() != InitialResume || !checkpoint.ID().Valid() || plan.checkpoint != checkpoint.ID() ||
+		plan.Program().ID() != checkpoint.Program || plan.Dataset() != checkpoint.Dataset || plan.Split() != checkpoint.Split ||
+		stream != checkpoint.Stream.Identity || !slices.Equal(plan.Processors(), checkpoint.Processors) ||
+		!slices.Equal(plan.Projectors(), checkpoint.Projectors) || !slices.Equal(plan.Codecs(), checkpoint.Codecs) {
+		return errors.New("training checkpoint: resume authority differs")
+	}
+	return nil
+}
+
 func canonicalizeCheckpoint(checkpoint *Checkpoint) error {
 	if checkpoint == nil || checkpoint.RunPlan.Kind() != artifact.KindRecipe ||
 		checkpoint.Program.Kind() != artifact.KindRecipe || checkpoint.Model.Kind() != artifact.KindModel ||

@@ -601,6 +601,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/operations/wait" ||
 		request.URL.Path == "/generation/capabilities" ||
 		request.URL.Path == "/generation/run" ||
+		request.URL.Path == "/training/capabilities" ||
+		request.URL.Path == "/training/run" ||
+		request.URL.Path == "/export/capabilities" ||
+		request.URL.Path == "/export/run" ||
 		request.URL.Path == "/artifacts" ||
 		request.URL.Path == "/artifacts/content" ||
 		request.URL.Path == "/completion" ||
@@ -699,6 +703,14 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.generationCapabilities(response, request)
 	case "/generation/run":
 		h.generationRun(response, request)
+	case "/training/capabilities":
+		h.workflowCapabilities(response, request, WorkflowTraining)
+	case "/training/run":
+		h.workflowRun(response, request, WorkflowTraining)
+	case "/export/capabilities":
+		h.workflowCapabilities(response, request, WorkflowExport)
+	case "/export/run":
+		h.workflowRun(response, request, WorkflowExport)
 	case "/artifacts":
 		h.artifactGallery(response, request)
 	case "/artifacts/content":

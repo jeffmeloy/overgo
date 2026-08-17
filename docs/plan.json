@@ -3,23 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE execution authority. Keep the browser thin; Go recipes, compiled plans, runtime sessions, RepoDB, and run evidence own behavior. Unsloth is workflow inventory or an oracle only. No family literals, guessed defaults, fixed warning thresholds, duplicate browser state, compatibility paths, or modality-specific job systems. Migrate each caller and delete displaced logic in the same wave.",
   "items": [
     {
-      "id": "gui-training-export",
-      "title": "Run recipe-selected training and export through reusable Go services and the common operation lifecycle",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Extract command services, expose typed events and exact resume identity, and add training and export controls without subprocess orchestration",
-          "status": "open",
-          "verify": "go test ./internal/server ./internal/trainingprogram ./internal/export -run '^TestGUI(TrainingAndExportShareServices|ResumeRequiresExactAuthority)$' -count=1",
-          "rationale": "CLI and GUI must call the same service; recipe, inventory, and encoding facts derive configuration and output extents.",
-          "depends_on": [
-            "gui-dataset-run-detail"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-completion-gate",
       "title": "Verify thin-client authority, bounded memory behavior, cancellation, lineage, responsive layout, and full repository integrity",
       "status": "open",

@@ -30,7 +30,8 @@ Every turn, run the loop — do not reinvent it, improve it in-flight, or fall
 back to the manual path:
 
 1. `go run ./cmd/plan -prompt` => the ONE dispatched step. Do exactly that step.
-2. Need an existing capability? `docs/MAP.md` => the owner. Do not re-derive.
+2. Need an existing capability? Inspect the owning package and RepoDB. Do not
+   re-derive.
 3. Commit ONLY via `go run ./cmd/gate -plan <item>/<step> -message-file <f>
    -paths <csv>`; the gate reruns acceptance and advances the plan in that
    implementation commit.
@@ -60,10 +61,8 @@ your own reasoning.
 
 ## Navigation and Decisiveness
 
-- Reuse before rediscovery. `docs/MAP.md` maps capability => existing owner;
-  read it before grepping "does X exist" or writing a helper. Missing row => add
-  it when found. The recurring failure is reinventing or re-deriving code that
-  already exists.
+- Reuse before rediscovery. Inspect package ownership and RepoDB before writing
+  a helper. The recurring failure is reinventing existing code.
 - Ground once, then act. Task within a stated recommendation and its owner
   exists => execute. Do not re-verify a settled direction, invent alternatives,
   or re-ask what the user already decided.
@@ -76,7 +75,7 @@ your own reasoning.
   gate is the path.
 - No manufactured blockers. RepoDB catalogs models AND datasets; gate/plan/guard
   is the sanctioned path, not an obstacle to route around. A path that feels
-  blocked => re-read `docs/MAP.md` before proposing any fork.
+  blocked => inspect package ownership and RepoDB before proposing any fork.
 
 ## Priority order (imperatives in conflict)
 
@@ -116,9 +115,8 @@ natural contract.
   evidence fails the gate.
 - `kernels/manifest.json` — kernel ABI authority: hashes, layouts, bindings.
   Kernels enter/change only through it.
-- `docs/` — durable design/contract records only; `MERGE_FLOOR_PLAN.md` tracks
-  automation-floor component status. Chronology lives in Git; the commit body is
-  the ledger (Why / Evidence / Next).
+- `docs/` — durable design/contract records only. Chronology lives in Git; the
+  commit body is the ledger (Why / Evidence / Next).
 
 ## Automation Doctrine
 

@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/optimizer"
 	"overgo/internal/recipecontract"
 	"overgo/internal/trainingdata"
@@ -47,6 +48,6 @@ func TestTrainerConsumesSharedImageBatch(t *testing.T) {
 func imageValue(role trainingdata.ValueRole, channels, height, width int, values []float32) trainingdata.Value {
 	return trainingdata.Value{
 		Role: role, Modality: recipecontract.ModalityImage, Encoding: trainingdata.EncodingFloat32LE,
-		Shape: []int{channels, height, width}, Data: trainingdata.EncodeFloat32(values),
+		Shape: []int{channels, height, width}, Data: binaryschema.LittleEndian.Float32s(values),
 	}
 }

@@ -4,12 +4,13 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/testutil"
 )
 
 func TestAudioCodecs(t *testing.T) {
 	want := []float32{0.5, -0.5}
-	encoded := EncodeFloat32LE(want)
+	encoded := binaryschema.LittleEndian.Float32s(want)
 	decoded, err := DecodeFloat32LE(encoded)
 	if err != nil || !slices.Equal(decoded, want) {
 		t.Fatalf("decoded = %v, error = %v", decoded, err)

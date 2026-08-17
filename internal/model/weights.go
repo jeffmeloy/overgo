@@ -3,10 +3,17 @@ package model
 import (
 	"errors"
 	"fmt"
-	"slices"
 
 	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
+)
+
+var (
+	projectionBiasNames = [...]string{
+		"attn_q.bias", "attn_k.bias", "attn_v.bias", "attn_output.bias",
+		"ffn_gate.bias", "ffn_up.bias", "ffn_down.bias",
+	}
+	longRoPEFactorNames = [...]string{"rope_factors_long.weight", "rope_factors_short.weight"}
 )
 
 // WavPosNetWeights: layer-specific PosNet tensors
@@ -603,17 +610,8 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		keyLength := shapes.KeyProjectionWidth()
 		valueLength := shapes.ValueProjectionWidth()
 		attentionOutputLength := shapes.AttentionOutputWidth()
-		biasNames := []string{
-			"attn_q.bias",
-			"attn_k.bias",
-			"attn_v.bias",
-			"attn_output.bias",
-			"ffn_gate.bias",
-			"ffn_up.bias",
-			"ffn_down.bias",
-		}
 		if profile.Has(ArchitectureBiasFreeProjections) {
-			for _, name := range biasNames {
+			for _, name := range projectionBiasNames {
 				if _, ok := catalog.tensors[prefix+name]; ok {
 					return Weights{}, fmt.Errorf(
 						"tensor %q requires unsupported %s projection biases",
@@ -622,10 +620,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}
 			}
 		}
-		for _, unsupported := range []string{
-			"rope_factors_long.weight",
-			"rope_factors_short.weight",
-		} {
+		for _, unsupported := range longRoPEFactorNames {
 			if _, ok := catalog.tensors[prefix+unsupported]; ok {
 				if profile.Has(ArchitectureLongRoPE) {
 					continue
@@ -765,7 +760,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					return Weights{}, itemErr
 				}
 				convShape := []uint64{uint64(spec.SSMConvKernel), 1, inner}
-				convShape4D := append(slices.Clone(convShape), 1)
+				convShape4D := []uint64{uint64(spec.SSMConvKernel), 1, inner, 1}
 				if itemErr := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 					requiredTensorPointerShapes("ssm_conv1d_q.weight", &layer.SSMQueryConv, convShape, convShape4D),
 					requiredTensorPointerShapes("ssm_conv1d_k.weight", &layer.SSMKeyConv, convShape, convShape4D),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/media"
 	"overgo/internal/recipecontract"
 )
@@ -20,7 +21,7 @@ func AudioProcessor(role ValueRole) Processor {
 		}
 		return Example{ID: record.ID, Group: record.Group, Values: []Value{{
 			Role: role, Modality: recipecontract.ModalityAudio, Encoding: EncodingFloat32LE,
-			Shape: []int{len(samples)}, SampleRate: sampleRate, Data: EncodeFloat32(samples),
+			Shape: []int{len(samples)}, SampleRate: sampleRate, Data: binaryschema.LittleEndian.Float32s(samples),
 		}}}, nil
 	}
 }

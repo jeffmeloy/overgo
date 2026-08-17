@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"sort"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/inference"
-	"overgo/internal/media"
 )
 
 type embeddingRequest struct {
@@ -337,7 +337,7 @@ func (h *Handler) embedPromptAdvanced(
 }
 
 func encodeFloat32Base64(values []float32) string {
-	return base64.StdEncoding.EncodeToString(media.EncodeFloat32LE(values))
+	return base64.StdEncoding.EncodeToString(binaryschema.LittleEndian.Float32s(values))
 }
 
 func (h *Handler) embedPrompt(

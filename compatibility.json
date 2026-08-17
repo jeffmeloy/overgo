@@ -84,7 +84,7 @@
           "contains": "func ValidateDenseRepository(",
           "path": "internal/hfgguf/catalog.go",
           "role": "source",
-          "identity": "file:sha256:6f9cabc61dbf09a334602819678fcec2b408501631f3bdd9701a63c5a0cc7ae1"
+          "identity": "file:sha256:6f76db3fa980d75faf79b9385e542b4bb026ba57b03fec27d6207f8e91642892"
         },
         {
           "contains": "func TestValidateDenseRepositoryUsesRuntimeCatalog(",
@@ -197,7 +197,7 @@
           "contains": "func AudioProcessor(",
           "path": "internal/trainingdata/audio.go",
           "role": "source",
-          "identity": "file:sha256:79be318d9f4a60e52285789a968bcf62e46c7f36824842065d27d09ef85a44cb"
+          "identity": "file:sha256:86e945a5fc1d2addfd0a855e303ada389cf877e4dc7409b035324b9413984aab"
         },
         {
           "contains": "func TestMultimodalTrainingMatrix(",
@@ -252,7 +252,7 @@
           "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
           "path": "internal/server/server_test.go",
           "role": "artifact",
-          "identity": "evidence:sha256:0de273d72b48146130bdcf292dea742e7be5e8199b4f8f0347f1f2c4ccbb2122"
+          "identity": "evidence:sha256:badbb79c5d0338340d68f58049f2242c951171a75f575842759458ee7303c216"
         }
       ],
       "id": "bounded-server-media",
@@ -689,7 +689,7 @@
           "contains": "by response_tools.%s policy",
           "path": "internal/server/responses_tools.go",
           "role": "source",
-          "identity": "file:sha256:a082f783ec4c07caafb437bbae02474f4bec8bc57ddffc42e3468ec839273d19"
+          "identity": "file:sha256:334a1993959161df46c19aa7127af4987e1d646557fdee3d28c75b2d767337a6"
         },
         {
           "contains": "func TestResponsesHostedAndCustomToolsUseExplicitPolicy(",
@@ -800,7 +800,7 @@
           "contains": "promptTools []inference.ChatTool",
           "path": "internal/server/protocol_chat.go",
           "role": "source",
-          "identity": "file:sha256:e17c52dfff8d4572f5b0dfaefadfddf61640f81103fbf3b6ed0522cf6b60532a"
+          "identity": "file:sha256:249fa6eb992d6427af8bb790e9969d93727116cbc431c04f3564709225b271d6"
         },
         {
           "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -821,7 +821,7 @@
           "contains": "case \"image\":",
           "path": "internal/server/anthropic_tools.go",
           "role": "source",
-          "identity": "file:sha256:71326a2252920aaba3a0b416dce99238a656411a04b87cf37b1f6a61d5af532b"
+          "identity": "file:sha256:1ba9644c0da37018de12fa425f2e3e9c56ad2af702271a962cfd0262eb16e388"
         },
         {
           "contains": "func TestAnthropicImageToolsAndTokenCounting(",
@@ -842,7 +842,7 @@
           "contains": "func validateAnthropicThinking(",
           "path": "internal/server/anthropic_thinking.go",
           "role": "source",
-          "identity": "file:sha256:c7f7cd5886ed7ed2a6571c9877b0a84be1aa8a12ecdb0e97343fb6fb8ef3ef53"
+          "identity": "file:sha256:aa2acd06ff2760f6ed208df4e854739855e13f68eda2a694cbddfd2cb6ea3e4f"
         },
         {
           "contains": "func TestAnthropicThinkingBufferedStreamingImageAndReplay(",

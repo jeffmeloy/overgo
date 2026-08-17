@@ -24,6 +24,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/viz.js", "text/javascript; charset=utf-8", "sparkline"},
 		{"/md.js", "text/javascript; charset=utf-8", "overgo.md"},
 		{"/mod/chat.js", "text/javascript; charset=utf-8", "/v1/chat/completions"},
+		{"/mod/runtime.js", "text/javascript; charset=utf-8", "/slots"},
 		{"/mod/datasets.js", "text/javascript; charset=utf-8", "/datasets"},
 		{"/mod/training.js", "text/javascript; charset=utf-8", "/runs"},
 		{"/mod/analyze_model.js", "text/javascript; charset=utf-8", "/analyze/model"},
@@ -44,6 +45,31 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		if !strings.Contains(response.Body.String(), testCase.needle) {
 			t.Fatalf("GET %s body missing %q", testCase.path, testCase.needle)
 		}
+	}
+}
+
+func TestWebUIRuntimeMonitor(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	get := func(path string) string {
+		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
+	}
+	runtime := get("/mod/runtime.js")
+	for _, token := range []string{"overgo.poller", "onActivate", "onDeactivate", `api.get("/slots"`} {
+		if !strings.Contains(runtime, token) {
+			t.Errorf("runtime module missing %q", token)
+		}
+	}
+	if strings.Contains(runtime, "include_text") {
+		t.Error("runtime monitor requests retained text")
+	}
+	boot := get("/boot.js")
+	for _, token := range []string{"function poller", "document.hidden", "t.onActivate", "t.onDeactivate"} {
+		if !strings.Contains(boot, token) {
+			t.Errorf("boot lifecycle missing %q", token)
+		}
+	}
+	if !strings.Contains(get("/app.html"), "/mod/runtime.js") {
+		t.Error("app shell does not load runtime module")
 	}
 }
 

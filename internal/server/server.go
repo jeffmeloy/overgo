@@ -317,13 +317,16 @@ func (stats *slotRuntimeStats) appendGenerated(piece string) {
 	stats.textMu.Unlock()
 }
 
-func (stats *slotRuntimeStats) snapshot() (string, string, slotStatusParams) {
+func (stats *slotRuntimeStats) snapshot(includeText bool) (string, string, slotStatusParams) {
 	stats.textMu.RLock()
 	defer stats.textMu.RUnlock()
 	params := stats.params
 	params.Stop = slices.Clone(params.Stop)
 	params.Samplers = slices.Clone(params.Samplers)
-	return stats.prompt, stats.generated.String(), params
+	if includeText {
+		return stats.prompt, stats.generated.String(), params
+	}
+	return "", "", params
 }
 
 type Handler struct {

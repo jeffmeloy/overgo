@@ -1323,8 +1323,8 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 		if slot.NPromptTokens != 2 ||
 			slot.NPromptTokensProcessed != 2 ||
 			slot.NPromptTokensCache != 0 ||
-			slot.Prompt != "hi" ||
-			slot.Generated != "A" ||
+			slot.Prompt != "" ||
+			slot.Generated != "" ||
 			slot.Timings == nil ||
 			slot.Timings.CacheN != 0 ||
 			slot.Timings.PromptN != 2 ||
@@ -1367,6 +1367,42 @@ func TestSlotsRequireAuthenticationAndGET(t *testing.T) {
 	if method.Code != http.StatusMethodNotAllowed ||
 		method.Header().Get("Allow") != http.MethodGet {
 		t.Fatalf("POST status = %d Allow=%q", method.Code, method.Header().Get("Allow"))
+	}
+}
+
+func TestSlotsRedactTextByDefault(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	generation := serveTestRequest(
+		handler,
+		http.MethodPost,
+		"/completion",
+		`{"prompt":"private","n_predict":1}`,
+	)
+	if generation.Code != http.StatusOK {
+		t.Fatalf("generation status = %d body=%s", generation.Code, generation.Body.String())
+	}
+
+	redacted := serveTestRequest(handler, http.MethodGet, "/slots", "")
+	var fields []map[string]json.RawMessage
+	if err := json.Unmarshal(redacted.Body.Bytes(), &fields); err != nil {
+		t.Fatal(err)
+	}
+	if len(fields) != 1 {
+		t.Fatalf("slot count = %d", len(fields))
+	}
+	for _, name := range []string{"prompt", "generated"} {
+		if _, ok := fields[0][name]; ok {
+			t.Errorf("default slot status exposes %s", name)
+		}
+	}
+
+	included := serveTestRequest(handler, http.MethodGet, "/slots?include_text=1", "")
+	var slots []slotStatusItem
+	if err := json.Unmarshal(included.Body.Bytes(), &slots); err != nil {
+		t.Fatal(err)
+	}
+	if len(slots) != 1 || slots[0].Prompt != "private" || slots[0].Generated != "A" {
+		t.Fatalf("explicit slot text = %+v", slots)
 	}
 }
 
@@ -2052,7 +2088,7 @@ func TestNativeCompletionPromptCacheAccounting(t *testing.T) {
 		slots[0].NPromptTokens != 2 ||
 		slots[0].NPromptTokensProcessed != 1 ||
 		slots[0].NPromptTokensCache != 1 ||
-		slots[0].Generated != "A" ||
+		slots[0].Generated != "" ||
 		slots[0].Params == nil ||
 		slots[0].Params.MaxTokens != 1 ||
 		slots[0].Params.NPredict != 1 ||

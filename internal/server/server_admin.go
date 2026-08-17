@@ -256,6 +256,7 @@ func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
+	includeText := request.URL.Query().Get("include_text") == "1"
 	if request.URL.Query().Has("fail_on_no_slot") && len(h.slots) == 0 {
 		writeError(response, http.StatusServiceUnavailable, "server_busy", "no slot available")
 		return
@@ -289,7 +290,7 @@ func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request
 		predictedMS := float64(predictedNanos) / float64(time.Millisecond)
 		promptPerTokenMS, promptPerSecond := perTokenAndRate(processedTokens, promptMS)
 		predictedPerTokenMS, predictedPerSecond := perTokenAndRate(generatedTokens, predictedMS)
-		prompt, generated, params := stats.snapshot()
+		prompt, generated, params := stats.snapshot(includeText)
 		result[id] = slotStatusItem{
 			ID:                     id,
 			NCtx:                   contextLength,

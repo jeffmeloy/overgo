@@ -5,6 +5,7 @@ package trainingprogram
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"sort"
 	"strings"
@@ -125,6 +126,13 @@ type ProgramSpec struct {
 	Operators  []OperatorSpec
 	Parameters []ParameterSpec
 	Optimizer  optimizer.Plan
+	Preference *PreferencePolicy
+}
+
+// PreferencePolicy seals reference and objective scale facts.
+type PreferencePolicy struct {
+	Reference artifact.ID
+	Scale     float64
 }
 
 type TrainingProgram struct {
@@ -133,6 +141,7 @@ type TrainingProgram struct {
 	operators   []OperatorSpec
 	parameters  []ParameterSpec
 	optimizerID string
+	preference  *PreferencePolicy
 }
 
 func CompileTrainingProgram(spec ProgramSpec) (TrainingProgram, error) {
@@ -147,17 +156,22 @@ func CompileTrainingProgram(spec ProgramSpec) (TrainingProgram, error) {
 	if err != nil {
 		return TrainingProgram{}, err
 	}
+	preference, err := compilePreferencePolicy(spec.Objective, spec.Preference)
+	if err != nil {
+		return TrainingProgram{}, err
+	}
 	body := struct {
-		Objective   ObjectiveKind   `json:"objective"`
-		Operators   []OperatorSpec  `json:"operators"`
-		Parameters  []ParameterSpec `json:"parameters"`
-		OptimizerID string          `json:"optimizer_id"`
-	}{Objective: spec.Objective, Operators: operators, Parameters: parameters, OptimizerID: spec.Optimizer.Identity()}
+		Objective   ObjectiveKind     `json:"objective"`
+		Operators   []OperatorSpec    `json:"operators"`
+		Parameters  []ParameterSpec   `json:"parameters"`
+		OptimizerID string            `json:"optimizer_id"`
+		Preference  *PreferencePolicy `json:"preference,omitempty"`
+	}{Objective: spec.Objective, Operators: operators, Parameters: parameters, OptimizerID: spec.Optimizer.Identity(), Preference: preference}
 	id, err := artifact.JSONID(artifact.KindRecipe, body)
 	if err != nil {
 		return TrainingProgram{}, err
 	}
-	return TrainingProgram{id: id, objective: spec.Objective, operators: operators, parameters: parameters, optimizerID: spec.Optimizer.Identity()}, nil
+	return TrainingProgram{id: id, objective: spec.Objective, operators: operators, parameters: parameters, optimizerID: spec.Optimizer.Identity(), preference: preference}, nil
 }
 
 func (p TrainingProgram) ID() artifact.ID             { return p.id }
@@ -165,6 +179,27 @@ func (p TrainingProgram) Objective() ObjectiveKind    { return p.objective }
 func (p TrainingProgram) Operators() []OperatorSpec   { return slices.Clone(p.operators) }
 func (p TrainingProgram) Parameters() []ParameterSpec { return slices.Clone(p.parameters) }
 func (p TrainingProgram) OptimizerIdentity() string   { return p.optimizerID }
+func (p TrainingProgram) Preference() (PreferencePolicy, bool) {
+	if p.preference == nil {
+		return PreferencePolicy{}, false
+	}
+	return *p.preference, true
+}
+
+func compilePreferencePolicy(objective ObjectiveKind, policy *PreferencePolicy) (*PreferencePolicy, error) {
+	if objective != ObjectiveDPO {
+		if policy != nil {
+			return nil, errors.New("training program: preference policy requires DPO")
+		}
+		return nil, nil
+	}
+	if policy == nil || policy.Reference.Kind() != artifact.KindModel || policy.Scale <= 0 ||
+		math.IsNaN(policy.Scale) || math.IsInf(policy.Scale, 0) {
+		return nil, errors.New("training program: DPO requires reference model and finite positive scale")
+	}
+	copy := *policy
+	return &copy, nil
+}
 
 type InitialStateSpec struct {
 	Model      artifact.ID

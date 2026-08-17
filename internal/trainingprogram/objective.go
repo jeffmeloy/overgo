@@ -33,6 +33,7 @@ const (
 	ObjectiveFlowMatching    ObjectiveKind = "flow-matching"
 	ObjectiveImageLatent     ObjectiveKind = "image-latent"
 	ObjectiveDistillation    ObjectiveKind = "logit-distillation"
+	ObjectiveDPO             ObjectiveKind = "dpo"
 )
 
 var objectiveKinds = []ObjectiveKind{
@@ -45,6 +46,7 @@ var objectiveKinds = []ObjectiveKind{
 	ObjectiveFlowMatching,
 	ObjectiveImageLatent,
 	ObjectiveDistillation,
+	ObjectiveDPO,
 }
 
 type ObjectiveAuthority string
@@ -216,7 +218,7 @@ func validObjectiveKind(kind ObjectiveKind) bool {
 func objectiveSignatureValid(kind ObjectiveKind, signature recipecontract.ModalitySignature) bool {
 	input, output := signature.Inputs[0], signature.Outputs[0]
 	switch kind {
-	case ObjectiveTokenPrediction:
+	case ObjectiveTokenPrediction, ObjectiveDPO:
 		return output == recipecontract.ModalityText
 	case ObjectiveFNS:
 		return input == recipecontract.ModalityText && output == recipecontract.ModalityText

@@ -61,6 +61,13 @@ func run(args []string, output io.Writer) error {
 		}
 		return runPropose(*propose, *proposeTarget, *proposeVerifier, *proposeBlocker, *recordStore, output)
 	}
+	inject := flags.Bool("inject", false, "run the residual-injection connector probe (scorer/drafter as in -chain; tokens sliced into sliding train windows and trailing held-out windows)")
+	if *inject {
+		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" {
+			return errors.New("usage: graft-probe -inject -scorer <dir> -drafter <dir> -tokens <ids.json> [options]")
+		}
+		return runInject(*scorerDir, *drafterDir, *tokensPath, *prefix, *draft, *heldOut, output)
+	}
 	if *chain {
 		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" || *recordStore == "" {
 			return errors.New("usage: graft-probe -chain -scorer <dir> -drafter <dir> -tokens <ids.json> -record <repodb> [options]")
@@ -171,6 +178,51 @@ func runPropose(retrievalPath, targetModel, verifier, blocker, recordStore strin
 	fmt.Fprintf(output, "state: %s -- %s\n", proposal.State, proposal.Blocker)
 	fmt.Fprintf(output, "candidates: %d; required verifier: %s\n", len(proposal.Candidates), proposal.RequiredVerifier)
 	fmt.Fprintln(output, "honesty: advisory by construction; this document cannot authorize work")
+	return nil
+}
+
+// runInject executes the residual-injection connector probe: a ridge-fit
+// linear connector trained by feature matching against measured context gaps,
+// evaluated on trailing held-out windows. Refusals print exactly as loudly as
+// ships.
+func runInject(scorerDir, drafterDir, tokensPath string, prefix, gap, target int, output io.Writer) error {
+	var tokens []int
+	if err := jsonfile.Decode(tokensPath, &tokens); err != nil {
+		return err
+	}
+	span := prefix + gap + target
+	if len(tokens) < 3*span {
+		return fmt.Errorf("need at least %d tokens, got %d", 3*span, len(tokens))
+	}
+	heldOutStart := len(tokens) - 2*span
+	var train [][]int
+	for start := 0; start+span <= heldOutStart; start += 16 {
+		train = append(train, tokens[start:start+span])
+	}
+	result, err := composition.RunInjectionViability(composition.InjectionConfig{
+		ScorerDir: scorerDir, DrafterDir: drafterDir,
+		Prefix: prefix, Gap: gap, Target: target, Alpha: 0.25, Ridge: 1e-3,
+		Train: train,
+		HeldOut: [][]int{
+			tokens[heldOutStart : heldOutStart+span],
+			tokens[heldOutStart+span : heldOutStart+2*span],
+		},
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "scorer layer %d drafter layer %d train windows %d fit residual %.6f\n",
+		result.ScorerLayer, result.DrafterLayer, result.TrainWindows, result.FitResidual)
+	for _, outcome := range result.Outcomes {
+		fmt.Fprintf(output, "held-out %d: baseline CE %.6f injected CE %.6f\n",
+			outcome.Window, outcome.BaselineCE, outcome.InjectedCE)
+	}
+	verdict := "REFUSE"
+	if result.Ship {
+		verdict = "SHIP"
+	}
+	fmt.Fprintf(output, "verdict: %s -- %s\n", verdict, result.Reason)
+	fmt.Fprintln(output, "honesty: host-reference; feature-matching connector, never task CE; verdict binds only this model pair, protocol, and budget")
 	return nil
 }
 

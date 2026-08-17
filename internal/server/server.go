@@ -580,6 +580,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/analyze/tensors/similar" ||
 		request.URL.Path == "/datasets" ||
 		request.URL.Path == "/runs" ||
+		request.URL.Path == "/recipes/active" ||
 		request.URL.Path == "/completion" ||
 		request.URL.Path == "/completions" ||
 		request.URL.Path == "/infill" ||
@@ -662,6 +663,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.browseDatasets(response, request)
 	case "/runs":
 		h.browseRuns(response, request)
+	case "/recipes/active":
+		h.activeRecipe(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

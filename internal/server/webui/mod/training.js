@@ -25,12 +25,6 @@
       function outcomeClass(outcome) {
         return outcome === "succeeded" ? "user_defined" : (outcome === "failed" ? "control" : "");
       }
-      function shortID(id) {
-        const colon = id.indexOf(":");
-        const hash = colon >= 0 ? id.slice(id.lastIndexOf(":") + 1) : id;
-        return (colon >= 0 ? id.slice(0, colon) + ":" : "") + hash.slice(0, 10);
-      }
-
       async function load() {
         host.replaceChildren(el("div", { class: "note", text: "loading /runs…" }));
         let data;
@@ -58,7 +52,7 @@
             .map((p) => p.phase + " " + p.ms.toFixed(0) + "ms").join(", ");
           table.appendChild(el("tr", {},
             el("td", {}, el("span", { class: "tag " + outcomeClass(run.outcome), text: run.outcome })),
-            el("td", { class: "mono", title: run.recipe, text: shortID(run.recipe) }),
+            el("td", { class: "mono", title: run.recipe, text: fmt.shortID(run.recipe) }),
             el("td", { class: "mono", text: (run.code_commit || "").slice(0, 10) || "—" }),
             el("td", { class: "mono", text: run.measured_ms ? run.measured_ms.toFixed(0) + " ms" : "—" }),
             el("td", { class: "dim", text: phases || "—" }),

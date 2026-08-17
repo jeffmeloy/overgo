@@ -122,6 +122,12 @@
     if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
     return String(n);
   }
+  function shortID(id) {
+    id = String(id || "");
+    const separator = id.indexOf(":");
+    const hash = separator < 0 ? id : id.slice(id.lastIndexOf(":") + 1);
+    return (separator < 0 ? "" : id.slice(0, separator) + ":") + hash.slice(0, 10);
+  }
 
   // displayToken: make an empty / whitespace-only / multiline token piece
   // visible without altering the underlying text. Shared by every tab that shows
@@ -213,7 +219,7 @@
     api, el, clear, errorBanner, friendlyError, registerTab,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat,
-    fmt: { grouped, bytes, compact },
+    fmt: { grouped, bytes, compact, shortID },
   };
 
   // ---- shell wiring (runs after all deferred module scripts registered) ----

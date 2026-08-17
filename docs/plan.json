@@ -3,23 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE execution authority. Keep the browser thin; Go recipes, compiled plans, runtime sessions, RepoDB, and run evidence own behavior. Unsloth is workflow inventory or an oracle only. No family literals, guessed defaults, fixed warning thresholds, duplicate browser state, compatibility paths, or modality-specific job systems. Migrate each caller and delete displaced logic in the same wave.",
   "items": [
     {
-      "id": "gui-recipe-inspector",
-      "title": "Expose active recipe admission and compiled ordered stages without reconstructing policy in JavaScript",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Serve and render recipe identity, modules, placement, residency, required facts, cache identity, artifacts, and exact refusal",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestActiveRecipeInspectorUsesCompiledOrder$' -count=1",
-          "rationale": "Typed recipe and compiled-plan authorities supply display data; unknown modules remain non-executable.",
-          "depends_on": [
-            "gui-chat-context"
-          ]
-        }
-      ]
-    },
-    {
       "id": "common-operation-runtime",
       "title": "Own status, cancellation, publication, and failure evidence in one payload-free operation lifecycle",
       "status": "open",

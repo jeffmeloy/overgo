@@ -7,8 +7,8 @@ import (
 
 // Stage: validated node plus its immutable module contract.
 type Stage struct {
-	Node   Node
-	Module Module
+	Node   Node   `json:"node"`
+	Module Module `json:"module"`
 }
 
 // Program: catalog-resolved executable recipe graph.

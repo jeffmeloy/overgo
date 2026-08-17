@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
@@ -64,6 +65,7 @@ func ResolveActiveGGUF(
 	if err := loaded.bindResolved(definition, resolved); err != nil {
 		return fail(err)
 	}
+	loaded.state.Program.Evidence = slices.Clone(activation.Event.Evidence)
 	return loaded, nil
 }
 

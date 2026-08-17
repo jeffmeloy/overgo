@@ -3,49 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "controller-promotion",
-      "title": "Construct and train the small workflow controller from scratch; immutable Git/RepoDB corpus rather than operational-state text; typed component and workflow actions; held-out action/modality validity and multi-seed gains; pretrained challengers under the same suite; champion/challenger promotion and rollback external to the model",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Construct and train the small workflow controller from scratch; immutable Git/RepoDB corpus rather than operational-state text; typed component and workflow actions; held-out action/modality validity and multi-seed gains; pretrained challengers under the same suite; champion/challenger promotion and rollback external to the model",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestControllerPromotionContract$' -count=1 -v",
-          "depends_on": [
-            "construction-profile-bridge",
-            "composition-viability",
-            "typed-controller-action-language",
-            "rollback-invariant-and-drill",
-            "evaluation-isolation",
-            "independent-rsi-admission"
-          ],
-          "capabilities": [
-            "promotes-artifact",
-            "measures-held-out"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "runtime-resource-scheduler",
-      "title": "Add experiment/job leases carrying GPU memory, CPU, RAM and wall-time estimates, heartbeat expiry, cancellation, checkpoint/resume, abandoned-job reconciliation, retry identity, recovery cost and actual measurements; recommendation-only at first",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add experiment/job leases carrying GPU memory, CPU, RAM and wall-time estimates, heartbeat expiry, cancellation, checkpoint/resume, abandoned-job reconciliation, retry identity, recovery cost and actual measurements; recommendation-only at first",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestExperimentLeaseLifecycleAndMeasurement$' -count=1 -v",
-          "rationale": "cmd/plan -lease-report covers worktree/resource advisory leases for development. Runtime experiments need their own lease projection, but both consumers should reuse common resource request and measured-outcome primitives now that the abstraction has two real owners. Experiment-specific lifecycle state stays in runrecord; plan owns recommendation and capacity assessment.",
-          "depends_on": [
-            "experiment-generation-record",
-            "experiment-lifecycle"
-          ]
-        }
-      ]
-    },
-    {
       "id": "bridge-synthesis",
       "title": "Given a blocked candidate, derive adapter geometry, train it with everything else frozen, and emit promotion evidence or a refusal record with measured reason",
       "status": "open",

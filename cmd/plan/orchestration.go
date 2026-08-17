@@ -155,6 +155,9 @@ type leaseReport struct {
 	Leases      []plan.WorkLease      `json:"leases"`
 	Advisory    plan.ResourceAdvisory `json:"advisory"`
 	Exploration []explorationBalance  `json:"exploration,omitempty"`
+	// Reconciliation is recommendation-only: abandoned-lease retries and
+	// measurement error, never an action the report takes itself.
+	Reconciliation []plan.LeaseRecommendation `json:"reconciliation,omitempty"`
 }
 
 func printLeaseReport(root string, capacity plan.Resources, output io.Writer) error {
@@ -223,10 +226,21 @@ func printLeaseReport(root string, capacity plan.Resources, output io.Writer) er
 		exploration = append(exploration, balance)
 	}
 	sort.Slice(exploration, func(i, j int) bool { return exploration[i].Grant < exploration[j].Grant })
+	outcomes := make([]plan.LeaseOutcome, 0)
+	for _, descriptor := range result.Artifacts {
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil || !ok {
+			continue
+		}
+		if outcome, err := plan.ParseLeaseOutcome(content.Data); err == nil {
+			outcomes = append(outcomes, outcome)
+		}
+	}
 	now := time.Now().UTC()
 	payload := leaseReport{
 		GeneratedAt: now.Format(time.RFC3339Nano), Leases: leases,
 		Advisory: plan.AssessResources(now, capacity, leases), Exploration: exploration,
+		Reconciliation: plan.ReconcileExperimentLeases(leases, outcomes, now),
 	}
 	encoder := json.NewEncoder(output)
 	encoder.SetEscapeHTML(false)

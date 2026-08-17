@@ -42,6 +42,50 @@
     return node;
   }
 
+  // signedSeries: raw measured points with a visible zero axis.
+  function signedSeries(series, opts) {
+    opts = opts || {};
+    const height = opts.height || 120;
+    const width = opts.width || 520;
+    const pad = 10;
+    const values = series.flatMap((item) => item.values);
+    const min = Math.min(0, ...values);
+    const max = Math.max(0, ...values);
+    const span = max > min ? max - min : 1;
+    const count = Math.max(1, ...series.map((item) => item.values.length));
+    const x = (index) => pad + (count > 1 ? index / (count - 1) : 0.5) * (width - 2 * pad);
+    const y = (value) => height - pad - ((value - min) / span) * (height - 2 * pad);
+    const node = svg("svg", {
+      class: "signed-series", viewBox: "0 0 " + width + " " + height,
+      width: "100%", height: height, preserveAspectRatio: "none",
+    });
+    node.appendChild(svg("line", {
+      class: "zero-axis", x1: 0, y1: y(0), x2: width, y2: y(0),
+      stroke: "var(--line)", "stroke-width": 1,
+    }));
+    series.forEach((item, seriesIndex) => {
+      const color = item.color || ["var(--acc)", "var(--amber)", "var(--ok)", "var(--err)"][seriesIndex % 4];
+      let path = "";
+      item.values.forEach((value, index) => {
+        path += (index ? "L" : "M") + x(index).toFixed(1) + " " + y(value).toFixed(1) + " ";
+      });
+      if (path) node.appendChild(svg("path", {
+        d: path.trim(), fill: "none", stroke: color, "stroke-width": 1.5,
+      }));
+      item.values.forEach((value, index) => {
+        const dot = svg("circle", {
+          cx: x(index), cy: y(value), r: 2, fill: color,
+          "data-value": String(value),
+        });
+        const title = document.createElementNS(NS, "title");
+        title.textContent = item.label + " [" + index + "] = " + value;
+        dot.appendChild(title);
+        node.appendChild(dot);
+      });
+    });
+    return node;
+  }
+
   // probBars: horizontal bars for measured probabilities. Each entry is
   // {label, value in [0,1], sub?, highlight?, title?}.
   function probBars(entries, opts) {
@@ -205,5 +249,5 @@
   }
 
   window.overgo = window.overgo || {};
-  window.overgo.viz = { sparkline, probBars, heatmap, graph };
+  window.overgo.viz = { sparkline, signedSeries, probBars, heatmap, graph };
 })();

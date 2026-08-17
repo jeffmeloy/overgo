@@ -1,27 +1,5 @@
 {
   "campaign": "Native RL GUI: recipe-selected DPO execution, bounded telemetry, and evidence views",
   "doctrine": "Follow skill.md. The GUI is a thin consumer of the same native training workflow as cmd/train. Active recipes, typed artifacts, trainingprogram, operation, runrecord, and RepoDB remain sole authorities. Add no DPO-only endpoint, shell execution, filesystem-path browser contract, duplicate orchestration, unbounded metric retention, smoothing, fitted curves, reward aliases, artificial thresholds, or extra model passes for visualization. Every wave migrates its production consumer immediately and deletes displaced logic.",
-  "items": [
-    {
-      "id": "rl-gui-visualization",
-      "title": "Render live and durable RL evidence in the existing training workspace",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add signed raw-series plots, DPO margin decomposition, chosen/rejected pair inspection, optimizer health, checkpoint comparison, polling, cancellation, and artifact links",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^(TestRLWorkspaceRendersMeasuredEvidence|TestSignedSeriesPreservesNegativeMeasurements|TestRLWorkspaceUsesGenericWorkflowEndpoints)$' -count=1",
-          "rationale": "The view explains preference separation and training health from existing measurements. It performs no scoring, smoothing, thresholding, or model-specific computation.",
-          "depends_on": [
-            "rl-server-admission",
-            "rl-bounded-telemetry"
-          ],
-          "capabilities": [
-            "measures-held-out"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

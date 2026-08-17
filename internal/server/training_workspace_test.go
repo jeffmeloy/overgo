@@ -95,7 +95,8 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 		t.Fatal(err)
 	}
 	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, recipe.TaskTraining, definition.ID, input, testReporter{})
-	if err != nil || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 1 || completion.Outputs[0].Kind() != artifact.KindCheckpoint {
+	if err != nil || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 2 ||
+		completion.Outputs[0].Kind() != artifact.KindCheckpoint || completion.Outputs[1].Kind() != artifact.KindEvidence {
 		t.Fatalf("completion=%+v err=%v", completion, err)
 	}
 	if checkpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(roots.Checkpoints, "trained")); err != nil || checkpoint.ID() != completion.Outputs[0] {

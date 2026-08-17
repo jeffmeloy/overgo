@@ -32,12 +32,14 @@ type Request struct {
 	DPOScale           float64
 	Host               bool
 	FreezeLexical      bool
+	ObserveDPO         func(trainingprogram.DPOObservation)
 }
 
 type Result struct {
 	Backend        string
 	Objective      trainingprogram.ObjectiveKind
 	Losses         []float64
+	DPO            []trainingprogram.DPOObservation
 	StreamPosition uint64
 	Checkpoint     trainingprogram.Checkpoint
 }
@@ -152,7 +154,7 @@ func executeDPO(
 	if resumed.ID().Valid() {
 		resume = &densecausal.DPOState{Optimizer: resumed.Optimizer, Stream: *resumeStream}
 	}
-	losses, state, err := model.TrainDPOBatchesResume(reference, batches, request.LearningRate, request.Momentum, request.DPOScale, resume)
+	observations, state, err := model.TrainDPOBatchesResume(reference, batches, request.LearningRate, request.Momentum, request.DPOScale, resume, request.ObserveDPO)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: DPO train: %w", err)
 	}
@@ -160,7 +162,7 @@ func executeDPO(
 	if err != nil {
 		return Result{}, err
 	}
-	return Result{Backend: "host", Objective: trainingprogram.ObjectiveDPO, Losses: losses, StreamPosition: state.Stream.Position, Checkpoint: checkpoint}, nil
+	return Result{Backend: "host", Objective: trainingprogram.ObjectiveDPO, DPO: observations, StreamPosition: state.Stream.Position, Checkpoint: checkpoint}, nil
 }
 
 func publishCheckpoint(source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState) (trainingprogram.Checkpoint, error) {

@@ -3,27 +3,6 @@
   "doctrine": "Follow skill.md. The GUI is a thin consumer of the same native training workflow as cmd/train. Active recipes, typed artifacts, trainingprogram, operation, runrecord, and RepoDB remain sole authorities. Add no DPO-only endpoint, shell execution, filesystem-path browser contract, duplicate orchestration, unbounded metric retention, smoothing, fitted curves, reward aliases, artificial thresholds, or extra model passes for visualization. Every wave migrates its production consumer immediately and deletes displaced logic.",
   "items": [
     {
-      "id": "rl-bounded-telemetry",
-      "title": "Publish measured DPO observations without unbounded operation memory or duplicate model work",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retain latest live metrics by name, stream step-bound observations to durable evidence, and report margins and optimizer health from existing traversals",
-          "status": "open",
-          "verify": "go test ./internal/operation ./internal/trainingprogram ./internal/runrecord -run '^(TestReporterMetricsRemainBounded|TestDPOTraceBindsMeasuredObservations|TestDPOTraceRejectsInventedReward)$' -count=1",
-          "rationale": "Long jobs cannot retain one in-memory metric object per step. Visual evidence must bind raw measured values to step, run, recipe, dataset, policy, and reference.",
-          "depends_on": [
-            "rl-training-workflow"
-          ],
-          "capabilities": [
-            "measures-held-out",
-            "publishes-artifact"
-          ]
-        }
-      ]
-    },
-    {
       "id": "rl-gui-visualization",
       "title": "Render live and durable RL evidence in the existing training workspace",
       "status": "open",

@@ -43,6 +43,29 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 	}
 }
 
+func TestReporterMetricsRemainBounded(t *testing.T) {
+	manager := newTestManager(t)
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "bounded-metrics-recipe")
+	runID := testutil.ArtifactID(t, artifact.KindRun, "bounded-metrics-run")
+	id, err := manager.Submit(context.Background(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
+		func(_ context.Context, reporter Reporter) (Completion, error) {
+			for value := range 100 {
+				reporter.Metric(Metric{Name: "loss", Value: float64(value)})
+			}
+			return Completion{Run: runID}, nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.Wait(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(status.Metrics) != 1 || status.Metrics[0].Name != "loss" || status.Metrics[0].Value != 99 {
+		t.Fatalf("metrics=%+v", status.Metrics)
+	}
+}
+
 func TestOperationCancellationReleasesResources(t *testing.T) {
 	manager := newTestManager(t)
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "operation-cancel-recipe")

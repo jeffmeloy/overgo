@@ -338,6 +338,12 @@ func (reporter operationReporter) Metric(metric Metric) {
 	reporter.manager.mu.Lock()
 	defer reporter.manager.mu.Unlock()
 	if current := reporter.manager.entries[reporter.id]; current != nil && !terminal(current.status.State) {
+		for index := range current.status.Metrics {
+			if current.status.Metrics[index].Name == metric.Name {
+				current.status.Metrics[index] = metric
+				return
+			}
+		}
 		current.status.Metrics = append(current.status.Metrics, metric)
 	}
 }

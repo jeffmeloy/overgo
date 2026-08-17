@@ -20,7 +20,8 @@ func (m *Model) TrainDPOBatchesResume(
 	batches []trainingdata.PreferenceBatch,
 	baseLR, momentum, scale float64,
 	resume *DPOState,
-) ([]float64, DPOState, error) {
+	observe func(trainingprogram.DPOObservation),
+) ([]trainingprogram.DPOObservation, DPOState, error) {
 	if reference == nil || len(batches) == 0 {
 		return nil, DPOState{}, errors.New("densecausal: DPO reference or batches absent")
 	}
@@ -46,7 +47,7 @@ func (m *Model) TrainDPOBatchesResume(
 	if resume != nil {
 		stream = resume.Stream
 	}
-	losses := make([]float64, 0)
+	observations := make([]trainingprogram.DPOObservation, 0)
 	for _, batch := range batches {
 		if len(batch.Pairs) == 0 || !batch.State.Identity.Valid() ||
 			stream.Identity.Valid() && (batch.State.Identity != stream.Identity || batch.State.Position <= stream.Position) {
@@ -57,56 +58,83 @@ func (m *Model) TrainDPOBatchesResume(
 				return nil, DPOState{}, errors.New("densecausal: DPO pair lacks exact prefix")
 			}
 			scatter(m, names, weights)
-			loss, grads, err := m.dpoLossAndGrads(reference, pair, scale)
+			observation, grads, err := m.dpoLossAndGrads(reference, pair, scale)
 			if err != nil {
 				return nil, DPOState{}, err
 			}
-			losses = append(losses, loss)
 			m.gatherGrads(names, gradients, grads)
-			update.Step()
+			step := update.Step()
+			observation.Step = uint64(step.Step)
+			observation.LearningRate = step.LearningRate
+			observation.GradientL2 = step.GradientL2
+			observation.UpdateL2 = step.UpdateL2
+			if observe != nil {
+				observe(observation)
+			} else {
+				observations = append(observations, observation)
+			}
 		}
 		stream = batch.State
 	}
 	scatter(m, names, weights)
-	return losses, DPOState{Optimizer: update.Snapshot(), Stream: stream}, nil
+	return observations, DPOState{Optimizer: update.Snapshot(), Stream: stream}, nil
 }
 
-func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePair, scale float64) (float64, Grads, error) {
+func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePair, scale float64) (trainingprogram.DPOObservation, Grads, error) {
 	policyChosen, err := m.sequenceTrace(pair.Chosen)
 	if err != nil {
-		return 0, nil, err
+		return trainingprogram.DPOObservation{}, nil, err
 	}
 	policyRejected, err := m.sequenceTrace(pair.Rejected)
 	if err != nil {
-		return 0, nil, err
+		return trainingprogram.DPOObservation{}, nil, err
 	}
 	referenceChosen, err := reference.sequenceLogProb(pair.Chosen)
 	if err != nil {
-		return 0, nil, err
+		return trainingprogram.DPOObservation{}, nil, err
 	}
 	referenceRejected, err := reference.sequenceLogProb(pair.Rejected)
 	if err != nil {
-		return 0, nil, err
+		return trainingprogram.DPOObservation{}, nil, err
 	}
-	objective, err := trainingprogram.DPOLoss(trainingprogram.PreferenceScores{
+	scores := trainingprogram.PreferenceScores{
 		PolicyChosen: policyChosen.score, PolicyRejected: policyRejected.score,
 		ReferenceChosen: referenceChosen, ReferenceRejected: referenceRejected,
-	}, scale)
+	}
+	objective, err := trainingprogram.DPOLoss(scores, scale)
 	if err != nil {
-		return 0, nil, err
+		return trainingprogram.DPOObservation{}, nil, err
 	}
 	chosen, err := m.sequenceLogProbGrads(policyChosen, objective.ChosenGradient)
 	if err != nil {
-		return 0, nil, err
+		return trainingprogram.DPOObservation{}, nil, err
 	}
 	rejected, err := m.sequenceLogProbGrads(policyRejected, objective.RejectedGradient)
 	if err != nil {
-		return 0, nil, err
+		return trainingprogram.DPOObservation{}, nil, err
 	}
 	for name, values := range rejected {
 		addInPlace(chosen[name], values)
 	}
-	return objective.Loss, chosen, nil
+	policyMargin := scores.PolicyChosen - scores.PolicyRejected
+	referenceMargin := scores.ReferenceChosen - scores.ReferenceRejected
+	return trainingprogram.DPOObservation{
+		Loss:         objective.Loss,
+		PolicyChosen: scores.PolicyChosen, PolicyRejected: scores.PolicyRejected,
+		ReferenceChosen: scores.ReferenceChosen, ReferenceRejected: scores.ReferenceRejected,
+		PolicyMargin: policyMargin, ReferenceMargin: referenceMargin, RelativeMargin: policyMargin - referenceMargin,
+		ChosenTokens: completionCount(pair.Chosen.Completion), RejectedTokens: completionCount(pair.Rejected.Completion),
+	}, chosen, nil
+}
+
+func completionCount(mask []bool) uint64 {
+	var count uint64
+	for _, selected := range mask {
+		if selected {
+			count++
+		}
+	}
+	return count
 }
 
 func (m *Model) sequenceLogProb(sequence trainingdata.PreferenceSequence) (float64, error) {

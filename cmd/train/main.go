@@ -38,10 +38,14 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	count := len(result.Losses) + len(result.DPO)
 	fmt.Printf("backend=%s objective=%s batches=%d stream_position=%d steps=%d lr=%s momentum=%g\n",
-		result.Backend, result.Objective, len(result.Losses), result.StreamPosition, *steps, learningRateLabel(*learningRate), *momentum)
+		result.Backend, result.Objective, count, result.StreamPosition, *steps, learningRateLabel(*learningRate), *momentum)
 	for index, loss := range result.Losses {
 		fmt.Printf("step %d: loss %.6f\n", index, loss)
+	}
+	for _, observation := range result.DPO {
+		fmt.Printf("step %d: loss %.6f relative_margin %.6f\n", observation.Step, observation.Loss, observation.RelativeMargin)
 	}
 	fmt.Printf("checkpoint=%s written to %s\n", result.Checkpoint.ID(), *output)
 	return nil

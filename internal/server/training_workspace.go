@@ -116,19 +116,26 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	}
 	total := uint64(input.Steps)
 	reporter.Progress(0, &total)
+	var completed uint64
+	observations := make([]trainingprogram.DPOObservation, 0, input.Steps)
 	result, executeErr := trainingworkflow.Execute(ctx, trainingworkflow.Request{
 		Recipe:         recipeID,
 		ModelDirectory: policyDirectory, ReferenceDirectory: referenceDirectory,
 		DatasetPath: datasetPath, OutputDirectory: output, ResumeDirectory: resumeDirectory,
 		Steps: input.Steps, LearningRate: input.LearningRate, Momentum: input.Momentum,
 		DPOScale: input.DPOScale, Host: true,
+		ObserveDPO: func(observation trainingprogram.DPOObservation) {
+			observations = append(observations, observation)
+			completed++
+			reporter.Progress(completed, &total)
+			reportDPO(reporter, observation)
+		},
 	})
 	if executeErr != nil {
 		return workspace.fail(ctx, definition.ID, inputs, executeErr)
 	}
-	reporter.Progress(total, &total)
 	reporter.Publishing()
-	return workspace.publish(ctx, definition.ID, inputs, result.Checkpoint, output)
+	return workspace.publish(ctx, definition.ID, inputs, result.Checkpoint, output, observations)
 }
 
 func validateDPOProgram(program recipe.Program) error {
@@ -193,7 +200,7 @@ func (workspace *TrainingWorkspace) outputPath(name string) (string, error) {
 	return filepath.Join(workspace.roots.Checkpoints, name), nil
 }
 
-func (workspace *TrainingWorkspace) publish(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, checkpoint trainingprogram.Checkpoint, path string) (operation.Completion, error) {
+func (workspace *TrainingWorkspace) publish(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, checkpoint trainingprogram.Checkpoint, path string, observations []trainingprogram.DPOObservation) (operation.Completion, error) {
 	data, err := checkpoint.Marshal()
 	if err != nil {
 		return operation.Completion{}, err
@@ -207,6 +214,16 @@ func (workspace *TrainingWorkspace) publish(ctx context.Context, recipeID artifa
 		return operation.Completion{}, err
 	}
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: checkpoint.ID(), Size: uint64(len(data))})
+	trace, err := runrecord.NewDPOTrace(run.ID, recipeID, inputs[2], inputs[0], inputs[1], observations)
+	if err != nil {
+		return operation.Completion{}, err
+	}
+	traceContent, err := trace.Content()
+	if err != nil {
+		return operation.Completion{}, err
+	}
+	batch.Contents = append(batch.Contents, traceContent)
+	batch.Lineage = append(batch.Lineage, trace.Lineage()...)
 	batch.Locations = append(batch.Locations, artifact.LocationEvent{
 		Location: artifact.Location{Artifact: checkpoint.ID(), Kind: artifact.LocationDirectory, Value: path},
 		Action:   artifact.LocationAdd,
@@ -214,7 +231,23 @@ func (workspace *TrainingWorkspace) publish(ctx context.Context, recipeID artifa
 	if _, err := artifact.CommitBatch(ctx, workspace.store, batch); err != nil {
 		return operation.Completion{}, err
 	}
-	return operation.Completion{Run: run.ID, Outputs: []artifact.ID{checkpoint.ID()}}, nil
+	return operation.Completion{Run: run.ID, Outputs: []artifact.ID{checkpoint.ID(), trace.ID}}, nil
+}
+
+func reportDPO(reporter operation.Reporter, observation trainingprogram.DPOObservation) {
+	for _, metric := range []operation.Metric{
+		{Name: "dpo_loss", Value: observation.Loss},
+		{Name: "policy_margin", Value: observation.PolicyMargin},
+		{Name: "reference_margin", Value: observation.ReferenceMargin},
+		{Name: "relative_margin", Value: observation.RelativeMargin},
+		{Name: "learning_rate", Value: observation.LearningRate},
+		{Name: "gradient_l2", Value: observation.GradientL2},
+		{Name: "update_l2", Value: observation.UpdateL2},
+		{Name: "chosen_tokens", Value: float64(observation.ChosenTokens), Unit: "tokens"},
+		{Name: "rejected_tokens", Value: float64(observation.RejectedTokens), Unit: "tokens"},
+	} {
+		reporter.Metric(metric)
+	}
 }
 
 func (workspace *TrainingWorkspace) fail(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, cause error) (operation.Completion, error) {

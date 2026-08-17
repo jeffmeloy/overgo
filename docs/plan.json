@@ -3,69 +3,6 @@
   "doctrine": "Follow skill.md. Implement one complete offline preference-training path before adding rollout methods. Active recipes and typed artifacts own policy. Reuse trainingdata, trainingprogram, hostmath, optimizer, checkpoint, and runrecord. Retain no full sequence-by-vocabulary logits. Add no family switches, wrappers, fallbacks, environment policy, implicit defaults, or parallel orchestration. Each step migrates its consumer immediately and has a failable verifier.",
   "items": [
     {
-      "id": "dpo-objective",
-      "title": "Compile and evaluate the DPO objective",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add stable DPO loss and score gradients over policy/reference chosen/rejected sequence log probabilities",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram -run '^TestDPO(LossMatchesClosedForm|GradientFiniteDifference|PreferredUpdateDirection|RejectsInvalidInput)$' -count=1",
-          "rationale": "Keep objective math independent of model execution and require explicit reference scores and scale.",
-          "depends_on": [
-            "selected-logprob"
-          ],
-          "capabilities": [
-            "verified-objective"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "preference-stream",
-      "title": "Batch deterministic preference pairs with exact shared prefixes",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compile chosen/rejected token pairs from trainingdata examples, preserve source identity, derive exact common prefixes, and resume by stream identity and position",
-          "status": "open",
-          "verify": "go test ./internal/trainingdata -run '^TestPreferenceBatch(CompilesExactPrefixAndMasks|ResumeIsExact|RejectsMalformedPair)$' -count=1",
-          "rationale": "Prefix sharing is valid only for exact token equality. Existing deterministic stream state remains the sole sampler checkpoint.",
-          "depends_on": [
-            "dpo-objective"
-          ],
-          "capabilities": [
-            "exact-resume",
-            "prefix-reuse"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "dense-dpo-runtime",
-      "title": "Route one dense-causal training consumer through the compiled DPO path",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Score policy/reference once per pair, backpropagate weighted selected-token likelihoods into optimizer-owned gradients, update once, and retain no full logits",
-          "status": "open",
-          "verify": "go test ./internal/densecausal -run '^TestDPO(SelectedScoresMatchMaterialized|StepImprovesPreferenceMargin|ReferenceRemainsFrozen)$' -count=1",
-          "rationale": "The vertical is complete only when a production model capability consumes the shared authority and math without an advisory path beside it.",
-          "depends_on": [
-            "preference-stream"
-          ],
-          "capabilities": [
-            "production-consumer",
-            "direct-gradient",
-            "frozen-reference"
-          ]
-        }
-      ]
-    },
-    {
       "id": "dpo-resume-evidence",
       "title": "Prove exact DPO resume and publish typed run evidence",
       "status": "open",
@@ -77,7 +14,7 @@
           "verify": "go test ./internal/trainingprogram ./internal/densecausal ./internal/runrecord -run '^TestDPO(CheckpointAuthority|ResumeMatchesUninterrupted|RunEvidenceBindsAuthority)$' -count=1",
           "rationale": "Completion requires reproducible state and evidence, not only local loss movement.",
           "depends_on": [
-            "dense-dpo-runtime"
+            "dpo-objective"
           ],
           "capabilities": [
             "exact-resume",

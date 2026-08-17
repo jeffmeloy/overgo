@@ -187,7 +187,7 @@ func (h *Handler) parseResponsesMessages(
 				Status  string          `json:"status"`
 				Type    string          `json:"type"`
 			}
-			if err := decodeResponsesItem(rawItem, &item); err != nil {
+			if err := strictjson.DecodeBytes(rawItem, &item); err != nil {
 				return nil, fmt.Errorf("input item %d: %w", index, err)
 			}
 			if item.Role == "" || len(item.Content) == 0 {
@@ -222,7 +222,7 @@ func (h *Handler) parseResponsesMessages(
 				Status    string `json:"status"`
 				Type      string `json:"type"`
 			}
-			if err := decodeResponsesItem(rawItem, &item); err != nil {
+			if err := strictjson.DecodeBytes(rawItem, &item); err != nil {
 				return nil, fmt.Errorf("input item %d: %w", index, err)
 			}
 			if item.CallID == "" || item.Name == "" ||
@@ -258,7 +258,7 @@ func (h *Handler) parseResponsesMessages(
 				Status string          `json:"status"`
 				Type   string          `json:"type"`
 			}
-			if err := decodeResponsesItem(rawItem, &item); err != nil {
+			if err := strictjson.DecodeBytes(rawItem, &item); err != nil {
 				return nil, fmt.Errorf("input item %d: %w", index, err)
 			}
 			if item.CallID == "" || len(item.Output) == 0 {
@@ -290,7 +290,7 @@ func (h *Handler) parseResponsesMessages(
 				} `json:"content"`
 				EncryptedContent string `json:"encrypted_content"`
 			}
-			if err := decodeResponsesItem(rawItem, &item); err != nil {
+			if err := strictjson.DecodeBytes(rawItem, &item); err != nil {
 				return nil, fmt.Errorf("input item %d: %w", index, err)
 			}
 			parts := make([]string, 0, len(item.Content)+len(item.Summary))
@@ -352,16 +352,11 @@ func (h *Handler) parseResponsesMessageContent(
 		}
 		switch header.Type {
 		case "text", "input_text", "output_text":
-			var part struct {
-				Type        string          `json:"type"`
-				Text        string          `json:"text"`
-				Annotations json.RawMessage `json:"annotations"`
-				Logprobs    json.RawMessage `json:"logprobs"`
+			text, err := decodeResponsesTextPart(rawPart, label, index)
+			if err != nil {
+				return "", nil, err
 			}
-			if err := decodeResponsesItem(rawPart, &part); err != nil {
-				return "", nil, fmt.Errorf("%s part %d: %w", label, index, err)
-			}
-			result.WriteString(part.Text)
+			result.WriteString(text)
 		case "input_image":
 			var part struct {
 				Type     string `json:"type"`
@@ -369,7 +364,7 @@ func (h *Handler) parseResponsesMessageContent(
 				FileID   string `json:"file_id"`
 				Detail   string `json:"detail"`
 			}
-			if err := decodeResponsesItem(rawPart, &part); err != nil {
+			if err := strictjson.DecodeBytes(rawPart, &part); err != nil {
 				return "", nil, fmt.Errorf("%s part %d: %w", label, index, err)
 			}
 			if (part.ImageURL == "") == (part.FileID == "") {
@@ -404,7 +399,7 @@ func (h *Handler) parseResponsesMessageContent(
 					Format string `json:"format"`
 				} `json:"input_audio"`
 			}
-			if err := decodeResponsesItem(rawPart, &part); err != nil {
+			if err := strictjson.DecodeBytes(rawPart, &part); err != nil {
 				return "", nil, fmt.Errorf("%s part %d: %w", label, index, err)
 			}
 			if (part.InputAudio.Data == "") == (part.InputAudio.URL == "") {
@@ -429,7 +424,7 @@ func (h *Handler) parseResponsesMessageContent(
 					FPS  float64 `json:"fps,omitempty"`
 				} `json:"input_video"`
 			}
-			if err := decodeResponsesItem(rawPart, &part); err != nil {
+			if err := strictjson.DecodeBytes(rawPart, &part); err != nil {
 				return "", nil, fmt.Errorf("%s part %d: %w", label, index, err)
 			}
 			if (part.InputVideo.Data == "") == (part.InputVideo.URL == "") {
@@ -460,7 +455,7 @@ func (h *Handler) parseResponsesFile(ctx context.Context, raw json.RawMessage, l
 		FileURL  string `json:"file_url"`
 		Filename string `json:"filename"`
 	}
-	if err := decodeResponsesItem(raw, &part); err != nil {
+	if err := strictjson.DecodeBytes(raw, &part); err != nil {
 		return "", fmt.Errorf("%s: %w", label, err)
 	}
 	if part.Type != "input_file" {
@@ -567,10 +562,6 @@ func validResponseFilename(filename string) (string, error) {
 	return filename, nil
 }
 
-func decodeResponsesItem(raw json.RawMessage, destination any) error {
-	return strictjson.DecodeBytes(raw, destination)
-}
-
 func parseResponsesTextContent(raw json.RawMessage, label string) (string, error) {
 	var text string
 	if err := json.Unmarshal(raw, &text); err == nil {
@@ -582,28 +573,31 @@ func parseResponsesTextContent(raw json.RawMessage, label string) (string, error
 	}
 	var result strings.Builder
 	for index, rawPart := range rawParts {
-		var part struct {
-			Type        string          `json:"type"`
-			Text        string          `json:"text"`
-			Annotations json.RawMessage `json:"annotations"`
-			Logprobs    json.RawMessage `json:"logprobs"`
+		text, err := decodeResponsesTextPart(rawPart, label, index)
+		if err != nil {
+			return "", err
 		}
-		if err := decodeResponsesItem(rawPart, &part); err != nil {
-			return "", fmt.Errorf("%s part %d: %w", label, index, err)
-		}
-		switch part.Type {
-		case "text", "input_text", "output_text":
-			result.WriteString(part.Text)
-		default:
-			return "", fmt.Errorf(
-				"%s part %d has unsupported type %q",
-				label,
-				index,
-				part.Type,
-			)
-		}
+		result.WriteString(text)
 	}
 	return result.String(), nil
+}
+
+func decodeResponsesTextPart(raw json.RawMessage, label string, index int) (string, error) {
+	var part struct {
+		Type        string          `json:"type"`
+		Text        string          `json:"text"`
+		Annotations json.RawMessage `json:"annotations"`
+		Logprobs    json.RawMessage `json:"logprobs"`
+	}
+	if err := strictjson.DecodeBytes(raw, &part); err != nil {
+		return "", fmt.Errorf("%s part %d: %w", label, index, err)
+	}
+	switch part.Type {
+	case "text", "input_text", "output_text":
+		return part.Text, nil
+	default:
+		return "", fmt.Errorf("%s part %d has unsupported type %q", label, index, part.Type)
+	}
 }
 
 func responseItems(

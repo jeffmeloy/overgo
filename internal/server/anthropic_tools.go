@@ -130,7 +130,7 @@ func (h *Handler) parseAnthropicMessage(
 					Thinking  string `json:"thinking"`
 					Signature string `json:"signature"`
 				}
-				if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+				if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 					return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 				}
 				if !h.thinkingSigner.verify(block.Thinking, block.Signature) {
@@ -146,7 +146,7 @@ func (h *Handler) parseAnthropicMessage(
 					Type string `json:"type"`
 					Text string `json:"text"`
 				}
-				if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+				if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 					return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 				}
 				content.WriteString(block.Text)
@@ -159,7 +159,7 @@ func (h *Handler) parseAnthropicMessage(
 					Name  string          `json:"name"`
 					Input json.RawMessage `json:"input"`
 				}
-				if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+				if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 					return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 				}
 				var input map[string]any
@@ -225,7 +225,7 @@ func (h *Handler) parseAnthropicMessage(
 				Type string `json:"type"`
 				Text string `json:"text"`
 			}
-			if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+			if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 				return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 			}
 			content.WriteString(block.Text)
@@ -240,7 +240,7 @@ func (h *Handler) parseAnthropicMessage(
 					FileID    string `json:"file_id"`
 				} `json:"source"`
 			}
-			if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+			if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 				return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 			}
 			var source string
@@ -280,7 +280,7 @@ func (h *Handler) parseAnthropicMessage(
 				Content   json.RawMessage `json:"content"`
 				IsError   bool            `json:"is_error"`
 			}
-			if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+			if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 				return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 			}
 			if block.ToolUseID == "" || len(block.Content) == 0 {
@@ -317,10 +317,6 @@ func (h *Handler) parseAnthropicMessage(
 		return nil, fmt.Errorf("%s content must not be empty", label)
 	}
 	return messages, nil
-}
-
-func decodeAnthropicBlock(raw json.RawMessage, destination any) error {
-	return strictjson.DecodeBytes(raw, destination)
 }
 
 func (h *Handler) anthropicBlocks(message inference.ChatMessage, idPrefix string) ([]anthropicContentBlock, error) {

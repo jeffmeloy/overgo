@@ -1,23 +1,5 @@
 {
   "campaign": "Repository tightening: shared tensor ingestion and direct protocol ownership",
   "doctrine": "Follow skill.md. Migrate every production caller and delete displaced loops, copies, wrappers, and tests in the same wave. Preserve numerical and protocol behavior. Add no compatibility path or speculative abstraction.",
-  "items": [
-    {
-      "id": "protocol-decoder-tightening",
-      "title": "Delete protocol decode wrappers and duplicate Responses text-part parsing",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Call strict JSON authority directly and share one private Responses text-part decoder",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^(TestAnthropic|TestResponses|TestResponse)' -count=1",
-          "rationale": "Remove pass-through wrappers and keep one typed text-part validation path without merging distinct protocol semantics.",
-          "depends_on": [
-            "borrowed-tensor-catalog"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

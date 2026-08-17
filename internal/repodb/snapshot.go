@@ -16,6 +16,7 @@ import (
 	"sort"
 
 	"overgo/internal/artifact"
+	"overgo/internal/strictjson"
 )
 
 const (
@@ -318,13 +319,11 @@ func readSnapshot(path string) (catalogState, replayAnchor, error) {
 	if sha256.Sum256(payload) != digest {
 		return catalogState{}, replayAnchor{}, errors.New("repodb: snapshot digest differs")
 	}
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	decoder.DisallowUnknownFields()
 	var document snapshotDocument
-	if err := decoder.Decode(&document); err != nil {
+	if err := strictjson.DecodeBytes(payload, &document); err != nil {
 		return catalogState{}, replayAnchor{}, err
 	}
-	if err := ensureJSONEnd(decoder); err != nil || document.Sequence != sequence || document.Head != head {
+	if document.Sequence != sequence || document.Head != head {
 		return catalogState{}, replayAnchor{}, errors.New("repodb: snapshot header differs from payload")
 	}
 	state, err := stateFromSnapshot(document)

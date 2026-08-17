@@ -33,7 +33,7 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 
 	builder := tensor.NewBuilder()
 	pixelInput := builder.Input(
-		"pixel_values", dtype.F32, tensor.MustShape(uint64(r.spec.PatchWidth), uint64(rows)),
+		visionInputTensor, dtype.F32, tensor.MustShape(uint64(r.spec.PatchWidth), uint64(rows)),
 	)
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	weight := graph.weight
@@ -62,7 +62,7 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 	positioned := builder.BF16Round(builder.Add(ln2, positionSum))
 	posNorm := affineNorm.graph(builder, positioned, weight("v.patch_norm.3.weight"), weight("v.patch_norm.3.bias"))
 	preProjection := rmsNorm.graph(builder, posNorm, nil, nil)
-	embeddings := builder.BF16Round(builder.MulMat(weight("mm.input_projection.weight"), preProjection))
+	embeddings := builder.BF16Round(builder.MulMat(weight(multimodalInputProjection), preProjection))
 	graph.hostFeeds[pixelInput] = reference.Value{Shape: pixelInput.Shape, Data: pixels}
 	outputs := []*tensor.Tensor{embeddings}
 	if trace != nil {

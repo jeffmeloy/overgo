@@ -218,18 +218,6 @@ func collectTensorMappings(
 	return mappings, nil
 }
 
-// DenseTensorData: stream standard dense payloads in GGUF tensor order.
-func DenseTensorData(repository *hfrepo.Repository) ([]gguf.TensorData, error) {
-	if repository == nil || repository.Tensors == nil {
-		return nil, errors.New("HF/GGUF adapter: nil repository")
-	}
-	mappings, err := denseTensorMappings(repository.Tensors)
-	if err != nil {
-		return nil, err
-	}
-	return mappedTensorData(mappings)
-}
-
 func mappedTensorData(mappings []tensorMapping) ([]gguf.TensorData, error) {
 	tensors := make([]gguf.TensorData, 0, len(mappings))
 	for _, mapping := range mappings {

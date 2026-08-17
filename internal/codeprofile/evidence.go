@@ -47,7 +47,6 @@ func NewEvidence(codeCommit string, gateResult artifact.ID, profile Profile) (Ev
 	return evidenceCodec.New(Evidence{Version: EvidenceVersion, CodeCommit: codeCommit, GateResult: gateResult, Profile: profile})
 }
 
-func ParseEvidence(data []byte) (Evidence, error)         { return evidenceCodec.Parse(data) }
 func (value Evidence) Content() (artifact.Content, error) { return evidenceCodec.Content(value) }
 func (value Evidence) ValidateIdentity() error            { return evidenceCodec.ValidateIdentity(value) }
 func (value Evidence) Lineage() []artifact.Lineage {

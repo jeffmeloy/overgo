@@ -1,7 +1,6 @@
 package hostmath
 
 import (
-	"fmt"
 	"math"
 )
 
@@ -229,9 +228,4 @@ func SinkhornFromLogitsBackward(logits, dOut []float32, count, n, iters int) []f
 		}
 	}
 	return dLogits
-}
-
-func errSinkhornShape(count, n, got int) error {
-	return fmt.Errorf("sinkhorn: expected %d matrices of %dx%d (%d values), got %d",
-		count, n, n, count*n*n, got)
 }

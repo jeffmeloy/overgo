@@ -14,14 +14,14 @@ func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float
 	patchRows, patchWidth := grid*grid, 3*r.spec.PatchSize*r.spec.PatchSize
 	rows := patchRows + 1
 	builder := tensor.NewBuilder()
-	pixels := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(patchRows)))
+	pixels := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(patchRows)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[pixels] = pixelsValue(pixels, pixelsData)
 	weight := graph.weight
 	hostFeeds := graph.hostFeeds
 	patch := builder.Reshape(weight(visionPatchWeightTensor), uint64(patchWidth), uint64(r.spec.Hidden))
 	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), visionPatchBiasTensor)
-	hidden = builder.Concat(hidden, builder.Reshape(weight("v.class_embd"), uint64(r.spec.Hidden), 1), 1)
+	hidden = builder.Concat(hidden, builder.Reshape(weight(visionClassEmbeddingTensor), uint64(r.spec.Hidden), 1), 1)
 	hidden = builder.Add(hidden, weight(visionPositionWeightTensor))
 	for layer := 0; layer < r.spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
@@ -47,7 +47,7 @@ func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float
 		hidden = builder.Add(hidden, ffn)
 	}
 	hidden = builder.FlatSlice(hidden, 0, uint64(r.spec.Hidden), uint64(patchRows))
-	hidden = builder.MulMat(weight("mm.model.fc.weight"), hidden)
+	hidden = builder.MulMat(weight(multimodalProjectionWeight), hidden)
 	hidden = builder.AffineLayerNorm(
 		hidden, weight("mm.post_fc_norm.weight"), weight("mm.post_fc_norm.bias"), cogVLMAdapterNormEpsilon,
 	)

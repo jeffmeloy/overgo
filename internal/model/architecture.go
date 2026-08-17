@@ -233,7 +233,7 @@ func (p NormalizationPlan) PostNormTensors() PostNormTensorNames {
 		}
 	default:
 		return PostNormTensorNames{
-			AttentionWeight: "post_attention_norm.weight", FeedForwardWeight: "post_ffw_norm.weight",
+			AttentionWeight: postAttentionNormWeightTensor, FeedForwardWeight: "post_ffw_norm.weight",
 		}
 	}
 }
@@ -248,9 +248,9 @@ func (p NormalizationPlan) FeedForwardNormTensor() string {
 	case FeedForwardNormLayoutAttentionPost:
 		return "attn_post_norm.weight"
 	case FeedForwardNormLayoutPostAttention:
-		return "post_attention_norm.weight"
+		return postAttentionNormWeightTensor
 	default:
-		return "ffn_norm.weight"
+		return feedForwardNormWeightTensor
 	}
 }
 
@@ -386,7 +386,7 @@ func (p ArchitectureProfile) OutputNormTensor() string {
 	case OutputNormTokenEmbedding:
 		return "token_embd_norm.weight"
 	default:
-		return "output_norm.weight"
+		return outputNormWeightTensor
 	}
 }
 

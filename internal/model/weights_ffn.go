@@ -15,10 +15,10 @@ func loadStandardSwiGLUCatalog(
 ) error {
 	width, feedForward := uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)
 	return loadTensorRequirements(catalog, prefix, []tensorRequirement{
-		requiredTensorPointer("ffn_norm.weight", &layer.FeedForwardNorm, width),
-		requiredTensorPointer("ffn_gate.weight", &layer.FeedForwardGate, width, feedForward),
-		requiredTensorPointer("ffn_up.weight", &layer.FeedForwardUp, width, feedForward),
-		requiredTensorPointer("ffn_down.weight", &layer.FeedForwardDown, feedForward, width),
+		requiredTensorPointer(feedForwardNormWeightTensor, &layer.FeedForwardNorm, width),
+		requiredTensorPointer(feedForwardGateWeightTensor, &layer.FeedForwardGate, width, feedForward),
+		requiredTensorPointer(feedForwardUpWeightTensor, &layer.FeedForwardUp, width, feedForward),
+		requiredTensorPointer(feedForwardDownWeightTensor, &layer.FeedForwardDown, feedForward, width),
 	})
 }
 
@@ -42,8 +42,8 @@ func loadDenseFFNCatalog(
 	if profile.EncoderOperator.usesALiBiQKNorm() {
 		upWidth := uint64(feedForwardLength)
 		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
-			optionalTensorPointer("ffn_gate.weight", &layer.FeedForwardGate, uint64(spec.EmbeddingLength), upWidth),
-			requiredTensorPointerShapes("ffn_up.weight", &layer.FeedForwardUp,
+			optionalTensorPointer(feedForwardGateWeightTensor, &layer.FeedForwardGate, uint64(spec.EmbeddingLength), upWidth),
+			requiredTensorPointerShapes(feedForwardUpWeightTensor, &layer.FeedForwardUp,
 				[]uint64{uint64(spec.EmbeddingLength), upWidth},
 				[]uint64{uint64(spec.EmbeddingLength), 2 * upWidth}),
 		}); err != nil {
@@ -54,7 +54,7 @@ func loadDenseFFNCatalog(
 		}
 		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
 			optionalF32TensorPointer("ffn_up.bias", &layer.FeedForwardUpBias, layer.FeedForwardUp.Shape[1]),
-			requiredTensorPointer("ffn_down.weight", &layer.FeedForwardDown, upWidth, uint64(spec.EmbeddingLength)),
+			requiredTensorPointer(feedForwardDownWeightTensor, &layer.FeedForwardDown, upWidth, uint64(spec.EmbeddingLength)),
 			requiredF32TensorPointer("ffn_down.bias", &layer.FeedForwardDownBias, uint64(spec.EmbeddingLength)),
 		}); err != nil {
 			return err
@@ -65,7 +65,7 @@ func loadDenseFFNCatalog(
 		return nil
 	}
 	if profile.FeedForward == FeedForwardSwiGLU || profile.FeedForward == FeedForwardGEGLU {
-		gate, err := catalog.required(prefix+"ffn_gate.weight", shapes.FeedForwardUp(1)...)
+		gate, err := catalog.required(prefix+feedForwardGateWeightTensor, shapes.FeedForwardUp(1)...)
 		if err != nil {
 			return err
 		}
@@ -75,12 +75,12 @@ func loadDenseFFNCatalog(
 	if profile.FeedForward == FeedForwardFusedGateUp {
 		upMultiplier = 2
 	}
-	up, err := catalog.required(prefix+"ffn_up.weight", shapes.FeedForwardUp(upMultiplier)...)
+	up, err := catalog.required(prefix+feedForwardUpWeightTensor, shapes.FeedForwardUp(upMultiplier)...)
 	if err != nil {
 		return err
 	}
 	layer.FeedForwardUp = &up
-	down, err := catalog.required(prefix+"ffn_down.weight", shapes.FeedForwardDown()...)
+	down, err := catalog.required(prefix+feedForwardDownWeightTensor, shapes.FeedForwardDown()...)
 	if err != nil {
 		return err
 	}

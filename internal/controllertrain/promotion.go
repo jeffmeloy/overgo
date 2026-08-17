@@ -126,11 +126,7 @@ func (d Decision) Lineage() []artifact.Lineage {
 }
 
 func (d Decision) Batch(key string) (artifact.Batch, error) {
-	content, err := d.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, d.Lineage(), nil)
+	return decisionCodec.Batch(key, d, d.Lineage(), nil)
 }
 
 func promotionProved(decision Decision) bool {

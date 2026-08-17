@@ -81,7 +81,7 @@ func MeasureGGUF(
 		}
 		dims := tensor.Shape[:tensor.Dimensions]
 		if err := collectEffectiveRank(&measurement, &meter, dims, policy.SpectralMaxDim,
-			ggufTensorBytes(tensor),
+			tensor.Size,
 			func() ([]float64, error) { return fullGGUFTensorValues(file, tensor) },
 		); err != nil {
 			return TensorMeasurementDocument{}, err
@@ -148,9 +148,6 @@ func collectEffectiveRank(
 	measurement.SpectralStatus = SpectralComputed
 	return nil
 }
-
-// ggufTensorBytes is the stored size of a full tensor read for budget charging.
-func ggufTensorBytes(tensor gguf.TensorInfo) uint64 { return tensor.Size }
 
 // fullGGUFTensorValues reads and dequantizes every element of a GGUF tensor in
 // storage order. It is sampleGGUFTensorValues at full coverage: with the sample

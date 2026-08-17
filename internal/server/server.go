@@ -700,9 +700,9 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 	case "/operations/wait":
 		h.operationWait(response, request)
 	case "/generation/capabilities":
-		h.generationCapabilities(response, request)
+		h.workflowCapabilities(response, request, WorkflowGeneration)
 	case "/generation/run":
-		h.generationRun(response, request)
+		h.workflowRun(response, request, WorkflowGeneration)
 	case "/training/capabilities":
 		h.workflowCapabilities(response, request, WorkflowTraining)
 	case "/training/run":

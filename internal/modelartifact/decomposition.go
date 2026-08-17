@@ -94,11 +94,7 @@ func (d ComponentDecompositionDocument) Lineage() artifact.Lineage {
 }
 
 func (d ComponentDecompositionDocument) Batch(key string) (artifact.Batch, error) {
-	content, err := d.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, []artifact.Lineage{d.Lineage()}, nil)
+	return componentDecompositionCodec.Batch(key, d, []artifact.Lineage{d.Lineage()}, nil)
 }
 
 func canonicalizeComponentDecomposition(value *ComponentDecompositionDocument) error {

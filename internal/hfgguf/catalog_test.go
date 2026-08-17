@@ -36,7 +36,11 @@ func TestValidateDenseRepositoryRejectsUnmappedTensor(t *testing.T) {
 
 func TestDenseTensorDataReversesShapesAndPromotesVectors(t *testing.T) {
 	repository := denseFixture(t, "qwen2", true)
-	tensors, err := DenseTensorData(repository)
+	mappings, err := denseTensorMappings(repository.Tensors)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tensors, err := mappedTensorData(mappings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +89,7 @@ func TestValidateQwen35RepositoryUsesRuntimeCatalog(t *testing.T) {
 }
 
 func TestQwen35TensorDataSqueezesConvolutionAndExcludesVision(t *testing.T) {
-	tensors, err := Qwen35TensorData(qwen35Fixture(t))
+	_, tensors, err := Qwen35Conversion(qwen35Fixture(t))
 	if err != nil {
 		t.Fatal(err)
 	}

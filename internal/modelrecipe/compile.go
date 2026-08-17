@@ -582,14 +582,6 @@ func Content(definition recipe.Definition) (artifact.Content, error) {
 	return definition.ArtifactContent()
 }
 
-func Batch(key string, definition recipe.Definition) (artifact.Batch, error) {
-	content, err := Content(definition)
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, nil, nil)
-}
-
 func mustCatalog() *recipe.Catalog {
 	placements := []recipe.Placement{recipe.PlacementHost, recipe.PlacementDevice, recipe.PlacementHybrid}
 	modules := []recipe.Module{

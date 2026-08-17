@@ -123,16 +123,16 @@ func (s Gemma4Spec) validate() error {
 
 func validateGemma4Catalog(file *gguf.File, spec Gemma4Spec) ([]string, error) {
 	required := map[string][]uint64{
-		visionPatchWeightTensor:      {uint64(spec.PatchWidth), uint64(spec.Hidden)},
-		visionPatchBiasTensor:        {uint64(spec.Hidden)},
-		"v.patch_norm.1.weight":      {uint64(spec.PatchWidth)},
-		"v.patch_norm.1.bias":        {uint64(spec.PatchWidth)},
-		"v.patch_norm.2.weight":      {uint64(spec.Hidden)},
-		"v.patch_norm.2.bias":        {uint64(spec.Hidden)},
-		visionPositionWeightTensor:   {uint64(spec.Hidden), uint64(spec.PositionCount), 2},
-		"v.patch_norm.3.weight":      {uint64(spec.Hidden)},
-		"v.patch_norm.3.bias":        {uint64(spec.Hidden)},
-		"mm.input_projection.weight": {uint64(spec.Hidden), uint64(spec.Hidden)},
+		visionPatchWeightTensor:    {uint64(spec.PatchWidth), uint64(spec.Hidden)},
+		visionPatchBiasTensor:      {uint64(spec.Hidden)},
+		"v.patch_norm.1.weight":    {uint64(spec.PatchWidth)},
+		"v.patch_norm.1.bias":      {uint64(spec.PatchWidth)},
+		"v.patch_norm.2.weight":    {uint64(spec.Hidden)},
+		"v.patch_norm.2.bias":      {uint64(spec.Hidden)},
+		visionPositionWeightTensor: {uint64(spec.Hidden), uint64(spec.PositionCount), 2},
+		"v.patch_norm.3.weight":    {uint64(spec.Hidden)},
+		"v.patch_norm.3.bias":      {uint64(spec.Hidden)},
+		multimodalInputProjection:  {uint64(spec.Hidden), uint64(spec.Hidden)},
 	}
 	return validateProjectorTensorCatalog(file, required)
 }
@@ -325,7 +325,7 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 	hostmath.RMSNormInto(preProjection, posNorm, nil, rows, r.spec.Hidden, float64(r.spec.RMSNormEpsilon))
 	dtype.RoundBF16Slice(preProjection)
 	traceGemma4(trace, "pre_projection_norm", preProjection)
-	projection, err := r.load(ctx, "mm.input_projection.weight")
+	projection, err := r.load(ctx, multimodalInputProjection)
 	if err != nil {
 		return Gemma4Output{}, err
 	}

@@ -70,9 +70,9 @@ func (s CogVLMVisionSpec) validate() error {
 func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) ([]string, error) {
 	grid := spec.ImageSize / spec.PatchSize
 	required := map[string][]uint64{
-		"v.class_embd":           {uint64(spec.Hidden), 1},
-		"mm.model.fc.weight":     {uint64(spec.Hidden), uint64(spec.OutputHidden)},
-		"mm.post_fc_norm.weight": {uint64(spec.OutputHidden)}, "mm.post_fc_norm.bias": {uint64(spec.OutputHidden)},
+		visionClassEmbeddingTensor: {uint64(spec.Hidden), 1},
+		multimodalProjectionWeight: {uint64(spec.Hidden), uint64(spec.OutputHidden)},
+		"mm.post_fc_norm.weight":   {uint64(spec.OutputHidden)}, "mm.post_fc_norm.bias": {uint64(spec.OutputHidden)},
 		"mm.up.weight":   {uint64(spec.OutputHidden), uint64(spec.AdapterIntermediate)},
 		"mm.gate.weight": {uint64(spec.OutputHidden), uint64(spec.AdapterIntermediate)},
 		"mm.down.weight": {uint64(spec.AdapterIntermediate), uint64(spec.OutputHidden)},

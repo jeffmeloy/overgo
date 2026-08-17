@@ -10,7 +10,7 @@ func readRelativeEncoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 	plan := newEncoderDecoderCatalogPlan(spec)
 	result := Weights{Layers: make([]LayerWeights, spec.BlockCount)}
 	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
-		requiredTensor("token_embd.weight", &result.TokenEmbedding, plan.width, uint64(spec.VocabularySize)),
+		requiredTensor(tokenEmbeddingWeightTensor, &result.TokenEmbedding, plan.width, uint64(spec.VocabularySize)),
 		requiredTensor("enc.output_norm.weight", &result.OutputNorm, plan.width),
 	}); err != nil {
 		return Weights{}, err
@@ -31,10 +31,10 @@ func readEncoderDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights,
 		Layers:        make([]LayerWeights, spec.DecoderBlockCount),
 	}
 	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
-		requiredTensor("token_embd.weight", &result.TokenEmbedding, plan.width, uint64(spec.VocabularySize)),
+		requiredTensor(tokenEmbeddingWeightTensor, &result.TokenEmbedding, plan.width, uint64(spec.VocabularySize)),
 		requiredTensor("dec.output_norm.weight", &result.OutputNorm, plan.width),
 		requiredTensorPointer("enc.output_norm.weight", &result.EncoderOutputNorm, plan.width),
-		optionalTensorPointer("output.weight", &result.Output, plan.width, uint64(spec.VocabularySize)),
+		optionalTensorPointer(outputWeightTensor, &result.Output, plan.width, uint64(spec.VocabularySize)),
 	}); err != nil {
 		return Weights{}, err
 	}

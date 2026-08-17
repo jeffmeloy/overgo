@@ -557,8 +557,8 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 	result := artifact.Batch{
 		Key:       batch.Key,
 		Artifacts: slices.Clone(batch.Artifacts),
-		Contents:  cloneContents(batch.Contents),
-		Manifests: cloneManifests(batch.Manifests),
+		Contents:  cloneValues(batch.Contents),
+		Manifests: cloneValues(batch.Manifests),
 		Lineage:   slices.Clone(batch.Lineage),
 		Aliases:   artifact.CloneAliasBindings(batch.Aliases),
 		Locations: slices.Clone(batch.Locations),
@@ -652,18 +652,13 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 	return result, nil
 }
 
-func cloneManifests(manifests []artifact.Manifest) []artifact.Manifest {
-	result := slices.Clone(manifests)
-	for index := range result {
-		result[index] = result[index].Clone()
+func cloneValues[T interface{ Clone() T }](values []T) []T {
+	if values == nil {
+		return nil
 	}
-	return result
-}
-
-func cloneContents(contents []artifact.Content) []artifact.Content {
-	result := slices.Clone(contents)
+	result := make([]T, len(values))
 	for index := range result {
-		result[index] = result[index].Clone()
+		result[index] = values[index].Clone()
 	}
 	return result
 }

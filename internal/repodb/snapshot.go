@@ -175,7 +175,7 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 	}
 	batch := artifact.Batch{
 		Key: "snapshot/state", Artifacts: slices.Clone(document.Artifacts),
-		Contents: cloneContents(document.Contents), Manifests: cloneManifests(document.Manifests),
+		Contents: cloneValues(document.Contents), Manifests: cloneValues(document.Manifests),
 		Lineage: slices.Clone(document.Lineage),
 	}
 	for _, alias := range document.Aliases {

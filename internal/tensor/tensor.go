@@ -730,7 +730,7 @@ func (b *Builder) add(
 	inputs []*Tensor,
 	attrs Attributes,
 ) *Tensor {
-	if err := validateOperationAttributes(op, attrs); err != nil {
+	if err := ValidateOperationAttributes(op, attrs); err != nil {
 		b.setError(err)
 		return nil
 	}

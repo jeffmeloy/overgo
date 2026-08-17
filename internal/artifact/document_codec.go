@@ -185,6 +185,15 @@ func (c DocumentCodec[T]) Content(value T) (Content, error) {
 	return contract.Content(id, data)
 }
 
+// Batch: one canonical document plus its publication edges.
+func (c DocumentCodec[T]) Batch(key string, value T, lineage []Lineage, aliases []AliasBinding) (Batch, error) {
+	content, err := c.Content(value)
+	if err != nil {
+		return Batch{}, err
+	}
+	return NewDocumentBatch(key, []Content{content}, lineage, aliases)
+}
+
 func (c DocumentCodec[T]) canonical(value T) (T, []byte, DocumentContract, error) {
 	value = c.clone(value)
 	c.SetIdentity(&value, ID{})

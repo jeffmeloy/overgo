@@ -104,7 +104,7 @@ func RunChainViability(store *repodb.Store, config ChainConfig) (ChainResult, er
 	}); err != nil {
 		return ChainResult{}, err
 	}
-	chainProgram, baseProgram, err := chainPrograms(scorerID, drafterID)
+	chainProgram, baseProgram, err := ChainPrograms(scorerID, drafterID)
 	if err != nil {
 		return ChainResult{}, err
 	}
@@ -162,17 +162,10 @@ func RunChainViability(store *repodb.Store, config ChainConfig) (ChainResult, er
 	return result, nil
 }
 
-// ChainPrograms compiles the two content-addressed chain recipes for a
-// scorer/drafter model pair: the typed-port composition surface the probe and
-// the controller action language share.
-func ChainPrograms(scorer, drafter artifact.ID) (recipe.Program, recipe.Program, error) {
-	return chainPrograms(scorer, drafter)
-}
-
-// chainPrograms compiles the two content-addressed probe recipes: the
+// ChainPrograms compiles the two content-addressed probe recipes: the
 // two-model chain (drafter text into scorer tokenizer over a typed text edge)
 // and the single-model baseline (the scorer drafting its own gap).
-func chainPrograms(scorer, drafter artifact.ID) (recipe.Program, recipe.Program, error) {
+func ChainPrograms(scorer, drafter artifact.ID) (recipe.Program, recipe.Program, error) {
 	node := func(id recipe.NodeID, module recipe.ModuleID, slot uint32) recipe.Node {
 		return recipe.Node{ID: id, Module: module, Placement: recipe.PlacementHost, ModelSlot: slot}
 	}

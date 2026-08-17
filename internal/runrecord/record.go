@@ -243,11 +243,7 @@ func (r Run) Lineage() []artifact.Lineage {
 }
 
 func (r Run) Batch(key string) (artifact.Batch, error) {
-	content, err := r.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, r.Lineage(), nil)
+	return runCodec.Batch(key, r, r.Lineage(), nil)
 }
 
 func NewEvaluation(
@@ -282,11 +278,7 @@ func (e Evaluation) Lineage() []artifact.Lineage {
 }
 
 func (e Evaluation) Batch(key string) (artifact.Batch, error) {
-	content, err := e.Content()
-	if err != nil {
-		return artifact.Batch{}, err
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, e.Lineage(), nil)
+	return evaluationCodec.Batch(key, e, e.Lineage(), nil)
 }
 
 func canonicalizeRun(run *Run) error {

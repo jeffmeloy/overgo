@@ -125,7 +125,8 @@ var operationAttributeKinds = [...]attributeKind{
 	OpPixelShuffle2D:       attributePixelShuffle2D,
 }
 
-func validateOperationAttributes(op Op, attributes Attributes) error {
+// ValidateOperationAttributes checks one operation/descriptor pair.
+func ValidateOperationAttributes(op Op, attributes Attributes) error {
 	if _, ok := DescribeOperation(op); !ok {
 		return fmt.Errorf("operation %d is invalid", op)
 	}
@@ -150,11 +151,6 @@ func validateOperationAttributes(op Op, attributes Attributes) error {
 		return fmt.Errorf("%s attributes are invalid", op)
 	}
 	return nil
-}
-
-// ValidateOperationAttributes checks one operation/descriptor pair.
-func ValidateOperationAttributes(op Op, attributes Attributes) error {
-	return validateOperationAttributes(op, attributes)
 }
 
 func attributeKindOf(attributes Attributes) attributeKind {

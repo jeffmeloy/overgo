@@ -212,7 +212,7 @@ func loadOptionalDenseGEGLUCatalog(
 	spec Spec,
 	layer *LayerWeights,
 ) error {
-	names := []string{"ffn_gate.weight", "ffn_up.weight", "ffn_down.weight"}
+	names := []string{feedForwardGateWeightTensor, feedForwardUpWeightTensor, feedForwardDownWeightTensor}
 	present := 0
 	for _, name := range names {
 		if _, ok := catalog.tensors[prefix+name]; ok {

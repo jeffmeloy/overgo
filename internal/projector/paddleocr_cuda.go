@@ -25,7 +25,7 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 		return PaddleOCROutput{}, err
 	}
 	builder := tensor.NewBuilder()
-	pixels := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
+	pixels := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	hostFeeds := graph.hostFeeds
 	hostFeeds[pixels] = reference.Value{Shape: pixels.Shape, Data: input.PixelValues}

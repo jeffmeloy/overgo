@@ -26,7 +26,7 @@ func TestASTProfileEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseEvidence(content.Data)
+	parsed, err := evidenceCodec.Parse(content.Data)
 	if err != nil || parsed.ID != evidence.ID || len(parsed.Lineage()) != 1 {
 		t.Fatalf("profile evidence = (%+v, %v)", parsed, err)
 	}

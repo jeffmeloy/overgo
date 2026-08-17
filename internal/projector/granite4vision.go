@@ -194,7 +194,7 @@ func (s Granite4VisionSpec) validate() error {
 func validateGranite4VisionCatalog(file *gguf.File, spec Granite4VisionSpec) ([]string, error) {
 	patches := spec.ImageSize / spec.PatchSize
 	required := map[string][]uint64{
-		"v.image_newline": {uint64(spec.ProjectionDim)},
+		visionImageNewlineTensor: {uint64(spec.ProjectionDim)},
 	}
 	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, patches*patches, tensorRequired)
 	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, nil, false, tensorRequired)
@@ -380,7 +380,7 @@ func (r *Granite4VisionRunner) encodeTile(ctx context.Context, tile Granite4Visi
 		}
 		outRows := len(projected) / r.spec.ProjectionDim
 		if tile.AddNewline {
-			newline, loadErr := r.load(ctx, "v.image_newline")
+			newline, loadErr := r.load(ctx, visionImageNewlineTensor)
 			if loadErr != nil {
 				return nil, loadErr
 			}

@@ -135,7 +135,7 @@ func LoadLoRA(ctx context.Context, path string, base *gguf.File, spec Spec) (*Lo
 		if !ok {
 			return nil, fmt.Errorf("LoRA tensor %q does not exist in base model", name)
 		}
-		embedding := strings.HasSuffix(name, "token_embd.weight")
+		embedding := strings.HasSuffix(name, tokenEmbeddingWeightTensor)
 		if err := validateLoRAShapes(name, baseInfo, *pair.a, *pair.b, embedding); err != nil {
 			return nil, err
 		}

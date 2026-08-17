@@ -62,32 +62,16 @@ func (r ComponentRole) String() string {
 }
 
 func ParseComponentRole(value string) (ComponentRole, error) {
-	for role, name := range componentRoleNames {
-		if role > 0 && value == name {
-			return ComponentRole(role), nil
-		}
-	}
-	return ComponentInvalid, fmt.Errorf("artifact: unknown component role %q", value)
+	parsed, err := parseEnum(value, componentRoleNames[:], "component role")
+	return ComponentRole(parsed), err
 }
 
 func (r ComponentRole) MarshalJSON() ([]byte, error) {
-	if r == ComponentInvalid || int(r) >= len(componentRoleNames) {
-		return nil, errors.New("artifact: invalid component role")
-	}
-	return json.Marshal(r.String())
+	return marshalEnumJSON(int(r), componentRoleNames[:], "component role")
 }
 
 func (r *ComponentRole) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return fmt.Errorf("artifact: decode component role: %w", err)
-	}
-	parsed, err := ParseComponentRole(value)
-	if err != nil {
-		return err
-	}
-	*r = parsed
-	return nil
+	return unmarshalEnumInto(r, data, componentRoleNames[:], "component role")
 }
 
 // Component: canonical manifest member

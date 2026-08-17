@@ -62,14 +62,6 @@ type workflowResponse struct {
 	Operation artifact.ID `json:"operation"`
 }
 
-func (h *Handler) generationCapabilities(response http.ResponseWriter, request *http.Request) {
-	h.workflowCapabilities(response, request, WorkflowGeneration)
-}
-
-func (h *Handler) generationRun(response http.ResponseWriter, request *http.Request) {
-	h.workflowRun(response, request, WorkflowGeneration)
-}
-
 func (h *Handler) workflowCapabilities(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return

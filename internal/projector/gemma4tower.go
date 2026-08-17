@@ -251,9 +251,9 @@ func validateGemma4TowerCatalog(file *gguf.File, spec Gemma4TowerSpec) ([]string
 	kvWidth := uint64(vision.KVHeads * vision.HeadDim)
 	inter := uint64(vision.Intermediate)
 	required := map[string][]uint64{
-		visionPatchWeightTensor:      {patchPixels, hidden},
-		visionPositionWeightTensor:   {hidden, uint64(vision.PositionCount), 2},
-		"mm.input_projection.weight": {hidden, uint64(vision.ProjectionDim)},
+		visionPatchWeightTensor:    {patchPixels, hidden},
+		visionPositionWeightTensor: {hidden, uint64(vision.PositionCount), 2},
+		multimodalInputProjection:  {hidden, uint64(vision.ProjectionDim)},
 	}
 	for layer := 0; layer < vision.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)

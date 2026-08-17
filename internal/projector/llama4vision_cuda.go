@@ -22,14 +22,14 @@ func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4Vis
 	}
 	rows := patchRows + 1
 	builder := tensor.NewBuilder()
-	pixels := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(patchRows)))
+	pixels := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(patchRows)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	hostFeeds := graph.hostFeeds
 	hostFeeds[pixels] = pixelsValue(pixels, input.PixelValues)
 	weight := graph.weight
 	patch := builder.Reshape(weight(visionPatchWeightTensor), uint64(patchWidth), uint64(r.spec.Hidden))
 	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), visionPatchBiasTensor)
-	class := builder.Reshape(weight("v.class_embd"), uint64(r.spec.Hidden), 1)
+	class := builder.Reshape(weight(visionClassEmbeddingTensor), uint64(r.spec.Hidden), 1)
 	hidden = builder.Concat(hidden, class, 1)
 	hidden = builder.Add(hidden, weight(visionPositionWeightTensor))
 	if r.spec.PreLayerNorm {
@@ -78,7 +78,7 @@ func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4Vis
 	adapted = qwen3VLGELUTanh(builder, adapted, hostFeeds)
 	adapted = builder.MulMat(weight("mm.model.mlp.2.weight"), adapted)
 	adapted = qwen3VLGELUTanh(builder, adapted, hostFeeds)
-	output := builder.MulMat(weight("mm.model.fc.weight"), adapted)
+	output := builder.MulMat(weight(multimodalProjectionWeight), adapted)
 	results, err := graph.execute(output)
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("projector: execute Llama-4 CUDA graph: %w", err)

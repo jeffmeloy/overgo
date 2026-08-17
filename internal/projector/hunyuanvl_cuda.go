@@ -38,7 +38,7 @@ func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 		}
 	}
 	builder := tensor.NewBuilder()
-	pixels := builder.Input("pixel_values", dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
+	pixels := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
 	conv0Input := builder.Input("mm.0.weight.reordered", dtype.F32, tensor.MustShape(uint64(convWidth), uint64(r.spec.ConvIntermediate)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	hostFeeds := graph.hostFeeds
@@ -88,7 +88,7 @@ func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	projected = qwen3VLGELUTanh(builder, projected, hostFeeds)
 	conv2 := builder.Reshape(weight("mm.2.weight"), uint64(r.spec.ConvIntermediate), uint64(r.spec.ProjectorInput))
 	projected = builder.Add(builder.MulMat(conv2, projected), weight("mm.2.bias"))
-	newline := builder.Reshape(weight("v.image_newline"), uint64(r.spec.ProjectorInput), 1)
+	newline := builder.Reshape(weight(visionImageNewlineTensor), uint64(r.spec.ProjectorInput), 1)
 	var content *tensor.Tensor
 	for y := 0; y < mergedH; y++ {
 		row := builder.FlatSlice(projected, uint64(y*mergedW*r.spec.ProjectorInput), uint64(r.spec.ProjectorInput), uint64(mergedW))
@@ -99,7 +99,7 @@ func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 			content = builder.Concat(content, row, 1)
 		}
 	}
-	content = builder.Add(builder.MulMat(weight("mm.model.fc.weight"), content), weight("mm.model.fc.bias"))
+	content = builder.Add(builder.MulMat(weight(multimodalProjectionWeight), content), weight(multimodalProjectionBias))
 	begin := builder.Reshape(weight("mm.image_begin"), uint64(r.spec.OutputHidden), 1)
 	end := builder.Reshape(weight("mm.image_end"), uint64(r.spec.OutputHidden), 1)
 	output := builder.Concat(builder.Concat(begin, content, 1), end, 1)

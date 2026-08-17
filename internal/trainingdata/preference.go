@@ -3,7 +3,13 @@ package trainingdata
 import (
 	"errors"
 	"slices"
+
+	"overgo/internal/binaryschema"
+	"overgo/internal/checked"
+	"overgo/internal/recipecontract"
 )
+
+const EncodingTokenIDs = "token-ids-u64-le"
 
 type TokenDecoder func(Value) ([]int, error)
 
@@ -47,7 +53,7 @@ func CompilePreferenceBatch(batch Batch, decode TokenDecoder) (PreferenceBatch, 
 			!validPreferenceSequence(rejectedTokens, rejected.Completion) {
 			return PreferenceBatch{}, errors.New("training data: invalid preference sequence")
 		}
-		prefix := commonTokenPrefix(chosenTokens, rejectedTokens)
+		prefix := CommonTokenPrefix(chosenTokens, rejectedTokens)
 		if prefix == 0 {
 			return PreferenceBatch{}, errors.New("training data: preference pair has no exact prefix")
 		}
@@ -89,7 +95,7 @@ func validPreferenceSequence(tokens []int, completion []bool) bool {
 	return false
 }
 
-func commonTokenPrefix(left, right []int) int {
+func CommonTokenPrefix(left, right []int) int {
 	limit := min(len(left), len(right))
 	for index := range limit {
 		if left[index] != right[index] {
@@ -97,4 +103,58 @@ func commonTokenPrefix(left, right []int) int {
 		}
 	}
 	return limit
+}
+
+func TokenValue(role ValueRole, tokens []int, completion []bool) (Value, error) {
+	bytes, ok := checked.Mul64(uint64(len(tokens)), binaryschema.Uint64Bytes)
+	size, fits := checked.Int(bytes)
+	if !ok || !fits || !validPreferenceSequence(tokens, completion) || role != RoleChosen && role != RoleRejected {
+		return Value{}, errors.New("training data: invalid preference token value")
+	}
+	data := make([]byte, size)
+	for index, token := range tokens {
+		if token < 0 {
+			return Value{}, errors.New("training data: negative token ID")
+		}
+		binaryschema.LittleEndian.PutUint64(data[index*binaryschema.Uint64Bytes:], uint64(token))
+	}
+	return Value{
+		Role: role, Modality: recipecontract.ModalityText, Encoding: EncodingTokenIDs,
+		Shape: []int{len(tokens)}, Data: data, Completion: slices.Clone(completion),
+	}, nil
+}
+
+func PreferenceTokenValues(chosenTokens, rejectedTokens []int) (Value, Value, error) {
+	prefix := CommonTokenPrefix(chosenTokens, rejectedTokens)
+	if prefix == 0 || prefix >= len(chosenTokens) || prefix >= len(rejectedTokens) {
+		return Value{}, Value{}, errors.New("training data: preference tokens require shared prefix and distinct suffixes")
+	}
+	mask := func(length int) []bool {
+		result := make([]bool, length)
+		for index := prefix; index < length; index++ {
+			result[index] = true
+		}
+		return result
+	}
+	chosen, err := TokenValue(RoleChosen, chosenTokens, mask(len(chosenTokens)))
+	if err != nil {
+		return Value{}, Value{}, err
+	}
+	rejected, err := TokenValue(RoleRejected, rejectedTokens, mask(len(rejectedTokens)))
+	return chosen, rejected, err
+}
+
+func TokenIDs(value Value) ([]int, error) {
+	if value.Encoding != EncodingTokenIDs || len(value.Data) == 0 || len(value.Data)%binaryschema.Uint64Bytes != 0 {
+		return nil, errors.New("training data: invalid token ID payload")
+	}
+	result := make([]int, len(value.Data)/binaryschema.Uint64Bytes)
+	for index := range result {
+		encoded := binaryschema.LittleEndian.Uint64(value.Data[index*binaryschema.Uint64Bytes:])
+		var ok bool
+		if result[index], ok = checked.Int(encoded); !ok {
+			return nil, errors.New("training data: token ID exceeds host integer")
+		}
+	}
+	return result, nil
 }

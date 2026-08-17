@@ -184,7 +184,11 @@ func checkpointSpecForTest(t *testing.T, source string, state densecausal.TrainS
 	if err != nil {
 		t.Fatal(err)
 	}
-	authority, err := compileTrainingAuthority(model, source, batchAuthority{Dataset: dataset, Split: split, Processor: processor}, trainingdata.StreamState{Identity: streamIdentity, Position: position}, state.Config.BaseLearningRate, trainingprogram.Checkpoint{})
+	authority, err := compileTrainingAuthority(
+		model, source, batchAuthority{Dataset: dataset, Split: split, Processor: processor},
+		trainingdata.StreamState{Identity: streamIdentity, Position: position}, state.Config.BaseLearningRate,
+		trainingprogram.Checkpoint{}, trainingprogram.ObjectiveTokenPrediction, nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,4 +197,30 @@ func checkpointSpecForTest(t *testing.T, source string, state densecausal.TrainS
 		t.Fatal(err)
 	}
 	return spec
+}
+
+func TestDPOCommandCompilesPreferenceBatches(t *testing.T) {
+	raw := []byte("{\"id\":\"first\",\"prompt\":\"ab\",\"chosen\":\"c\",\"rejected\":\"d\"}\n")
+	encode := func(text string) ([]int, error) {
+		tokens := make([]int, len(text))
+		for index := range text {
+			tokens[index] = int(text[index])
+		}
+		return tokens, nil
+	}
+	batches, state, _, err := preferenceBatchesResume(context.Background(), raw, 2, encode, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(batches) != 2 || state.Position != 2 || batches[0].Pairs[0].SharedPrefix != 2 ||
+		!batches[0].Pairs[0].Chosen.Completion[2] || !batches[0].Pairs[0].Rejected.Completion[2] {
+		t.Fatalf("preference batches=%+v state=%+v", batches, state)
+	}
+	resumed, resumedState, _, err := preferenceBatchesResume(context.Background(), raw, 1, encode, &batches[0].State)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resumed) != 1 || resumedState.Position != batches[0].State.Position+1 {
+		t.Fatalf("resumed batches=%+v state=%+v", resumed, resumedState)
+	}
 }

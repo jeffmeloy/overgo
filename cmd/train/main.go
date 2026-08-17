@@ -30,6 +30,8 @@ func run() error {
 	datasetPath := flag.String("dataset", "", "UTF-8 training dataset")
 	outDir := flag.String("out", "", "output directory for the trained checkpoint")
 	resumeDir := flag.String("resume", "", "resume checkpoint directory")
+	referenceDir := flag.String("reference", "", "frozen reference model directory for DPO")
+	dpoScale := flag.Float64("dpo-scale", 0, "DPO scale; required with -reference")
 	steps := flag.Int("steps", 1, "number of Muon update steps")
 	maxSeq := flag.Int("seq", 512, "cap the token sequence to this length (attention is O(seq^2)); <=0 keeps all")
 	baseLR := flag.Float64("lr", 0, "base learning rate; <=0 derives n_params^-1/2")
@@ -74,15 +76,23 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("read dataset: %w", err)
 	}
+	if *host && *freezeLexical {
+		return fmt.Errorf("-host and -freeze-lexical are mutually exclusive")
+	}
+	if *referenceDir != "" {
+		if *dpoScale <= 0 || *freezeLexical {
+			return fmt.Errorf("-reference requires positive -dpo-scale and does not support -freeze-lexical")
+		}
+		return runDPO(model, tok.Encode, inputDir, *referenceDir, *outDir, raw, *steps, *baseLR, *mu, *dpoScale, resumed, resumeStream)
+	}
+	if *dpoScale != 0 {
+		return fmt.Errorf("-dpo-scale requires -reference")
+	}
 	batches, streamState, dataAuthority, err := tokenBatchesResume(context.Background(), raw, *steps, *maxSeq, tok.Encode, resumeStream)
 	if err != nil {
 		return err
 	}
-
-	if *host && *freezeLexical {
-		return fmt.Errorf("-host and -freeze-lexical are mutually exclusive")
-	}
-	authority, err := compileTrainingAuthority(model, inputDir, dataAuthority, streamState, *baseLR, resumed)
+	authority, err := compileTrainingAuthority(model, inputDir, dataAuthority, streamState, *baseLR, resumed, trainingprogram.ObjectiveTokenPrediction, nil)
 	if err != nil {
 		return fmt.Errorf("compile training authority: %w", err)
 	}
@@ -105,6 +115,68 @@ func run() error {
 	}
 	fmt.Printf("checkpoint=%s written to %s\n", checkpoint.ID(), *outDir)
 	return nil
+}
+
+func runDPO(
+	model *densecausal.Model,
+	encode func(string) ([]int, error),
+	inputDir, referenceDir, outDir string,
+	raw []byte,
+	steps int,
+	baseLR, momentum, scale float64,
+	resumed trainingprogram.Checkpoint,
+	resumeStream *trainingdata.StreamState,
+) error {
+	reference, err := densecausal.Load(referenceDir)
+	if err != nil {
+		return fmt.Errorf("load DPO reference: %w", err)
+	}
+	batches, streamState, dataAuthority, err := preferenceBatchesResume(context.Background(), raw, steps, encode, resumeStream)
+	if err != nil {
+		return err
+	}
+	referenceID, err := identifyModel(referenceDir)
+	if err != nil {
+		return fmt.Errorf("resolve DPO reference identity: %w", err)
+	}
+	preference := &trainingprogram.PreferencePolicy{Reference: referenceID, Scale: scale}
+	authority, err := compileTrainingAuthority(
+		model, inputDir, dataAuthority, streamState, baseLR, resumed, trainingprogram.ObjectiveDPO, preference,
+	)
+	if err != nil {
+		return fmt.Errorf("compile DPO authority: %w", err)
+	}
+	var resume *densecausal.DPOState
+	if resumed.ID().Valid() {
+		resume = &densecausal.DPOState{Optimizer: resumed.Optimizer, Stream: *resumeStream}
+	}
+	losses, state, err := model.TrainDPOBatchesResume(reference, batches, baseLR, momentum, scale, resume)
+	if err != nil {
+		return fmt.Errorf("DPO train: %w", err)
+	}
+	checkpointSpec, err := authority.checkpointSpec(state.Optimizer)
+	if err != nil {
+		return err
+	}
+	checkpoint, err := saveCheckpoint(inputDir, outDir, model, checkpointSpec)
+	if err != nil {
+		return fmt.Errorf("save DPO checkpoint: %w", err)
+	}
+	fmt.Printf("backend=host objective=dpo batches=%d stream_position=%d steps=%d lr=%s momentum=%g scale=%g\n", len(batches), state.Stream.Position, steps, lrLabel(baseLR), momentum, scale)
+	for index, loss := range losses {
+		fmt.Printf("step %d: loss %.6f\n", index, loss)
+	}
+	fmt.Printf("checkpoint=%s written to %s\n", checkpoint.ID(), outDir)
+	return nil
+}
+
+func identifyModel(directory string) (artifact.ID, error) {
+	file, err := os.Open(filepath.Join(directory, trainingprogram.CheckpointWeights))
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	id, _, identifyErr := artifact.Identify(artifact.KindModel, file)
+	return id, errors.Join(identifyErr, file.Close())
 }
 
 func lrLabel(lr float64) string {
@@ -219,17 +291,21 @@ type trainingAuthority struct {
 	projectors, codecs      []artifact.ID
 }
 
-func compileTrainingAuthority(model *densecausal.Model, modelDir string, data batchAuthority, stream trainingdata.StreamState, baseLR float64, resumed trainingprogram.Checkpoint) (trainingAuthority, error) {
+func compileTrainingAuthority(
+	model *densecausal.Model,
+	modelDir string,
+	data batchAuthority,
+	stream trainingdata.StreamState,
+	baseLR float64,
+	resumed trainingprogram.Checkpoint,
+	objective trainingprogram.ObjectiveKind,
+	preference *trainingprogram.PreferencePolicy,
+) (trainingAuthority, error) {
 	modelID := resumed.Model
+	var err error
 	if !modelID.Valid() {
-		file, err := os.Open(filepath.Join(modelDir, trainingprogram.CheckpointWeights))
+		modelID, err = identifyModel(modelDir)
 		if err != nil {
-			return trainingAuthority{}, err
-		}
-		var closeErr error
-		modelID, _, err = artifact.Identify(artifact.KindModel, file)
-		closeErr = file.Close()
-		if err := errors.Join(err, closeErr); err != nil {
 			return trainingAuthority{}, err
 		}
 	}
@@ -242,14 +318,25 @@ func compileTrainingAuthority(model *densecausal.Model, modelDir string, data ba
 		group, _ := muonPlan.Group(index)
 		parameters[index] = trainingprogram.ParameterSpec{Name: group.Name, Rows: group.Rows, Cols: group.Cols, Trainable: !group.Frozen}
 	}
-	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
-		Objective: trainingprogram.ObjectiveTokenPrediction,
-		Operators: []trainingprogram.OperatorSpec{
-			{ID: "dense-forward", Phase: trainingprogram.PhaseForward},
+	operators := []trainingprogram.OperatorSpec{
+		{ID: "dense-forward", Phase: trainingprogram.PhaseForward},
+		{ID: "dense-backward", Phase: trainingprogram.PhaseBackward},
+		{ID: "muon", Phase: trainingprogram.PhaseOptimize},
+	}
+	if objective == trainingprogram.ObjectiveDPO {
+		operators = []trainingprogram.OperatorSpec{
+			{ID: "policy-score", Phase: trainingprogram.PhaseForward},
+			{ID: "reference-score", Phase: trainingprogram.PhaseForward},
+			{ID: "dpo", Phase: trainingprogram.PhaseLoss},
 			{ID: "dense-backward", Phase: trainingprogram.PhaseBackward},
 			{ID: "muon", Phase: trainingprogram.PhaseOptimize},
-		},
+		}
+	}
+	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
+		Objective:  objective,
+		Operators:  operators,
 		Parameters: parameters, Optimizer: muonPlan,
+		Preference: preference,
 	})
 	if err != nil {
 		return trainingAuthority{}, err
@@ -258,7 +345,7 @@ func compileTrainingAuthority(model *densecausal.Model, modelDir string, data ba
 		id, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/densecausal/"+name+"/v1"))
 		return id
 	}
-	recipeID, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("overgo/densecausal/training/v1"))
+	recipeID, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("overgo/densecausal/training/"+string(objective)+"/v1"))
 	initial := trainingprogram.InitialStateSpec{Model: modelID}
 	if resumed.ID().Valid() {
 		initial = trainingprogram.InitialStateSpec{Checkpoint: resumed.ID()}
@@ -271,7 +358,7 @@ func compileTrainingAuthority(model *densecausal.Model, modelDir string, data ba
 		},
 		Processors: []artifact.ID{data.Processor},
 		Policies: trainingprogram.PolicySpec{
-			Objective: profile("causal-cross-entropy"), Precision: profile("fp32-bf16"),
+			Objective: profile(string(objective)), Precision: profile("fp32-bf16"),
 			Placement: profile("platform-resident"), Memory: profile("derived-memory"),
 			Checkpoint: profile("exact-checkpoint"), Evaluation: profile("loss-trajectory"),
 			Promotion: profile("heldout-promotion"),
@@ -301,6 +388,9 @@ func compileTrainingAuthority(model *densecausal.Model, modelDir string, data ba
 		{Artifact: data.Processor, Relation: artifact.RelationTokenizedBy},
 		{Artifact: program.ID(), Relation: artifact.RelationProducedBy},
 		{Artifact: runPlan.ID(), Relation: artifact.RelationDependsOn},
+	}
+	if preference != nil {
+		lineage = append(lineage, trainingprogram.LineageParent{Artifact: preference.Reference, Relation: artifact.RelationDependsOn})
 	}
 	if resumed.ID().Valid() {
 		lineage = append(lineage, trainingprogram.LineageParent{Artifact: resumed.ID(), Relation: artifact.RelationDerivedFrom})

@@ -3,20 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "rollback-invariant-and-drill",
-      "title": "Make reversibility a checked invariant -- immutable champion retention, compare-and-set activation, decisions carrying decider identity -- and exercise a rollback drill that demonstrably restores the prior champion",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make reversibility a checked invariant -- immutable champion retention, compare-and-set activation, decisions carrying decider identity -- and exercise a rollback drill that demonstrably restores the prior champion",
-          "status": "open",
-          "verify": "go test ./internal/repodb ./internal/recipe -run '^TestPromotionReversibleAndDrillRestoresChampion$' -count=1 -v",
-          "rationale": "An untested rollback is not a rollback. The drill is the row, not the invariant alone."
-        }
-      ]
-    },
-    {
       "id": "controller-promotion",
       "title": "Construct and train the small workflow controller from scratch; immutable Git/RepoDB corpus rather than operational-state text; typed component and workflow actions; held-out action/modality validity and multi-seed gains; pretrained challengers under the same suite; champion/challenger promotion and rollback external to the model",
       "status": "open",

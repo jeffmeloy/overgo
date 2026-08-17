@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/composition"
 	"overgo/internal/jsonfile"
 	"overgo/internal/repodb"
@@ -36,9 +38,14 @@ func run(args []string, output io.Writer) error {
 	steps := flags.Int("steps", 6, "bridge Muon steps per seed")
 	window := flags.Int("window", 64, "tokens per batch window")
 	learningRate := flags.Float64("lr", 0, "bridge learning rate (<=0 derives n_params^-1/2)")
+	lrScale := flags.Float64("lr-scale", 0, "scale the derived learning rate (retrial protocol; effective only when -lr is unset)")
 	momentum := flags.Float64("mu", 0.9, "Muon momentum")
 	recordStore := flags.String("record", "", "RepoDB root: commit the experiment as a generation record with its verdict")
 	chain := flags.Bool("chain", false, "run the Tier-0 whole-model chain probe instead of the graft probe")
+	propose := flags.String("propose", "", "convert a similarity-retrieval JSON response into a blocked bridge proposal (path to the response)")
+	proposeTarget := flags.String("propose-target", "", "propose: target model artifact ID")
+	proposeVerifier := flags.String("propose-verifier", "", "propose: the failable verifier any experiment must run")
+	proposeBlocker := flags.String("propose-blocker", "no recorded experiment evidence; promotion requires the experiment plane's admission", "propose: why the candidates are blocked")
 	scorerDir := flags.String("scorer", "", "chain probe: scorer model directory (safetensors + tokenizer.json)")
 	drafterDir := flags.String("drafter", "", "chain probe: drafter model directory (safetensors + tokenizer.json)")
 	prefix := flags.Int("chain-prefix", 64, "chain probe: context tokens per window")
@@ -47,6 +54,12 @@ func run(args []string, output io.Writer) error {
 	windows := flags.Int("chain-windows", 3, "chain probe: disjoint windows sliced from the token stream")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if *propose != "" {
+		if flags.NArg() != 0 || *proposeTarget == "" || *proposeVerifier == "" || *recordStore == "" {
+			return errors.New("usage: graft-probe -propose <retrieval.json> -propose-target <model-id> -propose-verifier <cmd> -record <repodb>")
+		}
+		return runPropose(*propose, *proposeTarget, *proposeVerifier, *proposeBlocker, *recordStore, output)
 	}
 	if *chain {
 		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" || *recordStore == "" {
@@ -68,7 +81,7 @@ func run(args []string, output io.Writer) error {
 		TargetDir: *targetDir, DonorDir: *donorDir,
 		GraftLayer: *graftLayer, DonorLayer: *donorLayer,
 		Seeds: []int64{7, 11, 13}, Steps: *steps,
-		BaseLR: *learningRate, Momentum: *momentum,
+		BaseLR: *learningRate, LRScale: *lrScale, Momentum: *momentum,
 		Train:   [][]int{tokens[:*window], tokens[*window : 2*(*window)]},
 		HeldOut: tokens[2*(*window) : 3*(*window)],
 	}
@@ -104,6 +117,60 @@ func run(args []string, output io.Writer) error {
 	}
 	fmt.Fprintf(output, "verdict: %s -- %s\n", verdict, result.Reason)
 	fmt.Fprintln(output, "honesty: host-reference execution; single corpus slice; verdict binds only this artifact pair, layer, and budget")
+	return nil
+}
+
+// runPropose converts one similarity-retrieval response into a committed
+// bridge proposal: advisory by construction, promotion-blocked, carrying the
+// verifier any future experiment must run. It never authorizes anything.
+func runPropose(retrievalPath, targetModel, verifier, blocker, recordStore string, output io.Writer) error {
+	var retrieval struct {
+		Neighbors []struct {
+			Model    string  `json:"model"`
+			Name     string  `json:"name"`
+			Distance float64 `json:"distance"`
+		} `json:"neighbors"`
+	}
+	if err := jsonfile.Decode(retrievalPath, &retrieval); err != nil {
+		return err
+	}
+	target, err := artifact.ParseID(targetModel)
+	if err != nil {
+		return err
+	}
+	candidates := make([]composition.BridgeCandidate, 0, len(retrieval.Neighbors))
+	for _, neighbor := range retrieval.Neighbors {
+		donor, err := artifact.ParseID(neighbor.Model)
+		if err != nil {
+			return fmt.Errorf("neighbor %q: %w", neighbor.Name, err)
+		}
+		if donor == target {
+			continue // within-model neighbors are not composition candidates
+		}
+		candidates = append(candidates, composition.BridgeCandidate{
+			Donor: donor, Component: neighbor.Name, Distance: neighbor.Distance,
+		})
+	}
+	proposal, err := composition.NewBridgeProposal(target, candidates, verifier, blocker)
+	if err != nil {
+		return err
+	}
+	store, err := repodb.Open(recordStore)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+	batch, err := proposal.Batch("bridge-proposal/" + proposal.ID.String())
+	if err != nil {
+		return err
+	}
+	if _, err := store.Commit(context.Background(), batch); err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "bridge proposal committed: %s\n", proposal.ID)
+	fmt.Fprintf(output, "state: %s -- %s\n", proposal.State, proposal.Blocker)
+	fmt.Fprintf(output, "candidates: %d; required verifier: %s\n", len(proposal.Candidates), proposal.RequiredVerifier)
+	fmt.Fprintln(output, "honesty: advisory by construction; this document cannot authorize work")
 	return nil
 }
 

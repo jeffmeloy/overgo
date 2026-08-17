@@ -6,6 +6,7 @@ import (
 	"math"
 	"slices"
 
+	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -46,7 +47,20 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 			return ForwardGraph{}, errors.New("scratch model: forward token outside vocabulary")
 		}
 	}
+	// The registered architecture profile drives the constructed forward:
+	// normalization and feed-forward come from the executor's policy
+	// vocabulary, so a policy the vocabulary cannot express cannot compile.
+	profile := c.Architecture()
+	if profile.Normalization != model.NormalizationMAD ||
+		profile.FeedForward != model.FeedForwardReLU ||
+		profile.Position != model.PositionLearnedAbsolute {
+		return ForwardGraph{}, fmt.Errorf("scratch model: architecture %q policies do not describe the constructed topology", profile.Name)
+	}
 	builder := tensor.NewBuilder()
+	norm := func(value *tensor.Tensor) *tensor.Tensor {
+		return builder.MADNorm(value, float32(c.config.Epsilon))
+	}
+	activate := builder.ReLU
 	parameters := make(map[string]*tensor.Tensor, len(c.parameters))
 	for _, parameter := range c.parameters {
 		parameters[parameter.Name] = builder.Input(
@@ -61,7 +75,7 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 	}
 	tokenLookup := builder.GetRows(parameters["wte"], tokenRows)
 	embedding := builder.Add(tokenLookup, builder.GetRows(parameters["wpe"], positionRows))
-	hidden := builder.MADNorm(embedding, float32(c.config.Epsilon))
+	hidden := norm(embedding)
 	maskValues := causalWindowMask(positions, c.config.AttentionWindow)
 	mask := builder.Input("causal-window-mask", dtype.F32, tensor.MustShape(uint64(positions), uint64(positions)))
 	lagRows := make([]uint32, positions*positions)
@@ -78,7 +92,7 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 	for layer := range c.config.LayerCount {
 		prefix := fmt.Sprintf("l%d.", layer)
 		cache := forwardLayer{input: hidden, heads: make([]forwardHead, c.config.HeadCount)}
-		cache.qkvNorm = builder.MADNorm(hidden, float32(c.config.Epsilon))
+		cache.qkvNorm = norm(hidden)
 		cache.qkv = builder.MulMat(parameters[prefix+"wqkv"], cache.qkvNorm)
 		var attention *tensor.Tensor
 		temperature := builder.GetRows(parameters["lt"], []uint32{uint32(layer)})
@@ -113,9 +127,9 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 		}
 		cache.attention = attention
 		cache.attentionOutput = builder.Add(hidden, builder.MulMat(parameters[prefix+"wo"], attention))
-		cache.mlpNorm = builder.MADNorm(cache.attentionOutput, float32(c.config.Epsilon))
+		cache.mlpNorm = norm(cache.attentionOutput)
 		cache.preactivation = builder.MulMat(parameters[prefix+"w1"], cache.mlpNorm)
-		cache.activation = builder.ReLU(cache.preactivation)
+		cache.activation = activate(cache.preactivation)
 		hidden = builder.Add(cache.attentionOutput, builder.MulMat(parameters[prefix+"w2"], cache.activation))
 		layers[layer] = cache
 	}

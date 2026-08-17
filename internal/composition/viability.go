@@ -13,6 +13,7 @@ import (
 	"math"
 
 	"overgo/internal/densecausal"
+	"overgo/internal/optimizer"
 	"overgo/internal/organ"
 )
 
@@ -24,9 +25,13 @@ type Config struct {
 	Seeds      []int64
 	Steps      int
 	BaseLR     float64 // <=0 derives n_params^-1/2
-	Momentum   float64
-	Train      [][]int
-	HeldOut    []int
+	// LRScale multiplies the derived learning rate when BaseLR is unset: the
+	// adapter-retrial protocol reruns the graft at a fraction of the step
+	// size whose dominance was the pivot's measured failure mode.
+	LRScale  float64
+	Momentum float64
+	Train    [][]int
+	HeldOut  []int
 }
 
 type SeedOutcome struct {
@@ -81,6 +86,10 @@ func RunViability(config Config) (Result, error) {
 		return Result{}, fmt.Errorf("composition: donor MLP index %d outside %d cataloged components", donorLayer, catalog.MLPCount())
 	}
 	gateName, upName, downName, contract := component.Gate, component.Up, component.Down, component.Contract
+	if config.BaseLR <= 0 && config.LRScale > 0 {
+		bridgeWeights := 2 * target.Dims.Hidden * donor.Dims.Hidden
+		config.BaseLR = config.LRScale * optimizer.DeriveBaseLR(bridgeWeights)
+	}
 	baseline, _, err := target.Loss(config.HeldOut)
 	if err != nil {
 		return Result{}, fmt.Errorf("composition: baseline held-out loss: %w", err)

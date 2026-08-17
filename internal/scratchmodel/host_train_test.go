@@ -23,7 +23,7 @@ func TestScratchHostTrajectoryParity(t *testing.T) {
 	if !near(first.Loss, oracle.FirstLoss, 2e-15) {
 		t.Fatalf("first loss = %.17g, want %.17g", first.Loss, oracle.FirstLoss)
 	}
-	if len(first.Logits) != 1 || len(first.Logits[0]) != construction.Config().BlockSize {
+	if len(first.Logits) != 1 || len(first.Logits[0]) != construction.config.BlockSize {
 		t.Fatalf("logit geometry = %d documents / %d positions", len(first.Logits), len(first.Logits[0]))
 	}
 	replay, err := construction.Probe(oracle.Train[:1])

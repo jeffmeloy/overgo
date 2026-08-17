@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/repodb"
@@ -70,7 +71,77 @@ func RecordChainViability(store *repodb.Store, config ChainConfig, result ChainR
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return runrecord.GenerationRecord{}, err
 	}
+	if err := recordChainLifecycle(ctx, store, record, result); err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
 	return record, nil
+}
+
+// recordChainLifecycle commits the probe's runtime history as the immutable
+// experiment state-machine chain: proposed through evaluated to the verdict
+// terminal, each transition bound to the generation record's own evidence.
+// The probe runs to completion in-process, so the recorded chain is the
+// already-elapsed history -- expiries are the bounds the run held, not
+// forward-looking leases.
+func recordChainLifecycle(
+	ctx context.Context,
+	store *repodb.Store,
+	record runrecord.GenerationRecord,
+	result ChainResult,
+) error {
+	expiry := time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano)
+	transition := func(prior *runrecord.ExperimentLifecycle, state runrecord.ExperimentState, evidence artifact.ID, bounded bool) (runrecord.ExperimentLifecycle, error) {
+		value := runrecord.ExperimentLifecycle{
+			State: state, Experiment: record.ID, Evidence: evidence,
+		}
+		if prior != nil {
+			value.Retry = prior.Retry
+		}
+		if bounded {
+			value.HeartbeatExpiry = expiry
+		}
+		return runrecord.NewExperimentLifecycle(value, prior)
+	}
+	verdict := runrecord.ExperimentRefused
+	if record.Outcome == runrecord.OutcomeSucceeded {
+		verdict = runrecord.ExperimentPromoted
+	}
+	proposed, err := transition(nil, runrecord.ExperimentProposed, record.TrainingPlan, false)
+	if err != nil {
+		return err
+	}
+	admitted, err := transition(&proposed, runrecord.ExperimentAdmitted, record.Budget, false)
+	if err != nil {
+		return err
+	}
+	leased, err := transition(&admitted, runrecord.ExperimentLeased, record.Environment, true)
+	if err != nil {
+		return err
+	}
+	running, err := transition(&leased, runrecord.ExperimentRunning, record.Run, true)
+	if err != nil {
+		return err
+	}
+	evaluated, err := transition(&running, runrecord.ExperimentEvaluated, record.Evaluator, false)
+	if err != nil {
+		return err
+	}
+	terminal, err := transition(&evaluated, verdict, record.Decision, false)
+	if err != nil {
+		return err
+	}
+	contents := make([]artifact.Content, 0, 6)
+	for _, lifecycle := range []runrecord.ExperimentLifecycle{proposed, admitted, leased, running, evaluated, terminal} {
+		content, err := lifecycle.Content()
+		if err != nil {
+			return err
+		}
+		contents = append(contents, content)
+	}
+	_, err = store.Commit(ctx, artifact.Batch{
+		Key: "tier0-chain/lifecycle/" + record.ID.String(), Contents: contents,
+	})
+	return err
 }
 
 // RecordViability commits the experiment as a typed generation record: the
@@ -90,8 +161,8 @@ func RecordViability(store *repodb.Store, config Config, result Result) (runreco
 		}
 		return id
 	}
-	protocol := fmt.Sprintf("target=%s;donor=%s;tensor=%s;layer=%d;steps=%d;seeds=%d",
-		config.TargetDir, config.DonorDir, result.DonorTensor, result.GraftLayer, config.Steps, len(config.Seeds))
+	protocol := fmt.Sprintf("target=%s;donor=%s;tensor=%s;layer=%d;steps=%d;seeds=%d;lrscale=%g",
+		config.TargetDir, config.DonorDir, result.DonorTensor, result.GraftLayer, config.Steps, len(config.Seeds), config.LRScale)
 	seeds := make([]uint64, len(config.Seeds))
 	for index, seed := range config.Seeds {
 		seeds[index] = uint64(seed)

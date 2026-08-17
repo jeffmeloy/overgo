@@ -127,7 +127,7 @@ func TestScratchConstructionAuthority(t *testing.T) {
 	if !reflect.DeepEqual(split.Train, oracle.Train) || !reflect.DeepEqual(split.Validation, oracle.Validation) || !reflect.DeepEqual(split.Test, oracle.Test) {
 		t.Fatalf("split differs: %+v", split)
 	}
-	config := construction.Config()
+	config := construction.config
 	wantConfig := oracle.Config
 	if config.VocabSize != wantConfig.VocabSize || config.BlockSize != wantConfig.BlockSize ||
 		config.Embedding != wantConfig.Embedding || config.HeadDim != wantConfig.HeadDim ||
@@ -192,7 +192,7 @@ func TestAdaptiveDerivationProfileAuthority(t *testing.T) {
 	if construction.Authority().DerivationProfile() != wantProfile {
 		t.Fatal("construction derivation profile differs")
 	}
-	if construction.Config().Epsilon != profile.Epsilon || construction.Config().MuonMomentum != profile.MuonMomentum {
+	if construction.config.Epsilon != profile.Epsilon || construction.config.MuonMomentum != profile.MuonMomentum {
 		t.Fatal("construction ignored profile numerical policy")
 	}
 	changed := profile
@@ -201,7 +201,7 @@ func TestAdaptiveDerivationProfileAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second.Config().Epsilon != changed.Epsilon || second.Authority().DerivationProfile() == wantProfile {
+	if second.config.Epsilon != changed.Epsilon || second.Authority().DerivationProfile() == wantProfile {
 		t.Fatal("changed derivation profile did not change authority")
 	}
 	if _, err := Compile(facts, DerivationProfile{}); err == nil {
@@ -243,10 +243,10 @@ func TestScratchInitializedArtifactIdentity(t *testing.T) {
 	if first.ID() != second.ID() || first.Authority().ID() != second.Authority().ID() {
 		t.Fatal("identical corpus facts changed construction identity")
 	}
-	config := first.Config()
+	config := cloneConfig(first.config)
 	config.Characters[0] = "mutated"
 	config.CharacterIndex["a"] = 99
-	if first.Config().Characters[0] == "mutated" || first.Config().CharacterIndex["a"] == 99 {
+	if first.config.Characters[0] == "mutated" || first.config.CharacterIndex["a"] == 99 {
 		t.Fatal("construction exposed mutable config")
 	}
 	weights, ok := first.Weights("wte")

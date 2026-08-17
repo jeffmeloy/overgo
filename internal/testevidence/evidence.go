@@ -210,6 +210,18 @@ func VerifyGoTestTargetAbsent(command, out string) error {
 	return nil
 }
 
+// ValidateGoTestCommand checks that a declared verifier is a go test command
+// naming its acceptance target -- the same admission bar plan verifiers meet.
+// It validates the declaration only; execution semantics stay with the
+// Verify* functions.
+func ValidateGoTestCommand(command string) error {
+	if !strings.Contains(command, "go test") {
+		return fmt.Errorf("verifier %q is not a go test command", command)
+	}
+	_, err := goTestTarget(command)
+	return err
+}
+
 func goTestTarget(command string) (*regexp.Regexp, error) {
 	match := goTestRunFlag.FindStringSubmatch(command)
 	if match == nil {

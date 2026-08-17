@@ -15,7 +15,9 @@ import (
 	"overgo/internal/testutil"
 )
 
-const profileCatalogSemanticDigest = "c3ff1c956796518a45c5c802a0950e2b0f9eb1d5328c1aa2046fc661b62ea2b8"
+// Digest advanced 2026-08-17: the adaptive-causal constructed-topology profile
+// entered the registered catalog (construction-profile-bridge row).
+const profileCatalogSemanticDigest = "94c8389846aea3f51792b5e550446db78640f51fa6b37d8bdec78bf5d944bb6c"
 const architectureProfileFactCount = 171
 const architectureProfileFactDigest = "d9328c4604f80a3c55ff544dd3f9eafbbfc716ea551e37f607a4e9884081553d"
 const architectureProfileFactSchemaDigest = "df525acf1cbdccfe460ce6d2b4b52dc6de98d684783869b426ea820da2a25e26"

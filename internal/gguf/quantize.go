@@ -161,9 +161,10 @@ func quantizedMetadata(metadata []Metadata, target DType, options QuantizeOption
 	fileTypeFound := false
 	versionFound := false
 	for _, item := range metadata {
-		switch item.Key {
-		case "split.no", "split.count", "split.tensors.count":
+		if isSplitMetadataKey(item.Key) {
 			continue
+		}
+		switch item.Key {
 		case "quantize.imatrix.file", "quantize.imatrix.dataset",
 			"quantize.imatrix.entries_count", "quantize.imatrix.chunks_count":
 			continue

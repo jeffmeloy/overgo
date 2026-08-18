@@ -146,6 +146,16 @@ type Metadata struct {
 	Value Value
 }
 
+const (
+	splitNumberKey      = "split.no"
+	splitCountKey       = "split.count"
+	splitTensorCountKey = "split.tensors.count"
+)
+
+func isSplitMetadataKey(key string) bool {
+	return key == splitNumberKey || key == splitCountKey || key == splitTensorCountKey
+}
+
 // StringMetadata constructs string metadata.
 func StringMetadata(key, value string) Metadata {
 	return Metadata{Key: key, Value: Value{Type: ValueTypeString, Data: value}}

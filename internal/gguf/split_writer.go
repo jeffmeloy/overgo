@@ -35,12 +35,10 @@ func (f *File) WriteSplit(open SplitWriter, options SplitOptions) error {
 	count := uint16(len(partitions))
 	baseMetadata := make([]Metadata, 0, len(f.Metadata))
 	for _, item := range f.Metadata {
-		switch item.Key {
-		case "split.no", "split.count", "split.tensors.count":
+		if isSplitMetadataKey(item.Key) {
 			continue
-		default:
-			baseMetadata = append(baseMetadata, item)
 		}
+		baseMetadata = append(baseMetadata, item)
 	}
 	for index, partition := range partitions {
 		metadataCapacity := 3
@@ -53,21 +51,21 @@ func (f *File) WriteSplit(open SplitWriter, options SplitOptions) error {
 		}
 		metadata = append(metadata,
 			Metadata{
-				Key: "split.no",
+				Key: splitNumberKey,
 				Value: Value{
 					Type: ValueTypeUint16,
 					Data: uint16(index),
 				},
 			},
 			Metadata{
-				Key: "split.count",
+				Key: splitCountKey,
 				Value: Value{
 					Type: ValueTypeUint16,
 					Data: count,
 				},
 			},
 			Metadata{
-				Key: "split.tensors.count",
+				Key: splitTensorCountKey,
 				Value: Value{
 					Type: ValueTypeInt32,
 					Data: int32(len(f.Tensors)),

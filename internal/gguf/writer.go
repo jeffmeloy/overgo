@@ -180,12 +180,10 @@ func (f *File) WriteTo(destination io.Writer, options WriteOptions) error {
 	}
 	metadata := make([]Metadata, 0, len(f.Metadata))
 	for _, item := range f.Metadata {
-		switch item.Key {
-		case "split.no", "split.count", "split.tensors.count":
+		if isSplitMetadataKey(item.Key) {
 			continue
-		default:
-			metadata = append(metadata, item)
 		}
+		metadata = append(metadata, item)
 	}
 	tensors := make([]TensorData, len(f.Tensors))
 	for index, info := range f.Tensors {

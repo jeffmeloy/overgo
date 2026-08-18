@@ -21,7 +21,7 @@ import (
 
 const (
 	carbonServingModelIdentity  = "model:sha256:08d12f90b68fe93f3c39da1bb9f4592a13085c2740716166d2baab708793d3e8"
-	carbonServingGoldenIdentity = "evidence:sha256:964ca1d714233666e6f7ca66223036057ced4dce704b0d391b2d1fdac8c96e59"
+	carbonServingGoldenIdentity = "evidence:sha256:2a7b3a0e163f79b6ffc9cd5d7ea36801caf196118ede870dff6220e6be12fb41"
 )
 
 func TestCarbonServingGolden(t *testing.T) {

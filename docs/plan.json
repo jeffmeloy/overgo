@@ -3,15 +3,15 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "carbon-serving-goldens",
-      "title": "Regenerate Carbon serving goldens from tag-wrapped real corpus sequences with FNS scoring semantics; the golden claims capability, not plumbing",
+      "id": "model-config-artifacts",
+      "title": "Model-config components as typed repodb artifacts: commit the inference/training-relevant tokenizer and generation facts (k-mer extension config, generation essentials) with model lineage so generic code reads declarations, never literals",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Regenerate Carbon serving goldens from tag-wrapped real corpus sequences with FNS scoring semantics; the golden claims capability, not plumbing",
+          "title": "Model-config components as typed repodb artifacts: commit the inference/training-relevant tokenizer and generation facts (k-mer extension config, generation essentials) with model lineage so generic code reads declarations, never literals",
           "status": "open",
-          "verify": "go test ./internal/inference -tags modeltest -run '^TestCarbonServingGolden$' -count=1 -v"
+          "verify": "go test ./internal/modelartifact -run '^TestModelConfigArtifact' -count=1 -v"
         }
       ]
     },
@@ -103,6 +103,19 @@
           "title": "Full training verification for Qwen2.5-0.5B: the second-best-evidenced external model gets a real overgo training run recorded in the verification ledger",
           "status": "open",
           "verify": "go run ./cmd/repodb-query -repo repodb-store -verifications | grep -q Qwen2.5-0.5B"
+        }
+      ]
+    },
+    {
+      "id": "verification-gap-closure",
+      "title": "Verification gap closure: bring each adaptive_new-verified model (Qwen3.5-4B, gemma-4 pair, MiniCPM5, Hy-Embodied-RxBrain, Un-0 lineage) to recorded train/infer tiers in the overgo verification ledger",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verification gap closure: bring each adaptive_new-verified model (Qwen3.5-4B, gemma-4 pair, MiniCPM5, Hy-Embodied-RxBrain, Un-0 lineage) to recorded train/infer tiers in the overgo verification ledger",
+          "status": "open",
+          "verify": "go run ./cmd/repodb-query -repo repodb-store -verifications | grep -q training"
         }
       ]
     },

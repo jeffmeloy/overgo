@@ -102,6 +102,9 @@ func EvaluateExactSharded(
 	if err != nil {
 		return artifact.ID{}, err
 	}
+	if err := publishAuthorities(ctx, repository, exact, plan); err != nil {
+		return artifact.ID{}, err
+	}
 	reports := make([]shardReport, 0, len(shards))
 	for index, shard := range shards {
 		stored, ok, err := loadShardReport(ctx, repository, plan, shard)

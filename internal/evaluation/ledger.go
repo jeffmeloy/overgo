@@ -27,6 +27,28 @@ func contentFor[T any](contract artifact.DocumentContract, id artifact.ID, value
 	return contract.Content(id, data)
 }
 
+func publishAuthorities(ctx context.Context, repository artifact.Repository, exact ExactPlan, plan Plan) error {
+	planContent, err := plan.content()
+	if err != nil {
+		return err
+	}
+	contents, err := exact.contents()
+	if err != nil {
+		return err
+	}
+	contents = append(contents, planContent)
+	lineage := artifact.DependencyLineage(exact.split, exact.dataset)
+	lineage = append(lineage, artifact.DependencyLineage(plan.identity, exact.dataset, exact.split)...)
+	batch, err := artifact.NewDocumentBatch(
+		"evaluation/authorities/"+plan.identity.String(), contents, lineage, nil,
+	)
+	if err != nil {
+		return err
+	}
+	_, err = artifact.CommitBatch(ctx, repository, batch)
+	return err
+}
+
 func loadShardReport(
 	ctx context.Context,
 	repository artifact.Repository,
@@ -88,10 +110,6 @@ func publishShardReport(
 	output textOutput,
 	report shardReport,
 ) error {
-	planContent, err := plan.content()
-	if err != nil {
-		return err
-	}
 	shardContent, err := contentFor(caseShardContract, shard.ID, shard)
 	if err != nil {
 		return err
@@ -110,7 +128,7 @@ func publishShardReport(
 	alias := shardAlias(plan.identity, shard.ID)
 	batch, err := artifact.NewDocumentBatch(
 		alias,
-		[]artifact.Content{planContent, shardContent, outputContent, reportContent},
+		[]artifact.Content{shardContent, outputContent, reportContent},
 		lineage,
 		[]artifact.AliasBinding{{Name: alias, Target: report.ID}},
 	)
@@ -145,10 +163,6 @@ func publishCampaignReport(
 		}
 		return campaignReportContract.ValidateContent(content, current)
 	}
-	planContent, err := plan.content()
-	if err != nil {
-		return err
-	}
 	reportContent, err := contentFor(campaignReportContract, report.ID, report)
 	if err != nil {
 		return err
@@ -166,7 +180,7 @@ func publishCampaignReport(
 	}
 	batch, err := artifact.NewDocumentBatch(
 		alias,
-		[]artifact.Content{planContent, reportContent},
+		[]artifact.Content{reportContent},
 		artifact.DependencyLineage(report.ID, parents...),
 		[]artifact.AliasBinding{{Name: alias, Target: report.ID}},
 	)

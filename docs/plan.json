@@ -3,27 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "evaluation-runtime",
-      "title": "Execute compiled evaluations with bounded streaming, immutable shard publication, exact resume, cancellation, and explicit isolated or resident lifecycle",
-      "status": "open",
-      "steps": [
-        {
-          "id": "command",
-          "title": "Add cmd/evaluate parent and worker modes; load each model once, query pending shards from RepoDB, publish Run and Evaluation records, and release device state by worker exit",
-          "status": "open",
-          "verify": "go test ./cmd/evaluate ./internal/evaluation -run '^TestEvaluateCommandIsolatesModelsAndReportsTaskFailure$' -count=1",
-          "depends_on": [
-            "evaluation-runtime/resume"
-          ],
-          "capabilities": [
-            "executes-autonomously",
-            "isolates-device-lifecycle",
-            "records-failure"
-          ]
-        }
-      ]
-    },
-    {
       "id": "evaluation-scoring",
       "title": "Use shared typed scoring primitives for continuation likelihood, multiple choice, generated answers, and exact outputs",
       "status": "open",

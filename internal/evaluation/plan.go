@@ -96,6 +96,8 @@ func BindExact(exact ExactPlan, authorities ExactAuthorities) (Plan, error) {
 
 func (p Plan) Identity() artifact.ID { return p.identity }
 
+func (p Plan) Dataset() artifact.ID { return p.body.Dataset }
+
 func (p Plan) content() (artifact.Content, error) {
 	data, err := json.Marshal(p.body)
 	if err != nil {

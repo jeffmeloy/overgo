@@ -23,7 +23,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 
@@ -368,7 +367,7 @@ func publishCapabilityResult(
 	outcome runrecord.Outcome,
 	failure string,
 ) (modelrecipe.Verification, error) {
-	environment, err := capabilityEnvironment(device, backend)
+	environment, err := runrecord.CurrentEnvironment(device, backend)
 	if err != nil {
 		return modelrecipe.Verification{}, err
 	}
@@ -401,17 +400,6 @@ func publishCapabilityResult(
 		return modelrecipe.Verification{}, err
 	}
 	return modelrecipe.Verification{Gate: record.Result.ID, Run: record.Run.ID}, nil
-}
-
-func capabilityEnvironment(device, backend string) (runrecord.Environment, error) {
-	host, err := os.Hostname()
-	if err != nil {
-		host = "unknown"
-	}
-	return runrecord.NewEnvironment(runrecord.Environment{
-		Host: host, OS: runtime.GOOS, Arch: runtime.GOARCH,
-		Device: device, Backend: backend, Driver: "process", Runtime: runtime.Version(),
-	})
 }
 
 func cleanGoRevision() (string, error) {

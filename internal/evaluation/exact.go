@@ -37,6 +37,22 @@ type ExactPlan struct {
 	suite    ExactSuite
 }
 
+const (
+	exactDatasetMediaType = "application/vnd.overgo.exact-dataset+json"
+	exactDatasetSchema    = "overgo/exact-dataset/v1"
+	exactSplitMediaType   = "application/vnd.overgo.exact-split+json"
+	exactSplitSchema      = "overgo/exact-split/v1"
+)
+
+var (
+	exactDatasetContract = artifact.DocumentContract{
+		Kind: artifact.KindDataset, MediaType: exactDatasetMediaType, Schema: exactDatasetSchema,
+	}
+	exactSplitContract = artifact.DocumentContract{
+		Kind: artifact.KindDatasetShard, MediaType: exactSplitMediaType, Schema: exactSplitSchema,
+	}
+)
+
 type ExactResult struct {
 	Name            string `json:"name"`
 	PromptTokens    int    `json:"prompt_tokens"`
@@ -78,6 +94,20 @@ func CompileExact(suite ExactSuite) (ExactPlan, error) {
 }
 
 func (p ExactPlan) Identity() artifact.ID { return p.identity }
+
+func (p ExactPlan) contents() ([]artifact.Content, error) {
+	dataset, err := contentFor(exactDatasetContract, p.dataset, p.suite.Cases)
+	if err != nil {
+		return nil, err
+	}
+	split, err := contentFor(exactSplitContract, p.split, struct {
+		Dataset artifact.ID `json:"dataset"`
+	}{Dataset: p.dataset})
+	if err != nil {
+		return nil, err
+	}
+	return []artifact.Content{dataset, split}, nil
+}
 
 func EvaluateExact(ctx context.Context, generator Generator, plan ExactPlan, observe func(ExactResult) error) error {
 	if ctx == nil || generator == nil || !plan.identity.Valid() || len(plan.suite.Cases) == 0 {

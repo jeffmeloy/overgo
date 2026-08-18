@@ -14,6 +14,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 )
 
 func verifyInference(
@@ -37,7 +38,7 @@ func verifyInference(
 	if err != nil {
 		return err
 	}
-	environment, err := capabilityEnvironment("cuda:0", "cuda")
+	environment, err := runrecord.CurrentEnvironment("cuda:0", "cuda")
 	if err != nil {
 		return err
 	}

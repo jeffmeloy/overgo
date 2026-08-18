@@ -85,21 +85,28 @@ func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
+	var envelope struct {
+		Kind string `json:"kind"`
+	}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return fmt.Errorf("evaluate: decode suite %q: %w", path, err)
+	}
+	if envelope.Kind == evaluation.MultipleChoiceKind {
+		return s.evaluateMultipleChoice(ctx, data)
+	}
+	return s.evaluateExact(ctx, data)
+}
+
+func (s *nativeSession) evaluateExact(ctx context.Context, data []byte) error {
 	var suite evaluation.ExactSuite
 	if err := json.Unmarshal(data, &suite); err != nil {
-		return fmt.Errorf("evaluate: decode suite %q: %w", path, err)
+		return fmt.Errorf("evaluate: decode exact suite: %w", err)
 	}
 	exact, err := evaluation.CompileExact(suite)
 	if err != nil {
 		return err
 	}
-	plan, err := evaluation.BindExact(exact, evaluation.ExactAuthorities{
-		ModelDefinition: s.identity.Definition,
-		RuntimeRecipe:   s.identity.Recipe,
-		CodeCommit:      s.commit,
-		Environment:     s.environment.ID,
-		Execution:       evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
-	})
+	plan, err := evaluation.BindExact(exact, s.authorities())
 	if err != nil {
 		return err
 	}
@@ -109,6 +116,52 @@ func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
 	if evaluateErr != nil {
 		return errors.Join(evaluateErr, s.publishFailure(ctx, plan, measured))
 	}
+	return s.publishSuccess(
+		ctx, plan, report, measured,
+		[]runrecord.Metric{{Name: "exact-accuracy", Value: 1, Direction: runrecord.DirectionMaximize}},
+	)
+}
+
+func (s *nativeSession) evaluateMultipleChoice(ctx context.Context, data []byte) error {
+	var suite evaluation.MultipleChoiceSuite
+	if err := json.Unmarshal(data, &suite); err != nil {
+		return fmt.Errorf("evaluate: decode multiple-choice suite: %w", err)
+	}
+	compiled, err := evaluation.CompileMultipleChoice(suite)
+	if err != nil {
+		return err
+	}
+	plan, err := evaluation.BindMultipleChoice(compiled, s.authorities())
+	if err != nil {
+		return err
+	}
+	started := time.Now()
+	report, evaluateErr := evaluation.EvaluateMultipleChoice(ctx, s.store, s.runner, compiled, plan)
+	measured := uint64(max(time.Since(started).Nanoseconds(), 1))
+	if evaluateErr != nil {
+		return errors.Join(evaluateErr, s.publishFailure(ctx, plan, measured))
+	}
+	return s.publishSuccess(
+		ctx, plan, report.ID, measured,
+		[]runrecord.Metric{{Name: "accuracy", Value: report.Accuracy, Direction: runrecord.DirectionMaximize}},
+	)
+}
+
+func (s *nativeSession) authorities() evaluation.ExactAuthorities {
+	return evaluation.ExactAuthorities{
+		ModelDefinition: s.identity.Definition, RuntimeRecipe: s.identity.Recipe,
+		CodeCommit: s.commit, Environment: s.environment.ID,
+		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
+	}
+}
+
+func (s *nativeSession) publishSuccess(
+	ctx context.Context,
+	plan evaluation.Plan,
+	report artifact.ID,
+	measured uint64,
+	metrics []runrecord.Metric,
+) error {
 	run, err := runrecord.NewBoundRun(
 		s.identity.Recipe, runrecord.OutcomeSucceeded,
 		[]artifact.ID{plan.Identity()}, []artifact.ID{report}, "", s.commit,
@@ -119,8 +172,7 @@ func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
 		return err
 	}
 	record, err := runrecord.NewEvaluation(
-		s.identity.Recipe, run.ID, plan.Dataset(),
-		[]runrecord.Metric{{Name: "exact-accuracy", Value: 1, Direction: runrecord.DirectionMaximize}},
+		s.identity.Recipe, run.ID, plan.Dataset(), metrics,
 	)
 	if err != nil {
 		return err

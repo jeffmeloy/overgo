@@ -28,17 +28,26 @@ func contentFor[T any](contract artifact.DocumentContract, id artifact.ID, value
 }
 
 func publishAuthorities(ctx context.Context, repository artifact.Repository, exact ExactPlan, plan Plan) error {
-	planContent, err := plan.content()
-	if err != nil {
-		return err
-	}
 	contents, err := exact.contents()
 	if err != nil {
 		return err
 	}
+	return publishPlanAuthorities(ctx, repository, plan, contents)
+}
+
+func publishPlanAuthorities(
+	ctx context.Context,
+	repository artifact.Repository,
+	plan Plan,
+	contents []artifact.Content,
+) error {
+	planContent, err := plan.content()
+	if err != nil {
+		return err
+	}
 	contents = append(contents, planContent)
-	lineage := artifact.DependencyLineage(exact.split, exact.dataset)
-	lineage = append(lineage, artifact.DependencyLineage(plan.identity, exact.dataset, exact.split)...)
+	lineage := artifact.DependencyLineage(plan.body.Split, plan.body.Dataset)
+	lineage = append(lineage, artifact.DependencyLineage(plan.identity, plan.body.Dataset, plan.body.Split)...)
 	batch, err := artifact.NewDocumentBatch(
 		"evaluation/authorities/"+plan.identity.String(), contents, lineage, nil,
 	)

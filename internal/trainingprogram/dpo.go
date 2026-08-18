@@ -66,8 +66,19 @@ func DPOLoss(scores PreferenceScores, scale float64) (DPOResult, error) {
 		!scores.ReferenceChosen.Valid() || !scores.ReferenceRejected.Valid() {
 		return DPOResult{}, errors.New("training program: invalid DPO scores or scale")
 	}
-	margin := scale * ((scores.PolicyChosen.LogProbability - scores.PolicyRejected.LogProbability) -
-		(scores.ReferenceChosen.LogProbability - scores.ReferenceRejected.LogProbability))
+	policy, err := sequencescore.Select(
+		[]sequencescore.Score{scores.PolicyChosen, scores.PolicyRejected}, sequencescore.NormalizationSum,
+	)
+	if err != nil {
+		return DPOResult{}, err
+	}
+	reference, err := sequencescore.Select(
+		[]sequencescore.Score{scores.ReferenceChosen, scores.ReferenceRejected}, sequencescore.NormalizationSum,
+	)
+	if err != nil {
+		return DPOResult{}, err
+	}
+	margin := scale * ((policy.Values[0] - policy.Values[1]) - (reference.Values[0] - reference.Values[1]))
 	loss := softplus(-margin)
 	down := sigmoid(-margin)
 	return DPOResult{

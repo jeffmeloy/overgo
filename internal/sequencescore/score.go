@@ -11,6 +11,19 @@ type Score struct {
 	Tokens         uint64  `json:"tokens"`
 }
 
+type Normalization string
+
+const (
+	NormalizationSum  Normalization = "sum"
+	NormalizationMean Normalization = "mean"
+)
+
+type Selection struct {
+	Index  int
+	Values []float64
+	Tied   bool
+}
+
 func (s Score) Valid() bool {
 	return s.Tokens > 0 && !math.IsNaN(s.LogProbability) && !math.IsInf(s.LogProbability, 0)
 }
@@ -50,4 +63,28 @@ func Selected(logProbabilities []float64, selected []bool) (Score, error) {
 		}
 	}
 	return accumulator.Result()
+}
+
+func Select(scores []Score, normalization Normalization) (Selection, error) {
+	if len(scores) < 2 || normalization != NormalizationSum && normalization != NormalizationMean {
+		return Selection{}, errors.New("sequence score: invalid choice contract")
+	}
+	result := Selection{Values: make([]float64, len(scores))}
+	maximum := math.Inf(-1)
+	for index, score := range scores {
+		if !score.Valid() {
+			return Selection{}, errors.New("sequence score: invalid choice score")
+		}
+		value := score.LogProbability
+		if normalization == NormalizationMean {
+			value /= float64(score.Tokens)
+		}
+		result.Values[index] = value
+		if value > maximum {
+			maximum, result.Index, result.Tied = value, index, false
+		} else if value == maximum {
+			result.Tied = true
+		}
+	}
+	return result, nil
 }

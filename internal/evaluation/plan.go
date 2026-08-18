@@ -73,6 +73,17 @@ func BindExact(exact ExactPlan, authorities ExactAuthorities) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
+	return bindPlan(exact.dataset, exact.split, exact.identity, scorer, authorities)
+}
+
+func bindPlan(dataset, split, caseProfile, scorer artifact.ID, authorities ExactAuthorities) (Plan, error) {
+	if dataset.Kind() != artifact.KindDataset || split.Kind() != artifact.KindDatasetShard ||
+		caseProfile.Kind() != artifact.KindProfile || scorer.Kind() != artifact.KindProfile ||
+		authorities.ModelDefinition.Kind() != artifact.KindModelDefinition ||
+		authorities.RuntimeRecipe.Kind() != artifact.KindRecipe ||
+		authorities.Environment.Kind() != artifact.KindEvidence || !validCommit(authorities.CodeCommit) {
+		return Plan{}, errors.New("evaluation: invalid plan authorities")
+	}
 	if authorities.Execution.Lifecycle != LifecycleIsolated && authorities.Execution.Lifecycle != LifecycleResident {
 		return Plan{}, errors.New("evaluation: invalid execution policy")
 	}
@@ -83,7 +94,7 @@ func BindExact(exact ExactPlan, authorities ExactAuthorities) (Plan, error) {
 	body := planBody{
 		Version:         evaluationPlanVersion,
 		ModelDefinition: authorities.ModelDefinition, RuntimeRecipe: authorities.RuntimeRecipe,
-		Dataset: exact.dataset, Split: exact.split, CaseProfile: exact.identity,
+		Dataset: dataset, Split: split, CaseProfile: caseProfile,
 		Scorer: scorer, Execution: execution, CodeCommit: authorities.CodeCommit,
 		Environment: authorities.Environment,
 	}

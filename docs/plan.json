@@ -8,18 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "multiple-choice",
-          "title": "Compile ordered candidate continuations and choice-argmax scoring with explicit normalization and aggregation definitions",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestMultipleChoiceScoringMatchesPinnedOracle$' -count=1",
-          "depends_on": [
-            "evaluation-scoring/continuations"
-          ],
-          "capabilities": [
-            "scores-multiple-choice"
-          ]
-        },
-        {
           "id": "generated-answer",
           "title": "Add generated-answer scoring that preserves raw output and identifies each normalization or rule profile separately",
           "status": "open",

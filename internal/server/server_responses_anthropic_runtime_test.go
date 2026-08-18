@@ -49,9 +49,9 @@ func (generator *mediaToolGenerator) FormatChatWithOptions(
 	generator.mu.Unlock()
 	var prompt strings.Builder
 	for _, message := range messages {
-		prompt.WriteString("<" + message.Role + ">")
+		prompt.WriteString("<" + string(message.Role) + ">")
 		prompt.WriteString(message.Content)
-		prompt.WriteString("</" + message.Role + ">")
+		prompt.WriteString("</" + string(message.Role) + ">")
 	}
 	return prompt.String(), nil
 }

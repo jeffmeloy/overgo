@@ -85,7 +85,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 		return nativePrompt{}, errors.New("multimodal chat requires n=1")
 	}
 	if len(body.Messages) != 1 ||
-		body.Messages[0].Role != "user" ||
+		body.Messages[0].Role != inference.ChatRoleUser ||
 		len(body.Messages[0].Media) == 0 || len(body.Messages[0].Media) > 8 {
 		return nativePrompt{}, errors.New("multimodal chat requires one user message with one to eight media items")
 	}
@@ -221,7 +221,7 @@ func (h *Handler) parseChatMultimodalPrompt(
 		if len(message.Media) == 0 {
 			continue
 		}
-		if message.Role != "user" {
+		if message.Role != inference.ChatRoleUser {
 			return nativePrompt{}, errors.New("multimodal chat media is only supported in user messages")
 		}
 		if message.Name != "" || message.ReasoningContent != "" ||
@@ -652,7 +652,7 @@ func (h *Handler) completeChat(
 		finishReason := pump.finishReason(plan.maxTokens, "stop", "length")
 		totalCompletionTokens += pump.completion
 		message := inference.ChatMessage{
-			Role:    "assistant",
+			Role:    inference.ChatRoleAssistant,
 			Content: pump.text(),
 		}
 		if len(tools) != 0 {
@@ -702,7 +702,7 @@ type chatStreamChoice struct {
 }
 
 type chatStreamDelta struct {
-	Role             string               `json:"role,omitempty"`
+	Role             inference.ChatRole   `json:"role,omitempty"`
 	Content          string               `json:"content,omitempty"`
 	ReasoningContent string               `json:"reasoning_content,omitempty"`
 	ToolCalls        []chatStreamToolCall `json:"tool_calls,omitempty"`
@@ -765,7 +765,7 @@ func (h *Handler) streamChatCompletion(
 	for choiceIndex := range n {
 		usage = nil
 		timings = nil
-		if err := writeChunk(choiceIndex, chatStreamDelta{Role: "assistant"}, nil); err != nil {
+		if err := writeChunk(choiceIndex, chatStreamDelta{Role: inference.ChatRoleAssistant}, nil); err != nil {
 			return
 		}
 		toolStream, err := newToolDeltaStream(h.generator, tools)

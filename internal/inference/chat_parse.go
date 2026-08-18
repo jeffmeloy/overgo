@@ -41,7 +41,7 @@ func parseChatOutput(
 	template, output string,
 	tools []ChatTool,
 ) (ChatMessage, error) {
-	message := ChatMessage{Role: "assistant"}
+	message := ChatMessage{Role: ChatRoleAssistant}
 	reasoning, body, err := splitChatReasoning(output)
 	if err != nil {
 		return ChatMessage{}, err

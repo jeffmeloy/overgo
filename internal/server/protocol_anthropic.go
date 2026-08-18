@@ -54,7 +54,7 @@ type anthropicUsage struct {
 type anthropicResponse struct {
 	ID           string                  `json:"id"`
 	Type         string                  `json:"type"`
-	Role         string                  `json:"role"`
+	Role         inference.ChatRole      `json:"role"`
 	Content      []anthropicContentBlock `json:"content"`
 	Model        string                  `json:"model"`
 	StopReason   string                  `json:"stop_reason"`
@@ -172,7 +172,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		value := pump.stoppingWord()
 		stopSequence = &value
 	}
-	message := inference.ChatMessage{Role: "assistant", Content: pump.text()}
+	message := inference.ChatMessage{Role: inference.ChatRoleAssistant, Content: pump.text()}
 	if len(toolSelection.active) != 0 || thinkingEnabled {
 		message, err = parser.ParseChatOutput(
 			pump.text(),
@@ -199,7 +199,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 	writeJSON(response, http.StatusOK, anthropicResponse{
 		ID:           messageID,
 		Type:         "message",
-		Role:         "assistant",
+		Role:         inference.ChatRoleAssistant,
 		Content:      content,
 		Model:        h.config.ModelID,
 		StopReason:   stopReason,
@@ -230,7 +230,7 @@ func (h *Handler) streamAnthropicMessages(
 	if err := writeEvent("message_start", anthropicStreamEvent{
 		Type: "message_start",
 		Message: anthropicMessageStart{
-			ID: messageID, Type: "message", Role: "assistant", Content: []any{},
+			ID: messageID, Type: "message", Role: inference.ChatRoleAssistant, Content: []any{},
 			Model: h.config.ModelID, StopReason: nil, StopSequence: nil,
 			Usage: anthropicUsage{
 				CacheReadInputTokens: 0,
@@ -538,7 +538,7 @@ func (h *Handler) parseAnthropicMessages(
 		if err != nil {
 			return nil, err
 		}
-		messages = append(messages, inference.ChatMessage{Role: "system", Content: system})
+		messages = append(messages, inference.ChatMessage{Role: inference.ChatRoleSystem, Content: system})
 	}
 	if len(rawMessages) == 0 {
 		return nil, errors.New("messages is required")
@@ -555,13 +555,13 @@ func (h *Handler) parseAnthropicMessages(
 	}
 	for index, raw := range items {
 		var item struct {
-			Role    string          `json:"role"`
-			Content json.RawMessage `json:"content"`
+			Role    inference.ChatRole `json:"role"`
+			Content json.RawMessage    `json:"content"`
 		}
 		if err := strictjson.DecodeBytes(raw, &item); err != nil {
 			return nil, fmt.Errorf("message %d: %w", index, err)
 		}
-		if item.Role != "user" && item.Role != "assistant" {
+		if item.Role != inference.ChatRoleUser && item.Role != inference.ChatRoleAssistant {
 			return nil, fmt.Errorf("message %d has unsupported role %q", index, item.Role)
 		}
 		parsed, err := h.parseAnthropicMessage(

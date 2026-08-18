@@ -95,7 +95,7 @@ func selectAnthropicTools(
 
 func (h *Handler) parseAnthropicMessage(
 	ctx context.Context,
-	role string,
+	role inference.ChatRole,
 	raw json.RawMessage,
 	label string,
 ) ([]inference.ChatMessage, error) {
@@ -107,7 +107,7 @@ func (h *Handler) parseAnthropicMessage(
 	if err := json.Unmarshal(raw, &blocks); err != nil {
 		return nil, fmt.Errorf("%s content must be a string or content-block array", label)
 	}
-	if role == "assistant" {
+	if role == inference.ChatRoleAssistant {
 		message := inference.ChatMessage{Role: role}
 		var content strings.Builder
 		seenTool := false
@@ -204,7 +204,7 @@ func (h *Handler) parseAnthropicMessage(
 	flushUser := func() {
 		if content.Len() != 0 || len(media) != 0 {
 			messages = append(messages, inference.ChatMessage{
-				Role:    "user",
+				Role:    inference.ChatRoleUser,
 				Content: content.String(),
 				Media:   slices.Clone(media),
 			})
@@ -298,7 +298,7 @@ func (h *Handler) parseAnthropicMessage(
 				return nil, err
 			}
 			messages = append(messages, inference.ChatMessage{
-				Role:            "tool",
+				Role:            inference.ChatRoleTool,
 				Content:         result,
 				ToolCallID:      block.ToolUseID,
 				ToolResultError: block.IsError,

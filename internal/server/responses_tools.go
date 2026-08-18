@@ -150,14 +150,14 @@ func (h *Handler) parseResponsesMessages(
 	messages := make([]inference.ChatMessage, 0, 4)
 	if instructions != "" {
 		messages = append(messages, inference.ChatMessage{
-			Role:    "system",
+			Role:    inference.ChatRoleSystem,
 			Content: instructions,
 		})
 	}
 	var textInput string
 	if err := json.Unmarshal(raw, &textInput); err == nil {
 		return append(messages, inference.ChatMessage{
-			Role:    "user",
+			Role:    inference.ChatRoleUser,
 			Content: textInput,
 		}), nil
 	}
@@ -181,16 +181,16 @@ func (h *Handler) parseResponsesMessages(
 		switch header.Type {
 		case "", "message":
 			var item struct {
-				Content json.RawMessage `json:"content"`
-				ID      string          `json:"id"`
-				Role    string          `json:"role"`
-				Status  string          `json:"status"`
-				Type    string          `json:"type"`
+				Content json.RawMessage    `json:"content"`
+				ID      string             `json:"id"`
+				Role    inference.ChatRole `json:"role"`
+				Status  string             `json:"status"`
+				Type    string             `json:"type"`
 			}
 			if err := strictjson.DecodeBytes(rawItem, &item); err != nil {
 				return nil, fmt.Errorf("input item %d: %w", index, err)
 			}
-			if item.Role == "" || len(item.Content) == 0 {
+			if !item.Role.Valid() || len(item.Content) == 0 {
 				return nil, fmt.Errorf(
 					"input item %d requires role and content",
 					index,
@@ -212,7 +212,7 @@ func (h *Handler) parseResponsesMessages(
 			if err != nil {
 				return nil, err
 			}
-			messages = append(messages, inference.ChatMessage{Role: "user", Content: content})
+			messages = append(messages, inference.ChatMessage{Role: inference.ChatRoleUser, Content: content})
 		case "function_call":
 			var item struct {
 				Arguments string `json:"arguments"`
@@ -241,12 +241,12 @@ func (h *Handler) parseResponsesMessages(
 				},
 			}
 			if len(messages) != 0 &&
-				messages[len(messages)-1].Role == "assistant" {
+				messages[len(messages)-1].Role == inference.ChatRoleAssistant {
 				last := &messages[len(messages)-1]
 				last.ToolCalls = append(last.ToolCalls, call)
 			} else {
 				messages = append(messages, inference.ChatMessage{
-					Role:      "assistant",
+					Role:      inference.ChatRoleAssistant,
 					ToolCalls: []inference.ChatToolCall{call},
 				})
 			}
@@ -275,7 +275,7 @@ func (h *Handler) parseResponsesMessages(
 				return nil, err
 			}
 			messages = append(messages, inference.ChatMessage{
-				Role:       "tool",
+				Role:       inference.ChatRoleTool,
 				Content:    output,
 				ToolCallID: item.CallID,
 			})
@@ -315,7 +315,7 @@ func (h *Handler) parseResponsesMessages(
 				return nil, fmt.Errorf("input item %d reasoning content is empty", index)
 			}
 			messages = append(messages, inference.ChatMessage{
-				Role: "assistant", ReasoningContent: strings.Join(parts, "\n\n"),
+				Role: inference.ChatRoleAssistant, ReasoningContent: strings.Join(parts, "\n\n"),
 			})
 		default:
 			return nil, fmt.Errorf(
@@ -625,7 +625,7 @@ func responseItems(
 				Text:        message.Content,
 			}},
 			ID:     messageID,
-			Role:   "assistant",
+			Role:   inference.ChatRoleAssistant,
 			Status: "completed",
 			Type:   "message",
 		})

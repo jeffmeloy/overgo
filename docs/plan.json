@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "ledger-measurement-schema",
-      "title": "Ledger measurement schema: capability claims carry context tokens, wall time and peak device memory so performance is a grounded claim beside correctness",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Ledger measurement schema: capability claims carry context tokens, wall time and peak device memory so performance is a grounded claim beside correctness",
-          "status": "open",
-          "verify": "go test ./internal/runrecord -run '^TestModelVerificationLedger$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "ledger-performance-sweep",
       "title": "Ledger performance sweep: inference for every servable model smallest to largest with fixed SFT prompts (consistent system/human input and expected gpt output from the fixed ShareGPT datasets), then training likewise; each run records wall time and peak memory at a decently large supported context into its verification claim",
       "status": "open",

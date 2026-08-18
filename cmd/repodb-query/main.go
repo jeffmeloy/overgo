@@ -626,6 +626,15 @@ func writeVerifications(output io.Writer, repository string, limit int) error {
 			if claim.Dataset.Valid() {
 				cell += fmt.Sprintf(",dataset=%.20s,steps=%d,tokens=%d", claim.Dataset, claim.SpanSteps, claim.SpanTokens)
 			}
+			if claim.WallNS > 0 {
+				cell += fmt.Sprintf(",wall=%s", time.Duration(claim.WallNS).Round(time.Millisecond))
+				if claim.ContextTokens > 0 {
+					cell += fmt.Sprintf(",ctx=%d", claim.ContextTokens)
+				}
+				if claim.PeakDeviceBytes > 0 {
+					cell += fmt.Sprintf(",peak=%.1fGiB", float64(claim.PeakDeviceBytes)/(1<<30))
+				}
+			}
 			cells = append(cells, cell+")")
 		}
 		fmt.Fprintf(output, "model %s %s %s\n", row.Name, row.Model, strings.Join(cells, " "))

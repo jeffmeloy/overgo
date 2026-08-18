@@ -59,9 +59,16 @@ type CapabilityClaim struct {
 	// for training claims and whenever a span is declared.
 	Dataset artifact.ID `json:"dataset,omitzero"`
 	// SpanSteps and SpanTokens bound the training span the claim covers.
-	SpanSteps  uint64        `json:"span_steps,omitempty"`
-	SpanTokens uint64        `json:"span_tokens,omitempty"`
-	Evidence   []artifact.ID `json:"evidence"`
+	SpanSteps  uint64 `json:"span_steps,omitempty"`
+	SpanTokens uint64 `json:"span_tokens,omitempty"`
+	// Performance measurement: the context the measured run used, its wall,
+	// and peak device memory. Optional as a group, but context or peak
+	// without a measured wall is a decoration, not a measurement, and is
+	// refused.
+	ContextTokens   uint64        `json:"context_tokens,omitempty"`
+	WallNS          uint64        `json:"wall_ns,omitempty"`
+	PeakDeviceBytes uint64        `json:"peak_device_bytes,omitempty"`
+	Evidence        []artifact.ID `json:"evidence"`
 }
 
 // ModelVerification is the per-model verification record: typed capability
@@ -253,6 +260,9 @@ func canonicalizeModelVerification(value *ModelVerification) error {
 			if claim.SpanSteps == 0 && claim.SpanTokens == 0 {
 				return fmt.Errorf("run record: capability %q requires its training span (steps or tokens)", claim.Capability)
 			}
+		}
+		if (claim.ContextTokens > 0 || claim.PeakDeviceBytes > 0) && claim.WallNS == 0 {
+			return fmt.Errorf("run record: capability %q declares context or peak memory without a measured wall", claim.Capability)
 		}
 		if len(claim.Evidence) == 0 {
 			return fmt.Errorf("run record: capability %q claims tier %s without evidence", claim.Capability, claim.Tier)

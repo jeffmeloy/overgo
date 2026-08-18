@@ -74,6 +74,10 @@ func TestModelVerificationLedger(t *testing.T) {
 			Dataset: dataset, Evidence: []artifact.ID{smoke}}},
 		"span without dataset": {{Capability: "inference", Tier: TierExactGolden, Commit: commit,
 			SpanTokens: 100, Evidence: []artifact.ID{golden}}},
+		"peak memory without wall": {{Capability: "inference", Tier: TierExactGolden, Commit: commit,
+			PeakDeviceBytes: 1 << 30, Evidence: []artifact.ID{golden}}},
+		"context without wall": {{Capability: "inference", Tier: TierExactGolden, Commit: commit,
+			ContextTokens: 8192, Evidence: []artifact.ID{golden}}},
 		"duplicate capability": {valid, {Capability: "inference", Tier: TierRealArtifactSmoke, Commit: commit, Evidence: []artifact.ID{smoke}}},
 	} {
 		if _, err := NewModelVerification(model, "Carbon-500M", claims); err == nil {
@@ -89,7 +93,9 @@ func TestModelVerificationLedger(t *testing.T) {
 	// per capability and unions evidence only at the winning tier, invariant
 	// to record order.
 	upgrade, err := NewModelVerification(model, "Carbon-500M", []CapabilityClaim{
-		{Capability: "inference", Tier: TierCapabilityMeasured, Commit: commit, Evidence: []artifact.ID{floor}},
+		{Capability: "inference", Tier: TierCapabilityMeasured, Commit: commit,
+			ContextTokens: 8192, WallNS: 4_750_000_000, PeakDeviceBytes: 2 << 30,
+			Evidence: []artifact.ID{floor}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -107,6 +113,10 @@ func TestModelVerificationLedger(t *testing.T) {
 		carbon.Capabilities[0].Tier != TierCapabilityMeasured ||
 		len(carbon.Capabilities[0].Evidence) != 1 || carbon.Capabilities[0].Evidence[0] != floor {
 		t.Fatalf("inference row = %+v, want capability-measured grounded by the floor only", carbon.Capabilities)
+	}
+	if carbon.Capabilities[0].ContextTokens != 8192 || carbon.Capabilities[0].WallNS != 4_750_000_000 ||
+		carbon.Capabilities[0].PeakDeviceBytes != 2<<30 {
+		t.Fatalf("measurement lost through the matrix: %+v", carbon.Capabilities[0])
 	}
 	training := carbon.Capabilities[1]
 	if training.Capability != "training" || training.Tier != TierRealArtifactSmoke ||

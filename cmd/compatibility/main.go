@@ -17,6 +17,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
@@ -259,6 +260,10 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 		provenance := "commit=" + claim.Commit
 		if claim.Dataset.Valid() {
 			provenance += fmt.Sprintf(" dataset=%s span_steps=%d span_tokens=%d", claim.Dataset, claim.SpanSteps, claim.SpanTokens)
+		}
+		if claim.WallNS > 0 {
+			provenance += fmt.Sprintf(" wall=%s context_tokens=%d peak_device_bytes=%d",
+				time.Duration(claim.WallNS).Round(time.Millisecond), claim.ContextTokens, claim.PeakDeviceBytes)
 		}
 		fmt.Fprintf(output, "claim %s: %s (%d evidence) %s\n", claim.Capability, claim.Tier, len(claim.Evidence), provenance)
 	}

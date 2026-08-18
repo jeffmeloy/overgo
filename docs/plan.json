@@ -3,26 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "evaluation-datasets",
-      "title": "Register local benchmark corpora as immutable RepoDB datasets and convert external cache formats into canonical native shards",
-      "status": "open",
-      "steps": [
-        {
-          "id": "catalog",
-          "title": "Catalog BBH, MMLU-Pro, MuSR, MATH, TruthfulQA, and IFEval versions and splits from configured data roots without runtime downloads",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestBenchmarkCatalogResolvesPinnedLocalDatasets$' -count=1",
-          "depends_on": [
-            "evaluation-datasets/import"
-          ],
-          "capabilities": [
-            "resolves-local-datasets",
-            "avoids-runtime-download"
-          ]
-        }
-      ]
-    },
-    {
       "id": "evaluation-benchmarks",
       "title": "Port benchmark semantics as typed data and small neutral scorer primitives, with lm-eval retained only as a pinned oracle",
       "status": "open",

@@ -13,22 +13,17 @@ import (
 	"strings"
 
 	"overgo/internal/clioptions"
-	"overgo/internal/dataset"
+	"overgo/internal/evaluation"
 	"overgo/internal/repodb"
 	"overgo/internal/strictjson"
 )
 
 type manifest struct {
-	Repository string          `json:"repository"`
-	CodeCommit string          `json:"code_commit"`
-	Device     int             `json:"device"`
-	Imports    []importRequest `json:"imports,omitempty"`
-	Models     []modelRequest  `json:"models,omitempty"`
-}
-
-type importRequest struct {
-	Path string                      `json:"path"`
-	Spec dataset.BenchmarkImportSpec `json:"spec"`
+	Repository string         `json:"repository"`
+	Catalog    string         `json:"catalog"`
+	CodeCommit string         `json:"code_commit"`
+	Device     int            `json:"device"`
+	Models     []modelRequest `json:"models"`
 }
 
 type modelRequest struct {
@@ -60,11 +55,8 @@ func run() error {
 		}
 		return executeModel(context.Background(), compiled, compiled.Models[*modelIndex], openEvaluationSession)
 	}
-	if err := importBenchmarks(context.Background(), compiled); err != nil {
+	if err := catalogBenchmarks(context.Background(), compiled); err != nil {
 		return err
-	}
-	if len(compiled.Models) == 0 {
-		return nil
 	}
 	executable, err := os.Executable()
 	if err != nil {
@@ -99,10 +91,8 @@ func readManifest(path string) (manifest, error) {
 	if !filepath.IsAbs(value.Repository) {
 		value.Repository = filepath.Join(base, value.Repository)
 	}
-	for index := range value.Imports {
-		if !filepath.IsAbs(value.Imports[index].Path) {
-			value.Imports[index].Path = filepath.Join(base, value.Imports[index].Path)
-		}
+	if !filepath.IsAbs(value.Catalog) {
+		value.Catalog = filepath.Join(base, value.Catalog)
 	}
 	for modelIndex := range value.Models {
 		model := &value.Models[modelIndex]
@@ -120,15 +110,10 @@ func readManifest(path string) (manifest, error) {
 
 func compileManifest(value manifest) (manifest, error) {
 	value.Repository = strings.TrimSpace(value.Repository)
+	value.Catalog = filepath.Clean(strings.TrimSpace(value.Catalog))
 	value.CodeCommit = strings.TrimSpace(value.CodeCommit)
-	if value.Repository == "" || value.CodeCommit == "" || value.Device < 0 || len(value.Imports)+len(value.Models) == 0 {
+	if value.Repository == "" || value.Catalog == "." || value.CodeCommit == "" || value.Device < 0 || len(value.Models) == 0 {
 		return manifest{}, errors.New("evaluate: incomplete manifest")
-	}
-	for index := range value.Imports {
-		value.Imports[index].Path = filepath.Clean(strings.TrimSpace(value.Imports[index].Path))
-		if value.Imports[index].Path == "." {
-			return manifest{}, errors.New("evaluate: benchmark import path is absent")
-		}
 	}
 	models := make([]modelRequest, 0, len(value.Models))
 	indexByPath := make(map[string]int, len(value.Models))
@@ -155,18 +140,13 @@ func compileManifest(value manifest) (manifest, error) {
 	return value, nil
 }
 
-func importBenchmarks(ctx context.Context, value manifest) error {
-	if len(value.Imports) == 0 {
-		return nil
-	}
+func catalogBenchmarks(ctx context.Context, value manifest) error {
 	store, err := repodb.Open(value.Repository)
 	if err != nil {
 		return err
 	}
-	for _, request := range value.Imports {
-		if _, err := dataset.ImportBenchmark(ctx, store, request.Path, request.Spec); err != nil {
-			return errors.Join(err, store.Close())
-		}
+	if _, err := evaluation.CatalogLocalBenchmarks(ctx, store, value.Catalog); err != nil {
+		return errors.Join(err, store.Close())
 	}
 	return store.Close()
 }

@@ -28,7 +28,7 @@ func (s fixtureSession) Close() error {
 
 func TestEvaluateCommandIsolatesModelsAndReportsTaskFailure(t *testing.T) {
 	compiled, err := compileManifest(manifest{
-		Repository: "repo", CodeCommit: "commit", Device: 0,
+		Repository: "repo", Catalog: "catalog.json", CodeCommit: "commit", Device: 0,
 		Models: []modelRequest{
 			{Path: "first.gguf", Suites: []string{"a.json"}},
 			{Path: "second.gguf", Suites: []string{"b.json"}},

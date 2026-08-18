@@ -1,7 +1,10 @@
 # Overgo
 
-Overgo is an experimental, no-cgo Go system for model inference, training,
-evaluation, and composition on consumer NVIDIA hardware.
+Overgo is a no-cgo Go system for importing, defining, creating,
+training, evaluating, serving, and composing models on consumer NVIDIA
+hardware. It supports text, image, audio, video, time-series, tabular, speech,
+embedding, reranking, and preference-training workflows through one typed
+runtime.
 
 It uses selected formats, semantics, and kernel behavior from llama.cpp.
 Adaptive_new supplies reference implementations and performance baselines.
@@ -10,7 +13,25 @@ verification records, and artifact lifecycle management.
 
 **Current host:** Windows amd64, Go 1.26, NVIDIA CUDA driver, `CGO_ENABLED=0`.
 `github.com/dlclark/regexp2/v2` is the sole third-party Go runtime dependency.
-The implementation and public interfaces remain experimental.
+Public interfaces may change while the runtime is under active development.
+
+## Feature overview
+
+| Workflow | Implemented capability |
+| --- | --- |
+| Model import | GGUF and safetensors inspection, Hugging Face conversion, split/merge, quantization, tensor inventory, and content-hash identity |
+| Model definition | Immutable architecture profiles, tensor inventories, model definitions, capability recipes, and compiled execution plans |
+| New model creation | Deterministic scratch-model construction, initialized parameter manifests, adapters, component proposals, and derived-model lineage |
+| Inference | Dense, MoE, recurrent, hybrid, encoder, encoder-decoder, diffusion-text, embedding, reranking, speculative, and constrained token generation |
+| Modalities | Text input/output; image, audio, and video projection; image and video generation; speech synthesis; forecasting; tabular prediction; VQA and OCR paths |
+| Training | Shared dataset streams, compiled objectives, Muon optimization, host reference execution, CUDA-resident execution, checkpoints, exact resume, and evaluation records |
+| Preference training | Native DPO data preparation, policy/reference scoring, loss and gradients, Muon updates, checkpoint resume, run evidence, and GUI plots |
+| Serving | Native llama.cpp-style, OpenAI-compatible, and Anthropic-compatible HTTP APIs with streaming, tools, structured output, media, batching, and caches |
+| GUI | Inference, recipe-driven generation, datasets, DPO training, export, operations, runs, artifacts, recipes, and model/tensor/state/attention analysis |
+| Evidence | RepoDB identities, lineage, run records, evaluation records, recipe promotion, rollback records, compatibility claims, and reproducible release checks |
+
+Artifact-specific results and verification levels are listed in
+[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 ## System contract
 
@@ -44,7 +65,8 @@ truth for model and feature support. Status terms have these meanings:
   run and may be activated for production use.
 
 Each claim applies only to the named artifact, input, execution lifecycle, and
-verification level. A catalog entry without verification remains experimental.
+verification level. A catalog entry without verification makes no
+artifact-specific execution claim.
 
 ## Architecture
 
@@ -92,11 +114,102 @@ after upload. Sessions are cached by model artifact, recipe, device, and
 execution policy. A separate lock for each cached session allows different
 sessions to execute concurrently.
 
+## Recipe schemes
+
+Recipes are executable data, not labels. A versioned recipe names one task,
+artifact dependencies, typed modules, host/device placement, data ports,
+ordered edges, inputs, and outputs. The compiler rejects unknown modules,
+invalid ordering, incompatible data kinds, missing dependencies, and placement
+or residency conflicts.
+
+Supported recipe tasks are inference, token generation, embedding, reranking,
+projection, training, forecasting, tabular prediction, sequence-to-sequence
+generation, speech synthesis, image generation, video generation, and VQA.
+
+### Model recipe scheme
+
+A runnable model has four related records:
+
+1. **Model artifact:** content-hashed model bytes and locations.
+2. **Model profile:** immutable architecture and operator policy with fact
+   provenance.
+3. **Model definition:** exact binding of the model artifact, profile, tensor
+   inventory, architecture name, dimensions, and validated tensor facts.
+4. **Capability recipe:** ordered modules for one task, including placement,
+   session lifetime, residency, processors, projectors, adapters, or other
+   model dependencies.
+
+Compilation produces an indexed model plan and, for inference, a decode plan.
+The plan identity includes the model, profile, definition, recipe, recipe
+version, placement, residency, and runtime. Runtime code consumes this plan;
+it does not choose behavior from a model-family switch.
+
+RepoDB may store several candidate recipes for the same artifact and task.
+Only an active recipe can run through production entry points. Activation
+requires a successful gate and run tied to the exact recipe and model identity.
+Changing model bytes, profile facts, tensor inventory, or recipe content creates
+a different identity and requires new evidence.
+
+### Dataset recipe scheme
+
+Dataset documents are also immutable, content-addressed records. Four document
+types describe data without copying dataset bytes into Git:
+
+| Dataset document | Meaning |
+| --- | --- |
+| `version` | Named external assets, artifact identities, and record counts |
+| `view` | A source dataset plus an immutable selector and/or selected fields |
+| `split` | Named partition views over one source dataset |
+| `mixture` | Canonically ordered datasets with normalized integer weights |
+
+Group-aware split plans assign all records from one group to the same partition
+using a seed and immutable membership records. RepoDB stores document content,
+lineage, aliases, and file locations. The training materializer resolves the
+documents, selectors, split membership, processors, and assets; validates file
+sizes and content; removes exact duplicates; and builds a deterministic stream.
+Weighted member order, shuffle order, epoch, seed, and stream position are part
+of the resumable data contract.
+
+### Training recipe scheme
+
+A training objective record binds objective type, input/output modalities,
+dataset and split, processors, optional projectors or codecs, loss, evaluation,
+and evidence. A compiled `TrainingProgram` defines ordered forward, backward,
+and Muon update operations plus the exact trainable parameter plan. A
+`TrainingRunPlan` adds the model or scratch construction, initial checkpoint,
+dataset stream, precision, placement, memory, evaluation, checkpoint, and
+promotion policies.
+
+The runtime rejects a resume checkpoint when its program, dataset, split,
+stream, processor, projector, codec, or model authority differs. DPO adds a
+frozen reference model, chosen/rejected preference batches, and a positive
+objective scale to the same plan and checkpoint scheme.
+
+## Model and runtime coverage
+
+The architecture catalog currently contains 136 profiles. Profiles describe
+tensor layout and operator policy. Artifact tests and run records are tracked
+separately. Representative groups are:
+
+| Runtime group | Representative catalog profiles and capabilities |
+| --- | --- |
+| Dense causal decoders | Llama, Gemma, Qwen, Mistral, GPT-2/J/NeoX, MPT, Phi, Falcon, Cohere, Granite, OLMo, StableLM, StarCoder |
+| Mixture-of-experts | DeepSeek, Qwen MoE, DBRX, Arctic, Grok, Granite MoE, Hunyuan MoE, Exaone MoE, Ernie MoE |
+| Recurrent and hybrid | Mamba, Mamba2, RWKV6/7, Jamba, Qwen3Next/Qwen3.5, Kimi Linear, GraniteHybrid, Falcon-H1, LFM2 |
+| Encoders and embeddings | BERT, T5 encoder, ModernBERT, NeoBERT, Nomic BERT, Jina BERT, Gemma embedding, Llama embedding |
+| Encoder-decoder and structured tasks | T5, Needle sequence-to-sequence, TimesFM forecasting, TabFM tabular prediction, OCR and reranking paths |
+| Multimodal language | Gemma3/3n/4, Qwen2-VL/Qwen3-VL, Hunyuan VL, CogVLM, Chameleon, DeepSeek OCR, PaddleOCR |
+| Diffusion and discrete generation | LLaDA, LLaDA-MoE, Dream, RND1, SimpleDiffusion, latent and oscillator image/video programs |
+| Media systems | Pocket-TTS speech, Krea and SenseNova image generation, Wan and LiveEdit video, Un-0 oscillator image/video |
+
+Use `go run ./cmd/compatibility` or
+[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for artifact-specific status.
+
 ## Capability status
 
 | Area | Current implementation | Remaining verification or implementation |
 | --- | --- | --- |
-| Text inference | Dense, MoE, recurrent, hybrid, encoder, encoder-decoder, diffusion-text, and speculative components | Each model artifact requires its own verification. |
+| Text inference | Dense, MoE, recurrent, hybrid, encoder, encoder-decoder, diffusion-text, and speculative components | Artifact-specific verification is recorded in the compatibility matrix. |
 | Quantized execution | GGUF parsing and conversion plus native quantized weights and experts selected by recipe | Exact data-type and model-family coverage is generated in `docs/COMPATIBILITY.md`. |
 | Serving | Native llama.cpp-style endpoints; OpenAI Chat/Completions/Embeddings/Responses; Anthropic Messages; built-in inference, RepoDB browsing, and model-analysis UI | One contract matrix verifies streaming, structured tools, embeddings, ordered media, response continuation, prompt-cache reuse and context-window editing, cancellation, and unsupported-operation errors. Model output quality requires recipe-specific tests. |
 | Multimodal input | Image, audio, and video projection; size-limited local and allowlisted remote media; mixed-media conversation history | E4B, Gemma/Qwen, RxBrain, and Unlimited OCR have tests using model files. Many catalog entries have only synthetic-fixture tests. |
@@ -104,6 +217,9 @@ sessions to execute concurrently.
 | Video generation | Typed oscillator, Wan, and LiveEdit recipes; encoded artifact publication; CUDA-resident Wan denoising and VAE encoding/decoding; retained LiveEdit text projection, cumulative attention history, and source-latent reuse | Un-0 publishes six real-artifact frames as a 64x64 GIF byte-identical to adaptive_new. Wan has verified full-clip execution. LiveEdit executes all 30 blocks. Its full 81-frame edit matches adaptive and Python output quality, uses 15.624 GiB peak device memory, takes 81.6-81.9 s cold, and takes 51.0-51.5 s when the same source latent is resident. The production recipe publishes GIF; the performance gate streams MP4. |
 | Speech, forecast, table, seq2seq | Shared runtime and recipe components. Pocket-TTS verifies waveform output and trains its real backbone+flow parameter set through compiled Muon on native generated codec latents. TimesFM verifies exact forecasts and a held-out Supernova baseline. Needle verifies exact numeric parity, grounded text-to-tool-call JSON, and real GSM8K training through the common dataset stream, compiled training program, and device Muon. | Needle retains BF16 matrices and measures 66.758-67.363 MiB across matched cold processes versus adaptive_new's 120.918-121.328 MiB. Shared reverse traversal trains both final norms, all eight decoder self/cross-attention pairs, all 12 encoder self-attention blocks, and the tied source/target/output embedding. A fixed 4-train/4-held-out GSM8K gate improves both aggregate losses. Pocket-TTS corpus audio encoding and held-out training evidence remain open. Comparable process peak measurements remain open for the other capabilities. |
 | Training | Shared dataset streaming for dense, scratch, seq2seq, speech, and diffusion-image Muon trainers. Every compiled program identifies its objective. RepoDB documents bind objective kind, corpus, split, processors, projectors/codecs, loss, evaluation, and evidence. | Frozen-lexical Carbon and the recorded scratch configuration outperform their references. Qwen3.5-4B recurrent layer 0 and the Gemma E4B layer-0 adapter train from real artifacts. Pocket-TTS latent-sequence and SimpleDiffusion flow-matching trainers use the shared program order. Eight adaptive objective contracts are represented; a missing program binding is refused. A Git-pinned workflow corpus trains three scratch-controller seeds and records held-out evaluations plus an external promotion/rollback decision. A live CUDA measurement compiles a forced-cap controller Tier-1 schedule that reduces physical reservation from 10 MiB to 8 MiB; streamed execution remains open. Real-record evidence approves text-to-text, image-to-text, and audio-to-text; the other 33 single-modality pairs remain refused. Complete model stacks, production FNS/forecast/OCR/image-latent/distillation executors, and checkpoint adoption by every trainer remain open. |
+| New model creation | Content-addressed model definitions, deterministic scratch construction, initialized parameter manifests, adapters, grafts, component proposals, and parent/child lineage use the same recipe and run-record system. | Import and conversion are CLI workflows. Scratch construction and derived-model proposals are currently package APIs and verification workflows rather than one general model-builder command. |
+| Preference training and RL | DPO is implemented through preference datasets, exact common-prefix masks, policy and frozen-reference scoring, a typed DPO objective, Muon updates, checkpoints, exact resume, run evidence, and GUI execution and plots. | PPO, GRPO, environment rollouts, reward-model training, and online policy serving are not implemented. |
+| Web workbench | Embedded thin client for chat, recipe-driven generation, runtime state, datasets, DPO training, export, operations, runs, recipes, artifacts, vocabulary, logits, hidden states, attention, and tensor analysis. | Tabs report unavailable server capabilities directly. Training requires `-training`, RepoDB, an active training recipe, model/reference locations, a preference dataset, and checkpoint storage. |
 
 Known gaps include the SenseNova image-edit source oracle, LiveEdit cold-request
 leadership and recipe-configured MP4 publication, exact full-sequence Unlimited OCR comparison, comparable
@@ -259,9 +375,9 @@ go run ./cmd/recipe activate \
 ```
 
 `recipe run` executes only an active recipe. The Needle 26M recipe has been
-verified, activated at the experimental tier, and replayed with grounded
-text-to-tool-call JSON. Experimental means the real execution path is proven;
-matched process-memory evidence and an approved training objective remain open.
+verified, activated, and replayed with grounded text-to-tool-call JSON. Its
+activation records prove the stated execution path; matched process-memory
+evidence and an approved training objective remain separate work.
 
 Generate after activation:
 
@@ -345,6 +461,45 @@ response continuation; prompt-cache reuse plus `n_keep`/`n_discard` context
 editing; client and timeout cancellation; and explicit refusal when an
 unconfigured projector or tool executor is required.
 
+## Web workbench
+
+The server embeds a thin HTML, CSS, and JavaScript client at
+`http://127.0.0.1:8080/`. The browser holds presentation state only. Models,
+recipes, datasets, operations, runs, and artifacts remain server-owned.
+
+The workbench is organized into four sections:
+
+| Section | Functions |
+| --- | --- |
+| Inference | Multi-turn chat, recipe-driven generation controls, token streaming, cancellation, and live runtime/cache/session status |
+| Datasets | RepoDB dataset browsing, version and lineage detail, bounded record preview, and processor-aware values |
+| Training | Recipe-driven DPO controls, resumable checkpoint selection, operation progress, cancellation, export, run history, and checkpoint comparison |
+| Workbench | Active recipe inspection; artifact gallery; model and tensor inventory; vocabulary; logit lens; hidden-state layout; attention heatmaps; tensor statistics and similar-shape search |
+
+Generation, training, and export forms are built from the server's typed
+capability declarations. The client does not contain model-family forms or
+execution switches. Each operation reports state, progress, metrics, run
+identity, output artifacts, and failure information through common operation
+endpoints.
+
+Start the server with training controls enabled:
+
+```bash
+go run ./cmd/server \
+  -listen 127.0.0.1:8080 \
+  -training \
+  D:/models/model.gguf
+```
+
+Training mode resolves the active training recipe from RepoDB and requires the
+configured dataset and checkpoint roots. The current native GUI training
+workspace runs DPO and exposes dataset, resume checkpoint, output name, steps,
+learning rate, momentum, and DPO scale. The Runs view plots DPO loss, policy and
+reference margins, relative margin, gradient L2, update L2, learning rate, and
+chosen/rejected token counts. It links each plot to its run, trace, and
+checkpoint artifacts and can compare the final observations from two
+checkpoints.
+
 ## Training
 
 Muon is the only optimizer used by production training. Matrix, vector, and
@@ -400,6 +555,27 @@ weights and Muon state. The model plan also verifies the native sliding, full,
 and shared-KV schedule. This is selected-adapter training, not complete
 42-layer training. The artifact declares no AltUp or Laurel components.
 
+### Preference optimization and RL
+
+Overgo implements direct preference optimization (DPO) as a native training
+objective. It uses the same dataset, recipe, execution, optimizer, checkpoint,
+resume, evidence, and GUI contracts as other training workflows.
+
+The DPO path performs these steps:
+
+1. Read chosen and rejected responses from the compiled preference dataset.
+2. Verify their common prompt prefix and derive completion masks.
+3. Score both responses with the trainable policy and frozen reference model.
+4. Compute the relative policy/reference margin, DPO loss, and score gradients.
+5. Run the model VJP and update policy parameters through Muon.
+6. Store checkpoints, traces, run records, and recipe identities for exact
+   resume and comparison.
+
+Run DPO from `cmd/train` by providing `-reference` and a positive `-dpo-scale`,
+or use the Training section of the web workbench. Both entry points compile and
+execute the same active training recipe. PPO, GRPO, reward-model training,
+environment rollouts, and online policy serving are not implemented.
+
 ### Dataset processing
 
 `internal/trainingdata` provides shared dataset processing for dense, scratch,
@@ -441,7 +617,19 @@ model-quality evidence. The modality matrix remains separate: only
 text-to-text, image-to-text, and audio-to-text have approved real-record E4B
 evidence; the other 33 pairs remain refused.
 
-### From-scratch model construction and training
+### New model creation and scratch training
+
+Overgo supports three model-creation routes:
+
+1. Import or convert checkpoint weights, derive their tensor inventory, bind an
+   architecture profile, and compile task recipes.
+2. Construct a model deterministically from a dataset-derived topology,
+   parameter manifest, initialization profile, and named random streams.
+3. Create a derived model from adapters, grafts, or component proposals while
+   retaining parent, evidence, and construction lineage.
+
+The import and conversion route is available through commands. Scratch and
+derived construction use package APIs and recorded verification workflows.
 
 `internal/scratchmodel` implements adaptive_new's corpus-derived causal
 controller through Overgo's training interfaces. A versioned derivation profile
@@ -493,7 +681,7 @@ Core user commands:
 | --- | --- |
 | `cmd/generate` | Text and multimodal generation through an active recipe |
 | `cmd/server` | Native, OpenAI-compatible, and Anthropic-compatible HTTP serving |
-| `cmd/train` | Dense safetensors Muon training |
+| `cmd/train` | Dense safetensors Muon and DPO training with checkpoint resume |
 | `cmd/recipe` | Activate, run, and inspect capability recipes |
 | `cmd/benchmark` | JSON elapsed-time, throughput, memory, launch, synchronization, and transfer metrics |
 | `cmd/embedding` | Encoder embeddings with selectable pooling/normalization |
@@ -580,11 +768,13 @@ permissions for model, dataset, or checkpoint stores.
 | `cmd/` | Thin command entry points |
 | `internal/model`, `internal/inference` | Compiled model programs, runners, cache/session behavior |
 | `internal/modelartifact`, `internal/tensorstats` | Bounded model inventories; L-moment, energy, rank-neighbor, and small-matrix spectral characterization |
-| `internal/recipe`, `internal/modelrecipe`, `internal/workflowruntime` | Typed capability definitions, lifecycle, and execution |
+| `internal/recipe`, `internal/modelrecipe`, `internal/workflowrecipe`, `internal/workflowruntime` | Typed capability definitions, compilation, lifecycle, and execution |
 | `internal/cuda`, `kernels/` | CUDA driver interface, executor, generated interfaces, and manifested CUDA assets |
 | `internal/projector`, `internal/latentimage`, `internal/latentvideo` | Multimodal projection and media generation |
 | `internal/optimizer`, `internal/densecausal`, `internal/hybridtrain`, `internal/adaptertrain` | Muon and training implementations |
-| `internal/trainingprogram`, `internal/scratchmodel` | Compiled training plans and corpus-derived scratch construction and execution |
+| `internal/dataset`, `internal/trainingdata` | Immutable dataset recipes, splits, mixtures, materialization, and deterministic streams |
+| `internal/trainingprogram`, `internal/trainingworkflow` | Compiled objectives, run plans, DPO execution, checkpointing, and resume |
+| `internal/scratchmodel`, `internal/controllertrain` | Corpus-derived model construction and repository-workflow training |
 | `internal/artifact`, `internal/repodb`, `internal/runrecord` | Identity, lineage, decisions, runs, and verification records |
 | `internal/server`, `internal/server/webui` | HTTP contracts and embedded thin-client console/workbench |
 | `compatibility.json` | Machine-checked feature and model claims |

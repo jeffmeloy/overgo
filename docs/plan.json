@@ -1,7 +1,308 @@
 {
-  "campaign": "Constrained RSI bootstrap: verified substrate, experiment plane, and automatic composition",
-  "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
+  "campaign": "Native evaluation evidence plane and constrained improvement",
+  "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
+    {
+      "id": "evaluation-contract",
+      "title": "Make one neutral compiled evaluation contract own exact suites, request semantics, scorer identity, dataset authority, and raw-result retention",
+      "status": "open",
+      "steps": [
+        {
+          "id": "migrate-exact",
+          "title": "Compile exact-generation suites in internal/evaluation; migrate recipe verification and model tests; delete internal/servingeval",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./cmd/recipe ./internal/inference -run 'TestCompileExact|TestExact' -count=1",
+          "rationale": "First slice has production and model-test consumers. No advisory abstraction remains beside the old owner.",
+          "depends_on": [
+            "capability-readme"
+          ],
+          "capabilities": [
+            "evaluates-native-runtime",
+            "binds-evaluator-identity"
+          ]
+        },
+        {
+          "id": "bind-authorities",
+          "title": "Compile model definition, active runtime recipe, dataset/split, case profile, scorer, execution policy, code, and environment into one evaluation-plan identity",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestPlanBindsEveryEvaluationAuthority$' -count=1",
+          "depends_on": [
+            "evaluation-contract/migrate-exact"
+          ],
+          "capabilities": [
+            "binds-model",
+            "binds-dataset",
+            "binds-runtime-recipe",
+            "binds-evaluator-identity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evaluation-runtime",
+      "title": "Execute compiled evaluations with bounded streaming, immutable shard publication, exact resume, cancellation, and explicit isolated or resident lifecycle",
+      "status": "open",
+      "steps": [
+        {
+          "id": "shards",
+          "title": "Add deterministic case shards and canonical shard reports; stream raw outputs and online metric state without retaining the full campaign",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestShardReportsMergeCanonicallyWithoutRetainedCampaign$' -count=1",
+          "depends_on": [
+            "evaluation-contract"
+          ],
+          "capabilities": [
+            "streams-dataset",
+            "publishes-evidence"
+          ]
+        },
+        {
+          "id": "resume",
+          "title": "Resume only missing shards under the exact plan identity; failed or partial tasks remain incomplete and changed authorities refuse reuse",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestResumeRejectsPartialOrForeignPlanResults$' -count=1",
+          "depends_on": [
+            "evaluation-runtime/shards"
+          ],
+          "capabilities": [
+            "resumes-exactly",
+            "refuses-stale-evidence"
+          ]
+        },
+        {
+          "id": "command",
+          "title": "Add cmd/evaluate parent and worker modes; load each model once, run pending shards, publish Run and Evaluation records, and release device state by worker exit",
+          "status": "open",
+          "verify": "go test ./cmd/evaluate ./internal/evaluation -run '^TestEvaluateCommandIsolatesModelsAndReportsTaskFailure$' -count=1",
+          "depends_on": [
+            "evaluation-runtime/resume"
+          ],
+          "capabilities": [
+            "executes-autonomously",
+            "isolates-device-lifecycle",
+            "records-failure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evaluation-scoring",
+      "title": "Use shared typed scoring primitives for continuation likelihood, multiple choice, generated answers, and exact outputs",
+      "status": "open",
+      "steps": [
+        {
+          "id": "continuations",
+          "title": "Extract one continuation-score operation from perplexity and DPO paths; evaluate candidate continuations without duplicate model traversal",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/inference ./internal/trainingprogram -run '^TestContinuationScoreSharedAcrossEvaluationPerplexityAndDPO$' -count=1",
+          "depends_on": [
+            "evaluation-contract"
+          ],
+          "capabilities": [
+            "scores-sequences",
+            "reuses-common-operator"
+          ]
+        },
+        {
+          "id": "multiple-choice",
+          "title": "Compile ordered candidate continuations and choice-argmax scoring with explicit normalization and aggregation definitions",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestMultipleChoiceScoringMatchesPinnedOracle$' -count=1",
+          "depends_on": [
+            "evaluation-scoring/continuations"
+          ],
+          "capabilities": [
+            "scores-multiple-choice"
+          ]
+        },
+        {
+          "id": "generated-answer",
+          "title": "Add generated-answer scoring that preserves raw output and identifies each normalization or rule profile separately",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestGeneratedAnswerRetainsRawAndIdentifiesScoredView$' -count=1",
+          "depends_on": [
+            "evaluation-scoring/multiple-choice"
+          ],
+          "capabilities": [
+            "scores-generated-output",
+            "retains-raw-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evaluation-datasets",
+      "title": "Register local benchmark corpora as immutable RepoDB datasets and convert external cache formats into canonical native shards",
+      "status": "open",
+      "steps": [
+        {
+          "id": "import",
+          "title": "Add a streaming benchmark importer that records source revision, source hashes, field mapping, split, conversion profile, and record count",
+          "status": "open",
+          "verify": "go test ./internal/dataset ./internal/evaluation -run '^TestBenchmarkImportPreservesSourceAndRecordIdentity$' -count=1",
+          "depends_on": [
+            "evaluation-runtime/shards"
+          ],
+          "capabilities": [
+            "imports-benchmark-data",
+            "binds-source-provenance"
+          ]
+        },
+        {
+          "id": "catalog",
+          "title": "Catalog BBH, MMLU-Pro, MuSR, MATH, TruthfulQA, and IFEval versions and splits from configured data roots without runtime downloads",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestBenchmarkCatalogResolvesPinnedLocalDatasets$' -count=1",
+          "depends_on": [
+            "evaluation-datasets/import"
+          ],
+          "capabilities": [
+            "resolves-local-datasets",
+            "avoids-runtime-download"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evaluation-benchmarks",
+      "title": "Port benchmark semantics as typed data and small neutral scorer primitives, with lm-eval retained only as a pinned oracle",
+      "status": "open",
+      "steps": [
+        {
+          "id": "mmlu-pro",
+          "title": "Implement MMLU-Pro rendering, few-shot selection, continuation scoring, category aggregation, and oracle parity",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestMMLUProPinnedOracleParity$' -count=1",
+          "depends_on": [
+            "evaluation-scoring/multiple-choice",
+            "evaluation-datasets/catalog"
+          ],
+          "capabilities": [
+            "evaluates-mmlu-pro"
+          ]
+        },
+        {
+          "id": "bbh-musr",
+          "title": "Implement BBH and MuSR through the same request and scorer contracts; retain subtask and aggregate metrics",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestBBHAndMuSRPinnedOracleParity$' -count=1",
+          "depends_on": [
+            "evaluation-benchmarks/mmlu-pro"
+          ],
+          "capabilities": [
+            "evaluates-bbh",
+            "evaluates-musr"
+          ]
+        },
+        {
+          "id": "truthfulqa",
+          "title": "Implement distinct TruthfulQA MC1, MC2, and generated-answer definitions without hidden answer rewriting",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestTruthfulQAPinnedOracleParity$' -count=1",
+          "depends_on": [
+            "evaluation-scoring/generated-answer",
+            "evaluation-benchmarks/mmlu-pro"
+          ],
+          "capabilities": [
+            "evaluates-truthfulqa"
+          ]
+        },
+        {
+          "id": "math",
+          "title": "Implement MATH prompt, answer extraction, equivalence scoring, subject aggregation, and raw-answer retention",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestMATHPinnedOracleParity$' -count=1",
+          "depends_on": [
+            "evaluation-scoring/generated-answer",
+            "evaluation-datasets/catalog"
+          ],
+          "capabilities": [
+            "evaluates-math"
+          ]
+        },
+        {
+          "id": "ifeval",
+          "title": "Implement IFEval instruction verifiers as versioned rule data and neutral checks; publish strict and loose prompt and instruction metrics",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestIFEvalPinnedOracleParity$' -count=1",
+          "depends_on": [
+            "evaluation-benchmarks/truthfulqa"
+          ],
+          "capabilities": [
+            "evaluates-ifeval"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evaluation-gui",
+      "title": "Expose evaluation campaigns through the existing operation and workbench contracts without browser-owned benchmark behavior",
+      "status": "open",
+      "steps": [
+        {
+          "id": "api",
+          "title": "Add typed suite discovery, campaign launch, progress, cancellation, reports, comparisons, and failed-case inspection to server operations",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestEvaluationCampaignAPIUsesCompiledPlans$' -count=1",
+          "depends_on": [
+            "evaluation-runtime/command",
+            "evaluation-benchmarks/mmlu-pro"
+          ],
+          "capabilities": [
+            "serves-evaluation-api"
+          ]
+        },
+        {
+          "id": "workbench",
+          "title": "Add an Evaluations workbench view driven by server declarations; show model/task matrices, metric direction, deltas, failures, run lineage, and raw/scored outputs",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestEvaluationWorkbenchUsesDeclaredCapabilities$' -count=1",
+          "depends_on": [
+            "evaluation-gui/api"
+          ],
+          "capabilities": [
+            "visualizes-evaluations"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evaluation-evidence",
+      "title": "Make native evaluation reports the common evidence source for compatibility, regression advisories, recipe promotion, training holdouts, and descendant comparison",
+      "status": "open",
+      "steps": [
+        {
+          "id": "repodb",
+          "title": "Publish canonical reports, Run records, Evaluation metrics, phase timings, shard lineage, and explicit suite-owned acceptance policy to RepoDB",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/runrecord ./internal/repodb -run '^TestEvaluationEvidenceBindsPlanShardsAndAuthorities$' -count=1",
+          "depends_on": [
+            "evaluation-runtime/command",
+            "evaluation-benchmarks/bbh-musr"
+          ],
+          "capabilities": [
+            "publishes-evidence",
+            "supports-promotion"
+          ]
+        },
+        {
+          "id": "lane",
+          "title": "Add a store-derived evaluation lane; run pinned real model and dataset suites, compare exact plan identities, and refuse unavailable required evidence",
+          "status": "open",
+          "verify": "go run ./cmd/eval-lane",
+          "depends_on": [
+            "evaluation-evidence/repodb",
+            "evaluation-benchmarks/ifeval",
+            "evaluation-benchmarks/math",
+            "evaluation-gui/workbench"
+          ],
+          "capabilities": [
+            "measures-held-out",
+            "gates-compatibility"
+          ]
+        }
+      ]
+    },
     {
       "id": "bounded-controller-trials",
       "title": "Permit bounded controller-driven descendant trials: controller proposes corpus, recipe, evaluator and composition candidates; independent admission, held-out evaluation, promotion and rollback required; every child bound to parent model, data, recipe, code, evaluator, run and decision identities",

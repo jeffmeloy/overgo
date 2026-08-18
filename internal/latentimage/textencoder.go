@@ -498,15 +498,7 @@ type EncoderWitness struct {
 	Tensors      int
 }
 
-// Failed reports whether any check disagreed.
-func (w EncoderWitness) Failed() bool {
-	for _, c := range w.Checks {
-		if !c.Equal() {
-			return true
-		}
-	}
-	return false
-}
+func (w EncoderWitness) Failed() bool { return failedCheckCount(w.Checks) != 0 }
 
 // VerifyEncoderCheckpoint opens the text_encoder safetensors HEADER under
 // modelDir and asserts every tensor the encoder forward consumes exists with the
@@ -553,14 +545,8 @@ func VerifyEncoderCheckpoint(modelDir string) (*EncoderWitness, error) {
 		}
 		w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: got, Source: name})
 	}
-	if w.Failed() {
-		n := 0
-		for _, c := range w.Checks {
-			if !c.Equal() {
-				n++
-			}
-		}
-		return w, fmt.Errorf("textencoder verify: %d structural check(s) disagreed with checkpoint", n)
+	if failures := failedCheckCount(w.Checks); failures != 0 {
+		return w, fmt.Errorf("textencoder verify: %d structural check(s) disagreed with checkpoint", failures)
 	}
 	return w, nil
 }

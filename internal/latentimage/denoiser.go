@@ -656,15 +656,7 @@ type DenoiserWitness struct {
 	ModFields int
 }
 
-// Failed reports whether any check disagreed.
-func (w DenoiserWitness) Failed() bool {
-	for _, c := range w.Checks {
-		if !c.Equal() {
-			return true
-		}
-	}
-	return false
-}
+func (w DenoiserWitness) Failed() bool { return failedCheckCount(w.Checks) != 0 }
 
 // VerifyDenoiserCheckpoint opens the transformer safetensors HEADERS under
 // modelDir and asserts every tensor the forward consumes exists with the exact
@@ -711,18 +703,8 @@ func VerifyDenoiserCheckpoint(modelDir string) (*DenoiserWitness, error) {
 	if len(extra) > 0 {
 		w.Checks = append(w.Checks, Check{Name: "unconsumed_tensors", Want: 0, Got: len(extra), Source: extra[0]})
 	}
-	if w.Failed() {
-		return w, fmt.Errorf("denoiser verify: %d structural check(s) disagreed with checkpoint", failCountDenoiser(w))
+	if failures := failedCheckCount(w.Checks); failures != 0 {
+		return w, fmt.Errorf("denoiser verify: %d structural check(s) disagreed with checkpoint", failures)
 	}
 	return w, nil
-}
-
-func failCountDenoiser(w *DenoiserWitness) int {
-	n := 0
-	for _, c := range w.Checks {
-		if !c.Equal() {
-			n++
-		}
-	}
-	return n
 }

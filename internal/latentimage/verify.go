@@ -38,15 +38,7 @@ type Witness struct {
 	ModField int // ModFields derived from time_mod_proj.weight (folded into Spec)
 }
 
-// Failed reports whether any check disagreed.
-func (w Witness) Failed() bool {
-	for _, c := range w.Checks {
-		if !c.Equal() {
-			return true
-		}
-	}
-	return false
-}
+func (w Witness) Failed() bool { return failedCheckCount(w.Checks) != 0 }
 
 // VerifyCheckpoint opens the three sub-model safetensors HEADERS (never any
 // payload) under dir and asserts every Spec dim against the real tensor shapes,
@@ -195,8 +187,8 @@ func (s *Spec) VerifyCheckpoint(dir string) (*Witness, error) {
 	// cross-model fusion boundary: text encoder hidden == transformer text_hidden
 	add("fusion.hidden", t.TextHidden, e.Hidden, "transformer.text_hidden_dim vs text_encoder.embed_tokens[1]")
 
-	if w.Failed() {
-		return w, fmt.Errorf("latentimage: %d structural check(s) disagreed with checkpoint", failCount(w))
+	if failures := failedCheckCount(w.Checks); failures != 0 {
+		return w, fmt.Errorf("latentimage: %d structural check(s) disagreed with checkpoint", failures)
 	}
 	return w, nil
 }
@@ -225,14 +217,14 @@ func countBlocks(src *safetensors.Source, prefix string) int {
 	return maxIdx + 1
 }
 
-func failCount(w *Witness) int {
-	n := 0
-	for _, c := range w.Checks {
+func failedCheckCount(checks []Check) int {
+	count := 0
+	for _, c := range checks {
 		if !c.Equal() {
-			n++
+			count++
 		}
 	}
-	return n
+	return count
 }
 
 // SortedChecks returns the checks in stable name order for reporting.

@@ -31,5 +31,13 @@ func main() {
 	fmt.Printf("tokens: bos=%d eos=%d image_start=%d flow_latent=%d act=%s\n",
 		config.BOSTokenID, config.EOSTokenID, config.ImageStartTokenID,
 		config.FlowLatentPlaceholde, config.HiddenAct)
-	fmt.Println("honesty: declaration contract only; inference stages land behind this tool")
+	inventory, err := rxbrain.LoadInventory(*model, config)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "rxbrain-probe:", err)
+		os.Exit(1)
+	}
+	fmt.Printf("inventory: tensors=%d text=%d vision=%d generation=%d visual_tower=%d flow=%d shared=%d\n",
+		len(inventory.TensorShard), inventory.TextBranch, inventory.VisionBranch,
+		inventory.GenerationBranch, inventory.VisualTower, inventory.FlowAdapters, inventory.Shared)
+	fmt.Println("honesty: declaration and inventory contracts only; decode stages land behind this tool")
 }

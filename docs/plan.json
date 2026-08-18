@@ -8,19 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "import",
-          "title": "Add a streaming benchmark importer that records source revision, source hashes, field mapping, split, conversion profile, and record count",
-          "status": "open",
-          "verify": "go test ./internal/dataset ./internal/evaluation -run '^TestBenchmarkImportPreservesSourceAndRecordIdentity$' -count=1",
-          "depends_on": [
-            "evaluation-runtime/shards"
-          ],
-          "capabilities": [
-            "imports-benchmark-data",
-            "binds-source-provenance"
-          ]
-        },
-        {
           "id": "catalog",
           "title": "Catalog BBH, MMLU-Pro, MuSR, MATH, TruthfulQA, and IFEval versions and splits from configured data roots without runtime downloads",
           "status": "open",

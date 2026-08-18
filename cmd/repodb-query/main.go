@@ -455,7 +455,27 @@ func writeAdmissions(output io.Writer, repository string, limit int) error {
 		fmt.Fprintln(output, line)
 		count++
 	}
-	fmt.Fprintf(output, "%d admission binding(s); honesty: domains must be pairwise distinct by construction; succession validity requires the cited approval decision\n", count)
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != runrecord.EvaluatorPromotionMediaType ||
+			descriptor.Schema != runrecord.EvaluatorPromotionSchema {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		promotion, err := runrecord.ParseEvaluatorPromotion(content.Data)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "evaluator-promotion %s evaluator=%s oracles=%d promoted=%t reason=%q\n",
+			promotion.ID, promotion.Evaluator, len(promotion.Cases), promotion.Promoted, promotion.Reason)
+		count++
+	}
+	fmt.Fprintf(output, "%d admission record(s); honesty: domains must be pairwise distinct by construction; succession and evaluator promotions require the cited prior-authority approvals\n", count)
 	return nil
 }
 

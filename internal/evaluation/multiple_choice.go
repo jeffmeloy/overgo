@@ -191,44 +191,16 @@ func EvaluateMultipleChoice(
 		return MultipleChoiceReport{}, err
 	}
 	report.ID = id
-	if err := publishMultipleChoiceReport(ctx, repository, report); err != nil {
+	if err := publishCampaignDocument(
+		ctx, repository, report.Plan, report.Dataset, report.ID, multipleChoiceReportContract, report,
+	); err != nil {
 		return MultipleChoiceReport{}, err
 	}
 	return report, nil
 }
 
 func (p MultipleChoicePlan) contents() ([]artifact.Content, error) {
-	dataset, err := contentFor(multipleChoiceDatasetContract, p.dataset, p.suite.Cases)
-	if err != nil {
-		return nil, err
-	}
-	split, err := contentFor(multipleChoiceSplitContract, p.split, struct {
-		Dataset artifact.ID `json:"dataset"`
-	}{Dataset: p.dataset})
-	if err != nil {
-		return nil, err
-	}
-	return []artifact.Content{dataset, split}, nil
-}
-
-func publishMultipleChoiceReport(
-	ctx context.Context,
-	repository artifact.Repository,
-	report MultipleChoiceReport,
-) error {
-	content, err := contentFor(multipleChoiceReportContract, report.ID, report)
-	if err != nil {
-		return err
-	}
-	alias := campaignAlias(report.Plan)
-	batch, err := artifact.NewDocumentBatch(
-		alias, []artifact.Content{content},
-		artifact.DependencyLineage(report.ID, report.Plan, report.Dataset),
-		[]artifact.AliasBinding{{Name: alias, Target: report.ID}},
+	return datasetContents(
+		p.dataset, p.split, p.suite.Cases, multipleChoiceDatasetContract, multipleChoiceSplitContract,
 	)
-	if err != nil {
-		return err
-	}
-	_, err = artifact.CommitBatch(ctx, repository, batch)
-	return err
 }

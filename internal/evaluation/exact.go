@@ -96,17 +96,7 @@ func CompileExact(suite ExactSuite) (ExactPlan, error) {
 func (p ExactPlan) Identity() artifact.ID { return p.identity }
 
 func (p ExactPlan) contents() ([]artifact.Content, error) {
-	dataset, err := contentFor(exactDatasetContract, p.dataset, p.suite.Cases)
-	if err != nil {
-		return nil, err
-	}
-	split, err := contentFor(exactSplitContract, p.split, struct {
-		Dataset artifact.ID `json:"dataset"`
-	}{Dataset: p.dataset})
-	if err != nil {
-		return nil, err
-	}
-	return []artifact.Content{dataset, split}, nil
+	return datasetContents(p.dataset, p.split, p.suite.Cases, exactDatasetContract, exactSplitContract)
 }
 
 func EvaluateExact(ctx context.Context, generator Generator, plan ExactPlan, observe func(ExactResult) error) error {
@@ -128,6 +118,27 @@ func EvaluateExact(ctx context.Context, generator Generator, plan ExactPlan, obs
 }
 
 func evaluateExactCase(ctx context.Context, generator Generator, testCase ExactCase) (ExactResult, error) {
+	result, err := generateText(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
+	if err != nil {
+		return ExactResult{}, err
+	}
+	if result.PromptTokens != testCase.PromptTokens ||
+		result.GeneratedTokens != testCase.GeneratedTokens || result.Text != testCase.Text {
+		return ExactResult{}, fmt.Errorf(
+			"evaluation: exact case %q got tokens=%d/%d text=%q; want %d/%d %q",
+			testCase.Name, result.PromptTokens, result.GeneratedTokens, result.Text,
+			testCase.PromptTokens, testCase.GeneratedTokens, testCase.Text,
+		)
+	}
+	return result, nil
+}
+
+func generateText(
+	ctx context.Context,
+	generator Generator,
+	name, prompt string,
+	maxTokens int,
+) (ExactResult, error) {
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
 	if err != nil {
 		return ExactResult{}, err
@@ -135,8 +146,8 @@ func evaluateExactCase(ctx context.Context, generator Generator, testCase ExactC
 	var generated strings.Builder
 	promptTokens := 0
 	started := time.Now()
-	ids, _, err := generator.Generate(ctx, testCase.Prompt, inference.GenerateOptions{
-		MaxNewTokens: testCase.MaxTokens,
+	ids, _, err := generator.Generate(ctx, prompt, inference.GenerateOptions{
+		MaxNewTokens: maxTokens,
 		Sampler:      greedy,
 		DeviceGreedy: true,
 		OnToken: func(event inference.TokenEvent) error {
@@ -148,20 +159,12 @@ func evaluateExactCase(ctx context.Context, generator Generator, testCase ExactC
 		},
 	})
 	if err != nil {
-		return ExactResult{}, fmt.Errorf("evaluation: exact case %q: %w", testCase.Name, err)
+		return ExactResult{}, fmt.Errorf("evaluation: generated case %q: %w", name, err)
 	}
 	result := ExactResult{
-		Name: testCase.Name, PromptTokens: promptTokens,
+		Name: name, PromptTokens: promptTokens,
 		GeneratedTokens: len(ids) - promptTokens, Text: generated.String(),
 		WallNS: uint64(time.Since(started).Nanoseconds()),
-	}
-	if result.PromptTokens != testCase.PromptTokens ||
-		result.GeneratedTokens != testCase.GeneratedTokens || result.Text != testCase.Text {
-		return ExactResult{}, fmt.Errorf(
-			"evaluation: exact case %q got tokens=%d/%d text=%q; want %d/%d %q",
-			testCase.Name, result.PromptTokens, result.GeneratedTokens, result.Text,
-			testCase.PromptTokens, testCase.GeneratedTokens, testCase.Text,
-		)
 	}
 	return result, nil
 }

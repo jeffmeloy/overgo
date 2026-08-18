@@ -94,7 +94,35 @@ func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
 	if envelope.Kind == evaluation.MultipleChoiceKind {
 		return s.evaluateMultipleChoice(ctx, data)
 	}
+	if envelope.Kind == evaluation.GeneratedAnswerKind {
+		return s.evaluateGeneratedAnswer(ctx, data)
+	}
 	return s.evaluateExact(ctx, data)
+}
+
+func (s *nativeSession) evaluateGeneratedAnswer(ctx context.Context, data []byte) error {
+	var suite evaluation.GeneratedAnswerSuite
+	if err := json.Unmarshal(data, &suite); err != nil {
+		return fmt.Errorf("evaluate: decode generated-answer suite: %w", err)
+	}
+	compiled, err := evaluation.CompileGeneratedAnswer(suite)
+	if err != nil {
+		return err
+	}
+	plan, err := evaluation.BindGeneratedAnswer(compiled, s.authorities())
+	if err != nil {
+		return err
+	}
+	started := time.Now()
+	report, evaluateErr := evaluation.EvaluateGeneratedAnswer(ctx, s.store, s.runner, compiled, plan)
+	measured := uint64(max(time.Since(started).Nanoseconds(), 1))
+	if evaluateErr != nil {
+		return errors.Join(evaluateErr, s.publishFailure(ctx, plan, measured))
+	}
+	return s.publishSuccess(
+		ctx, plan, report.ID, measured,
+		[]runrecord.Metric{{Name: "accuracy", Value: report.Accuracy, Direction: runrecord.DirectionMaximize}},
+	)
 }
 
 func (s *nativeSession) evaluateExact(ctx context.Context, data []byte) error {

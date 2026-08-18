@@ -27,6 +27,24 @@ func contentFor[T any](contract artifact.DocumentContract, id artifact.ID, value
 	return contract.Content(id, data)
 }
 
+func datasetContents[T any](
+	datasetID, splitID artifact.ID,
+	value T,
+	datasetContract, splitContract artifact.DocumentContract,
+) ([]artifact.Content, error) {
+	dataset, err := contentFor(datasetContract, datasetID, value)
+	if err != nil {
+		return nil, err
+	}
+	split, err := contentFor(splitContract, splitID, struct {
+		Dataset artifact.ID `json:"dataset"`
+	}{Dataset: datasetID})
+	if err != nil {
+		return nil, err
+	}
+	return []artifact.Content{dataset, split}, nil
+}
+
 func publishAuthorities(ctx context.Context, repository artifact.Repository, exact ExactPlan, plan Plan) error {
 	contents, err := exact.contents()
 	if err != nil {
@@ -192,6 +210,30 @@ func publishCampaignReport(
 		[]artifact.Content{reportContent},
 		artifact.DependencyLineage(report.ID, parents...),
 		[]artifact.AliasBinding{{Name: alias, Target: report.ID}},
+	)
+	if err != nil {
+		return err
+	}
+	_, err = artifact.CommitBatch(ctx, repository, batch)
+	return err
+}
+
+func publishCampaignDocument[T any](
+	ctx context.Context,
+	repository artifact.Repository,
+	plan, dataset, id artifact.ID,
+	contract artifact.DocumentContract,
+	value T,
+) error {
+	content, err := contentFor(contract, id, value)
+	if err != nil {
+		return err
+	}
+	alias := campaignAlias(plan)
+	batch, err := artifact.NewDocumentBatch(
+		alias, []artifact.Content{content},
+		artifact.DependencyLineage(id, plan, dataset),
+		[]artifact.AliasBinding{{Name: alias, Target: id}},
 	)
 	if err != nil {
 		return err

@@ -32,6 +32,8 @@ type ExactSuite struct {
 
 type ExactPlan struct {
 	identity artifact.ID
+	dataset  artifact.ID
+	split    artifact.ID
 	suite    ExactSuite
 }
 
@@ -62,7 +64,17 @@ func CompileExact(suite ExactSuite) (ExactPlan, error) {
 	if err != nil {
 		return ExactPlan{}, err
 	}
-	return ExactPlan{identity: identity, suite: suite}, nil
+	dataset, err := artifact.JSONID(artifact.KindDataset, suite.Cases)
+	if err != nil {
+		return ExactPlan{}, err
+	}
+	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
+		Dataset artifact.ID `json:"dataset"`
+	}{Dataset: dataset})
+	if err != nil {
+		return ExactPlan{}, err
+	}
+	return ExactPlan{identity: identity, dataset: dataset, split: split, suite: suite}, nil
 }
 
 func (p ExactPlan) Identity() artifact.ID { return p.identity }

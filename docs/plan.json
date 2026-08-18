@@ -3,28 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "evaluation-contract",
-      "title": "Make one neutral compiled evaluation contract own exact suites, request semantics, scorer identity, dataset authority, and raw-result retention",
-      "status": "open",
-      "steps": [
-        {
-          "id": "bind-authorities",
-          "title": "Compile model definition, active runtime recipe, dataset/split, case profile, scorer, execution policy, code, and environment into one evaluation-plan identity",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestPlanBindsEveryEvaluationAuthority$' -count=1",
-          "depends_on": [
-            "evaluation-contract/migrate-exact"
-          ],
-          "capabilities": [
-            "binds-model",
-            "binds-dataset",
-            "binds-runtime-recipe",
-            "binds-evaluator-identity"
-          ]
-        }
-      ]
-    },
-    {
       "id": "evaluation-runtime",
       "title": "Execute compiled evaluations with bounded streaming, immutable shard publication, exact resume, cancellation, and explicit isolated or resident lifecycle",
       "status": "open",
@@ -227,7 +205,7 @@
       "steps": [
         {
           "id": "api",
-          "title": "Add typed suite discovery, campaign launch, progress, cancellation, reports, comparisons, and failed-case inspection to server operations",
+          "title": "Add selected-model discovery of compatible evaluation suites, campaign launch, progress, cancellation, reports, comparisons, failed-case inspection, and prior-run queries to server operations",
           "status": "open",
           "verify": "go test ./internal/server -run '^TestEvaluationCampaignAPIUsesCompiledPlans$' -count=1",
           "depends_on": [
@@ -235,12 +213,14 @@
             "evaluation-benchmarks/mmlu-pro"
           ],
           "capabilities": [
-            "serves-evaluation-api"
+            "serves-evaluation-api",
+            "selects-model-evaluations",
+            "lists-evaluation-history"
           ]
         },
         {
           "id": "workbench",
-          "title": "Add an Evaluations workbench view driven by server declarations; show model/task matrices, metric direction, deltas, failures, run lineage, and raw/scored outputs",
+          "title": "Add an Evaluations workbench view driven by server declarations: select a model, select one or more compatible evaluations, run or cancel the campaign, and display current and previous results with model/task matrices, metric direction, deltas, failures, run lineage, and raw/scored outputs",
           "status": "open",
           "verify": "go test ./internal/server -run '^TestEvaluationWorkbenchUsesDeclaredCapabilities$' -count=1",
           "depends_on": [

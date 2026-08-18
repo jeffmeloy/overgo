@@ -30,13 +30,27 @@ func verifyInference(
 	if err := json.Unmarshal([]byte(input), &suite); err != nil {
 		return fmt.Errorf("recipe: decode inference suite: %w", err)
 	}
-	plan, err := evaluation.CompileExact(suite)
+	exactPlan, err := evaluation.CompileExact(suite)
 	if err != nil {
 		return fmt.Errorf("recipe: compile inference suite: %w", err)
 	}
 	candidate, err := prepareInferenceCandidate(path, override, residency)
 	if err != nil {
 		return err
+	}
+	environment, err := capabilityEnvironment("cuda:0", "cuda")
+	if err != nil {
+		return err
+	}
+	evaluationPlan, err := evaluation.BindExact(exactPlan, evaluation.ExactAuthorities{
+		ModelDefinition: candidate.resolved.Document.ID,
+		RuntimeRecipe:   candidate.definition.ID,
+		CodeCommit:      revision,
+		Environment:     environment.ID,
+		Execution:       evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
+	})
+	if err != nil {
+		return fmt.Errorf("recipe: bind inference evaluation: %w", err)
 	}
 	ctx := context.Background()
 	store, err := repodb.Open(repository)
@@ -67,11 +81,11 @@ func verifyInference(
 		return err
 	}
 	started := time.Now()
-	results, evaluateErr := evaluation.EvaluateExact(ctx, runner, plan)
+	results, evaluateErr := evaluation.EvaluateExact(ctx, runner, exactPlan)
 	closeErr := runner.Close()
 	if evaluateErr != nil || closeErr != nil {
 		failure := errors.Join(evaluateErr, closeErr)
-		evidence := strings.ReplaceAll(failure.Error(), "\n", " ")
+		evidence := "plan=" + evaluationPlan.Identity().String() + "; " + strings.ReplaceAll(failure.Error(), "\n", " ")
 		if len(evidence) > 1900 {
 			evidence = evidence[:1900]
 		}
@@ -107,7 +121,7 @@ func verifyInference(
 	if err != nil {
 		return err
 	}
-	evidence := fmt.Sprintf("contract=exact;plan=%s;cases=%d;input=%s;output=%s", plan.Identity(), len(results), inputID, outputID)
+	evidence := fmt.Sprintf("contract=exact;plan=%s;cases=%d;input=%s;output=%s", evaluationPlan.Identity(), len(results), inputID, outputID)
 	verification, err := publishCapabilityVerification(
 		ctx, store, candidate.definition, revision, time.Since(started), "cuda:0", "cuda", evidence,
 	)

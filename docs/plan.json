@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "supervised-autonomous-cycle",
-      "title": "First supervised autonomous cycle: one small exploration grant, scheduler-policy selection, one experiment end-to-end through admission, lease, evaluation and verdict",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "First supervised autonomous cycle: one small exploration grant, scheduler-policy selection, one experiment end-to-end through admission, lease, evaluation and verdict",
-          "status": "open",
-          "verify": "go run ./cmd/repodb-query -repo repodb-store -experiments | grep -qi evaluated"
-        }
-      ]
-    },
-    {
       "id": "injection-retry-more-data",
       "title": "Injection connector retrial with adequate training data volume: the refusal was data-starved and the mechanism is unrefuted",
       "status": "open",

@@ -14,6 +14,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 )
 
 // recordExplorationGrant commits an externally-issued GPU-minute budget
@@ -88,11 +89,20 @@ func recordExplorationCharge(root, inputPath string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := commitExplorationContent(root, charge.Content, "exploration/charge/", output,
-		fmt.Sprintf("charged %d GPU-minutes; %s", charge.GPUMinutes, admission.Reason)); err != nil {
+	// Commit through the store handle already held: a second open would
+	// deadlock on the single-writer lock.
+	document, err := charge.Content()
+	if err != nil {
 		return err
 	}
-	return nil
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "exploration/charge/" + document.Descriptor.ID.String(), Contents: []artifact.Content{document},
+	}); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "charged %d GPU-minutes; %s: %s\n",
+		charge.GPUMinutes, admission.Reason, document.Descriptor.ID)
+	return err
 }
 
 func commitExplorationContent(root string, content func() (artifact.Content, error), keyPrefix string, output io.Writer, message string) error {
@@ -335,6 +345,78 @@ func selectNextCandidates(root, inputPath string, output io.Writer) error {
 	}
 	fmt.Fprintf(output, "%d candidate(s) ranked by policy %s; honesty: ranking derives from realized capability delta per wall-hour, not predictions -- advisory only, selection never starts work\n",
 		len(ranks), policy.ID)
+	return nil
+}
+
+// recordExperimentTransition commits one experiment lifecycle transition:
+// the spec names the state, the experiment, the evidence justifying the
+// transition, and -- for every record after the initial proposal -- the
+// prior record it succeeds. The state machine in runrecord refuses illegal
+// edges and retry drift; this tool only carries facts to it.
+func recordExperimentTransition(root, inputPath string, output io.Writer) error {
+	var specification struct {
+		State           string       `json:"state"`
+		Experiment      artifact.ID  `json:"experiment"`
+		Evidence        artifact.ID  `json:"evidence"`
+		Prior           *artifact.ID `json:"prior,omitempty"`
+		Retry           uint32       `json:"retry,omitempty"`
+		HeartbeatExpiry string       `json:"heartbeat_expiry,omitempty"`
+		Checkpoint      *artifact.ID `json:"checkpoint,omitempty"`
+	}
+	if err := jsonfile.Decode(inputPath, &specification); err != nil {
+		return err
+	}
+	store, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	var prior *runrecord.ExperimentLifecycle
+	if specification.Prior != nil {
+		content, ok, err := store.Content(ctx, *specification.Prior)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("prior lifecycle record %s is not committed", specification.Prior)
+		}
+		parsed, err := runrecord.ParseExperimentLifecycle(content.Data)
+		if err != nil {
+			return err
+		}
+		prior = &parsed
+	}
+	record, err := runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
+		State: runrecord.ExperimentState(specification.State), Experiment: specification.Experiment,
+		Retry: specification.Retry, Evidence: specification.Evidence,
+		HeartbeatExpiry: specification.HeartbeatExpiry, Checkpoint: specification.Checkpoint,
+	}, prior)
+	if err != nil {
+		return err
+	}
+	content, err := record.Content()
+	if err != nil {
+		return err
+	}
+	lineage := []artifact.Lineage{
+		{Child: record.ID, Parent: record.Experiment, Relation: artifact.RelationDependsOn},
+	}
+	if record.Evidence != record.Experiment {
+		lineage = append(lineage, artifact.Lineage{Child: record.ID, Parent: record.Evidence, Relation: artifact.RelationDependsOn})
+	}
+	if record.Prior != nil {
+		lineage = append(lineage, artifact.Lineage{Child: record.ID, Parent: *record.Prior, Relation: artifact.RelationDependsOn})
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "automation/experiment/" + record.ID.String(), Contents: []artifact.Content{content},
+		Lineage: lineage,
+	}); err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "experiment transition committed: %s state=%s experiment=%s retry=%d\n",
+		record.ID, record.State, record.Experiment, record.Retry)
+	fmt.Fprintln(output, "honesty: transitions carry evidence identities; the state machine refuses illegal edges")
 	return nil
 }
 

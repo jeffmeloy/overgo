@@ -230,6 +230,17 @@ func aggregateChoiceAccuracy(groups []string, observations []ChoiceObservation) 
 	if len(groups) != len(observations) {
 		return nil, errors.New("evaluation: choice groups differ from observations")
 	}
+	correct := make([]bool, len(observations))
+	for index, observation := range observations {
+		correct[index] = !observation.Tied && observation.Selected == observation.Answer
+	}
+	return aggregateAccuracy(groups, correct)
+}
+
+func aggregateAccuracy(groups []string, correct []bool) ([]AccuracyGroup, error) {
+	if len(groups) != len(correct) {
+		return nil, errors.New("evaluation: groups differ from outcomes")
+	}
 	byName := make(map[string]*AccuracyGroup)
 	for index, group := range groups {
 		metric := byName[group]
@@ -238,7 +249,7 @@ func aggregateChoiceAccuracy(groups []string, observations []ChoiceObservation) 
 			byName[group] = metric
 		}
 		metric.Total++
-		if !observations[index].Tied && observations[index].Selected == observations[index].Answer {
+		if correct[index] {
 			metric.Correct++
 		}
 	}

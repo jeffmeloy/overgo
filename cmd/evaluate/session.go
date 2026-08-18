@@ -106,7 +106,32 @@ func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
 	if envelope.Kind == evaluation.ProbabilityMassKind {
 		return s.evaluateProbabilityMass(ctx, data)
 	}
+	if envelope.Kind == evaluation.StructuredGeneratedKind {
+		return s.evaluateStructuredGenerated(ctx, data)
+	}
 	return s.evaluateExact(ctx, data)
+}
+
+func (s *nativeSession) evaluateStructuredGenerated(ctx context.Context, data []byte) error {
+	var suite evaluation.StructuredGeneratedSuite
+	if err := json.Unmarshal(data, &suite); err != nil {
+		return fmt.Errorf("evaluate: decode structured-generated suite: %w", err)
+	}
+	compiled, err := evaluation.CompileStructuredGenerated(suite)
+	if err != nil {
+		return err
+	}
+	plan, err := evaluation.BindStructuredGenerated(compiled, s.authorities())
+	if err != nil {
+		return err
+	}
+	started := time.Now()
+	report, evaluateErr := evaluation.EvaluateStructuredGenerated(ctx, s.store, s.runner, compiled, plan)
+	measured := uint64(max(time.Since(started).Nanoseconds(), 1))
+	if evaluateErr != nil {
+		return errors.Join(evaluateErr, s.publishFailure(ctx, plan, measured))
+	}
+	return s.publishSuccess(ctx, plan, report.ID, measured, choiceMetrics(report.Accuracy, report.Groups))
 }
 
 func (s *nativeSession) evaluateProbabilityMass(ctx context.Context, data []byte) error {

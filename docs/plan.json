@@ -8,19 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "math",
-          "title": "Implement MATH prompt, answer extraction, equivalence scoring, subject aggregation, and raw-answer retention",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestMATHPinnedOracleParity$' -count=1",
-          "depends_on": [
-            "evaluation-scoring/generated-answer",
-            "evaluation-datasets/catalog"
-          ],
-          "capabilities": [
-            "evaluates-math"
-          ]
-        },
-        {
           "id": "ifeval",
           "title": "Implement IFEval instruction verifiers as versioned rule data and neutral checks; publish strict and loose prompt and instruction metrics",
           "status": "open",

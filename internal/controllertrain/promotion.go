@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/runrecord"
 )
 
 const (
@@ -133,9 +134,28 @@ func promotionProved(decision Decision) bool {
 	if len(decision.Seeds) < 3 {
 		return false
 	}
+	// The full descendant metric contract judges the loss axis: every seed's
+	// child beats its parent with mean improvement beyond the observed parent
+	// noise envelope, under one evaluator/split identity pair. The remaining
+	// axes (action validity and accuracy monotonicity) stay local.
+	comparisons := make([]runrecord.SeedComparison, 0, len(decision.Seeds))
+	for _, seed := range decision.Seeds {
+		comparisons = append(comparisons, runrecord.SeedComparison{
+			Seed: uint64(seed.Seed), Parent: seed.Initial.Loss, Child: seed.Final.Loss,
+		})
+	}
+	if err := runrecord.ValidateDescendantImprovement(runrecord.MetricContract{
+		Evaluator: decision.Dataset, Split: decision.Split,
+		Comparisons:    comparisons,
+		CostNS:         1, // wall cost is carried by the seed run records
+		HoldoutQueries: uint64(len(decision.Seeds)),
+		HoldoutBudget:  uint64(len(decision.Seeds)),
+	}); err != nil {
+		return false
+	}
 	selected, selectedFound := SuiteMetrics{}, false
 	for _, seed := range decision.Seeds {
-		if seed.Final.Loss >= seed.Initial.Loss || seed.Final.ValidActionRate != 1 ||
+		if seed.Final.ValidActionRate != 1 ||
 			seed.Final.ActionAccuracy < seed.Initial.ActionAccuracy || seed.Final.ModalityAccuracy < seed.Initial.ModalityAccuracy {
 			return false
 		}

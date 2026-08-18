@@ -35,7 +35,7 @@ var compositionSeeds = []int64{7, 11, 13}
 // only when the experiment could not execute. The decision_point in
 // docs/plan.json consumes the logged verdict.
 func TestComponentCompositionViability(t *testing.T) {
-	cudatest.Require(t)
+	cudatest.RequireProbe(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

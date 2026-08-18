@@ -40,7 +40,7 @@ var retrialSeeds = []int64{7, 11, 13}
 // SHIP or measured REFUSAL -- and fails only when the experiment could not
 // execute. The docs/plan.json row consumes the logged verdict.
 func TestAdapterRetrialProbe(t *testing.T) {
-	cudatest.Require(t)
+	cudatest.RequireProbe(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

@@ -3,57 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "bounded-controller-trials",
-      "title": "Permit bounded controller-driven descendant trials: controller proposes corpus, recipe, evaluator and composition candidates; independent admission, held-out evaluation, promotion and rollback required; every child bound to parent model, data, recipe, code, evaluator, run and decision identities",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Permit bounded controller-driven descendant trials: controller proposes corpus, recipe, evaluator and composition candidates; independent admission, held-out evaluation, promotion and rollback required; every child bound to parent model, data, recipe, code, evaluator, run and decision identities",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/trainingprogram -run '^TestRecursiveImprovementLineageAndExternalPromotion$' -count=1 -v",
-          "depends_on": [
-            "controller-promotion",
-            "determinism-and-statistical-verdicts",
-            "bounded-exploration-budget",
-            "evaluation-isolation",
-            "independent-rsi-admission",
-            "experiment-lifecycle",
-            "runtime-resource-scheduler"
-          ],
-          "capabilities": [
-            "executes-autonomously",
-            "promotes-artifact",
-            "admits-without-human",
-            "measures-held-out"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "descendant-improvement",
-      "title": "Require a child artifact to beat its parent under the full metric contract: identical evaluator and split identities, margin beyond observed noise, multi-seed where stochastic, no critical regression, resource cost reported, holdout query budget respected",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Require a child artifact to beat its parent under the full metric contract: identical evaluator and split identities, margin beyond observed noise, multi-seed where stochastic, no critical regression, resource cost reported, holdout query budget respected",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestDescendantBeatsParent$' -count=1 -v",
-          "rationale": "First row whose passing means actual self-improvement occurred rather than that the contract holds. Generation depth 1.",
-          "depends_on": [
-            "bounded-controller-trials",
-            "compose-model-artifact",
-            "evaluation-isolation"
-          ],
-          "capabilities": [
-            "promotes-artifact",
-            "measures-held-out"
-          ]
-        }
-      ]
-    },
-    {
       "id": "derivation-profile-as-artifact",
       "title": "Make the corpus-to-topology derivation profile a content-addressed artifact with lineage and promotion record, so the system proposes derivation profiles and is judged on the models they produce",
       "status": "open",

@@ -36,7 +36,7 @@ const (
 // to a committed decision -- either verdict -- and fails only when it could
 // not execute.
 func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
-	cudatest.Require(t)
+	cudatest.RequireProbe(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

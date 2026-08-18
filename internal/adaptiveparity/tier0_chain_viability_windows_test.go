@@ -39,7 +39,7 @@ const (
 // SHIP or measured REFUSAL -- and fails only when the experiment could not
 // execute. The docs/plan.json Phase B row consumes the logged verdict.
 func TestTier0ChainViability(t *testing.T) {
-	cudatest.Require(t)
+	cudatest.RequireProbe(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

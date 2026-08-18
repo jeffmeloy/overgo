@@ -36,15 +36,17 @@ type modelRequest struct {
 }
 
 type sftViewRequest struct {
-	Objective           artifact.ID                           `json:"objective"`
-	Training            artifact.ID                           `json:"training_membership"`
-	Heldout             artifact.ID                           `json:"heldout_membership"`
-	TextTargets         *evaluation.TextTargetSuite           `json:"text_targets,omitempty"`
-	TextObservations    []evaluation.TextTargetObservation    `json:"text_observations,omitempty"`
-	NumericTargets      *evaluation.NumericTargetSuite        `json:"numeric_targets,omitempty"`
-	NumericObservations []evaluation.NumericTargetObservation `json:"numeric_observations,omitempty"`
-	MediaTargets        *evaluation.MediaTargetSuite          `json:"media_targets,omitempty"`
-	MediaObservations   []evaluation.MediaTargetObservation   `json:"media_observations,omitempty"`
+	Objective              artifact.ID                              `json:"objective"`
+	Training               artifact.ID                              `json:"training_membership"`
+	Heldout                artifact.ID                              `json:"heldout_membership"`
+	TextTargets            *evaluation.TextTargetSuite              `json:"text_targets,omitempty"`
+	TextObservations       []evaluation.TextTargetObservation       `json:"text_observations,omitempty"`
+	NumericTargets         *evaluation.NumericTargetSuite           `json:"numeric_targets,omitempty"`
+	NumericObservations    []evaluation.NumericTargetObservation    `json:"numeric_observations,omitempty"`
+	MediaTargets           *evaluation.MediaTargetSuite             `json:"media_targets,omitempty"`
+	MediaObservations      []evaluation.MediaTargetObservation      `json:"media_observations,omitempty"`
+	PreferenceTargets      *evaluation.PreferenceTargetSuite        `json:"preference_targets,omitempty"`
+	PreferenceObservations []evaluation.PreferenceTargetObservation `json:"preference_observations,omitempty"`
 }
 
 type workerLauncher func(context.Context, int) error
@@ -162,7 +164,8 @@ func compileManifest(value manifest) (manifest, error) {
 			view.Heldout.Kind() != artifact.KindDatasetShard || view.Training == view.Heldout ||
 			(view.TextTargets == nil) != (len(view.TextObservations) == 0) ||
 			(view.NumericTargets == nil) != (len(view.NumericObservations) == 0) ||
-			(view.MediaTargets == nil) != (len(view.MediaObservations) == 0) {
+			(view.MediaTargets == nil) != (len(view.MediaObservations) == 0) ||
+			(view.PreferenceTargets == nil) != (len(view.PreferenceObservations) == 0) {
 			return manifest{}, errors.New("evaluate: invalid SFT evaluation view")
 		}
 	}
@@ -242,6 +245,22 @@ func catalogBenchmarks(ctx context.Context, value manifest) error {
 				return errors.Join(err, store.Close())
 			}
 			if err := publishDocument(ctx, store, "evaluation/media-target-report/"+report.ID.String(), report); err != nil {
+				return errors.Join(err, store.Close())
+			}
+		}
+		if request.PreferenceTargets != nil {
+			plan, err := evaluation.CompilePreferenceTargetPlan(objective, view, *request.PreferenceTargets)
+			if err != nil {
+				return errors.Join(err, store.Close())
+			}
+			if err := publishDocument(ctx, store, "evaluation/preference-target/"+plan.ID.String(), plan); err != nil {
+				return errors.Join(err, store.Close())
+			}
+			report, err := evaluation.ScorePreferenceTargets(plan, request.PreferenceObservations)
+			if err != nil {
+				return errors.Join(err, store.Close())
+			}
+			if err := publishDocument(ctx, store, "evaluation/preference-target-report/"+report.ID.String(), report); err != nil {
 				return errors.Join(err, store.Close())
 			}
 		}

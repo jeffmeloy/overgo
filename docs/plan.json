@@ -3,26 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "evaluation-sft-modalities",
-      "title": "Compile leakage-safe held-out evaluations from existing SFT dataset recipes across supported modality signatures",
-      "status": "open",
-      "steps": [
-        {
-          "id": "preference-holdout",
-          "title": "Evaluate held-out preference pairs with chosen-vs-rejected accuracy, policy/reference margin, and DPO loss bound to the frozen reference model",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/trainingprogram -run '^TestPreferenceEvaluationBindsFrozenReferenceAndHeldoutSplit$' -count=1",
-          "depends_on": [
-            "evaluation-sft-modalities/heldout-views",
-            "evaluation-scoring/continuations"
-          ],
-          "capabilities": [
-            "evaluates-preference-policy"
-          ]
-        }
-      ]
-    },
-    {
       "id": "evaluation-evidence",
       "title": "Make native evaluation reports the common evidence source for compatibility, regression advisories, recipe promotion, training holdouts, and descendant comparison",
       "status": "open",

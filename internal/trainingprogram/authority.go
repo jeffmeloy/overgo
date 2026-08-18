@@ -135,6 +135,14 @@ type PreferencePolicy struct {
 	Scale     float64
 }
 
+func (policy PreferencePolicy) Validate() error {
+	if policy.Reference.Kind() != artifact.KindModel || policy.Scale <= 0 ||
+		math.IsNaN(policy.Scale) || math.IsInf(policy.Scale, 0) {
+		return errors.New("training program: DPO requires reference model and finite positive scale")
+	}
+	return nil
+}
+
 type TrainingProgram struct {
 	id          artifact.ID
 	objective   ObjectiveKind
@@ -193,9 +201,11 @@ func compilePreferencePolicy(objective ObjectiveKind, policy *PreferencePolicy) 
 		}
 		return nil, nil
 	}
-	if policy == nil || policy.Reference.Kind() != artifact.KindModel || policy.Scale <= 0 ||
-		math.IsNaN(policy.Scale) || math.IsInf(policy.Scale, 0) {
-		return nil, errors.New("training program: DPO requires reference model and finite positive scale")
+	if policy == nil {
+		return nil, errors.New("training program: DPO requires preference policy")
+	}
+	if err := policy.Validate(); err != nil {
+		return nil, err
 	}
 	copy := *policy
 	return &copy, nil

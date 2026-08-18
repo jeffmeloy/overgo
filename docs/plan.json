@@ -8,19 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "truthfulqa",
-          "title": "Implement distinct TruthfulQA MC1, MC2, and generated-answer definitions without hidden answer rewriting",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestTruthfulQAPinnedOracleParity$' -count=1",
-          "depends_on": [
-            "evaluation-scoring/generated-answer",
-            "evaluation-benchmarks/mmlu-pro"
-          ],
-          "capabilities": [
-            "evaluates-truthfulqa"
-          ]
-        },
-        {
           "id": "math",
           "title": "Implement MATH prompt, answer extraction, equivalence scoring, subject aggregation, and raw-answer retention",
           "status": "open",

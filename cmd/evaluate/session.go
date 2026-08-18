@@ -103,7 +103,34 @@ func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
 	if envelope.Kind == evaluation.GroupedChoiceKind {
 		return s.evaluateGroupedChoice(ctx, data)
 	}
+	if envelope.Kind == evaluation.ProbabilityMassKind {
+		return s.evaluateProbabilityMass(ctx, data)
+	}
 	return s.evaluateExact(ctx, data)
+}
+
+func (s *nativeSession) evaluateProbabilityMass(ctx context.Context, data []byte) error {
+	var suite evaluation.ProbabilityMassSuite
+	if err := json.Unmarshal(data, &suite); err != nil {
+		return fmt.Errorf("evaluate: decode probability-mass suite: %w", err)
+	}
+	compiled, err := evaluation.CompileProbabilityMass(suite)
+	if err != nil {
+		return err
+	}
+	plan, err := evaluation.BindProbabilityMass(compiled, s.authorities())
+	if err != nil {
+		return err
+	}
+	started := time.Now()
+	report, evaluateErr := evaluation.EvaluateProbabilityMass(ctx, s.store, s.runner, compiled, plan)
+	measured := uint64(max(time.Since(started).Nanoseconds(), 1))
+	if evaluateErr != nil {
+		return errors.Join(evaluateErr, s.publishFailure(ctx, plan, measured))
+	}
+	return s.publishSuccess(ctx, plan, report.ID, measured, []runrecord.Metric{{
+		Name: "positive-probability-mass", Value: report.Mean, Direction: runrecord.DirectionMaximize,
+	}})
 }
 
 func (s *nativeSession) evaluateGroupedChoice(ctx context.Context, data []byte) error {

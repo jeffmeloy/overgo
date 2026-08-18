@@ -60,6 +60,8 @@ func main() {
 	grantExploration := flag.String("grant-exploration", "", "commit an externally-issued exploration budget token from a JSON file")
 	chargeExploration := flag.String("charge-exploration", "", "commit one experiment spend against an exploration grant from a JSON file")
 	recordLeaseOutcome := flag.String("record-lease-outcome", "", "record measured outcome JSON for an exercised worktree lease")
+	trainScheduler := flag.String("train-scheduler", "", "train and commit the scheduler policy from realized-history JSON (per-track capability delta, wall-clock, measurement evidence)")
+	selectNext := flag.String("select-next", "", "rank candidates with a committed scheduler policy from a selection JSON (policy, budget, candidates)")
 	leaseReport := flag.Bool("lease-report", false, "emit active worktree leases and resource/conflict advice as JSON")
 	cpuCapacity := flag.Int("cpu-capacity", 0, "with -lease-report: available CPU threads (0 unknown)")
 	ramCapacity := flag.Int("ram-capacity-gib", 0, "with -lease-report: available host RAM GiB (0 unknown)")
@@ -78,7 +80,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "with -context: explicit lane role (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, syncMaster: *syncMasterFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, contain: *contain, lane: *lane, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, syncMaster: *syncMasterFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, trainScheduler: *trainScheduler, selectNext: *selectNext, contain: *contain, lane: *lane, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -87,7 +89,7 @@ func main() {
 type cli struct {
 	next, prompt, verify, status, context, advance, add, setverify, compact, syncMaster, stop bool
 	force, title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane     string
-	grantExploration, chargeExploration                                                       string
+	grantExploration, chargeExploration, trainScheduler, selectNext                           string
 	leaseReport                                                                               bool
 	capacity                                                                                  plan.Resources
 }
@@ -120,6 +122,10 @@ func run(c cli, args []string) error {
 		return recordExplorationGrant(".", c.grantExploration, os.Stdout)
 	case c.chargeExploration != "":
 		return recordExplorationCharge(".", c.chargeExploration, os.Stdout)
+	case c.trainScheduler != "":
+		return trainSchedulerPolicy(".", c.trainScheduler, os.Stdout)
+	case c.selectNext != "":
+		return selectNextCandidates(".", c.selectNext, os.Stdout)
 	case c.leaseReport:
 		return printLeaseReport(".", c.capacity, os.Stdout)
 	case c.add:

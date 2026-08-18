@@ -3,23 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "scheduler-as-artifact",
-      "title": "Make next-candidate selection under wall-clock and VRAM budget a learned artifact scored on realized capability delta per wall-hour rather than an applied formula",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make next-candidate selection under wall-clock and VRAM budget a learned artifact scored on realized capability delta per wall-hour rather than an applied formula",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestSchedulerRankedByRealizedDelta$' -count=1 -v",
-          "depends_on": [
-            "runtime-resource-scheduler",
-            "descendant-improvement"
-          ]
-        }
-      ]
-    },
-    {
       "id": "sealed-external-authority",
       "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
       "status": "open",

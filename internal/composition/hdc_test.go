@@ -64,6 +64,15 @@ func TestHypervectorRetrievalRanksKnownBridges(t *testing.T) {
 	if last := hits[len(hits)-1]; last.Component.Name != noise.Name {
 		t.Fatalf("weakest hit = %s, want the distributional noise row", last.Component.Name)
 	}
+	limited, err := index.Search(gateA, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := range limited {
+		if limited[index].Component.Name != hits[index].Component.Name || limited[index].Relevance != hits[index].Relevance {
+			t.Fatalf("bounded hit %d = %+v, want %+v", index, limited[index], hits[index])
+		}
+	}
 
 	repeat, err := index.Search(gateA, 3)
 	if err != nil || repeat[0].Relevance != hits[0].Relevance {

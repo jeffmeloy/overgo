@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "linear-attention-connector",
-      "title": "Linear-attention connector variant and fixed-span dose protocol: the composition science follow-ups noted in the campaign outcomes",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Linear-attention connector variant and fixed-span dose protocol: the composition science follow-ups noted in the campaign outcomes",
-          "status": "open",
-          "verify": "OVERGO_PROBE_TEST=1 go test ./internal/adaptiveparity -run '^TestLinearAttentionConnectorViability$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "qwen05b-training-verification",
       "title": "Full training verification for Qwen2.5-0.5B: the second-best-evidenced external model gets a real overgo training run recorded in the verification ledger",
       "status": "open",

@@ -73,6 +73,75 @@ func (m *Model) LossRangeInjected(
 	), nil
 }
 
+// LossRangeInjectedVectors is the per-position variant: one injection vector
+// per scored position, so a content-addressed connector can supply each
+// target with its own retrieval instead of one window mean. Each vector is
+// unit-normalized independently; injection and scoring are otherwise
+// identical to LossRangeInjected.
+func (m *Model) LossRangeInjectedVectors(
+	tokens []int, from, layer int, vectors [][]float32, alpha float32,
+) (float64, error) {
+	d := m.Dims
+	if len(tokens) < 2 || from < 1 || from >= len(tokens) {
+		return 0, fmt.Errorf("densecausal: injected loss needs tokens and a target range")
+	}
+	if layer < 0 || layer >= d.Layers {
+		return 0, fmt.Errorf("densecausal: injection layer %d outside %d layers", layer, d.Layers)
+	}
+	if len(vectors) != len(tokens)-from {
+		return 0, fmt.Errorf("densecausal: %d injection vectors for %d scored positions", len(vectors), len(tokens)-from)
+	}
+	units := make([][]float32, len(vectors))
+	for row, vector := range vectors {
+		if len(vector) != d.Hidden {
+			return 0, fmt.Errorf("densecausal: injection vector %d length %d, want %d", row, len(vector), d.Hidden)
+		}
+		norm := float64(0)
+		for _, value := range vector {
+			norm += float64(value) * float64(value)
+		}
+		norm = math.Sqrt(norm)
+		if norm == 0 || math.IsNaN(norm) || math.IsInf(norm, 0) {
+			return 0, fmt.Errorf("densecausal: injection vector %d is degenerate", row)
+		}
+		unit := make([]float32, d.Hidden)
+		for index, value := range vector {
+			unit[index] = float32(float64(value) / norm)
+		}
+		units[row] = unit
+	}
+	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
+	states, err := m.retainedForwardStates(tokens, func(x []float32, index, seq int) error {
+		if index == layer {
+			for position := from; position < seq; position++ {
+				row := x[position*d.Hidden : (position+1)*d.Hidden]
+				magnitude := float64(0)
+				for _, value := range row {
+					magnitude += float64(value) * float64(value)
+				}
+				scale := alpha * float32(math.Sqrt(magnitude))
+				unit := units[position-from]
+				for i := range row {
+					row[i] = (1-alpha)*row[i] + scale*unit[i]
+				}
+			}
+		}
+		m.layerForward(x, m.layers[index], invFreq, seq)
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	seq := len(tokens)
+	logits := m.logits(states[d.Layers], seq)
+	rows := seq - from
+	start := from - 1
+	scratch := make([]float32, rows*d.Vocab)
+	return hostmath.SoftmaxCrossEntropy(
+		scratch, logits[start*d.Vocab:(start+rows)*d.Vocab], tokens[from:], rows, d.Vocab,
+	), nil
+}
+
 func injectRescaled(x, unit []float32, seq, hidden int, alpha float32) {
 	for position := 0; position < seq; position++ {
 		row := x[position*hidden : (position+1)*hidden]

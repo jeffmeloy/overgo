@@ -55,6 +55,7 @@ func run(args []string, output io.Writer) error {
 	heldOut := flags.Int("chain-target", 32, "chain probe: held-out tokens scored per window")
 	windows := flags.Int("chain-windows", 3, "chain probe: disjoint windows sliced from the token stream")
 	inject := flags.Bool("inject", false, "run the residual-injection connector probe (scorer/drafter as in -chain; tokens sliced into sliding train windows and trailing held-out windows)")
+	injectLinear := flags.Bool("inject-linear", false, "run the content-addressed linear-attention connector probe (same slicing as -inject; per-target retrieval over drafter states)")
 	synthesize := flags.String("synthesize", "", "run the full bridge-synthesis pipeline for a committed blocked proposal (artifact ID); emits a typed decision")
 	deciderIdentity := flags.String("decider", "", "synthesize: the decider authority evidence artifact ID")
 	trainRanking := flags.String("train-ranking", "", "train the proposer ranking from committed composition decisions (path to observations JSON: [{decision, model, component}])")
@@ -83,7 +84,13 @@ func run(args []string, output io.Writer) error {
 		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" {
 			return errors.New("usage: graft-probe -inject -scorer <dir> -drafter <dir> -tokens <ids.json> [options]")
 		}
-		return runInject(*scorerDir, *drafterDir, *tokensPath, *prefix, *draft, *heldOut, output)
+		return runInject(*scorerDir, *drafterDir, *tokensPath, *prefix, *draft, *heldOut, composition.RunInjectionViability, "feature-matching connector, never task CE", output)
+	}
+	if *injectLinear {
+		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" {
+			return errors.New("usage: graft-probe -inject-linear -scorer <dir> -drafter <dir> -tokens <ids.json> [options]")
+		}
+		return runInject(*scorerDir, *drafterDir, *tokensPath, *prefix, *draft, *heldOut, composition.RunLinearAttentionViability, "content-addressed linear-attention retrieval over the same ridge fit", output)
 	}
 	if *chain {
 		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" || *recordStore == "" {
@@ -338,11 +345,18 @@ func currentCommit() (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-// runInject executes the residual-injection connector probe: a ridge-fit
-// linear connector trained by feature matching against measured context gaps,
-// evaluated on trailing held-out windows. Refusals print exactly as loudly as
+// runInject executes an injection-connector probe: the mean-vector ridge
+// variant or the content-addressed linear-attention variant, chosen by the
+// caller. Both train by feature matching against measured context gaps and
+// evaluate on trailing held-out windows. Refusals print exactly as loudly as
 // ships.
-func runInject(scorerDir, drafterDir, tokensPath string, prefix, gap, target int, output io.Writer) error {
+func runInject(
+	scorerDir, drafterDir, tokensPath string,
+	prefix, gap, target int,
+	probe func(composition.InjectionConfig) (composition.InjectionResult, error),
+	honesty string,
+	output io.Writer,
+) error {
 	var tokens []int
 	if err := jsonfile.Decode(tokensPath, &tokens); err != nil {
 		return err
@@ -356,7 +370,7 @@ func runInject(scorerDir, drafterDir, tokensPath string, prefix, gap, target int
 	for start := 0; start+span <= heldOutStart; start += 16 {
 		train = append(train, tokens[start:start+span])
 	}
-	result, err := composition.RunInjectionViability(composition.InjectionConfig{
+	result, err := probe(composition.InjectionConfig{
 		ScorerDir: scorerDir, DrafterDir: drafterDir,
 		Prefix: prefix, Gap: gap, Target: target, Alpha: 0.25, Ridge: 1e-3,
 		Train: train,
@@ -379,7 +393,7 @@ func runInject(scorerDir, drafterDir, tokensPath string, prefix, gap, target int
 		verdict = "SHIP"
 	}
 	fmt.Fprintf(output, "verdict: %s -- %s\n", verdict, result.Reason)
-	fmt.Fprintln(output, "honesty: host-reference; feature-matching connector, never task CE; verdict binds only this model pair, protocol, and budget")
+	fmt.Fprintf(output, "honesty: host-reference; %s; verdict binds only this model pair, protocol, and budget\n", honesty)
 	return nil
 }
 

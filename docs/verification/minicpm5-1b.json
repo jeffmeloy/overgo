@@ -9,10 +9,25 @@
    "evidence": [
     "evidence:sha256:1b177a279b58dfd98940dffce3c8381bda816a1bfcadd5411c6a645b398753ef"
    ]
+  },
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "14b5964acfc0fd50d028c28f968900d0f66e4836",
+   "dataset": "dataset-shard:sha256:4c431b8cd6f7c9ca77f0ddc3fdac8ee85812847e2af7e4d9861bb4d62f2dce9b",
+   "span_steps": 30,
+   "span_tokens": 7680,
+   "evidence": [
+    "evidence:sha256:5f7cf2cbc22248aefd2a7b29ee9c7af3728d9b5448e27d437541d470d819cb56"
+   ]
   }
  ],
  "model_file": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/MiniCPM5-1B-f16.gguf",
  "evidence_files": [
+  "docs/verification/minicpm5-1b-training-run.txt",
   "fixtures/minicpm5_serving_golden.json"
+ ],
+ "dataset_files": [
+  "docs/verification/qwen25-05b-training-dataset.txt"
  ]
 }

@@ -67,6 +67,9 @@ type DeviceTrainingOptions struct {
 	FrozenLexical bool
 	Measure       bool
 	Resume        *TrainState
+	// Observe receives each completed step with its measured wall; a non-nil
+	// return aborts at the step boundary.
+	Observe TrainObserver
 }
 
 // DeviceTrainingMeasurement separates synchronized resident phases.
@@ -93,11 +96,11 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, batches [][]int, base
 		measurement = &result.Measurement
 	}
 	var err error
-	result.Losses, err = m.trainDeviceResident(worker, batches, baseLR, mu, options.FrozenLexical, measurement, options.Resume, &result.State)
+	result.Losses, err = m.trainDeviceResident(worker, batches, baseLR, mu, options.FrozenLexical, measurement, options.Resume, &result.State, options.Observe)
 	return result, err
 }
 
-func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, baseLR, mu float64, frozenLexical bool, measurement *DeviceTrainingMeasurement, resume *TrainState, stateOut *TrainState) ([]float64, error) {
+func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, baseLR, mu float64, frozenLexical bool, measurement *DeviceTrainingMeasurement, resume *TrainState, stateOut *TrainState, observe TrainObserver) ([]float64, error) {
 	if len(batches) == 0 || len(batches[0]) < 2 {
 		return nil, fmt.Errorf("densecausal: need at least one batch with two tokens")
 	}
@@ -307,6 +310,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 
 	loopStarted := time.Now()
 	for step := 0; step < steps; step++ {
+		stepStarted := time.Now()
 		tokens := batches[step]
 		// Host oracle tail only; production frozen lexical gathers on device.
 		embed := m.tensors.embedding.values
@@ -417,6 +421,14 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 				copy(m.Weights[name], weights[off:off+n])
 			}
 			off += n
+		}
+		// The observer sees the FULL step -- forward, backward, host and
+		// device updates, scatter -- so a pathological optimizer phase is
+		// visible at the first boundary, not after the run.
+		if observe != nil {
+			if err := observe(step, loss, time.Since(stepStarted)); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if measurement != nil {

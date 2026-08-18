@@ -173,24 +173,24 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 
 	// Per-layer tensor offsets (rebased to the layer block) for the resident stack.
 	offsets := make([]devicemath.LayerTensorOffsets, d.Layers)
-	for i := 0; i < d.Layers; i++ {
-		p := fmt.Sprintf("model.layers.%d.", i)
+	for i, layer := range m.layers {
+		names := layer.names
 		offsets[i] = devicemath.LayerTensorOffsets{
-			InLN:     offset[p+"input_layernorm.weight"] - layerStart,
-			PostLN:   offset[p+"post_attention_layernorm.weight"] - layerStart,
-			Q:        offset[p+"self_attn.q_proj.weight"] - layerStart,
-			K:        offset[p+"self_attn.k_proj.weight"] - layerStart,
-			V:        offset[p+"self_attn.v_proj.weight"] - layerStart,
-			O:        offset[p+"self_attn.o_proj.weight"] - layerStart,
-			Gate:     offset[p+"mlp.gate_proj.weight"] - layerStart,
-			Up:       offset[p+"mlp.up_proj.weight"] - layerStart,
-			Down:     offset[p+"mlp.down_proj.weight"] - layerStart,
+			InLN:     offset[names.inLN] - layerStart,
+			PostLN:   offset[names.postLN] - layerStart,
+			Q:        offset[names.q] - layerStart,
+			K:        offset[names.k] - layerStart,
+			V:        offset[names.v] - layerStart,
+			O:        offset[names.o] - layerStart,
+			Gate:     offset[names.gate] - layerStart,
+			Up:       offset[names.up] - layerStart,
+			Down:     offset[names.down] - layerStart,
 			AttnBias: d.AttnBias,
 		}
 		if d.AttnBias {
-			offsets[i].QBias = offset[p+"self_attn.q_proj.bias"] - layerStart
-			offsets[i].KBias = offset[p+"self_attn.k_proj.bias"] - layerStart
-			offsets[i].VBias = offset[p+"self_attn.v_proj.bias"] - layerStart
+			offsets[i].QBias = offset[names.qb] - layerStart
+			offsets[i].KBias = offset[names.kb] - layerStart
+			offsets[i].VBias = offset[names.vb] - layerStart
 		}
 	}
 
@@ -289,6 +289,20 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		}
 		defer frozenSession.Close()
 	}
+	vectorWeights := make([]devicemath.LayerTrainVectors, d.Layers)
+	for i, layer := range m.layers {
+		names := layer.names
+		inNorm, postNorm := offset[names.inLN], offset[names.postLN]
+		vectorWeights[i] = devicemath.LayerTrainVectors{
+			InLN: weights[inNorm : inNorm+d.Hidden], PostLN: weights[postNorm : postNorm+d.Hidden],
+		}
+		if d.AttnBias {
+			query, key, value := offset[names.qb], offset[names.kb], offset[names.vb]
+			vectorWeights[i].QBias = weights[query : query+d.Heads*d.HeadDim]
+			vectorWeights[i].KBias = weights[key : key+d.KVHeads*d.HeadDim]
+			vectorWeights[i].VBias = weights[value : value+d.KVHeads*d.HeadDim]
+		}
+	}
 	trajectory := make([]float64, 0, steps)
 
 	loopStarted := time.Now()
@@ -304,24 +318,6 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 					return nil, fmt.Errorf("densecausal: token %d out of vocab %d", id, d.Vocab)
 				}
 				copy(embeds[token*d.Hidden:(token+1)*d.Hidden], embed[id*d.Hidden:(id+1)*d.Hidden])
-			}
-		}
-
-		// Current host-owned norm vectors (from the flat weights buffer) to sync into
-		// the resident weight buffer before the forward reads them.
-		vectorWeights := make([]devicemath.LayerTrainVectors, d.Layers)
-		for i := 0; i < d.Layers; i++ {
-			p := fmt.Sprintf("model.layers.%d.", i)
-			io, po := offset[p+"input_layernorm.weight"], offset[p+"post_attention_layernorm.weight"]
-			vectorWeights[i] = devicemath.LayerTrainVectors{
-				InLN:   weights[io : io+d.Hidden],
-				PostLN: weights[po : po+d.Hidden],
-			}
-			if d.AttnBias {
-				qo, ko, vo := offset[p+"self_attn.q_proj.bias"], offset[p+"self_attn.k_proj.bias"], offset[p+"self_attn.v_proj.bias"]
-				vectorWeights[i].QBias = weights[qo : qo+d.Heads*d.HeadDim]
-				vectorWeights[i].KBias = weights[ko : ko+d.KVHeads*d.HeadDim]
-				vectorWeights[i].VBias = weights[vo : vo+d.KVHeads*d.HeadDim]
 			}
 		}
 
@@ -367,14 +363,14 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		trajectory = append(trajectory, loss)
 
 		// Assemble the host gradient buffer for the non-matrix groups only.
-		for i := 0; i < d.Layers; i++ {
-			p := fmt.Sprintf("model.layers.%d.", i)
-			copy(hostmath.GradientSlot(g, p+"input_layernorm.weight", d.Hidden), vectorGrads[i].InLN)
-			copy(hostmath.GradientSlot(g, p+"post_attention_layernorm.weight", d.Hidden), vectorGrads[i].PostLN)
+		for i, layer := range m.layers {
+			names := layer.names
+			copy(hostmath.GradientSlot(g, names.inLN, d.Hidden), vectorGrads[i].InLN)
+			copy(hostmath.GradientSlot(g, names.postLN, d.Hidden), vectorGrads[i].PostLN)
 			if d.AttnBias {
-				copy(hostmath.GradientSlot(g, p+"self_attn.q_proj.bias", d.Heads*d.HeadDim), vectorGrads[i].QBias)
-				copy(hostmath.GradientSlot(g, p+"self_attn.k_proj.bias", d.KVHeads*d.HeadDim), vectorGrads[i].KBias)
-				copy(hostmath.GradientSlot(g, p+"self_attn.v_proj.bias", d.KVHeads*d.HeadDim), vectorGrads[i].VBias)
+				copy(hostmath.GradientSlot(g, names.qb, d.Heads*d.HeadDim), vectorGrads[i].QBias)
+				copy(hostmath.GradientSlot(g, names.kb, d.KVHeads*d.HeadDim), vectorGrads[i].KBias)
+				copy(hostmath.GradientSlot(g, names.vb, d.KVHeads*d.HeadDim), vectorGrads[i].VBias)
 			}
 		}
 		if !frozenLexical {

@@ -18,39 +18,50 @@ type layer struct {
 	qb, kb, vb       []float32
 	postLN           []float32
 	gate, up, down   []float32
+	names            layerTensorNames
 }
 
-func addInPlace(destination, values []float32) {
-	for index := range destination {
-		destination[index] += values[index]
-	}
+type layerTensorNames struct {
+	inLN, q, k, v, o string
+	qb, kb, vb       string
+	postLN           string
+	gate, up, down   string
 }
 
-func (m *Model) layerWeights(index int) (layer, error) {
-	prefix := fmt.Sprintf("model.layers.%d.", index)
+func compileLayer(weights map[string][]float32, index int, attentionBias bool) (layer, error) {
+	names := denseLayerTensorNames(index)
 	l := layer{
-		inLN:   m.Weights[prefix+"input_layernorm.weight"],
-		q:      m.Weights[prefix+"self_attn.q_proj.weight"],
-		k:      m.Weights[prefix+"self_attn.k_proj.weight"],
-		v:      m.Weights[prefix+"self_attn.v_proj.weight"],
-		o:      m.Weights[prefix+"self_attn.o_proj.weight"],
-		qb:     m.Weights[prefix+"self_attn.q_proj.bias"],
-		kb:     m.Weights[prefix+"self_attn.k_proj.bias"],
-		vb:     m.Weights[prefix+"self_attn.v_proj.bias"],
-		postLN: m.Weights[prefix+"post_attention_layernorm.weight"],
-		gate:   m.Weights[prefix+"mlp.gate_proj.weight"],
-		up:     m.Weights[prefix+"mlp.up_proj.weight"],
-		down:   m.Weights[prefix+"mlp.down_proj.weight"],
+		inLN: weights[names.inLN], postLN: weights[names.postLN],
+		q: weights[names.q], k: weights[names.k], v: weights[names.v], o: weights[names.o],
+		qb: weights[names.qb], kb: weights[names.kb], vb: weights[names.vb],
+		gate: weights[names.gate], up: weights[names.up], down: weights[names.down],
+		names: names,
 	}
 	for _, w := range [][]float32{l.inLN, l.q, l.k, l.v, l.o, l.postLN, l.gate, l.up, l.down} {
 		if w == nil {
 			return layer{}, fmt.Errorf("densecausal: layer %d tensor missing", index)
 		}
 	}
-	if m.Dims.AttnBias && (l.qb == nil || l.kb == nil || l.vb == nil) {
+	if attentionBias && (l.qb == nil || l.kb == nil || l.vb == nil) {
 		return layer{}, fmt.Errorf("densecausal: layer %d attention bias missing", index)
 	}
 	return l, nil
+}
+
+func denseLayerTensorNames(index int) layerTensorNames {
+	prefix := fmt.Sprintf("model.layers.%d.", index)
+	return layerTensorNames{
+		inLN: prefix + "input_layernorm.weight", postLN: prefix + "post_attention_layernorm.weight",
+		q: prefix + "self_attn.q_proj.weight", k: prefix + "self_attn.k_proj.weight", v: prefix + "self_attn.v_proj.weight", o: prefix + "self_attn.o_proj.weight",
+		qb: prefix + "self_attn.q_proj.bias", kb: prefix + "self_attn.k_proj.bias", vb: prefix + "self_attn.v_proj.bias",
+		gate: prefix + "mlp.gate_proj.weight", up: prefix + "mlp.up_proj.weight", down: prefix + "mlp.down_proj.weight",
+	}
+}
+
+func addInPlace(destination, values []float32) {
+	for index := range destination {
+		destination[index] += values[index]
+	}
 }
 
 // attnTrace: recomputable attention sub-block intermediates. qScaled folds
@@ -133,11 +144,7 @@ func (m *Model) forwardStates(tokens []int) ([][]float32, error) {
 	d := m.Dims
 	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
 	return m.retainedForwardStates(tokens, func(x []float32, index, seq int) error {
-		l, err := m.layerWeights(index)
-		if err != nil {
-			return err
-		}
-		m.layerForward(x, l, invFreq, seq)
+		m.layerForward(x, m.layers[index], invFreq, seq)
 		return nil
 	})
 }

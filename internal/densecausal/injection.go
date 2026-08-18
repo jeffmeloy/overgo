@@ -57,11 +57,7 @@ func (m *Model) LossRangeInjected(
 			// the with-context/without-context difference.
 			injectRescaled(x[from*d.Hidden:], unit, seq-from, d.Hidden, alpha)
 		}
-		l, err := m.layerWeights(index)
-		if err != nil {
-			return err
-		}
-		m.layerForward(x, l, invFreq, seq)
+		m.layerForward(x, m.layers[index], invFreq, seq)
 		return nil
 	})
 	if err != nil {

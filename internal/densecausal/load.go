@@ -45,6 +45,7 @@ type Model struct {
 	Weights map[string][]float32
 	Shapes  map[string][]int
 	tensors modelTensorBindings
+	layers  []layer
 }
 
 type tensorBinding struct {
@@ -152,23 +153,23 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 	}
 	d.RopeTheta, d.RMSEps = ropeTheta, rmsEps
 	for layer := 0; ; layer++ {
-		prefix := fmt.Sprintf("model.layers.%d.", layer)
-		if _, ok := shapes[prefix+"self_attn.q_proj.weight"]; !ok {
+		names := denseLayerTensorNames(layer)
+		if _, ok := shapes[names.q]; !ok {
 			if layer == 0 {
 				return nil, fmt.Errorf("densecausal: no model.layers.0")
 			}
 			d.Layers = layer
 			break
 		}
-		q, err := tensorcatalog.Shape(shapes, prefix+"self_attn.q_proj.weight", 2)
+		q, err := tensorcatalog.Shape(shapes, names.q, 2)
 		if err != nil {
 			return nil, err
 		}
-		k, err := tensorcatalog.Shape(shapes, prefix+"self_attn.k_proj.weight", 2)
+		k, err := tensorcatalog.Shape(shapes, names.k, 2)
 		if err != nil {
 			return nil, err
 		}
-		gate, err := tensorcatalog.Shape(shapes, prefix+"mlp.gate_proj.weight", 2)
+		gate, err := tensorcatalog.Shape(shapes, names.gate, 2)
 		if err != nil {
 			return nil, err
 		}
@@ -189,7 +190,7 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 			return nil, fmt.Errorf("densecausal: layer %d geometry differs from layer 0", layer)
 		}
 		// q/k/v biases: all-or-none per layer, identical across layers.
-		hasBias, err := layerAttnBias(shapes, prefix, q[0], k[0])
+		hasBias, err := layerAttnBias(shapes, names, q[0], k[0])
 		if err != nil {
 			return nil, err
 		}
@@ -208,27 +209,35 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 			return nil, fmt.Errorf("densecausal: unexpected bias tensor %q", name)
 		}
 	}
-	return &Model{
+	model := &Model{
 		Dims: d, Weights: weights, Shapes: shapes,
 		tensors: modelTensorBindings{
 			embedding: tensorBinding{name: embeddingName, values: weights[embeddingName]},
 			finalNorm: tensorBinding{name: finalNormName, values: weights[finalNormName]},
 			head:      tensorBinding{name: headName, values: weights[headName]},
 		},
-	}, nil
+		layers: make([]layer, d.Layers),
+	}
+	for index := range model.layers {
+		model.layers[index], err = compileLayer(weights, index, d.AttnBias)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return model, nil
 }
 
 // layerAttnBias validates the per-layer q/k/v bias triple: absent entirely,
 // or all present with lengths matching the projection out-dims.
-func layerAttnBias(shapes map[string][]int, prefix string, qOut, kvOut int) (bool, error) {
+func layerAttnBias(shapes map[string][]int, names layerTensorNames, qOut, kvOut int) (bool, error) {
 	present := 0
 	for _, want := range []struct {
 		name string
 		out  int
 	}{
-		{prefix + "self_attn.q_proj.bias", qOut},
-		{prefix + "self_attn.k_proj.bias", kvOut},
-		{prefix + "self_attn.v_proj.bias", kvOut},
+		{names.qb, qOut},
+		{names.kb, kvOut},
+		{names.vb, kvOut},
 	} {
 		shape, ok := shapes[want.name]
 		if !ok {
@@ -240,7 +249,7 @@ func layerAttnBias(shapes map[string][]int, prefix string, qOut, kvOut int) (boo
 		}
 	}
 	if present != 0 && present != 3 {
-		return false, fmt.Errorf("densecausal: %sself_attn has %d of 3 q/k/v biases", prefix, present)
+		return false, fmt.Errorf("densecausal: layer containing %q has %d of 3 q/k/v biases", names.q, present)
 	}
 	return present == 3, nil
 }

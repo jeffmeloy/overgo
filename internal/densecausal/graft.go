@@ -110,11 +110,7 @@ func (m *Model) graftForwardStates(gr *Graft, tokens []int) ([][]float32, []floa
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
 	var preBranch []float32
 	states, err := m.retainedForwardStates(tokens, func(x []float32, index, seq int) error {
-		l, err := m.layerWeights(index)
-		if err != nil {
-			return err
-		}
-		m.layerForward(x, l, invFreq, seq)
+		m.layerForward(x, m.layers[index], invFreq, seq)
 		if index == gr.Layer {
 			preBranch = append([]float32(nil), x...)
 			out, _, _, _, _, _ := gr.branchForward(m, preBranch, seq)

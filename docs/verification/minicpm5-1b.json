@@ -1,0 +1,18 @@
+{
+ "model": "model:sha256:e37577c45aec2255ac437ae6e86518ea99745d6616dd8c59b1fe7e26a04606f7",
+ "name": "MiniCPM5-1B",
+ "claims": [
+  {
+   "capability": "inference",
+   "tier": "exact-golden",
+   "commit": "7ad45c1ce8cc554f380d1cb71b073ae13143f8ee",
+   "evidence": [
+    "evidence:sha256:1b177a279b58dfd98940dffce3c8381bda816a1bfcadd5411c6a645b398753ef"
+   ]
+  }
+ ],
+ "model_file": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/MiniCPM5-1B-f16.gguf",
+ "evidence_files": [
+  "fixtures/minicpm5_serving_golden.json"
+ ]
+}

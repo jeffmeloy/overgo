@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "verification-ledger-population",
-      "title": "Populate the verification ledger: commit model-verification records for the evidenced set (Carbon-500M, adaptive-causal, E4B, Qwen2.5-0.5B, Qwen3.5-4B, MiniCPM5) from real fixture and run-record identities",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Populate the verification ledger: commit model-verification records for the evidenced set (Carbon-500M, adaptive-causal, E4B, Qwen2.5-0.5B, Qwen3.5-4B, MiniCPM5) from real fixture and run-record identities",
-          "status": "open",
-          "verify": "go run ./cmd/repodb-query -repo repodb-store -verifications | grep -q Carbon-500M"
-        }
-      ]
-    },
-    {
       "id": "phase-d-history-population",
       "title": "Populate Phase D history: commit the campaign's real composition decisions and scheduler realizations, then train the first production ProposalRanking and SchedulerPolicy from them",
       "status": "open",

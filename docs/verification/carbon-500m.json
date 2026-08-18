@@ -1,0 +1,18 @@
+{
+ "model": "model:sha256:08d12f90b68fe93f3c39da1bb9f4592a13085c2740716166d2baab708793d3e8",
+ "name": "Carbon-500M",
+ "claims": [
+  {
+   "capability": "inference",
+   "tier": "exact-golden",
+   "commit": "c84257c70006b8aa1162ad20e94ccb52bb0834b7",
+   "evidence": [
+    "evidence:sha256:2a7b3a0e163f79b6ffc9cd5d7ea36801caf196118ede870dff6220e6be12fb41"
+   ]
+  }
+ ],
+ "model_file": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Carbon-500M-f16-ropefix.gguf",
+ "evidence_files": [
+  "fixtures/carbon_serving_golden.json"
+ ]
+}

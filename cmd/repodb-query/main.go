@@ -587,7 +587,10 @@ func writeVerifications(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	// Scan the full evidence range: verification records accumulate at the
+	// end of the sequence, so a bounded scan would silently drop the newest
+	// claims. The limit bounds output rows, not the scan.
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -607,6 +610,9 @@ func writeVerifications(output io.Writer, repository string, limit int) error {
 		records = append(records, record)
 	}
 	matrix := runrecord.VerificationMatrix(records)
+	if limit > 0 && len(matrix) > limit {
+		matrix = matrix[:limit]
+	}
 	for _, row := range matrix {
 		cells := make([]string, 0, len(row.Capabilities))
 		for _, claim := range row.Capabilities {

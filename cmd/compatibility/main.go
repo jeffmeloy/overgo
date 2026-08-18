@@ -141,12 +141,17 @@ func run() error {
 // runRecordVerification commits one typed model-verification record: the
 // claims discipline as a store artifact rather than a document -- every
 // capability tier grounded in named evidence, with lineage to all of it.
-// Store presence of each evidence artifact is reported, not invented.
+// The spec may ground its references: evidence files commit by content
+// (their identity must match a claimed evidence ID) and the model file
+// registers by descriptor and location -- both verified against the named
+// identities, never invented.
 func runRecordVerification(specPath, recordStore string, output io.Writer) error {
 	var specification struct {
-		Model  artifact.ID                 `json:"model"`
-		Name   string                      `json:"name"`
-		Claims []runrecord.CapabilityClaim `json:"claims"`
+		Model         artifact.ID                 `json:"model"`
+		Name          string                      `json:"name"`
+		ModelFile     string                      `json:"model_file,omitempty"`
+		EvidenceFiles []string                    `json:"evidence_files,omitempty"`
+		Claims        []runrecord.CapabilityClaim `json:"claims"`
 	}
 	if err := jsonfile.Decode(specPath, &specification); err != nil {
 		return err
@@ -155,33 +160,85 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 	if err != nil {
 		return err
 	}
+	claimed := map[artifact.ID]bool{}
+	for _, claim := range record.Claims {
+		for _, evidence := range claim.Evidence {
+			claimed[evidence] = true
+		}
+	}
 	store, err := repodb.Open(recordStore)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
-	committed, external := 0, 0
-	for _, claim := range record.Claims {
-		for _, evidence := range claim.Evidence {
-			_, ok, err := store.Content(ctx, evidence)
-			if err != nil {
-				return err
-			}
-			if ok {
-				committed++
-			} else {
-				external++
-			}
-		}
-	}
 	batch, err := record.Batch("verification/" + record.ID.String())
 	if err != nil {
 		return err
 	}
+	for _, path := range specification.EvidenceFiles {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("evidence file %s: %w", path, err)
+		}
+		identity, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(data))
+		if err != nil {
+			return err
+		}
+		if !claimed[identity] {
+			return fmt.Errorf("evidence file %s identifies as %s, which no claim references", path, identity)
+		}
+		if _, ok, err := store.Content(ctx, identity); err != nil {
+			return err
+		} else if !ok {
+			batch.Contents = append(batch.Contents, artifact.Content{
+				Descriptor: artifact.Descriptor{ID: identity, Size: uint64(len(data))}, Data: data,
+			})
+		}
+	}
+	if _, ok, err := store.Artifact(ctx, record.Model); err != nil {
+		return err
+	} else if !ok {
+		if specification.ModelFile == "" {
+			return fmt.Errorf("model %s is not in the store; the spec must name model_file to register it", record.Model)
+		}
+		file, err := os.Open(specification.ModelFile)
+		if err != nil {
+			return err
+		}
+		identity, size, err := artifact.Identify(artifact.KindModel, file)
+		closeErr := file.Close()
+		if err != nil || closeErr != nil {
+			return errors.Join(err, closeErr)
+		}
+		if identity != record.Model {
+			return fmt.Errorf("model file %s identifies as %s, spec claims %s", specification.ModelFile, identity, record.Model)
+		}
+		absolute, err := filepath.Abs(specification.ModelFile)
+		if err != nil {
+			return err
+		}
+		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: identity, Size: size})
+		batch.Locations = append(batch.Locations, artifact.LocationEvent{
+			Location: artifact.Location{Artifact: identity, Kind: artifact.LocationFile, Value: absolute},
+			Action:   artifact.LocationAdd,
+		})
+	}
+	committed, external := 0, 0
+	for evidence := range claimed {
+		if _, ok, err := store.Content(ctx, evidence); err != nil {
+			return err
+		} else if ok {
+			committed++
+		} else {
+			external++
+		}
+	}
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return err
 	}
+	committed += len(batch.Contents) - 1
+	external -= len(batch.Contents) - 1
 	fmt.Fprintf(output, "model verification committed: %s model=%s name=%s claims=%d\n",
 		record.ID, record.Model, record.Name, len(record.Claims))
 	for _, claim := range record.Claims {

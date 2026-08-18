@@ -1,0 +1,18 @@
+{
+ "model": "model:sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec",
+ "name": "Qwen3.5-4B",
+ "claims": [
+  {
+   "capability": "inference",
+   "tier": "exact-golden",
+   "commit": "88287a066e44d3fc159b6cd57cd6e1cc890ac619",
+   "evidence": [
+    "evidence:sha256:6dcce666b1ebf776b9ee9e9df9107b068204affc602e94949e5c4c039894ea1a"
+   ]
+  }
+ ],
+ "model_file": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf",
+ "evidence_files": [
+  "fixtures/qwen35_4b_serving_golden.json"
+ ]
+}

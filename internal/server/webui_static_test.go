@@ -33,6 +33,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/mod/jobs.js", "text/javascript; charset=utf-8", "training-jobs"},
 		{"/mod/recipe.js", "text/javascript; charset=utf-8", "/recipes/active"},
 		{"/mod/artifacts.js", "text/javascript; charset=utf-8", "/artifacts"},
+		{"/mod/evaluations.js", "text/javascript; charset=utf-8", "/evaluations/capabilities"},
 		{"/mod/analyze_model.js", "text/javascript; charset=utf-8", "/analyze/model"},
 		{"/mod/analyze_vocab.js", "text/javascript; charset=utf-8", "/analyze/vocab"},
 		{"/mod/analyze_logits.js", "text/javascript; charset=utf-8", "completion_probabilities"},
@@ -51,6 +52,27 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		if !strings.Contains(response.Body.String(), testCase.needle) {
 			t.Fatalf("GET %s body missing %q", testCase.path, testCase.needle)
 		}
+	}
+}
+
+func TestEvaluationWorkbenchUsesDeclaredCapabilities(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	module := serveTestRequest(handler, http.MethodGet, "/mod/evaluations.js", "").Body.String()
+	for _, token := range []string{
+		"/evaluations/capabilities", "/evaluations/run", "/evaluations/history", "/evaluations/report",
+		"/evaluations/failures", "/evaluations/compare", "overgo.waitOperation", "capability.suite.plan",
+	} {
+		if !strings.Contains(module, token) {
+			t.Errorf("evaluation workbench missing %q", token)
+		}
+	}
+	for _, benchmark := range []string{"mmlu", "truthfulqa", "ifeval", "bbh", "musr"} {
+		if strings.Contains(strings.ToLower(module), benchmark) {
+			t.Errorf("evaluation workbench embeds benchmark %q", benchmark)
+		}
+	}
+	if !strings.Contains(serveTestRequest(handler, http.MethodGet, "/app.html", "").Body.String(), "/mod/evaluations.js") {
+		t.Fatal("workbench shell does not load evaluation module")
 	}
 }
 

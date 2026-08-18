@@ -36,6 +36,8 @@ type EvaluationHistoryEntry struct {
 	CodeCommit string             `json:"code_commit,omitempty"`
 	MeasuredNS uint64             `json:"measured_ns,omitempty"`
 	Metrics    []runrecord.Metric `json:"metrics"`
+	Inputs     []artifact.ID      `json:"inputs,omitempty"`
+	Outputs    []artifact.ID      `json:"outputs,omitempty"`
 }
 
 type EvaluationReport struct {
@@ -231,6 +233,7 @@ func (workspace *EvaluationWorkspace) EvaluationHistory(ctx context.Context, mod
 			Evaluation: record.ID, Run: run.ID, Dataset: workspace.suites[suiteIndex].Descriptor().Dataset, Recipe: run.Recipe,
 			Outcome: run.Outcome, Failure: run.Failure, CodeCommit: run.CodeCommit,
 			MeasuredNS: run.MeasuredNS, Metrics: slices.Clone(record.Metrics),
+			Inputs: slices.Clone(run.Inputs), Outputs: slices.Clone(run.Outputs),
 		}
 		if len(run.Outputs) > 0 {
 			entry.Report = run.Outputs[0]

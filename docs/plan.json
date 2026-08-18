@@ -3,25 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "evaluation-gui",
-      "title": "Expose evaluation campaigns through the existing operation and workbench contracts without browser-owned benchmark behavior",
-      "status": "open",
-      "steps": [
-        {
-          "id": "workbench",
-          "title": "Add an Evaluations workbench view driven by server declarations: select a model, select one or more compatible evaluations, run or cancel the campaign, and display current and previous results with model/task matrices, metric direction, deltas, failures, run lineage, and raw/scored outputs",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestEvaluationWorkbenchUsesDeclaredCapabilities$' -count=1",
-          "depends_on": [
-            "evaluation-gui/api"
-          ],
-          "capabilities": [
-            "visualizes-evaluations"
-          ]
-        }
-      ]
-    },
-    {
       "id": "evaluation-sft-modalities",
       "title": "Compile leakage-safe held-out evaluations from existing SFT dataset recipes across supported modality signatures",
       "status": "open",

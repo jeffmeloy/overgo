@@ -32,16 +32,24 @@ type Resources struct {
 // WorkLease records an owner-approved lane assignment. The worktree alias is
 // compare-and-set in RepoDB, but the document itself is immutable evidence.
 type WorkLease struct {
-	Version       uint16      `json:"version"`
-	Task          string      `json:"task"`
-	Worktree      string      `json:"worktree"`
-	Branch        string      `json:"branch"`
-	Role          string      `json:"role"`
-	TargetHead    string      `json:"target_head"`
-	ConflictsWith []string    `json:"conflicts_with"`
-	Resources     Resources   `json:"resources"`
-	ExpiresAt     string      `json:"expires_at"`
-	ID            artifact.ID `json:"-"`
+	Version       uint16    `json:"version"`
+	Task          string    `json:"task"`
+	Worktree      string    `json:"worktree"`
+	Branch        string    `json:"branch"`
+	Role          string    `json:"role"`
+	TargetHead    string    `json:"target_head"`
+	ConflictsWith []string  `json:"conflicts_with"`
+	Resources     Resources `json:"resources"`
+	ExpiresAt     string    `json:"expires_at"`
+	// Experiment-lease extension (runtime-resource-scheduler row): optional
+	// fields binding a lease to an experiment identity with a wall-time
+	// estimate, the checkpoint a retry resumes from, and the retry identity.
+	// Zero values keep plain worktree leases valid unchanged.
+	Experiment      artifact.ID `json:"experiment,omitzero"`
+	Checkpoint      artifact.ID `json:"checkpoint,omitzero"`
+	Retry           uint32      `json:"retry,omitempty"`
+	PredictedWallNS uint64      `json:"predicted_wall_ns,omitempty"`
+	ID              artifact.ID `json:"-"`
 }
 
 var workLeaseCodec = artifact.JSONDocumentCodec("work lease", artifact.KindEvidence, workLeaseMediaType, workLeaseSchema,

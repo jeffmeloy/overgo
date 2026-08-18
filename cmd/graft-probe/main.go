@@ -12,11 +12,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
 	"overgo/internal/jsonfile"
+	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 )
 
@@ -52,6 +54,9 @@ func run(args []string, output io.Writer) error {
 	draft := flags.Int("chain-draft", 8, "chain probe: generated gap tokens per arm")
 	heldOut := flags.Int("chain-target", 32, "chain probe: held-out tokens scored per window")
 	windows := flags.Int("chain-windows", 3, "chain probe: disjoint windows sliced from the token stream")
+	inject := flags.Bool("inject", false, "run the residual-injection connector probe (scorer/drafter as in -chain; tokens sliced into sliding train windows and trailing held-out windows)")
+	synthesize := flags.String("synthesize", "", "run the full bridge-synthesis pipeline for a committed blocked proposal (artifact ID); emits a typed decision")
+	deciderIdentity := flags.String("decider", "", "synthesize: the decider authority evidence artifact ID")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -60,6 +65,18 @@ func run(args []string, output io.Writer) error {
 			return errors.New("usage: graft-probe -propose <retrieval.json> -propose-target <model-id> -propose-verifier <cmd> -record <repodb>")
 		}
 		return runPropose(*propose, *proposeTarget, *proposeVerifier, *proposeBlocker, *recordStore, output)
+	}
+	if *synthesize != "" {
+		if flags.NArg() != 0 || *targetDir == "" || *donorDir == "" || *tokensPath == "" || *recordStore == "" || *deciderIdentity == "" {
+			return errors.New("usage: graft-probe -synthesize <proposal-id> -decider <evidence-id> -target <dir> -donor <dir> -tokens <ids.json> -record <repodb>")
+		}
+		return runSynthesize(*synthesize, *deciderIdentity, *targetDir, *donorDir, *tokensPath, *recordStore, *steps, *window, *lrScale, *momentum, output)
+	}
+	if *inject {
+		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" {
+			return errors.New("usage: graft-probe -inject -scorer <dir> -drafter <dir> -tokens <ids.json> [options]")
+		}
+		return runInject(*scorerDir, *drafterDir, *tokensPath, *prefix, *draft, *heldOut, output)
 	}
 	if *chain {
 		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" || *recordStore == "" {
@@ -171,6 +188,123 @@ func runPropose(retrievalPath, targetModel, verifier, blocker, recordStore strin
 	fmt.Fprintf(output, "state: %s -- %s\n", proposal.State, proposal.Blocker)
 	fmt.Fprintf(output, "candidates: %d; required verifier: %s\n", len(proposal.Candidates), proposal.RequiredVerifier)
 	fmt.Fprintln(output, "honesty: advisory by construction; this document cannot authorize work")
+	return nil
+}
+
+// runSynthesize executes the full bridge-synthesis pipeline for one committed
+// blocked proposal, emitting a durable typed decision either way.
+func runSynthesize(
+	proposalText, deciderText, targetDir, donorDir, tokensPath, recordStore string,
+	steps, window int, lrScale, momentum float64,
+	output io.Writer,
+) error {
+	var tokens []int
+	if err := jsonfile.Decode(tokensPath, &tokens); err != nil {
+		return err
+	}
+	if len(tokens) < 3*window {
+		return fmt.Errorf("need at least %d tokens, got %d", 3*window, len(tokens))
+	}
+	proposalID, err := artifact.ParseID(proposalText)
+	if err != nil {
+		return err
+	}
+	deciderID, err := artifact.ParseID(deciderText)
+	if err != nil {
+		return err
+	}
+	store, err := repodb.Open(recordStore)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+	content, ok, err := store.Content(context.Background(), proposalID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("proposal %s is not committed", proposalID)
+	}
+	proposal, err := composition.ParseBridgeProposal(content.Data)
+	if err != nil {
+		return err
+	}
+	revision, err := currentCommit()
+	if err != nil {
+		return err
+	}
+	outcome, err := composition.SynthesizeBridge(store, proposal, composition.Config{
+		TargetDir: targetDir, DonorDir: donorDir,
+		GraftLayer: -1, DonorLayer: -1,
+		Seeds: []int64{7, 11, 13}, Steps: steps,
+		BaseLR: 0, LRScale: lrScale, Momentum: momentum,
+		Train:   [][]int{tokens[:window], tokens[window : 2*window]},
+		HeldOut: tokens[2*window : 3*window],
+	}, recipe.Decider{CodeCommit: revision, Derivation: deciderID})
+	if err != nil {
+		return err
+	}
+	verdict := "REFUSE"
+	if outcome.Result.Ship {
+		verdict = "SHIP"
+	}
+	fmt.Fprintf(output, "synthesis decision committed: %s (%s)\n", outcome.Decision.ID, verdict)
+	fmt.Fprintf(output, "generation record: %s\n", outcome.Record.ID)
+	fmt.Fprintf(output, "reason: %s\n", outcome.Decision.Reason)
+	fmt.Fprintln(output, "honesty: the proposal stays promotion-blocked; this decision is evidence for the experiment plane, never an override")
+	return nil
+}
+
+func currentCommit() (string, error) {
+	data, err := exec.Command("git", "rev-parse", "HEAD").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+// runInject executes the residual-injection connector probe: a ridge-fit
+// linear connector trained by feature matching against measured context gaps,
+// evaluated on trailing held-out windows. Refusals print exactly as loudly as
+// ships.
+func runInject(scorerDir, drafterDir, tokensPath string, prefix, gap, target int, output io.Writer) error {
+	var tokens []int
+	if err := jsonfile.Decode(tokensPath, &tokens); err != nil {
+		return err
+	}
+	span := prefix + gap + target
+	if len(tokens) < 3*span {
+		return fmt.Errorf("need at least %d tokens, got %d", 3*span, len(tokens))
+	}
+	heldOutStart := len(tokens) - 2*span
+	var train [][]int
+	for start := 0; start+span <= heldOutStart; start += 16 {
+		train = append(train, tokens[start:start+span])
+	}
+	result, err := composition.RunInjectionViability(composition.InjectionConfig{
+		ScorerDir: scorerDir, DrafterDir: drafterDir,
+		Prefix: prefix, Gap: gap, Target: target, Alpha: 0.25, Ridge: 1e-3,
+		Train: train,
+		HeldOut: [][]int{
+			tokens[heldOutStart : heldOutStart+span],
+			tokens[heldOutStart+span : heldOutStart+2*span],
+		},
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "scorer layer %d drafter layer %d train windows %d fit residual %.6f\n",
+		result.ScorerLayer, result.DrafterLayer, result.TrainWindows, result.FitResidual)
+	for _, outcome := range result.Outcomes {
+		fmt.Fprintf(output, "held-out %d: baseline CE %.6f injected CE %.6f\n",
+			outcome.Window, outcome.BaselineCE, outcome.InjectedCE)
+	}
+	verdict := "REFUSE"
+	if result.Ship {
+		verdict = "SHIP"
+	}
+	fmt.Fprintf(output, "verdict: %s -- %s\n", verdict, result.Reason)
+	fmt.Fprintln(output, "honesty: host-reference; feature-matching connector, never task CE; verdict binds only this model pair, protocol, and budget")
 	return nil
 }
 

@@ -1,5 +1,160 @@
 {
-  "campaign": "Repository tightening: shared tensor ingestion and direct protocol ownership",
-  "doctrine": "Follow skill.md. Migrate every production caller and delete displaced loops, copies, wrappers, and tests in the same wave. Preserve numerical and protocol behavior. Add no compatibility path or speculative abstraction.",
-  "items": []
+  "campaign": "Constrained RSI bootstrap: verified substrate, experiment plane, and automatic composition",
+  "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
+  "items": [
+    {
+      "id": "bounded-controller-trials",
+      "title": "Permit bounded controller-driven descendant trials: controller proposes corpus, recipe, evaluator and composition candidates; independent admission, held-out evaluation, promotion and rollback required; every child bound to parent model, data, recipe, code, evaluator, run and decision identities",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Permit bounded controller-driven descendant trials: controller proposes corpus, recipe, evaluator and composition candidates; independent admission, held-out evaluation, promotion and rollback required; every child bound to parent model, data, recipe, code, evaluator, run and decision identities",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/trainingprogram -run '^TestRecursiveImprovementLineageAndExternalPromotion$' -count=1 -v",
+          "depends_on": [
+            "controller-promotion",
+            "determinism-and-statistical-verdicts",
+            "bounded-exploration-budget",
+            "evaluation-isolation",
+            "independent-rsi-admission",
+            "experiment-lifecycle",
+            "runtime-resource-scheduler"
+          ],
+          "capabilities": [
+            "executes-autonomously",
+            "promotes-artifact",
+            "admits-without-human",
+            "measures-held-out"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "descendant-improvement",
+      "title": "Require a child artifact to beat its parent under the full metric contract: identical evaluator and split identities, margin beyond observed noise, multi-seed where stochastic, no critical regression, resource cost reported, holdout query budget respected",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Require a child artifact to beat its parent under the full metric contract: identical evaluator and split identities, margin beyond observed noise, multi-seed where stochastic, no critical regression, resource cost reported, holdout query budget respected",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestDescendantBeatsParent$' -count=1 -v",
+          "rationale": "First row whose passing means actual self-improvement occurred rather than that the contract holds. Generation depth 1.",
+          "depends_on": [
+            "bounded-controller-trials",
+            "compose-model-artifact",
+            "evaluation-isolation"
+          ],
+          "capabilities": [
+            "promotes-artifact",
+            "measures-held-out"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "derivation-profile-as-artifact",
+      "title": "Make the corpus-to-topology derivation profile a content-addressed artifact with lineage and promotion record, so the system proposes derivation profiles and is judged on the models they produce",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make the corpus-to-topology derivation profile a content-addressed artifact with lineage and promotion record, so the system proposes derivation profiles and is judged on the models they produce",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/scratchmodel -run '^TestDerivationProfilePromotedByDescendantQuality$' -count=1 -v",
+          "rationale": "AdaptiveDerivationProfile() returns eight pinned scalars frozen to reproduce the adaptive oracle. Promotion to artifact closes eight magic rows by derivation rather than a better story -- the RSI loop satisfies Magic Discipline as a side effect.",
+          "depends_on": [
+            "descendant-improvement"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evaluator-as-artifact",
+      "title": "Promote an evaluator only if it correctly ranks a held-out set of models with known-good and known-bad outcomes drawn from the sealed oracle set, approved by generation N-1 authority",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Promote an evaluator only if it correctly ranks a held-out set of models with known-good and known-bad outcomes drawn from the sealed oracle set, approved by generation N-1 authority",
+          "status": "open",
+          "verify": "go test ./internal/... -run '^TestEvaluatorRanksKnownOutcomesUnderPriorAuthority$' -count=1 -v",
+          "rationale": "The classic RSI failure is a system improving its evaluator into one that approves everything. Safe only because the ranking set is externally sourced and unauthorable, and because the approving authority predates the candidate.",
+          "depends_on": [
+            "evaluation-isolation",
+            "descendant-improvement"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "objective-composition",
+      "title": "Make objectives composable typed artifacts; let the system propose objective mixtures and measure which produce better descendants",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make objectives composable typed artifacts; let the system propose objective mixtures and measure which produce better descendants",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/trainingprogram -run '^TestComposedObjectiveProducesBetterDescendant$' -count=1 -v",
+          "depends_on": [
+            "objective-breadth",
+            "descendant-improvement"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "proposal-ranking-from-outcomes",
+      "title": "Train the proposer ranking on the refusal ledger so retrieval becomes a learned prior over what composes successfully rather than a fixed similarity function",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Train the proposer ranking on the refusal ledger so retrieval becomes a learned prior over what composes successfully rather than a fixed similarity function",
+          "status": "open",
+          "verify": "go test ./internal/... -run '^TestProposalRankingImprovesOnRefusalHistory$' -count=1 -v",
+          "rationale": "Where refusal records stop being an audit trail and become the most valuable dataset in the store: passed and refused bridges are labelled data no external source can supply. Must respect proposer blinding -- the ranking trains on refusal reasons, never on promotion or audit split results.",
+          "depends_on": [
+            "hdc-retrieval",
+            "refusal-ledger",
+            "evaluation-isolation",
+            "descendant-improvement"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "scheduler-as-artifact",
+      "title": "Make next-candidate selection under wall-clock and VRAM budget a learned artifact scored on realized capability delta per wall-hour rather than an applied formula",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make next-candidate selection under wall-clock and VRAM budget a learned artifact scored on realized capability delta per wall-hour rather than an applied formula",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestSchedulerRankedByRealizedDelta$' -count=1 -v",
+          "depends_on": [
+            "runtime-resource-scheduler",
+            "descendant-improvement"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sealed-external-authority",
+      "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
+          "status": "open",
+          "verify": "OVERGO_SEALED_AUTHORITY_TEST=1 go test ./internal/testevidence ./internal/protection -run '^TestCandidatePrincipalCannotWriteSealedAuthority$' -count=1 -v",
+          "rationale": "Owner directive 2026-08-17: host sealing moved to the campaign end -- autonomous workers do not run yet, so the second OS principal and the sealing machinery arrive together when Phase C makes them load-bearing. Prior fixture-level machinery was backed out rather than committed unconsumed."
+        }
+      ]
+    }
+  ]
 }

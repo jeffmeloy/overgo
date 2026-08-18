@@ -59,6 +59,12 @@ func RecordLeaseOutcome(ctx context.Context, repository artifact.Repository, dat
 }
 
 // ReadLeaseOutcome returns false for evidence owned by another schema.
+// ParseLeaseOutcome decodes one committed measurement document: the
+// reconciliation read path.
+func ParseLeaseOutcome(content []byte) (LeaseOutcome, error) {
+	return leaseOutcomeCodec.Parse(content)
+}
+
 func ReadLeaseOutcome(ctx context.Context, reader artifact.Reader, id artifact.ID) (LeaseOutcome, bool, error) {
 	return readTypedDocument(ctx, reader, id, leaseOutcomeCodec.Contract, leaseOutcomeCodec.Read)
 }

@@ -36,6 +36,9 @@ const (
 	// KindComponentDecomposition classifies a model's tensors across the
 	// organ axes.
 	KindComponentDecomposition Kind = "component-decomposition"
+	// KindComposeModel assembles constituents into one executable
+	// content-addressed model artifact with full lineage.
+	KindComposeModel Kind = "compose-model"
 )
 
 // ChainAction: compose two whole validated models through typed ports.
@@ -60,6 +63,11 @@ type DecompositionAction struct {
 	Tensors  []modelartifact.TensorFact `json:"tensors"`
 }
 
+// ComposeAction: assemble a composed model artifact from its constituents.
+type ComposeAction struct {
+	Document composition.ComposedModelDocument `json:"document"`
+}
+
 // Action is one controller emission: exactly the payload matching Kind is
 // present. There is no field anywhere in the language that carries code or
 // shell -- parameters are artifact identities, typed facts and enums; the one
@@ -71,6 +79,7 @@ type Action struct {
 	Chain         *ChainAction         `json:"chain,omitempty"`
 	Proposal      *ProposalAction      `json:"proposal,omitempty"`
 	Decomposition *DecompositionAction `json:"decomposition,omitempty"`
+	Compose       *ComposeAction       `json:"compose,omitempty"`
 }
 
 // ParseAction decodes one strict action document.
@@ -90,7 +99,7 @@ func (a Action) validate() error {
 		return errors.New("controller action: unsupported version")
 	}
 	payloads := 0
-	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil} {
+	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil} {
 		if present {
 			payloads++
 		}
@@ -110,6 +119,10 @@ func (a Action) validate() error {
 	case KindComponentDecomposition:
 		if a.Decomposition == nil {
 			return errors.New("controller action: component-decomposition requires the decomposition payload")
+		}
+	case KindComposeModel:
+		if a.Compose == nil {
+			return errors.New("controller action: compose-model requires the compose payload")
 		}
 	default:
 		return fmt.Errorf("controller action: kind %q is not in the allowlist", a.Kind)
@@ -148,6 +161,16 @@ func Compile(action Action) ([]artifact.Content, error) {
 			return nil, err
 		}
 		content, err := proposal.Content()
+		if err != nil {
+			return nil, err
+		}
+		return []artifact.Content{content}, nil
+	case KindComposeModel:
+		composed, err := composition.NewComposedModel(action.Compose.Document)
+		if err != nil {
+			return nil, err
+		}
+		content, err := composed.Content()
 		if err != nil {
 			return nil, err
 		}

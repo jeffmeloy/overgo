@@ -173,7 +173,7 @@ func parseJSONToolCall(
 		return ChatToolCall{}, err
 	}
 	return ChatToolCall{
-		Type: "function",
+		Type: ChatToolTypeFunction,
 		Function: ChatToolFunction{
 			Name:      wire.Name,
 			Arguments: arguments,
@@ -227,7 +227,7 @@ func parseHermesToolCall(
 		return ChatToolCall{}, err
 	}
 	return ChatToolCall{
-		Type: "function",
+		Type: ChatToolTypeFunction,
 		Function: ChatToolFunction{
 			Name:      name,
 			Arguments: string(arguments),

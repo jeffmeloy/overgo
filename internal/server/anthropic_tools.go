@@ -38,7 +38,7 @@ func selectAnthropicTools(
 				return chatToolSelection{}, fmt.Errorf("tool %d input_schema is required", index)
 			}
 			tools[index] = inference.ChatTool{
-				Type: "function",
+				Type: inference.ChatToolTypeFunction,
 				Function: inference.ChatToolDefinition{
 					Name:        definition.Name,
 					Description: definition.Description,
@@ -175,7 +175,7 @@ func (h *Handler) parseAnthropicMessage(
 				}
 				message.ToolCalls = append(message.ToolCalls, inference.ChatToolCall{
 					ID:   block.ID,
-					Type: "function",
+					Type: inference.ChatToolTypeFunction,
 					Function: inference.ChatToolFunction{
 						Name:      block.Name,
 						Arguments: string(block.Input),

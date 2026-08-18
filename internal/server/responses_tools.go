@@ -90,7 +90,7 @@ func selectResponsesTools(
 				)
 			}
 			tools[index] = inference.ChatTool{
-				Type: "function",
+				Type: inference.ChatToolTypeFunction,
 				Function: inference.ChatToolDefinition{
 					Name:        definition.Name,
 					Description: definition.Description,
@@ -234,7 +234,7 @@ func (h *Handler) parseResponsesMessages(
 			}
 			call := inference.ChatToolCall{
 				ID:   item.CallID,
-				Type: "function",
+				Type: inference.ChatToolTypeFunction,
 				Function: inference.ChatToolFunction{
 					Name:      item.Name,
 					Arguments: item.Arguments,

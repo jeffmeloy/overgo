@@ -55,9 +55,13 @@ type ChatMediaPart struct {
 	FPS        float64
 }
 
+type ChatToolType string
+
+const ChatToolTypeFunction ChatToolType = "function"
+
 type ChatToolCall struct {
 	ID       string           `json:"id,omitempty"`
-	Type     string           `json:"type"`
+	Type     ChatToolType     `json:"type"`
 	Function ChatToolFunction `json:"function"`
 }
 
@@ -67,7 +71,7 @@ type ChatToolFunction struct {
 }
 
 type ChatTool struct {
-	Type     string             `json:"type"`
+	Type     ChatToolType       `json:"type"`
 	Function ChatToolDefinition `json:"function"`
 }
 
@@ -282,7 +286,7 @@ func (f *ChatToolFunction) UnmarshalJSON(data []byte) error {
 }
 
 func validateChatToolCall(call ChatToolCall) error {
-	if call.Type != "function" {
+	if call.Type != ChatToolTypeFunction {
 		return fmt.Errorf("unsupported type %q", call.Type)
 	}
 	if call.Function.Name == "" {
@@ -434,7 +438,7 @@ func (r *Runner) buildChatContext(
 }
 
 func validateChatTool(tool ChatTool) error {
-	if tool.Type != "function" {
+	if tool.Type != ChatToolTypeFunction {
 		return fmt.Errorf("unsupported type %q", tool.Type)
 	}
 	if tool.Function.Name == "" {

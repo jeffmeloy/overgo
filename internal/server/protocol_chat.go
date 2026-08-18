@@ -711,7 +711,7 @@ type chatStreamDelta struct {
 type chatStreamToolCall struct {
 	Index    int                    `json:"index"`
 	ID       string                 `json:"id,omitempty"`
-	Type     string                 `json:"type,omitempty"`
+	Type     inference.ChatToolType `json:"type,omitempty"`
 	Function chatStreamToolFunction `json:"function"`
 }
 
@@ -795,7 +795,7 @@ func (h *Handler) streamChatCompletion(
 							choiceIndex,
 							delta.Index,
 						)
-						call.Type = "function"
+						call.Type = inference.ChatToolTypeFunction
 						call.Function.Name = delta.Name
 					}
 					return writeChunk(choiceIndex, chatStreamDelta{

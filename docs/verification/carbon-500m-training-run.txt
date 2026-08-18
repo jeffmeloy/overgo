@@ -1,0 +1,12 @@
+overgo training verification run
+tool: cmd/train (trainingworkflow) with lane announcement, per-step observer and projection guard
+verifying commit: 1a92893f (inference sweep head; recorded by the gate binding this file)
+model: Carbon-500M safetensors (adaptive_new/models/Carbon-500M); the served GGUF row
+carries this claim with the safetensors source named here as training provenance
+dataset: docs/verification/qwen25-05b-training-dataset.txt (wikitext2_train slice, shared shard)
+flags: -steps 30 -seq 256 -freeze-lexical (CUDA-resident, frozen embedding/head)
+measured wall_ns: 128973815300 including toolchain build; ~517ms per step on device
+caveat: English wikitext is off-domain for the DNA-pretrained model -- step-30 loss 12.21
+reflects that honestly; the claim covers the training machinery at real-artifact-smoke tier.
+lane discipline: announced cuda-resident before step one; per-step wall streamed; 30-minute
+projection guard armed.

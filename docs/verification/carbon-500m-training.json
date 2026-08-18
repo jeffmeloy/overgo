@@ -1,0 +1,18 @@
+{
+ "model": "model:sha256:08d12f90b68fe93f3c39da1bb9f4592a13085c2740716166d2baab708793d3e8",
+ "name": "Carbon-500M",
+ "evidence_files": ["docs/verification/carbon-500m-training-run.txt"],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "1a92893fcd60fdbb49646b17dcba9e0fb2bcc681",
+   "dataset": "dataset-shard:sha256:4c431b8cd6f7c9ca77f0ddc3fdac8ee85812847e2af7e4d9861bb4d62f2dce9b",
+   "span_steps": 30,
+   "span_tokens": 7680,
+   "context_tokens": 256,
+   "wall_ns": 128973815300,
+   "evidence": ["evidence:sha256:9bc9653eb2c625b516774f934c63dbeb02889c8f12effcd5c9706e805ef627e1"]
+  }
+ ]
+}

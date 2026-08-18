@@ -1,0 +1,11 @@
+overgo training verification
+tool: go test internal/thoughtbank (modeltest tag, OVERGO_CUDA_TEST=1)
+model file: C:/Users/jeffm/adaptive_new/models/Fractale-350M-base/model.pt
+protocol: real fast-weight thought-bank training parity on the wikitext shard
+(TestFractaleRealTrainingParity): record "= Valkyria Chronicles III =",
+8 tokens, loss 0.01152465, device/host max delta 1.430e-07, 9,879,476
+parameters changed.
+dataset: docs/verification/qwen25-05b-training-dataset.txt (shared shard)
+measured wall_ns: 165710000000 (suite wall including checkpoint load)
+notes: parity-bounded device training of the bank path; peak device memory
+not instrumented -- wall-only measurement by rule.

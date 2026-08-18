@@ -3,20 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "full-training-verification",
-      "title": "Full training verification: every trainable model smallest to largest through the guarded trainer with measured wall; unsupported architectures refuse with typed reasons; every pass lands a training claim",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Full training verification: every trainable model smallest to largest through the guarded trainer with measured wall; unsupported architectures refuse with typed reasons; every pass lands a training claim",
-          "status": "open",
-          "verify": "go run ./cmd/repodb-query -repo repodb-store -verifications | grep -c 'training=' | grep -qvE '^[0-2]$'",
-          "rationale": "Trainable set smallest to largest through the guarded trainer (lane announcement, per-step observer, 30m projection guard): Un-0/adaptive-causal scratch TODO; Fractale-350M TODO(after conversion); Carbon-500M TODO(dense-causal device, frozen lexical); Qwen2.5-0.5B DONE; MiniCPM5-1B DONE; needle seq2seq TODO(its own training tests exist); Qwen3.5-4B REFUSES(hybrid arch unsupported by dense-causal -- typed finding or trainer extension); larger models judged per architecture support. Trainable-lexical full-model device training at the ~16GB envelope adaptive_new demonstrated is the stretch goal after the frozen-lexical sweep completes."
-        }
-      ]
-    },
-    {
       "id": "external-benchmark-evidence",
       "title": "External benchmark evidence: run the lm-evaluation-harness batch evaluator (C:/Users/jeffm/eval) on applicable text models as the independent judge, commit results with tool-and-version provenance, and record benchmark claims at capability-measured tier; applicability judged per model from the ledger (DNA and non-text models keep their own evaluation protocols)",
       "status": "open",

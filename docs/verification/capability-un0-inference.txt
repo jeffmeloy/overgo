@@ -1,0 +1,11 @@
+overgo capability inference verification
+tool: go test internal/oscillatorimage (full suite)
+model file: C:/Users/jeffm/adaptive_new/models/Un-0/model.safetensors
+protocol: conditional-oscillator image generation against the real Un-0
+artifact -- dims derived from the checkpoint, forward and backward pinned
+against torch goldens, deterministic class-sensitive generation, and a real
+GIF render matching the exact pinned reference (class=1 seed=202 frames=6
+size=64x64, exact_reference=true).
+measured wall_ns: 542000000 (full suite wall including artifact load)
+notes: exact-reference render grounds the tier; peak device memory not
+instrumented on this host path -- wall-only measurement by rule.

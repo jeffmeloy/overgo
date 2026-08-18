@@ -5,7 +5,6 @@ package adaptiveparity_test
 import (
 	"context"
 	"encoding/json"
-	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -25,6 +24,7 @@ const (
 	qwen35GradientSHA   = "76d9880f804b116fd95e3faf739bed6ad9898430e03d25bae49d5969ec1491a3"
 	qwen35ServingSHA    = "6dcce666b1ebf776b9ee9e9df9107b068204affc602e94949e5c4c039894ea1a"
 	qwen35AdaptiveSHA   = "214950b3b0316bcdcab38a3b95127a927c0ab5be"
+	qwen35TrainingSteps = 2
 )
 
 type qwen35TrainingFixture struct {
@@ -86,7 +86,7 @@ func TestQwen35RealTraining(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	trajectory, residency, err := trained.TrainDeviceResident(worker, 2, optimizer.Config{
+	trajectory, residency, err := trained.TrainDeviceResident(worker, qwen35TrainingSteps, optimizer.Config{
 		BaseLearningRate: 1e-4,
 		Momentum:         0.9,
 		Schedule:         optimizer.ScheduleConstant,
@@ -95,10 +95,7 @@ func TestQwen35RealTraining(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(trajectory) != 2 || math.IsNaN(trajectory[0]) || math.IsNaN(trajectory[1]) ||
-		math.IsInf(trajectory[0], 0) || math.IsInf(trajectory[1], 0) || trajectory[1] >= trajectory[0] {
-		t.Fatalf("Qwen3.5 real-layer trajectory did not decrease: %v", trajectory)
-	}
+	testutil.RequireFiniteDecrease(t, "Qwen3.5 real-layer trajectory", trajectory, qwen35TrainingSteps)
 	if residency.WeightUploads != 1 || residency.MomentumUploads != 1 || residency.MomentumReads != 0 ||
 		residency.WeightReads != 0 || residency.FinalWeightRead != 1 || residency.GradUploads != 2 {
 		t.Fatalf("Qwen3.5 residency differs: %+v", residency)

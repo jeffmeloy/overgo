@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
@@ -81,7 +80,11 @@ func verifyInference(
 		return err
 	}
 	started := time.Now()
-	results, evaluateErr := evaluation.EvaluateExact(ctx, runner, exactPlan)
+	var results []evaluation.ExactResult
+	reportID, evaluateErr := evaluation.EvaluateExactSharded(ctx, runner, exactPlan, evaluationPlan, func(result evaluation.ExactResult) error {
+		results = append(results, result)
+		return nil
+	})
 	closeErr := runner.Close()
 	if evaluateErr != nil || closeErr != nil {
 		failure := errors.Join(evaluateErr, closeErr)
@@ -105,23 +108,7 @@ func verifyInference(
 		}
 		return fmt.Errorf("recipe: exact inference evaluation: %w", failure)
 	}
-	inputID, err := artifact.IdentifyBytes(artifact.KindDataset, []byte(input))
-	if err != nil {
-		return err
-	}
-	exactResults := append([]evaluation.ExactResult(nil), results...)
-	for index := range exactResults {
-		exactResults[index].WallNS = 0
-	}
-	encoded, err := json.Marshal(exactResults)
-	if err != nil {
-		return err
-	}
-	outputID, err := artifact.IdentifyBytes(artifact.KindOutput, encoded)
-	if err != nil {
-		return err
-	}
-	evidence := fmt.Sprintf("contract=exact;plan=%s;cases=%d;input=%s;output=%s", evaluationPlan.Identity(), len(results), inputID, outputID)
+	evidence := fmt.Sprintf("contract=exact;plan=%s;report=%s;cases=%d", evaluationPlan.Identity(), reportID, len(results))
 	verification, err := publishCapabilityVerification(
 		ctx, store, candidate.definition, revision, time.Since(started), "cuda:0", "cuda", evidence,
 	)

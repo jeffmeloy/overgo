@@ -59,7 +59,7 @@ func TestCarbonServingGolden(t *testing.T) {
 	}
 	defer runner.Close()
 
-	if _, err := evaluation.EvaluateExact(context.Background(), runner, plan); err != nil {
+	if err := evaluation.EvaluateExact(context.Background(), runner, plan, nil); err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("Carbon real serving: %d cases match %s", len(golden.Cases), golden.Source)

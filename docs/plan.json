@@ -8,21 +8,8 @@
       "status": "open",
       "steps": [
         {
-          "id": "shards",
-          "title": "Add deterministic case shards and canonical shard reports; stream raw outputs and online metric state without retaining the full campaign",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestShardReportsMergeCanonicallyWithoutRetainedCampaign$' -count=1",
-          "depends_on": [
-            "evaluation-contract"
-          ],
-          "capabilities": [
-            "streams-dataset",
-            "publishes-evidence"
-          ]
-        },
-        {
           "id": "resume",
-          "title": "Resume only missing shards under the exact plan identity; failed or partial tasks remain incomplete and changed authorities refuse reuse",
+          "title": "Use RepoDB as the evaluation result ledger; atomically publish immutable raw outputs and completed shard reports, resume only missing shards under the exact plan identity, and refuse partial or foreign-plan reuse",
           "status": "open",
           "verify": "go test ./internal/evaluation -run '^TestResumeRejectsPartialOrForeignPlanResults$' -count=1",
           "depends_on": [
@@ -30,12 +17,13 @@
           ],
           "capabilities": [
             "resumes-exactly",
-            "refuses-stale-evidence"
+            "refuses-stale-evidence",
+            "records-evaluation-ledger"
           ]
         },
         {
           "id": "command",
-          "title": "Add cmd/evaluate parent and worker modes; load each model once, run pending shards, publish Run and Evaluation records, and release device state by worker exit",
+          "title": "Add cmd/evaluate parent and worker modes; load each model once, query pending shards from RepoDB, publish Run and Evaluation records, and release device state by worker exit",
           "status": "open",
           "verify": "go test ./cmd/evaluate ./internal/evaluation -run '^TestEvaluateCommandIsolatesModelsAndReportsTaskFailure$' -count=1",
           "depends_on": [
@@ -228,6 +216,80 @@
           ],
           "capabilities": [
             "visualizes-evaluations"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evaluation-sft-modalities",
+      "title": "Compile leakage-safe held-out evaluations from existing SFT dataset recipes across supported modality signatures",
+      "status": "open",
+      "steps": [
+        {
+          "id": "heldout-views",
+          "title": "Compile immutable group-safe evaluation views from SFT dataset versions, splits, processors, projectors, codecs, and modality signatures; refuse overlap with training membership",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/dataset ./internal/trainingdata -run '^TestSFTEvaluationViewIsHeldOutAndAuthorityBound$' -count=1",
+          "depends_on": [
+            "evaluation-datasets/catalog",
+            "evaluation-runtime/resume"
+          ],
+          "capabilities": [
+            "evaluates-held-out-sft",
+            "prevents-data-leakage"
+          ]
+        },
+        {
+          "id": "text-targets",
+          "title": "Evaluate text targets from text, image, audio, and video inputs with continuation likelihood, raw generated output, typed normalization, structured validity, OCR fields, and VQA rules selected by the suite",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestTextTargetModalitiesUseDeclaredScorers$' -count=1",
+          "depends_on": [
+            "evaluation-sft-modalities/heldout-views",
+            "evaluation-scoring/generated-answer"
+          ],
+          "capabilities": [
+            "evaluates-multimodal-text"
+          ]
+        },
+        {
+          "id": "numeric-targets",
+          "title": "Evaluate forecast and tabular targets with target-type-selected absolute error, quantile loss, or label accuracy; retain record-level values and assumption metadata",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions$' -count=1",
+          "depends_on": [
+            "evaluation-sft-modalities/heldout-views"
+          ],
+          "capabilities": [
+            "evaluates-forecast",
+            "evaluates-tabular"
+          ]
+        },
+        {
+          "id": "media-targets",
+          "title": "Evaluate speech, image, and video outputs with deterministic oracle checks first and only suite-declared transcript, signal, reconstruction, or independent-verifier metrics thereafter",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestMediaTargetMetricsRequireExplicitVerifierAuthority$' -count=1",
+          "depends_on": [
+            "evaluation-sft-modalities/heldout-views"
+          ],
+          "capabilities": [
+            "evaluates-speech",
+            "evaluates-image-output",
+            "evaluates-video-output"
+          ]
+        },
+        {
+          "id": "preference-holdout",
+          "title": "Evaluate held-out preference pairs with chosen-vs-rejected accuracy, policy/reference margin, and DPO loss bound to the frozen reference model",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/trainingprogram -run '^TestPreferenceEvaluationBindsFrozenReferenceAndHeldoutSplit$' -count=1",
+          "depends_on": [
+            "evaluation-sft-modalities/heldout-views",
+            "evaluation-scoring/continuations"
+          ],
+          "capabilities": [
+            "evaluates-preference-policy"
           ]
         }
       ]

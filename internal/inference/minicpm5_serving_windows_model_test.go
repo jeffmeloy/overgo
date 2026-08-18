@@ -58,12 +58,12 @@ func TestMiniCPM5ServingGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	results, err := evaluation.EvaluateExact(context.Background(), runner, plan)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, result := range results {
+	err = evaluation.EvaluateExact(context.Background(), runner, plan, func(result evaluation.ExactResult) error {
 		t.Logf("MiniCPM5 %s: prompt=%d generated=%d wall=%.3fms",
 			result.Name, result.PromptTokens, result.GeneratedTokens, float64(result.WallNS)/1e6)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

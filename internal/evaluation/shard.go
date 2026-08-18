@@ -2,6 +2,7 @@ package evaluation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -13,16 +14,39 @@ import (
 )
 
 const (
-	shardReportVersion uint16 = 1
-	exactShardExtent          = 1
-	exactMetricName           = "exact-accuracy"
+	shardReportVersion      uint16 = 1
+	exactShardExtent               = 1
+	exactMetricName                = "exact-accuracy"
+	caseShardMediaType             = "application/vnd.overgo.evaluation-shard+json"
+	caseShardSchema                = "overgo/evaluation-shard/v1"
+	textOutputMediaType            = "application/vnd.overgo.evaluation-output+json"
+	textOutputSchema               = "overgo/evaluation-output/v1"
+	shardReportMediaType           = "application/vnd.overgo.evaluation-shard-report+json"
+	shardReportSchema              = "overgo/evaluation-shard-report/v1"
+	campaignReportMediaType        = "application/vnd.overgo.evaluation-campaign+json"
+	campaignReportSchema           = "overgo/evaluation-campaign/v1"
+)
+
+var (
+	caseShardContract = artifact.DocumentContract{
+		Kind: artifact.KindDatasetShard, MediaType: caseShardMediaType, Schema: caseShardSchema,
+	}
+	textOutputContract = artifact.DocumentContract{
+		Kind: artifact.KindOutput, MediaType: textOutputMediaType, Schema: textOutputSchema,
+	}
+	shardReportContract = artifact.DocumentContract{
+		Kind: artifact.KindEvaluation, MediaType: shardReportMediaType, Schema: shardReportSchema,
+	}
+	campaignReportContract = artifact.DocumentContract{
+		Kind: artifact.KindEvaluation, MediaType: campaignReportMediaType, Schema: campaignReportSchema,
+	}
 )
 
 type caseShard struct {
-	ID    artifact.ID
-	Plan  artifact.ID
-	Index uint64
-	Cases []artifact.ID
+	ID    artifact.ID   `json:"-"`
+	Plan  artifact.ID   `json:"plan"`
+	Index uint64        `json:"index"`
+	Cases []artifact.ID `json:"cases"`
 }
 
 type textOutput struct {
@@ -65,31 +89,29 @@ type campaignReport struct {
 
 func EvaluateExactSharded(
 	ctx context.Context,
+	repository artifact.Repository,
 	generator Generator,
 	exact ExactPlan,
 	plan Plan,
 	observe func(ExactResult) error,
 ) (artifact.ID, error) {
-	if ctx == nil || generator == nil || exact.identity != plan.body.CaseProfile || len(exact.suite.Cases) == 0 {
+	if ctx == nil || repository == nil || generator == nil || exact.identity != plan.body.CaseProfile || len(exact.suite.Cases) == 0 {
 		return artifact.ID{}, errors.New("evaluation: exact plan authority differs")
 	}
-	cases := make([]artifact.ID, len(exact.suite.Cases))
-	for index := range cases {
-		id, err := artifact.JSONID(artifact.KindDatasetShard, struct {
-			Split artifact.ID `json:"split"`
-			Index int         `json:"index"`
-		}{Split: exact.split, Index: index})
-		if err != nil {
-			return artifact.ID{}, err
-		}
-		cases[index] = id
-	}
-	shards, err := compileShards(plan, cases, exactShardExtent)
+	shards, err := compileExactShards(exact, plan)
 	if err != nil {
 		return artifact.ID{}, err
 	}
 	reports := make([]shardReport, 0, len(shards))
 	for index, shard := range shards {
+		stored, ok, err := loadShardReport(ctx, repository, plan, shard)
+		if err != nil {
+			return artifact.ID{}, err
+		}
+		if ok {
+			reports = append(reports, stored)
+			continue
+		}
 		result, err := evaluateExactCase(ctx, generator, exact.suite.Cases[index])
 		if err != nil {
 			return artifact.ID{}, err
@@ -110,6 +132,9 @@ func EvaluateExactSharded(
 		if err != nil {
 			return artifact.ID{}, err
 		}
+		if err := publishShardReport(ctx, repository, plan, shard, output, report); err != nil {
+			return artifact.ID{}, err
+		}
 		reports = append(reports, report)
 		if observe != nil {
 			if err := observe(result); err != nil {
@@ -121,7 +146,25 @@ func EvaluateExactSharded(
 	if err != nil {
 		return artifact.ID{}, err
 	}
+	if err := publishCampaignReport(ctx, repository, plan, campaign); err != nil {
+		return artifact.ID{}, err
+	}
 	return campaign.ID, nil
+}
+
+func compileExactShards(exact ExactPlan, plan Plan) ([]caseShard, error) {
+	cases := make([]artifact.ID, len(exact.suite.Cases))
+	for index := range cases {
+		id, err := artifact.JSONID(artifact.KindDatasetShard, struct {
+			Split artifact.ID `json:"split"`
+			Index int         `json:"index"`
+		}{Split: exact.split, Index: index})
+		if err != nil {
+			return nil, err
+		}
+		cases[index] = id
+	}
+	return compileShards(plan, cases, exactShardExtent)
 }
 
 func compileShards(plan Plan, cases []artifact.ID, extent int) ([]caseShard, error) {
@@ -137,11 +180,11 @@ func compileShards(plan Plan, cases []artifact.ID, extent int) ([]caseShard, err
 	for start := 0; start < len(cases); start += extent {
 		end := min(start+extent, len(cases))
 		shard := caseShard{Plan: plan.identity, Index: uint64(len(shards)), Cases: slices.Clone(cases[start:end])}
-		id, err := artifact.JSONID(artifact.KindDatasetShard, struct {
-			Plan  artifact.ID   `json:"plan"`
-			Index uint64        `json:"index"`
-			Cases []artifact.ID `json:"cases"`
-		}{Plan: shard.Plan, Index: shard.Index, Cases: shard.Cases})
+		data, err := json.Marshal(shard)
+		if err != nil {
+			return nil, err
+		}
+		id, err := caseShardContract.Identify(data)
 		if err != nil {
 			return nil, err
 		}
@@ -156,7 +199,11 @@ func newTextOutput(plan, caseID artifact.ID, text string) (textOutput, error) {
 		return textOutput{}, errors.New("evaluation: invalid text output authority")
 	}
 	output := textOutput{Plan: plan, Case: caseID, Text: text}
-	id, err := artifact.JSONID(artifact.KindOutput, output)
+	data, err := json.Marshal(output)
+	if err != nil {
+		return textOutput{}, err
+	}
+	id, err := textOutputContract.Identify(data)
 	if err != nil {
 		return textOutput{}, err
 	}
@@ -198,7 +245,11 @@ func newShardReport(shard caseShard, observations []caseObservation, metrics []m
 		Version: shardReportVersion, Plan: shard.Plan, Shard: shard.ID, Index: shard.Index,
 		Observations: observations, Metrics: metrics,
 	}
-	id, err := artifact.JSONID(artifact.KindEvaluation, report)
+	data, err := json.Marshal(report)
+	if err != nil {
+		return shardReport{}, err
+	}
+	id, err := shardReportContract.Identify(data)
 	if err != nil {
 		return shardReport{}, err
 	}
@@ -246,7 +297,11 @@ func mergeShardReports(reports []shardReport) (campaignReport, error) {
 	report := campaignReport{
 		Version: shardReportVersion, Plan: plan, Shards: shards, Metrics: metrics, Cases: cases,
 	}
-	id, err := artifact.JSONID(artifact.KindEvaluation, report)
+	data, err := json.Marshal(report)
+	if err != nil {
+		return campaignReport{}, err
+	}
+	id, err := campaignReportContract.Identify(data)
 	if err != nil {
 		return campaignReport{}, err
 	}

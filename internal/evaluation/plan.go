@@ -4,12 +4,21 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 
 	"overgo/internal/artifact"
 )
 
-const evaluationPlanVersion uint16 = 1
+const (
+	evaluationPlanVersion   uint16 = 1
+	evaluationPlanMediaType        = "application/vnd.overgo.evaluation-plan+json"
+	evaluationPlanSchema           = "overgo/evaluation-plan/v1"
+)
+
+var evaluationPlanContract = artifact.DocumentContract{
+	Kind: artifact.KindProfile, MediaType: evaluationPlanMediaType, Schema: evaluationPlanSchema,
+}
 
 type Lifecycle string
 
@@ -86,6 +95,14 @@ func BindExact(exact ExactPlan, authorities ExactAuthorities) (Plan, error) {
 }
 
 func (p Plan) Identity() artifact.ID { return p.identity }
+
+func (p Plan) content() (artifact.Content, error) {
+	data, err := json.Marshal(p.body)
+	if err != nil {
+		return artifact.Content{}, err
+	}
+	return evaluationPlanContract.Content(p.identity, data)
+}
 
 func validCommit(value string) bool {
 	decoded, err := hex.DecodeString(value)

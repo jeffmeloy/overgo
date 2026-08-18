@@ -8,20 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "resume",
-          "title": "Use RepoDB as the evaluation result ledger; atomically publish immutable raw outputs and completed shard reports, resume only missing shards under the exact plan identity, and refuse partial or foreign-plan reuse",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestResumeRejectsPartialOrForeignPlanResults$' -count=1",
-          "depends_on": [
-            "evaluation-runtime/shards"
-          ],
-          "capabilities": [
-            "resumes-exactly",
-            "refuses-stale-evidence",
-            "records-evaluation-ledger"
-          ]
-        },
-        {
           "id": "command",
           "title": "Add cmd/evaluate parent and worker modes; load each model once, query pending shards from RepoDB, publish Run and Evaluation records, and release device state by worker exit",
           "status": "open",

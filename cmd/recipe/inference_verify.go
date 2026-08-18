@@ -80,11 +80,7 @@ func verifyInference(
 		return err
 	}
 	started := time.Now()
-	var results []evaluation.ExactResult
-	reportID, evaluateErr := evaluation.EvaluateExactSharded(ctx, runner, exactPlan, evaluationPlan, func(result evaluation.ExactResult) error {
-		results = append(results, result)
-		return nil
-	})
+	reportID, evaluateErr := evaluation.EvaluateExactSharded(ctx, store, runner, exactPlan, evaluationPlan, nil)
 	closeErr := runner.Close()
 	if evaluateErr != nil || closeErr != nil {
 		failure := errors.Join(evaluateErr, closeErr)
@@ -108,7 +104,7 @@ func verifyInference(
 		}
 		return fmt.Errorf("recipe: exact inference evaluation: %w", failure)
 	}
-	evidence := fmt.Sprintf("contract=exact;plan=%s;report=%s;cases=%d", evaluationPlan.Identity(), reportID, len(results))
+	evidence := fmt.Sprintf("contract=exact;plan=%s;report=%s;cases=%d", evaluationPlan.Identity(), reportID, len(suite.Cases))
 	verification, err := publishCapabilityVerification(
 		ctx, store, candidate.definition, revision, time.Since(started), "cuda:0", "cuda", evidence,
 	)
@@ -117,6 +113,6 @@ func verifyInference(
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{
 		"gate_id": verification.Gate.String(), "recipe_id": candidate.definition.ID.String(),
-		"run_id": verification.Run.String(), "results": results,
+		"run_id": verification.Run.String(), "report_id": reportID.String(),
 	})
 }

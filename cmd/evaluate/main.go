@@ -36,9 +36,11 @@ type modelRequest struct {
 }
 
 type sftViewRequest struct {
-	Objective artifact.ID `json:"objective"`
-	Training  artifact.ID `json:"training_membership"`
-	Heldout   artifact.ID `json:"heldout_membership"`
+	Objective        artifact.ID                        `json:"objective"`
+	Training         artifact.ID                        `json:"training_membership"`
+	Heldout          artifact.ID                        `json:"heldout_membership"`
+	TextTargets      *evaluation.TextTargetSuite        `json:"text_targets,omitempty"`
+	TextObservations []evaluation.TextTargetObservation `json:"text_observations,omitempty"`
 }
 
 type workerLauncher func(context.Context, int) error
@@ -149,7 +151,8 @@ func compileManifest(value manifest) (manifest, error) {
 	value.Models = models
 	for _, view := range value.SFTViews {
 		if view.Objective.Kind() != artifact.KindProfile || view.Training.Kind() != artifact.KindDatasetShard ||
-			view.Heldout.Kind() != artifact.KindDatasetShard || view.Training == view.Heldout {
+			view.Heldout.Kind() != artifact.KindDatasetShard || view.Training == view.Heldout ||
+			(view.TextTargets == nil) != (len(view.TextObservations) == 0) {
 			return manifest{}, errors.New("evaluate: invalid SFT evaluation view")
 		}
 	}
@@ -187,6 +190,30 @@ func catalogBenchmarks(ctx context.Context, value manifest) error {
 		}
 		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 			return errors.Join(err, store.Close())
+		}
+		if request.TextTargets != nil {
+			plan, err := evaluation.CompileTextTargetPlan(view, *request.TextTargets)
+			if err != nil {
+				return errors.Join(err, store.Close())
+			}
+			batch, err := plan.Batch("evaluation/text-target/" + plan.ID.String())
+			if err != nil {
+				return errors.Join(err, store.Close())
+			}
+			if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+				return errors.Join(err, store.Close())
+			}
+			report, err := evaluation.ScoreTextTargets(plan, request.TextObservations)
+			if err != nil {
+				return errors.Join(err, store.Close())
+			}
+			batch, err = report.Batch("evaluation/text-target-report/" + report.ID.String())
+			if err != nil {
+				return errors.Join(err, store.Close())
+			}
+			if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+				return errors.Join(err, store.Close())
+			}
 		}
 	}
 	return store.Close()

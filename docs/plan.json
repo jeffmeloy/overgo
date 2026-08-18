@@ -8,19 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "text-targets",
-          "title": "Evaluate text targets from text, image, audio, and video inputs with continuation likelihood, raw generated output, typed normalization, structured validity, OCR fields, and VQA rules selected by the suite",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestTextTargetModalitiesUseDeclaredScorers$' -count=1",
-          "depends_on": [
-            "evaluation-sft-modalities/heldout-views",
-            "evaluation-scoring/generated-answer"
-          ],
-          "capabilities": [
-            "evaluates-multimodal-text"
-          ]
-        },
-        {
           "id": "numeric-targets",
           "title": "Evaluate forecast and tabular targets with target-type-selected absolute error, quantile loss, or label accuracy; retain record-level values and assumption metadata",
           "status": "open",

@@ -109,7 +109,37 @@ func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
 	if envelope.Kind == evaluation.StructuredGeneratedKind {
 		return s.evaluateStructuredGenerated(ctx, data)
 	}
+	if envelope.Kind == evaluation.InstructionRulesKind {
+		return s.evaluateInstructionRules(ctx, data)
+	}
 	return s.evaluateExact(ctx, data)
+}
+
+func (s *nativeSession) evaluateInstructionRules(ctx context.Context, data []byte) error {
+	var suite evaluation.InstructionRulesSuite
+	if err := json.Unmarshal(data, &suite); err != nil {
+		return fmt.Errorf("evaluate: decode instruction-rules suite: %w", err)
+	}
+	compiled, err := evaluation.CompileInstructionRules(suite)
+	if err != nil {
+		return err
+	}
+	plan, err := evaluation.BindInstructionRules(compiled, s.authorities())
+	if err != nil {
+		return err
+	}
+	started := time.Now()
+	report, evaluateErr := evaluation.EvaluateInstructionRules(ctx, s.store, s.runner, compiled, plan)
+	measured := uint64(max(time.Since(started).Nanoseconds(), 1))
+	if evaluateErr != nil {
+		return errors.Join(evaluateErr, s.publishFailure(ctx, plan, measured))
+	}
+	return s.publishSuccess(ctx, plan, report.ID, measured, []runrecord.Metric{
+		{Name: "prompt-strict", Value: report.PromptStrict, Direction: runrecord.DirectionMaximize},
+		{Name: "instruction-strict", Value: report.InstructionStrict, Direction: runrecord.DirectionMaximize},
+		{Name: "prompt-loose", Value: report.PromptLoose, Direction: runrecord.DirectionMaximize},
+		{Name: "instruction-loose", Value: report.InstructionLoose, Direction: runrecord.DirectionMaximize},
+	})
 }
 
 func (s *nativeSession) evaluateStructuredGenerated(ctx context.Context, data []byte) error {

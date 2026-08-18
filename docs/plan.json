@@ -3,25 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "evaluation-benchmarks",
-      "title": "Port benchmark semantics as typed data and small neutral scorer primitives, with lm-eval retained only as a pinned oracle",
-      "status": "open",
-      "steps": [
-        {
-          "id": "ifeval",
-          "title": "Implement IFEval instruction verifiers as versioned rule data and neutral checks; publish strict and loose prompt and instruction metrics",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestIFEvalPinnedOracleParity$' -count=1",
-          "depends_on": [
-            "evaluation-benchmarks/truthfulqa"
-          ],
-          "capabilities": [
-            "evaluates-ifeval"
-          ]
-        }
-      ]
-    },
-    {
       "id": "evaluation-gui",
       "title": "Expose evaluation campaigns through the existing operation and workbench contracts without browser-owned benchmark behavior",
       "status": "open",

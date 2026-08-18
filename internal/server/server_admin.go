@@ -546,7 +546,7 @@ func (h *Handler) detokenize(response http.ResponseWriter, request *http.Request
 		content = result.String()
 	} else {
 		var err error
-		content, err = api.DetokenizeTokens(tokens)
+		content, err = api.Detokenize(tokens, inference.RenderText)
 		if err != nil {
 			writeInvalidRequest(response, err)
 			return

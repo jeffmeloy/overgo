@@ -131,11 +131,25 @@ func (r *Runner) TokenizeTextMarkers(
 	)
 }
 
-func (r *Runner) DetokenizeTokens(tokens []tokenizer.TokenID) (string, error) {
+type TokenRenderMode uint8
+
+const (
+	RenderText TokenRenderMode = iota
+	RenderPrompt
+)
+
+func (r *Runner) Detokenize(tokens []tokenizer.TokenID, mode TokenRenderMode) (string, error) {
 	if r == nil || r.vocab == nil {
 		return "", errRunnerNil
 	}
-	return r.vocab.Decode(tokens, false)
+	switch mode {
+	case RenderText:
+		return r.vocab.Decode(tokens, false)
+	case RenderPrompt:
+		return r.vocab.Decode(tokens, true)
+	default:
+		return "", errors.New("inference: invalid token render mode")
+	}
 }
 
 // TokenPiece: renders one vocabulary token exactly as llama.cpp's tokenizer
@@ -145,13 +159,4 @@ func (r *Runner) TokenPiece(token tokenizer.TokenID) (string, error) {
 		return "", errRunnerNil
 	}
 	return r.vocab.DecodePiece(token, true)
-}
-
-// DetokenizePromptTokens: renders exact prompt sequence for native server
-// metadata while preserving control-token spellings like llama.cpp
-func (r *Runner) DetokenizePromptTokens(tokens []tokenizer.TokenID) (string, error) {
-	if r == nil || r.vocab == nil {
-		return "", errRunnerNil
-	}
-	return r.vocab.Decode(tokens, true)
 }

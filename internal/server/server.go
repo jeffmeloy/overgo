@@ -175,16 +175,12 @@ type InfillFormatter interface {
 
 type TokenizationAPI interface {
 	TokenizeText(string, bool, bool) ([]tokenizer.TokenID, error)
-	DetokenizeTokens([]tokenizer.TokenID) (string, error)
+	Detokenize([]tokenizer.TokenID, inference.TokenRenderMode) (string, error)
 	SamplingVocabularySize() int
 }
 
 type TokenPieceAPI interface {
 	TokenPiece(tokenizer.TokenID) (string, error)
-}
-
-type PromptTokenDecoder interface {
-	DetokenizePromptTokens([]tokenizer.TokenID) (string, error)
 }
 
 type ModelPropertiesAPI interface {

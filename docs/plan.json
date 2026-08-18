@@ -8,20 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "heldout-views",
-          "title": "Compile immutable group-safe evaluation views from SFT dataset versions, splits, processors, projectors, codecs, and modality signatures; refuse overlap with training membership",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/dataset ./internal/trainingdata -run '^TestSFTEvaluationViewIsHeldOutAndAuthorityBound$' -count=1",
-          "depends_on": [
-            "evaluation-datasets/catalog",
-            "evaluation-runtime/resume"
-          ],
-          "capabilities": [
-            "evaluates-held-out-sft",
-            "prevents-data-leakage"
-          ]
-        },
-        {
           "id": "text-targets",
           "title": "Evaluate text targets from text, image, audio, and video inputs with continuation likelihood, raw generated output, typed normalization, structured validity, OCR fields, and VQA rules selected by the suite",
           "status": "open",

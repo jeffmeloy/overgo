@@ -12,23 +12,33 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/repodb"
 	"overgo/internal/strictjson"
+	"overgo/internal/trainingprogram"
 )
 
 type manifest struct {
-	Repository string         `json:"repository"`
-	Catalog    string         `json:"catalog"`
-	CodeCommit string         `json:"code_commit"`
-	Device     int            `json:"device"`
-	Models     []modelRequest `json:"models"`
+	Repository string           `json:"repository"`
+	Catalog    string           `json:"catalog"`
+	CodeCommit string           `json:"code_commit"`
+	Device     int              `json:"device"`
+	Models     []modelRequest   `json:"models"`
+	SFTViews   []sftViewRequest `json:"sft_views,omitempty"`
 }
 
 type modelRequest struct {
 	Path   string   `json:"path"`
 	Suites []string `json:"suites"`
+}
+
+type sftViewRequest struct {
+	Objective artifact.ID `json:"objective"`
+	Training  artifact.ID `json:"training_membership"`
+	Heldout   artifact.ID `json:"heldout_membership"`
 }
 
 type workerLauncher func(context.Context, int) error
@@ -137,6 +147,12 @@ func compileManifest(value manifest) (manifest, error) {
 		models = append(models, request)
 	}
 	value.Models = models
+	for _, view := range value.SFTViews {
+		if view.Objective.Kind() != artifact.KindProfile || view.Training.Kind() != artifact.KindDatasetShard ||
+			view.Heldout.Kind() != artifact.KindDatasetShard || view.Training == view.Heldout {
+			return manifest{}, errors.New("evaluate: invalid SFT evaluation view")
+		}
+	}
 	return value, nil
 }
 
@@ -147,6 +163,31 @@ func catalogBenchmarks(ctx context.Context, value manifest) error {
 	}
 	if _, err := evaluation.CatalogLocalBenchmarks(ctx, store, value.Catalog); err != nil {
 		return errors.Join(err, store.Close())
+	}
+	for _, request := range value.SFTViews {
+		objective, err := trainingprogram.LoadObjective(ctx, store, request.Objective)
+		if err != nil {
+			return errors.Join(err, store.Close())
+		}
+		training, ok, err := dataset.LoadMembership(ctx, store, request.Training)
+		if err != nil || !ok {
+			return errors.Join(err, errors.New("evaluate: training membership is absent"), store.Close())
+		}
+		heldout, ok, err := dataset.LoadMembership(ctx, store, request.Heldout)
+		if err != nil || !ok {
+			return errors.Join(err, errors.New("evaluate: held-out membership is absent"), store.Close())
+		}
+		view, err := evaluation.CompileSFTEvaluationView(objective, training, heldout)
+		if err != nil {
+			return errors.Join(err, store.Close())
+		}
+		batch, err := view.Batch("evaluation/sft-view/" + view.ID.String())
+		if err != nil {
+			return errors.Join(err, store.Close())
+		}
+		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+			return errors.Join(err, store.Close())
+		}
 	}
 	return store.Close()
 }

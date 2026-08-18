@@ -10,11 +10,11 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
-	"overgo/internal/servingeval"
 	"overgo/internal/servingtest"
 	"overgo/internal/testutil"
 )
@@ -33,7 +33,7 @@ func TestCarbonServingGolden(t *testing.T) {
 	if _, err := os.Stat(modelPath); err != nil {
 		t.Skipf("UNAVAILABLE: converted Carbon artifact absent at %s", modelPath)
 	}
-	var golden servingeval.Suite
+	var golden evaluation.ExactSuite
 	fixture := testutil.FixturePath(t, "carbon_serving_golden.json")
 	requireServingFileIdentity(t, modelPath, artifact.KindModel, carbonServingModelIdentity)
 	requireServingFileIdentity(t, fixture, artifact.KindEvidence, carbonServingGoldenIdentity)
@@ -42,6 +42,10 @@ func TestCarbonServingGolden(t *testing.T) {
 	}
 	if golden.Schema != "carbon_serving_golden/v1" || len(golden.Cases) == 0 {
 		t.Fatalf("invalid Carbon serving evidence: schema=%q cases=%d", golden.Schema, len(golden.Cases))
+	}
+	plan, err := evaluation.CompileExact(golden)
+	if err != nil {
+		t.Fatal(err)
 	}
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
 		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceNative,
@@ -55,7 +59,7 @@ func TestCarbonServingGolden(t *testing.T) {
 	}
 	defer runner.Close()
 
-	if _, err := servingeval.EvaluateExact(context.Background(), runner, golden); err != nil {
+	if _, err := evaluation.EvaluateExact(context.Background(), runner, plan); err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("Carbon real serving: %d cases match %s", len(golden.Cases), golden.Source)

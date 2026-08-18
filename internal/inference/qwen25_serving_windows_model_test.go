@@ -10,11 +10,11 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
-	"overgo/internal/servingeval"
 	"overgo/internal/servingtest"
 	"overgo/internal/testutil"
 )
@@ -36,12 +36,16 @@ func TestQwen25ServingGolden(t *testing.T) {
 	fixture := testutil.FixturePath(t, "qwen25_serving_golden.json")
 	requireServingFileIdentity(t, modelPath, artifact.KindModel, qwen25ServingModelIdentity)
 	requireServingFileIdentity(t, fixture, artifact.KindEvidence, qwen25ServingGoldenIdentity)
-	var golden servingeval.Suite
+	var golden evaluation.ExactSuite
 	if err := jsonfile.Decode(fixture, &golden); err != nil {
 		t.Fatal(err)
 	}
 	if golden.Schema != "qwen25_serving_golden/v1" || len(golden.Cases) == 0 {
 		t.Fatalf("invalid Qwen2.5 serving evidence: schema=%q cases=%d", golden.Schema, len(golden.Cases))
+	}
+	plan, err := evaluation.CompileExact(golden)
+	if err != nil {
+		t.Fatal(err)
 	}
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
 		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceNative,
@@ -54,7 +58,7 @@ func TestQwen25ServingGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	results, err := servingeval.EvaluateExact(context.Background(), runner, golden)
+	results, err := evaluation.EvaluateExact(context.Background(), runner, plan)
 	if err != nil {
 		t.Fatal(err)
 	}

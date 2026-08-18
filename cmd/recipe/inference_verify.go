@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
-	"overgo/internal/servingeval"
 )
 
 func verifyInference(
@@ -26,9 +26,13 @@ func verifyInference(
 	if err != nil {
 		return err
 	}
-	var suite servingeval.Suite
+	var suite evaluation.ExactSuite
 	if err := json.Unmarshal([]byte(input), &suite); err != nil {
 		return fmt.Errorf("recipe: decode inference suite: %w", err)
+	}
+	plan, err := evaluation.CompileExact(suite)
+	if err != nil {
+		return fmt.Errorf("recipe: compile inference suite: %w", err)
 	}
 	candidate, err := prepareInferenceCandidate(path, override, residency)
 	if err != nil {
@@ -63,7 +67,7 @@ func verifyInference(
 		return err
 	}
 	started := time.Now()
-	results, evaluateErr := servingeval.EvaluateExact(ctx, runner, suite)
+	results, evaluateErr := evaluation.EvaluateExact(ctx, runner, plan)
 	closeErr := runner.Close()
 	if evaluateErr != nil || closeErr != nil {
 		failure := errors.Join(evaluateErr, closeErr)
@@ -91,7 +95,7 @@ func verifyInference(
 	if err != nil {
 		return err
 	}
-	exactResults := append([]servingeval.Result(nil), results...)
+	exactResults := append([]evaluation.ExactResult(nil), results...)
 	for index := range exactResults {
 		exactResults[index].WallNS = 0
 	}
@@ -103,7 +107,7 @@ func verifyInference(
 	if err != nil {
 		return err
 	}
-	evidence := fmt.Sprintf("contract=exact;cases=%d;input=%s;output=%s", len(results), inputID, outputID)
+	evidence := fmt.Sprintf("contract=exact;plan=%s;cases=%d;input=%s;output=%s", plan.Identity(), len(results), inputID, outputID)
 	verification, err := publishCapabilityVerification(
 		ctx, store, candidate.definition, revision, time.Since(started), "cuda:0", "cuda", evidence,
 	)

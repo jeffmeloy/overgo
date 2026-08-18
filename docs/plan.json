@@ -8,20 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "migrate-exact",
-          "title": "Compile exact-generation suites in internal/evaluation; migrate recipe verification and model tests; delete internal/servingeval",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./cmd/recipe ./internal/inference -run 'TestCompileExact|TestExact' -count=1",
-          "rationale": "First slice has production and model-test consumers. No advisory abstraction remains beside the old owner.",
-          "depends_on": [
-            "capability-readme"
-          ],
-          "capabilities": [
-            "evaluates-native-runtime",
-            "binds-evaluator-identity"
-          ]
-        },
-        {
           "id": "bind-authorities",
           "title": "Compile model definition, active runtime recipe, dataset/split, case profile, scorer, execution policy, code, and environment into one evaluation-plan identity",
           "status": "open",

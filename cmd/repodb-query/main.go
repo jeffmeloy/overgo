@@ -21,7 +21,6 @@ import (
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
-	"overgo/internal/tensorstats"
 )
 
 func main() {
@@ -55,6 +54,7 @@ func run(args []string, output io.Writer) error {
 	admissions := flags.Bool("admissions", false, "list admission bindings: per-generation proposer/evaluator/decider authority domains and prior-generation approvals")
 	composed := flags.Bool("composed", false, "list composed model artifacts with their recipes, parents and constituent counts")
 	retrieve := flags.String("retrieve", "", "hypervector retrieval: rank the catalog against the named component (lexical organ + distributional signal)")
+	rankingID := flags.String("ranking", "", "retrieve: rescore hits with a committed proposal-ranking artifact (the learned prior over the decision ledger)")
 	derivations := flags.Bool("derivations", false, "list derivation-profile artifacts and their promotion verdicts (profiles judged by the models they produce)")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -90,7 +90,7 @@ func run(args []string, output io.Writer) error {
 		return writeComposed(output, *repository, *limit)
 	}
 	if *retrieve != "" {
-		return writeRetrieve(output, *repository, *retrieve, *limit)
+		return writeRetrieve(output, *repository, *retrieve, *rankingID, *limit)
 	}
 	if *derivations {
 		return writeDerivations(output, *repository, *limit)
@@ -518,76 +518,27 @@ func writeComposed(output io.Writer, repository string, limit int) error {
 	return nil
 }
 
-// writeRetrieve builds the hypervector index over every committed component
-// decomposition (lexical signal) joined with committed tensor measurements
-// (distributional signal), and ranks the catalog against the named component.
+// writeRetrieve indexes the committed catalog and ranks it against the named
+// component. With a ranking artifact, hits are rescored by the learned prior
+// trained on the decision ledger; without one, plain similarity stands.
 // Advisory output: candidates feed blocked proposals, never promotions.
-func writeRetrieve(output io.Writer, repository, name string, limit int) error {
+func writeRetrieve(output io.Writer, repository, name, rankingText string, limit int) error {
 	store, err := repodb.OpenReadOnly(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 	ctx := context.Background()
-	statistics := map[string]tensorstats.Characterization{}
-	measurementResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorInventory, MaxResults: repodb.MaxQueryResults})
+	components, err := composition.LoadCatalog(ctx, store)
 	if err != nil {
 		return err
 	}
-	for _, descriptor := range measurementResult.Artifacts {
-		if descriptor.MediaType != modelartifact.TensorMeasurementMediaType {
-			continue
-		}
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
-			continue
-		}
-		document, err := modelartifact.ParseTensorMeasurementDocument(content.Data)
-		if err != nil {
-			continue
-		}
-		inventory, ok, err := modelartifact.ReadTensorInventoryDocument(ctx, store, document.Inventory)
-		if err != nil || !ok {
-			continue
-		}
-		for _, measurement := range document.Measurements {
-			statistics[inventory.Model.String()+"\x00"+measurement.Name] = measurement.Characterization
-		}
-	}
-	components := make([]composition.CatalogComponent, 0)
 	var query *composition.CatalogComponent
-	decompositionResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorSet, MaxResults: repodb.MaxQueryResults})
-	if err != nil {
-		return err
-	}
-	for _, descriptor := range decompositionResult.Artifacts {
-		if descriptor.MediaType != modelartifact.ComponentDecompositionMediaType {
-			continue
+	for i := range components {
+		if components[i].Name == name {
+			query = &components[i]
+			break
 		}
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
-			continue
-		}
-		decomposition, err := modelartifact.ParseComponentDecomposition(content.Data)
-		if err != nil {
-			continue
-		}
-		for _, component := range decomposition.Components {
-			entry := composition.CatalogComponent{
-				Model: decomposition.Model, Name: component.Name, Contract: component.Contract,
-			}
-			if characterization, ok := statistics[decomposition.Model.String()+"\x00"+component.Name]; ok {
-				entry.Statistics = &characterization
-			}
-			if component.Name == name && query == nil {
-				matched := entry
-				query = &matched
-			}
-			components = append(components, entry)
-		}
-	}
-	if len(components) == 0 {
-		return errors.New("no committed component decompositions to index")
 	}
 	if query == nil {
 		return fmt.Errorf("component %q is not in the committed catalog", name)
@@ -600,13 +551,40 @@ func writeRetrieve(output io.Writer, repository, name string, limit int) error {
 	if err != nil {
 		return err
 	}
-	for _, hit := range hits {
-		signal := "lexical"
+	signalFor := func(hit composition.HypervectorHit) string {
 		if hit.Component.Statistics != nil {
-			signal = "lexical+distributional"
+			return "lexical+distributional"
 		}
+		return "lexical"
+	}
+	if rankingText != "" {
+		rankingID, err := artifact.ParseID(rankingText)
+		if err != nil {
+			return err
+		}
+		content, ok, err := store.Content(ctx, rankingID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("ranking %s is not committed", rankingText)
+		}
+		ranking, err := composition.ParseProposalRanking(content.Data)
+		if err != nil {
+			return err
+		}
+		ranked := ranking.Rerank(hits)
+		for _, hit := range ranked {
+			fmt.Fprintf(output, "hit %.4f relevance=%.4f prior=%+.4f model=%s component=%s role=%s signal=%s\n",
+				hit.Score, hit.Relevance, hit.Prior, hit.Component.Model, hit.Component.Name, hit.Component.Contract.Role, signalFor(hit.HypervectorHit))
+		}
+		fmt.Fprintf(output, "%d hit(s) over %d component(s), signature width %d, prior %s over %d decision(s); honesty: the prior trains only on accepted and refused composition decisions -- advisory retrieval, candidates require blocked proposals and the experiment plane\n",
+			len(ranked), index.Len(), composition.HypervectorDimensionsFor(index.Len()), ranking.ID, len(ranking.Sources))
+		return nil
+	}
+	for _, hit := range hits {
 		fmt.Fprintf(output, "hit %.4f model=%s component=%s role=%s signal=%s\n",
-			hit.Relevance, hit.Component.Model, hit.Component.Name, hit.Component.Contract.Role, signal)
+			hit.Relevance, hit.Component.Model, hit.Component.Name, hit.Component.Contract.Role, signalFor(hit))
 	}
 	fmt.Fprintf(output, "%d hit(s) over %d component(s), signature width %d; honesty: advisory retrieval, candidates require blocked proposals and the experiment plane\n",
 		len(hits), index.Len(), composition.HypervectorDimensionsFor(index.Len()))

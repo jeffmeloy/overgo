@@ -57,8 +57,15 @@ func run(args []string, output io.Writer) error {
 	inject := flags.Bool("inject", false, "run the residual-injection connector probe (scorer/drafter as in -chain; tokens sliced into sliding train windows and trailing held-out windows)")
 	synthesize := flags.String("synthesize", "", "run the full bridge-synthesis pipeline for a committed blocked proposal (artifact ID); emits a typed decision")
 	deciderIdentity := flags.String("decider", "", "synthesize: the decider authority evidence artifact ID")
+	trainRanking := flags.String("train-ranking", "", "train the proposer ranking from committed composition decisions (path to observations JSON: [{decision, model, component}])")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if *trainRanking != "" {
+		if flags.NArg() != 0 || *recordStore == "" {
+			return errors.New("usage: graft-probe -train-ranking <observations.json> -record <repodb>")
+		}
+		return runTrainRanking(*trainRanking, *recordStore, output)
 	}
 	if *propose != "" {
 		if flags.NArg() != 0 || *proposeTarget == "" || *proposeVerifier == "" || *recordStore == "" {
@@ -134,6 +141,74 @@ func run(args []string, output io.Writer) error {
 	}
 	fmt.Fprintf(output, "verdict: %s -- %s\n", verdict, result.Reason)
 	fmt.Fprintln(output, "honesty: host-reference execution; single corpus slice; verdict binds only this artifact pair, layer, and budget")
+	return nil
+}
+
+// runTrainRanking trains the proposer ranking on the decision ledger: each
+// observation names a committed composition decision and the catalog
+// component it judged. The trainer enforces proposer blinding -- only
+// accepted and refused decisions are admissible -- and the committed ranking
+// carries lineage to every decision it learned from.
+func runTrainRanking(observationsPath, recordStore string, output io.Writer) error {
+	var entries []struct {
+		Decision  string `json:"decision"`
+		Model     string `json:"model"`
+		Component string `json:"component"`
+	}
+	if err := jsonfile.Decode(observationsPath, &entries); err != nil {
+		return err
+	}
+	store, err := repodb.Open(recordStore)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+	ctx := context.Background()
+	catalog, err := composition.LoadCatalog(ctx, store)
+	if err != nil {
+		return err
+	}
+	byKey := make(map[string]composition.CatalogComponent, len(catalog))
+	for _, component := range catalog {
+		byKey[component.Model.String()+"\x00"+component.Name] = component
+	}
+	observations := make([]composition.RankingObservation, 0, len(entries))
+	for _, entry := range entries {
+		decisionID, err := artifact.ParseID(entry.Decision)
+		if err != nil {
+			return fmt.Errorf("observation decision %q: %w", entry.Decision, err)
+		}
+		content, ok, err := store.Content(ctx, decisionID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("decision %s is not committed", entry.Decision)
+		}
+		decision, err := recipe.ParseDecision(content.Data)
+		if err != nil {
+			return err
+		}
+		component, ok := byKey[entry.Model+"\x00"+entry.Component]
+		if !ok {
+			return fmt.Errorf("component %s/%s is not in the committed catalog", entry.Model, entry.Component)
+		}
+		observations = append(observations, composition.RankingObservation{Decision: decision, Component: component})
+	}
+	ranking, err := composition.TrainProposalRanking(observations)
+	if err != nil {
+		return err
+	}
+	batch, err := ranking.Batch("proposal-ranking/" + ranking.ID.String())
+	if err != nil {
+		return err
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "proposal ranking committed: %s terms=%d decisions=%d\n",
+		ranking.ID, len(ranking.Terms), len(ranking.Sources))
+	fmt.Fprintln(output, "honesty: the prior trains only on accepted and refused composition decisions; promotion and audit results are structurally out of reach")
 	return nil
 }
 

@@ -3,26 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "proposal-ranking-from-outcomes",
-      "title": "Train the proposer ranking on the refusal ledger so retrieval becomes a learned prior over what composes successfully rather than a fixed similarity function",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Train the proposer ranking on the refusal ledger so retrieval becomes a learned prior over what composes successfully rather than a fixed similarity function",
-          "status": "open",
-          "verify": "go test ./internal/... -run '^TestProposalRankingImprovesOnRefusalHistory$' -count=1 -v",
-          "rationale": "Where refusal records stop being an audit trail and become the most valuable dataset in the store: passed and refused bridges are labelled data no external source can supply. Must respect proposer blinding -- the ranking trains on refusal reasons, never on promotion or audit split results.",
-          "depends_on": [
-            "hdc-retrieval",
-            "refusal-ledger",
-            "evaluation-isolation",
-            "descendant-improvement"
-          ]
-        }
-      ]
-    },
-    {
       "id": "scheduler-as-artifact",
       "title": "Make next-candidate selection under wall-clock and VRAM budget a learned artifact scored on realized capability delta per wall-hour rather than an applied formula",
       "status": "open",

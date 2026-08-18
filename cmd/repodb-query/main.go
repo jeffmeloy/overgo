@@ -159,11 +159,17 @@ func writeServable(output io.Writer, repository string, limit int) error {
 	if err != nil {
 		return err
 	}
+	served := 0
 	for _, entry := range entries {
+		if entry.Stale != "" {
+			fmt.Fprintf(output, "stale model=%s location=%s reason=%q\n", entry.Model, entry.Location, entry.Stale)
+			continue
+		}
+		served++
 		fmt.Fprintf(output, "servable model=%s tier=%s recipe=%s present=%t location=%s\n",
 			entry.Model, entry.Tier, entry.Recipe, entry.Present, entry.Location)
 	}
-	fmt.Fprintf(output, "%d servable model(s); honesty: every listed file hashes to its recorded component identity\n", len(entries))
+	fmt.Fprintf(output, "%d servable model(s), %d stale activation(s); honesty: every listed file hashes to its recorded component identity; stale activations are reported, never served\n", served, len(entries)-served)
 	return nil
 }
 
@@ -178,7 +184,7 @@ func writeGenerations(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -247,7 +253,7 @@ func writeRefusals(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -286,7 +292,7 @@ func writeExperiments(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -343,7 +349,7 @@ func writeComponents(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorSet, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorSet, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -394,7 +400,7 @@ func writeProposals(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -434,7 +440,7 @@ func writeAdmissions(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -496,7 +502,7 @@ func writeComposed(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindModel, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindModel, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -536,7 +542,7 @@ func writeConfigs(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindProfile, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindProfile, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -713,7 +719,7 @@ func writeDerivations(output io.Writer, repository string, limit int) error {
 	defer store.Close()
 	ctx := context.Background()
 	count := 0
-	profileResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindProfile, MaxResults: limit})
+	profileResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindProfile, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -733,7 +739,7 @@ func writeDerivations(output io.Writer, repository string, limit int) error {
 			document.ID, document.Profile.Version, document.Profile.MLPBudget)
 		count++
 	}
-	promotionResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	promotionResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -767,7 +773,7 @@ func writeBudgets(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}

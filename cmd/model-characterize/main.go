@@ -75,6 +75,10 @@ func characterizeCatalog(
 	}
 	count := 0
 	for _, entry := range entries {
+		if entry.Stale != "" {
+			fmt.Fprintf(os.Stderr, "skip %s: %s\n", entry.Model, entry.Stale)
+			continue
+		}
 		if !entry.Present {
 			fmt.Fprintf(os.Stderr, "skip %s: bytes not present\n", entry.Model)
 			continue

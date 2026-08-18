@@ -23,6 +23,10 @@ type Entry struct {
 	Tier     recipe.EvidenceTier
 	Location string
 	Present  bool
+	// Stale carries the activation defect when the active recipe cannot be
+	// trusted. A stale entry is reported, never served: one broken
+	// activation must not blind discovery to every healthy model.
+	Stale string
 }
 
 // Servable lists models with active inference recipes; presence is a stat of
@@ -49,10 +53,11 @@ func Servable(ctx context.Context, store *repodb.Store, limit int) ([]Entry, err
 		}
 		activation, active, err := modelrecipe.ActiveRecord(ctx, store, manifest.ID, recipe.TaskInference)
 		if err != nil {
-			return nil, fmt.Errorf(
-				"discovery: model %s activation at %q (present=%t): %w",
-				manifest.ID, location, present, err,
-			)
+			entries = append(entries, Entry{
+				Model: manifest.ID, Location: location, Present: present,
+				Stale: fmt.Sprintf("activation cannot be trusted: %v", err),
+			})
+			continue
 		}
 		if !active {
 			continue

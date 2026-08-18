@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "phase-d-history-population",
-      "title": "Populate Phase D history: commit the campaign's real composition decisions and scheduler realizations, then train the first production ProposalRanking and SchedulerPolicy from them",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Populate Phase D history: commit the campaign's real composition decisions and scheduler realizations, then train the first production ProposalRanking and SchedulerPolicy from them",
-          "status": "open",
-          "verify": "go run ./cmd/repodb-query -repo repodb-store -refusals | grep -q subject="
-        }
-      ]
-    },
-    {
       "id": "carbon-speculative-pair",
       "title": "Carbon speculative pair through the Tier-0 chain harness: Carbon-500M as designed-for-it drafter (target Carbon-3B pending owner download; solo chain against corpus until then)",
       "status": "open",

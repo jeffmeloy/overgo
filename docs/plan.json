@@ -8,20 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "repodb",
-          "title": "Publish canonical reports, Run records, Evaluation metrics, phase timings, shard lineage, and explicit suite-owned acceptance policy to RepoDB",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/runrecord ./internal/repodb -run '^TestEvaluationEvidenceBindsPlanShardsAndAuthorities$' -count=1",
-          "depends_on": [
-            "evaluation-runtime/command",
-            "evaluation-benchmarks/bbh-musr"
-          ],
-          "capabilities": [
-            "publishes-evidence",
-            "supports-promotion"
-          ]
-        },
-        {
           "id": "lane",
           "title": "Add a store-derived evaluation lane; run pinned real model and dataset suites, compare exact plan identities, and refuse unavailable required evidence",
           "status": "open",

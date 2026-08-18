@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
@@ -34,6 +36,7 @@ type SuiteResult struct {
 type CompiledSuite struct {
 	descriptor SuiteDescriptor
 	plan       Plan
+	acceptance AcceptancePolicy
 	execute    func(context.Context, artifact.Repository, Runtime) (SuiteResult, error)
 }
 
@@ -59,7 +62,7 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 			return CompiledSuite{}, err
 		}
 		plan, err := BindMultipleChoice(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err,
+		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetrics(0, nil),
 			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
 				report, err := EvaluateMultipleChoice(ctx, repository, runtime, compiled, plan)
 				return SuiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
@@ -74,7 +77,7 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 			return CompiledSuite{}, err
 		}
 		plan, err := BindGeneratedAnswer(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err,
+		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetrics(0, nil),
 			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
 				report, err := EvaluateGeneratedAnswer(ctx, repository, runtime, compiled, plan)
 				return SuiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
@@ -89,7 +92,7 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 			return CompiledSuite{}, err
 		}
 		plan, err := BindMMLUPro(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err,
+		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetricContract(compiled.categories),
 			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
 				report, err := EvaluateMMLUPro(ctx, repository, runtime, compiled, plan)
 				return SuiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, report.Categories)}, err
@@ -104,7 +107,7 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 			return CompiledSuite{}, err
 		}
 		plan, err := BindGroupedChoice(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err,
+		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetricContract(compiled.groups),
 			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
 				report, err := EvaluateGroupedChoice(ctx, repository, runtime, compiled, plan)
 				return SuiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, report.Groups)}, err
@@ -119,7 +122,9 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 			return CompiledSuite{}, err
 		}
 		plan, err := BindProbabilityMass(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err,
+		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, []runrecord.Metric{{
+			Name: "positive-probability-mass", Direction: runrecord.DirectionMaximize,
+		}},
 			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
 				report, err := EvaluateProbabilityMass(ctx, repository, runtime, compiled, plan)
 				return SuiteResult{Report: report.ID, Metrics: []runrecord.Metric{{
@@ -136,7 +141,11 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 			return CompiledSuite{}, err
 		}
 		plan, err := BindStructuredGenerated(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err,
+		groups := make([]string, len(source.Cases))
+		for index, testCase := range source.Cases {
+			groups[index] = testCase.Group
+		}
+		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetricContract(groups),
 			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
 				report, err := EvaluateStructuredGenerated(ctx, repository, runtime, compiled, plan)
 				return SuiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, report.Groups)}, err
@@ -151,7 +160,12 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 			return CompiledSuite{}, err
 		}
 		plan, err := BindInstructionRules(compiled, authorities)
-		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err,
+		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, []runrecord.Metric{
+			{Name: "prompt-strict", Direction: runrecord.DirectionMaximize},
+			{Name: "instruction-strict", Direction: runrecord.DirectionMaximize},
+			{Name: "prompt-loose", Direction: runrecord.DirectionMaximize},
+			{Name: "instruction-loose", Direction: runrecord.DirectionMaximize},
+		},
 			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
 				report, err := EvaluateInstructionRules(ctx, repository, runtime, compiled, plan)
 				return SuiteResult{Report: report.ID, Metrics: []runrecord.Metric{
@@ -171,7 +185,9 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 			return CompiledSuite{}, err
 		}
 		plan, err := BindExact(compiled, authorities)
-		return newCompiledSuite(ExactGenerationKind, source.Source, uint64(len(source.Cases)), plan, err,
+		return newCompiledSuite(ExactGenerationKind, source.Source, uint64(len(source.Cases)), plan, err, []runrecord.Metric{{
+			Name: exactMetricName, Direction: runrecord.DirectionMaximize,
+		}},
 			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
 				report, err := EvaluateExactSharded(ctx, repository, runtime, compiled, plan, nil)
 				return SuiteResult{Report: report, Metrics: []runrecord.Metric{{
@@ -188,17 +204,22 @@ func newCompiledSuite(
 	cases uint64,
 	plan Plan,
 	bindErr error,
+	metrics []runrecord.Metric,
 	execute func(context.Context, artifact.Repository, Runtime) (SuiteResult, error),
 ) (CompiledSuite, error) {
 	if bindErr != nil {
 		return CompiledSuite{}, bindErr
+	}
+	acceptance, err := newAcceptancePolicy(metrics)
+	if err != nil {
+		return CompiledSuite{}, err
 	}
 	if execute == nil || kind == "" || source == "" || cases == 0 || !plan.Identity().Valid() {
 		return CompiledSuite{}, errors.New("evaluation: incomplete compiled suite")
 	}
 	return CompiledSuite{
 		descriptor: SuiteDescriptor{Kind: kind, Source: source, Plan: plan.Identity(), Dataset: plan.Dataset(), Cases: cases},
-		plan:       plan, execute: execute,
+		plan:       plan, acceptance: acceptance, execute: execute,
 	}, nil
 }
 
@@ -216,6 +237,23 @@ func accuracyMetrics(accuracy float64, groups []AccuracyGroup) []runrecord.Metri
 		metrics = append(metrics, runrecord.Metric{
 			Name: "accuracy/" + group.Name, Value: group.Accuracy, Direction: runrecord.DirectionMaximize,
 		})
+	}
+	return metrics
+}
+
+func accuracyMetricContract(groups []string) []runrecord.Metric {
+	names := slices.Clone(groups)
+	sort.Strings(names)
+	unique := names[:0]
+	for _, name := range names {
+		if name != "" && (len(unique) == 0 || unique[len(unique)-1] != name) {
+			unique = append(unique, name)
+		}
+	}
+	metrics := make([]runrecord.Metric, 1, len(unique)+1)
+	metrics[0] = runrecord.Metric{Name: "accuracy", Direction: runrecord.DirectionMaximize}
+	for _, name := range unique {
+		metrics = append(metrics, runrecord.Metric{Name: "accuracy/" + name, Direction: runrecord.DirectionMaximize})
 	}
 	return metrics
 }

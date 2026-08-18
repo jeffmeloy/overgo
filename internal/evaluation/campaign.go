@@ -22,6 +22,7 @@ type CampaignResult struct {
 	Run        artifact.ID        `json:"run"`
 	Evaluation artifact.ID        `json:"evaluation"`
 	Report     artifact.ID        `json:"report"`
+	Evidence   artifact.ID        `json:"evidence"`
 	Metrics    []runrecord.Metric `json:"metrics"`
 }
 
@@ -74,15 +75,16 @@ func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (Ca
 		run, publishErr := campaign.publishTerminal(terminalCtx, suite.plan, outcome, failure, measured)
 		return CampaignResult{Run: run}, errors.Join(evaluateErr, publishErr)
 	}
-	return campaign.publishSuccess(ctx, suite.plan, result, measured)
+	return campaign.publishSuccess(ctx, suite, result, measured)
 }
 
 func (campaign *Campaign) publishSuccess(
 	ctx context.Context,
-	plan Plan,
+	suite CompiledSuite,
 	result SuiteResult,
 	measured uint64,
 ) (CampaignResult, error) {
+	plan := suite.plan
 	run, err := runrecord.NewBoundRun(
 		campaign.identity.Recipe, runrecord.OutcomeSucceeded,
 		[]artifact.ID{plan.Identity()}, []artifact.ID{result.Report}, "", campaign.commit,
@@ -99,7 +101,13 @@ func (campaign *Campaign) publishSuccess(
 	if err := campaign.publish(ctx, run, &record); err != nil {
 		return CampaignResult{}, err
 	}
-	return CampaignResult{Run: run.ID, Evaluation: record.ID, Report: result.Report, Metrics: result.Metrics}, nil
+	evidence, err := PublishEvaluationEvidence(ctx, campaign.repository, plan, suite.acceptance, result.Report, run, record)
+	if err != nil {
+		return CampaignResult{}, err
+	}
+	return CampaignResult{
+		Run: run.ID, Evaluation: record.ID, Report: result.Report, Evidence: evidence.ID, Metrics: result.Metrics,
+	}, nil
 }
 
 func (campaign *Campaign) publishTerminal(

@@ -47,8 +47,16 @@ type ChatMessage struct {
 	ToolCalls        []ChatToolCall  `json:"tool_calls,omitempty"`
 }
 
+type ChatMediaType string
+
+const (
+	ChatMediaImage ChatMediaType = "image"
+	ChatMediaAudio ChatMediaType = "audio"
+	ChatMediaVideo ChatMediaType = "video"
+)
+
 type ChatMediaPart struct {
-	Type       string
+	Type       ChatMediaType
 	Data       string
 	Format     string
 	TextOffset int
@@ -169,7 +177,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 						return fmt.Errorf("inference: chat content part %d image_url.url is required", index)
 					}
 					media = append(media, ChatMediaPart{
-						Type: "image", Data: part.ImageURL.URL, TextOffset: joined.Len(),
+						Type: ChatMediaImage, Data: part.ImageURL.URL, TextOffset: joined.Len(),
 					})
 				case "input_audio":
 					var part struct {
@@ -194,7 +202,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 						source = part.InputAudio.URL
 					}
 					media = append(media, ChatMediaPart{
-						Type: "audio", Data: source,
+						Type: ChatMediaAudio, Data: source,
 						Format: part.InputAudio.Format, TextOffset: joined.Len(),
 					})
 				case "input_video":
@@ -217,7 +225,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 						source = part.InputVideo.URL
 					}
 					media = append(media, ChatMediaPart{
-						Type: "video", Data: source, FPS: part.InputVideo.FPS, TextOffset: joined.Len(),
+						Type: ChatMediaVideo, Data: source, FPS: part.InputVideo.FPS, TextOffset: joined.Len(),
 					})
 				default:
 					return fmt.Errorf(

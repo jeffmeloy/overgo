@@ -270,7 +270,7 @@ func (h *Handler) parseAnthropicMessage(
 				return nil, fmt.Errorf("%s content block %d has unsupported image source %q", label, index, block.Source.Type)
 			}
 			media = append(media, inference.ChatMediaPart{
-				Type: "image", Data: source, TextOffset: content.Len(),
+				Type: inference.ChatMediaImage, Data: source, TextOffset: content.Len(),
 			})
 		case "tool_result":
 			flushUser()

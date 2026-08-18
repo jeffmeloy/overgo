@@ -382,7 +382,7 @@ func (h *Handler) parseResponsesMessageContent(
 				source = "data:" + file.MediaType + ";base64," + base64.StdEncoding.EncodeToString(file.Data)
 			}
 			media = append(media, inference.ChatMediaPart{
-				Type: "image", Data: source, TextOffset: result.Len(),
+				Type: inference.ChatMediaImage, Data: source, TextOffset: result.Len(),
 			})
 		case "input_file":
 			content, err := h.parseResponsesFile(ctx, rawPart, fmt.Sprintf("%s part %d", label, index))
@@ -413,7 +413,7 @@ func (h *Handler) parseResponsesMessageContent(
 				source = part.InputAudio.URL
 			}
 			media = append(media, inference.ChatMediaPart{
-				Type: "audio", Data: source, Format: part.InputAudio.Format, TextOffset: result.Len(),
+				Type: inference.ChatMediaAudio, Data: source, Format: part.InputAudio.Format, TextOffset: result.Len(),
 			})
 		case "input_video":
 			var part struct {
@@ -435,7 +435,7 @@ func (h *Handler) parseResponsesMessageContent(
 				source = part.InputVideo.URL
 			}
 			media = append(media, inference.ChatMediaPart{
-				Type: "video", Data: source, FPS: part.InputVideo.FPS, TextOffset: result.Len(),
+				Type: inference.ChatMediaVideo, Data: source, FPS: part.InputVideo.FPS, TextOffset: result.Len(),
 			})
 		default:
 			return "", nil, fmt.Errorf(

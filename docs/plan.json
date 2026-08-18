@@ -8,19 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "continuations",
-          "title": "Extract one continuation-score operation from perplexity and DPO paths; evaluate candidate continuations without duplicate model traversal",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/inference ./internal/trainingprogram -run '^TestContinuationScoreSharedAcrossEvaluationPerplexityAndDPO$' -count=1",
-          "depends_on": [
-            "evaluation-contract"
-          ],
-          "capabilities": [
-            "scores-sequences",
-            "reuses-common-operator"
-          ]
-        },
-        {
           "id": "multiple-choice",
           "title": "Compile ordered candidate continuations and choice-argmax scoring with explicit normalization and aggregation definitions",
           "status": "open",

@@ -3,14 +3,16 @@ package trainingprogram
 import (
 	"errors"
 	"math"
+
+	"overgo/internal/sequencescore"
 )
 
 // PreferenceScores are sequence log probabilities for one preference pair.
 type PreferenceScores struct {
-	PolicyChosen      float64
-	PolicyRejected    float64
-	ReferenceChosen   float64
-	ReferenceRejected float64
+	PolicyChosen      sequencescore.Score
+	PolicyRejected    sequencescore.Score
+	ReferenceChosen   sequencescore.Score
+	ReferenceRejected sequencescore.Score
 }
 
 // DPOResult carries loss and policy score gradients. Reference scores are frozen.
@@ -60,14 +62,12 @@ func (observation DPOObservation) Valid() bool {
 
 func DPOLoss(scores PreferenceScores, scale float64) (DPOResult, error) {
 	if scale <= 0 || math.IsNaN(scale) || math.IsInf(scale, 0) ||
-		math.IsNaN(scores.PolicyChosen) || math.IsInf(scores.PolicyChosen, 0) ||
-		math.IsNaN(scores.PolicyRejected) || math.IsInf(scores.PolicyRejected, 0) ||
-		math.IsNaN(scores.ReferenceChosen) || math.IsInf(scores.ReferenceChosen, 0) ||
-		math.IsNaN(scores.ReferenceRejected) || math.IsInf(scores.ReferenceRejected, 0) {
+		!scores.PolicyChosen.Valid() || !scores.PolicyRejected.Valid() ||
+		!scores.ReferenceChosen.Valid() || !scores.ReferenceRejected.Valid() {
 		return DPOResult{}, errors.New("training program: invalid DPO scores or scale")
 	}
-	margin := scale * ((scores.PolicyChosen - scores.PolicyRejected) -
-		(scores.ReferenceChosen - scores.ReferenceRejected))
+	margin := scale * ((scores.PolicyChosen.LogProbability - scores.PolicyRejected.LogProbability) -
+		(scores.ReferenceChosen.LogProbability - scores.ReferenceRejected.LogProbability))
 	loss := softplus(-margin)
 	down := sigmoid(-margin)
 	return DPOResult{

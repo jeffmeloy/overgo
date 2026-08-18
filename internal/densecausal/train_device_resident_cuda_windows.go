@@ -63,18 +63,10 @@ func (m *Model) deriveResidentCapacity(worker *device.Worker, seq int, frozenLex
 	return devicemath.DeriveResidentCapacity(free, g, fixed, perLayer), nil
 }
 
-// TrainDeviceResidentBatches keeps model and Muon state resident.
-func (m *Model) TrainDeviceResidentBatches(worker *device.Worker, batches [][]int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
-	var state TrainState
-	trajectory, err := m.trainDeviceResident(worker, batches, baseLR, mu, false, nil, resume, &state)
-	return trajectory, state, err
-}
-
-// TrainDeviceResidentFrozenLexicalBatches keeps non-lexical state resident.
-func (m *Model) TrainDeviceResidentFrozenLexicalBatches(worker *device.Worker, batches [][]int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
-	var state TrainState
-	trajectory, err := m.trainDeviceResident(worker, batches, baseLR, mu, true, nil, resume, &state)
-	return trajectory, state, err
+type DeviceTrainingOptions struct {
+	FrozenLexical bool
+	Measure       bool
+	Resume        *TrainState
 }
 
 // DeviceTrainingMeasurement separates synchronized resident phases.
@@ -87,11 +79,22 @@ type DeviceTrainingMeasurement struct {
 	DeviceUpdateSteps    []time.Duration
 }
 
-// MeasureDeviceResidentFrozenLexicalBatches excludes setup and checkpoint.
-func (m *Model) MeasureDeviceResidentFrozenLexicalBatches(worker *device.Worker, batches [][]int, baseLR, mu float64) ([]float64, DeviceTrainingMeasurement, error) {
-	var measurement DeviceTrainingMeasurement
-	trajectory, err := m.trainDeviceResident(worker, batches, baseLR, mu, true, &measurement, nil, nil)
-	return trajectory, measurement, err
+type DeviceTrainingResult struct {
+	Losses      []float64
+	State       TrainState
+	Measurement DeviceTrainingMeasurement
+}
+
+// TrainDeviceResident runs the selected resident policy.
+func (m *Model) TrainDeviceResident(worker *device.Worker, batches [][]int, baseLR, mu float64, options DeviceTrainingOptions) (DeviceTrainingResult, error) {
+	result := DeviceTrainingResult{}
+	var measurement *DeviceTrainingMeasurement
+	if options.Measure {
+		measurement = &result.Measurement
+	}
+	var err error
+	result.Losses, err = m.trainDeviceResident(worker, batches, baseLR, mu, options.FrozenLexical, measurement, options.Resume, &result.State)
+	return result, err
 }
 
 func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, baseLR, mu float64, frozenLexical bool, measurement *DeviceTrainingMeasurement, resume *TrainState, stateOut *TrainState) ([]float64, error) {

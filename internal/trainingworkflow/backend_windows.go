@@ -22,12 +22,9 @@ func runTrainingState(model *densecausal.Model, batches [][]int, learningRate, m
 		return nil, "", densecausal.TrainState{}, fmt.Errorf("CUDA training unavailable: %w", err)
 	}
 	defer worker.Close()
-	var losses []float64
-	var state densecausal.TrainState
-	if freezeLexical {
-		losses, state, err = model.TrainDeviceResidentFrozenLexicalBatches(worker, batches, learningRate, momentum, resume)
-	} else {
-		losses, state, err = model.TrainDeviceResidentBatches(worker, batches, learningRate, momentum, resume)
-	}
-	return losses, "cuda", state, err
+	result, err := model.TrainDeviceResident(worker, batches, learningRate, momentum, densecausal.DeviceTrainingOptions{
+		FrozenLexical: freezeLexical,
+		Resume:        resume,
+	})
+	return result.Losses, "cuda", result.State, err
 }

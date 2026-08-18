@@ -72,7 +72,7 @@ func TestDenseTrainingLeadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := warm.TrainDeviceResidentFrozenLexicalBatches(worker, [][]int{qwenAdaptiveProfileTokens}, 1e-4, 0.9, nil); err != nil {
+	if _, err := warm.TrainDeviceResident(worker, [][]int{qwenAdaptiveProfileTokens}, 1e-4, 0.9, densecausal.DeviceTrainingOptions{FrozenLexical: true}); err != nil {
 		t.Fatal(err)
 	}
 	warm = nil
@@ -88,11 +88,12 @@ func TestDenseTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	trajectory, measurement, err := model.MeasureDeviceResidentFrozenLexicalBatches(worker, [][]int{qwenAdaptiveProfileTokens, qwenAdaptiveProfileTokens}, 1e-4, 0.9)
+	result, err := model.TrainDeviceResident(worker, [][]int{qwenAdaptiveProfileTokens, qwenAdaptiveProfileTokens}, 1e-4, 0.9, densecausal.DeviceTrainingOptions{FrozenLexical: true, Measure: true})
 	wall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)
 	}
+	trajectory, measurement := result.Losses, result.Measurement
 	if len(trajectory) != 2 || math.Abs(trajectory[0]-4.59284) > 0.01 || trajectory[1] >= trajectory[0] || trajectory[1] < 2.8 || trajectory[1] > 3.1 {
 		t.Fatalf("Qwen trajectory outside evidence range: %v", trajectory)
 	}

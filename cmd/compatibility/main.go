@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -19,7 +20,10 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/jsonfile"
 	"overgo/internal/model"
+	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 )
 
 const (
@@ -106,7 +110,15 @@ func run() error {
 	check := flag.Bool("check", false, "verify compatibility claims and generated matrix")
 	update := flag.Bool("update", false, "write generated compatibility matrix")
 	refresh := flag.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
+	recordVerification := flag.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims)")
+	recordStore := flag.String("record", "", "RepoDB root for -record-verification")
 	flag.Parse()
+	if *recordVerification != "" {
+		if flag.NArg() != 0 || *check || *update || *refresh || *recordStore == "" {
+			return errors.New("usage: compatibility -record-verification <spec.json> -record <repodb>")
+		}
+		return runRecordVerification(*recordVerification, *recordStore, os.Stdout)
+	}
 	if flag.NArg() != 0 || *check && (*update || *refresh) {
 		return errors.New("usage: compatibility [-check|-update|-refresh-identities]")
 	}
@@ -124,6 +136,64 @@ func run() error {
 		"docs/COMPATIBILITY.md is stale; regenerate with: go run ./cmd/compatibility -update",
 		os.Stdout,
 	)
+}
+
+// runRecordVerification commits one typed model-verification record: the
+// claims discipline as a store artifact rather than a document -- every
+// capability tier grounded in named evidence, with lineage to all of it.
+// Store presence of each evidence artifact is reported, not invented.
+func runRecordVerification(specPath, recordStore string, output io.Writer) error {
+	var specification struct {
+		Model  artifact.ID                 `json:"model"`
+		Name   string                      `json:"name"`
+		Claims []runrecord.CapabilityClaim `json:"claims"`
+	}
+	if err := jsonfile.Decode(specPath, &specification); err != nil {
+		return err
+	}
+	record, err := runrecord.NewModelVerification(specification.Model, specification.Name, specification.Claims)
+	if err != nil {
+		return err
+	}
+	store, err := repodb.Open(recordStore)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+	ctx := context.Background()
+	committed, external := 0, 0
+	for _, claim := range record.Claims {
+		for _, evidence := range claim.Evidence {
+			_, ok, err := store.Content(ctx, evidence)
+			if err != nil {
+				return err
+			}
+			if ok {
+				committed++
+			} else {
+				external++
+			}
+		}
+	}
+	batch, err := record.Batch("verification/" + record.ID.String())
+	if err != nil {
+		return err
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "model verification committed: %s model=%s name=%s claims=%d\n",
+		record.ID, record.Model, record.Name, len(record.Claims))
+	for _, claim := range record.Claims {
+		provenance := "commit=" + claim.Commit
+		if claim.Dataset.Valid() {
+			provenance += fmt.Sprintf(" dataset=%s span_steps=%d span_tokens=%d", claim.Dataset, claim.SpanSteps, claim.SpanTokens)
+		}
+		fmt.Fprintf(output, "claim %s: %s (%d evidence) %s\n", claim.Capability, claim.Tier, len(claim.Evidence), provenance)
+	}
+	fmt.Fprintf(output, "honesty: %d evidence artifact(s) committed in this store, %d identified externally; tiers claim only what their evidence grounds\n",
+		committed, external)
+	return nil
 }
 
 func refreshEvidenceIdentities(root string) error {

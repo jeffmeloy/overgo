@@ -56,6 +56,7 @@ func run(args []string, output io.Writer) error {
 	retrieve := flags.String("retrieve", "", "hypervector retrieval: rank the catalog against the named component (lexical organ + distributional signal)")
 	rankingID := flags.String("ranking", "", "retrieve: rescore hits with a committed proposal-ranking artifact (the learned prior over the decision ledger)")
 	derivations := flags.Bool("derivations", false, "list derivation-profile artifacts and their promotion verdicts (profiles judged by the models they produce)")
+	verifications := flags.Bool("verifications", false, "derive the model verification matrix from committed records: strongest evidenced tier per capability")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -94,6 +95,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *derivations {
 		return writeDerivations(output, *repository, *limit)
+	}
+	if *verifications {
+		return writeVerifications(output, *repository, *limit)
 	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
@@ -515,6 +519,53 @@ func writeComposed(output io.Writer, repository string, limit int) error {
 		count++
 	}
 	fmt.Fprintf(output, "%d composed artifact(s); honesty: rows derive from committed assembly documents; execution and lineage resolve through the store graph\n", count)
+	return nil
+}
+
+// writeVerifications derives the model verification matrix from committed
+// verification records: one row per model, each capability at the strongest
+// evidenced tier. The comparison the compatibility document could never make
+// legible, derived from the store, never hand-maintained.
+func writeVerifications(output io.Writer, repository string, limit int) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	if err != nil {
+		return err
+	}
+	records := make([]runrecord.ModelVerification, 0)
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != runrecord.ModelVerificationMediaType {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil || !ok {
+			continue
+		}
+		record, err := runrecord.ParseModelVerification(content.Data)
+		if err != nil {
+			continue
+		}
+		records = append(records, record)
+	}
+	matrix := runrecord.VerificationMatrix(records)
+	for _, row := range matrix {
+		cells := make([]string, 0, len(row.Capabilities))
+		for _, claim := range row.Capabilities {
+			cell := fmt.Sprintf("%s=%s(%d evidence,commit=%.12s", claim.Capability, claim.Tier, len(claim.Evidence), claim.Commit)
+			if claim.Dataset.Valid() {
+				cell += fmt.Sprintf(",dataset=%.20s,steps=%d,tokens=%d", claim.Dataset, claim.SpanSteps, claim.SpanTokens)
+			}
+			cells = append(cells, cell+")")
+		}
+		fmt.Fprintf(output, "model %s %s %s\n", row.Name, row.Model, strings.Join(cells, " "))
+	}
+	fmt.Fprintf(output, "%d model(s) from %d record(s); honesty: rows derive from committed verification records; every tier claim is grounded in named evidence, and unrecorded models simply do not appear\n",
+		len(matrix), len(records))
 	return nil
 }
 

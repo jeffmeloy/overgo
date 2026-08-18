@@ -364,6 +364,10 @@ func validateExample(example Example, reference recordRef, processor compiledPro
 				return errors.New("training data: processor emitted invalid shape")
 			}
 		}
+		preference := value.Role == RoleChosen || value.Role == RoleRejected
+		if preference != (len(value.Completion) > 0) {
+			return errors.New("training data: preference value requires explicit completion mask")
+		}
 	}
 	return nil
 }

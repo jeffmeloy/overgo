@@ -3,6 +3,8 @@ package diffusionimage
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testutil"
 )
 
 func TestXATGLUGateMatchesTorch(t *testing.T) {
@@ -240,7 +242,7 @@ func TestTinyModelForwardMatchesTorch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d := maxAbsDiff(got, traced); d != 0 {
+	if d := testutil.MaxAbsDiff(got, traced); d != 0 {
 		t.Fatalf("trace twin diverges from serving forward: max abs %g", d)
 	}
 }
@@ -252,7 +254,7 @@ func TestTokenReshapeRoundTrip(t *testing.T) {
 		x[i] = float32(i)
 	}
 	back := tokensToImageNCHW(imageNCHWToTokens(x, b, c, h, w), b, c, h, w)
-	if d := maxAbsDiff(back, x); d != 0 {
+	if d := testutil.MaxAbsDiff(back, x); d != 0 {
 		t.Fatalf("token reshape round trip diverges: %g", d)
 	}
 	if math.IsNaN(float64(back[0])) {

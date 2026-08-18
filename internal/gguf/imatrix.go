@@ -143,7 +143,7 @@ func readImportanceTensor(file *File, info TensorInfo) ([]float32, error) {
 	if info.Type != dtype.F32 {
 		return nil, fmt.Errorf("importance tensor %q is %s, want f32", info.Name, info.Type)
 	}
-	elements, err := tensorElements(info)
+	elements, err := info.ElementCount()
 	if err != nil {
 		return nil, err
 	}

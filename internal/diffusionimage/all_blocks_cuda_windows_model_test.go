@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
 func TestAllRealBlocksCUDAParity(t *testing.T) {
@@ -83,7 +84,7 @@ func checkRealBlockCUDA(
 	if err != nil {
 		t.Fatal(err)
 	}
-	difference := maxAbsDiff(got, want)
+	difference := testutil.MaxAbsDiff(got, want)
 	for index, value := range got {
 		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
 			t.Fatalf("%s output[%d] is non-finite", name, index)

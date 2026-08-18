@@ -85,7 +85,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 		return nativePrompt{}, errors.New("multimodal chat requires n=1")
 	}
 	if len(body.Messages) != 1 ||
-		body.Messages[0].Role != "user" ||
+		body.Messages[0].Role != inference.ChatRoleUser ||
 		len(body.Messages[0].Media) == 0 || len(body.Messages[0].Media) > 8 {
 		return nativePrompt{}, errors.New("multimodal chat requires one user message with one to eight media items")
 	}
@@ -126,7 +126,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 	if len(message.Media) > 1 {
 		prompt.Images = make([][]byte, len(message.Media))
 		for index, media := range message.Media {
-			if media.Type != "image" {
+			if media.Type != inference.ChatMediaImage {
 				return nativePrompt{}, errors.New("multiple media items must all be images")
 			}
 			if h.config.ImageProjector == nil {
@@ -146,7 +146,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 	}
 	media := message.Media[0]
 	switch media.Type {
-	case "image":
+	case inference.ChatMediaImage:
 		if h.config.ImageProjector == nil && h.config.Qwen3VLProjector == nil {
 			return nativePrompt{}, errors.New("image data provided, but the server has no image projector")
 		}
@@ -159,7 +159,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 		if err := validateMultimodalImages(prompt.Images); err != nil {
 			return nativePrompt{}, err
 		}
-	case "audio":
+	case inference.ChatMediaAudio:
 		if h.config.AudioProjector == nil {
 			return nativePrompt{}, errors.New("audio data provided, but the server has no audio projector")
 		}
@@ -168,7 +168,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 			return nativePrompt{}, err
 		}
 		prompt.Audio = decoded
-	case "video":
+	case inference.ChatMediaVideo:
 		if h.config.ImageProjector == nil || !h.config.ImageProjector.Capabilities().Video {
 			return nativePrompt{}, errors.New("video data provided, but the server has no video projector")
 		}
@@ -221,7 +221,7 @@ func (h *Handler) parseChatMultimodalPrompt(
 		if len(message.Media) == 0 {
 			continue
 		}
-		if message.Role != "user" {
+		if message.Role != inference.ChatRoleUser {
 			return nativePrompt{}, errors.New("multimodal chat media is only supported in user messages")
 		}
 		if message.Name != "" || message.ReasoningContent != "" ||
@@ -239,7 +239,7 @@ func (h *Handler) parseChatMultimodalPrompt(
 			content.WriteString(marker)
 			markers = append(markers, marker)
 			switch media.Type {
-			case "image":
+			case inference.ChatMediaImage:
 				if h.config.ImageProjector == nil && h.config.Qwen3VLProjector == nil {
 					return nativePrompt{}, errors.New("image data provided, but the server has no image projector")
 				}
@@ -250,7 +250,7 @@ func (h *Handler) parseChatMultimodalPrompt(
 				images = append(images, decoded)
 				mediaInputs = append(mediaInputs, nativeMedia{Kind: projector.MediaImage, Image: decoded})
 				totalMediaBytes += len(decoded)
-			case "audio":
+			case inference.ChatMediaAudio:
 				if h.config.AudioProjector == nil {
 					return nativePrompt{}, errors.New("audio data provided, but the server has no audio projector")
 				}
@@ -318,7 +318,7 @@ func chatSingleMediaCompatible(media []inference.ChatMediaPart) bool {
 		return true
 	}
 	for _, item := range media {
-		if item.Type != "image" {
+		if item.Type != inference.ChatMediaImage {
 			return false
 		}
 	}
@@ -652,7 +652,7 @@ func (h *Handler) completeChat(
 		finishReason := pump.finishReason(plan.maxTokens, "stop", "length")
 		totalCompletionTokens += pump.completion
 		message := inference.ChatMessage{
-			Role:    "assistant",
+			Role:    inference.ChatRoleAssistant,
 			Content: pump.text(),
 		}
 		if len(tools) != 0 {
@@ -702,7 +702,7 @@ type chatStreamChoice struct {
 }
 
 type chatStreamDelta struct {
-	Role             string               `json:"role,omitempty"`
+	Role             inference.ChatRole   `json:"role,omitempty"`
 	Content          string               `json:"content,omitempty"`
 	ReasoningContent string               `json:"reasoning_content,omitempty"`
 	ToolCalls        []chatStreamToolCall `json:"tool_calls,omitempty"`
@@ -711,7 +711,7 @@ type chatStreamDelta struct {
 type chatStreamToolCall struct {
 	Index    int                    `json:"index"`
 	ID       string                 `json:"id,omitempty"`
-	Type     string                 `json:"type,omitempty"`
+	Type     inference.ChatToolType `json:"type,omitempty"`
 	Function chatStreamToolFunction `json:"function"`
 }
 
@@ -765,7 +765,7 @@ func (h *Handler) streamChatCompletion(
 	for choiceIndex := range n {
 		usage = nil
 		timings = nil
-		if err := writeChunk(choiceIndex, chatStreamDelta{Role: "assistant"}, nil); err != nil {
+		if err := writeChunk(choiceIndex, chatStreamDelta{Role: inference.ChatRoleAssistant}, nil); err != nil {
 			return
 		}
 		toolStream, err := newToolDeltaStream(h.generator, tools)
@@ -795,7 +795,7 @@ func (h *Handler) streamChatCompletion(
 							choiceIndex,
 							delta.Index,
 						)
-						call.Type = "function"
+						call.Type = inference.ChatToolTypeFunction
 						call.Function.Name = delta.Name
 					}
 					return writeChunk(choiceIndex, chatStreamDelta{

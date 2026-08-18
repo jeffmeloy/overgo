@@ -96,6 +96,7 @@ func run() error {
 	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for encoded video")
 	videoFPS := flag.Float64("video-fps", llamaserver.DefaultVideoFPS, "video frame sampling rate")
 	videoMaxFrames := flag.Int("video-max-frames", llamaserver.DefaultVideoFrameLimit, "maximum decoded video frames")
+	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
 	analysisTensorSamples := flag.Uint64("analysis-tensor-samples", defaultAnalysisTensorSamples, "samples retained per analyzed tensor")
 	analysisTensorBytes := flag.Uint64("analysis-tensor-bytes", defaultAnalysisTensorBytes, "aggregate tensor bytes read per analysis")
 	analysisPositions := flag.Int("analysis-state-positions", defaultAnalysisPositions, "maximum positions retained by state analysis")
@@ -118,14 +119,31 @@ func run() error {
 		return err
 	}
 	defer runner.Close()
-	// Read-only browse roots for the /datasets and /runs surfaces. Best-effort:
-	// if the data-root contract can't resolve, the endpoints stay disabled.
+	// Browse roots remain optional unless training is enabled.
+	roots, rootsErr := dataroot.ResolveCurrent()
 	datasetsRoot, repoPath := "", strings.TrimSpace(*modelFlags.Repository)
-	if roots, rootsErr := dataroot.ResolveCurrent(); rootsErr == nil {
+	if rootsErr == nil {
 		datasetsRoot = roots.Datasets
 		if repoPath == "" {
 			repoPath = roots.Store
 		}
+	}
+	var generator llamaserver.Generator = runner
+	var trainingStore *repodb.Store
+	if *trainingEnabled {
+		if rootsErr != nil {
+			return rootsErr
+		}
+		trainingStore, err = repodb.Open(repoPath)
+		if err != nil {
+			return fmt.Errorf("open training repository: %w", err)
+		}
+		defer trainingStore.Close()
+		workspace, err := llamaserver.NewTrainingWorkspace(shutdownContext, trainingStore, roots, runner.ModelID())
+		if err != nil {
+			return fmt.Errorf("open training workspace: %w", err)
+		}
+		generator = &serverRuntime{Runner: runner, WorkflowWorkspaceAPI: workspace}
 	}
 	var vision, audio projector.Session
 	if *projectorPath != "" {
@@ -206,7 +224,7 @@ func run() error {
 			StatePositions: *analysisPositions, MDSIterations: *analysisMDSIterations,
 			MDSTolerance: *analysisMDSTolerance,
 		},
-	}, runner)
+	}, generator)
 	if err != nil {
 		return err
 	}

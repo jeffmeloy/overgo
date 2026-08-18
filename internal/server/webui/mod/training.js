@@ -1,8 +1,122 @@
-/* Training · runs (read-only). Browses training/run artifacts from the server's
-   /runs endpoint (RepoDB → runrecord.ParseRun): outcome, recipe, code commit,
-   wall time, and the heaviest phases. Paged. No job control. */
 (function () {
   "use strict";
+
+  function artifactLink(overgo, id, label) {
+    return overgo.el("a", {
+      class: "mono", href: "/artifacts?id=" + encodeURIComponent(id),
+      target: "_blank", rel: "noopener", text: label || overgo.fmt.shortID(id),
+    });
+  }
+
+  async function readTrace(overgo, id) {
+    const trace = await overgo.api.get("/artifacts/content?id=" + encodeURIComponent(id));
+    return trace && Array.isArray(trace.observations) ? trace : null;
+  }
+
+  async function traceFromRun(overgo, run) {
+    for (const edge of run.children || []) {
+      if (!String(edge.child).startsWith("evidence:")) continue;
+      try {
+        const trace = await readTrace(overgo, edge.child);
+        if (trace && trace.run === run.id) return { id: edge.child, trace };
+      } catch (_) { /* unrelated evidence */ }
+    }
+    return null;
+  }
+
+  function seriesBlock(overgo, title, series) {
+    const legend = overgo.el("div", { class: "series-legend" }, ...series.map((item) =>
+      overgo.el("span", {}, overgo.el("i", { style: "background:" + item.color }), item.label)));
+    return overgo.el("section", { class: "evidence-block" },
+      overgo.el("div", { class: "section-title", text: title }), legend,
+      overgo.viz.signedSeries(series));
+  }
+
+  function pairInspector(overgo, observations) {
+    const select = overgo.el("select", { class: "text" });
+    observations.forEach((observation, index) => select.appendChild(overgo.el("option", {
+      value: index, text: "step " + observation.step,
+    })));
+    const detail = overgo.el("div");
+    function render() {
+      const observation = observations[Number(select.value) || 0];
+      const table = overgo.el("table", { class: "grid" });
+      table.appendChild(overgo.el("tr", {}, overgo.el("th", { text: "scorer" }),
+        overgo.el("th", { text: "chosen" }), overgo.el("th", { text: "rejected" }),
+        overgo.el("th", { text: "margin" })));
+      for (const row of [
+        ["policy", observation.policy_chosen, observation.policy_rejected, observation.policy_margin],
+        ["reference", observation.reference_chosen, observation.reference_rejected, observation.reference_margin],
+      ]) {
+        table.appendChild(overgo.el("tr", {}, ...row.map((value, index) =>
+          overgo.el("td", { class: index ? "mono" : "", text: String(value) }))));
+      }
+      detail.replaceChildren(
+        overgo.el("div", { class: "statgrid" },
+          overgo.stat("Relative margin", observation.relative_margin),
+          overgo.stat("Chosen tokens", observation.chosen_tokens),
+          overgo.stat("Rejected tokens", observation.rejected_tokens)), table);
+    }
+    select.addEventListener("change", render);
+    render();
+    return overgo.el("section", { class: "evidence-block" },
+      overgo.el("div", { class: "section-title", text: "Chosen / rejected pair" }), select, detail);
+  }
+
+  function renderTrace(overgo, host, record, comparison) {
+    const { trace, id, checkpoint, run } = record;
+    const observations = trace.observations;
+    const colors = ["var(--acc)", "var(--amber)", "var(--ok)"];
+    host.replaceChildren(
+      overgo.el("div", { class: "row artifact-links" },
+        artifactLink(overgo, run || trace.run, "run " + overgo.fmt.shortID(run || trace.run)),
+        checkpoint ? artifactLink(overgo, checkpoint, "checkpoint " + overgo.fmt.shortID(checkpoint)) : null,
+        artifactLink(overgo, id, "trace " + overgo.fmt.shortID(id))),
+      overgo.el("div", { class: "evidence-grid" },
+        seriesBlock(overgo, "DPO loss", [{ label: "loss", values: observations.map((row) => row.loss), color: colors[0] }]),
+        seriesBlock(overgo, "Margin decomposition", [
+          { label: "policy", values: observations.map((row) => row.policy_margin), color: colors[0] },
+          { label: "reference", values: observations.map((row) => row.reference_margin), color: colors[1] },
+          { label: "relative", values: observations.map((row) => row.relative_margin), color: colors[2] },
+        ]),
+        seriesBlock(overgo, "Optimizer health / gradient L2", [
+          { label: "gradient L2", values: observations.map((row) => row.gradient_l2), color: colors[0] }]),
+        seriesBlock(overgo, "Optimizer health / update L2", [
+          { label: "update L2", values: observations.map((row) => row.update_l2), color: colors[1] }]),
+        seriesBlock(overgo, "Optimizer health / learning rate", [
+          { label: "learning rate", values: observations.map((row) => row.learning_rate), color: colors[2] }])),
+      pairInspector(overgo, observations),
+      comparison ? checkpointComparison(overgo, comparison, record) : null);
+  }
+
+  function checkpointComparison(overgo, baseline, current) {
+    const left = baseline.trace.observations.at(-1);
+    const right = current.trace.observations.at(-1);
+    const table = overgo.el("table", { class: "grid" });
+    table.appendChild(overgo.el("tr", {}, overgo.el("th", { text: "measurement" }),
+      overgo.el("th", { text: "baseline" }), overgo.el("th", { text: "current" })));
+    for (const field of ["loss", "policy_margin", "reference_margin", "relative_margin", "gradient_l2", "update_l2"]) {
+      table.appendChild(overgo.el("tr", {}, overgo.el("td", { text: field }),
+        overgo.el("td", { class: "mono", text: String(left[field]) }),
+        overgo.el("td", { class: "mono", text: String(right[field]) })));
+    }
+    return overgo.el("section", { class: "evidence-block" },
+      overgo.el("div", { class: "section-title", text: "Checkpoint comparison" }),
+      overgo.el("div", { class: "row artifact-links" },
+        artifactLink(overgo, baseline.checkpoint, "baseline " + overgo.fmt.shortID(baseline.checkpoint)),
+        artifactLink(overgo, current.checkpoint, "current " + overgo.fmt.shortID(current.checkpoint))), table);
+  }
+
+  window.overgo.trainingEvidence = {
+    async renderOperation(host, operation, overgo) {
+      const traceID = (operation.outputs || []).find((id) => String(id).startsWith("evidence:"));
+      const checkpoint = (operation.outputs || []).find((id) => String(id).startsWith("checkpoint:"));
+      if (!traceID) return;
+      const trace = await readTrace(overgo, traceID);
+      if (trace) renderTrace(overgo, host, { id: traceID, trace, checkpoint, run: operation.run });
+    },
+  };
+
   window.overgo.registerTab({
     id: "runs",
     label: "Runs",
@@ -11,13 +125,14 @@
       const { el, clear, fmt } = overgo;
       const limit = 50;
       let offset = 0;
+      let baseline = null;
 
       clear(panel);
       const status = el("span", { class: "note" });
-      const prev = el("button", { class: "btn alt", onclick: () => { offset = Math.max(0, offset - limit); load(); } }, "‹ prev");
-      const next = el("button", { class: "btn alt", onclick: () => { offset += limit; load(); } }, "next ›");
+      const prev = el("button", { class: "btn alt", onclick: () => { offset = Math.max(0, offset - limit); load(); } }, "prev");
+      const next = el("button", { class: "btn alt", onclick: () => { offset += limit; load(); } }, "next");
       panel.append(
-        el("div", { class: "section-title", text: "Training runs (read-only)" }),
+        el("div", { class: "section-title", text: "Training runs" }),
         el("div", { class: "row", style: "margin-bottom:10px" }, prev, next, status));
       const host = el("div");
       const detail = el("div");
@@ -26,15 +141,23 @@
       async function loadDetail(id) {
         try {
           const run = await overgo.api.get("/runs?id=" + encodeURIComponent(id));
-          const lineage = [...(run.parents || []), ...(run.children || [])];
+          const found = await traceFromRun(overgo, run);
+          const checkpoint = (run.outputs || []).find((value) => String(value).startsWith("checkpoint:"));
+          const record = found && { id: found.id, trace: found.trace, checkpoint, run: run.id };
+          const evidence = el("div");
+          const pin = record && el("button", { class: "btn alt", text: "Set comparison baseline", onclick: () => {
+            baseline = record;
+            pin.textContent = "Comparison baseline";
+            pin.disabled = true;
+          }});
           detail.replaceChildren(
             el("div", { class: "section-title", text: "Run detail" }),
             el("div", { class: "statgrid" },
               overgo.stat("Outcome", run.outcome),
               overgo.stat("Inputs", (run.inputs || []).length),
               overgo.stat("Outputs", (run.outputs || []).length)),
-            el("div", { class: "mono", text: run.id }),
-            ...lineage.map((edge) => el("div", { class: "note", text: edge.child + " / " + edge.relation + " / " + edge.parent })));
+            el("div", { class: "row" }, artifactLink(overgo, run.id), pin), evidence);
+          if (record) renderTrace(overgo, evidence, record, baseline && baseline.run !== record.run ? baseline : null);
         } catch (err) {
           detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
         }
@@ -44,20 +167,18 @@
         return outcome === "succeeded" ? "user_defined" : (outcome === "failed" ? "control" : "");
       }
       async function load() {
-        host.replaceChildren(el("div", { class: "note", text: "loading /runs…" }));
+        host.replaceChildren(el("div", { class: "note", text: "loading /runs" }));
         let data;
         try {
           data = await overgo.api.get("/runs?offset=" + offset + "&limit=" + limit);
         } catch (err) {
-          const message = err.status === 501
-            ? "Run browsing is not configured on this server (no RepoDB store)."
-            : overgo.friendlyError(err);
+          const message = err.status === 501 ? "Run browsing is not configured." : overgo.friendlyError(err);
           host.replaceChildren(overgo.errorBanner(message));
           return;
         }
         const first = data.count === 0 ? 0 : data.offset + 1;
         const last = data.offset + data.runs.length;
-        status.textContent = first + "–" + last + " of " + fmt.grouped(data.count) + " runs";
+        status.textContent = first + "-" + last + " of " + fmt.grouped(data.count) + " runs";
         prev.disabled = data.offset === 0;
         next.disabled = last >= data.count;
 
@@ -67,13 +188,13 @@
           el("th", { text: "wall" }), el("th", { text: "heaviest phases" }), el("th", { text: "in/out" })));
         for (const run of data.runs) {
           const phases = [...(run.phases || [])].sort((a, b) => b.ms - a.ms).slice(0, 3)
-            .map((p) => p.phase + " " + p.ms.toFixed(0) + "ms").join(", ");
+            .map((phase) => phase.phase + " " + phase.ms.toFixed(0) + "ms").join(", ");
           table.appendChild(el("tr", {},
             el("td", {}, el("span", { class: "tag " + outcomeClass(run.outcome), text: run.outcome })),
             el("td", {}, el("button", { class: "link-button mono", title: run.recipe, text: fmt.shortID(run.recipe), onclick: () => loadDetail(run.id) })),
-            el("td", { class: "mono", text: (run.code_commit || "").slice(0, 10) || "—" }),
-            el("td", { class: "mono", text: run.measured_ms ? run.measured_ms.toFixed(0) + " ms" : "—" }),
-            el("td", { class: "dim", text: phases || "—" }),
+            el("td", { class: "mono", text: (run.code_commit || "").slice(0, 10) || "-" }),
+            el("td", { class: "mono", text: run.measured_ms ? run.measured_ms.toFixed(0) + " ms" : "-" }),
+            el("td", { class: "dim", text: phases || "-" }),
             el("td", { class: "mono", text: run.inputs + "/" + run.outputs })));
         }
         host.replaceChildren(table);

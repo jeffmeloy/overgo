@@ -21,8 +21,7 @@ var containmentReasons = map[string]bool{
 	"rollback-unavailable": true,
 }
 
-// ControlEvent is immutable evidence of an explicit automation override or a
-// lane-scoped containment action. It never grants promotion authority.
+// ControlEvent: immutable override or containment evidence.
 type ControlEvent struct {
 	Version    uint16      `json:"version"`
 	Kind       string      `json:"kind"`
@@ -37,18 +36,14 @@ var controlCodec = artifact.JSONDocumentCodec("automation control", artifact.Kin
 	canonicalizeControl, func(value ControlEvent) artifact.ID { return value.ID },
 	func(value *ControlEvent, id artifact.ID) { value.ID = id }, nil)
 
-// RecordControlEvent validates and commits one control event.
+// RecordControlEvent: validate and commit.
 func RecordControlEvent(ctx context.Context, repository artifact.Repository, event ControlEvent) (ControlEvent, error) {
 	event.Version = controlVersion
 	identified, err := controlCodec.New(event)
 	if err != nil {
 		return ControlEvent{}, err
 	}
-	content, err := identified.Content()
-	if err != nil {
-		return ControlEvent{}, err
-	}
-	batch, err := artifact.NewDocumentBatch("automation/control/"+identified.ID.String(), []artifact.Content{content}, nil, nil)
+	batch, err := controlCodec.Batch("automation/control/"+identified.ID.String(), identified, nil, nil)
 	if err != nil {
 		return ControlEvent{}, err
 	}

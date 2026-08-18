@@ -38,7 +38,7 @@ func selectAnthropicTools(
 				return chatToolSelection{}, fmt.Errorf("tool %d input_schema is required", index)
 			}
 			tools[index] = inference.ChatTool{
-				Type: "function",
+				Type: inference.ChatToolTypeFunction,
 				Function: inference.ChatToolDefinition{
 					Name:        definition.Name,
 					Description: definition.Description,
@@ -95,7 +95,7 @@ func selectAnthropicTools(
 
 func (h *Handler) parseAnthropicMessage(
 	ctx context.Context,
-	role string,
+	role inference.ChatRole,
 	raw json.RawMessage,
 	label string,
 ) ([]inference.ChatMessage, error) {
@@ -107,7 +107,7 @@ func (h *Handler) parseAnthropicMessage(
 	if err := json.Unmarshal(raw, &blocks); err != nil {
 		return nil, fmt.Errorf("%s content must be a string or content-block array", label)
 	}
-	if role == "assistant" {
+	if role == inference.ChatRoleAssistant {
 		message := inference.ChatMessage{Role: role}
 		var content strings.Builder
 		seenTool := false
@@ -130,7 +130,7 @@ func (h *Handler) parseAnthropicMessage(
 					Thinking  string `json:"thinking"`
 					Signature string `json:"signature"`
 				}
-				if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+				if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 					return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 				}
 				if !h.thinkingSigner.verify(block.Thinking, block.Signature) {
@@ -146,7 +146,7 @@ func (h *Handler) parseAnthropicMessage(
 					Type string `json:"type"`
 					Text string `json:"text"`
 				}
-				if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+				if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 					return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 				}
 				content.WriteString(block.Text)
@@ -159,7 +159,7 @@ func (h *Handler) parseAnthropicMessage(
 					Name  string          `json:"name"`
 					Input json.RawMessage `json:"input"`
 				}
-				if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+				if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 					return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 				}
 				var input map[string]any
@@ -175,7 +175,7 @@ func (h *Handler) parseAnthropicMessage(
 				}
 				message.ToolCalls = append(message.ToolCalls, inference.ChatToolCall{
 					ID:   block.ID,
-					Type: "function",
+					Type: inference.ChatToolTypeFunction,
 					Function: inference.ChatToolFunction{
 						Name:      block.Name,
 						Arguments: string(block.Input),
@@ -204,7 +204,7 @@ func (h *Handler) parseAnthropicMessage(
 	flushUser := func() {
 		if content.Len() != 0 || len(media) != 0 {
 			messages = append(messages, inference.ChatMessage{
-				Role:    "user",
+				Role:    inference.ChatRoleUser,
 				Content: content.String(),
 				Media:   slices.Clone(media),
 			})
@@ -225,7 +225,7 @@ func (h *Handler) parseAnthropicMessage(
 				Type string `json:"type"`
 				Text string `json:"text"`
 			}
-			if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+			if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 				return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 			}
 			content.WriteString(block.Text)
@@ -240,7 +240,7 @@ func (h *Handler) parseAnthropicMessage(
 					FileID    string `json:"file_id"`
 				} `json:"source"`
 			}
-			if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+			if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 				return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 			}
 			var source string
@@ -270,7 +270,7 @@ func (h *Handler) parseAnthropicMessage(
 				return nil, fmt.Errorf("%s content block %d has unsupported image source %q", label, index, block.Source.Type)
 			}
 			media = append(media, inference.ChatMediaPart{
-				Type: "image", Data: source, TextOffset: content.Len(),
+				Type: inference.ChatMediaImage, Data: source, TextOffset: content.Len(),
 			})
 		case "tool_result":
 			flushUser()
@@ -280,7 +280,7 @@ func (h *Handler) parseAnthropicMessage(
 				Content   json.RawMessage `json:"content"`
 				IsError   bool            `json:"is_error"`
 			}
-			if err := decodeAnthropicBlock(rawBlock, &block); err != nil {
+			if err := strictjson.DecodeBytes(rawBlock, &block); err != nil {
 				return nil, fmt.Errorf("%s content block %d: %w", label, index, err)
 			}
 			if block.ToolUseID == "" || len(block.Content) == 0 {
@@ -298,7 +298,7 @@ func (h *Handler) parseAnthropicMessage(
 				return nil, err
 			}
 			messages = append(messages, inference.ChatMessage{
-				Role:            "tool",
+				Role:            inference.ChatRoleTool,
 				Content:         result,
 				ToolCallID:      block.ToolUseID,
 				ToolResultError: block.IsError,
@@ -317,10 +317,6 @@ func (h *Handler) parseAnthropicMessage(
 		return nil, fmt.Errorf("%s content must not be empty", label)
 	}
 	return messages, nil
-}
-
-func decodeAnthropicBlock(raw json.RawMessage, destination any) error {
-	return strictjson.DecodeBytes(raw, destination)
 }
 
 func (h *Handler) anthropicBlocks(message inference.ChatMessage, idPrefix string) ([]anthropicContentBlock, error) {

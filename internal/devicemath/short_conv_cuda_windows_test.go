@@ -9,6 +9,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 )
 
 // TestShortConvBackwardDeviceMatchesHost pins ShortConvBackwardDevice against the
@@ -57,8 +58,8 @@ func TestShortConvBackwardDeviceMatchesHost(t *testing.T) {
 				t.Fatal(err)
 			}
 			const tol = 1e-5
-			dxDiff := maxAbsDiff(gotDX, wantDX)
-			dwDiff := maxAbsDiff(gotDW, wantDW)
+			dxDiff := testutil.MaxAbsDiff(gotDX, wantDX)
+			dwDiff := testutil.MaxAbsDiff(gotDW, wantDW)
 			t.Logf("ShortConvBackward %-10s dX %.3e dW %.3e", tc.name, dxDiff, dwDiff)
 			if dxDiff > tol {
 				t.Errorf("ShortConvBackward %s: dX %.3e > %.1e", tc.name, dxDiff, tol)
@@ -70,7 +71,7 @@ func TestShortConvBackwardDeviceMatchesHost(t *testing.T) {
 				if gotDBias == nil {
 					t.Fatalf("ShortConvBackward %s: expected non-nil dBias", tc.name)
 				}
-				dbDiff := maxAbsDiff(gotDBias, wantDBias)
+				dbDiff := testutil.MaxAbsDiff(gotDBias, wantDBias)
 				t.Logf("ShortConvBackward %-10s dBias %.3e", tc.name, dbDiff)
 				if dbDiff > tol {
 					t.Errorf("ShortConvBackward %s: dBias %.3e > %.1e", tc.name, dbDiff, tol)

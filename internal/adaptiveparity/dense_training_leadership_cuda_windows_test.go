@@ -9,10 +9,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -24,11 +24,27 @@ import (
 )
 
 const (
-	qwenCheckpointSHA = "88c142557820ccad55bb59756bfcfcf891de9cc6202816bd346445188a0ed342"
-	qwenConfigSHA     = "ce7908dfd631cd1f713a65cbea3591d32acaab58d438127d70c5dfc5ce1fc1f0"
-	qwenCorpusSHA     = "e8991b6e58d79e2d8dc6f22175e486a90c269f88bc1eab2718946f201ab32c8a"
-	qwenProtocol      = "source-corpus:adaptive-de547a363;model:qwen2.5-0.5b;seq:512;optimizer:muon-4x2-tf32;lr:0.0001;mu:0.9;frozen:lexical;steps:2"
-	qwenAdaptiveWarm  = 505 * time.Millisecond
+	qwenCheckpointSHA  = "88c142557820ccad55bb59756bfcfcf891de9cc6202816bd346445188a0ed342"
+	qwenConfigSHA      = "ce7908dfd631cd1f713a65cbea3591d32acaab58d438127d70c5dfc5ce1fc1f0"
+	qwenCorpusSHA      = "e8991b6e58d79e2d8dc6f22175e486a90c269f88bc1eab2718946f201ab32c8a"
+	qwenProtocolSHA    = "9323c549adad08ed046f366977d236f891914e6076b047c67dd2e3a762dcde30"
+	qwenProtocolFormat = "source-corpus:adaptive-de547a363;model:qwen2.5-0.5b;seq:%d;optimizer:muon-4x2-tf32;lr:%g;mu:%g;frozen:lexical;steps:%d"
+	qwenAdaptiveWarm   = 505 * time.Millisecond
+
+	qwenLearningRate       = 1e-4
+	qwenMomentum           = 0.9
+	qwenInitialLoss        = 4.59284
+	qwenInitialLossLimit   = 0.01
+	qwenUpdatedLossMinimum = 2.8
+	qwenUpdatedLossMaximum = 3.1
+	qwenPeakMemoryGiB      = 7
+	bytesPerGiB            = 1 << 30
+)
+
+const (
+	qwenInitialStep = iota
+	qwenUpdatedStep
+	qwenTrainingSteps
 )
 
 var qwenAdaptiveProfileTokens = []int{
@@ -59,8 +75,9 @@ func TestDenseTrainingLeadership(t *testing.T) {
 	checkpoint := qwenFileSHA256(t, filepath.Join(modelDir, "model.safetensors"))
 	config := qwenFileSHA256(t, filepath.Join(modelDir, "config.json"))
 	corpus := qwenTokenSHA256(qwenAdaptiveProfileTokens)
-	protocol := fmt.Sprintf("%x", sha256.Sum256([]byte(qwenProtocol)))
-	if checkpoint != qwenCheckpointSHA || config != qwenConfigSHA || corpus != qwenCorpusSHA || protocol != "9323c549adad08ed046f366977d236f891914e6076b047c67dd2e3a762dcde30" {
+	protocolText := fmt.Sprintf(qwenProtocolFormat, len(qwenAdaptiveProfileTokens), qwenLearningRate, qwenMomentum, qwenTrainingSteps)
+	protocol := fmt.Sprintf("%x", sha256.Sum256([]byte(protocolText)))
+	if checkpoint != qwenCheckpointSHA || config != qwenConfigSHA || corpus != qwenCorpusSHA || protocol != qwenProtocolSHA {
 		t.Fatalf("Qwen evidence identity drift: checkpoint=%s config=%s corpus=%s protocol=%s", checkpoint, config, corpus, protocol)
 	}
 	worker, err := device.New(0)
@@ -72,7 +89,7 @@ func TestDenseTrainingLeadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := warm.TrainDeviceResidentFrozenLexicalBatches(worker, [][]int{qwenAdaptiveProfileTokens}, 1e-4, 0.9, nil); err != nil {
+	if _, err := warm.TrainDeviceResident(worker, [][]int{qwenAdaptiveProfileTokens}, qwenLearningRate, qwenMomentum, densecausal.DeviceTrainingOptions{FrozenLexical: true}); err != nil {
 		t.Fatal(err)
 	}
 	warm = nil
@@ -88,32 +105,33 @@ func TestDenseTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	trajectory, measurement, err := model.MeasureDeviceResidentFrozenLexicalBatches(worker, [][]int{qwenAdaptiveProfileTokens, qwenAdaptiveProfileTokens}, 1e-4, 0.9)
+	result, err := model.TrainDeviceResident(worker, slices.Repeat([][]int{qwenAdaptiveProfileTokens}, qwenTrainingSteps), qwenLearningRate, qwenMomentum, densecausal.DeviceTrainingOptions{FrozenLexical: true, Measure: true})
 	wall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(trajectory) != 2 || math.Abs(trajectory[0]-4.59284) > 0.01 || trajectory[1] >= trajectory[0] || trajectory[1] < 2.8 || trajectory[1] > 3.1 {
-		t.Fatalf("Qwen trajectory outside evidence range: %v", trajectory)
-	}
-	if len(measurement.ForwardBackwardSteps) != 2 || len(measurement.DeviceUpdateSteps) != 2 {
+	trajectory, measurement := result.Losses, result.Measurement
+	testutil.RequireFiniteDecrease(t, "Qwen trajectory", trajectory, qwenTrainingSteps)
+	testutil.RequireClose(t, "Qwen initial loss", trajectory[qwenInitialStep], qwenInitialLoss, qwenInitialLossLimit)
+	testutil.RequireRange(t, "Qwen updated loss", trajectory[qwenUpdatedStep], qwenUpdatedLossMinimum, qwenUpdatedLossMaximum)
+	if len(measurement.ForwardBackwardSteps) != qwenTrainingSteps || len(measurement.DeviceUpdateSteps) != qwenTrainingSteps {
 		t.Fatalf("Qwen phase evidence incomplete: forward=%v update=%v", measurement.ForwardBackwardSteps, measurement.DeviceUpdateSteps)
 	}
-	cold := measurement.ForwardBackwardSteps[0] + measurement.DeviceUpdateSteps[0]
-	warmStep := measurement.ForwardBackwardSteps[1] + measurement.DeviceUpdateSteps[1]
+	cold := measurement.ForwardBackwardSteps[qwenInitialStep] + measurement.DeviceUpdateSteps[qwenInitialStep]
+	warmStep := measurement.ForwardBackwardSteps[qwenUpdatedStep] + measurement.DeviceUpdateSteps[qwenUpdatedStep]
 	memory, err := worker.MemoryStats(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("Qwen evidence loss=%v cold=%s warm=%s loop=%s lifecycle=%s peak=%.3fGiB", trajectory, cold, warmStep, measurement.Loop, wall, float64(memory.PeakBytes)/(1<<30))
+	t.Logf("Qwen evidence loss=%v cold=%s warm=%s loop=%s lifecycle=%s peak=%.3fGiB", trajectory, cold, warmStep, measurement.Loop, wall, float64(memory.PeakBytes)/bytesPerGiB)
 	if cold >= 2*qwenAdaptiveWarm {
-		t.Fatalf("Qwen cold execution %s exceeds twice the adaptive 505ms warm reference", cold)
+		t.Fatalf("Qwen cold execution %s exceeds twice the adaptive %s warm reference", cold, qwenAdaptiveWarm)
 	}
 	if warmStep >= qwenAdaptiveWarm {
-		t.Fatalf("Qwen warm execution %s does not beat adaptive 505ms", warmStep)
+		t.Fatalf("Qwen warm execution %s does not beat adaptive %s", warmStep, qwenAdaptiveWarm)
 	}
-	if memory.PeakBytes >= uint64(7<<30) {
-		t.Fatalf("Qwen peak %.3fGiB exceeds 7GiB ratchet", float64(memory.PeakBytes)/(1<<30))
+	if memory.PeakBytes >= uint64(qwenPeakMemoryGiB*bytesPerGiB) {
+		t.Fatalf("Qwen peak %.3fGiB exceeds %dGiB ratchet", float64(memory.PeakBytes)/bytesPerGiB, qwenPeakMemoryGiB)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
 func TestRealFinalProjectionResidentVJPParity(t *testing.T) {
@@ -49,8 +50,8 @@ func TestRealFinalProjectionResidentVJPParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dxDiff := maxAbsDiff(gotDX, wantDX)
-	weightDiff := maxAbsDiff(gotWeight, wantGrads[model.final.name+".weight"])
+	dxDiff := testutil.MaxAbsDiff(gotDX, wantDX)
+	weightDiff := testutil.MaxAbsDiff(gotWeight, wantGrads[model.final.name+".weight"])
 	for index, value := range append(gotDX, gotWeight...) {
 		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
 			t.Fatalf("gradient[%d] is non-finite", index)

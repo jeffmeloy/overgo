@@ -47,7 +47,7 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 	trajectory := make([]float64, 0, len(batches))
 	for _, tokens := range batches {
 		scatter(m, names, weights)
-		loss, _, grads, err := m.LossAndGrads(tokens)
+		loss, grads, err := m.trainingLossAndGrads(tokens)
 		if err != nil {
 			return nil, optimizer.State{}, err
 		}

@@ -104,7 +104,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 			t.Fatal("retained denoiser output is empty")
 		}
 	}
-	if maxAbsDifference(outputs[0], outputs[1]) == 0 {
+	if testutil.MaxAbsDiff(outputs[0], outputs[1]) == 0 {
 		t.Fatal("history-conditioned second chunk reproduced the first chunk")
 	}
 	retainedWall := time.Since(started)
@@ -125,7 +125,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	historyEffect := maxAbsDifference(outputs[1], coldSecond)
+	historyEffect := testutil.MaxAbsDiff(outputs[1], coldSecond)
 	if historyEffect == 0 {
 		t.Fatal("retained self-attention history has no numerical effect")
 	}
@@ -223,7 +223,7 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 			}
 		}
 	}
-	if worst := maxAbsDifference(first, second); worst != 0 {
+	if worst := testutil.MaxAbsDiff(first, second); worst != 0 {
 		t.Fatalf("retained replay head max_abs=%.6g", worst)
 	}
 }
@@ -307,15 +307,4 @@ func readRetainedDenoiserF32(t testing.TB, path string, elements int) []float32 
 		values[index] = math.Float32frombits(binary.LittleEndian.Uint32(raw[4*index:]))
 	}
 	return values
-}
-
-func maxAbsDifference(left, right []float32) float64 {
-	if len(left) != len(right) {
-		return math.Inf(1)
-	}
-	var maximum float64
-	for index := range left {
-		maximum = math.Max(maximum, math.Abs(float64(left[index])-float64(right[index])))
-	}
-	return maximum
 }

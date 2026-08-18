@@ -90,7 +90,7 @@ func selectResponsesTools(
 				)
 			}
 			tools[index] = inference.ChatTool{
-				Type: "function",
+				Type: inference.ChatToolTypeFunction,
 				Function: inference.ChatToolDefinition{
 					Name:        definition.Name,
 					Description: definition.Description,
@@ -150,14 +150,14 @@ func (h *Handler) parseResponsesMessages(
 	messages := make([]inference.ChatMessage, 0, 4)
 	if instructions != "" {
 		messages = append(messages, inference.ChatMessage{
-			Role:    "system",
+			Role:    inference.ChatRoleSystem,
 			Content: instructions,
 		})
 	}
 	var textInput string
 	if err := json.Unmarshal(raw, &textInput); err == nil {
 		return append(messages, inference.ChatMessage{
-			Role:    "user",
+			Role:    inference.ChatRoleUser,
 			Content: textInput,
 		}), nil
 	}
@@ -181,16 +181,16 @@ func (h *Handler) parseResponsesMessages(
 		switch header.Type {
 		case "", "message":
 			var item struct {
-				Content json.RawMessage `json:"content"`
-				ID      string          `json:"id"`
-				Role    string          `json:"role"`
-				Status  string          `json:"status"`
-				Type    string          `json:"type"`
+				Content json.RawMessage    `json:"content"`
+				ID      string             `json:"id"`
+				Role    inference.ChatRole `json:"role"`
+				Status  string             `json:"status"`
+				Type    string             `json:"type"`
 			}
-			if err := decodeResponsesItem(rawItem, &item); err != nil {
+			if err := strictjson.DecodeBytes(rawItem, &item); err != nil {
 				return nil, fmt.Errorf("input item %d: %w", index, err)
 			}
-			if item.Role == "" || len(item.Content) == 0 {
+			if !item.Role.Valid() || len(item.Content) == 0 {
 				return nil, fmt.Errorf(
 					"input item %d requires role and content",
 					index,
@@ -212,7 +212,7 @@ func (h *Handler) parseResponsesMessages(
 			if err != nil {
 				return nil, err
 			}
-			messages = append(messages, inference.ChatMessage{Role: "user", Content: content})
+			messages = append(messages, inference.ChatMessage{Role: inference.ChatRoleUser, Content: content})
 		case "function_call":
 			var item struct {
 				Arguments string `json:"arguments"`
@@ -222,7 +222,7 @@ func (h *Handler) parseResponsesMessages(
 				Status    string `json:"status"`
 				Type      string `json:"type"`
 			}
-			if err := decodeResponsesItem(rawItem, &item); err != nil {
+			if err := strictjson.DecodeBytes(rawItem, &item); err != nil {
 				return nil, fmt.Errorf("input item %d: %w", index, err)
 			}
 			if item.CallID == "" || item.Name == "" ||
@@ -234,19 +234,19 @@ func (h *Handler) parseResponsesMessages(
 			}
 			call := inference.ChatToolCall{
 				ID:   item.CallID,
-				Type: "function",
+				Type: inference.ChatToolTypeFunction,
 				Function: inference.ChatToolFunction{
 					Name:      item.Name,
 					Arguments: item.Arguments,
 				},
 			}
 			if len(messages) != 0 &&
-				messages[len(messages)-1].Role == "assistant" {
+				messages[len(messages)-1].Role == inference.ChatRoleAssistant {
 				last := &messages[len(messages)-1]
 				last.ToolCalls = append(last.ToolCalls, call)
 			} else {
 				messages = append(messages, inference.ChatMessage{
-					Role:      "assistant",
+					Role:      inference.ChatRoleAssistant,
 					ToolCalls: []inference.ChatToolCall{call},
 				})
 			}
@@ -258,7 +258,7 @@ func (h *Handler) parseResponsesMessages(
 				Status string          `json:"status"`
 				Type   string          `json:"type"`
 			}
-			if err := decodeResponsesItem(rawItem, &item); err != nil {
+			if err := strictjson.DecodeBytes(rawItem, &item); err != nil {
 				return nil, fmt.Errorf("input item %d: %w", index, err)
 			}
 			if item.CallID == "" || len(item.Output) == 0 {
@@ -275,7 +275,7 @@ func (h *Handler) parseResponsesMessages(
 				return nil, err
 			}
 			messages = append(messages, inference.ChatMessage{
-				Role:       "tool",
+				Role:       inference.ChatRoleTool,
 				Content:    output,
 				ToolCallID: item.CallID,
 			})
@@ -290,7 +290,7 @@ func (h *Handler) parseResponsesMessages(
 				} `json:"content"`
 				EncryptedContent string `json:"encrypted_content"`
 			}
-			if err := decodeResponsesItem(rawItem, &item); err != nil {
+			if err := strictjson.DecodeBytes(rawItem, &item); err != nil {
 				return nil, fmt.Errorf("input item %d: %w", index, err)
 			}
 			parts := make([]string, 0, len(item.Content)+len(item.Summary))
@@ -315,7 +315,7 @@ func (h *Handler) parseResponsesMessages(
 				return nil, fmt.Errorf("input item %d reasoning content is empty", index)
 			}
 			messages = append(messages, inference.ChatMessage{
-				Role: "assistant", ReasoningContent: strings.Join(parts, "\n\n"),
+				Role: inference.ChatRoleAssistant, ReasoningContent: strings.Join(parts, "\n\n"),
 			})
 		default:
 			return nil, fmt.Errorf(
@@ -352,16 +352,11 @@ func (h *Handler) parseResponsesMessageContent(
 		}
 		switch header.Type {
 		case "text", "input_text", "output_text":
-			var part struct {
-				Type        string          `json:"type"`
-				Text        string          `json:"text"`
-				Annotations json.RawMessage `json:"annotations"`
-				Logprobs    json.RawMessage `json:"logprobs"`
+			text, err := decodeResponsesTextPart(rawPart, label, index)
+			if err != nil {
+				return "", nil, err
 			}
-			if err := decodeResponsesItem(rawPart, &part); err != nil {
-				return "", nil, fmt.Errorf("%s part %d: %w", label, index, err)
-			}
-			result.WriteString(part.Text)
+			result.WriteString(text)
 		case "input_image":
 			var part struct {
 				Type     string `json:"type"`
@@ -369,7 +364,7 @@ func (h *Handler) parseResponsesMessageContent(
 				FileID   string `json:"file_id"`
 				Detail   string `json:"detail"`
 			}
-			if err := decodeResponsesItem(rawPart, &part); err != nil {
+			if err := strictjson.DecodeBytes(rawPart, &part); err != nil {
 				return "", nil, fmt.Errorf("%s part %d: %w", label, index, err)
 			}
 			if (part.ImageURL == "") == (part.FileID == "") {
@@ -387,7 +382,7 @@ func (h *Handler) parseResponsesMessageContent(
 				source = "data:" + file.MediaType + ";base64," + base64.StdEncoding.EncodeToString(file.Data)
 			}
 			media = append(media, inference.ChatMediaPart{
-				Type: "image", Data: source, TextOffset: result.Len(),
+				Type: inference.ChatMediaImage, Data: source, TextOffset: result.Len(),
 			})
 		case "input_file":
 			content, err := h.parseResponsesFile(ctx, rawPart, fmt.Sprintf("%s part %d", label, index))
@@ -404,7 +399,7 @@ func (h *Handler) parseResponsesMessageContent(
 					Format string `json:"format"`
 				} `json:"input_audio"`
 			}
-			if err := decodeResponsesItem(rawPart, &part); err != nil {
+			if err := strictjson.DecodeBytes(rawPart, &part); err != nil {
 				return "", nil, fmt.Errorf("%s part %d: %w", label, index, err)
 			}
 			if (part.InputAudio.Data == "") == (part.InputAudio.URL == "") {
@@ -418,7 +413,7 @@ func (h *Handler) parseResponsesMessageContent(
 				source = part.InputAudio.URL
 			}
 			media = append(media, inference.ChatMediaPart{
-				Type: "audio", Data: source, Format: part.InputAudio.Format, TextOffset: result.Len(),
+				Type: inference.ChatMediaAudio, Data: source, Format: part.InputAudio.Format, TextOffset: result.Len(),
 			})
 		case "input_video":
 			var part struct {
@@ -429,7 +424,7 @@ func (h *Handler) parseResponsesMessageContent(
 					FPS  float64 `json:"fps,omitempty"`
 				} `json:"input_video"`
 			}
-			if err := decodeResponsesItem(rawPart, &part); err != nil {
+			if err := strictjson.DecodeBytes(rawPart, &part); err != nil {
 				return "", nil, fmt.Errorf("%s part %d: %w", label, index, err)
 			}
 			if (part.InputVideo.Data == "") == (part.InputVideo.URL == "") {
@@ -440,7 +435,7 @@ func (h *Handler) parseResponsesMessageContent(
 				source = part.InputVideo.URL
 			}
 			media = append(media, inference.ChatMediaPart{
-				Type: "video", Data: source, FPS: part.InputVideo.FPS, TextOffset: result.Len(),
+				Type: inference.ChatMediaVideo, Data: source, FPS: part.InputVideo.FPS, TextOffset: result.Len(),
 			})
 		default:
 			return "", nil, fmt.Errorf(
@@ -460,7 +455,7 @@ func (h *Handler) parseResponsesFile(ctx context.Context, raw json.RawMessage, l
 		FileURL  string `json:"file_url"`
 		Filename string `json:"filename"`
 	}
-	if err := decodeResponsesItem(raw, &part); err != nil {
+	if err := strictjson.DecodeBytes(raw, &part); err != nil {
 		return "", fmt.Errorf("%s: %w", label, err)
 	}
 	if part.Type != "input_file" {
@@ -567,10 +562,6 @@ func validResponseFilename(filename string) (string, error) {
 	return filename, nil
 }
 
-func decodeResponsesItem(raw json.RawMessage, destination any) error {
-	return strictjson.DecodeBytes(raw, destination)
-}
-
 func parseResponsesTextContent(raw json.RawMessage, label string) (string, error) {
 	var text string
 	if err := json.Unmarshal(raw, &text); err == nil {
@@ -582,28 +573,31 @@ func parseResponsesTextContent(raw json.RawMessage, label string) (string, error
 	}
 	var result strings.Builder
 	for index, rawPart := range rawParts {
-		var part struct {
-			Type        string          `json:"type"`
-			Text        string          `json:"text"`
-			Annotations json.RawMessage `json:"annotations"`
-			Logprobs    json.RawMessage `json:"logprobs"`
+		text, err := decodeResponsesTextPart(rawPart, label, index)
+		if err != nil {
+			return "", err
 		}
-		if err := decodeResponsesItem(rawPart, &part); err != nil {
-			return "", fmt.Errorf("%s part %d: %w", label, index, err)
-		}
-		switch part.Type {
-		case "text", "input_text", "output_text":
-			result.WriteString(part.Text)
-		default:
-			return "", fmt.Errorf(
-				"%s part %d has unsupported type %q",
-				label,
-				index,
-				part.Type,
-			)
-		}
+		result.WriteString(text)
 	}
 	return result.String(), nil
+}
+
+func decodeResponsesTextPart(raw json.RawMessage, label string, index int) (string, error) {
+	var part struct {
+		Type        string          `json:"type"`
+		Text        string          `json:"text"`
+		Annotations json.RawMessage `json:"annotations"`
+		Logprobs    json.RawMessage `json:"logprobs"`
+	}
+	if err := strictjson.DecodeBytes(raw, &part); err != nil {
+		return "", fmt.Errorf("%s part %d: %w", label, index, err)
+	}
+	switch part.Type {
+	case "text", "input_text", "output_text":
+		return part.Text, nil
+	default:
+		return "", fmt.Errorf("%s part %d has unsupported type %q", label, index, part.Type)
+	}
 }
 
 func responseItems(
@@ -631,7 +625,7 @@ func responseItems(
 				Text:        message.Content,
 			}},
 			ID:     messageID,
-			Role:   "assistant",
+			Role:   inference.ChatRoleAssistant,
 			Status: "completed",
 			Type:   "message",
 		})

@@ -139,31 +139,6 @@ type Source struct {
 	indexed  bool
 }
 
-// Snapshot: borrowed immutable catalog for concurrent consumers. Payload
-// handles remain owned by the source; close only the source.
-func (s *Source) Snapshot() *Source {
-	if s == nil {
-		return nil
-	}
-	out := &Source{
-		Tensors:  make(map[string]Tensor, len(s.Tensors)),
-		Metadata: make(map[string]map[string]string, len(s.Metadata)),
-		indexed:  s.indexed,
-	}
-	for name, tensor := range s.Tensors {
-		tensor.Shape = slices.Clone(tensor.Shape)
-		out.Tensors[name] = tensor
-	}
-	for shard, metadata := range s.Metadata {
-		copy := make(map[string]string, len(metadata))
-		for key, value := range metadata {
-			copy[key] = value
-		}
-		out.Metadata[shard] = copy
-	}
-	return out
-}
-
 // OpenSource: open a repository with production bounds.
 func OpenSource(directory string) (*Source, error) {
 	return OpenSourceWithLimits(directory, DefaultLimits())
@@ -214,6 +189,26 @@ func (s *Source) Names() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// IntShapes: host-representable nonempty tensor dimensions.
+func (s *Source) IntShapes() (map[string][]int, error) {
+	if s == nil {
+		return nil, errors.New("safetensors: nil source")
+	}
+	shapes := make(map[string][]int, len(s.Tensors))
+	for name, tensor := range s.Tensors {
+		shape := make([]int, len(tensor.Shape))
+		for index, dimension := range tensor.Shape {
+			converted := int(dimension)
+			if dimension == 0 || uint64(converted) != dimension {
+				return nil, fmt.Errorf("safetensors: tensor %q dimension %d is not host-representable", name, dimension)
+			}
+			shape[index] = converted
+		}
+		shapes[name] = shape
+	}
+	return shapes, nil
 }
 
 // Shards: sorted repository-relative shard names.

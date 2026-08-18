@@ -1,5 +1,7 @@
 package server
 
+import "overgo/internal/inference"
+
 type responsesStreamEvent struct {
 	Arguments    *string `json:"arguments,omitempty"`
 	Delta        any     `json:"delta,omitempty"`
@@ -21,11 +23,11 @@ type responsesProgress struct {
 }
 
 type responsesMessageStart struct {
-	Content []any  `json:"content"`
-	ID      string `json:"id"`
-	Role    string `json:"role"`
-	Status  string `json:"status"`
-	Type    string `json:"type"`
+	Content []any              `json:"content"`
+	ID      string             `json:"id"`
+	Role    inference.ChatRole `json:"role"`
+	Status  string             `json:"status"`
+	Type    string             `json:"type"`
 }
 
 type responsesTextStart struct {
@@ -43,14 +45,14 @@ type anthropicStreamEvent struct {
 }
 
 type anthropicMessageStart struct {
-	Content      []any          `json:"content"`
-	ID           string         `json:"id"`
-	Model        string         `json:"model"`
-	Role         string         `json:"role"`
-	StopReason   any            `json:"stop_reason"`
-	StopSequence any            `json:"stop_sequence"`
-	Type         string         `json:"type"`
-	Usage        anthropicUsage `json:"usage"`
+	Content      []any              `json:"content"`
+	ID           string             `json:"id"`
+	Model        string             `json:"model"`
+	Role         inference.ChatRole `json:"role"`
+	StopReason   any                `json:"stop_reason"`
+	StopSequence any                `json:"stop_sequence"`
+	Type         string             `json:"type"`
+	Usage        anthropicUsage     `json:"usage"`
 }
 
 type anthropicContentBlockStart struct {

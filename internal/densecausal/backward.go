@@ -1,9 +1,7 @@
 // Backward for the dense causal-LM capability, composed from hostmath VJPs
 // in checkpoint posture: only the per-layer residual-stream inputs are
 // retained; every trace is recomputed from them. Gradients are keyed by the
-// checkpoint tensor names an optimizer consumes. Head grads key by HeadName:
-// tied, the one embedding slot accumulates BOTH the lm-head contribution and
-// the input-lookup scatter; untied, lm_head.weight gets its own slot.
+// checkpoint tensor names an optimizer consumes. Head grads use the compiled binding:
 package densecausal
 
 import (
@@ -20,6 +18,15 @@ type Grads map[string][]float32
 // mean CE (positions 0..n-2 predict tokens 1..n-1), the full logits, and
 // every parameter gradient.
 func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
+	return m.lossAndGrads(tokens, true)
+}
+
+func (m *Model) trainingLossAndGrads(tokens []int) (float64, Grads, error) {
+	loss, _, gradients, err := m.lossAndGrads(tokens, false)
+	return loss, gradients, err
+}
+
+func (m *Model) lossAndGrads(tokens []int, retainLogits bool) (float64, []float32, Grads, error) {
 	if len(tokens) < 2 {
 		return 0, nil, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
@@ -28,7 +35,7 @@ func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
 		return 0, nil, nil, err
 	}
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
-	return m.lossAndGradsFromStates(tokens, states, func(
+	return m.lossAndGradsFromStates(tokens, states, retainLogits, func(
 		index int, input, outputGradient []float32, sequence int, gradients Grads,
 	) ([]float32, error) {
 		return m.layerBackward(index, input, outputGradient, invFreq, sequence, gradients)
@@ -45,27 +52,51 @@ type layerGradient func(
 func (m *Model) lossAndGradsFromStates(
 	tokens []int,
 	states [][]float32,
+	retainLogits bool,
 	backward layerGradient,
 ) (float64, []float32, Grads, error) {
 	d := m.Dims
 	seq := len(tokens)
 	final := states[d.Layers]
 	normed := make([]float32, seq*d.Hidden)
-	hostmath.RMSNormInto(normed, final, m.Weights["model.norm.weight"], seq, d.Hidden, d.RMSEps)
-	head := m.head()
-	logits := make([]float32, seq*d.Vocab)
-	hostmath.Linear(logits, normed, head, seq, d.Hidden, d.Vocab)
-
+	hostmath.RMSNormInto(normed, final, m.tensors.finalNorm.values, seq, d.Hidden, d.RMSEps)
+	head := m.tensors.head.values
 	g := Grads{}
-	// Last position predicts nothing: its logits row carries zero gradient.
-	dLogits := make([]float32, seq*d.Vocab)
-	loss := hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
-
-	gradHead := hostmath.GradientSlot(g, m.headName(), len(head))
+	gradHead := hostmath.GradientSlot(g, m.tensors.head.name, len(head))
 	dNormed := make([]float32, seq*d.Hidden)
-	hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
+	var loss float64
+	var logits []float32
+	if retainLogits {
+		logits = make([]float32, seq*d.Vocab)
+		hostmath.Linear(logits, normed, head, seq, d.Hidden, d.Vocab)
+		dLogits := make([]float32, seq*d.Vocab)
+		loss = hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
+		hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
+	} else {
+		rows := seq - 1
+		selected := make([]bool, rows)
+		for index := range selected {
+			selected[index] = true
+		}
+		scores := make([]float64, rows)
+		workspace := make([]float32, d.Vocab)
+		if err := hostmath.SelectedLogProbInto(scores, normed[:rows*d.Hidden], head, nil, tokens[1:], selected, rows, d.Hidden, d.Vocab, workspace); err != nil {
+			return 0, nil, nil, err
+		}
+		coefficients := make([]float64, rows)
+		for index, score := range scores {
+			loss -= score / float64(rows)
+			coefficients[index] = -1 / float64(rows)
+		}
+		if err := hostmath.SelectedLogProbBackward(
+			dNormed[:rows*d.Hidden], gradHead, nil, normed[:rows*d.Hidden], head, nil,
+			tokens[1:], selected, coefficients, rows, d.Hidden, d.Vocab, workspace, false,
+		); err != nil {
+			return 0, nil, nil, err
+		}
+	}
 	dx := make([]float32, seq*d.Hidden)
-	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, "model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
+	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, m.tensors.finalNorm.name, d.Hidden), final, m.tensors.finalNorm.values, dNormed, seq, d.Hidden, d.RMSEps, false)
 
 	for index := d.Layers - 1; index >= 0; index-- {
 		var err error
@@ -76,8 +107,8 @@ func (m *Model) lossAndGradsFromStates(
 	}
 	// Input-embedding scatter (the second contribution when tied; the only
 	// embedding contribution when untied).
-	embed := m.Weights["model.embed_tokens.weight"]
-	gradEmbed := hostmath.GradientSlot(g, "model.embed_tokens.weight", len(embed))
+	embed := m.tensors.embedding.values
+	gradEmbed := hostmath.GradientSlot(g, m.tensors.embedding.name, len(embed))
 	scatterEmbeddingGradient(gradEmbed, dx, tokens, d.Hidden)
 	return loss, logits, g, nil
 }
@@ -93,11 +124,7 @@ func scatterEmbeddingGradient(embedding, gradient []float32, tokens []int, hidde
 // (retained); dOut arrives at the layer output; dx returns at the input.
 func (m *Model) layerBackward(index int, x, dOut []float32, invFreq []float64, seq int, g Grads) ([]float32, error) {
 	d := m.Dims
-	l, err := m.layerWeights(index)
-	if err != nil {
-		return nil, err
-	}
-	prefix := fmt.Sprintf("model.layers.%d.", index)
+	l := m.layers[index]
 	width := d.Heads * d.HeadDim
 	kvWidth := d.KVHeads * d.HeadDim
 
@@ -123,21 +150,21 @@ func (m *Model) layerBackward(index int, x, dOut []float32, invFreq []float64, s
 	// MLP branch backward; dh2 carries the residual plus the norm path.
 	dh2 := append([]float32(nil), dOut...)
 	dH := make([]float32, seq*d.Intermediate)
-	hostmath.LinearBackward(dH, hostmath.GradientSlot(g, prefix+"mlp.down_proj.weight", d.Hidden*d.Intermediate), nil,
+	hostmath.LinearBackward(dH, hostmath.GradientSlot(g, l.names.down, d.Hidden*d.Intermediate), nil,
 		h, l.down, dOut, seq, d.Intermediate, d.Hidden, false)
 	dGate := make([]float32, seq*d.Intermediate)
 	dUp := make([]float32, seq*d.Intermediate)
 	hostmath.SiLUGateBackward(dGate, dUp, gate, up, dH)
 	dHn := make([]float32, seq*d.Hidden)
-	hostmath.LinearBackward(dHn, hostmath.GradientSlot(g, prefix+"mlp.gate_proj.weight", d.Intermediate*d.Hidden), nil,
+	hostmath.LinearBackward(dHn, hostmath.GradientSlot(g, l.names.gate, d.Intermediate*d.Hidden), nil,
 		hn, l.gate, dGate, seq, d.Hidden, d.Intermediate, false)
-	hostmath.LinearBackward(dHn, hostmath.GradientSlot(g, prefix+"mlp.up_proj.weight", d.Intermediate*d.Hidden), nil,
+	hostmath.LinearBackward(dHn, hostmath.GradientSlot(g, l.names.up, d.Intermediate*d.Hidden), nil,
 		hn, l.up, dUp, seq, d.Hidden, d.Intermediate, true)
-	hostmath.RMSNormBackward(dh2, hostmath.GradientSlot(g, prefix+"post_attention_layernorm.weight", d.Hidden), h2, l.postLN, dHn, seq, d.Hidden, d.RMSEps, true)
+	hostmath.RMSNormBackward(dh2, hostmath.GradientSlot(g, l.names.postLN, d.Hidden), h2, l.postLN, dHn, seq, d.Hidden, d.RMSEps, true)
 
 	// Attention branch backward.
 	dAttnCore := make([]float32, seq*width)
-	hostmath.LinearBackward(dAttnCore, hostmath.GradientSlot(g, prefix+"self_attn.o_proj.weight", d.Hidden*width), nil,
+	hostmath.LinearBackward(dAttnCore, hostmath.GradientSlot(g, l.names.o, d.Hidden*width), nil,
 		tr.attnCore, l.o, dh2, seq, width, d.Hidden, false)
 	dq := make([]float32, seq*width)
 	dk := make([]float32, seq*kvWidth)
@@ -158,18 +185,18 @@ func (m *Model) layerBackward(index int, x, dOut []float32, invFreq []float64, s
 	// Optional q/k/v bias grads (qwen2): dB sums dy rows; dx path unchanged.
 	var dbQ, dbK, dbV []float32
 	if l.qb != nil {
-		dbQ = hostmath.GradientSlot(g, prefix+"self_attn.q_proj.bias", width)
-		dbK = hostmath.GradientSlot(g, prefix+"self_attn.k_proj.bias", kvWidth)
-		dbV = hostmath.GradientSlot(g, prefix+"self_attn.v_proj.bias", kvWidth)
+		dbQ = hostmath.GradientSlot(g, l.names.qb, width)
+		dbK = hostmath.GradientSlot(g, l.names.kb, kvWidth)
+		dbV = hostmath.GradientSlot(g, l.names.vb, kvWidth)
 	}
 	dXn := make([]float32, seq*d.Hidden)
-	hostmath.LinearBackward(dXn, hostmath.GradientSlot(g, prefix+"self_attn.q_proj.weight", width*d.Hidden), dbQ,
+	hostmath.LinearBackward(dXn, hostmath.GradientSlot(g, l.names.q, width*d.Hidden), dbQ,
 		xn, l.q, dq, seq, d.Hidden, width, false)
-	hostmath.LinearBackward(dXn, hostmath.GradientSlot(g, prefix+"self_attn.k_proj.weight", kvWidth*d.Hidden), dbK,
+	hostmath.LinearBackward(dXn, hostmath.GradientSlot(g, l.names.k, kvWidth*d.Hidden), dbK,
 		xn, l.k, dk, seq, d.Hidden, kvWidth, true)
-	hostmath.LinearBackward(dXn, hostmath.GradientSlot(g, prefix+"self_attn.v_proj.weight", kvWidth*d.Hidden), dbV,
+	hostmath.LinearBackward(dXn, hostmath.GradientSlot(g, l.names.v, kvWidth*d.Hidden), dbV,
 		xn, l.v, dv, seq, d.Hidden, kvWidth, true)
 	dx := dh2
-	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, prefix+"input_layernorm.weight", d.Hidden), x, l.inLN, dXn, seq, d.Hidden, d.RMSEps, true)
+	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, l.names.inLN, d.Hidden), x, l.inLN, dXn, seq, d.Hidden, d.RMSEps, true)
 	return dx, nil
 }

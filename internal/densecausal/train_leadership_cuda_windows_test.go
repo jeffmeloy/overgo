@@ -71,7 +71,7 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer worker.Close()
-	if _, _, err := warmModel.TrainDeviceResidentFrozenLexicalBatches(worker, carbonAdaptiveCausalWindows[:1], 1.33179e-5, 0.95, nil); err != nil {
+	if _, err := warmModel.TrainDeviceResident(worker, carbonAdaptiveCausalWindows[:1], 1.33179e-5, 0.95, DeviceTrainingOptions{FrozenLexical: true}); err != nil {
 		t.Fatalf("Carbon warm-up: %v", err)
 	}
 	if err := worker.Do(context.Background(), func(state *device.State) error {
@@ -81,11 +81,12 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	trajectory, measurement, err := model.MeasureDeviceResidentFrozenLexicalBatches(worker, carbonAdaptiveCausalWindows, 1.33179e-5, 0.95)
+	result, err := model.TrainDeviceResident(worker, carbonAdaptiveCausalWindows, 1.33179e-5, 0.95, DeviceTrainingOptions{FrozenLexical: true, Measure: true})
 	totalWall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)
 	}
+	trajectory, measurement := result.Losses, result.Measurement
 	t.Logf("matched Carbon trajectory: %.9f", trajectory)
 	memory, err := worker.MemoryStats(context.Background())
 	if err != nil {
@@ -162,7 +163,7 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 	for index := 1; index < len(tokens); index++ {
 		tokens[index] = 151669 + index%64
 	}
-	embed := model.Weights["model.embed_tokens.weight"]
+	embed := model.tensors.embedding.values
 	probes := []int{0, len(embed) / 3, len(embed) - 1}
 	before := make([]float32, len(probes))
 	for index, probe := range probes {
@@ -175,11 +176,12 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	trajectory, _, err := model.TrainDeviceResidentFrozenLexicalBatches(worker, slices.Repeat([][]int{tokens}, 4), 0, 0.95, nil)
+	result, err := model.TrainDeviceResident(worker, slices.Repeat([][]int{tokens}, 4), 0, 0.95, DeviceTrainingOptions{FrozenLexical: true})
 	wall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)
 	}
+	trajectory := result.Losses
 	memory, err := worker.MemoryStats(context.Background())
 	if err != nil {
 		t.Fatal(err)

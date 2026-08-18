@@ -9,6 +9,7 @@ import (
 	"time"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
 func TestRealResidentForwardLeadership(t *testing.T) {
@@ -65,8 +66,8 @@ func TestRealResidentForwardLeadership(t *testing.T) {
 	slices.Sort(hostDurations)
 	slices.Sort(warmDurations)
 	hostMedian, warmMedian := hostDurations[1], warmDurations[1]
-	hostDiff := maxAbsDiff(hostOutput, golden.Out)
-	deviceDiff := maxAbsDiff(deviceOutput, golden.Out)
+	hostDiff := testutil.MaxAbsDiff(hostOutput, golden.Out)
+	deviceDiff := testutil.MaxAbsDiff(deviceOutput, golden.Out)
 	hostToDeviceCopies := after.Execution.HostToDeviceCopies - before.Execution.HostToDeviceCopies
 	hostToDeviceBytes := after.Execution.HostToDeviceBytes - before.Execution.HostToDeviceBytes
 	t.Logf("real SimpleDiffusion resident forward: compile=%s cold=%s warm_median=%s host_median=%s", compileWall, coldWall, warmMedian, hostMedian)

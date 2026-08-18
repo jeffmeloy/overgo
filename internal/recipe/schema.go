@@ -86,6 +86,8 @@ const (
 	DataScores             DataKind = "scores"
 	DataRanking            DataKind = "ranking"
 	DataBatch              DataKind = "batch"
+	DataPreferenceBatch    DataKind = "preference-batch"
+	DataSequenceScores     DataKind = "sequence-scores"
 	DataLoss               DataKind = "loss"
 	DataGradients          DataKind = "gradients"
 )
@@ -270,7 +272,7 @@ func validateDataKind(kind DataKind) error {
 	case DataArtifact, DataText, DataTokens, DataEmbeddings, DataTensor, DataModelPlan, DataSessionPlan,
 		DataCache, DataLogits, DataImage, DataImageTensor, DataPromptConditioning, DataClassConditioning,
 		DataAudio, DataAudioTensor, DataVideo, DataVideoTensor, DataMetrics, DataCheckpoint,
-		DataScores, DataRanking, DataBatch, DataLoss, DataGradients:
+		DataScores, DataRanking, DataBatch, DataPreferenceBatch, DataSequenceScores, DataLoss, DataGradients:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid data kind %q", kind)

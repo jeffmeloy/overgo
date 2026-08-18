@@ -34,7 +34,7 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 	kvWidth := d.KVHeads * d.HeadDim
 
 	// Embedding lookup (host): the stack's input residual, states[0].
-	embed := m.Weights["model.embed_tokens.weight"]
+	embed := m.tensors.embedding.values
 	embeds := make([]float32, seq*d.Hidden)
 	for token, id := range tokens {
 		if id < 0 || id >= d.Vocab {
@@ -46,10 +46,7 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 	// Gather per-layer weights (host slices; the session uploads each once).
 	layers := make([]devicemath.LayerForwardWeights, d.Layers)
 	for i := 0; i < d.Layers; i++ {
-		l, err := m.layerWeights(i)
-		if err != nil {
-			return 0, nil, nil, err
-		}
+		l := m.layers[i]
 		layers[i] = devicemath.LayerForwardWeights{
 			InLN: l.inLN, PostLN: l.postLN, Q: l.q, K: l.k, V: l.v, O: l.o,
 			QBias: l.qb, KBias: l.kb, VBias: l.vb,
@@ -66,17 +63,17 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 	var logits []float32
 	tail := func(final []float32) ([]float32, error) {
 		normed := make([]float32, seq*d.Hidden)
-		hostmath.RMSNormInto(normed, final, m.Weights["model.norm.weight"], seq, d.Hidden, d.RMSEps)
-		head := m.head()
+		hostmath.RMSNormInto(normed, final, m.tensors.finalNorm.values, seq, d.Hidden, d.RMSEps)
+		head := m.tensors.head.values
 		logits = make([]float32, seq*d.Vocab)
 		hostmath.Linear(logits, normed, head, seq, d.Hidden, d.Vocab)
 		dLogits := make([]float32, seq*d.Vocab)
 		loss = hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
-		gradHead := hostmath.GradientSlot(g, m.headName(), len(head))
+		gradHead := hostmath.GradientSlot(g, m.tensors.head.name, len(head))
 		dNormed := make([]float32, seq*d.Hidden)
 		hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
 		dx := make([]float32, seq*d.Hidden)
-		hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, "model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
+		hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, m.tensors.finalNorm.name, d.Hidden), final, m.tensors.finalNorm.values, dNormed, seq, d.Hidden, d.RMSEps, false)
 		return dx, nil
 	}
 
@@ -89,28 +86,28 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 
 	// Scatter each layer's weight grads into the named slots (same slots as
 	// deviceLayerBackward / layerBackward).
-	for i := 0; i < d.Layers; i++ {
-		prefix := fmt.Sprintf("model.layers.%d.", i)
+	for i, layer := range m.layers {
+		names := layer.names
 		r := grads[i]
-		copy(hostmath.GradientSlot(g, prefix+"mlp.gate_proj.weight", d.Intermediate*d.Hidden), r.DWGate)
-		copy(hostmath.GradientSlot(g, prefix+"mlp.up_proj.weight", d.Intermediate*d.Hidden), r.DWUp)
-		copy(hostmath.GradientSlot(g, prefix+"mlp.down_proj.weight", d.Hidden*d.Intermediate), r.DWDown)
-		copy(hostmath.GradientSlot(g, prefix+"post_attention_layernorm.weight", d.Hidden), r.DWPostLN)
-		copy(hostmath.GradientSlot(g, prefix+"self_attn.o_proj.weight", d.Hidden*width), r.DWO)
-		copy(hostmath.GradientSlot(g, prefix+"self_attn.q_proj.weight", width*d.Hidden), r.DWQ)
-		copy(hostmath.GradientSlot(g, prefix+"self_attn.k_proj.weight", kvWidth*d.Hidden), r.DWK)
-		copy(hostmath.GradientSlot(g, prefix+"self_attn.v_proj.weight", kvWidth*d.Hidden), r.DWV)
+		copy(hostmath.GradientSlot(g, names.gate, d.Intermediate*d.Hidden), r.DWGate)
+		copy(hostmath.GradientSlot(g, names.up, d.Intermediate*d.Hidden), r.DWUp)
+		copy(hostmath.GradientSlot(g, names.down, d.Hidden*d.Intermediate), r.DWDown)
+		copy(hostmath.GradientSlot(g, names.postLN, d.Hidden), r.DWPostLN)
+		copy(hostmath.GradientSlot(g, names.o, d.Hidden*width), r.DWO)
+		copy(hostmath.GradientSlot(g, names.q, width*d.Hidden), r.DWQ)
+		copy(hostmath.GradientSlot(g, names.k, kvWidth*d.Hidden), r.DWK)
+		copy(hostmath.GradientSlot(g, names.v, kvWidth*d.Hidden), r.DWV)
 		if d.AttnBias {
-			copy(hostmath.GradientSlot(g, prefix+"self_attn.q_proj.bias", width), r.DQBias)
-			copy(hostmath.GradientSlot(g, prefix+"self_attn.k_proj.bias", kvWidth), r.DKBias)
-			copy(hostmath.GradientSlot(g, prefix+"self_attn.v_proj.bias", kvWidth), r.DVBias)
+			copy(hostmath.GradientSlot(g, names.qb, width), r.DQBias)
+			copy(hostmath.GradientSlot(g, names.kb, kvWidth), r.DKBias)
+			copy(hostmath.GradientSlot(g, names.vb, kvWidth), r.DVBias)
 		}
-		copy(hostmath.GradientSlot(g, prefix+"input_layernorm.weight", d.Hidden), r.DWInLN)
+		copy(hostmath.GradientSlot(g, names.inLN, d.Hidden), r.DWInLN)
 	}
 
 	// Input-embedding scatter (tied: accumulates onto the head contribution
 	// already in the slot; untied: the sole embedding contribution).
-	gradEmbed := hostmath.GradientSlot(g, "model.embed_tokens.weight", len(embed))
+	gradEmbed := hostmath.GradientSlot(g, m.tensors.embedding.name, len(embed))
 	scatterEmbeddingGradient(gradEmbed, dxEmbed, tokens, d.Hidden)
 	return loss, logits, g, nil
 }

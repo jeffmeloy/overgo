@@ -23,8 +23,21 @@ const (
 	maxFormattedChatBytes = 16 << 20
 )
 
+type ChatRole string
+
+const (
+	ChatRoleSystem    ChatRole = "system"
+	ChatRoleUser      ChatRole = "user"
+	ChatRoleAssistant ChatRole = "assistant"
+	ChatRoleTool      ChatRole = "tool"
+)
+
+func (role ChatRole) Valid() bool {
+	return role == ChatRoleSystem || role == ChatRoleUser || role == ChatRoleAssistant || role == ChatRoleTool
+}
+
 type ChatMessage struct {
-	Role             string          `json:"role"`
+	Role             ChatRole        `json:"role"`
 	Content          string          `json:"content"`
 	Media            []ChatMediaPart `json:"-"`
 	ReasoningContent string          `json:"reasoning_content,omitempty"`
@@ -34,17 +47,29 @@ type ChatMessage struct {
 	ToolCalls        []ChatToolCall  `json:"tool_calls,omitempty"`
 }
 
+type ChatMediaType string
+
+const (
+	ChatMediaImage ChatMediaType = "image"
+	ChatMediaAudio ChatMediaType = "audio"
+	ChatMediaVideo ChatMediaType = "video"
+)
+
 type ChatMediaPart struct {
-	Type       string
+	Type       ChatMediaType
 	Data       string
 	Format     string
 	TextOffset int
 	FPS        float64
 }
 
+type ChatToolType string
+
+const ChatToolTypeFunction ChatToolType = "function"
+
 type ChatToolCall struct {
 	ID       string           `json:"id,omitempty"`
-	Type     string           `json:"type"`
+	Type     ChatToolType     `json:"type"`
 	Function ChatToolFunction `json:"function"`
 }
 
@@ -54,7 +79,7 @@ type ChatToolFunction struct {
 }
 
 type ChatTool struct {
-	Type     string             `json:"type"`
+	Type     ChatToolType       `json:"type"`
 	Function ChatToolDefinition `json:"function"`
 }
 
@@ -76,7 +101,7 @@ func (m ChatMessage) MarshalJSON() ([]byte, error) {
 		content = nil
 	}
 	return json.Marshal(struct {
-		Role             string         `json:"role"`
+		Role             ChatRole       `json:"role"`
 		Content          any            `json:"content"`
 		ReasoningContent string         `json:"reasoning_content,omitempty"`
 		Name             string         `json:"name,omitempty"`
@@ -97,7 +122,7 @@ func (m ChatMessage) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON: string, null, supported OpenAI parts.
 func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 	var wire struct {
-		Role             string          `json:"role"`
+		Role             ChatRole        `json:"role"`
 		Content          json.RawMessage `json:"content"`
 		ReasoningContent string          `json:"reasoning_content"`
 		Name             string          `json:"name"`
@@ -152,7 +177,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 						return fmt.Errorf("inference: chat content part %d image_url.url is required", index)
 					}
 					media = append(media, ChatMediaPart{
-						Type: "image", Data: part.ImageURL.URL, TextOffset: joined.Len(),
+						Type: ChatMediaImage, Data: part.ImageURL.URL, TextOffset: joined.Len(),
 					})
 				case "input_audio":
 					var part struct {
@@ -177,7 +202,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 						source = part.InputAudio.URL
 					}
 					media = append(media, ChatMediaPart{
-						Type: "audio", Data: source,
+						Type: ChatMediaAudio, Data: source,
 						Format: part.InputAudio.Format, TextOffset: joined.Len(),
 					})
 				case "input_video":
@@ -200,7 +225,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 						source = part.InputVideo.URL
 					}
 					media = append(media, ChatMediaPart{
-						Type: "video", Data: source, FPS: part.InputVideo.FPS, TextOffset: joined.Len(),
+						Type: ChatMediaVideo, Data: source, FPS: part.InputVideo.FPS, TextOffset: joined.Len(),
 					})
 				default:
 					return fmt.Errorf(
@@ -269,7 +294,7 @@ func (f *ChatToolFunction) UnmarshalJSON(data []byte) error {
 }
 
 func validateChatToolCall(call ChatToolCall) error {
-	if call.Type != "function" {
+	if call.Type != ChatToolTypeFunction {
 		return fmt.Errorf("unsupported type %q", call.Type)
 	}
 	if call.Function.Name == "" {
@@ -350,9 +375,7 @@ func (r *Runner) buildChatContext(
 ) (map[string]any, error) {
 	wireMessages := make([]any, len(messages))
 	for index, message := range messages {
-		switch message.Role {
-		case "system", "user", "assistant", "tool":
-		default:
+		if !message.Role.Valid() {
 			return nil, fmt.Errorf(
 				"inference: chat message %d has unsupported role %q",
 				index,
@@ -360,7 +383,7 @@ func (r *Runner) buildChatContext(
 			)
 		}
 		wire := map[string]any{
-			"role":    message.Role,
+			"role":    string(message.Role),
 			"content": message.Content,
 		}
 		if message.ReasoningContent != "" {
@@ -423,7 +446,7 @@ func (r *Runner) buildChatContext(
 }
 
 func validateChatTool(tool ChatTool) error {
-	if tool.Type != "function" {
+	if tool.Type != ChatToolTypeFunction {
 		return fmt.Errorf("unsupported type %q", tool.Type)
 	}
 	if tool.Function.Name == "" {
@@ -567,9 +590,7 @@ func formatChatML(messages []ChatMessage) (string, error) {
 	}
 	var result strings.Builder
 	for index, message := range messages {
-		switch message.Role {
-		case "system", "user", "assistant", "tool":
-		default:
+		if !message.Role.Valid() {
 			return "", fmt.Errorf("inference: chat message %d has unsupported role %q", index, message.Role)
 		}
 		if strings.Contains(message.Content, chatMLStart) ||
@@ -577,14 +598,15 @@ func formatChatML(messages []ChatMessage) (string, error) {
 			return "", fmt.Errorf("inference: chat message %d contains a ChatML boundary token", index)
 		}
 		result.WriteString(chatMLStart)
-		result.WriteString(message.Role)
+		result.WriteString(string(message.Role))
 		result.WriteByte('\n')
 		result.WriteString(message.Content)
 		result.WriteString(chatMLEnd)
 		result.WriteByte('\n')
 	}
 	result.WriteString(chatMLStart)
-	result.WriteString("assistant\n")
+	result.WriteString(string(ChatRoleAssistant))
+	result.WriteByte('\n')
 	return result.String(), nil
 }
 
@@ -594,7 +616,7 @@ func formatGemmaChat(messages []ChatMessage) (string, error) {
 	}
 	firstUserPrefix := ""
 	first := 0
-	if messages[0].Role == "system" {
+	if messages[0].Role == ChatRoleSystem {
 		if err := rejectChatBoundary(messages[0].Content, 0, gemmaTurnStart, gemmaTurnEnd); err != nil {
 			return "", err
 		}
@@ -604,10 +626,10 @@ func formatGemmaChat(messages []ChatMessage) (string, error) {
 	var result strings.Builder
 	for index := first; index < len(messages); index++ {
 		message := messages[index]
-		wantRole := "user"
+		wantRole := ChatRoleUser
 		renderedRole := "user"
 		if (index-first)%2 == 1 {
-			wantRole = "assistant"
+			wantRole = ChatRoleAssistant
 			renderedRole = "model"
 		}
 		if message.Role != wantRole {
@@ -641,10 +663,10 @@ func formatLlama3Chat(messages []ChatMessage) (string, error) {
 		return "", errors.New("inference: chat message list is empty")
 	}
 	var result strings.Builder
-	nextRole := "user"
+	nextRole := ChatRoleUser
 	for index, message := range messages {
-		if index == 0 && message.Role == "system" {
-			nextRole = "user"
+		if index == 0 && message.Role == ChatRoleSystem {
+			nextRole = ChatRoleUser
 		} else {
 			if message.Role != nextRole {
 				return "", fmt.Errorf(
@@ -654,10 +676,10 @@ func formatLlama3Chat(messages []ChatMessage) (string, error) {
 					nextRole,
 				)
 			}
-			if nextRole == "user" {
-				nextRole = "assistant"
+			if nextRole == ChatRoleUser {
+				nextRole = ChatRoleAssistant
 			} else {
-				nextRole = "user"
+				nextRole = ChatRoleUser
 			}
 		}
 		if err := rejectChatBoundary(
@@ -671,14 +693,14 @@ func formatLlama3Chat(messages []ChatMessage) (string, error) {
 			return "", err
 		}
 		result.WriteString(llama3HeaderStart)
-		result.WriteString(message.Role)
+		result.WriteString(string(message.Role))
 		result.WriteString(llama3HeaderEnd)
 		result.WriteString("\n\n")
 		result.WriteString(strings.TrimSpace(message.Content))
 		result.WriteString(llama3EndTurn)
 	}
 	result.WriteString(llama3HeaderStart)
-	result.WriteString("assistant")
+	result.WriteString(string(ChatRoleAssistant))
 	result.WriteString(llama3HeaderEnd)
 	result.WriteString("\n\n")
 	return result.String(), nil

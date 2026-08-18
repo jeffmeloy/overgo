@@ -421,7 +421,7 @@ func CompileCapability(definition recipe.Definition) (recipe.Program, error) {
 	if definition.Task == recipe.TaskInference {
 		return recipe.Program{}, fmt.Errorf("model recipe: unsupported runtime task %q", definition.Task)
 	}
-	if definition.Task == recipe.TaskProjection {
+	if definition.Task == recipe.TaskProjection || definition.Task == recipe.TaskTraining {
 		return recipe.CompileProgram(definition, workflowrecipe.Catalog())
 	}
 	return recipe.CompileProgram(definition, catalog)

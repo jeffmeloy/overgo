@@ -16,7 +16,7 @@ import (
 func (t chatTemplateTool) JinjaGet(key string) (any, bool) {
 	switch key {
 	case "type":
-		return "function", true
+		return string(t.tool.Type), true
 	case "function":
 		return chatTemplateToolFunction{definition: t.tool.Function}, true
 	}
@@ -43,7 +43,7 @@ func (c chatTemplateToolCall) JinjaGet(key string) (any, bool) {
 		}
 		return c.call.ID, true
 	case "type":
-		return "function", true
+		return string(c.call.Type), true
 	case "function":
 		return chatTemplateCallFunction{function: c.call.Function, arguments: c.arguments}, true
 	}

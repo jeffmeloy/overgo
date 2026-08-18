@@ -16,8 +16,6 @@ package densecausal
 
 import (
 	"fmt"
-	"io"
-	"math"
 	"path/filepath"
 	"strings"
 
@@ -41,14 +39,24 @@ type Dims struct {
 	AttnBias     bool
 }
 
-// Model: loaded weights (f32), shapes, and derived dims. HeadName keys the
-// lm-head weight: lm_head.weight when untied, the embedding when tied — the
-// tied case accumulates head+scatter grads in the one shared slot.
+// Model owns weights, shapes, geometry, and compiled bindings.
 type Model struct {
-	Dims     Dims
-	Weights  map[string][]float32
-	Shapes   map[string][]int
-	HeadName string
+	Dims    Dims
+	Weights map[string][]float32
+	Shapes  map[string][]int
+	tensors modelTensorBindings
+	layers  []layer
+}
+
+type tensorBinding struct {
+	name   string
+	values []float32
+}
+
+type modelTensorBindings struct {
+	embedding tensorBinding
+	finalNorm tensorBinding
+	head      tensorBinding
 }
 
 type artifactConfig struct {
@@ -72,32 +80,13 @@ func Load(directory string) (*Model, error) {
 	}
 	defer source.Close()
 
-	shapes := make(map[string][]int, len(source.Tensors))
-	weights := make(map[string][]float32, len(source.Tensors))
-	for name, tensor := range source.Tensors {
-		dims := make([]int, len(tensor.Shape))
-		for i, dim := range tensor.Shape {
-			if dim == 0 || dim > 1<<31 {
-				return nil, fmt.Errorf("densecausal: tensor %q dimension %d out of range", name, dim)
-			}
-			dims[i] = int(dim)
-		}
-		shapes[name] = dims
-		reader, err := safetensors.F32Reader(tensor)
-		if err != nil {
-			return nil, fmt.Errorf("densecausal: tensor %q: %w", name, err)
-		}
-		elements := tensor.Elements()
-		buf := make([]byte, elements*4)
-		if _, err := io.ReadFull(reader, buf); err != nil {
-			return nil, fmt.Errorf("densecausal: tensor %q payload: %w", name, err)
-		}
-		values := make([]float32, elements)
-		for i := range values {
-			bits := uint32(buf[4*i]) | uint32(buf[4*i+1])<<8 | uint32(buf[4*i+2])<<16 | uint32(buf[4*i+3])<<24
-			values[i] = math.Float32frombits(bits)
-		}
-		weights[name] = values
+	shapes, err := source.IntShapes()
+	if err != nil {
+		return nil, fmt.Errorf("densecausal: inventory: %w", err)
+	}
+	weights, err := source.ReadAllF32()
+	if err != nil {
+		return nil, fmt.Errorf("densecausal: materialize: %w", err)
 	}
 	m, err := NewModel(weights, shapes, config.NumAttentionHeads, config.HeadDim, config.RopeTheta, config.RMSNormEps)
 	if err != nil {
@@ -118,7 +107,7 @@ func Load(directory string) (*Model, error) {
 		return nil, fmt.Errorf("densecausal: unsupported model_type %q (llama, qwen2)", config.ModelType)
 	}
 	// tie_word_embeddings cross-check: tied forbids lm_head.weight, untied requires it.
-	if untied := m.HeadName == "lm_head.weight"; untied == config.TieWordEmbeddings {
+	if untied := m.tensors.head.name != m.tensors.embedding.name; untied == config.TieWordEmbeddings {
 		return nil, fmt.Errorf("densecausal: tie_word_embeddings=%v but lm_head.weight present=%v", config.TieWordEmbeddings, untied)
 	}
 	return m, nil
@@ -127,22 +116,27 @@ func Load(directory string) (*Model, error) {
 // NewModel derives dims from shapes and validates the geometry; weights map
 // is adopted, not copied. headDim zero falls back to hidden/heads.
 func NewModel(weights map[string][]float32, shapes map[string][]int, heads, headDim int, ropeTheta, rmsEps float64) (*Model, error) {
+	const (
+		embeddingName  = "model.embed_tokens.weight"
+		finalNormName  = "model.norm.weight"
+		untiedHeadName = "lm_head.weight"
+	)
 	var d Dims
-	embed, err := tensorcatalog.Shape(shapes, "model.embed_tokens.weight", 2)
+	embed, err := tensorcatalog.Shape(shapes, embeddingName, 2)
 	if err != nil {
 		return nil, err
 	}
 	d.Vocab, d.Hidden = embed[0], embed[1]
-	headName := "model.embed_tokens.weight"
-	if _, untied := shapes["lm_head.weight"]; untied {
-		head, err := tensorcatalog.Shape(shapes, "lm_head.weight", 2)
+	headName := embeddingName
+	if _, untied := shapes[untiedHeadName]; untied {
+		head, err := tensorcatalog.Shape(shapes, untiedHeadName, 2)
 		if err != nil {
 			return nil, err
 		}
 		if head[0] != d.Vocab || head[1] != d.Hidden {
 			return nil, fmt.Errorf("densecausal: lm_head.weight %v, want [%d %d]", head, d.Vocab, d.Hidden)
 		}
-		headName = "lm_head.weight"
+		headName = untiedHeadName
 	}
 	if heads <= 0 {
 		return nil, fmt.Errorf("densecausal: config num_attention_heads %d", heads)
@@ -159,23 +153,23 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 	}
 	d.RopeTheta, d.RMSEps = ropeTheta, rmsEps
 	for layer := 0; ; layer++ {
-		prefix := fmt.Sprintf("model.layers.%d.", layer)
-		if _, ok := shapes[prefix+"self_attn.q_proj.weight"]; !ok {
+		names := denseLayerTensorNames(layer)
+		if _, ok := shapes[names.q]; !ok {
 			if layer == 0 {
 				return nil, fmt.Errorf("densecausal: no model.layers.0")
 			}
 			d.Layers = layer
 			break
 		}
-		q, err := tensorcatalog.Shape(shapes, prefix+"self_attn.q_proj.weight", 2)
+		q, err := tensorcatalog.Shape(shapes, names.q, 2)
 		if err != nil {
 			return nil, err
 		}
-		k, err := tensorcatalog.Shape(shapes, prefix+"self_attn.k_proj.weight", 2)
+		k, err := tensorcatalog.Shape(shapes, names.k, 2)
 		if err != nil {
 			return nil, err
 		}
-		gate, err := tensorcatalog.Shape(shapes, prefix+"mlp.gate_proj.weight", 2)
+		gate, err := tensorcatalog.Shape(shapes, names.gate, 2)
 		if err != nil {
 			return nil, err
 		}
@@ -196,7 +190,7 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 			return nil, fmt.Errorf("densecausal: layer %d geometry differs from layer 0", layer)
 		}
 		// q/k/v biases: all-or-none per layer, identical across layers.
-		hasBias, err := layerAttnBias(shapes, prefix, q[0], k[0])
+		hasBias, err := layerAttnBias(shapes, names, q[0], k[0])
 		if err != nil {
 			return nil, err
 		}
@@ -206,7 +200,7 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 			return nil, fmt.Errorf("densecausal: layer %d bias presence differs from layer 0", layer)
 		}
 	}
-	if _, err := tensorcatalog.Shape(shapes, "model.norm.weight", 1); err != nil {
+	if _, err := tensorcatalog.Shape(shapes, finalNormName, 1); err != nil {
 		return nil, err
 	}
 	// Any bias outside the q/k/v attention triple is an unverified layout.
@@ -215,20 +209,35 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 			return nil, fmt.Errorf("densecausal: unexpected bias tensor %q", name)
 		}
 	}
-	return &Model{Dims: d, Weights: weights, Shapes: shapes, HeadName: headName}, nil
+	model := &Model{
+		Dims: d, Weights: weights, Shapes: shapes,
+		tensors: modelTensorBindings{
+			embedding: tensorBinding{name: embeddingName, values: weights[embeddingName]},
+			finalNorm: tensorBinding{name: finalNormName, values: weights[finalNormName]},
+			head:      tensorBinding{name: headName, values: weights[headName]},
+		},
+		layers: make([]layer, d.Layers),
+	}
+	for index := range model.layers {
+		model.layers[index], err = compileLayer(weights, index, d.AttnBias)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return model, nil
 }
 
 // layerAttnBias validates the per-layer q/k/v bias triple: absent entirely,
 // or all present with lengths matching the projection out-dims.
-func layerAttnBias(shapes map[string][]int, prefix string, qOut, kvOut int) (bool, error) {
+func layerAttnBias(shapes map[string][]int, names layerTensorNames, qOut, kvOut int) (bool, error) {
 	present := 0
 	for _, want := range []struct {
 		name string
 		out  int
 	}{
-		{prefix + "self_attn.q_proj.bias", qOut},
-		{prefix + "self_attn.k_proj.bias", kvOut},
-		{prefix + "self_attn.v_proj.bias", kvOut},
+		{names.qb, qOut},
+		{names.kb, kvOut},
+		{names.vb, kvOut},
 	} {
 		shape, ok := shapes[want.name]
 		if !ok {
@@ -240,7 +249,7 @@ func layerAttnBias(shapes map[string][]int, prefix string, qOut, kvOut int) (boo
 		}
 	}
 	if present != 0 && present != 3 {
-		return false, fmt.Errorf("densecausal: %sself_attn has %d of 3 q/k/v biases", prefix, present)
+		return false, fmt.Errorf("densecausal: layer containing %q has %d of 3 q/k/v biases", names.q, present)
 	}
 	return present == 3, nil
 }

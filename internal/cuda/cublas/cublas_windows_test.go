@@ -5,13 +5,13 @@ package cublas
 import (
 	"context"
 	"errors"
-	"math"
 	"testing"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testutil"
 )
 
 const (
@@ -96,18 +96,6 @@ func (m *fixtureMemory) close() error {
 	return result
 }
 
-func requireClose(t *testing.T, name string, got, want []float32, tolerance float64) {
-	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("%s length = %d, want %d", name, len(got), len(want))
-	}
-	for index := range want {
-		if difference := math.Abs(float64(got[index] - want[index])); difference > tolerance {
-			t.Fatalf("%s[%d] = %v, want %v", name, index, got[index], want[index])
-		}
-	}
-}
-
 func TestSGEMMIntegration(t *testing.T) {
 	fixture := newBLASFixture(t)
 	left := []float32{
@@ -157,7 +145,7 @@ func TestSGEMMIntegration(t *testing.T) {
 		return state.Driver.MemcpyDtoH(driver.Bytes(output), outputPtr)
 	})
 	want := []float32{1, 4, 2, 5}
-	requireClose(t, "output", output, want, 1e-6)
+	testutil.RequireSliceClose(t, "output", output, want, 1e-6)
 }
 
 // TestRowMajorGEMMF32Integration: non-square row-major convention.
@@ -198,7 +186,7 @@ func TestRowMajorGEMMF32Integration(t *testing.T) {
 		}
 		return state.Driver.MemcpyDtoH(driver.Bytes(out), cPtr)
 	})
-	requireClose(t, "out", out, want, 1e-4)
+	testutil.RequireSliceClose(t, "out", out, want, 1e-4)
 }
 
 // TestRowMajorGEMMExF32TransposeIntegration: non-square Gram products.
@@ -260,8 +248,8 @@ func TestRowMajorGEMMExF32TransposeIntegration(t *testing.T) {
 		}
 		return state.Driver.MemcpyDtoH(driver.Bytes(gotXXt), xxtPtr)
 	})
-	requireClose(t, "XtX", gotXtX, wantXtX, 1e-4)
-	requireClose(t, "XXt", gotXXt, wantXXt, 1e-4)
+	testutil.RequireSliceClose(t, "XtX", gotXtX, wantXtX, 1e-4)
+	testutil.RequireSliceClose(t, "XXt", gotXXt, wantXXt, 1e-4)
 }
 
 func TestGEMMExBF16Integration(t *testing.T) {
@@ -302,5 +290,5 @@ func TestGEMMExBF16Integration(t *testing.T) {
 		return state.Driver.MemcpyDtoH(driver.Bytes(output), outputPtr)
 	})
 	want := []float32{1, 4, 2, 5}
-	requireClose(t, "output", output, want, 1e-6)
+	testutil.RequireSliceClose(t, "output", output, want, 1e-6)
 }

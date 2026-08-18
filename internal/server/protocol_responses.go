@@ -68,7 +68,7 @@ type responseOutputItem struct {
 	Content   []responseOutputText       `json:"content,omitempty"`
 	ID        string                     `json:"id"`
 	Name      string                     `json:"name,omitempty"`
-	Role      string                     `json:"role,omitempty"`
+	Role      inference.ChatRole         `json:"role,omitempty"`
 	Status    string                     `json:"status,omitempty"`
 	Summary   []responseReasoningSummary `json:"summary,omitempty"`
 	Type      string                     `json:"type"`
@@ -226,7 +226,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	}
 	now := time.Now().Unix()
 	message := inference.ChatMessage{
-		Role:    "assistant",
+		Role:    inference.ChatRoleAssistant,
 		Content: result.pump.text(),
 	}
 	if len(toolSelection.active) != 0 || reasoningSummary {
@@ -309,7 +309,7 @@ func (h *Handler) streamResponses(
 			if err := writeEvent("response.output_item.added", responsesStreamEvent{
 				Type: "response.output_item.added",
 				Item: responsesMessageStart{
-					Content: []any{}, ID: messageID, Role: "assistant", Status: "in_progress", Type: "message",
+					Content: []any{}, ID: messageID, Role: inference.ChatRoleAssistant, Status: "in_progress", Type: "message",
 				},
 			}); err != nil {
 				return err
@@ -468,7 +468,7 @@ func (h *Handler) streamResponses(
 		}
 	} else {
 		parsedMessage = inference.ChatMessage{
-			Role:    "assistant",
+			Role:    inference.ChatRoleAssistant,
 			Content: output.String(),
 		}
 	}
@@ -487,7 +487,7 @@ func (h *Handler) streamResponses(
 		item := responseOutputItem{
 			Content: []responseOutputText{part},
 			ID:      messageID,
-			Role:    "assistant",
+			Role:    inference.ChatRoleAssistant,
 			Status:  "completed",
 			Type:    "message",
 		}
@@ -512,7 +512,7 @@ func (h *Handler) streamResponses(
 	assignResponseCallIDs(&parsedMessage, idSuffix)
 	callItems := responseItems(
 		inference.ChatMessage{
-			Role:      "assistant",
+			Role:      inference.ChatRoleAssistant,
 			ToolCalls: parsedMessage.ToolCalls,
 		},
 		messageID,
@@ -665,7 +665,7 @@ func responseRequestMessages(
 	}
 	messages := make([]inference.ChatMessage, 0, capacity)
 	if instructions != "" {
-		messages = append(messages, inference.ChatMessage{Role: "system", Content: instructions})
+		messages = append(messages, inference.ChatMessage{Role: inference.ChatRoleSystem, Content: instructions})
 	}
 	messages = append(messages, previous...)
 	messages = append(messages, current...)

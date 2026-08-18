@@ -81,7 +81,7 @@ func OpenWithOptions(path string, options Options) (*File, error) {
 		}
 	}()
 
-	splitCount, configured, err := metadataUint16(file, "split.count")
+	splitCount, configured, err := metadataUint16(file, splitCountKey)
 	if err != nil {
 		return nil, err
 	}
@@ -97,12 +97,12 @@ func OpenWithOptions(path string, options Options) (*File, error) {
 			options.MaxSplitFiles,
 		)
 	}
-	splitIndex, ok, err := metadataUint16(file, "split.no")
+	splitIndex, ok, err := metadataUint16(file, splitNumberKey)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
-		return nil, errors.New(`split GGUF is missing uint16 metadata "split.no"`)
+		return nil, fmt.Errorf("split GGUF is missing uint16 metadata %q", splitNumberKey)
 	}
 	if splitIndex != 0 {
 		return nil, fmt.Errorf(
@@ -115,7 +115,7 @@ func OpenWithOptions(path string, options Options) (*File, error) {
 		return nil, err
 	}
 	if !ok {
-		return nil, errors.New(`split GGUF is missing int32 metadata "split.tensors.count"`)
+		return nil, fmt.Errorf("split GGUF is missing int32 metadata %q", splitTensorCountKey)
 	}
 	if uint64(totalTensors) > options.MaxTensors {
 		return nil, fmt.Errorf(
@@ -434,19 +434,19 @@ func (f *File) appendSplit(
 	if part.Version != f.Version {
 		return fmt.Errorf("version is %d, expected %d", part.Version, f.Version)
 	}
-	partCount, ok, err := metadataUint16(part, "split.count")
+	partCount, ok, err := metadataUint16(part, splitCountKey)
 	if err != nil {
 		return err
 	}
 	if !ok || partCount != count {
-		return fmt.Errorf(`metadata "split.count" is %d, expected %d`, partCount, count)
+		return fmt.Errorf("metadata %q is %d, expected %d", splitCountKey, partCount, count)
 	}
-	partIndex, ok, err := metadataUint16(part, "split.no")
+	partIndex, ok, err := metadataUint16(part, splitNumberKey)
 	if err != nil {
 		return err
 	}
 	if !ok || partIndex != index {
-		return fmt.Errorf(`metadata "split.no" is %d, expected %d`, partIndex, index)
+		return fmt.Errorf("metadata %q is %d, expected %d", splitNumberKey, partIndex, index)
 	}
 	partTotal, ok, err := metadataTensorCount(part)
 	if err != nil {
@@ -454,7 +454,8 @@ func (f *File) appendSplit(
 	}
 	if !ok || partTotal != totalTensors {
 		return fmt.Errorf(
-			`metadata "split.tensors.count" is %d, expected %d`,
+			"metadata %q is %d, expected %d",
+			splitTensorCountKey,
 			partTotal,
 			totalTensors,
 		)
@@ -500,14 +501,13 @@ func metadataUint16(file *File, key string) (uint16, bool, error) {
 }
 
 func metadataTensorCount(file *File) (uint32, bool, error) {
-	const key = "split.tensors.count"
-	value, ok := file.MetadataValue(key)
+	value, ok := file.MetadataValue(splitTensorCountKey)
 	if !ok {
 		return 0, false, nil
 	}
 	result, valid := value.Data.(int32)
 	if value.Type != ValueTypeInt32 || !valid || result < 0 {
-		return 0, true, fmt.Errorf(`metadata %q must be a non-negative int32`, key)
+		return 0, true, fmt.Errorf(`metadata %q must be a non-negative int32`, splitTensorCountKey)
 	}
 	return uint32(result), true, nil
 }

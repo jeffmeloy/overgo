@@ -191,7 +191,9 @@ func TestMuonStepIsScaleInvariantAndConsumesGradients(t *testing.T) {
 	scaled := mustOptimizer(t, scaledWeights, scaledGradient, plan, fixtureConfig)
 	baseResult := base.Step()
 	scaledResult := scaled.Step()
-	if baseResult != scaledResult || baseResult.Step != 1 {
+	if baseResult.Step != scaledResult.Step || baseResult.Step != 1 ||
+		baseResult.LearningRate != scaledResult.LearningRate || baseResult.UpdateL2 != scaledResult.UpdateL2 ||
+		scaledResult.GradientL2 != gradientScale*baseResult.GradientL2 {
 		t.Fatalf("step results differ: base=%+v scaled=%+v", baseResult, scaledResult)
 	}
 	for index := range parameterCount {

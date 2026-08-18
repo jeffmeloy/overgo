@@ -94,9 +94,8 @@ func RunDevicePrefixStacks(
 	}
 	uploads := device.NewAllocationSet(worker)
 	defer uploads.Close(context.WithoutCancel(ctx))
-	catalog := source.Snapshot()
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
-		weights, err := LoadBranchLayerWeights(catalog, cfg, binding, layer, 0)
+		weights, err := LoadBranchLayerWeights(source, cfg, binding, layer, 0)
 		if err != nil {
 			return nil, stats, err
 		}

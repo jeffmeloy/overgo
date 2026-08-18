@@ -10,6 +10,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
 func TestResidentTrainingGlueMatchesHost(t *testing.T) {
@@ -71,10 +72,10 @@ func TestResidentTrainingGlueMatchesHost(t *testing.T) {
 	if err := ReLUBackwardResident(worker, incomingPtr, leftPtr, reluPtr, len(left)); err != nil {
 		t.Fatal(err)
 	}
-	if delta := maxAbsDiff(read(addPtr, len(left)), []float32{1, 1, 1, 1, 1, 1}); delta != 0 {
+	if delta := testutil.MaxAbsDiff(read(addPtr, len(left)), []float32{1, 1, 1, 1, 1, 1}); delta != 0 {
 		t.Fatalf("resident add delta %.3e", delta)
 	}
-	if delta := maxAbsDiff(read(reluPtr, len(left)), []float32{0, 0, 0, 4, 5, 6}); delta != 0 {
+	if delta := testutil.MaxAbsDiff(read(reluPtr, len(left)), []float32{0, 0, 0, 4, 5, 6}); delta != 0 {
 		t.Fatalf("resident ReLU VJP delta %.3e", delta)
 	}
 
@@ -83,7 +84,7 @@ func TestResidentTrainingGlueMatchesHost(t *testing.T) {
 	if err := StridedRowCopyResident(worker, stridedPtr, copiedPtr, 3, 2, 5, 1, 4, 1); err != nil {
 		t.Fatal(err)
 	}
-	if delta := maxAbsDiff(read(copiedPtr, 12), []float32{0, 1, 2, 0, 0, 6, 7, 0, 0, 11, 12, 0}); delta != 0 {
+	if delta := testutil.MaxAbsDiff(read(copiedPtr, 12), []float32{0, 1, 2, 0, 0, 6, 7, 0, 0, 11, 12, 0}); delta != 0 {
 		t.Fatalf("resident strided copy delta %.3e", delta)
 	}
 
@@ -93,7 +94,7 @@ func TestResidentTrainingGlueMatchesHost(t *testing.T) {
 	if err := IndexedRowScatterAddResident(worker, scatterSourcePtr, rowIDsPtr, tablePtr, len(rowIDs), 3); err != nil {
 		t.Fatal(err)
 	}
-	if delta := maxAbsDiff(read(tablePtr, 9), []float32{10, 11, 12, 4, 5, 6, 8, 10, 12}); delta != 0 {
+	if delta := testutil.MaxAbsDiff(read(tablePtr, 9), []float32{10, 11, 12, 4, 5, 6, 8, 10, 12}); delta != 0 {
 		t.Fatalf("resident indexed scatter delta %.3e", delta)
 	}
 
@@ -123,7 +124,7 @@ func TestResidentTrainingGlueMatchesHost(t *testing.T) {
 	if err := AttentionScoreAffineBackwardResident(worker, dScoresPtr, queryPtr, keyPtr, biasPtr, scalePtr, sequence, headDim, lagCount); err != nil {
 		t.Fatal(err)
 	}
-	biasDelta, scaleDelta := maxAbsDiff(read(biasPtr, lagCount), wantBias), maxAbsDiff(read(scalePtr, 1), []float32{wantScale})
+	biasDelta, scaleDelta := testutil.MaxAbsDiff(read(biasPtr, lagCount), wantBias), testutil.MaxAbsDiff(read(scalePtr, 1), []float32{wantScale})
 	t.Logf("resident glue bias=%.3e scale=%.3e", biasDelta, scaleDelta)
 	if biasDelta > 5e-7 || scaleDelta > 5e-7 {
 		t.Fatalf("resident attention reduction differs: bias=%.3e scale=%.3e", biasDelta, scaleDelta)
@@ -176,7 +177,7 @@ func TestResidentOpsSessionMatchesWrappers(t *testing.T) {
 	if err := ReadResident(worker, sessionPtr, ResidentSlice{Data: session}); err != nil {
 		t.Fatal(err)
 	}
-	delta := maxAbsDiff(wrapper, session)
+	delta := testutil.MaxAbsDiff(wrapper, session)
 	t.Logf("resident session/wrappers delta=%.3e", delta)
 	if delta != 0 {
 		t.Fatalf("resident session differs: %.3e", delta)

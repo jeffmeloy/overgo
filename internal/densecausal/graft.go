@@ -94,9 +94,9 @@ func (m *Model) GraftLoss(gr *Graft, tokens []int) (float64, error) {
 	d := m.Dims
 	final := states[d.Layers]
 	normed := make([]float32, seq*d.Hidden)
-	hostmath.RMSNormInto(normed, final, m.Weights["model.norm.weight"], seq, d.Hidden, d.RMSEps)
+	hostmath.RMSNormInto(normed, final, m.tensors.finalNorm.values, seq, d.Hidden, d.RMSEps)
 	logits := make([]float32, seq*d.Vocab)
-	hostmath.Linear(logits, normed, m.head(), seq, d.Hidden, d.Vocab)
+	hostmath.Linear(logits, normed, m.tensors.head.values, seq, d.Hidden, d.Vocab)
 	dLogits := make([]float32, (seq-1)*d.Vocab)
 	loss := hostmath.SoftmaxCrossEntropy(dLogits, logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
 	return loss, nil
@@ -110,11 +110,7 @@ func (m *Model) graftForwardStates(gr *Graft, tokens []int) ([][]float32, []floa
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
 	var preBranch []float32
 	states, err := m.retainedForwardStates(tokens, func(x []float32, index, seq int) error {
-		l, err := m.layerWeights(index)
-		if err != nil {
-			return err
-		}
-		m.layerForward(x, l, invFreq, seq)
+		m.layerForward(x, m.layers[index], invFreq, seq)
 		if index == gr.Layer {
 			preBranch = append([]float32(nil), x...)
 			out, _, _, _, _, _ := gr.branchForward(m, preBranch, seq)
@@ -142,7 +138,7 @@ func (m *Model) GraftLossAndBridgeGrads(gr *Graft, tokens []int) (float64, Grads
 	}
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
 	hidden := m.Dims.Hidden
-	loss, _, grads, err := m.lossAndGradsFromStates(tokens, states, func(
+	loss, _, grads, err := m.lossAndGradsFromStates(tokens, states, false, func(
 		index int, input, outputGradient []float32, seq int, g Grads,
 	) ([]float32, error) {
 		if index == gr.Layer {

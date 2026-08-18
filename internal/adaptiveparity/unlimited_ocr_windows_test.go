@@ -176,11 +176,11 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 	if delta := len(generated) - len(wantGenerated); delta < -1 || delta > 1 {
 		t.Fatalf("Unlimited OCR output tokens = %d, want %d±1", len(generated), len(wantGenerated))
 	}
-	text, err := language.DetokenizeTokens(generated)
+	text, err := language.Detokenize(generated, inference.RenderText)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantText, err := language.DetokenizeTokens(wantGenerated)
+	wantText, err := language.Detokenize(wantGenerated, inference.RenderText)
 	if err != nil {
 		t.Fatal(err)
 	}

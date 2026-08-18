@@ -10,8 +10,6 @@ package seriesforecast
 
 import (
 	"fmt"
-	"io"
-	"math"
 	"path/filepath"
 
 	"overgo/internal/jsonfile"
@@ -67,34 +65,13 @@ func Load(directory string) (*Model, error) {
 	}
 	defer source.Close()
 
-	shapes := make(map[string][]int, len(source.Tensors))
-	for name, tensor := range source.Tensors {
-		dims := make([]int, len(tensor.Shape))
-		for i, dim := range tensor.Shape {
-			if dim == 0 || dim > 1<<31 {
-				return nil, fmt.Errorf("seriesforecast: tensor %q dimension %d out of range", name, dim)
-			}
-			dims[i] = int(dim)
-		}
-		shapes[name] = dims
+	shapes, err := source.IntShapes()
+	if err != nil {
+		return nil, fmt.Errorf("seriesforecast: inventory: %w", err)
 	}
-	weights := make(map[string][]float32, len(source.Tensors))
-	for name, tensor := range source.Tensors {
-		reader, err := safetensors.F32Reader(tensor)
-		if err != nil {
-			return nil, fmt.Errorf("seriesforecast: tensor %q: %w", name, err)
-		}
-		elements := tensor.Elements()
-		raw := make([]byte, elements*4)
-		if _, err := io.ReadFull(reader, raw); err != nil {
-			return nil, fmt.Errorf("seriesforecast: tensor %q payload: %w", name, err)
-		}
-		values := make([]float32, elements)
-		for i := range values {
-			bits := uint32(raw[4*i]) | uint32(raw[4*i+1])<<8 | uint32(raw[4*i+2])<<16 | uint32(raw[4*i+3])<<24
-			values[i] = math.Float32frombits(bits)
-		}
-		weights[name] = values
+	weights, err := source.ReadAllF32()
+	if err != nil {
+		return nil, fmt.Errorf("seriesforecast: materialize: %w", err)
 	}
 	weights, shapes, err = canonicalize(weights, shapes)
 	if err != nil {

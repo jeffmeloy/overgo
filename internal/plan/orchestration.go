@@ -29,8 +29,7 @@ type Resources struct {
 	GPUExclusive bool `json:"gpu_exclusive"`
 }
 
-// WorkLease records an owner-approved lane assignment. The worktree alias is
-// compare-and-set in RepoDB, but the document itself is immutable evidence.
+// WorkLease: immutable lane assignment with CAS alias.
 type WorkLease struct {
 	Version       uint16    `json:"version"`
 	Task          string    `json:"task"`
@@ -41,10 +40,7 @@ type WorkLease struct {
 	ConflictsWith []string  `json:"conflicts_with"`
 	Resources     Resources `json:"resources"`
 	ExpiresAt     string    `json:"expires_at"`
-	// Experiment-lease extension (runtime-resource-scheduler row): optional
-	// fields binding a lease to an experiment identity with a wall-time
-	// estimate, the checkpoint a retry resumes from, and the retry identity.
-	// Zero values keep plain worktree leases valid unchanged.
+	// Optional experiment retry state.
 	Experiment      artifact.ID `json:"experiment,omitzero"`
 	Checkpoint      artifact.ID `json:"checkpoint,omitzero"`
 	Retry           uint32      `json:"retry,omitempty"`
@@ -59,8 +55,7 @@ var workLeaseCodec = artifact.JSONDocumentCodec("work lease", artifact.KindEvide
 		return value
 	})
 
-// RecordWorkLease normalizes owner-authored JSON and atomically moves the
-// worktree's RepoDB alias with compare-and-set semantics.
+// RecordWorkLease: normalize and move the worktree alias by CAS.
 func RecordWorkLease(ctx context.Context, repository artifact.Repository, data []byte) (WorkLease, error) {
 	value, _, err := workLeaseCodec.Normalize(data)
 	if err != nil {
@@ -74,11 +69,7 @@ func RecordWorkLease(ctx context.Context, repository artifact.Repository, data [
 	if exists {
 		previous = &current
 	}
-	content, err := workLeaseCodec.Content(value)
-	if err != nil {
-		return WorkLease{}, err
-	}
-	batch, err := artifact.NewDocumentBatch("automation/work-lease/"+value.ID.String(), []artifact.Content{content}, nil,
+	batch, err := workLeaseCodec.Batch("automation/work-lease/"+value.ID.String(), value, nil,
 		[]artifact.AliasBinding{{Name: workLeaseAlias(value.Worktree), Target: value.ID, Previous: previous}})
 	if err != nil {
 		return WorkLease{}, err

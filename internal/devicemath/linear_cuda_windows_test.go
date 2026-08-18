@@ -10,6 +10,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
 func randSlice(rng *rand.Rand, n int) []float32 {
@@ -64,7 +65,7 @@ func TestLinearBackwardTResidentMatchesShared(t *testing.T) {
 	if err := ReadResident(worker, dWeightPtr, ResidentSlice{Data: gotWeight}); err != nil {
 		t.Fatal(err)
 	}
-	xDelta, weightDelta := maxAbsDiff(gotX, wantX), maxAbsDiff(gotWeight, wantWeight)
+	xDelta, weightDelta := testutil.MaxAbsDiff(gotX, wantX), testutil.MaxAbsDiff(gotWeight, wantWeight)
 	t.Logf("resident/shared linear VJP dX=%.3e dW=%.3e", xDelta, weightDelta)
 	if xDelta != 0 || weightDelta != 0 {
 		t.Fatalf("resident linear VJP differs: dX=%.3e dW=%.3e", xDelta, weightDelta)

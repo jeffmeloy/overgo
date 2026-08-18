@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
 func TestRealDecoderResBlockResidentVJPParity(t *testing.T) {
@@ -50,14 +51,14 @@ func TestRealDecoderResBlockResidentVJPParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inputDiff := maxAbsDiff(gotInput, wantInput)
+	inputDiff := testutil.MaxAbsDiff(gotInput, wantInput)
 	maxParameterDiff := float64(0)
 	for name, want := range wantGrads {
 		got, found := gotGrads[name]
 		if !found {
 			t.Fatalf("missing gradient %s", name)
 		}
-		difference := maxAbsDiff(got, want)
+		difference := testutil.MaxAbsDiff(got, want)
 		maxParameterDiff = math.Max(maxParameterDiff, difference)
 		t.Logf("real decoder residual VJP %s max=%.3e elements=%d", name, difference, len(want))
 		for index, value := range got {

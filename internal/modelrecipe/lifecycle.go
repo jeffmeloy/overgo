@@ -119,18 +119,8 @@ func ActivateCapability(
 	if err != nil {
 		return err
 	}
-	content, err := decision.Content()
-	if err != nil {
-		return err
-	}
-	decisionBatch, err := artifact.NewDocumentBatch(
-		"recipe/activation-decision/"+definition.ID.String()+"/"+decision.ID.String(),
-		[]artifact.Content{content},
-		[]artifact.Lineage{
-			{Child: decision.ID, Parent: definition.ID, Relation: artifact.RelationDependsOn},
-			{Child: decision.ID, Parent: verified.Gate.ID, Relation: artifact.RelationDependsOn},
-			{Child: decision.ID, Parent: verified.Run.ID, Relation: artifact.RelationDependsOn},
-		}, nil,
+	decisionBatch, err := decision.Batch(
+		"recipe/activation-decision/" + definition.ID.String() + "/" + decision.ID.String(),
 	)
 	if err != nil {
 		return err
@@ -198,18 +188,8 @@ func RetireActiveCapability(
 	if err != nil {
 		return err
 	}
-	content, err := decision.Content()
-	if err != nil {
-		return err
-	}
-	batch, err := artifact.NewDocumentBatch(
-		"recipe/retirement-decision/"+definition.ID.String()+"/"+decision.ID.String(),
-		[]artifact.Content{content},
-		[]artifact.Lineage{
-			{Child: decision.ID, Parent: definition.ID, Relation: artifact.RelationDependsOn},
-			{Child: decision.ID, Parent: failed.Gate.ID, Relation: artifact.RelationDependsOn},
-			{Child: decision.ID, Parent: failed.Run.ID, Relation: artifact.RelationDependsOn},
-		}, nil,
+	batch, err := decision.Batch(
+		"recipe/retirement-decision/" + definition.ID.String() + "/" + decision.ID.String(),
 	)
 	if err != nil {
 		return err
@@ -274,11 +254,7 @@ func reverifyActiveCapability(
 	batch, err := artifact.NewDocumentBatch(
 		"recipe/reverified/"+definition.ID.String()+"/"+event.ID.String(),
 		[]artifact.Content{decisionContent, eventContent},
-		[]artifact.Lineage{
-			{Child: decision.ID, Parent: definition.ID, Relation: artifact.RelationDependsOn},
-			{Child: decision.ID, Parent: verified.Gate.ID, Relation: artifact.RelationDependsOn},
-			{Child: decision.ID, Parent: verified.Run.ID, Relation: artifact.RelationDependsOn},
-		},
+		decision.Lineage(),
 		[]artifact.AliasBinding{{Name: statusAlias(definition.ID), Target: event.ID, Previous: &current.ID}},
 	)
 	if err != nil {

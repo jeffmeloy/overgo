@@ -904,7 +904,7 @@ func (f *fakeGenerator) TokenizeText(
 	return result, nil
 }
 
-func (f *fakeGenerator) DetokenizeTokens(tokens []tokenizer.TokenID) (string, error) {
+func (f *fakeGenerator) Detokenize(tokens []tokenizer.TokenID, _ inference.TokenRenderMode) (string, error) {
 	var result strings.Builder
 	for _, token := range tokens {
 		fmt.Fprintf(&result, "[%d]", token)
@@ -917,10 +917,6 @@ func (f *fakeGenerator) TokenPiece(token tokenizer.TokenID) (string, error) {
 		return string([]byte{0xc3}), nil
 	}
 	return fmt.Sprintf("<%d>", token), nil
-}
-
-func (f *fakeGenerator) DetokenizePromptTokens(tokens []tokenizer.TokenID) (string, error) {
-	return f.DetokenizeTokens(tokens)
 }
 
 func (f *fakeGenerator) ModelProperties() inference.ModelProperties {
@@ -2317,7 +2313,7 @@ func TestNativeCompletionExactAndMixedTokenPrompts(t *testing.T) {
 				test.want,
 			)
 		}
-		wantPrompt, _ := generator.DetokenizePromptTokens(test.want)
+		wantPrompt, _ := generator.Detokenize(test.want, inference.RenderPrompt)
 		if result.Prompt != wantPrompt {
 			t.Fatalf("prompt %s response prompt = %#v, want %q", test.prompt, result.Prompt, wantPrompt)
 		}

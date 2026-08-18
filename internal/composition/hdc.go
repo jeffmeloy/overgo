@@ -1,15 +1,8 @@
-// Bit-packed ternary hypervector retrieval over the component catalog,
-// ported from adaptive_new go/extmodel/hdc.go as a verified capability: FNV
-// term hashing, a splitmix-style bit mixer, signed ternary encoding, and
-// signed-Hamming similarity normalized by sqrt(Lit_a*Lit_b). The index signs
-// the LEXICAL organ contract (modality, role, space, dtype, layout, training
-// role) together with the DISTRIBUTIONAL signal (quantized quartiles and
-// L-moment ratios of the committed tensor measurements), so retrieval ranks
-// components by both what they are and how their values behave. Advisory by
-// construction: hits feed blocked bridge proposals, never promotions.
+// Bit-packed catalog filter. Results remain advisory.
 package composition
 
 import (
+	"container/heap"
 	"fmt"
 	"hash/fnv"
 	"math"
@@ -23,13 +16,10 @@ import (
 
 const (
 	hdcWordBits = 64
-	// hdcDefaultWordCount is the FLOOR width; real catalogs derive their
-	// width per size through HypervectorDimensionsFor.
+	// Minimum signature width.
 	hdcDefaultWordCount  = 8
 	hdcDefaultDimensions = hdcDefaultWordCount * hdcWordBits
-	// hdcResolvableScoreMargin is a MEASURED quantity carried from the
-	// source port (adaptive_new ADV-49, live margin 0.0742 measured
-	// 2026-08-02), not a knob.
+	// Measured resolvable margin.
 	hdcResolvableScoreMargin = 0.074
 
 	hdcBitsPerTerm  = 4
@@ -41,8 +31,7 @@ const (
 	hdcSignBitShift = hdcWordBits - 1
 )
 
-// HypervectorDimensionsFor derives the catalog-sized signature width from the
-// extreme-value bound at the measured resolvable margin.
+// HypervectorDimensionsFor: catalog-sized signature width.
 func HypervectorDimensionsFor(n int) int {
 	if n < 2 {
 		return hdcDefaultDimensions
@@ -69,6 +58,28 @@ type HypervectorHit struct {
 	Relevance float64
 }
 
+type rankedHypervectorHit struct {
+	HypervectorHit
+	order int
+}
+
+type hypervectorHitHeap []rankedHypervectorHit
+
+func (h hypervectorHitHeap) Len() int { return len(h) }
+func (h hypervectorHitHeap) Less(i, j int) bool {
+	return betterHypervectorHit(h[j], h[i])
+}
+func (h hypervectorHitHeap) Swap(i, j int)   { h[i], h[j] = h[j], h[i] }
+func (h *hypervectorHitHeap) Push(value any) { *h = append(*h, value.(rankedHypervectorHit)) }
+func (h *hypervectorHitHeap) Pop() any {
+	values := *h
+	last := len(values) - 1
+	value := values[last]
+	values[last] = rankedHypervectorHit{}
+	*h = values[:last]
+	return value
+}
+
 // HypervectorIndex is the packed ternary index over catalog components.
 type HypervectorIndex struct {
 	dimensions int
@@ -84,22 +95,24 @@ func NewHypervectorIndex(components []CatalogComponent) (*HypervectorIndex, erro
 		return nil, fmt.Errorf("composition: hypervector index requires components")
 	}
 	dimensions := HypervectorDimensionsFor(len(components))
+	words := (dimensions + hdcWordBits - 1) / hdcWordBits
 	index := &HypervectorIndex{
 		dimensions: dimensions,
-		words:      (dimensions + hdcWordBits - 1) / hdcWordBits,
+		words:      words,
+		sigWords:   make([]uint64, len(components)*2*words),
+		sigLit:     make([]int, len(components)),
 		components: append([]CatalogComponent(nil), components...),
 	}
-	for _, component := range index.components {
+	for componentIndex, component := range index.components {
 		if component.Name == "" || !component.Model.Valid() {
 			return nil, fmt.Errorf("composition: catalog component requires a model and a name")
 		}
-		offset := len(index.sigWords)
-		index.sigWords = append(index.sigWords, make([]uint64, 2*index.words)...)
-		index.sigLit = append(index.sigLit, encodeTermsInto(
+		offset := componentIndex * 2 * words
+		index.sigLit[componentIndex] = encodeTermsInto(
 			componentTerms(component), dimensions,
-			index.sigWords[offset:offset+index.words],
-			index.sigWords[offset+index.words:offset+2*index.words],
-		))
+			index.sigWords[offset:offset+words],
+			index.sigWords[offset+words:offset+2*words],
+		)
 	}
 	return index, nil
 }
@@ -107,8 +120,7 @@ func NewHypervectorIndex(components []CatalogComponent) (*HypervectorIndex, erro
 // Len reports the indexed component count.
 func (index *HypervectorIndex) Len() int { return len(index.sigLit) }
 
-// Search ranks the catalog against a query component by signed-Hamming
-// similarity over the combined lexical and distributional signature.
+// Search: ranked lexical and distributional matches.
 func (index *HypervectorIndex) Search(query CatalogComponent, limit int) ([]HypervectorHit, error) {
 	if limit <= 0 {
 		return nil, fmt.Errorf("composition: search limit must be positive")
@@ -118,7 +130,7 @@ func (index *HypervectorIndex) Search(query CatalogComponent, limit int) ([]Hype
 		componentTerms(query), index.dimensions,
 		queryWords[:index.words], queryWords[index.words:],
 	)
-	hits := make([]HypervectorHit, 0, index.Len())
+	hits := make(hypervectorHitHeap, 0, min(limit, index.Len()))
 	for i := range index.sigLit {
 		offset := i * 2 * index.words
 		relevance := signedSimilarity(
@@ -127,25 +139,39 @@ func (index *HypervectorIndex) Search(query CatalogComponent, limit int) ([]Hype
 			index.sigWords[offset+index.words:offset+2*index.words],
 			index.sigLit[i],
 		)
-		hits = append(hits, HypervectorHit{Component: index.components[i], Relevance: relevance})
-	}
-	sort.SliceStable(hits, func(i, j int) bool {
-		if hits[i].Relevance != hits[j].Relevance {
-			return hits[i].Relevance > hits[j].Relevance
+		hit := rankedHypervectorHit{
+			HypervectorHit: HypervectorHit{Component: index.components[i], Relevance: relevance},
+			order:          i,
 		}
-		if hits[i].Component.Name != hits[j].Component.Name {
-			return hits[i].Component.Name < hits[j].Component.Name
+		if len(hits) < limit {
+			heap.Push(&hits, hit)
+		} else if betterHypervectorHit(hit, hits[0]) {
+			hits[0] = hit
+			heap.Fix(&hits, 0)
 		}
-		return hits[i].Component.Model.String() < hits[j].Component.Model.String()
-	})
-	if len(hits) > limit {
-		hits = hits[:limit]
 	}
-	return hits, nil
+	sort.Slice(hits, func(i, j int) bool { return betterHypervectorHit(hits[i], hits[j]) })
+	results := make([]HypervectorHit, len(hits))
+	for i := range hits {
+		results[i] = hits[i].HypervectorHit
+	}
+	return results, nil
 }
 
-// Candidates converts ranked hits into bridge candidates for a blocked
-// proposal, excluding within-model hits.
+func betterHypervectorHit(left, right rankedHypervectorHit) bool {
+	if left.Relevance != right.Relevance {
+		return left.Relevance > right.Relevance
+	}
+	if left.Component.Name != right.Component.Name {
+		return left.Component.Name < right.Component.Name
+	}
+	if left.Component.Model != right.Component.Model {
+		return left.Component.Model.String() < right.Component.Model.String()
+	}
+	return left.order < right.order
+}
+
+// Candidates: cross-model bridge candidates.
 func Candidates(hits []HypervectorHit, target artifact.ID) []BridgeCandidate {
 	candidates := make([]BridgeCandidate, 0, len(hits))
 	for _, hit := range hits {
@@ -163,8 +189,7 @@ func Candidates(hits []HypervectorHit, target artifact.ID) []BridgeCandidate {
 	return candidates
 }
 
-// componentTerms combines the lexical organ signal with the distributional
-// signal into the term bag one signature encodes.
+// componentTerms: lexical and distributional signature terms.
 func componentTerms(component CatalogComponent) []string {
 	contract := component.Contract
 	terms := []string{
@@ -188,8 +213,7 @@ func componentTerms(component CatalogComponent) []string {
 	return terms
 }
 
-// logBucket quantizes a positive magnitude into a coarse decade bucket so
-// nearby distributions share terms without exact-value brittleness.
+// logBucket: coarse magnitude decade.
 func logBucket(value float64) int {
 	if value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
 		return -100
@@ -256,8 +280,7 @@ func encodeTermsInto(terms []string, dimensions int, pos, neg []uint64) int {
 	return lit
 }
 
-// signedSimilarity is signed Hamming agreement over lit ternary positions,
-// normalized by sqrt(Lit_a*Lit_b): a bounded [-1,1] similarity.
+// signedSimilarity: normalized signed-Hamming agreement.
 func signedSimilarity(aPos, aNeg []uint64, aLit int, bPos, bNeg []uint64, bLit int) float64 {
 	n := min(len(aPos), len(bPos))
 	if n == 0 || aLit == 0 || bLit == 0 {

@@ -292,9 +292,9 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 	}
 	for _, name := range []string{visionImageNewlineTensor, "v.view_seperator"} {
 		info, _ := file.Tensor(name)
-		elements := uint64(1)
-		for dimension := range info.Dimensions {
-			elements *= info.Shape[dimension]
+		elements, err := info.ElementCount()
+		if err != nil {
+			return err
 		}
 		if elements != uint64(spec.OutputHidden) {
 			return fmt.Errorf("projector: tensor %q has %d elements, want %d", name, elements, spec.OutputHidden)

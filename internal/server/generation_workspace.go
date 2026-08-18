@@ -18,10 +18,13 @@ import (
 type WorkflowControlType string
 
 const (
-	WorkflowControlText    WorkflowControlType = "text"
-	WorkflowControlInteger WorkflowControlType = "integer"
-	WorkflowControlNumber  WorkflowControlType = "number"
-	WorkflowControlBoolean WorkflowControlType = "boolean"
+	WorkflowControlText       WorkflowControlType = "text"
+	WorkflowControlInteger    WorkflowControlType = "integer"
+	WorkflowControlNumber     WorkflowControlType = "number"
+	WorkflowControlBoolean    WorkflowControlType = "boolean"
+	WorkflowControlDataset    WorkflowControlType = "dataset"
+	WorkflowControlCheckpoint WorkflowControlType = "checkpoint"
+	WorkflowControlOutput     WorkflowControlType = "managed-output"
 )
 
 type WorkflowControl struct {
@@ -145,7 +148,9 @@ func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
 
 func (kind WorkflowControlType) valid() bool {
 	return kind == WorkflowControlText || kind == WorkflowControlInteger ||
-		kind == WorkflowControlNumber || kind == WorkflowControlBoolean
+		kind == WorkflowControlNumber || kind == WorkflowControlBoolean ||
+		kind == WorkflowControlDataset || kind == WorkflowControlCheckpoint ||
+		kind == WorkflowControlOutput
 }
 
 func selectWorkflowCapability(capabilities []WorkflowCapability, task recipe.Task, recipeID artifact.ID) (WorkflowCapability, error) {
@@ -186,11 +191,25 @@ func validateWorkflowInput(controls []WorkflowControl, raw json.RawMessage) erro
 	return nil
 }
 
-func validateWorkflowValue(kind WorkflowControlType, raw json.RawMessage) error {
+func validateWorkflowValue(controlType WorkflowControlType, raw json.RawMessage) error {
 	var target any
-	switch kind {
-	case WorkflowControlText:
+	switch controlType {
+	case WorkflowControlText, WorkflowControlOutput:
 		target = new(string)
+	case WorkflowControlDataset, WorkflowControlCheckpoint:
+		var value string
+		if err := strictjson.Decode(bytes.NewReader(raw), &value); err != nil {
+			return err
+		}
+		id, err := artifact.ParseID(value)
+		artifactKind := artifact.KindDataset
+		if controlType == WorkflowControlCheckpoint {
+			artifactKind = artifact.KindCheckpoint
+		}
+		if err != nil || id.Kind() != artifactKind {
+			return fmt.Errorf("%s artifact required", artifactKind)
+		}
+		return nil
 	case WorkflowControlInteger:
 		target = new(int64)
 	case WorkflowControlNumber:

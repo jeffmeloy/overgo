@@ -22,6 +22,10 @@ const (
 	ModuleTrainingForward recipe.ModuleID = "training.forward"
 	ModuleBackward        recipe.ModuleID = "training.backward"
 	ModuleOptimize        recipe.ModuleID = "training.optimize"
+	ModuleBatchPreference recipe.ModuleID = "training.batch-preference"
+	ModuleScorePolicy     recipe.ModuleID = "training.score-policy"
+	ModuleScoreReference  recipe.ModuleID = "training.score-reference"
+	ModuleDPOObjective    recipe.ModuleID = "training.dpo"
 )
 
 var catalog = mustCatalog()
@@ -35,7 +39,7 @@ var placements = []recipe.Placement{
 }
 
 func mustCatalog() *recipe.Catalog {
-	catalog, err := recipe.NewCatalog(
+	modules := []recipe.Module{
 		module(ModuleTokenize, tasks(recipe.TaskGeneration, recipe.TaskEmbedding),
 			ports(port("text", recipe.DataText, recipe.CardinalityOne)),
 			ports(port("tokens", recipe.DataTokens, recipe.CardinalityOne))),
@@ -82,11 +86,31 @@ func mustCatalog() *recipe.Catalog {
 		module(ModuleOptimize, tasks(recipe.TaskTraining),
 			ports(port("gradients", recipe.DataGradients, recipe.CardinalityOne)),
 			ports(port("checkpoint", recipe.DataCheckpoint, recipe.CardinalityOne))),
-	)
+	}
+	modules = append(modules, preferenceModules()...)
+	catalog, err := recipe.NewCatalog(modules...)
 	if err != nil {
 		panic(err)
 	}
 	return catalog
+}
+
+func preferenceModules() []recipe.Module {
+	return []recipe.Module{
+		module(ModuleBatchPreference, tasks(recipe.TaskTraining), nil,
+			ports(port("batch", recipe.DataPreferenceBatch, recipe.CardinalityOne))),
+		module(ModuleScorePolicy, tasks(recipe.TaskTraining),
+			ports(port("batch", recipe.DataPreferenceBatch, recipe.CardinalityOne)),
+			ports(port("scores", recipe.DataSequenceScores, recipe.CardinalityOne))),
+		module(ModuleScoreReference, tasks(recipe.TaskTraining),
+			ports(port("batch", recipe.DataPreferenceBatch, recipe.CardinalityOne)),
+			ports(port("scores", recipe.DataSequenceScores, recipe.CardinalityOne))),
+		module(ModuleDPOObjective, tasks(recipe.TaskTraining),
+			ports(
+				port("policy", recipe.DataSequenceScores, recipe.CardinalityOne),
+				port("reference", recipe.DataSequenceScores, recipe.CardinalityOne),
+			), ports(port("loss", recipe.DataLoss, recipe.CardinalityOne))),
+	}
 }
 
 func module(

@@ -17,7 +17,7 @@ func TestDecisionRoundTripIncludesDeciderAndTier(t *testing.T) {
 	decision, err := NewDecision(
 		subject, DecisionRefused, EvidenceParity, "output parity failed",
 		Decider{CodeCommit: decisionTestCommit, Derivation: derivation},
-		[]artifact.ID{evidence},
+		[]artifact.ID{derivation, evidence},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -33,6 +33,19 @@ func TestDecisionRoundTripIncludesDeciderAndTier(t *testing.T) {
 	if parsed.ID != decision.ID || parsed.Decider != decision.Decider || parsed.Tier != EvidenceParity ||
 		parsed.Reason != decision.Reason {
 		t.Fatalf("parsed decision = %+v", parsed)
+	}
+	batch, err := decision.Batch("test/decision")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parents := map[artifact.ID]bool{subject: true, derivation: true, evidence: true}
+	if len(batch.Contents) != 1 || len(batch.Lineage) != len(parents) {
+		t.Fatalf("decision batch = %+v", batch)
+	}
+	for _, edge := range batch.Lineage {
+		if edge.Child != decision.ID || edge.Relation != artifact.RelationDependsOn || !parents[edge.Parent] {
+			t.Fatalf("decision lineage = %+v", batch.Lineage)
+		}
 	}
 	second, err := NewDecision(
 		subject, DecisionRefused, EvidenceExperimental, decision.Reason,

@@ -251,6 +251,64 @@ func TestWebUIHeatmapLegend(t *testing.T) {
 	}
 }
 
+func TestSignedSeriesPreservesNegativeMeasurements(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	viz := serveTestRequest(handler, http.MethodGet, "/viz.js", "").Body.String()
+	start := strings.Index(viz, "function signedSeries")
+	if start < 0 {
+		t.Fatal("signed series primitive absent")
+	}
+	end := strings.Index(viz[start:], "function probBars")
+	if end < 0 {
+		t.Fatal("signed series boundary absent")
+	}
+	series := viz[start : start+end]
+	for _, token := range []string{"Math.min(0, ...values)", `class: "zero-axis"`, `"data-value": String(value)`} {
+		if !strings.Contains(series, token) {
+			t.Errorf("signed series missing %q", token)
+		}
+	}
+	if strings.Contains(series, "Math.max(0, value)") {
+		t.Error("signed series clamps negative measurements")
+	}
+}
+
+func TestRLWorkspaceRendersMeasuredEvidence(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	training := serveTestRequest(handler, http.MethodGet, "/mod/training.js", "").Body.String()
+	for _, token := range []string{
+		"DPO loss", "Margin decomposition", "Chosen / rejected pair", "Optimizer health",
+		"Checkpoint comparison", "policy_margin", "reference_margin", "relative_margin",
+		"gradient_l2", "update_l2", "/artifacts/content?id=",
+	} {
+		if !strings.Contains(training, token) {
+			t.Errorf("training evidence view missing %q", token)
+		}
+	}
+	for _, forbidden := range []string{"smooth", "movingAverage", "reward"} {
+		if strings.Contains(training, forbidden) {
+			t.Errorf("training evidence view contains derived signal %q", forbidden)
+		}
+	}
+}
+
+func TestRLWorkspaceUsesGenericWorkflowEndpoints(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
+	jobs := serveTestRequest(handler, http.MethodGet, "/mod/jobs.js", "").Body.String()
+	for _, token := range []string{`"/" + definition.scope + "/run"`, "/operations?id=", "/operations/cancel"} {
+		if !strings.Contains(workflow, token) {
+			t.Errorf("generic workflow missing %q", token)
+		}
+	}
+	if !strings.Contains(jobs, `scope: "training"`) || !strings.Contains(jobs, "trainingEvidence.renderOperation") {
+		t.Error("training registration does not use the generic workflow renderer")
+	}
+	if strings.Contains(workflow, "/dpo") || strings.Contains(jobs, "/dpo") {
+		t.Error("RL workspace adds a DPO-only transport")
+	}
+}
+
 // TestWebUIShellCache guards the shared /analyze/model cache (fetched once for
 // capability gating, the Model tab, and the lens vocab size) and the periodic
 // health re-probe so a dropped/restored server updates the status pill.

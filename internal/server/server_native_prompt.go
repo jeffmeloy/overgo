@@ -690,19 +690,9 @@ func (h *Handler) parseNativePrompt(raw json.RawMessage) (nativePrompt, error) {
 	if len(tokenIDs) == 0 {
 		return nativePrompt{}, errors.New("prompt produced no tokens")
 	}
-	processed := ""
-	if decoder, ok := h.generator.(PromptTokenDecoder); ok {
-		var err error
-		processed, err = decoder.DetokenizePromptTokens(tokenIDs)
-		if err != nil {
-			return nativePrompt{}, fmt.Errorf("detokenize processed prompt: %w", err)
-		}
-	} else {
-		var err error
-		processed, err = api.DetokenizeTokens(tokenIDs)
-		if err != nil {
-			return nativePrompt{}, fmt.Errorf("detokenize processed prompt: %w", err)
-		}
+	processed, err := api.Detokenize(tokenIDs, inference.RenderPrompt)
+	if err != nil {
+		return nativePrompt{}, fmt.Errorf("detokenize processed prompt: %w", err)
 	}
 	return nativePrompt{
 		Text:     processed,

@@ -41,7 +41,7 @@ func parseChatOutput(
 	template, output string,
 	tools []ChatTool,
 ) (ChatMessage, error) {
-	message := ChatMessage{Role: "assistant"}
+	message := ChatMessage{Role: ChatRoleAssistant}
 	reasoning, body, err := splitChatReasoning(output)
 	if err != nil {
 		return ChatMessage{}, err
@@ -173,7 +173,7 @@ func parseJSONToolCall(
 		return ChatToolCall{}, err
 	}
 	return ChatToolCall{
-		Type: "function",
+		Type: ChatToolTypeFunction,
 		Function: ChatToolFunction{
 			Name:      wire.Name,
 			Arguments: arguments,
@@ -227,7 +227,7 @@ func parseHermesToolCall(
 		return ChatToolCall{}, err
 	}
 	return ChatToolCall{
-		Type: "function",
+		Type: ChatToolTypeFunction,
 		Function: ChatToolFunction{
 			Name:      name,
 			Arguments: string(arguments),

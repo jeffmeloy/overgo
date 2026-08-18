@@ -14,6 +14,7 @@ import (
 	"time"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
 func TestRealResidentGenerationLeadership(t *testing.T) {
@@ -52,7 +53,7 @@ func TestRealResidentGenerationLeadership(t *testing.T) {
 	slices.Sort(hostDurations)
 	slices.Sort(warmDurations)
 	hostMedian, warmMedian := hostDurations[1], warmDurations[1]
-	pixelDiff := maxAbsDiff(devicePixels, hostPixels)
+	pixelDiff := testutil.MaxAbsDiff(devicePixels, hostPixels)
 	encoded, err := model.decode(sampleFeatures{pixels: devicePixels, height: size, width: size})
 	if err != nil {
 		t.Fatal(err)

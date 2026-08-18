@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 )
 
 func newFastWeightBankFixture(rng *rand.Rand, swiGLU bool) (*FastWeightBankWeights, []float32, []float32, int, int) {
@@ -38,16 +39,6 @@ func newFastWeightBankFixture(rng *rand.Rand, swiGLU bool) (*FastWeightBankWeigh
 	h := rs(rows*d, 1.0)
 	bank := rs(slots*mem, 1.0)
 	return w, h, bank, rows, slots
-}
-
-func maxAbsDiff(a, b []float32) float64 {
-	m := 0.0
-	for i := range a {
-		if d := math.Abs(float64(a[i] - b[i])); d > m {
-			m = d
-		}
-	}
-	return m
 }
 
 func bankBracket(t *testing.T, swiGLU bool) {
@@ -275,7 +266,7 @@ func TestFastWeightSlotsComposeInOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("forward: %v", err)
 	}
-	if maxAbsDiff(fwd, back) < 1e-6 {
+	if testutil.MaxAbsDiff(fwd, back) < 1e-6 {
 		t.Fatal("reversing the bank left the read unchanged; slots are summing, not composing")
 	}
 }

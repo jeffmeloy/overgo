@@ -39,29 +39,20 @@ func TestOpenSourceUsesShardIndexAndReadsTensor(t *testing.T) {
 	}
 }
 
-func TestSourceSnapshotOwnsCatalogMetadata(t *testing.T) {
-	directory := t.TempDir()
-	writeShard(t, filepath.Join(directory, "model.safetensors"), map[string]testTensor{
-		"weight": {dataType: "F32", shape: []uint64{1}, data: []byte{0, 0, 128, 63}},
-	})
-	source, err := OpenSource(directory)
+func TestSourceIntShapesUsesHostRepresentability(t *testing.T) {
+	source := &Source{Tensors: map[string]Tensor{
+		"matrix": {Shape: []uint64{2, 3}},
+	}}
+	shapes, err := source.IntShapes()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer source.Close()
-	snapshot := source.Snapshot()
-	original := source.Tensors["weight"]
-	original.Shape[0] = 0
-	source.Tensors["weight"] = original
-	if got := snapshot.Tensors["weight"].Shape[0]; got != 1 {
-		t.Fatalf("snapshot shape=%d want 1", got)
+	if got := shapes["matrix"]; len(got) != 2 || got[0] != 2 || got[1] != 3 {
+		t.Fatalf("shape = %v", got)
 	}
-	var payload [4]byte
-	if _, err := snapshot.Tensors["weight"].ReadAt(payload[:], 0); err != nil {
-		t.Fatal(err)
-	}
-	if payload != [4]byte{0, 0, 128, 63} {
-		t.Fatalf("snapshot payload=%v", payload)
+	source.Tensors["matrix"] = Tensor{Shape: []uint64{2, 0}}
+	if _, err := source.IntShapes(); err == nil {
+		t.Fatal("empty dimension accepted")
 	}
 }
 

@@ -19,6 +19,8 @@ type State struct {
 type StepResult struct {
 	Step         int
 	LearningRate float64
+	GradientL2   float64
+	UpdateL2     float64
 }
 
 // Optimizer: flat CPU adaptive/Muon optimizer.
@@ -68,6 +70,7 @@ func (o *Optimizer) Step() StepResult {
 func (o *Optimizer) StepGroups(include func(Group) bool) StepResult {
 	o.step++
 	rate := o.config.LearningRate(o.step)
+	var gradientSquared, updateSquared float64
 	for _, group := range o.plan.groups {
 		if !include(group) {
 			continue
@@ -76,17 +79,21 @@ func (o *Optimizer) StepGroups(include func(Group) bool) StepResult {
 			clear(o.gradients[group.Start:group.End])
 			continue
 		}
-		o.stepMuon(group, rate)
+		gradient, update := o.stepMuon(group, rate)
+		gradientSquared += gradient
+		updateSquared += update
 	}
-	return StepResult{Step: o.step, LearningRate: rate}
+	return StepResult{Step: o.step, LearningRate: rate, GradientL2: math.Sqrt(gradientSquared), UpdateL2: math.Sqrt(updateSquared)}
 }
 
-func (o *Optimizer) stepMuon(group Group, rate float64) {
+func (o *Optimizer) stepMuon(group Group, rate float64) (gradientSquared, updateSquared float64) {
 	length := group.End - group.Start
 	direction := o.scratch.input[:length]
 	for offset := range length {
 		index := group.Start + offset
-		momentum, nesterovDirection := nesterov(o.config.Momentum, o.momentum[index], float64(o.gradients[index]))
+		gradient := float64(o.gradients[index])
+		gradientSquared += gradient * gradient
+		momentum, nesterovDirection := nesterov(o.config.Momentum, o.momentum[index], gradient)
 		o.momentum[index] = momentum
 		direction[offset] = nesterovDirection
 	}
@@ -94,9 +101,12 @@ func (o *Optimizer) stepMuon(group Group, rate float64) {
 	scale := math.Sqrt(float64(max(group.Rows, group.Cols))) * stepRMS(o.config.Momentum) * rate
 	for offset := range length {
 		index := group.Start + offset
-		o.weights[index] -= float32(scale * direction[offset])
+		update := scale * direction[offset]
+		updateSquared += update * update
+		o.weights[index] -= float32(update)
 		o.gradients[index] = 0
 	}
+	return gradientSquared, updateSquared
 }
 
 func nesterov(momentum, previous, gradient float64) (next, direction float64) {

@@ -10,6 +10,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 )
 
 func TestSoftmaxCrossEntropyBackwardResidentMatchesHost(t *testing.T) {
@@ -57,7 +58,7 @@ func TestSoftmaxCrossEntropyBackwardResidentMatchesHost(t *testing.T) {
 	for _, loss := range losses {
 		gotLoss += float64(loss)
 	}
-	gradientDelta, lossDelta := maxAbsDiff(got, want), math.Abs(gotLoss-wantLoss)
+	gradientDelta, lossDelta := testutil.MaxAbsDiff(got, want), math.Abs(gotLoss-wantLoss)
 	t.Logf("resident/host CE gradient=%.3e loss=%.3e", gradientDelta, lossDelta)
 	if gradientDelta > 2e-7 || lossDelta > 2e-6 {
 		t.Fatalf("resident CE differs: gradient=%.3e loss=%.3e", gradientDelta, lossDelta)

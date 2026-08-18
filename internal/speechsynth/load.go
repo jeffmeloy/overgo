@@ -213,16 +213,9 @@ func Load(directory string) (*Model, error) {
 	}
 	defer source.Close()
 
-	shapes := make(map[string][]int, len(source.Tensors))
-	for name, tensor := range source.Tensors {
-		dims := make([]int, len(tensor.Shape))
-		for i, dim := range tensor.Shape {
-			if dim == 0 || dim > 1<<31 {
-				return nil, fmt.Errorf("speechsynth: tensor %q dimension %d out of range", name, dim)
-			}
-			dims[i] = int(dim)
-		}
-		shapes[name] = dims
+	shapes, err := source.IntShapes()
+	if err != nil {
+		return nil, fmt.Errorf("speechsynth: inventory: %w", err)
 	}
 
 	read := func(name string, wantShape ...int) ([]float32, error) {

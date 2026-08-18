@@ -59,23 +59,13 @@ func f32of(values []float64) []float32 {
 	return out
 }
 
-func maxAbsDiff(got []float32, want []float64) float64 {
-	worst := 0.0
-	for i := range got {
-		if d := math.Abs(float64(got[i]) - want[i]); d > worst {
-			worst = d
-		}
-	}
-	return worst
-}
-
 // requireWithin logs the measured diff verbatim and fails past the gate.
 func requireWithin(t *testing.T, name string, got []float32, want []float64, tol float64) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Fatalf("%s: length %d != golden %d", name, len(got), len(want))
 	}
-	diff := maxAbsDiff(got, want)
+	diff := testutil.MaxAbsDiff(got, want)
 	t.Logf("%s: max abs diff %.6e (gate %.0e)", name, diff, tol)
 	if diff > tol {
 		t.Fatalf("%s diverges: %g > %g", name, diff, tol)

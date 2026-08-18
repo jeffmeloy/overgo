@@ -37,4 +37,16 @@ func TestSamplingInfillVocabularyUsesUnrenderedSpecialPieces(t *testing.T) {
 	if vocabulary.EOT != -1 || vocabulary.EOS != 2 {
 		t.Fatalf("infill EOT/EOS = %d/%d", vocabulary.EOT, vocabulary.EOS)
 	}
+	ids := []tokenizer.TokenID{0, 1}
+	text, err := runner.Detokenize(ids, RenderText)
+	if err != nil || text != "a" {
+		t.Fatalf("text render = %q, %v", text, err)
+	}
+	prompt, err := runner.Detokenize(ids, RenderPrompt)
+	if err != nil || prompt != "a<fim-prefix>" {
+		t.Fatalf("prompt render = %q, %v", prompt, err)
+	}
+	if _, err := runner.Detokenize(ids, RenderPrompt+1); err == nil {
+		t.Fatal("invalid render mode accepted")
+	}
 }

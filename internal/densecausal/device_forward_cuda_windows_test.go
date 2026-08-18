@@ -36,10 +36,7 @@ func TestDeviceLayerForwardCachedMatchesHost(t *testing.T) {
 	for i := range invFreq {
 		invF32[i] = float32(invFreq[i])
 	}
-	l0, err := m.layerWeights(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	l0 := m.layers[0]
 
 	xHost := append([]float32(nil), x...)
 	cacheHost := m.layerForwardCached(xHost, l0, invFreq, seq)

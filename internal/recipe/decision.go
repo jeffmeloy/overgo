@@ -98,6 +98,26 @@ func (d Decision) Content() (artifact.Content, error) {
 	return decisionCodec.Content(d)
 }
 
+func (d Decision) Lineage() []artifact.Lineage {
+	parents := make([]artifact.ID, 0, len(d.Evidence)+2)
+	if d.Subject.Valid() {
+		parents = append(parents, d.Subject)
+	}
+	if d.Decider.Derivation.Valid() && d.Decider.Derivation != d.Subject {
+		parents = append(parents, d.Decider.Derivation)
+	}
+	for _, parent := range d.Evidence {
+		if parent.Valid() && parent != d.Subject && parent != d.Decider.Derivation {
+			parents = append(parents, parent)
+		}
+	}
+	return artifact.DependencyLineage(d.ID, parents...)
+}
+
+func (d Decision) Batch(key string) (artifact.Batch, error) {
+	return decisionCodec.Batch(key, d, d.Lineage(), nil)
+}
+
 func canonicalizeDecision(decision *Decision) error {
 	if decision == nil || decision.Version != DecisionVersion || !decision.Subject.Valid() {
 		return errors.New("recipe: invalid decision envelope")
@@ -109,9 +129,7 @@ func canonicalizeDecision(decision *Decision) error {
 		(decision.Outcome == DecisionFailed || decision.Outcome == DecisionInapplicable || decision.Outcome == DecisionRefused) && decision.Reason == "" {
 		return errors.New("recipe: invalid decision reason")
 	}
-	// A refusal is a measured decision: prose alone cannot refuse. At least one
-	// evidence identity (the failed run, gate, or evaluation) must ground it, so
-	// the refusal ledger is queryable back to what was actually measured.
+	// Refusals require measured evidence.
 	if decision.Outcome == DecisionRefused && len(decision.Evidence) == 0 {
 		return errors.New("recipe: refusal decision carries no measurement evidence")
 	}

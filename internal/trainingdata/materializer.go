@@ -42,8 +42,10 @@ type RawRecord struct {
 type ValueRole string
 
 const (
-	RoleInput  ValueRole = "input"
-	RoleTarget ValueRole = "target"
+	RoleInput    ValueRole = "input"
+	RoleTarget   ValueRole = "target"
+	RoleChosen   ValueRole = "chosen"
+	RoleRejected ValueRole = "rejected"
 )
 
 // Value is one processor-produced typed payload.
@@ -54,6 +56,7 @@ type Value struct {
 	Shape      []int
 	SampleRate int
 	Data       []byte
+	Completion []bool
 }
 
 // Example preserves source identity across processing and batching.
@@ -673,4 +676,6 @@ func cloneAuthority(authority Authority) Authority {
 	return authority
 }
 
-func validRole(role ValueRole) bool { return role == RoleInput || role == RoleTarget }
+func validRole(role ValueRole) bool {
+	return role == RoleInput || role == RoleTarget || role == RoleChosen || role == RoleRejected
+}

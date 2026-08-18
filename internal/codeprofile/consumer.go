@@ -78,7 +78,7 @@ func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection re
 	if err != nil {
 		return nil, ConsumerSummary{}, err
 	}
-	productionImports := map[string]bool{}
+	productionImporters := map[string]map[string]bool{}
 	testImports := map[string]bool{}
 	for _, source := range snapshot.Files {
 		file, _ := source.Syntax()
@@ -92,6 +92,7 @@ func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection re
 			}
 			return true
 		})
+		importer := packagePath(source, file, selection)
 		for _, imported := range file.Imports {
 			importPath, err := strconv.Unquote(imported.Path.Value)
 			if err != nil {
@@ -100,13 +101,39 @@ func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection re
 			if source.Test {
 				testImports[importPath] = true
 			} else {
-				productionImports[importPath] = true
+				if productionImporters[importPath] == nil {
+					productionImporters[importPath] = map[string]bool{}
+				}
+				productionImporters[importPath][importer] = true
 			}
 		}
 	}
+	// Test-helper status is TRANSITIVE: a package is a test helper when every
+	// production importer is itself a test helper (or it has none and tests
+	// import it). One fixture package importing another must not promote the
+	// imported helper to production surface.
 	for importPath := range testImports {
-		if !productionImports[importPath] {
+		if len(productionImporters[importPath]) == 0 {
 			index.testOnlyImports[importPath] = true
+		}
+	}
+	for changedHelpers := true; changedHelpers; {
+		changedHelpers = false
+		for importPath := range testImports {
+			if index.testOnlyImports[importPath] {
+				continue
+			}
+			helperOnly := len(productionImporters[importPath]) > 0
+			for importer := range productionImporters[importPath] {
+				if !index.testOnlyImports[importer] {
+					helperOnly = false
+					break
+				}
+			}
+			if helperOnly {
+				index.testOnlyImports[importPath] = true
+				changedHelpers = true
+			}
 		}
 	}
 	for _, source := range snapshot.Files {

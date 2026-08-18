@@ -2,7 +2,7 @@ package composition
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
@@ -10,23 +10,14 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// SynthesisOutcome: the pipeline's typed result -- the decision (promotion
-// evidence or refusal with measured reason), the generation record binding
-// the experiment, and the probe measurements behind both.
+// SynthesisOutcome: decision, run record, and measurements.
 type SynthesisOutcome struct {
 	Decision recipe.Decision
 	Record   runrecord.GenerationRecord
 	Result   Result
 }
 
-// SynthesizeBridge executes the full pipeline for one blocked candidate:
-// derive the adapter geometry from the donor component and target (NewGraft's
-// derivation inside RunViability), train the bridge with everything else
-// frozen under the recorded protocol, commit the generation record, and emit
-// a typed decision -- DecisionAccepted carrying the record as promotion
-// evidence when the probe ships, DecisionRefused with the measured reason
-// otherwise. The proposal's promotion-blocked state is never mutated: the
-// decision is new evidence the experiment plane consumes, not an override.
+// SynthesizeBridge: blocked proposal to measured decision evidence.
 func SynthesizeBridge(
 	store *repodb.Store,
 	proposal BridgeProposal,
@@ -34,13 +25,13 @@ func SynthesizeBridge(
 	decider recipe.Decider,
 ) (SynthesisOutcome, error) {
 	if store == nil {
-		return SynthesisOutcome{}, fmt.Errorf("composition: synthesis requires a store")
+		return SynthesisOutcome{}, errors.New("composition: synthesis requires a store")
 	}
 	if !proposal.ID.Valid() {
-		return SynthesisOutcome{}, fmt.Errorf("composition: synthesis candidate lacks identity")
+		return SynthesisOutcome{}, errors.New("composition: synthesis candidate lacks identity")
 	}
 	if proposal.State != ProposalPromotionBlocked {
-		return SynthesisOutcome{}, fmt.Errorf("composition: synthesis input must be a blocked proposal")
+		return SynthesisOutcome{}, errors.New("composition: synthesis input must be a blocked proposal")
 	}
 	result, err := RunViability(config)
 	if err != nil {
@@ -63,17 +54,11 @@ func SynthesizeBridge(
 	if err != nil {
 		return SynthesisOutcome{}, err
 	}
-	content, err := decision.Content()
+	batch, err := decision.Batch("bridge-synthesis/decision/" + decision.ID.String())
 	if err != nil {
 		return SynthesisOutcome{}, err
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
-		Key:      "bridge-synthesis/decision/" + decision.ID.String(),
-		Contents: []artifact.Content{content},
-		Lineage: []artifact.Lineage{{
-			Child: decision.ID, Parent: proposal.ID, Relation: artifact.RelationDependsOn,
-		}},
-	}); err != nil {
+	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
 		return SynthesisOutcome{}, err
 	}
 	return SynthesisOutcome{Decision: decision, Record: record, Result: result}, nil

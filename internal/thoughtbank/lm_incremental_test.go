@@ -3,6 +3,8 @@ package thoughtbank
 import (
 	"math/rand"
 	"testing"
+
+	"overgo/internal/testutil"
 )
 
 // Token-for-token oracle for the incremental decode: FastWeightBankLMDecodeInit
@@ -195,7 +197,7 @@ func runDecodeOracle(t *testing.T, tag string, w *FastWeightBankLMWeights, ids [
 		}
 		got[p] = l
 	}
-	if m := maxAbsDiff(lastPrompt, got[prompt-1]); m > 1e-6 {
+	if m := testutil.MaxAbsDiff(lastPrompt, got[prompt-1]); m > 1e-6 {
 		t.Fatalf("%s: init(prompt) and stepped logits disagree at pos %d by %.3g", tag, prompt-1, m)
 	}
 
@@ -203,7 +205,7 @@ func runDecodeOracle(t *testing.T, tag string, w *FastWeightBankLMWeights, ids [
 	argMismatch := 0
 	for tpos := 0; tpos < len(ids); tpos++ {
 		want := ref.Logits[tpos*vocab : (tpos+1)*vocab]
-		if m := maxAbsDiff(got[tpos], want); m > worst {
+		if m := testutil.MaxAbsDiff(got[tpos], want); m > worst {
 			worst = m
 		}
 		if argmaxF32(got[tpos]) != argmaxF32(want) {
@@ -227,7 +229,7 @@ func runDecodeOracle(t *testing.T, tag string, w *FastWeightBankLMWeights, ids [
 	if gotSlots != ref.Slots {
 		t.Fatalf("%s: decode bank %d slots, reference %d", tag, gotSlots, ref.Slots)
 	}
-	bankDiff := maxAbsDiff(gotBank, ref.MemBank)
+	bankDiff := testutil.MaxAbsDiff(gotBank, ref.MemBank)
 	if bankDiff > 1e-4 {
 		t.Errorf("%s: carried bank max abs diff %.3g exceeds 1e-4", tag, bankDiff)
 	}

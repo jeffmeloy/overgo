@@ -13,6 +13,7 @@ import (
 	"go/token"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -112,8 +113,27 @@ func run() error {
 	update := flag.Bool("update", false, "write generated compatibility matrix")
 	refresh := flag.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
 	recordVerification := flag.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims)")
-	recordStore := flag.String("record", "", "RepoDB root for -record-verification")
+	recordStore := flag.String("record", "", "RepoDB root for -record-verification/-claim")
+	claimFlag := flag.Bool("claim", false, "build and commit one verification claim from flags: -claim -model-file <weights> -name <n> -capability <c> -tier <t> -evidence-file <doc> [-wall <dur>] [-context <tokens>] [-peak <bytes>] -record <repodb>")
+	claimModelFile := flag.String("model-file", "", "claim: weights file; its digest is the model identity")
+	claimName := flag.String("name", "", "claim: human model name")
+	claimCapability := flag.String("capability", "inference", "claim: capability (lowercase kebab)")
+	claimTier := flag.String("tier", "real-artifact-smoke", "claim: verification tier")
+	claimEvidenceFile := flag.String("evidence-file", "", "claim: evidence document; committed by content and referenced by the claim")
+	claimWall := flag.Duration("wall", 0, "claim: measured wall")
+	claimContext := flag.Uint64("context", 0, "claim: context tokens (requires -wall)")
+	claimPeak := flag.Uint64("peak", 0, "claim: peak device bytes (requires -wall)")
 	flag.Parse()
+	if *claimFlag {
+		if flag.NArg() != 0 || *claimModelFile == "" || *claimName == "" || *claimEvidenceFile == "" || *recordStore == "" {
+			return errors.New("usage: compatibility -claim -model-file <weights> -name <n> -evidence-file <doc> -record <repodb> [-capability c] [-tier t] [-wall d] [-context n] [-peak b]")
+		}
+		return runClaim(claimInput{
+			modelFile: *claimModelFile, name: *claimName, capability: *claimCapability,
+			tier: *claimTier, evidenceFile: *claimEvidenceFile,
+			wall: *claimWall, context: *claimContext, peak: *claimPeak,
+		}, *recordStore, os.Stdout)
+	}
 	if *recordVerification != "" {
 		if flag.NArg() != 0 || *check || *update || *refresh || *recordStore == "" {
 			return errors.New("usage: compatibility -record-verification <spec.json> -record <repodb>")
@@ -137,6 +157,90 @@ func run() error {
 		"docs/COMPATIBILITY.md is stale; regenerate with: go run ./cmd/compatibility -update",
 		os.Stdout,
 	)
+}
+
+type claimInput struct {
+	modelFile, name, capability, tier, evidenceFile string
+	wall                                            time.Duration
+	context, peak                                   uint64
+}
+
+// runClaim builds and commits one verification claim entirely from flags:
+// the model identity is the weights-file digest, the evidence document
+// commits by content, and the record lands with lineage -- no external
+// scripting anywhere in the path.
+func runClaim(input claimInput, recordStore string, output io.Writer) error {
+	head, err := exec.Command("git", "log", "-1", "--format=%H").Output()
+	if err != nil {
+		return fmt.Errorf("resolve verifying commit: %w", err)
+	}
+	commit := strings.TrimSpace(string(head))
+	weights, err := os.Open(input.modelFile)
+	if err != nil {
+		return err
+	}
+	model, _, err := artifact.Identify(artifact.KindModel, weights)
+	closeErr := weights.Close()
+	if err != nil || closeErr != nil {
+		return errors.Join(err, closeErr)
+	}
+	evidenceData, err := os.ReadFile(input.evidenceFile)
+	if err != nil {
+		return err
+	}
+	evidence, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(evidenceData))
+	if err != nil {
+		return err
+	}
+	record, err := runrecord.NewModelVerification(model, input.name, []runrecord.CapabilityClaim{{
+		Capability: input.capability, Tier: runrecord.VerificationTier(input.tier), Commit: commit,
+		ContextTokens: input.context, WallNS: uint64(input.wall.Nanoseconds()), PeakDeviceBytes: input.peak,
+		Evidence: []artifact.ID{evidence},
+	}})
+	if err != nil {
+		return err
+	}
+	store, err := repodb.Open(recordStore)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+	ctx := context.Background()
+	batch, err := record.Batch("verification/" + record.ID.String())
+	if err != nil {
+		return err
+	}
+	if _, ok, err := store.Content(ctx, evidence); err != nil {
+		return err
+	} else if !ok {
+		batch.Contents = append(batch.Contents, artifact.Content{
+			Descriptor: artifact.Descriptor{ID: evidence, Size: uint64(len(evidenceData))}, Data: evidenceData,
+		})
+	}
+	if _, ok, err := store.Artifact(ctx, model); err != nil {
+		return err
+	} else if !ok {
+		absolute, err := filepath.Abs(input.modelFile)
+		if err != nil {
+			return err
+		}
+		info, err := os.Stat(input.modelFile)
+		if err != nil {
+			return err
+		}
+		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: model, Size: uint64(info.Size())})
+		batch.Locations = append(batch.Locations, artifact.LocationEvent{
+			Location: artifact.Location{Artifact: model, Kind: artifact.LocationFile, Value: absolute},
+			Action:   artifact.LocationAdd,
+		})
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "claim committed: %s model=%s name=%s %s=%s commit=%.12s\n",
+		record.ID, model, input.name, input.capability, input.tier, commit)
+	fmt.Fprintln(output, "honesty: the model identity is the weights digest; the claim is grounded in the committed evidence document")
+	return nil
 }
 
 // runRecordVerification commits one typed model-verification record: the

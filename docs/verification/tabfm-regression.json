@@ -1,0 +1,19 @@
+{
+ "model": "model:sha256:bd5a615b0322a8f04a895038de6df6fbd71430eca750e1d792f31048654674a9",
+ "name": "TabFM-1.0-regression",
+ "model_file": "C:/Users/jeffm/adaptive_new/models/tabfm-1.0.0-pytorch/regression/model.safetensors",
+ "evidence_files": [
+  "docs/verification/capability-tabfm-regression-inference.txt"
+ ],
+ "claims": [
+  {
+   "capability": "inference",
+   "tier": "real-artifact-smoke",
+   "commit": "b263e8c918021138a623ee6d05172da3b109a575",
+   "wall_ns": 78020000000,
+   "evidence": [
+    "evidence:sha256:7cf7c100b782c87f24afa40c1b557f722f124ac193cbfb99f0ecce7a007b315e"
+   ]
+  }
+ ]
+}

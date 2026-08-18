@@ -3,6 +3,34 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
+      "id": "full-inference-verification",
+      "title": "Full inference verification: every loadable model smallest to largest through its serving or capability path with measured wall and peak at real context; failures become fixes or typed findings; every pass lands a measured ledger claim",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Full inference verification: every loadable model smallest to largest through its serving or capability path with measured wall and peak at real context; failures become fixes or typed findings; every pass lands a measured ledger claim",
+          "status": "open",
+          "verify": "go run ./cmd/repodb-query -repo repodb-store -verifications | grep -c 'inference=' | grep -qvE '^([0-9]|1[0-2])$'",
+          "rationale": "Size-ordered worklist (claims land in the verification ledger; status per model): Un-0 126K scratch-lineage TODO(construction-path claim); needle 254M CLAIMED; SimpleDiffusion 790M smoke-passed TODO(claim); timesfm 1.8G CLAIMED; Qwen2.5-0.5B 1.9G MEASURED; Fractale-350M 2.9G TODO(convert via hf-gguf-convert -record then perf-sweep); Carbon-500M 3.0G MEASURED; MiniCPM5-1B 4.4G MEASURED; pocket-tts 9.2G smoke-passed TODO(claim); Unlimited-OCR 13G TODO(path); Qwen3.5-4B 18G MEASURED; Hy-Embodied-RxBrain 24G TODO(path); tabfm 25G CLAIMED(x2); gemma-4-12B-fp8 29G BLOCKED(stale activation, hygiene row); gemma-4-E4B 30G TODO(serving path); LiveEdit 32G TODO(path); Wan2.1-T2V 33G TODO(path); bonzai 40G TODO(path); SenseNova-U1-8B 66G TODO(path); Qwen3.5-9B-Q8 gguf MEASURED; Krea-2-Turbo 116G TODO(path). Rule: each model runs its serving or capability path with measured wall (peak+context where the path instruments them); unexercisable paths refuse with a typed finding, never silence."
+        }
+      ]
+    },
+    {
+      "id": "full-training-verification",
+      "title": "Full training verification: every trainable model smallest to largest through the guarded trainer with measured wall; unsupported architectures refuse with typed reasons; every pass lands a training claim",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Full training verification: every trainable model smallest to largest through the guarded trainer with measured wall; unsupported architectures refuse with typed reasons; every pass lands a training claim",
+          "status": "open",
+          "verify": "go run ./cmd/repodb-query -repo repodb-store -verifications | grep -c 'training=' | grep -qvE '^[0-2]$'",
+          "rationale": "Trainable set smallest to largest through the guarded trainer (lane announcement, per-step observer, 30m projection guard): Un-0/adaptive-causal scratch TODO; Fractale-350M TODO(after conversion); Carbon-500M TODO(dense-causal device, frozen lexical); Qwen2.5-0.5B DONE; MiniCPM5-1B DONE; needle seq2seq TODO(its own training tests exist); Qwen3.5-4B REFUSES(hybrid arch unsupported by dense-causal -- typed finding or trainer extension); larger models judged per architecture support. Trainable-lexical full-model device training at the ~16GB envelope adaptive_new demonstrated is the stretch goal after the frozen-lexical sweep completes."
+        }
+      ]
+    },
+    {
       "id": "external-benchmark-evidence",
       "title": "External benchmark evidence: run the lm-evaluation-harness batch evaluator (C:/Users/jeffm/eval) on applicable text models as the independent judge, commit results with tool-and-version provenance, and record benchmark claims at capability-measured tier; applicability judged per model from the ledger (DNA and non-text models keep their own evaluation protocols)",
       "status": "open",
@@ -11,7 +39,8 @@
           "id": "do",
           "title": "External benchmark evidence: run the lm-evaluation-harness batch evaluator (C:/Users/jeffm/eval) on applicable text models as the independent judge, commit results with tool-and-version provenance, and record benchmark claims at capability-measured tier; applicability judged per model from the ledger (DNA and non-text models keep their own evaluation protocols)",
           "status": "open",
-          "verify": "go run ./cmd/repodb-query -repo repodb-store -verifications | grep -qi benchmark"
+          "verify": "go run ./cmd/repodb-query -repo repodb-store -verifications | grep -qi benchmark",
+          "rationale": "Deferred by owner direction 2026-08-18: native benchmark evaluation (MMLU-Pro, BBH/MuSR, TruthfulQA, instruction/structured evaluation, cmd/evaluate) is being built into overgo by the parallel tightening lane; this row completes against that machinery after merge rather than shelling out to the external Python harness."
         }
       ]
     },

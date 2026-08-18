@@ -1,9 +1,7 @@
 // Backward for the dense causal-LM capability, composed from hostmath VJPs
 // in checkpoint posture: only the per-layer residual-stream inputs are
 // retained; every trace is recomputed from them. Gradients are keyed by the
-// checkpoint tensor names an optimizer consumes. Head grads key by HeadName:
-// tied, the one embedding slot accumulates BOTH the lm-head contribution and
-// the input-lookup scatter; untied, lm_head.weight gets its own slot.
+// checkpoint tensor names an optimizer consumes. Head grads use the compiled binding:
 package densecausal
 
 import (
@@ -61,10 +59,10 @@ func (m *Model) lossAndGradsFromStates(
 	seq := len(tokens)
 	final := states[d.Layers]
 	normed := make([]float32, seq*d.Hidden)
-	hostmath.RMSNormInto(normed, final, m.Weights["model.norm.weight"], seq, d.Hidden, d.RMSEps)
-	head := m.head()
+	hostmath.RMSNormInto(normed, final, m.tensors.finalNorm.values, seq, d.Hidden, d.RMSEps)
+	head := m.tensors.head.values
 	g := Grads{}
-	gradHead := hostmath.GradientSlot(g, m.headName(), len(head))
+	gradHead := hostmath.GradientSlot(g, m.tensors.head.name, len(head))
 	dNormed := make([]float32, seq*d.Hidden)
 	var loss float64
 	var logits []float32
@@ -98,7 +96,7 @@ func (m *Model) lossAndGradsFromStates(
 		}
 	}
 	dx := make([]float32, seq*d.Hidden)
-	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, "model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
+	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, m.tensors.finalNorm.name, d.Hidden), final, m.tensors.finalNorm.values, dNormed, seq, d.Hidden, d.RMSEps, false)
 
 	for index := d.Layers - 1; index >= 0; index-- {
 		var err error
@@ -109,8 +107,8 @@ func (m *Model) lossAndGradsFromStates(
 	}
 	// Input-embedding scatter (the second contribution when tied; the only
 	// embedding contribution when untied).
-	embed := m.Weights["model.embed_tokens.weight"]
-	gradEmbed := hostmath.GradientSlot(g, "model.embed_tokens.weight", len(embed))
+	embed := m.tensors.embedding.values
+	gradEmbed := hostmath.GradientSlot(g, m.tensors.embedding.name, len(embed))
 	scatterEmbeddingGradient(gradEmbed, dx, tokens, d.Hidden)
 	return loss, logits, g, nil
 }

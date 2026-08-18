@@ -151,7 +151,7 @@ func (m *Model) retainedForwardStates(
 	if seq == 0 {
 		return nil, fmt.Errorf("densecausal: empty token batch")
 	}
-	embed := m.Weights["model.embed_tokens.weight"]
+	embed := m.tensors.embedding.values
 	x := make([]float32, seq*d.Hidden)
 	for token, id := range tokens {
 		if id < 0 || id >= d.Vocab {
@@ -170,31 +170,14 @@ func (m *Model) retainedForwardStates(
 	return states, nil
 }
 
-// Logits: final norm then the lm head (HeadName: tied embedding or untied
-// lm_head.weight) over every position; returns [seq*vocab] flat.
+// logits applies the compiled final norm and head bindings.
 func (m *Model) logits(final []float32, seq int) []float32 {
 	d := m.Dims
 	normed := make([]float32, seq*d.Hidden)
-	hostmath.RMSNormInto(normed, final, m.Weights["model.norm.weight"], seq, d.Hidden, d.RMSEps)
+	hostmath.RMSNormInto(normed, final, m.tensors.finalNorm.values, seq, d.Hidden, d.RMSEps)
 	out := make([]float32, seq*d.Vocab)
-	hostmath.Linear(out, normed, m.head(), seq, d.Hidden, d.Vocab)
+	hostmath.Linear(out, normed, m.tensors.head.values, seq, d.Hidden, d.Vocab)
 	return out
-}
-
-// head: lm-head weight view; the embedding when tied.
-func (m *Model) head() []float32 {
-	if m.HeadName == "" {
-		return m.Weights["model.embed_tokens.weight"]
-	}
-	return m.Weights[m.HeadName]
-}
-
-// headName: grad slot key for the lm head.
-func (m *Model) headName() string {
-	if m.HeadName == "" {
-		return "model.embed_tokens.weight"
-	}
-	return m.HeadName
 }
 
 // Loss: forward-only causal-LM loss (mean CE, positions 0..n-2 predicting

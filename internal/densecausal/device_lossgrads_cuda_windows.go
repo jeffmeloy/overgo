@@ -34,7 +34,7 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 	kvWidth := d.KVHeads * d.HeadDim
 
 	// Embedding lookup (host): the stack's input residual, states[0].
-	embed := m.Weights["model.embed_tokens.weight"]
+	embed := m.tensors.embedding.values
 	embeds := make([]float32, seq*d.Hidden)
 	for token, id := range tokens {
 		if id < 0 || id >= d.Vocab {
@@ -66,17 +66,17 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 	var logits []float32
 	tail := func(final []float32) ([]float32, error) {
 		normed := make([]float32, seq*d.Hidden)
-		hostmath.RMSNormInto(normed, final, m.Weights["model.norm.weight"], seq, d.Hidden, d.RMSEps)
-		head := m.head()
+		hostmath.RMSNormInto(normed, final, m.tensors.finalNorm.values, seq, d.Hidden, d.RMSEps)
+		head := m.tensors.head.values
 		logits = make([]float32, seq*d.Vocab)
 		hostmath.Linear(logits, normed, head, seq, d.Hidden, d.Vocab)
 		dLogits := make([]float32, seq*d.Vocab)
 		loss = hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
-		gradHead := hostmath.GradientSlot(g, m.headName(), len(head))
+		gradHead := hostmath.GradientSlot(g, m.tensors.head.name, len(head))
 		dNormed := make([]float32, seq*d.Hidden)
 		hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
 		dx := make([]float32, seq*d.Hidden)
-		hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, "model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, seq, d.Hidden, d.RMSEps, false)
+		hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, m.tensors.finalNorm.name, d.Hidden), final, m.tensors.finalNorm.values, dNormed, seq, d.Hidden, d.RMSEps, false)
 		return dx, nil
 	}
 
@@ -110,7 +110,7 @@ func (m *Model) deviceLossAndGrads(worker *device.Worker, tokens []int) (float64
 
 	// Input-embedding scatter (tied: accumulates onto the head contribution
 	// already in the slot; untied: the sole embedding contribution).
-	gradEmbed := hostmath.GradientSlot(g, "model.embed_tokens.weight", len(embed))
+	gradEmbed := hostmath.GradientSlot(g, m.tensors.embedding.name, len(embed))
 	scatterEmbeddingGradient(gradEmbed, dxEmbed, tokens, d.Hidden)
 	return loss, logits, g, nil
 }

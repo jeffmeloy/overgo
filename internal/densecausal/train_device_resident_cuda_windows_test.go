@@ -114,7 +114,7 @@ func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	embedBefore := slices.Clone(model.Weights["model.embed_tokens.weight"])
+	embedBefore := slices.Clone(model.tensors.embedding.values)
 	deviceResult, err := model.TrainDeviceResident(worker, slices.Repeat([][]int{tokens}, 8), 0, 0.9, DeviceTrainingOptions{FrozenLexical: true})
 	if err != nil {
 		t.Fatal(err)
@@ -126,7 +126,7 @@ func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
 	if !(trajectory[len(trajectory)-1] < trajectory[0]) {
 		t.Fatalf("frozen resident loss %.6f -> %.6f", trajectory[0], trajectory[len(trajectory)-1])
 	}
-	if !slices.Equal(embedBefore, model.Weights["model.embed_tokens.weight"]) {
+	if !slices.Equal(embedBefore, model.tensors.embedding.values) {
 		t.Fatal("frozen lexical table changed")
 	}
 }

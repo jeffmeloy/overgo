@@ -15,6 +15,8 @@ import (
 func TestUntiedHeadGradsSplitTiedGolden(t *testing.T) {
 	g := readTinyGolden(t)
 	tied := modelFromGolden(t, g)
+	embeddingName := tied.tensors.embedding.name
+	const headName = "lm_head.weight"
 	lossTied, _, gradsTied, err := tied.LossAndGrads(g.Tokens)
 	if err != nil {
 		t.Fatal(err)
@@ -30,15 +32,15 @@ func TestUntiedHeadGradsSplitTiedGolden(t *testing.T) {
 		weights[name] = values
 		shapes[name] = p.Shape
 	}
-	head := append([]float32(nil), weights["model.embed_tokens.weight"]...)
-	weights["lm_head.weight"] = head
-	shapes["lm_head.weight"] = append([]int(nil), shapes["model.embed_tokens.weight"]...)
+	head := append([]float32(nil), weights[embeddingName]...)
+	weights[headName] = head
+	shapes[headName] = append([]int(nil), shapes[embeddingName]...)
 	untied, err := NewModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if untied.HeadName != "lm_head.weight" {
-		t.Fatalf("head name %q, want lm_head.weight", untied.HeadName)
+	if untied.tensors.head.name != headName {
+		t.Fatalf("head name %q, want %s", untied.tensors.head.name, headName)
 	}
 
 	lossUntied, _, gradsUntied, err := untied.LossAndGrads(g.Tokens)
@@ -48,9 +50,9 @@ func TestUntiedHeadGradsSplitTiedGolden(t *testing.T) {
 	if lossUntied != lossTied {
 		t.Fatalf("untied loss %.9f != tied %.9f", lossUntied, lossTied)
 	}
-	gradHead := gradsUntied["lm_head.weight"]
-	gradScatter := gradsUntied["model.embed_tokens.weight"]
-	gradTiedEmbed := gradsTied["model.embed_tokens.weight"]
+	gradHead := gradsUntied[headName]
+	gradScatter := gradsUntied[embeddingName]
+	gradTiedEmbed := gradsTied[embeddingName]
 	if gradHead == nil || gradScatter == nil {
 		t.Fatal("untied grads missing lm_head.weight or model.embed_tokens.weight slot")
 	}
@@ -68,7 +70,7 @@ func TestUntiedHeadGradsSplitTiedGolden(t *testing.T) {
 	}
 	// Every other parameter grad is identical.
 	for name, tiedGrad := range gradsTied {
-		if name == "model.embed_tokens.weight" {
+		if name == embeddingName {
 			continue
 		}
 		untiedGrad := gradsUntied[name]
@@ -84,6 +86,7 @@ func TestUntiedHeadGradsSplitTiedGolden(t *testing.T) {
 }
 
 func TestUntiedHeadWithoutTensorRejected(t *testing.T) {
+	const headName = "lm_head.weight"
 	// NewModel derives tied-vs-untied from tensor presence; a malformed
 	// lm_head shape must fail loudly.
 	g := readTinyGolden(t)
@@ -97,8 +100,8 @@ func TestUntiedHeadWithoutTensorRejected(t *testing.T) {
 		weights[name] = values
 		shapes[name] = p.Shape
 	}
-	weights["lm_head.weight"] = make([]float32, g.Config.HiddenSize)
-	shapes["lm_head.weight"] = []int{1, g.Config.HiddenSize}
+	weights[headName] = make([]float32, g.Config.HiddenSize)
+	shapes[headName] = []int{1, g.Config.HiddenSize}
 	if _, err := NewModel(weights, shapes, g.Config.NumAttentionHeads, g.Config.HeadDim, g.Config.RopeTheta, g.Config.RMSNormEps); err == nil {
 		t.Fatal("mis-shaped lm_head.weight accepted; want loud failure")
 	} else {

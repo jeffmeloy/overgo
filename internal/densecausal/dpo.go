@@ -163,10 +163,10 @@ func (m *Model) sequenceTrace(sequence trainingdata.PreferenceSequence) (prefere
 	}
 	final := states[m.Dims.Layers]
 	normed := make([]float32, len(final))
-	hostmath.RMSNormInto(normed, final, m.Weights["model.norm.weight"], len(sequence.Tokens), m.Dims.Hidden, m.Dims.RMSEps)
+	hostmath.RMSNormInto(normed, final, m.tensors.finalNorm.values, len(sequence.Tokens), m.Dims.Hidden, m.Dims.RMSEps)
 	scores := make([]float64, rows)
 	if err := hostmath.SelectedLogProbInto(
-		scores, normed[:rows*m.Dims.Hidden], m.head(), nil, sequence.Tokens[1:], sequence.Completion[1:],
+		scores, normed[:rows*m.Dims.Hidden], m.tensors.head.values, nil, sequence.Tokens[1:], sequence.Completion[1:],
 		rows, m.Dims.Hidden, m.Dims.Vocab, make([]float32, m.Dims.Vocab),
 	); err != nil {
 		return preferenceTrace{}, err
@@ -187,14 +187,14 @@ func (m *Model) sequenceLogProbGrads(trace preferenceTrace, coefficient float64)
 	dNormed := make([]float32, len(normed))
 	coefficients := slices.Repeat([]float64{coefficient}, rows)
 	if err := hostmath.SelectedLogProbBackward(
-		dNormed[:rows*d.Hidden], hostmath.GradientSlot(g, m.headName(), len(m.head())), nil,
-		normed[:rows*d.Hidden], m.head(), nil, sequence.Tokens[1:], sequence.Completion[1:], coefficients,
+		dNormed[:rows*d.Hidden], hostmath.GradientSlot(g, m.tensors.head.name, len(m.tensors.head.values)), nil,
+		normed[:rows*d.Hidden], m.tensors.head.values, nil, sequence.Tokens[1:], sequence.Completion[1:], coefficients,
 		rows, d.Hidden, d.Vocab, make([]float32, d.Vocab), false,
 	); err != nil {
 		return nil, err
 	}
 	dx := make([]float32, len(final))
-	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, "model.norm.weight", d.Hidden), final, m.Weights["model.norm.weight"], dNormed, len(sequence.Tokens), d.Hidden, d.RMSEps, false)
+	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, m.tensors.finalNorm.name, d.Hidden), final, m.tensors.finalNorm.values, dNormed, len(sequence.Tokens), d.Hidden, d.RMSEps, false)
 	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
 	for index := d.Layers - 1; index >= 0; index-- {
 		var err error
@@ -203,6 +203,6 @@ func (m *Model) sequenceLogProbGrads(trace preferenceTrace, coefficient float64)
 			return nil, err
 		}
 	}
-	scatterEmbeddingGradient(hostmath.GradientSlot(g, "model.embed_tokens.weight", len(m.Weights["model.embed_tokens.weight"])), dx, sequence.Tokens, d.Hidden)
+	scatterEmbeddingGradient(hostmath.GradientSlot(g, m.tensors.embedding.name, len(m.tensors.embedding.values)), dx, sequence.Tokens, d.Hidden)
 	return g, nil
 }

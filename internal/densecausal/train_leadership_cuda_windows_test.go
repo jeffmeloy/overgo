@@ -163,7 +163,7 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 	for index := 1; index < len(tokens); index++ {
 		tokens[index] = 151669 + index%64
 	}
-	embed := model.Weights["model.embed_tokens.weight"]
+	embed := model.tensors.embedding.values
 	probes := []int{0, len(embed) / 3, len(embed) - 1}
 	before := make([]float32, len(probes))
 	for index, probe := range probes {

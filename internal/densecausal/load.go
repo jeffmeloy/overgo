@@ -39,14 +39,23 @@ type Dims struct {
 	AttnBias     bool
 }
 
-// Model: loaded weights (f32), shapes, and derived dims. HeadName keys the
-// lm-head weight: lm_head.weight when untied, the embedding when tied — the
-// tied case accumulates head+scatter grads in the one shared slot.
+// Model owns weights, shapes, geometry, and compiled bindings.
 type Model struct {
-	Dims     Dims
-	Weights  map[string][]float32
-	Shapes   map[string][]int
-	HeadName string
+	Dims    Dims
+	Weights map[string][]float32
+	Shapes  map[string][]int
+	tensors modelTensorBindings
+}
+
+type tensorBinding struct {
+	name   string
+	values []float32
+}
+
+type modelTensorBindings struct {
+	embedding tensorBinding
+	finalNorm tensorBinding
+	head      tensorBinding
 }
 
 type artifactConfig struct {
@@ -97,7 +106,7 @@ func Load(directory string) (*Model, error) {
 		return nil, fmt.Errorf("densecausal: unsupported model_type %q (llama, qwen2)", config.ModelType)
 	}
 	// tie_word_embeddings cross-check: tied forbids lm_head.weight, untied requires it.
-	if untied := m.HeadName == "lm_head.weight"; untied == config.TieWordEmbeddings {
+	if untied := m.tensors.head.name != m.tensors.embedding.name; untied == config.TieWordEmbeddings {
 		return nil, fmt.Errorf("densecausal: tie_word_embeddings=%v but lm_head.weight present=%v", config.TieWordEmbeddings, untied)
 	}
 	return m, nil
@@ -106,22 +115,27 @@ func Load(directory string) (*Model, error) {
 // NewModel derives dims from shapes and validates the geometry; weights map
 // is adopted, not copied. headDim zero falls back to hidden/heads.
 func NewModel(weights map[string][]float32, shapes map[string][]int, heads, headDim int, ropeTheta, rmsEps float64) (*Model, error) {
+	const (
+		embeddingName  = "model.embed_tokens.weight"
+		finalNormName  = "model.norm.weight"
+		untiedHeadName = "lm_head.weight"
+	)
 	var d Dims
-	embed, err := tensorcatalog.Shape(shapes, "model.embed_tokens.weight", 2)
+	embed, err := tensorcatalog.Shape(shapes, embeddingName, 2)
 	if err != nil {
 		return nil, err
 	}
 	d.Vocab, d.Hidden = embed[0], embed[1]
-	headName := "model.embed_tokens.weight"
-	if _, untied := shapes["lm_head.weight"]; untied {
-		head, err := tensorcatalog.Shape(shapes, "lm_head.weight", 2)
+	headName := embeddingName
+	if _, untied := shapes[untiedHeadName]; untied {
+		head, err := tensorcatalog.Shape(shapes, untiedHeadName, 2)
 		if err != nil {
 			return nil, err
 		}
 		if head[0] != d.Vocab || head[1] != d.Hidden {
 			return nil, fmt.Errorf("densecausal: lm_head.weight %v, want [%d %d]", head, d.Vocab, d.Hidden)
 		}
-		headName = "lm_head.weight"
+		headName = untiedHeadName
 	}
 	if heads <= 0 {
 		return nil, fmt.Errorf("densecausal: config num_attention_heads %d", heads)
@@ -185,7 +199,7 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 			return nil, fmt.Errorf("densecausal: layer %d bias presence differs from layer 0", layer)
 		}
 	}
-	if _, err := tensorcatalog.Shape(shapes, "model.norm.weight", 1); err != nil {
+	if _, err := tensorcatalog.Shape(shapes, finalNormName, 1); err != nil {
 		return nil, err
 	}
 	// Any bias outside the q/k/v attention triple is an unverified layout.
@@ -194,7 +208,14 @@ func NewModel(weights map[string][]float32, shapes map[string][]int, heads, head
 			return nil, fmt.Errorf("densecausal: unexpected bias tensor %q", name)
 		}
 	}
-	return &Model{Dims: d, Weights: weights, Shapes: shapes, HeadName: headName}, nil
+	return &Model{
+		Dims: d, Weights: weights, Shapes: shapes,
+		tensors: modelTensorBindings{
+			embedding: tensorBinding{name: embeddingName, values: weights[embeddingName]},
+			finalNorm: tensorBinding{name: finalNormName, values: weights[finalNormName]},
+			head:      tensorBinding{name: headName, values: weights[headName]},
+		},
+	}, nil
 }
 
 // layerAttnBias validates the per-layer q/k/v bias triple: absent entirely,

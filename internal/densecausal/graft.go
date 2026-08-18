@@ -94,9 +94,9 @@ func (m *Model) GraftLoss(gr *Graft, tokens []int) (float64, error) {
 	d := m.Dims
 	final := states[d.Layers]
 	normed := make([]float32, seq*d.Hidden)
-	hostmath.RMSNormInto(normed, final, m.Weights["model.norm.weight"], seq, d.Hidden, d.RMSEps)
+	hostmath.RMSNormInto(normed, final, m.tensors.finalNorm.values, seq, d.Hidden, d.RMSEps)
 	logits := make([]float32, seq*d.Vocab)
-	hostmath.Linear(logits, normed, m.head(), seq, d.Hidden, d.Vocab)
+	hostmath.Linear(logits, normed, m.tensors.head.values, seq, d.Hidden, d.Vocab)
 	dLogits := make([]float32, (seq-1)*d.Vocab)
 	loss := hostmath.SoftmaxCrossEntropy(dLogits, logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
 	return loss, nil

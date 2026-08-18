@@ -16,12 +16,7 @@ const (
 	ComposedModelSchema           = "overgo/composed-model/v1"
 )
 
-// ComposedModelDocument assembles a composition's constituents into ONE
-// content-addressed, executable model artifact: the parent models, the typed
-// recipe that executes them, the classified components consumed, the
-// registered architecture vocabulary, and optionally the trained adapter and
-// the checkpoint a retry resumes from. Lineage binds the artifact to every
-// input, so provenance is a graph query, never prose.
+// ComposedModelDocument: executable composition and immutable inputs.
 type ComposedModelDocument struct {
 	Version      uint16        `json:"version"`
 	Architecture string        `json:"architecture"`
@@ -60,13 +55,18 @@ func (d ComposedModelDocument) Content() (artifact.Content, error) {
 	return composedModelCodec.Content(d)
 }
 
-// Batch commits the composed artifact with full lineage to every input.
+// Batch: document plus complete dependency lineage.
 func (d ComposedModelDocument) Batch(key string) (artifact.Batch, error) {
-	content, err := d.Content()
-	if err != nil {
-		return artifact.Batch{}, err
+	capacity := 1 + len(d.Parents) + len(d.Components)
+	if d.Adapter.Valid() {
+		capacity++
 	}
-	dependencies := append([]artifact.ID{d.Recipe}, d.Parents...)
+	if d.Checkpoint.Valid() {
+		capacity++
+	}
+	dependencies := make([]artifact.ID, 0, capacity)
+	dependencies = append(dependencies, d.Recipe)
+	dependencies = append(dependencies, d.Parents...)
 	dependencies = append(dependencies, d.Components...)
 	if d.Adapter.Valid() {
 		dependencies = append(dependencies, d.Adapter)
@@ -74,13 +74,7 @@ func (d ComposedModelDocument) Batch(key string) (artifact.Batch, error) {
 	if d.Checkpoint.Valid() {
 		dependencies = append(dependencies, d.Checkpoint)
 	}
-	lineage := make([]artifact.Lineage, 0, len(dependencies))
-	for _, dependency := range dependencies {
-		lineage = append(lineage, artifact.Lineage{
-			Child: d.ID, Parent: dependency, Relation: artifact.RelationDependsOn,
-		})
-	}
-	return artifact.NewDocumentBatch(key, []artifact.Content{content}, lineage, nil)
+	return composedModelCodec.Batch(key, d, artifact.DependencyLineage(d.ID, dependencies...), nil)
 }
 
 func canonicalizeComposedModel(value *ComposedModelDocument) error {

@@ -3,34 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "bounded-controller-trials",
-      "title": "Permit bounded controller-driven descendant trials: controller proposes corpus, recipe, evaluator and composition candidates; independent admission, held-out evaluation, promotion and rollback required; every child bound to parent model, data, recipe, code, evaluator, run and decision identities",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Permit bounded controller-driven descendant trials: controller proposes corpus, recipe, evaluator and composition candidates; independent admission, held-out evaluation, promotion and rollback required; every child bound to parent model, data, recipe, code, evaluator, run and decision identities",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/trainingprogram -run '^TestRecursiveImprovementLineageAndExternalPromotion$' -count=1 -v",
-          "depends_on": [
-            "controller-promotion",
-            "determinism-and-statistical-verdicts",
-            "bounded-exploration-budget",
-            "evaluation-isolation",
-            "independent-rsi-admission",
-            "experiment-lifecycle",
-            "runtime-resource-scheduler"
-          ],
-          "capabilities": [
-            "executes-autonomously",
-            "promotes-artifact",
-            "admits-without-human",
-            "measures-held-out"
-          ]
-        }
-      ]
-    },
-    {
       "id": "descendant-improvement",
       "title": "Require a child artifact to beat its parent under the full metric contract: identical evaluator and split identities, margin beyond observed noise, multi-seed where stochastic, no critical regression, resource cost reported, holdout query budget respected",
       "status": "open",

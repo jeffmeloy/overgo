@@ -128,11 +128,7 @@ func EvaluateMMLUPro(
 	if err := publishPlanAuthorities(ctx, repository, plan, contents); err != nil {
 		return MMLUProReport{}, err
 	}
-	observations, accuracy, err := scoreMultipleChoice(ctx, scorer, compiled.choice.suite)
-	if err != nil {
-		return MMLUProReport{}, err
-	}
-	categories, err := aggregateChoiceAccuracy(compiled.categories, observations)
+	observations, categories, accuracy, err := scoreChoiceGroups(ctx, scorer, compiled.choice.suite, compiled.categories)
 	if err != nil {
 		return MMLUProReport{}, err
 	}

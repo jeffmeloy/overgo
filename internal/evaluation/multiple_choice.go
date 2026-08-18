@@ -99,24 +99,13 @@ func CompileMultipleChoice(suite MultipleChoiceSuite) (MultipleChoicePlan, error
 	for index := range suite.Cases {
 		testCase := &suite.Cases[index]
 		testCase.Candidates = slices.Clone(testCase.Candidates)
-		if strings.TrimSpace(testCase.Name) == "" || testCase.Prompt == "" || len(testCase.Candidates) < 2 ||
-			testCase.Answer < 0 || testCase.Answer >= len(testCase.Candidates) {
-			return MultipleChoicePlan{}, errors.New("evaluation: invalid multiple-choice case")
+		if err := validateMultipleChoiceCase(*testCase); err != nil {
+			return MultipleChoicePlan{}, err
 		}
 		if _, duplicate := names[testCase.Name]; duplicate {
 			return MultipleChoicePlan{}, errors.New("evaluation: duplicate multiple-choice case")
 		}
 		names[testCase.Name] = struct{}{}
-		candidates := make(map[string]struct{}, len(testCase.Candidates))
-		for _, candidate := range testCase.Candidates {
-			if candidate == "" {
-				return MultipleChoicePlan{}, errors.New("evaluation: empty multiple-choice candidate")
-			}
-			if _, duplicate := candidates[candidate]; duplicate {
-				return MultipleChoicePlan{}, errors.New("evaluation: duplicate multiple-choice candidate")
-			}
-			candidates[candidate] = struct{}{}
-		}
 	}
 	identity, err := artifact.JSONID(artifact.KindProfile, suite)
 	if err != nil {
@@ -133,6 +122,24 @@ func CompileMultipleChoice(suite MultipleChoiceSuite) (MultipleChoicePlan, error
 		return MultipleChoicePlan{}, err
 	}
 	return MultipleChoicePlan{identity: identity, dataset: dataset, split: split, suite: suite}, nil
+}
+
+func validateMultipleChoiceCase(testCase MultipleChoiceCase) error {
+	if strings.TrimSpace(testCase.Name) == "" || testCase.Prompt == "" || len(testCase.Candidates) < 2 ||
+		testCase.Answer < 0 || testCase.Answer >= len(testCase.Candidates) {
+		return errors.New("evaluation: invalid multiple-choice case")
+	}
+	candidates := make(map[string]struct{}, len(testCase.Candidates))
+	for _, candidate := range testCase.Candidates {
+		if candidate == "" {
+			return errors.New("evaluation: empty multiple-choice candidate")
+		}
+		if _, duplicate := candidates[candidate]; duplicate {
+			return errors.New("evaluation: duplicate multiple-choice candidate")
+		}
+		candidates[candidate] = struct{}{}
+	}
+	return nil
 }
 
 func BindMultipleChoice(compiled MultipleChoicePlan, authorities ExactAuthorities) (Plan, error) {
@@ -242,6 +249,20 @@ func aggregateChoiceAccuracy(groups []string, observations []ChoiceObservation) 
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result, nil
+}
+
+func scoreChoiceGroups(
+	ctx context.Context,
+	scorer ContinuationScorer,
+	suite MultipleChoiceSuite,
+	groups []string,
+) ([]ChoiceObservation, []AccuracyGroup, float64, error) {
+	observations, accuracy, err := scoreMultipleChoice(ctx, scorer, suite)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	metrics, err := aggregateChoiceAccuracy(groups, observations)
+	return observations, metrics, accuracy, err
 }
 
 func (p MultipleChoicePlan) contents() ([]artifact.Content, error) {

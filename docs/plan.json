@@ -8,19 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "bbh-musr",
-          "title": "Implement BBH and MuSR through the same request and scorer contracts; retain subtask and aggregate metrics",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestBBHAndMuSRPinnedOracleParity$' -count=1",
-          "depends_on": [
-            "evaluation-benchmarks/mmlu-pro"
-          ],
-          "capabilities": [
-            "evaluates-bbh",
-            "evaluates-musr"
-          ]
-        },
-        {
           "id": "truthfulqa",
           "title": "Implement distinct TruthfulQA MC1, MC2, and generated-answer definitions without hidden answer rewriting",
           "status": "open",

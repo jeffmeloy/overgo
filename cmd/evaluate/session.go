@@ -100,7 +100,33 @@ func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
 	if envelope.Kind == evaluation.MMLUProKind {
 		return s.evaluateMMLUPro(ctx, data)
 	}
+	if envelope.Kind == evaluation.GroupedChoiceKind {
+		return s.evaluateGroupedChoice(ctx, data)
+	}
 	return s.evaluateExact(ctx, data)
+}
+
+func (s *nativeSession) evaluateGroupedChoice(ctx context.Context, data []byte) error {
+	var suite evaluation.GroupedChoiceSuite
+	if err := json.Unmarshal(data, &suite); err != nil {
+		return fmt.Errorf("evaluate: decode grouped-choice suite: %w", err)
+	}
+	compiled, err := evaluation.CompileGroupedChoice(suite)
+	if err != nil {
+		return err
+	}
+	plan, err := evaluation.BindGroupedChoice(compiled, s.authorities())
+	if err != nil {
+		return err
+	}
+	started := time.Now()
+	report, evaluateErr := evaluation.EvaluateGroupedChoice(ctx, s.store, s.runner, compiled, plan)
+	measured := uint64(max(time.Since(started).Nanoseconds(), 1))
+	if evaluateErr != nil {
+		return errors.Join(evaluateErr, s.publishFailure(ctx, plan, measured))
+	}
+	metrics := choiceMetrics(report.Accuracy, report.Groups)
+	return s.publishSuccess(ctx, plan, report.ID, measured, metrics)
 }
 
 func (s *nativeSession) evaluateMMLUPro(ctx context.Context, data []byte) error {
@@ -122,14 +148,19 @@ func (s *nativeSession) evaluateMMLUPro(ctx context.Context, data []byte) error 
 	if evaluateErr != nil {
 		return errors.Join(evaluateErr, s.publishFailure(ctx, plan, measured))
 	}
-	metrics := make([]runrecord.Metric, 1, len(report.Categories)+1)
-	metrics[0] = runrecord.Metric{Name: "accuracy", Value: report.Accuracy, Direction: runrecord.DirectionMaximize}
-	for _, category := range report.Categories {
+	metrics := choiceMetrics(report.Accuracy, report.Categories)
+	return s.publishSuccess(ctx, plan, report.ID, measured, metrics)
+}
+
+func choiceMetrics(accuracy float64, groups []evaluation.AccuracyGroup) []runrecord.Metric {
+	metrics := make([]runrecord.Metric, 1, len(groups)+1)
+	metrics[0] = runrecord.Metric{Name: "accuracy", Value: accuracy, Direction: runrecord.DirectionMaximize}
+	for _, group := range groups {
 		metrics = append(metrics, runrecord.Metric{
-			Name: "accuracy/" + category.Name, Value: category.Accuracy, Direction: runrecord.DirectionMaximize,
+			Name: "accuracy/" + group.Name, Value: group.Accuracy, Direction: runrecord.DirectionMaximize,
 		})
 	}
-	return s.publishSuccess(ctx, plan, report.ID, measured, metrics)
+	return metrics
 }
 
 func (s *nativeSession) evaluateGeneratedAnswer(ctx context.Context, data []byte) error {

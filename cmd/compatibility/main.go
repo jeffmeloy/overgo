@@ -151,6 +151,7 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 		Name          string                      `json:"name"`
 		ModelFile     string                      `json:"model_file,omitempty"`
 		EvidenceFiles []string                    `json:"evidence_files,omitempty"`
+		DatasetFiles  []string                    `json:"dataset_files,omitempty"`
 		Claims        []runrecord.CapabilityClaim `json:"claims"`
 	}
 	if err := jsonfile.Decode(specPath, &specification); err != nil {
@@ -176,25 +177,40 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 	if err != nil {
 		return err
 	}
-	for _, path := range specification.EvidenceFiles {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("evidence file %s: %w", path, err)
+	datasets := map[artifact.ID]bool{}
+	for _, claim := range record.Claims {
+		if claim.Dataset.Valid() {
+			datasets[claim.Dataset] = true
 		}
-		identity, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(data))
-		if err != nil {
-			return err
+	}
+	ground := func(paths []string, kind artifact.Kind, referenced map[artifact.ID]bool, role string) error {
+		for _, path := range paths {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("%s file %s: %w", role, path, err)
+			}
+			identity, _, err := artifact.Identify(kind, bytes.NewReader(data))
+			if err != nil {
+				return err
+			}
+			if !referenced[identity] {
+				return fmt.Errorf("%s file %s identifies as %s, which no claim references", role, path, identity)
+			}
+			if _, ok, err := store.Content(ctx, identity); err != nil {
+				return err
+			} else if !ok {
+				batch.Contents = append(batch.Contents, artifact.Content{
+					Descriptor: artifact.Descriptor{ID: identity, Size: uint64(len(data))}, Data: data,
+				})
+			}
 		}
-		if !claimed[identity] {
-			return fmt.Errorf("evidence file %s identifies as %s, which no claim references", path, identity)
-		}
-		if _, ok, err := store.Content(ctx, identity); err != nil {
-			return err
-		} else if !ok {
-			batch.Contents = append(batch.Contents, artifact.Content{
-				Descriptor: artifact.Descriptor{ID: identity, Size: uint64(len(data))}, Data: data,
-			})
-		}
+		return nil
+	}
+	if err := ground(specification.EvidenceFiles, artifact.KindEvidence, claimed, "evidence"); err != nil {
+		return err
+	}
+	if err := ground(specification.DatasetFiles, artifact.KindDatasetShard, datasets, "dataset"); err != nil {
+		return err
 	}
 	if _, ok, err := store.Artifact(ctx, record.Model); err != nil {
 		return err
@@ -224,6 +240,9 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 			Action:   artifact.LocationAdd,
 		})
 	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		return err
+	}
 	committed, external := 0, 0
 	for evidence := range claimed {
 		if _, ok, err := store.Content(ctx, evidence); err != nil {
@@ -234,11 +253,6 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 			external++
 		}
 	}
-	if _, err := store.Commit(ctx, batch); err != nil {
-		return err
-	}
-	committed += len(batch.Contents) - 1
-	external -= len(batch.Contents) - 1
 	fmt.Fprintf(output, "model verification committed: %s model=%s name=%s claims=%d\n",
 		record.ID, record.Model, record.Name, len(record.Claims))
 	for _, claim := range record.Claims {

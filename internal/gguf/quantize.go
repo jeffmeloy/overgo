@@ -293,7 +293,7 @@ func tensorStorageSize(tensor TensorInfo, dataType DType) (uint64, error) {
 	if !ok {
 		return 0, fmt.Errorf("tensor %q has unknown type %d", tensor.Name, dataType)
 	}
-	elements, err := tensorElements(tensor)
+	elements, err := tensor.ElementCount()
 	if err != nil {
 		return 0, err
 	}
@@ -311,18 +311,6 @@ func tensorStorageSize(tensor TensorInfo, dataType DType) (uint64, error) {
 		return 0, fmt.Errorf("tensor %q byte size overflows uint64", tensor.Name)
 	}
 	return blocks * traits.TypeSize, nil
-}
-
-func tensorElements(tensor TensorInfo) (uint64, error) {
-	elements := uint64(1)
-	for axis := uint32(0); axis < tensor.Dimensions; axis++ {
-		dimension := tensor.Shape[axis]
-		if dimension == 0 || elements > math.MaxUint64/dimension {
-			return 0, fmt.Errorf("tensor %q element count overflows uint64", tensor.Name)
-		}
-		elements *= dimension
-	}
-	return elements, nil
 }
 
 type quantizingReader struct {
@@ -356,7 +344,7 @@ func newQuantizingReader(
 	if !ok {
 		return nil, fmt.Errorf("unknown quantization target %d", target)
 	}
-	elements, err := tensorElements(tensor)
+	elements, err := tensor.ElementCount()
 	if err != nil {
 		return nil, err
 	}

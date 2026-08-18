@@ -67,13 +67,9 @@ func modelParameterCount(file *gguf.File) uint64 {
 	}
 	var total uint64
 	for _, tensor := range file.Tensors {
-		count := uint64(1)
-		for dimension := range tensor.Dimensions {
-			size := tensor.Shape[dimension]
-			if size == 0 || count > ^uint64(0)/size {
-				return 0
-			}
-			count *= size
+		count, err := tensor.ElementCount()
+		if err != nil {
+			return 0
 		}
 		if total > ^uint64(0)-count {
 			return 0

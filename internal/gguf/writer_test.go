@@ -11,6 +11,20 @@ import (
 	"testing"
 )
 
+func TestTensorInfoElementCount(t *testing.T) {
+	const width, height = uint64(3), uint64(5)
+	info := TensorInfo{Name: "weight", Dimensions: 2, Shape: [MaxDimensions]uint64{width, height}}
+	if got, err := info.ElementCount(); err != nil || got != width*height {
+		t.Fatalf("element count = %d, %v", got, err)
+	}
+	for _, shape := range [][MaxDimensions]uint64{{}, {math.MaxUint64, 2}} {
+		info.Shape = shape
+		if _, err := info.ElementCount(); err == nil {
+			t.Fatalf("invalid shape accepted: %v", shape)
+		}
+	}
+}
+
 func TestWriteRoundTripsMetadataAndTensors(t *testing.T) {
 	metadata := []Metadata{
 		{Key: "u8", Value: Value{Type: ValueTypeUint8, Data: uint8(255)}},

@@ -2,6 +2,7 @@ package gguf
 
 import (
 	"fmt"
+	"math"
 
 	"overgo/internal/tensor/dtype"
 )
@@ -179,6 +180,21 @@ type TensorInfo struct {
 	Shard      uint16
 	Offset     uint64
 	Size       uint64
+}
+
+// ElementCount: validated shape product.
+func (tensor TensorInfo) ElementCount() (uint64, error) {
+	if tensor.Dimensions == 0 || tensor.Dimensions > MaxDimensions {
+		return 0, fmt.Errorf("tensor %q has invalid dimension count %d", tensor.Name, tensor.Dimensions)
+	}
+	elements := uint64(1)
+	for _, dimension := range tensor.Shape[:tensor.Dimensions] {
+		if dimension == 0 || elements > math.MaxUint64/dimension {
+			return 0, fmt.Errorf("tensor %q element count overflows uint64", tensor.Name)
+		}
+		elements *= dimension
+	}
+	return elements, nil
 }
 
 // ReverseShape converts source-major dimensions to GGML order.

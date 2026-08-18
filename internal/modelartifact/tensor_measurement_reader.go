@@ -167,7 +167,7 @@ func sampleGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo, maxSamples 
 	if !ok {
 		return nil, 0, 0, fmt.Errorf("model artifact: tensor %q has unsupported storage", tensor.Name)
 	}
-	elements, err := ggufTensorElements(tensor)
+	elements, err := tensor.ElementCount()
 	if err != nil || elements%traits.BlockSize != 0 {
 		return nil, 0, 0, fmt.Errorf("model artifact: tensor %q has invalid block geometry", tensor.Name)
 	}
@@ -290,17 +290,6 @@ func decodeSafetensorScalar(dataType string, data []byte) (float64, error) {
 	default:
 		return 0, fmt.Errorf("unsupported measurement dtype %q", dataType)
 	}
-}
-
-func ggufTensorElements(tensor gguf.TensorInfo) (uint64, error) {
-	elements := uint64(1)
-	for _, dimension := range tensor.Shape[:tensor.Dimensions] {
-		if dimension != 0 && elements > math.MaxUint64/dimension {
-			return 0, errors.New("tensor shape overflows")
-		}
-		elements *= dimension
-	}
-	return elements, nil
 }
 
 func evenlySpacedIndex(sample, sampleCount, population uint64) uint64 {

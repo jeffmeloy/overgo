@@ -306,7 +306,6 @@ func prepareTensors(tensors []TensorData, alignment uint64) ([]preparedTensor, e
 			Type:       input.Type,
 			Offset:     offset,
 		}
-		elements := uint64(1)
 		for axis, dimension := range input.Shape {
 			if dimension == 0 || dimension > math.MaxInt64 {
 				return nil, fmt.Errorf(
@@ -316,11 +315,11 @@ func prepareTensors(tensors []TensorData, alignment uint64) ([]preparedTensor, e
 					dimension,
 				)
 			}
-			if elements > math.MaxUint64/dimension {
-				return nil, fmt.Errorf("tensor %q element count overflows uint64", input.Name)
-			}
-			elements *= dimension
 			info.Shape[axis] = dimension
+		}
+		elements, err := info.ElementCount()
+		if err != nil {
+			return nil, err
 		}
 		size, sizeErr := input.Type.StorageBytes(elements, info.Shape[0])
 		if sizeErr != nil {

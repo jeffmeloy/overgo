@@ -151,9 +151,9 @@ func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
 		return err
 	}
 	separator, _ := file.Tensor("v.view_seperator")
-	elements := uint64(1)
-	for dimension := range separator.Dimensions {
-		elements *= separator.Shape[dimension]
+	elements, err := separator.ElementCount()
+	if err != nil {
+		return err
 	}
 	if elements != uint64(spec.OutputHidden) {
 		return fmt.Errorf("projector: tensor %q has %d elements, want %d", "v.view_seperator", elements, spec.OutputHidden)

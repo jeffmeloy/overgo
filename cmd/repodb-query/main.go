@@ -20,6 +20,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/scratchmodel"
 	"overgo/internal/tensorstats"
 )
 
@@ -54,6 +55,7 @@ func run(args []string, output io.Writer) error {
 	admissions := flags.Bool("admissions", false, "list admission bindings: per-generation proposer/evaluator/decider authority domains and prior-generation approvals")
 	composed := flags.Bool("composed", false, "list composed model artifacts with their recipes, parents and constituent counts")
 	retrieve := flags.String("retrieve", "", "hypervector retrieval: rank the catalog against the named component (lexical organ + distributional signal)")
+	derivations := flags.Bool("derivations", false, "list derivation-profile artifacts and their promotion verdicts (profiles judged by the models they produce)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -89,6 +91,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *retrieve != "" {
 		return writeRetrieve(output, *repository, *retrieve, *limit)
+	}
+	if *derivations {
+		return writeDerivations(output, *repository, *limit)
 	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
@@ -585,6 +590,61 @@ func writeRetrieve(output io.Writer, repository, name string, limit int) error {
 	}
 	fmt.Fprintf(output, "%d hit(s) over %d component(s), signature width %d; honesty: advisory retrieval, candidates require blocked proposals and the experiment plane\n",
 		len(hits), index.Len(), composition.HypervectorDimensionsFor(index.Len()))
+	return nil
+}
+
+// writeDerivations lists derivation-profile artifacts and their promotion
+// verdicts: the policy ledger, where every profile is judged by the models it
+// produced.
+func writeDerivations(output io.Writer, repository string, limit int) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	count := 0
+	profileResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindProfile, MaxResults: limit})
+	if err != nil {
+		return err
+	}
+	for _, descriptor := range profileResult.Artifacts {
+		if descriptor.MediaType != scratchmodel.DerivationProfileMediaType {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil || !ok {
+			continue
+		}
+		document, err := scratchmodel.ParseDerivationProfileDocument(content.Data)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "derivation-profile %s version=%s mlp-budget=%d\n",
+			document.ID, document.Profile.Version, document.Profile.MLPBudget)
+		count++
+	}
+	promotionResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	if err != nil {
+		return err
+	}
+	for _, descriptor := range promotionResult.Artifacts {
+		if descriptor.MediaType != scratchmodel.DerivationPromotionMediaType {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil || !ok {
+			continue
+		}
+		promotion, err := scratchmodel.ParseDerivationPromotion(content.Data)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "derivation-promotion %s candidate=%s incumbent=%s promoted=%t reason=%q\n",
+			promotion.ID, promotion.Candidate, promotion.Incumbent, promotion.Promoted, promotion.Reason)
+		count++
+	}
+	fmt.Fprintf(output, "%d derivation record(s); honesty: profiles are judged solely by their descendants' measured quality; refusals list beside promotions\n", count)
 	return nil
 }
 

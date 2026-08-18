@@ -10,6 +10,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
 // hostAttention computes single-head causal attention in float64, returning the
@@ -97,8 +98,8 @@ func TestAttentionCoreBackwardResidentMatchesShared(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	qDelta, kDelta := maxAbsDiff(gotQ, want.DQ), maxAbsDiff(gotK, want.DK)
-	vDelta, scoreDelta := maxAbsDiff(gotV, want.DV), maxAbsDiff(gotScores, want.DScores)
+	qDelta, kDelta := testutil.MaxAbsDiff(gotQ, want.DQ), testutil.MaxAbsDiff(gotK, want.DK)
+	vDelta, scoreDelta := testutil.MaxAbsDiff(gotV, want.DV), testutil.MaxAbsDiff(gotScores, want.DScores)
 	t.Logf("resident/shared attention VJP dQ=%.3e dK=%.3e dV=%.3e dS=%.3e", qDelta, kDelta, vDelta, scoreDelta)
 	if max(qDelta, kDelta, vDelta, scoreDelta) > 2e-7 {
 		t.Fatalf("resident attention VJP differs")

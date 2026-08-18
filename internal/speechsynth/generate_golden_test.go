@@ -3,6 +3,8 @@ package speechsynth
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/testutil"
 )
 
 // TestGenerationGolden gates the backbone-scoped generation loop (ladder
@@ -49,10 +51,10 @@ func TestGenerationGolden(t *testing.T) {
 			want[j] = fc.Noise.Values[j] + fc.Out.Values[j]
 		}
 		got := latents.Values[i*latents.Width : (i+1)*latents.Width]
-		if diff := maxAbsDiff(got, want); diff > worstLatent {
+		if diff := testutil.MaxAbsDiff(got, want); diff > worstLatent {
 			worstLatent = diff
 		}
-		if diff := maxAbsDiff(got, want); diff > tolGenLatent {
+		if diff := testutil.MaxAbsDiff(got, want); diff > tolGenLatent {
 			t.Fatalf("frame %d latent max abs diff %g > %g", i, diff, tolGenLatent)
 		}
 		if d := math.Abs(eos[i] - g7.EOSLogits[2+i]); d > worstEOS {

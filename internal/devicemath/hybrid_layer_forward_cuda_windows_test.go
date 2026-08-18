@@ -9,6 +9,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 )
 
 // TestHybridDecoderLayerForwardDeviceMatchesHost proves the device forward
@@ -67,7 +68,7 @@ func TestHybridDecoderLayerForwardDeviceMatchesHost(t *testing.T) {
 		if cache.IsLinear {
 			t.Fatal("device cache flagged IsLinear for the attention mix")
 		}
-		diff := maxAbsDiff(got, want)
+		diff := testutil.MaxAbsDiff(got, want)
 		if diff > tol {
 			t.Errorf("out          max|device-host| %.3e > %.1e", diff, tol)
 		} else {
@@ -122,7 +123,7 @@ func TestHybridDecoderLayerForwardDeviceMatchesHost(t *testing.T) {
 		if !cache.IsLinear {
 			t.Fatal("device cache not flagged IsLinear for the GDN mix")
 		}
-		diff := maxAbsDiff(got, want)
+		diff := testutil.MaxAbsDiff(got, want)
 		if diff > tol {
 			t.Errorf("out          max|device-host| %.3e > %.1e", diff, tol)
 		} else {

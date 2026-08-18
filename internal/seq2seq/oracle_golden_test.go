@@ -79,16 +79,6 @@ func loadArtifactModel(t *testing.T) *Model {
 	return model
 }
 
-func maxAbsDiff(got, want []float32) float64 {
-	worst := 0.0
-	for i := range got {
-		if d := math.Abs(float64(got[i]) - float64(want[i])); d > worst {
-			worst = d
-		}
-	}
-	return worst
-}
-
 func relRMS(got, want []float32) float64 {
 	var num, den float64
 	for i := range got {
@@ -137,7 +127,7 @@ func TestEncoderMatchesOracle(t *testing.T) {
 	}
 	rms := relRMS(encoded, oracle.EncoderOutF32)
 	t.Logf("encoder vs f32 oracle: max abs diff %g relRMS %g; vs bf16 oracle: max abs diff %g relRMS %g (jax %s)",
-		maxAbsDiff(encoded, oracle.EncoderOutF32), rms, maxAbsDiff(encoded, oracle.EncoderOut), relRMS(encoded, oracle.EncoderOut), oracle.JaxVersion)
+		testutil.MaxAbsDiff(encoded, oracle.EncoderOutF32), rms, testutil.MaxAbsDiff(encoded, oracle.EncoderOut), relRMS(encoded, oracle.EncoderOut), oracle.JaxVersion)
 	if rms > encoderRelRMSTolerance {
 		t.Fatalf("encoder relRMS %g exceeds %g", rms, encoderRelRMSTolerance)
 	}
@@ -169,7 +159,7 @@ func TestIncrementalDecodeMatchesOracle(t *testing.T) {
 	}
 	rms := relRMS(logits, oracle.LogitsF32)
 	t.Logf("logits vs f32 oracle: max abs diff %g relRMS %g; vs bf16 oracle: max abs diff %g relRMS %g",
-		maxAbsDiff(logits, oracle.LogitsF32), rms, maxAbsDiff(logits, oracle.Logits), relRMS(logits, oracle.Logits))
+		testutil.MaxAbsDiff(logits, oracle.LogitsF32), rms, testutil.MaxAbsDiff(logits, oracle.Logits), relRMS(logits, oracle.Logits))
 	if rms > logitsRelRMSTolerance {
 		t.Fatalf("logits relRMS %g exceeds %g", rms, logitsRelRMSTolerance)
 	}
@@ -210,7 +200,7 @@ func TestIncrementalMatchesFullDecode(t *testing.T) {
 	for i := range incremental {
 		if incremental[i] != full[i] {
 			t.Fatalf("incremental[%d] = %g, full recompute %g (max abs diff %g)",
-				i, incremental[i], full[i], maxAbsDiff(incremental, full))
+				i, incremental[i], full[i], testutil.MaxAbsDiff(incremental, full))
 		}
 	}
 	t.Logf("incremental vs full recompute: bit-identical over %d logits", len(incremental))

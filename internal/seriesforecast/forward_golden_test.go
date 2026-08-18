@@ -2,7 +2,6 @@ package seriesforecast
 
 import (
 	"encoding/json"
-	"math"
 	"os"
 	"testing"
 
@@ -47,16 +46,6 @@ func readGolden(t *testing.T) *goldenFile {
 	return &g
 }
 
-func maxAbsDiff(got, want []float32) float64 {
-	maxAbs := 0.0
-	for i := range got {
-		if d := math.Abs(float64(got[i]) - float64(want[i])); d > maxAbs {
-			maxAbs = d
-		}
-	}
-	return maxAbs
-}
-
 func flatten(rows [][]float32) []float32 {
 	out := make([]float32, 0, len(rows)*len(rows[0]))
 	for _, row := range rows {
@@ -95,17 +84,17 @@ func TestTokenizerMatchesGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	padded, masks, hidden, _, _ := embedCase(t, model, g.Cases[g.IntermediateTokenizer.Case].Context)
-	if d := maxAbsDiff(padded, g.IntermediateTokenizer.PaddedSeries); d != 0 {
+	if d := testutil.MaxAbsDiff(padded, g.IntermediateTokenizer.PaddedSeries); d != 0 {
 		t.Fatalf("padded series diff %g", d)
 	}
-	if d := maxAbsDiff(masks, g.IntermediateTokenizer.Masks); d != 0 {
+	if d := testutil.MaxAbsDiff(masks, g.IntermediateTokenizer.Masks); d != 0 {
 		t.Fatalf("masks diff %g", d)
 	}
 	// Tolerance rationale (mirrors the reference test): this host runs f64
 	// accumulation against the reference's f32 path through one residual
 	// block over a 64-wide input.
 	const tol = 2e-3
-	if d := maxAbsDiff(hidden, flatten(g.IntermediateTokenizer.TokenizerOut)); d > tol {
+	if d := testutil.MaxAbsDiff(hidden, flatten(g.IntermediateTokenizer.TokenizerOut)); d > tol {
 		t.Fatalf("tokenizer out max abs diff %g > %g", d, tol)
 	}
 }
@@ -130,7 +119,7 @@ func TestDecoderLayer0MatchesGolden(t *testing.T) {
 	model.layerForward(hidden, l, hostmath.RopeInvFreq(model.Dims.RopeTheta, model.Dims.HeadDim), tokens)
 	// Accumulated f64-vs-f32 divergence over attention + feed-forward.
 	const tol = 5e-3
-	if d := maxAbsDiff(hidden, flatten(g.IntermediateTokenizer.Layer0Out)); d > tol {
+	if d := testutil.MaxAbsDiff(hidden, flatten(g.IntermediateTokenizer.Layer0Out)); d > tol {
 		t.Fatalf("layer 0 max abs diff %g > %g", d, tol)
 	}
 }
@@ -160,7 +149,7 @@ func TestForecastMatchesGolden(t *testing.T) {
 		}
 		// Accumulated f64-vs-f32 divergence over 20 layers and the head.
 		const tol = 1e-2
-		if d := maxAbsDiff(got, want); d > tol {
+		if d := testutil.MaxAbsDiff(got, want); d > tol {
 			t.Fatalf("case %d: forecast max abs diff %g > %g", ci, d, tol)
 		}
 	}

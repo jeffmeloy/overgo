@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
 func TestRealTransformerBlockCUDAParity(t *testing.T) {
@@ -44,8 +45,8 @@ func TestRealTransformerBlockCUDAParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	referenceDiff := maxAbsDiff(referenceOutput, want)
-	deviceDiff := maxAbsDiff(deviceOutput, want)
+	referenceDiff := testutil.MaxAbsDiff(referenceOutput, want)
+	deviceDiff := testutil.MaxAbsDiff(deviceOutput, want)
 	for index, value := range deviceOutput {
 		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
 			t.Fatalf("device output[%d] is non-finite", index)

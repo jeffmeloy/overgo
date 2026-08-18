@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/hfbpe"
+	"overgo/internal/testutil"
 )
 
 func TestFractalePrefillLeadership(t *testing.T) {
@@ -60,7 +61,7 @@ func TestFractalePrefillLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	fullLogits := full.Logits[(len(ids)-1)*weights.VocabSize:]
-	if delta := max(maxAbsDiff(logits, legacyLogits), maxAbsDiff(logits, fullLogits)); delta != 0 {
+	if delta := max(testutil.MaxAbsDiff(logits, legacyLogits), testutil.MaxAbsDiff(logits, fullLogits)); delta != 0 {
 		t.Fatalf("prefill max logit delta %.3e", delta)
 	}
 
@@ -79,7 +80,7 @@ func TestFractalePrefillLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	fullNext := full.Logits[(len(continued)-1)*weights.VocabSize:]
-	continuationDelta := max(maxAbsDiff(cachedNext, legacyNext), maxAbsDiff(cachedNext, fullNext))
+	continuationDelta := max(testutil.MaxAbsDiff(cachedNext, legacyNext), testutil.MaxAbsDiff(cachedNext, fullNext))
 	speedup := float64(legacyWall) / float64(prefillWall)
 	t.Logf("Fractale matched prefill: prompt=%d full-cache=%s token-cache=%s full-only=%s cache-speedup=%.2fx continuation_delta=%.3e",
 		len(ids), prefillWall, legacyWall, fullWall, speedup, continuationDelta)
@@ -156,7 +157,7 @@ func TestFractaleIncrementalLeadership(t *testing.T) {
 	}
 	baselinePrefill := time.Since(baselinePrefillStart)
 	baselineLogits := baseline.Logits[(len(ids)-1)*weights.VocabSize:]
-	if delta := maxAbsDiff(candidateLogits, baselineLogits); delta > 2e-5 {
+	if delta := testutil.MaxAbsDiff(candidateLogits, baselineLogits); delta > 2e-5 {
 		t.Fatalf("prefill max logit delta %.3e", delta)
 	}
 
@@ -185,7 +186,7 @@ func TestFractaleIncrementalLeadership(t *testing.T) {
 			t.Fatal(err)
 		}
 		baselineLogits = baseline.Logits[(len(ids)-1)*weights.VocabSize:]
-		worst = max(worst, maxAbsDiff(candidateLogits, baselineLogits))
+		worst = max(worst, testutil.MaxAbsDiff(candidateLogits, baselineLogits))
 	}
 	completion := tokenizer.Decode(generated)
 	speedup := float64(baselineWall) / float64(candidateWall)

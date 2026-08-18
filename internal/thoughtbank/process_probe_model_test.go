@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/testutil"
 )
 
 func TestFractaleTwentyTokenProcessProbe(t *testing.T) {
@@ -32,7 +34,7 @@ func TestFractaleTwentyTokenProcessProbe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if delta := maxAbsDiff(promptLogits, reference.Logits[(prompt-1)*config.Vocab:prompt*config.Vocab]); delta != 0 {
+	if delta := testutil.MaxAbsDiff(promptLogits, reference.Logits[(prompt-1)*config.Vocab:prompt*config.Vocab]); delta != 0 {
 		t.Fatalf("prompt delta %.3e", delta)
 	}
 	state, logits, err := FastWeightBankLMDecodeInit(weights, ids[:1], memory, 4)
@@ -44,7 +46,7 @@ func TestFractaleTwentyTokenProcessProbe(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if delta := maxAbsDiff(logits, reference.Logits[position*config.Vocab:(position+1)*config.Vocab]); delta != 0 {
+		if delta := testutil.MaxAbsDiff(logits, reference.Logits[position*config.Vocab:(position+1)*config.Vocab]); delta != 0 {
 			t.Fatalf("position %d delta %.3e", position, delta)
 		}
 	}
@@ -52,7 +54,7 @@ func TestFractaleTwentyTokenProcessProbe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if slots != reference.Slots || maxAbsDiff(bank, reference.MemBank) != 0 {
+	if slots != reference.Slots || testutil.MaxAbsDiff(bank, reference.MemBank) != 0 {
 		t.Fatal("carried bank differs")
 	}
 	fmt.Printf("FRACTALE_PROCESS_PROBE tokens=%d vocab=%d\n", len(ids), config.Vocab)

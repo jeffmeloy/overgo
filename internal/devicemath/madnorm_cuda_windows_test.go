@@ -11,6 +11,7 @@ import (
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 )
 
 func TestMADNormDeviceMatchesHost(t *testing.T) {
@@ -96,7 +97,7 @@ func TestMADNormBackwardResidentMatchesShared(t *testing.T) {
 	if err := ReadResident(worker, gradientPtr, ResidentSlice{Data: got}); err != nil {
 		t.Fatal(err)
 	}
-	delta := maxAbsDiff(got, want)
+	delta := testutil.MaxAbsDiff(got, want)
 	t.Logf("resident/shared MADNorm VJP=%.3e", delta)
 	if delta != 0 {
 		t.Fatalf("resident MADNorm VJP differs: %.3e", delta)

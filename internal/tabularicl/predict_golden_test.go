@@ -2,7 +2,6 @@ package tabularicl
 
 import (
 	"encoding/json"
-	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -74,16 +73,6 @@ func headDir(t *testing.T, task string) string {
 	return dir
 }
 
-func maxAbsDiff(got, want []float32) float64 {
-	worst := 0.0
-	for i := range got {
-		if d := math.Abs(float64(got[i]) - float64(want[i])); d > worst {
-			worst = d
-		}
-	}
-	return worst
-}
-
 // TestPredictParity loads one 6.5GB head at a time (both resident at once
 // would double peak memory), asserts the derived dims against the artifact,
 // and compares every golden case's outputs.
@@ -124,7 +113,7 @@ func TestPredictParity(t *testing.T) {
 				t.Fatalf("%s: outputs len %d out_dim %d, want len %d out_dim %d",
 					c.Name, len(got), head.Dims.OutDim, len(c.Outputs), c.OutDim)
 			}
-			diff := maxAbsDiff(got, c.Outputs)
+			diff := testutil.MaxAbsDiff(got, c.Outputs)
 			t.Logf("%s: max abs diff %.3g over %d outputs", c.Name, diff, len(got))
 			if diff > predictTolerance {
 				t.Fatalf("%s: max abs diff %g exceeds %g", c.Name, diff, predictTolerance)

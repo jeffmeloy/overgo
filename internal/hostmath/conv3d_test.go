@@ -3,19 +3,9 @@ package hostmath
 import (
 	"math"
 	"testing"
-)
 
-func requireF32Close(t *testing.T, got, want []float32, tolerance float64) {
-	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("length %d want %d", len(got), len(want))
-	}
-	for i := range want {
-		if diff := math.Abs(float64(got[i]) - float64(want[i])); diff > tolerance {
-			t.Fatalf("element %d: got %v want %v (diff %g > %g)", i, got[i], want[i], diff, tolerance)
-		}
-	}
-}
+	"overgo/internal/testutil"
+)
 
 // TestCausalConv3DMatchesWanTorchFixture: values from the reference repo's
 // torch-fixture oracle (adaptive causal_video_codec_test.go).
@@ -36,7 +26,7 @@ func TestCausalConv3DMatchesWanTorchFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []float32{25.950000762939453, 24.950000762939453, 22.950000762939453, 21.950000762939453, 82.6500015258789, 79.05000305175781, 71.8499984741211, 68.25}
-	requireF32Close(t, got, want, 1e-5)
+	testutil.RequireSliceClose(t, "causal conv", got, want, 1e-5)
 }
 
 // TestCausalConv3DWithCacheUsesPriorFrames: a 2-frame cache fills the whole
@@ -131,7 +121,7 @@ func TestResizeConv2DMatchesWanTorchFixture(t *testing.T) {
 		28.513334274291992, 29.033334732055664, 29.2933349609375, 19.793331146240234,
 		20.35333251953125, 29.03333282470703, 29.2933349609375, 29.813335418701172,
 	}
-	requireF32Close(t, got[:len(want)], want, 9e-6)
+	testutil.RequireSliceClose(t, "resize conv", got[:len(want)], want, 9e-6)
 	var sum float64
 	for _, v := range got {
 		sum += float64(v)

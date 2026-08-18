@@ -3,25 +3,14 @@
 package devicemath
 
 import (
-	"math"
 	"math/rand"
 	"testing"
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
+	"overgo/internal/testutil"
 )
-
-// maxAbsDiff reports the max |a-b| over two equal-length slices.
-func maxAbsDiff(a, b []float32) float64 {
-	var m float64
-	for i := range a {
-		if d := math.Abs(float64(a[i]) - float64(b[i])); d > m {
-			m = d
-		}
-	}
-	return m
-}
 
 // TestHybridDecoderLayerBackwardDeviceMatchesHost proves the device VJP
 // (HybridDecoderLayerBackwardDevice) reproduces hostmath.HybridDecoderLayerBackward
@@ -76,7 +65,7 @@ func TestHybridDecoderLayerBackwardDeviceMatchesHost(t *testing.T) {
 		}
 
 		check := func(name string, a, b []float32) {
-			diff := maxAbsDiff(a, b)
+			diff := testutil.MaxAbsDiff(a, b)
 			if diff > tol {
 				t.Errorf("%-12s max|device-host| %.3e > %.1e", name, diff, tol)
 			} else {
@@ -148,7 +137,7 @@ func TestHybridDecoderLayerBackwardDeviceMatchesHost(t *testing.T) {
 		}
 
 		check := func(name string, a, b []float32) {
-			diff := maxAbsDiff(a, b)
+			diff := testutil.MaxAbsDiff(a, b)
 			if diff > tol {
 				t.Errorf("%-12s max|device-host| %.3e > %.1e", name, diff, tol)
 			} else {

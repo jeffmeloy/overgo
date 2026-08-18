@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
 // TestTrainDeviceResidentMatchesHost checks resident loss parity.
@@ -76,28 +77,17 @@ func TestTrainDeviceResidentQwen2BiasMatchesHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	gotTrajectory, gotState := deviceResult.Losses, deviceResult.State
-	if delta := maxF64Delta(wantTrajectory, gotTrajectory); delta > 1e-3 {
+	if delta := testutil.MaxAbsDiff(wantTrajectory, gotTrajectory); delta > 1e-3 {
 		t.Fatalf("Qwen2 trajectory delta %.3e", delta)
 	}
 	for name, want := range host.Weights {
-		if delta := maxSliceDelta(want, resident.Weights[name]); delta > 6e-3 {
+		if delta := testutil.MaxAbsDiff(want, resident.Weights[name]); delta > 6e-3 {
 			t.Fatalf("Qwen2 updated weight %q delta %.3e", name, delta)
 		}
 	}
-	if delta := maxF64Delta(wantState.Momentum, gotState.Momentum); delta > 6e-3 {
+	if delta := testutil.MaxAbsDiff(wantState.Momentum, gotState.Momentum); delta > 6e-3 {
 		t.Fatalf("Qwen2 momentum delta %.3e", delta)
 	}
-}
-
-func maxF64Delta(left, right []float64) float64 {
-	if len(left) != len(right) {
-		return math.Inf(1)
-	}
-	var worst float64
-	for index := range left {
-		worst = max(worst, math.Abs(left[index]-right[index]))
-	}
-	return worst
 }
 
 func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {

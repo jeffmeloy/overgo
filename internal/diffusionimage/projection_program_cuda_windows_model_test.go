@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testutil"
 )
 
 func TestRealProjectionBoundariesCUDAParity(t *testing.T) {
@@ -77,7 +78,7 @@ func checkProjectionProgram(t *testing.T, device *executor.Executor, name string
 	if err != nil {
 		t.Fatal(err)
 	}
-	referenceDiff, deviceDiff := maxAbsDiff(referenceOutput, want), maxAbsDiff(deviceOutput, want)
+	referenceDiff, deviceDiff := testutil.MaxAbsDiff(referenceOutput, want), testutil.MaxAbsDiff(deviceOutput, want)
 	t.Logf("%s reference_max=%.3e cuda_max=%.3e", name, referenceDiff, deviceDiff)
 	if referenceDiff > 2e-5 || deviceDiff > 2e-3 {
 		t.Fatalf("%s parity exceeds gates: reference=%.3e device=%.3e", name, referenceDiff, deviceDiff)

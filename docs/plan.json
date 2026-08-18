@@ -3,6 +3,123 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
+      "id": "carbon-serving-goldens",
+      "title": "Regenerate Carbon serving goldens from tag-wrapped real corpus sequences with FNS scoring semantics; the golden claims capability, not plumbing",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Regenerate Carbon serving goldens from tag-wrapped real corpus sequences with FNS scoring semantics; the golden claims capability, not plumbing",
+          "status": "open",
+          "verify": "go test ./internal/inference -tags modeltest -run '^TestCarbonServingGolden$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "verification-ledger-population",
+      "title": "Populate the verification ledger: commit model-verification records for the evidenced set (Carbon-500M, adaptive-causal, E4B, Qwen2.5-0.5B, Qwen3.5-4B, MiniCPM5) from real fixture and run-record identities",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Populate the verification ledger: commit model-verification records for the evidenced set (Carbon-500M, adaptive-causal, E4B, Qwen2.5-0.5B, Qwen3.5-4B, MiniCPM5) from real fixture and run-record identities",
+          "status": "open",
+          "verify": "go run ./cmd/repodb-query -repo repodb-store -verifications | grep -q Carbon-500M"
+        }
+      ]
+    },
+    {
+      "id": "phase-d-history-population",
+      "title": "Populate Phase D history: commit the campaign's real composition decisions and scheduler realizations, then train the first production ProposalRanking and SchedulerPolicy from them",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Populate Phase D history: commit the campaign's real composition decisions and scheduler realizations, then train the first production ProposalRanking and SchedulerPolicy from them",
+          "status": "open",
+          "verify": "go run ./cmd/repodb-query -repo repodb-store -refusals | grep -q subject="
+        }
+      ]
+    },
+    {
+      "id": "carbon-speculative-pair",
+      "title": "Carbon speculative pair through the Tier-0 chain harness: Carbon-500M as designed-for-it drafter (target Carbon-3B pending owner download; solo chain against corpus until then)",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Carbon speculative pair through the Tier-0 chain harness: Carbon-500M as designed-for-it drafter (target Carbon-3B pending owner download; solo chain against corpus until then)",
+          "status": "open",
+          "verify": "go test ./internal/inference -tags modeltest -run '^TestCarbonSpeculativeChain$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "supervised-autonomous-cycle",
+      "title": "First supervised autonomous cycle: one small exploration grant, scheduler-policy selection, one experiment end-to-end through admission, lease, evaluation and verdict",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "First supervised autonomous cycle: one small exploration grant, scheduler-policy selection, one experiment end-to-end through admission, lease, evaluation and verdict",
+          "status": "open",
+          "verify": "go run ./cmd/repodb-query -repo repodb-store -experiments | grep -qi evaluated"
+        }
+      ]
+    },
+    {
+      "id": "injection-retry-more-data",
+      "title": "Injection connector retrial with adequate training data volume: the refusal was data-starved and the mechanism is unrefuted",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Injection connector retrial with adequate training data volume: the refusal was data-starved and the mechanism is unrefuted",
+          "status": "open",
+          "verify": "OVERGO_PROBE_TEST=1 go test ./internal/adaptiveparity -run '^TestResidualInjectionRetrial$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "linear-attention-connector",
+      "title": "Linear-attention connector variant and fixed-span dose protocol: the composition science follow-ups noted in the campaign outcomes",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Linear-attention connector variant and fixed-span dose protocol: the composition science follow-ups noted in the campaign outcomes",
+          "status": "open",
+          "verify": "OVERGO_PROBE_TEST=1 go test ./internal/adaptiveparity -run '^TestLinearAttentionConnectorViability$' -count=1 -v"
+        }
+      ]
+    },
+    {
+      "id": "qwen05b-training-verification",
+      "title": "Full training verification for Qwen2.5-0.5B: the second-best-evidenced external model gets a real overgo training run recorded in the verification ledger",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Full training verification for Qwen2.5-0.5B: the second-best-evidenced external model gets a real overgo training run recorded in the verification ledger",
+          "status": "open",
+          "verify": "go run ./cmd/repodb-query -repo repodb-store -verifications | grep -q Qwen2.5-0.5B"
+        }
+      ]
+    },
+    {
+      "id": "hygiene-sweep",
+      "title": "Hygiene sweep: repair gemma-4-12B stale activation, close discovery wholesale-failure robustness finding, GUI tour with plan recommendations",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hygiene sweep: repair gemma-4-12B stale activation, close discovery wholesale-failure robustness finding, GUI tour with plan recommendations",
+          "status": "open",
+          "verify": "go run ./cmd/repodb-query -repo repodb-store -servable | grep -q gemma-4-12B"
+        }
+      ]
+    },
+    {
       "id": "sealed-external-authority",
       "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
       "status": "open",

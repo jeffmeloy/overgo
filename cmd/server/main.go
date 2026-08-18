@@ -17,7 +17,9 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
 	"overgo/internal/projector"
+	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	llamaserver "overgo/internal/server"
 )
 
@@ -97,6 +99,16 @@ func run() error {
 	videoFPS := flag.Float64("video-fps", llamaserver.DefaultVideoFPS, "video frame sampling rate")
 	videoMaxFrames := flag.Int("video-max-frames", llamaserver.DefaultVideoFrameLimit, "maximum decoded video frames")
 	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
+	var evaluationSuites []string
+	flag.Func("evaluation-suite", "compiled evaluation suite JSON; repeatable", func(value string) error {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return errors.New("evaluation suite path is empty")
+		}
+		evaluationSuites = append(evaluationSuites, value)
+		return nil
+	})
+	evaluationCommit := flag.String("evaluation-commit", "", "source commit bound to evaluation evidence")
 	analysisTensorSamples := flag.Uint64("analysis-tensor-samples", defaultAnalysisTensorSamples, "samples retained per analyzed tensor")
 	analysisTensorBytes := flag.Uint64("analysis-tensor-bytes", defaultAnalysisTensorBytes, "aggregate tensor bytes read per analysis")
 	analysisPositions := flag.Int("analysis-state-positions", defaultAnalysisPositions, "maximum positions retained by state analysis")
@@ -129,21 +141,41 @@ func run() error {
 		}
 	}
 	var generator llamaserver.Generator = runner
-	var trainingStore *repodb.Store
+	var workspaceStore *repodb.Store
+	if *trainingEnabled || len(evaluationSuites) > 0 {
+		workspaceStore, err = repodb.Open(repoPath)
+		if err != nil {
+			return fmt.Errorf("open workspace repository: %w", err)
+		}
+		defer workspaceStore.Close()
+	}
 	if *trainingEnabled {
 		if rootsErr != nil {
 			return rootsErr
 		}
-		trainingStore, err = repodb.Open(repoPath)
-		if err != nil {
-			return fmt.Errorf("open training repository: %w", err)
-		}
-		defer trainingStore.Close()
-		workspace, err := llamaserver.NewTrainingWorkspace(shutdownContext, trainingStore, roots, runner.ModelID())
+		workspace, err := llamaserver.NewTrainingWorkspace(shutdownContext, workspaceStore, roots, runner.ModelID())
 		if err != nil {
 			return fmt.Errorf("open training workspace: %w", err)
 		}
 		generator = &serverRuntime{Runner: runner, WorkflowWorkspaceAPI: workspace}
+	}
+	var evaluationWorkspace llamaserver.EvaluationWorkspaceAPI
+	if len(evaluationSuites) > 0 {
+		description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
+		if err != nil {
+			return err
+		}
+		environment, err := runrecord.CurrentEnvironment(fmt.Sprintf("cuda:%d", *modelFlags.DeviceOrdinal), "cuda")
+		if err != nil {
+			return err
+		}
+		evaluationWorkspace, err = llamaserver.NewEvaluationWorkspace(
+			workspaceStore, runner, description.Identity, environment,
+			strings.TrimSpace(*evaluationCommit), evaluationSuites,
+		)
+		if err != nil {
+			return fmt.Errorf("open evaluation workspace: %w", err)
+		}
 	}
 	var vision, audio projector.Session
 	if *projectorPath != "" {
@@ -219,6 +251,7 @@ func run() error {
 		VideoMaxFrames:     *videoMaxFrames,
 		DatasetsRoot:       datasetsRoot,
 		RepoDBPath:         repoPath,
+		Evaluation:         evaluationWorkspace,
 		Analysis: llamaserver.AnalysisPolicy{
 			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,
 			StatePositions: *analysisPositions, MDSIterations: *analysisMDSIterations,

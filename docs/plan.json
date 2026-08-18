@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "modality-inference-smoke",
-      "title": "Modality inference smoke: run inference for every servable model across each of its supported modalities at decent context lengths; every failure encountered becomes a code fix or a typed finding, and passing runs feed the ledger",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Modality inference smoke: run inference for every servable model across each of its supported modalities at decent context lengths; every failure encountered becomes a code fix or a typed finding, and passing runs feed the ledger",
-          "status": "open",
-          "verify": "go run ./cmd/smoke-lane"
-        }
-      ]
-    },
-    {
       "id": "external-benchmark-evidence",
       "title": "External benchmark evidence: run the lm-evaluation-harness batch evaluator (C:/Users/jeffm/eval) on applicable text models as the independent judge, commit results with tool-and-version provenance, and record benchmark claims at capability-measured tier; applicability judged per model from the ledger (DNA and non-text models keep their own evaluation protocols)",
       "status": "open",

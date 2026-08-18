@@ -1,0 +1,10 @@
+overgo capability inference verification
+tool: go test internal/adaptiveparity (modeltest tag, OVERGO_CUDA_TEST=1)
+model file: C:/Users/jeffm/adaptive_new/models/gemma-4-E4B-it/model.safetensors
+protocol: real multimodal input matrix (TestMultimodalInputMatrix) -- the
+gemma-4-E4B checkpoint exercised across its multimodal input pairs with real
+-record parity; text/image/audio-to-text carry approved real-record evidence
+per the standing modality matrix, remaining pairs recorded as refused there.
+measured wall_ns: 125950000000 (suite wall including checkpoint load)
+modality: multimodal input (image/audio/text to text). peak device memory not
+instrumented on this path -- wall-only measurement by rule.

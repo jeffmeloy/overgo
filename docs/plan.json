@@ -25,7 +25,8 @@
           "id": "do",
           "title": "Hygiene sweep: repair gemma-4-12B stale activation, close discovery wholesale-failure robustness finding, GUI tour with plan recommendations",
           "status": "open",
-          "verify": "go run ./cmd/repodb-query -repo repodb-store -servable | grep -q gemma-4-12B"
+          "verify": "go run ./cmd/repodb-query -repo repodb-store -servable | grep -q gemma-4-12B",
+          "rationale": "STATUS 2026-08-18: discovery wholesale-failure finding CLOSED (stale-tolerant Servable landed with TestServableReportsStaleActivationsWithoutFailing in the phase-d row). Gemma repair diagnosis: the recipe CLI resolves the model name to the models DIRECTORY while the activation points at checkpoints/overgo-hfconvert/gemma-4-12B-it-fp8-native.gguf; the active recipe lacks verified run evidence. Repair path: run the recipe verification flow against the native GGUF (recipe verify -input \u003csuite JSON\u003e) to produce gate evidence, then re-activate with -gate; two sibling stale activations (f5e632cd, fb09299d) repair the same way. GUI tour remains the third leg."
         }
       ]
     },

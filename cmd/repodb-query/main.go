@@ -57,6 +57,7 @@ func run(args []string, output io.Writer) error {
 	rankingID := flags.String("ranking", "", "retrieve: rescore hits with a committed proposal-ranking artifact (the learned prior over the decision ledger)")
 	derivations := flags.Bool("derivations", false, "list derivation-profile artifacts and their promotion verdicts (profiles judged by the models they produce)")
 	verifications := flags.Bool("verifications", false, "derive the model verification matrix from committed records: strongest evidenced tier per capability")
+	configs := flags.Bool("configs", false, "list committed model-config declarations: sequence extensions and generation essentials with source digests")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -98,6 +99,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *verifications {
 		return writeVerifications(output, *repository, *limit)
+	}
+	if *configs {
+		return writeConfigs(output, *repository, *limit)
 	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
@@ -519,6 +523,56 @@ func writeComposed(output io.Writer, repository string, limit int) error {
 		count++
 	}
 	fmt.Fprintf(output, "%d composed artifact(s); honesty: rows derive from committed assembly documents; execution and lineage resolve through the store graph\n", count)
+	return nil
+}
+
+// writeConfigs lists committed model-config declarations: the typed
+// inference- and training-relevant components generic code reads instead of
+// carrying model-specific literals.
+func writeConfigs(output io.Writer, repository string, limit int) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindProfile, MaxResults: limit})
+	if err != nil {
+		return err
+	}
+	count := 0
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != modelartifact.ModelConfigMediaType {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil || !ok {
+			continue
+		}
+		document, err := modelartifact.ParseModelConfigDocument(content.Data)
+		if err != nil {
+			continue
+		}
+		cells := make([]string, 0, 2)
+		if document.Sequence != nil {
+			cells = append(cells, fmt.Sprintf("sequence[k=%d range=[%d,%d) specials=%d auto=%t]",
+				document.Sequence.K, document.Sequence.StartID,
+				document.Sequence.StartID+document.Sequence.Vocabulary,
+				len(document.Sequence.SpecialTokens), document.Sequence.AutoTags))
+		}
+		if document.Generation != nil {
+			cells = append(cells, fmt.Sprintf("generation[bos=%v eos=%v context=%d]",
+				document.Generation.BOSTokens, document.Generation.EOSTokens, document.Generation.ContextLength))
+		}
+		names := make([]string, 0, len(document.Sources))
+		for _, source := range document.Sources {
+			names = append(names, source.Name)
+		}
+		fmt.Fprintf(output, "config model=%s %s sources=%s\n",
+			document.Model, strings.Join(cells, " "), strings.Join(names, ","))
+		count++
+	}
+	fmt.Fprintf(output, "%d model-config declaration(s); honesty: components derive from digested source files committed with model lineage; generic code reads these declarations, never literals\n", count)
 	return nil
 }
 

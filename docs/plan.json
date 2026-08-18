@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "model-config-artifacts",
-      "title": "Model-config components as typed repodb artifacts: commit the inference/training-relevant tokenizer and generation facts (k-mer extension config, generation essentials) with model lineage so generic code reads declarations, never literals",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Model-config components as typed repodb artifacts: commit the inference/training-relevant tokenizer and generation facts (k-mer extension config, generation essentials) with model lineage so generic code reads declarations, never literals",
-          "status": "open",
-          "verify": "go test ./internal/modelartifact -run '^TestModelConfigArtifact' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "verification-ledger-population",
       "title": "Populate the verification ledger: commit model-verification records for the evidenced set (Carbon-500M, adaptive-causal, E4B, Qwen2.5-0.5B, Qwen3.5-4B, MiniCPM5) from real fixture and run-record identities",
       "status": "open",

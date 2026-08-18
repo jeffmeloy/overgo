@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/strictjson"
 )
 
 const (
@@ -40,6 +41,64 @@ var evaluationEvidenceCodec = artifact.JSONDocumentCodec(
 	canonicalizeEvaluationEvidence, func(value EvaluationEvidence) artifact.ID { return value.ID },
 	func(value *EvaluationEvidence, id artifact.ID) { value.ID = id }, cloneEvaluationEvidence,
 )
+
+func LoadEvaluationEvidence(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (EvaluationEvidence, bool, error) {
+	content, found, err := reader.Content(ctx, id)
+	if err != nil || !found || content.Descriptor.MediaType != evaluationEvidenceMedia || content.Descriptor.Schema != evaluationEvidenceSchema {
+		return EvaluationEvidence{}, false, err
+	}
+	value, err := evaluationEvidenceCodec.Parse(content.Data)
+	if err != nil || value.ID != id {
+		return EvaluationEvidence{}, false, err
+	}
+	return value, true, nil
+}
+
+func ValidateEvaluationEvidence(ctx context.Context, reader artifact.Reader, value EvaluationEvidence) error {
+	if ctx == nil || reader == nil || evaluationEvidenceCodec.ValidateIdentity(value) != nil {
+		return errors.New("evaluation: invalid stored evidence")
+	}
+	plan, err := loadEvidencePlan(ctx, reader, value.Plan)
+	if err != nil || plan.body.ModelDefinition != value.ModelDefinition || plan.body.RuntimeRecipe != value.Recipe ||
+		plan.body.Dataset != value.Dataset || plan.body.Split != value.Split || plan.body.Environment != value.Environment ||
+		plan.body.CodeCommit != value.CodeCommit {
+		return errors.Join(err, errors.New("evaluation: stored plan differs from evidence"))
+	}
+	policy, found, err := acceptancePolicyCodec.Read(ctx, reader, value.Acceptance)
+	if err != nil || !found {
+		return errors.Join(err, errors.New("evaluation: stored acceptance policy is absent"))
+	}
+	run, err := loadEvidenceRun(ctx, reader, value.Run)
+	if err != nil {
+		return err
+	}
+	record, err := loadEvidenceRecord(ctx, reader, value.Evaluation)
+	if err != nil {
+		return err
+	}
+	if run.Outcome != runrecord.OutcomeSucceeded || run.Recipe != value.Recipe || run.Environment != value.Environment ||
+		run.CodeCommit != value.CodeCommit || !slices.Contains(run.Inputs, value.Plan) || !slices.Contains(run.Outputs, value.Report) ||
+		record.Recipe != value.Recipe || record.Run != value.Run || record.Dataset != value.Dataset || !policy.admits(record.Metrics) ||
+		!slices.Equal(run.Phases, value.Phases) || !slices.Equal(record.Metrics, value.Metrics) {
+		return errors.New("evaluation: stored run or metrics differ from evidence")
+	}
+	reportContent, found, err := reader.Content(ctx, value.Report)
+	if err != nil || !found {
+		return errors.Join(err, errors.New("evaluation: stored report is absent"))
+	}
+	if err := reportContent.Validate(); err != nil {
+		return err
+	}
+	shards, err := evaluationReportShards(ctx, reader, value.Report, value.Split)
+	if err != nil || !slices.Equal(shards, value.Shards) {
+		return errors.Join(err, errors.New("evaluation: stored shard lineage differs from evidence"))
+	}
+	return nil
+}
 
 func PublishEvaluationEvidence(
 	ctx context.Context,
@@ -106,7 +165,7 @@ func PublishEvaluationEvidence(
 
 func evaluationReportShards(
 	ctx context.Context,
-	repository artifact.Repository,
+	repository artifact.Reader,
 	report, split artifact.ID,
 ) ([]artifact.ID, error) {
 	queue, seen := []artifact.ID{report}, map[artifact.ID]struct{}{report: {}}
@@ -132,6 +191,41 @@ func evaluationReportShards(
 		}
 	}
 	return uniqueArtifactIDs(shards), nil
+}
+
+func loadEvidencePlan(ctx context.Context, reader artifact.Reader, id artifact.ID) (Plan, error) {
+	content, found, err := reader.Content(ctx, id)
+	if err != nil || !found {
+		return Plan{}, errors.Join(err, errors.New("evaluation: stored plan is absent"))
+	}
+	if err := evaluationPlanContract.ValidateContent(content, id); err != nil {
+		return Plan{}, err
+	}
+	var body planBody
+	if err := strictjson.DecodeBytes(content.Data, &body); err != nil {
+		return Plan{}, err
+	}
+	identity, err := artifact.JSONID(artifact.KindProfile, body)
+	if err != nil || identity != id {
+		return Plan{}, errors.Join(err, errors.New("evaluation: stored plan identity differs"))
+	}
+	return Plan{identity: id, body: body}, nil
+}
+
+func loadEvidenceRun(ctx context.Context, reader artifact.Reader, id artifact.ID) (runrecord.Run, error) {
+	content, found, err := reader.Content(ctx, id)
+	if err != nil || !found {
+		return runrecord.Run{}, errors.Join(err, errors.New("evaluation: stored run is absent"))
+	}
+	return runrecord.ParseRun(content.Data)
+}
+
+func loadEvidenceRecord(ctx context.Context, reader artifact.Reader, id artifact.ID) (runrecord.Evaluation, error) {
+	content, found, err := reader.Content(ctx, id)
+	if err != nil || !found {
+		return runrecord.Evaluation{}, errors.Join(err, errors.New("evaluation: stored metric record is absent"))
+	}
+	return runrecord.ParseEvaluation(content.Data)
 }
 
 func canonicalizeEvaluationEvidence(value *EvaluationEvidence) error {

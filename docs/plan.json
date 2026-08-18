@@ -3,29 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "evaluation-evidence",
-      "title": "Make native evaluation reports the common evidence source for compatibility, regression advisories, recipe promotion, training holdouts, and descendant comparison",
-      "status": "open",
-      "steps": [
-        {
-          "id": "lane",
-          "title": "Add a store-derived evaluation lane; run pinned real model and dataset suites, compare exact plan identities, and refuse unavailable required evidence",
-          "status": "open",
-          "verify": "go run ./cmd/eval-lane",
-          "depends_on": [
-            "evaluation-evidence/repodb",
-            "evaluation-benchmarks/ifeval",
-            "evaluation-benchmarks/math",
-            "evaluation-gui/workbench"
-          ],
-          "capabilities": [
-            "measures-held-out",
-            "gates-compatibility"
-          ]
-        }
-      ]
-    },
-    {
       "id": "bounded-controller-trials",
       "title": "Permit bounded controller-driven descendant trials: controller proposes corpus, recipe, evaluator and composition candidates; independent admission, held-out evaluation, promotion and rollback required; every child bound to parent model, data, recipe, code, evaluator, run and decision identities",
       "status": "open",

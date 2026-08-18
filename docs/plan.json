@@ -8,19 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "mmlu-pro",
-          "title": "Implement MMLU-Pro rendering, few-shot selection, continuation scoring, category aggregation, and oracle parity",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestMMLUProPinnedOracleParity$' -count=1",
-          "depends_on": [
-            "evaluation-scoring/multiple-choice",
-            "evaluation-datasets/catalog"
-          ],
-          "capabilities": [
-            "evaluates-mmlu-pro"
-          ]
-        },
-        {
           "id": "bbh-musr",
           "title": "Implement BBH and MuSR through the same request and scorer contracts; retain subtask and aggregate metrics",
           "status": "open",

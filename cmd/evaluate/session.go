@@ -97,7 +97,39 @@ func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
 	if envelope.Kind == evaluation.GeneratedAnswerKind {
 		return s.evaluateGeneratedAnswer(ctx, data)
 	}
+	if envelope.Kind == evaluation.MMLUProKind {
+		return s.evaluateMMLUPro(ctx, data)
+	}
 	return s.evaluateExact(ctx, data)
+}
+
+func (s *nativeSession) evaluateMMLUPro(ctx context.Context, data []byte) error {
+	var suite evaluation.MMLUProSuite
+	if err := json.Unmarshal(data, &suite); err != nil {
+		return fmt.Errorf("evaluate: decode MMLU-Pro suite: %w", err)
+	}
+	compiled, err := evaluation.CompileMMLUPro(suite)
+	if err != nil {
+		return err
+	}
+	plan, err := evaluation.BindMMLUPro(compiled, s.authorities())
+	if err != nil {
+		return err
+	}
+	started := time.Now()
+	report, evaluateErr := evaluation.EvaluateMMLUPro(ctx, s.store, s.runner, compiled, plan)
+	measured := uint64(max(time.Since(started).Nanoseconds(), 1))
+	if evaluateErr != nil {
+		return errors.Join(evaluateErr, s.publishFailure(ctx, plan, measured))
+	}
+	metrics := make([]runrecord.Metric, 1, len(report.Categories)+1)
+	metrics[0] = runrecord.Metric{Name: "accuracy", Value: report.Accuracy, Direction: runrecord.DirectionMaximize}
+	for _, category := range report.Categories {
+		metrics = append(metrics, runrecord.Metric{
+			Name: "accuracy/" + category.Name, Value: category.Accuracy, Direction: runrecord.DirectionMaximize,
+		})
+	}
+	return s.publishSuccess(ctx, plan, report.ID, measured, metrics)
 }
 
 func (s *nativeSession) evaluateGeneratedAnswer(ctx context.Context, data []byte) error {

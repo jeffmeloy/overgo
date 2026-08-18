@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"slices"
+	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -73,6 +74,13 @@ type MultipleChoiceReport struct {
 	Dataset      artifact.ID         `json:"dataset"`
 	Observations []ChoiceObservation `json:"observations"`
 	Accuracy     float64             `json:"accuracy"`
+}
+
+type AccuracyGroup struct {
+	Name     string  `json:"name"`
+	Correct  uint64  `json:"correct"`
+	Total    uint64  `json:"total"`
+	Accuracy float64 `json:"accuracy"`
 }
 
 type ContinuationScorer interface {
@@ -162,29 +170,10 @@ func EvaluateMultipleChoice(
 	}
 	report := MultipleChoiceReport{
 		Version: multipleChoiceReportVersion, Plan: plan.identity, Dataset: compiled.dataset,
-		Observations: make([]ChoiceObservation, len(compiled.suite.Cases)),
 	}
-	correct := 0
-	for index, testCase := range compiled.suite.Cases {
-		scores, err := scorer.ScoreContinuations(ctx, testCase.Prompt, testCase.Candidates)
-		if err != nil {
-			return MultipleChoiceReport{}, err
-		}
-		selection, err := sequencescore.Select(scores, compiled.suite.Normalization)
-		if err != nil {
-			return MultipleChoiceReport{}, err
-		}
-		report.Observations[index] = ChoiceObservation{
-			Name: testCase.Name, Values: selection.Values, Selected: selection.Index,
-			Answer: testCase.Answer, Tied: selection.Tied,
-		}
-		if !selection.Tied && selection.Index == testCase.Answer {
-			correct++
-		}
-	}
-	report.Accuracy = float64(correct) / float64(len(report.Observations))
-	if math.IsNaN(report.Accuracy) || math.IsInf(report.Accuracy, 0) {
-		return MultipleChoiceReport{}, errors.New("evaluation: multiple-choice accuracy is not finite")
+	report.Observations, report.Accuracy, err = scoreMultipleChoice(ctx, scorer, compiled.suite)
+	if err != nil {
+		return MultipleChoiceReport{}, err
 	}
 	id, err := artifact.JSONID(artifact.KindEvaluation, report)
 	if err != nil {
@@ -197,6 +186,62 @@ func EvaluateMultipleChoice(
 		return MultipleChoiceReport{}, err
 	}
 	return report, nil
+}
+
+func scoreMultipleChoice(
+	ctx context.Context,
+	scorer ContinuationScorer,
+	suite MultipleChoiceSuite,
+) ([]ChoiceObservation, float64, error) {
+	observations := make([]ChoiceObservation, len(suite.Cases))
+	correct := 0
+	for index, testCase := range suite.Cases {
+		scores, err := scorer.ScoreContinuations(ctx, testCase.Prompt, testCase.Candidates)
+		if err != nil {
+			return nil, 0, err
+		}
+		selection, err := sequencescore.Select(scores, suite.Normalization)
+		if err != nil {
+			return nil, 0, err
+		}
+		observations[index] = ChoiceObservation{
+			Name: testCase.Name, Values: selection.Values, Selected: selection.Index,
+			Answer: testCase.Answer, Tied: selection.Tied,
+		}
+		if !selection.Tied && selection.Index == testCase.Answer {
+			correct++
+		}
+	}
+	accuracy := float64(correct) / float64(len(observations))
+	if math.IsNaN(accuracy) || math.IsInf(accuracy, 0) {
+		return nil, 0, errors.New("evaluation: multiple-choice accuracy is not finite")
+	}
+	return observations, accuracy, nil
+}
+
+func aggregateChoiceAccuracy(groups []string, observations []ChoiceObservation) ([]AccuracyGroup, error) {
+	if len(groups) != len(observations) {
+		return nil, errors.New("evaluation: choice groups differ from observations")
+	}
+	byName := make(map[string]*AccuracyGroup)
+	for index, group := range groups {
+		metric := byName[group]
+		if metric == nil {
+			metric = &AccuracyGroup{Name: group}
+			byName[group] = metric
+		}
+		metric.Total++
+		if !observations[index].Tied && observations[index].Selected == observations[index].Answer {
+			metric.Correct++
+		}
+	}
+	result := make([]AccuracyGroup, 0, len(byName))
+	for _, metric := range byName {
+		metric.Accuracy = float64(metric.Correct) / float64(metric.Total)
+		result = append(result, *metric)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result, nil
 }
 
 func (p MultipleChoicePlan) contents() ([]artifact.Content, error) {

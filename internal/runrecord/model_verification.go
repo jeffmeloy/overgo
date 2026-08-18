@@ -193,11 +193,20 @@ func VerificationMatrix(records []ModelVerification) []MatrixRow {
 				winning.Evidence = slices.Clone(claim.Evidence)
 				capabilities[claim.Capability] = &slot{claim: winning, seen: seen}
 			case claim.Tier.Rank() == current.claim.Tier.Rank():
-				// Equal-tier claims union their evidence; commit, dataset and
-				// span provenance stay with the first record in identity order.
+				// Equal-tier claims union their evidence. A measured claim
+				// displaces an unmeasured one's provenance -- performance
+				// numbers must surface in the matrix -- otherwise provenance
+				// stays with the first record in identity order.
+				union := current.seen
+				evidence := current.claim.Evidence
+				if claim.WallNS > 0 && current.claim.WallNS == 0 {
+					adopted := claim
+					adopted.Evidence = evidence
+					current.claim = adopted
+				}
 				for _, id := range claim.Evidence {
-					if !current.seen[id] {
-						current.seen[id] = true
+					if !union[id] {
+						union[id] = true
 						current.claim.Evidence = append(current.claim.Evidence, id)
 					}
 				}

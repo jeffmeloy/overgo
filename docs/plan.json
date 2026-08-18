@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; steps declare depends_on and the queue order must respect them; plan complete means campaign complete by construction.",
   "items": [
     {
-      "id": "ledger-performance-sweep",
-      "title": "Ledger performance sweep: inference for every servable model smallest to largest with fixed SFT prompts (consistent system/human input and expected gpt output from the fixed ShareGPT datasets), then training likewise; each run records wall time and peak memory at a decently large supported context into its verification claim",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Ledger performance sweep: inference for every servable model smallest to largest with fixed SFT prompts (consistent system/human input and expected gpt output from the fixed ShareGPT datasets), then training likewise; each run records wall time and peak memory at a decently large supported context into its verification claim",
-          "status": "open",
-          "verify": "go run ./cmd/repodb-query -repo repodb-store -verifications | grep -q wall"
-        }
-      ]
-    },
-    {
       "id": "modality-inference-smoke",
       "title": "Modality inference smoke: run inference for every servable model across each of its supported modalities at decent context lengths; every failure encountered becomes a code fix or a typed finding, and passing runs feed the ledger",
       "status": "open",

@@ -1,0 +1,21 @@
+{
+ "model": "model:sha256:809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4",
+ "name": "Qwen3.5-9B-Q8",
+ "claims": [
+  {
+   "capability": "inference",
+   "tier": "real-artifact-smoke",
+   "commit": "6abef1ee04acf6fb67d84ae174a985786255f672",
+   "context_tokens": 2697,
+   "wall_ns": 12694068500,
+   "peak_device_bytes": 16412000256,
+   "evidence": [
+    "evidence:sha256:cde0d4def898cc590379c55a8fc7c11e7f38c33f76944a69dadcf2a4c54b3de0"
+   ]
+  }
+ ],
+ "evidence_files": [
+  "docs/verification/sweep-qwen35-9b-inference.txt"
+ ],
+ "model_file": "C:/Users/jeffm/adaptive_new/models/Qwen3.5-9B-Q8_0.gguf"
+}

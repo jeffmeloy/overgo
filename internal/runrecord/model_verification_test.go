@@ -123,6 +123,19 @@ func TestModelVerificationLedger(t *testing.T) {
 		training.Dataset != dataset || training.SpanSteps != 60 || training.Commit != commit {
 		t.Fatalf("training row lost provenance: %+v", training)
 	}
+	measuredSibling, err := NewModelVerification(other, "Qwen2.5-0.5B", []CapabilityClaim{
+		{Capability: "inference", Tier: TierExactGolden, Commit: commit,
+			ContextTokens: 2625, WallNS: 2_983_801_000, PeakDeviceBytes: 1_368_364_544,
+			Evidence: []artifact.ID{smoke}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	displaced := VerificationMatrix([]ModelVerification{sibling, measuredSibling})
+	cell := displaced[0].Capabilities[0]
+	if cell.Tier != TierExactGolden || cell.WallNS != 2_983_801_000 || len(cell.Evidence) != 2 {
+		t.Fatalf("measured claim did not displace unmeasured provenance at equal tier: %+v", cell)
+	}
 	reordered := VerificationMatrix([]ModelVerification{sibling, upgrade, record})
 	if len(reordered) != 2 || reordered[0].Capabilities[0].Tier != carbon.Capabilities[0].Tier ||
 		len(reordered[0].Capabilities[0].Evidence) != len(carbon.Capabilities[0].Evidence) {

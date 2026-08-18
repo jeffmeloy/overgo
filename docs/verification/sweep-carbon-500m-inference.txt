@@ -1,0 +1,12 @@
+overgo performance sweep: inference under the fixed SFT prompt fixture
+tool: cmd/perf-sweep; verifying commit: 6abef1ee04acf6fb67d84ae174a985786255f672
+model file: C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Carbon-500M-f16-ropefix.gguf
+fixture: fixtures/sweep_sft_prompts.json (adaptive_new content mmlupro_sharegpt.json, leading conversations concatenated chat-style; fixed input for cross-model wall/peak measurement)
+prompt_tokens: 2625
+generated_tokens: 64
+wall_ns: 3870288800
+peak_device_bytes: 1790580224
+text_head: "AGTCGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGAGA"
+honesty: wall covers prompt evaluation plus generation on the serving path;
+peak is the device allocation high-water for this process; output quality is
+not claimed here -- exact-generation claims live in the serving goldens.

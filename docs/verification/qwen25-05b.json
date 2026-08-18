@@ -3,14 +3,6 @@
  "name": "Qwen2.5-0.5B",
  "claims": [
   {
-   "capability": "inference",
-   "tier": "exact-golden",
-   "commit": "19a80a66db0368ab440745b0d08af8b1da6d6c92",
-   "evidence": [
-    "evidence:sha256:5de6027bafa11e209e20b8f758b1d77946e034b4af14e815f18164cf992d90f1"
-   ]
-  },
-  {
    "capability": "training",
    "tier": "real-artifact-smoke",
    "commit": "2f4a6fc66cbc3ae1d492efbc381ffd5845e1b92c",
@@ -19,12 +11,27 @@
    "span_tokens": 7680,
    "evidence": [
     "evidence:sha256:275421699843a46bb6c9efd01ba9e8051c2d8336f45c37b321dd5a3e73937f10"
+   ],
+   "wall_ns": 113338383100,
+   "context_tokens": 256
+  },
+  {
+   "capability": "inference",
+   "tier": "exact-golden",
+   "commit": "6abef1ee04acf6fb67d84ae174a985786255f672",
+   "context_tokens": 2625,
+   "wall_ns": 2983801000,
+   "peak_device_bytes": 1368364544,
+   "evidence": [
+    "evidence:sha256:5de6027bafa11e209e20b8f758b1d77946e034b4af14e815f18164cf992d90f1",
+    "evidence:sha256:d6b3f7020e902408a4f90317179ddd74541818026dc587cc425ef4f76a8b944a"
    ]
   }
  ],
  "model_file": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen2.5-0.5B-f16.gguf",
  "evidence_files": [
   "docs/verification/qwen25-05b-training-run.txt",
+  "docs/verification/sweep-qwen25-05b-inference.txt",
   "fixtures/qwen25_serving_golden.json"
  ],
  "dataset_files": [

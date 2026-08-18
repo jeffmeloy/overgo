@@ -43,9 +43,15 @@ type sftViewRequest struct {
 	TextObservations    []evaluation.TextTargetObservation    `json:"text_observations,omitempty"`
 	NumericTargets      *evaluation.NumericTargetSuite        `json:"numeric_targets,omitempty"`
 	NumericObservations []evaluation.NumericTargetObservation `json:"numeric_observations,omitempty"`
+	MediaTargets        *evaluation.MediaTargetSuite          `json:"media_targets,omitempty"`
+	MediaObservations   []evaluation.MediaTargetObservation   `json:"media_observations,omitempty"`
 }
 
 type workerLauncher func(context.Context, int) error
+
+type batchDocument interface {
+	Batch(string) (artifact.Batch, error)
+}
 
 func main() {
 	clioptions.Main(run)
@@ -155,7 +161,8 @@ func compileManifest(value manifest) (manifest, error) {
 		if view.Objective.Kind() != artifact.KindProfile || view.Training.Kind() != artifact.KindDatasetShard ||
 			view.Heldout.Kind() != artifact.KindDatasetShard || view.Training == view.Heldout ||
 			(view.TextTargets == nil) != (len(view.TextObservations) == 0) ||
-			(view.NumericTargets == nil) != (len(view.NumericObservations) == 0) {
+			(view.NumericTargets == nil) != (len(view.NumericObservations) == 0) ||
+			(view.MediaTargets == nil) != (len(view.MediaObservations) == 0) {
 			return manifest{}, errors.New("evaluate: invalid SFT evaluation view")
 		}
 	}
@@ -187,11 +194,7 @@ func catalogBenchmarks(ctx context.Context, value manifest) error {
 		if err != nil {
 			return errors.Join(err, store.Close())
 		}
-		batch, err := view.Batch("evaluation/sft-view/" + view.ID.String())
-		if err != nil {
-			return errors.Join(err, store.Close())
-		}
-		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		if err := publishDocument(ctx, store, "evaluation/sft-view/"+view.ID.String(), view); err != nil {
 			return errors.Join(err, store.Close())
 		}
 		if request.TextTargets != nil {
@@ -199,22 +202,14 @@ func catalogBenchmarks(ctx context.Context, value manifest) error {
 			if err != nil {
 				return errors.Join(err, store.Close())
 			}
-			batch, err := plan.Batch("evaluation/text-target/" + plan.ID.String())
-			if err != nil {
-				return errors.Join(err, store.Close())
-			}
-			if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+			if err := publishDocument(ctx, store, "evaluation/text-target/"+plan.ID.String(), plan); err != nil {
 				return errors.Join(err, store.Close())
 			}
 			report, err := evaluation.ScoreTextTargets(plan, request.TextObservations)
 			if err != nil {
 				return errors.Join(err, store.Close())
 			}
-			batch, err = report.Batch("evaluation/text-target-report/" + report.ID.String())
-			if err != nil {
-				return errors.Join(err, store.Close())
-			}
-			if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+			if err := publishDocument(ctx, store, "evaluation/text-target-report/"+report.ID.String(), report); err != nil {
 				return errors.Join(err, store.Close())
 			}
 		}
@@ -223,27 +218,44 @@ func catalogBenchmarks(ctx context.Context, value manifest) error {
 			if err != nil {
 				return errors.Join(err, store.Close())
 			}
-			batch, err := plan.Batch("evaluation/numeric-target/" + plan.ID.String())
-			if err != nil {
-				return errors.Join(err, store.Close())
-			}
-			if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+			if err := publishDocument(ctx, store, "evaluation/numeric-target/"+plan.ID.String(), plan); err != nil {
 				return errors.Join(err, store.Close())
 			}
 			report, err := evaluation.ScoreNumericTargets(plan, request.NumericObservations)
 			if err != nil {
 				return errors.Join(err, store.Close())
 			}
-			batch, err = report.Batch("evaluation/numeric-target-report/" + report.ID.String())
+			if err := publishDocument(ctx, store, "evaluation/numeric-target-report/"+report.ID.String(), report); err != nil {
+				return errors.Join(err, store.Close())
+			}
+		}
+		if request.MediaTargets != nil {
+			plan, err := evaluation.CompileMediaTargetPlan(view, *request.MediaTargets)
 			if err != nil {
 				return errors.Join(err, store.Close())
 			}
-			if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+			if err := publishDocument(ctx, store, "evaluation/media-target/"+plan.ID.String(), plan); err != nil {
+				return errors.Join(err, store.Close())
+			}
+			report, err := evaluation.ScoreMediaTargets(plan, request.MediaObservations)
+			if err != nil {
+				return errors.Join(err, store.Close())
+			}
+			if err := publishDocument(ctx, store, "evaluation/media-target-report/"+report.ID.String(), report); err != nil {
 				return errors.Join(err, store.Close())
 			}
 		}
 	}
 	return store.Close()
+}
+
+func publishDocument(ctx context.Context, repository artifact.Repository, key string, document batchDocument) error {
+	batch, err := document.Batch(key)
+	if err != nil {
+		return err
+	}
+	_, err = artifact.CommitBatch(ctx, repository, batch)
+	return err
 }
 
 func runParent(ctx context.Context, value manifest, launch workerLauncher) error {

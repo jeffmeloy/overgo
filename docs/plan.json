@@ -8,20 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "media-targets",
-          "title": "Evaluate speech, image, and video outputs with deterministic oracle checks first and only suite-declared transcript, signal, reconstruction, or independent-verifier metrics thereafter",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestMediaTargetMetricsRequireExplicitVerifierAuthority$' -count=1",
-          "depends_on": [
-            "evaluation-sft-modalities/heldout-views"
-          ],
-          "capabilities": [
-            "evaluates-speech",
-            "evaluates-image-output",
-            "evaluates-video-output"
-          ]
-        },
-        {
           "id": "preference-holdout",
           "title": "Evaluate held-out preference pairs with chosen-vs-rejected accuracy, policy/reference margin, and DPO loss bound to the frozen reference model",
           "status": "open",

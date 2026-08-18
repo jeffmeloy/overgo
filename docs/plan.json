@@ -8,19 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "numeric-targets",
-          "title": "Evaluate forecast and tabular targets with target-type-selected absolute error, quantile loss, or label accuracy; retain record-level values and assumption metadata",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions$' -count=1",
-          "depends_on": [
-            "evaluation-sft-modalities/heldout-views"
-          ],
-          "capabilities": [
-            "evaluates-forecast",
-            "evaluates-tabular"
-          ]
-        },
-        {
           "id": "media-targets",
           "title": "Evaluate speech, image, and video outputs with deterministic oracle checks first and only suite-declared transcript, signal, reconstruction, or independent-verifier metrics thereafter",
           "status": "open",

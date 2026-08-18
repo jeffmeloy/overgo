@@ -36,11 +36,13 @@ type modelRequest struct {
 }
 
 type sftViewRequest struct {
-	Objective        artifact.ID                        `json:"objective"`
-	Training         artifact.ID                        `json:"training_membership"`
-	Heldout          artifact.ID                        `json:"heldout_membership"`
-	TextTargets      *evaluation.TextTargetSuite        `json:"text_targets,omitempty"`
-	TextObservations []evaluation.TextTargetObservation `json:"text_observations,omitempty"`
+	Objective           artifact.ID                           `json:"objective"`
+	Training            artifact.ID                           `json:"training_membership"`
+	Heldout             artifact.ID                           `json:"heldout_membership"`
+	TextTargets         *evaluation.TextTargetSuite           `json:"text_targets,omitempty"`
+	TextObservations    []evaluation.TextTargetObservation    `json:"text_observations,omitempty"`
+	NumericTargets      *evaluation.NumericTargetSuite        `json:"numeric_targets,omitempty"`
+	NumericObservations []evaluation.NumericTargetObservation `json:"numeric_observations,omitempty"`
 }
 
 type workerLauncher func(context.Context, int) error
@@ -152,7 +154,8 @@ func compileManifest(value manifest) (manifest, error) {
 	for _, view := range value.SFTViews {
 		if view.Objective.Kind() != artifact.KindProfile || view.Training.Kind() != artifact.KindDatasetShard ||
 			view.Heldout.Kind() != artifact.KindDatasetShard || view.Training == view.Heldout ||
-			(view.TextTargets == nil) != (len(view.TextObservations) == 0) {
+			(view.TextTargets == nil) != (len(view.TextObservations) == 0) ||
+			(view.NumericTargets == nil) != (len(view.NumericObservations) == 0) {
 			return manifest{}, errors.New("evaluate: invalid SFT evaluation view")
 		}
 	}
@@ -208,6 +211,30 @@ func catalogBenchmarks(ctx context.Context, value manifest) error {
 				return errors.Join(err, store.Close())
 			}
 			batch, err = report.Batch("evaluation/text-target-report/" + report.ID.String())
+			if err != nil {
+				return errors.Join(err, store.Close())
+			}
+			if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+				return errors.Join(err, store.Close())
+			}
+		}
+		if request.NumericTargets != nil {
+			plan, err := evaluation.CompileNumericTargetPlan(view, *request.NumericTargets)
+			if err != nil {
+				return errors.Join(err, store.Close())
+			}
+			batch, err := plan.Batch("evaluation/numeric-target/" + plan.ID.String())
+			if err != nil {
+				return errors.Join(err, store.Close())
+			}
+			if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+				return errors.Join(err, store.Close())
+			}
+			report, err := evaluation.ScoreNumericTargets(plan, request.NumericObservations)
+			if err != nil {
+				return errors.Join(err, store.Close())
+			}
+			batch, err = report.Batch("evaluation/numeric-target-report/" + report.ID.String())
 			if err != nil {
 				return errors.Join(err, store.Close())
 			}

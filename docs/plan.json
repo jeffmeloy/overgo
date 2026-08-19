@@ -1,20 +1,5 @@
 {
   "campaign": "Native evaluation evidence plane and constrained improvement",
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
-  "items": [
-    {
-      "id": "sealed-external-authority",
-      "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
-          "status": "open",
-          "verify": "OVERGO_SEALED_AUTHORITY_TEST=1 go test ./internal/testevidence ./internal/protection -run '^TestCandidatePrincipalCannotWriteSealedAuthority$' -count=1 -v",
-          "rationale": "Owner directive 2026-08-17: host sealing moved to the campaign end -- autonomous workers do not run yet, so the second OS principal and the sealing machinery arrive together when Phase C makes them load-bearing. Prior fixture-level machinery was backed out rather than committed unconsumed."
-        }
-      ]
-    }
-  ]
+  "items": []
 }

@@ -16,7 +16,9 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
+	"overgo/internal/evaluation"
 	"overgo/internal/modelartifact"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/strictjson"
@@ -42,9 +44,10 @@ const (
 	KindComponentDecomposition Kind = "component-decomposition"
 	// KindComposeModel assembles constituents into one executable
 	// content-addressed model artifact with full lineage.
-	KindComposeModel     Kind = "compose-model"
-	KindImprovementTrial Kind = "improvement-trial"
-	KindEvaluationBudget Kind = "evaluation-budget"
+	KindComposeModel       Kind = "compose-model"
+	KindImprovementTrial   Kind = "improvement-trial"
+	KindEvaluationBudget   Kind = "evaluation-budget"
+	KindEvaluatorPromotion Kind = "evaluator-promotion"
 )
 
 // ChainAction: compose two whole validated models through typed ports.
@@ -105,20 +108,30 @@ type EvaluationBudgetAction struct {
 	Charges   []BudgetChargeAction `json:"charges"`
 }
 
+type EvaluatorPromotionAction struct {
+	Candidate  evaluation.Evaluator       `json:"candidate"`
+	OutcomeSet artifact.ID                `json:"outcome_set"`
+	Outcomes   []evaluation.KnownOutcome  `json:"outcomes"`
+	Current    runrecord.AdmissionBinding `json:"current"`
+	Prior      runrecord.AdmissionBinding `json:"prior"`
+	Approval   recipe.Decision            `json:"approval"`
+}
+
 // Action is one controller emission: exactly the payload matching Kind is
 // present. There is no field anywhere in the language that carries code or
 // shell -- parameters are artifact identities, typed facts and enums; the one
 // command-shaped string (RequiredVerifier) must validate as a failable go
 // test declaration inside the proposal authority itself.
 type Action struct {
-	Version       uint16                  `json:"version"`
-	Kind          Kind                    `json:"kind"`
-	Chain         *ChainAction            `json:"chain,omitempty"`
-	Proposal      *ProposalAction         `json:"proposal,omitempty"`
-	Decomposition *DecompositionAction    `json:"decomposition,omitempty"`
-	Compose       *ComposeAction          `json:"compose,omitempty"`
-	Improvement   *ImprovementAction      `json:"improvement,omitempty"`
-	Budget        *EvaluationBudgetAction `json:"budget,omitempty"`
+	Version       uint16                    `json:"version"`
+	Kind          Kind                      `json:"kind"`
+	Chain         *ChainAction              `json:"chain,omitempty"`
+	Proposal      *ProposalAction           `json:"proposal,omitempty"`
+	Decomposition *DecompositionAction      `json:"decomposition,omitempty"`
+	Compose       *ComposeAction            `json:"compose,omitempty"`
+	Improvement   *ImprovementAction        `json:"improvement,omitempty"`
+	Budget        *EvaluationBudgetAction   `json:"budget,omitempty"`
+	Evaluator     *EvaluatorPromotionAction `json:"evaluator,omitempty"`
 }
 
 // ParseAction decodes one strict action document.
@@ -138,7 +151,7 @@ func (a Action) validate() error {
 		return errors.New("controller action: unsupported version")
 	}
 	payloads := 0
-	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil} {
+	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil} {
 		if present {
 			payloads++
 		}
@@ -170,6 +183,10 @@ func (a Action) validate() error {
 	case KindEvaluationBudget:
 		if a.Budget == nil || len(a.Budget.Charges) == 0 {
 			return errors.New("controller action: evaluation-budget requires a grant and charges")
+		}
+	case KindEvaluatorPromotion:
+		if a.Evaluator == nil {
+			return errors.New("controller action: evaluator-promotion requires evidence")
 		}
 	default:
 		return fmt.Errorf("controller action: kind %q is not in the allowlist", a.Kind)
@@ -251,9 +268,26 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 		return compileImprovementTrial(ctx, reader, *action.Improvement)
 	case KindEvaluationBudget:
 		return compileEvaluationBudget(*action.Budget)
+	case KindEvaluatorPromotion:
+		return compileEvaluatorPromotion(*action.Evaluator)
 	default:
 		return nil, nil, fmt.Errorf("controller action: kind %q has no executor", action.Kind)
 	}
+}
+
+func compileEvaluatorPromotion(action EvaluatorPromotionAction) ([]artifact.Content, []artifact.Lineage, error) {
+	if err := evaluation.ValidateEvaluatorPromotion(action.Candidate, action.OutcomeSet, action.Outcomes, action.Current, action.Prior, action.Approval); err != nil {
+		return nil, nil, err
+	}
+	candidate, err := action.Candidate.Content()
+	if err != nil {
+		return nil, nil, err
+	}
+	approval, err := action.Approval.Content()
+	if err != nil {
+		return nil, nil, err
+	}
+	return []artifact.Content{candidate, approval}, append(action.Candidate.Lineage(), action.Approval.Lineage()...), nil
 }
 
 func compileEvaluationBudget(action EvaluationBudgetAction) ([]artifact.Content, []artifact.Lineage, error) {

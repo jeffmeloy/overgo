@@ -101,7 +101,7 @@ func (campaign *Campaign) publishSuccess(
 	if err := campaign.publish(ctx, run, &record); err != nil {
 		return CampaignResult{}, err
 	}
-	evidence, err := PublishEvaluationEvidence(ctx, campaign.repository, plan, suite.acceptance, result.Report, run, record)
+	evidence, err := PublishEvaluationEvidence(ctx, campaign.repository, plan, suite.acceptance, suite.evaluator, result.Report, run, record)
 	if err != nil {
 		return CampaignResult{}, err
 	}

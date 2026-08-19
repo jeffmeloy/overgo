@@ -3,24 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "evaluator-as-artifact",
-      "title": "Promote an evaluator only if it correctly ranks a held-out set of models with known-good and known-bad outcomes drawn from the sealed oracle set, approved by generation N-1 authority",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Promote an evaluator only if it correctly ranks a held-out set of models with known-good and known-bad outcomes drawn from the sealed oracle set, approved by generation N-1 authority",
-          "status": "open",
-          "verify": "go test ./internal/... -run '^TestEvaluatorRanksKnownOutcomesUnderPriorAuthority$' -count=1 -v",
-          "rationale": "The classic RSI failure is a system improving its evaluator into one that approves everything. Safe only because the ranking set is externally sourced and unauthorable, and because the approving authority predates the candidate.",
-          "depends_on": [
-            "evaluation-isolation",
-            "descendant-improvement"
-          ]
-        }
-      ]
-    },
-    {
       "id": "objective-composition",
       "title": "Make objectives composable typed artifacts; let the system propose objective mixtures and measure which produce better descendants",
       "status": "open",

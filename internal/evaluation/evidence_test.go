@@ -30,6 +30,10 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	evaluator, err := NewEvaluator(plan.identity, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
 	run, err := runrecord.NewBoundRun(
 		plan.body.RuntimeRecipe, runrecord.OutcomeSucceeded, []artifact.ID{plan.identity}, []artifact.ID{report}, "",
 		plan.body.CodeCommit, plan.body.Environment, 10,
@@ -60,7 +64,7 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	evidence, err := PublishEvaluationEvidence(ctx, store, plan, policy, report, run, record)
+	evidence, err := PublishEvaluationEvidence(ctx, store, plan, policy, evaluator, report, run, record)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +85,7 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := PublishEvaluationEvidence(ctx, store, plan, wrong, report, run, record); err == nil {
+	if _, err := PublishEvaluationEvidence(ctx, store, plan, wrong, evaluator, report, run, record); err == nil {
 		t.Fatal("accepted evaluation outside suite policy")
 	}
 }

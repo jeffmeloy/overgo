@@ -22,6 +22,7 @@ type EvaluationEvidence struct {
 	Version         uint16                  `json:"version"`
 	Plan            artifact.ID             `json:"plan"`
 	Acceptance      artifact.ID             `json:"acceptance"`
+	Evaluator       artifact.ID             `json:"evaluator"`
 	Report          artifact.ID             `json:"report"`
 	Run             artifact.ID             `json:"run"`
 	Evaluation      artifact.ID             `json:"evaluation"`
@@ -72,6 +73,11 @@ func ValidateEvaluationEvidence(ctx context.Context, reader artifact.Reader, val
 	if err != nil || !found {
 		return errors.Join(err, errors.New("evaluation: stored acceptance policy is absent"))
 	}
+	evaluator, found, err := evaluatorCodec.Read(ctx, reader, value.Evaluator)
+	if err != nil || !found || evaluator.Plan != value.Plan || evaluator.Acceptance != value.Acceptance ||
+		!slices.Equal(evaluator.Metrics, policy.Metrics) {
+		return errors.Join(err, errors.New("evaluation: stored evaluator differs"))
+	}
 	run, err := loadEvidenceRun(ctx, reader, value.Run)
 	if err != nil {
 		return err
@@ -105,12 +111,14 @@ func PublishEvaluationEvidence(
 	repository artifact.Repository,
 	plan Plan,
 	acceptance AcceptancePolicy,
+	evaluator Evaluator,
 	report artifact.ID,
 	run runrecord.Run,
 	record runrecord.Evaluation,
 ) (EvaluationEvidence, error) {
 	if ctx == nil || repository == nil || report.Kind() != artifact.KindEvaluation ||
-		acceptancePolicyCodec.ValidateIdentity(acceptance) != nil || !acceptance.admits(record.Metrics) ||
+		acceptancePolicyCodec.ValidateIdentity(acceptance) != nil || evaluatorCodec.ValidateIdentity(evaluator) != nil ||
+		evaluator.Plan != plan.identity || evaluator.Acceptance != acceptance.ID || !acceptance.admits(record.Metrics) ||
 		run.ValidateIdentity() != nil || record.ValidateIdentity() != nil || run.Outcome != runrecord.OutcomeSucceeded ||
 		run.Recipe != plan.body.RuntimeRecipe || run.Environment != plan.body.Environment || run.CodeCommit != plan.body.CodeCommit ||
 		!slices.Contains(run.Inputs, plan.identity) || !slices.Contains(run.Outputs, report) ||
@@ -129,7 +137,7 @@ func PublishEvaluationEvidence(
 		return EvaluationEvidence{}, err
 	}
 	evidence, err := evaluationEvidenceCodec.New(EvaluationEvidence{
-		Version: evaluationEvidenceVersion, Plan: plan.identity, Acceptance: acceptance.ID,
+		Version: evaluationEvidenceVersion, Plan: plan.identity, Acceptance: acceptance.ID, Evaluator: evaluator.ID,
 		Report: report, Run: run.ID, Evaluation: record.ID,
 		ModelDefinition: plan.body.ModelDefinition, Recipe: plan.body.RuntimeRecipe,
 		Dataset: plan.body.Dataset, Split: plan.body.Split, Shards: shards,
@@ -143,17 +151,21 @@ func PublishEvaluationEvidence(
 	if err != nil {
 		return EvaluationEvidence{}, err
 	}
+	evaluatorContent, err := evaluator.Content()
+	if err != nil {
+		return EvaluationEvidence{}, err
+	}
 	evidenceContent, err := evaluationEvidenceCodec.Content(evidence)
 	if err != nil {
 		return EvaluationEvidence{}, err
 	}
 	parents := []artifact.ID{
-		evidence.Plan, evidence.Acceptance, evidence.Report, evidence.Run, evidence.Evaluation,
+		evidence.Plan, evidence.Acceptance, evidence.Evaluator, evidence.Report, evidence.Run, evidence.Evaluation,
 		evidence.ModelDefinition, evidence.Recipe, evidence.Dataset, evidence.Split, evidence.Environment,
 	}
 	parents = append(parents, evidence.Shards...)
 	batch, err := artifact.NewDocumentBatch(
-		"evaluation/evidence/"+evidence.ID.String(), []artifact.Content{policyContent, evidenceContent},
+		"evaluation/evidence/"+evidence.ID.String(), []artifact.Content{policyContent, evaluatorContent, evidenceContent},
 		artifact.DependencyLineage(evidence.ID, uniqueArtifactIDs(parents)...), nil,
 	)
 	if err != nil {
@@ -230,7 +242,8 @@ func loadEvidenceRecord(ctx context.Context, reader artifact.Reader, id artifact
 
 func canonicalizeEvaluationEvidence(value *EvaluationEvidence) error {
 	if value == nil || value.Version != evaluationEvidenceVersion || value.Plan.Kind() != artifact.KindProfile ||
-		value.Acceptance.Kind() != artifact.KindProfile || value.Report.Kind() != artifact.KindEvaluation ||
+		value.Acceptance.Kind() != artifact.KindProfile || value.Evaluator.Kind() != artifact.KindEvidence ||
+		value.Report.Kind() != artifact.KindEvaluation ||
 		value.Run.Kind() != artifact.KindRun || value.Evaluation.Kind() != artifact.KindEvaluation ||
 		value.ModelDefinition.Kind() != artifact.KindModelDefinition || value.Recipe.Kind() != artifact.KindRecipe ||
 		value.Dataset.Kind() != artifact.KindDataset || value.Split.Kind() != artifact.KindDatasetShard ||

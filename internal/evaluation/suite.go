@@ -37,6 +37,7 @@ type CompiledSuite struct {
 	descriptor SuiteDescriptor
 	plan       Plan
 	acceptance AcceptancePolicy
+	evaluator  Evaluator
 	execute    func(context.Context, artifact.Repository, Runtime) (SuiteResult, error)
 }
 
@@ -217,9 +218,13 @@ func newCompiledSuite(
 	if execute == nil || kind == "" || source == "" || cases == 0 || !plan.Identity().Valid() {
 		return CompiledSuite{}, errors.New("evaluation: incomplete compiled suite")
 	}
+	evaluator, err := NewEvaluator(plan.Identity(), acceptance)
+	if err != nil {
+		return CompiledSuite{}, err
+	}
 	return CompiledSuite{
 		descriptor: SuiteDescriptor{Kind: kind, Source: source, Plan: plan.Identity(), Dataset: plan.Dataset(), Cases: cases},
-		plan:       plan, acceptance: acceptance, execute: execute,
+		plan:       plan, acceptance: acceptance, evaluator: evaluator, execute: execute,
 	}, nil
 }
 

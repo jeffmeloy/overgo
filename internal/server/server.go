@@ -18,10 +18,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/inference"
 	"overgo/internal/operation"
 	"overgo/internal/projector"
+	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
 	"overgo/internal/tokenizer"
@@ -230,6 +233,8 @@ type Config struct {
 	// corresponding /datasets or /runs endpoint.
 	DatasetsRoot string
 	RepoDBPath   string
+	Repository   *repodb.Store
+	Environment  runrecord.Environment
 	Evaluation   EvaluationWorkspaceAPI
 	Analysis     AnalysisPolicy
 }
@@ -352,6 +357,10 @@ type Handler struct {
 	responseFiles      ResponseFileResolver
 	thinkingSigner     *anthropicThinkingSigner
 	operations         *operation.Manager
+	repository         *repodb.Store
+	environment        runrecord.Environment
+	modelArtifact      artifact.ID
+	observationErrors  atomic.Uint64
 }
 
 func New(config Config, generator Generator) (*Handler, error) {
@@ -446,7 +455,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("server defaults: %w", err)
 	}
-	operations, err := operation.NewManager(config.MaxStoredResponses)
+	repository, environment, err := openServingRepository(config)
 	if err != nil {
 		return nil, err
 	}
@@ -470,7 +479,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 			}
 		}
 	}
-	return &Handler{
+	handler := &Handler{
 		config:          config,
 		generator:       generator,
 		generation:      generation,
@@ -488,8 +497,17 @@ func New(config Config, generator Generator) (*Handler, error) {
 		),
 		responseFiles:  config.ResponseFiles,
 		thinkingSigner: thinkingSigner,
-		operations:     operations,
-	}, nil
+		repository:     repository,
+		environment:    environment,
+	}
+	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
+		handler.modelArtifact = identity.ModelID()
+	}
+	handler.operations, err = operation.NewManager(config.MaxStoredResponses)
+	if err != nil {
+		return nil, err
+	}
+	return handler, nil
 }
 
 // Close: release fused scheduler state.
@@ -500,12 +518,13 @@ func (h *Handler) Close() error {
 	if h.operations != nil {
 		h.operations.Close()
 	}
-	if h.continuous == nil {
-		return nil
+	var closeErr error
+	if h.continuous != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		closeErr = h.continuous.Close(ctx)
+		cancel()
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return h.continuous.Close(ctx)
+	return closeErr
 }
 
 func (h *Handler) acquireSlot(requested int) (int, bool) {

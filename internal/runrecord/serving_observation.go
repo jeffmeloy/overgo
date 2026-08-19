@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
 	"math"
 	"slices"
@@ -50,6 +51,7 @@ type ServingObservation struct {
 	Recipe        artifact.ID      `json:"recipe"`
 	Environment   artifact.ID      `json:"environment"`
 	Operation     artifact.ID      `json:"operation,omitzero"`
+	Run           artifact.ID      `json:"run,omitzero"`
 	Task          recipe.Task      `json:"task"`
 	Outcome       Outcome          `json:"outcome"`
 	StartedUnixNS int64            `json:"started_unix_ns"`
@@ -72,8 +74,8 @@ func (value ServingObservation) Content() (artifact.Content, error) {
 
 func (value ServingObservation) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.Model, value.Recipe, value.Environment}
-	if value.Operation.Valid() {
-		parents = append(parents, value.Operation)
+	if value.Run.Valid() {
+		parents = append(parents, value.Run)
 	}
 	return artifact.DependencyLineage(value.ID, parents...)
 }
@@ -82,14 +84,37 @@ func (value ServingObservation) Batch(key string) (artifact.Batch, error) {
 	return servingObservationCodec.Batch(key, value, value.Lineage(), nil)
 }
 
+// PublishServingObservation: identify and commit one serving fact.
+func PublishServingObservation(ctx context.Context, repository artifact.Repository, value ServingObservation) (ServingObservation, error) {
+	if ctx == nil || repository == nil {
+		return ServingObservation{}, errors.New("run record: serving observation repository is absent")
+	}
+	value.Version, value.ID = ServingObservationVersion, artifact.ID{}
+	identified, err := servingObservationCodec.New(value)
+	if err != nil {
+		return ServingObservation{}, err
+	}
+	batch, err := identified.Batch("serving/observation/" + identified.ID.String())
+	if err != nil {
+		return ServingObservation{}, err
+	}
+	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
+		return ServingObservation{}, err
+	}
+	return identified, nil
+}
+
 func canonicalizeServingObservation(value *ServingObservation) error {
 	if value == nil || value.Version != ServingObservationVersion || value.Model.Kind() != artifact.KindModel ||
 		value.Recipe.Kind() != artifact.KindRecipe || value.Environment.Kind() != artifact.KindEvidence ||
-		!value.Task.Valid() || value.StartedUnixNS <= 0 || value.MeasuredNS == 0 || value.MeasuredNS > math.MaxInt64 {
+		!value.Task.Valid() || value.StartedUnixNS <= 0 || value.MeasuredNS > math.MaxInt64 {
 		return errors.New("run record: invalid serving observation authority")
 	}
 	if value.Operation.Valid() && (value.Operation.Kind() != artifact.KindEvidence || value.Operation == value.Environment) {
 		return errors.New("run record: invalid serving operation")
+	}
+	if value.Run.Valid() && value.Run.Kind() != artifact.KindRun {
+		return errors.New("run record: invalid serving run")
 	}
 	switch value.Outcome {
 	case OutcomeSucceeded:

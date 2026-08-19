@@ -307,7 +307,10 @@ func (h *Handler) evaluationRun(response http.ResponseWriter, request *http.Requ
 	id, err := h.operations.Submit(context.WithoutCancel(request.Context()), operation.Request{
 		Task: recipe.TaskInference, Recipe: recipeID,
 	}, func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
-		return workspace.ExecuteEvaluation(ctx, body.Model, body.Plans, reporter)
+		return h.executeObservedOperation(ctx, reporter, recipe.TaskInference, recipeID,
+			func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
+				return workspace.ExecuteEvaluation(ctx, body.Model, body.Plans, reporter)
+			})
 	})
 	if err != nil {
 		writeGenerationError(response, err)

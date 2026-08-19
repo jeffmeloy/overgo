@@ -27,11 +27,11 @@ func (h *Handler) artifactGallery(response http.ResponseWriter, request *http.Re
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
-	store, ok := h.openBrowseStore(response)
+	store, release, ok := h.openBrowseStore(response)
 	if !ok {
 		return
 	}
-	defer store.Close()
+	defer release()
 	query, offset, limit, err := h.artifactQuery(request)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -86,11 +86,11 @@ func (h *Handler) artifactContent(response http.ResponseWriter, request *http.Re
 		writeInvalidRequest(response, err)
 		return
 	}
-	store, ok := h.openBrowseStore(response)
+	store, release, ok := h.openBrowseStore(response)
 	if !ok {
 		return
 	}
-	defer store.Close()
+	defer release()
 	descriptor, reader, found, err := store.OpenContent(request.Context(), id)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
@@ -140,15 +140,18 @@ func (h *Handler) artifactQuery(request *http.Request) (repodb.Query, int, int, 
 	return query, offset, limit, nil
 }
 
-func (h *Handler) openBrowseStore(response http.ResponseWriter) (*repodb.Store, bool) {
+func (h *Handler) openBrowseStore(response http.ResponseWriter) (*repodb.Store, func(), bool) {
+	if h.repository != nil {
+		return h.repository, func() {}, true
+	}
 	if h.config.RepoDBPath == "" {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "artifact browsing is not configured")
-		return nil, false
+		return nil, nil, false
 	}
 	store, err := repodb.OpenReadOnly(h.config.RepoDBPath)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "repodb_error", "cannot open the artifact store")
-		return nil, false
+		return nil, nil, false
 	}
-	return store, true
+	return store, func() { _ = store.Close() }, true
 }

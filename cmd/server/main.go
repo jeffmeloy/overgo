@@ -143,7 +143,7 @@ func run() error {
 	}
 	var generator llamaserver.Generator = runner
 	var workspaceStore *repodb.Store
-	if *trainingEnabled || *modelBuilderEnabled || len(evaluationSuites) > 0 {
+	if repoPath != "" {
 		workspaceStore, err = repodb.Open(repoPath)
 		if err != nil {
 			return fmt.Errorf("open workspace repository: %w", err)
@@ -263,6 +263,7 @@ func run() error {
 		VideoMaxFrames:     *videoMaxFrames,
 		DatasetsRoot:       datasetsRoot,
 		RepoDBPath:         repoPath,
+		Repository:         workspaceStore,
 		Evaluation:         evaluationWorkspace,
 		Analysis: llamaserver.AnalysisPolicy{
 			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,

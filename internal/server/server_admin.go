@@ -10,10 +10,14 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
+	"overgo/internal/cuda/driver"
 	"overgo/internal/inference"
+	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
 	"overgo/internal/tokenizer"
@@ -730,6 +734,13 @@ func (h *Handler) generate(
 	prompt string,
 	options inference.GenerateOptions,
 ) ([]tokenizer.TokenID, string, error) {
+	started := time.Now()
+	var promptTokens, outputTokens atomic.Uint64
+	var promptDuration atomic.Int64
+	before := driver.ExecutionStats{}
+	if api, ok := h.generator.(DeviceExecutionAPI); ok {
+		before, _ = api.DeviceExecutionStats(ctx)
+	}
 	h.generationRequests.Add(1)
 	var stats *slotRuntimeStats
 	if slotID >= 0 && slotID < len(h.slotStats) {
@@ -738,6 +749,8 @@ func (h *Handler) generate(
 	}
 	onPromptEvaluated := options.OnPromptEvaluated
 	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
+		promptTokens.Add(uint64(max(evaluation.Tokens, 0)))
+		promptDuration.Add(max(evaluation.Duration.Nanoseconds(), 0))
 		if stats != nil {
 			stats.promptTokens.Add(uint64(max(evaluation.Tokens, 0)))
 			stats.cachedTokens.Add(uint64(max(evaluation.Cached, 0)))
@@ -749,6 +762,7 @@ func (h *Handler) generate(
 	}
 	onToken := options.OnToken
 	options.OnToken = func(event inference.TokenEvent) error {
+		outputTokens.Add(1)
 		h.generatedTokens.Add(1)
 		if stats != nil {
 			stats.generatedTokens.Add(1)
@@ -766,6 +780,24 @@ func (h *Handler) generate(
 	ids, text, err := generator.Generate(ctx, prompt, options)
 	if err != nil {
 		h.generationErrors.Add(1)
+	}
+	if modelID, recipeID, ok := h.servingIdentity(recipe.TaskInference); ok {
+		after := before
+		if api, available := h.generator.(DeviceExecutionAPI); available {
+			after, _ = api.DeviceExecutionStats(ctx)
+		}
+		elapsed := time.Since(started)
+		outcome, failure := executionOutcome(err)
+		h.publishServing(ctx, runrecord.ServingObservation{
+			Model: modelID, Recipe: recipeID, Task: recipe.TaskInference,
+			Outcome: outcome, Failure: failure, StartedUnixNS: started.UnixNano(), MeasuredNS: uint64(max(elapsed.Nanoseconds(), 0)),
+			Usage: runrecord.ServingUsage{InputTokens: promptTokens.Load(), OutputTokens: outputTokens.Load(), InputBytes: uint64(len(prompt)), OutputBytes: uint64(len(text))},
+			Resources: runrecord.ServingResources{
+				HostToDeviceBytes: servingTransferDelta(before.HostToDeviceBytes, after.HostToDeviceBytes),
+				DeviceToHostBytes: servingTransferDelta(before.DeviceToHostBytes, after.DeviceToHostBytes),
+			},
+			Phases: servingPhases(time.Duration(promptDuration.Load()), elapsed),
+		})
 	}
 	return ids, text, err
 }

@@ -2,6 +2,7 @@ package runrecord
 
 import (
 	"context"
+	"math"
 	"slices"
 	"testing"
 
@@ -59,7 +60,7 @@ func TestServingObservationContractAndIndexedQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	parents := []artifact.ID{fixture.Model, fixture.Recipe, fixture.Environment, fixture.Operation}
+	parents := []artifact.ID{fixture.Model, fixture.Recipe, fixture.Environment}
 	descriptors := make([]artifact.Descriptor, len(parents))
 	for index, id := range parents {
 		descriptors[index] = artifact.Descriptor{ID: id}
@@ -98,7 +99,7 @@ func TestServingObservationRefusesInvalidFacts(t *testing.T) {
 		{"operation", func(value *ServingObservation) { value.Operation = value.Environment }},
 		{"task", func(value *ServingObservation) { value.Task = recipe.Task("unknown") }},
 		{"start", func(value *ServingObservation) { value.StartedUnixNS = 0 }},
-		{"duration", func(value *ServingObservation) { value.MeasuredNS = 0 }},
+		{"duration", func(value *ServingObservation) { value.MeasuredNS = math.MaxUint64 }},
 		{"outcome", func(value *ServingObservation) { value.Outcome = Outcome("unknown") }},
 		{"success failure", func(value *ServingObservation) { value.Failure = "failed" }},
 		{"duplicate phase", func(value *ServingObservation) { value.Phases = append(value.Phases, value.Phases[0]) }},

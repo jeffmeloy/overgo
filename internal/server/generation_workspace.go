@@ -148,7 +148,10 @@ func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Reques
 	id, err := h.operations.Submit(context.WithoutCancel(request.Context()), operation.Request{
 		Task: body.Task, Recipe: body.Recipe,
 	}, func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
-		return workspace.ExecuteWorkflow(ctx, kind, body.Task, body.Recipe, body.Input, reporter)
+		return h.executeObservedOperation(ctx, reporter, body.Task, body.Recipe,
+			func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
+				return workspace.ExecuteWorkflow(ctx, kind, body.Task, body.Recipe, body.Input, reporter)
+			})
 	})
 	if err != nil {
 		writeGenerationError(response, err)

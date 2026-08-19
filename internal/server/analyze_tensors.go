@@ -164,14 +164,18 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 // retrieval degrades to within-model, never errors, when the catalog is
 // unpopulated.
 func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, string) {
-	if h.config.RepoDBPath == "" {
+	store := h.repository
+	if store == nil && h.config.RepoDBPath == "" {
 		return nil, ""
 	}
-	store, err := repodb.OpenReadOnly(h.config.RepoDBPath)
-	if err != nil {
-		return nil, ""
+	if store == nil {
+		var err error
+		store, err = repodb.OpenReadOnly(h.config.RepoDBPath)
+		if err != nil {
+			return nil, ""
+		}
+		defer store.Close()
 	}
-	defer store.Close()
 	ctx := request.Context()
 	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorInventory, MaxResults: repodb.MaxQueryResults})
 	if err != nil {

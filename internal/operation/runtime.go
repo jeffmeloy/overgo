@@ -60,7 +60,9 @@ type Completion struct {
 	Outputs []artifact.ID
 }
 
+// Reporter: operation identity and bounded progress publication.
 type Reporter interface {
+	OperationID() artifact.ID
 	Progress(uint64, *uint64)
 	Metric(Metric)
 	Publishing()
@@ -317,6 +319,8 @@ type operationReporter struct {
 	manager *Manager
 	id      artifact.ID
 }
+
+func (reporter operationReporter) OperationID() artifact.ID { return reporter.id }
 
 func (reporter operationReporter) Progress(completed uint64, total *uint64) {
 	reporter.manager.mu.Lock()

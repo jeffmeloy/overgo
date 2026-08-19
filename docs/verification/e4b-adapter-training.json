@@ -1,0 +1,20 @@
+{
+  "model": "model:sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501",
+  "name": "gemma-4-E4B-it-bf16-GGUF",
+  "model_file": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/gemma-4-E4B-it-bf16.gguf",
+  "evidence_files": ["docs/verification/e4b-adapter-training-run.txt"],
+  "dataset_files": ["docs/verification/e4b-adapter-training-dataset.txt"],
+  "claims": [
+    {
+      "capability": "training",
+      "tier": "real-artifact-smoke",
+      "commit": "67622a18142c75ab8ef712d8f0b0be5fb854ee3b",
+      "dataset": "dataset-shard:sha256:e4318240cc3747cb46dbf63842a3477b52b744fa854266ac7d8bbd913503f78b",
+      "span_steps": 1,
+      "span_tokens": 5,
+      "context_tokens": 5,
+      "wall_ns": 10218849900,
+      "evidence": ["evidence:sha256:8c980d5224933fdf7647fc640a22c4221e065ced135aba5552471562ea09b895"]
+    }
+  ]
+}

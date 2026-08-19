@@ -1,0 +1,8 @@
+{
+  "task": "classification",
+  "x": [0, 1, 2],
+  "y": [0, 1, 1],
+  "rows": 3,
+  "cols": 1,
+  "train_rows": 2
+}

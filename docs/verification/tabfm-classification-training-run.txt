@@ -1,0 +1,20 @@
+overgo TabFM classification decoder training verification
+
+model file: C:/Users/jeffm/adaptive_new/models/tabfm-1.0.0-pytorch/classification/model.safetensors
+request: docs/verification/tabfm-classification-training-request.json
+command: go run ./cmd/tabular-train-probe -model <tabfm-root> -task classification -input <request> -steps 1
+
+The validated set-transformer encoder remained frozen. Its support-conditioned
+features fed the artifact decoder, whose four tensors were bound directly to
+one shared Muon pack.
+
+result:
+  rows: 3 (2 support, 1 query)
+  trainable parameters: 8,433,674
+  loss: 0.9424274323960593
+  learning rate: 0.00034434326672796236
+  gradient L2: 20.197884780100267
+  wall: 3.41294s
+
+TestDecoderTrainerRealArtifacts separately exercises the committed golden
+request and validates a finite nonzero update against the same real artifact.

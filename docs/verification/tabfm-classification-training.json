@@ -1,0 +1,17 @@
+{
+  "model": "model:sha256:928cb350becdc77cdb7a9e8c36deda88917bfd14a3091894a2dc516db58a2085",
+  "name": "TabFM-1.0-classification",
+  "evidence_files": ["docs/verification/tabfm-classification-training-run.txt"],
+  "dataset_files": ["docs/verification/tabfm-classification-training-request.json"],
+  "claims": [
+    {
+      "capability": "training",
+      "tier": "real-artifact-smoke",
+      "commit": "67622a18142c75ab8ef712d8f0b0be5fb854ee3b",
+      "dataset": "dataset-shard:sha256:6571c74d891eb053b4cdd10d0aa4b6c0e07a5fc3ff4dc926ae22c0a1b08f56c0",
+      "span_steps": 1,
+      "wall_ns": 3412940000,
+      "evidence": ["evidence:sha256:db694c0596a65a2e3df05fc91ed4961b9eb23044154fe693d752e65cedbfe598"]
+    }
+  ]
+}

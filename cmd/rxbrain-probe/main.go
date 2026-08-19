@@ -16,6 +16,8 @@ import (
 func main() {
 	model := flag.String("model", "", "RxBrain checkpoint directory (config.json + sharded safetensors)")
 	bindText := flag.Bool("bind-text", false, "bind the base-text decode branch from the shards and report the promotion")
+	forwardCheck := flag.Bool("forward-check", false, "run the host text forward over a fixed token sequence and report the greedy terminal")
+	ropeAlpha := flag.Float64("rope-alpha", 1000.0, "dynamic NTK-alpha rope scaling (checkpoint declares 1000)")
 	flag.Parse()
 	if *model == "" || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: rxbrain-probe -model <checkpoint-dir>")
@@ -40,7 +42,7 @@ func main() {
 	fmt.Printf("inventory: tensors=%d text=%d vision=%d generation=%d visual_tower=%d flow=%d shared=%d\n",
 		len(inventory.TensorShard), inventory.TextBranch, inventory.VisionBranch,
 		inventory.GenerationBranch, inventory.VisualTower, inventory.FlowAdapters, inventory.Shared)
-	if *bindText {
+	if *bindText || *forwardCheck {
 		weights, err := rxbrain.LoadTextWeights(*model, config)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "rxbrain-probe:", err)
@@ -53,6 +55,17 @@ func main() {
 				len(layer.GateProj) + len(layer.UpProj) + len(layer.DownProj)
 		}
 		fmt.Printf("text branch bound: layers=%d parameters=%d (tied head)\n", len(weights.Layers), parameters)
+		if *forwardCheck {
+			tokens := []int{config.BOSTokenID, 3000, 4000, 5000}
+			hidden, err := rxbrain.ForwardText(config, weights, tokens, *ropeAlpha)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "rxbrain-probe:", err)
+				os.Exit(1)
+			}
+			next, score := rxbrain.GreedyNextToken(config, weights, hidden)
+			fmt.Printf("forward check: %d tokens -> greedy next=%d score=%.3f (ntk-alpha rope inv[1]=%.6g)\n",
+				len(tokens), next, score, rxbrain.RopeInvFreq(config, *ropeAlpha)[1])
+		}
 	}
-	fmt.Println("honesty: declaration, inventory and binding contracts only; decode math lands behind this tool")
+	fmt.Println("honesty: text-branch contracts and host forward only; vision encode and generation land behind this tool")
 }

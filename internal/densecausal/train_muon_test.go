@@ -81,7 +81,7 @@ func TestMuonTrainingDecreasesLossTiny(t *testing.T) {
 	m := tinyMuonModel(t)
 	tokens := []int{1, 5, 9, 3, 7, 2, 11, 4}
 	const steps = 20
-	trajectory, err := m.TrainBatches(slices.Repeat([][]int{tokens}, steps), 0, 0.9)
+	trajectory, _, err := m.Train(slices.Repeat([][]int{tokens}, steps), 0, 0.9, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,15 +110,15 @@ func TestTrainBatchesResumeMatchesUninterrupted(t *testing.T) {
 		{1, 2, 3, 4, 5, 6, 7, 8},
 	}
 	uninterrupted := tinyMuonModel(t)
-	if _, err := uninterrupted.TrainBatches(batches, 0, 0.9); err != nil {
+	if _, _, err := uninterrupted.Train(batches, 0, 0.9, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	resumed := tinyMuonModel(t)
-	_, state, err := resumed.TrainBatchesResume(batches[:2], 0, 0.9, nil)
+	_, state, err := resumed.Train(batches[:2], 0, 0.9, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := resumed.TrainBatchesResume(batches[2:], 0, 0.9, &state); err != nil {
+	if _, _, err := resumed.Train(batches[2:], 0, 0.9, &state, nil); err != nil {
 		t.Fatal(err)
 	}
 	for name, want := range uninterrupted.Weights {

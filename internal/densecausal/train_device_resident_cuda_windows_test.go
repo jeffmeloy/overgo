@@ -27,7 +27,7 @@ func TestTrainDeviceResidentMatchesHost(t *testing.T) {
 	const steps = 12
 
 	batches := slices.Repeat([][]int{tokens}, steps)
-	trajHost, err := mHost.TrainBatches(batches, 0, 0.9)
+	trajHost, _, err := mHost.Train(batches, 0, 0.9, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestTrainDeviceResidentQwen2BiasMatchesHost(t *testing.T) {
 	host := modelFromGolden(t, golden)
 	resident := modelFromGolden(t, golden)
 	batches := slices.Repeat([][]int{golden.Tokens}, 2)
-	wantTrajectory, wantState, err := host.TrainBatchesResume(batches, 0, 0.9, nil)
+	wantTrajectory, wantState, err := host.Train(batches, 0, 0.9, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

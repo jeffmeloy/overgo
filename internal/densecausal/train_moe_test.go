@@ -63,7 +63,7 @@ func TestMixtureMuonTrainingDecreasesLossTiny(t *testing.T) {
 	expertBefore := append([]float32(nil), m.Weights["model.layers.1.mlp.experts.0.down_proj.weight"]...)
 	tokens := []int{1, 5, 9, 3, 7, 2, 11, 4}
 	const steps = 20
-	trajectory, err := m.TrainBatches(slices.Repeat([][]int{tokens}, steps), 0, 0.9)
+	trajectory, _, err := m.Train(slices.Repeat([][]int{tokens}, steps), 0, 0.9, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

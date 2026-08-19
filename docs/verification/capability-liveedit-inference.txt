@@ -1,0 +1,8 @@
+overgo capability inference verification
+tool: go test internal/latentvideo (modeltest tag, OVERGO_CUDA_TEST=1)
+protocol: LiveEdit reference-edit device runtime (TestLiveEditDeviceRuntime)
+with checkpoint binding pinned by the sibling test -- video editing through
+the latent-video path against the real checkpoint on device.
+measured wall_ns: 6720000000 (runtime suite wall)
+modality: video-to-video (reference edit). peak device memory not
+instrumented on this path -- wall-only measurement by rule.

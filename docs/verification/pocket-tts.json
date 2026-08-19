@@ -1,0 +1,19 @@
+{
+ "model": "model:sha256:a4246e239af0f35a1c495b6d180961a6f10b379dc24dd537f64c695c08e4e216",
+ "name": "Pocket-TTS",
+ "model_file": "C:/Users/jeffm/adaptive_new/models/pocket-tts/tts_b6369a24.safetensors",
+ "evidence_files": [
+  "docs/verification/capability-pocket-tts-inference.txt"
+ ],
+ "claims": [
+  {
+   "capability": "inference",
+   "tier": "real-artifact-smoke",
+   "commit": "b263e8c918021138a623ee6d05172da3b109a575",
+   "wall_ns": 2970000000,
+   "evidence": [
+    "evidence:sha256:56e337f7cdfdb9e5f51968086d317a968d37177621a7011ec48b201461bdfbb9"
+   ]
+  }
+ ]
+}

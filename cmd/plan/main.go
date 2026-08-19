@@ -60,6 +60,9 @@ func main() {
 	grantExploration := flag.String("grant-exploration", "", "commit an externally-issued exploration budget token from a JSON file")
 	chargeExploration := flag.String("charge-exploration", "", "commit one experiment spend against an exploration grant from a JSON file")
 	recordLeaseOutcome := flag.String("record-lease-outcome", "", "record measured outcome JSON for an exercised worktree lease")
+	trainScheduler := flag.String("train-scheduler", "", "train and commit the scheduler policy from realized-history JSON (per-track capability delta, wall-clock, measurement evidence)")
+	selectNext := flag.String("select-next", "", "rank candidates with a committed scheduler policy from a selection JSON (policy, budget, candidates)")
+	recordExperiment := flag.String("record-experiment", "", "commit one experiment lifecycle transition from a JSON spec (state, experiment, evidence, prior)")
 	leaseReport := flag.Bool("lease-report", false, "emit active worktree leases and resource/conflict advice as JSON")
 	cpuCapacity := flag.Int("cpu-capacity", 0, "with -lease-report: available CPU threads (0 unknown)")
 	ramCapacity := flag.Int("ram-capacity-gib", 0, "with -lease-report: available host RAM GiB (0 unknown)")
@@ -78,7 +81,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "with -context: explicit lane role (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, syncMaster: *syncMasterFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, contain: *contain, lane: *lane, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, syncMaster: *syncMasterFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, trainScheduler: *trainScheduler, selectNext: *selectNext, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -87,7 +90,7 @@ func main() {
 type cli struct {
 	next, prompt, verify, status, context, advance, add, setverify, compact, syncMaster, stop bool
 	force, title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane     string
-	grantExploration, chargeExploration                                                       string
+	grantExploration, chargeExploration, trainScheduler, selectNext, recordExperiment         string
 	leaseReport                                                                               bool
 	capacity                                                                                  plan.Resources
 }
@@ -120,6 +123,12 @@ func run(c cli, args []string) error {
 		return recordExplorationGrant(".", c.grantExploration, os.Stdout)
 	case c.chargeExploration != "":
 		return recordExplorationCharge(".", c.chargeExploration, os.Stdout)
+	case c.trainScheduler != "":
+		return trainSchedulerPolicy(".", c.trainScheduler, os.Stdout)
+	case c.selectNext != "":
+		return selectNextCandidates(".", c.selectNext, os.Stdout)
+	case c.recordExperiment != "":
+		return recordExperimentTransition(".", c.recordExperiment, os.Stdout)
 	case c.leaseReport:
 		return printLeaseReport(".", c.capacity, os.Stdout)
 	case c.add:
@@ -381,12 +390,41 @@ var validStopReasons = []string{"user-stop", "irreversible", "external-prereq"}
 // self-invented "checkpoint" or "should I continue?" is not among them.
 func validateStop(reason string) error {
 	reason = strings.TrimSpace(reason)
+	matched := ""
 	for _, v := range validStopReasons {
 		if reason == v || strings.HasPrefix(reason, v+":") {
-			return nil
+			matched = v
+			break
 		}
 	}
-	return fmt.Errorf("invalid stop reason %q -- must begin with one of: user-stop: / irreversible: / external-prereq: <detail>", reason)
+	if matched == "" {
+		return fmt.Errorf("invalid stop reason %q -- must begin with one of: user-stop: / irreversible: / external-prereq: <detail>", reason)
+	}
+	if matched == "external-prereq" {
+		// An external prerequisite is something OUTSIDE this process that the
+		// work verifiably waits on: a background task, the owner, another
+		// lane, or a long-running run. Self-pacing ("fresh context", "next
+		// session", "later") is not external and the loop refuses it -- the
+		// owner's contract is iterative develop/verify/commit/plan, never a
+		// deferral the agent grants itself.
+		detail := strings.ToLower(reason)
+		for _, selfPacing := range []string{"fresh context", "next session", "context window", "long session", "best started", "another sitting"} {
+			if strings.Contains(detail, selfPacing) {
+				return fmt.Errorf("stop refused: %q is self-pacing, not an external prerequisite -- continue the plan", selfPacing)
+			}
+		}
+		external := false
+		for _, marker := range []string{"background", "running", "owner", "merge", "download", "provision", "lane", "device", "hashing", "gate ", "missing", "absent", "unavailable"} {
+			if strings.Contains(detail, marker) {
+				external = true
+				break
+			}
+		}
+		if !external {
+			return errors.New("stop refused: external-prereq detail names nothing external (no background task, owner action, merge, or running work) -- continue the plan")
+		}
+	}
+	return nil
 }
 
 // recordStop writes a valid stop marker at the current HEAD; the stop-gate reads

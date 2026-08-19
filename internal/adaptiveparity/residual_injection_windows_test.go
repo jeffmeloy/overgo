@@ -42,7 +42,7 @@ const (
 // verdict -- SHIP or measured REFUSAL -- and fails only when it could not
 // execute. The docs/plan.json row consumes the logged verdict.
 func TestResidualInjectionConnector(t *testing.T) {
-	cudatest.Require(t)
+	cudatest.RequireProbe(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

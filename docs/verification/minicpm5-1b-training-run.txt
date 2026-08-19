@@ -1,0 +1,73 @@
+overgo training verification run
+tool: cmd/train (trainingworkflow) with lane announcement, per-step observer and projection guard
+verifying commit: 14b5964a plus the observer/guard stack landing with this claim
+model: MiniCPM5-1B sharded safetensors (adaptive_new/models/MiniCPM5-1B); the served GGUF row
+carries this claim with the safetensors source named here as training provenance
+dataset: docs/verification/qwen25-05b-training-dataset.txt (wikitext2_train slice, shared shard)
+flags: -steps 30 -seq 256 -freeze-lexical (CUDA-resident, frozen embedding/head)
+measured wall: 317545130200 ns including toolchain build; ~1.5s per step on device
+caveat: repeated leading stream record; convergence is memorization smoke -- machinery tier only.
+
+lane cuda-resident: 30 steps, 30 batches, frozen_lexical=true
+step 1/30 loss 11.535123 wall 1.694s backend cuda-resident
+step 2/30 loss 10.842700 wall 1.249s backend cuda-resident
+step 3/30 loss 9.726767 wall 1.279s backend cuda-resident
+step 4/30 loss 8.769389 wall 1.287s backend cuda-resident
+step 5/30 loss 8.013241 wall 1.254s backend cuda-resident
+step 6/30 loss 7.402839 wall 1.255s backend cuda-resident
+step 7/30 loss 6.831669 wall 1.255s backend cuda-resident
+step 8/30 loss 6.212960 wall 1.265s backend cuda-resident
+step 9/30 loss 5.579978 wall 1.295s backend cuda-resident
+step 10/30 loss 4.820977 wall 1.251s backend cuda-resident
+step 11/30 loss 4.010675 wall 1.262s backend cuda-resident
+step 12/30 loss 3.387196 wall 1.266s backend cuda-resident
+step 13/30 loss 2.310147 wall 1.266s backend cuda-resident
+step 14/30 loss 1.678120 wall 1.26s backend cuda-resident
+step 15/30 loss 0.718344 wall 1.28s backend cuda-resident
+step 16/30 loss 0.303176 wall 1.274s backend cuda-resident
+step 17/30 loss 0.129221 wall 1.293s backend cuda-resident
+step 18/30 loss 0.074148 wall 1.296s backend cuda-resident
+step 19/30 loss 0.060173 wall 1.273s backend cuda-resident
+step 20/30 loss 0.056763 wall 1.261s backend cuda-resident
+step 21/30 loss 0.052263 wall 1.264s backend cuda-resident
+step 22/30 loss 0.049451 wall 1.28s backend cuda-resident
+step 23/30 loss 0.047456 wall 1.27s backend cuda-resident
+step 24/30 loss 0.045737 wall 1.272s backend cuda-resident
+step 25/30 loss 0.044466 wall 1.254s backend cuda-resident
+step 26/30 loss 0.043396 wall 1.254s backend cuda-resident
+step 27/30 loss 0.042669 wall 1.253s backend cuda-resident
+step 28/30 loss 0.041854 wall 1.259s backend cuda-resident
+step 29/30 loss 0.041090 wall 1.254s backend cuda-resident
+step 30/30 loss 0.040425 wall 1.264s backend cuda-resident
+backend=cuda objective=token-prediction batches=30 stream_position=30 steps=30 lr=derived(n^-1/2) momentum=0.9
+step 0: loss 11.535123
+step 1: loss 10.842700
+step 2: loss 9.726767
+step 3: loss 8.769389
+step 4: loss 8.013241
+step 5: loss 7.402839
+step 6: loss 6.831669
+step 7: loss 6.212960
+step 8: loss 5.579978
+step 9: loss 4.820977
+step 10: loss 4.010675
+step 11: loss 3.387196
+step 12: loss 2.310147
+step 13: loss 1.678120
+step 14: loss 0.718344
+step 15: loss 0.303176
+step 16: loss 0.129221
+step 17: loss 0.074148
+step 18: loss 0.060173
+step 19: loss 0.056763
+step 20: loss 0.052263
+step 21: loss 0.049451
+step 22: loss 0.047456
+step 23: loss 0.045737
+step 24: loss 0.044466
+step 25: loss 0.043396
+step 26: loss 0.042669
+step 27: loss 0.041854
+step 28: loss 0.041090
+step 29: loss 0.040425
+checkpoint=checkpoint:sha256:6927a7087e330335dc352581d779a0b75583e82c92d24d9f4187801a6fd4beff written to C:/Users/jeffm/AppData/Local/Temp/claude/C--Users-jeffm-overgo/a108eff3-0feb-4193-b444-b790f3bf787d/scratchpad/minicpm5-ckpt

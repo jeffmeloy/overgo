@@ -1,0 +1,23 @@
+{
+ "model": "model:sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec",
+ "name": "Qwen3.5-4B",
+ "claims": [
+  {
+   "capability": "inference",
+   "tier": "exact-golden",
+   "commit": "6abef1ee04acf6fb67d84ae174a985786255f672",
+   "context_tokens": 2697,
+   "wall_ns": 4970377000,
+   "peak_device_bytes": 15649939968,
+   "evidence": [
+    "evidence:sha256:6dcce666b1ebf776b9ee9e9df9107b068204affc602e94949e5c4c039894ea1a",
+    "evidence:sha256:df8c90416996da77f8cacc0516f78e6bc87f298d141b9091e61cb67a03a61807"
+   ]
+  }
+ ],
+ "model_file": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf",
+ "evidence_files": [
+  "docs/verification/sweep-qwen35-4b-inference.txt",
+  "fixtures/qwen35_4b_serving_golden.json"
+ ]
+}

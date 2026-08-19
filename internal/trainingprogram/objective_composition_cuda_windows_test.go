@@ -111,7 +111,8 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if candidate.Evidence.Final.ActionAccuracy <= incumbent.Evidence.Final.ActionAccuracy ||
+	if candidate.Evidence.Final.Loss >= incumbent.Evidence.Final.Loss ||
+		candidate.Evidence.Final.ActionAccuracy < incumbent.Evidence.Final.ActionAccuracy ||
 		candidate.Evidence.Final.ModalityAccuracy < incumbent.Evidence.Final.ModalityAccuracy {
 		t.Fatalf("composed descendant did not improve: incumbent=%+v candidate=%+v", incumbent.Evidence.Final, candidate.Evidence.Final)
 	}

@@ -5,6 +5,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
+	"time"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/trainingworkflow"
@@ -27,6 +29,7 @@ func run() error {
 	momentum := flag.Float64("momentum", 0.9, "Muon momentum")
 	host := flag.Bool("host", false, "force host execution")
 	freezeLexical := flag.Bool("freeze-lexical", false, "freeze tied embedding/head; requires CUDA resident training")
+	maxWall := flag.Duration("max-wall", 30*time.Minute, "abort at a step boundary when the first measured step projects the run past this bound (0 disables)")
 	flag.Parse()
 
 	result, err := trainingworkflow.Execute(context.Background(), trainingworkflow.Request{
@@ -34,6 +37,7 @@ func run() error {
 		ResumeDirectory: *resume, ReferenceDirectory: *reference,
 		Steps: *steps, MaximumSequence: *maximumSequence, LearningRate: *learningRate,
 		Momentum: *momentum, DPOScale: *scale, Host: *host, FreezeLexical: *freezeLexical,
+		Progress: os.Stderr, MaxProjectedWall: *maxWall,
 	})
 	if err != nil {
 		return err

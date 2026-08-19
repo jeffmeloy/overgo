@@ -1,0 +1,11 @@
+overgo capability inference verification
+tool: go test internal/sensenovarecipe (modeltest tag, OVERGO_CUDA_TEST=1,
+OVERGO_SENSENOVA_MODEL set to the real checkpoint)
+model file: C:/Users/jeffm/adaptive_new/models/SenseNova-U1-8B-MoT-Infographic-V3/model-00001-of-00008.safetensors (first of eight shards; identity = shard-1 digest)
+protocol: infographic image generation active-on-checkpoint
+(TestSenseNovaImageGenActiveOnCheckpoint) -- the recipe binds and executes
+against the real 66G MoT checkpoint; plan-vs-checkpoint topology pinned by
+sibling tests.
+measured wall_ns: 33390000000 (suite wall)
+modality: text-to-image (infographic MoT). peak device memory not
+instrumented on this path -- wall-only measurement by rule.

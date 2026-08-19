@@ -1,0 +1,45 @@
+overgo training verification run
+tool: cmd/train (trainingworkflow)
+verifying commit: 2f4a6fc66cbc3ae1d492efbc381ffd5845e1b92c
+model: Qwen2.5-0.5B safetensors (adaptive_new/models/Qwen2.5-0.5B)
+dataset: docs/verification/qwen25-05b-training-dataset.txt (wikitext2_train slice, 250000 chars)
+flags: -steps 30 -seq 256 -freeze-lexical (CUDA-resident, frozen embedding/head)
+measured wall: 113338383100 ns including toolchain build
+caveat: single leading stream record repeated across batches; convergence to ~0 loss is
+memorization smoke -- this claims the training machinery at real-artifact-smoke tier, not capability.
+lane incident: a prior launch without -freeze-lexical ground host Newton-Schulz over the
+151936x896 lexical matrix single-threaded for ~10 hours before being killed; the flag is the
+designed escape and the trainer needs a lane announcement (follow-up in modality-inference-smoke).
+
+backend=cuda objective=token-prediction batches=30 stream_position=30 steps=30 lr=derived(n^-1/2) momentum=0.9
+step 0: loss 3.301308
+step 1: loss 2.491603
+step 2: loss 1.610525
+step 3: loss 0.918323
+step 4: loss 0.376976
+step 5: loss 0.160815
+step 6: loss 0.034667
+step 7: loss 0.005063
+step 8: loss 0.002858
+step 9: loss 0.001624
+step 10: loss 0.000947
+step 11: loss 0.000568
+step 12: loss 0.000486
+step 13: loss 0.000479
+step 14: loss 0.000359
+step 15: loss 0.000298
+step 16: loss 0.000226
+step 17: loss 0.000319
+step 18: loss 0.000790
+step 19: loss 0.000350
+step 20: loss 0.000203
+step 21: loss 0.000163
+step 22: loss 0.000217
+step 23: loss 0.000121
+step 24: loss 0.000078
+step 25: loss 0.000066
+step 26: loss 0.000057
+step 27: loss 0.000049
+step 28: loss 0.000044
+step 29: loss 0.000036
+checkpoint=checkpoint:sha256:66e6631a3de1cb90f0d06c5524ab82fc6d675583fa9bdb54a28c2816b71e5455 written to C:/Users/jeffm/AppData/Local/Temp/claude/C--Users-jeffm-overgo/a108eff3-0feb-4193-b444-b790f3bf787d/scratchpad/qwen05b-ckpt

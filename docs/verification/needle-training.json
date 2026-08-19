@@ -1,0 +1,18 @@
+{
+ "model": "model:sha256:c5f9a3016e4537e492c362da5cb8ba05107d8595bec0d5ea5d8a65801db46531",
+ "name": "Needle-seq2seq",
+ "evidence_files": ["docs/verification/capability-needle-training.txt"],
+ "dataset_files": ["C:/Users/jeffm/adaptive_new/docs/repodb/content/openai_gsm8k_train.jsonl"],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "1a92893fcd60fdbb49646b17dcba9e0fb2bcc681",
+   "dataset": "dataset-shard:sha256:d0f4e3d13bba69932785ef36fb040d02595903272d8b9aa4bb8f2e4bff230386",
+   "span_steps": 1,
+   "span_tokens": 0,
+   "wall_ns": 7101000000,
+   "evidence": ["evidence:sha256:23320d495732386789e95da4d507989d5a63eea3e26e89e10258844725a586ef"]
+  }
+ ]
+}

@@ -37,7 +37,7 @@ const (
 // verdict with its generation record committed; it fails only when a
 // configuration could not execute.
 func TestTier0ChainDoseResponse(t *testing.T) {
-	cudatest.Require(t)
+	cudatest.RequireProbe(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

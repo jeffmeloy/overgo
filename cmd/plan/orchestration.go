@@ -14,6 +14,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 )
 
 // recordExplorationGrant commits an externally-issued GPU-minute budget
@@ -88,11 +89,20 @@ func recordExplorationCharge(root, inputPath string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := commitExplorationContent(root, charge.Content, "exploration/charge/", output,
-		fmt.Sprintf("charged %d GPU-minutes; %s", charge.GPUMinutes, admission.Reason)); err != nil {
+	// Commit through the store handle already held: a second open would
+	// deadlock on the single-writer lock.
+	document, err := charge.Content()
+	if err != nil {
 		return err
 	}
-	return nil
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "exploration/charge/" + document.Descriptor.ID.String(), Contents: []artifact.Content{document},
+	}); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "charged %d GPU-minutes; %s: %s\n",
+		charge.GPUMinutes, admission.Reason, document.Descriptor.ID)
+	return err
 }
 
 func commitExplorationContent(root string, content func() (artifact.Content, error), keyPrefix string, output io.Writer, message string) error {
@@ -245,6 +255,169 @@ func printLeaseReport(root string, capacity plan.Resources, output io.Writer) er
 	encoder := json.NewEncoder(output)
 	encoder.SetEscapeHTML(false)
 	return encoder.Encode(payload)
+}
+
+// trainSchedulerPolicy trains and commits the scheduler policy from realized
+// history: every realization's measurement evidence must already be
+// committed, and the policy carries lineage to each. Selection value is
+// learned from what tracks actually delivered, never asserted.
+func trainSchedulerPolicy(root, inputPath string, output io.Writer) error {
+	var realizations []plan.SchedulerRealization
+	if err := jsonfile.Decode(inputPath, &realizations); err != nil {
+		return err
+	}
+	store, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	for _, realization := range realizations {
+		_, ok, err := store.Content(ctx, realization.Evidence)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("scheduler realization evidence %s is not committed", realization.Evidence)
+		}
+	}
+	policy, err := plan.TrainSchedulerPolicy(realizations)
+	if err != nil {
+		return err
+	}
+	batch, err := policy.Batch("automation/scheduler-policy/" + policy.ID.String())
+	if err != nil {
+		return err
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "scheduler policy committed: %s tracks=%d measurements=%d\n",
+		policy.ID, len(policy.Tracks), len(policy.Sources))
+	for _, track := range policy.Tracks {
+		fmt.Fprintf(output, "track %s: %+.6f capability delta per wall-hour over %d realization(s)\n",
+			track.Track, track.DeltaPerWallHour(), track.Realizations)
+	}
+	fmt.Fprintln(output, "honesty: rates derive from committed measurements; the policy ranks, it never starts work")
+	return nil
+}
+
+// selectNextCandidates ranks candidates with a committed scheduler policy
+// under the wall-clock and VRAM budget. Advisory output: exclusions carry
+// reasons, and nothing here dispatches anything.
+func selectNextCandidates(root, inputPath string, output io.Writer) error {
+	var selection struct {
+		Policy     artifact.ID                `json:"policy"`
+		Budget     plan.SchedulerPolicyBudget `json:"budget"`
+		Candidates []plan.SchedulerCandidate  `json:"candidates"`
+	}
+	if err := jsonfile.Decode(inputPath, &selection); err != nil {
+		return err
+	}
+	store, err := repodb.OpenReadOnly(filepath.Join(root, "repodb-store"))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	content, ok, err := store.Content(context.Background(), selection.Policy)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("scheduler policy %s is not committed", selection.Policy)
+	}
+	policy, err := plan.ParseSchedulerPolicy(content.Data)
+	if err != nil {
+		return err
+	}
+	ranks, err := policy.SelectNext(selection.Candidates, selection.Budget)
+	if err != nil {
+		return err
+	}
+	for _, rank := range ranks {
+		state := "excluded"
+		if rank.Admissible {
+			state = "admissible"
+		}
+		fmt.Fprintf(output, "%s task=%s track=%s rate=%+.6f/h predicted=%s reason=%q\n",
+			state, rank.Candidate.Task, rank.Candidate.Track, rank.RatePerWallHour,
+			time.Duration(rank.Candidate.PredictedWallNS), rank.Reason)
+	}
+	fmt.Fprintf(output, "%d candidate(s) ranked by policy %s; honesty: ranking derives from realized capability delta per wall-hour, not predictions -- advisory only, selection never starts work\n",
+		len(ranks), policy.ID)
+	return nil
+}
+
+// recordExperimentTransition commits one experiment lifecycle transition:
+// the spec names the state, the experiment, the evidence justifying the
+// transition, and -- for every record after the initial proposal -- the
+// prior record it succeeds. The state machine in runrecord refuses illegal
+// edges and retry drift; this tool only carries facts to it.
+func recordExperimentTransition(root, inputPath string, output io.Writer) error {
+	var specification struct {
+		State           string       `json:"state"`
+		Experiment      artifact.ID  `json:"experiment"`
+		Evidence        artifact.ID  `json:"evidence"`
+		Prior           *artifact.ID `json:"prior,omitempty"`
+		Retry           uint32       `json:"retry,omitempty"`
+		HeartbeatExpiry string       `json:"heartbeat_expiry,omitempty"`
+		Checkpoint      *artifact.ID `json:"checkpoint,omitempty"`
+	}
+	if err := jsonfile.Decode(inputPath, &specification); err != nil {
+		return err
+	}
+	store, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	var prior *runrecord.ExperimentLifecycle
+	if specification.Prior != nil {
+		content, ok, err := store.Content(ctx, *specification.Prior)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("prior lifecycle record %s is not committed", specification.Prior)
+		}
+		parsed, err := runrecord.ParseExperimentLifecycle(content.Data)
+		if err != nil {
+			return err
+		}
+		prior = &parsed
+	}
+	record, err := runrecord.NewExperimentLifecycle(runrecord.ExperimentLifecycle{
+		State: runrecord.ExperimentState(specification.State), Experiment: specification.Experiment,
+		Retry: specification.Retry, Evidence: specification.Evidence,
+		HeartbeatExpiry: specification.HeartbeatExpiry, Checkpoint: specification.Checkpoint,
+	}, prior)
+	if err != nil {
+		return err
+	}
+	content, err := record.Content()
+	if err != nil {
+		return err
+	}
+	lineage := []artifact.Lineage{
+		{Child: record.ID, Parent: record.Experiment, Relation: artifact.RelationDependsOn},
+	}
+	if record.Evidence != record.Experiment {
+		lineage = append(lineage, artifact.Lineage{Child: record.ID, Parent: record.Evidence, Relation: artifact.RelationDependsOn})
+	}
+	if record.Prior != nil {
+		lineage = append(lineage, artifact.Lineage{Child: record.ID, Parent: *record.Prior, Relation: artifact.RelationDependsOn})
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "automation/experiment/" + record.ID.String(), Contents: []artifact.Content{content},
+		Lineage: lineage,
+	}); err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "experiment transition committed: %s state=%s experiment=%s retry=%d\n",
+		record.ID, record.State, record.Experiment, record.Retry)
+	fmt.Fprintln(output, "honesty: transitions carry evidence identities; the state machine refuses illegal edges")
+	return nil
 }
 
 // explorationBalance is one grant's derived budget state in the lease report.

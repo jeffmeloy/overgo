@@ -1,0 +1,19 @@
+{
+ "model": "model:sha256:928cb350becdc77cdb7a9e8c36deda88917bfd14a3091894a2dc516db58a2085",
+ "name": "TabFM-1.0-classification",
+ "model_file": "C:/Users/jeffm/adaptive_new/models/tabfm-1.0.0-pytorch/classification/model.safetensors",
+ "evidence_files": [
+  "docs/verification/capability-tabfm-classification-inference.txt"
+ ],
+ "claims": [
+  {
+   "capability": "inference",
+   "tier": "real-artifact-smoke",
+   "commit": "b263e8c918021138a623ee6d05172da3b109a575",
+   "wall_ns": 78020000000,
+   "evidence": [
+    "evidence:sha256:52eca5e7dbec895c8dc5b91132ad07c27ebf26e33c5f44478ea6a42578427ef7"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,19 @@
+{
+ "model": "model:sha256:b53f6d52114e2ad786890f3c4637ce05f580b7800d6e24401f88b398b76035ef",
+ "name": "TimesFM-2.5-200M",
+ "model_file": "C:/Users/jeffm/adaptive_new/models/timesfm-2.5-200m-transformers/model.safetensors",
+ "evidence_files": [
+  "docs/verification/capability-timesfm-inference.txt"
+ ],
+ "claims": [
+  {
+   "capability": "inference",
+   "tier": "real-artifact-smoke",
+   "commit": "b263e8c918021138a623ee6d05172da3b109a575",
+   "wall_ns": 980000000,
+   "evidence": [
+    "evidence:sha256:53ddfa2baac69f494c9f20cb1b8ecd705a76fe8bef510c04595ded7355b1ca2d"
+   ]
+  }
+ ]
+}

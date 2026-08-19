@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/densecausal"
@@ -33,6 +35,35 @@ type Request struct {
 	Host               bool
 	FreezeLexical      bool
 	ObserveDPO         func(trainingprogram.DPOObservation)
+	// Progress receives the lane announcement before training starts and one
+	// line per completed step. Nil keeps the run silent, but the projection
+	// guard still applies: a run whose first measured step projects past
+	// MaxProjectedWall aborts at the step boundary with the projection in the
+	// error. MaxProjectedWall zero disables the guard explicitly.
+	Progress         io.Writer
+	MaxProjectedWall time.Duration
+}
+
+// stepGuard builds the shared observer: per-step progress lines and the
+// projection guard that turns a silently pathological run into a loud,
+// early, typed refusal.
+func stepGuard(request Request, backend string) densecausal.TrainObserver {
+	return func(step int, loss float64, stepWall time.Duration) error {
+		if request.Progress != nil {
+			fmt.Fprintf(request.Progress, "step %d/%d loss %.6f wall %s backend %s\n",
+				step+1, request.Steps, loss, stepWall.Round(time.Millisecond), backend)
+		}
+		if request.MaxProjectedWall > 0 {
+			projected := stepWall * time.Duration(request.Steps)
+			if projected > request.MaxProjectedWall {
+				return fmt.Errorf(
+					"training workflow: step %d took %s on backend %s; %d steps project to %s, over the %s bound -- rerun with a longer -max-wall if intended",
+					step+1, stepWall.Round(time.Second), backend, request.Steps,
+					projected.Round(time.Minute), request.MaxProjectedWall)
+			}
+		}
+		return nil
+	}
 }
 
 type Result struct {
@@ -112,7 +143,15 @@ func executeTokenPrediction(
 		state := densecausal.TrainState(resumed.Optimizer)
 		resume = &state
 	}
-	losses, backend, state, err := runTrainingState(model, batches, request.LearningRate, request.Momentum, !request.Host, request.FreezeLexical, resume)
+	lane := "cuda-resident"
+	if request.Host {
+		lane = "host-reference"
+	}
+	if request.Progress != nil {
+		fmt.Fprintf(request.Progress, "lane %s: %d steps, %d batches, frozen_lexical=%t\n",
+			lane, request.Steps, len(batches), request.FreezeLexical)
+	}
+	losses, backend, state, err := runTrainingState(model, batches, request.LearningRate, request.Momentum, !request.Host, request.FreezeLexical, resume, stepGuard(request, lane))
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: train: %w", err)
 	}
@@ -184,7 +223,23 @@ func publishCheckpoint(source, target string, model *densecausal.Model, authorit
 }
 
 func identifyModel(directory string) (artifact.ID, error) {
-	file, err := os.Open(filepath.Join(directory, trainingprogram.CheckpointWeights))
+	path := filepath.Join(directory, trainingprogram.CheckpointWeights)
+	if _, err := os.Stat(path); err != nil {
+		// Sharded checkpoints name their weights model-NNNNN-of-MMMMM; a
+		// single shard is the same bytes under the sharded convention, so it
+		// identifies directly. Multi-shard identity needs a manifest and is
+		// refused rather than guessed.
+		shards, globErr := filepath.Glob(filepath.Join(directory, "model-*-of-*.safetensors"))
+		if globErr != nil || len(shards) == 0 {
+			return artifact.ID{}, err
+		}
+		if len(shards) > 1 {
+			return artifact.ID{}, fmt.Errorf(
+				"training workflow: %d weight shards in %s; multi-shard identity requires a manifest", len(shards), directory)
+		}
+		path = shards[0]
+	}
+	file, err := os.Open(path)
 	if err != nil {
 		return artifact.ID{}, err
 	}

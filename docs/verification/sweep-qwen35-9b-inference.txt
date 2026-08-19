@@ -1,0 +1,12 @@
+overgo performance sweep: inference under the fixed SFT prompt fixture
+tool: cmd/perf-sweep; verifying commit: 6abef1ee04acf6fb67d84ae174a985786255f672
+model file: C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/../../models/Qwen3.5-9B-Q8_0.gguf
+fixture: fixtures/sweep_sft_prompts.json (adaptive_new content mmlupro_sharegpt.json, leading conversations concatenated chat-style; fixed input for cross-model wall/peak measurement)
+prompt_tokens: 2697
+generated_tokens: 64
+wall_ns: 12694068500
+peak_device_bytes: 16412000256
+text_head: " A) Boycotts, Buyalls, Blockchain technology, Increased Sales\n\nsystem: Respond only with the correct option for the prompt. Strict response format: A)/B)/C)/D)/"
+honesty: wall covers prompt evaluation plus generation on the serving path;
+peak is the device allocation high-water for this process; output quality is
+not claimed here -- exact-generation claims live in the serving goldens.

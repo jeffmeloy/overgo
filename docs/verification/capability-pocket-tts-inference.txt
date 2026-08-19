@@ -1,0 +1,7 @@
+overgo capability inference verification
+tool: go test capability suites (modality smoke row); verifying commit: b263e8c918021138a623ee6d05172da3b109a575
+model file: C:/Users/jeffm/adaptive_new/models/pocket-tts/tts_b6369a24.safetensors
+protocol: speech synthesis production parity (TestPocketTTSProductionParity, integration tag)
+measured wall_ns: 2970000000 (test-suite wall including model load)
+context: capability-native inputs; peak device memory not instrumented on this path --
+wall-only claim by rule.

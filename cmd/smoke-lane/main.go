@@ -53,6 +53,11 @@ func run() error {
 	}
 	unavailable, failed, passed := 0, 0, 0
 	for _, entry := range entries {
+		if entry.Stale != "" {
+			unavailable++
+			fmt.Printf("[smoke] %s STALE (%s)\n", entry.Model, entry.Stale)
+			continue
+		}
 		if !entry.Present {
 			unavailable++
 			fmt.Printf("[smoke] %s UNAVAILABLE (recorded location missing: %s)\n", entry.Model, entry.Location)

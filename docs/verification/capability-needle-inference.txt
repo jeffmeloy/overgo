@@ -1,0 +1,7 @@
+overgo capability inference verification
+tool: go test capability suites (modality smoke row); verifying commit: b263e8c918021138a623ee6d05172da3b109a575
+model file: C:/Users/jeffm/adaptive_new/models/needle/model.safetensors
+protocol: seq2seq real-text generation and process probe (TestRealTextGeneration, TestSingleTokenProcessProbe)
+measured wall_ns: 1088000000 (test-suite wall including model load)
+context: capability-native inputs (real datasets/goldens per suite), not token context;
+peak device memory not instrumented on the capability path -- wall-only claim by rule.

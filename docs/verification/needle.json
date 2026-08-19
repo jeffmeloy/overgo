@@ -1,0 +1,19 @@
+{
+ "model": "model:sha256:c5f9a3016e4537e492c362da5cb8ba05107d8595bec0d5ea5d8a65801db46531",
+ "name": "Needle-seq2seq",
+ "model_file": "C:/Users/jeffm/adaptive_new/models/needle/model.safetensors",
+ "evidence_files": [
+  "docs/verification/capability-needle-inference.txt"
+ ],
+ "claims": [
+  {
+   "capability": "inference",
+   "tier": "real-artifact-smoke",
+   "commit": "b263e8c918021138a623ee6d05172da3b109a575",
+   "wall_ns": 1088000000,
+   "evidence": [
+    "evidence:sha256:ae91d10b72863299c155ddbc1b8ddec7473ae930182941892c20f8cd95617430"
+   ]
+  }
+ ]
+}

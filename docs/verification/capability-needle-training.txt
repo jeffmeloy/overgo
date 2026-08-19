@@ -1,0 +1,10 @@
+overgo training verification
+tool: go test internal/seq2seq (modeltest tag)
+model file: C:/Users/jeffm/adaptive_new/models/needle/model.safetensors
+protocol: compiled seq2seq training on real GSM8K pairs through the encoder
+-decoder path (TestNeedleRealGSM8KCompiledTraining), device execution
+measured wall_ns: 7101000000 (suite wall including model load)
+dataset: real GSM8K training pairs as consumed by the suite's own loader;
+the suite pins pair assembly, compiled objective execution and held-out
+evaluation in sibling tests run in the same sweep.
+notes: peak device memory not instrumented on this path -- wall-only claim.

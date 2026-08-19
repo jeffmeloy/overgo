@@ -1,0 +1,10 @@
+overgo capability inference verification
+tool: go test internal/adaptiveparity (modeltest tag, OVERGO_CUDA_TEST=1)
+model file: C:/Users/jeffm/adaptive_new/models/Unlimited-OCR/model-00001-of-000001.safetensors
+protocol: real Unlimited-OCR production parity (TestUnlimitedOCRProductionParity)
+-- image-to-text OCR through the deepencoder path against the real checkpoint,
+parity-matched to the recorded production reference; layout-metrics contract
+pinned by the sibling test in the same sweep.
+measured wall_ns: 293360000000 (suite wall including 13G checkpoint load)
+modality: image-to-text (OCR). peak device memory not instrumented on this
+path -- wall-only measurement by rule.

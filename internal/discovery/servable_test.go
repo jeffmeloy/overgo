@@ -9,43 +9,110 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
-func TestServableInvalidActivationNamesModel(t *testing.T) {
+// TestServableReportsStaleActivationsWithoutFailing closes the wholesale
+// -failure finding: a model whose activation cannot be trusted becomes a
+// STALE entry naming its defect, and discovery keeps enumerating -- one
+// broken activation must not blind the catalog to every healthy model. The
+// stale entry is reported, never served.
+func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 	ctx := context.Background()
 	store, err := repodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	payload := []byte("discovery-weights")
-	component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
-	location := filepath.Join(t.TempDir(), "weights.gguf")
-	if err := os.WriteFile(location, payload, 0o600); err != nil {
-		t.Fatal(err)
+	publish := func(name string) artifact.ID {
+		payload := []byte("discovery-weights-" + name)
+		component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
+		location := filepath.Join(t.TempDir(), name+".gguf")
+		if err := os.WriteFile(location, payload, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+			Role: artifact.ComponentWeights, Name: "weights", Artifact: component,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.Commit(ctx, artifact.Batch{
+			Key:       "fixture/discovery/facts/" + name,
+			Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},
+			Manifests: []artifact.Manifest{manifest},
+			Locations: []artifact.LocationEvent{{Location: artifact.Location{
+				Artifact: component, Kind: artifact.LocationFile, Value: location,
+			}, Action: artifact.LocationAdd}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return manifest.ID
 	}
-	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
-		Role: artifact.ComponentWeights, Name: "weights", Artifact: component,
-	}})
+	broken := publish("broken")
+	publishLegacyActivation(t, store, broken, "present")
+	healthy := publish("healthy")
+	publishVerifiedActivation(t, store, healthy, "healthy")
+	entries, err := Servable(ctx, store, 10)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("stale activation failed enumeration: %v", err)
 	}
+	if len(entries) != 2 {
+		t.Fatalf("entries = %+v, want the stale report beside the healthy model", entries)
+	}
+	byModel := map[artifact.ID]Entry{entries[0].Model: entries[0], entries[1].Model: entries[1]}
+	stale := byModel[broken]
+	if stale.Stale == "" || !strings.Contains(stale.Stale, "evidence") {
+		t.Fatalf("stale entry = %+v, want the broken model reported with its defect", stale)
+	}
+	served := byModel[healthy]
+	if served.Stale != "" || !served.Present || !served.Recipe.Valid() {
+		t.Fatalf("healthy entry = %+v, want a served model unaffected by the stale neighbor", served)
+	}
+}
+
+// publishVerifiedActivation walks the trusted lifecycle: candidate,
+// validated, verified run evidence, then activation -- the activation
+// ActiveRecord accepts.
+func publishVerifiedActivation(t *testing.T, store *repodb.Store, modelID artifact.ID, suffix string) {
+	t.Helper()
+	ctx := context.Background()
+	profile := testutil.ArtifactID(t, artifact.KindProfile, "discovery-profile-"+suffix)
+	definitionID := testutil.ArtifactID(t, artifact.KindModelDefinition, "discovery-definition-"+suffix)
 	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       "fixture/discovery/facts",
-		Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},
-		Manifests: []artifact.Manifest{manifest},
-		Locations: []artifact.LocationEvent{{Location: artifact.Location{
-			Artifact: component, Kind: artifact.LocationFile, Value: location,
-		}, Action: artifact.LocationAdd}},
+		Key:       "fixture/discovery/verified-facts/" + suffix,
+		Artifacts: []artifact.Descriptor{{ID: profile}, {ID: definitionID}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	publishLegacyActivation(t, store, manifest.ID, "present")
-	if _, err := Servable(ctx, store, 10); err == nil || !strings.Contains(err.Error(), manifest.ID.String()) {
-		t.Fatalf("invalid activation error = %v", err)
+	definition, err := modelrecipe.InferenceWithModelDefinition(
+		modelID, profile, definitionID, recipe.PlacementHost,
+		modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/discovery/verified-candidate/"+suffix, definition); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.Transition(
+		ctx, store, "fixture/discovery/verified-validated/"+suffix, definition, recipe.StatusValidated, nil, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	verification, err := modelrecipetest.PublishVerification(
+		ctx, store, "fixture/discovery/verified-evidence/"+suffix, definition.ID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.ActivateVerified(
+		ctx, store, "fixture/discovery/verified-active/"+suffix, definition, verification, nil, nil,
+	); err != nil {
+		t.Fatal(err)
 	}
 }
 

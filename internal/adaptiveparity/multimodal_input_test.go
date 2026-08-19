@@ -474,7 +474,7 @@ func testGemmaE4BImageLanguageParity(t *testing.T) {
 	assertSHA256(t, projectorPath, "185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e")
 	assertSHA256(t, modelPath, "cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501")
 	assertSHA256(t, imagePath, "996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e")
-	assertSHA256(t, goldenPath, "49b5624323fc4e2e87a2673d9b8ab8880d285e1bcb736dad7dcbea6ecd919232")
+	assertSHA256(t, goldenPath, "73ded15e4f8b48da82033c92bb195bb3d6c81c3896cf5e8d01c36c89e8c9e2e5")
 	var golden e4bImageLanguageGolden
 	goldenRaw, err := os.ReadFile(goldenPath)
 	if err != nil {
@@ -572,7 +572,7 @@ func testGemmaE4BAudioParity(t *testing.T) {
 	wavePath := testutil.FixturePath(t, "e4b_audio", "wave.f32")
 	assertSHA256(t, projectorPath, "185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e")
 	assertSHA256(t, featurePath, "6faf97d1bf73ab3631f38332bf0539d43ebd0eddaf76865728288032dc939fca")
-	assertSHA256(t, goldenPath, "9de625447fbc7ab1f12d2de6c73700aa2daa9e476f3e4790e6632a4623371bbb")
+	assertSHA256(t, goldenPath, "4f89c18ea45e4e62e017c0b4b8e1896ae98622c938580ffd2695f83b98f09842")
 	assertSHA256(t, wavePath, "98c8d1a25f96bbdfff5ca6153c9b18fad9740e300008618a970c18384b35d404")
 	goldenRaw, err := os.ReadFile(goldenPath)
 	if err != nil {
@@ -680,7 +680,7 @@ func testGemmaE4BImageParity(t *testing.T) {
 	goldenPath := testutil.FixturePath(t, "e4b_vision", "g_vision_f32.json")
 	assertSHA256(t, projectorPath, "185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e")
 	assertSHA256(t, imagePath, "996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e")
-	assertSHA256(t, goldenPath, "f0b1c6f15a5432f5d4e3fcfd6c95c9292c58b0e29a3e8c4b63ff2a9f9ea3c35b")
+	assertSHA256(t, goldenPath, "b21b6a80eb4f23ffd2994b47c25d94f237bdb6d857cc22f4c3448e653369b65d")
 	goldenRaw, err := os.ReadFile(goldenPath)
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: E4B vision golden absent; parity NOT verified: %v", err)
@@ -772,7 +772,7 @@ func testGemmaE4BResizeParity(t *testing.T) {
 	imagePath := testutil.FixturePath(t, "e4b_vision", "gemma4_mm_resize_image.png")
 	goldenPath := testutil.FixturePath(t, "e4b_vision", "gemma4_mm_resize_golden.json")
 	assertSHA256(t, imagePath, "f7ee41858ae2238bbd2cb41220852c9316c08d4f8b7d027c7da4e0308f3d5274")
-	assertSHA256(t, goldenPath, "265db1d122923064cb36484bd73285a231277a7d7a8985c442c4a87957fa9335")
+	assertSHA256(t, goldenPath, "6210a6332e2ffab64281854980a2768ac4743261336b53f68924029ee8e0fd47")
 	var golden struct {
 		ResizeOutHW   []int `json:"resize_out_hw"`
 		NumSoftTokens int   `json:"num_soft_tokens"`

@@ -1,0 +1,17 @@
+{
+ "model": "model:sha256:a404028bef868f3999ab9cfb45a5b6ce501c5bcb7424577f7ee9a3f93586f076",
+ "name": "Fractale-350M",
+ "evidence_files": ["docs/verification/capability-fractale-training.txt"],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "1a92893fcd60fdbb49646b17dcba9e0fb2bcc681",
+   "dataset": "dataset-shard:sha256:4c431b8cd6f7c9ca77f0ddc3fdac8ee85812847e2af7e4d9861bb4d62f2dce9b",
+   "span_steps": 1,
+   "span_tokens": 8,
+   "wall_ns": 165710000000,
+   "evidence": ["evidence:sha256:80506bdb89f093103e706882217711757ee679cea2370b1de210a93d1ef763ff"]
+  }
+ ]
+}

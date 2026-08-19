@@ -20,7 +20,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
-	"overgo/internal/tensorstats"
+	"overgo/internal/scratchmodel"
 )
 
 func main() {
@@ -54,6 +54,10 @@ func run(args []string, output io.Writer) error {
 	admissions := flags.Bool("admissions", false, "list admission bindings: per-generation proposer/evaluator/decider authority domains and prior-generation approvals")
 	composed := flags.Bool("composed", false, "list composed model artifacts with their recipes, parents and constituent counts")
 	retrieve := flags.String("retrieve", "", "hypervector retrieval: rank the catalog against the named component (lexical organ + distributional signal)")
+	rankingID := flags.String("ranking", "", "retrieve: rescore hits with a committed proposal-ranking artifact (the learned prior over the decision ledger)")
+	derivations := flags.Bool("derivations", false, "list derivation-profile artifacts and their promotion verdicts (profiles judged by the models they produce)")
+	verifications := flags.Bool("verifications", false, "derive the model verification matrix from committed records: strongest evidenced tier per capability")
+	configs := flags.Bool("configs", false, "list committed model-config declarations: sequence extensions and generation essentials with source digests")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -88,7 +92,16 @@ func run(args []string, output io.Writer) error {
 		return writeComposed(output, *repository, *limit)
 	}
 	if *retrieve != "" {
-		return writeRetrieve(output, *repository, *retrieve, *limit)
+		return writeRetrieve(output, *repository, *retrieve, *rankingID, *limit)
+	}
+	if *derivations {
+		return writeDerivations(output, *repository, *limit)
+	}
+	if *verifications {
+		return writeVerifications(output, *repository, *limit)
+	}
+	if *configs {
+		return writeConfigs(output, *repository, *limit)
 	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
@@ -146,11 +159,17 @@ func writeServable(output io.Writer, repository string, limit int) error {
 	if err != nil {
 		return err
 	}
+	served := 0
 	for _, entry := range entries {
+		if entry.Stale != "" {
+			fmt.Fprintf(output, "stale model=%s location=%s reason=%q\n", entry.Model, entry.Location, entry.Stale)
+			continue
+		}
+		served++
 		fmt.Fprintf(output, "servable model=%s tier=%s recipe=%s present=%t location=%s\n",
 			entry.Model, entry.Tier, entry.Recipe, entry.Present, entry.Location)
 	}
-	fmt.Fprintf(output, "%d servable model(s); honesty: every listed file hashes to its recorded component identity\n", len(entries))
+	fmt.Fprintf(output, "%d servable model(s), %d stale activation(s); honesty: every listed file hashes to its recorded component identity; stale activations are reported, never served\n", served, len(entries)-served)
 	return nil
 }
 
@@ -165,7 +184,7 @@ func writeGenerations(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -234,7 +253,7 @@ func writeRefusals(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -273,7 +292,7 @@ func writeExperiments(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -330,7 +349,7 @@ func writeComponents(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorSet, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorSet, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -381,7 +400,7 @@ func writeProposals(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -421,7 +440,7 @@ func writeAdmissions(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -450,7 +469,27 @@ func writeAdmissions(output io.Writer, repository string, limit int) error {
 		fmt.Fprintln(output, line)
 		count++
 	}
-	fmt.Fprintf(output, "%d admission binding(s); honesty: domains must be pairwise distinct by construction; succession validity requires the cited approval decision\n", count)
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != runrecord.EvaluatorPromotionMediaType ||
+			descriptor.Schema != runrecord.EvaluatorPromotionSchema {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		promotion, err := runrecord.ParseEvaluatorPromotion(content.Data)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "evaluator-promotion %s evaluator=%s oracles=%d promoted=%t reason=%q\n",
+			promotion.ID, promotion.Evaluator, len(promotion.Cases), promotion.Promoted, promotion.Reason)
+		count++
+	}
+	fmt.Fprintf(output, "%d admission record(s); honesty: domains must be pairwise distinct by construction; succession and evaluator promotions require the cited prior-authority approvals\n", count)
 	return nil
 }
 
@@ -463,7 +502,7 @@ func writeComposed(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindModel, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindModel, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
@@ -493,76 +532,139 @@ func writeComposed(output io.Writer, repository string, limit int) error {
 	return nil
 }
 
-// writeRetrieve builds the hypervector index over every committed component
-// decomposition (lexical signal) joined with committed tensor measurements
-// (distributional signal), and ranks the catalog against the named component.
-// Advisory output: candidates feed blocked proposals, never promotions.
-func writeRetrieve(output io.Writer, repository, name string, limit int) error {
+// writeConfigs lists committed model-config declarations: the typed
+// inference- and training-relevant components generic code reads instead of
+// carrying model-specific literals.
+func writeConfigs(output io.Writer, repository string, limit int) error {
 	store, err := repodb.OpenReadOnly(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 	ctx := context.Background()
-	statistics := map[string]tensorstats.Characterization{}
-	measurementResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorInventory, MaxResults: repodb.MaxQueryResults})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindProfile, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}
-	for _, descriptor := range measurementResult.Artifacts {
-		if descriptor.MediaType != modelartifact.TensorMeasurementMediaType {
+	count := 0
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != modelartifact.ModelConfigMediaType {
 			continue
 		}
 		content, ok, err := store.Content(ctx, descriptor.ID)
 		if err != nil || !ok {
 			continue
 		}
-		document, err := modelartifact.ParseTensorMeasurementDocument(content.Data)
+		document, err := modelartifact.ParseModelConfigDocument(content.Data)
 		if err != nil {
 			continue
 		}
-		inventory, ok, err := modelartifact.ReadTensorInventoryDocument(ctx, store, document.Inventory)
+		cells := make([]string, 0, 2)
+		if document.Sequence != nil {
+			cells = append(cells, fmt.Sprintf("sequence[k=%d range=[%d,%d) specials=%d auto=%t]",
+				document.Sequence.K, document.Sequence.StartID,
+				document.Sequence.StartID+document.Sequence.Vocabulary,
+				len(document.Sequence.SpecialTokens), document.Sequence.AutoTags))
+		}
+		if document.Generation != nil {
+			cells = append(cells, fmt.Sprintf("generation[bos=%v eos=%v context=%d]",
+				document.Generation.BOSTokens, document.Generation.EOSTokens, document.Generation.ContextLength))
+		}
+		names := make([]string, 0, len(document.Sources))
+		for _, source := range document.Sources {
+			names = append(names, source.Name)
+		}
+		fmt.Fprintf(output, "config model=%s %s sources=%s\n",
+			document.Model, strings.Join(cells, " "), strings.Join(names, ","))
+		count++
+	}
+	fmt.Fprintf(output, "%d model-config declaration(s); honesty: components derive from digested source files committed with model lineage; generic code reads these declarations, never literals\n", count)
+	return nil
+}
+
+// writeVerifications derives the model verification matrix from committed
+// verification records: one row per model, each capability at the strongest
+// evidenced tier. The comparison the compatibility document could never make
+// legible, derived from the store, never hand-maintained.
+func writeVerifications(output io.Writer, repository string, limit int) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	// Scan the full evidence range: verification records accumulate at the
+	// end of the sequence, so a bounded scan would silently drop the newest
+	// claims. The limit bounds output rows, not the scan.
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
+	if err != nil {
+		return err
+	}
+	records := make([]runrecord.ModelVerification, 0)
+	for _, descriptor := range result.Artifacts {
+		if descriptor.MediaType != runrecord.ModelVerificationMediaType {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
 		if err != nil || !ok {
 			continue
 		}
-		for _, measurement := range document.Measurements {
-			statistics[inventory.Model.String()+"\x00"+measurement.Name] = measurement.Characterization
+		record, err := runrecord.ParseModelVerification(content.Data)
+		if err != nil {
+			continue
 		}
+		records = append(records, record)
 	}
-	components := make([]composition.CatalogComponent, 0)
+	matrix := runrecord.VerificationMatrix(records)
+	if limit > 0 && len(matrix) > limit {
+		matrix = matrix[:limit]
+	}
+	for _, row := range matrix {
+		cells := make([]string, 0, len(row.Capabilities))
+		for _, claim := range row.Capabilities {
+			cell := fmt.Sprintf("%s=%s(%d evidence,commit=%.12s", claim.Capability, claim.Tier, len(claim.Evidence), claim.Commit)
+			if claim.Dataset.Valid() {
+				cell += fmt.Sprintf(",dataset=%.20s,steps=%d,tokens=%d", claim.Dataset, claim.SpanSteps, claim.SpanTokens)
+			}
+			if claim.WallNS > 0 {
+				cell += fmt.Sprintf(",wall=%s", time.Duration(claim.WallNS).Round(time.Millisecond))
+				if claim.ContextTokens > 0 {
+					cell += fmt.Sprintf(",ctx=%d", claim.ContextTokens)
+				}
+				if claim.PeakDeviceBytes > 0 {
+					cell += fmt.Sprintf(",peak=%.1fGiB", float64(claim.PeakDeviceBytes)/(1<<30))
+				}
+			}
+			cells = append(cells, cell+")")
+		}
+		fmt.Fprintf(output, "model %s %s %s\n", row.Name, row.Model, strings.Join(cells, " "))
+	}
+	fmt.Fprintf(output, "%d model(s) from %d record(s); honesty: rows derive from committed verification records; every tier claim is grounded in named evidence, and unrecorded models simply do not appear\n",
+		len(matrix), len(records))
+	return nil
+}
+
+// writeRetrieve indexes the committed catalog and ranks it against the named
+// component. With a ranking artifact, hits are rescored by the learned prior
+// trained on the decision ledger; without one, plain similarity stands.
+// Advisory output: candidates feed blocked proposals, never promotions.
+func writeRetrieve(output io.Writer, repository, name, rankingText string, limit int) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	components, err := composition.LoadCatalog(ctx, store)
+	if err != nil {
+		return err
+	}
 	var query *composition.CatalogComponent
-	decompositionResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorSet, MaxResults: repodb.MaxQueryResults})
-	if err != nil {
-		return err
-	}
-	for _, descriptor := range decompositionResult.Artifacts {
-		if descriptor.MediaType != modelartifact.ComponentDecompositionMediaType {
-			continue
+	for i := range components {
+		if components[i].Name == name {
+			query = &components[i]
+			break
 		}
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
-			continue
-		}
-		decomposition, err := modelartifact.ParseComponentDecomposition(content.Data)
-		if err != nil {
-			continue
-		}
-		for _, component := range decomposition.Components {
-			entry := composition.CatalogComponent{
-				Model: decomposition.Model, Name: component.Name, Contract: component.Contract,
-			}
-			if characterization, ok := statistics[decomposition.Model.String()+"\x00"+component.Name]; ok {
-				entry.Statistics = &characterization
-			}
-			if component.Name == name && query == nil {
-				matched := entry
-				query = &matched
-			}
-			components = append(components, entry)
-		}
-	}
-	if len(components) == 0 {
-		return errors.New("no committed component decompositions to index")
 	}
 	if query == nil {
 		return fmt.Errorf("component %q is not in the committed catalog", name)
@@ -575,16 +677,98 @@ func writeRetrieve(output io.Writer, repository, name string, limit int) error {
 	if err != nil {
 		return err
 	}
-	for _, hit := range hits {
-		signal := "lexical"
+	signalFor := func(hit composition.HypervectorHit) string {
 		if hit.Component.Statistics != nil {
-			signal = "lexical+distributional"
+			return "lexical+distributional"
 		}
+		return "lexical"
+	}
+	if rankingText != "" {
+		rankingID, err := artifact.ParseID(rankingText)
+		if err != nil {
+			return err
+		}
+		content, ok, err := store.Content(ctx, rankingID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("ranking %s is not committed", rankingText)
+		}
+		ranking, err := composition.ParseProposalRanking(content.Data)
+		if err != nil {
+			return err
+		}
+		ranked := ranking.Rerank(hits)
+		for _, hit := range ranked {
+			fmt.Fprintf(output, "hit %.4f relevance=%.4f prior=%+.4f model=%s component=%s role=%s signal=%s\n",
+				hit.Score, hit.Relevance, hit.Prior, hit.Component.Model, hit.Component.Name, hit.Component.Contract.Role, signalFor(hit.HypervectorHit))
+		}
+		fmt.Fprintf(output, "%d hit(s) over %d component(s), signature width %d, prior %s over %d decision(s); honesty: the prior trains only on accepted and refused composition decisions -- advisory retrieval, candidates require blocked proposals and the experiment plane\n",
+			len(ranked), index.Len(), composition.HypervectorDimensionsFor(index.Len()), ranking.ID, len(ranking.Sources))
+		return nil
+	}
+	for _, hit := range hits {
 		fmt.Fprintf(output, "hit %.4f model=%s component=%s role=%s signal=%s\n",
-			hit.Relevance, hit.Component.Model, hit.Component.Name, hit.Component.Contract.Role, signal)
+			hit.Relevance, hit.Component.Model, hit.Component.Name, hit.Component.Contract.Role, signalFor(hit))
 	}
 	fmt.Fprintf(output, "%d hit(s) over %d component(s), signature width %d; honesty: advisory retrieval, candidates require blocked proposals and the experiment plane\n",
 		len(hits), index.Len(), composition.HypervectorDimensionsFor(index.Len()))
+	return nil
+}
+
+// writeDerivations lists derivation-profile artifacts and their promotion
+// verdicts: the policy ledger, where every profile is judged by the models it
+// produced.
+func writeDerivations(output io.Writer, repository string, limit int) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	count := 0
+	profileResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindProfile, MaxResults: repodb.MaxQueryResults})
+	if err != nil {
+		return err
+	}
+	for _, descriptor := range profileResult.Artifacts {
+		if descriptor.MediaType != scratchmodel.DerivationProfileDocumentMediaType {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil || !ok {
+			continue
+		}
+		document, err := scratchmodel.ParseDerivationProfileDocument(content.Data)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "derivation-profile %s version=%s mlp-budget=%d\n",
+			document.ID, document.Profile.Version, document.Profile.MLPBudget)
+		count++
+	}
+	promotionResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
+	if err != nil {
+		return err
+	}
+	for _, descriptor := range promotionResult.Artifacts {
+		if descriptor.MediaType != scratchmodel.DerivationPromotionMediaType {
+			continue
+		}
+		content, ok, err := store.Content(ctx, descriptor.ID)
+		if err != nil || !ok {
+			continue
+		}
+		promotion, err := scratchmodel.ParseDerivationPromotion(content.Data)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "derivation-promotion %s candidate=%s incumbent=%s promoted=%t reason=%q\n",
+			promotion.ID, promotion.Candidate, promotion.Incumbent, promotion.Promoted, promotion.Reason)
+		count++
+	}
+	fmt.Fprintf(output, "%d derivation record(s); honesty: profiles are judged solely by their descendants' measured quality; refusals list beside promotions\n", count)
 	return nil
 }
 
@@ -598,7 +782,7 @@ func writeBudgets(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
 	if err != nil {
 		return err
 	}

@@ -1,38 +1,31 @@
 {
  "schema": "carbon_serving_golden/v1",
- "source": "adaptive_new adaptive-gpt-server /api/infer (cuda build), greedy device argmax",
- "model_dir": "models/Carbon-500M",
- "date": "2026-08-09",
+ "source": "carbon-pretraining-corpus mrna_evo2/000_data_00001.parquet rows 0/2/4, tag-wrapped per the model-card usage contract; overgo host bootstrap, greedy device argmax",
+ "date": "2026-08-18",
  "cases": [
   {
-   "name": "dna_repeat",
-   "prompt": "ACGTACGTACGTACGT",
+   "name": "mrna_atg_start",
+   "prompt": "<dna>ATGGCGTCTACCCCCGAGCCCACACTCGTGAATAATGAGAGTTCTCAGGAGCTCAAGAACTTCCAACGACCACCCCGGCGCATGTCGTGGCTTGAT",
    "max_tokens": 32,
-   "text": "TTTTTTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGT",
-   "prompt_tokens": 8,
-   "generated_tokens": 32,
-   "serving_path": "resident KV-cache",
-   "decode_mode": "greedy device argmax feedback (commitment-policy doctrine: no temperature surface)"
+   "text": "GAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAGGAG",
+   "prompt_tokens": 17,
+   "generated_tokens": 32
   },
   {
-   "name": "dna_gc",
-   "prompt": "GGCCGGCCTTAA",
+   "name": "mrna_mid_gene",
+   "prompt": "<dna>TTACCGGCCAGTCCCAGTCAAGGCGCAGGCGGCACCGGGTGAGTGAGTGCGTGCACGCCGGTGCCTGTTGGTCAGTGACCTCCACAAACATCCGTC",
    "max_tokens": 32,
-   "text": "TTTTTTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGTGT",
-   "prompt_tokens": 7,
-   "generated_tokens": 32,
-   "serving_path": "resident KV-cache",
-   "decode_mode": "greedy device argmax feedback (commitment-policy doctrine: no temperature surface)"
+   "text": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+   "prompt_tokens": 17,
+   "generated_tokens": 32
   },
   {
-   "name": "dna_start_codon",
-   "prompt": "ATGGCG",
-   "max_tokens": 48,
-   "text": "TTTTTTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCT",
-   "prompt_tokens": 3,
-   "generated_tokens": 48,
-   "serving_path": "resident KV-cache",
-   "decode_mode": "greedy device argmax feedback (commitment-policy doctrine: no temperature surface)"
+   "name": "mrna_pad_remainder",
+   "prompt": "<dna>ATGGCGACAGAAGAACATCTTGTGCAGTTCCGAGCCACTCTACGCGATGCGTTCGTCAAGCTC",
+   "max_tokens": 24,
+   "text": "GACGACGACGTCGCCAAGTACGCCGCCGAGCTCGTCAAGGAGATGAAGAAGACCTCCAAGGAGCTCGGCTTCACGCAGGACGTCGACATGGTCGTCGGCGGCATGATCAACAAGTGCAAGGGCAACAAGAAGGCGCTCCGCGAC",
+   "prompt_tokens": 12,
+   "generated_tokens": 24
   },
   {
    "name": "english_offdomain",
@@ -40,9 +33,15 @@
    "max_tokens": 16,
    "text": "TTTTTTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCT",
    "prompt_tokens": 5,
-   "generated_tokens": 16,
-   "serving_path": "resident KV-cache",
-   "decode_mode": "greedy device argmax feedback (commitment-policy doctrine: no temperature surface)"
+   "generated_tokens": 16
+  },
+  {
+   "name": "modelcard_example",
+   "prompt": "<dna>ATGCGCTAGCTACGATCGATCGTAGCTAGCTAGCTAGCTACG",
+   "max_tokens": 24,
+   "text": "ATCGATCGTAGCTAGCTAGCTAGCTACGATCGATCGTAGCTAGCTAGCTAGCTACGATCGATCGTAGCTAGCTAGCTAGCTACGATCGATCGTAGCTAGCTAGCTAGCTACGATCGATCGTAGCTAGCTAGCTAGCTACGATCG",
+   "prompt_tokens": 8,
+   "generated_tokens": 24
   }
  ]
 }

@@ -1,0 +1,11 @@
+overgo capability inference verification
+tool: go test internal/latentimage (modeltest tag, OVERGO_CUDA_TEST=1)
+model file: C:/Users/jeffm/adaptive_new/models/Krea-2-Turbo/turbo.safetensors
+protocol: Krea2 dual-stream co-attention denoiser on the CUDA generic path,
+reference-matched (TestDenoiserProgramCUDAMatchesReference, 0.58s) and the
+12.82B-parameter resident G2 distribution against the real checkpoint
+(TestDenoiserResidentG2Distribution, 26.93s); flow timesteps pinned against
+vendor Python by the standing scheduler test.
+measured wall_ns: 28106000000 (suite wall)
+modality: text-to-image (large dual-stream diffusion). peak device memory not
+instrumented on this path -- wall-only measurement by rule.

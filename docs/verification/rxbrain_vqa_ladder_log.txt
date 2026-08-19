@@ -1,0 +1,45 @@
+2026-08-19T01:48:58Z STAGE processor                    PASS wall=134ms     ids=346 grid=[1,30,40] pixel rms=0.01065 max=0.2353
+2026-08-19T01:48:58Z STAGE pre_block0                   PASS wall=457ms     pre_block0 worst|d|=1.953e-03
+2026-08-19T01:48:59Z STAGE block0_qkv                   PASS wall=651ms     block0_qkv worst|d|=0.000e+00
+2026-08-19T01:48:59Z STAGE block0_attn                  PASS wall=0s        block0_attn worst|d|=6.104e-05
+2026-08-19T01:48:59Z STAGE block0                       PASS wall=0s        block0 worst|d|=7.812e-03
+2026-08-19T01:49:18Z STAGE block_last                   PASS wall=18.736s   block_last worst|d|=5.000e-01
+2026-08-19T01:49:19Z STAGE merger                       PASS wall=1.168s    merger worst|d|=3.125e-02
+2026-08-19T01:49:20Z STAGE prefill                      PASS wall=1.165s    prefill_embeds worst|d|=2.832e-02
+2026-08-19T01:49:21Z STAGE mot_layer0_sub_stages        PASS wall=665ms     norm+qkv+rope_norm+context+projected
+2026-08-19T01:49:21Z STAGE mot_layer0_output            PASS wall=0s        layer0_output worst|d|=3.125e-02
+2026-08-19T01:49:22Z STAGE mot_layer1_output            PASS wall=643ms     layer1_output worst|d|=3.906e-03
+2026-08-19T01:49:22Z STAGE mot_layer2_output            PASS wall=645ms     layer2_output worst|d|=9.766e-04
+2026-08-19T01:49:23Z STAGE mot_layer3_output            PASS wall=639ms     layer3_output worst|d|=1.953e-03
+2026-08-19T01:49:24Z STAGE mot_layer4_output            PASS wall=651ms     layer4_output worst|d|=1.953e-03
+2026-08-19T01:49:24Z STAGE mot_layer5_output            PASS wall=674ms     layer5_output worst|d|=7.812e-03
+2026-08-19T01:49:25Z STAGE mot_layer6_output            PASS wall=648ms     layer6_output worst|d|=3.906e-03
+2026-08-19T01:49:25Z STAGE mot_layer7_output            PASS wall=643ms     layer7_output worst|d|=1.953e-03
+2026-08-19T01:49:26Z STAGE mot_layer8_output            PASS wall=644ms     layer8_output worst|d|=3.906e-03
+2026-08-19T01:49:27Z STAGE mot_layer9_output            PASS wall=642ms     layer9_output worst|d|=1.465e-03
+2026-08-19T01:49:27Z STAGE mot_layer10_output           PASS wall=645ms     layer10_output worst|d|=2.930e-03
+2026-08-19T01:49:28Z STAGE mot_layer11_output           PASS wall=643ms     layer11_output worst|d|=7.812e-03
+2026-08-19T01:49:29Z STAGE mot_layer12_output           PASS wall=643ms     layer12_output worst|d|=1.953e-03
+2026-08-19T01:49:29Z STAGE mot_layer13_output           PASS wall=637ms     layer13_output worst|d|=1.953e-03
+2026-08-19T01:49:30Z STAGE mot_layer14_output           PASS wall=640ms     layer14_output worst|d|=1.953e-03
+2026-08-19T01:49:31Z STAGE mot_layer15_output           PASS wall=648ms     layer15_output worst|d|=7.812e-03
+2026-08-19T01:49:31Z STAGE mot_layer16_output           PASS wall=639ms     layer16_output worst|d|=7.812e-03
+2026-08-19T01:49:32Z STAGE mot_layer17_output           PASS wall=645ms     layer17_output worst|d|=3.906e-03
+2026-08-19T01:49:33Z STAGE mot_layer18_output           PASS wall=654ms     layer18_output worst|d|=7.812e-03
+2026-08-19T01:49:33Z STAGE mot_layer19_output           PASS wall=650ms     layer19_output worst|d|=3.906e-03
+2026-08-19T01:49:34Z STAGE mot_layer20_output           PASS wall=645ms     layer20_output worst|d|=3.906e-03
+2026-08-19T01:49:35Z STAGE mot_layer21_output           PASS wall=659ms     layer21_output worst|d|=7.812e-03
+2026-08-19T01:49:35Z STAGE mot_layer22_output           PASS wall=644ms     layer22_output worst|d|=7.812e-03
+2026-08-19T01:49:36Z STAGE mot_layer23_output           PASS wall=643ms     layer23_output worst|d|=1.562e-02
+2026-08-19T01:49:36Z STAGE mot_layer24_output           PASS wall=643ms     layer24_output worst|d|=1.562e-02
+2026-08-19T01:49:37Z STAGE mot_layer25_output           PASS wall=654ms     layer25_output worst|d|=7.812e-03
+2026-08-19T01:49:38Z STAGE mot_layer26_output           PASS wall=656ms     layer26_output worst|d|=3.906e-03
+2026-08-19T01:49:38Z STAGE mot_layer27_output           PASS wall=654ms     layer27_output worst|d|=7.812e-03
+2026-08-19T01:49:39Z STAGE mot_layer28_output           PASS wall=642ms     layer28_output worst|d|=7.812e-03
+2026-08-19T01:49:40Z STAGE mot_layer29_output           PASS wall=643ms     layer29_output worst|d|=1.562e-02
+2026-08-19T01:49:40Z STAGE mot_layer30_output           PASS wall=646ms     layer30_output worst|d|=3.906e-03
+2026-08-19T01:49:41Z STAGE mot_layer31_output           PASS wall=641ms     layer31_output worst|d|=7.812e-03
+2026-08-19T01:49:41Z STAGE terminal                     PASS wall=222ms     top id=628 logit=18.0778
+2026-08-19T01:49:50Z STAGE decode_steps                 PASS wall=8.685s    12 steps, chain [628 357 1218 298 489 11638 244 9478 2820 377 252 2972 91686]
+2026-08-19T01:49:50Z STAGE decode_text                  PASS wall=101ms     text="The stovetop holds a metal pot on the left burner"
+2026-08-19T01:49:50Z LADDER COMPLETE 44/44 stages passed

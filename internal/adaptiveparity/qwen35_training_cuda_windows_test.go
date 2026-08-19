@@ -22,7 +22,7 @@ import (
 const (
 	qwen35CheckpointSHA = "c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec"
 	qwen35GradientSHA   = "76d9880f804b116fd95e3faf739bed6ad9898430e03d25bae49d5969ec1491a3"
-	qwen35ServingSHA    = "6dcce666b1ebf776b9ee9e9df9107b068204affc602e94949e5c4c039894ea1a"
+	qwen35ServingSHA    = "0642a74037a5f7d5778728e110387f47092215466c4492c03e17b271a5dc4b36"
 	qwen35AdaptiveSHA   = "214950b3b0316bcdcab38a3b95127a927c0ab5be"
 	qwen35TrainingSteps = 2
 )

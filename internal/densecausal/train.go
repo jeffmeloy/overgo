@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"time"
 
 	"overgo/internal/checked"
 	"overgo/internal/optimizer"
@@ -12,7 +13,7 @@ import (
 
 // TrainBatches applies one Muon update per ordered token batch.
 func (m *Model) TrainBatches(batches [][]int, baseLR, mu float64) ([]float64, error) {
-	trajectory, _, err := m.train(batches, baseLR, mu, nil)
+	trajectory, _, err := m.train(batches, baseLR, mu, nil, nil)
 	return trajectory, err
 }
 
@@ -21,10 +22,20 @@ type TrainState = optimizer.State
 
 // TrainBatchesResume resumes an ordered sequence at an update boundary.
 func (m *Model) TrainBatchesResume(batches [][]int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
-	return m.train(batches, baseLR, mu, resume)
+	return m.train(batches, baseLR, mu, resume, nil)
 }
 
-func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.State) ([]float64, optimizer.State, error) {
+// TrainObserver receives each completed training step with its measured
+// wall. Returning an error aborts the run at the step boundary -- the
+// deterministic guard against silently pathological runs.
+type TrainObserver func(step int, loss float64, stepWall time.Duration) error
+
+// TrainBatchesObserved is TrainBatchesResume with a per-step observer.
+func (m *Model) TrainBatchesObserved(batches [][]int, baseLR, mu float64, resume *TrainState, observe TrainObserver) ([]float64, TrainState, error) {
+	return m.train(batches, baseLR, mu, resume, observe)
+}
+
+func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.State, observe TrainObserver) ([]float64, optimizer.State, error) {
 	if err := validateTokenBatches(batches); err != nil {
 		return nil, optimizer.State{}, err
 	}
@@ -45,7 +56,8 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 	}
 
 	trajectory := make([]float64, 0, len(batches))
-	for _, tokens := range batches {
+	for step, tokens := range batches {
+		stepStarted := time.Now()
 		scatter(m, names, weights)
 		loss, grads, err := m.trainingLossAndGrads(tokens)
 		if err != nil {
@@ -54,6 +66,11 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 		trajectory = append(trajectory, loss)
 		m.gatherGrads(names, gradients, grads)
 		opt.Step()
+		if observe != nil {
+			if err := observe(step, loss, time.Since(stepStarted)); err != nil {
+				return nil, optimizer.State{}, err
+			}
+		}
 	}
 	scatter(m, names, weights)
 	return trajectory, opt.Snapshot(), nil

@@ -1,0 +1,19 @@
+{
+ "model": "model:sha256:29410f1aac9ed73a51a1b225f6d3c5cbe5560fa5a6521c8f464030b1a2de6157",
+ "name": "SimpleDiffusion-TPA-Rope",
+ "model_file": "C:/Users/jeffm/adaptive_new/models/SimpleDiffusion-TensorProductAttentionRope/step_799.safetensors",
+ "evidence_files": [
+  "docs/verification/capability-simplediffusion-inference.txt"
+ ],
+ "claims": [
+  {
+   "capability": "inference",
+   "tier": "real-artifact-smoke",
+   "commit": "b263e8c918021138a623ee6d05172da3b109a575",
+   "wall_ns": 975000000,
+   "evidence": [
+    "evidence:sha256:bd083bf0f190f640a4459378cef75f2d7d68a75d0b34ee527e392381b91ccbec"
+   ]
+  }
+ ]
+}

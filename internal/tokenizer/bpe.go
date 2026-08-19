@@ -25,6 +25,15 @@ func (v *Vocab) Encode(text string, options EncodeOptions) ([]TokenID, error) {
 	if v == nil {
 		return nil, errors.New("tokenizer: vocabulary is nil")
 	}
+	// A declared sequence extension owns encoding whenever it applies: always
+	// under auto-tags, otherwise when the text carries the declared tags.
+	// Non-tagged segments recurse into the base path tag-free, so this
+	// cannot loop.
+	if v.dna != nil && len(v.dna.specialTokens) >= dnaSpecialCount &&
+		(v.dna.autoTags || strings.Contains(text, v.dna.specialTokens[dnaSpecialBegin]) ||
+			strings.Contains(text, v.dna.specialTokens[dnaSpecialEnd])) {
+		return v.encodeWithDNA(text, options)
+	}
 	output := make([]TokenID, 0, len(text)/3+2)
 	if options.AddSpecial && (v.Model == "bert" || v.AddBOS) {
 		output = append(output, v.BOS)

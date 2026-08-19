@@ -166,13 +166,30 @@ func (d Decision) Batch(key string) (artifact.Batch, error) {
 }
 
 func promotionProved(decision Decision) bool {
-	if len(decision.Seeds) == 0 || decision.Stochastic && len(decision.Seeds) < 2 {
+	if len(decision.Seeds) < 2 {
+		return false
+	}
+	comparisons := make([]runrecord.SeedComparison, 0, len(decision.Seeds))
+	var costNS uint64
+	for _, seed := range decision.Seeds {
+		comparisons = append(comparisons, runrecord.SeedComparison{
+			Seed: uint64(seed.Seed), Parent: seed.Initial.Loss, Child: seed.Final.Loss,
+		})
+		costNS += seed.Cost.WallNS
+	}
+	if err := runrecord.ValidateDescendantImprovement(runrecord.MetricContract{
+		Evaluator: decision.Evaluator, Split: decision.Split,
+		Comparisons:    comparisons,
+		CostNS:         costNS,
+		HoldoutQueries: uint64(len(decision.Charges)),
+		HoldoutBudget:  uint64(len(decision.Charges)) + decision.BudgetRemaining,
+	}); err != nil {
 		return false
 	}
 	selected, selectedFound := SuiteMetrics{}, false
 	for _, seed := range decision.Seeds {
 		if seed.Initial.Loss-seed.Final.Loss <= decision.ObservedNoise.Loss ||
-			seed.Final.ActionAccuracy-seed.Initial.ActionAccuracy <= decision.ObservedNoise.ActionAccuracy ||
+			seed.Final.ActionAccuracy+decision.ObservedNoise.ActionAccuracy < seed.Initial.ActionAccuracy ||
 			seed.Final.ModalityAccuracy+decision.ObservedNoise.ModalityAccuracy < seed.Initial.ModalityAccuracy ||
 			seed.Final.ValidActionRate+decision.ObservedNoise.ValidActionRate < seed.Initial.ValidActionRate {
 			return false
@@ -195,7 +212,7 @@ func promotionProved(decision Decision) bool {
 		eligible++
 		metrics := *challenger.Metrics
 		if metrics.Loss-selected.Loss <= decision.ObservedNoise.Loss ||
-			selected.ActionAccuracy-metrics.ActionAccuracy <= decision.ObservedNoise.ActionAccuracy ||
+			selected.ActionAccuracy+decision.ObservedNoise.ActionAccuracy < metrics.ActionAccuracy ||
 			selected.ModalityAccuracy+decision.ObservedNoise.ModalityAccuracy < metrics.ModalityAccuracy ||
 			selected.ValidActionRate+decision.ObservedNoise.ValidActionRate < metrics.ValidActionRate {
 			return false

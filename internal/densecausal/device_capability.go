@@ -9,6 +9,8 @@ package densecausal
 //
 // It returns (true, "") when every trait the device backend needs is present.
 func DeviceTrainingSupported(d Dims) (bool, string) {
-	_ = d
+	if d.MoE.TopK > 0 {
+		return false, "routed mixture layers train on the host graph; the resident device lane has no mixture forward"
+	}
 	return true, ""
 }

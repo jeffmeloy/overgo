@@ -30,6 +30,12 @@ func (m *Model) lossAndGrads(tokens []int, retainLogits bool) (float64, []float3
 	if len(tokens) < 2 {
 		return 0, nil, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
+	// The host trainer runs full causal attention; within the artifact's
+	// declared serving window the two are identical, beyond it they diverge,
+	// so longer training sequences are refused rather than silently wrong.
+	if m.Dims.AttentionWindow > 0 && len(tokens) > m.Dims.AttentionWindow {
+		return 0, nil, nil, fmt.Errorf("densecausal: training sequence %d exceeds the declared attention window %d", len(tokens), m.Dims.AttentionWindow)
+	}
 	states, err := m.forwardStates(tokens)
 	if err != nil {
 		return 0, nil, nil, err
@@ -140,26 +146,39 @@ func (m *Model) layerBackward(index int, x, dOut []float32, invFreq []float64, s
 	}
 	hn := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormInto(hn, h2, l.postLN, seq, d.Hidden, d.RMSEps)
-	gate := make([]float32, seq*d.Intermediate)
-	up := make([]float32, seq*d.Intermediate)
-	hostmath.Linear(gate, hn, l.gate, seq, d.Hidden, d.Intermediate)
-	hostmath.Linear(up, hn, l.up, seq, d.Hidden, d.Intermediate)
-	h := make([]float32, seq*d.Intermediate)
-	hostmath.SiLUGate(h, gate, up)
 
-	// MLP branch backward; dh2 carries the residual plus the norm path.
+	// FFN branch backward; dh2 carries the residual plus the norm path.
 	dh2 := append([]float32(nil), dOut...)
-	dH := make([]float32, seq*d.Intermediate)
-	hostmath.LinearBackward(dH, hostmath.GradientSlot(g, l.names.down, d.Hidden*d.Intermediate), nil,
-		h, l.down, dOut, seq, d.Intermediate, d.Hidden, false)
-	dGate := make([]float32, seq*d.Intermediate)
-	dUp := make([]float32, seq*d.Intermediate)
-	hostmath.SiLUGateBackward(dGate, dUp, gate, up, dH)
 	dHn := make([]float32, seq*d.Hidden)
-	hostmath.LinearBackward(dHn, hostmath.GradientSlot(g, l.names.gate, d.Intermediate*d.Hidden), nil,
-		hn, l.gate, dGate, seq, d.Hidden, d.Intermediate, false)
-	hostmath.LinearBackward(dHn, hostmath.GradientSlot(g, l.names.up, d.Intermediate*d.Hidden), nil,
-		hn, l.up, dUp, seq, d.Hidden, d.Intermediate, true)
+	if l.moe != nil {
+		_, route, err := moeForward(hn, *l.moe, seq, d.Hidden, d.MoE)
+		if err != nil {
+			return nil, err
+		}
+		dMix, mixGrads, err := moeBackward(hn, *l.moe, seq, d.Hidden, d.MoE, route, dOut)
+		if err != nil {
+			return nil, err
+		}
+		copy(dHn, dMix)
+		accumulateMoEGrads(g, l.moe.names, mixGrads)
+	} else {
+		gate := make([]float32, seq*d.Intermediate)
+		up := make([]float32, seq*d.Intermediate)
+		hostmath.Linear(gate, hn, l.gate, seq, d.Hidden, d.Intermediate)
+		hostmath.Linear(up, hn, l.up, seq, d.Hidden, d.Intermediate)
+		h := make([]float32, seq*d.Intermediate)
+		hostmath.SiLUGate(h, gate, up)
+		dH := make([]float32, seq*d.Intermediate)
+		hostmath.LinearBackward(dH, hostmath.GradientSlot(g, l.names.down, d.Hidden*d.Intermediate), nil,
+			h, l.down, dOut, seq, d.Intermediate, d.Hidden, false)
+		dGate := make([]float32, seq*d.Intermediate)
+		dUp := make([]float32, seq*d.Intermediate)
+		hostmath.SiLUGateBackward(dGate, dUp, gate, up, dH)
+		hostmath.LinearBackward(dHn, hostmath.GradientSlot(g, l.names.gate, d.Intermediate*d.Hidden), nil,
+			hn, l.gate, dGate, seq, d.Hidden, d.Intermediate, false)
+		hostmath.LinearBackward(dHn, hostmath.GradientSlot(g, l.names.up, d.Intermediate*d.Hidden), nil,
+			hn, l.up, dUp, seq, d.Hidden, d.Intermediate, true)
+	}
 	hostmath.RMSNormBackward(dh2, hostmath.GradientSlot(g, l.names.postLN, d.Hidden), h2, l.postLN, dHn, seq, d.Hidden, d.RMSEps, true)
 
 	// Attention branch backward.

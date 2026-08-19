@@ -15,6 +15,7 @@ import (
 
 func main() {
 	model := flag.String("model", "", "RxBrain checkpoint directory (config.json + sharded safetensors)")
+	bindText := flag.Bool("bind-text", false, "bind the base-text decode branch from the shards and report the promotion")
 	flag.Parse()
 	if *model == "" || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: rxbrain-probe -model <checkpoint-dir>")
@@ -39,5 +40,19 @@ func main() {
 	fmt.Printf("inventory: tensors=%d text=%d vision=%d generation=%d visual_tower=%d flow=%d shared=%d\n",
 		len(inventory.TensorShard), inventory.TextBranch, inventory.VisionBranch,
 		inventory.GenerationBranch, inventory.VisualTower, inventory.FlowAdapters, inventory.Shared)
-	fmt.Println("honesty: declaration and inventory contracts only; decode stages land behind this tool")
+	if *bindText {
+		weights, err := rxbrain.LoadTextWeights(*model, config)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "rxbrain-probe:", err)
+			os.Exit(1)
+		}
+		parameters := len(weights.Embed) + len(weights.FinalNorm)
+		for _, layer := range weights.Layers {
+			parameters += len(layer.InputLN) + len(layer.PostLN) + len(layer.QProj) + len(layer.KProj) +
+				len(layer.VProj) + len(layer.OProj) + len(layer.QueryLN) + len(layer.KeyLN) +
+				len(layer.GateProj) + len(layer.UpProj) + len(layer.DownProj)
+		}
+		fmt.Printf("text branch bound: layers=%d parameters=%d (tied head)\n", len(weights.Layers), parameters)
+	}
+	fmt.Println("honesty: declaration, inventory and binding contracts only; decode math lands behind this tool")
 }

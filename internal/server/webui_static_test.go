@@ -30,6 +30,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/mod/runtime.js", "text/javascript; charset=utf-8", "/slots"},
 		{"/mod/datasets.js", "text/javascript; charset=utf-8", "/datasets"},
 		{"/mod/training.js", "text/javascript; charset=utf-8", "/runs"},
+		{"/mod/model_builder.js", "text/javascript; charset=utf-8", `scope: "model-builder"`},
 		{"/mod/jobs.js", "text/javascript; charset=utf-8", "training-jobs"},
 		{"/mod/recipe.js", "text/javascript; charset=utf-8", "/recipes/active"},
 		{"/mod/artifacts.js", "text/javascript; charset=utf-8", "/artifacts"},

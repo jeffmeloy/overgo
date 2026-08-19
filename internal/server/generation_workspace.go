@@ -48,11 +48,39 @@ const (
 	WorkflowGeneration WorkflowKind = "generation"
 	WorkflowTraining   WorkflowKind = "training"
 	WorkflowExport     WorkflowKind = "export"
+	WorkflowModelBuild WorkflowKind = "model-builder"
 )
 
 type WorkflowWorkspaceAPI interface {
 	WorkflowCapabilities(context.Context, WorkflowKind) ([]WorkflowCapability, error)
 	ExecuteWorkflow(context.Context, WorkflowKind, recipe.Task, artifact.ID, json.RawMessage, operation.Reporter) (operation.Completion, error)
+}
+
+type WorkflowWorkspaceSet []WorkflowWorkspaceAPI
+
+func (set WorkflowWorkspaceSet) WorkflowCapabilities(ctx context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
+	var capabilities []WorkflowCapability
+	for _, workspace := range set {
+		current, err := workspace.WorkflowCapabilities(ctx, kind)
+		if err != nil {
+			return nil, err
+		}
+		capabilities = append(capabilities, current...)
+	}
+	return capabilities, nil
+}
+
+func (set WorkflowWorkspaceSet) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
+	for _, workspace := range set {
+		capabilities, err := workspace.WorkflowCapabilities(ctx, kind)
+		if err != nil {
+			return operation.Completion{}, err
+		}
+		if _, err = selectWorkflowCapability(capabilities, task, recipeID); err == nil {
+			return workspace.ExecuteWorkflow(ctx, kind, task, recipeID, raw, reporter)
+		}
+	}
+	return operation.Completion{}, errors.New("workflow workspace: task and recipe are not admitted")
 }
 
 type workflowRequest struct {

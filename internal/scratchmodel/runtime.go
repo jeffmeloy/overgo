@@ -14,11 +14,12 @@ import (
 
 // TrainingResult reports losses and final shared state.
 type TrainingResult struct {
-	Losses         []float64
-	ValidationLoss float64
-	Weights        []float32
-	Gradients      []float32
-	Momentum       []float64
+	Losses                []float64
+	InitialValidationLoss float64
+	ValidationLoss        float64
+	Weights               []float32
+	Gradients             []float32
+	Momentum              []float64
 }
 
 type sharedTrainingState struct {
@@ -94,7 +95,14 @@ func (c Construction) TrainShared(totalSteps int) (TrainingResult, error) {
 	if err != nil {
 		return TrainingResult{}, err
 	}
-	result := TrainingResult{Losses: make([]float64, totalSteps)}
+	state.tokens, err = c.Tokens(c.split.Validation[0])
+	if err != nil {
+		return TrainingResult{}, err
+	}
+	if err = evaluation.Run(&state); err != nil {
+		return TrainingResult{}, err
+	}
+	result := TrainingResult{Losses: make([]float64, totalSteps), InitialValidationLoss: state.loss}
 	for step := range totalSteps {
 		if err := training.Run(&state); err != nil {
 			return TrainingResult{}, err

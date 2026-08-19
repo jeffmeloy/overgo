@@ -369,19 +369,16 @@ func CompileTrainingRunPlanFromRepository(ctx context.Context, reader artifact.R
 	if err != nil {
 		return TrainingRunPlan{}, err
 	}
-	objective, err := LoadObjective(ctx, reader, spec.Policies.Objective)
+	objective, err := resolveObjective(ctx, reader, spec.Policies.Objective)
 	if err != nil {
 		return TrainingRunPlan{}, err
 	}
-	if err := validateObjectiveReferences(ctx, reader, objective); err != nil {
-		return TrainingRunPlan{}, err
-	}
-	if objective.Kind != plan.Program().Objective() || objective.Dataset != plan.Dataset() || objective.Split != plan.Split() ||
-		!slices.Equal(objective.Signature.Inputs, plan.signature.Inputs) ||
-		!slices.Equal(objective.Signature.Outputs, plan.signature.Outputs) ||
-		!slices.Equal(objective.Processors, plan.processors) ||
-		!slices.Equal(objective.Projectors, plan.projectors) ||
-		!slices.Equal(objective.Codecs, plan.codecs) || objective.Evaluation != plan.policies.Evaluation {
+	if objective.spec.Kind != plan.Program().Objective() || objective.spec.Dataset != plan.Dataset() || objective.spec.Split != plan.Split() ||
+		!slices.Equal(objective.spec.Signature.Inputs, plan.signature.Inputs) ||
+		!slices.Equal(objective.spec.Signature.Outputs, plan.signature.Outputs) ||
+		!slices.Equal(objective.spec.Processors, plan.processors) ||
+		!slices.Equal(objective.spec.Projectors, plan.projectors) ||
+		!slices.Equal(objective.spec.Codecs, plan.codecs) || objective.spec.Evaluation != plan.policies.Evaluation {
 		return TrainingRunPlan{}, errors.New("training objective: run authority differs from RepoDB objective")
 	}
 	return plan, nil

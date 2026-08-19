@@ -3,23 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "objective-composition",
-      "title": "Make objectives composable typed artifacts; let the system propose objective mixtures and measure which produce better descendants",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make objectives composable typed artifacts; let the system propose objective mixtures and measure which produce better descendants",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/trainingprogram -run '^TestComposedObjectiveProducesBetterDescendant$' -count=1 -v",
-          "depends_on": [
-            "objective-breadth",
-            "descendant-improvement"
-          ]
-        }
-      ]
-    },
-    {
       "id": "proposal-ranking-from-outcomes",
       "title": "Train the proposer ranking on the refusal ledger so retrieval becomes a learned prior over what composes successfully rather than a fixed similarity function",
       "status": "open",

@@ -1,0 +1,27 @@
+overgo training verification run
+tool: go test internal/oscillatorimage, TestRealArtifactBootstrapTraining;
+reproduced by cmd/oscillatorimage-train-probe -model Un-0
+verifying commit: 496f1743 (sweep head; recorded by the gate binding this file)
+model: Un-0 (real artifact via the package artifact dir; 29,591 packed
+trainable parameters)
+trainer: internal/oscillatorimage Trainer -- the reference's deleted Go+Muon
+bootstrap authority recovered from adaptive_new history (alive at
+581a1cef3~1, deleted by "cleanup: delete oscillator bootstrap authority")
+and ported onto overgo's finite-difference-verified BPTT backward: packed
+tensors per the reference layout, shared Muon stepper at the reference's
+lr 0.02 and momentum 0.95, shipped init policy (0.3 dynamics / 0.06 conv)
+objective identity: the recovered class-target objective evaluated on the
+REAL checkpoint scores 16.959064, inside the reference's shipped A/B band
+(mean 15.57, std 1.16, three-sigma gate) -- the checkpoint sits at
+bootstrap convergence under exactly this objective, which both confirms
+the recovered semantics and is why continuing at lr 0.02 from the optimum
+is not the descent probe
+machinery descent: a scratch model from the artifact's own config trains
+56.620768 -> 31.963809 over 12 observed Muon steps (per-step loss and
+gradient L2 logged), evaluation on the fixed seed-202 init
+dataset: procedurally declared (docs/verification/un0-training-dataset.txt,
+the grounded shard this claim names) -- per-class uniform phase inits and
+constant class-separation targets, the reference's own bootstrap data
+measured wall_ns: 1861000000 (twelve scratch steps plus both evaluations)
+notes: span_tokens 0 -- the objective is over image pixels; host
+execution, wall-only claim.

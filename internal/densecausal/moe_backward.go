@@ -22,6 +22,10 @@ type moeGrads struct {
 // expertBackward: VJP of expertForward for one row set; returns dx and
 // accumulates weight grads into the provided expert-shaped slots.
 func expertBackward(x []float32, expert moeExpert, dOut []float32, rows, hidden, inter int, into *moeExpert) []float32 {
+	var dGateWeight, dUpWeight, dDownWeight []float32
+	if into != nil {
+		dGateWeight, dUpWeight, dDownWeight = into.gate, into.up, into.down
+	}
 	gate := make([]float32, rows*inter)
 	up := make([]float32, rows*inter)
 	hostmath.Linear(gate, x, expert.gate, rows, hidden, inter)
@@ -35,7 +39,7 @@ func expertBackward(x []float32, expert moeExpert, dOut []float32, rows, hidden,
 	}
 
 	dProduct := make([]float32, rows*inter)
-	hostmath.LinearBackward(dProduct, into.down, nil, product, expert.down, dOut, rows, inter, hidden, false)
+	hostmath.LinearBackward(dProduct, dDownWeight, nil, product, expert.down, dOut, rows, inter, hidden, false)
 	dActivated := make([]float32, rows*inter)
 	dUp := make([]float32, rows*inter)
 	for i := range dProduct {
@@ -45,8 +49,8 @@ func expertBackward(x []float32, expert moeExpert, dOut []float32, rows, hidden,
 	dGate := make([]float32, rows*inter)
 	hostmath.SiLUBackward(dGate, gate, dActivated)
 	dx := make([]float32, rows*hidden)
-	hostmath.LinearBackward(dx, into.gate, nil, x, expert.gate, dGate, rows, hidden, inter, false)
-	hostmath.LinearBackward(dx, into.up, nil, x, expert.up, dUp, rows, hidden, inter, true)
+	hostmath.LinearBackward(dx, dGateWeight, nil, x, expert.gate, dGate, rows, hidden, inter, false)
+	hostmath.LinearBackward(dx, dUpWeight, nil, x, expert.up, dUp, rows, hidden, inter, true)
 	return dx
 }
 
@@ -54,6 +58,9 @@ func expertBackward(x []float32, expert moeExpert, dOut []float32, rows, hidden,
 // named gradient map, so the flat pack sees every mixture tensor under its
 // canonical name.
 func accumulateMoEGrads(g Grads, names moeTensorNames, grads moeGrads) {
+	if g == nil {
+		return
+	}
 	addInPlace(hostmath.GradientSlot(g, names.router, len(grads.dRouter)), grads.dRouter)
 	for e, expert := range grads.dExperts {
 		addInPlace(hostmath.GradientSlot(g, names.experts[e].gate, len(expert.gate)), expert.gate)
@@ -69,27 +76,28 @@ func accumulateMoEGrads(g Grads, names moeTensorNames, grads moeGrads) {
 
 // moeBackward: VJP of moeForward. dOut arrives at the mixture output; dx
 // returns at the mixture input; parameter grads land in the returned slots.
-func moeBackward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPolicy, route moeRoute, dOut []float32) ([]float32, moeGrads, error) {
+func moeBackward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPolicy, route moeRoute, dOut []float32, parameterGradients bool) ([]float32, moeGrads, error) {
 	experts := len(w.experts)
-	grads := moeGrads{
-		dRouter:  make([]float32, experts*hidden),
-		dExperts: make([]moeExpert, experts),
-	}
+	grads := moeGrads{}
 	if len(route.indices) != rows*policy.TopK || len(route.weights) != rows*policy.TopK {
 		return nil, grads, fmt.Errorf("densecausal: moe backward route len=%d/%d, want %d", len(route.indices), len(route.weights), rows*policy.TopK)
 	}
-	for e := range grads.dExperts {
-		grads.dExperts[e] = moeExpert{
-			gate: make([]float32, policy.ExpertInter*hidden),
-			up:   make([]float32, policy.ExpertInter*hidden),
-			down: make([]float32, hidden*policy.ExpertInter),
+	if parameterGradients {
+		grads.dRouter = make([]float32, experts*hidden)
+		grads.dExperts = make([]moeExpert, experts)
+		for e := range grads.dExperts {
+			grads.dExperts[e] = moeExpert{
+				gate: make([]float32, policy.ExpertInter*hidden),
+				up:   make([]float32, policy.ExpertInter*hidden),
+				down: make([]float32, hidden*policy.ExpertInter),
+			}
 		}
-	}
-	if w.shared != nil {
-		grads.dShared = &moeExpert{
-			gate: make([]float32, w.sharedInter*hidden),
-			up:   make([]float32, w.sharedInter*hidden),
-			down: make([]float32, hidden*w.sharedInter),
+		if w.shared != nil {
+			grads.dShared = &moeExpert{
+				gate: make([]float32, w.sharedInter*hidden),
+				up:   make([]float32, w.sharedInter*hidden),
+				down: make([]float32, hidden*w.sharedInter),
+			}
 		}
 	}
 
@@ -124,7 +132,11 @@ func moeBackward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPo
 			for i := range dOutRow {
 				scaled[i] = weight * dOutRow[i]
 			}
-			addInPlace(dxRow, expertBackward(xRow, w.experts[e], scaled, 1, hidden, policy.ExpertInter, &grads.dExperts[e]))
+			var destination *moeExpert
+			if parameterGradients {
+				destination = &grads.dExperts[e]
+			}
+			addInPlace(dxRow, expertBackward(xRow, w.experts[e], scaled, 1, hidden, policy.ExpertInter, destination))
 		}
 		if w.shared != nil {
 			addInPlace(dxRow, expertBackward(xRow, *w.shared, dOutRow, 1, hidden, w.sharedInter, grads.dShared))
@@ -179,9 +191,14 @@ func moeBackward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPo
 			}
 			dze := float32(dz[e])
 			routerRow := w.router[e*hidden : (e+1)*hidden]
-			dRouterRow := grads.dRouter[e*hidden : (e+1)*hidden]
+			var dRouterRow []float32
+			if parameterGradients {
+				dRouterRow = grads.dRouter[e*hidden : (e+1)*hidden]
+			}
 			for i := 0; i < hidden; i++ {
-				dRouterRow[i] += dze * xRow[i]
+				if parameterGradients {
+					dRouterRow[i] += dze * xRow[i]
+				}
 				dxRow[i] += dze * routerRow[i]
 			}
 		}

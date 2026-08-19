@@ -1,0 +1,21 @@
+overgo training verification run
+tool: go test internal/diffusionimage, TestRealCheckpointTrainingSmoke
+verifying commit: d341d2ed (post-merge sweep head; recorded by the gate binding this file)
+model: SimpleDiffusion-TPA-Rope (real checkpoint via the package artifact dir)
+trainer: internal/diffusionimage Trainer -- compiled flow-matching objective
+(trainingprogram.ObjectiveFlowMatching) over the packed tensor Muon stepper
+(optimizer.TensorPack + NewStepper), lr 1e-4, momentum 0.95, constant schedule
+dataset: the committed real-forward image golden
+(fixtures/simplediffusion/real_forward.json), the same real input the
+inference parity suite drives through the checkpoint, paired on the
+reference's deterministic OT flow path (fixedFlowPath, sigma_min 0.001) --
+grounded whole as the dataset shard this claim names
+steps: 3, observed per-step loss and wall; descent is the same pair's loss
+falling across the observed steps
+measured wall_ns: 3943000000 (three observed steps; 1.623s / 1.198s / 1.121s)
+loss: 4.614228 -> 4.577485 -> 4.541320 (monotone descent)
+parameters: 101,828,450 packed
+notes: span_tokens 0 -- the objective is over image pixels, not tokens
+(needle precedent for a non-token span); context_tokens omitted for the
+same reason; peak device memory not instrumented on this path -- wall-only
+claim.

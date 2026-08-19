@@ -26,15 +26,90 @@ import (
 
 func main() {
 	model := flag.String("model", "", "model directory (safetensors + config.json)")
+	organ := flag.String("organ", "flow-head", "trainable organ: flow-head (SenseNova fm_head) or latent-bridge (RxBrain llm2vae/vae2llm)")
 	steps := flag.Int("steps", 3, "observed Muon steps")
 	rows := flag.Int("rows", 8, "stimulus rows")
 	timestep := flag.Float64("timestep", 0.25, "flow timestep in [0,1)")
 	maxWall := flag.Duration("max-wall", 25*time.Minute, "abort when the first measured step projects the run past this bound")
 	flag.Parse()
-	if err := run(*model, *steps, *rows, *timestep, *maxWall); err != nil {
+	var err error
+	switch *organ {
+	case "flow-head":
+		err = run(*model, *steps, *rows, *timestep, *maxWall)
+	case "latent-bridge":
+		err = runLatentBridge(*model, *steps, *rows, *maxWall)
+	default:
+		err = fmt.Errorf("flow-organ-train-probe: unknown organ %q (flow-head, latent-bridge)", *organ)
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// runLatentBridge: the RxBrain-family projection pair trains its bridge
+// reconstruction objective on a deterministic committed stimulus.
+func runLatentBridge(modelDir string, steps, rows int, maxWall time.Duration) error {
+	if modelDir == "" || steps <= 0 || rows <= 0 {
+		return fmt.Errorf("flow-organ-train-probe: -model is required; -steps and -rows must be positive")
+	}
+	roots, err := dataroot.ResolveCurrent()
+	if err != nil {
+		return err
+	}
+	loadStart := time.Now()
+	src, err := safetensors.OpenSource(roots.ResolveModelPath(modelDir))
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	weights, err := routedlm.LoadLatentBridgeWeights(src, routedlm.RxBrainLatentBridgeBinding())
+	if err != nil {
+		return err
+	}
+	trainer, err := routedlm.NewLatentBridgeTrainer(weights)
+	if err != nil {
+		return err
+	}
+	defer trainer.Close()
+	fmt.Printf("trainable parameters=%d hidden=%d latent=%d derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s\n",
+		trainer.ParameterCount(), weights.Hidden, weights.Latent,
+		trainer.Config().BaseLearningRate, trainer.Config().Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
+
+	hidden, _, _ := stimulus(rows, weights.Hidden, 1)
+	start := time.Now()
+	var first float64
+	for step := 0; step < steps; step++ {
+		stepStart := time.Now()
+		result, err := trainer.Step(hidden)
+		if err != nil {
+			return err
+		}
+		if math.IsNaN(result.Loss) || math.IsInf(result.Loss, 0) {
+			return fmt.Errorf("flow-organ-train-probe: step %d loss is non-finite", step+1)
+		}
+		fmt.Printf("step %d/%d: loss=%.6f grad_l2=%.4g lr=%.4g wall=%s\n",
+			step+1, steps, result.Loss, result.GradientL2, result.LearningRate, time.Since(stepStart).Round(time.Millisecond))
+		if step == 0 {
+			first = result.Loss
+			if result.GradientL2 <= 0 {
+				return fmt.Errorf("flow-organ-train-probe: first step carried no gradient")
+			}
+			if projected := time.Duration(steps+1) * time.Since(start); projected > maxWall {
+				return fmt.Errorf("flow-organ-train-probe: first step projects the run to %s, past the %s bound", projected.Round(time.Second), maxWall)
+			}
+		}
+	}
+	after, err := trainer.Loss(hidden)
+	if err != nil {
+		return err
+	}
+	if math.IsNaN(after) || math.IsInf(after, 0) || !(after < first) {
+		return fmt.Errorf("flow-organ-train-probe: loss did not descend: before=%.6f after=%.6f", first, after)
+	}
+	fmt.Printf("descent: steps=%d loss %.6f -> %.6f total_wall=%s\n",
+		steps, first, after, time.Since(start).Round(time.Millisecond))
+	return nil
 }
 
 // stimulus: the committed deterministic probe pair — xorshift32 seeded rows,

@@ -58,7 +58,6 @@ refused-model: Krea-2-Turbo
 refused-model: Bonsai-27B-Q1
 refused-model: Qwen3.5-9B-Q8
 refused-model: Qwen3.5-4B
-refused-model: RxBrain
 
 CORRECTIONS 2026-08-19 from deep reference archaeology (the dispatch table
 moved three times and was never a reliable trainability index -- TabFM and
@@ -87,3 +86,10 @@ descent, derived hyperparameters, internal/routedlm FlowHeadTrainer +
 cmd/flow-organ-train-probe), exceeding the reference probe bar of synthetic
 slab gradients. Full-pipeline MoT training remains the named promotion gate
 inside the cell evidence.
+
+WITHDRAWN 2026-08-19: RxBrain refusal closes -- the family FIRST training
+evidence lands as a real latent-bridge cell (llm2vae/vae2llm reconstruction
+through the rank-64 bottleneck, 264K params, monotone descent, derived
+hyperparameters, LatentBridgeTrainer + flow-organ-train-probe -organ
+latent-bridge). Full modality-transformer training remains the named
+promotion gate inside the cell evidence.

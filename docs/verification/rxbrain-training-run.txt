@@ -1,0 +1,31 @@
+overgo training verification run
+tool: cmd/flow-organ-train-probe -organ latent-bridge (the latent-bridge
+trainer's production driver), bounded observed smoke with first-step
+projection guard
+verifying commit: 9709be16bf5941e2d520dd9fa500b51578a2f5d6 (the SenseNova-cell head; the run exercised the
+latent-bridge trainer added by this sub-row on that tree)
+model: Hy-Embodied-RxBrain-1.0 latent bridge via its own tensor shapes --
+264,256 trainable parameters (llm2vae 64x2048 + bias, vae2llm 2048x64 +
+bias), f32 masters decoded from the BF16 serving storage (the explicit
+training-precision contract)
+trainer: internal/routedlm LatentBridgeTrainer over optimizer.NewStepper
+(shared CUDA Muon), gradients finite-difference proven; hyperparameters
+fully DERIVED: base LR n_params^-1/2 = 1.945e-03, momentum
+(CLTMinSamples-1)/(CLTMinSamples+1) = 0.9355
+dataset: deterministic committed probe stimulus
+(docs/verification/rxbrain-training-stimulus.txt) -- probe stimulus, not
+pipeline data, stated plainly
+objective: bridge reconstruction through the rank-64 bottleneck -- the
+projection pair's own shipped contract, not an invented target; the
+measured initial loss 0.0846 (vs ~1.0 for random projections) confirms
+the pair ships as approximate inverses and the objective tightens it
+steps: 3, observed loss/grad/wall per step
+measured wall_ns: 1264000000 (steps 842ms / 233ms / 188ms; load 165ms)
+loss: 0.084593 -> 0.082524 -> 0.080980, after-evaluation 0.079828
+(monotone descent; grad_l2 0.0204 -> 0.0113)
+notes: organ-scope claim -- the upstream archaeology found RxBrain was
+never trained anywhere (a never-executed dense fallthrough only), so this
+is the family's FIRST training evidence; full modality-transformer
+training with real hidden rows from the vision/text forward is the named
+promotion gate closing refusal finding 69516579's route. context_tokens 0
+(non-token objective); peak device memory not instrumented -- wall-only.

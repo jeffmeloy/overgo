@@ -1,11 +1,4 @@
-// oscillatorimage-train-probe: bounded observed bootstrap training for a
-// conditional-oscillator image artifact under the recovered reference
-// semantics. The probe is the production driver of the oscillatorimage
-// trainer and the reproducible generator of its training verification
-// evidence: it evaluates the recovered class-target objective on the real
-// checkpoint (objective identity against the reference's shipped loss
-// band), then trains a scratch model built from the artifact's own config
-// under the shipped init policy and proves observed Muon descent.
+// oscillatorimage-train-probe: bounded artifact and bootstrap training evidence.
 package main
 
 import (
@@ -24,14 +17,18 @@ func main() {
 	steps := flag.Int("steps", 12, "observed Muon steps for the scratch bootstrap")
 	seed := flag.Int64("seed", 17, "bootstrap init and phase-sampling seed")
 	evalSeed := flag.Int64("eval-seed", 202, "fixed init seed for before/after loss evaluation")
+	learningRate := flag.Float64("learning-rate", 0.02, "Muon base learning rate")
+	momentum := flag.Float64("momentum", 0.95, "Muon momentum")
 	flag.Parse()
-	if err := run(*model, *steps, *seed, *evalSeed); err != nil {
+	if err := run(*model, *steps, *seed, *evalSeed, optimizer.Config{
+		BaseLearningRate: *learningRate, Momentum: *momentum, Schedule: optimizer.ScheduleConstant,
+	}); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(modelDir string, steps int, seed, evalSeed int64) error {
+func run(modelDir string, steps int, seed, evalSeed int64, config optimizer.Config) error {
 	if modelDir == "" || steps <= 0 {
 		return fmt.Errorf("oscillatorimage-train-probe: -model is required and -steps must be positive")
 	}
@@ -43,7 +40,7 @@ func run(modelDir string, steps int, seed, evalSeed int64) error {
 	if err != nil {
 		return err
 	}
-	realTrainer, err := oscillatorimage.NewTrainer(real, optimizer.Config{}, evalSeed)
+	realTrainer, err := oscillatorimage.NewTrainer(real, config, evalSeed)
 	if err != nil {
 		return err
 	}
@@ -53,7 +50,7 @@ func run(modelDir string, steps int, seed, evalSeed int64) error {
 		shipped, realTrainer.ParameterCount())
 
 	scratch := oscillatorimage.NewBootstrapModel(real.Cfg, seed)
-	trainer, err := oscillatorimage.NewTrainer(scratch, optimizer.Config{}, seed)
+	trainer, err := oscillatorimage.NewTrainer(scratch, config, seed)
 	if err != nil {
 		return err
 	}

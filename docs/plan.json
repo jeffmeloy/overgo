@@ -9,9 +9,9 @@
       "steps": [
         {
           "id": "scratch-session",
-          "title": "Converge scratch and oscillator training on compiled program, pack, and lifecycle owners; delete manual slabs, steps, and policy defaults",
+          "title": "Split neutral MAD forward and VJP, route scratch host training through its compiled program, and delete the manual training loop",
           "status": "open",
-          "verify": "go test ./internal/scratchmodel ./internal/oscillatorimage -count=1"
+          "verify": "go test ./internal/scratchmodel -run '^TestTrainSharedMatchesOracle$' -count=1"
         },
         {
           "id": "authority-audit",

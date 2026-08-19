@@ -67,8 +67,7 @@ func NewGraft(target *Model, layer int, donorGate, donorUp, donorDown []float32,
 
 // branchForward computes the graft branch output and retains the trace needed
 // for its VJP. x is the post-layer residual stream [seq*hidden].
-func (gr *Graft) branchForward(m *Model, x []float32, seq int) (out, z, gate, up, silu, wOut []float32) {
-	hidden := m.Dims.Hidden
+func (gr *Graft) branchActivations(x []float32, seq, hidden int) (z, gate, up, silu, wOut []float32) {
 	z = make([]float32, seq*gr.DonorHidden)
 	hostmath.Linear(z, x, gr.Down, seq, hidden, gr.DonorHidden)
 	gate = make([]float32, seq*gr.DonorIntermediate)
@@ -79,9 +78,15 @@ func (gr *Graft) branchForward(m *Model, x []float32, seq int) (out, z, gate, up
 	hostmath.SiLUGate(silu, gate, up)
 	wOut = make([]float32, seq*gr.DonorHidden)
 	hostmath.Linear(wOut, silu, gr.DonorDown, seq, gr.DonorIntermediate, gr.DonorHidden)
-	out = make([]float32, seq*hidden)
+	return z, gate, up, silu, wOut
+}
+
+func (gr *Graft) branchForward(m *Model, x []float32, seq int) []float32 {
+	hidden := m.Dims.Hidden
+	_, _, _, _, wOut := gr.branchActivations(x, seq, hidden)
+	out := make([]float32, seq*hidden)
 	hostmath.Linear(out, wOut, gr.Up, seq, gr.DonorHidden, hidden)
-	return out, z, gate, up, silu, wOut
+	return out
 }
 
 // GraftLoss runs the grafted forward and returns mean causal CE.
@@ -115,7 +120,7 @@ func (m *Model) graftForwardStates(gr *Graft, tokens []int) ([][]float32, []floa
 		}
 		if index == gr.Layer {
 			preBranch = append([]float32(nil), x...)
-			out, _, _, _, _, _ := gr.branchForward(m, preBranch, seq)
+			out := gr.branchForward(m, preBranch, seq)
 			addInPlace(x, out)
 		}
 		return nil
@@ -147,11 +152,10 @@ func (m *Model) GraftLossAndBridgeGrads(gr *Graft, tokens []int) (float64, Grads
 			// outputGradient is dL/dy for y = xOut + branch(xOut); fold the
 			// branch VJP in before the layer's own backward.
 			dxBranch := gr.branchBackward(m, preBranch, outputGradient, seq, g)
-			dxOut := make([]float32, len(outputGradient))
-			for i := range dxOut {
-				dxOut[i] = outputGradient[i] + dxBranch[i]
+			for i := range dxBranch {
+				dxBranch[i] += outputGradient[i]
 			}
-			outputGradient = dxOut
+			outputGradient = dxBranch
 		}
 		return m.layerBackward(index, input, outputGradient, invFreq, seq, g)
 	})
@@ -173,24 +177,21 @@ func (m *Model) GraftLossAndBridgeGrads(gr *Graft, tokens []int) (float64, Grads
 // the branch path only.
 func (gr *Graft) branchBackward(m *Model, preBranch, dy []float32, seq int, g Grads) []float32 {
 	hidden := m.Dims.Hidden
-	_, z, gate, up, silu, wOut := gr.branchForward(m, preBranch, seq)
+	z, gate, up, silu, wOut := gr.branchActivations(preBranch, seq, hidden)
 
 	dW := make([]float32, seq*gr.DonorHidden)
 	hostmath.LinearBackward(dW, hostmath.GradientSlot(g, BridgeUpName, hidden*gr.DonorHidden), nil,
 		wOut, gr.Up, dy, seq, gr.DonorHidden, hidden, false)
 	dSilu := make([]float32, seq*gr.DonorIntermediate)
-	donorDownScratch := make([]float32, len(gr.DonorDown))
-	hostmath.LinearBackward(dSilu, donorDownScratch, nil,
+	hostmath.LinearBackward(dSilu, nil, nil,
 		silu, gr.DonorDown, dW, seq, gr.DonorIntermediate, gr.DonorHidden, false)
 	dGate := make([]float32, seq*gr.DonorIntermediate)
 	dUp := make([]float32, seq*gr.DonorIntermediate)
 	hostmath.SiLUGateBackward(dGate, dUp, gate, up, dSilu)
 	dz := make([]float32, seq*gr.DonorHidden)
-	donorGateScratch := make([]float32, len(gr.DonorGate))
-	donorUpScratch := make([]float32, len(gr.DonorUp))
-	hostmath.LinearBackward(dz, donorGateScratch, nil,
+	hostmath.LinearBackward(dz, nil, nil,
 		z, gr.DonorGate, dGate, seq, gr.DonorHidden, gr.DonorIntermediate, false)
-	hostmath.LinearBackward(dz, donorUpScratch, nil,
+	hostmath.LinearBackward(dz, nil, nil,
 		z, gr.DonorUp, dUp, seq, gr.DonorHidden, gr.DonorIntermediate, true)
 	dxBranch := make([]float32, seq*hidden)
 	hostmath.LinearBackward(dxBranch, hostmath.GradientSlot(g, BridgeDownName, gr.DonorHidden*hidden), nil,

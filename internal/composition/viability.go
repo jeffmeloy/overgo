@@ -13,6 +13,7 @@ import (
 	"overgo/internal/optimizer"
 	"overgo/internal/organ"
 	"overgo/internal/recipe"
+	"overgo/internal/safetensors"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
 )
@@ -50,6 +51,7 @@ type Result struct {
 	DonorTensor   string
 	GraftLayer    int
 	Baseline      float64
+	WorstHeldOut  float64
 	Outcomes      []SeedOutcome
 	Ship          bool
 	Reason        string
@@ -58,6 +60,18 @@ type Result struct {
 
 // RunViability: compile, train, evaluate, decide.
 func RunViability(config Config) (Result, error) {
+	target, err := identifyDenseModel(config.TargetDir)
+	if err != nil {
+		return Result{}, fmt.Errorf("composition: identify target: %w", err)
+	}
+	donor, err := identifyDenseModel(config.DonorDir)
+	if err != nil {
+		return Result{}, fmt.Errorf("composition: identify donor: %w", err)
+	}
+	return runViability(config, target, donor)
+}
+
+func runViability(config Config, targetID, donorID artifact.ID) (Result, error) {
 	if len(config.Seeds) == 0 || config.Steps <= 0 || len(config.Train) == 0 || len(config.HeldOut) < 2 {
 		return Result{}, fmt.Errorf("composition: seeds, steps, train batches and a held-out batch are required")
 	}
@@ -65,17 +79,9 @@ func RunViability(config Config) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("composition: load target: %w", err)
 	}
-	donor, err := densecausal.Load(config.DonorDir)
+	donor, err := loadDonorComponent(config.DonorDir, config.DonorLayer, config.DonorTensor)
 	if err != nil {
-		return Result{}, fmt.Errorf("composition: load donor: %w", err)
-	}
-	targetID, err := identifyDenseModel(config.TargetDir)
-	if err != nil {
-		return Result{}, fmt.Errorf("composition: identify target: %w", err)
-	}
-	donorID, err := identifyDenseModel(config.DonorDir)
-	if err != nil {
-		return Result{}, fmt.Errorf("composition: identify donor: %w", err)
+		return Result{}, fmt.Errorf("composition: load donor component: %w", err)
 	}
 	dataset, err := artifact.JSONID(artifact.KindDataset, config.Train)
 	if err != nil {
@@ -96,44 +102,17 @@ func RunViability(config Config) (Result, error) {
 	if graftLayer < 0 {
 		graftLayer = target.Dims.Layers / 2
 	}
-	names := make([]string, 0, len(donor.Weights))
-	for name := range donor.Weights {
-		names = append(names, name)
-	}
-	catalog, err := organ.CompileCatalog(names)
-	if err != nil {
-		return Result{}, err
-	}
-	donorLayer := config.DonorLayer
-	if config.DonorTensor != "" {
-		donorLayer = -1
-		for index := range catalog.MLPCount() {
-			candidate, _ := catalog.MLP(index)
-			if candidate.Gate == config.DonorTensor || candidate.Up == config.DonorTensor || candidate.Down == config.DonorTensor {
-				donorLayer = index
-				break
-			}
-		}
-	}
-	if donorLayer < 0 && config.DonorTensor == "" {
-		donorLayer = catalog.MLPCount() / 2
-	}
-	component, ok := catalog.MLP(donorLayer)
-	if !ok {
-		return Result{}, fmt.Errorf("composition: donor MLP index %d outside %d cataloged components", donorLayer, catalog.MLPCount())
-	}
-	gateName, upName, downName, contract := component.Gate, component.Up, component.Down, component.Contract
 	componentID, err := artifact.JSONID(artifact.KindTensorSet, struct {
 		Model artifact.ID `json:"model"`
 		Gate  string      `json:"gate"`
 		Up    string      `json:"up"`
 		Down  string      `json:"down"`
-	}{donorID, gateName, upName, downName})
+	}{donorID, donor.gateName, donor.upName, donor.downName})
 	if err != nil {
 		return Result{}, err
 	}
 	if config.BaseLR <= 0 && config.LRScale > 0 {
-		bridgeWeights := 2 * target.Dims.Hidden * donor.Dims.Hidden
+		bridgeWeights := 2 * target.Dims.Hidden * donor.hidden
 		config.BaseLR = config.LRScale * optimizer.DeriveBaseLR(bridgeWeights)
 	}
 	baseline, _, err := target.Loss(config.HeldOut)
@@ -143,14 +122,13 @@ func RunViability(config Config) (Result, error) {
 	result := Result{
 		Target: targetID, Donor: donorID, Component: componentID, Recipe: definition.ID,
 		Dataset: dataset, Split: split, definition: definition,
-		DonorContract: contract, DonorTensor: gateName, GraftLayer: graftLayer, Baseline: baseline,
+		DonorContract: donor.contract, DonorTensor: donor.gateName, GraftLayer: graftLayer, Baseline: baseline,
 	}
 	worst := math.Inf(-1)
 	for _, seed := range config.Seeds {
 		graft, err := densecausal.NewGraft(
 			target, graftLayer,
-			donor.Weights[gateName], donor.Weights[upName], donor.Weights[downName],
-			donor.Dims.Hidden, donor.Dims.Intermediate, seed,
+			donor.gate, donor.up, donor.down, donor.hidden, donor.intermediate, seed,
 		)
 		if err != nil {
 			return Result{}, err
@@ -169,6 +147,7 @@ func RunViability(config Config) (Result, error) {
 		result.Outcomes = append(result.Outcomes, SeedOutcome{Seed: seed, TrainLosses: losses, HeldOut: heldOut})
 		worst = math.Max(worst, heldOut)
 	}
+	result.WorstHeldOut = worst
 	if worst < baseline {
 		result.Ship = true
 		result.Reason = fmt.Sprintf(
@@ -180,6 +159,77 @@ func RunViability(config Config) (Result, error) {
 			worst, baseline, config.Steps)
 	}
 	return result, nil
+}
+
+type donorComponent struct {
+	gateName, upName, downName string
+	gate, up, down             []float32
+	hidden, intermediate       int
+	contract                   organ.Contract
+}
+
+func loadDonorComponent(directory string, layer int, tensorName string) (result donorComponent, err error) {
+	source, err := safetensors.OpenSource(directory)
+	if err != nil {
+		return donorComponent{}, err
+	}
+	defer func() { err = errors.Join(err, source.Close()) }()
+	catalog, err := organ.CompileCatalog(source.Names())
+	if err != nil {
+		return donorComponent{}, err
+	}
+	if tensorName != "" {
+		layer = -1
+		for index := range catalog.MLPCount() {
+			candidate, _ := catalog.MLP(index)
+			if candidate.Gate == tensorName || candidate.Up == tensorName || candidate.Down == tensorName {
+				layer = index
+				break
+			}
+		}
+	} else if layer < 0 {
+		layer = catalog.MLPCount() / 2
+	}
+	component, ok := catalog.MLP(layer)
+	if !ok {
+		return donorComponent{}, fmt.Errorf("donor MLP index %d outside %d cataloged components", layer, catalog.MLPCount())
+	}
+	gate, gateRows, gateCols, err := readDonorMatrix(source, component.Gate)
+	if err != nil {
+		return donorComponent{}, err
+	}
+	up, upRows, upCols, err := readDonorMatrix(source, component.Up)
+	if err != nil {
+		return donorComponent{}, err
+	}
+	down, downRows, downCols, err := readDonorMatrix(source, component.Down)
+	if err != nil {
+		return donorComponent{}, err
+	}
+	if upRows != gateRows || upCols != gateCols || downRows != gateCols || downCols != gateRows {
+		return donorComponent{}, fmt.Errorf("donor MLP tensor geometry differs")
+	}
+	return donorComponent{
+		gateName: component.Gate, upName: component.Up, downName: component.Down,
+		gate: gate, up: up, down: down, hidden: gateCols, intermediate: gateRows,
+		contract: component.Contract,
+	}, nil
+}
+
+func readDonorMatrix(source *safetensors.Source, name string) ([]float32, int, int, error) {
+	tensor, ok := source.Tensors[name]
+	if !ok || len(tensor.Shape) != 2 {
+		return nil, 0, 0, fmt.Errorf("donor tensor %q is not a matrix", name)
+	}
+	rows, cols := int(tensor.Shape[0]), int(tensor.Shape[1])
+	if rows <= 0 || cols <= 0 || uint64(rows) != tensor.Shape[0] || uint64(cols) != tensor.Shape[1] {
+		return nil, 0, 0, fmt.Errorf("donor tensor %q geometry exceeds host range", name)
+	}
+	values, err := safetensors.ReadF32(tensor)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("donor tensor %q: %w", name, err)
+	}
+	return values, rows, cols, nil
 }
 
 func identifyDenseModel(directory string) (artifact.ID, error) {

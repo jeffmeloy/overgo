@@ -20,6 +20,11 @@ var (
 	}
 )
 
+const (
+	baselineHeldOutMetric = "baseline-heldout-loss"
+	worstHeldOutMetric    = "worst-seed-heldout-loss"
+)
+
 type viabilityEvaluator struct {
 	Recipe  artifact.ID `json:"recipe"`
 	Dataset artifact.ID `json:"dataset"`
@@ -172,7 +177,8 @@ func RecordViability(store *repodb.Store, config Config, result Result) (runreco
 	if result.Target.Kind() != artifact.KindModel || result.Donor.Kind() != artifact.KindModel ||
 		result.Component.Kind() != artifact.KindTensorSet || result.Recipe.Kind() != artifact.KindRecipe ||
 		result.Dataset.Kind() != artifact.KindDataset || result.Split.Kind() != artifact.KindDatasetShard ||
-		len(result.Outcomes) == 0 || result.definition.ID != result.Recipe {
+		len(result.Outcomes) == 0 || result.definition.ID != result.Recipe ||
+		result.WorstHeldOut < 0 || math.IsNaN(result.WorstHeldOut) || math.IsInf(result.WorstHeldOut, 0) {
 		return runrecord.GenerationRecord{}, fmt.Errorf("composition: viability authority is incomplete")
 	}
 	protocol := fmt.Sprintf("target=%s;donor=%s;tensor=%s;layer=%d;steps=%d;seeds=%d;lrscale=%g",
@@ -209,20 +215,16 @@ func RecordViability(store *repodb.Store, config Config, result Result) (runreco
 	if err != nil {
 		return runrecord.GenerationRecord{}, err
 	}
-	worst := result.Outcomes[0].HeldOut
-	for _, seed := range result.Outcomes[1:] {
-		worst = math.Max(worst, seed.HeldOut)
-	}
 	evaluation, err := runrecord.NewEvaluation(result.Recipe, run.ID, result.Dataset, []runrecord.Metric{
-		{Name: "baseline-heldout-loss", Value: result.Baseline, Direction: runrecord.DirectionMinimize},
-		{Name: "worst-seed-heldout-loss", Value: worst, Direction: runrecord.DirectionMinimize},
+		{Name: baselineHeldOutMetric, Value: result.Baseline, Direction: runrecord.DirectionMinimize},
+		{Name: worstHeldOutMetric, Value: result.WorstHeldOut, Direction: runrecord.DirectionMinimize},
 	})
 	if err != nil {
 		return runrecord.GenerationRecord{}, err
 	}
 	evaluator, err := artifact.JSONContent(viabilityEvaluatorContract, viabilityEvaluator{
 		Recipe: result.Recipe, Dataset: result.Dataset, Split: result.Split,
-		Metrics: []string{"baseline-heldout-loss", "worst-seed-heldout-loss"},
+		Metrics: []string{baselineHeldOutMetric, worstHeldOutMetric},
 	})
 	if err != nil {
 		return runrecord.GenerationRecord{}, err

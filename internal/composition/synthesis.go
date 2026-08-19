@@ -55,7 +55,7 @@ func SynthesizeBridge(
 		return SynthesisOutcome{}, errors.New("composition: proposal does not admit the synthesis donor")
 	}
 	config.DonorTensor = selected.Component
-	result, err := RunViability(config)
+	result, err := runViability(config, target, donor)
 	if err != nil {
 		return SynthesisOutcome{}, err
 	}

@@ -16,6 +16,8 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
+const synthesisComponentTensor = "model.layers.0.mlp.gate_proj.weight"
+
 func TestComponentProposalToPromotionPipeline(t *testing.T) {
 	root := t.TempDir()
 	targetDir, donorDir := filepath.Join(root, "target"), filepath.Join(root, "donor")
@@ -29,13 +31,12 @@ func TestComponentProposalToPromotionPipeline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const component = "model.layers.0.mlp.gate_proj.weight"
-	contract := organ.Classify(component, "f32", "", "text", "")
-	index, err := NewHypervectorIndex([]CatalogComponent{{Model: donor, Name: component, Contract: contract}})
+	contract := organ.Classify(synthesisComponentTensor, "f32", "", "text", "")
+	index, err := NewHypervectorIndex([]CatalogComponent{{Model: donor, Name: synthesisComponentTensor, Contract: contract}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	hits, err := index.Search(CatalogComponent{Model: target, Name: component, Contract: contract}, 1)
+	hits, err := index.Search(CatalogComponent{Model: target, Name: synthesisComponentTensor, Contract: contract}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,11 +82,36 @@ func TestComponentProposalToPromotionPipeline(t *testing.T) {
 		want = recipe.DecisionAccepted
 	}
 	if outcome.Decision.Outcome != want || outcome.Record.TrainingPlan != outcome.Result.Recipe ||
-		outcome.Record.Parents[0] != target || outcome.Result.DonorTensor != component {
+		outcome.Record.Parents[0] != target || outcome.Result.DonorTensor != synthesisComponentTensor {
 		t.Fatalf("outcome=%+v", outcome)
 	}
 	if _, found, err := store.Content(context.Background(), outcome.Result.Recipe); err != nil || !found {
 		t.Fatalf("compiled recipe absent: found=%t err=%v", found, err)
+	}
+}
+
+func TestComponentSynthesisLoadsOnlySelectedDonor(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "donor")
+	writeSynthesisModel(t, directory, 11)
+	component, err := loadDonorComponent(directory, -1, synthesisComponentTensor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retained := len(component.gate) + len(component.up) + len(component.down)
+	source, err := safetensors.OpenSource(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	all := 0
+	for _, tensor := range source.Tensors {
+		all += int(tensor.Elements())
+	}
+	if component.gateName != synthesisComponentTensor || component.upName == "" || component.downName == "" ||
+		len(component.gate) == 0 || len(component.up) == 0 || len(component.down) == 0 || retained >= all {
+		t.Fatalf("selected donor = names %q/%q/%q geometry %dx%d retained %d of %d",
+			component.gateName, component.upName, component.downName,
+			component.hidden, component.intermediate, retained, all)
 	}
 }
 

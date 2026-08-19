@@ -1,0 +1,23 @@
+{
+ "model": "model:sha256:c36bb8ca474d5e5d7bc16e77df9dd25fcf080901b42edb6a7263b90a4befa269",
+ "name": "Un-0",
+ "evidence_files": [
+  "docs/verification/un0-training-run.txt"
+ ],
+ "dataset_files": [
+  "docs/verification/un0-training-dataset.txt"
+ ],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "496f1743430286ecbbbfcefac146903eb845b080",
+   "dataset": "dataset-shard:sha256:81a755725bad01a6310731d6e39eb05126f43d6702a65befaeb02b820f769a09",
+   "span_steps": 12,
+   "wall_ns": 1861000000,
+   "evidence": [
+    "evidence:sha256:e47c6866face3d926c17fe52b006362eaf1d5868dbbb82f7758aa725f6e8fd49"
+   ]
+  }
+ ]
+}

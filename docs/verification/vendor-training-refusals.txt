@@ -1,0 +1,63 @@
+overgo training verification refusals: the archaeology batch
+Archaeology across all 9,343 reachable commits of the reference repo
+(adaptive_new) establishes that no Go training code ever existed for the
+families below; their checkpoints are unmodified vendor artifacts (safetensors
+metadata carries no Go-training provenance; no checkpoints/ output exists).
+Inventing a training objective where the reference never had one would
+contradict the archaeology-first doctrine; each family below records a typed
+refusal whose closure route is a deliberate future port, not a smoke.
+
+LiveEdit (model:sha256:618e6c57...): upstream cp-cp/LiveEdit .pt checkpoints
+(base Wan2.1-T2V, Ditto-1M data); reference recipe is generation-only.
+Closure: port a video-edit diffusion training graph as its own campaign, or
+declare training-unsupported for vendor edit checkpoints.
+
+Wan2.1-T2V-1.3B (model:sha256:96b6b242...): reference has ~70 wan_* files,
+zero with training; generation recipe only. Closure: text-to-video flow
+training campaign or training-unsupported declaration.
+
+Krea-2-Turbo (model:sha256:a7d90955... ledger row Krea-2-Turbo): forward
+denoiser only upstream; generation recipe only. Closure: latent-flow
+finetune campaign or training-unsupported declaration.
+
+SenseNova-U1-8B: generation recipe only upstream (the one training-adjacent
+commit renames Supernova/neo_chat identifiers, not SenseNova). Closure:
+image-generation finetune campaign or training-unsupported declaration.
+
+Bonsai-27B-Q1 (ternary GGUF): decode-only upstream; no recipe scope at all;
+no safetensors. Ternary quantized weights are not a gradient substrate.
+Closure: requires a dequantized master-weight lane (quantization-aware
+training campaign) or training-unsupported declaration for ternary serving
+artifacts.
+
+Qwen3.5-9B-Q8 (hybrid recurrent, GGUF): upstream refusal on record
+("training dispatch unsupported for family qwen3_5_hybrid"); no backward for
+the hybrid recurrent decoder in any commit. Extends the existing overgo
+Qwen3.5-4B typed refusal (hybridtrain closure routes) to the 9B GGUF row.
+
+gemma-4-E4B: structurally blocked upstream ("E4B is not trainable because it
+is not natively SERVED... a chain, not a rename"). Overgo DOES serve E4B
+natively (capability-e4b-inference), so the chain is unblocked here: the
+closure route is porting the live gemma4_unified training semantics (tiled-
+head CE, frozen tied embedding, MuonBridge) onto overgo's E4B spine -- a
+port campaign, not a smoke.
+
+RxBrain (Hy-Embodied-RxBrain-1.0): upstream refusal on record (same commit
+as the hybrid refusal); all deleted rxbrain files were serving routes.
+Closure: training graph for the modality-transformer mixture as its own
+campaign once the port stabilizes, or training-unsupported declaration.
+
+guard: each family's finding carries a check that fails if a training cell
+ever appears for it without a closure route landing first -- silent cells
+are impossible. No silent skips: this document is the sweep's typed outcome
+for all eight rows.
+
+refused-model: LiveEdit
+refused-model: Wan2.1-T2V-1.3B
+refused-model: Krea-2-Turbo
+refused-model: SenseNova-U1-8B
+refused-model: Bonsai-27B-Q1
+refused-model: Qwen3.5-9B-Q8
+refused-model: Qwen3.5-4B
+refused-model: gemma-4-E4B
+refused-model: RxBrain

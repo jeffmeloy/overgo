@@ -20,3 +20,6 @@ guard: the finding's check fails if a TabFM training cell ever appears
 without one of the routes, so a silent cell is impossible.
 no silent skip: this document and the parked finding are the sweep's
 typed outcome for both TabFM rows.
+
+refused-model: TabFM-1.0-classification
+refused-model: TabFM-1.0-regression

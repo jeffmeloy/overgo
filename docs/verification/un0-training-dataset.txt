@@ -1,0 +1,11 @@
+un0 bootstrap procedural dataset declaration
+The conditional-oscillator bootstrap objective consumes no stored corpus;
+its data is procedurally generated and fully declared here (the recovered
+reference semantics, adaptive_new pre-cleanup):
+- inputs: per-class oscillator phase initial states drawn uniform in
+  [-pi, pi), one row per class, resampled fresh each training step from a
+  seeded generator (training seed 17; evaluation fixed at seed 202)
+- targets: every pixel of class c's decoded image trains toward the
+  constant 0.1 + 0.2*c across the artifact's 3 classes (class separation)
+- loss: sum of squared error over all classes and pixels
+This declaration is the dataset shard the training claim names.

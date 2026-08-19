@@ -1,0 +1,30 @@
+overgo training verification run
+tool: cmd/flow-organ-train-probe (the flow-head organ trainer's production
+driver), bounded observed smoke with first-step projection guard
+verifying commit: 3ecc7cf15b069fdda75c75a79efb08f9db7d0359 (the post-merge campaign head; the run exercised
+the flow-head trainer added by this sub-row on that tree)
+model: SenseNova-U1-8B-MoT fm_head organ via the compiled flow plan --
+29,367,296 trainable parameters (fm_modules.fm_head.0 4096x4096 + bias,
+fm_modules.fm_head.2 3072x4096 + bias), f32 masters decoded from the BF16
+serving storage (the explicit training-precision contract; the reference
+gemma lane makes the same master-weight move for its fp8 base)
+trainer: internal/routedlm FlowHeadTrainer -- the serving head math in
+training precision (linear -> exact GELU -> linear -> velocity transform
+(x-z)/max(1-t,eps), gradients finite-diff proven) over optimizer.NewStepper
+(shared CUDA Muon), hyperparameters fully DERIVED: base LR n_params^-1/2 =
+1.845e-04, momentum (CLTMinSamples-1)/(CLTMinSamples+1) = 0.9355
+dataset: deterministic committed probe stimulus (xorshift32 seed 88675123,
+8 rows, timestep 0.25) -- probe stimulus, not pipeline data, stated plainly;
+the reference's own recovered lane (f4ee9ef34) drew the same organ boundary
+with a synthetic-gradient slab probe and the note that native diffusion
+forward/backward remains the promotion gate. This run exceeds that bar:
+real weights, real forward, real VJP, real descent.
+steps: 3, observed loss/grad/wall per step
+measured wall_ns: 2018000000 (steps 969ms / 521ms / 513ms; load 184ms)
+loss: 23.163268 -> 22.956252 -> 22.750417, after-evaluation 22.545765
+(monotone descent; grad_l2 14.38 -> 14.22)
+notes: organ-scope claim -- full-pipeline MoT training (hidden rows from the
+real vision/text forward) is the named promotion gate, closing the parked
+refusal finding 7b14b96e's route rather than being silently skipped.
+context_tokens 0 (non-token objective, needle precedent); peak device
+memory not instrumented -- wall-only claim.

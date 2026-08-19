@@ -55,7 +55,6 @@ for all eight rows.
 refused-model: LiveEdit
 refused-model: Wan2.1-T2V-1.3B
 refused-model: Krea-2-Turbo
-refused-model: SenseNova-U1-8B
 refused-model: Bonsai-27B-Q1
 refused-model: Qwen3.5-9B-Q8
 refused-model: Qwen3.5-4B
@@ -81,3 +80,10 @@ Un-0 both trained through generic lanes while declared unsupported):
 - Wan2.1, Krea-2-Turbo, LiveEdit, Bonsai-27B, Qwen3.5 hybrid: confirmed
   never-trained across all three dispatch-table eras and every generic
   lane's actual model coverage.
+
+WITHDRAWN 2026-08-19: SenseNova-U1-8B refusal closes -- the recovered probe
+route landed as a real training cell (fm_head organ, 29.4M params, monotone
+descent, derived hyperparameters, internal/routedlm FlowHeadTrainer +
+cmd/flow-organ-train-probe), exceeding the reference probe bar of synthetic
+slab gradients. Full-pipeline MoT training remains the named promotion gate
+inside the cell evidence.

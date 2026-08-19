@@ -18,6 +18,7 @@ type layer struct {
 	qb, kb, vb       []float32
 	postLN           []float32
 	gate, up, down   []float32
+	moe              *moeWeights
 	names            layerTensorNames
 }
 
@@ -28,7 +29,7 @@ type layerTensorNames struct {
 	gate, up, down   string
 }
 
-func compileLayer(weights map[string][]float32, index int, attentionBias bool) (layer, error) {
+func compileLayer(weights map[string][]float32, index int, attentionBias bool, policy MoERouterPolicy, hidden int) (layer, error) {
 	names := denseLayerTensorNames(index)
 	l := layer{
 		inLN: weights[names.inLN], postLN: weights[names.postLN],
@@ -37,7 +38,7 @@ func compileLayer(weights map[string][]float32, index int, attentionBias bool) (
 		gate: weights[names.gate], up: weights[names.up], down: weights[names.down],
 		names: names,
 	}
-	for _, w := range [][]float32{l.inLN, l.q, l.k, l.v, l.o, l.postLN, l.gate, l.up, l.down} {
+	for _, w := range [][]float32{l.inLN, l.q, l.k, l.v, l.o, l.postLN} {
 		if w == nil {
 			return layer{}, fmt.Errorf("densecausal: layer %d tensor missing", index)
 		}
@@ -45,7 +46,77 @@ func compileLayer(weights map[string][]float32, index int, attentionBias bool) (
 	if attentionBias && (l.qb == nil || l.kb == nil || l.vb == nil) {
 		return layer{}, fmt.Errorf("densecausal: layer %d attention bias missing", index)
 	}
+	// FFN kind derives from the layer's own tensors: a dense gate projection
+	// makes a dense layer; a router plus expert set makes a routed layer.
+	if l.gate != nil {
+		if l.up == nil || l.down == nil {
+			return layer{}, fmt.Errorf("densecausal: layer %d dense mlp incomplete", index)
+		}
+		return l, nil
+	}
+	if policy.TopK <= 0 {
+		return layer{}, fmt.Errorf("densecausal: layer %d has no dense mlp and no declared mixture policy", index)
+	}
+	moe, err := compileMoELayer(weights, index, policy, hidden)
+	if err != nil {
+		return layer{}, err
+	}
+	l.moe = moe
 	return l, nil
+}
+
+// compileMoELayer binds one routed layer's mixture tensors; the expert count
+// derives from the tensors present, and the shared expert is optional.
+func compileMoELayer(weights map[string][]float32, index int, policy MoERouterPolicy, hidden int) (*moeWeights, error) {
+	prefix := fmt.Sprintf("model.layers.%d.mlp.", index)
+	names := moeTensorNames{router: prefix + "gate.weight"}
+	router := weights[names.router]
+	if router == nil {
+		return nil, fmt.Errorf("densecausal: layer %d router tensor %s missing", index, names.router)
+	}
+	w := &moeWeights{router: router}
+	for expert := 0; ; expert++ {
+		en := moeExpertNames{
+			gate: fmt.Sprintf("%sexperts.%d.gate_proj.weight", prefix, expert),
+			up:   fmt.Sprintf("%sexperts.%d.up_proj.weight", prefix, expert),
+			down: fmt.Sprintf("%sexperts.%d.down_proj.weight", prefix, expert),
+		}
+		gate := weights[en.gate]
+		if gate == nil {
+			break
+		}
+		if weights[en.up] == nil || weights[en.down] == nil {
+			return nil, fmt.Errorf("densecausal: layer %d expert %d incomplete", index, expert)
+		}
+		w.experts = append(w.experts, moeExpert{gate: gate, up: weights[en.up], down: weights[en.down]})
+		names.experts = append(names.experts, en)
+	}
+	if len(w.experts) == 0 || policy.TopK > len(w.experts) {
+		return nil, fmt.Errorf("densecausal: layer %d has %d experts for top_k %d", index, len(w.experts), policy.TopK)
+	}
+	shared := moeExpertNames{
+		gate: prefix + "shared_experts.gate_proj.weight",
+		up:   prefix + "shared_experts.up_proj.weight",
+		down: prefix + "shared_experts.down_proj.weight",
+	}
+	for e, expert := range w.experts {
+		if len(expert.gate) != policy.ExpertInter*hidden || len(expert.up) != policy.ExpertInter*hidden || len(expert.down) != hidden*policy.ExpertInter {
+			return nil, fmt.Errorf("densecausal: layer %d expert %d geometry differs from declared moe intermediate %d", index, e, policy.ExpertInter)
+		}
+	}
+	if sg := weights[shared.gate]; sg != nil {
+		if weights[shared.up] == nil || weights[shared.down] == nil {
+			return nil, fmt.Errorf("densecausal: layer %d shared expert incomplete", index)
+		}
+		if hidden <= 0 || len(sg)%hidden != 0 {
+			return nil, fmt.Errorf("densecausal: layer %d shared expert gate len=%d not divisible by hidden %d", index, len(sg), hidden)
+		}
+		w.shared = &moeExpert{gate: sg, up: weights[shared.up], down: weights[shared.down]}
+		w.sharedInter = len(sg) / hidden
+		names.shared = &shared
+	}
+	w.names = names
+	return w, nil
 }
 
 func denseLayerTensorNames(index int) layerTensorNames {
@@ -116,7 +187,7 @@ func (m *Model) attnSubForward(l layer, xn []float32, invFreq []float64, seq int
 
 // layerForward advances the residual stream in place through one pre-norm
 // layer: x += o(attn(norm(x))); x += down(silu(gate(norm(x)))*up(norm(x))).
-func (m *Model) layerForward(x []float32, l layer, invFreq []float64, seq int) {
+func (m *Model) layerForward(x []float32, l layer, invFreq []float64, seq int) error {
 	d := m.Dims
 	width := d.Heads * d.HeadDim
 	xn := make([]float32, seq*d.Hidden)
@@ -127,6 +198,14 @@ func (m *Model) layerForward(x []float32, l layer, invFreq []float64, seq int) {
 	addInPlace(x, attnOut)
 	hn := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormInto(hn, x, l.postLN, seq, d.Hidden, d.RMSEps)
+	if l.moe != nil {
+		mixture, _, err := moeForward(hn, *l.moe, seq, d.Hidden, d.MoE)
+		if err != nil {
+			return err
+		}
+		addInPlace(x, mixture)
+		return nil
+	}
 	gate := make([]float32, seq*d.Intermediate)
 	up := make([]float32, seq*d.Intermediate)
 	hostmath.Linear(gate, hn, l.gate, seq, d.Hidden, d.Intermediate)
@@ -135,6 +214,7 @@ func (m *Model) layerForward(x []float32, l layer, invFreq []float64, seq int) {
 	mlp := make([]float32, seq*d.Hidden)
 	hostmath.Linear(mlp, gate, l.down, seq, d.Intermediate, d.Hidden)
 	addInPlace(x, mlp)
+	return nil
 }
 
 // forwardStates runs the stack retaining the residual stream at each layer
@@ -144,8 +224,7 @@ func (m *Model) forwardStates(tokens []int) ([][]float32, error) {
 	d := m.Dims
 	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
 	return m.retainedForwardStates(tokens, func(x []float32, index, seq int) error {
-		m.layerForward(x, m.layers[index], invFreq, seq)
-		return nil
+		return m.layerForward(x, m.layers[index], invFreq, seq)
 	})
 }
 

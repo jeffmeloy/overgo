@@ -18,3 +18,16 @@ func DeriveBaseLR(nParams int) float64 {
 	}
 	return math.Pow(float64(nParams), BaseLRParamExponent)
 }
+
+// CLTMinSamples: the central-limit rule-of-thumb floor on effective samples
+// the momentum EMA must average over (matches adaptive_new
+// analysis.CLTMinSamples). A documented distributional assumption, not a
+// free knob.
+const CLTMinSamples = 30
+
+// DeriveMomentum returns the Muon momentum whose EMA effective sample size
+// (1+mu)/(1-mu) equals CLTMinSamples: mu = (N-1)/(N+1). With DeriveBaseLR
+// this completes the minimal-hyperparameter contract — no tuned values.
+func DeriveMomentum() float64 {
+	return float64(CLTMinSamples-1) / float64(CLTMinSamples+1)
+}

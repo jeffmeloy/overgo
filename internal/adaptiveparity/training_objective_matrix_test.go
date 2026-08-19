@@ -134,10 +134,12 @@ func assertObjectiveProgramOrder(t *testing.T, program trainingprogram.TrainingP
 	if err != nil {
 		t.Fatal(err)
 	}
+	execution, err = execution.Select(trainingprogram.PhaseForward, trainingprogram.PhaseBackward, trainingprogram.PhaseOptimize)
+	if err != nil {
+		t.Fatal(err)
+	}
 	state := objectiveOrderState{}
-	if err := execution.RunPhases(&state,
-		trainingprogram.PhaseForward, trainingprogram.PhaseBackward, trainingprogram.PhaseOptimize,
-	); err != nil {
+	if err := execution.Run(&state); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{

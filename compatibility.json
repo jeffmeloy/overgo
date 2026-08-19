@@ -231,7 +231,7 @@
      "contains": "func TestTrainingObjectiveMatrix(",
      "path": "internal/adaptiveparity/training_objective_matrix_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:8851a3490e960492c38f240aee73b956c745511a968c301b6af21f0652b03fbe"
+     "identity": "evidence:sha256:733d7e3be70c1754f40e953caf716383c17e4f71953b45abbcbf80a850219136"
     }
    ],
    "id": "adaptive-training-objective-program-matrix",

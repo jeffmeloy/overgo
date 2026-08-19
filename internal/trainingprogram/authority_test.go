@@ -182,8 +182,12 @@ func TestBoundTrainingProgramOwnsOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	execution, err = execution.Select(PhaseForward, PhaseBackward, PhaseOptimize)
+	if err != nil {
+		t.Fatal(err)
+	}
 	value := state{}
-	if err := execution.RunPhases(&value, PhaseForward, PhaseBackward, PhaseOptimize); err != nil {
+	if err := execution.Run(&value); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"forward", "backward", "optimize"}

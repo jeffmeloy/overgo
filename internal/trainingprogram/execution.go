@@ -68,16 +68,12 @@ func Bind[State any](program TrainingProgram, bindings []Binding[State]) (Execut
 
 func (e Execution[State]) ProgramID() artifact.ID { return e.programID }
 
-func (e Execution[State]) run(state *State, selected map[OperatorPhase]struct{}) error {
+// Run executes the complete compiled sequence.
+func (e Execution[State]) Run(state *State) error {
 	if state == nil || e.programID.Kind() != artifact.KindRecipe || len(e.operators) == 0 {
 		return errors.New("training program: bound execution unavailable")
 	}
 	for _, operator := range e.operators {
-		if selected != nil {
-			if _, ok := selected[operator.spec.Phase]; !ok {
-				continue
-			}
-		}
 		if err := operator.execute(state); err != nil {
 			return fmt.Errorf("training program: %s: %w", operator.spec.ID, err)
 		}
@@ -85,20 +81,26 @@ func (e Execution[State]) run(state *State, selected map[OperatorPhase]struct{})
 	return nil
 }
 
-// Run executes the complete compiled sequence.
-func (e Execution[State]) Run(state *State) error { return e.run(state, nil) }
-
-// RunPhases executes selected phases in compiled order.
-func (e Execution[State]) RunPhases(state *State, phases ...OperatorPhase) error {
-	if state == nil || e.programID.Kind() != artifact.KindRecipe || len(e.operators) == 0 || len(phases) == 0 {
-		return errors.New("training program: bound execution unavailable")
+// Select compiles a phase subset once.
+func (e Execution[State]) Select(phases ...OperatorPhase) (Execution[State], error) {
+	if e.programID.Kind() != artifact.KindRecipe || len(e.operators) == 0 || len(phases) == 0 {
+		return Execution[State]{}, errors.New("training program: bound execution unavailable")
 	}
 	selected := make(map[OperatorPhase]struct{}, len(phases))
 	for _, phase := range phases {
 		if !validPhase(phase) {
-			return fmt.Errorf("training program: invalid execution phase %q", phase)
+			return Execution[State]{}, fmt.Errorf("training program: invalid execution phase %q", phase)
 		}
 		selected[phase] = struct{}{}
 	}
-	return e.run(state, selected)
+	operators := make([]boundOperator[State], 0, len(e.operators))
+	for _, operator := range e.operators {
+		if _, ok := selected[operator.spec.Phase]; ok {
+			operators = append(operators, operator)
+		}
+	}
+	if len(operators) == 0 {
+		return Execution[State]{}, errors.New("training program: selected execution is empty")
+	}
+	return Execution[State]{programID: e.programID, operators: operators}, nil
 }

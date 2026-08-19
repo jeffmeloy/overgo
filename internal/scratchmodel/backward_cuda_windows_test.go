@@ -63,8 +63,11 @@ func TestScratchTensorDeviceVJPParity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		hostLoss, err := hostmath.MADTransformerLossAndGrad(model, gradient, tokens)
+		hostLoss, trace, err := hostmath.MADTransformerForward(model, tokens)
 		if err != nil {
+			t.Fatal(err)
+		}
+		if err := hostmath.MADTransformerBackward(model, gradient, tokens, trace); err != nil {
 			t.Fatal(err)
 		}
 		worstLoss = max(worstLoss, math.Abs(deviceLoss-hostLoss))

@@ -107,23 +107,29 @@ func TestScratchResidentStateParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer trainer.Close()
+	backward, err := trainer.training.Select(trainingprogram.PhaseBatch, trainingprogram.PhaseForward, trainingprogram.PhaseBackward)
+	if err != nil {
+		t.Fatal(err)
+	}
+	optimize, err := trainer.training.Select(trainingprogram.PhaseOptimize)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for step := range steps {
 		tokens, err := construction.Tokens(construction.split.Train[step%len(construction.split.Train)])
 		if err != nil {
 			t.Fatal(err)
 		}
-		hostLoss, err := hostmath.MADTransformerLossAndGrad(hostModel, hostGradient, tokens)
+		hostLoss, trace, err := hostmath.MADTransformerForward(hostModel, tokens)
 		if err != nil {
 			t.Fatal(err)
 		}
+		if err := hostmath.MADTransformerBackward(hostModel, hostGradient, tokens, trace); err != nil {
+			t.Fatal(err)
+		}
 		state := residentTrainingState{trainer: trainer, tokens: tokens, step: step + 1}
-		if err := trainer.program.RunPhases(
-			&state,
-			trainingprogram.PhaseBatch,
-			trainingprogram.PhaseForward,
-			trainingprogram.PhaseBackward,
-		); err != nil {
+		if err := backward.Run(&state); err != nil {
 			state.release()
 			t.Fatal(err)
 		}
@@ -133,7 +139,7 @@ func TestScratchResidentStateParity(t *testing.T) {
 			t.Fatal(err)
 		}
 		gradientDelta := maxF32StateDelta(residentGradients, hostGradients)
-		if err := trainer.program.RunPhases(&state, trainingprogram.PhaseOptimize); err != nil {
+		if err := optimize.Run(&state); err != nil {
 			state.release()
 			t.Fatal(err)
 		}

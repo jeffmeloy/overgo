@@ -64,30 +64,34 @@ func MADNormBackward(incoming, input []float32, rows, width int, epsilon float64
 	return madBackwardRows(incoming, state, rows, width), nil
 }
 
-// MADTransformerLoss evaluates mean causal cross entropy.
-func MADTransformerLoss(model MADTransformer, tokens []int) (float64, error) {
+// MADTransformerTrace: opaque forward state consumed by the VJP.
+type MADTransformerTrace struct{ forward madForward }
+
+// MADTransformerForward returns mean causal loss and VJP trace.
+func MADTransformerForward(model MADTransformer, tokens []int) (float64, MADTransformerTrace, error) {
 	forward, err := madTransformerForward(model, tokens)
-	return forward.loss, err
+	return forward.loss, MADTransformerTrace{forward}, err
 }
 
-// MADTransformerLossAndGrad evaluates and replaces the complete gradient slab.
-func MADTransformerLossAndGrad(model, gradient MADTransformer, tokens []int) (float64, error) {
+// MADTransformerBackward replaces the complete gradient slab.
+func MADTransformerBackward(model, gradient MADTransformer, tokens []int, trace MADTransformerTrace) error {
 	if err := validateMADTransformer(model); err != nil {
-		return 0, err
+		return err
 	}
 	if err := validateMADTransformer(gradient); err != nil {
-		return 0, errors.New("mad transformer: gradient geometry differs")
+		return errors.New("mad transformer: gradient geometry differs")
 	}
 	if model.Config != gradient.Config {
-		return 0, errors.New("mad transformer: gradient config differs")
+		return errors.New("mad transformer: gradient config differs")
+	}
+	forward := trace.forward
+	cfg := model.Config
+	positions := len(forward.hidden) / cfg.Hidden
+	if positions <= 0 || len(tokens) <= positions || len(forward.hidden) != positions*cfg.Hidden ||
+		len(forward.probability) != positions*cfg.Vocab || len(forward.layers) != cfg.Layers {
+		return errors.New("mad transformer: forward trace differs")
 	}
 	clearMADTransformer(gradient)
-	forward, err := madTransformerForward(model, tokens)
-	if err != nil {
-		return 0, err
-	}
-	cfg := model.Config
-	positions := len(tokens) - 1
 	dHidden := make([]float32, positions*cfg.Hidden)
 	for position := range positions {
 		hidden := forward.hidden[position*cfg.Hidden : (position+1)*cfg.Hidden]
@@ -140,7 +144,7 @@ func MADTransformerLossAndGrad(model, gradient MADTransformer, tokens []int) (fl
 			gradient.Position[position*cfg.Hidden+channel] += value
 		}
 	}
-	return forward.loss, nil
+	return nil
 }
 
 func madTransformerForward(model MADTransformer, tokens []int) (madForward, error) {

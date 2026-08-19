@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "scratch-session",
-          "title": "Split neutral MAD forward and VJP, route scratch host training through its compiled program, and delete the manual training loop",
-          "status": "open",
-          "verify": "go test ./internal/scratchmodel -run '^TestTrainSharedMatchesOracle$' -count=1"
-        },
-        {
           "id": "authority-audit",
           "title": "Audit every native trainer; prove active recipe plans are sole authorities with common cancellation, checkpoint, resume, evidence, gradient, and memory ownership",
           "status": "open",

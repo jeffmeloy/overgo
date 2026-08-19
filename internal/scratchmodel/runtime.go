@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
 // TrainingResult reports losses and final shared state.
@@ -18,6 +19,12 @@ type TrainingResult struct {
 	Weights        []float32
 	Gradients      []float32
 	Momentum       []float64
+}
+
+type sharedTrainingState struct {
+	tokens []int
+	trace  hostmath.MADTransformerTrace
+	loss   float64
 }
 
 // TrainShared executes the compiled scratch program through hostmath and Muon.
@@ -49,32 +56,57 @@ func (c Construction) TrainShared(totalSteps int) (TrainingResult, error) {
 	if err != nil {
 		return TrainingResult{}, err
 	}
-	result := TrainingResult{Losses: make([]float64, totalSteps)}
 	materialized, batcher, err := c.documentBatcher(c.split.Train)
 	if err != nil {
 		return TrainingResult{}, err
 	}
 	defer materialized.Close()
-	for step := range totalSteps {
-		document, err := nextDocument(context.Background(), batcher)
-		if err != nil {
-			return TrainingResult{}, err
-		}
-		tokens, err := c.Tokens(document)
-		if err != nil {
-			return TrainingResult{}, err
-		}
-		result.Losses[step], err = hostmath.MADTransformerLossAndGrad(model, gradient, tokens)
-		if err != nil {
-			return TrainingResult{}, err
-		}
-		muon.Step()
-	}
-	validation, err := c.Tokens(c.split.Validation[0])
+	state := sharedTrainingState{}
+	execution, err := trainingprogram.Bind(c.Program(), []trainingprogram.Binding[sharedTrainingState]{
+		{Operator: scratchOperatorBatch, Execute: func(state *sharedTrainingState) error {
+			document, err := nextDocument(context.Background(), batcher)
+			if err == nil {
+				state.tokens, err = c.Tokens(document)
+			}
+			return err
+		}},
+		{Operator: scratchOperatorForward, Execute: func(state *sharedTrainingState) (err error) {
+			state.loss, state.trace, err = hostmath.MADTransformerForward(model, state.tokens)
+			return err
+		}},
+		{Operator: scratchOperatorLossVJP, Execute: func(state *sharedTrainingState) error {
+			return hostmath.MADTransformerBackward(model, gradient, state.tokens, state.trace)
+		}},
+		{Operator: scratchOperatorMuon, Execute: func(*sharedTrainingState) error { muon.Step(); return nil }},
+		{Operator: scratchOperatorEvaluate, Execute: func(state *sharedTrainingState) (err error) {
+			state.loss, _, err = hostmath.MADTransformerForward(model, state.tokens)
+			return err
+		}},
+	})
 	if err != nil {
 		return TrainingResult{}, err
 	}
-	result.ValidationLoss, err = hostmath.MADTransformerLoss(model, validation)
+	training, err := execution.Select(trainingprogram.PhaseBatch, trainingprogram.PhaseForward, trainingprogram.PhaseBackward, trainingprogram.PhaseOptimize)
+	if err != nil {
+		return TrainingResult{}, err
+	}
+	evaluation, err := execution.Select(trainingprogram.PhaseEvaluate)
+	if err != nil {
+		return TrainingResult{}, err
+	}
+	result := TrainingResult{Losses: make([]float64, totalSteps)}
+	for step := range totalSteps {
+		if err := training.Run(&state); err != nil {
+			return TrainingResult{}, err
+		}
+		result.Losses[step] = state.loss
+	}
+	state.tokens, err = c.Tokens(c.split.Validation[0])
+	if err != nil {
+		return TrainingResult{}, err
+	}
+	err = evaluation.Run(&state)
+	result.ValidationLoss = state.loss
 	result.Weights = weights
 	result.Gradients = gradients
 	result.Momentum = muon.Snapshot().Momentum

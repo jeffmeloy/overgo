@@ -17,24 +17,24 @@ const (
 func (s Spec) validateRecurrentMetadata() error {
 	validation := s.Profile().Validation.Recurrent
 	switch validation {
-	case RecurrentValidationWavTokenizer:
+	case RecurrentValidationAudioDecoder:
 		if s.OutputEmbeddingLength == 0 || s.PosNetBlockCount != wavTokenizerPosNetBlocks || s.ConvNextBlockCount == 0 ||
 			s.PosNetEmbeddingLength == 0 || s.PosNetEmbeddingLength != s.ConvNextEmbeddingLength ||
 			s.GroupNormGroups == 0 || s.GroupNormEpsilon <= 0 ||
 			s.PosNetEmbeddingLength%s.GroupNormGroups != 0 {
 			return errors.New("AudioDecoder metadata is invalid")
 		}
-	case RecurrentValidationDFlash:
+	case RecurrentValidationTargetLayerBlock:
 		if len(s.TargetLayers) == 0 || s.DFlashBlockSize < minimumConvKernelWidth {
 			return errors.New("DFlash target-layer metadata is invalid")
 		}
 		return validateNonNegativeTargetLayers("DFlash", s.TargetLayers)
-	case RecurrentValidationEagle3:
+	case RecurrentValidationSingleBlockTarget:
 		if s.BlockCount != eagle3BlockCount || len(s.TargetLayers) != eagle3TargetLayerCount || s.TargetHiddenSize == 0 {
 			return errors.New("Eagle3 target-layer metadata is invalid")
 		}
 		return validateNonNegativeTargetLayers("Eagle3", s.TargetLayers)
-	case RecurrentValidationMamba:
+	case RecurrentValidationUngroupedStateSpace:
 		if !attentionMetadataZero(s) {
 			return errors.New("Mamba attention metadata must be zero")
 		}
@@ -42,25 +42,25 @@ func (s Spec) validateRecurrentMetadata() error {
 			s.SSMStateSize == 0 || s.SSMTimeStepRank == 0 {
 			return errors.New("Mamba SSM metadata is invalid")
 		}
-	case RecurrentValidationMamba2:
+	case RecurrentValidationGroupedStateSpace:
 		if !attentionMetadataZero(s) {
 			return errors.New("Mamba2 attention metadata must be zero")
 		}
 		if !validGroupedSSM(s) {
 			return errors.New("Mamba2 SSM metadata is invalid")
 		}
-	case RecurrentValidationFalconH1:
+	case RecurrentValidationGroupedStateSpaceAttention:
 		if !validGroupedSSM(s) {
 			return errors.New("Falcon-H1 SSM metadata is invalid")
 		}
 		if !validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment) || s.KeyLength != s.ValueLength {
 			return errors.New("Falcon-H1 rotary/head dimensions are invalid")
 		}
-	case RecurrentValidationRWKV6, RecurrentValidationRWKV6Qwen2:
-		return s.validateRWKV6(validation)
-	case RecurrentValidationRWKV7, RecurrentValidationARWKV7:
-		return s.validateRWKV7(validation)
-	case RecurrentValidationJamba:
+	case RecurrentValidationTimeMixV6, RecurrentValidationTimeMixV6SharedKV:
+		return s.validateTimeMixV6(validation)
+	case RecurrentValidationTimeMixV7Gated, RecurrentValidationTimeMixV7:
+		return s.validateTimeMixV7(validation)
+	case RecurrentValidationStateSpaceAttentionExperts:
 		if s.SSMConvKernel < minimumConvKernelWidth || s.SSMInnerSize != stateSpaceWidthFactor*s.EmbeddingLength ||
 			s.SSMStateSize == 0 || s.SSMTimeStepRank == 0 {
 			return errors.New("Jamba SSM metadata is invalid")
@@ -72,9 +72,9 @@ func (s Spec) validateRecurrentMetadata() error {
 			s.ExpertFeedForward == 0 || s.ExpertWeightsScale <= 0 {
 			return errors.New("Jamba expert metadata is invalid")
 		}
-	case RecurrentValidationGraniteHybrid:
-		return s.validateGraniteHybrid()
-	case RecurrentValidationPLaMo2:
+	case RecurrentValidationGroupedStateSpaceOptionalExperts:
+		return s.validateGroupedStateSpaceOptionalExperts()
+	case RecurrentValidationUngroupedScheduledStateSpace:
 		if s.SSMConvKernel < minimumConvKernelWidth || s.SSMInnerSize == 0 || s.SSMStateSize == 0 ||
 			s.SSMTimeStepRank == 0 || s.SSMGroupCount != 0 ||
 			s.SSMInnerSize%s.SSMTimeStepRank != 0 {
@@ -83,8 +83,8 @@ func (s Spec) validateRecurrentMetadata() error {
 		if !validRecurrentLayerSchedule(s) {
 			return errors.New("PLaMo2 layer schedule is invalid")
 		}
-	case RecurrentValidationNemotronH, RecurrentValidationNemotronHMoE:
-		return s.validateNemotronH(validation == RecurrentValidationNemotronHMoE)
+	case RecurrentValidationScheduledStateSpaceDense, RecurrentValidationScheduledStateSpaceExperts:
+		return s.validateScheduledStateSpace(validation == RecurrentValidationScheduledStateSpaceExperts)
 	}
 	return nil
 }
@@ -106,16 +106,16 @@ func validRecurrentLayerSchedule(s Spec) bool {
 		len(s.LayerKVHeadCounts) == int(s.BlockCount)
 }
 
-func validateNonNegativeTargetLayers(family string, layers []int32) error {
+func validateNonNegativeTargetLayers(label string, layers []int32) error {
 	for _, layer := range layers {
 		if layer < 0 {
-			return fmt.Errorf("%s target layer is negative", family)
+			return fmt.Errorf("%s target layer is negative", label)
 		}
 	}
 	return nil
 }
 
-func (s Spec) validateRWKV6(validation RecurrentValidationPolicy) error {
+func (s Spec) validateTimeMixV6(validation RecurrentValidationPolicy) error {
 	wantShifts := s.Profile().Runtime.Recurrent.TokenShiftCount
 	switch {
 	case s.WKVHeadSize == 0 || s.EmbeddingLength%s.WKVHeadSize != 0 || s.HeadCount != s.EmbeddingLength/s.WKVHeadSize:
@@ -125,13 +125,13 @@ func (s Spec) validateRWKV6(validation RecurrentValidationPolicy) error {
 		return fmt.Errorf("%s time-mix metadata is invalid", s.Architecture)
 	case s.KeyLength != s.WKVHeadSize || s.ValueLength != s.WKVHeadSize:
 		return fmt.Errorf("%s head dimensions are invalid", s.Architecture)
-	case validation == RecurrentValidationRWKV6 && s.HeadCountKV != s.HeadCount:
+	case validation == RecurrentValidationTimeMixV6 && s.HeadCountKV != s.HeadCount:
 		return errors.New("rwkv6 KV head count must equal query head count")
 	}
 	return nil
 }
 
-func (s Spec) validateRWKV7(validation RecurrentValidationPolicy) error {
+func (s Spec) validateTimeMixV7(validation RecurrentValidationPolicy) error {
 	wantShifts := s.Profile().Runtime.Recurrent.TokenShiftCount
 	switch {
 	case s.WKVHeadSize == 0 || s.EmbeddingLength%s.WKVHeadSize != 0 || s.HeadCount != s.EmbeddingLength/s.WKVHeadSize:
@@ -140,7 +140,7 @@ func (s Spec) validateRWKV7(validation RecurrentValidationPolicy) error {
 		return fmt.Errorf("%s head dimensions are invalid", s.Architecture)
 	case s.DecayLoRARank == 0 || s.ICLRLoRARank == 0 || s.ValueMixLoRARank == 0:
 		return fmt.Errorf("%s time-mix LoRA metadata is invalid", s.Architecture)
-	case validation == RecurrentValidationRWKV7 && s.GateLoRARank == 0:
+	case validation == RecurrentValidationTimeMixV7Gated && s.GateLoRARank == 0:
 		return errors.New("rwkv7 gate LoRA metadata is invalid")
 	case s.TokenShiftCount != wantShifts:
 		return fmt.Errorf("%s token-shift metadata is invalid", s.Architecture)
@@ -148,7 +148,7 @@ func (s Spec) validateRWKV7(validation RecurrentValidationPolicy) error {
 	return nil
 }
 
-func (s Spec) validateGraniteHybrid() error {
+func (s Spec) validateGroupedStateSpaceOptionalExperts() error {
 	if !validGroupedSSM(s) || s.SSMInnerSize != stateSpaceWidthFactor*s.EmbeddingLength {
 		return errors.New("Granite Hybrid SSM metadata is invalid")
 	}
@@ -165,7 +165,7 @@ func (s Spec) validateGraniteHybrid() error {
 	return nil
 }
 
-func (s Spec) validateNemotronH(moe bool) error {
+func (s Spec) validateScheduledStateSpace(moe bool) error {
 	if !validGroupedSSM(s) {
 		return errors.New("Nemotron-H SSM metadata is invalid")
 	}

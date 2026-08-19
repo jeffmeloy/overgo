@@ -9,7 +9,7 @@ import (
 func readRelativeEncoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error) {
 	plan := newEncoderDecoderCatalogPlan(spec)
 	result := Weights{Layers: make([]LayerWeights, spec.BlockCount)}
-	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
+	if err := bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensor(tokenEmbeddingWeightTensor, &result.TokenEmbedding, plan.width, uint64(spec.VocabularySize)),
 		requiredTensor("enc.output_norm.weight", &result.OutputNorm, plan.width),
 	}); err != nil {
@@ -30,7 +30,7 @@ func readEncoderDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights,
 		EncoderLayers: make([]LayerWeights, spec.BlockCount),
 		Layers:        make([]LayerWeights, spec.DecoderBlockCount),
 	}
-	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
+	if err := bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensor(tokenEmbeddingWeightTensor, &result.TokenEmbedding, plan.width, uint64(spec.VocabularySize)),
 		requiredTensor("dec.output_norm.weight", &result.OutputNorm, plan.width),
 		requiredTensorPointer("enc.output_norm.weight", &result.EncoderOutputNorm, plan.width),
@@ -54,7 +54,7 @@ func readEncoderDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights,
 		if err := plan.loadLayer(catalog, prefix, layer, false, &decoderRelativeBias); err != nil {
 			return Weights{}, err
 		}
-		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 			requiredTensorPointer("cross_attn_norm.weight", &layer.CrossAttentionNorm, plan.width),
 			requiredTensorPointer("cross_attn_q.weight", &layer.CrossAttentionQ, plan.width, plan.query),
 			requiredTensorPointer("cross_attn_k.weight", &layer.CrossAttentionK, plan.width, plan.key),

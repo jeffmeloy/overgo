@@ -97,7 +97,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	if err != nil {
 		return Spec{}, err
 	}
-	if validation.Attention == AttentionValidationRefact {
+	if validation.Attention == AttentionValidationOptionalExperts {
 		spec.ExpertCount, _ = optional[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		)
@@ -117,7 +117,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.ExpertWeightsScale = 1
 		}
 	}
-	if validation.Recurrent == RecurrentValidationDFlash {
+	if validation.Recurrent == RecurrentValidationTargetLayerBlock {
 		if window, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok && window > 0 {
 			spec.SlidingWindow = window
 			spec.RopeFrequencySWA = spec.RopeFrequencyBase
@@ -133,11 +133,11 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if validation.Hybrid == HybridValidationRopeScaling || validation.MLA == MLAValidationMiniCPM3 {
+	if validation.Hybrid == HybridValidationExtendedRotary || validation.MLA == MLAValidationScaledLatent {
 		spec.EmbeddingScale = 12
 		spec.ResidualScale = float32(1.4 / math.Sqrt(float64(spec.BlockCount)))
 		spec.LogitScale = 256 / float32(spec.EmbeddingLength)
-		if validation.MLA == MLAValidationMiniCPM3 {
+		if validation.MLA == MLAValidationScaledLatent {
 			spec.OriginalContextLength = spec.ContextLength
 			spec.RopeAttentionFactor = 1
 			if value, ok := optional[uint32](values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32); ok {
@@ -170,9 +170,9 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 	}
 	if validation.hybridOneOf(
-		HybridValidationGranite, HybridValidationGraniteMoE, HybridValidationGraniteHybrid,
+		HybridValidationScaledDense, HybridValidationScaledExperts, HybridValidationScaledStateSpace,
 	) {
-		if validation.Hybrid == HybridValidationGraniteHybrid {
+		if validation.Hybrid == HybridValidationScaledStateSpace {
 			spec.LogitScale, _ = optional[float32](values, prefix+"logit_scale", gguf.ValueTypeFloat32)
 		} else if spec.LogitScale, err = required[float32](
 			values, prefix+"logit_scale", gguf.ValueTypeFloat32,
@@ -219,7 +219,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); mappingErr != nil {
 			return Spec{}, mappingErr
 		} else if ok && len(mapping) > 0 {
-			if validation.Hybrid != HybridValidationGranite {
+			if validation.Hybrid != HybridValidationScaledDense {
 				return Spec{}, errors.New("Granite deepstack mapping requires granite architecture")
 			}
 			if len(mapping) != int(spec.BlockCount) {
@@ -243,7 +243,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.DeepstackMapping = slices.Clone(mapping)
 		}
 	}
-	if validation.Attention == AttentionValidationModernBERT {
+	if validation.Attention == AttentionValidationFullHeadSlidingRotary {
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
 		}
@@ -261,7 +261,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if validation.Attention == AttentionValidationApertus {
+	if validation.Attention == AttentionValidationFullScaledRotaryXIELU {
 		for _, field := range []metadataField[[]float32]{
 			metadataDestination("xielu.alpha_n", &spec.XIELUAlphaN),
 			metadataDestination("xielu.alpha_p", &spec.XIELUAlphaP),
@@ -276,7 +276,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if validation.Hybrid == HybridValidationMiMo2 {
+	if validation.Hybrid == HybridValidationSigmoidExperts {
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -323,7 +323,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.AttentionValueScale = value
 		}
 	}
-	if validation.Hybrid == HybridValidationStep35 {
+	if validation.Hybrid == HybridValidationCompressedHyperDraft {
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -343,7 +343,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			return Spec{}, err
 		}
 	}
-	if validation.Attention == AttentionValidationEXAOne4 {
+	if validation.Attention == AttentionValidationSharedKVAttention {
 		if value, ok := optional[uint32](
 			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
 		); ok {
@@ -356,7 +356,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
 	}
-	if validation.Hybrid == HybridValidationEXAOneMoE {
+	if validation.Hybrid == HybridValidationSlidingSharedExperts {
 		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -376,7 +376,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		spec.BlockCount != 32 && spec.BlockCount != 40 {
 		return Spec{}, errors.New("Baichuan block count must select the 32-layer RoPE or 40-layer ALiBi variant")
 	}
-	if validation.MLA == MLAValidationMistral3 {
+	if validation.MLA == MLAValidationOptionalExpertsLatent {
 		spec.OriginalContextLength = spec.ContextLength
 		if value, ok := optional[uint32](
 			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
@@ -423,7 +423,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if validation.Attention == AttentionValidationHunyuan {
+	if validation.Attention == AttentionValidationLayerwiseQKNorm {
 		if sections, ok, sectionsErr := optionalArray[int32](values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32); sectionsErr != nil {
 			return Spec{}, sectionsErr
 		} else if ok {
@@ -440,7 +440,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.RopeFrequencyBase *= float32(math.Pow(float64(alpha), exponent))
 		}
 	}
-	if validation.Hybrid == HybridValidationSmallThinker {
+	if validation.Hybrid == HybridValidationDualExpertProduct {
 		spec.NoRopeLayerStep = spec.BlockCount
 		if value, ok := optional[uint32](
 			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
@@ -449,7 +449,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
 	}
-	if validation.Hybrid == HybridValidationMellum {
+	if validation.Hybrid == HybridValidationRequiredExpertWidth {
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
 		}
@@ -465,7 +465,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if validation.Attention == AttentionValidationPLaMo3 {
+	if validation.Attention == AttentionValidationPerLayerSlidingAttention {
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
 		}
@@ -498,9 +498,9 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 	}
 	if validation.hybridOneOf(
-		HybridValidationQwen3Next, HybridValidationQwen35, HybridValidationQwen35MoE,
+		HybridValidationAlternatingGatedDelta, HybridValidationAlternatingGatedDeltaHybrid, HybridValidationAlternatingGatedDeltaExperts,
 	) {
-		if validation.Hybrid != HybridValidationQwen3Next {
+		if validation.Hybrid != HybridValidationAlternatingGatedDelta {
 			if spec.RopeDimensionCount, err = required[uint32](
 				values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
 			); err != nil {
@@ -552,7 +552,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.RecurrentLayers = slices.Clone(recurrent[:spec.BlockCount])
 		}
 	}
-	if validation.MLA == MLAValidationKimiLinear {
+	if validation.MLA == MLAValidationHybridLinearAttention {
 		if spec.KVLoRARank, err = required[uint32](
 			values, prefix+"attention.kv_lora_rank", gguf.ValueTypeUint32,
 		); err != nil {
@@ -579,10 +579,10 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		spec.SSMTimeStepRank = spec.HeadCount
 		spec.SSMGroupCount = spec.HeadCount
 	}
-	if validation.Recurrent == RecurrentValidationPLaMo2 {
+	if validation.Recurrent == RecurrentValidationUngroupedScheduledStateSpace {
 		spec.AttentionScale = float32(1 / math.Sqrt(float64(spec.ValueLength)))
 	}
-	if validation.Recurrent == RecurrentValidationGraniteHybrid {
+	if validation.Recurrent == RecurrentValidationGroupedStateSpaceOptionalExperts {
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
 		if spec.ExpertCount > 0 {
 			if spec.ExpertUsedCount, err = required[uint32](values, prefix+"expert_used_count", gguf.ValueTypeUint32); err != nil {
@@ -594,7 +594,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.SharedExpertFF, _ = optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32)
 		}
 	}
-	if validation.Recurrent == RecurrentValidationNemotronHMoE {
+	if validation.Recurrent == RecurrentValidationScheduledStateSpaceExperts {
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
 			metadataDestination("expert_count", &spec.ExpertCount),
@@ -638,17 +638,17 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		} else if spec.ExpertFeedForward, err = derivedExpertFeedForward(spec); err != nil {
 			return Spec{}, err
 		}
-		if validation.Hybrid == HybridValidationArctic {
+		if validation.Hybrid == HybridValidationRoutedExperts {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 		}
-		if validation.Encoder == EncoderValidationNomicBERTMoE {
+		if validation.Encoder == EncoderValidationRotaryPeriodicExperts {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 		}
-		if validation.Recurrent == RecurrentValidationJamba {
+		if validation.Recurrent == RecurrentValidationStateSpaceAttentionExperts {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 			spec.ExpertWeightsNorm = false
 		}
-		if validation.MLA == MLAValidationKimiLinear {
+		if validation.MLA == MLAValidationHybridLinearAttention {
 			if spec.ExpertFeedForward, err = required[uint32](
 				values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 			); err != nil {
@@ -664,7 +664,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			}
 			spec.ExpertWeightsNorm = true
 		}
-		if validation.Hybrid == HybridValidationLlama4 {
+		if validation.Hybrid == HybridValidationChunkedExperts {
 			if err = readRequiredMetadataFields(
 				values, prefix, gguf.ValueTypeUint32,
 				metadataDestination("expert_feed_forward_length", &spec.ExpertFeedForward),
@@ -678,18 +678,18 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.ExpertWeightsScale = optionalOr(
 			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32, float32(1),
 		)
-		if validation.Hybrid == HybridValidationGPTOSS {
+		if validation.Hybrid == HybridValidationSelectedSoftmaxExperts {
 			spec.ExpertGatingFunc = expertGatingSelectedSoftmax
 			spec.ExpertWeightsNorm = false
 		}
-		if validation.hybridOneOf(HybridValidationQwen3Next, HybridValidationQwen35MoE) {
+		if validation.hybridOneOf(HybridValidationAlternatingGatedDelta, HybridValidationAlternatingGatedDeltaExperts) {
 			if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertWidth(values, prefix, spec); err != nil {
 				return Spec{}, err
 			}
 		}
 	}
 	if profile.Has(ArchitectureLatentKVLayout) {
-		if validation.MLA == MLAValidationDeepSeek32 {
+		if validation.MLA == MLAValidationSparseLatentIndexer {
 			if spec.ExpertCount, err = required[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
 			}
@@ -718,7 +718,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if profile.readsMetadata(MetadataReadGLMDSAGating) {
 			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
-		if validation.MLA == MLAValidationDeepSeek32 {
+		if validation.MLA == MLAValidationSparseLatentIndexer {
 			if spec.ExpertGatingFunc, err = required[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
 			}
@@ -729,7 +729,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 	if spec, err = m.runMetadataProgram(spec, compileExpertProgram(profile)); err != nil {
 		return Spec{}, err
 	}
-	if validation.Attention == AttentionValidationGemma4 {
+	if validation.Attention == AttentionValidationPerLayerDualRotaryAttention {
 		if count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); ok && count > 0 {
 			spec.ExpertCount = count
 			if err = readRequiredMetadataFields(
@@ -743,7 +743,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsNorm = true
 		}
 	}
-	if validation.Hybrid == HybridValidationStep35 {
+	if validation.Hybrid == HybridValidationCompressedHyperDraft {
 		if spec.ExpertFeedForward, err = required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); err != nil {
@@ -764,7 +764,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 	}
-	if validation.Attention == AttentionValidationGLM4MoE {
+	if validation.Attention == AttentionValidationOptionalRopeSectionsExperts {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 		if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
@@ -781,7 +781,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsNorm = value
 		}
 	}
-	if validation.Hybrid == HybridValidationGroveMoE {
+	if validation.Hybrid == HybridValidationSparseSharedExperts {
 		spec.ExpertChunkFeedForward = profile.MetadataDefaults.uint(
 			values, prefix, "expert_chunk_feed_forward_length", spec.KeyLength,
 		)
@@ -792,7 +792,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			return Spec{}, err
 		}
 	}
-	if validation.Attention == AttentionValidationCohere2MoE {
+	if validation.Attention == AttentionValidationRequiredSlidingRotaryExperts {
 		if spec.LeadingDenseBlocks, err = required[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -815,7 +815,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			}
 		}
 	}
-	if validation.Hybrid == HybridValidationHYV3 {
+	if validation.Hybrid == HybridValidationMultiHeadDraft {
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -830,7 +830,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsNorm = value
 		}
 	}
-	if validation.Hybrid == HybridValidationDeepSeek2OCR {
+	if validation.Hybrid == HybridValidationFullRotaryVision {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
@@ -850,7 +850,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsNorm = value
 		}
 	}
-	if validation.Encoder == EncoderValidationJinaV3 {
+	if validation.Encoder == EncoderValidationRotaryOptionalExperts {
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
 		spec.ExpertUsedCount, _ = optional[uint32](values, prefix+"expert_used_count", gguf.ValueTypeUint32)
 		spec.MoELayerStep, _ = optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32)
@@ -861,12 +861,12 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			)
 		}
 	}
-	if validation.Encoder == EncoderValidationNomicBERT {
+	if validation.Encoder == EncoderValidationRotary {
 		if cadence, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok && cadence > 0 {
 			return Spec{}, errors.New("NomicBERT MoE cadence requires nomic-bert-moe architecture")
 		}
 	}
-	if validation.Hybrid == HybridValidationGrok {
+	if validation.Hybrid == HybridValidationSharedExpertNorm {
 		if _, ok := optional[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); !ok {
@@ -874,15 +874,15 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 		spec.ExpertWeightsNorm = true
 	}
-	if validation.Hybrid == HybridValidationGraniteMoE ||
-		validation.Hybrid == HybridValidationGranite && spec.ExpertCount > 0 {
+	if validation.Hybrid == HybridValidationScaledExperts ||
+		validation.Hybrid == HybridValidationScaledDense && spec.ExpertCount > 0 {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 		spec.ExpertWeightsNorm = true
 		spec.SharedExpertFF, _ = optional[uint32](
 			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
 		)
 	}
-	if validation.Hybrid == HybridValidationMiniMaxM2 {
+	if validation.Hybrid == HybridValidationScaledSigmoidExperts {
 		expertWidth, widthErr := required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		)
@@ -902,10 +902,10 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			return Spec{}, err
 		}
 	}
-	if state.declaredExperts || validation.hybridOneOf(HybridValidationOLMoE, HybridValidationPhiMoE) {
+	if state.declaredExperts || validation.hybridOneOf(HybridValidationFullHeadExperts, HybridValidationBasicScaledExperts) {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 	}
-	if validation.Hybrid == HybridValidationAFMoE {
+	if validation.Hybrid == HybridValidationSlidingSigmoidExperts {
 		if spec.ExpertFeedForward, err = required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); err != nil {
@@ -931,7 +931,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if spec.SlidingWindow > 0 {
 		}
 	}
-	if validation.Hybrid == HybridValidationEXAOneMoE {
+	if validation.Hybrid == HybridValidationSlidingSharedExperts {
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -946,7 +946,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 	}
-	if validation.Hybrid == HybridValidationLaguna {
+	if validation.Hybrid == HybridValidationPerLayerYaRNExperts {
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
 			metadataDestination("expert_feed_forward_length", &spec.ExpertFeedForward),
@@ -989,7 +989,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		return Spec{}, err
 	}
 	if profile.Attention == AttentionLatent || profile.Attention == AttentionSparseLatent {
-		if validation.MLA == MLAValidationMiniCPM3 {
+		if validation.MLA == MLAValidationScaledLatent {
 			if spec.QLoRARank, err = required[uint32](
 				values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32,
 			); err != nil {
@@ -1083,7 +1083,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			}
 		}
 	}
-	if validation.MLA == MLAValidationDeepSeek4 {
+	if validation.MLA == MLAValidationCompressedHyper {
 		if spec.QLoRARank, err = required[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
@@ -1145,9 +1145,9 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		spec.SharedExpertFF = spec.SharedExpertCount * spec.ExpertFeedForward
 	}
 	if validation.attentionOneOf(
-		AttentionValidationGemma2, AttentionValidationGemma3, AttentionValidationGemma3N,
-		AttentionValidationGemma4, AttentionValidationGemma4Assistant,
-		AttentionValidationOLMo2, AttentionValidationCohere2, AttentionValidationCohere2MoE,
+		AttentionValidationRequiredSlidingFrequency, AttentionValidationScaledSlidingAttention, AttentionValidationSharedKVAlternatingState,
+		AttentionValidationPerLayerDualRotaryAttention, AttentionValidationTargetHiddenDualRotaryAttention,
+		AttentionValidationOptionalSlidingFrequency, AttentionValidationRequiredSlidingRotary, AttentionValidationRequiredSlidingRotaryExperts,
 	) {
 		if value, ok := optional[uint32](
 			values,
@@ -1158,7 +1158,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		}
 		if spec.SlidingWindow > 0 {
 			if validation.attentionOneOf(
-				AttentionValidationGemma4, AttentionValidationGemma4Assistant,
+				AttentionValidationPerLayerDualRotaryAttention, AttentionValidationTargetHiddenDualRotaryAttention,
 			) {
 				if spec.SlidingLayers, err = requiredLayerBoolCompatible(
 					values, prefix+"attention.sliding_window_pattern", spec.BlockCount,
@@ -1174,7 +1174,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 				spec.SlidingPattern = value
 			}
 			patternValue := values[prefix+"attention.sliding_window_pattern"]
-			if validation.attentionOneOf(AttentionValidationCohere2, AttentionValidationCohere2MoE) &&
+			if validation.attentionOneOf(AttentionValidationRequiredSlidingRotary, AttentionValidationRequiredSlidingRotaryExperts) &&
 				patternValue.Type == gguf.ValueTypeArray {
 				if layers, ok, layersErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); layersErr != nil {
 					return Spec{}, layersErr
@@ -1185,12 +1185,12 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 					spec.SlidingLayers = slices.Clone(layers)
 				}
 			}
-			if validation.Attention == AttentionValidationCohere2 && len(spec.SlidingLayers) == 0 {
+			if validation.Attention == AttentionValidationRequiredSlidingRotary && len(spec.SlidingLayers) == 0 {
 				spec.NoRopeLayerStep = spec.SlidingPattern
 			}
 		}
 	}
-	if validation.Hybrid == HybridValidationLlama4 {
+	if validation.Hybrid == HybridValidationChunkedExperts {
 		window, hasWindow := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32)
 		if hasWindow && window == 0 {
 			spec.NoRopeLayerStep = 0
@@ -1202,7 +1202,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			spec.AttentionTempOffset = 1
 		}
 	}
-	if validation.Attention == AttentionValidationGemma4 {
+	if validation.Attention == AttentionValidationPerLayerDualRotaryAttention {
 		if spec.RopeDimensionCount, err = required[uint32](
 			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
 		); err != nil {
@@ -1223,7 +1223,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		)
 		spec.AttentionScale = 1
 	}
-	if validation.Attention == AttentionValidationGemma4Assistant {
+	if validation.Attention == AttentionValidationTargetHiddenDualRotaryAttention {
 		spec.RopeDimensionSWA = spec.KeyLengthSWA
 		spec.AttentionScale = 1
 	}
@@ -1243,8 +1243,8 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		}
 	}
 	if spec.RopeScalingType == ropeScalingYaRN &&
-		(validation.Hybrid == HybridValidationLlama ||
-			validation.Hybrid == HybridValidationRopeScaling && validation.MLA == MLAValidationNone) {
+		(validation.Hybrid == HybridValidationOptionalExperts ||
+			validation.Hybrid == HybridValidationExtendedRotary && validation.MLA == MLAValidationNone) {
 		rawAttentionFactor := float32(1)
 		if value, ok := optional[float32](
 			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
@@ -1264,8 +1264,8 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		spec.VocabularySize = uint32(tokens.Count())
 	}
 	if validation.encoderOneOf(
-		EncoderValidationBERT, EncoderValidationJinaV2, EncoderValidationJinaV3,
-		EncoderValidationNomicBERT, EncoderValidationNomicBERTMoE,
+		EncoderValidationTokenTypesMatchingHeads, EncoderValidationTokenTypesALiBi, EncoderValidationRotaryOptionalExperts,
+		EncoderValidationRotary, EncoderValidationRotaryPeriodicExperts,
 	) {
 		if spec.TokenTypeCount, err = required[uint32](values, "tokenizer.ggml.token_type_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err

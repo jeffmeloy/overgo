@@ -16,7 +16,7 @@ func TestLoadTensorRequirementsBindsPresentAndSkipsMissing(t *testing.T) {
 	)
 	var direct gguf.TensorInfo
 	var optionalPresent, missing *gguf.TensorInfo
-	requirements := []tensorRequirement{
+	requirements := []tensorBinding{
 		requiredTensor("direct", &direct, directRows, directColumns),
 		optionalTensorPointer("missing", &missing, optionalElements),
 		optionalTensorPointer("optional", &optionalPresent, optionalElements),
@@ -28,7 +28,7 @@ func TestLoadTensorRequirementsBindsPresentAndSkipsMissing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = loadTensorRequirements(catalog, "blk.", requirements); err != nil {
+	if err = bindTensorProgram(catalog, "blk.", requirements); err != nil {
 		t.Fatal(err)
 	}
 	if direct.Name != "blk.direct" || optionalPresent == nil || optionalPresent.Name != "blk.optional" || missing != nil {
@@ -36,9 +36,9 @@ func TestLoadTensorRequirementsBindsPresentAndSkipsMissing(t *testing.T) {
 	}
 }
 
-func tensorRequirementFixtures(
+func tensorBindingFixtures(
 	prefix string,
-	requirements []tensorRequirement,
+	requirements []tensorBinding,
 	optional map[string]bool,
 ) []gguf.TensorInfo {
 	fixtures := make([]gguf.TensorInfo, 0, len(requirements))
@@ -51,21 +51,53 @@ func tensorRequirementFixtures(
 	return fixtures
 }
 
-func TestLoadTensorRequirementsStopsAtFirstError(t *testing.T) {
+func TestRelationalProfileOwnsCompilationAndBindings(t *testing.T) {
+	const (
+		firstTensor  = "first"
+		secondTensor = "second"
+		thirdTensor  = "third"
+	)
+	registry, err := parseArchitectureRegistry(architectureProfileCatalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(registry) != len(architectureRegistry) {
+		t.Fatalf("compiled profiles=%d want %d", len(registry), len(architectureRegistry))
+	}
 	catalog, err := newWeightCatalog(&gguf.File{Tensors: []gguf.TensorInfo{
-		{Name: "first"}, {Name: "third"},
+		{Name: firstTensor}, {Name: thirdTensor},
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var first, second, third gguf.TensorInfo
-	err = loadTensorRequirements(catalog, "", []tensorRequirement{
-		requiredTensor("first", &first),
-		requiredTensor("second", &second),
-		requiredTensor("third", &third),
+	err = bindTensorProgram(catalog, "", []tensorBinding{
+		requiredTensor(firstTensor, &first),
+		requiredTensor(secondTensor, &second),
+		requiredTensor(thirdTensor, &third),
 	})
-	if err == nil || !strings.Contains(err.Error(), `"second"`) || first.Name != "first" || third.Name != "" {
+	if err == nil || !strings.Contains(err.Error(), secondTensor) || first.Name != "" || third.Name != "" {
 		t.Fatalf("error/bindings = %v first=%q third=%q", err, first.Name, third.Name)
+	}
+	catalog, err = newWeightCatalog(&gguf.File{Tensors: []gguf.TensorInfo{
+		{Name: thirdTensor}, {Name: firstTensor}, {Name: secondTensor},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var firstView, secondView, thirdView *gguf.TensorInfo
+	err = bindTensorProgram(catalog, "", []tensorBinding{
+		requiredTensorPointer(firstTensor, &firstView),
+		requiredTensorPointer(secondTensor, &secondView),
+		requiredTensorPointer(thirdTensor, &thirdView),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstView != &catalog.items[catalog.tensors[firstTensor]] ||
+		secondView != &catalog.items[catalog.tensors[secondTensor]] ||
+		thirdView != &catalog.items[catalog.tensors[thirdTensor]] {
+		t.Fatal("bindings do not reference compiled catalog slots")
 	}
 }
 
@@ -77,9 +109,9 @@ func TestLoadTensorRequirementsEnforcesStorage(t *testing.T) {
 		t.Fatal(err)
 	}
 	var destination *gguf.TensorInfo
-	err = loadTensorRequirements(
+	err = bindTensorProgram(
 		catalog, "",
-		[]tensorRequirement{requiredF32TensorPointer("bias", &destination, 2)},
+		[]tensorBinding{requiredF32TensorPointer("bias", &destination, 2)},
 	)
 	if err == nil || destination != nil {
 		t.Fatalf("storage constraint = %v destination %#v", err, destination)

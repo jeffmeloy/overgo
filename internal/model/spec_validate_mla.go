@@ -21,7 +21,7 @@ const (
 func (s Spec) validateMLAMetadata() error {
 	profile := s.Profile()
 	validation := profile.Validation.MLA
-	kimiLinear := validation == MLAValidationKimiLinear
+	kimiLinear := validation == MLAValidationHybridLinearAttention
 	if (profile.Attention == AttentionLatent || profile.Attention == AttentionSparseLatent || kimiLinear) &&
 		(s.KVLoRARank == 0 || s.RopeDimensionCount == 0 ||
 			s.RopeDimensionCount >= s.KeyLength ||
@@ -62,7 +62,7 @@ func (s Spec) validateMLAMetadata() error {
 				return errors.New("DSA shared indexer precedes every full indexer")
 			}
 		}
-		if validation == MLAValidationDeepSeek32 {
+		if validation == MLAValidationSparseLatentIndexer {
 			for _, full := range s.IndexerFullLayers {
 				if !full {
 					return errors.New("DeepSeek 3.2 requires a full indexer in every layer")
@@ -70,7 +70,7 @@ func (s Spec) validateMLAMetadata() error {
 			}
 		}
 	}
-	if validation == MLAValidationDeepSeek4 {
+	if validation == MLAValidationCompressedHyper {
 		switch {
 		case s.BlockCount != deepSeek4BlockCount || s.HeadCountKV != 1 || s.KeyLength != s.ValueLength:
 			return errors.New("DeepSeek 4 layer metadata is invalid")
@@ -173,7 +173,7 @@ func (s Spec) validateMLAMetadata() error {
 			return errors.New("DeepSeek2 attention temperature metadata is invalid")
 		}
 	}
-	if validation == MLAValidationMistral3 {
+	if validation == MLAValidationOptionalExpertsLatent {
 		switch {
 		case s.AttentionTempScale != 0 &&
 			(s.AttentionTempScale <= 0 || s.AttentionTempFloor == 0 ||
@@ -189,7 +189,7 @@ func (s Spec) validateMLAMetadata() error {
 			return errors.New("Mistral 3 YaRN metadata is invalid")
 		}
 	}
-	if validation == MLAValidationMiniCPM3 &&
+	if validation == MLAValidationScaledLatent &&
 		(s.QLoRARank == 0 || s.ResidualScale <= 0 || s.OriginalContextLength == 0 ||
 			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.ResidualScale)) ||
 			math.IsInf(float64(s.ResidualScale), 0) || math.IsNaN(float64(s.RopeAttentionFactor)) ||

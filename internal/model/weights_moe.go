@@ -42,7 +42,7 @@ func loadMoECatalog(
 		return false, err
 	}
 	if policy.SupplementalCatalog.has(expertSupplementRequiredProjectionBiases) {
-		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 			requiredF32TensorPointer("ffn_gate_inp.bias", &layer.FeedForwardRouterBias, uint64(spec.ExpertCount)),
 			requiredF32TensorPointer("ffn_gate_exps.bias", &layer.FeedForwardGateBias, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
 			requiredF32TensorPointer("ffn_up_exps.bias", &layer.FeedForwardUpBias, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
@@ -53,7 +53,7 @@ func loadMoECatalog(
 	}
 	if policy.SupplementalCatalog.has(expertSupplementChunkExperts) {
 		chunkExperts := uint64(spec.ExpertCount / spec.ExpertsPerGroup)
-		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 			requiredTensorPointer("ffn_gate_chexps.weight", &layer.FeedForwardGateChunkExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertChunkFeedForward), chunkExperts),
 			requiredTensorPointer("ffn_up_chexps.weight", &layer.FeedForwardUpChunkExperts, uint64(spec.EmbeddingLength), uint64(spec.ExpertChunkFeedForward), chunkExperts),
 			requiredTensorPointer("ffn_down_chexps.weight", &layer.FeedForwardDownChunkExperts, uint64(spec.ExpertChunkFeedForward), uint64(spec.EmbeddingLength), chunkExperts),
@@ -65,11 +65,11 @@ func loadMoECatalog(
 		return false, loadOptionalDenseGEGLUCatalog(catalog, prefix, spec, layer)
 	}
 	if policy.SupplementalCatalog.has(expertSupplementExpertInputNorm) {
-		expertNorm, err := catalog.required(prefix+"ffn_norm_exps.weight", uint64(spec.EmbeddingLength))
-		if err != nil {
+		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
+			requiredTensorPointer("ffn_norm_exps.weight", &layer.FeedForwardExpertNorm, uint64(spec.EmbeddingLength)),
+		}); err != nil {
 			return false, err
 		}
-		layer.FeedForwardExpertNorm = &expertNorm
 	}
 	return policy.SupplementalCatalog.has(expertSupplementDenseBranch), nil
 }
@@ -84,14 +84,14 @@ func loadMoECoreCatalog(
 	policy := spec.Profile().Experts
 	shapes := spec.TensorShapes(0)
 	if policy.FusedGateUp {
-		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 			optionalTensorPointer("ffn_gate_up_exps.weight", &layer.FeedForwardGateUpExperts, shapes.ExpertUp(2)...),
 		}); err != nil {
 			return false, err
 		}
 		fusedGateUp = layer.FeedForwardGateUpExperts != nil
 	}
-	requirements := []tensorRequirement{
+	requirements := []tensorBinding{
 		requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, shapes.ExpertRouter()...),
 	}
 	if !fusedGateUp {
@@ -107,7 +107,7 @@ func loadMoECoreCatalog(
 			requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, shapes.ExpertUp(1)...),
 		)
 	}
-	return fusedGateUp, loadTensorRequirements(catalog, prefix, requirements)
+	return fusedGateUp, bindTensorProgram(catalog, prefix, requirements)
 }
 
 func loadOptionalExpertGate(
@@ -116,7 +116,7 @@ func loadOptionalExpertGate(
 	spec Spec,
 	layer *LayerWeights,
 ) error {
-	return loadTensorRequirements(catalog, prefix, []tensorRequirement{
+	return bindTensorProgram(catalog, prefix, []tensorBinding{
 		optionalTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts,
 			spec.TensorShapes(0).ExpertUp(1)...),
 	})
@@ -128,19 +128,9 @@ func loadScaledSandwichNormCatalog(
 	spec Spec,
 	layer *LayerWeights,
 ) error {
-	routerScale, err := catalog.required(prefix+"ffn_gate_inp.scale", uint64(spec.EmbeddingLength))
-	if err != nil {
-		return err
-	}
-	layer.FeedForwardRouterScale = &routerScale
-	if _, ok := catalog.tensors[prefix+"ffn_down_exps.scale"]; ok {
-		downScale, err := catalog.required(prefix+"ffn_down_exps.scale", uint64(spec.ExpertCount))
-		if err != nil {
-			return err
-		}
-		layer.FeedForwardDownExpertsScale = &downScale
-	}
-	return loadTensorRequirements(catalog, prefix, []tensorRequirement{
+	return bindTensorProgram(catalog, prefix, []tensorBinding{
+		requiredTensorPointer("ffn_gate_inp.scale", &layer.FeedForwardRouterScale, uint64(spec.EmbeddingLength)),
+		optionalTensorPointer("ffn_down_exps.scale", &layer.FeedForwardDownExpertsScale, uint64(spec.ExpertCount)),
 		requiredTensorPointer("pre_ffw_norm_2.weight", &layer.FeedForwardPreNorm2, uint64(spec.EmbeddingLength)),
 		requiredTensorPointer("post_ffw_norm_1.weight", &layer.FeedForwardPostNorm1, uint64(spec.EmbeddingLength)),
 		requiredTensorPointer("post_ffw_norm_2.weight", &layer.FeedForwardPostNorm2, uint64(spec.EmbeddingLength)),
@@ -168,7 +158,7 @@ func loadMoEPolicyCatalog(
 		if policy.BiasCatalog == expertBiasCatalogRequiredF32 {
 			requirement.storages = []dtype.Type{dtype.F32}
 		}
-		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{requirement}); err != nil {
+		if err := bindTensorProgram(catalog, prefix, []tensorBinding{requirement}); err != nil {
 			return err
 		}
 	}
@@ -201,7 +191,7 @@ func loadOptionalF32ExpertBias(
 	if !ok {
 		return nil
 	}
-	return loadTensorRequirements(catalog, prefix, []tensorRequirement{
+	return bindTensorProgram(catalog, prefix, []tensorBinding{
 		requiredF32TensorPointer(name, &layer.FeedForwardExpertBias, uint64(spec.ExpertCount)),
 	})
 }
@@ -225,7 +215,7 @@ func loadOptionalDenseGEGLUCatalog(
 	if present == 0 {
 		return nil
 	}
-	return loadTensorRequirements(catalog, prefix, []tensorRequirement{
+	return bindTensorProgram(catalog, prefix, []tensorBinding{
 		requiredTensorPointer(names[0], &layer.FeedForwardGate,
 			uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
 		requiredTensorPointer(names[1], &layer.FeedForwardUp,

@@ -26,8 +26,8 @@ const (
 	outputWeightTensor            = "output.weight"
 )
 
-// tensorRequirement: ordered catalog binding
-type tensorRequirement struct {
+// tensorBinding: compiled catalog slot.
+type tensorBinding struct {
 	name        string
 	shapes      [][]uint64
 	rank        uint32
@@ -36,6 +36,8 @@ type tensorRequirement struct {
 	destination *gguf.TensorInfo
 	pointer     **gguf.TensorInfo
 	optional    bool
+	index       int
+	present     bool
 }
 
 func optionalRelationalTensorPointer(
@@ -44,34 +46,34 @@ func optionalRelationalTensorPointer(
 	rank uint32,
 	nonempty bool,
 	storages ...dtype.Type,
-) tensorRequirement {
-	return tensorRequirement{
+) tensorBinding {
+	return tensorBinding{
 		name: name, rank: rank, nonempty: nonempty, storages: storages,
 		pointer: destination, optional: true,
 	}
 }
 
-func requiredTensor(name string, destination *gguf.TensorInfo, shape ...uint64) tensorRequirement {
-	return tensorRequirement{name: name, shapes: [][]uint64{shape}, destination: destination}
+func requiredTensor(name string, destination *gguf.TensorInfo, shape ...uint64) tensorBinding {
+	return tensorBinding{name: name, shapes: [][]uint64{shape}, destination: destination}
 }
 
-func optionalTensor(name string, destination *gguf.TensorInfo, shape ...uint64) tensorRequirement {
-	return tensorRequirement{name: name, shapes: [][]uint64{shape}, destination: destination, optional: true}
+func optionalTensor(name string, destination *gguf.TensorInfo, shape ...uint64) tensorBinding {
+	return tensorBinding{name: name, shapes: [][]uint64{shape}, destination: destination, optional: true}
 }
 
-func requiredTensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorRequirement {
-	return tensorRequirement{name: name, shapes: [][]uint64{shape}, pointer: destination}
+func requiredTensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorBinding {
+	return tensorBinding{name: name, shapes: [][]uint64{shape}, pointer: destination}
 }
 
-func optionalTensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorRequirement {
-	return tensorRequirement{name: name, shapes: [][]uint64{shape}, pointer: destination, optional: true}
+func optionalTensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorBinding {
+	return tensorBinding{name: name, shapes: [][]uint64{shape}, pointer: destination, optional: true}
 }
 
-func optionalF32TensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorRequirement {
+func optionalF32TensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorBinding {
 	return optionalStoredTensorPointer(name, destination, dtype.F32, shape...)
 }
 
-func requiredF32TensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorRequirement {
+func requiredF32TensorPointer(name string, destination **gguf.TensorInfo, shape ...uint64) tensorBinding {
 	return requiredStoredTensorPointer(name, destination, dtype.F32, shape...)
 }
 
@@ -80,8 +82,8 @@ func requiredStoredTensorPointer(
 	destination **gguf.TensorInfo,
 	storage dtype.Type,
 	shape ...uint64,
-) tensorRequirement {
-	return tensorRequirement{name: name, shapes: [][]uint64{shape}, storages: []dtype.Type{storage}, pointer: destination}
+) tensorBinding {
+	return tensorBinding{name: name, shapes: [][]uint64{shape}, storages: []dtype.Type{storage}, pointer: destination}
 }
 
 func optionalStoredTensorPointer(
@@ -89,7 +91,7 @@ func optionalStoredTensorPointer(
 	destination **gguf.TensorInfo,
 	storage dtype.Type,
 	shape ...uint64,
-) tensorRequirement {
+) tensorBinding {
 	requirement := requiredStoredTensorPointer(name, destination, storage, shape...)
 	requirement.optional = true
 	return requirement
@@ -99,35 +101,47 @@ func requiredTensorPointerShapes(
 	name string,
 	destination **gguf.TensorInfo,
 	shapes ...[]uint64,
-) tensorRequirement {
-	return tensorRequirement{name: name, shapes: shapes, pointer: destination}
+) tensorBinding {
+	return tensorBinding{name: name, shapes: shapes, pointer: destination}
 }
 
-func loadTensorRequirements(
+func bindTensorProgram(
 	catalog weightCatalog,
 	prefix string,
-	requirements []tensorRequirement,
+	program []tensorBinding,
 ) error {
-	for _, requirement := range requirements {
-		name := prefix + requirement.name
-		item, ok := catalog.tensor(name)
+	for bindingIndex := range program {
+		binding := &program[bindingIndex]
+		if (binding.destination == nil) == (binding.pointer == nil) {
+			return fmt.Errorf("tensor binding %q has invalid destination", prefix+binding.name)
+		}
+		name := prefix + binding.name
+		itemIndex, ok := catalog.tensors[name]
 		if !ok {
-			if requirement.optional {
+			if binding.optional {
 				continue
 			}
 			return fmt.Errorf("required tensor %q is missing", name)
 		}
+		item := catalog.items[itemIndex]
 		catalogRequirement := tensorcatalog.Requirement{
-			Name: name, Shapes: requirement.shapes, Rank: requirement.rank,
-			NonEmpty: requirement.nonempty, Storages: requirement.storages,
+			Name: name, Shapes: binding.shapes, Rank: binding.rank,
+			NonEmpty: binding.nonempty, Storages: binding.storages,
 		}
 		if err := tensorcatalog.ValidateInfo(item, catalogRequirement); err != nil {
 			return err
 		}
-		if requirement.destination != nil {
-			*requirement.destination = item
+		binding.index, binding.present = itemIndex, true
+	}
+	for bindingIndex := range program {
+		binding := &program[bindingIndex]
+		if !binding.present {
+			continue
+		}
+		if binding.destination != nil {
+			*binding.destination = catalog.items[binding.index]
 		} else {
-			*requirement.pointer = &item
+			*binding.pointer = &catalog.items[binding.index]
 		}
 	}
 	return nil

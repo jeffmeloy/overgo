@@ -905,13 +905,13 @@
      "contains": "func LookupArchitecture(",
      "path": "internal/model/architecture.go",
      "role": "source",
-     "identity": "file:sha256:e9572b763e283c6766d9635e8aa7ce9545f8f2d22d99c3ad6ffd7ebc7ed00a20"
+     "identity": "file:sha256:9923b65e9e96886ea6220e4352e05732421c2aadde29550363b2c2b2671f8b7d"
     },
     {
      "contains": "func TestArchitectureRegistryProfiles(",
      "path": "internal/model/architecture_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dd601241e822956c904f28b2a66dbbadecf26881906b0629b8e82877831fddad"
+     "identity": "evidence:sha256:579cb1b99a9caac6b277bc7de67ad6692f601263af4aedfb1df8f7a79a3ba31d"
     }
    ],
    "id": "architecture-profiles",

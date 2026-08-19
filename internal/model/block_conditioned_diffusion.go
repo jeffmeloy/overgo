@@ -2,7 +2,7 @@
 // full-width QK RMS norms, axis-partitioned rotary self-attention over a
 // (frames, height, width) token grid, fixed-context cross-attention, and a
 // tanh-GELU feed-forward. Generic and config-driven — nothing here names a
-// model family. Composes only cataloged tensor ops, so one graph definition
+// model profile. Composes only cataloged tensor ops, so one graph definition
 // executes on both the reference and CUDA backends.
 package model
 

@@ -10,7 +10,7 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 		PosNet:   make([]WavPosNetWeights, spec.PosNetBlockCount),
 		ConvNext: make([]WavConvNextWeights, spec.ConvNextBlockCount),
 	}
-	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
+	if err := bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensor(tokenEmbeddingWeightTensor, &result.TokenEmbedding, uint64(spec.EmbeddingLength), uint64(spec.VocabularySize)),
 		requiredTensor("conv1d.weight", &wav.InputConv, 7, uint64(spec.EmbeddingLength), width),
 		requiredTensor("conv1d.bias", &wav.InputConvBias, 1, width),
@@ -20,10 +20,10 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 	for block := uint32(0); block < spec.PosNetBlockCount; block++ {
 		prefix := fmt.Sprintf("posnet.%d.", block)
 		layer := &wav.PosNet[block]
-		var requirements []tensorRequirement
+		var requirements []tensorBinding
 		switch sequenceOutputResidualProgram[block] {
 		case sequenceResidualConvolution:
-			requirements = []tensorRequirement{
+			requirements = []tensorBinding{
 				requiredTensor("norm1.weight", &layer.Norm1, 1, width),
 				requiredTensor("norm1.bias", &layer.Norm1Bias, 1, width),
 				requiredTensor("conv1.weight", &layer.Conv1, 3, width, width),
@@ -34,7 +34,7 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 				requiredTensor("conv2.bias", &layer.Conv2Bias, 1, width),
 			}
 		case sequenceResidualAttention:
-			requirements = []tensorRequirement{
+			requirements = []tensorBinding{
 				requiredTensor(attentionNormWeightTensor, &layer.AttentionNorm, 1, width),
 				requiredTensor("attn_norm.bias", &layer.AttentionNormBias, 1, width),
 				requiredTensor("attn_q.bias", &layer.AttentionQBias, 1, width),
@@ -47,16 +47,16 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 				requiredTensor(attentionOutputWeightTensor, &layer.AttentionOutput, 1, width, width),
 			}
 		case sequenceResidualNormalization:
-			requirements = []tensorRequirement{
+			requirements = []tensorBinding{
 				requiredTensor(attentionNormWeightTensor, &layer.AttentionNorm, 1, width),
 				requiredTensor("attn_norm.bias", &layer.AttentionNormBias, 1, width),
 			}
 		}
-		if err := loadTensorRequirements(catalog, prefix, requirements); err != nil {
+		if err := bindTensorProgram(catalog, prefix, requirements); err != nil {
 			return Weights{}, err
 		}
 	}
-	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
+	if err := bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensor("token_embd_norm.weight", &wav.TokenNorm, width),
 		requiredTensor("token_embd_norm.bias", &wav.TokenNormBias, width),
 	}); err != nil {
@@ -65,7 +65,7 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 	for block := uint32(0); block < spec.ConvNextBlockCount; block++ {
 		prefix := fmt.Sprintf("convnext.%d.", block)
 		layer := &wav.ConvNext[block]
-		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 			requiredTensor("dw.weight", &layer.Depthwise, 7, 1, width),
 			requiredTensor("dw.bias", &layer.DepthwiseBias, 1, width),
 			requiredTensor("norm.weight", &layer.Norm, width),
@@ -79,7 +79,7 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 			return Weights{}, err
 		}
 	}
-	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
+	if err := bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensor(outputNormWeightTensor, &wav.OutputNorm, width),
 		requiredTensor("output_norm.bias", &wav.OutputNormBias, width),
 		requiredTensor(outputWeightTensor, &wav.Output, width, uint64(spec.OutputEmbeddingLength)),

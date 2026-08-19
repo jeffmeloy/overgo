@@ -815,7 +815,7 @@ func TestReadWeightsMamba(t *testing.T) {
 		tensorInfo("token_embd.weight", 4, 32), tensorInfo("output_norm.weight", 4),
 		tensorInfo("blk.0.attn_norm.weight", 4),
 	}
-	fixtures = append(fixtures, tensorRequirementFixtures(
+	fixtures = append(fixtures, tensorBindingFixtures(
 		"blk.0.", selectiveScanTensorRequirements(spec, &LayerWeights{}), nil,
 	)...)
 	file := &gguf.File{Tensors: fixtures}

@@ -13,8 +13,8 @@ const (
 
 func (s Spec) validateHybridMetadata() error {
 	hybrid := s.Profile().Validation.Hybrid
-	qwenHybrid := hybrid == HybridValidationQwen3Next ||
-		hybrid == HybridValidationQwen35 || hybrid == HybridValidationQwen35MoE
+	qwenHybrid := hybrid == HybridValidationAlternatingGatedDelta ||
+		hybrid == HybridValidationAlternatingGatedDeltaHybrid || hybrid == HybridValidationAlternatingGatedDeltaExperts
 	if qwenHybrid {
 		switch {
 		case s.RopeDimensionCount == 0 || s.RopeDimensionCount > s.KeyLength ||
@@ -35,7 +35,7 @@ func (s Spec) validateHybridMetadata() error {
 		case s.FullAttentionInterval == 0:
 			return errors.New("Qwen hybrid full-attention interval is zero")
 		}
-		if hybrid != HybridValidationQwen3Next {
+		if hybrid != HybridValidationAlternatingGatedDelta {
 			var sectionPairs int64
 			for _, section := range s.RopeSections {
 				if section < 0 {
@@ -48,22 +48,22 @@ func (s Spec) validateHybridMetadata() error {
 			}
 		}
 	}
-	if (hybrid == HybridValidationQwen3Next || hybrid == HybridValidationQwen35MoE) &&
+	if (hybrid == HybridValidationAlternatingGatedDelta || hybrid == HybridValidationAlternatingGatedDeltaExperts) &&
 		(!validExpertDimensions(s) || s.SharedExpertFF == 0 ||
 			s.ExpertWeightsScale == 0 || !finite(s.ExpertWeightsScale)) {
 		return errors.New("Qwen3.5-MoE expert metadata is invalid")
 	}
-	if hybrid == HybridValidationQwen3MoE &&
+	if hybrid == HybridValidationSharedExperts &&
 		(!validExpertDimensions(s) || s.ExpertWeightsScale == 0 || !finite(s.ExpertWeightsScale)) {
 		return errors.New("Qwen3-MoE expert metadata is invalid")
 	}
-	if hybrid == HybridValidationGroveMoE &&
+	if hybrid == HybridValidationSparseSharedExperts &&
 		(!validExpertDimensions(s) || s.ExpertChunkFeedForward == 0 ||
 			s.ExpertsPerGroup == 0 || s.ExpertCount%s.ExpertsPerGroup != 0 ||
 			s.ExpertWeightsScale == 0 || !finite(s.ExpertWeightsScale) || !finite(s.ExpertGroupScale)) {
 		return errors.New("GroveMoE expert metadata is invalid")
 	}
-	if hybrid == HybridValidationMiMo2 {
+	if hybrid == HybridValidationSigmoidExperts {
 		switch {
 		case !validExpertDimensions(s) || s.ExpertWeightsScale == 0 || !finite(s.ExpertWeightsScale):
 			return errors.New("MiMo2 expert metadata is invalid")
@@ -82,7 +82,7 @@ func (s Spec) validateHybridMetadata() error {
 			}
 		}
 	}
-	if hybrid == HybridValidationStep35 {
+	if hybrid == HybridValidationCompressedHyperDraft {
 		layerCount := int(s.BlockCount + s.NextNPredictLayers)
 		switch {
 		case !validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale):
@@ -116,19 +116,19 @@ func (s Spec) validateHybridMetadata() error {
 			}
 		}
 	}
-	if hybrid == HybridValidationLLaDAMoE &&
+	if hybrid == HybridValidationNonCausalExperts &&
 		(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("LLaDA-MoE expert metadata is invalid")
 	}
-	if hybrid == HybridValidationQwen2MoE &&
+	if hybrid == HybridValidationNormalizedSharedExperts &&
 		(!validExpertDimensions(s) || s.SharedExpertFF == 0 || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("Qwen2-MoE expert metadata is invalid")
 	}
-	if hybrid == HybridValidationArctic &&
+	if hybrid == HybridValidationRoutedExperts &&
 		(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("Arctic expert metadata is invalid")
 	}
-	if hybrid == HybridValidationBailingMoE {
+	if hybrid == HybridValidationProductSharedExperts {
 		switch {
 		case !validExpertDimensions(s) || s.SharedExpertCount == 0 ||
 			s.SharedExpertFF == 0:
@@ -139,7 +139,7 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("BailingMoE expert weight scale is invalid")
 		}
 	}
-	if hybrid == HybridValidationDeepSeek {
+	if hybrid == HybridValidationProductExperts {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("DeepSeek leading dense block count leaves no MoE layers")
@@ -152,16 +152,16 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("DeepSeek expert weight scale is invalid")
 		}
 	}
-	if (hybrid == HybridValidationGraniteMoE || hybrid == HybridValidationGranite && s.ExpertCount > 0) &&
+	if (hybrid == HybridValidationScaledExperts || hybrid == HybridValidationScaledDense && s.ExpertCount > 0) &&
 		(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("GraniteMoE expert metadata is invalid")
 	}
-	if hybrid == HybridValidationDBRX &&
+	if hybrid == HybridValidationModelWidthExperts &&
 		(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale) ||
 			!nonNegativeFinite(s.AttentionClamp)) {
 		return errors.New("DBRX expert or attention metadata is invalid")
 	}
-	if hybrid == HybridValidationGrok {
+	if hybrid == HybridValidationSharedExpertNorm {
 		switch {
 		case !validExpertDimensions(s):
 			return errors.New("Grok expert metadata is invalid")
@@ -183,7 +183,7 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("Grok YaRN metadata is invalid")
 		}
 	}
-	if hybrid == HybridValidationMellum {
+	if hybrid == HybridValidationRequiredExpertWidth {
 		switch {
 		case !validExpertDimensions(s):
 			return errors.New("Mellum expert metadata is invalid")
@@ -198,12 +198,12 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("Mellum YaRN metadata is invalid")
 		}
 	}
-	if hybrid == HybridValidationHunyuanMoE &&
+	if hybrid == HybridValidationSharedExpertProduct &&
 		(!validExpertDimensions(s) || s.SharedExpertFF == 0 ||
 			!validFullRotaryHead(s)) {
 		return errors.New("Hunyuan-MoE metadata is invalid")
 	}
-	if hybrid == HybridValidationHYV3 {
+	if hybrid == HybridValidationMultiHeadDraft {
 		switch {
 		case !validExpertDimensions(s) || s.SharedExpertFF == 0:
 			return errors.New("HY-V3 expert metadata is invalid")
@@ -215,7 +215,7 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("HY-V3 rotary/head dimensions are invalid")
 		}
 	}
-	if hybrid == HybridValidationDeepSeek2OCR {
+	if hybrid == HybridValidationFullRotaryVision {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("DeepSeek2-OCR leading dense block count leaves no MoE layers")
@@ -234,7 +234,7 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("DeepSeek2-OCR attention metadata is invalid")
 		}
 	}
-	if hybrid == HybridValidationSmallThinker {
+	if hybrid == HybridValidationDualExpertProduct {
 		switch {
 		case !validExpertDimensions(s):
 			return errors.New("SmallThinker expert metadata is invalid")
@@ -248,7 +248,7 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("SmallThinker sliding-attention metadata is invalid")
 		}
 	}
-	if hybrid == HybridValidationDOTS1 {
+	if hybrid == HybridValidationWeightedExpertProduct {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("DOTS1 leading dense block count leaves no MoE layers")
@@ -267,7 +267,7 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("DOTS1 requires full-head matching key/value attention")
 		}
 	}
-	if hybrid == HybridValidationMiniMaxM2 {
+	if hybrid == HybridValidationScaledSigmoidExperts {
 		switch {
 		case !validExpertDimensions(s):
 			return errors.New("MiniMax-M2 expert metadata is invalid")
@@ -279,16 +279,16 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("MiniMax-M2 rotary/head dimensions are invalid")
 		}
 	}
-	graniteFamily := hybrid == HybridValidationGranite || hybrid == HybridValidationGraniteMoE ||
-		hybrid == HybridValidationGraniteHybrid
-	if graniteFamily &&
+	scaledResidual := hybrid == HybridValidationScaledDense || hybrid == HybridValidationScaledExperts ||
+		hybrid == HybridValidationScaledStateSpace
+	if scaledResidual &&
 		s.RopeScalingType == ropeScalingLongRoPE &&
 		(!validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment) || s.OriginalContextLength == 0 ||
 			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
 			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
 		return errors.New("Granite LongRoPE metadata is invalid")
 	}
-	if hybrid == HybridValidationBailingMoE2 {
+	if hybrid == HybridValidationScaledSharedExperts {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("BailingMoE2 leading dense block count leaves no MoE layers")
@@ -305,24 +305,24 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("BailingMoE2 rotary/head dimensions are invalid")
 		}
 	}
-	if hybrid == HybridValidationOLMoE &&
+	if hybrid == HybridValidationFullHeadExperts &&
 		(s.HeadCountKV != s.HeadCount || !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == 0 || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("OLMoE expert or attention metadata is invalid")
 	}
-	if hybrid == HybridValidationLlama && s.ExpertCount > 0 &&
+	if hybrid == HybridValidationOptionalExperts && s.ExpertCount > 0 &&
 		(!validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == 0 || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("Llama MoE expert metadata is invalid")
 	}
-	ropeScalingFamily := hybrid == HybridValidationLlama || hybrid == HybridValidationRopeScaling
-	if s.RopeScalingType == ropeScalingLongRoPE && ropeScalingFamily &&
+	extendedRotary := hybrid == HybridValidationOptionalExperts || hybrid == HybridValidationExtendedRotary
+	if s.RopeScalingType == ropeScalingLongRoPE && extendedRotary &&
 		(!validRotaryDimension(s.RopeDimensionCount, s.KeyLength, rotaryPairAlignment) || s.OriginalContextLength == 0 ||
 			s.RopeAttentionFactor <= 0 || math.IsNaN(float64(s.RopeAttentionFactor)) ||
 			math.IsInf(float64(s.RopeAttentionFactor), 0)) {
 		return fmt.Errorf("%s LongRoPE metadata is invalid", s.Architecture)
 	}
-	if s.RopeScalingType == ropeScalingYaRN && ropeScalingFamily &&
+	if s.RopeScalingType == ropeScalingYaRN && extendedRotary &&
 		(s.RopeScalingFactor <= 0 || s.OriginalContextLength == 0 ||
 			s.YaRNExtFactor < 0 || s.YaRNAttentionFactor <= 0 ||
 			s.YaRNBetaFast <= 0 || s.YaRNBetaSlow <= 0 ||
@@ -333,7 +333,7 @@ func (s Spec) validateHybridMetadata() error {
 			math.IsNaN(float64(s.YaRNBetaSlow)) || math.IsInf(float64(s.YaRNBetaSlow), 0)) {
 		return fmt.Errorf("%s YaRN metadata is invalid", s.Architecture)
 	}
-	if hybrid == HybridValidationLlama4 {
+	if hybrid == HybridValidationChunkedExperts {
 		switch {
 		case !validExpertDimensions(s) || s.SharedExpertFF == 0 || s.MoELayerStep == 0:
 			return errors.New("Llama 4 expert metadata is invalid")
@@ -348,17 +348,17 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("Llama 4 chunked-attention metadata is invalid")
 		}
 	}
-	if hybrid == HybridValidationGPTOSS &&
+	if hybrid == HybridValidationSelectedSoftmaxExperts &&
 		(!validExpertDimensions(s) || s.ExpertGatingFunc != expertGatingSelectedSoftmax ||
 			!positiveFinite(s.ExpertWeightsScale) ||
 			s.SlidingWindow == 0 || s.SlidingPattern < 2 || !validFullRotaryHead(s) || s.RopeFrequencySWA <= 0) {
 		return errors.New("GPT-OSS metadata is invalid")
 	}
-	if hybrid == HybridValidationPhiMoE &&
+	if hybrid == HybridValidationBasicScaledExperts &&
 		(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("PhiMoE expert metadata is invalid")
 	}
-	if hybrid == HybridValidationLaguna {
+	if hybrid == HybridValidationPerLayerYaRNExperts {
 		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerKVHeadCounts) != int(s.BlockCount) {
 			return errors.New("Laguna per-layer attention head metadata is invalid")
@@ -399,7 +399,7 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("Laguna sliding-attention metadata is invalid")
 		}
 	}
-	if hybrid == HybridValidationAFMoE {
+	if hybrid == HybridValidationSlidingSigmoidExperts {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("AFMoE leading dense block count leaves no MoE layers")
@@ -418,7 +418,7 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("AFMoE sliding-attention metadata is invalid")
 		}
 	}
-	if hybrid == HybridValidationEXAOneMoE {
+	if hybrid == HybridValidationSlidingSharedExperts {
 		switch {
 		case s.LeadingDenseBlocks >= s.BlockCount:
 			return errors.New("EXAONE-MoE leading dense block count leaves no MoE layers")
@@ -434,8 +434,8 @@ func (s Spec) validateHybridMetadata() error {
 			return errors.New("EXAONE-MoE sliding attention metadata is invalid")
 		}
 	}
-	lfm2Family := hybrid == HybridValidationLFM2 || hybrid == HybridValidationLFM2MoE
-	if lfm2Family {
+	shortConvolution := hybrid == HybridValidationAlternatingShortConvolution || hybrid == HybridValidationAlternatingShortConvolutionExperts
+	if shortConvolution {
 		if s.ShortConvCacheLength < minimumConvKernelWidth || len(s.RecurrentLayers) != int(s.BlockCount) {
 			return errors.New("LFM2 short-convolution metadata is invalid")
 		}
@@ -447,7 +447,7 @@ func (s Spec) validateHybridMetadata() error {
 		if !recurrent || !attention {
 			return errors.New("LFM2 requires both convolution and attention layers")
 		}
-		if hybrid == HybridValidationLFM2MoE {
+		if hybrid == HybridValidationAlternatingShortConvolutionExperts {
 			switch {
 			case s.LeadingDenseBlocks >= s.BlockCount:
 				return errors.New("LFM2-MoE leading dense block count leaves no MoE layers")

@@ -4,32 +4,32 @@ import "errors"
 
 func (s Spec) validateEncoderMetadata() error {
 	switch s.Profile().Validation.Encoder {
-	case EncoderValidationBERT:
+	case EncoderValidationTokenTypesMatchingHeads:
 		if s.TokenTypeCount != 0 && s.HeadCountKV == s.HeadCount && s.KeyLength == s.ValueLength {
 			return nil
 		}
 		return errors.New("BERT metadata is invalid")
-	case EncoderValidationJinaV2:
+	case EncoderValidationTokenTypesALiBi:
 		if s.TokenTypeCount != 0 && s.KeyLength == s.ValueLength && s.MaxALiBiBias == 8 {
 			return nil
 		}
 		return errors.New("JinaBERT v2 metadata is invalid")
-	case EncoderValidationJinaV3:
+	case EncoderValidationRotaryOptionalExperts:
 		if !invalidEncoderRotary(s) && validOptionalEncoderExperts(s) {
 			return nil
 		}
 		return errors.New("JinaBERT v3 metadata is invalid")
-	case EncoderValidationNeoBERT:
+	case EncoderValidationFullRotary:
 		if s.RopeDimensionCount == s.KeyLength && s.KeyLength == s.ValueLength && s.RopeDimensionCount%2 == 0 {
 			return nil
 		}
 		return errors.New("NeoBERT attention metadata is invalid")
-	case EncoderValidationNomicBERT:
+	case EncoderValidationRotary:
 		if !invalidEncoderRotary(s) {
 			return nil
 		}
 		return errors.New("NomicBERT metadata is invalid")
-	case EncoderValidationNomicBERTMoE:
+	case EncoderValidationRotaryPeriodicExperts:
 		if !invalidEncoderRotary(s) && s.MoELayerStep >= 2 {
 			return nil
 		}

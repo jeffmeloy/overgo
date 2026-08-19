@@ -1,6 +1,6 @@
-# Hermetic source and byte-fixture newlines.
-*.go text eol=lf
-internal/inference/testdata/chat_templates/** text eol=lf
-kernels/cuda/*.cu text eol=lf
-kernels/cuda/*.cuh text eol=lf
-internal/cuda/kernel/*.ptx text eol=lf
+# Byte-faithful transport: this repository's evidence model hashes worktree
+# bytes (gate claims, artifact identities, fixture pins, golden checks), so
+# git must never rewrite a byte between blob and worktree. No text
+# conversion for anything, on any machine, regardless of local or system
+# core.autocrlf/core.eol configuration.
+* -text

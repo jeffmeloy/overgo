@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; queue order is binding; plan complete means campaign complete. Generic authority beside retained specialized runtime is failure, not progress. Every migration must move all production callers and delete displaced orchestration, wrappers, fallbacks, compatibility paths, duplicate probes, and parallel authorities in the same gated wave. New shared code must replace existing ownership immediately. Verify numerical behavior, Live Edit behavior where applicable, code reduction, allocations, transfers, peak memory, and processing cost before completion. After every gated step, merge current master into this worktree before starting the next step.",
   "items": [
     {
-      "id": "evaluation-runtime-convergence",
-      "title": "Execute evaluation through active model recipes and runtime-produced observations; index RepoDB evaluation history and delete manifest-only or repeated-scan authority paths",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Execute evaluation through active model recipes and runtime-produced observations; index RepoDB evaluation history and delete manifest-only or repeated-scan authority paths",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run ^TestRecipeEvaluationRuntimeAndLedger$ -count=1"
-        }
-      ]
-    },
-    {
       "id": "external-benchmark-evidence",
       "title": "External benchmark evidence: run the lm-evaluation-harness batch evaluator (C:/Users/jeffm/eval) on applicable text models as the independent judge, commit results with tool-and-version provenance, and record benchmark claims at capability-measured tier; applicability judged per model from the ledger (DNA and non-text models keep their own evaluation protocols)",
       "status": "open",

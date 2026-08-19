@@ -12,22 +12,18 @@ import (
 	"strconv"
 	"strings"
 
-	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
-	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/repodb"
 	"overgo/internal/strictjson"
-	"overgo/internal/trainingprogram"
 )
 
 type manifest struct {
-	Repository string           `json:"repository"`
-	Catalog    string           `json:"catalog"`
-	CodeCommit string           `json:"code_commit"`
-	Device     int              `json:"device"`
-	Models     []modelRequest   `json:"models"`
-	SFTViews   []sftViewRequest `json:"sft_views,omitempty"`
+	Repository string         `json:"repository"`
+	Catalog    string         `json:"catalog"`
+	CodeCommit string         `json:"code_commit"`
+	Device     int            `json:"device"`
+	Models     []modelRequest `json:"models"`
 }
 
 type modelRequest struct {
@@ -35,25 +31,7 @@ type modelRequest struct {
 	Suites []string `json:"suites"`
 }
 
-type sftViewRequest struct {
-	Objective              artifact.ID                              `json:"objective"`
-	Training               artifact.ID                              `json:"training_membership"`
-	Heldout                artifact.ID                              `json:"heldout_membership"`
-	TextTargets            *evaluation.TextTargetSuite              `json:"text_targets,omitempty"`
-	TextObservations       []evaluation.TextTargetObservation       `json:"text_observations,omitempty"`
-	NumericTargets         *evaluation.NumericTargetSuite           `json:"numeric_targets,omitempty"`
-	NumericObservations    []evaluation.NumericTargetObservation    `json:"numeric_observations,omitempty"`
-	MediaTargets           *evaluation.MediaTargetSuite             `json:"media_targets,omitempty"`
-	MediaObservations      []evaluation.MediaTargetObservation      `json:"media_observations,omitempty"`
-	PreferenceTargets      *evaluation.PreferenceTargetSuite        `json:"preference_targets,omitempty"`
-	PreferenceObservations []evaluation.PreferenceTargetObservation `json:"preference_observations,omitempty"`
-}
-
 type workerLauncher func(context.Context, int) error
-
-type batchDocument interface {
-	Batch(string) (artifact.Batch, error)
-}
 
 func main() {
 	clioptions.Main(run)
@@ -159,16 +137,6 @@ func compileManifest(value manifest) (manifest, error) {
 		models = append(models, request)
 	}
 	value.Models = models
-	for _, view := range value.SFTViews {
-		if view.Objective.Kind() != artifact.KindProfile || view.Training.Kind() != artifact.KindDatasetShard ||
-			view.Heldout.Kind() != artifact.KindDatasetShard || view.Training == view.Heldout ||
-			(view.TextTargets == nil) != (len(view.TextObservations) == 0) ||
-			(view.NumericTargets == nil) != (len(view.NumericObservations) == 0) ||
-			(view.MediaTargets == nil) != (len(view.MediaObservations) == 0) ||
-			(view.PreferenceTargets == nil) != (len(view.PreferenceObservations) == 0) {
-			return manifest{}, errors.New("evaluate: invalid SFT evaluation view")
-		}
-	}
 	return value, nil
 }
 
@@ -180,101 +148,7 @@ func catalogBenchmarks(ctx context.Context, value manifest) error {
 	if _, err := evaluation.CatalogLocalBenchmarks(ctx, store, value.Catalog); err != nil {
 		return errors.Join(err, store.Close())
 	}
-	for _, request := range value.SFTViews {
-		objective, err := trainingprogram.LoadObjective(ctx, store, request.Objective)
-		if err != nil {
-			return errors.Join(err, store.Close())
-		}
-		training, ok, err := dataset.LoadMembership(ctx, store, request.Training)
-		if err != nil || !ok {
-			return errors.Join(err, errors.New("evaluate: training membership is absent"), store.Close())
-		}
-		heldout, ok, err := dataset.LoadMembership(ctx, store, request.Heldout)
-		if err != nil || !ok {
-			return errors.Join(err, errors.New("evaluate: held-out membership is absent"), store.Close())
-		}
-		view, err := evaluation.CompileSFTEvaluationView(objective, training, heldout)
-		if err != nil {
-			return errors.Join(err, store.Close())
-		}
-		if err := publishDocument(ctx, store, "evaluation/sft-view/"+view.ID.String(), view); err != nil {
-			return errors.Join(err, store.Close())
-		}
-		if request.TextTargets != nil {
-			plan, err := evaluation.CompileTextTargetPlan(view, *request.TextTargets)
-			if err != nil {
-				return errors.Join(err, store.Close())
-			}
-			if err := publishDocument(ctx, store, "evaluation/text-target/"+plan.ID.String(), plan); err != nil {
-				return errors.Join(err, store.Close())
-			}
-			report, err := evaluation.ScoreTextTargets(plan, request.TextObservations)
-			if err != nil {
-				return errors.Join(err, store.Close())
-			}
-			if err := publishDocument(ctx, store, "evaluation/text-target-report/"+report.ID.String(), report); err != nil {
-				return errors.Join(err, store.Close())
-			}
-		}
-		if request.NumericTargets != nil {
-			plan, err := evaluation.CompileNumericTargetPlan(view, *request.NumericTargets)
-			if err != nil {
-				return errors.Join(err, store.Close())
-			}
-			if err := publishDocument(ctx, store, "evaluation/numeric-target/"+plan.ID.String(), plan); err != nil {
-				return errors.Join(err, store.Close())
-			}
-			report, err := evaluation.ScoreNumericTargets(plan, request.NumericObservations)
-			if err != nil {
-				return errors.Join(err, store.Close())
-			}
-			if err := publishDocument(ctx, store, "evaluation/numeric-target-report/"+report.ID.String(), report); err != nil {
-				return errors.Join(err, store.Close())
-			}
-		}
-		if request.MediaTargets != nil {
-			plan, err := evaluation.CompileMediaTargetPlan(view, *request.MediaTargets)
-			if err != nil {
-				return errors.Join(err, store.Close())
-			}
-			if err := publishDocument(ctx, store, "evaluation/media-target/"+plan.ID.String(), plan); err != nil {
-				return errors.Join(err, store.Close())
-			}
-			report, err := evaluation.ScoreMediaTargets(plan, request.MediaObservations)
-			if err != nil {
-				return errors.Join(err, store.Close())
-			}
-			if err := publishDocument(ctx, store, "evaluation/media-target-report/"+report.ID.String(), report); err != nil {
-				return errors.Join(err, store.Close())
-			}
-		}
-		if request.PreferenceTargets != nil {
-			plan, err := evaluation.CompilePreferenceTargetPlan(objective, view, *request.PreferenceTargets)
-			if err != nil {
-				return errors.Join(err, store.Close())
-			}
-			if err := publishDocument(ctx, store, "evaluation/preference-target/"+plan.ID.String(), plan); err != nil {
-				return errors.Join(err, store.Close())
-			}
-			report, err := evaluation.ScorePreferenceTargets(plan, request.PreferenceObservations)
-			if err != nil {
-				return errors.Join(err, store.Close())
-			}
-			if err := publishDocument(ctx, store, "evaluation/preference-target-report/"+report.ID.String(), report); err != nil {
-				return errors.Join(err, store.Close())
-			}
-		}
-	}
 	return store.Close()
-}
-
-func publishDocument(ctx context.Context, repository artifact.Repository, key string, document batchDocument) error {
-	batch, err := document.Batch(key)
-	if err != nil {
-		return err
-	}
-	_, err = artifact.CommitBatch(ctx, repository, batch)
-	return err
 }
 
 func runParent(ctx context.Context, value manifest, launch workerLauncher) error {

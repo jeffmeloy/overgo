@@ -17,6 +17,7 @@ func main() {
 	model := flag.String("model", "", "RxBrain checkpoint directory (config.json + sharded safetensors)")
 	bindText := flag.Bool("bind-text", false, "bind the base-text decode branch from the shards and report the promotion")
 	forwardCheck := flag.Bool("forward-check", false, "run the host text forward over a fixed token sequence and report the greedy terminal")
+	bindVision := flag.Bool("bind-vision", false, "bind the visual tower from the shards and report the promotion")
 	ropeAlpha := flag.Float64("rope-alpha", 1000.0, "dynamic NTK-alpha rope scaling (checkpoint declares 1000)")
 	flag.Parse()
 	if *model == "" || flag.NArg() != 0 {
@@ -67,5 +68,22 @@ func main() {
 				len(tokens), next, score, rxbrain.RopeInvFreq(config, *ropeAlpha)[1])
 		}
 	}
-	fmt.Println("honesty: text-branch contracts and host forward only; vision encode and generation land behind this tool")
+	if *bindVision {
+		vision, err := rxbrain.LoadVisionWeights(*model, config)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "rxbrain-probe:", err)
+			os.Exit(1)
+		}
+		parameters := len(vision.PatchEmbedW) + len(vision.PatchEmbedB) + len(vision.PosEmbed) +
+			len(vision.MergerProj1W) + len(vision.MergerProj1B) + len(vision.MergerProj2W) + len(vision.MergerProj2B) +
+			len(vision.MergerPool0W) + len(vision.MergerPool0B) + len(vision.MergerPool2W) + len(vision.MergerPool2B)
+		for _, block := range vision.Blocks {
+			parameters += len(block.Norm1W) + len(block.Norm1B) + len(block.QKVW) + len(block.QKVB) +
+				len(block.ProjW) + len(block.ProjB) + len(block.Norm2W) + len(block.Norm2B) +
+				len(block.FC1W) + len(block.FC1B) + len(block.FC2W) + len(block.FC2B)
+		}
+		fmt.Printf("visual tower bound: blocks=%d parameters=%d (merger out=%d)\n",
+			len(vision.Blocks), parameters, config.HiddenSize)
+	}
+	fmt.Println("honesty: text-branch contracts, host forward and tower binding only; vision encode and generation land behind this tool")
 }

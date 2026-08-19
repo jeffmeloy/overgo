@@ -37,6 +37,36 @@ type Config struct {
 	ImageStartTokenID    int      `json:"image_start_token_id"`
 	FlowLatentPlaceholde int      `json:"flow_latent_placeholder_id"`
 	HiddenAct            string   `json:"hidden_act"`
+
+	Vision VisionConfig `json:"vision_config"`
+}
+
+// VisionConfig is the declared SigLIP-style tower contract: LayerNorm blocks
+// with packed QKV and GELU MLPs, absolute position table interpolated over a
+// fixed grid, and a 2x2 spatial merger projecting into the text stream.
+type VisionConfig struct {
+	HiddenSize        int    `json:"hidden_size"`
+	IntermediateSize  int    `json:"intermediate_size"`
+	NumHiddenLayers   int    `json:"num_hidden_layers"`
+	NumAttentionHeads int    `json:"num_attention_heads"`
+	NumChannels       int    `json:"num_channels"`
+	PatchSize         int    `json:"patch_size"`
+	MaxImageSize      int    `json:"max_image_size"`
+	SpatialMergeSize  int    `json:"spatial_merge_size"`
+	TemporalPatchSize int    `json:"temporal_patch_size"`
+	TextHiddenSize    int    `json:"text_hidden_size"`
+	HiddenAct         string `json:"hidden_act"`
+}
+
+// PositionSide is the side of the square position-embedding grid the tower
+// interpolates over: declared max image size in patches.
+func (v VisionConfig) PositionSide() int {
+	return v.MaxImageSize / v.PatchSize
+}
+
+// PatchDim is the flattened pixel dimension of one temporal patch.
+func (v VisionConfig) PatchDim() int {
+	return v.NumChannels * v.TemporalPatchSize * v.PatchSize * v.PatchSize
 }
 
 // Load reads and validates the checkpoint's declared configuration.
@@ -84,6 +114,28 @@ func (c Config) Validate() error {
 	}
 	if c.VocabSize <= 0 || c.EOSTokenID <= 0 || c.EOSTokenID >= c.VocabSize {
 		return fmt.Errorf("rxbrain: vocabulary %d does not contain EOS %d", c.VocabSize, c.EOSTokenID)
+	}
+	return c.Vision.Validate(c.HiddenSize)
+}
+
+// Validate holds the vision declaration to the tower math's invariants.
+func (v VisionConfig) Validate(textHidden int) error {
+	if v.HiddenSize <= 0 || v.NumHiddenLayers <= 0 || v.NumAttentionHeads <= 0 || v.IntermediateSize <= 0 {
+		return fmt.Errorf("rxbrain: degenerate vision dimensions hidden=%d layers=%d heads=%d inter=%d",
+			v.HiddenSize, v.NumHiddenLayers, v.NumAttentionHeads, v.IntermediateSize)
+	}
+	if v.HiddenSize%v.NumAttentionHeads != 0 {
+		return fmt.Errorf("rxbrain: vision heads %d do not divide hidden %d", v.NumAttentionHeads, v.HiddenSize)
+	}
+	if v.NumChannels <= 0 || v.PatchSize <= 0 || v.TemporalPatchSize <= 0 || v.SpatialMergeSize <= 0 {
+		return fmt.Errorf("rxbrain: degenerate vision patching channels=%d patch=%d temporal=%d merge=%d",
+			v.NumChannels, v.PatchSize, v.TemporalPatchSize, v.SpatialMergeSize)
+	}
+	if v.MaxImageSize <= 0 || v.MaxImageSize%v.PatchSize != 0 {
+		return fmt.Errorf("rxbrain: vision max image size %d not divisible by patch %d", v.MaxImageSize, v.PatchSize)
+	}
+	if v.TextHiddenSize != textHidden {
+		return fmt.Errorf("rxbrain: vision text_hidden_size %d disagrees with decoder hidden %d", v.TextHiddenSize, textHidden)
 	}
 	return nil
 }

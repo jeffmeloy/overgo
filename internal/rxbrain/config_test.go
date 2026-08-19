@@ -36,17 +36,27 @@ func TestRxBrainConfigRefusals(t *testing.T) {
 		HiddenSize:    2048, IntermediateSize: 6144, NumHiddenLayers: 32,
 		NumAttentionHeads: 16, NumKeyValueHeads: 4, HeadDim: 128,
 		VocabSize: 120818, ClaShareFactor: 2, EOSTokenID: 120020,
+		Vision: VisionConfig{
+			HiddenSize: 1152, IntermediateSize: 4304, NumHiddenLayers: 27,
+			NumAttentionHeads: 16, NumChannels: 3, PatchSize: 16,
+			MaxImageSize: 2048, SpatialMergeSize: 2, TemporalPatchSize: 1,
+			TextHiddenSize: 2048,
+		},
 	}
 	if err := valid.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	for name, mutate := range map[string]func(*Config){
-		"wrong architecture":   func(c *Config) { c.Architectures = []string{"LlamaForCausalLM"} },
-		"kv heads indivisible": func(c *Config) { c.NumKeyValueHeads = 3 },
-		"head dim mismatch":    func(c *Config) { c.HeadDim = 96 },
-		"cla indivisible":      func(c *Config) { c.ClaShareFactor = 5 },
-		"eos outside vocab":    func(c *Config) { c.EOSTokenID = 200000 },
-		"zero layers":          func(c *Config) { c.NumHiddenLayers = 0 },
+		"wrong architecture":       func(c *Config) { c.Architectures = []string{"LlamaForCausalLM"} },
+		"kv heads indivisible":     func(c *Config) { c.NumKeyValueHeads = 3 },
+		"head dim mismatch":        func(c *Config) { c.HeadDim = 96 },
+		"cla indivisible":          func(c *Config) { c.ClaShareFactor = 5 },
+		"eos outside vocab":        func(c *Config) { c.EOSTokenID = 200000 },
+		"zero layers":              func(c *Config) { c.NumHiddenLayers = 0 },
+		"vision heads indivisible": func(c *Config) { c.Vision.NumAttentionHeads = 5 },
+		"vision patch indivisible": func(c *Config) { c.Vision.MaxImageSize = 2050 },
+		"vision text hidden drift": func(c *Config) { c.Vision.TextHiddenSize = 4096 },
+		"vision zero merge":        func(c *Config) { c.Vision.SpatialMergeSize = 0 },
 	} {
 		broken := valid
 		mutate(&broken)

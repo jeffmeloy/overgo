@@ -8,7 +8,9 @@ import (
 	"os"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/repodb"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -30,9 +32,21 @@ func run() error {
 	host := flag.Bool("host", false, "force host execution")
 	freezeLexical := flag.Bool("freeze-lexical", false, "freeze tied embedding/head; requires CUDA resident training")
 	maxWall := flag.Duration("max-wall", 30*time.Minute, "abort at a step boundary when the first measured step projects the run past this bound (0 disables)")
+	storePath := flag.String("store", "repodb-store", "RepoDB containing the active training recipe and policies")
+	recipeID := flag.String("recipe", "", "active training recipe artifact ID")
 	flag.Parse()
+	store, err := repodb.Open(*storePath)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	parsedRecipe, err := artifact.ParseID(*recipeID)
+	if err != nil {
+		return fmt.Errorf("training recipe: %w", err)
+	}
 
 	result, err := trainingworkflow.Execute(context.Background(), trainingworkflow.Request{
+		Repository: store, Recipe: parsedRecipe,
 		ModelDirectory: *model, DatasetPath: *dataset, OutputDirectory: *output,
 		ResumeDirectory: *resume, ReferenceDirectory: *reference,
 		Steps: *steps, MaximumSequence: *maximumSequence, LearningRate: *learningRate,

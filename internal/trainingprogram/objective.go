@@ -369,6 +369,16 @@ func CompileTrainingRunPlanFromRepository(ctx context.Context, reader artifact.R
 	if err != nil {
 		return TrainingRunPlan{}, err
 	}
+	for _, id := range []artifact.ID{
+		spec.Policies.Precision, spec.Policies.Placement, spec.Policies.Memory,
+		spec.Policies.Checkpoint, spec.Policies.Evaluation, spec.Policies.Promotion,
+	} {
+		if _, ok, err := reader.Artifact(ctx, id); err != nil {
+			return TrainingRunPlan{}, err
+		} else if !ok {
+			return TrainingRunPlan{}, fmt.Errorf("training objective: policy %s absent", id)
+		}
+	}
 	objective, err := resolveObjective(ctx, reader, spec.Policies.Objective)
 	if err != nil {
 		return TrainingRunPlan{}, err

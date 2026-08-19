@@ -120,7 +120,7 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 		candidate.Evidence.Final.ActionAccuracy, incumbent.Evidence.Final.ModalityAccuracy, candidate.Evidence.Final.ModalityAccuracy)
 }
 
-func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Reader, composition trainingprogram.ObjectiveComposition, objective trainingprogram.ObjectiveSpec) {
+func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Repository, composition trainingprogram.ObjectiveComposition, objective trainingprogram.ObjectiveSpec) {
 	t.Helper()
 	plan, err := optimizer.CompilePlan(1, []optimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
 	if err != nil {
@@ -131,7 +131,7 @@ func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Reade
 		t.Fatal(err)
 	}
 	profile := func(name string) artifact.ID { return testutil.ArtifactID(t, artifact.KindProfile, name) }
-	_, err = trainingprogram.CompileTrainingRunPlanFromRepository(ctx, store, trainingprogram.RunSpec{
+	spec := trainingprogram.RunSpec{
 		Recipe:  testutil.ArtifactID(t, artifact.KindRecipe, "composed training"),
 		Initial: trainingprogram.InitialStateSpec{Model: testutil.ArtifactID(t, artifact.KindModel, "incumbent")},
 		Dataset: objective.Dataset, Split: objective.Split, Signature: objective.Signature,
@@ -142,7 +142,14 @@ func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Reade
 			Promotion: profile("promotion"),
 		},
 		Program: program,
-	})
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "composed-run-policies", Artifacts: []artifact.Descriptor{
+		{ID: spec.Policies.Precision}, {ID: spec.Policies.Placement}, {ID: spec.Policies.Memory},
+		{ID: spec.Policies.Checkpoint}, {ID: spec.Policies.Promotion},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = trainingprogram.CompileTrainingRunPlanFromRepository(ctx, store, spec)
 	if err != nil {
 		t.Fatal(err)
 	}

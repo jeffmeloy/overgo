@@ -14,13 +14,17 @@ import (
 	"overgo/internal/densecausal"
 	artifactexport "overgo/internal/export"
 	"overgo/internal/hfbpe"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/safetensors"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
+	"overgo/internal/workflowrecipe"
 )
 
 type Request struct {
+	Repository         artifact.Reader
 	Recipe             artifact.ID
 	ModelDirectory     string
 	DatasetPath        string
@@ -35,18 +39,10 @@ type Request struct {
 	Host               bool
 	FreezeLexical      bool
 	ObserveDPO         func(trainingprogram.DPOObservation)
-	// Progress receives the lane announcement before training starts and one
-	// line per completed step. Nil keeps the run silent, but the projection
-	// guard still applies: a run whose first measured step projects past
-	// MaxProjectedWall aborts at the step boundary with the projection in the
-	// error. MaxProjectedWall zero disables the guard explicitly.
-	Progress         io.Writer
-	MaxProjectedWall time.Duration
+	Progress           io.Writer
+	MaxProjectedWall   time.Duration
 }
 
-// stepGuard builds the shared observer: per-step progress lines and the
-// projection guard that turns a silently pathological run into a loud,
-// early, typed refusal.
 func stepGuard(request Request, backend string) densecausal.TrainObserver {
 	return func(step int, loss float64, stepWall time.Duration) error {
 		if request.Progress != nil {
@@ -76,9 +72,10 @@ type Result struct {
 }
 
 func Execute(ctx context.Context, request Request) (Result, error) {
-	if ctx == nil || request.ModelDirectory == "" && request.ResumeDirectory == "" ||
+	if ctx == nil || request.Repository == nil || request.Recipe.Kind() != artifact.KindRecipe ||
+		request.ModelDirectory == "" && request.ResumeDirectory == "" ||
 		request.DatasetPath == "" || request.OutputDirectory == "" || request.Steps <= 0 {
-		return Result{}, errors.New("training workflow: model or resume, dataset, output, and positive steps required")
+		return Result{}, errors.New("training workflow: repository, recipe, model or resume, dataset, output, and positive steps required")
 	}
 	if request.Host && request.FreezeLexical {
 		return Result{}, errors.New("training workflow: host and frozen lexical execution are incompatible")
@@ -102,6 +99,28 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 		inputDirectory = request.ResumeDirectory
 		resumeStream = &trainingdata.StreamState{Identity: resumed.Stream.Identity, Position: resumed.Stream.Position}
 	}
+	modelID := resumed.Model
+	if !modelID.Valid() {
+		var err error
+		modelID, err = identifyModel(inputDirectory)
+		if err != nil {
+			return Result{}, fmt.Errorf("training workflow: identify model: %w", err)
+		}
+	}
+	_, runtime, err := modelrecipe.ResolveActiveCapability(ctx, request.Repository, modelID, recipe.TaskTraining)
+	if err != nil {
+		return Result{}, fmt.Errorf("training workflow: resolve active recipe: %w", err)
+	}
+	if runtime.Definition().ID != request.Recipe {
+		return Result{}, errors.New("training workflow: active recipe differs")
+	}
+	objective := trainingprogram.ObjectiveTokenPrediction
+	if request.ReferenceDirectory != "" {
+		objective = trainingprogram.ObjectiveDPO
+	}
+	if err := ValidateProgram(runtime, objective); err != nil {
+		return Result{}, err
+	}
 	model, err := densecausal.Load(inputDirectory)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: load model: %w", err)
@@ -115,14 +134,15 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 		return Result{}, fmt.Errorf("training workflow: read dataset: %w", err)
 	}
 	if request.ReferenceDirectory != "" {
-		return executeDPO(ctx, request, inputDirectory, model, tokenizer.Encode, raw, resumed, resumeStream)
+		return executeDPO(ctx, request, runtime, inputDirectory, model, tokenizer.Encode, raw, resumed, resumeStream)
 	}
-	return executeTokenPrediction(ctx, request, inputDirectory, model, tokenizer.Encode, raw, resumed, resumeStream)
+	return executeTokenPrediction(ctx, request, runtime, inputDirectory, model, tokenizer.Encode, raw, resumed, resumeStream)
 }
 
 func executeTokenPrediction(
 	ctx context.Context,
 	request Request,
+	runtime recipe.Program,
 	inputDirectory string,
 	model *densecausal.Model,
 	encode func(string) ([]int, error),
@@ -134,7 +154,7 @@ func executeTokenPrediction(
 	if err != nil {
 		return Result{}, err
 	}
-	authority, err := compileAuthority(model, inputDirectory, data, stream, request.LearningRate, resumed, request.Recipe, trainingprogram.ObjectiveTokenPrediction, nil)
+	authority, err := compileAuthority(ctx, request.Repository, runtime, model, inputDirectory, data, stream, request.LearningRate, resumed, trainingprogram.ObjectiveTokenPrediction, nil)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: compile authority: %w", err)
 	}
@@ -165,6 +185,7 @@ func executeTokenPrediction(
 func executeDPO(
 	ctx context.Context,
 	request Request,
+	runtime recipe.Program,
 	inputDirectory string,
 	model *densecausal.Model,
 	encode func(string) ([]int, error),
@@ -185,7 +206,7 @@ func executeDPO(
 		return Result{}, fmt.Errorf("training workflow: identify reference: %w", err)
 	}
 	preference := &trainingprogram.PreferencePolicy{Reference: referenceID, Scale: request.DPOScale}
-	authority, err := compileAuthority(model, inputDirectory, data, stream, request.LearningRate, resumed, request.Recipe, trainingprogram.ObjectiveDPO, preference)
+	authority, err := compileAuthority(ctx, request.Repository, runtime, model, inputDirectory, data, stream, request.LearningRate, resumed, trainingprogram.ObjectiveDPO, preference)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: compile DPO authority: %w", err)
 	}
@@ -258,13 +279,15 @@ type compiledAuthority struct {
 }
 
 func compileAuthority(
+	ctx context.Context,
+	repository artifact.Reader,
+	runtime recipe.Program,
 	model *densecausal.Model,
 	modelDirectory string,
 	data batchAuthority,
 	stream trainingdata.StreamState,
 	learningRate float64,
 	resumed trainingprogram.Checkpoint,
-	recipeID artifact.ID,
 	objective trainingprogram.ObjectiveKind,
 	preference *trainingprogram.PreferencePolicy,
 ) (compiledAuthority, error) {
@@ -295,29 +318,30 @@ func compileAuthority(
 	if err != nil {
 		return compiledAuthority{}, err
 	}
-	profile := func(name string) artifact.ID {
-		id, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/densecausal/"+name+"/v1"))
-		return id
+	definition := runtime.Definition()
+	if definition.Task != recipe.TaskTraining || definition.Model != modelID {
+		return compiledAuthority{}, errors.New("training workflow: recipe model or task differs")
 	}
-	if !recipeID.Valid() {
-		recipeID, _ = artifact.IdentifyBytes(artifact.KindRecipe, []byte("overgo/densecausal/training/"+string(objective)+"/v1"))
-	} else if recipeID.Kind() != artifact.KindRecipe {
-		return compiledAuthority{}, errors.New("training workflow: recipe identity differs")
+	if preference != nil {
+		reference, ok := definition.Dependency(recipe.DependencyModel, 1)
+		if !ok || reference != preference.Reference {
+			return compiledAuthority{}, errors.New("training workflow: recipe reference differs")
+		}
+	}
+	policies, err := trainingprogram.PoliciesFromRecipe(definition)
+	if err != nil {
+		return compiledAuthority{}, err
 	}
 	initial := trainingprogram.InitialStateSpec{Model: modelID}
 	if resumed.ID().Valid() {
 		initial = trainingprogram.InitialStateSpec{Checkpoint: resumed.ID()}
 	}
-	runPlan, err := trainingprogram.CompileTrainingRunPlan(trainingprogram.RunSpec{
-		Recipe: recipeID, Initial: initial, Dataset: data.Dataset, Split: data.Split,
+	runPlan, err := trainingprogram.CompileTrainingRunPlanFromRepository(ctx, repository, trainingprogram.RunSpec{
+		Recipe: definition.ID, Initial: initial, Dataset: data.Dataset, Split: data.Split,
 		Signature:  recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{recipecontract.ModalityText}, Outputs: []recipecontract.Modality{recipecontract.ModalityText}},
 		Processors: []artifact.ID{data.Processor},
-		Policies: trainingprogram.PolicySpec{
-			Objective: profile(string(objective)), Precision: profile("fp32-bf16"), Placement: profile("platform-resident"),
-			Memory: profile("derived-memory"), Checkpoint: profile("exact-checkpoint"), Evaluation: profile("loss-trajectory"),
-			Promotion: profile("heldout-promotion"),
-		},
-		Program: program,
+		Policies:   policies,
+		Program:    program,
 	})
 	if err != nil {
 		return compiledAuthority{}, err
@@ -350,6 +374,23 @@ func compileAuthority(
 		model: modelID, program: program.ID(), runPlan: runPlan.ID(), optimizerPlan: muonPlan.Identity(),
 		data: data, stream: stream, rng: rng, lineage: lineage, projectors: resumed.Projectors, codecs: resumed.Codecs,
 	}, nil
+}
+
+func ValidateProgram(program recipe.Program, objective trainingprogram.ObjectiveKind) error {
+	want := tokenModules
+	if objective == trainingprogram.ObjectiveDPO {
+		want = dpoModules
+	}
+	stages := program.Stages()
+	if len(stages) != len(want) {
+		return fmt.Errorf("training workflow: active recipe has %d stages, want %d for %s", len(stages), len(want), objective)
+	}
+	for index, stage := range stages {
+		if stage.Module.ID != want[index] {
+			return fmt.Errorf("training workflow: active recipe stage %d is %q, want %q", index, stage.Module.ID, want[index])
+		}
+	}
+	return nil
 }
 
 func (authority compiledAuthority) checkpointSpec(state densecausal.TrainState) (trainingprogram.CheckpointSpec, error) {
@@ -387,4 +428,15 @@ var dpoOperators = []trainingprogram.OperatorSpec{
 	{ID: "dpo", Phase: trainingprogram.PhaseLoss},
 	{ID: "dense-backward", Phase: trainingprogram.PhaseBackward},
 	{ID: "muon", Phase: trainingprogram.PhaseOptimize},
+}
+
+var tokenModules = []recipe.ModuleID{
+	workflowrecipe.ModuleBatchDataset, workflowrecipe.ModuleTrainingForward,
+	workflowrecipe.ModuleBackward, workflowrecipe.ModuleOptimize,
+}
+
+var dpoModules = []recipe.ModuleID{
+	workflowrecipe.ModuleBatchPreference, workflowrecipe.ModuleScorePolicy,
+	workflowrecipe.ModuleScoreReference, workflowrecipe.ModuleDPOObjective,
+	workflowrecipe.ModuleBackward, workflowrecipe.ModuleOptimize,
 }

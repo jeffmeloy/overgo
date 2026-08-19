@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -19,7 +18,6 @@ import (
 	"overgo/internal/strictjson"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
-	"overgo/internal/workflowrecipe"
 )
 
 type TrainingWorkspace struct {
@@ -36,7 +34,7 @@ func NewTrainingWorkspace(ctx context.Context, store artifact.Repository, roots 
 	if err != nil {
 		return nil, err
 	}
-	if err := validateDPOProgram(program); err != nil {
+	if err := trainingworkflow.ValidateProgram(program, trainingprogram.ObjectiveDPO); err != nil {
 		return nil, err
 	}
 	return &TrainingWorkspace{store: store, roots: roots, program: program}, nil
@@ -119,6 +117,7 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	var completed uint64
 	observations := make([]trainingprogram.DPOObservation, 0, input.Steps)
 	result, executeErr := trainingworkflow.Execute(ctx, trainingworkflow.Request{
+		Repository:     workspace.store,
 		Recipe:         recipeID,
 		ModelDirectory: policyDirectory, ReferenceDirectory: referenceDirectory,
 		DatasetPath: datasetPath, OutputDirectory: output, ResumeDirectory: resumeDirectory,
@@ -136,23 +135,6 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	}
 	reporter.Publishing()
 	return workspace.publish(ctx, definition.ID, inputs, result.Checkpoint, output, observations)
-}
-
-func validateDPOProgram(program recipe.Program) error {
-	stages := program.Stages()
-	modules := make([]recipe.ModuleID, len(stages))
-	for index, stage := range stages {
-		modules[index] = stage.Module.ID
-	}
-	want := []recipe.ModuleID{
-		workflowrecipe.ModuleBatchPreference, workflowrecipe.ModuleScorePolicy,
-		workflowrecipe.ModuleScoreReference, workflowrecipe.ModuleDPOObjective,
-		workflowrecipe.ModuleBackward, workflowrecipe.ModuleOptimize,
-	}
-	if program.Definition().Task != recipe.TaskTraining || !slices.Equal(modules, want) {
-		return fmt.Errorf("training workspace: active recipe stages %v are not native DPO", modules)
-	}
-	return nil
 }
 
 func (workspace *TrainingWorkspace) directory(ctx context.Context, id artifact.ID) (string, error) {

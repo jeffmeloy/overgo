@@ -1,5 +1,162 @@
 {
-  "campaign": "Constrained RSI bootstrap: verified substrate, experiment plane, and automatic composition",
-  "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; queue order is binding; plan complete means campaign complete. Generic authority beside retained specialized runtime is failure, not progress. Every migration must move all production callers and delete displaced orchestration, wrappers, fallbacks, compatibility paths, duplicate probes, and parallel authorities in the same gated wave. New shared code must replace existing ownership immediately. Verify numerical behavior, Live Edit behavior where applicable, code reduction, allocations, transfers, peak memory, and processing cost before completion. After every gated step, merge current master into this worktree before starting the next step.",
-  "items": []
+  "campaign": "Recipe-driven serving evidence, model residency, native modality APIs, and composite construction",
+  "doctrine": "Follow skill.md. This file is the SINGLE plan authority; queue order is binding and plan complete means campaign complete. RepoDB is the sole serving evidence ledger. Active recipes and compiled resource plans are the sole selection, placement, and residency authority. Promote capabilityruntime's existing session cache into ModelSessionDirector; do not add a parallel cache or scheduler. Each migration moves every production caller and deletes displaced slot ownership, wrappers, fallbacks, duplicate probes, and compatibility paths in the same gated wave. Raw request and response capture stays disabled unless an explicit bounded redaction policy admits it. Prove local residency before component sessions; prove component sessions before remote spillover. Composite construction consumes the proven session authority in Phase 6 rather than shaping its initial contract. Verify numerical and Live Edit behavior where applicable, resource ownership, cancellation, code reduction, allocations, transfers, peak memory, and processing cost. After every gated step, merge current master into this worktree before starting the next step.",
+  "items": [
+    {
+      "id": "serving-observation-contract",
+      "title": "Phase 1a: add typed ServingObservation records and indexed RepoDB queries",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase 1a: add typed ServingObservation records and indexed RepoDB queries",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/repodb -run '^TestServingObservation' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "serving-observation-runtime",
+      "title": "Phase 1b: publish serving observations from protocol and operation execution without raw capture by default",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase 1b: publish serving observations from protocol and operation execution without raw capture by default",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestServingObservationPublication$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "model-session-director",
+      "title": "Phase 2a: promote capabilityruntime session cache into the recipe-driven ModelSessionDirector and delete the old cache API",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase 2a: promote capabilityruntime session cache into the recipe-driven ModelSessionDirector and delete the old cache API",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime -run '^TestModelSessionDirector' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "session-resource-admission",
+      "title": "Phase 2b: derive session admission eviction and warming from compiled recipe resource extents",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase 2b: derive session admission eviction and warming from compiled recipe resource extents",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime ./internal/modelrecipe -run '^TestModelSessionDirectorUsesCompiledResourcePlan$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "single-model-session-authority",
+      "title": "Phase 2c: route single-model serving through ModelSessionDirector and delete direct slot ownership",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase 2c: route single-model serving through ModelSessionDirector and delete direct slot ownership",
+          "status": "open",
+          "verify": "go test ./internal/server ./internal/capabilityruntime -run '^TestServerUsesModelSessionDirectorAsSoleSessionAuthority$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "runtime-activity-gui",
+      "title": "Phase 3a: add Runtime and Activity GUI views backed by session and RepoDB authorities",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase 3a: add Runtime and Activity GUI views backed by session and RepoDB authorities",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestWebUIRuntimeActivityUsesSessionAndRepoDBAPIs$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "hardware-timeseries-evidence",
+      "title": "Phase 3b: record hardware snapshots and bounded time-series evidence against serving observations",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase 3b: record hardware snapshots and bounded time-series evidence against serving observations",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/server -run '^TestServingHardwareEvidence' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "capability-evidence-selectors",
+      "title": "Phase 4: resolve typed pin warm and spillover aliases from capabilities evidence and active recipes",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase 4: resolve typed pin warm and spillover aliases from capabilities evidence and active recipes",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/capabilityruntime -run '^TestCapabilityEvidenceSelector' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "native-media-protocols",
+      "title": "Phase 5: expose native image and audio APIs through recipe selection and shared sessions",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase 5: expose native image and audio APIs through recipe selection and shared sessions",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestNative(Image|Audio)ProtocolUsesActiveRecipeSession$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "component-session-lifetimes",
+      "title": "Phase 6a: compile recipe-stage component lifetimes and extend sessions with component leases",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase 6a: compile recipe-stage component lifetimes and extend sessions with component leases",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime ./internal/modelrecipe -run '^TestComponentSessionDirectorFollowsCompiledLifetimes$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "composite-session-execution",
+      "title": "Phase 6b: route composite synthesis through component leases and record promotion evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase 6b: route composite synthesis through component leases and record promotion evidence",
+          "status": "open",
+          "verify": "go test ./internal/composition ./internal/capabilityruntime -run '^TestCompositeSynthesisUsesComponentSessionLifetimes$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "remote-peer-spillover",
+      "title": "Phase 7: add evidence-bound remote placement and spillover after local residency proof",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phase 7: add evidence-bound remote placement and spillover after local residency proof",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime ./internal/modelrecipe -run '^TestRemotePeerSpilloverRequiresCompatibilityEvidence$' -count=1"
+        }
+      ]
+    }
+  ]
 }

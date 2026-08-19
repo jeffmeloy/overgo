@@ -87,9 +87,10 @@ func routeTopK(x, router []float32, rows, hidden, experts int, policy MoERouterP
 		}
 	}
 	route := moeRoute{indices: make([]int, rows*policy.TopK), weights: make([]float32, rows*policy.TopK)}
+	used := make([]bool, experts)
 	for r := 0; r < rows; r++ {
 		row := scores[r*experts : (r+1)*experts]
-		used := make([]bool, experts)
+		clear(used)
 		var selectedSum float64
 		for k := 0; k < policy.TopK; k++ {
 			best, bestScore := -1, float32(math.Inf(-1))

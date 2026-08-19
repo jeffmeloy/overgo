@@ -21,7 +21,7 @@ type moeGrads struct {
 
 // expertBackward: VJP of expertForward for one row set; returns dx and
 // accumulates weight grads into the provided expert-shaped slots.
-func expertBackward(x []float32, expert moeExpert, dOut []float32, rows, hidden, inter int, into *moeExpert) []float32 {
+func expertBackward(x []float32, expert moeExpert, dOut, output []float32, rows, hidden, inter int, into *moeExpert) []float32 {
 	var dGateWeight, dUpWeight, dDownWeight []float32
 	if into != nil {
 		dGateWeight, dUpWeight, dDownWeight = into.gate, into.up, into.down
@@ -36,6 +36,9 @@ func expertBackward(x []float32, expert moeExpert, dOut []float32, rows, hidden,
 	product := make([]float32, rows*inter)
 	for i := range product {
 		product[i] = activated[i] * up[i]
+	}
+	if output != nil {
+		hostmath.Linear(output, product, expert.down, rows, inter, hidden)
 	}
 
 	dProduct := make([]float32, rows*inter)
@@ -109,7 +112,15 @@ func moeBackward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPo
 
 	dx := make([]float32, rows*hidden)
 	scaling := float64(policy.RoutedScaling)
+	dw := make([]float64, policy.TopK)
+	scaled := make([]float32, hidden)
+	expertOut := make([]float32, hidden)
+	ds := make([]float64, experts)
+	dz := make([]float64, experts)
 	for r := 0; r < rows; r++ {
+		clear(dw)
+		clear(ds)
+		clear(dz)
 		xRow := x[r*hidden : (r+1)*hidden]
 		dOutRow := dOut[r*hidden : (r+1)*hidden]
 		dxRow := dx[r*hidden : (r+1)*hidden]
@@ -117,17 +128,9 @@ func moeBackward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPo
 
 		// Per selected expert: dw_k = <dOut, expertOut_k>, then expert VJP
 		// with dy = w_k * dOut.
-		dw := make([]float64, policy.TopK)
 		for k := 0; k < policy.TopK; k++ {
 			position := r*policy.TopK + k
 			e := route.indices[position]
-			expertOut := expertForward(xRow, w.experts[e], 1, hidden, policy.ExpertInter)
-			var acc float64
-			for i := range dOutRow {
-				acc += float64(dOutRow[i]) * float64(expertOut[i])
-			}
-			dw[k] = acc
-			scaled := make([]float32, hidden)
 			weight := route.weights[position]
 			for i := range dOutRow {
 				scaled[i] = weight * dOutRow[i]
@@ -136,14 +139,16 @@ func moeBackward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPo
 			if parameterGradients {
 				destination = &grads.dExperts[e]
 			}
-			addInPlace(dxRow, expertBackward(xRow, w.experts[e], scaled, 1, hidden, policy.ExpertInter, destination))
+			addInPlace(dxRow, expertBackward(xRow, w.experts[e], scaled, expertOut, 1, hidden, policy.ExpertInter, destination))
+			for i := range dOutRow {
+				dw[k] += float64(dOutRow[i]) * float64(expertOut[i])
+			}
 		}
 		if w.shared != nil {
-			addInPlace(dxRow, expertBackward(xRow, *w.shared, dOutRow, 1, hidden, w.sharedInter, grads.dShared))
+			addInPlace(dxRow, expertBackward(xRow, *w.shared, dOutRow, nil, 1, hidden, w.sharedInter, grads.dShared))
 		}
 
 		// Combine-weight Jacobian over the selected experts.
-		ds := make([]float64, experts)
 		if policy.NormalizeTopKProb && policy.TopK > 1 {
 			var selectedSum, dotWG float64
 			for k := 0; k < policy.TopK; k++ {
@@ -167,7 +172,6 @@ func moeBackward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPo
 
 		// Scoring-activation backward: softmax couples the row, sigmoid is
 		// elementwise.
-		dz := make([]float64, experts)
 		switch policy.Scoring {
 		case MoEScoringSigmoid:
 			for e := 0; e < experts; e++ {

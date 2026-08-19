@@ -166,12 +166,7 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, steps int, cfg optimi
 	traj := make([]float64, 0, steps)
 	for step := 0; step < steps; step++ {
 		state := residentTrainingState{step: step}
-		if err := execution.RunPhases(&state,
-			trainingprogram.PhaseForward,
-			trainingprogram.PhaseLoss,
-			trainingprogram.PhaseBackward,
-			trainingprogram.PhaseOptimize,
-		); err != nil {
+		if err := execution.Run(&state); err != nil {
 			return nil, acc, err
 		}
 		traj = append(traj, state.loss)

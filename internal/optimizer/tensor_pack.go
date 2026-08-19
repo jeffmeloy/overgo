@@ -77,6 +77,19 @@ func (p *TensorPack) ParameterCount() int { return len(p.weights) }
 
 func (p *TensorPack) Plan() Plan { return p.plan }
 
+// BindMapViews makes packed slabs authoritative for map-backed tensors.
+func (p *TensorPack) BindMapViews(tensors map[string][]float32) map[string][]float32 {
+	gradients := make(map[string][]float32, len(p.bindings))
+	for index := range p.bindings {
+		group := p.plan.groups[index]
+		weights := p.weights[group.Start:group.End:group.End]
+		tensors[group.Name] = weights
+		p.bindings[index] = weights
+		gradients[group.Name] = p.gradients[group.Start:group.End:group.End]
+	}
+	return gradients
+}
+
 // NewOptimizer binds Muon state directly to packed storage.
 func (p *TensorPack) NewOptimizer(config Config) (*Optimizer, error) {
 	return New(p.weights, p.gradients, p.plan, config)

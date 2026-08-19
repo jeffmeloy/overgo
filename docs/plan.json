@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "derived-sessions",
-          "title": "Migrate seq2seq, speech, forecasting, tabular, and diffusion training to the shared session lifecycle; delete displaced local checkpoint, observer, and execution plumbing",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -run ^TestDerivedTrainersUseSharedRecipeSession$ -count=1"
-        },
-        {
           "id": "specialized-sessions",
           "title": "Migrate hybrid, adapter, and scratch training to the shared session lifecycle; retain only neutral mathematical operators and delete local orchestration",
           "status": "open",

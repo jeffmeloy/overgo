@@ -78,10 +78,7 @@ func (m *Model) Step(worker *device.Worker, example Example) (float64, error) {
 		return 0, err
 	}
 	state := stepState{model: m, worker: worker, example: example}
-	if err := execution.RunPhases(&state,
-		trainingprogram.PhaseForward, trainingprogram.PhaseLoss,
-		trainingprogram.PhaseBackward, trainingprogram.PhaseOptimize,
-	); err != nil {
+	if err := execution.Run(&state); err != nil {
 		return 0, err
 	}
 	return state.loss, nil

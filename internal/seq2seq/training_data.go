@@ -439,9 +439,7 @@ func (t *Trainer) Step(pair TrainingPair) (float64, error) {
 		return 0, errors.New("seq2seq: trainer unavailable")
 	}
 	state := trainingStep{pair: pair}
-	if err := t.execution.RunPhases(&state,
-		trainingprogram.PhaseForward, trainingprogram.PhaseBackward, trainingprogram.PhaseOptimize,
-	); err != nil {
+	if err := t.execution.Run(&state); err != nil {
 		return 0, err
 	}
 	return state.loss, nil

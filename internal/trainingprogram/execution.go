@@ -24,6 +24,18 @@ type Execution[State any] struct {
 	operators []boundOperator[State]
 }
 
+// BindObjective binds standard forward/backward/Muon operators.
+func BindObjective[State any](
+	program TrainingProgram,
+	forward, backward, optimize func(*State) error,
+) (Execution[State], error) {
+	return Bind(program, []Binding[State]{
+		{Operator: ObjectiveOperatorForward, Execute: forward},
+		{Operator: ObjectiveOperatorBackward, Execute: backward},
+		{Operator: ObjectiveOperatorMuon, Execute: optimize},
+	})
+}
+
 // Bind requires one implementation for every compiled operator.
 func Bind[State any](program TrainingProgram, bindings []Binding[State]) (Execution[State], error) {
 	if program.ID().Kind() != artifact.KindRecipe || len(program.operators) == 0 {
@@ -56,6 +68,26 @@ func Bind[State any](program TrainingProgram, bindings []Binding[State]) (Execut
 
 func (e Execution[State]) ProgramID() artifact.ID { return e.programID }
 
+func (e Execution[State]) run(state *State, selected map[OperatorPhase]struct{}) error {
+	if state == nil || e.programID.Kind() != artifact.KindRecipe || len(e.operators) == 0 {
+		return errors.New("training program: bound execution unavailable")
+	}
+	for _, operator := range e.operators {
+		if selected != nil {
+			if _, ok := selected[operator.spec.Phase]; !ok {
+				continue
+			}
+		}
+		if err := operator.execute(state); err != nil {
+			return fmt.Errorf("training program: %s: %w", operator.spec.ID, err)
+		}
+	}
+	return nil
+}
+
+// Run executes the complete compiled sequence.
+func (e Execution[State]) Run(state *State) error { return e.run(state, nil) }
+
 // RunPhases executes selected phases in compiled order.
 func (e Execution[State]) RunPhases(state *State, phases ...OperatorPhase) error {
 	if state == nil || e.programID.Kind() != artifact.KindRecipe || len(e.operators) == 0 || len(phases) == 0 {
@@ -68,13 +100,5 @@ func (e Execution[State]) RunPhases(state *State, phases ...OperatorPhase) error
 		}
 		selected[phase] = struct{}{}
 	}
-	for _, operator := range e.operators {
-		if _, ok := selected[operator.spec.Phase]; !ok {
-			continue
-		}
-		if err := operator.execute(state); err != nil {
-			return fmt.Errorf("training program: %s: %w", operator.spec.ID, err)
-		}
-	}
-	return nil
+	return e.run(state, selected)
 }

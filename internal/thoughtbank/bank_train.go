@@ -83,11 +83,7 @@ func newFastWeightBankTrainer(weights *FastWeightBankWeights, config optimizer.C
 		return nil, err
 	}
 	trainer := &FastWeightBankTrainer{weights: weights, pack: pack, stepper: stepper}
-	execution, err := trainingprogram.Bind(program, []trainingprogram.Binding[bankStepState]{
-		{Operator: trainingprogram.ObjectiveOperatorForward, Execute: trainer.forward},
-		{Operator: trainingprogram.ObjectiveOperatorBackward, Execute: trainer.backward},
-		{Operator: trainingprogram.ObjectiveOperatorMuon, Execute: trainer.optimize},
-	})
+	execution, err := trainingprogram.BindObjective(program, trainer.forward, trainer.backward, trainer.optimize)
 	if err != nil {
 		_ = stepper.Close()
 		return nil, err
@@ -102,11 +98,7 @@ func (t *FastWeightBankTrainer) Step(example BankTrainingExample) (BankStepResul
 		return BankStepResult{}, errors.New("thoughtbank training: session unavailable")
 	}
 	state := bankStepState{example: example}
-	if err := t.execution.RunPhases(&state,
-		trainingprogram.PhaseForward,
-		trainingprogram.PhaseBackward,
-		trainingprogram.PhaseOptimize,
-	); err != nil {
+	if err := t.execution.Run(&state); err != nil {
 		return BankStepResult{}, err
 	}
 	return BankStepResult{Loss: state.loss, ProgramID: t.execution.ProgramID().String()}, nil

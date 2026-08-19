@@ -148,18 +148,7 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	if err != nil {
 		return nil, fmt.Errorf("inference: packed device batch: %w", err)
 	}
-	firstOutput := graph.logits
-	switch plan.mode {
-	case deviceOutputGreedy:
-		firstOutput = graph.selection
-	case deviceOutputTopK:
-		firstOutput = graph.candidates
-	}
-	outputs := []*tensor.Tensor{firstOutput}
-	for layer := range graph.keys {
-		outputs = append(outputs, graph.keys[layer], graph.values[layer])
-		outputs = graph.states[layer].AppendValues(outputs)
-	}
+	outputs := decodeGraphOutputs(graph, plan)
 	if err := builder.Err(); err != nil {
 		return nil, err
 	}
@@ -180,37 +169,6 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	fail := func(cause error) ([]*deviceKVCache, error) {
 		_ = retained.Release(context.Background())
 		return nil, cause
-	}
-	vocabulary := int(r.spec.VocabularySize)
-	var logits reference.Value
-	var candidateSets [][]LogitCandidate
-	var selected []tokenizer.TokenID
-	var deviceSelection executor.DeviceValue
-	switch plan.mode {
-	case deviceOutputGreedy:
-		selected, deviceSelection, err = retainedDeviceGreedySelections(
-			ctx, retained, graph.selection, len(appends), vocabulary,
-		)
-		if err != nil {
-			return fail(err)
-		}
-	case deviceOutputTopK:
-		pairs, copyErr := retained.CopyToHost(ctx, graph.candidates)
-		if copyErr != nil {
-			return fail(copyErr)
-		}
-		candidateSets, err = r.decodeCandidatePairs(pairs.Data, len(appends), plan.topK)
-		if err != nil {
-			return fail(err)
-		}
-	default:
-		logits, err = retained.CopyToHost(ctx, graph.logits)
-		if err != nil {
-			return fail(err)
-		}
-		if vocabulary <= 0 || len(logits.Data) != vocabulary*len(appends) {
-			return fail(errors.New("inference: packed logits shape is incompatible"))
-		}
 	}
 	packedKeys := make([]executor.DeviceValue, len(graph.keys))
 	packedValues := make([]executor.DeviceValue, len(graph.values))
@@ -243,19 +201,6 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 			States: make([]deviceLayerStates, len(graph.states)),
 			Tokens: graph.pastTokens + graph.tokenCount, Position: graph.nextPosition + graph.tokenCount,
 			PageTokens: resolveCachePageTokens(item.PageTokens),
-		}
-		switch plan.mode {
-		case deviceOutputGreedy:
-			cache.Selection, err = deviceSelection.SliceLastAxis(dtype.F32, uint64(sequence), 1)
-			if err != nil {
-				return fail(fmt.Errorf("inference: packed selection %d: %w", sequence, err))
-			}
-			cache.Selected = selected[sequence]
-		case deviceOutputTopK:
-			cache.Candidates = candidateSets[sequence]
-		default:
-			cache.Logits = slices.Clone(logits.Data[sequence*vocabulary : (sequence+1)*vocabulary])
-			cache.Logits = r.finalizeLogits(cache.Logits)
 		}
 		for layer := range cache.Keys {
 			cache.Keys[layer], err = splitPackedDeviceValue(
@@ -291,6 +236,9 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 			return fail(err)
 		}
 		next[sequence] = cache
+	}
+	if err = plan.collect(ctx, r, retained, graph, next); err != nil {
+		return fail(err)
 	}
 	owner := newDeviceCacheOwner(retained, len(next))
 	for _, cache := range next {

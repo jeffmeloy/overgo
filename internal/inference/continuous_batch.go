@@ -120,7 +120,7 @@ func (b *ContinuousBatch) Step(
 	ctx context.Context,
 	inputs []SequenceBatchInput,
 ) ([]SequenceBatchOutput, error) {
-	return b.step(ctx, inputs, deviceOutputPlan{})
+	return b.step(ctx, inputs, deviceOutputLogits, 0)
 }
 
 // StepGreedy: device argmax with retained token feedback.
@@ -128,7 +128,7 @@ func (b *ContinuousBatch) StepGreedy(
 	ctx context.Context,
 	inputs []SequenceBatchInput,
 ) ([]SequenceBatchOutput, error) {
-	return b.step(ctx, inputs, deviceOutputPlan{mode: deviceOutputGreedy})
+	return b.step(ctx, inputs, deviceOutputGreedy, 0)
 }
 
 // StepTopK: bounded device candidate transfer.
@@ -137,19 +137,24 @@ func (b *ContinuousBatch) StepTopK(
 	inputs []SequenceBatchInput,
 	topK uint32,
 ) ([]SequenceBatchOutput, error) {
-	return b.step(ctx, inputs, deviceOutputPlan{mode: deviceOutputTopK, topK: topK})
+	return b.step(ctx, inputs, deviceOutputTopK, topK)
 }
 
 func (b *ContinuousBatch) step(
 	ctx context.Context,
 	inputs []SequenceBatchInput,
-	plan deviceOutputPlan,
+	mode deviceOutputMode,
+	topK uint32,
 ) ([]SequenceBatchOutput, error) {
 	if b == nil || b.runner == nil {
 		return nil, errors.New("inference: continuous batch is nil")
 	}
 	if len(inputs) == 0 {
 		return nil, errors.New("inference: continuous batch step is empty")
+	}
+	plan, err := compileDeviceOutputPlan(mode, topK, b.runner.spec.VocabularySize)
+	if err != nil {
+		return nil, err
 	}
 	b.operation.Lock()
 	defer b.operation.Unlock()
@@ -191,7 +196,7 @@ func (b *ContinuousBatch) step(
 	if b.options.Device {
 		return b.stepDeviceLocked(ctx, inputs, plan)
 	}
-	if plan.mode != deviceOutputLogits {
+	if !plan.fullLogits() {
 		return nil, errors.New("inference: reduced device output requires a device batch")
 	}
 	candidates := make(map[SequenceID]*continuousSequence, len(inputs))
@@ -287,16 +292,7 @@ func (b *ContinuousBatch) stepDeviceLocked(
 			Tokens: input.Tokens, Past: working[index], PageTokens: b.options.PageTokens,
 		}
 	}
-	var next []*deviceKVCache
-	var err error
-	switch plan.mode {
-	case deviceOutputGreedy:
-		next, err = r.forwardDeviceCachedGreedyBatchLocked(ctx, appends)
-	case deviceOutputTopK:
-		next, err = r.forwardDeviceCachedTopKBatchLocked(ctx, appends, plan.topK)
-	default:
-		next, err = r.forwardDeviceCachedBatchLocked(ctx, appends)
-	}
+	next, err := r.forwardDeviceCachedBatchLocked(ctx, appends, plan)
 	cleanupErr := cleanupWorking()
 	if err != nil {
 		return nil, errors.Join(err, cleanupErr)

@@ -63,6 +63,16 @@ type SessionLease[Model any] struct {
 	once    sync.Once
 }
 
+// SessionSnapshot: current resident admission state.
+type SessionSnapshot struct {
+	Name      string `json:"name"`
+	Device    string `json:"device"`
+	Capacity  int    `json:"capacity"`
+	Active    int    `json:"active"`
+	Available int    `json:"available"`
+	Closed    bool   `json:"closed"`
+}
+
 func (l *SessionLease[Model]) Model() Model { return l.model }
 
 func (l *SessionLease[Model]) Release() {
@@ -149,6 +159,22 @@ func (c *ModelSessionDirector[Input, Model, Output]) Available() int {
 		return 0
 	}
 	return len(c.admissions)
+}
+
+func (c *ModelSessionDirector[Input, Model, Output]) Snapshot() SessionSnapshot {
+	if c == nil {
+		return SessionSnapshot{}
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	available := 0
+	if c.admissions != nil {
+		available = len(c.admissions)
+	}
+	return SessionSnapshot{
+		Name: c.name, Device: c.device, Capacity: c.capacity,
+		Active: c.residentUsers, Available: available, Closed: c.closed,
+	}
 }
 
 func NewModelSessionDirector[Input, Model, Output any](

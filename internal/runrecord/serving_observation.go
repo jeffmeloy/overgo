@@ -68,6 +68,10 @@ func (value ServingObservation) ValidateIdentity() error {
 	return servingObservationCodec.ValidateIdentity(value)
 }
 
+func ParseServingObservation(content []byte) (ServingObservation, error) {
+	return servingObservationCodec.Parse(content)
+}
+
 func (value ServingObservation) Content() (artifact.Content, error) {
 	return servingObservationCodec.Content(value)
 }

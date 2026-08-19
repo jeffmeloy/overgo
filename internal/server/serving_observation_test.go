@@ -12,6 +12,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/strictjson"
 	"overgo/internal/testutil"
 )
 
@@ -85,5 +86,64 @@ func TestServingObservationPublication(t *testing.T) {
 		if strings.Contains(string(content.Data), prompt) {
 			t.Fatal("serving observation captured request text")
 		}
+	}
+}
+
+func TestWebUIRuntimeActivityUsesSessionAndRepoDBAPIs(t *testing.T) {
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "runtime-view-model")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "runtime-view-recipe")
+	if _, err := store.Commit(context.Background(), artifact.Batch{
+		Key:       "runtime/view/authorities",
+		Artifacts: []artifact.Descriptor{{ID: modelID}, {ID: recipeID}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := New(Config{
+		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store,
+	}, &recipeInspectorGenerator{
+		fakeGenerator: &fakeGenerator{},
+		description: modelrecipe.RuntimeDescription{
+			Task:     recipe.TaskInference,
+			Identity: modelrecipe.ProgramIdentity{Model: modelID, Recipe: recipeID},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer handler.Close()
+	completion := serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"runtime","max_tokens":1}`)
+	if completion.Code != http.StatusOK {
+		t.Fatalf("completion status=%d body=%s", completion.Code, completion.Body.String())
+	}
+	var sessions runtimeSessionsResponse
+	response := serveTestRequest(handler, http.MethodGet, "/runtime/sessions", "")
+	if err := strictjson.DecodeBytes(response.Body.Bytes(), &sessions); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusOK || sessions.Session.Capacity != 1 || len(sessions.Slots) != 1 {
+		t.Fatalf("sessions status=%d response=%+v", response.Code, sessions)
+	}
+	var activity runtimeActivityResponse
+	response = serveTestRequest(handler, http.MethodGet, "/runtime/activity", "")
+	if err := strictjson.DecodeBytes(response.Body.Bytes(), &activity); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusOK || activity.Count != 1 || len(activity.Activity) != 1 ||
+		activity.Activity[0].Model != modelID || activity.Activity[0].Recipe != recipeID {
+		t.Fatalf("activity status=%d response=%+v", response.Code, activity)
+	}
+	module := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String()
+	for _, endpoint := range []string{"/runtime/sessions", "/runtime/activity"} {
+		if !strings.Contains(module, endpoint) {
+			t.Fatalf("runtime module lacks %q", endpoint)
+		}
+	}
+	if strings.Contains(module, `api.get("/slots"`) {
+		t.Fatal("runtime module bypasses session authority")
 	}
 }

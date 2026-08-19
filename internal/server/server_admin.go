@@ -313,7 +313,11 @@ func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request
 		writeError(response, http.StatusServiceUnavailable, "server_busy", "no slot available")
 		return
 	}
-	contextLength := uint32(0)
+	writeJSON(response, http.StatusOK, h.sessionStatus(includeText))
+}
+
+func (h *Handler) sessionStatus(includeText bool) []slotStatusItem {
+	var contextLength uint32
 	if api, ok := h.generator.(ModelPropertiesAPI); ok {
 		contextLength = api.ModelProperties().ContextLength
 	}
@@ -351,7 +355,7 @@ func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request
 			result[id].Timings = &metrics.Timings
 		}
 	}
-	writeJSON(response, http.StatusOK, result)
+	return result
 }
 
 func (h *Handler) loraAdapters(response http.ResponseWriter, request *http.Request) {

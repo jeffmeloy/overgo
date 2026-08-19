@@ -617,6 +617,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/embeddings" ||
 		request.URL.Path == "/rerank" ||
 		request.URL.Path == "/reranking" ||
+		request.URL.Path == "/runtime/sessions" ||
+		request.URL.Path == "/runtime/activity" ||
 		request.URL.Path == "/slots" ||
 		request.URL.Path == "/chat/completions" ||
 		request.URL.Path == "/chat/completions/input_tokens" ||
@@ -733,6 +735,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.artifactGallery(response, request)
 	case "/artifacts/content":
 		h.artifactContent(response, request)
+	case "/runtime/sessions":
+		h.runtimeSessions(response, request)
+	case "/runtime/activity":
+		h.runtimeActivity(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

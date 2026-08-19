@@ -1,0 +1,105 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+
+	"overgo/internal/evaluation"
+	"overgo/internal/inference"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
+)
+
+type evaluationSession interface {
+	Evaluate(context.Context, string) error
+	Close() error
+}
+
+type sessionOpener func(context.Context, manifest, modelRequest) (evaluationSession, error)
+
+func executeModel(ctx context.Context, value manifest, request modelRequest, open sessionOpener) error {
+	if ctx == nil || open == nil || len(request.Suites) == 0 {
+		return errors.New("evaluate: incomplete model worker")
+	}
+	session, err := open(ctx, value, request)
+	if err != nil {
+		return err
+	}
+	for _, suite := range request.Suites {
+		if err := session.Evaluate(ctx, suite); err != nil {
+			return errors.Join(err, session.Close())
+		}
+	}
+	return session.Close()
+}
+
+type nativeSession struct {
+	store    *repodb.Store
+	runner   *inference.Runner
+	campaign *evaluation.Campaign
+}
+
+func openEvaluationSession(ctx context.Context, value manifest, request modelRequest) (evaluationSession, error) {
+	store, err := repodb.Open(value.Repository)
+	if err != nil {
+		return nil, err
+	}
+	fail := func(cause error) (evaluationSession, error) {
+		return nil, errors.Join(cause, store.Close())
+	}
+	loaded, err := modelrecipe.ResolveActiveGGUF(ctx, store, request.Path)
+	if err != nil {
+		return fail(err)
+	}
+	identity, err := loaded.Identity()
+	if err != nil {
+		_ = loaded.Close()
+		return fail(err)
+	}
+	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{DeviceOrdinal: value.Device})
+	if err != nil {
+		_ = loaded.Close()
+		return fail(err)
+	}
+	environment, err := runrecord.CurrentEnvironment(fmt.Sprintf("cuda:%d", value.Device), "cuda")
+	if err != nil {
+		_ = runner.Close()
+		return fail(err)
+	}
+	campaign, err := evaluation.NewCampaign(store, runner, identity, environment, value.CodeCommit)
+	if err != nil {
+		_ = runner.Close()
+		return fail(err)
+	}
+	return &nativeSession{store: store, runner: runner, campaign: campaign}, nil
+}
+
+func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	compiled, err := evaluation.CompileSuite(data, s.campaign.Authorities())
+	if err != nil {
+		return fmt.Errorf("evaluate: compile suite %q: %w", path, err)
+	}
+	_, err = s.campaign.Evaluate(ctx, compiled)
+	return err
+}
+
+func (s *nativeSession) Close() error {
+	if s == nil {
+		return nil
+	}
+	var runnerErr error
+	if s.runner != nil {
+		runnerErr = s.runner.Close()
+		s.runner = nil
+	}
+	storeErr := s.store.Close()
+	s.store = nil
+	return errors.Join(runnerErr, storeErr)
+}

@@ -25,6 +25,11 @@ import (
 // components are named, validated and policy-driven through the same registry.
 const ScratchArchitecture = "adaptive-causal"
 
+const (
+	DerivationProfileMediaType = "application/vnd.overgo.derivation-profile+json"
+	DerivationProfileSchema    = "overgo/derivation-profile/v1"
+)
+
 type CorpusFacts struct {
 	Documents []string
 	Seed      int64
@@ -33,23 +38,48 @@ type CorpusFacts struct {
 
 // DerivationProfile owns corpus-to-topology policy.
 type DerivationProfile struct {
-	Version            string  `json:"version"`
-	SplitDenominator   int     `json:"split_denominator"`
-	StableSplitMinimum int     `json:"stable_split_minimum"`
-	MinimumLayers      int     `json:"minimum_layers"`
-	MinimumMLPFactor   int     `json:"minimum_mlp_factor"`
-	MLPBudget          int     `json:"mlp_budget"`
-	Epsilon            float64 `json:"epsilon"`
-	MuonMomentum       float64 `json:"muon_momentum"`
+	Version            string      `json:"version"`
+	SplitDenominator   int         `json:"split_denominator"`
+	StableSplitMinimum int         `json:"stable_split_minimum"`
+	MinimumLayers      int         `json:"minimum_layers"`
+	MinimumMLPFactor   int         `json:"minimum_mlp_factor"`
+	MLPBudget          int         `json:"mlp_budget"`
+	Epsilon            float64     `json:"epsilon"`
+	MuonMomentum       float64     `json:"muon_momentum"`
+	ID                 artifact.ID `json:"-"`
 }
 
+var derivationProfileCodec = artifact.JSONDocumentCodec(
+	"derivation profile", artifact.KindProfile, DerivationProfileMediaType, DerivationProfileSchema,
+	func(profile *DerivationProfile) error { return profile.validate() },
+	func(profile DerivationProfile) artifact.ID { return profile.ID },
+	func(profile *DerivationProfile, id artifact.ID) { profile.ID = id }, nil,
+)
+
 func AdaptiveDerivationProfile() DerivationProfile {
-	return DerivationProfile{
+	profile, err := NewDerivationProfile(DerivationProfile{
 		Version:          "adaptive-corpus-derivation-v1",
 		SplitDenominator: 10, StableSplitMinimum: 30,
 		MinimumLayers: 2, MinimumMLPFactor: 2, MLPBudget: 256,
 		Epsilon: 1e-8, MuonMomentum: 29.0 / 31.0,
+	})
+	if err != nil {
+		panic(err)
 	}
+	return profile
+}
+
+func NewDerivationProfile(profile DerivationProfile) (DerivationProfile, error) {
+	profile.ID = artifact.ID{}
+	return derivationProfileCodec.New(profile)
+}
+
+func (profile DerivationProfile) ValidateIdentity() error {
+	return derivationProfileCodec.ValidateIdentity(profile)
+}
+
+func (profile DerivationProfile) Content() (artifact.Content, error) {
+	return derivationProfileCodec.Content(profile)
 }
 
 func (p DerivationProfile) validate() error {
@@ -128,7 +158,7 @@ func Compile(facts CorpusFacts, profile DerivationProfile) (Construction, error)
 	if len(facts.Documents) < 3 || facts.Steps <= 0 {
 		return Construction{}, errors.New("scratch model: invalid corpus facts")
 	}
-	if err := profile.validate(); err != nil {
+	if err := profile.ValidateIdentity(); err != nil {
 		return Construction{}, err
 	}
 	for _, document := range facts.Documents {
@@ -153,14 +183,6 @@ func Compile(facts CorpusFacts, profile DerivationProfile) (Construction, error)
 		return Construction{}, err
 	}
 
-	derivationProfile, err := artifact.JSONID(artifact.KindProfile, struct {
-		Profile DerivationProfile `json:"profile"`
-		Steps   int               `json:"steps"`
-	}{Profile: profile, Steps: facts.Steps})
-
-	if err != nil {
-		return Construction{}, err
-	}
 	topologyProfile, err := artifact.JSONID(artifact.KindProfile, struct {
 		Version string `json:"version"`
 		Config  Config `json:"config"`
@@ -224,7 +246,7 @@ func Compile(facts CorpusFacts, profile DerivationProfile) (Construction, error)
 	baseSeed := uint64(facts.Seed)
 	authority, err := trainingprogram.CompileScratchConstruction(trainingprogram.ScratchSpec{
 		Recipe: recipeID, Dataset: datasetID, Split: splitID,
-		DerivationProfile: derivationProfile, TopologyProfile: topologyProfile,
+		DerivationProfile: profile.ID, TopologyProfile: topologyProfile,
 		Tokenizer: tokenizerID, ParameterManifest: manifestID,
 		InitializerProfile: initializerProfile, InitializedModel: modelID,
 		RNGStreams: []trainingprogram.RNGStreamSpec{
@@ -265,6 +287,22 @@ func (c Construction) Authority() trainingprogram.ScratchConstruction { return c
 func (c Construction) OptimizerPlan() optimizer.Plan                  { return c.optimizer }
 func (c Construction) Program() trainingprogram.TrainingProgram       { return c.program }
 func (c Construction) Processor() artifact.ID                         { return c.processor }
+
+func (c Construction) IdentifyTrainedModel(weights []float32) (artifact.ID, error) {
+	if len(weights) != len(c.weights) {
+		return artifact.ID{}, errors.New("scratch model: trained weights differ from construction")
+	}
+	hash := sha256.New()
+	_, _ = hash.Write([]byte(c.id.String()))
+	var encoded [4]byte
+	for _, weight := range weights {
+		binary.LittleEndian.PutUint32(encoded[:], math.Float32bits(weight))
+		_, _ = hash.Write(encoded[:])
+	}
+	var digest [sha256.Size]byte
+	copy(digest[:], hash.Sum(nil))
+	return artifact.NewID(artifact.KindModel, digest)
+}
 
 func (c Construction) Weights(name string) ([]float32, bool) {
 	values, ok := c.weightView(name)

@@ -23,7 +23,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 
@@ -368,14 +367,7 @@ func publishCapabilityResult(
 	outcome runrecord.Outcome,
 	failure string,
 ) (modelrecipe.Verification, error) {
-	host, err := os.Hostname()
-	if err != nil {
-		host = "unknown"
-	}
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{
-		Host: host, OS: runtime.GOOS, Arch: runtime.GOARCH,
-		Device: device, Backend: backend, Driver: "process", Runtime: runtime.Version(),
-	})
+	environment, err := runrecord.CurrentEnvironment(device, backend)
 	if err != nil {
 		return modelrecipe.Verification{}, err
 	}

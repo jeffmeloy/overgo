@@ -41,8 +41,8 @@ func TestDPOSelectedScoresMatchMaterialized(t *testing.T) {
 	row := logits[(len(pair.Chosen.Tokens)-2)*policy.Dims.Vocab : (len(pair.Chosen.Tokens)-1)*policy.Dims.Vocab]
 	hostmath.SoftmaxInPlace(row)
 	want := math.Log(float64(row[pair.Chosen.Tokens[len(pair.Chosen.Tokens)-1]]))
-	if math.Abs(got-want) > 1e-6 {
-		t.Fatalf("selected score=%g want=%g", got, want)
+	if math.Abs(got.LogProbability-want) > 1e-6 {
+		t.Fatalf("selected score=%g want=%g", got.LogProbability, want)
 	}
 }
 
@@ -68,7 +68,7 @@ func dpoMargin(t *testing.T, model *Model, pair trainingdata.PreferencePair) flo
 	if err != nil {
 		t.Fatal(err)
 	}
-	return chosen - rejected
+	return chosen.LogProbability - rejected.LogProbability
 }
 
 func TestDPOReferenceRemainsFrozen(t *testing.T) {

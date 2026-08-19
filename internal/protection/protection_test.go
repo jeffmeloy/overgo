@@ -16,6 +16,7 @@ func TestProtectionContract(t *testing.T) {
   "gpu_workflow": ".github/workflows/gpu.yml",
   "required_jobs": ["unit"],
   "required_hooks": {"PreToolUse": "bash scripts/guard.sh"},
+  "sealed_authority": {"required":true,"principal":"service:test","artifacts":["golden","evaluator","promotion-policy","champion-alias"]},
   "host_enforcement_required": true
 }`, 0o600)
 	testutil.WriteTextFile(t, root, ".claude/settings.json", `{

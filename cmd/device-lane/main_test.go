@@ -1,12 +1,21 @@
 package main
 
 import (
+	"os"
 	"slices"
 	"testing"
 )
 
 func TestDeviceLaneSelectionAndReporting(t *testing.T) {
-	paths := splitPaths("internal/optimizer/update_cuda_windows.go,kernels/attention.cu,internal/optimizer/other.go")
+	working, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir("../.."); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(working) })
+	paths := splitPaths("internal/optimizer/muon_step_cuda_windows.go,kernels/cuda/vector_add.cu,internal/optimizer/removed_cuda_windows.go")
 	steps := deviceSteps(paths)
 	if len(steps) != 2 || !slices.Equal(steps[0], []string{"go", "run", "./cmd/cuda-smoke"}) {
 		t.Fatalf("scoped steps = %v", steps)

@@ -59,9 +59,14 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 	defer store.Close()
 	target := testutil.ArtifactID(t, artifact.KindModel, "synthesis-target")
 	donor := testutil.ArtifactID(t, artifact.KindModel, "synthesis-donor")
+	ranker, err := composition.TrainProposalRanker(nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	proposal, err := composition.NewBridgeProposal(
 		target,
 		[]composition.BridgeCandidate{{Donor: donor, Component: "model.layers.14.mlp.gate_proj.weight", Distance: 0.25}},
+		ranker,
 		"go test ./internal/adaptiveparity -run '^TestBridgeSynthesisProducesEvidenceOrRefusal$' -count=1",
 		"adapter tier retired; synthesis validates the pipeline, promotion requires the experiment plane",
 	)
@@ -72,10 +77,15 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	rankerContent, err := ranker.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "synthesis/fixture",
 		Artifacts: []artifact.Descriptor{{ID: target}, {ID: donor}},
-		Contents:  []artifact.Content{proposalContent},
+		Contents:  []artifact.Content{rankerContent, proposalContent},
+		Lineage:   proposal.Lineage(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +112,7 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 	if outcome.Result.Ship {
 		verdict = "SHIP"
 	}
-	if outcome.Result.Ship && outcome.Decision.Outcome != recipe.DecisionAccepted {
+	if outcome.Result.Ship && outcome.Decision.Outcome != recipe.DecisionObserved {
 		t.Fatalf("ship without promotion evidence: %+v", outcome.Decision)
 	}
 	if !outcome.Result.Ship && outcome.Decision.Outcome != recipe.DecisionRefused {

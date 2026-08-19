@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/sequencescore"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -99,7 +100,7 @@ func (r *Runner) PerplexityWithOptions(
 			return PerplexityResult{}, scoreErr
 		}
 		result.Scores = scores
-		result.NegativeLogLikelihood = negativeLogLik
+		result.NegativeLogLikelihood = -negativeLogLik.LogProbability
 	} else {
 		contextSize := options.ContextSize
 		if len(ids) < 2*contextSize {
@@ -123,7 +124,7 @@ func (r *Runner) PerplexityWithOptions(
 				windowIDs = slices.Clone(windowIDs)
 				windowIDs[0] = r.vocab.BOS
 			}
-			scores, negativeLogLik, scoreErr := r.scoreTokenWindow(
+			scores, continuation, scoreErr := r.scoreTokenWindow(
 				ctx,
 				windowIDs,
 				firstTarget,
@@ -138,7 +139,7 @@ func (r *Runner) PerplexityWithOptions(
 				)
 			}
 			result.Scores = append(result.Scores, scores...)
-			result.NegativeLogLikelihood += negativeLogLik
+			result.NegativeLogLikelihood -= continuation.LogProbability
 		}
 	}
 	result.EvaluatedTokens = len(result.Scores)
@@ -157,28 +158,28 @@ func (r *Runner) scoreTokenWindow(
 	firstTarget int,
 	globalOffset int,
 	outputInfo gguf.TensorInfo,
-) ([]TokenScore, float64, error) {
+) ([]TokenScore, sequencescore.Score, error) {
 	if firstTarget < 1 || firstTarget >= len(ids) {
-		return nil, 0, errors.New("invalid first target position")
+		return nil, sequencescore.Score{}, errors.New("invalid first target position")
 	}
 	hidden, _, err := r.forwardCachedLocked(ctx, ids[:len(ids)-1], nil)
 	if err != nil {
-		return nil, 0, err
+		return nil, sequencescore.Score{}, err
 	}
 	logits, err := r.logitsBatch(ctx, outputInfo, hidden)
 	if err != nil {
-		return nil, 0, err
+		return nil, sequencescore.Score{}, err
 	}
 	vocabularySize := r.vocab.Len()
 	if len(logits) != vocabularySize*(len(ids)-1) {
-		return nil, 0, fmt.Errorf(
+		return nil, sequencescore.Score{}, fmt.Errorf(
 			"inference: logits contain %d values, need %d",
 			len(logits),
 			vocabularySize*(len(ids)-1),
 		)
 	}
 	scores := make([]TokenScore, 0, len(ids)-firstTarget)
-	var negativeLogLik float64
+	var continuation sequencescore.Accumulator
 	for targetPosition := firstTarget; targetPosition < len(ids); targetPosition++ {
 		logitPosition := targetPosition - 1
 		value, scoreErr := negativeLogProbability(
@@ -186,20 +187,23 @@ func (r *Runner) scoreTokenWindow(
 			int(ids[targetPosition]),
 		)
 		if scoreErr != nil {
-			return nil, 0, fmt.Errorf(
+			return nil, sequencescore.Score{}, fmt.Errorf(
 				"score token at position %d: %w",
 				globalOffset+targetPosition,
 				scoreErr,
 			)
 		}
-		negativeLogLik += value
+		if err := continuation.Observe(-value); err != nil {
+			return nil, sequencescore.Score{}, err
+		}
 		scores = append(scores, TokenScore{
 			Position:       globalOffset + targetPosition,
 			TokenID:        ids[targetPosition],
 			NegativeLogLik: value,
 		})
 	}
-	return scores, negativeLogLik, nil
+	result, err := continuation.Result()
+	return scores, result, err
 }
 
 func (r *Runner) logitsBatch(

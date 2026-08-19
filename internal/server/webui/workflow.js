@@ -1,6 +1,17 @@
 (function () {
   "use strict";
   const operationPollMilliseconds = 500;
+  function terminal(state) {
+    return state === "completed" || state === "cancelled" || state === "failed";
+  }
+  window.overgo.waitOperation = async function (id, observe, signal) {
+    for (;;) {
+      const current = await window.overgo.api.get("/operations?id=" + encodeURIComponent(id), { signal });
+      if (observe) observe(current);
+      if (terminal(current.state)) return current;
+      await new Promise((resolve) => window.setTimeout(resolve, operationPollMilliseconds));
+    }
+  };
   window.overgo.workflowWorkspace = function (definition) {
     window.overgo.registerTab({
       id: definition.id,
@@ -69,9 +80,6 @@
             await api.post("/operations/cancel", { id: operation });
           }
         });
-        function terminal(state) {
-          return state === "completed" || state === "cancelled" || state === "failed";
-        }
         function renderOperation(current) {
           const suffix = current.run ? " / " + fmt.shortID(current.run) : "";
           status.textContent = current.state + suffix + (current.failure ? " / " + current.failure : "");
@@ -89,15 +97,6 @@
               el("td", { class: "mono", text: String(metric.value) + (metric.unit ? " " + metric.unit : "") })));
           }
           metrics.replaceChildren(...((current.metrics || []).length ? [table] : []));
-        }
-        async function poll(id) {
-          while (operation === id) {
-            const current = await api.get("/operations?id=" + encodeURIComponent(id));
-            renderOperation(current);
-            if (terminal(current.state)) return current;
-            await new Promise((resolve) => window.setTimeout(resolve, operationPollMilliseconds));
-          }
-          return null;
         }
         run.addEventListener("click", async () => {
           const capability = selected();
@@ -124,7 +123,7 @@
             });
             operation = accepted.operation;
             status.textContent = "running / " + fmt.shortID(operation);
-            const completed = await poll(operation);
+            const completed = await overgo.waitOperation(operation, renderOperation);
             if (completed && completed.state === "completed" && definition.renderEvidence) {
               await definition.renderEvidence(evidence, completed, overgo);
             }

@@ -230,6 +230,7 @@ type Config struct {
 	// corresponding /datasets or /runs endpoint.
 	DatasetsRoot string
 	RepoDBPath   string
+	Evaluation   EvaluationWorkspaceAPI
 	Analysis     AnalysisPolicy
 }
 
@@ -595,6 +596,12 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/operations" ||
 		request.URL.Path == "/operations/cancel" ||
 		request.URL.Path == "/operations/wait" ||
+		request.URL.Path == "/evaluations/capabilities" ||
+		request.URL.Path == "/evaluations/run" ||
+		request.URL.Path == "/evaluations/history" ||
+		request.URL.Path == "/evaluations/report" ||
+		request.URL.Path == "/evaluations/failures" ||
+		request.URL.Path == "/evaluations/compare" ||
 		request.URL.Path == "/generation/capabilities" ||
 		request.URL.Path == "/generation/run" ||
 		request.URL.Path == "/training/capabilities" ||
@@ -695,6 +702,18 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.operationCancel(response, request)
 	case "/operations/wait":
 		h.operationWait(response, request)
+	case "/evaluations/capabilities":
+		h.evaluationCapabilities(response, request)
+	case "/evaluations/run":
+		h.evaluationRun(response, request)
+	case "/evaluations/history":
+		h.evaluationHistory(response, request)
+	case "/evaluations/report":
+		h.evaluationReport(response, request)
+	case "/evaluations/failures":
+		h.evaluationFailures(response, request)
+	case "/evaluations/compare":
+		h.evaluationCompare(response, request)
 	case "/generation/capabilities":
 		h.workflowCapabilities(response, request, WorkflowGeneration)
 	case "/generation/run":

@@ -2,6 +2,8 @@ package runrecord
 
 import (
 	"errors"
+	"os"
+	"runtime"
 
 	"overgo/internal/artifact"
 	"overgo/internal/textcheck"
@@ -38,6 +40,18 @@ func NewEnvironment(environment Environment) (Environment, error) {
 	environment.Version = EnvironmentVersion
 	environment.ID = artifact.ID{}
 	return environmentCodec.New(environment)
+}
+
+// CurrentEnvironment: process runtime identity.
+func CurrentEnvironment(device, backend string) (Environment, error) {
+	host, err := os.Hostname()
+	if err != nil {
+		host = "unknown"
+	}
+	return NewEnvironment(Environment{
+		Host: host, OS: runtime.GOOS, Arch: runtime.GOARCH,
+		Device: device, Backend: backend, Driver: "process", Runtime: runtime.Version(),
+	})
 }
 
 func (e Environment) ValidateIdentity() error {

@@ -1,0 +1,81 @@
+package evaluation
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"overgo/internal/dataset"
+	"overgo/internal/repodb"
+)
+
+func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
+	names := []string{"bbh", "ifeval", "math", "mmlu-pro", "musr", "truthfulqa"}
+	root := t.TempDir()
+	data := []byte("{\"input\":\"question\",\"target\":\"answer\"}\n")
+	digest := sha256.Sum256(data)
+	manifest := benchmarkManifest{Datasets: make([]benchmarkDeclaration, len(names))}
+	for index, name := range names {
+		path := name + ".jsonl"
+		if err := os.WriteFile(filepath.Join(root, path), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		manifest.Datasets[index] = benchmarkDeclaration{
+			Name: name, Path: path,
+			Spec: dataset.BenchmarkImportSpec{
+				Source: name, Revision: "pinned-revision", SHA256: hex.EncodeToString(digest[:]), Split: "test",
+				Format: dataset.BenchmarkFormatJSONL, Conversion: "fixture/v1",
+				Fields: []dataset.FieldBinding{{Target: "answer", Source: "target"}, {Target: "prompt", Source: "input"}},
+			},
+		}
+	}
+	encoded, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := filepath.Join(root, "catalog.json")
+	if err := os.WriteFile(manifestPath, encoded, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	id, err := CatalogLocalBenchmarks(context.Background(), store, manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, ok, err := store.Content(context.Background(), id)
+	if err != nil || !ok {
+		t.Fatalf("catalog content = %v, %v", ok, err)
+	}
+	catalog, err := benchmarkCatalogCodec.Parse(content.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Entries) != len(names) {
+		t.Fatalf("catalog entries = %d, want %d", len(catalog.Entries), len(names))
+	}
+	for index, entry := range catalog.Entries {
+		if entry.Name != names[index] || entry.Split != "test" {
+			t.Fatalf("catalog entry %d = %+v", index, entry)
+		}
+		importedContent, found, err := store.Content(context.Background(), entry.Dataset)
+		if err != nil || !found || importedContent.Descriptor.ID != entry.Dataset {
+			t.Fatalf("dataset %q = %v, %v", entry.Name, found, err)
+		}
+	}
+	active, ok, err := store.ResolveAlias(context.Background(), benchmarkCatalogAlias)
+	if err != nil || !ok || active != id {
+		t.Fatalf("active catalog = %s, %v, %v", active, ok, err)
+	}
+	repeated, err := CatalogLocalBenchmarks(context.Background(), store, manifestPath)
+	if err != nil || repeated != id {
+		t.Fatalf("repeated catalog = %s, %v", repeated, err)
+	}
+}

@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
-	"overgo/internal/servingeval"
+	"overgo/internal/runrecord"
 )
 
 func verifyInference(
@@ -26,13 +26,31 @@ func verifyInference(
 	if err != nil {
 		return err
 	}
-	var suite servingeval.Suite
+	var suite evaluation.ExactSuite
 	if err := json.Unmarshal([]byte(input), &suite); err != nil {
 		return fmt.Errorf("recipe: decode inference suite: %w", err)
+	}
+	exactPlan, err := evaluation.CompileExact(suite)
+	if err != nil {
+		return fmt.Errorf("recipe: compile inference suite: %w", err)
 	}
 	candidate, err := prepareInferenceCandidate(path, override, residency)
 	if err != nil {
 		return err
+	}
+	environment, err := runrecord.CurrentEnvironment("cuda:0", "cuda")
+	if err != nil {
+		return err
+	}
+	evaluationPlan, err := evaluation.BindExact(exactPlan, evaluation.ExactAuthorities{
+		ModelDefinition: candidate.resolved.Document.ID,
+		RuntimeRecipe:   candidate.definition.ID,
+		CodeCommit:      revision,
+		Environment:     environment.ID,
+		Execution:       evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
+	})
+	if err != nil {
+		return fmt.Errorf("recipe: bind inference evaluation: %w", err)
 	}
 	ctx := context.Background()
 	store, err := repodb.Open(repository)
@@ -63,11 +81,11 @@ func verifyInference(
 		return err
 	}
 	started := time.Now()
-	results, evaluateErr := servingeval.EvaluateExact(ctx, runner, suite)
+	reportID, evaluateErr := evaluation.EvaluateExactSharded(ctx, store, runner, exactPlan, evaluationPlan, nil)
 	closeErr := runner.Close()
 	if evaluateErr != nil || closeErr != nil {
 		failure := errors.Join(evaluateErr, closeErr)
-		evidence := strings.ReplaceAll(failure.Error(), "\n", " ")
+		evidence := "plan=" + evaluationPlan.Identity().String() + "; " + strings.ReplaceAll(failure.Error(), "\n", " ")
 		if len(evidence) > 1900 {
 			evidence = evidence[:1900]
 		}
@@ -87,23 +105,7 @@ func verifyInference(
 		}
 		return fmt.Errorf("recipe: exact inference evaluation: %w", failure)
 	}
-	inputID, err := artifact.IdentifyBytes(artifact.KindDataset, []byte(input))
-	if err != nil {
-		return err
-	}
-	exactResults := append([]servingeval.Result(nil), results...)
-	for index := range exactResults {
-		exactResults[index].WallNS = 0
-	}
-	encoded, err := json.Marshal(exactResults)
-	if err != nil {
-		return err
-	}
-	outputID, err := artifact.IdentifyBytes(artifact.KindOutput, encoded)
-	if err != nil {
-		return err
-	}
-	evidence := fmt.Sprintf("contract=exact;cases=%d;input=%s;output=%s", len(results), inputID, outputID)
+	evidence := fmt.Sprintf("contract=exact;plan=%s;report=%s;cases=%d", evaluationPlan.Identity(), reportID, len(suite.Cases))
 	verification, err := publishCapabilityVerification(
 		ctx, store, candidate.definition, revision, time.Since(started), "cuda:0", "cuda", evidence,
 	)
@@ -112,6 +114,6 @@ func verifyInference(
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{
 		"gate_id": verification.Gate.String(), "recipe_id": candidate.definition.ID.String(),
-		"run_id": verification.Run.String(), "results": results,
+		"run_id": verification.Run.String(), "report_id": reportID.String(),
 	})
 }

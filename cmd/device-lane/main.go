@@ -78,6 +78,9 @@ func deviceSteps(paths []string) [][]string {
 	}
 	packages := map[string]bool{}
 	for _, path := range paths {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			continue
+		}
 		parts := strings.Split(path, "/")
 		switch {
 		case strings.HasPrefix(path, "kernels/") || strings.HasPrefix(path, "internal/cuda/"):

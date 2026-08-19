@@ -21,6 +21,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 	proposer := id(artifact.KindEvidence, "proposer")
 	proposal, err := trainingprogram.CompileImprovementProposal(trainingprogram.ImprovementSpec{
 		Kind: trainingprogram.ImprovementComponentComposition, ParentModel: parent,
+		Incumbent: id(artifact.KindModelDefinition, "current-composition"),
 		Candidate: id(artifact.KindModelDefinition, "composition"), Dataset: dataset,
 		DevelopmentSplit: development, Recipe: recipeID, Code: code, Proposer: proposer,
 		Components: []artifact.ID{id(artifact.KindModel, "component"), id(artifact.KindAdapter, "bridge")},
@@ -53,8 +54,8 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 	}
 	decider := id(artifact.KindEvidence, "decider")
 	decision, err := DecideImprovement(admission, child, run, evaluation, decider, ImprovementPromote)
-	if err != nil || decision.RollbackTarget() != parent {
-		t.Fatalf("decision = (%s, %s, %v)", decision.State, decision.RollbackTarget(), err)
+	if err != nil || decision.Rollback != parent {
+		t.Fatalf("decision = (%s, %s, %v)", decision.State, decision.Rollback, err)
 	}
 	parents := map[artifact.ID]bool{}
 	for _, edge := range decision.Lineage() {
@@ -63,7 +64,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 		}
 	}
 	for _, required := range []artifact.ID{
-		parent, dataset, development, promotion, recipeID, code, evaluator,
+		parent, proposal.Incumbent(), proposal.Candidate(), dataset, development, promotion, recipeID, code, evaluator,
 	} {
 		if !parents[required] {
 			t.Fatalf("child lineage omits %s", required)
@@ -74,8 +75,8 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 		t.Fatal(err)
 	}
 	parsed, err := improvementDecisionCodec.Parse(content.Data)
-	if err != nil || parsed.ID != decision.ID || parsed.RollbackTarget() != parent {
-		t.Fatalf("parsed decision = (%s, %s, %v)", parsed.ID, parsed.RollbackTarget(), err)
+	if err != nil || parsed.ID != decision.ID || parsed.Rollback != parent {
+		t.Fatalf("parsed decision = (%s, %s, %v)", parsed.ID, parsed.Rollback, err)
 	}
 	if _, err := decision.Batch("fixture/improvement/decision"); err != nil {
 		t.Fatal(err)
@@ -87,7 +88,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 	}
 	defer store.Close()
 	static := []artifact.ID{
-		proposal.ID(), proposal.Candidate(), parent, child, dataset, development, promotion,
+		proposal.ID(), proposal.Incumbent(), proposal.Candidate(), parent, child, dataset, development, promotion,
 		recipeID, code, proposer, evaluator, authority, decider, environment, output,
 	}
 	descriptors := make([]artifact.Descriptor, len(static))
@@ -119,8 +120,8 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 		t.Fatalf("stored child parents = (%d, %v), want %d", len(storedParents), err, len(parents))
 	}
 	decisionParents, err := store.Parents(ctx, decision.ID)
-	if err != nil || len(decisionParents) != 14 {
-		t.Fatalf("stored decision parents = (%d, %v), want 14", len(decisionParents), err)
+	if err != nil || len(decisionParents) != 16 {
+		t.Fatalf("stored decision parents = (%d, %v), want 16", len(decisionParents), err)
 	}
 	if _, err := AdmitImprovement(proposal, proposer, evaluator, promotion); err == nil {
 		t.Fatal("self-admission accepted")

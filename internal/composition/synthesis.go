@@ -41,14 +41,14 @@ func SynthesizeBridge(
 	if err != nil {
 		return SynthesisOutcome{}, err
 	}
-	outcome, tier := recipe.DecisionRefused, recipe.EvidenceExperimental
+	outcome := recipe.DecisionRefused
 	reason := result.Reason
 	if result.Ship {
-		outcome, tier = recipe.DecisionAccepted, recipe.EvidenceParity
+		outcome = recipe.DecisionObserved
 		reason = "bridge synthesis produced held-out gain: " + result.Reason
 	}
 	decision, err := recipe.NewDecision(
-		proposal.ID, outcome, tier, reason, decider,
+		proposal.ID, outcome, recipe.EvidenceExperimental, reason, decider,
 		[]artifact.ID{record.ID, record.Run, record.Decision},
 	)
 	if err != nil {

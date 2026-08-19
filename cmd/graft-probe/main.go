@@ -54,19 +54,10 @@ func run(args []string, output io.Writer) error {
 	draft := flags.Int("chain-draft", 8, "chain probe: generated gap tokens per arm")
 	heldOut := flags.Int("chain-target", 32, "chain probe: held-out tokens scored per window")
 	windows := flags.Int("chain-windows", 3, "chain probe: disjoint windows sliced from the token stream")
-	inject := flags.Bool("inject", false, "run the residual-injection connector probe (scorer/drafter as in -chain; tokens sliced into sliding train windows and trailing held-out windows)")
-	injectLinear := flags.Bool("inject-linear", false, "run the content-addressed linear-attention connector probe (same slicing as -inject; per-target retrieval over drafter states)")
 	synthesize := flags.String("synthesize", "", "run the full bridge-synthesis pipeline for a committed blocked proposal (artifact ID); emits a typed decision")
 	deciderIdentity := flags.String("decider", "", "synthesize: the decider authority evidence artifact ID")
-	trainRanking := flags.String("train-ranking", "", "train the proposer ranking from committed composition decisions (path to observations JSON: [{decision, model, component}])")
 	if err := flags.Parse(args); err != nil {
 		return err
-	}
-	if *trainRanking != "" {
-		if flags.NArg() != 0 || *recordStore == "" {
-			return errors.New("usage: graft-probe -train-ranking <observations.json> -record <repodb>")
-		}
-		return runTrainRanking(*trainRanking, *recordStore, output)
 	}
 	if *propose != "" {
 		if flags.NArg() != 0 || *proposeTarget == "" || *proposeVerifier == "" || *recordStore == "" {
@@ -79,18 +70,6 @@ func run(args []string, output io.Writer) error {
 			return errors.New("usage: graft-probe -synthesize <proposal-id> -decider <evidence-id> -target <dir> -donor <dir> -tokens <ids.json> -record <repodb>")
 		}
 		return runSynthesize(*synthesize, *deciderIdentity, *targetDir, *donorDir, *tokensPath, *recordStore, *steps, *window, *lrScale, *momentum, output)
-	}
-	if *inject {
-		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" {
-			return errors.New("usage: graft-probe -inject -scorer <dir> -drafter <dir> -tokens <ids.json> [options]")
-		}
-		return runInject(*scorerDir, *drafterDir, *tokensPath, *prefix, *draft, *heldOut, composition.RunInjectionViability, "feature-matching connector, never task CE", output)
-	}
-	if *injectLinear {
-		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" {
-			return errors.New("usage: graft-probe -inject-linear -scorer <dir> -drafter <dir> -tokens <ids.json> [options]")
-		}
-		return runInject(*scorerDir, *drafterDir, *tokensPath, *prefix, *draft, *heldOut, composition.RunLinearAttentionViability, "content-addressed linear-attention retrieval over the same ridge fit", output)
 	}
 	if *chain {
 		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" || *recordStore == "" {
@@ -151,74 +130,6 @@ func run(args []string, output io.Writer) error {
 	return nil
 }
 
-// runTrainRanking trains the proposer ranking on the decision ledger: each
-// observation names a committed composition decision and the catalog
-// component it judged. The trainer enforces proposer blinding -- only
-// accepted and refused decisions are admissible -- and the committed ranking
-// carries lineage to every decision it learned from.
-func runTrainRanking(observationsPath, recordStore string, output io.Writer) error {
-	var entries []struct {
-		Decision  string `json:"decision"`
-		Model     string `json:"model"`
-		Component string `json:"component"`
-	}
-	if err := jsonfile.Decode(observationsPath, &entries); err != nil {
-		return err
-	}
-	store, err := repodb.Open(recordStore)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
-	ctx := context.Background()
-	catalog, err := composition.LoadCatalog(ctx, store)
-	if err != nil {
-		return err
-	}
-	byKey := make(map[string]composition.CatalogComponent, len(catalog))
-	for _, component := range catalog {
-		byKey[component.Model.String()+"\x00"+component.Name] = component
-	}
-	observations := make([]composition.RankingObservation, 0, len(entries))
-	for _, entry := range entries {
-		decisionID, err := artifact.ParseID(entry.Decision)
-		if err != nil {
-			return fmt.Errorf("observation decision %q: %w", entry.Decision, err)
-		}
-		content, ok, err := store.Content(ctx, decisionID)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return fmt.Errorf("decision %s is not committed", entry.Decision)
-		}
-		decision, err := recipe.ParseDecision(content.Data)
-		if err != nil {
-			return err
-		}
-		component, ok := byKey[entry.Model+"\x00"+entry.Component]
-		if !ok {
-			return fmt.Errorf("component %s/%s is not in the committed catalog", entry.Model, entry.Component)
-		}
-		observations = append(observations, composition.RankingObservation{Decision: decision, Component: component})
-	}
-	ranking, err := composition.TrainProposalRanking(observations)
-	if err != nil {
-		return err
-	}
-	batch, err := ranking.Batch("proposal-ranking/" + ranking.ID.String())
-	if err != nil {
-		return err
-	}
-	if _, err := store.Commit(ctx, batch); err != nil {
-		return err
-	}
-	fmt.Fprintf(output, "proposal ranking committed: %s terms=%d decisions=%d\n",
-		ranking.ID, len(ranking.Terms), len(ranking.Sources))
-	fmt.Fprintln(output, "honesty: the prior trains only on accepted and refused composition decisions; promotion and audit results are structurally out of reach")
-	return nil
-}
-
 // runPropose converts one similarity-retrieval response into a committed
 // bridge proposal: advisory by construction, promotion-blocked, carrying the
 // verifier any future experiment must run. It never authorizes anything.
@@ -250,16 +161,29 @@ func runPropose(retrievalPath, targetModel, verifier, blocker, recordStore strin
 			Donor: donor, Component: neighbor.Name, Distance: neighbor.Distance,
 		})
 	}
-	proposal, err := composition.NewBridgeProposal(target, candidates, verifier, blocker)
-	if err != nil {
-		return err
-	}
 	store, err := repodb.Open(recordStore)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = store.Close() }()
-	batch, err := proposal.Batch("bridge-proposal/" + proposal.ID.String())
+	ranker, err := composition.TrainProposalRankerFromStore(context.Background(), store)
+	if err != nil {
+		return err
+	}
+	proposal, err := composition.NewBridgeProposal(target, candidates, ranker, verifier, blocker)
+	if err != nil {
+		return err
+	}
+	rankerContent, err := ranker.Content()
+	if err != nil {
+		return err
+	}
+	proposalContent, err := proposal.Content()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch("bridge-proposal/"+proposal.ID.String(),
+		[]artifact.Content{rankerContent, proposalContent}, append(ranker.Lineage(), proposal.Lineage()...), nil)
 	if err != nil {
 		return err
 	}
@@ -343,58 +267,6 @@ func currentCommit() (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(data)), nil
-}
-
-// runInject executes an injection-connector probe: the mean-vector ridge
-// variant or the content-addressed linear-attention variant, chosen by the
-// caller. Both train by feature matching against measured context gaps and
-// evaluate on trailing held-out windows. Refusals print exactly as loudly as
-// ships.
-func runInject(
-	scorerDir, drafterDir, tokensPath string,
-	prefix, gap, target int,
-	probe func(composition.InjectionConfig) (composition.InjectionResult, error),
-	honesty string,
-	output io.Writer,
-) error {
-	var tokens []int
-	if err := jsonfile.Decode(tokensPath, &tokens); err != nil {
-		return err
-	}
-	span := prefix + gap + target
-	if len(tokens) < 3*span {
-		return fmt.Errorf("need at least %d tokens, got %d", 3*span, len(tokens))
-	}
-	heldOutStart := len(tokens) - 2*span
-	var train [][]int
-	for start := 0; start+span <= heldOutStart; start += 16 {
-		train = append(train, tokens[start:start+span])
-	}
-	result, err := probe(composition.InjectionConfig{
-		ScorerDir: scorerDir, DrafterDir: drafterDir,
-		Prefix: prefix, Gap: gap, Target: target, Alpha: 0.25, Ridge: 1e-3,
-		Train: train,
-		HeldOut: [][]int{
-			tokens[heldOutStart : heldOutStart+span],
-			tokens[heldOutStart+span : heldOutStart+2*span],
-		},
-	})
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(output, "scorer layer %d drafter layer %d train windows %d fit residual %.6f\n",
-		result.ScorerLayer, result.DrafterLayer, result.TrainWindows, result.FitResidual)
-	for _, outcome := range result.Outcomes {
-		fmt.Fprintf(output, "held-out %d: baseline CE %.6f injected CE %.6f\n",
-			outcome.Window, outcome.BaselineCE, outcome.InjectedCE)
-	}
-	verdict := "REFUSE"
-	if result.Ship {
-		verdict = "SHIP"
-	}
-	fmt.Fprintf(output, "verdict: %s -- %s\n", verdict, result.Reason)
-	fmt.Fprintf(output, "honesty: host-reference; %s; verdict binds only this model pair, protocol, and budget\n", honesty)
-	return nil
 }
 
 // runChain executes the Tier-0 whole-model chain probe: both arms run through

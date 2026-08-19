@@ -16,19 +16,21 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 	}
 	tests := []struct {
 		kind       ImprovementKind
+		incumbent  artifact.ID
 		candidate  artifact.ID
 		components []artifact.ID
 	}{
-		{ImprovementCorpus, id(artifact.KindDataset, "candidate-corpus"), nil},
-		{ImprovementRecipe, id(artifact.KindRecipe, "candidate-recipe"), nil},
-		{ImprovementEvaluator, id(artifact.KindEvidence, "candidate-evaluator"), nil},
-		{ImprovementComponentComposition, id(artifact.KindModelDefinition, "candidate-composition"), []artifact.ID{
+		{ImprovementCorpus, id(artifact.KindDataset, "current-corpus"), id(artifact.KindDataset, "candidate-corpus"), nil},
+		{ImprovementRecipe, id(artifact.KindRecipe, "current-recipe"), id(artifact.KindRecipe, "candidate-recipe"), nil},
+		{ImprovementDerivationProfile, id(artifact.KindProfile, "current-profile"), id(artifact.KindProfile, "candidate-profile"), nil},
+		{ImprovementEvaluator, id(artifact.KindEvidence, "current-evaluator"), id(artifact.KindEvidence, "candidate-evaluator"), nil},
+		{ImprovementComponentComposition, id(artifact.KindModelDefinition, "current-composition"), id(artifact.KindModelDefinition, "candidate-composition"), []artifact.ID{
 			id(artifact.KindModel, "component-b"), id(artifact.KindAdapter, "component-a"),
 		}},
 	}
 	for _, test := range tests {
 		spec := base
-		spec.Kind, spec.Candidate, spec.Components = test.kind, test.candidate, test.components
+		spec.Kind, spec.Incumbent, spec.Candidate, spec.Components = test.kind, test.incumbent, test.candidate, test.components
 		proposal, err := CompileImprovementProposal(spec)
 		if err != nil || proposal.ID().Kind() != artifact.KindRecipe || proposal.Candidate() != test.candidate {
 			t.Fatalf("compile %s = (%s, %s, %v)", test.kind, proposal.ID(), proposal.Candidate(), err)
@@ -36,6 +38,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 	}
 	invalid := base
 	invalid.Kind = ImprovementEvaluator
+	invalid.Incumbent = id(artifact.KindEvidence, "current-evaluator")
 	invalid.Candidate = id(artifact.KindRecipe, "wrong-kind")
 	if _, err := CompileImprovementProposal(invalid); err == nil {
 		t.Fatal("candidate kind mismatch accepted")

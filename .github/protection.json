@@ -15,5 +15,15 @@
     "Stop": "bash scripts/overgo_stop_gate.sh",
     "SessionStart": "bash scripts/overgo_doctrine.sh"
   },
+  "sealed_authority": {
+    "required": true,
+    "principal": "service:external-sealed-authority",
+    "artifacts": [
+      "golden",
+      "evaluator",
+      "promotion-policy",
+      "champion-alias"
+    ]
+  },
   "host_enforcement_required": true
 }

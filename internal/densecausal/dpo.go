@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/sequencescore"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
@@ -116,12 +117,12 @@ func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePa
 	for name, values := range rejected {
 		addInPlace(chosen[name], values)
 	}
-	policyMargin := scores.PolicyChosen - scores.PolicyRejected
-	referenceMargin := scores.ReferenceChosen - scores.ReferenceRejected
+	policyMargin := scores.PolicyChosen.LogProbability - scores.PolicyRejected.LogProbability
+	referenceMargin := scores.ReferenceChosen.LogProbability - scores.ReferenceRejected.LogProbability
 	return trainingprogram.DPOObservation{
 		Loss:         objective.Loss,
-		PolicyChosen: scores.PolicyChosen, PolicyRejected: scores.PolicyRejected,
-		ReferenceChosen: scores.ReferenceChosen, ReferenceRejected: scores.ReferenceRejected,
+		PolicyChosen: scores.PolicyChosen.LogProbability, PolicyRejected: scores.PolicyRejected.LogProbability,
+		ReferenceChosen: scores.ReferenceChosen.LogProbability, ReferenceRejected: scores.ReferenceRejected.LogProbability,
 		PolicyMargin: policyMargin, ReferenceMargin: referenceMargin, RelativeMargin: policyMargin - referenceMargin,
 		ChosenTokens: completionCount(pair.Chosen.Completion), RejectedTokens: completionCount(pair.Rejected.Completion),
 	}, chosen, nil
@@ -137,10 +138,10 @@ func completionCount(mask []bool) uint64 {
 	return count
 }
 
-func (m *Model) sequenceLogProb(sequence trainingdata.PreferenceSequence) (float64, error) {
+func (m *Model) sequenceLogProb(sequence trainingdata.PreferenceSequence) (sequencescore.Score, error) {
 	trace, err := m.sequenceTrace(sequence)
 	if err != nil {
-		return 0, err
+		return sequencescore.Score{}, err
 	}
 	return trace.score, nil
 }
@@ -149,7 +150,7 @@ type preferenceTrace struct {
 	sequence trainingdata.PreferenceSequence
 	states   [][]float32
 	normed   []float32
-	score    float64
+	score    sequencescore.Score
 }
 
 func (m *Model) sequenceTrace(sequence trainingdata.PreferenceSequence) (preferenceTrace, error) {
@@ -171,9 +172,9 @@ func (m *Model) sequenceTrace(sequence trainingdata.PreferenceSequence) (prefere
 	); err != nil {
 		return preferenceTrace{}, err
 	}
-	var total float64
-	for _, score := range scores {
-		total += score
+	total, err := sequencescore.Selected(scores, sequence.Completion[1:])
+	if err != nil {
+		return preferenceTrace{}, err
 	}
 	return preferenceTrace{sequence: sequence, states: states, normed: normed, score: total}, nil
 }

@@ -100,6 +100,14 @@ func ResolveCandidateGGUF(
 	return loaded, nil
 }
 
+// Identity: compiled authority before transfer.
+func (l *LoadedProgram) Identity() (ProgramIdentity, error) {
+	if l == nil || l.state == nil || l.state.File == nil {
+		return ProgramIdentity{}, errors.New("model recipe: loaded program is unavailable or consumed")
+	}
+	return l.state.Program.Identity, nil
+}
+
 func loadGGUFFacts(path string) (LoadedProgram, error) {
 	file, err := gguf.Open(path)
 	if err != nil {

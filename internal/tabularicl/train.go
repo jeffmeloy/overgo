@@ -75,7 +75,15 @@ func NewTrainer(head *Head, config optimizer.Config) (*Trainer, error) {
 		return nil, err
 	}
 	trainer := &Trainer{head: head, pack: pack, gradients: gradients, stepper: stepper, config: config, program: program}
-	trainer.execution, err = trainingprogram.BindObjective(program, trainer.forward, trainer.backward, trainer.optimize)
+	trainer.execution, err = trainingprogram.BindObjective(program, trainer.forward, trainer.backward, func(state *decoderTrainingStep) error {
+		if err := trainer.stepper.Step(); err != nil {
+			return err
+		}
+		trainer.step++
+		state.result.Step = trainer.step
+		state.result.LearningRate = trainer.config.LearningRate(trainer.step)
+		return nil
+	})
 	if err != nil {
 		_ = stepper.Close()
 		return nil, err
@@ -172,15 +180,5 @@ func (trainer *Trainer) backward(state *decoderTrainingStep) error {
 	if math.IsNaN(state.result.Loss) || math.IsInf(state.result.Loss, 0) || math.IsNaN(state.result.GradientL2) || math.IsInf(state.result.GradientL2, 0) {
 		return errors.New("tabularicl trainer: non-finite loss or gradient")
 	}
-	return nil
-}
-
-func (trainer *Trainer) optimize(state *decoderTrainingStep) error {
-	if err := trainer.stepper.Step(); err != nil {
-		return err
-	}
-	trainer.step++
-	state.result.Step = trainer.step
-	state.result.LearningRate = trainer.config.LearningRate(trainer.step)
 	return nil
 }

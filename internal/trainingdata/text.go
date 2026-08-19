@@ -8,9 +8,26 @@ import (
 	"strings"
 
 	"overgo/internal/recipecontract"
+	"overgo/internal/tokenizer"
 )
 
 const EncodingUTF8 = "utf-8"
+
+// AdjacentTokenRows compiles teacher-forced input/target rows.
+func AdjacentTokenRows(ids []tokenizer.TokenID) ([]uint32, []uint32, error) {
+	if len(ids) < 2 {
+		return nil, nil, errors.New("training data: at least two token identities required")
+	}
+	input := make([]uint32, len(ids)-1)
+	target := make([]uint32, len(input))
+	for index := range input {
+		if ids[index] < 0 || ids[index+1] < 0 {
+			return nil, nil, errors.New("training data: negative token identity")
+		}
+		input[index], target[index] = uint32(ids[index]), uint32(ids[index+1])
+	}
+	return input, target, nil
+}
 
 // JSONTextPairProcessor maps two named JSON string fields to a text pair.
 func JSONTextPairProcessor(inputField, targetField string) (Processor, error) {

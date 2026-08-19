@@ -1,0 +1,25 @@
+overgo gemma-4-12B training refusal
+
+model: gemma-4-12B-it-fp8
+model file: C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/gemma-4-12B-it-fp8-native.gguf
+
+The compiled model plan admits inference but the artifact has no per-layer
+input program and no independently owned trainable adapter tensors. The
+shared adapter trainer therefore refuses it with:
+
+  adapter training: artifact has no per-layer input program
+
+The FP8 serving artifact also does not carry a full-precision master-weight
+contract. Treating quantized serving storage as optimizer authority would
+invent precision and persistence behavior. Closure requires either:
+
+1. An artifact/profile-declared adapter program with initialized adapter
+   tensors and exact checkpoint ownership.
+2. A compiled full-parameter training plan with explicit master-weight,
+   precision, memory, and persistence policies.
+
+TestAlternatingWindowTrainingCells checks the refusal against the real 12B
+artifact while proving the same neutral adapter path on E4B. No family switch
+or model-name admission is used.
+
+refused-model: gemma-4-12B-it-fp8

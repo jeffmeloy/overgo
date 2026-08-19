@@ -112,7 +112,15 @@ func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
 		return nil, err
 	}
 	trainer.execution, err = trainingprogram.BindObjective(
-		trainer.program, trainer.forwardStep, trainer.backwardStep, trainer.optimizeStep,
+		trainer.program, trainer.forwardStep, trainer.backwardStep, func(state *trainingStep) error {
+			if err := trainer.stepper.Step(); err != nil {
+				return err
+			}
+			trainer.step++
+			state.result.Step = trainer.step
+			state.result.LearningRate = trainer.config.LearningRate(trainer.step)
+			return nil
+		},
 	)
 	if err != nil {
 		_ = trainer.stepper.Close()
@@ -257,16 +265,6 @@ func (t *Trainer) backwardStep(state *trainingStep) error {
 		}
 	}
 	state.result = TrainStepResult{MSE: mse, Quantile: quantile, Total: total, GradientL2: math.Sqrt(gradientSquared)}
-	return nil
-}
-
-func (t *Trainer) optimizeStep(state *trainingStep) error {
-	if err := t.stepper.Step(); err != nil {
-		return err
-	}
-	t.step++
-	state.result.Step = t.step
-	state.result.LearningRate = t.config.LearningRate(t.step)
 	return nil
 }
 

@@ -3,20 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; queue order is binding; plan complete means campaign complete. Generic authority beside retained specialized runtime is failure, not progress. Every migration must move all production callers and delete displaced orchestration, wrappers, fallbacks, compatibility paths, duplicate probes, and parallel authorities in the same gated wave. New shared code must replace existing ownership immediately. Verify numerical behavior, Live Edit behavior where applicable, code reduction, allocations, transfers, peak memory, and processing cost before completion. After every gated step, merge current master into this worktree before starting the next step.",
   "items": [
     {
-      "id": "hygiene-sweep",
-      "title": "Hygiene sweep: repair gemma-4-12B stale activation, close discovery wholesale-failure robustness finding, GUI tour with plan recommendations",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hygiene sweep: repair gemma-4-12B stale activation, close discovery wholesale-failure robustness finding, GUI tour with plan recommendations",
-          "status": "open",
-          "verify": "go run ./cmd/repodb-query -repo repodb-store -servable | grep -q gemma-4-12B",
-          "rationale": "STATUS 2026-08-18: discovery wholesale-failure finding CLOSED (stale-tolerant Servable landed with TestServableReportsStaleActivationsWithoutFailing in the phase-d row). Gemma repair diagnosis: the recipe CLI resolves the model name to the models DIRECTORY while the activation points at checkpoints/overgo-hfconvert/gemma-4-12B-it-fp8-native.gguf; the active recipe lacks verified run evidence. Repair path: run the recipe verification flow against the native GGUF (recipe verify -input \u003csuite JSON\u003e) to produce gate evidence, then re-activate with -gate; two sibling stale activations (f5e632cd, fb09299d) repair the same way. GUI tour remains the third leg. ADDED 2026-08-18: remove the duplicate RxBrain port (git rm -r internal/rxbrain cmd/rxbrain-probe) -- superseded by the rung14 lane (patchtower/routedlm/vqaparity, 44/44 ladder, exact-golden claim); the delete was permission-blocked in the working session and needs owner-approved removal through the gate. ADDED 2026-08-19: two parked findings from the tightening merge -- worktree CRLF misconfiguration (evidence 210b06ea, high; fix overgo_tightening checkout to autocrlf=false) and the nondeterministic composed-objective device test (evidence 51294df2, medium; five-of-five check named in the finding)."
-        }
-      ]
-    },
-    {
       "id": "sealed-external-authority",
       "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
       "status": "open",

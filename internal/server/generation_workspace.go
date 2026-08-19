@@ -107,6 +107,10 @@ func (h *Handler) workflowCapabilities(response http.ResponseWriter, request *ht
 		writeGenerationError(response, err)
 		return
 	}
+	if len(capabilities) == 0 {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, string(kind)+" workspace is unavailable")
+		return
+	}
 	if err := validateWorkflowCapabilities(capabilities); err != nil {
 		writeGenerationError(response, err)
 		return

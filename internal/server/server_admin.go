@@ -309,7 +309,7 @@ func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request
 		return
 	}
 	includeText := request.URL.Query().Get("include_text") == "1"
-	if request.URL.Query().Has("fail_on_no_slot") && len(h.slots) == 0 {
+	if request.URL.Query().Has("fail_on_no_slot") && h.sessions.Available() == 0 {
 		writeError(response, http.StatusServiceUnavailable, "server_busy", "no slot available")
 		return
 	}
@@ -730,7 +730,7 @@ func (h *Handler) metrics(response http.ResponseWriter, request *http.Request) {
 
 func (h *Handler) generate(
 	ctx context.Context,
-	slotID int,
+	session *requestSession,
 	prompt string,
 	options inference.GenerateOptions,
 ) ([]tokenizer.TokenID, string, error) {
@@ -743,6 +743,10 @@ func (h *Handler) generate(
 	}
 	h.generationRequests.Add(1)
 	var stats *slotRuntimeStats
+	slotID := -1
+	if session != nil {
+		slotID = session.ID
+	}
 	if slotID >= 0 && slotID < len(h.slotStats) {
 		stats = &h.slotStats[slotID]
 		stats.beginGeneration(prompt, options)
@@ -773,11 +777,7 @@ func (h *Handler) generate(
 		}
 		return nil
 	}
-	generator := h.generation
-	if generator == nil {
-		generator = h.generator
-	}
-	ids, text, err := generator.Generate(ctx, prompt, options)
+	ids, text, err := session.Model().Generate(ctx, prompt, options)
 	if err != nil {
 		h.generationErrors.Add(1)
 	}

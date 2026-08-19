@@ -108,11 +108,11 @@ func (h *Handler) rerank(response http.ResponseWriter, request *http.Request) {
 		}
 		topN = min(*body.TopN, len(documents))
 	}
-	slotID, acquired := h.acquireRequestSlot(response, -1)
+	session, acquired := h.acquireRequestSession(response, -1)
 	if !acquired {
 		return
 	}
-	defer h.releaseSlot(slotID)
+	defer h.releaseSession(session)
 	items := make([]rerankItem, len(documents))
 	usage := embeddingUsage{}
 	for index, document := range documents {
@@ -190,11 +190,11 @@ func (h *Handler) embeddings(response http.ResponseWriter, request *http.Request
 		)
 		return
 	}
-	slotID, acquired := h.acquireRequestSlot(response, -1)
+	session, acquired := h.acquireRequestSession(response, -1)
 	if !acquired {
 		return
 	}
-	defer h.releaseSlot(slotID)
+	defer h.releaseSession(session)
 	result := embeddingResponse{
 		Object: "list",
 		Data:   make([]embeddingItem, len(inputs)),
@@ -287,11 +287,11 @@ func (h *Handler) nativeEmbeddings(response http.ResponseWriter, request *http.R
 		)
 		return
 	}
-	slotID, acquired := h.acquireRequestSlot(response, -1)
+	session, acquired := h.acquireRequestSession(response, -1)
 	if !acquired {
 		return
 	}
-	defer h.releaseSlot(slotID)
+	defer h.releaseSession(session)
 	result := make([]nativeEmbeddingItem, len(inputs))
 	for index, input := range inputs {
 		embedded, embedErr := h.embedPromptAdvanced(

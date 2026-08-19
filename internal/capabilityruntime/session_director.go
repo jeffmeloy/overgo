@@ -46,6 +46,109 @@ type ModelSessionDirector[Input, Model, Output any] struct {
 	entries map[sessionKey]*sessionEntry[Model]
 	changed chan struct{}
 	closed  bool
+
+	admissions    chan int
+	admissionMu   sync.Mutex
+	resident      Model
+	residentSet   bool
+	residentUsers int
+	residentClose bool
+}
+
+// SessionLease: admitted use of one resident model session.
+type SessionLease[Model any] struct {
+	ID      int
+	model   Model
+	release func()
+	once    sync.Once
+}
+
+func (l *SessionLease[Model]) Model() Model { return l.model }
+
+func (l *SessionLease[Model]) Release() {
+	if l != nil && l.release != nil {
+		l.once.Do(l.release)
+	}
+}
+
+// NewResidentModelSessionDirector adopts one compiled serving session.
+func NewResidentModelSessionDirector[Model any](
+	name, device string,
+	capacity int,
+	model Model,
+) (*ModelSessionDirector[struct{}, Model, struct{}], error) {
+	if name == "" || device == "" || capacity <= 0 {
+		return nil, errors.New("capability runtime: incomplete resident model session director")
+	}
+	admissions := make(chan int, capacity)
+	for id := range capacity {
+		admissions <- id
+	}
+	return &ModelSessionDirector[struct{}, Model, struct{}]{
+		name: name, device: device, capacity: capacity,
+		entries: make(map[sessionKey]*sessionEntry[Model]), changed: make(chan struct{}),
+		admissions: admissions, resident: model, residentSet: true,
+	}, nil
+}
+
+// TryLease admits one request without waiting.
+func (c *ModelSessionDirector[Input, Model, Output]) TryLease(requested int) (*SessionLease[Model], bool) {
+	if c == nil || c.admissions == nil {
+		return nil, false
+	}
+	c.admissionMu.Lock()
+	defer c.admissionMu.Unlock()
+	id := -1
+	if requested < 0 {
+		select {
+		case id = <-c.admissions:
+		default:
+			return nil, false
+		}
+	} else {
+		available := len(c.admissions)
+		for range available {
+			candidate := <-c.admissions
+			if candidate == requested {
+				id = candidate
+			} else {
+				c.admissions <- candidate
+			}
+			if id >= 0 {
+				break
+			}
+		}
+		if id < 0 {
+			return nil, false
+		}
+	}
+	c.mu.Lock()
+	if c.closed || !c.residentSet {
+		c.mu.Unlock()
+		c.admissions <- id
+		return nil, false
+	}
+	c.residentUsers++
+	model := c.resident
+	c.mu.Unlock()
+	lease := &SessionLease[Model]{ID: id, model: model}
+	lease.release = func() {
+		c.admissionMu.Lock()
+		c.admissions <- id
+		c.admissionMu.Unlock()
+		c.mu.Lock()
+		c.residentUsers--
+		c.notify()
+		c.mu.Unlock()
+	}
+	return lease, true
+}
+
+func (c *ModelSessionDirector[Input, Model, Output]) Available() int {
+	if c == nil || c.admissions == nil {
+		return 0
+	}
+	return len(c.admissions)
 }
 
 func NewModelSessionDirector[Input, Model, Output any](
@@ -300,6 +403,16 @@ func (c *ModelSessionDirector[Input, Model, Output]) Close(ctx context.Context) 
 		return nil
 	}
 	c.closed = true
+	for c.residentUsers > 0 {
+		changed := c.changed
+		c.mu.Unlock()
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		c.mu.Lock()
+	}
 	entries := make([]*sessionEntry[Model], 0, len(c.entries))
 	for key, entry := range c.entries {
 		entry.dead = true
@@ -307,6 +420,8 @@ func (c *ModelSessionDirector[Input, Model, Output]) Close(ctx context.Context) 
 		delete(c.entries, key)
 	}
 	c.notify()
+	resident, closeResident := c.resident, c.residentSet && !c.residentClose
+	c.residentClose = true
 	c.mu.Unlock()
 	var result error
 	for _, entry := range entries {
@@ -314,6 +429,9 @@ func (c *ModelSessionDirector[Input, Model, Output]) Close(ctx context.Context) 
 		entry.mu.Lock()
 		result = errors.Join(result, closeEntry(context.WithoutCancel(ctx), entry))
 		entry.mu.Unlock()
+	}
+	if closeResident {
+		result = errors.Join(result, closeModel(context.WithoutCancel(ctx), resident))
 	}
 	return result
 }

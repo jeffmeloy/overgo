@@ -64,7 +64,7 @@ func (pump *generationPump) finishReason(maxTokens int, stopped, length string) 
 
 func (h *Handler) generateWithPump(
 	ctx context.Context,
-	slotID int,
+	session *requestSession,
 	prompt string,
 	options inference.GenerateOptions,
 	stops []string,
@@ -73,7 +73,7 @@ func (h *Handler) generateWithPump(
 	pump := newGenerationPump(stops, emit)
 	options.StopSequences = stops
 	options.OnToken = pump.accept
-	ids, _, err := h.generate(ctx, slotID, prompt, options)
+	ids, _, err := h.generate(ctx, session, prompt, options)
 	if err != nil {
 		return ids, pump, err
 	}

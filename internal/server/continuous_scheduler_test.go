@@ -20,7 +20,7 @@ func (f *continuousFactoryGenerator) NewContinuousGenerator(
 	return f.created, nil
 }
 
-func TestHandlerActivatesContinuousSchedulerForMultipleSlots(t *testing.T) {
+func TestServerUsesModelSessionDirectorAsSoleSessionAuthority(t *testing.T) {
 	factory := &continuousFactoryGenerator{fakeGenerator: &fakeGenerator{}}
 	handler, err := New(Config{MaxConcurrent: 3, ContextShift: true}, factory)
 	if err != nil {
@@ -30,7 +30,9 @@ func TestHandlerActivatesContinuousSchedulerForMultipleSlots(t *testing.T) {
 	if factory.options.MaxSequences != 3 || !factory.options.ContextShift {
 		t.Fatalf("scheduler options = %+v", factory.options)
 	}
-	if handler.continuous != factory.created || handler.generation != factory.created {
-		t.Fatal("continuous scheduler was not selected")
+	lease, ok := handler.sessions.TryLease(-1)
+	if !ok || lease.Model() != factory.created {
+		t.Fatal("director did not admit the compiled generation session")
 	}
+	lease.Release()
 }

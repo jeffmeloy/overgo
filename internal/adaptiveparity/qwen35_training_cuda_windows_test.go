@@ -87,8 +87,8 @@ func TestQwen35RealTraining(t *testing.T) {
 	}
 	started := time.Now()
 	trajectory, residency, err := trained.TrainDeviceResident(worker, qwen35TrainingSteps, optimizer.Config{
-		BaseLearningRate: 1e-4,
-		Momentum:         0.9,
+		BaseLearningRate: optimizer.DeriveBaseLR(trained.MatrixParamCount() + trained.VectorParamCount()),
+		Momentum:         optimizer.DeriveMomentum(),
 		Schedule:         optimizer.ScheduleConstant,
 	})
 	trainWall := time.Since(started)

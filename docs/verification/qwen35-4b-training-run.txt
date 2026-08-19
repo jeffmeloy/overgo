@@ -1,0 +1,29 @@
+overgo training verification run
+tool: go test internal/adaptiveparity (OVERGO_CUDA_TEST=1),
+TestQwen35RealTraining -- the hybridtrain lane's real-artifact gate
+verifying commit: 8daf6b702d3c4640edb9cd557d555e6bc7917d64 (recorded by the gate binding this file;
+the run migrated the test to fully derived hyperparameters first)
+model: Qwen3.5-4B (checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf,
+identity pinned in-test) -- recurrent gated-delta layer 0 bound through
+internal/hybridtrain.LoadRecurrentLayerArtifact: 112,885,760 matrix +
+38,080 vector trainable parameters
+trainer: the hybridtrain mixed-stack lane, device-resident Muon
+(TrainDeviceResident: weights and momentum upload once, gradients stream,
+final weight read once -- residency asserted by the test); hyperparameters
+fully DERIVED under the owner's no-free-knobs doctrine: base LR
+n_params^-1/2, momentum (CLTMinSamples-1)/(CLTMinSamples+1) = 0.9355
+dataset: fixtures/qwen35_4b_serving_golden.json (the committed serving
+golden; its capital-case prompt token IDs are the training rows) --
+grounded as the claim's dataset shard; context 4 trained positions from
+5 prompt tokens
+steps: 2, span_tokens 8
+loss: 13.185788754552203 -> 11.50554955565515 (finite decrease asserted by
+the suite's own gate)
+measured wall_ns: 1991339500 (training only; 3.24s artifact load excluded)
+peak_device_bytes: 1906013306 (1.775 GiB, driver peak reset before the run)
+notes: the upstream family refusal ("training dispatch unsupported for
+qwen3_5_hybrid", every reference era) is closed by overgo-only machinery --
+the reference has no Qwen3.5 training oracle, so this is capability
+evidence, not parity. Layer-0 organ scope: full-stack hybrid training is
+the named growth path. Qwen3.5-9B-Q8 stays refused: its Q8 serving
+artifact needs the master-weight lane (the Bonsai-class closure route).

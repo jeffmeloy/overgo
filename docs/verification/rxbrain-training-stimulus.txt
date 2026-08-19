@@ -1,0 +1,14 @@
+overgo latent-bridge training stimulus declaration
+generator: xorshift32 (x ^= x<<13; x ^= x>>17; x ^= x<<5), seed 88675123
+draw: hidden rows (rows*2048 values, scaled 0.5), values mapped as
+(seed mod 2000)/1000 - 1; the z/target draws of the shared stimulus()
+are unused by the bridge objective (flow_dim argument 1)
+rows: 8; hidden: 2048; latent bottleneck: 64
+objective: bridge reconstruction -- vae2llm(llm2vae(h)) recovering h
+through the rank-64 bottleneck, the projection pair's own shipped
+contract (they initialize as approximate inverses; measured initial
+reconstruction MSE 0.0846 on unit-variance stimulus versus ~1.0 for a
+random pair confirms it)
+consumer: cmd/flow-organ-train-probe -organ latent-bridge, which embeds
+the same constants; this document is the committed dataset declaration
+the RxBrain latent-bridge training claim grounds as its shard.

@@ -1,0 +1,23 @@
+{
+ "model": "model:sha256:ba47709594bce75a20ea3c669353ac352ea1affbc0d5798d71a1fbabe491cd1a",
+ "name": "SenseNova-U1-8B-MoT",
+ "evidence_files": [
+  "docs/verification/sensenova-training-run.txt"
+ ],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "3ecc7cf15b069fdda75c75a79efb08f9db7d0359",
+   "span_steps": 3,
+   "wall_ns": 2018000000,
+   "evidence": [
+    "evidence:sha256:e47402a256458e6a5c3f33d5c0a9a7f90a92cdc9cc83b7336db2f64fae3e5534"
+   ],
+   "dataset": "dataset-shard:sha256:f8db241ab39eb3e87c4cd519eb53d096f478fe0f7a4795d7bf1be378990e0402"
+  }
+ ],
+ "dataset_files": [
+  "docs/verification/sensenova-training-stimulus.txt"
+ ]
+}

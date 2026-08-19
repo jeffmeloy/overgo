@@ -1,0 +1,9 @@
+overgo flow-organ training stimulus declaration
+generator: xorshift32 (x ^= x<<13; x ^= x>>17; x ^= x<<5), seed 88675123
+draw order: hidden rows first (rows*4096 values, scaled 0.5), then per
+flow element interleaved z (scaled 0.2) and target (unit scale), values
+mapped as (seed mod 2000)/1000 - 1
+rows: 8; hidden: 4096; flow_dim: 3072; timestep: 0.25
+consumer: cmd/flow-organ-train-probe stimulus(), which embeds the same
+constants; this document is the committed dataset declaration the
+SenseNova fm_head organ training claim grounds as its shard.

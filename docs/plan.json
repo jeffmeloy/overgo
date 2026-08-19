@@ -1,20 +1,5 @@
 {
   "campaign": "Constrained RSI bootstrap: verified substrate, experiment plane, and automatic composition",
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; queue order is binding; plan complete means campaign complete. Generic authority beside retained specialized runtime is failure, not progress. Every migration must move all production callers and delete displaced orchestration, wrappers, fallbacks, compatibility paths, duplicate probes, and parallel authorities in the same gated wave. New shared code must replace existing ownership immediately. Verify numerical behavior, Live Edit behavior where applicable, code reduction, allocations, transfers, peak memory, and processing cost before completion. After every gated step, merge current master into this worktree before starting the next step.",
-  "items": [
-    {
-      "id": "sealed-external-authority",
-      "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
-          "status": "open",
-          "verify": "OVERGO_SEALED_AUTHORITY_TEST=1 go test ./internal/testevidence ./internal/protection -run '^TestCandidatePrincipalCannotWriteSealedAuthority$' -count=1 -v",
-          "rationale": "Owner directive 2026-08-17: host sealing moved to the campaign end -- autonomous workers do not run yet, so the second OS principal and the sealing machinery arrive together when Phase C makes them load-bearing. Prior fixture-level machinery was backed out rather than committed unconsumed. NOTE 2026-08-19: the tightening merge (dca630c8) landed sealed promotion authority behind a service identity (cmd/sealed-authority, internal/protection sealed lanes). Remaining scope narrows to: goldens and evaluator definitions and champion aliases covered by the sealed identity, and external provenance required for golden changes. Related parked finding evidence 210b06ea (tightening worktree CRLF checkout baked CRLF-derived fixture hashes into tests) is exactly the goldens-integrity failure mode this row exists to prevent."
-        }
-      ]
-    }
-  ]
+  "items": []
 }

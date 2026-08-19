@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"overgo/internal/artifact"
@@ -80,13 +81,6 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if request.Host && request.FreezeLexical {
 		return Result{}, errors.New("training workflow: host and frozen lexical execution are incompatible")
 	}
-	if request.ReferenceDirectory == "" && request.DPOScale != 0 {
-		return Result{}, errors.New("training workflow: DPO scale requires reference model")
-	}
-	if request.ReferenceDirectory != "" && (request.DPOScale <= 0 || request.FreezeLexical) {
-		return Result{}, errors.New("training workflow: reference requires positive DPO scale and trainable lexical weights")
-	}
-
 	inputDirectory := request.ModelDirectory
 	var resumed trainingprogram.Checkpoint
 	var resumeStream *trainingdata.StreamState
@@ -114,12 +108,16 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if runtime.Definition().ID != request.Recipe {
 		return Result{}, errors.New("training workflow: active recipe differs")
 	}
-	objective := trainingprogram.ObjectiveTokenPrediction
-	if request.ReferenceDirectory != "" {
-		objective = trainingprogram.ObjectiveDPO
-	}
-	if err := ValidateProgram(runtime, objective); err != nil {
+	objective, err := programObjective(runtime)
+	if err != nil {
 		return Result{}, err
+	}
+	if objective == trainingprogram.ObjectiveDPO &&
+		(request.ReferenceDirectory == "" || request.DPOScale <= 0 || request.FreezeLexical) {
+		return Result{}, errors.New("training workflow: DPO recipe requires reference, positive scale, and trainable lexical weights")
+	}
+	if objective != trainingprogram.ObjectiveDPO && (request.ReferenceDirectory != "" || request.DPOScale != 0) {
+		return Result{}, errors.New("training workflow: token recipe rejects DPO inputs")
 	}
 	model, err := densecausal.Load(inputDirectory)
 	if err != nil {
@@ -133,96 +131,122 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: read dataset: %w", err)
 	}
-	if request.ReferenceDirectory != "" {
-		return executeDPO(ctx, request, runtime, inputDirectory, model, tokenizer.Encode, raw, resumed, resumeStream)
-	}
-	return executeTokenPrediction(ctx, request, runtime, inputDirectory, model, tokenizer.Encode, raw, resumed, resumeStream)
+	return denseSession{
+		ctx: ctx, request: request, runtime: runtime, objective: objective,
+		inputDirectory: inputDirectory, model: model, encode: tokenizer.Encode, raw: raw,
+		resumed: resumed, resumeStream: resumeStream,
+	}.run()
 }
 
-func executeTokenPrediction(
-	ctx context.Context,
-	request Request,
-	runtime recipe.Program,
-	inputDirectory string,
-	model *densecausal.Model,
-	encode func(string) ([]int, error),
-	raw []byte,
-	resumed trainingprogram.Checkpoint,
-	resumeStream *trainingdata.StreamState,
-) (Result, error) {
-	batches, stream, data, err := tokenBatchesResume(ctx, raw, request.Steps, request.MaximumSequence, encode, resumeStream)
+type denseSession struct {
+	ctx            context.Context
+	request        Request
+	runtime        recipe.Program
+	objective      trainingprogram.ObjectiveKind
+	inputDirectory string
+	model          *densecausal.Model
+	encode         func(string) ([]int, error)
+	raw            []byte
+	resumed        trainingprogram.Checkpoint
+	resumeStream   *trainingdata.StreamState
+}
+
+type densePrepared struct {
+	data       batchAuthority
+	stream     trainingdata.StreamState
+	preference *trainingprogram.PreferencePolicy
+	reference  *densecausal.Model
+	tokens     [][]int
+	pairs      []trainingdata.PreferenceBatch
+}
+
+func (session denseSession) run() (Result, error) {
+	prepared, err := session.prepare()
 	if err != nil {
 		return Result{}, err
 	}
-	authority, err := compileAuthority(ctx, request.Repository, runtime, model, inputDirectory, data, stream, request.LearningRate, resumed, trainingprogram.ObjectiveTokenPrediction, nil)
+	authority, err := compileAuthority(
+		session.ctx, session.request.Repository, session.runtime, session.model, session.inputDirectory,
+		prepared.data, prepared.stream, session.request.LearningRate, session.resumed,
+		session.objective, prepared.preference,
+	)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: compile authority: %w", err)
 	}
+	result, state, err := session.execute(prepared)
+	if err != nil {
+		return Result{}, err
+	}
+	result.Checkpoint, err = publishCheckpoint(
+		session.inputDirectory, session.request.OutputDirectory, session.model, authority, state,
+	)
+	return result, err
+}
+
+func (session denseSession) prepare() (densePrepared, error) {
+	if session.objective == trainingprogram.ObjectiveTokenPrediction {
+		batches, stream, data, err := tokenBatchesResume(
+			session.ctx, session.raw, session.request.Steps, session.request.MaximumSequence,
+			session.encode, session.resumeStream,
+		)
+		return densePrepared{data: data, stream: stream, tokens: batches}, err
+	}
+	reference, err := densecausal.Load(session.request.ReferenceDirectory)
+	if err != nil {
+		return densePrepared{}, fmt.Errorf("training workflow: load reference: %w", err)
+	}
+	batches, stream, data, err := preferenceBatchesResume(
+		session.ctx, session.raw, session.request.Steps, session.encode, session.resumeStream,
+	)
+	if err != nil {
+		return densePrepared{}, err
+	}
+	referenceID, err := identifyModel(session.request.ReferenceDirectory)
+	if err != nil {
+		return densePrepared{}, fmt.Errorf("training workflow: identify reference: %w", err)
+	}
+	return densePrepared{
+		data: data, stream: stream, reference: reference, pairs: batches,
+		preference: &trainingprogram.PreferencePolicy{Reference: referenceID, Scale: session.request.DPOScale},
+	}, nil
+}
+
+func (session denseSession) execute(prepared densePrepared) (Result, densecausal.TrainState, error) {
+	if session.objective == trainingprogram.ObjectiveDPO {
+		var resume *densecausal.DPOState
+		if session.resumed.ID().Valid() {
+			resume = &densecausal.DPOState{Optimizer: session.resumed.Optimizer, Stream: *session.resumeStream}
+		}
+		observations, state, err := session.model.TrainDPOBatchesResume(
+			prepared.reference, prepared.pairs, session.request.LearningRate, session.request.Momentum,
+			session.request.DPOScale, resume, session.request.ObserveDPO,
+		)
+		return Result{
+			Backend: "host", Objective: session.objective, DPO: observations,
+			StreamPosition: state.Stream.Position,
+		}, state.Optimizer, err
+	}
 	var resume *densecausal.TrainState
-	if resumed.ID().Valid() {
-		state := densecausal.TrainState(resumed.Optimizer)
+	if session.resumed.ID().Valid() {
+		state := densecausal.TrainState(session.resumed.Optimizer)
 		resume = &state
 	}
 	lane := "cuda-resident"
-	if request.Host {
+	if session.request.Host {
 		lane = "host-reference"
 	}
-	if request.Progress != nil {
-		fmt.Fprintf(request.Progress, "lane %s: %d steps, %d batches, frozen_lexical=%t\n",
-			lane, request.Steps, len(batches), request.FreezeLexical)
+	if session.request.Progress != nil {
+		fmt.Fprintf(session.request.Progress, "lane %s: %d steps, %d batches, frozen_lexical=%t\n",
+			lane, session.request.Steps, len(prepared.tokens), session.request.FreezeLexical)
 	}
-	losses, backend, state, err := runTrainingState(model, batches, request.LearningRate, request.Momentum, !request.Host, request.FreezeLexical, resume, stepGuard(request, lane))
-	if err != nil {
-		return Result{}, fmt.Errorf("training workflow: train: %w", err)
-	}
-	checkpoint, err := publishCheckpoint(inputDirectory, request.OutputDirectory, model, authority, state)
-	if err != nil {
-		return Result{}, err
-	}
-	return Result{Backend: backend, Objective: trainingprogram.ObjectiveTokenPrediction, Losses: losses, StreamPosition: stream.Position, Checkpoint: checkpoint}, nil
-}
-
-func executeDPO(
-	ctx context.Context,
-	request Request,
-	runtime recipe.Program,
-	inputDirectory string,
-	model *densecausal.Model,
-	encode func(string) ([]int, error),
-	raw []byte,
-	resumed trainingprogram.Checkpoint,
-	resumeStream *trainingdata.StreamState,
-) (Result, error) {
-	reference, err := densecausal.Load(request.ReferenceDirectory)
-	if err != nil {
-		return Result{}, fmt.Errorf("training workflow: load reference: %w", err)
-	}
-	batches, stream, data, err := preferenceBatchesResume(ctx, raw, request.Steps, encode, resumeStream)
-	if err != nil {
-		return Result{}, err
-	}
-	referenceID, err := identifyModel(request.ReferenceDirectory)
-	if err != nil {
-		return Result{}, fmt.Errorf("training workflow: identify reference: %w", err)
-	}
-	preference := &trainingprogram.PreferencePolicy{Reference: referenceID, Scale: request.DPOScale}
-	authority, err := compileAuthority(ctx, request.Repository, runtime, model, inputDirectory, data, stream, request.LearningRate, resumed, trainingprogram.ObjectiveDPO, preference)
-	if err != nil {
-		return Result{}, fmt.Errorf("training workflow: compile DPO authority: %w", err)
-	}
-	var resume *densecausal.DPOState
-	if resumed.ID().Valid() {
-		resume = &densecausal.DPOState{Optimizer: resumed.Optimizer, Stream: *resumeStream}
-	}
-	observations, state, err := model.TrainDPOBatchesResume(reference, batches, request.LearningRate, request.Momentum, request.DPOScale, resume, request.ObserveDPO)
-	if err != nil {
-		return Result{}, fmt.Errorf("training workflow: DPO train: %w", err)
-	}
-	checkpoint, err := publishCheckpoint(inputDirectory, request.OutputDirectory, model, authority, state.Optimizer)
-	if err != nil {
-		return Result{}, err
-	}
-	return Result{Backend: "host", Objective: trainingprogram.ObjectiveDPO, DPO: observations, StreamPosition: state.Stream.Position, Checkpoint: checkpoint}, nil
+	losses, backend, state, err := runTrainingState(
+		session.model, prepared.tokens, session.request.LearningRate, session.request.Momentum,
+		!session.request.Host, session.request.FreezeLexical, resume, stepGuard(session.request, lane),
+	)
+	return Result{
+		Backend: backend, Objective: session.objective, Losses: losses,
+		StreamPosition: prepared.stream.Position,
+	}, state, err
 }
 
 func publishCheckpoint(source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState) (trainingprogram.Checkpoint, error) {
@@ -246,10 +270,7 @@ func publishCheckpoint(source, target string, model *densecausal.Model, authorit
 func identifyModel(directory string) (artifact.ID, error) {
 	path := filepath.Join(directory, trainingprogram.CheckpointWeights)
 	if _, err := os.Stat(path); err != nil {
-		// Sharded checkpoints name their weights model-NNNNN-of-MMMMM; a
-		// single shard is the same bytes under the sharded convention, so it
-		// identifies directly. Multi-shard identity needs a manifest and is
-		// refused rather than guessed.
+		// Single shard: direct identity. Multi-shard: manifest required.
 		shards, globErr := filepath.Glob(filepath.Join(directory, "model-*-of-*.safetensors"))
 		if globErr != nil || len(shards) == 0 {
 			return artifact.ID{}, err
@@ -377,20 +398,29 @@ func compileAuthority(
 }
 
 func ValidateProgram(program recipe.Program, objective trainingprogram.ObjectiveKind) error {
-	want := tokenModules
-	if objective == trainingprogram.ObjectiveDPO {
-		want = dpoModules
+	actual, err := programObjective(program)
+	if err != nil {
+		return err
 	}
-	stages := program.Stages()
-	if len(stages) != len(want) {
-		return fmt.Errorf("training workflow: active recipe has %d stages, want %d for %s", len(stages), len(want), objective)
-	}
-	for index, stage := range stages {
-		if stage.Module.ID != want[index] {
-			return fmt.Errorf("training workflow: active recipe stage %d is %q, want %q", index, stage.Module.ID, want[index])
-		}
+	if actual != objective {
+		return fmt.Errorf("training workflow: active recipe objective is %s, want %s", actual, objective)
 	}
 	return nil
+}
+
+func programObjective(program recipe.Program) (trainingprogram.ObjectiveKind, error) {
+	stages := program.Stages()
+	modules := make([]recipe.ModuleID, len(stages))
+	for index, stage := range stages {
+		modules[index] = stage.Module.ID
+	}
+	if slices.Equal(modules, tokenModules) {
+		return trainingprogram.ObjectiveTokenPrediction, nil
+	}
+	if slices.Equal(modules, dpoModules) {
+		return trainingprogram.ObjectiveDPO, nil
+	}
+	return "", errors.New("training workflow: active recipe has no supported dense objective")
 }
 
 func (authority compiledAuthority) checkpointSpec(state densecausal.TrainState) (trainingprogram.CheckpointSpec, error) {

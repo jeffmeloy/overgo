@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "dense-session",
-          "title": "Move dense token and DPO execution behind the shared recipe-selected training session lifecycle; delete direct dense workflow branches and ownership",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -run ^TestRecipeSessionOwnsDenseTokenAndDPOExecution$ -count=1"
-        },
-        {
           "id": "derived-sessions",
           "title": "Migrate seq2seq, speech, forecasting, tabular, and diffusion training to the shared session lifecycle; delete displaced local checkpoint, observer, and execution plumbing",
           "status": "open",

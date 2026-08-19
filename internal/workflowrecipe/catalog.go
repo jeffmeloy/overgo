@@ -26,6 +26,8 @@ const (
 	ModuleScorePolicy     recipe.ModuleID = "training.score-policy"
 	ModuleScoreReference  recipe.ModuleID = "training.score-reference"
 	ModuleDPOObjective    recipe.ModuleID = "training.dpo"
+	ModuleBatchRollout    recipe.ModuleID = "training.batch-rollout"
+	ModuleGRPOObjective   recipe.ModuleID = "training.grpo"
 )
 
 var catalog = mustCatalog()
@@ -88,11 +90,22 @@ func mustCatalog() *recipe.Catalog {
 			ports(port("checkpoint", recipe.DataCheckpoint, recipe.CardinalityOne))),
 	}
 	modules = append(modules, preferenceModules()...)
+	modules = append(modules, rolloutModules()...)
 	catalog, err := recipe.NewCatalog(modules...)
 	if err != nil {
 		panic(err)
 	}
 	return catalog
+}
+
+func rolloutModules() []recipe.Module {
+	return []recipe.Module{
+		module(ModuleBatchRollout, tasks(recipe.TaskTraining), nil,
+			ports(port("batch", recipe.DataPreferenceBatch, recipe.CardinalityOne))),
+		module(ModuleGRPOObjective, tasks(recipe.TaskTraining),
+			ports(port("policy", recipe.DataSequenceScores, recipe.CardinalityOne)),
+			ports(port("loss", recipe.DataLoss, recipe.CardinalityOne))),
+	}
 }
 
 func preferenceModules() []recipe.Module {

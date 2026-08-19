@@ -21,9 +21,10 @@ import (
 )
 
 type TrainingWorkspace struct {
-	store   artifact.Repository
-	roots   dataroot.Roots
-	program recipe.Program
+	store     artifact.Repository
+	roots     dataroot.Roots
+	program   recipe.Program
+	objective trainingprogram.ObjectiveKind
 }
 
 func NewTrainingWorkspace(ctx context.Context, store artifact.Repository, roots dataroot.Roots, model artifact.ID) (*TrainingWorkspace, error) {
@@ -34,10 +35,14 @@ func NewTrainingWorkspace(ctx context.Context, store artifact.Repository, roots 
 	if err != nil {
 		return nil, err
 	}
-	if err := trainingworkflow.ValidateProgram(program, trainingprogram.ObjectiveDPO); err != nil {
+	objective, err := trainingworkflow.ProgramObjective(program)
+	if err != nil {
 		return nil, err
 	}
-	return &TrainingWorkspace{store: store, roots: roots, program: program}, nil
+	if objective != trainingprogram.ObjectiveDPO && objective != trainingprogram.ObjectiveGRPO {
+		return nil, errors.New("training workspace: active recipe is not an RL objective")
+	}
+	return &TrainingWorkspace{store: store, roots: roots, program: program, objective: objective}, nil
 }
 
 func (workspace *TrainingWorkspace) WorkflowCapabilities(_ context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
@@ -55,26 +60,26 @@ func (workspace *TrainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 			{Name: "steps", Type: WorkflowControlInteger, Required: true},
 			{Name: "learning_rate", Type: WorkflowControlNumber, Required: true},
 			{Name: "momentum", Type: WorkflowControlNumber, Required: true},
-			{Name: "dpo_scale", Type: WorkflowControlNumber, Required: true},
+			{Name: "objective_scale", Type: WorkflowControlNumber, Required: true},
 		},
 	}}, nil
 }
 
-type dpoWorkflowInput struct {
-	Dataset      artifact.ID `json:"dataset"`
-	Resume       artifact.ID `json:"resume,omitempty"`
-	Output       string      `json:"output"`
-	Steps        int         `json:"steps"`
-	LearningRate float64     `json:"learning_rate"`
-	Momentum     float64     `json:"momentum"`
-	DPOScale     float64     `json:"dpo_scale"`
+type trainingWorkflowInput struct {
+	Dataset        artifact.ID `json:"dataset"`
+	Resume         artifact.ID `json:"resume,omitempty"`
+	Output         string      `json:"output"`
+	Steps          int         `json:"steps"`
+	LearningRate   float64     `json:"learning_rate"`
+	Momentum       float64     `json:"momentum"`
+	ObjectiveScale float64     `json:"objective_scale"`
 }
 
 func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
 	if workspace == nil || ctx == nil || reporter == nil || kind != WorkflowTraining || task != recipe.TaskTraining || recipeID != workspace.program.Definition().ID {
 		return operation.Completion{}, errors.New("training workspace: workflow is not admitted")
 	}
-	var input dpoWorkflowInput
+	var input trainingWorkflowInput
 	if err := strictjson.DecodeBytes(raw, &input); err != nil {
 		return operation.Completion{}, err
 	}
@@ -83,24 +88,32 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	if !ok {
 		return operation.Completion{}, errors.New("training workspace: policy dependency absent")
 	}
-	reference, ok := definition.Dependency(recipe.DependencyModel, 1)
-	if !ok {
-		return operation.Completion{}, errors.New("training workspace: reference dependency absent")
-	}
 	policyDirectory, err := workspace.directory(ctx, policy)
 	if err != nil {
-		return workspace.fail(ctx, definition.ID, []artifact.ID{policy, reference, input.Dataset}, err)
+		return workspace.fail(ctx, definition.ID, []artifact.ID{policy, input.Dataset}, err)
 	}
-	referenceDirectory, err := workspace.directory(ctx, reference)
-	if err != nil {
-		return workspace.fail(ctx, definition.ID, []artifact.ID{policy, reference, input.Dataset}, err)
+	var reference artifact.ID
+	referenceDirectory := ""
+	if workspace.objective == trainingprogram.ObjectiveDPO {
+		reference, ok = definition.Dependency(recipe.DependencyModel, 1)
+		if !ok {
+			return operation.Completion{}, errors.New("training workspace: reference dependency absent")
+		}
+		referenceDirectory, err = workspace.directory(ctx, reference)
+		if err != nil {
+			return workspace.fail(ctx, definition.ID, []artifact.ID{policy, reference, input.Dataset}, err)
+		}
 	}
 	datasetPath, err := workspace.file(ctx, input.Dataset)
 	if err != nil {
-		return workspace.fail(ctx, definition.ID, []artifact.ID{policy, reference, input.Dataset}, err)
+		return workspace.fail(ctx, definition.ID, []artifact.ID{policy, input.Dataset}, err)
 	}
 	resumeDirectory := ""
-	inputs := []artifact.ID{policy, reference, input.Dataset}
+	inputs := []artifact.ID{policy}
+	if reference.Valid() {
+		inputs = append(inputs, reference)
+	}
+	inputs = append(inputs, input.Dataset)
 	if input.Resume.Valid() {
 		resumeDirectory, err = workspace.directory(ctx, input.Resume)
 		if err != nil {
@@ -115,26 +128,34 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	total := uint64(input.Steps)
 	reporter.Progress(0, &total)
 	var completed uint64
-	observations := make([]trainingprogram.DPOObservation, 0, input.Steps)
+	dpo := make([]trainingprogram.DPOObservation, 0, input.Steps)
+	grpo := make([]trainingprogram.GRPOObservation, 0, input.Steps)
 	result, executeErr := trainingworkflow.Execute(ctx, trainingworkflow.Request{
 		Repository:     workspace.store,
 		Recipe:         recipeID,
 		ModelDirectory: policyDirectory, ReferenceDirectory: referenceDirectory,
 		DatasetPath: datasetPath, OutputDirectory: output, ResumeDirectory: resumeDirectory,
 		Steps: input.Steps, LearningRate: input.LearningRate, Momentum: input.Momentum,
-		DPOScale: input.DPOScale, Host: true,
+		ObjectiveScale: input.ObjectiveScale, Host: true,
 		ObserveDPO: func(observation trainingprogram.DPOObservation) {
-			observations = append(observations, observation)
+			dpo = append(dpo, observation)
 			completed++
 			reporter.Progress(completed, &total)
 			reportDPO(reporter, observation)
+		},
+		ObserveGRPO: func(observation trainingprogram.GRPOObservation) {
+			grpo = append(grpo, observation)
+			completed++
+			reporter.Progress(completed, &total)
+			reportGRPO(reporter, observation)
 		},
 	})
 	if executeErr != nil {
 		return workspace.fail(ctx, definition.ID, inputs, executeErr)
 	}
 	reporter.Publishing()
-	return workspace.publish(ctx, definition.ID, inputs, result.Checkpoint, output, observations)
+	return workspace.publish(ctx, definition.ID, inputs, policy, reference, input.Dataset,
+		result.Checkpoint, output, dpo, grpo)
 }
 
 func (workspace *TrainingWorkspace) directory(ctx context.Context, id artifact.ID) (string, error) {
@@ -182,7 +203,7 @@ func (workspace *TrainingWorkspace) outputPath(name string) (string, error) {
 	return filepath.Join(workspace.roots.Checkpoints, name), nil
 }
 
-func (workspace *TrainingWorkspace) publish(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, checkpoint trainingprogram.Checkpoint, path string, observations []trainingprogram.DPOObservation) (operation.Completion, error) {
+func (workspace *TrainingWorkspace) publish(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, policy, reference, dataset artifact.ID, checkpoint trainingprogram.Checkpoint, path string, dpo []trainingprogram.DPOObservation, grpo []trainingprogram.GRPOObservation) (operation.Completion, error) {
 	data, err := checkpoint.Marshal()
 	if err != nil {
 		return operation.Completion{}, err
@@ -196,7 +217,15 @@ func (workspace *TrainingWorkspace) publish(ctx context.Context, recipeID artifa
 		return operation.Completion{}, err
 	}
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: checkpoint.ID(), Size: uint64(len(data))})
-	trace, err := runrecord.NewDPOTrace(run.ID, recipeID, inputs[2], inputs[0], inputs[1], observations)
+	evaluators := make([]artifact.ID, 0)
+	seen := make(map[artifact.ID]struct{})
+	for _, observation := range grpo {
+		if _, ok := seen[observation.Evaluator]; !ok {
+			seen[observation.Evaluator] = struct{}{}
+			evaluators = append(evaluators, observation.Evaluator)
+		}
+	}
+	trace, err := runrecord.NewTrainingTrace(run.ID, recipeID, dataset, policy, reference, evaluators, dpo, grpo)
 	if err != nil {
 		return operation.Completion{}, err
 	}
@@ -204,8 +233,17 @@ func (workspace *TrainingWorkspace) publish(ctx context.Context, recipeID artifa
 	if err != nil {
 		return operation.Completion{}, err
 	}
-	batch.Contents = append(batch.Contents, traceContent)
+	decision, err := runrecord.NewTrainingDecision(run.ID, recipeID, policy, checkpoint.ID(), trace.ID)
+	if err != nil {
+		return operation.Completion{}, err
+	}
+	decisionContent, err := decision.Content()
+	if err != nil {
+		return operation.Completion{}, err
+	}
+	batch.Contents = append(batch.Contents, traceContent, decisionContent)
 	batch.Lineage = append(batch.Lineage, trace.Lineage()...)
+	batch.Lineage = append(batch.Lineage, decision.Lineage()...)
 	batch.Locations = append(batch.Locations, artifact.LocationEvent{
 		Location: artifact.Location{Artifact: checkpoint.ID(), Kind: artifact.LocationDirectory, Value: path},
 		Action:   artifact.LocationAdd,
@@ -213,7 +251,22 @@ func (workspace *TrainingWorkspace) publish(ctx context.Context, recipeID artifa
 	if _, err := artifact.CommitBatch(ctx, workspace.store, batch); err != nil {
 		return operation.Completion{}, err
 	}
-	return operation.Completion{Run: run.ID, Outputs: []artifact.ID{checkpoint.ID(), trace.ID}}, nil
+	return operation.Completion{Run: run.ID, Outputs: []artifact.ID{checkpoint.ID(), trace.ID, decision.ID}}, nil
+}
+
+func reportGRPO(reporter operation.Reporter, observation trainingprogram.GRPOObservation) {
+	for _, metric := range []operation.Metric{
+		{Name: "grpo_loss", Value: observation.Loss},
+		{Name: "mean_reward", Value: observation.MeanReward},
+		{Name: "reward_dispersion", Value: observation.RewardDispersion},
+		{Name: "group_size", Value: float64(observation.GroupSize), Unit: "rollouts"},
+		{Name: "completion_tokens", Value: float64(observation.CompletionTokens), Unit: "tokens"},
+		{Name: "learning_rate", Value: observation.LearningRate},
+		{Name: "gradient_l2", Value: observation.GradientL2},
+		{Name: "update_l2", Value: observation.UpdateL2},
+	} {
+		reporter.Metric(metric)
+	}
 }
 
 func reportDPO(reporter operation.Reporter, observation trainingprogram.DPOObservation) {

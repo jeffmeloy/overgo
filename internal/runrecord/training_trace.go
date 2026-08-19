@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	trainingTraceVersion   uint16 = 1
+	trainingTraceVersion   uint16 = 2
 	trainingTraceMediaType        = "application/vnd.overgo.training-trace+json"
-	trainingTraceSchema           = "overgo/training-trace/v1"
+	trainingTraceSchema           = "overgo/training-trace/v2"
 )
 
 var trainingTraceCodec = artifact.DocumentCodec[TrainingTrace]{
@@ -28,19 +28,30 @@ var trainingTraceCodec = artifact.DocumentCodec[TrainingTrace]{
 		}
 		*value = TrainingTrace{
 			Version: body.Version, Run: body.Run, Recipe: body.Recipe, Dataset: body.Dataset,
-			Policy: body.Policy, Reference: body.Reference, Observations: body.Observations,
+			Objective: body.Objective, Policy: body.Policy,
+			Evaluators: body.Evaluators, DPO: body.DPO, GRPO: body.GRPO,
+		}
+		if body.Reference != nil {
+			value.Reference = *body.Reference
 		}
 		return nil
 	},
 	Encode: func(value TrainingTrace) ([]byte, error) {
+		var reference *artifact.ID
+		if value.Reference.Valid() {
+			reference = &value.Reference
+		}
 		return json.Marshal(trainingTraceBody{
 			Version: value.Version, Run: value.Run, Recipe: value.Recipe, Dataset: value.Dataset,
-			Policy: value.Policy, Reference: value.Reference, Observations: value.Observations,
+			Objective: value.Objective, Policy: value.Policy, Reference: reference,
+			Evaluators: value.Evaluators, DPO: value.DPO, GRPO: value.GRPO,
 		})
 	},
 	Canonicalize: canonicalizeTrainingTrace,
 	Clone: func(value TrainingTrace) TrainingTrace {
-		value.Observations = slices.Clone(value.Observations)
+		value.Evaluators = slices.Clone(value.Evaluators)
+		value.DPO = slices.Clone(value.DPO)
+		value.GRPO = slices.Clone(value.GRPO)
 		return value
 	},
 	Identity:    func(value TrainingTrace) artifact.ID { return value.ID },
@@ -48,30 +59,41 @@ var trainingTraceCodec = artifact.DocumentCodec[TrainingTrace]{
 }
 
 type TrainingTrace struct {
-	Version      uint16
-	ID           artifact.ID
-	Run          artifact.ID
-	Recipe       artifact.ID
-	Dataset      artifact.ID
-	Policy       artifact.ID
-	Reference    artifact.ID
-	Observations []trainingprogram.DPOObservation
+	Version    uint16
+	ID         artifact.ID
+	Run        artifact.ID
+	Recipe     artifact.ID
+	Dataset    artifact.ID
+	Objective  trainingprogram.ObjectiveKind
+	Policy     artifact.ID
+	Reference  artifact.ID
+	Evaluators []artifact.ID
+	DPO        []trainingprogram.DPOObservation
+	GRPO       []trainingprogram.GRPOObservation
 }
 
 type trainingTraceBody struct {
-	Version      uint16                           `json:"version"`
-	Run          artifact.ID                      `json:"run"`
-	Recipe       artifact.ID                      `json:"recipe"`
-	Dataset      artifact.ID                      `json:"dataset"`
-	Policy       artifact.ID                      `json:"policy"`
-	Reference    artifact.ID                      `json:"reference"`
-	Observations []trainingprogram.DPOObservation `json:"observations"`
+	Version    uint16                            `json:"version"`
+	Run        artifact.ID                       `json:"run"`
+	Recipe     artifact.ID                       `json:"recipe"`
+	Dataset    artifact.ID                       `json:"dataset"`
+	Objective  trainingprogram.ObjectiveKind     `json:"objective"`
+	Policy     artifact.ID                       `json:"policy"`
+	Reference  *artifact.ID                      `json:"reference,omitempty"`
+	Evaluators []artifact.ID                     `json:"evaluators,omitempty"`
+	DPO        []trainingprogram.DPOObservation  `json:"dpo,omitempty"`
+	GRPO       []trainingprogram.GRPOObservation `json:"grpo,omitempty"`
 }
 
-func NewDPOTrace(run, recipeID, dataset, policy, reference artifact.ID, observations []trainingprogram.DPOObservation) (TrainingTrace, error) {
+func NewTrainingTrace(run, recipeID, dataset, policy, reference artifact.ID, evaluators []artifact.ID, dpo []trainingprogram.DPOObservation, grpo []trainingprogram.GRPOObservation) (TrainingTrace, error) {
+	objective := trainingprogram.ObjectiveDPO
+	if len(grpo) > 0 {
+		objective = trainingprogram.ObjectiveGRPO
+	}
 	return trainingTraceCodec.New(TrainingTrace{
 		Version: trainingTraceVersion, Run: run, Recipe: recipeID, Dataset: dataset,
-		Policy: policy, Reference: reference, Observations: slices.Clone(observations),
+		Objective: objective, Policy: policy, Reference: reference, Evaluators: slices.Clone(evaluators),
+		DPO: slices.Clone(dpo), GRPO: slices.Clone(grpo),
 	})
 }
 
@@ -80,28 +102,63 @@ func (trace TrainingTrace) Content() (artifact.Content, error) {
 }
 
 func (trace TrainingTrace) Lineage() []artifact.Lineage {
-	return []artifact.Lineage{
+	lineage := []artifact.Lineage{
 		{Child: trace.ID, Parent: trace.Run, Relation: artifact.RelationProducedBy},
 		{Child: trace.ID, Parent: trace.Recipe, Relation: artifact.RelationDependsOn},
 		{Child: trace.ID, Parent: trace.Dataset, Relation: artifact.RelationDependsOn},
 		{Child: trace.ID, Parent: trace.Policy, Relation: artifact.RelationDependsOn},
-		{Child: trace.ID, Parent: trace.Reference, Relation: artifact.RelationDependsOn},
 	}
+	for _, parent := range append([]artifact.ID{trace.Reference}, trace.Evaluators...) {
+		if parent.Valid() {
+			lineage = append(lineage, artifact.Lineage{Child: trace.ID, Parent: parent, Relation: artifact.RelationDependsOn})
+		}
+	}
+	return lineage
 }
 
 func canonicalizeTrainingTrace(trace *TrainingTrace) error {
 	if trace == nil || trace.Version != trainingTraceVersion || trace.Run.Kind() != artifact.KindRun ||
 		trace.Recipe.Kind() != artifact.KindRecipe || trace.Dataset.Kind() != artifact.KindDataset ||
-		trace.Policy.Kind() != artifact.KindModel || trace.Reference.Kind() != artifact.KindModel ||
-		trace.Policy == trace.Reference || len(trace.Observations) == 0 {
+		trace.Policy.Kind() != artifact.KindModel {
 		return errors.New("training trace: invalid authority")
 	}
 	var prior uint64
-	for _, observation := range trace.Observations {
-		if !observation.Valid() || observation.Step <= prior {
-			return errors.New("training trace: invalid or unordered observation")
+	switch trace.Objective {
+	case trainingprogram.ObjectiveDPO:
+		if trace.Reference.Kind() != artifact.KindModel || trace.Policy == trace.Reference || len(trace.DPO) == 0 || len(trace.GRPO) != 0 || len(trace.Evaluators) != 0 {
+			return errors.New("training trace: invalid DPO authority")
 		}
-		prior = observation.Step
+		for _, observation := range trace.DPO {
+			if !observation.Valid() || observation.Step <= prior {
+				return errors.New("training trace: invalid or unordered DPO observation")
+			}
+			prior = observation.Step
+		}
+	case trainingprogram.ObjectiveGRPO:
+		if trace.Reference.Valid() || len(trace.DPO) != 0 || len(trace.GRPO) == 0 || len(trace.Evaluators) == 0 {
+			return errors.New("training trace: invalid GRPO authority")
+		}
+		evaluatorSet := make(map[artifact.ID]struct{}, len(trace.Evaluators))
+		for _, evaluator := range trace.Evaluators {
+			if evaluator.Kind() != artifact.KindEvidence {
+				return errors.New("training trace: invalid GRPO evaluator")
+			}
+			evaluatorSet[evaluator] = struct{}{}
+		}
+		if len(evaluatorSet) != len(trace.Evaluators) {
+			return errors.New("training trace: duplicate GRPO evaluator")
+		}
+		for _, observation := range trace.GRPO {
+			if !observation.Valid() || observation.Step <= prior {
+				return errors.New("training trace: invalid or unordered GRPO observation")
+			}
+			if _, ok := evaluatorSet[observation.Evaluator]; !ok {
+				return errors.New("training trace: GRPO observation evaluator differs")
+			}
+			prior = observation.Step
+		}
+	default:
+		return errors.New("training trace: invalid objective")
 	}
 	return nil
 }

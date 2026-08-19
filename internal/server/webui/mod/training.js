@@ -10,7 +10,7 @@
 
   async function readTrace(overgo, id) {
     const trace = await overgo.api.get("/artifacts/content?id=" + encodeURIComponent(id));
-    return trace && Array.isArray(trace.observations) ? trace : null;
+    return trace && (Array.isArray(trace.dpo) || Array.isArray(trace.grpo)) ? trace : null;
   }
 
   async function traceFromRun(overgo, run) {
@@ -65,37 +65,51 @@
 
   function renderTrace(overgo, host, record, comparison) {
     const { trace, id, checkpoint, run } = record;
-    const observations = trace.observations;
+    const observations = trace.objective === "grpo" ? trace.grpo : trace.dpo;
     const colors = ["var(--acc)", "var(--amber)", "var(--ok)"];
+    const objectiveBlocks = trace.objective === "grpo" ? [
+      seriesBlock(overgo, "GRPO loss", [{ label: "loss", values: observations.map((row) => row.loss), color: colors[0] }]),
+      seriesBlock(overgo, "Evaluator reward", [
+        { label: "mean", values: observations.map((row) => row.mean_reward), color: colors[0] },
+        { label: "dispersion", values: observations.map((row) => row.reward_dispersion), color: colors[1] },
+      ]),
+    ] : [
+      seriesBlock(overgo, "DPO loss", [{ label: "loss", values: observations.map((row) => row.loss), color: colors[0] }]),
+      seriesBlock(overgo, "Margin decomposition", [
+        { label: "policy", values: observations.map((row) => row.policy_margin), color: colors[0] },
+        { label: "reference", values: observations.map((row) => row.reference_margin), color: colors[1] },
+        { label: "relative", values: observations.map((row) => row.relative_margin), color: colors[2] },
+      ]),
+    ];
     host.replaceChildren(
       overgo.el("div", { class: "row artifact-links" },
         artifactLink(overgo, run || trace.run, "run " + overgo.fmt.shortID(run || trace.run)),
         checkpoint ? artifactLink(overgo, checkpoint, "checkpoint " + overgo.fmt.shortID(checkpoint)) : null,
         artifactLink(overgo, id, "trace " + overgo.fmt.shortID(id))),
       overgo.el("div", { class: "evidence-grid" },
-        seriesBlock(overgo, "DPO loss", [{ label: "loss", values: observations.map((row) => row.loss), color: colors[0] }]),
-        seriesBlock(overgo, "Margin decomposition", [
-          { label: "policy", values: observations.map((row) => row.policy_margin), color: colors[0] },
-          { label: "reference", values: observations.map((row) => row.reference_margin), color: colors[1] },
-          { label: "relative", values: observations.map((row) => row.relative_margin), color: colors[2] },
-        ]),
+        ...objectiveBlocks,
         seriesBlock(overgo, "Optimizer health / gradient L2", [
           { label: "gradient L2", values: observations.map((row) => row.gradient_l2), color: colors[0] }]),
         seriesBlock(overgo, "Optimizer health / update L2", [
           { label: "update L2", values: observations.map((row) => row.update_l2), color: colors[1] }]),
         seriesBlock(overgo, "Optimizer health / learning rate", [
           { label: "learning rate", values: observations.map((row) => row.learning_rate), color: colors[2] }])),
-      pairInspector(overgo, observations),
+      trace.objective === "dpo" ? pairInspector(overgo, observations) : null,
       comparison ? checkpointComparison(overgo, comparison, record) : null);
   }
 
   function checkpointComparison(overgo, baseline, current) {
-    const left = baseline.trace.observations.at(-1);
-    const right = current.trace.observations.at(-1);
+    if (baseline.trace.objective !== current.trace.objective) return null;
+    const rows = (trace) => trace.objective === "grpo" ? trace.grpo : trace.dpo;
+    const left = rows(baseline.trace).at(-1);
+    const right = rows(current.trace).at(-1);
     const table = overgo.el("table", { class: "grid" });
     table.appendChild(overgo.el("tr", {}, overgo.el("th", { text: "measurement" }),
       overgo.el("th", { text: "baseline" }), overgo.el("th", { text: "current" })));
-    for (const field of ["loss", "policy_margin", "reference_margin", "relative_margin", "gradient_l2", "update_l2"]) {
+    const fields = current.trace.objective === "grpo" ?
+      ["loss", "mean_reward", "reward_dispersion", "gradient_l2", "update_l2"] :
+      ["loss", "policy_margin", "reference_margin", "relative_margin", "gradient_l2", "update_l2"];
+    for (const field of fields) {
       table.appendChild(overgo.el("tr", {}, overgo.el("td", { text: field }),
         overgo.el("td", { class: "mono", text: String(left[field]) }),
         overgo.el("td", { class: "mono", text: String(right[field]) })));

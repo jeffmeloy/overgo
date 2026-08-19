@@ -136,13 +136,13 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 	}
 	input, err := json.Marshal(map[string]any{
 		"dataset": dataset, "output": "trained", "steps": 1,
-		"learning_rate": 0, "momentum": 0.9, "dpo_scale": 0.1,
+		"learning_rate": 0, "momentum": 0.9, "objective_scale": 0.1,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, recipe.TaskTraining, definition.ID, input, testReporter{})
-	if err != nil || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 2 ||
+	if err != nil || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 3 ||
 		completion.Outputs[0].Kind() != artifact.KindCheckpoint || completion.Outputs[1].Kind() != artifact.KindEvidence {
 		t.Fatalf("completion=%+v err=%v", completion, err)
 	}

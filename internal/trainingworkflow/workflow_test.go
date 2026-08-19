@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/densecausal"
+	"overgo/internal/hfbpe"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
@@ -52,6 +53,37 @@ func TestRecipeSessionOwnsDenseTokenAndDPOExecution(t *testing.T) {
 	t.Run("dpo-resume", testDPOResume)
 }
 
+func TestGRPOUsesSharedRecipeTrainingRuntime(t *testing.T) {
+	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
+		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 9,
+	})
+	root := t.TempDir()
+	model := filepath.Join(root, "model")
+	writeModel(t, model, weights, shapes)
+	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "group reward evaluator")
+	dataset := filepath.Join(root, "rollouts.jsonl")
+	rows := `{"id":"candidate-a","group":"prompt-a","prompt":"ab","completion":"c","reward":1,"evaluator":"` + evaluator.String() + `"}` + "\n" +
+		`{"id":"candidate-b","group":"prompt-a","prompt":"ab","completion":"d","reward":-1,"evaluator":"` + evaluator.String() + `"}` + "\n"
+	if err := os.WriteFile(dataset, []byte(rows), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveGRPO)
+	var observed []trainingprogram.GRPOObservation
+	result, err := Execute(context.Background(), Request{
+		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
+		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Host: true, Momentum: 0.9,
+		ObjectiveScale: 1, ObserveGRPO: func(value trainingprogram.GRPOObservation) { observed = append(observed, value) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Objective != trainingprogram.ObjectiveGRPO || result.Backend != "host" ||
+		result.Checkpoint.ID().Kind() != artifact.KindCheckpoint || len(observed) != 1 ||
+		observed[0].Evaluator != evaluator || observed[0].GroupSize != 2 || observed[0].RewardDispersion == 0 {
+		t.Fatalf("result=%+v observations=%+v", result, observed)
+	}
+}
+
 func testTokenSession(t *testing.T) {
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 5,
@@ -91,7 +123,7 @@ func testDPOResume(t *testing.T) {
 	request := Request{
 		Repository: store, Recipe: recipeID,
 		ModelDirectory: policy, ReferenceDirectory: reference, DatasetPath: dataset,
-		Steps: 2, LearningRate: 0, Momentum: 0.9, DPOScale: 0.1, Host: true,
+		Steps: 2, LearningRate: 0, Momentum: 0.9, ObjectiveScale: 0.1, Host: true,
 	}
 	request.OutputDirectory = filepath.Join(root, "uninterrupted")
 	want, err := Execute(context.Background(), request)
@@ -182,8 +214,21 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 	dataset, _ := artifact.IdentifyBytes(artifact.KindDataset, raw)
 	split, _ := artifact.IdentifyBytes(artifact.KindDatasetShard, append([]byte("all\x00"), raw...))
 	processorName := "text-utf8"
+	var evaluators []artifact.ID
 	if objectiveKind == trainingprogram.ObjectiveDPO {
 		processorName = "preference-token-pair"
+	} else if objectiveKind == trainingprogram.ObjectiveGRPO {
+		processorName = "grouped-rollout"
+		tokenizer, loadErr := hfbpe.Load(policyDirectory)
+		if loadErr != nil {
+			t.Fatal(loadErr)
+		}
+		groups, found, parseErr := parseRollouts(raw, tokenizer.Encode)
+		_ = groups
+		if parseErr != nil {
+			t.Fatal(parseErr)
+		}
+		evaluators = found
 	}
 	processor, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training/"+processorName+"/v1"))
 	profile := func(name string) artifact.ID { return testutil.ArtifactID(t, artifact.KindProfile, name) }
@@ -219,6 +264,7 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 	if reference.Valid() {
 		ids = append(ids, reference)
 	}
+	ids = append(ids, evaluators...)
 	descriptors := make([]artifact.Descriptor, len(ids))
 	for index, id := range ids {
 		descriptors[index] = artifact.Descriptor{ID: id}
@@ -231,6 +277,11 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 	if objectiveKind == trainingprogram.ObjectiveDPO {
 		dependencies = append(dependencies, recipe.Dependency{Role: recipe.DependencyModel, Slot: 1, Artifact: reference})
 		definition, err = dpoDefinition(dependencies)
+	} else if objectiveKind == trainingprogram.ObjectiveGRPO {
+		for index, evaluator := range evaluators {
+			dependencies = append(dependencies, recipe.Dependency{Role: recipe.DependencyEvaluator, Slot: uint32(index), Artifact: evaluator})
+		}
+		definition, err = grpoDefinition(dependencies)
 	} else {
 		definition, err = tokenDefinition(dependencies)
 	}
@@ -248,6 +299,27 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 		t.Fatal(err)
 	}
 	return store, definition.ID
+}
+
+func grpoDefinition(dependencies []recipe.Dependency) (recipe.Definition, error) {
+	nodes := []recipe.Node{
+		{ID: "batch", Module: workflowrecipe.ModuleBatchRollout, Placement: recipe.PlacementHost},
+		{ID: "policy", Module: workflowrecipe.ModuleScorePolicy, Placement: recipe.PlacementHost},
+		{ID: "objective", Module: workflowrecipe.ModuleGRPOObjective, Placement: recipe.PlacementHost},
+		{ID: "backward", Module: workflowrecipe.ModuleBackward, Placement: recipe.PlacementHost},
+		{ID: "optimize", Module: workflowrecipe.ModuleOptimize, Placement: recipe.PlacementHost},
+	}
+	edge := func(fromNode recipe.NodeID, fromPort recipe.PortName, toNode recipe.NodeID, toPort recipe.PortName) recipe.Edge {
+		return recipe.Edge{From: recipe.Endpoint{Node: fromNode, Port: fromPort}, To: recipe.Endpoint{Node: toNode, Port: toPort}}
+	}
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskTraining, dependencies, nodes,
+		[]recipe.Edge{
+			edge("batch", "batch", "policy", "batch"), edge("policy", "scores", "objective", "policy"),
+			edge("objective", "loss", "backward", "loss"), edge("backward", "gradients", "optimize", "gradients"),
+		}, nil,
+		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}},
+	)
 }
 
 func tokenDefinition(dependencies []recipe.Dependency) (recipe.Definition, error) {

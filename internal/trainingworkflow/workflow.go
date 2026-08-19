@@ -36,10 +36,11 @@ type Request struct {
 	MaximumSequence    int
 	LearningRate       float64
 	Momentum           float64
-	DPOScale           float64
+	ObjectiveScale     float64
 	Host               bool
 	FreezeLexical      bool
 	ObserveDPO         func(trainingprogram.DPOObservation)
+	ObserveGRPO        func(trainingprogram.GRPOObservation)
 	Progress           io.Writer
 	MaxProjectedWall   time.Duration
 }
@@ -68,6 +69,7 @@ type Result struct {
 	Objective      trainingprogram.ObjectiveKind
 	Losses         []float64
 	DPO            []trainingprogram.DPOObservation
+	GRPO           []trainingprogram.GRPOObservation
 	StreamPosition uint64
 	Checkpoint     trainingprogram.Checkpoint
 }
@@ -108,16 +110,23 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if runtime.Definition().ID != request.Recipe {
 		return Result{}, errors.New("training workflow: active recipe differs")
 	}
-	objective, err := programObjective(runtime)
+	objective, err := ProgramObjective(runtime)
 	if err != nil {
 		return Result{}, err
 	}
-	if objective == trainingprogram.ObjectiveDPO &&
-		(request.ReferenceDirectory == "" || request.DPOScale <= 0 || request.FreezeLexical) {
-		return Result{}, errors.New("training workflow: DPO recipe requires reference, positive scale, and trainable lexical weights")
-	}
-	if objective != trainingprogram.ObjectiveDPO && (request.ReferenceDirectory != "" || request.DPOScale != 0) {
-		return Result{}, errors.New("training workflow: token recipe rejects DPO inputs")
+	switch objective {
+	case trainingprogram.ObjectiveDPO:
+		if request.ReferenceDirectory == "" || request.ObjectiveScale <= 0 || request.FreezeLexical {
+			return Result{}, errors.New("training workflow: DPO inputs differ from recipe")
+		}
+	case trainingprogram.ObjectiveGRPO:
+		if request.ReferenceDirectory != "" || request.ObjectiveScale <= 0 || request.FreezeLexical {
+			return Result{}, errors.New("training workflow: GRPO inputs differ from recipe")
+		}
+	default:
+		if request.ReferenceDirectory != "" || request.ObjectiveScale != 0 {
+			return Result{}, errors.New("training workflow: token recipe rejects RL inputs")
+		}
 	}
 	model, err := densecausal.Load(inputDirectory)
 	if err != nil {
@@ -158,6 +167,8 @@ type densePrepared struct {
 	reference  *densecausal.Model
 	tokens     [][]int
 	pairs      []trainingdata.PreferenceBatch
+	groups     []trainingdata.RolloutGroup
+	evaluators []artifact.ID
 }
 
 func (session denseSession) run() (Result, error) {
@@ -168,7 +179,7 @@ func (session denseSession) run() (Result, error) {
 	authority, err := compileAuthority(
 		session.ctx, session.request.Repository, session.runtime, session.model, session.inputDirectory,
 		prepared.data, prepared.stream, session.request.LearningRate, session.resumed,
-		session.objective, prepared.preference,
+		session.objective, prepared.preference, prepared.evaluators,
 	)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: compile authority: %w", err)
@@ -191,6 +202,12 @@ func (session denseSession) prepare() (densePrepared, error) {
 		)
 		return densePrepared{data: data, stream: stream, tokens: batches}, err
 	}
+	if session.objective == trainingprogram.ObjectiveGRPO {
+		groups, stream, data, evaluators, err := groupedRolloutBatchesResume(
+			session.ctx, session.raw, session.request.Steps, session.encode, session.resumeStream,
+		)
+		return densePrepared{data: data, stream: stream, groups: groups, evaluators: evaluators}, err
+	}
 	reference, err := densecausal.Load(session.request.ReferenceDirectory)
 	if err != nil {
 		return densePrepared{}, fmt.Errorf("training workflow: load reference: %w", err)
@@ -207,19 +224,31 @@ func (session denseSession) prepare() (densePrepared, error) {
 	}
 	return densePrepared{
 		data: data, stream: stream, reference: reference, pairs: batches,
-		preference: &trainingprogram.PreferencePolicy{Reference: referenceID, Scale: session.request.DPOScale},
+		preference: &trainingprogram.PreferencePolicy{Reference: referenceID, Scale: session.request.ObjectiveScale},
 	}, nil
 }
 
 func (session denseSession) execute(prepared densePrepared) (Result, densecausal.TrainState, error) {
-	if session.objective == trainingprogram.ObjectiveDPO {
-		var resume *densecausal.DPOState
+	if session.objective == trainingprogram.ObjectiveGRPO {
+		var resume *densecausal.RLState
 		if session.resumed.ID().Valid() {
-			resume = &densecausal.DPOState{Optimizer: session.resumed.Optimizer, Stream: *session.resumeStream}
+			resume = &densecausal.RLState{Optimizer: session.resumed.Optimizer, Stream: *session.resumeStream}
+		}
+		observations, state, err := session.model.TrainGRPOGroupsResume(
+			prepared.groups, session.request.LearningRate, session.request.Momentum,
+			session.request.ObjectiveScale, resume, session.request.ObserveGRPO,
+		)
+		return Result{Backend: "host", Objective: session.objective, GRPO: observations,
+			StreamPosition: state.Stream.Position}, state.Optimizer, err
+	}
+	if session.objective == trainingprogram.ObjectiveDPO {
+		var resume *densecausal.RLState
+		if session.resumed.ID().Valid() {
+			resume = &densecausal.RLState{Optimizer: session.resumed.Optimizer, Stream: *session.resumeStream}
 		}
 		observations, state, err := session.model.TrainDPOBatchesResume(
 			prepared.reference, prepared.pairs, session.request.LearningRate, session.request.Momentum,
-			session.request.DPOScale, resume, session.request.ObserveDPO,
+			session.request.ObjectiveScale, resume, session.request.ObserveDPO,
 		)
 		return Result{
 			Backend: "host", Objective: session.objective, DPO: observations,
@@ -311,6 +340,7 @@ func compileAuthority(
 	resumed trainingprogram.Checkpoint,
 	objective trainingprogram.ObjectiveKind,
 	preference *trainingprogram.PreferencePolicy,
+	evaluators []artifact.ID,
 ) (compiledAuthority, error) {
 	modelID := resumed.Model
 	var err error
@@ -332,6 +362,8 @@ func compileAuthority(
 	operators := tokenOperators
 	if objective == trainingprogram.ObjectiveDPO {
 		operators = dpoOperators
+	} else if objective == trainingprogram.ObjectiveGRPO {
+		operators = grpoOperators
 	}
 	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
 		Objective: objective, Operators: operators, Parameters: parameters, Optimizer: muonPlan, Preference: preference,
@@ -348,6 +380,9 @@ func compileAuthority(
 		if !ok || reference != preference.Reference {
 			return compiledAuthority{}, errors.New("training workflow: recipe reference differs")
 		}
+	}
+	if err := validateEvaluators(definition, evaluators); err != nil {
+		return compiledAuthority{}, err
 	}
 	policies, err := trainingprogram.PoliciesFromRecipe(definition)
 	if err != nil {
@@ -388,6 +423,9 @@ func compileAuthority(
 	if preference != nil {
 		lineage = append(lineage, trainingprogram.LineageParent{Artifact: preference.Reference, Relation: artifact.RelationDependsOn})
 	}
+	for _, evaluator := range evaluators {
+		lineage = append(lineage, trainingprogram.LineageParent{Artifact: evaluator, Relation: artifact.RelationDependsOn})
+	}
 	if resumed.ID().Valid() {
 		lineage = append(lineage, trainingprogram.LineageParent{Artifact: resumed.ID(), Relation: artifact.RelationDerivedFrom})
 	}
@@ -397,18 +435,20 @@ func compileAuthority(
 	}, nil
 }
 
-func ValidateProgram(program recipe.Program, objective trainingprogram.ObjectiveKind) error {
-	actual, err := programObjective(program)
-	if err != nil {
-		return err
+func validateEvaluators(definition recipe.Definition, evaluators []artifact.ID) error {
+	for index, evaluator := range evaluators {
+		declared, ok := definition.Dependency(recipe.DependencyEvaluator, uint32(index))
+		if !ok || declared != evaluator {
+			return errors.New("training workflow: rollout evaluator differs from recipe")
+		}
 	}
-	if actual != objective {
-		return fmt.Errorf("training workflow: active recipe objective is %s, want %s", actual, objective)
+	if _, extra := definition.Dependency(recipe.DependencyEvaluator, uint32(len(evaluators))); extra {
+		return errors.New("training workflow: recipe evaluator is unused")
 	}
 	return nil
 }
 
-func programObjective(program recipe.Program) (trainingprogram.ObjectiveKind, error) {
+func ProgramObjective(program recipe.Program) (trainingprogram.ObjectiveKind, error) {
 	stages := program.Stages()
 	modules := make([]recipe.ModuleID, len(stages))
 	for index, stage := range stages {
@@ -419,6 +459,9 @@ func programObjective(program recipe.Program) (trainingprogram.ObjectiveKind, er
 	}
 	if slices.Equal(modules, dpoModules) {
 		return trainingprogram.ObjectiveDPO, nil
+	}
+	if slices.Equal(modules, grpoModules) {
+		return trainingprogram.ObjectiveGRPO, nil
 	}
 	return "", errors.New("training workflow: active recipe has no supported dense objective")
 }
@@ -460,6 +503,13 @@ var dpoOperators = []trainingprogram.OperatorSpec{
 	{ID: "muon", Phase: trainingprogram.PhaseOptimize},
 }
 
+var grpoOperators = []trainingprogram.OperatorSpec{
+	{ID: "policy-score", Phase: trainingprogram.PhaseForward},
+	{ID: "grpo", Phase: trainingprogram.PhaseLoss},
+	{ID: "dense-backward", Phase: trainingprogram.PhaseBackward},
+	{ID: "muon", Phase: trainingprogram.PhaseOptimize},
+}
+
 var tokenModules = []recipe.ModuleID{
 	workflowrecipe.ModuleBatchDataset, workflowrecipe.ModuleTrainingForward,
 	workflowrecipe.ModuleBackward, workflowrecipe.ModuleOptimize,
@@ -469,4 +519,9 @@ var dpoModules = []recipe.ModuleID{
 	workflowrecipe.ModuleBatchPreference, workflowrecipe.ModuleScorePolicy,
 	workflowrecipe.ModuleScoreReference, workflowrecipe.ModuleDPOObjective,
 	workflowrecipe.ModuleBackward, workflowrecipe.ModuleOptimize,
+}
+
+var grpoModules = []recipe.ModuleID{
+	workflowrecipe.ModuleBatchRollout, workflowrecipe.ModuleScorePolicy,
+	workflowrecipe.ModuleGRPOObjective, workflowrecipe.ModuleBackward, workflowrecipe.ModuleOptimize,
 }

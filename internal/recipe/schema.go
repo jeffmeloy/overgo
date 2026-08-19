@@ -122,6 +122,7 @@ const (
 	DependencyMemory           DependencyRole = "training-memory"
 	DependencyCheckpointPolicy DependencyRole = "training-checkpoint"
 	DependencyEvaluation       DependencyRole = "training-evaluation"
+	DependencyEvaluator        DependencyRole = "evaluator"
 	DependencyPromotion        DependencyRole = "training-promotion"
 )
 
@@ -236,6 +237,8 @@ func validateDependency(dependency Dependency) error {
 	case DependencyProfile, DependencyObjective, DependencyPrecision, DependencyPlacement,
 		DependencyMemory, DependencyCheckpointPolicy, DependencyEvaluation, DependencyPromotion:
 		want = artifact.KindProfile
+	case DependencyEvaluator:
+		want = artifact.KindEvidence
 	case DependencyTokenizer:
 		want = artifact.KindTokenizer
 	case DependencyProjector:

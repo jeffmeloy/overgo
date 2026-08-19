@@ -300,15 +300,15 @@ func TestRLWorkspaceRendersMeasuredEvidence(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	training := serveTestRequest(handler, http.MethodGet, "/mod/training.js", "").Body.String()
 	for _, token := range []string{
-		"DPO loss", "Margin decomposition", "Chosen / rejected pair", "Optimizer health",
+		"DPO loss", "GRPO loss", "Evaluator reward", "Margin decomposition", "Chosen / rejected pair", "Optimizer health",
 		"Checkpoint comparison", "policy_margin", "reference_margin", "relative_margin",
-		"gradient_l2", "update_l2", "/artifacts/content?id=",
+		"mean_reward", "reward_dispersion", "gradient_l2", "update_l2", "/artifacts/content?id=",
 	} {
 		if !strings.Contains(training, token) {
 			t.Errorf("training evidence view missing %q", token)
 		}
 	}
-	for _, forbidden := range []string{"smooth", "movingAverage", "reward"} {
+	for _, forbidden := range []string{"smooth", "movingAverage"} {
 		if strings.Contains(training, forbidden) {
 			t.Errorf("training evidence view contains derived signal %q", forbidden)
 		}

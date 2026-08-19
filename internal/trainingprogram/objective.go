@@ -35,6 +35,7 @@ const (
 	ObjectiveDistillation    ObjectiveKind = "logit-distillation"
 	ObjectiveTablePrediction ObjectiveKind = "table-prediction"
 	ObjectiveDPO             ObjectiveKind = "dpo"
+	ObjectiveGRPO            ObjectiveKind = "grpo"
 )
 
 var objectiveKinds = []ObjectiveKind{
@@ -49,6 +50,7 @@ var objectiveKinds = []ObjectiveKind{
 	ObjectiveDistillation,
 	ObjectiveTablePrediction,
 	ObjectiveDPO,
+	ObjectiveGRPO,
 }
 
 type ObjectiveAuthority string
@@ -220,7 +222,7 @@ func validObjectiveKind(kind ObjectiveKind) bool {
 func objectiveSignatureValid(kind ObjectiveKind, signature recipecontract.ModalitySignature) bool {
 	input, output := signature.Inputs[0], signature.Outputs[0]
 	switch kind {
-	case ObjectiveTokenPrediction, ObjectiveDPO:
+	case ObjectiveTokenPrediction, ObjectiveDPO, ObjectiveGRPO:
 		return output == recipecontract.ModalityText
 	case ObjectiveFNS:
 		return input == recipecontract.ModalityText && output == recipecontract.ModalityText

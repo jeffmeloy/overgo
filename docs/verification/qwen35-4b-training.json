@@ -1,0 +1,26 @@
+{
+ "model": "model:sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec",
+ "name": "Qwen3.5-4B",
+ "evidence_files": [
+  "docs/verification/qwen35-4b-training-run.txt"
+ ],
+ "dataset_files": [
+  "fixtures/qwen35_4b_serving_golden.json"
+ ],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "8daf6b702d3c4640edb9cd557d555e6bc7917d64",
+   "dataset": "dataset-shard:sha256:6dcce666b1ebf776b9ee9e9df9107b068204affc602e94949e5c4c039894ea1a",
+   "span_steps": 2,
+   "span_tokens": 8,
+   "context_tokens": 4,
+   "wall_ns": 1991339500,
+   "peak_device_bytes": 1906013306,
+   "evidence": [
+    "evidence:sha256:f25d1e5ea8b299dedcc89248551584760406f7d9bed4c26f082148e5c59c6d36"
+   ]
+  }
+ ]
+}

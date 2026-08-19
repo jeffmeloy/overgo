@@ -57,7 +57,6 @@ refused-model: Wan2.1-T2V-1.3B
 refused-model: Krea-2-Turbo
 refused-model: Bonsai-27B-Q1
 refused-model: Qwen3.5-9B-Q8
-refused-model: Qwen3.5-4B
 
 CORRECTIONS 2026-08-19 from deep reference archaeology (the dispatch table
 moved three times and was never a reliable trainability index -- TabFM and
@@ -93,3 +92,10 @@ through the rank-64 bottleneck, 264K params, monotone descent, derived
 hyperparameters, LatentBridgeTrainer + flow-organ-train-probe -organ
 latent-bridge). Full modality-transformer training remains the named
 promotion gate inside the cell evidence.
+
+WITHDRAWN 2026-08-19: Qwen3.5-4B refusal closes -- the hybridtrain lane
+(built by the converged lanes as this refusal's named closure route) binds
+the real artifact recurrent gated-delta layer and trains it device-resident
+with derived hyperparameters; the cell records the first training evidence
+for the qwen3_5_hybrid family in either tree. Qwen3.5-9B-Q8 stays refused:
+its Q8 serving artifact is master-weight-lane territory (Bonsai-class).

@@ -30,13 +30,13 @@ func (m *concurrentScalarModel) Close(context.Context) error {
 	return nil
 }
 
-func TestScalarSessionCacheConcurrentKeys(t *testing.T) {
+func TestModelSessionDirectorConcurrentKeys(t *testing.T) {
 	firstStore, firstID, firstProgram := capabilityFixture(t, "concurrent-scalar-first")
 	secondStore, secondID, secondProgram := capabilityFixture(t, "concurrent-scalar-second")
 	entered := make(chan struct{}, 2)
 	release := make(chan struct{})
 	var closed atomic.Int32
-	cache, err := NewScalarSessionCache[scalarRequest, *concurrentScalarModel, int](
+	director, err := NewModelSessionDirector[scalarRequest, *concurrentScalarModel, int](
 		"scalar", "cuda:0", 2,
 		func(request scalarRequest) error {
 			if request.Value <= 0 {
@@ -73,7 +73,7 @@ func TestScalarSessionCacheConcurrentKeys(t *testing.T) {
 	}
 	results := make(chan result, 2)
 	run := func(store artifact.Repository, model artifact.ID, program recipe.Program, raw string) {
-		value, err := cache.Executor()(context.Background(), store, "model", model, program, raw)
+		value, err := director.Executor()(context.Background(), store, "model", model, program, raw)
 		results <- result{value: value, err: err}
 	}
 	go run(firstStore, firstID, firstProgram, `{"value":2}`)
@@ -83,7 +83,7 @@ func TestScalarSessionCacheConcurrentKeys(t *testing.T) {
 		select {
 		case <-entered:
 		case <-deadline:
-			t.Fatal("distinct cache keys executed serially")
+			t.Fatal("distinct session keys executed serially")
 		}
 	}
 	close(release)
@@ -98,7 +98,7 @@ func TestScalarSessionCacheConcurrentKeys(t *testing.T) {
 	if !values[4] || !values[6] {
 		t.Fatalf("outputs=%v", values)
 	}
-	if err := cache.Close(context.Background()); err != nil {
+	if err := director.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if got := closed.Load(); got != 2 {
@@ -188,10 +188,10 @@ func (m *cachedScalarModel) Close(context.Context) error {
 	return nil
 }
 
-func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
+func TestModelSessionDirectorReusesResidentRuntime(t *testing.T) {
 	store, modelID, program := capabilityFixture(t, "cached-scalar-model")
 	loads, resets, closes := 0, 0, 0
-	cache, err := NewScalarSessionCache[scalarRequest, *cachedScalarModel, int](
+	director, err := NewModelSessionDirector[scalarRequest, *cachedScalarModel, int](
 		"scalar", "cuda:0", 1,
 		func(request scalarRequest) error {
 			if request.Value <= 0 {
@@ -220,10 +220,10 @@ func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	execute := cache.Executor()
+	execute := director.Executor()
 	foreign := testutil.ArtifactID(t, artifact.KindModel, "foreign-cached-model")
 	if _, err := execute(context.Background(), store, "model", foreign, program, `{"value":4}`); err == nil {
-		t.Fatal("foreign model loaded into session cache")
+		t.Fatal("foreign model loaded into session director")
 	}
 	if loads != 0 {
 		t.Fatalf("foreign admission loaded %d models", loads)
@@ -240,7 +240,7 @@ func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
 	if loads != 1 || resets != 1 {
 		t.Fatalf("loads=%d resets=%d", loads, resets)
 	}
-	if err := cache.Close(context.Background()); err != nil {
+	if err := director.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if closes != 1 {
@@ -301,7 +301,7 @@ func TestVideoProductionActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	loads, resets, closes := 0, 0, 0
-	cache, err := NewMappedSessionCache[mappedVideoRequest, *mappedVideoModel, int](
+	director, err := NewMappedModelSessionDirector[mappedVideoRequest, *mappedVideoModel, int](
 		"video", "cuda:0", 1,
 		func(request mappedVideoRequest) error {
 			if request.Condition <= 0 || request.Source <= 0 {
@@ -345,7 +345,7 @@ func TestVideoProductionActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		output, err := cache.Executor()(t.Context(), store, "model", modelID, program, `{"condition":2,"source":3}`)
+		output, err := director.Executor()(t.Context(), store, "model", modelID, program, `{"condition":2,"source":3}`)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -356,7 +356,7 @@ func TestVideoProductionActivation(t *testing.T) {
 	if loads != 1 || resets != 1 {
 		t.Fatalf("loads=%d resets=%d", loads, resets)
 	}
-	if err := cache.Close(t.Context()); err != nil {
+	if err := director.Close(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if closes != 1 {

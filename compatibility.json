@@ -1113,7 +1113,7 @@
      "contains": "capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed}",
      "path": "cmd/recipe/image_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:cf68ce76dd746c7b343801cdbd1da96fd5d256befddb33ecc4e368a0233ad0f9"
+     "identity": "file:sha256:31a591b7fcd792c537f2c6f9d428e61ce73bfd49b9a85780674281875709cc7e"
     },
     {
      "contains": "func TestSenseNovaProductionImageGeneration(",

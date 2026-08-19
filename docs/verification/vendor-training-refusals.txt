@@ -59,5 +59,25 @@ refused-model: SenseNova-U1-8B
 refused-model: Bonsai-27B-Q1
 refused-model: Qwen3.5-9B-Q8
 refused-model: Qwen3.5-4B
-refused-model: gemma-4-E4B
 refused-model: RxBrain
+
+CORRECTIONS 2026-08-19 from deep reference archaeology (the dispatch table
+moved three times and was never a reliable trainability index -- TabFM and
+Un-0 both trained through generic lanes while declared unsupported):
+- SenseNova-U1-8B: a bounded fm_head gradient probe DID exist (the
+  supernova_organ_stream / FlowOrganStream lane, 2026-07-03 to 2026-08-04,
+  probe only, never full training, gated on vendor 8-GPU readiness;
+  recoverable at f4ee9ef34). SenseNova IS neo_chat; the separate Supernova
+  was an unrelated dead timeseries lane. Refusal stands with the corrected
+  evidence and a concrete recovery source for the probe route.
+- gemma-4-E4B: at reference HEAD the label reconciled -- gemma4 maps to
+  training: gemma4_unified. E4B is no longer refused: the gemma4_unified
+  port covers it (overgo serves E4B natively, dissolving the upstream
+  serving blocker), so its marker is withdrawn and it becomes a port
+  target beside gemma-4-12B.
+- RxBrain: was briefly addressable through the dense-causal fallthrough
+  (leftover candidate row, never promoted, reclassified by bc96e7d3a);
+  refusal stands with that nuance recorded.
+- Wan2.1, Krea-2-Turbo, LiveEdit, Bonsai-27B, Qwen3.5 hybrid: confirmed
+  never-trained across all three dispatch-table eras and every generic
+  lane's actual model coverage.

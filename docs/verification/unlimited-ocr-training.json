@@ -1,0 +1,18 @@
+{
+ "model": "model:sha256:2bc48a7a110061ea58fff65d3169367eebe3aee371ca6968dc2219c1b2855fc6",
+ "name": "Unlimited-OCR",
+ "evidence_files": ["docs/verification/unlimited-ocr-training-run.txt"],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "b9e59506adfa6919a055b0a9759dd94231c13ddd",
+   "dataset": "dataset-shard:sha256:4c431b8cd6f7c9ca77f0ddc3fdac8ee85812847e2af7e4d9861bb4d62f2dce9b",
+   "span_steps": 3,
+   "span_tokens": 288,
+   "context_tokens": 96,
+   "wall_ns": 253913000000,
+   "evidence": ["evidence:sha256:15d1f9f297cd9b3985ad5b0bb60d385176d1115ed67edf573e2a2fd647f1fdd9"]
+  }
+ ]
+}

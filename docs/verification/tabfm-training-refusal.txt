@@ -21,5 +21,14 @@ without one of the routes, so a silent cell is impossible.
 no silent skip: this document and the parked finding are the sweep's
 typed outcome for both TabFM rows.
 
-refused-model: TabFM-1.0-classification
-refused-model: TabFM-1.0-regression
+
+SUPERSEDED 2026-08-19 by deep reference archaeology (dispatch-table
+history, all commits): a FULL TabFM trainer existed upstream -- the
+tabfm-train-probe generic lane with a complete set-transformer VJP campaign
+(ISAB, MAB, encoder chain, ICL head; lr-grid runs executed), alive
+2026-07-06 to 2026-08-04, dispatch entry tabular->tabfm for its final week,
+retired at 9f8a045f8 with promotion blocked by a store-drift version issue,
+recoverable at e66b8f03e. The claim above that no trainable graph ever
+existed is WRONG. TabFM is now a RECOVERY PORT TARGET (closure route 1 with
+a named source); the refused-model markers are withdrawn and the parked
+finding closes when the recovered trainer lands its cell.

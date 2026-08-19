@@ -1,0 +1,30 @@
+overgo training verification run
+tool: cmd/mixture-train-probe (the mixture training graph's production
+driver), bounded observed smoke with first-step projection guard
+verifying commit: b9e59506adfa6919a055b0a9759dd94231c13ddd (the mixture-training-graph port; the
+run exercised exactly that tree)
+model: Unlimited-OCR text decoder via the densecausal decoder-subset load --
+2,934,734,080 trainable parameters across 2,234 tensors (12 layers, layer 0
+dense at intermediate 6848, layers 1-11 routed mixtures of 64 experts top-6
+with a fused shared expert at intermediate 1792, vocab 129,280; the 474
+vision-tower tensors stay outside the pack by the decoder subset)
+trainer: host forward/backward through the schedule-aware densecausal graph
+(MoE router VJP finite-diff proven) over optimizer.NewStepper (shared CUDA
+Muon on flat host weights, parity-gated); hyperparameters fully DERIVED
+under the owner's no-free-knobs doctrine: base LR n_params^-1/2 = 1.846e-05,
+momentum (CLTMinSamples-1)/(CLTMinSamples+1) = 0.9355, constant schedule
+dataset: docs/verification/qwen25-05b-training-dataset.txt (the shared
+wikitext2_train slice shard, tokenized by the artifact's own tokenizer);
+training window 96 tokens, inside the artifact's declared sliding window of
+128 where full causal attention is exact (the graph refuses longer windows)
+steps: 3, span_tokens 288 (3 x 96)
+measured wall_ns: 253913000000 (steps 1m15.429s / 1m31.138s / 1m23.386s;
+13G checkpoint load 11.754s excluded from the training wall)
+loss: 7.369290 -> 6.438441 -> 5.710377, after-evaluation 5.075127
+(monotone descent; grad_l2 87.26 -> 65.43 -> 56.52)
+notes: gradient coverage audited against the compiled plan every step (a
+gradient outside the plan refuses); context_tokens 96; peak device memory
+not instrumented on this path -- wall-only claim. English wikitext is
+on-contract for the text decoder (the reference's own OCR trainer used
+text-token CE); image-conditioned training through the vision towers is a
+named follow-on, not a silent omission.

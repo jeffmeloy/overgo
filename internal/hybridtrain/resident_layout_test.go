@@ -1,17 +1,23 @@
 package hybridtrain
 
-import "testing"
+import (
+	"testing"
 
-// TestResidentMatrixLayout is the device-free guard for the no-weight-motion loop:
-// it builds the hybrid model and asserts the per-layer MATRIX-weight plans the
-// resident loop turns into device pointers (a) resolve every expected matrix, (b)
-// exactly tile the flat matW buffer (no gaps/overlaps), and (c) size each slot as
-// rows*cols. If any offset were wrong, the resident weight pointers would address
-// the wrong bytes; this catches that in CI without a GPU (mirrors how the CUDA
-// parity test skips honestly when OVERGO_CUDA_TEST is unset).
+	"overgo/internal/optimizer"
+	"overgo/internal/testutil"
+)
+
+const (
+	testSeed         = int64(20250812)
+	testSteps        = 8
+	testLearningRate = 0.02
+	testMomentum     = 0.9
+)
+
+// TestResidentMatrixLayout verifies exact resident partitioning.
 func TestResidentMatrixLayout(t *testing.T) {
 	cfg := smallHybrid()
-	m, err := BuildModel(cfg, 20250812)
+	m, err := BuildModel(cfg, testSeed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +32,7 @@ func TestResidentMatrixLayout(t *testing.T) {
 		t.Fatalf("matrix tiling invalid: %v", err)
 	}
 
-	// Each slot's size must match its matrix geometry (rows*cols) from mats.
+	// Range geometry.
 	byName := map[string]matDesc{}
 	for _, md := range m.mats {
 		byName[md.name] = md
@@ -42,7 +48,7 @@ func TestResidentMatrixLayout(t *testing.T) {
 		t.Errorf("sum of matrix sizes=%d != matW len=%d", total, m.MatrixParamCount())
 	}
 
-	// The plans must reference exactly the mats set (no matrix left unmapped).
+	// Complete coverage.
 	mapped := 0
 	for _, p := range plans {
 		mapped += len(p.slots())
@@ -51,14 +57,21 @@ func TestResidentMatrixLayout(t *testing.T) {
 		t.Errorf("plans map %d matrices, but model has %d", mapped, len(m.mats))
 	}
 	t.Logf("layout OK: %d layers, %d matrices tiling %d matW elements", len(plans), len(m.mats), m.MatrixParamCount())
-	operators := m.Program().Operators()
-	want := []string{"hybrid-forward", "squared-error", "hybrid-backward", "matrix-muon", "vector-sign"}
-	if len(operators) != len(want) {
-		t.Fatalf("program operators=%d, want %d", len(operators), len(want))
+	if !m.Program().ID().Valid() {
+		t.Fatal("compiled program absent")
 	}
-	for index := range want {
-		if operators[index].ID != want[index] {
-			t.Fatalf("program operator %d=%q, want %q", index, operators[index].ID, want[index])
-		}
+}
+
+func TestHybridCompiledHostLifecycle(t *testing.T) {
+	model, err := BuildModel(smallHybrid(), testSeed)
+	if err != nil {
+		t.Fatal(err)
 	}
+	trajectory, err := model.TrainHost(testSteps, optimizer.Config{
+		BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: optimizer.ScheduleConstant,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.RequireFiniteDecrease(t, "hybrid host", trajectory, testSteps)
 }

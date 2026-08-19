@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "hybrid-session",
-          "title": "Converge host and resident hybrid training on one compiled lifecycle; delete duplicate loop, gradient packing, and resource orchestration",
-          "status": "open",
-          "verify": "go test ./internal/hybridtrain -count=1"
-        },
-        {
           "id": "scratch-session",
           "title": "Converge scratch and oscillator training on compiled program, pack, and lifecycle owners; delete manual slabs, steps, and policy defaults",
           "status": "open",

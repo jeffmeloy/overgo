@@ -8,6 +8,12 @@
       "status": "open",
       "steps": [
         {
+          "id": "alternating-window-training",
+          "title": "Port the recovered alternating-window training semantics through compiled model and training programs; record gemma-4-E4B and gemma-4-12B cells",
+          "status": "open",
+          "verify": "go test ./internal/adaptiveparity -run '^TestAlternatingWindowTrainingCells$' -count=1"
+        },
+        {
           "id": "do",
           "title": "Training verification sweep, smallest models first: mirror the inference-validation path for training -- for each ledger model lacking a training cell (TimesFM-200M, TabFM classification/regression, SimpleDiffusion, Pocket-TTS, Un-0, LiveEdit, Unlimited-OCR, Wan2.1-1.3B, Qwen3.5-4B, gemma-4-E4B, SenseNova-U1-8B, Qwen3.5-9B-Q8, gemma-4-12B-fp8, Krea-2-Turbo, Bonsai-27B-Q1, plus RxBrain once its port lands) run a bounded observed training smoke (cmd/train with -max-wall, TrainObserver progress, -freeze-lexical for big-vocab device runs) on a fixed sft/fixture dataset, record a training CapabilityClaim with steps/tokens spans and measured wall/ctx/peak via compatibility -record-verification; where the architecture has no training path yet, either port the minimal trainable graph or record a typed refusal finding with a failing check -- no silent skips; work smallest to largest, one gated sub-row per model or per small batch",
           "status": "open",

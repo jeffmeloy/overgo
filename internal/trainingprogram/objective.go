@@ -33,6 +33,7 @@ const (
 	ObjectiveFlowMatching    ObjectiveKind = "flow-matching"
 	ObjectiveImageLatent     ObjectiveKind = "image-latent"
 	ObjectiveDistillation    ObjectiveKind = "logit-distillation"
+	ObjectiveTablePrediction ObjectiveKind = "table-prediction"
 	ObjectiveDPO             ObjectiveKind = "dpo"
 )
 
@@ -46,6 +47,7 @@ var objectiveKinds = []ObjectiveKind{
 	ObjectiveFlowMatching,
 	ObjectiveImageLatent,
 	ObjectiveDistillation,
+	ObjectiveTablePrediction,
 	ObjectiveDPO,
 }
 

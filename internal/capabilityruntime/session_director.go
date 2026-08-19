@@ -7,14 +7,15 @@ import (
 	"sync"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
 	"overgo/internal/workflowruntime"
 )
 
 type sessionKey struct {
-	model, recipe  artifact.ID
-	device, policy string
+	model, recipe, resources artifact.ID
+	device, policy           string
 }
 
 type sessionEntry[Model any] struct {
@@ -158,8 +159,13 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 		return zero, errors.Join(errors.New("capability runtime: invalid execution policy"), err)
 	}
 	definition := program.Definition()
+	resources, err := modelrecipe.CompileSessionResourcePlan(ctx, store, program)
+	if err != nil {
+		return zero, err
+	}
 	key := sessionKey{
-		model: modelID, recipe: definition.ID, device: c.device, policy: policy,
+		model: modelID, recipe: definition.ID, resources: resources.Identity,
+		device: c.device, policy: policy,
 	}
 
 	entry, fresh, err := c.lease(ctx, store, path, key, program, input)
@@ -181,6 +187,8 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 		)
 		if executeErr != nil {
 			err = c.retire(ctx, key, entry, executeErr)
+		} else if resources.Session == recipe.SessionRequest {
+			err = c.retire(ctx, key, entry, nil)
 		}
 		return output, err
 	}

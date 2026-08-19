@@ -115,9 +115,22 @@ func capabilityFixture(t *testing.T, name string) (*repodb.Store, artifact.ID, r
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	modelID := testutil.ArtifactID(t, artifact.KindModel, name)
-	testutil.PublishArtifact(t, store, modelID)
-	node := recipe.Node{ID: "scalar", Module: scalarModule, Placement: recipe.PlacementHost}
+	weights := []byte(name + "-weights")
+	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
+	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+		Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(t.Context(), artifact.Batch{
+		Key:       "test/session-model/" + manifest.ID.String(),
+		Artifacts: []artifact.Descriptor{{ID: weightsID, Size: uint64(len(weights))}}, Manifests: []artifact.Manifest{manifest},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	modelID := manifest.ID
+	node := recipe.Node{ID: "scalar", Module: scalarModule, Placement: recipe.PlacementHost, Session: recipe.SessionCapacity}
 	definition, err := recipe.NewDefinitionWithDependencies(
 		recipe.TaskImageGen,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
@@ -188,7 +201,7 @@ func (m *cachedScalarModel) Close(context.Context) error {
 	return nil
 }
 
-func TestModelSessionDirectorReusesResidentRuntime(t *testing.T) {
+func TestModelSessionDirectorUsesCompiledResourcePlan(t *testing.T) {
 	store, modelID, program := capabilityFixture(t, "cached-scalar-model")
 	loads, resets, closes := 0, 0, 0
 	director, err := NewModelSessionDirector[scalarRequest, *cachedScalarModel, int](
@@ -240,10 +253,30 @@ func TestModelSessionDirectorReusesResidentRuntime(t *testing.T) {
 	if loads != 1 || resets != 1 {
 		t.Fatalf("loads=%d resets=%d", loads, resets)
 	}
+	definition := program.Definition()
+	definition.Nodes[0].Session = recipe.SessionRequest
+	requestDefinition, err := recipe.NewDefinitionWithDependencies(
+		definition.Task, definition.Dependencies, definition.Nodes, definition.Edges, definition.Inputs, definition.Outputs,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestProgram, err := recipe.CompileProgram(requestDefinition, program.Catalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if _, err := execute(context.Background(), store, "model", modelID, requestProgram, `{"value":6}`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if loads != 3 || resets != 1 || closes != 3 {
+		t.Fatalf("resource plan loads=%d resets=%d closes=%d", loads, resets, closes)
+	}
 	if err := director.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if closes != 1 {
+	if closes != 3 {
 		t.Fatalf("closes=%d", closes)
 	}
 }
@@ -270,9 +303,20 @@ func TestVideoProductionActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "mapped-video-model")
-	testutil.PublishArtifact(t, store, modelID)
-	node := recipe.Node{ID: "compose", Module: module, Placement: recipe.PlacementHost}
+	weights := []byte("mapped-video-weights")
+	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
+	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(t.Context(), artifact.Batch{
+		Key: "test/mapped-video-model", Artifacts: []artifact.Descriptor{{ID: weightsID, Size: uint64(len(weights))}},
+		Manifests: []artifact.Manifest{manifest},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	modelID := manifest.ID
+	node := recipe.Node{ID: "compose", Module: module, Placement: recipe.PlacementHost, Session: recipe.SessionCapacity}
 	definition, err := recipe.NewDefinitionWithDependencies(
 		recipe.TaskVideoGen, []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
 		[]recipe.Node{node}, nil,

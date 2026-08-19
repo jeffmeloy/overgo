@@ -1,0 +1,19 @@
+{
+ "model": "model:sha256:b53f6d52114e2ad786890f3c4637ce05f580b7800d6e24401f88b398b76035ef",
+ "name": "TimesFM-2.5-200M",
+ "evidence_files": ["docs/verification/timesfm-training-run.txt"],
+ "dataset_files": ["docs/verification/timesfm-training-dataset.jsonl"],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "3f60194eed673eeeaf321640149a6c79659cc4ae",
+   "dataset": "dataset-shard:sha256:25653c1bbaec38e7293a0362bc2910504ba155bb5ac805e7885e492941a9e5eb",
+   "span_steps": 3,
+   "span_tokens": 192,
+   "context_tokens": 64,
+   "wall_ns": 13984000000,
+   "evidence": ["evidence:sha256:d829121028b00acf43f2ddb5103b26257c01acbdd3f63010792b73d4121e2743"]
+  }
+ ]
+}

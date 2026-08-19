@@ -99,24 +99,9 @@ func (p ExactPlan) contents() ([]artifact.Content, error) {
 	return datasetContents(p.dataset, p.split, p.suite.Cases, exactDatasetContract, exactSplitContract)
 }
 
-func EvaluateExact(ctx context.Context, generator Generator, plan ExactPlan, observe func(ExactResult) error) error {
-	if ctx == nil || generator == nil || !plan.identity.Valid() || len(plan.suite.Cases) == 0 {
-		return errors.New("evaluation: incomplete exact plan")
-	}
-	for _, testCase := range plan.suite.Cases {
-		result, err := evaluateExactCase(ctx, generator, testCase)
-		if err != nil {
-			return err
-		}
-		if observe != nil {
-			if err := observe(result); err != nil {
-				return fmt.Errorf("evaluation: exact case %q observation: %w", testCase.Name, err)
-			}
-		}
-	}
-	return nil
-}
-
+// evaluateExactCase is the one exact-case evaluator; the sharded campaign
+// (EvaluateExactSharded) is its only driver — the unsharded loop it
+// displaced is deleted, not kept as a second authority.
 func evaluateExactCase(ctx context.Context, generator Generator, testCase ExactCase) (ExactResult, error) {
 	result, err := generateText(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
 	if err != nil {

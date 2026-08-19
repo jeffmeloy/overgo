@@ -1,0 +1,23 @@
+overgo training verification run
+tool: go test internal/speechsynth, TestRealArtifactJointMuonTraining
+verifying commit: 207be7c5 (findings-closure head; recorded by the gate binding this file)
+model: Pocket-TTS (real artifact via the package artifact dir)
+trainer: internal/speechsynth JointTrainer -- compiled joint flow/backbone
+objective over Muon (derived joint LR 3.383e-05 from base 1e-4 across
+nFlow=9,758,752 flow and nJoint=85,282,848 joint parameters), momentum 0.95
+dataset: the committed g7 generation golden
+(fixtures/pockettts/g7_generation.json) -- the real text "Hello world." with
+its traced native quantizer latents (2 frames), the same artifact the
+generation parity suite pins; grounded whole as the dataset shard this
+claim names
+steps: 1 (single-step precedent shared with the needle and Fractale cells);
+descent proven by evaluating LossAndGrads on the same example before and
+after the step: loss 0.505204 -> 0.285938, with 16358/16384 probe weights
+of flow_lm.flow_net.final_layer.linear.weight changed by the update
+measured wall_ns: 1700000000 (suite wall including model load, needle
+precedent)
+notes: span_tokens 0 -- the objective is over audio latent frames, not
+tokens; context_tokens omitted; host execution, peak device memory not
+applicable -- wall-only claim. The frozen mimi codec is not trained, which
+matches the reference doctrine (PocketTTS trains the flow model against
+precomputed latents; the codec is a pinned frozen artifact).

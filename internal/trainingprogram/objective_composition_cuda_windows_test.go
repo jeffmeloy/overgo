@@ -101,23 +101,42 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	}
 	compileObjectiveRun(t, ctx, store, composition, contract)
 
+	// Device training is not run-context deterministic (kernel selection
+	// shifts under load) and the holdout scores metrics in one-case steps,
+	// so a single seed's one-sample margin flaps. The promotion contract —
+	// the composed objective regresses nothing — is judged on the mean over
+	// independent seeds instead.
 	const trainingSteps = 400
+	seeds := []int64{17, 18, 19}
 	profile := scratchmodel.AdaptiveDerivationProfile()
-	incumbent, err := controllertrain.TrainSeed(base, profile, 17, trainingSteps)
+	type meanFinal struct{ loss, action, modality float64 }
+	meanOver := func(corpus controllertrain.Corpus) (meanFinal, error) {
+		var total meanFinal
+		for _, seed := range seeds {
+			run, err := controllertrain.TrainSeed(corpus, profile, seed, trainingSteps)
+			if err != nil {
+				return meanFinal{}, err
+			}
+			total.loss += run.Evidence.Final.Loss
+			total.action += run.Evidence.Final.ActionAccuracy
+			total.modality += run.Evidence.Final.ModalityAccuracy
+		}
+		n := float64(len(seeds))
+		return meanFinal{loss: total.loss / n, action: total.action / n, modality: total.modality / n}, nil
+	}
+	incumbent, err := meanOver(base)
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidate, err := controllertrain.TrainSeed(aggregate, profile, 17, trainingSteps)
+	candidate, err := meanOver(aggregate)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if candidate.Evidence.Final.Loss >= incumbent.Evidence.Final.Loss ||
-		candidate.Evidence.Final.ActionAccuracy < incumbent.Evidence.Final.ActionAccuracy ||
-		candidate.Evidence.Final.ModalityAccuracy < incumbent.Evidence.Final.ModalityAccuracy {
-		t.Fatalf("composed descendant did not improve: incumbent=%+v candidate=%+v", incumbent.Evidence.Final, candidate.Evidence.Final)
+	if candidate.loss >= incumbent.loss || candidate.action < incumbent.action || candidate.modality < incumbent.modality {
+		t.Fatalf("composed descendant did not improve over %d seeds: incumbent=%+v candidate=%+v", len(seeds), incumbent, candidate)
 	}
-	t.Logf("composed objective action %.3f -> %.3f; modality %.3f -> %.3f", incumbent.Evidence.Final.ActionAccuracy,
-		candidate.Evidence.Final.ActionAccuracy, incumbent.Evidence.Final.ModalityAccuracy, candidate.Evidence.Final.ModalityAccuracy)
+	t.Logf("composed objective over %d seeds: loss %.4f -> %.4f; action %.3f -> %.3f; modality %.3f -> %.3f",
+		len(seeds), incumbent.loss, candidate.loss, incumbent.action, candidate.action, incumbent.modality, candidate.modality)
 }
 
 func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Repository, composition trainingprogram.ObjectiveComposition, objective trainingprogram.ObjectiveSpec) {

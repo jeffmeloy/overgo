@@ -1,0 +1,17 @@
+{
+ "model": "model:sha256:a4246e239af0f35a1c495b6d180961a6f10b379dc24dd537f64c695c08e4e216",
+ "name": "Pocket-TTS",
+ "evidence_files": ["docs/verification/pockettts-training-run.txt"],
+ "dataset_files": ["fixtures/pockettts/g7_generation.json"],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "207be7c52bc695b2e0bf8f7bd8aca8e3c7ef1fdb",
+   "dataset": "dataset-shard:sha256:1658f8b442d25adcbe7ed1b9306d333ba2cc81d7e7647ac6a48252c8a437eee1",
+   "span_steps": 1,
+   "wall_ns": 1700000000,
+   "evidence": ["evidence:sha256:f5bee0f73545b03cab950bd3e6c01a555e0fbd7a7eedb9fc4c108e6067440c24"]
+  }
+ ]
+}

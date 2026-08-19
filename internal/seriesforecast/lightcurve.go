@@ -16,11 +16,24 @@ import (
 // LightCurveProcessor converts (time, wavelength, flux, error) tuples into a
 // forecast pair. Band selection is data-derived; the boundary is model-derived.
 func LightCurveProcessor(patchLen, horizon int) (trainingdata.Processor, error) {
+	return lightCurveProcessor(patchLen, horizon, patchLen)
+}
+
+// LightCurveTrainingProcessor pairs like LightCurveProcessor but reserves at
+// least TWO patches of context. A single-patch context degenerates attention
+// to one position, where the softmax is constant and the q/k projections,
+// both attention norms and the per-dim scale receive exactly zero gradient —
+// an evaluation pairing, not a trainable one.
+func LightCurveTrainingProcessor(patchLen, horizon int) (trainingdata.Processor, error) {
+	return lightCurveProcessor(patchLen, horizon, 2*patchLen)
+}
+
+func lightCurveProcessor(patchLen, horizon, minContext int) (trainingdata.Processor, error) {
 	if patchLen <= 0 || horizon <= 0 {
 		return nil, errors.New("seriesforecast: invalid light-curve geometry")
 	}
 	return func(_ context.Context, record trainingdata.RawRecord) (trainingdata.Example, error) {
-		contextValues, target, err := lightCurvePair(record.Data, patchLen, horizon)
+		contextValues, target, err := lightCurvePair(record.Data, minContext, horizon)
 		if err != nil {
 			return trainingdata.Example{}, err
 		}
@@ -43,7 +56,7 @@ type lightObservation struct {
 	flux float32
 }
 
-func lightCurvePair(data []byte, patchLen, horizon int) ([]float32, []float32, error) {
+func lightCurvePair(data []byte, minContext, horizon int) ([]float32, []float32, error) {
 	var row lightCurveRow
 	if err := json.Unmarshal(data, &row); err != nil {
 		return nil, nil, fmt.Errorf("seriesforecast: decode light curve: %w", err)
@@ -73,15 +86,15 @@ func lightCurvePair(data []byte, patchLen, horizon int) ([]float32, []float32, e
 		}
 	}
 	observations := bands[selected]
-	if len(observations) <= patchLen {
-		return nil, nil, fmt.Errorf("seriesforecast: light curve has %d usable band samples; need more than patch %d", len(observations), patchLen)
+	if len(observations) <= minContext {
+		return nil, nil, fmt.Errorf("seriesforecast: light curve has %d usable band samples; need more than context floor %d", len(observations), minContext)
 	}
 	sort.SliceStable(observations, func(left, right int) bool { return observations[left].time < observations[right].time })
 	values := make([]float32, len(observations))
 	for index, observation := range observations {
 		values[index] = observation.flux
 	}
-	targetLen := min(horizon, len(values)-patchLen)
+	targetLen := min(horizon, len(values)-minContext)
 	boundary := len(values) - targetLen
 	return values[:boundary], values[boundary:], nil
 }

@@ -1,0 +1,17 @@
+{
+ "model": "model:sha256:29410f1aac9ed73a51a1b225f6d3c5cbe5560fa5a6521c8f464030b1a2de6157",
+ "name": "SimpleDiffusion-TPA-Rope",
+ "evidence_files": ["docs/verification/simplediffusion-training-run.txt"],
+ "dataset_files": ["fixtures/simplediffusion/real_forward.json"],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "d341d2ed5e3a1016aeb52f257da5d17bd2d44de7",
+   "dataset": "dataset-shard:sha256:1b2c702b1a128f7c4eddc2fa989d739ccad7072a2676ec8a91c62d314e9bfc93",
+   "span_steps": 3,
+   "wall_ns": 3943000000,
+   "evidence": ["evidence:sha256:471573a6106a4ee98c130e7e1b4da4369c74faa82639d7d1c5bda57172f1767d"]
+  }
+ ]
+}

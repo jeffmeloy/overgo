@@ -47,16 +47,12 @@ func TestCompileExactOwnsStableSuite(t *testing.T) {
 		t.Fatalf("identity differs: %s != %s", first.Identity(), second.Identity())
 	}
 	suite.Cases[0].Text = "changed"
-	var results []ExactResult
-	err = EvaluateExact(context.Background(), exactGenerator{pieces: []string{"o", "k"}}, first, func(result ExactResult) error {
-		results = append(results, result)
-		return nil
-	})
+	result, err := evaluateExactCase(context.Background(), exactGenerator{pieces: []string{"o", "k"}}, first.suite.Cases[0])
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 1 || results[0].Text != "ok" {
-		t.Fatalf("results = %+v", results)
+	if result.Text != "ok" {
+		t.Fatalf("result = %+v", result)
 	}
 }
 
@@ -77,16 +73,11 @@ func TestExactReportsGenerationFailureAndMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := EvaluateExact(context.Background(), exactGenerator{err: errors.New("generate")}, plan, nil); err == nil {
+	if _, err := evaluateExactCase(context.Background(), exactGenerator{err: errors.New("generate")}, plan.suite.Cases[0]); err == nil {
 		t.Fatal("generation failure accepted")
 	}
-	if err := EvaluateExact(context.Background(), exactGenerator{pieces: []string{"n", "o"}}, plan, nil); err == nil {
+	if _, err := evaluateExactCase(context.Background(), exactGenerator{pieces: []string{"n", "o"}}, plan.suite.Cases[0]); err == nil {
 		t.Fatal("mismatch accepted")
-	}
-	if err := EvaluateExact(context.Background(), exactGenerator{pieces: []string{"o", "k"}}, plan, func(ExactResult) error {
-		return errors.New("observe")
-	}); err == nil {
-		t.Fatal("observation failure accepted")
 	}
 }
 

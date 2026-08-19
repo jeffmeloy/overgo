@@ -153,7 +153,7 @@
      "contains": "func TestQwen35RealTraining(",
      "path": "internal/adaptiveparity/qwen35_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:fe87571f7ae1010d79206c26af6a9c90c3d47b17b45f4bd9168d5cc433724139"
+     "identity": "evidence:sha256:c61a40b70dcaab3c34581033cd4ef9183f85ed2dfc0dc553c603822d18eb0bb5"
     }
    ],
    "id": "qwen35-real-recurrent-layer-training",
@@ -273,7 +273,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:8d9fa5f17965245b62f195e26dadedd0d39f68e5dda7319ae61c1e153004bcf0"
+     "identity": "evidence:sha256:c8baf7466707902ea3e956b919f564b490c465ed783637cefa2e6ff872728fc4"
     }
    ],
    "id": "gemma4-multimodal-oracle",
@@ -326,7 +326,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:8d9fa5f17965245b62f195e26dadedd0d39f68e5dda7319ae61c1e153004bcf0"
+     "identity": "evidence:sha256:c8baf7466707902ea3e956b919f564b490c465ed783637cefa2e6ff872728fc4"
     }
    ],
    "id": "gemma-e4b-image-language-oracle",
@@ -354,7 +354,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:8d9fa5f17965245b62f195e26dadedd0d39f68e5dda7319ae61c1e153004bcf0"
+     "identity": "evidence:sha256:c8baf7466707902ea3e956b919f564b490c465ed783637cefa2e6ff872728fc4"
     }
    ],
    "id": "qwen35-image-video-language-oracle",

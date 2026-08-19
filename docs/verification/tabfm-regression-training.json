@@ -1,0 +1,17 @@
+{
+  "model": "model:sha256:bd5a615b0322a8f04a895038de6df6fbd71430eca750e1d792f31048654674a9",
+  "name": "TabFM-1.0-regression",
+  "evidence_files": ["docs/verification/tabfm-regression-training-run.txt"],
+  "dataset_files": ["docs/verification/tabfm-regression-training-request.json"],
+  "claims": [
+    {
+      "capability": "training",
+      "tier": "real-artifact-smoke",
+      "commit": "67622a18142c75ab8ef712d8f0b0be5fb854ee3b",
+      "dataset": "dataset-shard:sha256:2bb08c9a6a66f65c694dde7a193053731c81ec7bdba81f2ae843acf9edffe1d1",
+      "span_steps": 1,
+      "wall_ns": 2737945200,
+      "evidence": ["evidence:sha256:79962b73c1b424ae6e51c756d8b5b293837c5a6707db63d001aae8048fb560e5"]
+    }
+  ]
+}

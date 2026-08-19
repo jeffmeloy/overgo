@@ -25,20 +25,7 @@ type EvaluationCapability struct {
 	Suite  evaluation.SuiteDescriptor `json:"suite"`
 }
 
-type EvaluationHistoryEntry struct {
-	Evaluation artifact.ID        `json:"evaluation,omitempty"`
-	Run        artifact.ID        `json:"run"`
-	Report     artifact.ID        `json:"report,omitempty"`
-	Dataset    artifact.ID        `json:"dataset"`
-	Recipe     artifact.ID        `json:"recipe"`
-	Outcome    runrecord.Outcome  `json:"outcome"`
-	Failure    string             `json:"failure,omitempty"`
-	CodeCommit string             `json:"code_commit,omitempty"`
-	MeasuredNS uint64             `json:"measured_ns,omitempty"`
-	Metrics    []runrecord.Metric `json:"metrics"`
-	Inputs     []artifact.ID      `json:"inputs,omitempty"`
-	Outputs    []artifact.ID      `json:"outputs,omitempty"`
-}
+type EvaluationHistoryEntry = evaluation.HistoryEntry
 
 type EvaluationReport struct {
 	ID        artifact.ID     `json:"id"`
@@ -182,66 +169,7 @@ func (workspace *EvaluationWorkspace) EvaluationHistory(ctx context.Context, mod
 	if workspace == nil || workspace.repository == nil || model != workspace.model {
 		return nil, errors.New("evaluation workspace: model is not selected")
 	}
-	evaluationResult, err := workspace.repository.Query(ctx, repodb.Query{Kind: artifact.KindEvaluation, MaxResults: repodb.MaxQueryResults})
-	if err != nil {
-		return nil, err
-	}
-	evaluationByRun := make(map[artifact.ID]runrecord.Evaluation)
-	for _, descriptor := range evaluationResult.Artifacts {
-		if descriptor.MediaType != runrecord.EvaluationMediaType || descriptor.Schema != runrecord.EvaluationSchema {
-			continue
-		}
-		content, found, err := workspace.repository.Content(ctx, descriptor.ID)
-		if err != nil {
-			return nil, err
-		}
-		if !found {
-			continue
-		}
-		record, err := runrecord.ParseEvaluation(content.Data)
-		if err != nil || record.Recipe != workspace.recipe {
-			continue
-		}
-		evaluationByRun[record.Run] = record
-	}
-	runResult, err := workspace.repository.Query(ctx, repodb.Query{Kind: artifact.KindRun, MaxResults: repodb.MaxQueryResults})
-	if err != nil {
-		return nil, err
-	}
-	entries := make([]EvaluationHistoryEntry, 0, len(evaluationByRun))
-	for _, descriptor := range runResult.Artifacts {
-		if descriptor.MediaType != runrecord.RunMediaType {
-			continue
-		}
-		runContent, found, err := workspace.repository.Content(ctx, descriptor.ID)
-		if err != nil || !found {
-			if err != nil {
-				return nil, err
-			}
-			continue
-		}
-		run, err := runrecord.ParseRun(runContent.Data)
-		if err != nil || run.Recipe != workspace.recipe || len(run.Inputs) == 0 {
-			continue
-		}
-		suiteIndex, evaluationPlan := workspace.byPlan[run.Inputs[0]]
-		if !evaluationPlan {
-			continue
-		}
-		record := evaluationByRun[run.ID]
-		entry := EvaluationHistoryEntry{
-			Evaluation: record.ID, Run: run.ID, Dataset: workspace.suites[suiteIndex].Descriptor().Dataset, Recipe: run.Recipe,
-			Outcome: run.Outcome, Failure: run.Failure, CodeCommit: run.CodeCommit,
-			MeasuredNS: run.MeasuredNS, Metrics: slices.Clone(record.Metrics),
-			Inputs: slices.Clone(run.Inputs), Outputs: slices.Clone(run.Outputs),
-		}
-		if len(run.Outputs) > 0 {
-			entry.Report = run.Outputs[0]
-		}
-		entries = append(entries, entry)
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Run.String() < entries[j].Run.String() })
-	return entries, nil
+	return workspace.campaign.History(ctx, workspace.suites)
 }
 
 func (workspace *EvaluationWorkspace) EvaluationReport(ctx context.Context, id artifact.ID) (EvaluationReport, error) {

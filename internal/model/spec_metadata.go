@@ -92,7 +92,7 @@ func newSpecMetadataWithProfile(file *gguf.File, resolved *ArchitectureProfile) 
 
 func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	values, prefix := m.values, m.prefix
-	if m.profile.Validation.Attention == AttentionValidationChameleon {
+	if m.profile.Validation.Attention == AttentionValidationQKNormEpsilon {
 		spec.SandwichNorm, _ = optional[bool](values, "chameleon.swin_norm", gguf.ValueTypeBool)
 	}
 	if value, ok := optional[string](values, "general.name", gguf.ValueTypeString); ok {
@@ -142,7 +142,7 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	); err != nil {
 		return specReadState{}, err
 	}
-	if err := m.readFamilyShape(spec); err != nil {
+	if err := m.readProfileShape(spec); err != nil {
 		return specReadState{}, err
 	}
 	return state, nil
@@ -301,7 +301,7 @@ func (m specMetadata) readPosition(spec *Spec) error {
 			gatedDeltaMulti := profile.Attention == AttentionGatedDelta && profile.Has(ArchitectureMultiAxisPositions)
 			longRoPE := profile.Has(ArchitectureLongRoPE) && kind == ropeScalingLongRoPE
 			yarn := kind == ropeScalingYaRN && (profile.Has(ArchitectureLatentKVLayout) ||
-				validation.MLA == MLAValidationDeepSeek4 || validation.supportsYaRN())
+				validation.MLA == MLAValidationCompressedHyper || validation.supportsYaRN())
 			if gatedDeltaMulti || kind != ropeScalingLinear && !longRoPE && !yarn {
 				return fmt.Errorf("model architecture %q uses unsupported RoPE scaling type %q", architecture, scalingType)
 			}
@@ -323,7 +323,7 @@ func (m specMetadata) readPosition(spec *Spec) error {
 				spec.YaRNAttentionFactor =
 					1 / (1 + yarnLogFactorStep*float32(math.Log(float64(spec.RopeScalingFactor))))
 				spec.YaRNBetaFast, spec.YaRNBetaSlow = yarnDefaultBetaFast, yarnDefaultBetaSlow
-				if validation.Hybrid == HybridValidationGrok {
+				if validation.Hybrid == HybridValidationSharedExpertNorm {
 					spec.YaRNBetaFast = 8
 				}
 				for _, field := range []metadataField[float32]{
@@ -354,7 +354,7 @@ func (m specMetadata) readPosition(spec *Spec) error {
 	if profile.DenseWeights.AllowActivationScale {
 		spec.AttentionClamp, _ = optional[float32](values, prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32)
 	}
-	if validation.Hybrid == HybridValidationDBRX {
+	if validation.Hybrid == HybridValidationModelWidthExperts {
 		value, err := required[float32](values, prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32)
 		if err != nil {
 			return err
@@ -475,30 +475,30 @@ var cohere2CoreProgram = []metadataOp{
 
 // coreAttentionPrograms: architecture-core reads keyed by attention contract.
 var coreAttentionPrograms = map[AttentionValidationPolicy][]metadataOp{
-	AttentionValidationTalkie:     {opReqF32.at("logit_scale", "LogitScale")},
-	AttentionValidationCohere2:    cohere2CoreProgram,
-	AttentionValidationCohere2MoE: cohere2CoreProgram,
-	AttentionValidationStableLM:   {ropeDimensionRequired},
-	AttentionValidationPhi2:       {ropeDimensionRequired},
-	AttentionValidationPhi3: {
+	AttentionValidationFullRotary:                   {opReqF32.at("logit_scale", "LogitScale")},
+	AttentionValidationRequiredSlidingRotary:        cohere2CoreProgram,
+	AttentionValidationRequiredSlidingRotaryExperts: cohere2CoreProgram,
+	AttentionValidationPartialRotaryRequired:        {ropeDimensionRequired},
+	AttentionValidationPartialRotaryFixed:           {ropeDimensionRequired},
+	AttentionValidationScaledPartialRotary: {
 		ropeDimensionRequired,
 		opReqU32.at("rope.scaling.original_context_length", "OriginalContextLength"),
 	},
-	AttentionValidationGemmaEmbedding: {
+	AttentionValidationSlidingRotaryEmbeddingProjection: {
 		opReqU32.at("attention.sliding_window", "SlidingWindow"),
 		opZeroU32.at("dense_2_feat_in", "Dense2FeatureIn"),
 		opZeroU32.at("dense_2_feat_out", "Dense2FeatureOut"),
 		opZeroU32.at("dense_3_feat_in", "Dense3FeatureIn"),
 		opZeroU32.at("dense_3_feat_out", "Dense3FeatureOut"),
 	},
-	AttentionValidationGPTNeoX: {
+	AttentionValidationOptionalRotaryBase: {
 		ropeDimensionAssigned,
 		opReqBool.at("use_parallel_residual", "ParallelResidual"),
 	},
-	AttentionValidationQwen:    {{kind: metadataOpHalveFeedForward}},
-	AttentionValidationGLM4:    {sectionsOptional},
-	AttentionValidationGLM4MoE: {sectionsOptional},
-	AttentionValidationFalcon:  {ropeDimensionAssigned},
+	AttentionValidationHalvedFeedForward:           {{kind: metadataOpHalveFeedForward}},
+	AttentionValidationOptionalRopeSections:        {sectionsOptional},
+	AttentionValidationOptionalRopeSectionsExperts: {sectionsOptional},
+	AttentionValidationOptionalRotaryBaseGQA:       {ropeDimensionAssigned},
 }
 
 // coreFlagPrograms: architecture-core reads keyed by metadata-read facts.
@@ -530,24 +530,24 @@ func expertProductProgram(gating, norm bool) []metadataOp {
 
 // expertHybridPrograms: expert-stage reads keyed by hybrid contract.
 var expertHybridPrograms = map[HybridValidationPolicy][]metadataOp{
-	HybridValidationMiMo2:  {setU32("ExpertGatingFunc", expertGatingSigmoid), expertNormAlways},
-	HybridValidationMellum: {expertWidthRequired, expertNormAlways},
-	HybridValidationHunyuanMoE: {
+	HybridValidationSigmoidExperts:      {setU32("ExpertGatingFunc", expertGatingSigmoid), expertNormAlways},
+	HybridValidationRequiredExpertWidth: {expertWidthRequired, expertNormAlways},
+	HybridValidationSharedExpertProduct: {
 		expertWidthRequired,
 		{kind: metadataOpSharedWidthPolicy},
 		expertNormAlways,
 	},
-	HybridValidationDBRX: {{kind: metadataOpExpertWidthFromModel}, expertNormAlways},
-	HybridValidationSmallThinker: {
+	HybridValidationModelWidthExperts: {{kind: metadataOpExpertWidthFromModel}, expertNormAlways},
+	HybridValidationDualExpertProduct: {
 		{kind: metadataOpExpertWidthFromModel},
 		expertNormAlways,
 		expertGatingRequired,
 	},
-	HybridValidationDOTS1:      expertProductProgram(true, true),
-	HybridValidationBailingMoE: expertProductProgram(false, true),
-	HybridValidationDeepSeek:   expertProductProgram(false, false),
-	HybridValidationLFM2MoE:    {expertWidthRequired, expertGatingRequired, leadingDenseOptional},
-	HybridValidationBailingMoE2: {
+	HybridValidationWeightedExpertProduct:              expertProductProgram(true, true),
+	HybridValidationProductSharedExperts:               expertProductProgram(false, true),
+	HybridValidationProductExperts:                     expertProductProgram(false, false),
+	HybridValidationAlternatingShortConvolutionExperts: {expertWidthRequired, expertGatingRequired, leadingDenseOptional},
+	HybridValidationScaledSharedExperts: {
 		expertWidthRequired,
 		opReqU32.at("expert_shared_count", "SharedExpertCount"),
 		{kind: metadataOpSharedWidthFromExpert},
@@ -557,7 +557,7 @@ var expertHybridPrograms = map[HybridValidationPolicy][]metadataOp{
 		expertNormOptional,
 		leadingDenseOptional,
 	},
-	HybridValidationQwen2MoE: {
+	HybridValidationNormalizedSharedExperts: {
 		{kind: metadataOpExpertWidthFromModel, flag: true},
 		setU32("SharedExpertCount", 1),
 		{kind: metadataOpSharedWidthFromModel},
@@ -567,7 +567,7 @@ var expertHybridPrograms = map[HybridValidationPolicy][]metadataOp{
 
 // expertAttentionPrograms: expert-stage reads keyed by attention contract.
 var expertAttentionPrograms = map[AttentionValidationPolicy][]metadataOp{
-	AttentionValidationErnie45MoE: {
+	AttentionValidationPeriodicExperts: {
 		expertWidthRequired,
 		opReqU32.at("interleave_moe_layer_step", "MoELayerStep"),
 		leadingDenseOptional,
@@ -589,13 +589,13 @@ var rwkv7Reads = []metadataOp{
 	opZeroU32.at("attention.gate_lora_rank", "GateLoRARank"),
 }
 
-// rwkvProgram: WKV head reads with the family token-shift default.
-func rwkvProgram(reads []metadataOp, shift uint32) []metadataOp {
+// tokenShiftProgram: WKV reads plus token-shift default.
+func tokenShiftProgram(reads []metadataOp, shift uint32) []metadataOp {
 	program := append([]metadataOp{opReqU32.at("wkv.head_size", "WKVHeadSize")}, reads...)
 	return append(program, setU32("TokenShiftCount", shift), opKeepU32.at("token_shift_count", "TokenShiftCount"))
 }
 
-// ssmProgram: state-space dimension reads; grouped families read a count.
+// ssmProgram: state-space reads; grouped layouts include group count.
 func ssmProgram(grouped bool) []metadataOp {
 	program := []metadataOp{
 		opReqU32.at("ssm.conv_kernel", "SSMConvKernel"),
@@ -611,18 +611,18 @@ func ssmProgram(grouped bool) []metadataOp {
 
 // coreRecurrentPrograms: architecture-core reads keyed by recurrent contract.
 var coreRecurrentPrograms = map[RecurrentValidationPolicy][]metadataOp{
-	RecurrentValidationRWKV6:         rwkvProgram(rwkv6Reads, 2),
-	RecurrentValidationRWKV6Qwen2:    rwkvProgram(rwkv6Reads, 1),
-	RecurrentValidationRWKV7:         rwkvProgram(rwkv7Reads, 2),
-	RecurrentValidationARWKV7:        rwkvProgram(rwkv7Reads, 1),
-	RecurrentValidationMamba:         ssmProgram(false),
-	RecurrentValidationJamba:         ssmProgram(false),
-	RecurrentValidationMamba2:        ssmProgram(true),
-	RecurrentValidationGraniteHybrid: ssmProgram(true),
-	RecurrentValidationPLaMo2:        ssmProgram(true),
-	RecurrentValidationNemotronH:     ssmProgram(true),
-	RecurrentValidationNemotronHMoE:  ssmProgram(true),
-	RecurrentValidationFalconH1:      ssmProgram(true),
+	RecurrentValidationTimeMixV6:                        tokenShiftProgram(rwkv6Reads, 2),
+	RecurrentValidationTimeMixV6SharedKV:                tokenShiftProgram(rwkv6Reads, 1),
+	RecurrentValidationTimeMixV7Gated:                   tokenShiftProgram(rwkv7Reads, 2),
+	RecurrentValidationTimeMixV7:                        tokenShiftProgram(rwkv7Reads, 1),
+	RecurrentValidationUngroupedStateSpace:              ssmProgram(false),
+	RecurrentValidationStateSpaceAttentionExperts:       ssmProgram(false),
+	RecurrentValidationGroupedStateSpace:                ssmProgram(true),
+	RecurrentValidationGroupedStateSpaceOptionalExperts: ssmProgram(true),
+	RecurrentValidationUngroupedScheduledStateSpace:     ssmProgram(true),
+	RecurrentValidationScheduledStateSpaceDense:         ssmProgram(true),
+	RecurrentValidationScheduledStateSpaceExperts:       ssmProgram(true),
+	RecurrentValidationGroupedStateSpaceAttention:       ssmProgram(true),
 }
 
 // lfm2RuntimeProgram: short-convolution cache and sliding-window reads.
@@ -634,9 +634,9 @@ var lfm2RuntimeProgram = []metadataOp{
 // compileRuntimeProgram: ordered runtime metadata operations from a profile.
 func compileRuntimeProgram(profile ArchitectureProfile) []metadataOp {
 	switch profile.Validation.Hybrid {
-	case HybridValidationLFM2, HybridValidationLFM2MoE:
+	case HybridValidationAlternatingShortConvolution, HybridValidationAlternatingShortConvolutionExperts:
 		return lfm2RuntimeProgram
-	case HybridValidationGPTOSS:
+	case HybridValidationSelectedSoftmaxExperts:
 		return []metadataOp{opReqU32.at("attention.sliding_window", "SlidingWindow")}
 	}
 	return nil
@@ -647,7 +647,7 @@ func compileArchitectureCoreProgram(profile ArchitectureProfile) []metadataOp {
 	validation := profile.Validation
 	program := make([]metadataOp, 0, 16)
 	switch {
-	case validation.Attention == AttentionValidationCohere2MoE:
+	case validation.Attention == AttentionValidationRequiredSlidingRotaryExperts:
 		program = append(program, metadataOp{kind: metadataOpEpsilonEither})
 	case profile.Normalization == NormalizationLayer,
 		profile.Normalization == NormalizationUnweightedLayer,
@@ -670,7 +670,7 @@ func compileArchitectureCoreProgram(profile ArchitectureProfile) []metadataOp {
 			program = append(program, entry.program...)
 		}
 	}
-	if validation.Hybrid == HybridValidationAFMoE {
+	if validation.Hybrid == HybridValidationSlidingSigmoidExperts {
 		program = append(program, setU32("NoRopeLayerStep", 4))
 	}
 	return append(program, coreRecurrentPrograms[validation.Recurrent]...)
@@ -681,7 +681,7 @@ func compileExpertProgram(profile ArchitectureProfile) []metadataOp {
 	validation := profile.Validation
 	program := append([]metadataOp(nil), expertHybridPrograms[validation.Hybrid]...)
 	program = append(program, expertAttentionPrograms[validation.Attention]...)
-	if validation.Encoder == EncoderValidationNomicBERTMoE {
+	if validation.Encoder == EncoderValidationRotaryPeriodicExperts {
 		program = append(program, opReqU32.at("moe_every_n_layers", "MoELayerStep"))
 	}
 	return program
@@ -793,7 +793,7 @@ func (m specMetadata) runMetadataProgram(spec Spec, program []metadataOp) (Spec,
 	return spec, nil
 }
 
-func (m specMetadata) readFamilyShape(spec *Spec) error {
+func (m specMetadata) readProfileShape(spec *Spec) error {
 	values, prefix := m.values, m.prefix
 	validation := m.profile.Validation
 	defaults := m.profile.MetadataDefaults
@@ -810,7 +810,7 @@ func (m specMetadata) readFamilyShape(spec *Spec) error {
 		if nextN != spec.BlockCount {
 			return errors.New("Gemma 4 assistant NextN layer count must match block count")
 		}
-	case validation.Attention == AttentionValidationGemma3N:
+	case validation.Attention == AttentionValidationSharedKVAlternatingState:
 		spec.AltUpCount = defaults.AlternateStateCount
 		spec.LaurelRank = defaults.LowRankResidualWidth
 		spec.EmbeddingPerLayer = defaults.PerLayerEmbeddingWidth
@@ -834,7 +834,7 @@ func (m specMetadata) readFamilyShape(spec *Spec) error {
 		); err != nil {
 			return err
 		}
-	case validation.Recurrent == RecurrentValidationDFlash:
+	case validation.Recurrent == RecurrentValidationTargetLayerBlock:
 		if spec.TargetLayers, err = requiredArray[int32](values, prefix+"target_layers", gguf.ValueTypeInt32); err != nil {
 			return err
 		}
@@ -842,7 +842,7 @@ func (m specMetadata) readFamilyShape(spec *Spec) error {
 		if value, ok := optional[uint32](values, prefix+"block_size", gguf.ValueTypeUint32); ok {
 			spec.DFlashBlockSize = value
 		}
-	case validation.Recurrent == RecurrentValidationEagle3:
+	case validation.Recurrent == RecurrentValidationSingleBlockTarget:
 		if spec.TargetLayers, err = requiredArray[int32](values, prefix+"target_layers", gguf.ValueTypeInt32); err != nil {
 			return err
 		}

@@ -13,6 +13,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/recipecontract"
 	"overgo/internal/repodb"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
@@ -51,11 +52,54 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	split, err := artifact.IdentifyBytes(artifact.KindDatasetShard, append([]byte("all\x00"), datasetData...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	processor := testutil.ArtifactID(t, artifact.KindProfile, "overgo/training/preference-token-pair/v1")
+	evaluation := testutil.ArtifactID(t, artifact.KindProfile, "dpo evaluation")
+	policies := trainingprogram.PolicySpec{
+		Precision:  testutil.ArtifactID(t, artifact.KindProfile, "dpo precision"),
+		Placement:  testutil.ArtifactID(t, artifact.KindProfile, "dpo placement"),
+		Memory:     testutil.ArtifactID(t, artifact.KindProfile, "dpo memory"),
+		Checkpoint: testutil.ArtifactID(t, artifact.KindProfile, "dpo checkpoint"),
+		Evaluation: evaluation,
+		Promotion:  testutil.ArtifactID(t, artifact.KindProfile, "dpo promotion"),
+	}
+	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "dpo objective evidence")
+	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
+		Name: "dpo", Kind: trainingprogram.ObjectiveDPO,
+		Signature: recipecontract.ModalitySignature{
+			Inputs:  []recipecontract.Modality{recipecontract.ModalityText},
+			Outputs: []recipecontract.Modality{recipecontract.ModalityText},
+		},
+		Dataset: dataset, Split: split, Processors: []artifact.ID{processor},
+		Loss: testutil.ArtifactID(t, artifact.KindProfile, "dpo loss"), Evaluation: evaluation,
+		Metric: trainingprogram.MetricTokenAccuracy, Evidence: []artifact.ID{evidence},
+		Authority: trainingprogram.ObjectiveApproved,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	policies.Objective = objective.ID
+	objectiveContent, err := objective.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorities := []artifact.ID{
+		split, processor, objective.Loss, evidence, policies.Precision, policies.Placement,
+		policies.Memory, policies.Checkpoint, policies.Evaluation, policies.Promotion,
+	}
+	descriptors := make([]artifact.Descriptor, len(authorities))
+	for index, id := range authorities {
+		descriptors[index] = artifact.Descriptor{ID: id}
+	}
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/training-workspace/artifacts",
-		Artifacts: []artifact.Descriptor{
+		Artifacts: append(descriptors, []artifact.Descriptor{
 			{ID: policy, Size: 1}, {ID: reference, Size: 1}, {ID: dataset, Size: uint64(len(datasetData))},
-		},
+		}...),
+		Contents: []artifact.Content{objectiveContent},
 		Locations: []artifact.LocationEvent{
 			location(policy, artifact.LocationDirectory, policyPath),
 			location(reference, artifact.LocationDirectory, referencePath),
@@ -64,7 +108,10 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := dpoFixtureDefinition(policy, reference)
+	definition, err := dpoFixtureDefinition(append([]recipe.Dependency{
+		{Role: recipe.DependencyModel, Artifact: policy},
+		{Role: recipe.DependencyModel, Slot: 1, Artifact: reference},
+	}, policyDependencies(policies)...))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,13 +136,13 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 	}
 	input, err := json.Marshal(map[string]any{
 		"dataset": dataset, "output": "trained", "steps": 1,
-		"learning_rate": 0, "momentum": 0.9, "dpo_scale": 0.1,
+		"learning_rate": 0, "momentum": 0.9, "objective_scale": 0.1,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, recipe.TaskTraining, definition.ID, input, testReporter{})
-	if err != nil || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 2 ||
+	if err != nil || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 3 ||
 		completion.Outputs[0].Kind() != artifact.KindCheckpoint || completion.Outputs[1].Kind() != artifact.KindEvidence {
 		t.Fatalf("completion=%+v err=%v", completion, err)
 	}
@@ -139,7 +186,7 @@ func location(id artifact.ID, kind artifact.LocationKind, path string) artifact.
 	return artifact.LocationEvent{Location: artifact.Location{Artifact: id, Kind: kind, Value: path}, Action: artifact.LocationAdd}
 }
 
-func dpoFixtureDefinition(policy, reference artifact.ID) (recipe.Definition, error) {
+func dpoFixtureDefinition(dependencies []recipe.Dependency) (recipe.Definition, error) {
 	nodes := []recipe.Node{
 		{ID: "batch", Module: workflowrecipe.ModuleBatchPreference, Placement: recipe.PlacementHost},
 		{ID: "policy", Module: workflowrecipe.ModuleScorePolicy, Placement: recipe.PlacementHost},
@@ -152,12 +199,7 @@ func dpoFixtureDefinition(policy, reference artifact.ID) (recipe.Definition, err
 		return recipe.Edge{From: recipe.Endpoint{Node: fromNode, Port: fromPort}, To: recipe.Endpoint{Node: toNode, Port: toPort}}
 	}
 	return recipe.NewDefinitionWithDependencies(
-		recipe.TaskTraining,
-		[]recipe.Dependency{
-			{Role: recipe.DependencyModel, Artifact: policy},
-			{Role: recipe.DependencyModel, Slot: 1, Artifact: reference},
-		},
-		nodes,
+		recipe.TaskTraining, dependencies, nodes,
 		[]recipe.Edge{
 			edge("batch", "batch", "policy", "batch"), edge("batch", "batch", "reference", "batch"),
 			edge("policy", "scores", "objective", "policy"), edge("reference", "scores", "objective", "reference"),
@@ -165,6 +207,18 @@ func dpoFixtureDefinition(policy, reference artifact.ID) (recipe.Definition, err
 		}, nil,
 		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}},
 	)
+}
+
+func policyDependencies(spec trainingprogram.PolicySpec) []recipe.Dependency {
+	return []recipe.Dependency{
+		{Role: recipe.DependencyObjective, Artifact: spec.Objective},
+		{Role: recipe.DependencyPrecision, Artifact: spec.Precision},
+		{Role: recipe.DependencyPlacement, Artifact: spec.Placement},
+		{Role: recipe.DependencyMemory, Artifact: spec.Memory},
+		{Role: recipe.DependencyCheckpointPolicy, Artifact: spec.Checkpoint},
+		{Role: recipe.DependencyEvaluation, Artifact: spec.Evaluation},
+		{Role: recipe.DependencyPromotion, Artifact: spec.Promotion},
+	}
 }
 
 type testReporter struct{}

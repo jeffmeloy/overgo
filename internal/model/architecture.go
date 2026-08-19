@@ -430,7 +430,7 @@ func (s Spec) Profile() ArchitectureProfile {
 }
 
 func (s Spec) withProfile(profile ArchitectureProfile) Spec {
-	if profile.Validation.Attention == AttentionValidationCohere2MoE &&
+	if profile.Validation.Attention == AttentionValidationRequiredSlidingRotaryExperts &&
 		s.LayerNormEpsilon <= 0 && s.RMSNormEpsilon > 0 {
 		profile.Normalization = NormalizationRMS
 	}

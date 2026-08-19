@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/optimizer"
+	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 )
 
@@ -225,6 +226,27 @@ type PolicySpec struct {
 	Checkpoint artifact.ID
 	Evaluation artifact.ID
 	Promotion  artifact.ID
+}
+
+var policyDependencyRoles = []recipe.DependencyRole{
+	recipe.DependencyObjective, recipe.DependencyPrecision, recipe.DependencyPlacement,
+	recipe.DependencyMemory, recipe.DependencyCheckpointPolicy, recipe.DependencyEvaluation,
+	recipe.DependencyPromotion,
+}
+
+func PoliciesFromRecipe(definition recipe.Definition) (PolicySpec, error) {
+	ids := make([]artifact.ID, len(policyDependencyRoles))
+	for index, role := range policyDependencyRoles {
+		id, ok := definition.Dependency(role, 0)
+		if !ok {
+			return PolicySpec{}, fmt.Errorf("training program: recipe dependency %q absent", role)
+		}
+		ids[index] = id
+	}
+	return PolicySpec{
+		Objective: ids[0], Precision: ids[1], Placement: ids[2], Memory: ids[3],
+		Checkpoint: ids[4], Evaluation: ids[5], Promotion: ids[6],
+	}, nil
 }
 
 type RunSpec struct {

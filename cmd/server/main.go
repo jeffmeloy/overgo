@@ -99,6 +99,7 @@ func run() error {
 	videoFPS := flag.Float64("video-fps", llamaserver.DefaultVideoFPS, "video frame sampling rate")
 	videoMaxFrames := flag.Int("video-max-frames", llamaserver.DefaultVideoFrameLimit, "maximum decoded video frames")
 	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
+	modelBuilderEnabled := flag.Bool("model-builder", false, "enable corpus-derived model builder workspace")
 	var evaluationSuites []string
 	flag.Func("evaluation-suite", "compiled evaluation suite JSON; repeatable", func(value string) error {
 		value = strings.TrimSpace(value)
@@ -142,13 +143,14 @@ func run() error {
 	}
 	var generator llamaserver.Generator = runner
 	var workspaceStore *repodb.Store
-	if *trainingEnabled || len(evaluationSuites) > 0 {
+	if *trainingEnabled || *modelBuilderEnabled || len(evaluationSuites) > 0 {
 		workspaceStore, err = repodb.Open(repoPath)
 		if err != nil {
 			return fmt.Errorf("open workspace repository: %w", err)
 		}
 		defer workspaceStore.Close()
 	}
+	var workflowWorkspaces llamaserver.WorkflowWorkspaceSet
 	if *trainingEnabled {
 		if rootsErr != nil {
 			return rootsErr
@@ -157,7 +159,17 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("open training workspace: %w", err)
 		}
-		generator = &serverRuntime{Runner: runner, WorkflowWorkspaceAPI: workspace}
+		workflowWorkspaces = append(workflowWorkspaces, workspace)
+	}
+	if *modelBuilderEnabled {
+		workspace, err := llamaserver.NewModelBuilderWorkspace(workspaceStore)
+		if err != nil {
+			return fmt.Errorf("open model builder workspace: %w", err)
+		}
+		workflowWorkspaces = append(workflowWorkspaces, workspace)
+	}
+	if len(workflowWorkspaces) > 0 {
+		generator = &serverRuntime{Runner: runner, WorkflowWorkspaceAPI: workflowWorkspaces}
 	}
 	var evaluationWorkspace llamaserver.EvaluationWorkspaceAPI
 	if len(evaluationSuites) > 0 {

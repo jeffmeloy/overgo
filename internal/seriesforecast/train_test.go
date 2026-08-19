@@ -101,27 +101,21 @@ func TestTrainerDecreasesForecastLossTiny(t *testing.T) {
 	}
 }
 
-func TestTrainerPacksModelWeightsInPlace(t *testing.T) {
+func TestTrainerPublishesCompiledParameterAuthority(t *testing.T) {
 	model := tinyTrainableModel()
 	trainer, err := NewTrainer(model, optimizer.Config{Momentum: 0.9})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer trainer.Close()
-	names := model.trainableNames()
-	if trainer.ParameterCount() == 0 || len(names) != 18 {
-		t.Fatalf("packed %d parameters across %d tensors", trainer.ParameterCount(), len(names))
+	parameters := trainer.Program().Parameters()
+	if trainer.ParameterCount() == 0 || len(parameters) != len(model.trainableNames()) {
+		t.Fatalf("program parameters=%d packed=%d", len(parameters), trainer.ParameterCount())
 	}
-	total := 0
-	for _, name := range names {
-		values := model.Weights[name]
-		if &values[0] != &trainer.weights[total] {
-			t.Fatalf("tensor %q is not a view into the packed weights at %d", name, total)
+	for _, parameter := range parameters {
+		if values := model.Weights[parameter.Name]; len(values) != parameter.Rows*parameter.Cols || cap(values) != len(values) {
+			t.Fatalf("parameter %q shape=%dx%d storage=%d/%d", parameter.Name, parameter.Rows, parameter.Cols, len(values), cap(values))
 		}
-		total += len(values)
-	}
-	if total != trainer.ParameterCount() {
-		t.Fatalf("views cover %d of %d packed parameters", total, trainer.ParameterCount())
 	}
 }
 

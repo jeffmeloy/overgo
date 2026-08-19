@@ -1,14 +1,3 @@
-// Minimal trainable graph for the forecast capability: the full-model VJP
-// composed from the golden-verified component backwards (head block, decoder
-// stack, patch embed) over the flat host Muon optimizer. The trainer packs
-// every forward-path tensor into the optimizer's flat layout and re-points
-// the model's named weights at the packed storage, so forward, backward and
-// optimizer all operate on one copy. Trainable geometry derives from the
-// artifact's own tensor shapes; nothing here asserts a model constant.
-//
-// The gradient map is pre-bound to the packed layout and audited after every
-// backward: a gradient slot allocated outside the pack means a parameter
-// would silently not train, and the step refuses instead.
 package seriesforecast
 
 import (
@@ -18,18 +7,17 @@ import (
 
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
-// residualBlockTensors: the tensor suffixes a residual block may carry;
-// biases are optional (the output heads ship without them).
+// residualBlockTensors: optional-bias residual layout.
 var residualBlockTensors = []string{
 	".hidden_layer.weight", ".hidden_layer.bias",
 	".output_layer.weight", ".output_layer.bias",
 	".residual_layer.weight", ".residual_layer.bias",
 }
 
-// layerTensors: the tensors every stacked_xf layer carries (enforced by
-// layerWeights at load).
+// layerTensors: validated decoder-layer layout.
 var layerTensors = []string{
 	".pre_attn_ln.scale", ".post_attn_ln.scale", ".pre_ff_ln.scale", ".post_ff_ln.scale",
 	".attn.qkv_proj.weight", ".attn.out.weight",
@@ -37,7 +25,6 @@ var layerTensors = []string{
 	".ff0.weight", ".ff1.weight",
 }
 
-// TrainStepResult: measured facts of one observed training step.
 type TrainStepResult struct {
 	MSE          float64
 	Quantile     float64
@@ -47,24 +34,20 @@ type TrainStepResult struct {
 	GradientL2   float64
 }
 
-// trainer: trainable graph over the packed parameter layout, stepped by the
-// best available Muon backend (the shared CUDA stepper on this host, the
-// flat host optimizer elsewhere — the same parity-gated pair the seq2seq
-// training cells ran through).
 type Trainer struct {
 	model     *Model
+	pack      *optimizer.TensorPack
 	names     []string
-	weights   []float32
-	gradients []float32
 	grads     Grads
 	stepper   optimizer.Stepper
+	program   trainingprogram.TrainingProgram
+	execution trainingprogram.Execution[trainingStep]
 	config    optimizer.Config
 	step      int
 	invFreq   []float64
 }
 
-// trainableNames returns the forward-path tensor names in packing order:
-// tokenizer block, decoder layers in stack order, then the point head.
+// trainableNames: tokenizer, decoder stack, point head.
 func (m *Model) trainableNames() []string {
 	var names []string
 	appendBlock := func(prefix string) {
@@ -85,15 +68,14 @@ func (m *Model) trainableNames() []string {
 	return names
 }
 
-// NewTrainer packs the trainable tensors, re-points the model's weights at
-// the packed storage, and compiles the Muon plan. A non-positive base
-// learning rate derives n_params^-1/2.
+// NewTrainer binds model views to compiled training storage.
 func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
 	names := model.trainableNames()
-	specs := make([]optimizer.GroupSpec, len(names))
-	total := 0
-	for index, name := range names {
-		values := model.Weights[name]
+	tensors := make(map[string][]float32, len(names))
+	for _, name := range names {
+		tensors[name] = model.Weights[name]
+	}
+	pack, err := optimizer.NewTensorPack(tensors, func(name string, length int) (int, int, error) {
 		shape := model.Shapes[name]
 		rows, cols := 0, 0
 		switch len(shape) {
@@ -102,49 +84,57 @@ func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
 		case 2:
 			rows, cols = shape[0], shape[1]
 		default:
-			return nil, fmt.Errorf("seriesforecast: trainable %q has rank-%d shape", name, len(shape))
+			return 0, 0, fmt.Errorf("trainable %q has rank-%d shape", name, len(shape))
 		}
-		if rows*cols != len(values) {
-			return nil, fmt.Errorf("seriesforecast: trainable %q shape %v does not cover %d values", name, shape, len(values))
+		if rows*cols != length {
+			return 0, 0, fmt.Errorf("trainable %q shape %v does not cover %d values", name, shape, length)
 		}
-		specs[index] = optimizer.GroupSpec{Name: name, Start: total, End: total + len(values), Rows: rows, Cols: cols}
-		total += len(values)
-	}
-	plan, err := optimizer.CompilePlan(total, specs)
+		return rows, cols, nil
+	})
 	if err != nil {
 		return nil, err
 	}
 	if config.BaseLearningRate <= 0 {
-		config.BaseLearningRate = optimizer.DeriveBaseLR(total)
+		config.BaseLearningRate = optimizer.DeriveBaseLR(pack.ParameterCount())
 	}
 	trainer := &Trainer{
-		model:     model,
-		names:     names,
-		weights:   make([]float32, total),
-		gradients: make([]float32, total),
-		grads:     make(Grads, len(names)),
-		invFreq:   hostmath.RopeInvFreq(model.Dims.RopeTheta, model.Dims.HeadDim),
+		model: model, pack: pack, names: names, config: config,
+		invFreq: hostmath.RopeInvFreq(model.Dims.RopeTheta, model.Dims.HeadDim),
 	}
-	trainer.config = config
-	for _, spec := range specs {
-		copy(trainer.weights[spec.Start:spec.End], model.Weights[spec.Name])
-		model.Weights[spec.Name] = trainer.weights[spec.Start:spec.End:spec.End]
-		trainer.grads[spec.Name] = trainer.gradients[spec.Start:spec.End:spec.End]
-	}
-	trainer.stepper, err = optimizer.NewStepper(trainer.weights, trainer.gradients, plan, config)
+	trainer.grads = pack.BindMapViews(model.Weights)
+	trainer.stepper, err = pack.NewStepper(config)
 	if err != nil {
+		return nil, err
+	}
+	trainer.program, err = trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveForecast, nil, pack.Plan())
+	if err != nil {
+		_ = trainer.stepper.Close()
+		return nil, err
+	}
+	trainer.execution, err = trainingprogram.BindObjective(
+		trainer.program, trainer.forwardStep, trainer.backwardStep, func(state *trainingStep) error {
+			if err := trainer.stepper.Step(); err != nil {
+				return err
+			}
+			trainer.step++
+			state.result.Step = trainer.step
+			state.result.LearningRate = trainer.config.LearningRate(trainer.step)
+			return nil
+		},
+	)
+	if err != nil {
+		_ = trainer.stepper.Close()
 		return nil, err
 	}
 	return trainer, nil
 }
 
-// ParameterCount reports the packed trainable parameter total.
-func (t *Trainer) ParameterCount() int { return len(t.weights) }
+func (t *Trainer) ParameterCount() int { return t.pack.ParameterCount() }
 
-// Close releases the stepper's backend.
+func (t *Trainer) Program() trainingprogram.TrainingProgram { return t.program }
+
 func (t *Trainer) Close() error { return t.stepper.Close() }
 
-// trainForward: the retained forward trace one step needs for backward.
 type trainForward struct {
 	padded, masks []float32
 	mu, sigma     []float64
@@ -154,7 +144,12 @@ type trainForward struct {
 	forecast      []float32
 }
 
-// forward runs the retained forward pass and denormalized forecast.
+type trainingStep struct {
+	input, target []float32
+	forward       trainForward
+	result        TrainStepResult
+}
+
 func (t *Trainer) forward(input []float32) (trainForward, error) {
 	m := t.model
 	p, d := m.Dims.PatchLen, m.Dims.Hidden
@@ -195,9 +190,7 @@ func (t *Trainer) forward(input []float32) (trainForward, error) {
 	}, nil
 }
 
-// loss scores the forecast over the OBSERVED horizon prefix: a real future
-// window shorter than the model horizon contributes loss (and gradient) only
-// where ground truth exists; the uncovered tail carries zero gradient.
+// loss: observed horizon only; uncovered tail has zero gradient.
 func (t *Trainer) loss(forecast, target []float32) (mse, quantile, total float64, grad []float32, err error) {
 	m := t.model
 	covered := len(target)
@@ -207,7 +200,6 @@ func (t *Trainer) loss(forecast, target []float32) (mse, quantile, total float64
 	return ForecastLoss(forecast[:covered*m.Dims.Quantiles], target, m.Levels, covered, m.Dims.Quantiles)
 }
 
-// Loss evaluates the covered-horizon objective without training.
 func (t *Trainer) Loss(input, target []float32) (float64, error) {
 	forward, err := t.forward(input)
 	if err != nil {
@@ -217,68 +209,72 @@ func (t *Trainer) Loss(input, target []float32) (float64, error) {
 	return total, err
 }
 
-// Step runs one observed training step: retained forward, forecast loss,
-// full-model backward, gradient-coverage audit, Muon update.
 func (t *Trainer) Step(input, target []float32) (TrainStepResult, error) {
+	state := trainingStep{input: input, target: target}
+	err := t.execution.Run(&state)
+	return state.result, err
+}
+
+func (t *Trainer) forwardStep(state *trainingStep) (err error) {
+	state.forward, err = t.forward(state.input)
+	return err
+}
+
+func (t *Trainer) backwardStep(state *trainingStep) error {
 	m := t.model
 	d := m.Dims.Hidden
-	forward, err := t.forward(input)
-	if err != nil {
-		return TrainStepResult{}, err
-	}
+	forward, target := state.forward, state.target
 	tokens, layerInputs := forward.tokens, forward.layerInputs
 	mu, sigma := forward.mu, forward.sigma
 	padded, masks, lastToken := forward.padded, forward.masks, forward.lastToken
 	last := tokens - 1
 	mse, quantile, total, dCovered, err := t.loss(forward.forecast, target)
 	if err != nil {
-		return TrainStepResult{}, err
+		return err
 	}
 	dForecast := make([]float32, len(forward.forecast))
 	copy(dForecast, dCovered)
 
-	// Denormalization backward: forecast = out*sigma + mu with mu/sigma pure
-	// data statistics, so only the sigma scale reaches the head.
+	// Data statistics are constants; only sigma reaches the head.
 	dOut := make([]float32, len(dForecast))
 	for k := range dForecast {
 		dOut[k] = float32(float64(dForecast[k]) * sigma[last])
 	}
 	dLast, err := m.residualBlockBackward("output_projection_point", lastToken, dOut, t.grads)
 	if err != nil {
-		return TrainStepResult{}, err
+		return err
 	}
 	dHidden := make([]float32, tokens*d)
 	copy(dHidden[last*d:(last+1)*d], dLast)
 	for index := m.Dims.Layers - 1; index >= 0; index-- {
 		dHidden, err = m.layerBackward(index, layerInputs[index], dHidden, t.invFreq, tokens, t.grads)
 		if err != nil {
-			return TrainStepResult{}, err
+			return err
 		}
 	}
 	if _, err := m.patchEmbedBackward(padded, masks, mu, sigma, dHidden, t.grads); err != nil {
-		return TrainStepResult{}, err
+		return err
 	}
 	if err := t.auditGradientCoverage(); err != nil {
-		return TrainStepResult{}, err
+		return err
 	}
 	var gradientSquared float64
-	for _, gradient := range t.gradients {
-		gradientSquared += float64(gradient) * float64(gradient)
+	for _, gradients := range t.grads {
+		for _, gradient := range gradients {
+			gradientSquared += float64(gradient) * float64(gradient)
+		}
 	}
-	if err := t.stepper.Step(); err != nil {
-		return TrainStepResult{}, err
-	}
-	t.step++
-	return TrainStepResult{
-		MSE: mse, Quantile: quantile, Total: total,
-		Step: t.step, LearningRate: t.config.LearningRate(t.step), GradientL2: math.Sqrt(gradientSquared),
-	}, nil
+	state.result = TrainStepResult{MSE: mse, Quantile: quantile, Total: total, GradientL2: math.Sqrt(gradientSquared)}
+	return nil
 }
 
-// auditGradientCoverage refuses the step when backward touched a gradient
-// slot outside the packed layout — that parameter would silently not train.
 func (t *Trainer) auditGradientCoverage() error {
 	if len(t.grads) == len(t.names) {
+		for _, name := range t.names {
+			if len(t.grads[name]) != len(t.model.Weights[name]) {
+				return fmt.Errorf("seriesforecast: backward gradient %q differs from trainable storage", name)
+			}
+		}
 		return nil
 	}
 	packed := make(map[string]struct{}, len(t.names))

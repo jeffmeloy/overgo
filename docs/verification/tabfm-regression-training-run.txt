@@ -1,0 +1,20 @@
+overgo TabFM regression decoder training verification
+
+model file: C:/Users/jeffm/adaptive_new/models/tabfm-1.0.0-pytorch/regression/model.safetensors
+request: docs/verification/tabfm-regression-training-request.json
+command: go run ./cmd/tabular-train-probe -model <tabfm-root> -task regression -input <request> -steps 1
+
+The validated set-transformer encoder remained frozen. Its support-conditioned
+features fed the artifact decoder, whose four tensors were bound directly to
+one shared Muon pack.
+
+result:
+  rows: 3 (2 support, 1 query)
+  trainable parameters: 8,396,801
+  loss: 183.43641382464648
+  learning rate: 0.0003450984984344904
+  gradient L2: 1202.2411867644928
+  wall: 2.7379452s
+
+TestDecoderTrainerRealArtifacts separately exercises the committed golden
+request and validates a finite nonzero update against the same real artifact.

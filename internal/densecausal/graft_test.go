@@ -75,7 +75,11 @@ func TestGraftBridgeGradientsMatchFiniteDifference(t *testing.T) {
 		graft.Up[i] = float32((i%7)-3) * 0.02
 	}
 	tokens := []int{3, 1, 4, 1, 5, 9, 2, 6}
-	_, bridge, err := target.GraftLossAndBridgeGrads(graft, tokens)
+	bridge := Grads{
+		BridgeDownName: make([]float32, len(graft.Down)),
+		BridgeUpName:   make([]float32, len(graft.Up)),
+	}
+	_, err := target.GraftLossAndBridgeGrads(graft, tokens, bridge)
 	if err != nil {
 		t.Fatal(err)
 	}

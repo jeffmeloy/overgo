@@ -14,7 +14,7 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 	hyperWidth := hyper * width
 	mixWidth := (2 + hyper) * hyper
 	result := Weights{Layers: make([]LayerWeights, spec.BlockCount)}
-	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
+	if err := bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensor(tokenEmbeddingWeightTensor, &result.TokenEmbedding, width, uint64(spec.VocabularySize)),
 		requiredTensor(outputNormWeightTensor, &result.OutputNorm, width),
 		requiredTensorPointer(outputWeightTensor, &result.Output, width, uint64(spec.VocabularySize)),
@@ -24,7 +24,7 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 	for block := uint32(0); block < spec.BlockCount; block++ {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		layer := &result.Layers[block]
-		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 			requiredTensorPointer(attentionNormWeightTensor, &layer.AttentionNorm, width),
 			requiredTensorPointer("attn_q_a.weight", &layer.AttentionQ, width, uint64(spec.QLoRARank)),
 			requiredTensorPointer("attn_kv.weight", &layer.AttentionK, width, headWidth),
@@ -52,22 +52,22 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 			return Weights{}, err
 		}
 		if block < spec.HashLayerCount {
-			if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+			if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 				requiredStoredTensorPointer("ffn_gate_tid2eid.weight", &layer.FeedForwardHashExperts,
 					dtype.I32, uint64(spec.ExpertUsedCount), uint64(spec.VocabularySize)),
 			}); err != nil {
 				return Weights{}, err
 			}
 		} else {
-			loaded, err := catalog.required(prefix+"exp_probs_b.bias", uint64(spec.ExpertCount))
-			if err != nil {
+			if err := bindTensorProgram(catalog, prefix, []tensorBinding{
+				requiredTensorPointer("exp_probs_b.bias", &layer.FeedForwardRouterBias, uint64(spec.ExpertCount)),
+			}); err != nil {
 				return Weights{}, err
 			}
-			layer.FeedForwardRouterBias = &loaded
 		}
 		if ratio := tensor.CompressionRatio(spec.CompressRatios[block]); ratio.Enabled() {
 			coefficient := ratio.KVWidthMultiplier()
-			if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+			if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 				requiredTensorPointer("attn_compressor_kv.weight", &layer.AttentionCompressorKV, width, coefficient*headWidth),
 				requiredTensorPointer("attn_compressor_gate.weight", &layer.AttentionCompressorGate, width, coefficient*headWidth),
 				requiredTensorPointer("attn_compressor_ape.weight", &layer.AttentionCompressorAPE, coefficient*headWidth, uint64(ratio)),
@@ -78,7 +78,7 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 		}
 		if tensor.CompressionRatio(spec.CompressRatios[block]).UsesIndexer() {
 			indexerWidth := uint64(spec.IndexerKeyLength)
-			if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+			if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 				requiredTensorPointer("indexer.proj.weight", &layer.IndexerProjection, width, uint64(spec.IndexerHeadCount)),
 				requiredTensorPointer("indexer.attn_q_b.weight", &layer.IndexerAttentionQB, uint64(spec.QLoRARank), uint64(spec.IndexerHeadCount)*indexerWidth),
 				requiredTensorPointer("indexer_compressor_kv.weight", &layer.IndexerCompressorKV, width, 2*indexerWidth),
@@ -96,7 +96,7 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 		}
 	}
 	last := &result.Layers[len(result.Layers)-1]
-	if err := loadTensorRequirements(catalog, "", []tensorRequirement{
+	if err := bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensorPointer("output_hc_fn.weight", &last.HyperHeadFN, hyperWidth, hyper),
 		requiredTensorPointer("output_hc_base.weight", &last.HyperHeadBase, hyper),
 		requiredTensorPointer("output_hc_scale.weight", &last.HyperHeadScale, 1),

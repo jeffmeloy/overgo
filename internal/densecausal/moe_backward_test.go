@@ -2,6 +2,7 @@ package densecausal
 
 import (
 	"math"
+	"slices"
 	"testing"
 )
 
@@ -76,9 +77,16 @@ func TestMoEBackwardMatchesFiniteDifference(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			dx, grads, err := moeBackward(x, w, rows, hidden, tc.policy, route, probe)
+			dx, grads, err := moeBackward(x, w, rows, hidden, tc.policy, route, probe, true)
 			if err != nil {
 				t.Fatal(err)
+			}
+			dxOnly, omitted, err := moeBackward(x, w, rows, hidden, tc.policy, route, probe, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(dxOnly, dx) || omitted.dRouter != nil || omitted.dExperts != nil || omitted.dShared != nil {
+				t.Fatalf("activation-only VJP differs or retained parameter gradients")
 			}
 
 			check := func(label string, values, analytic []float32, count int) {

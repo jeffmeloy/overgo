@@ -1,0 +1,23 @@
+{
+  "model": "model:sha256:88c142557820ccad55bb59756bfcfcf891de9cc6202816bd346445188a0ed342",
+  "name": "Qwen2.5-0.5B-HF",
+  "model_file": "C:/Users/jeffm/adaptive_new/models/Qwen2.5-0.5B/model.safetensors",
+  "evidence_files": [
+    "docs/verification/qwen25-external-mmlu-abstract-algebra.json"
+  ],
+  "dataset_files": [
+    "C:/Users/jeffm/eval/datasets/cais___mmlu/abstract_algebra/0.0.0/c30699e8356da336a370243923dbaf21066bb9fe/mmlu-test.arrow"
+  ],
+  "claims": [
+    {
+      "capability": "benchmark",
+      "tier": "capability-measured",
+      "commit": "82ac7f0ceee171a0fc42c09f945627abcb8ed50e",
+      "dataset": "dataset-shard:sha256:188d54be8bce5b30231f8e559ed5b9d0f6031db5d059c87438da3e1f3c135c41",
+      "wall_ns": 15735369100,
+      "evidence": [
+        "evidence:sha256:712a0e7ca0fbbb61a7e7862eed87a9bf356a1f58d91c9d678f8c628bcfb47057"
+      ]
+    }
+  ]
+}

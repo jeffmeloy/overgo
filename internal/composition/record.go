@@ -3,12 +3,40 @@ package composition
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
+
+var (
+	viabilityEvaluatorContract = artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: "application/vnd.overgo.viability-evaluator+json", Schema: "overgo/viability-evaluator/v1",
+	}
+	viabilityVerdictContract = artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: "application/vnd.overgo.viability-verdict+json", Schema: "overgo/viability-verdict/v1",
+	}
+)
+
+const (
+	baselineHeldOutMetric = "baseline-heldout-loss"
+	worstHeldOutMetric    = "worst-seed-heldout-loss"
+)
+
+type viabilityEvaluator struct {
+	Recipe  artifact.ID `json:"recipe"`
+	Dataset artifact.ID `json:"dataset"`
+	Split   artifact.ID `json:"split"`
+	Metrics []string    `json:"metrics"`
+}
+
+type viabilityVerdict struct {
+	Evaluation artifact.ID `json:"evaluation"`
+	Ship       bool        `json:"ship"`
+	Reason     string      `json:"reason"`
+}
 
 // RecordChainViability commits the Tier-0 chain experiment as a typed
 // generation record: both whole models as parents, the content-addressed chain
@@ -144,70 +172,139 @@ func recordChainLifecycle(
 	return err
 }
 
-// RecordViability commits the experiment as a typed generation record: the
-// depth-bearing child/parent edges plus references for the protocol facts, and
-// a decision identity carrying the SHIP or REFUSE reason. Day-one identities
-// are content hashes of the protocol facts themselves -- referential and
-// replayable, upgraded to full artifact bindings when the experiment
-// lifecycle row lands. The probe records refusals exactly as loudly as ships.
+// RecordViability: atomic recipe, run, evaluation, verdict, and lineage.
 func RecordViability(store *repodb.Store, config Config, result Result) (runrecord.GenerationRecord, error) {
-	fact := func(kind artifact.Kind, payload string) (artifact.ID, error) {
-		return artifact.IdentifyBytes(kind, []byte("graft-probe/v1:"+payload))
-	}
-	must := func(kind artifact.Kind, payload string) artifact.ID {
-		id, err := fact(kind, payload)
-		if err != nil {
-			panic("composition: identify " + payload + ": " + err.Error())
-		}
-		return id
+	if result.Target.Kind() != artifact.KindModel || result.Donor.Kind() != artifact.KindModel ||
+		result.Component.Kind() != artifact.KindTensorSet || result.Recipe.Kind() != artifact.KindRecipe ||
+		result.Dataset.Kind() != artifact.KindDataset || result.Split.Kind() != artifact.KindDatasetShard ||
+		len(result.Outcomes) == 0 || result.definition.ID != result.Recipe ||
+		result.WorstHeldOut < 0 || math.IsNaN(result.WorstHeldOut) || math.IsInf(result.WorstHeldOut, 0) {
+		return runrecord.GenerationRecord{}, fmt.Errorf("composition: viability authority is incomplete")
 	}
 	protocol := fmt.Sprintf("target=%s;donor=%s;tensor=%s;layer=%d;steps=%d;seeds=%d;lrscale=%g",
-		config.TargetDir, config.DonorDir, result.DonorTensor, result.GraftLayer, config.Steps, len(config.Seeds), config.LRScale)
+		result.Target, result.Donor, result.DonorTensor, result.GraftLayer, config.Steps, len(config.Seeds), config.LRScale)
 	seeds := make([]uint64, len(config.Seeds))
 	for index, seed := range config.Seeds {
 		seeds[index] = uint64(seed)
 	}
 	outcome := runrecord.OutcomeFailed
+	failure := "held-out-gain-absent"
 	if result.Ship {
 		outcome = runrecord.OutcomeSucceeded
+		failure = ""
 	}
-	record, err := runrecord.NewGenerationRecord(runrecord.GenerationRecord{
-		Parents:      []artifact.ID{must(artifact.KindModel, "target:"+config.TargetDir)},
-		Child:        must(artifact.KindModel, "composed:"+protocol),
-		Components:   []artifact.ID{must(artifact.KindTensorSet, "component:"+result.DonorTensor+":"+config.DonorDir)},
-		Bridge:       must(artifact.KindAdapter, "bridge:"+protocol),
-		TrainingPlan: must(artifact.KindRecipe, "plan:"+protocol),
-		Dataset:      must(artifact.KindDataset, "tokens:"+protocol),
-		Split:        must(artifact.KindDatasetShard, "heldout:"+protocol),
-		Evaluator:    must(artifact.KindEvidence, "evaluator:heldout-ce-envelope"),
-		Code:         must(artifact.KindEvidence, "code:"+protocol),
-		Environment:  must(artifact.KindEvidence, "environment:host-reference"),
-		Seeds:        seeds,
-		Budget:       must(artifact.KindEvidence, fmt.Sprintf("budget:seeds=%d;steps=%d", len(seeds), config.Steps)),
-		Run:          must(artifact.KindRun, "run:"+protocol+";"+result.Reason),
-		Outcome:      outcome,
-		Decision:     must(artifact.KindEvidence, "decision:"+result.Reason),
+	bridge, err := artifact.JSONID(artifact.KindAdapter, struct {
+		Recipe    artifact.ID `json:"recipe"`
+		Component artifact.ID `json:"component"`
+		Protocol  string      `json:"protocol"`
+	}{result.Recipe, result.Component, protocol})
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	child, err := artifact.JSONID(artifact.KindModel, struct {
+		Target artifact.ID `json:"target"`
+		Donor  artifact.ID `json:"donor"`
+		Bridge artifact.ID `json:"bridge"`
+	}{result.Target, result.Donor, bridge})
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	run, err := runrecord.NewRun(result.Recipe, outcome,
+		[]artifact.ID{result.Target, result.Donor, result.Component, result.Dataset, result.Split},
+		[]artifact.ID{child, bridge}, failure)
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	evaluation, err := runrecord.NewEvaluation(result.Recipe, run.ID, result.Dataset, []runrecord.Metric{
+		{Name: baselineHeldOutMetric, Value: result.Baseline, Direction: runrecord.DirectionMinimize},
+		{Name: worstHeldOutMetric, Value: result.WorstHeldOut, Direction: runrecord.DirectionMinimize},
 	})
 	if err != nil {
 		return runrecord.GenerationRecord{}, err
 	}
-	static := append([]artifact.ID{record.Child, record.Bridge, record.TrainingPlan, record.Dataset,
-		record.Split, record.Evaluator, record.Code, record.Environment, record.Budget,
-		record.Run, record.Decision}, record.Parents...)
+	evaluator, err := artifact.JSONContent(viabilityEvaluatorContract, viabilityEvaluator{
+		Recipe: result.Recipe, Dataset: result.Dataset, Split: result.Split,
+		Metrics: []string{baselineHeldOutMetric, worstHeldOutMetric},
+	})
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	verdict, err := artifact.JSONContent(viabilityVerdictContract, viabilityVerdict{
+		Evaluation: evaluation.ID, Ship: result.Ship, Reason: result.Reason,
+	})
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	identifyEvidence := func(payload string) (artifact.ID, error) {
+		return artifact.IdentifyBytes(artifact.KindEvidence, []byte("graft-probe/v2:"+payload))
+	}
+	code, err := identifyEvidence("code:" + protocol)
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	environment, err := identifyEvidence("environment:host-reference")
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	budget, err := identifyEvidence(fmt.Sprintf("budget:seeds=%d;steps=%d", len(seeds), config.Steps))
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	record, err := runrecord.NewGenerationRecord(runrecord.GenerationRecord{
+		Parents:      []artifact.ID{result.Target, result.Donor},
+		Child:        child,
+		Components:   []artifact.ID{result.Component},
+		Bridge:       bridge,
+		TrainingPlan: result.Recipe,
+		Dataset:      result.Dataset,
+		Split:        result.Split,
+		Evaluator:    evaluator.Descriptor.ID,
+		Code:         code,
+		Environment:  environment,
+		Seeds:        seeds,
+		Budget:       budget,
+		Run:          run.ID,
+		Outcome:      outcome,
+		Decision:     verdict.Descriptor.ID,
+	})
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	static := append([]artifact.ID{record.Child, record.Bridge, record.Dataset,
+		record.Split, record.Code, record.Environment, record.Budget}, record.Parents...)
 	static = append(static, record.Components...)
 	descriptors := make([]artifact.Descriptor, len(static))
 	for index, id := range static {
 		descriptors[index] = artifact.Descriptor{ID: id}
 	}
-	ctx := context.Background()
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "graft-probe/facts/" + record.ID.String(), Artifacts: descriptors}); err != nil {
-		return runrecord.GenerationRecord{}, err
-	}
-	batch, err := record.Batch("graft-probe/generation/" + record.ID.String())
+	recipeContent, err := result.definition.ArtifactContent()
 	if err != nil {
 		return runrecord.GenerationRecord{}, err
 	}
-	if _, err := store.Commit(ctx, batch); err != nil {
+	runContent, err := run.Content()
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	evaluationContent, err := evaluation.Content()
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	recordContent, err := record.Content()
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	lineage := append(run.Lineage(), evaluation.Lineage()...)
+	lineage = append(lineage, artifact.DependencyLineage(
+		evaluator.Descriptor.ID, result.Recipe, result.Dataset, result.Split,
+	)...)
+	lineage = append(lineage, artifact.DependencyLineage(verdict.Descriptor.ID, evaluation.ID)...)
+	lineage = append(lineage, record.Lineage()...)
+	ctx := context.Background()
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "graft-probe/generation/" + record.ID.String(), Artifacts: descriptors,
+		Contents: []artifact.Content{recipeContent, runContent, evaluationContent, evaluator, verdict, recordContent},
+		Lineage:  lineage,
+	}); err != nil {
 		return runrecord.GenerationRecord{}, err
 	}
 	return record, nil

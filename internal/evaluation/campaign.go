@@ -140,6 +140,9 @@ func (campaign *Campaign) publish(ctx context.Context, run runrecord.Run, record
 	}
 	contents := []artifact.Content{environmentContent, runContent}
 	lineage := run.Lineage()
+	lineage = append(lineage, artifact.Lineage{
+		Child: run.ID, Parent: campaign.identity.Model, Relation: artifact.RelationDependsOn,
+	})
 	if record != nil {
 		recordContent, err := record.Content()
 		if err != nil {
@@ -147,6 +150,9 @@ func (campaign *Campaign) publish(ctx context.Context, run runrecord.Run, record
 		}
 		contents = append(contents, recordContent)
 		lineage = append(lineage, record.Lineage()...)
+		lineage = append(lineage, artifact.Lineage{
+			Child: record.ID, Parent: campaign.identity.Model, Relation: artifact.RelationDependsOn,
+		})
 	}
 	batch, err := artifact.NewDocumentBatch("evaluation/run/"+run.ID.String(), contents, lineage, nil)
 	if err != nil {

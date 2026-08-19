@@ -42,7 +42,8 @@ func SelectedLogProbBackward(
 	if err := validateSelectedProjection(rows, x, weight, bias, targets, selected, rows, input, output, workspace); err != nil {
 		return err
 	}
-	if len(dX) != rows*input || len(dWeight) != output*input || len(dLogProb) != rows || len(dBias) != 0 && len(dBias) != output {
+	if len(dX) != rows*input || len(dWeight) != 0 && len(dWeight) != output*input ||
+		len(dLogProb) != rows || len(dBias) != 0 && len(dBias) != output {
 		return errors.New("hostmath: selected log-probability gradient extent differs")
 	}
 	if !accumulate {
@@ -71,6 +72,12 @@ func SelectedLogProbBackward(
 					dBias[column] += g
 				}
 				wRow := weight[column*input : (column+1)*input]
+				if dWeight == nil {
+					for index := range xRow {
+						dXRow[index] += g * wRow[index]
+					}
+					continue
+				}
 				dWRow := dWeight[column*input : (column+1)*input]
 				for index, value := range xRow {
 					dWRow[index] += g * value

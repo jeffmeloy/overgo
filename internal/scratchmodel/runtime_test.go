@@ -49,8 +49,11 @@ func TestScratchSharedHostRuntimeParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	loss, err := hostmath.MADTransformerLossAndGrad(model, gradient, tokens)
+	loss, trace, err := hostmath.MADTransformerForward(model, tokens)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := hostmath.MADTransformerBackward(model, gradient, tokens, trace); err != nil {
 		t.Fatal(err)
 	}
 	if math.Abs(loss-exact.Loss) > 1e-5 {

@@ -169,7 +169,7 @@
      "contains": "func LoadArtifact(",
      "path": "internal/adaptertrain/model.go",
      "role": "source",
-     "identity": "file:sha256:81a7a7c3e59511d2a52ecb8f91c792386aa96dcba9b13cc721c66a7683135f36"
+     "identity": "file:sha256:1fda8fcf748839eb1d5d4422eca101f492942b3b3076bafb2f4f774228bb65aa"
     },
     {
      "contains": "func TestGemmaE4BRealTraining(",
@@ -191,7 +191,7 @@
      "contains": "func CompileObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:bebec5f549abc452626e4edba5e223c2ae2056956ac1d90737678175de2f850f"
+     "identity": "file:sha256:9aac45930fcc85bdf617576feee9bc292938e4fdf2cb89a1d2b75b4d10576401"
     },
     {
      "contains": "func AudioProcessor(",
@@ -203,7 +203,7 @@
      "contains": "func TestMultimodalTrainingMatrix(",
      "path": "internal/adaptiveparity/multimodal_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:62ef4f704a9e1011dd4ff9dcf605cf0cf899b8ddf97950eead4983a78e1af7d8"
+     "identity": "evidence:sha256:58671fb79d80ef9ff96bac94b4ebb23e929710aaa0a0165768e9076788edaeea"
     }
    ],
    "id": "repodb-multimodal-training-objective-matrix",
@@ -219,7 +219,7 @@
      "contains": "func CompileTrainingObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:bebec5f549abc452626e4edba5e223c2ae2056956ac1d90737678175de2f850f"
+     "identity": "file:sha256:9aac45930fcc85bdf617576feee9bc292938e4fdf2cb89a1d2b75b4d10576401"
     },
     {
      "contains": "func CompileObjectiveProgram(",
@@ -231,7 +231,7 @@
      "contains": "func TestTrainingObjectiveMatrix(",
      "path": "internal/adaptiveparity/training_objective_matrix_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:8851a3490e960492c38f240aee73b956c745511a968c301b6af21f0652b03fbe"
+     "identity": "evidence:sha256:733d7e3be70c1754f40e953caf716383c17e4f71953b45abbcbf80a850219136"
     }
    ],
    "id": "adaptive-training-objective-program-matrix",
@@ -905,13 +905,13 @@
      "contains": "func LookupArchitecture(",
      "path": "internal/model/architecture.go",
      "role": "source",
-     "identity": "file:sha256:e9572b763e283c6766d9635e8aa7ce9545f8f2d22d99c3ad6ffd7ebc7ed00a20"
+     "identity": "file:sha256:9923b65e9e96886ea6220e4352e05732421c2aadde29550363b2c2b2671f8b7d"
     },
     {
      "contains": "func TestArchitectureRegistryProfiles(",
      "path": "internal/model/architecture_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dd601241e822956c904f28b2a66dbbadecf26881906b0629b8e82877831fddad"
+     "identity": "evidence:sha256:579cb1b99a9caac6b277bc7de67ad6692f601263af4aedfb1df8f7a79a3ba31d"
     }
    ],
    "id": "architecture-profiles",
@@ -953,7 +953,7 @@
      "contains": "func (b *ContinuousBatch) Step(",
      "path": "internal/inference/continuous_batch.go",
      "role": "source",
-     "identity": "file:sha256:8aa4a837c620902653e27096b01d33a1a138dd2346bd64f75de7b0408a7ed7a3"
+     "identity": "file:sha256:568eca882bc0a6e98df7875ada9429af415af1deb41f68c69fb214580962e233"
     },
     {
      "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",

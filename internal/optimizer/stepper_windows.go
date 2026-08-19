@@ -15,6 +15,9 @@ type deviceStepper struct {
 
 // NewStepper binds flat host storage to the shared CUDA Muon implementation.
 func NewStepper(weights, gradients []float32, plan Plan, config Config) (Stepper, error) {
+	if err := config.validate(); err != nil {
+		return nil, err
+	}
 	worker, err := device.New(0)
 	if err != nil {
 		return nil, err

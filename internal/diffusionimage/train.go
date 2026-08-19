@@ -94,11 +94,7 @@ func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
 		return nil, err
 	}
 	trainer := &Trainer{model: model, pack: pack, update: update, program: program}
-	execution, err := trainingprogram.Bind(program, []trainingprogram.Binding[trainingState]{
-		{Operator: trainingprogram.ObjectiveOperatorForward, Execute: trainer.forward},
-		{Operator: trainingprogram.ObjectiveOperatorBackward, Execute: trainer.backward},
-		{Operator: trainingprogram.ObjectiveOperatorMuon, Execute: trainer.optimize},
-	})
+	execution, err := trainingprogram.BindObjective(program, trainer.forward, trainer.backward, trainer.optimize)
 	if err != nil {
 		_ = update.Close()
 		return nil, err
@@ -122,9 +118,7 @@ func (trainer *Trainer) Step(x, target []float32, b, height, width int) (float64
 		return 0, fmt.Errorf("diffusionimage train: trainer is unavailable")
 	}
 	state := trainingState{x: x, target: target, batch: b, height: height, width: width}
-	if err := trainer.execution.RunPhases(&state,
-		trainingprogram.PhaseForward, trainingprogram.PhaseBackward, trainingprogram.PhaseOptimize,
-	); err != nil {
+	if err := trainer.execution.Run(&state); err != nil {
 		return 0, err
 	}
 	return state.loss, nil

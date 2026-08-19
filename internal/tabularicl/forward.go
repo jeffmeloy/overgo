@@ -116,6 +116,12 @@ func requestCatMask(x, y []float32, rows, cols, trainRows int, catCols []int) ([
 
 // forward: the full input->output chain (mirrors the reference program order).
 func (h *Head) forward(x, y []float32, rows, cols, trainRows int, catMask []bool) []float32 {
+	input := h.decoderInput(x, y, rows, cols, trainRows, catMask)
+	return mlp2(input, rows, h.decL0W, h.decL0B, h.decL1W, h.decL1B, h.Dims.NumCLS*h.Dims.EmbedDim)
+}
+
+// decoderInput executes the frozen feature program through the final norm.
+func (h *Head) decoderInput(x, y []float32, rows, cols, trainRows int, catMask []bool) []float32 {
 	d := h.Dims
 	e, cls := d.EmbedDim, d.NumCLS
 	cellY := h.cellYEmbed(y, rows)
@@ -127,7 +133,7 @@ func (h *Head) forward(x, y []float32, rows, cols, trainRows int, catMask []bool
 	col2 := colTowers(h.col2, h.col2OutW, h.col2OutB, h.col2LN, row1, rows, colsTot, trainRows, e, d.ColHeads, d.NumInds)
 	reps := rowTowers(h.row2, col2, rows, colsTot, cls, e, d.RowHeads)
 	yEnc := h.yEncode(y, rows, cls*e)
-	return iclPredict(h.icl, reps, yEnc, h.decL0W, h.decL0B, h.decL1W, h.decL1B, rows, trainRows, cls*e, d.ICLHeads)
+	return iclContext(h.icl, reps, yEnc, rows, trainRows, cls*e, d.ICLHeads)
 }
 
 // supportPrefixMask: only the labeled prefix is visible as attention keys.
@@ -384,9 +390,8 @@ func (h *Head) yEncode(y []float32, rows, d int) []float32 {
 	return mlp2(y, rows, h.iclYL0W, h.iclYL0B, h.iclYL1W, h.iclYL1B, 1)
 }
 
-// iclPredict: train rows absorb their label encoding, the support-masked
-// encoder mixes rows, and the decoder emits per-row outputs.
-func iclPredict(enc *encoder, reps, yEnc, l0w, l0b, l1w, l1b []float32, rows, trainRows, d, nhead int) []float32 {
+// iclContext: support-conditioned rows after the final norm.
+func iclContext(enc *encoder, reps, yEnc []float32, rows, trainRows, d, nhead int) []float32 {
 	for row := 0; row < trainRows && row < rows; row++ {
 		for j := 0; j < d; j++ {
 			reps[row*d+j] += yEnc[row*d+j]
@@ -395,5 +400,5 @@ func iclPredict(enc *encoder, reps, yEnc, l0w, l0b, l1w, l1b []float32, rows, tr
 	keyMask := supportPrefixMask(rows, trainRows)
 	out := enc.forward(reps, rows, d, nhead, keyMask)
 	hostmath.RMSNormInto(out, out, enc.outLN, rows, d, rmsEps)
-	return mlp2(out, rows, l0w, l0b, l1w, l1b, d)
+	return out
 }

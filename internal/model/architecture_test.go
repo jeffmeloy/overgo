@@ -105,7 +105,7 @@ func TestRuntimeBehaviorUsesBoundProfilePolicies(t *testing.T) {
 func TestEncoderValidationUsesBoundProfilePolicy(t *testing.T) {
 	profile := ArchitectureProfile{
 		Name:       runtimePolicyFixtureArchitecture,
-		Validation: ValidationPolicy{Encoder: EncoderValidationBERT},
+		Validation: ValidationPolicy{Encoder: EncoderValidationTokenTypesMatchingHeads},
 	}
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
@@ -127,7 +127,7 @@ func TestEncoderValidationUsesBoundProfilePolicy(t *testing.T) {
 func TestAttentionValidationUsesBoundProfilePolicy(t *testing.T) {
 	profile := ArchitectureProfile{
 		Name:       runtimePolicyFixtureArchitecture,
-		Validation: ValidationPolicy{Attention: AttentionValidationTalkie},
+		Validation: ValidationPolicy{Attention: AttentionValidationFullRotary},
 	}
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
@@ -148,7 +148,7 @@ func TestAttentionValidationUsesBoundProfilePolicy(t *testing.T) {
 func TestMLAValidationUsesBoundProfilePolicy(t *testing.T) {
 	profile := ArchitectureProfile{
 		Name:       runtimePolicyFixtureArchitecture,
-		Validation: ValidationPolicy{MLA: MLAValidationMiniCPM3},
+		Validation: ValidationPolicy{MLA: MLAValidationScaledLatent},
 	}
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
@@ -168,7 +168,7 @@ func TestMLAValidationUsesBoundProfilePolicy(t *testing.T) {
 func TestRecurrentValidationUsesBoundProfilePolicy(t *testing.T) {
 	profile := ArchitectureProfile{
 		Name:       runtimePolicyFixtureArchitecture,
-		Validation: ValidationPolicy{Recurrent: RecurrentValidationDFlash},
+		Validation: ValidationPolicy{Recurrent: RecurrentValidationTargetLayerBlock},
 	}
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
@@ -186,7 +186,7 @@ func TestRecurrentValidationUsesBoundProfilePolicy(t *testing.T) {
 func TestHybridValidationUsesBoundProfilePolicy(t *testing.T) {
 	profile := ArchitectureProfile{
 		Name:       runtimePolicyFixtureArchitecture,
-		Validation: ValidationPolicy{Hybrid: HybridValidationQwen3MoE},
+		Validation: ValidationPolicy{Hybrid: HybridValidationSharedExperts},
 	}
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},

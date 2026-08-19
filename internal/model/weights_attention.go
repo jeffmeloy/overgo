@@ -19,7 +19,7 @@ func loadStandardAttentionCatalog(
 				"attn_qkv.bias", &layer.AttentionQKVBias, queryLength+keyLength+valueLength,
 			)
 			bias.optional = !profile.Has(ArchitectureRequiresFusedQKVBias)
-			if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+			if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 				requiredTensorPointer("attn_qkv.weight", &layer.AttentionQKV,
 					uint64(spec.EmbeddingLength), queryLength+keyLength+valueLength),
 				bias,
@@ -34,7 +34,7 @@ func loadStandardAttentionCatalog(
 				return fmt.Errorf("%s fused QKV bias has no fused weight", spec.Architecture)
 			}
 		}
-		if err := loadTensorRequirements(catalog, prefix, []tensorRequirement{
+		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 			requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
 			requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
 			requiredTensorPointer(attentionValueWeightTensor, &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
@@ -42,12 +42,8 @@ func loadStandardAttentionCatalog(
 			return err
 		}
 	}
-	output, err := catalog.required(
-		prefix+attentionOutputWeightTensor, outputLength, uint64(spec.EmbeddingLength),
-	)
-	if err != nil {
-		return err
-	}
-	layer.AttentionOutput = &output
-	return nil
+	return bindTensorProgram(catalog, prefix, []tensorBinding{
+		requiredTensorPointer(attentionOutputWeightTensor, &layer.AttentionOutput,
+			outputLength, uint64(spec.EmbeddingLength)),
+	})
 }

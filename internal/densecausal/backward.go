@@ -41,7 +41,7 @@ func (m *Model) lossAndGrads(tokens []int, retainLogits bool) (float64, []float3
 		return 0, nil, nil, err
 	}
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
-	return m.lossAndGradsFromStates(tokens, states, retainLogits, func(
+	return m.lossAndGradsFromStates(tokens, states, retainLogits, Grads{}, func(
 		index int, input, outputGradient []float32, sequence int, gradients Grads,
 	) ([]float32, error) {
 		return m.layerBackward(index, input, outputGradient, invFreq, sequence, gradients)
@@ -59,6 +59,7 @@ func (m *Model) lossAndGradsFromStates(
 	tokens []int,
 	states [][]float32,
 	retainLogits bool,
+	g Grads,
 	backward layerGradient,
 ) (float64, []float32, Grads, error) {
 	d := m.Dims
@@ -67,7 +68,6 @@ func (m *Model) lossAndGradsFromStates(
 	normed := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormInto(normed, final, m.tensors.finalNorm.values, seq, d.Hidden, d.RMSEps)
 	head := m.tensors.head.values
-	g := Grads{}
 	gradHead := hostmath.GradientSlot(g, m.tensors.head.name, len(head))
 	dNormed := make([]float32, seq*d.Hidden)
 	var loss float64
@@ -115,7 +115,9 @@ func (m *Model) lossAndGradsFromStates(
 	// embedding contribution when untied).
 	embed := m.tensors.embedding.values
 	gradEmbed := hostmath.GradientSlot(g, m.tensors.embedding.name, len(embed))
-	scatterEmbeddingGradient(gradEmbed, dx, tokens, d.Hidden)
+	if gradEmbed != nil {
+		scatterEmbeddingGradient(gradEmbed, dx, tokens, d.Hidden)
+	}
 	return loss, logits, g, nil
 }
 
@@ -155,7 +157,7 @@ func (m *Model) layerBackward(index int, x, dOut []float32, invFreq []float64, s
 		if err != nil {
 			return nil, err
 		}
-		dMix, mixGrads, err := moeBackward(hn, *l.moe, seq, d.Hidden, d.MoE, route, dOut)
+		dMix, mixGrads, err := moeBackward(hn, *l.moe, seq, d.Hidden, d.MoE, route, dOut, g != nil)
 		if err != nil {
 			return nil, err
 		}

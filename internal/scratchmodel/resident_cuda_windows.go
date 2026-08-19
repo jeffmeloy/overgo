@@ -32,7 +32,8 @@ type ResidentTrainer struct {
 	momentum     driver.DevicePtr
 	config       optimizer.Config
 	programs     []residentForwardProgram
-	program      trainingprogram.Execution[residentTrainingState]
+	training     trainingprogram.Execution[residentTrainingState]
+	evaluation   trainingprogram.Execution[residentTrainingState]
 	lifecycle    ResidentLifecycle
 	closed       bool
 }
@@ -131,7 +132,15 @@ func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTra
 	if err != nil {
 		return fail(err)
 	}
-	trainer.program, err = bindResidentProgram(trainer)
+	program, err := bindResidentProgram(trainer)
+	if err != nil {
+		return fail(err)
+	}
+	trainer.training, err = program.Select(trainingprogram.PhaseBatch, trainingprogram.PhaseForward, trainingprogram.PhaseBackward, trainingprogram.PhaseOptimize)
+	if err != nil {
+		return fail(err)
+	}
+	trainer.evaluation, err = program.Select(trainingprogram.PhaseBatch, trainingprogram.PhaseForward, trainingprogram.PhaseEvaluate)
 	if err != nil {
 		return fail(err)
 	}
@@ -178,13 +187,7 @@ func (t *ResidentTrainer) Step(tokens []int, step int) (float64, error) {
 	}
 	state := residentTrainingState{trainer: t, tokens: tokens, step: step}
 	defer state.release()
-	err := t.program.RunPhases(
-		&state,
-		trainingprogram.PhaseBatch,
-		trainingprogram.PhaseForward,
-		trainingprogram.PhaseBackward,
-		trainingprogram.PhaseOptimize,
-	)
+	err := t.training.Run(&state)
 	return state.loss, err
 }
 
@@ -194,12 +197,7 @@ func (t *ResidentTrainer) Evaluate(tokens []int) (float64, error) {
 	}
 	state := residentTrainingState{trainer: t, tokens: tokens}
 	defer state.release()
-	err := t.program.RunPhases(
-		&state,
-		trainingprogram.PhaseBatch,
-		trainingprogram.PhaseForward,
-		trainingprogram.PhaseEvaluate,
-	)
+	err := t.evaluation.Run(&state)
 	return state.loss, err
 }
 

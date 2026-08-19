@@ -2,6 +2,7 @@ package hostmath
 
 import (
 	"math"
+	"slices"
 	"testing"
 )
 
@@ -38,6 +39,13 @@ func TestSelectedLogProbBackwardFiniteDifference(t *testing.T) {
 	dWeight := make([]float32, len(weight))
 	if err := SelectedLogProbBackward(dX, dWeight, nil, x, weight, nil, targets, selected, []float64{1}, rows, input, output, make([]float32, output), false); err != nil {
 		t.Fatal(err)
+	}
+	dXOnly := make([]float32, len(x))
+	if err := SelectedLogProbBackward(dXOnly, nil, nil, x, weight, nil, targets, selected, []float64{1}, rows, input, output, make([]float32, output), false); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(dXOnly, dX) {
+		t.Fatalf("activation-only gradient=%v want=%v", dXOnly, dX)
 	}
 	const epsilon = float32(1e-3)
 	for index := range weight {

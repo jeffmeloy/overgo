@@ -70,11 +70,11 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("MetadataDefaults.SharedExpert", profile.MetadataDefaults.SharedExpert, SharedExpertDefaultExpertProduct),
 		validateProfileOrdinal("Validation.BaseRotary", profile.Validation.BaseRotary, BaseRotaryValidationHalfWidth),
 		validateProfileOrdinal("Validation.ExpertMetadata", profile.Validation.ExpertMetadata, ExpertMetadataWhenDeclared),
-		validateProfileOrdinal("Validation.Encoder", profile.Validation.Encoder, EncoderValidationNomicBERTMoE),
-		validateProfileOrdinal("Validation.Attention", profile.Validation.Attention, AttentionValidationRefact),
-		validateProfileOrdinal("Validation.MLA", profile.Validation.MLA, MLAValidationMiniCPM3),
-		validateProfileOrdinal("Validation.Recurrent", profile.Validation.Recurrent, RecurrentValidationNemotronHMoE),
-		validateProfileOrdinal("Validation.Hybrid", profile.Validation.Hybrid, HybridValidationLFM2MoE),
+		validateProfileOrdinal("Validation.Encoder", profile.Validation.Encoder, EncoderValidationRotaryPeriodicExperts),
+		validateProfileOrdinal("Validation.Attention", profile.Validation.Attention, AttentionValidationOptionalExperts),
+		validateProfileOrdinal("Validation.MLA", profile.Validation.MLA, MLAValidationScaledLatent),
+		validateProfileOrdinal("Validation.Recurrent", profile.Validation.Recurrent, RecurrentValidationScheduledStateSpaceExperts),
+		validateProfileOrdinal("Validation.Hybrid", profile.Validation.Hybrid, HybridValidationAlternatingShortConvolutionExperts),
 		validateProfileOrdinal("EncoderOperator", profile.EncoderOperator, encoderOperatorRelativeEncoder),
 		validateProfileOrdinal("LatentAttention", profile.LatentAttention, latentAttentionNoRoPE),
 		validateProfileOrdinal("Cadence.Recurrent", profile.Cadence.Recurrent, recurrentCadenceAttentionInterval),
@@ -125,15 +125,15 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	}
 	recurrent := profile.Runtime.Recurrent
 	switch profile.Validation.Recurrent {
-	case RecurrentValidationRWKV6:
+	case RecurrentValidationTimeMixV6:
 		if recurrent.TokenShiftCount == 0 || recurrent.HeadNormEpsilon <= 0 || recurrent.PeriodicResidualScale <= 0 {
 			return fmt.Errorf("architecture profile %q: RWKV6 runtime policy is incomplete", profile.Name)
 		}
-	case RecurrentValidationRWKV6Qwen2:
+	case RecurrentValidationTimeMixV6SharedKV:
 		if recurrent.TokenShiftCount == 0 || recurrent.PeriodicResidualScale <= 0 {
 			return fmt.Errorf("architecture profile %q: RWKV6-Qwen2 runtime policy is incomplete", profile.Name)
 		}
-	case RecurrentValidationRWKV7, RecurrentValidationARWKV7:
+	case RecurrentValidationTimeMixV7Gated, RecurrentValidationTimeMixV7:
 		if recurrent.TokenShiftCount == 0 || recurrent.HeadNormEpsilon <= 0 || recurrent.KeyNormEpsilon <= 0 {
 			return fmt.Errorf("architecture profile %q: RWKV7 runtime policy is incomplete", profile.Name)
 		}
@@ -170,27 +170,27 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		return fmt.Errorf("architecture profile %q: decoder block default is absent", profile.Name)
 	}
 	if profile.Validation.hybridOneOf(
-		HybridValidationQwen3Next, HybridValidationQwen35, HybridValidationQwen35MoE,
+		HybridValidationAlternatingGatedDelta, HybridValidationAlternatingGatedDeltaHybrid, HybridValidationAlternatingGatedDeltaExperts,
 	) && defaults.FullAttentionInterval == 0 {
 		return fmt.Errorf("architecture profile %q: full-attention cadence default is absent", profile.Name)
 	}
-	if profile.Validation.Hybrid == HybridValidationStep35 && defaults.MoELayerStep == 0 {
+	if profile.Validation.Hybrid == HybridValidationCompressedHyperDraft && defaults.MoELayerStep == 0 {
 		return fmt.Errorf("architecture profile %q: MoE cadence default is absent", profile.Name)
 	}
-	if profile.Validation.Hybrid == HybridValidationGroveMoE && !defaults.ExpertChunkFromKey {
+	if profile.Validation.Hybrid == HybridValidationSparseSharedExperts && !defaults.ExpertChunkFromKey {
 		return fmt.Errorf("architecture profile %q: expert chunk-width relationship is absent", profile.Name)
 	}
-	if profile.Validation.hybridOneOf(HybridValidationQwen3Next, HybridValidationQwen35MoE, HybridValidationHunyuanMoE) &&
+	if profile.Validation.hybridOneOf(HybridValidationAlternatingGatedDelta, HybridValidationAlternatingGatedDeltaExperts, HybridValidationSharedExpertProduct) &&
 		defaults.SharedExpert != SharedExpertDefaultModelFeedForward {
 		return fmt.Errorf("architecture profile %q: model-width shared expert relationship is absent", profile.Name)
 	}
-	if profile.Validation.Hybrid == HybridValidationHYV3 && defaults.SharedExpert != SharedExpertDefaultExpertFeedForward {
+	if profile.Validation.Hybrid == HybridValidationMultiHeadDraft && defaults.SharedExpert != SharedExpertDefaultExpertFeedForward {
 		return fmt.Errorf("architecture profile %q: expert-width shared expert relationship is absent", profile.Name)
 	}
-	if profile.Validation.Attention == AttentionValidationCohere2MoE && defaults.SharedExpert != SharedExpertDefaultExpertProduct {
+	if profile.Validation.Attention == AttentionValidationRequiredSlidingRotaryExperts && defaults.SharedExpert != SharedExpertDefaultExpertProduct {
 		return fmt.Errorf("architecture profile %q: repeated shared expert relationship is absent", profile.Name)
 	}
-	if profile.Validation.Attention == AttentionValidationGemma3N &&
+	if profile.Validation.Attention == AttentionValidationSharedKVAlternatingState &&
 		(defaults.AlternateStateCount == 0 || defaults.LowRankResidualWidth == 0 ||
 			defaults.PerLayerEmbeddingWidth == 0 || defaults.SharedKVStartLayer == 0 ||
 			defaults.SparseLayerCount == 0 || defaults.SparsityStdMultiplier <= 0 ||
@@ -199,7 +199,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 			profile.Validation.SlidingPeriod < 2) {
 		return fmt.Errorf("architecture profile %q: alternate-state metadata defaults are incomplete", profile.Name)
 	}
-	if profile.Validation.Recurrent == RecurrentValidationDFlash && defaults.DraftBlockSize == 0 {
+	if profile.Validation.Recurrent == RecurrentValidationTargetLayerBlock && defaults.DraftBlockSize == 0 {
 		return fmt.Errorf("architecture profile %q: paired-feature draft block default is absent", profile.Name)
 	}
 	indexer := profile.Cadence

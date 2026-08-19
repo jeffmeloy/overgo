@@ -81,14 +81,11 @@ func TestMultimodalTrainingMatrix(t *testing.T) {
 	if err != nil || len(ids) < 4 {
 		t.Fatalf("tokenize real text: tokens=%d err=%v", len(ids), err)
 	}
-	rows := min(3, len(ids)-1)
-	inputIDs, targetIDs := make([]uint32, rows), make([]uint32, rows)
-	for index := range rows {
-		if ids[index] < 0 || ids[index+1] < 0 {
-			t.Fatal("real text produced negative token")
-		}
-		inputIDs[index], targetIDs[index] = uint32(ids[index]), uint32(ids[index+1])
+	inputIDs, targetIDs, err := trainingdata.AdjacentTokenRows(ids[:min(4, len(ids))])
+	if err != nil {
+		t.Fatal(err)
 	}
+	rows := len(inputIDs)
 
 	imageRecord := trainingdata.RawRecord{ID: "p2/934", Group: "p2/heldout", Data: readFile(t, imagePath)}
 	imageExample := processMediaTextPair(t, imageDataset, imageRecord,

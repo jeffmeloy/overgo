@@ -2,6 +2,7 @@ package oscillatorimage
 
 import (
 	"math"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -10,9 +11,13 @@ import (
 	"overgo/internal/testevidence"
 )
 
+func testTrainingConfig() optimizer.Config {
+	return optimizer.Config{BaseLearningRate: 0.02, Momentum: 0.95, Schedule: optimizer.ScheduleConstant}
+}
+
 func TestTrainerDecreasesBootstrapLossTiny(t *testing.T) {
 	m := tinyModel()
-	trainer, err := NewTrainer(m, optimizer.Config{}, 11)
+	trainer, err := NewTrainer(m, testTrainingConfig(), 11)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,16 +49,14 @@ func TestTrainerDecreasesBootstrapLossTiny(t *testing.T) {
 	}
 }
 
-func TestTrainerPacksModelFieldsInPlace(t *testing.T) {
+func TestTrainerUpdatesModelFieldsInPlace(t *testing.T) {
 	m := tinyModel()
-	trainer, err := NewTrainer(m, optimizer.Config{}, 11)
+	trainer, err := NewTrainer(m, testTrainingConfig(), 11)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer trainer.Close()
-	if &m.Omega[0] != &trainer.weights[0] {
-		t.Fatal("omega is not a view into the packed weights")
-	}
+	before := slices.Clone(m.Omega)
 	total := 0
 	for _, tensor := range m.trainableLayout() {
 		total += len(*tensor.field)
@@ -61,11 +64,17 @@ func TestTrainerPacksModelFieldsInPlace(t *testing.T) {
 	if total != trainer.ParameterCount() {
 		t.Fatalf("layout covers %d of %d packed parameters", total, trainer.ParameterCount())
 	}
+	if _, err := trainer.Step(); err != nil {
+		t.Fatal(err)
+	}
+	if slices.Equal(before, m.Omega) {
+		t.Fatal("optimizer update did not reach model fields")
+	}
 }
 
 func TestTrainerRefusesGradientsOutsidePack(t *testing.T) {
 	m := tinyModel()
-	trainer, err := NewTrainer(m, optimizer.Config{}, 11)
+	trainer, err := NewTrainer(m, testTrainingConfig(), 11)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,16 +85,7 @@ func TestTrainerRefusesGradientsOutsidePack(t *testing.T) {
 	}
 }
 
-// TestRealArtifactBootstrapTraining: bounded observed training on the real
-// Un-0 checkpoint under the recovered reference objective — the training
-// mirror of the exact-render inference validation.
-// The real Un-0 checkpoint sits AT bootstrap convergence, so the smoke
-// proves two things. Objective identity: the recovered class-target
-// objective evaluated on the real checkpoint lands inside the reference's
-// shipped A/B loss band (mean 15.57, std 1.16), so this is the objective
-// that trained the artifact. Machinery descent: a scratch model built from
-// the artifact's own config under the shipped init policy trains down over
-// observed Muon steps at the reference's lr and momentum.
+// TestRealArtifactBootstrapTraining verifies objective band and scratch descent.
 func TestRealArtifactBootstrapTraining(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip)
@@ -94,7 +94,7 @@ func TestRealArtifactBootstrapTraining(t *testing.T) {
 	if err != nil {
 		t.Skipf("UNAVAILABLE: Un-0 artifact absent: %v", err)
 	}
-	realTrainer, err := NewTrainer(real, optimizer.Config{}, 202)
+	realTrainer, err := NewTrainer(real, testTrainingConfig(), 202)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestRealArtifactBootstrapTraining(t *testing.T) {
 
 	const steps = 12
 	scratch := NewBootstrapModel(real.Cfg, 17)
-	trainer, err := NewTrainer(scratch, optimizer.Config{}, 17)
+	trainer, err := NewTrainer(scratch, testTrainingConfig(), 17)
 	if err != nil {
 		t.Fatal(err)
 	}

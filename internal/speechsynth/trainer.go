@@ -53,11 +53,7 @@ func NewJointTrainer(model *Model, steps int, baseLR, momentum float64) (*JointT
 		return nil, err
 	}
 	trainer := &JointTrainer{model: model, pack: pack, stepper: stepper, program: program}
-	execution, err := trainingprogram.Bind(program, []trainingprogram.Binding[jointTrainingState]{
-		{Operator: trainingprogram.ObjectiveOperatorForward, Execute: trainer.forward},
-		{Operator: trainingprogram.ObjectiveOperatorBackward, Execute: trainer.backward},
-		{Operator: trainingprogram.ObjectiveOperatorMuon, Execute: trainer.optimize},
-	})
+	execution, err := trainingprogram.BindObjective(program, trainer.forward, trainer.backward, trainer.optimize)
 	if err != nil {
 		_ = stepper.Close()
 		return nil, err
@@ -73,9 +69,7 @@ func (t *JointTrainer) Step(example TrainingExample) (float64, error) {
 		return 0, errors.New("speechsynth: joint trainer unavailable")
 	}
 	state := jointTrainingState{example: example}
-	if err := t.execution.RunPhases(&state,
-		trainingprogram.PhaseForward, trainingprogram.PhaseBackward, trainingprogram.PhaseOptimize,
-	); err != nil {
+	if err := t.execution.Run(&state); err != nil {
 		return 0, err
 	}
 	return state.loss, nil

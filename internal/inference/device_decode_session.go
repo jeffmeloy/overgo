@@ -191,16 +191,9 @@ func compileDecodeInputSlot(compiled *executor.CompiledGraph, node *tensor.Tenso
 }
 
 func decodeGraphOutputs(graph deviceBatchGraph, output deviceOutputPlan) []*tensor.Tensor {
-	first := graph.logits
-	switch output.mode {
-	case deviceOutputGreedy:
-		first = graph.selection
-	case deviceOutputTopK:
-		first = graph.candidates
-	}
+	first := output.graphOutput(graph)
 	result := []*tensor.Tensor{first}
-	// SharedKV layers alias the source layer's K/V nodes; a compiled graph
-	// admits each output once, so aliased tensors are collected once.
+	// Shared-KV aliases: collect each output once.
 	seen := map[*tensor.Tensor]struct{}{first: {}}
 	for layer := range graph.keys {
 		result = appendUniqueGraphOutputs(result, seen, graph.states[layer].AppendValues(

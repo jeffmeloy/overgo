@@ -2,8 +2,21 @@ package trainingdata
 
 import (
 	"context"
+	"slices"
 	"testing"
+
+	"overgo/internal/tokenizer"
 )
+
+func TestAdjacentTokenRows(t *testing.T) {
+	input, target, err := AdjacentTokenRows([]tokenizer.TokenID{3, 5, 8})
+	if err != nil || !slices.Equal(input, []uint32{3, 5}) || !slices.Equal(target, []uint32{5, 8}) {
+		t.Fatalf("input=%v target=%v err=%v", input, target, err)
+	}
+	if _, _, err := AdjacentTokenRows([]tokenizer.TokenID{3}); err == nil {
+		t.Fatal("short token sequence passed")
+	}
+}
 
 func TestJSONTextPairProcessor(t *testing.T) {
 	processor, err := JSONTextPairProcessor("question", "answer")

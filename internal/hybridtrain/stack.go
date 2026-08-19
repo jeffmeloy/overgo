@@ -1,10 +1,4 @@
-// Package hybridtrain assembles a multi-layer qwen3.5-style HYBRID decoder stack
-// (a mix of full_attention and linear_attention/GDN layers) into a training loop
-// and provides a host reference trajectory (this file) plus a device resident
-// trajectory (hybrid_train_device_cuda_windows.go). The host reference is the
-// parity oracle: it runs the same N-layer stack the device loop runs, K steps of
-// the same optimizer, entirely on host with hostmath.HybridDecoderLayerForward /
-// HybridDecoderLayerBackward.
+// Package hybridtrain trains mixed attention stacks.
 package hybridtrain
 
 import (
@@ -24,34 +18,27 @@ const (
 	LinearAttention
 )
 
-// StackConfig is a small, fully explicit hybrid model: every dimension comes from
-// here (no magics), and Types lists the per-layer mix variant (qwen3.5-style
-// layer_types). Dims are shared across layers; the GDN and attention geometries
-// are the two mix variants' shapes.
+// StackConfig declares stack and mix geometry.
 type StackConfig struct {
 	Types                 []LayerKind
 	Tokens, Hidden, Inter int
 	Eps                   float64
-	// full_attention geometry.
+	// Attention geometry.
 	Heads, KVHeads, HeadDim int
 	RopeDim                 int
 	RopeTheta               float64
-	// linear_attention (GDN) geometry.
+	// GDN geometry.
 	GDNKeyHeads, GDNValueHeads, GDNHeadDim, GDNConvK int
 }
 
-// matDesc describes one resident-Muon matrix: its element range in the flat matrix
-// weight buffer and its [rows,cols] geometry (weights stored [out,in]).
+// matDesc binds matrix geometry to a resident range.
 type matDesc struct {
 	name       string
 	off, size  int
 	rows, cols int
 }
 
-// Model is one built hybrid stack: the per-layer weights (whose matrix slices ALIAS
-// the flat matW buffer and whose vector slices alias vecW, so an optimizer step on
-// the flat buffers is seen by the forward with no scatter), the per-layer dims and
-// GDN input states, the fixed input x and loss target, and the optimizer layouts.
+// Model owns aliased matrix/vector optimizer slabs.
 type Model struct {
 	Cfg     StackConfig
 	Weights []hostmath.HybridLayerWeights
@@ -68,7 +55,7 @@ type Model struct {
 	program trainingprogram.TrainingProgram
 }
 
-// MatrixParamCount / VectorParamCount expose the two optimizer buffers' sizes.
+// MatrixParamCount / VectorParamCount report optimizer extents.
 func (m *Model) MatrixParamCount() int                    { return len(m.matW) }
 func (m *Model) VectorParamCount() int                    { return len(m.vecW) }
 func (m *Model) Program() trainingprogram.TrainingProgram { return m.program }
@@ -76,12 +63,7 @@ func (m *Model) Program() trainingprogram.TrainingProgram { return m.program }
 // matSlot is one matrix's element offset and size within the flat matW buffer.
 type matSlot struct{ Off, Size int }
 
-// layerMatrixPlan is one hybrid layer's MATRIX-weight offsets within matW: the
-// SwiGLU MLP plus the active mix's projection matrices. It is the device-free
-// source the resident device loop turns into resident weight POINTERS
-// (ResidentPtr(dW, Off)) and the layout test validates without a GPU -- the crux
-// invariant of the no-weight-motion loop (every resident matrix addressed at the
-// right offset, the slots tiling matW exactly).
+// layerMatrixPlan binds one layer to matrix-slab ranges.
 type layerMatrixPlan struct {
 	IsLinear                                   bool
 	Gate, Up, Down                             matSlot
@@ -89,9 +71,7 @@ type layerMatrixPlan struct {
 	GWq, GWk, GWv, GWbeta, GWalpha, GWz, GWout matSlot // GDN
 }
 
-// matrixPlans resolves every layer's matrix slots from the built mats (by the
-// exact BuildModel tensor names), so the resident pointers and the layout test
-// share one derivation. Errors if any expected matrix is missing.
+// matrixPlans resolves resident ranges from compiled tensor names.
 func (m *Model) matrixPlans() ([]layerMatrixPlan, error) {
 	byName := make(map[string]matSlot, len(m.mats))
 	for _, md := range m.mats {
@@ -138,8 +118,7 @@ func (m *Model) matrixPlans() ([]layerMatrixPlan, error) {
 	return plans, nil
 }
 
-// slots returns every matrix slot in this plan (mix-appropriate), for tiling
-// validation and pointer construction.
+// slots returns active matrix ranges.
 func (p layerMatrixPlan) slots() []matSlot {
 	s := []matSlot{p.Gate, p.Up, p.Down}
 	if p.IsLinear {
@@ -148,10 +127,7 @@ func (p layerMatrixPlan) slots() []matSlot {
 	return append(s, p.Wq, p.Wk, p.Wv, p.Wo)
 }
 
-// validateMatrixTiling asserts the plans' matrix slots exactly tile [0,total):
-// no gaps, no overlaps, sizes positive. This is the device-free guard that the
-// resident weight pointers address every matrix correctly -- meaningful in CI
-// without a GPU.
+// validateMatrixTiling requires an exact positive partition.
 func validateMatrixTiling(plans []layerMatrixPlan, total int) error {
 	covered := make([]bool, total)
 	sum := 0
@@ -175,7 +151,7 @@ func validateMatrixTiling(plans []layerMatrixPlan, total int) error {
 	return nil
 }
 
-// layerDims builds the per-layer HybridLayerDims for a layer kind from the config.
+// layerDims resolves mix geometry.
 func (c StackConfig) layerDims(kind LayerKind) hostmath.HybridLayerDims {
 	d := hostmath.HybridLayerDims{Tokens: c.Tokens, Hidden: c.Hidden, Inter: c.Inter, Eps: c.Eps}
 	switch kind {
@@ -193,20 +169,14 @@ func (c StackConfig) layerDims(kind LayerKind) hostmath.HybridLayerDims {
 	return d
 }
 
-// aliasFixup records a weight-slice field to rebind onto the FINAL flat buffer
-// after the build completes: mat/vec append into matW/vecW, and append reallocates
-// the backing array mid-build, so a slice captured when a tensor is first written
-// detaches from the final buffer. rebindAliases re-points every field at the final
-// backing array (by offset) so an optimizer step on the flat matW/vecW IS seen by
-// the forward -- the aliasing the Model doc promises.
+// aliasFixup defers field binding until slab growth ends.
 type aliasFixup struct {
 	dst       *[]float32 // the layer weight field to repoint
 	mat       bool       // true: sub-slice of matW; false: sub-slice of vecW
 	off, size int
 }
 
-// builder accumulates the flat weight buffers while recording matrix descriptors,
-// optimizer group specs, and the alias fixups rebound after the buffers are final.
+// builder compiles slabs, groups, and final aliases.
 type builder struct {
 	m        *Model
 	rng      *rand.Rand
@@ -215,16 +185,14 @@ type builder struct {
 	fixups   []aliasFixup
 }
 
-// randn appends n N(0,0.3) weights (well-conditioned small init, matching the layer
-// tests) into the growing flat buffer dst.
+// randn appends configured bootstrap draws.
 func (b *builder) randn(dst *[]float32, n int) {
 	for i := 0; i < n; i++ {
 		*dst = append(*dst, float32(b.rng.NormFloat64()*0.3))
 	}
 }
 
-// mat appends a [rows,cols] matrix into matW, records it as a resident-Muon group,
-// and registers dst for post-build alias rebinding.
+// mat appends one resident matrix group.
 func (b *builder) mat(dst *[]float32, name string, rows, cols int) {
 	off := len(b.m.matW)
 	b.randn(&b.m.matW, rows*cols)
@@ -245,8 +213,7 @@ func (b *builder) matValues(dst *[]float32, name string, rows, cols int, values 
 	return nil
 }
 
-// vec appends an n-element host-Sign param into vecW (recorded as a 1xN Sign group)
-// and registers dst for post-build alias rebinding.
+// vec appends one host vector group.
 func (b *builder) vec(dst *[]float32, name string, n int) {
 	off := len(b.m.vecW)
 	b.randn(&b.m.vecW, n)
@@ -265,9 +232,7 @@ func (b *builder) vecValues(dst *[]float32, name string, values []float32) error
 	return nil
 }
 
-// rebindAliases repoints every recorded weight-slice field onto the final matW/vecW
-// backing array, restoring the aliasing an optimizer step relies on. Run once, after
-// all appends.
+// rebindAliases publishes final slab views.
 func (b *builder) rebindAliases() {
 	for _, f := range b.fixups {
 		if f.mat {
@@ -278,16 +243,13 @@ func (b *builder) rebindAliases() {
 	}
 }
 
-// BuildModel constructs the hybrid stack deterministically from seed. Two calls with
-// the same seed and config produce bit-identical initial weights -- the host and
-// device trajectories start from the same point.
+// BuildModel constructs a deterministic mixed stack.
 func BuildModel(cfg StackConfig, seed int64) (*Model, error) {
 	m := &Model{Cfg: cfg}
 	b := &builder{m: m, rng: rand.New(rand.NewSource(seed))}
 	H, inter := cfg.Hidden, cfg.Inter
 
-	// Pre-size m.Weights so each field's address is stable across the build: the
-	// alias fixups store &field pointers, which must survive into the final model.
+	// Stable field addresses for deferred aliases.
 	m.Weights = make([]hostmath.HybridLayerWeights, len(cfg.Types))
 	m.Dims = make([]hostmath.HybridLayerDims, len(cfg.Types))
 	m.States = make([][]float32, len(cfg.Types))
@@ -296,7 +258,7 @@ func BuildModel(cfg StackConfig, seed int64) (*Model, error) {
 		w := &m.Weights[li]
 		w.IsLinear = kind == LinearAttention
 		p := func(s string) string { return name(li, s) }
-		// common: norms (vec) + SwiGLU MLP (mat).
+		// Shared norm and MLP groups.
 		b.vec(&w.InputNorm, p("input_norm"), H)
 		b.vec(&w.PostNorm, p("post_norm"), H)
 		b.mat(&w.MLP.Gate, p("mlp.gate"), inter, H)
@@ -323,7 +285,7 @@ func BuildModel(cfg StackConfig, seed int64) (*Model, error) {
 			b.mat(&w.GDN.Walpha, p("gdn.alpha"), hv, H)
 			b.mat(&w.GDN.Wz, p("gdn.z"), valDim, H)
 			b.mat(&w.GDN.Wout, p("gdn.out"), H, valDim)
-			// small conv kernels + biases + per-head scalars stay host-Sign.
+			// Small vectors stay host-resident.
 			b.vec(&w.GDN.ConvQ, p("gdn.convq"), keyDim*K)
 			b.vec(&w.GDN.ConvK, p("gdn.convk"), keyDim*K)
 			b.vec(&w.GDN.ConvV, p("gdn.convv"), valDim*K)
@@ -339,7 +301,7 @@ func BuildModel(cfg StackConfig, seed int64) (*Model, error) {
 			m.States[li] = make([]float32, cfg.GDNValueHeads*cfg.GDNHeadDim*cfg.GDNHeadDim)
 		}
 	}
-	// Rebind every weight slice onto the now-final matW/vecW backing arrays.
+	// Publish final slab aliases.
 	b.rebindAliases()
 
 	m.X = make([]float32, cfg.Tokens*H)
@@ -385,8 +347,7 @@ func (b *builder) finish() error {
 			{ID: "hybrid-forward", Phase: trainingprogram.PhaseForward},
 			{ID: "squared-error", Phase: trainingprogram.PhaseLoss},
 			{ID: "hybrid-backward", Phase: trainingprogram.PhaseBackward},
-			{ID: "matrix-muon", Phase: trainingprogram.PhaseOptimize},
-			{ID: "vector-sign", Phase: trainingprogram.PhaseOptimize},
+			{ID: "optimizer-step", Phase: trainingprogram.PhaseOptimize},
 		},
 		Parameters: parameters,
 		Optimizer:  plan,
@@ -412,91 +373,130 @@ func itoa(v int) string {
 	return string(buf[i:])
 }
 
-// loss computes the squared-error loss of out against the fixed target and the
-// cotangent dOut = out - target for the top layer.
-func (m *Model) loss(out []float32) (loss float64, dTop []float32) {
-	dTop = make([]float32, len(out))
+func lossGradient(out, target, dTop []float32) (float64, []float32) {
+	if cap(dTop) < len(out) {
+		dTop = make([]float32, len(out))
+	} else {
+		dTop = dTop[:len(out)]
+	}
+	var loss float64
 	for i := range out {
-		e := float64(out[i]) - float64(m.Target[i])
+		e := float64(out[i]) - float64(target[i])
 		loss += 0.5 * e * e
 		dTop[i] = float32(e)
 	}
 	return loss, dTop
 }
 
-// gradMats returns one layer's resident-Muon matrix GRADIENT slices in the exact
-// order BuildModel appended the matrices (mlp gate/up/down, then attn q/k/v/o or
-// gdn q/k/v/beta/alpha/z/out).
-func gradMats(g hostmath.HybridDecoderLayerGrads) [][]float32 {
-	out := [][]float32{g.DMLP.Gate, g.DMLP.Up, g.DMLP.Down}
-	if g.IsLinear {
-		out = append(out, g.DGDN.DWq, g.DGDN.DWk, g.DGDN.DWv, g.DGDN.DWbeta, g.DGDN.DWalpha, g.DGDN.DWz, g.DGDN.DWout)
-	} else {
-		out = append(out, g.DAttn.Wq, g.DAttn.Wk, g.DAttn.Wv, g.DAttn.Wo)
+func pack(dst []float32, offset int, groups ...[]float32) int {
+	for _, group := range groups {
+		offset += copy(dst[offset:], group)
 	}
-	return out
+	return offset
 }
 
-// gradVecs returns one layer's host-Sign GRADIENT slices in BuildModel's vec order.
-func gradVecs(g hostmath.HybridDecoderLayerGrads) [][]float32 {
-	out := [][]float32{g.DInputNorm, g.DPostNorm}
-	if g.IsLinear {
-		out = append(out,
-			g.DGDN.DConvQ, g.DGDN.DConvK, g.DGDN.DConvV,
-			g.DGDN.DConvBiasQ, g.DGDN.DConvBiasK, g.DGDN.DConvBiasV,
-			g.DGDN.DTimeStep, g.DGDN.DA, g.DGDN.DNorm)
-	} else {
-		out = append(out, g.DAttn.QNorm, g.DAttn.KNorm)
-	}
-	return out
-}
-
-// packGrads flattens per-layer grads into the flat matG/vecG buffers matching the
-// matW/vecW layout (concatenation in stack order).
-func (m *Model) packGrads(grads []hostmath.HybridDecoderLayerGrads) (matG, vecG []float32) {
-	matG = make([]float32, len(m.matW))
-	vecG = make([]float32, len(m.vecW))
+func (m *Model) packGradients(grads []hostmath.HybridDecoderLayerGrads, mat, vec []float32) {
 	mi, vi := 0, 0
 	for _, g := range grads {
-		for _, s := range gradMats(g) {
-			copy(matG[mi:mi+len(s)], s)
-			mi += len(s)
-		}
-		for _, s := range gradVecs(g) {
-			copy(vecG[vi:vi+len(s)], s)
-			vi += len(s)
+		mi = pack(mat, mi, g.DMLP.Gate, g.DMLP.Up, g.DMLP.Down)
+		vi = pack(vec, vi, g.DInputNorm, g.DPostNorm)
+		if g.IsLinear {
+			mi = pack(mat, mi, g.DGDN.DWq, g.DGDN.DWk, g.DGDN.DWv, g.DGDN.DWbeta, g.DGDN.DWalpha, g.DGDN.DWz, g.DGDN.DWout)
+			vi = pack(vec, vi, g.DGDN.DConvQ, g.DGDN.DConvK, g.DGDN.DConvV, g.DGDN.DConvBiasQ, g.DGDN.DConvBiasK, g.DGDN.DConvBiasV, g.DGDN.DTimeStep, g.DGDN.DA, g.DGDN.DNorm)
+		} else {
+			mi = pack(mat, mi, g.DAttn.Wq, g.DAttn.Wk, g.DAttn.Wv, g.DAttn.Wo)
+			vi = pack(vec, vi, g.DAttn.QNorm, g.DAttn.KNorm)
 		}
 	}
-	return matG, vecG
 }
 
-// TrainHost runs K steps of the reference host trainer (Muon on the resident-set
-// matrices via the host optimizer, Sign on the vector params) and returns the loss
-// trajectory. This is the parity oracle for the device resident loop.
+type trainingBackend interface {
+	Forward() ([]float32, error)
+	Backward([]float32) error
+	Step(int) error
+}
+
+type trainingState struct {
+	backend trainingBackend
+	target  []float32
+	output  []float32
+	dTop    []float32
+	loss    float64
+	step    int
+}
+
+func (state *trainingState) forward() (err error) {
+	state.output, err = state.backend.Forward()
+	return err
+}
+
+func (state *trainingState) lossGradient() error {
+	state.loss, state.dTop = lossGradient(state.output, state.target, state.dTop)
+	return nil
+}
+
+func (state *trainingState) backward() error { return state.backend.Backward(state.dTop) }
+func (state *trainingState) optimize() error { return state.backend.Step(state.step + 1) }
+func runTraining(program trainingprogram.TrainingProgram, backend trainingBackend, target []float32, steps int) ([]float64, error) {
+	execution, err := trainingprogram.Bind(program, []trainingprogram.Binding[trainingState]{
+		{Operator: "hybrid-forward", Execute: (*trainingState).forward},
+		{Operator: "squared-error", Execute: (*trainingState).lossGradient},
+		{Operator: "hybrid-backward", Execute: (*trainingState).backward},
+		{Operator: "optimizer-step", Execute: (*trainingState).optimize},
+	})
+	if err != nil {
+		return nil, err
+	}
+	trajectory := make([]float64, steps)
+	state := trainingState{backend: backend, target: target}
+	for state.step = range steps {
+		state.loss = 0
+		if err := execution.Run(&state); err != nil {
+			return nil, err
+		}
+		trajectory[state.step] = state.loss
+	}
+	return trajectory, nil
+}
+
+type hostTraining struct {
+	model            *Model
+	trace            hostmath.HybridStackTrace
+	grads            []hostmath.HybridDecoderLayerGrads
+	matGrad, vecGrad []float32
+	matOpt, vecOpt   *optimizer.Optimizer
+}
+
+func (training *hostTraining) Forward() ([]float32, error) {
+	output, trace := hostmath.HybridStackForward(training.model.X, training.model.Weights, training.model.Dims, training.model.States)
+	training.trace = trace
+	return output, nil
+}
+
+func (training *hostTraining) Backward(dTop []float32) error {
+	model := training.model
+	training.grads, _ = hostmath.HybridStackBackward(training.trace, model.Weights, model.Dims, model.States, dTop, training.grads)
+	model.packGradients(training.grads, training.matGrad, training.vecGrad)
+	return nil
+}
+
+func (training *hostTraining) Step(_ int) error {
+	training.matOpt.Step()
+	training.vecOpt.Step()
+	return nil
+}
+
+// TrainHost runs the host parity lane.
 func (m *Model) TrainHost(steps int, cfg optimizer.Config) ([]float64, error) {
-	matGrad := make([]float32, len(m.matW))
-	vecGrad := make([]float32, len(m.vecW))
-	matOpt, err := optimizer.New(m.matW, matGrad, m.matPlan, cfg)
+	training := &hostTraining{model: m, matGrad: make([]float32, len(m.matW)), vecGrad: make([]float32, len(m.vecW))}
+	var err error
+	training.matOpt, err = optimizer.New(m.matW, training.matGrad, m.matPlan, cfg)
 	if err != nil {
 		return nil, err
 	}
-	vecOpt, err := optimizer.New(m.vecW, vecGrad, m.vecPlan, cfg)
+	training.vecOpt, err = optimizer.New(m.vecW, training.vecGrad, m.vecPlan, cfg)
 	if err != nil {
 		return nil, err
 	}
-
-	traj := make([]float64, 0, steps)
-	for step := 0; step < steps; step++ {
-		out, inputs, caches := hostmath.HybridStackForward(m.X, m.Weights, m.Dims, m.States)
-		loss, dTop := m.loss(out)
-		traj = append(traj, loss)
-
-		grads, _ := hostmath.HybridStackBackward(inputs, m.Weights, m.Dims, m.States, dTop, caches)
-		matG, vecG := m.packGrads(grads)
-		copy(matGrad, matG)
-		copy(vecGrad, vecG)
-		matOpt.Step()
-		vecOpt.Step()
-	}
-	return traj, nil
+	return runTraining(m.program, training, m.Target, steps)
 }

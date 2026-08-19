@@ -29,6 +29,7 @@ type Graft struct {
 	DonorGate         []float32 // [DonorIntermediate x DonorHidden]
 	DonorUp           []float32 // [DonorIntermediate x DonorHidden]
 	DonorDown         []float32 // [DonorHidden x DonorIntermediate]
+	bridge            []float32
 }
 
 // BridgeGradNames key the two trainable bridge matrices in Grads.
@@ -51,11 +52,14 @@ func NewGraft(target *Model, layer int, donorGate, donorUp, donorDown []float32,
 		len(donorDown) != donorHidden*donorIntermediate {
 		return nil, fmt.Errorf("densecausal: donor MLP tensors do not match geometry %dx%d", donorHidden, donorIntermediate)
 	}
+	bridgeSize := donorHidden * hidden
+	bridge := make([]float32, 2*bridgeSize)
 	graft := &Graft{
 		Layer: layer, DonorHidden: donorHidden, DonorIntermediate: donorIntermediate,
-		Down:      make([]float32, donorHidden*hidden),
-		Up:        make([]float32, hidden*donorHidden),
+		Down:      bridge[:bridgeSize],
+		Up:        bridge[bridgeSize:],
 		DonorGate: donorGate, DonorUp: donorUp, DonorDown: donorDown,
+		bridge: bridge,
 	}
 	random := rand.New(rand.NewSource(seed))
 	scale := float32(1 / math.Sqrt(float64(hidden)))
@@ -67,8 +71,7 @@ func NewGraft(target *Model, layer int, donorGate, donorUp, donorDown []float32,
 
 // branchForward computes the graft branch output and retains the trace needed
 // for its VJP. x is the post-layer residual stream [seq*hidden].
-func (gr *Graft) branchForward(m *Model, x []float32, seq int) (out, z, gate, up, silu, wOut []float32) {
-	hidden := m.Dims.Hidden
+func (gr *Graft) branchActivations(x []float32, seq, hidden int) (z, gate, up, silu, wOut []float32) {
 	z = make([]float32, seq*gr.DonorHidden)
 	hostmath.Linear(z, x, gr.Down, seq, hidden, gr.DonorHidden)
 	gate = make([]float32, seq*gr.DonorIntermediate)
@@ -79,9 +82,15 @@ func (gr *Graft) branchForward(m *Model, x []float32, seq int) (out, z, gate, up
 	hostmath.SiLUGate(silu, gate, up)
 	wOut = make([]float32, seq*gr.DonorHidden)
 	hostmath.Linear(wOut, silu, gr.DonorDown, seq, gr.DonorIntermediate, gr.DonorHidden)
-	out = make([]float32, seq*hidden)
+	return z, gate, up, silu, wOut
+}
+
+func (gr *Graft) branchForward(m *Model, x []float32, seq int) []float32 {
+	hidden := m.Dims.Hidden
+	_, _, _, _, wOut := gr.branchActivations(x, seq, hidden)
+	out := make([]float32, seq*hidden)
 	hostmath.Linear(out, wOut, gr.Up, seq, gr.DonorHidden, hidden)
-	return out, z, gate, up, silu, wOut
+	return out
 }
 
 // GraftLoss runs the grafted forward and returns mean causal CE.
@@ -115,7 +124,7 @@ func (m *Model) graftForwardStates(gr *Graft, tokens []int) ([][]float32, []floa
 		}
 		if index == gr.Layer {
 			preBranch = append([]float32(nil), x...)
-			out, _, _, _, _, _ := gr.branchForward(m, preBranch, seq)
+			out := gr.branchForward(m, preBranch, seq)
 			addInPlace(x, out)
 		}
 		return nil
@@ -126,46 +135,43 @@ func (m *Model) graftForwardStates(gr *Graft, tokens []int) ([][]float32, []floa
 	return states, preBranch, nil
 }
 
-// GraftLossAndBridgeGrads runs grafted forward + full backward and returns the
-// loss with gradients for ONLY the two bridge matrices. Donor and target
-// gradients are computed into scratch (the chain needs their VJPs) and
-// discarded: freezing is structural, not a flag the optimizer must honor.
-func (m *Model) GraftLossAndBridgeGrads(gr *Graft, tokens []int) (float64, Grads, error) {
+// GraftLossAndBridgeGrads: graft loss and bridge VJP into caller storage.
+// Donor and target weight gradients stay absent; activation VJPs remain.
+func (m *Model) GraftLossAndBridgeGrads(gr *Graft, tokens []int, bridge Grads) (float64, error) {
 	if len(tokens) < 2 {
-		return 0, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
+		return 0, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
+	hidden := m.Dims.Hidden
+	downGradient, downOK := bridge[BridgeDownName]
+	upGradient, upOK := bridge[BridgeUpName]
+	if !downOK || !upOK || len(downGradient) != gr.DonorHidden*hidden || len(upGradient) != hidden*gr.DonorHidden {
+		return 0, fmt.Errorf("densecausal: bridge gradient destination has invalid geometry")
+	}
+	clear(downGradient)
+	clear(upGradient)
 	states, preBranch, err := m.graftForwardStates(gr, tokens)
 	if err != nil {
-		return 0, nil, err
+		return 0, err
 	}
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
-	hidden := m.Dims.Hidden
-	loss, _, grads, err := m.lossAndGradsFromStates(tokens, states, false, func(
+	loss, _, _, err := m.lossAndGradsFromStates(tokens, states, false, nil, func(
 		index int, input, outputGradient []float32, seq int, g Grads,
 	) ([]float32, error) {
 		if index == gr.Layer {
 			// outputGradient is dL/dy for y = xOut + branch(xOut); fold the
 			// branch VJP in before the layer's own backward.
-			dxBranch := gr.branchBackward(m, preBranch, outputGradient, seq, g)
-			dxOut := make([]float32, len(outputGradient))
-			for i := range dxOut {
-				dxOut[i] = outputGradient[i] + dxBranch[i]
+			dxBranch := gr.branchBackward(m, preBranch, outputGradient, seq, bridge)
+			for i := range dxBranch {
+				dxBranch[i] += outputGradient[i]
 			}
-			outputGradient = dxOut
+			outputGradient = dxBranch
 		}
 		return m.layerBackward(index, input, outputGradient, invFreq, seq, g)
 	})
 	if err != nil {
-		return 0, nil, err
+		return 0, err
 	}
-	bridge := Grads{
-		BridgeDownName: grads[BridgeDownName],
-		BridgeUpName:   grads[BridgeUpName],
-	}
-	if len(bridge[BridgeDownName]) != gr.DonorHidden*hidden || len(bridge[BridgeUpName]) != hidden*gr.DonorHidden {
-		return 0, nil, fmt.Errorf("densecausal: bridge gradients missing from backward")
-	}
-	return loss, bridge, nil
+	return loss, nil
 }
 
 // branchBackward recomputes the branch trace from the retained pre-add
@@ -173,24 +179,21 @@ func (m *Model) GraftLossAndBridgeGrads(gr *Graft, tokens []int) (float64, Grads
 // the branch path only.
 func (gr *Graft) branchBackward(m *Model, preBranch, dy []float32, seq int, g Grads) []float32 {
 	hidden := m.Dims.Hidden
-	_, z, gate, up, silu, wOut := gr.branchForward(m, preBranch, seq)
+	z, gate, up, silu, wOut := gr.branchActivations(preBranch, seq, hidden)
 
 	dW := make([]float32, seq*gr.DonorHidden)
 	hostmath.LinearBackward(dW, hostmath.GradientSlot(g, BridgeUpName, hidden*gr.DonorHidden), nil,
 		wOut, gr.Up, dy, seq, gr.DonorHidden, hidden, false)
 	dSilu := make([]float32, seq*gr.DonorIntermediate)
-	donorDownScratch := make([]float32, len(gr.DonorDown))
-	hostmath.LinearBackward(dSilu, donorDownScratch, nil,
+	hostmath.LinearBackward(dSilu, nil, nil,
 		silu, gr.DonorDown, dW, seq, gr.DonorIntermediate, gr.DonorHidden, false)
 	dGate := make([]float32, seq*gr.DonorIntermediate)
 	dUp := make([]float32, seq*gr.DonorIntermediate)
 	hostmath.SiLUGateBackward(dGate, dUp, gate, up, dSilu)
 	dz := make([]float32, seq*gr.DonorHidden)
-	donorGateScratch := make([]float32, len(gr.DonorGate))
-	donorUpScratch := make([]float32, len(gr.DonorUp))
-	hostmath.LinearBackward(dz, donorGateScratch, nil,
+	hostmath.LinearBackward(dz, nil, nil,
 		z, gr.DonorGate, dGate, seq, gr.DonorHidden, gr.DonorIntermediate, false)
-	hostmath.LinearBackward(dz, donorUpScratch, nil,
+	hostmath.LinearBackward(dz, nil, nil,
 		z, gr.DonorUp, dUp, seq, gr.DonorHidden, gr.DonorIntermediate, true)
 	dxBranch := make([]float32, seq*hidden)
 	hostmath.LinearBackward(dxBranch, hostmath.GradientSlot(g, BridgeDownName, gr.DonorHidden*hidden), nil,
@@ -208,10 +211,12 @@ func (m *Model) TrainBridge(gr *Graft, batches [][]int, baseLR, mu float64, step
 	hidden := m.Dims.Hidden
 	downSize := gr.DonorHidden * hidden
 	upSize := hidden * gr.DonorHidden
-	weights := make([]float32, downSize+upSize)
-	copy(weights[:downSize], gr.Down)
-	copy(weights[downSize:], gr.Up)
+	weights := gr.bridge
 	gradients := make([]float32, len(weights))
+	bridgeGradients := Grads{
+		BridgeDownName: gradients[:downSize],
+		BridgeUpName:   gradients[downSize:],
+	}
 	plan, err := optimizer.CompilePlan(len(weights), []optimizer.GroupSpec{
 		{Name: BridgeDownName, Start: 0, End: downSize, Rows: gr.DonorHidden, Cols: hidden},
 		{Name: BridgeUpName, Start: downSize, End: downSize + upSize, Rows: hidden, Cols: gr.DonorHidden},
@@ -231,21 +236,15 @@ func (m *Model) TrainBridge(gr *Graft, batches [][]int, baseLR, mu float64, step
 	losses := make([]float64, 0, steps)
 	for step := 0; step < steps; step++ {
 		batch := batches[step%len(batches)]
-		copy(gr.Down, weights[:downSize])
-		copy(gr.Up, weights[downSize:])
-		loss, bridge, err := m.GraftLossAndBridgeGrads(gr, batch)
+		loss, err := m.GraftLossAndBridgeGrads(gr, batch, bridgeGradients)
 		if err != nil {
 			return nil, err
 		}
 		if math.IsNaN(loss) || math.IsInf(loss, 0) {
 			return nil, fmt.Errorf("densecausal: bridge training diverged at step %d", step)
 		}
-		copy(gradients[:downSize], bridge[BridgeDownName])
-		copy(gradients[downSize:], bridge[BridgeUpName])
 		opt.Step()
 		losses = append(losses, loss)
 	}
-	copy(gr.Down, weights[:downSize])
-	copy(gr.Up, weights[downSize:])
 	return losses, nil
 }

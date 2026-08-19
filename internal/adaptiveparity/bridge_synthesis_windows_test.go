@@ -15,6 +15,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingprogram"
 )
 
 // Bridge-synthesis protocol, written before the run (Probe Discipline): the
@@ -57,8 +58,8 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	target := testutil.ArtifactID(t, artifact.KindModel, "synthesis-target")
-	donor := testutil.ArtifactID(t, artifact.KindModel, "synthesis-donor")
+	target := synthesisModelID(t, targetDir)
+	donor := synthesisModelID(t, donorDir)
 	ranker, err := composition.TrainProposalRanker(nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +113,7 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 	if outcome.Result.Ship {
 		verdict = "SHIP"
 	}
-	if outcome.Result.Ship && outcome.Decision.Outcome != recipe.DecisionObserved {
+	if outcome.Result.Ship && outcome.Decision.Outcome != recipe.DecisionAccepted {
 		t.Fatalf("ship without promotion evidence: %+v", outcome.Decision)
 	}
 	if !outcome.Result.Ship && outcome.Decision.Outcome != recipe.DecisionRefused {
@@ -132,4 +133,20 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 	t.Logf("bridge synthesis verdict: %s decision=%s record=%s", verdict, outcome.Decision.ID, outcome.Record.ID)
 	t.Logf("reason: %s", outcome.Decision.Reason)
 	t.Logf("budget: 2 seeds x %d steps at lr-scale 0.1, wall %s, host reference", synthesisSteps, time.Since(started))
+}
+
+func synthesisModelID(t *testing.T, directory string) artifact.ID {
+	t.Helper()
+	file, err := os.Open(filepath.Join(directory, trainingprogram.CheckpointWeights))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _, err := artifact.Identify(artifact.KindModel, file)
+	if closeErr := file.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

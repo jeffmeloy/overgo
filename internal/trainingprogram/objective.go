@@ -33,7 +33,9 @@ const (
 	ObjectiveFlowMatching    ObjectiveKind = "flow-matching"
 	ObjectiveImageLatent     ObjectiveKind = "image-latent"
 	ObjectiveDistillation    ObjectiveKind = "logit-distillation"
+	ObjectiveTablePrediction ObjectiveKind = "table-prediction"
 	ObjectiveDPO             ObjectiveKind = "dpo"
+	ObjectiveGRPO            ObjectiveKind = "grpo"
 )
 
 var objectiveKinds = []ObjectiveKind{
@@ -46,7 +48,9 @@ var objectiveKinds = []ObjectiveKind{
 	ObjectiveFlowMatching,
 	ObjectiveImageLatent,
 	ObjectiveDistillation,
+	ObjectiveTablePrediction,
 	ObjectiveDPO,
+	ObjectiveGRPO,
 }
 
 type ObjectiveAuthority string
@@ -218,7 +222,7 @@ func validObjectiveKind(kind ObjectiveKind) bool {
 func objectiveSignatureValid(kind ObjectiveKind, signature recipecontract.ModalitySignature) bool {
 	input, output := signature.Inputs[0], signature.Outputs[0]
 	switch kind {
-	case ObjectiveTokenPrediction, ObjectiveDPO:
+	case ObjectiveTokenPrediction, ObjectiveDPO, ObjectiveGRPO:
 		return output == recipecontract.ModalityText
 	case ObjectiveFNS:
 		return input == recipecontract.ModalityText && output == recipecontract.ModalityText
@@ -368,6 +372,16 @@ func CompileTrainingRunPlanFromRepository(ctx context.Context, reader artifact.R
 	plan, err := CompileTrainingRunPlan(spec)
 	if err != nil {
 		return TrainingRunPlan{}, err
+	}
+	for _, id := range []artifact.ID{
+		spec.Policies.Precision, spec.Policies.Placement, spec.Policies.Memory,
+		spec.Policies.Checkpoint, spec.Policies.Evaluation, spec.Policies.Promotion,
+	} {
+		if _, ok, err := reader.Artifact(ctx, id); err != nil {
+			return TrainingRunPlan{}, err
+		} else if !ok {
+			return TrainingRunPlan{}, fmt.Errorf("training objective: policy %s absent", id)
+		}
 	}
 	objective, err := resolveObjective(ctx, reader, spec.Policies.Objective)
 	if err != nil {

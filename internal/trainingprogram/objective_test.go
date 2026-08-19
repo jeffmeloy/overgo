@@ -107,6 +107,12 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 		},
 		Program: program,
 	}
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "run-policies", Artifacts: []artifact.Descriptor{
+		{ID: spec.Policies.Precision}, {ID: spec.Policies.Placement}, {ID: spec.Policies.Memory},
+		{ID: spec.Policies.Checkpoint}, {ID: spec.Policies.Promotion},
+	}}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := CompileTrainingRunPlanFromRepository(ctx, store, spec); err != nil {
 		t.Fatal(err)
 	}

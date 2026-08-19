@@ -24,6 +24,18 @@ type Execution[State any] struct {
 	operators []boundOperator[State]
 }
 
+// BindObjective binds standard forward/backward/Muon operators.
+func BindObjective[State any](
+	program TrainingProgram,
+	forward, backward, optimize func(*State) error,
+) (Execution[State], error) {
+	return Bind(program, []Binding[State]{
+		{Operator: ObjectiveOperatorForward, Execute: forward},
+		{Operator: ObjectiveOperatorBackward, Execute: backward},
+		{Operator: ObjectiveOperatorMuon, Execute: optimize},
+	})
+}
+
 // Bind requires one implementation for every compiled operator.
 func Bind[State any](program TrainingProgram, bindings []Binding[State]) (Execution[State], error) {
 	if program.ID().Kind() != artifact.KindRecipe || len(program.operators) == 0 {
@@ -56,25 +68,39 @@ func Bind[State any](program TrainingProgram, bindings []Binding[State]) (Execut
 
 func (e Execution[State]) ProgramID() artifact.ID { return e.programID }
 
-// RunPhases executes selected phases in compiled order.
-func (e Execution[State]) RunPhases(state *State, phases ...OperatorPhase) error {
-	if state == nil || e.programID.Kind() != artifact.KindRecipe || len(e.operators) == 0 || len(phases) == 0 {
+// Run executes the complete compiled sequence.
+func (e Execution[State]) Run(state *State) error {
+	if state == nil || e.programID.Kind() != artifact.KindRecipe || len(e.operators) == 0 {
 		return errors.New("training program: bound execution unavailable")
 	}
-	selected := make(map[OperatorPhase]struct{}, len(phases))
-	for _, phase := range phases {
-		if !validPhase(phase) {
-			return fmt.Errorf("training program: invalid execution phase %q", phase)
-		}
-		selected[phase] = struct{}{}
-	}
 	for _, operator := range e.operators {
-		if _, ok := selected[operator.spec.Phase]; !ok {
-			continue
-		}
 		if err := operator.execute(state); err != nil {
 			return fmt.Errorf("training program: %s: %w", operator.spec.ID, err)
 		}
 	}
 	return nil
+}
+
+// Select compiles a phase subset once.
+func (e Execution[State]) Select(phases ...OperatorPhase) (Execution[State], error) {
+	if e.programID.Kind() != artifact.KindRecipe || len(e.operators) == 0 || len(phases) == 0 {
+		return Execution[State]{}, errors.New("training program: bound execution unavailable")
+	}
+	selected := make(map[OperatorPhase]struct{}, len(phases))
+	for _, phase := range phases {
+		if !validPhase(phase) {
+			return Execution[State]{}, fmt.Errorf("training program: invalid execution phase %q", phase)
+		}
+		selected[phase] = struct{}{}
+	}
+	operators := make([]boundOperator[State], 0, len(e.operators))
+	for _, operator := range e.operators {
+		if _, ok := selected[operator.spec.Phase]; ok {
+			operators = append(operators, operator)
+		}
+	}
+	if len(operators) == 0 {
+		return Execution[State]{}, errors.New("training program: selected execution is empty")
+	}
+	return Execution[State]{programID: e.programID, operators: operators}, nil
 }

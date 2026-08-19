@@ -22,12 +22,12 @@ type EncoderValidationPolicy uint8
 
 const (
 	EncoderValidationNone EncoderValidationPolicy = iota
-	EncoderValidationBERT
-	EncoderValidationJinaV2
-	EncoderValidationJinaV3
-	EncoderValidationNeoBERT
-	EncoderValidationNomicBERT
-	EncoderValidationNomicBERTMoE
+	EncoderValidationTokenTypesMatchingHeads
+	EncoderValidationTokenTypesALiBi
+	EncoderValidationRotaryOptionalExperts
+	EncoderValidationFullRotary
+	EncoderValidationRotary
+	EncoderValidationRotaryPeriodicExperts
 )
 
 // AttentionValidationPolicy: attention metadata contract.
@@ -35,72 +35,72 @@ type AttentionValidationPolicy uint8
 
 const (
 	AttentionValidationNone AttentionValidationPolicy = iota
-	AttentionValidationChameleon
-	AttentionValidationJais2
-	AttentionValidationOpenELM
-	AttentionValidationPLaMo3
-	AttentionValidationDeci
-	AttentionValidationGemma3
-	AttentionValidationGemma3N
-	AttentionValidationGemma4
-	AttentionValidationGemma4Assistant
-	AttentionValidationGemma2
-	AttentionValidationOLMo2
-	AttentionValidationCohere2
-	AttentionValidationCohere2MoE
-	AttentionValidationErnie45MoE
-	AttentionValidationStableLM
-	AttentionValidationPhi2
-	AttentionValidationPhi3
-	AttentionValidationPanguEmbedded
-	AttentionValidationModernBERT
-	AttentionValidationGemmaEmbedding
-	AttentionValidationTalkie
-	AttentionValidationApertus
-	AttentionValidationGPTNeoX
-	AttentionValidationQwen
-	AttentionValidationChatGLM
-	AttentionValidationCogVLM
-	AttentionValidationHunyuan
-	AttentionValidationGLM4
-	AttentionValidationGLM4MoE
-	AttentionValidationEXAOne4
-	AttentionValidationFalcon
-	AttentionValidationRefact
+	AttentionValidationQKNormEpsilon
+	AttentionValidationMatchingAttentionKVHeads
+	AttentionValidationPerLayerAttentionAndFeedForward
+	AttentionValidationPerLayerSlidingAttention
+	AttentionValidationSparseLayerAttention
+	AttentionValidationScaledSlidingAttention
+	AttentionValidationSharedKVAlternatingState
+	AttentionValidationPerLayerDualRotaryAttention
+	AttentionValidationTargetHiddenDualRotaryAttention
+	AttentionValidationRequiredSlidingFrequency
+	AttentionValidationOptionalSlidingFrequency
+	AttentionValidationRequiredSlidingRotary
+	AttentionValidationRequiredSlidingRotaryExperts
+	AttentionValidationPeriodicExperts
+	AttentionValidationPartialRotaryRequired
+	AttentionValidationPartialRotaryFixed
+	AttentionValidationScaledPartialRotary
+	AttentionValidationFullScaledRotary
+	AttentionValidationFullHeadSlidingRotary
+	AttentionValidationSlidingRotaryEmbeddingProjection
+	AttentionValidationFullRotary
+	AttentionValidationFullScaledRotaryXIELU
+	AttentionValidationOptionalRotaryBase
+	AttentionValidationHalvedFeedForward
+	AttentionValidationMultiAxisAttention
+	AttentionValidationVisualExpertAttention
+	AttentionValidationLayerwiseQKNorm
+	AttentionValidationOptionalRopeSections
+	AttentionValidationOptionalRopeSectionsExperts
+	AttentionValidationSharedKVAttention
+	AttentionValidationOptionalRotaryBaseGQA
+	AttentionValidationOptionalExperts
 )
 
-// MLAValidationPolicy: MLA/DSA family metadata contract.
+// MLAValidationPolicy: MLA/DSA metadata relation.
 type MLAValidationPolicy uint8
 
 const (
 	MLAValidationNone MLAValidationPolicy = iota
-	MLAValidationDeepSeek32
-	MLAValidationDeepSeek4
-	MLAValidationKimiLinear
-	MLAValidationMistral3
-	MLAValidationMiniCPM3
+	MLAValidationSparseLatentIndexer
+	MLAValidationCompressedHyper
+	MLAValidationHybridLinearAttention
+	MLAValidationOptionalExpertsLatent
+	MLAValidationScaledLatent
 )
 
-// RecurrentValidationPolicy: recurrent-family metadata contract.
+// RecurrentValidationPolicy: recurrent metadata relation.
 type RecurrentValidationPolicy uint8
 
 const (
 	RecurrentValidationNone RecurrentValidationPolicy = iota
-	RecurrentValidationWavTokenizer
-	RecurrentValidationDFlash
-	RecurrentValidationEagle3
-	RecurrentValidationMamba
-	RecurrentValidationMamba2
-	RecurrentValidationFalconH1
-	RecurrentValidationRWKV6
-	RecurrentValidationRWKV6Qwen2
-	RecurrentValidationRWKV7
-	RecurrentValidationARWKV7
-	RecurrentValidationJamba
-	RecurrentValidationGraniteHybrid
-	RecurrentValidationPLaMo2
-	RecurrentValidationNemotronH
-	RecurrentValidationNemotronHMoE
+	RecurrentValidationAudioDecoder
+	RecurrentValidationTargetLayerBlock
+	RecurrentValidationSingleBlockTarget
+	RecurrentValidationUngroupedStateSpace
+	RecurrentValidationGroupedStateSpace
+	RecurrentValidationGroupedStateSpaceAttention
+	RecurrentValidationTimeMixV6
+	RecurrentValidationTimeMixV6SharedKV
+	RecurrentValidationTimeMixV7Gated
+	RecurrentValidationTimeMixV7
+	RecurrentValidationStateSpaceAttentionExperts
+	RecurrentValidationGroupedStateSpaceOptionalExperts
+	RecurrentValidationUngroupedScheduledStateSpace
+	RecurrentValidationScheduledStateSpaceDense
+	RecurrentValidationScheduledStateSpaceExperts
 )
 
 // HybridValidationPolicy: hybrid/draft metadata contract.
@@ -108,42 +108,42 @@ type HybridValidationPolicy uint8
 
 const (
 	HybridValidationNone HybridValidationPolicy = iota
-	HybridValidationQwen3Next
-	HybridValidationQwen35
-	HybridValidationQwen35MoE
-	HybridValidationQwen3MoE
-	HybridValidationGroveMoE
-	HybridValidationMiMo2
-	HybridValidationStep35
-	HybridValidationLLaDAMoE
-	HybridValidationQwen2MoE
-	HybridValidationArctic
-	HybridValidationBailingMoE
-	HybridValidationDeepSeek
-	HybridValidationGranite
-	HybridValidationGraniteMoE
-	HybridValidationGraniteHybrid
-	HybridValidationDBRX
-	HybridValidationGrok
-	HybridValidationMellum
-	HybridValidationHunyuanMoE
-	HybridValidationHYV3
-	HybridValidationDeepSeek2OCR
-	HybridValidationSmallThinker
-	HybridValidationDOTS1
-	HybridValidationMiniMaxM2
-	HybridValidationBailingMoE2
-	HybridValidationOLMoE
-	HybridValidationLlama
-	HybridValidationRopeScaling
-	HybridValidationLlama4
-	HybridValidationGPTOSS
-	HybridValidationPhiMoE
-	HybridValidationLaguna
-	HybridValidationAFMoE
-	HybridValidationEXAOneMoE
-	HybridValidationLFM2
-	HybridValidationLFM2MoE
+	HybridValidationAlternatingGatedDelta
+	HybridValidationAlternatingGatedDeltaHybrid
+	HybridValidationAlternatingGatedDeltaExperts
+	HybridValidationSharedExperts
+	HybridValidationSparseSharedExperts
+	HybridValidationSigmoidExperts
+	HybridValidationCompressedHyperDraft
+	HybridValidationNonCausalExperts
+	HybridValidationNormalizedSharedExperts
+	HybridValidationRoutedExperts
+	HybridValidationProductSharedExperts
+	HybridValidationProductExperts
+	HybridValidationScaledDense
+	HybridValidationScaledExperts
+	HybridValidationScaledStateSpace
+	HybridValidationModelWidthExperts
+	HybridValidationSharedExpertNorm
+	HybridValidationRequiredExpertWidth
+	HybridValidationSharedExpertProduct
+	HybridValidationMultiHeadDraft
+	HybridValidationFullRotaryVision
+	HybridValidationDualExpertProduct
+	HybridValidationWeightedExpertProduct
+	HybridValidationScaledSigmoidExperts
+	HybridValidationScaledSharedExperts
+	HybridValidationFullHeadExperts
+	HybridValidationOptionalExperts
+	HybridValidationExtendedRotary
+	HybridValidationChunkedExperts
+	HybridValidationSelectedSoftmaxExperts
+	HybridValidationBasicScaledExperts
+	HybridValidationPerLayerYaRNExperts
+	HybridValidationSlidingSigmoidExperts
+	HybridValidationSlidingSharedExperts
+	HybridValidationAlternatingShortConvolution
+	HybridValidationAlternatingShortConvolutionExperts
 )
 
 // ValidationPolicy: architecture-owned metadata invariants.
@@ -183,19 +183,19 @@ func (p ValidationPolicy) encoderOneOf(policies ...EncoderValidationPolicy) bool
 
 func (p ValidationPolicy) optionalRopeBase() bool {
 	return p.attentionOneOf(
-		AttentionValidationGPTNeoX, AttentionValidationFalcon,
-		AttentionValidationGemmaEmbedding, AttentionValidationModernBERT,
-	) || p.Hybrid == HybridValidationDeepSeek2OCR ||
+		AttentionValidationOptionalRotaryBase, AttentionValidationOptionalRotaryBaseGQA,
+		AttentionValidationSlidingRotaryEmbeddingProjection, AttentionValidationFullHeadSlidingRotary,
+	) || p.Hybrid == HybridValidationFullRotaryVision ||
 		p.encoderOneOf(
-			EncoderValidationJinaV3, EncoderValidationNeoBERT,
-			EncoderValidationNomicBERT, EncoderValidationNomicBERTMoE,
-		) || p.MLA == MLAValidationMiniCPM3
+			EncoderValidationRotaryOptionalExperts, EncoderValidationFullRotary,
+			EncoderValidationRotary, EncoderValidationRotaryPeriodicExperts,
+		) || p.MLA == MLAValidationScaledLatent
 }
 
 func (p ValidationPolicy) supportsYaRN() bool {
 	return p.hybridOneOf(
-		HybridValidationLaguna, HybridValidationGrok, HybridValidationMellum,
-		HybridValidationLlama, HybridValidationRopeScaling,
+		HybridValidationPerLayerYaRNExperts, HybridValidationSharedExpertNorm, HybridValidationRequiredExpertWidth,
+		HybridValidationOptionalExperts, HybridValidationExtendedRotary,
 	)
 }
 

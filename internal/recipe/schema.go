@@ -108,14 +108,22 @@ type PortName string
 type DependencyRole string
 
 const (
-	DependencyModel      DependencyRole = "model"
-	DependencyProfile    DependencyRole = "profile"
-	DependencyTokenizer  DependencyRole = "tokenizer"
-	DependencyProjector  DependencyRole = "projector"
-	DependencyAdapter    DependencyRole = "adapter"
-	DependencyDataset    DependencyRole = "dataset"
-	DependencyCheckpoint DependencyRole = "checkpoint"
-	DependencyDefinition DependencyRole = "model-definition"
+	DependencyModel            DependencyRole = "model"
+	DependencyProfile          DependencyRole = "profile"
+	DependencyTokenizer        DependencyRole = "tokenizer"
+	DependencyProjector        DependencyRole = "projector"
+	DependencyAdapter          DependencyRole = "adapter"
+	DependencyDataset          DependencyRole = "dataset"
+	DependencyCheckpoint       DependencyRole = "checkpoint"
+	DependencyDefinition       DependencyRole = "model-definition"
+	DependencyObjective        DependencyRole = "training-objective"
+	DependencyPrecision        DependencyRole = "training-precision"
+	DependencyPlacement        DependencyRole = "training-placement"
+	DependencyMemory           DependencyRole = "training-memory"
+	DependencyCheckpointPolicy DependencyRole = "training-checkpoint"
+	DependencyEvaluation       DependencyRole = "training-evaluation"
+	DependencyEvaluator        DependencyRole = "evaluator"
+	DependencyPromotion        DependencyRole = "training-promotion"
 )
 
 type Dependency struct {
@@ -226,8 +234,11 @@ func validateDependency(dependency Dependency) error {
 	switch dependency.Role {
 	case DependencyModel:
 		want = artifact.KindModel
-	case DependencyProfile:
+	case DependencyProfile, DependencyObjective, DependencyPrecision, DependencyPlacement,
+		DependencyMemory, DependencyCheckpointPolicy, DependencyEvaluation, DependencyPromotion:
 		want = artifact.KindProfile
+	case DependencyEvaluator:
+		want = artifact.KindEvidence
 	case DependencyTokenizer:
 		want = artifact.KindTokenizer
 	case DependencyProjector:

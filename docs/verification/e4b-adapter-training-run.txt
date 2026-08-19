@@ -1,0 +1,21 @@
+overgo E4B adapter training verification
+
+model file: C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/gemma-4-E4B-it-bf16.gguf
+dataset: docs/verification/e4b-adapter-training-dataset.txt
+command: go run ./cmd/adapter-train-probe -model <model-file> -text "A short training example." -steps 1
+
+The artifact-declared layer-0 input adapter was loaded through the compiled
+model plan. One teacher-forced update used the shared training program and
+Muon backend. The input and target rows came from adjacent tokenizer output;
+no token identities were embedded in the training implementation.
+
+result:
+  layer: 0
+  rows: 5
+  trainable parameters: 1,313,280
+  loss: 8.871867282316286
+  wall: 10.2188499s
+
+The integration gate independently reproduced the same loss. E4B text,
+image, and audio adapter parity plus exact checkpoint resume remain covered
+by TestGemmaE4BRealTraining and TestMultimodalTrainingMatrix.

@@ -112,4 +112,8 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 			t.Errorf("generation module embeds task %q", taskLiteral)
 		}
 	}
+	unavailable := serveTestRequest(handler, http.MethodGet, "/training/capabilities", "")
+	if unavailable.Code != http.StatusNotImplemented || !strings.Contains(unavailable.Body.String(), "training workspace is unavailable") {
+		t.Fatalf("unavailable workspace status=%d body=%s", unavailable.Code, unavailable.Body.String())
+	}
 }

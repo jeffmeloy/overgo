@@ -108,19 +108,6 @@ func (s *deviceCacheStorage) release(ctx context.Context) error {
 	return nil
 }
 
-type deviceOutputMode uint8
-
-const (
-	deviceOutputLogits deviceOutputMode = iota
-	deviceOutputGreedy
-	deviceOutputTopK
-)
-
-type deviceOutputPlan struct {
-	mode deviceOutputMode
-	topK uint32
-}
-
 type deviceLayerState = model.CacheState[executor.DeviceValue]
 type deviceLayerStates = model.CacheStates[executor.DeviceValue]
 
@@ -478,11 +465,15 @@ func (r *Runner) forwardDeviceCachedLocked(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 ) (reference.Value, *deviceKVCache, error) {
+	plan, err := compileDeviceOutputPlan(deviceOutputLogits, 0, r.spec.VocabularySize)
+	if err != nil {
+		return reference.Value{}, nil, err
+	}
 	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
 		Tokens:     tokenIDs,
 		Past:       past,
 		PageTokens: r.cachePageTokens,
-	}})
+	}}, plan)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -496,11 +487,15 @@ func (r *Runner) forwardDeviceCachedGreedyStepLocked(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 ) (*deviceKVCache, error) {
-	next, err := r.forwardDeviceCachedGreedyBatchLocked(ctx, []deviceBatchAppend{{
+	plan, err := compileDeviceOutputPlan(deviceOutputGreedy, 0, r.spec.VocabularySize)
+	if err != nil {
+		return nil, err
+	}
+	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
 		Tokens:     tokenIDs,
 		Past:       past,
 		PageTokens: r.cachePageTokens,
-	}})
+	}}, plan)
 	if err != nil {
 		return nil, err
 	}
@@ -629,35 +624,8 @@ func (r *Runner) decodeCandidatePairs(
 	return result, nil
 }
 
-// forwardDeviceCachedBatchLocked: one graph, variable independent branches.
+// forwardDeviceCachedBatchLocked: compiled output, independent branches.
 func (r *Runner) forwardDeviceCachedBatchLocked(
-	ctx context.Context,
-	appends []deviceBatchAppend,
-) ([]*deviceKVCache, error) {
-	return r.forwardDeviceCachedBatchModeLocked(ctx, appends, deviceOutputPlan{})
-}
-
-func (r *Runner) forwardDeviceCachedGreedyBatchLocked(
-	ctx context.Context,
-	appends []deviceBatchAppend,
-) ([]*deviceKVCache, error) {
-	return r.forwardDeviceCachedBatchModeLocked(ctx, appends, deviceOutputPlan{mode: deviceOutputGreedy})
-}
-
-func (r *Runner) forwardDeviceCachedTopKBatchLocked(
-	ctx context.Context,
-	appends []deviceBatchAppend,
-	topK uint32,
-) ([]*deviceKVCache, error) {
-	if topK == 0 || topK > r.spec.VocabularySize {
-		return nil, errors.New("inference: device top-K count is invalid")
-	}
-	return r.forwardDeviceCachedBatchModeLocked(
-		ctx, appends, deviceOutputPlan{mode: deviceOutputTopK, topK: topK},
-	)
-}
-
-func (r *Runner) forwardDeviceCachedBatchModeLocked(
 	ctx context.Context,
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
@@ -682,7 +650,7 @@ func (r *Runner) parameterizedDecodeCapacity(
 	for index, item := range appends {
 		past := item.Past
 		if len(item.Tokens) != 1 || past == nil || past.Tokens == 0 || past.storage == nil ||
-			(plan.mode == deviceOutputGreedy && past.Selection.Pointer == 0) ||
+			(plan.retainsSelection() && past.Selection.Pointer == 0) ||
 			past.Tokens >= r.spec.ContextLength || past.Tokens == math.MaxUint32 {
 			return 0, false
 		}
@@ -978,31 +946,8 @@ func (r *Runner) assembleDeviceBatchCaches(
 			cache.session = sessions[index]
 			cache.sessionBranch = index
 		}
-		switch plan.mode {
-		case deviceOutputGreedy:
-			selected, device, selectionErr := retainedDeviceGreedySelections(
-				ctx, retained, graph.selection, 1, int(r.spec.VocabularySize),
-			)
-			if selectionErr != nil {
-				return fail(selectionErr)
-			}
-			cache.Selection, cache.Selected = device, selected[0]
-		case deviceOutputTopK:
-			value, copyErr := retained.CopyToHost(ctx, graph.candidates)
-			if copyErr != nil {
-				return fail(copyErr)
-			}
-			items, candidateErr := r.decodeCandidatePairs(value.Data, 1, plan.topK)
-			if candidateErr != nil {
-				return fail(candidateErr)
-			}
-			cache.Candidates = items[0]
-		default:
-			logits, copyErr := retained.CopyToHost(ctx, graph.logits)
-			if copyErr != nil {
-				return fail(copyErr)
-			}
-			cache.Logits = r.finalizeLogits(logits.Data)
+		if collectErr := plan.collect(ctx, r, retained, graph, []*deviceKVCache{cache}); collectErr != nil {
+			return fail(collectErr)
 		}
 		var ok bool
 		for layer := range graph.keys {
@@ -1258,7 +1203,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	deviceFeeds[embeddingTable] = embeddingPointer
 	dynamicEmbedding := embeddingTable.Type == dtype.F32 || embeddingTable.Type == dtype.Q8_0
 	var feedback *tensor.Tensor
-	if plan.mode == deviceOutputGreedy && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
+	if plan.retainsSelection() && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
 		selection := builder.Input(prefix+"selected_token", dtype.F32, tensor.MustShape(sequences))
 		deviceFeeds[selection] = past.Selection.Pointer
 		current = builder.GatherLast(embeddingTable, selection)
@@ -1338,7 +1283,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	states := make([]deviceGraphStates, len(r.weights.Layers))
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
-	decodeCatalog := plan.mode == deviceOutputGreedy && tokensPerSequence == 1 && r.decodeWeights != nil
+	decodeCatalog := plan.retainsSelection() && tokensPerSequence == 1 && r.decodeWeights != nil
 	bindLayerTensor := model.DeviceTensorBinder(r.deviceInput)
 	if decodeCatalog {
 		bindLayerTensor = r.decodeDeviceInput
@@ -1432,13 +1377,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
 		logits = builder.Scale(logits, scale)
 	}
-	var selection, candidates *tensor.Tensor
-	switch plan.mode {
-	case deviceOutputGreedy:
-		selection = builder.TopK(logits, 1)
-	case deviceOutputTopK:
-		candidates = builder.TopKPairs(logits, plan.topK)
-	}
+	selection, candidates := plan.reduce(builder, logits)
 	return deviceBatchGraph{
 		logits: logits, selection: selection, candidates: candidates, feedback: feedback,
 		tokenRows: tokenRowInput, positionRows: positionRows,

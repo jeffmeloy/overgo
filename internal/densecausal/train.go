@@ -11,27 +11,14 @@ import (
 	"overgo/internal/optimizer"
 )
 
-// TrainBatches applies one Muon update per ordered token batch.
-func (m *Model) TrainBatches(batches [][]int, baseLR, mu float64) ([]float64, error) {
-	trajectory, _, err := m.train(batches, baseLR, mu, nil, nil)
-	return trajectory, err
-}
-
 // TrainState: exact step-boundary optimizer state.
 type TrainState = optimizer.State
 
-// TrainBatchesResume resumes an ordered sequence at an update boundary.
-func (m *Model) TrainBatchesResume(batches [][]int, baseLR, mu float64, resume *TrainState) ([]float64, TrainState, error) {
-	return m.train(batches, baseLR, mu, resume, nil)
-}
-
-// TrainObserver receives each completed training step with its measured
-// wall. Returning an error aborts the run at the step boundary -- the
-// deterministic guard against silently pathological runs.
+// TrainObserver: completed step; error cancels at the update boundary.
 type TrainObserver func(step int, loss float64, stepWall time.Duration) error
 
-// TrainBatchesObserved is TrainBatchesResume with a per-step observer.
-func (m *Model) TrainBatchesObserved(batches [][]int, baseLR, mu float64, resume *TrainState, observe TrainObserver) ([]float64, TrainState, error) {
+// Train executes ordered token batches with optional resume and observation.
+func (m *Model) Train(batches [][]int, baseLR, mu float64, resume *TrainState, observe TrainObserver) ([]float64, TrainState, error) {
 	return m.train(batches, baseLR, mu, resume, observe)
 }
 

@@ -1,0 +1,36 @@
+{
+  "schema": "overgo/external-benchmark-evidence/v1",
+  "model": {
+    "name": "Qwen2.5-0.5B-HF",
+    "path": "C:/Users/jeffm/adaptive_new/models/Qwen2.5-0.5B",
+    "weights_sha256": "88c142557820ccad55bb59756bfcfcf891de9cc6202816bd346445188a0ed342",
+    "config_sha256": "ce7908dfd631cd1f713a65cbea3591d32acaab58d438127d70c5dfc5ce1fc1f0",
+    "tokenizer_sha256": "47ec9be242d3ef39b9c97ac0a3f06c1752f061b234e295bc0a2842067a3fe4f9"
+  },
+  "tool": {
+    "name": "lm-evaluation-harness",
+    "version": "0.4.9.1",
+    "transformers": "4.57.1",
+    "torch": "2.6.0+cu124",
+    "python": "3.13.5",
+    "cuda": "12.4",
+    "device": "NVIDIA GeForce RTX 4090 D"
+  },
+  "task": {
+    "name": "mmlu_abstract_algebra",
+    "fewshot": 0,
+    "cases": 100,
+    "definition_sha256": "8159e212ce4ff33fd1806313371b905f3f2b27401fcfca61ff93e7b58abf076c",
+    "template_sha256": "136c84deb7a6d491034c1f33a7b249d94266116096f1998d5d75b3bae64819fc",
+    "dataset_revision": "c30699e8356da336a370243923dbaf21066bb9fe",
+    "test_split_sha256": "188d54be8bce5b30231f8e559ed5b9d0f6031db5d059c87438da3e1f3c135c41"
+  },
+  "invocation": "C:/Users/jeffm/eval/env/Scripts/python.exe C:/Users/jeffm/eval/eval_single_model.py --model C:/Users/jeffm/adaptive_new/models/Qwen2.5-0.5B --model_name Qwen2.5-0.5B-HF --config C:/Users/jeffm/eval/overgo_qwen25_benchmark.yaml --output_dir C:/Users/jeffm/eval/overgo_qwen25_benchmark_results",
+  "result": {
+    "accuracy": 0.31,
+    "accuracy_standard_error": 0.04648231987117317,
+    "raw_results_sha256": "2f080b6fb9f0597f2cd51325e3c0c610fab453219a8df9dba1126575e638b79c",
+    "wall_ns": 15735369100
+  },
+  "claim_scope": "HF source artifact only; no GGUF score transfer"
+}

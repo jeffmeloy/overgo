@@ -93,7 +93,7 @@ func TestScratchProgramOwnsResidentExecution(t *testing.T) {
 			if !ok {
 				return true
 			}
-			foundProgramRun = foundProgramRun || selector.Sel.Name == "RunPhases"
+			foundProgramRun = foundProgramRun || selector.Sel.Name == "Run"
 			foundHardCoded = foundHardCoded || selector.Sel.Name == "forward" || selector.Sel.Name == "backward"
 			return true
 		})

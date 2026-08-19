@@ -217,9 +217,9 @@ Use `go run ./cmd/compatibility` or
 | Video generation | Typed oscillator, Wan, and LiveEdit recipes; encoded artifact publication; CUDA-resident Wan denoising and VAE encoding/decoding; retained LiveEdit text projection, cumulative attention history, and source-latent reuse | Un-0 publishes six real-artifact frames as a 64x64 GIF byte-identical to adaptive_new. Wan has verified full-clip execution. LiveEdit executes all 30 blocks. Its full 81-frame edit matches adaptive and Python output quality, uses 15.624 GiB peak device memory, takes 81.6-81.9 s cold, and takes 51.0-51.5 s when the same source latent is resident. The production recipe publishes GIF; the performance gate streams MP4. |
 | Speech, forecast, table, seq2seq | Shared runtime and recipe components. Pocket-TTS verifies waveform output and trains its real backbone+flow parameter set through compiled Muon on native generated codec latents. TimesFM verifies exact forecasts and a held-out Supernova baseline. Needle verifies exact numeric parity, grounded text-to-tool-call JSON, and real GSM8K training through the common dataset stream, compiled training program, and device Muon. | Needle retains BF16 matrices and measures 66.758-67.363 MiB across matched cold processes versus adaptive_new's 120.918-121.328 MiB. Shared reverse traversal trains both final norms, all eight decoder self/cross-attention pairs, all 12 encoder self-attention blocks, and the tied source/target/output embedding. A fixed 4-train/4-held-out GSM8K gate improves both aggregate losses. Pocket-TTS corpus audio encoding and held-out training evidence remain open. Comparable process peak measurements remain open for the other capabilities. |
 | Training | Shared dataset streaming for dense, scratch, seq2seq, speech, and diffusion-image Muon trainers. Every compiled program identifies its objective. RepoDB documents bind objective kind, corpus, split, processors, projectors/codecs, loss, evaluation, and evidence. | Frozen-lexical Carbon and the recorded scratch configuration outperform their references. Qwen3.5-4B recurrent layer 0 and the Gemma E4B layer-0 adapter train from real artifacts. Pocket-TTS latent-sequence and SimpleDiffusion flow-matching trainers use the shared program order. Eight adaptive objective contracts are represented; a missing program binding is refused. A Git-pinned workflow corpus trains three scratch-controller seeds and records held-out evaluations plus an external promotion/rollback decision. A live CUDA measurement compiles a forced-cap controller Tier-1 schedule that reduces physical reservation from 10 MiB to 8 MiB; streamed execution remains open. Real-record evidence approves text-to-text, image-to-text, and audio-to-text; the other 33 single-modality pairs remain refused. Complete model stacks, production FNS/forecast/OCR/image-latent/distillation executors, and checkpoint adoption by every trainer remain open. |
-| New model creation | Content-addressed model definitions, deterministic scratch construction, initialized parameter manifests, adapters, grafts, component proposals, and parent/child lineage use the same recipe and run-record system. | Import and conversion are CLI workflows. Scratch construction and derived-model proposals are currently package APIs and verification workflows rather than one general model-builder command. |
-| Preference training and RL | DPO is implemented through preference datasets, exact common-prefix masks, policy and frozen-reference scoring, a typed DPO objective, Muon updates, checkpoints, exact resume, run evidence, and GUI execution and plots. | PPO, GRPO, environment rollouts, reward-model training, and online policy serving are not implemented. |
-| Web workbench | Embedded thin client for chat, recipe-driven generation, runtime state, datasets, DPO training, export, operations, runs, recipes, artifacts, vocabulary, logits, hidden states, attention, and tensor analysis. | Tabs report unavailable server capabilities directly. Training requires `-training`, RepoDB, an active training recipe, model/reference locations, a preference dataset, and checkpoint storage. |
+| New model creation | Content-addressed model definitions, deterministic scratch construction, initialized parameters, shared Muon training, evaluation, evidence, and promotion decisions use one model-builder workflow. The workflow is available through `cmd/model-build` and the web workbench. | Import and conversion remain separate CLI workflows. Serving a newly constructed scratch model requires a compatible export target. |
+| Preference training and RL | DPO and grouped relative policy optimization (GRPO) use active recipes, shared sequence scoring and VJPs, Muon updates, exact resume, checkpoints, RepoDB traces and decisions, and GUI plots. GRPO rewards name their evaluator evidence. | PPO, online environment rollout collection, reward-model training, and online policy serving are not implemented. |
+| Web workbench | Embedded thin client for chat, recipe-driven generation, runtime state, datasets, model building, DPO and GRPO training, export, operations, runs, recipes, artifacts, vocabulary, logits, hidden states, attention, and tensor analysis. | Tabs report unavailable server capabilities directly. Training requires `-training`, RepoDB, an active training recipe, dataset and model locations, and checkpoint storage. Model building requires `-model-builder`. |
 
 Known gaps include the SenseNova image-edit source oracle, LiveEdit cold-request
 leadership and recipe-configured MP4 publication, exact full-sequence Unlimited OCR comparison, comparable
@@ -557,9 +557,9 @@ and shared-KV schedule. This is selected-adapter training, not complete
 
 ### Preference optimization and RL
 
-Overgo implements direct preference optimization (DPO) as a native training
-objective. It uses the same dataset, recipe, execution, optimizer, checkpoint,
-resume, evidence, and GUI contracts as other training workflows.
+Overgo implements DPO and GRPO as native training objectives. Both use the
+same dataset, recipe, execution, optimizer, checkpoint, resume, evidence, and
+GUI contracts as other training workflows.
 
 The DPO path performs these steps:
 
@@ -571,10 +571,16 @@ The DPO path performs these steps:
 6. Store checkpoints, traces, run records, and recipe identities for exact
    resume and comparison.
 
-Run DPO from `cmd/train` by providing `-reference` and a positive `-dpo-scale`,
-or use the Training section of the web workbench. Both entry points compile and
-execute the same active training recipe. PPO, GRPO, reward-model training,
-environment rollouts, and online policy serving are not implemented.
+GRPO reads candidate groups with prompt, completion, reward, and evaluator
+evidence fields. It centers and RMS-normalizes rewards within each group,
+scores each completion, accumulates score VJPs, and applies the shared Muon
+update. Equal-reward groups produce zero objective gradients without an
+artificial threshold.
+
+Run either objective from `cmd/train` with a positive `-objective-scale`, or
+use the Training section of the web workbench. DPO also requires `-reference`.
+The active recipe selects the objective. PPO, online rollout collection,
+reward-model training, and online policy serving are not implemented.
 
 ### Dataset processing
 

@@ -10,14 +10,14 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// SynthesisOutcome: decision, run record, and measurements.
+// SynthesisOutcome: terminal decision and evidence.
 type SynthesisOutcome struct {
 	Decision recipe.Decision
 	Record   runrecord.GenerationRecord
 	Result   Result
 }
 
-// SynthesizeBridge: blocked proposal to measured decision evidence.
+// SynthesizeBridge: blocked proposal to measured terminal decision.
 func SynthesizeBridge(
 	store *repodb.Store,
 	proposal BridgeProposal,
@@ -33,7 +33,29 @@ func SynthesizeBridge(
 	if proposal.State != ProposalPromotionBlocked {
 		return SynthesisOutcome{}, errors.New("composition: synthesis input must be a blocked proposal")
 	}
-	result, err := RunViability(config)
+	target, err := identifyDenseModel(config.TargetDir)
+	if err != nil {
+		return SynthesisOutcome{}, err
+	}
+	donor, err := identifyDenseModel(config.DonorDir)
+	if err != nil {
+		return SynthesisOutcome{}, err
+	}
+	if target != proposal.Target {
+		return SynthesisOutcome{}, errors.New("composition: proposal target differs from synthesis target")
+	}
+	selected := BridgeCandidate{}
+	for _, candidate := range proposal.Candidates {
+		if candidate.Donor == donor {
+			selected = candidate
+			break
+		}
+	}
+	if !selected.Donor.Valid() {
+		return SynthesisOutcome{}, errors.New("composition: proposal does not admit the synthesis donor")
+	}
+	config.DonorTensor = selected.Component
+	result, err := runViability(config, target, donor)
 	if err != nil {
 		return SynthesisOutcome{}, err
 	}
@@ -42,13 +64,15 @@ func SynthesizeBridge(
 		return SynthesisOutcome{}, err
 	}
 	outcome := recipe.DecisionRefused
+	tier := recipe.EvidenceExperimental
 	reason := result.Reason
 	if result.Ship {
-		outcome = recipe.DecisionObserved
+		outcome = recipe.DecisionAccepted
+		tier = recipe.EvidenceParity
 		reason = "bridge synthesis produced held-out gain: " + result.Reason
 	}
 	decision, err := recipe.NewDecision(
-		proposal.ID, outcome, recipe.EvidenceExperimental, reason, decider,
+		proposal.ID, outcome, tier, reason, decider,
 		[]artifact.ID{record.ID, record.Run, record.Decision},
 	)
 	if err != nil {

@@ -1,0 +1,8 @@
+{
+  "task": "regression",
+  "x": [0, 1, 2],
+  "y": [0, 1, 2],
+  "rows": 3,
+  "cols": 1,
+  "train_rows": 2
+}

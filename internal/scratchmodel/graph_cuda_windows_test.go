@@ -56,7 +56,7 @@ func TestScratchTensorForwardDeviceParity(t *testing.T) {
 		for index := range want[graph.Output].Data {
 			worstLogit = max(worstLogit, math.Abs(float64(got[graph.Output].Data[index]-want[graph.Output].Data[index])))
 		}
-		hostLoss, err := hostmath.MADTransformerLoss(hostModel, tokens)
+		hostLoss, _, err := hostmath.MADTransformerForward(hostModel, tokens)
 		if err != nil {
 			t.Fatal(err)
 		}

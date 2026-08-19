@@ -1,35 +1,24 @@
-// Trainer for the conditional-oscillator image capability: the recovered
-// reference bootstrap semantics (adaptive_new extmodel oscillator training,
-// deleted upstream in cleanup 581a1cef3 and ported forward here) over the
-// package's finite-difference-verified BPTT backward. The objective is the
-// reference's class-separation bootstrap: each class's whole image trains
-// toward the constant 0.1 + 0.2*class under fresh uniform phase inits per
-// step; Muon runs at the reference's lr 0.02, momentum 0.95 through the
-// shared stepper. Geometry mirrors the reference layout tensor for tensor.
-//
-// The gradient map is pre-bound to the packed layout and audited after
-// every backward: a slot outside the pack refuses the step.
+// Trainer: compiled class-target bootstrap training.
 package oscillatorimage
 
 import (
 	"fmt"
 	"math"
 	"math/rand"
-	"sort"
 
 	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
-// Reference bootstrap init scales (adaptive_new shipped policy, measured
-// and defended in its init-scale A/B before deletion).
 const (
 	bootstrapInitScaleVector = 0.3
 	bootstrapInitScaleConv   = 0.06
+	classTargetBase          = 0.1
+	classTargetStride        = 0.2
+	classLossDerivative      = 2
 )
 
-// NewBootstrapModel constructs a scratch model for a config under the
-// reference's shipped init policy: normal draws at scale 0.3 for dynamics
-// and bias tensors, 0.06 for convolution kernels.
+// NewBootstrapModel constructs deterministic bootstrap weights.
 func NewBootstrapModel(cfg Config, seed int64) *Model {
 	rng := rand.New(rand.NewSource(seed))
 	draw := func(count int, scale float64) []float32 {
@@ -69,17 +58,23 @@ type TrainStepResult struct {
 	GradientL2   float64
 }
 
-// Trainer: packed trainable graph over the shared Muon stepper.
 type Trainer struct {
 	model     *Model
-	names     []string
-	weights   []float32
-	gradients []float32
+	pack      *optimizer.TensorPack
 	grads     Grads
 	stepper   optimizer.Stepper
+	execution trainingprogram.Execution[trainingState]
 	config    optimizer.Config
 	step      int
 	rng       *rand.Rand
+	init      []float32
+	dImage    []float32
+}
+
+type trainingState struct {
+	trainer *Trainer
+	trace   trainingTrace
+	result  TrainStepResult
 }
 
 type trainTensor struct {
@@ -88,8 +83,7 @@ type trainTensor struct {
 	field      *[]float32
 }
 
-// trainableLayout mirrors the reference bootstrap layout: dynamics tensors,
-// decoder blocks in cascade order, then the output convolution.
+// trainableLayout declares field geometry and ownership.
 func (m *Model) trainableLayout() []trainTensor {
 	n, nc, classes := len(m.Omega), len(m.OmegaCond), m.Cfg.NClasses
 	layout := []trainTensor{
@@ -116,86 +110,78 @@ func (m *Model) trainableLayout() []trainTensor {
 	)
 }
 
-// NewTrainer packs the trainable tensors, re-points the model's fields at
-// the packed storage, and binds the reference training policy (lr 0.02,
-// momentum 0.95) unless the config overrides it.
+// NewTrainer binds model fields to one compiled optimizer pack.
 func NewTrainer(model *Model, config optimizer.Config, seed int64) (*Trainer, error) {
-	if config.BaseLearningRate <= 0 {
-		config.BaseLearningRate = 0.02
-	}
-	if config.Momentum <= 0 {
-		config.Momentum = 0.95
+	if model == nil {
+		return nil, fmt.Errorf("oscillatorimage: model is required")
 	}
 	layout := model.trainableLayout()
-	specs := make([]optimizer.GroupSpec, len(layout))
-	total := 0
-	for index, tensor := range layout {
+	tensors := make(map[string][]float32, len(layout))
+	shapes := make(map[string][2]int, len(layout))
+	for _, tensor := range layout {
 		values := *tensor.field
 		if tensor.rows*tensor.cols != len(values) {
 			return nil, fmt.Errorf("oscillatorimage: trainable %q geometry %dx%d does not cover %d values", tensor.name, tensor.rows, tensor.cols, len(values))
 		}
-		specs[index] = optimizer.GroupSpec{Name: tensor.name, Start: total, End: total + len(values), Rows: tensor.rows, Cols: tensor.cols}
-		total += len(values)
+		tensors[tensor.name] = values
+		shapes[tensor.name] = [2]int{tensor.rows, tensor.cols}
 	}
-	plan, err := optimizer.CompilePlan(total, specs)
+	pack, err := optimizer.NewTensorPack(tensors, optimizer.MatrixGeometry(shapes))
 	if err != nil {
 		return nil, err
 	}
-	trainer := &Trainer{
-		model: model, config: config,
-		weights:   make([]float32, total),
-		gradients: make([]float32, total),
-		grads:     make(Grads, len(layout)),
-		rng:       rand.New(rand.NewSource(seed)),
-	}
-	for index, tensor := range layout {
-		spec := specs[index]
-		copy(trainer.weights[spec.Start:spec.End], *tensor.field)
-		*tensor.field = trainer.weights[spec.Start:spec.End:spec.End]
-		trainer.grads[spec.Name] = trainer.gradients[spec.Start:spec.End:spec.End]
-		trainer.names = append(trainer.names, spec.Name)
-	}
-	trainer.stepper, err = optimizer.NewStepper(trainer.weights, trainer.gradients, plan, config)
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentL2, nil, pack.Plan())
 	if err != nil {
 		return nil, err
+	}
+	trainer := &Trainer{model: model, pack: pack, config: config, rng: rand.New(rand.NewSource(seed))}
+	trainer.execution, err = trainingprogram.BindObjective(program, (*trainingState).forward, (*trainingState).backward, (*trainingState).optimize)
+	if err != nil {
+		return nil, err
+	}
+	trainer.stepper, err = pack.NewStepper(config)
+	if err != nil {
+		return nil, err
+	}
+	trainer.grads = pack.BindMapViews(tensors)
+	for _, tensor := range layout {
+		*tensor.field = tensors[tensor.name]
 	}
 	return trainer, nil
 }
 
 // ParameterCount reports the packed trainable parameter total.
-func (t *Trainer) ParameterCount() int { return len(t.weights) }
+func (t *Trainer) ParameterCount() int { return t.pack.ParameterCount() }
 
 // Close releases the stepper's backend.
 func (t *Trainer) Close() error { return t.stepper.Close() }
 
-// classTargetLoss: the reference bootstrap objective — class c's image
-// trains toward the constant 0.1 + 0.2*c; returns loss and dLoss/dImage.
+// classTargetLoss returns loss and optional image VJP.
 func (m *Model) classTargetLoss(image []float32, dImage []float32) float64 {
 	dim := m.Cfg.OutChannels * m.Cfg.OutH() * m.Cfg.OutW()
 	var loss float64
 	for class := 0; class < m.Cfg.NClasses; class++ {
-		target := 0.1 + 0.2*float64(class)
+		target := classTargetBase + classTargetStride*float64(class)
 		for i := 0; i < dim; i++ {
 			index := class*dim + i
 			delta := float64(image[index]) - target
 			loss += delta * delta
 			if dImage != nil {
-				dImage[index] = float32(2 * delta)
+				dImage[index] = float32(classLossDerivative * delta)
 			}
 		}
 	}
 	return loss
 }
 
-// sampleInit fills a fresh uniform phase init for every class row.
+// sampleInit fills uniform class phases.
 func (t *Trainer) sampleInit(dst []float32) {
 	for i := range dst {
 		dst[i] = float32((t.rng.Float64()*2 - 1) * math.Pi)
 	}
 }
 
-// Loss evaluates the bootstrap objective on a fixed seeded init without
-// training (the before/after descent probe).
+// Loss evaluates a fixed-seed objective.
 func (t *Trainer) Loss(seed int64) float64 {
 	m := t.model
 	classes := m.Cfg.NClasses
@@ -208,44 +194,59 @@ func (t *Trainer) Loss(seed int64) float64 {
 	return m.classTargetLoss(image, nil)
 }
 
-// Step runs one observed training step: fresh phase inits, BPTT backward,
-// gradient-coverage audit, Muon update.
 func (t *Trainer) Step() (TrainStepResult, error) {
-	m := t.model
-	classes := m.Cfg.NClasses
-	init := make([]float32, classes*(len(m.Omega)+len(m.OmegaCond)))
-	t.sampleInit(init)
-	image, trace := m.trainingForwardTrace(init, m.Drive, classes)
-	dImage := make([]float32, len(image))
-	loss := m.classTargetLoss(image, dImage)
-	m.backwardInto(trace, m.Drive, dImage, t.grads)
-	if len(t.grads) != len(t.names) {
-		packed := make(map[string]struct{}, len(t.names))
-		for _, name := range t.names {
-			packed[name] = struct{}{}
-		}
-		var extras []string
-		for name := range t.grads {
-			if _, ok := packed[name]; !ok {
-				extras = append(extras, name)
-			}
-		}
-		sort.Strings(extras)
-		return TrainStepResult{}, fmt.Errorf("oscillatorimage: backward gradients outside the trainable pack: %v", extras)
-	}
-	var gradientSquared float64
-	for _, gradient := range t.gradients {
-		gradientSquared += float64(gradient) * float64(gradient)
-	}
-	if err := t.stepper.Step(); err != nil {
+	state := trainingState{trainer: t}
+	if err := t.execution.Run(&state); err != nil {
 		return TrainStepResult{}, err
 	}
-	// The stepper consumes matrix-group gradients; clear the buffer whole so
-	// the next backward accumulates from zero regardless of group geometry.
-	clear(t.gradients)
+	return state.result, nil
+}
+
+func (state *trainingState) forward() error {
+	t := state.trainer
+	m := t.model
+	classes := m.Cfg.NClasses
+	initSize := classes * (len(m.Omega) + len(m.OmegaCond))
+	if cap(t.init) < initSize {
+		t.init = make([]float32, initSize)
+	} else {
+		t.init = t.init[:initSize]
+	}
+	t.sampleInit(t.init)
+	image, trace := m.trainingForwardTrace(t.init, m.Drive, classes)
+	state.trace = trace
+	if cap(t.dImage) < len(image) {
+		t.dImage = make([]float32, len(image))
+	} else {
+		t.dImage = t.dImage[:len(image)]
+	}
+	state.result.Loss = m.classTargetLoss(image, t.dImage)
+	return nil
+}
+
+func (state *trainingState) backward() error {
+	t := state.trainer
+	t.model.backwardInto(state.trace, t.model.Drive, t.dImage, t.grads)
+	if len(t.grads) != t.pack.Plan().GroupCount() {
+		return fmt.Errorf("oscillatorimage: backward gradients outside the trainable pack")
+	}
+	var gradientSquared float64
+	for _, gradients := range t.grads {
+		for _, gradient := range gradients {
+			gradientSquared += float64(gradient) * float64(gradient)
+		}
+	}
+	state.result.GradientL2 = math.Sqrt(gradientSquared)
+	return nil
+}
+
+func (state *trainingState) optimize() error {
+	t := state.trainer
+	if err := t.stepper.Step(); err != nil {
+		return err
+	}
 	t.step++
-	return TrainStepResult{
-		Loss: loss, Step: t.step,
-		LearningRate: t.config.LearningRate(t.step), GradientL2: math.Sqrt(gradientSquared),
-	}, nil
+	state.result.Step = t.step
+	state.result.LearningRate = t.config.LearningRate(t.step)
+	return nil
 }

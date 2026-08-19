@@ -19,6 +19,9 @@ func Transpose2D(x []float32, rows, columns int) []float32 {
 
 // GradientSlot returns the named accumulation buffer, allocating it on first touch.
 func GradientSlot(gradients map[string][]float32, name string, size int) []float32 {
+	if gradients == nil {
+		return nil
+	}
 	if slot, ok := gradients[name]; ok {
 		return slot
 	}

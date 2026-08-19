@@ -34,17 +34,22 @@ func PerLayerAdapterForward(input, side, gateWeight, projectionWeight, normWeigh
 	return output, trace, nil
 }
 
-// PerLayerAdapterBackward returns input, side, and parameter VJPs.
-func PerLayerAdapterBackward(input, side, gateWeight, projectionWeight, normWeight, dOutput []float32, rows, hidden, width int, epsilon float64, trace PerLayerAdapterTrace) (dInput, dSide, dGateWeight, dProjectionWeight, dNormWeight []float32, err error) {
+// PerLayerAdapterBackward writes parameter VJPs to optimizer-owned storage.
+func PerLayerAdapterBackward(
+	input, side, gateWeight, projectionWeight, normWeight, dOutput,
+	dGateWeight, dProjectionWeight, dNormWeight []float32,
+	rows, hidden, width int, epsilon float64, trace PerLayerAdapterTrace,
+) (dInput, dSide []float32, err error) {
 	if len(dOutput) != rows*hidden || len(trace.Gate) != rows*width ||
-		len(trace.Activated) != rows*width || len(trace.Projection) != rows*hidden {
-		return nil, nil, nil, nil, nil, fmt.Errorf("per-layer adapter backward: trace mismatch")
+		len(trace.Activated) != rows*width || len(trace.Projection) != rows*hidden ||
+		len(dGateWeight) != len(gateWeight) || len(dProjectionWeight) != len(projectionWeight) || len(dNormWeight) != len(normWeight) {
+		return nil, nil, fmt.Errorf("per-layer adapter backward: trace or destination mismatch")
 	}
 	dInput = append([]float32(nil), dOutput...)
 	dSide = make([]float32, rows*width)
-	dGateWeight = make([]float32, len(gateWeight))
-	dProjectionWeight = make([]float32, len(projectionWeight))
-	dNormWeight = make([]float32, len(normWeight))
+	clear(dGateWeight)
+	clear(dProjectionWeight)
+	clear(dNormWeight)
 	dProjection := make([]float32, rows*hidden)
 	RMSNormBackward(dProjection, dNormWeight, trace.Projection, normWeight, dOutput, rows, hidden, epsilon, false)
 	dActivated := make([]float32, rows*width)
@@ -56,5 +61,5 @@ func PerLayerAdapterBackward(input, side, gateWeight, projectionWeight, normWeig
 		dGate[index] = dActivated[index] * side[index] * float32(GELUTanhPrime(float64(value)))
 	}
 	LinearBackward(dInput, dGateWeight, nil, input, gateWeight, dGate, rows, hidden, width, true)
-	return dInput, dSide, dGateWeight, dProjectionWeight, dNormWeight, nil
+	return dInput, dSide, nil
 }

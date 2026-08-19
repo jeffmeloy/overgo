@@ -3,7 +3,6 @@
 package controllertrain
 
 import (
-	"encoding/binary"
 	"errors"
 	"math"
 	"slices"
@@ -27,14 +26,14 @@ type SeedRun struct {
 	ScratchSplit      artifact.ID
 }
 
-func TrainSeed(corpus Corpus, seed int64, steps int) (SeedRun, error) {
+func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, seed int64, steps int) (SeedRun, error) {
 	started := time.Now()
 	if steps <= 0 {
 		return SeedRun{}, errors.New("controller training: steps must be positive")
 	}
 	construction, err := scratchmodel.Compile(
 		scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: seed, Steps: steps},
-		scratchmodel.AdaptiveDerivationProfile(),
+		profile,
 	)
 	if err != nil {
 		return SeedRun{}, err
@@ -55,7 +54,7 @@ func TrainSeed(corpus Corpus, seed int64, steps int) (SeedRun, error) {
 	if err != nil {
 		return SeedRun{}, err
 	}
-	initialModel, err := identifyModel(construction.ID(), initialWeights)
+	initialModel, err := construction.IdentifyTrainedModel(initialWeights)
 	if err != nil {
 		return SeedRun{}, err
 	}
@@ -77,7 +76,7 @@ func TrainSeed(corpus Corpus, seed int64, steps int) (SeedRun, error) {
 	if err != nil {
 		return SeedRun{}, err
 	}
-	model, err := identifyModel(construction.ID(), weights)
+	model, err := construction.IdentifyTrainedModel(weights)
 	if err != nil {
 		return SeedRun{}, err
 	}
@@ -148,17 +147,6 @@ func evaluateSuite(trainer *scratchmodel.ResidentTrainer, construction scratchmo
 		Loss: expectedLoss / count, ActionAccuracy: float64(correctAction) / count,
 		ModalityAccuracy: float64(correctModality) / count, ValidActionRate: 1,
 	}, nil
-}
-
-func identifyModel(construction artifact.ID, weights []float32) (artifact.ID, error) {
-	bytes := make([]byte, len(construction.String())+4*len(weights))
-	copy(bytes, construction.String())
-	offset := len(construction.String())
-	for _, weight := range weights {
-		binary.LittleEndian.PutUint32(bytes[offset:offset+4], math.Float32bits(weight))
-		offset += 4
-	}
-	return artifact.IdentifyBytes(artifact.KindModel, bytes)
 }
 
 func evaluationRecords(recipeID, datasetID, model artifact.ID, metrics SuiteMetrics) (runrecord.Run, runrecord.Evaluation, error) {

@@ -18,6 +18,7 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/modelartifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/scratchmodel"
 	"overgo/internal/strictjson"
 	"overgo/internal/trainingprogram"
 )
@@ -75,6 +76,7 @@ type ComposeAction struct {
 
 type ImprovementAction struct {
 	Proposal       trainingprogram.ImprovementSpec `json:"proposal"`
+	Profile        *scratchmodel.DerivationProfile `json:"profile,omitempty"`
 	PromotionSplit artifact.ID                     `json:"promotion_split"`
 	Evaluator      artifact.ID                     `json:"evaluator"`
 	Authority      artifact.ID                     `json:"authority"`
@@ -286,6 +288,22 @@ func compileImprovementTrial(
 	reader artifact.Reader,
 	action ImprovementAction,
 ) ([]artifact.Content, []artifact.Lineage, error) {
+	var profileContent []artifact.Content
+	if action.Profile != nil {
+		profile, err := scratchmodel.NewDerivationProfile(*action.Profile)
+		if err != nil {
+			return nil, nil, err
+		}
+		if action.Proposal.Candidate.Valid() && action.Proposal.Candidate != profile.ID {
+			return nil, nil, errors.New("controller action: derivation profile identity differs")
+		}
+		action.Proposal.Candidate = profile.ID
+		content, err := profile.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		profileContent = []artifact.Content{content}
+	}
 	proposal, err := trainingprogram.CompileImprovementProposal(action.Proposal)
 	if err != nil {
 		return nil, nil, err
@@ -302,7 +320,7 @@ func compileImprovementTrial(
 	if err != nil {
 		return nil, nil, err
 	}
-	contents := []artifact.Content{proposalContent, admissionContent}
+	contents := append(profileContent, proposalContent, admissionContent)
 	lineage := append(proposal.Lineage(), admission.Lineage()...)
 	if action.Decision == nil {
 		return contents, lineage, nil
@@ -334,6 +352,9 @@ func compileImprovementTrial(
 func validImprovementDecisionFields(action ImprovementAction) bool {
 	if action.PromotionSplit.Kind() != artifact.KindDatasetShard || action.Evaluator.Kind() != artifact.KindEvidence ||
 		action.Authority.Kind() != artifact.KindEvidence {
+		return false
+	}
+	if (action.Proposal.Kind == trainingprogram.ImprovementDerivationProfile) != (action.Profile != nil) {
 		return false
 	}
 	if action.Decision == nil {

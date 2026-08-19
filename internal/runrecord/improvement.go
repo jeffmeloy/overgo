@@ -8,18 +8,19 @@ import (
 )
 
 const (
-	ImprovementAdmissionVersion   uint16 = 1
+	ImprovementAdmissionVersion   uint16 = 2
 	ImprovementAdmissionMediaType        = "application/vnd.overgo.improvement-admission+json"
-	ImprovementAdmissionSchema           = "overgo/improvement-admission/v1"
-	ImprovementDecisionVersion    uint16 = 1
+	ImprovementAdmissionSchema           = "overgo/improvement-admission/v2"
+	ImprovementDecisionVersion    uint16 = 2
 	ImprovementDecisionMediaType         = "application/vnd.overgo.improvement-decision+json"
-	ImprovementDecisionSchema            = "overgo/improvement-decision/v1"
+	ImprovementDecisionSchema            = "overgo/improvement-decision/v2"
 )
 
 type ImprovementAdmission struct {
 	Version          uint16      `json:"version"`
 	Proposal         artifact.ID `json:"proposal"`
 	ParentModel      artifact.ID `json:"parent_model"`
+	Incumbent        artifact.ID `json:"incumbent"`
 	Candidate        artifact.ID `json:"candidate"`
 	Dataset          artifact.ID `json:"dataset"`
 	DevelopmentSplit artifact.ID `json:"development_split"`
@@ -44,6 +45,8 @@ type ImprovementDecision struct {
 	State            ImprovementDecisionState `json:"state"`
 	Admission        artifact.ID              `json:"admission"`
 	ParentModel      artifact.ID              `json:"parent_model"`
+	Incumbent        artifact.ID              `json:"incumbent"`
+	Candidate        artifact.ID              `json:"candidate"`
 	ChildModel       artifact.ID              `json:"child_model"`
 	Dataset          artifact.ID              `json:"dataset"`
 	DevelopmentSplit artifact.ID              `json:"development_split"`
@@ -78,7 +81,7 @@ func AdmitImprovement(
 	proposal trainingprogram.ImprovementProposal, authority, evaluator, promotionSplit artifact.ID,
 ) (ImprovementAdmission, error) {
 	return improvementAdmissionCodec.New(ImprovementAdmission{
-		Version: ImprovementAdmissionVersion, Proposal: proposal.ID(), ParentModel: proposal.ParentModel(),
+		Version: ImprovementAdmissionVersion, Proposal: proposal.ID(), ParentModel: proposal.ParentModel(), Incumbent: proposal.Incumbent(),
 		Candidate: proposal.Candidate(), Dataset: proposal.Dataset(),
 		DevelopmentSplit: proposal.DevelopmentSplit(), PromotionSplit: promotionSplit,
 		Recipe: proposal.Recipe(), Code: proposal.Code(), Proposer: proposal.Proposer(),
@@ -95,7 +98,7 @@ func DecideImprovement(
 	}
 	return improvementDecisionCodec.New(ImprovementDecision{
 		Version: ImprovementDecisionVersion, State: state, Admission: admission.ID,
-		ParentModel: admission.ParentModel, ChildModel: child, Dataset: admission.Dataset,
+		ParentModel: admission.ParentModel, Incumbent: admission.Incumbent, Candidate: admission.Candidate, ChildModel: child, Dataset: admission.Dataset,
 		DevelopmentSplit: admission.DevelopmentSplit, PromotionSplit: admission.PromotionSplit,
 		Recipe: admission.Recipe, Code: admission.Code, Evaluator: admission.Evaluator,
 		Run: run.ID, Evaluation: evaluation.ID, Proposer: admission.Proposer,
@@ -120,20 +123,21 @@ func (value ImprovementDecision) Content() (artifact.Content, error) {
 }
 
 func (value ImprovementAdmission) Lineage() []artifact.Lineage {
-	return artifact.DependencyLineage(value.ID, value.Proposal, value.ParentModel, value.Dataset,
+	return artifact.DependencyLineage(value.ID, value.Proposal, value.ParentModel, value.Incumbent, value.Dataset,
 		value.Candidate, value.DevelopmentSplit, value.PromotionSplit, value.Recipe, value.Code,
 		value.Proposer, value.Evaluator, value.Authority)
 }
 
 func (value ImprovementDecision) Lineage() []artifact.Lineage {
-	lineage := artifact.DependencyLineage(value.ID, value.Admission, value.ParentModel, value.ChildModel,
+	lineage := artifact.DependencyLineage(value.ID, value.Admission, value.ParentModel, value.Incumbent, value.Candidate, value.ChildModel,
 		value.Dataset, value.DevelopmentSplit, value.PromotionSplit, value.Recipe, value.Code,
 		value.Evaluator, value.Run, value.Evaluation, value.Proposer, value.Authority, value.Decider)
 	lineage = append(lineage, artifact.Lineage{
 		Child: value.ChildModel, Parent: value.ParentModel, Relation: artifact.RelationTrainedFrom,
 	})
 	for _, parent := range []artifact.ID{
-		value.Dataset, value.DevelopmentSplit, value.PromotionSplit, value.Recipe, value.Code, value.Evaluator,
+		value.Incumbent, value.Candidate, value.Dataset, value.DevelopmentSplit,
+		value.PromotionSplit, value.Recipe, value.Code, value.Evaluator,
 	} {
 		lineage = append(lineage, artifact.Lineage{
 			Child: value.ChildModel, Parent: parent, Relation: artifact.RelationDependsOn,
@@ -153,7 +157,7 @@ func (value ImprovementDecision) Batch(key string) (artifact.Batch, error) {
 func canonicalizeImprovementAdmission(value *ImprovementAdmission) error {
 	if value == nil || value.Version != ImprovementAdmissionVersion ||
 		value.Proposal.Kind() != artifact.KindRecipe || value.ParentModel.Kind() != artifact.KindModel ||
-		!value.Candidate.Valid() ||
+		!value.Candidate.Valid() || value.Incumbent.Kind() != value.Candidate.Kind() || value.Incumbent == value.Candidate ||
 		value.Dataset.Kind() != artifact.KindDataset || value.DevelopmentSplit.Kind() != artifact.KindDatasetShard ||
 		value.PromotionSplit.Kind() != artifact.KindDatasetShard || value.DevelopmentSplit == value.PromotionSplit ||
 		value.Recipe.Kind() != artifact.KindRecipe || value.Code.Kind() != artifact.KindEvidence ||
@@ -169,6 +173,7 @@ func canonicalizeImprovementDecision(value *ImprovementDecision) error {
 	if value == nil || value.Version != ImprovementDecisionVersion ||
 		value.State != ImprovementPromote && value.State != ImprovementRefuse ||
 		value.Admission.Kind() != artifact.KindEvidence || value.ParentModel.Kind() != artifact.KindModel ||
+		value.Incumbent.Kind() != value.Candidate.Kind() || value.Incumbent == value.Candidate ||
 		value.ChildModel.Kind() != artifact.KindModel || value.ChildModel == value.ParentModel ||
 		value.Dataset.Kind() != artifact.KindDataset || value.DevelopmentSplit.Kind() != artifact.KindDatasetShard ||
 		value.PromotionSplit.Kind() != artifact.KindDatasetShard || value.DevelopmentSplit == value.PromotionSplit ||

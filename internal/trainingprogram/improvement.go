@@ -11,7 +11,7 @@ import (
 
 const (
 	ImprovementProposalMediaType = "application/vnd.overgo.improvement-proposal+json"
-	ImprovementProposalSchema    = "overgo/improvement-proposal/v1"
+	ImprovementProposalSchema    = "overgo/improvement-proposal/v2"
 )
 
 var improvementProposalContract = artifact.DocumentContract{
@@ -24,6 +24,7 @@ type ImprovementKind string
 const (
 	ImprovementCorpus               ImprovementKind = "corpus"
 	ImprovementRecipe               ImprovementKind = "recipe"
+	ImprovementDerivationProfile    ImprovementKind = "derivation-profile"
 	ImprovementEvaluator            ImprovementKind = "evaluator"
 	ImprovementComponentComposition ImprovementKind = "component-composition"
 )
@@ -31,6 +32,7 @@ const (
 type ImprovementSpec struct {
 	Kind             ImprovementKind `json:"kind"`
 	ParentModel      artifact.ID     `json:"parent_model"`
+	Incumbent        artifact.ID     `json:"incumbent"`
 	Candidate        artifact.ID     `json:"candidate"`
 	Dataset          artifact.ID     `json:"dataset"`
 	DevelopmentSplit artifact.ID     `json:"development_split"`
@@ -43,6 +45,7 @@ type ImprovementSpec struct {
 type improvementProposalBody struct {
 	Kind             ImprovementKind `json:"kind"`
 	ParentModel      artifact.ID     `json:"parent_model"`
+	Incumbent        artifact.ID     `json:"incumbent"`
 	Candidate        artifact.ID     `json:"candidate"`
 	Dataset          artifact.ID     `json:"dataset"`
 	DevelopmentSplit artifact.ID     `json:"development_split"`
@@ -57,6 +60,7 @@ type ImprovementProposal struct {
 	id               artifact.ID
 	kind             ImprovementKind
 	parentModel      artifact.ID
+	incumbent        artifact.ID
 	candidate        artifact.ID
 	dataset          artifact.ID
 	developmentSplit artifact.ID
@@ -71,6 +75,7 @@ func CompileImprovementProposal(spec ImprovementSpec) (ImprovementProposal, erro
 		spec.DevelopmentSplit.Kind() != artifact.KindDatasetShard || spec.Recipe.Kind() != artifact.KindRecipe ||
 		spec.Code.Kind() != artifact.KindEvidence || spec.Proposer.Kind() != artifact.KindEvidence ||
 		spec.Code == spec.Proposer || spec.Candidate.Kind() != improvementCandidateKind(spec.Kind) ||
+		spec.Incumbent.Kind() != spec.Candidate.Kind() || spec.Incumbent == spec.Candidate ||
 		spec.Kind == ImprovementCorpus && spec.Candidate == spec.Dataset ||
 		spec.Kind == ImprovementRecipe && spec.Candidate == spec.Recipe {
 		return ImprovementProposal{}, errors.New("training program: invalid improvement proposal")
@@ -81,7 +86,7 @@ func CompileImprovementProposal(spec ImprovementSpec) (ImprovementProposal, erro
 		return ImprovementProposal{}, err
 	}
 	body := improvementProposalBody{
-		Kind: spec.Kind, ParentModel: spec.ParentModel, Candidate: spec.Candidate,
+		Kind: spec.Kind, ParentModel: spec.ParentModel, Incumbent: spec.Incumbent, Candidate: spec.Candidate,
 		Dataset: spec.Dataset, DevelopmentSplit: spec.DevelopmentSplit, Recipe: spec.Recipe,
 		Code: spec.Code, Proposer: spec.Proposer, Components: components,
 	}
@@ -90,7 +95,7 @@ func CompileImprovementProposal(spec ImprovementSpec) (ImprovementProposal, erro
 		return ImprovementProposal{}, err
 	}
 	return ImprovementProposal{
-		id: id, kind: spec.Kind, parentModel: spec.ParentModel, candidate: spec.Candidate,
+		id: id, kind: spec.Kind, parentModel: spec.ParentModel, incumbent: spec.Incumbent, candidate: spec.Candidate,
 		dataset: spec.Dataset, developmentSplit: spec.DevelopmentSplit, recipe: spec.Recipe,
 		code: spec.Code, proposer: spec.Proposer, components: components,
 	}, nil
@@ -99,6 +104,7 @@ func CompileImprovementProposal(spec ImprovementSpec) (ImprovementProposal, erro
 func (p ImprovementProposal) ID() artifact.ID               { return p.id }
 func (p ImprovementProposal) ProposalKind() ImprovementKind { return p.kind }
 func (p ImprovementProposal) ParentModel() artifact.ID      { return p.parentModel }
+func (p ImprovementProposal) Incumbent() artifact.ID        { return p.incumbent }
 func (p ImprovementProposal) Candidate() artifact.ID        { return p.candidate }
 func (p ImprovementProposal) Dataset() artifact.ID          { return p.dataset }
 func (p ImprovementProposal) DevelopmentSplit() artifact.ID { return p.developmentSplit }
@@ -117,7 +123,7 @@ func (p ImprovementProposal) Content() (artifact.Content, error) {
 
 func (p ImprovementProposal) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{
-		p.parentModel, p.candidate, p.dataset, p.developmentSplit, p.recipe, p.code, p.proposer,
+		p.parentModel, p.incumbent, p.candidate, p.dataset, p.developmentSplit, p.recipe, p.code, p.proposer,
 	}
 	parents = append(parents, p.components...)
 	return artifact.DependencyLineage(p.id, parents...)
@@ -125,7 +131,7 @@ func (p ImprovementProposal) Lineage() []artifact.Lineage {
 
 func (p ImprovementProposal) body() improvementProposalBody {
 	return improvementProposalBody{
-		Kind: p.kind, ParentModel: p.parentModel, Candidate: p.candidate, Dataset: p.dataset,
+		Kind: p.kind, ParentModel: p.parentModel, Incumbent: p.incumbent, Candidate: p.candidate, Dataset: p.dataset,
 		DevelopmentSplit: p.developmentSplit, Recipe: p.recipe, Code: p.code,
 		Proposer: p.proposer, Components: slices.Clone(p.components),
 	}
@@ -137,6 +143,8 @@ func improvementCandidateKind(kind ImprovementKind) artifact.Kind {
 		return artifact.KindDataset
 	case ImprovementRecipe:
 		return artifact.KindRecipe
+	case ImprovementDerivationProfile:
+		return artifact.KindProfile
 	case ImprovementEvaluator:
 		return artifact.KindEvidence
 	case ImprovementComponentComposition:

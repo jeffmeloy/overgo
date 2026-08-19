@@ -21,6 +21,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 	proposer := id(artifact.KindEvidence, "proposer")
 	proposal, err := trainingprogram.CompileImprovementProposal(trainingprogram.ImprovementSpec{
 		Kind: trainingprogram.ImprovementComponentComposition, ParentModel: parent,
+		Incumbent: id(artifact.KindModelDefinition, "current-composition"),
 		Candidate: id(artifact.KindModelDefinition, "composition"), Dataset: dataset,
 		DevelopmentSplit: development, Recipe: recipeID, Code: code, Proposer: proposer,
 		Components: []artifact.ID{id(artifact.KindModel, "component"), id(artifact.KindAdapter, "bridge")},
@@ -63,7 +64,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 		}
 	}
 	for _, required := range []artifact.ID{
-		parent, dataset, development, promotion, recipeID, code, evaluator,
+		parent, proposal.Incumbent(), proposal.Candidate(), dataset, development, promotion, recipeID, code, evaluator,
 	} {
 		if !parents[required] {
 			t.Fatalf("child lineage omits %s", required)
@@ -87,7 +88,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 	}
 	defer store.Close()
 	static := []artifact.ID{
-		proposal.ID(), proposal.Candidate(), parent, child, dataset, development, promotion,
+		proposal.ID(), proposal.Incumbent(), proposal.Candidate(), parent, child, dataset, development, promotion,
 		recipeID, code, proposer, evaluator, authority, decider, environment, output,
 	}
 	descriptors := make([]artifact.Descriptor, len(static))
@@ -119,8 +120,8 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 		t.Fatalf("stored child parents = (%d, %v), want %d", len(storedParents), err, len(parents))
 	}
 	decisionParents, err := store.Parents(ctx, decision.ID)
-	if err != nil || len(decisionParents) != 14 {
-		t.Fatalf("stored decision parents = (%d, %v), want 14", len(decisionParents), err)
+	if err != nil || len(decisionParents) != 16 {
+		t.Fatalf("stored decision parents = (%d, %v), want 16", len(decisionParents), err)
 	}
 	if _, err := AdmitImprovement(proposal, proposer, evaluator, promotion); err == nil {
 		t.Fatal("self-admission accepted")

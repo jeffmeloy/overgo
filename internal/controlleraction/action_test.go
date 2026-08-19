@@ -9,6 +9,7 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/modelartifact"
 	"overgo/internal/recipe"
+	"overgo/internal/scratchmodel"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
@@ -75,10 +76,11 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 	improvement := Action{Version: ActionVersion, Kind: KindImprovementTrial, Improvement: &ImprovementAction{
 		Proposal: trainingprogram.ImprovementSpec{
 			Kind: trainingprogram.ImprovementRecipe, ParentModel: target,
+			Incumbent:        testutil.ArtifactID(t, artifact.KindRecipe, "current recipe"),
 			Candidate:        testutil.ArtifactID(t, artifact.KindRecipe, "candidate recipe"),
 			Dataset:          testutil.ArtifactID(t, artifact.KindDataset, "improvement dataset"),
 			DevelopmentSplit: testutil.ArtifactID(t, artifact.KindDatasetShard, "development split"),
-			Recipe:           testutil.ArtifactID(t, artifact.KindRecipe, "current recipe"),
+			Recipe:           testutil.ArtifactID(t, artifact.KindRecipe, "execution recipe"),
 			Code:             testutil.ArtifactID(t, artifact.KindEvidence, "code"),
 			Proposer:         testutil.ArtifactID(t, artifact.KindEvidence, "proposer"),
 		},
@@ -89,6 +91,22 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 	batch, err := CompileTransaction(context.Background(), nil, improvement)
 	if err != nil || len(batch.Contents) != 2 || len(batch.Lineage) == 0 {
 		t.Fatalf("improvement compile = (%+v, %v)", batch, err)
+	}
+	profile := scratchmodel.AdaptiveDerivationProfile()
+	profileAction := improvement
+	profileAction.Improvement = &ImprovementAction{
+		Proposal:       improvement.Improvement.Proposal,
+		Profile:        &profile,
+		PromotionSplit: improvement.Improvement.PromotionSplit,
+		Evaluator:      improvement.Improvement.Evaluator,
+		Authority:      improvement.Improvement.Authority,
+	}
+	profileAction.Improvement.Proposal.Kind = trainingprogram.ImprovementDerivationProfile
+	profileAction.Improvement.Proposal.Incumbent = testutil.ArtifactID(t, artifact.KindProfile, "current profile")
+	profileAction.Improvement.Proposal.Candidate = profile.ID
+	batch, err = CompileTransaction(context.Background(), nil, profileAction)
+	if err != nil || len(batch.Contents) != 3 {
+		t.Fatalf("profile improvement compile = (%d, %v)", len(batch.Contents), err)
 	}
 
 	budget := Action{Version: ActionVersion, Kind: KindEvaluationBudget, Budget: &EvaluationBudgetAction{

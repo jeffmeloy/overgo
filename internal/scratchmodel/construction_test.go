@@ -181,14 +181,7 @@ func TestAdaptiveDerivationProfileAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantProfile, err := artifact.JSONID(artifact.KindProfile, struct {
-		Profile DerivationProfile `json:"profile"`
-		Steps   int               `json:"steps"`
-	}{Profile: profile, Steps: facts.Steps})
-
-	if err != nil {
-		t.Fatal(err)
-	}
+	wantProfile := profile.ID
 	if construction.Authority().DerivationProfile() != wantProfile {
 		t.Fatal("construction derivation profile differs")
 	}
@@ -197,6 +190,10 @@ func TestAdaptiveDerivationProfileAuthority(t *testing.T) {
 	}
 	changed := profile
 	changed.Epsilon *= 2
+	changed, err = NewDerivationProfile(changed)
+	if err != nil {
+		t.Fatal(err)
+	}
 	second, err := Compile(facts, changed)
 	if err != nil {
 		t.Fatal(err)

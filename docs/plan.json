@@ -3,23 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "derivation-profile-as-artifact",
-      "title": "Make the corpus-to-topology derivation profile a content-addressed artifact with lineage and promotion record, so the system proposes derivation profiles and is judged on the models they produce",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make the corpus-to-topology derivation profile a content-addressed artifact with lineage and promotion record, so the system proposes derivation profiles and is judged on the models they produce",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/scratchmodel -run '^TestDerivationProfilePromotedByDescendantQuality$' -count=1 -v",
-          "rationale": "AdaptiveDerivationProfile() returns eight pinned scalars frozen to reproduce the adaptive oracle. Promotion to artifact closes eight magic rows by derivation rather than a better story -- the RSI loop satisfies Magic Discipline as a side effect.",
-          "depends_on": [
-            "descendant-improvement"
-          ]
-        }
-      ]
-    },
-    {
       "id": "evaluator-as-artifact",
       "title": "Promote an evaluator only if it correctly ranks a held-out set of models with known-good and known-bad outcomes drawn from the sealed oracle set, approved by generation N-1 authority",
       "status": "open",

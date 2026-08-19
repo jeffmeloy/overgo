@@ -27,8 +27,10 @@ func TestPerLayerAdapterBackwardFiniteDifference(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = output
-	dInput, dSide, dGate, dProjection, dNorm, err := PerLayerAdapterBackward(
-		input, side, gate, projection, norm, seed, rows, hidden, width, 1e-6, trace,
+	dGate, dProjection, dNorm := make([]float32, len(gate)), make([]float32, len(projection)), make([]float32, len(norm))
+	dInput, dSide, err := PerLayerAdapterBackward(
+		input, side, gate, projection, norm, seed, dGate, dProjection, dNorm,
+		rows, hidden, width, 1e-6, trace,
 	)
 	if err != nil {
 		t.Fatal(err)

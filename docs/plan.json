@@ -8,10 +8,16 @@
       "status": "open",
       "steps": [
         {
-          "id": "specialized-sessions",
-          "title": "Migrate hybrid, adapter, and scratch training to the shared session lifecycle; retain only neutral mathematical operators and delete local orchestration",
+          "id": "hybrid-session",
+          "title": "Converge host and resident hybrid training on one compiled lifecycle; delete duplicate loop, gradient packing, and resource orchestration",
           "status": "open",
-          "verify": "go test ./internal/trainingworkflow -run ^TestSpecializedTrainersUseSharedRecipeSession$ -count=1"
+          "verify": "go test ./internal/hybridtrain -count=1"
+        },
+        {
+          "id": "scratch-session",
+          "title": "Converge scratch and oscillator training on compiled program, pack, and lifecycle owners; delete manual slabs, steps, and policy defaults",
+          "status": "open",
+          "verify": "go test ./internal/scratchmodel ./internal/oscillatorimage -count=1"
         },
         {
           "id": "authority-audit",

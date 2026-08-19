@@ -44,6 +44,7 @@ type Model struct {
 	weights       []float32
 	gradients     []float32
 	momentum      []float32
+	dOutput       []float32
 	gate          []float32
 	projection    []float32
 	norm          []float32
@@ -53,9 +54,67 @@ type Model struct {
 	targetInfo    gguf.TensorInfo
 	plan          optimizer.Plan
 	program       trainingprogram.TrainingProgram
+	execution     trainingprogram.Execution[stepState]
 	config        optimizer.Config
 	step          int
 }
+
+type stepOptimizer interface {
+	Step(*Model) error
+}
+
+type stepState struct {
+	model     *Model
+	optimizer stepOptimizer
+	example   Example
+	output    []float32
+	trace     hostmath.PerLayerAdapterTrace
+	loss      float64
+	dOutput   []float32
+}
+
+func (state *stepState) forward() error {
+	model := state.model
+	output, trace, err := hostmath.PerLayerAdapterForward(
+		state.example.Input, state.example.Side, model.gate, model.projection, model.norm,
+		state.example.Rows, model.hidden, model.width, model.epsilon,
+	)
+	state.output, state.trace = output, trace
+	return err
+}
+
+func (state *stepState) lossGradient() error {
+	if cap(state.model.dOutput) < len(state.output) {
+		state.model.dOutput = make([]float32, len(state.output))
+	} else {
+		state.model.dOutput = state.model.dOutput[:len(state.output)]
+	}
+	state.dOutput = state.model.dOutput
+	inverse := 1 / float64(len(state.output))
+	for index, value := range state.output {
+		delta := float64(value) - float64(state.example.Target[index])
+		state.loss += 0.5 * delta * delta * inverse
+		state.dOutput[index] = float32(delta * inverse)
+	}
+	if math.IsNaN(state.loss) || math.IsInf(state.loss, 0) {
+		return errors.New("adapter training: non-finite loss")
+	}
+	return nil
+}
+
+func (state *stepState) backward() error {
+	model := state.model
+	gateEnd := len(model.gate)
+	projectionEnd := gateEnd + len(model.projection)
+	_, _, err := hostmath.PerLayerAdapterBackward(
+		state.example.Input, state.example.Side, model.gate, model.projection, model.norm, state.dOutput,
+		model.gradients[:gateEnd], model.gradients[gateEnd:projectionEnd], model.gradients[projectionEnd:],
+		state.example.Rows, model.hidden, model.width, model.epsilon, state.trace,
+	)
+	return err
+}
+
+func (state *stepState) optimize() error { return state.optimizer.Step(state.model) }
 
 // LoadArtifact binds one real artifact adapter without retaining the GGUF file.
 func LoadArtifact(ctx context.Context, path string, layer uint32) (*Model, model.ModelPlan, error) {
@@ -165,6 +224,15 @@ func LoadArtifact(ctx context.Context, path string, layer uint32) (*Model, model
 			{Name: normName, Rows: 1, Cols: hidden, Trainable: true},
 		},
 		Optimizer: m.plan,
+	})
+	if err != nil {
+		return nil, model.ModelPlan{}, err
+	}
+	m.execution, err = trainingprogram.Bind(m.program, []trainingprogram.Binding[stepState]{
+		{Operator: "adapter-forward", Execute: (*stepState).forward},
+		{Operator: "squared-error", Execute: (*stepState).lossGradient},
+		{Operator: "adapter-backward", Execute: (*stepState).backward},
+		{Operator: "muon", Execute: (*stepState).optimize},
 	})
 	if err != nil {
 		return nil, model.ModelPlan{}, err

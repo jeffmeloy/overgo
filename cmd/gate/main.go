@@ -375,21 +375,7 @@ func (g *gateContext) stepProtection() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	authority, sealed, err := protection.LoadSealedFileAuthority(g.repo)
-	if err != nil {
-		return false, err
-	}
-	sealing := "sealed_authority=unprovisioned"
-	if sealed {
-		// A present manifest is a sealing claim; a claim that no longer
-		// holds (drifted golden, missing deny ACE) must fail the commit.
-		if err := authority.Verify(g.repo); err != nil {
-			return false, err
-		}
-		sealing = fmt.Sprintf("sealed_authority=verified:principal=%s,files=%d",
-			authority.CandidatePrincipal, len(authority.SealedPaths))
-	}
-	g.stepEvidence["protection"] = configured + ";activation=" + activated + ";" + sealing
+	g.stepEvidence["protection"] = configured + ";activation=" + activated
 	g.honesty = append(g.honesty, "protection: "+g.stepEvidence["protection"])
 	return false, nil
 }

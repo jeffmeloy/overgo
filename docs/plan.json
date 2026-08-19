@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; queue order is binding; plan complete means campaign complete. Generic authority beside retained specialized runtime is failure, not progress. Every migration must move all production callers and delete displaced orchestration, wrappers, fallbacks, compatibility paths, duplicate probes, and parallel authorities in the same gated wave. New shared code must replace existing ownership immediately. Verify numerical behavior, Live Edit behavior where applicable, code reduction, allocations, transfers, peak memory, and processing cost before completion. After every gated step, merge current master into this worktree before starting the next step.",
   "items": [
     {
-      "id": "component-synthesis-loop",
-      "title": "Close the component-synthesis loop from tensor catalog proposal through recipe validation, shared bridge training, evaluation evidence, and promotion or refusal",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Close the component-synthesis loop from tensor catalog proposal through recipe validation, shared bridge training, evaluation evidence, and promotion or refusal",
-          "status": "open",
-          "verify": "go test ./internal/composition -run ^TestComponentProposalToPromotionPipeline$ -count=1"
-        }
-      ]
-    },
-    {
       "id": "hygiene-sweep",
       "title": "Hygiene sweep: repair gemma-4-12B stale activation, close discovery wholesale-failure robustness finding, GUI tour with plan recommendations",
       "status": "open",

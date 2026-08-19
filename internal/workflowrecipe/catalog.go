@@ -28,6 +28,9 @@ const (
 	ModuleDPOObjective    recipe.ModuleID = "training.dpo"
 	ModuleBatchRollout    recipe.ModuleID = "training.batch-rollout"
 	ModuleGRPOObjective   recipe.ModuleID = "training.grpo"
+	ModuleSelectComponent recipe.ModuleID = "composition.select-component"
+	ModuleTrainBridge     recipe.ModuleID = "composition.train-bridge"
+	ModuleEvaluateBridge  recipe.ModuleID = "composition.evaluate-bridge"
 )
 
 var catalog = mustCatalog()
@@ -91,11 +94,25 @@ func mustCatalog() *recipe.Catalog {
 	}
 	modules = append(modules, preferenceModules()...)
 	modules = append(modules, rolloutModules()...)
+	modules = append(modules, compositionModules()...)
 	catalog, err := recipe.NewCatalog(modules...)
 	if err != nil {
 		panic(err)
 	}
 	return catalog
+}
+
+func compositionModules() []recipe.Module {
+	return []recipe.Module{
+		module(ModuleSelectComponent, tasks(recipe.TaskTraining), nil,
+			ports(port("component", recipe.DataTensor, recipe.CardinalityOne))),
+		module(ModuleTrainBridge, tasks(recipe.TaskTraining),
+			ports(port("component", recipe.DataTensor, recipe.CardinalityOne)),
+			ports(port("bridge", recipe.DataArtifact, recipe.CardinalityOne))),
+		module(ModuleEvaluateBridge, tasks(recipe.TaskTraining),
+			ports(port("bridge", recipe.DataArtifact, recipe.CardinalityOne)),
+			ports(port("metrics", recipe.DataMetrics, recipe.CardinalityOne))),
+	}
 }
 
 func rolloutModules() []recipe.Module {

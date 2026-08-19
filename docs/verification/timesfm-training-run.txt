@@ -1,0 +1,41 @@
+overgo training verification run
+tool: go test internal/seriesforecast (modeltest tag), TestTimesFMRealSupernovaTrainingSmoke
+verifying commit: 3f60194e (sweep-hold head; recorded by the gate binding this file)
+model: TimesFM-2.5-200M safetensors (timesfm-2.5-200m-transformers); 203,436,480
+trainable parameters packed from the artifact's own tensor shapes
+trainer: internal/seriesforecast trainable graph -- full-model VJP composed
+from the per-component grad goldens (head block, 20 post-norm decoder layers,
+patch embed with RevIN/running-stats coupling) over optimizer.NewStepper (the
+shared CUDA Muon stepper, parity-gated against the flat host optimizer; host
+Newton-Schulz at this parameter count runs serial float64 at hours per step),
+derived base LR n_params^-1/2 = 7.011e-05, momentum 0.9
+dataset: supernova-timeseries train.jsonl, consumed as its 32 leading
+records and committed as docs/verification/timesfm-training-dataset.jsonl --
+the grounded shard this claim names (the full train.jsonl exceeds the store
+payload limit; the suite's authority labels the whole file
+dataset:sha256:32b9eaf5... with split derived from the dataset id +
+"/train"); light-curve-train-v1 pairing
+(two-patch context floor; the v1 evaluation pairing leaves every varying
+record a single patch token, where attention softmax is constant and q/k
+projections, attention norms and per-dim scale receive exactly zero gradient)
+record: ordinal 3 (first with a varying multi-patch context; ordinals 0-2
+constant pre-explosion windows, skips logged); context=64 points (2 patch
+tokens), covered horizon 1 of 128 -- the objective covers the observed
+horizon prefix, so only covered head rows carry gradient, by declaration
+steps: 3, span_tokens 192 (3 x 64 context); descent proven by evaluating the
+same pair's loss before and after the observed steps
+measured wall_ns: 13984000000 (three observed steps plus the closing loss
+evaluation; steps 4.916s / 4.354s / 4.671s)
+loss: 14765.926245 -> 8457.036960 (per-step pre-update losses 14765.926245,
+3874.697591, 199.798113; the third update overshoots upward on this single
+pair -- net descent recorded as measured; grad_l2 2.081e+06 at step one)
+notes: forward/backward on host, Muon step on device via the shared stepper;
+peak device memory not instrumented on this path -- wall-only claim.
+gradient-coverage audit armed: a gradient slot outside the packed layout
+refuses the step, so a silently untrained tensor is impossible by
+construction. First-step projection guard bounds the run at 25 minutes.
+sweep-hold context: this sub-row was in flight when commit 3f60194e recorded
+the owner's hold pending the overgo_tightening merge; the trainer is
+package-local host machinery (no cmd/train, no resident entry, no token
+rendering) and the recorded output is the claim-shaped cell the hold names
+as the surviving format.

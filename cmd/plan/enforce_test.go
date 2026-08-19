@@ -128,4 +128,26 @@ func TestEnforceStopReason(t *testing.T) {
 			t.Fatalf("manufactured stop %q must be REFUSED", r)
 		}
 	}
+	// Self-pacing dressed as an external prerequisite is the recorded drift
+	// mode (2026-08-18: a stage deferred as "best started with fresh
+	// context"); the category demands something verifiably external.
+	for _, r := range []string{
+		"external-prereq: stage 3 best started with fresh context",
+		"external-prereq: continuing next session",
+		"external-prereq: nothing in particular",
+		"external-prereq: taking a break at this milestone",
+	} {
+		if err := validateStop(r); err == nil {
+			t.Fatalf("self-pacing stop %q must be REFUSED", r)
+		}
+	}
+	for _, r := range []string{
+		"external-prereq: gate running in background (bq7kh24rf)",
+		"external-prereq: owner must provision the candidate principal",
+		"external-prereq: tightening-lane merge pending",
+	} {
+		if err := validateStop(r); err != nil {
+			t.Fatalf("genuinely external stop %q rejected: %v", r, err)
+		}
+	}
 }

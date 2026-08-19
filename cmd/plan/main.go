@@ -390,12 +390,41 @@ var validStopReasons = []string{"user-stop", "irreversible", "external-prereq"}
 // self-invented "checkpoint" or "should I continue?" is not among them.
 func validateStop(reason string) error {
 	reason = strings.TrimSpace(reason)
+	matched := ""
 	for _, v := range validStopReasons {
 		if reason == v || strings.HasPrefix(reason, v+":") {
-			return nil
+			matched = v
+			break
 		}
 	}
-	return fmt.Errorf("invalid stop reason %q -- must begin with one of: user-stop: / irreversible: / external-prereq: <detail>", reason)
+	if matched == "" {
+		return fmt.Errorf("invalid stop reason %q -- must begin with one of: user-stop: / irreversible: / external-prereq: <detail>", reason)
+	}
+	if matched == "external-prereq" {
+		// An external prerequisite is something OUTSIDE this process that the
+		// work verifiably waits on: a background task, the owner, another
+		// lane, or a long-running run. Self-pacing ("fresh context", "next
+		// session", "later") is not external and the loop refuses it -- the
+		// owner's contract is iterative develop/verify/commit/plan, never a
+		// deferral the agent grants itself.
+		detail := strings.ToLower(reason)
+		for _, selfPacing := range []string{"fresh context", "next session", "context window", "long session", "best started", "another sitting"} {
+			if strings.Contains(detail, selfPacing) {
+				return fmt.Errorf("stop refused: %q is self-pacing, not an external prerequisite -- continue the plan", selfPacing)
+			}
+		}
+		external := false
+		for _, marker := range []string{"background", "running", "owner", "merge", "download", "provision", "lane", "device", "hashing", "gate ", "missing", "absent", "unavailable"} {
+			if strings.Contains(detail, marker) {
+				external = true
+				break
+			}
+		}
+		if !external {
+			return errors.New("stop refused: external-prereq detail names nothing external (no background task, owner action, merge, or running work) -- continue the plan")
+		}
+	}
+	return nil
 }
 
 // recordStop writes a valid stop marker at the current HEAD; the stop-gate reads

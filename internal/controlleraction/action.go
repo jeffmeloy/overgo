@@ -17,6 +17,7 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/evaluation"
 	"overgo/internal/modelartifact"
+	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
@@ -48,6 +49,7 @@ const (
 	KindEvaluationBudget     Kind = "evaluation-budget"
 	KindEvaluatorPromotion   Kind = "evaluator-promotion"
 	KindObjectiveComposition Kind = "objective-composition"
+	KindCandidateScheduling  Kind = "candidate-scheduling"
 )
 
 // ChainAction: compose two whole validated models through typed ports.
@@ -122,6 +124,12 @@ type ObjectiveCompositionAction struct {
 	Spec trainingprogram.ObjectiveCompositionSpec `json:"spec"`
 }
 
+type CandidateSchedulingAction struct {
+	Outcomes   []plan.CandidateOutcome   `json:"outcomes"`
+	Candidates []plan.ScheduledCandidate `json:"candidates"`
+	Budget     plan.SchedulerBudget      `json:"budget"`
+}
+
 // Action is one controller emission: exactly the payload matching Kind is
 // present. There is no field anywhere in the language that carries code or
 // shell -- parameters are artifact identities, typed facts and enums; the one
@@ -138,6 +146,7 @@ type Action struct {
 	Budget        *EvaluationBudgetAction     `json:"budget,omitempty"`
 	Evaluator     *EvaluatorPromotionAction   `json:"evaluator,omitempty"`
 	Objective     *ObjectiveCompositionAction `json:"objective,omitempty"`
+	Scheduling    *CandidateSchedulingAction  `json:"scheduling,omitempty"`
 }
 
 // ParseAction decodes one strict action document.
@@ -157,7 +166,7 @@ func (a Action) validate() error {
 		return errors.New("controller action: unsupported version")
 	}
 	payloads := 0
-	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil} {
+	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil} {
 		if present {
 			payloads++
 		}
@@ -197,6 +206,10 @@ func (a Action) validate() error {
 	case KindObjectiveComposition:
 		if a.Objective == nil {
 			return errors.New("controller action: objective-composition requires a typed specification")
+		}
+	case KindCandidateScheduling:
+		if a.Scheduling == nil {
+			return errors.New("controller action: candidate-scheduling requires typed evidence")
 		}
 	default:
 		return fmt.Errorf("controller action: kind %q is not in the allowlist", a.Kind)
@@ -298,6 +311,16 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 			return nil, nil, err
 		}
 		return []artifact.Content{content}, composition.Lineage(), nil
+	case KindCandidateScheduling:
+		scheduler, err := plan.CompileCandidateScheduler(action.Scheduling.Outcomes, action.Scheduling.Candidates, action.Scheduling.Budget)
+		if err != nil {
+			return nil, nil, err
+		}
+		content, err := scheduler.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		return []artifact.Content{content}, scheduler.Lineage(), nil
 	default:
 		return nil, nil, fmt.Errorf("controller action: kind %q has no executor", action.Kind)
 	}

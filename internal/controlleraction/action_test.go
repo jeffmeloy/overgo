@@ -8,7 +8,9 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
 	"overgo/internal/modelartifact"
+	"overgo/internal/plan"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -121,6 +123,22 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 	batch, err = CompileTransaction(context.Background(), nil, budget)
 	if err != nil || len(batch.Contents) != 2 || len(batch.Lineage) == 0 {
 		t.Fatalf("budget compile = (%+v, %v)", batch, err)
+	}
+
+	strategy := testutil.ArtifactID(t, artifact.KindProfile, "scheduler strategy")
+	scheduled := testutil.ArtifactID(t, artifact.KindModelDefinition, "scheduled candidate")
+	scheduling := Action{Version: ActionVersion, Kind: KindCandidateScheduling, Scheduling: &CandidateSchedulingAction{
+		Outcomes: []plan.CandidateOutcome{{
+			Evidence: testutil.ArtifactID(t, artifact.KindEvidence, "scheduler outcome"), Candidate: scheduled, Strategy: strategy,
+			WallNS: 2, PeakDeviceBytes: 2,
+			Changes: []plan.CapabilityChange{{Name: "quality", Before: 0, After: 1, Direction: runrecord.DirectionMaximize}},
+		}},
+		Candidates: []plan.ScheduledCandidate{{Candidate: scheduled, Strategy: strategy, PredictedWallNS: 2, PredictedVRAM: 2}},
+		Budget:     plan.SchedulerBudget{WallNS: 2, VRAMBytes: 2},
+	}}
+	batch, err = CompileTransaction(context.Background(), nil, scheduling)
+	if err != nil || len(batch.Contents) != 1 || len(batch.Lineage) == 0 {
+		t.Fatalf("scheduler compile = (%+v, %v)", batch, err)
 	}
 
 	if _, err := compile(Action{Version: ActionVersion, Kind: "run-shell", Chain: chain.Chain}); err == nil {

@@ -3,23 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "scheduler-as-artifact",
-      "title": "Make next-candidate selection under wall-clock and VRAM budget a learned artifact scored on realized capability delta per wall-hour rather than an applied formula",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make next-candidate selection under wall-clock and VRAM budget a learned artifact scored on realized capability delta per wall-hour rather than an applied formula",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestSchedulerRankedByRealizedDelta$' -count=1 -v",
-          "depends_on": [
-            "runtime-resource-scheduler",
-            "descendant-improvement"
-          ]
-        }
-      ]
-    },
-    {
       "id": "sealed-external-authority",
       "title": "Place goldens, evaluator definitions, promotion policy and champion aliases beyond candidate-worker reach through a distinct OS/service identity or remote protected authority; require external provenance naming the producing tool and version for any golden change",
       "status": "open",

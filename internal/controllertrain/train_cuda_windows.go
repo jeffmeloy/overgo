@@ -7,6 +7,7 @@ import (
 	"errors"
 	"math"
 	"slices"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
@@ -27,6 +28,7 @@ type SeedRun struct {
 }
 
 func TrainSeed(corpus Corpus, seed int64, steps int) (SeedRun, error) {
+	started := time.Now()
 	if steps <= 0 {
 		return SeedRun{}, errors.New("controller training: steps must be positive")
 	}
@@ -42,6 +44,9 @@ func TrainSeed(corpus Corpus, seed int64, steps int) (SeedRun, error) {
 		return SeedRun{}, err
 	}
 	defer trainer.Close()
+	if err := trainer.ResetPeakMemory(); err != nil {
+		return SeedRun{}, err
+	}
 	initial, err := evaluateSuite(trainer, construction, corpus)
 	if err != nil {
 		return SeedRun{}, err
@@ -76,6 +81,10 @@ func TrainSeed(corpus Corpus, seed int64, steps int) (SeedRun, error) {
 	if err != nil {
 		return SeedRun{}, err
 	}
+	memory, err := trainer.MemoryStats()
+	if err != nil {
+		return SeedRun{}, err
+	}
 	recipeID := construction.Program().ID()
 	initialRun, initialEvaluation, err := evaluationRecords(recipeID, corpus.Dataset(), initialModel, initial)
 	if err != nil {
@@ -89,6 +98,7 @@ func TrainSeed(corpus Corpus, seed int64, steps int) (SeedRun, error) {
 		Evidence: SeedEvidence{
 			Seed: seed, Model: model, Run: run.ID, Evaluation: evaluation.ID,
 			Initial: initial, Final: final,
+			Cost: ResourceCost{WallNS: uint64(time.Since(started).Nanoseconds()), PeakDeviceBytes: memory.PeakBytes},
 		},
 		InitialModel: initialModel, InitialRun: initialRun, InitialEvaluation: initialEvaluation,
 		Run: run, Evaluation: evaluation, Recipe: recipeID,

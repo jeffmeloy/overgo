@@ -1,6 +1,6 @@
 //go:build windows
 
-package adaptiveparity_test
+package controllertrain_test
 
 import (
 	"errors"

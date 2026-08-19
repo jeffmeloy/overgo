@@ -78,14 +78,18 @@ func (p BridgeProposal) Content() (artifact.Content, error) {
 	return bridgeProposalCodec.Content(p)
 }
 
-func (p BridgeProposal) Batch(key string) (artifact.Batch, error) {
+func (p BridgeProposal) Lineage() []artifact.Lineage {
 	lineage := []artifact.Lineage{{Child: p.ID, Parent: p.Target, Relation: artifact.RelationDependsOn}}
 	for _, candidate := range p.Candidates {
 		lineage = append(lineage, artifact.Lineage{
 			Child: p.ID, Parent: candidate.Donor, Relation: artifact.RelationDependsOn,
 		})
 	}
-	return bridgeProposalCodec.Batch(key, p, lineage, nil)
+	return lineage
+}
+
+func (p BridgeProposal) Batch(key string) (artifact.Batch, error) {
+	return bridgeProposalCodec.Batch(key, p, p.Lineage(), nil)
 }
 
 func canonicalizeBridgeProposal(value *BridgeProposal) error {

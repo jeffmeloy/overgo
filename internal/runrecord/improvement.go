@@ -119,8 +119,6 @@ func (value ImprovementDecision) Content() (artifact.Content, error) {
 	return improvementDecisionCodec.Content(value)
 }
 
-func (value ImprovementDecision) RollbackTarget() artifact.ID { return value.Rollback }
-
 func (value ImprovementAdmission) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, value.Proposal, value.ParentModel, value.Dataset,
 		value.Candidate, value.DevelopmentSplit, value.PromotionSplit, value.Recipe, value.Code,

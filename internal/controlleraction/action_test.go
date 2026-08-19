@@ -1,6 +1,7 @@
 package controlleraction
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/recipe"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
 )
 
@@ -18,14 +20,18 @@ import (
 // kind/payload mismatches are unrepresentable; and the chain emission is
 // genuinely executable through the generic workflow runtime's catalog.
 func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
+	compile := func(action Action) ([]artifact.Content, error) {
+		batch, err := CompileTransaction(context.Background(), nil, action)
+		return batch.Contents, err
+	}
 	scorer := testutil.ArtifactID(t, artifact.KindModel, "action-scorer")
 	drafter := testutil.ArtifactID(t, artifact.KindModel, "action-drafter")
 	chain := Action{Version: ActionVersion, Kind: KindChainRecipes, Chain: &ChainAction{Scorer: scorer, Drafter: drafter}}
-	first, err := Compile(chain)
+	first, err := compile(chain)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := Compile(chain)
+	second, err := compile(chain)
 	if err != nil || len(first) != 2 || len(second) != 2 ||
 		first[0].Descriptor.ID != second[0].Descriptor.ID || first[1].Descriptor.ID != second[1].Descriptor.ID {
 		t.Fatalf("chain compile not deterministic: (%v, %v)", second, err)
@@ -46,7 +52,7 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 		RequiredVerifier: "go test ./internal/adaptiveparity -run '^TestComponentCompositionViability$' -count=1",
 		Blocker:          "no recorded experiment evidence",
 	}}
-	contents, err := Compile(proposal)
+	contents, err := compile(proposal)
 	if err != nil || len(contents) != 1 {
 		t.Fatalf("proposal compile = (%d, %v)", len(contents), err)
 	}
@@ -61,18 +67,51 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 		Family:  "qwen2",
 		Tensors: []modelartifact.TensorFact{{Name: "blk.0.attn_q.weight", Shape: []uint64{8, 8}, Storage: "f32"}},
 	}}
-	contents, err = Compile(decomposition)
+	contents, err = compile(decomposition)
 	if err != nil || len(contents) != 1 {
 		t.Fatalf("decomposition compile = (%d, %v)", len(contents), err)
 	}
 
-	if _, err := Compile(Action{Version: ActionVersion, Kind: "run-shell", Chain: chain.Chain}); err == nil {
+	improvement := Action{Version: ActionVersion, Kind: KindImprovementTrial, Improvement: &ImprovementAction{
+		Proposal: trainingprogram.ImprovementSpec{
+			Kind: trainingprogram.ImprovementRecipe, ParentModel: target,
+			Candidate:        testutil.ArtifactID(t, artifact.KindRecipe, "candidate recipe"),
+			Dataset:          testutil.ArtifactID(t, artifact.KindDataset, "improvement dataset"),
+			DevelopmentSplit: testutil.ArtifactID(t, artifact.KindDatasetShard, "development split"),
+			Recipe:           testutil.ArtifactID(t, artifact.KindRecipe, "current recipe"),
+			Code:             testutil.ArtifactID(t, artifact.KindEvidence, "code"),
+			Proposer:         testutil.ArtifactID(t, artifact.KindEvidence, "proposer"),
+		},
+		PromotionSplit: testutil.ArtifactID(t, artifact.KindDatasetShard, "promotion split"),
+		Evaluator:      testutil.ArtifactID(t, artifact.KindEvidence, "evaluator"),
+		Authority:      testutil.ArtifactID(t, artifact.KindEvidence, "authority"),
+	}}
+	batch, err := CompileTransaction(context.Background(), nil, improvement)
+	if err != nil || len(batch.Contents) != 2 || len(batch.Lineage) == 0 {
+		t.Fatalf("improvement compile = (%+v, %v)", batch, err)
+	}
+
+	budget := Action{Version: ActionVersion, Kind: KindEvaluationBudget, Budget: &EvaluationBudgetAction{
+		Unit:      "promotion-query",
+		Split:     improvement.Improvement.PromotionSplit,
+		Issued:    2,
+		Authority: improvement.Improvement.Authority,
+		Charges: []BudgetChargeAction{{
+			Amount: 1, Consumer: improvement.Improvement.Evaluator, Purpose: "score descendant",
+		}},
+	}}
+	batch, err = CompileTransaction(context.Background(), nil, budget)
+	if err != nil || len(batch.Contents) != 2 || len(batch.Lineage) == 0 {
+		t.Fatalf("budget compile = (%+v, %v)", batch, err)
+	}
+
+	if _, err := compile(Action{Version: ActionVersion, Kind: "run-shell", Chain: chain.Chain}); err == nil {
 		t.Fatal("kind outside the allowlist compiled")
 	}
-	if _, err := Compile(Action{Version: ActionVersion, Kind: KindChainRecipes, Proposal: proposal.Proposal}); err == nil {
+	if _, err := compile(Action{Version: ActionVersion, Kind: KindChainRecipes, Proposal: proposal.Proposal}); err == nil {
 		t.Fatal("kind/payload mismatch compiled")
 	}
-	if _, err := Compile(Action{Version: ActionVersion, Kind: KindChainRecipes, Chain: chain.Chain, Proposal: proposal.Proposal}); err == nil {
+	if _, err := compile(Action{Version: ActionVersion, Kind: KindChainRecipes, Chain: chain.Chain, Proposal: proposal.Proposal}); err == nil {
 		t.Fatal("multiple payloads compiled")
 	}
 	if _, err := ParseAction([]byte(`{"version":1,"kind":"chain-recipes","chain":{"scorer":"` +

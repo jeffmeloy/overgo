@@ -53,8 +53,8 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 	}
 	decider := id(artifact.KindEvidence, "decider")
 	decision, err := DecideImprovement(admission, child, run, evaluation, decider, ImprovementPromote)
-	if err != nil || decision.RollbackTarget() != parent {
-		t.Fatalf("decision = (%s, %s, %v)", decision.State, decision.RollbackTarget(), err)
+	if err != nil || decision.Rollback != parent {
+		t.Fatalf("decision = (%s, %s, %v)", decision.State, decision.Rollback, err)
 	}
 	parents := map[artifact.ID]bool{}
 	for _, edge := range decision.Lineage() {
@@ -74,8 +74,8 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 		t.Fatal(err)
 	}
 	parsed, err := improvementDecisionCodec.Parse(content.Data)
-	if err != nil || parsed.ID != decision.ID || parsed.RollbackTarget() != parent {
-		t.Fatalf("parsed decision = (%s, %s, %v)", parsed.ID, parsed.RollbackTarget(), err)
+	if err != nil || parsed.ID != decision.ID || parsed.Rollback != parent {
+		t.Fatalf("parsed decision = (%s, %s, %v)", parsed.ID, parsed.Rollback, err)
 	}
 	if _, err := decision.Batch("fixture/improvement/decision"); err != nil {
 		t.Fatal(err)

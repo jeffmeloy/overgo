@@ -1,12 +1,22 @@
 package trainingprogram
 
 import (
+	"encoding/json"
 	"errors"
 	"slices"
 	"sort"
 
 	"overgo/internal/artifact"
 )
+
+const (
+	ImprovementProposalMediaType = "application/vnd.overgo.improvement-proposal+json"
+	ImprovementProposalSchema    = "overgo/improvement-proposal/v1"
+)
+
+var improvementProposalContract = artifact.DocumentContract{
+	Kind: artifact.KindRecipe, MediaType: ImprovementProposalMediaType, Schema: ImprovementProposalSchema,
+}
 
 // ImprovementKind: controller proposal class.
 type ImprovementKind string
@@ -19,15 +29,27 @@ const (
 )
 
 type ImprovementSpec struct {
-	Kind             ImprovementKind
-	ParentModel      artifact.ID
-	Candidate        artifact.ID
-	Dataset          artifact.ID
-	DevelopmentSplit artifact.ID
-	Recipe           artifact.ID
-	Code             artifact.ID
-	Proposer         artifact.ID
-	Components       []artifact.ID
+	Kind             ImprovementKind `json:"kind"`
+	ParentModel      artifact.ID     `json:"parent_model"`
+	Candidate        artifact.ID     `json:"candidate"`
+	Dataset          artifact.ID     `json:"dataset"`
+	DevelopmentSplit artifact.ID     `json:"development_split"`
+	Recipe           artifact.ID     `json:"recipe"`
+	Code             artifact.ID     `json:"code"`
+	Proposer         artifact.ID     `json:"proposer"`
+	Components       []artifact.ID   `json:"components,omitempty"`
+}
+
+type improvementProposalBody struct {
+	Kind             ImprovementKind `json:"kind"`
+	ParentModel      artifact.ID     `json:"parent_model"`
+	Candidate        artifact.ID     `json:"candidate"`
+	Dataset          artifact.ID     `json:"dataset"`
+	DevelopmentSplit artifact.ID     `json:"development_split"`
+	Recipe           artifact.ID     `json:"recipe"`
+	Code             artifact.ID     `json:"code"`
+	Proposer         artifact.ID     `json:"proposer"`
+	Components       []artifact.ID   `json:"components,omitempty"`
 }
 
 // ImprovementProposal: immutable, non-authorizing descendant proposal.
@@ -58,17 +80,7 @@ func CompileImprovementProposal(spec ImprovementSpec) (ImprovementProposal, erro
 	if err := validateImprovementComponents(spec.Kind, components); err != nil {
 		return ImprovementProposal{}, err
 	}
-	body := struct {
-		Kind             ImprovementKind `json:"kind"`
-		ParentModel      artifact.ID     `json:"parent_model"`
-		Candidate        artifact.ID     `json:"candidate"`
-		Dataset          artifact.ID     `json:"dataset"`
-		DevelopmentSplit artifact.ID     `json:"development_split"`
-		Recipe           artifact.ID     `json:"recipe"`
-		Code             artifact.ID     `json:"code"`
-		Proposer         artifact.ID     `json:"proposer"`
-		Components       []artifact.ID   `json:"components,omitempty"`
-	}{
+	body := improvementProposalBody{
 		Kind: spec.Kind, ParentModel: spec.ParentModel, Candidate: spec.Candidate,
 		Dataset: spec.Dataset, DevelopmentSplit: spec.DevelopmentSplit, Recipe: spec.Recipe,
 		Code: spec.Code, Proposer: spec.Proposer, Components: components,
@@ -94,6 +106,30 @@ func (p ImprovementProposal) Recipe() artifact.ID           { return p.recipe }
 func (p ImprovementProposal) Code() artifact.ID             { return p.code }
 func (p ImprovementProposal) Proposer() artifact.ID         { return p.proposer }
 func (p ImprovementProposal) Components() []artifact.ID     { return slices.Clone(p.components) }
+
+func (p ImprovementProposal) Content() (artifact.Content, error) {
+	data, err := json.Marshal(p.body())
+	if err != nil {
+		return artifact.Content{}, err
+	}
+	return improvementProposalContract.Content(p.id, data)
+}
+
+func (p ImprovementProposal) Lineage() []artifact.Lineage {
+	parents := []artifact.ID{
+		p.parentModel, p.candidate, p.dataset, p.developmentSplit, p.recipe, p.code, p.proposer,
+	}
+	parents = append(parents, p.components...)
+	return artifact.DependencyLineage(p.id, parents...)
+}
+
+func (p ImprovementProposal) body() improvementProposalBody {
+	return improvementProposalBody{
+		Kind: p.kind, ParentModel: p.parentModel, Candidate: p.candidate, Dataset: p.dataset,
+		DevelopmentSplit: p.developmentSplit, Recipe: p.recipe, Code: p.code,
+		Proposer: p.proposer, Components: slices.Clone(p.components),
+	}
+}
 
 func improvementCandidateKind(kind ImprovementKind) artifact.Kind {
 	switch kind {

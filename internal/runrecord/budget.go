@@ -99,6 +99,40 @@ func ParseBudgetCharge(data []byte) (BudgetCharge, error) {
 	return budgetChargeCodec.Parse(data)
 }
 
+func NewBudget(unit string, split artifact.ID, issued uint64, authority artifact.ID) (Budget, error) {
+	return budgetCodec.New(Budget{
+		Version: BudgetVersion, Unit: unit, Split: split, Issued: issued, Authority: authority,
+	})
+}
+
+func NewBudgetCharge(budget artifact.ID, amount uint64, consumer artifact.ID, purpose string) (BudgetCharge, error) {
+	return budgetChargeCodec.New(BudgetCharge{
+		Version: BudgetChargeVersion, Budget: budget, Amount: amount, Consumer: consumer, Purpose: purpose,
+	})
+}
+
+func (value Budget) Content() (artifact.Content, error) { return budgetCodec.Content(value) }
+
+func (value BudgetCharge) Content() (artifact.Content, error) {
+	return budgetChargeCodec.Content(value)
+}
+
+func (value Budget) Lineage() []artifact.Lineage {
+	return artifact.DependencyLineage(value.ID, value.Split, value.Authority)
+}
+
+func (value BudgetCharge) Lineage() []artifact.Lineage {
+	return artifact.DependencyLineage(value.ID, value.Budget, value.Consumer)
+}
+
+func (value Budget) Batch(key string) (artifact.Batch, error) {
+	return budgetCodec.Batch(key, value, value.Lineage(), nil)
+}
+
+func (value BudgetCharge) Batch(key string) (artifact.Batch, error) {
+	return budgetChargeCodec.Batch(key, value, value.Lineage(), nil)
+}
+
 // BudgetBalance derives the remaining grant from committed charges. Charges
 // against other budgets are refused rather than skipped, and consumption
 // beyond the grant is an error naming the overrun: the balance can prove

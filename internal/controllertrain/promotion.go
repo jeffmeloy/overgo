@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/runrecord"
 )
 
 const (
@@ -39,6 +40,13 @@ type SeedEvidence struct {
 	Evaluation artifact.ID  `json:"evaluation"`
 	Initial    SuiteMetrics `json:"initial"`
 	Final      SuiteMetrics `json:"final"`
+	Cost       ResourceCost `json:"cost"`
+}
+
+type ResourceCost struct {
+	WallNS          uint64 `json:"wall_ns"`
+	PeakDeviceBytes uint64 `json:"peak_device_bytes,omitempty"`
+	PeakHostBytes   uint64 `json:"peak_host_bytes,omitempty"`
 }
 
 // Challenger: same-suite result or explicit eligibility refusal.
@@ -50,6 +58,8 @@ type Challenger struct {
 	Eligible   bool          `json:"eligible"`
 	Refusal    string        `json:"refusal,omitempty"`
 	Metrics    *SuiteMetrics `json:"metrics,omitempty"`
+	Evaluator  artifact.ID   `json:"evaluator,omitzero"`
+	Split      artifact.ID   `json:"split,omitzero"`
 }
 
 type DecisionSpec struct {
@@ -59,6 +69,11 @@ type DecisionSpec struct {
 	Candidate       artifact.ID
 	Seeds           []SeedEvidence
 	Challengers     []Challenger
+	Evaluator       artifact.ID
+	ObservedNoise   SuiteMetrics
+	Stochastic      bool
+	Budget          runrecord.Budget
+	Charges         []runrecord.BudgetCharge
 }
 
 // Decision: external champion/challenger authority.
@@ -72,6 +87,12 @@ type Decision struct {
 	Rollback        artifact.ID    `json:"rollback"`
 	Seeds           []SeedEvidence `json:"seeds"`
 	Challengers     []Challenger   `json:"challengers"`
+	Evaluator       artifact.ID    `json:"evaluator"`
+	ObservedNoise   SuiteMetrics   `json:"observed_noise"`
+	Stochastic      bool           `json:"stochastic"`
+	Budget          artifact.ID    `json:"budget"`
+	Charges         []artifact.ID  `json:"charges"`
+	BudgetRemaining uint64         `json:"budget_remaining"`
 	ID              artifact.ID    `json:"-"`
 }
 
@@ -84,12 +105,28 @@ var decisionCodec = artifact.JSONDocumentCodec(
 )
 
 func Decide(spec DecisionSpec) (Decision, error) {
+	if spec.Budget.Split != spec.Split || spec.Evaluator.Kind() != artifact.KindEvidence {
+		return Decision{}, errors.New("controller training: evaluation authority differs")
+	}
+	remaining, err := runrecord.BudgetBalance(spec.Budget, spec.Charges)
+	if err != nil || len(spec.Charges) == 0 {
+		return Decision{}, errors.Join(err, errors.New("controller training: held-out query budget is absent"))
+	}
+	chargeIDs := make([]artifact.ID, len(spec.Charges))
+	for index, charge := range spec.Charges {
+		if charge.Consumer != spec.Evaluator {
+			return Decision{}, errors.New("controller training: query charge evaluator differs")
+		}
+		chargeIDs[index] = charge.ID
+	}
 	decision := Decision{
 		Version: DecisionVersion, State: DecisionPromote,
 		Dataset: spec.Dataset, Split: spec.Split,
 		CurrentChampion: spec.CurrentChampion, Candidate: spec.Candidate,
 		Rollback: spec.CurrentChampion, Seeds: slices.Clone(spec.Seeds),
 		Challengers: cloneChallengers(spec.Challengers),
+		Evaluator:   spec.Evaluator, ObservedNoise: spec.ObservedNoise, Stochastic: spec.Stochastic,
+		Budget: spec.Budget.ID, Charges: chargeIDs, BudgetRemaining: remaining,
 	}
 	if !promotionProved(decision) {
 		decision.State = DecisionRefuse
@@ -101,10 +138,9 @@ func ParseDecision(data []byte) (Decision, error)     { return decisionCodec.Par
 func (d Decision) ValidateIdentity() error            { return decisionCodec.ValidateIdentity(d) }
 func (d Decision) Content() (artifact.Content, error) { return decisionCodec.Content(d) }
 
-func (d Decision) RollbackTarget() artifact.ID { return d.Rollback }
-
 func (d Decision) Lineage() []artifact.Lineage {
-	parents := []artifact.ID{d.Dataset, d.Split, d.CurrentChampion, d.Candidate}
+	parents := []artifact.ID{d.Dataset, d.Split, d.CurrentChampion, d.Candidate, d.Evaluator, d.Budget}
+	parents = append(parents, d.Charges...)
 	for _, seed := range d.Seeds {
 		parents = append(parents, seed.Model, seed.Run, seed.Evaluation)
 	}
@@ -130,13 +166,15 @@ func (d Decision) Batch(key string) (artifact.Batch, error) {
 }
 
 func promotionProved(decision Decision) bool {
-	if len(decision.Seeds) < 3 {
+	if len(decision.Seeds) == 0 || decision.Stochastic && len(decision.Seeds) < 2 {
 		return false
 	}
 	selected, selectedFound := SuiteMetrics{}, false
 	for _, seed := range decision.Seeds {
-		if seed.Final.Loss >= seed.Initial.Loss || seed.Final.ValidActionRate != 1 ||
-			seed.Final.ActionAccuracy < seed.Initial.ActionAccuracy || seed.Final.ModalityAccuracy < seed.Initial.ModalityAccuracy {
+		if seed.Initial.Loss-seed.Final.Loss <= decision.ObservedNoise.Loss ||
+			seed.Final.ActionAccuracy-seed.Initial.ActionAccuracy <= decision.ObservedNoise.ActionAccuracy ||
+			seed.Final.ModalityAccuracy+decision.ObservedNoise.ModalityAccuracy < seed.Initial.ModalityAccuracy ||
+			seed.Final.ValidActionRate+decision.ObservedNoise.ValidActionRate < seed.Initial.ValidActionRate {
 			return false
 		}
 		if seed.Model == decision.Candidate {
@@ -156,8 +194,10 @@ func promotionProved(decision Decision) bool {
 		}
 		eligible++
 		metrics := *challenger.Metrics
-		if selected.Loss >= metrics.Loss || selected.ActionAccuracy <= metrics.ActionAccuracy ||
-			selected.ModalityAccuracy < metrics.ModalityAccuracy || selected.ValidActionRate < metrics.ValidActionRate {
+		if metrics.Loss-selected.Loss <= decision.ObservedNoise.Loss ||
+			selected.ActionAccuracy-metrics.ActionAccuracy <= decision.ObservedNoise.ActionAccuracy ||
+			selected.ModalityAccuracy+decision.ObservedNoise.ModalityAccuracy < metrics.ModalityAccuracy ||
+			selected.ValidActionRate+decision.ObservedNoise.ValidActionRate < metrics.ValidActionRate {
 			return false
 		}
 	}
@@ -169,15 +209,26 @@ func canonicalizeDecision(decision *Decision) error {
 		decision.State != DecisionPromote && decision.State != DecisionRefuse ||
 		decision.Dataset.Kind() != artifact.KindDataset || decision.Split.Kind() != artifact.KindDatasetShard ||
 		decision.CurrentChampion.Kind() != artifact.KindModel || decision.Candidate.Kind() != artifact.KindModel ||
-		decision.Rollback != decision.CurrentChampion || len(decision.Seeds) < 3 || len(decision.Challengers) == 0 {
+		decision.Rollback != decision.CurrentChampion || len(decision.Seeds) == 0 || len(decision.Challengers) == 0 ||
+		decision.Evaluator.Kind() != artifact.KindEvidence || decision.Budget.Kind() != artifact.KindEvidence ||
+		len(decision.Charges) == 0 || !validMetrics(decision.ObservedNoise) {
 		return errors.New("controller training: invalid promotion decision")
 	}
 	sort.Slice(decision.Seeds, func(i, j int) bool { return decision.Seeds[i].Seed < decision.Seeds[j].Seed })
 	for index, seed := range decision.Seeds {
 		if index > 0 && decision.Seeds[index-1].Seed == seed.Seed || seed.Model.Kind() != artifact.KindModel ||
 			seed.Run.Kind() != artifact.KindRun || seed.Evaluation.Kind() != artifact.KindEvaluation ||
-			!validMetrics(seed.Initial) || !validMetrics(seed.Final) {
+			!validMetrics(seed.Initial) || !validMetrics(seed.Final) || !seed.Cost.valid() {
 			return errors.New("controller training: invalid seed evidence")
+		}
+	}
+	if decision.Stochastic && len(decision.Seeds) < 2 {
+		return errors.New("controller training: stochastic promotion requires multiple seeds")
+	}
+	sort.Slice(decision.Charges, func(i, j int) bool { return decision.Charges[i].String() < decision.Charges[j].String() })
+	for index, charge := range decision.Charges {
+		if charge.Kind() != artifact.KindEvidence || index > 0 && decision.Charges[index-1] == charge {
+			return errors.New("controller training: invalid query charge identity")
 		}
 	}
 	sort.Slice(decision.Challengers, func(i, j int) bool { return decision.Challengers[i].Name < decision.Challengers[j].Name })
@@ -189,10 +240,11 @@ func canonicalizeDecision(decision *Decision) error {
 		}
 		if challenger.Eligible {
 			if challenger.Evaluation == nil || challenger.Evaluation.Kind() != artifact.KindEvaluation ||
-				challenger.Metrics == nil || !validMetrics(*challenger.Metrics) || challenger.Refusal != "" {
+				challenger.Metrics == nil || !validMetrics(*challenger.Metrics) || challenger.Refusal != "" ||
+				challenger.Evaluator != decision.Evaluator || challenger.Split != decision.Split {
 				return errors.New("controller training: eligible challenger lacks suite evidence")
 			}
-		} else if challenger.Evaluation != nil || challenger.Metrics != nil ||
+		} else if challenger.Evaluation != nil || challenger.Metrics != nil || challenger.Evaluator.Valid() || challenger.Split.Valid() ||
 			!validToken(challenger.Refusal) {
 			return errors.New("controller training: refused challenger carries results or lacks reason")
 		}
@@ -215,9 +267,38 @@ func validMetrics(metrics SuiteMetrics) bool {
 	return true
 }
 
+func (cost ResourceCost) valid() bool {
+	return cost.WallNS > 0 && (cost.PeakDeviceBytes > 0 || cost.PeakHostBytes > 0)
+}
+
+func ObservedNoise(values []SuiteMetrics) (SuiteMetrics, error) {
+	if len(values) < 2 {
+		return SuiteMetrics{}, errors.New("controller training: repeated parent measurements required")
+	}
+	minimum, maximum := values[0], values[0]
+	if !validMetrics(values[0]) {
+		return SuiteMetrics{}, errors.New("controller training: invalid parent measurement")
+	}
+	for _, value := range values[1:] {
+		if !validMetrics(value) {
+			return SuiteMetrics{}, errors.New("controller training: invalid parent measurement")
+		}
+		minimum.Loss, maximum.Loss = min(minimum.Loss, value.Loss), max(maximum.Loss, value.Loss)
+		minimum.ActionAccuracy, maximum.ActionAccuracy = min(minimum.ActionAccuracy, value.ActionAccuracy), max(maximum.ActionAccuracy, value.ActionAccuracy)
+		minimum.ModalityAccuracy, maximum.ModalityAccuracy = min(minimum.ModalityAccuracy, value.ModalityAccuracy), max(maximum.ModalityAccuracy, value.ModalityAccuracy)
+		minimum.ValidActionRate, maximum.ValidActionRate = min(minimum.ValidActionRate, value.ValidActionRate), max(maximum.ValidActionRate, value.ValidActionRate)
+	}
+	return SuiteMetrics{
+		Loss: maximum.Loss - minimum.Loss, ActionAccuracy: maximum.ActionAccuracy - minimum.ActionAccuracy,
+		ModalityAccuracy: maximum.ModalityAccuracy - minimum.ModalityAccuracy,
+		ValidActionRate:  maximum.ValidActionRate - minimum.ValidActionRate,
+	}, nil
+}
+
 func cloneDecision(value Decision) Decision {
 	value.Seeds = slices.Clone(value.Seeds)
 	value.Challengers = cloneChallengers(value.Challengers)
+	value.Charges = slices.Clone(value.Charges)
 	return value
 }
 

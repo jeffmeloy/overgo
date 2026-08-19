@@ -55,8 +55,7 @@ func (d ComposedModelDocument) Content() (artifact.Content, error) {
 	return composedModelCodec.Content(d)
 }
 
-// Batch: document plus complete dependency lineage.
-func (d ComposedModelDocument) Batch(key string) (artifact.Batch, error) {
+func (d ComposedModelDocument) Lineage() []artifact.Lineage {
 	capacity := 1 + len(d.Parents) + len(d.Components)
 	if d.Adapter.Valid() {
 		capacity++
@@ -74,7 +73,11 @@ func (d ComposedModelDocument) Batch(key string) (artifact.Batch, error) {
 	if d.Checkpoint.Valid() {
 		dependencies = append(dependencies, d.Checkpoint)
 	}
-	return composedModelCodec.Batch(key, d, artifact.DependencyLineage(d.ID, dependencies...), nil)
+	return artifact.DependencyLineage(d.ID, dependencies...)
+}
+
+func (d ComposedModelDocument) Batch(key string) (artifact.Batch, error) {
+	return composedModelCodec.Batch(key, d, d.Lineage(), nil)
 }
 
 func canonicalizeComposedModel(value *ComposedModelDocument) error {

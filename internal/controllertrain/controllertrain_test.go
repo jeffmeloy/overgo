@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/workflowrecipe"
 )
 
@@ -38,6 +39,7 @@ func TestDecisionRequiresMultiSeedGainAndExternalComparison(t *testing.T) {
 	candidate := fixtureID(t, artifact.KindModel, "candidate")
 	incumbentEvaluation := fixtureID(t, artifact.KindEvaluation, "incumbent-evaluation")
 	incumbentMetrics := SuiteMetrics{Loss: 2, ActionAccuracy: .125, ModalityAccuracy: .25, ValidActionRate: 1}
+	evaluator := fixtureID(t, artifact.KindEvidence, "evaluator")
 	seeds := make([]SeedEvidence, 3)
 	for index := range seeds {
 		seeds[index] = SeedEvidence{
@@ -46,19 +48,32 @@ func TestDecisionRequiresMultiSeedGainAndExternalComparison(t *testing.T) {
 			Evaluation: fixtureID(t, artifact.KindEvaluation, fmt.Sprintf("evaluation-%d", index)),
 			Initial:    incumbentMetrics,
 			Final:      SuiteMetrics{Loss: 1, ActionAccuracy: .5, ModalityAccuracy: .5, ValidActionRate: 1},
+			Cost:       ResourceCost{WallNS: 1, PeakHostBytes: 1},
 		}
 	}
 	seeds[1].Model = candidate
+	budget, err := runrecord.NewBudget("queries", split, uint64(len(seeds)), fixtureID(t, artifact.KindEvidence, "budget-authority"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	charges := make([]runrecord.BudgetCharge, len(seeds))
+	for index := range charges {
+		charges[index], err = runrecord.NewBudgetCharge(budget.ID, 1, evaluator, fmt.Sprintf("seed-%d", index))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	spec := DecisionSpec{
 		Dataset: dataset, Split: split, CurrentChampion: champion, Candidate: candidate, Seeds: seeds,
 		Challengers: []Challenger{{
 			Name: "current-champion", Model: champion, Evaluation: &incumbentEvaluation,
-			Eligible: true, Metrics: &incumbentMetrics,
+			Eligible: true, Metrics: &incumbentMetrics, Evaluator: evaluator, Split: split,
 		}},
+		Evaluator: evaluator, ObservedNoise: SuiteMetrics{}, Stochastic: true, Budget: budget, Charges: charges,
 	}
 	decision, err := Decide(spec)
-	if err != nil || decision.State != DecisionPromote || decision.RollbackTarget() != champion {
-		t.Fatalf("promotion = (%s, %s, %v)", decision.State, decision.RollbackTarget(), err)
+	if err != nil || decision.State != DecisionPromote || decision.Rollback != champion {
+		t.Fatalf("promotion = (%s, %s, %v)", decision.State, decision.Rollback, err)
 	}
 	content, err := decision.Content()
 	if err != nil {

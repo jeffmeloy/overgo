@@ -1,6 +1,6 @@
 //go:build windows
 
-package adaptiveparity_test
+package controllertrain_test
 
 import (
 	"context"
@@ -15,10 +15,11 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/workflowrecipe"
 )
 
-func TestControllerPromotionContract(t *testing.T) {
+func TestDescendantBeatsParent(t *testing.T) {
 	cudatest.Require(t)
 	commit := controllerSourceCommit(t)
 	verifyControllerSources(t, commit)
@@ -58,24 +59,54 @@ func TestControllerPromotionContract(t *testing.T) {
 	}
 	incumbentEvaluation := runs[0].InitialEvaluation.ID
 	incumbentMetrics := runs[0].Evidence.Initial
+	initial := make([]controllertrain.SuiteMetrics, len(runs))
+	for index := range runs {
+		initial[index] = runs[index].Evidence.Initial
+	}
+	noise, err := controllertrain.ObservedNoise(initial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evaluator := pretrainedEvidence(t, "heldout-evaluator")
+	budget, err := runrecord.NewBudget("queries", corpus.Split(), uint64(len(runs)), pretrainedEvidence(t, "budget-authority"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	charges := make([]runrecord.BudgetCharge, len(runs))
+	for index := range charges {
+		charges[index], err = runrecord.NewBudgetCharge(budget.ID, 1, evaluator, fmt.Sprintf("seed-%d", index))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	decision, err := controllertrain.Decide(controllertrain.DecisionSpec{
 		Dataset: corpus.Dataset(), Split: corpus.Split(),
 		CurrentChampion: runs[0].InitialModel, Candidate: runs[0].Evidence.Model,
 		Seeds: controllertrain.SeedEvidenceFrom(runs),
 		Challengers: []controllertrain.Challenger{
-			{Name: "current-champion", Model: runs[0].InitialModel, Evaluation: &incumbentEvaluation, Eligible: true, Metrics: &incumbentMetrics},
+			{Name: "current-champion", Model: runs[0].InitialModel, Evaluation: &incumbentEvaluation, Eligible: true, Metrics: &incumbentMetrics, Evaluator: evaluator, Split: corpus.Split()},
 			{Name: "fractale-350m", Pretrained: true, Model: pretrained("fractale-350m"), Refusal: "controller-scorer-unavailable"},
 			{Name: "carbon", Pretrained: true, Model: pretrained("carbon"), Refusal: "controller-scorer-unavailable"},
 			{Name: "qwen2.5", Pretrained: true, Model: pretrained("qwen2.5"), Refusal: "controller-scorer-unavailable"},
 		},
+		Evaluator: evaluator, ObservedNoise: noise, Stochastic: true, Budget: budget, Charges: charges,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if decision.State != controllertrain.DecisionPromote || decision.RollbackTarget() != runs[0].InitialModel {
-		t.Fatalf("controller promotion = %s; rollback = %s", decision.State, decision.RollbackTarget())
+	if decision.State != controllertrain.DecisionPromote || decision.Rollback != runs[0].InitialModel {
+		t.Fatalf("controller promotion = %s; rollback = %s", decision.State, decision.Rollback)
 	}
-	publishControllerEvidence(t, corpus, runs, decision)
+	publishControllerEvidence(t, corpus, runs, decision, budget, charges)
+}
+
+func pretrainedEvidence(t *testing.T, name string) artifact.ID {
+	t.Helper()
+	id, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
 
 func controllerRecords(commit string, holdout bool) []controllertrain.Record {
@@ -148,7 +179,14 @@ func verifyControllerSources(t *testing.T, commit string) {
 	}
 }
 
-func publishControllerEvidence(t *testing.T, corpus controllertrain.Corpus, runs []controllertrain.SeedRun, decision controllertrain.Decision) {
+func publishControllerEvidence(
+	t *testing.T,
+	corpus controllertrain.Corpus,
+	runs []controllertrain.SeedRun,
+	decision controllertrain.Decision,
+	budget runrecord.Budget,
+	charges []runrecord.BudgetCharge,
+) {
 	t.Helper()
 	ctx := context.Background()
 	store, err := repodb.Open(t.TempDir())
@@ -172,6 +210,9 @@ func publishControllerEvidence(t *testing.T, corpus controllertrain.Corpus, runs
 	for _, challenger := range decision.Challengers {
 		descriptors[challenger.Model] = artifact.Descriptor{ID: challenger.Model}
 	}
+	for _, id := range []artifact.ID{decision.Evaluator, budget.Authority} {
+		descriptors[id] = artifact.Descriptor{ID: id}
+	}
 	facts := make([]artifact.Descriptor, 0, len(descriptors))
 	for _, descriptor := range descriptors {
 		facts = append(facts, descriptor)
@@ -179,6 +220,22 @@ func publishControllerEvidence(t *testing.T, corpus controllertrain.Corpus, runs
 	sort.Slice(facts, func(i, j int) bool { return facts[i].ID.String() < facts[j].ID.String() })
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "controller/facts", Artifacts: facts}); err != nil {
 		t.Fatal(err)
+	}
+	budgetBatch, err := budget.Batch("controller/budget")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, budgetBatch); err != nil {
+		t.Fatal(err)
+	}
+	for index, charge := range charges {
+		batch, err := charge.Batch(fmt.Sprintf("controller/budget/charge-%d", index))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.Commit(ctx, batch); err != nil {
+			t.Fatal(err)
+		}
 	}
 	for index, run := range runs {
 		for _, value := range []struct {

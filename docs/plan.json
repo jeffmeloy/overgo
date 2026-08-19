@@ -3,29 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority. Evaluation is evidence orchestration around active runtime recipes, not a model family or a second runtime. Dataset bytes, benchmark semantics, model definitions, recipes, code, environment, raw outputs, normalized views, metrics, and promotion decisions retain separate immutable identities. Every migration moves all callers and deletes the displaced implementation. Every open step has a failable verifier; queue order respects depends_on.",
   "items": [
     {
-      "id": "descendant-improvement",
-      "title": "Require a child artifact to beat its parent under the full metric contract: identical evaluator and split identities, margin beyond observed noise, multi-seed where stochastic, no critical regression, resource cost reported, holdout query budget respected",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Require a child artifact to beat its parent under the full metric contract: identical evaluator and split identities, margin beyond observed noise, multi-seed where stochastic, no critical regression, resource cost reported, holdout query budget respected",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestDescendantBeatsParent$' -count=1 -v",
-          "rationale": "First row whose passing means actual self-improvement occurred rather than that the contract holds. Generation depth 1.",
-          "depends_on": [
-            "bounded-controller-trials",
-            "compose-model-artifact",
-            "evaluation-isolation"
-          ],
-          "capabilities": [
-            "promotes-artifact",
-            "measures-held-out"
-          ]
-        }
-      ]
-    },
-    {
       "id": "derivation-profile-as-artifact",
       "title": "Make the corpus-to-topology derivation profile a content-addressed artifact with lineage and promotion record, so the system proposes derivation profiles and is judged on the models they produce",
       "status": "open",

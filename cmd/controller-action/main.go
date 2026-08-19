@@ -46,24 +46,22 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	contents, err := controlleraction.Compile(action)
-	if err != nil {
-		return err
-	}
 	store, err := repodb.Open(*recordStore)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = store.Close() }()
-	if _, err := store.Commit(context.Background(), artifact.Batch{
-		Key: "controller-action/" + string(action.Kind), Contents: contents,
-	}); err != nil {
+	batch, err := controlleraction.CompileTransaction(context.Background(), store, action)
+	if err != nil {
 		return err
 	}
-	for _, content := range contents {
+	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
+		return err
+	}
+	for _, content := range batch.Contents {
 		fmt.Fprintf(output, "compiled artifact: %s\n", content.Descriptor.ID)
 	}
 	fmt.Fprintf(output, "action %s compiled %d artifact(s); honesty: deterministic Go executor, allowlist-only, never orchestrates\n",
-		action.Kind, len(contents))
+		action.Kind, len(batch.Contents))
 	return nil
 }

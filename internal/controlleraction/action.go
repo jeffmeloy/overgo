@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
@@ -63,6 +62,7 @@ type ProposalAction struct {
 	Candidates       []composition.BridgeCandidate `json:"candidates"`
 	RequiredVerifier string                        `json:"required_verifier"`
 	Blocker          string                        `json:"blocker"`
+	History          []artifact.ID                 `json:"history,omitempty"`
 }
 
 // DecompositionAction: classify one model's tensor facts.
@@ -239,8 +239,12 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 		}
 		return []artifact.Content{chainContent, baseContent}, nil, nil
 	case KindBridgeProposal:
+		ranker, err := composition.TrainProposalRanker(ctx, reader, action.Proposal.History)
+		if err != nil {
+			return nil, nil, err
+		}
 		proposal, err := composition.NewBridgeProposal(
-			action.Proposal.Target, slices.Clone(action.Proposal.Candidates),
+			action.Proposal.Target, action.Proposal.Candidates, ranker,
 			action.Proposal.RequiredVerifier, action.Proposal.Blocker,
 		)
 		if err != nil {
@@ -250,7 +254,11 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 		if err != nil {
 			return nil, nil, err
 		}
-		return []artifact.Content{content}, proposal.Lineage(), nil
+		rankerContent, err := ranker.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		return []artifact.Content{rankerContent, content}, append(ranker.Lineage(), proposal.Lineage()...), nil
 	case KindComposeModel:
 		composed, err := composition.NewComposedModel(action.Compose.Document)
 		if err != nil {

@@ -54,10 +54,10 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 		Blocker:          "no recorded experiment evidence",
 	}}
 	contents, err := compile(proposal)
-	if err != nil || len(contents) != 1 {
+	if err != nil || len(contents) != 2 {
 		t.Fatalf("proposal compile = (%d, %v)", len(contents), err)
 	}
-	parsed, err := composition.ParseBridgeProposal(contents[0].Data)
+	parsed, err := composition.ParseBridgeProposal(contents[1].Data)
 	if err != nil || parsed.State != composition.ProposalPromotionBlocked {
 		t.Fatalf("compiled proposal = (%+v, %v), want promotion-blocked", parsed, err)
 	}

@@ -168,16 +168,29 @@ func runPropose(retrievalPath, targetModel, verifier, blocker, recordStore strin
 			Donor: donor, Component: neighbor.Name, Distance: neighbor.Distance,
 		})
 	}
-	proposal, err := composition.NewBridgeProposal(target, candidates, verifier, blocker)
-	if err != nil {
-		return err
-	}
 	store, err := repodb.Open(recordStore)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = store.Close() }()
-	batch, err := proposal.Batch("bridge-proposal/" + proposal.ID.String())
+	ranker, err := composition.TrainProposalRankerFromStore(context.Background(), store)
+	if err != nil {
+		return err
+	}
+	proposal, err := composition.NewBridgeProposal(target, candidates, ranker, verifier, blocker)
+	if err != nil {
+		return err
+	}
+	rankerContent, err := ranker.Content()
+	if err != nil {
+		return err
+	}
+	proposalContent, err := proposal.Content()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch("bridge-proposal/"+proposal.ID.String(),
+		[]artifact.Content{rankerContent, proposalContent}, append(ranker.Lineage(), proposal.Lineage()...), nil)
 	if err != nil {
 		return err
 	}

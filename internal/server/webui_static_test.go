@@ -27,7 +27,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/workflow.js", "text/javascript; charset=utf-8", "workflowWorkspace"},
 		{"/mod/chat.js", "text/javascript; charset=utf-8", "/v1/chat/completions"},
 		{"/mod/generation.js", "text/javascript; charset=utf-8", `scope: "generation"`},
-		{"/mod/runtime.js", "text/javascript; charset=utf-8", "/slots"},
+		{"/mod/runtime.js", "text/javascript; charset=utf-8", "/runtime/activity"},
 		{"/mod/datasets.js", "text/javascript; charset=utf-8", "/datasets"},
 		{"/mod/training.js", "text/javascript; charset=utf-8", "/runs"},
 		{"/mod/model_builder.js", "text/javascript; charset=utf-8", `scope: "model-builder"`},
@@ -83,7 +83,7 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
 	}
 	runtime := get("/mod/runtime.js")
-	for _, token := range []string{"overgo.poller", "onActivate", "onDeactivate", `api.get("/slots"`} {
+	for _, token := range []string{"overgo.poller", "onActivate", "onDeactivate", `api.get("/runtime/sessions"`, `api.get("/runtime/activity"`} {
 		if !strings.Contains(runtime, token) {
 			t.Errorf("runtime module missing %q", token)
 		}

@@ -115,6 +115,7 @@ type scalarStage struct {
 	module             recipe.ModuleID
 	input, output      recipe.PortName
 	inputData, outData recipe.DataKind
+	session            recipe.SessionPolicy
 }
 
 type linearCapability struct {
@@ -189,7 +190,7 @@ func (c linearCapability) definition(task recipe.Task, modelID artifact.ID, depe
 	nodes := make([]recipe.Node, len(c.stages))
 	edges := make([]recipe.Edge, len(c.stages)-1)
 	for index, stage := range c.stages {
-		nodes[index] = recipe.Node{ID: stage.node, Module: stage.module, Placement: c.placement}
+		nodes[index] = recipe.Node{ID: stage.node, Module: stage.module, Placement: c.placement, Session: stage.session}
 		if index > 0 {
 			prior := c.stages[index-1]
 			edges[index-1] = recipe.Edge{
@@ -221,7 +222,7 @@ func (c linearCapability) modules(task recipe.Task) []recipe.Module {
 
 var linearCapabilities = map[recipe.Task]linearCapability{
 	recipe.TaskGeneration: {placement: recipe.PlacementHost, stages: []scalarStage{
-		{node: "generate", module: ModuleThoughtBankGenerate, input: "request", output: "text", inputData: recipe.DataText, outData: recipe.DataText},
+		{node: "generate", module: ModuleThoughtBankGenerate, input: "request", output: "text", inputData: recipe.DataText, outData: recipe.DataText, session: recipe.SessionCapacity},
 	}},
 	recipe.TaskForecast: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "forecast", module: ModuleForecastSeries, input: "series", output: "forecast", inputData: recipe.DataTensor, outData: recipe.DataTensor},
@@ -247,7 +248,7 @@ func imageCapability(
 	prepare, integrate, decode recipe.ModuleID,
 ) linearCapability {
 	return linearCapability{placement: placement, stages: []scalarStage{
-		{node: "prepare", module: prepare, input: "condition", output: "session", inputData: condition, outData: recipe.DataSessionPlan},
+		{node: "prepare", module: prepare, input: "condition", output: "session", inputData: condition, outData: recipe.DataSessionPlan, session: recipe.SessionCapacity},
 		{node: "integrate", module: integrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataTensor},
 		{node: "decode", module: decode, input: "features", output: "image", inputData: recipe.DataTensor, outData: recipe.DataImage},
 	}}
@@ -268,7 +269,7 @@ var oscillatorVideoCapability = linearCapability{placement: recipe.PlacementHost
 var routedImageCapability = imageCapability(recipe.PlacementHybrid, recipe.DataPromptConditioning, ModuleRoutedImagePrepare, ModuleRoutedImageIntegrate, ModuleRoutedImageDecode)
 
 var latentVideoCapability = linearCapability{placement: recipe.PlacementHybrid, stages: []scalarStage{
-	{node: "prepare", module: ModuleLatentVideoPrepare, input: "condition", output: "session", inputData: recipe.DataPromptConditioning, outData: recipe.DataSessionPlan},
+	{node: "prepare", module: ModuleLatentVideoPrepare, input: "condition", output: "session", inputData: recipe.DataPromptConditioning, outData: recipe.DataSessionPlan, session: recipe.SessionCapacity},
 	{node: "integrate", module: ModuleLatentVideoIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataVideoTensor},
 	{node: "decode", module: ModuleLatentVideoDecode, input: "features", output: "video", inputData: recipe.DataVideoTensor, outData: recipe.DataVideo},
 }}
@@ -321,7 +322,7 @@ func LatentVideoDefinition(modelID, profileID artifact.ID) (recipe.Definition, e
 
 // ReferenceVideoEditDefinition: prompt and source-video conditioned graph.
 func ReferenceVideoEditDefinition(modelID, profileID artifact.ID) (recipe.Definition, error) {
-	prepare := recipe.Node{ID: "prepare", Module: ModuleReferenceVideoPrepare, Placement: recipe.PlacementHybrid}
+	prepare := recipe.Node{ID: "prepare", Module: ModuleReferenceVideoPrepare, Placement: recipe.PlacementHybrid, Session: recipe.SessionCapacity}
 	integrate := recipe.Node{ID: "integrate", Module: ModuleReferenceVideoIntegrate, Placement: recipe.PlacementHybrid}
 	decode := recipe.Node{ID: "decode", Module: ModuleReferenceVideoDecode, Placement: recipe.PlacementHybrid}
 	return recipe.NewDefinitionWithDependencies(

@@ -60,12 +60,12 @@ func inventoryCapability(
 	}
 }
 
-func cachedExecutor[Input, Model, Output any](
-	cache *capabilityruntime.ScalarSessionCache[Input, Model, Output],
+func sessionExecutor[Input, Model, Output any](
+	director *capabilityruntime.ModelSessionDirector[Input, Model, Output],
 	err error,
 ) capabilityruntime.Executor {
 	if err == nil {
-		return cache.Executor()
+		return director.Executor()
 	}
 	return func(context.Context, artifact.Repository, string, artifact.ID, recipe.Program, string) (any, error) {
 		return nil, err
@@ -73,7 +73,7 @@ func cachedExecutor[Input, Model, Output any](
 }
 
 func thoughtBankCapability() capability {
-	cache, err := capabilityruntime.NewScalarSessionCache[thoughtbank.GenerateRequest, *thoughtbank.Generator, thoughtbank.Generation](
+	director, err := capabilityruntime.NewModelSessionDirector[thoughtbank.GenerateRequest, *thoughtbank.Generator, thoughtbank.Generation](
 		"generation", "host", 1,
 		thoughtbank.ValidateGenerateRequest, thoughtbank.GenerationSessionPolicy,
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ thoughtbank.GenerateRequest) (*thoughtbank.Generator, error) {
@@ -89,7 +89,7 @@ func thoughtBankCapability() capability {
 				return modelrecipe.CapabilityDefinition(recipe.TaskGeneration, modelID)
 			})
 		},
-		execute: cachedExecutor(cache, err),
+		execute: sessionExecutor(director, err),
 	}
 }
 

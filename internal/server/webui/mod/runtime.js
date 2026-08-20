@@ -1,7 +1,8 @@
 (function () {
   "use strict";
   const refreshMilliseconds = 1000;
-  let polling = null;
+  let runtimePolling = null;
+  let activityPolling = null;
 
   function present(value, format) {
     return value == null ? "unknown" : String(format ? format(value) : value);
@@ -11,8 +12,8 @@
     id: "runtime",
     label: "Runtime",
     section: "inference",
-    onActivate() { if (polling) polling.start(); },
-    onDeactivate() { if (polling) polling.stop(); },
+    onActivate() { if (runtimePolling) runtimePolling.start(); },
+    onDeactivate() { if (runtimePolling) runtimePolling.stop(); },
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       clear(panel);
@@ -31,16 +32,19 @@
 
       function render(data) {
         error.replaceChildren();
+        const session = data.session;
         summary.replaceChildren(
-          overgo.stat("Active slots", data.filter((slot) => slot.is_processing).length),
-          overgo.stat("Slots", data.length));
+          overgo.stat("Active sessions", session.active),
+          overgo.stat("Available", session.available),
+          overgo.stat("Capacity", session.capacity),
+          overgo.stat("Device", session.device));
         const table = el("table", { class: "grid" });
         table.appendChild(el("tr", {},
           el("th", { text: "slot" }), el("th", { text: "task" }), el("th", { text: "state" }),
           el("th", { text: "context" }), el("th", { text: "prompt" }), el("th", { text: "cached" }),
           el("th", { text: "completion" }), el("th", { text: "prefill" }), el("th", { text: "decode" }),
           el("th", { text: "elapsed" })));
-        for (const slot of data) {
+        for (const slot of data.slots) {
           const timing = slot.timings || null;
           const elapsed = timing ? Number(timing.prompt_ms) + Number(timing.predicted_ms) : null;
           table.appendChild(el("tr", {},
@@ -61,8 +65,56 @@
         slots.replaceChildren(table);
       }
 
-      polling = overgo.poller(async (signal) => {
-        try { render(await overgo.api.get("/slots", { signal })); }
+      runtimePolling = overgo.poller(async (signal) => {
+        try { render(await overgo.api.get("/runtime/sessions", { signal })); }
+        catch (err) { error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+      }, refreshMilliseconds);
+    },
+  });
+
+  window.overgo.registerTab({
+    id: "activity",
+    label: "Activity",
+    section: "inference",
+    onActivate() { if (activityPolling) activityPolling.start(); },
+    onDeactivate() { if (activityPolling) activityPolling.stop(); },
+    async mount(panel, overgo) {
+      const { el, clear, fmt } = overgo;
+      clear(panel);
+      const summary = el("div", { class: "statgrid" });
+      const error = el("div");
+      const rows = el("div");
+      panel.append(el("div", { class: "section-title", text: "Activity" }), summary, error, rows);
+
+      function render(data) {
+        error.replaceChildren();
+        summary.replaceChildren(
+          overgo.stat("Observations", data.count),
+          overgo.stat("Publish failures", data.publish_failures),
+          overgo.stat("Catalog truncated", data.truncated ? "yes" : "no"));
+        const table = el("table", { class: "grid" });
+        table.appendChild(el("tr", {},
+          el("th", { text: "started" }), el("th", { text: "task" }), el("th", { text: "outcome" }),
+          el("th", { text: "model" }), el("th", { text: "recipe" }), el("th", { text: "duration" }),
+          el("th", { text: "input" }), el("th", { text: "output" }), el("th", { text: "H2D" }), el("th", { text: "D2H" })));
+        for (const item of data.activity) {
+          table.appendChild(el("tr", {},
+            el("td", { class: "mono", text: new Date(Number(item.started_unix_ns) / 1e6).toLocaleString() }),
+            el("td", { text: item.task }),
+            el("td", {}, el("span", { class: "tag " + (item.outcome === "succeeded" ? "user_defined" : "control"), text: item.outcome })),
+            el("td", { class: "mono", text: fmt.shortID(item.model) }),
+            el("td", { class: "mono", text: fmt.shortID(item.recipe) }),
+            el("td", { class: "mono", text: (Number(item.measured_ns) / 1e6).toFixed(2) + " ms" }),
+            el("td", { class: "mono", text: fmt.grouped(item.usage.input_tokens || 0) }),
+            el("td", { class: "mono", text: fmt.grouped(item.usage.output_tokens || 0) }),
+            el("td", { class: "mono", text: fmt.bytes(item.resources.host_to_device_bytes || 0) }),
+            el("td", { class: "mono", text: fmt.bytes(item.resources.device_to_host_bytes || 0) })));
+        }
+        rows.replaceChildren(table);
+      }
+
+      activityPolling = overgo.poller(async (signal) => {
+        try { render(await overgo.api.get("/runtime/activity", { signal })); }
         catch (err) { error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }, refreshMilliseconds);
     },

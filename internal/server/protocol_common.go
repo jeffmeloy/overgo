@@ -43,28 +43,10 @@ func (h *Handler) decodeProtocolJSON(
 		h.requireModel(response, model())
 }
 
-func (h *Handler) prepareProtocolGeneration(
-	response http.ResponseWriter,
-	request *http.Request,
-	prompt nativePrompt,
-) (preparedPrompt, int, bool) {
-	slotID, acquired := h.acquireRequestSlot(response, -1)
-	if !acquired {
-		return preparedPrompt{}, 0, false
-	}
-	prepared, err := h.preparePrompt(request.Context(), prompt, true)
-	if err != nil {
-		h.releaseSlot(slotID)
-		writeGenerationError(response, err)
-		return preparedPrompt{}, 0, false
-	}
-	return prepared, slotID, true
-}
-
 type protocolGenerationPlan struct {
 	handler   *Handler
 	request   *http.Request
-	slotID    int
+	session   *requestSession
 	prompt    preparedPrompt
 	sampler   *sampling.Sampler
 	maxTokens int
@@ -79,7 +61,7 @@ type protocolGenerationResult struct {
 type protocolBatchGenerationPlan struct {
 	handler   *Handler
 	request   *http.Request
-	slotID    int
+	session   *requestSession
 	prompts   []nativePrompt
 	sampler   *sampling.Sampler
 	maxTokens int
@@ -99,18 +81,18 @@ func (h *Handler) prepareProtocolBatchGenerationPlan(
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
-	slotID, acquired := h.acquireRequestSlot(response, -1)
+	lease, acquired := h.acquireRequestSession(response, -1)
 	if !acquired {
 		return nil, false
 	}
 	return &protocolBatchGenerationPlan{
-		handler: h, request: request, slotID: slotID, prompts: prompts,
+		handler: h, request: request, session: lease, prompts: prompts,
 		sampler: sampler, maxTokens: maxTokens, stops: stops,
 	}, true
 }
 
 func (plan *protocolBatchGenerationPlan) release() {
-	plan.handler.releaseSlot(plan.slotID)
+	plan.handler.releaseSession(plan.session)
 }
 
 func (plan *protocolBatchGenerationPlan) run(
@@ -131,7 +113,7 @@ func (plan *protocolBatchGenerationPlan) run(
 				emitChoice = func(piece string) error { return emit(index, piece) }
 			}
 			ids, pump, err := plan.handler.generateWithPump(
-				plan.request.Context(), plan.slotID, prompt.Text,
+				plan.request.Context(), plan.session, prompt.Text,
 				inference.GenerateOptions{
 					MaxNewTokens: plan.maxTokens, Sampler: sampler,
 					PromptTokenIDs: prompt.TokenIDs,
@@ -170,18 +152,24 @@ func (h *Handler) prepareProtocolGenerationPlan(
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
-	prepared, slotID, ok := h.prepareProtocolGeneration(response, request, prompt)
-	if !ok {
+	lease, acquired := h.acquireRequestSession(response, -1)
+	if !acquired {
+		return nil, false
+	}
+	prepared, err := h.preparePrompt(request.Context(), prompt, true)
+	if err != nil {
+		h.releaseSession(lease)
+		writeGenerationError(response, err)
 		return nil, false
 	}
 	return &protocolGenerationPlan{
-		handler: h, request: request, slotID: slotID, prompt: prepared,
+		handler: h, request: request, session: lease, prompt: prepared,
 		sampler: sampler, maxTokens: maxTokens, stops: stops,
 	}, true
 }
 
 func (plan *protocolGenerationPlan) release() {
-	plan.handler.releaseSlot(plan.slotID)
+	plan.handler.releaseSession(plan.session)
 }
 
 func (plan *protocolGenerationPlan) context() context.Context {
@@ -211,7 +199,7 @@ func (plan *protocolGenerationPlan) runWithSampler(
 ) (protocolGenerationResult, error) {
 	ids, pump, err := plan.handler.generateWithPump(
 		plan.context(),
-		plan.slotID,
+		plan.session,
 		plan.prompt.Text,
 		plan.handler.protocolGenerationOptions(
 			plan.maxTokens, sampler, plan.prompt.TokenIDs, plan.prompt.ProjectedInputs,

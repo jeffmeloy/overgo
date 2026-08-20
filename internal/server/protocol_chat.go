@@ -882,7 +882,7 @@ func (h *Handler) streamChatCompletion(
 			CompletionTokens: result.pump.completion,
 			TotalTokens:      result.promptTokens() + result.pump.completion,
 		}
-		terminalTimings := h.slotStats[plan.slotID].metrics(true).Timings
+		terminalTimings := h.slotStats[plan.session.ID].metrics(true).Timings
 		usage = &terminalUsage
 		timings = &terminalTimings
 		_ = writeChunk(choiceIndex, chatStreamDelta{}, &reason)

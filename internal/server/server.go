@@ -18,10 +18,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/inference"
 	"overgo/internal/operation"
 	"overgo/internal/projector"
+	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
 	"overgo/internal/tokenizer"
@@ -230,6 +234,8 @@ type Config struct {
 	// corresponding /datasets or /runs endpoint.
 	DatasetsRoot string
 	RepoDBPath   string
+	Repository   *repodb.Store
+	Environment  runrecord.Environment
 	Evaluation   EvaluationWorkspaceAPI
 	Analysis     AnalysisPolicy
 }
@@ -331,11 +337,8 @@ func (stats *slotRuntimeStats) snapshot(includeText bool) (string, string, slotS
 type Handler struct {
 	config             Config
 	generator          Generator
-	generation         Generator
-	continuous         *inference.ContinuousGenerator
+	sessions           *capabilityruntime.ModelSessionDirector[struct{}, Generator, struct{}]
 	defaultSampling    sampling.Config
-	slots              chan int
-	slotMu             sync.Mutex
 	slotBusy           []atomic.Bool
 	slotTasks          []atomic.Uint64
 	slotStats          []slotRuntimeStats
@@ -352,6 +355,10 @@ type Handler struct {
 	responseFiles      ResponseFileResolver
 	thinkingSigner     *anthropicThinkingSigner
 	operations         *operation.Manager
+	repository         *repodb.Store
+	environment        runrecord.Environment
+	modelArtifact      artifact.ID
+	observationErrors  atomic.Uint64
 }
 
 func New(config Config, generator Generator) (*Handler, error) {
@@ -446,16 +453,11 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("server defaults: %w", err)
 	}
-	operations, err := operation.NewManager(config.MaxStoredResponses)
+	repository, environment, err := openServingRepository(config)
 	if err != nil {
 		return nil, err
 	}
-	slots := make(chan int, config.MaxConcurrent)
-	for id := range config.MaxConcurrent {
-		slots <- id
-	}
 	generation := generator
-	var continuous *inference.ContinuousGenerator
 	if config.MaxConcurrent > 1 {
 		if factory, ok := generator.(ContinuousGeneratorFactory); ok {
 			candidate, schedulerErr := factory.NewContinuousGenerator(
@@ -465,18 +467,21 @@ func New(config Config, generator Generator) (*Handler, error) {
 				},
 			)
 			if schedulerErr == nil {
-				continuous = candidate
 				generation = candidate
 			}
 		}
 	}
-	return &Handler{
+	sessions, err := capabilityruntime.NewResidentModelSessionDirector(
+		"inference", "compiled", config.MaxConcurrent, generation,
+	)
+	if err != nil {
+		return nil, err
+	}
+	handler := &Handler{
 		config:          config,
 		generator:       generator,
-		generation:      generation,
-		continuous:      continuous,
+		sessions:        sessions,
 		defaultSampling: defaultSampler.Config(),
-		slots:           slots,
 		slotBusy:        make([]atomic.Bool, config.MaxConcurrent),
 		slotTasks:       make([]atomic.Uint64, config.MaxConcurrent),
 		slotStats:       make([]slotRuntimeStats, config.MaxConcurrent),
@@ -488,11 +493,20 @@ func New(config Config, generator Generator) (*Handler, error) {
 		),
 		responseFiles:  config.ResponseFiles,
 		thinkingSigner: thinkingSigner,
-		operations:     operations,
-	}, nil
+		repository:     repository,
+		environment:    environment,
+	}
+	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
+		handler.modelArtifact = identity.ModelID()
+	}
+	handler.operations, err = operation.NewManager(config.MaxStoredResponses)
+	if err != nil {
+		return nil, err
+	}
+	return handler, nil
 }
 
-// Close: release fused scheduler state.
+// Close: release serving session state.
 func (h *Handler) Close() error {
 	if h == nil {
 		return nil
@@ -500,70 +514,53 @@ func (h *Handler) Close() error {
 	if h.operations != nil {
 		h.operations.Close()
 	}
-	if h.continuous == nil {
+	if h.sessions == nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return h.continuous.Close(ctx)
+	err := h.sessions.Close(ctx)
+	cancel()
+	return err
 }
 
-func (h *Handler) acquireSlot(requested int) (int, bool) {
-	h.slotMu.Lock()
-	defer h.slotMu.Unlock()
-	id := -1
-	if requested < 0 {
-		select {
-		case id = <-h.slots:
-		default:
-			return -1, false
-		}
-	} else {
-		available := len(h.slots)
-		others := make([]int, 0, available)
-		for range available {
-			candidate := <-h.slots
-			if candidate == requested {
-				id = candidate
-			} else {
-				others = append(others, candidate)
-			}
-		}
-		for _, candidate := range others {
-			h.slots <- candidate
-		}
-		if id < 0 {
-			return -1, false
-		}
+type requestSession = capabilityruntime.SessionLease[Generator]
+
+func (h *Handler) acquireSession(requested int) (*requestSession, bool) {
+	lease, ok := h.sessions.TryLease(requested)
+	if !ok {
+		return nil, false
 	}
+	id := lease.ID
 	h.slotTasks[id].Store(h.nextTask.Add(1))
 	h.slotStats[id].reset(time.Now())
 	h.slotBusy[id].Store(true)
-	return id, true
+	return lease, true
 }
 
-func (h *Handler) acquireRequestSlot(response http.ResponseWriter, requested int) (int, bool) {
-	id, acquired := h.acquireSlot(requested)
+func (h *Handler) acquireRequestSession(response http.ResponseWriter, requested int) (*requestSession, bool) {
+	lease, acquired := h.acquireSession(requested)
 	if acquired {
-		return id, true
+		return lease, true
 	}
 	response.Header().Set("Retry-After", "1")
 	writeError(response, http.StatusTooManyRequests, "server_busy", "generation capacity is busy")
-	return -1, false
+	return nil, false
 }
 
-func (h *Handler) releaseSlot(id int) {
+func (h *Handler) releaseSession(lease *requestSession) {
+	if lease == nil {
+		return
+	}
+	id := lease.ID
 	if id < 0 || id >= len(h.slotBusy) {
 		return
 	}
-	h.slotMu.Lock()
 	started := h.slotStats[id].startedNanos.Load()
 	if started > 0 {
 		h.slotStats[id].totalNanos.Store(max(time.Now().UnixNano()-started, 0))
 	}
 	h.slotBusy[id].Store(false)
-	h.slots <- id
-	h.slotMu.Unlock()
+	lease.Release()
 }
 
 func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
@@ -620,6 +617,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/embeddings" ||
 		request.URL.Path == "/rerank" ||
 		request.URL.Path == "/reranking" ||
+		request.URL.Path == "/runtime/sessions" ||
+		request.URL.Path == "/runtime/activity" ||
 		request.URL.Path == "/slots" ||
 		request.URL.Path == "/chat/completions" ||
 		request.URL.Path == "/chat/completions/input_tokens" ||
@@ -666,6 +665,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.anthropicMessages(response, request)
 	case "/v1/embeddings":
 		h.embeddings(response, request)
+	case "/v1/images/generations":
+		h.nativeImageGeneration(response, request)
+	case "/v1/audio/speech":
+		h.nativeAudioSpeech(response, request)
 	case "/embedding", "/embeddings":
 		h.nativeEmbeddings(response, request)
 	case "/rerank", "/reranking", "/v1/rerank", "/v1/reranking":
@@ -736,6 +739,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.artifactGallery(response, request)
 	case "/artifacts/content":
 		h.artifactContent(response, request)
+	case "/runtime/sessions":
+		h.runtimeSessions(response, request)
+	case "/runtime/activity":
+		h.runtimeActivity(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

@@ -64,11 +64,11 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
-	store, ok := h.openBrowseStore(response)
+	store, release, ok := h.openBrowseStore(response)
 	if !ok {
 		return
 	}
-	defer store.Close()
+	defer release()
 	if value := request.URL.Query().Get("id"); value != "" {
 		id, parseErr := artifact.ParseID(value)
 		if parseErr != nil || id.Kind() != artifact.KindRun {

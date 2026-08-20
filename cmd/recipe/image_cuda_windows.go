@@ -27,7 +27,7 @@ const (
 )
 
 func imageCapability() capability {
-	routedCache, routedErr := capabilityruntime.NewScalarSessionCache[sensenovarecipe.GenerationRequest, *sensenovarecipe.Generator, latentimage.EncodedImage](
+	routedDirector, routedErr := capabilityruntime.NewModelSessionDirector[sensenovarecipe.GenerationRequest, *sensenovarecipe.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
 		sensenovarecipe.ValidateGenerationRequest, sensenovarecipe.GenerationSessionPolicy,
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ sensenovarecipe.GenerationRequest) (*sensenovarecipe.Generator, error) {
@@ -38,8 +38,8 @@ func imageCapability() capability {
 		},
 		sensenovarecipe.RegisterRuntime,
 	)
-	routed := cachedExecutor(routedCache, routedErr)
-	latentCache, err := capabilityruntime.NewScalarSessionCache[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
+	routed := sessionExecutor(routedDirector, routedErr)
+	latentDirector, err := capabilityruntime.NewModelSessionDirector[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
 		latentimage.ValidateRequest, latentimage.SessionPolicy,
 		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentimage.Request) (*latentimage.Generator, error) {
@@ -58,12 +58,12 @@ func imageCapability() capability {
 		},
 		latentimage.RegisterRuntime,
 	)
-	latent := cachedExecutor(latentCache, err)
+	latent := sessionExecutor(latentDirector, err)
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.Request, *oscillatorimage.Model, latentimage.EncodedImage](
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
 	)
-	diffusionCache, diffusionErr := capabilityruntime.NewScalarSessionCache[diffusionimage.Request, *diffusionimage.ResidentGenerator, latentimage.EncodedImage](
+	diffusionDirector, diffusionErr := capabilityruntime.NewModelSessionDirector[diffusionimage.Request, *diffusionimage.ResidentGenerator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
 		diffusionimage.ValidateRequest, diffusionimage.SessionPolicy,
 		func(ctx context.Context, _ artifact.Repository, path string, _ recipe.Program, request diffusionimage.Request) (*diffusionimage.ResidentGenerator, error) {
@@ -74,7 +74,7 @@ func imageCapability() capability {
 		},
 		diffusionimage.RegisterRuntime[*diffusionimage.ResidentGenerator],
 	)
-	diffusion := cachedExecutor(diffusionCache, diffusionErr)
+	diffusion := sessionExecutor(diffusionDirector, diffusionErr)
 	return capability{
 		resolve: resolveImageSource,
 		execute: capabilityruntime.Dispatch(

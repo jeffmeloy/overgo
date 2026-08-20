@@ -7,14 +7,15 @@ import (
 	"sync"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
 	"overgo/internal/workflowruntime"
 )
 
 type sessionKey struct {
-	model, recipe  artifact.ID
-	device, policy string
+	model, recipe, resources artifact.ID
+	device, policy           string
 }
 
 type sessionEntry[Model any] struct {
@@ -28,8 +29,8 @@ type sessionEntry[Model any] struct {
 	closed    bool
 }
 
-// ScalarSessionCache owns bounded reusable model sessions.
-type ScalarSessionCache[Input, Model, Output any] struct {
+// ModelSessionDirector: bounded recipe-bound model sessions.
+type ModelSessionDirector[Input, Model, Output any] struct {
 	name     string
 	device   string
 	capacity int
@@ -45,9 +46,141 @@ type ScalarSessionCache[Input, Model, Output any] struct {
 	entries map[sessionKey]*sessionEntry[Model]
 	changed chan struct{}
 	closed  bool
+
+	admissions    chan int
+	admissionMu   sync.Mutex
+	resident      Model
+	residentSet   bool
+	residentUsers int
+	residentClose bool
 }
 
-func NewScalarSessionCache[Input, Model, Output any](
+// SessionLease: admitted use of one resident model session.
+type SessionLease[Model any] struct {
+	ID      int
+	model   Model
+	release func() error
+	once    sync.Once
+	err     error
+}
+
+// SessionSnapshot: current resident admission state.
+type SessionSnapshot struct {
+	Name      string `json:"name"`
+	Device    string `json:"device"`
+	Capacity  int    `json:"capacity"`
+	Active    int    `json:"active"`
+	Available int    `json:"available"`
+	Closed    bool   `json:"closed"`
+}
+
+func (l *SessionLease[Model]) Model() Model { return l.model }
+
+func (l *SessionLease[Model]) Release() error {
+	if l != nil && l.release != nil {
+		l.once.Do(func() { l.err = l.release() })
+	}
+	return l.err
+}
+
+// NewResidentModelSessionDirector adopts one compiled serving session.
+func NewResidentModelSessionDirector[Model any](
+	name, device string,
+	capacity int,
+	model Model,
+) (*ModelSessionDirector[struct{}, Model, struct{}], error) {
+	if name == "" || device == "" || capacity <= 0 {
+		return nil, errors.New("capability runtime: incomplete resident model session director")
+	}
+	admissions := make(chan int, capacity)
+	for id := range capacity {
+		admissions <- id
+	}
+	return &ModelSessionDirector[struct{}, Model, struct{}]{
+		name: name, device: device, capacity: capacity,
+		entries: make(map[sessionKey]*sessionEntry[Model]), changed: make(chan struct{}),
+		admissions: admissions, resident: model, residentSet: true,
+	}, nil
+}
+
+// TryLease admits one request without waiting.
+func (c *ModelSessionDirector[Input, Model, Output]) TryLease(requested int) (*SessionLease[Model], bool) {
+	if c == nil || c.admissions == nil {
+		return nil, false
+	}
+	c.admissionMu.Lock()
+	defer c.admissionMu.Unlock()
+	id := -1
+	if requested < 0 {
+		select {
+		case id = <-c.admissions:
+		default:
+			return nil, false
+		}
+	} else {
+		available := len(c.admissions)
+		for range available {
+			candidate := <-c.admissions
+			if candidate == requested {
+				id = candidate
+			} else {
+				c.admissions <- candidate
+			}
+			if id >= 0 {
+				break
+			}
+		}
+		if id < 0 {
+			return nil, false
+		}
+	}
+	c.mu.Lock()
+	if c.closed || !c.residentSet {
+		c.mu.Unlock()
+		c.admissions <- id
+		return nil, false
+	}
+	c.residentUsers++
+	model := c.resident
+	c.mu.Unlock()
+	lease := &SessionLease[Model]{ID: id, model: model}
+	lease.release = func() error {
+		c.admissionMu.Lock()
+		c.admissions <- id
+		c.admissionMu.Unlock()
+		c.mu.Lock()
+		c.residentUsers--
+		c.notify()
+		c.mu.Unlock()
+		return nil
+	}
+	return lease, true
+}
+
+func (c *ModelSessionDirector[Input, Model, Output]) Available() int {
+	if c == nil || c.admissions == nil {
+		return 0
+	}
+	return len(c.admissions)
+}
+
+func (c *ModelSessionDirector[Input, Model, Output]) Snapshot() SessionSnapshot {
+	if c == nil {
+		return SessionSnapshot{}
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	available := 0
+	if c.admissions != nil {
+		available = len(c.admissions)
+	}
+	return SessionSnapshot{
+		Name: c.name, Device: c.device, Capacity: c.capacity,
+		Active: c.residentUsers, Available: available, Closed: c.closed,
+	}
+}
+
+func NewModelSessionDirector[Input, Model, Output any](
 	name, device string,
 	capacity int,
 	validate func(Input) error,
@@ -55,8 +188,8 @@ func NewScalarSessionCache[Input, Model, Output any](
 	load func(context.Context, artifact.Repository, string, recipe.Program, Input) (Model, error),
 	reset func(context.Context, Model, Input) error,
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
-) (*ScalarSessionCache[Input, Model, Output], error) {
-	return newSessionCache[Input, Model, Output](
+) (*ModelSessionDirector[Input, Model, Output], error) {
+	return newModelSessionDirector[Input, Model, Output](
 		name, device, capacity, validate, policy, load, reset, bind,
 		func(input Input, content artifact.Content, definition recipe.Definition) (map[recipe.PortName]workflowruntime.Value, error) {
 			if len(definition.Inputs) != 1 {
@@ -70,14 +203,54 @@ func NewScalarSessionCache[Input, Model, Output any](
 	)
 }
 
+// NewComponentSessionDirector: recipe-component lease owner.
+func NewComponentSessionDirector[Model any](name, device string, capacity int) (*ModelSessionDirector[struct{}, Model, struct{}], error) {
+	if name == "" || device == "" || capacity <= 0 {
+		return nil, errors.New("capability runtime: incomplete component session director")
+	}
+	return &ModelSessionDirector[struct{}, Model, struct{}]{
+		name: name, device: device, capacity: capacity,
+		entries: make(map[sessionKey]*sessionEntry[Model]), changed: make(chan struct{}),
+	}, nil
+}
+
+// LeaseComponent: exclusive use under its compiled lifetime.
+func (c *ModelSessionDirector[Input, Model, Output]) LeaseComponent(
+	ctx context.Context,
+	component modelrecipe.ComponentSession,
+	load func(context.Context) (Model, error),
+) (*SessionLease[Model], error) {
+	if c == nil || load == nil || !component.Identity.Valid() || !component.Model.Valid() || component.Session == "" {
+		return nil, errors.New("capability runtime: incomplete component lease")
+	}
+	key := sessionKey{
+		model: component.Model, resources: component.Identity,
+		device: c.device, policy: string(component.Session),
+	}
+	entry, _, err := c.leaseEntry(ctx, key, load)
+	if err != nil {
+		return nil, err
+	}
+	lease := &SessionLease[Model]{model: entry.model}
+	lease.release = func() error {
+		var closeErr error
+		if component.Session == recipe.SessionRequest {
+			closeErr = c.retire(ctx, key, entry, nil)
+		}
+		c.release(entry)
+		return closeErr
+	}
+	return lease, nil
+}
+
 // MappedInput binds one JSON request field to a typed recipe port.
 type MappedInput struct {
 	Value   any
 	Content artifact.Content
 }
 
-// NewMappedSessionCache reuses the shared resident cache for multi-input recipes.
-func NewMappedSessionCache[Input, Model, Output any](
+// NewMappedModelSessionDirector: multi-input session authority.
+func NewMappedModelSessionDirector[Input, Model, Output any](
 	name, device string,
 	capacity int,
 	validate func(Input) error,
@@ -86,11 +259,11 @@ func NewMappedSessionCache[Input, Model, Output any](
 	reset func(context.Context, Model, Input) error,
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
 	mapInputs func(Input) (map[recipe.PortName]MappedInput, error),
-) (*ScalarSessionCache[Input, Model, Output], error) {
+) (*ModelSessionDirector[Input, Model, Output], error) {
 	if mapInputs == nil {
 		return nil, errors.New("capability runtime: input mapper is nil")
 	}
-	return newSessionCache[Input, Model, Output](
+	return newModelSessionDirector[Input, Model, Output](
 		name, device, capacity, validate, policy, load, reset, bind,
 		func(input Input, _ artifact.Content, definition recipe.Definition) (map[recipe.PortName]workflowruntime.Value, error) {
 			mapped, err := mapInputs(input)
@@ -116,7 +289,7 @@ func NewMappedSessionCache[Input, Model, Output any](
 	)
 }
 
-func newSessionCache[Input, Model, Output any](
+func newModelSessionDirector[Input, Model, Output any](
 	name, device string,
 	capacity int,
 	validate func(Input) error,
@@ -125,22 +298,22 @@ func newSessionCache[Input, Model, Output any](
 	reset func(context.Context, Model, Input) error,
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
 	inputs func(Input, artifact.Content, recipe.Definition) (map[recipe.PortName]workflowruntime.Value, error),
-) (*ScalarSessionCache[Input, Model, Output], error) {
+) (*ModelSessionDirector[Input, Model, Output], error) {
 	if name == "" || device == "" || capacity <= 0 || validate == nil || policy == nil || load == nil || reset == nil || bind == nil {
-		return nil, errors.New("capability runtime: incomplete scalar session cache")
+		return nil, errors.New("capability runtime: incomplete model session director")
 	}
-	return &ScalarSessionCache[Input, Model, Output]{
+	return &ModelSessionDirector[Input, Model, Output]{
 		name: name, device: device, capacity: capacity,
 		validate: validate, policy: policy, load: load, reset: reset, bind: bind, inputs: inputs,
 		entries: make(map[sessionKey]*sessionEntry[Model]), changed: make(chan struct{}),
 	}, nil
 }
 
-func (c *ScalarSessionCache[Input, Model, Output]) Executor() Executor {
+func (c *ModelSessionDirector[Input, Model, Output]) Executor() Executor {
 	return c.execute
 }
 
-func (c *ScalarSessionCache[Input, Model, Output]) execute(
+func (c *ModelSessionDirector[Input, Model, Output]) execute(
 	ctx context.Context,
 	store artifact.Repository,
 	path string,
@@ -158,8 +331,13 @@ func (c *ScalarSessionCache[Input, Model, Output]) execute(
 		return zero, errors.Join(errors.New("capability runtime: invalid execution policy"), err)
 	}
 	definition := program.Definition()
+	resources, err := modelrecipe.CompileComponentSessionPlan(ctx, store, program)
+	if err != nil {
+		return zero, err
+	}
 	key := sessionKey{
-		model: modelID, recipe: definition.ID, device: c.device, policy: policy,
+		model: modelID, recipe: definition.ID, resources: resources.Identity,
+		device: c.device, policy: policy,
 	}
 
 	entry, fresh, err := c.lease(ctx, store, path, key, program, input)
@@ -181,6 +359,8 @@ func (c *ScalarSessionCache[Input, Model, Output]) execute(
 		)
 		if executeErr != nil {
 			err = c.retire(ctx, key, entry, executeErr)
+		} else if resources.RequestScoped() {
+			err = c.retire(ctx, key, entry, nil)
 		}
 		return output, err
 	}
@@ -190,7 +370,7 @@ func (c *ScalarSessionCache[Input, Model, Output]) execute(
 	return zero, err
 }
 
-func (c *ScalarSessionCache[Input, Model, Output]) lease(
+func (c *ModelSessionDirector[Input, Model, Output]) lease(
 	ctx context.Context,
 	store artifact.Repository,
 	path string,
@@ -198,11 +378,21 @@ func (c *ScalarSessionCache[Input, Model, Output]) lease(
 	program recipe.Program,
 	input Input,
 ) (*sessionEntry[Model], bool, error) {
+	return c.leaseEntry(ctx, key, func(ctx context.Context) (Model, error) {
+		return c.load(ctx, store, path, program, input)
+	})
+}
+
+func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
+	ctx context.Context,
+	key sessionKey,
+	load func(context.Context) (Model, error),
+) (*sessionEntry[Model], bool, error) {
 	for {
 		c.mu.Lock()
 		if c.closed {
 			c.mu.Unlock()
-			return nil, false, errors.New("capability runtime: session cache is closed")
+			return nil, false, errors.New("capability runtime: model session director is closed")
 		}
 		c.tick++
 		if entry, ok := c.entries[key]; ok {
@@ -258,7 +448,7 @@ func (c *ScalarSessionCache[Input, Model, Output]) lease(
 		c.entries[key] = entry
 		c.notify()
 		c.mu.Unlock()
-		model, err := c.load(ctx, store, path, program, input)
+		model, err := load(ctx)
 		entry.model, entry.loadErr = model, err
 		close(entry.ready)
 		if err != nil {
@@ -279,19 +469,29 @@ func (c *ScalarSessionCache[Input, Model, Output]) lease(
 		if dead {
 			entry.mu.Unlock()
 			c.releaseBorrower(entry)
-			return nil, false, errors.New("capability runtime: session cache is closed")
+			return nil, false, errors.New("capability runtime: model session director is closed")
 		}
 		return entry, true, nil
 	}
 }
 
-func (c *ScalarSessionCache[Input, Model, Output]) Close(ctx context.Context) error {
+func (c *ModelSessionDirector[Input, Model, Output]) Close(ctx context.Context) error {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
 		return nil
 	}
 	c.closed = true
+	for c.residentUsers > 0 {
+		changed := c.changed
+		c.mu.Unlock()
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		c.mu.Lock()
+	}
 	entries := make([]*sessionEntry[Model], 0, len(c.entries))
 	for key, entry := range c.entries {
 		entry.dead = true
@@ -299,6 +499,8 @@ func (c *ScalarSessionCache[Input, Model, Output]) Close(ctx context.Context) er
 		delete(c.entries, key)
 	}
 	c.notify()
+	resident, closeResident := c.resident, c.residentSet && !c.residentClose
+	c.residentClose = true
 	c.mu.Unlock()
 	var result error
 	for _, entry := range entries {
@@ -307,10 +509,13 @@ func (c *ScalarSessionCache[Input, Model, Output]) Close(ctx context.Context) er
 		result = errors.Join(result, closeEntry(context.WithoutCancel(ctx), entry))
 		entry.mu.Unlock()
 	}
+	if closeResident {
+		result = errors.Join(result, closeModel(context.WithoutCancel(ctx), resident))
+	}
 	return result
 }
 
-func (c *ScalarSessionCache[Input, Model, Output]) oldestIdle() (sessionKey, *sessionEntry[Model]) {
+func (c *ModelSessionDirector[Input, Model, Output]) oldestIdle() (sessionKey, *sessionEntry[Model]) {
 	var oldestKey sessionKey
 	var oldest *sessionEntry[Model]
 	for key, entry := range c.entries {
@@ -321,7 +526,7 @@ func (c *ScalarSessionCache[Input, Model, Output]) oldestIdle() (sessionKey, *se
 	return oldestKey, oldest
 }
 
-func (c *ScalarSessionCache[Input, Model, Output]) retire(ctx context.Context, key sessionKey, entry *sessionEntry[Model], cause error) error {
+func (c *ModelSessionDirector[Input, Model, Output]) retire(ctx context.Context, key sessionKey, entry *sessionEntry[Model], cause error) error {
 	c.mu.Lock()
 	entry.dead = true
 	if c.entries[key] == entry {
@@ -332,19 +537,19 @@ func (c *ScalarSessionCache[Input, Model, Output]) retire(ctx context.Context, k
 	return errors.Join(cause, closeEntry(context.WithoutCancel(ctx), entry))
 }
 
-func (c *ScalarSessionCache[Input, Model, Output]) release(entry *sessionEntry[Model]) {
+func (c *ModelSessionDirector[Input, Model, Output]) release(entry *sessionEntry[Model]) {
 	entry.mu.Unlock()
 	c.releaseBorrower(entry)
 }
 
-func (c *ScalarSessionCache[Input, Model, Output]) releaseBorrower(entry *sessionEntry[Model]) {
+func (c *ModelSessionDirector[Input, Model, Output]) releaseBorrower(entry *sessionEntry[Model]) {
 	c.mu.Lock()
 	entry.borrowers--
 	c.notify()
 	c.mu.Unlock()
 }
 
-func (c *ScalarSessionCache[Input, Model, Output]) notify() {
+func (c *ModelSessionDirector[Input, Model, Output]) notify() {
 	close(c.changed)
 	c.changed = make(chan struct{})
 }

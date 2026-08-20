@@ -1,12 +1,4 @@
-// seriesforecast-train-probe: bounded observed training smoke for a patched
-// time-series forecast artifact on a light-curve JSONL shard. The probe is
-// the production driver of the seriesforecast trainable graph and the
-// reproducible generator of its training verification evidence: it scans the
-// shard for the first record with a varying multi-patch context (constant
-// pre-explosion windows carry exactly zero gradient and are logged skips,
-// never silent), runs the requested Muon steps through the shared stepper
-// with a first-step projection guard, and proves descent by evaluating the
-// same pair's loss before and after the observed steps.
+// seriesforecast-train-probe: bounded forecast training evidence.
 package main
 
 import (
@@ -63,7 +55,7 @@ func run(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Dura
 	if err != nil {
 		return err
 	}
-	trainer, err := seriesforecast.NewTrainer(model, optimizer.Config{Momentum: 0.9})
+	trainer, err := seriesforecast.NewTrainer(model, optimizer.Config{Momentum: optimizer.DeriveMomentum()})
 	if err != nil {
 		return err
 	}

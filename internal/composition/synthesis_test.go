@@ -18,7 +18,7 @@ import (
 
 const synthesisComponentTensor = "model.layers.0.mlp.gate_proj.weight"
 
-func TestComponentProposalToPromotionPipeline(t *testing.T) {
+func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 	root := t.TempDir()
 	targetDir, donorDir := filepath.Join(root, "target"), filepath.Join(root, "donor")
 	writeSynthesisModel(t, targetDir, 3)
@@ -45,7 +45,7 @@ func TestComponentProposalToPromotionPipeline(t *testing.T) {
 		t.Fatal(err)
 	}
 	proposal, err := NewBridgeProposal(target, Candidates(hits, target), ranker,
-		"go test ./internal/composition -run '^TestComponentProposalToPromotionPipeline$' -count=1",
+		"go test ./internal/composition -run '^TestCompositeSynthesisUsesComponentSessionLifetimes$' -count=1",
 		"bridge requires measured held-out evidence")
 	if err != nil {
 		t.Fatal(err)
@@ -82,11 +82,20 @@ func TestComponentProposalToPromotionPipeline(t *testing.T) {
 		want = recipe.DecisionAccepted
 	}
 	if outcome.Decision.Outcome != want || outcome.Record.TrainingPlan != outcome.Result.Recipe ||
-		outcome.Record.Parents[0] != target || outcome.Result.DonorTensor != synthesisComponentTensor {
+		outcome.Record.Parents[0] != target || outcome.Result.DonorTensor != synthesisComponentTensor ||
+		outcome.Result.SessionPlan.Identity.Kind() != artifact.KindProfile ||
+		len(outcome.Result.SessionPlan.Components) != 2 ||
+		outcome.Result.SessionPlan.Components[0].Model != donor ||
+		outcome.Result.SessionPlan.Components[0].Session != recipe.SessionRequest ||
+		outcome.Result.SessionPlan.Components[1].Model != target ||
+		outcome.Result.SessionPlan.Components[1].Session != recipe.SessionCapacity {
 		t.Fatalf("outcome=%+v", outcome)
 	}
 	if _, found, err := store.Content(context.Background(), outcome.Result.Recipe); err != nil || !found {
 		t.Fatalf("compiled recipe absent: found=%t err=%v", found, err)
+	}
+	if _, found, err := store.Content(context.Background(), outcome.Result.SessionPlan.Identity); err != nil || !found {
+		t.Fatalf("component session evidence absent: found=%t err=%v", found, err)
 	}
 }
 

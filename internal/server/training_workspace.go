@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -88,7 +86,7 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	if !ok {
 		return operation.Completion{}, errors.New("training workspace: policy dependency absent")
 	}
-	policyDirectory, err := workspace.directory(ctx, policy)
+	policyDirectory, err := artifact.AvailablePath(ctx, workspace.store, policy, artifact.LocationDirectory)
 	if err != nil {
 		return workspace.fail(ctx, definition.ID, []artifact.ID{policy, input.Dataset}, err)
 	}
@@ -99,12 +97,15 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 		if !ok {
 			return operation.Completion{}, errors.New("training workspace: reference dependency absent")
 		}
-		referenceDirectory, err = workspace.directory(ctx, reference)
+		referenceDirectory, err = artifact.AvailablePath(ctx, workspace.store, reference, artifact.LocationDirectory)
 		if err != nil {
 			return workspace.fail(ctx, definition.ID, []artifact.ID{policy, reference, input.Dataset}, err)
 		}
 	}
-	datasetPath, err := workspace.file(ctx, input.Dataset)
+	if input.Dataset.Kind() != artifact.KindDataset {
+		return operation.Completion{}, errors.New("training workspace: dataset identity required")
+	}
+	datasetPath, err := artifact.AvailablePath(ctx, workspace.store, input.Dataset, artifact.LocationFile)
 	if err != nil {
 		return workspace.fail(ctx, definition.ID, []artifact.ID{policy, input.Dataset}, err)
 	}
@@ -115,7 +116,7 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	}
 	inputs = append(inputs, input.Dataset)
 	if input.Resume.Valid() {
-		resumeDirectory, err = workspace.directory(ctx, input.Resume)
+		resumeDirectory, err = artifact.AvailablePath(ctx, workspace.store, input.Resume, artifact.LocationDirectory)
 		if err != nil {
 			return workspace.fail(ctx, definition.ID, inputs, err)
 		}
@@ -156,43 +157,6 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	reporter.Publishing()
 	return workspace.publish(ctx, definition.ID, inputs, policy, reference, input.Dataset,
 		result.Checkpoint, output, dpo, grpo)
-}
-
-func (workspace *TrainingWorkspace) directory(ctx context.Context, id artifact.ID) (string, error) {
-	locations, err := workspace.store.Locations(ctx, id)
-	if err != nil {
-		return "", err
-	}
-	for _, location := range locations {
-		path := location.Value
-		if location.Kind == artifact.LocationFile {
-			path = filepath.Dir(path)
-		} else if location.Kind != artifact.LocationDirectory {
-			continue
-		}
-		if info, err := os.Stat(path); err == nil && info.IsDir() {
-			return path, nil
-		}
-	}
-	return "", fmt.Errorf("training workspace: %s has no available directory", id)
-}
-
-func (workspace *TrainingWorkspace) file(ctx context.Context, id artifact.ID) (string, error) {
-	if id.Kind() != artifact.KindDataset {
-		return "", errors.New("training workspace: dataset identity required")
-	}
-	locations, err := workspace.store.Locations(ctx, id)
-	if err != nil {
-		return "", err
-	}
-	for _, location := range locations {
-		if location.Kind == artifact.LocationFile {
-			if info, err := os.Stat(location.Value); err == nil && !info.IsDir() {
-				return location.Value, nil
-			}
-		}
-	}
-	return "", fmt.Errorf("training workspace: %s has no available file", id)
 }
 
 func (workspace *TrainingWorkspace) outputPath(name string) (string, error) {

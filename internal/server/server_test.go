@@ -1252,10 +1252,10 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 		}(index)
 	}
 	deadline := time.Now().Add(time.Second)
-	for len(handler.slots) != 0 && time.Now().Before(deadline) {
+	for handler.sessions.Available() != 0 && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
-	if len(handler.slots) != 0 {
+	if handler.sessions.Available() != 0 {
 		t.Fatal("generation requests did not acquire both slots")
 	}
 
@@ -1431,11 +1431,11 @@ func TestNativeCompletionHonorsRequestedSlot(t *testing.T) {
 		t.Fatalf("id_slot = %d, want 1", result.IDSlot)
 	}
 
-	slot, ok := handler.acquireSlot(1)
-	if !ok || slot != 1 {
-		t.Fatalf("could not reserve slot 1: %d/%v", slot, ok)
+	session, ok := handler.acquireSession(1)
+	if !ok || session.ID != 1 {
+		t.Fatalf("could not reserve slot 1: %v/%v", session, ok)
 	}
-	defer handler.releaseSlot(slot)
+	defer handler.releaseSession(session)
 	busy := httptest.NewRecorder()
 	handler.ServeHTTP(
 		busy,

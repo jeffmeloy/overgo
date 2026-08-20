@@ -395,11 +395,11 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		writeInvalidRequest(response, err)
 		return
 	}
-	slotID, acquired := h.acquireRequestSlot(response, requestedSlot)
+	session, acquired := h.acquireRequestSession(response, requestedSlot)
 	if !acquired {
 		return
 	}
-	defer h.releaseSlot(slotID)
+	defer h.releaseSession(session)
 	for index := range prompts {
 		prepared, prepareErr := h.preparePrompt(request.Context(), prompts[index], false)
 		if prepareErr != nil {
@@ -416,7 +416,7 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 	plan := &nativeCompletionPlan{
 		handler: h, request: request, body: body, prompts: prompts,
 		sampler: sampler, maxTokens: maxTokens, stops: stops, settings: settings,
-		slotID: slotID, lora: lora, loraConfigured: loraConfigured,
+		session: session, lora: lora, loraConfigured: loraConfigured,
 		projectedInputs: projectedInputs,
 	}
 	if body.Stream {

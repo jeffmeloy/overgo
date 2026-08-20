@@ -22,6 +22,8 @@ const (
 
 type Query struct {
 	Kind         artifact.Kind
+	MediaType    string
+	Schema       string
 	Artifact     *artifact.ID
 	Alias        string
 	Relation     artifact.Relation
@@ -100,6 +102,9 @@ func validateQuery(query Query) error {
 			return err
 		}
 	}
+	if !validDescriptorFilter(query.MediaType) || !validDescriptorFilter(query.Schema) {
+		return errors.New("repodb: query descriptor filter is invalid")
+	}
 	if query.Artifact != nil && !query.Artifact.Valid() {
 		return errors.New("repodb: query artifact is invalid")
 	}
@@ -133,9 +138,10 @@ func (s catalogState) querySelection(query Query) (map[artifact.ID]struct{}, []a
 		if query.FromSequence != 0 || query.ToSequence != 0 {
 			return selected, nil, false, nil
 		}
-		ids := make([]artifact.ID, 0, len(s.artifacts))
-		for id := range s.artifacts {
-			if query.Kind == artifact.KindInvalid || id.Kind() == query.Kind {
+		candidates := s.descriptorCandidates(query)
+		ids := make([]artifact.ID, 0, len(candidates))
+		for id := range candidates {
+			if s.matchesDescriptor(query, id) {
 				ids = append(ids, id)
 			}
 		}
@@ -183,7 +189,39 @@ func (s catalogState) querySelection(query Query) (map[artifact.ID]struct{}, []a
 			queue = append(queue, queuedID{id: next, depth: current.depth + 1})
 		}
 	}
+	if query.MediaType != "" || query.Schema != "" {
+		for id := range selected {
+			if !s.matchesDescriptor(query, id) {
+				delete(selected, id)
+			}
+		}
+	}
 	return selected, edges, truncated, nil
+}
+
+func validDescriptorFilter(value string) bool {
+	return strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\r\n")
+}
+
+func (s catalogState) descriptorCandidates(query Query) map[artifact.ID]struct{} {
+	if query.MediaType != "" {
+		return s.artifactsByMedia[query.MediaType]
+	}
+	if query.Schema != "" {
+		return s.artifactsBySchema[query.Schema]
+	}
+	all := make(map[artifact.ID]struct{}, len(s.artifacts))
+	for id := range s.artifacts {
+		all[id] = struct{}{}
+	}
+	return all
+}
+
+func (s catalogState) matchesDescriptor(query Query, id artifact.ID) bool {
+	descriptor, ok := s.artifacts[id]
+	return ok && (query.Kind == artifact.KindInvalid || id.Kind() == query.Kind) &&
+		(query.MediaType == "" || descriptor.MediaType == query.MediaType) &&
+		(query.Schema == "" || descriptor.Schema == query.Schema)
 }
 
 func (s catalogState) querySeed(query Query) (artifact.ID, bool, error) {

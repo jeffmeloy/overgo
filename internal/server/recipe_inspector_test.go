@@ -20,6 +20,10 @@ type recipeInspectorGenerator struct {
 	err         error
 }
 
+func (generator *recipeInspectorGenerator) ModelID() artifact.ID {
+	return generator.description.Identity.Model
+}
+
 func (generator *recipeInspectorGenerator) RecipeRuntimeDescription(
 	task recipe.Task,
 ) (modelrecipe.RuntimeDescription, error) {

@@ -24,3 +24,11 @@ func TestDeriveBaseLRInverseSqrtScaling(t *testing.T) {
 		t.Fatal("derived base LR must shrink as parameter count grows")
 	}
 }
+
+func TestDeriveMomentumUsesEffectiveSampleRule(t *testing.T) {
+	momentum := DeriveMomentum()
+	wantNumerator := float64(CLTMinSamples - 1)
+	if got := momentum * float64(CLTMinSamples+1); got != wantNumerator {
+		t.Fatalf("momentum numerator = %g, want %g", got, wantNumerator)
+	}
+}

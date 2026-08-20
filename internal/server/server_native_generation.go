@@ -23,7 +23,7 @@ type nativeCompletionPlan struct {
 	maxTokens       int
 	stops           []string
 	settings        map[string]any
-	slotID          int
+	session         *requestSession
 	lora            []inference.LoRAScale
 	loraConfigured  bool
 	projectedInputs *inference.ProjectedInputs
@@ -84,7 +84,7 @@ func (h *Handler) runNativeCompletion(
 	indentationLimitReached := false
 	ids, _, err := h.generate(
 		ctx,
-		plan.slotID,
+		plan.session,
 		prompt.Text,
 		inference.GenerateOptions{
 			MaxNewTokens:    maxTokens,
@@ -272,7 +272,7 @@ func (h *Handler) runNativeCompletion(
 		Index:                   index,
 		Content:                 content,
 		Tokens:                  tokens,
-		IDSlot:                  plan.slotID,
+		IDSlot:                  plan.session.ID,
 		Stop:                    true,
 		Model:                   h.config.ModelID,
 		TokensPredicted:         len(generated),

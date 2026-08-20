@@ -128,3 +128,37 @@ func TestQueryBoundsAndCycleRejection(t *testing.T) {
 		t.Fatalf("cancelled query error = %v", err)
 	}
 }
+
+func TestServingObservationDescriptorIndexes(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	const (
+		servingMedia  = "application/vnd.overgo.serving-observation+json"
+		servingSchema = "overgo/serving-observation/v1"
+		otherSchema   = "overgo/other/v1"
+	)
+	serving := fixtureDescriptor(t, artifact.KindEvidence, "serving-observation")
+	serving.MediaType, serving.Schema = servingMedia, servingSchema
+	other := fixtureDescriptor(t, artifact.KindEvidence, "other-observation")
+	other.MediaType, other.Schema = servingMedia, otherSchema
+	if _, err := store.Commit(context.Background(), artifact.Batch{
+		Key: "fixture/query/descriptor-indexes", Artifacts: []artifact.Descriptor{serving, other},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := store.Query(context.Background(), Query{
+		Kind: artifact.KindEvidence, MediaType: servingMedia, Schema: servingSchema, MaxResults: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Artifacts) != 1 || result.Artifacts[0] != serving || result.Truncated {
+		t.Fatalf("descriptor query = %+v", result)
+	}
+	if _, err := store.Query(context.Background(), Query{MediaType: " invalid", MaxResults: 1}); err == nil {
+		t.Fatal("invalid media filter accepted")
+	}
+}

@@ -47,6 +47,8 @@ type committedBatch struct {
 
 type catalogState struct {
 	artifacts           map[artifact.ID]artifact.Descriptor
+	artifactsByMedia    map[string]map[artifact.ID]struct{}
+	artifactsBySchema   map[string]map[artifact.ID]struct{}
 	contents            map[artifact.ID]artifact.Content
 	manifests           map[artifact.ID]artifact.Manifest
 	aliases             map[string]artifact.ID
@@ -62,6 +64,8 @@ type catalogState struct {
 func newCatalogState() catalogState {
 	return catalogState{
 		artifacts:           map[artifact.ID]artifact.Descriptor{},
+		artifactsByMedia:    map[string]map[artifact.ID]struct{}{},
+		artifactsBySchema:   map[string]map[artifact.ID]struct{}{},
 		contents:            map[artifact.ID]artifact.Content{},
 		manifests:           map[artifact.ID]artifact.Manifest{},
 		aliases:             map[string]artifact.ID{},
@@ -153,6 +157,8 @@ func (s catalogState) hasArtifact(id artifact.ID, added map[artifact.ID]struct{}
 func (s *catalogState) apply(batch artifact.Batch) {
 	for _, descriptor := range batch.Artifacts {
 		s.artifacts[descriptor.ID] = descriptor
+		indexDescriptor(s.artifactsByMedia, descriptor.MediaType, descriptor.ID)
+		indexDescriptor(s.artifactsBySchema, descriptor.Schema, descriptor.ID)
 	}
 	for _, content := range batch.Contents {
 		s.contents[content.Descriptor.ID] = content.Clone()
@@ -197,6 +203,18 @@ func (s *catalogState) apply(batch artifact.Batch) {
 			}
 		}
 	}
+}
+
+func indexDescriptor(index map[string]map[artifact.ID]struct{}, key string, id artifact.ID) {
+	if key == "" {
+		return
+	}
+	ids := index[key]
+	if ids == nil {
+		ids = map[artifact.ID]struct{}{}
+		index[key] = ids
+	}
+	ids[id] = struct{}{}
 }
 
 func indexRelation(

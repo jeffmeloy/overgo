@@ -1,7 +1,11 @@
 package artifact
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -89,4 +93,28 @@ func (e LocationEvent) Validate() error {
 		return errors.New("artifact: invalid location action")
 	}
 	return nil
+}
+
+// AvailablePath: first recorded live file or directory.
+func AvailablePath(ctx context.Context, reader Reader, id ID, kind LocationKind) (string, error) {
+	if ctx == nil || reader == nil || !id.Valid() || kind != LocationFile && kind != LocationDirectory {
+		return "", errors.New("artifact: invalid available-path query")
+	}
+	locations, err := reader.Locations(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	for _, location := range locations {
+		path := location.Value
+		if kind == LocationDirectory && location.Kind == LocationFile {
+			path = filepath.Dir(path)
+		} else if location.Kind != kind {
+			continue
+		}
+		info, statErr := os.Stat(path)
+		if statErr == nil && info.IsDir() == (kind == LocationDirectory) {
+			return path, nil
+		}
+	}
+	return "", fmt.Errorf("artifact: %s has no available %s", id, kind)
 }

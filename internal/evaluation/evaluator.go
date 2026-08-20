@@ -1,9 +1,9 @@
 package evaluation
 
 import (
+	"cmp"
 	"errors"
 	"slices"
-	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
@@ -37,11 +37,8 @@ var evaluatorCodec = artifact.JSONDocumentCodec(
 			value.Acceptance.Kind() != artifact.KindProfile || len(value.Metrics) == 0 {
 			return errors.New("evaluation: invalid evaluator")
 		}
-		sort.Slice(value.Metrics, func(i, j int) bool { return value.Metrics[i].Name < value.Metrics[j].Name })
-		for index, metric := range value.Metrics {
-			if metric.Name == "" || !validMetricDirection(metric.Direction) || index > 0 && value.Metrics[index-1].Name == metric.Name {
-				return errors.New("evaluation: invalid evaluator metric")
-			}
+		if !canonicalizeMetricContracts(value.Metrics) {
+			return errors.New("evaluation: invalid evaluator metric")
 		}
 		return nil
 	}, func(value Evaluator) artifact.ID { return value.ID },
@@ -84,39 +81,23 @@ func validateKnownOutcomeOrder(contract []MetricContract, outcomes []KnownOutcom
 	if len(outcomes) < 2 {
 		return errors.New("evaluation: known outcome set is incomplete")
 	}
+	var previous []runrecord.Metric
 	for index, value := range outcomes {
-		if value.Model.Kind() != artifact.KindModel || !metricsMatch(contract, value.Metrics) || index > 0 && outcomes[index-1].Rank >= value.Rank {
+		metrics := slices.Clone(value.Metrics)
+		slices.SortFunc(metrics, func(left, right runrecord.Metric) int { return cmp.Compare(left.Name, right.Name) })
+		if value.Model.Kind() != artifact.KindModel || len(contract) != len(metrics) || !orderedMetricContractAdmits(contract, metrics) ||
+			index > 0 && outcomes[index-1].Rank >= value.Rank {
 			return errors.New("evaluation: invalid known outcome")
 		}
-		if index > 0 && !dominates(outcomes[index-1].Metrics, value.Metrics) {
+		if index > 0 && !orderedMetricsDominate(previous, metrics) {
 			return errors.New("evaluation: evaluator misranks known outcomes")
 		}
+		previous = metrics
 	}
 	return nil
 }
 
-func metricsMatch(contract []MetricContract, metrics []runrecord.Metric) bool {
-	metrics = slices.Clone(metrics)
-	sort.Slice(metrics, func(i, j int) bool { return metrics[i].Name < metrics[j].Name })
-	if len(contract) != len(metrics) {
-		return false
-	}
-	for index, expected := range contract {
-		actual := metrics[index]
-		if actual.Name != expected.Name || actual.Unit != expected.Unit || actual.Direction != expected.Direction {
-			return false
-		}
-	}
-	return true
-}
-
-func dominates(better, worse []runrecord.Metric) bool {
-	better, worse = slices.Clone(better), slices.Clone(worse)
-	sort.Slice(better, func(i, j int) bool { return better[i].Name < better[j].Name })
-	sort.Slice(worse, func(i, j int) bool { return worse[i].Name < worse[j].Name })
-	if len(better) != len(worse) {
-		return false
-	}
+func orderedMetricsDominate(better, worse []runrecord.Metric) bool {
 	strict := false
 	for index := range better {
 		left, right := better[index], worse[index]

@@ -46,31 +46,46 @@ func (policy AcceptancePolicy) Content() (artifact.Content, error) {
 }
 
 func (policy AcceptancePolicy) admits(metrics []runrecord.Metric) bool {
-	if acceptancePolicyCodec.ValidateIdentity(policy) != nil || len(metrics) != len(policy.Metrics) {
-		return false
-	}
-	metrics = slices.Clone(metrics)
-	sort.Slice(metrics, func(i, j int) bool { return metrics[i].Name < metrics[j].Name })
-	for index, contract := range policy.Metrics {
-		metric := metrics[index]
-		if metric.Name != contract.Name || metric.Unit != contract.Unit || metric.Direction != contract.Direction {
-			return false
-		}
-	}
-	return true
+	return acceptancePolicyCodec.ValidateIdentity(policy) == nil && metricContractAdmits(policy.Metrics, metrics)
 }
 
 func canonicalizeAcceptancePolicy(policy *AcceptancePolicy) error {
 	if policy == nil || policy.Version != acceptancePolicyVersion || len(policy.Metrics) == 0 {
 		return errors.New("evaluation: invalid acceptance policy")
 	}
-	sort.Slice(policy.Metrics, func(i, j int) bool { return policy.Metrics[i].Name < policy.Metrics[j].Name })
-	for index, metric := range policy.Metrics {
-		if metric.Name == "" || !validMetricDirection(metric.Direction) || index > 0 && policy.Metrics[index-1].Name == metric.Name {
-			return errors.New("evaluation: invalid acceptance metric")
-		}
+	if !canonicalizeMetricContracts(policy.Metrics) {
+		return errors.New("evaluation: invalid acceptance metric")
 	}
 	return nil
+}
+
+func canonicalizeMetricContracts(metrics []MetricContract) bool {
+	sort.Slice(metrics, func(i, j int) bool { return metrics[i].Name < metrics[j].Name })
+	for index, metric := range metrics {
+		if metric.Name == "" || !validMetricDirection(metric.Direction) || index > 0 && metrics[index-1].Name == metric.Name {
+			return false
+		}
+	}
+	return true
+}
+
+func metricContractAdmits(contract []MetricContract, metrics []runrecord.Metric) bool {
+	if len(contract) != len(metrics) {
+		return false
+	}
+	metrics = slices.Clone(metrics)
+	sort.Slice(metrics, func(i, j int) bool { return metrics[i].Name < metrics[j].Name })
+	return orderedMetricContractAdmits(contract, metrics)
+}
+
+func orderedMetricContractAdmits(contract []MetricContract, metrics []runrecord.Metric) bool {
+	for index, expected := range contract {
+		actual := metrics[index]
+		if actual.Name != expected.Name || actual.Unit != expected.Unit || actual.Direction != expected.Direction {
+			return false
+		}
+	}
+	return true
 }
 
 func cloneAcceptancePolicy(policy AcceptancePolicy) AcceptancePolicy {

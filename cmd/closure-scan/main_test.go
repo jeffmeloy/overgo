@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -8,10 +9,95 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/repoanalysis"
 	"overgo/internal/repodb"
 )
+
+func TestCensusReportIsDeterministicAndComplete(t *testing.T) {
+	snapshot := censusSnapshot(t)
+	first, err := closurescan.BuildCensus(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := closurescan.BuildCensus(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var firstJSON, secondJSON, firstText, secondText bytes.Buffer
+	if err := clioptions.WritePrettyJSON(&firstJSON, first); err != nil {
+		t.Fatal(err)
+	}
+	if err := clioptions.WritePrettyJSON(&secondJSON, second); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeCensusText(&firstText, first, len(first.Owners)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeCensusText(&secondText, second, len(second.Owners)); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(firstJSON.Bytes(), secondJSON.Bytes()) || !bytes.Equal(firstText.Bytes(), secondText.Bytes()) {
+		t.Fatal("census rendering is not deterministic")
+	}
+	if first.Schema != closurescan.CensusSchema || first.Source != snapshot.Identity() || len(first.Owners) != 1 || len(first.Repeated) != 1 {
+		t.Fatalf("census = %+v", first)
+	}
+}
+
+func TestCensusCountsReconcile(t *testing.T) {
+	report, err := closurescan.BuildCensus(censusSnapshot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var named, inline, assumptions, policy, groups, sites int
+	for _, owner := range report.Owners {
+		named += owner.NamedConstants
+		inline += owner.InlineLiterals
+		assumptions += owner.AssumptionHints
+		policy += owner.TestPolicyCopies
+		groups += owner.RepeatedGroups
+		sites += owner.RepeatedSites
+	}
+	want := report.Counts
+	if named != want.NamedConstants || inline != want.InlineLiterals || assumptions != want.AssumptionHints ||
+		policy != want.TestPolicyCopies || groups != want.RepeatedGroups || sites != want.RepeatedSites ||
+		want.TestLiterals != want.TestFixtures+want.TestAssertions+want.TestPolicyCopies {
+		t.Fatalf("owner totals=(%d,%d,%d,%d,%d,%d), counts=%+v", named, inline, assumptions, policy, groups, sites, want)
+	}
+}
+
+func censusSnapshot(t *testing.T) repoanalysis.SourceSnapshot {
+	t.Helper()
+	root := t.TempDir()
+	files := map[string]string{
+		"internal/policy.go": `package policy
+const Limit = 3
+func first(n int) bool { return n > 7 }
+func second(n int) bool { return n < 7 }
+func shaped(rows int) bool { return rows > Limit }
+`,
+		"internal/policy_test.go": `package policy
+func test() { if first(3) != true { panic("fixture") } }
+`,
+	}
+	for name, content := range files {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
+}
 
 func TestTriagePublishesExactBindings(t *testing.T) {
 	root := t.TempDir()

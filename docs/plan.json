@@ -8,20 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "report",
-          "title": "Emit deterministic JSON and text census reports from the shared scanner",
-          "status": "open",
-          "verify": "go test ./cmd/closure-scan -run '^(TestCensusReportIsDeterministicAndComplete|TestCensusCountsReconcile)$' -count=1",
-          "rationale": "Mutable counts belong to a command, not plan prose or manually maintained documentation.",
-          "depends_on": [
-            "magic-drift-gate/delta-ratchets"
-          ],
-          "capabilities": [
-            "reproducible-denominator",
-            "json-report"
-          ]
-        },
-        {
           "id": "repodb-publication",
           "title": "Store census fingerprint, counts, unresolved bindings, and closure pressure as RepoDB evidence",
           "status": "open",

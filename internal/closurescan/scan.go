@@ -491,11 +491,11 @@ func visitSources(snapshot repoanalysis.SourceSnapshot, relatives []string, incl
 	return nil
 }
 
-// RankRawPolicyLiterals finds repeated non-trivial numeric and string literals
+// RepeatedPolicyLiterals finds repeated non-trivial numeric and string literals
 // in function bodies. Indexes, slice/array extents, arithmetic factors, tests,
 // and generated files are excluded to avoid recommending constants for local
 // math or structure facts.
-func RankRawPolicyLiterals(snapshot repoanalysis.SourceSnapshot) ([]RawPolicyLiteral, error) {
+func RepeatedPolicyLiterals(snapshot repoanalysis.SourceSnapshot) ([]RawPolicyLiteral, error) {
 	groups := map[string]*rawLiteralGroup{}
 	err := visitProduction(snapshot, nil, func(source repoanalysis.GoFile, parsed *ast.File) {
 		pkg := filepath.ToSlash(filepath.Dir(source.Path))

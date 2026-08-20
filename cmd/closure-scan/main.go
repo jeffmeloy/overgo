@@ -8,11 +8,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
 	"overgo/internal/repoanalysis"
@@ -44,22 +46,42 @@ func main() {
 	literals := flag.Bool("literals", false, "report classified production literals instead of declared constants")
 	testLiterals := flag.Bool("test-literals", false, "report classified test literals and production overlaps")
 	assumptions := flag.Bool("assumptions", false, "report syntax-derived distribution, geometry, and shape hints")
+	census := flag.Bool("census", false, "report complete source denominators and consolidation pressure")
+	format := flag.String("format", "text", "census format: text or json")
 	flag.Parse()
 	root, err := os.Getwd()
 	if err != nil {
 		fatal(err)
 	}
 	modes := 0
-	for _, enabled := range []bool{*raw, *literals, *testLiterals, *assumptions} {
+	for _, enabled := range []bool{*raw, *literals, *testLiterals, *assumptions, *census} {
 		if enabled {
 			modes++
 		}
 	}
 	if modes > 1 {
-		fatal(fmt.Errorf("-raw, -literals, -test-literals, and -assumptions are mutually exclusive"))
+		fatal(fmt.Errorf("report modes are mutually exclusive"))
+	}
+	if *census {
+		summary, err := closurescan.BuildCensus(mustSnapshot(root))
+		if err != nil {
+			fatal(err)
+		}
+		switch *format {
+		case "text":
+			err = writeCensusText(os.Stdout, summary, *limit)
+		case "json":
+			err = clioptions.WritePrettyJSON(os.Stdout, summary)
+		default:
+			err = fmt.Errorf("unknown census format %q", *format)
+		}
+		if err != nil {
+			fatal(err)
+		}
+		return
 	}
 	if *raw {
-		ranked, err := closurescan.RankRawPolicyLiterals(mustSnapshot(root))
+		ranked, err := closurescan.RepeatedPolicyLiterals(mustSnapshot(root))
 		if err != nil {
 			fatal(err)
 		}
@@ -101,6 +123,44 @@ func main() {
 	if err := emit(root, *storePath, *triagePath, candidates); err != nil {
 		fatal(err)
 	}
+}
+
+func writeCensusText(destination io.Writer, census closurescan.Census, limit int) error {
+	counts := census.Counts
+	if _, err := fmt.Fprintf(destination,
+		"closure-scan census %s\nsource %s\nfiles production=%d test=%d\n"+
+			"surfaces named=%d inline=%d assumptions=%d test_policy=%d\n"+
+			"tests total=%d fixture=%d assertion=%d policy_copy=%d\n"+
+			"repeated groups=%d sites=%d\n",
+		census.Schema, census.Source, counts.ProductionFiles, counts.TestFiles,
+		counts.NamedConstants, counts.InlineLiterals, counts.AssumptionHints, counts.TestPolicyCopies,
+		counts.TestLiterals, counts.TestFixtures, counts.TestAssertions, counts.TestPolicyCopies,
+		counts.RepeatedGroups, counts.RepeatedSites); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(destination, "owners decision repeated package"); err != nil {
+		return err
+	}
+	for index, owner := range census.Owners {
+		if index >= limit {
+			break
+		}
+		if _, err := fmt.Fprintf(destination, "%d %d %s\n", owner.DecisionSurfaces, owner.RepeatedSites, owner.Package); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintln(destination, "candidates score count package value"); err != nil {
+		return err
+	}
+	for index, group := range census.Repeated {
+		if index >= limit {
+			break
+		}
+		if _, err := fmt.Fprintf(destination, "%d %d %s %s\n", group.Score, group.Count, group.Package, group.Value); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func reportLiterals(sites []closurescan.LiteralSite, limit int) {

@@ -202,7 +202,7 @@ func decide(variance float64, values []float64, tensorRows, limit int) bool {
 	}
 }
 
-func TestRankRawPolicyLiterals(t *testing.T) {
+func TestRepeatedPolicyLiterals(t *testing.T) {
 	source := `package policy
 func first(n int, values []int) bool {
 	_ = 3 * 3
@@ -214,7 +214,7 @@ func second(n int) bool {
 }
 `
 	snapshot := scanTestSnapshot(t, map[string]string{"internal/policy.go": source})
-	ranked, err := RankRawPolicyLiterals(snapshot)
+	ranked, err := RepeatedPolicyLiterals(snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}

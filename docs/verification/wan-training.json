@@ -1,6 +1,9 @@
 {
  "model": "model:sha256:96b6b242ca1c2f24e9d02cd6596066fab6d310e2d7538f33ae267cb18d957e8f",
  "name": "Wan2.1-T2V-1.3B",
+ "supersedes": [
+  "evidence:sha256:8fdade295bbf11bb0e3bc9251318b9eec3854a860b5a32609ea425aa8a9ebeeb"
+ ],
  "evidence_files": [
   "docs/verification/wan-training-run.txt",
   "docs/verification/wan-dit-training-run.txt"
@@ -24,7 +27,7 @@
   {
    "capability": "full-pipeline-training",
    "tier": "real-artifact-smoke",
-   "commit": "27e208f9a34115827ec5fc9de70e90bf05ca3fc0",
+   "commit": "4dd29342eabc84ec1c351886838b82961c50b0e7",
    "dataset": "dataset-shard:sha256:10e594a091404dac04702681c38231f7fdc22d1f7aa7b5ee383b58bb7bbc4bc4",
    "span_steps": 3,
    "wall_ns": 225463000000,

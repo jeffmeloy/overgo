@@ -1,6 +1,9 @@
 {
  "model": "model:sha256:809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4",
  "name": "Qwen3.5-9B-Q8",
+ "supersedes": [
+  "evidence:sha256:1a37f7046d1224752aa2325496bc0ec316d0a2d9465122d6223fbf66b7728c94"
+ ],
  "evidence_files": [
   "docs/verification/qwen35-9b-training-run.txt",
   "docs/verification/qwen35-9b-fullstack-training-run.txt"
@@ -24,7 +27,7 @@
   {
    "capability": "full-pipeline-training",
    "tier": "real-artifact-smoke",
-   "commit": "ecde23069a32e91e29679944cba8135c797c7bef",
+   "commit": "f7a336a2144789bb7c628182158b4364c0a039a2",
    "dataset": "dataset-shard:sha256:c4839b2e29f9479dfda3d8f24a39e0f602488b41a6c315eb499504539abd022c",
    "span_steps": 3,
    "span_tokens": 15,

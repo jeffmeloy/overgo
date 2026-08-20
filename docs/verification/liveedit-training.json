@@ -1,6 +1,9 @@
 {
  "model": "model:sha256:618e6c57a554b2d06a615ea782433df0174c32b64b0ffb6da25bea68969ca135",
  "name": "LiveEdit",
+ "supersedes": [
+  "evidence:sha256:009a55331943a83cc17211313ecb578aad532a7de1109da8f920bcaf8b14d894"
+ ],
  "evidence_files": [
   "docs/verification/liveedit-training-run.txt",
   "docs/verification/liveedit-dit-training-run.txt"
@@ -24,7 +27,7 @@
   {
    "capability": "full-pipeline-training",
    "tier": "real-artifact-smoke",
-   "commit": "27e208f9a34115827ec5fc9de70e90bf05ca3fc0",
+   "commit": "4dd29342eabc84ec1c351886838b82961c50b0e7",
    "dataset": "dataset-shard:sha256:215f28ddf830216dcd640864f7e3145271a0d30dcd6eca986c5ac68f61db0327",
    "span_steps": 3,
    "wall_ns": 221343000000,

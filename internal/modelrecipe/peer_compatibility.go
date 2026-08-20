@@ -35,10 +35,6 @@ type RemotePeerCompatibility struct {
 	ID               artifact.ID `json:"-"`
 }
 
-func parseRemotePeerCompatibility(data []byte) (RemotePeerCompatibility, error) {
-	return remotePeerCompatibilityCodec.Parse(data)
-}
-
 func (value RemotePeerCompatibility) batch(key string) (artifact.Batch, error) {
 	parents := []artifact.ID{
 		value.Model, value.Recipe, value.Resources, value.LocalEnvironment, value.PeerEnvironment,
@@ -72,24 +68,16 @@ func resolveRemotePeerCompatibility(
 	model, recipeID, resources artifact.ID,
 	task recipe.Task,
 ) (RemotePeerCompatibility, error) {
-	content, found, err := store.Content(ctx, id)
-	if err != nil || !found {
-		return RemotePeerCompatibility{}, errors.Join(errors.New("model recipe: remote peer compatibility is absent"), err)
-	}
-	compatibility, err := parseRemotePeerCompatibility(content.Data)
+	compatibility, err := remotePeerCompatibilityCodec.Require(ctx, store, id)
 	if err != nil || compatibility.ID != id || compatibility.Model != model ||
 		compatibility.Recipe != recipeID || compatibility.Resources != resources || compatibility.Task != task {
 		return RemotePeerCompatibility{}, errors.Join(errors.New("model recipe: remote peer compatibility differs"), err)
 	}
 	validateObservation := func(observationID, environment artifact.ID) error {
-		observationContent, ok, lookupErr := store.Content(ctx, observationID)
-		if lookupErr != nil || !ok {
-			return errors.Join(errors.New("model recipe: peer observation is absent"), lookupErr)
-		}
-		observation, parseErr := runrecord.ParseServingObservation(observationContent.Data)
-		if parseErr != nil || observation.ID != observationID || observation.Outcome != runrecord.OutcomeSucceeded || observation.Model != model ||
+		observation, readErr := runrecord.RequireServingObservation(ctx, store, observationID)
+		if readErr != nil || observation.Outcome != runrecord.OutcomeSucceeded || observation.Model != model ||
 			observation.Recipe != recipeID || observation.Task != task || observation.Environment != environment {
-			return errors.Join(errors.New("model recipe: peer observation is incompatible"), parseErr)
+			return errors.Join(errors.New("model recipe: peer observation is incompatible"), readErr)
 		}
 		return nil
 	}

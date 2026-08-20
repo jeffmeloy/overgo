@@ -91,6 +91,11 @@ func ParseServingObservation(content []byte) (ServingObservation, error) {
 	return servingObservationCodec.Parse(content)
 }
 
+// RequireServingObservation: validated repository read.
+func RequireServingObservation(ctx context.Context, reader artifact.Reader, id artifact.ID) (ServingObservation, error) {
+	return servingObservationCodec.Require(ctx, reader, id)
+}
+
 func (value ServingObservation) Content() (artifact.Content, error) {
 	return servingObservationCodec.Content(value)
 }

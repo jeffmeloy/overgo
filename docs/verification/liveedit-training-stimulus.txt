@@ -1,0 +1,13 @@
+overgo edit-head training stimulus declaration
+generator: xorshift32 (x ^= x<<13; x ^= x>>17; x ^= x<<5), seed 88675123
+draw: hidden rows (rows*1536 values, scaled 0.5), then interleaved z/target
+draws; temb reuses the z draw cyclically scaled 0.5; targets unit scale
+rows: 8; hidden: 1536; head out: 64; layernorm eps 1e-6
+objective: velocity MSE through the Wan-family head math (non-parametric
+LayerNorm, AdaLN affine of conditioning plus the learned modulation table,
+linear head), read from the LiveEdit .pt checkpoint
+(models/LiveEdit/bid-diffusion_009200.pt) with fsdp/module prefixes
+normalized -- the same normalization the serving bridge applies
+consumer: cmd/flow-organ-train-probe -organ edit-head, which embeds the
+same constants; this document is the committed dataset declaration the
+LiveEdit training claim grounds as its shard.

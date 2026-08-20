@@ -98,9 +98,11 @@ func (s catalogState) validate(batch artifact.Batch) error {
 		}
 	}
 	for _, binding := range batch.Aliases {
-		if _, stored := s.artifacts[binding.Target]; !stored {
-			if _, pending := added[binding.Target]; !pending {
-				return fmt.Errorf("repodb: alias %q targets unknown artifact %s", binding.Name, binding.Target)
+		if !binding.Remove {
+			if _, stored := s.artifacts[binding.Target]; !stored {
+				if _, pending := added[binding.Target]; !pending {
+					return fmt.Errorf("repodb: alias %q targets unknown artifact %s", binding.Name, binding.Target)
+				}
 			}
 		}
 		current, exists := s.aliases[binding.Name]
@@ -167,7 +169,11 @@ func (s *catalogState) apply(batch artifact.Batch) {
 		s.manifests[manifest.ID] = manifest.Clone()
 	}
 	for _, binding := range batch.Aliases {
-		s.aliases[binding.Name] = binding.Target
+		if binding.Remove {
+			delete(s.aliases, binding.Name)
+		} else {
+			s.aliases[binding.Name] = binding.Target
+		}
 	}
 	for _, edge := range batch.Lineage {
 		key := relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation}

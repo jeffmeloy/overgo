@@ -178,6 +178,28 @@ func TestAliasCompareAndSet(t *testing.T) {
 	}
 }
 
+func TestAliasCompareAndSetRetirement(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	base := fixtureBatch(t)
+	if _, err := store.Commit(context.Background(), base); err != nil {
+		t.Fatal(err)
+	}
+	previous := base.Aliases[0].Target
+	retire := artifact.Batch{Key: "fixture/alias/retire", Aliases: []artifact.AliasBinding{{
+		Name: fixtureAlias, Target: previous, Previous: &previous, Remove: true,
+	}}}
+	if _, err := store.Commit(context.Background(), retire); err != nil {
+		t.Fatal(err)
+	}
+	if resolved, ok, err := store.ResolveAlias(context.Background(), fixtureAlias); err != nil || ok {
+		t.Fatalf("retired alias = (%s, %v, %v)", resolved, ok, err)
+	}
+}
+
 func TestLineageCycleRejected(t *testing.T) {
 	store, err := Open(t.TempDir())
 	if err != nil {

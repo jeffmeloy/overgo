@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -49,13 +50,14 @@ func main() {
 	census := flag.Bool("census", false, "report complete source denominators and consolidation pressure")
 	format := flag.String("format", "text", "census format: text or json")
 	publish := flag.Bool("publish", false, "publish census evidence to RepoDB")
+	retireOrphans := flag.Bool("retire-orphans", false, "retire active bindings whose declarations were deleted")
 	flag.Parse()
 	root, err := os.Getwd()
 	if err != nil {
 		fatal(err)
 	}
 	modes := 0
-	for _, enabled := range []bool{*raw, *literals, *testLiterals, *assumptions, *census} {
+	for _, enabled := range []bool{*raw, *literals, *testLiterals, *assumptions, *census, *retireOrphans} {
 		if enabled {
 			modes++
 		}
@@ -95,6 +97,14 @@ func main() {
 			}
 			fmt.Printf("published census evidence %s\n", evidence.ID)
 		}
+		return
+	}
+	if *retireOrphans {
+		retired, err := retireOrphanAliases(root, *storePath, mustSnapshot(root))
+		if err != nil {
+			fatal(err)
+		}
+		fmt.Printf("retired %d orphan closure binding(s)\n", len(retired))
 		return
 	}
 	if *raw {
@@ -140,6 +150,78 @@ func main() {
 	if err := emit(root, *storePath, *triagePath, candidates); err != nil {
 		fatal(err)
 	}
+}
+
+func retireOrphanAliases(root, storePath string, snapshot repoanalysis.SourceSnapshot) ([]artifact.AliasBinding, error) {
+	candidates, err := closurescan.ScanSnapshot(snapshot, nil)
+	if err != nil {
+		return nil, err
+	}
+	current := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		current[candidate.DeclarationKey()] = struct{}{}
+	}
+	store, err := repodb.Open(filepath.Join(root, storePath))
+	if err != nil {
+		return nil, err
+	}
+	defer store.Close()
+	result, err := store.Query(context.Background(), repodb.Query{
+		Kind: artifact.KindEvidence, MediaType: closureledger.MediaType,
+		Schema: closureledger.Schema, MaxResults: repodb.MaxQueryResults,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if result.Truncated {
+		return nil, errors.New("closure-scan: active-ledger query truncated")
+	}
+	var retirements []artifact.AliasBinding
+	for _, alias := range result.Aliases {
+		if !closureledger.IsActiveAlias(alias.Name) {
+			continue
+		}
+		content, found, err := store.Content(context.Background(), alias.Target)
+		if err != nil || !found {
+			return nil, errors.New("closure-scan: active closure content absent")
+		}
+		document, err := closureledger.Parse(content.Data)
+		if err != nil {
+			return nil, err
+		}
+		for _, binding := range document.Bindings {
+			bindingAlias, err := closureledger.ActiveAlias(binding)
+			if err != nil {
+				return nil, err
+			}
+			if bindingAlias != alias.Name {
+				continue
+			}
+			key := (closurescan.Candidate{
+				File: binding.File, Scope: binding.Scope, Line: binding.Line, Name: binding.Name,
+			}).DeclarationKey()
+			if _, exists := current[key]; !exists {
+				previous := alias.Target
+				retirements = append(retirements, artifact.AliasBinding{
+					Name: alias.Name, Target: alias.Target, Previous: &previous, Remove: true,
+				})
+			}
+			break
+		}
+	}
+	if retirements == nil {
+		return nil, nil
+	}
+	encoded, err := json.Marshal(retirements)
+	if err != nil {
+		return nil, err
+	}
+	digest := sha256.Sum256(encoded)
+	batch := artifact.Batch{Key: "closure-scan/retire/" + hex.EncodeToString(digest[:]), Aliases: retirements}
+	if _, err := store.Commit(context.Background(), batch); err != nil {
+		return nil, err
+	}
+	return retirements, nil
 }
 
 func publishCensusEvidence(ctx context.Context, store *repodb.Store, snapshot repoanalysis.SourceSnapshot, census closurescan.Census) (closurescan.CensusEvidence, error) {

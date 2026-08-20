@@ -150,7 +150,7 @@ func test() { if first(3) != true { panic("fixture") } }
 	return snapshot
 }
 
-func TestTriagePublishesExactBindings(t *testing.T) {
+func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	root := t.TempDir()
 	relative := "internal/sample/policy.go"
 	source := []byte("package sample\n\nconst PolicyWindow = 3 * 8\n")
@@ -199,7 +199,6 @@ func TestTriagePublishesExactBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
 	owner, err := artifact.IdentifyBytes(artifact.KindFile, source)
 	if err != nil {
 		t.Fatal(err)
@@ -214,4 +213,34 @@ func TestTriagePublishesExactBindings(t *testing.T) {
 	if err != nil || !active || len(document.Bindings) != 1 || document.Bindings[0] != binding {
 		t.Fatalf("active document = (%+v, %t, %v)", document, active, err)
 	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retired, err := retireOrphanAliases(root, "store", snapshot); err != nil || len(retired) != 1 {
+		t.Fatalf("retired bindings = (%d, %v)", len(retired), err)
+	}
+	store, err = repodb.OpenReadOnly(filepath.Join(root, "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, found, err := artifact.ResolveAlias(context.Background(), store, mustActiveAlias(t, binding)); err != nil || found {
+		t.Fatalf("retired binding resolves = (%t, %v)", found, err)
+	}
+}
+
+func mustActiveAlias(t *testing.T, binding closureledger.SourceBinding) string {
+	t.Helper()
+	alias, err := closureledger.ActiveAlias(binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return alias
 }

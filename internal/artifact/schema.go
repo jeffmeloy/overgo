@@ -125,11 +125,12 @@ func (l Lineage) Validate() error {
 	return nil
 }
 
-// AliasBinding: compare-and-set mutable name; nil Previous requires unbound name
+// AliasBinding: compare-and-set alias update or retirement.
 type AliasBinding struct {
 	Name     string `json:"name"`
 	Target   ID     `json:"target"`
 	Previous *ID    `json:"previous,omitempty"`
+	Remove   bool   `json:"remove,omitempty"`
 }
 
 func (b AliasBinding) Validate() error {
@@ -141,6 +142,9 @@ func (b AliasBinding) Validate() error {
 	}
 	if b.Previous != nil && !b.Previous.Valid() {
 		return errors.New("artifact: alias has invalid previous target")
+	}
+	if b.Remove && (b.Previous == nil || b.Target != *b.Previous) {
+		return errors.New("artifact: alias retirement must name its current target")
 	}
 	return nil
 }

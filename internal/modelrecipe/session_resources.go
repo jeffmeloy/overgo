@@ -11,14 +11,14 @@ import (
 
 // ComponentSession: one ordered recipe-stage lifetime.
 type ComponentSession struct {
-	Identity      artifact.ID
-	Node          recipe.NodeID
-	Module        recipe.ModuleID
-	Model         artifact.ID
-	Session       recipe.SessionPolicy
-	Placement     recipe.Placement
-	Residency     recipe.ResidencyPolicy
-	ArtifactBytes uint64
+	Identity      artifact.ID            `json:"identity"`
+	Node          recipe.NodeID          `json:"node"`
+	Module        recipe.ModuleID        `json:"module"`
+	Model         artifact.ID            `json:"model"`
+	Session       recipe.SessionPolicy   `json:"session"`
+	Placement     recipe.Placement       `json:"placement"`
+	Residency     recipe.ResidencyPolicy `json:"residency,omitempty"`
+	ArtifactBytes uint64                 `json:"artifact_bytes"`
 }
 
 // ComponentSessionPlan: compiled stage lifetimes plus unique artifact extent.
@@ -39,9 +39,18 @@ type componentSessionIdentity struct {
 	ArtifactBytes uint64                 `json:"artifact_bytes"`
 }
 
-type componentSessionPlanIdentity struct {
-	Recipe     artifact.ID   `json:"recipe"`
-	Components []artifact.ID `json:"components"`
+type componentSessionPlanDocument struct {
+	Version       uint16             `json:"version"`
+	Recipe        artifact.ID        `json:"recipe"`
+	ArtifactBytes uint64             `json:"artifact_bytes"`
+	Components    []ComponentSession `json:"components"`
+}
+
+const componentSessionPlanVersion = 1
+
+var componentSessionPlanContract = artifact.DocumentContract{
+	Kind: artifact.KindProfile, MediaType: "application/vnd.overgo.component-session-plan+json",
+	Schema: "overgo/component-session-plan/v1",
 }
 
 // CompileComponentSessionPlan: ordered catalog-derived component lifetimes.
@@ -49,6 +58,28 @@ func CompileComponentSessionPlan(ctx context.Context, reader artifact.Reader, pr
 	if ctx == nil || reader == nil {
 		return ComponentSessionPlan{}, errors.New("model recipe: component session authority is absent")
 	}
+	return compileComponentSessionPlan(ctx, program, func(ctx context.Context, id artifact.ID) (uint64, error) {
+		return manifestArtifactBytes(ctx, reader, id, map[artifact.ID]struct{}{})
+	})
+}
+
+// CompileComponentSessionPlanWithExtents: ordered lifetimes from validated extents.
+func CompileComponentSessionPlanWithExtents(
+	ctx context.Context,
+	program recipe.Program,
+	extent func(context.Context, artifact.ID) (uint64, error),
+) (ComponentSessionPlan, error) {
+	if ctx == nil || extent == nil {
+		return ComponentSessionPlan{}, errors.New("model recipe: component extent authority is absent")
+	}
+	return compileComponentSessionPlan(ctx, program, extent)
+}
+
+func compileComponentSessionPlan(
+	ctx context.Context,
+	program recipe.Program,
+	extent func(context.Context, artifact.ID) (uint64, error),
+) (ComponentSessionPlan, error) {
 	definition := program.Definition()
 	if definition.ID.Kind() != artifact.KindRecipe || definition.Model.Kind() != artifact.KindModel {
 		return ComponentSessionPlan{}, errors.New("model recipe: invalid component session identity")
@@ -62,14 +93,17 @@ func CompileComponentSessionPlan(ctx context.Context, reader artifact.Reader, pr
 		if node.Session == "" {
 			continue
 		}
+		if !node.Session.Valid() || !node.Residency.Valid() {
+			return ComponentSessionPlan{}, errors.New("model recipe: component lifetime is invalid")
+		}
 		modelID, ok := definition.Dependency(recipe.DependencyModel, node.ModelSlot)
 		if !ok {
 			return ComponentSessionPlan{}, errors.New("model recipe: component model binding is absent")
 		}
 		bytes, known := extents[modelID]
 		if !known {
-			var err error
-			bytes, err = manifestArtifactBytes(ctx, reader, modelID, map[artifact.ID]struct{}{})
+			resolved, err := extent(ctx, modelID)
+			bytes = resolved
 			if err != nil || bytes == 0 || total > math.MaxUint64-bytes {
 				return ComponentSessionPlan{}, errors.Join(errors.New("model recipe: component artifact extent is unavailable"), err)
 			}
@@ -92,19 +126,32 @@ func CompileComponentSessionPlan(ctx context.Context, reader artifact.Reader, pr
 	if len(components) == 0 {
 		return ComponentSessionPlan{}, errors.New("model recipe: component session policy is absent")
 	}
-	componentIDs := make([]artifact.ID, len(components))
-	for index := range components {
-		componentIDs[index] = components[index].Identity
+	body := componentSessionPlanDocument{
+		Version: componentSessionPlanVersion, Recipe: definition.ID,
+		ArtifactBytes: total, Components: components,
 	}
-	id, err := artifact.JSONID(artifact.KindProfile, componentSessionPlanIdentity{
-		Recipe: definition.ID, Components: componentIDs,
-	})
+	id, err := artifact.JSONID(artifact.KindProfile, body)
 	if err != nil {
 		return ComponentSessionPlan{}, err
 	}
 	return ComponentSessionPlan{
 		Identity: id, Recipe: definition.ID, ArtifactBytes: total, Components: components,
 	}, nil
+}
+
+func (plan ComponentSessionPlan) Content() (artifact.Content, error) {
+	body := componentSessionPlanDocument{
+		Version: componentSessionPlanVersion, Recipe: plan.Recipe,
+		ArtifactBytes: plan.ArtifactBytes, Components: plan.Components,
+	}
+	content, err := artifact.JSONContent(componentSessionPlanContract, body)
+	if err != nil {
+		return artifact.Content{}, err
+	}
+	if content.Descriptor.ID != plan.Identity {
+		return artifact.Content{}, errors.New("model recipe: component session plan identity differs")
+	}
+	return content, nil
 }
 
 func (plan ComponentSessionPlan) RequestScoped() bool {

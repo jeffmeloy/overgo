@@ -2,6 +2,7 @@
 package composition
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -9,7 +10,9 @@ import (
 	"path/filepath"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/densecausal"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/optimizer"
 	"overgo/internal/organ"
 	"overgo/internal/recipe"
@@ -45,6 +48,7 @@ type Result struct {
 	Donor         artifact.ID
 	Component     artifact.ID
 	Recipe        artifact.ID
+	SessionPlan   modelrecipe.ComponentSessionPlan
 	Dataset       artifact.ID
 	Split         artifact.ID
 	DonorContract organ.Contract
@@ -71,17 +75,9 @@ func RunViability(config Config) (Result, error) {
 	return runViability(config, target, donor)
 }
 
-func runViability(config Config, targetID, donorID artifact.ID) (Result, error) {
+func runViability(config Config, targetID, donorID artifact.ID) (result Result, err error) {
 	if len(config.Seeds) == 0 || config.Steps <= 0 || len(config.Train) == 0 || len(config.HeldOut) < 2 {
 		return Result{}, fmt.Errorf("composition: seeds, steps, train batches and a held-out batch are required")
-	}
-	target, err := densecausal.Load(config.TargetDir)
-	if err != nil {
-		return Result{}, fmt.Errorf("composition: load target: %w", err)
-	}
-	donor, err := loadDonorComponent(config.DonorDir, config.DonorLayer, config.DonorTensor)
-	if err != nil {
-		return Result{}, fmt.Errorf("composition: load donor component: %w", err)
 	}
 	dataset, err := artifact.JSONID(artifact.KindDataset, config.Train)
 	if err != nil {
@@ -95,8 +91,75 @@ func runViability(config Config, targetID, donorID artifact.ID) (Result, error) 
 	if err != nil {
 		return Result{}, err
 	}
-	if _, err := recipe.CompileProgram(definition, workflowrecipe.Catalog()); err != nil {
+	program, err := recipe.CompileProgram(definition, workflowrecipe.Catalog())
+	if err != nil {
 		return Result{}, fmt.Errorf("composition: compile bridge recipe: %w", err)
+	}
+	targetBytes, err := modelBytes(config.TargetDir)
+	if err != nil {
+		return Result{}, err
+	}
+	donorBytes, err := modelBytes(config.DonorDir)
+	if err != nil {
+		return Result{}, err
+	}
+	resources, err := modelrecipe.CompileComponentSessionPlanWithExtents(
+		context.Background(), program, func(_ context.Context, id artifact.ID) (uint64, error) {
+			switch id {
+			case targetID:
+				return targetBytes, nil
+			case donorID:
+				return donorBytes, nil
+			default:
+				return 0, errors.New("composition: recipe component model is unbound")
+			}
+		},
+	)
+	if err != nil {
+		return Result{}, err
+	}
+	sessions, err := capabilityruntime.NewComponentSessionDirector[viabilityResource](
+		"bridge-synthesis", string(recipe.PlacementHost), len(resources.Components),
+	)
+	if err != nil {
+		return Result{}, err
+	}
+	leases := make([]*capabilityruntime.SessionLease[viabilityResource], 0, len(resources.Components))
+	defer func() {
+		for index := len(leases) - 1; index >= 0; index-- {
+			err = errors.Join(err, leases[index].Release())
+		}
+		err = errors.Join(err, sessions.Close(context.Background()))
+	}()
+	var target *densecausal.Model
+	var donor *donorComponent
+	for _, component := range resources.Components {
+		lease, leaseErr := sessions.LeaseComponent(context.Background(), component, func(context.Context) (viabilityResource, error) {
+			switch component.Model {
+			case targetID:
+				model, loadErr := densecausal.Load(config.TargetDir)
+				return viabilityResource{target: model}, loadErr
+			case donorID:
+				selected, loadErr := loadDonorComponent(config.DonorDir, config.DonorLayer, config.DonorTensor)
+				return viabilityResource{donor: &selected}, loadErr
+			default:
+				return viabilityResource{}, errors.New("composition: recipe component model is unbound")
+			}
+		})
+		if leaseErr != nil {
+			return Result{}, leaseErr
+		}
+		leases = append(leases, lease)
+		loaded := lease.Model()
+		if loaded.target != nil {
+			target = loaded.target
+		}
+		if loaded.donor != nil {
+			donor = loaded.donor
+		}
+	}
+	if target == nil || donor == nil {
+		return Result{}, errors.New("composition: component session plan omitted a required model")
 	}
 	graftLayer := config.GraftLayer
 	if graftLayer < 0 {
@@ -119,9 +182,10 @@ func runViability(config Config, targetID, donorID artifact.ID) (Result, error) 
 	if err != nil {
 		return Result{}, fmt.Errorf("composition: baseline held-out loss: %w", err)
 	}
-	result := Result{
+	result = Result{
 		Target: targetID, Donor: donorID, Component: componentID, Recipe: definition.ID,
-		Dataset: dataset, Split: split, definition: definition,
+		SessionPlan: resources,
+		Dataset:     dataset, Split: split, definition: definition,
 		DonorContract: donor.contract, DonorTensor: donor.gateName, GraftLayer: graftLayer, Baseline: baseline,
 	}
 	worst := math.Inf(-1)
@@ -159,6 +223,19 @@ func runViability(config Config, targetID, donorID artifact.ID) (Result, error) 
 			worst, baseline, config.Steps)
 	}
 	return result, nil
+}
+
+type viabilityResource struct {
+	target *densecausal.Model
+	donor  *donorComponent
+}
+
+func modelBytes(directory string) (uint64, error) {
+	info, err := os.Stat(filepath.Join(directory, trainingprogram.CheckpointWeights))
+	if err != nil || info.IsDir() || info.Size() <= 0 {
+		return 0, errors.Join(errors.New("composition: model extent is unavailable"), err)
+	}
+	return uint64(info.Size()), nil
 }
 
 type donorComponent struct {
@@ -243,8 +320,10 @@ func identifyDenseModel(directory string) (artifact.ID, error) {
 
 func bridgeRecipe(target, donor, dataset artifact.ID) (recipe.Definition, error) {
 	nodes := []recipe.Node{
-		{ID: "select", Module: workflowrecipe.ModuleSelectComponent, Placement: recipe.PlacementHost, ModelSlot: 1},
-		{ID: "train", Module: workflowrecipe.ModuleTrainBridge, Placement: recipe.PlacementHost},
+		{ID: "select", Module: workflowrecipe.ModuleSelectComponent, Placement: recipe.PlacementHost, ModelSlot: 1,
+			Session: recipe.SessionRequest, Residency: recipe.ResidencyStream},
+		{ID: "train", Module: workflowrecipe.ModuleTrainBridge, Placement: recipe.PlacementHost,
+			Session: recipe.SessionCapacity, Residency: recipe.ResidencyHostCache},
 		{ID: "evaluate", Module: workflowrecipe.ModuleEvaluateBridge, Placement: recipe.PlacementHost},
 	}
 	edge := func(from recipe.NodeID, fromPort recipe.PortName, to recipe.NodeID, toPort recipe.PortName) recipe.Edge {

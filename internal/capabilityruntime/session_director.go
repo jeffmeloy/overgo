@@ -59,8 +59,9 @@ type ModelSessionDirector[Input, Model, Output any] struct {
 type SessionLease[Model any] struct {
 	ID      int
 	model   Model
-	release func()
+	release func() error
 	once    sync.Once
+	err     error
 }
 
 // SessionSnapshot: current resident admission state.
@@ -75,10 +76,11 @@ type SessionSnapshot struct {
 
 func (l *SessionLease[Model]) Model() Model { return l.model }
 
-func (l *SessionLease[Model]) Release() {
+func (l *SessionLease[Model]) Release() error {
 	if l != nil && l.release != nil {
-		l.once.Do(l.release)
+		l.once.Do(func() { l.err = l.release() })
 	}
+	return l.err
 }
 
 // NewResidentModelSessionDirector adopts one compiled serving session.
@@ -142,7 +144,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) TryLease(requested int) (*S
 	model := c.resident
 	c.mu.Unlock()
 	lease := &SessionLease[Model]{ID: id, model: model}
-	lease.release = func() {
+	lease.release = func() error {
 		c.admissionMu.Lock()
 		c.admissions <- id
 		c.admissionMu.Unlock()
@@ -150,6 +152,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) TryLease(requested int) (*S
 		c.residentUsers--
 		c.notify()
 		c.mu.Unlock()
+		return nil
 	}
 	return lease, true
 }
@@ -198,6 +201,46 @@ func NewModelSessionDirector[Input, Model, Output any](
 			}, nil
 		},
 	)
+}
+
+// NewComponentSessionDirector: recipe-component lease owner.
+func NewComponentSessionDirector[Model any](name, device string, capacity int) (*ModelSessionDirector[struct{}, Model, struct{}], error) {
+	if name == "" || device == "" || capacity <= 0 {
+		return nil, errors.New("capability runtime: incomplete component session director")
+	}
+	return &ModelSessionDirector[struct{}, Model, struct{}]{
+		name: name, device: device, capacity: capacity,
+		entries: make(map[sessionKey]*sessionEntry[Model]), changed: make(chan struct{}),
+	}, nil
+}
+
+// LeaseComponent: exclusive use under its compiled lifetime.
+func (c *ModelSessionDirector[Input, Model, Output]) LeaseComponent(
+	ctx context.Context,
+	component modelrecipe.ComponentSession,
+	load func(context.Context) (Model, error),
+) (*SessionLease[Model], error) {
+	if c == nil || load == nil || !component.Identity.Valid() || !component.Model.Valid() || component.Session == "" {
+		return nil, errors.New("capability runtime: incomplete component lease")
+	}
+	key := sessionKey{
+		model: component.Model, resources: component.Identity,
+		device: c.device, policy: string(component.Session),
+	}
+	entry, _, err := c.leaseEntry(ctx, key, load)
+	if err != nil {
+		return nil, err
+	}
+	lease := &SessionLease[Model]{model: entry.model}
+	lease.release = func() error {
+		var closeErr error
+		if component.Session == recipe.SessionRequest {
+			closeErr = c.retire(ctx, key, entry, nil)
+		}
+		c.release(entry)
+		return closeErr
+	}
+	return lease, nil
 }
 
 // MappedInput binds one JSON request field to a typed recipe port.
@@ -335,6 +378,16 @@ func (c *ModelSessionDirector[Input, Model, Output]) lease(
 	program recipe.Program,
 	input Input,
 ) (*sessionEntry[Model], bool, error) {
+	return c.leaseEntry(ctx, key, func(ctx context.Context) (Model, error) {
+		return c.load(ctx, store, path, program, input)
+	})
+}
+
+func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
+	ctx context.Context,
+	key sessionKey,
+	load func(context.Context) (Model, error),
+) (*sessionEntry[Model], bool, error) {
 	for {
 		c.mu.Lock()
 		if c.closed {
@@ -395,7 +448,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) lease(
 		c.entries[key] = entry
 		c.notify()
 		c.mu.Unlock()
-		model, err := c.load(ctx, store, path, program, input)
+		model, err := load(ctx)
 		entry.model, entry.loadErr = model, err
 		close(entry.ready)
 		if err != nil {

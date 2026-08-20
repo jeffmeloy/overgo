@@ -176,6 +176,7 @@ func recordChainLifecycle(
 func RecordViability(store *repodb.Store, config Config, result Result) (runrecord.GenerationRecord, error) {
 	if result.Target.Kind() != artifact.KindModel || result.Donor.Kind() != artifact.KindModel ||
 		result.Component.Kind() != artifact.KindTensorSet || result.Recipe.Kind() != artifact.KindRecipe ||
+		result.SessionPlan.Identity.Kind() != artifact.KindProfile ||
 		result.Dataset.Kind() != artifact.KindDataset || result.Split.Kind() != artifact.KindDatasetShard ||
 		len(result.Outcomes) == 0 || result.definition.ID != result.Recipe ||
 		result.WorstHeldOut < 0 || math.IsNaN(result.WorstHeldOut) || math.IsInf(result.WorstHeldOut, 0) {
@@ -210,7 +211,7 @@ func RecordViability(store *repodb.Store, config Config, result Result) (runreco
 		return runrecord.GenerationRecord{}, err
 	}
 	run, err := runrecord.NewRun(result.Recipe, outcome,
-		[]artifact.ID{result.Target, result.Donor, result.Component, result.Dataset, result.Split},
+		[]artifact.ID{result.Target, result.Donor, result.Component, result.SessionPlan.Identity, result.Dataset, result.Split},
 		[]artifact.ID{child, bridge}, failure)
 	if err != nil {
 		return runrecord.GenerationRecord{}, err
@@ -281,6 +282,10 @@ func RecordViability(store *repodb.Store, config Config, result Result) (runreco
 	if err != nil {
 		return runrecord.GenerationRecord{}, err
 	}
+	sessionContent, err := result.SessionPlan.Content()
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
 	runContent, err := run.Content()
 	if err != nil {
 		return runrecord.GenerationRecord{}, err
@@ -302,7 +307,7 @@ func RecordViability(store *repodb.Store, config Config, result Result) (runreco
 	ctx := context.Background()
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "graft-probe/generation/" + record.ID.String(), Artifacts: descriptors,
-		Contents: []artifact.Content{recipeContent, runContent, evaluationContent, evaluator, verdict, recordContent},
+		Contents: []artifact.Content{recipeContent, sessionContent, runContent, evaluationContent, evaluator, verdict, recordContent},
 		Lineage:  lineage,
 	}); err != nil {
 		return runrecord.GenerationRecord{}, err

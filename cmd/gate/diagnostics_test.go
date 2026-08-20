@@ -41,6 +41,15 @@ func TestMagicGateRejectsUncataloguedChangedAndStaleBindings(t *testing.T) {
 			t.Fatalf("stale error = %v", err)
 		}
 	})
+	t.Run("stale callsite", func(t *testing.T) {
+		root, _ := magicGateFixture(t, true)
+		relative := "internal/p/use.go"
+		writeMagicSource(t, filepath.Join(root, filepath.FromSlash(relative)), "package p\nvar configured = 8\n")
+		gate := gateContext{repo: root, paths: []string{relative}, storePath: "store"}
+		if _, err := gate.stepMagics(); err == nil || !strings.Contains(err.Error(), "callsite") {
+			t.Fatalf("stale callsite error = %v", err)
+		}
+	})
 }
 
 func TestMagicGateFailsClosedWhenLedgerUnavailable(t *testing.T) {
@@ -55,11 +64,41 @@ func TestMagicGateFailsClosedWhenLedgerUnavailable(t *testing.T) {
 	}
 }
 
+func TestMagicGateRejectsLiteralAndAssumptionDebtIncrease(t *testing.T) {
+	for _, fixture := range []struct {
+		name, relative, source string
+	}{
+		{"inline", "internal/p/p.go", "package p\nconst ExistingLimit = 8\nfunc use() int { return 7 }\n"},
+		{"assumption", "internal/p/p.go", "package p\nconst ExistingLimit = 8\nfunc fits(tensorRows int) bool { return tensorRows > ExistingLimit }\n"},
+		{"test_policy", "internal/p/p_test.go", "package p\nfunc verify() { if ExistingLimit != 8 { panic(\"policy\") } }\n"},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			root, path := magicGateFixture(t, false)
+			if fixture.relative != "internal/p/p.go" {
+				path = filepath.Join(root, filepath.FromSlash(fixture.relative))
+			}
+			writeMagicSource(t, path, fixture.source)
+			gate := gateContext{repo: root, paths: []string{fixture.relative}, storePath: "store"}
+			if _, err := gate.stepMagics(); err == nil || !strings.Contains(err.Error(), fixture.name) {
+				t.Fatalf("%s increase error = %v", fixture.name, err)
+			}
+		})
+	}
+}
+
+func TestMagicGateAllowsMeasuredDebtReduction(t *testing.T) {
+	baseline := magicDebt{Named: 1, Inline: 1, TestPolicy: 1, Assumption: 1}
+	if err := rejectMagicDebtIncrease(magicDebt{}, baseline); err != nil {
+		t.Fatalf("measured reduction rejected: %v", err)
+	}
+}
+
 func magicGateFixture(t *testing.T, publish bool) (string, string) {
 	t.Helper()
 	root := t.TempDir()
 	path := filepath.Join(root, "internal", "p", "p.go")
 	writeMagicSource(t, path, "package p\nconst ExistingLimit = 8\n")
+	writeMagicSource(t, filepath.Join(root, "internal", "p", "use.go"), "package p\nvar configured = ExistingLimit\n")
 	for _, args := range [][]string{
 		{"init"}, {"add", "."},
 		{"-c", "user.name=fixture", "-c", "user.email=fixture@example.com", "commit", "-m", "base"},

@@ -169,6 +169,10 @@ func verify() {
 	if classes[TestPolicyCopy] != 2 || classes[TestFixture] != 2 || classes[TestAssertion] != 0 {
 		t.Fatalf("classes = %v, sites = %+v", classes, sites)
 	}
+	count, err := CountTestPolicyLiterals(snapshot)
+	if err != nil || count != classes[TestPolicyCopy] {
+		t.Fatalf("policy count = (%d, %v), want %d", count, err, classes[TestPolicyCopy])
+	}
 }
 
 func TestAssumptionCensusFindsDecisionSurfaces(t *testing.T) {

@@ -188,34 +188,8 @@ func CensusLiterals(snapshot repoanalysis.SourceSnapshot, relatives []string) ([
 
 // CensusTestLiterals separates fixtures, assertions, and production overlaps.
 func CensusTestLiterals(snapshot repoanalysis.SourceSnapshot) ([]TestLiteralSite, error) {
-	production := map[string][]string{}
-	err := visitProduction(snapshot, nil, func(source repoanalysis.GoFile, file *ast.File) {
-		var candidates []Candidate
-		collect(file, source, &candidates)
-		for _, candidate := range candidates {
-			addProductionValue(production, candidate.Package, candidate.Value, candidate.File, candidate.Line)
-		}
-	})
-	if err != nil {
-		return nil, err
-	}
 	var out []TestLiteralSite
-	err = visitSources(snapshot, nil, func(source repoanalysis.GoFile) bool { return source.Test }, func(source repoanalysis.GoFile, file *ast.File) {
-		var literals []LiteralSite
-		collectLiteralSites(file, source, &literals)
-		for _, site := range literals {
-			out = append(out, classifyTestLiteral(site, false, production))
-		}
-		var named []Candidate
-		collect(file, source, &named)
-		for _, candidate := range named {
-			out = append(out, classifyTestLiteral(LiteralSite{
-				File: candidate.File, Package: candidate.Package, Scope: candidate.Scope,
-				Line: candidate.Line, Expression: candidate.Expression, Value: candidate.Value,
-				Context: LiteralOther, SourceID: candidate.SourceID,
-			}, true, production))
-		}
-	})
+	err := visitTestLiterals(snapshot, func(site TestLiteralSite) { out = append(out, site) })
 	if err != nil {
 		return nil, err
 	}
@@ -226,6 +200,47 @@ func CensusTestLiterals(snapshot repoanalysis.SourceSnapshot) ([]TestLiteralSite
 		return out[i].Offset < out[j].Offset || out[i].Offset == out[j].Offset && out[i].Line < out[j].Line
 	})
 	return out, nil
+}
+
+func CountTestPolicyLiterals(snapshot repoanalysis.SourceSnapshot) (int, error) {
+	var count int
+	err := visitTestLiterals(snapshot, func(site TestLiteralSite) {
+		if site.Class == TestPolicyCopy {
+			count++
+		}
+	})
+	return count, err
+}
+
+func visitTestLiterals(snapshot repoanalysis.SourceSnapshot, visit func(TestLiteralSite)) error {
+	production := map[string][]string{}
+	err := visitProduction(snapshot, nil, func(source repoanalysis.GoFile, file *ast.File) {
+		var candidates []Candidate
+		collect(file, source, &candidates)
+		for _, candidate := range candidates {
+			addProductionValue(production, candidate.Package, candidate.Value, candidate.File, candidate.Line)
+		}
+	})
+	if err != nil {
+		return err
+	}
+	err = visitSources(snapshot, nil, func(source repoanalysis.GoFile) bool { return source.Test }, func(source repoanalysis.GoFile, file *ast.File) {
+		var literals []LiteralSite
+		collectLiteralSites(file, source, &literals)
+		for _, site := range literals {
+			visit(classifyTestLiteral(site, false, production))
+		}
+		var named []Candidate
+		collect(file, source, &named)
+		for _, candidate := range named {
+			visit(classifyTestLiteral(LiteralSite{
+				File: candidate.File, Package: candidate.Package, Scope: candidate.Scope,
+				Line: candidate.Line, Expression: candidate.Expression, Value: candidate.Value,
+				Context: LiteralOther, SourceID: candidate.SourceID,
+			}, true, production))
+		}
+	})
+	return err
 }
 
 func addProductionValue(values map[string][]string, pkg, value, file string, line int) {

@@ -224,6 +224,7 @@ func TestReadGraniteMoESpec(t *testing.T) {
 }
 
 func TestReadSmallThinkerSpec(t *testing.T) {
+	const slidingWindow = uint32(1024)
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "smallthinker"),
 		metadata("smallthinker.block_count", gguf.ValueTypeUint32, uint32(8)),
@@ -237,7 +238,7 @@ func TestReadSmallThinkerSpec(t *testing.T) {
 		metadata("smallthinker.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
 		metadata("smallthinker.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
 		metadata("smallthinker.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
-		metadata("smallthinker.attention.sliding_window", gguf.ValueTypeUint32, uint32(1024)),
+		metadata("smallthinker.attention.sliding_window", gguf.ValueTypeUint32, slidingWindow),
 		metadata("smallthinker.attention.sliding_window_pattern", gguf.ValueTypeUint32, uint32(4)),
 		metadata("smallthinker.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
 		metadata("smallthinker.rope.freq_base_swa", gguf.ValueTypeFloat32, float32(20000)),
@@ -247,8 +248,10 @@ func TestReadSmallThinkerSpec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defaults := spec.Profile().MetadataDefaults
 	if spec.ExpertFeedForward != 6 || !spec.ExpertWeightsNorm || spec.ExpertGatingFunc != expertGatingSigmoid ||
-		spec.SlidingWindow != 4096 || spec.SlidingPattern != 4 || spec.NoRopeLayerStep != 4 ||
+		spec.SlidingWindow != slidingWindow || spec.SlidingPattern != defaults.SlidingPattern ||
+		spec.NoRopeLayerStep != defaults.SlidingPattern ||
 		spec.RopeFrequencySWA != 20000 || spec.IsSlidingLayer(0) || !spec.IsSlidingLayer(1) ||
 		spec.IsSlidingLayer(4) || spec.UsesRoPE(0) || !spec.UsesRoPE(1) || spec.UsesRoPE(4) {
 		t.Fatalf("unexpected SmallThinker spec: %+v", spec)

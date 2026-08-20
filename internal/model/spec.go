@@ -365,7 +365,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 			denominator := float32(1)
 			if spec.RopeYaRNLogMultiplier != 0 {
-				denominator += 0.1 * spec.RopeYaRNLogMultiplier *
+				denominator += yarnLogFactorStep * spec.RopeYaRNLogMultiplier *
 					float32(math.Log(float64(spec.RopeScalingFactor)))
 			}
 			spec.YaRNAttentionFactor = rawAttentionFactor / denominator
@@ -409,7 +409,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		if value, ok := optional[uint32](
 			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
 		); ok && value > 0 {
-			spec.SlidingWindow = 4096
+			spec.SlidingWindow = value
 			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
 	}
@@ -995,7 +995,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 					rawAttentionFactor = value
 				}
 				spec.YaRNAttentionFactor = rawAttentionFactor /
-					(1 + 0.1*float32(math.Log(float64(spec.RopeScalingFactor))))
+					(1 + yarnLogFactorStep*float32(math.Log(float64(spec.RopeScalingFactor))))
 			}
 			spec.AttentionTempScale, _ = optional[float32](values, prefix+"attention.temperature_scale", gguf.ValueTypeFloat32)
 			spec.AttentionTempFloor, _ = optional[uint32](values, prefix+"attention.temperature_length", gguf.ValueTypeUint32)

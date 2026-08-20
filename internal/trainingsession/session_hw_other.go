@@ -1,6 +1,6 @@
 //go:build !windows
 
-package trainingworkflow
+package trainingsession
 
 // sessionSampler: no CUDA device off Windows; observations carry phase walls
 // without hardware samples.

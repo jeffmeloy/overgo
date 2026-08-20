@@ -1,0 +1,72 @@
+overgo full-pipeline training verification run
+tool: cmd/mot-train-probe (routedlm.ModalityTransformerTrainer), session-
+supervised full modality-transformer training
+model: Hy-Embodied-RxBrain-1.0 (branch-routed unified MoT, 32 layers,
+6.2B total), model:sha256:fa8d2cf13e6056494f89fb49ace96057dd9008371def50641c36a7d05e29d936
+(the ledger identity of docs/verification/rxbrain-training.json, matched by
+the run's own artifact.Identify at admission)
+
+promotion-gate-closed: Hy-Embodied-RxBrain-1.0 full modality-transformer training with real hidden rows from the vision/text forward (gate named in docs/verification/rxbrain-training-run.txt, refusal finding 69516579's carried route)
+
+trainable surface: the vision-branch fork of EVERY layer — q/k/v/o
+projections, SiLU MLP (gate/up/down), input and post-attention norms —
+1,543,634,944 parameters (288 tensors) as f32 masters decoded from the BF16
+serving storage (the explicit training-precision contract). The frozen text
+branch, shared QK-norm scales, final norm, and tied head participate in the
+graph (gradient flows through them) without updates.
+trainer: routedlm.ModalityTransformerTrainer over optimizer.NewStepper
+(shared CUDA Muon); the full-graph VJP (branch routing, segment-window
+attention, rope, per-head QK-norm, GQA) is finite-difference proven per
+tensor role per layer (TestModalityTransformerGradientMatchesFiniteDifference,
+directional derivatives, 2% tolerance). Hyperparameters fully DERIVED:
+base LR n_params^-1/2 = 2.54523e-05, momentum (CLT-1)/(CLT+1) = 0.9354838710.
+
+hidden rows: REAL — routedlm.PrefillValues over the golden-verified prompt
+(346 tokens: text question + 300 merged vision rows from the real patch-tower
+merger on the sha256-pinned block_last activations; the canonical
+bridgev2_move_toy VQA case the 44/44 parity ladder verified end-to-end).
+objective: the pipeline's own next-token cross-entropy, teacher-forced at the
+prompt's 45 real text positions (declaration:
+docs/verification/rxbrain-mot-training-stimulus.txt).
+
+session supervision: the whole run executed as a model-session under the
+capability-runtime director (internal/trainingsession) — component-session
+lease admission BEFORE weights loaded, recipe authority bootstrapped and
+activated at the experimental tier
+(recipe:sha256:1ea5ca9e3faa4ceb981c39e9dec2e29c63a6396e712d2b487f9880442acbfa20),
+typed observation committed:
+session observation: evidence:sha256:2eb5657243152a17b0852a510e20fe6cec1c377179687c9449066de54297329f
+  task=training outcome=succeeded measured_ns=323990860800
+  phases: load 8100820300 ns, forward_backward 294346124300 ns
+  usage: input_tokens=1038 (3 steps x 346 prompt rows)
+  resources: peak_device_bytes=1977090048 (per-group streamed device Muon)
+  hardware series (device-global used bytes): start 1658322944,
+  mid-run 1977090048, finish 1977090048
+
+run output (unedited):
+full modality-transformer: layers=32 trainable_parameters=1543634944 prompt_tokens=346 image_rows=300 supervised_positions=45
+derived_lr=2.54523e-05 derived_momentum=0.935483871 load_wall=8.101s
+initial loss 4.539042 (next-token cross-entropy over 45 real positions)
+step 1/3 loss 4.539042 grad_l2 47.292909 lr 2.54523e-05 wall 1m30.707s
+step 2/3 loss 3.665273 grad_l2 14.361550 lr 2.54523e-05 wall 1m31.214s
+step 3/3 loss 3.302435 grad_l2 8.520354 lr 2.54523e-05 wall 1m30.302s
+after-evaluation loss 3.025459 (initial 4.539042)
+
+monotone descent 4.539042 -> 3.665273 -> 3.302435 -> 3.025459 (after-eval);
+grad_l2 47.29 -> 14.36 -> 8.52. This supersedes the organ-scope cell
+(264,256-parameter latent bridge, docs/verification/rxbrain-training-run.txt)
+by four orders of magnitude of trainable surface and replaces synthetic
+stimulus with the real forward's rows — the named gate's exact terms.
+
+caveats:
+- 3 supervised steps on one real prompt: machinery-tier evidence
+  (real-artifact-smoke), memorization descent on the canonical case, not a
+  capability claim.
+- host forward/backward at ~90s/step (1.54B-param full graph over 346 rows);
+  the Muon update itself is device-resident per group.
+- the `_g` third branch the checkpoint ships is outside overgo's binding and
+  stays untouched.
+
+reproduce:
+  go run ./cmd/mot-train-probe -steps 3
+  go run ./cmd/repodb-query -repo repodb-store -id <printed observation id> -content

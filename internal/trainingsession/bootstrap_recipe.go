@@ -1,4 +1,4 @@
-package main
+package trainingsession
 
 import (
 	"context"
@@ -15,41 +15,41 @@ import (
 	"overgo/internal/workflowrecipe"
 )
 
-// bootstrapTrainingRecipe publishes, verifies, and activates a token-training
+// BootstrapTokenRecipe publishes, verifies, and activates a token-training
 // recipe for one model at the experimental evidence tier — the recipe
 // authority a session-supervised training run resolves before touching
 // weights. Every dependency is a real committed artifact: the dataset
 // grounds by content, the split and policy profiles identify by declared
 // names, and the activation reason records that this is the bootstrap.
-func bootstrapTrainingRecipe(store *repodb.Store, modelPath, datasetPath string) error {
-	ctx := context.Background()
+// The activated recipe definition identity returns for the caller's run.
+func BootstrapTokenRecipe(ctx context.Context, store *repodb.Store, modelPath, datasetPath string) (artifact.ID, error) {
 	modelFile, err := os.Open(modelPath)
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	modelID, _, err := artifact.Identify(artifact.KindModel, modelFile)
 	modelFile.Close()
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	datasetBytes, err := os.ReadFile(datasetPath)
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	datasetID, err := artifact.IdentifyBytes(artifact.KindDataset, datasetBytes)
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	// Split and processor identify exactly as the training run derives them
 	// (datasetAuthority in trainingworkflow), so the run authority equals the
 	// stored objective.
 	splitID, err := artifact.IdentifyBytes(artifact.KindDatasetShard, append([]byte("all\x00"), datasetBytes...))
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training/text-utf8/v1"))
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	profile := func(name string) (artifact.ID, error) {
 		return artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training-bootstrap/"+name))
@@ -59,13 +59,13 @@ func bootstrapTrainingRecipe(store *repodb.Store, modelPath, datasetPath string)
 	for _, name := range names {
 		id, err := profile(name)
 		if err != nil {
-			return err
+			return artifact.ID{}, err
 		}
 		profiles[name] = id
 	}
 	evidenceID, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("overgo/training-bootstrap/objective-evidence"))
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "token prediction bootstrap", Kind: trainingprogram.ObjectiveTokenPrediction,
@@ -79,11 +79,11 @@ func bootstrapTrainingRecipe(store *repodb.Store, modelPath, datasetPath string)
 		Authority: trainingprogram.ObjectiveApproved,
 	})
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	content, err := objective.Content()
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	// Identities already grounded by prior claims keep their stored facts;
 	// only absent identities are declared.
@@ -94,7 +94,7 @@ func bootstrapTrainingRecipe(store *repodb.Store, modelPath, datasetPath string)
 	var descriptors []artifact.Descriptor
 	for _, id := range candidates {
 		if _, ok, err := store.Artifact(ctx, id); err != nil {
-			return err
+			return artifact.ID{}, err
 		} else if !ok {
 			descriptors = append(descriptors, artifact.Descriptor{ID: id})
 		}
@@ -102,7 +102,7 @@ func bootstrapTrainingRecipe(store *repodb.Store, modelPath, datasetPath string)
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "training/bootstrap/authority/" + objective.ID.String(), Artifacts: descriptors, Contents: []artifact.Content{content},
 	}); err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	dependencies := []recipe.Dependency{
 		{Role: recipe.DependencyModel, Artifact: modelID},
@@ -133,19 +133,19 @@ func bootstrapTrainingRecipe(store *repodb.Store, modelPath, datasetPath string)
 		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}},
 	)
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "training/bootstrap/candidate/"+definition.ID.String(), definition); err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	verification, err := modelrecipetest.PublishVerification(ctx, store, "training/bootstrap/verification/"+definition.ID.String(), definition.ID)
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification,
 		recipe.EvidenceExperimental, "session-supervised training substrate bootstrap"); err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	fmt.Printf("training recipe activated: %s (model %s, experimental evidence tier)\n", definition.ID, modelID)
-	return nil
+	return definition.ID, nil
 }

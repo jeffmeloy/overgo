@@ -1,6 +1,6 @@
 //go:build windows
 
-package trainingworkflow
+package trainingsession
 
 import (
 	"context"

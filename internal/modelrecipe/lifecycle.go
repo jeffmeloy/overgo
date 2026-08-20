@@ -468,6 +468,10 @@ func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.I
 
 // ResolveActiveCapability returns the verified executable capability program.
 func ResolveActiveCapability(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (Activation, recipe.Program, error) {
+	return resolveActiveCapability(ctx, store, modelID, task)
+}
+
+func resolveActiveCapability(ctx context.Context, store artifact.Reader, modelID artifact.ID, task recipe.Task) (Activation, recipe.Program, error) {
 	activation, active, err := ActiveRecord(ctx, store, modelID, task)
 	if err == nil && !active {
 		err = fmt.Errorf("model recipe: model %s has no active %s recipe", modelID, task)

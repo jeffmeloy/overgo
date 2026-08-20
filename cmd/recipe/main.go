@@ -58,6 +58,8 @@ func run() error {
 	residencyFlag := flags.String("residency", string(recipe.ResidencyHybridNative),
 		"weight residency: stream | host-cache | device-f32 | device-native | device-native-bf16 | hybrid-native | host-reference")
 	input := flags.String("input", "", "task input as JSON; - reads standard input (verify, run)")
+	alias := flags.String("alias", "", "RepoDB model alias (run)")
+	selection := flags.String("selection", string(modelrecipe.SessionWarm), "alias session selection: pin | warm | spillover (run)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -171,7 +173,11 @@ func run() error {
 		if strings.TrimSpace(rawInput) == "" {
 			return errors.New("run requires -input JSON")
 		}
-		return executeCapability(repository, path, selectedTask, capability, rawInput)
+		selectedSession := modelrecipe.SessionSelection(*selection)
+		if !selectedSession.Valid() {
+			return fmt.Errorf("invalid session selection %q", *selection)
+		}
+		return executeCapability(repository, path, strings.TrimSpace(*alias), selectedSession, selectedTask, capability, rawInput)
 	case "status":
 		return status(repository, path, selectedTask)
 	default:
@@ -418,7 +424,8 @@ func cleanGoRevision() (string, error) {
 }
 
 func executeCapability(
-	repository, path string,
+	repository, path, alias string,
+	selection modelrecipe.SessionSelection,
 	task recipe.Task,
 	capability capability,
 	input string,
@@ -434,7 +441,21 @@ func executeCapability(
 		return err
 	}
 	modelID := source.inventory.Manifest.ID
-	_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, task)
+	var program recipe.Program
+	if alias != "" {
+		selected, selectErr := modelrecipe.ResolveCapabilityEvidenceSelector(
+			ctx, store, modelrecipe.CapabilityEvidenceSelector{Alias: alias, Task: task, Session: selection},
+		)
+		if selectErr != nil {
+			return selectErr
+		}
+		if selected.Resources.Model != modelID {
+			return errors.New("recipe: capability alias differs from loaded model")
+		}
+		program = selected.Program
+	} else {
+		_, program, err = modelrecipe.ResolveActiveCapability(ctx, store, modelID, task)
+	}
 	if err != nil {
 		return err
 	}

@@ -52,7 +52,6 @@ ever appears for it without a closure route landing first -- silent cells
 are impossible. No silent skips: this document is the sweep's typed outcome
 for all eight rows.
 
-refused-model: Qwen3.5-9B-Q8
 
 CORRECTIONS 2026-08-19 from deep reference archaeology (the dispatch table
 moved three times and was never a reliable trainability index -- TabFM and
@@ -124,3 +123,11 @@ round-trip 0.359595 to 0.358125 over 200 derived-LR steps; a 3-step probe
 was correctly refused by the serving bar when quantization absorbed the
 drift). Full-model ternary training and persistence policy remain the
 named promotion gates inside the cell evidence.
+
+WITHDRAWN 2026-08-19: Qwen3.5-9B-Q8 refusal closes by its named
+master-weight-lane route, proven first on the Bonsai ternary artifact:
+the Q8_0 FFN matrix trains as f32 masters and the requantized serving
+tensor's behavior moves (0.377111 to 0.376052 in 12 derived-LR steps --
+Q8's fine grid passes updates through where ternary needed 200). The
+recurrent-layer evidence lives in the Qwen3.5-4B hybridtrain cell;
+full-stack 9B hybrid training remains the named promotion gate.

@@ -43,6 +43,20 @@ func TestDeepSeekOCRTinyFixture(t *testing.T) {
 	}
 }
 
+func TestDeepSeekOCRRequiresPreprocessingMetadata(t *testing.T) {
+	for _, missing := range []string{
+		"clip.vision.preproc_image_size", "clip.vision.preproc_min_tiles", "clip.vision.preproc_max_tiles",
+	} {
+		metadata := slices.DeleteFunc(slices.Clone(tinyDeepSeekOCRMetadata()), func(item gguf.Metadata) bool {
+			return item.Key == missing
+		})
+		path := writeProjectorFixture(t, "deepseekocr-missing-preprocessing.gguf", metadata, tinyDeepSeekOCRTensors(false))
+		if _, err := openImageProjectorAs[*DeepSeekOCRRunner](path, OpenOptions{}); err == nil {
+			t.Fatalf("missing metadata %q accepted", missing)
+		}
+	}
+}
+
 func TestDeepSeekOCRPreprocessesLocalTilesBeforeOverview(t *testing.T) {
 	spec := tinyDeepSeekOCRSpec()
 	input, err := PreprocessDeepSeekOCRImage(image.NewRGBA(image.Rect(0, 0, 128, 64)), spec)

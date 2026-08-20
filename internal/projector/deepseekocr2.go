@@ -14,9 +14,7 @@ import (
 )
 
 const (
-	deepSeekOCR2ProjectorType   = "deepseekocr2"
-	deepSeekOCR2DefaultTileSize = 768
-	deepSeekOCR2DefaultMaxTiles = 6
+	deepSeekOCR2ProjectorType = "deepseekocr2"
 )
 
 type DeepSeekOCR2Spec struct {
@@ -66,9 +64,7 @@ func (r *DeepSeekOCR2Runner) Spec() DeepSeekOCR2Spec {
 }
 
 func ReadDeepSeekOCR2Spec(file *gguf.File) (DeepSeekOCR2Spec, error) {
-	base, err := readDeepSeekOCRBaseSpec(
-		file, deepSeekOCR2ProjectorType, deepSeekOCR2DefaultTileSize, deepSeekOCR2DefaultMaxTiles,
-	)
+	base, err := readDeepSeekOCRBaseSpec(file, deepSeekOCR2ProjectorType)
 	if err != nil {
 		return DeepSeekOCR2Spec{}, err
 	}

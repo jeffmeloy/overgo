@@ -1,17 +1,4 @@
-// recipe: drives the model-recipe lifecycle for real artifacts — the command
-// the sealed authority was waiting for (the lifecycle API was complete but
-// uninvoked; the wave-1 probe recorded the refusal that proved it).
-//
-//	recipe verify -task <task> -input <json> <model>
-//	                                        candidate execution evidence
-//	recipe activate -reason "..." -gate <id> -run-id <id> <model>
-//	                                        verified promotion
-//	recipe retire -reason "..." -gate <id> -run-id <id> <model>
-//	                                        measured refusal
-//	recipe status <model>                   show the active recipe and tier
-//
-// Model references resolve through the data-root contract. Activation consumes
-// a successful recipe-bound verifier gate/run pair.
+// recipe: model-recipe lifecycle CLI.
 package main
 
 import (

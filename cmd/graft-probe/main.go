@@ -1,8 +1,4 @@
-// Command graft-probe runs the composition-viability experiment from the
-// command line: graft one organ-classified donor MLP into a frozen target
-// behind a trainable bridge, train only the bridge with shared Muon, and print
-// the SHIP or REFUSE verdict with every measured loss. This is the manual,
-// human-reviewed entry point the composition-viability plan row requires.
+// graft-probe: composition viability CLI.
 package main
 
 import (

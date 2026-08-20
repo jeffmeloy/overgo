@@ -27,7 +27,7 @@ import (
 
 func main() {
 	model := flag.String("model", "", "model directory (safetensors + config.json)")
-	organ := flag.String("organ", "flow-head", "trainable organ: flow-head (SenseNova fm_head), latent-bridge (RxBrain llm2vae/vae2llm), or denoiser-final (Krea-2 MMDiT output head)")
+	organ := flag.String("organ", "flow-head", "trainable organ: flow-head (SenseNova fm_head), latent-bridge (RxBrain llm2vae/vae2llm), denoiser-final (Krea-2 MMDiT output head), or video-head (Wan2.1 head)")
 	steps := flag.Int("steps", 3, "observed Muon steps")
 	rows := flag.Int("rows", 8, "stimulus rows")
 	timestep := flag.Float64("timestep", 0.25, "flow timestep in [0,1)")
@@ -40,7 +40,9 @@ func main() {
 	case "latent-bridge":
 		err = runLatentBridge(*model, *steps, *rows, *maxWall)
 	case "denoiser-final":
-		err = runDenoiserFinal(*model, *steps, *rows, *maxWall)
+		err = runDenoiserFinal(*model, latentimage.KreaFinalLayerBinding(), *steps, *rows, *maxWall)
+	case "video-head":
+		err = runDenoiserFinal(*model, latentimage.WanHeadBinding(), *steps, *rows, *maxWall)
 	default:
 		err = fmt.Errorf("flow-organ-train-probe: unknown organ %q (flow-head, latent-bridge)", *organ)
 	}
@@ -52,7 +54,7 @@ func main() {
 
 // runDenoiserFinal: the Krea-2-family MMDiT output head trains the velocity
 // MSE objective on a deterministic committed stimulus.
-func runDenoiserFinal(modelDir string, steps, rows int, maxWall time.Duration) error {
+func runDenoiserFinal(modelDir string, binding latentimage.FinalLayerBinding, steps, rows int, maxWall time.Duration) error {
 	if modelDir == "" || steps <= 0 || rows <= 0 {
 		return fmt.Errorf("flow-organ-train-probe: -model is required; -steps and -rows must be positive")
 	}
@@ -66,7 +68,7 @@ func runDenoiserFinal(modelDir string, steps, rows int, maxWall time.Duration) e
 		return err
 	}
 	defer src.Close()
-	weights, err := latentimage.LoadFinalLayerWeights(src, latentimage.KreaFinalLayerBinding())
+	weights, err := latentimage.LoadFinalLayerWeights(src, binding)
 	if err != nil {
 		return err
 	}

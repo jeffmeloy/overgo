@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority: campaign design and execution dispatch live here and nowhere else. Every open step has a failable verifier; queue order is binding; plan complete means campaign complete. Generic authority beside retained specialized runtime is failure, not progress. Every migration must move all production callers and delete displaced orchestration, wrappers, fallbacks, compatibility paths, duplicate probes, and parallel authorities in the same gated wave. New shared code must replace existing ownership immediately. Verify numerical behavior, Live Edit behavior where applicable, code reduction, allocations, transfers, peak memory, and processing cost before completion. After every gated step, merge current master into this worktree before starting the next step.",
   "items": [
     {
-      "id": "wan-flow-training",
-      "title": "Wan2.1-T2V training: text-to-video flow training graph (denoise objective over the wan transformer with frozen T5/VAE, SimpleDiffusion template); bounded observed smoke, cell recorded, refusal finding 421b6981 closes",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Wan2.1-T2V training: text-to-video flow training graph (denoise objective over the wan transformer with frozen T5/VAE, SimpleDiffusion template); bounded observed smoke, cell recorded, refusal finding 421b6981 closes",
-          "status": "open",
-          "verify": "go run ./cmd/repodb-query -repo repodb-store -verifications | grep Wan2.1 | grep -q training="
-        }
-      ]
-    },
-    {
       "id": "liveedit-flow-training",
       "title": "LiveEdit training: video-edit diffusion training graph over the SimpleDiffusion OT-flow template (conditioned denoise objective from the serving bridge tensors); bounded observed smoke, cell recorded, refusal finding f28aa306 closes",
       "status": "open",

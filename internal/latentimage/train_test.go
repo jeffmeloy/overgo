@@ -88,6 +88,65 @@ func TestFinalLayerTrainerDescends(t *testing.T) {
 	}
 }
 
+func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing.T) {
+	weights := tinyFinalLayer(7, 3)
+	weights.Norm = nil // the Wan2.1 head: non-parametric LayerNorm
+	trainer, err := NewFinalLayerTrainer(weights, 1e-6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	x, temb, target := finalStimulus(3, 7, 3)
+	baseline, err := trainer.Loss(x, temb, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stepLoss, gradientL2, err := trainer.lossAndGradients(x, temb, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(stepLoss-baseline) > 1e-9 || gradientL2 <= 0 {
+		t.Fatalf("layernorm gradient pass loss %.9g vs %.9g", stepLoss, baseline)
+	}
+	const epsilonFD, limitFD = 1e-4, 2e-2
+	for _, index := range []int{trainer.table.start + 2, trainer.table.start + 7 + 2, trainer.linear.start + 4, trainer.bias.start} {
+		fresh, err := NewFinalLayerTrainer(weights, 1e-6)
+		if err != nil {
+			t.Fatal(err)
+		}
+		original := fresh.weights[index]
+		fresh.weights[index] = original + epsilonFD
+		plus, err := fresh.Loss(x, temb, target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fresh.weights[index] = original - epsilonFD
+		minus, err := fresh.Loss(x, temb, target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = fresh.Close()
+		numeric := (plus - minus) / (2 * epsilonFD)
+		got := float64(trainer.gradients[index])
+		scale := math.Max(1, math.Max(math.Abs(numeric), math.Abs(got)))
+		if math.Abs(numeric-got)/scale > limitFD {
+			t.Fatalf("layernorm gradient[%d]: analytic=%.6g numeric=%.6g", index, got, numeric)
+		}
+	}
+	for step := 0; step < 10; step++ {
+		if _, err := trainer.Step(x, temb, target); err != nil {
+			t.Fatal(err)
+		}
+	}
+	after, err := trainer.Loss(x, temb, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(after < baseline) {
+		t.Fatalf("layernorm head did not descend: %.6f -> %.6f", baseline, after)
+	}
+}
+
 func TestFinalLayerGradientMatchesFiniteDifference(t *testing.T) {
 	const epsilon, limit = 1e-4, 2e-2
 	weights := tinyFinalLayer(7, 3)

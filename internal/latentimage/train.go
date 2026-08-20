@@ -29,7 +29,17 @@ func KreaFinalLayerBinding() FinalLayerBinding {
 	}
 }
 
-// FinalLayerWeights: the loaded organ with derived geometry.
+// WanHeadBinding: the Wan2.1 checkpoint naming. The head norm is a
+// non-parametric LayerNorm, so no norm tensor is bound.
+func WanHeadBinding() FinalLayerBinding {
+	return FinalLayerBinding{
+		Table: "head.modulation", Linear: "head.head.weight", Bias: "head.head.bias",
+	}
+}
+
+// FinalLayerWeights: the loaded organ with derived geometry. A nil Norm
+// declares a non-parametric LayerNorm head (the Wan2.1 family); a present
+// Norm declares the zero-centered RMSNorm head (the Krea-2 family).
 type FinalLayerWeights struct {
 	Hidden, Out               int
 	Norm, Table, Linear, Bias []float32
@@ -62,8 +72,13 @@ func LoadFinalLayerWeights(src *safetensors.Source, b FinalLayerBinding) (FinalL
 		return w, fmt.Errorf("latentimage final layer: %s shape %v", b.Linear, linearShape)
 	}
 	w.Out, w.Hidden, w.Linear = linearShape[0], linearShape[1], linear
-	if w.Norm, _, err = read(b.Norm); err != nil {
-		return w, err
+	if b.Norm != "" {
+		if w.Norm, _, err = read(b.Norm); err != nil {
+			return w, err
+		}
+		if len(w.Norm) != w.Hidden {
+			return w, fmt.Errorf("latentimage final layer: norm=%d, want %d", len(w.Norm), w.Hidden)
+		}
 	}
 	if w.Table, _, err = read(b.Table); err != nil {
 		return w, err
@@ -71,9 +86,9 @@ func LoadFinalLayerWeights(src *safetensors.Source, b FinalLayerBinding) (FinalL
 	if w.Bias, _, err = read(b.Bias); err != nil {
 		return w, err
 	}
-	if len(w.Norm) != w.Hidden || len(w.Table) != 2*w.Hidden || len(w.Bias) != w.Out {
-		return w, fmt.Errorf("latentimage final layer: norm=%d table=%d bias=%d, want %d/%d/%d",
-			len(w.Norm), len(w.Table), len(w.Bias), w.Hidden, 2*w.Hidden, w.Out)
+	if len(w.Table) != 2*w.Hidden || len(w.Bias) != w.Out {
+		return w, fmt.Errorf("latentimage final layer: table=%d bias=%d, want %d/%d",
+			len(w.Table), len(w.Bias), 2*w.Hidden, w.Out)
 	}
 	return w, nil
 }
@@ -82,6 +97,7 @@ func LoadFinalLayerWeights(src *safetensors.Source, b FinalLayerBinding) (FinalL
 type FinalLayerTrainer struct {
 	hidden, out               int
 	eps                       float64
+	normed                    bool
 	weights                   []float32
 	gradients                 []float32
 	norm, table, linear, bias struct{ start, end int }
@@ -95,42 +111,44 @@ func NewFinalLayerTrainer(w FinalLayerWeights, eps float64) (*FinalLayerTrainer,
 	if w.Hidden <= 0 || w.Out <= 0 || eps <= 0 {
 		return nil, fmt.Errorf("latentimage final layer: geometry %dx%d eps %g", w.Hidden, w.Out, eps)
 	}
-	sections := []struct {
+	type section struct {
+		name       string
 		values     []float32
 		rows, cols int
-	}{
-		{w.Norm, 1, w.Hidden},
-		{w.Table, 2, w.Hidden},
-		{w.Linear, w.Out, w.Hidden},
-		{w.Bias, 1, w.Out},
+		slot       *struct{ start, end int }
 	}
-	names := []string{"final.norm", "final.table", "final.linear", "final.bias"}
+	trainerShell := &FinalLayerTrainer{hidden: w.Hidden, out: w.Out, eps: eps, normed: w.Norm != nil}
+	sections := []section{
+		{"final.table", w.Table, 2, w.Hidden, &trainerShell.table},
+		{"final.linear", w.Linear, w.Out, w.Hidden, &trainerShell.linear},
+		{"final.bias", w.Bias, 1, w.Out, &trainerShell.bias},
+	}
+	if w.Norm != nil {
+		sections = append([]section{{"final.norm", w.Norm, 1, w.Hidden, &trainerShell.norm}}, sections...)
+	}
 	total := 0
 	specs := make([]optimizer.GroupSpec, len(sections))
 	for i, s := range sections {
 		if len(s.values) != s.rows*s.cols {
-			return nil, fmt.Errorf("latentimage final layer: %s has %d values, want %d", names[i], len(s.values), s.rows*s.cols)
+			return nil, fmt.Errorf("latentimage final layer: %s has %d values, want %d", s.name, len(s.values), s.rows*s.cols)
 		}
-		specs[i] = optimizer.GroupSpec{Name: names[i], Start: total, End: total + len(s.values), Rows: s.rows, Cols: s.cols}
+		specs[i] = optimizer.GroupSpec{Name: s.name, Start: total, End: total + len(s.values), Rows: s.rows, Cols: s.cols}
 		total += len(s.values)
 	}
 	plan, err := optimizer.CompilePlan(total, specs)
 	if err != nil {
 		return nil, err
 	}
-	trainer := &FinalLayerTrainer{
-		hidden: w.Hidden, out: w.Out, eps: eps,
-		weights:   make([]float32, total),
-		gradients: make([]float32, total),
-		config: optimizer.Config{
-			BaseLearningRate: optimizer.DeriveBaseLR(total),
-			Momentum:         optimizer.DeriveMomentum(),
-			Schedule:         optimizer.ScheduleConstant,
-		},
+	trainer := trainerShell
+	trainer.weights = make([]float32, total)
+	trainer.gradients = make([]float32, total)
+	trainer.config = optimizer.Config{
+		BaseLearningRate: optimizer.DeriveBaseLR(total),
+		Momentum:         optimizer.DeriveMomentum(),
+		Schedule:         optimizer.ScheduleConstant,
 	}
-	slots := []*struct{ start, end int }{&trainer.norm, &trainer.table, &trainer.linear, &trainer.bias}
 	for i, s := range sections {
-		slots[i].start, slots[i].end = specs[i].Start, specs[i].End
+		s.slot.start, s.slot.end = specs[i].Start, specs[i].End
 		copy(trainer.weights[specs[i].Start:specs[i].End], s.values)
 	}
 	trainer.stepper, err = optimizer.NewStepper(trainer.weights, trainer.gradients, plan, trainer.config)
@@ -205,7 +223,10 @@ type FinalLayerStepResult struct {
 // forwardTrace: normalized rows (pre-affine), affine rows, head output.
 func (t *FinalLayerTrainer) forwardTrace(hidden, temb []float64, rows int) (normed, modulated, out []float64) {
 	h, o := t.hidden, t.out
-	normW := t.weights[t.norm.start:t.norm.end]
+	var normW []float32
+	if t.normed {
+		normW = t.weights[t.norm.start:t.norm.end]
+	}
 	table := t.weights[t.table.start:t.table.end]
 	linW := t.weights[t.linear.start:t.linear.end]
 	linB := t.weights[t.bias.start:t.bias.end]
@@ -213,17 +234,36 @@ func (t *FinalLayerTrainer) forwardTrace(hidden, temb []float64, rows int) (norm
 	modulated = make([]float64, rows*h)
 	for r := 0; r < rows; r++ {
 		xr := hidden[r*h : (r+1)*h]
-		var ss float64
-		for i := 0; i < h; i++ {
-			ss += xr[i] * xr[i]
+		if t.normed {
+			var ss float64
+			for i := 0; i < h; i++ {
+				ss += xr[i] * xr[i]
+			}
+			inv := 1 / math.Sqrt(ss/float64(h)+t.eps)
+			for i := 0; i < h; i++ {
+				normed[r*h+i] = xr[i] * inv * (1 + float64(normW[i]))
+			}
+		} else {
+			// Non-parametric LayerNorm (the Wan2.1 head).
+			var mean float64
+			for i := 0; i < h; i++ {
+				mean += xr[i]
+			}
+			mean /= float64(h)
+			var variance float64
+			for i := 0; i < h; i++ {
+				d := xr[i] - mean
+				variance += d * d
+			}
+			inv := 1 / math.Sqrt(variance/float64(h)+t.eps)
+			for i := 0; i < h; i++ {
+				normed[r*h+i] = (xr[i] - mean) * inv
+			}
 		}
-		inv := 1 / math.Sqrt(ss/float64(h)+t.eps)
 		for i := 0; i < h; i++ {
-			n := xr[i] * inv * (1 + float64(normW[i]))
-			normed[r*h+i] = n
 			scale := temb[i] + float64(table[i])
 			shift := temb[i] + float64(table[h+i])
-			modulated[r*h+i] = (1+scale)*n + shift
+			modulated[r*h+i] = (1+scale)*normed[r*h+i] + shift
 		}
 	}
 	out = make([]float64, rows*o)
@@ -264,10 +304,8 @@ func (t *FinalLayerTrainer) lossAndGradients(hidden, temb, target []float64) (fl
 	}
 
 	clear(t.gradients)
-	normW := t.weights[t.norm.start:t.norm.end]
 	table := t.weights[t.table.start:t.table.end]
 	linW := t.weights[t.linear.start:t.linear.end]
-	gNorm := t.gradients[t.norm.start:t.norm.end]
 	gTable := t.gradients[t.table.start:t.table.end]
 	gLin := t.gradients[t.linear.start:t.linear.end]
 	gBias := t.gradients[t.bias.start:t.bias.end]
@@ -300,19 +338,22 @@ func (t *FinalLayerTrainer) lossAndGradients(hidden, temb, target []float64) (fl
 		}
 	}
 	// Zero-centered RMSNorm backward: n_i = x_i*inv*(1+w_i); only the weight
-	// gradient is needed at the organ boundary.
-	for r := 0; r < rows; r++ {
-		xr := hidden[r*h : (r+1)*h]
-		var ss float64
-		for i := 0; i < h; i++ {
-			ss += xr[i] * xr[i]
-		}
-		inv := 1 / math.Sqrt(ss/float64(h)+t.eps)
-		for i := 0; i < h; i++ {
-			gNorm[i] += float32(dNormed[r*h+i] * xr[i] * inv)
+	// gradient is needed at the organ boundary. The non-parametric LayerNorm
+	// head has no norm parameter, so nothing accumulates.
+	if t.normed {
+		gNorm := t.gradients[t.norm.start:t.norm.end]
+		for r := 0; r < rows; r++ {
+			xr := hidden[r*h : (r+1)*h]
+			var ss float64
+			for i := 0; i < h; i++ {
+				ss += xr[i] * xr[i]
+			}
+			inv := 1 / math.Sqrt(ss/float64(h)+t.eps)
+			for i := 0; i < h; i++ {
+				gNorm[i] += float32(dNormed[r*h+i] * xr[i] * inv)
+			}
 		}
 	}
-	_ = normW
 
 	var gradientSquared float64
 	for _, g := range t.gradients {

@@ -1,0 +1,25 @@
+overgo training verification run
+tool: cmd/flow-organ-train-probe -organ video-head, bounded observed smoke
+with first-step projection guard
+verifying commit: 65adb760157bdcaf3e4bbf45de344ee1bb852031 (recorded by the gate binding this file)
+model: Wan2.1-T2V-1.3B output head via its own tensor shapes -- 101,440
+trainable parameters (head.modulation 2x1536, head.head 64x1536 + bias),
+F32 serving storage packed directly
+trainer: internal/latentimage FinalLayerTrainer, LayerNorm variant -- the
+compiled graph's head math (non-parametric LayerNorm, AdaLN affine from
+conditioning plus the learned table, linear to patch velocity), gradients
+finite-difference proven, over optimizer.NewStepper (shared CUDA Muon);
+hyperparameters fully DERIVED: base LR n_params^-1/2 = 3.14e-03,
+momentum = 0.9355
+dataset: deterministic committed probe stimulus
+(docs/verification/wan-training-stimulus.txt) -- probe stimulus, not
+pipeline data, stated plainly
+steps: 3, observed loss/grad/wall per step
+measured wall_ns: 398000000 (steps 135ms / 130ms / 132ms; load 99ms)
+loss: 1.023056 -> 0.633008 -> 0.339542, after-evaluation 0.142384
+(monotone descent; grad_l2 3.545 -> 2.032)
+notes: organ-scope claim for a family the archaeology found never-trained
+anywhere -- Wan's first training evidence. Full video-diffusion training
+(transformer backward with frozen T5/VAE) is the named promotion gate
+closing refusal finding 421b6981's route. context_tokens 0 (non-token
+objective); peak device memory not instrumented -- wall-only.

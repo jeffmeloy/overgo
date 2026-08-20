@@ -1,0 +1,12 @@
+overgo video-head training stimulus declaration
+generator: xorshift32 (x ^= x<<13; x ^= x>>17; x ^= x<<5), seed 88675123
+draw: hidden rows (rows*1536 values, scaled 0.5), then interleaved z/target
+draws; temb reuses the z draw cyclically scaled 0.5; targets unit scale;
+values mapped as (seed mod 2000)/1000 - 1
+rows: 8; hidden: 1536; head out: 64 (patch velocity width); layernorm eps 1e-6
+objective: velocity MSE through the head math the compiled graph serves
+(non-parametric LayerNorm, AdaLN affine of conditioning plus the learned
+modulation table, linear head)
+consumer: cmd/flow-organ-train-probe -organ video-head, which embeds the
+same constants; this document is the committed dataset declaration the
+Wan2.1-T2V-1.3B training claim grounds as its shard.

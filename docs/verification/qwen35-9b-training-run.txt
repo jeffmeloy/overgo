@@ -1,0 +1,25 @@
+overgo training verification run
+tool: cmd/flow-organ-train-probe -organ ternary-master, bounded observed
+smoke with first-step projection guard
+verifying commit: e934b327f1f24946fea279779b0bd395b7edf70f (recorded by the gate binding this file)
+model: Qwen3.5-9B-Q8 (Qwen3.5-9B-Q8_0.gguf) through the master-weight lane
+proven on the Bonsai ternary artifact: blk.0.ffn_gate.weight
+[12288 x 4096] Q8_0 dequantizes into 50,331,648 f32 masters, the masters
+train, and the trained masters requantize to Q8_0 for the serving bar
+trainer: single-matrix Muon over optimizer.NewStepper (shared CUDA);
+hyperparameters fully DERIVED: base LR n_params^-1/2 = 1.41e-04,
+momentum = 0.9355
+dataset: deterministic committed probe stimulus
+(docs/verification/qwen35-9b-training-stimulus.txt)
+steps: 12
+measured wall_ns: 10178000000 (12 steps at ~0.82s; 2.3s artifact load
+excluded)
+loss: masters 0.377111 -> 0.363670; SERVING ROUND TRIP 0.377111 ->
+0.376052 -- the requantized Q8_0 tensor's own behavior moved. The grid
+contrast against the Bonsai cell is itself evidence: Q8's fine grid
+passes derived-LR updates through at 12 steps where ternary needed 200.
+notes: organ-scope claim (one FFN matrix of the hybrid's dense layer 0).
+The 9B refusal closes by its named master-weight-lane route; the family's
+recurrent-layer training evidence lives in the Qwen3.5-4B cell through
+hybridtrain, and full-stack hybrid training at 9B scale is the named
+promotion gate. context_tokens 0; peak not instrumented.

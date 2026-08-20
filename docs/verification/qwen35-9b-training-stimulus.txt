@@ -1,0 +1,11 @@
+overgo ternary-master training stimulus declaration (Q8_0 variant)
+generator: xorshift32 (x ^= x<<13; x ^= x>>17; x ^= x<<5), seed 88675123
+draw: input rows (rows*4096 values, scaled 0.5), then interleaved z/target
+draws (z unused); targets unit scale
+rows: 8; matrix: blk.0.ffn_gate.weight [12288, 4096] Q8_0
+objective: linear MSE on the dequantized f32 masters, with the SERVING bar
+measured through the full Q8_0 round trip (quantize the trained masters
+back, dequantize, evaluate) -- descent must survive requantization
+consumer: cmd/flow-organ-train-probe -organ ternary-master, which embeds
+the same constants; this document is the committed dataset declaration the
+Qwen3.5-9B-Q8 training claim grounds as its shard.

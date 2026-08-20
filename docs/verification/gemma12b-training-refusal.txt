@@ -22,4 +22,12 @@ TestAlternatingWindowTrainingCells checks the refusal against the real 12B
 artifact while proving the same neutral adapter path on E4B. No family switch
 or model-name admission is used.
 
-refused-model: gemma-4-12B-it-fp8
+
+WITHDRAWN 2026-08-19: the refusal closes by its own route 2 -- an explicit
+master-weight and precision contract for the fp8 serving artifact. The
+master-weight lane (proven on ternary and Q8) extends to the scaled-fp8
+layout with an exhaustively round-trip-tested e4m3 codec: 58.9M-parameter
+FFN masters train at derived hyperparameters and the REQUANTIZED fp8
+tensor's behavior moves (0.418314 to 0.417200 in 12 steps). The full
+device-stream port of the live gemma_stream_cuda lane remains the named
+promotion gate for full-model training, recorded inside the cell evidence.

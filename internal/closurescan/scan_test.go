@@ -3,6 +3,7 @@ package closurescan
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"overgo/internal/repoanalysis"
@@ -136,6 +137,64 @@ func admitted(n int) bool { return n > 3 || n > 4096 }
 	}
 	if sites[0].Value != "3" || sites[1].Value != "4096" {
 		t.Fatalf("values = %q, %q", sites[0].Value, sites[1].Value)
+	}
+}
+
+func TestTestCensusSeparatesFixturesFromPolicyCopies(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{
+		"internal/process.go": `package process
+const ProcessFailure = 64
+func run() int { return ProcessFailure }
+`,
+		"internal/process_test.go": `package process
+const expectedFailure = 64
+func verify() {
+	fixture := []int{2, 4}
+	_ = fixture
+	if run() != 64 { panic("failure") }
+}
+`,
+	})
+	sites, err := CensusTestLiterals(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	classes := map[TestLiteralClass]int{}
+	for _, site := range sites {
+		classes[site.Class]++
+		if site.Class == TestPolicyCopy && len(site.ProductionMatches) == 0 {
+			t.Fatalf("unbound policy copy = %+v", site)
+		}
+	}
+	if classes[TestPolicyCopy] != 2 || classes[TestFixture] != 2 || classes[TestAssertion] != 0 {
+		t.Fatalf("classes = %v, sites = %+v", classes, sites)
+	}
+}
+
+func TestAssumptionCensusFindsDecisionSurfaces(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{"internal/decision.go": `package decision
+func decide(variance float64, values []float64, tensorRows, limit int) bool {
+	normalize(values)
+	if variance < quantile(values, 0.9) { return true }
+	if euclideanDistance(values, values) > 0 { return true }
+	return tensorRows > limit
+}
+`})
+	hints, err := CensusAssumptions(snapshot, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kinds := map[AssumptionKind]bool{}
+	for _, hint := range hints {
+		kinds[hint.Kind] = true
+		if hint.SourceID == "" || hint.Scope != "decide" || strings.Contains(hint.Expression, "normalize") {
+			t.Fatalf("hint = %+v", hint)
+		}
+	}
+	for _, kind := range []AssumptionKind{AssumptionMoment, AssumptionQuantile, AssumptionGeometry, AssumptionShape} {
+		if !kinds[kind] {
+			t.Fatalf("missing %s in %+v", kind, hints)
+		}
 	}
 }
 

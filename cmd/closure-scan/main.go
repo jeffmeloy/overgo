@@ -46,13 +46,21 @@ func main() {
 	limit := flag.Int("limit", 40, "report mode: top-N candidates to print")
 	raw := flag.Bool("raw", false, "rank repeated raw policy literals instead of declared constants")
 	literals := flag.Bool("literals", false, "report classified production literals instead of declared constants")
+	testLiterals := flag.Bool("test-literals", false, "report classified test literals and production overlaps")
+	assumptions := flag.Bool("assumptions", false, "report syntax-derived distribution, geometry, and shape hints")
 	flag.Parse()
 	root, err := os.Getwd()
 	if err != nil {
 		fatal(err)
 	}
-	if *raw && *literals {
-		fatal(fmt.Errorf("-raw and -literals are mutually exclusive"))
+	modes := 0
+	for _, enabled := range []bool{*raw, *literals, *testLiterals, *assumptions} {
+		if enabled {
+			modes++
+		}
+	}
+	if modes > 1 {
+		fatal(fmt.Errorf("-raw, -literals, -test-literals, and -assumptions are mutually exclusive"))
 	}
 	if *raw {
 		ranked, err := closurescan.RankRawPolicyLiterals(mustSnapshot(root))
@@ -68,6 +76,22 @@ func main() {
 			fatal(err)
 		}
 		reportLiterals(sites, *limit)
+		return
+	}
+	if *testLiterals {
+		sites, err := closurescan.CensusTestLiterals(mustSnapshot(root))
+		if err != nil {
+			fatal(err)
+		}
+		reportTestLiterals(sites, *limit)
+		return
+	}
+	if *assumptions {
+		hints, err := closurescan.CensusAssumptions(mustSnapshot(root), nil)
+		if err != nil {
+			fatal(err)
+		}
+		reportAssumptions(hints, *limit)
 		return
 	}
 	candidates, err := closurescan.ScanRoot(root)
@@ -92,6 +116,36 @@ func reportLiterals(sites []closurescan.LiteralSite, limit int) {
 			break
 		}
 		fmt.Printf("%-18s %-16s %-24s %s:%d\n", site.Context, site.Value, site.Scope, site.File, site.Line)
+	}
+}
+
+func reportTestLiterals(sites []closurescan.TestLiteralSite, limit int) {
+	counts := map[closurescan.TestLiteralClass]int{}
+	for _, site := range sites {
+		counts[site.Class]++
+	}
+	fmt.Printf("closure-scan: %d classified test literals (fixture=%d assertion=%d policy_copy=%d)\n",
+		len(sites), counts[closurescan.TestFixture], counts[closurescan.TestAssertion], counts[closurescan.TestPolicyCopy])
+	fmt.Printf("%-14s %-18s %-16s %-24s %s\n", "class", "context", "value", "scope", "source")
+	for index, site := range sites {
+		if index >= limit {
+			fmt.Printf("... %d more (raise -limit)\n", len(sites)-limit)
+			break
+		}
+		fmt.Printf("%-14s %-18s %-16s %-24s %s:%d\n",
+			site.Class, site.Context, site.Value, site.Scope, site.File, site.Line)
+	}
+}
+
+func reportAssumptions(hints []closurescan.AssumptionHint, limit int) {
+	fmt.Printf("closure-scan: %d syntax-derived assumption hints\n", len(hints))
+	fmt.Printf("%-22s %-24s %s\n", "kind", "scope", "source")
+	for index, hint := range hints {
+		if index >= limit {
+			fmt.Printf("... %d more (raise -limit)\n", len(hints)-limit)
+			break
+		}
+		fmt.Printf("%-22s %-24s %s:%d\n", hint.Kind, hint.Scope, hint.File, hint.Line)
 	}
 }
 

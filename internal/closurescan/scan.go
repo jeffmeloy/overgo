@@ -13,6 +13,7 @@ import (
 	"go/token"
 	"maps"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -90,6 +91,43 @@ type LiteralSite struct {
 	SourceID   string         `json:"source_id"`
 }
 
+type TestLiteralClass string
+
+const (
+	TestFixture    TestLiteralClass = "fixture"
+	TestAssertion  TestLiteralClass = "assertion"
+	TestPolicyCopy TestLiteralClass = "policy_copy"
+)
+
+type TestLiteralSite struct {
+	LiteralSite
+	Named             bool             `json:"named"`
+	Class             TestLiteralClass `json:"class"`
+	ProductionMatches []string         `json:"production_matches,omitempty"`
+}
+
+type AssumptionKind string
+
+const (
+	AssumptionMoment       AssumptionKind = "moment_scale"
+	AssumptionQuantile     AssumptionKind = "quantile"
+	AssumptionDistribution AssumptionKind = "distribution_family"
+	AssumptionGeometry     AssumptionKind = "geometry"
+	AssumptionShape        AssumptionKind = "shape"
+	AssumptionIndependence AssumptionKind = "independence"
+)
+
+type AssumptionHint struct {
+	File       string         `json:"file"`
+	Package    string         `json:"package"`
+	Scope      string         `json:"scope"`
+	Line       int            `json:"line"`
+	Offset     int            `json:"offset"`
+	Kind       AssumptionKind `json:"kind"`
+	Expression string         `json:"expression"`
+	SourceID   string         `json:"source_id"`
+}
+
 // CensusLiterals classifies non-const numeric source literals.
 func CensusLiterals(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]LiteralSite, error) {
 	var sites []LiteralSite
@@ -108,10 +146,167 @@ func CensusLiterals(snapshot repoanalysis.SourceSnapshot, relatives []string) ([
 	return sites, nil
 }
 
+// CensusTestLiterals separates fixtures, assertions, and production overlaps.
+func CensusTestLiterals(snapshot repoanalysis.SourceSnapshot) ([]TestLiteralSite, error) {
+	production := map[string][]string{}
+	err := visitProduction(snapshot, nil, func(source repoanalysis.GoFile, file *ast.File) {
+		var candidates []Candidate
+		collect(file, source, &candidates)
+		for _, candidate := range candidates {
+			addProductionValue(production, candidate.Package, candidate.Value, candidate.File, candidate.Line)
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	var out []TestLiteralSite
+	err = visitSources(snapshot, nil, func(source repoanalysis.GoFile) bool { return source.Test }, func(source repoanalysis.GoFile, file *ast.File) {
+		var literals []LiteralSite
+		collectLiteralSites(file, source, &literals)
+		for _, site := range literals {
+			out = append(out, classifyTestLiteral(site, false, production))
+		}
+		var named []Candidate
+		collect(file, source, &named)
+		for _, candidate := range named {
+			out = append(out, classifyTestLiteral(LiteralSite{
+				File: candidate.File, Package: candidate.Package, Scope: candidate.Scope,
+				Line: candidate.Line, Expression: candidate.Expression, Value: candidate.Value,
+				Context: LiteralOther, SourceID: candidate.SourceID,
+			}, true, production))
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].File != out[j].File {
+			return out[i].File < out[j].File
+		}
+		return out[i].Offset < out[j].Offset || out[i].Offset == out[j].Offset && out[i].Line < out[j].Line
+	})
+	return out, nil
+}
+
+func addProductionValue(values map[string][]string, pkg, value, file string, line int) {
+	key := pkg + "\x00" + value
+	values[key] = append(values[key], file+":"+strconv.Itoa(line))
+}
+
+func classifyTestLiteral(site LiteralSite, named bool, production map[string][]string) TestLiteralSite {
+	matches := slices.Clone(production[site.Package+"\x00"+site.Value])
+	class := TestFixture
+	if site.Context == LiteralComparison {
+		class = TestAssertion
+	}
+	if len(matches) > 0 && (named || site.Context == LiteralComparison) {
+		class = TestPolicyCopy
+	}
+	return TestLiteralSite{LiteralSite: site, Named: named, Class: class, ProductionMatches: matches}
+}
+
+// CensusAssumptions reports syntax-derived decision hints; it proves none.
+func CensusAssumptions(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]AssumptionHint, error) {
+	var out []AssumptionHint
+	err := visitProduction(snapshot, relatives, func(source repoanalysis.GoFile, file *ast.File) {
+		seen := map[string]bool{}
+		inspectWithParents(file, func(node ast.Node, parents map[ast.Node]ast.Node) {
+			var expression ast.Expr
+			var subject ast.Expr
+			switch typed := node.(type) {
+			case *ast.CallExpr:
+				expression, subject = typed, typed.Fun
+			case *ast.BinaryExpr:
+				if typed.Op >= token.EQL && typed.Op <= token.GEQ {
+					expression, subject = typed, typed
+				}
+			}
+			if expression == nil {
+				return
+			}
+			for _, kind := range assumptionKinds(subject) {
+				key := strconv.Itoa(int(expression.Pos())) + "\x00" + string(kind)
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
+				out = append(out, AssumptionHint{
+					File: source.Path, Package: filepath.ToSlash(filepath.Dir(source.Path)),
+					Scope: literalScope(node, parents), Line: source.Line(expression.Pos()),
+					Offset: int(expression.Pos()) - 1, Kind: kind,
+					Expression: formatExpression(expression), SourceID: source.ContentID,
+				})
+			}
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].File != out[j].File {
+			return out[i].File < out[j].File
+		}
+		return out[i].Offset < out[j].Offset || out[i].Offset == out[j].Offset && out[i].Kind < out[j].Kind
+	})
+	return out, nil
+}
+
+var identifierWords = regexp.MustCompile(`[A-Z]+(?:[A-Z][a-z]|$)|[A-Z]?[a-z]+|[0-9]+`)
+
+var assumptionWordKinds = map[string]AssumptionKind{
+	"mean": AssumptionMoment, "variance": AssumptionMoment, "stddev": AssumptionMoment, "sigma": AssumptionMoment,
+	"quantile": AssumptionQuantile, "percentile": AssumptionQuantile,
+	"gaussian": AssumptionDistribution, "normal": AssumptionDistribution, "poisson": AssumptionDistribution,
+	"euclidean": AssumptionGeometry, "cosine": AssumptionGeometry, "distance": AssumptionGeometry, "l2": AssumptionGeometry,
+	"shape": AssumptionShape, "rank": AssumptionShape, "dim": AssumptionShape, "rows": AssumptionShape,
+	"cols": AssumptionShape, "width": AssumptionShape, "height": AssumptionShape, "channels": AssumptionShape,
+	"iid": AssumptionIndependence, "independent": AssumptionIndependence, "shuffle": AssumptionIndependence,
+}
+
+func assumptionKinds(expression ast.Expr) []AssumptionKind {
+	kinds := map[AssumptionKind]bool{}
+	ast.Inspect(expression, func(node ast.Node) bool {
+		identifier, ok := node.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		for _, word := range identifierWords.FindAllString(identifier.Name, -1) {
+			if kind, ok := assumptionWordKinds[strings.ToLower(word)]; ok {
+				kinds[kind] = true
+			}
+		}
+		return true
+	})
+	return slices.Sorted(maps.Keys(kinds))
+}
+
 func collectLiteralSites(file *ast.File, source repoanalysis.GoFile, out *[]LiteralSite) {
+	inspectWithParents(file, func(node ast.Node, parents map[ast.Node]ast.Node) {
+		literal, ok := node.(*ast.BasicLit)
+		if !ok || insideConst(node, parents) || literal.Kind != token.INT && literal.Kind != token.FLOAT {
+			return
+		}
+		expression, parent := ast.Expr(literal), parents[node]
+		if unary, ok := parent.(*ast.UnaryExpr); ok && unary.X == literal {
+			expression, parent = unary, parents[unary]
+		}
+		value, ok := evaluateConstant(expression, nil, nil)
+		if !ok {
+			return
+		}
+		*out = append(*out, LiteralSite{
+			File: source.Path, Package: filepath.ToSlash(filepath.Dir(source.Path)),
+			Scope: literalScope(node, parents), Line: source.Line(expression.Pos()), Offset: int(expression.Pos()) - 1,
+			Kind: literal.Kind.String(), Expression: formatExpression(expression), Value: value.ExactString(),
+			Context: literalContext(parent, parents), SourceID: source.ContentID,
+		})
+	})
+}
+
+func inspectWithParents(root ast.Node, visit func(ast.Node, map[ast.Node]ast.Node)) {
 	parents := map[ast.Node]ast.Node{}
 	var stack []ast.Node
-	ast.Inspect(file, func(node ast.Node) bool {
+	ast.Inspect(root, func(node ast.Node) bool {
 		if node == nil {
 			stack = stack[:len(stack)-1]
 			return true
@@ -120,24 +315,7 @@ func collectLiteralSites(file *ast.File, source repoanalysis.GoFile, out *[]Lite
 			parents[node] = stack[len(stack)-1]
 		}
 		stack = append(stack, node)
-		literal, ok := node.(*ast.BasicLit)
-		if !ok || insideConst(node, parents) || literal.Kind != token.INT && literal.Kind != token.FLOAT {
-			return true
-		}
-		expression, parent := ast.Expr(literal), parents[node]
-		if unary, ok := parent.(*ast.UnaryExpr); ok && unary.X == literal {
-			expression, parent = unary, parents[unary]
-		}
-		value, ok := evaluateConstant(expression, nil, nil)
-		if !ok {
-			return true
-		}
-		*out = append(*out, LiteralSite{
-			File: source.Path, Package: filepath.ToSlash(filepath.Dir(source.Path)),
-			Scope: literalScope(node, parents), Line: source.Line(expression.Pos()), Offset: int(expression.Pos()) - 1,
-			Kind: literal.Kind.String(), Expression: formatExpression(expression), Value: value.ExactString(),
-			Context: literalContext(parent, parents), SourceID: source.ContentID,
-		})
+		visit(node, parents)
 		return true
 	})
 }
@@ -226,12 +404,16 @@ func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]C
 }
 
 func visitProduction(snapshot repoanalysis.SourceSnapshot, relatives []string, visit func(repoanalysis.GoFile, *ast.File)) error {
+	return visitSources(snapshot, relatives, func(source repoanalysis.GoFile) bool { return !source.Test }, visit)
+}
+
+func visitSources(snapshot repoanalysis.SourceSnapshot, relatives []string, include func(repoanalysis.GoFile) bool, visit func(repoanalysis.GoFile, *ast.File)) error {
 	wanted := map[string]bool{}
 	for _, relative := range relatives {
 		wanted[filepath.ToSlash(relative)] = true
 	}
 	for _, source := range snapshot.Files {
-		if source.Test || len(wanted) > 0 && !wanted[source.Path] {
+		if !include(source) || len(wanted) > 0 && !wanted[source.Path] {
 			continue
 		}
 		generated, err := source.Generated()

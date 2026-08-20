@@ -11,7 +11,7 @@ import (
 
 // ComponentSession: one ordered recipe-stage lifetime.
 type ComponentSession struct {
-	Identity      artifact.ID            `json:"identity"`
+	Identity      artifact.ID            `json:"identity,omitzero"`
 	Node          recipe.NodeID          `json:"node"`
 	Module        recipe.ModuleID        `json:"module"`
 	Model         artifact.ID            `json:"model"`
@@ -27,16 +27,6 @@ type ComponentSessionPlan struct {
 	Recipe        artifact.ID
 	ArtifactBytes uint64
 	Components    []ComponentSession
-}
-
-type componentSessionIdentity struct {
-	Node          recipe.NodeID          `json:"node"`
-	Module        recipe.ModuleID        `json:"module"`
-	Model         artifact.ID            `json:"model"`
-	Session       recipe.SessionPolicy   `json:"session"`
-	Placement     recipe.Placement       `json:"placement"`
-	Residency     recipe.ResidencyPolicy `json:"residency,omitempty"`
-	ArtifactBytes uint64                 `json:"artifact_bytes"`
 }
 
 type componentSessionPlanDocument struct {
@@ -109,19 +99,16 @@ func compileComponentSessionPlan(
 			}
 			extents[modelID], total = bytes, total+bytes
 		}
-		body := componentSessionIdentity{
+		component := ComponentSession{
 			Node: node.ID, Module: node.Module, Model: modelID, Session: node.Session,
 			Placement: node.Placement, Residency: node.Residency, ArtifactBytes: bytes,
 		}
-		id, err := artifact.JSONID(artifact.KindProfile, body)
+		id, err := artifact.JSONID(artifact.KindProfile, component)
 		if err != nil {
 			return ComponentSessionPlan{}, err
 		}
-		components = append(components, ComponentSession{
-			Identity: id, Node: body.Node, Module: body.Module, Model: body.Model,
-			Session: body.Session, Placement: body.Placement, Residency: body.Residency,
-			ArtifactBytes: body.ArtifactBytes,
-		})
+		component.Identity = id
+		components = append(components, component)
 	}
 	if len(components) == 0 {
 		return ComponentSessionPlan{}, errors.New("model recipe: component session policy is absent")

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -16,10 +17,7 @@ const (
 	ModelVerificationSchema           = "overgo/model-verification/v1"
 )
 
-// VerificationTier is the ordered evidence ladder for one capability claim.
-// Higher tiers subsume nothing automatically -- each tier names only the kind
-// of evidence that grounds it, and a claim at any tier requires that
-// evidence committed beside it.
+// VerificationTier: evidenced capability level; no implicit subsumption.
 type VerificationTier string
 
 const (
@@ -45,36 +43,21 @@ func (t VerificationTier) Rank() int {
 	}
 }
 
-// CapabilityClaim is one evidenced verification claim: what was verified
-// (inference, training, ...), to what tier, by which repository commit,
-// against which dataset and training span, grounded in which evidence.
-// A claim without evidence cannot exist; a training claim without its
-// dataset and span is a claim about nothing in particular and is refused.
+// CapabilityClaim binds capability proof to code, data, span, and evidence.
 type CapabilityClaim struct {
-	Capability string           `json:"capability"`
-	Tier       VerificationTier `json:"tier"`
-	// Commit is the repository commit whose verifier produced the evidence.
-	Commit string `json:"commit"`
-	// Dataset names the dataset artifact the verification consumed; required
-	// for training claims and whenever a span is declared.
-	Dataset artifact.ID `json:"dataset,omitzero"`
-	// SpanSteps and SpanTokens bound the training span the claim covers.
-	SpanSteps  uint64 `json:"span_steps,omitempty"`
-	SpanTokens uint64 `json:"span_tokens,omitempty"`
-	// Performance measurement: the context the measured run used, its wall,
-	// and peak device memory. Optional as a group, but context or peak
-	// without a measured wall is a decoration, not a measurement, and is
-	// refused.
-	ContextTokens   uint64        `json:"context_tokens,omitempty"`
-	WallNS          uint64        `json:"wall_ns,omitempty"`
-	PeakDeviceBytes uint64        `json:"peak_device_bytes,omitempty"`
-	Evidence        []artifact.ID `json:"evidence"`
+	Capability      string           `json:"capability"`
+	Tier            VerificationTier `json:"tier"`
+	Commit          string           `json:"commit"`
+	Dataset         artifact.ID      `json:"dataset,omitzero"`
+	SpanSteps       uint64           `json:"span_steps,omitempty"`
+	SpanTokens      uint64           `json:"span_tokens,omitempty"`
+	ContextTokens   uint64           `json:"context_tokens,omitempty"`
+	WallNS          uint64           `json:"wall_ns,omitempty"`
+	PeakDeviceBytes uint64           `json:"peak_device_bytes,omitempty"`
+	Evidence        []artifact.ID    `json:"evidence"`
 }
 
-// ModelVerification is the per-model verification record: typed capability
-// claims bound to a model identity, committed to the store with lineage to
-// every piece of evidence. The comparison matrix is derived from these
-// records at query time -- there is no hand-maintained document to drift.
+// ModelVerification: immutable model claims and evidence lineage.
 type ModelVerification struct {
 	Version uint16            `json:"version"`
 	Model   artifact.ID       `json:"model"`
@@ -115,8 +98,7 @@ func (v ModelVerification) Content() (artifact.Content, error) {
 	return modelVerificationCodec.Content(v)
 }
 
-// Batch commits the record with lineage to the model, every dataset it
-// verified against, and every evidence artifact grounding its claims.
+// Batch binds model, dataset, and evidence parents.
 func (v ModelVerification) Batch(key string) (artifact.Batch, error) {
 	seen := map[artifact.ID]bool{v.Model: true}
 	parents := []artifact.ID{v.Model}
@@ -135,21 +117,14 @@ func (v ModelVerification) Batch(key string) (artifact.Batch, error) {
 	return modelVerificationCodec.Batch(key, v, artifact.DependencyLineage(v.ID, parents...), nil)
 }
 
-// MatrixRow is one derived comparison row: the strongest evidenced tier per
-// capability across every committed record for the model.
+// MatrixRow: strongest evidenced claim per capability.
 type MatrixRow struct {
 	Model        artifact.ID       `json:"model"`
 	Name         string            `json:"name"`
 	Capabilities []CapabilityClaim `json:"capabilities"`
 }
 
-// VerificationMatrix derives the comparison matrix from committed records:
-// rows keyed by model identity, each capability at the maximum tier any
-// record evidences, carrying the union of evidence for that winning tier and
-// the winning claim's commit, dataset and span provenance. Records are
-// sorted by identity first so the derivation is independent of store scan
-// order. Verification accumulates -- records are immutable, so the maximum
-// is the current state of proof.
+// VerificationMatrix derives order-independent maximum-evidence rows.
 func VerificationMatrix(records []ModelVerification) []MatrixRow {
 	records = slices.Clone(records)
 	sort.Slice(records, func(i, j int) bool { return records[i].ID.String() < records[j].ID.String() })
@@ -230,8 +205,7 @@ func canonicalizeModelVerification(value *ModelVerification) error {
 	if value.Model.Kind() != artifact.KindModel {
 		return errors.New("run record: model verification requires a model identity")
 	}
-	name := strings.TrimSpace(value.Name)
-	if name == "" || name != value.Name || len(name) > 256 || strings.ContainsAny(name, "\x00\r\n\t") {
+	if !textcheck.Bounded(value.Name, artifact.MaxContentBytes, "\x00\r\n\t") {
 		return errors.New("run record: model verification requires a bounded name")
 	}
 	if len(value.Claims) == 0 {
@@ -239,7 +213,7 @@ func canonicalizeModelVerification(value *ModelVerification) error {
 	}
 	for i := range value.Claims {
 		claim := &value.Claims[i]
-		if claim.Capability == "" || len(claim.Capability) > 64 ||
+		if !textcheck.Bounded(claim.Capability, artifact.MaxContentBytes, "") ||
 			strings.Trim(claim.Capability, "abcdefghijklmnopqrstuvwxyz-") != "" {
 			return fmt.Errorf("run record: capability %q must be lowercase kebab-case", claim.Capability)
 		}

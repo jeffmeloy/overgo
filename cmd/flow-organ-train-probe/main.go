@@ -21,8 +21,12 @@ import (
 	"time"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/gguf"
+	"overgo/internal/hostmath"
 	"overgo/internal/latentimage"
+	"overgo/internal/optimizer"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/quant"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 )
@@ -33,6 +37,7 @@ func main() {
 	steps := flag.Int("steps", 3, "observed Muon steps")
 	rows := flag.Int("rows", 8, "stimulus rows")
 	timestep := flag.Float64("timestep", 0.25, "flow timestep in [0,1)")
+	tensorName := flag.String("tensor", "blk.0.ffn_gate.weight", "ternary-master: the quantized matrix to train")
 	maxWall := flag.Duration("max-wall", 25*time.Minute, "abort when the first measured step projects the run past this bound")
 	flag.Parse()
 	var err error
@@ -47,6 +52,8 @@ func main() {
 		err = runDenoiserFinal(*model, latentimage.WanHeadBinding(), *steps, *rows, *maxWall)
 	case "edit-head":
 		err = runEditHead(*model, *steps, *rows, *maxWall)
+	case "ternary-master":
+		err = runTernaryMaster(*model, *tensorName, *steps, *rows, *maxWall)
 	default:
 		err = fmt.Errorf("flow-organ-train-probe: unknown organ %q (flow-head, latent-bridge)", *organ)
 	}
@@ -204,6 +211,152 @@ func runEditHead(modelPath string, steps, rows int, maxWall time.Duration) error
 		trainer.ParameterCount(), weights.Hidden, weights.Out,
 		trainer.Config().BaseLearningRate, trainer.Config().Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
 	return trainHeadStimulus(trainer, weights.Hidden, weights.Out, steps, rows, maxWall)
+}
+
+// runTernaryMaster: the master-weight lane for ternary serving artifacts.
+// One quantized matrix dequantizes into f32 masters, the masters train a
+// linear MSE objective on a deterministic committed stimulus, and the
+// trained masters REQUANTIZE back to the serving dtype -- descent is
+// required through the ternary round trip, proving the lane moves the
+// serving artifact's behavior rather than a float shadow.
+func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall time.Duration) error {
+	if modelPath == "" || tensorName == "" || steps <= 0 || rows <= 0 {
+		return fmt.Errorf("flow-organ-train-probe: -model and -tensor are required; -steps and -rows must be positive")
+	}
+	roots, err := dataroot.ResolveCurrent()
+	if err != nil {
+		return err
+	}
+	loadStart := time.Now()
+	file, err := gguf.Open(roots.ResolveModelPath(modelPath))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	info, ok := file.Tensor(tensorName)
+	if !ok {
+		return fmt.Errorf("flow-organ-train-probe: tensor %q not in artifact", tensorName)
+	}
+	if info.Dimensions != 2 {
+		return fmt.Errorf("flow-organ-train-probe: tensor %q has %d dimensions, need a matrix", tensorName, info.Dimensions)
+	}
+	in, out := int(info.Shape[0]), int(info.Shape[1])
+	elements := uint64(in) * uint64(out)
+	raw := make([]byte, info.Size)
+	if err := file.ReadTensorData(info, raw); err != nil {
+		return err
+	}
+	masters, err := quant.Dequantize(info.Type, raw, elements)
+	if err != nil {
+		return err
+	}
+	servingType := info.Type
+	quantized, err := quant.Quantize(servingType, masters)
+	if err != nil {
+		return fmt.Errorf("flow-organ-train-probe: %q is not requantizable to %s: %w", tensorName, servingType, err)
+	}
+
+	plan, err := optimizer.CompilePlan(len(masters), []optimizer.GroupSpec{{
+		Name: tensorName, Start: 0, End: len(masters), Rows: out, Cols: in,
+	}})
+	if err != nil {
+		return err
+	}
+	gradients := make([]float32, len(masters))
+	config := optimizer.Config{
+		BaseLearningRate: optimizer.DeriveBaseLR(len(masters)),
+		Momentum:         optimizer.DeriveMomentum(),
+		Schedule:         optimizer.ScheduleConstant,
+	}
+	stepper, err := optimizer.NewStepper(masters, gradients, plan, config)
+	if err != nil {
+		return err
+	}
+	defer stepper.Close()
+	fmt.Printf("trainable parameters=%d matrix=%dx%d dtype=%v derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s"+"\n",
+		len(masters), out, in, servingType, config.BaseLearningRate, config.Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
+
+	xF32, _, targetF32 := stimulus(rows, in, out)
+	target := targetF32
+	evaluate := func(weights []float32) float64 {
+		y := make([]float32, rows*out)
+		hostmath.Linear(y, xF32, weights, rows, in, out)
+		invN := 1 / float64(len(target))
+		var loss float64
+		for i := range y {
+			d := float64(y[i]) - float64(target[i])
+			loss += d * d * invN
+		}
+		return loss
+	}
+	servingLoss := func() (float64, error) {
+		packed, err := quant.Quantize(servingType, masters)
+		if err != nil {
+			return 0, err
+		}
+		roundTrip, err := quant.Dequantize(servingType, packed, elements)
+		if err != nil {
+			return 0, err
+		}
+		return evaluate(roundTrip), nil
+	}
+
+	servingBefore, err := servingLoss()
+	if err != nil {
+		return err
+	}
+	_ = quantized
+	start := time.Now()
+	var first float64
+	for step := 0; step < steps; step++ {
+		stepStart := time.Now()
+		loss := evaluate(masters)
+		if math.IsNaN(loss) || math.IsInf(loss, 0) {
+			return fmt.Errorf("flow-organ-train-probe: step %d loss is non-finite", step+1)
+		}
+		y := make([]float32, rows*out)
+		hostmath.Linear(y, xF32, masters, rows, in, out)
+		dY := make([]float32, len(y))
+		invN := 1 / float64(len(target))
+		for i := range y {
+			dY[i] = float32(2 * (float64(y[i]) - float64(target[i])) * invN)
+		}
+		clear(gradients)
+		dX := make([]float32, rows*in)
+		hostmath.LinearBackward(dX, gradients, nil, xF32, masters, dY, rows, in, out, false)
+		var gradientSquared float64
+		for _, g := range gradients {
+			gradientSquared += float64(g) * float64(g)
+		}
+		if err := stepper.Step(); err != nil {
+			return err
+		}
+		fmt.Printf("step %d/%d: master_loss=%.6f grad_l2=%.4g lr=%.4g wall=%s"+"\n",
+			step+1, steps, loss, math.Sqrt(gradientSquared), config.BaseLearningRate, time.Since(stepStart).Round(time.Millisecond))
+		if step == 0 {
+			first = loss
+			if gradientSquared == 0 {
+				return fmt.Errorf("flow-organ-train-probe: first step carried no gradient")
+			}
+			if projected := time.Duration(steps+1) * time.Since(start); projected > maxWall {
+				return fmt.Errorf("flow-organ-train-probe: first step projects the run to %s, past the %s bound", projected.Round(time.Second), maxWall)
+			}
+		}
+	}
+	masterAfter := evaluate(masters)
+	servingAfter, err := servingLoss()
+	if err != nil {
+		return err
+	}
+	if !(masterAfter < first) {
+		return fmt.Errorf("flow-organ-train-probe: master loss did not descend: %.6f -> %.6f", first, masterAfter)
+	}
+	if math.IsNaN(servingAfter) || !(servingAfter < servingBefore) {
+		return fmt.Errorf("flow-organ-train-probe: serving round-trip loss did not descend: %.6f -> %.6f", servingBefore, servingAfter)
+	}
+	fmt.Printf("descent: steps=%d master %.6f -> %.6f; serving round-trip %.6f -> %.6f total_wall=%s"+"\n",
+		steps, first, masterAfter, servingBefore, servingAfter, time.Since(start).Round(time.Millisecond))
+	return nil
 }
 
 // runLatentBridge: the RxBrain-family projection pair trains its bridge

@@ -1,0 +1,23 @@
+{
+ "model": "model:sha256:17ef842e47450caeb8eaa3ebfbbab5d2f2278b62b79be107985fb69a2f819aa0",
+ "name": "Bonsai-27B-Q1",
+ "evidence_files": [
+  "docs/verification/bonsai-training-run.txt"
+ ],
+ "dataset_files": [
+  "docs/verification/bonsai-training-stimulus.txt"
+ ],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "d265092442a6a47c0d2d6e30987556f4c617977f",
+   "dataset": "dataset-shard:sha256:1e4548aba59a63531aa402e6de5939e843f14c78f4098736985d109f46448330",
+   "span_steps": 200,
+   "wall_ns": 302354000000,
+   "evidence": [
+    "evidence:sha256:8c809f33c94ead92a81031a05064bed36c9711b10ade5119a179f698a81808a2"
+   ]
+  }
+ ]
+}

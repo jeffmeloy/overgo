@@ -1,0 +1,28 @@
+overgo training verification run
+tool: cmd/flow-organ-train-probe -organ ternary-master, bounded observed
+smoke with first-step projection guard
+verifying commit: d265092442a6a47c0d2d6e30987556f4c617977f (recorded by the gate binding this file)
+model: Bonsai-27B-Q1 (bonzai/Bonsai-27B-Q1_0.gguf) -- the master-weight
+lane for ternary serving artifacts: blk.0.ffn_gate.weight [17408 x 5120]
+Q1_0 dequantizes into 89,128,960 f32 masters, the masters train, and the
+trained masters requantize to Q1_0 for the serving bar
+trainer: single-matrix Muon over optimizer.NewStepper (shared CUDA);
+hyperparameters fully DERIVED: base LR n_params^-1/2 = 1.059e-04,
+momentum = 0.9355
+dataset: deterministic committed probe stimulus
+(docs/verification/bonsai-training-stimulus.txt)
+steps: 200 (accumulation is the point: a 3-step probe descended on the
+masters, 0.359595 to 0.356820, while the ternary round trip absorbed the
+drift entirely -- the serving bar refused it; 200 derived-LR steps
+accumulate enough displacement to flip ternary levels)
+measured wall_ns: 302354000000 (200 steps at ~1.5s; 2.76s artifact load
+excluded)
+loss: masters 0.359595 -> 0.198116; SERVING ROUND TRIP 0.359595 ->
+0.358125 -- the requantized Q1_0 tensor's own behavior moved, which is
+the lane's contract: masters are optimizer authority, serving artifacts
+derive by requantization
+notes: organ-scope claim (one FFN matrix); the ternary substrate refusal
+(finding 21ee8a65) closes by its named route -- the dequantized
+master-weight lane exists and demonstrably trains through the round
+trip. Full-model ternary training and checkpoint persistence policy are
+the named promotion gates. context_tokens 0; peak not instrumented.

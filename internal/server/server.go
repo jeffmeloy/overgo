@@ -665,6 +665,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.anthropicMessages(response, request)
 	case "/v1/embeddings":
 		h.embeddings(response, request)
+	case "/v1/images/generations":
+		h.nativeImageGeneration(response, request)
+	case "/v1/audio/speech":
+		h.nativeAudioSpeech(response, request)
 	case "/embedding", "/embeddings":
 		h.nativeEmbeddings(response, request)
 	case "/rerank", "/reranking", "/v1/rerank", "/v1/reranking":

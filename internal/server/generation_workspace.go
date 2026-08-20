@@ -145,19 +145,31 @@ func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Reques
 		writeInvalidRequest(response, err)
 		return
 	}
-	id, err := h.operations.Submit(context.WithoutCancel(request.Context()), operation.Request{
-		Task: body.Task, Recipe: body.Recipe,
-	}, func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
-		return h.executeObservedOperation(ctx, reporter, body.Task, body.Recipe,
-			func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
-				return workspace.ExecuteWorkflow(ctx, kind, body.Task, body.Recipe, body.Input, reporter)
-			})
-	})
+	id, err := h.submitWorkflow(
+		context.WithoutCancel(request.Context()), workspace, kind, capability, body.Input,
+	)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
 	}
 	writeJSON(response, http.StatusAccepted, workflowResponse{Operation: id})
+}
+
+func (h *Handler) submitWorkflow(
+	ctx context.Context,
+	workspace WorkflowWorkspaceAPI,
+	kind WorkflowKind,
+	capability WorkflowCapability,
+	input json.RawMessage,
+) (artifact.ID, error) {
+	return h.operations.Submit(ctx, operation.Request{
+		Task: capability.Task, Recipe: capability.Recipe,
+	}, func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
+		return h.executeObservedOperation(ctx, reporter, capability.Task, capability.Recipe,
+			func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
+				return workspace.ExecuteWorkflow(ctx, kind, capability.Task, capability.Recipe, input, reporter)
+			})
+	})
 }
 
 func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {

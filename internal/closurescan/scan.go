@@ -6,7 +6,10 @@
 package closurescan
 
 import (
+	"bytes"
 	"go/ast"
+	"go/constant"
+	"go/format"
 	"go/token"
 	"maps"
 	"path/filepath"
@@ -19,12 +22,24 @@ import (
 )
 
 type Candidate struct {
-	Name    string `json:"name"`
-	File    string `json:"file"`
-	Value   string `json:"value"`
-	Doc     string `json:"doc,omitempty"`
-	Score   int    `json:"score"`
-	Package string `json:"package"`
+	Name       string `json:"name"`
+	File       string `json:"file"`
+	Package    string `json:"package"`
+	Scope      string `json:"scope"`
+	Line       int    `json:"line"`
+	Expression string `json:"expression"`
+	Value      string `json:"value"`
+	SourceID   string `json:"source_id"`
+	Doc        string `json:"doc,omitempty"`
+	Score      int    `json:"score"`
+}
+
+func (c Candidate) DeclarationKey() string {
+	return c.File + "\x00" + c.Scope + "\x00" + strconv.Itoa(c.Line) + "\x00" + c.Name
+}
+
+func (c Candidate) ExactKey() string {
+	return c.DeclarationKey() + "\x00" + c.Expression + "\x00" + c.Value + "\x00" + c.SourceID
 }
 
 // RawPolicyLiteral is an advisory group of the same raw literal repeated in
@@ -77,13 +92,13 @@ func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]C
 		if err != nil {
 			return nil, err
 		}
-		collect(parsed, source.Path, &out)
+		collect(parsed, source, &out)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Score != out[j].Score {
 			return out[i].Score > out[j].Score
 		}
-		return out[i].Name < out[j].Name
+		return out[i].DeclarationKey() < out[j].DeclarationKey()
 	})
 	return out, nil
 }
@@ -211,93 +226,164 @@ func comparisonLiteral(parent ast.Node) bool {
 	return ok && binary.Op >= token.EQL && binary.Op <= token.GEQ
 }
 
-func collect(file *ast.File, relative string, out *[]Candidate) {
+type constBinding struct {
+	name       *ast.Ident
+	expression ast.Expr
+	doc        string
+	scope      string
+}
+
+func collect(file *ast.File, source repoanalysis.GoFile, out *[]Candidate) {
+	bindings := map[*ast.Object]ast.Expr{}
+	var declarations []constBinding
 	for _, declaration := range file.Decls {
-		generic, ok := declaration.(*ast.GenDecl)
-		if !ok || generic.Tok != token.CONST {
+		switch typed := declaration.(type) {
+		case *ast.GenDecl:
+			collectConstBindings(typed, "package", bindings, &declarations)
+		case *ast.FuncDecl:
+			scope := functionIdentity(typed)
+			ast.Inspect(typed.Body, func(node ast.Node) bool {
+				generic, ok := node.(*ast.GenDecl)
+				if ok {
+					collectConstBindings(generic, scope, bindings, &declarations)
+				}
+				return true
+			})
+		}
+	}
+	for _, declaration := range declarations {
+		value, ok := evaluateConstant(declaration.expression, bindings, map[*ast.Object]bool{})
+		if !ok || value.Kind() != constant.Int && value.Kind() != constant.Float {
 			continue
 		}
-		blockDoc := ""
-		if generic.Doc != nil {
-			blockDoc = strings.TrimSpace(generic.Doc.Text())
-		}
-		for _, spec := range generic.Specs {
-			value, ok := spec.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-			if usesIota(value) {
-				continue
-			}
-			doc := blockDoc
-			if value.Doc != nil {
-				doc = strings.TrimSpace(value.Doc.Text())
-			}
-			for index, name := range value.Names {
-				if name.Name == "_" || index >= len(value.Values) {
-					continue
-				}
-				literal := numericLiteral(value.Values[index])
-				if literal == "" {
-					continue
-				}
-				*out = append(*out, Candidate{
-					Name: name.Name, File: relative, Value: literal,
-					Doc: doc, Score: score(name.Name, doc, literal),
-					Package: filepath.ToSlash(filepath.Dir(relative)),
-				})
-			}
-		}
-	}
-}
-
-func usesIota(spec *ast.ValueSpec) bool {
-	for _, value := range spec.Values {
-		found := false
-		ast.Inspect(value, func(node ast.Node) bool {
-			if identifier, ok := node.(*ast.Ident); ok && identifier.Name == "iota" {
-				found = true
-			}
-			return !found
+		expression := formatExpression(declaration.expression)
+		evaluated := value.ExactString()
+		*out = append(*out, Candidate{
+			Name: declaration.name.Name, File: source.Path,
+			Package: filepath.ToSlash(filepath.Dir(source.Path)),
+			Scope:   declaration.scope, Line: source.Line(declaration.name.Pos()),
+			Expression: expression, Value: evaluated, SourceID: source.ContentID,
+			Doc: declaration.doc, Score: score(declaration.name.Name, declaration.doc, evaluated),
 		})
-		if found {
-			return true
-		}
 	}
-	return len(spec.Values) == 0
 }
 
-func numericLiteral(expression ast.Expr) string {
-	numeric := true
-	ast.Inspect(expression, func(node ast.Node) bool {
-		switch leaf := node.(type) {
-		case *ast.BasicLit:
-			if leaf.Kind != token.INT && leaf.Kind != token.FLOAT {
-				numeric = false
-			}
-		case *ast.Ident, *ast.CallExpr, *ast.SelectorExpr:
-			numeric = false
+func collectConstBindings(generic *ast.GenDecl, scope string, bindings map[*ast.Object]ast.Expr, out *[]constBinding) {
+	if generic == nil || generic.Tok != token.CONST {
+		return
+	}
+	blockDoc := ""
+	if generic.Doc != nil {
+		blockDoc = strings.TrimSpace(generic.Doc.Text())
+	}
+	var inherited []ast.Expr
+	for _, spec := range generic.Specs {
+		value, ok := spec.(*ast.ValueSpec)
+		if !ok {
+			continue
 		}
-		return numeric
+		if len(value.Values) > 0 {
+			inherited = value.Values
+		}
+		doc := blockDoc
+		if value.Doc != nil {
+			doc = strings.TrimSpace(value.Doc.Text())
+		}
+		for index, name := range value.Names {
+			if name.Name == "_" || index >= len(inherited) {
+				continue
+			}
+			expression := inherited[index]
+			if containsIota(expression) {
+				continue
+			}
+			if name.Obj != nil {
+				bindings[name.Obj] = expression
+			}
+			*out = append(*out, constBinding{name: name, expression: expression, doc: doc, scope: scope})
+		}
+	}
+}
+
+func containsIota(expression ast.Expr) bool {
+	found := false
+	ast.Inspect(expression, func(node ast.Node) bool {
+		if identifier, ok := node.(*ast.Ident); ok && identifier.Name == "iota" {
+			found = true
+		}
+		return !found
 	})
-	if !numeric {
+	return found
+}
+
+func functionIdentity(function *ast.FuncDecl) string {
+	if function.Recv == nil || len(function.Recv.List) == 0 {
+		return function.Name.Name
+	}
+	return formatExpression(function.Recv.List[0].Type) + "." + function.Name.Name
+}
+
+func formatExpression(expression ast.Expr) string {
+	var buffer bytes.Buffer
+	if err := format.Node(&buffer, token.NewFileSet(), expression); err != nil {
 		return ""
 	}
-	return render(expression)
+	return buffer.String()
 }
 
-func render(expression ast.Expr) string {
+func evaluateConstant(expression ast.Expr, bindings map[*ast.Object]ast.Expr, visiting map[*ast.Object]bool) (constant.Value, bool) {
 	switch typed := expression.(type) {
 	case *ast.BasicLit:
-		return typed.Value
-	case *ast.BinaryExpr:
-		return render(typed.X) + typed.Op.String() + render(typed.Y)
-	case *ast.UnaryExpr:
-		return typed.Op.String() + render(typed.X)
+		if typed.Kind != token.INT && typed.Kind != token.FLOAT {
+			return nil, false
+		}
+		value := constant.MakeFromLiteral(typed.Value, typed.Kind, 0)
+		return value, value.Kind() != constant.Unknown
 	case *ast.ParenExpr:
-		return "(" + render(typed.X) + ")"
+		return evaluateConstant(typed.X, bindings, visiting)
+	case *ast.Ident:
+		if typed.Obj == nil || visiting[typed.Obj] {
+			return nil, false
+		}
+		bound, ok := bindings[typed.Obj]
+		if !ok {
+			return nil, false
+		}
+		visiting[typed.Obj] = true
+		value, ok := evaluateConstant(bound, bindings, visiting)
+		delete(visiting, typed.Obj)
+		return value, ok
+	case *ast.UnaryExpr:
+		value, ok := evaluateConstant(typed.X, bindings, visiting)
+		if !ok || typed.Op != token.ADD && typed.Op != token.SUB && typed.Op != token.XOR {
+			return nil, false
+		}
+		return constant.UnaryOp(typed.Op, value, 0), true
+	case *ast.BinaryExpr:
+		left, ok := evaluateConstant(typed.X, bindings, visiting)
+		if !ok {
+			return nil, false
+		}
+		right, ok := evaluateConstant(typed.Y, bindings, visiting)
+		if !ok {
+			return nil, false
+		}
+		if typed.Op == token.SHL || typed.Op == token.SHR {
+			shift, exact := constant.Uint64Val(constant.ToInt(right))
+			if !exact {
+				return nil, false
+			}
+			return constant.Shift(left, typed.Op, uint(shift)), true
+		}
+		switch typed.Op {
+		case token.ADD, token.SUB, token.MUL, token.QUO, token.REM,
+			token.AND, token.OR, token.XOR, token.AND_NOT:
+			return constant.BinaryOp(left, typed.Op, right), true
+		default:
+			return nil, false
+		}
 	default:
-		return ""
+		return nil, false
 	}
 }
 

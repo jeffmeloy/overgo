@@ -28,6 +28,8 @@ import (
 type triageRow struct {
 	Name          string `json:"name"`
 	File          string `json:"file"`
+	Scope         string `json:"scope"`
+	Line          int    `json:"line"`
 	Tier          string `json:"tier"`
 	Status        string `json:"status"`
 	ClosurePath   string `json:"closure_path"`
@@ -84,13 +86,13 @@ func fatal(err error) {
 
 func report(candidates []closurescan.Candidate, limit int) {
 	fmt.Printf("closure-scan: %d numeric constants (iota enums, tests, generated excluded)\n", len(candidates))
-	fmt.Printf("%-6s %-44s %-16s %s\n", "score", "const", "value", "file")
+	fmt.Printf("%-6s %-44s %-16s %-24s %s\n", "score", "const", "value", "scope", "source")
 	for index, row := range candidates {
 		if index >= limit {
 			fmt.Printf("... %d more (raise -limit)\n", len(candidates)-limit)
 			break
 		}
-		fmt.Printf("%-6d %-44s %-16s %s\n", row.Score, row.Name, row.Value, row.File)
+		fmt.Printf("%-6d %-44s %-16s %-24s %s:%d\n", row.Score, row.Name, row.Value, row.Scope, row.File, row.Line)
 	}
 }
 
@@ -124,7 +126,7 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 	}
 	byKey := map[string]closurescan.Candidate{}
 	for _, row := range candidates {
-		byKey[row.File+"#"+row.Name] = row
+		byKey[row.DeclarationKey()] = row
 	}
 	// Content-derived batch key: identical triage re-emits idempotently,
 	// different triage gets its own key (a fixed key collided on the second
@@ -133,7 +135,9 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 	batch := artifact.Batch{Key: "closure-scan/" + hex.EncodeToString(digest[:8])}
 	fileIDs := map[string]artifact.ID{}
 	for _, row := range triage.Rows {
-		found, ok := byKey[row.File+"#"+row.Name]
+		found, ok := byKey[(closurescan.Candidate{
+			File: row.File, Scope: row.Scope, Line: row.Line, Name: row.Name,
+		}).DeclarationKey()]
 		if !ok {
 			return fmt.Errorf("triage row %s not found by scan in %s (stale triage?)", row.Name, row.File)
 		}

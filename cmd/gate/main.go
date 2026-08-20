@@ -1285,7 +1285,7 @@ func magicCandidatesAtHEAD(repo string, snapshot repoanalysis.SourceSnapshot, pa
 func magicDiagnostics(current, baseline []closurescan.Candidate, catalogued map[string]bool) []string {
 	previous := map[string]bool{}
 	for _, candidate := range baseline {
-		previous[candidate.File+"\x00"+candidate.Name+"\x00"+candidate.Value] = true
+		previous[candidate.ExactKey()] = true
 	}
 	var lines []string
 	inherited := 0
@@ -1293,7 +1293,7 @@ func magicDiagnostics(current, baseline []closurescan.Candidate, catalogued map[
 		if catalogued[candidate.Name] {
 			continue
 		}
-		key := candidate.File + "\x00" + candidate.Name + "\x00" + candidate.Value
+		key := candidate.ExactKey()
 		if previous[key] {
 			inherited++
 			continue

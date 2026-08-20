@@ -8,18 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "candidate-identity",
-          "title": "Represent top-level and function-local constants with exact source and evaluated-value identity",
-          "status": "open",
-          "verify": "go test ./internal/closurescan -run '^(TestScanIncludesFunctionLocalConstants|TestCandidateIdentityIncludesEvaluatedSourceBinding)$' -count=1",
-          "rationale": "The current declaration walk misses function-local constants and cannot support exact ledger drift checks.",
-          "capabilities": [
-            "go-ast",
-            "constant-evaluation",
-            "source-identity"
-          ]
-        },
-        {
           "id": "literal-census",
           "title": "Classify every production inline literal without magnitude heuristics",
           "status": "open",

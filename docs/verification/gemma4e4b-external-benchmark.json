@@ -1,0 +1,23 @@
+{
+ "model": "model:sha256:cfbd3d2f1cd71bd471c37fe2bf8546d5028d41e5736f64e1ca6c6b8893125503",
+ "name": "gemma-4-E4B-it-HF",
+ "model_file": "C:/Users/jeffm/adaptive_new/models/gemma-4-E4B-it/model.safetensors",
+ "evidence_files": [
+  "docs/verification/gemma4e4b-external-mmlu-abstract-algebra.json"
+ ],
+ "dataset_files": [
+  "C:/Users/jeffm/eval/datasets/cais___mmlu/abstract_algebra/0.0.0/c30699e8356da336a370243923dbaf21066bb9fe/mmlu-test.arrow"
+ ],
+ "claims": [
+  {
+   "capability": "benchmark",
+   "tier": "capability-measured",
+   "commit": "4dd29342eabc84ec1c351886838b82961c50b0e7",
+   "dataset": "dataset-shard:sha256:188d54be8bce5b30231f8e559ed5b9d0f6031db5d059c87438da3e1f3c135c41",
+   "wall_ns": 39695024100,
+   "evidence": [
+    "evidence:sha256:0f24046ba82e36f83c2db718b57fe8a32aa4c66a2c4b7776b92fefc5e65d6df2"
+   ]
+  }
+ ]
+}

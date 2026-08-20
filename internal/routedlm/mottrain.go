@@ -476,7 +476,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 		// output = residual + down(activated): dDown = dOut, dResidual += dOut.
 		dActivated := make([]float32, n*inter)
 		if trainable {
-			hostmath.Linear(dActivated, dOut, transposeIntoScratch(t.view(sp.down), d, inter), n, d, inter)
+			hostmath.Linear(dActivated, dOut, hostmath.Transpose2D(t.view(sp.down), d, inter), n, d, inter)
 			linearWeightGradient(t.gradView(sp.down), activated, dOut, n, inter, d)
 		} else {
 			hostmath.LinearBF16BackwardInput(dActivated, dOut, frozen.textDown.Data, n, inter, d)
@@ -486,10 +486,10 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 		hostmath.SiLUGateBackward(dGate, dUp, gatePack, upPack, dActivated)
 		dPostNorm := make([]float32, n*d)
 		if trainable {
-			hostmath.Linear(dPostNorm, dGate, transposeIntoScratch(t.view(sp.gate), inter, d), n, inter, d)
+			hostmath.Linear(dPostNorm, dGate, hostmath.Transpose2D(t.view(sp.gate), inter, d), n, inter, d)
 			linearWeightGradient(t.gradView(sp.gate), packScratch(a.postNorm, rows, d), dGate, n, d, inter)
 			dUpX := make([]float32, n*d)
-			hostmath.Linear(dUpX, dUp, transposeIntoScratch(t.view(sp.up), inter, d), n, inter, d)
+			hostmath.Linear(dUpX, dUp, hostmath.Transpose2D(t.view(sp.up), inter, d), n, inter, d)
 			for i := range dPostNorm {
 				dPostNorm[i] += dUpX[i]
 			}
@@ -519,7 +519,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 		contextPack := packScratch(a.context, rows, qOut)
 		dContextPack := make([]float32, n*qOut)
 		if trainable {
-			hostmath.Linear(dContextPack, dResidualPack, transposeIntoScratch(t.view(sp.o), d, qOut), n, d, qOut)
+			hostmath.Linear(dContextPack, dResidualPack, hostmath.Transpose2D(t.view(sp.o), d, qOut), n, d, qOut)
 			linearWeightGradient(t.gradView(sp.o), contextPack, dResidualPack, n, qOut, d)
 		} else {
 			hostmath.LinearBF16BackwardInput(dContextPack, dResidualPack, frozen.textO.Data, n, qOut, d)
@@ -646,7 +646,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 			packRows(dyPack, source.grad, rows, source.out)
 			dx := make([]float32, n*d)
 			if trainable {
-				hostmath.Linear(dx, dyPack, transposeIntoScratch(t.view(source.master), source.out, d), n, source.out, d)
+				hostmath.Linear(dx, dyPack, hostmath.Transpose2D(t.view(source.master), source.out, d), n, source.out, d)
 				linearWeightGradient(t.gradView(source.master), normPack, dyPack, n, d, source.out)
 			} else {
 				hostmath.LinearBF16BackwardInput(dx, dyPack, source.frozenW.Data, n, d, source.out)
@@ -776,18 +776,6 @@ func linearWeightGradient(dW, x, dy []float32, rows, inDim, outDim int) {
 			}
 		}
 	})
-}
-
-// transposeIntoScratch: row-major [out,in] -> [in,out] for the f32 input-VJP
-// through hostmath.Linear (which multiplies by w^T).
-func transposeIntoScratch(w []float32, outDim, inDim int) []float32 {
-	transposed := make([]float32, len(w))
-	for o := 0; o < outDim; o++ {
-		for c := 0; c < inDim; c++ {
-			transposed[c*outDim+o] = w[o*inDim+c]
-		}
-	}
-	return transposed
 }
 
 // packScratch: gather branch rows into a fresh packed block.

@@ -1,15 +1,11 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"math"
-	"os"
 	"path/filepath"
-	"strings"
 
+	"overgo/internal/fixtureasset"
 	"overgo/internal/jsonfile"
 )
 
@@ -112,26 +108,9 @@ func loadGoldenJSON[T any](fixturesDir, name string) (T, error) {
 // loadTensorAsset: raw little-endian f32 asset checked against the golden
 // sha256 and shape product.
 func loadTensorAsset(fixturesDir, asset string, tensor goldenTensor) ([]float32, error) {
-	if asset == "" {
-		return nil, fmt.Errorf("missing asset name")
-	}
-	raw, err := os.ReadFile(filepath.Join(fixturesDir, asset))
+	values, err := fixtureasset.LoadF32(fixturesDir, asset, tensor.Sha256, 0)
 	if err != nil {
 		return nil, err
-	}
-	if tensor.Sha256 == "" {
-		return nil, fmt.Errorf("%s: golden missing sha256", asset)
-	}
-	sum := sha256.Sum256(raw)
-	if got := hex.EncodeToString(sum[:]); !strings.EqualFold(got, tensor.Sha256) {
-		return nil, fmt.Errorf("%s sha256 %s != golden %s", asset, got, tensor.Sha256)
-	}
-	if len(raw)%4 != 0 {
-		return nil, fmt.Errorf("%s: %d bytes not float32-aligned", asset, len(raw))
-	}
-	values := make([]float32, len(raw)/4)
-	for i := range values {
-		values[i] = math.Float32frombits(binary.LittleEndian.Uint32(raw[i*4:]))
 	}
 	want := 1
 	for _, dim := range tensor.Shape {

@@ -29,12 +29,7 @@ type MoTTarget struct {
 }
 
 // MoTTrainStepResult: measured facts of one observed full-pipeline step.
-type MoTTrainStepResult struct {
-	Loss         float64
-	Step         int
-	LearningRate float64
-	GradientL2   float64
-}
+type MoTTrainStepResult = optimizer.ObservedStepResult
 
 // motSpans: one layer's trainable vision-branch tensors in the packed flat.
 type motSpans struct {
@@ -89,15 +84,15 @@ func NewModalityTransformerTrainer(cfg Config, layers []LayerWeights, finalNorm 
 		suffix     string
 		rows, cols int
 	}{
-		{"input_layernorm.weight", 1, d},
-		{"self_attn.q_proj.weight", qOut, d},
-		{"self_attn.k_proj.weight", kvOut, d},
-		{"self_attn.v_proj.weight", kvOut, d},
-		{"self_attn.o_proj.weight", d, qOut},
-		{"post_attention_layernorm.weight", 1, d},
-		{"mlp.gate_proj.weight", inter, d},
-		{"mlp.up_proj.weight", inter, d},
-		{"mlp.down_proj.weight", d, inter},
+		{suffixInputNorm, 1, d},
+		{suffixQProj, qOut, d},
+		{suffixKProj, kvOut, d},
+		{suffixVProj, kvOut, d},
+		{suffixOProj, d, qOut},
+		{suffixPostNorm, 1, d},
+		{suffixGateProj, inter, d},
+		{suffixUpProj, inter, d},
+		{suffixDownProj, d, inter},
 	}
 	total := 0
 	specs := make([]optimizer.GroupSpec, 0, len(layers)*len(perLayer))
@@ -217,14 +212,7 @@ func (t *ModalityTransformerTrainer) Step(hidden []float32, mask []int, targets 
 	if err != nil {
 		return MoTTrainStepResult{}, err
 	}
-	if err := t.stepper.Step(); err != nil {
-		return MoTTrainStepResult{}, err
-	}
-	t.step++
-	return MoTTrainStepResult{
-		Loss: loss, Step: t.step,
-		LearningRate: t.config.LearningRate(t.step), GradientL2: gradientL2,
-	}, nil
+	return optimizer.Advance(t.stepper, t.config, &t.step, loss, gradientL2)
 }
 
 func (t *ModalityTransformerTrainer) lossAndGradients(hidden []float32, mask []int, targets []MoTTarget) (float64, float64, error) {

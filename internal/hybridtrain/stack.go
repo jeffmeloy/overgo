@@ -438,6 +438,12 @@ func (state *trainingState) lossGradient() error {
 func (state *trainingState) backward() error { return state.backend.Backward(state.dTop) }
 func (state *trainingState) optimize() error { return state.backend.Step(state.step + 1) }
 func runTraining(program trainingprogram.TrainingProgram, backend trainingBackend, target []float32, steps int) ([]float64, error) {
+	return runTrainingObserved(program, backend, target, steps, nil)
+}
+
+// runTrainingObserved runs the compiled loop, reporting each committed step's
+// loss to observe; an observer error stops training with the trajectory so far.
+func runTrainingObserved(program trainingprogram.TrainingProgram, backend trainingBackend, target []float32, steps int, observe func(step int, loss float64) error) ([]float64, error) {
 	execution, err := trainingprogram.Bind(program, []trainingprogram.Binding[trainingState]{
 		{Operator: "hybrid-forward", Execute: (*trainingState).forward},
 		{Operator: "squared-error", Execute: (*trainingState).lossGradient},
@@ -455,6 +461,11 @@ func runTraining(program trainingprogram.TrainingProgram, backend trainingBacken
 			return nil, err
 		}
 		trajectory[state.step] = state.loss
+		if observe != nil {
+			if err := observe(state.step, state.loss); err != nil {
+				return trajectory[:state.step+1], err
+			}
+		}
 	}
 	return trajectory, nil
 }

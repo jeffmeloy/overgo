@@ -10,19 +10,16 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/fixtureasset"
 	"overgo/internal/jsonfile"
 	"overgo/internal/patchtower"
 	"overgo/internal/repodb"
@@ -69,23 +66,11 @@ type visionGolden struct {
 }
 
 func loadTensorAsset(fixturesDir, asset string, golden goldenTensor) ([]float32, error) {
-	raw, err := os.ReadFile(filepath.Join(fixturesDir, asset))
-	if err != nil {
-		return nil, err
+	elements := 1
+	for _, dim := range golden.Shape {
+		elements *= dim
 	}
-	sum := sha256.Sum256(raw)
-	if got := hex.EncodeToString(sum[:]); !strings.EqualFold(got, golden.Sha256) {
-		return nil, fmt.Errorf("mot train probe: %s sha256 %s != golden %s", asset, got, golden.Sha256)
-	}
-	values := make([]float32, len(raw)/4)
-	for i := range values {
-		values[i] = float32frombitsLE(raw[i*4:])
-	}
-	return values, nil
-}
-
-func float32frombitsLE(raw []byte) float32 {
-	return math.Float32frombits(binary.LittleEndian.Uint32(raw))
+	return fixtureasset.LoadF32(fixturesDir, asset, golden.Sha256, elements)
 }
 
 func run() error {

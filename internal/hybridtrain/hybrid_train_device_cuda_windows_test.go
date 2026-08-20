@@ -21,6 +21,63 @@ func smallHybrid() StackConfig {
 	}
 }
 
+// TestHybridTrainHostMasterStreamedMatchesHost verifies the host-master
+// streamed lane reproduces the host trajectory (same 8+2 FP32 Newton-Schulz
+// schedule, so parity is tight).
+func TestHybridTrainHostMasterStreamedMatchesHost(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	cfg := smallHybrid()
+	ocfg := optimizer.Config{BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: optimizer.ScheduleConstant}
+
+	host, err := BuildModel(cfg, testSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	streamed, err := BuildModel(cfg, testSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostTraj, err := host.TrainHost(testSteps, ocfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observed := 0
+	streamedTraj, err := streamed.TrainHostMasterStreamed(worker, testSteps, ocfg, func(step int, loss float64) error {
+		if step != observed {
+			t.Fatalf("observer saw step %d, want %d", step, observed)
+		}
+		observed++
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observed != testSteps {
+		t.Fatalf("observer saw %d steps, want %d", observed, testSteps)
+	}
+	var maxRel float64
+	for i := range hostTraj {
+		r := math.Abs(hostTraj[i]-streamedTraj[i]) / (math.Abs(hostTraj[i]) + 1e-9)
+		if r > maxRel {
+			maxRel = r
+		}
+		t.Logf("step %d  host=%.6f  streamed=%.6f  rel=%.3e", i, hostTraj[i], streamedTraj[i], r)
+	}
+	if !(streamedTraj[len(streamedTraj)-1] < streamedTraj[0]) {
+		t.Fatalf("streamed loss did not decrease: %.6f -> %.6f", streamedTraj[0], streamedTraj[len(streamedTraj)-1])
+	}
+	const relTol = 5e-3
+	if maxRel > relTol {
+		t.Errorf("streamed trajectory parity maxRel %.3e > %.1e", maxRel, relTol)
+	}
+}
+
 // TestHybridTrainDeviceResidentMatchesHost verifies trajectory and residency parity.
 func TestHybridTrainDeviceResidentMatchesHost(t *testing.T) {
 	cudatest.Require(t)

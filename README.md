@@ -64,6 +64,8 @@ This makes two claims deliberately different:
 The first scales by composition. The second remains artifact-specific and is
 recorded through RepoDB.
 
+![Overgo platform architecture and model lifecycle](docs/assets/overgo-platform-architecture.png)
+
 ## 2. How Overgo works
 
 ### Shared components instead of model-family executors
@@ -409,24 +411,111 @@ Recursive or self-improving trials do not authorize their own promotion.
 Admission, development data, promotion data, evaluator, evaluation run,
 decision authority, and rollback target are separate recorded facts.
 
-## 6. Evaluation, evidence, and lifecycle management
+## 6. Evaluation system
 
-### Evaluation campaigns
+Evaluation is a native runtime subsystem, not a collection of external scripts
+or a report imported after execution. Suites, cases, scorers, execution policy,
+acceptance contracts, evaluators, reports, and results have typed,
+content-addressed identities. Evaluation runs use the same model sessions,
+recipes, artifact store, operation manager, CLI, HTTP server, and GUI as other
+Overgo workflows.
 
-Evaluation suites are compiled before model execution. A suite defines inputs,
-expected outputs or metrics, scoring policy, aggregation, and artifact
-dependencies. Evaluation runs bind:
+### Compiled suites and plans
 
-- the exact model and active recipe;
-- dataset or input artifacts;
-- scorer and evaluator identities;
-- source commit and environment;
-- individual records, failures, metrics, and reports;
-- output and trace artifacts.
+Suite JSON is strictly decoded and compiled before model work begins. The
+compiler validates the suite kind, cases, scorer configuration, grouping,
+metric contract, and referenced data. It then binds the compiled suite to an
+evaluation plan containing:
 
-The workbench can run one or more suites, report progress, cancel execution,
-inspect records and failures, browse history, and compare two runs against an
-explicit baseline.
+- the exact model definition and runtime recipe;
+- dataset and immutable split identities;
+- case-profile and scorer identities;
+- isolated or resident execution lifecycle;
+- source commit and execution environment.
+
+Changing any of those authorities produces a different evaluation-plan
+identity. Results from different plans therefore cannot be treated as the same
+experiment merely because they share a display name.
+
+The campaign runner supports these compiled suite classes:
+
+| Suite class | Evaluation behavior |
+| --- | --- |
+| Exact generation | Generate from fixed cases and require the declared exact result |
+| Multiple choice | Score candidate continuations and report aggregate and grouped accuracy |
+| Generated answer | Generate free-form answers and apply the suite's answer scorer |
+| MMLU-Pro | Score multiple-choice cases with category-level metrics |
+| Grouped choice | Evaluate demonstrated choices and report named-group accuracy |
+| Probability mass | Measure the probability mass assigned to declared positive outcomes |
+| Structured generation | Generate typed structured output and score validity and expected content by group |
+| Instruction rules | Evaluate strict and loose prompt- and instruction-level compliance |
+
+Evaluation packages also provide typed target scoring used by training and
+model-building workflows:
+
+- normalized text targets with exact, named, or verifier-backed scoring;
+- numeric targets with explicit assumptions, tolerances, and per-record
+  results;
+- media targets with named oracles, verifiers, and artifact observations;
+- preference targets for chosen and rejected outputs;
+- supervised-fine-tuning views bound to immutable dataset splits.
+
+These scorers are reusable components. A new model using an existing scorer
+does not require a second implementation of the evaluation logic.
+
+### Metrics, acceptance, and evaluators
+
+Every compiled suite creates an acceptance contract before execution. A metric
+contract names the metric, optional unit, and whether it must be minimized or
+maximized. Reports cannot silently add, remove, rename, or reverse metrics
+after a run.
+
+An evaluator binds an evaluation plan to its acceptance contract. Evaluator
+promotion can be tested against a sealed set of known outcomes: the candidate
+must rank those outcomes consistently with every metric's declared direction,
+and the promotion decision must name the same evaluator and sealed evidence.
+This prevents a scorer from being adopted merely because it favors the current
+candidate.
+
+Supported reports include overall metrics, group or category metrics,
+per-record observations, explicit failures, and typed output artifacts. Failed
+records remain inspectable rather than disappearing into an aggregate score.
+
+### Campaign execution and publication
+
+An evaluation campaign executes one or more compiled suites against the same
+bound model runtime. Successful execution publishes:
+
+1. the compiled evaluation plan;
+2. the suite report and its individual observations;
+3. a bound run record with code, environment, timing, inputs, and outputs;
+4. an evaluation record containing the declared metrics;
+5. an evidence document connecting the plan, acceptance policy, evaluator,
+   report, run, and evaluation.
+
+Failed and cancelled campaigns still publish terminal run evidence. Cancellation
+uses a context-independent finalization path so the cancelled request does not
+erase its own execution history.
+
+Exact-generation suites can be evaluated in deterministic shards and combined
+without changing the governing plan. Campaign history is queryable by model,
+and two evaluations can be compared metric by metric with an explicit
+baseline, current value, delta, direction, and improvement result.
+
+### Evaluation interfaces
+
+Use `cmd/evaluate` for compiled suite execution and `cmd/eval-lane` for the
+repository's evidence-aware evaluation lane. Start the server with repeatable
+`-evaluation-suite <suite.json>` arguments and bind source identity with
+`-evaluation-commit <commit>`.
+
+The HTTP workspace exposes capability discovery, asynchronous campaign
+execution, history, reports, failures, and comparison. The Evaluations tab uses
+those same endpoints to select one or more suites, report progress, cancel
+execution, inspect records and failures, browse model history, and compare two
+runs against an explicit baseline.
+
+## 7. Evidence and lifecycle management
 
 ### Evidence-bound lifecycle
 
@@ -475,7 +564,7 @@ candidate and evaluator revisions, finding resolutions, target commits, and
 results. A human or external authority decides whether to merge or activate a
 candidate.
 
-## 7. Capability and verification levels
+## 8. Capability and verification levels
 
 Overgo uses explicit status terms:
 
@@ -505,7 +594,7 @@ available, incomplete full-stack training for some large profiles, remaining
 modality-pair evidence, incomplete comparable memory measurements, and
 capabilities whose source or reference artifacts are absent.
 
-## 8. Quick start
+## 9. Quick start
 
 ### Requirements
 
@@ -649,7 +738,7 @@ go run ./cmd/train \
 Run `go run ./cmd/<name> -h` for command flags. Subcommand help follows the
 subcommand, for example `go run ./cmd/recipe status -h`.
 
-## 9. CLI catalog and commands
+## 10. CLI catalog and commands
 
 ### Model inspection, formats, and conversion
 
@@ -762,7 +851,7 @@ go vet -tags integration ./...
 go run ./cmd/release -out dist -verify-reproducible
 ```
 
-## 10. GUI features and usage
+## 11. GUI features and usage
 
 The server embeds a thin HTML, CSS, and JavaScript workbench at
 `http://127.0.0.1:8080/`. The browser owns presentation state only. Models,
@@ -857,7 +946,7 @@ The workbench includes:
 Tensor similarity is descriptive analysis. It does not infer semantic
 interchangeability or authorize component composition.
 
-## 11. Compatibility and benchmark references
+## 12. Compatibility and benchmark references
 
 Model support, verification, and performance claims are artifact-specific and
 change as recipes and evidence are recorded. The README intentionally does not

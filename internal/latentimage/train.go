@@ -202,23 +202,11 @@ func (t *FinalLayerTrainer) Step(hidden, temb, target []float64) (FinalLayerStep
 	if err != nil {
 		return FinalLayerStepResult{}, err
 	}
-	if err := t.stepper.Step(); err != nil {
-		return FinalLayerStepResult{}, err
-	}
-	t.step++
-	return FinalLayerStepResult{
-		Loss: loss, Step: t.step,
-		LearningRate: t.config.LearningRate(t.step), GradientL2: gradientL2,
-	}, nil
+	return optimizer.Advance(t.stepper, t.config, &t.step, loss, gradientL2)
 }
 
 // FinalLayerStepResult: measured facts of one observed organ training step.
-type FinalLayerStepResult struct {
-	Loss         float64
-	Step         int
-	LearningRate float64
-	GradientL2   float64
-}
+type FinalLayerStepResult = optimizer.ObservedStepResult
 
 // forwardTrace: normalized rows (pre-affine), affine rows, head output.
 func (t *FinalLayerTrainer) forwardTrace(hidden, temb []float64, rows int) (normed, modulated, out []float64) {

@@ -18,7 +18,7 @@ func TestDiagnosticsPrioritizeChangedDebt(t *testing.T) {
 		{Name: "changedLimit", File: "internal/x/x.go", Value: "24"},
 		{Name: "cataloguedLimit", File: "internal/x/x.go", Value: "64"},
 	}
-	lines := magicDiagnostics(current, baseline, map[string]bool{"cataloguedLimit": true})
+	lines := magicDiagnostics(current, baseline, map[string]bool{current[3].ExactKey(): true})
 	if len(lines) != 3 || !strings.Contains(lines[0], "newLimit") || !strings.Contains(lines[1], "changedLimit") {
 		t.Fatalf("changed debt was not first: %v", lines)
 	}

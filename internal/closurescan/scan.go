@@ -7,6 +7,7 @@ package closurescan
 
 import (
 	"bytes"
+	"encoding/json"
 	"go/ast"
 	"go/constant"
 	"go/format"
@@ -41,6 +42,15 @@ func (c Candidate) DeclarationKey() string {
 
 func (c Candidate) ExactKey() string {
 	return c.DeclarationKey() + "\x00" + c.Expression + "\x00" + c.Value + "\x00" + c.SourceID
+}
+
+func (c Candidate) ValueJSON() json.RawMessage {
+	value, err := json.Marshal(json.Number(c.Value))
+	if err == nil {
+		return value
+	}
+	value, _ = json.Marshal(c.Value)
+	return value
 }
 
 // RawPolicyLiteral is an advisory group of the same raw literal repeated in

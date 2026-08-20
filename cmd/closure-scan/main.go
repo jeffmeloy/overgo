@@ -232,10 +232,7 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 			fileIDs[row.File] = id
 			fileID = id
 		}
-		valueJSON, err := json.Marshal(json.Number(found.Value))
-		if err != nil || !json.Valid(valueJSON) {
-			valueJSON, _ = json.Marshal(found.Value) // composite expressions pin as strings
-		}
+		valueJSON := found.ValueJSON()
 		binding := closureledger.SourceBinding{
 			Kind: closureledger.BindingConstant, Package: found.Package, File: found.File,
 			Scope: found.Scope, Name: found.Name, Line: found.Line,

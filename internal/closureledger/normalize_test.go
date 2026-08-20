@@ -47,3 +47,18 @@ func TestNormalizeAdmitsAnyFieldOrderAndEmitsCanonical(t *testing.T) {
 		t.Fatal("Normalize is not idempotent on canonical input")
 	}
 }
+
+func TestClosureLedgerCurrentContractOnly(t *testing.T) {
+	owner := testutil.ArtifactID(t, artifact.KindFile, "legacy-owner")
+	fixture := testutil.ArtifactID(t, artifact.KindFile, "legacy-fixture")
+	legacy := []byte(`{"version":1,"name":"LegacyMagic","value":8,"tier":"derivation-blocked",` +
+		`"status":"open","owner_surfaces":["` + owner.String() + `"],` +
+		`"closure_path":"derive","rerank_trigger":"source change",` +
+		`"pinning_fixture":"` + fixture.String() + `"}`)
+	if _, err := Parse(legacy); err == nil {
+		t.Fatal("legacy document parsed")
+	}
+	if _, _, err := Normalize(legacy); err == nil {
+		t.Fatal("legacy document normalized")
+	}
+}

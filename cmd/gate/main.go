@@ -1225,13 +1225,7 @@ func (g *gateContext) stepClaims() (bool, error) {
 	return false, err
 }
 
-// stepMagics is Automation Doctrine Layer 6, scoped to this commit's files:
-// numeric constants in changed production Go must have closure-ledger rows.
-// Matching is by row NAME (owner-surface file IDs are version-pinned content
-// hashes, so a name match is the honest path-stable heuristic). Advisory
-// first — uncatalogued constants land in the honesty line, not a refusal —
-// enforcement hardens once the 530-constant backlog is triaged
-// (first-run-calibrates applied to enforcement itself).
+// stepMagics: scoped constants against exact active closure evidence.
 func (g *gateContext) stepMagics() (bool, error) {
 	snapshot, err := g.sourceSnapshot()
 	if err != nil {
@@ -1248,7 +1242,7 @@ func (g *gateContext) stepMagics() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	catalogued, err := ledgerNames(g.repo, g.storePath)
+	catalogued, err := activeMagicBindings(g.repo, g.storePath, candidates)
 	if err != nil {
 		g.honesty = append(g.honesty, "magic scan: ledger unreadable ("+err.Error()+"); constants unchecked")
 		return false, nil
@@ -1290,7 +1284,7 @@ func magicDiagnostics(current, baseline []closurescan.Candidate, catalogued map[
 	var lines []string
 	inherited := 0
 	for _, candidate := range current {
-		if catalogued[candidate.Name] {
+		if catalogued[candidate.ExactKey()] {
 			continue
 		}
 		key := candidate.ExactKey()
@@ -1315,33 +1309,38 @@ func magicDiagnostics(current, baseline []closurescan.Candidate, catalogued map[
 	return lines
 }
 
-func ledgerNames(repo, storePath string) (map[string]bool, error) {
+func activeMagicBindings(repo, storePath string, candidates []closurescan.Candidate) (map[string]bool, error) {
 	store, err := repodb.OpenReadOnly(filepath.Join(repo, storePath))
 	if err != nil {
 		return nil, err
 	}
 	defer store.Close()
-	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: 100_000})
-	if err != nil {
-		return nil, err
-	}
-	names := map[string]bool{}
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != closureledger.MediaType {
-			continue
+	bindings := map[string]bool{}
+	for _, candidate := range candidates {
+		decoded, err := hex.DecodeString(candidate.SourceID)
+		if err != nil || len(decoded) != sha256.Size {
+			return nil, fmt.Errorf("magic scan: invalid source identity for %s", candidate.Name)
 		}
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
-			continue
-		}
-		document, err := closureledger.Parse(content.Data)
+		var digest [sha256.Size]byte
+		copy(digest[:], decoded)
+		owner, err := artifact.NewID(artifact.KindFile, digest)
 		if err != nil {
-			continue
+			return nil, err
 		}
-		names[document.Name] = true
+		binding := closureledger.SourceBinding{
+			Kind: closureledger.BindingConstant, Package: candidate.Package, File: candidate.File,
+			Scope: candidate.Scope, Name: candidate.Name, Line: candidate.Line,
+			Expression: candidate.Expression, SourceID: candidate.SourceID, Owner: owner,
+		}
+		if _, active, err := closureledger.ResolveActiveBinding(
+			context.Background(), store, binding, candidate.ValueJSON(),
+		); err != nil {
+			return nil, err
+		} else if active {
+			bindings[candidate.ExactKey()] = true
+		}
 	}
-	return names, nil
+	return bindings, nil
 }
 
 // stepDevice is the manifest-scoped device lane routing (Automation Doctrine

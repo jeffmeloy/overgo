@@ -1,0 +1,77 @@
+overgo full-pipeline training verification run
+tool: cmd/dit-train-probe -checkpoint (latentvideo.DiTTrainer over the
+reference-edit .pt loader), session-supervised full edit-conditioned
+video-diffusion transformer training with frozen T5/VAE
+model: LiveEdit (bid-diffusion_009200.pt, FloatStorage/F32 throughout —
+verified per-tensor at load). Ledger identity:
+model:sha256:618e6c57a554b2d06a615ea782433df0174c32b64b0ffb6da25bea68969ca135
+(docs/verification/liveedit-training.json). The raw checkpoint file
+identifies as model:sha256:071d61cd587df776491609669cb551627f02580c1ff0c95bfc9978f4bc2ae256,
+the identity the session observation binds; both name the same artifact and
+this doc records the correspondence.
+
+promotion-gate-closed: LiveEdit full edit-conditioned video-diffusion training (gate named in docs/verification/liveedit-training-run.txt, refusal finding f28aa306's carried route)
+
+trainable surface: the ENTIRE DiT — identical architecture to Wan2.1-1.3B
+except the 32-channel patch embedding ([1536,32,1,2,2]: 16 noise channels
+concatenated with 16 REAL source-latent conditioning channels, gradient
+stopping at the frozen source planes) — 1,419,095,104 parameters as f32
+masters decoded from the checkpoint's FloatStorage. Frozen: umt5-xxl text
+encoder, VAE, and the source-latent condition.
+trainer: the same latentvideo.DiTTrainer as the Wan closure — one trainer,
+two loaders (safetensors vs pytorchzip reference-edit checkpoint with
+fsdp-prefix normalization) — with the identical FD proof (69 tiny-config
+groups including the source-extended patch embedding, 2% tolerance) and the
+identical serving-parity gate against the committed fixtures/wan goldens.
+Hyperparameters fully DERIVED: base LR n_params^-1/2 = 2.65457e-05,
+momentum (CLT-1)/(CLT+1) = 0.9354838710.
+
+conditioning: REAL — raw 4096-wide T5 rows from the real umt5-xxl encoder
+(22 tokens, sha-checked cache); x0 = frame 0 of the committed sha-pinned g4
+final latent with the committed g3 latent as the source-condition planes
+(declaration: docs/verification/liveedit-dit-training-stimulus.txt).
+Objective: flow matching at the committed shift-5 schedule point
+sigma=0.93726546 (timestep 937), target v = noise - x0, MSE over 16384
+latent elements.
+
+session supervision: lease admission BEFORE weights loaded, recipe authority
+activated at the experimental tier
+(recipe:sha256:afd8a137356e5f25887706078fe39ce2c951c4dad60dd43de4ccb7516fe0336a),
+typed observation committed:
+session observation: evidence:sha256:aba053c6ae2c7acfc32acc0aa0a9c73a1a6bed9f1af078d70fa101a1e3b216bb
+
+run output (unedited):
+raw text rows: cache hit (22 tokens x 4096)
+checkpoint storage: patch_embedding.weight dtype=FloatStorage
+checkpoint storage: blocks.0.self_attn.q.weight dtype=FloatStorage
+checkpoint storage: text_embedding.0.weight dtype=FloatStorage
+full DiT: layers=30 trainable_parameters=1419095104 seq=256 latent=32x1x32x32 text_tokens=22
+derived_lr=2.65457e-05 derived_momentum=0.935483871 load_wall=2.992s
+text projection vs committed g1 context: max_abs_diff=0.0924175 mean_abs_diff=0.000838935 (bf16 serving rounding expected)
+flow matching: timestep=937 sigma=0.93726546 (shift-5 schedule index 1)
+initial loss 1.872905 (flow-matching MSE over 16384 latent elements)
+step 1/3 loss 1.872905 grad_l2 65.342675 lr 2.65457e-05 wall 1m0.243s
+step 2/3 loss 1.539932 grad_l2 286.410372 lr 2.65457e-05 wall 1m43.179s
+step 3/3 loss 1.247757 grad_l2 59.135977 lr 2.65457e-05 wall 57.921s
+after-evaluation loss 0.950265 (initial 1.872905)
+
+monotone descent 1.872905 -> 1.539932 -> 1.247757 -> 0.950265 (after-eval;
+the step-2 grad_l2 spike to 286 settles by step 3 — recorded, not smoothed).
+This supersedes the organ-scope cell (101,440 head parameters on synthetic
+stimulus, docs/verification/liveedit-training-run.txt) by four orders of
+magnitude of trainable surface with real edit conditioning — the named
+gate's exact terms.
+
+caveats:
+- 3 supervised steps at seq 256: machinery-tier evidence
+  (real-artifact-smoke), not a capability claim; full-geometry training
+  needs per-block gradient checkpointing (see the Wan closure doc).
+- the LiveEdit text projection differs more from the Wan-captured g1 context
+  (max 0.0924) because the checkpoints' text_embedding weights differ — the
+  comparison is a provenance log, not a parity gate here.
+- ledger identity 618e6c57 predates raw-file identification; the observation
+  binds the raw checkpoint digest 071d61cd (correspondence stated above).
+
+reproduce:
+  go run ./cmd/dit-train-probe -checkpoint "C:/Users/jeffm/adaptive_new/models/LiveEdit/bid-diffusion_009200.pt" -steps 3
+  go run ./cmd/repodb-query -repo repodb-store -id <printed observation id> -content

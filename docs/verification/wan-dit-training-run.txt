@@ -1,0 +1,85 @@
+overgo full-pipeline training verification run
+tool: cmd/dit-train-probe (latentvideo.DiTTrainer), session-supervised full
+video-diffusion transformer training with frozen T5/VAE
+model: Wan2.1-T2V-1.3B (diffusion_pytorch_model.safetensors, all F32),
+model:sha256:96b6b242ca1c2f24e9d02cd6596066fab6d310e2d7538f33ae267cb18d957e8f
+(the ledger identity of docs/verification/wan-training.json, matched by the
+run's own artifact.Identify at admission)
+
+promotion-gate-closed: Wan2.1-T2V-1.3B full video-diffusion training, transformer backward with frozen T5/VAE (gate named in docs/verification/wan-training-run.txt, refusal finding 421b6981's carried route)
+
+trainable surface: the ENTIRE DiT — 30 blocks (self-attention with full-width
+QK RMSNorm and 3-axis adjacent-pair rope [44,42,42], cross-attention over the
+512-row text context, tanh-GELU FFN 1536->8960->1536, 6-chunk AdaLN
+modulation, affine norm3) plus the prologue and head (patch embedding as a
+[64,1536] linear, text_embedding 4096->1536 with GELU, time_embedding with
+SiLU, time_projection to the 6*dim conditioning, head modulation + linear) —
+1,418,996,800 parameters as f32 masters read directly from the F32 serving
+storage. Frozen: the umt5-xxl text encoder and the VAE (outside the DiT);
+gradient stops at their outputs.
+trainer: latentvideo.DiTTrainer over optimizer.NewStepper (shared CUDA Muon);
+the full-graph VJP (patchify transposes, AdaLN 6-chunk modulation with
+gradients into BOTH the learned table and the shared time_projection path,
+scaled bidirectional attention, 3-axis interleaved-rope backward, full-width
+QK-norm) is finite-difference proven over every one of the 69 tiny-config
+tensor groups (TestDiTTrainerGradientMatchesFiniteDifference, whole-tensor
+directional derivatives, 2% tolerance; epsilon 2e-2 — at smaller epsilon the
+measured discrepancy scales as 1/epsilon, the f32 forward-noise signature on
+this MSE objective, documented in the test). Hyperparameters fully DERIVED:
+base LR n_params^-1/2 = 2.65466e-05, momentum (CLT-1)/(CLT+1) = 0.9354838710.
+
+serving-parity proof (the mirror is the served math): the trainer forward is
+gated against the committed fixtures/wan goldens
+(TestDiTTrainerGoldenParityG3, PASS): g2 timestep conditioning through the
+trainable path is BIT-EXACT; with the real g1 projected text contexts and the
+real step-0 sample, worst block-0 seam 3.43e-5, worst of all 30 block outputs
+1.03e-4, worst unpatchified output 2.15e-6. The AdaLN table order and rope
+pairing follow the serving graph (the organ trainer's swapped-halves defect,
+parked finding b426636b, is NOT inherited).
+
+conditioning: REAL — the raw 4096-wide T5 rows are streamed from the real
+umt5-xxl encoder checkpoint (22 tokens, 1m30s, sha-checked cache); the
+trainer's own text_embedding projection is evidence-logged against the
+committed g1 capture (max_abs_diff 0.022526, mean 8.478e-05 — matching the
+golden test's cross-engine bf16-rounding envelope digit-for-digit). x0 is
+the committed sha-pinned g3 final latent tiled to the 16x1x32x32 grid
+(declaration: docs/verification/wan-dit-training-stimulus.txt; no demo video
+ships with the checkpoint, stated plainly). Objective: flow matching at the
+committed shift-5 schedule point sigma=0.93726546 (timestep 937), target
+v = noise - x0, MSE over 16384 latent elements — the pipeline's own contract.
+
+session supervision: component-session lease admission BEFORE weights loaded,
+recipe authority activated at the experimental tier
+(recipe:sha256:48af4cd8394b3afe89115b3d98a4b2c215ce7b6ec9b64bd4db2f5d237f93a905),
+typed observation committed:
+session observation: evidence:sha256:5bcde6ec5a79cf193a8034d3ba56ae32777b6ff5ed8f869f4e9b1f784cd333d3
+
+run output (unedited):
+raw text rows: streamed encoder produced 22 tokens x 4096 in 1m30s
+full DiT: layers=30 trainable_parameters=1418996800 seq=256 latent=16x1x32x32 text_tokens=22
+derived_lr=2.65466e-05 derived_momentum=0.935483871 load_wall=1m34.343s
+text projection vs committed g1 context: max_abs_diff=0.022526 mean_abs_diff=8.47798e-05 (bf16 serving rounding expected)
+flow matching: timestep=937 sigma=0.93726546 (shift-5 schedule index 1)
+initial loss 2.762512 (flow-matching MSE over 16384 latent elements)
+step 1/3 loss 2.762512 grad_l2 57.478456 lr 2.65466e-05 wall 54.996s
+step 2/3 loss 2.138621 grad_l2 59.627954 lr 2.65466e-05 wall 1m2.933s
+step 3/3 loss 1.562807 grad_l2 49.243859 lr 2.65466e-05 wall 1m47.534s
+after-evaluation loss 1.146811 (initial 2.762512)
+
+monotone descent 2.762512 -> 2.138621 -> 1.562807 -> 1.146811 (after-eval).
+This supersedes the organ-scope cell (101,440 head parameters on synthetic
+stimulus, docs/verification/wan-training-run.txt) by four orders of magnitude
+of trainable surface, with the serving-parity-gated mirror and real
+conditioning — the named gate's exact terms.
+
+caveats:
+- 3 supervised steps at seq 256 (one cropped latent grid): machinery-tier
+  evidence (real-artifact-smoke), not a capability claim. Full 81-frame 480p
+  geometry (32,760 tokens) needs per-block gradient checkpointing (memory
+  cliff at ~6k tokens on 96GB host) — a follow-on, not claimed here.
+- x0 is the committed real latent, not a freshly VAE-encoded clip; the VAE
+  encoder path (EncodeSourceVideo) exists and is the upgrade route.
+
+reproduce:
+  go run ./cmd/dit-train-probe -steps 3
+  go run ./cmd/repodb-query -repo repodb-store -id <printed observation id> -content

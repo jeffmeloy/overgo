@@ -758,24 +758,9 @@ func (p RopePlan) applyRotaryF32(row []float32, pos RowPosition, invert bool) {
 	}
 }
 
-// linearWeightGradient: dW += dy^T ⊗ x, parallel over output rows (each
-// worker owns disjoint dW rows, race-free).
+// linearWeightGradient: the shared parallel dW += dy^T ⊗ x kernel.
 func linearWeightGradient(dW, x, dy []float32, rows, inDim, outDim int) {
-	hostmath.ParallelRangeF64(outDim, rows*inDim, func(oLo, oHi int) {
-		for o := oLo; o < oHi; o++ {
-			dWRow := dW[o*inDim : (o+1)*inDim]
-			for r := 0; r < rows; r++ {
-				g := dy[r*outDim+o]
-				if g == 0 {
-					continue
-				}
-				xRow := x[r*inDim : (r+1)*inDim]
-				for c := 0; c < inDim; c++ {
-					dWRow[c] += g * xRow[c]
-				}
-			}
-		}
-	})
+	hostmath.LinearWeightGradient(dW, x, dy, rows, inDim, outDim)
 }
 
 // packScratch: gather branch rows into a fresh packed block.

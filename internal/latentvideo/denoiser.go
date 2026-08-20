@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/model"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
@@ -597,26 +598,9 @@ func (p *DenoiserProgram) PatchifyLatent(sample []float32) ([]float32, error) {
 	if len(sample) != g.Elements() {
 		return nil, fmt.Errorf("patchify: sample has %d elements, need %d", len(sample), g.Elements())
 	}
-	ps0, ps1, ps2 := c.PatchSize[0], c.PatchSize[1], c.PatchSize[2]
-	frames, height, width := g.LatentFrames, g.LatentHeight, g.LatentWidth
-	patchIn := c.patchIn()
-	out := make([]float32, g.Seq*patchIn)
-	for token := 0; token < g.Seq; token++ {
-		ft := token / (g.Grid[1] * g.Grid[2])
-		remainder := token % (g.Grid[1] * g.Grid[2])
-		hy, wx := remainder/g.Grid[2], remainder%g.Grid[2]
-		row := out[token*patchIn : (token+1)*patchIn]
-		for channel := 0; channel < c.InDim; channel++ {
-			for kt := 0; kt < ps0; kt++ {
-				for kh := 0; kh < ps1; kh++ {
-					for kw := 0; kw < ps2; kw++ {
-						source := (((channel*frames+ft*ps0+kt)*height + hy*ps1 + kh) * width) + wx*ps2 + kw
-						row[((channel*ps0+kt)*ps1+kh)*ps2+kw] = sample[source]
-					}
-				}
-			}
-		}
-	}
+	out := make([]float32, g.Seq*c.patchIn())
+	hostmath.PatchifyChannelMajor(out, sample, c.InDim, g.LatentFrames, g.LatentHeight, g.LatentWidth,
+		c.PatchSize[0], c.PatchSize[1], c.PatchSize[2])
 	return out, nil
 }
 
@@ -627,27 +611,10 @@ func (p *DenoiserProgram) UnpatchifyLatent(patches []float32) ([]float32, error)
 	if len(patches) != g.Seq*patchOut {
 		return nil, fmt.Errorf("unpatchify: patches have %d elements, need %d", len(patches), g.Seq*patchOut)
 	}
-	ps0, ps1, ps2 := c.PatchSize[0], c.PatchSize[1], c.PatchSize[2]
-	height, width := g.LatentHeight, g.LatentWidth
-	outputFrames := g.Grid[0] * ps0
-	out := make([]float32, c.OutDim*outputFrames*height*width)
-	for token := 0; token < g.Seq; token++ {
-		vector := patches[token*patchOut : (token+1)*patchOut]
-		frame := token / (g.Grid[1] * g.Grid[2])
-		remainder := token % (g.Grid[1] * g.Grid[2])
-		row, column := remainder/g.Grid[2], remainder%g.Grid[2]
-		for kt := 0; kt < ps0; kt++ {
-			for kh := 0; kh < ps1; kh++ {
-				for kw := 0; kw < ps2; kw++ {
-					for channel := 0; channel < c.OutDim; channel++ {
-						source := ((kt*ps1+kh)*ps2+kw)*c.OutDim + channel
-						destination := (((channel*outputFrames+frame*ps0+kt)*height + row*ps1 + kh) * width) + column*ps2 + kw
-						out[destination] = vector[source]
-					}
-				}
-			}
-		}
-	}
+	outputFrames := g.Grid[0] * c.PatchSize[0]
+	out := make([]float32, c.OutDim*outputFrames*g.LatentHeight*g.LatentWidth)
+	hostmath.UnpatchifyChannelMajor(out, patches, c.OutDim, outputFrames, g.LatentHeight, g.LatentWidth,
+		c.PatchSize[0], c.PatchSize[1], c.PatchSize[2])
 	return out, nil
 }
 

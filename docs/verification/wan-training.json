@@ -2,10 +2,12 @@
  "model": "model:sha256:96b6b242ca1c2f24e9d02cd6596066fab6d310e2d7538f33ae267cb18d957e8f",
  "name": "Wan2.1-T2V-1.3B",
  "evidence_files": [
-  "docs/verification/wan-training-run.txt"
+  "docs/verification/wan-training-run.txt",
+  "docs/verification/wan-dit-training-run.txt"
  ],
  "dataset_files": [
-  "docs/verification/wan-training-stimulus.txt"
+  "docs/verification/wan-training-stimulus.txt",
+  "docs/verification/wan-dit-training-stimulus.txt"
  ],
  "claims": [
   {
@@ -17,6 +19,18 @@
    "wall_ns": 398000000,
    "evidence": [
     "evidence:sha256:70931de80af7edca259c739a49fbe89d4e0db81c2afc194a775d681604393e15"
+   ]
+  },
+  {
+   "capability": "full-pipeline-training",
+   "tier": "real-artifact-smoke",
+   "commit": "27e208f9a34115827ec5fc9de70e90bf05ca3fc0",
+   "dataset": "dataset-shard:sha256:10e594a091404dac04702681c38231f7fdc22d1f7aa7b5ee383b58bb7bbc4bc4",
+   "span_steps": 3,
+   "wall_ns": 225463000000,
+   "evidence": [
+    "evidence:sha256:5af7e5a7f1a16e442a70539779813f2dcde747efc351c66ca383ea2bf5d1cd4e",
+    "evidence:sha256:5bcde6ec5a79cf193a8034d3ba56ae32777b6ff5ed8f869f4e9b1f784cd333d3"
    ]
   }
  ]

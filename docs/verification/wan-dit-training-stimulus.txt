@@ -1,0 +1,31 @@
+overgo full video-diffusion (DiT) training stimulus declaration
+model: Wan2.1-T2V-1.3B (30-block conditioned diffusion transformer, 1,418,996,800 F32 parameters)
+
+This run trains the COMPLETE diffusion transformer — every block, the patch
+embedding, the text and time embeddings, the time projection, and the
+modulated head — with the frozen text encoder and VAE outside the trainable
+surface. The objective is the pipeline's own flow-matching contract: MSE
+against v = noise - x0 on the shifted flow schedule (shift 5, the committed
+g2/g3 schedule).
+
+Text conditioning: the raw umt5-xxl encoder rows for the committed g1 fox
+prompt ("a red fox licking a vanilla ice cream cone on a snowy pine forest
+trail"), computed by the repository's streamed host encoder from the real
+models_t5_umt5-xxl-enc-bf16.pth checkpoint — the exact pre-projection rows
+the trainable text embedding consumes. The trainer's own projection of these
+rows is logged against the committed raw/g1_cond_context.f32le capture.
+
+Timestep conditioning: computed from the trainable time embedding/projection
+tensors at a committed g2 schedule timestep; the trainer's conditioning path
+is bit-parity gated against raw/g2_block_e.f32le / raw/g2_head_e.f32le.
+
+x0: the committed g3 final latent (fixtures/wan/raw/g3_final_latent.f32le,
+sha256-pinned — the real denoised fox latent [16,1,2,4]) tiled spatially to
+the training grid; noise from the golden Philox plan (seed 31); x_t is the
+real flow mixture (1-sigma)*x0 + sigma*noise. No demo video ships under the
+model directory, so the committed real latent is the x0 seed grid — declared
+plainly rather than synthesizing from statistics.
+
+The fixtures live in this repository (fixtures/wan) and are sha256-verified
+at load; this declaration grounds the training-recipe dataset authority by
+content.

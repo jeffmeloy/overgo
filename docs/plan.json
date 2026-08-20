@@ -8,20 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "validator",
-          "title": "Validate declaration, value, owner artifact, callsites, tier, status, and disposition",
-          "status": "open",
-          "verify": "go test ./internal/closureledger ./internal/closurescan -run '^(TestValidateBindingsDetectsSourceDrift|TestValidateBindingsDetectsOrphansAndCallsiteDrift)$' -count=1",
-          "rationale": "A catalog is useful only when code changes cannot silently invalidate its evidence.",
-          "depends_on": [
-            "magic-ledger-authority/ledger-migration"
-          ],
-          "capabilities": [
-            "drift-detection",
-            "orphan-detection"
-          ]
-        },
-        {
           "id": "gate-refusal",
           "title": "Replace advisory name matching with refusal for new, changed, stale, or unreadable bindings",
           "status": "open",

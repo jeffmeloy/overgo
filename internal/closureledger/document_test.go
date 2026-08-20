@@ -232,9 +232,10 @@ func publishActiveDocument(
 
 func testSourceBinding(owner artifact.ID) SourceBinding {
 	digest := sha256.Sum256([]byte("internal/cache/page.go"))
+	callsites := sha256.Sum256([]byte("internal/cache/use.go"))
 	return SourceBinding{
 		Kind: BindingConstant, Package: "internal/cache", File: "internal/cache/page.go",
 		Scope: "package", Name: "pageSize", Line: 12, Expression: "1 << 8",
-		SourceID: hex.EncodeToString(digest[:]), Owner: owner,
+		SourceID: hex.EncodeToString(digest[:]), CallsiteID: hex.EncodeToString(callsites[:]), Owner: owner,
 	}
 }

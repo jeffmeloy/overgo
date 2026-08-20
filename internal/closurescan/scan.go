@@ -7,11 +7,16 @@ package closurescan
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"go/ast"
 	"go/constant"
 	"go/format"
 	"go/token"
+	"hash"
+	"io"
 	"maps"
 	"path/filepath"
 	"regexp"
@@ -20,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/artifact"
+	"overgo/internal/closureledger"
 	"overgo/internal/repoanalysis"
 )
 
@@ -32,6 +39,7 @@ type Candidate struct {
 	Expression string `json:"expression"`
 	Value      string `json:"value"`
 	SourceID   string `json:"source_id"`
+	CallsiteID string `json:"callsite_id"`
 	Doc        string `json:"doc,omitempty"`
 	Score      int    `json:"score"`
 }
@@ -41,7 +49,7 @@ func (c Candidate) DeclarationKey() string {
 }
 
 func (c Candidate) ExactKey() string {
-	return c.DeclarationKey() + "\x00" + c.Expression + "\x00" + c.Value + "\x00" + c.SourceID
+	return c.DeclarationKey() + "\x00" + c.Expression + "\x00" + c.Value + "\x00" + c.SourceID + "\x00" + c.CallsiteID
 }
 
 func (c Candidate) ValueJSON() json.RawMessage {
@@ -51,6 +59,24 @@ func (c Candidate) ValueJSON() json.RawMessage {
 	}
 	value, _ = json.Marshal(c.Value)
 	return value
+}
+
+func (c Candidate) Binding() (closureledger.SourceBinding, error) {
+	decoded, err := hex.DecodeString(c.SourceID)
+	if err != nil || len(decoded) != sha256.Size {
+		return closureledger.SourceBinding{}, fmt.Errorf("closure scan: invalid source identity for %s", c.Name)
+	}
+	var digest [sha256.Size]byte
+	copy(digest[:], decoded)
+	owner, err := artifact.NewID(artifact.KindFile, digest)
+	if err != nil {
+		return closureledger.SourceBinding{}, err
+	}
+	return closureledger.SourceBinding{
+		Kind: closureledger.BindingConstant, Package: c.Package, File: c.File,
+		Scope: c.Scope, Name: c.Name, Line: c.Line, Expression: c.Expression,
+		SourceID: c.SourceID, CallsiteID: c.CallsiteID, Owner: owner,
+	}, nil
 }
 
 // RawPolicyLiteral is an advisory group of the same raw literal repeated in
@@ -398,10 +424,14 @@ func ScanRoot(root string) ([]Candidate, error) {
 // ScanSnapshot reuses parsed source and optionally limits findings to paths.
 func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]Candidate, error) {
 	var out []Candidate
+	objects := map[*ast.Object]int{}
 	err := visitProduction(snapshot, relatives, func(source repoanalysis.GoFile, parsed *ast.File) {
-		collect(parsed, source, &out)
+		collectObjects(parsed, source, &out, objects)
 	})
 	if err != nil {
+		return nil, err
+	}
+	if err := bindCallsites(snapshot, out, objects); err != nil {
 		return nil, err
 	}
 	sort.SliceStable(out, func(i, j int) bool {
@@ -559,6 +589,10 @@ type constBinding struct {
 }
 
 func collect(file *ast.File, source repoanalysis.GoFile, out *[]Candidate) {
+	collectObjects(file, source, out, nil)
+}
+
+func collectObjects(file *ast.File, source repoanalysis.GoFile, out *[]Candidate, objects map[*ast.Object]int) {
 	bindings := map[*ast.Object]ast.Expr{}
 	var declarations []constBinding
 	for _, declaration := range file.Decls {
@@ -583,6 +617,7 @@ func collect(file *ast.File, source repoanalysis.GoFile, out *[]Candidate) {
 		}
 		expression := formatExpression(declaration.expression)
 		evaluated := value.ExactString()
+		index := len(*out)
 		*out = append(*out, Candidate{
 			Name: declaration.name.Name, File: source.Path,
 			Package: filepath.ToSlash(filepath.Dir(source.Path)),
@@ -590,7 +625,105 @@ func collect(file *ast.File, source repoanalysis.GoFile, out *[]Candidate) {
 			Expression: expression, Value: evaluated, SourceID: source.ContentID,
 			Doc: declaration.doc, Score: score(declaration.name.Name, declaration.doc, evaluated),
 		})
+		if objects != nil && declaration.name.Obj != nil {
+			objects[declaration.name.Obj] = index
+		}
 	}
+}
+
+func bindCallsites(snapshot repoanalysis.SourceSnapshot, candidates []Candidate, objects map[*ast.Object]int) error {
+	byPackage := map[string][]int{}
+	packages := map[string]bool{}
+	for index, candidate := range candidates {
+		if candidate.Scope == "package" {
+			key := candidate.Package + "\x00" + candidate.Name
+			byPackage[key] = append(byPackage[key], index)
+			packages[candidate.Package] = true
+		}
+	}
+	hashes := make([]hash.Hash, len(candidates))
+	for index := range hashes {
+		hashes[index] = sha256.New()
+	}
+	err := visitProduction(snapshot, nil, func(source repoanalysis.GoFile, file *ast.File) {
+		pkg := filepath.ToSlash(filepath.Dir(source.Path))
+		imports := candidateImports(file, packages)
+		inspectWithParents(file, func(node ast.Node, parents map[ast.Node]ast.Node) {
+			if selector, ok := node.(*ast.SelectorExpr); ok {
+				qualifier, ok := selector.X.(*ast.Ident)
+				if !ok {
+					return
+				}
+				for _, index := range byPackage[imports[qualifier.Name]+"\x00"+selector.Sel.Name] {
+					hashCallsite(hashes[index], source, literalScope(selector, parents), selector.Sel.Pos())
+				}
+				return
+			}
+			identifier, ok := node.(*ast.Ident)
+			if !ok || identifier == file.Name || identifier.Obj != nil && identifier.Obj.Pos() == identifier.Pos() {
+				return
+			}
+			if identifier.Obj != nil {
+				if index, found := objects[identifier.Obj]; found {
+					hashCallsite(hashes[index], source, literalScope(identifier, parents), identifier.Pos())
+				}
+				return
+			}
+			if _, selector := parents[node].(*ast.SelectorExpr); selector {
+				return
+			}
+			for _, index := range byPackage[pkg+"\x00"+identifier.Name] {
+				hashCallsite(hashes[index], source, literalScope(identifier, parents), identifier.Pos())
+			}
+		})
+	})
+	if err != nil {
+		return err
+	}
+	for index := range candidates {
+		candidates[index].CallsiteID = hex.EncodeToString(hashes[index].Sum(nil))
+	}
+	return nil
+}
+
+func candidateImports(file *ast.File, packages map[string]bool) map[string]string {
+	imports := map[string]string{}
+	for _, spec := range file.Imports {
+		importPath, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			continue
+		}
+		matched := ""
+		for candidate := range packages {
+			if (importPath == candidate || strings.HasSuffix(importPath, "/"+candidate)) && len(candidate) > len(matched) {
+				matched = candidate
+			}
+		}
+		if matched == "" {
+			continue
+		}
+		name := filepath.Base(importPath)
+		if spec.Name != nil {
+			name = spec.Name.Name
+		}
+		if name != "." && name != "_" {
+			imports[name] = matched
+		}
+	}
+	return imports
+}
+
+func hashCallsite(destination hash.Hash, source repoanalysis.GoFile, scope string, position token.Pos) {
+	hashField(destination, source.Path)
+	hashField(destination, source.ContentID)
+	hashField(destination, scope)
+	hashField(destination, strconv.Itoa(source.Line(position)))
+	hashField(destination, strconv.Itoa(int(position)-1))
+}
+
+func hashField(destination hash.Hash, value string) {
+	io.WriteString(destination, value)
+	destination.Write([]byte{0})
 }
 
 func collectConstBindings(generic *ast.GenDecl, scope string, bindings map[*ast.Object]ast.Expr, out *[]constBinding) {

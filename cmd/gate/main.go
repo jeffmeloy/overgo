@@ -1242,7 +1242,7 @@ func (g *gateContext) stepMagics() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	catalogued, err := activeMagicBindings(g.repo, g.storePath, candidates)
+	catalogued, err := activeMagicBindings(g.repo, g.storePath, snapshot, candidates)
 	if err != nil {
 		g.honesty = append(g.honesty, "magic scan: ledger unreadable ("+err.Error()+"); constants unchecked")
 		return false, nil
@@ -1309,28 +1309,61 @@ func magicDiagnostics(current, baseline []closurescan.Candidate, catalogued map[
 	return lines
 }
 
-func activeMagicBindings(repo, storePath string, candidates []closurescan.Candidate) (map[string]bool, error) {
+func activeMagicBindings(
+	repo, storePath string,
+	snapshot repoanalysis.SourceSnapshot,
+	candidates []closurescan.Candidate,
+) (map[string]bool, error) {
 	store, err := repodb.OpenReadOnly(filepath.Join(repo, storePath))
 	if err != nil {
 		return nil, err
 	}
 	defer store.Close()
-	bindings := map[string]bool{}
-	for _, candidate := range candidates {
-		decoded, err := hex.DecodeString(candidate.SourceID)
-		if err != nil || len(decoded) != sha256.Size {
-			return nil, fmt.Errorf("magic scan: invalid source identity for %s", candidate.Name)
+	result, err := store.Query(context.Background(), repodb.Query{
+		Kind: artifact.KindEvidence, MediaType: closureledger.MediaType,
+		Schema: closureledger.Schema, MaxResults: repodb.MaxQueryResults,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if result.Truncated {
+		return nil, errors.New("magic scan: active-ledger query truncated")
+	}
+	seen := map[artifact.ID]bool{}
+	var documents []closureledger.Document
+	for _, alias := range result.Aliases {
+		if !closureledger.IsActiveAlias(alias.Name) || seen[alias.Target] {
+			continue
 		}
-		var digest [sha256.Size]byte
-		copy(digest[:], decoded)
-		owner, err := artifact.NewID(artifact.KindFile, digest)
+		seen[alias.Target] = true
+		content, found, err := store.Content(context.Background(), alias.Target)
 		if err != nil {
 			return nil, err
 		}
-		binding := closureledger.SourceBinding{
-			Kind: closureledger.BindingConstant, Package: candidate.Package, File: candidate.File,
-			Scope: candidate.Scope, Name: candidate.Name, Line: candidate.Line,
-			Expression: candidate.Expression, SourceID: candidate.SourceID, Owner: owner,
+		if !found {
+			return nil, errors.New("magic scan: active document unavailable")
+		}
+		if err := content.Validate(); err != nil {
+			return nil, err
+		}
+		document, err := closureledger.Parse(content.Data)
+		if err != nil || document.ID != alias.Target {
+			return nil, errors.New("magic scan: active document identity mismatch")
+		}
+		documents = append(documents, document)
+	}
+	issues, err := closurescan.ValidateBindings(snapshot, documents)
+	if err != nil {
+		return nil, err
+	}
+	if len(issues) != 0 {
+		return nil, fmt.Errorf("magic scan: %d stale active binding(s), first=%s/%s", len(issues), issues[0].Kind, issues[0].Name)
+	}
+	bindings := map[string]bool{}
+	for _, candidate := range candidates {
+		binding, err := candidate.Binding()
+		if err != nil {
+			return nil, err
 		}
 		if _, active, err := closureledger.ResolveActiveBinding(
 			context.Background(), store, binding, candidate.ValueJSON(),

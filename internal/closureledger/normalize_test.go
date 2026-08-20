@@ -23,7 +23,7 @@ func TestNormalizeAdmitsAnyFieldOrderAndEmitsCanonical(t *testing.T) {
 	alphabetical := []byte(`{"closure_path":"derive from the measured envelope","name":"ExampleMagic",` +
 		`"bindings":[` + string(binding) + `],"pinning_fixture":"` + fixture.String() + `",` +
 		`"rerank_trigger":"re-evaluate on owner change","status":"open","tier":"derivation-blocked",` +
-		`"understanding":"unresolved owner policy","value":8,"version":2}`)
+		`"understanding":"unresolved owner policy","value":8,"version":3}`)
 
 	if _, err := Parse(alphabetical); err == nil {
 		t.Fatal("alphabetical field order parsed as canonical; this test no longer pins anything")
@@ -51,14 +51,16 @@ func TestNormalizeAdmitsAnyFieldOrderAndEmitsCanonical(t *testing.T) {
 func TestClosureLedgerCurrentContractOnly(t *testing.T) {
 	owner := testutil.ArtifactID(t, artifact.KindFile, "legacy-owner")
 	fixture := testutil.ArtifactID(t, artifact.KindFile, "legacy-fixture")
-	legacy := []byte(`{"version":1,"name":"LegacyMagic","value":8,"tier":"derivation-blocked",` +
-		`"status":"open","owner_surfaces":["` + owner.String() + `"],` +
-		`"closure_path":"derive","rerank_trigger":"source change",` +
-		`"pinning_fixture":"` + fixture.String() + `"}`)
-	if _, err := Parse(legacy); err == nil {
-		t.Fatal("legacy document parsed")
-	}
-	if _, _, err := Normalize(legacy); err == nil {
-		t.Fatal("legacy document normalized")
+	for _, version := range []string{"1", "2"} {
+		legacy := []byte(`{"version":` + version + `,"name":"LegacyMagic","value":8,"tier":"derivation-blocked",` +
+			`"status":"open","owner_surfaces":["` + owner.String() + `"],` +
+			`"closure_path":"derive","rerank_trigger":"source change",` +
+			`"pinning_fixture":"` + fixture.String() + `"}`)
+		if _, err := Parse(legacy); err == nil {
+			t.Fatalf("v%s document parsed", version)
+		}
+		if _, _, err := Normalize(legacy); err == nil {
+			t.Fatalf("v%s document normalized", version)
+		}
 	}
 }

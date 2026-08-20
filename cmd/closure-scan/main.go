@@ -233,10 +233,9 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 			fileID = id
 		}
 		valueJSON := found.ValueJSON()
-		binding := closureledger.SourceBinding{
-			Kind: closureledger.BindingConstant, Package: found.Package, File: found.File,
-			Scope: found.Scope, Name: found.Name, Line: found.Line,
-			Expression: found.Expression, SourceID: found.SourceID, Owner: fileID,
+		binding, err := found.Binding()
+		if err != nil || binding.Owner != fileID {
+			return fmt.Errorf("row %s: inconsistent source owner", row.Name)
 		}
 		document, err := closureledger.New(
 			row.Name, valueJSON,

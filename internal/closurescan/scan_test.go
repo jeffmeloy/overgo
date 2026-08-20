@@ -71,7 +71,7 @@ func TestCandidateIdentityIncludesEvaluatedSourceBinding(t *testing.T) {
 	}
 	left, right := before[0], after[0]
 	if left.Package != "internal" || left.Scope != "package" ||
-		left.Line == 0 || left.SourceID == "" || left.Expression != "4 * 8" || left.Value != "32" {
+		left.Line == 0 || left.SourceID == "" || left.CallsiteID == "" || left.Expression != "4 * 8" || left.Value != "32" {
 		t.Fatalf("source binding = %+v", left)
 	}
 	if left.DeclarationKey() != right.DeclarationKey() || left.ExactKey() == right.ExactKey() || right.Value != left.Value {

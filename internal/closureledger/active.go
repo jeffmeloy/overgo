@@ -9,11 +9,20 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"overgo/internal/artifact"
 )
 
 const activeAliasPrefix = "closure/active/"
+
+func IsActiveAlias(name string) bool {
+	if !strings.HasPrefix(name, activeAliasPrefix) {
+		return false
+	}
+	digest, err := hex.DecodeString(strings.TrimPrefix(name, activeAliasPrefix))
+	return err == nil && len(digest) == sha256.Size
+}
 
 // ActiveAlias identifies one source declaration across evidence revisions.
 func ActiveAlias(binding SourceBinding) (string, error) {

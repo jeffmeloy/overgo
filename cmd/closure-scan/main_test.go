@@ -67,10 +67,9 @@ func TestTriagePublishesExactBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	binding := closureledger.SourceBinding{
-		Kind: closureledger.BindingConstant, Package: candidate.Package, File: candidate.File,
-		Scope: candidate.Scope, Name: candidate.Name, Line: candidate.Line,
-		Expression: candidate.Expression, SourceID: candidate.SourceID, Owner: owner,
+	binding, err := candidate.Binding()
+	if err != nil || binding.Owner != owner {
+		t.Fatalf("binding owner = (%s, %v), want %s", binding.Owner, err, owner)
 	}
 	document, active, err := closureledger.ResolveActiveBinding(
 		context.Background(), store, binding, candidate.ValueJSON(),

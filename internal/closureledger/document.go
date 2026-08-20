@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	Version   uint16 = 2
+	Version   uint16 = 3
 	MediaType        = "application/vnd.overgo.closure-ledger+json"
-	Schema           = "overgo/closure-ledger/v2"
+	Schema           = "overgo/closure-ledger/v3"
 
 	maxNameBytes  = 256
 	maxTextBytes  = 32 << 10
@@ -72,6 +72,7 @@ type SourceBinding struct {
 	Line       int         `json:"line"`
 	Expression string      `json:"expression"`
 	SourceID   string      `json:"source_id"`
+	CallsiteID string      `json:"callsite_id"`
 	Owner      artifact.ID `json:"owner"`
 }
 
@@ -153,6 +154,7 @@ func canonicalize(document *Document) error {
 	if document == nil || document.Version != Version || !validName(document.Name) ||
 		!validTier(document.Tier) || !validTierStatus(document.Tier, document.Status) ||
 		strings.TrimSpace(document.Understanding) == "" ||
+		strings.TrimSpace(document.ClosurePath) == "" || strings.TrimSpace(document.RerankTrigger) == "" ||
 		!textcheck.Bounded(document.Understanding, maxTextBytes, "\x00\r") ||
 		!textcheck.Bounded(document.ClosurePath, maxTextBytes, "\x00\r") ||
 		!textcheck.Bounded(document.RerankTrigger, maxTextBytes, "\x00\r") ||
@@ -185,12 +187,13 @@ func validBinding(binding SourceBinding) bool {
 	if clean != binding.File || clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
 		return false
 	}
-	digest, err := hex.DecodeString(binding.SourceID)
-	return err == nil && len(digest) == sha256.Size
+	source, sourceErr := hex.DecodeString(binding.SourceID)
+	callsites, callsiteErr := hex.DecodeString(binding.CallsiteID)
+	return sourceErr == nil && len(source) == sha256.Size && callsiteErr == nil && len(callsites) == sha256.Size
 }
 
 func bindingKey(binding SourceBinding) string {
-	return bindingDeclarationKey(binding) + "\x00" + binding.SourceID
+	return bindingDeclarationKey(binding) + "\x00" + binding.SourceID + "\x00" + binding.CallsiteID
 }
 
 func canonicalValue(value json.RawMessage) (json.RawMessage, error) {

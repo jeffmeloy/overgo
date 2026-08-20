@@ -1,14 +1,15 @@
 package adaptiveparity
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/dataroot"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/repodb"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
@@ -46,20 +47,11 @@ func TestInferenceTextAndStructuredEvidenceIdentity(t *testing.T) {
 		t.Skip("set OVERGO_ADAPTIVE_PARITY=1 to verify external evidence identities")
 	}
 	snapshot := textStructuredSnapshot(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
+	store, err := repodb.Open(filepath.Join(testutil.RepoRoot(t), "repodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactPaths := map[string]string{
-		"dense-carbon":           filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Carbon-500M-f16-ropefix.gguf"),
-		"dense-minicpm5":         filepath.Join(roots.Checkpoints, "overgo-hfconvert", "MiniCPM5-1B-f16.gguf"),
-		"dense-qwen25":           filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Qwen2.5-0.5B-f16.gguf"),
-		"hybrid-qwen35":          filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Qwen3.5-4B-f16.gguf"),
-		"forecast-timesfm":       filepath.Join(roots.Models, "timesfm-2.5-200m-transformers", "model.safetensors"),
-		"tabular-classification": filepath.Join(roots.Models, "tabfm-1.0.0-pytorch", "classification", "model.safetensors"),
-		"tabular-regression":     filepath.Join(roots.Models, "tabfm-1.0.0-pytorch", "regression", "model.safetensors"),
-		"seq2seq-needle":         filepath.Join(roots.Models, "needle", "model.safetensors"),
-	}
+	defer store.Close()
 	goldenPaths := map[string]string{
 		"dense-carbon": "carbon_serving_golden.json", "dense-minicpm5": "minicpm5_serving_golden.json",
 		"dense-qwen25": "qwen25_serving_golden.json", "hybrid-qwen35": "qwen35_4b_serving_golden.json",
@@ -73,7 +65,11 @@ func TestInferenceTextAndStructuredEvidenceIdentity(t *testing.T) {
 		if len(capability.Artifacts) != 1 || len(capability.Corpora) != 1 || len(capability.Goldens) != 1 {
 			t.Fatalf("row %q evidence cardinality is not singular", capability.ID)
 		}
-		assertFileIdentity(t, artifactPaths[capability.ID], capability.Artifacts[0].Identity)
+		artifactPath, err := artifact.AvailablePath(context.Background(), store, capability.Artifacts[0].Identity, artifact.LocationFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertFileIdentity(t, artifactPath, capability.Artifacts[0].Identity)
 		golden := testutil.FixturePath(t, goldenPaths[capability.ID])
 		assertFileIdentity(t, golden, capability.Corpora[0].Identity)
 		assertFileIdentity(t, golden, capability.Goldens[0].Identity)

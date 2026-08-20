@@ -28,34 +28,38 @@ const (
 
 // MetadataDefaultPolicy: serialized architecture defaults and override keys.
 type MetadataDefaultPolicy struct {
-	AttentionSoftcap       float32
-	AttentionOutputScale   float32
-	EmbeddingScale         float32
-	LogitScale             float32
-	LayerNormEpsilon       float32
-	QKNormEpsilon          float32
-	AlternateStateCount    uint32
-	AlternateStateActive   uint32
-	LowRankResidualWidth   uint32
-	PerLayerEmbeddingWidth uint32
-	SharedKVStartLayer     uint32
-	SparseLayerCount       uint32
-	SparsityStdMultiplier  float32
-	DraftBlockSize         uint32
-	SlidingWindow          uint32
-	SlidingPattern         uint32
-	MaxALiBiBias           float32
-	RopeAttentionFactor    float32
-	RopeFrequencySWA       float32
-	RopeDisabled           bool
-	OriginalContext        bool
-	RopeFrequencyFromBase  bool
-	RopeDimension          RopeDimensionDefaultPolicy
-	DecoderBlocksFromModel bool
-	FullAttentionInterval  uint32
-	MoELayerStep           uint32
-	ExpertChunkFromKey     bool
-	SharedExpert           SharedExpertDefaultPolicy
+	AttentionSoftcap           float32
+	AttentionOutputScale       float32
+	EmbeddingScale             float32
+	LogitScale                 float32
+	ResidualScalePerSqrtBlock  float32
+	LogitScaleNumerator        float32
+	LayerNormEpsilon           float32
+	QKNormEpsilon              float32
+	AlternateStateCount        uint32
+	AlternateStateActive       uint32
+	LowRankResidualWidth       uint32
+	PerLayerEmbeddingWidth     uint32
+	SharedKVStartLayer         uint32
+	SparseLayerCount           uint32
+	SparsityStdMultiplier      float32
+	DraftBlockSize             uint32
+	SlidingWindow              uint32
+	SlidingPattern             uint32
+	AttentionTemperatureScale  float32
+	AttentionTemperatureOffset float32
+	MaxALiBiBias               float32
+	RopeAttentionFactor        float32
+	RopeFrequencySWA           float32
+	RopeDisabled               bool
+	OriginalContext            bool
+	RopeFrequencyFromBase      bool
+	RopeDimension              RopeDimensionDefaultPolicy
+	DecoderBlocksFromModel     bool
+	FullAttentionInterval      uint32
+	MoELayerStep               uint32
+	ExpertChunkFromKey         bool
+	SharedExpert               SharedExpertDefaultPolicy
 }
 
 func (p MetadataDefaultPolicy) uint(values map[string]gguf.Value, prefix, key string, fallback uint32) uint32 {
@@ -110,6 +114,14 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 	if p.LogitScale > 0 {
 		spec.LogitScale = readFloat("logit_scale", p.LogitScale)
 	}
+	if positiveFinite(p.ResidualScalePerSqrtBlock) {
+		spec.ResidualScale = readFloat(
+			"residual_scale", p.ResidualScalePerSqrtBlock/float32(math.Sqrt(float64(spec.BlockCount))),
+		)
+	}
+	if positiveFinite(p.LogitScaleNumerator) {
+		spec.LogitScale = readFloat("logit_scale", p.LogitScaleNumerator/float32(spec.EmbeddingLength))
+	}
 	if p.LayerNormEpsilon > 0 && spec.LayerNormEpsilon == 0 {
 		spec.LayerNormEpsilon = p.LayerNormEpsilon
 	}
@@ -117,7 +129,7 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 		spec.QKNormEpsilon = p.QKNormEpsilon
 	}
 	if p.SlidingWindow > 0 {
-		spec.SlidingWindow = p.SlidingWindow
+		spec.SlidingWindow = p.uint(values, prefix, "attention.sliding_window", p.SlidingWindow)
 	}
 	if p.SlidingPattern > 0 {
 		spec.SlidingPattern = optionalOr(
@@ -146,6 +158,16 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 			fallback = spec.RopeFrequencyBase
 		}
 		spec.RopeFrequencySWA = readFloat("rope.freq_base_swa", fallback)
+	}
+	if positiveFinite(p.AttentionTemperatureScale) {
+		if spec.SlidingWindow == 0 {
+			spec.NoRopeLayerStep = 0
+		} else {
+			spec.NoRopeLayerStep = spec.SlidingPattern
+			spec.AttentionTempFloor = spec.SlidingWindow
+			spec.AttentionTempScale = p.AttentionTemperatureScale
+			spec.AttentionTempOffset = p.AttentionTemperatureOffset
+		}
 	}
 }
 

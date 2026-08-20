@@ -1620,8 +1620,11 @@
    "SharedCatalog": 1
   },
   "MetadataDefaults": {
+   "AttentionTemperatureOffset": 1,
+   "AttentionTemperatureScale": 0.1,
    "RopeDimension": 2,
    "RopeFrequencyFromBase": true,
+   "SlidingWindow": 8192,
    "SlidingPattern": 4
   },
   "Name": "llama4",
@@ -1743,6 +1746,11 @@
  },
  {
   "Capabilities": 139264,
+  "MetadataDefaults": {
+   "EmbeddingScale": 12,
+   "LogitScaleNumerator": 256,
+   "ResidualScalePerSqrtBlock": 1.4
+  },
   "Name": "minicpm",
   "Position": 1,
   "Rotary": {
@@ -1757,6 +1765,13 @@
   "Attention": 1,
   "Capabilities": 131584,
   "LatentAttention": 2,
+  "MetadataDefaults": {
+   "EmbeddingScale": 12,
+   "LogitScaleNumerator": 256,
+   "OriginalContext": true,
+   "ResidualScalePerSqrtBlock": 1.4,
+   "RopeAttentionFactor": 1
+  },
   "Name": "minicpm3",
   "Validation": {
    "MLA": 5
@@ -1790,6 +1805,11 @@
   },
   "Experts": {
    "Catalog": 2
+  },
+  "MetadataDefaults": {
+   "EmbeddingScale": 12,
+   "LogitScaleNumerator": 256,
+   "ResidualScalePerSqrtBlock": 1.4
   },
   "Name": "mistral3",
   "Validation": {

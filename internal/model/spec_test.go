@@ -104,8 +104,10 @@ func TestReadLlama4Spec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Architecture != "llama4" || spec.SlidingWindow != 8192 || spec.SlidingPattern != 4 ||
-		spec.AttentionTempFloor != 8192 || spec.AttentionTempScale != 0.1 || spec.AttentionTempOffset != 1 ||
+	defaults := spec.Profile().MetadataDefaults
+	if spec.Architecture != "llama4" || spec.SlidingWindow != defaults.SlidingWindow || spec.SlidingPattern != defaults.SlidingPattern ||
+		spec.AttentionTempFloor != defaults.SlidingWindow || spec.AttentionTempScale != defaults.AttentionTemperatureScale ||
+		spec.AttentionTempOffset != defaults.AttentionTemperatureOffset ||
 		spec.ExpertCount != 16 || spec.ExpertUsedCount != 2 || spec.ExpertFeedForward != 6 ||
 		spec.SharedExpertFF != 6 || !spec.IsSlidingLayer(2) || spec.IsSlidingLayer(3) ||
 		!spec.UsesRoPE(2) || spec.UsesRoPE(3) || !spec.IsInterleavedMoELayer(1) {

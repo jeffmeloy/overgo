@@ -110,7 +110,7 @@ func TestReadMiniCPMSpecScales(t *testing.T) {
 	}
 }
 
-func TestReadMiniCPMSpecUsesBackwardCompatibleScaleDefaults(t *testing.T) {
+func TestReadMiniCPMSpecUsesProfileScaleDefaults(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "minicpm"),
 		metadata("minicpm.block_count", gguf.ValueTypeUint32, uint32(40)),
@@ -126,9 +126,10 @@ func TestReadMiniCPMSpecUsesBackwardCompatibleScaleDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.EmbeddingScale != 12 ||
-		math.Abs(float64(spec.ResidualScale)-1.4/math.Sqrt(40)) > 1e-7 ||
-		math.Abs(float64(spec.LogitScale)-256.0/2304.0) > 1e-7 {
+	defaults := spec.Profile().MetadataDefaults
+	if spec.EmbeddingScale != defaults.EmbeddingScale ||
+		math.Abs(float64(spec.ResidualScale)-float64(defaults.ResidualScalePerSqrtBlock)/math.Sqrt(float64(spec.BlockCount))) > 1e-7 ||
+		math.Abs(float64(spec.LogitScale)-float64(defaults.LogitScaleNumerator)/float64(spec.EmbeddingLength)) > 1e-7 {
 		t.Fatalf("unexpected MiniCPM default scales: %+v", spec)
 	}
 }

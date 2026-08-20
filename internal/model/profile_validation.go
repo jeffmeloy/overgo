@@ -111,6 +111,9 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		{"MetadataDefaults.AttentionOutputScale", profile.MetadataDefaults.AttentionOutputScale},
 		{"MetadataDefaults.EmbeddingScale", profile.MetadataDefaults.EmbeddingScale},
 		{"MetadataDefaults.LogitScale", profile.MetadataDefaults.LogitScale},
+		{"MetadataDefaults.ResidualScalePerSqrtBlock", profile.MetadataDefaults.ResidualScalePerSqrtBlock},
+		{"MetadataDefaults.LogitScaleNumerator", profile.MetadataDefaults.LogitScaleNumerator},
+		{"MetadataDefaults.AttentionTemperatureScale", profile.MetadataDefaults.AttentionTemperatureScale},
 		{"MetadataDefaults.LayerNormEpsilon", profile.MetadataDefaults.LayerNormEpsilon},
 		{"MetadataDefaults.QKNormEpsilon", profile.MetadataDefaults.QKNormEpsilon},
 		{"MetadataDefaults.MaxALiBiBias", profile.MetadataDefaults.MaxALiBiBias},
@@ -166,6 +169,19 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		return fmt.Errorf("architecture profile %q: Qwen GDN graph requires Qwen GDN attention", profile.Name)
 	}
 	defaults := profile.MetadataDefaults
+	if (profile.Validation.Hybrid == HybridValidationExtendedRotary || profile.Validation.MLA == MLAValidationScaledLatent) &&
+		(!positiveFinite(defaults.EmbeddingScale) || !positiveFinite(defaults.ResidualScalePerSqrtBlock) ||
+			!positiveFinite(defaults.LogitScaleNumerator)) {
+		return fmt.Errorf("architecture profile %q: scaled runtime defaults are incomplete", profile.Name)
+	}
+	if profile.Validation.MLA == MLAValidationScaledLatent && (!defaults.OriginalContext || !positiveFinite(defaults.RopeAttentionFactor)) {
+		return fmt.Errorf("architecture profile %q: scaled latent position defaults are incomplete", profile.Name)
+	}
+	if profile.Validation.Hybrid == HybridValidationChunkedExperts &&
+		(defaults.SlidingWindow == 0 || !positiveFinite(defaults.AttentionTemperatureScale) ||
+			!finite(defaults.AttentionTemperatureOffset)) {
+		return fmt.Errorf("architecture profile %q: chunked attention defaults are incomplete", profile.Name)
+	}
 	if profile.Forward.Session == ForwardSessionEncoderDecoder && !defaults.DecoderBlocksFromModel {
 		return fmt.Errorf("architecture profile %q: decoder block default is absent", profile.Name)
 	}

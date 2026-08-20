@@ -18,6 +18,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
 	"overgo/internal/jsonfile"
+	"overgo/internal/optimizer"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 )
@@ -41,7 +42,7 @@ func run(args []string, output io.Writer) error {
 	window := flags.Int("window", 64, "tokens per batch window")
 	learningRate := flags.Float64("lr", 0, "bridge learning rate (<=0 derives n_params^-1/2)")
 	lrScale := flags.Float64("lr-scale", 0, "scale the derived learning rate (retrial protocol; effective only when -lr is unset)")
-	momentum := flags.Float64("mu", 0.9, "Muon momentum")
+	momentum := flags.Float64("mu", optimizer.DeriveMomentum(), "Muon momentum")
 	recordStore := flags.String("record", "", "RepoDB root: commit the experiment as a generation record with its verdict")
 	chain := flags.Bool("chain", false, "run the Tier-0 whole-model chain probe instead of the graft probe")
 	propose := flags.String("propose", "", "convert a similarity-retrieval JSON response into a blocked bridge proposal (path to the response)")

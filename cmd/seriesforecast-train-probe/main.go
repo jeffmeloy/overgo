@@ -63,7 +63,7 @@ func run(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Dura
 	if err != nil {
 		return err
 	}
-	trainer, err := seriesforecast.NewTrainer(model, optimizer.Config{Momentum: 0.9})
+	trainer, err := seriesforecast.NewTrainer(model, optimizer.Config{Momentum: optimizer.DeriveMomentum()})
 	if err != nil {
 		return err
 	}

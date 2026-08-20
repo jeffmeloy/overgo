@@ -29,7 +29,7 @@ func run() (err error) {
 	input := flag.String("input", "", "training request JSON")
 	steps := flag.Int("steps", 1, "decoder update steps")
 	learningRate := flag.Float64("lr", 0, "base learning rate; nonpositive derives from parameter count")
-	momentum := flag.Float64("momentum", 0.9, "Muon momentum")
+	momentum := flag.Float64("momentum", optimizer.DeriveMomentum(), "Muon momentum")
 	flag.Parse()
 	if *model == "" || *task == "" || *input == "" || *steps <= 0 {
 		return fmt.Errorf("model, task, input, and positive steps required")

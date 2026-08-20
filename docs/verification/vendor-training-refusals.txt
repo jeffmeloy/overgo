@@ -53,7 +53,6 @@ are impossible. No silent skips: this document is the sweep's typed outcome
 for all eight rows.
 
 refused-model: LiveEdit
-refused-model: Wan2.1-T2V-1.3B
 refused-model: Bonsai-27B-Q1
 refused-model: Qwen3.5-9B-Q8
 
@@ -104,4 +103,11 @@ training evidence lands as a real output-head cell (zero-centered RMSNorm +
 AdaLN modulation + velocity linear, 411,712 params, monotone descent,
 derived hyperparameters, FinalLayerTrainer + flow-organ-train-probe -organ
 denoiser-final). Full 24-block MMDiT flow training remains the named
+promotion gate inside the cell evidence.
+
+WITHDRAWN 2026-08-19: Wan2.1-T2V-1.3B refusal closes -- the family FIRST
+training evidence lands as a real output-head cell (LayerNorm + AdaLN
+modulation + velocity linear, 101,440 params, monotone descent, derived
+hyperparameters, FinalLayerTrainer LayerNorm variant + flow-organ-train-
+probe -organ video-head). Full video-diffusion training remains the named
 promotion gate inside the cell evidence.

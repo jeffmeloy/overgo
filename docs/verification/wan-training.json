@@ -1,0 +1,23 @@
+{
+ "model": "model:sha256:96b6b242ca1c2f24e9d02cd6596066fab6d310e2d7538f33ae267cb18d957e8f",
+ "name": "Wan2.1-T2V-1.3B",
+ "evidence_files": [
+  "docs/verification/wan-training-run.txt"
+ ],
+ "dataset_files": [
+  "docs/verification/wan-training-stimulus.txt"
+ ],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "65adb760157bdcaf3e4bbf45de344ee1bb852031",
+   "dataset": "dataset-shard:sha256:20c1c02cb59b26d7d7f0981d6271e573f36a335cc554b435a361dd5f5a707205",
+   "span_steps": 3,
+   "wall_ns": 398000000,
+   "evidence": [
+    "evidence:sha256:70931de80af7edca259c739a49fbe89d4e0db81c2afc194a775d681604393e15"
+   ]
+  }
+ ]
+}

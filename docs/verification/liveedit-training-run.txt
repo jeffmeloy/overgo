@@ -1,0 +1,24 @@
+overgo training verification run
+tool: cmd/flow-organ-train-probe -organ edit-head, bounded observed smoke
+with first-step projection guard
+verifying commit: af20ec871c17fe15929ffe4f7268ef754d4fcd52 (recorded by the gate binding this file)
+model: LiveEdit (bid-diffusion_009200.pt, Wan-family video-edit
+checkpoint) output head via its own tensor shapes -- 101,440 trainable
+parameters (head.modulation 2x1536, head.head 64x1536 + bias) read from
+the PyTorch zip with the serving bridge's name normalization
+trainer: internal/latentimage FinalLayerTrainer, LayerNorm variant
+(gradients finite-difference proven), over optimizer.NewStepper (shared
+CUDA Muon); hyperparameters fully DERIVED: base LR n_params^-1/2 =
+3.14e-03, momentum = 0.9355
+dataset: deterministic committed probe stimulus
+(docs/verification/liveedit-training-stimulus.txt)
+steps: 3, observed loss/grad/wall per step
+measured wall_ns: 633000000 (steps 229ms / 220ms / 183ms; load 148ms)
+loss: 1.024126 -> 0.633830 -> 0.340115, after-evaluation 0.142702
+(monotone descent; the near-Wan trajectory with distinct values confirms
+the edit checkpoint's weights genuinely differ from the base while
+sharing the head architecture)
+notes: organ-scope claim for a family the archaeology found never-trained
+anywhere -- LiveEdit's first training evidence. Full edit-conditioned
+video-diffusion training is the named promotion gate closing refusal
+finding f28aa306's route. context_tokens 0; peak not instrumented.

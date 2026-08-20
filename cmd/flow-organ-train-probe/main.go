@@ -17,10 +17,12 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"time"
 
 	"overgo/internal/dataroot"
 	"overgo/internal/latentimage"
+	"overgo/internal/pytorchzip"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 )
@@ -43,6 +45,8 @@ func main() {
 		err = runDenoiserFinal(*model, latentimage.KreaFinalLayerBinding(), *steps, *rows, *maxWall)
 	case "video-head":
 		err = runDenoiserFinal(*model, latentimage.WanHeadBinding(), *steps, *rows, *maxWall)
+	case "edit-head":
+		err = runEditHead(*model, *steps, *rows, *maxWall)
 	default:
 		err = fmt.Errorf("flow-organ-train-probe: unknown organ %q (flow-head, latent-bridge)", *organ)
 	}
@@ -81,12 +85,17 @@ func runDenoiserFinal(modelDir string, binding latentimage.FinalLayerBinding, st
 		trainer.ParameterCount(), weights.Hidden, weights.Out,
 		trainer.Config().BaseLearningRate, trainer.Config().Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
 
-	xF32, zF32, targetF32 := stimulus(rows, weights.Hidden, weights.Out)
+	return trainHeadStimulus(trainer, weights.Hidden, weights.Out, steps, rows, maxWall)
+}
+
+// trainHeadStimulus: the shared bounded observed loop for final-layer heads.
+func trainHeadStimulus(trainer *latentimage.FinalLayerTrainer, hiddenDim, outDim, steps, rows int, maxWall time.Duration) error {
+	xF32, zF32, targetF32 := stimulus(rows, hiddenDim, outDim)
 	hidden := make([]float64, len(xF32))
 	for i, v := range xF32 {
 		hidden[i] = float64(v)
 	}
-	temb := make([]float64, weights.Hidden)
+	temb := make([]float64, hiddenDim)
 	for i := range temb {
 		temb[i] = float64(zF32[i%len(zF32)]) * 0.5
 	}
@@ -128,6 +137,73 @@ func runDenoiserFinal(modelDir string, binding latentimage.FinalLayerBinding, st
 	fmt.Printf("descent: steps=%d loss %.6f -> %.6f total_wall=%s\n",
 		steps, first, after, time.Since(start).Round(time.Millisecond))
 	return nil
+}
+
+// runEditHead: the LiveEdit (Wan-family) output head trains from the .pt
+// checkpoint through the same LayerNorm head trainer as Wan.
+func runEditHead(modelPath string, steps, rows int, maxWall time.Duration) error {
+	if modelPath == "" || steps <= 0 || rows <= 0 {
+		return fmt.Errorf("flow-organ-train-probe: -model is required; -steps and -rows must be positive")
+	}
+	roots, err := dataroot.ResolveCurrent()
+	if err != nil {
+		return err
+	}
+	loadStart := time.Now()
+	path := roots.ResolveModelPath(modelPath)
+	catalog, err := pytorchzip.ReadCatalog(path)
+	if err != nil {
+		return err
+	}
+	normalize := func(name string) string {
+		for _, prefix := range []string{"_fsdp_wrapped_module.", "module.", "model."} {
+			name = strings.TrimPrefix(name, prefix)
+		}
+		return name
+	}
+	wanted := map[string]int{"head.modulation": 0, "head.head.weight": 1, "head.head.bias": 2}
+	metas := make([]pytorchzip.TensorMeta, 3)
+	found := 0
+	for _, meta := range catalog.Tensors {
+		if slot, ok := wanted[normalize(meta.Name)]; ok {
+			metas[slot] = meta
+			found++
+		}
+	}
+	if found != 3 {
+		return fmt.Errorf("flow-organ-train-probe: checkpoint has %d of 3 head tensors", found)
+	}
+	names := []string{metas[0].Name, metas[1].Name, metas[2].Name}
+	bindings, err := pytorchzip.CompileBindings(catalog.Tensors, names)
+	if err != nil {
+		return err
+	}
+	reader, err := pytorchzip.Open(path)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+	values, err := reader.ReadBindingValues(bindings)
+	if err != nil {
+		return err
+	}
+	linearShape := metas[1].Shape
+	if len(linearShape) != 2 {
+		return fmt.Errorf("flow-organ-train-probe: head weight shape %v", linearShape)
+	}
+	weights := latentimage.FinalLayerWeights{
+		Hidden: int(linearShape[1]), Out: int(linearShape[0]),
+		Table: values[0], Linear: values[1], Bias: values[2],
+	}
+	trainer, err := latentimage.NewFinalLayerTrainer(weights, 1e-6)
+	if err != nil {
+		return err
+	}
+	defer trainer.Close()
+	fmt.Printf("trainable parameters=%d hidden=%d out=%d derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s\n",
+		trainer.ParameterCount(), weights.Hidden, weights.Out,
+		trainer.Config().BaseLearningRate, trainer.Config().Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
+	return trainHeadStimulus(trainer, weights.Hidden, weights.Out, steps, rows, maxWall)
 }
 
 // runLatentBridge: the RxBrain-family projection pair trains its bridge

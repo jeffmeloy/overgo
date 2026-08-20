@@ -52,7 +52,6 @@ ever appears for it without a closure route landing first -- silent cells
 are impossible. No silent skips: this document is the sweep's typed outcome
 for all eight rows.
 
-refused-model: LiveEdit
 refused-model: Bonsai-27B-Q1
 refused-model: Qwen3.5-9B-Q8
 
@@ -111,3 +110,10 @@ modulation + velocity linear, 101,440 params, monotone descent, derived
 hyperparameters, FinalLayerTrainer LayerNorm variant + flow-organ-train-
 probe -organ video-head). Full video-diffusion training remains the named
 promotion gate inside the cell evidence.
+
+WITHDRAWN 2026-08-19: LiveEdit refusal closes -- the family FIRST training
+evidence lands as a real output-head cell (Wan-family head read from the
+.pt checkpoint with serving-bridge name normalization, 101,440 params,
+monotone descent, derived hyperparameters, flow-organ-train-probe -organ
+edit-head). Full edit-conditioned video-diffusion training remains the
+named promotion gate inside the cell evidence.

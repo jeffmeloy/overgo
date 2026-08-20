@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "document-contract",
-          "title": "Extend closure documents with understanding and exact typed source bindings",
-          "status": "open",
-          "verify": "go test ./internal/closureledger -run '^(TestDocumentRoundTripPreservesExactBinding|TestDocumentRejectsIncompleteClosureEvidence)$' -count=1",
-          "rationale": "The current document omits understanding and cannot prove that its name and value still describe the scanned source.",
-          "depends_on": [
-            "magic-source-authority/test-and-assumption-census"
-          ],
-          "capabilities": [
-            "repodb-evidence",
-            "exact-binding",
-            "closure-tier"
-          ]
-        },
-        {
           "id": "active-query",
           "title": "Add one canonical active-binding query keyed by source identity rather than symbol name",
           "status": "open",

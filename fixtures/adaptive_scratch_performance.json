@@ -1,38 +1,168 @@
 {
-    "schema": "overgo/adaptive-scratch-performance/v1",
-    "source_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
-    "source_entrypoint": "go/training/run_from_docs.go:RunFromDocsRich",
-    "source_options": "seed=7;steps=3;batch_size_override=1",
-    "oracle_sha256": "5d29b1c0dfd06eb95d310c811c52124da5882833c8fdcbc0404c3cbd5ccec20d",
-    "environment": {
-        "go": "go1.26.2",
-        "os_arch": "windows/amd64",
-        "cpu": "AMD Ryzen 9 9950X 16-Core Processor",
-        "logical_processors": 32
-    },
-    "runs": [
-        {"wall_nanos": 223869600, "peak_heap_bytes": 3129984, "total_alloc_bytes": 18252328},
-        {"wall_nanos": 221413400, "peak_heap_bytes": 3166136, "total_alloc_bytes": 18253648},
-        {"wall_nanos": 231794600, "peak_heap_bytes": 3134096, "total_alloc_bytes": 18254808},
-        {"wall_nanos": 227614100, "peak_heap_bytes": 3164144, "total_alloc_bytes": 18249056},
-        {"wall_nanos": 222847400, "peak_heap_bytes": 3160888, "total_alloc_bytes": 18250608},
-        {"wall_nanos": 222680300, "peak_heap_bytes": 3176992, "total_alloc_bytes": 18250320},
-        {"wall_nanos": 224607500, "peak_heap_bytes": 3145528, "total_alloc_bytes": 18249472}
-    ],
-    "candidate_observations": {
-        "process_initialization_nanos": [249069700, 8280000, 7863000, 7888500, 7726000, 303005200, 8495300, 250652900, 8755200],
-        "driver_preparation_nanos": [104434300, 38666000, 38449300, 91700400, 37742900, 38645200, 38085900, 38779400, 150553200, 40972500, 98661100, 37606900],
-        "model_initialization_nanos": [1803900, 722900, 609600, 1751000, 506000, 507100, 507000, 595900, 1228600, 509600, 1550200, 2567800],
-        "program_preparation_nanos": [81654600, 82572500, 79545700, 80644100, 79921600, 80930500, 77534200, 78833800, 85436600, 82891100, 83303300, 81849700],
-        "cold_step_nanos": [42583400, 41288000, 39095100, 44475500, 40060000, 40698100, 40347700, 40880500, 44265100, 44394300, 38417300, 42916500, 39392600],
-        "warm_step_nanos": [11066000, 11333600, 11561200, 9625500, 10703900, 10305200, 11500100, 9387300, 10887200, 9117400, 10931400, 10043900, 11038600, 9844600, 10575800, 9866900, 11507400, 10585000, 10599100, 9956400, 10561500, 11462500, 11331500, 9404700]
-    },
-    "candidate_bounds": {
-        "process_initialization_nanos": 598284400,
-        "driver_preparation_nanos": 263499500,
-        "model_initialization_nanos": 4629600,
-        "program_preparation_nanos": 93339000,
-        "cold_step_nanos": 50533700,
-        "warm_step_nanos": 14005000
-    }
+ "schema": "overgo/adaptive-scratch-performance/v1",
+ "source_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
+ "source_entrypoint": "go/training/run_from_docs.go:RunFromDocsRich",
+ "source_options": "seed=7;steps=3;batch_size_override=1",
+ "oracle_sha256": "5d29b1c0dfd06eb95d310c811c52124da5882833c8fdcbc0404c3cbd5ccec20d",
+ "environment": {
+  "go": "go1.26.2",
+  "os_arch": "windows/amd64",
+  "cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+  "logical_processors": 32
+ },
+ "runs": [
+  {
+   "wall_nanos": 223869600,
+   "peak_heap_bytes": 3129984,
+   "total_alloc_bytes": 18252328
+  },
+  {
+   "wall_nanos": 221413400,
+   "peak_heap_bytes": 3166136,
+   "total_alloc_bytes": 18253648
+  },
+  {
+   "wall_nanos": 231794600,
+   "peak_heap_bytes": 3134096,
+   "total_alloc_bytes": 18254808
+  },
+  {
+   "wall_nanos": 227614100,
+   "peak_heap_bytes": 3164144,
+   "total_alloc_bytes": 18249056
+  },
+  {
+   "wall_nanos": 222847400,
+   "peak_heap_bytes": 3160888,
+   "total_alloc_bytes": 18250608
+  },
+  {
+   "wall_nanos": 222680300,
+   "peak_heap_bytes": 3176992,
+   "total_alloc_bytes": 18250320
+  },
+  {
+   "wall_nanos": 224607500,
+   "peak_heap_bytes": 3145528,
+   "total_alloc_bytes": 18249472
+  }
+ ],
+ "candidate_observations": {
+  "process_initialization_nanos": [
+   249069700,
+   8280000,
+   7863000,
+   7888500,
+   7726000,
+   303005200,
+   8495300,
+   250652900,
+   8755200,
+   295143000,
+   299118200
+  ],
+  "driver_preparation_nanos": [
+   104434300,
+   38666000,
+   38449300,
+   91700400,
+   37742900,
+   38645200,
+   38085900,
+   38779400,
+   150553200,
+   40972500,
+   98661100,
+   37606900,
+   39125500,
+   38793600
+  ],
+  "model_initialization_nanos": [
+   1803900,
+   722900,
+   609600,
+   1751000,
+   506000,
+   507100,
+   507000,
+   595900,
+   1228600,
+   509600,
+   1550200,
+   2567800,
+   507100,
+   509300
+  ],
+  "program_preparation_nanos": [
+   81654600,
+   82572500,
+   79545700,
+   80644100,
+   79921600,
+   80930500,
+   77534200,
+   78833800,
+   85436600,
+   82891100,
+   83303300,
+   81849700,
+   95695100,
+   99434600
+  ],
+  "cold_step_nanos": [
+   42583400,
+   41288000,
+   39095100,
+   44475500,
+   40060000,
+   40698100,
+   40347700,
+   40880500,
+   44265100,
+   44394300,
+   38417300,
+   42916500,
+   39392600,
+   38913500,
+   40675000
+  ],
+  "warm_step_nanos": [
+   11066000,
+   11333600,
+   11561200,
+   9625500,
+   10703900,
+   10305200,
+   11500100,
+   9387300,
+   10887200,
+   9117400,
+   10931400,
+   10043900,
+   11038600,
+   9844600,
+   10575800,
+   9866900,
+   11507400,
+   10585000,
+   10599100,
+   9956400,
+   10561500,
+   11462500,
+   11331500,
+   9404700,
+   9680500,
+   9565300,
+   9936100,
+   9220800
+  ]
+ },
+ "candidate_bounds": {
+  "process_initialization_nanos": 598284400,
+  "driver_preparation_nanos": 263499500,
+  "model_initialization_nanos": 4629600,
+  "program_preparation_nanos": 121335000,
+  "cold_step_nanos": 50533700,
+  "warm_step_nanos": 14005000
+ }
 }

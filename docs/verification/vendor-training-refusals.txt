@@ -52,7 +52,6 @@ ever appears for it without a closure route landing first -- silent cells
 are impossible. No silent skips: this document is the sweep's typed outcome
 for all eight rows.
 
-refused-model: Bonsai-27B-Q1
 refused-model: Qwen3.5-9B-Q8
 
 CORRECTIONS 2026-08-19 from deep reference archaeology (the dispatch table
@@ -117,3 +116,11 @@ evidence lands as a real output-head cell (Wan-family head read from the
 monotone descent, derived hyperparameters, flow-organ-train-probe -organ
 edit-head). Full edit-conditioned video-diffusion training remains the
 named promotion gate inside the cell evidence.
+
+WITHDRAWN 2026-08-19: Bonsai-27B-Q1 refusal closes by its named route --
+the dequantized master-weight lane exists and trains through the ternary
+round trip (89.1M-parameter Q1_0 matrix, masters 0.3596 to 0.1981, SERVING
+round-trip 0.359595 to 0.358125 over 200 derived-LR steps; a 3-step probe
+was correctly refused by the serving bar when quantization absorbed the
+drift). Full-model ternary training and persistence policy remain the
+named promotion gates inside the cell evidence.

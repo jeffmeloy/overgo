@@ -1,0 +1,11 @@
+overgo ternary-master training stimulus declaration
+generator: xorshift32 (x ^= x<<13; x ^= x>>17; x ^= x<<5), seed 88675123
+draw: input rows (rows*5120 values, scaled 0.5), then interleaved z/target
+draws (z unused); targets unit scale
+rows: 8; matrix: blk.0.ffn_gate.weight [17408, 5120] Q1_0
+objective: linear MSE on the dequantized f32 masters, with the SERVING bar
+measured through the full ternary round trip (quantize the trained masters
+back to Q1_0, dequantize, evaluate) -- descent must survive requantization
+consumer: cmd/flow-organ-train-probe -organ ternary-master, which embeds
+the same constants; this document is the committed dataset declaration the
+Bonsai-27B-Q1 training claim grounds as its shard.

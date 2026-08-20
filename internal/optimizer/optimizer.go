@@ -1,6 +1,7 @@
 package optimizer
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -51,7 +52,6 @@ func New(weights, gradients []float32, plan Plan, config Config) (*Optimizer, er
 		config:    config,
 		momentum:  make([]float64, plan.ParameterCount()),
 	}
-	optimizer.scratch.ensure(plan.maxMatrix, plan.maxSquare)
 	return optimizer, nil
 }
 
@@ -59,14 +59,7 @@ func (o *Optimizer) Step() StepResult {
 	return o.StepGroups(func(Group) bool { return true })
 }
 
-// StepGroups advances the optimizer applying updates only to groups for which
-// include reports true; excluded groups are left untouched (weights, momentum and
-// gradients unchanged). The step counter and learning rate advance exactly once,
-// identically to Step, so a caller that splits a step across two StepGroups calls
-// (e.g. host-side non-matrix groups here, device-side matrix groups elsewhere)
-// must advance the step for only one of them. Used by the device-resident training
-// loop to run the host optimizer on non-layer groups while layer matrices
-// are updated on resident device buffers.
+// StepGroups: one step over selected groups; excluded state remains unchanged.
 func (o *Optimizer) StepGroups(include func(Group) bool) StepResult {
 	o.step++
 	rate := o.config.LearningRate(o.step)
@@ -88,6 +81,7 @@ func (o *Optimizer) StepGroups(include func(Group) bool) StepResult {
 
 func (o *Optimizer) stepMuon(group Group, rate float64) (gradientSquared, updateSquared float64) {
 	length := group.End - group.Start
+	o.scratch.ensure(o.plan.maxMatrix, o.plan.maxSquare)
 	direction := o.scratch.input[:length]
 	for offset := range length {
 		index := group.Start + offset
@@ -140,10 +134,8 @@ func ValidateState(state State, planIdentity string, parameterCount int) error {
 	if planIdentity == "" || state.PlanIdentity != planIdentity {
 		return errors.New("optimizer state: plan identity mismatch")
 	}
-	if len(state.PlanIdentity) != 64 {
-		return errors.New("optimizer state: invalid plan identity")
-	}
-	if _, err := hex.DecodeString(state.PlanIdentity); err != nil {
+	identity, err := hex.DecodeString(state.PlanIdentity)
+	if err != nil || len(identity) != sha256.Size {
 		return errors.New("optimizer state: invalid plan identity")
 	}
 	if err := state.Config.validate(); err != nil {

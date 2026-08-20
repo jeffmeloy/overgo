@@ -1,5 +1,392 @@
 {
-  "campaign": "Recipe-driven serving evidence, model residency, native modality APIs, and composite construction",
-  "doctrine": "Follow skill.md. This file is the SINGLE plan authority; queue order is binding and plan complete means campaign complete. External systems supply processing concepts and behavioral oracles only: do not import their code, packages, configuration formats, process managers, proxy layers, schedulers, matrix DSLs, event buses, stores, or frontend frameworks. Prefer existing Overgo owners where semantics match. New neutral components are allowed for missing ownership boundaries only when they have narrow typed contracts, immediate production consumers, integrate with existing recipes, RepoDB, operation reporting, and the embedded GUI as applicable, and replace displaced logic in the same wave. No orphan abstraction or deferred caller migration. RepoDB is the sole serving evidence ledger. Active recipes and compiled resource plans are the sole selection, placement, and residency authority. Promote capabilityruntime's existing session cache into ModelSessionDirector; do not add a parallel cache or scheduler. Each migration moves every production caller and deletes displaced slot ownership, wrappers, fallbacks, duplicate probes, and compatibility paths in the same gated wave. Raw request and response capture stays disabled unless an explicit bounded redaction policy admits it. Prove local residency before component sessions; prove component sessions before remote spillover. Composite construction consumes the proven session authority in Phase 6 rather than shaping its initial contract. Verify numerical and Live Edit behavior where applicable, resource ownership, cancellation, code reduction, allocations, transfers, peak memory, and processing cost. After every gated step, merge current master into this worktree before starting the next step.",
-  "items": []
+  "campaign": "Exact magic-number inventory, RepoDB closure authority, and systematic elimination",
+  "doctrine": "Follow skill.md. This file is the single campaign authority; queue order is binding and plan complete means campaign complete. A magic is any hard-coded value, threshold, process horizon, distribution assumption, hidden model or tensor fact, device policy, or duplicated test expectation that could be derived, declared by an existing authority, or removed. RepoDB is the sole closure ledger; do not add MAGICS.json or another persistent registry. Extend internal/closurescan, internal/closureledger, existing RepoDB queries, and cmd/gate rather than creating parallel scanners or stores. Exact source binding means package, file, declaration or function identity, expression, evaluated value, owner artifact, and applicable callsites; name-only admission is forbidden. Scanner classification must use syntax and ownership, not numerical magnitude thresholds or assumptions about data shape or distribution. Model and tensor facts belong in artifact metadata, model profiles, recipes, or compiled plans. Protocol, ABI, mathematical, and fixture values may remain only under explicit typed dispositions. Tests should generate expected behavior from production contracts where practical; irreducible fixture data stays local and classified rather than being converted mechanically into constants. Cataloging is triage, not closure: each wave first deletes, derives, consolidates, or moves values to an existing authority, and records an open row only when a named evidence gap remains. No wrappers, compatibility readers, duplicate authorities, advisory-only production plans, or deferred caller migration. Every implementation wave migrates all callers and deletes displaced code in the same commit. Preserve numerical behavior, wire formats, recipe behavior, CUDA behavior, and Live Edit behavior where applicable. Measure named constants, inline literals, assumptions, open rows, deleted rows, code surface, allocations, transfers, and runtime when affected. Counts are command-derived and stored as RepoDB evidence; prose never owns mutable totals. New or changed uncatalogued production decision surfaces fail the gate once exact binding lands. The end state is zero uncatalogued decision surfaces, zero stale bindings, zero model/config facts duplicated in code, and zero derivation-blocked rows; remaining literals are mechanically structural or carry closed specification, mathematical, implementation, or fixture dispositions. After every gated implementation step, merge current master before starting the next step.",
+  "items": [
+    {
+      "id": "magic-source-authority",
+      "title": "Make one AST source model authoritative for magic discovery",
+      "status": "open",
+      "steps": [
+        {
+          "id": "candidate-identity",
+          "title": "Represent top-level and function-local constants with exact source and evaluated-value identity",
+          "status": "open",
+          "verify": "go test ./internal/closurescan -run '^(TestScanIncludesFunctionLocalConstants|TestCandidateIdentityIncludesEvaluatedSourceBinding)$' -count=1",
+          "rationale": "The current declaration walk misses function-local constants and cannot support exact ledger drift checks.",
+          "capabilities": [
+            "go-ast",
+            "constant-evaluation",
+            "source-identity"
+          ]
+        },
+        {
+          "id": "literal-census",
+          "title": "Classify every production inline literal without magnitude heuristics",
+          "status": "open",
+          "verify": "go test ./internal/closurescan -run '^(TestLiteralCensusAccountsForEveryProductionLiteral|TestLiteralClassificationUsesSyntaxAndOwnership)$' -count=1",
+          "rationale": "Repeated-literal ranking misses singleton policy decisions and currently excludes values through arbitrary magnitude rules.",
+          "depends_on": [
+            "magic-source-authority/candidate-identity"
+          ],
+          "capabilities": [
+            "inline-census",
+            "typed-disposition",
+            "no-magnitude-threshold"
+          ]
+        },
+        {
+          "id": "test-and-assumption-census",
+          "title": "Report test policy duplication and structural distribution assumptions separately",
+          "status": "open",
+          "verify": "go test ./internal/closurescan -run '^(TestTestCensusSeparatesFixturesFromPolicyCopies|TestAssumptionCensusFindsDecisionSurfaces)$' -count=1",
+          "rationale": "Test fixtures are not production magics, but copied defaults, exit codes, tolerances, and distribution-based decisions must remain visible.",
+          "depends_on": [
+            "magic-source-authority/literal-census"
+          ],
+          "capabilities": [
+            "test-contract-audit",
+            "distribution-discipline"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-ledger-authority",
+      "title": "Bind closure evidence to exact source state in RepoDB",
+      "status": "open",
+      "steps": [
+        {
+          "id": "document-contract",
+          "title": "Extend closure documents with understanding and exact typed source bindings",
+          "status": "open",
+          "verify": "go test ./internal/closureledger -run '^(TestDocumentRoundTripPreservesExactBinding|TestDocumentRejectsIncompleteClosureEvidence)$' -count=1",
+          "rationale": "The current document omits understanding and cannot prove that its name and value still describe the scanned source.",
+          "depends_on": [
+            "magic-source-authority/test-and-assumption-census"
+          ],
+          "capabilities": [
+            "repodb-evidence",
+            "exact-binding",
+            "closure-tier"
+          ]
+        },
+        {
+          "id": "active-query",
+          "title": "Add one canonical active-binding query keyed by source identity rather than symbol name",
+          "status": "open",
+          "verify": "go test ./internal/closureledger -run '^(TestActiveBindingsResolveExactOwnerAndValue|TestActiveBindingsRejectAmbiguousOrStaleRows)$' -count=1",
+          "rationale": "The gate currently treats any historical row sharing a symbol name as coverage.",
+          "depends_on": [
+            "magic-ledger-authority/document-contract"
+          ],
+          "capabilities": [
+            "active-alias",
+            "source-value-match",
+            "single-authority"
+          ]
+        },
+        {
+          "id": "ledger-migration",
+          "title": "Republish existing closure evidence under the exact contract and delete the old reader path",
+          "status": "open",
+          "verify": "go test ./internal/closureledger ./cmd/closure-scan -run '^(TestClosureLedgerCurrentContractOnly|TestTriagePublishesExactBindings)$' -count=1",
+          "rationale": "Keeping permissive legacy parsing would preserve name-only authority beside the exact contract.",
+          "depends_on": [
+            "magic-ledger-authority/active-query"
+          ],
+          "capabilities": [
+            "deterministic-migration",
+            "legacy-deletion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-drift-gate",
+      "title": "Make exact magic drift a commit-gate refusal",
+      "status": "open",
+      "steps": [
+        {
+          "id": "validator",
+          "title": "Validate declaration, value, owner artifact, callsites, tier, status, and disposition",
+          "status": "open",
+          "verify": "go test ./internal/closureledger ./internal/closurescan -run '^(TestValidateBindingsDetectsSourceDrift|TestValidateBindingsDetectsOrphansAndCallsiteDrift)$' -count=1",
+          "rationale": "A catalog is useful only when code changes cannot silently invalidate its evidence.",
+          "depends_on": [
+            "magic-ledger-authority/ledger-migration"
+          ],
+          "capabilities": [
+            "drift-detection",
+            "orphan-detection"
+          ]
+        },
+        {
+          "id": "gate-refusal",
+          "title": "Replace advisory name matching with refusal for new, changed, stale, or unreadable bindings",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^(TestMagicGateRejectsUncataloguedChangedAndStaleBindings|TestMagicGateFailsClosedWhenLedgerUnavailable)$' -count=1",
+          "rationale": "The current honesty line allows precisely the drift the campaign is intended to prevent.",
+          "depends_on": [
+            "magic-drift-gate/validator"
+          ],
+          "capabilities": [
+            "fail-closed-gate",
+            "baseline-aware-admission"
+          ]
+        },
+        {
+          "id": "delta-ratchets",
+          "title": "Reject increases in uncatalogued named, inline, test-policy, and assumption surfaces",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^(TestMagicGateRejectsLiteralAndAssumptionDebtIncrease|TestMagicGateAllowsMeasuredDebtReduction)$' -count=1",
+          "rationale": "Exact rows cover named constants; delta ratchets prevent the backlog from moving into unnamed literals or tests.",
+          "depends_on": [
+            "magic-drift-gate/gate-refusal"
+          ],
+          "capabilities": [
+            "debt-ratchet",
+            "anti-relocation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-census-evidence",
+      "title": "Publish reproducible magic denominators and closure pressure",
+      "status": "open",
+      "steps": [
+        {
+          "id": "report",
+          "title": "Emit deterministic JSON and text census reports from the shared scanner",
+          "status": "open",
+          "verify": "go test ./cmd/closure-scan -run '^(TestCensusReportIsDeterministicAndComplete|TestCensusCountsReconcile)$' -count=1",
+          "rationale": "Mutable counts belong to a command, not plan prose or manually maintained documentation.",
+          "depends_on": [
+            "magic-drift-gate/delta-ratchets"
+          ],
+          "capabilities": [
+            "reproducible-denominator",
+            "json-report"
+          ]
+        },
+        {
+          "id": "repodb-publication",
+          "title": "Store census fingerprint, counts, unresolved bindings, and closure pressure as RepoDB evidence",
+          "status": "open",
+          "verify": "go test ./cmd/closure-scan ./internal/closureledger -run '^(TestCensusEvidenceRoundTrip|TestCensusEvidenceBindsCatalogAndSourceFingerprint)$' -count=1",
+          "rationale": "Progress and regressions need queryable evidence tied to a source and catalog state.",
+          "depends_on": [
+            "magic-census-evidence/report"
+          ],
+          "capabilities": [
+            "repodb-ledger",
+            "catalog-fingerprint"
+          ]
+        },
+        {
+          "id": "query",
+          "title": "Expose open rows, stale rows, owner pressure, and before/after census through existing RepoDB queries",
+          "status": "open",
+          "verify": "go test ./cmd/repodb-query -run '^TestMagicClosureQueries$' -count=1",
+          "rationale": "Systematic elimination requires sortable owner and closure views without another dashboard store.",
+          "depends_on": [
+            "magic-census-evidence/repodb-publication"
+          ],
+          "capabilities": [
+            "closure-query",
+            "owner-ranking"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-wave-optimizer",
+      "title": "Eliminate optimizer, training, evaluation, and statistical decision magics",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Derive schedules and tolerances, consolidate shared policy, and record only evidenced residual obligations",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/optimizer,internal/trainingprogram,internal/trainingworkflow,internal/evaluation,internal/runrecord -require-classified -require-no-stale",
+          "rationale": "These packages contain decision thresholds, process horizons, and statistical assumptions that directly affect training and promotion.",
+          "depends_on": [
+            "magic-census-evidence/query"
+          ],
+          "capabilities": [
+            "derived-policy",
+            "distribution-discipline",
+            "runtime-parity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-wave-serving",
+      "title": "Eliminate server, sampling, operation, dataset, and media policy magics",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Move declared controls to recipes or resource policy and derive limits from request and ownership plans",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/server,internal/sampling,internal/operation,internal/trainingdata -require-classified -require-no-stale",
+          "rationale": "Request limits, polling intervals, media bounds, and sampler defaults must have one typed owner instead of command and handler literals.",
+          "depends_on": [
+            "magic-wave-optimizer/close"
+          ],
+          "capabilities": [
+            "resource-policy",
+            "recipe-authority",
+            "operation-contract"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-wave-device",
+      "title": "Eliminate CUDA, memory, launch, transfer, and workspace magics",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Derive extents from compiled plans or bind fixed values to kernel and device ABI contracts",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/cuda,internal/devicemath,internal/tensor -require-classified -require-no-stale",
+          "rationale": "Launch geometry and byte widths must come from shared typed operations, measured device policy, or guarded ABI declarations.",
+          "depends_on": [
+            "magic-wave-serving/close"
+          ],
+          "capabilities": [
+            "device-capability",
+            "kernel-abi",
+            "memory-plan",
+            "cuda-parity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-wave-model-runtime",
+      "title": "Eliminate model, projector, inference, and modality facts duplicated in code",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Move model facts to artifacts and recipes and make compiled neutral plans their sole consumers",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/model,internal/modelartifact,internal/modelrecipe,internal/inference,internal/projector,internal/latentimage,internal/latentvideo,internal/speechsynth -require-classified -require-no-stale -require-no-model-facts",
+          "rationale": "Model dimensions, token IDs, topology choices, and modality geometry must not remain as family or checkpoint literals in generic runtime code.",
+          "depends_on": [
+            "magic-wave-device/close"
+          ],
+          "capabilities": [
+            "artifact-facts",
+            "recipe-authority",
+            "compiled-plan",
+            "model-neutral-runtime"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-wave-formats",
+      "title": "Classify and consolidate format, quantization, codec, and artifact constants",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Bind specification values to typed protocol owners and eliminate duplicated encodings and layout arithmetic",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/gguf,internal/safetensors,internal/quant,internal/codec,internal/artifact,internal/repodb -require-classified -require-no-stale",
+          "rationale": "Specification constants may remain, but only in their protocol owner and never duplicated as runtime policy.",
+          "depends_on": [
+            "magic-wave-model-runtime/close"
+          ],
+          "capabilities": [
+            "specification-disposition",
+            "typed-layout",
+            "wire-parity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-wave-remaining",
+      "title": "Close remaining production and command magic surfaces",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Audit every remaining internal and cmd owner and delete redundant flags, defaults, wrappers, and process constants",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-uncatalogued-production",
+          "rationale": "Scoped waves must not leave uncatalogued debt in converters, tools, automation, or less frequently exercised packages.",
+          "depends_on": [
+            "magic-wave-formats/close"
+          ],
+          "capabilities": [
+            "full-repository-audit",
+            "surface-reduction"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-test-discipline",
+      "title": "Remove duplicated production policy from tests",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Use production contracts and shared assertions while retaining irreducible typed fixtures",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-tests -require-no-policy-copies -require-classified-fixtures",
+          "rationale": "Tests should exercise production behavior rather than reimplement defaults, exit codes, dimensions, or tolerance policy in assertions.",
+          "depends_on": [
+            "magic-wave-remaining/close"
+          ],
+          "capabilities": [
+            "test-contract-reuse",
+            "fixture-disposition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-closure-final",
+      "title": "Reach and enforce zero open magic debt",
+      "status": "open",
+      "steps": [
+        {
+          "id": "zero-open",
+          "title": "Close every derivation-blocked row and verify no stale, uncatalogued, or duplicated authority remains",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts",
+          "rationale": "The campaign ends only when unresolved constants have been derived, replaced, consolidated, or made irrelevant.",
+          "depends_on": [
+            "magic-test-discipline/close"
+          ],
+          "capabilities": [
+            "zero-open-debt",
+            "single-authority"
+          ]
+        },
+        {
+          "id": "permanent-gate",
+          "title": "Make the zero-debt checks permanent and delete campaign-only import and compatibility machinery",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-all -require-zero-open",
+          "rationale": "The result must remain enforced without retaining one-time migration surface.",
+          "depends_on": [
+            "magic-closure-final/zero-open"
+          ],
+          "capabilities": [
+            "continuous-enforcement",
+            "migration-cleanup"
+          ]
+        }
+      ]
+    }
+  ]
 }

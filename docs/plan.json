@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority; queue order is binding and plan complete means campaign complete. External systems supply processing concepts and behavioral oracles only: do not import their code, packages, configuration formats, process managers, proxy layers, schedulers, matrix DSLs, event buses, stores, or frontend frameworks. Prefer existing Overgo owners where semantics match. New neutral components are allowed for missing ownership boundaries only when they have narrow typed contracts, immediate production consumers, integrate with existing recipes, RepoDB, operation reporting, and the embedded GUI as applicable, and replace displaced logic in the same wave. No orphan abstraction or deferred caller migration. RepoDB is the sole serving evidence ledger. Active recipes and compiled resource plans are the sole selection, placement, and residency authority. Promote capabilityruntime's existing session cache into ModelSessionDirector; do not add a parallel cache or scheduler. Each migration moves every production caller and deletes displaced slot ownership, wrappers, fallbacks, duplicate probes, and compatibility paths in the same gated wave. Raw request and response capture stays disabled unless an explicit bounded redaction policy admits it. Prove local residency before component sessions; prove component sessions before remote spillover. Composite construction consumes the proven session authority in Phase 6 rather than shaping its initial contract. Verify numerical and Live Edit behavior where applicable, resource ownership, cancellation, code reduction, allocations, transfers, peak memory, and processing cost. After every gated step, merge current master into this worktree before starting the next step.",
   "items": [
     {
-      "id": "hardware-timeseries-evidence",
-      "title": "Phase 3b: record hardware snapshots and bounded time-series evidence against serving observations",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Phase 3b: record hardware snapshots and bounded time-series evidence against serving observations",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/server -run '^TestServingHardwareEvidence' -count=1"
-        }
-      ]
-    },
-    {
       "id": "capability-evidence-selectors",
       "title": "Phase 4: resolve typed pin warm and spillover aliases from capabilities evidence and active recipes",
       "status": "open",

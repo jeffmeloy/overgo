@@ -24,9 +24,27 @@ var servingObservationCodec = artifact.JSONDocumentCodec(
 	func(value *ServingObservation, id artifact.ID) { value.ID = id },
 	func(value ServingObservation) ServingObservation {
 		value.Phases = slices.Clone(value.Phases)
+		value.Hardware = slices.Clone(value.Hardware)
 		return value
 	},
 )
+
+type ServingHardwareStage string
+
+const (
+	ServingHardwareStart   ServingHardwareStage = "start"
+	ServingHardwarePrefill ServingHardwareStage = "prefill"
+	ServingHardwareFinish  ServingHardwareStage = "finish"
+)
+
+// ServingHardwareSample: lifecycle-bound device allocation state.
+type ServingHardwareSample struct {
+	Stage              ServingHardwareStage `json:"stage"`
+	ElapsedNS          uint64               `json:"elapsed_ns"`
+	DeviceCurrentBytes uint64               `json:"device_current_bytes"`
+	DevicePeakBytes    uint64               `json:"device_peak_bytes"`
+	DeviceAllocations  uint64               `json:"device_allocations"`
+}
 
 // ServingUsage: payload-free request accounting.
 type ServingUsage struct {
@@ -46,22 +64,23 @@ type ServingResources struct {
 
 // ServingObservation: one recipe-bound serving attempt.
 type ServingObservation struct {
-	Version       uint16           `json:"version"`
-	Model         artifact.ID      `json:"model"`
-	Recipe        artifact.ID      `json:"recipe"`
-	Environment   artifact.ID      `json:"environment"`
-	Operation     artifact.ID      `json:"operation,omitzero"`
-	Run           artifact.ID      `json:"run,omitzero"`
-	Task          recipe.Task      `json:"task"`
-	Outcome       Outcome          `json:"outcome"`
-	StartedUnixNS int64            `json:"started_unix_ns"`
-	MeasuredNS    uint64           `json:"measured_ns"`
-	SessionReused bool             `json:"session_reused,omitempty"`
-	Usage         ServingUsage     `json:"usage"`
-	Resources     ServingResources `json:"resources"`
-	Phases        []PhaseMetric    `json:"phases,omitempty"`
-	Failure       string           `json:"failure,omitempty"`
-	ID            artifact.ID      `json:"-"`
+	Version       uint16                  `json:"version"`
+	Model         artifact.ID             `json:"model"`
+	Recipe        artifact.ID             `json:"recipe"`
+	Environment   artifact.ID             `json:"environment"`
+	Operation     artifact.ID             `json:"operation,omitzero"`
+	Run           artifact.ID             `json:"run,omitzero"`
+	Task          recipe.Task             `json:"task"`
+	Outcome       Outcome                 `json:"outcome"`
+	StartedUnixNS int64                   `json:"started_unix_ns"`
+	MeasuredNS    uint64                  `json:"measured_ns"`
+	SessionReused bool                    `json:"session_reused,omitempty"`
+	Usage         ServingUsage            `json:"usage"`
+	Resources     ServingResources        `json:"resources"`
+	Phases        []PhaseMetric           `json:"phases,omitempty"`
+	Hardware      []ServingHardwareSample `json:"hardware,omitempty"`
+	Failure       string                  `json:"failure,omitempty"`
+	ID            artifact.ID             `json:"-"`
 }
 
 func (value ServingObservation) ValidateIdentity() error {
@@ -136,5 +155,32 @@ func canonicalizeServingObservation(value *ServingObservation) error {
 	default:
 		return errors.New("run record: invalid serving outcome")
 	}
-	return canonicalizePhases(&value.Phases)
+	if err := canonicalizePhases(&value.Phases); err != nil {
+		return err
+	}
+	var elapsed uint64
+	order := 0
+	for index, sample := range value.Hardware {
+		next := servingHardwareStageOrder(sample.Stage)
+		if next <= order ||
+			sample.DeviceCurrentBytes > sample.DevicePeakBytes || sample.ElapsedNS > value.MeasuredNS ||
+			index > 0 && sample.ElapsedNS < elapsed {
+			return errors.New("run record: invalid serving hardware sample")
+		}
+		order, elapsed = next, sample.ElapsedNS
+	}
+	return nil
+}
+
+func servingHardwareStageOrder(stage ServingHardwareStage) int {
+	switch stage {
+	case ServingHardwareStart:
+		return 1
+	case ServingHardwarePrefill:
+		return 2
+	case ServingHardwareFinish:
+		return 3
+	default:
+		return 0
+	}
 }

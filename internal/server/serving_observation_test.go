@@ -147,3 +147,69 @@ func TestWebUIRuntimeActivityUsesSessionAndRepoDBAPIs(t *testing.T) {
 		t.Fatal("runtime module bypasses session authority")
 	}
 }
+
+func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "hardware-model")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "hardware-recipe")
+	if _, err := store.Commit(context.Background(), artifact.Batch{
+		Key:       "serving/hardware/authorities",
+		Artifacts: []artifact.Descriptor{{ID: modelID}, {ID: recipeID}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	generator := &recipeInspectorGenerator{
+		fakeGenerator: &fakeGenerator{},
+		description: modelrecipe.RuntimeDescription{
+			Task:     recipe.TaskInference,
+			Identity: modelrecipe.ProgramIdentity{Model: modelID, Recipe: recipeID},
+		},
+	}
+	handler, err := New(Config{Repository: store}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer handler.Close()
+	response := serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"hardware","max_tokens":1}`)
+	if response.Code != http.StatusOK {
+		t.Fatalf("completion status=%d body=%s", response.Code, response.Body.String())
+	}
+	result, err := store.Query(context.Background(), repodb.Query{
+		MediaType:  runrecord.ServingObservationMediaType,
+		Schema:     runrecord.ServingObservationSchema,
+		MaxResults: repodb.MaxQueryResults,
+	})
+	if err != nil || len(result.Artifacts) != 1 {
+		t.Fatalf("observations=%d err=%v", len(result.Artifacts), err)
+	}
+	content, found, err := store.Content(context.Background(), result.Artifacts[0].ID)
+	if err != nil || !found {
+		t.Fatalf("content found=%v err=%v", found, err)
+	}
+	observation, err := runrecord.ParseServingObservation(content.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantStages := []runrecord.ServingHardwareStage{
+		runrecord.ServingHardwareStart,
+		runrecord.ServingHardwarePrefill,
+		runrecord.ServingHardwareFinish,
+	}
+	expected, err := generator.DeviceMemoryStats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observation.Resources.PeakDeviceBytes != expected.PeakBytes || len(observation.Hardware) != len(wantStages) {
+		t.Fatalf("hardware=%+v resources=%+v", observation.Hardware, observation.Resources)
+	}
+	for index, sample := range observation.Hardware {
+		if sample.Stage != wantStages[index] || sample.DeviceCurrentBytes != expected.CurrentBytes ||
+			sample.DevicePeakBytes != expected.PeakBytes || sample.DeviceAllocations != expected.Allocations {
+			t.Fatalf("sample[%d]=%+v", index, sample)
+		}
+	}
+}

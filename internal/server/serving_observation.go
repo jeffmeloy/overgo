@@ -122,3 +122,41 @@ func servingTransferDelta(before, after uint64) uint64 {
 	}
 	return after - before
 }
+
+type servingHardwareCollector struct {
+	started time.Time
+	api     DeviceMemoryAPI
+	samples []runrecord.ServingHardwareSample
+	prefill bool
+}
+
+func newServingHardwareCollector(generator Generator, started time.Time) *servingHardwareCollector {
+	api, _ := generator.(DeviceMemoryAPI)
+	return &servingHardwareCollector{started: started, api: api}
+}
+
+func (collector *servingHardwareCollector) sample(ctx context.Context, stage runrecord.ServingHardwareStage) {
+	if collector == nil || collector.api == nil || stage == runrecord.ServingHardwarePrefill && collector.prefill {
+		return
+	}
+	stats, err := collector.api.DeviceMemoryStats(ctx)
+	if err != nil {
+		return
+	}
+	if stage == runrecord.ServingHardwarePrefill {
+		collector.prefill = true
+	}
+	collector.samples = append(collector.samples, runrecord.ServingHardwareSample{
+		Stage: stage, ElapsedNS: uint64(max(time.Since(collector.started).Nanoseconds(), 0)),
+		DeviceCurrentBytes: stats.CurrentBytes, DevicePeakBytes: stats.PeakBytes,
+		DeviceAllocations: stats.Allocations,
+	})
+}
+
+func (collector *servingHardwareCollector) peakDeviceBytes() uint64 {
+	var peak uint64
+	for _, sample := range collector.samples {
+		peak = max(peak, sample.DevicePeakBytes)
+	}
+	return peak
+}

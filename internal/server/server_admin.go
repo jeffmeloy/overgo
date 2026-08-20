@@ -739,6 +739,8 @@ func (h *Handler) generate(
 	options inference.GenerateOptions,
 ) ([]tokenizer.TokenID, string, error) {
 	started := time.Now()
+	hardware := newServingHardwareCollector(h.generator, started)
+	hardware.sample(ctx, runrecord.ServingHardwareStart)
 	var promptTokens, outputTokens atomic.Uint64
 	var promptDuration atomic.Int64
 	before := driver.ExecutionStats{}
@@ -757,6 +759,7 @@ func (h *Handler) generate(
 	}
 	onPromptEvaluated := options.OnPromptEvaluated
 	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
+		hardware.sample(ctx, runrecord.ServingHardwarePrefill)
 		promptTokens.Add(uint64(max(evaluation.Tokens, 0)))
 		promptDuration.Add(max(evaluation.Duration.Nanoseconds(), 0))
 		if stats != nil {
@@ -782,6 +785,7 @@ func (h *Handler) generate(
 		return nil
 	}
 	ids, text, err := session.Model().Generate(ctx, prompt, options)
+	hardware.sample(ctx, runrecord.ServingHardwareFinish)
 	if err != nil {
 		h.generationErrors.Add(1)
 	}
@@ -797,10 +801,11 @@ func (h *Handler) generate(
 			Outcome: outcome, Failure: failure, StartedUnixNS: started.UnixNano(), MeasuredNS: uint64(max(elapsed.Nanoseconds(), 0)),
 			Usage: runrecord.ServingUsage{InputTokens: promptTokens.Load(), OutputTokens: outputTokens.Load(), InputBytes: uint64(len(prompt)), OutputBytes: uint64(len(text))},
 			Resources: runrecord.ServingResources{
+				PeakDeviceBytes:   hardware.peakDeviceBytes(),
 				HostToDeviceBytes: servingTransferDelta(before.HostToDeviceBytes, after.HostToDeviceBytes),
 				DeviceToHostBytes: servingTransferDelta(before.DeviceToHostBytes, after.DeviceToHostBytes),
 			},
-			Phases: servingPhases(time.Duration(promptDuration.Load()), elapsed),
+			Phases: servingPhases(time.Duration(promptDuration.Load()), elapsed), Hardware: hardware.samples,
 		})
 	}
 	return ids, text, err

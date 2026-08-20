@@ -29,6 +29,10 @@ func servingObservationFixture(t *testing.T) ServingObservation {
 		Usage:         ServingUsage{InputTokens: 3, OutputTokens: 5, InputBytes: 13, OutputBytes: 21},
 		Resources:     ServingResources{PeakHostBytes: 34, PeakDeviceBytes: 55, HostToDeviceBytes: 8, DeviceToHostBytes: 2},
 		Phases:        []PhaseMetric{{Phase: PhaseDecode, DurationNS: 11}, {Phase: PhasePrefill, DurationNS: 7}},
+		Hardware: []ServingHardwareSample{
+			{Stage: ServingHardwareStart, DeviceCurrentBytes: 34, DevicePeakBytes: 55, DeviceAllocations: 2},
+			{Stage: ServingHardwareFinish, ElapsedNS: servingFixtureElapsedNS, DeviceCurrentBytes: 21, DevicePeakBytes: 55, DeviceAllocations: 2},
+		},
 	}
 }
 
@@ -51,7 +55,8 @@ func TestServingObservationContractAndIndexedQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	if parsed.ID != observation.ID || parsed.Usage != fixture.Usage || parsed.Resources != fixture.Resources ||
-		!slices.Equal(parsed.Phases, []PhaseMetric{{Phase: PhaseDecode, DurationNS: 11}, {Phase: PhasePrefill, DurationNS: 7}}) {
+		!slices.Equal(parsed.Phases, []PhaseMetric{{Phase: PhaseDecode, DurationNS: 11}, {Phase: PhasePrefill, DurationNS: 7}}) ||
+		!slices.Equal(parsed.Hardware, fixture.Hardware) {
 		t.Fatalf("parsed observation differs: %+v", parsed)
 	}
 
@@ -103,11 +108,13 @@ func TestServingObservationRefusesInvalidFacts(t *testing.T) {
 		{"outcome", func(value *ServingObservation) { value.Outcome = Outcome("unknown") }},
 		{"success failure", func(value *ServingObservation) { value.Failure = "failed" }},
 		{"duplicate phase", func(value *ServingObservation) { value.Phases = append(value.Phases, value.Phases[0]) }},
+		{"hardware order", func(value *ServingObservation) { value.Hardware = append(value.Hardware, value.Hardware[0]) }},
 	}
 	for _, refusal := range refusals {
 		candidate := fixture
 		candidate.Version = ServingObservationVersion
 		candidate.Phases = slices.Clone(fixture.Phases)
+		candidate.Hardware = slices.Clone(fixture.Hardware)
 		refusal.mutate(&candidate)
 		if _, err := servingObservationCodec.New(candidate); err == nil {
 			t.Errorf("%s: accepted", refusal.name)

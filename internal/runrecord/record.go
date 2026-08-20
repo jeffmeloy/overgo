@@ -1,6 +1,9 @@
 package runrecord
 
 import (
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -344,15 +347,16 @@ func validPhase(phase Phase) bool {
 }
 
 func validCodeCommit(value string) bool {
-	if len(value) != 40 && len(value) != 64 {
-		return false
-	}
-	for _, character := range value {
-		if character < '0' || character > '9' && character < 'a' || character > 'f' {
-			return false
-		}
-	}
-	return true
+	return validLowerHexDigest(value, sha1.Size, sha256.Size)
+}
+
+func validTreeKey(value string) bool {
+	return validLowerHexDigest(value, sha256.Size)
+}
+
+func validLowerHexDigest(value string, sizes ...int) bool {
+	decoded, err := hex.DecodeString(value)
+	return err == nil && value == strings.ToLower(value) && slices.Contains(sizes, len(decoded))
 }
 
 func canonicalizeEvaluation(evaluation *Evaluation) error {

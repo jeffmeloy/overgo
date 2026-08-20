@@ -135,19 +135,6 @@ func (v ModelVerification) Batch(key string) (artifact.Batch, error) {
 	return modelVerificationCodec.Batch(key, v, artifact.DependencyLineage(v.ID, parents...), nil)
 }
 
-// validVerifierCommit accepts a lowercase 40- or 64-hex git commit.
-func validVerifierCommit(value string) bool {
-	if len(value) != 40 && len(value) != 64 {
-		return false
-	}
-	for _, char := range value {
-		if char < '0' || char > '9' && char < 'a' || char > 'f' {
-			return false
-		}
-	}
-	return true
-}
-
 // MatrixRow is one derived comparison row: the strongest evidenced tier per
 // capability across every committed record for the model.
 type MatrixRow struct {
@@ -259,7 +246,7 @@ func canonicalizeModelVerification(value *ModelVerification) error {
 		if claim.Tier.Rank() == 0 {
 			return fmt.Errorf("run record: capability %q carries invalid tier %q", claim.Capability, claim.Tier)
 		}
-		if !validVerifierCommit(claim.Commit) {
+		if !validCodeCommit(claim.Commit) {
 			return fmt.Errorf("run record: capability %q requires the verifying repository commit", claim.Capability)
 		}
 		if claim.Capability == "training" || claim.SpanSteps > 0 || claim.SpanTokens > 0 {

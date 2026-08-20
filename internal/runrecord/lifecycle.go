@@ -3,7 +3,6 @@ package runrecord
 import (
 	"errors"
 	"sort"
-	"strings"
 	"time"
 
 	"overgo/internal/artifact"
@@ -85,7 +84,7 @@ func (l GateLifecycle) Lineage() []artifact.Lineage {
 
 func canonicalizeGateLifecycle(lifecycle *GateLifecycle) error {
 	if lifecycle == nil || lifecycle.Version != GateLifecycleVersion ||
-		len(lifecycle.TreeKey) != 64 || strings.Trim(lifecycle.TreeKey, "0123456789abcdef") != "" ||
+		!validTreeKey(lifecycle.TreeKey) ||
 		lifecycle.Environment.Kind() != artifact.KindEvidence {
 		return errors.New("run record: invalid gate lifecycle")
 	}
@@ -175,7 +174,7 @@ func (heartbeat GateHeartbeat) Validate() error {
 	if heartbeat.Version != GateHeartbeatVersion ||
 		heartbeat.State != HeartbeatRunning && heartbeat.State != HeartbeatFinalized && heartbeat.State != HeartbeatRecordDebt ||
 		heartbeat.Preparation.Kind() != artifact.KindEvidence || heartbeat.Environment.Kind() != artifact.KindEvidence ||
-		len(heartbeat.TreeKey) != 64 || strings.Trim(heartbeat.TreeKey, "0123456789abcdef") != "" ||
+		!validTreeKey(heartbeat.TreeKey) ||
 		heartbeat.PID <= 0 || heartbeat.Updated.IsZero() {
 		return errors.New("run record: invalid gate heartbeat")
 	}

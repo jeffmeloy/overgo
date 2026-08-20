@@ -21,12 +21,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
@@ -60,6 +62,7 @@ func run() error {
 	input := flags.String("input", "", "task input as JSON; - reads standard input (verify, run)")
 	alias := flags.String("alias", "", "RepoDB model alias (run)")
 	selection := flags.String("selection", string(modelrecipe.SessionWarm), "alias session selection: pin | warm | spillover (run)")
+	compatibility := flags.String("compatibility", "", "remote peer compatibility evidence ID (spillover run)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -177,7 +180,10 @@ func run() error {
 		if !selectedSession.Valid() {
 			return fmt.Errorf("invalid session selection %q", *selection)
 		}
-		return executeCapability(repository, path, strings.TrimSpace(*alias), selectedSession, selectedTask, capability, rawInput)
+		return executeCapability(
+			repository, path, strings.TrimSpace(*alias), strings.TrimSpace(*compatibility),
+			selectedSession, selectedTask, capability, rawInput,
+		)
 	case "status":
 		return status(repository, path, selectedTask)
 	default:
@@ -424,7 +430,7 @@ func cleanGoRevision() (string, error) {
 }
 
 func executeCapability(
-	repository, path, alias string,
+	repository, path, alias, compatibilityText string,
 	selection modelrecipe.SessionSelection,
 	task recipe.Task,
 	capability capability,
@@ -436,28 +442,45 @@ func executeCapability(
 		return err
 	}
 	defer store.Close()
+	var compatibility artifact.ID
+	if compatibilityText != "" {
+		compatibility, err = artifact.ParseID(compatibilityText)
+		if err != nil {
+			return err
+		}
+	}
+	var program recipe.Program
+	var selected modelrecipe.CapabilityEvidenceSelection
+	if alias != "" {
+		selected, err = modelrecipe.ResolveCapabilityEvidenceSelector(
+			ctx, store, modelrecipe.CapabilityEvidenceSelector{
+				Alias: alias, Task: task, Session: selection, Compatibility: compatibility,
+			},
+		)
+		if err != nil {
+			return err
+		}
+		if selection == modelrecipe.SessionSpillover {
+			return capabilityruntime.ExecuteRemotePeer(ctx, http.DefaultClient, selected, strings.NewReader(input), os.Stdout)
+		}
+	} else if selection == modelrecipe.SessionSpillover || compatibility.Valid() {
+		return errors.New("recipe: spillover requires an evidence-bound alias")
+	}
 	source, err := capability.resolve(path)
 	if err != nil {
 		return err
 	}
 	modelID := source.inventory.Manifest.ID
-	var program recipe.Program
 	if alias != "" {
-		selected, selectErr := modelrecipe.ResolveCapabilityEvidenceSelector(
-			ctx, store, modelrecipe.CapabilityEvidenceSelector{Alias: alias, Task: task, Session: selection},
-		)
-		if selectErr != nil {
-			return selectErr
-		}
 		if selected.Activation.Definition.Model != modelID {
 			return errors.New("recipe: capability alias differs from loaded model")
 		}
 		program = selected.Program
 	} else {
 		_, program, err = modelrecipe.ResolveActiveCapability(ctx, store, modelID, task)
-	}
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
 	}
 	output, err := capability.execute(ctx, store, path, modelID, program, input)
 	if err != nil {

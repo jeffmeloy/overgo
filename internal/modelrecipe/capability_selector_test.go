@@ -3,20 +3,31 @@ package modelrecipe
 import (
 	"context"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
 
-func TestCapabilityEvidenceSelector(t *testing.T) {
+type capabilitySelectorFixture struct {
+	store      *repodb.Store
+	alias      string
+	model      artifact.ID
+	definition recipe.Definition
+	bytes      uint64
+}
+
+func newCapabilitySelectorFixture(t *testing.T) capabilitySelectorFixture {
+	t.Helper()
 	ctx := context.Background()
 	store, err := repodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	t.Cleanup(func() { _ = store.Close() })
 	weights := []byte("selector-weights")
 	weightsID := testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
@@ -52,20 +63,28 @@ func TestCapabilityEvidenceSelector(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	return capabilitySelectorFixture{
+		store: store, alias: alias, model: manifest.ID, definition: definition, bytes: uint64(len(weights)),
+	}
+}
+
+func TestCapabilityEvidenceSelector(t *testing.T) {
+	ctx := context.Background()
+	fixture := newCapabilitySelectorFixture(t)
 	identities := make(map[artifact.ID]struct{})
-	sessions := []SessionSelection{SessionPin, SessionWarm, SessionSpillover}
+	sessions := []SessionSelection{SessionPin, SessionWarm}
 	for _, session := range sessions {
-		selected, err := ResolveCapabilityEvidenceSelector(ctx, store, CapabilityEvidenceSelector{
-			Alias: alias, Task: recipe.TaskGeneration, Session: session,
+		selected, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
+			Alias: fixture.alias, Task: recipe.TaskGeneration, Session: session,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if selected.Activation.Definition.ID != definition.ID ||
-			selected.Program.Definition().ID != definition.ID ||
-			selected.Resources.ArtifactBytes != uint64(len(weights)) ||
+		if selected.Activation.Definition.ID != fixture.definition.ID ||
+			selected.Program.Definition().ID != fixture.definition.ID ||
+			selected.Resources.ArtifactBytes != fixture.bytes ||
 			len(selected.Resources.Components) != 1 ||
-			selected.Resources.Components[0].Model != manifest.ID ||
+			selected.Resources.Components[0].Model != fixture.model ||
 			selected.Resources.Components[0].Session != recipe.SessionCapacity {
 			t.Fatalf("%s selection=%+v", session, selected)
 		}
@@ -74,9 +93,80 @@ func TestCapabilityEvidenceSelector(t *testing.T) {
 	if len(identities) != len(sessions) {
 		t.Fatalf("selector identities=%d", len(identities))
 	}
-	if _, err := ResolveCapabilityEvidenceSelector(ctx, store, CapabilityEvidenceSelector{
+	if _, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
+		Alias: fixture.alias, Task: recipe.TaskGeneration, Session: SessionSpillover,
+	}); err == nil {
+		t.Fatal("evidence-free spillover accepted")
+	}
+	if _, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
 		Alias: "capability/generation/missing", Task: recipe.TaskGeneration, Session: SessionWarm,
 	}); err == nil {
 		t.Fatal("missing model alias accepted")
+	}
+}
+
+func TestRemotePeerSpilloverRequiresCompatibilityEvidence(t *testing.T) {
+	ctx := context.Background()
+	fixture := newCapabilitySelectorFixture(t)
+	local := testutil.ArtifactID(t, artifact.KindEvidence, "selector-local-environment")
+	peer := testutil.ArtifactID(t, artifact.KindEvidence, "selector-peer-environment")
+	if _, err := fixture.store.Commit(ctx, artifact.Batch{
+		Key: "selector/environments", Artifacts: []artifact.Descriptor{{ID: local}, {ID: peer}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	observe := func(environment artifact.ID) runrecord.ServingObservation {
+		observation, err := runrecord.PublishServingObservation(ctx, fixture.store, runrecord.ServingObservation{
+			Model: fixture.model, Recipe: fixture.definition.ID, Environment: environment,
+			Task: recipe.TaskGeneration, Outcome: runrecord.OutcomeSucceeded,
+			StartedUnixNS: time.Now().UnixNano(), MeasuredNS: uint64(time.Nanosecond),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return observation
+	}
+	localObservation, peerObservation := observe(local), observe(peer)
+	localSelection, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
+		Alias: fixture.alias, Task: recipe.TaskGeneration, Session: SessionWarm,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resources := localSelection.Resources
+	resourceContent, err := resources.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.store.Commit(ctx, artifact.Batch{Key: "selector/resources", Contents: []artifact.Content{resourceContent}}); err != nil {
+		t.Fatal(err)
+	}
+	compatibility, err := remotePeerCompatibilityCodec.New(RemotePeerCompatibility{
+		Version: remotePeerCompatibilityVersion,
+		Model:   fixture.model, Recipe: fixture.definition.ID, Resources: resources.Identity, Task: recipe.TaskGeneration,
+		LocalEnvironment: local, PeerEnvironment: peer,
+		LocalObservation: localObservation.ID, PeerObservation: peerObservation.ID,
+		Endpoint: "https://peer.example/v1/generation",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := compatibility.batch("selector/peer-compatibility")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.store.Commit(ctx, batch); err != nil {
+		t.Fatal(err)
+	}
+	selected, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
+		Alias: fixture.alias, Task: recipe.TaskGeneration, Session: SessionSpillover,
+		Compatibility: compatibility.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selected.Peer.ID != compatibility.ID || selected.Peer.PeerObservation != peerObservation.ID ||
+		selected.Resources.Identity != resources.Identity {
+		t.Fatalf("spillover selection=%+v", selected)
 	}
 }

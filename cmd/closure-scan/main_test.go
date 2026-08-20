@@ -252,10 +252,49 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(path); err != nil {
+	moved := append([]byte("// moved declaration\n"), source...)
+	if err := os.WriteFile(path, moved, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count, err := rebindUnchangedClosures(root, "store", snapshot); err != nil || count != len(triage.Rows) {
+		t.Fatalf("rebound documents = (%d, %v)", count, err)
+	}
+	candidates, err = closurescan.ScanSnapshot(snapshot, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := binding
+	for _, current := range candidates {
+		if current.Name == candidate.Name {
+			binding, err = current.Binding()
+			candidate = current
+			break
+		}
+	}
+	if err != nil || binding == previous {
+		t.Fatalf("rebound binding = (%+v, %v)", binding, err)
+	}
+	store, err = repodb.OpenReadOnly(filepath.Join(root, "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, active, err := closureledger.ResolveActiveBinding(context.Background(), store, binding, candidate.ValueJSON()); err != nil || !active {
+		t.Fatalf("rebound document = (%t, %v)", active, err)
+	}
+	if _, found, err := artifact.ResolveAlias(context.Background(), store, mustActiveAlias(t, previous)); err != nil || found {
+		t.Fatalf("previous binding resolves = (%t, %v)", found, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = repoanalysis.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

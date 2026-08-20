@@ -20,7 +20,9 @@ import (
 	"strings"
 	"time"
 
+	"encoding/binary"
 	"overgo/internal/dataroot"
+
 	"overgo/internal/gguf"
 	"overgo/internal/hostmath"
 	"overgo/internal/latentimage"
@@ -29,6 +31,7 @@ import (
 	"overgo/internal/quant"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor/dtype"
 )
 
 func main() {
@@ -246,14 +249,57 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 	if err := file.ReadTensorData(info, raw); err != nil {
 		return err
 	}
-	masters, err := quant.Dequantize(info.Type, raw, elements)
-	if err != nil {
-		return err
-	}
-	servingType := info.Type
-	quantized, err := quant.Quantize(servingType, masters)
-	if err != nil {
-		return fmt.Errorf("flow-organ-train-probe: %q is not requantizable to %s: %w", tensorName, servingType, err)
+	// Scaled fp8 (the gemma fp8-native layout): [rows*in e4m3 | rows F32
+	// scales] decoded row-wise as e4m3 * scale; requantization recomputes
+	// per-row scales as max|row|/448 and re-encodes round-to-nearest-even.
+	scaledFP8 := uint64(len(raw)) == elements+uint64(out)*4
+	var masters []float32
+	var requantize func([]float32) ([]byte, error)
+	if scaledFP8 {
+		payload := raw[:elements]
+		scaleBytes := raw[elements:]
+		scales := make([]float32, out)
+		for r := 0; r < out; r++ {
+			scales[r] = math.Float32frombits(binary.LittleEndian.Uint32(scaleBytes[r*4:]))
+		}
+		masters = make([]float32, elements)
+		for r := 0; r < out; r++ {
+			for i := 0; i < in; i++ {
+				masters[r*in+i] = dtype.F8E4M3ToFloat32(payload[r*in+i]) * scales[r]
+			}
+		}
+		requantize = func(values []float32) ([]byte, error) {
+			packed := make([]byte, int(elements)+out*4)
+			for r := 0; r < out; r++ {
+				var peak float64
+				for i := 0; i < in; i++ {
+					if a := math.Abs(float64(values[r*in+i])); a > peak {
+						peak = a
+					}
+				}
+				scale := float32(peak / 448)
+				if scale == 0 {
+					scale = 1
+				}
+				for i := 0; i < in; i++ {
+					packed[r*in+i] = dtype.Float32ToF8E4M3(values[r*in+i] / scale)
+				}
+				binary.LittleEndian.PutUint32(packed[int(elements)+r*4:], math.Float32bits(scale))
+			}
+			return packed, nil
+		}
+	} else {
+		masters, err = quant.Dequantize(info.Type, raw, elements)
+		if err != nil {
+			return err
+		}
+		servingType := info.Type
+		requantize = func(values []float32) ([]byte, error) {
+			return quant.Quantize(servingType, values)
+		}
+		if _, err := requantize(masters); err != nil {
+			return fmt.Errorf("flow-organ-train-probe: %q is not requantizable to %s: %w", tensorName, servingType, err)
+		}
 	}
 
 	plan, err := optimizer.CompilePlan(len(masters), []optimizer.GroupSpec{{
@@ -274,7 +320,7 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 	}
 	defer stepper.Close()
 	fmt.Printf("trainable parameters=%d matrix=%dx%d dtype=%v derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s"+"\n",
-		len(masters), out, in, servingType, config.BaseLearningRate, config.Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
+		len(masters), out, in, info.Type, config.BaseLearningRate, config.Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
 
 	xF32, _, targetF32 := stimulus(rows, in, out)
 	target := targetF32
@@ -290,13 +336,25 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 		return loss
 	}
 	servingLoss := func() (float64, error) {
-		packed, err := quant.Quantize(servingType, masters)
+		packed, err := requantize(masters)
 		if err != nil {
 			return 0, err
 		}
-		roundTrip, err := quant.Dequantize(servingType, packed, elements)
-		if err != nil {
-			return 0, err
+		var roundTrip []float32
+		if scaledFP8 {
+			roundTrip = make([]float32, elements)
+			scaleBytes := packed[elements:]
+			for r := 0; r < out; r++ {
+				scale := math.Float32frombits(binary.LittleEndian.Uint32(scaleBytes[r*4:]))
+				for i := 0; i < in; i++ {
+					roundTrip[r*in+i] = dtype.F8E4M3ToFloat32(packed[r*in+i]) * scale
+				}
+			}
+		} else {
+			roundTrip, err = quant.Dequantize(info.Type, packed, elements)
+			if err != nil {
+				return 0, err
+			}
 		}
 		return evaluate(roundTrip), nil
 	}
@@ -305,7 +363,6 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 	if err != nil {
 		return err
 	}
-	_ = quantized
 	start := time.Now()
 	var first float64
 	for step := 0; step < steps; step++ {

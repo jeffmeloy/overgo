@@ -1,0 +1,13 @@
+overgo ternary-master training stimulus declaration (scaled-fp8 variant)
+generator: xorshift32 (x ^= x<<13; x ^= x>>17; x ^= x<<5), seed 88675123
+draw: input rows (rows*3840 values, scaled 0.5), then interleaved z/target
+draws (z unused); targets unit scale
+rows: 8; matrix: blk.0.ffn_gate.weight [15360, 3840] F8_E4M3 with per-row
+F32 scales (the gemma fp8-native combined payload)
+objective: linear MSE on the f32 masters decoded as e4m3 * row scale, with
+the SERVING bar measured through the full fp8 round trip -- per-row scales
+recomputed as max|row|/448, values re-encoded round-to-nearest-even with
+the exhaustively-tested Float32ToF8E4M3 codec, decoded, evaluated
+consumer: cmd/flow-organ-train-probe -organ ternary-master, which embeds
+the same constants; this document is the committed dataset declaration the
+gemma-4-12B-it-fp8 training claim grounds as its shard.

@@ -1,0 +1,28 @@
+overgo training verification run
+tool: cmd/flow-organ-train-probe -organ ternary-master (scaled-fp8 branch),
+bounded observed smoke with first-step projection guard
+verifying commit: a0e8671080461c4572ee4649b64815021dd26d6b (recorded by the gate binding this file)
+model: gemma-4-12B-it-fp8 (overgo-hfconvert/gemma-4-12B-it-fp8-native.gguf)
+through the master-weight lane: blk.0.ffn_gate.weight [15360 x 3840]
+F8_E4M3-with-row-scales dequantizes into 58,982,400 f32 masters, the
+masters train, and the trained masters requantize (per-row scale
+max|row|/448, round-to-nearest-even e4m3 encode) for the serving bar
+trainer: single-matrix Muon over optimizer.NewStepper (shared CUDA);
+hyperparameters fully DERIVED: base LR n_params^-1/2 = 1.302e-04,
+momentum = 0.9355. The Float32ToF8E4M3 encoder is proven exact inverse of
+the decoder on every one of the 256 code points and round-half-even at
+midpoints (internal/tensor/dtype fp8 round-trip suite).
+dataset: deterministic committed probe stimulus
+(docs/verification/gemma12b-training-stimulus.txt)
+steps: 12
+measured wall_ns: 11486000000 (12 steps at ~0.86s; artifact load excluded)
+loss: masters 0.418314 -> 0.405633; SERVING ROUND TRIP 0.418314 ->
+0.417200 -- the requantized fp8 tensor's own behavior moved
+notes: this closes the tightening lane's gemma-4-12B refusal by its route
+2 -- an explicit master-weight and precision contract for the fp8 serving
+artifact, demonstrated at organ scope. The full device-stream port of the
+reference's live gemma_stream_cuda lane (tiled-head CE, frozen tied
+embedding, stream units) remains the named promotion gate for full-model
+12B training, alongside checkpoint persistence policy. The E4B adapter
+cell covers the family's other label through the converged adapter lane.
+context_tokens 0; peak not instrumented -- wall-only.

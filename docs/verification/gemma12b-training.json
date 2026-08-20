@@ -1,0 +1,23 @@
+{
+ "model": "model:sha256:64fb17f3c324dcbf9f83861e5d2ea1534a66ea0970223047e788a482b080853c",
+ "name": "gemma-4-12B-it-fp8",
+ "evidence_files": [
+  "docs/verification/gemma12b-training-run.txt"
+ ],
+ "dataset_files": [
+  "docs/verification/gemma12b-training-stimulus.txt"
+ ],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "a0e8671080461c4572ee4649b64815021dd26d6b",
+   "dataset": "dataset-shard:sha256:66d282e16b0c1a3c472d4d18fb5c692c08ad6157773b6ae04f7971f42ed5cebf",
+   "span_steps": 12,
+   "wall_ns": 11486000000,
+   "evidence": [
+    "evidence:sha256:3f2d07afb62da0af90fe599fceee304fd6ee274829a3be8fa530c6a0a9a1638f"
+   ]
+  }
+ ]
+}

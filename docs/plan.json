@@ -1,19 +1,5 @@
 {
   "campaign": "Verification integrity: tagged artifact lanes, clean source provenance, and live-plan hygiene",
   "doctrine": "Follow skill.md. docs/plan.json is the sole open-work authority; queue order is binding and plan complete means campaign complete.",
-  "items": [
-    {
-      "id": "retire-closed-campaign-checkers",
-      "title": "Delete campaign-local checkers that contradict the open-work-only plan contract",
-      "status": "open",
-      "steps": [
-        {
-          "id": "delete-stale-checkers",
-          "title": "Remove both completed-campaign scripts and retain plan-schema coverage in the owning Go packages",
-          "status": "open",
-          "verify": "test ! -e scripts/check_video_campaign.py \u0026\u0026 test ! -e scripts/check_circuit_campaign.py \u0026\u0026 go test ./internal/plan ./cmd/plan -count=1"
-        }
-      ]
-    }
-  ]
+  "items": []
 }

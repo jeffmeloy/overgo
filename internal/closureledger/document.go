@@ -2,11 +2,15 @@ package closureledger
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
+	"path"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -14,9 +18,9 @@ import (
 )
 
 const (
-	Version   uint16 = 1
+	Version   uint16 = 2
 	MediaType        = "application/vnd.overgo.closure-ledger+json"
-	Schema           = "overgo/closure-ledger/v1"
+	Schema           = "overgo/closure-ledger/v2"
 
 	maxNameBytes  = 256
 	maxTextBytes  = 32 << 10
@@ -52,6 +56,26 @@ const (
 	StatusClosed    Status = "closed"
 )
 
+type BindingKind string
+
+const (
+	BindingConstant   BindingKind = "constant"
+	BindingLiteral    BindingKind = "literal"
+	BindingAssumption BindingKind = "assumption"
+)
+
+type SourceBinding struct {
+	Kind       BindingKind `json:"kind"`
+	Package    string      `json:"package"`
+	File       string      `json:"file"`
+	Scope      string      `json:"scope"`
+	Name       string      `json:"name"`
+	Line       int         `json:"line"`
+	Expression string      `json:"expression"`
+	SourceID   string      `json:"source_id"`
+	Owner      artifact.ID `json:"owner"`
+}
+
 // Document: immutable closure obligation.
 type Document struct {
 	Version       uint16          `json:"version"`
@@ -59,7 +83,8 @@ type Document struct {
 	Value         json.RawMessage `json:"value"`
 	Tier          Tier            `json:"tier"`
 	Status        Status          `json:"status"`
-	OwnerSurfaces []artifact.ID   `json:"owner_surfaces"`
+	Understanding string          `json:"understanding"`
+	Bindings      []SourceBinding `json:"bindings"`
 	ClosurePath   string          `json:"closure_path"`
 	RerankTrigger string          `json:"rerank_trigger"`
 	Fixture       artifact.ID     `json:"pinning_fixture"`
@@ -71,13 +96,14 @@ func New(
 	value json.RawMessage,
 	tier Tier,
 	status Status,
-	ownerSurfaces []artifact.ID,
+	understanding string,
+	bindings []SourceBinding,
 	closurePath, rerankTrigger string,
 	fixture artifact.ID,
 ) (Document, error) {
 	document := Document{
 		Version: Version, Name: name, Value: slices.Clone(value), Tier: tier, Status: status,
-		OwnerSurfaces: slices.Clone(ownerSurfaces), ClosurePath: closurePath,
+		Understanding: understanding, Bindings: slices.Clone(bindings), ClosurePath: closurePath,
 		RerankTrigger: rerankTrigger, Fixture: fixture,
 	}
 	return documentCodec.New(document)
@@ -96,10 +122,15 @@ func (d Document) Content() (artifact.Content, error) {
 }
 
 func (d Document) Lineage() []artifact.Lineage {
-	edges := make([]artifact.Lineage, 0, len(d.OwnerSurfaces)+1)
-	for _, owner := range d.OwnerSurfaces {
+	edges := make([]artifact.Lineage, 0, len(d.Bindings)+1)
+	seen := map[artifact.ID]bool{}
+	for _, binding := range d.Bindings {
+		if seen[binding.Owner] {
+			continue
+		}
+		seen[binding.Owner] = true
 		edges = append(edges, artifact.Lineage{
-			Child: d.ID, Parent: owner, Relation: artifact.RelationDependsOn,
+			Child: d.ID, Parent: binding.Owner, Relation: artifact.RelationDependsOn,
 		})
 	}
 	edges = append(edges, artifact.Lineage{
@@ -122,9 +153,11 @@ func (d Document) Batch(key string, alias *artifact.AliasBinding) (artifact.Batc
 func canonicalize(document *Document) error {
 	if document == nil || document.Version != Version || !validName(document.Name) ||
 		!validTier(document.Tier) || !validTierStatus(document.Tier, document.Status) ||
+		strings.TrimSpace(document.Understanding) == "" ||
+		!textcheck.Bounded(document.Understanding, maxTextBytes, "\x00\r") ||
 		!textcheck.Bounded(document.ClosurePath, maxTextBytes, "\x00\r") ||
 		!textcheck.Bounded(document.RerankTrigger, maxTextBytes, "\x00\r") ||
-		!document.Fixture.Valid() || len(document.OwnerSurfaces) == 0 {
+		!document.Fixture.Valid() || len(document.Bindings) == 0 {
 		return errors.New("closure ledger: invalid document")
 	}
 	value, err := canonicalValue(document.Value)
@@ -132,15 +165,34 @@ func canonicalize(document *Document) error {
 		return err
 	}
 	document.Value = value
-	sort.Slice(document.OwnerSurfaces, func(i, j int) bool {
-		return document.OwnerSurfaces[i].String() < document.OwnerSurfaces[j].String()
+	sort.Slice(document.Bindings, func(i, j int) bool {
+		return bindingKey(document.Bindings[i]) < bindingKey(document.Bindings[j])
 	})
-	for index, owner := range document.OwnerSurfaces {
-		if !owner.Valid() || index > 0 && document.OwnerSurfaces[index-1] == owner {
-			return errors.New("closure ledger: invalid owner surface")
+	for index, binding := range document.Bindings {
+		if !validBinding(binding) || index > 0 && bindingKey(document.Bindings[index-1]) == bindingKey(binding) {
+			return errors.New("closure ledger: invalid source binding")
 		}
 	}
 	return nil
+}
+
+func validBinding(binding SourceBinding) bool {
+	if binding.Kind != BindingConstant && binding.Kind != BindingLiteral && binding.Kind != BindingAssumption ||
+		!validName(binding.Name) || binding.Package == "" || binding.Scope == "" || binding.Line <= 0 ||
+		!textcheck.Bounded(binding.Expression, maxTextBytes, "\x00\r") || !binding.Owner.Valid() {
+		return false
+	}
+	clean := path.Clean(binding.File)
+	if clean != binding.File || clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
+		return false
+	}
+	digest, err := hex.DecodeString(binding.SourceID)
+	return err == nil && len(digest) == sha256.Size
+}
+
+func bindingKey(binding SourceBinding) string {
+	return binding.Package + "\x00" + binding.File + "\x00" + binding.Scope + "\x00" +
+		strconv.Itoa(binding.Line) + "\x00" + binding.Name + "\x00" + binding.SourceID
 }
 
 func canonicalValue(value json.RawMessage) (json.RawMessage, error) {
@@ -204,6 +256,6 @@ func validName(value string) bool {
 
 func cloneDocument(document Document) Document {
 	document.Value = slices.Clone(document.Value)
-	document.OwnerSurfaces = slices.Clone(document.OwnerSurfaces)
+	document.Bindings = slices.Clone(document.Bindings)
 	return document
 }

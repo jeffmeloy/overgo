@@ -32,6 +32,7 @@ type triageRow struct {
 	Line          int    `json:"line"`
 	Tier          string `json:"tier"`
 	Status        string `json:"status"`
+	Understanding string `json:"understanding"`
 	ClosurePath   string `json:"closure_path"`
 	RerankTrigger string `json:"rerank_trigger"`
 }
@@ -237,7 +238,11 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 		document, err := closureledger.New(
 			row.Name, valueJSON,
 			closureledger.Tier(row.Tier), closureledger.Status(row.Status),
-			[]artifact.ID{fileID}, row.ClosurePath, row.RerankTrigger, fileID,
+			row.Understanding, []closureledger.SourceBinding{{
+				Kind: closureledger.BindingConstant, Package: found.Package, File: found.File,
+				Scope: found.Scope, Name: found.Name, Line: found.Line,
+				Expression: found.Expression, SourceID: found.SourceID, Owner: fileID,
+			}}, row.ClosurePath, row.RerankTrigger, fileID,
 		)
 		if err != nil {
 			return fmt.Errorf("row %s: %w", row.Name, err)

@@ -2,6 +2,7 @@ package closureledger
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -15,10 +16,14 @@ import (
 func TestNormalizeAdmitsAnyFieldOrderAndEmitsCanonical(t *testing.T) {
 	owner := testutil.ArtifactID(t, artifact.KindFile, "owner-surface")
 	fixture := testutil.ArtifactID(t, artifact.KindFile, "pinning-fixture")
+	binding, err := json.Marshal(testSourceBinding(owner))
+	if err != nil {
+		t.Fatal(err)
+	}
 	alphabetical := []byte(`{"closure_path":"derive from the measured envelope","name":"ExampleMagic",` +
-		`"owner_surfaces":["` + owner.String() + `"],"pinning_fixture":"` + fixture.String() + `",` +
+		`"bindings":[` + string(binding) + `],"pinning_fixture":"` + fixture.String() + `",` +
 		`"rerank_trigger":"re-evaluate on owner change","status":"open","tier":"derivation-blocked",` +
-		`"value":8,"version":1}`)
+		`"understanding":"unresolved owner policy","value":8,"version":2}`)
 
 	if _, err := Parse(alphabetical); err == nil {
 		t.Fatal("alphabetical field order parsed as canonical; this test no longer pins anything")

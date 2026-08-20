@@ -27,7 +27,7 @@ Public interfaces may change while the runtime is under active development.
 | Training | Shared dataset streams, compiled objectives, Muon optimization, host reference execution, CUDA-resident execution, checkpoints, exact resume, and evaluation records |
 | Preference training | Native DPO data preparation, policy/reference scoring, loss and gradients, Muon updates, checkpoint resume, run evidence, and GUI plots |
 | Serving | Native llama.cpp-style, OpenAI-compatible, and Anthropic-compatible HTTP APIs with streaming, tools, structured output, media, batching, and caches |
-| GUI | Inference, recipe-driven generation, datasets, DPO training, export, operations, runs, artifacts, recipes, and model/tensor/state/attention analysis |
+| GUI | Streaming chat; recipe-driven generation; runtime and activity telemetry; datasets; training, model building, and export; DPO/GRPO evidence; evaluation campaigns; runs, artifacts, recipes, and model analysis |
 | Evidence | RepoDB identities, lineage, run records, evaluation records, recipe promotion, rollback records, compatibility claims, and reproducible release checks |
 
 Artifact-specific results and verification levels are listed in
@@ -443,11 +443,10 @@ Supported protocol endpoints:
 - llama.cpp-style completion, infill, embedding, tokenize/detokenize,
   apply-template, slots, LoRA adapters, and properties;
 - public health, metrics, and model discovery;
-- a built-in web UI on otherwise unmatched GET routes. It includes chat,
-  read-only dataset/run browsing, model/vocabulary/logit/hidden-state analysis,
-  bounded distribution-free tensor characterization and rank-based nearest-shape
-  search, and exact host-replayed attention heatmaps for plain-causal policies
-  without sinks, windows, softcap, or ALiBi.
+- a built-in web workbench on otherwise unmatched GET routes. It includes
+  streaming chat, recipe-driven generation, runtime and activity telemetry,
+  datasets, training, model building, export, evaluation campaigns, run and
+  artifact evidence, and bounded model analysis.
 
 Set `OVERGO_API_KEY` or `-api-key-file` to protect generation and endpoints that
 run or modify models. Health, metrics, and model discovery remain public.
@@ -467,20 +466,104 @@ The server embeds a thin HTML, CSS, and JavaScript client at
 `http://127.0.0.1:8080/`. The browser holds presentation state only. Models,
 recipes, datasets, operations, runs, and artifacts remain server-owned.
 
-The workbench is organized into four sections:
+The workbench is organized into four sections and eighteen functional tabs:
 
-| Section | Functions |
-| --- | --- |
-| Inference | Multi-turn chat, recipe-driven generation controls, token streaming, cancellation, and live runtime/cache/session status |
-| Datasets | RepoDB dataset browsing, version and lineage detail, bounded record preview, and processor-aware values |
-| Training | Recipe-driven DPO controls, resumable checkpoint selection, operation progress, cancellation, export, run history, and checkpoint comparison |
-| Workbench | Active recipe inspection; artifact gallery; model and tensor inventory; vocabulary; logit lens; hidden-state layout; attention heatmaps; tensor statistics and similar-shape search |
+| Section | Tabs | Functions |
+| --- | --- | --- |
+| Inference | Chat, Generate, Runtime, Activity | Multi-turn streaming chat; recipe-driven media generation; active session, cache, throughput, transfer, and serving evidence |
+| Datasets | Datasets | Registry filtering and bounded previews of processor-produced text and media values |
+| Training | Train, Model Builder, Export, Runs | Recipe-driven DPO/GRPO training, scratch-model construction, export, operation control, plots, artifacts, resume evidence, and run comparison |
+| Workbench | Recipe, Artifacts, Evaluations, Model, Vocabulary, Logit lens, Hidden states, Attention, Tensors | Compiled recipe inspection, media and evidence browsing, selectable evaluation campaigns, model internals, and bounded numerical analysis |
 
-Generation, training, and export forms are built from the server's typed
-capability declarations. The client does not contain model-family forms or
-execution switches. Each operation reports state, progress, metrics, run
-identity, output artifacts, and failure information through common operation
-endpoints.
+### Operation lifecycle
+
+Generate, Train, Model Builder, and Export use one capability-driven client.
+The client reads typed controls from the server, submits the selected task and
+recipe, receives an operation ID, and polls the common operation ledger. The
+same view reports state, progress, metrics, run identity, outputs, and failures.
+Running operations can be cancelled. Model-family switches and execution policy
+do not live in the browser.
+
+Tabs report unavailable server capabilities directly. They do not substitute a
+different recipe or execution path. Run, checkpoint, report, trace, and media
+identities link back to server-owned artifacts and RepoDB evidence.
+
+### Inference and runtime
+
+Chat supports an optional system prompt, multi-turn history, streaming, stop,
+reset, Markdown output, and copying completed responses. Before generation it
+checks input-token use. During a response it reports context use, cached and
+generated tokens, prefill and decode throughput, and elapsed time.
+
+Generate builds its controls from active recipe capabilities. The available
+forms therefore follow the configured text, image, audio, or video operations
+instead of a fixed browser catalog.
+
+Runtime polls active model sessions and shows slot state, task, device, context
+use, prompt and cached tokens, generated tokens, throughput, and elapsed time.
+Activity reads serving observations from RepoDB and shows model and recipe
+identity, outcome, duration, token counts, and host/device transfer bytes. It
+does not display request or response payloads.
+
+### Datasets and operations
+
+Datasets can be filtered by name, family, modality, and language. The preview is
+bounded and shows processor-produced roles, modalities, text, encodings, and
+byte counts without loading the complete dataset into the browser.
+
+The Runs tab pages through recorded operations and shows outcome, recipe,
+commit, wall time, major phases, and I/O. Run detail links its trace,
+checkpoint, report, and output artifacts.
+
+### Training, model building, and RL
+
+Training resolves the active training recipe from RepoDB. The same form admits
+DPO or GRPO according to that recipe and exposes only its declared dataset,
+checkpoint, optimizer, objective, and output controls. Progress is published as
+training evidence while the operation runs.
+
+The Runs view renders DPO loss, policy/reference/relative margins, gradient and
+update norms, and chosen/rejected pair evidence. GRPO runs show loss, mean
+reward, reward dispersion, gradient norm, and update norm. A selected run can
+serve as the baseline for comparing final observations and checkpoints.
+
+Model Builder uses the common operation lifecycle to run an admitted
+corpus-derived construction recipe. Its outputs include the model, checkpoint,
+evaluation, evidence, and decision artifacts. Export uses the same capability,
+progress, cancellation, and publication contracts.
+
+### Evaluation campaigns
+
+Evaluations selects a model and one or more compiled suites supplied by the
+server. It supports progress, cancellation, live metrics, and per-model run
+history. An inspected run shows its report, failures, input/output counts,
+metrics, and individual records. Two runs can be compared by metric with an
+explicit baseline, current value, delta, and improvement result. RepoDB is the
+evaluation result ledger.
+
+Provide compiled suites with repeatable `-evaluation-suite <suite.json>` flags.
+Use `-evaluation-commit <commit>` to bind source identity to the resulting
+evidence.
+
+### Recipes, artifacts, and analysis
+
+Recipe shows the active inference recipe, version, runtime, placement,
+residency, cache identity, ordered compiled stages, required facts, and
+admission evidence. Artifacts supports kind filtering and paging, displays
+image, audio, and video outputs inline, and links other payloads with producer
+identity.
+
+Model reports architecture and execution dimensions. Vocabulary provides
+paged token search. Logit lens reports top probabilities, selected-token
+probability, and full-vocabulary entropy. Hidden states supports explicit
+Spearman, cosine, or Euclidean analysis with distance, nearest-neighbor, and
+nonmetric MDS views. Attention replays exact captured Q/K attention only for
+policies where that replay is valid.
+
+Tensor analysis reads bounded samples and reports robust location, scale,
+L-moment, sparsity, energy-entropy, and effective-rank measures where defined.
+Nearest-tensor lookup ranks comparable catalog measurements; it does not infer
+semantic interchangeability.
 
 Start the server with training controls enabled:
 
@@ -491,14 +574,10 @@ go run ./cmd/server \
   D:/models/model.gguf
 ```
 
-Training mode resolves the active training recipe from RepoDB and requires the
-configured dataset and checkpoint roots. The current native GUI training
-workspace runs DPO and exposes dataset, resume checkpoint, output name, steps,
-learning rate, momentum, and DPO scale. The Runs view plots DPO loss, policy and
-reference margins, relative margin, gradient L2, update L2, learning rate, and
-chosen/rejected token counts. It links each plot to its run, trace, and
-checkpoint artifacts and can compare the final observations from two
-checkpoints.
+Add `-model-builder` to enable the model construction workspace. Training and
+model building require RepoDB plus configured dataset and checkpoint roots.
+Analysis work is bounded by the `-analysis-*` flags. Protected operations use
+the same API key as the HTTP endpoints.
 
 ## Training
 

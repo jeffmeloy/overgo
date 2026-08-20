@@ -17,9 +17,9 @@ const (
 )
 
 type BindingIssue struct {
-	Kind BindingDrift
-	Name string
-	File string
+	Kind BindingDrift `json:"kind"`
+	Name string       `json:"name"`
+	File string       `json:"file"`
 }
 
 func ValidateBindings(snapshot repoanalysis.SourceSnapshot, documents []closureledger.Document) ([]BindingIssue, error) {

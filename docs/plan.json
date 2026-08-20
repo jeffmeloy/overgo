@@ -3,27 +3,6 @@
   "doctrine": "Follow skill.md. This file is the single campaign authority; queue order is binding and plan complete means campaign complete. A magic is any hard-coded value, threshold, process horizon, distribution assumption, hidden model or tensor fact, device policy, or duplicated test expectation that could be derived, declared by an existing authority, or removed. RepoDB is the sole closure ledger; do not add MAGICS.json or another persistent registry. Extend internal/closurescan, internal/closureledger, existing RepoDB queries, and cmd/gate rather than creating parallel scanners or stores. Exact source binding means package, file, declaration or function identity, expression, evaluated value, owner artifact, and applicable callsites; name-only admission is forbidden. Scanner classification must use syntax and ownership, not numerical magnitude thresholds or assumptions about data shape or distribution. Model and tensor facts belong in artifact metadata, model profiles, recipes, or compiled plans. Protocol, ABI, mathematical, and fixture values may remain only under explicit typed dispositions. Tests should generate expected behavior from production contracts where practical; irreducible fixture data stays local and classified rather than being converted mechanically into constants. Cataloging is triage, not closure: each wave first deletes, derives, consolidates, or moves values to an existing authority, and records an open row only when a named evidence gap remains. No wrappers, compatibility readers, duplicate authorities, advisory-only production plans, or deferred caller migration. Every implementation wave migrates all callers and deletes displaced code in the same commit. Preserve numerical behavior, wire formats, recipe behavior, CUDA behavior, and Live Edit behavior where applicable. Measure named constants, inline literals, assumptions, open rows, deleted rows, code surface, allocations, transfers, and runtime when affected. Counts are command-derived and stored as RepoDB evidence; prose never owns mutable totals. New or changed uncatalogued production decision surfaces fail the gate once exact binding lands. The end state is zero uncatalogued decision surfaces, zero stale bindings, zero model/config facts duplicated in code, and zero derivation-blocked rows; remaining literals are mechanically structural or carry closed specification, mathematical, implementation, or fixture dispositions. After every gated implementation step, merge current master before starting the next step.",
   "items": [
     {
-      "id": "magic-census-evidence",
-      "title": "Publish reproducible magic denominators and closure pressure",
-      "status": "open",
-      "steps": [
-        {
-          "id": "query",
-          "title": "Expose open rows, stale rows, owner pressure, and before/after census through existing RepoDB queries",
-          "status": "open",
-          "verify": "go test ./cmd/repodb-query -run '^TestMagicClosureQueries$' -count=1",
-          "rationale": "Systematic elimination requires sortable owner and closure views without another dashboard store.",
-          "depends_on": [
-            "magic-census-evidence/repodb-publication"
-          ],
-          "capabilities": [
-            "closure-query",
-            "owner-ranking"
-          ]
-        }
-      ]
-    },
-    {
       "id": "magic-wave-optimizer",
       "title": "Eliminate optimizer, training, evaluation, and statistical decision magics",
       "status": "open",

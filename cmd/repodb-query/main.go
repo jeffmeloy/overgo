@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,6 +13,8 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
+	"overgo/internal/closurescan"
 	"overgo/internal/composition"
 	"overgo/internal/discovery"
 	"overgo/internal/modelartifact"
@@ -56,10 +57,13 @@ func run(args []string, output io.Writer) error {
 	verifications := flags.Bool("verifications", false, "derive the model verification matrix from committed records: strongest evidenced tier per capability")
 	configs := flags.Bool("configs", false, "list committed model-config declarations: sequence extensions and generation essentials with source digests")
 	contentDump := flags.Bool("content", false, "print the raw committed content bytes of the artifact named by -id")
+	magicClosures := flags.Bool("magic-closures", false, "list magic census history, owner pressure, and unresolved bindings")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || strings.TrimSpace(*repository) == "" {
+	var emptyResultBound int
+	if flags.NArg() != emptyResultBound || strings.TrimSpace(*repository) == "" ||
+		*limit <= emptyResultBound || *limit > repodb.MaxQueryResults {
 		return errors.New("usage: repodb-query -repo <path> [filters]")
 	}
 	if *servable {
@@ -101,6 +105,9 @@ func run(args []string, output io.Writer) error {
 	if *contentDump {
 		return writeContent(output, *repository, *idText)
 	}
+	if *magicClosures {
+		return writeMagicClosures(output, *repository, *limit, *jsonOutput)
+	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
 		FromSequence: *from, ToSequence: *to,
@@ -139,11 +146,121 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	if *jsonOutput {
-		encoder := json.NewEncoder(output)
-		encoder.SetIndent("", "  ")
-		return encoder.Encode(result)
+		return clioptions.WritePrettyJSON(output, result)
 	}
 	return writeText(output, result)
+}
+
+type magicClosureRun struct {
+	ID       artifact.ID                `json:"id"`
+	Evidence closurescan.CensusEvidence `json:"evidence"`
+	Delta    *magicCensusDelta          `json:"delta,omitempty"`
+}
+
+type magicCensusDelta struct {
+	Counts   closurescan.CensusCounts    `json:"counts"`
+	Pressure closurescan.ClosurePressure `json:"closure_pressure"`
+}
+
+type magicClosureReport struct {
+	Runs []magicClosureRun `json:"runs"`
+}
+
+func writeMagicClosures(output io.Writer, repository string, limit int, jsonOutput bool) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	result, err := store.Query(ctx, repodb.Query{MediaType: closurescan.CensusEvidenceMediaType, MaxResults: repodb.MaxQueryResults})
+	if err != nil {
+		return err
+	}
+	if result.Truncated {
+		return errors.New("repodb-query: magic census history truncated")
+	}
+	var report magicClosureReport
+	for _, descriptor := range result.Artifacts {
+		evidence, found, err := closurescan.ReadCensusEvidence(ctx, store, descriptor.ID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return errors.New("repodb-query: magic census content absent")
+		}
+		report.Runs = append(report.Runs, magicClosureRun{ID: evidence.ID, Evidence: evidence})
+	}
+	sort.Slice(report.Runs, func(i, j int) bool {
+		left, right := report.Runs[i].Evidence, report.Runs[j].Evidence
+		if left.CatalogSequence != right.CatalogSequence {
+			return left.CatalogSequence < right.CatalogSequence
+		}
+		return report.Runs[i].ID.String() < report.Runs[j].ID.String()
+	})
+	var previous *closurescan.CensusEvidence
+	for index := range report.Runs {
+		current := &report.Runs[index]
+		if previous != nil {
+			current.Delta = censusDelta(*previous, current.Evidence)
+		}
+		previous = &current.Evidence
+	}
+	if len(report.Runs) > limit {
+		report.Runs = report.Runs[len(report.Runs)-limit:]
+	}
+	if jsonOutput {
+		return clioptions.WritePrettyJSON(output, report)
+	}
+	return writeMagicClosureText(output, report, limit)
+}
+
+func censusDelta(previous, current closurescan.CensusEvidence) *magicCensusDelta {
+	left, right := previous.Counts, current.Counts
+	return &magicCensusDelta{
+		Counts: closurescan.CensusCounts{
+			ProductionFiles: right.ProductionFiles - left.ProductionFiles, TestFiles: right.TestFiles - left.TestFiles,
+			NamedConstants: right.NamedConstants - left.NamedConstants, InlineLiterals: right.InlineLiterals - left.InlineLiterals,
+			AssumptionHints: right.AssumptionHints - left.AssumptionHints, TestLiterals: right.TestLiterals - left.TestLiterals,
+			TestFixtures: right.TestFixtures - left.TestFixtures, TestAssertions: right.TestAssertions - left.TestAssertions,
+			TestPolicyCopies: right.TestPolicyCopies - left.TestPolicyCopies,
+			RepeatedGroups:   right.RepeatedGroups - left.RepeatedGroups, RepeatedSites: right.RepeatedSites - left.RepeatedSites,
+		},
+		Pressure: closurescan.ClosurePressure{
+			ActiveDocuments: current.Pressure.ActiveDocuments - previous.Pressure.ActiveDocuments,
+			OpenDocuments:   current.Pressure.OpenDocuments - previous.Pressure.OpenDocuments,
+			StaleBindings:   current.Pressure.StaleBindings - previous.Pressure.StaleBindings,
+		},
+	}
+}
+
+func writeMagicClosureText(output io.Writer, report magicClosureReport, limit int) error {
+	for _, run := range report.Runs {
+		counts, pressure := run.Evidence.Counts, run.Evidence.Pressure
+		fmt.Fprintf(output, "census=%s source=%s catalog=%s sequence=%d\n", run.ID, run.Evidence.Source, run.Evidence.CatalogHead, run.Evidence.CatalogSequence)
+		fmt.Fprintf(output, "counts named=%d inline=%d assumptions=%d test_policy=%d repeated=%d/%d\n",
+			counts.NamedConstants, counts.InlineLiterals, counts.AssumptionHints, counts.TestPolicyCopies, counts.RepeatedGroups, counts.RepeatedSites)
+		fmt.Fprintf(output, "closures active=%d open=%d stale=%d\n", pressure.ActiveDocuments, pressure.OpenDocuments, pressure.StaleBindings)
+		if run.Delta != nil {
+			delta := run.Delta
+			fmt.Fprintf(output, "delta named=%+d inline=%+d assumptions=%+d test_policy=%+d open=%+d stale=%+d\n",
+				delta.Counts.NamedConstants, delta.Counts.InlineLiterals, delta.Counts.AssumptionHints, delta.Counts.TestPolicyCopies,
+				delta.Pressure.OpenDocuments, delta.Pressure.StaleBindings)
+		}
+		for index, owner := range run.Evidence.Owners {
+			if index >= limit {
+				break
+			}
+			fmt.Fprintf(output, "owner=%s decision=%d repeated=%d\n", owner.Package, owner.DecisionSurfaces, owner.RepeatedSites)
+		}
+		for _, row := range run.Evidence.Unresolved {
+			fmt.Fprintf(output, "open=%s tier=%s document=%s bindings=%d\n", row.Name, row.Tier, row.Document, len(row.Bindings))
+		}
+		for _, issue := range run.Evidence.Stale {
+			fmt.Fprintf(output, "stale=%s name=%s file=%s\n", issue.Kind, issue.Name, issue.File)
+		}
+	}
+	return nil
 }
 
 // writeServable renders the discovery predicate owned by internal/discovery.

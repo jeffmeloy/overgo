@@ -38,6 +38,7 @@ type CensusEvidence struct {
 	Owners          []OwnerPressure     `json:"owners"`
 	Pressure        ClosurePressure     `json:"closure_pressure"`
 	Unresolved      []UnresolvedClosure `json:"unresolved"`
+	Stale           []BindingIssue      `json:"stale,omitempty"`
 	ID              artifact.ID         `json:"-"`
 }
 
@@ -51,7 +52,7 @@ func NewCensusEvidence(census Census, head artifact.CommitID, sequence uint64, a
 	evidence := CensusEvidence{
 		Source: census.Source, CatalogHead: head.String(), CatalogSequence: sequence,
 		Counts: census.Counts, Owners: census.Owners,
-		Pressure: ClosurePressure{ActiveDocuments: len(active), StaleBindings: len(stale)},
+		Pressure: ClosurePressure{ActiveDocuments: len(active), StaleBindings: len(stale)}, Stale: stale,
 	}
 	for _, document := range active {
 		if document.Status != closureledger.StatusOpen {
@@ -99,7 +100,7 @@ func validateCensusEvidence(value *CensusEvidence) error {
 	}
 	if named != value.Counts.NamedConstants || inline != value.Counts.InlineLiterals || assumptions != value.Counts.AssumptionHints ||
 		policy != value.Counts.TestPolicyCopies || groups != value.Counts.RepeatedGroups || sites != value.Counts.RepeatedSites ||
-		len(value.Unresolved) != value.Pressure.OpenDocuments {
+		len(value.Unresolved) != value.Pressure.OpenDocuments || len(value.Stale) != value.Pressure.StaleBindings {
 		return errors.New("closure scan: inconsistent census evidence")
 	}
 	for _, row := range value.Unresolved {
@@ -123,6 +124,7 @@ func digest(value string) bool {
 func cloneCensusEvidence(value CensusEvidence) CensusEvidence {
 	value.Owners = slices.Clone(value.Owners)
 	value.Unresolved = slices.Clone(value.Unresolved)
+	value.Stale = slices.Clone(value.Stale)
 	for index := range value.Unresolved {
 		value.Unresolved[index].Bindings = slices.Clone(value.Unresolved[index].Bindings)
 	}

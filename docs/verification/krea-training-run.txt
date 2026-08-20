@@ -1,0 +1,25 @@
+overgo training verification run
+tool: cmd/flow-organ-train-probe -organ denoiser-final, bounded observed
+smoke with first-step projection guard
+verifying commit: d5d14d371239ae6bb441cbac8f4192d24d388386 (recorded by the gate binding this file)
+model: Krea-2-Turbo MMDiT output head via its own tensor shapes --
+411,712 trainable parameters (last.norm.scale 6144, last.modulation.lin
+2x6144, last.linear 64x6144 + bias), F32 serving storage packed directly
+trainer: internal/latentimage FinalLayerTrainer -- the host reference's
+final-layer math (zero-centered RMSNorm, AdaLN affine from time embedding
+plus the learned table, linear to patch velocity), gradients
+finite-difference proven across all four tensor groups, over
+optimizer.NewStepper (shared CUDA Muon); hyperparameters fully DERIVED:
+base LR n_params^-1/2 = 1.558e-03, momentum = 0.9355
+dataset: deterministic committed probe stimulus
+(docs/verification/krea-training-stimulus.txt) -- probe stimulus, not
+pipeline data, stated plainly
+steps: 3, observed loss/grad/wall per step
+measured wall_ns: 420000000 (steps 146ms / 134ms / 139ms; load 95ms)
+loss: 4.711603 -> 3.969424 -> 3.295995, after-evaluation 2.690138
+(monotone descent; grad_l2 6.079 -> 5.045)
+notes: organ-scope claim for a family the archaeology found never-trained
+anywhere -- this is Krea's first training evidence. Full-denoiser
+flow-matching training (24-block MMDiT backward) is the named promotion
+gate closing refusal finding 5d2ab94c's route. context_tokens 0
+(non-token objective); peak device memory not instrumented -- wall-only.

@@ -1,0 +1,23 @@
+{
+ "model": "model:sha256:78bbf8f4165eda19cea3cb06c78089221932a39e2eed8af9da741f942c47ffb3",
+ "name": "Krea-2-Turbo",
+ "evidence_files": [
+  "docs/verification/krea-training-run.txt"
+ ],
+ "dataset_files": [
+  "docs/verification/krea-training-stimulus.txt"
+ ],
+ "claims": [
+  {
+   "capability": "training",
+   "tier": "real-artifact-smoke",
+   "commit": "d5d14d371239ae6bb441cbac8f4192d24d388386",
+   "dataset": "dataset-shard:sha256:93a215f0d64b59fbd72a37a84d1dd3f2e9eb57bf9cdf453067dedbad625a9330",
+   "span_steps": 3,
+   "wall_ns": 420000000,
+   "evidence": [
+    "evidence:sha256:65b8d0ace5abf07b663622e1f9a08b115070f1f0f726daa9c9f6b1d72f9c6e09"
+   ]
+  }
+ ]
+}

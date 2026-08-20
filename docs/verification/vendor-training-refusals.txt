@@ -54,7 +54,6 @@ for all eight rows.
 
 refused-model: LiveEdit
 refused-model: Wan2.1-T2V-1.3B
-refused-model: Krea-2-Turbo
 refused-model: Bonsai-27B-Q1
 refused-model: Qwen3.5-9B-Q8
 
@@ -99,3 +98,10 @@ the real artifact recurrent gated-delta layer and trains it device-resident
 with derived hyperparameters; the cell records the first training evidence
 for the qwen3_5_hybrid family in either tree. Qwen3.5-9B-Q8 stays refused:
 its Q8 serving artifact is master-weight-lane territory (Bonsai-class).
+
+WITHDRAWN 2026-08-19: Krea-2-Turbo refusal closes -- the family FIRST
+training evidence lands as a real output-head cell (zero-centered RMSNorm +
+AdaLN modulation + velocity linear, 411,712 params, monotone descent,
+derived hyperparameters, FinalLayerTrainer + flow-organ-train-probe -organ
+denoiser-final). Full 24-block MMDiT flow training remains the named
+promotion gate inside the cell evidence.

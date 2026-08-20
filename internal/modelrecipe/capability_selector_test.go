@@ -63,9 +63,10 @@ func TestCapabilityEvidenceSelector(t *testing.T) {
 		}
 		if selected.Activation.Definition.ID != definition.ID ||
 			selected.Program.Definition().ID != definition.ID ||
-			selected.Resources.Model != manifest.ID ||
 			selected.Resources.ArtifactBytes != uint64(len(weights)) ||
-			selected.Resources.Session != recipe.SessionCapacity {
+			len(selected.Resources.Components) != 1 ||
+			selected.Resources.Components[0].Model != manifest.ID ||
+			selected.Resources.Components[0].Session != recipe.SessionCapacity {
 			t.Fatalf("%s selection=%+v", session, selected)
 		}
 		identities[selected.Identity] = struct{}{}

@@ -449,7 +449,7 @@ func executeCapability(
 		if selectErr != nil {
 			return selectErr
 		}
-		if selected.Resources.Model != modelID {
+		if selected.Activation.Definition.Model != modelID {
 			return errors.New("recipe: capability alias differs from loaded model")
 		}
 		program = selected.Program

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/testutil"
@@ -201,8 +202,16 @@ func (m *cachedScalarModel) Close(context.Context) error {
 	return nil
 }
 
-func TestModelSessionDirectorUsesCompiledResourcePlan(t *testing.T) {
+func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 	store, modelID, program := capabilityFixture(t, "cached-scalar-model")
+	resources, err := modelrecipe.CompileComponentSessionPlan(t.Context(), store, program)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resources.Components) != 1 || resources.Components[0].Node != "scalar" ||
+		resources.Components[0].Model != modelID || resources.Components[0].Session != recipe.SessionCapacity {
+		t.Fatalf("capacity resources=%+v", resources)
+	}
 	loads, resets, closes := 0, 0, 0
 	director, err := NewModelSessionDirector[scalarRequest, *cachedScalarModel, int](
 		"scalar", "cuda:0", 1,
@@ -264,6 +273,14 @@ func TestModelSessionDirectorUsesCompiledResourcePlan(t *testing.T) {
 	requestProgram, err := recipe.CompileProgram(requestDefinition, program.Catalog())
 	if err != nil {
 		t.Fatal(err)
+	}
+	requestResources, err := modelrecipe.CompileComponentSessionPlan(t.Context(), store, requestProgram)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(requestResources.Components) != 1 || requestResources.Components[0].Session != recipe.SessionRequest ||
+		requestResources.Identity == resources.Identity {
+		t.Fatalf("request resources=%+v", requestResources)
 	}
 	for range 2 {
 		if _, err := execute(context.Background(), store, "model", modelID, requestProgram, `{"value":6}`); err != nil {

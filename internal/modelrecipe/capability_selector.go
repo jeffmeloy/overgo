@@ -35,7 +35,7 @@ type CapabilityEvidenceSelection struct {
 	Session    SessionSelection
 	Activation Activation
 	Program    recipe.Program
-	Resources  SessionResourcePlan
+	Resources  ComponentSessionPlan
 }
 
 type capabilitySelectionIdentity struct {
@@ -65,11 +65,11 @@ func ResolveCapabilityEvidenceSelector(
 	if err != nil {
 		return CapabilityEvidenceSelection{}, err
 	}
-	resources, err := CompileSessionResourcePlan(ctx, store, program)
+	resources, err := CompileComponentSessionPlan(ctx, store, program)
 	if err != nil {
 		return CapabilityEvidenceSelection{}, err
 	}
-	if selector.Session != SessionSpillover && resources.Session != recipe.SessionCapacity {
+	if selector.Session != SessionSpillover && resources.RequestScoped() {
 		return CapabilityEvidenceSelection{}, errors.New("model recipe: retained selector requires capacity session")
 	}
 	identity, err := artifact.JSONID(artifact.KindProfile, capabilitySelectionIdentity{

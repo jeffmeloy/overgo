@@ -288,7 +288,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 		return zero, errors.Join(errors.New("capability runtime: invalid execution policy"), err)
 	}
 	definition := program.Definition()
-	resources, err := modelrecipe.CompileSessionResourcePlan(ctx, store, program)
+	resources, err := modelrecipe.CompileComponentSessionPlan(ctx, store, program)
 	if err != nil {
 		return zero, err
 	}
@@ -316,7 +316,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 		)
 		if executeErr != nil {
 			err = c.retire(ctx, key, entry, executeErr)
-		} else if resources.Session == recipe.SessionRequest {
+		} else if resources.RequestScoped() {
 			err = c.retire(ctx, key, entry, nil)
 		}
 		return output, err

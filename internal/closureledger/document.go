@@ -10,7 +10,6 @@ import (
 	"path"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -191,8 +190,7 @@ func validBinding(binding SourceBinding) bool {
 }
 
 func bindingKey(binding SourceBinding) string {
-	return binding.Package + "\x00" + binding.File + "\x00" + binding.Scope + "\x00" +
-		strconv.Itoa(binding.Line) + "\x00" + binding.Name + "\x00" + binding.SourceID
+	return bindingDeclarationKey(binding) + "\x00" + binding.SourceID
 }
 
 func canonicalValue(value json.RawMessage) (json.RawMessage, error) {

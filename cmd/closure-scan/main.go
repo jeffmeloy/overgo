@@ -1,9 +1,4 @@
-// closure-scan: the native magic baseline tool (floor component 5, Automation
-// Doctrine Layer 6). Report mode ranks overgo's numeric constants as closure
-// candidates; -triage mode emits selected constants as closure-ledger
-// documents in the store, owned and pinned by their declaring source file.
-// The scan core lives in internal/closurescan, shared with the gate's magic
-// step. Full catalog is ongoing triage; this tool is the mechanism.
+// closure-scan: numeric-policy census and exact evidence publication.
 package main
 
 import (
@@ -207,12 +202,18 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 	for _, row := range candidates {
 		byKey[row.DeclarationKey()] = row
 	}
-	// Content-derived batch key: identical triage re-emits idempotently,
-	// different triage gets its own key (a fixed key collided on the second
-	// ever emit).
-	digest := sha256.Sum256(raw)
-	batch := artifact.Batch{Key: "closure-scan/" + hex.EncodeToString(digest[:8])}
+	store, err := repodb.Open(filepath.Join(root, storePath))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	batch := artifact.Batch{}
 	fileIDs := map[string]artifact.ID{}
+	type publishedBinding struct {
+		binding closureledger.SourceBinding
+		value   json.RawMessage
+	}
+	published := make([]publishedBinding, 0, len(triage.Rows))
 	for _, row := range triage.Rows {
 		found, ok := byKey[(closurescan.Candidate{
 			File: row.File, Scope: row.Scope, Line: row.Line, Name: row.Name,
@@ -235,14 +236,16 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 		if err != nil || !json.Valid(valueJSON) {
 			valueJSON, _ = json.Marshal(found.Value) // composite expressions pin as strings
 		}
+		binding := closureledger.SourceBinding{
+			Kind: closureledger.BindingConstant, Package: found.Package, File: found.File,
+			Scope: found.Scope, Name: found.Name, Line: found.Line,
+			Expression: found.Expression, SourceID: found.SourceID, Owner: fileID,
+		}
 		document, err := closureledger.New(
 			row.Name, valueJSON,
 			closureledger.Tier(row.Tier), closureledger.Status(row.Status),
-			row.Understanding, []closureledger.SourceBinding{{
-				Kind: closureledger.BindingConstant, Package: found.Package, File: found.File,
-				Scope: found.Scope, Name: found.Name, Line: found.Line,
-				Expression: found.Expression, SourceID: found.SourceID, Owner: fileID,
-			}}, row.ClosurePath, row.RerankTrigger, fileID,
+			row.Understanding, []closureledger.SourceBinding{binding},
+			row.ClosurePath, row.RerankTrigger, fileID,
 		)
 		if err != nil {
 			return fmt.Errorf("row %s: %w", row.Name, err)
@@ -253,15 +256,37 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 		}
 		batch.Contents = append(batch.Contents, content)
 		batch.Lineage = append(batch.Lineage, document.Lineage()...)
+		alias, err := closureledger.ActiveAlias(binding)
+		if err != nil {
+			return err
+		}
+		active := artifact.AliasBinding{Name: alias, Target: document.ID}
+		if previous, exists, err := artifact.ResolveAlias(context.Background(), store, alias); err != nil {
+			return err
+		} else if exists {
+			active.Previous = &previous
+		}
+		batch.Aliases = append(batch.Aliases, active)
+		published = append(published, publishedBinding{binding: binding, value: valueJSON})
 	}
-	store, err := repodb.Open(filepath.Join(root, storePath))
+	encoded, err := json.Marshal(batch)
 	if err != nil {
 		return err
 	}
-	defer store.Close()
+	digest := sha256.Sum256(encoded)
+	batch.Key = "closure-scan/" + hex.EncodeToString(digest[:])
 	commit, err := store.Commit(context.Background(), batch)
 	if err != nil {
 		return err
+	}
+	for _, row := range published {
+		_, found, err := closureledger.ResolveActiveBinding(context.Background(), store, row.binding, row.value)
+		if err != nil {
+			return fmt.Errorf("verify active binding %s: %w", row.binding.Name, err)
+		}
+		if !found {
+			return fmt.Errorf("verify active binding %s: absent", row.binding.Name)
+		}
 	}
 	fmt.Printf("emitted %d closure documents (%d owner files) commit %x\n",
 		len(triage.Rows), len(fileIDs), commit[:8])

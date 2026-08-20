@@ -118,6 +118,118 @@ func TestPublicationRequiresStoredOwnerAndFixture(t *testing.T) {
 	}
 }
 
+func TestActiveBindingsResolveExactOwnerAndValue(t *testing.T) {
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	owner := testutil.ArtifactID(t, artifact.KindFile, "owner")
+	fixture := testutil.ArtifactID(t, artifact.KindEvidence, "fixture")
+	binding := testSourceBinding(owner)
+	other := binding
+	other.File = "internal/cache/other.go"
+	alias, err := ActiveAlias(binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherAlias, err := ActiveAlias(other)
+	if err != nil || alias == otherAlias {
+		t.Fatalf("source aliases = (%q, %q, %v)", alias, otherAlias, err)
+	}
+	document := publishActiveDocument(t, ctx, store, binding, fixture, json.RawMessage(`256`), nil)
+
+	loaded, found, err := ResolveActiveBinding(ctx, store, binding, json.RawMessage(` 256 `))
+	if err != nil || !found || loaded.ID != document.ID {
+		t.Fatalf("active binding = (%s, %t, %v), want %s", loaded.ID, found, err, document.ID)
+	}
+}
+
+func TestActiveBindingsRejectAmbiguousOrStaleRows(t *testing.T) {
+	t.Run("stale source", func(t *testing.T) {
+		ctx, store, binding, fixture := activeFixture(t)
+		publishActiveDocument(t, ctx, store, binding, fixture, json.RawMessage(`256`), nil)
+		digest := sha256.Sum256([]byte("stale source"))
+		binding.SourceID = hex.EncodeToString(digest[:])
+		if _, found, err := ResolveActiveBinding(ctx, store, binding, json.RawMessage(`256`)); err == nil || found {
+			t.Fatalf("stale source = (%t, %v)", found, err)
+		}
+	})
+	t.Run("stale value", func(t *testing.T) {
+		ctx, store, binding, fixture := activeFixture(t)
+		publishActiveDocument(t, ctx, store, binding, fixture, json.RawMessage(`256`), nil)
+		if _, found, err := ResolveActiveBinding(ctx, store, binding, json.RawMessage(`512`)); err == nil || found {
+			t.Fatalf("stale value = (%t, %v)", found, err)
+		}
+	})
+	t.Run("ambiguous declaration", func(t *testing.T) {
+		ctx, store, binding, fixture := activeFixture(t)
+		other := binding
+		digest := sha256.Sum256([]byte("revised source"))
+		other.SourceID = hex.EncodeToString(digest[:])
+		other.Owner = testutil.ArtifactID(t, artifact.KindFile, "other owner")
+		publishActiveDocument(t, ctx, store, binding, fixture, json.RawMessage(`256`), &other)
+		if _, found, err := ResolveActiveBinding(ctx, store, binding, json.RawMessage(`256`)); err == nil || found {
+			t.Fatalf("ambiguous declaration = (%t, %v)", found, err)
+		}
+	})
+}
+
+func activeFixture(t *testing.T) (context.Context, *repodb.Store, SourceBinding, artifact.ID) {
+	t.Helper()
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	owner := testutil.ArtifactID(t, artifact.KindFile, "owner")
+	return ctx, store, testSourceBinding(owner), testutil.ArtifactID(t, artifact.KindEvidence, "fixture")
+}
+
+func publishActiveDocument(
+	t *testing.T,
+	ctx context.Context,
+	store *repodb.Store,
+	binding SourceBinding,
+	fixture artifact.ID,
+	value json.RawMessage,
+	extra *SourceBinding,
+) Document {
+	t.Helper()
+	bindings := []SourceBinding{binding}
+	artifacts := []artifact.Descriptor{{ID: binding.Owner}, {ID: fixture}}
+	if extra != nil {
+		bindings = append(bindings, *extra)
+		artifacts = append(artifacts, artifact.Descriptor{ID: extra.Owner})
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "active/dependencies", Artifacts: artifacts}); err != nil {
+		t.Fatal(err)
+	}
+	document, err := New(
+		"decode.page_size", value, TierImplementation, StatusClosed,
+		"Fixed cache-page implementation contract.", bindings,
+		"Fixed-capacity append validates page geometry.",
+		"Re-evaluate when page geometry changes.", fixture,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	alias, err := ActiveAlias(binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := document.Batch("active/document", &artifact.AliasBinding{Name: alias, Target: document.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		t.Fatal(err)
+	}
+	return document
+}
+
 func testSourceBinding(owner artifact.ID) SourceBinding {
 	digest := sha256.Sum256([]byte("internal/cache/page.go"))
 	return SourceBinding{

@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "active-query",
-          "title": "Add one canonical active-binding query keyed by source identity rather than symbol name",
-          "status": "open",
-          "verify": "go test ./internal/closureledger -run '^(TestActiveBindingsResolveExactOwnerAndValue|TestActiveBindingsRejectAmbiguousOrStaleRows)$' -count=1",
-          "rationale": "The gate currently treats any historical row sharing a symbol name as coverage.",
-          "depends_on": [
-            "magic-ledger-authority/document-contract"
-          ],
-          "capabilities": [
-            "active-alias",
-            "source-value-match",
-            "single-authority"
-          ]
-        },
-        {
           "id": "ledger-migration",
           "title": "Republish existing closure evidence under the exact contract and delete the old reader path",
           "status": "open",

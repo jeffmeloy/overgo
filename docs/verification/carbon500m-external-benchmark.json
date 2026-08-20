@@ -1,0 +1,23 @@
+{
+ "model": "model:sha256:e257506988203fdb8bb46976ee81c97e24f29073754bbff70137c7704dbadaa8",
+ "name": "Carbon-500M-HF",
+ "model_file": "C:/Users/jeffm/adaptive_new/models/Carbon-500M/model.safetensors",
+ "evidence_files": [
+  "docs/verification/carbon500m-external-mmlu-abstract-algebra.json"
+ ],
+ "dataset_files": [
+  "C:/Users/jeffm/eval/datasets/cais___mmlu/abstract_algebra/0.0.0/c30699e8356da336a370243923dbaf21066bb9fe/mmlu-test.arrow"
+ ],
+ "claims": [
+  {
+   "capability": "benchmark",
+   "tier": "capability-measured",
+   "commit": "342a69f66c67d877f113123b28cf7c6c1725175d",
+   "dataset": "dataset-shard:sha256:188d54be8bce5b30231f8e559ed5b9d0f6031db5d059c87438da3e1f3c135c41",
+   "wall_ns": 27663428200,
+   "evidence": [
+    "evidence:sha256:46f8e57eb43aff7d21c2b66319682565df3d2e838ae6de4c0de17ca2499af886"
+   ]
+  }
+ ]
+}

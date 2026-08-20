@@ -1,0 +1,39 @@
+{
+ "schema": "overgo/external-benchmark-evidence/v1",
+ "model": {
+  "name": "MiniCPM5-1B-HF",
+  "path": "C:/Users/jeffm/adaptive_new/models/MiniCPM5-1B",
+  "weights_sha256": "7ab8fd86563125929be78aeec8cb3969c7ed2ead3be1ab9d3ec0a9fa69c8660d",
+  "weights_file": "model-00000-of-00001.safetensors",
+  "config_sha256": "94ae6a2dabfe35837d59f81b31aef7dc4ea21698b6877ab5cc8c95ddd1de92f4",
+  "tokenizer_sha256": "32427a1cdc6803fe2ebb730c4fa867cef086d764323a4dbf7199e029ee66ca55"
+ },
+ "tool": {
+  "name": "lm-evaluation-harness",
+  "version": "0.4.9.1",
+  "transformers": "4.57.1",
+  "torch": "2.6.0+cu124",
+  "python": "3.13.5",
+  "cuda": "12.4",
+  "device": "NVIDIA GeForce RTX 4090 D"
+ },
+ "task": {
+  "name": "mmlu_abstract_algebra",
+  "fewshot": 0,
+  "cases": 100,
+  "definition_sha256": "f026cc8918a0a4a422af4286e22889de6f423483671975fdd5429c96c0d0d9ef",
+  "definition_file": "lm_eval/tasks/mmlu/default/mmlu_abstract_algebra.yaml",
+  "template_sha256": "a0997593bf94f52cc87eb1f9b621f52613a6c60f1fb48775b0926104fd385122",
+  "template_file": "lm_eval/tasks/mmlu/default/_default_template_yaml",
+  "hash_method": "sha256 of the installed file bytes",
+  "dataset_revision": "c30699e8356da336a370243923dbaf21066bb9fe",
+  "test_split_sha256": "188d54be8bce5b30231f8e559ed5b9d0f6031db5d059c87438da3e1f3c135c41"
+ },
+ "invocation": "C:/Users/jeffm/eval/env/Scripts/python.exe C:/Users/jeffm/eval/eval_single_model.py --model C:/Users/jeffm/adaptive_new/models/MiniCPM5-1B --model_name MiniCPM5-1B-HF --config C:/Users/jeffm/eval/overgo_minicpm5_benchmark.yaml --output_dir C:/Users/jeffm/eval/overgo_minicpm5_benchmark_results",
+ "result": {
+  "accuracy": 0.35,
+  "accuracy_standard_error": 0.04793724854411023,
+  "raw_results_sha256": "5a842585b21def2d223b8807b9c07aec7c841f8477e2f535ee2f34f06a8c1318",
+  "wall_ns": 15157977700
+ }
+}

@@ -1,0 +1,12 @@
+overgo denoiser-final training stimulus declaration
+generator: xorshift32 (x ^= x<<13; x ^= x>>17; x ^= x<<5), seed 88675123
+draw: hidden rows (rows*6144 values, scaled 0.5), then interleaved z/target
+draws; temb reuses the z draw cyclically scaled 0.5; targets unit scale;
+values mapped as (seed mod 2000)/1000 - 1
+rows: 8; hidden: 6144; head out: 64 (patch velocity width); rms eps 1e-6
+objective: velocity MSE through the exact final-layer math the host
+reference computes (zero-centered RMSNorm, AdaLN affine of temb plus the
+learned modulation table, linear head)
+consumer: cmd/flow-organ-train-probe -organ denoiser-final, which embeds
+the same constants; this document is the committed dataset declaration the
+Krea-2-Turbo training claim grounds as its shard.

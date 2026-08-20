@@ -61,6 +61,143 @@ type rawLiteralGroup struct {
 	policy    int
 }
 
+type LiteralContext string
+
+const (
+	LiteralComparison LiteralContext = "comparison"
+	LiteralCall       LiteralContext = "call_argument"
+	LiteralComposite  LiteralContext = "composite_value"
+	LiteralIndex      LiteralContext = "index"
+	LiteralSlice      LiteralContext = "slice_bound"
+	LiteralExtent     LiteralContext = "array_extent"
+	LiteralArithmetic LiteralContext = "arithmetic_operand"
+	LiteralAssignment LiteralContext = "assignment"
+	LiteralReturn     LiteralContext = "return"
+	LiteralCase       LiteralContext = "case"
+	LiteralOther      LiteralContext = "other"
+)
+
+type LiteralSite struct {
+	File       string         `json:"file"`
+	Package    string         `json:"package"`
+	Scope      string         `json:"scope"`
+	Line       int            `json:"line"`
+	Offset     int            `json:"offset"`
+	Kind       string         `json:"kind"`
+	Expression string         `json:"expression"`
+	Value      string         `json:"value"`
+	Context    LiteralContext `json:"context"`
+	SourceID   string         `json:"source_id"`
+}
+
+// CensusLiterals classifies non-const numeric source literals.
+func CensusLiterals(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]LiteralSite, error) {
+	var sites []LiteralSite
+	err := visitProduction(snapshot, relatives, func(source repoanalysis.GoFile, parsed *ast.File) {
+		collectLiteralSites(parsed, source, &sites)
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(sites, func(i, j int) bool {
+		if sites[i].File != sites[j].File {
+			return sites[i].File < sites[j].File
+		}
+		return sites[i].Offset < sites[j].Offset
+	})
+	return sites, nil
+}
+
+func collectLiteralSites(file *ast.File, source repoanalysis.GoFile, out *[]LiteralSite) {
+	parents := map[ast.Node]ast.Node{}
+	var stack []ast.Node
+	ast.Inspect(file, func(node ast.Node) bool {
+		if node == nil {
+			stack = stack[:len(stack)-1]
+			return true
+		}
+		if len(stack) > 0 {
+			parents[node] = stack[len(stack)-1]
+		}
+		stack = append(stack, node)
+		literal, ok := node.(*ast.BasicLit)
+		if !ok || insideConst(node, parents) || literal.Kind != token.INT && literal.Kind != token.FLOAT {
+			return true
+		}
+		expression, parent := ast.Expr(literal), parents[node]
+		if unary, ok := parent.(*ast.UnaryExpr); ok && unary.X == literal {
+			expression, parent = unary, parents[unary]
+		}
+		value, ok := evaluateConstant(expression, nil, nil)
+		if !ok {
+			return true
+		}
+		*out = append(*out, LiteralSite{
+			File: source.Path, Package: filepath.ToSlash(filepath.Dir(source.Path)),
+			Scope: literalScope(node, parents), Line: source.Line(expression.Pos()), Offset: int(expression.Pos()) - 1,
+			Kind: literal.Kind.String(), Expression: formatExpression(expression), Value: value.ExactString(),
+			Context: literalContext(parent, parents), SourceID: source.ContentID,
+		})
+		return true
+	})
+}
+
+func insideConst(node ast.Node, parents map[ast.Node]ast.Node) bool {
+	for node != nil {
+		if generic, ok := node.(*ast.GenDecl); ok {
+			return generic.Tok == token.CONST
+		}
+		node = parents[node]
+	}
+	return false
+}
+
+func literalScope(node ast.Node, parents map[ast.Node]ast.Node) string {
+	for node != nil {
+		if function, ok := node.(*ast.FuncDecl); ok {
+			return functionIdentity(function)
+		}
+		node = parents[node]
+	}
+	return "package"
+}
+
+func literalContext(parent ast.Node, parents map[ast.Node]ast.Node) LiteralContext {
+	for {
+		switch parent.(type) {
+		case *ast.ParenExpr, *ast.UnaryExpr:
+			parent = parents[parent]
+			continue
+		}
+		break
+	}
+	switch typed := parent.(type) {
+	case *ast.BinaryExpr:
+		if typed.Op >= token.EQL && typed.Op <= token.GEQ {
+			return LiteralComparison
+		}
+		return LiteralArithmetic
+	case *ast.CallExpr:
+		return LiteralCall
+	case *ast.CompositeLit, *ast.KeyValueExpr:
+		return LiteralComposite
+	case *ast.IndexExpr, *ast.IndexListExpr:
+		return LiteralIndex
+	case *ast.SliceExpr:
+		return LiteralSlice
+	case *ast.ArrayType:
+		return LiteralExtent
+	case *ast.AssignStmt, *ast.ValueSpec:
+		return LiteralAssignment
+	case *ast.ReturnStmt:
+		return LiteralReturn
+	case *ast.CaseClause:
+		return LiteralCase
+	default:
+		return LiteralOther
+	}
+}
+
 // ScanRoot walks internal/ and cmd/ under root.
 func ScanRoot(root string) ([]Candidate, error) {
 	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
@@ -73,26 +210,11 @@ func ScanRoot(root string) ([]Candidate, error) {
 // ScanSnapshot reuses parsed source and optionally limits findings to paths.
 func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]Candidate, error) {
 	var out []Candidate
-	wanted := map[string]bool{}
-	for _, relative := range relatives {
-		wanted[filepath.ToSlash(relative)] = true
-	}
-	for _, source := range snapshot.Files {
-		if source.Test || len(wanted) > 0 && !wanted[source.Path] {
-			continue
-		}
-		generated, err := source.Generated()
-		if err != nil {
-			return nil, err
-		}
-		if generated {
-			continue
-		}
-		parsed, err := source.Syntax()
-		if err != nil {
-			return nil, err
-		}
+	err := visitProduction(snapshot, relatives, func(source repoanalysis.GoFile, parsed *ast.File) {
 		collect(parsed, source, &out)
+	})
+	if err != nil {
+		return nil, err
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Score != out[j].Score {
@@ -103,27 +225,38 @@ func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]C
 	return out, nil
 }
 
-// RankRawPolicyLiterals finds repeated non-trivial numeric and string literals
-// in function bodies. Indexes, slice/array extents, arithmetic factors, tests,
-// and generated files are excluded to avoid recommending constants for local
-// math or structure facts.
-func RankRawPolicyLiterals(snapshot repoanalysis.SourceSnapshot) ([]RawPolicyLiteral, error) {
-	groups := map[string]*rawLiteralGroup{}
+func visitProduction(snapshot repoanalysis.SourceSnapshot, relatives []string, visit func(repoanalysis.GoFile, *ast.File)) error {
+	wanted := map[string]bool{}
+	for _, relative := range relatives {
+		wanted[filepath.ToSlash(relative)] = true
+	}
 	for _, source := range snapshot.Files {
-		if source.Test {
+		if source.Test || len(wanted) > 0 && !wanted[source.Path] {
 			continue
 		}
 		generated, err := source.Generated()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if generated {
 			continue
 		}
 		parsed, err := source.Syntax()
 		if err != nil {
-			return nil, err
+			return err
 		}
+		visit(source, parsed)
+	}
+	return nil
+}
+
+// RankRawPolicyLiterals finds repeated non-trivial numeric and string literals
+// in function bodies. Indexes, slice/array extents, arithmetic factors, tests,
+// and generated files are excluded to avoid recommending constants for local
+// math or structure facts.
+func RankRawPolicyLiterals(snapshot repoanalysis.SourceSnapshot) ([]RawPolicyLiteral, error) {
+	groups := map[string]*rawLiteralGroup{}
+	err := visitProduction(snapshot, nil, func(source repoanalysis.GoFile, parsed *ast.File) {
 		pkg := filepath.ToSlash(filepath.Dir(source.Path))
 		for _, declaration := range parsed.Decls {
 			function, ok := declaration.(*ast.FuncDecl)
@@ -132,6 +265,9 @@ func RankRawPolicyLiterals(snapshot repoanalysis.SourceSnapshot) ([]RawPolicyLit
 			}
 			collectRawLiterals(function, pkg, source.Path, groups)
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
 	var ranked []RawPolicyLiteral
 	for key, group := range groups {
@@ -195,14 +331,11 @@ func collectRawLiterals(function *ast.FuncDecl, pkg, file string, groups map[str
 
 func rawPolicyValue(literal *ast.BasicLit) bool {
 	switch literal.Kind {
-	case token.INT:
-		value, err := strconv.ParseInt(literal.Value, 0, 64)
-		return err != nil || value > 16
-	case token.FLOAT:
-		return literal.Value != "0.0" && literal.Value != "1.0" && literal.Value != "2.0"
+	case token.INT, token.FLOAT:
+		return true
 	case token.STRING:
 		value, err := strconv.Unquote(literal.Value)
-		return err == nil && len(value) >= 4 && !strings.ContainsAny(value, "%\r\n \t")
+		return err == nil && value != "" && !strings.ContainsAny(value, "%\r\n\t")
 	default:
 		return false
 	}

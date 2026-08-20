@@ -45,10 +45,14 @@ func main() {
 	storePath := flag.String("store", "repodb-store", "RepoDB store directory (emit mode)")
 	limit := flag.Int("limit", 40, "report mode: top-N candidates to print")
 	raw := flag.Bool("raw", false, "rank repeated raw policy literals instead of declared constants")
+	literals := flag.Bool("literals", false, "report classified production literals instead of declared constants")
 	flag.Parse()
 	root, err := os.Getwd()
 	if err != nil {
 		fatal(err)
+	}
+	if *raw && *literals {
+		fatal(fmt.Errorf("-raw and -literals are mutually exclusive"))
 	}
 	if *raw {
 		ranked, err := closurescan.RankRawPolicyLiterals(mustSnapshot(root))
@@ -56,6 +60,14 @@ func main() {
 			fatal(err)
 		}
 		reportRaw(ranked, *limit)
+		return
+	}
+	if *literals {
+		sites, err := closurescan.CensusLiterals(mustSnapshot(root), nil)
+		if err != nil {
+			fatal(err)
+		}
+		reportLiterals(sites, *limit)
 		return
 	}
 	candidates, err := closurescan.ScanRoot(root)
@@ -68,6 +80,18 @@ func main() {
 	}
 	if err := emit(root, *storePath, *triagePath, candidates); err != nil {
 		fatal(err)
+	}
+}
+
+func reportLiterals(sites []closurescan.LiteralSite, limit int) {
+	fmt.Printf("closure-scan: %d classified production numeric literals (named constants excluded)\n", len(sites))
+	fmt.Printf("%-18s %-16s %-24s %s\n", "context", "value", "scope", "source")
+	for index, site := range sites {
+		if index >= limit {
+			fmt.Printf("... %d more (raise -limit)\n", len(sites)-limit)
+			break
+		}
+		fmt.Printf("%-18s %-16s %-24s %s:%d\n", site.Context, site.Value, site.Scope, site.File, site.Line)
 	}
 }
 

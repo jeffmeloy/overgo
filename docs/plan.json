@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "literal-census",
-          "title": "Classify every production inline literal without magnitude heuristics",
-          "status": "open",
-          "verify": "go test ./internal/closurescan -run '^(TestLiteralCensusAccountsForEveryProductionLiteral|TestLiteralClassificationUsesSyntaxAndOwnership)$' -count=1",
-          "rationale": "Repeated-literal ranking misses singleton policy decisions and currently excludes values through arbitrary magnitude rules.",
-          "depends_on": [
-            "magic-source-authority/candidate-identity"
-          ],
-          "capabilities": [
-            "inline-census",
-            "typed-disposition",
-            "no-magnitude-threshold"
-          ]
-        },
-        {
           "id": "test-and-assumption-census",
           "title": "Report test policy duplication and structural distribution assumptions separately",
           "status": "open",

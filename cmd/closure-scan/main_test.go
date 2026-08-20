@@ -42,8 +42,11 @@ func TestCensusReportIsDeterministicAndComplete(t *testing.T) {
 	if !bytes.Equal(firstJSON.Bytes(), secondJSON.Bytes()) || !bytes.Equal(firstText.Bytes(), secondText.Bytes()) {
 		t.Fatal("census rendering is not deterministic")
 	}
-	if first.Schema != closurescan.CensusSchema || first.Source != snapshot.Identity() || len(first.Owners) != 1 || len(first.Repeated) != 1 {
+	if first.Schema != closurescan.CensusSchema || first.Source != snapshot.Identity() || len(first.Owners) != 1 || len(first.Files) != 2 || len(first.Repeated) != 1 {
 		t.Fatalf("census = %+v", first)
+	}
+	if first.Files[0].File != "internal/policy.go" || first.Files[0].Test || first.Files[1].File != "internal/policy_test.go" || !first.Files[1].Test {
+		t.Fatalf("file queue = %+v", first.Files)
 	}
 }
 
@@ -66,6 +69,39 @@ func TestCensusCountsReconcile(t *testing.T) {
 		policy != want.TestPolicyCopies || groups != want.RepeatedGroups || sites != want.RepeatedSites ||
 		want.TestLiterals != want.TestFixtures+want.TestAssertions+want.TestPolicyCopies {
 		t.Fatalf("owner totals=(%d,%d,%d,%d,%d,%d), counts=%+v", named, inline, assumptions, policy, groups, sites, want)
+	}
+}
+
+func TestCensusFileQueueReconcilesEverySource(t *testing.T) {
+	report, err := closurescan.BuildCensus(censusSnapshot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var production, tests, named, inline, assumptions, testLiterals, fixtures, assertions, policy int
+	seen := map[string]bool{}
+	for _, file := range report.Files {
+		if seen[file.File] || file.DecisionSurfaces != file.NamedConstants+file.InlineLiterals+file.AssumptionHints+file.TestPolicyCopies {
+			t.Fatalf("invalid file row: %+v", file)
+		}
+		seen[file.File] = true
+		if file.Test {
+			tests++
+		} else {
+			production++
+		}
+		named += file.NamedConstants
+		inline += file.InlineLiterals
+		assumptions += file.AssumptionHints
+		testLiterals += file.TestLiterals
+		fixtures += file.TestFixtures
+		assertions += file.TestAssertions
+		policy += file.TestPolicyCopies
+	}
+	want := report.Counts
+	if production != want.ProductionFiles || tests != want.TestFiles || named != want.NamedConstants || inline != want.InlineLiterals ||
+		assumptions != want.AssumptionHints || testLiterals != want.TestLiterals || fixtures != want.TestFixtures ||
+		assertions != want.TestAssertions || policy != want.TestPolicyCopies {
+		t.Fatalf("file totals=(%d,%d,%d,%d,%d,%d,%d,%d,%d), counts=%+v", production, tests, named, inline, assumptions, testLiterals, fixtures, assertions, policy, want)
 	}
 }
 

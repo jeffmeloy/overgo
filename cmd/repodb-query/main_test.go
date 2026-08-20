@@ -121,9 +121,13 @@ func TestMagicClosureQueries(t *testing.T) {
 func magicCensusFixture(source string, named, inline int) closurescan.Census {
 	return closurescan.Census{
 		Schema: closurescan.CensusSchema, Source: source,
-		Counts: closurescan.CensusCounts{NamedConstants: named, InlineLiterals: inline},
+		Counts: closurescan.CensusCounts{ProductionFiles: 1, NamedConstants: named, InlineLiterals: inline},
 		Owners: []closurescan.OwnerPressure{{
 			Package: "internal/policy", DecisionSurfaces: named + inline,
+			NamedConstants: named, InlineLiterals: inline,
+		}},
+		Files: []closurescan.FilePressure{{
+			File: "internal/policy/policy.go", Package: "internal/policy", DecisionSurfaces: named + inline,
 			NamedConstants: named, InlineLiterals: inline,
 		}},
 	}

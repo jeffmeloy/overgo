@@ -13,7 +13,7 @@ import (
 
 const (
 	CensusEvidenceMediaType = "application/vnd.overgo.magic-census+json"
-	CensusEvidenceSchema    = "overgo/magic-census-evidence/v1"
+	CensusEvidenceSchema    = "overgo/magic-census-evidence/v2"
 	CensusEvidenceAlias     = "closure/census/latest"
 )
 
@@ -36,6 +36,7 @@ type CensusEvidence struct {
 	CatalogSequence uint64              `json:"catalog_sequence"`
 	Counts          CensusCounts        `json:"counts"`
 	Owners          []OwnerPressure     `json:"owners"`
+	Files           []FilePressure      `json:"files"`
 	Pressure        ClosurePressure     `json:"closure_pressure"`
 	Unresolved      []UnresolvedClosure `json:"unresolved"`
 	Stale           []BindingIssue      `json:"stale,omitempty"`
@@ -51,7 +52,7 @@ var censusEvidenceCodec = artifact.JSONDocumentCodec(
 func NewCensusEvidence(census Census, head artifact.CommitID, sequence uint64, active []closureledger.Document, stale []BindingIssue) (CensusEvidence, error) {
 	evidence := CensusEvidence{
 		Source: census.Source, CatalogHead: head.String(), CatalogSequence: sequence,
-		Counts: census.Counts, Owners: census.Owners,
+		Counts: census.Counts, Owners: census.Owners, Files: census.Files,
 		Pressure: ClosurePressure{ActiveDocuments: len(active), StaleBindings: len(stale)}, Stale: stale,
 	}
 	for _, document := range active {
@@ -103,6 +104,9 @@ func validateCensusEvidence(value *CensusEvidence) error {
 		len(value.Unresolved) != value.Pressure.OpenDocuments || len(value.Stale) != value.Pressure.StaleBindings {
 		return errors.New("closure scan: inconsistent census evidence")
 	}
+	if err := validateFilePressure(value.Files, value.Counts); err != nil {
+		return err
+	}
 	for _, row := range value.Unresolved {
 		hasBinding := false
 		for range row.Bindings {
@@ -123,10 +127,56 @@ func digest(value string) bool {
 
 func cloneCensusEvidence(value CensusEvidence) CensusEvidence {
 	value.Owners = slices.Clone(value.Owners)
+	value.Files = slices.Clone(value.Files)
 	value.Unresolved = slices.Clone(value.Unresolved)
 	value.Stale = slices.Clone(value.Stale)
 	for index := range value.Unresolved {
 		value.Unresolved[index].Bindings = slices.Clone(value.Unresolved[index].Bindings)
 	}
 	return value
+}
+
+func validateFilePressure(files []FilePressure, counts CensusCounts) error {
+	var production, tests, named, inline, assumptions, testLiterals, fixtures, assertions, policy int
+	seen := make(map[string]bool, len(files))
+	var previous FilePressure
+	hasPrevious := false
+	for _, file := range files {
+		if file.File == "" || seen[file.File] || file.DecisionSurfaces != file.NamedConstants+file.InlineLiterals+file.AssumptionHints+file.TestPolicyCopies {
+			return errors.New("closure scan: invalid file pressure")
+		}
+		if hasPrevious && lessFilePressure(previous, file) {
+			return errors.New("closure scan: unordered file pressure")
+		}
+		previous, hasPrevious = file, true
+		seen[file.File] = true
+		if file.Test {
+			tests++
+		} else {
+			production++
+		}
+		named += file.NamedConstants
+		inline += file.InlineLiterals
+		assumptions += file.AssumptionHints
+		testLiterals += file.TestLiterals
+		fixtures += file.TestFixtures
+		assertions += file.TestAssertions
+		policy += file.TestPolicyCopies
+	}
+	if production != counts.ProductionFiles || tests != counts.TestFiles || named != counts.NamedConstants ||
+		inline != counts.InlineLiterals || assumptions != counts.AssumptionHints || testLiterals != counts.TestLiterals ||
+		fixtures != counts.TestFixtures || assertions != counts.TestAssertions || policy != counts.TestPolicyCopies {
+		return errors.New("closure scan: inconsistent file pressure")
+	}
+	return nil
+}
+
+func lessFilePressure(left, right FilePressure) bool {
+	if left.DecisionSurfaces != right.DecisionSurfaces {
+		return left.DecisionSurfaces < right.DecisionSurfaces
+	}
+	if left.RepeatedGroups != right.RepeatedGroups {
+		return left.RepeatedGroups < right.RepeatedGroups
+	}
+	return left.File > right.File
 }

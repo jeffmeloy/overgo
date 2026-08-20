@@ -307,6 +307,17 @@ func writeCensusText(destination io.Writer, census closurescan.Census, limit int
 			return err
 		}
 	}
+	if _, err := fmt.Fprintln(destination, "files decision repeated test source"); err != nil {
+		return err
+	}
+	for index, file := range census.Files {
+		if index >= limit {
+			break
+		}
+		if _, err := fmt.Fprintf(destination, "%d %d %t %s\n", file.DecisionSurfaces, file.RepeatedGroups, file.Test, file.File); err != nil {
+			return err
+		}
+	}
 	if _, err := fmt.Fprintln(destination, "candidates score count package value"); err != nil {
 		return err
 	}

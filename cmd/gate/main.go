@@ -1244,10 +1244,15 @@ func (g *gateContext) stepMagics() (bool, error) {
 	}
 	catalogued, err := activeMagicBindings(g.repo, g.storePath, snapshot, candidates)
 	if err != nil {
-		g.honesty = append(g.honesty, "magic scan: ledger unreadable ("+err.Error()+"); constants unchecked")
-		return false, nil
+		return false, err
 	}
-	g.honesty = append(g.honesty, magicDiagnostics(candidates, baseline, catalogued)...)
+	diagnostic, err := admitMagicDelta(candidates, baseline, catalogued)
+	if diagnostic != "" {
+		g.honesty = append(g.honesty, diagnostic)
+	}
+	if err != nil {
+		return false, err
+	}
 	return false, nil
 }
 
@@ -1276,37 +1281,32 @@ func magicCandidatesAtHEAD(repo string, snapshot repoanalysis.SourceSnapshot, pa
 	return closurescan.ScanSnapshot(baseline, paths)
 }
 
-func magicDiagnostics(current, baseline []closurescan.Candidate, catalogued map[string]bool) []string {
+func admitMagicDelta(current, baseline []closurescan.Candidate, catalogued map[string]bool) (string, error) {
 	previous := map[string]bool{}
 	for _, candidate := range baseline {
-		previous[candidate.ExactKey()] = true
+		previous[candidate.DecisionKey()] = true
 	}
-	var lines []string
 	inherited := 0
 	for _, candidate := range current {
 		if catalogued[candidate.ExactKey()] {
 			continue
 		}
-		key := candidate.ExactKey()
-		if previous[key] {
+		if previous[candidate.DecisionKey()] {
 			inherited++
 			continue
 		}
-		lines = append(lines, fmt.Sprintf(
-			"new uncatalogued constant %s=%s (%s) — triage via closure-scan",
+		return "", fmt.Errorf(
+			"magic scan: new or changed uncatalogued constant %s=%s (%s)",
 			candidate.Name, candidate.Value, candidate.File,
-		))
+		)
 	}
 	if inherited > 0 {
-		lines = append(lines, fmt.Sprintf(
+		return fmt.Sprintf(
 			"magic backlog: %d inherited uncatalogued constant(s) in touched files; run closure-scan for ranked detail",
 			inherited,
-		))
+		), nil
 	}
-	if len(lines) == 0 {
-		lines = append(lines, fmt.Sprintf("magic scan: %d constant(s) in scope, all catalogued", len(current)))
-	}
-	return lines
+	return fmt.Sprintf("magic scan: %d constant(s) in scope, all catalogued", len(current)), nil
 }
 
 func activeMagicBindings(

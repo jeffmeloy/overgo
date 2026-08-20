@@ -20,8 +20,9 @@ func IsActiveAlias(name string) bool {
 	if !strings.HasPrefix(name, activeAliasPrefix) {
 		return false
 	}
-	digest, err := hex.DecodeString(strings.TrimPrefix(name, activeAliasPrefix))
-	return err == nil && len(digest) == sha256.Size
+	encoded := strings.TrimPrefix(name, activeAliasPrefix)
+	digest, err := hex.DecodeString(encoded)
+	return err == nil && len(digest) == sha256.Size && hex.EncodeToString(digest) == encoded
 }
 
 // ActiveAlias identifies one source declaration across evidence revisions.

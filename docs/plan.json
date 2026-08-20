@@ -8,20 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "gate-refusal",
-          "title": "Replace advisory name matching with refusal for new, changed, stale, or unreadable bindings",
-          "status": "open",
-          "verify": "go test ./cmd/gate -run '^(TestMagicGateRejectsUncataloguedChangedAndStaleBindings|TestMagicGateFailsClosedWhenLedgerUnavailable)$' -count=1",
-          "rationale": "The current honesty line allows precisely the drift the campaign is intended to prevent.",
-          "depends_on": [
-            "magic-drift-gate/validator"
-          ],
-          "capabilities": [
-            "fail-closed-gate",
-            "baseline-aware-admission"
-          ]
-        },
-        {
           "id": "delta-ratchets",
           "title": "Reject increases in uncatalogued named, inline, test-policy, and assumption surfaces",
           "status": "open",

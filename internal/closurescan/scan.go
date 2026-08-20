@@ -52,6 +52,10 @@ func (c Candidate) ExactKey() string {
 	return c.DeclarationKey() + "\x00" + c.Expression + "\x00" + c.Value + "\x00" + c.SourceID + "\x00" + c.CallsiteID
 }
 
+func (c Candidate) DecisionKey() string {
+	return c.Package + "\x00" + c.File + "\x00" + c.Scope + "\x00" + c.Name + "\x00" + c.Expression + "\x00" + c.Value
+}
+
 func (c Candidate) ValueJSON() json.RawMessage {
 	value, err := json.Marshal(json.Number(c.Value))
 	if err == nil {

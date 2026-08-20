@@ -2,10 +2,12 @@
  "model": "model:sha256:809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4",
  "name": "Qwen3.5-9B-Q8",
  "evidence_files": [
-  "docs/verification/qwen35-9b-training-run.txt"
+  "docs/verification/qwen35-9b-training-run.txt",
+  "docs/verification/qwen35-9b-fullstack-training-run.txt"
  ],
  "dataset_files": [
-  "docs/verification/qwen35-9b-training-stimulus.txt"
+  "docs/verification/qwen35-9b-training-stimulus.txt",
+  "fixtures/qwen35_9b_serving_smoke.json"
  ],
  "claims": [
   {
@@ -17,6 +19,20 @@
    "wall_ns": 10178000000,
    "evidence": [
     "evidence:sha256:e2b263b1cf156f45086ebdb1efcc93a9844ddcd9242136122170805897046be0"
+   ]
+  },
+  {
+   "capability": "full-pipeline-training",
+   "tier": "real-artifact-smoke",
+   "commit": "ecde23069a32e91e29679944cba8135c797c7bef",
+   "dataset": "dataset-shard:sha256:c4839b2e29f9479dfda3d8f24a39e0f602488b41a6c315eb499504539abd022c",
+   "span_steps": 3,
+   "span_tokens": 15,
+   "wall_ns": 571700000000,
+   "peak_device_bytes": 1991770112,
+   "evidence": [
+    "evidence:sha256:8524acffe4fd813954de2380ac05a5cce8863ad93acaff213bd79e5bc0f6d3ec",
+    "evidence:sha256:1b8769834c4cd084803bcce219a0fa82a03c53aba11426cc53ec542f4110b056"
    ]
   }
  ]

@@ -78,6 +78,71 @@ func TestHybridTrainHostMasterStreamedMatchesHost(t *testing.T) {
 	}
 }
 
+// TestHybridTrainLayerStreamedMatchesFullSlab proves the layer-streamed
+// lifecycle (per-layer gradient scratch, Muon step fused into the backward
+// walk) produces the SAME trajectory as the full-slab host-master lane. The
+// per-group Muon math is identical work on identical inputs — a layer's step
+// applies only after its own backward consumed its pre-step weights — so the
+// tolerance is exact: bitwise-equal losses.
+func TestHybridTrainLayerStreamedMatchesFullSlab(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+
+	cfg := smallHybrid()
+	ocfg := optimizer.Config{BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: optimizer.ScheduleConstant}
+
+	fullSlab, err := BuildModel(cfg, testSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	layered, err := BuildModel(cfg, testSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fullTraj, err := fullSlab.TrainHostMasterStreamed(worker, testSteps, ocfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observed := 0
+	layerTraj, err := layered.TrainHostMasterLayerStreamed(worker, testSteps, ocfg, func(step int, loss float64) error {
+		if step != observed {
+			t.Fatalf("observer saw step %d, want %d", step, observed)
+		}
+		observed++
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observed != testSteps {
+		t.Fatalf("observer saw %d steps, want %d", observed, testSteps)
+	}
+	for i := range fullTraj {
+		t.Logf("step %d  full-slab=%.9f  layer-streamed=%.9f", i, fullTraj[i], layerTraj[i])
+		if layerTraj[i] != fullTraj[i] {
+			t.Errorf("step %d trajectory diverged: full-slab %.17g, layer-streamed %.17g", i, fullTraj[i], layerTraj[i])
+		}
+	}
+	if !(layerTraj[len(layerTraj)-1] < layerTraj[0]) {
+		t.Fatalf("layer-streamed loss did not decrease: %.6f -> %.6f", layerTraj[0], layerTraj[len(layerTraj)-1])
+	}
+	// The trained masters must agree too, not just the loss scalars.
+	for i := range fullSlab.matW {
+		if fullSlab.matW[i] != layered.matW[i] {
+			t.Fatalf("trained matrix masters diverged at element %d: %g vs %g", i, fullSlab.matW[i], layered.matW[i])
+		}
+	}
+	for i := range fullSlab.vecW {
+		if fullSlab.vecW[i] != layered.vecW[i] {
+			t.Fatalf("trained vector params diverged at element %d: %g vs %g", i, fullSlab.vecW[i], layered.vecW[i])
+		}
+	}
+}
+
 // TestHybridTrainDeviceResidentMatchesHost verifies trajectory and residency parity.
 func TestHybridTrainDeviceResidentMatchesHost(t *testing.T) {
 	cudatest.Require(t)

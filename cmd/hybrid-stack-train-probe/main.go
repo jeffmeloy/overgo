@@ -27,8 +27,12 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/cuda/device"
 	"overgo/internal/dataroot"
+	"overgo/internal/gguf"
 	"overgo/internal/hybridtrain"
+	"overgo/internal/model"
 	"overgo/internal/optimizer"
+	"overgo/internal/processmeasure"
+	"overgo/internal/quant"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/trainingsession"
@@ -74,7 +78,12 @@ func run() error {
 	maxWall := flag.Duration("max-wall", 25*time.Minute, "abort when the first step projects the run past this wall")
 	inspect := flag.Bool("inspect", false, "print the artifact census and exit without training")
 	storePath := flag.String("store", "repodb-store", "RepoDB for the session observation and recipe authority")
+	lane := flag.String("lane", "full-slab", "training lane: full-slab (masters+gradients+momentum all full host slabs) or layer-streamed (bounded host triplication: gradients never exceed one layer)")
+	roundTrip := flag.Bool("serving-roundtrip", false, "after training, requantize layer 0's mlp gate masters to their declared serving dtype and re-evaluate the objective through the round trip")
 	flag.Parse()
+	if *lane != "full-slab" && *lane != "layer-streamed" {
+		return fmt.Errorf("-lane must be full-slab or layer-streamed, got %q", *lane)
+	}
 	if *modelPath == "" {
 		return fmt.Errorf("-model is required (dataroot did not resolve)")
 	}
@@ -150,6 +159,22 @@ func run() error {
 	fmt.Printf("load wall: %s  program=%s\n", loadWall.Round(time.Millisecond), trained.Program().ID())
 	observer.Phase(runrecord.PhaseLoad, loadWall)
 	runtime.GC()
+	if *lane == "layer-streamed" {
+		budget, err := trained.LayerStreamedBudget()
+		if err != nil {
+			return err
+		}
+		const f32 = 4
+		fmt.Printf("memory budget (%s, bounded host triplication):\n", *lane)
+		fmt.Printf("  masters       %14d bytes (%d f32, full host slab — the forward needs it)\n", f32*budget.MasterElems, budget.MasterElems)
+		fmt.Printf("  momentum      %14d bytes (%d f32, full host slab — persists across steps)\n", f32*budget.MomentumElems, budget.MomentumElems)
+		fmt.Printf("  grad scratch  %14d bytes (largest layer, %d f32 — gradients NEVER triplicate)\n", f32*budget.ScratchElems, budget.ScratchElems)
+		fmt.Printf("  vectors       %14d bytes (%d f32, params+grads+momentum host-side)\n", 3*f32*budget.VectorElems, budget.VectorElems)
+		fmt.Printf("  bounded total %14d bytes vs %d bytes full triplication\n",
+			f32*(2*budget.MasterElems+budget.ScratchElems+3*budget.VectorElems),
+			f32*(3*budget.MasterElems+3*budget.VectorElems))
+	}
+	printPeakRSS("after artifact load")
 
 	worker, err := device.New(0)
 	if err != nil {
@@ -157,9 +182,13 @@ func run() error {
 	}
 	defer worker.Close()
 
+	train := trained.TrainHostMasterStreamed
+	if *lane == "layer-streamed" {
+		train = trained.TrainHostMasterLayerStreamed
+	}
 	trainStart := time.Now()
 	previous := trainStart
-	trajectory, err := trained.TrainHostMasterStreamed(worker, *steps, config, func(step int, loss float64) error {
+	trajectory, err := train(worker, *steps, config, func(step int, loss float64) error {
 		now := time.Now()
 		wall := now.Sub(previous)
 		previous = now
@@ -194,6 +223,10 @@ func run() error {
 			}
 		}
 	}
+	if runErr == nil && *roundTrip {
+		runErr = servingRoundTrip(*modelPath, trained)
+	}
+	printPeakRSS("after training")
 	streamed := uint64(*steps) * uint64(len(tokens))
 	observation, observeErr := observer.Finish(ctx, modelID, recipeID, runErr, streamed)
 	if runErr != nil {
@@ -205,6 +238,60 @@ func run() error {
 	fmt.Printf("trajectory: %v\n", trajectory)
 	fmt.Printf("session observation: %s\n", observation)
 	fmt.Printf("PASS: finite loss decreased over %d full-stack steps in %s\n", len(trajectory), trainWall.Round(time.Millisecond))
+	return nil
+}
+
+// printPeakRSS reports the process RSS high-water mark; measurement failure is
+// reported, never fatal — the run's own evidence stays primary.
+func printPeakRSS(stage string) {
+	peak, err := processmeasure.SelfPeakWorkingSet()
+	if err != nil {
+		fmt.Printf("process peak working set (%s): unavailable: %v\n", stage, err)
+		return
+	}
+	fmt.Printf("process peak working set (%s): %d bytes\n", stage, peak)
+}
+
+// servingRoundTrip mirrors the organ cell's serving bar at full-stack scope:
+// layer 0's trained mlp-gate masters requantize back to their DECLARED serving
+// dtype (read from the artifact, never assumed) and the run's own objective is
+// re-evaluated through the round trip, so the reported movement belongs to the
+// serving-storage tensor rather than a float shadow.
+func servingRoundTrip(modelPath string, trained *hybridtrain.Model) error {
+	file, err := gguf.Open(modelPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	spec, err := model.ReadSpec(file)
+	if err != nil {
+		return err
+	}
+	weights, err := model.ReadWeights(file, spec)
+	if err != nil {
+		return err
+	}
+	if len(weights.Layers) == 0 || weights.Layers[0].FeedForwardGate == nil || len(trained.Weights) == 0 {
+		return fmt.Errorf("serving round trip: layer 0 mlp gate is absent")
+	}
+	info := weights.Layers[0].FeedForwardGate
+	gate := trained.Weights[0].MLP.Gate
+	lossTrained := trained.EvaluateLoss()
+	packed, err := quant.Quantize(info.Type, gate)
+	if err != nil {
+		return fmt.Errorf("serving round trip: requantize %q to %s: %w", info.Name, info.Type, err)
+	}
+	restored, err := quant.Dequantize(info.Type, packed, uint64(len(gate)))
+	if err != nil {
+		return fmt.Errorf("serving round trip: decode %q: %w", info.Name, err)
+	}
+	copy(gate, restored)
+	lossRoundTrip := trained.EvaluateLoss()
+	fmt.Printf("serving round trip (%s -> %s -> f32): trained-masters loss %.6f -> requantized %.6f (delta %+.6g)\n",
+		info.Name, info.Type, lossTrained, lossRoundTrip, lossRoundTrip-lossTrained)
+	if math.IsNaN(lossRoundTrip) || math.IsInf(lossRoundTrip, 0) {
+		return fmt.Errorf("serving round trip: loss is not finite: %g", lossRoundTrip)
+	}
 	return nil
 }
 

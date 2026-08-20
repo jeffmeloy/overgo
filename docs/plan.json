@@ -1,5 +1,32 @@
 {
-  "campaign": "Circuit closing: the RSI loop turns one full revolution under managed serving -- session-supervised training, promotion-gate burndown, independent benchmark breadth",
-  "doctrine": "Follow skill.md. This file is the SINGLE plan authority; queue order is binding and plan complete means campaign complete. External systems supply processing concepts and behavioral oracles only: do not import their code, packages, configuration formats, process managers, proxy layers, schedulers, matrix DSLs, event buses, stores, or frontend frameworks. Prefer existing Overgo owners where semantics match. New neutral components are allowed for missing ownership boundaries only when they have narrow typed contracts, immediate production consumers, integrate with existing recipes, RepoDB, operation reporting, and the embedded GUI as applicable, and replace displaced logic in the same wave. No orphan abstraction or deferred caller migration. RepoDB is the sole serving evidence ledger. Active recipes and compiled resource plans are the sole selection, placement, and residency authority. Promote capabilityruntime's existing session cache into ModelSessionDirector; do not add a parallel cache or scheduler. Each migration moves every production caller and deletes displaced slot ownership, wrappers, fallbacks, duplicate probes, and compatibility paths in the same gated wave. Raw request and response capture stays disabled unless an explicit bounded redaction policy admits it. Prove local residency before component sessions; prove component sessions before remote spillover. Composite construction consumes the proven session authority in Phase 6 rather than shaping its initial contract. Verify numerical and Live Edit behavior where applicable, resource ownership, cancellation, code reduction, allocations, transfers, peak memory, and processing cost. After every gated step, merge current master into this worktree before starting the next step.",
-  "items": []
+  "campaign": "Verification integrity: tagged artifact lanes, clean source provenance, and live-plan hygiene",
+  "doctrine": "Follow skill.md. docs/plan.json is the sole open-work authority; queue order is binding and plan complete means campaign complete.",
+  "items": [
+    {
+      "id": "seal-verifier-source",
+      "title": "Make model-verification source authority reproducible and repair the affected full-pipeline claims",
+      "status": "open",
+      "steps": [
+        {
+          "id": "require-clean-revision",
+          "title": "Refuse claims from dirty source trees and bind the Wan, LiveEdit, and Qwen3.5-9B records to commits containing their verifier implementations",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility ./internal/runrecord -run 'TestVerifyingCommitRequiresCleanWorktree|TestModelVerificationLedger' -count=1 \u0026\u0026 grep -q '\"commit\": \"f7a336a2144789bb7c628182158b4364c0a039a2\"' docs/verification/qwen35-9b-training.json \u0026\u0026 test $(grep -l '\"commit\": \"4dd29342' docs/verification/{wan,liveedit}-training.json | wc -l) -eq 2"
+        }
+      ]
+    },
+    {
+      "id": "retire-closed-campaign-checkers",
+      "title": "Delete campaign-local checkers that contradict the open-work-only plan contract",
+      "status": "open",
+      "steps": [
+        {
+          "id": "delete-stale-checkers",
+          "title": "Remove both completed-campaign scripts and retain plan-schema coverage in the owning Go packages",
+          "status": "open",
+          "verify": "test ! -e scripts/check_video_campaign.py \u0026\u0026 test ! -e scripts/check_circuit_campaign.py \u0026\u0026 go test ./internal/plan ./cmd/plan -count=1"
+        }
+      ]
+    }
+  ]
 }

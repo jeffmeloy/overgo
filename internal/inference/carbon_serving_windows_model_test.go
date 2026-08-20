@@ -11,11 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/evaluation"
-	"overgo/internal/inference"
 	"overgo/internal/jsonfile"
-	"overgo/internal/modelrecipe"
-	"overgo/internal/recipe"
-	"overgo/internal/servingtest"
 	"overgo/internal/testutil"
 )
 
@@ -43,23 +39,11 @@ func TestCarbonServingGolden(t *testing.T) {
 	if golden.Schema != "carbon_serving_golden/v1" || len(golden.Cases) == 0 {
 		t.Fatalf("invalid Carbon serving evidence: schema=%q cases=%d", golden.Schema, len(golden.Cases))
 	}
-	plan, err := evaluation.CompileExact(golden)
+	suite, err := os.ReadFile(fixture)
 	if err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
-		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceNative,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	runner, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer runner.Close()
-
-	if err := evaluation.EvaluateExact(context.Background(), runner, plan, nil); err != nil {
+	if _, err := evaluateExactGGUF(context.Background(), modelPath, suite); err != nil {
 		t.Fatal(err)
 	}
 	t.Logf("Carbon real serving: %d cases match %s", len(golden.Cases), golden.Source)

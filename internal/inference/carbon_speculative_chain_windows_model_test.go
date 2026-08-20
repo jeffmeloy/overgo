@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
-	"overgo/internal/servingeval"
 	"overgo/internal/servingtest"
 	"overgo/internal/testutil"
 )
@@ -40,7 +40,7 @@ func TestCarbonSpeculativeChain(t *testing.T) {
 	if _, err := os.Stat(modelPath); err != nil {
 		t.Skipf("UNAVAILABLE: converted Carbon artifact absent at %s", modelPath)
 	}
-	var golden servingeval.Suite
+	var golden evaluation.ExactSuite
 	if err := jsonfile.Decode(testutil.FixturePath(t, "carbon_serving_golden.json"), &golden); err != nil {
 		t.Fatal(err)
 	}

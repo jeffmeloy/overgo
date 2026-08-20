@@ -8,11 +8,13 @@
 //	loophook prompt       UserPromptSubmit. Classifies bounded requests before
 //	                      dispatching campaign work.
 //
-// The stop gate protects WORK, not momentum (continuity is cmd/loop's job): it
-// refuses only a turn-end that would orphan turn-created uncommitted work.
-// Valves keep it from ever wedging: a stop_hook_active retry passes, a live
-// background gate steps aside, a fresh recorded stop at HEAD passes,
-// plan-complete passes.
+// The stop gate protects WORK and the LOOP: it refuses a turn-end that would
+// orphan turn-created uncommitted work, and it refuses a turn-end under an
+// open plan row when the turn advanced nothing (no gate commit moved HEAD) --
+// the owner rule that a prompt interleave never pauses the loop; the one
+// sanctioned pause is a recorded user stop. Valves keep it from ever wedging:
+// a stop_hook_active retry passes, a live background gate steps aside, a
+// fresh recorded stop at HEAD passes, plan-complete passes.
 package main
 
 import (
@@ -62,16 +64,31 @@ func readStdin() string {
 	return string(b)
 }
 
-// stopDecision is the pure verdict the Stop hook renders. block==true means the
-// turn-end is refused. Allow (block=false) whenever a valve fires; otherwise
-// block iff turn-created work would be orphaned. Continuity is cmd/loop's job
-// now (loop-hardening-8 retirement): the milestone-stop rule and dispatch
-// marker are gone, so the gate polices only work loss, never momentum.
-func stopDecision(stopHookActive, boundedRequest, freshStop, gateRunning, planComplete, dirtyWork bool) (block bool) {
-	if stopHookActive || boundedRequest || freshStop || gateRunning || planComplete {
-		return false
+// Stop verdict reasons. Allow whenever a valve fires; otherwise a turn-end is
+// refused for one of two reasons: it would orphan turn-created work, or it
+// would pause the loop on a mere prompt interleave (owner rule 2026-08-20:
+// "the need to continue the plan doesn't go away unless I say stop") — a turn
+// under an open plan row must advance HEAD through the gate, and the only
+// sanctioned pause is a recorded user stop (go run ./cmd/plan -stop), which
+// arms the freshStop valve.
+const (
+	stopAllow    = ""
+	stopOrphan   = "orphan"
+	stopContinue = "continue"
+)
+
+// stopDecision is the pure verdict the Stop hook renders.
+func stopDecision(stopHookActive, freshStop, gateRunning, planComplete, dirtyWork, progressed bool) string {
+	if stopHookActive || freshStop || gateRunning || planComplete {
+		return stopAllow
 	}
-	return dirtyWork
+	if dirtyWork {
+		return stopOrphan
+	}
+	if !progressed {
+		return stopContinue
+	}
+	return stopAllow
 }
 
 func runStop(hookJSON string) int {
@@ -79,24 +96,34 @@ func runStop(hookJSON string) int {
 	if strings.Contains(hookJSON, `"stop_hook_active":true`) || strings.Contains(hookJSON, `"stop_hook_active": true`) {
 		return 0
 	}
-	boundedRequest := consumeBoundedRequest(boundedPath)
+	// The bounded marker scopes the ANSWER, never the loop; consume it so it
+	// cannot go stale, but it renders no verdict.
+	consumeBoundedRequest(boundedPath)
 	freshStop := freshStopAtHead(gitHead())
 	gateRunning := gateProcessRunning()
 	next, complete := nextAction()
 	dirtyWork := hasTurnCreatedDirt()
+	progressed := headAdvancedSinceTurnStart()
 
-	if !stopDecision(false, boundedRequest, freshStop, gateRunning, complete, dirtyWork) {
+	verdict := stopDecision(false, freshStop, gateRunning, complete, dirtyWork, progressed)
+	if verdict == stopAllow {
 		return 0
 	}
 
-	var b strings.Builder
-	b.WriteString("overgo loop gate: this turn would orphan uncommitted work.\n")
-	b.WriteString("  * commit via 'go run ./cmd/gate -plan <item>/<step> ...' or revert it.\n")
 	if len(next) > 150 {
 		next = next[:150]
 	}
+	var b strings.Builder
+	switch verdict {
+	case stopOrphan:
+		b.WriteString("overgo loop gate: this turn would orphan uncommitted work.\n")
+		b.WriteString("  * commit via 'go run ./cmd/gate -plan <item>/<step> ...' or revert it.\n")
+	case stopContinue:
+		b.WriteString("overgo loop gate: a prompt answer does not pause the loop (owner rule).\n")
+		b.WriteString("  * continue the dispatched row now; a turn under an open row ends after a\n")
+		b.WriteString("    gate commit. To pause: go run ./cmd/plan -stop user-stop:<detail>.\n")
+	}
 	b.WriteString("  Dispatched now: " + next + "\n")
-	b.WriteString("  (Continuity is cmd/loop's job; this gate only prevents work loss.)\n")
 	fmt.Fprint(os.Stderr, b.String())
 	return 2
 }
@@ -130,7 +157,7 @@ func runPrompt(hookJSON string) {
 	}
 	if json.Unmarshal([]byte(hookJSON), &input) == nil && boundedRequestText(input.Prompt) {
 		_ = os.WriteFile(boundedPath, []byte("bounded\n"), 0o644)
-		fmt.Println("OVERGO BOUNDED REQUEST: answer only this request; it is complete when answered. Do not record a stop or dispatch campaign work.")
+		fmt.Println("OVERGO BOUNDED REQUEST: answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop (owner rule). Only an explicit user stop pauses; record it with go run ./cmd/plan -stop user-stop:<detail>.")
 		return
 	}
 	_ = os.Remove(boundedPath)
@@ -211,16 +238,54 @@ func currentDirtyFacts() ([]dirtyFact, error) {
 	return facts, nil
 }
 
-// writeTurnBase snapshots dirt at a prompt or commit boundary.
+// turnBase is the turn-start snapshot: the dirty set (orphan check) and the
+// HEAD commit (loop-progress check).
+type turnBase struct {
+	Head  string      `json:"head"`
+	Facts []dirtyFact `json:"facts"`
+}
+
+// writeTurnBase snapshots dirt and HEAD at a prompt or commit boundary.
 func writeTurnBase() {
 	facts, err := currentDirtyFacts()
 	if err != nil {
 		return
 	}
-	data, err := json.Marshal(facts)
+	data, err := json.Marshal(turnBase{Head: gitHead(), Facts: facts})
 	if err == nil {
 		_ = os.WriteFile(turnBasePath, append(data, '\n'), 0o600)
 	}
+}
+
+// readTurnBase parses the snapshot; ok=false on a missing or legacy file.
+func readTurnBase() (turnBase, bool) {
+	raw, err := os.ReadFile(turnBasePath)
+	if err != nil {
+		return turnBase{}, false
+	}
+	return readTurnBaseFrom(raw)
+}
+
+// readTurnBaseFrom parses snapshot bytes; ok=false for the legacy headless
+// (facts-array) format.
+func readTurnBaseFrom(raw []byte) (turnBase, bool) {
+	var base turnBase
+	if json.Unmarshal(raw, &base) != nil || base.Head == "" {
+		return turnBase{}, false
+	}
+	return base, true
+}
+
+// headAdvancedSinceTurnStart reports whether a gate commit landed this turn.
+// A missing or legacy snapshot fails toward ALLOW (progressed=true): without a
+// baseline the gate cannot prove the turn made no progress, and the harassment
+// direction is the wrong error.
+func headAdvancedSinceTurnStart() bool {
+	base, ok := readTurnBase()
+	if !ok {
+		return true
+	}
+	return gitHead() != base.Head
 }
 
 // hasTurnCreatedDirt reports whether dirt exists beyond the turn-start snapshot.
@@ -232,15 +297,11 @@ func hasTurnCreatedDirt() bool {
 	if currentErr != nil {
 		return true
 	}
-	base, err := os.ReadFile(turnBasePath)
-	if err != nil {
+	base, ok := readTurnBase()
+	if !ok {
 		return len(current) > 0
 	}
-	var baseline []dirtyFact
-	if json.Unmarshal(base, &baseline) != nil {
-		return len(current) > 0
-	}
-	return len(turnCreatedDirt(baseline, current)) > 0
+	return len(turnCreatedDirt(base.Facts, current)) > 0
 }
 
 // turnCreatedDirt returns new or further-modified dirty facts.

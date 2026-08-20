@@ -1,5 +1,46 @@
 {
-  "campaign": "Recipe-driven serving evidence, model residency, native modality APIs, and composite construction",
+  "campaign": "Circuit closing: the RSI loop turns one full revolution under managed serving -- session-supervised training, promotion-gate burndown, independent benchmark breadth",
   "doctrine": "Follow skill.md. This file is the SINGLE plan authority; queue order is binding and plan complete means campaign complete. External systems supply processing concepts and behavioral oracles only: do not import their code, packages, configuration formats, process managers, proxy layers, schedulers, matrix DSLs, event buses, stores, or frontend frameworks. Prefer existing Overgo owners where semantics match. New neutral components are allowed for missing ownership boundaries only when they have narrow typed contracts, immediate production consumers, integrate with existing recipes, RepoDB, operation reporting, and the embedded GUI as applicable, and replace displaced logic in the same wave. No orphan abstraction or deferred caller migration. RepoDB is the sole serving evidence ledger. Active recipes and compiled resource plans are the sole selection, placement, and residency authority. Promote capabilityruntime's existing session cache into ModelSessionDirector; do not add a parallel cache or scheduler. Each migration moves every production caller and deletes displaced slot ownership, wrappers, fallbacks, duplicate probes, and compatibility paths in the same gated wave. Raw request and response capture stays disabled unless an explicit bounded redaction policy admits it. Prove local residency before component sessions; prove component sessions before remote spillover. Composite construction consumes the proven session authority in Phase 6 rather than shaping its initial contract. Verify numerical and Live Edit behavior where applicable, resource ownership, cancellation, code reduction, allocations, transfers, peak memory, and processing cost. After every gated step, merge current master into this worktree before starting the next step.",
-  "items": []
+  "items": [
+    {
+      "id": "session-supervised-training",
+      "title": "Session-supervised training: execute one full-pipeline observed training run as a model-session under the merged director -- compiled resource admission before residency, typed observation ledger and hardware time series as the run's evidence, training claim re-recorded with the session observation as measured provenance; the dense Qwen2.5-0.5B lane (cmd/train, complete pipeline already) is the first candidate; this is the substrate proof every promotion-gate closure reuses",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Session-supervised training: execute one full-pipeline observed training run as a model-session under the merged director -- compiled resource admission before residency, typed observation ledger and hardware time series as the run's evidence, training claim re-recorded with the session observation as measured provenance; the dense Qwen2.5-0.5B lane (cmd/train, complete pipeline already) is the first candidate; this is the substrate proof every promotion-gate closure reuses",
+          "status": "open",
+          "verify": "test -f docs/verification/session-supervised-training-run.txt",
+          "rationale": "CAMPAIGN CONTEXT 2026-08-19 (post d2919495): the training sweep (20 cells, 0 open refusals) and the serving session-director both complete; every organ cell defers to a full-pipeline observed training run as its promotion gate, and the director is exactly that substrate. Sequence: prove the substrate once on the cheapest complete pipeline (this row), then burn down the recorded gates (promotion-gate-burndown), with independent external evidence widening in parallel. Doctrine: Muon only, derived hyperparameters (the sole default authority post-merge), claim-shaped outputs, no silent skips."
+        }
+      ]
+    },
+    {
+      "id": "promotion-gate-burndown",
+      "title": "Promotion-gate burndown: close the named promotion gates the twenty training cells recorded (full-denoiser MMDiT flow training for Krea, full MoT training for SenseNova, full modality-transformer training for RxBrain, full video-diffusion for Wan and LiveEdit, hybrid full-stack for Qwen3.5) as session-supervised full-pipeline runs, smallest-first, each closing its organ cell's guard finding and re-recording the training claim with full-pipeline evidence; markers: one 'promotion-gate-closed:' line per model in the closure evidence docs",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Promotion-gate burndown: close the named promotion gates the twenty training cells recorded (full-denoiser MMDiT flow training for Krea, full MoT training for SenseNova, full modality-transformer training for RxBrain, full video-diffusion for Wan and LiveEdit, hybrid full-stack for Qwen3.5) as session-supervised full-pipeline runs, smallest-first, each closing its organ cell's guard finding and re-recording the training claim with full-pipeline evidence; markers: one 'promotion-gate-closed:' line per model in the closure evidence docs",
+          "status": "open",
+          "verify": "test $(grep -h '^promotion-gate-closed:' docs/verification/*.txt 2\u003e/dev/null | sort -u | wc -l) -ge 2"
+        }
+      ]
+    },
+    {
+      "id": "external-benchmark-breadth",
+      "title": "External benchmark breadth: extend independent lm-evaluation-harness evidence beyond Qwen2.5 to every applicable text model in the ledger (MiniCPM5, Carbon where applicable, Unlimited-OCR text decoder, gemma-4 pair, Qwen3.5-4B), each with tool-and-version provenance recorded as benchmark claims; one gated sub-row per model batch",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "External benchmark breadth: extend independent lm-evaluation-harness evidence beyond Qwen2.5 to every applicable text model in the ledger (MiniCPM5, Carbon where applicable, Unlimited-OCR text decoder, gemma-4 pair, Qwen3.5-4B), each with tool-and-version provenance recorded as benchmark claims; one gated sub-row per model batch",
+          "status": "open",
+          "verify": "test $(go run ./cmd/repodb-query -repo repodb-store -verifications | grep -c benchmark) -ge 3"
+        }
+      ]
+    }
+  ]
 }

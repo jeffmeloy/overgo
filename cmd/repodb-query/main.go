@@ -55,6 +55,7 @@ func run(args []string, output io.Writer) error {
 	retrieve := flags.String("retrieve", "", "hypervector retrieval: rank the catalog against the named component (lexical organ + distributional signal)")
 	verifications := flags.Bool("verifications", false, "derive the model verification matrix from committed records: strongest evidenced tier per capability")
 	configs := flags.Bool("configs", false, "list committed model-config declarations: sequence extensions and generation essentials with source digests")
+	contentDump := flags.Bool("content", false, "print the raw committed content bytes of the artifact named by -id")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -96,6 +97,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *configs {
 		return writeConfigs(output, *repository, *limit)
+	}
+	if *contentDump {
+		return writeContent(output, *repository, *idText)
 	}
 	query := repodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
@@ -509,6 +513,27 @@ func writeComposed(output io.Writer, repository string, limit int) error {
 // writeConfigs lists committed model-config declarations: the typed
 // inference- and training-relevant components generic code reads instead of
 // carrying model-specific literals.
+func writeContent(output io.Writer, repository, idText string) error {
+	id, err := artifact.ParseID(idText)
+	if err != nil {
+		return err
+	}
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	content, ok, err := store.Content(context.Background(), id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("repodb-query: no committed content for %s", id)
+	}
+	_, err = output.Write(content.Data)
+	return err
+}
+
 func writeConfigs(output io.Writer, repository string, limit int) error {
 	store, err := repodb.OpenReadOnly(repository)
 	if err != nil {

@@ -8,20 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "repodb-publication",
-          "title": "Store census fingerprint, counts, unresolved bindings, and closure pressure as RepoDB evidence",
-          "status": "open",
-          "verify": "go test ./cmd/closure-scan ./internal/closureledger -run '^(TestCensusEvidenceRoundTrip|TestCensusEvidenceBindsCatalogAndSourceFingerprint)$' -count=1",
-          "rationale": "Progress and regressions need queryable evidence tied to a source and catalog state.",
-          "depends_on": [
-            "magic-census-evidence/report"
-          ],
-          "capabilities": [
-            "repodb-ledger",
-            "catalog-fingerprint"
-          ]
-        },
-        {
           "id": "query",
           "title": "Expose open rows, stale rows, owner pressure, and before/after census through existing RepoDB queries",
           "status": "open",

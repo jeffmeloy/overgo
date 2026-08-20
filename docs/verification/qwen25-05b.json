@@ -16,6 +16,21 @@
    "context_tokens": 256
   },
   {
+   "capability": "session-supervised-training",
+   "tier": "real-artifact-smoke",
+   "commit": "b65cbc5aec9ea8bc944533cd58ae152d82e042d0",
+   "dataset": "dataset-shard:sha256:4c431b8cd6f7c9ca77f0ddc3fdac8ee85812847e2af7e4d9861bb4d62f2dce9b",
+   "span_steps": 3,
+   "span_tokens": 768,
+   "wall_ns": 98257704000,
+   "context_tokens": 256,
+   "peak_device_bytes": 8281128960,
+   "evidence": [
+    "evidence:sha256:e47effaa5a339673aae3445b7b75963a3eaccf94eed1c584c33736f7901ae2c0",
+    "evidence:sha256:8c45c977e6b59a64c51a590d6197a191f1c3a62497b25f9e6faa44542a676c79"
+   ]
+  },
+  {
    "capability": "inference",
    "tier": "exact-golden",
    "commit": "6abef1ee04acf6fb67d84ae174a985786255f672",
@@ -23,7 +38,7 @@
    "wall_ns": 2983801000,
    "peak_device_bytes": 1368364544,
    "evidence": [
-    "evidence:sha256:5de6027bafa11e209e20b8f758b1d77946e034b4af14e815f18164cf992d90f1",
+    "evidence:sha256:b6d7d8c8f35aa9dce6ada81aca2ddafbdeefba5ff25305312c57d1fac9f02a1e",
     "evidence:sha256:d6b3f7020e902408a4f90317179ddd74541818026dc587cc425ef4f76a8b944a"
    ]
   }
@@ -32,7 +47,8 @@
  "evidence_files": [
   "docs/verification/qwen25-05b-training-run.txt",
   "docs/verification/sweep-qwen25-05b-inference.txt",
-  "fixtures/qwen25_serving_golden.json"
+  "fixtures/qwen25_serving_golden.json",
+  "docs/verification/session-supervised-training-run.txt"
  ],
  "dataset_files": [
   "docs/verification/qwen25-05b-training-dataset.txt"

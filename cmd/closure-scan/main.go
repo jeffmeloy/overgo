@@ -48,6 +48,7 @@ func main() {
 	assumptions := flag.Bool("assumptions", false, "report syntax-derived distribution, geometry, and shape hints")
 	census := flag.Bool("census", false, "report complete source denominators and consolidation pressure")
 	format := flag.String("format", "text", "census format: text or json")
+	publish := flag.Bool("publish", false, "publish census evidence to RepoDB")
 	flag.Parse()
 	root, err := os.Getwd()
 	if err != nil {
@@ -63,7 +64,8 @@ func main() {
 		fatal(fmt.Errorf("report modes are mutually exclusive"))
 	}
 	if *census {
-		summary, err := closurescan.BuildCensus(mustSnapshot(root))
+		snapshot := mustSnapshot(root)
+		summary, err := closurescan.BuildCensus(snapshot)
 		if err != nil {
 			fatal(err)
 		}
@@ -77,6 +79,21 @@ func main() {
 		}
 		if err != nil {
 			fatal(err)
+		}
+		if *publish {
+			store, err := repodb.Open(filepath.Join(root, *storePath))
+			if err != nil {
+				fatal(err)
+			}
+			evidence, err := publishCensusEvidence(context.Background(), store, snapshot, summary)
+			closeErr := store.Close()
+			if err != nil {
+				fatal(err)
+			}
+			if closeErr != nil {
+				fatal(closeErr)
+			}
+			fmt.Printf("published census evidence %s\n", evidence.ID)
 		}
 		return
 	}
@@ -123,6 +140,65 @@ func main() {
 	if err := emit(root, *storePath, *triagePath, candidates); err != nil {
 		fatal(err)
 	}
+}
+
+func publishCensusEvidence(ctx context.Context, store *repodb.Store, snapshot repoanalysis.SourceSnapshot, census closurescan.Census) (closurescan.CensusEvidence, error) {
+	result, err := store.Query(ctx, repodb.Query{MediaType: closureledger.MediaType, MaxResults: repodb.MaxQueryResults})
+	if err != nil {
+		return closurescan.CensusEvidence{}, err
+	}
+	if result.Truncated {
+		return closurescan.CensusEvidence{}, fmt.Errorf("closure census query truncated")
+	}
+	var active []closureledger.Document
+	for _, alias := range result.Aliases {
+		if !closureledger.IsActiveAlias(alias.Name) {
+			continue
+		}
+		content, found, err := store.Content(ctx, alias.Target)
+		if err != nil {
+			return closurescan.CensusEvidence{}, err
+		}
+		if !found {
+			return closurescan.CensusEvidence{}, fmt.Errorf("active closure content is absent")
+		}
+		document, err := closureledger.Parse(content.Data)
+		if err != nil {
+			return closurescan.CensusEvidence{}, err
+		}
+		active = append(active, document)
+	}
+	issues, err := closurescan.ValidateBindings(snapshot, active)
+	if err != nil {
+		return closurescan.CensusEvidence{}, err
+	}
+	evidence, err := closurescan.NewCensusEvidence(census, result.Head, result.Sequence, active, issues)
+	if err != nil {
+		return closurescan.CensusEvidence{}, err
+	}
+	previous, found, err := artifact.ResolveAlias(ctx, store, closurescan.CensusEvidenceAlias)
+	if err != nil {
+		return closurescan.CensusEvidence{}, err
+	}
+	var prior *artifact.ID
+	if found {
+		prior = &previous
+	}
+	batch, err := evidence.Batch(prior)
+	if err != nil {
+		return closurescan.CensusEvidence{}, err
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		return closurescan.CensusEvidence{}, err
+	}
+	stored, found, err := closurescan.ReadCensusEvidence(ctx, store, evidence.ID)
+	if err != nil {
+		return closurescan.CensusEvidence{}, err
+	}
+	if !found {
+		return closurescan.CensusEvidence{}, fmt.Errorf("published census evidence is absent")
+	}
+	return stored, nil
 }
 
 func writeCensusText(destination io.Writer, census closurescan.Census, limit int) error {

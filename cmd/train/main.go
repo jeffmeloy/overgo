@@ -35,19 +35,23 @@ func run() error {
 	maxWall := flag.Duration("max-wall", 30*time.Minute, "abort at a step boundary when the first measured step projects the run past this bound (0 disables)")
 	storePath := flag.String("store", "repodb-store", "RepoDB containing the active training recipe and policies")
 	recipeID := flag.String("recipe", "", "active training recipe artifact ID")
+	bootstrapRecipe := flag.String("bootstrap-recipe", "", "publish, verify, and activate a token-training recipe for the model weights file at this path, then exit")
 	flag.Parse()
 	store, err := repodb.Open(*storePath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
+	if *bootstrapRecipe != "" {
+		return bootstrapTrainingRecipe(store, *bootstrapRecipe, *dataset)
+	}
 	parsedRecipe, err := artifact.ParseID(*recipeID)
 	if err != nil {
 		return fmt.Errorf("training recipe: %w", err)
 	}
 
 	result, err := trainingworkflow.Execute(context.Background(), trainingworkflow.Request{
-		Repository: store, Recipe: parsedRecipe,
+		Repository: store, Recipe: parsedRecipe, Observations: store,
 		ModelDirectory: *model, DatasetPath: *dataset, OutputDirectory: *output,
 		ResumeDirectory: *resume, ReferenceDirectory: *reference,
 		Steps: *steps, MaximumSequence: *maximumSequence, LearningRate: *learningRate,
@@ -56,6 +60,9 @@ func run() error {
 	})
 	if err != nil {
 		return err
+	}
+	if result.Observation.Valid() {
+		fmt.Printf("session observation: %s\n", result.Observation)
 	}
 	count := len(result.Losses) + len(result.DPO) + len(result.GRPO)
 	fmt.Printf("backend=%s objective=%s batches=%d stream_position=%d steps=%d lr=%s momentum=%g\n",

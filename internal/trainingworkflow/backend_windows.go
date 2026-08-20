@@ -17,7 +17,7 @@ func runTrainingState(model *densecausal.Model, batches [][]int, learningRate, m
 	if ok, reason := densecausal.DeviceTrainingSupported(model.Dims); !ok {
 		return nil, "", densecausal.TrainState{}, fmt.Errorf("CUDA training unsupported: %s", reason)
 	}
-	worker, err := device.New(0)
+	worker, err := newDeviceWorker()
 	if err != nil {
 		return nil, "", densecausal.TrainState{}, fmt.Errorf("CUDA training unavailable: %w", err)
 	}
@@ -28,4 +28,9 @@ func runTrainingState(model *densecausal.Model, batches [][]int, learningRate, m
 		Observe:       observe,
 	})
 	return result.Losses, "cuda", result.State, err
+}
+
+func newDeviceWorker() (*device.Worker, error) {
+	var ordinal int
+	return device.New(ordinal)
 }

@@ -1,0 +1,68 @@
+overgo session-supervised training verification run
+tool: cmd/train (trainingworkflow with session observer)
+model: Qwen2.5-0.5B safetensors (adaptive_new/models/Qwen2.5-0.5B)
+model artifact: model:sha256:88c142557820ccad55bb59756bfcfcf891de9cc6202816bd346445188a0ed342
+dataset: docs/verification/qwen25-05b-training-dataset.txt (wikitext2_train slice, 250000 chars)
+flags: -steps 3 -seq 256 -freeze-lexical (CUDA-resident, frozen embedding/head)
+
+substrate: the whole run executed as a model-session under the capability-runtime
+director merged from the tightening lane. Admission before residency: the run leased
+an exclusive training component session (LeaseComponent, recipe.SessionRequest policy)
+keyed by the active training recipe BEFORE loading weights -- a refused lease means the
+run never touches the device. Recipe authority is a stored ACTIVE training recipe
+(publish -> verify -> activate at the experimental tier, cmd/train -bootstrap-recipe),
+whose objective identifies exactly as the run derives its own authority (dataset by
+content, split as shard of "all\x00"+content, processor profile overgo/training/text-utf8/v1),
+so the compile-time run-authority-equals-stored-objective check passes by identity.
+
+recipe: recipe:sha256:0bbcc787d066ae530ec0c5d300d26bdf562ce2d561f1881f63e894b585a69241
+run output (unedited):
+lane cuda-resident: 3 steps, 3 batches, frozen_lexical=true
+step 1/3 loss 3.301308 wall 530ms backend cuda-resident
+step 2/3 loss 2.676835 wall 411ms backend cuda-resident
+step 3/3 loss 1.890265 wall 408ms backend cuda-resident
+session observation: evidence:sha256:8c45c977e6b59a64c51a590d6197a191f1c3a62497b25f9e6faa44542a676c79
+backend=cuda objective=token-prediction batches=3 stream_position=3 steps=3 lr=derived(n^-1/2) momentum=0.9354838709677419
+step 0: loss 3.301308
+step 1: loss 2.676835
+step 2: loss 1.890265
+checkpoint=checkpoint:sha256:e44e8250eb4fc67536e87149e0919e61dd6840732695c53d019a15140f2ad8fe
+
+monotone descent 3.301308 -> 2.676835 -> 1.890265 under Muon with derived learning rate
+(n_params^-1/2) and derived momentum ((CLT-1)/(CLT+1) = 0.935484). Two supervised runs of
+this session (before and after the hardware-sampler rework) reproduced bit-identical step
+losses, and step 0 equals the prior non-supervised claim run's step 0
+(docs/verification/qwen25-05b-training-run.txt: 3.301308) -- supervision observes the run
+without perturbing training.
+
+typed session observation (repodb, dump: go run ./cmd/repodb-query -repo repodb-store
+-id evidence:sha256:8c45c977... -content):
+  task=training outcome=succeeded measured_ns=98257704000
+  phases: load 954350300 ns, forward_backward 96676010400 ns
+  usage: input_tokens=3 (stream position)
+  resources: peak_device_bytes=8281128960
+  hardware series (device-global used bytes via cuMemGetInfo, sampled from a persistent
+  observer worker -- start at admission, mid-run maximum across step boundaries, finish
+  after release):
+    start   elapsed 607495500 ns      used 1658322944  (pre-load baseline)
+    prefill elapsed 4462704900 ns     used 8281128960  (peak during optimize steps)
+    finish  elapsed 98238207800 ns    used 1658322944  (released after training)
+  environment: evidence:sha256:acb0c86b0dec3ea2c93125b7835159871d5495770ca696141a16a6fe2efab250
+  (committed alongside the observation)
+
+caveats:
+- device-global used bytes include other processes' residency (desktop baseline visible
+  as the 1.66GB start/finish floor); the mid-run sample measures real training residency
+  on this machine, not an isolated per-process accounting.
+- the run-authority equality check makes recipe forgery structurally impossible but also
+  means the bootstrap objective must mirror datasetAuthority's derivations; drift there
+  is caught at compile time ("run authority differs from RepoDB objective").
+- lane incident reproduced then resolved: a launch without -freeze-lexical ground host
+  Newton-Schulz over the 151936x896 lexical matrix at 0% GPU (the incident already
+  recorded in qwen25-05b-training-run.txt); killed and re-run with the designed escape.
+
+reproduce:
+  go run ./cmd/train -bootstrap-recipe <model.safetensors> -dataset docs/verification/qwen25-05b-training-dataset.txt
+  go run ./cmd/train -model <model dir> -dataset docs/verification/qwen25-05b-training-dataset.txt \
+    -out <dir> -steps 3 -seq 256 -freeze-lexical -recipe <printed recipe id>
+  go run ./cmd/repodb-query -repo repodb-store -id <printed observation id> -content

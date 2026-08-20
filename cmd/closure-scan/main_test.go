@@ -69,6 +69,57 @@ func TestCensusCountsReconcile(t *testing.T) {
 	}
 }
 
+func TestCensusEvidenceRoundTrip(t *testing.T) {
+	store, snapshot, _ := censusEvidenceFixture(t)
+	report, err := closurescan.BuildCensus(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := publishCensusEvidence(context.Background(), store, snapshot, report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, found, err := closurescan.ReadCensusEvidence(context.Background(), store, evidence.ID)
+	if err != nil || !found || loaded.ID != evidence.ID || loaded.Counts != report.Counts {
+		t.Fatalf("loaded = (%+v, %t, %v)", loaded, found, err)
+	}
+}
+
+func TestCensusEvidenceBindsCatalogAndSourceFingerprint(t *testing.T) {
+	store, snapshot, head := censusEvidenceFixture(t)
+	report, err := closurescan.BuildCensus(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := publishCensusEvidence(context.Background(), store, snapshot, report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evidence.Source != snapshot.Identity() || evidence.CatalogHead != head.String() || evidence.CatalogSequence == 0 {
+		t.Fatalf("evidence = %+v", evidence)
+	}
+}
+
+func censusEvidenceFixture(t *testing.T) (*repodb.Store, repoanalysis.SourceSnapshot, artifact.CommitID) {
+	t.Helper()
+	store, err := repodb.Open(filepath.Join(t.TempDir(), "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	seed, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("catalog seed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := store.Commit(context.Background(), artifact.Batch{
+		Key: "catalog/seed", Artifacts: []artifact.Descriptor{{ID: seed}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return store, censusSnapshot(t), head
+}
+
 func censusSnapshot(t *testing.T) repoanalysis.SourceSnapshot {
 	t.Helper()
 	root := t.TempDir()

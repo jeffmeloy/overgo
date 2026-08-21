@@ -120,6 +120,26 @@ func TestOpenSourceRejectsInvalidRepositories(t *testing.T) {
 	}
 }
 
+func TestAdversarialCatalogRejectsDuplicateNamesAndIndexCount(t *testing.T) {
+	t.Run("duplicate header name", func(t *testing.T) {
+		directory := t.TempDir()
+		header := []byte(`{"weight":{"dtype":"U8","shape":[1],"data_offsets":[0,1]},"weight":{"dtype":"U8","shape":[1],"data_offsets":[0,1]}}`)
+		writeEncodedShard(t, filepath.Join(directory, "model.safetensors"), header, []byte{1})
+		if _, err := OpenSource(directory); err == nil || !strings.Contains(err.Error(), "duplicate JSON object name") {
+			t.Fatalf("duplicate header error = %v", err)
+		}
+	})
+	t.Run("index tensor count", func(t *testing.T) {
+		directory := t.TempDir()
+		writeIndex(t, directory, map[string]string{"first": "a.safetensors", "second": "b.safetensors"})
+		limits := DefaultLimits()
+		limits.MaxTensors = 1
+		if _, err := OpenSourceWithLimits(directory, limits); err == nil || !strings.Contains(err.Error(), "tensor count exceeds limit") {
+			t.Fatalf("index count error = %v", err)
+		}
+	})
+}
+
 func TestBoundedBoundaryPolicyContract(t *testing.T) {
 	directory := t.TempDir()
 	writeShard(t, filepath.Join(directory, "model.safetensors"), map[string]testTensor{
@@ -185,6 +205,11 @@ func writeRawShard(t *testing.T, path string, header map[string]tensorHeader, bo
 	if err != nil {
 		t.Fatal(err)
 	}
+	writeEncodedShard(t, path, encoded, body)
+}
+
+func writeEncodedShard(t *testing.T, path string, encoded, body []byte) {
+	t.Helper()
 	data := make([]byte, 8, 8+len(encoded)+len(body))
 	binary.LittleEndian.PutUint64(data, uint64(len(encoded)))
 	data = append(data, encoded...)

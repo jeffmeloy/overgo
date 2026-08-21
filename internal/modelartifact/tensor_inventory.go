@@ -10,9 +10,11 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/safetensors"
 	"overgo/internal/strictjson"
+	tensorgraph "overgo/internal/tensor"
 )
 
 const (
@@ -180,8 +182,16 @@ func (d TensorInventoryDocument) validate() error {
 			tensor.Storage != strings.ToLower(tensor.Storage) || strings.TrimSpace(tensor.Storage) != tensor.Storage {
 			return fmt.Errorf("model artifact: tensor %q has invalid storage", tensor.Name)
 		}
-		if tensor.Shape == nil {
-			return fmt.Errorf("model artifact: tensor %q has no declared shape", tensor.Name)
+		if tensor.Shape == nil || !checked.Nonzero(tensor.Bytes) {
+			return fmt.Errorf("model artifact: tensor %q has invalid shape or byte extent", tensor.Name)
+		}
+		elements := uint64(tensorgraph.SingletonExtent)
+		for _, dimension := range tensor.Shape {
+			var ok bool
+			elements, ok = checked.Mul64(elements, dimension)
+			if !ok || !checked.Nonzero(elements) {
+				return fmt.Errorf("model artifact: tensor %q shape extent is invalid", tensor.Name)
+			}
 		}
 		previous = tensor.Name
 	}

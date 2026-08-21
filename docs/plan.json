@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. Current census: 894 production files, 20,081 inline literals, 2,599 assumption hints, 1,228 copied test-policy sites. Audit every non-generated Go file in deterministic scanner order. Process the first exact finding, then consolidate every same-semantic occurrence. Split heterogeneous packages into deletion-led ownership waves; finish each package with one exact closure gate. Classify literals as structural syntax, mathematical fact, protocol/ABI fact, fixture input, derived value, or runtime policy. Artifact facts, RepoDB recipes, compiled plans, and measured resource plans own runtime policy; missing authority fails. Constants may name stable mathematics or wire contracts, never local model policy. Recipes and neutral typed operators are sole runtime authorities. Every new or extended primitive migrates all equivalent callers and deletes displaced model orchestration, wrappers, fallbacks, duplicate probes, compatibility readers, and parallel registries in the same commit. Each implementation wave is production-code net-negative, including untracked Go files. Fixtures define inputs; tests reuse production contracts and shared assertions. Preserve numerical behavior while reducing allocations, transfers, probes, branches, maps, and operations. Run focused tests, the exact wave gate, full host tests, applicable CUDA gates, diff checks, and census publication before the gate commit; merge tightening/master before redispatch. Completion requires zero stale bindings, open derivation-blocked rows, uncatalogued production policy, copied test policy, and model facts outside artifact or recipe authorities.",
   "items": [
     {
-      "id": "tier2-inventory-adversarial",
-      "title": "Harden bounded GGUF and safetensors inventory ingestion against adversarial catalog inputs",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Harden bounded GGUF and safetensors inventory ingestion against adversarial catalog inputs",
-          "status": "open",
-          "verify": "go test ./internal/gguf ./internal/safetensors ./internal/modelartifact -run 'Bounded|Adversarial|Inventory' -count=1"
-        }
-      ]
-    },
-    {
       "id": "tier2-cuda-replay-evidence",
       "title": "Measure CUDA replay, fallback, arena use, and numerical parity on target execution",
       "status": "open",

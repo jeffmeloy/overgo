@@ -3,6 +3,7 @@ package gguf
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
 	"strings"
 	"testing"
 )
@@ -69,6 +70,20 @@ func TestParseRejectsMalformedData(t *testing.T) {
 			_, err := Parse(bytes.NewReader(tt.data), uint64(len(tt.data)), DefaultOptions())
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("error = %v, want substring %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestAdversarialGGUFCatalogCountsFailBeforeAllocation(t *testing.T) {
+	fixture := buildFixture(t)
+	for name, offset := range map[string]int{"tensors": 8, "metadata": 16} {
+		t.Run(name, func(t *testing.T) {
+			data := append([]byte(nil), fixture...)
+			binary.LittleEndian.PutUint64(data[offset:], math.MaxUint64)
+			if _, err := Parse(bytes.NewReader(data), uint64(len(data)), DefaultOptions()); err == nil ||
+				!strings.Contains(err.Error(), "exceeds limit") {
+				t.Fatalf("count error = %v", err)
 			}
 		})
 	}

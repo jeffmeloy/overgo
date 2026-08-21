@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"crypto/sha256"
@@ -43,8 +44,16 @@ type triageFile struct {
 	Rows []triageRow `json:"rows"`
 }
 
+type closureRequirements struct {
+	classified, noStale, noUncatalogued, noModelFacts, zeroOpen bool
+}
+
+type testRequirements struct {
+	noPolicyCopies, classifiedFixtures bool
+}
+
 func main() {
-	triagePath := flag.String("triage", "", "triage JSON ({rows:[{name,file,tier,status,closure_path,rerank_trigger}]}); emits closure documents to the store")
+	triagePath := flag.String("triage", "", "triage JSON ({rows:[{kind,name,file,scope,line,tier,status,understanding,closure_path,rerank_trigger}]})")
 	storePath := flag.String("store", "repodb-store", "RepoDB store directory (emit mode)")
 	limit := flag.Int("limit", 40, "report mode: top-N candidates to print")
 	raw := flag.Bool("raw", false, "rank repeated raw policy literals instead of declared constants")
@@ -57,15 +66,25 @@ func main() {
 	retireOrphans := flag.Bool("retire-orphans", false, "retire active bindings whose declarations were deleted")
 	rebindUnchanged := flag.Bool("rebind-unchanged", false, "move unchanged decisions to current exact source bindings")
 	checkScope := flag.String("check-scope", "", "comma-separated production package prefixes to validate")
+	checkAll := flag.Bool("check-all", false, "validate every production package")
+	checkTests := flag.Bool("check-tests", false, "validate test literal ownership")
 	requireClassified := flag.Bool("require-classified", false, "require active closure evidence for every scoped constant")
 	requireNoStale := flag.Bool("require-no-stale", false, "reject scoped closure binding drift")
+	requireNoUncatalogued := flag.Bool("require-no-uncatalogued-production", false, "reject production policy without exact closure evidence")
+	requireNoModelFacts := flag.Bool("require-no-model-facts", false, "reject unresolved model-runtime facts")
+	requireNoPolicyCopies := flag.Bool("require-no-policy-copies", false, "reject tests that copy production policy")
+	requireClassifiedFixtures := flag.Bool("require-classified-fixtures", false, "require an exact test-literal class")
+	requireZeroOpen := flag.Bool("require-zero-open", false, "reject active derivation-blocked closure rows")
 	flag.Parse()
 	root, err := os.Getwd()
 	if err != nil {
 		fatal(err)
 	}
 	modes := 0
-	for _, enabled := range []bool{*raw, *literals, *testLiterals, *assumptions, *census, *retireOrphans, *rebindUnchanged} {
+	for _, enabled := range []bool{
+		*raw, *literals, *testLiterals, *assumptions, *census, *retireOrphans, *rebindUnchanged,
+		*checkScope != "", *checkAll, *checkTests,
+	} {
 		if enabled {
 			modes++
 		}
@@ -73,14 +92,31 @@ func main() {
 	if modes > 1 {
 		fatal(fmt.Errorf("report modes are mutually exclusive"))
 	}
-	if *checkScope != "" {
-		if err := checkClosures(root, *storePath, *checkScope, *requireClassified, *requireNoStale); err != nil {
+	productionRequirements := closureRequirements{
+		classified: *requireClassified, noStale: *requireNoStale,
+		noUncatalogued: *requireNoUncatalogued, noModelFacts: *requireNoModelFacts, zeroOpen: *requireZeroOpen,
+	}
+	tests := testRequirements{noPolicyCopies: *requireNoPolicyCopies, classifiedFixtures: *requireClassifiedFixtures}
+	if *checkScope != "" || *checkAll {
+		if err := checkProductionClosures(root, *storePath, *checkScope, *checkAll, productionRequirements); err != nil {
+			fatal(err)
+		}
+		if *requireNoPolicyCopies || *requireClassifiedFixtures {
+			if err := checkTestAuthority(mustSnapshot(root), tests); err != nil {
+				fatal(err)
+			}
+		}
+		return
+	}
+	if *checkTests {
+		if err := checkTestAuthority(mustSnapshot(root), tests); err != nil {
 			fatal(err)
 		}
 		return
 	}
-	if *requireClassified || *requireNoStale {
-		fatal(errors.New("closure checks require -check-scope"))
+	if *requireClassified || *requireNoStale || *requireNoUncatalogued || *requireNoModelFacts ||
+		*requireNoPolicyCopies || *requireClassifiedFixtures || *requireZeroOpen {
+		fatal(errors.New("closure requirements need -check-scope, -check-all, or -check-tests"))
 	}
 	if *census {
 		snapshot := mustSnapshot(root)
@@ -164,7 +200,11 @@ func main() {
 		reportAssumptions(hints, *limit)
 		return
 	}
-	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateConstants)
+	kinds := closurescan.CandidateConstants
+	if *triagePath != "" {
+		kinds = closurescan.CandidateAll
+	}
+	candidates, err := closurescan.ScanRoot(root, kinds)
 	if err != nil {
 		fatal(err)
 	}
@@ -177,17 +217,21 @@ func main() {
 	}
 }
 
-func checkClosures(root, storePath, scopeList string, requireClassified, requireNoStale bool) error {
+func checkProductionClosures(root, storePath, scopeList string, all bool, requirements closureRequirements) error {
 	snapshot := mustSnapshot(root)
-	prefixes, err := closurePrefixes(scopeList)
-	if err != nil {
-		return err
+	var prefixes []string
+	if !all {
+		var err error
+		prefixes, err = closurePrefixes(scopeList)
+		if err != nil {
+			return err
+		}
 	}
 	relatives := scopedSources(snapshot, prefixes)
 	if len(relatives) == 0 {
 		return errors.New("no production sources match closure scope")
 	}
-	candidates, err := closurescan.ScanSnapshot(snapshot, relatives, closurescan.CandidateConstants)
+	candidates, err := closurescan.ScanSnapshot(snapshot, relatives, closurescan.CandidateAll)
 	if err != nil {
 		return err
 	}
@@ -200,7 +244,7 @@ func checkClosures(root, storePath, scopeList string, requireClassified, require
 	if err != nil {
 		return err
 	}
-	if requireNoStale {
+	if requirements.noStale {
 		issues, err := closurescan.ValidateBindings(snapshot, scopedDocuments(documents, prefixes))
 		if err != nil {
 			return err
@@ -209,22 +253,90 @@ func checkClosures(root, storePath, scopeList string, requireClassified, require
 			return fmt.Errorf("%d scoped closure binding(s) stale; first=%s:%s", len(issues), issues[0].File, issues[0].Name)
 		}
 	}
+	active := compileActiveClosures(documents)
 	classified := 0
 	for _, candidate := range candidates {
-		binding, err := candidate.Binding()
-		if err != nil {
-			return err
-		}
-		_, found, err := closureledger.ResolveActiveBinding(context.Background(), store, binding, candidate.ValueJSON())
-		if err == nil && found {
+		document, found := activeCandidateClosure(active, candidate)
+		if found {
 			classified++
-			continue
 		}
-		if requireClassified {
+		if requirements.classified && candidate.Kind == closureledger.BindingConstant && !found {
 			return fmt.Errorf("unclassified scoped constant %s at %s:%d", candidate.Name, candidate.File, candidate.Line)
 		}
+		if requirements.noUncatalogued && candidate.Policy && !found {
+			return fmt.Errorf("uncatalogued production policy %s at %s:%d", candidate.Name, candidate.File, candidate.Line)
+		}
+		if requirements.noModelFacts && modelAuthorityPackage(candidate.Package) && candidate.Policy &&
+			(!found || document.Status == closureledger.StatusOpen) {
+			return fmt.Errorf("unresolved model fact %s at %s:%d", candidate.Name, candidate.File, candidate.Line)
+		}
 	}
-	fmt.Printf("closure-scan: scoped constants=%d classified=%d stale=0\n", len(candidates), classified)
+	if requirements.zeroOpen {
+		for _, document := range documents {
+			if document.Status == closureledger.StatusOpen {
+				return fmt.Errorf("open closure row %s", document.Name)
+			}
+		}
+	}
+	fmt.Printf("closure-scan: scoped sites=%d classified=%d stale=0\n", len(candidates), classified)
+	return nil
+}
+
+func compileActiveClosures(documents []closureledger.Document) map[string]closureledger.Document {
+	active := make(map[string]closureledger.Document, len(documents))
+	for _, document := range documents {
+		for _, binding := range document.Bindings {
+			key := (closurescan.Candidate{
+				Kind: binding.Kind, File: binding.File, Scope: binding.Scope, Line: binding.Line, Name: binding.Name,
+			}).DeclarationKey()
+			active[key] = document
+		}
+	}
+	return active
+}
+
+func activeCandidateClosure(active map[string]closureledger.Document, candidate closurescan.Candidate) (closureledger.Document, bool) {
+	document, found := active[candidate.DeclarationKey()]
+	if !found || !bytes.Equal(document.Value, candidate.ValueJSON()) {
+		return closureledger.Document{}, false
+	}
+	binding, err := candidate.Binding()
+	if err != nil || !slices.Contains(document.Bindings, binding) {
+		return closureledger.Document{}, false
+	}
+	return document, true
+}
+
+func modelAuthorityPackage(pkg string) bool {
+	for _, prefix := range []string{
+		"internal/model", "internal/inference", "internal/projector",
+		"internal/latentimage", "internal/latentvideo", "internal/speechsynth",
+	} {
+		if scopedPath(pkg, []string{prefix}) {
+			return true
+		}
+	}
+	return false
+}
+
+func checkTestAuthority(snapshot repoanalysis.SourceSnapshot, requirements testRequirements) error {
+	sites, err := closurescan.CensusTestLiterals(snapshot)
+	if err != nil {
+		return err
+	}
+	var policyCopies int
+	for _, site := range sites {
+		if site.Class == closurescan.TestPolicyCopy {
+			policyCopies++
+		}
+		if requirements.noPolicyCopies && site.Class == closurescan.TestPolicyCopy {
+			return fmt.Errorf("test policy copy at %s:%d matches %s", site.File, site.Line, strings.Join(site.ProductionMatches, ","))
+		}
+		if requirements.classifiedFixtures && site.Class == "" {
+			return fmt.Errorf("unclassified test literal at %s:%d", site.File, site.Line)
+		}
+	}
+	fmt.Printf("closure-scan: test sites=%d policy_copies=%d\n", len(sites), policyCopies)
 	return nil
 }
 
@@ -244,7 +356,7 @@ func closurePrefixes(value string) ([]string, error) {
 func scopedSources(snapshot repoanalysis.SourceSnapshot, prefixes []string) []string {
 	var relatives []string
 	for _, source := range snapshot.Files {
-		if !source.Test && scopedPath(source.Path, prefixes) {
+		if !source.Test && (prefixes == nil || scopedPath(source.Path, prefixes)) {
 			relatives = append(relatives, source.Path)
 		}
 	}
@@ -253,6 +365,9 @@ func scopedSources(snapshot repoanalysis.SourceSnapshot, prefixes []string) []st
 
 func scopedDocuments(documents []closureledger.Document, prefixes []string) []closureledger.Document {
 	return slices.DeleteFunc(slices.Clone(documents), func(document closureledger.Document) bool {
+		if prefixes == nil {
+			return false
+		}
 		return !slices.ContainsFunc(document.Bindings, func(binding closureledger.SourceBinding) bool {
 			return scopedPath(binding.File, prefixes)
 		})

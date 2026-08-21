@@ -3,29 +3,6 @@
   "doctrine": "Follow skill.md. Current census: 896 production files, 23,430 inline literals, 3,071 assumption hints, 1,724 copied test-policy sites. Audit every non-generated Go file in deterministic scanner order. Classify every literal as structural syntax, mathematical fact, protocol/ABI fact, fixture input, derived value, or runtime policy. Structural, mathematical, protocol, and fixture values require typed dispositions; runtime policy must move to artifacts, RepoDB recipes, compiled plans, or measured resource policy. Recipes and neutral typed operators are sole runtime authorities. Each wave migrates every caller and deletes displaced model-specific orchestration, wrappers, fallbacks, duplicate probes, compatibility readers, and parallel registries immediately. No advisory plans or deferred adoption. Preserve numerical behavior. Prefer fewer allocations, transfers, probes, branches, maps, and operations. Every implementation commit runs focused tests, full host tests, required CUDA/device gates, publishes census evidence, then merges tightening/master before redispatch. Completion requires zero stale bindings, zero open derivation-blocked rows, zero uncatalogued production policy, zero copied test policy, and zero model facts outside artifact/recipe authorities.",
   "items": [
     {
-      "id": "magic-scan-authority",
-      "title": "Make closure scanning capable of enforcing the campaign",
-      "status": "open",
-      "steps": [
-        {
-          "id": "enforcement-modes",
-          "title": "Implement model-fact, full-production, test-policy, and zero-open enforcement modes",
-          "status": "open",
-          "verify": "go test ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestAuthorityEnforcement' -count=1 \u0026\u0026 go run ./cmd/closure-scan -census -format text -limit 1",
-          "rationale": "Existing plan verifiers reference flags that do not exist; failable checks must land before cleanup claims.",
-          "depends_on": [
-            "magic-scan-authority/typed-sites"
-          ],
-          "capabilities": [
-            "model-fact-enforcement",
-            "repository-audit",
-            "test-policy-enforcement",
-            "zero-debt-enforcement"
-          ]
-        }
-      ]
-    },
-    {
       "id": "magic-model-authority",
       "title": "Remove model facts and orchestration from runtime code",
       "status": "open",

@@ -37,6 +37,7 @@ type Candidate struct {
 	Value      string                    `json:"value"`
 	SourceID   string                    `json:"source_id"`
 	CallsiteID string                    `json:"callsite_id"`
+	Policy     bool                      `json:"policy"`
 	Doc        string                    `json:"doc,omitempty"`
 	Score      int                       `json:"score"`
 }
@@ -45,10 +46,10 @@ type CandidateKinds uint8
 
 const (
 	candidateNone      CandidateKinds = iota
-	CandidateConstants                = 1 << (iota - 1)
+	CandidateConstants CandidateKinds = 1 << (iota - 1)
 	CandidateLiterals
 	CandidateAssumptions
-	CandidateAll = (1 << (iota - 1)) - 1
+	CandidateAll CandidateKinds = (1 << (iota - 1)) - 1
 )
 
 func (k CandidateKinds) valid() bool {
@@ -104,6 +105,7 @@ func (s LiteralSite) Candidate() Candidate {
 		File: s.File, Package: s.Package, Scope: s.Scope, Line: s.Line,
 		Expression: s.Expression, Value: s.Value, SourceID: s.SourceID,
 		CallsiteID: sourceSiteID(s.File, s.SourceID, s.Scope, s.Line, s.Offset),
+		Policy:     runtimeLiteralContext(s.Context),
 	}
 }
 
@@ -114,6 +116,16 @@ func (s AssumptionHint) Candidate() Candidate {
 		File: s.File, Package: s.Package, Scope: s.Scope, Line: s.Line,
 		Expression: s.Expression, Value: string(s.Kind), SourceID: s.SourceID,
 		CallsiteID: sourceSiteID(s.File, s.SourceID, s.Scope, s.Line, s.Offset),
+		Policy:     true,
+	}
+}
+
+func runtimeLiteralContext(context LiteralContext) bool {
+	switch context {
+	case LiteralIndex, LiteralSlice, LiteralExtent, LiteralArithmetic:
+		return false
+	default:
+		return true
 	}
 }
 
@@ -704,7 +716,7 @@ func collectObjects(file *ast.File, source repoanalysis.GoFile, out *[]Candidate
 			Package: filepath.ToSlash(filepath.Dir(source.Path)),
 			Scope:   declaration.scope, Line: source.Line(declaration.name.Pos()),
 			Expression: expression, Value: evaluated, SourceID: source.ContentID,
-			Doc: declaration.doc, Score: score(declaration.name.Name, declaration.doc, evaluated),
+			Policy: true, Doc: declaration.doc, Score: score(declaration.name.Name, declaration.doc, evaluated),
 		})
 		if objects != nil && declaration.name.Obj != nil {
 			objects[declaration.name.Obj] = index

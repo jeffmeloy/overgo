@@ -6,6 +6,11 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"overgo/internal/artifact"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
+	"overgo/internal/testutil"
 )
 
 func TestBoundedSessionAdmission(t *testing.T) {
@@ -112,6 +117,106 @@ func TestBoundedSessionAdmission(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+type lifecycleSessionModel struct{ closes *int }
+
+func (m *lifecycleSessionModel) Close(context.Context) error {
+	*m.closes++
+	return nil
+}
+
+func TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle(t *testing.T) {
+	closes := 0
+	director, err := NewComponentSessionDirector[*lifecycleSessionModel]("test", "host", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	component := func(name string) modelrecipe.ComponentSession {
+		return modelrecipe.ComponentSession{
+			Identity: testutil.ArtifactID(t, artifact.KindProfile, name+"-resources"),
+			Node:     "stage", Module: "test.stage",
+			Model: testutil.ArtifactID(t, artifact.KindModel, name), Session: recipe.SessionCapacity,
+		}
+	}
+	first := component("first")
+	held, err := director.LeaseComponent(t.Context(), first, func(context.Context) (*lifecycleSessionModel, error) {
+		return &lifecycleSessionModel{closes: &closes}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cancelledContext, cancel := context.WithCancel(t.Context())
+	cancelled := make(chan error, 1)
+	go func() {
+		_, leaseErr := director.LeaseComponent(cancelledContext, first, func(context.Context) (*lifecycleSessionModel, error) {
+			return nil, errors.New("same component was loaded while resident")
+		})
+		cancelled <- leaseErr
+	}()
+	waitForParkedSession(t, director)
+	cancel()
+	if err := <-cancelled; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled component waiter error = %v", err)
+	}
+
+	resumed := make(chan *SessionLease[*lifecycleSessionModel], 1)
+	resumedErr := make(chan error, 1)
+	go func() {
+		lease, leaseErr := director.LeaseComponent(t.Context(), first, func(context.Context) (*lifecycleSessionModel, error) {
+			return nil, errors.New("same component was reloaded")
+		})
+		resumed <- lease
+		resumedErr <- leaseErr
+	}()
+	waitForParkedSession(t, director)
+	if _, err := director.LeaseComponent(t.Context(), first, func(context.Context) (*lifecycleSessionModel, error) {
+		return nil, errors.New("overflow waiter loaded")
+	}); !errors.Is(err, ErrAdmissionQueueFull) {
+		t.Fatalf("component overflow error = %v", err)
+	}
+	if err := held.Release(); err != nil {
+		t.Fatal(err)
+	}
+	reused := <-resumed
+	if err := <-resumedErr; err != nil || reused == nil {
+		t.Fatalf("resumed component lease = (%v, %v)", reused, err)
+	}
+	snapshot := director.Snapshot()
+	if snapshot.Active != 1 || snapshot.Waiting != 0 || snapshot.Entries != 1 ||
+		snapshot.Loads != 1 || snapshot.Reuses != 1 || snapshot.Evictions != 0 {
+		t.Fatalf("reused lifecycle snapshot = %+v", snapshot)
+	}
+	if err := reused.Release(); err != nil {
+		t.Fatal(err)
+	}
+
+	second := component("second")
+	replacement, err := director.LeaseComponent(t.Context(), second, func(context.Context) (*lifecycleSessionModel, error) {
+		return &lifecycleSessionModel{closes: &closes}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot = director.Snapshot()
+	if snapshot.Active != 1 || snapshot.Available != 0 || snapshot.Entries != 1 ||
+		snapshot.Loads != 2 || snapshot.Reuses != 1 || snapshot.Evictions != 1 || closes != 1 {
+		t.Fatalf("evicted lifecycle snapshot = %+v closes=%d", snapshot, closes)
+	}
+	if err := replacement.Release(); err != nil {
+		t.Fatal(err)
+	}
+	snapshot = director.Snapshot()
+	if snapshot.Active != 0 || snapshot.Available != 1 || snapshot.Idle != 1 {
+		t.Fatalf("idle lifecycle snapshot = %+v", snapshot)
+	}
+	if err := director.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if closes != 2 {
+		t.Fatalf("closed models = %d", closes)
+	}
 }
 
 func waitForParkedSession[Input, Model, Output any](t *testing.T, director *ModelSessionDirector[Input, Model, Output]) {

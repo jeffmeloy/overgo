@@ -602,7 +602,6 @@ func TestNativeInfillFormatsAndGeneratesExactPromptTokens(t *testing.T) {
 		MaxTokens:          testMaxTokens,
 		DefaultTemperature: testNeutralTemperature,
 		DefaultTopP:        testFullTopP,
-		InfillBatchSize:    16,
 		SPMInfill:          true,
 	}, generator)
 	if err != nil {
@@ -640,8 +639,7 @@ func TestNativeInfillFormatsAndGeneratesExactPromptTokens(t *testing.T) {
 		!slices.Equal(extra[0].Tokens, []tokenizer.TokenID{10}) {
 		t.Fatalf("infill extra = %+v", extra)
 	}
-	if options.BatchSize != 16 ||
-		options.MaxNewTokens != 1 ||
+	if options.MaxNewTokens != 1 ||
 		!options.SuffixPrefix {
 		t.Fatalf("infill options = %+v", options)
 	}

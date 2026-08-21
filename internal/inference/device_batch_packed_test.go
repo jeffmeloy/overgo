@@ -38,16 +38,15 @@ func TestPlanDeviceCohorts(t *testing.T) {
 		firstPosition  = 7
 		secondTokens   = 8
 		secondPosition = 10
-		pageTokens     = 4
 	)
 	appends := []deviceBatchAppend{
-		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{1}, PageTokens: pageTokens},
-		{Past: &deviceKVCache{Tokens: secondTokens, Position: secondPosition}, Tokens: []tokenizer.TokenID{2}, PageTokens: pageTokens},
-		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{3}, PageTokens: pageTokens},
-		{Tokens: []tokenizer.TokenID{4}, PageTokens: pageTokens},
-		{Past: &deviceKVCache{Tokens: secondTokens, Position: secondPosition}, Tokens: []tokenizer.TokenID{5}, PageTokens: pageTokens},
-		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{6, 7}, PageTokens: pageTokens},
-		{Past: &deviceKVCache{Tokens: firstTokens + 1, Position: firstPosition + 1}, Tokens: []tokenizer.TokenID{8}, PageTokens: pageTokens},
+		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{1}},
+		{Past: &deviceKVCache{Tokens: secondTokens, Position: secondPosition}, Tokens: []tokenizer.TokenID{2}},
+		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{3}},
+		{Tokens: []tokenizer.TokenID{4}},
+		{Past: &deviceKVCache{Tokens: secondTokens, Position: secondPosition}, Tokens: []tokenizer.TokenID{5}},
+		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{6, 7}},
+		{Past: &deviceKVCache{Tokens: firstTokens + 1, Position: firstPosition + 1}, Tokens: []tokenizer.TokenID{8}},
 	}
 	packed, fallback := planDeviceCohorts(appends)
 	wantPacked := [][]int{{0, 2}, {1, 4}}
@@ -69,10 +68,10 @@ func TestPackedDeviceCopyAndSplitTokenCache(t *testing.T) {
 		packedPointer = driver.DevicePtr(4096)
 	)
 	baseShape := tensor.MustShape(width, heads, pastTokens)
-	copySpec, err := packedDeviceCopy([]executor.DeviceValue{
+	copySpec, err := executor.PackedCopy([]executor.DeviceValue{
 		{Pointer: firstPointer, Shape: baseShape},
 		{Pointer: secondPointer, Shape: baseShape},
-	})
+	}, dtype.F32)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +82,7 @@ func TestPackedDeviceCopyAndSplitTokenCache(t *testing.T) {
 	packed := executor.DeviceValue{
 		Pointer: packedPointer, Shape: tensor.MustShape(width, heads, nextTokens, sequences),
 	}
-	second, err := splitPackedDeviceValue(packed, baseShape, 1, sequences)
+	second, err := executor.SplitPackedValue(packed, baseShape, dtype.F32, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +108,7 @@ func TestSplitPackedDeviceValueRetainsExplicitSequenceAxis(t *testing.T) {
 	packed := executor.DeviceValue{
 		Pointer: packedPointer, Shape: tensor.MustShape(stateWidth, stateWidth, heads, sequences),
 	}
-	second, err := splitPackedDeviceValue(packed, template, 1, sequences)
+	second, err := executor.SplitPackedValue(packed, template, dtype.F32, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,13 +140,13 @@ func TestPackedDeviceViewRequiresContiguousSequenceSlabs(t *testing.T) {
 		{Pointer: firstPointer, Shape: shape},
 		{Pointer: firstPointer + stride, Shape: shape},
 	}
-	view, ok := packedDeviceView(values)
+	view, ok := executor.PackedView(values, dtype.F32)
 	if !ok || view.Pointer != firstPointer ||
 		!view.Shape.Equal(tensor.MustShape(width, heads, tokens, sequences)) {
 		t.Fatalf("contiguous packed view = %+v, available %t", view, ok)
 	}
 	values[1].Pointer++
-	if _, ok = packedDeviceView(values); ok {
+	if _, ok = executor.PackedView(values, dtype.F32); ok {
 		t.Fatal("non-contiguous device values produced a packed view")
 	}
 }

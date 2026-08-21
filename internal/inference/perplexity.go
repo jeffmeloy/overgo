@@ -224,7 +224,6 @@ func (r *Runner) logitsBatch(
 				r.file,
 				outputInfo,
 				hidden.Data[token*width:(token+1)*width],
-				1024,
 			)
 			if err != nil {
 				return nil, err

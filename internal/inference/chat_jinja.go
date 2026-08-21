@@ -132,9 +132,6 @@ func (r *Runner) formatJinjaChatNative(
 	if len(messages) == 0 {
 		return "", errors.New("inference: chat message list is empty")
 	}
-	if len(source) > maxChatTemplateBytes {
-		return "", errors.New("inference: chat template exceeds 1 MiB")
-	}
 	source = normalizeChatTemplateSource(source)
 	context, err := r.buildChatContext(source, messages, options)
 	if err != nil {
@@ -144,9 +141,6 @@ func (r *Runner) formatJinjaChatNative(
 	result, err := env.Render(source, context)
 	if err != nil {
 		return "", fmt.Errorf("inference: execute GGUF chat template: %w", err)
-	}
-	if len(result) > maxFormattedChatBytes {
-		return "", errors.New("formatted chat prompt exceeds 16 MiB")
 	}
 	bos := context["bos_token"].(string)
 	if r.vocab.AddBOS && bos != "" {

@@ -46,7 +46,7 @@ func (r *Runner) forwardNonCausalLocked(
 			len(tokenIDs), r.spec.ContextLength,
 		)
 	}
-	rows, err := r.tokenRows(tokenIDs)
+	rows, err := r.vocab.TensorIndices(tokenIDs)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -110,7 +110,7 @@ func (r *Runner) forwardAudioTokensLocked(
 			len(tokenIDs), r.spec.ContextLength,
 		)
 	}
-	rows, err := r.tokenRows(tokenIDs)
+	rows, err := r.vocab.TensorIndices(tokenIDs)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -207,7 +207,7 @@ func (r *Runner) forwardEncoderLocked(
 			r.spec.ContextLength,
 		)
 	}
-	rows, err := r.tokenRows(tokenIDs)
+	rows, err := r.vocab.TensorIndices(tokenIDs)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -294,7 +294,7 @@ func (r *Runner) decodeEncoderDecoderLocked(
 	if uint64(pastTokens)+uint64(len(decoderIDs)) > uint64(r.spec.ContextLength) {
 		return reference.Value{}, nil, errors.New("inference: decoder sequence exceeds context length")
 	}
-	rows, err := r.tokenRows(decoderIDs)
+	rows, err := r.vocab.TensorIndices(decoderIDs)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

@@ -40,7 +40,6 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	if promptCacheCapacity == 0 {
 		promptCacheCapacity = 1
 	}
-	cachePageTokens := resolveCachePageTokens(options.CachePageTokens)
 	// Residency is compiled into recipe identity; runtime flags may only confirm it.
 	residency, err := bindResidency(program.Residency)
 	if err != nil {
@@ -132,7 +131,8 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,
 		hostWeights:         hostWeights,
 		outputBias:          outputBias,
-		promptCacheCapacity: promptCacheCapacity, cachePageTokens: cachePageTokens,
+		outputExclusions:    vocab.NonTextGenerationRanges(),
+		promptCacheCapacity: promptCacheCapacity,
 	}, runnerState: runnerState{loraAdapters: loraAdapters}}, nil
 }
 

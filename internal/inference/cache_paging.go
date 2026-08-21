@@ -1,17 +1,27 @@
 package inference
 
-// DefaultCachePageTokens: retained KV-cache page width.
-const DefaultCachePageTokens uint32 = 256
+import (
+	"math/bits"
 
-func resolveCachePageTokens(pageTokens uint32) uint32 {
-	if pageTokens == 0 {
-		return DefaultCachePageTokens
+	"overgo/internal/recipe"
+)
+
+func cachePageTokens(tokens uint32, session recipe.SessionPolicy) uint32 {
+	if tokens == 0 {
+		return 0
 	}
-	return pageTokens
+	if session == recipe.SessionRequest {
+		return tokens
+	}
+	reversed := bits.Reverse32(tokens)
+	return bits.Reverse32(reversed & -reversed)
 }
 
-func cachePageCapacity(tokens, pageTokens, limit uint32) uint32 {
-	pageTokens = resolveCachePageTokens(pageTokens)
+func cachePageCapacity(tokens, limit uint32, session recipe.SessionPolicy) uint32 {
+	pageTokens := cachePageTokens(tokens, session)
+	if pageTokens == 0 {
+		return 0
+	}
 	capacity := (uint64(tokens) + uint64(pageTokens) - 1) / uint64(pageTokens) * uint64(pageTokens)
 	if capacity > uint64(limit) {
 		capacity = uint64(limit)

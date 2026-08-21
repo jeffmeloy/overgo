@@ -8,6 +8,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
+	"overgo/internal/recipe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -208,7 +209,7 @@ func TestTrimDeviceCacheSuffix(t *testing.T) {
 	cache := fixture.cache()
 	cache.Position = fixtureTokens
 	cache.Logits = []float32{1, 2}
-	if err := trimDeviceCacheSuffix(cache, fixtureKeptTokens); err != nil {
+	if err := trimDeviceCacheSuffix(cache, fixtureKeptTokens, recipe.SessionCapacity); err != nil {
 		t.Fatal(err)
 	}
 	if cache.Tokens != fixtureKeptTokens ||

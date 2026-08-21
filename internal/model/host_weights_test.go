@@ -48,7 +48,7 @@ func TestLoadHostRowsAndDotRows(t *testing.T) {
 			t.Fatalf("row value[%d] = %v, want %v", index, value.Data[index], want[index])
 		}
 	}
-	scores, err := DotRows(context.Background(), file, file.Tensors[0], []float32{1, 1}, 2)
+	scores, err := DotRows(context.Background(), file, file.Tensors[0], []float32{1, 1})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
+	"overgo/internal/recipe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -14,7 +15,6 @@ func TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity(t *testing.T) {
 	const (
 		fixturePastTokens = uint32(2)
 		fixtureNewTokens  = uint32(1)
-		fixturePageTokens = uint32(4)
 		fixtureContext    = uint32(16)
 		fixtureKeyWidth   = uint32(2)
 		fixtureValueWidth = uint32(3)
@@ -57,15 +57,18 @@ func TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity(t *testing.T) {
 			keys: []*tensor.Tensor{key}, values: []*tensor.Tensor{value},
 			pastTokens: fixturePastTokens, tokenCount: fixtureNewTokens,
 		}},
-		[]deviceBatchAppend{{PageTokens: fixturePageTokens}},
+		[]deviceBatchAppend{{}},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := plans[0].layers[0]
+	wantCapacity := uint64(cachePageCapacity(
+		fixturePastTokens+fixtureNewTokens, fixtureContext, recipe.SessionCapacity,
+	))
 	if !got.enabled || got.keySlot == got.valueSlot ||
-		got.keyCapacity.Dims[tokenAxis] != uint64(fixturePageTokens) ||
-		got.valueCapacity.Dims[tokenAxis] != uint64(fixturePageTokens) {
+		got.keyCapacity.Dims[tokenAxis] != wantCapacity ||
+		got.valueCapacity.Dims[tokenAxis] != wantCapacity {
 		t.Fatalf("cache target plan = %+v", got)
 	}
 }
@@ -76,7 +79,6 @@ func TestRebuildDeviceCachePagesCreatesPointerViews(t *testing.T) {
 		fixtureValueWidth   = uint32(3)
 		fixtureHeads        = uint32(1)
 		fixtureTokens       = uint32(5)
-		fixturePageTokens   = uint32(2)
 		fixtureKeyPointer   = driver.DevicePtr(1000)
 		fixtureValuePointer = driver.DevicePtr(2000)
 	)
@@ -86,11 +88,12 @@ func TestRebuildDeviceCachePagesCreatesPointerViews(t *testing.T) {
 		KeyPointer: fixtureKeyPointer, ValuePointer: fixtureValuePointer,
 	}
 	cache := fixture.cache()
-	if err := rebuildDeviceCachePages(cache, fixturePageTokens); err != nil {
+	if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity); err != nil {
 		t.Fatal(err)
 	}
+	fixturePageTokens := cachePageTokens(fixtureTokens, recipe.SessionCapacity)
 	wantPages := int((fixtureTokens + fixturePageTokens - 1) / fixturePageTokens)
-	if cache.PageTokens != fixturePageTokens || len(cache.Pages) != wantPages {
+	if len(cache.Pages) != wantPages {
 		t.Fatalf("page table = %+v", cache.Pages)
 	}
 	for index, page := range cache.Pages {
@@ -106,22 +109,22 @@ func TestRebuildDeviceCachePagesCreatesPointerViews(t *testing.T) {
 	}
 }
 
-func TestCachePageCapacityRoundsAndClamps(t *testing.T) {
-	const (
-		page  = uint32(4)
-		limit = uint32(10)
-	)
+func TestCachePageCapacityFollowsSessionPolicy(t *testing.T) {
+	const limit = uint32(10)
 	for _, fixture := range []struct {
-		tokens uint32
-		want   uint32
+		session recipe.SessionPolicy
+		tokens  uint32
+		want    uint32
 	}{
-		{1, 4},
-		{4, 4},
-		{5, 8},
-		{9, limit},
-		{limit, limit},
+		{recipe.SessionRequest, 1, 1},
+		{recipe.SessionRequest, 5, 5},
+		{recipe.SessionCapacity, 1, 1},
+		{recipe.SessionCapacity, 3, 4},
+		{recipe.SessionCapacity, 5, 8},
+		{recipe.SessionCapacity, 9, limit},
+		{recipe.SessionCapacity, limit, limit},
 	} {
-		if got := cachePageCapacity(fixture.tokens, page, limit); got != fixture.want {
+		if got := cachePageCapacity(fixture.tokens, limit, fixture.session); got != fixture.want {
 			t.Fatalf("capacity(%d) = %d, want %d", fixture.tokens, got, fixture.want)
 		}
 	}
@@ -136,7 +139,7 @@ func TestRebuildDeviceCachePagesPreservesFixedState(t *testing.T) {
 		Keys: []executor.DeviceValue{fixed}, Values: []executor.DeviceValue{fixed},
 		Tokens: 3,
 	}
-	if err := rebuildDeviceCachePages(cache, 2); err != nil {
+	if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity); err != nil {
 		t.Fatal(err)
 	}
 	for index, page := range cache.Pages {
@@ -170,13 +173,13 @@ func BenchmarkRebuildDeviceCachePages(b *testing.B) {
 			Shape:   tensor.MustShape(keyWidth, keyHeads, uint64(cache.Tokens)),
 		}
 	}
-	if err := rebuildDeviceCachePages(cache, DefaultCachePageTokens); err != nil {
+	if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity); err != nil {
 		b.Fatal(err)
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		if err := rebuildDeviceCachePages(cache, DefaultCachePageTokens); err != nil {
+		if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity); err != nil {
 			b.Fatal(err)
 		}
 	}

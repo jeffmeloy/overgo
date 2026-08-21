@@ -211,7 +211,7 @@ func (r *Runner) DecodePairedFeatureBlock(
 	if len(tokenIDs) == 0 || len(tokenIDs) != len(positions) || cache == nil || len(cache.Layers) != len(r.weights.Layers) {
 		return reference.Value{}, errors.New("inference: paired-feature block input is incompatible")
 	}
-	rows, err := target.tokenRows(tokenIDs)
+	rows, err := target.vocab.TensorIndices(tokenIDs)
 	if err != nil {
 		return reference.Value{}, err
 	}

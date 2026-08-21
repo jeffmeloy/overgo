@@ -177,9 +177,11 @@ func (r *Runner) sampleHidden(
 	ids []tokenizer.TokenID,
 	options GenerateOptions,
 ) (TokenEvent, error) {
-	width := int(hidden.Shape.Dims[0])
-	last := hidden.Data[len(hidden.Data)-width:]
-	logits, err := r.logits(ctx, outputTable, last)
+	last := hidden.LastRowView()
+	if len(last.Data) == 0 {
+		return TokenEvent{}, errors.New("inference: generation hidden state is incompatible")
+	}
+	logits, err := r.logits(ctx, outputTable, last.Data)
 	if err != nil {
 		return TokenEvent{}, err
 	}

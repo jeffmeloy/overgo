@@ -75,7 +75,7 @@ func (r *Runner) NewMultiHeadMTPSession(
 	if err != nil {
 		return nil, err
 	}
-	last := lastHiddenColumn(hidden)
+	last := hidden.LastRowView().Clone()
 	position := effectiveCachePosition(cache)
 	return &MultiHeadMTPSession{
 		TrunkCache: cache, Heads: heads, PendingHidden: last,
@@ -166,7 +166,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if err != nil || !plan.HasHead(offset) || len(tokenIDs) == 0 || len(positions) != len(tokenIDs) {
 		return reference.Value{}, reference.Value{}, LayerCache{}, errors.New("inference: multi-head MTP head inputs are invalid")
 	}
-	rows, err := r.tokenRows(tokenIDs)
+	rows, err := r.vocab.TensorIndices(tokenIDs)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}

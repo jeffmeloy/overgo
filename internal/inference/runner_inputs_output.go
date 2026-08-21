@@ -12,11 +12,6 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-const (
-	chameleonTextTokenStart = 4
-	chameleonTextTokenEnd   = 8196
-)
-
 func (r *Runner) loadEmbeddings(ctx context.Context, rows []uint32) (reference.Value, error) {
 	return r.loadRows(ctx, r.weights.TokenEmbedding, rows)
 }
@@ -184,7 +179,6 @@ func (r *Runner) logits(
 			r.file,
 			outputInfo,
 			hidden,
-			1024,
 		)
 		if err != nil {
 			return nil, err
@@ -251,20 +245,19 @@ func applyLogitSoftcap(logits []float32, cap float32) []float32 {
 
 func (r *Runner) finalizeLogits(logits []float32) []float32 {
 	logits = applyLogitSoftcap(logits, r.spec.FinalLogitSoftcap)
-	if !r.program.Model.ProjectedInput().DiscreteTokens || r.spec.VocabularySize == 0 {
+	if len(r.outputExclusions) == 0 || r.spec.VocabularySize == 0 {
 		return logits
 	}
 	vocabulary := int(r.spec.VocabularySize)
 	if len(logits)%vocabulary != 0 {
 		return logits
 	}
-	end := chameleonTextTokenEnd
-	if end > vocabulary {
-		end = vocabulary
-	}
 	for base := 0; base < len(logits); base += vocabulary {
-		for token := chameleonTextTokenStart; token < end; token++ {
-			logits[base+token] = -math.MaxFloat32
+		for _, span := range r.outputExclusions {
+			start, end := int(span.Start), min(int(span.End), vocabulary)
+			for token := start; token < end; token++ {
+				logits[base+token] = -math.MaxFloat32
+			}
 		}
 	}
 	return logits

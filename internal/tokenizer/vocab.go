@@ -36,6 +36,12 @@ type Token struct {
 	Type  TokenType
 }
 
+// TokenRange: half-open vocabulary interval.
+type TokenRange struct {
+	Start TokenID
+	End   TokenID
+}
+
 type pair struct {
 	left  string
 	right string
@@ -403,6 +409,39 @@ func (v *Vocab) Token(id TokenID) (Token, bool) {
 		return Token{}, false
 	}
 	return v.Tokens[id], true
+}
+
+// NonTextGenerationRanges compiles serialized codebook-token intervals.
+func (v *Vocab) NonTextGenerationRanges() []TokenRange {
+	if v == nil {
+		return nil
+	}
+	var ranges []TokenRange
+	for index, token := range v.Tokens {
+		if !isSerializedCodebookToken(token.Text) {
+			continue
+		}
+		id := TokenID(index)
+		if len(ranges) != 0 && ranges[len(ranges)-1].End == id {
+			ranges[len(ranges)-1].End++
+			continue
+		}
+		ranges = append(ranges, TokenRange{Start: id, End: id + 1})
+	}
+	return ranges
+}
+
+func isSerializedCodebookToken(text string) bool {
+	const prefix = "IMGIMG"
+	if !strings.HasPrefix(text, prefix) || len(text) <= len(prefix)+1 || text[len(text)-1] != 'Z' {
+		return false
+	}
+	for _, value := range text[len(prefix) : len(text)-1] {
+		if value < 'A' || value > 'I' {
+			return false
+		}
+	}
+	return true
 }
 
 // IsEOG reports declared terminal IDs.

@@ -162,7 +162,6 @@ func (h *Handler) infill(
 		prompt,
 		extra,
 		inference.InfillFormatOptions{
-			BatchSize:    h.config.InfillBatchSize,
 			MaxNewTokens: maxTokens,
 			SuffixPrefix: h.config.SPMInfill,
 		},

@@ -7,21 +7,12 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-const (
-	maxDryBreakerBytes = 40
-	maxDryBreakerTail  = 20
-	maxDryBreakers     = 1024
-)
-
 // TokenizeDryBreakers ports llama.cpp's overlapping-token expansion; finds
 // both tokens containing complete breaker and token sequences where
 // breaker: starts in one token and continues in later tokens
 func (r *Runner) TokenizeDryBreakers(breakers []string) ([][]int, error) {
 	if r == nil || r.vocab == nil {
 		return nil, errRunnerNil
-	}
-	if len(breakers) > maxDryBreakers {
-		return nil, fmt.Errorf("inference: DRY breaker count exceeds %d", maxDryBreakers)
 	}
 	var result [][]int
 	seen := make(map[string]struct{})
@@ -42,9 +33,6 @@ func (r *Runner) TokenizeDryBreakers(breakers []string) ([][]int, error) {
 	for breakerIndex, breaker := range breakers {
 		if breaker == "" {
 			return nil, fmt.Errorf("inference: DRY breaker %d is empty", breakerIndex)
-		}
-		if len(breaker) > maxDryBreakerBytes {
-			breaker = breaker[:maxDryBreakerBytes]
 		}
 		for tokenIndex := range r.vocab.Tokens {
 			tokenID := tokenizer.TokenID(tokenIndex)
@@ -70,9 +58,6 @@ func (r *Runner) TokenizeDryBreakers(breakers []string) ([][]int, error) {
 					)
 					if encodeErr != nil {
 						return nil, encodeErr
-					}
-					if len(tail) > maxDryBreakerTail {
-						tail = tail[:maxDryBreakerTail]
 					}
 					sequence := make([]tokenizer.TokenID, 1, len(tail)+1)
 					sequence[0] = tokenID

@@ -131,6 +131,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,
 		hostWeights:         hostWeights,
 		outputBias:          outputBias,
+		outputExclusions:    vocab.NonTextGenerationRanges(),
 		promptCacheCapacity: promptCacheCapacity,
 	}, runnerState: runnerState{loraAdapters: loraAdapters}}, nil
 }

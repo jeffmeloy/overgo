@@ -508,7 +508,6 @@ type ProjectedInputProgram struct {
 	MultiAxis          bool
 	PerLayerEmbeddings bool
 	ClassifierHead     bool
-	DiscreteTokens     bool
 }
 
 func compileProjectedInputProgram(spec Spec, profile ArchitectureProfile) ProjectedInputProgram {
@@ -522,7 +521,6 @@ func compileProjectedInputProgram(spec Spec, profile ArchitectureProfile) Projec
 		MultiAxis:          spec.SupportsMultiAxisPositionsWithProfile(profile),
 		PerLayerEmbeddings: spec.hasPerLayerEmbeddings(profile),
 		ClassifierHead:     profile.Has(ArchitectureClassifierHead),
-		DiscreteTokens:     profile.Has(ArchitectureDiscreteImageTokens),
 	}
 }
 

@@ -48,3 +48,32 @@ func (v Value) TailRows(count uint64) (Value, error) {
 	}
 	return v.Rows(v.Shape.Dims[1]-count, count)
 }
+
+// RemoveTrailingRange removes contiguous final-axis rows.
+func (v Value) RemoveTrailingRange(start, count uint64) (Value, error) {
+	extent, _, valid := tensor.FinalExtent(v.Shape)
+	if !valid || start > extent || count > extent-start || count == tensor.FirstOffset {
+		return Value{}, errors.New("reference trailing range is invalid")
+	}
+	elements, err := v.Shape.Elements()
+	if err != nil || elements != uint64(len(v.Data)) {
+		return Value{}, errors.New("reference storage is invalid")
+	}
+	stride := elements / extent
+	firstEnd, firstOK := checked.Mul64(start, stride)
+	secondStart, secondOK := checked.Mul64(start+count, stride)
+	remaining := extent - count
+	shape, shapeOK := tensor.WithTrailingExtent(v.Shape, remaining)
+	capacity, capacityOK := checked.Mul64(remaining, stride)
+	firstIndex, firstIndexOK := checked.Int(firstEnd)
+	secondIndex, secondIndexOK := checked.Int(secondStart)
+	capacityInt, capacityIntOK := checked.Int(capacity)
+	if !firstOK || !secondOK || !shapeOK || !capacityOK ||
+		!firstIndexOK || !secondIndexOK || !capacityIntOK {
+		return Value{}, errors.New("reference trailing range overflows")
+	}
+	data := make([]float32, 0, capacityInt)
+	data = append(data, v.Data[:firstIndex]...)
+	data = append(data, v.Data[secondIndex:]...)
+	return Value{Shape: shape, Data: data}, nil
+}

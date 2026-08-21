@@ -314,7 +314,7 @@ func (r *Runner) packDeviceBatchCaches(
 	valueIndex := 0
 	for layer := range packed.Keys {
 		packed.Keys[layer], packed.Values[layer] = values[valueIndex], values[valueIndex+1]
-		valueIndex += 2
+		valueIndex += tensor.PairedExtent
 		if len(stateNames[layer]) != 0 {
 			packed.States[layer] = make(deviceLayerStates, len(stateNames[layer]))
 			for _, name := range stateNames[layer] {

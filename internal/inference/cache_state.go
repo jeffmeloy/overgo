@@ -17,9 +17,6 @@ import (
 const (
 	cacheStateMagic        = "L2GKV003"
 	cacheStateHeaderSize   = 20
-	maxCacheStateLayers    = 4096
-	maxLayerCacheStates    = 16
-	maxCacheStateName      = 64
 	cacheLayerCountBytes   = 4
 	cacheRecordPrefixBytes = 8
 	cacheRecordValueBytes  = 44
@@ -113,9 +110,6 @@ func (r *Runner) validateCache(cache *KVCache) error {
 	}
 	var deepSeekPositions []float32
 	for index, layer := range cache.Layers {
-		if len(layer.States) > maxLayerCacheStates-2 {
-			return fmt.Errorf("inference: KV cache layer %d state count exceeds limit", index)
-		}
 		for name, state := range layer.States {
 			if err := validateLayerState(name, state, cache.Tokens); err != nil {
 				return fmt.Errorf("inference: KV cache layer %d state %q: %w", index, name, err)
@@ -196,7 +190,7 @@ func validateLayerCacheSchema(layer LayerCache, schema model.LayerCacheSchema) e
 			validationErr = fmt.Errorf("required state %q is missing", name)
 			return
 		}
-		if state.Mode != expected.Mode || !cacheShapeMatches(state.Value.Shape, expected.Value) {
+		if state.Mode != expected.Mode || !expected.Value.Matches(state.Value.Shape) {
 			validationErr = fmt.Errorf("state %q shape or mode is invalid", name)
 		}
 	})
@@ -218,7 +212,7 @@ func validateLayerCacheSchema(layer LayerCache, schema model.LayerCacheSchema) e
 		{"key", layer.Key, schema.Primary.Key.Value},
 		{"value", layer.Value, schema.Primary.Value.Value},
 	} {
-		if !cacheShapeMatches(item.value.Shape, item.expected) {
+		if !item.expected.Matches(item.value.Shape) {
 			return fmt.Errorf(
 				"%s %s shape %v, need %v",
 				schema.Label, item.name, item.value.Shape.Slice(), item.expected.Shape.Slice(),
@@ -231,31 +225,21 @@ func validateLayerCacheSchema(layer LayerCache, schema model.LayerCacheSchema) e
 	return nil
 }
 
-func cacheShapeMatches(shape tensor.Shape, schema model.CacheValueSchema) bool {
-	if !schema.VariableLast {
-		return shape.Equal(schema.Shape)
-	}
-	if shape.Rank != schema.Shape.Rank || shape.Rank == 0 {
-		return false
-	}
-	last := int(shape.Rank) - 1
-	for index := 0; index < last; index++ {
-		if shape.Dims[index] != schema.Shape.Dims[index] {
-			return false
-		}
-	}
-	return shape.Dims[last] > 0
-}
-
 func (r *Runner) validateEncoderDecoderCache(cache *KVCache, encoderTokens uint64) error {
 	if err := r.validateCache(cache); err != nil {
 		return err
 	}
 	for index, layer := range cache.Layers {
-		if layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2] != encoderTokens {
+		_, schema, schemaErr := r.cacheSchema(index, cache.Tokens)
+		if schemaErr != nil {
+			return schemaErr
+		}
+		expected, present := schema.State(model.CacheStateCrossKey)
+		actual := layer.States[model.CacheStateCrossKey].Value.Shape
+		if !present || !expected.Value.MatchesTrailingExtent(actual, encoderTokens) {
 			return fmt.Errorf(
-				"inference: encoder-decoder cache layer %d encoder length %d, need %d",
-				index, layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2], encoderTokens,
+				"inference: encoder-decoder cache layer %d has incompatible encoder extent",
+				index,
 			)
 		}
 	}
@@ -302,18 +286,18 @@ func (r *Runner) RemoveCacheRange(
 		if err != nil {
 			return nil, fmt.Errorf("inference: remove cache layer %d schema: %w", index, err)
 		}
-		states, err := editLayerStates(layer.States, cache.Tokens, start, discard)
+		states, err := editLayerStates(layer.States, start, discard)
 		if err != nil {
 			return nil, fmt.Errorf("inference: remove cache layer %d named states: %w", index, err)
 		}
 		key, err := editPrimaryCacheValue(
-			layer.Key, schema.Primary.Key.Mode, cache.Tokens, start, discard,
+			layer.Key, schema.Primary.Key.Mode, start, discard,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: remove cache layer %d key range: %w", index, err)
 		}
 		value, err := editPrimaryCacheValue(
-			layer.Value, schema.Primary.Value.Mode, cache.Tokens, start, discard,
+			layer.Value, schema.Primary.Value.Mode, start, discard,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: remove cache layer %d value range: %w", index, err)
@@ -326,12 +310,12 @@ func (r *Runner) RemoveCacheRange(
 func editPrimaryCacheValue(
 	value reference.Value,
 	mode model.CacheStateMode,
-	tokens, start, discard uint32,
+	start, discard uint32,
 ) (reference.Value, error) {
 	if mode == model.CacheStateFixed {
 		return value.Clone(), nil
 	}
-	return removeAttentionRange(value, tokens, start, discard)
+	return value.RemoveTrailingRange(uint64(start), uint64(discard))
 }
 
 // ShiftCache: prefix delete; absolute position retained.
@@ -467,7 +451,7 @@ func cloneCache(cache *KVCache) *KVCache {
 
 func editLayerStates(
 	states LayerStates,
-	tokens, start, discard uint32,
+	start, discard uint32,
 ) (LayerStates, error) {
 	if states == nil {
 		return nil, nil
@@ -478,7 +462,7 @@ func editLayerStates(
 		case CacheStateFixed:
 			state.Value = state.Value.Clone()
 		case CacheStateToken:
-			value, err := removeAttentionRange(state.Value, tokens, start, discard)
+			value, err := state.Value.RemoveTrailingRange(uint64(start), uint64(discard))
 			if err != nil {
 				return nil, fmt.Errorf("state %q: %w", name, err)
 			}
@@ -491,46 +475,12 @@ func editLayerStates(
 	return result, nil
 }
 
-func removeAttentionRange(
-	value reference.Value,
-	tokens, start, discard uint32,
-) (reference.Value, error) {
-	if value.Shape.Rank != 3 || value.Shape.Dims[2] != uint64(tokens) {
-		return reference.Value{}, fmt.Errorf(
-			"tensor shape %v does not contain %d cache tokens",
-			value.Shape.Slice(),
-			tokens,
-		)
-	}
-	stride := value.Shape.Dims[0] * value.Shape.Dims[1]
-	firstEnd := uint64(start) * stride
-	secondStart := uint64(start+discard) * stride
-	if firstEnd > uint64(len(value.Data)) ||
-		secondStart > uint64(len(value.Data)) {
-		return reference.Value{}, errors.New("tensor data is shorter than its cache shape")
-	}
-	remaining := tokens - discard
-	count := uint64(remaining) * stride
-	shape := value.Shape
-	shape.Dims[2] = uint64(remaining)
-	data := make([]float32, 0, int(count))
-	data = append(data, value.Data[:int(firstEnd)]...)
-	data = append(data, value.Data[int(secondStart):]...)
-	return reference.Value{Shape: shape, Data: data}, nil
-}
-
 func marshalCache(cache *KVCache) ([]byte, error) {
 	if cache == nil {
 		return nil, errors.New("inference: KV cache is nil")
 	}
-	if len(cache.Layers) > maxCacheStateLayers {
-		return nil, errors.New("inference: KV cache layer count exceeds state limit")
-	}
 	total := uint64(cacheStateHeaderSize)
 	for index, layer := range cache.Layers {
-		if len(layer.States) > maxLayerCacheStates-2 {
-			return nil, fmt.Errorf("inference: KV cache layer %d state count exceeds limit", index)
-		}
 		var ok bool
 		total, ok = checked.Add64(total, cacheLayerCountBytes)
 		if !ok {
@@ -622,8 +572,8 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 	if decoder.Err() != nil {
 		return nil, errors.New("inference: KV cache state is truncated")
 	}
-	if layers > maxCacheStateLayers {
-		return nil, errors.New("inference: KV cache state layer count exceeds limit")
+	if uint64(layers) > decoder.Remaining()/cacheLayerCountBytes {
+		return nil, errors.New("inference: KV cache state layer count exceeds payload")
 	}
 	result := &KVCache{
 		Layers:   make([]LayerCache, int(layers)),
@@ -635,19 +585,16 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 	}
 	readValue := func() (reference.Value, error) {
 		rank := decoder.U32()
-		if rank == 0 || rank > tensor.MaxDimensions {
-			return reference.Value{}, fmt.Errorf("inference: KV cache tensor rank %d is invalid", rank)
-		}
 		dimensions := make([]uint64, tensor.MaxDimensions)
 		for index := range tensor.MaxDimensions {
 			dimensions[index] = decoder.U64()
 		}
 		count := decoder.U64()
-		bytes, ok := checked.Bytes(count, 4)
+		bytes, ok := checked.Bytes(count, cacheScalarBytes)
 		if decoder.Err() != nil || !ok || count > uint64(math.MaxInt) || bytes > decoder.Remaining() {
 			return reference.Value{}, errors.New("inference: KV cache tensor data is truncated or too large")
 		}
-		shape, err := tensor.NewShape(dimensions[:rank]...)
+		shape, err := tensor.NewShapePrefix(dimensions, rank)
 		if err != nil {
 			return reference.Value{}, fmt.Errorf("inference: KV cache tensor shape: %w", err)
 		}
@@ -666,17 +613,17 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 		if decoder.Err() != nil {
 			return nil, fmt.Errorf("inference: KV cache layer %d state count is truncated", index)
 		}
-		if stateCount < 2 || stateCount > maxLayerCacheStates {
+		if stateCount < 2 {
 			return nil, fmt.Errorf("inference: KV cache layer %d state count %d is invalid", index, stateCount)
 		}
-		seen := make(map[string]struct{}, int(stateCount))
+		seen := make(map[string]struct{})
 		layer := LayerCache{}
 		for stateIndex := uint32(0); stateIndex < stateCount; stateIndex++ {
-			name := decoder.String32(maxCacheStateName)
+			name := decoder.String32(decoder.Remaining())
 			if decoder.Err() != nil || name == "" {
 				return nil, fmt.Errorf("inference: KV cache layer %d state name is invalid", index)
 			}
-			if !textcheck.LowerIdentifier(name, maxCacheStateName) {
+			if !textcheck.LowerIdentifier(name, len(name)) {
 				return nil, fmt.Errorf("inference: KV cache layer %d state name %q is invalid", index, name)
 			}
 			if _, duplicate := seen[name]; duplicate {
@@ -729,7 +676,7 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 }
 
 func validateLayerState(name model.CacheStateName, state LayerState, tokens uint32) error {
-	if !textcheck.LowerIdentifier(string(name), maxCacheStateName) || name == "key" || name == "value" {
+	if !textcheck.LowerIdentifier(string(name), len(name)) || name == "key" || name == "value" {
 		return errors.New("invalid name")
 	}
 	if !state.Mode.Valid() {
@@ -738,8 +685,7 @@ func validateLayerState(name model.CacheStateName, state LayerState, tokens uint
 	if err := validateStateValue(state.Value); err != nil {
 		return err
 	}
-	if state.Mode.TokenAligned() &&
-		(state.Value.Shape.Rank != 3 || state.Value.Shape.Dims[2] != uint64(tokens)) {
+	if !state.Mode.MatchesTokenExtent(state.Value.Shape, tokens) {
 		return fmt.Errorf("token-aligned shape %v does not contain %d tokens", state.Value.Shape.Slice(), tokens)
 	}
 	return nil

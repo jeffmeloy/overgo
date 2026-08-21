@@ -219,7 +219,7 @@
   "Normalization": 1
  },
  {
-  "Capabilities": 68719484992,
+  "Capabilities": 8256,
   "DenseStages": {
    "QK": {
     "Heads": 5

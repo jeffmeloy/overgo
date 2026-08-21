@@ -15,7 +15,6 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
-	"overgo/internal/inference"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
@@ -53,11 +52,6 @@ func run() error {
 		"discard oldest attention KV entries when generation reaches model context",
 	)
 	maxConcurrent := flag.Int("max-concurrent", llamaserver.DefaultMaxConcurrent, "maximum admitted generation requests")
-	infillBatchSize := flag.Int(
-		"batch-size",
-		inference.DefaultInfillBatchSize,
-		"logical prompt batch size used by native FIM formatting",
-	)
 	spmInfill := flag.Bool(
 		"spm-infill",
 		false,
@@ -249,7 +243,6 @@ func run() error {
 		APIKey:             apiKey,
 		ContextShift:       *contextShift,
 		RequestTimeout:     *requestTimeout,
-		InfillBatchSize:    *infillBatchSize,
 		SPMInfill:          *spmInfill,
 		ImageProjector:     vision,
 		AudioProjector:     audio,

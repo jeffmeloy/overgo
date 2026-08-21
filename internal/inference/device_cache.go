@@ -373,8 +373,8 @@ func (r *Runner) compactDeviceCacheForAppend(
 		Position: cache.Position,
 	}
 	for index := range next.Keys {
-		next.Keys[index] = values[2*index]
-		next.Values[index] = values[2*index+1]
+		next.Keys[index] = values[tensor.PairedExtent*index]
+		next.Values[index] = values[tensor.PairedExtent*index+tensor.SingletonExtent]
 	}
 	stateOffset := 2 * len(next.Keys)
 	for index, target := range stateTargets {
@@ -591,9 +591,8 @@ func (r *Runner) decodeCandidatePairs(
 	sequences int,
 	topK uint32,
 ) ([][]LogitCandidate, error) {
-	const pairValues = 2
 	count := int(topK)
-	if sequences <= 0 || count <= 0 || len(data) != sequences*count*pairValues {
+	if sequences <= 0 || count <= 0 || len(data) != sequences*count*tensor.PairedExtent {
 		return nil, errors.New("inference: device top-K pair shape is invalid")
 	}
 	vocabulary := int(r.spec.VocabularySize)
@@ -601,15 +600,15 @@ func (r *Runner) decodeCandidatePairs(
 	for sequence := range sequences {
 		items := make([]LogitCandidate, count)
 		logits := make([]float32, count)
-		base := sequence * count * pairValues
+		base := sequence * count * tensor.PairedExtent
 		for index := range count {
-			raw := data[base+index*pairValues]
+			raw := data[base+index*tensor.PairedExtent]
 			id := int(raw)
 			if raw != float32(id) || id < 0 || id >= vocabulary {
 				return nil, fmt.Errorf("inference: device top-K token %d is invalid: %g", index, raw)
 			}
 			items[index].ID = tokenizer.TokenID(id)
-			logits[index] = data[base+index*pairValues+1]
+			logits[index] = data[base+index*tensor.PairedExtent+tensor.SingletonExtent]
 		}
 		logits = r.finalizeLogits(logits)
 		for index := range items {

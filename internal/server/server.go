@@ -209,7 +209,6 @@ type Config struct {
 	APIKey             string
 	ContextShift       bool
 	RequestTimeout     time.Duration
-	InfillBatchSize    int
 	SPMInfill          bool
 	Qwen3VLProjector   projector.Session
 	ImageProjector     projector.Session
@@ -393,12 +392,6 @@ func New(config Config, generator Generator) (*Handler, error) {
 	}
 	if config.RequestTimeout < 0 {
 		return nil, errors.New("server: request timeout must be non-negative")
-	}
-	if config.InfillBatchSize == 0 {
-		config.InfillBatchSize = inference.DefaultInfillBatchSize
-	}
-	if config.InfillBatchSize < 0 {
-		return nil, errors.New("server: infill batch size must be positive")
 	}
 	if (config.ResponseToolPolicy.Hosted != "" && config.ResponseToolPolicy.Hosted != "deny") ||
 		(config.ResponseToolPolicy.Custom != "" && config.ResponseToolPolicy.Custom != "deny") {

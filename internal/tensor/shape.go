@@ -63,6 +63,14 @@ func NewShape(dimensions ...uint64) (Shape, error) {
 	return shape, nil
 }
 
+// NewShapePrefix builds a shape from an encoded rank and fixed extent array.
+func NewShapePrefix(dimensions []uint64, rank uint32) (Shape, error) {
+	if rank == FirstOffset || uint64(rank) > uint64(len(dimensions)) {
+		return Shape{}, fmt.Errorf("tensor rank %d exceeds %d encoded dimensions", rank, len(dimensions))
+	}
+	return NewShape(dimensions[:rank]...)
+}
+
 func MustShape(dimensions ...uint64) Shape {
 	shape, err := NewShape(dimensions...)
 	if err != nil {
@@ -205,6 +213,16 @@ func WithTrailingExtent(s Shape, extent uint64) (Shape, bool) {
 	}
 	s.Dims[s.Rank-1] = extent
 	return s, true
+}
+
+// FinalExtent returns the final axis and extent.
+func FinalExtent(s Shape) (uint64, uint32, bool) {
+	if s.Rank == FirstOffset || s.Rank > MaxDimensions {
+		return 0, 0, false
+	}
+	axis := uint32(s.Rank - SingletonExtent)
+	extent := s.Dims[axis]
+	return extent, axis, extent > FirstOffset
 }
 
 // TrailingExtent validates declared leading extents.

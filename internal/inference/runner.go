@@ -163,6 +163,7 @@ type preparedModel struct {
 	decodeWeights       *model.DeviceBF16Weights
 	hostWeights         *model.HostTensorStore
 	outputBias          []float32
+	outputExclusions    []tokenizer.TokenRange
 	promptCacheCapacity int
 	modelSignature      [32]byte
 	modelSignatureErr   error

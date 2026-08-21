@@ -153,13 +153,10 @@ func initializeAlternateStates(
 	input, projection reference.Value,
 	count int,
 ) ([]reference.Value, error) {
-	if count < 2 || projection.Shape.Rank != 3 || projection.Shape.Dims[2] != uint64(count-1) {
-		return nil, errors.New("inference: alternate-state projection shape is invalid")
-	}
 	states := make([]reference.Value, count)
 	states[0] = input.Clone()
-	for index := 1; index < count; index++ {
-		projected, err := alternateLinearSlice(projection, index-1, input)
+	for index := tensor.SingletonExtent; index < count; index++ {
+		projected, err := alternateLinearSlice(projection, index-tensor.SingletonExtent, input)
 		if err != nil {
 			return nil, err
 		}
@@ -190,15 +187,14 @@ func predictAlternateStates(
 		return nil, err
 	}
 	count := len(states)
-	if coefficients.Shape.Dims[0] != uint64(count*count) {
-		return nil, errors.New("inference: alternate-state prediction coefficient shape is invalid")
-	}
+	widthExtent, tokenExtent, _ := tensor.MatrixExtents(states[active].Shape)
+	width, tokens := int(widthExtent), int(tokenExtent)
 	result := make([]reference.Value, count)
 	for output := range count {
 		result[output] = states[output].Clone()
-		for token := 0; token < int(states[output].Shape.Dims[1]); token++ {
-			for feature := 0; feature < int(states[output].Shape.Dims[0]); feature++ {
-				position := token*int(states[output].Shape.Dims[0]) + feature
+		for token := range tokens {
+			for feature := range width {
+				position := token*width + feature
 				var delta float64
 				for source := range count {
 					coefficient := coefficients.Data[token*count*count+output*count+source]
@@ -233,13 +229,15 @@ func correctAndInjectAlternateStates(
 	if active < 0 || active >= len(predictions) {
 		return nil, errors.New("inference: alternate correction active state is invalid")
 	}
+	widthExtent, tokenExtent, _ := tensor.MatrixExtents(activated.Shape)
+	width, tokens := int(widthExtent), int(tokenExtent)
 	result := make([]reference.Value, len(predictions))
 	for index := range predictions {
 		result[index] = predictions[index].Clone()
-		for token := 0; token < int(activated.Shape.Dims[1]); token++ {
+		for token := range tokens {
 			coefficient := coefficients.Data[token*len(predictions)+index] + 1
-			for feature := 0; feature < int(activated.Shape.Dims[0]); feature++ {
-				position := token*int(activated.Shape.Dims[0]) + feature
+			for feature := range width {
+				position := token*width + feature
 				innovation := activated.Data[position] - predictions[active].Data[position]
 				result[index].Data[position] += innovation * coefficient
 			}
@@ -247,7 +245,7 @@ func correctAndInjectAlternateStates(
 	}
 	scaled := result[active].Clone()
 	for index := range scaled.Data {
-		scaled.Data[index] *= layer.AltUpCorrectScale.Data[index%int(scaled.Shape.Dims[0])]
+		scaled.Data[index] *= layer.AltUpCorrectScale.Data[index%width]
 	}
 	gate, err := alternateLinear(*layer.PerLayerInputGate, scaled)
 	if err != nil {
@@ -309,12 +307,13 @@ func activateAlternateFFN(
 	sparse bool,
 	standardDeviationMultiplier float32,
 ) (reference.Value, error) {
-	if !gate.Shape.Equal(up.Shape) || gate.Shape.Rank != 2 || gate.Shape.Dims[0] < 2 {
+	widthExtent, tokenExtent, valid := tensor.MatrixExtents(gate.Shape)
+	if !gate.Shape.Equal(up.Shape) || !valid {
 		return reference.Value{}, errors.New("inference: alternate-state FFN projection shape is invalid")
 	}
 	result := reference.Value{Shape: gate.Shape, Data: make([]float32, len(gate.Data))}
-	width := int(gate.Shape.Dims[0])
-	for token := 0; token < int(gate.Shape.Dims[1]); token++ {
+	width := int(widthExtent)
+	for token := 0; token < int(tokenExtent); token++ {
 		base := token * width
 		cutoff := float32(-math.MaxFloat32)
 		if sparse {
@@ -328,7 +327,7 @@ func activateAlternateFFN(
 				delta := float64(gate.Data[base+index]) - mean
 				squared += delta * delta
 			}
-			cutoff = float32(mean + float64(standardDeviationMultiplier)*math.Sqrt(squared/float64(width-1)))
+			cutoff = float32(mean + float64(standardDeviationMultiplier)*math.Sqrt(squared/float64(max(width-1, 1))))
 		}
 		for index := range width {
 			value := gate.Data[base+index]
@@ -346,8 +345,9 @@ func mergeAlternateStates(
 	unembedding reference.Value,
 	active int,
 ) (reference.Value, error) {
-	if len(states) < 2 || active < 0 || active >= len(states) ||
-		unembedding.Shape.Rank != 3 || unembedding.Shape.Dims[2] != uint64(len(states)-1) {
+	_, _, projectedStates, valid := tensor.Extents3(unembedding.Shape)
+	if len(states) <= tensor.SingletonExtent || active < 0 || active >= len(states) ||
+		!valid || projectedStates != uint64(len(states)-1) {
 		return reference.Value{}, errors.New("inference: alternate-state unembedding shape is invalid")
 	}
 	result := states[active].Clone()
@@ -368,12 +368,12 @@ func mergeAlternateStates(
 }
 
 func alternateLinear(weight, input reference.Value) (reference.Value, error) {
-	if weight.Shape.Rank != 2 || input.Shape.Rank != 2 || weight.Shape.Dims[0] != input.Shape.Dims[0] {
+	innerExtent, outputExtent, validWeight := tensor.MatrixExtents(weight.Shape)
+	inputExtent, tokenExtent, validInput := tensor.MatrixExtents(input.Shape)
+	if !validWeight || !validInput || innerExtent != inputExtent {
 		return reference.Value{}, errors.New("inference: alternate-state matrix dimensions differ")
 	}
-	inner := int(weight.Shape.Dims[0])
-	outputWidth := int(weight.Shape.Dims[1])
-	tokens := int(input.Shape.Dims[1])
+	inner, outputWidth, tokens := int(innerExtent), int(outputExtent), int(tokenExtent)
 	output := reference.Value{
 		Shape: tensor.MustShape(uint64(outputWidth), uint64(tokens)),
 		Data:  make([]float32, outputWidth*tokens),
@@ -383,13 +383,14 @@ func alternateLinear(weight, input reference.Value) (reference.Value, error) {
 }
 
 func alternateLinearSlice(weight reference.Value, slice int, input reference.Value) (reference.Value, error) {
-	if weight.Shape.Rank != 3 || slice < 0 || uint64(slice) >= weight.Shape.Dims[2] {
+	inner, output, slices, valid := tensor.Extents3(weight.Shape)
+	if !valid || slice < 0 || uint64(slice) >= slices {
 		return reference.Value{}, errors.New("inference: alternate-state grouped projection slice is invalid")
 	}
-	size := int(weight.Shape.Dims[0] * weight.Shape.Dims[1])
+	size := int(inner * output)
 	start := slice * size
 	return alternateLinear(reference.Value{
-		Shape: tensor.MustShape(weight.Shape.Dims[0], weight.Shape.Dims[1]),
+		Shape: tensor.MustShape(inner, output),
 		Data:  weight.Data[start : start+size],
 	}, input)
 }
@@ -398,20 +399,22 @@ func alternateRMSNorm(
 	input, weight reference.Value,
 	epsilon float32,
 ) (reference.Value, error) {
-	if input.Shape.Rank != 2 || weight.Shape.Rank != 1 || input.Shape.Dims[0] != weight.Shape.Dims[0] {
+	width, validWeight := tensor.VectorWidth(weight.Shape)
+	rows, validInput := tensor.MatrixRows(input.Shape, width)
+	if !validInput || !validWeight {
 		return reference.Value{}, errors.New("inference: alternate-state RMS norm shape is invalid")
 	}
 	result := input.Clone()
-	width := int(input.Shape.Dims[0])
 	hostmath.RMSNormInto(
-		result.Data, input.Data, weight.Data, int(input.Shape.Dims[1]), width, float64(epsilon),
+		result.Data, input.Data, weight.Data, int(rows), int(width), float64(epsilon),
 	)
 	return result, nil
 }
 
 func rescaleMagnitudeInPlace(input *reference.Value, target reference.Value) {
-	width := int(input.Shape.Dims[0])
-	for token := 0; token < int(input.Shape.Dims[1]); token++ {
+	widthExtent, tokenExtent, _ := tensor.MatrixExtents(input.Shape)
+	width := int(widthExtent)
+	for token := 0; token < int(tokenExtent); token++ {
 		base := token * width
 		var inputSquared, targetSquared float64
 		for index := range width {

@@ -20,18 +20,18 @@ import (
 
 const (
 	projectVersion = "0.1.0"
-	upstreamCommit = "42fc243060709331ff9b158a9ed2cbe37219ae83"
 	sbomPath       = "SBOM.cdx.json"
+	kernelManifest = "kernels/manifest.json"
 )
 
-var kernelFiles = []string{
-	"internal/cuda/kernel/ops_f32.ptx",
-	"internal/cuda/kernel/vector_add.ptx",
-	"internal/quant/iq_tables_generated.go",
-	"kernels/cuda/iq_tables_generated.cuh",
-	"kernels/cuda/ops_f32.cu",
-	"kernels/cuda/vector_add.cu",
-	"kernels/manifest.json",
+type kernelInventory struct {
+	Modules []struct {
+		Source             string `json:"source"`
+		Asset              string `json:"asset"`
+		SourceDependencies []struct {
+			Path string `json:"path"`
+		} `json:"sourceDependencies"`
+	} `json:"modules"`
 }
 
 type module struct {
@@ -67,14 +67,16 @@ func generate(root string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	kernelFiles, err := usedKernelFiles(root)
+	if err != nil {
+		return nil, err
+	}
 	components := []map[string]any{
-		component("library", "llama.cpp compatibility baseline", upstreamCommit, "MIT", "pkg:github/ggml-org/llama.cpp@"+upstreamCommit),
 		component("framework", "Go standard library", "1.26", "BSD-3-Clause", "pkg:golang/stdlib@1.26"),
 		component("framework", "NVIDIA CUDA Driver API", "13.2-compatible", "NVIDIA Software License Agreement", ""),
 		component("framework", "NVIDIA CUDA Toolkit", "12.9.86", "NVIDIA Software License Agreement", ""),
 	}
 	dependsOn := []string{
-		"pkg:github/ggml-org/llama.cpp@" + upstreamCommit,
 		"pkg:golang/stdlib@1.26",
 		"component:nvidia-cuda-driver-api",
 		"component:nvidia-cuda-toolkit",
@@ -134,7 +136,6 @@ func generate(root string) ([]byte, error) {
 			"properties": []map[string]string{
 				{"name": "overgo:cgo", "value": "false"},
 				{"name": "overgo:cuda-target", "value": "compute_89"},
-				{"name": "overgo:upstream-commit", "value": upstreamCommit},
 			},
 			"tools": map[string]any{"components": []map[string]any{
 				component("application", "overgo sbom generator", "1", "", ""),
@@ -146,6 +147,41 @@ func generate(root string) ([]byte, error) {
 		return nil, err
 	}
 	return append(output, '\n'), nil
+}
+
+func usedKernelFiles(root string) ([]string, error) {
+	raw, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(kernelManifest)))
+	if err != nil {
+		return nil, err
+	}
+	var inventory kernelInventory
+	if err := json.Unmarshal(raw, &inventory); err != nil {
+		return nil, fmt.Errorf("sbom: decode kernel manifest: %w", err)
+	}
+	paths := map[string]struct{}{
+		kernelManifest:                          {},
+		"internal/quant/iq_tables_generated.go": {},
+	}
+	for _, module := range inventory.Modules {
+		for _, path := range []string{module.Source, module.Asset} {
+			if path == "" {
+				return nil, errors.New("sbom: kernel manifest has empty source or asset")
+			}
+			paths[path] = struct{}{}
+		}
+		for _, dependency := range module.SourceDependencies {
+			if dependency.Path == "" {
+				return nil, errors.New("sbom: kernel manifest has empty source dependency")
+			}
+			paths[dependency.Path] = struct{}{}
+		}
+	}
+	var result []string
+	for path := range paths {
+		result = append(result, path)
+	}
+	sort.Strings(result)
+	return result, nil
 }
 
 func moduleLicense(path string) string {

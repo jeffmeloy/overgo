@@ -953,7 +953,7 @@
      "contains": "func (b *ContinuousBatch) Step(",
      "path": "internal/inference/continuous_batch.go",
      "role": "source",
-     "identity": "file:sha256:b065b8f3ab833d448816484543737639155f1eec88afd296eca264463d418b57"
+     "identity": "file:sha256:e97789aa00dd00cb86c6c13661694fed320eea2a7fe8541dedb1b8e7411105bb"
     },
     {
      "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",

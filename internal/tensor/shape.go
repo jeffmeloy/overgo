@@ -71,6 +71,24 @@ func NewShapePrefix(dimensions []uint64, rank uint32) (Shape, error) {
 	return NewShape(dimensions[:rank]...)
 }
 
+// PackBatchShape appends or fills a final batch axis.
+func PackBatchShape(base Shape, batches uint64) (Shape, error) {
+	if batches <= SingletonExtent {
+		return Shape{}, errors.New("tensor batch requires multiple values")
+	}
+	dimensions := base.Slice()
+	if base.Rank == MaxDimensions {
+		extent, axis, valid := FinalExtent(base)
+		if !valid || extent != SingletonExtent {
+			return Shape{}, errors.New("tensor batch axis is unavailable")
+		}
+		dimensions[axis] = batches
+	} else {
+		dimensions = append(dimensions, batches)
+	}
+	return NewShape(dimensions...)
+}
+
 func MustShape(dimensions ...uint64) Shape {
 	shape, err := NewShape(dimensions...)
 	if err != nil {

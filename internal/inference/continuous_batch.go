@@ -219,12 +219,12 @@ func (b *ContinuousBatch) step(
 		if err != nil {
 			return nil, fmt.Errorf("inference: sequence %d: %w", input.ID, err)
 		}
-		width := int(r.spec.EmbeddingLength)
-		if hidden.Shape.Rank != 2 || width <= 0 || len(hidden.Data) < width {
+		last := hidden.LastRowView()
+		if len(last.Data) == 0 {
 			return nil, fmt.Errorf("inference: sequence %d hidden state is incompatible", input.ID)
 		}
 		outputInfo := r.outputTensor()
-		logits, err := r.logits(ctx, outputInfo, hidden.Data[len(hidden.Data)-width:])
+		logits, err := r.logits(ctx, outputInfo, last.Data)
 		if err != nil {
 			return nil, fmt.Errorf("inference: sequence %d logits: %w", input.ID, err)
 		}

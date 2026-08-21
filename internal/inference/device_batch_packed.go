@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 
 	"overgo/internal/cuda/driver"
@@ -200,14 +199,14 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 			Tokens: graph.pastTokens + graph.tokenCount, Position: graph.nextPosition + graph.tokenCount,
 		}
 		for layer := range cache.Keys {
-			cache.Keys[layer], err = splitPackedDeviceValue(
-				packedKeys[layer], item.Past.Keys[layer].Shape, sequence, len(appends),
+			cache.Keys[layer], err = executor.SplitPackedValue(
+				packedKeys[layer], item.Past.Keys[layer].Shape, dtype.F32, uint64(sequence),
 			)
 			if err != nil {
 				return fail(fmt.Errorf("inference: split packed key layer %d: %w", layer, err))
 			}
-			cache.Values[layer], err = splitPackedDeviceValue(
-				packedValues[layer], item.Past.Values[layer].Shape, sequence, len(appends),
+			cache.Values[layer], err = executor.SplitPackedValue(
+				packedValues[layer], item.Past.Values[layer].Shape, dtype.F32, uint64(sequence),
 			)
 			if err != nil {
 				return fail(fmt.Errorf("inference: split packed value layer %d: %w", layer, err))
@@ -219,8 +218,8 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 					if !ok {
 						return fail(fmt.Errorf("inference: packed state %q has no template at layer %d", name, layer))
 					}
-					value, splitErr := splitPackedDeviceValue(
-						state.Value, template.Value.Shape, sequence, len(appends),
+					value, splitErr := executor.SplitPackedValue(
+						state.Value, template.Value.Shape, dtype.F32, uint64(sequence),
 					)
 					if splitErr != nil {
 						return fail(fmt.Errorf("inference: split packed state %q layer %d: %w", name, layer, splitErr))
@@ -272,7 +271,7 @@ func (r *Runner) packDeviceBatchCaches(
 		for index, item := range appends {
 			values[index] = selectValue(item.Past)
 		}
-		copySpec, copyErr := packedDeviceCopy(values)
+		copySpec, copyErr := executor.PackedCopy(values, dtype.F32)
 		if copyErr != nil {
 			return copyErr
 		}
@@ -331,29 +330,6 @@ func (r *Runner) packDeviceBatchCaches(
 	return packed, owner, nil
 }
 
-func packedDeviceCopy(values []executor.DeviceValue) (executor.DeviceCopy, error) {
-	if len(values) < 2 {
-		return executor.DeviceCopy{}, errors.New("packed device copy requires multiple values")
-	}
-	base := values[0].Shape
-	shape, err := packedDeviceShape(base, len(values))
-	if err != nil {
-		return executor.DeviceCopy{}, err
-	}
-	bytes, err := base.Bytes(dtype.F32)
-	if err != nil {
-		return executor.DeviceCopy{}, err
-	}
-	segments := make([]executor.DeviceCopySegment, len(values))
-	for index, value := range values {
-		if !value.Shape.Equal(base) || value.Pointer == 0 {
-			return executor.DeviceCopy{}, errors.New("packed device values have incompatible shapes or storage")
-		}
-		segments[index] = executor.DeviceCopySegment{Source: value.Pointer, Bytes: bytes}
-	}
-	return executor.DeviceCopy{Shape: shape, Segments: segments}, nil
-}
-
 func packedDeviceBatchView(appends []deviceBatchAppend) (*deviceKVCache, bool) {
 	first := appends[0].Past
 	packed := &deviceKVCache{
@@ -370,7 +346,7 @@ func packedDeviceBatchView(appends []deviceBatchAppend) (*deviceKVCache, bool) {
 				return executor.DeviceValue{}, false
 			}
 		}
-		return packedDeviceView(values)
+		return executor.PackedView(values, dtype.F32)
 	}
 	for layer := range packed.Keys {
 		var ok bool
@@ -425,73 +401,4 @@ func packedDeviceBatchView(appends []deviceBatchAppend) (*deviceKVCache, bool) {
 		packed.Selection = selection
 	}
 	return packed, true
-}
-
-func packedDeviceView(values []executor.DeviceValue) (executor.DeviceValue, bool) {
-	if len(values) < 2 {
-		return executor.DeviceValue{}, false
-	}
-	shape, err := packedDeviceShape(values[0].Shape, len(values))
-	if err != nil {
-		return executor.DeviceValue{}, false
-	}
-	bytes, err := values[0].Shape.Bytes(dtype.F32)
-	last := uint64(len(values) - 1)
-	if err != nil || bytes == 0 || last > math.MaxUint64/bytes ||
-		uint64(values[0].Pointer) > math.MaxUint64-last*bytes {
-		return executor.DeviceValue{}, false
-	}
-	for index, value := range values {
-		want := values[0].Pointer + driver.DevicePtr(uint64(index)*bytes)
-		if !value.Shape.Equal(values[0].Shape) || value.Pointer != want {
-			return executor.DeviceValue{}, false
-		}
-	}
-	return executor.DeviceValue{Pointer: values[0].Pointer, Shape: shape}, true
-}
-
-func packedDeviceShape(base tensor.Shape, sequences int) (tensor.Shape, error) {
-	if sequences < 2 {
-		return tensor.Shape{}, errors.New("packed device shape requires multiple sequences")
-	}
-	dimensions := base.Slice()
-	if base.Rank == tensor.MaxDimensions {
-		if dimensions[base.Rank-1] != 1 {
-			return tensor.Shape{}, errors.New("packed rank-4 value has no singleton sequence dimension")
-		}
-		dimensions[base.Rank-1] = uint64(sequences)
-	} else {
-		dimensions = append(dimensions, uint64(sequences))
-	}
-	return tensor.NewShape(dimensions...)
-}
-
-func splitPackedDeviceValue(
-	packed executor.DeviceValue,
-	template tensor.Shape,
-	sequence, sequences int,
-) (executor.DeviceValue, error) {
-	if sequence < 0 || sequence >= sequences || sequences < 2 {
-		return executor.DeviceValue{}, errors.New("packed device split index is invalid")
-	}
-	view, err := packed.SliceLastAxis(dtype.F32, uint64(sequence), 1)
-	if err != nil {
-		return executor.DeviceValue{}, fmt.Errorf("packed device split: %w", err)
-	}
-	var shape tensor.Shape
-	switch {
-	case packed.Shape.Rank == template.Rank+1:
-		shape, err = tensor.NewShape(packed.Shape.Slice()[:template.Rank]...)
-	case packed.Shape.Rank == template.Rank && template.Dims[template.Rank-1] == 1:
-		dimensions := packed.Shape.Slice()
-		dimensions[packed.Shape.Rank-1] = 1
-		shape, err = tensor.NewShape(dimensions...)
-	default:
-		return executor.DeviceValue{}, errors.New("packed device split shape differs from template")
-	}
-	if err != nil {
-		return executor.DeviceValue{}, err
-	}
-	view.Shape = shape
-	return view, nil
 }

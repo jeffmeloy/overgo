@@ -42,7 +42,7 @@ func (r *Runner) NewPairedProjectionSession(
 	if err != nil {
 		return nil, err
 	}
-	last := lastHiddenColumn(hidden)
+	last := hidden.LastRowView().Clone()
 	return &PairedProjectionSession{
 		TargetCache: cache, PendingHidden: last, Position: effectiveCachePosition(cache),
 	}, nil

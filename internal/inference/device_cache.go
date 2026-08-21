@@ -257,13 +257,9 @@ func shiftDeviceTokenState(
 	tokens uint32,
 	discard uint64,
 ) error {
-	if value.Shape.Rank != 3 || value.Shape.Dims[2] != uint64(tokens) {
-		return fmt.Errorf(
-			"shape %v does not contain %d tokens",
-			value.Shape.Slice(), tokens,
-		)
-	}
-	view, err := value.SliceLastAxis(dtype.F32, discard, uint64(tokens)-discard)
+	view, err := value.SliceLastAxisExactExtent(
+		dtype.F32, discard, uint64(tokens)-discard, uint64(tokens),
+	)
 	if err != nil {
 		return fmt.Errorf("shifted device cache: %w", err)
 	}
@@ -322,13 +318,12 @@ func (r *Runner) compactDeviceCacheForAppend(
 			{"key", cache.Keys[layerIndex]},
 			{"value", cache.Values[layerIndex]},
 		} {
-			copySpec, copyErr := deviceCacheRangeCopy(
-				item.value,
-				cache.Tokens,
-				keep,
-				discard,
-				recurrent,
-			)
+			copySpec, copyErr := item.value.Copy(dtype.F32)
+			if !recurrent {
+				copySpec, copyErr = item.value.CopyWithoutLastAxisRange(
+					dtype.F32, uint64(keep), uint64(discard), uint64(cache.Tokens),
+				)
+			}
 			if copyErr != nil {
 				return nil, fmt.Errorf(
 					"inference: layer %d device cache %s: %w",
@@ -342,10 +337,12 @@ func (r *Runner) compactDeviceCacheForAppend(
 		if layerIndex < len(cache.States) && len(cache.States[layerIndex]) != 0 {
 			for _, stateName := range cache.States[layerIndex].SortedNames() {
 				state := cache.States[layerIndex][stateName]
-				copySpec, copyErr := deviceCacheRangeCopy(
-					state.Value, cache.Tokens, keep, discard,
-					state.Mode == CacheStateFixed,
-				)
+				copySpec, copyErr := state.Value.Copy(dtype.F32)
+				if state.Mode != CacheStateFixed {
+					copySpec, copyErr = state.Value.CopyWithoutLastAxisRange(
+						dtype.F32, uint64(keep), uint64(discard), uint64(cache.Tokens),
+					)
+				}
 				if copyErr != nil {
 					return nil, fmt.Errorf(
 						"inference: layer %d device cache state %q: %w",
@@ -390,73 +387,6 @@ func (r *Runner) compactDeviceCacheForAppend(
 		return nil, err
 	}
 	return next, nil
-}
-
-func deviceCacheRangeCopy(
-	value executor.DeviceValue,
-	tokens, keep, discard uint32,
-	recurrent bool,
-) (executor.DeviceCopy, error) {
-	if recurrent {
-		bytes, err := value.Shape.Bytes(dtype.F32)
-		if err != nil {
-			return executor.DeviceCopy{}, err
-		}
-		return executor.DeviceCopy{
-			Shape: value.Shape,
-			Segments: []executor.DeviceCopySegment{{
-				Source: value.Pointer,
-				Bytes:  bytes,
-			}},
-		}, nil
-	}
-	if value.Shape.Rank != 3 ||
-		value.Shape.Dims[2] != uint64(tokens) {
-		return executor.DeviceCopy{}, fmt.Errorf(
-			"shape %v does not contain %d tokens",
-			value.Shape.Slice(),
-			tokens,
-		)
-	}
-	suffixToken := uint64(keep) + uint64(discard)
-	if suffixToken > uint64(tokens) {
-		return executor.DeviceCopy{}, errors.New(
-			"attention device cache range overflows",
-		)
-	}
-	shape := value.Shape
-	shape.Dims[2] = uint64(tokens - discard)
-	segments := make([]executor.DeviceCopySegment, 0, 2)
-	if keep > 0 {
-		prefix, err := value.SliceLastAxis(dtype.F32, 0, uint64(keep))
-		if err != nil {
-			return executor.DeviceCopy{}, fmt.Errorf("attention device cache prefix: %w", err)
-		}
-		bytes, err := prefix.Shape.Bytes(dtype.F32)
-		if err != nil {
-			return executor.DeviceCopy{}, err
-		}
-		segments = append(segments, executor.DeviceCopySegment{
-			Source: prefix.Pointer,
-			Bytes:  bytes,
-		})
-	}
-	suffixTokens := tokens - keep - discard
-	if suffixTokens > 0 {
-		suffix, err := value.SliceLastAxis(dtype.F32, suffixToken, uint64(suffixTokens))
-		if err != nil {
-			return executor.DeviceCopy{}, fmt.Errorf("attention device cache suffix: %w", err)
-		}
-		bytes, err := suffix.Shape.Bytes(dtype.F32)
-		if err != nil {
-			return executor.DeviceCopy{}, err
-		}
-		segments = append(segments, executor.DeviceCopySegment{
-			Source: suffix.Pointer,
-			Bytes:  bytes,
-		})
-	}
-	return executor.DeviceCopy{Shape: shape, Segments: segments}, nil
 }
 
 func (r *Runner) forwardDeviceCachedLocked(
@@ -509,7 +439,7 @@ type deviceBatchGraph struct {
 	selection    *tensor.Tensor
 	candidates   *tensor.Tensor
 	feedback     *tensor.Tensor
-	tokenRows    *tensor.Tensor
+	tokenInput   *tensor.Tensor
 	positionRows []*tensor.Tensor
 	keys         []*tensor.Tensor
 	values       []*tensor.Tensor
@@ -844,7 +774,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	var sessions []*deviceDecodeSession
 	retainable := parameterized
 	for _, graph := range graphs {
-		retainable = retainable && (graph.feedback != nil || graph.tokenRows != nil)
+		retainable = retainable && (graph.feedback != nil || graph.tokenInput != nil)
 	}
 	if retainable {
 		rebuilds := uint64(1)
@@ -1015,9 +945,8 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 				return nil, err
 			}
 			key, value := graph.keys[layer], graph.values[layer]
-			if !schema.Primary.Key.Mode.TokenAligned() ||
-				!schema.Primary.Value.Mode.TokenAligned() ||
-				key.Shape.Rank != 3 || value.Shape.Rank != 3 {
+			if !schema.Primary.Key.Value.AcceptsTokenTarget(schema.Primary.Key.Mode, key.Shape) ||
+				!schema.Primary.Value.Value.AcceptsTokenTarget(schema.Primary.Value.Mode, value.Shape) {
 				continue
 			}
 			keySlot, keyOK := compiled.OutputSlot(key)
@@ -1025,14 +954,17 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 			if !keyOK || !valueOK {
 				return nil, fmt.Errorf("inference: cache layer %d is not a compiled output", layer)
 			}
+			keyCapacity, keyCapacityOK := tensor.WithTrailingExtent(key.Shape, capacity)
+			valueCapacity, valueCapacityOK := tensor.WithTrailingExtent(value.Shape, capacity)
+			if !keyCapacityOK || !valueCapacityOK {
+				return nil, fmt.Errorf("inference: cache layer %d capacity shape is invalid", layer)
+			}
 			layerPlan := deviceCacheTargetLayer{
 				keySlot: keySlot, valueSlot: valueSlot,
 				keyShape: key.Shape, valueShape: value.Shape,
-				keyCapacity: key.Shape, valueCapacity: value.Shape,
+				keyCapacity: keyCapacity, valueCapacity: valueCapacity,
 				enabled: true,
 			}
-			layerPlan.keyCapacity.Dims[layerPlan.keyCapacity.Rank-1] = capacity
-			layerPlan.valueCapacity.Dims[layerPlan.valueCapacity.Rank-1] = capacity
 			plan.layers[layer] = layerPlan
 		}
 		plans[branch] = plan
@@ -1173,13 +1105,11 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		return fail(errors.New("packed sequence token count is invalid"))
 	}
 	tokensPerSequence := len(tokenIDs) / int(sequences)
-	sequence, err := r.planForwardSequence(
-		tokenIDs[:tokensPerSequence], pastTokens, nextPosition,
-	)
+	tokenIndices, err := r.vocab.TensorIndices(tokenIDs)
 	if err != nil {
 		return fail(err)
 	}
-	rows, err := r.tokenRows(tokenIDs)
+	sequence, err := r.planForwardIndices(tokenIndices[:tokensPerSequence], pastTokens, nextPosition)
 	if err != nil {
 		return fail(err)
 	}
@@ -1190,7 +1120,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if err != nil {
 		return fail(err)
 	}
-	tokenRowInput := builder.GetRows(embeddingTable, rows)
+	tokenRowInput := builder.GetRows(embeddingTable, tokenIndices)
 	current := tokenRowInput
 	deviceFeeds[embeddingTable] = embeddingPointer
 	dynamicEmbedding := embeddingTable.Type == dtype.F32 || embeddingTable.Type == dtype.Q8_0
@@ -1265,7 +1195,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		}
 		deviceFeeds[norm] = pointer
 		perLayerInputs, inputErr = r.program.Model.BuildPerLayerInputs(
-			builder, current, builder.GetRows(perLayerTable, rows), projection, norm,
+			builder, current, builder.GetRows(perLayerTable, tokenIndices), projection, norm,
 		)
 		if inputErr != nil {
 			return fail(inputErr)
@@ -1315,7 +1245,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			cacheBindings[layerIndex] = cacheInputs
 		}
 		result, buildErr := program.Build(model.CachedBlockContext{
-			Builder: builder, Input: current, Positions: positions, TokenRows: rows,
+			Builder: builder, Input: current, Positions: positions, TokenRows: tokenIndices,
 			PastKey: cacheInputs.key, PastValue: cacheInputs.value,
 			PastStates:       cacheInputs.states,
 			CurrentPositions: boundSideInputs.currentPositions,
@@ -1372,7 +1302,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	selection, candidates := plan.reduce(builder, logits)
 	return deviceBatchGraph{
 		logits: logits, selection: selection, candidates: candidates, feedback: feedback,
-		tokenRows: tokenRowInput, positionRows: positionRows,
+		tokenInput: tokenRowInput, positionRows: positionRows,
 		keys: keys, values: values, states: states, cacheInputs: cacheBindings,
 		pastTokens: pastTokens, nextPosition: nextPosition,
 		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),
@@ -1460,17 +1390,17 @@ func rebuildDeviceCachePages(
 		page.Values = resizeDeviceValues(page.Values, len(cache.Values))
 		for layer := range cache.Keys {
 			var err error
-			page.Keys[layer], err = deviceCachePageValue(
-				cache.Keys[layer], start, count, cache.Tokens, layer,
+			page.Keys[layer], err = cache.Keys[layer].SliceLastAxisIfExtent(
+				dtype.F32, uint64(start), uint64(count), uint64(cache.Tokens),
 			)
 			if err != nil {
-				return err
+				return fmt.Errorf("inference: device cache key layer %d page: %w", layer, err)
 			}
-			page.Values[layer], err = deviceCachePageValue(
-				cache.Values[layer], start, count, cache.Tokens, layer,
+			page.Values[layer], err = cache.Values[layer].SliceLastAxisIfExtent(
+				dtype.F32, uint64(start), uint64(count), uint64(cache.Tokens),
 			)
 			if err != nil {
-				return err
+				return fmt.Errorf("inference: device cache value layer %d page: %w", layer, err)
 			}
 		}
 		pageIndex++
@@ -1483,21 +1413,4 @@ func resizeDeviceValues(values []executor.DeviceValue, count int) []executor.Dev
 		return make([]executor.DeviceValue, count)
 	}
 	return values[:count]
-}
-
-func deviceCachePageValue(
-	source executor.DeviceValue,
-	start, count, tokens uint32,
-	layer int,
-) (executor.DeviceValue, error) {
-	if source.Shape.Rank != 3 || source.Shape.Dims[2] != uint64(tokens) {
-		return source, nil
-	}
-	view, err := source.SliceLastAxis(dtype.F32, uint64(start), uint64(count))
-	if err != nil {
-		return executor.DeviceValue{}, fmt.Errorf(
-			"inference: device cache layer %d page: %w", layer, err,
-		)
-	}
-	return view, nil
 }

@@ -411,6 +411,18 @@ func (v *Vocab) Token(id TokenID) (Token, bool) {
 	return v.Tokens[id], true
 }
 
+// TensorIndices validates token IDs for embedding selection.
+func (v *Vocab) TensorIndices(ids []TokenID) ([]uint32, error) {
+	rows := make([]uint32, len(ids))
+	for index, id := range ids {
+		if id < 0 || int(id) >= len(v.Tokens) {
+			return nil, fmt.Errorf("tokenizer: token ID %d is out of range", id)
+		}
+		rows[index] = uint32(id)
+	}
+	return rows, nil
+}
+
 // NonTextGenerationRanges compiles serialized codebook-token intervals.
 func (v *Vocab) NonTextGenerationRanges() []TokenRange {
 	if v == nil {

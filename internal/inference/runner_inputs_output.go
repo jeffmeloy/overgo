@@ -179,7 +179,6 @@ func (r *Runner) logits(
 			r.file,
 			outputInfo,
 			hidden,
-			1024,
 		)
 		if err != nil {
 			return nil, err

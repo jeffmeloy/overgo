@@ -19,6 +19,37 @@ func (v Value) IsMatrixWidth(width uint64) bool {
 	return v.Shape.Rank == tensor.PairedExtent && v.Shape.Dims[0] == width
 }
 
+// MatrixExtents returns validated storage extents.
+func (v Value) MatrixExtents() (int, int, bool) {
+	width, rows, valid := tensor.MatrixExtents(v.Shape)
+	elements, err := v.Shape.Elements()
+	widthInt, widthOK := checked.Int(width)
+	rowsInt, rowsOK := checked.Int(rows)
+	return widthInt, rowsInt,
+		valid && err == nil && elements == uint64(len(v.Data)) && widthOK && rowsOK
+}
+
+// NewMatrixRows compiles equal-width rows into matrix storage.
+func NewMatrixRows(rows [][]float32) (Value, error) {
+	if len(rows) == 0 || len(rows[0]) == 0 {
+		return Value{}, errors.New("reference matrix rows are empty")
+	}
+	width, count := len(rows[0]), len(rows)
+	elements, valid := checked.MulInt(width, count)
+	if !valid {
+		return Value{}, errors.New("reference matrix rows overflow")
+	}
+	data := make([]float32, 0, elements)
+	for _, row := range rows {
+		if len(row) != width {
+			return Value{}, errors.New("reference matrix rows have differing widths")
+		}
+		data = append(data, row...)
+	}
+	shape, err := tensor.NewShape(uint64(width), uint64(count))
+	return Value{Shape: shape, Data: data}, err
+}
+
 func (v Value) Rows(start, count uint64) (Value, error) {
 	if v.Shape.Rank != 2 || count == 0 || start > v.Shape.Dims[1] || count > v.Shape.Dims[1]-start {
 		return Value{}, errors.New("reference row range is invalid")
@@ -47,6 +78,19 @@ func (v Value) TailRows(count uint64) (Value, error) {
 		return Value{}, errors.New("reference tail row count is invalid")
 	}
 	return v.Rows(v.Shape.Dims[1]-count, count)
+}
+
+// LastRowView returns a borrowed final matrix row.
+func (v Value) LastRowView() Value {
+	width, rows, valid := v.MatrixExtents()
+	if !valid {
+		return Value{}
+	}
+	startIndex := (rows - tensor.SingletonExtent) * width
+	return Value{
+		Shape: tensor.MustShape(uint64(width), tensor.SingletonExtent),
+		Data:  v.Data[startIndex:],
+	}
 }
 
 // RemoveTrailingRange removes contiguous final-axis rows.

@@ -99,7 +99,6 @@ func DotRows(
 	file *gguf.File,
 	info gguf.TensorInfo,
 	vector []float32,
-	batchCount uint32,
 ) ([]float32, error) {
 	if file == nil {
 		return nil, errors.New("dot rows: GGUF file is nil")
@@ -114,10 +113,8 @@ func DotRows(
 	if layout.Count > math.MaxUint32 || layout.Count > uint64(math.MaxInt) {
 		return nil, errors.New("dot rows: row count is invalid")
 	}
-	if batchCount == tensor.FirstOffset {
-		return nil, errors.New("dot rows: batch count is zero")
-	}
-	capacity := min(uint64(batchCount), layout.Count)
+	capacity := min(uint64(defaultWeightChunkSize)/layout.BytesPerRow, layout.Count)
+	capacity = max(capacity, uint64(tensor.SingletonExtent))
 	storageBytes := capacity * layout.BytesPerRow
 	if storageBytes > uint64(math.MaxInt) || capacity > math.MaxUint64/layout.ElementsPerRow ||
 		capacity*layout.ElementsPerRow > uint64(math.MaxInt) {

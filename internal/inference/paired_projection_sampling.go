@@ -83,7 +83,7 @@ func (r *Runner) advancePairedProjectionVerification(
 		},
 		func(next *PairedProjectionSession, hidden reference.Value, cache *KVCache) {
 			next.TargetCache = cache
-			next.PendingHidden = lastHiddenColumn(hidden)
+			next.PendingHidden = hidden.LastRowView().Clone()
 			next.Position = effectiveCachePosition(cache)
 		},
 	)

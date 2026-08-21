@@ -120,6 +120,11 @@ func (s CacheValueSchema) MatchesTrailingExtent(shape tensor.Shape, extent uint6
 	return valid && shape.Equal(expected)
 }
 
+func (s CacheValueSchema) AcceptsTokenTarget(mode CacheStateMode, shape tensor.Shape) bool {
+	s.VariableLast = true
+	return mode.TokenAligned() && s.Matches(shape)
+}
+
 // CachePair: primary key/value contract.
 type CachePair[T any] struct {
 	Key   T

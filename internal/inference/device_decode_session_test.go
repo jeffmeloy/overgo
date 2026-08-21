@@ -76,7 +76,7 @@ func TestParameterizedDecodeAttributesCoverDynamicNodes(t *testing.T) {
 	program, err := compileDecodeSessionPlan(
 		compiled,
 		[]deviceBatchGraph{{
-			logits: output, tokenRows: tokenRows,
+			logits: output, tokenInput: tokenRows,
 			keys: []*tensor.Tensor{key}, values: []*tensor.Tensor{key},
 			states: []deviceGraphStates{nil},
 		}},

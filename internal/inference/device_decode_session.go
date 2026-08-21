@@ -103,7 +103,7 @@ func compileDecodeSessionPlan(
 		return nil
 	}
 	for branch, graph := range graphs {
-		if graph.feedback == nil && graph.tokenRows == nil {
+		if graph.feedback == nil && graph.tokenInput == nil {
 			return decodeSessionPlan{}, errors.New("inference: decode session has no parameterized token input")
 		}
 		branchPlan := decodeSessionBranchPlan{cacheInputs: make([]decodeCacheInputPlan, len(graph.cacheInputs))}
@@ -139,13 +139,13 @@ func compileDecodeSessionPlan(
 			slot := decodeDynamicSlot{node: node, branch: branch}
 			switch node.Op {
 			case tensor.OpGetRows:
-				if node != graph.tokenRows && !positionRow(graph, node) {
+				if node != graph.tokenInput && !positionRow(graph, node) {
 					continue
 				}
 				value := node.Attrs.(tensor.GetRowsAttributes)
 				value.Rows = append([]uint32(nil), value.Rows...)
 				slot.value, slot.positions[0] = &value, value.Rows
-				if node == graph.tokenRows {
+				if node == graph.tokenInput {
 					slot.kind = decodeDynamicTokenRows
 				} else {
 					slot.kind = decodeDynamicPositions

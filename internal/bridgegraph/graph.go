@@ -16,17 +16,31 @@ import (
 type Operator string
 
 const (
-	OperatorLinear  Operator = "linear"
-	OperatorMLPGELU Operator = "mlp-gelu"
+	OperatorLinear          Operator = "linear"
+	OperatorMLPGELU         Operator = "mlp-gelu"
+	OperatorAlignVocabulary Operator = "align-vocabulary"
+)
+
+type EmbeddingMode string
+
+const (
+	EmbeddingTied   EmbeddingMode = "tied"
+	EmbeddingUntied EmbeddingMode = "untied"
 )
 
 // Definition binds one shape-changing operator to exact interface artifacts.
 type Definition struct {
-	Source       artifact.ID
-	Target       artifact.ID
-	Operator     Operator
-	Intermediate uint64
-	Bias         bool
+	Source          artifact.ID
+	Target          artifact.ID
+	Operator        Operator
+	Intermediate    uint64
+	Bias            bool
+	Vocabulary      artifact.ID
+	VocabularyHead  artifact.ID
+	TargetEmbedding artifact.ID
+	VocabularySize  uint64
+	VocabularyLimit uint64
+	EmbeddingMode   EmbeddingMode
 }
 
 // Weights are graph nodes supplied by the bridge artifact loader.
@@ -35,6 +49,7 @@ type Weights struct {
 	FirstBias  *tensor.Tensor
 	Second     *tensor.Tensor
 	SecondBias *tensor.Tensor
+	Embedding  *tensor.Tensor
 }
 
 // Compiler is stateless; its zero value admits canonical contract bytes.
@@ -115,12 +130,16 @@ func (Compiler) Compile(definition Definition, sourceContent, targetContent []by
 	}
 	switch definition.Operator {
 	case OperatorLinear:
-		if checked.Nonzero(definition.Intermediate) {
+		if checked.Nonzero(definition.Intermediate) || vocabularyDefinitionPresent(definition) {
 			return Program{}, errors.New("bridge graph: linear operator has an intermediate width")
 		}
 	case OperatorMLPGELU:
-		if !checked.Nonzero(definition.Intermediate) {
+		if !checked.Nonzero(definition.Intermediate) || vocabularyDefinitionPresent(definition) {
 			return Program{}, errors.New("bridge graph: MLP operator requires an intermediate width")
+		}
+	case OperatorAlignVocabulary:
+		if err := validateVocabularyDefinition(definition, target); err != nil {
+			return Program{}, err
 		}
 	default:
 		return Program{}, errors.New("bridge graph: unsupported operator")
@@ -147,6 +166,9 @@ func (p Program) Build(builder *tensor.Builder, input *tensor.Tensor, weights We
 	if tokens < p.sourceMin || tokens > p.sourceMax {
 		return nil, errors.New("bridge graph: input sequence is outside source bounds")
 	}
+	if p.definition.Operator == OperatorAlignVocabulary {
+		return p.buildVocabularyAlignment(builder, input, weights, tokens)
+	}
 	firstOutput := p.targetSize
 	if p.definition.Operator == OperatorMLPGELU {
 		firstOutput = p.definition.Intermediate
@@ -155,9 +177,11 @@ func (p Program) Build(builder *tensor.Builder, input *tensor.Tensor, weights We
 		return nil, fmt.Errorf("bridge graph: first projection: %w", err)
 	}
 	if p.definition.Operator == OperatorLinear {
-		if weights.Second != nil || weights.SecondBias != nil {
+		if weights.Second != nil || weights.SecondBias != nil || weights.Embedding != nil {
 			return nil, errors.New("bridge graph: linear operator has second projection tensors")
 		}
+	} else if weights.Embedding != nil {
+		return nil, errors.New("bridge graph: MLP operator has a vocabulary embedding tensor")
 	} else if err := validateProjection(weights.Second, weights.SecondBias, p.definition.Intermediate, p.targetSize, p.definition.Bias); err != nil {
 		return nil, fmt.Errorf("bridge graph: second projection: %w", err)
 	}
@@ -184,6 +208,87 @@ func (p Program) Build(builder *tensor.Builder, input *tensor.Tensor, weights We
 	outputTokens, matrix := matrixExtents(output.Shape, p.targetSize)
 	if output.Type != dtype.F32 || !matrix || outputTokens != tokens {
 		return nil, errors.New("bridge graph: compiled output differs from target matrix contract")
+	}
+	return output, nil
+}
+
+func vocabularyDefinitionPresent(definition Definition) bool {
+	return definition.Vocabulary.Valid() || definition.VocabularyHead.Valid() ||
+		definition.TargetEmbedding.Valid() || checked.Nonzero(definition.VocabularySize) ||
+		checked.Nonzero(definition.VocabularyLimit) || definition.EmbeddingMode != ""
+}
+
+func validateVocabularyDefinition(definition Definition, target representation.Contract) error {
+	if checked.Nonzero(definition.Intermediate) ||
+		definition.Vocabulary.Kind() != artifact.KindTokenizer ||
+		definition.VocabularyHead.Kind() != artifact.KindTensorSet ||
+		definition.TargetEmbedding.Kind() != artifact.KindTensorSet ||
+		!checked.Nonzero(definition.VocabularySize) ||
+		!checked.Nonzero(definition.VocabularyLimit) ||
+		definition.VocabularySize > definition.VocabularyLimit {
+		return errors.New("bridge graph: vocabulary alignment identity or bound is invalid")
+	}
+	if !contractAuthority(target, representation.AuthorityTokenizer, definition.Vocabulary) {
+		return errors.New("bridge graph: target vocabulary authority differs")
+	}
+	switch definition.EmbeddingMode {
+	case EmbeddingTied:
+		if definition.VocabularyHead != definition.TargetEmbedding {
+			return errors.New("bridge graph: tied vocabulary tensors differ")
+		}
+	case EmbeddingUntied:
+		if definition.VocabularyHead == definition.TargetEmbedding {
+			return errors.New("bridge graph: untied vocabulary tensors are identical")
+		}
+	default:
+		return errors.New("bridge graph: vocabulary embedding mode is invalid")
+	}
+	return nil
+}
+
+func contractAuthority(contract representation.Contract, role representation.AuthorityRole, id artifact.ID) bool {
+	for _, authority := range contract.Authorities {
+		if authority.Role == role && authority.Artifact == id {
+			return true
+		}
+	}
+	return false
+}
+
+func (p Program) buildVocabularyAlignment(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	weights Weights,
+	tokens uint64,
+) (*tensor.Tensor, error) {
+	if weights.Second != nil || weights.SecondBias != nil {
+		return nil, errors.New("bridge graph: vocabulary alignment has an extra projection")
+	}
+	if err := validateProjection(
+		weights.First, weights.FirstBias, p.sourceSize,
+		p.definition.VocabularySize, p.definition.Bias,
+	); err != nil {
+		return nil, fmt.Errorf("bridge graph: vocabulary head: %w", err)
+	}
+	if err := validateProjection(
+		weights.Embedding, nil, p.definition.VocabularySize, p.targetSize, false,
+	); err != nil {
+		return nil, fmt.Errorf("bridge graph: target embedding: %w", err)
+	}
+	output := applyNormalization(builder, input, p.source.Normalization)
+	output = builder.MulMat(weights.First, output)
+	if weights.FirstBias != nil {
+		output = builder.Add(output, weights.FirstBias)
+	}
+	output = builder.Softmax(output)
+	output = builder.MulMat(weights.Embedding, output)
+	output = applyNormalization(builder, output, p.target.Normalization)
+	if err := builder.Err(); err != nil {
+		return nil, fmt.Errorf("bridge graph: build vocabulary alignment: %w", err)
+	}
+	outputTokens, matrix := matrixExtents(output.Shape, p.targetSize)
+	if output.Type != dtype.F32 || !matrix || outputTokens != tokens {
+		return nil, errors.New("bridge graph: vocabulary output differs from target matrix contract")
 	}
 	return output, nil
 }

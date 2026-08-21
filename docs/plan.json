@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "align-vocabulary",
-          "title": "Add target-embedding-basis alignment with bounded vocabulary projection",
-          "status": "open",
-          "verify": "go test ./internal/bridgegraph -run '^TestAlignVocabularyProjection$' -count=1",
-          "rationale": "Align-style projection constrains outputs to the exact target embedding basis but must bind vocabulary authority and bound full-vocabulary memory cost.",
-          "depends_on": [
-            "cross-model-representation-bridge/bridge-training"
-          ],
-          "capabilities": [
-            "embedding-basis-alignment",
-            "chunked-vocabulary-projection",
-            "target-vocabulary-authority"
-          ]
-        },
-        {
           "id": "perceiver-resampler",
           "title": "Add masked fixed-latent Perceiver resampling for long variable source sequences",
           "status": "open",

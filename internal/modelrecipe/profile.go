@@ -36,7 +36,7 @@ var profileCodec = artifact.DocumentCodec[ProfileDocument]{
 		return nil
 	},
 	Encode:       profileDocumentContent,
-	Canonicalize: func(value *ProfileDocument) error { return value.validateShape() },
+	Canonicalize: func(value *ProfileDocument) error { return value.validate() },
 	Clone: func(value ProfileDocument) ProfileDocument {
 		value.Provenance = slices.Clone(value.Provenance)
 		return value
@@ -92,7 +92,7 @@ func (d ProfileDocument) Content() ([]byte, error) {
 	return profileCodec.ContentBytes(d)
 }
 
-func (d ProfileDocument) validateShape() error {
+func (d ProfileDocument) validate() error {
 	if d.Version != ProfileVersion ||
 		d.Architecture == "" || d.Policy.Name != d.Architecture {
 		return errors.New("model recipe: invalid profile envelope")

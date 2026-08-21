@@ -12,14 +12,10 @@ import (
 func ValidateGeneratedCatalog(metadata []gguf.Metadata, tensors []gguf.TensorData) error {
 	file := &gguf.File{Metadata: metadata, Tensors: make([]gguf.TensorInfo, len(tensors))}
 	for index, tensor := range tensors {
-		if len(tensor.Shape) > gguf.MaxDimensions {
-			return fmt.Errorf("tensor %q rank exceeds GGUF", tensor.Name)
+		info, err := gguf.NewTensorInfo(tensor.Name, tensor.Type, tensor.Shape)
+		if err != nil {
+			return err
 		}
-		info := gguf.TensorInfo{
-			Name: tensor.Name, Dimensions: uint32(len(tensor.Shape)), Type: tensor.Type,
-			Shape: [gguf.MaxDimensions]uint64{1, 1, 1, 1},
-		}
-		copy(info.Shape[:], tensor.Shape)
 		file.Tensors[index] = info
 	}
 	spec, err := model.ReadSpec(file)

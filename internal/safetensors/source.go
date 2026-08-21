@@ -228,6 +228,32 @@ func (s *Source) Shards() []string {
 	return shards
 }
 
+// ContainsShard reports whether any tensor uses name.
+func (s *Source) ContainsShard(name string) bool {
+	if s == nil {
+		return false
+	}
+	for _, tensor := range s.Tensors {
+		if tensor.Shard == name {
+			return true
+		}
+	}
+	return false
+}
+
+// ContainsOnlyShard reports whether every tensor uses name.
+func (s *Source) ContainsOnlyShard(name string) bool {
+	if s == nil || len(s.Tensors) == 0 {
+		return false
+	}
+	for _, tensor := range s.Tensors {
+		if tensor.Shard != name {
+			return false
+		}
+	}
+	return true
+}
+
 // Close: release shard handles.
 func (s *Source) Close() error {
 	if s == nil {

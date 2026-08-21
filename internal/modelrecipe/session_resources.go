@@ -3,9 +3,9 @@ package modelrecipe
 import (
 	"context"
 	"errors"
-	"math"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/recipe"
 )
 
@@ -36,7 +36,9 @@ type componentSessionPlanDocument struct {
 	Components    []ComponentSession `json:"components"`
 }
 
-const componentSessionPlanVersion = 1
+const (
+	componentSessionPlanVersion = 1
+)
 
 var componentSessionPlanContract = artifact.DocumentContract{
 	Kind: artifact.KindProfile, MediaType: "application/vnd.overgo.component-session-plan+json",
@@ -94,10 +96,11 @@ func compileComponentSessionPlan(
 		if !known {
 			resolved, err := extent(ctx, modelID)
 			bytes = resolved
-			if err != nil || bytes == 0 || total > math.MaxUint64-bytes {
+			next, valid := checked.Add64(total, bytes)
+			if err != nil || !checked.Nonzero(bytes) || !valid {
 				return ComponentSessionPlan{}, errors.Join(errors.New("model recipe: component artifact extent is unavailable"), err)
 			}
-			extents[modelID], total = bytes, total+bytes
+			extents[modelID], total = bytes, next
 		}
 		component := ComponentSession{
 			Node: node.ID, Module: node.Module, Model: modelID, Session: node.Session,
@@ -161,7 +164,7 @@ func manifestArtifactBytes(ctx context.Context, reader artifact.Reader, id artif
 	}
 	if !found {
 		descriptor, found, err := reader.Artifact(ctx, id)
-		if err != nil || !found || descriptor.Size == 0 {
+		if err != nil || !found || !checked.Nonzero(descriptor.Size) {
 			return 0, errors.Join(errors.New("model recipe: session component is absent"), err)
 		}
 		return descriptor.Size, nil
@@ -169,10 +172,11 @@ func manifestArtifactBytes(ctx context.Context, reader artifact.Reader, id artif
 	var total uint64
 	for _, component := range manifest.Components {
 		bytes, err := manifestArtifactBytes(ctx, reader, component.Artifact, seen)
-		if err != nil || total > math.MaxUint64-bytes {
+		next, valid := checked.Add64(total, bytes)
+		if err != nil || !valid {
 			return 0, errors.Join(errors.New("model recipe: session artifact extent overflow"), err)
 		}
-		total += bytes
+		total = next
 	}
 	return total, nil
 }

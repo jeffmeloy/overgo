@@ -192,6 +192,37 @@ type TensorInfo struct {
 	Size       uint64
 }
 
+// NewTensorInfo validates and compiles one logical tensor descriptor.
+func NewTensorInfo(name string, storage DType, shape []uint64) (TensorInfo, error) {
+	if name == "" {
+		return TensorInfo{}, fmt.Errorf("tensor name is empty")
+	}
+	if len(name) >= MaxTensorName {
+		return TensorInfo{}, fmt.Errorf("tensor name %q is too long", name)
+	}
+	if len(shape) == 0 || len(shape) > MaxDimensions {
+		return TensorInfo{}, fmt.Errorf("tensor %q has invalid dimension count %d", name, len(shape))
+	}
+	info := TensorInfo{
+		Name: name, Dimensions: uint32(len(shape)), Shape: [MaxDimensions]uint64{1, 1, 1, 1}, Type: storage,
+	}
+	for axis, dimension := range shape {
+		if dimension == 0 || dimension > math.MaxInt64 {
+			return TensorInfo{}, fmt.Errorf("tensor %q dimension %d is invalid: %d", name, axis, dimension)
+		}
+		info.Shape[axis] = dimension
+	}
+	elements, err := info.ElementCount()
+	if err != nil {
+		return TensorInfo{}, err
+	}
+	info.Size, err = storage.StorageBytes(elements, info.Shape[0])
+	if err != nil {
+		return TensorInfo{}, fmt.Errorf("tensor %q: %w", name, err)
+	}
+	return info, nil
+}
+
 // ElementCount: validated shape product.
 func (tensor TensorInfo) ElementCount() (uint64, error) {
 	if tensor.Dimensions == 0 || tensor.Dimensions > MaxDimensions {

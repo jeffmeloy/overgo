@@ -50,7 +50,7 @@ func ResolveActiveGGUF(
 	}
 	definition := activation.Definition
 	loaded.state.EvidenceTier = activation.Tier
-	definitionID, ok := definition.Dependency(recipe.DependencyDefinition, 0)
+	definitionID, ok := definition.PrimaryDependency(recipe.DependencyDefinition)
 	if !ok {
 		return fail(errors.New("model recipe: active recipe has no model definition"))
 	}
@@ -85,7 +85,7 @@ func ResolveCandidateGGUF(
 	if definition.Task != recipe.TaskInference || definition.Model != loaded.state.Inventory.Manifest.ID {
 		return fail(errors.New("model recipe: candidate does not name the loaded inference model"))
 	}
-	definitionID, ok := definition.Dependency(recipe.DependencyDefinition, 0)
+	definitionID, ok := definition.PrimaryDependency(recipe.DependencyDefinition)
 	if !ok || definitionID != resolved.Document.ID {
 		return fail(errors.New("model recipe: candidate model definition differs"))
 	}

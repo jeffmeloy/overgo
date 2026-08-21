@@ -95,8 +95,11 @@ func loadSourceCodecStats(t testing.TB) VAELatentStats {
 func loadRealSourceCrops(t testing.TB, path string, shape SourceVideoShape) []float32 {
 	t.Helper()
 	raw, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		t.Skipf("UNAVAILABLE: retained real Wan frame: %v", err)
+	}
 	if err != nil {
-		t.Fatalf("UNAVAILABLE: retained real Wan frame: %v", err)
+		t.Fatal(err)
 	}
 	const frameHeight, frameWidth = 480, 832
 	if len(raw) != 3*frameHeight*frameWidth*4 {

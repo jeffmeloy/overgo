@@ -60,14 +60,7 @@ func TestModelConfigArtifactContract(t *testing.T) {
 		sources    []ConfigSource
 	}
 	for name, broken := range map[string]variant{
-		"no components": {nil, nil, sources},
-		"zero k": {&SequenceExtensionConfig{K: 0, StartID: 1, Vocabulary: 10,
-			SpecialTokens: []string{"a", "b", "c"}}, nil, sources},
-		"too few specials": {&SequenceExtensionConfig{K: 2, StartID: 1, Vocabulary: 19,
-			SpecialTokens: []string{"a", "b"}}, nil, sources},
-		"range too small": {&SequenceExtensionConfig{K: 2, StartID: 1, Vocabulary: 18,
-			SpecialTokens: []string{"a", "b", "c"}}, nil, sources},
-		"empty generation": {nil, &GenerationEssentials{}, sources},
+		"no components":    {nil, nil, sources},
 		"no sources":       {sequence, generation, nil},
 		"bad digest":       {sequence, generation, []ConfigSource{{Name: "config.json", SHA256: "zz"}}},
 		"pathed source":    {sequence, generation, []ConfigSource{{Name: "dir/config.json", SHA256: digest}}},

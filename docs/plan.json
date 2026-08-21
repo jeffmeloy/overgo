@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "artifact-recipe",
-          "title": "Make artifact facts and active recipes the only model configuration authorities",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/modelartifact,internal/modelrecipe -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production",
-          "rationale": "Artifact and recipe owners must compile typed facts without family defaults, fallback readers, or duplicate registries.",
-          "depends_on": [
-            "magic-scan-authority/enforcement-modes"
-          ],
-          "capabilities": [
-            "artifact-facts",
-            "active-recipe-authority",
-            "compiled-plan"
-          ]
-        },
-        {
           "id": "graph-topology",
           "title": "Replace model topology switches and literals with recipe-compiled neutral operators",
           "status": "open",

@@ -153,6 +153,40 @@ func use(values []int) int {
 	}
 }
 
+func TestStructuralZerosAreNotRuntimePolicy(t *testing.T) {
+	source := `package policy
+import "fmt"
+import "errors"
+func values(input []int) []int {
+	if len(input) == 0 { return make([]int, 0, cap(input)) }
+	for cursor := uint64(0); cursor < uint64(len(input)); cursor++ { break }
+	for offset := 0; offset < len(input); offset++ { break }
+	for index := range input { if index > 0 { break } }
+	if input[0] > 0 { return input }
+	return nil
+}
+func decode() (int, error) { return 0, fmt.Errorf("invalid") }
+func decodeJoined() (int, error) { return 0, errors.Join(errors.New("invalid")) }
+`
+	snapshot := scanTestSnapshot(t, map[string]string{"internal/policy.go": source})
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateLiterals)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var policySeen bool
+	for _, candidate := range candidates {
+		if candidate.Policy {
+			if policySeen {
+				t.Fatalf("multiple runtime policies: %+v", candidates)
+			}
+			policySeen = true
+		}
+	}
+	if !policySeen || len(candidates) != strings.Count(source, "0") {
+		t.Fatalf("literal authority policy=%t candidates=%+v", policySeen, candidates)
+	}
+}
+
 func TestLiteralClassificationUsesSyntaxAndOwnership(t *testing.T) {
 	snapshot := scanTestSnapshot(t, map[string]string{"internal/policy.go": `package policy
 func admitted(n int) bool { return n > 3 || n > 4096 }
@@ -233,6 +267,31 @@ func decide(variance float64, values []float64, tensorRows, limit int) bool {
 		if !kinds[kind] {
 			t.Fatalf("missing %s in %+v", kind, hints)
 		}
+	}
+}
+
+func TestImportedOperatorOwnsAssumptionPolicy(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{"internal/decision.go": `package decision
+import "example.org/shared"
+func decide(value float64) bool {
+	if shared.ValidEffectiveRank(value) { return true }
+	return localEffectiveRank(value)
+}
+`})
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateAssumptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var imported, local bool
+	for _, candidate := range candidates {
+		if strings.HasPrefix(candidate.Expression, "shared.") {
+			imported = !candidate.Policy
+		} else {
+			local = candidate.Policy
+		}
+	}
+	if !imported || !local {
+		t.Fatalf("assumption authority = %+v", candidates)
 	}
 }
 

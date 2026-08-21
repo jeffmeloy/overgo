@@ -28,10 +28,10 @@ func DequantizeInto(dataType dtype.Type, source []byte, output []float32) error 
 		return fmt.Errorf("unknown tensor type %d", dataType)
 	}
 	elements := uint64(len(output))
-	if elements%traits.BlockSize != 0 {
+	blocks, aligned := traits.BlockCount(elements)
+	if !aligned {
 		return fmt.Errorf("element count %d is not divisible by %s block size %d", elements, traits.Name, traits.BlockSize)
 	}
-	blocks := elements / traits.BlockSize
 	if blocks > math.MaxUint64/traits.TypeSize {
 		return errors.New("quantized byte size overflows uint64")
 	}

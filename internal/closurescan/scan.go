@@ -105,7 +105,7 @@ func (s LiteralSite) Candidate() Candidate {
 		File: s.File, Package: s.Package, Scope: s.Scope, Line: s.Line,
 		Expression: s.Expression, Value: s.Value, SourceID: s.SourceID,
 		CallsiteID: sourceSiteID(s.File, s.SourceID, s.Scope, s.Line, s.Offset),
-		Policy:     runtimeLiteralContext(s.Context),
+		Policy:     s.Policy,
 	}
 }
 
@@ -116,7 +116,7 @@ func (s AssumptionHint) Candidate() Candidate {
 		File: s.File, Package: s.Package, Scope: s.Scope, Line: s.Line,
 		Expression: s.Expression, Value: string(s.Kind), SourceID: s.SourceID,
 		CallsiteID: sourceSiteID(s.File, s.SourceID, s.Scope, s.Line, s.Offset),
-		Policy:     true,
+		Policy:     s.Policy,
 	}
 }
 
@@ -175,6 +175,7 @@ type LiteralSite struct {
 	Value      string         `json:"value"`
 	Context    LiteralContext `json:"context"`
 	SourceID   string         `json:"source_id"`
+	Policy     bool           `json:"policy"`
 }
 
 type TestLiteralClass string
@@ -212,6 +213,7 @@ type AssumptionHint struct {
 	Kind       AssumptionKind `json:"kind"`
 	Expression string         `json:"expression"`
 	SourceID   string         `json:"source_id"`
+	Policy     bool           `json:"policy"`
 }
 
 // CensusLiterals classifies non-const numeric source literals.
@@ -367,13 +369,88 @@ func collectLiteralSites(file *ast.File, source repoanalysis.GoFile, out *[]Lite
 		if !ok {
 			return
 		}
+		context := literalContext(parent, parents)
 		*out = append(*out, LiteralSite{
 			File: source.Path, Package: filepath.ToSlash(filepath.Dir(source.Path)),
 			Scope: literalScope(node, parents), Line: source.Line(expression.Pos()), Offset: int(expression.Pos()) - 1,
 			Kind: literal.Kind.String(), Expression: formatExpression(expression), Value: value.ExactString(),
-			Context: literalContext(parent, parents), SourceID: source.ContentID,
+			Context: context, SourceID: source.ContentID,
+			Policy: runtimeLiteralContext(context) && !structuralZero(literal, parent, parents),
 		})
 	})
+}
+
+func structuralZero(literal *ast.BasicLit, parent ast.Node, parents map[ast.Node]ast.Node) bool {
+	if literal.Value != "0" {
+		return false
+	}
+	switch value := parent.(type) {
+	case *ast.BinaryExpr:
+		other := value.X
+		if other == literal {
+			other = value.Y
+		}
+		call, ok := other.(*ast.CallExpr)
+		if ok {
+			name, ok := call.Fun.(*ast.Ident)
+			return ok && (name.Name == "len" || name.Name == "cap")
+		}
+		index, ok := other.(*ast.Ident)
+		return ok && enclosingRangeKey(value, index, parents)
+	case *ast.CallExpr:
+		name, ok := value.Fun.(*ast.Ident)
+		return ok && (name.Name == "make" || numericBuiltin(name.Name))
+	case *ast.ReturnStmt:
+		for _, result := range value.Results {
+			if result != literal && errorLike(result) {
+				return true
+			}
+		}
+		return false
+	case *ast.AssignStmt:
+		loop, ok := parents[value].(*ast.ForStmt)
+		return ok && loop.Init == value
+	default:
+		return false
+	}
+}
+
+func errorLike(expression ast.Expr) bool {
+	switch value := expression.(type) {
+	case *ast.Ident:
+		return value.Name == "nil" || value.Name == "err" || strings.HasSuffix(value.Name, "Err")
+	case *ast.CallExpr:
+		switch function := value.Fun.(type) {
+		case *ast.Ident:
+			return strings.Contains(strings.ToLower(function.Name), "err")
+		case *ast.SelectorExpr:
+			if receiver, ok := function.X.(*ast.Ident); ok && receiver.Name == "errors" {
+				return true
+			}
+			return function.Sel.Name == "New" || strings.Contains(strings.ToLower(function.Sel.Name), "err")
+		}
+	}
+	return false
+}
+
+func numericBuiltin(name string) bool {
+	switch name {
+	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "uintptr", "float32", "float64", "complex64", "complex128":
+		return true
+	default:
+		return false
+	}
+}
+
+func enclosingRangeKey(node ast.Node, index *ast.Ident, parents map[ast.Node]ast.Node) bool {
+	for node != nil {
+		if statement, ok := node.(*ast.RangeStmt); ok {
+			key, ok := statement.Key.(*ast.Ident)
+			return ok && (key == index || key.Obj != nil && key.Obj == index.Obj)
+		}
+		node = parents[node]
+	}
+	return false
 }
 
 func inspectWithParents(root ast.Node, visit func(ast.Node, map[ast.Node]ast.Node)) {
@@ -507,6 +584,7 @@ func collectAssumptionCandidates(file *ast.File, source repoanalysis.GoFile, out
 
 func collectAssumptionHints(file *ast.File, source repoanalysis.GoFile, out *[]AssumptionHint) {
 	seen := map[string]bool{}
+	imports := importedNames(file)
 	inspectWithParents(file, func(node ast.Node, parents map[ast.Node]ast.Node) {
 		var expression, subject ast.Expr
 		switch typed := node.(type) {
@@ -531,9 +609,43 @@ func collectAssumptionHints(file *ast.File, source repoanalysis.GoFile, out *[]A
 				File: source.Path, Package: filepath.ToSlash(filepath.Dir(source.Path)),
 				Scope: literalScope(node, parents), Line: source.Line(expression.Pos()), Offset: offset,
 				Kind: kind, Expression: formatExpression(expression), SourceID: source.ContentID,
+				Policy: !importedSelector(subject, imports),
 			})
 		}
 	})
+}
+
+func importedNames(file *ast.File) map[string]bool {
+	names := make(map[string]bool, len(file.Imports))
+	for _, spec := range file.Imports {
+		name := ""
+		if spec.Name != nil {
+			name = spec.Name.Name
+		} else if path, err := strconv.Unquote(spec.Path.Value); err == nil {
+			name = filepath.Base(path)
+		}
+		if name != "" && name != "." && name != "_" {
+			names[name] = true
+		}
+	}
+	return names
+}
+
+func importedSelector(expression ast.Expr, imports map[string]bool) bool {
+	selector, ok := expression.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	for expression = selector.X; ; {
+		switch value := expression.(type) {
+		case *ast.Ident:
+			return imports[value.Name]
+		case *ast.SelectorExpr:
+			expression = value.X
+		default:
+			return false
+		}
+	}
 }
 
 func visitProduction(snapshot repoanalysis.SourceSnapshot, relatives []string, visit func(repoanalysis.GoFile, *ast.File)) error {

@@ -78,7 +78,7 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 		return operation.Completion{}, err
 	}
 	definition := workspace.program.Definition()
-	policy, ok := definition.Dependency(recipe.DependencyModel, 0)
+	policy, ok := definition.PrimaryDependency(recipe.DependencyModel)
 	if !ok {
 		return operation.Completion{}, errors.New("training workspace: policy dependency absent")
 	}

@@ -63,7 +63,7 @@
      "contains": "func OpenSourceWithLimits(",
      "path": "internal/safetensors/source.go",
      "role": "source",
-     "identity": "file:sha256:dd3bb078b1c63d9adb55bb4ab2660d3ffa3e0db9f7f6aca72a33f2c7b809e285"
+     "identity": "file:sha256:b29f32942a122df4d0ad29220121d3a3d4ff6f6fa2f296b9f93ae0f22dde8695"
     },
     {
      "contains": "func TestOpenSourceRejectsInvalidRepositories(",
@@ -267,7 +267,7 @@
      "contains": "func OpenAs[T Projector](",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:e227fca4673dec6f0f88399b842ee28bb39f6cc9949623bde1a9700fcfc6e04e"
+     "identity": "file:sha256:9ffe708f70fb1db61c0a4ca6fce5776d717720632a506c6c3b98dd5b129fdc68"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -434,7 +434,7 @@
      "contains": "func Quantize(",
      "path": "internal/quant/quantize.go",
      "role": "source",
-     "identity": "file:sha256:8bbd9e1e5f71407812546da597482cbd4937175cf3995c6ec97f9275d79b7148"
+     "identity": "file:sha256:8edb08ac95d83d74c4a240be82c527f48c9852b12c445ef3fbcc7ee94b7a779b"
     },
     {
      "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
@@ -584,7 +584,7 @@
      "contains": "func (r *Qwen3VLRunner) imagesPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:e227fca4673dec6f0f88399b842ee28bb39f6cc9949623bde1a9700fcfc6e04e"
+     "identity": "file:sha256:9ffe708f70fb1db61c0a4ca6fce5776d717720632a506c6c3b98dd5b129fdc68"
     },
     {
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -605,7 +605,7 @@
      "contains": "func (r *Gemma4Runner) mediaHistoryPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:e227fca4673dec6f0f88399b842ee28bb39f6cc9949623bde1a9700fcfc6e04e"
+     "identity": "file:sha256:9ffe708f70fb1db61c0a4ca6fce5776d717720632a506c6c3b98dd5b129fdc68"
     },
     {
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -626,7 +626,7 @@
      "contains": "func (r *Gemma4Runner) mediaHistoryPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:e227fca4673dec6f0f88399b842ee28bb39f6cc9949623bde1a9700fcfc6e04e"
+     "identity": "file:sha256:9ffe708f70fb1db61c0a4ca6fce5776d717720632a506c6c3b98dd5b129fdc68"
     },
     {
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
@@ -1113,7 +1113,7 @@
      "contains": "capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed}",
      "path": "cmd/recipe/image_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:31a591b7fcd792c537f2c6f9d428e61ce73bfd49b9a85780674281875709cc7e"
+     "identity": "file:sha256:d8da243093ada23c0fec4636f394722128aaab8d904c73ed2e70980416136d29"
     },
     {
      "contains": "func TestSenseNovaProductionImageGeneration(",

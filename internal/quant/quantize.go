@@ -47,7 +47,8 @@ func quantize(dataType dtype.Type, values, weights []float32) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown tensor type %d", dataType)
 	}
-	if uint64(len(values))%traits.BlockSize != 0 {
+	blocks, aligned := traits.BlockCount(uint64(len(values)))
+	if !aligned {
 		return nil, fmt.Errorf(
 			"element count %d is not divisible by %s block size %d",
 			len(values),
@@ -55,7 +56,6 @@ func quantize(dataType dtype.Type, values, weights []float32) ([]byte, error) {
 			traits.BlockSize,
 		)
 	}
-	blocks := uint64(len(values)) / traits.BlockSize
 	if blocks > uint64(math.MaxInt)/traits.TypeSize {
 		return nil, errors.New("quantized tensor exceeds addressable memory")
 	}

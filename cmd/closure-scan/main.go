@@ -426,7 +426,7 @@ func retireOrphanAliases(root, storePath string, snapshot repoanalysis.SourceSna
 				continue
 			}
 			key := (closurescan.Candidate{
-				File: binding.File, Scope: binding.Scope, Line: binding.Line, Name: binding.Name,
+				Kind: binding.Kind, File: binding.File, Scope: binding.Scope, Line: binding.Line, Name: binding.Name,
 			}).DeclarationKey()
 			if _, exists := current[key]; !exists {
 				previous := alias.Target

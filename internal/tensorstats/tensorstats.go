@@ -226,6 +226,18 @@ type Characterization struct {
 	Values             ValueStats `json:"values"`
 }
 
+// Valid reports the measured population contract.
+func (c Characterization) Valid() bool {
+	return c.Elements > 0 && c.Samples > 0 && c.Samples <= c.Elements &&
+		c.FiniteSamples > 0 && c.FiniteSamples <= c.Samples &&
+		finite(c.LowerQuartile) && finite(c.Median) && finite(c.UpperQuartile) &&
+		c.InterquartileRange >= 0 && c.LowerQuartile <= c.Median && c.Median <= c.UpperQuartile
+}
+
+func finite(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
 // Characterize profiles a value population. samples may contain non-finite
 // values, which are excluded and reflected in FiniteSamples and the finite
 // fraction. It reports false when no finite value is present; four finite

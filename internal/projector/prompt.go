@@ -318,7 +318,7 @@ func OpenActiveAs[T Projector](
 			return err
 		}
 		definition := program.Definition()
-		bound, ok := definition.Dependency(recipe.DependencyProjector, 0)
+		bound, ok := definition.PrimaryDependency(recipe.DependencyProjector)
 		if !ok || bound != inventory.Manifest.ID {
 			return errors.New("projector: loaded artifact differs from active projection recipe")
 		}

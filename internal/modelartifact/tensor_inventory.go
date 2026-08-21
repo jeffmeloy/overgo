@@ -19,10 +19,6 @@ const (
 	TensorInventoryVersion   uint16 = 1
 	TensorInventoryMediaType        = "application/vnd.overgo.tensor-inventory+json"
 	TensorInventorySchema           = "overgo/tensor-inventory/v1"
-	maxInventoryTensors             = 500_000
-	maxInventoryRank                = 64
-	maxInventoryNameBytes           = 16 << 10
-	maxInventoryStorageBytes        = 64
 )
 
 var tensorInventoryContract = artifact.DocumentContract{
@@ -43,7 +39,7 @@ var tensorInventoryCodec = artifact.DocumentCodec[TensorInventoryDocument]{
 	},
 	Encode: tensorInventoryContent,
 	Canonicalize: func(value *TensorInventoryDocument) error {
-		return value.validateShape()
+		return value.validate()
 	},
 	Clone: func(value TensorInventoryDocument) TensorInventoryDocument {
 		value.Tensors = cloneTensorFacts(value.Tensors)
@@ -163,7 +159,7 @@ func LoadTensorInventory(
 	return found, matched, nil
 }
 
-func (d TensorInventoryDocument) validateShape() error {
+func (d TensorInventoryDocument) validate() error {
 	if d.Version != TensorInventoryVersion || d.Model.Kind() != artifact.KindModel {
 		return errors.New("model artifact: invalid tensor inventory envelope")
 	}
@@ -171,21 +167,21 @@ func (d TensorInventoryDocument) validateShape() error {
 		d.Format != TensorFormatPyTorch && d.Format != TensorFormatMixed {
 		return errors.New("model artifact: invalid tensor inventory format")
 	}
-	if len(d.Tensors) == 0 || len(d.Tensors) > maxInventoryTensors {
+	if len(d.Tensors) == 0 {
 		return errors.New("model artifact: invalid tensor inventory count")
 	}
 	previous := ""
 	for _, tensor := range d.Tensors {
-		if tensor.Name <= previous || len(tensor.Name) > maxInventoryNameBytes ||
+		if tensor.Name <= previous ||
 			strings.TrimSpace(tensor.Name) != tensor.Name || strings.ContainsAny(tensor.Name, "\r\n") {
 			return errors.New("model artifact: invalid or unordered tensor name")
 		}
-		if tensor.Storage == "" || len(tensor.Storage) > maxInventoryStorageBytes ||
+		if tensor.Storage == "" ||
 			tensor.Storage != strings.ToLower(tensor.Storage) || strings.TrimSpace(tensor.Storage) != tensor.Storage {
 			return fmt.Errorf("model artifact: tensor %q has invalid storage", tensor.Name)
 		}
-		if tensor.Shape == nil || len(tensor.Shape) > maxInventoryRank {
-			return fmt.Errorf("model artifact: tensor %q exceeds rank limit", tensor.Name)
+		if tensor.Shape == nil {
+			return fmt.Errorf("model artifact: tensor %q has no declared shape", tensor.Name)
 		}
 		previous = tensor.Name
 	}

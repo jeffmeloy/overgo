@@ -519,16 +519,35 @@ func TensorMetaBytes(m TensorMeta) (int64, error) {
 	return m.Numel * width, nil
 }
 
-func storageDecode(dtypeName string) (elemBytes int64, convert func(uint16) float32, err error) {
-	switch dtypeName {
+// StorageType resolves a torch storage class to tensor storage.
+func StorageType(name string) (dtype.Type, error) {
+	switch name {
 	case "FloatStorage":
-		return 4, nil, nil
+		return dtype.F32, nil
 	case "HalfStorage":
-		return 2, dtype.Float16ToFloat32, nil
+		return dtype.F16, nil
 	case "BFloat16Storage":
-		return 2, dtype.BF16ToFloat32, nil
+		return dtype.BF16, nil
 	default:
-		return 0, nil, fmt.Errorf("unsupported dtype %s", dtypeName)
+		return 0, fmt.Errorf("unsupported dtype %s", name)
+	}
+}
+
+func storageDecode(dtypeName string) (elemBytes int64, convert func(uint16) float32, err error) {
+	typeValue, err := StorageType(dtypeName)
+	if err != nil {
+		return 0, nil, err
+	}
+	traits, _ := typeValue.Traits()
+	switch typeValue {
+	case dtype.F32:
+		return int64(traits.TypeSize), nil, nil
+	case dtype.F16:
+		return int64(traits.TypeSize), dtype.Float16ToFloat32, nil
+	case dtype.BF16:
+		return int64(traits.TypeSize), dtype.BF16ToFloat32, nil
+	default:
+		panic("pytorchzip: storage type without decoder")
 	}
 }
 

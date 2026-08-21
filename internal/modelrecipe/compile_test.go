@@ -179,7 +179,7 @@ func TestProjectionDefinitionCompilesAllSelectedModalities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, ok := definition.Dependency(recipe.DependencyProjector, 0)
+	bound, ok := definition.PrimaryDependency(recipe.DependencyProjector)
 	if !ok || bound != projectorID || len(definition.Inputs) != len(projectionStages) {
 		t.Fatalf("projection definition = %+v", definition)
 	}
@@ -316,7 +316,7 @@ func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bound, ok := definition.Dependency(recipe.DependencyProfile, 0); !ok || bound != profileID {
+	if bound, ok := definition.PrimaryDependency(recipe.DependencyProfile); !ok || bound != profileID {
 		t.Fatalf("image profile dependency = (%s, %v)", bound, ok)
 	}
 }

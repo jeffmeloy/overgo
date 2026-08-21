@@ -204,6 +204,11 @@ func (d Definition) Dependency(role DependencyRole, slot uint32) (artifact.ID, b
 	return artifact.ID{}, false
 }
 
+// PrimaryDependency returns slot zero for a required singleton role.
+func (d Definition) PrimaryDependency(role DependencyRole) (artifact.ID, bool) {
+	return d.Dependency(role, 0)
+}
+
 func duplicateNodes(nodes []Node) bool {
 	for index := 1; index < len(nodes); index++ {
 		if nodes[index-1].ID == nodes[index].ID {

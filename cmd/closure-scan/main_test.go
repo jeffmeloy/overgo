@@ -291,6 +291,9 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
+	if retained, err := retireOrphanAliases(root, "store", snapshot); err != nil || retained != nil {
+		t.Fatalf("retired live bindings = (%d, %v)", len(retained), err)
+	}
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}

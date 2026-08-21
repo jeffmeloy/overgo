@@ -108,7 +108,7 @@ func characterizeServable(
 	if !active {
 		return artifact.ID{}, fmt.Errorf("no active inference recipe")
 	}
-	definitionID, ok := activation.Definition.Dependency(recipe.DependencyDefinition, 0)
+	definitionID, ok := activation.Definition.PrimaryDependency(recipe.DependencyDefinition)
 	if !ok {
 		return artifact.ID{}, fmt.Errorf("active recipe has no model definition")
 	}

@@ -219,11 +219,11 @@ func CompileModelDefinition(
 		return Plan{}, err
 	}
 	resolved = checked
-	definitionID, ok := definition.Dependency(recipe.DependencyDefinition, 0)
+	definitionID, ok := definition.PrimaryDependency(recipe.DependencyDefinition)
 	if !ok || definitionID != resolved.Document.ID || definition.Model != resolved.Document.Model {
 		return Plan{}, errors.New("model recipe: recipe model definition binding mismatch")
 	}
-	profileID, ok := definition.Dependency(recipe.DependencyProfile, 0)
+	profileID, ok := definition.PrimaryDependency(recipe.DependencyProfile)
 	if !ok || profileID != resolved.Profile.ID {
 		return Plan{}, errors.New("model recipe: recipe profile binding mismatch")
 	}
@@ -232,7 +232,7 @@ func CompileModelDefinition(
 	})
 }
 
-func (d ModelDefinitionDocument) validateShape() error {
+func (d ModelDefinitionDocument) validate() error {
 	if d.Version != ModelDefinitionVersion || d.Model.Kind() != artifact.KindModel ||
 		d.Profile.Kind() != artifact.KindProfile || d.TensorInventory.Kind() != artifact.KindTensorInventory ||
 		d.Architecture == "" || d.Spec.Architecture != d.Architecture {
@@ -262,7 +262,7 @@ func canonicalizeModelDefinition(document *ModelDefinitionDocument) error {
 	if document == nil {
 		return errors.New("model recipe: nil model definition")
 	}
-	if err := document.validateShape(); err != nil {
+	if err := document.validate(); err != nil {
 		return err
 	}
 	content, err := modelDefinitionContent(*document)

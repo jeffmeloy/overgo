@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/closureledger"
 	"overgo/internal/repoanalysis"
 )
 
@@ -15,7 +16,7 @@ func TestClosureScanSnapshotConsumer(t *testing.T) {
 		"internal/other.go":     "package p\nconst Other = 4\n",
 		"internal/live_test.go": "package p\nconst TestLimit = 5\n",
 	})
-	candidates, err := ScanSnapshot(snapshot, []string{"internal/live.go"})
+	candidates, err := ScanSnapshot(snapshot, []string{"internal/live.go"}, CandidateConstants)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +33,7 @@ func derive() {
 	const local = base * 4
 }
 `})
-	candidates, err := ScanSnapshot(snapshot, nil)
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateConstants)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +56,7 @@ func TestCandidateIdentityIncludesEvaluatedSourceBinding(t *testing.T) {
 	snapshot := scanTestSnapshot(t, map[string]string{
 		"internal/policy.go": "package policy\nconst allocation = 4 * 8\n",
 	})
-	before, err := ScanSnapshot(snapshot, nil)
+	before, err := ScanSnapshot(snapshot, nil, CandidateConstants)
 	if err != nil || len(before) != 1 {
 		t.Fatalf("before = %+v, %v", before, err)
 	}
@@ -65,7 +66,7 @@ func TestCandidateIdentityIncludesEvaluatedSourceBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	after, err := ScanSnapshot(rewritten, nil)
+	after, err := ScanSnapshot(rewritten, nil, CandidateConstants)
 	if err != nil || len(after) != 1 {
 		t.Fatalf("after = %+v, %v", after, err)
 	}
@@ -76,6 +77,39 @@ func TestCandidateIdentityIncludesEvaluatedSourceBinding(t *testing.T) {
 	}
 	if left.DeclarationKey() != right.DeclarationKey() || left.ExactKey() == right.ExactKey() || right.Value != left.Value {
 		t.Fatalf("before = %+v, after = %+v", left, right)
+	}
+}
+
+func TestTypedCandidatesBindEverySiteKind(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{"internal/policy.go": `package policy
+const Window = 8
+func decide(values []float64) bool {
+	return quantile(values, 0.9) > 3
+}
+`})
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateAll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[closureledger.BindingKind]bool{
+		closureledger.BindingConstant: false, closureledger.BindingLiteral: false, closureledger.BindingAssumption: false,
+	}
+	keys := map[string]bool{}
+	for _, candidate := range candidates {
+		binding, err := candidate.Binding()
+		if err != nil {
+			t.Fatalf("bind %+v: %v", candidate, err)
+		}
+		if binding.Kind != candidate.Kind || binding.CallsiteID == "" || keys[candidate.ExactKey()] {
+			t.Fatalf("candidate = %+v, binding = %+v", candidate, binding)
+		}
+		keys[candidate.ExactKey()] = true
+		want[candidate.Kind] = true
+	}
+	for kind, found := range want {
+		if !found {
+			t.Fatalf("missing %s candidate in %+v", kind, candidates)
+		}
 	}
 }
 

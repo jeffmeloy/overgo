@@ -1,8 +1,4 @@
-// Package closurescan owns the constant-scanning core shared by the
-// closure-scan CLI and the gate's magic step: parse production Go, collect
-// numeric constants (iota enumerations, tests, testdata, and generated code
-// excluded -- enumerations are not magics), and rank them for triage. The
-// score orders reports and admits nothing; judgment happens at triage.
+// Package closurescan owns exact literal and assumption source bindings.
 package closurescan
 
 import (
@@ -31,21 +27,40 @@ import (
 )
 
 type Candidate struct {
-	Name       string `json:"name"`
-	File       string `json:"file"`
-	Package    string `json:"package"`
-	Scope      string `json:"scope"`
-	Line       int    `json:"line"`
-	Expression string `json:"expression"`
-	Value      string `json:"value"`
-	SourceID   string `json:"source_id"`
-	CallsiteID string `json:"callsite_id"`
-	Doc        string `json:"doc,omitempty"`
-	Score      int    `json:"score"`
+	Kind       closureledger.BindingKind `json:"kind"`
+	Name       string                    `json:"name"`
+	File       string                    `json:"file"`
+	Package    string                    `json:"package"`
+	Scope      string                    `json:"scope"`
+	Line       int                       `json:"line"`
+	Expression string                    `json:"expression"`
+	Value      string                    `json:"value"`
+	SourceID   string                    `json:"source_id"`
+	CallsiteID string                    `json:"callsite_id"`
+	Doc        string                    `json:"doc,omitempty"`
+	Score      int                       `json:"score"`
+}
+
+type CandidateKinds uint8
+
+const (
+	candidateNone      CandidateKinds = iota
+	CandidateConstants                = 1 << (iota - 1)
+	CandidateLiterals
+	CandidateAssumptions
+	CandidateAll = (1 << (iota - 1)) - 1
+)
+
+func (k CandidateKinds) valid() bool {
+	return k != candidateNone && k&^CandidateAll == candidateNone
+}
+
+func (k CandidateKinds) includes(candidate CandidateKinds) bool {
+	return k&candidate != candidateNone
 }
 
 func (c Candidate) DeclarationKey() string {
-	return c.File + "\x00" + c.Scope + "\x00" + strconv.Itoa(c.Line) + "\x00" + c.Name
+	return string(c.Kind) + "\x00" + c.File + "\x00" + c.Scope + "\x00" + strconv.Itoa(c.Line) + "\x00" + c.Name
 }
 
 func (c Candidate) ExactKey() string {
@@ -53,7 +68,7 @@ func (c Candidate) ExactKey() string {
 }
 
 func (c Candidate) DecisionKey() string {
-	return c.Package + "\x00" + c.File + "\x00" + c.Scope + "\x00" + c.Name + "\x00" + c.Expression + "\x00" + c.Value
+	return string(c.Kind) + "\x00" + c.Package + "\x00" + c.File + "\x00" + c.Scope + "\x00" + c.Name + "\x00" + c.Expression + "\x00" + c.Value
 }
 
 func (c Candidate) ValueJSON() json.RawMessage {
@@ -77,10 +92,29 @@ func (c Candidate) Binding() (closureledger.SourceBinding, error) {
 		return closureledger.SourceBinding{}, err
 	}
 	return closureledger.SourceBinding{
-		Kind: closureledger.BindingConstant, Package: c.Package, File: c.File,
+		Kind: c.Kind, Package: c.Package, File: c.File,
 		Scope: c.Scope, Name: c.Name, Line: c.Line, Expression: c.Expression,
 		SourceID: c.SourceID, CallsiteID: c.CallsiteID, Owner: owner,
 	}, nil
+}
+
+func (s LiteralSite) Candidate() Candidate {
+	return Candidate{
+		Kind: closureledger.BindingLiteral, Name: "literal." + strconv.Itoa(s.Offset),
+		File: s.File, Package: s.Package, Scope: s.Scope, Line: s.Line,
+		Expression: s.Expression, Value: s.Value, SourceID: s.SourceID,
+		CallsiteID: sourceSiteID(s.File, s.SourceID, s.Scope, s.Line, s.Offset),
+	}
+}
+
+func (s AssumptionHint) Candidate() Candidate {
+	return Candidate{
+		Kind: closureledger.BindingAssumption,
+		Name: "assumption." + string(s.Kind) + "." + strconv.Itoa(s.Offset),
+		File: s.File, Package: s.Package, Scope: s.Scope, Line: s.Line,
+		Expression: s.Expression, Value: string(s.Kind), SourceID: s.SourceID,
+		CallsiteID: sourceSiteID(s.File, s.SourceID, s.Scope, s.Line, s.Offset),
+	}
 }
 
 // RawPolicyLiteral is an advisory group of the same raw literal repeated in
@@ -264,35 +298,7 @@ func classifyTestLiteral(site LiteralSite, named bool, production map[string][]s
 func CensusAssumptions(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]AssumptionHint, error) {
 	var out []AssumptionHint
 	err := visitProduction(snapshot, relatives, func(source repoanalysis.GoFile, file *ast.File) {
-		seen := map[string]bool{}
-		inspectWithParents(file, func(node ast.Node, parents map[ast.Node]ast.Node) {
-			var expression ast.Expr
-			var subject ast.Expr
-			switch typed := node.(type) {
-			case *ast.CallExpr:
-				expression, subject = typed, typed.Fun
-			case *ast.BinaryExpr:
-				if typed.Op >= token.EQL && typed.Op <= token.GEQ {
-					expression, subject = typed, typed
-				}
-			}
-			if expression == nil {
-				return
-			}
-			for _, kind := range assumptionKinds(subject) {
-				key := strconv.Itoa(int(expression.Pos())) + "\x00" + string(kind)
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				out = append(out, AssumptionHint{
-					File: source.Path, Package: filepath.ToSlash(filepath.Dir(source.Path)),
-					Scope: literalScope(node, parents), Line: source.Line(expression.Pos()),
-					Offset: int(expression.Pos()) - 1, Kind: kind,
-					Expression: formatExpression(expression), SourceID: source.ContentID,
-				})
-			}
-		})
+		collectAssumptionHints(file, source, &out)
 	})
 	if err != nil {
 		return nil, err
@@ -432,26 +438,43 @@ func literalContext(parent ast.Node, parents map[ast.Node]ast.Node) LiteralConte
 }
 
 // ScanRoot walks internal/ and cmd/ under root.
-func ScanRoot(root string) ([]Candidate, error) {
+func ScanRoot(root string, kinds CandidateKinds) ([]Candidate, error) {
 	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		return nil, err
 	}
-	return ScanSnapshot(snapshot, nil)
+	return ScanSnapshot(snapshot, nil, kinds)
 }
 
 // ScanSnapshot reuses parsed source and optionally limits findings to paths.
-func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]Candidate, error) {
+func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string, kinds CandidateKinds) ([]Candidate, error) {
+	if !kinds.valid() {
+		return nil, fmt.Errorf("closure scan: invalid candidate kinds %d", kinds)
+	}
 	var out []Candidate
 	objects := map[*ast.Object]int{}
 	err := visitProduction(snapshot, relatives, func(source repoanalysis.GoFile, parsed *ast.File) {
-		collectObjects(parsed, source, &out, objects)
+		if kinds.includes(CandidateConstants) {
+			collectObjects(parsed, source, &out, objects)
+		}
+		if kinds.includes(CandidateLiterals) {
+			var sites []LiteralSite
+			collectLiteralSites(parsed, source, &sites)
+			for _, site := range sites {
+				out = append(out, site.Candidate())
+			}
+		}
+		if kinds.includes(CandidateAssumptions) {
+			collectAssumptionCandidates(parsed, source, &out)
+		}
 	})
 	if err != nil {
 		return nil, err
 	}
-	if err := bindCallsites(snapshot, out, objects); err != nil {
-		return nil, err
+	if kinds.includes(CandidateConstants) {
+		if err := bindCallsites(snapshot, out, objects); err != nil {
+			return nil, err
+		}
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Score != out[j].Score {
@@ -460,6 +483,45 @@ func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]C
 		return out[i].DeclarationKey() < out[j].DeclarationKey()
 	})
 	return out, nil
+}
+
+func collectAssumptionCandidates(file *ast.File, source repoanalysis.GoFile, out *[]Candidate) {
+	var hints []AssumptionHint
+	collectAssumptionHints(file, source, &hints)
+	for _, hint := range hints {
+		*out = append(*out, hint.Candidate())
+	}
+}
+
+func collectAssumptionHints(file *ast.File, source repoanalysis.GoFile, out *[]AssumptionHint) {
+	seen := map[string]bool{}
+	inspectWithParents(file, func(node ast.Node, parents map[ast.Node]ast.Node) {
+		var expression, subject ast.Expr
+		switch typed := node.(type) {
+		case *ast.CallExpr:
+			expression, subject = typed, typed.Fun
+		case *ast.BinaryExpr:
+			if typed.Op >= token.EQL && typed.Op <= token.GEQ {
+				expression, subject = typed, typed
+			}
+		}
+		if expression == nil {
+			return
+		}
+		for _, kind := range assumptionKinds(subject) {
+			offset := int(expression.Pos()) - 1
+			key := strconv.Itoa(offset) + "\x00" + string(kind)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			*out = append(*out, AssumptionHint{
+				File: source.Path, Package: filepath.ToSlash(filepath.Dir(source.Path)),
+				Scope: literalScope(node, parents), Line: source.Line(expression.Pos()), Offset: offset,
+				Kind: kind, Expression: formatExpression(expression), SourceID: source.ContentID,
+			})
+		}
+	})
 }
 
 func visitProduction(snapshot repoanalysis.SourceSnapshot, relatives []string, visit func(repoanalysis.GoFile, *ast.File)) error {
@@ -638,7 +700,7 @@ func collectObjects(file *ast.File, source repoanalysis.GoFile, out *[]Candidate
 		evaluated := value.ExactString()
 		index := len(*out)
 		*out = append(*out, Candidate{
-			Name: declaration.name.Name, File: source.Path,
+			Kind: closureledger.BindingConstant, Name: declaration.name.Name, File: source.Path,
 			Package: filepath.ToSlash(filepath.Dir(source.Path)),
 			Scope:   declaration.scope, Line: source.Line(declaration.name.Pos()),
 			Expression: expression, Value: evaluated, SourceID: source.ContentID,
@@ -654,15 +716,17 @@ func bindCallsites(snapshot repoanalysis.SourceSnapshot, candidates []Candidate,
 	byPackage := map[string][]int{}
 	packages := map[string]bool{}
 	for index, candidate := range candidates {
-		if candidate.Scope == "package" {
+		if candidate.Kind == closureledger.BindingConstant && candidate.Scope == "package" {
 			key := candidate.Package + "\x00" + candidate.Name
 			byPackage[key] = append(byPackage[key], index)
 			packages[candidate.Package] = true
 		}
 	}
 	hashes := make([]hash.Hash, len(candidates))
-	for index := range hashes {
-		hashes[index] = sha256.New()
+	for index := range candidates {
+		if candidates[index].Kind == closureledger.BindingConstant {
+			hashes[index] = sha256.New()
+		}
 	}
 	err := visitProduction(snapshot, nil, func(source repoanalysis.GoFile, file *ast.File) {
 		pkg := filepath.ToSlash(filepath.Dir(source.Path))
@@ -700,9 +764,21 @@ func bindCallsites(snapshot repoanalysis.SourceSnapshot, candidates []Candidate,
 		return err
 	}
 	for index := range candidates {
-		candidates[index].CallsiteID = hex.EncodeToString(hashes[index].Sum(nil))
+		if hashes[index] != nil {
+			candidates[index].CallsiteID = hex.EncodeToString(hashes[index].Sum(nil))
+		}
 	}
 	return nil
+}
+
+func sourceSiteID(file, source, scope string, line, offset int) string {
+	destination := sha256.New()
+	hashField(destination, file)
+	hashField(destination, source)
+	hashField(destination, scope)
+	hashField(destination, strconv.Itoa(line))
+	hashField(destination, strconv.Itoa(offset))
+	return hex.EncodeToString(destination.Sum(nil))
 }
 
 func candidateImports(file *ast.File, packages map[string]bool) map[string]string {

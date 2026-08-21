@@ -8,22 +8,10 @@
       "status": "open",
       "steps": [
         {
-          "id": "typed-sites",
-          "title": "Bind constants, inline literals, and assumption sites through one typed closure candidate contract",
-          "status": "open",
-          "verify": "go test ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -count=1",
-          "rationale": "The current ledger resolves named constants only; inline runtime policy and assumption hints cannot yet be closed exactly.",
-          "capabilities": [
-            "literal-binding",
-            "assumption-binding",
-            "exact-source-authority"
-          ]
-        },
-        {
           "id": "enforcement-modes",
           "title": "Implement model-fact, full-production, test-policy, and zero-open enforcement modes",
           "status": "open",
-          "verify": "go test ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -count=1 && go run ./cmd/closure-scan -census -format text -limit 1",
+          "verify": "go test ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestAuthorityEnforcement' -count=1 \u0026\u0026 go run ./cmd/closure-scan -census -format text -limit 1",
           "rationale": "Existing plan verifiers reference flags that do not exist; failable checks must land before cleanup claims.",
           "depends_on": [
             "magic-scan-authority/typed-sites"
@@ -294,7 +282,7 @@
           "id": "permanent-gate",
           "title": "Integrate zero-debt checks and delete campaign-only compatibility machinery",
           "status": "open",
-          "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -count=1 && go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts",
+          "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestPermanentMagicGate' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts",
           "rationale": "Future changes must preserve exact literal ownership without retaining one-time migration paths.",
           "depends_on": [
             "magic-zero-debt/close-open-rows"

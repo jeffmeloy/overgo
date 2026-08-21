@@ -27,15 +27,16 @@ import (
 )
 
 type triageRow struct {
-	Name          string `json:"name"`
-	File          string `json:"file"`
-	Scope         string `json:"scope"`
-	Line          int    `json:"line"`
-	Tier          string `json:"tier"`
-	Status        string `json:"status"`
-	Understanding string `json:"understanding"`
-	ClosurePath   string `json:"closure_path"`
-	RerankTrigger string `json:"rerank_trigger"`
+	Kind          closureledger.BindingKind `json:"kind"`
+	Name          string                    `json:"name"`
+	File          string                    `json:"file"`
+	Scope         string                    `json:"scope"`
+	Line          int                       `json:"line"`
+	Tier          string                    `json:"tier"`
+	Status        string                    `json:"status"`
+	Understanding string                    `json:"understanding"`
+	ClosurePath   string                    `json:"closure_path"`
+	RerankTrigger string                    `json:"rerank_trigger"`
 }
 
 type triageFile struct {
@@ -163,7 +164,7 @@ func main() {
 		reportAssumptions(hints, *limit)
 		return
 	}
-	candidates, err := closurescan.ScanRoot(root)
+	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateConstants)
 	if err != nil {
 		fatal(err)
 	}
@@ -186,7 +187,7 @@ func checkClosures(root, storePath, scopeList string, requireClassified, require
 	if len(relatives) == 0 {
 		return errors.New("no production sources match closure scope")
 	}
-	candidates, err := closurescan.ScanSnapshot(snapshot, relatives)
+	candidates, err := closurescan.ScanSnapshot(snapshot, relatives, closurescan.CandidateConstants)
 	if err != nil {
 		return err
 	}
@@ -265,7 +266,7 @@ func scopedPath(path string, prefixes []string) bool {
 }
 
 func retireOrphanAliases(root, storePath string, snapshot repoanalysis.SourceSnapshot) ([]artifact.AliasBinding, error) {
-	candidates, err := closurescan.ScanSnapshot(snapshot, nil)
+	candidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
 	if err != nil {
 		return nil, err
 	}
@@ -375,7 +376,7 @@ func publishCensusEvidence(ctx context.Context, store *repodb.Store, snapshot re
 }
 
 func rebindUnchangedClosures(root, storePath string, snapshot repoanalysis.SourceSnapshot) (count int, finalErr error) {
-	candidates, err := closurescan.ScanSnapshot(snapshot, nil)
+	candidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
 	if err != nil {
 		return count, err
 	}
@@ -667,7 +668,7 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 	published := make([]publishedBinding, 0, len(triage.Rows))
 	for _, row := range triage.Rows {
 		found, ok := byKey[(closurescan.Candidate{
-			File: row.File, Scope: row.Scope, Line: row.Line, Name: row.Name,
+			Kind: row.Kind, File: row.File, Scope: row.Scope, Line: row.Line, Name: row.Name,
 		}).DeclarationKey()]
 		if !ok {
 			return fmt.Errorf("triage row %s not found by scan in %s (stale triage?)", row.Name, row.File)

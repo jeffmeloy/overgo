@@ -115,7 +115,7 @@ func magicGateFixture(t *testing.T, publish bool) (string, string) {
 	if !publish {
 		return root, path
 	}
-	candidates, err := closurescan.ScanRoot(root)
+	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateConstants)
 	if err != nil || len(candidates) != 1 {
 		t.Fatalf("candidates = (%+v, %v)", candidates, err)
 	}

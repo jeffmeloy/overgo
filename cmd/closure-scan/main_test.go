@@ -200,7 +200,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module fixture\n\ngo 1.24\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	candidates, err := closurescan.ScanRoot(root)
+	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateConstants)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 		t.Fatal("fixture constant not scanned")
 	}
 	triage := triageFile{Rows: []triageRow{{
-		Name: candidate.Name, File: candidate.File, Scope: candidate.Scope, Line: candidate.Line,
+		Kind: candidate.Kind, Name: candidate.Name, File: candidate.File, Scope: candidate.Scope, Line: candidate.Line,
 		Tier: string(closureledger.TierImplementation), Status: string(closureledger.StatusClosed),
 		Understanding: "Fixed fixture policy.", ClosurePath: "Replace when the fixture contract changes.",
 		RerankTrigger: "Fixture contract change.",
@@ -263,7 +263,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if count, err := rebindUnchangedClosures(root, "store", snapshot); err != nil || count != len(triage.Rows) {
 		t.Fatalf("rebound documents = (%d, %v)", count, err)
 	}
-	candidates, err = closurescan.ScanSnapshot(snapshot, nil)
+	candidates, err = closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateConstants)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,12 +338,12 @@ func TestScopedClosureCheckRequiresExactActiveEvidence(t *testing.T) {
 	if err := checkClosures(root, "store", "internal/policy", true, true); err == nil {
 		t.Fatal("unclassified constant passed scoped closure check")
 	}
-	candidates, err := closurescan.ScanRoot(root)
+	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateConstants)
 	if err != nil || len(candidates) != 1 {
 		t.Fatalf("candidates = (%+v, %v)", candidates, err)
 	}
 	triage := triageFile{Rows: []triageRow{{
-		Name: candidates[0].Name, File: candidates[0].File, Scope: candidates[0].Scope, Line: candidates[0].Line,
+		Kind: candidates[0].Kind, Name: candidates[0].Name, File: candidates[0].File, Scope: candidates[0].Scope, Line: candidates[0].Line,
 		Tier: string(closureledger.TierImplementation), Status: string(closureledger.StatusClosed),
 		Understanding: "Fixture window.", ClosurePath: "Replace with fixture authority.", RerankTrigger: "Fixture contract change.",
 	}}}

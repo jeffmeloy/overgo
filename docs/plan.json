@@ -3,28 +3,6 @@
   "doctrine": "Reimplement the selected coordination patterns in Overgo's existing ownership boundaries. RepoDB identities, immutable facts, compare-and-set aliases, and recorded locations remain authoritative. Shared mechanisms must serve more than one workflow, typed policy replaces scattered literals, and tests must cover cancellation, conflict, replay, partial I/O, and missing-locality boundaries without assuming tensor shape, dataset distribution, model family, backend topology, or worker population.",
   "items": [
     {
-      "id": "reentrant-lifecycle",
-      "title": "Add reentrant lifecycle workflows for training and evaluation",
-      "status": "open",
-      "steps": [
-        {
-          "id": "durable-steps",
-          "title": "Persist and resume shared lifecycle steps by postcondition for both training and evaluation operations",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestTrainingAndEvaluationLifecycleReentry$' -count=1",
-          "rationale": "Training and evaluation operations must resume from committed results after interruption without repeating completed work or creating workflow-specific orchestration copies.",
-          "depends_on": [
-            "repository-preconditions/commit-contract"
-          ],
-          "capabilities": [
-            "immutable lifecycle state",
-            "compare-and-set transition",
-            "training and evaluation reentry"
-          ]
-        }
-      ]
-    },
-    {
       "id": "bounded-admission",
       "title": "Park requests behind bounded model-session admission",
       "status": "open",

@@ -69,6 +69,16 @@ type trainingWorkflowInput struct {
 	ObjectiveScale float64     `json:"objective_scale"`
 }
 
+type trainingLifecycleIntent struct {
+	Version        uint16       `json:"version"`
+	Recipe         artifact.ID  `json:"recipe"`
+	Dataset        artifact.ID  `json:"dataset"`
+	Resume         *artifact.ID `json:"resume,omitempty"`
+	Output         string       `json:"output"`
+	Steps          int          `json:"steps"`
+	ObjectiveScale float64      `json:"objective_scale"`
+}
+
 func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
 	if workspace == nil || ctx == nil || reporter == nil || kind != WorkflowTraining || task != recipe.TaskTraining || recipeID != workspace.program.Definition().ID {
 		return operation.Completion{}, errors.New("training workspace: workflow is not admitted")
@@ -77,6 +87,31 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	if err := strictjson.DecodeBytes(raw, &input); err != nil {
 		return operation.Completion{}, err
 	}
+	var resume *artifact.ID
+	if input.Resume.Valid() {
+		value := input.Resume
+		resume = &value
+	}
+	intent, err := artifact.JSONID(artifact.KindEvidence, trainingLifecycleIntent{
+		Version: artifact.InitialDocumentVersion, Recipe: recipeID, Dataset: input.Dataset,
+		Resume: resume, Output: input.Output, Steps: input.Steps, ObjectiveScale: input.ObjectiveScale,
+	})
+	if err != nil {
+		return operation.Completion{}, err
+	}
+	return operation.ExecuteReentrant(ctx, workspace.store, reporter, operation.Request{
+		Task: task, Recipe: recipeID,
+	}, intent, func(ctx context.Context) (operation.Completion, error) {
+		return workspace.executeWorkflow(ctx, recipeID, input, reporter)
+	})
+}
+
+func (workspace *TrainingWorkspace) executeWorkflow(
+	ctx context.Context,
+	recipeID artifact.ID,
+	input trainingWorkflowInput,
+	reporter operation.Reporter,
+) (operation.Completion, error) {
 	definition := workspace.program.Definition()
 	policy, ok := definition.Dependency(recipe.DependencyModel, 0)
 	if !ok {

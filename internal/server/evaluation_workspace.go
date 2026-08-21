@@ -136,6 +136,27 @@ func (workspace *EvaluationWorkspace) ExecuteEvaluation(
 	if workspace == nil || model != workspace.model || len(plans) == 0 || reporter == nil {
 		return operation.Completion{}, errors.New("evaluation workspace: request is not admitted")
 	}
+	intent, err := artifact.JSONID(artifact.KindEvidence, struct {
+		Version uint16        `json:"version"`
+		Model   artifact.ID   `json:"model"`
+		Recipe  artifact.ID   `json:"recipe"`
+		Plans   []artifact.ID `json:"plans"`
+	}{Version: artifact.InitialDocumentVersion, Model: model, Recipe: workspace.recipe, Plans: slices.Clone(plans)})
+	if err != nil {
+		return operation.Completion{}, err
+	}
+	return operation.ExecuteReentrant(ctx, workspace.repository, reporter, operation.Request{
+		Task: recipe.TaskInference, Recipe: workspace.recipe,
+	}, intent, func(ctx context.Context) (operation.Completion, error) {
+		return workspace.executeEvaluation(ctx, plans, reporter)
+	})
+}
+
+func (workspace *EvaluationWorkspace) executeEvaluation(
+	ctx context.Context,
+	plans []artifact.ID,
+	reporter operation.Reporter,
+) (operation.Completion, error) {
 	total := uint64(len(plans))
 	reporter.Progress(0, &total)
 	outputs := make([]artifact.ID, 0, 2*len(plans))

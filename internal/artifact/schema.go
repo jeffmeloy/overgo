@@ -232,6 +232,7 @@ type Reader interface {
 // Repository: transactional artifact catalog
 type Repository interface {
 	Reader
+	Head() (CommitID, uint64)
 	Commit(context.Context, Batch) (CommitID, error)
 	Close() error
 }

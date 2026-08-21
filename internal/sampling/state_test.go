@@ -5,6 +5,8 @@ import (
 	"math"
 	"slices"
 	"testing"
+
+	"overgo/internal/binaryschema"
 )
 
 func TestSamplerStateResumesExactly(t *testing.T) {
@@ -411,7 +413,7 @@ func TestSamplerGBNFStateResumesExactly(t *testing.T) {
 	}
 
 	tampered := append([]byte(nil), state...)
-	binary.LittleEndian.PutUint32(tampered[samplerStateHeaderSize:], 4)
+	binary.LittleEndian.PutUint32(tampered[len(tampered)-binaryschema.Uint32Bytes:], 4)
 	if err := resumed.LoadState(tampered); err == nil {
 		t.Fatal("sampler accepted GBNF history rejected by its grammar")
 	}

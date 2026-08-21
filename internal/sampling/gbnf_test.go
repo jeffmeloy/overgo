@@ -286,25 +286,17 @@ func TestLazyGBNFECMAScriptTriggerFeatures(t *testing.T) {
 
 func TestLazyGBNFTriggerResourceLimits(t *testing.T) {
 	pieces := bytePieces("a", "")
-	tooMany := make([]string, maxGBNFTriggerPatterns+1)
-	for index := range tooMany {
-		tooMany[index] = "a"
-	}
-	for _, options := range []GBNFLazyOptions{
-		{Enabled: true, Patterns: tooMany},
-		{Enabled: true, Patterns: []string{strings.Repeat("a", maxGBNFTriggerPatternBytes+1)}},
-	} {
-		if _, err := NewGBNFGrammarWithOptions(
-			`root ::= "a"`, "root", pieces, []int{1}, nil, options,
-		); err == nil {
-			t.Fatalf("lazy grammar accepted oversized trigger options %+v", options)
-		}
+	options := GBNFLazyOptions{Enabled: true, Patterns: []string{strings.Repeat("a", maxGBNFTriggerPatternBytes+1)}}
+	if _, err := NewGBNFGrammarWithOptions(
+		`root ::= "a"`, "root", pieces, []int{1}, nil, options,
+	); err == nil {
+		t.Fatalf("lazy grammar accepted oversized trigger options %+v", options)
 	}
 
 	grammar, err := NewGBNFGrammarWithOptions(
 		`root ::= "x"`,
 		"root",
-		bytePieces(strings.Repeat("x", maxGBNFTriggerBuffer), "y", ""),
+		bytePieces(strings.Repeat("x", maxGBNFSourceBytes), "y", ""),
 		[]int{2},
 		nil,
 		GBNFLazyOptions{Enabled: true, Patterns: []string{"trigger"}},

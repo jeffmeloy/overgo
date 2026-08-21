@@ -17,9 +17,6 @@ type AttentionCaptureAPI interface {
 	ExtractAttention(ctx context.Context, tokenIDs []tokenizer.TokenID, layer int32) (inference.AttentionCapture, error)
 }
 
-// Attention materialization is O(heads*positions^2).
-const analyzeAttentionMaxPositions = 48
-
 type analyzeAttentionRequest struct {
 	Prompt       string `json:"prompt"`
 	Layer        *int   `json:"layer"`
@@ -75,8 +72,11 @@ func (h *Handler) analyzeAttention(response http.ResponseWriter, request *http.R
 		return
 	}
 	limit := body.MaxPositions
-	if limit <= 0 || limit > analyzeAttentionMaxPositions {
-		limit = analyzeAttentionMaxPositions
+	if limit <= 0 {
+		limit = len(tokens)
+	}
+	if owned := h.config.Analysis.StatePositions; owned > 0 {
+		limit = min(limit, owned)
 	}
 	requestedPositions := len(tokens)
 	truncated := requestedPositions > limit

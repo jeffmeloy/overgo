@@ -9,16 +9,14 @@ import (
 	"slices"
 	"sort"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/statecodec"
 )
 
 const (
 	samplerStateMagic      = "L2GSMP04"
 	samplerStateMagicBytes = uint64(len(samplerStateMagic))
-	samplerStateHeaderSize = 60
-	samplerTokenBytes      = 4
 	maxSamplerStateBytes   = 1 << 20
-	maxGBNFHistoryTokens   = (maxSamplerStateBytes - samplerStateHeaderSize) / samplerTokenBytes
 )
 
 // SaveState: stores random stream, Mirostat, adaptive-p, and grammar state
@@ -26,11 +24,7 @@ func (s *Sampler) SaveState() ([]byte, error) {
 	if s == nil || s.source == nil {
 		return nil, errors.New("sampler is nil")
 	}
-	if len(s.gbnfHistory) > maxGBNFHistoryTokens {
-		return nil, errors.New("sampler GBNF history exceeds state limit")
-	}
-	size := uint64(samplerStateHeaderSize + len(s.gbnfHistory)*samplerTokenBytes)
-	encoder := statecodec.NewEncoderCapacity(maxSamplerStateBytes, size)
+	encoder := statecodec.NewEncoder(maxSamplerStateBytes)
 	encoder.Raw([]byte(samplerStateMagic))
 	encoder.U64(configSignature(s.config))
 	encoder.U64(s.source.state)
@@ -39,6 +33,9 @@ func (s *Sampler) SaveState() ([]byte, error) {
 	encoder.U32(uint32(len(s.gbnfHistory)))
 	encoder.F64(s.adaptiveSum)
 	encoder.F64(s.adaptiveWeight)
+	if uint64(len(s.gbnfHistory)) > encoder.Remaining()/binaryschema.Uint32Bytes {
+		return nil, errors.New("sampler GBNF history exceeds state limit")
+	}
 	for _, token := range s.gbnfHistory {
 		encoder.U32(uint32(token))
 	}
@@ -107,7 +104,7 @@ func (s *Sampler) LoadState(data []byte) error {
 			return fmt.Errorf("sampler state initialize GBNF: %w", err)
 		}
 	}
-	if count > uint32(maxGBNFHistoryTokens) {
+	if uint64(count) > decoder.Remaining()/binaryschema.Uint32Bytes {
 		return errors.New("sampler state has invalid GBNF history length")
 	}
 	if s.gbnf == nil && count != 0 {

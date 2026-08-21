@@ -65,9 +65,6 @@ func selectResponsesTools(
 				"tools must be an array of Responses function definitions",
 			)
 		}
-		if err := validateProtocolToolCount(len(definitions)); err != nil {
-			return chatToolSelection{}, err
-		}
 		tools = make([]inference.ChatTool, len(definitions))
 		for index, definition := range definitions {
 			if definition.Type != "function" {

@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"overgo/internal/artifact"
+	"overgo/internal/binaryschema"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/repodb"
@@ -21,9 +22,6 @@ type AnalysisPolicy struct {
 	MDSTolerance    float64 `json:"mds_tolerance"`
 }
 
-// Inline effective-rank compute bound. Larger matrices report deferred.
-const analyzeTensorSpectralMaxDim = 512
-
 func (policy AnalysisPolicy) validate() error {
 	if policy.TensorSamples == 0 || policy.TensorReadBytes == 0 || policy.StatePositions <= 0 ||
 		policy.MDSIterations <= 0 || policy.MDSTolerance <= 0 || math.IsNaN(policy.MDSTolerance) || math.IsInf(policy.MDSTolerance, 0) {
@@ -36,7 +34,7 @@ func (policy AnalysisPolicy) tensorMeasurementPolicy() modelartifact.Measurement
 	return modelartifact.MeasurementPolicy{
 		MaxSamplesPerTensor: policy.TensorSamples,
 		MaxReadBytes:        policy.TensorReadBytes,
-		SpectralMaxDim:      analyzeTensorSpectralMaxDim,
+		SpectralMaxDim:      uint64(math.Sqrt(float64(policy.TensorReadBytes / binaryschema.Uint64Bytes))),
 	}
 }
 

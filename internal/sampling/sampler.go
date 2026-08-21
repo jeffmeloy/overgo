@@ -10,20 +10,24 @@ import (
 )
 
 const (
-	maxDryBreakers      = 1 << 20
-	maxDryBreakerTokens = 64
 	DefaultXTCThreshold = float32(0.1)
 	MaxAdaptiveDecay    = float32(0.99)
 	DefaultDryBase      = float32(1.75)
 	DefaultDryLength    = 2
 	DefaultMirostatTau  = float32(5)
 	DefaultMirostatEta  = float32(0.1)
-	maximumMirostat     = 2
 	xtcDisableThreshold = float32(0.5)
 	adaptiveTailCutoff  = 0.2
 	dynamicRangeWidth   = 0.3
+	adaptiveSharpness   = 10.0
+	adaptivePeakLogit   = adaptiveSharpness / 2
 	dryBaseTolerance    = 1.000001
-	maxFloat32Log       = 88.7228391
+)
+
+const (
+	mirostatDisabled = iota
+	mirostatV1
+	mirostatV2
 )
 
 type LogitBias struct {
@@ -259,17 +263,11 @@ func New(config Config) (*Sampler, error) {
 	if config.DryPenaltyLastN < -1 {
 		return nil, errors.New("sampling DRY penalty-last-n must be at least -1")
 	}
-	if len(config.DryBreakers) > maxDryBreakers {
-		return nil, fmt.Errorf("sampling DRY breaker count exceeds %d", maxDryBreakers)
-	}
 	dryBreakers := make(map[int][][]int, len(config.DryBreakers))
 	config.DryBreakers = cloneBreakers(config.DryBreakers)
 	for index, breaker := range config.DryBreakers {
 		if len(breaker) == 0 {
 			return nil, fmt.Errorf("sampling DRY breaker %d is empty", index)
-		}
-		if len(breaker) > maxDryBreakerTokens {
-			return nil, fmt.Errorf("sampling DRY breaker %d exceeds %d tokens", index, maxDryBreakerTokens)
 		}
 		for _, token := range breaker {
 			if token < 0 {
@@ -279,7 +277,7 @@ func New(config Config) (*Sampler, error) {
 		head := breaker[0]
 		dryBreakers[head] = append(dryBreakers[head], breaker[1:])
 	}
-	if config.Mirostat < 0 || config.Mirostat > maximumMirostat {
+	if config.Mirostat < mirostatDisabled || config.Mirostat > mirostatV2 {
 		return nil, errors.New("sampling Mirostat version must be 0, 1, or 2")
 	}
 	if config.MirostatTau == 0 {
@@ -346,7 +344,7 @@ func (s *Sampler) IsRawGreedy() bool {
 		return false
 	}
 	config := s.config
-	return config.Temperature == 0 && config.DynatempRange == 0 && config.Mirostat == 0 &&
+	return config.Temperature == 0 && config.DynatempRange == 0 && config.Mirostat == mirostatDisabled &&
 		config.RepeatPenalty == 1 && config.PresencePenalty == 0 &&
 		config.FrequencyPenalty == 0 && config.NoRepeatNgramSize == 0 && config.DryMultiplier == 0 &&
 		config.XTCProbability == 0 && config.Grammar == nil && config.GBNF == nil &&
@@ -362,7 +360,7 @@ func (s *Sampler) BoundedTopK() (int, bool) {
 		return 0, false
 	}
 	config := s.config
-	if config.TopK <= 0 || config.Mirostat != 0 || config.NoRepeatNgramSize != 0 || config.Grammar != nil ||
+	if config.TopK <= 0 || config.Mirostat != mirostatDisabled || config.NoRepeatNgramSize != 0 || config.Grammar != nil ||
 		config.GBNF != nil || config.Infill != nil || len(config.LogitBiases) != 0 {
 		return 0, false
 	}
@@ -462,7 +460,7 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 		s.recordGreedyProbability(best)
 		return s.acceptGrammar(best)
 	}
-	if s.config.Mirostat != 0 && s.config.Temperature == 0 {
+	if s.config.Mirostat != mirostatDisabled && s.config.Temperature == 0 {
 		best := 0
 		for index, value := range adjusted {
 			if value > adjusted[best] {
@@ -472,14 +470,14 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 		s.recordGreedyProbability(best)
 		return s.acceptGrammar(best)
 	}
-	if s.config.Mirostat == 1 {
+	if s.config.Mirostat == mirostatV1 {
 		selected, err := s.sampleMirostatV1(adjusted)
 		if err != nil {
 			return 0, err
 		}
 		return s.acceptGrammar(selected)
 	}
-	if s.config.Mirostat == 2 {
+	if s.config.Mirostat == mirostatV2 {
 		selected, err := s.sampleMirostatV2(adjusted)
 		if err != nil {
 			return 0, err
@@ -711,21 +709,16 @@ func (s *Sampler) adaptiveCandidates(candidates []candidate, vocabularySize int)
 			adapted = 2*target - s.adaptiveSum/s.adaptiveWeight
 		}
 		adapted = math.Max(0, math.Min(1, adapted))
-		const (
-			distributionWidth = dynamicRangeWidth
-			peakLogit         = 5
-			sharpness         = 10
-		)
 		for index := range candidates {
 			if math.IsInf(candidates[index].scaledLogit, -1) {
 				continue
 			}
 			distance := math.Abs(
 				(original[candidates[index].id] - adapted) /
-					distributionWidth,
+					dynamicRangeWidth,
 			)
-			candidates[index].scaledLogit = peakLogit -
-				sharpness*distance*distance/(1+distance)
+			candidates[index].scaledLogit = adaptivePeakLogit -
+				adaptiveSharpness*distance*distance/(1+distance)
 		}
 		total, err = candidateProbabilities(candidates)
 		if err != nil {
@@ -1374,36 +1367,7 @@ func (s *Sampler) sampleMirostatV1(logits []float32) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("Mirostat v1: %w", err)
 	}
-	const estimateTokens = 100
-	estimateCount := min(estimateTokens-1, len(candidates)-1)
-	var sumTIBI float64
-	var sumTISquared float64
-	for index := range estimateCount {
-		ti := math.Log(float64(index+2) / float64(index+1))
-		left := candidates[index].probability / total
-		right := candidates[index+1].probability / total
-		if left <= 0 || right <= 0 {
-			continue
-		}
-		bi := math.Log(left / right)
-		sumTIBI += ti * bi
-		sumTISquared += ti * ti
-	}
-	keep := 1
-	if sumTISquared > 0 {
-		sHat := sumTIBI / sumTISquared
-		epsilonHat := sHat - 1
-		denominator := 1 - math.Pow(float64(len(logits)), -epsilonHat)
-		base := epsilonHat * math.Exp2(s.mu) / denominator
-		k := math.Pow(base, 1/sHat)
-		if !math.IsNaN(k) && !math.IsInf(k, 0) && k > 1 {
-			if k >= float64(len(candidates)) {
-				keep = len(candidates)
-			} else {
-				keep = int(k)
-			}
-		}
-	}
+	keep := mirostatV1CandidateCount(candidates, total, len(logits), s.mu)
 	candidates = candidates[:keep]
 	total = 0
 	for _, item := range candidates {
@@ -1417,6 +1381,38 @@ func (s *Sampler) sampleMirostatV1(logits []float32) (int, error) {
 	selectedID := candidates[selected].id
 	s.recordCandidateProbabilities(candidates, total, selectedID)
 	return selectedID, nil
+}
+
+const mirostatV1EstimateTokens = 100
+
+func mirostatV1CandidateCount(candidates []candidate, total float64, vocabulary int, mu float64) int {
+	estimateCount := min(mirostatV1EstimateTokens-1, len(candidates)-1)
+	var sumTIBI, sumTISquared float64
+	for index := range estimateCount {
+		ti := math.Log(float64(index+2) / float64(index+1))
+		left := candidates[index].probability / total
+		right := candidates[index+1].probability / total
+		if left <= 0 || right <= 0 {
+			continue
+		}
+		bi := math.Log(left / right)
+		sumTIBI += ti * bi
+		sumTISquared += ti * ti
+	}
+	if sumTISquared == 0 {
+		return 1
+	}
+	sHat := sumTIBI / sumTISquared
+	epsilonHat := sHat - 1
+	denominator := 1 - math.Pow(float64(vocabulary), -epsilonHat)
+	k := math.Pow(epsilonHat*math.Exp2(mu)/denominator, 1/sHat)
+	if math.IsNaN(k) || math.IsInf(k, 0) || k <= 1 {
+		return 1
+	}
+	if k >= float64(len(candidates)) {
+		return len(candidates)
+	}
+	return int(k)
 }
 
 func normalizedCandidatesInto(candidates []candidate, logits []float32, temperature float32) ([]candidate, float64, error) {
@@ -1580,7 +1576,7 @@ func (s *Sampler) applyDry(logits []float32, history []int) {
 	}
 	maxExponent := 0
 	if s.config.DryBase > dryBaseTolerance {
-		maxExponent = int(maxFloat32Log / math.Log(float64(s.config.DryBase)))
+		maxExponent = int(math.Log(math.MaxFloat32) / math.Log(float64(s.config.DryBase)))
 	}
 	for token, repeatLength := range maxRepeat {
 		singleTokenBreaker := false

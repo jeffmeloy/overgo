@@ -83,6 +83,13 @@ func (e *Encoder) Data() ([]byte, error) {
 	return e.data, nil
 }
 
+func (e *Encoder) Remaining() uint64 {
+	if e.err != nil || uint64(len(e.data)) >= e.limit {
+		return 0
+	}
+	return e.limit - uint64(len(e.data))
+}
+
 func (e *Encoder) grow(size uint64) bool {
 	if e.err != nil {
 		return false

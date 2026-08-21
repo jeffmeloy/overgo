@@ -414,13 +414,6 @@ func boundedProtocolTokens(
 	return value, nil
 }
 
-func validateProtocolToolCount(count int) error {
-	if count > maxProtocolTools {
-		return fmt.Errorf("tool count exceeds %d", maxProtocolTools)
-	}
-	return nil
-}
-
 func (h *Handler) protocolGenerationOptions(
 	maxTokens int,
 	sampler *sampling.Sampler,

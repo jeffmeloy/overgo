@@ -246,13 +246,13 @@
      "contains": "func validateMultimodalImages(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:cebc17f90264d95a13c8d6c98dad72b9e8e94129c3db96156db48be8218463fb"
+     "identity": "file:sha256:81bc10f07a3192da1e7e55dc2cbc47655cb8d8483f32165d25a26e0052feacc9"
     },
     {
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:86e902439b6473d5f403e265615588a9e911029ceb00e491beb81720bfa29057"
+     "identity": "evidence:sha256:4756e335ae8787079e45888b91d12637e53d1e6f43d66789dbefcc97eeee7053"
     }
    ],
    "id": "bounded-server-media",
@@ -562,7 +562,7 @@
      "contains": "func NewGBNFGrammar(",
      "path": "internal/sampling/gbnf.go",
      "role": "source",
-     "identity": "file:sha256:1a6a26b90372717a8cf28985b1bd7d60e3cb5c896865dbd990eae688bce9ace5"
+     "identity": "file:sha256:9dbc9ca9e0ace9e63a8e5ace338acbe7db1400db80313d18dddfa1bfe7271051"
     },
     {
      "contains": "func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(",
@@ -647,7 +647,7 @@
      "contains": "func (f *remoteMediaFetcher) fetch(",
      "path": "internal/server/media_policy.go",
      "role": "source",
-     "identity": "file:sha256:5bb06798c311d485136788a4a51da2640542ac48b80f14a7d3e57c67df1d7cc2"
+     "identity": "file:sha256:80b182706a85a43ce63063d5ff56336991f5a38c659713d438ce54fc1e9cbc39"
     },
     {
      "contains": "func TestRemoteMediaFetcherRejectsPrivateResolutionByDefault(",
@@ -668,7 +668,7 @@
      "contains": "func LoadResponseFilePolicy(",
      "path": "internal/server/resource_policy.go",
      "role": "source",
-     "identity": "file:sha256:6b97b78eccde9918c66860ac092c7e0d29859b6317890c5f44a0ae73dc9547bb"
+     "identity": "file:sha256:9ec789907f48988a0a7471a71f8c03c8e01a4de120cfe45dc45c567656dd79a4"
     },
     {
      "contains": "func TestResponsesInputFileSources(",
@@ -689,7 +689,7 @@
      "contains": "by response_tools.%s policy",
      "path": "internal/server/responses_tools.go",
      "role": "source",
-     "identity": "file:sha256:e41098b0c182845a6f159e33254d1ab41ae732de62f90cd39c04572ca04446b9"
+     "identity": "file:sha256:4e9458f4ee8a035bc90cc71495f1e1f4d3f7301f82acd14f04ed0d42a7d55671"
     },
     {
      "contains": "func TestResponsesHostedAndCustomToolsUseExplicitPolicy(",
@@ -752,13 +752,13 @@
      "contains": "func (h *Handler) preparePrompt(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:cebc17f90264d95a13c8d6c98dad72b9e8e94129c3db96156db48be8218463fb"
+     "identity": "file:sha256:81bc10f07a3192da1e7e55dc2cbc47655cb8d8483f32165d25a26e0052feacc9"
     },
     {
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:bca996fff01e8d202fab588bd1044a54f7f4fdb50caedd20559f8946b8346516"
+     "identity": "file:sha256:7815c9389d2ccb837830a429eb75977d70d0d6a488511225ae0dd08dcbb837b7"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -821,7 +821,7 @@
      "contains": "case \"image\":",
      "path": "internal/server/anthropic_tools.go",
      "role": "source",
-     "identity": "file:sha256:8eddd05de81fe3dc78c0ab4e57514396ee19c172c8cc3e37c49cf19c52df0146"
+     "identity": "file:sha256:781b49079dee3c741b2a5d6cb6fc676b9c028fe6cb9a67c2ceb1eda04e529b36"
     },
     {
      "contains": "func TestAnthropicImageToolsAndTokenCounting(",
@@ -1038,7 +1038,7 @@
      "contains": "func (h *Handler) analyzeAttention(",
      "path": "internal/server/analyze_attention.go",
      "role": "source",
-     "identity": "file:sha256:e8bbbade5e7e72a94dd6348598ec29eefe7dec9c4e65272ead9b0088874b5270"
+     "identity": "file:sha256:b8192ce4851e7f76d1865af45641b53a6f8a690b068a79f6913f2d61e3071694"
     },
     {
      "contains": "func TestAttentionWeightsHostMath(",

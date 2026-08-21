@@ -1,8 +1,14 @@
 package server
 
-import "overgo/internal/strictjson"
+import (
+	"overgo/internal/artifact"
+	"overgo/internal/strictjson"
+)
 
-const maxPolicyDocumentBytes int64 = 1 << 20
+const (
+	policyDocumentSchemaVersion       = int(artifact.InitialDocumentVersion)
+	maxPolicyDocumentBytes      int64 = 1 << 20
+)
 
 func loadPolicyDocument(path string, destination any) error {
 	data, err := readBoundedFile(path, maxPolicyDocumentBytes, false)

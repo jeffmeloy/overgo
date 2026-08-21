@@ -50,14 +50,8 @@ const (
 	maxImageDimension          = 16384
 	maxImagePixels             = 16 << 20
 	maxRequestImagePixels      = 32 << 20
-	maxConcurrentRequests      = 1 << 16
-	maxStoredResponses         = 1 << 16
-	maxResponseStoreBytes      = 1 << 30
-	maxTokenListLength         = 1 << 20
 	maxCompletionChoices       = 8
 	defaultProtocolMaxTokens   = 16
-	maxProtocolTools           = 128
-	maxVideoFrameLimit         = 256
 )
 
 type Generator interface {
@@ -382,11 +376,8 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if config.MaxConcurrent == 0 {
 		config.MaxConcurrent = DefaultMaxConcurrent
 	}
-	if config.MaxConcurrent < 0 {
+	if config.MaxConcurrent <= 0 {
 		return nil, errors.New("server: max concurrent requests must be positive")
-	}
-	if config.MaxConcurrent > maxConcurrentRequests {
-		return nil, fmt.Errorf("server: max concurrent requests exceeds %d", maxConcurrentRequests)
 	}
 	if config.MaxEmbeddingInputs == 0 {
 		config.MaxEmbeddingInputs = DefaultMaxEmbeddingInputs
@@ -416,14 +407,14 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if config.MaxStoredResponses == 0 {
 		config.MaxStoredResponses = DefaultStoredResponses
 	}
-	if config.MaxStoredResponses < 0 || config.MaxStoredResponses > maxStoredResponses {
-		return nil, fmt.Errorf("server: stored response count must be in [1,%d]", maxStoredResponses)
+	if config.MaxStoredResponses <= 0 {
+		return nil, errors.New("server: stored response count must be positive")
 	}
 	if config.ResponseStoreBytes == 0 {
 		config.ResponseStoreBytes = DefaultResponseStoreBytes
 	}
-	if config.ResponseStoreBytes < 0 || config.ResponseStoreBytes > maxResponseStoreBytes {
-		return nil, fmt.Errorf("server: response store bytes must be in [1,%d]", maxResponseStoreBytes)
+	if config.ResponseStoreBytes <= 0 {
+		return nil, errors.New("server: response store bytes must be positive")
 	}
 	if config.VideoFPS == 0 {
 		config.VideoFPS = DefaultVideoFPS
@@ -434,8 +425,8 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if config.VideoMaxFrames == 0 {
 		config.VideoMaxFrames = DefaultVideoFrameLimit
 	}
-	if config.VideoMaxFrames < 0 || config.VideoMaxFrames > maxVideoFrameLimit {
-		return nil, fmt.Errorf("server: video frame limit must be in [1,%d]", maxVideoFrameLimit)
+	if config.VideoMaxFrames <= 0 {
+		return nil, errors.New("server: video frame limit must be positive")
 	}
 	mediaFetcher, err := newRemoteMediaFetcher(config.RemoteMediaPolicy)
 	if err != nil {

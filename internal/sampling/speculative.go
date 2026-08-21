@@ -105,7 +105,7 @@ func (s *Sampler) speculativeCandidates(
 	if err := s.applyGrammar(adjusted); err != nil {
 		return nil, 0, nil, false, err
 	}
-	if s.config.Mirostat != 0 {
+	if s.config.Mirostat != mirostatDisabled {
 		candidates, total, err := s.speculativeMirostatCandidates(adjusted)
 		return candidates, total, nil, s.config.Temperature != 0, err
 	}
@@ -158,34 +158,8 @@ func (s *Sampler) speculativeMirostatCandidates(logits []float32) ([]candidate, 
 		return nil, 0, err
 	}
 	keep := 1
-	if s.config.Mirostat == 1 {
-		const estimateTokens = 100
-		estimateCount := min(estimateTokens-1, len(candidates)-1)
-		var sumTIBI, sumTISquared float64
-		for index := range estimateCount {
-			ti := math.Log(float64(index+2) / float64(index+1))
-			left := candidates[index].probability / total
-			right := candidates[index+1].probability / total
-			if left <= 0 || right <= 0 {
-				continue
-			}
-			bi := math.Log(left / right)
-			sumTIBI += ti * bi
-			sumTISquared += ti * ti
-		}
-		if sumTISquared > 0 {
-			sHat := sumTIBI / sumTISquared
-			epsilonHat := sHat - 1
-			denominator := 1 - math.Pow(float64(len(logits)), -epsilonHat)
-			k := math.Pow(epsilonHat*math.Exp2(s.mu)/denominator, 1/sHat)
-			if !math.IsNaN(k) && !math.IsInf(k, 0) && k > 1 {
-				if k >= float64(len(candidates)) {
-					keep = len(candidates)
-				} else {
-					keep = int(k)
-				}
-			}
-		}
+	if s.config.Mirostat == mirostatV1 {
+		keep = mirostatV1CandidateCount(candidates, total, len(logits), s.mu)
 	} else {
 		keep = 0
 		for index := range candidates {

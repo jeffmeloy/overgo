@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/netip"
@@ -16,18 +17,10 @@ import (
 )
 
 const (
-	remoteMediaPolicySchemaVersion = 1
-	maxRemoteMediaSchemes          = 2
-	maxRemoteMediaHosts            = 128
-	maxRemoteMediaPorts            = 16
-	maxRemoteMediaPort             = 65535
-	maxRemoteMediaRedirects        = 10
-	maxConcurrentMediaFetches      = 32
-	maxRemoteMediaTimeout          = 2 * time.Minute
-	maxRemoteMediaHostBytes        = 253
-	maxRemoteMediaLabelBytes       = 63
-	defaultHTTPPort                = "80"
-	defaultHTTPSPort               = "443"
+	maxRemoteMediaHostBytes  = 253
+	maxRemoteMediaLabelBytes = 63
+	defaultHTTPPort          = "80"
+	defaultHTTPSPort         = "443"
 )
 
 type RemoteMediaPolicy struct {
@@ -66,9 +59,9 @@ func LoadRemoteMediaPolicy(path string) (*RemoteMediaPolicy, error) {
 	if err := loadPolicyDocument(path, &document); err != nil {
 		return nil, fmt.Errorf("load remote media policy: %w", err)
 	}
-	if document.Schema != remoteMediaPolicySchemaVersion {
+	if document.Schema != policyDocumentSchemaVersion {
 		return nil, fmt.Errorf(
-			"remote media policy schema = %d, want %d", document.Schema, remoteMediaPolicySchemaVersion,
+			"remote media policy schema = %d, want %d", document.Schema, policyDocumentSchemaVersion,
 		)
 	}
 	connect, err := time.ParseDuration(document.Remote.ConnectTimeout)
@@ -106,8 +99,8 @@ func validateRemoteMediaPolicy(policy *RemoteMediaPolicy) error {
 	if policy == nil {
 		return nil
 	}
-	if len(policy.AllowedSchemes) == 0 || len(policy.AllowedSchemes) > maxRemoteMediaSchemes {
-		return fmt.Errorf("remote media policy requires between 1 and %d allowed schemes", maxRemoteMediaSchemes)
+	if len(policy.AllowedSchemes) == 0 {
+		return errors.New("remote media policy requires an allowed scheme")
 	}
 	for index, scheme := range policy.AllowedSchemes {
 		scheme = strings.ToLower(strings.TrimSpace(scheme))
@@ -121,9 +114,6 @@ func validateRemoteMediaPolicy(policy *RemoteMediaPolicy) error {
 	if policy.Enabled && len(policy.AllowedHosts) == 0 {
 		return errors.New("enabled remote media policy requires an explicit host allowlist")
 	}
-	if len(policy.AllowedHosts) > maxRemoteMediaHosts {
-		return fmt.Errorf("remote media policy host allowlist exceeds %d entries", maxRemoteMediaHosts)
-	}
 	for index, pattern := range policy.AllowedHosts {
 		normalized, err := normalizeAllowedHost(pattern)
 		if err != nil {
@@ -131,38 +121,36 @@ func validateRemoteMediaPolicy(policy *RemoteMediaPolicy) error {
 		}
 		policy.AllowedHosts[index] = normalized
 	}
-	if len(policy.AllowedPorts) == 0 || len(policy.AllowedPorts) > maxRemoteMediaPorts {
-		return fmt.Errorf("remote media policy requires between 1 and %d allowed ports", maxRemoteMediaPorts)
+	if len(policy.AllowedPorts) == 0 {
+		return errors.New("remote media policy requires an allowed port")
 	}
 	for _, port := range policy.AllowedPorts {
-		if port < 1 || port > maxRemoteMediaPort {
+		if port < 1 || port > math.MaxUint16 {
 			return fmt.Errorf("remote media policy port %d is invalid", port)
 		}
 	}
 	slices.Sort(policy.AllowedPorts)
 	policy.AllowedPorts = slices.Compact(policy.AllowedPorts)
-	if policy.MaxRedirects < 0 || policy.MaxRedirects > maxRemoteMediaRedirects {
-		return fmt.Errorf("remote media policy max_redirects must be in [0,%d]", maxRemoteMediaRedirects)
+	if policy.MaxRedirects < 0 {
+		return errors.New("remote media policy max_redirects must be non-negative")
 	}
-	if policy.MaxConcurrentFetches < 1 || policy.MaxConcurrentFetches > maxConcurrentMediaFetches {
-		return fmt.Errorf(
-			"remote media policy max_concurrent_fetches must be in [1,%d]", maxConcurrentMediaFetches,
-		)
+	if policy.MaxConcurrentFetches < 1 {
+		return errors.New("remote media policy max_concurrent_fetches must be positive")
 	}
 	for name, value := range map[string]time.Duration{
 		"connect_timeout":         policy.ConnectTimeout,
 		"response_header_timeout": policy.ResponseHeaderTimeout,
 		"total_timeout":           policy.TotalTimeout,
 	} {
-		if value <= 0 || value > maxRemoteMediaTimeout {
-			return fmt.Errorf("remote media policy %s must be positive and at most %s", name, maxRemoteMediaTimeout)
+		if value <= 0 {
+			return fmt.Errorf("remote media policy %s must be positive", name)
 		}
 	}
 	if policy.TotalTimeout < policy.ConnectTimeout {
 		return errors.New("remote media policy total_timeout is shorter than connect_timeout")
 	}
-	if policy.MaxResponseBytes <= 0 || policy.MaxResponseBytes > maxMediaBytes {
-		return fmt.Errorf("remote media policy max_response_bytes must be between 1 and %d", maxMediaBytes)
+	if policy.MaxResponseBytes <= 0 {
+		return errors.New("remote media policy max_response_bytes must be positive")
 	}
 	return nil
 }

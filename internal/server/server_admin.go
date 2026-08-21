@@ -471,9 +471,6 @@ func tokenizeMixed(
 		if err != nil {
 			return nil, err
 		}
-		if len(tokens) > maxTokenListLength {
-			return nil, fmt.Errorf("token count exceeds %d", maxTokenListLength)
-		}
 		return tokens, nil
 	}
 	var parts []json.RawMessage
@@ -504,9 +501,6 @@ func tokenizeMixed(
 			tokens = append(tokens, expanded...)
 		}
 		first = false
-		if len(tokens) > maxTokenListLength {
-			return nil, fmt.Errorf("token count exceeds %d", maxTokenListLength)
-		}
 	}
 	return tokens, nil
 }
@@ -526,10 +520,6 @@ func (h *Handler) detokenize(response http.ResponseWriter, request *http.Request
 	}
 	var body detokenizeRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
-		return
-	}
-	if len(body.Tokens) > maxTokenListLength {
-		writeInvalidRequestMessage(response, fmt.Sprintf("token count exceeds %d", maxTokenListLength))
 		return
 	}
 	tokens := make([]tokenizer.TokenID, len(body.Tokens))

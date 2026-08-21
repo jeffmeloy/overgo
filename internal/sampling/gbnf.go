@@ -13,17 +13,8 @@ import (
 )
 
 const (
-	maxGBNFSourceBytes      = 1 << 20
-	maxGBNFRules            = 8192
-	maxGBNFSymbols          = 1 << 20
-	maxGBNFRepetition       = 2000
-	maxGBNFStacks           = 4096
-	maxGBNFStackDepth       = 4096
-	maxGBNFExpansionSteps   = 1 << 20
-	maxGBNFTokenPieceBytes  = 1 << 20
-	maxGBNFVocabularyPieces = 1 << 24
-	maxGBNFTriggerPatterns  = 128
-	maxGBNFTriggerBuffer    = 1 << 20
+	maxGBNFSourceBytes = 1 << 20
+	maxGBNFWorkUnits   = 1 << 20
 )
 
 type gbnfSymbolKind uint8
@@ -176,18 +167,11 @@ func NewGBNFGrammarWithOptions(
 	if root == "" {
 		root = "root"
 	}
-	if len(tokenPieces) == 0 || len(tokenPieces) > maxGBNFVocabularyPieces {
-		return nil, errors.New("GBNF token vocabulary is empty or exceeds the limit")
+	if len(tokenPieces) == 0 {
+		return nil, errors.New("GBNF token vocabulary is empty")
 	}
 	pieces := make([][]byte, len(tokenPieces))
 	for index, piece := range tokenPieces {
-		if len(piece) > maxGBNFTokenPieceBytes {
-			return nil, fmt.Errorf(
-				"GBNF token %d piece exceeds %d bytes",
-				index,
-				maxGBNFTokenPieceBytes,
-			)
-		}
 		pieces[index] = slices.Clone(piece)
 	}
 	eos := make([]bool, len(pieces))
@@ -218,12 +202,6 @@ func NewGBNFGrammarWithOptions(
 			return nil, fmt.Errorf("GBNF trigger token %d is outside vocabulary", token)
 		}
 		grammar.triggerTokens[token] = struct{}{}
-	}
-	if len(lazy.Patterns) > maxGBNFTriggerPatterns {
-		return nil, fmt.Errorf(
-			"GBNF trigger patterns exceed %d entries",
-			maxGBNFTriggerPatterns,
-		)
 	}
 	grammar.triggerPatterns = make([]gbnfTriggerPattern, len(lazy.Patterns))
 	for index, pattern := range lazy.Patterns {
@@ -291,9 +269,6 @@ func (p *gbnfParser) parse() ([]gbnfNamedRule, error) {
 			return nil, fmt.Errorf("GBNF rule %q: %w", name, err)
 		}
 		rules = append(rules, gbnfNamedRule{name: name, expr: expr})
-		if len(rules) > maxGBNFRules {
-			return nil, fmt.Errorf("GBNF exceeds %d named rules", maxGBNFRules)
-		}
 		if p.offset < len(p.source) {
 			if p.source[p.offset] == '\r' {
 				p.offset++
@@ -613,9 +588,7 @@ func (p *gbnfParser) parseRepetition(term *gbnfTerm, nested bool) error {
 			return p.errorf("expected } after repetition")
 		}
 		p.offset++
-		if minimum > maxGBNFRepetition ||
-			maximum > maxGBNFRepetition ||
-			maximum >= 0 && maximum < minimum {
+		if maximum >= 0 && maximum < minimum {
 			return p.errorf("invalid or excessive repetition {%d,%d}", minimum, maximum)
 		}
 		term.min, term.max = minimum, maximum
@@ -737,11 +710,8 @@ func compileGBNF(named []gbnfNamedRule, root string) (*GBNFGrammar, error) {
 			return nil, fmt.Errorf("GBNF rule %q: %w", rule.name, err)
 		}
 	}
-	if len(compiler.grammar.rules) > maxGBNFRules {
-		return nil, fmt.Errorf("GBNF expansion exceeds %d rules", maxGBNFRules)
-	}
-	if compiler.symbolCount > maxGBNFSymbols {
-		return nil, fmt.Errorf("GBNF expansion exceeds %d symbols", maxGBNFSymbols)
+	if compiler.symbolCount > maxGBNFWorkUnits-len(compiler.grammar.rules) {
+		return nil, fmt.Errorf("GBNF expansion exceeds %d work units", maxGBNFWorkUnits)
 	}
 	if err := compiler.validateReferencesAndRecursion(); err != nil {
 		return nil, err
@@ -764,8 +734,8 @@ func (c *gbnfCompiler) compileExpr(ruleID int, expr gbnfExpr) error {
 			}
 			sequence = append(sequence, repeated...)
 			c.symbolCount += len(repeated)
-			if c.symbolCount > maxGBNFSymbols {
-				return fmt.Errorf("expanded symbol count exceeds %d", maxGBNFSymbols)
+			if c.symbolCount > maxGBNFWorkUnits-len(c.grammar.rules) {
+				return fmt.Errorf("GBNF expansion exceeds %d work units", maxGBNFWorkUnits)
 			}
 		}
 		alternatives[index] = sequence
@@ -816,7 +786,7 @@ func (c *gbnfCompiler) compileRepetition(
 	minimum, maximum int,
 ) ([]gbnfSymbol, error) {
 	if minimum < 0 || maximum >= 0 && maximum < minimum ||
-		minimum > maxGBNFRepetition || maximum > maxGBNFRepetition {
+		len(base) > 0 && minimum > maxGBNFWorkUnits/len(base) {
 		return nil, errors.New("invalid GBNF repetition")
 	}
 	var result []gbnfSymbol
@@ -831,8 +801,8 @@ func (c *gbnfCompiler) compileRepetition(
 	}
 	if maximum < 0 {
 		id := len(c.grammar.rules)
-		if id >= maxGBNFRules {
-			return nil, fmt.Errorf("GBNF expansion exceeds %d rules", maxGBNFRules)
+		if id >= maxGBNFWorkUnits-c.symbolCount {
+			return nil, errors.New("GBNF expansion exceeds work budget")
 		}
 		c.grammar.rules = append(c.grammar.rules, gbnfRule{})
 		recursive := append(slices.Clone(base),
@@ -841,14 +811,17 @@ func (c *gbnfCompiler) compileRepetition(
 			alternatives: [][]gbnfSymbol{recursive, nil},
 		}
 		c.symbolCount += len(recursive)
+		if c.symbolCount > maxGBNFWorkUnits-len(c.grammar.rules) {
+			return nil, errors.New("GBNF expansion exceeds work budget")
+		}
 		return append(result, gbnfSymbol{kind: gbnfRuleSymbol, index: id}), nil
 	}
 	optional := maximum - minimum
 	var next = -1
 	for range optional {
 		id := len(c.grammar.rules)
-		if id >= maxGBNFRules {
-			return nil, fmt.Errorf("GBNF expansion exceeds %d rules", maxGBNFRules)
+		if id >= maxGBNFWorkUnits-c.symbolCount {
+			return nil, errors.New("GBNF expansion exceeds work budget")
 		}
 		sequence := slices.Clone(base)
 		if next >= 0 {
@@ -858,6 +831,9 @@ func (c *gbnfCompiler) compileRepetition(
 			alternatives: [][]gbnfSymbol{sequence, nil},
 		})
 		c.symbolCount += len(sequence)
+		if c.symbolCount > maxGBNFWorkUnits-len(c.grammar.rules) {
+			return nil, errors.New("GBNF expansion exceeds work budget")
+		}
 		next = id
 	}
 	if next >= 0 {
@@ -868,8 +844,8 @@ func (c *gbnfCompiler) compileRepetition(
 
 func (c *gbnfCompiler) addGeneratedRule(expr gbnfExpr) (int, error) {
 	id := len(c.grammar.rules)
-	if id >= maxGBNFRules {
-		return 0, fmt.Errorf("GBNF expansion exceeds %d rules", maxGBNFRules)
+	if id >= maxGBNFWorkUnits-c.symbolCount {
+		return 0, errors.New("GBNF expansion exceeds work budget")
 	}
 	c.grammar.rules = append(c.grammar.rules, gbnfRule{})
 	if err := c.compileExpr(id, expr); err != nil {
@@ -1065,7 +1041,7 @@ func (g *GBNFGrammar) advanceAwaitingTrigger(
 	}
 	buffer := slices.Clone(state.triggerBuffer)
 	positions := slices.Clone(state.triggerPositions)
-	if len(buffer)+len(g.tokenPieces[token]) > maxGBNFTriggerBuffer {
+	if len(buffer)+len(g.tokenPieces[token]) > maxGBNFSourceBytes {
 		return gbnfState{}, false
 	}
 	start := len(buffer)
@@ -1233,14 +1209,11 @@ func (g *GBNFGrammar) normalizeStacks(
 	steps := 0
 	for len(todo) > 0 {
 		steps++
-		if steps > maxGBNFExpansionSteps {
+		if steps > maxGBNFWorkUnits {
 			return nil, errors.New("GBNF stack expansion exceeds safety limit")
 		}
 		stack := todo[len(todo)-1]
 		todo = todo[:len(todo)-1]
-		if len(stack) > maxGBNFStackDepth {
-			return nil, errors.New("GBNF stack depth exceeds safety limit")
-		}
 		key := gbnfStackKey(stack)
 		if _, ok := seen[key]; ok {
 			continue
@@ -1248,9 +1221,6 @@ func (g *GBNFGrammar) normalizeStacks(
 		seen[key] = struct{}{}
 		if len(stack) == 0 || stack[0].kind != gbnfRuleSymbol {
 			result = append(result, stack)
-			if len(result) > maxGBNFStacks {
-				return nil, errors.New("GBNF active stack count exceeds safety limit")
-			}
 			continue
 		}
 		ruleID := stack[0].index

@@ -11,12 +11,6 @@ import (
 	"strings"
 )
 
-const (
-	responseFilePolicySchemaVersion = 1
-	defaultResponseFileBytes        = 16 << 20
-	maxResponseFileIDBytes          = 120
-)
-
 type ResponseFile struct {
 	Data      []byte
 	Filename  string
@@ -51,16 +45,14 @@ type responseFileRecord struct {
 	MediaType string `json:"media_type"`
 }
 
-var responseFileIDPattern = regexp.MustCompile(
-	fmt.Sprintf(`^file_[A-Za-z0-9._-]{1,%d}$`, maxResponseFileIDBytes),
-)
+var responseFileIDPattern = regexp.MustCompile(`^file_[A-Za-z0-9._-]+$`)
 
 func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
 	var policy ResponseFilePolicy
 	if err := loadPolicyDocument(path, &policy); err != nil {
 		return nil, fmt.Errorf("load response resource policy: %w", err)
 	}
-	if policy.Schema != responseFilePolicySchemaVersion {
+	if policy.Schema != policyDocumentSchemaVersion {
 		return nil, fmt.Errorf("response resource policy schema %d is unsupported", policy.Schema)
 	}
 	if policy.ResponseTools.Hosted == "" {
@@ -72,18 +64,15 @@ func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
 	if policy.ResponseTools.Hosted != "deny" || policy.ResponseTools.Custom != "deny" {
 		return nil, errors.New("response tool policy supports only explicit deny without an external executor")
 	}
-	if policy.ResponseFiles.MaxFileBytes == 0 {
-		policy.ResponseFiles.MaxFileBytes = defaultResponseFileBytes
-	}
-	if policy.ResponseFiles.MaxFileBytes < 1 || policy.ResponseFiles.MaxFileBytes > maxMediaBytes {
-		return nil, errors.New("response resource max_file_bytes is out of range")
-	}
 	if !policy.ResponseFiles.Enabled {
 		if len(policy.ResponseFiles.Files) != 0 || len(policy.ResponseFiles.AllowedRoots) != 0 {
 			return nil, errors.New("disabled response resource policy must not declare roots or files")
 		}
 		policy.files = map[string]ResponseFile{}
 		return &policy, nil
+	}
+	if policy.ResponseFiles.MaxFileBytes <= 0 {
+		return nil, errors.New("response resource max_file_bytes must be positive")
 	}
 	base, err := filepath.Abs(filepath.Dir(path))
 	if err != nil {

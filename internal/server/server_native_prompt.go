@@ -683,9 +683,6 @@ func (h *Handler) parseNativePrompt(raw json.RawMessage) (nativePrompt, error) {
 			}
 			tokenIDs = append(tokenIDs, expanded...)
 		}
-		if len(tokenIDs) > maxTokenListLength {
-			return nativePrompt{}, fmt.Errorf("prompt token count exceeds %d", maxTokenListLength)
-		}
 	}
 	if len(tokenIDs) == 0 {
 		return nativePrompt{}, errors.New("prompt produced no tokens")

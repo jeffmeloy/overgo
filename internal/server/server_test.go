@@ -631,12 +631,6 @@ func TestServerRejectsNegativeRequestTimeout(t *testing.T) {
 	}
 }
 
-func TestServerRejectsExcessiveSlotCount(t *testing.T) {
-	if _, err := New(Config{MaxConcurrent: 65537}, &fakeGenerator{}); err == nil {
-		t.Fatal("excessive slot count was accepted")
-	}
-}
-
 func (f *fakeGenerator) Embed(
 	ctx context.Context,
 	text string,

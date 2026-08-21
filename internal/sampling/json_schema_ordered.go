@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	maxJSONSchemaBytes      = 1 << 20
-	maxJSONSchemaDepth      = 256
-	maxJSONSchemaArrayItems = 1 << 20
+	maxJSONSchemaBytes = 1 << 20
+	maxJSONSchemaDepth = 256
 )
 
 type orderedJSONMember struct {
@@ -125,9 +124,6 @@ func decodeOrderedJSONValue(decoder *json.Decoder, depth int) (any, error) {
 				return nil, valueErr
 			}
 			array = append(array, value)
-			if len(array) > maxJSONSchemaArrayItems {
-				return nil, fmt.Errorf("JSON array exceeds %d items", maxJSONSchemaArrayItems)
-			}
 		}
 		if end, endErr := decoder.Token(); endErr != nil || end != json.Delim(']') {
 			if endErr != nil {

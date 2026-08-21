@@ -220,19 +220,6 @@
           "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestPermanentMagicGate' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts"
         }
       ]
-    },
-    {
-      "id": "tier2-cuda-replay-evidence",
-      "title": "Measure CUDA replay, fallback, arena use, and numerical parity on target execution",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure CUDA replay, fallback, arena use, and numerical parity on target execution",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor -run '^Test(GraphReplayMetrics|ArenaMetrics|ExecutorReplayMatchesReference)$' -count=1"
-        }
-      ]
     }
   ]
 }

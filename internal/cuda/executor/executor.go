@@ -42,6 +42,33 @@ type executorResources struct {
 	scratch    executionScratch
 	buffers    deviceBufferPool
 	graphExecs graphExecCache
+	arenaUse   arenaMetrics
+}
+
+// ExecutionMetrics is a point-in-time, executor-owned evidence view. Counters
+// are monotonic for the executor lifetime; byte fields describe the most
+// recent arena requirement and the retained allocation that serves it.
+type ExecutionMetrics struct {
+	GraphCacheHits         uint64 `json:"graphCacheHits"`
+	GraphCacheMisses       uint64 `json:"graphCacheMisses"`
+	GraphCaptures          uint64 `json:"graphCaptures"`
+	GraphUpdates           uint64 `json:"graphUpdates"`
+	GraphInstantiations    uint64 `json:"graphInstantiations"`
+	GraphEvictions         uint64 `json:"graphEvictions"`
+	GraphUpdateFallbacks   uint64 `json:"graphUpdateFallbacks"`
+	GraphCacheEntries      uint64 `json:"graphCacheEntries"`
+	GraphCacheCapacity     uint64 `json:"graphCacheCapacity"`
+	ArenaRequiredBytes     uint64 `json:"arenaRequiredBytes"`
+	ArenaPeakRequiredBytes uint64 `json:"arenaPeakRequiredBytes"`
+	ArenaCommittedBytes    uint64 `json:"arenaCommittedBytes"`
+	ArenaUnusedBytes       uint64 `json:"arenaUnusedBytes"`
+	ArenaGrowths           uint64 `json:"arenaGrowths"`
+}
+
+type arenaMetrics struct {
+	requiredBytes     uint64
+	peakRequiredBytes uint64
+	growths           uint64
 }
 
 type executionScratch struct {
@@ -68,8 +95,15 @@ type graphExecEntry struct {
 // decode cycles through a handful of byte-identical traces; a match replays
 // the instantiated exec with zero per-token kernel re-issue.
 type graphExecCache struct {
-	entries []graphExecEntry
-	tick    uint64
+	entries         []graphExecEntry
+	tick            uint64
+	hits            uint64
+	misses          uint64
+	captures        uint64
+	updates         uint64
+	instantiations  uint64
+	evictions       uint64
+	updateFallbacks uint64
 }
 
 func (c *graphExecCache) match(
@@ -80,10 +114,12 @@ func (c *graphExecCache) match(
 		entry := &c.entries[index]
 		if entry.exec != 0 && entry.compiled == compiled && slices.Equal(entry.frame, frame) {
 			c.tick++
+			c.hits++
 			entry.used = c.tick
 			return entry.exec, true
 		}
 	}
+	c.misses++
 	return 0, false
 }
 
@@ -95,11 +131,13 @@ func (c *graphExecCache) store(
 	compiled *CompiledGraph,
 	frame []driver.DevicePtr,
 ) (driver.GraphExec, error) {
+	c.captures++
 	var entry *graphExecEntry
 	if len(c.entries) < graphExecCacheCapacity {
 		c.entries = append(c.entries, graphExecEntry{})
 		entry = &c.entries[len(c.entries)-1]
 	} else {
+		c.evictions++
 		entry = &c.entries[0]
 		for index := range c.entries {
 			if c.entries[index].used < entry.used {
@@ -110,8 +148,11 @@ func (c *graphExecCache) store(
 	if entry.exec != 0 {
 		updated, err := state.Driver.GraphExecUpdate(entry.exec, graph)
 		if err != nil || !updated {
+			c.updateFallbacks++
 			_ = state.Driver.GraphExecDestroy(entry.exec)
 			entry.exec = 0
+		} else {
+			c.updates++
 		}
 	}
 	if entry.exec == 0 {
@@ -122,6 +163,7 @@ func (c *graphExecCache) store(
 			return 0, err
 		}
 		entry.exec = exec
+		c.instantiations++
 	}
 	entry.compiled = compiled
 	entry.frame = append(entry.frame[:0], frame...)
@@ -1393,6 +1435,44 @@ func (e *Executor) Close() error {
 	return errors.Join(errs...)
 }
 
+// Metrics returns executor-local graph replay and arena evidence. Reading the
+// snapshot is serialized on the CUDA worker with resource mutations.
+func (e *Executor) Metrics(ctx context.Context) (ExecutionMetrics, error) {
+	if e == nil {
+		return ExecutionMetrics{}, errors.New("CUDA executor is closed")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closed || e.worker == nil {
+		return ExecutionMetrics{}, errors.New("CUDA executor is closed")
+	}
+	var metrics ExecutionMetrics
+	err := e.worker.Do(ctx, func(_ *device.State) error {
+		cache := &e.resources.graphExecs
+		arena := e.resources.arenaUse
+		metrics = ExecutionMetrics{
+			GraphCacheHits:         cache.hits,
+			GraphCacheMisses:       cache.misses,
+			GraphCaptures:          cache.captures,
+			GraphUpdates:           cache.updates,
+			GraphInstantiations:    cache.instantiations,
+			GraphEvictions:         cache.evictions,
+			GraphUpdateFallbacks:   cache.updateFallbacks,
+			GraphCacheEntries:      uint64(len(cache.entries)),
+			GraphCacheCapacity:     uint64(graphExecCacheCapacity),
+			ArenaRequiredBytes:     arena.requiredBytes,
+			ArenaPeakRequiredBytes: arena.peakRequiredBytes,
+			ArenaCommittedBytes:    e.resources.arenaSize,
+			ArenaGrowths:           arena.growths,
+		}
+		if metrics.ArenaCommittedBytes >= metrics.ArenaRequiredBytes {
+			metrics.ArenaUnusedBytes = metrics.ArenaCommittedBytes - metrics.ArenaRequiredBytes
+		}
+		return nil
+	})
+	return metrics, err
+}
+
 // Execute: evaluates outputs and returns host copies of those tensors
 func (e *Executor) Execute(
 	ctx context.Context,
@@ -1986,7 +2066,7 @@ func execute(
 	scratch.replayFrame = append(scratch.replayFrame, attributePointers.values...)
 	frame := scratch.replayFrame
 	replayed := false
-	if capturing && len(execCache.entries) > 0 {
+	if capturing {
 		if exec, ok := execCache.match(compiled, frame); ok {
 			if err := state.Driver.GraphLaunch(exec, state.Stream); err != nil {
 				return nil, err
@@ -2202,6 +2282,8 @@ func (e *Executor) ensureResources(
 }
 
 func (r *executorResources) ensureArena(state *device.State, size uint64) (driver.DevicePtr, error) {
+	r.arenaUse.requiredBytes = size
+	r.arenaUse.peakRequiredBytes = max(r.arenaUse.peakRequiredBytes, size)
 	if size == 0 {
 		return 0, nil
 	}
@@ -2219,6 +2301,7 @@ func (r *executorResources) ensureArena(state *device.State, size uint64) (drive
 		return 0, err
 	}
 	r.arena, r.arenaSize = next, size
+	r.arenaUse.growths++
 	return r.arena, nil
 }
 

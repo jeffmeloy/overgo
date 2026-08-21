@@ -81,7 +81,8 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateResume(resumed, checkpoint, stream); err != nil {
+	authority := ResumeAuthority{Model: policy, Stream: checkpoint.Stream, OptimizerPlan: muonPlan.Identity()}
+	if err := ValidateResume(resumed, checkpoint, authority); err != nil {
 		t.Fatal(err)
 	}
 	changedProgram, err := CompileTrainingProgram(ProgramSpec{
@@ -97,7 +98,7 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateResume(changedPlan, checkpoint, stream); err == nil {
+	if err := ValidateResume(changedPlan, checkpoint, authority); err == nil {
 		t.Fatal("accepted checkpoint under changed DPO authority")
 	}
 }

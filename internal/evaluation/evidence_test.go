@@ -1,7 +1,9 @@
 package evaluation
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -88,5 +90,50 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 	}
 	if _, err := PublishEvaluationEvidence(ctx, store, plan, wrong, evaluator, report, run, record); err == nil {
 		t.Fatal("accepted evaluation outside suite policy")
+	}
+
+	planContent, err := plan.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidenceContent, err := evidence.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, fixture := range map[string]struct {
+		content   artifact.Content
+		normalize func([]byte) ([]byte, error)
+	}{
+		"plan": {content: planContent, normalize: func(data []byte) ([]byte, error) {
+			_, canonical, normalizeErr := NormalizeEvaluationPlan(data)
+			return canonical, normalizeErr
+		}},
+		"evidence": {content: evidenceContent, normalize: func(data []byte) ([]byte, error) {
+			_, canonical, normalizeErr := NormalizeEvaluationEvidence(data)
+			return canonical, normalizeErr
+		}},
+	} {
+		t.Run("external "+name, func(t *testing.T) {
+			var formatted bytes.Buffer
+			if err := json.Indent(&formatted, fixture.content.Data, "", "  "); err != nil {
+				t.Fatal(err)
+			}
+			canonical, err := fixture.normalize(formatted.Bytes())
+			if err != nil || !bytes.Equal(canonical, fixture.content.Data) {
+				t.Fatalf("normalized %s differs: %v", name, err)
+			}
+			var foreign map[string]any
+			if err := json.Unmarshal(fixture.content.Data, &foreign); err != nil {
+				t.Fatal(err)
+			}
+			foreign["external_id"] = "foreign-authority"
+			injected, err := json.Marshal(foreign)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := fixture.normalize(injected); err == nil {
+				t.Fatal("foreign authority field accepted")
+			}
+		})
 	}
 }

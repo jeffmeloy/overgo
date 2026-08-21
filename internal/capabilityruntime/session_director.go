@@ -59,6 +59,10 @@ type ModelSessionDirector[Input, Model, Output any] struct {
 	residentUsers int
 	residentClose bool
 	waiters       int
+	loads         uint64
+	reuses        uint64
+	evictions     uint64
+	retirements   uint64
 }
 
 // SessionLease: admitted use of one resident model session.
@@ -72,13 +76,19 @@ type SessionLease[Model any] struct {
 
 // SessionSnapshot: current resident admission state.
 type SessionSnapshot struct {
-	Name      string `json:"name"`
-	Device    string `json:"device"`
-	Capacity  int    `json:"capacity"`
-	Active    int    `json:"active"`
-	Waiting   int    `json:"waiting"`
-	Available int    `json:"available"`
-	Closed    bool   `json:"closed"`
+	Name        string `json:"name"`
+	Device      string `json:"device"`
+	Capacity    int    `json:"capacity"`
+	Active      int    `json:"active"`
+	Waiting     int    `json:"waiting"`
+	Available   int    `json:"available"`
+	Entries     int    `json:"entries"`
+	Idle        int    `json:"idle"`
+	Loads       uint64 `json:"loads"`
+	Reuses      uint64 `json:"reuses"`
+	Evictions   uint64 `json:"evictions"`
+	Retirements uint64 `json:"retirements"`
+	Closed      bool   `json:"closed"`
 }
 
 func (l *SessionLease[Model]) Model() Model { return l.model }
@@ -232,9 +242,25 @@ func (c *ModelSessionDirector[Input, Model, Output]) Snapshot() SessionSnapshot 
 	if c.admissions != nil {
 		available = len(c.admissions)
 	}
+	var noBorrowers int
+	active, idle, busy := c.residentUsers, noBorrowers, noBorrowers
+	for _, entry := range c.entries {
+		active += entry.borrowers
+		if entry.borrowers == noBorrowers {
+			idle++
+		} else {
+			busy++
+		}
+	}
+	if c.admissions == nil {
+		available = c.capacity - busy
+	}
 	return SessionSnapshot{
 		Name: c.name, Device: c.device, Capacity: c.capacity,
-		Active: c.residentUsers, Waiting: c.waiters, Available: available, Closed: c.closed,
+		Active: active, Waiting: c.waiters, Available: available,
+		Entries: len(c.entries), Idle: idle,
+		Loads: c.loads, Reuses: c.reuses, Evictions: c.evictions, Retirements: c.retirements,
+		Closed: c.closed,
 	}
 }
 
@@ -278,7 +304,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) LeaseComponent(
 	component modelrecipe.ComponentSession,
 	load func(context.Context) (Model, error),
 ) (*SessionLease[Model], error) {
-	if c == nil || load == nil || !component.Identity.Valid() || !component.Model.Valid() || component.Session == "" {
+	if c == nil || ctx == nil || load == nil || !component.Identity.Valid() || !component.Model.Valid() || component.Session == "" {
 		return nil, errors.New("capability runtime: incomplete component lease")
 	}
 	key := sessionKey{
@@ -447,6 +473,9 @@ func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
 	load func(context.Context) (Model, error),
 ) (*sessionEntry[Model], bool, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, false, err
+		}
 		c.mu.Lock()
 		if c.closed {
 			c.mu.Unlock()
@@ -454,44 +483,52 @@ func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
 		}
 		c.tick++
 		if entry, ok := c.entries[key]; ok {
-			entry.borrowers++
 			entry.used = c.tick
-			c.mu.Unlock()
 			select {
 			case <-entry.ready:
-			case <-ctx.Done():
-				c.releaseBorrower(entry)
-				return nil, false, ctx.Err()
-			}
-			if entry.loadErr != nil {
-				c.releaseBorrower(entry)
-				return nil, false, entry.loadErr
-			}
-			entry.mu.Lock()
-			c.mu.Lock()
-			dead := entry.dead
-			c.mu.Unlock()
-			if dead {
-				entry.mu.Unlock()
-				c.releaseBorrower(entry)
+				if entry.loadErr != nil {
+					loadErr := entry.loadErr
+					c.mu.Unlock()
+					return nil, false, loadErr
+				}
+				if entry.mu.TryLock() {
+					if entry.dead {
+						entry.mu.Unlock()
+						c.mu.Unlock()
+						continue
+					}
+					entry.borrowers++
+					c.reuses++
+					c.mu.Unlock()
+					return entry, false, nil
+				}
+				changed := c.changed
+				if err := c.parkLocked(ctx, changed); err != nil {
+					return nil, false, err
+				}
+				continue
+			default:
+				if err := c.parkLocked(ctx, entry.ready); err != nil {
+					return nil, false, err
+				}
+				if entry.loadErr != nil {
+					return nil, false, entry.loadErr
+				}
 				continue
 			}
-			return entry, false, nil
 		}
 		if len(c.entries) >= c.capacity {
 			oldestKey, oldest := c.oldestIdle()
 			if oldest == nil {
 				changed := c.changed
-				c.mu.Unlock()
-				select {
-				case <-changed:
-					continue
-				case <-ctx.Done():
-					return nil, false, ctx.Err()
+				if err := c.parkLocked(ctx, changed); err != nil {
+					return nil, false, err
 				}
+				continue
 			}
 			oldest.dead = true
 			delete(c.entries, oldestKey)
+			c.evictions++
 			c.notify()
 			c.mu.Unlock()
 			oldest.mu.Lock()
@@ -507,23 +544,26 @@ func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
 		c.notify()
 		c.mu.Unlock()
 		model, err := load(ctx)
+		entry.mu.Lock()
 		entry.model, entry.loadErr = model, err
 		close(entry.ready)
-		if err != nil {
-			c.mu.Lock()
+		c.mu.Lock()
+		if err == nil {
+			c.loads++
+		} else {
 			entry.dead = true
 			if c.entries[key] == entry {
 				delete(c.entries, key)
 			}
-			c.notify()
-			c.mu.Unlock()
+		}
+		dead := entry.dead
+		c.notify()
+		c.mu.Unlock()
+		if err != nil {
+			entry.mu.Unlock()
 			c.releaseBorrower(entry)
 			return nil, false, err
 		}
-		entry.mu.Lock()
-		c.mu.Lock()
-		dead := entry.dead
-		c.mu.Unlock()
 		if dead {
 			entry.mu.Unlock()
 			c.releaseBorrower(entry)
@@ -531,6 +571,27 @@ func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
 		}
 		return entry, true, nil
 	}
+}
+
+// parkLocked joins the bounded, context-aware wait set and releases c.mu.
+func (c *ModelSessionDirector[Input, Model, Output]) parkLocked(ctx context.Context, signal <-chan struct{}) error {
+	if c.waiters >= c.capacity {
+		c.mu.Unlock()
+		return ErrAdmissionQueueFull
+	}
+	c.waiters++
+	c.mu.Unlock()
+	var err error
+	select {
+	case <-signal:
+	case <-ctx.Done():
+		err = ctx.Err()
+	}
+	c.mu.Lock()
+	c.waiters--
+	c.notify()
+	c.mu.Unlock()
+	return err
 }
 
 func (c *ModelSessionDirector[Input, Model, Output]) Close(ctx context.Context) error {
@@ -590,6 +651,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) retire(ctx context.Context,
 	entry.dead = true
 	if c.entries[key] == entry {
 		delete(c.entries, key)
+		c.retirements++
 	}
 	c.notify()
 	c.mu.Unlock()

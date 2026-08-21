@@ -12,6 +12,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 )
 
 const importFixtureCommit = "0123456789abcdef0123456789abcdef01234567"
@@ -132,6 +133,47 @@ func TestImportRequiresRootAndUsesFullDigestIdentity(t *testing.T) {
 	if query.Commits[0].Key != wantKey || query.Commits[0].ID != result.Commit {
 		t.Fatalf("import key = %q, want %q", query.Commits[0].Key, wantKey)
 	}
+}
+
+func TestExternalEvidenceImportDerivesNativeRunEvaluationLineage(t *testing.T) {
+	records := []wireRecord{
+		{Type: "artifact", Name: "recipe", Kind: "recipe", Document: json.RawMessage(`{"name":"recipe"}`), MediaType: "application/test+json", Schema: "test/v1"},
+		{Type: "artifact", Name: "environment", Kind: "evidence", Document: json.RawMessage(`{"name":"environment"}`), MediaType: "application/test+json", Schema: "test/v1"},
+		{Type: "artifact", Name: "plan", Kind: "profile", Document: json.RawMessage(`{"name":"plan"}`), MediaType: "application/test+json", Schema: "test/v1"},
+		{Type: "artifact", Name: "report", Kind: "evaluation", Document: json.RawMessage(`{"name":"report"}`), MediaType: "application/test+json", Schema: "test/v1"},
+		{Type: "artifact", Name: "dataset", Kind: "dataset", Document: json.RawMessage(`{"name":"dataset"}`), MediaType: "application/test+json", Schema: "test/v1"},
+		{Type: "artifact", Name: "run", Kind: "run", MediaType: runrecord.RunMediaType, Schema: runrecord.RunSchema, Document: json.RawMessage(`{"version":2,"recipe":{"$artifact":"recipe"},"outcome":"succeeded","inputs":[{"$artifact":"plan"}],"outputs":[{"$artifact":"report"}],"code_commit":"0123456789abcdef0123456789abcdef01234567","environment":{"$artifact":"environment"},"measured_ns":10,"phases":[{"phase":"validate","duration_ns":10}]}`)},
+		{Type: "artifact", Name: "evaluation", Kind: "evaluation", MediaType: runrecord.EvaluationMediaType, Schema: runrecord.EvaluationSchema, Document: json.RawMessage(`{"version":1,"recipe":{"$artifact":"recipe"},"run":{"$artifact":"run"},"dataset":{"$artifact":"dataset"},"metrics":[{"name":"score","value":1,"direction":"maximize"}]}`)},
+	}
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	result, err := Import(t.Context(), store, t.TempDir(), bytes.NewReader(importStream(t, records, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireParent := func(child, parent artifact.ID, relation artifact.Relation) {
+		t.Helper()
+		edges, err := store.Parents(t.Context(), child)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, edge := range edges {
+			if edge.Parent == parent && edge.Relation == relation {
+				return
+			}
+		}
+		t.Fatalf("lineage %s -%s-> %s is absent: %+v", child, relation, parent, edges)
+	}
+	requireParent(result.Names["run"], result.Names["recipe"], artifact.RelationDependsOn)
+	requireParent(result.Names["run"], result.Names["environment"], artifact.RelationDependsOn)
+	requireParent(result.Names["run"], result.Names["plan"], artifact.RelationDependsOn)
+	requireParent(result.Names["report"], result.Names["run"], artifact.RelationProducedBy)
+	requireParent(result.Names["evaluation"], result.Names["recipe"], artifact.RelationDependsOn)
+	requireParent(result.Names["evaluation"], result.Names["run"], artifact.RelationDependsOn)
+	requireParent(result.Names["evaluation"], result.Names["dataset"], artifact.RelationDependsOn)
 }
 
 func importStream(t *testing.T, records []wireRecord, counts map[string]uint64) []byte {

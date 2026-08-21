@@ -48,9 +48,10 @@ func TestTrainingWorkflowRequiresStoredAuthority(t *testing.T) {
 	}
 }
 
-func TestRecipeSessionOwnsDenseTokenAndDPOExecution(t *testing.T) {
-	t.Run("token", testTokenSession)
-	t.Run("dpo-resume", testDPOResume)
+func TestTrainingWorkflowExactResumeMatrix(t *testing.T) {
+	t.Run("token", testTokenResume)
+	t.Run("dpo", testDPOResume)
+	t.Run("grpo", testGRPOResume)
 }
 
 func TestGRPOUsesSharedRecipeTrainingRuntime(t *testing.T) {
@@ -84,7 +85,7 @@ func TestGRPOUsesSharedRecipeTrainingRuntime(t *testing.T) {
 	}
 }
 
-func testTokenSession(t *testing.T) {
+func testTokenResume(t *testing.T) {
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 5,
 	})
@@ -96,14 +97,10 @@ func testTokenSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveTokenPrediction)
-	result, err := Execute(context.Background(), Request{
+	verifyWorkflowResume(t, root, Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
-		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Host: true,
+		Host: true,
 	})
-	if err != nil || result.Objective != trainingprogram.ObjectiveTokenPrediction ||
-		len(result.Losses) != 1 || result.Checkpoint.ID().Kind() != artifact.KindCheckpoint {
-		t.Fatalf("token result=%+v err=%v", result, err)
-	}
 }
 
 func testDPOResume(t *testing.T) {
@@ -120,11 +117,37 @@ func testDPOResume(t *testing.T) {
 		t.Fatal(err)
 	}
 	store, recipeID := trainingAuthority(t, policy, reference, dataset, trainingprogram.ObjectiveDPO)
-	request := Request{
+	verifyWorkflowResume(t, root, Request{
 		Repository: store, Recipe: recipeID,
 		ModelDirectory: policy, ReferenceDirectory: reference, DatasetPath: dataset,
-		Steps: 2, ObjectiveScale: 0.1, Host: true,
+		ObjectiveScale: 0.1, Host: true,
+	})
+}
+
+func testGRPOResume(t *testing.T) {
+	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
+		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 11,
+	})
+	root := t.TempDir()
+	model := filepath.Join(root, "model")
+	writeModel(t, model, weights, shapes)
+	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "resume reward evaluator")
+	dataset := filepath.Join(root, "rollouts.jsonl")
+	rows := `{"id":"candidate-a","group":"prompt-a","prompt":"ab","completion":"c","reward":1,"evaluator":"` + evaluator.String() + `"}` + "\n" +
+		`{"id":"candidate-b","group":"prompt-a","prompt":"ab","completion":"d","reward":-1,"evaluator":"` + evaluator.String() + `"}` + "\n"
+	if err := os.WriteFile(dataset, []byte(rows), 0o600); err != nil {
+		t.Fatal(err)
 	}
+	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveGRPO)
+	verifyWorkflowResume(t, root, Request{
+		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
+		ObjectiveScale: 1, Host: true,
+	})
+}
+
+func verifyWorkflowResume(t *testing.T, root string, request Request) {
+	t.Helper()
+	request.Steps = 2
 	request.OutputDirectory = filepath.Join(root, "uninterrupted")
 	want, err := Execute(context.Background(), request)
 	if err != nil {
@@ -159,11 +182,59 @@ func testDPOResume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want.Backend != "host" || first.StreamPosition+1 != got.StreamPosition ||
-		!reflect.DeepEqual(wantModel.Weights, gotModel.Weights) ||
-		!reflect.DeepEqual(wantCheckpoint.Optimizer, gotCheckpoint.Optimizer) {
-		t.Fatalf("DPO resume differs: want=%+v first=%+v got=%+v", want, first, got)
+	if want.Backend != "host" || got.Backend != "host" || want.Objective != got.Objective {
+		t.Fatalf("execution authority differs: uninterrupted=(%s,%s) resumed=(%s,%s)", want.Backend, want.Objective, got.Backend, got.Objective)
 	}
+	if first.StreamPosition >= got.StreamPosition || want.StreamPosition != got.StreamPosition {
+		t.Fatalf("stream position differs: uninterrupted=%d split=%d+%d", want.StreamPosition, first.StreamPosition, got.StreamPosition)
+	}
+	if want.Checkpoint.ID() != wantCheckpoint.ID() || got.Checkpoint.ID() != gotCheckpoint.ID() ||
+		wantCheckpoint.ID().Kind() != artifact.KindCheckpoint || gotCheckpoint.ID().Kind() != artifact.KindCheckpoint ||
+		wantCheckpoint.ID() == gotCheckpoint.ID() {
+		t.Fatalf("checkpoint identities do not preserve atomic publication and resume lineage: uninterrupted=%s first=%s resumed=%s", wantCheckpoint.ID(), first.Checkpoint.ID(), gotCheckpoint.ID())
+	}
+	if !hasLineage(gotCheckpoint.Lineage, first.Checkpoint.ID(), artifact.RelationDerivedFrom) {
+		t.Fatalf("resumed checkpoint %s does not derive from split checkpoint %s", gotCheckpoint.ID(), first.Checkpoint.ID())
+	}
+	if !reflect.DeepEqual(wantModel.Weights, gotModel.Weights) {
+		t.Fatal("resumed weights differ from uninterrupted weights")
+	}
+	checkpointComparisons := []struct {
+		name  string
+		equal bool
+	}{
+		{"program", wantCheckpoint.Program == gotCheckpoint.Program},
+		{"weights", wantCheckpoint.Weights == gotCheckpoint.Weights},
+		{"dataset", wantCheckpoint.Dataset == gotCheckpoint.Dataset},
+		{"split", wantCheckpoint.Split == gotCheckpoint.Split},
+		{"stream", wantCheckpoint.Stream == gotCheckpoint.Stream},
+		{"parameter count", wantCheckpoint.ParameterCount == gotCheckpoint.ParameterCount},
+		{"accumulation", wantCheckpoint.Accumulation == gotCheckpoint.Accumulation},
+		{"optimizer", reflect.DeepEqual(wantCheckpoint.Optimizer, gotCheckpoint.Optimizer)},
+		{"rng", reflect.DeepEqual(wantCheckpoint.RNG, gotCheckpoint.RNG)},
+		{"processors", reflect.DeepEqual(wantCheckpoint.Processors, gotCheckpoint.Processors)},
+		{"projectors", reflect.DeepEqual(wantCheckpoint.Projectors, gotCheckpoint.Projectors)},
+		{"codecs", reflect.DeepEqual(wantCheckpoint.Codecs, gotCheckpoint.Codecs)},
+	}
+	for _, comparison := range checkpointComparisons {
+		if !comparison.equal {
+			t.Fatalf("resumed checkpoint %s differs from uninterrupted checkpoint", comparison.name)
+		}
+	}
+	if !reflect.DeepEqual(want.Losses, append(append([]float64(nil), first.Losses...), got.Losses...)) ||
+		!reflect.DeepEqual(want.DPO, append(append([]trainingprogram.DPOObservation(nil), first.DPO...), got.DPO...)) ||
+		!reflect.DeepEqual(want.GRPO, append(append([]trainingprogram.GRPOObservation(nil), first.GRPO...), got.GRPO...)) {
+		t.Fatalf("training observations differ: losses=%d/%d dpo=%d/%d grpo=%d/%d", len(want.Losses), len(first.Losses)+len(got.Losses), len(want.DPO), len(first.DPO)+len(got.DPO), len(want.GRPO), len(first.GRPO)+len(got.GRPO))
+	}
+}
+
+func hasLineage(lineage []trainingprogram.LineageParent, parent artifact.ID, relation artifact.Relation) bool {
+	for _, candidate := range lineage {
+		if candidate.Artifact == parent && candidate.Relation == relation {
+			return true
+		}
+	}
+	return false
 }
 
 func writeModel(t *testing.T, directory string, weights map[string][]float32, shapes map[string][]int) {

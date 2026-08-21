@@ -3,28 +3,6 @@
   "doctrine": "Training evidence must distinguish a reusable implementation from an exact artifact campaign. Verify production workflows at their real objective, device, data, persistence, and lifecycle scope. Every admitted objective must prove uninterrupted/split equivalence and atomic checkpoint identity. A successful GUI run must publish a trace and an evaluation-required decision; promotion remains withheld until held-out evidence exists. Committed training specifications identify the exact model, dataset, commit, span, measurements, and evidence bytes, and a generated matrix exposes their strongest claims without upgrading smoke evidence. Missing model artifacts remain explicit verification gaps, never passes.",
   "items": [
     {
-      "id": "training-resume",
-      "title": "Verify exact resume for every production training objective",
-      "status": "open",
-      "steps": [
-        {
-          "id": "matrix",
-          "title": "Compare uninterrupted and split token, DPO, and GRPO workflow executions",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -run '^TestTrainingWorkflowExactResumeMatrix$' -count=1",
-          "rationale": "A checkpoint claim is operational only when weights, optimizer state, dataset position, observations, and identity survive a workflow-level split.",
-          "depends_on": [
-            "training-evidence/audit"
-          ],
-          "capabilities": [
-            "exact-resume",
-            "checkpoint-identity",
-            "stream-position"
-          ]
-        }
-      ]
-    },
-    {
       "id": "training-lifecycle",
       "title": "Verify the train to evaluation boundary",
       "status": "open",

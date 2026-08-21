@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	AdvisoryVersion   uint16 = 1
-	AdvisoryMediaType        = "application/vnd.overgo.regression-advisory+json"
-	AdvisorySchema           = "overgo/regression-advisory/v1"
+	AdvisoryMediaType = "application/vnd.overgo.regression-advisory+json"
+	AdvisorySchema    = "overgo/regression-advisory/v1"
 
 	// MinAdvisoryWindow: open small-sample evidence floor.
 	MinAdvisoryWindow = 3
@@ -114,7 +113,7 @@ func DetectRegression(
 		return Advisory{}, false, nil
 	}
 	advisory := Advisory{
-		Version: AdvisoryVersion, Recipe: recipeID, Environment: environmentID,
+		Version: artifact.InitialDocumentVersion, Recipe: recipeID, Environment: environmentID,
 		Metric: metricName, Unit: unit, Direction: direction,
 		WindowStart: ordered[0].Sequence, WindowEnd: ordered[window-1].Sequence,
 		LatestSequence: ordered[window].Sequence, LatestRun: ordered[window].Run.ID,
@@ -173,7 +172,7 @@ func (a Advisory) Batch(key string) (artifact.Batch, error) {
 }
 
 func validateObservation(observation Observation, metricName string) (Metric, error) {
-	if observation.Sequence == 0 || observation.Run.Version != RunVersion ||
+	if observation.Sequence == 0 || observation.Run.Version != artifact.SecondDocumentVersion ||
 		observation.Run.Outcome != OutcomeSucceeded || observation.Evaluation.Run != observation.Run.ID ||
 		observation.Evaluation.Recipe != observation.Run.Recipe {
 		return Metric{}, errors.New("run record: invalid advisory observation")
@@ -253,7 +252,7 @@ func medianUint(values []uint64) uint64 {
 }
 
 func canonicalizeAdvisory(advisory *Advisory) error {
-	if advisory == nil || advisory.Version != AdvisoryVersion ||
+	if advisory == nil || advisory.Version != artifact.InitialDocumentVersion ||
 		advisory.Recipe.Kind() != artifact.KindRecipe || advisory.Environment.Kind() != artifact.KindEvidence ||
 		advisory.LatestRun.Kind() != artifact.KindRun || !textcheck.LowerIdentifier(advisory.Metric, maxLabelBytes) ||
 		len(advisory.Unit) > maxLabelBytes || strings.TrimSpace(advisory.Unit) != advisory.Unit ||

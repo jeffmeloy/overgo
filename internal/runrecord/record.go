@@ -18,14 +18,12 @@ import (
 )
 
 const (
-	Version             uint16 = 1
-	RunVersion          uint16 = 2
-	RunMediaType               = "application/vnd.overgo.run+json"
-	LegacyRunSchema            = "overgo/run/v1"
-	RunSchema                  = "overgo/run/v2"
-	EvaluationMediaType        = "application/vnd.overgo.evaluation+json"
-	EvaluationSchema           = "overgo/evaluation/v1"
-	maxLabelBytes              = 128
+	RunMediaType        = "application/vnd.overgo.run+json"
+	LegacyRunSchema     = "overgo/run/v1"
+	RunSchema           = "overgo/run/v2"
+	EvaluationMediaType = "application/vnd.overgo.evaluation+json"
+	EvaluationSchema    = "overgo/evaluation/v1"
+	maxLabelBytes       = 128
 )
 
 var (
@@ -189,7 +187,7 @@ func NewRun(
 	failure string,
 ) (Run, error) {
 	return runCodec.New(Run{
-		Version: Version, Recipe: recipeID, Outcome: outcome,
+		Version: artifact.InitialDocumentVersion, Recipe: recipeID, Outcome: outcome,
 		Inputs: slices.Clone(inputs), Outputs: slices.Clone(outputs), Failure: failure,
 	})
 }
@@ -204,7 +202,7 @@ func NewBoundRun(
 	phases []PhaseMetric,
 ) (Run, error) {
 	return runCodec.New(Run{
-		Version: RunVersion, Recipe: recipeID, Outcome: outcome,
+		Version: artifact.SecondDocumentVersion, Recipe: recipeID, Outcome: outcome,
 		Inputs: slices.Clone(inputs), Outputs: slices.Clone(outputs), Failure: failure,
 		CodeCommit: codeCommit, Environment: environment, MeasuredNS: measuredNS,
 		Phases: slices.Clone(phases),
@@ -227,7 +225,7 @@ func (r Run) Lineage() []artifact.Lineage {
 	edges := []artifact.Lineage{{
 		Child: r.ID, Parent: r.Recipe, Relation: artifact.RelationDependsOn,
 	}}
-	if r.Version == RunVersion {
+	if r.Version == artifact.SecondDocumentVersion {
 		edges = append(edges, artifact.Lineage{
 			Child: r.ID, Parent: r.Environment, Relation: artifact.RelationDependsOn,
 		})
@@ -254,7 +252,7 @@ func NewEvaluation(
 	metrics []Metric,
 ) (Evaluation, error) {
 	evaluation := Evaluation{
-		Version: Version, Recipe: recipeID, Run: runID, Dataset: datasetID,
+		Version: artifact.InitialDocumentVersion, Recipe: recipeID, Run: runID, Dataset: datasetID,
 		Metrics: slices.Clone(metrics),
 	}
 	return evaluationCodec.New(evaluation)
@@ -285,10 +283,10 @@ func (e Evaluation) Batch(key string) (artifact.Batch, error) {
 }
 
 func canonicalizeRun(run *Run) error {
-	if run == nil || run.Version != Version && run.Version != RunVersion || run.Recipe.Kind() != artifact.KindRecipe {
+	if run == nil || run.Version != artifact.InitialDocumentVersion && run.Version != artifact.SecondDocumentVersion || run.Recipe.Kind() != artifact.KindRecipe {
 		return errors.New("run record: invalid run envelope")
 	}
-	if run.Version == Version {
+	if run.Version == artifact.InitialDocumentVersion {
 		if run.CodeCommit != "" || run.Environment.Valid() || run.MeasuredNS != 0 || len(run.Phases) != 0 {
 			return errors.New("run record: legacy run carries bound facts")
 		}
@@ -360,7 +358,7 @@ func validLowerHexDigest(value string, sizes ...int) bool {
 }
 
 func canonicalizeEvaluation(evaluation *Evaluation) error {
-	if evaluation == nil || evaluation.Version != Version ||
+	if evaluation == nil || evaluation.Version != artifact.InitialDocumentVersion ||
 		evaluation.Recipe.Kind() != artifact.KindRecipe || evaluation.Run.Kind() != artifact.KindRun ||
 		evaluation.Dataset.Kind() != artifact.KindDataset || len(evaluation.Metrics) == 0 {
 		return errors.New("run record: invalid evaluation envelope")
@@ -402,7 +400,7 @@ func canonicalIDs(ids []artifact.ID) error {
 
 func runContent(run Run) ([]byte, error) {
 	var environment *artifact.ID
-	if run.Version == RunVersion {
+	if run.Version == artifact.SecondDocumentVersion {
 		environment = artifact.IDPointer(run.Environment)
 	}
 	content, err := json.Marshal(runBody{
@@ -436,7 +434,7 @@ func cloneRun(run Run) Run {
 }
 
 func runContractForVersion(version uint16) artifact.DocumentContract {
-	if version == Version {
+	if version == artifact.InitialDocumentVersion {
 		return legacyRunContract
 	}
 	return runContract

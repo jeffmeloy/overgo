@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	ExperimentLifecycleVersion   uint16 = 1
-	ExperimentLifecycleMediaType        = "application/vnd.overgo.experiment-lifecycle+json"
-	ExperimentLifecycleSchema           = "overgo/experiment-lifecycle/v1"
+	ExperimentLifecycleMediaType = "application/vnd.overgo.experiment-lifecycle+json"
+	ExperimentLifecycleSchema    = "overgo/experiment-lifecycle/v1"
 )
 
 // ExperimentState is one station of the runtime experiment state machine.
@@ -81,7 +80,7 @@ var experimentLifecycleCodec = artifact.JSONDocumentCodec(
 // the initial proposed record; every other transition must name its
 // predecessor and be a legal edge of the state machine.
 func NewExperimentLifecycle(value ExperimentLifecycle, prior *ExperimentLifecycle) (ExperimentLifecycle, error) {
-	value.Version = ExperimentLifecycleVersion
+	value.Version = artifact.InitialDocumentVersion
 	value.ID = artifact.ID{}
 	if prior == nil {
 		if value.State != ExperimentProposed || value.Retry != 0 || value.Prior != nil {
@@ -120,7 +119,7 @@ func (value ExperimentLifecycle) Content() (artifact.Content, error) {
 }
 
 func canonicalizeExperimentLifecycle(value *ExperimentLifecycle) error {
-	if value == nil || value.Version != ExperimentLifecycleVersion {
+	if value == nil || value.Version != artifact.InitialDocumentVersion {
 		return errors.New("run record: invalid experiment lifecycle version")
 	}
 	if _, known := experimentTransitions[value.State]; !known {

@@ -12,11 +12,10 @@ import (
 )
 
 const (
-	numericTargetVersion      uint16 = 1
-	numericTargetPlanMedia           = "application/vnd.overgo.numeric-target-plan+json"
-	numericTargetPlanSchema          = "overgo/numeric-target-plan/v1"
-	numericTargetReportMedia         = "application/vnd.overgo.numeric-target-report+json"
-	numericTargetReportSchema        = "overgo/numeric-target-report/v1"
+	numericTargetPlanMedia    = "application/vnd.overgo.numeric-target-plan+json"
+	numericTargetPlanSchema   = "overgo/numeric-target-plan/v1"
+	numericTargetReportMedia  = "application/vnd.overgo.numeric-target-report+json"
+	numericTargetReportSchema = "overgo/numeric-target-report/v1"
 )
 
 type NumericScorer string
@@ -118,7 +117,7 @@ func CompileNumericTargetPlan(view SFTEvaluationView, suite NumericTargetSuite) 
 		}
 	}
 	return numericTargetPlanCodec.New(NumericTargetPlan{
-		Version: numericTargetVersion, View: view.ID, Signature: view.Signature.Clone(),
+		Version: artifact.InitialDocumentVersion, View: view.ID, Signature: view.Signature.Clone(),
 		Scorers: slices.Clone(suite.Scorers), Cases: cloneNumericCases(suite.Cases),
 	})
 }
@@ -134,7 +133,7 @@ func ScoreNumericTargets(plan NumericTargetPlan, observations []NumericTargetObs
 	observations = cloneNumericObservations(observations)
 	sort.Slice(observations, func(i, j int) bool { return observations[i].Record < observations[j].Record })
 	report := NumericTargetReport{
-		Version: numericTargetVersion, Plan: plan.ID,
+		Version: artifact.InitialDocumentVersion, Plan: plan.ID,
 		Records: make([]NumericRecordResult, len(plan.Cases)), Metrics: make([]runrecord.Metric, len(plan.Scorers)),
 	}
 	for index, target := range plan.Cases {
@@ -201,7 +200,7 @@ func scoreNumericRecord(scorer NumericScorerSpec, target NumericTargetCase, obse
 }
 
 func canonicalizeNumericTargetPlan(plan *NumericTargetPlan) error {
-	if plan == nil || plan.Version != numericTargetVersion || plan.View.Kind() != artifact.KindProfile ||
+	if plan == nil || plan.Version != artifact.InitialDocumentVersion || plan.View.Kind() != artifact.KindProfile ||
 		plan.Signature.Validate() != nil || len(plan.Signature.Inputs) != 1 || len(plan.Signature.Outputs) != 1 ||
 		len(plan.Scorers) == 0 || len(plan.Cases) == 0 {
 		return errors.New("evaluation: invalid numeric target plan")
@@ -250,7 +249,7 @@ func validNumericCase(target NumericTargetCase, scorers []NumericScorerSpec) boo
 }
 
 func canonicalizeNumericTargetReport(report *NumericTargetReport) error {
-	if report == nil || report.Version != numericTargetVersion || report.Plan.Kind() != artifact.KindProfile ||
+	if report == nil || report.Version != artifact.InitialDocumentVersion || report.Plan.Kind() != artifact.KindProfile ||
 		len(report.Records) == 0 || len(report.Metrics) == 0 {
 		return errors.New("evaluation: invalid numeric target report")
 	}

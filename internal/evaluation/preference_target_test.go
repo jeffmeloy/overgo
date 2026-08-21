@@ -30,7 +30,7 @@ func TestPreferenceEvaluationBindsFrozenReferenceAndHeldoutSplit(t *testing.T) {
 		t.Fatal(err)
 	}
 	view, err := sftEvaluationViewCodec.New(SFTEvaluationView{
-		Version: sftEvaluationViewVersion, Objective: objective.ID, Dataset: datasetID,
+		Version: artifact.InitialDocumentVersion, Objective: objective.ID, Dataset: datasetID,
 		TrainingMembership: trainingID, HeldoutMembership: heldoutID,
 		Processors: objective.Processors, Signature: signature,
 		Records: []dataset.Record{{ID: "pair", Group: "heldout-group"}},

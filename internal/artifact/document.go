@@ -5,6 +5,11 @@ import (
 	"slices"
 )
 
+const (
+	InitialDocumentVersion uint16 = iota + 1
+	SecondDocumentVersion
+)
+
 // DocumentContract: inline content identity and storage schema.
 type DocumentContract struct {
 	Kind      Kind

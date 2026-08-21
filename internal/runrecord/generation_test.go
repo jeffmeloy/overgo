@@ -134,7 +134,7 @@ func TestGenerationRecordBindsFullProvenance(t *testing.T) {
 // withGenerationVersion stamps the codec-required version the lifecycle
 // author will own once it exists.
 func withGenerationVersion(record GenerationRecord) GenerationRecord {
-	record.Version = GenerationVersion
+	record.Version = artifact.InitialDocumentVersion
 	return record
 }
 
@@ -146,7 +146,7 @@ func withGenerationVersion(record GenerationRecord) GenerationRecord {
 func TestGenerationRecordBindsBudget(t *testing.T) {
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	grant, err := budgetCodec.New(Budget{
-		Version: BudgetVersion, Unit: "seeds", Split: id(artifact.KindDatasetShard, "selection"),
+		Version: artifact.InitialDocumentVersion, Unit: "seeds", Split: id(artifact.KindDatasetShard, "selection"),
 		Issued: 3, Authority: id(artifact.KindEvidence, "authority"),
 	})
 	if err != nil {
@@ -186,7 +186,7 @@ func TestGenerationRecordBindsBudget(t *testing.T) {
 		t.Fatal("over-grant consumption accepted")
 	}
 	foreign, err := budgetCodec.New(Budget{
-		Version: BudgetVersion, Unit: "seeds", Split: record.Split,
+		Version: artifact.InitialDocumentVersion, Unit: "seeds", Split: record.Split,
 		Issued: 100, Authority: id(artifact.KindEvidence, "other-authority"),
 	})
 	if err != nil {

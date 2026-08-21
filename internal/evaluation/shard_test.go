@@ -8,9 +8,7 @@ import (
 	"overgo/internal/artifact"
 )
 
-const shardExtent = 2
-
-const shardCaseCount = 2*shardExtent + 1
+const shardCaseCount = 5
 
 func TestShardReportsMergeCanonicallyWithoutRetainedCampaign(t *testing.T) {
 	exact, err := CompileExact(exactFixture())
@@ -31,13 +29,11 @@ func TestShardReportsMergeCanonicallyWithoutRetainedCampaign(t *testing.T) {
 	for index := range cases {
 		cases[index] = planID(t, artifact.KindDatasetShard, fmt.Sprintf("case-%d", index))
 	}
-	shards, err := compileShards(plan, cases, shardExtent)
+	shards, err := compileCaseShards(plan, cases)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantShards := 1 + (len(cases)-1)/shardExtent
-	wantTail := len(cases) - (wantShards-1)*shardExtent
-	if len(shards) != wantShards || len(shards[0].Cases) != shardExtent || len(shards[wantShards-1].Cases) != wantTail {
+	if len(shards) != len(cases) || len(shards[0].Cases) != 1 || shards[0].Cases[0] != cases[0] {
 		t.Fatalf("shards = %+v", shards)
 	}
 

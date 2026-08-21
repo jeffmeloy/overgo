@@ -36,7 +36,7 @@ func TestDPOTraceBindsMeasuredObservations(t *testing.T) {
 
 func TestDPOTraceRejectsInventedReward(t *testing.T) {
 	raw := map[string]any{
-		"version":   trainingTraceVersion,
+		"version":   artifact.SecondDocumentVersion,
 		"run":       testutil.ArtifactID(t, artifact.KindRun, "run"),
 		"recipe":    testutil.ArtifactID(t, artifact.KindRecipe, "recipe"),
 		"dataset":   testutil.ArtifactID(t, artifact.KindDataset, "dataset"),

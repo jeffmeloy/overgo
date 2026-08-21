@@ -18,7 +18,7 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 	proposer := id(artifact.KindEvidence, "proposer")
 	evaluator := id(artifact.KindEvidence, "evaluator")
 	partition, err := splitPartitionCodec.New(SplitPartition{
-		Version:     SplitPartitionVersion,
+		Version:     artifact.InitialDocumentVersion,
 		Dataset:     id(artifact.KindDataset, "dataset"),
 		Development: id(artifact.KindDatasetShard, "development"),
 		Selection:   id(artifact.KindDatasetShard, "selection"),
@@ -38,7 +38,7 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 	}
 
 	budget, err := budgetCodec.New(Budget{
-		Version: BudgetVersion, Unit: "queries", Split: partition.Promotion,
+		Version: artifact.InitialDocumentVersion, Unit: "queries", Split: partition.Promotion,
 		Issued: 5, Authority: id(artifact.KindEvidence, "authority"),
 	})
 	if err != nil {
@@ -46,7 +46,7 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 	}
 	charge := func(amount uint64, purpose string) BudgetCharge {
 		value, err := budgetChargeCodec.New(BudgetCharge{
-			Version: BudgetChargeVersion, Budget: budget.ID, Amount: amount,
+			Version: artifact.InitialDocumentVersion, Budget: budget.ID, Amount: amount,
 			Consumer: evaluator, Purpose: purpose,
 		})
 		if err != nil {
@@ -86,7 +86,7 @@ func TestSplitIsolationAndQueryBudget(t *testing.T) {
 	}
 	blindedBudget := func(split artifact.ID, name string) Budget {
 		value, err := budgetCodec.New(Budget{
-			Version: BudgetVersion, Unit: "queries", Split: split,
+			Version: artifact.InitialDocumentVersion, Unit: "queries", Split: split,
 			Issued: 5, Authority: id(artifact.KindEvidence, "authority-"+name),
 		})
 		if err != nil {

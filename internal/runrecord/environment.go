@@ -10,10 +10,9 @@ import (
 )
 
 const (
-	EnvironmentVersion   uint16 = 1
-	EnvironmentMediaType        = "application/vnd.overgo.run-environment+json"
-	EnvironmentSchema           = "overgo/run-environment/v1"
-	maxEnvironmentBytes         = 512
+	EnvironmentMediaType = "application/vnd.overgo.run-environment+json"
+	EnvironmentSchema    = "overgo/run-environment/v1"
+	maxEnvironmentBytes  = 512
 )
 
 var environmentCodec = artifact.JSONDocumentCodec(
@@ -37,7 +36,7 @@ type Environment struct {
 
 // NewEnvironment identifies a typed execution-platform record.
 func NewEnvironment(environment Environment) (Environment, error) {
-	environment.Version = EnvironmentVersion
+	environment.Version = artifact.InitialDocumentVersion
 	environment.ID = artifact.ID{}
 	return environmentCodec.New(environment)
 }
@@ -68,7 +67,7 @@ func (e Environment) Batch(key string) (artifact.Batch, error) {
 
 func canonicalizeEnvironment(environment *Environment) error {
 	valid := func(value string) bool { return textcheck.Bounded(value, maxEnvironmentBytes, "\x00\r\n") }
-	if environment == nil || environment.Version != EnvironmentVersion ||
+	if environment == nil || environment.Version != artifact.InitialDocumentVersion ||
 		!valid(environment.Host) || !valid(environment.OS) || !valid(environment.Arch) || !valid(environment.Device) ||
 		!valid(environment.Backend) || !valid(environment.Driver) || environment.Runtime != "" && !valid(environment.Runtime) {
 		return errors.New("run record: invalid environment")

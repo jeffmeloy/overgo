@@ -9,10 +9,8 @@ import (
 )
 
 const (
-	GateLifecycleVersion   uint16 = 1
-	GateLifecycleMediaType        = "application/vnd.overgo.gate-lifecycle+json"
-	GateLifecycleSchema           = "overgo/gate-lifecycle/v1"
-	GateHeartbeatVersion   uint16 = 1
+	GateLifecycleMediaType = "application/vnd.overgo.gate-lifecycle+json"
+	GateLifecycleSchema    = "overgo/gate-lifecycle/v1"
 )
 
 type GateLifecycleState string
@@ -46,7 +44,7 @@ type GateLifecycle struct {
 
 func NewGatePreparation(treeKey string, environment artifact.ID, started time.Time) (GateLifecycle, error) {
 	return gateLifecycleCodec.New(GateLifecycle{
-		Version: GateLifecycleVersion, State: GatePrepared, TreeKey: treeKey,
+		Version: artifact.InitialDocumentVersion, State: GatePrepared, TreeKey: treeKey,
 		Environment: environment, Started: started.UTC().Format(time.RFC3339Nano),
 	})
 }
@@ -58,7 +56,7 @@ func NewGateFinalization(preparation GateLifecycle, codeCommit string, result ar
 	preparationID := preparation.ID
 	resultID := result
 	return gateLifecycleCodec.New(GateLifecycle{
-		Version: GateLifecycleVersion, State: GateFinalized, TreeKey: preparation.TreeKey,
+		Version: artifact.InitialDocumentVersion, State: GateFinalized, TreeKey: preparation.TreeKey,
 		Environment: preparation.Environment, Started: preparation.Started,
 		Preparation: &preparationID, CodeCommit: codeCommit, Result: &resultID, Outcome: outcome,
 	})
@@ -83,7 +81,7 @@ func (l GateLifecycle) Lineage() []artifact.Lineage {
 }
 
 func canonicalizeGateLifecycle(lifecycle *GateLifecycle) error {
-	if lifecycle == nil || lifecycle.Version != GateLifecycleVersion ||
+	if lifecycle == nil || lifecycle.Version != artifact.InitialDocumentVersion ||
 		!validTreeKey(lifecycle.TreeKey) ||
 		lifecycle.Environment.Kind() != artifact.KindEvidence {
 		return errors.New("run record: invalid gate lifecycle")
@@ -171,7 +169,7 @@ type GateHeartbeat struct {
 }
 
 func (heartbeat GateHeartbeat) Validate() error {
-	if heartbeat.Version != GateHeartbeatVersion ||
+	if heartbeat.Version != artifact.InitialDocumentVersion ||
 		heartbeat.State != HeartbeatRunning && heartbeat.State != HeartbeatFinalized && heartbeat.State != HeartbeatRecordDebt ||
 		heartbeat.Preparation.Kind() != artifact.KindEvidence || heartbeat.Environment.Kind() != artifact.KindEvidence ||
 		!validTreeKey(heartbeat.TreeKey) ||

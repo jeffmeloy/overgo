@@ -20,7 +20,6 @@ const (
 	generatedAnswerSplitSchema  = "overgo/generated-answer-split/v1"
 	generatedAnswerReportMedia  = "application/vnd.overgo.generated-answer-report+json"
 	generatedAnswerReportSchema = "overgo/generated-answer-report/v1"
-	generatedAnswerVersion      = 1
 )
 
 var (
@@ -132,7 +131,7 @@ func BindGeneratedAnswer(compiled GeneratedAnswerPlan, authorities ExactAuthorit
 		Version    uint16   `json:"version"`
 		Kind       string   `json:"kind"`
 		Transforms []string `json:"transforms"`
-	}{Version: evaluationPlanVersion, Kind: GeneratedAnswerKind, Transforms: compiled.suite.Transforms})
+	}{Version: artifact.InitialDocumentVersion, Kind: GeneratedAnswerKind, Transforms: compiled.suite.Transforms})
 	if err != nil {
 		return Plan{}, err
 	}
@@ -160,7 +159,7 @@ func EvaluateGeneratedAnswer(
 		return GeneratedAnswerReport{}, err
 	}
 	report := GeneratedAnswerReport{
-		Version: generatedAnswerVersion, Plan: plan.identity, Dataset: compiled.dataset,
+		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
 		Observations: make([]GeneratedAnswerObservation, len(compiled.suite.Cases)),
 	}
 	correct := 0

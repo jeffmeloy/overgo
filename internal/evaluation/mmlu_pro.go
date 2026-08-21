@@ -14,7 +14,6 @@ const (
 	MMLUProKind         = "mmlu-pro"
 	mmluProReportMedia  = "application/vnd.overgo.mmlu-pro-report+json"
 	mmluProReportSchema = "overgo/mmlu-pro-report/v1"
-	mmluProVersion      = 1
 )
 
 var mmluProReportContract = artifact.DocumentContract{
@@ -133,7 +132,7 @@ func EvaluateMMLUPro(
 		return MMLUProReport{}, err
 	}
 	report := MMLUProReport{
-		Version: mmluProVersion, Plan: plan.identity, Dataset: compiled.choice.dataset,
+		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.choice.dataset,
 		Observations: observations, Categories: categories, Accuracy: accuracy,
 	}
 	id, err := artifact.JSONID(artifact.KindEvaluation, report)

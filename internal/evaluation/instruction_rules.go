@@ -33,7 +33,6 @@ const (
 	instructionRulesSplitSchema   = "overgo/instruction-rules-split/v1"
 	instructionRulesReportMedia   = "application/vnd.overgo.instruction-rules-report+json"
 	instructionRulesReportSchema  = "overgo/instruction-rules-report/v1"
-	instructionRulesVersion       = 1
 )
 
 var (
@@ -160,7 +159,7 @@ func BindInstructionRules(compiled InstructionRulesPlan, authorities ExactAuthor
 	scorer, err := artifact.JSONID(artifact.KindProfile, struct {
 		Version uint16 `json:"version"`
 		Kind    string `json:"kind"`
-	}{Version: evaluationPlanVersion, Kind: InstructionRulesKind})
+	}{Version: artifact.InitialDocumentVersion, Kind: InstructionRulesKind})
 	if err != nil {
 		return Plan{}, err
 	}
@@ -188,7 +187,7 @@ func EvaluateInstructionRules(
 		return InstructionRulesReport{}, err
 	}
 	report := InstructionRulesReport{
-		Version: instructionRulesVersion, Plan: plan.identity, Dataset: compiled.dataset,
+		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
 		Observations: make([]InstructionRulesObservation, len(compiled.suite.Cases)),
 	}
 	strictPrompts, loosePrompts, strictRules, looseRules, rules := 0, 0, 0, 0, 0

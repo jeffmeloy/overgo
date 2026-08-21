@@ -11,11 +11,10 @@ import (
 )
 
 const (
-	mediaTargetVersion      uint16 = 1
-	mediaTargetPlanMedia           = "application/vnd.overgo.media-target-plan+json"
-	mediaTargetPlanSchema          = "overgo/media-target-plan/v1"
-	mediaTargetReportMedia         = "application/vnd.overgo.media-target-report+json"
-	mediaTargetReportSchema        = "overgo/media-target-report/v1"
+	mediaTargetPlanMedia    = "application/vnd.overgo.media-target-plan+json"
+	mediaTargetPlanSchema   = "overgo/media-target-plan/v1"
+	mediaTargetReportMedia  = "application/vnd.overgo.media-target-report+json"
+	mediaTargetReportSchema = "overgo/media-target-report/v1"
 )
 
 type MediaOracle string
@@ -132,7 +131,7 @@ func CompileMediaTargetPlan(view SFTEvaluationView, suite MediaTargetSuite) (Med
 		}
 	}
 	return mediaTargetPlanCodec.New(MediaTargetPlan{
-		Version: mediaTargetVersion, View: view.ID, Signature: view.Signature.Clone(),
+		Version: artifact.InitialDocumentVersion, View: view.ID, Signature: view.Signature.Clone(),
 		Oracles: slices.Clone(suite.Oracles), Scorers: slices.Clone(suite.Scorers), Cases: cloneMediaCases(suite.Cases),
 	})
 }
@@ -155,7 +154,7 @@ func ScoreMediaTargets(plan MediaTargetPlan, observations []MediaTargetObservati
 	observations = cloneMediaObservations(observations)
 	sort.Slice(observations, func(i, j int) bool { return observations[i].Record < observations[j].Record })
 	report := MediaTargetReport{
-		Version: mediaTargetVersion, Plan: plan.ID,
+		Version: artifact.InitialDocumentVersion, Plan: plan.ID,
 		Records: make([]MediaRecordResult, len(plan.Cases)), Metrics: make([]runrecord.Metric, len(plan.Scorers)),
 	}
 	for index, target := range plan.Cases {
@@ -202,7 +201,7 @@ func (report MediaTargetReport) Batch(key string) (artifact.Batch, error) {
 }
 
 func canonicalizeMediaTargetPlan(plan *MediaTargetPlan) error {
-	if plan == nil || plan.Version != mediaTargetVersion || plan.View.Kind() != artifact.KindProfile ||
+	if plan == nil || plan.Version != artifact.InitialDocumentVersion || plan.View.Kind() != artifact.KindProfile ||
 		plan.Signature.Validate() != nil || len(plan.Signature.Outputs) != 1 || len(plan.Oracles) == 0 ||
 		len(plan.Scorers) == 0 || len(plan.Cases) == 0 {
 		return errors.New("evaluation: invalid media target plan")
@@ -237,7 +236,7 @@ func canonicalizeMediaTargetPlan(plan *MediaTargetPlan) error {
 }
 
 func canonicalizeMediaTargetReport(report *MediaTargetReport) error {
-	if report == nil || report.Version != mediaTargetVersion || report.Plan.Kind() != artifact.KindProfile ||
+	if report == nil || report.Version != artifact.InitialDocumentVersion || report.Plan.Kind() != artifact.KindProfile ||
 		len(report.Records) == 0 || len(report.Metrics) == 0 {
 		return errors.New("evaluation: invalid media target report")
 	}

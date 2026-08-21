@@ -11,9 +11,8 @@ import (
 )
 
 const (
-	evaluatorVersion   uint16 = 1
-	evaluatorMediaType        = "application/vnd.overgo.evaluator+json"
-	evaluatorSchema           = "overgo/evaluator/v1"
+	evaluatorMediaType = "application/vnd.overgo.evaluator+json"
+	evaluatorSchema    = "overgo/evaluator/v1"
 )
 
 type Evaluator struct {
@@ -33,7 +32,7 @@ type KnownOutcome struct {
 var evaluatorCodec = artifact.JSONDocumentCodec(
 	"evaluator", artifact.KindEvidence, evaluatorMediaType, evaluatorSchema,
 	func(value *Evaluator) error {
-		if value == nil || value.Version != evaluatorVersion || value.Plan.Kind() != artifact.KindProfile ||
+		if value == nil || value.Version != artifact.InitialDocumentVersion || value.Plan.Kind() != artifact.KindProfile ||
 			value.Acceptance.Kind() != artifact.KindProfile || len(value.Metrics) == 0 {
 			return errors.New("evaluation: invalid evaluator")
 		}
@@ -48,7 +47,7 @@ var evaluatorCodec = artifact.JSONDocumentCodec(
 
 func NewEvaluator(plan artifact.ID, acceptance AcceptancePolicy) (Evaluator, error) {
 	return evaluatorCodec.New(Evaluator{
-		Version: evaluatorVersion, Plan: plan, Acceptance: acceptance.ID, Metrics: slices.Clone(acceptance.Metrics),
+		Version: artifact.InitialDocumentVersion, Plan: plan, Acceptance: acceptance.ID, Metrics: slices.Clone(acceptance.Metrics),
 	})
 }
 

@@ -16,9 +16,8 @@ import (
 )
 
 const (
-	CheckpointVersion  uint16 = 1
-	CheckpointFilename        = "checkpoint.json"
-	CheckpointWeights         = "model.safetensors"
+	CheckpointFilename = "checkpoint.json"
+	CheckpointWeights  = "model.safetensors"
 )
 
 type RNGState struct {
@@ -103,7 +102,7 @@ func NewCheckpoint(spec CheckpointSpec, weights artifact.ID) (Checkpoint, error)
 	}
 	id, err := artifact.JSONID(
 		artifact.KindCheckpoint,
-		checkpointDocument{Version: CheckpointVersion, Checkpoint: checkpoint})
+		checkpointDocument{Version: artifact.InitialDocumentVersion, Checkpoint: checkpoint})
 
 	if err != nil {
 		return Checkpoint{}, err
@@ -118,7 +117,7 @@ func (c Checkpoint) Marshal() ([]byte, error) {
 	if err := canonicalizeCheckpoint(&copy); err != nil {
 		return nil, err
 	}
-	return json.MarshalIndent(checkpointDocument{Version: CheckpointVersion, Checkpoint: copy}, "", "  ")
+	return json.MarshalIndent(checkpointDocument{Version: artifact.InitialDocumentVersion, Checkpoint: copy}, "", "  ")
 }
 
 func ParseCheckpoint(data []byte) (Checkpoint, error) {
@@ -126,7 +125,7 @@ func ParseCheckpoint(data []byte) (Checkpoint, error) {
 	if err := strictjson.DecodeBytes(data, &document); err != nil {
 		return Checkpoint{}, fmt.Errorf("training checkpoint: decode: %w", err)
 	}
-	if document.Version != CheckpointVersion {
+	if document.Version != artifact.InitialDocumentVersion {
 		return Checkpoint{}, errors.New("training checkpoint: version differs")
 	}
 	return NewCheckpoint(CheckpointSpec{

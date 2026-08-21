@@ -13,15 +13,14 @@ import (
 )
 
 const (
-	MultipleChoiceKind          = "multiple-choice"
-	AggregationAccuracy         = "accuracy"
-	multipleChoiceMediaType     = "application/vnd.overgo.multiple-choice-dataset+json"
-	multipleChoiceSchema        = "overgo/multiple-choice-dataset/v1"
-	multipleChoiceSplitMedia    = "application/vnd.overgo.multiple-choice-split+json"
-	multipleChoiceSplitSchema   = "overgo/multiple-choice-split/v1"
-	multipleChoiceReportMedia   = "application/vnd.overgo.multiple-choice-report+json"
-	multipleChoiceReportSchema  = "overgo/multiple-choice-report/v1"
-	multipleChoiceReportVersion = 1
+	MultipleChoiceKind         = "multiple-choice"
+	AggregationAccuracy        = "accuracy"
+	multipleChoiceMediaType    = "application/vnd.overgo.multiple-choice-dataset+json"
+	multipleChoiceSchema       = "overgo/multiple-choice-dataset/v1"
+	multipleChoiceSplitMedia   = "application/vnd.overgo.multiple-choice-split+json"
+	multipleChoiceSplitSchema  = "overgo/multiple-choice-split/v1"
+	multipleChoiceReportMedia  = "application/vnd.overgo.multiple-choice-report+json"
+	multipleChoiceReportSchema = "overgo/multiple-choice-report/v1"
 )
 
 var (
@@ -149,7 +148,7 @@ func BindMultipleChoice(compiled MultipleChoicePlan, authorities ExactAuthoritie
 		Normalization sequencescore.Normalization `json:"normalization"`
 		Aggregation   string                      `json:"aggregation"`
 	}{
-		Version: evaluationPlanVersion, Kind: MultipleChoiceKind,
+		Version: artifact.InitialDocumentVersion, Kind: MultipleChoiceKind,
 		Normalization: compiled.suite.Normalization, Aggregation: compiled.suite.Aggregation,
 	})
 	if err != nil {
@@ -176,7 +175,7 @@ func EvaluateMultipleChoice(
 		return MultipleChoiceReport{}, err
 	}
 	report := MultipleChoiceReport{
-		Version: multipleChoiceReportVersion, Plan: plan.identity, Dataset: compiled.dataset,
+		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
 	}
 	report.Observations, report.Accuracy, err = scoreMultipleChoice(ctx, scorer, compiled.suite)
 	if err != nil {

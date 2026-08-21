@@ -13,11 +13,10 @@ import (
 )
 
 const (
-	textTargetPlanVersion     uint16 = 1
-	textTargetPlanMediaType          = "application/vnd.overgo.text-target-plan+json"
-	textTargetPlanSchema             = "overgo/text-target-plan/v1"
-	textTargetReportMediaType        = "application/vnd.overgo.text-target-report+json"
-	textTargetReportSchema           = "overgo/text-target-report/v1"
+	textTargetPlanMediaType   = "application/vnd.overgo.text-target-plan+json"
+	textTargetPlanSchema      = "overgo/text-target-plan/v1"
+	textTargetReportMediaType = "application/vnd.overgo.text-target-report+json"
+	textTargetReportSchema    = "overgo/text-target-report/v1"
 )
 
 type TextScorer string
@@ -122,7 +121,7 @@ func CompileTextTargetPlan(view SFTEvaluationView, suite TextTargetSuite) (TextT
 		}
 	}
 	plan := TextTargetPlan{
-		Version: textTargetPlanVersion, View: view.ID, Signature: view.Signature.Clone(),
+		Version: artifact.InitialDocumentVersion, View: view.ID, Signature: view.Signature.Clone(),
 		Scorers: slices.Clone(suite.Scorers), Cases: cloneTextTargetCases(suite.Cases),
 	}
 	return textTargetPlanCodec.New(plan)
@@ -166,7 +165,7 @@ func ScoreTextTargets(plan TextTargetPlan, observations []TextTargetObservation)
 		})
 	}
 	return textTargetReportCodec.New(TextTargetReport{
-		Version: textTargetPlanVersion, Plan: plan.ID, Observations: observations, Metrics: metrics,
+		Version: artifact.InitialDocumentVersion, Plan: plan.ID, Observations: observations, Metrics: metrics,
 	})
 }
 
@@ -263,7 +262,7 @@ func normalizeTextTarget(value string, operations []TextNormalization) string {
 }
 
 func canonicalizeTextTargetPlan(plan *TextTargetPlan) error {
-	if plan == nil || plan.Version != textTargetPlanVersion || plan.View.Kind() != artifact.KindProfile ||
+	if plan == nil || plan.Version != artifact.InitialDocumentVersion || plan.View.Kind() != artifact.KindProfile ||
 		plan.Signature.Validate() != nil || len(plan.Signature.Outputs) != 1 || plan.Signature.Outputs[0] != recipecontract.ModalityText ||
 		len(plan.Scorers) == 0 || len(plan.Cases) == 0 {
 		return errors.New("evaluation: invalid text target plan")
@@ -329,7 +328,7 @@ func validTextScorer(scorer TextScorerSpec) bool {
 }
 
 func canonicalizeTextTargetReport(report *TextTargetReport) error {
-	if report == nil || report.Version != textTargetPlanVersion || report.Plan.Kind() != artifact.KindProfile ||
+	if report == nil || report.Version != artifact.InitialDocumentVersion || report.Plan.Kind() != artifact.KindProfile ||
 		len(report.Observations) == 0 || len(report.Metrics) == 0 {
 		return errors.New("evaluation: invalid text target report")
 	}

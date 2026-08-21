@@ -9,9 +9,8 @@ import (
 )
 
 const (
-	GenerationVersion   uint16 = 1
-	GenerationMediaType        = "application/vnd.overgo.generation+json"
-	GenerationSchema           = "overgo/generation/v1"
+	GenerationMediaType = "application/vnd.overgo.generation+json"
+	GenerationSchema    = "overgo/generation/v1"
 )
 
 // GenerationRecord is the experiment/generation aggregate: one descendant
@@ -60,7 +59,7 @@ var generationCodec = artifact.JSONDocumentCodec(
 // production caller is composition.RecordViability (the graft probe's
 // recording path), which arrived with the generation-lifecycle wiring.
 func NewGenerationRecord(record GenerationRecord) (GenerationRecord, error) {
-	record.Version = GenerationVersion
+	record.Version = artifact.InitialDocumentVersion
 	record.ID = artifact.ID{}
 	return generationCodec.New(record)
 }
@@ -120,7 +119,7 @@ func (value GenerationRecord) Batch(key string) (artifact.Batch, error) {
 }
 
 func canonicalizeGeneration(value *GenerationRecord) error {
-	if value == nil || value.Version != GenerationVersion {
+	if value == nil || value.Version != artifact.InitialDocumentVersion {
 		return errors.New("run record: invalid generation record version")
 	}
 	if len(value.Parents) == 0 || !distinctIDs(value.Parents...) {

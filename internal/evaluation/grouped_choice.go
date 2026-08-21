@@ -14,7 +14,6 @@ const (
 	GroupedChoiceKind         = "grouped-multiple-choice"
 	groupedChoiceReportMedia  = "application/vnd.overgo.grouped-choice-report+json"
 	groupedChoiceReportSchema = "overgo/grouped-choice-report/v1"
-	groupedChoiceVersion      = 1
 )
 
 var groupedChoiceReportContract = artifact.DocumentContract{
@@ -115,7 +114,7 @@ func EvaluateGroupedChoice(
 		return GroupedChoiceReport{}, err
 	}
 	report := GroupedChoiceReport{
-		Version: groupedChoiceVersion, Plan: plan.identity, Dataset: compiled.choice.dataset,
+		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.choice.dataset,
 		Observations: observations, Groups: groups, Accuracy: accuracy,
 	}
 	id, err := artifact.JSONID(artifact.KindEvaluation, report)

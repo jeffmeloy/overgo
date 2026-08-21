@@ -11,9 +11,8 @@ import (
 )
 
 const (
-	evaluationPlanVersion   uint16 = 1
-	evaluationPlanMediaType        = "application/vnd.overgo.evaluation-plan+json"
-	evaluationPlanSchema           = "overgo/evaluation-plan/v1"
+	evaluationPlanMediaType = "application/vnd.overgo.evaluation-plan+json"
+	evaluationPlanSchema    = "overgo/evaluation-plan/v1"
 )
 
 var evaluationPlanContract = artifact.DocumentContract{
@@ -69,7 +68,7 @@ func BindExact(exact ExactPlan, authorities ExactAuthorities) (Plan, error) {
 	scorer, err := artifact.JSONID(artifact.KindProfile, struct {
 		Version uint16 `json:"version"`
 		Kind    string `json:"kind"`
-	}{Version: evaluationPlanVersion, Kind: "exact-generation"})
+	}{Version: artifact.InitialDocumentVersion, Kind: "exact-generation"})
 	if err != nil {
 		return Plan{}, err
 	}
@@ -92,7 +91,7 @@ func bindPlan(dataset, split, caseProfile, scorer artifact.ID, authorities Exact
 		return Plan{}, err
 	}
 	body := planBody{
-		Version:         evaluationPlanVersion,
+		Version:         artifact.InitialDocumentVersion,
 		ModelDefinition: authorities.ModelDefinition, RuntimeRecipe: authorities.RuntimeRecipe,
 		Dataset: dataset, Split: split, CaseProfile: caseProfile,
 		Scorer: scorer, Execution: execution, CodeCommit: authorities.CodeCommit,

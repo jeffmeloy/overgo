@@ -8,12 +8,10 @@ import (
 )
 
 const (
-	ImprovementAdmissionVersion   uint16 = 2
-	ImprovementAdmissionMediaType        = "application/vnd.overgo.improvement-admission+json"
-	ImprovementAdmissionSchema           = "overgo/improvement-admission/v2"
-	ImprovementDecisionVersion    uint16 = 2
-	ImprovementDecisionMediaType         = "application/vnd.overgo.improvement-decision+json"
-	ImprovementDecisionSchema            = "overgo/improvement-decision/v2"
+	ImprovementAdmissionMediaType = "application/vnd.overgo.improvement-admission+json"
+	ImprovementAdmissionSchema    = "overgo/improvement-admission/v2"
+	ImprovementDecisionMediaType  = "application/vnd.overgo.improvement-decision+json"
+	ImprovementDecisionSchema     = "overgo/improvement-decision/v2"
 )
 
 type ImprovementAdmission struct {
@@ -81,7 +79,7 @@ func AdmitImprovement(
 	proposal trainingprogram.ImprovementProposal, authority, evaluator, promotionSplit artifact.ID,
 ) (ImprovementAdmission, error) {
 	return improvementAdmissionCodec.New(ImprovementAdmission{
-		Version: ImprovementAdmissionVersion, Proposal: proposal.ID(), ParentModel: proposal.ParentModel(), Incumbent: proposal.Incumbent(),
+		Version: artifact.SecondDocumentVersion, Proposal: proposal.ID(), ParentModel: proposal.ParentModel(), Incumbent: proposal.Incumbent(),
 		Candidate: proposal.Candidate(), Dataset: proposal.Dataset(),
 		DevelopmentSplit: proposal.DevelopmentSplit(), PromotionSplit: promotionSplit,
 		Recipe: proposal.Recipe(), Code: proposal.Code(), Proposer: proposal.Proposer(),
@@ -97,7 +95,7 @@ func DecideImprovement(
 		return ImprovementDecision{}, err
 	}
 	return improvementDecisionCodec.New(ImprovementDecision{
-		Version: ImprovementDecisionVersion, State: state, Admission: admission.ID,
+		Version: artifact.SecondDocumentVersion, State: state, Admission: admission.ID,
 		ParentModel: admission.ParentModel, Incumbent: admission.Incumbent, Candidate: admission.Candidate, ChildModel: child, Dataset: admission.Dataset,
 		DevelopmentSplit: admission.DevelopmentSplit, PromotionSplit: admission.PromotionSplit,
 		Recipe: admission.Recipe, Code: admission.Code, Evaluator: admission.Evaluator,
@@ -155,7 +153,7 @@ func (value ImprovementDecision) Batch(key string) (artifact.Batch, error) {
 }
 
 func canonicalizeImprovementAdmission(value *ImprovementAdmission) error {
-	if value == nil || value.Version != ImprovementAdmissionVersion ||
+	if value == nil || value.Version != artifact.SecondDocumentVersion ||
 		value.Proposal.Kind() != artifact.KindRecipe || value.ParentModel.Kind() != artifact.KindModel ||
 		!value.Candidate.Valid() || value.Incumbent.Kind() != value.Candidate.Kind() || value.Incumbent == value.Candidate ||
 		value.Dataset.Kind() != artifact.KindDataset || value.DevelopmentSplit.Kind() != artifact.KindDatasetShard ||
@@ -170,7 +168,7 @@ func canonicalizeImprovementAdmission(value *ImprovementAdmission) error {
 }
 
 func canonicalizeImprovementDecision(value *ImprovementDecision) error {
-	if value == nil || value.Version != ImprovementDecisionVersion ||
+	if value == nil || value.Version != artifact.SecondDocumentVersion ||
 		value.State != ImprovementPromote && value.State != ImprovementRefuse ||
 		value.Admission.Kind() != artifact.KindEvidence || value.ParentModel.Kind() != artifact.KindModel ||
 		value.Incumbent.Kind() != value.Candidate.Kind() || value.Incumbent == value.Candidate ||

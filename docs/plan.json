@@ -3,28 +3,6 @@
   "doctrine": "Follow skill.md. RepoDB owns closure evidence; the source census owns the complete deterministic file queue. Audit every non-generated Go file, one row at a time, in scanner order within each ownership wave. A file closes only after every numeric literal, named constant, assumption hint, repeated policy site, and test policy copy is classified by syntax and ownership. First delete, derive, reuse, or move the value to its existing typed authority. Model, tokenizer, tensor, topology, and training facts come from artifact metadata, profiles, recipes, or compiled plans. Protocol, ABI, mathematical, and irreducible fixture values may remain only with exact typed dispositions. Constants may express one irreducible relation; they may not conceal duplicated policy. Migrate every caller and delete displaced branches, defaults, wrappers, and compatibility readers in the same commit. Tests consume production contracts where practical. No magnitude thresholds, shape assumptions, distribution assumptions, family fallbacks, parallel registries, deferred adoption, or manually maintained counts. Each gated file records command-derived before/after pressure, code delta, authority, verifier, and closure retirement. Publish the complete queue and closure state as RepoDB evidence after each wave. Plan complete means every census file row is closed, every derivation-blocked row is resolved, no stale binding remains, and a fresh census finds no uncatalogued production decision or copied test policy. Merge current master after every gated step.",
   "items": [
     {
-      "id": "magic-wave-optimizer",
-      "title": "Eliminate optimizer, training, evaluation, and statistical decision magics",
-      "status": "open",
-      "steps": [
-        {
-          "id": "close",
-          "title": "Derive schedules and tolerances, consolidate shared policy, and record only evidenced residual obligations",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/optimizer,internal/trainingprogram,internal/trainingworkflow,internal/evaluation,internal/runrecord -require-classified -require-no-stale",
-          "rationale": "These packages contain decision thresholds, process horizons, and statistical assumptions that directly affect training and promotion.",
-          "depends_on": [
-            "magic-census-evidence/query"
-          ],
-          "capabilities": [
-            "derived-policy",
-            "distribution-discipline",
-            "runtime-parity"
-          ]
-        }
-      ]
-    },
-    {
       "id": "magic-wave-serving",
       "title": "Eliminate server, sampling, operation, dataset, and media policy magics",
       "status": "open",

@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	AdmissionBindingVersion   uint16 = 1
-	AdmissionBindingMediaType        = "application/vnd.overgo.admission-binding+json"
-	AdmissionBindingSchema           = "overgo/admission-binding/v1"
+	AdmissionBindingMediaType = "application/vnd.overgo.admission-binding+json"
+	AdmissionBindingSchema    = "overgo/admission-binding/v1"
 )
 
 // AuthorityDomain names one independent authority: a domain name (the
@@ -56,7 +55,7 @@ var admissionBindingCodec = artifact.JSONDocumentCodec(
 
 // NewAdmissionBinding identifies one generation's authority binding.
 func NewAdmissionBinding(value AdmissionBinding) (AdmissionBinding, error) {
-	value.Version = AdmissionBindingVersion
+	value.Version = artifact.InitialDocumentVersion
 	value.ID = artifact.ID{}
 	return admissionBindingCodec.New(value)
 }
@@ -70,7 +69,7 @@ func (b AdmissionBinding) Content() (artifact.Content, error) {
 }
 
 func canonicalizeAdmissionBinding(value *AdmissionBinding) error {
-	if value == nil || value.Version != AdmissionBindingVersion {
+	if value == nil || value.Version != artifact.InitialDocumentVersion {
 		return errors.New("run record: invalid admission binding version")
 	}
 	domains := []AuthorityDomain{value.Proposer, value.Evaluator, value.Decider}

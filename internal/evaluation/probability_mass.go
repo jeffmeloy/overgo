@@ -19,7 +19,6 @@ const (
 	probabilityMassSplitSchema   = "overgo/probability-mass-split/v1"
 	probabilityMassReportMedia   = "application/vnd.overgo.probability-mass-report+json"
 	probabilityMassReportSchema  = "overgo/probability-mass-report/v1"
-	probabilityMassVersion       = 1
 )
 
 var (
@@ -122,7 +121,7 @@ func BindProbabilityMass(compiled ProbabilityMassPlan, authorities ExactAuthorit
 		Version       uint16                      `json:"version"`
 		Kind          string                      `json:"kind"`
 		Normalization sequencescore.Normalization `json:"normalization"`
-	}{Version: evaluationPlanVersion, Kind: ProbabilityMassKind, Normalization: compiled.suite.Normalization})
+	}{Version: artifact.InitialDocumentVersion, Kind: ProbabilityMassKind, Normalization: compiled.suite.Normalization})
 	if err != nil {
 		return Plan{}, err
 	}
@@ -149,7 +148,7 @@ func EvaluateProbabilityMass(
 		return ProbabilityMassReport{}, err
 	}
 	report := ProbabilityMassReport{
-		Version: probabilityMassVersion, Plan: plan.identity, Dataset: compiled.dataset,
+		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
 		Observations: make([]ProbabilityMassObservation, len(compiled.suite.Cases)),
 	}
 	for index, testCase := range compiled.suite.Cases {

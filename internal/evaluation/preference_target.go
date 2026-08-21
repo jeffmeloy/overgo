@@ -13,11 +13,10 @@ import (
 )
 
 const (
-	preferenceTargetVersion      uint16 = 1
-	preferenceTargetPlanMedia           = "application/vnd.overgo.preference-target-plan+json"
-	preferenceTargetPlanSchema          = "overgo/preference-target-plan/v1"
-	preferenceTargetReportMedia         = "application/vnd.overgo.preference-target-report+json"
-	preferenceTargetReportSchema        = "overgo/preference-target-report/v1"
+	preferenceTargetPlanMedia    = "application/vnd.overgo.preference-target-plan+json"
+	preferenceTargetPlanSchema   = "overgo/preference-target-plan/v1"
+	preferenceTargetReportMedia  = "application/vnd.overgo.preference-target-report+json"
+	preferenceTargetReportSchema = "overgo/preference-target-report/v1"
 
 	preferenceAccuracyMetric = "chosen-vs-rejected-accuracy"
 	preferenceLossMetric     = "dpo-loss"
@@ -96,7 +95,7 @@ func CompilePreferenceTargetPlan(
 		records[index] = record.ID
 	}
 	return preferenceTargetPlanCodec.New(PreferenceTargetPlan{
-		Version: preferenceTargetVersion, View: view.ID, Objective: objective.ID,
+		Version: artifact.InitialDocumentVersion, View: view.ID, Objective: objective.ID,
 		Heldout: view.HeldoutMembership, Signature: view.Signature.Clone(), Policy: suite.Policy, Records: records,
 	})
 }
@@ -113,7 +112,7 @@ func ScorePreferenceTargets(plan PreferenceTargetPlan, observations []Preference
 	observations = slices.Clone(observations)
 	sort.Slice(observations, func(i, j int) bool { return observations[i].Record < observations[j].Record })
 	report := PreferenceTargetReport{
-		Version: preferenceTargetVersion, Plan: plan.ID, Records: make([]PreferenceRecordResult, len(plan.Records)),
+		Version: artifact.InitialDocumentVersion, Plan: plan.ID, Records: make([]PreferenceRecordResult, len(plan.Records)),
 	}
 	var accuracy, loss, relativeMargin float64
 	for index, observation := range observations {
@@ -155,7 +154,7 @@ func (report PreferenceTargetReport) Batch(key string) (artifact.Batch, error) {
 }
 
 func canonicalizePreferenceTargetPlan(plan *PreferenceTargetPlan) error {
-	if plan == nil || plan.Version != preferenceTargetVersion || plan.View.Kind() != artifact.KindProfile ||
+	if plan == nil || plan.Version != artifact.InitialDocumentVersion || plan.View.Kind() != artifact.KindProfile ||
 		plan.Objective.Kind() != artifact.KindProfile || plan.Heldout.Kind() != artifact.KindDatasetShard ||
 		plan.Policy.Validate() != nil || plan.Signature.Validate() != nil || len(plan.Signature.Outputs) != 1 ||
 		plan.Signature.Outputs[0] != recipecontract.ModalityText || len(plan.Records) == 0 {
@@ -171,7 +170,7 @@ func canonicalizePreferenceTargetPlan(plan *PreferenceTargetPlan) error {
 }
 
 func canonicalizePreferenceTargetReport(report *PreferenceTargetReport) error {
-	if report == nil || report.Version != preferenceTargetVersion || report.Plan.Kind() != artifact.KindProfile ||
+	if report == nil || report.Version != artifact.InitialDocumentVersion || report.Plan.Kind() != artifact.KindProfile ||
 		len(report.Records) == 0 || len(report.Metrics) != 3 {
 		return errors.New("evaluation: invalid preference target report")
 	}

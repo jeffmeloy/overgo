@@ -1648,7 +1648,7 @@ func (g *gateContext) prepare() error {
 
 func (g *gateContext) heartbeat(state runrecord.GateHeartbeatState) runrecord.GateHeartbeat {
 	return runrecord.GateHeartbeat{
-		Version: runrecord.GateHeartbeatVersion, State: state, Preparation: g.preparation.ID,
+		Version: artifact.InitialDocumentVersion, State: state, Preparation: g.preparation.ID,
 		TreeKey: g.preparation.TreeKey, Environment: g.environment.ID,
 		PID: os.Getpid(), Updated: time.Now().UTC(),
 	}
@@ -1690,7 +1690,7 @@ type gateDebtEnvelope struct {
 }
 
 func (g *gateContext) oweRecord(batch artifact.Batch, cause error) error {
-	debt := gateDebtEnvelope{Version: runrecord.GateLifecycleVersion, Preparation: g.preparation.ID, Batch: batch}
+	debt := gateDebtEnvelope{Version: artifact.InitialDocumentVersion, Preparation: g.preparation.ID, Batch: batch}
 	if err := validateGateDebt(debt); err != nil {
 		return fmt.Errorf("%w; invalid record debt: %v", cause, err)
 	}
@@ -1793,7 +1793,7 @@ func recordUnbatchableFailure(repo, storePath string) (artifact.ID, error) {
 }
 
 func validateGateDebt(debt gateDebtEnvelope) error {
-	if debt.Version != runrecord.GateLifecycleVersion || debt.Preparation.Kind() != artifact.KindEvidence {
+	if debt.Version != artifact.InitialDocumentVersion || debt.Preparation.Kind() != artifact.KindEvidence {
 		return errors.New("gate: invalid record debt envelope")
 	}
 	if err := debt.Batch.Validate(); err != nil {
@@ -1831,7 +1831,7 @@ func printGateWatchdog(repo string, staleAfter time.Duration) error {
 	var heartbeat runrecord.GateHeartbeat
 	err := readJSON(repo, gateHeartbeatFile, &heartbeat)
 	if errors.Is(err, os.ErrNotExist) {
-		return printJSON(watchdogStatus{Version: runrecord.GateHeartbeatVersion, State: runrecord.HeartbeatAbsent})
+		return printJSON(watchdogStatus{Version: artifact.InitialDocumentVersion, State: runrecord.HeartbeatAbsent})
 	}
 	if err != nil {
 		return err

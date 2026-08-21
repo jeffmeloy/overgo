@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	ModelVerificationVersion   uint16 = 1
-	ModelVerificationMediaType        = "application/vnd.overgo.model-verification+json"
-	ModelVerificationSchema           = "overgo/model-verification/v1"
+	ModelVerificationMediaType = "application/vnd.overgo.model-verification+json"
+	ModelVerificationSchema    = "overgo/model-verification/v1"
 )
 
 // VerificationTier: evidenced capability level; no implicit subsumption.
@@ -86,7 +85,7 @@ func NewModelVerification(model artifact.ID, name string, claims []CapabilityCla
 		cloned[i].Evidence = slices.Clone(cloned[i].Evidence)
 	}
 	return modelVerificationCodec.New(ModelVerification{
-		Version: ModelVerificationVersion, Model: model, Name: name, Claims: cloned,
+		Version: artifact.InitialDocumentVersion, Model: model, Name: name, Claims: cloned,
 	})
 }
 
@@ -199,7 +198,7 @@ func VerificationMatrix(records []ModelVerification) []MatrixRow {
 }
 
 func canonicalizeModelVerification(value *ModelVerification) error {
-	if value == nil || value.Version != ModelVerificationVersion {
+	if value == nil || value.Version != artifact.InitialDocumentVersion {
 		return errors.New("run record: invalid model verification version")
 	}
 	if value.Model.Kind() != artifact.KindModel {

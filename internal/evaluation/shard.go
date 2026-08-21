@@ -14,17 +14,15 @@ import (
 )
 
 const (
-	shardReportVersion      uint16 = 1
-	exactShardExtent               = 1
-	exactMetricName                = "exact-accuracy"
-	caseShardMediaType             = "application/vnd.overgo.evaluation-shard+json"
-	caseShardSchema                = "overgo/evaluation-shard/v1"
-	textOutputMediaType            = "application/vnd.overgo.evaluation-output+json"
-	textOutputSchema               = "overgo/evaluation-output/v1"
-	shardReportMediaType           = "application/vnd.overgo.evaluation-shard-report+json"
-	shardReportSchema              = "overgo/evaluation-shard-report/v1"
-	campaignReportMediaType        = "application/vnd.overgo.evaluation-campaign+json"
-	campaignReportSchema           = "overgo/evaluation-campaign/v1"
+	exactMetricName         = "exact-accuracy"
+	caseShardMediaType      = "application/vnd.overgo.evaluation-shard+json"
+	caseShardSchema         = "overgo/evaluation-shard/v1"
+	textOutputMediaType     = "application/vnd.overgo.evaluation-output+json"
+	textOutputSchema        = "overgo/evaluation-output/v1"
+	shardReportMediaType    = "application/vnd.overgo.evaluation-shard-report+json"
+	shardReportSchema       = "overgo/evaluation-shard-report/v1"
+	campaignReportMediaType = "application/vnd.overgo.evaluation-campaign+json"
+	campaignReportSchema    = "overgo/evaluation-campaign/v1"
 )
 
 var (
@@ -167,11 +165,11 @@ func compileExactShards(exact ExactPlan, plan Plan) ([]caseShard, error) {
 		}
 		cases[index] = id
 	}
-	return compileShards(plan, cases, exactShardExtent)
+	return compileCaseShards(plan, cases)
 }
 
-func compileShards(plan Plan, cases []artifact.ID, extent int) ([]caseShard, error) {
-	if !plan.identity.Valid() || len(cases) == 0 || extent <= 0 {
+func compileCaseShards(plan Plan, cases []artifact.ID) ([]caseShard, error) {
+	if !plan.identity.Valid() || len(cases) == 0 {
 		return nil, errors.New("evaluation: invalid shard inputs")
 	}
 	for _, id := range cases {
@@ -179,10 +177,9 @@ func compileShards(plan Plan, cases []artifact.ID, extent int) ([]caseShard, err
 			return nil, errors.New("evaluation: invalid case identity")
 		}
 	}
-	shards := make([]caseShard, 0, 1+(len(cases)-1)/extent)
-	for start := 0; start < len(cases); start += extent {
-		end := min(start+extent, len(cases))
-		shard := caseShard{Plan: plan.identity, Index: uint64(len(shards)), Cases: slices.Clone(cases[start:end])}
+	shards := make([]caseShard, len(cases))
+	for index, caseID := range cases {
+		shard := caseShard{Plan: plan.identity, Index: uint64(index), Cases: []artifact.ID{caseID}}
 		data, err := json.Marshal(shard)
 		if err != nil {
 			return nil, err
@@ -192,7 +189,7 @@ func compileShards(plan Plan, cases []artifact.ID, extent int) ([]caseShard, err
 			return nil, err
 		}
 		shard.ID = id
-		shards = append(shards, shard)
+		shards[index] = shard
 	}
 	return shards, nil
 }
@@ -245,7 +242,7 @@ func newShardReport(shard caseShard, observations []caseObservation, metrics []m
 		}
 	}
 	report := shardReport{
-		Version: shardReportVersion, Plan: shard.Plan, Shard: shard.ID, Index: shard.Index,
+		Version: artifact.InitialDocumentVersion, Plan: shard.Plan, Shard: shard.ID, Index: shard.Index,
 		Observations: observations, Metrics: metrics,
 	}
 	data, err := json.Marshal(report)
@@ -271,7 +268,7 @@ func mergeShardReports(reports []shardReport) (campaignReport, error) {
 	shards := make([]artifact.ID, len(reports))
 	var cases uint64
 	for index, report := range reports {
-		if report.Version != shardReportVersion || report.Plan != plan || report.ID.Kind() != artifact.KindEvaluation ||
+		if report.Version != artifact.InitialDocumentVersion || report.Plan != plan || report.ID.Kind() != artifact.KindEvaluation ||
 			report.Shard.Kind() != artifact.KindDatasetShard || report.Index != uint64(index) ||
 			len(report.Observations) == 0 || cases > math.MaxUint64-uint64(len(report.Observations)) {
 			return campaignReport{}, errors.New("evaluation: incompatible shard report")
@@ -298,7 +295,7 @@ func mergeShardReports(reports []shardReport) (campaignReport, error) {
 	}
 	sort.Slice(metrics, func(i, j int) bool { return metrics[i].Name < metrics[j].Name })
 	report := campaignReport{
-		Version: shardReportVersion, Plan: plan, Shards: shards, Metrics: metrics, Cases: cases,
+		Version: artifact.InitialDocumentVersion, Plan: plan, Shards: shards, Metrics: metrics, Cases: cases,
 	}
 	data, err := json.Marshal(report)
 	if err != nil {

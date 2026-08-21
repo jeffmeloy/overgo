@@ -202,7 +202,7 @@ func TestBoundRunPersistsEnvironmentLineage(t *testing.T) {
 	}
 	defer store.Close()
 	environment, err := environmentCodec.New(Environment{
-		Version: EnvironmentVersion, Host: "fixture-host", OS: "linux", Arch: "amd64",
+		Version: artifact.InitialDocumentVersion, Host: "fixture-host", OS: "linux", Arch: "amd64",
 		Device: "A100", Backend: "cuda", Driver: "580.65", Runtime: "go1.25",
 	})
 	if err != nil {

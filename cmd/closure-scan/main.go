@@ -55,6 +55,9 @@ func main() {
 	publish := flag.Bool("publish", false, "publish census evidence to RepoDB")
 	retireOrphans := flag.Bool("retire-orphans", false, "retire active bindings whose declarations were deleted")
 	rebindUnchanged := flag.Bool("rebind-unchanged", false, "move unchanged decisions to current exact source bindings")
+	checkScope := flag.String("check-scope", "", "comma-separated production package prefixes to validate")
+	requireClassified := flag.Bool("require-classified", false, "require active closure evidence for every scoped constant")
+	requireNoStale := flag.Bool("require-no-stale", false, "reject scoped closure binding drift")
 	flag.Parse()
 	root, err := os.Getwd()
 	if err != nil {
@@ -68,6 +71,15 @@ func main() {
 	}
 	if modes > 1 {
 		fatal(fmt.Errorf("report modes are mutually exclusive"))
+	}
+	if *checkScope != "" {
+		if err := checkClosures(root, *storePath, *checkScope, *requireClassified, *requireNoStale); err != nil {
+			fatal(err)
+		}
+		return
+	}
+	if *requireClassified || *requireNoStale {
+		fatal(errors.New("closure checks require -check-scope"))
 	}
 	if *census {
 		snapshot := mustSnapshot(root)
@@ -162,6 +174,94 @@ func main() {
 	if err := emit(root, *storePath, *triagePath, candidates); err != nil {
 		fatal(err)
 	}
+}
+
+func checkClosures(root, storePath, scopeList string, requireClassified, requireNoStale bool) error {
+	snapshot := mustSnapshot(root)
+	prefixes, err := closurePrefixes(scopeList)
+	if err != nil {
+		return err
+	}
+	relatives := scopedSources(snapshot, prefixes)
+	if len(relatives) == 0 {
+		return errors.New("no production sources match closure scope")
+	}
+	candidates, err := closurescan.ScanSnapshot(snapshot, relatives)
+	if err != nil {
+		return err
+	}
+	store, err := repodb.OpenReadOnly(filepath.Join(root, storePath))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	documents, _, _, err := activeClosureDocuments(context.Background(), store)
+	if err != nil {
+		return err
+	}
+	if requireNoStale {
+		issues, err := closurescan.ValidateBindings(snapshot, scopedDocuments(documents, prefixes))
+		if err != nil {
+			return err
+		}
+		if len(issues) > 0 {
+			return fmt.Errorf("%d scoped closure binding(s) stale; first=%s:%s", len(issues), issues[0].File, issues[0].Name)
+		}
+	}
+	classified := 0
+	for _, candidate := range candidates {
+		binding, err := candidate.Binding()
+		if err != nil {
+			return err
+		}
+		_, found, err := closureledger.ResolveActiveBinding(context.Background(), store, binding, candidate.ValueJSON())
+		if err == nil && found {
+			classified++
+			continue
+		}
+		if requireClassified {
+			return fmt.Errorf("unclassified scoped constant %s at %s:%d", candidate.Name, candidate.File, candidate.Line)
+		}
+	}
+	fmt.Printf("closure-scan: scoped constants=%d classified=%d stale=0\n", len(candidates), classified)
+	return nil
+}
+
+func closurePrefixes(value string) ([]string, error) {
+	var prefixes []string
+	for _, raw := range strings.Split(value, ",") {
+		prefix := strings.TrimSuffix(filepath.ToSlash(strings.TrimSpace(raw)), "/")
+		if prefix == "" || filepath.IsAbs(prefix) || prefix == "." || prefix == ".." || strings.HasPrefix(prefix, "../") {
+			return nil, fmt.Errorf("invalid closure scope %q", raw)
+		}
+		prefixes = append(prefixes, prefix)
+	}
+	slices.Sort(prefixes)
+	return slices.Compact(prefixes), nil
+}
+
+func scopedSources(snapshot repoanalysis.SourceSnapshot, prefixes []string) []string {
+	var relatives []string
+	for _, source := range snapshot.Files {
+		if !source.Test && scopedPath(source.Path, prefixes) {
+			relatives = append(relatives, source.Path)
+		}
+	}
+	return relatives
+}
+
+func scopedDocuments(documents []closureledger.Document, prefixes []string) []closureledger.Document {
+	return slices.DeleteFunc(slices.Clone(documents), func(document closureledger.Document) bool {
+		return !slices.ContainsFunc(document.Bindings, func(binding closureledger.SourceBinding) bool {
+			return scopedPath(binding.File, prefixes)
+		})
+	})
+}
+
+func scopedPath(path string, prefixes []string) bool {
+	return slices.ContainsFunc(prefixes, func(prefix string) bool {
+		return path == prefix || strings.HasPrefix(path, prefix+"/")
+	})
 }
 
 func retireOrphanAliases(root, storePath string, snapshot repoanalysis.SourceSnapshot) ([]artifact.AliasBinding, error) {

@@ -63,7 +63,7 @@ func TestTextTargetModalitiesUseDeclaredScorers(t *testing.T) {
 func textTargetView(t *testing.T, input recipecontract.Modality) SFTEvaluationView {
 	t.Helper()
 	view, err := sftEvaluationViewCodec.New(SFTEvaluationView{
-		Version:            sftEvaluationViewVersion,
+		Version:            artifact.InitialDocumentVersion,
 		Objective:          testutil.ArtifactID(t, artifact.KindProfile, "text target objective"),
 		Dataset:            testutil.ArtifactID(t, artifact.KindDataset, "text target dataset"),
 		TrainingMembership: testutil.ArtifactID(t, artifact.KindDatasetShard, "text target training"),

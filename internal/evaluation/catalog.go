@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	benchmarkCatalogVersion   = 1
 	benchmarkCatalogMediaType = "application/vnd.overgo.benchmark-catalog+json"
 	benchmarkCatalogSchema    = "overgo/benchmark-catalog/v1"
 	benchmarkCatalogAlias     = "evaluation/catalogs/active"
@@ -70,7 +69,7 @@ func CatalogLocalBenchmarks(ctx context.Context, repository artifact.Repository,
 		return artifact.ID{}, errors.New("evaluation: benchmark catalog is empty")
 	}
 	base := filepath.Dir(manifestPath)
-	catalog := benchmarkCatalog{Version: benchmarkCatalogVersion, Entries: make([]benchmarkEntry, 0, len(manifest.Datasets))}
+	catalog := benchmarkCatalog{Version: artifact.InitialDocumentVersion, Entries: make([]benchmarkEntry, 0, len(manifest.Datasets))}
 	for _, declaration := range manifest.Datasets {
 		name := strings.TrimSpace(declaration.Name)
 		path, err := localBenchmarkPath(base, declaration.Path)
@@ -118,7 +117,7 @@ func CatalogLocalBenchmarks(ctx context.Context, repository artifact.Repository,
 }
 
 func canonicalizeBenchmarkCatalog(catalog *benchmarkCatalog) error {
-	if catalog == nil || catalog.Version != benchmarkCatalogVersion || len(catalog.Entries) == 0 {
+	if catalog == nil || catalog.Version != artifact.InitialDocumentVersion || len(catalog.Entries) == 0 {
 		return errors.New("evaluation: invalid benchmark catalog")
 	}
 	sort.Slice(catalog.Entries, func(i, j int) bool {

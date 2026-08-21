@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	GateVersion   uint16 = 1
-	GateMediaType        = "application/vnd.overgo.gate-result+json"
-	GateSchema           = "overgo/gate-result/v1"
+	GateMediaType = "application/vnd.overgo.gate-result+json"
+	GateSchema    = "overgo/gate-result/v1"
 )
 
 var gateContract = artifact.DocumentContract{
@@ -73,7 +72,7 @@ func NewGateRecord(
 	steps []GateStep,
 ) (GateRecord, error) {
 	result := GateResult{
-		Version: GateVersion, Recipe: recipeID, Environment: environment,
+		Version: artifact.InitialDocumentVersion, Recipe: recipeID, Environment: environment,
 		CodeCommit: codeCommit, Outcome: outcome, Failure: failure, Steps: slices.Clone(steps),
 	}
 	result, err := gateCodec.New(result)
@@ -127,7 +126,7 @@ func (g GateRecord) Batch(key string) (artifact.Batch, error) {
 }
 
 func canonicalizeGateResult(result *GateResult) error {
-	if result == nil || result.Version != GateVersion || result.Recipe.Kind() != artifact.KindRecipe ||
+	if result == nil || result.Version != artifact.InitialDocumentVersion || result.Recipe.Kind() != artifact.KindRecipe ||
 		result.Environment.Kind() != artifact.KindEvidence || !validCodeCommit(result.CodeCommit) ||
 		len(result.Steps) == 0 {
 		return errors.New("run record: invalid gate result")

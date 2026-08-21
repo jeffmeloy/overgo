@@ -311,6 +311,62 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	}
 }
 
+func TestScopedClosureCheckRequiresExactActiveEvidence(t *testing.T) {
+	root := t.TempDir()
+	relative := "internal/policy/policy.go"
+	path := filepath.Join(root, filepath.FromSlash(relative))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(value string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte("package policy\nconst Window = "+value+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("8")
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module fixture\n\ngo 1.24\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store, err := repodb.Open(filepath.Join(root, "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkClosures(root, "store", "internal/policy", true, true); err == nil {
+		t.Fatal("unclassified constant passed scoped closure check")
+	}
+	candidates, err := closurescan.ScanRoot(root)
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("candidates = (%+v, %v)", candidates, err)
+	}
+	triage := triageFile{Rows: []triageRow{{
+		Name: candidates[0].Name, File: candidates[0].File, Scope: candidates[0].Scope, Line: candidates[0].Line,
+		Tier: string(closureledger.TierImplementation), Status: string(closureledger.StatusClosed),
+		Understanding: "Fixture window.", ClosurePath: "Replace with fixture authority.", RerankTrigger: "Fixture contract change.",
+	}}}
+	encoded, err := json.Marshal(triage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	triagePath := filepath.Join(root, "triage.json")
+	if err := os.WriteFile(triagePath, encoded, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := emit(root, "store", triagePath, candidates); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkClosures(root, "store", "internal/policy", true, true); err != nil {
+		t.Fatal(err)
+	}
+	write("9")
+	if err := checkClosures(root, "store", "internal/policy", true, true); err == nil {
+		t.Fatal("stale constant passed scoped closure check")
+	}
+}
+
 func mustActiveAlias(t *testing.T, binding closureledger.SourceBinding) string {
 	t.Helper()
 	alias, err := closureledger.ActiveAlias(binding)

@@ -11,9 +11,8 @@ import (
 )
 
 const (
-	ObjectiveCompositionVersion   uint16 = 1
-	ObjectiveCompositionMediaType        = "application/vnd.overgo.objective-composition+json"
-	ObjectiveCompositionSchema           = "overgo/objective-composition/v1"
+	ObjectiveCompositionMediaType = "application/vnd.overgo.objective-composition+json"
+	ObjectiveCompositionSchema    = "overgo/objective-composition/v1"
 )
 
 type ObjectiveCompositionSpec struct {
@@ -46,7 +45,7 @@ var objectiveCompositionCodec = artifact.JSONDocumentCodec(
 
 func NewObjectiveComposition(spec ObjectiveCompositionSpec) (ObjectiveComposition, error) {
 	return objectiveCompositionCodec.New(ObjectiveComposition{
-		Version: ObjectiveCompositionVersion, ObjectiveCompositionSpec: spec,
+		Version: artifact.InitialDocumentVersion, ObjectiveCompositionSpec: spec,
 	})
 }
 
@@ -63,10 +62,10 @@ func (c ObjectiveComposition) Lineage() []artifact.Lineage {
 }
 
 func canonicalizeObjectiveComposition(value *ObjectiveComposition) error {
-	if value.Version != ObjectiveCompositionVersion {
+	if value.Version != artifact.InitialDocumentVersion {
 		return errors.New("objective composition: unsupported version")
 	}
-	leaf := ObjectiveDocument{Version: ObjectiveVersion, ObjectiveSpec: value.ObjectiveSpec}
+	leaf := ObjectiveDocument{Version: artifact.SecondDocumentVersion, ObjectiveSpec: value.ObjectiveSpec}
 	if err := canonicalizeObjective(&leaf); err != nil {
 		return fmt.Errorf("objective composition: %w", err)
 	}
@@ -123,7 +122,7 @@ func resolveObjective(ctx context.Context, reader artifact.Reader, id artifact.I
 }
 
 func resolveObjectiveComposition(ctx context.Context, reader artifact.Reader, composition ObjectiveComposition) (resolvedObjective, error) {
-	aggregate := ObjectiveDocument{ID: composition.ID, Version: ObjectiveVersion, ObjectiveSpec: composition.ObjectiveSpec}
+	aggregate := ObjectiveDocument{ID: composition.ID, Version: artifact.SecondDocumentVersion, ObjectiveSpec: composition.ObjectiveSpec}
 	if err := validateObjectiveReferences(ctx, reader, aggregate); err != nil {
 		return resolvedObjective{}, err
 	}

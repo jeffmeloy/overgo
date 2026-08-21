@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	ServingObservationVersion   uint16 = 1
-	ServingObservationMediaType        = "application/vnd.overgo.serving-observation+json"
-	ServingObservationSchema           = "overgo/serving-observation/v1"
+	ServingObservationMediaType = "application/vnd.overgo.serving-observation+json"
+	ServingObservationSchema    = "overgo/serving-observation/v1"
 )
 
 var servingObservationCodec = artifact.JSONDocumentCodec(
@@ -117,7 +116,7 @@ func PublishServingObservation(ctx context.Context, repository artifact.Reposito
 	if ctx == nil || repository == nil {
 		return ServingObservation{}, errors.New("run record: serving observation repository is absent")
 	}
-	value.Version, value.ID = ServingObservationVersion, artifact.ID{}
+	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
 	identified, err := servingObservationCodec.New(value)
 	if err != nil {
 		return ServingObservation{}, err
@@ -133,7 +132,7 @@ func PublishServingObservation(ctx context.Context, repository artifact.Reposito
 }
 
 func canonicalizeServingObservation(value *ServingObservation) error {
-	if value == nil || value.Version != ServingObservationVersion || value.Model.Kind() != artifact.KindModel ||
+	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Model.Kind() != artifact.KindModel ||
 		value.Recipe.Kind() != artifact.KindRecipe || value.Environment.Kind() != artifact.KindEvidence ||
 		!value.Task.Valid() || value.StartedUnixNS <= 0 || value.MeasuredNS > math.MaxInt64 {
 		return errors.New("run record: invalid serving observation authority")

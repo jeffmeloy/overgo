@@ -38,7 +38,7 @@ func servingObservationFixture(t *testing.T) ServingObservation {
 
 func TestServingObservationContractAndIndexedQuery(t *testing.T) {
 	fixture := servingObservationFixture(t)
-	fixture.Version = ServingObservationVersion
+	fixture.Version = artifact.InitialDocumentVersion
 	observation, err := servingObservationCodec.New(fixture)
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestServingObservationRefusesInvalidFacts(t *testing.T) {
 	}
 	for _, refusal := range refusals {
 		candidate := fixture
-		candidate.Version = ServingObservationVersion
+		candidate.Version = artifact.InitialDocumentVersion
 		candidate.Phases = slices.Clone(fixture.Phases)
 		candidate.Hardware = slices.Clone(fixture.Hardware)
 		refusal.mutate(&candidate)
@@ -121,7 +121,7 @@ func TestServingObservationRefusesInvalidFacts(t *testing.T) {
 		}
 	}
 	failed := fixture
-	failed.Version = ServingObservationVersion
+	failed.Version = artifact.InitialDocumentVersion
 	failed.Outcome, failed.Failure = OutcomeFailed, "execution_failed"
 	if _, err := servingObservationCodec.New(failed); err != nil {
 		t.Fatalf("failed observation refused: %v", err)

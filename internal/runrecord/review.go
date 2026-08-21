@@ -11,8 +11,6 @@ import (
 	"overgo/internal/textcheck"
 )
 
-const ReviewVersion uint16 = 1
-
 const (
 	ReviewActorMediaType     = "application/vnd.overgo.review-actor+json"
 	ReviewActorSchema        = "overgo/review-actor/v1"
@@ -145,7 +143,7 @@ type ReviewPriority struct {
 
 var reviewActorCodec = artifact.JSONDocumentCodec("review actor", artifact.KindEvidence, ReviewActorMediaType, ReviewActorSchema,
 	func(value *ReviewActor) error {
-		if value == nil || value.Version != ReviewVersion || !textcheck.Bounded(value.Principal, 2048, "\x00\r\n") ||
+		if value == nil || value.Version != artifact.InitialDocumentVersion || !textcheck.Bounded(value.Principal, 2048, "\x00\r\n") ||
 			value.Role != ReviewDeveloper && value.Role != ReviewSQA {
 			return errors.New("run record: invalid review actor")
 		}
@@ -154,7 +152,7 @@ var reviewActorCodec = artifact.JSONDocumentCodec("review actor", artifact.KindE
 
 var reviewWorktreeCodec = artifact.JSONDocumentCodec("review worktree", artifact.KindEvidence, ReviewWorktreeMediaType, ReviewWorktreeSchema,
 	func(value *ReviewWorktree) error {
-		if value == nil || value.Version != ReviewVersion || !textcheck.Bounded(value.Path, 2048, "\x00\r\n") ||
+		if value == nil || value.Version != artifact.InitialDocumentVersion || !textcheck.Bounded(value.Path, 2048, "\x00\r\n") ||
 			strings.Contains(value.Path, "\\") || !textcheck.Bounded(value.Branch, 2048, "\x00\r\n") || !validCodeCommit(value.Head) {
 			return errors.New("run record: invalid review worktree")
 		}
@@ -163,7 +161,7 @@ var reviewWorktreeCodec = artifact.JSONDocumentCodec("review worktree", artifact
 
 var reviewEvaluatorCodec = artifact.JSONDocumentCodec("review evaluator", artifact.KindEvidence, ReviewEvaluatorMediaType, ReviewEvaluatorSchema,
 	func(value *ReviewEvaluator) error {
-		if value == nil || value.Version != ReviewVersion || !textcheck.Bounded(value.Name, 2048, "\x00\r\n") ||
+		if value == nil || value.Version != artifact.InitialDocumentVersion || !textcheck.Bounded(value.Name, 2048, "\x00\r\n") ||
 			!value.Definition.Valid() || !validCodeCommit(value.Revision) {
 			return errors.New("run record: invalid review evaluator")
 		}
@@ -172,7 +170,7 @@ var reviewEvaluatorCodec = artifact.JSONDocumentCodec("review evaluator", artifa
 
 var reviewCandidateCodec = artifact.JSONDocumentCodec("review candidate", artifact.KindEvidence, ReviewCandidateMediaType, ReviewCandidateSchema,
 	func(value *ReviewCandidate) error {
-		if value == nil || value.Version != ReviewVersion || !validCodeCommit(value.BaseCommit) ||
+		if value == nil || value.Version != artifact.InitialDocumentVersion || !validCodeCommit(value.BaseCommit) ||
 			!validCodeCommit(value.CodeCommit) || value.BaseCommit == value.CodeCommit ||
 			!allEvidenceIDs(value.Developer, value.Worktree, value.Evaluator, value.GateResult, value.GateRun) {
 			return errors.New("run record: invalid review candidate")
@@ -182,7 +180,7 @@ var reviewCandidateCodec = artifact.JSONDocumentCodec("review candidate", artifa
 
 var reviewFindingCodec = artifact.JSONDocumentCodec("review finding", artifact.KindEvidence, ReviewFindingMediaType, ReviewFindingSchema,
 	func(value *ReviewFinding) error {
-		if value == nil || value.Version != ReviewVersion || !allEvidenceIDs(value.Candidate, value.Reviewer, value.Evaluator) ||
+		if value == nil || value.Version != artifact.InitialDocumentVersion || !allEvidenceIDs(value.Candidate, value.Reviewer, value.Evaluator) ||
 			!textcheck.Bounded(value.Summary, 2048, "\x00\r\n") || !textcheck.Bounded(value.Check, 2048, "\x00\r\n") ||
 			value.Severity != ReviewCritical && value.Severity != ReviewMajor && value.Severity != ReviewMinor && value.Severity != ReviewInfo ||
 			value.Status != ReviewFindingOpen && value.Status != ReviewFindingResolved && value.Status != ReviewFindingAccepted {
@@ -193,7 +191,7 @@ var reviewFindingCodec = artifact.JSONDocumentCodec("review finding", artifact.K
 
 var reviewVerdictCodec = artifact.JSONDocumentCodec("review verdict", artifact.KindEvidence, ReviewVerdictMediaType, ReviewVerdictSchema,
 	func(value *ReviewVerdict) error {
-		if value == nil || value.Version != ReviewVersion || !allEvidenceIDs(value.Candidate, value.Reviewer, value.Worktree, value.Evaluator) ||
+		if value == nil || value.Version != artifact.InitialDocumentVersion || !allEvidenceIDs(value.Candidate, value.Reviewer, value.Worktree, value.Evaluator) ||
 			!validCodeCommit(value.TargetHead) || value.Findings == nil ||
 			value.Outcome != ReviewApproved && value.Outcome != ReviewChangesRequired {
 			return errors.New("run record: invalid review verdict")
@@ -210,29 +208,29 @@ var reviewVerdictCodec = artifact.JSONDocumentCodec("review verdict", artifact.K
 	func(value ReviewVerdict) ReviewVerdict { value.Findings = slices.Clone(value.Findings); return value })
 
 func NewReviewActor(principal string, role ReviewRole) (ReviewActor, error) {
-	return reviewActorCodec.New(ReviewActor{Version: ReviewVersion, Principal: principal, Role: role})
+	return reviewActorCodec.New(ReviewActor{Version: artifact.InitialDocumentVersion, Principal: principal, Role: role})
 }
 
 func NewReviewWorktree(path, branch, head string, clean bool) (ReviewWorktree, error) {
-	return reviewWorktreeCodec.New(ReviewWorktree{Version: ReviewVersion, Path: path, Branch: branch, Head: head, Clean: clean})
+	return reviewWorktreeCodec.New(ReviewWorktree{Version: artifact.InitialDocumentVersion, Path: path, Branch: branch, Head: head, Clean: clean})
 }
 
 func NewReviewEvaluator(name string, definition artifact.ID, revision string) (ReviewEvaluator, error) {
-	return reviewEvaluatorCodec.New(ReviewEvaluator{Version: ReviewVersion, Name: name, Definition: definition, Revision: revision})
+	return reviewEvaluatorCodec.New(ReviewEvaluator{Version: artifact.InitialDocumentVersion, Name: name, Definition: definition, Revision: revision})
 }
 
 func NewReviewCandidate(candidate ReviewCandidate) (ReviewCandidate, error) {
-	candidate.Version = ReviewVersion
+	candidate.Version = artifact.InitialDocumentVersion
 	return reviewCandidateCodec.New(candidate)
 }
 
 func NewReviewFinding(finding ReviewFinding) (ReviewFinding, error) {
-	finding.Version = ReviewVersion
+	finding.Version = artifact.InitialDocumentVersion
 	return reviewFindingCodec.New(finding)
 }
 
 func NewReviewVerdict(verdict ReviewVerdict) (ReviewVerdict, error) {
-	verdict.Version = ReviewVersion
+	verdict.Version = artifact.InitialDocumentVersion
 	return reviewVerdictCodec.New(verdict)
 }
 

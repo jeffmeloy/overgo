@@ -7,9 +7,8 @@ import (
 )
 
 const (
-	TrainingDecisionVersion   uint16 = 1
-	TrainingDecisionMediaType        = "application/vnd.overgo.training-decision+json"
-	TrainingDecisionSchema           = "overgo/training-decision/v1"
+	TrainingDecisionMediaType = "application/vnd.overgo.training-decision+json"
+	TrainingDecisionSchema    = "overgo/training-decision/v1"
 )
 
 type TrainingDecisionState string
@@ -31,7 +30,7 @@ type TrainingDecision struct {
 var trainingDecisionCodec = artifact.JSONDocumentCodec(
 	"training decision", artifact.KindEvidence, TrainingDecisionMediaType, TrainingDecisionSchema,
 	func(value *TrainingDecision) error {
-		if value == nil || value.Version != TrainingDecisionVersion || value.State != TrainingEvaluationRequired ||
+		if value == nil || value.Version != artifact.InitialDocumentVersion || value.State != TrainingEvaluationRequired ||
 			value.Run.Kind() != artifact.KindRun || value.Recipe.Kind() != artifact.KindRecipe ||
 			value.Parent.Kind() != artifact.KindModel || value.Checkpoint.Kind() != artifact.KindCheckpoint ||
 			value.Trace.Kind() != artifact.KindEvidence || value.Rollback != value.Parent {
@@ -45,7 +44,7 @@ var trainingDecisionCodec = artifact.JSONDocumentCodec(
 
 func NewTrainingDecision(run, recipeID, parent, checkpoint, trace artifact.ID) (TrainingDecision, error) {
 	return trainingDecisionCodec.New(TrainingDecision{
-		Version: TrainingDecisionVersion, State: TrainingEvaluationRequired,
+		Version: artifact.InitialDocumentVersion, State: TrainingEvaluationRequired,
 		Run: run, Recipe: recipeID, Parent: parent, Checkpoint: checkpoint, Trace: trace, Rollback: parent,
 	})
 }

@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	evaluationEvidenceVersion uint16 = 1
-	evaluationEvidenceMedia          = "application/vnd.overgo.evaluation-evidence+json"
-	evaluationEvidenceSchema         = "overgo/evaluation-evidence/v1"
+	evaluationEvidenceMedia  = "application/vnd.overgo.evaluation-evidence+json"
+	evaluationEvidenceSchema = "overgo/evaluation-evidence/v1"
 )
 
 type EvaluationEvidence struct {
@@ -137,7 +136,7 @@ func PublishEvaluationEvidence(
 		return EvaluationEvidence{}, err
 	}
 	evidence, err := evaluationEvidenceCodec.New(EvaluationEvidence{
-		Version: evaluationEvidenceVersion, Plan: plan.identity, Acceptance: acceptance.ID, Evaluator: evaluator.ID,
+		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Acceptance: acceptance.ID, Evaluator: evaluator.ID,
 		Report: report, Run: run.ID, Evaluation: record.ID,
 		ModelDefinition: plan.body.ModelDefinition, Recipe: plan.body.RuntimeRecipe,
 		Dataset: plan.body.Dataset, Split: plan.body.Split, Shards: shards,
@@ -241,7 +240,7 @@ func loadEvidenceRecord(ctx context.Context, reader artifact.Reader, id artifact
 }
 
 func canonicalizeEvaluationEvidence(value *EvaluationEvidence) error {
-	if value == nil || value.Version != evaluationEvidenceVersion || value.Plan.Kind() != artifact.KindProfile ||
+	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Plan.Kind() != artifact.KindProfile ||
 		value.Acceptance.Kind() != artifact.KindProfile || value.Evaluator.Kind() != artifact.KindEvidence ||
 		value.Report.Kind() != artifact.KindEvaluation ||
 		value.Run.Kind() != artifact.KindRun || value.Evaluation.Kind() != artifact.KindEvaluation ||

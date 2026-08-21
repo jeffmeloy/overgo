@@ -8,15 +8,12 @@ import (
 )
 
 const (
-	SplitPartitionVersion   uint16 = 1
-	SplitPartitionMediaType        = "application/vnd.overgo.split-partition+json"
-	SplitPartitionSchema           = "overgo/split-partition/v1"
-	BudgetVersion           uint16 = 1
-	BudgetMediaType                = "application/vnd.overgo.budget+json"
-	BudgetSchema                   = "overgo/budget/v1"
-	BudgetChargeVersion     uint16 = 1
-	BudgetChargeMediaType          = "application/vnd.overgo.budget-charge+json"
-	BudgetChargeSchema             = "overgo/budget-charge/v1"
+	SplitPartitionMediaType = "application/vnd.overgo.split-partition+json"
+	SplitPartitionSchema    = "overgo/split-partition/v1"
+	BudgetMediaType         = "application/vnd.overgo.budget+json"
+	BudgetSchema            = "overgo/budget/v1"
+	BudgetChargeMediaType   = "application/vnd.overgo.budget-charge+json"
+	BudgetChargeSchema      = "overgo/budget-charge/v1"
 )
 
 // SplitRole names the four isolated evaluation datasets. Isolation is the
@@ -101,13 +98,13 @@ func ParseBudgetCharge(data []byte) (BudgetCharge, error) {
 
 func NewBudget(unit string, split artifact.ID, issued uint64, authority artifact.ID) (Budget, error) {
 	return budgetCodec.New(Budget{
-		Version: BudgetVersion, Unit: unit, Split: split, Issued: issued, Authority: authority,
+		Version: artifact.InitialDocumentVersion, Unit: unit, Split: split, Issued: issued, Authority: authority,
 	})
 }
 
 func NewBudgetCharge(budget artifact.ID, amount uint64, consumer artifact.ID, purpose string) (BudgetCharge, error) {
 	return budgetChargeCodec.New(BudgetCharge{
-		Version: BudgetChargeVersion, Budget: budget, Amount: amount, Consumer: consumer, Purpose: purpose,
+		Version: artifact.InitialDocumentVersion, Budget: budget, Amount: amount, Consumer: consumer, Purpose: purpose,
 	})
 }
 
@@ -194,7 +191,7 @@ func ValidateBlinding(partition SplitPartition, budget Budget, charges []BudgetC
 }
 
 func canonicalizeSplitPartition(value *SplitPartition) error {
-	if value == nil || value.Version != SplitPartitionVersion || value.Dataset.Kind() != artifact.KindDataset ||
+	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Dataset.Kind() != artifact.KindDataset ||
 		value.Proposer.Kind() != artifact.KindEvidence {
 		return errors.New("run record: invalid split partition envelope")
 	}
@@ -211,7 +208,7 @@ func canonicalizeSplitPartition(value *SplitPartition) error {
 }
 
 func canonicalizeBudget(value *Budget) error {
-	if value == nil || value.Version != BudgetVersion || value.Unit == "" ||
+	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Unit == "" ||
 		value.Split.Kind() != artifact.KindDatasetShard || value.Issued == 0 ||
 		value.Authority.Kind() != artifact.KindEvidence {
 		return errors.New("run record: invalid budget grant")
@@ -220,7 +217,7 @@ func canonicalizeBudget(value *Budget) error {
 }
 
 func canonicalizeBudgetCharge(value *BudgetCharge) error {
-	if value == nil || value.Version != BudgetChargeVersion || !value.Budget.Valid() ||
+	if value == nil || value.Version != artifact.InitialDocumentVersion || !value.Budget.Valid() ||
 		value.Amount == 0 || value.Consumer.Kind() != artifact.KindEvidence || value.Purpose == "" {
 		return errors.New("run record: invalid budget charge")
 	}

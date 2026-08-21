@@ -11,9 +11,8 @@ import (
 )
 
 const (
-	sftEvaluationViewVersion   uint16 = 1
-	sftEvaluationViewMediaType        = "application/vnd.overgo.sft-evaluation-view+json"
-	sftEvaluationViewSchema           = "overgo/sft-evaluation-view/v1"
+	sftEvaluationViewMediaType = "application/vnd.overgo.sft-evaluation-view+json"
+	sftEvaluationViewSchema    = "overgo/sft-evaluation-view/v1"
 )
 
 var sftEvaluationViewCodec = artifact.JSONDocumentCodec(
@@ -68,7 +67,7 @@ func CompileSFTEvaluationView(
 		}
 	}
 	return sftEvaluationViewCodec.New(SFTEvaluationView{
-		Version: sftEvaluationViewVersion, Objective: objective.ID, Dataset: objective.Dataset,
+		Version: artifact.InitialDocumentVersion, Objective: objective.ID, Dataset: objective.Dataset,
 		TrainingMembership: training.ID, HeldoutMembership: heldout.ID,
 		Processors: slices.Clone(objective.Processors), Projectors: slices.Clone(objective.Projectors),
 		Codecs: slices.Clone(objective.Codecs), Signature: objective.Signature.Clone(),
@@ -91,7 +90,7 @@ func (view SFTEvaluationView) Batch(key string) (artifact.Batch, error) {
 }
 
 func canonicalizeSFTEvaluationView(view *SFTEvaluationView) error {
-	if view == nil || view.Version != sftEvaluationViewVersion || view.Objective.Kind() != artifact.KindProfile ||
+	if view == nil || view.Version != artifact.InitialDocumentVersion || view.Objective.Kind() != artifact.KindProfile ||
 		view.Dataset.Kind() != artifact.KindDataset || view.TrainingMembership.Kind() != artifact.KindDatasetShard ||
 		view.HeldoutMembership.Kind() != artifact.KindDatasetShard || view.TrainingMembership == view.HeldoutMembership ||
 		len(view.Processors) == 0 || len(view.Records) == 0 || view.Signature.Validate() != nil {

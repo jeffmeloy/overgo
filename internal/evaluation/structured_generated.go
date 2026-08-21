@@ -20,7 +20,6 @@ const (
 	structuredGeneratedSplitSchema   = "overgo/structured-generated-split/v1"
 	structuredGeneratedReportMedia   = "application/vnd.overgo.structured-generated-report+json"
 	structuredGeneratedReportSchema  = "overgo/structured-generated-report/v1"
-	structuredGeneratedVersion       = 1
 )
 
 var (
@@ -131,7 +130,7 @@ func BindStructuredGenerated(compiled StructuredGeneratedPlan, authorities Exact
 		Extractor   string `json:"extractor"`
 		Equivalence string `json:"equivalence"`
 	}{
-		Version: evaluationPlanVersion, Kind: StructuredGeneratedKind,
+		Version: artifact.InitialDocumentVersion, Kind: StructuredGeneratedKind,
 		Extractor: compiled.suite.Extractor, Equivalence: compiled.suite.Equivalence,
 	})
 	if err != nil {
@@ -161,7 +160,7 @@ func EvaluateStructuredGenerated(
 		return StructuredGeneratedReport{}, err
 	}
 	report := StructuredGeneratedReport{
-		Version: structuredGeneratedVersion, Plan: plan.identity, Dataset: compiled.dataset,
+		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
 		Observations: make([]StructuredGeneratedObservation, len(compiled.suite.Cases)),
 	}
 	groups, accepted := make([]string, len(compiled.suite.Cases)), make([]bool, len(compiled.suite.Cases))

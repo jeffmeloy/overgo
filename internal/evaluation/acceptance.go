@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	acceptancePolicyVersion uint16 = 1
-	acceptancePolicyMedia          = "application/vnd.overgo.evaluation-acceptance+json"
-	acceptancePolicySchema         = "overgo/evaluation-acceptance/v1"
+	acceptancePolicyMedia  = "application/vnd.overgo.evaluation-acceptance+json"
+	acceptancePolicySchema = "overgo/evaluation-acceptance/v1"
 )
 
 type MetricContract struct {
@@ -38,7 +37,7 @@ func newAcceptancePolicy(metrics []runrecord.Metric) (AcceptancePolicy, error) {
 	for index, metric := range metrics {
 		contracts[index] = MetricContract{Name: metric.Name, Unit: metric.Unit, Direction: metric.Direction}
 	}
-	return acceptancePolicyCodec.New(AcceptancePolicy{Version: acceptancePolicyVersion, Metrics: contracts})
+	return acceptancePolicyCodec.New(AcceptancePolicy{Version: artifact.InitialDocumentVersion, Metrics: contracts})
 }
 
 func (policy AcceptancePolicy) Content() (artifact.Content, error) {
@@ -50,7 +49,7 @@ func (policy AcceptancePolicy) admits(metrics []runrecord.Metric) bool {
 }
 
 func canonicalizeAcceptancePolicy(policy *AcceptancePolicy) error {
-	if policy == nil || policy.Version != acceptancePolicyVersion || len(policy.Metrics) == 0 {
+	if policy == nil || policy.Version != artifact.InitialDocumentVersion || len(policy.Metrics) == 0 {
 		return errors.New("evaluation: invalid acceptance policy")
 	}
 	if !canonicalizeMetricContracts(policy.Metrics) {

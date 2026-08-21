@@ -11,9 +11,8 @@ import (
 )
 
 const (
-	trainingTraceVersion   uint16 = 2
-	trainingTraceMediaType        = "application/vnd.overgo.training-trace+json"
-	trainingTraceSchema           = "overgo/training-trace/v2"
+	trainingTraceMediaType = "application/vnd.overgo.training-trace+json"
+	trainingTraceSchema    = "overgo/training-trace/v2"
 )
 
 var trainingTraceCodec = artifact.DocumentCodec[TrainingTrace]{
@@ -91,7 +90,7 @@ func NewTrainingTrace(run, recipeID, dataset, policy, reference artifact.ID, eva
 		objective = trainingprogram.ObjectiveGRPO
 	}
 	return trainingTraceCodec.New(TrainingTrace{
-		Version: trainingTraceVersion, Run: run, Recipe: recipeID, Dataset: dataset,
+		Version: artifact.SecondDocumentVersion, Run: run, Recipe: recipeID, Dataset: dataset,
 		Objective: objective, Policy: policy, Reference: reference, Evaluators: slices.Clone(evaluators),
 		DPO: slices.Clone(dpo), GRPO: slices.Clone(grpo),
 	})
@@ -117,7 +116,7 @@ func (trace TrainingTrace) Lineage() []artifact.Lineage {
 }
 
 func canonicalizeTrainingTrace(trace *TrainingTrace) error {
-	if trace == nil || trace.Version != trainingTraceVersion || trace.Run.Kind() != artifact.KindRun ||
+	if trace == nil || trace.Version != artifact.SecondDocumentVersion || trace.Run.Kind() != artifact.KindRun ||
 		trace.Recipe.Kind() != artifact.KindRecipe || trace.Dataset.Kind() != artifact.KindDataset ||
 		trace.Policy.Kind() != artifact.KindModel {
 		return errors.New("training trace: invalid authority")

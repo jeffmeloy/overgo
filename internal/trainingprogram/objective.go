@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	ObjectiveVersion   uint16 = 2
-	ObjectiveMediaType        = "application/vnd.overgo.training-objective+json"
-	ObjectiveSchema           = "overgo/training-objective/v2"
+	ObjectiveMediaType = "application/vnd.overgo.training-objective+json"
+	ObjectiveSchema    = "overgo/training-objective/v2"
 )
 
 // ObjectiveKind names loss semantics; recipes bind model-specific execution.
@@ -153,7 +152,7 @@ var objectiveCodec = artifact.DocumentCodec[ObjectiveDocument]{
 }
 
 func NewObjective(spec ObjectiveSpec) (ObjectiveDocument, error) {
-	return objectiveCodec.New(ObjectiveDocument{Version: ObjectiveVersion, ObjectiveSpec: spec})
+	return objectiveCodec.New(ObjectiveDocument{Version: artifact.SecondDocumentVersion, ObjectiveSpec: spec})
 }
 
 func (d ObjectiveDocument) Content() (artifact.Content, error) { return objectiveCodec.Content(d) }
@@ -170,7 +169,7 @@ func LoadObjective(ctx context.Context, reader artifact.Reader, id artifact.ID) 
 }
 
 func canonicalizeObjective(value *ObjectiveDocument) error {
-	if value.Version != ObjectiveVersion || strings.TrimSpace(value.Name) == "" || value.Name != strings.TrimSpace(value.Name) ||
+	if value.Version != artifact.SecondDocumentVersion || strings.TrimSpace(value.Name) == "" || value.Name != strings.TrimSpace(value.Name) ||
 		value.Dataset.Kind() != artifact.KindDataset || value.Split.Kind() != artifact.KindDatasetShard ||
 		value.Loss.Kind() != artifact.KindProfile || value.Evaluation.Kind() != artifact.KindProfile ||
 		!validObjectiveKind(value.Kind) || (value.Authority != ObjectiveAdaptive && value.Authority != ObjectiveApproved) {

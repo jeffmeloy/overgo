@@ -141,7 +141,7 @@ func (c *graphExecCache) close(state *device.State) error {
 	return errors.Join(errs...)
 }
 
-const minimumDeviceBufferBytes uint64 = 256
+const deviceAllocationAlignment uint64 = 256
 
 type deviceBufferLease struct {
 	pointer driver.DevicePtr
@@ -162,7 +162,7 @@ func (p *deviceBufferPool) acquire(state *device.State, size uint64) (deviceBuff
 }
 
 func (p *deviceBufferPool) acquireExact(state *device.State, size uint64) (deviceBufferLease, error) {
-	bucket, ok := checked.Align(size, minimumDeviceBufferBytes)
+	bucket, ok := checked.Align(size, deviceAllocationAlignment)
 	if !ok || bucket == 0 {
 		return deviceBufferLease{}, errors.New("CUDA buffer size is invalid")
 	}
@@ -212,8 +212,8 @@ func deviceBufferBucket(size uint64) (uint64, error) {
 	if size == 0 {
 		return 0, errors.New("CUDA buffer size is zero")
 	}
-	if size <= minimumDeviceBufferBytes {
-		return minimumDeviceBufferBytes, nil
+	if size <= deviceAllocationAlignment {
+		return deviceAllocationAlignment, nil
 	}
 	if size > uint64(1)<<63 {
 		return size, nil
@@ -1019,8 +1019,6 @@ func hasTensor[T any](values map[*tensor.Tensor]T, node *tensor.Tensor) bool {
 	return ok
 }
 
-const graphArenaAlignment = 256
-
 const conv2DStagingBytes = uint64(128 << 20)
 
 type retainedStorageView struct {
@@ -1116,7 +1114,7 @@ func retainedOutputLayout(
 		if node.Op == tensor.OpInput || !storage[index] {
 			continue
 		}
-		offset, ok := checked.Align(total, graphArenaAlignment)
+		offset, ok := checked.Align(total, deviceAllocationAlignment)
 		if !ok {
 			return 0, errors.New("CUDA retained output offset overflows")
 		}
@@ -1283,7 +1281,7 @@ func compileGraph(externalOutputs bool, outputs ...*tensor.Tensor) (*CompiledGra
 			plannerExcluded[output] = struct{}{}
 		}
 	}
-	memory, err := planner.BuildWithRewrites(outputs, graphArenaAlignment, dependencies, plannerExcluded)
+	memory, err := planner.BuildWithRewrites(outputs, deviceAllocationAlignment, dependencies, plannerExcluded)
 	if err != nil {
 		return nil, err
 	}

@@ -285,33 +285,29 @@ func SiLUGate(dst, gate, up []float32) {
 	}
 }
 
-// GELUTanhInPlace: the tanh-approximation GELU
-// 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3))) element-wise, f64 math.
+// GELUTanhInPlace: tanh-GELU; F64 arithmetic.
 func GELUTanhInPlace(v []float32) {
 	for k := range v {
 		v[k] = float32(GELUTanh(float64(v[k])))
 	}
 }
 
-// geluTanhCoeff: the sqrt(2/pi) scale and cubic term of the tanh-approx GELU.
+// Tanh-GELU scale.
 var geluTanhSqrt2OverPi = math.Sqrt(2 / math.Pi)
 
-const geluTanhCubic = 0.044715
+// GELUTanhCubicCoefficient: tanh-GELU approximation coefficient.
+const GELUTanhCubicCoefficient = 0.044715
 
-// GELUTanh: the tanh-approximation GELU (gemma "gelu_pytorch_tanh"),
-// 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3))). This is the smooth training
-// activation; the gemma3n serving path additionally round-trips through fp16
-// (a native-dtype inference artifact) which the training VJP does not model.
+// GELUTanh: smooth tanh-GELU; no serving dtype round-trip.
 func GELUTanh(x float64) float64 {
-	return 0.5 * x * (1 + math.Tanh(geluTanhSqrt2OverPi*(x+geluTanhCubic*x*x*x)))
+	return 0.5 * x * (1 + math.Tanh(geluTanhSqrt2OverPi*(x+GELUTanhCubicCoefficient*x*x*x)))
 }
 
-// GELUTanhPrime: derivative of GELUTanh. With u=sqrt(2/pi)*(x+c*x^3),
-// t=tanh(u), du/dx=sqrt(2/pi)*(1+3c*x^2): 0.5(1+t)+0.5*x*(1-t^2)*du/dx.
+// GELUTanhPrime: GELUTanh derivative.
 func GELUTanhPrime(x float64) float64 {
-	u := geluTanhSqrt2OverPi * (x + geluTanhCubic*x*x*x)
+	u := geluTanhSqrt2OverPi * (x + GELUTanhCubicCoefficient*x*x*x)
 	t := math.Tanh(u)
-	dudx := geluTanhSqrt2OverPi * (1 + 3*geluTanhCubic*x*x)
+	dudx := geluTanhSqrt2OverPi * (1 + 3*GELUTanhCubicCoefficient*x*x)
 	return 0.5*(1+t) + 0.5*x*(1-t*t)*dudx
 }
 

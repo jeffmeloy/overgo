@@ -49,7 +49,7 @@ const (
 	// alongside (native-dtype residency). Not a self-contained GGUF block type;
 	// this id is internal to the native-dtype matmul path. 1 byte/element.
 	F8E4M3 Type = 43
-	Count  Type = 44
+	Count       = F8E4M3 + 1
 )
 
 // Traits defines type's physical block layout

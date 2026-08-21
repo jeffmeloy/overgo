@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 )
 
@@ -263,6 +264,6 @@ func moeGELU(value float64) float64 {
 		return value
 	}
 	x := float64(float16Round(float32(value)))
-	result := float32(0.5 * x * (1 + math.Tanh(math.Sqrt(2/math.Pi)*x*(1+0.044715*x*x))))
+	result := float32(hostmath.GELUTanh(x))
 	return float64(float16Round(result))
 }

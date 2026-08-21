@@ -11,8 +11,8 @@ func Topological(outputs ...*Tensor) ([]*Tensor, error) {
 		return nil, errors.New("graph has no outputs")
 	}
 	const (
-		visiting = 1
-		visited  = 2
+		visiting = iota + 1
+		visited
 	)
 	state := make(map[*Tensor]uint8)
 	ids := make(map[uint64]*Tensor)

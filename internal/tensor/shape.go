@@ -20,7 +20,10 @@ func NewShape(dimensions ...uint64) (Shape, error) {
 	if len(dimensions) == 0 || len(dimensions) > MaxDimensions {
 		return Shape{}, fmt.Errorf("tensor rank must be in [1,%d]", MaxDimensions)
 	}
-	shape := Shape{Dims: [MaxDimensions]uint64{1, 1, 1, 1}, Rank: uint8(len(dimensions))}
+	shape := Shape{Rank: uint8(len(dimensions))}
+	for index := range shape.Dims {
+		shape.Dims[index] = 1
+	}
 	for index, dimension := range dimensions {
 		if dimension == 0 {
 			return Shape{}, fmt.Errorf("dimension %d is zero", index)

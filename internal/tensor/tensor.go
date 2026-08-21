@@ -293,20 +293,20 @@ type GatedLinearAttentionAttributes struct {
 type MoERouting uint32
 
 const (
-	MoERoutingSoftmax         MoERouting = 1
-	MoERoutingSigmoid         MoERouting = 2
-	MoERoutingSelectedSoftmax MoERouting = 3
-	MoERoutingSqrtSoftplus    MoERouting = 4
+	MoERoutingSoftmax MoERouting = iota + 1
+	MoERoutingSigmoid
+	MoERoutingSelectedSoftmax
+	MoERoutingSqrtSoftplus
 )
 
 type MoEActivation uint32
 
 const (
-	MoEActivationSiLU        MoEActivation = 1
-	MoEActivationReLU        MoEActivation = 2
-	MoEActivationGELU        MoEActivation = 3
-	MoEActivationSwiGLUOAI   MoEActivation = 4
-	MoEActivationReLUSquared MoEActivation = 5
+	MoEActivationSiLU MoEActivation = iota + 1
+	MoEActivationReLU
+	MoEActivationGELU
+	MoEActivationSwiGLUOAI
+	MoEActivationReLUSquared
 )
 
 type RepeatHeadsAttributes struct {

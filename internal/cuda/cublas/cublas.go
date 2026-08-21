@@ -19,13 +19,16 @@ type GemmAlgorithm int32
 type MathMode int32
 
 const (
-	OperationNone      Operation     = 0
-	OperationTranspose Operation     = 1
-	DataF32            DataType      = 0
-	DataBF16           DataType      = 14
-	ComputeF32         ComputeType   = 68
-	GemmDefault        GemmAlgorithm = -1
-	MathTF32TensorOp   MathMode      = 3
+	OperationNone Operation = iota
+	OperationTranspose
+)
+
+const (
+	DataF32          DataType      = 0
+	DataBF16         DataType      = 14
+	ComputeF32       ComputeType   = 68
+	GemmDefault      GemmAlgorithm = -1
+	MathTF32TensorOp MathMode      = 3
 )
 
 // RowMajorGEMMF32: row-major C[m,n] = A[m,k]*B[k,n].

@@ -415,13 +415,17 @@ func launchAttentionLayout(
 		causal := kernelBool(attributes.Causal)
 		queryStart := attributes.QueryStart
 		window := attributes.Window
-		var symmetricWindow uint32
+		type windowMode uint32
+		const (
+			windowModeNone windowMode = iota
+			windowModeSymmetric
+			windowModeChunked
+		)
+		symmetricWindow := uint32(windowModeNone)
 		if attributes.SymmetricWindow {
-			const symmetricWindowABI = 1
-			symmetricWindow = symmetricWindowABI
+			symmetricWindow = uint32(windowModeSymmetric)
 		} else if attributes.ChunkedWindow {
-			const chunkedWindowABI = 2
-			symmetricWindow = chunkedWindowABI
+			symmetricWindow = uint32(windowModeChunked)
 		}
 		const (
 			attentionDecodeThreads       = uint32(256)

@@ -6,6 +6,7 @@ import (
 	"math"
 	"slices"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -210,8 +211,6 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpGELU:
 		output := make([]float32, len(inputs[0].Data))
-		const coefficient = 0.044715
-		factor := math.Sqrt(2 / math.Pi)
 		for i, value := range inputs[0].Data {
 			if value <= -10 {
 				output[i] = 0
@@ -222,7 +221,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 				continue
 			}
 			x := float64(float16Round(value))
-			gelu := float32(0.5 * x * (1 + math.Tanh(factor*x*(1+coefficient*x*x))))
+			gelu := float32(hostmath.GELUTanh(x))
 			output[i] = float16Round(gelu)
 		}
 		return Value{Shape: node.Shape, Data: output}, nil

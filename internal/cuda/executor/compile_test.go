@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -42,7 +43,7 @@ func TestCompilePinsTopologyAndMemoryPlan(t *testing.T) {
 func TestCompiledRetainedTargetsUseOutputSlots(t *testing.T) {
 	const (
 		fixtureWidth   = 4
-		fixturePointer = graphArenaAlignment
+		fixturePointer = driver.DevicePtr(deviceAllocationAlignment)
 	)
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, tensor.MustShape(fixtureWidth))
@@ -170,10 +171,10 @@ func TestDeviceBufferBucket(t *testing.T) {
 		size uint64
 		want uint64
 	}{
-		{1, minimumDeviceBufferBytes},
-		{minimumDeviceBufferBytes, minimumDeviceBufferBytes},
-		{minimumDeviceBufferBytes + 1, minimumDeviceBufferBytes * 2},
-		{minimumDeviceBufferBytes * 4, minimumDeviceBufferBytes * 4},
+		{1, deviceAllocationAlignment},
+		{deviceAllocationAlignment, deviceAllocationAlignment},
+		{deviceAllocationAlignment + 1, deviceAllocationAlignment * 2},
+		{deviceAllocationAlignment * 4, deviceAllocationAlignment * 4},
 	} {
 		got, err := deviceBufferBucket(fixture.size)
 		if err != nil || got != fixture.want {
@@ -205,7 +206,7 @@ func TestRetainedOutputLayoutUsesOneAlignedSpan(t *testing.T) {
 	}
 	firstOffset := offsets[compiled.orderIndexes[first]]
 	secondOffset := offsets[compiled.orderIndexes[second]]
-	if firstOffset%graphArenaAlignment != 0 || secondOffset%graphArenaAlignment != 0 {
+	if firstOffset%deviceAllocationAlignment != 0 || secondOffset%deviceAllocationAlignment != 0 {
 		t.Fatalf("retained offsets are not aligned: %v", offsets)
 	}
 	if firstOffset == secondOffset || bytes <= secondOffset {

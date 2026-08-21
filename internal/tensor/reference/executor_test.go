@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -861,8 +862,7 @@ func TestExecuteGELUMoE(t *testing.T) {
 		t.Fatal(err)
 	}
 	gateDot := float16Round(1)
-	wantActivation := float16Round(float32(0.5*float64(gateDot)*
-		(1+math.Tanh(math.Sqrt(2/math.Pi)*float64(gateDot)*(1+0.044715*float64(gateDot*gateDot)))))) * 2
+	wantActivation := float16Round(float32(hostmath.GELUTanh(float64(gateDot)))) * 2
 	want := []float32{3 * wantActivation, 4 * wantActivation}
 	for index, got := range results[output].Data {
 		if math.Abs(float64(got-want[index])) > 1e-6 {

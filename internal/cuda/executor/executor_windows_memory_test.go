@@ -47,11 +47,11 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if during.CurrentBytes-before.CurrentBytes != minimumDeviceBufferBytes {
+	if during.CurrentBytes-before.CurrentBytes != deviceAllocationAlignment {
 		t.Fatalf(
 			"retained pool bytes = %d, want %d",
 			during.CurrentBytes-before.CurrentBytes,
-			minimumDeviceBufferBytes,
+			deviceAllocationAlignment,
 		)
 	}
 	got, err := retained.CopyToHost(context.Background(), output)

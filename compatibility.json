@@ -252,7 +252,7 @@
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:4756e335ae8787079e45888b91d12637e53d1e6f43d66789dbefcc97eeee7053"
+     "identity": "evidence:sha256:956edd8d74bd9dd09878c161c1636c2c913ae331cd4db73471fd51289a4a2fff"
     }
    ],
    "id": "bounded-server-media",
@@ -590,7 +590,7 @@
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1ccb2d38c6fbb928a1bbd5b2826903a176c25b7c3625091e74ace908f7cd3e58"
+     "identity": "evidence:sha256:f6b94fb2d3141ab2d671ac275a1e549a3ac824f454cee2a62494ebebe19271b4"
     }
    ],
    "id": "ordered-multi-image",
@@ -716,7 +716,7 @@
      "contains": "func TestChatAndResponsesEncodedVideoProjection(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1ccb2d38c6fbb928a1bbd5b2826903a176c25b7c3625091e74ace908f7cd3e58"
+     "identity": "evidence:sha256:f6b94fb2d3141ab2d671ac275a1e549a3ac824f454cee2a62494ebebe19271b4"
     }
    ],
    "id": "server-encoded-video",
@@ -758,7 +758,7 @@
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:7815c9389d2ccb837830a429eb75977d70d0d6a488511225ae0dd08dcbb837b7"
+     "identity": "file:sha256:499cff53718366686327c3a834c89d301cfa927d8b9e72ff2a8d35e140b9846d"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -785,7 +785,7 @@
      "contains": "func TestStreamingResponsesFunctionCallLifecycle(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1ccb2d38c6fbb928a1bbd5b2826903a176c25b7c3625091e74ace908f7cd3e58"
+     "identity": "evidence:sha256:f6b94fb2d3141ab2d671ac275a1e549a3ac824f454cee2a62494ebebe19271b4"
     }
    ],
    "id": "incremental-tool-streaming",
@@ -806,7 +806,7 @@
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1ccb2d38c6fbb928a1bbd5b2826903a176c25b7c3625091e74ace908f7cd3e58"
+     "identity": "evidence:sha256:f6b94fb2d3141ab2d671ac275a1e549a3ac824f454cee2a62494ebebe19271b4"
     }
    ],
    "id": "multimodal-function-tools",
@@ -827,7 +827,7 @@
      "contains": "func TestAnthropicImageToolsAndTokenCounting(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1ccb2d38c6fbb928a1bbd5b2826903a176c25b7c3625091e74ace908f7cd3e58"
+     "identity": "evidence:sha256:f6b94fb2d3141ab2d671ac275a1e549a3ac824f454cee2a62494ebebe19271b4"
     }
    ],
    "id": "anthropic-image-input",
@@ -848,7 +848,7 @@
      "contains": "func TestAnthropicThinkingBufferedStreamingImageAndReplay(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1ccb2d38c6fbb928a1bbd5b2826903a176c25b7c3625091e74ace908f7cd3e58"
+     "identity": "evidence:sha256:f6b94fb2d3141ab2d671ac275a1e549a3ac824f454cee2a62494ebebe19271b4"
     }
    ],
    "id": "anthropic-local-thinking",
@@ -890,7 +890,7 @@
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1ccb2d38c6fbb928a1bbd5b2826903a176c25b7c3625091e74ace908f7cd3e58"
+     "identity": "evidence:sha256:f6b94fb2d3141ab2d671ac275a1e549a3ac824f454cee2a62494ebebe19271b4"
     }
    ],
    "id": "responses-reasoning",

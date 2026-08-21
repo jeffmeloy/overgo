@@ -1429,18 +1429,23 @@ func TestNativeCompletionHonorsRequestedSlot(t *testing.T) {
 	if !ok || session.ID != 1 {
 		t.Fatalf("could not reserve slot 1: %v/%v", session, ok)
 	}
-	defer handler.releaseSession(session)
-	busy := httptest.NewRecorder()
-	handler.ServeHTTP(
-		busy,
-		httptest.NewRequest(
-			http.MethodPost,
-			"/completion",
-			strings.NewReader(`{"prompt":"hi","n_predict":1,"id_slot":1}`),
-		),
-	)
-	if busy.Code != http.StatusTooManyRequests {
-		t.Fatalf("busy requested slot status = %d body=%s", busy.Code, busy.Body.String())
+	resumed := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(
+			response,
+			httptest.NewRequest(
+				http.MethodPost,
+				"/completion",
+				strings.NewReader(`{"prompt":"hi","n_predict":1,"id_slot":1}`),
+			),
+		)
+		resumed <- response
+	}()
+	waitForServerSessionWaiter(t, handler)
+	handler.releaseSession(session)
+	if response := <-resumed; response.Code != http.StatusOK {
+		t.Fatalf("resumed requested slot status = %d body=%s", response.Code, response.Body.String())
 	}
 }
 

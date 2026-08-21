@@ -81,7 +81,7 @@ func (h *Handler) prepareProtocolBatchGenerationPlan(
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
-	lease, acquired := h.acquireRequestSession(response, -1)
+	lease, acquired := h.acquireRequestSession(request.Context(), response, -1)
 	if !acquired {
 		return nil, false
 	}
@@ -152,7 +152,7 @@ func (h *Handler) prepareProtocolGenerationPlan(
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
-	lease, acquired := h.acquireRequestSession(response, -1)
+	lease, acquired := h.acquireRequestSession(request.Context(), response, -1)
 	if !acquired {
 		return nil, false
 	}

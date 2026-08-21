@@ -3,26 +3,6 @@
   "doctrine": "Reimplement the selected coordination patterns in Overgo's existing ownership boundaries. RepoDB identities, immutable facts, compare-and-set aliases, and recorded locations remain authoritative. Shared mechanisms must serve more than one workflow, typed policy replaces scattered literals, and tests must cover cancellation, conflict, replay, partial I/O, and missing-locality boundaries without assuming tensor shape, dataset distribution, model family, backend topology, or worker population.",
   "items": [
     {
-      "id": "bounded-admission",
-      "title": "Park requests behind bounded model-session admission",
-      "status": "open",
-      "steps": [
-        {
-          "id": "request-parking",
-          "title": "Add context-aware bounded parking to the shared session director and use it for serving requests",
-          "status": "open",
-          "verify": "go test ./internal/capabilityruntime ./internal/server -run '^(TestBoundedSessionAdmission|TestServerParksBoundedGenerationRequests)$' -count=1",
-          "rationale": "Transient model saturation should apply bounded backpressure and honor cancellation instead of immediately rejecting every request, while overload remains finite and observable.",
-          "capabilities": [
-            "bounded waiters",
-            "context cancellation",
-            "slot-specific admission",
-            "shutdown wakeup"
-          ]
-        }
-      ]
-    },
-    {
       "id": "streaming-storage",
       "title": "Add streaming content-addressed object storage",
       "status": "open",

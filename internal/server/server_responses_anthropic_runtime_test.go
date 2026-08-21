@@ -1630,7 +1630,7 @@ func TestRejectsInvalidRequest(t *testing.T) {
 	}
 }
 
-func TestAdmissionControl(t *testing.T) {
+func TestServerParksBoundedGenerationRequests(t *testing.T) {
 	blocking := &fakeGenerator{started: make(chan struct{}), release: make(chan struct{})}
 	handler := newTestHandler(t, blocking)
 	firstDone := make(chan struct{})
@@ -1649,13 +1649,18 @@ func TestAdmissionControl(t *testing.T) {
 		"/v1/completions",
 		strings.NewReader(`{"prompt":"second","max_tokens":1}`),
 	)
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusTooManyRequests {
-		t.Fatalf("status = %d, want 429", response.Code)
-	}
+	secondDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		secondDone <- response
+	}()
+	waitForServerSessionWaiter(t, handler)
 	close(blocking.release)
 	<-firstDone
+	if response := <-secondDone; response.Code != http.StatusOK {
+		t.Fatalf("parked status = %d body=%s", response.Code, response.Body.String())
+	}
 }
 
 func TestCancellationPropagates(t *testing.T) {

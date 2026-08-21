@@ -521,21 +521,29 @@ func (h *Handler) acquireSession(requested int) (*requestSession, bool) {
 	if !ok {
 		return nil, false
 	}
+	h.activateSession(lease)
+	return lease, true
+}
+
+func (h *Handler) activateSession(lease *requestSession) {
 	id := lease.ID
 	h.slotTasks[id].Store(h.nextTask.Add(1))
 	h.slotStats[id].reset(time.Now())
 	h.slotBusy[id].Store(true)
-	return lease, true
 }
 
-func (h *Handler) acquireRequestSession(response http.ResponseWriter, requested int) (*requestSession, bool) {
-	lease, acquired := h.acquireSession(requested)
-	if acquired {
-		return lease, true
+func (h *Handler) acquireRequestSession(ctx context.Context, response http.ResponseWriter, requested int) (*requestSession, bool) {
+	lease, err := h.sessions.Lease(ctx, requested)
+	if err != nil {
+		if errors.Is(err, capabilityruntime.ErrAdmissionQueueFull) || errors.Is(err, capabilityruntime.ErrSessionUnavailable) {
+			writeError(response, http.StatusTooManyRequests, "server_busy", err.Error())
+		} else {
+			writeGenerationError(response, err)
+		}
+		return nil, false
 	}
-	response.Header().Set("Retry-After", "1")
-	writeError(response, http.StatusTooManyRequests, "server_busy", "generation capacity is busy")
-	return nil, false
+	h.activateSession(lease)
+	return lease, true
 }
 
 func (h *Handler) releaseSession(lease *requestSession) {

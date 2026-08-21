@@ -108,7 +108,7 @@ func (h *Handler) rerank(response http.ResponseWriter, request *http.Request) {
 		}
 		topN = min(*body.TopN, len(documents))
 	}
-	session, acquired := h.acquireRequestSession(response, -1)
+	session, acquired := h.acquireRequestSession(request.Context(), response, -1)
 	if !acquired {
 		return
 	}
@@ -190,7 +190,7 @@ func (h *Handler) embeddings(response http.ResponseWriter, request *http.Request
 		)
 		return
 	}
-	session, acquired := h.acquireRequestSession(response, -1)
+	session, acquired := h.acquireRequestSession(request.Context(), response, -1)
 	if !acquired {
 		return
 	}
@@ -287,7 +287,7 @@ func (h *Handler) nativeEmbeddings(response http.ResponseWriter, request *http.R
 		)
 		return
 	}
-	session, acquired := h.acquireRequestSession(response, -1)
+	session, acquired := h.acquireRequestSession(request.Context(), response, -1)
 	if !acquired {
 		return
 	}

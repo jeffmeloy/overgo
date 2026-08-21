@@ -13,6 +13,11 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
+var (
+	ErrAdmissionQueueFull = errors.New("capability runtime: admission queue is full")
+	ErrSessionUnavailable = errors.New("capability runtime: model session is unavailable")
+)
+
 type sessionKey struct {
 	model, recipe, resources artifact.ID
 	device, policy           string
@@ -53,6 +58,7 @@ type ModelSessionDirector[Input, Model, Output any] struct {
 	residentSet   bool
 	residentUsers int
 	residentClose bool
+	waiters       int
 }
 
 // SessionLease: admitted use of one resident model session.
@@ -70,6 +76,7 @@ type SessionSnapshot struct {
 	Device    string `json:"device"`
 	Capacity  int    `json:"capacity"`
 	Active    int    `json:"active"`
+	Waiting   int    `json:"waiting"`
 	Available int    `json:"available"`
 	Closed    bool   `json:"closed"`
 }
@@ -157,6 +164,57 @@ func (c *ModelSessionDirector[Input, Model, Output]) TryLease(requested int) (*S
 	return lease, true
 }
 
+// Lease parks behind resident capacity while the request context remains
+// live. At most one waiter per configured slot is admitted to the parking
+// set; additional callers fail without joining an unbounded queue.
+func (c *ModelSessionDirector[Input, Model, Output]) Lease(ctx context.Context, requested int) (*SessionLease[Model], error) {
+	if c == nil || c.admissions == nil || ctx == nil {
+		return nil, ErrSessionUnavailable
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if requested >= c.capacity {
+		return nil, ErrSessionUnavailable
+	}
+	if lease, ok := c.TryLease(requested); ok {
+		return lease, nil
+	}
+	c.mu.Lock()
+	if c.closed || !c.residentSet {
+		c.mu.Unlock()
+		return nil, ErrSessionUnavailable
+	}
+	if c.waiters >= c.capacity {
+		c.mu.Unlock()
+		return nil, ErrAdmissionQueueFull
+	}
+	c.waiters++
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.waiters--
+		c.mu.Unlock()
+	}()
+	for {
+		c.mu.Lock()
+		if c.closed || !c.residentSet {
+			c.mu.Unlock()
+			return nil, ErrSessionUnavailable
+		}
+		changed := c.changed
+		c.mu.Unlock()
+		if lease, ok := c.TryLease(requested); ok {
+			return lease, nil
+		}
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
 func (c *ModelSessionDirector[Input, Model, Output]) Available() int {
 	if c == nil || c.admissions == nil {
 		return 0
@@ -176,7 +234,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) Snapshot() SessionSnapshot 
 	}
 	return SessionSnapshot{
 		Name: c.name, Device: c.device, Capacity: c.capacity,
-		Active: c.residentUsers, Available: available, Closed: c.closed,
+		Active: c.residentUsers, Waiting: c.waiters, Available: available, Closed: c.closed,
 	}
 }
 
@@ -482,6 +540,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) Close(ctx context.Context) 
 		return nil
 	}
 	c.closed = true
+	c.notify()
 	for c.residentUsers > 0 {
 		changed := c.changed
 		c.mu.Unlock()

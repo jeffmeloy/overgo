@@ -395,7 +395,7 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		writeInvalidRequest(response, err)
 		return
 	}
-	session, acquired := h.acquireRequestSession(response, requestedSlot)
+	session, acquired := h.acquireRequestSession(request.Context(), response, requestedSlot)
 	if !acquired {
 		return
 	}

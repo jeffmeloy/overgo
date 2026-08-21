@@ -65,7 +65,7 @@ func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 		t.Fatal("case, dataset, or split authority did not change identity")
 	}
 
-	content, err := plan.content()
+	content, err := plan.Content()
 	if err != nil {
 		t.Fatal(err)
 	}

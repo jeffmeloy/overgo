@@ -59,7 +59,7 @@ func publishPlanAuthorities(
 	plan Plan,
 	contents []artifact.Content,
 ) error {
-	planContent, err := plan.content()
+	planContent, err := plan.Content()
 	if err != nil {
 		return err
 	}

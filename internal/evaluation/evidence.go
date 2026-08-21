@@ -17,6 +17,11 @@ const (
 	evaluationEvidenceSchema = "overgo/evaluation-evidence/v1"
 )
 
+const (
+	EvaluationEvidenceMediaType = evaluationEvidenceMedia
+	EvaluationEvidenceSchema    = evaluationEvidenceSchema
+)
+
 type EvaluationEvidence struct {
 	ID              artifact.ID             `json:"-"`
 	Version         uint16                  `json:"version"`
@@ -57,6 +62,21 @@ func LoadEvaluationEvidence(
 		return EvaluationEvidence{}, false, err
 	}
 	return value, true, nil
+}
+
+// Content returns the native RepoDB evidence document.
+func (value EvaluationEvidence) Content() (artifact.Content, error) {
+	return evaluationEvidenceCodec.Content(value)
+}
+
+// Lineage returns every immutable authority required to admit the evidence.
+func (value EvaluationEvidence) Lineage() []artifact.Lineage {
+	parents := []artifact.ID{
+		value.Plan, value.Acceptance, value.Evaluator, value.Report, value.Run, value.Evaluation,
+		value.ModelDefinition, value.Recipe, value.Dataset, value.Split, value.Environment,
+	}
+	parents = append(parents, value.Shards...)
+	return artifact.DependencyLineage(value.ID, uniqueArtifactIDs(parents)...)
 }
 
 func ValidateEvaluationEvidence(ctx context.Context, reader artifact.Reader, value EvaluationEvidence) error {
@@ -155,18 +175,13 @@ func PublishEvaluationEvidence(
 	if err != nil {
 		return EvaluationEvidence{}, err
 	}
-	evidenceContent, err := evaluationEvidenceCodec.Content(evidence)
+	evidenceContent, err := evidence.Content()
 	if err != nil {
 		return EvaluationEvidence{}, err
 	}
-	parents := []artifact.ID{
-		evidence.Plan, evidence.Acceptance, evidence.Evaluator, evidence.Report, evidence.Run, evidence.Evaluation,
-		evidence.ModelDefinition, evidence.Recipe, evidence.Dataset, evidence.Split, evidence.Environment,
-	}
-	parents = append(parents, evidence.Shards...)
 	batch, err := artifact.NewDocumentBatch(
 		"evaluation/evidence/"+evidence.ID.String(), []artifact.Content{policyContent, evaluatorContent, evidenceContent},
-		artifact.DependencyLineage(evidence.ID, uniqueArtifactIDs(parents)...), nil,
+		evidence.Lineage(), nil,
 	)
 	if err != nil {
 		return EvaluationEvidence{}, err

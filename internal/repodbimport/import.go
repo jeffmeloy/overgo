@@ -18,6 +18,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/dataset"
+	"overgo/internal/evaluation"
 	"overgo/internal/finding"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
@@ -234,6 +235,11 @@ func importRecords(
 			names[node.record.Name] = id
 			if content != nil {
 				batch.Contents = append(batch.Contents, *content)
+				lineage, lineageErr := nativeDocumentLineage(*content)
+				if lineageErr != nil {
+					return Result{}, lineageErr
+				}
+				batch.Lineage = append(batch.Lineage, lineage...)
 			} else {
 				batch.Manifests = append(batch.Manifests, *manifest)
 				batch.Lineage = append(batch.Lineage, manifest.Lineage()...)
@@ -453,6 +459,18 @@ func canonicalizeKnownDocument(mediaType, schema string, data []byte) ([]byte, s
 			break
 		}
 		_, canonical, err = runrecord.NormalizeEvaluation(data)
+	case evaluation.EvaluationPlanMediaType:
+		requireSchema(evaluation.EvaluationPlanSchema)
+		if err != nil {
+			break
+		}
+		_, canonical, err = evaluation.NormalizeEvaluationPlan(data)
+	case evaluation.EvaluationEvidenceMediaType:
+		requireSchema(evaluation.EvaluationEvidenceSchema)
+		if err != nil {
+			break
+		}
+		_, canonical, err = evaluation.NormalizeEvaluationEvidence(data)
 	case runrecord.EnvironmentMediaType:
 		requireSchema(runrecord.EnvironmentSchema)
 		if err != nil {
@@ -488,6 +506,28 @@ func canonicalizeKnownDocument(mediaType, schema string, data []byte) ([]byte, s
 		return nil, "", fmt.Errorf("repodb import: invalid %q document: %w", mediaType, err)
 	}
 	return canonical, resolvedSchema, nil
+}
+
+// nativeDocumentLineage maps imported execution documents into RepoDB's
+// authority graph. External lineage may add provenance but cannot replace the
+// relationships derived by the native codecs.
+func nativeDocumentLineage(content artifact.Content) ([]artifact.Lineage, error) {
+	switch content.Descriptor.MediaType {
+	case runrecord.RunMediaType:
+		value, err := runrecord.ParseRun(content.Data)
+		return value.Lineage(), err
+	case runrecord.EvaluationMediaType:
+		value, err := runrecord.ParseEvaluation(content.Data)
+		return value.Lineage(), err
+	case evaluation.EvaluationPlanMediaType:
+		value, _, err := evaluation.NormalizeEvaluationPlan(content.Data)
+		return value.Lineage(), err
+	case evaluation.EvaluationEvidenceMediaType:
+		value, _, err := evaluation.NormalizeEvaluationEvidence(content.Data)
+		return value.Lineage(), err
+	default:
+		return nil, nil
+	}
 }
 
 func upgradeLegacyProfile(data []byte) ([]byte, error) {

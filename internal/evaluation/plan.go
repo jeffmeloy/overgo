@@ -23,6 +23,11 @@ const (
 	executionSchema         = "overgo/evaluation-execution/v1"
 )
 
+const (
+	EvaluationPlanMediaType = evaluationPlanMediaType
+	EvaluationPlanSchema    = evaluationPlanSchema
+)
+
 var (
 	evaluationPlanContract = artifact.DocumentContract{
 		Kind: artifact.KindProfile, MediaType: evaluationPlanMediaType, Schema: evaluationPlanSchema,
@@ -181,7 +186,8 @@ func (p Plan) Lineage() []artifact.Lineage {
 	)
 }
 
-func (p Plan) content() (artifact.Content, error) {
+// Content returns the native RepoDB document for external adapter publication.
+func (p Plan) Content() (artifact.Content, error) {
 	if err := p.ValidateIdentity(); err != nil {
 		return artifact.Content{}, err
 	}

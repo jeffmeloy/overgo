@@ -59,14 +59,6 @@ func NewProbeObserver(store artifact.Repository, host bool) (*ProbeObserver, err
 	return observer, nil
 }
 
-// SessionSnapshot returns the training admission and component lifecycle state.
-func (o *ProbeObserver) SessionSnapshot() capabilityruntime.SessionSnapshot {
-	if o == nil || o.director == nil {
-		return capabilityruntime.SessionSnapshot{}
-	}
-	return o.director.Snapshot()
-}
-
 // Admit leases the exclusive training component session -- admission before
 // residency: a refused lease means the run never loads weights.
 func (o *ProbeObserver) Admit(ctx context.Context, model, recipeID artifact.ID) error {

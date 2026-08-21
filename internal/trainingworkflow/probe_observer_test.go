@@ -17,14 +17,14 @@ func TestProbeObserverExposesSessionLifecycle(t *testing.T) {
 	if err := observer.Admit(t.Context(), model, recipeID); err != nil {
 		t.Fatal(err)
 	}
-	snapshot := observer.SessionSnapshot()
+	snapshot := observer.director.Snapshot()
 	if snapshot.Name != "training" || snapshot.Active != 1 || snapshot.Entries != 1 || snapshot.Loads != 1 {
 		t.Fatalf("admitted training session = %+v", snapshot)
 	}
 	if err := observer.lease.Release(); err != nil {
 		t.Fatal(err)
 	}
-	snapshot = observer.SessionSnapshot()
+	snapshot = observer.director.Snapshot()
 	if snapshot.Active != 0 || snapshot.Entries != 0 || snapshot.Retirements != 1 {
 		t.Fatalf("released training session = %+v", snapshot)
 	}

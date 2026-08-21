@@ -76,10 +76,19 @@ func (v Value) materialized() (Value, error) {
 
 // Execute: evaluates outputs using feeds for input nodes
 func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*tensor.Tensor]Value, error) {
-	order, err := tensor.Topological(outputs...)
+	program, err := tensor.CompileProgram(outputs...)
 	if err != nil {
 		return nil, err
 	}
+	return ExecuteProgram(program, feeds)
+}
+
+// ExecuteProgram evaluates one validated neutral tensor program.
+func ExecuteProgram(program tensor.Program, feeds map[*tensor.Tensor]Value) (map[*tensor.Tensor]Value, error) {
+	if err := program.RequireBackend(tensor.BackendReference); err != nil {
+		return nil, err
+	}
+	order := program.Order()
 	values := make(map[*tensor.Tensor]Value, len(order))
 	for _, node := range order {
 		if node.Type != dtype.F32 {
@@ -99,11 +108,11 @@ func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*ten
 			if !value.Shape.Equal(node.Shape) {
 				return nil, fmt.Errorf("feed shape for %q does not match graph", node.Name)
 			}
-			value, err = value.materialized()
+			materialized, err := value.materialized()
 			if err != nil {
 				return nil, fmt.Errorf("feed storage for %q: %w", node.Name, err)
 			}
-			values[node] = value
+			values[node] = materialized
 			continue
 		}
 		inputs := make([]Value, len(node.Inputs))
@@ -120,6 +129,7 @@ func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*ten
 		}
 		values[node] = value
 	}
+	outputs := program.Outputs()
 	results := make(map[*tensor.Tensor]Value, len(outputs))
 	for _, output := range outputs {
 		results[output] = values[output]

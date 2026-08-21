@@ -1130,19 +1130,38 @@ func retainedOutputLayout(
 
 // Compile: validates and plans an immutable tensor graph.
 func Compile(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
-	return compileGraph(false, outputs...)
+	program, err := tensor.CompileProgram(outputs...)
+	if err != nil {
+		return nil, err
+	}
+	return CompileProgram(program)
 }
 
 // CompileExternal plans outputs in caller-owned device buffers.
 func CompileExternal(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
-	return compileGraph(true, outputs...)
-}
-
-func compileGraph(externalOutputs bool, outputs ...*tensor.Tensor) (*CompiledGraph, error) {
-	order, err := tensor.Topological(outputs...)
+	program, err := tensor.CompileProgram(outputs...)
 	if err != nil {
 		return nil, err
 	}
+	return CompileExternalProgram(program)
+}
+
+// CompileProgram plans one validated neutral tensor program for CUDA.
+func CompileProgram(program tensor.Program) (*CompiledGraph, error) {
+	return compileGraph(false, program)
+}
+
+// CompileExternalProgram plans a neutral program with caller-owned outputs.
+func CompileExternalProgram(program tensor.Program) (*CompiledGraph, error) {
+	return compileGraph(true, program)
+}
+
+func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph, error) {
+	if err := program.RequireBackend(tensor.BackendCUDA); err != nil {
+		return nil, err
+	}
+	outputs := program.Outputs()
+	order := program.Order()
 	compiled := &CompiledGraph{
 		outputs:         slices.Clone(outputs),
 		outputIndexes:   make(map[*tensor.Tensor]int, len(outputs)),
@@ -1380,7 +1399,20 @@ func (e *Executor) Execute(
 	outputs []*tensor.Tensor,
 	feeds map[*tensor.Tensor]reference.Value,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	compiled, err := Compile(outputs...)
+	program, err := tensor.CompileProgram(outputs...)
+	if err != nil {
+		return nil, err
+	}
+	return e.ExecuteProgram(ctx, program, feeds)
+}
+
+// ExecuteProgram evaluates one validated neutral tensor program on CUDA.
+func (e *Executor) ExecuteProgram(
+	ctx context.Context,
+	program tensor.Program,
+	feeds map[*tensor.Tensor]reference.Value,
+) (map[*tensor.Tensor]reference.Value, error) {
+	compiled, err := CompileProgram(program)
 	if err != nil {
 		return nil, err
 	}

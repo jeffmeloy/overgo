@@ -7,6 +7,14 @@ import (
 
 // Topological: returns all nodes needed by outputs in dependency order
 func Topological(outputs ...*Tensor) ([]*Tensor, error) {
+	program, err := CompileProgram(outputs...)
+	if err != nil {
+		return nil, err
+	}
+	return program.Order(), nil
+}
+
+func topological(outputs ...*Tensor) ([]*Tensor, error) {
 	if len(outputs) == 0 {
 		return nil, errors.New("graph has no outputs")
 	}

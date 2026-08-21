@@ -33,6 +33,7 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer store.Close()
+		publishPlanFixtureAuthorities(t, store, plan)
 		generator := &countingExactGenerator{}
 		first, err := EvaluateExactSharded(ctx, store, generator, exact, plan, nil)
 		if err != nil {
@@ -46,6 +47,7 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 			t.Fatalf("resume report/calls = %s/%s/%d", first, second, generator.calls)
 		}
 		otherExact, otherPlan := ledgerFixture(t, "other-environment")
+		publishPlanFixtureAuthorities(t, store, otherPlan)
 		if _, err := EvaluateExactSharded(ctx, store, generator, otherExact, otherPlan, nil); err != nil {
 			t.Fatal(err)
 		}

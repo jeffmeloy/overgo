@@ -39,6 +39,17 @@
       "type": "file"
     },
     {
+      "bom-ref": "file:internal/cuda/kernel/torch_cuda_randn.ptx",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
+        }
+      ],
+      "name": "internal/cuda/kernel/torch_cuda_randn.ptx",
+      "type": "file"
+    },
+    {
       "bom-ref": "file:internal/cuda/kernel/vector_add.ptx",
       "hashes": [
         {
@@ -97,6 +108,17 @@
       "type": "file"
     },
     {
+      "bom-ref": "file:kernels/cuda/torch_cuda_randn.cu",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "adc4e83fe8cccd5290c84dd74fcaedc274df28c2f1bf795221391e7274d739d6"
+        }
+      ],
+      "name": "kernels/cuda/torch_cuda_randn.cu",
+      "type": "file"
+    },
+    {
       "bom-ref": "file:kernels/cuda/vector_add.cu",
       "hashes": [
         {
@@ -117,20 +139,6 @@
       ],
       "name": "kernels/manifest.json",
       "type": "file"
-    },
-    {
-      "bom-ref": "pkg:github/ggml-org/llama.cpp@42fc243060709331ff9b158a9ed2cbe37219ae83",
-      "licenses": [
-        {
-          "license": {
-            "name": "MIT"
-          }
-        }
-      ],
-      "name": "llama.cpp compatibility baseline",
-      "purl": "pkg:github/ggml-org/llama.cpp@42fc243060709331ff9b158a9ed2cbe37219ae83",
-      "type": "library",
-      "version": "42fc243060709331ff9b158a9ed2cbe37219ae83"
     },
     {
       "bom-ref": "pkg:golang/github.com/dlclark/regexp2/v2@v2.5.2",
@@ -167,13 +175,14 @@
         "component:nvidia-cuda-driver-api",
         "component:nvidia-cuda-toolkit",
         "file:internal/cuda/kernel/ops_f32.ptx",
+        "file:internal/cuda/kernel/torch_cuda_randn.ptx",
         "file:internal/cuda/kernel/vector_add.ptx",
         "file:internal/quant/iq_tables_generated.go",
         "file:kernels/cuda/iq_tables_generated.cuh",
         "file:kernels/cuda/ops_f32.cu",
+        "file:kernels/cuda/torch_cuda_randn.cu",
         "file:kernels/cuda/vector_add.cu",
         "file:kernels/manifest.json",
-        "pkg:github/ggml-org/llama.cpp@42fc243060709331ff9b158a9ed2cbe37219ae83",
         "pkg:golang/github.com/dlclark/regexp2/v2@v2.5.2",
         "pkg:golang/stdlib@1.26"
       ],
@@ -196,10 +205,6 @@
       {
         "name": "overgo:cuda-target",
         "value": "compute_89"
-      },
-      {
-        "name": "overgo:upstream-commit",
-        "value": "42fc243060709331ff9b158a9ed2cbe37219ae83"
       }
     ],
     "tools": {

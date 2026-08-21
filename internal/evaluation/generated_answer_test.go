@@ -48,6 +48,7 @@ func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
+	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := EvaluateGeneratedAnswer(
 		context.Background(), store, exactGenerator{pieces: []string{" OK "}}, compiled, plan,
 	)

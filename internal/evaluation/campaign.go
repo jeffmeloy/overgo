@@ -62,6 +62,9 @@ func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (Ca
 	if campaign == nil || ctx == nil {
 		return CampaignResult{}, errors.New("evaluation: campaign is absent")
 	}
+	if err := campaign.publishEnvironment(ctx); err != nil {
+		return CampaignResult{}, err
+	}
 	started := time.Now()
 	result, evaluateErr := ExecuteSuite(ctx, campaign.repository, campaign.runtime, suite)
 	measured := uint64(max(time.Since(started).Nanoseconds(), 1))
@@ -76,6 +79,24 @@ func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (Ca
 		return CampaignResult{Run: run}, errors.Join(evaluateErr, publishErr)
 	}
 	return campaign.publishSuccess(ctx, suite, result, measured)
+}
+
+func (campaign *Campaign) publishEnvironment(ctx context.Context) error {
+	if _, found, err := campaign.repository.Artifact(ctx, campaign.environment.ID); err != nil || found {
+		return err
+	}
+	content, err := campaign.environment.Content()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch(
+		"evaluation/environment/"+campaign.environment.ID.String(), []artifact.Content{content}, nil, nil,
+	)
+	if err != nil {
+		return err
+	}
+	_, err = artifact.CommitBatch(ctx, campaign.repository, batch)
+	return err
 }
 
 func (campaign *Campaign) publishSuccess(

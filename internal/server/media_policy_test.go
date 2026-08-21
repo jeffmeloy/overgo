@@ -105,8 +105,13 @@ func TestRemoteMediaFetcherRejectsPrivateResolutionByDefault(t *testing.T) {
 	}
 }
 
-func TestRemoteMediaFetcherRejectsURLPolicyViolations(t *testing.T) {
+func TestBoundedBoundaryPolicyContract(t *testing.T) {
 	policy := testRemoteMediaPolicy(t, "https://media.example.com:443")
+	missingAllowlist := *policy
+	missingAllowlist.AllowedHosts = nil
+	if _, err := newRemoteMediaFetcher(&missingAllowlist); err == nil {
+		t.Fatal("enabled remote policy without an explicit host allowlist was accepted")
+	}
 	fetcher, err := newRemoteMediaFetcher(policy)
 	if err != nil {
 		t.Fatal(err)

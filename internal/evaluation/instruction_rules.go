@@ -156,14 +156,11 @@ func CompileInstructionRules(suite InstructionRulesSuite) (InstructionRulesPlan,
 }
 
 func BindInstructionRules(compiled InstructionRulesPlan, authorities ExactAuthorities) (Plan, error) {
-	scorer, err := artifact.JSONID(artifact.KindProfile, struct {
+	scorer := struct {
 		Version uint16 `json:"version"`
 		Kind    string `json:"kind"`
-	}{Version: artifact.InitialDocumentVersion, Kind: InstructionRulesKind})
-	if err != nil {
-		return Plan{}, err
-	}
-	return bindPlan(compiled.dataset, compiled.split, compiled.identity, scorer, authorities)
+	}{Version: artifact.InitialDocumentVersion, Kind: InstructionRulesKind}
+	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
 }
 
 func EvaluateInstructionRules(

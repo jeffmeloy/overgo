@@ -54,6 +54,30 @@ func TestSBOMOmitUndeclaredLicenses(t *testing.T) {
 	}
 }
 
+func TestSBOMOmitReferenceOnlyComponents(t *testing.T) {
+	generated, err := generate("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, reference := range [][]byte{
+		[]byte("llama.cpp compatibility baseline"),
+		[]byte("pkg:github/ggml-org/llama.cpp"),
+		[]byte("overgo:upstream-commit"),
+	} {
+		if bytes.Contains(generated, reference) {
+			t.Fatalf("SBOM contains reference-only component %q", reference)
+		}
+	}
+	for _, used := range [][]byte{
+		[]byte("internal/cuda/kernel/torch_cuda_randn.ptx"),
+		[]byte("kernels/cuda/torch_cuda_randn.cu"),
+	} {
+		if !bytes.Contains(generated, used) {
+			t.Fatalf("SBOM omits used kernel component %q", used)
+		}
+	}
+}
+
 func TestReleaseIntegrityContract(t *testing.T) {
 	generated, err := generate("../..")
 	if err != nil {

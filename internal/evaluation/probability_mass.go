@@ -117,15 +117,12 @@ func CompileProbabilityMass(suite ProbabilityMassSuite) (ProbabilityMassPlan, er
 }
 
 func BindProbabilityMass(compiled ProbabilityMassPlan, authorities ExactAuthorities) (Plan, error) {
-	scorer, err := artifact.JSONID(artifact.KindProfile, struct {
+	scorer := struct {
 		Version       uint16                      `json:"version"`
 		Kind          string                      `json:"kind"`
 		Normalization sequencescore.Normalization `json:"normalization"`
-	}{Version: artifact.InitialDocumentVersion, Kind: ProbabilityMassKind, Normalization: compiled.suite.Normalization})
-	if err != nil {
-		return Plan{}, err
-	}
-	return bindPlan(compiled.dataset, compiled.split, compiled.identity, scorer, authorities)
+	}{Version: artifact.InitialDocumentVersion, Kind: ProbabilityMassKind, Normalization: compiled.suite.Normalization}
+	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
 }
 
 func EvaluateProbabilityMass(

@@ -142,7 +142,7 @@ func validateMultipleChoiceCase(testCase MultipleChoiceCase) error {
 }
 
 func BindMultipleChoice(compiled MultipleChoicePlan, authorities ExactAuthorities) (Plan, error) {
-	scorer, err := artifact.JSONID(artifact.KindProfile, struct {
+	scorer := struct {
 		Version       uint16                      `json:"version"`
 		Kind          string                      `json:"kind"`
 		Normalization sequencescore.Normalization `json:"normalization"`
@@ -150,11 +150,8 @@ func BindMultipleChoice(compiled MultipleChoicePlan, authorities ExactAuthoritie
 	}{
 		Version: artifact.InitialDocumentVersion, Kind: MultipleChoiceKind,
 		Normalization: compiled.suite.Normalization, Aggregation: compiled.suite.Aggregation,
-	})
-	if err != nil {
-		return Plan{}, err
 	}
-	return bindPlan(compiled.dataset, compiled.split, compiled.identity, scorer, authorities)
+	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
 }
 
 func EvaluateMultipleChoice(

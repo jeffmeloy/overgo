@@ -3,6 +3,7 @@ package evaluation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sort"
 
@@ -212,15 +213,64 @@ func loadEvidencePlan(ctx context.Context, reader artifact.Reader, id artifact.I
 	if err := evaluationPlanContract.ValidateContent(content, id); err != nil {
 		return Plan{}, err
 	}
-	var body planBody
-	if err := strictjson.DecodeBytes(content.Data, &body); err != nil {
-		return Plan{}, err
-	}
-	identity, err := artifact.JSONID(artifact.KindProfile, body)
-	if err != nil || identity != id {
+	plan, err := ParsePlan(content.Data)
+	if err != nil || plan.identity != id {
 		return Plan{}, errors.Join(err, errors.New("evaluation: stored plan identity differs"))
 	}
-	return Plan{identity: id, body: body}, nil
+	if err := validateStoredPlanAuthorities(ctx, reader, plan); err != nil {
+		return Plan{}, err
+	}
+	return plan, nil
+}
+
+func validateStoredPlanAuthorities(ctx context.Context, reader artifact.Reader, plan Plan) error {
+	for _, id := range []artifact.ID{
+		plan.body.ModelDefinition, plan.body.RuntimeRecipe, plan.body.Dataset, plan.body.Split,
+		plan.body.CaseProfile, plan.body.Scorer, plan.body.Execution, plan.body.Environment,
+	} {
+		if _, found, err := reader.Artifact(ctx, id); err != nil || !found {
+			return errors.Join(err, fmt.Errorf("evaluation: plan authority %s is absent", id))
+		}
+	}
+	for id, contract := range map[artifact.ID]artifact.DocumentContract{
+		plan.body.CaseProfile: caseProfileContract,
+		plan.body.Scorer:      scorerProfileContract,
+		plan.body.Execution:   executionContract,
+	} {
+		content, found, err := reader.Content(ctx, id)
+		if err != nil || !found {
+			return errors.Join(err, fmt.Errorf("evaluation: plan authority content %s is absent", id))
+		}
+		if err := contract.ValidateContent(content, id); err != nil {
+			return err
+		}
+	}
+	execution, found, err := reader.Content(ctx, plan.body.Execution)
+	if err != nil || !found {
+		return errors.Join(err, errors.New("evaluation: execution authority is absent"))
+	}
+	var policy ExecutionPolicy
+	if err := strictjson.DecodeBytes(execution.Data, &policy); err != nil ||
+		policy.Lifecycle != LifecycleIsolated && policy.Lifecycle != LifecycleResident {
+		return errors.Join(err, errors.New("evaluation: execution authority is invalid"))
+	}
+	parents, err := reader.Parents(ctx, plan.identity)
+	if err != nil {
+		return err
+	}
+	for _, want := range plan.Lineage() {
+		found := false
+		for _, parent := range parents {
+			if parent == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("evaluation: plan lineage omits authority %s", want.Parent)
+		}
+	}
+	return nil
 }
 
 func loadEvidenceRun(ctx context.Context, reader artifact.Reader, id artifact.ID) (runrecord.Run, error) {

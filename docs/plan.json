@@ -11,31 +11,13 @@
           "id": "inference",
           "title": "Delete inference family dispatch, duplicate probes, and compatibility sessions",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/inference -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production",
-          "rationale": "Compiled recipes must own residency, prefill, decode, cache, and modality admission without parallel direct-open paths.",
-          "depends_on": [
-            "magic-model-authority/inference-ownership"
-          ],
-          "capabilities": [
-            "recipe-selected-inference",
-            "single-session-owner",
-            "compiled-residency"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope internal/inference -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production"
         },
         {
           "id": "modalities",
           "title": "Delete image, video, and speech family policy in favor of neutral media programs",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/latentimage,internal/latentvideo,internal/speechsynth -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production",
-          "rationale": "Media geometry, schedules, codec stages, and publication policy must come from compiled recipes and shared operators.",
-          "depends_on": [
-            "magic-model-authority/inference"
-          ],
-          "capabilities": [
-            "neutral-media-program",
-            "recipe-schedule",
-            "shared-codec-runtime"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope internal/latentimage,internal/latentvideo,internal/speechsynth -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production"
         }
       ]
     },
@@ -48,44 +30,19 @@
           "id": "checkpoint-formats",
           "title": "Bind GGUF and safetensors literals to typed wire contracts",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/gguf,internal/safetensors -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "rationale": "Wire values may remain only in one protocol owner; duplicated layout arithmetic must use typed traits.",
-          "depends_on": [
-            "magic-model-authority/modalities"
-          ],
-          "capabilities": [
-            "wire-contract",
-            "typed-layout"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope internal/gguf,internal/safetensors -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {
           "id": "quant-codec",
           "title": "Consolidate quantization and codec arithmetic into shared typed operations",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/quant,internal/codec -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "rationale": "Block geometry and encoding constants must be specification-owned; runtime policy must be derived.",
-          "depends_on": [
-            "magic-format-authority/checkpoint-formats"
-          ],
-          "capabilities": [
-            "quant-traits",
-            "codec-contract",
-            "destination-decode"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope internal/quant,internal/codec -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {
           "id": "artifact-storage",
           "title": "Remove artifact and RepoDB storage policy duplication",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/artifact,internal/repodb -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "rationale": "Bounds and layouts require one storage contract instead of repeated command and runtime limits.",
-          "depends_on": [
-            "magic-format-authority/quant-codec"
-          ],
-          "capabilities": [
-            "artifact-contract",
-            "store-authority"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope internal/artifact,internal/repodb -require-classified -require-no-stale -require-no-uncatalogued-production"
         }
       ]
     },
@@ -98,134 +55,55 @@
           "id": "compute-runtime",
           "title": "Consolidate tensor, host, device, CUDA, graph-runtime, and memory policy",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/tensor,internal/hostmath,internal/devicemath,internal/cuda,internal/graphruntime -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "rationale": "Low-level relations and launch policy require one typed owner before higher runtimes can delete local copies.",
-          "depends_on": [
-            "magic-format-authority/artifact-storage"
-          ],
-          "capabilities": [
-            "typed-compute-contracts",
-            "compiled-launch-policy",
-            "lifetime-owned-memory"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope internal/tensor,internal/hostmath,internal/devicemath,internal/cuda,internal/graphruntime -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {
           "id": "derived-runtimes",
           "title": "Delete literals and duplicate orchestration from derived model runtimes",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/densecausal,internal/routedlm,internal/scratchmodel,internal/seq2seq,internal/seriesforecast,internal/tabularicl,internal/patchtower -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production",
-          "rationale": "Derived runtimes must compose compiled recipes and neutral operators without restating shapes, topology, or residency.",
-          "depends_on": [
-            "magic-runtime-remaining/compute-runtime"
-          ],
-          "capabilities": [
-            "recipe-only-derived-runtime",
-            "indexed-bindings",
-            "shared-operators"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope internal/densecausal,internal/routedlm,internal/scratchmodel,internal/seq2seq,internal/seriesforecast,internal/tabularicl,internal/patchtower -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production"
         },
         {
           "id": "training",
           "title": "Derive training and optimizer policy from compiled training plans",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/optimizer,internal/trainingprogram,internal/trainingworkflow,internal/hybridtrain,internal/adaptertrain,internal/controllertrain -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "rationale": "Training literals must derive from model, dataset, optimizer ownership, and measured resource plans.",
-          "depends_on": [
-            "magic-runtime-remaining/derived-runtimes"
-          ],
-          "capabilities": [
-            "compiled-training-plan",
-            "derived-optimizer-policy",
-            "gradient-ownership"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope internal/optimizer,internal/trainingprogram,internal/trainingworkflow,internal/hybridtrain,internal/adaptertrain,internal/controllertrain -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {
           "id": "data-evaluation",
           "title": "Consolidate tokenizer, dataset, evaluation, and sampling policy",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/tokenizer,internal/dataset,internal/trainingdata,internal/evaluation,internal/sampling -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "rationale": "Dataset and tokenizer facts belong to catalog artifacts; evaluation and sampling policy belongs to typed requests and recipes.",
-          "depends_on": [
-            "magic-runtime-remaining/training"
-          ],
-          "capabilities": [
-            "dataset-authority",
-            "tokenizer-authority",
-            "typed-evaluation",
-            "typed-sampling"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope internal/tokenizer,internal/dataset,internal/trainingdata,internal/evaluation,internal/sampling -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {
           "id": "server-workflows",
           "title": "Remove server, workflow, session, and protocol policy duplication",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/server,internal/workflowrecipe,internal/workflowruntime,internal/recipe,internal/modelrecipe -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production",
-          "rationale": "Server and workflow code should compose admitted plans; protocol literals require one wire owner.",
-          "depends_on": [
-            "magic-runtime-remaining/data-evaluation"
-          ],
-          "capabilities": [
-            "thin-serving-boundary",
-            "recipe-workflows",
-            "typed-protocols"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope internal/server,internal/workflowrecipe,internal/workflowruntime,internal/recipe,internal/modelrecipe -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production"
         },
         {
           "id": "composition-evidence",
           "title": "Consolidate composition, metrics, telemetry, and evidence policy",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/composition,internal/tensorstats,internal/runrecord,internal/thoughtbank,internal/codeprofile -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "rationale": "Catalog similarity remains a literal filter; metrics and evidence must not introduce hidden distribution, geometry, or threshold policy.",
-          "depends_on": [
-            "magic-runtime-remaining/server-workflows"
-          ],
-          "capabilities": [
-            "typed-catalog-evidence",
-            "distribution-neutral-metrics",
-            "shared-telemetry"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope internal/composition,internal/tensorstats,internal/runrecord,internal/thoughtbank,internal/codeprofile -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {
           "id": "shared-runtime",
           "title": "Delete duplicated policy across remaining internal runtime owners",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "rationale": "The deterministic census must close every remaining internal package without reworking already closed owners.",
-          "depends_on": [
-            "magic-runtime-remaining/composition-evidence"
-          ],
-          "capabilities": [
-            "shared-runtime-primitives",
-            "full-internal-audit"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope internal -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {
           "id": "commands-automation",
           "title": "Delete command defaults, duplicate probes, and automation literals",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope cmd -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "rationale": "Commands compose typed owners; they must not restate runtime, model, training, or gate policy.",
-          "depends_on": [
-            "magic-runtime-remaining/shared-runtime"
-          ],
-          "capabilities": [
-            "thin-command-roots",
-            "derived-automation"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-scope cmd -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {
           "id": "production-complete",
           "title": "Verify every production source has an exact literal disposition",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
-          "rationale": "Scoped waves must converge to a fresh repository-wide source census with no uncatalogued decision.",
-          "depends_on": [
-            "magic-runtime-remaining/commands-automation"
-          ],
-          "capabilities": [
-            "full-production-audit",
-            "single-runtime-authority"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts"
         }
       ]
     },
@@ -238,16 +116,7 @@
           "id": "production-contracts",
           "title": "Replace copied defaults, dimensions, tolerances, and exit codes with production contracts",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-tests -require-no-policy-copies -require-classified-fixtures",
-          "rationale": "Tests define inputs and observable expectations; they must not reimplement production policy or algorithms.",
-          "depends_on": [
-            "magic-runtime-remaining/production-complete"
-          ],
-          "capabilities": [
-            "test-contract-reuse",
-            "typed-fixtures",
-            "shared-assertions"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-tests -require-no-policy-copies -require-classified-fixtures"
         }
       ]
     },
@@ -260,29 +129,13 @@
           "id": "close-open-rows",
           "title": "Resolve every derivation-blocked row and retire stale migration evidence",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts",
-          "rationale": "The campaign ends only when every runtime decision is derived, replaced, consolidated, or made irrelevant.",
-          "depends_on": [
-            "magic-test-authority/production-contracts"
-          ],
-          "capabilities": [
-            "zero-open-debt",
-            "single-authority"
-          ]
+          "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts"
         },
         {
           "id": "permanent-gate",
           "title": "Integrate zero-debt checks and delete campaign-only compatibility machinery",
           "status": "open",
-          "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestPermanentMagicGate' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts",
-          "rationale": "Future changes must preserve exact literal ownership without retaining one-time migration paths.",
-          "depends_on": [
-            "magic-zero-debt/close-open-rows"
-          ],
-          "capabilities": [
-            "continuous-enforcement",
-            "migration-cleanup"
-          ]
+          "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestPermanentMagicGate' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts"
         }
       ]
     }

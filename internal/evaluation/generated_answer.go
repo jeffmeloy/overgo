@@ -127,15 +127,12 @@ func CompileGeneratedAnswer(suite GeneratedAnswerSuite) (GeneratedAnswerPlan, er
 }
 
 func BindGeneratedAnswer(compiled GeneratedAnswerPlan, authorities ExactAuthorities) (Plan, error) {
-	scorer, err := artifact.JSONID(artifact.KindProfile, struct {
+	scorer := struct {
 		Version    uint16   `json:"version"`
 		Kind       string   `json:"kind"`
 		Transforms []string `json:"transforms"`
-	}{Version: artifact.InitialDocumentVersion, Kind: GeneratedAnswerKind, Transforms: compiled.suite.Transforms})
-	if err != nil {
-		return Plan{}, err
-	}
-	return bindPlan(compiled.dataset, compiled.split, compiled.identity, scorer, authorities)
+	}{Version: artifact.InitialDocumentVersion, Kind: GeneratedAnswerKind, Transforms: compiled.suite.Transforms}
+	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
 }
 
 func EvaluateGeneratedAnswer(

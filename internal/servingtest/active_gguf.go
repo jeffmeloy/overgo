@@ -122,7 +122,8 @@ func PublishActiveGGUFWithPolicy(
 		return err
 	}
 	if _, _, err := modelrecipe.ActivateVerified(
-		ctx, store, prefix+"/active", definition, verification, nil, nil,
+		ctx, store, prefix+"/active", definition, verification,
+		recipe.EvidenceExperimental, "serving fixture activation", nil, nil,
 	); err != nil {
 		return err
 	}

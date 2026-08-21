@@ -1,14 +1,17 @@
 package evaluation
 
 import (
+	"context"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/repodb"
 )
 
 const planTestCommit = "0123456789abcdef0123456789abcdef01234567"
 
-func TestPlanBindsEveryEvaluationAuthority(t *testing.T) {
+func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 	exact, err := CompileExact(exactFixture())
 	if err != nil {
 		t.Fatal(err)
@@ -61,6 +64,37 @@ func TestPlanBindsEveryEvaluationAuthority(t *testing.T) {
 		other.body.Split == plan.body.Split || other.body.CaseProfile == plan.body.CaseProfile {
 		t.Fatal("case, dataset, or split authority did not change identity")
 	}
+
+	content, err := plan.content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParsePlan(content.Data)
+	if err != nil || parsed.Identity() != plan.Identity() {
+		t.Fatalf("parsed plan = (%s, %v)", parsed.Identity(), err)
+	}
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	publishPlanFixtureAuthorities(t, store, plan)
+	if err := publishAuthorities(context.Background(), store, exact, plan); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := loadEvidencePlan(context.Background(), store, plan.Identity())
+	if err != nil || stored.Identity() != plan.Identity() {
+		t.Fatalf("stored plan = (%s, %v)", stored.Identity(), err)
+	}
+	parents, err := store.Parents(context.Background(), plan.Identity())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range plan.Lineage() {
+		if !slices.Contains(parents, expected) {
+			t.Fatalf("plan lineage omits %+v", expected)
+		}
+	}
 }
 
 func TestPlanRejectsInvalidEvaluationAuthority(t *testing.T) {
@@ -95,4 +129,17 @@ func planID(t testing.TB, kind artifact.Kind, value string) artifact.ID {
 		t.Fatal(err)
 	}
 	return id
+}
+
+func publishPlanFixtureAuthorities(t testing.TB, repository artifact.Repository, plan Plan) {
+	t.Helper()
+	descriptors := make([]artifact.Descriptor, 0, len([]string{"model", "recipe", "environment"}))
+	for _, id := range []artifact.ID{plan.body.ModelDefinition, plan.body.RuntimeRecipe, plan.body.Environment} {
+		descriptors = append(descriptors, artifact.Descriptor{ID: id})
+	}
+	if _, err := repository.Commit(context.Background(), artifact.Batch{
+		Key: "evaluation/fixture-authorities/" + plan.identity.String(), Artifacts: descriptors,
+	}); err != nil {
+		t.Fatal(err)
+	}
 }

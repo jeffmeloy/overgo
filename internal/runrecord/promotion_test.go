@@ -63,7 +63,7 @@ func TestEvaluationPromotesCapabilityRecipe(t *testing.T) {
 	}
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, "fixture/workflow/active", definition, verification,
-		[]artifact.ID{evaluation.ID}, nil,
+		recipe.EvidenceExperimental, "workflow fixture activation", []artifact.ID{evaluation.ID}, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

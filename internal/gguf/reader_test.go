@@ -74,13 +74,32 @@ func TestParseRejectsMalformedData(t *testing.T) {
 	}
 }
 
+func TestBoundedBoundaryPolicyContract(t *testing.T) {
+	testBoundedBoundaryPolicy(t)
+}
+
 func TestParseEnforcesLimits(t *testing.T) {
+	testBoundedBoundaryPolicy(t)
+}
+
+func testBoundedBoundaryPolicy(t *testing.T) {
+	t.Helper()
 	data := buildFixture(t)
-	options := DefaultOptions()
-	options.MaxMetadata = 1
-	_, err := Parse(bytes.NewReader(data), uint64(len(data)), options)
-	if err == nil || !strings.Contains(err.Error(), "metadata count") {
-		t.Fatalf("error = %v, want metadata count limit", err)
+	tests := map[string]func(*Options){
+		"string bytes":   func(options *Options) { options.MaxStringBytes = 1 },
+		"array elements": func(options *Options) { options.MaxArrayElements = 1 },
+		"metadata count": func(options *Options) { options.MaxMetadata = 1 },
+		"tensor count":   func(options *Options) { options.MaxTensors = 1 },
+		"alignment":      func(options *Options) { options.MaxAlignment = 1 },
+	}
+	for name, constrain := range tests {
+		t.Run(name, func(t *testing.T) {
+			options := DefaultOptions()
+			constrain(&options)
+			if _, err := Parse(bytes.NewReader(data), uint64(len(data)), options); err == nil {
+				t.Fatal("file-controlled allocation exceeded its configured bound")
+			}
+		})
 	}
 }
 

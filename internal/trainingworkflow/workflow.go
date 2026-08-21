@@ -452,7 +452,9 @@ func compileAuthority(
 		return compiledAuthority{}, err
 	}
 	if resumed.ID().Valid() {
-		if err := trainingprogram.ValidateResume(runPlan, resumed, stream.Identity); err != nil {
+		if err := trainingprogram.ValidateResume(runPlan, resumed, trainingprogram.ResumeAuthority{
+			Model: modelID, Stream: resumed.Stream, OptimizerPlan: muonPlan.Identity(),
+		}); err != nil {
 			return compiledAuthority{}, err
 		}
 	}

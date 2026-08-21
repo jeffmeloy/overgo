@@ -80,6 +80,28 @@ type checkpointDocument struct {
 
 func (c Checkpoint) ID() artifact.ID { return c.id }
 
+func (c Checkpoint) ValidateIdentity() error {
+	copy := c
+	copy.id = artifact.ID{}
+	copy.Optimizer.Momentum = slices.Clone(c.Optimizer.Momentum)
+	copy.RNG = slices.Clone(c.RNG)
+	copy.Processors = slices.Clone(c.Processors)
+	copy.Projectors = slices.Clone(c.Projectors)
+	copy.Codecs = slices.Clone(c.Codecs)
+	copy.Lineage = slices.Clone(c.Lineage)
+	if err := canonicalizeCheckpoint(&copy); err != nil {
+		return err
+	}
+	want, err := artifact.JSONID(
+		artifact.KindCheckpoint,
+		checkpointDocument{Version: artifact.InitialDocumentVersion, Checkpoint: copy},
+	)
+	if err != nil || want != c.id {
+		return errors.Join(err, errors.New("training checkpoint: identity differs"))
+	}
+	return nil
+}
+
 func (c Checkpoint) ArtifactLineage() []artifact.Lineage {
 	result := make([]artifact.Lineage, len(c.Lineage))
 	for index, parent := range c.Lineage {
@@ -219,10 +241,22 @@ func LoadCheckpoint(directory string) (Checkpoint, error) {
 	return checkpoint, nil
 }
 
-func ValidateResume(plan TrainingRunPlan, checkpoint Checkpoint, stream artifact.ID) error {
-	if plan.InitialMode() != InitialResume || !checkpoint.ID().Valid() || plan.checkpoint != checkpoint.ID() ||
-		plan.Program().ID() != checkpoint.Program || plan.Dataset() != checkpoint.Dataset || plan.Split() != checkpoint.Split ||
-		stream != checkpoint.Stream.Identity || !slices.Equal(plan.Processors(), checkpoint.Processors) ||
+type ResumeAuthority struct {
+	Model         artifact.ID
+	Stream        DatasetState
+	OptimizerPlan string
+}
+
+func ValidateResume(plan TrainingRunPlan, checkpoint Checkpoint, authority ResumeAuthority) error {
+	if err := checkpoint.ValidateIdentity(); err != nil {
+		return err
+	}
+	if plan.InitialMode() != InitialResume || plan.checkpoint != checkpoint.ID() ||
+		plan.Program().ID() != checkpoint.Program || plan.Program().OptimizerIdentity() != checkpoint.Optimizer.PlanIdentity ||
+		authority.Model != checkpoint.Model || authority.Stream != checkpoint.Stream ||
+		authority.OptimizerPlan != checkpoint.Optimizer.PlanIdentity ||
+		plan.Dataset() != checkpoint.Dataset || plan.Split() != checkpoint.Split ||
+		!slices.Equal(plan.Processors(), checkpoint.Processors) ||
 		!slices.Equal(plan.Projectors(), checkpoint.Projectors) || !slices.Equal(plan.Codecs(), checkpoint.Codecs) {
 		return errors.New("training checkpoint: resume authority differs")
 	}

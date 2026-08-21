@@ -164,7 +164,6 @@ type preparedModel struct {
 	hostWeights         *model.HostTensorStore
 	outputBias          []float32
 	promptCacheCapacity int
-	cachePageTokens     uint32
 	modelSignature      [32]byte
 	modelSignatureErr   error
 	modelSignatureOnce  sync.Once
@@ -202,9 +201,7 @@ type OpenOptions struct {
 	// PromptCacheEntries: bounds independently reusable prompt states
 	// Zero: selects default capacity of one
 	PromptCacheEntries int
-	// CachePageTokens: retained CUDA KV page width; zero selects the default.
-	CachePageTokens uint32
-	LoRAAdapters    []LoRAConfig
+	LoRAAdapters       []LoRAConfig
 }
 
 func (r *Runner) Spec() model.Spec {

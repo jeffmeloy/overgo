@@ -16,7 +16,6 @@ import (
 // ContinuousGeneratorOptions: fused scheduler bounds.
 type ContinuousGeneratorOptions struct {
 	MaxSequences  int
-	PageTokens    uint32
 	ContextShift  bool
 	KeepTokens    uint32
 	DiscardTokens int
@@ -85,7 +84,6 @@ func (r *Runner) NewContinuousGenerator(
 	}
 	batch, err := r.NewContinuousBatch(ContinuousBatchOptions{
 		MaxSequences:  options.MaxSequences,
-		PageTokens:    options.PageTokens,
 		Device:        true,
 		ContextShift:  options.ContextShift,
 		KeepTokens:    options.KeepTokens,

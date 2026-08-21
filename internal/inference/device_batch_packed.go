@@ -17,7 +17,7 @@ import (
 )
 
 type deviceCohortKey struct {
-	tokens, position, pageTokens uint32
+	tokens, position uint32
 }
 
 func (r *Runner) forwardPackedDeviceCohortsLocked(
@@ -96,9 +96,7 @@ func planDeviceCohorts(appends []deviceBatchAppend) ([][]int, []int) {
 			remainder = append(remainder, index)
 			continue
 		}
-		key := deviceCohortKey{
-			tokens: item.Past.Tokens, position: item.Past.Position, pageTokens: item.PageTokens,
-		}
+		key := deviceCohortKey{tokens: item.Past.Tokens, position: item.Past.Position}
 		cohort, ok := byKey[key]
 		if !ok {
 			cohort = len(cohorts)
@@ -200,7 +198,6 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 			Keys: make([]executor.DeviceValue, len(graph.keys)), Values: make([]executor.DeviceValue, len(graph.values)),
 			States: make([]deviceLayerStates, len(graph.states)),
 			Tokens: graph.pastTokens + graph.tokenCount, Position: graph.nextPosition + graph.tokenCount,
-			PageTokens: resolveCachePageTokens(item.PageTokens),
 		}
 		for layer := range cache.Keys {
 			cache.Keys[layer], err = splitPackedDeviceValue(
@@ -232,7 +229,7 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 				}
 			}
 		}
-		if err = rebuildDeviceCachePages(cache, cache.PageTokens); err != nil {
+		if err = rebuildDeviceCachePages(cache, r.program.Decode.Session); err != nil {
 			return fail(err)
 		}
 		next[sequence] = cache
@@ -312,7 +309,7 @@ func (r *Runner) packDeviceBatchCaches(
 	packed := &deviceKVCache{
 		Keys: make([]executor.DeviceValue, len(first.Keys)), Values: make([]executor.DeviceValue, len(first.Values)),
 		States: make([]deviceLayerStates, len(first.States)), Tokens: first.Tokens,
-		Position: first.Position, PageTokens: first.PageTokens,
+		Position: first.Position,
 	}
 	valueIndex := 0
 	for layer := range packed.Keys {
@@ -362,7 +359,7 @@ func packedDeviceBatchView(appends []deviceBatchAppend) (*deviceKVCache, bool) {
 	packed := &deviceKVCache{
 		Keys: make([]executor.DeviceValue, len(first.Keys)), Values: make([]executor.DeviceValue, len(first.Values)),
 		States: make([]deviceLayerStates, len(first.States)), Tokens: first.Tokens,
-		Position: first.Position, PageTokens: first.PageTokens,
+		Position: first.Position,
 	}
 	view := func(selectValue func(*deviceKVCache) (executor.DeviceValue, bool)) (executor.DeviceValue, bool) {
 		values := make([]executor.DeviceValue, len(appends))

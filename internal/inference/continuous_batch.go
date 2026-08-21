@@ -8,6 +8,7 @@ import (
 	"sort"
 	"sync"
 
+	"overgo/internal/recipe"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -18,7 +19,6 @@ type SequenceID uint64
 // ContinuousBatchOptions: cache and admission policy.
 type ContinuousBatchOptions struct {
 	MaxSequences  int
-	PageTokens    uint32
 	Device        bool
 	ContextShift  bool
 	KeepTokens    uint32
@@ -90,9 +90,6 @@ func (r *Runner) NewContinuousBatch(
 	}
 	if options.MaxSequences <= 0 {
 		return nil, errors.New("inference: maximum sequence count must be positive")
-	}
-	if options.PageTokens == 0 {
-		options.PageTokens = resolveCachePageTokens(r.cachePageTokens)
 	}
 	if err := r.lockOpen(); err != nil {
 		return nil, err
@@ -235,7 +232,7 @@ func (b *ContinuousBatch) step(
 		outputs[index] = SequenceBatchOutput{
 			ID: input.ID, Hidden: hidden, Logits: logits, Tokens: next.Tokens,
 			Position: next.Position,
-			Pages:    sequencePages(next.Tokens, b.options.PageTokens),
+			Pages:    sequencePages(next.Tokens, b.runner.program.Decode.Session),
 		}
 	}
 	b.mu.Lock()
@@ -289,7 +286,7 @@ func (b *ContinuousBatch) stepDeviceLocked(
 			working[index] = shifted
 		}
 		appends[index] = deviceBatchAppend{
-			Tokens: input.Tokens, Past: working[index], PageTokens: b.options.PageTokens,
+			Tokens: input.Tokens, Past: working[index],
 		}
 	}
 	next, err := r.forwardDeviceCachedBatchLocked(ctx, appends, plan)
@@ -303,7 +300,7 @@ func (b *ContinuousBatch) stepDeviceLocked(
 		outputs[index] = SequenceBatchOutput{
 			ID: input.ID, Logits: slices.Clone(cache.Logits), Candidates: slices.Clone(cache.Candidates), Token: cache.Selected,
 			Tokens: cache.Tokens, Position: cache.Position,
-			Pages: sequencePages(cache.Tokens, b.options.PageTokens),
+			Pages: sequencePages(cache.Tokens, b.runner.program.Decode.Session),
 		}
 	}
 	b.mu.Lock()
@@ -437,7 +434,7 @@ func (b *ContinuousBatch) Snapshot() []SequenceBatchState {
 			state.Tokens = sequence.host.Tokens
 			state.Position = sequence.host.Position
 		}
-		state.Pages = sequencePages(state.Tokens, b.options.PageTokens)
+		state.Pages = sequencePages(state.Tokens, b.runner.program.Decode.Session)
 		states = append(states, state)
 	}
 	sort.Slice(states, func(left, right int) bool {
@@ -499,8 +496,11 @@ func (b *ContinuousBatch) deferCleanup(cache *deviceKVCache, err error) {
 	b.deferred = append(b.deferred, cache)
 }
 
-func sequencePages(tokens, pageTokens uint32) []SequenceCachePage {
-	pageTokens = resolveCachePageTokens(pageTokens)
+func sequencePages(tokens uint32, session recipe.SessionPolicy) []SequenceCachePage {
+	pageTokens := cachePageTokens(tokens, session)
+	if pageTokens == 0 {
+		return nil
+	}
 	pageCount := (uint64(tokens) + uint64(pageTokens) - 1) / uint64(pageTokens)
 	pages := make([]SequenceCachePage, 0, int(pageCount))
 	for start := uint32(0); start < tokens; start += pageTokens {

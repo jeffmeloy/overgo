@@ -38,16 +38,15 @@ func TestPlanDeviceCohorts(t *testing.T) {
 		firstPosition  = 7
 		secondTokens   = 8
 		secondPosition = 10
-		pageTokens     = 4
 	)
 	appends := []deviceBatchAppend{
-		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{1}, PageTokens: pageTokens},
-		{Past: &deviceKVCache{Tokens: secondTokens, Position: secondPosition}, Tokens: []tokenizer.TokenID{2}, PageTokens: pageTokens},
-		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{3}, PageTokens: pageTokens},
-		{Tokens: []tokenizer.TokenID{4}, PageTokens: pageTokens},
-		{Past: &deviceKVCache{Tokens: secondTokens, Position: secondPosition}, Tokens: []tokenizer.TokenID{5}, PageTokens: pageTokens},
-		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{6, 7}, PageTokens: pageTokens},
-		{Past: &deviceKVCache{Tokens: firstTokens + 1, Position: firstPosition + 1}, Tokens: []tokenizer.TokenID{8}, PageTokens: pageTokens},
+		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{1}},
+		{Past: &deviceKVCache{Tokens: secondTokens, Position: secondPosition}, Tokens: []tokenizer.TokenID{2}},
+		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{3}},
+		{Tokens: []tokenizer.TokenID{4}},
+		{Past: &deviceKVCache{Tokens: secondTokens, Position: secondPosition}, Tokens: []tokenizer.TokenID{5}},
+		{Past: &deviceKVCache{Tokens: firstTokens, Position: firstPosition}, Tokens: []tokenizer.TokenID{6, 7}},
+		{Past: &deviceKVCache{Tokens: firstTokens + 1, Position: firstPosition + 1}, Tokens: []tokenizer.TokenID{8}},
 	}
 	packed, fallback := planDeviceCohorts(appends)
 	wantPacked := [][]int{{0, 2}, {1, 4}}

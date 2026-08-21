@@ -30,7 +30,6 @@ type decodeDynamicSlot struct {
 
 type decodeSessionIdentity struct {
 	capacity   uint32
-	pageTokens uint32
 	branches   uint32
 	tokenCount uint32
 	output     deviceOutputPlan
@@ -38,11 +37,11 @@ type decodeSessionIdentity struct {
 }
 
 func (i decodeSessionIdentity) matches(
-	capacity, pageTokens uint32,
+	capacity uint32,
 	output deviceOutputPlan,
 	lora [32]byte,
 ) bool {
-	return i.capacity == capacity && i.pageTokens == pageTokens &&
+	return i.capacity == capacity &&
 		i.branches > 0 && i.tokenCount == 1 && i.output == output && i.lora == lora
 }
 

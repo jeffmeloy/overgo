@@ -14,7 +14,6 @@ import (
 
 func TestParameterizedDecodeCapacityStaysWithinPageClass(t *testing.T) {
 	const (
-		pageTokens    = uint32(4)
 		contextTokens = uint32(16)
 	)
 	spec := model.Spec{CommonSpec: model.CommonSpec{
@@ -28,7 +27,7 @@ func TestParameterizedDecodeCapacityStaysWithinPageClass(t *testing.T) {
 	}}
 	appendFor := func(tokens uint32) []deviceBatchAppend {
 		return []deviceBatchAppend{{
-			Tokens: []tokenizer.TokenID{1}, PageTokens: pageTokens,
+			Tokens: []tokenizer.TokenID{1},
 			Past: &deviceKVCache{
 				storage: &deviceCacheStorage{refs: 1}, Tokens: tokens,
 				Selection: executor.DeviceValue{Pointer: driver.DevicePtr(1)},
@@ -36,13 +35,16 @@ func TestParameterizedDecodeCapacityStaysWithinPageClass(t *testing.T) {
 		}}
 	}
 	plan := deviceOutputPlan{mode: deviceOutputGreedy}
-	if capacity, ok := runner.parameterizedDecodeCapacity(appendFor(2), plan); !ok || capacity != pageTokens {
+	if capacity, ok := runner.parameterizedDecodeCapacity(appendFor(2), plan); !ok ||
+		capacity != cachePageCapacity(3, contextTokens, modelrecipe.DecodeSessionCapacity) {
 		t.Fatalf("within-page capacity = %d/%t", capacity, ok)
 	}
-	if capacity, ok := runner.parameterizedDecodeCapacity(appendFor(pageTokens), plan); !ok || capacity != pageTokens*2 {
+	if capacity, ok := runner.parameterizedDecodeCapacity(appendFor(4), plan); !ok ||
+		capacity != cachePageCapacity(5, contextTokens, modelrecipe.DecodeSessionCapacity) {
 		t.Fatalf("boundary capacity = %d/%t", capacity, ok)
 	}
-	if capacity, ok := runner.parameterizedDecodeCapacity(appendFor(2), deviceOutputPlan{}); !ok || capacity != pageTokens {
+	if capacity, ok := runner.parameterizedDecodeCapacity(appendFor(2), deviceOutputPlan{}); !ok ||
+		capacity != cachePageCapacity(3, contextTokens, modelrecipe.DecodeSessionCapacity) {
 		t.Fatalf("buffered decode capacity = %d/%t", capacity, ok)
 	}
 }
@@ -80,7 +82,7 @@ func TestParameterizedDecodeAttributesCoverDynamicNodes(t *testing.T) {
 		}},
 		[]deviceCacheTargetPlan{{}},
 		decodeSessionIdentity{
-			capacity: capacityTokens, pageTokens: capacityTokens,
+			capacity: capacityTokens,
 			branches: 1, tokenCount: 1,
 		},
 	)

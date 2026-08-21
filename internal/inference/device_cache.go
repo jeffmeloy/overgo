@@ -11,6 +11,7 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -26,7 +27,6 @@ type deviceKVCache struct {
 	Values        []executor.DeviceValue
 	States        []deviceLayerStates
 	Pages         []deviceKVPage
-	PageTokens    uint32
 	Tokens        uint32
 	Position      uint32
 	Logits        []float32
@@ -249,7 +249,7 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 	}
 	cache.Tokens = uint32(remaining)
 	cache.session = nil
-	return rebuildDeviceCachePages(cache, cache.PageTokens)
+	return rebuildDeviceCachePages(cache, r.program.Decode.Session)
 }
 
 func shiftDeviceTokenState(
@@ -365,13 +365,12 @@ func (r *Runner) compactDeviceCacheForAppend(
 		return nil, err
 	}
 	next := &deviceKVCache{
-		owner:      newDeviceCacheOwner(outputs, 1),
-		Keys:       make([]executor.DeviceValue, len(cache.Keys)),
-		Values:     make([]executor.DeviceValue, len(cache.Values)),
-		States:     make([]deviceLayerStates, len(cache.States)),
-		Tokens:     cache.Tokens - discard,
-		Position:   cache.Position,
-		PageTokens: cache.PageTokens,
+		owner:    newDeviceCacheOwner(outputs, 1),
+		Keys:     make([]executor.DeviceValue, len(cache.Keys)),
+		Values:   make([]executor.DeviceValue, len(cache.Values)),
+		States:   make([]deviceLayerStates, len(cache.States)),
+		Tokens:   cache.Tokens - discard,
+		Position: cache.Position,
 	}
 	for index := range next.Keys {
 		next.Keys[index] = values[2*index]
@@ -386,7 +385,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 			Mode: target.mode, Value: values[stateOffset+index],
 		}
 	}
-	if err := rebuildDeviceCachePages(next, next.PageTokens); err != nil {
+	if err := rebuildDeviceCachePages(next, r.program.Decode.Session); err != nil {
 		_ = next.Release(context.Background())
 		return nil, err
 	}
@@ -470,9 +469,8 @@ func (r *Runner) forwardDeviceCachedLocked(
 		return reference.Value{}, nil, err
 	}
 	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
-		Tokens:     tokenIDs,
-		Past:       past,
-		PageTokens: r.cachePageTokens,
+		Tokens: tokenIDs,
+		Past:   past,
 	}}, plan)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -492,9 +490,8 @@ func (r *Runner) forwardDeviceCachedGreedyStepLocked(
 		return nil, err
 	}
 	next, err := r.forwardDeviceCachedBatchLocked(ctx, []deviceBatchAppend{{
-		Tokens:     tokenIDs,
-		Past:       past,
-		PageTokens: r.cachePageTokens,
+		Tokens: tokenIDs,
+		Past:   past,
 	}}, plan)
 	if err != nil {
 		return nil, err
@@ -503,9 +500,8 @@ func (r *Runner) forwardDeviceCachedGreedyStepLocked(
 }
 
 type deviceBatchAppend struct {
-	Tokens     []tokenizer.TokenID
-	Past       *deviceKVCache
-	PageTokens uint32
+	Tokens []tokenizer.TokenID
+	Past   *deviceKVCache
 }
 
 type deviceBatchGraph struct {
@@ -646,7 +642,7 @@ func (r *Runner) parameterizedDecodeCapacity(
 	if len(appends) == 0 || r.program.Decode.Session != modelrecipe.DecodeSessionCapacity {
 		return 0, false
 	}
-	var capacity, tokens, pageTokens uint32
+	var capacity, tokens uint32
 	for index, item := range appends {
 		past := item.Past
 		if len(item.Tokens) != 1 || past == nil || past.Tokens == 0 || past.storage == nil ||
@@ -654,15 +650,14 @@ func (r *Runner) parameterizedDecodeCapacity(
 			past.Tokens >= r.spec.ContextLength || past.Tokens == math.MaxUint32 {
 			return 0, false
 		}
-		page := resolveCachePageTokens(item.PageTokens)
-		current := cachePageCapacity(past.Tokens, page, r.spec.ContextLength)
-		next := cachePageCapacity(past.Tokens+1, page, r.spec.ContextLength)
+		current := cachePageCapacity(past.Tokens, r.spec.ContextLength, r.program.Decode.Session)
+		next := cachePageCapacity(past.Tokens+1, r.spec.ContextLength, r.program.Decode.Session)
 		if current < past.Tokens || next <= past.Tokens {
 			return 0, false
 		}
 		if index == 0 {
-			capacity, tokens, pageTokens = next, past.Tokens, page
-		} else if next != capacity || past.Tokens != tokens || page != pageTokens {
+			capacity, tokens = next, past.Tokens
+		} else if next != capacity || past.Tokens != tokens {
 			return 0, false
 		}
 	}
@@ -677,7 +672,6 @@ func (r *Runner) executeParameterizedDecodeSession(
 	if session == nil || session.compiled == nil || len(appends) != len(session.graphs) ||
 		!session.program.identity.matches(
 			session.program.identity.capacity,
-			resolveCachePageTokens(appends[0].PageTokens),
 			session.program.identity.output,
 			r.currentLoRASignature(),
 		) {
@@ -782,7 +776,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	capacity, parameterized := r.parameterizedDecodeCapacity(appends, plan)
 	if parameterized {
 		identity := decodeSessionIdentity{
-			capacity: capacity, pageTokens: resolveCachePageTokens(appends[0].PageTokens),
+			capacity: capacity,
 			branches: uint32(len(appends)), tokenCount: 1, output: plan,
 			lora: r.currentLoRASignature(),
 		}
@@ -792,7 +786,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 		compatible := session != nil && session.program.identity.branches == uint32(len(appends)) &&
 			session.program.identity.matches(
-				capacity, resolveCachePageTokens(appends[0].PageTokens), plan, r.currentLoRASignature(),
+				capacity, plan, r.currentLoRASignature(),
 			)
 		for index, item := range appends {
 			compatible = compatible && (item.Past.session == nil ||
@@ -807,7 +801,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		builder.SetCacheAppendPlan(tensor.CacheAppendPlan{
 			ActiveTokens: appends[0].Past.Tokens,
 			SourceCapacityTokens: cachePageCapacity(
-				appends[0].Past.Tokens, appends[0].PageTokens, r.spec.ContextLength,
+				appends[0].Past.Tokens, r.spec.ContextLength, r.program.Decode.Session,
 			),
 			CapacityTokens: capacity,
 		})
@@ -862,7 +856,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 		program, programErr := compileDecodeSessionPlan(
 			compiled, graphs, targetPlans, decodeSessionIdentity{
-				capacity: capacity, pageTokens: resolveCachePageTokens(appends[0].PageTokens),
+				capacity: capacity,
 				branches: uint32(len(graphs)), tokenCount: 1, output: plan,
 				lora: r.currentLoRASignature(),
 			},
@@ -930,13 +924,12 @@ func (r *Runner) assembleDeviceBatchCaches(
 	next := make([]*deviceKVCache, len(graphs))
 	for index, graph := range graphs {
 		cache := &deviceKVCache{
-			storage:    storages[index],
-			Keys:       make([]executor.DeviceValue, len(graph.keys)),
-			Values:     make([]executor.DeviceValue, len(graph.values)),
-			States:     make([]deviceLayerStates, len(graph.states)),
-			Tokens:     graph.pastTokens + graph.tokenCount,
-			Position:   graph.nextPosition + graph.tokenCount,
-			PageTokens: resolveCachePageTokens(appends[index].PageTokens),
+			storage:  storages[index],
+			Keys:     make([]executor.DeviceValue, len(graph.keys)),
+			Values:   make([]executor.DeviceValue, len(graph.values)),
+			States:   make([]deviceLayerStates, len(graph.states)),
+			Tokens:   graph.pastTokens + graph.tokenCount,
+			Position: graph.nextPosition + graph.tokenCount,
 		}
 		if appends[index].Past != nil {
 			cache.session = appends[index].Past.session
@@ -985,7 +978,7 @@ func (r *Runner) assembleDeviceBatchCaches(
 				}
 			}
 		}
-		if pageErr := rebuildDeviceCachePages(cache, cache.PageTokens); pageErr != nil {
+		if pageErr := rebuildDeviceCachePages(cache, r.program.Decode.Session); pageErr != nil {
 			return fail(pageErr)
 		}
 		next[index] = cache
@@ -1010,8 +1003,8 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 		plan := deviceCacheTargetPlan{layers: make([]deviceCacheTargetLayer, len(graph.keys))}
 		capacity := uint64(cachePageCapacity(
 			graph.pastTokens+graph.tokenCount,
-			appends[branch].PageTokens,
 			r.spec.ContextLength,
+			r.program.Decode.Session,
 		))
 		for layer := range graph.keys {
 			// SharedKV layers read the source layer's cache in-graph and own no storage
@@ -1437,13 +1430,16 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 
 func rebuildDeviceCachePages(
 	cache *deviceKVCache,
-	pageTokens uint32,
+	session recipe.SessionPolicy,
 ) error {
 	if cache == nil {
 		return errors.New("inference: device cache is nil")
 	}
-	pageTokens = resolveCachePageTokens(pageTokens)
-	cache.PageTokens = pageTokens
+	pageTokens := cachePageTokens(cache.Tokens, session)
+	if pageTokens == 0 {
+		cache.Pages = nil
+		return nil
+	}
 	pageCount := int(cache.Tokens / pageTokens)
 	if cache.Tokens%pageTokens != 0 {
 		pageCount++

@@ -280,6 +280,58 @@
           "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestPermanentMagicGate' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts"
         }
       ]
+    },
+    {
+      "id": "tier2-session-director-integration",
+      "title": "Integrate resident session lifecycle, bounded admission, eviction, and observability across consumers",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Integrate resident session lifecycle, bounded admission, eviction, and observability across consumers",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime ./internal/server ./internal/trainingworkflow -run 'Session|Admission|Eviction|Lifecycle' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tier2-repodb-evidence-boundary",
+      "title": "Keep RepoDB authoritative for exact run and evaluation evidence with explicit external boundaries",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep RepoDB authoritative for exact run and evaluation evidence with explicit external boundaries",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/runrecord -run 'Evidence|Plan|Persist|External' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tier2-inventory-adversarial",
+      "title": "Harden bounded GGUF and safetensors inventory ingestion against adversarial catalog inputs",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Harden bounded GGUF and safetensors inventory ingestion against adversarial catalog inputs",
+          "status": "open",
+          "verify": "go test ./internal/gguf ./internal/safetensors ./internal/modelartifact -run 'Bounded|Adversarial|Inventory' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tier2-cuda-replay-evidence",
+      "title": "Measure CUDA replay, fallback, arena use, and numerical parity on target execution",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure CUDA replay, fallback, arena use, and numerical parity on target execution",
+          "status": "open",
+          "verify": "go test ./internal/cuda/executor -run '^Test(GraphReplayMetrics|ArenaMetrics|ExecutorReplayMatchesReference)$' -count=1"
+        }
+      ]
     }
   ]
 }

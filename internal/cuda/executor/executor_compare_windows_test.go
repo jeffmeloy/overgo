@@ -424,12 +424,16 @@ func checkCUDAGraph(
 	for index, check := range checks {
 		outputs[index] = check.output
 	}
-	want, err := reference.Execute(outputs, feeds)
+	program, err := tensor.CompileProgram(outputs...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := reference.ExecuteProgram(program, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}
 	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	got, err := cuda.ExecuteProgram(context.Background(), program, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}

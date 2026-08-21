@@ -499,7 +499,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:6c68781654a62673fb37a8a487829965519443d692284c45b0d45f7db1770ab7"
+     "identity": "file:sha256:bb5132951cd9642e177414ce8161cf85fc816be04c5a1961322a810ea27d17f1"
     },
     {
      "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
@@ -526,7 +526,7 @@
      "contains": "func TestOperationCatalogIsDenseAndUnique(",
      "path": "internal/tensor/operation_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:17aa538899344181d8c22440447775488c1875ddf9ac5e27cca3b70dda3d4d15"
+     "identity": "evidence:sha256:28bce882b157e290a944219d62d65e4918cca7e17f2131706f2540fd4dfc1131"
     }
    ],
    "id": "tensor-operation-catalog",

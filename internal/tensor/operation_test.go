@@ -32,6 +32,33 @@ func TestOperationCatalogIsDenseAndUnique(t *testing.T) {
 	}
 }
 
+func TestProgramSharesOneValidatedGraphAcrossBackends(t *testing.T) {
+	builder := NewBuilder()
+	left := builder.Input("left", dtype.F32, MustShape(4))
+	right := builder.Input("right", dtype.F32, MustShape(4))
+	output := builder.Multiply(builder.Add(left, right), right)
+	program, err := CompileProgram(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := program.RequireBackend(BackendReference); err != nil {
+		t.Fatal(err)
+	}
+	if err := program.RequireBackend(BackendCUDA); err != nil {
+		t.Fatal(err)
+	}
+	if err := program.RequireBackend(BackendReference | BackendCUDA); err == nil {
+		t.Fatal("multi-backend execution request accepted")
+	}
+	outputs := program.Outputs()
+	order := program.Order()
+	outputs[0] = left
+	order[0] = output
+	if program.Outputs()[0] != output || program.Order()[0] != left {
+		t.Fatal("program slices expose mutable validation state")
+	}
+}
+
 func TestOperationStorageContracts(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(8))

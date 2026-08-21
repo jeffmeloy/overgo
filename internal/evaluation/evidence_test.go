@@ -21,6 +21,7 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 	}
 	defer store.Close()
 	exact, plan := ledgerFixture(t, "evidence environment")
+	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := EvaluateExactSharded(ctx, store, exactGenerator{pieces: []string{"o", "k"}}, exact, plan, nil)
 	if err != nil {
 		t.Fatal(err)

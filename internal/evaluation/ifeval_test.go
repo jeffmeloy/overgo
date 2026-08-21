@@ -36,6 +36,7 @@ func TestIFEvalPinnedOracleParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
+	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := EvaluateInstructionRules(
 		context.Background(), store, exactGenerator{pieces: []string{response}}, compiled, plan,
 	)

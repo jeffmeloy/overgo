@@ -33,6 +33,7 @@ func TestTruthfulQAPinnedOracleParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	publishPlanFixtureAuthorities(t, store, mc1Plan)
 	mc1Report, err := EvaluateMultipleChoice(context.Background(), store, fixedContinuationScorer{
 		scores: []sequencescore.Score{{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}},
 	}, mc1, mc1Plan)
@@ -60,6 +61,7 @@ func TestTruthfulQAPinnedOracleParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	publishPlanFixtureAuthorities(t, store, mc2Plan)
 	mc2Report, err := EvaluateProbabilityMass(context.Background(), store, fixedContinuationScorer{
 		scores: []sequencescore.Score{{LogProbability: 0, Tokens: 1}, {LogProbability: 0, Tokens: 1}, {LogProbability: 0, Tokens: 1}},
 	}, mc2, mc2Plan)
@@ -84,6 +86,7 @@ func TestTruthfulQAPinnedOracleParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	publishPlanFixtureAuthorities(t, store, generatedPlan)
 	generatedReport, err := EvaluateGeneratedAnswer(
 		context.Background(), store, exactGenerator{pieces: []string{generated}}, compiledGenerated, generatedPlan,
 	)

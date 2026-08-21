@@ -63,9 +63,10 @@ func publishPlanAuthorities(
 	if err != nil {
 		return err
 	}
+	contents = append(contents, plan.authorityContents()...)
 	contents = append(contents, planContent)
 	lineage := artifact.DependencyLineage(plan.body.Split, plan.body.Dataset)
-	lineage = append(lineage, artifact.DependencyLineage(plan.identity, plan.body.Dataset, plan.body.Split)...)
+	lineage = append(lineage, plan.Lineage()...)
 	batch, err := artifact.NewDocumentBatch(
 		"evaluation/authorities/"+plan.identity.String(), contents, lineage, nil,
 	)

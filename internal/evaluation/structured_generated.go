@@ -124,7 +124,7 @@ func CompileStructuredGenerated(suite StructuredGeneratedSuite) (StructuredGener
 }
 
 func BindStructuredGenerated(compiled StructuredGeneratedPlan, authorities ExactAuthorities) (Plan, error) {
-	scorer, err := artifact.JSONID(artifact.KindProfile, struct {
+	scorer := struct {
 		Version     uint16 `json:"version"`
 		Kind        string `json:"kind"`
 		Extractor   string `json:"extractor"`
@@ -132,11 +132,8 @@ func BindStructuredGenerated(compiled StructuredGeneratedPlan, authorities Exact
 	}{
 		Version: artifact.InitialDocumentVersion, Kind: StructuredGeneratedKind,
 		Extractor: compiled.suite.Extractor, Equivalence: compiled.suite.Equivalence,
-	})
-	if err != nil {
-		return Plan{}, err
 	}
-	return bindPlan(compiled.dataset, compiled.split, compiled.identity, scorer, authorities)
+	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
 }
 
 func EvaluateStructuredGenerated(

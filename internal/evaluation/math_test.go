@@ -34,6 +34,7 @@ func TestMATHPinnedOracleParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
+	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := EvaluateStructuredGenerated(
 		context.Background(), store, exactGenerator{pieces: []string{raw}}, compiled, plan,
 	)

@@ -50,6 +50,7 @@ func TestBBHAndMuSRPinnedOracleParity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		publishPlanFixtureAuthorities(t, store, plan)
 		report, err := EvaluateGroupedChoice(
 			context.Background(), store,
 			fixedContinuationScorer{scores: []sequencescore.Score{{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}}},

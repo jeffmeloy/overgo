@@ -42,6 +42,7 @@ func TestMMLUProPinnedOracleParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
+	publishPlanFixtureAuthorities(t, store, plan)
 	scorer := fixedContinuationScorer{scores: []sequencescore.Score{{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}}}
 	report, err := EvaluateMMLUPro(context.Background(), store, scorer, compiled, plan)
 	if err != nil {

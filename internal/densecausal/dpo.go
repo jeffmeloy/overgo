@@ -29,12 +29,15 @@ func (m *Model) TrainDPOBatchesResume(
 	if resume != nil && !resume.Stream.Identity.Valid() {
 		return nil, RLState{}, errors.New("densecausal: DPO resume stream authority absent")
 	}
-	names, weights, gradients, plan, resolvedLR, err := m.trainSetup(baseLR)
+	names, weights, gradients, plan, err := m.trainSetup()
 	if err != nil {
 		return nil, RLState{}, err
 	}
+	if baseLR <= 0 {
+		return nil, RLState{}, errors.New("densecausal: positive recipe-derived learning rate required")
+	}
 	update, err := optimizer.New(weights, gradients, plan, optimizer.Config{
-		BaseLearningRate: resolvedLR, Momentum: momentum, Schedule: optimizer.ScheduleConstant,
+		BaseLearningRate: baseLR, Momentum: momentum, Schedule: optimizer.ScheduleConstant,
 	})
 	if err != nil {
 		return nil, RLState{}, err

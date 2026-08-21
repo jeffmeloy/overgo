@@ -51,7 +51,7 @@ func (observation DPOObservation) Valid() bool {
 		return false
 	}
 	for _, value := range values {
-		if math.IsNaN(value) || math.IsInf(value, 0) {
+		if !finite(value) {
 			return false
 		}
 	}
@@ -61,7 +61,7 @@ func (observation DPOObservation) Valid() bool {
 }
 
 func DPOLoss(scores PreferenceScores, scale float64) (DPOResult, error) {
-	if scale <= 0 || math.IsNaN(scale) || math.IsInf(scale, 0) ||
+	if scale <= 0 || !finite(scale) ||
 		!scores.PolicyChosen.Valid() || !scores.PolicyRejected.Valid() ||
 		!scores.ReferenceChosen.Valid() || !scores.ReferenceRejected.Valid() {
 		return DPOResult{}, errors.New("training program: invalid DPO scores or scale")

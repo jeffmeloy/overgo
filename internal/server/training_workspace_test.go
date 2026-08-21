@@ -66,6 +66,8 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 		Evaluation: evaluation,
 		Promotion:  testutil.ArtifactID(t, artifact.KindProfile, "dpo promotion"),
 	}
+	optimizerPolicy := trainingprogram.BuiltinOptimizerPolicy()
+	policies.Optimizer = optimizerPolicy.ID
 	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "dpo objective evidence")
 	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "dpo", Kind: trainingprogram.ObjectiveDPO,
@@ -86,6 +88,10 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	optimizerContent, err := optimizerPolicy.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
 	authorities := []artifact.ID{
 		split, processor, objective.Loss, evidence, policies.Precision, policies.Placement,
 		policies.Memory, policies.Checkpoint, policies.Evaluation, policies.Promotion,
@@ -99,7 +105,7 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 		Artifacts: append(descriptors, []artifact.Descriptor{
 			{ID: policy, Size: 1}, {ID: reference, Size: 1}, {ID: dataset, Size: uint64(len(datasetData))},
 		}...),
-		Contents: []artifact.Content{objectiveContent},
+		Contents: []artifact.Content{objectiveContent, optimizerContent},
 		Locations: []artifact.LocationEvent{
 			location(policy, artifact.LocationDirectory, policyPath),
 			location(reference, artifact.LocationDirectory, referencePath),
@@ -136,7 +142,7 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 	}
 	input, err := json.Marshal(map[string]any{
 		"dataset": dataset, "output": "trained", "steps": 1,
-		"learning_rate": 0, "momentum": 0.9, "objective_scale": 0.1,
+		"objective_scale": 0.1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -215,6 +221,7 @@ func policyDependencies(spec trainingprogram.PolicySpec) []recipe.Dependency {
 		{Role: recipe.DependencyPrecision, Artifact: spec.Precision},
 		{Role: recipe.DependencyPlacement, Artifact: spec.Placement},
 		{Role: recipe.DependencyMemory, Artifact: spec.Memory},
+		{Role: recipe.DependencyOptimizer, Artifact: spec.Optimizer},
 		{Role: recipe.DependencyCheckpointPolicy, Artifact: spec.Checkpoint},
 		{Role: recipe.DependencyEvaluation, Artifact: spec.Evaluation},
 		{Role: recipe.DependencyPromotion, Artifact: spec.Promotion},

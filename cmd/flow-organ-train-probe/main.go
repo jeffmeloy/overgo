@@ -32,6 +32,7 @@ import (
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/trainingprogram"
 )
 
 func main() {
@@ -310,8 +311,8 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 	}
 	gradients := make([]float32, len(masters))
 	config := optimizer.Config{
-		BaseLearningRate: optimizer.DeriveBaseLR(len(masters)),
-		Momentum:         optimizer.DeriveMomentum(),
+		BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(len(masters)),
+		Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
 		Schedule:         optimizer.ScheduleConstant,
 	}
 	stepper, err := optimizer.NewStepper(masters, gradients, plan, config)

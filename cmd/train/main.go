@@ -10,7 +10,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
-	"overgo/internal/optimizer"
 	"overgo/internal/repodb"
 	"overgo/internal/trainingworkflow"
 )
@@ -28,8 +27,6 @@ func run() error {
 	scale := flag.Float64("objective-scale", 0, "RL objective scale")
 	steps := flag.Int("steps", 1, "number of Muon update steps")
 	maximumSequence := flag.Int("seq", 512, "maximum token sequence; nonpositive keeps all")
-	learningRate := flag.Float64("lr", 0, "base learning rate; nonpositive derives n_params^-1/2")
-	momentum := flag.Float64("momentum", optimizer.DeriveMomentum(), "Muon momentum")
 	host := flag.Bool("host", false, "force host execution")
 	freezeLexical := flag.Bool("freeze-lexical", false, "freeze tied embedding/head; requires CUDA resident training")
 	maxWall := flag.Duration("max-wall", 30*time.Minute, "abort at a step boundary when the first measured step projects the run past this bound (0 disables)")
@@ -54,8 +51,8 @@ func run() error {
 		Repository: store, Recipe: parsedRecipe, Observations: store,
 		ModelDirectory: *model, DatasetPath: *dataset, OutputDirectory: *output,
 		ResumeDirectory: *resume, ReferenceDirectory: *reference,
-		Steps: *steps, MaximumSequence: *maximumSequence, LearningRate: *learningRate,
-		Momentum: *momentum, ObjectiveScale: *scale, Host: *host, FreezeLexical: *freezeLexical,
+		Steps: *steps, MaximumSequence: *maximumSequence,
+		ObjectiveScale: *scale, Host: *host, FreezeLexical: *freezeLexical,
 		Progress: os.Stderr, MaxProjectedWall: *maxWall,
 	})
 	if err != nil {
@@ -65,8 +62,9 @@ func run() error {
 		fmt.Printf("session observation: %s\n", result.Observation)
 	}
 	count := len(result.Losses) + len(result.DPO) + len(result.GRPO)
-	fmt.Printf("backend=%s objective=%s batches=%d stream_position=%d steps=%d lr=%s momentum=%g\n",
-		result.Backend, result.Objective, count, result.StreamPosition, *steps, learningRateLabel(*learningRate), *momentum)
+	fmt.Printf("backend=%s objective=%s batches=%d stream_position=%d steps=%d recipe_lr=%g recipe_momentum=%g\n",
+		result.Backend, result.Objective, count, result.StreamPosition, *steps,
+		result.Optimizer.BaseLearningRate, result.Optimizer.Momentum)
 	for index, loss := range result.Losses {
 		fmt.Printf("step %d: loss %.6f\n", index, loss)
 	}
@@ -78,11 +76,4 @@ func run() error {
 	}
 	fmt.Printf("checkpoint=%s written to %s\n", result.Checkpoint.ID(), *output)
 	return nil
-}
-
-func learningRateLabel(value float64) string {
-	if value <= 0 {
-		return "derived(n^-1/2)"
-	}
-	return fmt.Sprintf("%g", value)
 }

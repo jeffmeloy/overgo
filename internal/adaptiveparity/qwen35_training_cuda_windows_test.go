@@ -17,6 +17,7 @@ import (
 	"overgo/internal/hybridtrain"
 	"overgo/internal/optimizer"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingprogram"
 )
 
 const (
@@ -87,8 +88,8 @@ func TestQwen35RealTraining(t *testing.T) {
 	}
 	started := time.Now()
 	trajectory, residency, err := trained.TrainDeviceResident(worker, qwen35TrainingSteps, optimizer.Config{
-		BaseLearningRate: optimizer.DeriveBaseLR(trained.MatrixParamCount() + trained.VectorParamCount()),
-		Momentum:         optimizer.DeriveMomentum(),
+		BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(trained.MatrixParamCount() + trained.VectorParamCount()),
+		Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
 		Schedule:         optimizer.ScheduleConstant,
 	})
 	trainWall := time.Since(started)

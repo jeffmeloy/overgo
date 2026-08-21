@@ -153,7 +153,7 @@
      "contains": "func TestQwen35RealTraining(",
      "path": "internal/adaptiveparity/qwen35_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:45b31b389339be0a474864714f062f0abb776fbc7a5e4a1af2bb9bc480485f23"
+     "identity": "evidence:sha256:40b78d8957478ad65b726f1c37a728ac5ce76ae809518a43c16f41619481d8a2"
     }
    ],
    "id": "qwen35-real-recurrent-layer-training",
@@ -169,7 +169,7 @@
      "contains": "func LoadArtifact(",
      "path": "internal/adaptertrain/model.go",
      "role": "source",
-     "identity": "file:sha256:1fda8fcf748839eb1d5d4422eca101f492942b3b3076bafb2f4f774228bb65aa"
+     "identity": "file:sha256:c81b915b6853782dadd8c15244e7e48c3ae5ce893e9b203c371e69a5408ace51"
     },
     {
      "contains": "func TestGemmaE4BRealTraining(",
@@ -191,7 +191,7 @@
      "contains": "func CompileObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:9aac45930fcc85bdf617576feee9bc292938e4fdf2cb89a1d2b75b4d10576401"
+     "identity": "file:sha256:e5169095318a82214ca3a9a5390fe06b40472292ec809e3fa952b339023ee3f0"
     },
     {
      "contains": "func AudioProcessor(",
@@ -219,7 +219,7 @@
      "contains": "func CompileTrainingObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:9aac45930fcc85bdf617576feee9bc292938e4fdf2cb89a1d2b75b4d10576401"
+     "identity": "file:sha256:e5169095318a82214ca3a9a5390fe06b40472292ec809e3fa952b339023ee3f0"
     },
     {
      "contains": "func CompileObjectiveProgram(",

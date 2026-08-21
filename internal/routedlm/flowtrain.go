@@ -15,6 +15,7 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/trainingprogram"
 )
 
 // FlowHeadStepResult: measured facts of one observed organ training step.
@@ -92,8 +93,8 @@ func NewFlowHeadTrainer(plan FlowPlan, head FlowMLPWeights) (*FlowHeadTrainer, e
 		weights:   make([]float32, total),
 		gradients: make([]float32, total),
 		config: optimizer.Config{
-			BaseLearningRate: optimizer.DeriveBaseLR(total),
-			Momentum:         optimizer.DeriveMomentum(),
+			BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(total),
+			Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
 			Schedule:         optimizer.ScheduleConstant,
 		},
 	}

@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/optimizer"
 	"overgo/internal/safetensors"
+	"overgo/internal/trainingprogram"
 )
 
 // FinalLayerBinding: the head organ's tensor names in the artifact.
@@ -143,8 +144,8 @@ func NewFinalLayerTrainer(w FinalLayerWeights, eps float64) (*FinalLayerTrainer,
 	trainer.weights = make([]float32, total)
 	trainer.gradients = make([]float32, total)
 	trainer.config = optimizer.Config{
-		BaseLearningRate: optimizer.DeriveBaseLR(total),
-		Momentum:         optimizer.DeriveMomentum(),
+		BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(total),
+		Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
 		Schedule:         optimizer.ScheduleConstant,
 	}
 	for i, s := range sections {

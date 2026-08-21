@@ -1,0 +1,5 @@
+{
+  "parameter_exponent": -0.5,
+  "momentum_effective_samples": 30,
+  "schedule": "constant"
+}

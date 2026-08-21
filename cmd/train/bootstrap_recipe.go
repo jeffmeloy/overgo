@@ -85,6 +85,11 @@ func bootstrapTrainingRecipe(store *repodb.Store, modelPath, datasetPath string)
 	if err != nil {
 		return err
 	}
+	optimizerPolicy := trainingprogram.BuiltinOptimizerPolicy()
+	optimizerContent, err := optimizerPolicy.Content()
+	if err != nil {
+		return err
+	}
 	// Identities already grounded by prior claims keep their stored facts;
 	// only absent identities are declared.
 	candidates := []artifact.ID{modelID, evidenceID, datasetID, splitID, processorID}
@@ -100,7 +105,8 @@ func bootstrapTrainingRecipe(store *repodb.Store, modelPath, datasetPath string)
 		}
 	}
 	if _, err := store.Commit(ctx, artifact.Batch{
-		Key: "training/bootstrap/authority/" + objective.ID.String(), Artifacts: descriptors, Contents: []artifact.Content{content},
+		Key: "training/bootstrap/authority/" + objective.ID.String(), Artifacts: descriptors,
+		Contents: []artifact.Content{content, optimizerContent},
 	}); err != nil {
 		return err
 	}
@@ -110,6 +116,7 @@ func bootstrapTrainingRecipe(store *repodb.Store, modelPath, datasetPath string)
 		{Role: recipe.DependencyPrecision, Artifact: profiles["precision"]},
 		{Role: recipe.DependencyPlacement, Artifact: profiles["placement"]},
 		{Role: recipe.DependencyMemory, Artifact: profiles["memory"]},
+		{Role: recipe.DependencyOptimizer, Artifact: optimizerPolicy.ID},
 		{Role: recipe.DependencyCheckpointPolicy, Artifact: profiles["checkpoint"]},
 		{Role: recipe.DependencyEvaluation, Artifact: profiles["evaluation"]},
 		{Role: recipe.DependencyPromotion, Artifact: profiles["promotion"]},

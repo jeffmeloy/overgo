@@ -10,6 +10,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/optimizer"
 	"overgo/internal/oscillatorimage"
+	"overgo/internal/trainingprogram"
 )
 
 func main() {
@@ -18,7 +19,7 @@ func main() {
 	seed := flag.Int64("seed", 17, "bootstrap init and phase-sampling seed")
 	evalSeed := flag.Int64("eval-seed", 202, "fixed init seed for before/after loss evaluation")
 	learningRate := flag.Float64("learning-rate", 0.02, "Muon base learning rate")
-	momentum := flag.Float64("momentum", optimizer.DeriveMomentum(), "Muon momentum")
+	momentum := flag.Float64("momentum", trainingprogram.BuiltinOptimizerPolicy().Momentum(), "Muon momentum")
 	flag.Parse()
 	if err := run(*model, *steps, *seed, *evalSeed, optimizer.Config{
 		BaseLearningRate: *learningRate, Momentum: *momentum, Schedule: optimizer.ScheduleConstant,

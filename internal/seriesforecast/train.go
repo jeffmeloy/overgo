@@ -95,7 +95,7 @@ func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
 		return nil, err
 	}
 	if config.BaseLearningRate <= 0 {
-		config.BaseLearningRate = optimizer.DeriveBaseLR(pack.ParameterCount())
+		config.BaseLearningRate = trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(pack.ParameterCount())
 	}
 	trainer := &Trainer{
 		model: model, pack: pack, names: names, config: config,

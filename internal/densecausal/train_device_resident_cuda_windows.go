@@ -3,6 +3,7 @@
 package densecausal
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -128,11 +129,14 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 			d.Layers, capacity.Layers, capacity.FreeBytes, capacity.Granularity, capacity.PerLayerBytes)
 	}
 
-	names, weights, gradients, plan, resolvedLR, err := m.trainSetup(baseLR)
+	names, weights, gradients, plan, err := m.trainSetup()
 	if err != nil {
 		return nil, err
 	}
-	config := optimizer.Config{BaseLearningRate: resolvedLR, Momentum: mu, Schedule: optimizer.ScheduleConstant}
+	if baseLR <= 0 {
+		return nil, errors.New("densecausal: positive recipe-derived learning rate required")
+	}
+	config := optimizer.Config{BaseLearningRate: baseLR, Momentum: mu, Schedule: optimizer.ScheduleConstant}
 	// Host optimizer owns the non-layer-matrix groups; its float64 momentum and the
 	// `weights` buffer reproduce the reference host trajectory for those groups.
 	opt, err := optimizer.New(weights, gradients, plan, config)

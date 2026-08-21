@@ -14,7 +14,7 @@ func EvaluateNative(metric EvaluationMetric, prediction, target []float32) (floa
 	var correct int
 	for index, predicted := range prediction {
 		want := target[index]
-		if !finiteEvaluation(predicted) || !finiteEvaluation(want) {
+		if !finite(float64(predicted)) || !finite(float64(want)) {
 			return 0, errors.New("training evaluation: non-finite value")
 		}
 		delta := float64(predicted - want)
@@ -56,6 +56,6 @@ func EvaluateNative(metric EvaluationMetric, prediction, target []float32) (floa
 	}
 }
 
-func finiteEvaluation(value float32) bool {
-	return !math.IsNaN(float64(value)) && !math.IsInf(float64(value), 0)
+func finite(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }

@@ -16,6 +16,7 @@ import (
 	artifactexport "overgo/internal/export"
 	"overgo/internal/hfbpe"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/optimizer"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
@@ -35,8 +36,6 @@ type Request struct {
 	ReferenceDirectory string
 	Steps              int
 	MaximumSequence    int
-	LearningRate       float64
-	Momentum           float64
 	ObjectiveScale     float64
 	Host               bool
 	FreezeLexical      bool
@@ -72,6 +71,7 @@ func stepGuard(request Request, backend string) densecausal.TrainObserver {
 type Result struct {
 	Backend        string
 	Objective      trainingprogram.ObjectiveKind
+	Optimizer      optimizer.Config
 	Losses         []float64
 	DPO            []trainingprogram.DPOObservation
 	GRPO           []trainingprogram.GRPOObservation
@@ -131,6 +131,10 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	optimizerPolicy, err := trainingprogram.OptimizerPolicyFromRecipe(ctx, request.Repository, runtime.Definition())
+	if err != nil {
+		return Result{}, err
+	}
 	switch objective {
 	case trainingprogram.ObjectiveDPO:
 		if request.ReferenceDirectory == "" || request.ObjectiveScale <= 0 || request.FreezeLexical {
@@ -150,6 +154,14 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: load model: %w", err)
 	}
+	muonPlan, err := model.TrainingPlan()
+	if err != nil {
+		return Result{}, fmt.Errorf("training workflow: compile optimizer plan: %w", err)
+	}
+	optimizerConfig, err := optimizerPolicy.Config(muonPlan.ParameterCount())
+	if err != nil {
+		return Result{}, fmt.Errorf("training workflow: compile optimizer config: %w", err)
+	}
 	tokenizer, err := hfbpe.Load(inputDirectory)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: load tokenizer: %w", err)
@@ -162,6 +174,7 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	trainStarted := time.Now()
 	result, runErr := denseSession{
 		ctx: ctx, request: request, runtime: runtime, objective: objective,
+		optimizerPlan: muonPlan, optimizerConfig: optimizerConfig,
 		inputDirectory: inputDirectory, model: model, encode: tokenizer.Encode, raw: raw,
 		resumed: resumed, resumeStream: resumeStream, stepSample: observer.sampleStep,
 	}.run()
@@ -177,17 +190,19 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 }
 
 type denseSession struct {
-	ctx            context.Context
-	request        Request
-	runtime        recipe.Program
-	objective      trainingprogram.ObjectiveKind
-	inputDirectory string
-	model          *densecausal.Model
-	encode         func(string) ([]int, error)
-	raw            []byte
-	resumed        trainingprogram.Checkpoint
-	resumeStream   *trainingdata.StreamState
-	stepSample     func()
+	ctx             context.Context
+	request         Request
+	runtime         recipe.Program
+	objective       trainingprogram.ObjectiveKind
+	optimizerPlan   optimizer.Plan
+	optimizerConfig optimizer.Config
+	inputDirectory  string
+	model           *densecausal.Model
+	encode          func(string) ([]int, error)
+	raw             []byte
+	resumed         trainingprogram.Checkpoint
+	resumeStream    *trainingdata.StreamState
+	stepSample      func()
 }
 
 type densePrepared struct {
@@ -207,8 +222,8 @@ func (session denseSession) run() (Result, error) {
 		return Result{}, err
 	}
 	authority, err := compileAuthority(
-		session.ctx, session.request.Repository, session.runtime, session.model, session.inputDirectory,
-		prepared.data, prepared.stream, session.request.LearningRate, session.resumed,
+		session.ctx, session.request.Repository, session.runtime, session.optimizerPlan, session.inputDirectory,
+		prepared.data, prepared.stream, session.resumed,
 		session.objective, prepared.preference, prepared.evaluators,
 	)
 	if err != nil {
@@ -218,6 +233,7 @@ func (session denseSession) run() (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	result.Optimizer = session.optimizerConfig
 	result.Checkpoint, err = publishCheckpoint(
 		session.inputDirectory, session.request.OutputDirectory, session.model, authority, state,
 	)
@@ -265,7 +281,7 @@ func (session denseSession) execute(prepared densePrepared) (Result, densecausal
 			resume = &densecausal.RLState{Optimizer: session.resumed.Optimizer, Stream: *session.resumeStream}
 		}
 		observations, state, err := session.model.TrainGRPOGroupsResume(
-			prepared.groups, session.request.LearningRate, session.request.Momentum,
+			prepared.groups, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
 			session.request.ObjectiveScale, resume, session.request.ObserveGRPO,
 		)
 		return Result{Backend: "host", Objective: session.objective, GRPO: observations,
@@ -277,7 +293,7 @@ func (session denseSession) execute(prepared densePrepared) (Result, densecausal
 			resume = &densecausal.RLState{Optimizer: session.resumed.Optimizer, Stream: *session.resumeStream}
 		}
 		observations, state, err := session.model.TrainDPOBatchesResume(
-			prepared.reference, prepared.pairs, session.request.LearningRate, session.request.Momentum,
+			prepared.reference, prepared.pairs, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
 			session.request.ObjectiveScale, resume, session.request.ObserveDPO,
 		)
 		return Result{
@@ -307,7 +323,7 @@ func (session denseSession) execute(prepared densePrepared) (Result, densecausal
 		}
 	}
 	losses, backend, state, err := runTrainingState(
-		session.model, prepared.tokens, session.request.LearningRate, session.request.Momentum,
+		session.model, prepared.tokens, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
 		!session.request.Host, session.request.FreezeLexical, resume, observe,
 	)
 	return Result{
@@ -370,11 +386,10 @@ func compileAuthority(
 	ctx context.Context,
 	repository artifact.Reader,
 	runtime recipe.Program,
-	model *densecausal.Model,
+	muonPlan optimizer.Plan,
 	modelDirectory string,
 	data batchAuthority,
 	stream trainingdata.StreamState,
-	learningRate float64,
 	resumed trainingprogram.Checkpoint,
 	objective trainingprogram.ObjectiveKind,
 	preference *trainingprogram.PreferencePolicy,
@@ -387,10 +402,6 @@ func compileAuthority(
 		if err != nil {
 			return compiledAuthority{}, err
 		}
-	}
-	muonPlan, _, err := model.TrainingPlan(learningRate)
-	if err != nil {
-		return compiledAuthority{}, err
 	}
 	parameters := make([]trainingprogram.ParameterSpec, muonPlan.GroupCount())
 	for index := range parameters {

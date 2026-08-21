@@ -49,7 +49,7 @@ func TestDPOSelectedScoresMatchMaterialized(t *testing.T) {
 func TestDPOStepImprovesPreferenceMargin(t *testing.T) {
 	policy, reference, pair := dpoFixture(t)
 	before := dpoMargin(t, policy, pair)
-	if _, _, err := policy.TrainDPOBatchesResume(reference, dpoBatches(t, pair, 1), 0, 0.9, 0.1, nil, nil); err != nil {
+	if _, _, err := policy.TrainDPOBatchesResume(reference, dpoBatches(t, pair, 1), derivedTestLearningRate(t, policy), 0.9, 0.1, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	after := dpoMargin(t, policy, pair)
@@ -77,7 +77,7 @@ func TestDPOReferenceRemainsFrozen(t *testing.T) {
 	for name, values := range reference.Weights {
 		want[name] = slices.Clone(values)
 	}
-	if _, _, err := policy.TrainDPOBatchesResume(reference, dpoBatches(t, pair, 1), 0, 0.9, 0.1, nil, nil); err != nil {
+	if _, _, err := policy.TrainDPOBatchesResume(reference, dpoBatches(t, pair, 1), derivedTestLearningRate(t, policy), 0.9, 0.1, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	for name, values := range want {
@@ -91,15 +91,15 @@ func TestDPOResumeMatchesUninterrupted(t *testing.T) {
 	uninterrupted, reference, pair := dpoFixture(t)
 	resumed, _, _ := dpoFixture(t)
 	batches := dpoBatches(t, pair, 2)
-	_, wantState, err := uninterrupted.TrainDPOBatchesResume(reference, batches, 0, 0.9, 0.1, nil, nil)
+	_, wantState, err := uninterrupted.TrainDPOBatchesResume(reference, batches, derivedTestLearningRate(t, uninterrupted), 0.9, 0.1, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, firstState, err := resumed.TrainDPOBatchesResume(reference, batches[:1], 0, 0.9, 0.1, nil, nil)
+	_, firstState, err := resumed.TrainDPOBatchesResume(reference, batches[:1], derivedTestLearningRate(t, resumed), 0.9, 0.1, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, gotState, err := resumed.TrainDPOBatchesResume(reference, batches[1:], 0, 0.9, 0.1, &firstState, nil)
+	_, gotState, err := resumed.TrainDPOBatchesResume(reference, batches[1:], derivedTestLearningRate(t, resumed), 0.9, 0.1, &firstState, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

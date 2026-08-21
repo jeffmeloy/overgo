@@ -2,8 +2,8 @@ package model
 
 import (
 	"errors"
-	"math"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 )
 
@@ -47,29 +47,30 @@ const (
 
 // DenseStagePolicy: architecture-owned dense stage selection.
 type DenseStagePolicy struct {
-	QK                       QKPreprocessPlan
-	QKHeadsMinBlocks         uint32
-	NonRecurrentQKNoBias     bool
-	PostRotaryRMSNon128      bool
-	AttentionGate            attentionGateKind
-	AttentionHeadGate        bool
-	AttentionFlatGate        bool
-	AttentionFlatGateElse    bool
-	AttentionSubNorm         bool
-	AttentionValueScale      bool
-	Residual                 residualStageKind
-	ResidualParallelOnly     bool
-	QueryScale               queryScalePolicy
-	EmbeddingHeadScaleBlocks uint32
+	QK                           QKPreprocessPlan
+	QKHeadsMinBlocks             uint32
+	NonRecurrentQKNoBias         bool
+	PostRotaryRMSExcludedExperts uint32
+	AttentionGate                attentionGateKind
+	AttentionHeadGate            bool
+	AttentionFlatGate            bool
+	AttentionFlatGateElse        bool
+	AttentionSubNorm             bool
+	AttentionValueScale          bool
+	Residual                     residualStageKind
+	ResidualParallelOnly         bool
+	QueryScale                   queryScalePolicy
+	EmbeddingHeadScaleBlocks     uint32
 }
 
 func (s Spec) qkPreprocessPlan(profile ArchitectureProfile, layer uint32) QKPreprocessPlan {
 	policy := profile.DenseStages
 	plan := policy.QK
-	if policy.QKHeadsMinBlocks > 0 && s.BlockCount < policy.QKHeadsMinBlocks {
+	if policy.QKHeadsMinBlocks != tensor.FirstOffset && s.BlockCount < policy.QKHeadsMinBlocks {
 		plan.Heads = qkNormNone
 	}
-	if policy.PostRotaryRMSNon128 && s.UsesRoPE(layer) && s.ExpertCount != 128 {
+	if policy.PostRotaryRMSExcludedExperts != tensor.FirstOffset && s.UsesRoPE(layer) &&
+		s.ExpertCount != policy.PostRotaryRMSExcludedExperts {
 		plan.PostRotary = qkNormRMS
 	}
 	if policy.NonRecurrentQKNoBias && !s.IsRecurrentLayer(layer) {
@@ -179,6 +180,7 @@ type AttentionOutputPlan struct {
 	flatGateElse  bool
 	subNorm       bool
 	valueScale    float32
+	scaleValue    bool
 	sandwichNorm  bool
 	postNorm      bool
 	residualScale float32
@@ -187,14 +189,12 @@ type AttentionOutputPlan struct {
 func (s Spec) attentionOutputPlan(profile ArchitectureProfile, norm NormalizationPlan) AttentionOutputPlan {
 	policy := profile.DenseStages
 	plan := AttentionOutputPlan{
-		valueScale: s.AttentionValueScale, sandwichNorm: s.SandwichNorm,
-		postNorm: norm.PostAttention, residualScale: s.ResidualScale,
+		valueScale: s.AttentionValueScale, scaleValue: policy.AttentionValueScale,
+		sandwichNorm: s.SandwichNorm,
+		postNorm:     norm.PostAttention, residualScale: s.ResidualScale,
 		gate: policy.AttentionGate, headGate: policy.AttentionHeadGate,
 		flatGate: policy.AttentionFlatGate, flatGateElse: policy.AttentionFlatGateElse,
 		subNorm: policy.AttentionSubNorm,
-	}
-	if !policy.AttentionValueScale {
-		plan.valueScale = 0
 	}
 	return plan
 }
@@ -225,13 +225,14 @@ func (p AttentionOutputPlan) ApplyGate(
 	if gate == nil {
 		return attention
 	}
-	headWidth := weights.AttentionOutputGate.Shape.Dims[1] == uint64(headCount)
+	_, gateOutputs, validGate := tensor.MatrixExtents(weights.AttentionOutputGate.Shape)
+	perHeadGate := validGate && gateOutputs == uint64(headCount)
 	if stage == attentionGateHeads {
-		if !p.headGate || !headWidth {
+		if !p.headGate || !perHeadGate {
 			return attention
 		}
-		gate = builder.Reshape(gate, 1, uint64(headCount), tokens)
-	} else if !p.flatGate && !(p.flatGateElse && !headWidth) {
+		gate = builder.Reshape(gate, tensor.SingletonExtent, uint64(headCount), tokens)
+	} else if !p.flatGate && !(p.flatGateElse && !perHeadGate) {
 		return attention
 	}
 	return builder.Multiply(attention, gate)
@@ -247,7 +248,7 @@ func (p AttentionOutputPlan) ApplyProjection(
 		attention = builder.WeightedRMSNorm(attention, weights.AttentionSubNorm, spec.RMSNormEpsilon)
 	}
 	attention = builder.MulMat(weights.AttentionOutput, attention)
-	if p.valueScale != 0 {
+	if p.scaleValue {
 		attention = builder.Scale(attention, p.valueScale)
 	}
 	if weights.AttentionOutputScale != nil {
@@ -265,7 +266,7 @@ func (p AttentionOutputPlan) ApplyProjection(
 		}
 		attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
 	}
-	if p.residualScale > 0 {
+	if positiveFinite(p.residualScale) {
 		attention = builder.Scale(attention, p.residualScale)
 	}
 	return attention, nil
@@ -359,7 +360,7 @@ func (p ResidualStagePlan) ApplyFeedForwardOutput(
 	if norm.PostFeedForward {
 		feedForward = builder.WeightedRMSNorm(feedForward, weights.FeedForwardPostNorm, spec.RMSNormEpsilon)
 	}
-	if p.residualScale > 0 {
+	if positiveFinite(p.residualScale) {
 		feedForward = builder.Scale(feedForward, p.residualScale)
 	}
 	return feedForward
@@ -373,7 +374,7 @@ func (s Spec) queryScalePlan(profile ArchitectureProfile, layer uint32) QuerySca
 		}
 		return QueryScalePlan{kind: queryScaleTemperature}
 	case queryScalePolicyConfiguredTemperature:
-		if s.AttentionTempScale == 0 {
+		if !positiveFinite(s.AttentionTempScale) {
 			return QueryScalePlan{kind: queryScaleScores}
 		}
 		return QueryScalePlan{kind: queryScaleTemperature}
@@ -401,9 +402,9 @@ func (p QueryScalePlan) Apply(
 		return builder.Multiply(query, weights.AttentionTemperatureScale), scale
 	case queryScalePreDot:
 		if p.embeddingHead {
-			scale = float32(1 / math.Sqrt(float64(spec.EmbeddingLength)/float64(spec.HeadCount)))
+			scale = hostmath.InvSqrt32(uint64(spec.EmbeddingLength) / uint64(spec.HeadCount))
 		}
-		return builder.Scale(query, scale), 1
+		return builder.Scale(query, scale), tensor.UnitScale
 	default:
 		return query, scale
 	}

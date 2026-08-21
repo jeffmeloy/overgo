@@ -6,6 +6,12 @@ package hostmath
 
 import "math"
 
+// Sqrt32: float32 square root; float64 evaluation.
+func Sqrt32(value uint64) float32 { return float32(math.Sqrt(float64(value))) }
+
+// InvSqrt32: reciprocal Sqrt32.
+func InvSqrt32(value uint64) float32 { return 1 / Sqrt32(value) }
+
 // Transpose2D materializes the transpose of a row-major matrix.
 func Transpose2D(x []float32, rows, columns int) []float32 {
 	out := make([]float32, len(x))

@@ -1,5 +1,7 @@
 package model
 
+import "overgo/internal/tensor"
+
 func loadRecurrentMixerLayer(
 	catalog weightCatalog,
 	prefix string,
@@ -14,10 +16,12 @@ func loadRecurrentMixerLayer(
 	if mixer == recurrentMixerWeightedSelectiveScan {
 		layer.Recurrent = true
 		if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-			requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
+			requiredTensorPointer("ssm_in.weight", &layer.SSMInput,
+				uint64(spec.EmbeddingLength), tensor.PairedExtent*uint64(spec.SSMInnerSize)),
 			requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)),
 			requiredTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, uint64(spec.SSMInnerSize)),
-			requiredTensorPointer("ssm_x.weight", &layer.SSMX, uint64(spec.SSMInnerSize), uint64(spec.SSMTimeStepRank+2*spec.SSMStateSize)),
+			requiredTensorPointer("ssm_x.weight", &layer.SSMX, uint64(spec.SSMInnerSize),
+				uint64(spec.SSMTimeStepRank+tensor.PairedExtent*spec.SSMStateSize)),
 			requiredTensorPointer("ssm_dt_norm.weight", &layer.SSMTimeStepNorm, uint64(spec.SSMTimeStepRank)),
 			requiredTensorPointer("ssm_dt.weight", &layer.SSMTimeStepWeight, uint64(spec.SSMTimeStepRank), uint64(spec.SSMInnerSize)),
 			requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMInnerSize)),
@@ -31,17 +35,25 @@ func loadRecurrentMixerLayer(
 		}
 	} else if mixer == recurrentMixerNormalizedSelectiveScan {
 		layer.Recurrent = true
-		dtDimension := reducedTimeStepWidth(spec.EmbeddingLength)
 		if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-			requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
+			requiredRelationalTensorPointer(
+				"ssm_dt_norm.weight", &layer.SSMTimeStepNorm, tensor.SingletonExtent, true,
+			),
+		}); itemErr != nil {
+			return true, itemErr
+		}
+		dtDimension := layer.SSMTimeStepNorm.Shape[tensor.FirstOffset]
+		if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+			requiredTensorPointer("ssm_in.weight", &layer.SSMInput,
+				uint64(spec.EmbeddingLength), tensor.PairedExtent*uint64(spec.SSMInnerSize)),
 			requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)),
-			requiredTensorPointer("ssm_x.weight", &layer.SSMX, uint64(spec.SSMInnerSize), dtDimension+2*uint64(spec.SSMStateSize)),
+			requiredTensorPointer("ssm_x.weight", &layer.SSMX, uint64(spec.SSMInnerSize),
+				dtDimension+tensor.PairedExtent*uint64(spec.SSMStateSize)),
 			requiredTensorPointer("ssm_dt.weight", &layer.SSMTimeStepWeight, dtDimension, uint64(spec.SSMTimeStepRank)),
 			requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
 			requiredTensorPointer("ssm_a", &layer.SSMA, uint64(spec.SSMTimeStepRank)),
 			requiredTensorPointer("ssm_d", &layer.SSMD, uint64(spec.SSMTimeStepRank)),
 			requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
-			requiredTensorPointer("ssm_dt_norm.weight", &layer.SSMTimeStepNorm, dtDimension),
 			requiredTensorPointer("ssm_b_norm.weight", &layer.SSMBNorm, uint64(spec.SSMStateSize)),
 			requiredTensorPointer("ssm_c_norm.weight", &layer.SSMCNorm, uint64(spec.SSMStateSize)),
 		}); itemErr != nil {
@@ -53,8 +65,7 @@ func loadRecurrentMixerLayer(
 			return true, itemErr
 		}
 	} else if mixer == recurrentMixerAttentionGroupedSelectiveScan {
-		convDimension := uint64(spec.SSMInnerSize) +
-			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
+		convDimension := groupedStateSpaceConvolutionWidth(spec)
 		if itemErr := bindTensorProgram(
 			catalog, prefix, groupedSelectiveScanTensorRequirements(spec, layer, false),
 		); itemErr != nil {
@@ -93,8 +104,7 @@ func loadRecurrentMixerLayer(
 		}
 	} else if mixer == recurrentMixerGroupedSelectiveScan || mixer == recurrentMixerScaledGroupedSelectiveScan {
 		layer.Recurrent = true
-		convDimension := uint64(spec.SSMInnerSize) +
-			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
+		convDimension := groupedStateSpaceConvolutionWidth(spec)
 		if itemErr := bindTensorProgram(
 			catalog, prefix, groupedSelectiveScanTensorRequirements(spec, layer, true),
 		); itemErr != nil {
@@ -115,19 +125,19 @@ func loadRecurrentMixerLayer(
 			if deltaProjection == gatedDeltaInterleavedProjections {
 				program := []tensorBinding{
 					requiredTensorPointer("ssm_ba.weight", &layer.SSMBetaAlpha,
-						uint64(spec.EmbeddingLength), 2*uint64(spec.SSMTimeStepRank)),
+						uint64(spec.EmbeddingLength), tensor.PairedExtent*uint64(spec.SSMTimeStepRank)),
 				}
 				if _, ok := catalog.tensors[prefix+"attn_qkv.weight"]; ok {
 					program = append(program,
 						requiredTensorPointer("attn_qkv.weight", &layer.AttentionQKV,
-							uint64(spec.EmbeddingLength), keyDimension*2+valueDimension),
+							uint64(spec.EmbeddingLength), keyDimension*tensor.PairedExtent+valueDimension),
 						requiredTensorPointer("attn_gate.weight", &layer.AttentionGate,
 							uint64(spec.EmbeddingLength), valueDimension),
 					)
 				} else {
 					program = append(program, requiredTensorPointer(
 						"ssm_in.weight", &layer.AttentionQKV, uint64(spec.EmbeddingLength),
-						keyDimension*2+valueDimension*2,
+						keyDimension*tensor.PairedExtent+valueDimension*tensor.PairedExtent,
 					))
 				}
 				if itemErr := bindTensorProgram(catalog, prefix, program); itemErr != nil {
@@ -136,7 +146,7 @@ func loadRecurrentMixerLayer(
 			} else {
 				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 					requiredTensorPointer("attn_qkv.weight", &layer.AttentionQKV,
-						uint64(spec.EmbeddingLength), keyDimension*2+valueDimension),
+						uint64(spec.EmbeddingLength), keyDimension*tensor.PairedExtent+valueDimension),
 					requiredTensorPointer("attn_gate.weight", &layer.AttentionGate,
 						uint64(spec.EmbeddingLength), valueDimension),
 				}); itemErr != nil {
@@ -144,7 +154,8 @@ func loadRecurrentMixerLayer(
 				}
 			}
 			if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-				requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), keyDimension*2+valueDimension),
+				requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D,
+					uint64(spec.SSMConvKernel), keyDimension*tensor.PairedExtent+valueDimension),
 				requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
 				requiredTensorPointer("ssm_a", &layer.SSMA, uint64(spec.SSMTimeStepRank)),
 				requiredTensorPointer("ssm_norm.weight", &layer.SSMNorm, uint64(spec.SSMStateSize)),
@@ -163,7 +174,7 @@ func loadRecurrentMixerLayer(
 		} else {
 			if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 				requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ,
-					uint64(spec.EmbeddingLength), queryLength*2),
+					uint64(spec.EmbeddingLength), queryLength*tensor.PairedExtent),
 				requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK,
 					uint64(spec.EmbeddingLength), keyLength),
 				requiredTensorPointer(attentionValueWeightTensor, &layer.AttentionV,
@@ -178,7 +189,8 @@ func loadRecurrentMixerLayer(
 		layer.Recurrent = true
 		if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 			requiredTensorPointer("shortconv.conv.weight", &layer.ShortConvKernel, uint64(spec.ShortConvCacheLength), uint64(spec.EmbeddingLength)),
-			requiredTensorPointer("shortconv.in_proj.weight", &layer.ShortConvInput, uint64(spec.EmbeddingLength), 3*uint64(spec.EmbeddingLength)),
+			requiredTensorPointer("shortconv.in_proj.weight", &layer.ShortConvInput,
+				uint64(spec.EmbeddingLength), tensor.TripleExtent*uint64(spec.EmbeddingLength)),
 			requiredTensorPointer("shortconv.out_proj.weight", &layer.ShortConvOutput, uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)),
 		}); itemErr != nil {
 			return true, itemErr
@@ -191,10 +203,12 @@ func loadRecurrentMixerLayer(
 
 func selectiveScanTensorRequirements(spec Spec, layer *LayerWeights) []tensorBinding {
 	return []tensorBinding{
-		requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), 2*uint64(spec.SSMInnerSize)),
+		requiredTensorPointer("ssm_in.weight", &layer.SSMInput,
+			uint64(spec.EmbeddingLength), tensor.PairedExtent*uint64(spec.SSMInnerSize)),
 		requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), uint64(spec.SSMInnerSize)),
 		requiredTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, uint64(spec.SSMInnerSize)),
-		requiredTensorPointer("ssm_x.weight", &layer.SSMX, uint64(spec.SSMInnerSize), uint64(spec.SSMTimeStepRank+2*spec.SSMStateSize)),
+		requiredTensorPointer("ssm_x.weight", &layer.SSMX, uint64(spec.SSMInnerSize),
+			uint64(spec.SSMTimeStepRank+tensor.PairedExtent*spec.SSMStateSize)),
 		requiredTensorPointer("ssm_dt.weight", &layer.SSMTimeStepWeight, uint64(spec.SSMTimeStepRank), uint64(spec.SSMInnerSize)),
 		requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMInnerSize)),
 		requiredTensorPointer("ssm_a", &layer.SSMA, uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)),
@@ -204,15 +218,14 @@ func selectiveScanTensorRequirements(spec Spec, layer *LayerWeights) []tensorBin
 }
 
 func groupedSelectiveScanTensorRequirements(spec Spec, layer *LayerWeights, includeNorm bool) []tensorBinding {
-	convDimension := uint64(spec.SSMInnerSize) +
-		2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
+	convDimension := groupedStateSpaceConvolutionWidth(spec)
 	inputDimension := uint64(spec.SSMInnerSize) + convDimension + uint64(spec.SSMTimeStepRank)
 	requirements := []tensorBinding{
 		requiredTensorPointer("ssm_in.weight", &layer.SSMInput, uint64(spec.EmbeddingLength), inputDimension),
 		requiredTensorPointer("ssm_conv1d.weight", &layer.SSMConv1D, uint64(spec.SSMConvKernel), convDimension),
 		requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, uint64(spec.SSMTimeStepRank)),
-		requiredTensorPointer("ssm_a", &layer.SSMA, 1, uint64(spec.SSMTimeStepRank)),
-		requiredTensorPointer("ssm_d", &layer.SSMD, 1, uint64(spec.SSMTimeStepRank)),
+		requiredTensorPointer("ssm_a", &layer.SSMA, tensor.SingletonExtent, uint64(spec.SSMTimeStepRank)),
+		requiredTensorPointer("ssm_d", &layer.SSMD, tensor.SingletonExtent, uint64(spec.SSMTimeStepRank)),
 		requiredTensorPointer("ssm_out.weight", &layer.SSMOutput, uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)),
 	}
 	if includeNorm {
@@ -222,4 +235,9 @@ func groupedSelectiveScanTensorRequirements(spec Spec, layer *LayerWeights, incl
 		))
 	}
 	return requirements
+}
+
+func groupedStateSpaceConvolutionWidth(spec Spec) uint64 {
+	return uint64(spec.SSMInnerSize) +
+		tensor.PairedExtent*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 }

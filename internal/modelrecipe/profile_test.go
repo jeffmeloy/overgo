@@ -15,9 +15,9 @@ import (
 	"overgo/internal/testutil"
 )
 
-const profileCatalogSemanticDigest = "3864a0fad64e03f7313a392354a84adffdb512661af21eb182de8f1b8e502987"
-const architectureProfileFactDigest = "d76b89f0466bfdbf17cab840a0afd0d23883fc6a605653e9e6fce689b0a99a91"
-const architectureProfileFactSchemaDigest = "cf3d1f434c352874832653fb15c8ea2929a60a07dc00d66540b5fb99b3145718"
+const profileCatalogSemanticDigest = "766b6dc97526cc7cc0642c1f198ed5ae3816d1de9c7499accfa84839e761a440"
+const architectureProfileFactDigest = "132c449f200e154bc934021d297b8dcfbbd8ccfc76fdde47a5f9843d4257f1f2"
+const architectureProfileFactSchemaDigest = "11960eada0141704aa80b8fa009834e9f40e9b0d5da2e3ef744da3b0269815dc"
 
 const unsupportedProfilePolicyValue = ^uint8(0)
 
@@ -53,7 +53,7 @@ func TestRegisteredProfileDocumentsRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", document.Architecture, err)
 		}
-		if parsed.ID != document.ID || parsed.Policy != document.Policy ||
+		if parsed.ID != document.ID || !reflect.DeepEqual(parsed.Policy, document.Policy) ||
 			!reflect.DeepEqual(parsed.Provenance, document.Provenance) {
 			t.Fatalf("%s: profile round trip drifted", document.Architecture)
 		}

@@ -9,6 +9,9 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+// UnitFrequencyScale: unscaled rotary positions.
+const UnitFrequencyScale = float32(1)
+
 type ropeOptions struct {
 	operation                     Op
 	name                          string

@@ -55,7 +55,7 @@ func RequireOptimizerPolicy(ctx context.Context, reader artifact.Reader, id arti
 }
 
 func OptimizerPolicyFromRecipe(ctx context.Context, reader artifact.Reader, definition recipe.Definition) (OptimizerPolicy, error) {
-	id, ok := definition.Dependency(recipe.DependencyOptimizer, 0)
+	id, ok := definition.PrimaryDependency(recipe.DependencyOptimizer)
 	if !ok {
 		return OptimizerPolicy{}, errors.New("training program: optimizer policy dependency absent")
 	}

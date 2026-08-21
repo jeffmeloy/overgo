@@ -3,9 +3,9 @@ package model
 import (
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 )
 
@@ -45,16 +45,8 @@ const (
 	sequenceResidualConvolution sequenceResidualOperator = iota
 	sequenceResidualAttention
 	sequenceResidualNormalization
+	sequenceResidualOperatorCount
 )
-
-var sequenceOutputResidualProgram = [...]sequenceResidualOperator{
-	sequenceResidualConvolution,
-	sequenceResidualConvolution,
-	sequenceResidualAttention,
-	sequenceResidualConvolution,
-	sequenceResidualConvolution,
-	sequenceResidualNormalization,
-}
 
 // SequenceOutputProgram: ordered sequence terminal math.
 type SequenceOutputProgram struct {
@@ -73,7 +65,7 @@ func (p SequenceOutputProgram) Build(
 	if builder == nil || embeddings == nil {
 		return nil, errors.New("sequence-output input is nil")
 	}
-	if p.embedding == 0 || embeddings.Shape.Rank != 2 || embeddings.Shape.Dims[0] != p.embedding {
+	if _, validInput := tensor.MatrixRows(embeddings.Shape, p.embedding); !validInput {
 		return nil, errors.New("sequence-output embedding shape is incompatible")
 	}
 	if len(weights.Residual) != len(p.residuals) || len(weights.Convolution) != int(p.convolutions) {
@@ -88,7 +80,7 @@ func (p SequenceOutputProgram) Build(
 		requireGraphWeight("output norm bias", weights.OutputNormBias),
 		requireGraphWeight("output", weights.Output),
 		requireGraphWeight("output bias", weights.OutputBias),
-	}).validate("AudioDecoder decoder"); err != nil {
+	}).validate("sequence-output decoder"); err != nil {
 		return nil, err
 	}
 
@@ -133,13 +125,16 @@ func (p SequenceOutputProgram) Build(
 				return nil, err
 			}
 			current = builder.GroupNorm(current, layer.AttentionNorm, layer.AttentionNormBias, p.groupCount, p.groupEpsilon)
-			tokens := current.Shape.Dims[1]
 			width := p.positionWidth
-			query := builder.Reshape(builder.Conv1DSame(current, layer.AttentionQ, layer.AttentionQBias, false), width, 1, tokens)
-			key := builder.Reshape(builder.Conv1DSame(current, layer.AttentionK, layer.AttentionKBias, false), width, 1, tokens)
-			value := builder.Reshape(builder.Conv1DSame(current, layer.AttentionV, layer.AttentionVBias, false), width, 1, tokens)
+			tokens, validInput := tensor.MatrixRows(current.Shape, width)
+			if !validInput {
+				return nil, errors.New("sequence-output attention shape is incompatible")
+			}
+			query := builder.Reshape(builder.Conv1DSame(current, layer.AttentionQ, layer.AttentionQBias, false), width, tensor.SingletonExtent, tokens)
+			key := builder.Reshape(builder.Conv1DSame(current, layer.AttentionK, layer.AttentionKBias, false), width, tensor.SingletonExtent, tokens)
+			value := builder.Reshape(builder.Conv1DSame(current, layer.AttentionV, layer.AttentionVBias, false), width, tensor.SingletonExtent, tokens)
 			current = builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{
-				Scale: float32(1 / math.Sqrt(float64(width))),
+				Scale: hostmath.InvSqrt32(width),
 			})
 			current = builder.Reshape(current, width, tokens)
 			current = builder.Conv1DSame(current, layer.AttentionOutput, layer.AttentionOutBias, false)
@@ -195,7 +190,7 @@ func compileSequenceOutputProgram(spec Spec, profile ArchitectureProfile) Sequen
 		return SequenceOutputProgram{}
 	}
 	return SequenceOutputProgram{
-		residuals: slices.Clone(sequenceOutputResidualProgram[:]), convolutions: spec.ConvNextBlockCount,
+		residuals: slices.Clone(profile.Forward.SequenceResiduals), convolutions: spec.ConvNextBlockCount,
 		embedding: uint64(spec.EmbeddingLength), positionWidth: uint64(spec.PosNetEmbeddingLength),
 		groupCount: spec.GroupNormGroups, groupEpsilon: spec.GroupNormEpsilon,
 		layerEpsilon: spec.LayerNormEpsilon,

@@ -56,6 +56,18 @@ const (
 
 func (t EvidenceTier) Valid() bool { return validEvidenceTier(t) }
 
+// StrongerThan reports strict evidence precedence.
+func (t EvidenceTier) StrongerThan(other EvidenceTier) bool {
+	switch t {
+	case EvidenceProduction:
+		return other == EvidenceParity || other == EvidenceExperimental
+	case EvidenceParity:
+		return other == EvidenceExperimental
+	default:
+		return false
+	}
+}
+
 type Decider struct {
 	CodeCommit string      `json:"code_commit"`
 	Derivation artifact.ID `json:"derivation"`

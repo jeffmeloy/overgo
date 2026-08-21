@@ -2,12 +2,12 @@ package modelartifact
 
 import (
 	"errors"
-	"math"
 	"slices"
 	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/tensorstats"
 )
 
@@ -17,8 +17,7 @@ const (
 	TensorMeasurementSchema           = "overgo/tensor-measurement/v3"
 )
 
-// Spectral status for a tensor's normalized effective rank. Empty means spectral
-// analysis was not requested (policy SpectralMaxDim == 0).
+// Spectral status. Empty: analysis disabled by policy.
 const (
 	SpectralComputed      = "computed"       // effective rank is present
 	SpectralNotApplicable = "not-applicable" // not a 2-D matrix, or a zero matrix
@@ -117,10 +116,9 @@ func measurementFromSamples(name string, elements uint64, samples []float64) (Te
 func canonicalizeTensorMeasurements(document *TensorMeasurementDocument) error {
 	if document == nil || document.Version != TensorMeasurementVersion ||
 		document.Inventory.Kind() != artifact.KindTensorInventory ||
-		document.Policy.MaxSamplesPerTensor == 0 ||
-		document.Policy.MaxReadBytes == 0 || document.ReadBytes == 0 ||
-		document.ReadBytes > document.Policy.MaxReadBytes || len(document.Measurements) == 0 ||
-		len(document.Measurements) > maxInventoryTensors {
+		!checked.Nonzero(document.Policy.MaxSamplesPerTensor) ||
+		!checked.Nonzero(document.Policy.MaxReadBytes) || !checked.Nonzero(document.ReadBytes) ||
+		document.ReadBytes > document.Policy.MaxReadBytes || len(document.Measurements) == 0 {
 		return errors.New("model artifact: invalid tensor measurement envelope")
 	}
 	sort.Slice(document.Measurements, func(i, j int) bool {
@@ -129,20 +127,13 @@ func canonicalizeTensorMeasurements(document *TensorMeasurementDocument) error {
 	for index, measurement := range document.Measurements {
 		c := measurement.Characterization
 		if measurement.Name == "" || strings.TrimSpace(measurement.Name) != measurement.Name ||
-			c.Elements == 0 || c.Samples == 0 || c.Samples > c.Elements ||
-			c.Samples > document.Policy.MaxSamplesPerTensor ||
-			c.FiniteSamples == 0 || c.FiniteSamples > c.Samples ||
-			!finiteMeasurement(c.LowerQuartile) || !finiteMeasurement(c.Median) ||
-			!finiteMeasurement(c.UpperQuartile) || c.InterquartileRange < 0 ||
-			c.LowerQuartile > c.Median || c.Median > c.UpperQuartile ||
+			!c.Valid() || c.Samples > document.Policy.MaxSamplesPerTensor ||
 			!validSpectralMeasurement(measurement) ||
 			index > 0 && document.Measurements[index-1].Name == measurement.Name {
 			return errors.New("model artifact: invalid tensor measurement")
 		}
-		// A nonzero spectral policy demands an explicit verdict per tensor:
-		// an empty status would let a skipped spectral pass masquerade as a
-		// measured document (the 2026-08-16 audit's evidence-integrity P1).
-		if document.Policy.SpectralMaxDim > 0 && measurement.SpectralStatus == "" {
+		// Enabled spectral policy requires one verdict per tensor.
+		if checked.Nonzero(document.Policy.SpectralMaxDim) && measurement.SpectralStatus == "" {
 			return errors.New("model artifact: spectral policy is set but a measurement carries no spectral status")
 		}
 	}
@@ -155,14 +146,10 @@ func canonicalizeTensorMeasurements(document *TensorMeasurementDocument) error {
 func validSpectralMeasurement(m TensorMeasurement) bool {
 	switch m.SpectralStatus {
 	case "", SpectralNotApplicable, SpectralDeferred:
-		return m.EffectiveRank == 0
+		return !checked.Nonzero(m.EffectiveRank)
 	case SpectralComputed:
-		return finiteMeasurement(m.EffectiveRank) && m.EffectiveRank > 0 && m.EffectiveRank <= 1
+		return tensorstats.ValidEffectiveRank(m.EffectiveRank)
 	default:
 		return false
 	}
-}
-
-func finiteMeasurement(value float64) bool {
-	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }

@@ -1242,7 +1242,7 @@ func (g *gateContext) stepMagics() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	candidates, err := closurescan.ScanSnapshot(snapshot, g.paths)
+	candidates, err := closurescan.ScanSnapshot(snapshot, g.paths, closurescan.CandidateConstants)
 	if err != nil {
 		return false, err
 	}
@@ -1250,7 +1250,7 @@ func (g *gateContext) stepMagics() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	baseline, err := closurescan.ScanSnapshot(baselineSnapshot, g.paths)
+	baseline, err := closurescan.ScanSnapshot(baselineSnapshot, g.paths, closurescan.CandidateConstants)
 	if err != nil {
 		return false, err
 	}

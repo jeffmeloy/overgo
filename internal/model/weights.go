@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"overgo/internal/gguf"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
 
@@ -15,6 +16,8 @@ var (
 	}
 	longRoPEFactorNames = [...]string{"rope_factors_long.weight", "rope_factors_short.weight"}
 )
+
+const firstBlockTensorPrefix = "blk.0."
 
 // WavPosNetWeights: layer-specific PosNet tensors
 type WavPosNetWeights struct {
@@ -127,7 +130,7 @@ func loadMTPCommonWeights(
 ) error {
 	width := uint64(spec.EmbeddingLength)
 	return bindTensorProgram(catalog, prefix, []tensorBinding{
-		requiredTensor("nextn.eh_proj.weight", destination.ehProjection, 2*width, width),
+		requiredTensor("nextn.eh_proj.weight", destination.ehProjection, tensor.PairedExtent*width, width),
 		requiredTensor("nextn.enorm.weight", destination.embeddingNorm, width),
 		requiredTensor("nextn.hnorm.weight", destination.hiddenNorm, width),
 		optionalTensorPointer("nextn.embed_tokens.weight", destination.tokenEmbedding, width, uint64(spec.VocabularySize)),
@@ -137,16 +140,6 @@ func loadMTPCommonWeights(
 }
 
 func loadSharedExpertWeights(
-	catalog weightCatalog,
-	prefix string,
-	spec Spec,
-	layer *LayerWeights,
-	withRouter bool,
-) error {
-	return loadSharedExpertWeightsForWidth(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, withRouter)
-}
-
-func loadSharedExpertWeightsForWidth(
 	catalog weightCatalog,
 	prefix string,
 	width uint64,
@@ -295,14 +288,6 @@ func loadQLoRAQuery(catalog weightCatalog, prefix string, spec Spec, queryLength
 		requiredTensorPointer("attn_q_b.weight", &layer.AttentionQB,
 			uint64(spec.QLoRARank), queryLength),
 	})
-}
-
-// tensorShapeDim: shape dimension of an optional tensor, zero when absent.
-func tensorShapeDim(info *gguf.TensorInfo, index int) uint64 {
-	if info == nil {
-		return 0
-	}
-	return info.Shape[index]
 }
 
 func (c weightCatalog) selectName(prefix, primary, alternate string) string {
@@ -481,8 +466,8 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		return Weights{}, outputErr
 	}
 	if profile.Has(ArchitectureClassifierHead) {
-		outputCount := uint64(1)
-		if len(spec.ClassifierLabels) > 0 {
+		outputCount := uint64(tensor.SingletonExtent)
+		if len(spec.ClassifierLabels) > tensor.FirstOffset {
 			outputCount = uint64(len(spec.ClassifierLabels))
 		}
 		if classifierErr := bindTensorProgram(catalog, "", []tensorBinding{
@@ -497,7 +482,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 	}
 	if profile.LayerTopology == LayerTopologyBidirectionalQKNorm {
 		if item, ok := l.catalog.tensor("dense_2.weight"); ok {
-			if spec.Dense2FeatureIn == 0 || spec.Dense2FeatureOut == 0 {
+			if spec.Dense2FeatureIn == tensor.FirstOffset || spec.Dense2FeatureOut == tensor.FirstOffset {
 				return Weights{}, errors.New("Gemma embedding dense-2 tensor has no shape metadata")
 			}
 			if denseErr := bindTensorProgram(catalog, "", []tensorBinding{
@@ -508,7 +493,7 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 			}
 		}
 		if item, ok := l.catalog.tensor("dense_3.weight"); ok {
-			if spec.Dense3FeatureIn == 0 || spec.Dense3FeatureOut == 0 {
+			if spec.Dense3FeatureIn == tensor.FirstOffset || spec.Dense3FeatureOut == tensor.FirstOffset {
 				return Weights{}, errors.New("Gemma embedding dense-3 tensor has no shape metadata")
 			}
 			if denseErr := bindTensorProgram(catalog, "", []tensorBinding{
@@ -518,12 +503,8 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 				return Weights{}, denseErr
 			}
 		}
-		if result.Dense2Output != nil && result.Dense3Output != nil &&
-			result.Dense2Output.Shape[1] != result.Dense3Output.Shape[0] {
-			return Weights{}, errors.New("Gemma embedding dense projection widths do not compose")
-		}
 	}
-	if profile.Has(ArchitecturePerLayerEmbeddings) && spec.EmbeddingPerLayer > 0 {
+	if profile.Has(ArchitecturePerLayerEmbeddings) && spec.EmbeddingPerLayer > tensor.FirstOffset {
 		perLayerWidth := uint64(spec.EmbeddingPerLayer) * uint64(spec.BlockCount)
 		if itemErr := bindTensorProgram(catalog, "", []tensorBinding{
 			requiredTensorPointer("per_layer_token_embd.weight", &result.PerLayerTokenEmbedding,
@@ -537,7 +518,10 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 		}
 	}
 	if profile.LayerTopology == LayerTopologySplitProjection {
-		shape := []uint64{uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength), uint64(spec.AltUpCount - 1)}
+		shape := []uint64{
+			uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength),
+			uint64(spec.AltUpCount - tensor.SingletonExtent),
+		}
 		if itemErr := bindTensorProgram(catalog, "", []tensorBinding{
 			requiredTensorPointer("altup_proj.weight", &result.AltUpProjection, shape...),
 			requiredTensorPointer("altup_unembd_proj.weight", &result.AltUpUnembedding, shape...),
@@ -553,9 +537,9 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 	cohere2HasMTP := false
 	cohere2MTPOnly := false
 	if draftPlan.Kind == DraftOptionalSingleCatalog && draftPlan.SessionEligible() {
-		mtpPrefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, 0))
+		mtpPrefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, tensor.FirstOffset))
 		_, cohere2HasMTP = catalog.tensors[mtpPrefix+"nextn.eh_proj.weight"]
-		_, hasTrunk := catalog.tensors["blk.0."+attentionNormWeightTensor]
+		_, hasTrunk := catalog.tensors[firstBlockTensorPrefix+attentionNormWeightTensor]
 		cohere2MTPOnly = cohere2HasMTP && !hasTrunk
 		if cohere2HasMTP {
 			trunkBlockCount++
@@ -563,11 +547,11 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 	}
 	mtpOnly := draftPlan.Kind == DraftSingleCatalog && draftPlan.SessionEligible()
 	if mtpOnly {
-		_, hasTrunk := catalog.tensors["blk.0."+attentionNormWeightTensor]
+		_, hasTrunk := catalog.tensors[firstBlockTensorPrefix+attentionNormWeightTensor]
 		mtpOnly = !hasTrunk
 	}
 	if mtpOnly {
-		trunkBlockCount = 0
+		trunkBlockCount = tensor.FirstOffset
 	}
 	result.Layers = make([]LayerWeights, trunkBlockCount)
 	l.trunkBlockCount = trunkBlockCount
@@ -581,7 +565,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 	catalog := l.catalog
 	spec, profile, normPlan := l.spec, l.profile, l.normPlan
 	trunkBlockCount, cohere2MTPOnly := l.trunkBlockCount, l.cohere2MTPOnly
-	for block := uint32(0); block < trunkBlockCount; block++ {
+	for block := uint32(tensor.FirstOffset); block < trunkBlockCount; block++ {
 		if cohere2MTPOnly && block < spec.BlockCount {
 			continue
 		}
@@ -660,14 +644,15 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				)
 			}
 			rotaryDimensions := spec.KeyLength
-			if spec.RopeDimensionCount > 0 {
+			if spec.RopeDimensionCount > tensor.FirstOffset {
 				rotaryDimensions = spec.RopeDimensionCount
 			}
-			if rotaryDimensions%2 != 0 {
+			if rotaryDimensions%rotaryPairAlignment != tensor.FirstOffset {
 				return Weights{}, fmt.Errorf("tensor %q has odd rotary width %d", ropeFactors.Name, rotaryDimensions)
 			}
 			if validateErr := validateTensorInfo(
-				ropeFactors, []dtype.Type{dtype.F32}, []uint64{uint64(rotaryDimensions / 2)},
+				ropeFactors, []dtype.Type{dtype.F32},
+				[]uint64{uint64(rotaryDimensions / rotaryPairAlignment)},
 			); validateErr != nil {
 				return Weights{}, validateErr
 			}
@@ -682,12 +667,12 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 			longFactors, hasLong := l.catalog.tensor(longName)
 			shortFactors, hasShort := l.catalog.tensor(shortName)
-			if block > 0 {
+			if block > tensor.FirstOffset {
 				if !hasLong {
-					longFactors, hasLong = l.catalog.tensor("blk.0.rope_factors_long.weight")
+					longFactors, hasLong = l.catalog.tensor(firstBlockTensorPrefix + "rope_factors_long.weight")
 				}
 				if !hasShort {
-					shortFactors, hasShort = l.catalog.tensor("blk.0.rope_factors_short.weight")
+					shortFactors, hasShort = l.catalog.tensor(firstBlockTensorPrefix + "rope_factors_short.weight")
 				}
 			}
 			if hasLong != hasShort {
@@ -699,7 +684,8 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			if hasLong {
 				for _, item := range []gguf.TensorInfo{longFactors, shortFactors} {
 					if itemErr := validateTensorInfo(
-						item, []dtype.Type{dtype.F32}, []uint64{uint64(spec.RopeDimensionCount / 2)},
+						item, []dtype.Type{dtype.F32},
+						[]uint64{uint64(spec.RopeDimensionCount / rotaryPairAlignment)},
 					); itemErr != nil {
 						return Weights{}, itemErr
 					}
@@ -713,12 +699,12 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		}
 		if profile.LayerTopology == LayerTopologyBidirectionalFusedQKV {
 			norm := optionalTensorPointer(attentionNormWeightTensor, &layer.AttentionNorm, uint64(spec.EmbeddingLength))
-			norm.optional = block == 0
+			norm.optional = block == tensor.FirstOffset
 			if normErr := bindTensorProgram(catalog, prefix, []tensorBinding{norm}); normErr != nil {
 				return Weights{}, normErr
 			}
 		} else if normPlan.PreAttention &&
-			(!layerPlan.DeciSparse || spec.LayerHeadCount(block) > 0) &&
+			(!layerPlan.DeciSparse || spec.LayerHasAttention(block)) &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
 			requirements := []tensorBinding{
 				requiredTensorPointer(attentionNormWeightTensor, &layer.AttentionNorm,
@@ -745,8 +731,10 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}); itemErr != nil {
 					return Weights{}, itemErr
 				}
-				convShape := []uint64{uint64(spec.SSMConvKernel), 1, inner}
-				convShape4D := []uint64{uint64(spec.SSMConvKernel), 1, inner, 1}
+				convShape := []uint64{uint64(spec.SSMConvKernel), tensor.SingletonExtent, inner}
+				convShape4D := []uint64{
+					uint64(spec.SSMConvKernel), tensor.SingletonExtent, inner, tensor.SingletonExtent,
+				}
 				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 					requiredTensorPointerShapes("ssm_conv1d_q.weight", &layer.SSMQueryConv, convShape, convShape4D),
 					requiredTensorPointerShapes("ssm_conv1d_k.weight", &layer.SSMKeyConv, convShape, convShape4D),
@@ -763,19 +751,22 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}
 				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 					requiredTensorPointerShapes("ssm_a", &layer.SSMA,
-						[]uint64{1, uint64(spec.HeadCount)},
-						[]uint64{1, uint64(spec.HeadCount), 1, 1}),
+						[]uint64{tensor.SingletonExtent, uint64(spec.HeadCount)},
+						[]uint64{
+							tensor.SingletonExtent, uint64(spec.HeadCount),
+							tensor.SingletonExtent, tensor.SingletonExtent,
+						}),
 				}); itemErr != nil {
 					return Weights{}, itemErr
 				}
 			} else {
-				if spec.QLoRARank > 0 {
+				if spec.QLoRARank > tensor.FirstOffset {
 					if err := loadQLoRAQuery(catalog, prefix, spec, queryLength, layer); err != nil {
 						return Weights{}, err
 					}
 				}
-				requirements := make([]tensorBinding, 0, 6)
-				if spec.QLoRARank == 0 {
+				var requirements []tensorBinding
+				if spec.QLoRARank == tensor.FirstOffset {
 					requirements = append(requirements, requiredTensorPointer(
 						attentionQueryWeightTensor, &layer.AttentionQ,
 						uint64(spec.EmbeddingLength), queryLength))
@@ -831,7 +822,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}); itemErr != nil {
 					return Weights{}, itemErr
 				}
-				if itemErr := loadSharedExpertWeights(catalog, prefix, spec, layer, false); itemErr != nil {
+				if itemErr := loadSharedExpertWeights(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, false); itemErr != nil {
 					return Weights{}, itemErr
 				}
 			}
@@ -847,7 +838,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			if spec.IsRecurrentLayer(block) {
 				layer.Recurrent = true
 				convDimension := uint64(spec.SSMInnerSize) +
-					2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
+					tensor.PairedExtent*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 				requirements := append(
 					groupedSelectiveScanTensorRequirements(spec, layer, true),
 					optionalTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, convDimension),
@@ -857,7 +848,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				}
 				continue
 			}
-			if spec.LayerFeedForwardLength(block) == 0 {
+			if !spec.LayerHasFeedForward(block) {
 				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 					requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
 					requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
@@ -884,7 +875,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				continue
 			}
 			moeWidth := uint64(spec.EmbeddingLength)
-			if spec.MoELatentSize > 0 {
+			if spec.MoELatentSize > tensor.FirstOffset {
 				moeWidth = uint64(spec.MoELatentSize)
 				if latentErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 					requiredTensorPointer("ffn_latent_down.weight", &layer.FeedForwardLatentDown,
@@ -927,20 +918,20 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, subNormErr
 			}
 			if scaleErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-				optionalF32TensorPointer("attn_q.scale", &layer.AttentionQScale, 1),
-				optionalF32TensorPointer("attn_k.scale", &layer.AttentionKScale, 1),
-				optionalF32TensorPointer("attn_v.scale", &layer.AttentionVScale, 1),
-				optionalF32TensorPointer("attn_output.scale", &layer.AttentionOutputScale, 1),
-				optionalF32TensorPointer("ffn_gate.scale", &layer.FeedForwardGateScale, 1),
-				optionalF32TensorPointer("ffn_up.scale", &layer.FeedForwardUpScale, 1),
-				optionalF32TensorPointer("ffn_down.scale", &layer.FeedForwardDownScale, 1),
+				optionalF32TensorPointer("attn_q.scale", &layer.AttentionQScale, tensor.SingletonExtent),
+				optionalF32TensorPointer("attn_k.scale", &layer.AttentionKScale, tensor.SingletonExtent),
+				optionalF32TensorPointer("attn_v.scale", &layer.AttentionVScale, tensor.SingletonExtent),
+				optionalF32TensorPointer("attn_output.scale", &layer.AttentionOutputScale, tensor.SingletonExtent),
+				optionalF32TensorPointer("ffn_gate.scale", &layer.FeedForwardGateScale, tensor.SingletonExtent),
+				optionalF32TensorPointer("ffn_up.scale", &layer.FeedForwardUpScale, tensor.SingletonExtent),
+				optionalF32TensorPointer("ffn_down.scale", &layer.FeedForwardDownScale, tensor.SingletonExtent),
 			}); scaleErr != nil {
 				return Weights{}, scaleErr
 			}
 		}
-		if layerPlan.DeciSparse && spec.LayerHeadCount(block) == 0 {
+		if layerPlan.DeciSparse && !spec.LayerHasAttention(block) {
 			// Attention-free layer.
-		} else if layerPlan.DeciSparse && spec.LayerKVHeadCount(block) == 0 {
+		} else if layerPlan.DeciSparse && !spec.LayerHasKVHeads(block) {
 			if outputErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 				requiredTensorPointer(attentionOutputWeightTensor, &layer.AttentionOutput,
 					uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength)),
@@ -977,8 +968,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		} else if layerPlan.Attention == AttentionLatent || layerPlan.Attention == AttentionSparseLatent {
 			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
-			mlaTensors := make([]tensorBinding, 0, 10)
-			if profile.LatentAttention == latentAttentionNeoXResidualScale || (profile.Has(ArchitectureLatentKVLayout) && spec.QLoRARank > 0) {
+			var mlaTensors []tensorBinding
+			if profile.LatentAttention == latentAttentionNeoXResidualScale ||
+				(profile.Has(ArchitectureLatentKVLayout) && spec.QLoRARank > tensor.FirstOffset) {
 				mlaTensors = append(mlaTensors,
 					requiredTensorPointer("attn_q_a.weight", &layer.AttentionQ,
 						uint64(spec.EmbeddingLength), uint64(spec.QLoRARank)),
@@ -1067,7 +1059,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				"attn_sinks.weight", &layer.AttentionSinks, uint64(spec.LayerHeadCount(block)))
 			requirements := []tensorBinding{sinkRequirement}
 			if layerPlan.DenseWeights.requireAttentionSinks {
-				requirements[0] = requiredF32TensorPointer(
+				requirements[tensor.FirstOffset] = requiredF32TensorPointer(
 					"attn_sinks.weight", &layer.AttentionSinks, uint64(spec.LayerHeadCount(block)))
 				requirements = append(requirements, requiredTensorPointer(
 					postAttentionNormWeightTensor, &layer.AttentionPostNorm, uint64(spec.EmbeddingLength)))
@@ -1117,8 +1109,8 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		if profile.LayerTopology == LayerTopologyCausalPostQKNormSkip {
 			if normErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 				requiredTensorPointer(attentionQueryNormTensor, &layer.AttentionQNorm,
-					1, uint64(spec.HeadCount)),
-				requiredTensorPointer("layer_out_scale.weight", &layer.LayerOutputScale, 1),
+					tensor.SingletonExtent, uint64(spec.HeadCount)),
+				requiredTensorPointer("layer_out_scale.weight", &layer.LayerOutputScale, tensor.SingletonExtent),
 			}); normErr != nil {
 				return Weights{}, normErr
 			}
@@ -1173,11 +1165,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			return Weights{}, fmt.Errorf("required tensor %q is missing", prefix+"attn_output.bias")
 		}
 		if !layer.Recurrent && layer.AttentionQKV == nil &&
-			(!layerPlan.DeciSparse || spec.LayerKVHeadCount(block) > 0) {
+			(!layerPlan.DeciSparse || spec.LayerHasKVHeads(block)) {
 			if biasErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-				optionalF32TensorPointer("attn_q.bias", &layer.AttentionQBias, tensorShapeDim(layer.AttentionQ, 1)),
-				optionalF32TensorPointer("attn_k.bias", &layer.AttentionKBias, tensorShapeDim(layer.AttentionK, 1)),
-				optionalF32TensorPointer("attn_v.bias", &layer.AttentionVBias, tensorShapeDim(layer.AttentionV, 1)),
+				optionalF32TensorPointer("attn_q.bias", &layer.AttentionQBias, layer.AttentionQ.MatrixRows()),
+				optionalF32TensorPointer("attn_k.bias", &layer.AttentionKBias, layer.AttentionK.MatrixRows()),
+				optionalF32TensorPointer("attn_v.bias", &layer.AttentionVBias, layer.AttentionV.MatrixRows()),
 			}); biasErr != nil {
 				return Weights{}, biasErr
 			}
@@ -1205,12 +1197,14 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		if profile.Has(ArchitecturePerLayerEmbeddings) {
 			if profile.LayerTopology == LayerTopologySharedKVAdapter {
 				if scaleErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-					optionalF32TensorPointer("layer_output_scale.weight", &layer.LayerOutputScale, 1),
+					optionalF32TensorPointer(
+						"layer_output_scale.weight", &layer.LayerOutputScale, tensor.SingletonExtent,
+					),
 				}); scaleErr != nil {
 					return Weights{}, scaleErr
 				}
 			}
-			if spec.EmbeddingPerLayer > 0 {
+			if spec.EmbeddingPerLayer > tensor.FirstOffset {
 				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 					requiredTensorPointer("per_layer_inp_gate.weight", &layer.PerLayerInputGate, uint64(spec.EmbeddingLength), uint64(spec.EmbeddingPerLayer)),
 					requiredTensorPointer("per_layer_proj.weight", &layer.PerLayerProjection, uint64(spec.EmbeddingPerLayer), uint64(spec.EmbeddingLength)),
@@ -1248,7 +1242,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, normErr
 			}
 		} else if !layerPlan.DenseWeights.requireExpertProjectionBiases && normPlan.PreFeedForward &&
-			(!layerPlan.DeciSparse || spec.LayerFeedForwardLength(block) > 0) &&
+			(!layerPlan.DeciSparse || spec.LayerHasFeedForward(block)) &&
 			profile.Residual != ResidualParallel &&
 			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
 			requirements := []tensorBinding{
@@ -1284,18 +1278,18 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 	spec, profile, draftPlan, mtpOnly := l.spec, l.profile, l.draftPlan, l.mtpOnly
 	cohere2HasMTP, cohere2MTPOnly := l.cohere2HasMTP, l.cohere2MTPOnly
 	if draftPlan.Kind == DraftSingleCatalog && draftPlan.SessionEligible() {
-		prefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, 0))
+		prefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, tensor.FirstOffset))
 		mtp := &SingleDraftWeights{}
 		mtp.MTPOnly = mtpOnly
 		mtp.Layer.Recurrent = false
-		shapes := spec.TensorShapes(0)
+		shapes := spec.TensorShapes(tensor.FirstOffset)
 		queryLength := shapes.QueryProjectionWidth()
 		keyLength := shapes.KeyProjectionWidth()
 		valueLength := shapes.ValueProjectionWidth()
 		if loadErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 			requiredTensorPointer(attentionNormWeightTensor, &mtp.Layer.AttentionNorm, uint64(spec.EmbeddingLength)),
 			requiredTensorPointer(postAttentionNormWeightTensor, &mtp.Layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
-			requiredTensorPointer(attentionQueryWeightTensor, &mtp.Layer.AttentionQ, uint64(spec.EmbeddingLength), 2*queryLength),
+			requiredTensorPointer(attentionQueryWeightTensor, &mtp.Layer.AttentionQ, uint64(spec.EmbeddingLength), uint64(draftPlan.QueryCopies)*queryLength),
 			requiredTensorPointer(attentionKeyWeightTensor, &mtp.Layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
 			requiredTensorPointer(attentionValueWeightTensor, &mtp.Layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
 			requiredTensorPointer(attentionOutputWeightTensor, &mtp.Layer.AttentionOutput, queryLength, uint64(spec.EmbeddingLength)),
@@ -1315,7 +1309,8 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		}
 		result.SingleCatalogDraft = mtp
 	}
-	if (draftPlan.Kind == DraftAppendedMultiCarry || draftPlan.Kind == DraftAppendedMulti) && draftPlan.HasHead(0) {
+	if (draftPlan.Kind == DraftAppendedMultiCarry || draftPlan.Kind == DraftAppendedMulti) &&
+		draftPlan.HasHead(tensor.FirstOffset) {
 		heads := make([]AppendedDraftWeights, draftPlan.Heads)
 		for offset := range draftPlan.Heads {
 			block := draftPlan.Block(spec.BlockCount, offset)
@@ -1337,7 +1332,7 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		result.Layers = result.Layers[:spec.BlockCount]
 	}
 	if cohere2HasMTP {
-		block := draftPlan.Block(spec.BlockCount, 0)
+		block := draftPlan.Block(spec.BlockCount, tensor.FirstOffset)
 		prefix := fmt.Sprintf("blk.%d.", block)
 		mtp := &SingleDraftWeights{MTPOnly: cohere2MTPOnly, Layer: result.Layers[block]}
 		if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
@@ -1348,12 +1343,12 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		}
 		result.OptionalCatalogDraft = mtp
 		if cohere2MTPOnly {
-			result.Layers = result.Layers[:0]
+			result.Layers = result.Layers[:tensor.FirstOffset]
 		} else {
 			result.Layers = result.Layers[:spec.BlockCount]
 		}
 	}
-	if draftPlan.Kind == DraftAppendedSingle && draftPlan.HasHead(0) {
+	if draftPlan.Kind == DraftAppendedSingle && draftPlan.HasHead(tensor.FirstOffset) {
 		result.AppendedSingleDraft = make([]AppendedDraftWeights, spec.NextNPredictLayers)
 		for offset := range draftPlan.Heads {
 			block := draftPlan.Block(spec.BlockCount, offset)

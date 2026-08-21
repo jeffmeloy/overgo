@@ -1,6 +1,9 @@
 package model
 
-import "overgo/internal/gguf"
+import (
+	"overgo/internal/gguf"
+	"overgo/internal/tensor"
+)
 
 // DraftWeightCatalog: family-neutral draft tensor view.
 type DraftWeightCatalog struct {
@@ -34,7 +37,7 @@ func draftWeightCatalog(
 func (w Weights) DraftCatalog(kind DraftKind, offset uint32) (DraftWeightCatalog, bool) {
 	switch kind {
 	case DraftSingleCatalog:
-		if offset == 0 && w.SingleCatalogDraft != nil {
+		if offset == tensor.FirstOffset && w.SingleCatalogDraft != nil {
 			item := w.SingleCatalogDraft
 			return draftWeightCatalog(kind, item.MTPOnly, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, nil, item.OutputNorm, item.Output), true
@@ -58,7 +61,7 @@ func (w Weights) DraftCatalog(kind DraftKind, offset uint32) (DraftWeightCatalog
 				item.HiddenNorm, item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output), true
 		}
 	case DraftOptionalSingleCatalog:
-		if offset == 0 && w.OptionalCatalogDraft != nil {
+		if offset == tensor.FirstOffset && w.OptionalCatalogDraft != nil {
 			item := w.OptionalCatalogDraft
 			return draftWeightCatalog(kind, item.MTPOnly, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, nil, item.OutputNorm, item.Output), true
@@ -78,7 +81,7 @@ func (w Weights) DraftCatalogs() []DraftWeightCatalog {
 	}
 	result := make([]DraftWeightCatalog, 0, count)
 	for _, kind := range []DraftKind{DraftSingleCatalog, DraftAppendedMultiCarry, DraftAppendedMulti, DraftAppendedSingle, DraftOptionalSingleCatalog} {
-		for offset := uint32(0); ; offset++ {
+		for offset := uint32(tensor.FirstOffset); ; offset++ {
 			catalog, ok := w.DraftCatalog(kind, offset)
 			if !ok {
 				break

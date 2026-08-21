@@ -6,6 +6,13 @@ import (
 )
 
 func TestCheckedArithmetic(t *testing.T) {
+	const signedValue int64 = 7
+	if value, ok := Uint64(signedValue); !ok || value != uint64(signedValue) {
+		t.Fatalf("unsigned conversion = %d, %v", value, ok)
+	}
+	if _, ok := Uint64(-signedValue); ok {
+		t.Fatal("negative conversion accepted")
+	}
 	if value, ok := Add64(1, 2, 3); !ok || value != 6 {
 		t.Fatalf("sum = %d, %v", value, ok)
 	}

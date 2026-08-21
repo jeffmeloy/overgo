@@ -33,7 +33,7 @@ var catalogProfileDerivationCodec = artifact.DocumentCodec[CatalogProfileDerivat
 		return strictjson.DecodeBytes(data, &value.catalogProfileDerivationBody)
 	},
 	Encode:       catalogProfileDerivationContent,
-	Canonicalize: func(value *CatalogProfileDerivation) error { return value.validateShape() },
+	Canonicalize: func(value *CatalogProfileDerivation) error { return value.validate() },
 	Identity:     func(value CatalogProfileDerivation) artifact.ID { return value.ID },
 	SetIdentity:  func(value *CatalogProfileDerivation, id artifact.ID) { value.ID = id },
 }
@@ -78,7 +78,7 @@ func (d CatalogProfileDerivation) Content() (artifact.Content, error) {
 	return catalogProfileDerivationCodec.Content(d)
 }
 
-func (d CatalogProfileDerivation) validateShape() error {
+func (d CatalogProfileDerivation) validate() error {
 	if d.Version != CatalogProfileDerivationVersion || d.ProfileVersion != ProfileVersion ||
 		d.Architecture == "" || d.Source != catalogProfileSource ||
 		!validSHA256(d.FactSchemaSHA256) || !validSHA256(d.PolicySHA256) {

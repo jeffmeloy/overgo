@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"strings"
 
 	"overgo/internal/gguf"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
 
@@ -77,7 +77,7 @@ func LoadLoRA(ctx context.Context, path string, base *gguf.File, spec Spec) (*Lo
 			return nil, errors.New("LoRA alpha is not float32")
 		}
 		alpha, ok := value.Data.(float32)
-		if !ok || math.IsNaN(float64(alpha)) || math.IsInf(float64(alpha), 0) {
+		if !ok || !finite(alpha) {
 			return nil, errors.New("LoRA alpha is invalid")
 		}
 		result.Alpha = alpha
@@ -124,7 +124,7 @@ func LoadLoRA(ctx context.Context, path string, base *gguf.File, spec Spec) (*Lo
 		}
 		pairs[baseName] = entry
 	}
-	if len(pairs) == 0 {
+	if len(pairs) == tensor.FirstOffset {
 		return nil, errors.New("LoRA adapter has no tensor pairs")
 	}
 	for name, pair := range pairs {
@@ -153,22 +153,10 @@ func LoadLoRA(ctx context.Context, path string, base *gguf.File, spec Spec) (*Lo
 }
 
 func validateLoRAShapes(name string, base, a, b gguf.TensorInfo, embedding bool) error {
-	if base.Dimensions < 2 || a.Dimensions != base.Dimensions || b.Dimensions != base.Dimensions {
-		return fmt.Errorf("LoRA tensor %q ranks do not match", name)
-	}
-	if embedding {
-		if base.Dimensions != 2 || base.Shape[0] != b.Shape[1] || base.Shape[1] != a.Shape[1] || a.Shape[0] != b.Shape[0] {
-			return fmt.Errorf("LoRA embedding tensor %q has incompatible shape", name)
-		}
-		return nil
-	}
-	if base.Shape[0] != a.Shape[0] || base.Shape[1] != b.Shape[1] || a.Shape[1] != b.Shape[0] {
-		return fmt.Errorf("LoRA tensor %q has incompatible matrix shape", name)
-	}
-	for axis := uint32(2); axis < base.Dimensions; axis++ {
-		if base.Shape[axis] != a.Shape[axis] || base.Shape[axis] != b.Shape[axis] {
-			return fmt.Errorf("LoRA tensor %q has incompatible group shape", name)
-		}
+	if !tensor.ValidLowRankUpdate(
+		base.Shape[:base.Dimensions], a.Shape[:a.Dimensions], b.Shape[:b.Dimensions], embedding,
+	) {
+		return fmt.Errorf("LoRA tensor %q has incompatible layout", name)
 	}
 	return nil
 }

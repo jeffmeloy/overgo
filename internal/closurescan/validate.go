@@ -23,7 +23,7 @@ type BindingIssue struct {
 }
 
 func ValidateBindings(snapshot repoanalysis.SourceSnapshot, documents []closureledger.Document) ([]BindingIssue, error) {
-	candidates, err := ScanSnapshot(snapshot, nil)
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateAll)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func ValidateBindings(snapshot repoanalysis.SourceSnapshot, documents []closurel
 			continue
 		}
 		for _, binding := range document.Bindings {
-			key := (Candidate{File: binding.File, Scope: binding.Scope, Line: binding.Line, Name: binding.Name}).DeclarationKey()
+			key := (Candidate{Kind: binding.Kind, File: binding.File, Scope: binding.Scope, Line: binding.Line, Name: binding.Name}).DeclarationKey()
 			candidate, found := current[key]
 			if !found {
 				issues = append(issues, BindingIssue{Kind: DriftOrphan, Name: binding.Name, File: binding.File})

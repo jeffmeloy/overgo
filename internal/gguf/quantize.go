@@ -86,7 +86,8 @@ func (f *File) QuantizeTo(
 					}
 				}
 			}
-			if selected && tensor.Shape[0]%targetTraits.BlockSize != 0 {
+			_, rowAligned := targetTraits.BlockCount(tensor.Shape[0])
+			if selected && !rowAligned {
 				return report, fmt.Errorf(
 					"tensor %q row size %d is not divisible by %s block size %d",
 					tensor.Name,
@@ -137,7 +138,8 @@ func optionalImportanceTensor(name string) bool {
 }
 
 func defaultQuantizeTensor(tensor TensorInfo, targetBlockSize uint64) bool {
-	if tensor.Dimensions < 2 || tensor.Shape[0]%targetBlockSize != 0 {
+	_, rowAligned := dtype.BlockCount(tensor.Shape[0], targetBlockSize)
+	if tensor.Dimensions < 2 || !rowAligned {
 		return false
 	}
 	traits, ok := tensor.Type.Traits()
@@ -298,7 +300,8 @@ func tensorStorageSize(tensor TensorInfo, dataType DType) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if elements%traits.BlockSize != 0 {
+	blocks, aligned := traits.BlockCount(elements)
+	if !aligned {
 		return 0, fmt.Errorf(
 			"tensor %q element count %d is not divisible by %s block size %d",
 			tensor.Name,
@@ -307,7 +310,6 @@ func tensorStorageSize(tensor TensorInfo, dataType DType) (uint64, error) {
 			traits.BlockSize,
 		)
 	}
-	blocks := elements / traits.BlockSize
 	if blocks > math.MaxUint64/traits.TypeSize {
 		return 0, fmt.Errorf("tensor %q byte size overflows uint64", tensor.Name)
 	}

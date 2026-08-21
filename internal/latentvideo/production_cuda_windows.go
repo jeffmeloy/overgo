@@ -163,7 +163,7 @@ func RegisterLiveEditRuntime(runtime *workflowruntime.Runtime, modelID artifact.
 }
 
 func readProgramProfile(ctx context.Context, store artifact.Reader, program recipe.Program) (Profile, error) {
-	profileID, ok := program.Definition().Dependency(recipe.DependencyProfile, 0)
+	profileID, ok := program.Definition().PrimaryDependency(recipe.DependencyProfile)
 	if !ok {
 		return Profile{}, errors.New("latent video: compiled recipe has no profile")
 	}

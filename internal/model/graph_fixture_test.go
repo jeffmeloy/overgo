@@ -40,7 +40,7 @@ func fixtureProjection(
 
 func fixtureLayerPlan(t *testing.T, spec Spec, weights Weights, layer int) LayerPlan {
 	t.Helper()
-	plan, err := fixtureModelPlan(t, spec, weights).Layer(layer)
+	plan, err := fixtureModelPlan(t, spec, weights).Layer(uint32(layer))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func fixtureLayerPlan(t *testing.T, spec Spec, weights Weights, layer int) Layer
 
 func fixtureLayerProgram(t *testing.T, spec Spec, weights Weights, layer int) CompiledLayerProgram {
 	t.Helper()
-	program, err := fixtureModelPlan(t, spec, weights).LayerProgram(layer)
+	program, err := fixtureModelPlan(t, spec, weights).LayerProgram(uint32(layer))
 	if err != nil {
 		t.Fatal(err)
 	}

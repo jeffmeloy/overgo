@@ -135,7 +135,7 @@ func LoadArtifact(ctx context.Context, path string, layer uint32) (*Model, model
 	if err != nil {
 		return nil, model.ModelPlan{}, err
 	}
-	layerPlan, err := plan.Layer(int(layer))
+	layerPlan, err := plan.Layer(layer)
 	if err != nil {
 		return nil, model.ModelPlan{}, err
 	}

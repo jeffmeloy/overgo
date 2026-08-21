@@ -9,6 +9,11 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+const (
+	UnitScale         = float32(1)
+	NegativeUnitScale = -UnitScale
+)
+
 // Reshape: changes only logical dimensions and preserves contiguous order
 func (b *Builder) Reshape(input *Tensor, dimensions ...uint64) *Tensor {
 	if b.err != nil {

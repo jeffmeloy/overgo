@@ -78,7 +78,7 @@ func applyRoPEPairWithOptions(
 type RotaryPlan struct {
 	kind             rotaryGraphKind
 	layout           tensor.RoPELayout
-	sections         [4]int32
+	sections         [tensor.MaxDimensions]int32
 	rotaryDimensions uint32
 	frequencyBase    float32
 	frequencyScale   float32
@@ -97,7 +97,7 @@ func (p RotaryPlan) Apply(
 	builder *tensor.Builder,
 	query, key *tensor.Tensor,
 	positions []uint32,
-	multiPositions *[4][]uint32,
+	multiPositions *[tensor.MaxDimensions][]uint32,
 	frequencyFactors *tensor.Tensor,
 ) (*tensor.Tensor, *tensor.Tensor) {
 	frequencyFactors = p.resolveFactors(builder, frequencyFactors)
@@ -111,7 +111,7 @@ func (p RotaryPlan) ApplyOne(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	positions []uint32,
-	multiPositions *[4][]uint32,
+	multiPositions *[tensor.MaxDimensions][]uint32,
 	frequencyFactors *tensor.Tensor,
 ) *tensor.Tensor {
 	return p.applyOne(
@@ -124,9 +124,13 @@ func (p RotaryPlan) resolveFactors(
 	builder *tensor.Builder,
 	frequencyFactors *tensor.Tensor,
 ) *tensor.Tensor {
-	if p.factorPairs > 0 && frequencyFactors != nil &&
-		frequencyFactors.Shape.Dims[0] > uint64(p.factorPairs) {
-		return builder.FlatSlice(frequencyFactors, 0, uint64(p.factorPairs))
+	var factorCount uint64
+	validFactors := false
+	if frequencyFactors != nil {
+		factorCount, validFactors = tensor.VectorWidth(frequencyFactors.Shape)
+	}
+	if p.factorPairs > tensor.FirstOffset && frequencyFactors != nil && validFactors && factorCount > uint64(p.factorPairs) {
+		return builder.FlatSlice(frequencyFactors, tensor.FirstOffset, uint64(p.factorPairs))
 	}
 	return frequencyFactors
 }
@@ -135,14 +139,14 @@ func (p RotaryPlan) applyOne(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	positions []uint32,
-	multiPositions *[4][]uint32,
+	multiPositions *[tensor.MaxDimensions][]uint32,
 	frequencyFactors *tensor.Tensor,
 ) *tensor.Tensor {
 	switch p.kind {
 	case rotaryGraphNone:
 		return input
 	case rotaryGraphMulti:
-		resolved := [4][]uint32{}
+		resolved := [tensor.MaxDimensions][]uint32{}
 		if multiPositions == nil {
 			for axis := range resolved {
 				resolved[axis] = positions
@@ -164,7 +168,7 @@ func (p RotaryPlan) applyOne(
 		}
 		input = builder.RoPEWithOptions(input, options)
 	}
-	if p.outputScale > 0 && p.outputScale != 1 {
+	if positiveFinite(p.outputScale) && p.outputScale != tensor.UnitScale {
 		input = builder.Scale(input, p.outputScale)
 	}
 	return input
@@ -175,23 +179,23 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 		return RotaryPlan{}
 	}
 	rotaryDimensions := s.KeyLength
-	if s.RopeDimensionCount > 0 {
+	if s.RopeDimensionCount > tensor.FirstOffset {
 		rotaryDimensions = s.LayerRopeDimensionCount(layer)
 	}
 	plan := RotaryPlan{
 		kind: rotaryGraphSingle, layout: tensor.RoPELayoutNeoX,
 		rotaryDimensions: rotaryDimensions, frequencyBase: s.RopeFrequencyBase,
-		frequencyScale: 1,
+		frequencyScale: tensor.UnitScale,
 	}
 	policy := profile.Rotary
 	multiAxis := policy.MultiAxis == multiAxisRotaryAlways ||
 		policy.MultiAxis == multiAxisRotaryWithSections &&
-			s.RopeSections[0] > 0 && s.RopeSections[1] > 0
+			hasLeadingRopeSections(s.RopeSections)
 	if multiAxis {
 		plan.kind = rotaryGraphMulti
 		plan.sections = s.RopeSections
 		if s.RopeScalingType == ropeScalingLinear {
-			plan.frequencyScale = 1 / s.RopeScalingFactor
+			plan.frequencyScale = tensor.UnitScale / s.RopeScalingFactor
 		}
 		return plan
 	}
@@ -199,16 +203,16 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 		plan.layout = layout
 		plan.yarn = true
 		plan.originalContext = s.OriginalContextLength
-		plan.frequencyScale = 1 / s.RopeScalingFactor
+		plan.frequencyScale = tensor.UnitScale / s.RopeScalingFactor
 		plan.extFactor = s.YaRNExtFactor
 		plan.attentionFactor = s.YaRNAttentionFactor
 		plan.betaFast = s.YaRNBetaFast
 		plan.betaSlow = s.YaRNBetaSlow
 	}
-	applyNormal := func() {
+	applyStandardLayout := func() {
 		plan.layout = tensor.RoPELayoutNormal
 		if s.RopeScalingType == ropeScalingLinear {
-			plan.frequencyScale = 1 / s.RopeScalingFactor
+			plan.frequencyScale = tensor.UnitScale / s.RopeScalingFactor
 		}
 		if policy.SlidingFrequency && s.IsSlidingLayer(layer) {
 			plan.frequencyBase = s.RopeFrequencySWA
@@ -216,10 +220,10 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 	}
 	applyDefault := func() {
 		if s.RopeScalingType == ropeScalingLinear {
-			plan.frequencyScale = 1 / s.RopeScalingFactor
+			plan.frequencyScale = tensor.UnitScale / s.RopeScalingFactor
 		}
 		if policy.SlidingScaleReset && s.IsSlidingLayer(layer) {
-			plan.frequencyScale = 1
+			plan.frequencyScale = tensor.UnitScale
 		}
 		if policy.SlidingFrequency && s.IsSlidingLayer(layer) {
 			plan.frequencyBase = s.RopeFrequencySWA
@@ -243,28 +247,28 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 		if s.RopeScalingType == ropeScalingYaRN {
 			setYaRN(tensor.RoPELayoutNormal)
 		} else {
-			applyNormal()
+			applyStandardLayout()
 		}
 	case rotaryPolicyNormal:
-		applyNormal()
+		applyStandardLayout()
 	case rotaryPolicySlidingLinearReset:
 		if policy.ForceScaleAndSlidingReset || s.RopeScalingType == ropeScalingLinear {
-			plan.frequencyScale = 1 / s.RopeScalingFactor
+			plan.frequencyScale = tensor.UnitScale / s.RopeScalingFactor
 		}
 		if s.IsSlidingLayer(layer) {
 			plan.frequencyBase = s.RopeFrequencySWA
 			if policy.ForceScaleAndSlidingReset {
-				plan.frequencyScale = 1
+				plan.frequencyScale = tensor.UnitScale
 			}
 		}
 	default:
 		applyDefault()
 	}
 	if policy.FactorPairs {
-		plan.factorPairs = rotaryDimensions / 2
+		plan.factorPairs = rotaryDimensions / tensor.PairedExtent
 	}
 	if profile.Has(ArchitectureLongRoPE) && s.RopeScalingType != ropeScalingYaRN &&
-		s.RopeAttentionFactor > 0 && s.RopeAttentionFactor != 1 {
+		positiveFinite(s.RopeAttentionFactor) && s.RopeAttentionFactor != tensor.UnitScale {
 		plan.outputScale = s.RopeAttentionFactor
 	}
 	return plan
@@ -292,7 +296,7 @@ func (p AttentionGraphPlan) Build(
 	if !p.UseSinks {
 		sinks = nil
 	}
-	if p.Window == 0 {
+	if p.Window == tensor.FirstOffset {
 		blockIDs = nil
 	}
 	return builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{
@@ -415,10 +419,10 @@ func (s Spec) moeGraphPlan(profile ArchitectureProfile, layer uint32) MoEGraphPl
 		normalize = false
 	}
 	activation := policy.Activation
-	if activation == 0 {
+	if activation == tensor.MoEActivationNone {
 		activation = tensor.MoEActivationSiLU
 	}
-	clamp := float32(0)
+	var clamp float32
 	if policy.ClampSwiGLU {
 		clamp = s.LayerExpertSwiGLUClamp(layer)
 	}
@@ -426,6 +430,6 @@ func (s Spec) moeGraphPlan(profile ArchitectureProfile, layer uint32) MoEGraphPl
 		TopK: s.ExpertUsedCount, NormalizeTopKProb: normalize,
 		Scale: s.ExpertWeightsScale, Routing: routing, Activation: activation,
 		SelectionBias: policy.SelectionBias, OptionalSelectionBias: policy.OptionalSelectionBias,
-		ExpertIndexDivisor: 1, SwiGLUClamp: clamp,
+		ExpertIndexDivisor: tensor.SingletonExtent, SwiGLUClamp: clamp,
 	}
 }

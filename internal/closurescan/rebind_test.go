@@ -56,7 +56,7 @@ func rebindCandidate(t *testing.T, value, callsites string) Candidate {
 	t.Helper()
 	name := "PolicyWindow"
 	return Candidate{
-		Name: name, File: "internal/policy.go", Package: "internal", Scope: "package",
+		Kind: closureledger.BindingConstant, Name: name, File: "internal/policy.go", Package: "internal", Scope: "package",
 		Line: len(name), Expression: value, Value: value,
 		SourceID: sourceDigest("original source"), CallsiteID: sourceDigest(callsites),
 	}

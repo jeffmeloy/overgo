@@ -255,7 +255,7 @@ func (r *Runner) layerProgram(layer int) model.CompiledLayerProgram {
 	if r == nil {
 		panic("inference: compiled layer plan is unavailable")
 	}
-	program, err := r.program.Model.LayerProgram(layer)
+	program, err := r.program.Model.LayerProgram(uint32(layer))
 	if err != nil {
 		panic("inference: compiled layer plan is unavailable")
 	}

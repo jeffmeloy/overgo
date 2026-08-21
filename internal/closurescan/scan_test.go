@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/closureledger"
 	"overgo/internal/repoanalysis"
 )
 
@@ -15,7 +16,7 @@ func TestClosureScanSnapshotConsumer(t *testing.T) {
 		"internal/other.go":     "package p\nconst Other = 4\n",
 		"internal/live_test.go": "package p\nconst TestLimit = 5\n",
 	})
-	candidates, err := ScanSnapshot(snapshot, []string{"internal/live.go"})
+	candidates, err := ScanSnapshot(snapshot, []string{"internal/live.go"}, CandidateConstants)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +33,7 @@ func derive() {
 	const local = base * 4
 }
 `})
-	candidates, err := ScanSnapshot(snapshot, nil)
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateConstants)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +56,7 @@ func TestCandidateIdentityIncludesEvaluatedSourceBinding(t *testing.T) {
 	snapshot := scanTestSnapshot(t, map[string]string{
 		"internal/policy.go": "package policy\nconst allocation = 4 * 8\n",
 	})
-	before, err := ScanSnapshot(snapshot, nil)
+	before, err := ScanSnapshot(snapshot, nil, CandidateConstants)
 	if err != nil || len(before) != 1 {
 		t.Fatalf("before = %+v, %v", before, err)
 	}
@@ -65,7 +66,7 @@ func TestCandidateIdentityIncludesEvaluatedSourceBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	after, err := ScanSnapshot(rewritten, nil)
+	after, err := ScanSnapshot(rewritten, nil, CandidateConstants)
 	if err != nil || len(after) != 1 {
 		t.Fatalf("after = %+v, %v", after, err)
 	}
@@ -76,6 +77,39 @@ func TestCandidateIdentityIncludesEvaluatedSourceBinding(t *testing.T) {
 	}
 	if left.DeclarationKey() != right.DeclarationKey() || left.ExactKey() == right.ExactKey() || right.Value != left.Value {
 		t.Fatalf("before = %+v, after = %+v", left, right)
+	}
+}
+
+func TestTypedCandidatesBindEverySiteKind(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{"internal/policy.go": `package policy
+const Window = 8
+func decide(values []float64) bool {
+	return quantile(values, 0.9) > 3
+}
+`})
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateAll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[closureledger.BindingKind]bool{
+		closureledger.BindingConstant: false, closureledger.BindingLiteral: false, closureledger.BindingAssumption: false,
+	}
+	keys := map[string]bool{}
+	for _, candidate := range candidates {
+		binding, err := candidate.Binding()
+		if err != nil {
+			t.Fatalf("bind %+v: %v", candidate, err)
+		}
+		if binding.Kind != candidate.Kind || binding.CallsiteID == "" || keys[candidate.ExactKey()] {
+			t.Fatalf("candidate = %+v, binding = %+v", candidate, binding)
+		}
+		keys[candidate.ExactKey()] = true
+		want[candidate.Kind] = true
+	}
+	for kind, found := range want {
+		if !found {
+			t.Fatalf("missing %s candidate in %+v", kind, candidates)
+		}
 	}
 }
 
@@ -116,6 +150,40 @@ func use(values []int) int {
 	}
 	if len(expected) != 0 {
 		t.Fatalf("missing = %v", expected)
+	}
+}
+
+func TestStructuralZerosAreNotRuntimePolicy(t *testing.T) {
+	source := `package policy
+import "fmt"
+import "errors"
+func values(input []int) []int {
+	if len(input) == 0 { return make([]int, 0, cap(input)) }
+	for cursor := uint64(0); cursor < uint64(len(input)); cursor++ { break }
+	for offset := 0; offset < len(input); offset++ { break }
+	for index := range input { if index > 0 { break } }
+	if input[0] > 0 { return input }
+	return nil
+}
+func decode() (int, error) { return 0, fmt.Errorf("invalid") }
+func decodeJoined() (int, error) { return 0, errors.Join(errors.New("invalid")) }
+`
+	snapshot := scanTestSnapshot(t, map[string]string{"internal/policy.go": source})
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateLiterals)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var policySeen bool
+	for _, candidate := range candidates {
+		if candidate.Policy {
+			if policySeen {
+				t.Fatalf("multiple runtime policies: %+v", candidates)
+			}
+			policySeen = true
+		}
+	}
+	if !policySeen || len(candidates) != strings.Count(source, "0") {
+		t.Fatalf("literal authority policy=%t candidates=%+v", policySeen, candidates)
 	}
 }
 
@@ -199,6 +267,48 @@ func decide(variance float64, values []float64, tensorRows, limit int) bool {
 		if !kinds[kind] {
 			t.Fatalf("missing %s in %+v", kind, hints)
 		}
+	}
+}
+
+func TestImportedOperatorOwnsAssumptionPolicy(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{"internal/decision.go": `package decision
+import "example.org/shared"
+func decide(builder *shared.Builder, value float64) bool {
+	if shared.ValidEffectiveRank(value) { return true }
+	if builder.ValidEffectiveRank(value) { return true }
+	return localEffectiveRank(value)
+}
+`})
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateAssumptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var imported, local bool
+	for _, candidate := range candidates {
+		if strings.HasPrefix(candidate.Expression, "shared.") {
+			imported = !candidate.Policy
+		} else {
+			local = candidate.Policy
+		}
+	}
+	if !imported || !local {
+		t.Fatalf("assumption authority = %+v", candidates)
+	}
+}
+
+func TestMethodReceiverDoesNotCreateAssumption(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{"internal/decision.go": `package decision
+type value struct { Shape shape }
+type shape struct{}
+func (shape) Equal(shape) bool { return true }
+func check(left, right value) bool { return left.Shape.Equal(right.Shape) }
+`})
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateAssumptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("method receiver assumptions = %v", candidates)
 	}
 }
 

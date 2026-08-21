@@ -2,6 +2,11 @@ package checked
 
 import "math"
 
+func Nonzero[T comparable](value T) bool {
+	var zero T
+	return value != zero
+}
+
 func Add64(values ...uint64) (uint64, bool) {
 	var total uint64
 	for _, value := range values {
@@ -25,6 +30,13 @@ func Int(value uint64) (int, bool) {
 		return 0, false
 	}
 	return int(value), true
+}
+
+func Uint64(value int64) (uint64, bool) {
+	if value < 0 {
+		return 0, false
+	}
+	return uint64(value), true
 }
 
 func Bytes(elements, width uint64) (uint64, bool) {

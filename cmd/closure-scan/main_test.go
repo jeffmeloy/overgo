@@ -200,7 +200,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module fixture\n\ngo 1.24\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	candidates, err := closurescan.ScanRoot(root)
+	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateConstants)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 		t.Fatal("fixture constant not scanned")
 	}
 	triage := triageFile{Rows: []triageRow{{
-		Name: candidate.Name, File: candidate.File, Scope: candidate.Scope, Line: candidate.Line,
+		Kind: candidate.Kind, Name: candidate.Name, File: candidate.File, Scope: candidate.Scope, Line: candidate.Line,
 		Tier: string(closureledger.TierImplementation), Status: string(closureledger.StatusClosed),
 		Understanding: "Fixed fixture policy.", ClosurePath: "Replace when the fixture contract changes.",
 		RerankTrigger: "Fixture contract change.",
@@ -263,7 +263,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if count, err := rebindUnchangedClosures(root, "store", snapshot); err != nil || count != len(triage.Rows) {
 		t.Fatalf("rebound documents = (%d, %v)", count, err)
 	}
-	candidates, err = closurescan.ScanSnapshot(snapshot, nil)
+	candidates, err = closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateConstants)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,6 +290,9 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
+	}
+	if retained, err := retireOrphanAliases(root, "store", snapshot); err != nil || retained != nil {
+		t.Fatalf("retired live bindings = (%d, %v)", len(retained), err)
 	}
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
@@ -335,15 +338,16 @@ func TestScopedClosureCheckRequiresExactActiveEvidence(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkClosures(root, "store", "internal/policy", true, true); err == nil {
+	requirements := closureRequirements{classified: true, noStale: true}
+	if err := checkProductionClosures(root, "store", "internal/policy", false, requirements); err == nil {
 		t.Fatal("unclassified constant passed scoped closure check")
 	}
-	candidates, err := closurescan.ScanRoot(root)
+	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateConstants)
 	if err != nil || len(candidates) != 1 {
 		t.Fatalf("candidates = (%+v, %v)", candidates, err)
 	}
 	triage := triageFile{Rows: []triageRow{{
-		Name: candidates[0].Name, File: candidates[0].File, Scope: candidates[0].Scope, Line: candidates[0].Line,
+		Kind: candidates[0].Kind, Name: candidates[0].Name, File: candidates[0].File, Scope: candidates[0].Scope, Line: candidates[0].Line,
 		Tier: string(closureledger.TierImplementation), Status: string(closureledger.StatusClosed),
 		Understanding: "Fixture window.", ClosurePath: "Replace with fixture authority.", RerankTrigger: "Fixture contract change.",
 	}}}
@@ -358,12 +362,85 @@ func TestScopedClosureCheckRequiresExactActiveEvidence(t *testing.T) {
 	if err := emit(root, "store", triagePath, candidates); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkClosures(root, "store", "internal/policy", true, true); err != nil {
+	if err := checkProductionClosures(root, "store", "internal/policy", false, requirements); err != nil {
 		t.Fatal(err)
 	}
 	write("9")
-	if err := checkClosures(root, "store", "internal/policy", true, true); err == nil {
+	if err := checkProductionClosures(root, "store", "internal/policy", false, requirements); err == nil {
 		t.Fatal("stale constant passed scoped closure check")
+	}
+}
+
+func TestAuthorityEnforcement(t *testing.T) {
+	root := t.TempDir()
+	relative := "internal/model/policy.go"
+	path := filepath.Join(root, filepath.FromSlash(relative))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("package model\nconst PolicyLimit = 7\nfunc allowed(n int) bool { return n < PolicyLimit }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module fixture\n\ngo 1.24\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store, err := repodb.Open(filepath.Join(root, "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	requirements := closureRequirements{classified: true, noStale: true, noUncatalogued: true, noModelFacts: true}
+	if err := checkProductionClosures(root, "store", "internal/model", false, requirements); err == nil {
+		t.Fatal("uncatalogued model policy passed")
+	}
+	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateAll)
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("candidates = (%+v, %v)", candidates, err)
+	}
+	row := triageRow{
+		Kind: candidates[0].Kind, Name: candidates[0].Name, File: candidates[0].File,
+		Scope: candidates[0].Scope, Line: candidates[0].Line,
+		Tier: string(closureledger.TierImplementation), Status: string(closureledger.StatusClosed),
+		Understanding: "Fixture model policy.", ClosurePath: "Move to fixture recipe.", RerankTrigger: "Fixture recipe change.",
+	}
+	emitTriage := func() {
+		t.Helper()
+		encoded, err := json.Marshal(triageFile{Rows: []triageRow{row}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		triagePath := filepath.Join(root, "triage.json")
+		if err := os.WriteFile(triagePath, encoded, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := emit(root, "store", triagePath, candidates); err != nil {
+			t.Fatal(err)
+		}
+	}
+	emitTriage()
+	if err := checkProductionClosures(root, "store", "internal/model", false, requirements); err != nil {
+		t.Fatal(err)
+	}
+	row.Tier, row.Status = string(closureledger.TierDerivationBlocked), string(closureledger.StatusOpen)
+	emitTriage()
+	if err := checkProductionClosures(root, "store", "internal/model", false, requirements); err == nil {
+		t.Fatal("open model fact passed")
+	}
+	if err := checkProductionClosures(root, "store", "internal/model", false, closureRequirements{zeroOpen: true}); err == nil {
+		t.Fatal("open closure row passed")
+	}
+	testPath := filepath.Join(root, "internal", "model", "policy_test.go")
+	if err := os.WriteFile(testPath, []byte("package model\nfunc verify() { if allowed(1) == 7 { panic(\"policy\") } }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkTestAuthority(snapshot, testRequirements{noPolicyCopies: true, classifiedFixtures: true}); err == nil {
+		t.Fatal("copied test policy passed")
 	}
 }
 

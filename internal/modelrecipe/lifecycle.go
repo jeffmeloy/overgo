@@ -457,7 +457,7 @@ func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.I
 	tier := recipe.EvidenceExperimental
 	for _, decision := range decisions {
 		if decision.Subject == definition.ID && decision.Outcome == recipe.DecisionAccepted &&
-			evidenceTierRank(decision.Tier) > evidenceTierRank(tier) {
+			decision.Tier.StrongerThan(tier) {
 			tier = decision.Tier
 		}
 	}
@@ -582,19 +582,6 @@ func loadDecisions(ctx context.Context, store artifact.Reader, ids []artifact.ID
 		decisions = append(decisions, decision)
 	}
 	return decisions, nil
-}
-
-func evidenceTierRank(tier recipe.EvidenceTier) int {
-	switch tier {
-	case recipe.EvidenceProduction:
-		return 3
-	case recipe.EvidenceParity:
-		return 2
-	case recipe.EvidenceExperimental:
-		return 1
-	default:
-		return 0
-	}
 }
 
 func loadDefinition(ctx context.Context, store artifact.Reader, id artifact.ID) (recipe.Definition, error) {

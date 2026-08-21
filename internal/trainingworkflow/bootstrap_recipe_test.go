@@ -43,7 +43,7 @@ func TestBootstrapTokenRecipeBindsStoredOptimizerPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	optimizerID, ok := definition.Dependency(recipe.DependencyOptimizer, 0)
+	optimizerID, ok := definition.PrimaryDependency(recipe.DependencyOptimizer)
 	if !ok {
 		t.Fatal("bootstrap recipe has no optimizer policy dependency")
 	}

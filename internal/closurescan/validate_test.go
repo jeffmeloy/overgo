@@ -60,7 +60,7 @@ func TestValidateBindingsDetectsOrphansAndCallsiteDrift(t *testing.T) {
 
 func onlyCandidate(t *testing.T, snapshot repoanalysis.SourceSnapshot) Candidate {
 	t.Helper()
-	candidates, err := ScanSnapshot(snapshot, nil)
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateConstants)
 	if err != nil || len(candidates) != 1 {
 		t.Fatalf("candidates = (%+v, %v)", candidates, err)
 	}

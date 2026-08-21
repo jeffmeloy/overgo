@@ -63,7 +63,7 @@
      "contains": "func OpenSourceWithLimits(",
      "path": "internal/safetensors/source.go",
      "role": "source",
-     "identity": "file:sha256:dd3bb078b1c63d9adb55bb4ab2660d3ffa3e0db9f7f6aca72a33f2c7b809e285"
+     "identity": "file:sha256:b29f32942a122df4d0ad29220121d3a3d4ff6f6fa2f296b9f93ae0f22dde8695"
     },
     {
      "contains": "func TestOpenSourceRejectsInvalidRepositories(",
@@ -169,7 +169,7 @@
      "contains": "func LoadArtifact(",
      "path": "internal/adaptertrain/model.go",
      "role": "source",
-     "identity": "file:sha256:c81b915b6853782dadd8c15244e7e48c3ae5ce893e9b203c371e69a5408ace51"
+     "identity": "file:sha256:10505f75511ddf61723eee4a9c9bb54aee5a4e53d25bad822fa8dca71a8b7af8"
     },
     {
      "contains": "func TestGemmaE4BRealTraining(",
@@ -267,7 +267,7 @@
      "contains": "func OpenAs[T Projector](",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:e227fca4673dec6f0f88399b842ee28bb39f6cc9949623bde1a9700fcfc6e04e"
+     "identity": "file:sha256:9ffe708f70fb1db61c0a4ca6fce5776d717720632a506c6c3b98dd5b129fdc68"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -320,7 +320,7 @@
      "contains": "func (r *Runner) forwardDenseLayersPreloaded(",
      "path": "internal/inference/runner_layers.go",
      "role": "source",
-     "identity": "file:sha256:acaa2b9d153f4170cfd477b2cded57c6d862d2dfa03f9bb1fadfefa464e1194e"
+     "identity": "file:sha256:2d019997e2cbd88a231a4afad5803d660c9c91d4cf70aee345c98f684acfb93a"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -434,7 +434,7 @@
      "contains": "func Quantize(",
      "path": "internal/quant/quantize.go",
      "role": "source",
-     "identity": "file:sha256:8bbd9e1e5f71407812546da597482cbd4937175cf3995c6ec97f9275d79b7148"
+     "identity": "file:sha256:8edb08ac95d83d74c4a240be82c527f48c9852b12c445ef3fbcc7ee94b7a779b"
     },
     {
      "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
@@ -478,13 +478,13 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:73f5dec736a202a261865050596606337ed6c82f56426cbdd9b9f4a271ab8324"
+     "identity": "file:sha256:7bdcbe1aeec5d38b0123904db48d2f5d7eb3c879b368f26695bef76991df4e8e"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
      "path": "internal/model/layer_plan_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:14f3d88660d54e4c19809edf6934d2212886c5248b76deea92935367d79a8dd5"
+     "identity": "evidence:sha256:bfbc7a27409c2382b89bd51252267fa47eca988e93b69a3f7ac2f8a8a93fcdc0"
     }
    ],
    "id": "compiled-model-plan",
@@ -584,7 +584,7 @@
      "contains": "func (r *Qwen3VLRunner) imagesPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:e227fca4673dec6f0f88399b842ee28bb39f6cc9949623bde1a9700fcfc6e04e"
+     "identity": "file:sha256:9ffe708f70fb1db61c0a4ca6fce5776d717720632a506c6c3b98dd5b129fdc68"
     },
     {
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -605,7 +605,7 @@
      "contains": "func (r *Gemma4Runner) mediaHistoryPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:e227fca4673dec6f0f88399b842ee28bb39f6cc9949623bde1a9700fcfc6e04e"
+     "identity": "file:sha256:9ffe708f70fb1db61c0a4ca6fce5776d717720632a506c6c3b98dd5b129fdc68"
     },
     {
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -626,7 +626,7 @@
      "contains": "func (r *Gemma4Runner) mediaHistoryPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:e227fca4673dec6f0f88399b842ee28bb39f6cc9949623bde1a9700fcfc6e04e"
+     "identity": "file:sha256:9ffe708f70fb1db61c0a4ca6fce5776d717720632a506c6c3b98dd5b129fdc68"
     },
     {
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
@@ -905,13 +905,13 @@
      "contains": "func LookupArchitecture(",
      "path": "internal/model/architecture.go",
      "role": "source",
-     "identity": "file:sha256:9923b65e9e96886ea6220e4352e05732421c2aadde29550363b2c2b2671f8b7d"
+     "identity": "file:sha256:70d0d0e1f42868b6f94deb5fa64f7909bcb5bc1755199c9c6c63ec81ab85e1f3"
     },
     {
      "contains": "func TestArchitectureRegistryProfiles(",
      "path": "internal/model/architecture_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:579cb1b99a9caac6b277bc7de67ad6692f601263af4aedfb1df8f7a79a3ba31d"
+     "identity": "evidence:sha256:ff02822925b62d4c4bab3e69f1b80c9ae2c726949a829c4012ddca599621869a"
     }
    ],
    "id": "architecture-profiles",
@@ -926,7 +926,7 @@
      "contains": "func (p CompiledLayerProgram) Build(",
      "path": "internal/model/graph_dispatch.go",
      "role": "source",
-     "identity": "file:sha256:ed92d64281a64bc206f7d6b3953fa6f46984650b1c9ff824f35c65ce5f0ab195"
+     "identity": "file:sha256:de1206c233aa1e55ea509e4cf10de6989e3e45465c34f08a9d63cae6dc72f5d7"
     },
     {
      "contains": "func ReadWeights(",
@@ -938,7 +938,7 @@
      "contains": "func TestLayerProgramsCoverTypedProfiles(",
      "path": "internal/model/graph_dispatch_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:7bb553b237b8e809f78def1f20b111234644c8d29ed189f9a444619f8337c073"
+     "identity": "evidence:sha256:265fe204dcefbe5a655c11eb46cd4280b14dddb8fe07e360e3caba77016b0e1e"
     }
    ],
    "id": "neutral-layer-dispatch",
@@ -1113,7 +1113,7 @@
      "contains": "capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed}",
      "path": "cmd/recipe/image_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:31a591b7fcd792c537f2c6f9d428e61ce73bfd49b9a85780674281875709cc7e"
+     "identity": "file:sha256:d8da243093ada23c0fec4636f394722128aaab8d904c73ed2e70980416136d29"
     },
     {
      "contains": "func TestSenseNovaProductionImageGeneration(",

@@ -107,7 +107,7 @@ func TestDefinitionDependenciesDriveIdentity(t *testing.T) {
 	if reordered.ID != bound.ID {
 		t.Fatal("dependency order changed recipe identity")
 	}
-	if found, ok := bound.Dependency(DependencyProfile, 0); !ok || found != profileID {
+	if found, ok := bound.PrimaryDependency(DependencyProfile); !ok || found != profileID {
 		t.Fatalf("profile dependency = (%s, %v)", found, ok)
 	}
 	otherProfile := testutil.ArtifactID(t, artifact.KindProfile, "other-profile")

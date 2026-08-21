@@ -113,7 +113,7 @@ func (workspace *TrainingWorkspace) executeWorkflow(
 	reporter operation.Reporter,
 ) (operation.Completion, error) {
 	definition := workspace.program.Definition()
-	policy, ok := definition.Dependency(recipe.DependencyModel, 0)
+	policy, ok := definition.PrimaryDependency(recipe.DependencyModel)
 	if !ok {
 		return operation.Completion{}, errors.New("training workspace: policy dependency absent")
 	}

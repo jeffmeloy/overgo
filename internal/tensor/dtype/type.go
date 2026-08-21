@@ -60,6 +60,19 @@ type Traits struct {
 	Quantized bool
 }
 
+// BlockCount reports whether elements form complete storage blocks.
+func (t Traits) BlockCount(elements uint64) (uint64, bool) {
+	return BlockCount(elements, t.BlockSize)
+}
+
+// BlockCount reports complete blocks for an explicit block size.
+func BlockCount(elements, blockSize uint64) (uint64, bool) {
+	if blockSize == 0 || elements%blockSize != 0 {
+		return 0, false
+	}
+	return elements / blockSize, true
+}
+
 var traits = map[Type]Traits{
 	F32:    {"f32", 1, 4, false},
 	F16:    {"f16", 1, 2, false},
@@ -111,6 +124,12 @@ func (t Type) Traits() (Traits, bool) {
 	return value, ok
 }
 
+// ScalarBytes returns fixed-width scalar storage.
+func (t Type) ScalarBytes() (uint64, bool) {
+	value, ok := t.Traits()
+	return value.TypeSize, ok && value.BlockSize == 1
+}
+
 // IsQuantized reports the physical block-layout class.
 func (t Type) IsQuantized() bool {
 	value, ok := traits[t]
@@ -130,7 +149,7 @@ func (t Type) StorageBytes(elements, rowWidth uint64) (uint64, error) {
 	if !ok || traitsValue.BlockSize == 0 || traitsValue.TypeSize == 0 {
 		return 0, fmt.Errorf("unsupported type %d", uint32(t))
 	}
-	if rowWidth == 0 || rowWidth%traitsValue.BlockSize != 0 {
+	if _, aligned := traitsValue.BlockCount(rowWidth); rowWidth == 0 || !aligned {
 		return 0, fmt.Errorf(
 			"row width %d is not divisible by %s block size %d",
 			rowWidth, traitsValue.Name, traitsValue.BlockSize,
@@ -144,7 +163,10 @@ func (t Type) StorageBytes(elements, rowWidth uint64) (uint64, error) {
 		}
 		return elements + rows*4, nil
 	}
-	blocks := elements / traitsValue.BlockSize
+	blocks, aligned := traitsValue.BlockCount(elements)
+	if !aligned {
+		return 0, fmt.Errorf("element count %d is not divisible by %s block size %d", elements, traitsValue.Name, traitsValue.BlockSize)
+	}
 	if blocks > math.MaxUint64/traitsValue.TypeSize {
 		return 0, errors.New("tensor byte size overflows uint64")
 	}

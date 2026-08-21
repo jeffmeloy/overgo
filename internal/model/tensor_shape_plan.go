@@ -2,6 +2,13 @@ package model
 
 import "overgo/internal/tensor"
 
+func (s Spec) ssmConvolutionWindow() uint64 {
+	if s.SSMConvKernel < tensor.SingletonExtent {
+		return tensor.FirstOffset
+	}
+	return uint64(s.SSMConvKernel) - tensor.SingletonExtent
+}
+
 // TensorShapePlan: layer tensor and cache dimensions.
 type TensorShapePlan struct {
 	Embedding   uint64
@@ -44,7 +51,11 @@ func (p TensorShapePlan) AttentionOutputWidth() uint64 {
 }
 
 func (p TensorShapePlan) FeedForwardUp(multiplier uint64) []uint64 {
-	return []uint64{p.Embedding, multiplier * p.FeedForward}
+	return []uint64{p.Embedding, p.FeedForwardUpWidth(multiplier)}
+}
+
+func (p TensorShapePlan) FeedForwardUpWidth(multiplier uint64) uint64 {
+	return multiplier * p.FeedForward
 }
 
 func (p TensorShapePlan) FeedForwardDown() []uint64 {
@@ -61,12 +72,4 @@ func (p TensorShapePlan) ExpertUp(multiplier uint64) []uint64 {
 
 func (p TensorShapePlan) ExpertDown() []uint64 {
 	return []uint64{p.ExpertWidth, p.Embedding, p.Experts}
-}
-
-func (p TensorShapePlan) KeyCacheShape(tokens uint32) (tensor.Shape, error) {
-	return tensor.NewShape(p.Key, p.KVHeads, uint64(tokens))
-}
-
-func (p TensorShapePlan) ValueCacheShape(tokens uint32) (tensor.Shape, error) {
-	return tensor.NewShape(p.Value, p.KVHeads, uint64(tokens))
 }

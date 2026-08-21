@@ -220,7 +220,7 @@ func TestIndexerCadenceUsesBoundProfilePolicy(t *testing.T) {
 
 func TestArchitectureProfileDraftPlan(t *testing.T) {
 	for architecture, want := range map[string]DraftPlan{
-		"qwen35":     {Kind: DraftSingleCatalog, Heads: 1, SingleCatalog: true, SupportsMTPOnly: true, Session: DraftSessionSingle},
+		"qwen35":     {Kind: DraftSingleCatalog, Heads: 1, SingleCatalog: true, SupportsMTPOnly: true, Session: DraftSessionSingle, QueryCopies: 2},
 		"step35":     {Kind: DraftAppendedMultiCarry, Heads: 2, AppendedBlocks: true, CarryRawHidden: true, Session: DraftSessionMulti},
 		"hy_v3":      {Kind: DraftAppendedMulti, Heads: 2, AppendedBlocks: true, Session: DraftSessionMulti},
 		"glm4":       {Kind: DraftAppendedSingle, Heads: 1, AppendedBlocks: true, Session: DraftSessionSingle},
@@ -257,20 +257,24 @@ func TestArchitectureProfileDeepSeekLayoutPolicy(t *testing.T) {
 }
 
 func TestArchitectureProfileForwardProgram(t *testing.T) {
-	for architecture, want := range map[string]ForwardProgram{
-		"llama":            {Operation: ForwardOperationCached},
-		"bert":             {Operation: ForwardOperationBidirectional},
-		"dream":            {Operation: ForwardOperationDiffusion},
-		"llada":            {Operation: ForwardOperationDiffusion},
-		"dflash":           {Operation: ForwardOperationSession, Session: ForwardSessionPairedFeatures},
-		"eagle3":           {Operation: ForwardOperationSession, Session: ForwardSessionFeatureDraft},
-		"gemma4-assistant": {Operation: ForwardOperationSession, Session: ForwardSessionPairedProjection},
-		"wavtokenizer-dec": {Operation: ForwardOperationAudioTokens},
-		"t5encoder":        {Operation: ForwardOperationEncoder},
-		"t5":               {Operation: ForwardOperationSession, Session: ForwardSessionEncoderDecoder},
+	type expectedForward struct {
+		operation ForwardOperation
+		session   ForwardSession
+	}
+	for architecture, want := range map[string]expectedForward{
+		"llama":            {operation: ForwardOperationCached},
+		"bert":             {operation: ForwardOperationBidirectional},
+		"dream":            {operation: ForwardOperationDiffusion},
+		"llada":            {operation: ForwardOperationDiffusion},
+		"dflash":           {operation: ForwardOperationSession, session: ForwardSessionPairedFeatures},
+		"eagle3":           {operation: ForwardOperationSession, session: ForwardSessionFeatureDraft},
+		"gemma4-assistant": {operation: ForwardOperationSession, session: ForwardSessionPairedProjection},
+		"wavtokenizer-dec": {operation: ForwardOperationAudioTokens},
+		"t5encoder":        {operation: ForwardOperationEncoder},
+		"t5":               {operation: ForwardOperationSession, session: ForwardSessionEncoderDecoder},
 	} {
 		profile, ok := LookupArchitecture(architecture)
-		if !ok || profile.Forward != want {
+		if !ok || profile.Forward.Operation != want.operation || profile.Forward.Session != want.session || !profile.Forward.valid() {
 			t.Fatalf("%s forward program = %v, want %v", architecture, profile.Forward, want)
 		}
 	}

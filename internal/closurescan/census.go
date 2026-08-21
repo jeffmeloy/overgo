@@ -60,7 +60,7 @@ type Census struct {
 
 // BuildCensus measures source pressure; findings grant no disposition.
 func BuildCensus(snapshot repoanalysis.SourceSnapshot) (Census, error) {
-	named, err := ScanSnapshot(snapshot, nil)
+	named, err := ScanSnapshot(snapshot, nil, CandidateConstants)
 	if err != nil {
 		return Census{}, err
 	}

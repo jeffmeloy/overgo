@@ -47,64 +47,48 @@ func LoadHostTensor(ctx context.Context, file *gguf.File, info gguf.TensorInfo) 
 	return reference.Value{Shape: shape, Data: data}, nil
 }
 
-// LoadHostRows dequantizes selected rows from rank-2 table without
-// materializing complete tensor
+// LoadHostRows dequantizes selected table entries.
 func LoadHostRows(
 	ctx context.Context,
 	file *gguf.File,
 	info gguf.TensorInfo,
-	rows []uint32,
+	indices []uint32,
 ) (reference.Value, error) {
 	if file == nil {
 		return reference.Value{}, errors.New("host rows: GGUF file is nil")
 	}
-	if info.Dimensions != 2 {
-		return reference.Value{}, fmt.Errorf("host rows: tensor %q must have rank 2", info.Name)
-	}
-	if len(rows) == 0 {
+	if len(indices) == tensor.FirstOffset {
 		return reference.Value{}, errors.New("host rows: row list is empty")
 	}
-	traits, ok := info.Type.Traits()
-	if !ok {
-		return reference.Value{}, fmt.Errorf("host rows: tensor %q has unknown type %d", info.Name, info.Type)
+	layout, err := info.RowLayout()
+	if err != nil {
+		return reference.Value{}, fmt.Errorf("host rows: %w", err)
 	}
-	width := info.Shape[0]
-	if width%traits.BlockSize != 0 {
-		return reference.Value{}, fmt.Errorf("host rows: tensor %q row width is not block aligned", info.Name)
-	}
-	rowBlocks := width / traits.BlockSize
-	if rowBlocks > math.MaxUint64/traits.TypeSize {
-		return reference.Value{}, errors.New("host rows: row byte size overflows")
-	}
-	rowBytes := rowBlocks * traits.TypeSize
-	if info.Shape[1] > math.MaxUint64/rowBytes || info.Shape[1]*rowBytes != info.Size {
-		return reference.Value{}, fmt.Errorf("host rows: tensor %q storage is inconsistent with its shape", info.Name)
-	}
-	if rowBytes > uint64(math.MaxInt) || width > uint64(math.MaxInt) ||
-		uint64(len(rows)) > math.MaxUint64/width ||
-		uint64(len(rows))*width > uint64(math.MaxInt) {
+	if layout.BytesPerRow > uint64(math.MaxInt) || layout.ElementsPerRow > uint64(math.MaxInt) ||
+		uint64(len(indices)) > math.MaxUint64/layout.ElementsPerRow ||
+		uint64(len(indices))*layout.ElementsPerRow > uint64(math.MaxInt) {
 		return reference.Value{}, errors.New("host rows: result exceeds addressable memory")
 	}
-	storage := make([]byte, int(rowBytes))
-	output := make([]float32, int(width)*len(rows))
-	for outputRow, row := range rows {
+	storage := make([]byte, int(layout.BytesPerRow))
+	output := make([]float32, int(layout.ElementsPerRow)*len(indices))
+	for outputIndex, index := range indices {
 		if err := ctx.Err(); err != nil {
 			return reference.Value{}, err
 		}
-		if uint64(row) >= info.Shape[1] {
-			return reference.Value{}, fmt.Errorf("host rows: row %d exceeds tensor row count %d", row, info.Shape[1])
+		if uint64(index) >= layout.Count {
+			return reference.Value{}, fmt.Errorf("host rows: row %d exceeds tensor row count %d", index, layout.Count)
 		}
-		offset := uint64(row) * rowBytes
+		offset := uint64(index) * layout.BytesPerRow
 		if err := file.ReadTensorRange(info, offset, storage); err != nil {
-			return reference.Value{}, fmt.Errorf("read host row %d from %q: %w", row, info.Name, err)
+			return reference.Value{}, fmt.Errorf("read host row %d from %q: %w", index, info.Name, err)
 		}
-		values, err := quant.Dequantize(info.Type, storage, width)
-		if err != nil {
-			return reference.Value{}, fmt.Errorf("dequantize host row %d from %q: %w", row, info.Name, err)
+		first := outputIndex * int(layout.ElementsPerRow)
+		last := first + int(layout.ElementsPerRow)
+		if err := quant.DequantizeInto(info.Type, storage, output[first:last]); err != nil {
+			return reference.Value{}, fmt.Errorf("dequantize host row %d from %q: %w", index, info.Name, err)
 		}
-		copy(output[outputRow*int(width):(outputRow+1)*int(width)], values)
 	}
-	shape, err := tensor.NewShape(width, uint64(len(rows)))
+	shape, err := tensor.NewShape(layout.ElementsPerRow, uint64(len(indices)))
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -117,60 +101,55 @@ func DotRows(
 	file *gguf.File,
 	info gguf.TensorInfo,
 	vector []float32,
-	chunkRows uint32,
+	batchCount uint32,
 ) ([]float32, error) {
 	if file == nil {
 		return nil, errors.New("dot rows: GGUF file is nil")
 	}
-	if info.Dimensions != 2 {
-		return nil, fmt.Errorf("dot rows: tensor %q must have rank 2", info.Name)
+	layout, err := info.RowLayout()
+	if err != nil {
+		return nil, fmt.Errorf("dot rows: %w", err)
 	}
-	width := info.Shape[0]
-	totalRows := info.Shape[1]
-	if uint64(len(vector)) != width {
-		return nil, fmt.Errorf("dot rows: vector has %d values, need %d", len(vector), width)
+	if uint64(len(vector)) != layout.ElementsPerRow {
+		return nil, fmt.Errorf("dot rows: vector has %d values, need %d", len(vector), layout.ElementsPerRow)
 	}
-	if totalRows == 0 || totalRows > math.MaxUint32 {
+	if layout.Count > math.MaxUint32 || layout.Count > uint64(math.MaxInt) {
 		return nil, errors.New("dot rows: row count is invalid")
 	}
-	if chunkRows == 0 {
-		chunkRows = 1024
+	if batchCount == tensor.FirstOffset {
+		return nil, errors.New("dot rows: batch count is zero")
 	}
-	traits, ok := info.Type.Traits()
-	if !ok || width%traits.BlockSize != 0 {
-		return nil, fmt.Errorf("dot rows: tensor %q has unsupported row layout", info.Name)
+	capacity := min(uint64(batchCount), layout.Count)
+	storageBytes := capacity * layout.BytesPerRow
+	if storageBytes > uint64(math.MaxInt) || capacity > math.MaxUint64/layout.ElementsPerRow ||
+		capacity*layout.ElementsPerRow > uint64(math.MaxInt) {
+		return nil, errors.New("dot rows: chunk exceeds addressable memory")
 	}
-	rowBytes := width / traits.BlockSize * traits.TypeSize
-	if totalRows > math.MaxUint64/rowBytes || totalRows*rowBytes != info.Size {
-		return nil, fmt.Errorf("dot rows: tensor %q storage is inconsistent with its shape", info.Name)
-	}
+	storage := make([]byte, int(storageBytes))
+	values := make([]float32, int(capacity*layout.ElementsPerRow))
 
-	scores := make([]float32, int(totalRows))
-	for first := uint64(0); first < totalRows; {
+	scores := make([]float32, int(layout.Count))
+	for first := uint64(tensor.FirstOffset); first < layout.Count; {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		count := uint64(chunkRows)
-		if remaining := totalRows - first; count > remaining {
+		count := capacity
+		if remaining := layout.Count - first; count > remaining {
 			count = remaining
 		}
-		storageBytes := count * rowBytes
-		if storageBytes > uint64(math.MaxInt) || count > math.MaxUint64/width || count*width > uint64(math.MaxInt) {
-			return nil, errors.New("dot rows: chunk exceeds addressable memory")
-		}
-		storage := make([]byte, int(storageBytes))
-		if err := file.ReadTensorRange(info, first*rowBytes, storage); err != nil {
+		chunk := storage[:count*layout.BytesPerRow]
+		if err := file.ReadTensorRange(info, first*layout.BytesPerRow, chunk); err != nil {
 			return nil, fmt.Errorf("read output rows at %d: %w", first, err)
 		}
-		values, err := quant.Dequantize(info.Type, storage, count*width)
-		if err != nil {
+		chunkValues := values[:count*layout.ElementsPerRow]
+		if err := quant.DequantizeInto(info.Type, chunk, chunkValues); err != nil {
 			return nil, fmt.Errorf("dequantize output rows at %d: %w", first, err)
 		}
-		for row := uint64(0); row < count; row++ {
+		for row := uint64(tensor.FirstOffset); row < count; row++ {
 			var dot float64
-			offset := int(row * width)
+			offset := int(row * layout.ElementsPerRow)
 			for column, input := range vector {
-				dot += float64(values[offset+column]) * float64(input)
+				dot += float64(chunkValues[offset+column]) * float64(input)
 			}
 			scores[first+row] = float32(dot)
 		}
@@ -203,7 +182,7 @@ func (layer *HostLayer) GraphInputs(
 	if builder == nil {
 		return LayerGraphWeights{}, nil, errors.New("host layer graph builder is nil")
 	}
-	feeds := make(map[*tensor.Tensor]reference.Value, 11)
+	feeds := make(map[*tensor.Tensor]reference.Value)
 	result := LayerGraphWeights{}
 	bindHostLayerGraphFields(builder, prefix, layer, &result, feeds)
 	if err := builder.Err(); err != nil {

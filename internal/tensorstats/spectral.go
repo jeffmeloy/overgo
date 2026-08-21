@@ -5,6 +5,9 @@ import (
 	"sort"
 )
 
+// IsMatrix reports the spectral operator's dimensional contract.
+func IsMatrix(extents []uint64) bool { return len(extents) == 2 }
+
 // SingularValues returns the min(rows, cols) singular values of a row-major
 // rows×cols matrix, descending. They are computed as the square roots of the
 // eigenvalues of the smaller Gram matrix (AᵀA or AAᵀ), found by a cyclic Jacobi
@@ -157,4 +160,9 @@ func EffectiveRank(singularValues []float64) (float64, bool) {
 		entropy -= p * math.Log(p)
 	}
 	return math.Exp(entropy) / float64(n), true
+}
+
+// ValidEffectiveRank reports the normalized spectral interval.
+func ValidEffectiveRank(value float64) bool {
+	return value > 0 && value <= 1 && !math.IsNaN(value) && !math.IsInf(value, 0)
 }

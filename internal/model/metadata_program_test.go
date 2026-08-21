@@ -37,18 +37,18 @@ func metadataOpSignature(op metadataOp) string {
 		return "sliding-pattern-type " + op.key
 	case metadataOpHalveFeedForward:
 		return "halve-feed-forward"
-	case metadataOpExpertWidthFromModel:
+	case metadataOpExpertFeedForwardFromModel:
 		if op.flag {
 			return "expert-width-from-model if-zero"
 		}
 		return "expert-width-from-model"
-	case metadataOpSharedWidthFromModel:
+	case metadataOpSharedFeedForwardFromModel:
 		return "shared-width-from-model"
-	case metadataOpSharedWidthFromExpert:
+	case metadataOpSharedFeedForwardFromExpert:
 		return "shared-width-from-expert"
-	case metadataOpSharedWidthScale:
+	case metadataOpSharedFeedForwardScale:
 		return "shared-width-scale"
-	case metadataOpSharedWidthPolicy:
+	case metadataOpSharedFeedForwardPolicy:
 		return "shared-width-policy"
 	}
 	return "unknown"

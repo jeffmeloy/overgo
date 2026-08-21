@@ -38,7 +38,7 @@ func draftExecutableSpec(spec Spec, plan DraftPlan) (Spec, uint32) {
 		layer := spec.BlockCount
 		spec.BlockCount++
 		spec.LeadingDenseBlocks = spec.BlockCount
-		spec.SlidingWindow = 0
+		spec.SlidingWindow = tensor.FirstOffset
 		return spec, layer
 	}
 	if !plan.SingleCatalog {
@@ -47,7 +47,7 @@ func draftExecutableSpec(spec Spec, plan DraftPlan) (Spec, uint32) {
 	profile := spec.Profile()
 	profile.Capabilities &^= ArchitectureMoE
 	profile.Experts = ExpertPolicy{}
-	return spec.withProfile(profile), 0
+	return spec.withProfile(profile), tensor.FirstOffset
 }
 
 func buildMTPInput(
@@ -61,13 +61,13 @@ func buildMTPInput(
 		hiddenNorm == nil || projection == nil {
 		return nil, errors.New("draft input is nil")
 	}
-	if tokenEmbedding.Shape.Rank != 2 || !tokenEmbedding.Shape.Equal(targetHidden.Shape) ||
-		tokenEmbedding.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+	_, validInput := tensor.MatrixRows(tokenEmbedding.Shape, uint64(spec.EmbeddingLength))
+	if !validInput || !tokenEmbedding.Shape.Equal(targetHidden.Shape) {
 		return nil, errors.New("draft input shape is incompatible")
 	}
 	embedding := normalizeMTP(builder, tokenEmbedding, embeddingNorm, spec, architectureNormalization, plan.Normalization)
 	hidden := normalizeMTP(builder, targetHidden, hiddenNorm, spec, architectureNormalization, plan.Normalization)
-	output := builder.MulMat(projection, builder.Concat(embedding, hidden, 0))
+	output := builder.MulMat(projection, builder.Concat(embedding, hidden, tensor.FirstOffset))
 	if err := builder.Err(); err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func buildMTPOutputs(
 	if builder == nil || input == nil || outputNorm == nil || output == nil {
 		return nil, nil, errors.New("draft output is nil")
 	}
-	if input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+	if _, validInput := tensor.MatrixRows(input.Shape, uint64(spec.EmbeddingLength)); !validInput {
 		return nil, nil, errors.New("draft output shape is incompatible")
 	}
 	normalized := normalizeMTP(builder, input, outputNorm, spec, architectureNormalization, plan.Normalization)
@@ -94,7 +94,7 @@ func buildMTPOutputs(
 	}
 	logits = builder.MulMat(output, normalized)
 	if plan.ScaleLogits {
-		if scale := spec.OutputLogitMultiplier(); scale != 1 {
+		if scale := spec.OutputLogitMultiplier(); scale != tensor.UnitScale {
 			logits = builder.Scale(logits, scale)
 		}
 	}

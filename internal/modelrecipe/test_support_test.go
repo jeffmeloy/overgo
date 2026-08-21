@@ -68,7 +68,7 @@ func compileActiveFixture(
 		return Plan{}, ok, err
 	}
 	definition := activation.Definition
-	if profileID, bound := definition.Dependency(recipe.DependencyProfile, 0); bound {
+	if profileID, bound := definition.PrimaryDependency(recipe.DependencyProfile); bound {
 		document, loadErr := loadProfile(ctx, store, profileID)
 		if loadErr != nil {
 			return Plan{}, false, loadErr
@@ -92,7 +92,7 @@ func compileProfileFixture(
 	if document.Architecture != spec.Architecture {
 		return Plan{}, errors.New("model recipe: profile does not match inference recipe")
 	}
-	profileID, ok := definition.Dependency(recipe.DependencyProfile, 0)
+	profileID, ok := definition.PrimaryDependency(recipe.DependencyProfile)
 	if !ok || profileID != document.ID {
 		return Plan{}, errors.New("model recipe: definition profile dependency mismatch")
 	}

@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"overgo/internal/gguf"
+	"overgo/internal/tensor"
 )
 
 const (
@@ -98,7 +99,9 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	if value, ok := optional[string](values, "general.name", gguf.ValueTypeString); ok {
 		spec.Name = value
 	}
-	if spec.PoolingType, _ = optional[uint32](values, prefix+"pooling_type", gguf.ValueTypeUint32); spec.PoolingType > 4 {
+	pooling, _ := optional[uint32](values, prefix+"pooling_type", gguf.ValueTypeUint32)
+	spec.PoolingType = PoolingType(pooling)
+	if !spec.PoolingType.Valid() {
 		return specReadState{}, fmt.Errorf("metadata %q has unsupported pooling type %d", prefix+"pooling_type", spec.PoolingType)
 	}
 	if labels, ok, err := optionalArray[string](
@@ -110,11 +113,11 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	}
 	if m.profile.Has(ArchitectureLatentKVLayout) {
 		spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
-		if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {
+		if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == tensor.FirstOffset {
 			if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
 				return specReadState{}, errors.New(`metadata "tokenizer.ggml.tokens" must be a string array`)
 			}
-			if tokens.Count() > int(^uint32(0)) {
+			if tokens.Count() > int(math.MaxUint32) {
 				return specReadState{}, errors.New("tokenizer vocabulary exceeds uint32")
 			}
 			spec.VocabularySize = uint32(tokens.Count())
@@ -123,7 +126,7 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	state := specReadState{}
 	if m.profile.Validation.ExpertMetadata == ExpertMetadataWhenDeclared {
 		count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
-		state.declaredExperts = ok && count > 0
+		state.declaredExperts = ok && count > tensor.FirstOffset
 	}
 	var err error
 	if spec.BlockCount, err = required[uint32](values, prefix+"block_count", gguf.ValueTypeUint32); err != nil {
@@ -142,13 +145,13 @@ func (m specMetadata) readBase(spec *Spec) (specReadState, error) {
 	); err != nil {
 		return specReadState{}, err
 	}
-	if err := m.readProfileShape(spec); err != nil {
+	if err := m.readProfileMetadata(spec); err != nil {
 		return specReadState{}, err
 	}
 	return state, nil
 }
 
-func (m specMetadata) readAttentionShape(spec *Spec, state specReadState) error {
+func (m specMetadata) readAttentionMetadata(spec *Spec, state specReadState) error {
 	values, prefix := m.values, m.prefix
 	policy := m.profile.Metadata
 	var err error
@@ -163,12 +166,12 @@ func (m specMetadata) readAttentionShape(spec *Spec, state specReadState) error 
 	if err != nil {
 		return err
 	}
-	if len(spec.LayerFeedForward) > 0 {
+	if len(spec.LayerFeedForward) > tensor.FirstOffset {
 		spec.FeedForwardLength = firstPositive(spec.LayerFeedForward)
 	}
 	switch policy.Heads {
 	case metadataFixedOne:
-		spec.HeadCount = 1
+		spec.HeadCount = tensor.SingletonExtent
 	case metadataLayer:
 		spec.LayerHeadCounts, err = requiredLayerUint32(values, prefix+"attention.head_count", spec.BlockCount)
 	case metadataLayerCompatible:
@@ -179,14 +182,14 @@ func (m specMetadata) readAttentionShape(spec *Spec, state specReadState) error 
 	if err != nil {
 		return err
 	}
-	if len(spec.LayerHeadCounts) > 0 {
+	if len(spec.LayerHeadCounts) > tensor.FirstOffset {
 		spec.HeadCount = firstPositive(spec.LayerHeadCounts)
 	}
 	switch policy.KVHeads {
 	case metadataFixedOne:
-		spec.HeadCountKV = 1
+		spec.HeadCountKV = tensor.SingletonExtent
 	case metadataFixedZero:
-		spec.HeadCountKV = 0
+		spec.HeadCountKV = tensor.FirstOffset
 	case metadataMirrorHeads, metadataMirrorHeadsOptional:
 		spec.HeadCountKV = spec.HeadCount
 		if policy.KVHeads == metadataMirrorHeadsOptional {
@@ -202,8 +205,9 @@ func (m specMetadata) readAttentionShape(spec *Spec, state specReadState) error 
 		spec.HeadCountKV = firstPositive(spec.LayerKVHeadCounts)
 		if policy.InferRecurrentFromZeroFFN && err == nil {
 			spec.RecurrentLayers = make([]bool, spec.BlockCount)
-			for block := uint32(0); block < spec.BlockCount; block++ {
-				spec.RecurrentLayers[block] = spec.LayerKVHeadCounts[block] == 0 && spec.LayerFeedForward[block] == 0
+			for block := uint32(tensor.FirstOffset); block < spec.BlockCount; block++ {
+				spec.RecurrentLayers[block] = spec.LayerKVHeadCounts[block] == tensor.FirstOffset &&
+					spec.LayerFeedForward[block] == tensor.FirstOffset
 			}
 		}
 	case metadataHybridLayers:
@@ -218,11 +222,11 @@ func (m specMetadata) readAttentionShape(spec *Spec, state specReadState) error 
 				spec.LayerKVHeadCounts = slices.Clone(counts)
 			}
 			for index, count := range counts {
-				if count == 0 {
+				if count == tensor.FirstOffset {
 					spec.RecurrentLayers[index] = true
 					continue
 				}
-				if spec.HeadCountKV == 0 {
+				if spec.HeadCountKV == tensor.FirstOffset {
 					spec.HeadCountKV = count
 				} else if spec.HeadCountKV != count {
 					return errors.New("hybrid attention layers use differing positive KV head counts")
@@ -256,15 +260,16 @@ func (m specMetadata) readAttentionShape(spec *Spec, state specReadState) error 
 			spec.ValueLength = value
 		}
 	}
-	if spec.HeadCount > 0 && (spec.KeyLength == 0 || spec.ValueLength == 0) {
-		if spec.EmbeddingLength%spec.HeadCount != 0 {
+	if spec.HeadCount > tensor.FirstOffset &&
+		(spec.KeyLength == tensor.FirstOffset || spec.ValueLength == tensor.FirstOffset) {
+		if spec.EmbeddingLength%spec.HeadCount != tensor.FirstOffset {
 			return errors.New("embedding length is not divisible by attention head count")
 		}
 		headLength := spec.EmbeddingLength / spec.HeadCount
-		if spec.KeyLength == 0 {
+		if spec.KeyLength == tensor.FirstOffset {
 			spec.KeyLength = headLength
 		}
-		if spec.ValueLength == 0 {
+		if spec.ValueLength == tensor.FirstOffset {
 			spec.ValueLength = headLength
 		}
 	}
@@ -286,7 +291,7 @@ func (m specMetadata) readPosition(spec *Spec) error {
 	if !spec.RopeDisabled && profile.Forward.Operation != ForwardOperationEncoder {
 		optionalBase := validation.optionalRopeBase()
 		if optionalBase {
-			spec.RopeFrequencyBase = 10000
+			spec.RopeFrequencyBase = profile.MetadataDefaults.RopeFrequencyBase
 			if value, ok := optional[float32](values, prefix+"rope.freq_base", gguf.ValueTypeFloat32); ok {
 				spec.RopeFrequencyBase = value
 			}
@@ -319,12 +324,12 @@ func (m specMetadata) readPosition(spec *Spec) error {
 					return err
 				}
 				spec.OriginalContextLength = value
-				spec.YaRNExtFactor = 1
+				spec.YaRNExtFactor = tensor.UnitScale
 				spec.YaRNAttentionFactor =
-					1 / (1 + yarnLogFactorStep*float32(math.Log(float64(spec.RopeScalingFactor))))
+					tensor.UnitScale / (tensor.UnitScale + yarnLogFactorStep*float32(math.Log(float64(spec.RopeScalingFactor))))
 				spec.YaRNBetaFast, spec.YaRNBetaSlow = yarnDefaultBetaFast, yarnDefaultBetaSlow
-				if validation.Hybrid == HybridValidationSharedExpertNorm {
-					spec.YaRNBetaFast = 8
+				if positiveFinite(profile.MetadataDefaults.YaRNBetaFast) {
+					spec.YaRNBetaFast = profile.MetadataDefaults.YaRNBetaFast
 				}
 				for _, field := range []metadataField[float32]{
 					metadataDestination("rope.scaling.yarn_ext_factor", &spec.YaRNExtFactor),
@@ -343,7 +348,7 @@ func (m specMetadata) readPosition(spec *Spec) error {
 	}
 	if profile.readsMetadata(MetadataReadALiBi) || profile.EncoderOperator.usesALiBiQKNorm() {
 		if !profile.readsMetadata(MetadataReadZeroALiBiDefault) {
-			spec.MaxALiBiBias = 8
+			spec.MaxALiBiBias = profile.MetadataDefaults.MaxALiBiBias
 		}
 		if !profile.EncoderOperator.usesALiBiQKNorm() {
 			if value, ok := optional[float32](values, prefix+"attention.max_alibi_bias", gguf.ValueTypeFloat32); ok {
@@ -354,7 +359,7 @@ func (m specMetadata) readPosition(spec *Spec) error {
 	if profile.DenseWeights.AllowActivationScale {
 		spec.AttentionClamp, _ = optional[float32](values, prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32)
 	}
-	if validation.Hybrid == HybridValidationModelWidthExperts {
+	if validation.Hybrid == HybridValidationModelFeedForwardExperts {
 		value, err := required[float32](values, prefix+"attention.clamp_kqv", gguf.ValueTypeFloat32)
 		if err != nil {
 			return err
@@ -370,11 +375,12 @@ func (m specMetadata) readDraftLayers(spec *Spec) error {
 	}
 	key := m.prefix + "nextn_predict_layers"
 	nextN, _ := optional[uint32](m.values, key, gguf.ValueTypeUint32)
-	if nextN == 0 {
+	if nextN == tensor.FirstOffset {
 		return nil
 	}
 	if nextN >= spec.BlockCount ||
-		(m.profile.DraftKind == DraftSingleCatalog || m.profile.DraftKind == DraftOptionalSingleCatalog) && nextN != 1 {
+		(m.profile.DraftKind == DraftSingleCatalog || m.profile.DraftKind == DraftOptionalSingleCatalog) &&
+			nextN != singleDraftHeadCount {
 		return errors.New("draft layer count is invalid")
 	}
 	spec.NextNPredictLayers = nextN
@@ -409,11 +415,11 @@ const (
 	metadataOpRopeSections
 	metadataOpSlidingPatternType
 	metadataOpHalveFeedForward
-	metadataOpExpertWidthFromModel
-	metadataOpSharedWidthFromModel
-	metadataOpSharedWidthFromExpert
-	metadataOpSharedWidthScale
-	metadataOpSharedWidthPolicy
+	metadataOpExpertFeedForwardFromModel
+	metadataOpSharedFeedForwardFromModel
+	metadataOpSharedFeedForwardFromExpert
+	metadataOpSharedFeedForwardScale
+	metadataOpSharedFeedForwardPolicy
 )
 
 // metadataOp: one compiled read/derive/validate/bind operation. field names
@@ -454,16 +460,16 @@ var (
 )
 
 var (
-	ropeDimensionRequired = opReqU32.at("rope.dimension_count", "RopeDimensionCount")
-	ropeDimensionAssigned = opZeroU32.at("rope.dimension_count", "RopeDimensionCount")
-	expertWidthRequired   = opReqU32.at("expert_feed_forward_length", "ExpertFeedForward")
-	expertGatingRequired  = opReqU32.at("expert_gating_func", "ExpertGatingFunc")
-	sharedWidthOptional   = opKeepU32.at("expert_shared_feed_forward_length", "SharedExpertFF")
-	leadingDenseOptional  = opZeroU32.at("leading_dense_block_count", "LeadingDenseBlocks")
-	expertNormAlways      = metadataOp{kind: metadataOpSetBool, field: "ExpertWeightsNorm", flag: true}
-	expertNormOptional    = opZeroBool.at("expert_weights_norm", "ExpertWeightsNorm")
-	sectionsRequired      = metadataOp{kind: metadataOpRopeSections, key: "rope.dimension_sections"}
-	sectionsOptional      = metadataOp{kind: metadataOpRopeSections, key: "rope.dimension_sections", mode: metadataReadKeepCurrent}
+	ropeDimensionRequired     = opReqU32.at("rope.dimension_count", "RopeDimensionCount")
+	ropeDimensionAssigned     = opZeroU32.at("rope.dimension_count", "RopeDimensionCount")
+	expertFeedForwardRequired = opReqU32.at("expert_feed_forward_length", "ExpertFeedForward")
+	expertGatingRequired      = opReqU32.at("expert_gating_func", "ExpertGatingFunc")
+	sharedWidthOptional       = opKeepU32.at("expert_shared_feed_forward_length", "SharedExpertFF")
+	leadingDenseOptional      = opZeroU32.at("leading_dense_block_count", "LeadingDenseBlocks")
+	expertNormAlways          = metadataOp{kind: metadataOpSetBool, field: "ExpertWeightsNorm", flag: true}
+	expertNormOptional        = opZeroBool.at("expert_weights_norm", "ExpertWeightsNorm")
+	sectionsRequired          = metadataOp{kind: metadataOpRopeSections, key: "rope.dimension_sections"}
+	sectionsOptional          = metadataOp{kind: metadataOpRopeSections, key: "rope.dimension_sections", mode: metadataReadKeepCurrent}
 )
 
 // cohere2CoreProgram: shared Cohere2 and Cohere2-MoE core reads.
@@ -510,18 +516,17 @@ var coreFlagPrograms = []struct {
 	{MetadataReadCommandRLogits, []metadataOp{opZeroF32.at("logit_scale", "LogitScale")}},
 	{MetadataReadVisualSections, []metadataOp{sectionsRequired}},
 	{MetadataReadQwen3VLDeepstack, []metadataOp{opKeepU32.at("n_deepstack_layers", "DeepstackLayerCount")}},
-	{MetadataReadSmolLM3NoRoPE, []metadataOp{setU32("NoRopeLayerStep", 4)}},
 	{MetadataReadOLMoClamp, []metadataOp{opKeepF32.at("attention.clamp_kqv", "AttentionClamp")}},
 }
 
 // expertProductProgram: shared-product MoE width reads with optional gating
 // and weights-norm overrides.
 func expertProductProgram(gating, norm bool) []metadataOp {
-	program := []metadataOp{expertWidthRequired, opReqU32.at("expert_shared_count", "SharedExpertCount")}
+	program := []metadataOp{expertFeedForwardRequired, opReqU32.at("expert_shared_count", "SharedExpertCount")}
 	if gating {
 		program = append(program, expertGatingRequired)
 	}
-	program = append(program, metadataOp{kind: metadataOpSharedWidthFromExpert}, metadataOp{kind: metadataOpSharedWidthScale})
+	program = append(program, metadataOp{kind: metadataOpSharedFeedForwardFromExpert}, metadataOp{kind: metadataOpSharedFeedForwardScale})
 	if norm {
 		program = append(program, expertNormOptional)
 	}
@@ -530,37 +535,37 @@ func expertProductProgram(gating, norm bool) []metadataOp {
 
 // expertHybridPrograms: expert-stage reads keyed by hybrid contract.
 var expertHybridPrograms = map[HybridValidationPolicy][]metadataOp{
-	HybridValidationSigmoidExperts:      {setU32("ExpertGatingFunc", expertGatingSigmoid), expertNormAlways},
-	HybridValidationRequiredExpertWidth: {expertWidthRequired, expertNormAlways},
+	HybridValidationSigmoidExperts:            {setU32("ExpertGatingFunc", expertGatingSigmoid), expertNormAlways},
+	HybridValidationRequiredExpertFeedForward: {expertFeedForwardRequired, expertNormAlways},
 	HybridValidationSharedExpertProduct: {
-		expertWidthRequired,
-		{kind: metadataOpSharedWidthPolicy},
+		expertFeedForwardRequired,
+		{kind: metadataOpSharedFeedForwardPolicy},
 		expertNormAlways,
 	},
-	HybridValidationModelWidthExperts: {{kind: metadataOpExpertWidthFromModel}, expertNormAlways},
+	HybridValidationModelFeedForwardExperts: {{kind: metadataOpExpertFeedForwardFromModel}, expertNormAlways},
 	HybridValidationDualExpertProduct: {
-		{kind: metadataOpExpertWidthFromModel},
+		{kind: metadataOpExpertFeedForwardFromModel},
 		expertNormAlways,
 		expertGatingRequired,
 	},
 	HybridValidationWeightedExpertProduct:              expertProductProgram(true, true),
 	HybridValidationProductSharedExperts:               expertProductProgram(false, true),
 	HybridValidationProductExperts:                     expertProductProgram(false, false),
-	HybridValidationAlternatingShortConvolutionExperts: {expertWidthRequired, expertGatingRequired, leadingDenseOptional},
+	HybridValidationAlternatingShortConvolutionExperts: {expertFeedForwardRequired, expertGatingRequired, leadingDenseOptional},
 	HybridValidationScaledSharedExperts: {
-		expertWidthRequired,
+		expertFeedForwardRequired,
 		opReqU32.at("expert_shared_count", "SharedExpertCount"),
-		{kind: metadataOpSharedWidthFromExpert},
+		{kind: metadataOpSharedFeedForwardFromExpert},
 		sharedWidthOptional,
-		{kind: metadataOpSharedWidthScale},
+		{kind: metadataOpSharedFeedForwardScale},
 		expertGatingRequired,
 		expertNormOptional,
 		leadingDenseOptional,
 	},
 	HybridValidationNormalizedSharedExperts: {
-		{kind: metadataOpExpertWidthFromModel, flag: true},
-		setU32("SharedExpertCount", 1),
-		{kind: metadataOpSharedWidthFromModel},
+		{kind: metadataOpExpertFeedForwardFromModel, flag: true},
+		setU32("SharedExpertCount", tensor.SingletonExtent),
+		{kind: metadataOpSharedFeedForwardFromModel},
 		sharedWidthOptional,
 	},
 }
@@ -568,7 +573,7 @@ var expertHybridPrograms = map[HybridValidationPolicy][]metadataOp{
 // expertAttentionPrograms: expert-stage reads keyed by attention contract.
 var expertAttentionPrograms = map[AttentionValidationPolicy][]metadataOp{
 	AttentionValidationPeriodicExperts: {
-		expertWidthRequired,
+		expertFeedForwardRequired,
 		opReqU32.at("interleave_moe_layer_step", "MoELayerStep"),
 		leadingDenseOptional,
 		opZeroU32.at("expert_shared_feed_forward_length", "SharedExpertFF"),
@@ -606,15 +611,15 @@ func ssmProgram(grouped bool) []metadataOp {
 	if grouped {
 		return append(program, opReqU32.at("ssm.group_count", "SSMGroupCount"))
 	}
-	return append(program, setU32("SSMGroupCount", 1), opZeroBool.at("ssm.dt_b_c_rms", "SSMDtBCNorm"))
+	return append(program, setU32("SSMGroupCount", tensor.SingletonExtent), opZeroBool.at("ssm.dt_b_c_rms", "SSMDtBCNorm"))
 }
 
 // coreRecurrentPrograms: architecture-core reads keyed by recurrent contract.
 var coreRecurrentPrograms = map[RecurrentValidationPolicy][]metadataOp{
-	RecurrentValidationTimeMixV6:                        tokenShiftProgram(rwkv6Reads, 2),
-	RecurrentValidationTimeMixV6SharedKV:                tokenShiftProgram(rwkv6Reads, 1),
-	RecurrentValidationTimeMixV7Gated:                   tokenShiftProgram(rwkv7Reads, 2),
-	RecurrentValidationTimeMixV7:                        tokenShiftProgram(rwkv7Reads, 1),
+	RecurrentValidationTimeMixV6:                        tokenShiftProgram(rwkv6Reads, tensor.PairedExtent),
+	RecurrentValidationTimeMixV6SharedKV:                tokenShiftProgram(rwkv6Reads, tensor.SingletonExtent),
+	RecurrentValidationTimeMixV7Gated:                   tokenShiftProgram(rwkv7Reads, tensor.PairedExtent),
+	RecurrentValidationTimeMixV7:                        tokenShiftProgram(rwkv7Reads, tensor.SingletonExtent),
 	RecurrentValidationUngroupedStateSpace:              ssmProgram(false),
 	RecurrentValidationStateSpaceAttentionExperts:       ssmProgram(false),
 	RecurrentValidationGroupedStateSpace:                ssmProgram(true),
@@ -645,7 +650,7 @@ func compileRuntimeProgram(profile ArchitectureProfile) []metadataOp {
 // compileArchitectureCoreProgram: ordered core metadata operations from a profile.
 func compileArchitectureCoreProgram(profile ArchitectureProfile) []metadataOp {
 	validation := profile.Validation
-	program := make([]metadataOp, 0, 16)
+	var program []metadataOp
 	switch {
 	case validation.Attention == AttentionValidationRequiredSlidingRotaryExperts:
 		program = append(program, metadataOp{kind: metadataOpEpsilonEither})
@@ -670,8 +675,8 @@ func compileArchitectureCoreProgram(profile ArchitectureProfile) []metadataOp {
 			program = append(program, entry.program...)
 		}
 	}
-	if validation.Hybrid == HybridValidationSlidingSigmoidExperts {
-		program = append(program, setU32("NoRopeLayerStep", 4))
+	if profile.MetadataDefaults.NoRopeLayerStep > tensor.FirstOffset {
+		program = append(program, setU32("NoRopeLayerStep", profile.MetadataDefaults.NoRopeLayerStep))
 	}
 	return append(program, coreRecurrentPrograms[validation.Recurrent]...)
 }
@@ -750,7 +755,7 @@ func (m specMetadata) runMetadataProgram(spec Spec, program []metadataOp) (Spec,
 		case metadataOpDefaults:
 			m.profile.MetadataDefaults.read(values, prefix, &spec)
 		case metadataOpInverseKeyScale:
-			spec.AttentionScale = 1 / float32(spec.KeyLength)
+			spec.AttentionScale = tensor.UnitScale / float32(spec.KeyLength)
 		case metadataOpEpsilonEither:
 			if value, ok := optional[float32](values, prefix+"attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32); ok {
 				spec.RMSNormEpsilon = value
@@ -768,23 +773,23 @@ func (m specMetadata) runMetadataProgram(spec Spec, program []metadataOp) (Spec,
 				err = errors.New("Cohere2 sliding attention pattern has an invalid type")
 			}
 		case metadataOpHalveFeedForward:
-			if spec.FeedForwardLength == 0 || spec.FeedForwardLength%2 != 0 {
+			if spec.FeedForwardLength == tensor.FirstOffset || spec.FeedForwardLength%tensor.PairedExtent != tensor.FirstOffset {
 				err = errors.New("Qwen feed-forward length must be positive and even")
 			} else {
-				spec.FeedForwardLength /= 2
+				spec.FeedForwardLength /= tensor.PairedExtent
 			}
-		case metadataOpExpertWidthFromModel:
-			if !op.flag || spec.ExpertFeedForward == 0 {
+		case metadataOpExpertFeedForwardFromModel:
+			if !op.flag || spec.ExpertFeedForward == tensor.FirstOffset {
 				spec.ExpertFeedForward = spec.FeedForwardLength
 			}
-		case metadataOpSharedWidthFromModel:
+		case metadataOpSharedFeedForwardFromModel:
 			spec.SharedExpertFF = spec.FeedForwardLength
-		case metadataOpSharedWidthFromExpert:
+		case metadataOpSharedFeedForwardFromExpert:
 			spec.SharedExpertFF = spec.ExpertFeedForward
-		case metadataOpSharedWidthScale:
+		case metadataOpSharedFeedForwardScale:
 			spec.SharedExpertFF *= spec.SharedExpertCount
-		case metadataOpSharedWidthPolicy:
-			spec.SharedExpertFF, err = m.profile.MetadataDefaults.readSharedExpertWidth(values, prefix, spec)
+		case metadataOpSharedFeedForwardPolicy:
+			spec.SharedExpertFF, err = m.profile.MetadataDefaults.readSharedExpertFeedForward(values, prefix, spec)
 		}
 		if err != nil {
 			return Spec{}, err
@@ -793,7 +798,7 @@ func (m specMetadata) runMetadataProgram(spec Spec, program []metadataOp) (Spec,
 	return spec, nil
 }
 
-func (m specMetadata) readProfileShape(spec *Spec) error {
+func (m specMetadata) readProfileMetadata(spec *Spec) error {
 	values, prefix := m.values, m.prefix
 	validation := m.profile.Validation
 	defaults := m.profile.MetadataDefaults
@@ -808,7 +813,7 @@ func (m specMetadata) readProfileShape(spec *Spec) error {
 			return nextErr
 		}
 		if nextN != spec.BlockCount {
-			return errors.New("Gemma 4 assistant NextN layer count must match block count")
+			return errors.New("paired-projection layer count must match block count")
 		}
 	case validation.Attention == AttentionValidationSharedKVAlternatingState:
 		spec.AltUpCount = defaults.AlternateStateCount

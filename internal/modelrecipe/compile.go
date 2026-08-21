@@ -527,8 +527,8 @@ func programIdentity(definition recipe.Definition) ProgramIdentity {
 		Model: definition.Model, Recipe: definition.ID, RecipeVersion: definition.Version,
 		Runtime: RuntimeInference,
 	}
-	identity.Profile, _ = definition.Dependency(recipe.DependencyProfile, 0)
-	identity.Definition, _ = definition.Dependency(recipe.DependencyDefinition, 0)
+	identity.Profile, _ = definition.PrimaryDependency(recipe.DependencyProfile)
+	identity.Definition, _ = definition.PrimaryDependency(recipe.DependencyDefinition)
 	for _, node := range definition.Nodes {
 		if node.Module == ModuleCompileModelPlan {
 			identity.Residency = node.Residency
@@ -566,7 +566,7 @@ func (p Plan) ValidateServing() error {
 	if err := validateProgramIdentity(p.Recipe, p.Identity); err != nil {
 		return err
 	}
-	if p.Model.Profile().Name == "" || p.Model.LayerCount() == 0 || !p.Model.HasCacheSchemas() {
+	if !p.Model.Compiled() || !p.Model.HasCacheSchemas() {
 		return errors.New("model recipe: serving model program is incomplete")
 	}
 	if !slices.Equal(p.Nodes, p.Recipe.Nodes) {

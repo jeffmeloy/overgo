@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
 
@@ -82,10 +83,11 @@ func loadMoECoreCatalog(
 ) (bool, error) {
 	fusedGateUp := false
 	policy := spec.Profile().Experts
-	shapes := spec.TensorShapes(0)
+	shapes := spec.TensorShapes(tensor.FirstOffset)
 	if policy.FusedGateUp {
 		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
-			optionalTensorPointer("ffn_gate_up_exps.weight", &layer.FeedForwardGateUpExperts, shapes.ExpertUp(2)...),
+			optionalTensorPointer("ffn_gate_up_exps.weight", &layer.FeedForwardGateUpExperts,
+				shapes.ExpertUp(FeedForwardFusedGateUp.upProjectionCopies())...),
 		}); err != nil {
 			return false, err
 		}
@@ -96,7 +98,8 @@ func loadMoECoreCatalog(
 	}
 	if !fusedGateUp {
 		requirements = append(requirements,
-			requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, shapes.ExpertUp(1)...),
+			requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts,
+				shapes.ExpertUp(FeedForwardSwiGLU.upProjectionCopies())...),
 		)
 	}
 	requirements = append(requirements,
@@ -104,7 +107,8 @@ func loadMoECoreCatalog(
 	)
 	if !fusedGateUp && !policy.OptionalGate {
 		requirements = append(requirements,
-			requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, shapes.ExpertUp(1)...),
+			requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts,
+				shapes.ExpertUp(FeedForwardSwiGLU.upProjectionCopies())...),
 		)
 	}
 	return fusedGateUp, bindTensorProgram(catalog, prefix, requirements)
@@ -118,7 +122,7 @@ func loadOptionalExpertGate(
 ) error {
 	return bindTensorProgram(catalog, prefix, []tensorBinding{
 		optionalTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts,
-			spec.TensorShapes(0).ExpertUp(1)...),
+			spec.TensorShapes(tensor.FirstOffset).ExpertUp(FeedForwardSwiGLU.upProjectionCopies())...),
 	})
 }
 
@@ -164,13 +168,13 @@ func loadMoEPolicyCatalog(
 	}
 	switch policy.SharedCatalog {
 	case sharedExpertCatalogAlways:
-		return loadSharedExpertWeights(catalog, prefix, spec, layer, false)
+		return loadSharedExpertWeights(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, false)
 	case sharedExpertCatalogWithWidth:
-		if spec.SharedExpertFF > 0 {
-			return loadSharedExpertWeights(catalog, prefix, spec, layer, false)
+		if spec.SharedExpertFF > tensor.FirstOffset {
+			return loadSharedExpertWeights(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, false)
 		}
 	case sharedExpertCatalogGated:
-		return loadSharedExpertWeights(catalog, prefix, spec, layer, true)
+		return loadSharedExpertWeights(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, true)
 	}
 	return nil
 }
@@ -203,24 +207,24 @@ func loadOptionalDenseGEGLUCatalog(
 	layer *LayerWeights,
 ) error {
 	names := []string{feedForwardGateWeightTensor, feedForwardUpWeightTensor, feedForwardDownWeightTensor}
-	present := 0
+	present := tensor.FirstOffset
 	for _, name := range names {
 		if _, ok := catalog.tensors[prefix+name]; ok {
 			present++
 		}
 	}
-	if present != 0 && present != len(names) {
+	if present != tensor.FirstOffset && present != len(names) {
 		return errors.New("optional dense GEGLU tensors must be all present or all absent")
 	}
-	if present == 0 {
+	if present == tensor.FirstOffset {
 		return nil
 	}
 	return bindTensorProgram(catalog, prefix, []tensorBinding{
-		requiredTensorPointer(names[0], &layer.FeedForwardGate,
+		requiredTensorPointer(names[tensor.FirstOffset], &layer.FeedForwardGate,
 			uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
-		requiredTensorPointer(names[1], &layer.FeedForwardUp,
+		requiredTensorPointer(names[tensor.SingletonExtent], &layer.FeedForwardUp,
 			uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)),
-		requiredTensorPointer(names[2], &layer.FeedForwardDown,
+		requiredTensorPointer(names[tensor.PairedExtent], &layer.FeedForwardDown,
 			uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)),
 	})
 }

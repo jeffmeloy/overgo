@@ -1,6 +1,9 @@
 package model
 
-import "math"
+import (
+	"overgo/internal/hostmath"
+	"overgo/internal/tensor"
+)
 
 // EmbeddingScalePolicy: default input scaling.
 type EmbeddingScalePolicy uint8
@@ -37,11 +40,12 @@ const (
 
 // RuntimePolicy: scalar and normalization runtime decisions.
 type RuntimePolicy struct {
-	EmbeddingScale         EmbeddingScalePolicy
-	LogitScale             LogitScalePolicy
-	NormalizationPlacement NormalizationPlacementPolicy
-	NormalizationBias      NormalizationBiasPolicy
-	Recurrent              RecurrentRuntimePolicy
+	EmbeddingScale          EmbeddingScalePolicy
+	LogitScale              LogitScalePolicy
+	NormalizationPlacement  NormalizationPlacementPolicy
+	NormalizationBias       NormalizationBiasPolicy
+	Recurrent               RecurrentRuntimePolicy
+	ActivationResidualScale float32
 }
 
 // RecurrentRuntimePolicy: recurrent scalar contract.
@@ -50,26 +54,39 @@ type RecurrentRuntimePolicy struct {
 	KeyNormEpsilon        float32
 	PeriodicResidualScale float32
 	TokenShiftCount       uint32
+	InnerWidthMultiplier  uint32
+}
+
+func (p RecurrentRuntimePolicy) validInnerWidth(spec Spec) bool {
+	return p.InnerWidthMultiplier == tensor.FirstOffset ||
+		uint64(spec.SSMInnerSize) == uint64(p.InnerWidthMultiplier)*uint64(spec.EmbeddingLength)
 }
 
 func (p RuntimePolicy) inputEmbeddingScale(spec Spec) float32 {
-	if spec.EmbeddingScale > 0 {
+	if positiveFinite(spec.EmbeddingScale) {
 		return spec.EmbeddingScale
 	}
 	if p.EmbeddingScale == EmbeddingScaleSqrtWidth {
-		return float32(math.Sqrt(float64(spec.EmbeddingLength)))
+		return hostmath.Sqrt32(uint64(spec.EmbeddingLength))
 	}
-	return 1
+	return tensor.UnitScale
 }
 
 func (p RuntimePolicy) outputLogitMultiplier(spec Spec) float32 {
-	if spec.LogitScale <= 0 {
-		return 1
+	if !positiveFinite(spec.LogitScale) {
+		return tensor.UnitScale
 	}
 	if p.LogitScale == LogitScaleDirect {
 		return spec.LogitScale
 	}
-	return 1 / spec.LogitScale
+	return tensor.UnitScale / spec.LogitScale
+}
+
+func (s Spec) resolvedAttentionScale(keyLength uint64) float32 {
+	if positiveFinite(s.AttentionScale) {
+		return s.AttentionScale
+	}
+	return hostmath.InvSqrt32(keyLength)
 }
 
 func (p RuntimePolicy) normalizationPlan(spec Spec, profile ArchitectureProfile) NormalizationPlan {

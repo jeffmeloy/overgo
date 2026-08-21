@@ -181,7 +181,7 @@ func (r *Runner) cacheSchema(
 	tokens uint32,
 ) (model.LayerPlan, model.LayerCacheSchema, error) {
 	plan := r.layerPlan(layer)
-	schema, err := r.program.Model.CacheSchema(layer, tokens)
+	schema, err := r.program.Model.CacheSchema(uint32(layer), tokens)
 	return plan, schema, err
 }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/pytorchzip"
 	"overgo/internal/safetensors"
 )
@@ -113,39 +114,33 @@ func pytorchTensorFacts(filename, namespace string) ([]TensorFact, error) {
 	}
 	facts := make([]TensorFact, len(catalog.Tensors))
 	for index, tensor := range catalog.Tensors {
-		storage, width, err := pytorchStorage(tensor.DType)
+		storage, err := pytorchzip.StorageType(tensor.DType)
 		if err != nil {
 			return nil, fmt.Errorf("tensor %s: %w", tensor.Name, err)
 		}
-		if tensor.Numel < 0 || uint64(tensor.Numel) > ^uint64(0)/width {
+		elements, ok := checked.Uint64(tensor.Numel)
+		if !ok {
+			return nil, fmt.Errorf("tensor %s: negative element count", tensor.Name)
+		}
+		traits, _ := storage.Traits()
+		bytes, ok := checked.Bytes(elements, traits.TypeSize)
+		if !ok {
 			return nil, fmt.Errorf("tensor %s: byte size overflows", tensor.Name)
 		}
 		shape := make([]uint64, len(tensor.Shape))
 		for dimension, size := range tensor.Shape {
-			if size < 0 {
+			extent, ok := checked.Uint64(size)
+			if !ok {
 				return nil, fmt.Errorf("tensor %s: negative dimension", tensor.Name)
 			}
-			shape[dimension] = uint64(size)
+			shape[dimension] = extent
 		}
 		facts[index] = TensorFact{
 			Name: namespace + "/" + tensor.Name, Shape: shape,
-			Storage: storage, Bytes: uint64(tensor.Numel) * width,
+			Storage: storage.String(), Bytes: bytes,
 		}
 	}
 	return facts, nil
-}
-
-func pytorchStorage(name string) (string, uint64, error) {
-	switch name {
-	case "FloatStorage":
-		return "f32", 4, nil
-	case "HalfStorage":
-		return "f16", 2, nil
-	case "BFloat16Storage":
-		return "bf16", 2, nil
-	default:
-		return "", 0, fmt.Errorf("unsupported storage %q", name)
-	}
 }
 
 func fileContract(role artifact.ComponentRole, path string) (artifact.Kind, string) {
@@ -170,12 +165,9 @@ func fileContract(role artifact.ComponentRole, path string) (artifact.Kind, stri
 // source contract is directory-scoped, so the parent open must resolve to
 // exactly this file.
 func namespacedTensorFacts(source *safetensors.Source, path, namespace string) ([]TensorFact, error) {
-	shards := source.Shards()
 	base := filepath.Base(path)
-	if len(shards) != 1 || shards[0] != base {
-		if !source.Indexed() || !slices.Contains(shards, base) {
-			return nil, fmt.Errorf("weights file %s does not stand alone in its directory (shards %v)", base, shards)
-		}
+	if !source.ContainsOnlyShard(base) && (!source.Indexed() || !source.ContainsShard(base)) {
+		return nil, fmt.Errorf("weights file %s does not stand alone in its directory (shards %v)", base, source.Shards())
 	}
 	var names []string
 	for _, name := range source.Names() {

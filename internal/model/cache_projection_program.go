@@ -24,11 +24,10 @@ func (p CacheProjectionProgram) Build(
 	if builder == nil || fused == nil || weights.AttentionK == nil || weights.AttentionV == nil || weights.AttentionKNorm == nil {
 		return nil, nil, errors.New("compiled cache projection input is nil")
 	}
-	if p.width == 0 || fused.Shape.Rank != 2 || fused.Shape.Dims[0] != p.width ||
-		len(positions) != int(fused.Shape.Dims[1]) || (pastKey == nil) != (pastValue == nil) {
+	tokens, validInput := tensor.MatrixRows(fused.Shape, p.width)
+	if !validInput || uint64(len(positions)) != tokens || (pastKey == nil) != (pastValue == nil) {
 		return nil, nil, errors.New("compiled cache projection shape is incompatible")
 	}
-	tokens := fused.Shape.Dims[1]
 	key := builder.Reshape(
 		builder.MulMat(weights.AttentionK, fused),
 		p.key, p.heads, tokens,
@@ -44,8 +43,13 @@ func (p CacheProjectionProgram) Build(
 		FrequencyScale: p.frequencyScale,
 	})
 	if pastKey != nil {
-		key = builder.Concat(pastKey, key, 2)
-		value = builder.Concat(pastValue, value, 2)
+		keyTokens, keyAxis, validKey := tensor.TrailingExtent(pastKey.Shape, p.key, p.heads)
+		valueTokens, valueAxis, validValue := tensor.TrailingExtent(pastValue.Shape, p.value, p.heads)
+		if !validKey || !validValue || keyTokens != valueTokens {
+			return nil, nil, errors.New("compiled cache projection cache shape is incompatible")
+		}
+		key = builder.Concat(pastKey, key, keyAxis)
+		value = builder.Concat(pastValue, value, valueAxis)
 	}
 	if err := builder.Err(); err != nil {
 		return nil, nil, err

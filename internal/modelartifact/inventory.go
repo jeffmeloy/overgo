@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
+	"overgo/internal/tensor"
 )
 
 const (
@@ -72,8 +73,9 @@ func FromGGUF(file *gguf.File, kind artifact.Kind) (Inventory, error) {
 	components := make([]artifact.Component, 0, len(paths))
 	descriptors := make([]artifact.Descriptor, 0, len(paths))
 	locations := make([]artifact.Location, 0, len(paths)+1)
+	sharded := len(paths) > tensor.SingletonExtent
 	role := artifact.ComponentWeights
-	if len(paths) > 1 {
+	if sharded {
 		role = artifact.ComponentWeightsShard
 	}
 	for index, path := range paths {
@@ -82,7 +84,7 @@ func FromGGUF(file *gguf.File, kind artifact.Kind) (Inventory, error) {
 			return Inventory{}, fmt.Errorf("model artifact: GGUF component %d: %w", index, err)
 		}
 		name := "weights"
-		if len(paths) > 1 {
+		if sharded {
 			name = indexedName("weights", index)
 		}
 		components = append(components, artifact.Component{
@@ -135,13 +137,14 @@ func FromHFRepository(repository *hfrepo.Repository) (Inventory, error) {
 		return Inventory{}, fmt.Errorf("model artifact: inspect shard index: %w", err)
 	}
 	shards := repository.Tensors.Shards()
+	sharded := len(shards) > tensor.SingletonExtent
 	weightRole := artifact.ComponentWeights
-	if len(shards) > 1 {
+	if sharded {
 		weightRole = artifact.ComponentWeightsShard
 	}
 	for index, name := range shards {
 		logicalName := "weights"
-		if len(shards) > 1 {
+		if sharded {
 			logicalName = indexedName("weights", index)
 		}
 		specs = append(specs, fileSpec{

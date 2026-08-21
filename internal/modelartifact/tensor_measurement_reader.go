@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/quant"
 	"overgo/internal/safetensors"
@@ -80,7 +81,7 @@ func MeasureGGUF(
 			return TensorMeasurementDocument{}, err
 		}
 		dims := tensor.Shape[:tensor.Dimensions]
-		if err := collectEffectiveRank(&measurement, &meter, dims, policy.SpectralMaxDim,
+		if err := collectMatrixSpectrum(&measurement, &meter, dims, policy.SpectralMaxDim,
 			tensor.Size,
 			func() ([]float64, error) { return fullGGUFTensorValues(file, tensor) },
 		); err != nil {
@@ -108,27 +109,23 @@ func (m *readMeter) charge(bytes uint64) error {
 	return nil
 }
 
-// collectEffectiveRank is the format-neutral spectral step: the normalized
-// effective rank of a 2-D matrix within maxDim, charged to the meter BEFORE
-// the full read, deferred when larger (the compute is O(dim^3)), and
-// not-applicable otherwise. A zero maxDim policy records not-applicable
-// explicitly rather than leaving the status empty.
-func collectEffectiveRank(
+// collectMatrixSpectrum: budgeted normalized spectrum measurement.
+func collectMatrixSpectrum(
 	measurement *TensorMeasurement,
 	meter *readMeter,
-	dims []uint64,
-	maxDim uint64,
+	extents []uint64,
+	maxExtent uint64,
 	fullBytes uint64,
 	read func() ([]float64, error),
 ) error {
-	if maxDim == 0 {
+	if !checked.Nonzero(maxExtent) {
 		return nil // spectral not attempted: status stays empty by contract
 	}
-	if len(dims) != 2 {
+	if !tensorstats.IsMatrix(extents) {
 		measurement.SpectralStatus = SpectralNotApplicable
 		return nil
 	}
-	if dims[0] > maxDim || dims[1] > maxDim {
+	if extents[0] > maxExtent || extents[1] > maxExtent {
 		measurement.SpectralStatus = SpectralDeferred
 		return nil
 	}
@@ -139,7 +136,7 @@ func collectEffectiveRank(
 	if err != nil {
 		return err
 	}
-	value, ok := tensorstats.EffectiveRankOf(data, int(dims[1]), int(dims[0]))
+	value, ok := tensorstats.EffectiveRankOf(data, int(extents[1]), int(extents[0]))
 	if !ok {
 		measurement.SpectralStatus = SpectralNotApplicable
 		return nil
@@ -168,15 +165,18 @@ func sampleGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo, maxSamples 
 		return nil, 0, 0, fmt.Errorf("model artifact: tensor %q has unsupported storage", tensor.Name)
 	}
 	elements, err := tensor.ElementCount()
-	if err != nil || elements%traits.BlockSize != 0 {
+	blocks, aligned := traits.BlockCount(elements)
+	if err != nil || !aligned {
 		return nil, 0, 0, fmt.Errorf("model artifact: tensor %q has invalid block geometry", tensor.Name)
 	}
-	blocks := elements / traits.BlockSize
 	blockSamples := min(blocks, maxSamples/traits.BlockSize)
-	if blockSamples == 0 || blockSamples > math.MaxInt || blockSamples > math.MaxUint64/traits.TypeSize {
+	sampleElements, elementOK := checked.Mul64(blockSamples, traits.BlockSize)
+	capacity, capacityOK := checked.Int(sampleElements)
+	bytesRead, bytesOK := checked.Bytes(blockSamples, traits.TypeSize)
+	if !checked.Nonzero(blockSamples) || !elementOK || !capacityOK || !bytesOK {
 		return nil, 0, 0, errors.New("model artifact: invalid GGUF measurement policy")
 	}
-	samples := make([]float64, 0, blockSamples*traits.BlockSize)
+	samples := make([]float64, 0, capacity)
 	storage := make([]byte, traits.TypeSize)
 	values := make([]float32, traits.BlockSize)
 	for sample := uint64(0); sample < blockSamples; sample++ {
@@ -191,7 +191,7 @@ func sampleGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo, maxSamples 
 			samples = append(samples, float64(value))
 		}
 	}
-	return samples, elements, blockSamples * traits.TypeSize, nil
+	return samples, elements, bytesRead, nil
 }
 
 func MeasureSafetensors(
@@ -210,7 +210,7 @@ func MeasureSafetensors(
 	for _, name := range source.Names() {
 		tensor := source.Tensors[name]
 		width, ok := safetensors.DTypeBytes(tensor.DType)
-		if !ok || width > math.MaxInt {
+		if !ok {
 			return TensorMeasurementDocument{}, fmt.Errorf("model artifact: tensor %q has unsupported storage", name)
 		}
 		elements := tensor.Elements()
@@ -220,7 +220,7 @@ func MeasureSafetensors(
 			return TensorMeasurementDocument{}, fmt.Errorf("model artifact: tensor %q differs from inventory", name)
 		}
 		sampleCount := min(elements, policy.MaxSamplesPerTensor)
-		if sampleCount == 0 {
+		if !checked.Nonzero(sampleCount) {
 			return TensorMeasurementDocument{}, errors.New("model artifact: invalid Safetensors measurement policy")
 		}
 		if err := meter.charge(sampleCount * width); err != nil {
@@ -250,7 +250,7 @@ func MeasureSafetensors(
 		if err != nil {
 			return TensorMeasurementDocument{}, err
 		}
-		if err := collectEffectiveRank(&measurement, &meter, tensor.Shape, policy.SpectralMaxDim,
+		if err := collectMatrixSpectrum(&measurement, &meter, tensor.Shape, policy.SpectralMaxDim,
 			elements*width,
 			func() ([]float64, error) { return readValues(elements) },
 		); err != nil {

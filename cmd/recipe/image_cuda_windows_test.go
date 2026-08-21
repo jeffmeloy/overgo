@@ -127,7 +127,7 @@ func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	profileID, ok := definition.Dependency(recipe.DependencyProfile, 0)
+	profileID, ok := definition.PrimaryDependency(recipe.DependencyProfile)
 	if !ok || len(facts) != 1 || facts[0].Descriptor.ID != profileID {
 		t.Fatalf("profile binding = (%s, %v), facts=%+v", profileID, ok, facts)
 	}

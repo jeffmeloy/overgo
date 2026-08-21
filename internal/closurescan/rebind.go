@@ -52,7 +52,7 @@ func (current RebindIndex) Rebind(document closureledger.Document) (closureledge
 }
 
 func rebindCandidateKey(candidate Candidate) string {
-	return string(closureledger.BindingConstant) + "\x00" + candidate.Package + "\x00" + candidate.File + "\x00" +
+	return string(candidate.Kind) + "\x00" + candidate.Package + "\x00" + candidate.File + "\x00" +
 		candidate.Scope + "\x00" + candidate.Name + "\x00" + candidate.Expression + "\x00" + candidate.CallsiteID
 }
 

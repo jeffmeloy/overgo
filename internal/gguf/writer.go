@@ -290,40 +290,11 @@ func prepareTensors(tensors []TensorData, alignment uint64) ([]preparedTensor, e
 			)
 		}
 		seen[input.Name] = index
-		if len(input.Shape) == 0 || len(input.Shape) > MaxDimensions {
-			return nil, fmt.Errorf(
-				"tensor %q has invalid dimension count %d",
-				input.Name,
-				len(input.Shape),
-			)
-		}
-		info := TensorInfo{
-			Name:       input.Name,
-			Dimensions: uint32(len(input.Shape)),
-			Shape:      [MaxDimensions]uint64{1, 1, 1, 1},
-			Type:       input.Type,
-			Offset:     offset,
-		}
-		for axis, dimension := range input.Shape {
-			if dimension == 0 || dimension > math.MaxInt64 {
-				return nil, fmt.Errorf(
-					"tensor %q dimension %d is invalid: %d",
-					input.Name,
-					axis,
-					dimension,
-				)
-			}
-			info.Shape[axis] = dimension
-		}
-		elements, err := info.ElementCount()
+		info, err := NewTensorInfo(input.Name, input.Type, input.Shape)
 		if err != nil {
 			return nil, err
 		}
-		size, sizeErr := input.Type.StorageBytes(elements, info.Shape[0])
-		if sizeErr != nil {
-			return nil, fmt.Errorf("tensor %q: %w", input.Name, sizeErr)
-		}
-		info.Size = size
+		info.Offset = offset
 		if input.Data == nil {
 			return nil, fmt.Errorf("tensor %q data is nil", input.Name)
 		}

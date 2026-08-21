@@ -1,16 +1,13 @@
 package scratchmodel
 
 import (
+	"reflect"
 	"testing"
 
 	"overgo/internal/model"
 )
 
-// TestConstructionEmitsExecutableProfile pins the construction-profile-bridge
-// row: Compile emits the constructed topology as a registered
-// model.ArchitectureProfile -- validated by the same authority as inherited
-// families and load-bearing in the constructed forward -- rather than a
-// package-private configuration vocabulary.
+// TestConstructionEmitsExecutableProfile: constructed profile remains executable authority.
 func TestConstructionEmitsExecutableProfile(t *testing.T) {
 	construction, err := Compile(
 		CorpusFacts{Documents: bridgeCorpus(), Seed: 7, Steps: 2},
@@ -27,7 +24,7 @@ func TestConstructionEmitsExecutableProfile(t *testing.T) {
 	if !ok {
 		t.Fatalf("architecture %q is not registered in the executor vocabulary", ScratchArchitecture)
 	}
-	if registered != profile {
+	if !reflect.DeepEqual(registered, profile) {
 		t.Fatal("emitted profile differs from the registered executor profile")
 	}
 	if err := model.ValidateArchitectureProfile(profile); err != nil {

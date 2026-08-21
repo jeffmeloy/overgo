@@ -236,7 +236,7 @@ var policyDependencyRoles = []recipe.DependencyRole{
 func PoliciesFromRecipe(definition recipe.Definition) (PolicySpec, error) {
 	ids := make([]artifact.ID, len(policyDependencyRoles))
 	for index, role := range policyDependencyRoles {
-		id, ok := definition.Dependency(role, 0)
+		id, ok := definition.PrimaryDependency(role)
 		if !ok {
 			return PolicySpec{}, fmt.Errorf("training program: recipe dependency %q absent", role)
 		}

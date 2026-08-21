@@ -43,7 +43,7 @@ func imageCapability() capability {
 		"image-gen", imageDevice, imageSessionCapacity,
 		latentimage.ValidateRequest, latentimage.SessionPolicy,
 		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentimage.Request) (*latentimage.Generator, error) {
-			profileID, ok := program.Definition().Dependency(recipe.DependencyProfile, 0)
+			profileID, ok := program.Definition().PrimaryDependency(recipe.DependencyProfile)
 			if !ok {
 				return nil, fmt.Errorf("image-gen: compiled recipe has no profile")
 			}

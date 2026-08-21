@@ -42,7 +42,7 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 	}
 	dense, recurrent := false, false
 	for index := range runner.program.Model.LayerCount() {
-		layer, layerErr := runner.program.Model.Layer(index)
+		layer, layerErr := runner.program.Model.Layer(uint32(index))
 		if layerErr != nil {
 			t.Fatal(layerErr)
 		}

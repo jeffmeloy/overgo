@@ -164,12 +164,15 @@ func (r *Runner) AdvancePairedProjection(
 }
 
 func (r *Runner) validatePairedProjectionTarget(target *Runner) error {
-	penultimate, penultimateErr := target.program.Model.Layer(int(target.spec.BlockCount) - 2)
-	last, lastErr := target.program.Model.Layer(int(target.spec.BlockCount) - 1)
+	if target.spec.BlockCount < tensor.PairedExtent {
+		return errors.New("inference: paired projection target model is incompatible")
+	}
+	penultimate, penultimateErr := target.program.Model.Layer(target.spec.BlockCount - tensor.PairedExtent)
+	last, lastErr := target.program.Model.Layer(target.spec.BlockCount - tensor.SingletonExtent)
 	if r.forwardProgram().Session != model.ForwardSessionPairedProjection ||
 		target.forwardProgram().Operation != model.ForwardOperationCached ||
 		target.spec.EmbeddingLength != r.spec.TargetHiddenSize ||
-		target.spec.VocabularySize != r.spec.VocabularySize || target.spec.BlockCount < 2 ||
+		target.spec.VocabularySize != r.spec.VocabularySize ||
 		penultimateErr != nil || lastErr != nil || !penultimate.Sliding || last.Sliding {
 		return errors.New("inference: paired projection target model is incompatible")
 	}

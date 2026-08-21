@@ -54,7 +54,7 @@ func (w *DeviceWeights) Load(
 	}
 	var uploadBuffers [weightUploadBufferCount][]byte
 	return w.load(ctx, tensors, func(info gguf.TensorInfo) (DeviceTensor, error) {
-		if info.Size == 0 {
+		if info.Size == tensor.FirstOffset {
 			return DeviceTensor{}, fmt.Errorf("device tensor %q has zero size", info.Name)
 		}
 		var pointer driver.DevicePtr
@@ -83,11 +83,11 @@ func (w *DeviceWeights) streamTensor(
 	uploadBuffers *[weightUploadBufferCount][]byte,
 ) error {
 	if info.Size <= defaultWeightChunkSize {
-		if cap((*uploadBuffers)[0]) < int(info.Size) {
-			(*uploadBuffers)[0] = make([]byte, int(info.Size))
+		if cap((*uploadBuffers)[tensor.FirstOffset]) < int(info.Size) {
+			(*uploadBuffers)[tensor.FirstOffset] = make([]byte, int(info.Size))
 		}
-		data := (*uploadBuffers)[0][:int(info.Size)]
-		if err := file.ReadTensorRange(info, 0, data); err != nil {
+		data := (*uploadBuffers)[tensor.FirstOffset][:int(info.Size)]
+		if err := file.ReadTensorRange(info, tensor.FirstOffset, data); err != nil {
 			return fmt.Errorf("read tensor %q at 0: %w", info.Name, err)
 		}
 		if err := w.worker.Do(ctx, func(state *device.State) error {
@@ -112,7 +112,7 @@ func (w *DeviceWeights) streamTensor(
 	go func() {
 		defer close(done)
 		defer close(ready)
-		for offset := uint64(0); offset < info.Size; {
+		for offset := uint64(tensor.FirstOffset); offset < info.Size; {
 			var buffer []byte
 			select {
 			case buffer = <-free:

@@ -22,11 +22,6 @@ const (
 	ModelConfigVersion   uint16 = 1
 	ModelConfigMediaType        = "application/vnd.overgo.model-config+json"
 	ModelConfigSchema           = "overgo/model-config/v1"
-
-	maxSequenceExtensionK = 15
-	// The declared special tokens open a region, close it, and mark
-	// out-of-vocabulary windows; fewer cannot drive the encoder.
-	minSequenceSpecialTokens = 3
 )
 
 // SequenceExtensionConfig is the declared k-mer tokenizer extension: chunk
@@ -120,7 +115,7 @@ func (d ModelConfigDocument) Batch(key string) (artifact.Batch, error) {
 // Absent files are absent components, never inventions; malformed files are
 // errors, never silence.
 func ReadModelConfigComponents(directory string) (*SequenceExtensionConfig, *GenerationEssentials, []ConfigSource, error) {
-	sources := make([]ConfigSource, 0, 3)
+	var sources []ConfigSource
 	read := func(name string) ([]byte, bool, error) {
 		data, err := os.ReadFile(filepath.Join(directory, name))
 		if os.IsNotExist(err) {
@@ -178,13 +173,15 @@ func ReadModelConfigComponents(directory string) (*SequenceExtensionConfig, *Gen
 		return nil, nil, nil, err
 	} else if ok {
 		var declared struct {
-			MaxPositionEmbeddings uint64 `json:"max_position_embeddings"`
+			MaxPositionEmbeddings *uint64 `json:"max_position_embeddings"`
 		}
 		if err := json.Unmarshal(data, &declared); err != nil {
 			return nil, nil, nil, fmt.Errorf("model config: parse config.json: %w", err)
 		}
-		generation.ContextLength = declared.MaxPositionEmbeddings
-		populated = populated || declared.MaxPositionEmbeddings > 0
+		if declared.MaxPositionEmbeddings != nil {
+			generation.ContextLength = *declared.MaxPositionEmbeddings
+			populated = true
+		}
 	}
 	if !populated {
 		generation = nil
@@ -218,42 +215,18 @@ func canonicalizeModelConfig(value *ModelConfigDocument) error {
 	if value.Sequence == nil && value.Generation == nil {
 		return errors.New("model config: document declares no components")
 	}
-	if sequence := value.Sequence; sequence != nil {
-		if sequence.K == 0 || sequence.K > maxSequenceExtensionK {
-			return fmt.Errorf("model config: sequence extension k=%d is outside 1..%d", sequence.K, maxSequenceExtensionK)
-		}
-		if len(sequence.SpecialTokens) < minSequenceSpecialTokens {
-			return fmt.Errorf("model config: sequence extension declares %d special tokens, need %d (begin, end, out-of-vocabulary)",
-				len(sequence.SpecialTokens), minSequenceSpecialTokens)
-		}
-		for _, token := range sequence.SpecialTokens {
-			if strings.TrimSpace(token) == "" {
-				return errors.New("model config: sequence extension special token is empty")
-			}
-		}
-		needed := uint64(len(sequence.SpecialTokens)) + uint64(1)<<(2*sequence.K)
-		if sequence.StartID == 0 || uint64(sequence.Vocabulary) < needed {
-			return fmt.Errorf("model config: sequence extension range [%d,%d) cannot hold %d declared tokens",
-				sequence.StartID, sequence.StartID+sequence.Vocabulary, needed)
-		}
-	}
-	if generation := value.Generation; generation != nil {
-		if len(generation.BOSTokens) == 0 && len(generation.EOSTokens) == 0 && generation.ContextLength == 0 {
-			return errors.New("model config: generation component declares nothing")
-		}
-	}
 	if len(value.Sources) == 0 {
 		return errors.New("model config: document requires source provenance")
 	}
 	sort.Slice(value.Sources, func(i, j int) bool { return value.Sources[i].Name < value.Sources[j].Name })
 	for i, source := range value.Sources {
-		if source.Name == "" || len(source.Name) > 256 || strings.ContainsAny(source.Name, "\x00\r\n\\/") {
+		if source.Name == "" || strings.ContainsAny(source.Name, "\x00\r\n\\/") {
 			return fmt.Errorf("model config: source %d requires a bare file name", i)
 		}
 		if i > 0 && source.Name == value.Sources[i-1].Name {
 			return fmt.Errorf("model config: source %q listed twice", source.Name)
 		}
-		if len(source.SHA256) != 64 || strings.ToLower(source.SHA256) != source.SHA256 {
+		if len(source.SHA256) != hex.EncodedLen(sha256.Size) || strings.ToLower(source.SHA256) != source.SHA256 {
 			return fmt.Errorf("model config: source %q requires a lowercase sha256 digest", source.Name)
 		}
 		if _, err := hex.DecodeString(source.SHA256); err != nil {

@@ -2,8 +2,8 @@ package model
 
 import (
 	"errors"
-	"math"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 )
 
@@ -32,6 +32,17 @@ const (
 	projectionNormAfter
 )
 
+type projectionOutputs uint8
+
+const (
+	projectionNoOutputs projectionOutputs = iota
+	projectionPrimary
+	projectionPrimarySecondary
+	projectionOutputsCount
+)
+
+func (o projectionOutputs) valid() bool { return o > projectionNoOutputs && o < projectionOutputsCount }
+
 // ProjectionProgram: compiled input, normalization, and output math.
 type ProjectionProgram struct {
 	input   projectionInput
@@ -39,7 +50,7 @@ type ProjectionProgram struct {
 	width   uint64
 	scale   float32
 	epsilon float32
-	outputs uint8
+	outputs projectionOutputs
 }
 
 // ProjectionOperands: indexed graph inputs and weights.
@@ -58,17 +69,20 @@ func (p ProjectionProgram) Build(
 	builder *tensor.Builder,
 	operands ProjectionOperands,
 ) (ProjectionResult, error) {
+	validInput := false
+	if operands.Input != nil {
+		_, validInput = tensor.MatrixRows(operands.Input.Shape, p.width)
+	}
 	if builder == nil || operands.Input == nil || operands.Primary == nil ||
-		p.width == 0 || p.outputs == 0 || p.outputs > 2 || operands.Input.Shape.Rank != 2 ||
-		operands.Input.Shape.Dims[0] != p.width {
+		!p.outputs.valid() || !validInput {
 		return ProjectionResult{}, errors.New("compiled projection is incompatible")
 	}
 	current := operands.Input
 	if p.input == projectionScaledPair {
-		if operands.Paired == nil || !current.Shape.Equal(operands.Paired.Shape) || p.scale <= 0 {
+		if operands.Paired == nil || !current.Shape.Equal(operands.Paired.Shape) || !positiveFinite(p.scale) {
 			return ProjectionResult{}, errors.New("compiled paired projection is incompatible")
 		}
-		current = builder.Concat(builder.Scale(current, p.scale), operands.Paired, 0)
+		current = builder.Concat(builder.Scale(current, p.scale), operands.Paired, tensor.FirstOffset)
 	} else if operands.Paired != nil {
 		return ProjectionResult{}, errors.New("compiled projection has an unexpected paired input")
 	}
@@ -87,7 +101,7 @@ func (p ProjectionProgram) Build(
 	} else if p.norm == projectionNormNone && operands.Normalization != nil {
 		return ProjectionResult{}, errors.New("compiled projection has an unexpected normalization")
 	}
-	if p.outputs == 2 {
+	if p.outputs == projectionPrimarySecondary {
 		if operands.Secondary == nil {
 			return ProjectionResult{}, errors.New("compiled secondary projection is absent")
 		}
@@ -103,21 +117,21 @@ func compileProjectionPrograms(spec Spec, profile ArchitectureProfile) [projecti
 	switch profile.Forward.Session {
 	case ForwardSessionFeatureDraft:
 		programs[ProjectionFeature] = ProjectionProgram{
-			width: uint64(eagle3TargetLayerCount) * uint64(spec.TargetHiddenSize), outputs: 1,
+			width: uint64(len(spec.TargetLayers)) * uint64(spec.TargetHiddenSize), outputs: projectionPrimary,
 		}
 	case ForwardSessionPairedFeatures:
 		programs[ProjectionFeature] = ProjectionProgram{
 			width: uint64(len(spec.TargetLayers)) * uint64(spec.EmbeddingLength),
-			norm:  projectionNormAfter, epsilon: spec.RMSNormEpsilon, outputs: 1,
+			norm:  projectionNormAfter, epsilon: spec.RMSNormEpsilon, outputs: projectionPrimary,
 		}
 	case ForwardSessionPairedProjection:
 		programs[ProjectionPairedInput] = ProjectionProgram{
 			input: projectionScaledPair, width: uint64(spec.TargetHiddenSize),
-			scale: float32(math.Sqrt(float64(spec.TargetHiddenSize))), outputs: 1,
+			scale: hostmath.Sqrt32(uint64(spec.TargetHiddenSize)), outputs: projectionPrimary,
 		}
 		programs[ProjectionPairedOutput] = ProjectionProgram{
 			width: uint64(spec.EmbeddingLength), norm: projectionNormBefore,
-			epsilon: spec.RMSNormEpsilon, outputs: 2,
+			epsilon: spec.RMSNormEpsilon, outputs: projectionPrimarySecondary,
 		}
 	}
 	return programs

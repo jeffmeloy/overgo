@@ -32,6 +32,7 @@
    "SharedCatalog": 2
   },
   "MetadataDefaults": {
+   "NoRopeLayerStep": 4,
    "RopeDimension": 2,
    "RopeFrequencyFromBase": true,
    "SlidingPattern": 4
@@ -117,6 +118,10 @@
   "Position": 1,
   "Rotary": {
    "Kind": 4
+  },
+  "Validation": {
+   "RequiredBlockCount": 32,
+   "AlternateBlockCount": 40
   }
  },
  {
@@ -207,6 +212,9 @@
    "TokenNorm": 2
   },
   "MetadataRead": 512,
+  "MetadataDefaults": {
+   "MaxALiBiBias": 8
+  },
   "Name": "bloom",
   "Normalization": 1
  },
@@ -322,6 +330,7 @@
    "ExpertMetadata": 1
   },
   "Normalization": 4,
+  "NormalizationFromMetadata": true,
   "Position": 1,
   "Residual": 1,
   "Rotary": {
@@ -429,7 +438,10 @@
    "MLAHeadLengths": true
   },
   "Name": "deepseek2",
-  "Temperature": 1
+  "Temperature": 1,
+  "Validation": {
+   "QLoRARankOptional": true
+  }
  },
  {
   "Capabilities": 68,
@@ -443,7 +455,8 @@
    "SharedCatalog": 1
   },
   "MetadataDefaults": {
-   "RopeDimension": 1
+   "RopeDimension": 1,
+   "RopeFrequencyBase": 10000
   },
   "Name": "deepseek2-ocr",
   "Validation": {
@@ -693,6 +706,9 @@
   "Metadata": {
    "KVHeads": 6
   },
+  "MetadataDefaults": {
+   "RopeFrequencyBase": 10000
+  },
   "Name": "falcon",
   "Validation": {
    "Attention": 31
@@ -748,6 +764,7 @@
   },
   "MetadataDefaults": {
    "RopeDimension": 2,
+   "RopeFrequencyBase": 10000,
    "RopeFrequencySWA": 10000,
    "SlidingPattern": 6
   },
@@ -851,6 +868,7 @@
    "Kind": 5
   },
   "Runtime": {
+   "ActivationResidualScale": 0.7071067811865476,
    "EmbeddingScale": 1
   }
  },
@@ -888,6 +906,7 @@
    "Kind": 5
   },
   "Runtime": {
+   "ActivationResidualScale": 0.7071067811865476,
    "EmbeddingScale": 1
   }
  },
@@ -1077,6 +1096,9 @@
   "Metadata": {
    "KVHeads": 6
   },
+  "MetadataDefaults": {
+   "RopeFrequencyBase": 10000
+  },
   "Name": "gptneox",
   "Validation": {
    "Attention": 23
@@ -1134,6 +1156,11 @@
   },
   "Name": "granitehybrid",
   "RecurrentMixer": 4,
+  "Runtime": {
+   "Recurrent": {
+    "InnerWidthMultiplier": 2
+   }
+  },
   "Validation": {
    "Hybrid": 15,
    "Recurrent": 12
@@ -1188,7 +1215,8 @@
    "AttentionSoftcap": 30,
    "EmbeddingScale": 78.38367176906169,
    "LogitScale": 0.5773502691896257,
-   "RopeDimension": 2
+   "RopeDimension": 2,
+   "YaRNBetaFast": 8
   },
   "Name": "grok",
   "Validation": {
@@ -1330,6 +1358,9 @@
    "KVHeads": 5
   },
   "MetadataRead": 513,
+  "MetadataDefaults": {
+   "MaxALiBiBias": 8
+  },
   "Name": "jais",
   "Normalization": 1
  },
@@ -1357,6 +1388,11 @@
   },
   "Name": "jamba",
   "RecurrentMixer": 2,
+  "Runtime": {
+   "Recurrent": {
+    "InnerWidthMultiplier": 2
+   }
+  },
   "Validation": {
    "ExpertMetadata": 1,
    "Recurrent": 11
@@ -1375,6 +1411,9 @@
   },
   "ModelCatalog": {
    "RequireTokenTypes": true
+  },
+  "MetadataDefaults": {
+   "MaxALiBiBias": 8
   },
   "Name": "jina-bert-v2",
   "Normalization": 1,
@@ -1403,7 +1442,8 @@
    "KVHeads": 6
   },
   "MetadataDefaults": {
-   "RopeDimension": 2
+   "RopeDimension": 2,
+   "RopeFrequencyBase": 10000
   },
   "Name": "jina-bert-v3",
   "Normalization": 1,
@@ -1609,7 +1649,7 @@
   },
   "Capabilities": 8196,
   "DenseStages": {
-   "PostRotaryRMSNon128": true,
+   "PostRotaryRMSExcludedExperts": 128,
    "QueryScale": 1
   },
   "Experts": {
@@ -1660,6 +1700,11 @@
   },
   "Name": "mamba",
   "RecurrentMixer": 1,
+  "Runtime": {
+   "Recurrent": {
+    "InnerWidthMultiplier": 2
+   }
+  },
   "Validation": {
    "AttentionFree": true,
    "Recurrent": 4
@@ -1770,7 +1815,8 @@
    "LogitScaleNumerator": 256,
    "OriginalContext": true,
    "ResidualScalePerSqrtBlock": 1.4,
-   "RopeAttentionFactor": 1
+   "RopeAttentionFactor": 1,
+   "RopeFrequencyBase": 10000
   },
   "Name": "minicpm3",
   "Validation": {
@@ -1859,6 +1905,7 @@
   },
   "MetadataDefaults": {
    "RopeDimension": 2,
+   "RopeFrequencyBase": 10000,
    "RopeFrequencySWA": 10000,
    "SlidingPattern": 3
   },
@@ -1944,7 +1991,8 @@
    "KVHeads": 6
   },
   "MetadataDefaults": {
-   "RopeDimension": 1
+   "RopeDimension": 1,
+   "RopeFrequencyBase": 10000
   },
   "Name": "neo-bert",
   "OutputNorm": 2,
@@ -1967,7 +2015,8 @@
    "KVHeads": 6
   },
   "MetadataDefaults": {
-   "RopeDimension": 2
+   "RopeDimension": 2,
+   "RopeFrequencyBase": 10000
   },
   "Name": "nomic-bert",
   "Normalization": 1,
@@ -1996,7 +2045,8 @@
    "KVHeads": 6
   },
   "MetadataDefaults": {
-   "RopeDimension": 2
+   "RopeDimension": 2,
+   "RopeFrequencyBase": 10000
   },
   "Name": "nomic-bert-moe",
   "Normalization": 1,
@@ -2304,6 +2354,7 @@
    }
   },
   "DraftKind": 1,
+  "DraftQueryCopies": 2,
   "FFNNormLayout": 4,
   "Metadata": {
    "DraftBeforeShape": true
@@ -2333,6 +2384,7 @@
    }
   },
   "DraftKind": 1,
+  "DraftQueryCopies": 2,
   "Experts": {
    "Catalog": 1,
    "Composition": 4,
@@ -2462,6 +2514,9 @@
    "OptionalGate": true
   },
   "MetadataRead": 512,
+  "MetadataDefaults": {
+   "MaxALiBiBias": 8
+  },
   "Name": "refact",
   "Validation": {
    "Attention": 32
@@ -2583,6 +2638,9 @@
  {
   "Capabilities": 8192,
   "MetadataRead": 64,
+  "MetadataDefaults": {
+   "NoRopeLayerStep": 4
+  },
   "Name": "smollm3",
   "Position": 1,
   "Rotary": {
@@ -2731,7 +2789,25 @@
  {
   "Capabilities": 19,
   "Forward": {
-   "Operation": 2
+   "Operation": 2,
+   "SequenceResiduals": [
+    0,
+    0,
+    1,
+    0,
+    0,
+    2
+   ],
+   "SequenceInputKernel": 7,
+   "SequenceResidualKernel": 3,
+   "SequenceDepthwiseKernel": 7,
+   "Waveform": {
+    "SampleRate": 24000,
+    "FFTSize": 1280,
+    "HopSize": 320,
+    "PadSize": 480,
+    "MagnitudeLimit": 100
+   }
   },
   "Metadata": {
    "GroupNorm": true,

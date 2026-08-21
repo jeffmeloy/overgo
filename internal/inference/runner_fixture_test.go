@@ -46,7 +46,7 @@ func fixtureLayerPlan(spec model.Spec, layer int) model.LayerPlan {
 	if err != nil {
 		panic(err)
 	}
-	result, err := plan.Layer(layer)
+	result, err := plan.Layer(uint32(layer))
 	if err != nil {
 		panic(err)
 	}

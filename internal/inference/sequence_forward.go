@@ -339,7 +339,7 @@ func (r *Runner) runEncoderLayer(
 	info model.LayerWeights,
 	layerIndex int,
 ) (reference.Value, error) {
-	program, err := r.program.Model.EncoderProgram(layerIndex)
+	program, err := r.program.Model.EncoderProgram(uint32(layerIndex))
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -369,7 +369,7 @@ func (r *Runner) runDecoderLayer(
 	layerIndex int,
 	past *LayerCache,
 ) (reference.Value, LayerCache, error) {
-	program, err := r.program.Model.DecoderProgram(layerIndex)
+	program, err := r.program.Model.DecoderProgram(uint32(layerIndex))
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}

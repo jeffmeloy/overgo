@@ -7,6 +7,8 @@ import (
 	"slices"
 
 	"overgo/internal/gguf"
+	"overgo/internal/hostmath"
+	"overgo/internal/tensor"
 )
 
 // UnsupportedArchitectureError: valid, unsupported GGUF architecture.
@@ -64,7 +66,7 @@ func readSpec(file *gguf.File, resolved *ArchitectureProfile) (Spec, error) {
 	if err != nil {
 		return Spec{}, err
 	}
-	if err := metadata.readAttentionShape(&spec, state); err != nil {
+	if err := metadata.readAttentionMetadata(&spec, state); err != nil {
 		return Spec{}, err
 	}
 	profile.MetadataDefaults.readPosition(&spec)
@@ -101,7 +103,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		spec.ExpertCount, _ = optional[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		)
-		if spec.ExpertCount > 0 {
+		if spec.HasExperts() {
 			if spec.ExpertUsedCount, err = required[uint32](
 				values, prefix+"expert_used_count", gguf.ValueTypeUint32,
 			); err != nil {
@@ -114,11 +116,11 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 				spec.ExpertFeedForward = value
 			}
 			spec.ExpertWeightsNorm = true
-			spec.ExpertWeightsScale = 1
+			spec.ExpertWeightsScale = tensor.UnitScale
 		}
 	}
 	if validation.Recurrent == RecurrentValidationTargetLayerBlock {
-		if window, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok && window > 0 {
+		if window, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok && window > tensor.FirstOffset {
 			spec.SlidingWindow = window
 			spec.RopeFrequencySWA = spec.RopeFrequencyBase
 			if pattern, patternOK := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); patternOK {
@@ -157,15 +159,15 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		spec.OriginalContextLength, _ = optional[uint32](
 			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32,
 		)
-		if spec.OriginalContextLength == 0 {
+		if spec.OriginalContextLength == tensor.FirstOffset {
 			spec.OriginalContextLength = spec.ContextLength
 		}
-		spec.RopeAttentionFactor = 1
+		spec.RopeAttentionFactor = tensor.UnitScale
 		spec.RopeAttentionFactor, _ = optional[float32](
 			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
 		)
-		if spec.RopeAttentionFactor == 0 {
-			spec.RopeAttentionFactor = 1
+		if spec.RopeAttentionFactor == tensor.FirstOffset {
+			spec.RopeAttentionFactor = tensor.UnitScale
 		}
 		ropeEnabled := true
 		if value, ok := optional[bool](
@@ -182,7 +184,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			gguf.ValueTypeInt32,
 		); mappingErr != nil {
 			return Spec{}, mappingErr
-		} else if ok && len(mapping) > 0 {
+		} else if ok && len(mapping) > tensor.FirstOffset {
 			if validation.Hybrid != HybridValidationScaledDense {
 				return Spec{}, errors.New("Granite deepstack mapping requires granite architecture")
 			}
@@ -191,10 +193,10 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 			unique := make(map[int32]struct{})
 			for _, index := range mapping {
-				if index < -1 {
+				if index < int32(DeepstackSourceBase) {
 					return Spec{}, errors.New("Granite deepstack mapping index is invalid")
 				}
-				if index >= 0 {
+				if index >= tensor.FirstOffset {
 					unique[index] = struct{}{}
 				}
 			}
@@ -266,7 +268,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 					return Spec{}, fmt.Errorf("metadata %q has invalid layer values", patternKey)
 				}
 				for index := range spec.SlidingLayers {
-					spec.SlidingLayers[index] = layers[index] != 0
+					spec.SlidingLayers[index] = layers[index] != tensor.FirstOffset
 				}
 			case gguf.ValueTypeInt32:
 				layers, valid := pattern.Data.([]int32)
@@ -274,16 +276,16 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 					return Spec{}, fmt.Errorf("metadata %q has invalid layer values", patternKey)
 				}
 				for index := range spec.SlidingLayers {
-					if layers[index] < 0 {
+					if layers[index] < tensor.FirstOffset {
 						return Spec{}, fmt.Errorf("metadata %q has a negative layer value", patternKey)
 					}
-					spec.SlidingLayers[index] = layers[index] != 0
+					spec.SlidingLayers[index] = layers[index] != tensor.FirstOffset
 				}
 			default:
 				return Spec{}, fmt.Errorf("metadata %q must be an integer or bool array", patternKey)
 			}
 		}
-		if value, ok := optional[float32](values, prefix+"attention.value_scale", gguf.ValueTypeFloat32); ok && value != 1 {
+		if value, ok := optional[float32](values, prefix+"attention.value_scale", gguf.ValueTypeFloat32); ok && value != tensor.UnitScale {
 			spec.AttentionValueScale = value
 		}
 	}
@@ -313,7 +315,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); ok {
 			spec.SlidingWindow = value
 		}
-		if spec.SlidingWindow > 0 {
+		if spec.SlidingWindow > tensor.FirstOffset {
 			if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
 				spec.SlidingPattern = value
 			}
@@ -337,8 +339,11 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 	}
 	if m.profile.readsMetadata(MetadataReadBaichuanBlocks) &&
-		spec.BlockCount != 32 && spec.BlockCount != 40 {
-		return Spec{}, errors.New("Baichuan block count must select the 32-layer RoPE or 40-layer ALiBi variant")
+		spec.BlockCount != validation.RequiredBlockCount && spec.BlockCount != validation.AlternateBlockCount {
+		return Spec{}, fmt.Errorf(
+			"metadata block count must select profile variant %d or %d",
+			validation.RequiredBlockCount, validation.AlternateBlockCount,
+		)
 	}
 	if validation.MLA == MLAValidationOptionalExpertsLatent {
 		spec.OriginalContextLength = spec.ContextLength
@@ -350,28 +355,28 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		spec.AttentionTempScale, _ = optional[float32](
 			values, prefix+"attention.temperature_scale", gguf.ValueTypeFloat32,
 		)
-		if spec.AttentionTempScale != 0 {
+		if spec.AttentionTempScale != tensor.FirstOffset {
 			spec.AttentionTempFloor = spec.OriginalContextLength
 		}
 		if spec.RopeScalingType == ropeScalingYaRN {
 			spec.RopeYaRNLogMultiplier, _ = optional[float32](
 				values, prefix+"rope.scaling.yarn_log_multiplier", gguf.ValueTypeFloat32,
 			)
-			rawAttentionFactor := float32(1)
+			rawAttentionFactor := tensor.UnitScale
 			if value, ok := optional[float32](
 				values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
 			); ok {
 				rawAttentionFactor = value
 			}
-			denominator := float32(1)
-			if spec.RopeYaRNLogMultiplier != 0 {
+			denominator := tensor.UnitScale
+			if spec.RopeYaRNLogMultiplier != tensor.FirstOffset {
 				denominator += yarnLogFactorStep * spec.RopeYaRNLogMultiplier *
 					float32(math.Log(float64(spec.RopeScalingFactor)))
 			}
 			spec.YaRNAttentionFactor = rawAttentionFactor / denominator
 		}
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
-		if spec.ExpertCount > 0 {
+		if spec.HasExperts() {
 			if spec.ExpertUsedCount, err = required[uint32](
 				values, prefix+"expert_used_count", gguf.ValueTypeUint32,
 			); err != nil {
@@ -379,10 +384,10 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 			spec.ExpertFeedForward = spec.FeedForwardLength
 			spec.ExpertWeightsNorm = true
-			spec.ExpertWeightsScale = 1
+			spec.ExpertWeightsScale = tensor.UnitScale
 			if value, ok := optional[float32](
 				values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32,
-			); ok && value != 0 {
+			); ok && value != tensor.FirstOffset {
 				spec.ExpertWeightsScale = value
 			}
 		}
@@ -391,16 +396,16 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		if sections, ok, sectionsErr := optionalArray[int32](values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32); sectionsErr != nil {
 			return Spec{}, sectionsErr
 		} else if ok {
-			if len(sections) != 4 {
-				return Spec{}, fmt.Errorf("metadata %q has %d values, need 4", prefix+"rope.dimension_sections", len(sections))
+			if len(sections) != tensor.MaxDimensions {
+				return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"rope.dimension_sections", len(sections), tensor.MaxDimensions)
 			}
 			copy(spec.RopeSections[:], sections)
 		}
-		if alpha, ok := optional[float32](values, prefix+"rope.scaling.alpha", gguf.ValueTypeFloat32); ok && alpha != 0 {
-			if alpha < 0 || spec.KeyLength <= 2 || math.IsNaN(float64(alpha)) || math.IsInf(float64(alpha), 0) {
+		if alpha, ok := optional[float32](values, prefix+"rope.scaling.alpha", gguf.ValueTypeFloat32); ok && alpha != tensor.FirstOffset {
+			if alpha < tensor.FirstOffset || spec.KeyLength <= tensor.PairedExtent || !finite(alpha) {
 				return Spec{}, errors.New("Hunyuan-Dense XDRoPE alpha is invalid")
 			}
-			exponent := float64(spec.KeyLength) / float64(spec.KeyLength-2)
+			exponent := float64(spec.KeyLength) / float64(spec.KeyLength-tensor.PairedExtent)
 			spec.RopeFrequencyBase *= float32(math.Pow(float64(alpha), exponent))
 		}
 	}
@@ -408,16 +413,16 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		spec.NoRopeLayerStep = spec.BlockCount
 		if value, ok := optional[uint32](
 			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
-		); ok && value > 0 {
+		); ok && value > tensor.FirstOffset {
 			spec.SlidingWindow = value
 			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
 	}
-	if validation.Hybrid == HybridValidationRequiredExpertWidth {
+	if validation.Hybrid == HybridValidationRequiredExpertFeedForward {
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
 		}
-		if spec.SlidingWindow > 0 {
+		if spec.SlidingWindow > tensor.FirstOffset {
 			_, scalar := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32)
 			if layers, ok, arrayErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); !scalar && arrayErr != nil {
 				return Spec{}, arrayErr
@@ -433,7 +438,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
 		}
-		if spec.SlidingWindow > 0 {
+		if spec.SlidingWindow > tensor.FirstOffset {
 			_, scalar := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32)
 			if layers, ok, arrayErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); !scalar && arrayErr != nil {
 				return Spec{}, arrayErr
@@ -544,16 +549,16 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		spec.SSMGroupCount = spec.HeadCount
 	}
 	if validation.Recurrent == RecurrentValidationUngroupedScheduledStateSpace {
-		spec.AttentionScale = float32(1 / math.Sqrt(float64(spec.ValueLength)))
+		spec.AttentionScale = hostmath.InvSqrt32(uint64(spec.ValueLength))
 	}
 	if validation.Recurrent == RecurrentValidationGroupedStateSpaceOptionalExperts {
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
-		if spec.ExpertCount > 0 {
+		if spec.HasExperts() {
 			if spec.ExpertUsedCount, err = required[uint32](values, prefix+"expert_used_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
 			}
 			spec.ExpertFeedForward = spec.FeedForwardLength
-			spec.ExpertWeightsScale = 1
+			spec.ExpertWeightsScale = tensor.UnitScale
 			spec.ExpertWeightsNorm = true
 			spec.SharedExpertFF, _ = optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32)
 		}
@@ -570,7 +575,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 		spec.SharedExpertCount, _ = optional[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32)
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
-		spec.ExpertWeightsScale = 1
+		spec.ExpertWeightsScale = tensor.UnitScale
 		if value, ok := optional[float32](values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32); ok {
 			spec.ExpertWeightsScale = value
 		}
@@ -592,7 +597,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		); err != nil {
 			return Spec{}, err
 		}
-		if spec.ExpertUsedCount == 0 {
+		if spec.ExpertUsedCount == tensor.FirstOffset {
 			return Spec{}, errors.New("expert used count is zero")
 		}
 		if value, ok := optional[uint32](
@@ -640,14 +645,14 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
 		spec.ExpertWeightsScale = optionalOr(
-			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32, float32(1),
+			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32, tensor.UnitScale,
 		)
 		if validation.Hybrid == HybridValidationSelectedSoftmaxExperts {
 			spec.ExpertGatingFunc = expertGatingSelectedSoftmax
 			spec.ExpertWeightsNorm = false
 		}
 		if validation.hybridOneOf(HybridValidationAlternatingGatedDelta, HybridValidationAlternatingGatedDeltaExperts) {
-			if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertWidth(values, prefix, spec); err != nil {
+			if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertFeedForward(values, prefix, spec); err != nil {
 				return Spec{}, err
 			}
 		}
@@ -663,13 +668,13 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
-		if spec.ExpertCount > 0 {
+		if spec.HasExperts() {
 			if spec.ExpertUsedCount, err = required[uint32](values, prefix+"expert_used_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
 			}
 		}
 		spec.ExpertWeightsScale = optionalOr(
-			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32, float32(1),
+			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32, tensor.UnitScale,
 		)
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 		spec.ExpertGatingFunc = expertGatingSoftmax
@@ -686,7 +691,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			if spec.ExpertGatingFunc, err = required[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
 			}
-		} else if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
+		} else if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != tensor.FirstOffset {
 			spec.ExpertGatingFunc = value
 		}
 	}
@@ -694,7 +699,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		return Spec{}, err
 	}
 	if validation.Attention == AttentionValidationPerLayerDualRotaryAttention {
-		if count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); ok && count > 0 {
+		if count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); ok && count > tensor.FirstOffset {
 			spec.ExpertCount = count
 			if err = readRequiredMetadataFields(
 				values, prefix, gguf.ValueTypeUint32,
@@ -703,7 +708,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			); err != nil {
 				return Spec{}, err
 			}
-			spec.ExpertWeightsScale = 1
+			spec.ExpertWeightsScale = tensor.UnitScale
 			spec.ExpertWeightsNorm = true
 		}
 	}
@@ -723,7 +728,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			values, prefix, "moe_every_n_layers", profile.MetadataDefaults.MoELayerStep,
 		)
 		spec.ExpertGatingFunc = expertGatingSigmoid
-		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
+		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != tensor.FirstOffset {
 			spec.ExpertGatingFunc = value
 		}
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
@@ -733,7 +738,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
-		if spec.ExpertFeedForward > 0 && spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
+		if spec.ExpertFeedForward > tensor.FirstOffset && spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
 			return Spec{}, errors.New("GLM4-MoE shared expert width overflows")
 		}
 		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
@@ -773,8 +778,8 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if value, ok := optional[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); ok {
 			spec.SharedExpertCount = value
 		}
-		if spec.SharedExpertCount > 0 {
-			if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertWidth(values, prefix, spec); err != nil {
+		if spec.HasSharedExperts() {
+			if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertFeedForward(values, prefix, spec); err != nil {
 				return Spec{}, err
 			}
 		}
@@ -783,7 +788,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
 		}
-		if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertWidth(values, prefix, spec); err != nil {
+		if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertFeedForward(values, prefix, spec); err != nil {
 			return Spec{}, err
 		}
 		spec.ExpertGatingFunc = expertGatingSigmoid
@@ -818,15 +823,15 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
 		spec.ExpertUsedCount, _ = optional[uint32](values, prefix+"expert_used_count", gguf.ValueTypeUint32)
 		spec.MoELayerStep, _ = optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32)
-		if spec.ExpertCount > 0 {
+		if spec.HasExperts() {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 			spec.ExpertWeightsScale = optionalOr(
-				values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32, float32(1),
+				values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32, tensor.UnitScale,
 			)
 		}
 	}
 	if validation.Encoder == EncoderValidationRotary {
-		if cadence, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok && cadence > 0 {
+		if cadence, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok && cadence > tensor.FirstOffset {
 			return Spec{}, errors.New("NomicBERT MoE cadence requires nomic-bert-moe architecture")
 		}
 	}
@@ -839,7 +844,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.ExpertWeightsNorm = true
 	}
 	if validation.Hybrid == HybridValidationScaledExperts ||
-		validation.Hybrid == HybridValidationScaledDense && spec.ExpertCount > 0 {
+		validation.Hybrid == HybridValidationScaledDense && spec.HasExperts() {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 		spec.ExpertWeightsNorm = true
 		spec.SharedExpertFF, _ = optional[uint32](
@@ -847,14 +852,14 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		)
 	}
 	if validation.Hybrid == HybridValidationScaledSigmoidExperts {
-		expertWidth, widthErr := required[uint32](
+		expertFeedForward, readErr := required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		)
-		if widthErr != nil {
-			return Spec{}, widthErr
+		if readErr != nil {
+			return Spec{}, readErr
 		}
-		if expertWidth != spec.FeedForwardLength {
-			return Spec{}, errors.New("MiniMax-M2 expert width differs from packed tensor width")
+		if expertFeedForward != spec.FeedForwardLength {
+			return Spec{}, errors.New("expert feed-forward extent differs from packed tensor extent")
 		}
 		spec.ExpertFeedForward = spec.FeedForwardLength
 		spec.ExpertWeightsNorm = true
@@ -885,14 +890,12 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 		spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
 		spec.ExpertGatingFunc = expertGatingSigmoid
-		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != 0 {
+		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != tensor.FirstOffset {
 			spec.ExpertGatingFunc = value
 		}
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
-		}
-		if spec.SlidingWindow > 0 {
 		}
 	}
 	if validation.Hybrid == HybridValidationSlidingSharedExperts {
@@ -925,17 +928,17 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
 		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
-		sharedCount := uint32(1)
+		sharedCount := uint32(tensor.SingletonExtent)
 		if value, ok := optional[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); ok {
 			sharedCount = value
 		}
-		if sharedCount != 1 {
+		if sharedCount != tensor.SingletonExtent {
 			return Spec{}, errors.New("Laguna requires exactly one shared expert")
 		}
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
 		}
-		if spec.SlidingWindow > 0 {
+		if spec.SlidingWindow > tensor.FirstOffset {
 			spec.RopeDimensionSWA = spec.KeyLength
 			if value, ok := optional[uint32](values, prefix+"rope.dimension_count_swa", gguf.ValueTypeUint32); ok {
 				spec.RopeDimensionSWA = value
@@ -982,20 +985,20 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
 			}
-			if spec.ExpertFeedForward > 0 && spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
+			if spec.ExpertFeedForward > tensor.FirstOffset && spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
 				return Spec{}, errors.New("DeepSeek2 shared expert width overflows")
 			}
 			spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
 			if value, ok := optional[float32](values, prefix+"rope.scaling.yarn_log_multiplier", gguf.ValueTypeFloat32); ok {
 				spec.RopeYaRNLogMultiplier = value / yarnLogFactorStep
 			}
-			if spec.RopeScalingType == ropeScalingYaRN && spec.RopeScalingFactor > 0 {
-				rawAttentionFactor := float32(1)
+			if spec.RopeScalingType == ropeScalingYaRN && positiveFinite(spec.RopeScalingFactor) {
+				rawAttentionFactor := tensor.UnitScale
 				if value, ok := optional[float32](values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32); ok {
 					rawAttentionFactor = value
 				}
 				spec.YaRNAttentionFactor = rawAttentionFactor /
-					(1 + yarnLogFactorStep*float32(math.Log(float64(spec.RopeScalingFactor))))
+					(tensor.UnitScale + yarnLogFactorStep*float32(math.Log(float64(spec.RopeScalingFactor))))
 			}
 			spec.AttentionTempScale, _ = optional[float32](values, prefix+"attention.temperature_scale", gguf.ValueTypeFloat32)
 			spec.AttentionTempFloor, _ = optional[uint32](values, prefix+"attention.temperature_length", gguf.ValueTypeUint32)
@@ -1027,11 +1030,11 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		indexerTypesKey := prefix + "attention.indexer.types"
 		if value, present := values[indexerTypesKey]; present && value.Type == gguf.ValueTypeUint32 {
 			typeValue, valid := value.Data.(uint32)
-			if !valid || typeValue > 1 {
+			if !valid || typeValue > tensor.SingletonExtent {
 				return Spec{}, fmt.Errorf("metadata %q must be 0 or 1", indexerTypesKey)
 			}
 			for index := range spec.IndexerFullLayers {
-				spec.IndexerFullLayers[index] = typeValue == 1
+				spec.IndexerFullLayers[index] = typeValue == tensor.SingletonExtent
 			}
 		} else if types, ok, arrayErr := optionalArray[uint32](values, indexerTypesKey, gguf.ValueTypeUint32); arrayErr != nil {
 			return Spec{}, arrayErr
@@ -1040,10 +1043,10 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 				return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", indexerTypesKey, len(types), spec.BlockCount)
 			}
 			for index, typeValue := range types {
-				if typeValue > 1 {
+				if typeValue > tensor.SingletonExtent {
 					return Spec{}, fmt.Errorf("metadata %q value %d is not 0 or 1", indexerTypesKey, typeValue)
 				}
-				spec.IndexerFullLayers[index] = typeValue == 1
+				spec.IndexerFullLayers[index] = typeValue == tensor.SingletonExtent
 			}
 		}
 	}
@@ -1094,13 +1097,13 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		if spec.LayerSwiGLUClamp, err = optionalLayerFloat32(values, prefix+"swiglu_clamp_exp", spec.BlockCount); err != nil {
 			return Spec{}, err
 		}
-		if len(spec.LayerSwiGLUClamp) == 0 {
+		if len(spec.LayerSwiGLUClamp) == tensor.FirstOffset {
 			return Spec{}, errors.New("DeepSeek 4 expert SwiGLU clamp is missing")
 		}
 		if spec.LayerSharedSwiGLUClamp, err = optionalLayerFloat32(values, prefix+"swiglu_clamp_shexp", spec.BlockCount); err != nil {
 			return Spec{}, err
 		}
-		if len(spec.LayerSharedSwiGLUClamp) == 0 {
+		if len(spec.LayerSharedSwiGLUClamp) == tensor.FirstOffset {
 			spec.LayerSharedSwiGLUClamp = slices.Clone(spec.LayerSwiGLUClamp)
 		}
 		if spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
@@ -1120,7 +1123,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		); ok {
 			spec.SlidingWindow = value
 		}
-		if spec.SlidingWindow > 0 {
+		if spec.SlidingWindow > tensor.FirstOffset {
 			if validation.attentionOneOf(
 				AttentionValidationPerLayerDualRotaryAttention, AttentionValidationTargetHiddenDualRotaryAttention,
 			) {
@@ -1149,7 +1152,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 					spec.SlidingLayers = slices.Clone(layers)
 				}
 			}
-			if validation.Attention == AttentionValidationRequiredSlidingRotary && len(spec.SlidingLayers) == 0 {
+			if validation.Attention == AttentionValidationRequiredSlidingRotary && len(spec.SlidingLayers) == tensor.FirstOffset {
 				spec.NoRopeLayerStep = spec.SlidingPattern
 			}
 		}
@@ -1173,11 +1176,11 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		spec.SharedKVLayers, _ = optional[uint32](
 			values, prefix+"attention.shared_kv_layers", gguf.ValueTypeUint32,
 		)
-		spec.AttentionScale = 1
+		spec.AttentionScale = tensor.UnitScale
 	}
 	if validation.Attention == AttentionValidationTargetHiddenDualRotaryAttention {
 		spec.RopeDimensionSWA = spec.KeyLengthSWA
-		spec.AttentionScale = 1
+		spec.AttentionScale = tensor.UnitScale
 	}
 	if spec.RopeScalingType == ropeScalingLongRoPE && profile.Has(ArchitectureLongRoPE) {
 		spec.RopeDimensionCount = spec.KeyLength
@@ -1187,7 +1190,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		); ok {
 			spec.OriginalContextLength = value
 		}
-		spec.RopeAttentionFactor = 1
+		spec.RopeAttentionFactor = tensor.UnitScale
 		if value, ok := optional[float32](
 			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
 		); ok {
@@ -1197,7 +1200,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 	if spec.RopeScalingType == ropeScalingYaRN &&
 		(validation.Hybrid == HybridValidationOptionalExperts ||
 			validation.Hybrid == HybridValidationExtendedRotary && validation.MLA == MLAValidationNone) {
-		rawAttentionFactor := float32(1)
+		rawAttentionFactor := tensor.UnitScale
 		if value, ok := optional[float32](
 			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32,
 		); ok {
@@ -1206,11 +1209,11 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		spec.YaRNAttentionFactor = rawAttentionFactor
 	}
 	spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
-	if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == 0 {
+	if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == tensor.FirstOffset {
 		if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
 			return Spec{}, errors.New(`metadata "tokenizer.ggml.tokens" must be a string array`)
 		}
-		if tokens.Count() > int(^uint32(0)) {
+		if tokens.Count() > int(math.MaxUint32) {
 			return Spec{}, errors.New("tokenizer vocabulary exceeds uint32")
 		}
 		spec.VocabularySize = uint32(tokens.Count())
@@ -1241,6 +1244,10 @@ func (s Spec) IsSlidingLayer(block uint32) bool {
 	return s.Profile().Cadence.sliding(s, block)
 }
 
+func (s Spec) IsPeriodicRescaleLayer(block uint32) bool {
+	return s.Profile().Cadence.periodicRescale(s, block)
+}
+
 func layerValue[T any](values []T, layer uint32, fallback T) T {
 	if layer < uint32(len(values)) {
 		return values[layer]
@@ -1262,15 +1269,35 @@ func (s Spec) LayerFeedForwardLength(block uint32) uint32 {
 	return layerValue(s.LayerFeedForward, block, s.FeedForwardLength)
 }
 
+func (s Spec) LayerHasAttention(block uint32) bool {
+	return s.LayerHeadCount(block) != tensor.FirstOffset
+}
+
+func (s Spec) LayerHasKVHeads(block uint32) bool {
+	return s.LayerKVHeadCount(block) != tensor.FirstOffset
+}
+
+func (s Spec) LayerHasFeedForward(block uint32) bool {
+	return s.LayerFeedForwardLength(block) != tensor.FirstOffset
+}
+
+func (s Spec) HasExperts() bool {
+	return s.ExpertCount > tensor.FirstOffset
+}
+
+func (s Spec) HasSharedExperts() bool {
+	return s.SharedExpertCount > tensor.FirstOffset
+}
+
 func (s Spec) LayerKeyLength(block uint32) uint32 {
-	if s.KeyLengthSWA > 0 && s.IsSlidingLayer(block) {
+	if s.KeyLengthSWA > tensor.FirstOffset && s.IsSlidingLayer(block) {
 		return s.KeyLengthSWA
 	}
 	return s.KeyLength
 }
 
 func (s Spec) LayerValueLength(block uint32) uint32 {
-	if s.ValueLengthSWA > 0 && s.IsSlidingLayer(block) {
+	if s.ValueLengthSWA > tensor.FirstOffset && s.IsSlidingLayer(block) {
 		return s.ValueLengthSWA
 	}
 	return s.ValueLength
@@ -1283,32 +1310,32 @@ func (s Spec) LayerHasKV(block uint32) bool {
 func (s Spec) LayerSharedKVSource(block uint32) uint32 {
 	start := s.BlockCount - s.SharedKVLayers
 	if s.IsSlidingLayer(block) {
-		return start - 2
+		return start - tensor.PairedExtent
 	}
-	return start - 1
+	return start - tensor.SingletonExtent
 }
 
 func (s Spec) LayerRopeDimensionCount(block uint32) uint32 {
-	if s.KeyLengthSWA > 0 && s.RopeDimensionSWA > 0 && s.IsSlidingLayer(block) {
+	if s.KeyLengthSWA > tensor.FirstOffset && s.RopeDimensionSWA > tensor.FirstOffset && s.IsSlidingLayer(block) {
 		return s.RopeDimensionSWA
 	}
 	if s.Profile().Rotary.FactorPairs && !s.IsSlidingLayer(block) {
-		return s.RopeDimensionCount / 2
+		return s.RopeDimensionCount / tensor.PairedExtent
 	}
 	return s.RopeDimensionCount
 }
 
 func (s Spec) LayerExpertSwiGLUClamp(block uint32) float32 {
-	return layerValue(s.LayerSwiGLUClamp, block, 0)
+	return layerValue(s.LayerSwiGLUClamp, block, float32(tensor.FirstOffset))
 }
 
 func (s Spec) LayerSharedSwiGLUClampLimit(block uint32) float32 {
-	return layerValue(s.LayerSharedSwiGLUClamp, block, 0)
+	return layerValue(s.LayerSharedSwiGLUClamp, block, float32(tensor.FirstOffset))
 }
 
 func (s Spec) UsesRoPE(block uint32) bool {
 	usage := s.Profile().Rotary.Usage
-	if usage == RotaryUsageSlidingMetadata && len(s.SlidingLayers) == 0 {
+	if usage == RotaryUsageSlidingMetadata && len(s.SlidingLayers) == tensor.FirstOffset {
 		usage = RotaryUsageStandard
 	}
 	switch usage {
@@ -1317,7 +1344,7 @@ func (s Spec) UsesRoPE(block uint32) bool {
 			(usage == RotaryUsageDensePrefixOrSliding && block < s.LeadingDenseBlocks || s.IsSlidingLayer(block))
 	case RotaryUsagePeriodicZeroBased:
 		return !s.RopeDisabled && block < s.BlockCount &&
-			(s.SlidingWindow == 0 || s.NoRopeLayerStep == 0 || block%s.NoRopeLayerStep != 0)
+			(s.SlidingWindow == tensor.FirstOffset || s.NoRopeLayerStep == tensor.FirstOffset || block%s.NoRopeLayerStep != tensor.FirstOffset)
 	case RotaryUsageSlidingOnly:
 		return s.IsSlidingLayer(block)
 	}
@@ -1326,8 +1353,8 @@ func (s Spec) UsesRoPE(block uint32) bool {
 		blockCount += draft.Heads
 	}
 	return !s.RopeDisabled &&
-		(blockCount == 0 || block < blockCount) &&
-		(s.NoRopeLayerStep == 0 || (block+1)%s.NoRopeLayerStep != 0)
+		(blockCount == tensor.FirstOffset || block < blockCount) &&
+		(s.NoRopeLayerStep == tensor.FirstOffset || (block+tensor.SingletonExtent)%s.NoRopeLayerStep != tensor.FirstOffset)
 }
 
 func (s Spec) InputEmbeddingScale() float32 {
@@ -1390,7 +1417,7 @@ func (s Spec) validate() error {
 	if err := s.validateAttentionMetadata(); err != nil {
 		return err
 	}
-	if s.RopeScalingType == ropeScalingLinear && s.RopeScalingFactor <= 0 {
+	if s.RopeScalingType == ropeScalingLinear && !positiveFinite(s.RopeScalingFactor) {
 		return errors.New("linear RoPE scaling factor must be positive")
 	}
 	return s.validateNumericPolicies()
@@ -1398,11 +1425,11 @@ func (s Spec) validate() error {
 
 func firstPositive(values []uint32) uint32 {
 	for _, value := range values {
-		if value > 0 {
+		if value > tensor.FirstOffset {
 			return value
 		}
 	}
-	return 0
+	return tensor.FirstOffset
 }
 
 func required[T any](values map[string]gguf.Value, key string, valueType gguf.ValueType) (T, error) {
@@ -1470,11 +1497,7 @@ func requiredLayerFloat32(
 		if !ok {
 			return nil, fmt.Errorf("metadata %q has an invalid Go representation", key)
 		}
-		result := make([]float32, count)
-		for index := range result {
-			result[index] = scalar
-		}
-		return result, nil
+		return slices.Repeat([]float32{scalar}, int(count)), nil
 	}
 	if value.Type != gguf.ValueTypeArray || value.ArrayType != gguf.ValueTypeFloat32 {
 		return nil, fmt.Errorf("metadata %q must be a float32 or float32 array", key)
@@ -1514,11 +1537,7 @@ func requiredLayerUint32(
 		if !ok {
 			return nil, fmt.Errorf("metadata %q has an invalid Go representation", key)
 		}
-		result := make([]uint32, count)
-		for index := range result {
-			result[index] = scalar
-		}
-		return result, nil
+		return slices.Repeat([]uint32{scalar}, int(count)), nil
 	}
 	if value.Type != gguf.ValueTypeArray || value.ArrayType != gguf.ValueTypeUint32 {
 		return nil, fmt.Errorf("metadata %q must be a uint32 or uint32 array", key)
@@ -1547,14 +1566,10 @@ func requiredLayerUint32Compatible(
 	}
 	if value.Type == gguf.ValueTypeInt32 {
 		scalar, valid := value.Data.(int32)
-		if !valid || scalar < 0 {
+		if !valid || scalar < tensor.FirstOffset {
 			return nil, fmt.Errorf("metadata %q has an invalid scalar value", key)
 		}
-		result := make([]uint32, count)
-		for index := range result {
-			result[index] = uint32(scalar)
-		}
-		return result, nil
+		return slices.Repeat([]uint32{uint32(scalar)}, int(count)), nil
 	}
 	if value.Type != gguf.ValueTypeArray ||
 		(value.ArrayType != gguf.ValueTypeUint32 && value.ArrayType != gguf.ValueTypeInt32) {
@@ -1574,7 +1589,7 @@ func requiredLayerUint32Compatible(
 			return nil, fmt.Errorf("metadata %q has invalid layer values", key)
 		}
 		for index, item := range items {
-			if item < 0 {
+			if item < tensor.FirstOffset {
 				return nil, fmt.Errorf("metadata %q has a negative layer value", key)
 			}
 			result[index] = uint32(item)
@@ -1592,40 +1607,31 @@ func requiredLayerBoolCompatible(
 	if !ok {
 		return nil, fmt.Errorf("required metadata %q is missing", key)
 	}
-	result := make([]bool, count)
 	if value.Type == gguf.ValueTypeBool {
 		scalar, valid := value.Data.(bool)
 		if !valid {
 			return nil, fmt.Errorf("metadata %q has an invalid Go representation", key)
 		}
-		for index := range result {
-			result[index] = scalar
-		}
-		return result, nil
+		return slices.Repeat([]bool{scalar}, int(count)), nil
 	}
 	if value.Type == gguf.ValueTypeUint32 {
 		scalar, valid := value.Data.(uint32)
 		if !valid {
 			return nil, fmt.Errorf("metadata %q has an invalid Go representation", key)
 		}
-		for index := range result {
-			result[index] = scalar != 0
-		}
-		return result, nil
+		return slices.Repeat([]bool{scalar != tensor.FirstOffset}, int(count)), nil
 	}
 	if value.Type == gguf.ValueTypeInt32 {
 		scalar, valid := value.Data.(int32)
-		if !valid || scalar < 0 {
+		if !valid || scalar < tensor.FirstOffset {
 			return nil, fmt.Errorf("metadata %q has an invalid scalar value", key)
 		}
-		for index := range result {
-			result[index] = scalar != 0
-		}
-		return result, nil
+		return slices.Repeat([]bool{scalar != tensor.FirstOffset}, int(count)), nil
 	}
 	if value.Type != gguf.ValueTypeArray {
 		return nil, fmt.Errorf("metadata %q must be a bool, uint32, or compatible array", key)
 	}
+	result := make([]bool, count)
 	switch value.ArrayType {
 	case gguf.ValueTypeBool:
 		items, valid := value.Data.([]bool)
@@ -1639,7 +1645,7 @@ func requiredLayerBoolCompatible(
 			return nil, fmt.Errorf("metadata %q has invalid layer values", key)
 		}
 		for index, item := range items {
-			result[index] = item != 0
+			result[index] = item != tensor.FirstOffset
 		}
 	case gguf.ValueTypeInt32:
 		items, valid := value.Data.([]int32)
@@ -1647,10 +1653,10 @@ func requiredLayerBoolCompatible(
 			return nil, fmt.Errorf("metadata %q has invalid layer values", key)
 		}
 		for index, item := range items {
-			if item < 0 {
+			if item < tensor.FirstOffset {
 				return nil, fmt.Errorf("metadata %q has a negative layer value", key)
 			}
-			result[index] = item != 0
+			result[index] = item != tensor.FirstOffset
 		}
 	default:
 		return nil, fmt.Errorf("metadata %q must use bool or integer layer values", key)

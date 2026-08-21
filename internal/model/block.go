@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 )
 
@@ -52,7 +53,7 @@ type denseBlockContext struct {
 	spec               Spec
 	weights            LayerGraphWeights
 	positions          []uint32
-	multiPositions     *[4][]uint32
+	multiPositions     *[tensor.MaxDimensions][]uint32
 	pastKey, pastValue *tensor.Tensor
 	plan               LayerPlan
 	layer              uint32
@@ -94,9 +95,10 @@ func preparePolicyAttentionInputs(
 	if err := c.plan.DenseWeights.Validate(c.spec, c.weights, usesExperts, c.plan.FeedForward); err != nil {
 		return nil, nil, err
 	}
-	if len(c.positions) == 0 || uint64(len(c.positions)) != c.input.Shape.Dims[1] {
+	inputTokens, validInput := tensor.MatrixRows(c.input.Shape, uint64(c.spec.EmbeddingLength))
+	if !validInput || uint64(len(c.positions)) != inputTokens {
 		return nil, nil, fmt.Errorf(
-			"dense block has %d positions for %d tokens", len(c.positions), c.input.Shape.Dims[1],
+			"dense block has %d positions for %d tokens", len(c.positions), inputTokens,
 		)
 	}
 	if err := requireTensorPair(c.pastKey, c.pastValue, "dense block past key/value cache must both be present"); err != nil {
@@ -162,17 +164,20 @@ func buildPolicyAttentionMix(
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
 	if c.pastKey != nil {
-		if c.pastKey.Shape.Dims[2] > math.MaxUint32 {
-			return DenseBlockResult{}, errors.New("dense block KV cache token count exceeds uint32")
+		pastTokens, keyAxis, validKey := tensor.TrailingExtent32(
+			c.pastKey.Shape, uint64(c.spec.KeyLength), uint64(kvHeadCount),
+		)
+		valueTokens, valueAxis, validValue := tensor.TrailingExtent32(
+			c.pastValue.Shape, uint64(c.spec.ValueLength), uint64(kvHeadCount),
+		)
+		if !validKey || !validValue || pastTokens != valueTokens {
+			return DenseBlockResult{}, errors.New("dense block KV cache shape is invalid")
 		}
-		queryStart = c.builder.CacheTokenOffset(uint32(c.pastKey.Shape.Dims[2]))
-		cacheKey = c.builder.WriteCache(c.pastKey, key, 2, c.cacheWrite)
-		cacheValue = c.builder.WriteCache(c.pastValue, value, 2, c.cacheWrite)
+		queryStart = c.builder.CacheTokenOffset(pastTokens)
+		cacheKey = c.builder.WriteCache(c.pastKey, key, keyAxis, c.cacheWrite)
+		cacheValue = c.builder.WriteCache(c.pastValue, value, valueAxis, c.cacheWrite)
 	}
-	attentionScale := float32(1 / math.Sqrt(float64(c.spec.KeyLength)))
-	if c.spec.AttentionScale > 0 {
-		attentionScale = c.spec.AttentionScale
-	}
+	attentionScale := c.spec.resolvedAttentionScale(uint64(c.spec.KeyLength))
 	query, attentionScale = c.plan.QueryScale.Apply(c.builder, query, c.spec, c.weights, attentionScale)
 	attention := c.plan.AttentionGraph.Build(
 		c.builder, query, cacheKey, cacheValue, c.weights.AttentionSinks, nil,
@@ -219,7 +224,7 @@ func buildPolicyFeedForwardMix(
 	} else {
 		runtime := denseBlockRuntime{
 			builder: c.builder, spec: c.spec, weights: c.weights, plan: c.plan,
-			layer: c.layer, tokens: c.input.Shape.Dims[1],
+			layer: c.layer, tokens: c.input.Shape.RowCount(),
 		}
 		feedForward, err = runtime.buildFeedForward(normalized)
 	}
@@ -248,16 +253,14 @@ func (r denseBlockRuntime) projectAttention(normalized *tensor.Tensor) (*tensor.
 		if r.weights.AttentionQKVBias != nil {
 			mixed = r.builder.Add(mixed, r.weights.AttentionQKVBias)
 		}
-		if r.spec.AttentionClamp > 0 {
-			mixed = r.builder.Clamp(mixed, -r.spec.AttentionClamp, r.spec.AttentionClamp)
-		}
+		mixed = optionalSymmetricClamp(r.builder, mixed, r.spec.AttentionClamp)
 		stride := queryLength + keyLength + valueLength
 		return r.builder.Reshape(
-				r.builder.GroupSlice(mixed, 0, queryLength, 1, stride), queryLength, r.tokens,
+				r.builder.GroupSlice(mixed, tensor.FirstOffset, queryLength, tensor.SingletonExtent, stride), queryLength, r.tokens,
 			), r.builder.Reshape(
-				r.builder.GroupSlice(mixed, queryLength, keyLength, 1, stride), keyLength, r.tokens,
+				r.builder.GroupSlice(mixed, queryLength, keyLength, tensor.SingletonExtent, stride), keyLength, r.tokens,
 			), r.builder.Reshape(
-				r.builder.GroupSlice(mixed, queryLength+keyLength, valueLength, 1, stride), valueLength, r.tokens,
+				r.builder.GroupSlice(mixed, queryLength+keyLength, valueLength, tensor.SingletonExtent, stride), valueLength, r.tokens,
 			)
 	}
 	query := r.builder.MulMat(r.weights.AttentionQ, normalized)
@@ -278,11 +281,16 @@ func (r denseBlockRuntime) projectAttention(normalized *tensor.Tensor) (*tensor.
 		if item.bias != nil {
 			*item.tensor = r.builder.Add(*item.tensor, item.bias)
 		}
-		if r.spec.AttentionClamp > 0 {
-			*item.tensor = r.builder.Clamp(*item.tensor, -r.spec.AttentionClamp, r.spec.AttentionClamp)
-		}
+		*item.tensor = optionalSymmetricClamp(r.builder, *item.tensor, r.spec.AttentionClamp)
 	}
 	return query, key, value
+}
+
+func optionalSymmetricClamp(builder *tensor.Builder, input *tensor.Tensor, limit float32) *tensor.Tensor {
+	if !positiveFinite(limit) {
+		return input
+	}
+	return builder.Clamp(input, -limit, limit)
 }
 
 func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.Tensor, error) {
@@ -297,9 +305,13 @@ func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.
 	switch r.plan.FeedForward {
 	case FeedForwardFusedGateUp:
 		width := uint64(r.spec.LayerFeedForwardLength(r.layer))
-		stride := 2 * width
-		gate := r.builder.Reshape(r.builder.GroupSlice(up, 0, width, 1, stride), width, r.tokens)
-		up = r.builder.Reshape(r.builder.GroupSlice(up, width, width, 1, stride), width, r.tokens)
+		stride := tensor.PairedExtent * width
+		gate := r.builder.Reshape(r.builder.GroupSlice(
+			up, tensor.FirstOffset, width, tensor.SingletonExtent, stride,
+		), width, r.tokens)
+		up = r.builder.Reshape(r.builder.GroupSlice(
+			up, width, width, tensor.SingletonExtent, stride,
+		), width, r.tokens)
 		switch r.spec.HiddenActivation {
 		case "reglu":
 			activation = r.builder.ReGLU(gate, up)
@@ -364,8 +376,8 @@ func buildSharedKVQKNormMixCached(
 	cacheWrite tensor.CacheWriteMode,
 ) (DenseBlockResult, error) {
 	layerIndex := layerPlan.Layer
-	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
-		len(positions) == 0 || uint64(len(positions)) != normalized.Shape.Dims[1] {
+	tokenCount, validInput := tensor.MatrixRows32(normalized.Shape, uint64(spec.EmbeddingLength))
+	if !validInput || uint64(len(positions)) != uint64(tokenCount) {
 		return DenseBlockResult{}, errors.New("shared-KV attention input shape is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "shared-KV attention cache pair is incomplete"); err != nil {
@@ -385,7 +397,7 @@ func buildSharedKVQKNormMixCached(
 	if err := required.validate("shared-KV attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	tokens := normalized.Shape.Dims[1]
+	tokens := uint64(tokenCount)
 	shapes := spec.TensorShapes(layerIndex)
 	headCount, kvHeadCount := shapes.QueryHeads, shapes.KVHeads
 	keyLength, valueLength := shapes.Key, shapes.Value
@@ -411,19 +423,22 @@ func buildSharedKVQKNormMixCached(
 		key = layerPlan.Rotary.ApplyOne(builder, key, positions, nil, weights.RopeFactors)
 		cacheKey, cacheValue = key, value
 		if pastKey != nil {
-			// Cache offset: active prefix or retained-capacity runtime slot.
-			queryStart = builder.CacheTokenOffset(uint32(pastKey.Shape.Dims[2]))
-			cacheKey = builder.WriteCache(pastKey, key, 2, cacheWrite)
-			cacheValue = builder.WriteCache(pastValue, value, 2, cacheWrite)
+			pastTokens, keyAxis, validKey := tensor.TrailingExtent32(pastKey.Shape, keyLength, kvHeadCount)
+			valueTokens, valueAxis, validValue := tensor.TrailingExtent32(pastValue.Shape, valueLength, kvHeadCount)
+			if !validKey || !validValue || pastTokens != valueTokens {
+				return DenseBlockResult{}, errors.New("shared-KV attention cache shape is invalid")
+			}
+			queryStart = builder.CacheTokenOffset(pastTokens)
+			cacheKey = builder.WriteCache(pastKey, key, keyAxis, cacheWrite)
+			cacheValue = builder.WriteCache(pastValue, value, valueAxis, cacheWrite)
 		}
 	} else {
-		if pastKey.Shape.Rank != 3 || pastValue.Shape.Rank != 3 ||
-			pastKey.Shape.Dims[0] != keyLength || pastValue.Shape.Dims[0] != valueLength ||
-			pastKey.Shape.Dims[1] != kvHeadCount || pastValue.Shape.Dims[1] != kvHeadCount ||
-			pastKey.Shape.Dims[2] != pastValue.Shape.Dims[2] || pastKey.Shape.Dims[2] < tokens {
+		pastTokens, _, validKey := tensor.TrailingExtent32(pastKey.Shape, keyLength, kvHeadCount)
+		valueTokens, _, validValue := tensor.TrailingExtent32(pastValue.Shape, valueLength, kvHeadCount)
+		if !validKey || !validValue || pastTokens != valueTokens || pastTokens < tokenCount {
 			return DenseBlockResult{}, errors.New("shared-KV attention source shape is invalid")
 		}
-		queryStart = uint32(pastKey.Shape.Dims[2] - tokens)
+		queryStart = pastTokens - tokenCount
 	}
 	attention := layerPlan.AttentionGraph.Build(
 		builder, query, cacheKey, cacheValue, nil, weights.AttentionBlockIDs,
@@ -475,7 +490,7 @@ func buildParallelGatedGELUFeedForwardMix(
 		dense := builder.MulMat(weights.FeedForwardDown, builder.GEGLU(denseGate, denseUp))
 		dense = builder.WeightedRMSNorm(dense, weights.FeedForwardPostNorm1, spec.RMSNormEpsilon)
 		expertInput := builder.WeightedRMSNorm(input, weights.FeedForwardPreNorm2, spec.RMSNormEpsilon)
-		routerInput := builder.Scale(builder.RMSNorm(input, spec.RMSNormEpsilon), 1/float32(math.Sqrt(float64(spec.EmbeddingLength))))
+		routerInput := builder.Scale(builder.RMSNorm(input, spec.RMSNormEpsilon), hostmath.InvSqrt32(uint64(spec.EmbeddingLength)))
 		routerInput = builder.Multiply(routerInput, weights.FeedForwardRouterScale)
 		feedForward = layerPlan.Experts.BuildLayer(builder, expertInput, routerInput, weights)
 		feedForward = builder.WeightedRMSNorm(feedForward, weights.FeedForwardPostNorm2, spec.RMSNormEpsilon)
@@ -541,9 +556,11 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	builder, input, spec := context.Builder, context.Input, p.spec
 	positions, pastKey, pastValue := context.Positions, context.PastKey, context.PastValue
 	layerIndex := p.plan.Layer
-	if builder == nil || input == nil ||
-		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
-		len(positions) == 0 || uint64(len(positions)) != input.Shape.Dims[1] {
+	if builder == nil || input == nil {
+		return ActivationProjectionResult{}, errors.New("activation-projection input is invalid")
+	}
+	tokens, validInput := tensor.MatrixRows(input.Shape, uint64(spec.EmbeddingLength))
+	if !validInput || len(positions) == 0 || uint64(len(positions)) != tokens {
 		return ActivationProjectionResult{}, errors.New("activation-projection input is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "split-projection cache pair is incomplete"); err != nil {
@@ -572,7 +589,6 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	if err := required.validate("split projection"); err != nil {
 		return ActivationProjectionResult{}, err
 	}
-	tokens := input.Shape.Dims[1]
 	shapes := spec.TensorShapes(layerIndex)
 	headCount, kvHeadCount := shapes.QueryHeads, shapes.KVHeads
 	keyLength, valueLength := shapes.Key, shapes.Value
@@ -587,49 +603,47 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	if p.plan.Sliding {
 		frequencyBase = spec.RopeFrequencySWA
 	}
-	query = builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.LayerRopeDimensionCount(layerIndex), FrequencyBase: frequencyBase, FrequencyScale: 1})
+	query = builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.LayerRopeDimensionCount(layerIndex), FrequencyBase: frequencyBase, FrequencyScale: tensor.UnitFrequencyScale})
 	cacheKey, cacheValue := pastKey, pastValue
-	queryStart := uint32(0)
+	var queryStart uint32
 	if p.plan.HasKV {
 		key := builder.Reshape(builder.MulMat(weights.AttentionK, normalized), keyLength, kvHeadCount, tokens)
 		value := builder.Reshape(builder.MulMat(weights.AttentionV, normalized), valueLength, kvHeadCount, tokens)
 		key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
 		value = builder.RMSNorm(value, spec.RMSNormEpsilon)
-		key = builder.RoPEWithOptions(key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.LayerRopeDimensionCount(layerIndex), FrequencyBase: frequencyBase, FrequencyScale: 1})
+		key = builder.RoPEWithOptions(key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.LayerRopeDimensionCount(layerIndex), FrequencyBase: frequencyBase, FrequencyScale: tensor.UnitFrequencyScale})
 		cacheKey, cacheValue = key, value
 		if pastKey != nil {
-			if pastKey.Shape.Rank != 3 || pastKey.Shape.Dims[2] > math.MaxUint32 {
+			pastTokens, cacheAxis, keyOK := tensor.TrailingExtent(pastKey.Shape, keyLength, kvHeadCount)
+			valueTokens, _, valueOK := tensor.TrailingExtent(pastValue.Shape, valueLength, kvHeadCount)
+			if !keyOK || !valueOK || pastTokens != valueTokens || pastTokens > math.MaxUint32 {
 				return ActivationProjectionResult{}, errors.New("split-projection cache shape is invalid")
 			}
-			queryStart = uint32(pastKey.Shape.Dims[2])
-			cacheKey = builder.Concat(pastKey, key, 2)
-			cacheValue = builder.Concat(pastValue, value, 2)
+			queryStart = uint32(pastTokens)
+			cacheKey = builder.Concat(pastKey, key, cacheAxis)
+			cacheValue = builder.Concat(pastValue, value, cacheAxis)
 		}
 	} else {
-		if pastKey.Shape.Rank != 3 || pastValue.Shape.Rank != 3 ||
-			pastKey.Shape.Dims[0] != keyLength || pastValue.Shape.Dims[0] != valueLength ||
-			pastKey.Shape.Dims[1] != kvHeadCount || pastValue.Shape.Dims[1] != kvHeadCount ||
-			pastKey.Shape.Dims[2] != pastValue.Shape.Dims[2] || pastKey.Shape.Dims[2] < tokens {
+		pastTokens, _, keyOK := tensor.TrailingExtent(pastKey.Shape, keyLength, kvHeadCount)
+		valueTokens, _, valueOK := tensor.TrailingExtent(pastValue.Shape, valueLength, kvHeadCount)
+		if !keyOK || !valueOK || pastTokens != valueTokens || pastTokens < tokens || pastTokens > math.MaxUint32 {
 			return ActivationProjectionResult{}, errors.New("split-projection shared-KV source shape is invalid")
 		}
-		queryStart = uint32(pastKey.Shape.Dims[2] - tokens)
+		queryStart = uint32(pastTokens - tokens)
 	}
 	var attention *tensor.Tensor
-	attentionScale := spec.AttentionScale
-	if attentionScale == 0 {
-		attentionScale = 1 / float32(math.Sqrt(float64(keyLength)))
-	}
+	attentionScale := spec.resolvedAttentionScale(keyLength)
 	query = builder.Scale(query, attentionScale)
 	if p.plan.Sliding {
 		attention = builder.AttentionWithOptions(
-			query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: 1, Causal: true, QueryStart: queryStart, Window: spec.SlidingWindow})
+			query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: tensor.UnitScale, Causal: true, QueryStart: queryStart, Window: spec.SlidingWindow})
 
 	} else {
-		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: 1, Causal: true, QueryStart: queryStart})
+		attention = builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: tensor.UnitScale, Causal: true, QueryStart: queryStart})
 	}
 	attention = builder.MulMat(weights.AttentionOutput, builder.Reshape(attention, headCount*valueLength, tokens))
 	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
-	residual := builder.Scale(builder.Add(builder.Add(input, attention), laurel), 1/float32(math.Sqrt2))
+	residual := builder.Scale(builder.Add(builder.Add(input, attention), laurel), spec.Profile().Runtime.ActivationResidualScale)
 	feedForwardInput := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 	result := ActivationProjectionResult{
 		Residual: residual,
@@ -672,34 +686,30 @@ func (p ModelPlan) BuildPerLayerInputs(
 	if builder == nil || input == nil || tokenEmbedding == nil || modelProjection == nil || projectionNorm == nil {
 		return nil, errors.New("mapped per-layer input is incomplete")
 	}
-	if !p.profile.Has(ArchitecturePerLayerEmbeddings) ||
-		spec.EmbeddingPerLayer == 0 || spec.BlockCount == 0 ||
-		input.Shape.Rank != 2 || input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+	tokens, inputOK := tensor.MatrixRows(input.Shape, uint64(spec.EmbeddingLength))
+	if !p.profile.Has(ArchitecturePerLayerEmbeddings) || !inputOK {
 		return nil, errors.New("mapped per-layer input configuration is invalid")
 	}
 	width := uint64(spec.EmbeddingPerLayer)
 	layers := uint64(spec.BlockCount)
-	tokens := input.Shape.Dims[1]
 	combinedWidth := width * layers
-	if tokenEmbedding.Shape.Rank != 2 || tokenEmbedding.Shape.Dims[0] != combinedWidth ||
-		tokenEmbedding.Shape.Dims[1] != tokens ||
-		modelProjection.Shape.Rank != 2 || modelProjection.Shape.Dims[0] != uint64(spec.EmbeddingLength) ||
-		modelProjection.Shape.Dims[1] != combinedWidth ||
-		projectionNorm.Shape.Rank != 1 || projectionNorm.Shape.Dims[0] != width {
+	if !tensor.IsMatrix(tokenEmbedding.Shape, combinedWidth, tokens) ||
+		!tensor.IsMatrix(modelProjection.Shape, uint64(spec.EmbeddingLength), combinedWidth) ||
+		!tensor.IsVector(projectionNorm.Shape, width) {
 		return nil, errors.New("mapped per-layer input shape is invalid")
 	}
 	projected := builder.MulMat(modelProjection, input)
-	projected = builder.Scale(projected, 1/float32(math.Sqrt(float64(spec.EmbeddingLength))))
+	projected = builder.Scale(projected, hostmath.InvSqrt32(uint64(spec.EmbeddingLength)))
 	projected = builder.Reshape(projected, width, layers*tokens)
 	projected = builder.WeightedRMSNorm(projected, projectionNorm, spec.RMSNormEpsilon)
-	selected := builder.Scale(tokenEmbedding, float32(math.Sqrt(float64(width))))
+	selected := builder.Scale(tokenEmbedding, hostmath.Sqrt32(width))
 	selected = builder.Reshape(selected, width, layers*tokens)
-	combined := builder.Scale(builder.Add(projected, selected), 1/float32(math.Sqrt(2)))
+	combined := builder.Scale(builder.Add(projected, selected), p.profile.Runtime.ActivationResidualScale)
 	combined = builder.Reshape(combined, combinedWidth, tokens)
 	result := make([]*tensor.Tensor, spec.BlockCount)
-	for layer := uint64(0); layer < layers; layer++ {
+	for layer := uint64(tensor.FirstOffset); layer < layers; layer++ {
 		result[layer] = builder.Reshape(
-			builder.GroupSlice(combined, layer*width, width, 1, combinedWidth),
+			builder.GroupSlice(combined, layer*width, width, tensor.SingletonExtent, combinedWidth),
 			width, tokens,
 		)
 	}
@@ -710,7 +720,7 @@ func (p ModelPlan) BuildPerLayerInputs(
 }
 
 func postActivationLimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
-	if limit <= 0 {
+	if !positiveFinite(limit) {
 		return builder.SwiGLU(gate, up)
 	}
 	up = builder.Clamp(up, -limit, limit)
@@ -729,7 +739,7 @@ func buildSharedSwiGLU(
 }
 
 func inputLimitedSwiGLU(builder *tensor.Builder, gate, up *tensor.Tensor, limit float32) *tensor.Tensor {
-	if limit <= 0 {
+	if !positiveFinite(limit) {
 		return builder.SwiGLU(gate, up)
 	}
 	gate = builder.Clamp(gate, -math.MaxFloat32, limit)
@@ -743,7 +753,7 @@ func buildGatedProjectionMixCached(
 	spec Spec,
 	weights LayerGraphWeights,
 	positions []uint32,
-	multiPositions *[4][]uint32,
+	multiPositions *[tensor.MaxDimensions][]uint32,
 	sequences uint64,
 	pastKey, pastValue *tensor.Tensor,
 	cacheWrite tensor.CacheWriteMode,
@@ -763,9 +773,9 @@ func buildGatedProjectionMixCached(
 	if err := required.validate("gated-delta attention mix"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if len(positions) == 0 || sequences == 0 ||
-		uint64(len(positions)) > math.MaxUint64/sequences ||
-		uint64(len(positions))*sequences != normalized.Shape.Dims[1] {
+	if !tensor.IsBatchedMatrix(
+		normalized.Shape, uint64(spec.EmbeddingLength), uint64(len(positions)), sequences,
+	) {
 		return DenseBlockResult{}, errors.New("gated-delta attention position count is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "gated-delta attention cache must contain both key and value"); err != nil {
@@ -776,16 +786,16 @@ func buildGatedProjectionMixCached(
 	headWidth := uint64(spec.KeyLength)
 	heads := uint64(spec.HeadCount)
 	queryAndGate := builder.MulMat(weights.AttentionQ, normalized)
-	query := builder.GroupSlice(queryAndGate, 0, headWidth, heads, 2*headWidth)
-	gate := builder.GroupSlice(queryAndGate, headWidth, headWidth, heads, 2*headWidth)
-	if sequences > 1 {
+	query := builder.GroupSlice(queryAndGate, tensor.FirstOffset, headWidth, heads, tensor.PairedExtent*headWidth)
+	gate := builder.GroupSlice(queryAndGate, headWidth, headWidth, heads, tensor.PairedExtent*headWidth)
+	if sequences > tensor.SingletonExtent {
 		query = builder.Reshape(query, headWidth, heads, tokens, sequences)
 		gate = builder.Reshape(gate, headWidth, heads, tokens, sequences)
 	}
 	keyProjection := builder.MulMat(weights.AttentionK, normalized)
 	valueProjection := builder.MulMat(weights.AttentionV, normalized)
 	var key, value *tensor.Tensor
-	if sequences == 1 {
+	if sequences == tensor.SingletonExtent {
 		key = builder.Reshape(keyProjection, headWidth, uint64(spec.HeadCountKV), tokens)
 		value = builder.Reshape(valueProjection, uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
 	} else {
@@ -826,17 +836,20 @@ func buildGatedProjectionMixCached(
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
 	if pastKey != nil {
-		if pastKey.Shape.Dims[2] > math.MaxUint32 {
-			return DenseBlockResult{}, errors.New("gated-delta attention cache exceeds uint32")
+		pastTokens, keyAxis, validKey := tensor.BatchedTrailingExtent32(
+			pastKey.Shape, sequences, uint64(spec.KeyLength), uint64(spec.HeadCountKV),
+		)
+		valueTokens, valueAxis, validValue := tensor.BatchedTrailingExtent32(
+			pastValue.Shape, sequences, uint64(spec.ValueLength), uint64(spec.HeadCountKV),
+		)
+		if !validKey || !validValue || pastTokens != valueTokens {
+			return DenseBlockResult{}, errors.New("gated-delta attention cache shape is invalid")
 		}
-		queryStart = builder.CacheTokenOffset(uint32(pastKey.Shape.Dims[2]))
-		cacheKey = builder.WriteCache(pastKey, key, 2, cacheWrite)
-		cacheValue = builder.WriteCache(pastValue, value, 2, cacheWrite)
+		queryStart = builder.CacheTokenOffset(pastTokens)
+		cacheKey = builder.WriteCache(pastKey, key, keyAxis, cacheWrite)
+		cacheValue = builder.WriteCache(pastValue, value, valueAxis, cacheWrite)
 	}
-	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
-	if spec.AttentionScale > 0 {
-		attentionScale = spec.AttentionScale
-	}
+	attentionScale := spec.resolvedAttentionScale(uint64(spec.KeyLength))
 	attention := builder.AttentionWithOptions(
 		query,
 		cacheKey,
@@ -879,8 +892,7 @@ func buildGatedDeltaMixCached(
 	}
 	if deltaPolicy == gatedDeltaInterleavedProjections {
 		required.add("SSM beta/alpha", weights.SSMBetaAlpha)
-		if weights.AttentionQKV.Shape.Dims[1] == uint64(spec.SSMInnerSize)+
-			2*uint64(spec.SSMStateSize)*uint64(spec.SSMGroupCount) {
+		if weights.AttentionGate != nil {
 			required.add("attention gate", weights.AttentionGate)
 		}
 	} else {
@@ -891,9 +903,9 @@ func buildGatedDeltaMixCached(
 	if err := required.validate("gated-delta recurrent mix"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if len(positions) == 0 || sequences == 0 ||
-		uint64(len(positions)) > math.MaxUint64/sequences ||
-		uint64(len(positions))*sequences != normalized.Shape.Dims[1] {
+	if !tensor.IsBatchedMatrix(
+		normalized.Shape, uint64(spec.EmbeddingLength), uint64(len(positions)), sequences,
+	) {
 		return DenseBlockResult{}, errors.New("gated-delta recurrent position count is invalid")
 	}
 	tokens := uint64(len(positions))
@@ -902,13 +914,14 @@ func buildGatedDeltaMixCached(
 	valueHeads := uint64(spec.SSMTimeStepRank)
 	keyDimension := stateWidth * keyHeads
 	valueDimension := uint64(spec.SSMInnerSize)
-	convChannels := 2*keyDimension + valueDimension
-	wantConvState := tensor.MustShape(uint64(spec.SSMConvKernel-1), convChannels)
-	if sequences > 1 {
-		wantConvState = tensor.MustShape(uint64(spec.SSMConvKernel-1), convChannels, sequences)
+	convChannels := tensor.PairedExtent*keyDimension + valueDimension
+	convStateWidth := uint64(spec.SSMConvKernel - tensor.SingletonExtent)
+	validConvState := tensor.HasDimensions(convState.Shape, convStateWidth, convChannels)
+	if sequences > tensor.SingletonExtent {
+		validConvState = tensor.HasDimensions(convState.Shape, convStateWidth, convChannels, sequences)
 	}
-	if !convState.Shape.Equal(wantConvState) ||
-		!ssmState.Shape.Equal(tensor.MustShape(stateWidth, stateWidth, valueHeads, sequences)) {
+	if !validConvState ||
+		!tensor.HasDimensions(ssmState.Shape, stateWidth, stateWidth, valueHeads, sequences) {
 		return DenseBlockResult{}, errors.New("gated-delta recurrent cache shape is invalid")
 	}
 
@@ -918,24 +931,24 @@ func buildGatedDeltaMixCached(
 	if deltaPolicy == gatedDeltaInterleavedProjections && weights.AttentionGate == nil {
 		valueHeadsPerGroup := valueHeads / keyHeads
 		valueWidthPerGroup := stateWidth * valueHeadsPerGroup
-		groupStride := 2*stateWidth + 2*valueWidthPerGroup
-		query := builder.GroupSlice(qkvProjection, 0, stateWidth, keyHeads, groupStride)
+		groupStride := tensor.PairedExtent*stateWidth + tensor.PairedExtent*valueWidthPerGroup
+		query := builder.GroupSlice(qkvProjection, tensor.FirstOffset, stateWidth, keyHeads, groupStride)
 		key := builder.GroupSlice(qkvProjection, stateWidth, stateWidth, keyHeads, groupStride)
 		value := builder.GroupSlice(
-			qkvProjection, 2*stateWidth, valueWidthPerGroup, keyHeads, groupStride,
+			qkvProjection, tensor.PairedExtent*stateWidth, valueWidthPerGroup, keyHeads, groupStride,
 		)
 		z = builder.GroupSlice(
-			qkvProjection, 2*stateWidth+valueWidthPerGroup,
+			qkvProjection, tensor.PairedExtent*stateWidth+valueWidthPerGroup,
 			valueWidthPerGroup, keyHeads, groupStride,
 		)
 		qkvMixed = builder.Concat(
 			builder.Concat(
 				builder.Reshape(query, keyDimension, tokens),
 				builder.Reshape(key, keyDimension, tokens),
-				0,
+				tensor.FirstOffset,
 			),
 			builder.Reshape(value, valueDimension, tokens),
-			0,
+			tensor.FirstOffset,
 		)
 		z = builder.Reshape(z, stateWidth, valueHeads, tokens, sequences)
 	} else {
@@ -946,21 +959,21 @@ func buildGatedDeltaMixCached(
 		valueHeadsPerGroup := valueHeads / keyHeads
 		betaAlpha := builder.MulMat(weights.SSMBetaAlpha, normalized)
 		beta = builder.GroupSlice(
-			betaAlpha, 0, valueHeadsPerGroup, keyHeads, 2*valueHeadsPerGroup,
+			betaAlpha, tensor.FirstOffset, valueHeadsPerGroup, keyHeads, tensor.PairedExtent*valueHeadsPerGroup,
 		)
 		alpha = builder.GroupSlice(
 			betaAlpha, valueHeadsPerGroup, valueHeadsPerGroup,
-			keyHeads, 2*valueHeadsPerGroup,
+			keyHeads, tensor.PairedExtent*valueHeadsPerGroup,
 		)
-		beta = builder.Reshape(builder.Sigmoid(beta), 1, valueHeads, tokens, sequences)
+		beta = builder.Reshape(builder.Sigmoid(beta), tensor.SingletonExtent, valueHeads, tokens, sequences)
 		alpha = builder.Reshape(alpha, valueHeads, tokens, sequences)
 	} else {
 		beta = builder.Reshape(
 			builder.Sigmoid(builder.MulMat(weights.SSMBeta, normalized)),
-			1, valueHeads, tokens, sequences,
+			tensor.SingletonExtent, valueHeads, tokens, sequences,
 		)
 		alpha = builder.MulMat(weights.SSMAlpha, normalized)
-		if sequences > 1 {
+		if sequences > tensor.SingletonExtent {
 			alpha = builder.Reshape(alpha, valueHeads, tokens, sequences)
 		}
 	}
@@ -968,38 +981,38 @@ func buildGatedDeltaMixCached(
 		builder.Softplus(builder.Add(alpha, weights.SSMTimeStep)),
 		weights.SSMA,
 	)
-	gate = builder.Reshape(gate, 1, valueHeads, tokens, sequences)
+	gate = builder.Reshape(gate, tensor.SingletonExtent, valueHeads, tokens, sequences)
 
 	var qkvTime *tensor.Tensor
-	if sequences > 1 && tokens == 1 {
+	if sequences > tensor.SingletonExtent && tokens == tensor.SingletonExtent {
 		qkvTime = builder.Reshape(qkvMixed, tokens, convChannels, sequences)
 	} else {
 		qkvTime = builder.Transpose2D(qkvMixed)
-		if sequences > 1 {
+		if sequences > tensor.SingletonExtent {
 			qkvTime = builder.Reshape(qkvTime, tokens, convChannels, sequences)
 		}
 	}
-	convInput := builder.Concat(convState, qkvTime, 0)
+	convInput := builder.Concat(convState, qkvTime, tensor.FirstOffset)
 	nextConvState := builder.GroupSlice(
 		convInput,
 		tokens,
-		uint64(spec.SSMConvKernel-1),
-		1,
-		uint64(spec.SSMConvKernel-1),
+		uint64(spec.SSMConvKernel-tensor.SingletonExtent),
+		tensor.SingletonExtent,
+		uint64(spec.SSMConvKernel-tensor.SingletonExtent),
 	)
-	if sequences == 1 {
+	if sequences == tensor.SingletonExtent {
 		nextConvState = builder.Reshape(
-			nextConvState, uint64(spec.SSMConvKernel-1), convChannels,
+			nextConvState, uint64(spec.SSMConvKernel-tensor.SingletonExtent), convChannels,
 		)
 	} else {
 		nextConvState = builder.Reshape(
-			nextConvState, uint64(spec.SSMConvKernel-1), convChannels, sequences,
+			nextConvState, uint64(spec.SSMConvKernel-tensor.SingletonExtent), convChannels, sequences,
 		)
 	}
 	convolved := builder.SiLU(builder.SSMConv(convInput, weights.SSMConv1D))
-	query := builder.GroupSlice(convolved, 0, stateWidth, keyHeads, stateWidth)
+	query := builder.GroupSlice(convolved, tensor.FirstOffset, stateWidth, keyHeads, stateWidth)
 	key := builder.GroupSlice(convolved, keyDimension, stateWidth, keyHeads, stateWidth)
-	value := builder.GroupSlice(convolved, 2*keyDimension, stateWidth, valueHeads, stateWidth)
+	value := builder.GroupSlice(convolved, tensor.PairedExtent*keyDimension, stateWidth, valueHeads, stateWidth)
 	query = builder.Reshape(builder.L2Norm(query, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
 	key = builder.Reshape(builder.L2Norm(key, spec.RMSNormEpsilon), stateWidth, keyHeads, tokens, sequences)
 	value = builder.Reshape(value, stateWidth, valueHeads, tokens, sequences)
@@ -1012,7 +1025,7 @@ func buildGatedDeltaMixCached(
 	attentionElements := stateWidth * valueHeads * tokens * sequences
 	attention := builder.FlatSlice(
 		packed,
-		0,
+		tensor.FirstOffset,
 		stateWidth,
 		valueHeads,
 		tokens,
@@ -1055,7 +1068,7 @@ func buildRoutedSwiGLUFeedForwardMix(
 	if composition.kind == expertSharedGated {
 		feedForward = experts.BuildLayer(builder, normalized, nil, weights)
 		sharedRouter := builder.Reshape(
-			weights.FeedForwardSharedRouter, normalized.Shape.Dims[0], 1,
+			weights.FeedForwardSharedRouter, normalized.Shape.ContiguousExtent(), tensor.SingletonExtent,
 		)
 		sharedGate := builder.Sigmoid(builder.MulMat(sharedRouter, normalized))
 		shared := builder.MulMat(

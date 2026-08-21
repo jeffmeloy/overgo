@@ -34,8 +34,8 @@ func TestDeviceWeightsIntegration(t *testing.T) {
 	if err := weights.Load(context.Background(), file, file.Tensors); err != nil {
 		t.Fatal(err)
 	}
-	if weights.Count() != 1 {
-		t.Fatalf("weight count = %d, want 1", weights.Count())
+	if _, loaded := weights.Lookup("weight"); !loaded {
+		t.Fatal("weight was not loaded")
 	}
 	var downloaded = make([]byte, 16)
 	err = weights.Do(context.Background(), func(state *device.State, tensors map[string]DeviceTensor) error {

@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"math"
 
 	"overgo/internal/tensor"
 )
@@ -19,6 +18,9 @@ const (
 
 // ValidateArchitectureProfile checks persisted policy domains and relationships.
 func ValidateArchitectureProfile(profile ArchitectureProfile) error {
+	if (profile.DraftKind == DraftSingleCatalog) != (profile.DraftQueryCopies > tensor.FirstOffset) {
+		return fmt.Errorf("architecture profile %q: draft query packing is inconsistent", profile.Name)
+	}
 	if err := ValidateArchitectureName(profile.Name); err != nil {
 		return err
 	}
@@ -68,7 +70,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Metadata.Heads", profile.Metadata.Heads, metadataHybridLayers),
 		validateProfileOrdinal("Metadata.KVHeads", profile.Metadata.KVHeads, metadataHybridLayers),
 		validateProfileOrdinal("MetadataDefaults.SharedExpert", profile.MetadataDefaults.SharedExpert, SharedExpertDefaultExpertProduct),
-		validateProfileOrdinal("Validation.BaseRotary", profile.Validation.BaseRotary, BaseRotaryValidationHalfWidth),
+		validateProfileOrdinal("Validation.BaseRotary", profile.Validation.BaseRotary, BaseRotaryValidationPaired),
 		validateProfileOrdinal("Validation.ExpertMetadata", profile.Validation.ExpertMetadata, ExpertMetadataWhenDeclared),
 		validateProfileOrdinal("Validation.Encoder", profile.Validation.Encoder, EncoderValidationRotaryPeriodicExperts),
 		validateProfileOrdinal("Validation.Attention", profile.Validation.Attention, AttentionValidationOptionalExperts),
@@ -94,13 +96,13 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	if !profile.Forward.valid() {
 		return fmt.Errorf("architecture profile %q: invalid forward program", profile.Name)
 	}
-	if unknown := profile.Capabilities &^ allArchitectureCapabilities; unknown != 0 {
+	if unknown := profile.Capabilities &^ allArchitectureCapabilities; unknown != tensor.FirstOffset {
 		return fmt.Errorf("architecture profile %q: Capabilities has unknown bits %#x", profile.Name, unknown)
 	}
-	if unknown := profile.Experts.SupplementalCatalog &^ allExpertSupplements; unknown != 0 {
+	if unknown := profile.Experts.SupplementalCatalog &^ allExpertSupplements; unknown != tensor.FirstOffset {
 		return fmt.Errorf("architecture profile %q: Experts.SupplementalCatalog has unknown bits %#x", profile.Name, unknown)
 	}
-	if unknown := profile.MetadataRead &^ allMetadataReadPolicies; unknown != 0 {
+	if unknown := profile.MetadataRead &^ allMetadataReadPolicies; unknown != tensor.FirstOffset {
 		return fmt.Errorf("architecture profile %q: MetadataRead has unknown bits %#x", profile.Name, unknown)
 	}
 	for _, scalar := range []struct {
@@ -122,22 +124,27 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		{"Runtime.Recurrent.KeyNormEpsilon", profile.Runtime.Recurrent.KeyNormEpsilon},
 		{"Runtime.Recurrent.PeriodicResidualScale", profile.Runtime.Recurrent.PeriodicResidualScale},
 	} {
-		if scalar.value < 0 || math.IsNaN(float64(scalar.value)) || math.IsInf(float64(scalar.value), 0) {
+		if scalar.value < tensor.FirstOffset || !finite(scalar.value) {
 			return fmt.Errorf("architecture profile %q: %s must be finite and nonnegative", profile.Name, scalar.name)
 		}
 	}
 	recurrent := profile.Runtime.Recurrent
 	switch profile.Validation.Recurrent {
+	case RecurrentValidationUngroupedStateSpace, RecurrentValidationStateSpaceAttentionExperts,
+		RecurrentValidationGroupedStateSpaceOptionalExperts:
+		if recurrent.InnerWidthMultiplier == tensor.FirstOffset {
+			return fmt.Errorf("architecture profile %q: recurrent inner-width policy is incomplete", profile.Name)
+		}
 	case RecurrentValidationTimeMixV6:
-		if recurrent.TokenShiftCount == 0 || recurrent.HeadNormEpsilon <= 0 || recurrent.PeriodicResidualScale <= 0 {
+		if recurrent.TokenShiftCount == tensor.FirstOffset || !positiveFinite(recurrent.HeadNormEpsilon) || !positiveFinite(recurrent.PeriodicResidualScale) {
 			return fmt.Errorf("architecture profile %q: RWKV6 runtime policy is incomplete", profile.Name)
 		}
 	case RecurrentValidationTimeMixV6SharedKV:
-		if recurrent.TokenShiftCount == 0 || recurrent.PeriodicResidualScale <= 0 {
+		if recurrent.TokenShiftCount == tensor.FirstOffset || !positiveFinite(recurrent.PeriodicResidualScale) {
 			return fmt.Errorf("architecture profile %q: RWKV6-Qwen2 runtime policy is incomplete", profile.Name)
 		}
 	case RecurrentValidationTimeMixV7Gated, RecurrentValidationTimeMixV7:
-		if recurrent.TokenShiftCount == 0 || recurrent.HeadNormEpsilon <= 0 || recurrent.KeyNormEpsilon <= 0 {
+		if recurrent.TokenShiftCount == tensor.FirstOffset || !positiveFinite(recurrent.HeadNormEpsilon) || !positiveFinite(recurrent.KeyNormEpsilon) {
 			return fmt.Errorf("architecture profile %q: RWKV7 runtime policy is incomplete", profile.Name)
 		}
 	}
@@ -153,17 +160,31 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		!profile.readsMetadata(MetadataReadALiBi) {
 		return fmt.Errorf("architecture profile %q: zero ALiBi default requires ALiBi metadata", profile.Name)
 	}
+	if (profile.readsMetadata(MetadataReadALiBi) && !profile.readsMetadata(MetadataReadZeroALiBiDefault) ||
+		profile.EncoderOperator.usesALiBiQKNorm()) &&
+		!positiveFinite(profile.MetadataDefaults.MaxALiBiBias) {
+		return fmt.Errorf("architecture profile %q: ALiBi default is absent", profile.Name)
+	}
+	if (profile.readsMetadata(MetadataReadSmolLM3NoRoPE) ||
+		profile.Validation.Hybrid == HybridValidationSlidingSigmoidExperts) &&
+		profile.MetadataDefaults.NoRopeLayerStep == tensor.FirstOffset {
+		return fmt.Errorf("architecture profile %q: no-RoPE cadence default is absent", profile.Name)
+	}
 	if profile.readsMetadata(MetadataReadGLMDSAGating) && profile.Attention != AttentionSparseLatent {
 		return fmt.Errorf("architecture profile %q: GLM-DSA metadata requires DSA attention", profile.Name)
 	}
 	if profile.Validation.QLoRARankOptional && !profile.Has(ArchitectureLatentKVLayout) {
 		return fmt.Errorf("architecture profile %q: optional Q-LoRA rank requires latent KV layout", profile.Name)
 	}
-	if profile.MetadataDefaults.MaxALiBiBias > 0 && !profile.MetadataDefaults.RopeDisabled {
+	if positiveFinite(profile.MetadataDefaults.MaxALiBiBias) && !profile.MetadataDefaults.RopeDisabled &&
+		!profile.readsMetadata(MetadataReadALiBi) && !profile.EncoderOperator.usesALiBiQKNorm() {
 		return fmt.Errorf("architecture profile %q: ALiBi default requires disabled RoPE", profile.Name)
 	}
-	if profile.MetadataDefaults.SlidingWindow > 0 && profile.MetadataDefaults.SlidingPattern < 2 {
+	if profile.MetadataDefaults.SlidingWindow > tensor.FirstOffset && profile.MetadataDefaults.SlidingPattern < tensor.PairedExtent {
 		return fmt.Errorf("architecture profile %q: sliding-window default requires a period", profile.Name)
+	}
+	if profile.Validation.optionalRopeBase() && !positiveFinite(profile.MetadataDefaults.RopeFrequencyBase) {
+		return fmt.Errorf("architecture profile %q: optional RoPE base default is absent", profile.Name)
 	}
 	if profile.AttentionGraph.GatedDelta != gatedDeltaNone && profile.Attention != AttentionGatedDelta {
 		return fmt.Errorf("architecture profile %q: Qwen GDN graph requires Qwen GDN attention", profile.Name)
@@ -178,7 +199,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		return fmt.Errorf("architecture profile %q: scaled latent position defaults are incomplete", profile.Name)
 	}
 	if profile.Validation.Hybrid == HybridValidationChunkedExperts &&
-		(defaults.SlidingWindow == 0 || !positiveFinite(defaults.AttentionTemperatureScale) ||
+		(defaults.SlidingWindow == tensor.FirstOffset || !positiveFinite(defaults.AttentionTemperatureScale) ||
 			!finite(defaults.AttentionTemperatureOffset)) {
 		return fmt.Errorf("architecture profile %q: chunked attention defaults are incomplete", profile.Name)
 	}
@@ -187,10 +208,10 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	}
 	if profile.Validation.hybridOneOf(
 		HybridValidationAlternatingGatedDelta, HybridValidationAlternatingGatedDeltaHybrid, HybridValidationAlternatingGatedDeltaExperts,
-	) && defaults.FullAttentionInterval == 0 {
+	) && defaults.FullAttentionInterval == tensor.FirstOffset {
 		return fmt.Errorf("architecture profile %q: full-attention cadence default is absent", profile.Name)
 	}
-	if profile.Validation.Hybrid == HybridValidationCompressedHyperDraft && defaults.MoELayerStep == 0 {
+	if profile.Validation.Hybrid == HybridValidationCompressedHyperDraft && defaults.MoELayerStep == tensor.FirstOffset {
 		return fmt.Errorf("architecture profile %q: MoE cadence default is absent", profile.Name)
 	}
 	if profile.Validation.Hybrid == HybridValidationSparseSharedExperts && !defaults.ExpertChunkFromKey {
@@ -207,21 +228,24 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		return fmt.Errorf("architecture profile %q: repeated shared expert relationship is absent", profile.Name)
 	}
 	if profile.Validation.Attention == AttentionValidationSharedKVAlternatingState &&
-		(defaults.AlternateStateCount == 0 || defaults.LowRankResidualWidth == 0 ||
-			defaults.PerLayerEmbeddingWidth == 0 || defaults.SharedKVStartLayer == 0 ||
-			defaults.SparseLayerCount == 0 || defaults.SparsityStdMultiplier <= 0 ||
-			profile.Validation.RequiredBlockCount == 0 || profile.Validation.AlternateBlockCount == 0 ||
+		(defaults.AlternateStateCount == tensor.FirstOffset || defaults.LowRankResidualWidth == tensor.FirstOffset ||
+			defaults.PerLayerEmbeddingWidth == tensor.FirstOffset || defaults.SharedKVStartLayer == tensor.FirstOffset ||
+			defaults.SparseLayerCount == tensor.FirstOffset || !positiveFinite(defaults.SparsityStdMultiplier) ||
+			profile.Validation.RequiredBlockCount == tensor.FirstOffset || profile.Validation.AlternateBlockCount == tensor.FirstOffset ||
 			profile.Validation.RequiredBlockCount == profile.Validation.AlternateBlockCount ||
-			profile.Validation.SlidingPeriod < 2) {
+			profile.Validation.SlidingPeriod < tensor.PairedExtent || !positiveFinite(profile.Runtime.ActivationResidualScale)) {
 		return fmt.Errorf("architecture profile %q: alternate-state metadata defaults are incomplete", profile.Name)
 	}
-	if profile.Validation.Recurrent == RecurrentValidationTargetLayerBlock && defaults.DraftBlockSize == 0 {
+	if profile.Has(ArchitecturePerLayerEmbeddings) && !positiveFinite(profile.Runtime.ActivationResidualScale) {
+		return fmt.Errorf("architecture profile %q: per-layer residual scale is absent", profile.Name)
+	}
+	if profile.Validation.Recurrent == RecurrentValidationTargetLayerBlock && defaults.DraftBlockSize == tensor.FirstOffset {
 		return fmt.Errorf("architecture profile %q: paired-feature draft block default is absent", profile.Name)
 	}
 	indexer := profile.Cadence
 	if indexer.FullIndexerEveryLayer &&
-		(indexer.FullIndexerContext != 0 || indexer.FullIndexerPrefix != 0 || indexer.FullIndexerPeriod != 0) ||
-		!indexer.FullIndexerEveryLayer && indexer.FullIndexerContext > 0 && indexer.FullIndexerPeriod == 0 {
+		(indexer.FullIndexerContext != tensor.FirstOffset || indexer.FullIndexerPrefix != tensor.FirstOffset || indexer.FullIndexerPeriod != tensor.FirstOffset) ||
+		!indexer.FullIndexerEveryLayer && indexer.FullIndexerContext > tensor.FirstOffset && indexer.FullIndexerPeriod == tensor.FirstOffset {
 		return fmt.Errorf("architecture profile %q: invalid full-indexer cadence", profile.Name)
 	}
 	if profile.Rotary.MultiAxis != multiAxisRotaryNone && !profile.Has(ArchitectureMultiAxisPositions) {
@@ -229,7 +253,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 	}
 	fusedRequirements := ArchitectureRequiresFusedQKV | ArchitectureRequiresFusedQKVBias |
 		ArchitectureRejectsOrphanFusedQKVBias
-	if profile.Capabilities&fusedRequirements != 0 && !profile.Has(ArchitectureFusedQKV) {
+	if profile.Capabilities&fusedRequirements != tensor.FirstOffset && !profile.Has(ArchitectureFusedQKV) {
 		return fmt.Errorf("architecture profile %q: fused QKV requirements require fused QKV", profile.Name)
 	}
 	return nil

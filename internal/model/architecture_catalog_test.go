@@ -91,7 +91,7 @@ func TestEmbeddedArchitectureCatalog(t *testing.T) {
 		t.Fatalf("catalog profiles = %d, registry profiles = %d", len(registry), len(architectureRegistry))
 	}
 	for name, profile := range registry {
-		if architectureRegistry[name] != profile {
+		if !architectureRegistry[name].equal(profile) {
 			t.Fatalf("profile %q drifted during bootstrap", name)
 		}
 	}

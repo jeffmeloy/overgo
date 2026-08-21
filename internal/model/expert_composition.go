@@ -2,8 +2,8 @@ package model
 
 import (
 	"errors"
-	"math"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 )
 
@@ -88,7 +88,7 @@ const (
 )
 
 func (c expertSupplementalCatalog) has(item expertSupplementalCatalog) bool {
-	return c&item != 0
+	return c&item != expertSupplementalCatalog(tensor.FirstOffset)
 }
 
 // ExpertPolicy: routed/shared expert planning policy.
@@ -116,7 +116,7 @@ func (p ExpertPolicy) usesCatalog(spec Spec, block uint32, routerPresent, nextN 
 	case expertCatalogAlways:
 		return true
 	case expertCatalogWithExperts:
-		return spec.ExpertCount > 0
+		return spec.HasExperts()
 	case expertCatalogWithRouter:
 		return routerPresent
 	case expertCatalogAfterDense:
@@ -133,15 +133,15 @@ func (p ExpertPolicy) usesCatalog(spec Spec, block uint32, routerPresent, nextN 
 func (p ExpertPolicy) compositionKind(spec Spec) expertCompositionKind {
 	switch p.Condition {
 	case expertCompositionWithShared:
-		if spec.SharedExpertFF == 0 {
+		if spec.SharedExpertFF == tensor.FirstOffset {
 			return expertRoutedOnly
 		}
 	case expertCompositionWithExpertsAndShared:
-		if spec.ExpertCount == 0 || spec.SharedExpertFF == 0 {
+		if spec.ExpertCount == tensor.FirstOffset || spec.SharedExpertFF == tensor.FirstOffset {
 			return expertRoutedOnly
 		}
 	case expertCompositionUnlessSigmoidWithoutShared:
-		if spec.ExpertGatingFunc == expertGatingSigmoid && spec.SharedExpertFF == 0 {
+		if spec.ExpertGatingFunc == expertGatingSigmoid && spec.SharedExpertFF == tensor.FirstOffset {
 			return expertRoutedOnly
 		}
 	}
@@ -156,8 +156,8 @@ type ExpertCompositionPlan struct {
 }
 
 func (p ExpertCompositionPlan) Validate(spec Spec) error {
-	if p.kind == expertGrouped && (spec.ExpertsPerGroup == 0 || spec.ExpertCount == 0 ||
-		spec.ExpertCount%spec.ExpertsPerGroup != 0) {
+	if p.kind == expertGrouped && (spec.ExpertsPerGroup == tensor.FirstOffset ||
+		spec.ExpertCount == tensor.FirstOffset || spec.ExpertCount%spec.ExpertsPerGroup != tensor.FirstOffset) {
 		return errors.New("grouped expert composition is invalid")
 	}
 	return nil
@@ -168,7 +168,7 @@ func (s Spec) expertCompositionPlan(profile ArchitectureProfile) ExpertCompositi
 	plan := ExpertCompositionPlan{
 		kind: policy.compositionKind(s), routerInputOriginal: policy.RouterInputOriginal,
 	}
-	if policy.ResidualScale && s.ExpertCount > 0 {
+	if policy.ResidualScale && s.HasExperts() {
 		plan.residualScale = s.ResidualScale
 	}
 	return plan
@@ -214,7 +214,8 @@ func (p ExpertCompositionPlan) Build(
 		routed = builder.Add(routed, buildSharedSwiGLU(builder, normalized, weights))
 	case expertSharedAverage:
 		routed = builder.Scale(
-			builder.Add(routed, buildSharedSwiGLU(builder, normalized, weights)), 0.5,
+			builder.Add(routed, buildSharedSwiGLU(builder, normalized, weights)),
+			tensor.UnitScale/float32(tensor.PairedExtent),
 		)
 	case expertSharedLimited:
 		gate := builder.MulMat(weights.FeedForwardSharedGate, normalized)
@@ -226,13 +227,13 @@ func (p ExpertCompositionPlan) Build(
 		routed = builder.Add(routed, shared)
 	case expertSharedGated:
 		gateWeight := builder.Reshape(
-			weights.FeedForwardSharedRouter, uint64(spec.EmbeddingLength), 1,
+			weights.FeedForwardSharedRouter, uint64(spec.EmbeddingLength), tensor.SingletonExtent,
 		)
 		gate := builder.Sigmoid(builder.MulMat(gateWeight, normalized))
 		shared := buildSharedSwiGLU(builder, normalized, weights)
 		routed = builder.Add(routed, builder.Multiply(shared, gate))
 	case expertGrouped:
-		if spec.ExpertsPerGroup == 0 {
+		if spec.ExpertsPerGroup == tensor.FirstOffset {
 			return nil, errors.New("grouped expert composition is invalid")
 		}
 		chunkTopK := spec.ExpertUsedCount
@@ -260,7 +261,7 @@ func (p ExpertCompositionPlan) Build(
 			gate := builder.MulMat(weights.FeedForwardGate, normalized)
 			up := builder.MulMat(weights.FeedForwardUp, normalized)
 			dense := builder.MulMat(weights.FeedForwardDown, builder.GEGLU(gate, up))
-			routed = builder.Scale(builder.Add(dense, routed), float32(math.Sqrt(0.5)))
+			routed = builder.Scale(builder.Add(dense, routed), hostmath.InvSqrt32(tensor.PairedExtent))
 		}
 		if weights.FeedForwardPostNorm == nil {
 			return nil, errors.New("dense routed feed-forward post norm is nil")
@@ -269,7 +270,7 @@ func (p ExpertCompositionPlan) Build(
 			routed, weights.FeedForwardPostNorm, spec.RMSNormEpsilon,
 		)
 	}
-	if p.residualScale > 0 {
+	if positiveFinite(p.residualScale) {
 		routed = builder.Scale(routed, p.residualScale)
 	}
 	if err := builder.Err(); err != nil {

@@ -68,7 +68,7 @@ func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWe
 	}
 	queryScale := s.queryScalePlan(profile, layer)
 	plan := DenseWeightPlan{
-		supportsExperts: profile.Has(ArchitectureMoE) || s.ExpertCount > 0,
+		supportsExperts: profile.Experts.Catalog != expertCatalogNone,
 		requirePostNorm: postOnly || policy.RequirePostNorm,
 		requireSubNorm:  policy.RequireSubNorm,
 		requireAttentionOutputBias: profile.FeedForward == FeedForwardSequentialGELU ||

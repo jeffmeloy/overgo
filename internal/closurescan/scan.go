@@ -585,14 +585,15 @@ func collectAssumptionCandidates(file *ast.File, source repoanalysis.GoFile, out
 func collectAssumptionHints(file *ast.File, source repoanalysis.GoFile, out *[]AssumptionHint) {
 	seen := map[string]bool{}
 	imports := importedNames(file)
+	receivers := importedTypedNames(file, imports)
 	inspectWithParents(file, func(node ast.Node, parents map[ast.Node]ast.Node) {
-		var expression, subject ast.Expr
+		var expression, subject, authority ast.Expr
 		switch typed := node.(type) {
 		case *ast.CallExpr:
-			expression, subject = typed, typed.Fun
+			expression, subject, authority = typed, calledName(typed.Fun), typed.Fun
 		case *ast.BinaryExpr:
 			if typed.Op >= token.EQL && typed.Op <= token.GEQ {
-				expression, subject = typed, typed
+				expression, subject, authority = typed, typed, typed
 			}
 		}
 		if expression == nil {
@@ -609,10 +610,17 @@ func collectAssumptionHints(file *ast.File, source repoanalysis.GoFile, out *[]A
 				File: source.Path, Package: filepath.ToSlash(filepath.Dir(source.Path)),
 				Scope: literalScope(node, parents), Line: source.Line(expression.Pos()), Offset: offset,
 				Kind: kind, Expression: formatExpression(expression), SourceID: source.ContentID,
-				Policy: !importedSelector(subject, imports),
+				Policy: !importedSelector(authority, imports, receivers),
 			})
 		}
 	})
+}
+
+func calledName(expression ast.Expr) ast.Expr {
+	if selector, ok := expression.(*ast.SelectorExpr); ok {
+		return selector.Sel
+	}
+	return expression
 }
 
 func importedNames(file *ast.File) map[string]bool {
@@ -631,7 +639,39 @@ func importedNames(file *ast.File) map[string]bool {
 	return names
 }
 
-func importedSelector(expression ast.Expr, imports map[string]bool) bool {
+func importedTypedNames(file *ast.File, imports map[string]bool) map[string]bool {
+	names := map[string]bool{}
+	ast.Inspect(file, func(node ast.Node) bool {
+		field, ok := node.(*ast.Field)
+		if !ok || !typeUsesImport(field.Type, imports) {
+			return true
+		}
+		for _, name := range field.Names {
+			names[name.Name] = true
+		}
+		return true
+	})
+	return names
+}
+
+func typeUsesImport(expression ast.Expr, imports map[string]bool) bool {
+	found := false
+	ast.Inspect(expression, func(node ast.Node) bool {
+		selector, ok := node.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		identifier, ok := selector.X.(*ast.Ident)
+		if ok && imports[identifier.Name] {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+func importedSelector(expression ast.Expr, imports, receivers map[string]bool) bool {
 	selector, ok := expression.(*ast.SelectorExpr)
 	if !ok {
 		return false
@@ -639,7 +679,7 @@ func importedSelector(expression ast.Expr, imports map[string]bool) bool {
 	for expression = selector.X; ; {
 		switch value := expression.(type) {
 		case *ast.Ident:
-			return imports[value.Name]
+			return imports[value.Name] || receivers[value.Name]
 		case *ast.SelectorExpr:
 			expression = value.X
 		default:

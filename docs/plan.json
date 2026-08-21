@@ -1,27 +1,12 @@
 {
   "campaign": "Repository-wide literal elimination and single runtime authority",
-  "doctrine": "Follow skill.md. Current census: 896 production files, 23,430 inline literals, 3,071 assumption hints, 1,724 copied test-policy sites. Audit every non-generated Go file in deterministic scanner order. Classify every literal as structural syntax, mathematical fact, protocol/ABI fact, fixture input, derived value, or runtime policy. Structural, mathematical, protocol, and fixture values require typed dispositions; runtime policy must move to artifacts, RepoDB recipes, compiled plans, or measured resource policy. Recipes and neutral typed operators are sole runtime authorities. Each wave migrates every caller and deletes displaced model-specific orchestration, wrappers, fallbacks, duplicate probes, compatibility readers, and parallel registries immediately. No advisory plans or deferred adoption. Preserve numerical behavior. Prefer fewer allocations, transfers, probes, branches, maps, and operations. Every implementation commit runs focused tests, full host tests, required CUDA/device gates, publishes census evidence, then merges tightening/master before redispatch. Completion requires zero stale bindings, zero open derivation-blocked rows, zero uncatalogued production policy, zero copied test policy, and zero model facts outside artifact/recipe authorities.",
+  "doctrine": "Follow skill.md. Current census: 895 production files, 23,136 inline literals, 2,700 assumption hints, 1,145 copied test-policy sites. Audit every non-generated Go file in deterministic scanner order. Process the first exact scanner finding, then consolidate every same-semantic occurrence in that wave. Classify literals as structural syntax, mathematical fact, protocol/ABI fact, fixture input, derived value, or runtime policy. Runtime policy must move to artifacts, RepoDB recipes, compiled plans, or measured resource policy. Constants may name stable mathematics or wire contracts; they may not rename model policy locally. Recipes and neutral typed operators are sole runtime authorities. Each wave migrates every caller and immediately deletes displaced model-specific orchestration, wrappers, fallbacks, duplicate probes, compatibility readers, and parallel registries. No advisory plans or deferred adoption. Production changes must be net-negative unless scanner infrastructure itself is being corrected. Preserve numerical behavior. Prefer fewer allocations, transfers, probes, branches, maps, and operations. Every implementation commit runs focused tests, full host tests, required CUDA/device gates, publishes census evidence, then merges tightening/master before redispatch. Completion requires zero stale bindings, zero open derivation-blocked rows, zero uncatalogued production policy, zero copied test policy, and zero model facts outside artifact/recipe authorities.",
   "items": [
     {
       "id": "magic-model-authority",
       "title": "Remove model facts and orchestration from runtime code",
       "status": "open",
       "steps": [
-        {
-          "id": "graph-topology",
-          "title": "Replace model topology switches and literals with recipe-compiled neutral operators",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/model -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production",
-          "rationale": "Model graph code is the largest decision surface and still duplicates topology beside neutral operators.",
-          "depends_on": [
-            "magic-model-authority/artifact-recipe"
-          ],
-          "capabilities": [
-            "neutral-operator-graph",
-            "recipe-topology",
-            "model-neutral-runtime"
-          ]
-        },
         {
           "id": "projection",
           "title": "Replace projector family orchestration with typed projection programs",
@@ -125,13 +110,43 @@
       "status": "open",
       "steps": [
         {
+          "id": "compute-runtime",
+          "title": "Consolidate tensor, host, device, CUDA, graph-runtime, and memory policy",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/tensor,internal/hostmath,internal/devicemath,internal/cuda,internal/graphruntime -require-classified -require-no-stale -require-no-uncatalogued-production",
+          "rationale": "Low-level relations and launch policy require one typed owner before higher runtimes can delete local copies.",
+          "depends_on": [
+            "magic-format-authority/artifact-storage"
+          ],
+          "capabilities": [
+            "typed-compute-contracts",
+            "compiled-launch-policy",
+            "lifetime-owned-memory"
+          ]
+        },
+        {
+          "id": "derived-runtimes",
+          "title": "Delete literals and duplicate orchestration from derived model runtimes",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/densecausal,internal/routedlm,internal/scratchmodel,internal/seq2seq,internal/seriesforecast,internal/tabularicl,internal/patchtower -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production",
+          "rationale": "Derived runtimes must compose compiled recipes and neutral operators without restating shapes, topology, or residency.",
+          "depends_on": [
+            "magic-runtime-remaining/compute-runtime"
+          ],
+          "capabilities": [
+            "recipe-only-derived-runtime",
+            "indexed-bindings",
+            "shared-operators"
+          ]
+        },
+        {
           "id": "training",
           "title": "Derive training and optimizer policy from compiled training plans",
           "status": "open",
           "verify": "go run ./cmd/closure-scan -check-scope internal/optimizer,internal/trainingprogram,internal/trainingworkflow,internal/hybridtrain,internal/adaptertrain,internal/controllertrain -require-classified -require-no-stale -require-no-uncatalogued-production",
           "rationale": "Training literals must derive from model, dataset, optimizer ownership, and measured resource plans.",
           "depends_on": [
-            "magic-format-authority/artifact-storage"
+            "magic-runtime-remaining/derived-runtimes"
           ],
           "capabilities": [
             "compiled-training-plan",
@@ -156,13 +171,43 @@
           ]
         },
         {
+          "id": "server-workflows",
+          "title": "Remove server, workflow, session, and protocol policy duplication",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/server,internal/workflowrecipe,internal/workflowruntime,internal/recipe,internal/modelrecipe -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production",
+          "rationale": "Server and workflow code should compose admitted plans; protocol literals require one wire owner.",
+          "depends_on": [
+            "magic-runtime-remaining/data-evaluation"
+          ],
+          "capabilities": [
+            "thin-serving-boundary",
+            "recipe-workflows",
+            "typed-protocols"
+          ]
+        },
+        {
+          "id": "composition-evidence",
+          "title": "Consolidate composition, metrics, telemetry, and evidence policy",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/composition,internal/tensorstats,internal/runrecord,internal/thoughtbank,internal/codeprofile -require-classified -require-no-stale -require-no-uncatalogued-production",
+          "rationale": "Catalog similarity remains a literal filter; metrics and evidence must not introduce hidden distribution, geometry, or threshold policy.",
+          "depends_on": [
+            "magic-runtime-remaining/server-workflows"
+          ],
+          "capabilities": [
+            "typed-catalog-evidence",
+            "distribution-neutral-metrics",
+            "shared-telemetry"
+          ]
+        },
+        {
           "id": "shared-runtime",
           "title": "Delete duplicated policy across remaining internal runtime owners",
           "status": "open",
           "verify": "go run ./cmd/closure-scan -check-scope internal -require-classified -require-no-stale -require-no-uncatalogued-production",
           "rationale": "The deterministic census must close every remaining internal package without reworking already closed owners.",
           "depends_on": [
-            "magic-runtime-remaining/data-evaluation"
+            "magic-runtime-remaining/composition-evidence"
           ],
           "capabilities": [
             "shared-runtime-primitives",

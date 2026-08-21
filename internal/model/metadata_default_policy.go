@@ -5,6 +5,8 @@ import (
 	"math"
 
 	"overgo/internal/gguf"
+	"overgo/internal/hostmath"
+	"overgo/internal/tensor"
 )
 
 // RopeDimensionDefaultPolicy: missing rotary-width relationship.
@@ -50,13 +52,16 @@ type MetadataDefaultPolicy struct {
 	AttentionTemperatureOffset float32
 	MaxALiBiBias               float32
 	RopeAttentionFactor        float32
+	RopeFrequencyBase          float32
 	RopeFrequencySWA           float32
+	YaRNBetaFast               float32
 	RopeDisabled               bool
 	OriginalContext            bool
 	RopeFrequencyFromBase      bool
 	RopeDimension              RopeDimensionDefaultPolicy
 	DecoderBlocksFromModel     bool
 	FullAttentionInterval      uint32
+	NoRopeLayerStep            uint32
 	MoELayerStep               uint32
 	ExpertChunkFromKey         bool
 	SharedExpert               SharedExpertDefaultPolicy
@@ -66,7 +71,7 @@ func (p MetadataDefaultPolicy) uint(values map[string]gguf.Value, prefix, key st
 	return optionalOr(values, prefix+key, gguf.ValueTypeUint32, fallback)
 }
 
-func (p MetadataDefaultPolicy) readSharedExpertWidth(
+func (p MetadataDefaultPolicy) readSharedExpertFeedForward(
 	values map[string]gguf.Value,
 	prefix string,
 	spec Spec,
@@ -78,18 +83,18 @@ func (p MetadataDefaultPolicy) readSharedExpertWidth(
 	case SharedExpertDefaultExpertFeedForward:
 		fallback = spec.ExpertFeedForward
 	case SharedExpertDefaultExpertProduct:
-		if spec.ExpertFeedForward == 0 || spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
-			return 0, errors.New("shared expert width overflows")
+		if spec.ExpertFeedForward == tensor.FirstOffset || spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
+			return 0, errors.New("shared expert feed-forward extent overflows")
 		}
 		fallback = spec.ExpertFeedForward * spec.SharedExpertCount
 	default:
-		return 0, errors.New("shared expert width relationship is absent")
+		return 0, errors.New("shared expert feed-forward relationship is absent")
 	}
 	return p.uint(values, prefix, "expert_shared_feed_forward_length", fallback), nil
 }
 
 func derivedExpertFeedForward(spec Spec) (uint32, error) {
-	if spec.ExpertUsedCount == 0 || spec.FeedForwardLength%spec.ExpertUsedCount != 0 {
+	if spec.ExpertUsedCount == tensor.FirstOffset || spec.FeedForwardLength%spec.ExpertUsedCount != tensor.FirstOffset {
 		return 0, errors.New("expert feed-forward width is not exactly derivable")
 	}
 	return spec.FeedForwardLength / spec.ExpertUsedCount, nil
@@ -102,36 +107,36 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 		}
 		return fallback
 	}
-	if p.AttentionSoftcap > 0 {
+	if positiveFinite(p.AttentionSoftcap) {
 		spec.AttentionSoftcap = readFloat("attn_logit_softcapping", p.AttentionSoftcap)
 	}
-	if p.AttentionOutputScale > 0 {
+	if positiveFinite(p.AttentionOutputScale) {
 		spec.AttentionScale = readFloat("attention.output_scale", p.AttentionOutputScale)
 	}
-	if p.EmbeddingScale > 0 {
+	if positiveFinite(p.EmbeddingScale) {
 		spec.EmbeddingScale = readFloat("embedding_scale", p.EmbeddingScale)
 	}
-	if p.LogitScale > 0 {
+	if positiveFinite(p.LogitScale) {
 		spec.LogitScale = readFloat("logit_scale", p.LogitScale)
 	}
 	if positiveFinite(p.ResidualScalePerSqrtBlock) {
 		spec.ResidualScale = readFloat(
-			"residual_scale", p.ResidualScalePerSqrtBlock/float32(math.Sqrt(float64(spec.BlockCount))),
+			"residual_scale", p.ResidualScalePerSqrtBlock/hostmath.Sqrt32(uint64(spec.BlockCount)),
 		)
 	}
 	if positiveFinite(p.LogitScaleNumerator) {
 		spec.LogitScale = readFloat("logit_scale", p.LogitScaleNumerator/float32(spec.EmbeddingLength))
 	}
-	if p.LayerNormEpsilon > 0 && spec.LayerNormEpsilon == 0 {
+	if positiveFinite(p.LayerNormEpsilon) && spec.LayerNormEpsilon == tensor.FirstOffset {
 		spec.LayerNormEpsilon = p.LayerNormEpsilon
 	}
-	if p.QKNormEpsilon > 0 && spec.QKNormEpsilon == 0 {
+	if positiveFinite(p.QKNormEpsilon) && spec.QKNormEpsilon == tensor.FirstOffset {
 		spec.QKNormEpsilon = p.QKNormEpsilon
 	}
-	if p.SlidingWindow > 0 {
+	if p.SlidingWindow > tensor.FirstOffset {
 		spec.SlidingWindow = p.uint(values, prefix, "attention.sliding_window", p.SlidingWindow)
 	}
-	if p.SlidingPattern > 0 {
+	if p.SlidingPattern > tensor.FirstOffset {
 		spec.SlidingPattern = optionalOr(
 			values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32, p.SlidingPattern,
 		)
@@ -149,10 +154,10 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32, spec.ContextLength,
 		)
 	}
-	if p.RopeAttentionFactor > 0 {
+	if positiveFinite(p.RopeAttentionFactor) {
 		spec.RopeAttentionFactor = readFloat("rope.scaling.attn_factor", p.RopeAttentionFactor)
 	}
-	if p.RopeFrequencyFromBase || p.RopeFrequencySWA > 0 {
+	if p.RopeFrequencyFromBase || positiveFinite(p.RopeFrequencySWA) {
 		fallback := p.RopeFrequencySWA
 		if p.RopeFrequencyFromBase {
 			fallback = spec.RopeFrequencyBase
@@ -160,8 +165,8 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 		spec.RopeFrequencySWA = readFloat("rope.freq_base_swa", fallback)
 	}
 	if positiveFinite(p.AttentionTemperatureScale) {
-		if spec.SlidingWindow == 0 {
-			spec.NoRopeLayerStep = 0
+		if spec.SlidingWindow == tensor.FirstOffset {
+			spec.NoRopeLayerStep = tensor.FirstOffset
 		} else {
 			spec.NoRopeLayerStep = spec.SlidingPattern
 			spec.AttentionTempFloor = spec.SlidingWindow

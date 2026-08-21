@@ -29,10 +29,15 @@ func (w *DeviceBF16Weights) Load(ctx context.Context, file *gguf.File, infos []g
 	if file == nil {
 		return errors.New("BF16 device weights: GGUF file is nil")
 	}
-	return w.loadConverted(ctx, file, infos, 2, func(values []float32, size int) []byte {
+	bytesPerValue, err := scalarStorageBytes(dtype.BF16)
+	if err != nil {
+		return fmt.Errorf("BF16 device weights: %w", err)
+	}
+	return w.loadConverted(ctx, file, infos, bytesPerValue, func(values []float32, size int) []byte {
 		storage := make([]byte, size)
 		for index, item := range values {
-			binary.LittleEndian.PutUint16(storage[index*2:], dtype.Float32ToBF16(item))
+			offset := uint64(index) * bytesPerValue
+			binary.LittleEndian.PutUint16(storage[offset:], dtype.Float32ToBF16(item))
 		}
 		return storage
 	})

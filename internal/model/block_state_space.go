@@ -2,7 +2,6 @@ package model
 
 import (
 	"errors"
-	"math"
 
 	"overgo/internal/tensor"
 )
@@ -19,8 +18,8 @@ func buildSelectiveScanMixCached(
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("selective-scan input/state is nil")
 	}
-	if input.Shape.Rank != 2 ||
-		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+	tokens, validInput := tensor.MatrixRows(input.Shape, uint64(spec.EmbeddingLength))
+	if !validInput {
 		return DenseBlockResult{}, errors.New("selective-scan input shape is invalid")
 	}
 	required := graphWeights{
@@ -46,33 +45,38 @@ func buildSelectiveScanMixCached(
 			return DenseBlockResult{}, err
 		}
 	}
-	convShape := tensor.MustShape(uint64(spec.SSMConvKernel-1), uint64(spec.SSMInnerSize))
-	ssmShape := tensor.MustShape(uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize))
-	if !convState.Shape.Equal(convShape) || !ssmState.Shape.Equal(ssmShape) {
+	window := spec.ssmConvolutionWindow()
+	if !tensor.HasDimensions(convState.Shape, window, uint64(spec.SSMInnerSize)) ||
+		!tensor.HasDimensions(ssmState.Shape, uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)) {
 		return DenseBlockResult{}, errors.New("selective-scan recurrent cache shape is invalid")
 	}
-	tokens := input.Shape.Dims[1]
 	inner := uint64(spec.SSMInnerSize)
 	stateWidth := uint64(spec.SSMStateSize)
 	rank := uint64(spec.SSMTimeStepRank)
 	xz := builder.MulMat(weights.SSMInput, input)
-	x := builder.Reshape(builder.GroupSlice(xz, 0, inner, 1, inner), inner, tokens)
-	z := builder.Reshape(builder.GroupSlice(xz, inner, inner, 1, inner), inner, tokens)
-	convInput := builder.Concat(convState, builder.Transpose2D(x), 0)
+	x := builder.Reshape(builder.GroupSlice(
+		xz, tensor.FirstOffset, inner, tensor.SingletonExtent, inner,
+	), inner, tokens)
+	z := builder.Reshape(builder.GroupSlice(
+		xz, inner, inner, tensor.SingletonExtent, inner,
+	), inner, tokens)
+	convInput := builder.Concat(convState, builder.Transpose2D(x), tensor.FirstOffset)
 	nextConvState := builder.Reshape(
-		builder.GroupSlice(convInput, tokens, uint64(spec.SSMConvKernel-1), 1, uint64(spec.SSMConvKernel-1)),
-		uint64(spec.SSMConvKernel-1), inner,
+		builder.GroupSlice(convInput, tokens, window, tensor.SingletonExtent, window),
+		window, inner,
 	)
 	x = builder.SiLU(builder.Add(builder.SSMConv(convInput, weights.SSMConv1D), weights.SSMConv1DBias))
 	xdb := builder.MulMat(weights.SSMX, x)
-	dt := builder.Reshape(builder.GroupSlice(xdb, 0, rank, 1, rank), rank, tokens)
+	dt := builder.Reshape(builder.GroupSlice(
+		xdb, tensor.FirstOffset, rank, tensor.SingletonExtent, rank,
+	), rank, tokens)
 	beta := builder.Reshape(
-		builder.GroupSlice(xdb, rank, stateWidth, 1, stateWidth),
-		stateWidth, 1, tokens, 1,
+		builder.GroupSlice(xdb, rank, stateWidth, tensor.SingletonExtent, stateWidth),
+		stateWidth, tensor.SingletonExtent, tokens, tensor.SingletonExtent,
 	)
 	c := builder.Reshape(
-		builder.GroupSlice(xdb, rank+stateWidth, stateWidth, 1, stateWidth),
-		stateWidth, 1, tokens, 1,
+		builder.GroupSlice(xdb, rank+stateWidth, stateWidth, tensor.SingletonExtent, stateWidth),
+		stateWidth, tensor.SingletonExtent, tokens, tensor.SingletonExtent,
 	)
 	if spec.SSMDtBCNorm {
 		dt = builder.RMSNorm(dt, spec.RMSNormEpsilon)
@@ -85,15 +89,15 @@ func buildSelectiveScanMixCached(
 	}
 	dt = builder.Add(builder.MulMat(weights.SSMTimeStepWeight, dt), weights.SSMTimeStep)
 	packed := builder.SSMScan(
-		builder.Reshape(ssmState, stateWidth, 1, inner, 1),
-		builder.Reshape(x, 1, inner, tokens, 1),
-		builder.Reshape(dt, inner, tokens, 1),
+		builder.Reshape(ssmState, stateWidth, tensor.SingletonExtent, inner, tensor.SingletonExtent),
+		builder.Reshape(x, tensor.SingletonExtent, inner, tokens, tensor.SingletonExtent),
+		builder.Reshape(dt, inner, tokens, tensor.SingletonExtent),
 		weights.SSMA,
 		beta,
 		c,
 	)
 	attentionElements := inner * tokens
-	attention := builder.FlatSlice(packed, 0, inner, tokens)
+	attention := builder.FlatSlice(packed, tensor.FirstOffset, inner, tokens)
 	nextSSMState := builder.FlatSlice(packed, attentionElements, stateWidth, inner)
 	attention = builder.Add(attention, builder.Multiply(x, weights.SSMD))
 	attention = builder.Multiply(attention, builder.SiLU(z))
@@ -115,8 +119,8 @@ func buildGroupedSelectiveScanMixCached(
 	if builder == nil || input == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("grouped selective-scan input/state is nil")
 	}
-	if input.Shape.Rank != 2 ||
-		input.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+	tokens, validInput := tensor.MatrixRows(input.Shape, uint64(spec.EmbeddingLength))
+	if !validInput {
 		return DenseBlockResult{}, errors.New("grouped selective-scan input shape is invalid")
 	}
 	required := graphWeights{
@@ -138,40 +142,47 @@ func buildGroupedSelectiveScanMixCached(
 	heads := uint64(spec.SSMTimeStepRank)
 	groups := uint64(spec.SSMGroupCount)
 	headWidth := inner / heads
-	convWidth := inner + 2*groups*stateWidth
-	convShape := tensor.MustShape(uint64(spec.SSMConvKernel-1), convWidth)
-	ssmShape := tensor.MustShape(stateWidth, inner)
-	if !convState.Shape.Equal(convShape) || !ssmState.Shape.Equal(ssmShape) {
+	convWidth := inner + tensor.PairedExtent*groups*stateWidth
+	window := spec.ssmConvolutionWindow()
+	if !tensor.HasDimensions(convState.Shape, window, convWidth) ||
+		!tensor.HasDimensions(ssmState.Shape, stateWidth, inner) {
 		return DenseBlockResult{}, errors.New("grouped selective-scan cache shape is invalid")
 	}
-	tokens := input.Shape.Dims[1]
 	zxBCdt := builder.MulMat(weights.SSMInput, input)
-	z := builder.Reshape(builder.GroupSlice(zxBCdt, 0, headWidth, heads, headWidth), headWidth, heads, tokens, 1)
-	xBC := builder.Reshape(builder.GroupSlice(zxBCdt, inner, convWidth, 1, convWidth), convWidth, tokens)
+	z := builder.Reshape(builder.GroupSlice(
+		zxBCdt, tensor.FirstOffset, headWidth, heads, headWidth,
+	), headWidth, heads, tokens, tensor.SingletonExtent)
+	xBC := builder.Reshape(builder.GroupSlice(
+		zxBCdt, inner, convWidth, tensor.SingletonExtent, convWidth,
+	), convWidth, tokens)
 	dt := builder.Reshape(
-		builder.GroupSlice(zxBCdt, inner+convWidth, heads, 1, heads), heads, tokens, 1,
+		builder.GroupSlice(zxBCdt, inner+convWidth, heads, tensor.SingletonExtent, heads),
+		heads, tokens, tensor.SingletonExtent,
 	)
-	convInput := builder.Concat(convState, builder.Transpose2D(xBC), 0)
+	convInput := builder.Concat(convState, builder.Transpose2D(xBC), tensor.FirstOffset)
 	nextConvState := builder.Reshape(
-		builder.GroupSlice(convInput, tokens, uint64(spec.SSMConvKernel-1), 1, uint64(spec.SSMConvKernel-1)),
-		uint64(spec.SSMConvKernel-1), convWidth,
+		builder.GroupSlice(convInput, tokens, window, tensor.SingletonExtent, window),
+		window, convWidth,
 	)
 	xBC = builder.SSMConv(convInput, weights.SSMConv1D)
 	if weights.SSMConv1DBias != nil {
 		xBC = builder.Add(xBC, weights.SSMConv1DBias)
 	}
 	xBC = builder.SiLU(xBC)
-	x := builder.Reshape(builder.GroupSlice(xBC, 0, headWidth, heads, headWidth), headWidth, heads, tokens, 1)
+	x := builder.Reshape(builder.GroupSlice(
+		xBC, tensor.FirstOffset, headWidth, heads, headWidth,
+	), headWidth, heads, tokens, tensor.SingletonExtent)
 	beta := builder.Reshape(
-		builder.GroupSlice(xBC, inner, stateWidth, groups, stateWidth), stateWidth, groups, tokens, 1,
+		builder.GroupSlice(xBC, inner, stateWidth, groups, stateWidth),
+		stateWidth, groups, tokens, tensor.SingletonExtent,
 	)
 	c := builder.Reshape(
 		builder.GroupSlice(xBC, inner+groups*stateWidth, stateWidth, groups, stateWidth),
-		stateWidth, groups, tokens, 1,
+		stateWidth, groups, tokens, tensor.SingletonExtent,
 	)
 	dt = builder.Add(dt, weights.SSMTimeStep)
 	packed := builder.SSMScan(
-		builder.Reshape(ssmState, stateWidth, headWidth, heads, 1),
+		builder.Reshape(ssmState, stateWidth, headWidth, heads, tensor.SingletonExtent),
 		x,
 		dt,
 		weights.SSMA,
@@ -179,11 +190,11 @@ func buildGroupedSelectiveScanMixCached(
 		c,
 	)
 	attentionElements := inner * tokens
-	attention := builder.FlatSlice(packed, 0, headWidth, heads, tokens, 1)
+	attention := builder.FlatSlice(packed, tensor.FirstOffset, headWidth, heads, tokens, tensor.SingletonExtent)
 	nextSSMState := builder.FlatSlice(packed, attentionElements, stateWidth, inner)
 	attention = builder.Add(attention, builder.Multiply(x, weights.SSMD))
 	attention = builder.Multiply(attention, builder.SiLU(z))
-	attention = builder.Reshape(attention, inner/groups, groups, tokens, 1)
+	attention = builder.Reshape(attention, inner/groups, groups, tokens, tensor.SingletonExtent)
 	if weights.SSMNorm != nil {
 		attention = builder.WeightedRMSNorm(attention, weights.SSMNorm, spec.RMSNormEpsilon)
 	}
@@ -207,10 +218,11 @@ func buildAttentionSSMHybridMixCached(
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("hybrid attention-scan input/state is nil")
 	}
-	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+	tokens, validInput := tensor.MatrixRows(normalized.Shape, uint64(spec.EmbeddingLength))
+	if !validInput {
 		return DenseBlockResult{}, errors.New("hybrid attention-scan input is invalid")
 	}
-	if len(positions) == 0 || uint64(len(positions)) != normalized.Shape.Dims[1] {
+	if uint64(len(positions)) != tokens {
 		return DenseBlockResult{}, errors.New("hybrid attention-scan position count is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "hybrid attention-scan KV cache is incomplete"); err != nil {
@@ -224,7 +236,6 @@ func buildAttentionSSMHybridMixCached(
 	if weights.AttentionQKV == nil && (weights.AttentionQ == nil || weights.AttentionK == nil || weights.AttentionV == nil) {
 		return DenseBlockResult{}, errors.New("hybrid attention projection catalog is incomplete")
 	}
-	tokens := uint64(len(positions))
 	heads := uint64(spec.HeadCount)
 	kvHeads := uint64(spec.HeadCountKV)
 	query, key, value := (denseBlockRuntime{
@@ -235,26 +246,25 @@ func buildAttentionSSMHybridMixCached(
 	key = builder.Reshape(key, uint64(spec.KeyLength), kvHeads, tokens)
 	value = builder.Reshape(value, uint64(spec.ValueLength), kvHeads, tokens)
 	if weights.RopeFactors != nil {
-		query = builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, FrequencyFactors: weights.RopeFactors, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: 1})
-		key = builder.RoPEWithOptions(key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, FrequencyFactors: weights.RopeFactors, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: 1})
+		query = builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, FrequencyFactors: weights.RopeFactors, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: tensor.UnitFrequencyScale})
+		key = builder.RoPEWithOptions(key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, FrequencyFactors: weights.RopeFactors, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: tensor.UnitFrequencyScale})
 	} else {
-		query = builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: 1})
-		key = builder.RoPEWithOptions(key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: 1})
+		query = builder.RoPEWithOptions(query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: tensor.UnitFrequencyScale})
+		key = builder.RoPEWithOptions(key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: tensor.UnitFrequencyScale})
 	}
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
 	if pastKey != nil {
-		if pastKey.Shape.Rank != 3 || pastValue.Shape.Rank != 3 || pastKey.Shape.Dims[2] > math.MaxUint32 {
+		pastTokens, keyAxis, validKey := tensor.TrailingExtent32(pastKey.Shape, uint64(spec.KeyLength), kvHeads)
+		valueTokens, valueAxis, validValue := tensor.TrailingExtent32(pastValue.Shape, uint64(spec.ValueLength), kvHeads)
+		if !validKey || !validValue || pastTokens != valueTokens {
 			return DenseBlockResult{}, errors.New("hybrid attention-scan KV cache shape is invalid")
 		}
-		queryStart = uint32(pastKey.Shape.Dims[2])
-		cacheKey = builder.Concat(pastKey, key, 2)
-		cacheValue = builder.Concat(pastValue, value, 2)
+		queryStart = pastTokens
+		cacheKey = builder.Concat(pastKey, key, keyAxis)
+		cacheValue = builder.Concat(pastValue, value, valueAxis)
 	}
-	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
-	if spec.AttentionScale > 0 {
-		attentionScale = spec.AttentionScale
-	}
+	attentionScale := spec.resolvedAttentionScale(uint64(spec.KeyLength))
 	attention := builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: attentionScale, Causal: true, QueryStart: queryStart})
 	attention = builder.Reshape(attention, heads*uint64(spec.ValueLength), tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
@@ -291,7 +301,8 @@ func buildNormalizedSelectiveScanMixCached(
 	if builder == nil || normalized == nil || convState == nil || ssmState == nil {
 		return DenseBlockResult{}, errors.New("normalized selective-scan input/state is nil")
 	}
-	if normalized.Shape.Rank != 2 || normalized.Shape.Dims[0] != uint64(spec.EmbeddingLength) {
+	tokens, validInput := tensor.MatrixRows(normalized.Shape, uint64(spec.EmbeddingLength))
+	if !validInput {
 		return DenseBlockResult{}, errors.New("normalized selective-scan input is invalid")
 	}
 	required := graphWeights{
@@ -314,43 +325,58 @@ func buildNormalizedSelectiveScanMixCached(
 	stateWidth := uint64(spec.SSMStateSize)
 	heads := uint64(spec.SSMTimeStepRank)
 	headWidth := inner / heads
-	dtWidth := reducedTimeStepWidth(spec.EmbeddingLength)
-	convShape := tensor.MustShape(uint64(spec.SSMConvKernel-1), inner)
-	ssmShape := tensor.MustShape(stateWidth, inner)
-	if !convState.Shape.Equal(convShape) || !ssmState.Shape.Equal(ssmShape) {
+	dtWidth, validTimeStep := tensor.VectorWidth(weights.SSMTimeStepNorm.Shape)
+	if !validTimeStep {
+		return DenseBlockResult{}, errors.New("normalized selective-scan time-step norm is not a vector")
+	}
+	window := spec.ssmConvolutionWindow()
+	if !tensor.HasDimensions(convState.Shape, window, inner) ||
+		!tensor.HasDimensions(ssmState.Shape, stateWidth, inner) {
 		return DenseBlockResult{}, errors.New("normalized selective-scan cache shape is invalid")
 	}
-	tokens := normalized.Shape.Dims[1]
 	zx := builder.MulMat(weights.SSMInput, normalized)
-	z := builder.Reshape(builder.GroupSlice(zx, 0, headWidth, heads, 2*headWidth), headWidth, heads, tokens, 1)
-	x := builder.Reshape(builder.GroupSlice(zx, headWidth, headWidth, heads, 2*headWidth), inner, tokens)
-	convInput := builder.Concat(convState, builder.Transpose2D(x), 0)
+	stride := tensor.PairedExtent * headWidth
+	z := builder.Reshape(builder.GroupSlice(
+		zx, tensor.FirstOffset, headWidth, heads, stride,
+	), headWidth, heads, tokens, tensor.SingletonExtent)
+	x := builder.Reshape(builder.GroupSlice(
+		zx, headWidth, headWidth, heads, stride,
+	), inner, tokens)
+	convInput := builder.Concat(convState, builder.Transpose2D(x), tensor.FirstOffset)
 	nextConvState := builder.Reshape(
-		builder.GroupSlice(convInput, tokens, uint64(spec.SSMConvKernel-1), 1, uint64(spec.SSMConvKernel-1)),
-		uint64(spec.SSMConvKernel-1), inner,
+		builder.GroupSlice(convInput, tokens, window, tensor.SingletonExtent, window),
+		window, inner,
 	)
 	x = builder.SiLU(builder.SSMConv(convInput, weights.SSMConv1D))
 	bcdt := builder.MulMat(weights.SSMX, x)
-	beta := builder.Reshape(builder.GroupSlice(bcdt, 0, stateWidth, 1, stateWidth), stateWidth, 1, tokens, 1)
-	c := builder.Reshape(builder.GroupSlice(bcdt, stateWidth, stateWidth, 1, stateWidth), stateWidth, 1, tokens, 1)
-	dt := builder.Reshape(builder.GroupSlice(bcdt, 2*stateWidth, dtWidth, 1, dtWidth), dtWidth, tokens)
+	beta := builder.Reshape(builder.GroupSlice(
+		bcdt, tensor.FirstOffset, stateWidth, tensor.SingletonExtent, stateWidth,
+	), stateWidth, tensor.SingletonExtent, tokens, tensor.SingletonExtent)
+	c := builder.Reshape(builder.GroupSlice(
+		bcdt, stateWidth, stateWidth, tensor.SingletonExtent, stateWidth,
+	), stateWidth, tensor.SingletonExtent, tokens, tensor.SingletonExtent)
+	dt := builder.Reshape(builder.GroupSlice(
+		bcdt, tensor.PairedExtent*stateWidth, dtWidth, tensor.SingletonExtent, dtWidth,
+	), dtWidth, tokens)
 	beta = builder.WeightedRMSNorm(beta, weights.SSMBNorm, spec.RMSNormEpsilon)
 	c = builder.WeightedRMSNorm(c, weights.SSMCNorm, spec.RMSNormEpsilon)
 	dt = builder.WeightedRMSNorm(dt, weights.SSMTimeStepNorm, spec.RMSNormEpsilon)
 	dt = builder.Add(builder.MulMat(weights.SSMTimeStepWeight, dt), weights.SSMTimeStep)
-	x = builder.Reshape(x, headWidth, heads, tokens, 1)
+	x = builder.Reshape(x, headWidth, heads, tokens, tensor.SingletonExtent)
 	packed := builder.SSMScan(
-		builder.Reshape(ssmState, stateWidth, headWidth, heads, 1),
+		builder.Reshape(ssmState, stateWidth, headWidth, heads, tensor.SingletonExtent),
 		x,
-		builder.Reshape(dt, heads, tokens, 1),
-		builder.Reshape(weights.SSMA, 1, heads),
+		builder.Reshape(dt, heads, tokens, tensor.SingletonExtent),
+		builder.Reshape(weights.SSMA, tensor.SingletonExtent, heads),
 		beta,
 		c,
 	)
 	attentionElements := inner * tokens
-	mixer := builder.FlatSlice(packed, 0, headWidth, heads, tokens, 1)
+	mixer := builder.FlatSlice(packed, tensor.FirstOffset, headWidth, heads, tokens, tensor.SingletonExtent)
 	nextSSMState := builder.FlatSlice(packed, attentionElements, stateWidth, inner)
-	mixer = builder.Add(mixer, builder.Multiply(x, builder.Reshape(weights.SSMD, 1, heads)))
+	mixer = builder.Add(mixer, builder.Multiply(
+		x, builder.Reshape(weights.SSMD, tensor.SingletonExtent, heads),
+	))
 	mixer = builder.Multiply(mixer, builder.SiLU(z))
 	mixer = builder.MulMat(weights.SSMOutput, builder.Reshape(mixer, inner, tokens))
 	if err := builder.Err(); err != nil {
@@ -368,10 +394,11 @@ func buildCausalProjectionMixCached(
 	pastKey, pastValue *tensor.Tensor,
 	layerIndex uint32,
 ) (DenseBlockResult, error) {
-	if builder == nil || normalized == nil || normalized.Shape.Rank != 2 {
+	if builder == nil || normalized == nil {
 		return DenseBlockResult{}, errors.New("sparse grouped attention input is invalid")
 	}
-	if len(positions) == 0 || uint64(len(positions)) != normalized.Shape.Dims[1] {
+	tokens, validInput := tensor.MatrixRows(normalized.Shape, uint64(spec.EmbeddingLength))
+	if !validInput || uint64(len(positions)) != tokens {
 		return DenseBlockResult{}, errors.New("sparse grouped position count is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "sparse grouped cache must contain both tensors"); err != nil {
@@ -385,7 +412,6 @@ func buildCausalProjectionMixCached(
 	}).validate("sparse grouped attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	tokens := normalized.Shape.Dims[1]
 	query := builder.MulMat(weights.AttentionQ, normalized)
 	key := builder.MulMat(weights.AttentionK, normalized)
 	value := builder.MulMat(weights.AttentionV, normalized)
@@ -406,17 +432,16 @@ func buildCausalProjectionMixCached(
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
 	if pastKey != nil {
-		if pastKey.Shape.Dims[2] > math.MaxUint32 {
-			return DenseBlockResult{}, errors.New("sparse grouped cache token count exceeds uint32")
+		pastTokens, keyAxis, validKey := tensor.TrailingExtent32(pastKey.Shape, uint64(spec.KeyLength), kvHeads)
+		valueTokens, valueAxis, validValue := tensor.TrailingExtent32(pastValue.Shape, uint64(spec.ValueLength), kvHeads)
+		if !validKey || !validValue || pastTokens != valueTokens {
+			return DenseBlockResult{}, errors.New("sparse grouped cache shape is invalid")
 		}
-		queryStart = uint32(pastKey.Shape.Dims[2])
-		cacheKey = builder.Concat(pastKey, key, 2)
-		cacheValue = builder.Concat(pastValue, value, 2)
+		queryStart = pastTokens
+		cacheKey = builder.Concat(pastKey, key, keyAxis)
+		cacheValue = builder.Concat(pastValue, value, valueAxis)
 	}
-	scale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
-	if spec.AttentionScale > 0 {
-		scale = spec.AttentionScale
-	}
+	scale := spec.resolvedAttentionScale(uint64(spec.KeyLength))
 	attention := builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{Scale: scale, Causal: true, QueryStart: queryStart})
 	attention = builder.Reshape(attention, heads*uint64(spec.ValueLength), tokens)
 	attention = builder.MulMat(weights.AttentionOutput, attention)
@@ -432,7 +457,10 @@ func buildRoutedSquaredReLUFeedForwardMix(
 	weights LayerGraphWeights,
 	plan MoEGraphPlan,
 ) (*tensor.Tensor, error) {
-	if builder == nil || normalized == nil || normalized.Shape.Rank != 2 {
+	if builder == nil || normalized == nil {
+		return nil, errors.New("sparse grouped feed-forward input is invalid")
+	}
+	if _, _, validInput := tensor.MatrixExtents(normalized.Shape); !validInput {
 		return nil, errors.New("sparse grouped feed-forward input is invalid")
 	}
 	var feedForward *tensor.Tensor

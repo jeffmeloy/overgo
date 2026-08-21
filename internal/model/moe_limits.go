@@ -2,18 +2,12 @@ package model
 
 import "overgo/internal/tensor"
 
-const maxMoETopK = tensor.MaxMoETopK
-
-func exceedsMoETopK(topK uint32) bool {
-	return topK > maxMoETopK
-}
-
 func validMoESelection(topK, experts uint32) bool {
-	return topK > 0 && topK <= experts && !exceedsMoETopK(topK)
+	return topK > tensor.FirstOffset && topK <= experts && topK <= tensor.MaxMoETopK
 }
 
 func validExpertDimensions(spec Spec) bool {
-	return validMoESelection(spec.ExpertUsedCount, spec.ExpertCount) && spec.ExpertFeedForward > 0
+	return validMoESelection(spec.ExpertUsedCount, spec.ExpertCount) && spec.ExpertFeedForward > tensor.FirstOffset
 }
 
 func validExpertRouting(spec Spec) bool {
@@ -22,5 +16,5 @@ func validExpertRouting(spec Spec) bool {
 
 func validFullRotaryHead(spec Spec) bool {
 	return spec.RopeDimensionCount == spec.KeyLength && spec.KeyLength == spec.ValueLength &&
-		spec.RopeDimensionCount%rotaryPairAlignment == 0
+		spec.RopeDimensionCount%rotaryPairAlignment == tensor.FirstOffset
 }

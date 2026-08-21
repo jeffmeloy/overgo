@@ -124,6 +124,12 @@ func (t Type) Traits() (Traits, bool) {
 	return value, ok
 }
 
+// ScalarBytes returns fixed-width scalar storage.
+func (t Type) ScalarBytes() (uint64, bool) {
+	value, ok := t.Traits()
+	return value.TypeSize, ok && value.BlockSize == 1
+}
+
 // IsQuantized reports the physical block-layout class.
 func (t Type) IsQuantized() bool {
 	value, ok := traits[t]

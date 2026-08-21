@@ -38,7 +38,11 @@ func (w *DeviceF32Weights) Load(
 	if file == nil {
 		return errors.New("F32 device weights: GGUF file is nil")
 	}
-	return w.loadConverted(ctx, file, infos, 4, func(values []float32, _ int) []byte {
+	bytesPerValue, err := scalarStorageBytes(dtype.F32)
+	if err != nil {
+		return fmt.Errorf("F32 device weights: %w", err)
+	}
+	return w.loadConverted(ctx, file, infos, bytesPerValue, func(values []float32, _ int) []byte {
 		return f32Bytes(values)
 	})
 }
@@ -70,7 +74,7 @@ func BindDeviceLayerGraphInputs(
 	if bind == nil {
 		return LayerGraphWeights{}, nil, errors.New("device layer graph binder is nil")
 	}
-	feeds := make(map[*tensor.Tensor]driver.DevicePtr, 11)
+	feeds := make(map[*tensor.Tensor]driver.DevicePtr)
 	result := LayerGraphWeights{}
 	if err := bindDeviceLayerGraphFields(bind, builder, &info, &result, feeds); err != nil {
 		return LayerGraphWeights{}, nil, err
@@ -82,8 +86,9 @@ func BindDeviceLayerGraphInputs(
 }
 
 func f32Bytes(values []float32) []byte {
-	if len(values) == 0 {
+	if len(values) == tensor.FirstOffset {
 		return nil
 	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(&values[0])), len(values)*4)
+	bytes := len(values) * int(unsafe.Sizeof(values[tensor.FirstOffset]))
+	return unsafe.Slice((*byte)(unsafe.Pointer(&values[tensor.FirstOffset])), bytes)
 }

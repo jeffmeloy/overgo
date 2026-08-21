@@ -12,7 +12,7 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 	headWidth := uint64(spec.KeyLength)
 	hyper := uint64(spec.HyperConnectionCount)
 	hyperWidth := hyper * width
-	mixWidth := (2 + hyper) * hyper
+	mixWidth := (tensor.PairedExtent + hyper) * hyper
 	result := Weights{Layers: make([]LayerWeights, spec.BlockCount)}
 	if err := bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensor(tokenEmbeddingWeightTensor, &result.TokenEmbedding, width, uint64(spec.VocabularySize)),
@@ -21,7 +21,7 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 	}); err != nil {
 		return Weights{}, err
 	}
-	for block := uint32(0); block < spec.BlockCount; block++ {
+	for block := uint32(tensor.FirstOffset); block < spec.BlockCount; block++ {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		layer := &result.Layers[block]
 		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
@@ -37,10 +37,10 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 			requiredTensorPointer("attn_output_a.weight", &layer.AttentionOutputA, uint64(spec.HeadCount)*headWidth/uint64(spec.AttentionOutputGroups), uint64(spec.AttentionOutputRank*spec.AttentionOutputGroups)),
 			requiredTensorPointer("hc_attn_fn.weight", &layer.HyperAttentionFN, hyperWidth, mixWidth),
 			requiredTensorPointer("hc_attn_base.weight", &layer.HyperAttentionBase, mixWidth),
-			requiredTensorPointer("hc_attn_scale.weight", &layer.HyperAttentionScale, 3),
+			requiredTensorPointer("hc_attn_scale.weight", &layer.HyperAttentionScale, tensor.TripleExtent),
 			requiredTensorPointer("hc_ffn_fn.weight", &layer.HyperFeedForwardFN, hyperWidth, mixWidth),
 			requiredTensorPointer("hc_ffn_base.weight", &layer.HyperFeedForwardBase, mixWidth),
-			requiredTensorPointer("hc_ffn_scale.weight", &layer.HyperFeedForwardScale, 3),
+			requiredTensorPointer("hc_ffn_scale.weight", &layer.HyperFeedForwardScale, tensor.TripleExtent),
 			requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, width, uint64(spec.ExpertCount)),
 			requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
 			requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
@@ -48,7 +48,7 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 		}); err != nil {
 			return Weights{}, err
 		}
-		if err := loadSharedExpertWeightsForWidth(catalog, prefix, width, spec, layer, false); err != nil {
+		if err := loadSharedExpertWeights(catalog, prefix, width, spec, layer, false); err != nil {
 			return Weights{}, err
 		}
 		if block < spec.HashLayerCount {
@@ -81,12 +81,14 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 			if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 				requiredTensorPointer("indexer.proj.weight", &layer.IndexerProjection, width, uint64(spec.IndexerHeadCount)),
 				requiredTensorPointer("indexer.attn_q_b.weight", &layer.IndexerAttentionQB, uint64(spec.QLoRARank), uint64(spec.IndexerHeadCount)*indexerWidth),
-				requiredTensorPointer("indexer_compressor_kv.weight", &layer.IndexerCompressorKV, width, 2*indexerWidth),
-				requiredTensorPointer("indexer_compressor_gate.weight", &layer.IndexerCompressorGate, width, 2*indexerWidth),
+				requiredTensorPointer("indexer_compressor_kv.weight", &layer.IndexerCompressorKV,
+					width, tensor.PairedExtent*indexerWidth),
+				requiredTensorPointer("indexer_compressor_gate.weight", &layer.IndexerCompressorGate,
+					width, tensor.PairedExtent*indexerWidth),
 				requiredTensorPointer(
 					"indexer_compressor_ape.weight",
 					&layer.IndexerCompressorAPE,
-					2*indexerWidth,
+					tensor.PairedExtent*indexerWidth,
 					uint64(tensor.CompressionOverlap),
 				),
 				requiredTensorPointer("indexer_compressor_norm.weight", &layer.IndexerCompressorNorm, indexerWidth),
@@ -95,11 +97,11 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 			}
 		}
 	}
-	last := &result.Layers[len(result.Layers)-1]
+	last := &result.Layers[len(result.Layers)-tensor.SingletonExtent]
 	if err := bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensorPointer("output_hc_fn.weight", &last.HyperHeadFN, hyperWidth, hyper),
 		requiredTensorPointer("output_hc_base.weight", &last.HyperHeadBase, hyper),
-		requiredTensorPointer("output_hc_scale.weight", &last.HyperHeadScale, 1),
+		requiredTensorPointer("output_hc_scale.weight", &last.HyperHeadScale, tensor.SingletonExtent),
 	}); err != nil {
 		return Weights{}, err
 	}

@@ -7,11 +7,11 @@ import (
 
 func requireLayerProgram(t *testing.T, program LayerProgram, want ...LayerOperator) {
 	t.Helper()
-	if program.Count != uint8(len(want)) {
-		t.Fatalf("stage count = %d, want %d", program.Count, len(want))
+	if len(program.Instructions) != len(want) {
+		t.Fatalf("stage count = %d, want %d", len(program.Instructions), len(want))
 	}
 	for index, operator := range want {
-		instruction, ok := program.Instruction(index)
+		instruction, ok := program.Instruction(uint32(index))
 		if !ok || instruction.Operator != operator {
 			t.Fatalf("stage %d = %+v, want operator %d", index, instruction, operator)
 		}
@@ -107,7 +107,7 @@ func TestEagle3ProgramUsesPairedInputStages(t *testing.T) {
 	}
 	requireLayerProgram(t, program, want...)
 	paired, _ := program.Instruction(0)
-	if paired.TensorCount != 1 || paired.Tensors[0] != RuntimeTensorPerLayerInput {
+	if paired.Tensors[0] != RuntimeTensorPerLayerInput {
 		t.Fatalf("Eagle3 paired binding = %+v", paired)
 	}
 }
@@ -123,7 +123,8 @@ func TestGemma4AssistantProgramUsesSharedCacheStages(t *testing.T) {
 	}
 	requireLayerProgram(t, program, want...)
 	attention, _ := program.Instruction(1)
-	if attention.Operator != LayerOperatorAttentionSharedCacheQKNorm || attention.CacheCount != 2 {
+	if attention.Operator != LayerOperatorAttentionSharedCacheQKNorm ||
+		attention.Caches[0] != RuntimeCachePrimaryKey || attention.Caches[1] != RuntimeCachePrimaryValue {
 		t.Fatalf("Gemma 4 assistant attention binding = %+v", attention)
 	}
 }
@@ -204,10 +205,13 @@ func TestJinaV2ProgramAddsInputResidualNormalization(t *testing.T) {
 		LayerTopology:   LayerTopologyBidirectionalEncoder,
 		EncoderOperator: encoderOperatorPostNormALiBi,
 	})
-	instruction, ok := program.Instruction(2)
-	if !ok || program.Count != 5 || instruction.Operator != LayerOperatorInputResidualNorm {
-		t.Fatalf("JinaV2 program = %+v", program)
-	}
+	requireLayerProgram(t, program,
+		LayerOperatorAttentionBidirectionalEncoder,
+		LayerOperatorAttentionResidualNorm,
+		LayerOperatorInputResidualNorm,
+		LayerOperatorFeedForwardEncoder,
+		LayerOperatorFeedForwardResidualNorm,
+	)
 }
 
 func TestGemmaEmbeddingProgramUsesNeutralStages(t *testing.T) {
@@ -296,27 +300,24 @@ func TestNemotronLayerProgramsSelectSemanticMixer(t *testing.T) {
 }
 
 func TestQwenGDNProgramsSelectSemanticMixer(t *testing.T) {
-	const (
-		mixerStage            = 1
-		qwenProgramStageCount = 6
-	)
 	for _, recurrent := range []bool{false, true} {
+		mixer := LayerOperatorAttentionGatedProjection
+		if recurrent {
+			mixer = LayerOperatorRecurrentMix
+		}
 		program := mustCompileLayerProgram(t,
 			LayerPlan{Recurrent: recurrent},
 			ArchitectureProfile{Attention: AttentionGatedDelta, RecurrentMixer: recurrentMixerGatedDelta},
 		)
-		instruction, ok := program.Instruction(mixerStage)
-		if !ok || program.Count != qwenProgramStageCount {
-			t.Fatalf("Qwen GDN program = %+v", program)
-		}
+		requireLayerProgram(t, program,
+			LayerOperatorAttentionNorm, mixer, LayerOperatorResidual,
+			LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardRoutedSwiGLU, LayerOperatorResidual,
+		)
 		state := compileRecurrentMixer(
 			ArchitectureProfile{RecurrentMixer: recurrentMixerGatedDelta}, recurrent,
 		)
-		if recurrent && (instruction.Operator != LayerOperatorRecurrentMix || state != recurrentMixerGatedDelta) {
-			t.Fatalf("Qwen recurrent stage = %+v", instruction)
-		}
-		if !recurrent && instruction.Operator != LayerOperatorAttentionGatedProjection {
-			t.Fatalf("Qwen attention stage = %+v", instruction)
+		if recurrent && state != recurrentMixerGatedDelta {
+			t.Fatalf("Qwen recurrent mixer = %v", state)
 		}
 	}
 }

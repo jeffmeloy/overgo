@@ -273,8 +273,9 @@ func decide(variance float64, values []float64, tensorRows, limit int) bool {
 func TestImportedOperatorOwnsAssumptionPolicy(t *testing.T) {
 	snapshot := scanTestSnapshot(t, map[string]string{"internal/decision.go": `package decision
 import "example.org/shared"
-func decide(value float64) bool {
+func decide(builder *shared.Builder, value float64) bool {
 	if shared.ValidEffectiveRank(value) { return true }
+	if builder.ValidEffectiveRank(value) { return true }
 	return localEffectiveRank(value)
 }
 `})
@@ -292,6 +293,22 @@ func decide(value float64) bool {
 	}
 	if !imported || !local {
 		t.Fatalf("assumption authority = %+v", candidates)
+	}
+}
+
+func TestMethodReceiverDoesNotCreateAssumption(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{"internal/decision.go": `package decision
+type value struct { Shape shape }
+type shape struct{}
+func (shape) Equal(shape) bool { return true }
+func check(left, right value) bool { return left.Shape.Equal(right.Shape) }
+`})
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateAssumptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("method receiver assumptions = %v", candidates)
 	}
 }
 

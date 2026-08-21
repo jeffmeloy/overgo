@@ -1,17 +1,21 @@
-// Conditioned diffusion transformer stages: adaptive-layernorm blocks with
-// full-width QK RMS norms, axis-partitioned rotary self-attention over a
-// (frames, height, width) token grid, fixed-context cross-attention, and a
-// tanh-GELU feed-forward. Generic and config-driven — nothing here names a
-// model profile. Composes only cataloged tensor ops, so one graph definition
-// executes on both the reference and CUDA backends.
+// Conditioned diffusion: adaptive norm, axis rotary, cross attention, FFN.
 package model
 
 import (
 	"errors"
 	"fmt"
-	"math"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
+)
+
+const (
+	conditionedSelfShift uint64 = iota
+	conditionedSelfScale
+	conditionedSelfGate
+	conditionedFFNShift
+	conditionedFFNScale
+	conditionedFFNGate
 )
 
 // ConditionedDiffusionAttentionWeights: one biased attention projection
@@ -57,36 +61,32 @@ type ConditionedDiffusionBlockWeights struct {
 	FFNContract, FFNContractBias *tensor.Tensor
 }
 
-// ConditionedDiffusionBlockOptions: block geometry and rotary layout.
-// AxisPositions carry one grid coordinate per token per axis; AxisChannels
-// partition the head width into contiguous per-axis rotary spans.
+// ConditionedDiffusionBlockOptions defines geometry and rotary partitions.
 type ConditionedDiffusionBlockOptions struct {
 	Dim, Heads, FFNDim uint64
 	Epsilon            float32
 	RotaryBase         float32
 	AxisChannels       [3]uint64
 	AxisPositions      [3][]uint32
-	// RoundAttentionStorage: round attention q/k/v through BF16 storage
-	// (declared in-graph via BF16Round; backends may fuse to tensor cores).
+	// RoundAttentionStorage inserts BF16 storage rounds.
 	RoundAttentionStorage bool
 }
 
-// ConditionedDiffusionProgram: compiled geometry for context, blocks, and head.
+// ConditionedDiffusionProgram owns validated geometry.
 type ConditionedDiffusionProgram struct {
 	options ConditionedDiffusionBlockOptions
 }
 
 // CompileConditionedDiffusionProgram validates immutable graph geometry.
 func CompileConditionedDiffusionProgram(options ConditionedDiffusionBlockOptions) (ConditionedDiffusionProgram, error) {
-	if options.Dim == 0 || options.Heads == 0 || options.Dim%options.Heads != 0 ||
-		options.FFNDim == 0 || options.Epsilon <= 0 {
+	headWidth, validHeads := tensor.EqualPartition(options.Dim, options.Heads)
+	if !validHeads || options.FFNDim == tensor.FirstOffset || !positiveFinite(options.Epsilon) {
 		return ConditionedDiffusionProgram{}, fmt.Errorf(
 			"conditioned diffusion geometry dim=%d heads=%d ffn=%d eps=%g is invalid",
 			options.Dim, options.Heads, options.FFNDim, options.Epsilon,
 		)
 	}
-	headWidth := options.Dim / options.Heads
-	if options.AxisChannels[0]+options.AxisChannels[1]+options.AxisChannels[2] != headWidth {
+	if !tensor.PartitionsCover(headWidth, options.AxisChannels[:]...) {
 		return ConditionedDiffusionProgram{}, fmt.Errorf(
 			"conditioned diffusion axis channels %v do not cover head width %d",
 			options.AxisChannels, headWidth,
@@ -176,27 +176,26 @@ func buildAxisPartitionedRoPE(
 	if builder == nil {
 		return nil
 	}
-	if input == nil || input.Shape.Rank != 3 {
+	if input == nil {
 		return nil
 	}
-	headWidth := input.Shape.Dims[0]
-	if channels[0]+channels[1]+channels[2] != headWidth {
+	headWidth, heads, tokens, validInput := tensor.Extents3(input.Shape)
+	if !validInput || !tensor.PartitionsCover(headWidth, channels[:]...) {
 		return nil
 	}
-	heads, tokens := input.Shape.Dims[1], input.Shape.Dims[2]
 	var joined *tensor.Tensor
-	offset := uint64(0)
+	offset := uint64(tensor.FirstOffset)
 	for axis := range channels {
 		span := channels[axis]
 		part := builder.Reshape(
-			builder.GroupSlice(input, offset, span, 1, span),
+			builder.GroupSlice(input, offset, span, tensor.SingletonExtent, span),
 			span, heads, tokens,
 		)
-		rotated := builder.RoPEWithOptions(part, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: positions[axis], RotaryDimensions: uint32(span), FrequencyBase: frequencyBase, FrequencyScale: 1})
+		rotated := builder.RoPEWithOptions(part, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: positions[axis], RotaryDimensions: uint32(span), FrequencyBase: frequencyBase, FrequencyScale: tensor.UnitFrequencyScale})
 		if joined == nil {
 			joined = rotated
 		} else {
-			joined = builder.Concat(joined, rotated, 0)
+			joined = builder.Concat(joined, rotated, tensor.FirstOffset)
 		}
 		offset += span
 	}
@@ -223,7 +222,7 @@ func buildConditionedDiffusionCrossContext(
 	heads uint64,
 	epsilon float32,
 ) (key, value *tensor.Tensor, err error) {
-	if builder == nil || context == nil || context.Shape.Rank != 2 {
+	if builder == nil || context == nil {
 		return nil, nil, errors.New("conditioned diffusion cross context input is nil or misshaped")
 	}
 	required := graphWeights{
@@ -236,12 +235,11 @@ func buildConditionedDiffusionCrossContext(
 	if err := required.validate("conditioned diffusion cross context"); err != nil {
 		return nil, nil, err
 	}
-	dim := context.Shape.Dims[0]
-	tokens := context.Shape.Dims[1]
-	if heads == 0 || dim%heads != 0 {
+	dim, tokens, validContext := tensor.MatrixExtents(context.Shape)
+	headWidth, validHeads := tensor.EqualPartition(dim, heads)
+	if !validContext || !validHeads {
 		return nil, nil, fmt.Errorf("conditioned diffusion cross context: dim %d incompatible with heads %d", dim, heads)
 	}
-	headWidth := dim / heads
 	k := builder.WeightedRMSNorm(buildBiasedProjection(builder, weights.Key, weights.KeyBias, context), weights.KeyNorm, epsilon)
 	v := buildBiasedProjection(builder, weights.Value, weights.ValueBias, context)
 	key = builder.Reshape(k, headWidth, heads, tokens)
@@ -285,20 +283,20 @@ func buildConditionedDiffusionBlock(
 		return result, errors.New("conditioned diffusion block cross norm affine pair is incomplete")
 	}
 	dim, heads := options.Dim, options.Heads
-	if input.Shape.Rank != 2 || input.Shape.Dims[0] != dim {
+	tokens, validInput := tensor.MatrixRows(input.Shape, dim)
+	if !validInput {
 		return result, errors.New("conditioned diffusion block input shape is incompatible")
 	}
-	headWidth := dim / heads
-	if options.AxisChannels[0]+options.AxisChannels[1]+options.AxisChannels[2] != headWidth {
+	headWidth, validHeads := tensor.EqualPartition(dim, heads)
+	if !validHeads || !tensor.PartitionsCover(headWidth, options.AxisChannels[:]...) {
 		return result, fmt.Errorf("conditioned diffusion block axis channels %v do not cover head width %d", options.AxisChannels, headWidth)
 	}
-	tokens := input.Shape.Dims[1]
 	for axis := range options.AxisPositions {
 		if uint64(len(options.AxisPositions[axis])) != tokens {
 			return result, fmt.Errorf("conditioned diffusion block axis %d has %d positions, need %d", axis, len(options.AxisPositions[axis]), tokens)
 		}
 	}
-	if conditioning.Shape.Rank != 1 || conditioning.Shape.Dims[0] != 6*dim {
+	if !conditioning.Shape.Equal(weights.Modulation.Shape) {
 		return result, errors.New("conditioned diffusion block conditioning must be a [6*dim] vector")
 	}
 
@@ -306,9 +304,12 @@ func buildConditionedDiffusionBlock(
 	chunk := func(index uint64) *tensor.Tensor {
 		return builder.FlatSlice(modulation, index*dim, dim)
 	}
-	attentionScale := float32(1 / math.Sqrt(float64(headWidth)))
+	attentionScale := hostmath.InvSqrt32(headWidth)
 
-	selfIn := buildAdaptiveShiftScale(builder, builder.LayerNorm(input, options.Epsilon), chunk(0), chunk(1))
+	selfIn := buildAdaptiveShiftScale(
+		builder, builder.LayerNorm(input, options.Epsilon),
+		chunk(conditionedSelfShift), chunk(conditionedSelfScale),
+	)
 	result.SelfQueryProjected = buildBiasedProjection(builder, weights.SelfAttention.Query, weights.SelfAttention.QueryBias, selfIn)
 	result.SelfKeyProjected = buildBiasedProjection(builder, weights.SelfAttention.Key, weights.SelfAttention.KeyBias, selfIn)
 	result.SelfValueProjected = buildBiasedProjection(builder, weights.SelfAttention.Value, weights.SelfAttention.ValueBias, selfIn)
@@ -322,13 +323,15 @@ func buildConditionedDiffusionBlock(
 	result.SelfValue = value
 	attentionKey, attentionValue := result.SelfKeyRotated, value
 	if historyKey != nil || historyValue != nil {
-		if historyKey == nil || historyValue == nil || historyKey.Shape.Rank != 3 || historyValue.Shape.Rank != 3 ||
-			historyKey.Shape.Dims[0] != headWidth || historyKey.Shape.Dims[1] != heads ||
-			!historyKey.Shape.Equal(historyValue.Shape) {
+		if historyKey == nil || historyValue == nil {
 			return result, errors.New("conditioned diffusion self history shape is incompatible")
 		}
-		attentionKey = builder.Concat(historyKey, attentionKey, 2)
-		attentionValue = builder.Concat(historyValue, attentionValue, 2)
+		_, historyAxis, validHistory := tensor.TrailingExtent(historyKey.Shape, headWidth, heads)
+		if !validHistory || !historyKey.Shape.Equal(historyValue.Shape) {
+			return result, errors.New("conditioned diffusion self history shape is incompatible")
+		}
+		attentionKey = builder.Concat(historyKey, attentionKey, historyAxis)
+		attentionValue = builder.Concat(historyValue, attentionValue, historyAxis)
 	}
 	result.SelfKeyCache, result.SelfValueCache = attentionKey, attentionValue
 	roundStorage := func(x *tensor.Tensor) *tensor.Tensor {
@@ -343,7 +346,7 @@ func buildConditionedDiffusionBlock(
 
 	result.SelfAttention = builder.Reshape(attention, dim, tokens)
 	result.SelfProjected = buildBiasedProjection(builder, weights.SelfAttention.Output, weights.SelfAttention.OutputBias, result.SelfAttention)
-	result.SelfResidual = builder.Add(input, builder.Multiply(result.SelfProjected, chunk(2)))
+	result.SelfResidual = builder.Add(input, builder.Multiply(result.SelfProjected, chunk(conditionedSelfGate)))
 
 	crossIn := result.SelfResidual
 	if weights.CrossNormWeight != nil {
@@ -366,10 +369,13 @@ func buildConditionedDiffusionBlock(
 	)
 	result.CrossResidual = builder.Add(result.SelfResidual, result.CrossProjected)
 
-	ffnIn := buildAdaptiveShiftScale(builder, builder.LayerNorm(result.CrossResidual, options.Epsilon), chunk(3), chunk(4))
+	ffnIn := buildAdaptiveShiftScale(
+		builder, builder.LayerNorm(result.CrossResidual, options.Epsilon),
+		chunk(conditionedFFNShift), chunk(conditionedFFNScale),
+	)
 	hidden := builder.GELUTanhExact(buildBiasedProjection(builder, weights.FFNExpand, weights.FFNExpandBias, ffnIn))
 	result.FeedForward = buildBiasedProjection(builder, weights.FFNContract, weights.FFNContractBias, hidden)
-	result.Output = builder.Add(result.CrossResidual, builder.Multiply(result.FeedForward, chunk(5)))
+	result.Output = builder.Add(result.CrossResidual, builder.Multiply(result.FeedForward, chunk(conditionedFFNGate)))
 	if err := builder.Err(); err != nil {
 		return ConditionedDiffusionBlockResult{}, err
 	}
@@ -396,15 +402,14 @@ func buildConditionedDiffusionHead(
 	if err := required.validate("conditioned diffusion head"); err != nil {
 		return nil, err
 	}
-	if input.Shape.Rank != 2 || epsilon <= 0 {
+	dim, _, validInput := tensor.MatrixExtents(input.Shape)
+	if !validInput || !positiveFinite(epsilon) {
 		return nil, errors.New("conditioned diffusion head input shape or epsilon is invalid")
 	}
-	dim := input.Shape.Dims[0]
-	if conditioning.Shape.Rank != 1 || conditioning.Shape.Dims[0] != dim ||
-		modulation.Shape.Rank != 1 || modulation.Shape.Dims[0] != 2*dim {
+	if !tensor.IsVector(conditioning.Shape, dim) || !tensor.IsVector(modulation.Shape, tensor.PairedExtent*dim) {
 		return nil, errors.New("conditioned diffusion head conditioning shape is incompatible")
 	}
-	shift := builder.Add(builder.FlatSlice(modulation, 0, dim), conditioning)
+	shift := builder.Add(builder.FlatSlice(modulation, tensor.FirstOffset, dim), conditioning)
 	scale := builder.Add(builder.FlatSlice(modulation, dim, dim), conditioning)
 	modulated := buildAdaptiveShiftScale(builder, builder.LayerNorm(input, epsilon), shift, scale)
 	output := buildBiasedProjection(builder, weight, bias, modulated)

@@ -124,7 +124,7 @@ func (r *Runner) runAlternatePredictionLayer(
 	}
 	activated, err := activateAlternateFFN(
 		results[stage.Gate], results[stage.Up],
-		alternate.SparseLayer(layerIndex), alternate.SparsityStdMultiplier,
+		alternate.SparseLayer(uint32(layerIndex)), alternate.SparsityStdMultiplier,
 	)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err

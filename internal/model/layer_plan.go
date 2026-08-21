@@ -3,7 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
-	"math"
+	"slices"
 
 	"overgo/internal/tensor"
 )
@@ -20,6 +20,7 @@ const (
 	RuntimeCacheIndexerKey
 	RuntimeCacheCrossKey
 	RuntimeCacheCrossValue
+	runtimeCacheBindingCount
 )
 
 // RuntimeTensorBinding: indexed auxiliary tensor operand.
@@ -30,6 +31,7 @@ const (
 	RuntimeTensorPerLayerInput
 	RuntimeTensorCurrentPositions
 	RuntimeTensorEncoder
+	runtimeTensorBindingCount
 )
 
 // LayerOperator: semantic execution stage.
@@ -92,29 +94,26 @@ const (
 	LayerOperatorActivatedOutput
 )
 
-const (
-	maxLayerCacheBindings  = 4
-	maxLayerTensorBindings = 2
-	maxLayerInstructions   = 8
-)
-
 // LayerOperatorInstruction: compiled operator and operand indexes.
 type LayerOperatorInstruction struct {
 	Operator    LayerOperator
 	CacheCount  uint8
 	TensorCount uint8
-	Caches      [maxLayerCacheBindings]RuntimeCacheBinding
-	Tensors     [maxLayerTensorBindings]RuntimeTensorBinding
+	Caches      [runtimeCacheBindingCount]RuntimeCacheBinding
+	Tensors     [runtimeTensorBindingCount]RuntimeTensorBinding
 }
 
-// LayerProgram: ordered fixed-capacity layer instructions.
+// LayerProgram: ordered recipe instructions.
 type LayerProgram struct {
-	Count        uint8
-	Instructions [maxLayerInstructions]LayerOperatorInstruction
+	Instructions []LayerOperatorInstruction
 }
 
 func (p LayerProgram) valid() bool {
-	return int(p.Count) <= len(p.Instructions)
+	return len(p.Instructions) != tensor.FirstOffset
+}
+
+func (p LayerProgram) equal(other LayerProgram) bool {
+	return slices.Equal(p.Instructions, other.Instructions)
 }
 
 // LayerCompositionPolicy: semantic block-stage composition.
@@ -128,8 +127,8 @@ const (
 	LayerCompositionIdentity
 )
 
-func (p LayerProgram) Instruction(index int) (LayerOperatorInstruction, bool) {
-	if index < 0 || index >= int(p.Count) || index >= len(p.Instructions) {
+func (p LayerProgram) Instruction(index uint32) (LayerOperatorInstruction, bool) {
+	if uint64(index) >= uint64(len(p.Instructions)) {
 		return LayerOperatorInstruction{}, false
 	}
 	return p.Instructions[index], true
@@ -223,8 +222,8 @@ type TerminalPlan struct {
 type DeepstackSource int32
 
 const (
-	DeepstackSourceNone DeepstackSource = -2
-	DeepstackSourceBase DeepstackSource = -1
+	DeepstackSourceBase DeepstackSource = -1 - iota
+	DeepstackSourceNone
 )
 
 // LayerPlan: derived layer execution contract.
@@ -297,27 +296,27 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 		switch {
 		case recurrent:
 			composition = LayerCompositionRecurrentOnly
-		case s.LayerFeedForwardLength(layer) > 0:
+		case s.LayerHasFeedForward(layer):
 			composition = LayerCompositionFeedForwardOnly
 		default:
 			composition = LayerCompositionAttentionOnly
 		}
 	}
 	deciSparse := profile.DeciSparse &&
-		(s.LayerFeedForwardLength(layer) == 0 || s.LayerHeadCount(layer) == 0 ||
-			s.LayerKVHeadCount(layer) == 0)
+		(!s.LayerHasFeedForward(layer) || !s.LayerHasAttention(layer) ||
+			!s.LayerHasKVHeads(layer))
 	if deciSparse {
 		switch {
-		case s.LayerFeedForwardLength(layer) == 0:
+		case !s.LayerHasFeedForward(layer):
 			composition = LayerCompositionIdentity
-		case s.LayerHeadCount(layer) == 0:
+		case !s.LayerHasAttention(layer):
 			composition = LayerCompositionFeedForwardOnly
 		}
 	}
 	residualStages := s.residualStagePlan(profile, normalization)
-	periodicScale := float32(0)
+	var periodicScale float32
 	if (profile.LayerTopology == LayerTopologyDynamicWKV6 || profile.LayerTopology == LayerTopologyAffineWKV6) &&
-		s.RescaleEvery > 0 && (layer+1)%s.RescaleEvery == 0 {
+		s.IsPeriodicRescaleLayer(layer) {
 		periodicScale = profile.Runtime.Recurrent.PeriodicResidualScale
 	}
 	if profile.LayerTopology == LayerTopologyAffineWKV6 {
@@ -370,7 +369,7 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 		Temperature:         temperature,
 		AttentionBlocks:     profile.AttentionBlocks,
 		EmbeddingSkip:       profile.Has(ArchitectureEmbeddingSkip),
-		PerLayerInput:       profile.Has(ArchitecturePerLayerEmbeddings) && s.EmbeddingPerLayer > 0,
+		PerLayerInput:       s.hasPerLayerEmbeddings(profile),
 		Normalization:       normalization,
 		Rotary:              s.rotaryPlan(profile, layer),
 		AttentionGraph:      s.attentionGraphPlan(profile, layer),
@@ -398,7 +397,7 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 
 // SupportsCapacityCache: all token caches admit bounded append.
 func (p ModelPlan) SupportsCapacityCache() bool {
-	if len(p.layers) == 0 {
+	if len(p.layers) == tensor.FirstOffset {
 		return false
 	}
 	for _, layer := range p.layers {
@@ -417,29 +416,45 @@ func (s Spec) SupportsMultiAxisPositionsWithProfile(profile ArchitectureProfile)
 	}
 	sections := false
 	for _, count := range s.RopeSections {
-		sections = sections || count > 0
+		sections = sections || count > int32(tensor.FirstOffset)
 	}
 	if !sections {
 		return false
 	}
 	return profile.Rotary.MultiAxis != multiAxisRotaryWithSections ||
-		len(s.RopeSections) >= 2 && s.RopeSections[0] > 0 && s.RopeSections[1] > 0
+		hasLeadingRopeSections(s.RopeSections)
+}
+
+func hasLeadingRopeSections(sections [tensor.MaxDimensions]int32) bool {
+	return sections[tensor.FirstOffset] > int32(tensor.FirstOffset) &&
+		sections[tensor.SingletonExtent] > int32(tensor.FirstOffset)
+}
+
+func attentionTemperatureConfigured(spec Spec) bool {
+	return spec.AttentionTempScale != tensor.FirstOffset ||
+		spec.AttentionTempFloor != tensor.FirstOffset ||
+		spec.AttentionTempOffset != tensor.FirstOffset
+}
+
+func validAttentionTemperature(spec Spec) bool {
+	return positiveFinite(spec.AttentionTempScale) &&
+		spec.AttentionTempFloor > tensor.FirstOffset && finite(spec.AttentionTempOffset)
 }
 
 func deepstackSources(s Spec, profile ArchitectureProfile, layer uint32) (DeepstackSource, DeepstackSource) {
 	switch profile.Deepstack {
 	case DeepstackMappedBefore:
-		if layer == 0 || int(layer) >= len(s.DeepstackMapping) {
+		if layer == tensor.FirstOffset || int(layer) >= len(s.DeepstackMapping) {
 			return DeepstackSourceNone, DeepstackSourceNone
 		}
 		source := s.DeepstackMapping[layer]
 		switch {
-		case source < 0:
+		case source < tensor.FirstOffset:
 			return DeepstackSourceNone, DeepstackSourceNone
-		case source == 0:
+		case source == tensor.FirstOffset:
 			return DeepstackSourceBase, DeepstackSourceNone
 		default:
-			return DeepstackSource(source - 1), DeepstackSourceNone
+			return DeepstackSource(source - tensor.SingletonExtent), DeepstackSourceNone
 		}
 	case DeepstackSequentialAfter:
 		if layer < s.DeepstackLayerCount {
@@ -452,7 +467,7 @@ func deepstackSources(s Spec, profile ArchitectureProfile, layer uint32) (Deepst
 func auxiliaryFlow(s Spec, profile ArchitectureProfile, layer uint32) (AuxiliaryFlow, AuxiliaryFlow) {
 	switch profile.Auxiliary {
 	case AuxiliaryRecurrentValue:
-		if layer == 0 {
+		if layer == tensor.FirstOffset {
 			return AuxiliaryNone, AuxiliaryRecurrentValue
 		}
 		return AuxiliaryRecurrentValue, AuxiliaryNone
@@ -481,7 +496,6 @@ type ModelPlan struct {
 	cacheProject  CacheProjectionProgram
 	projections   [projectionRoleCount]ProjectionProgram
 	sequenceOut   SequenceOutputProgram
-	waveform      AudioWaveformPlan
 	forward       ForwardProgram
 	input         ProjectedInputProgram
 }
@@ -498,18 +512,22 @@ type ProjectedInputProgram struct {
 }
 
 func compileProjectedInputProgram(spec Spec, profile ArchitectureProfile) ProjectedInputProgram {
-	deepstackStreams := spec.DeepstackLayerCount
-	if profile.Deepstack == DeepstackNone {
-		deepstackStreams = 0
+	var deepstackStreams uint32
+	if profile.Deepstack != DeepstackNone {
+		deepstackStreams = spec.DeepstackLayerCount
 	}
 	return ProjectedInputProgram{
 		Overrides: profile.Overrides, AttentionBlocks: profile.AttentionBlocks,
 		DeepstackStreams:   deepstackStreams,
 		MultiAxis:          spec.SupportsMultiAxisPositionsWithProfile(profile),
-		PerLayerEmbeddings: profile.Has(ArchitecturePerLayerEmbeddings) && spec.EmbeddingPerLayer > 0,
+		PerLayerEmbeddings: spec.hasPerLayerEmbeddings(profile),
 		ClassifierHead:     profile.Has(ArchitectureClassifierHead),
 		DiscreteTokens:     profile.Has(ArchitectureDiscreteImageTokens),
 	}
+}
+
+func (s Spec) hasPerLayerEmbeddings(profile ArchitectureProfile) bool {
+	return profile.Has(ArchitecturePerLayerEmbeddings) && s.EmbeddingPerLayer > tensor.FirstOffset
 }
 
 // CompileModelPlanWithProfile: compiles a resolved policy without registry lookup.
@@ -541,7 +559,6 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 		cacheProject:  compileCacheProjectionProgram(spec, profile),
 		projections:   compileProjectionPrograms(spec, profile),
 		sequenceOut:   compileSequenceOutputProgram(spec, profile),
-		waveform:      compileAudioWaveformPlan(profile),
 		forward:       forward,
 		input:         compileProjectedInputProgram(spec, profile),
 	}
@@ -607,7 +624,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	if plan.normalization != plan.profile.Runtime.normalizationPlan(spec, plan.profile) {
 		return fmt.Errorf("model plan architecture %s has invalid normalization", spec.Architecture)
 	}
-	if !plan.forward.valid() || plan.forward != compileForwardProgram(spec, plan.profile) {
+	if !plan.forward.valid() || !plan.forward.equal(compileForwardProgram(spec, plan.profile)) {
 		return fmt.Errorf("model plan architecture %s has invalid forward program", spec.Architecture)
 	}
 	if plan.input != compileProjectedInputProgram(spec, plan.profile) {
@@ -621,42 +638,41 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	if plan.draft != plan.profile.DraftPlan(spec.NextNPredictLayers) {
 		return fmt.Errorf("model plan architecture %s has invalid draft policy", spec.Architecture)
 	}
-	wantDraftLayers := 0
+	var wantDraftLayers int
 	if plan.draft.AppendedBlocks {
 		wantDraftLayers = int(plan.draft.Heads)
 	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
 		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.OptionalCatalogDraft != nil) {
-		wantDraftLayers = 1
+		wantDraftLayers = tensor.SingletonExtent
 	}
 	if len(plan.draftLayers) != wantDraftLayers {
 		return fmt.Errorf("model plan architecture %s has invalid draft layers", spec.Architecture)
 	}
-	if len(plan.cacheSchemas) != 0 && len(plan.cacheSchemas) != len(plan.layers) {
+	if len(plan.cacheSchemas) != tensor.FirstOffset && len(plan.cacheSchemas) != len(plan.layers) {
 		return fmt.Errorf("model plan architecture %s has invalid cache schemas", spec.Architecture)
 	}
 	for offset, layer := range plan.draftLayers {
 		wantLayer := spec.BlockCount + uint32(offset)
 		if plan.draft.Kind == DraftSingleCatalog {
-			wantLayer = 0
+			wantLayer = tensor.FirstOffset
 		}
 		if layer.Layer != wantLayer {
 			return fmt.Errorf("model plan draft layer %d identity is inconsistent", offset)
 		}
-		if !layer.Program.valid() || layer.Program.Count == 0 {
+		if !layer.Program.valid() {
 			return fmt.Errorf(
-				"model plan draft layer %d operator program has %d instructions; capacity is %d",
-				offset, layer.Program.Count, len(layer.Program.Instructions),
+				"model plan draft layer %d operator program is empty", offset,
 			)
 		}
 		expected, err := compileLayerProgram(layer, plan.profile)
 		if err != nil {
 			return fmt.Errorf("model plan draft layer %d: %w", offset, err)
 		}
-		if layer.Program != expected {
+		if !layer.Program.equal(expected) {
 			return fmt.Errorf("model plan draft layer %d operator program is inconsistent", offset)
 		}
 	}
-	if spec.SharedKVLayers > 0 && (!plan.profile.Has(ArchitectureSharedKV) ||
+	if spec.SharedKVLayers > tensor.FirstOffset && (!plan.profile.Has(ArchitectureSharedKV) ||
 		spec.SharedKVLayers >= spec.BlockCount) {
 		return fmt.Errorf("model plan architecture %s has invalid shared-KV layer count %d", spec.Architecture, spec.SharedKVLayers)
 	}
@@ -666,17 +682,16 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		if layer.Layer != uint32(index) {
 			return fmt.Errorf("model plan layer %d identity is inconsistent", index)
 		}
-		if !layer.Program.valid() || layer.Program.Count == 0 {
+		if !layer.Program.valid() {
 			return fmt.Errorf(
-				"model plan layer %d operator program has %d instructions; capacity is %d",
-				index, layer.Program.Count, len(layer.Program.Instructions),
+				"model plan layer %d operator program is empty", index,
 			)
 		}
 		expected, err := compileLayerProgram(layer, plan.profile)
 		if err != nil {
 			return fmt.Errorf("model plan layer %d: %w", index, err)
 		}
-		if layer.Program != expected {
+		if !layer.Program.equal(expected) {
 			return fmt.Errorf("model plan layer %d operator program is inconsistent", index)
 		}
 		if layer.SharedKV {
@@ -686,11 +701,11 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			}
 		}
 		for _, source := range []DeepstackSource{layer.DeepstackBefore, layer.DeepstackAfter} {
-			if source >= 0 && uint32(source) >= spec.DeepstackLayerCount {
+			if source >= DeepstackSource(tensor.FirstOffset) && uint32(source) >= spec.DeepstackLayerCount {
 				return fmt.Errorf("model plan layer %d deepstack source %d exceeds %d streams", index, source, spec.DeepstackLayerCount)
 			}
 		}
-		if layer.AuxiliaryInput != AuxiliaryNone && len(spec.IndexerFullLayers) > 0 &&
+		if layer.AuxiliaryInput != AuxiliaryNone && len(spec.IndexerFullLayers) > tensor.FirstOffset &&
 			!producedAuxiliary[layer.AuxiliaryInput] {
 			return fmt.Errorf("model plan layer %d consumes auxiliary flow %d before production", index, layer.AuxiliaryInput)
 		}
@@ -707,7 +722,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			return fmt.Errorf("model plan layer %d state-space policy is inconsistent", index)
 		}
 	}
-	if spec.DeepstackLayerCount > 0 {
+	if spec.DeepstackLayerCount > tensor.FirstOffset {
 		switch plan.profile.Deepstack {
 		case DeepstackMappedBefore:
 			if len(spec.DeepstackMapping) < len(plan.layers) {
@@ -724,11 +739,8 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	if plan.profile.AttentionBlocks != AttentionBlocksNone && !plan.profile.Has(ArchitectureMultimodal) {
 		return fmt.Errorf("model plan architecture %s has attention blocks without multimodal support", spec.Architecture)
 	}
-	if spec.AttentionTempScale != 0 || spec.AttentionTempFloor != 0 || spec.AttentionTempOffset != 0 {
-		if plan.profile.Temperature == AttentionTemperatureNone || spec.AttentionTempScale <= 0 ||
-			spec.AttentionTempFloor == 0 || math.IsNaN(float64(spec.AttentionTempScale)) ||
-			math.IsInf(float64(spec.AttentionTempScale), 0) || math.IsNaN(float64(spec.AttentionTempOffset)) ||
-			math.IsInf(float64(spec.AttentionTempOffset), 0) {
+	if attentionTemperatureConfigured(spec) {
+		if plan.profile.Temperature == AttentionTemperatureNone || !validAttentionTemperature(spec) {
 			return fmt.Errorf("model plan architecture %s has an invalid attention temperature contract", spec.Architecture)
 		}
 	}
@@ -737,7 +749,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 		return fmt.Errorf("model plan architecture %s has an invalid output-layer normalization layout", spec.Architecture)
 	}
 	draft := plan.profile.DraftPlan(spec.NextNPredictLayers)
-	if spec.NextNPredictLayers > 0 && (draft.Kind == DraftNone || !draft.HasHead(0)) {
+	if spec.NextNPredictLayers > tensor.FirstOffset && (draft.Kind == DraftNone || !draft.HasHead(firstDraftHead)) {
 		return fmt.Errorf("model plan architecture %s has no draft policy for %d heads", spec.Architecture, spec.NextNPredictLayers)
 	}
 	return nil
@@ -748,7 +760,7 @@ func cachedGraphPolicy(
 	forward ForwardProgram,
 	layers []LayerPlan,
 ) CachedGraphPolicy {
-	if len(layers) == 0 || forward.Operation != ForwardOperationCached ||
+	if len(layers) == tensor.FirstOffset || forward.Operation != ForwardOperationCached ||
 		recurrent ||
 		forward.AlternateStates() {
 		return CachedGraphLayered
@@ -773,18 +785,18 @@ func (p ModelPlan) HasCache(policy CachePolicy) bool {
 }
 
 // Layer: bounds-checked layer contract.
-func (p ModelPlan) Layer(layer int) (LayerPlan, error) {
-	if layer < 0 || layer >= len(p.layers) {
+func (p ModelPlan) Layer(layer uint32) (LayerPlan, error) {
+	if uint64(layer) >= uint64(len(p.layers)) {
 		return LayerPlan{}, fmt.Errorf("model plan layer %d is outside [0,%d)", layer, len(p.layers))
 	}
 	return p.layers[layer], nil
 }
 
 // Profile: compiled architecture policy.
-func (p ModelPlan) Profile() ArchitectureProfile { return p.profile }
+func (p ModelPlan) Profile() ArchitectureProfile { return p.profile.clone() }
 
 // SameExecutionProfile reports whether two sealed plans share one policy contract.
-func (p ModelPlan) SameExecutionProfile(other ModelPlan) bool { return p.profile == other.profile }
+func (p ModelPlan) SameExecutionProfile(other ModelPlan) bool { return p.profile.equal(other.profile) }
 
 // Compiled reports whether the plan has a resolved execution identity.
 func (p ModelPlan) Compiled() bool { return p.profile.Name != "" }
@@ -820,7 +832,7 @@ func (p CompiledLayerProgram) Layer() LayerPlan { return p.plan }
 func (p CompiledLayerProgram) Spec() Spec { return p.spec }
 
 // LayerProgram binds one trunk layer to its validated model spec.
-func (p ModelPlan) LayerProgram(layer int) (CompiledLayerProgram, error) {
+func (p ModelPlan) LayerProgram(layer uint32) (CompiledLayerProgram, error) {
 	if p.profile.Name == "" || p.spec.Architecture != p.profile.Name {
 		return CompiledLayerProgram{}, fmt.Errorf(
 			"model plan profile %q does not match layer spec %q", p.profile.Name, p.spec.Architecture,
@@ -833,7 +845,7 @@ func (p ModelPlan) LayerProgram(layer int) (CompiledLayerProgram, error) {
 	return CompiledLayerProgram{spec: p.spec, plan: compiled}, nil
 }
 
-func (p ModelPlan) sequenceProgram(layer int, decoder bool) (CompiledLayerProgram, error) {
+func (p ModelPlan) sequenceProgram(layer uint32, decoder bool) (CompiledLayerProgram, error) {
 	encoder := p.profile.EncoderOperator
 	limit := p.spec.BlockCount
 	if !decoder && encoder != encoderOperatorRelativeEncoderDecoder && encoder != encoderOperatorRelativeEncoder {
@@ -845,7 +857,7 @@ func (p ModelPlan) sequenceProgram(layer int, decoder bool) (CompiledLayerProgra
 		}
 		limit = p.spec.DecoderBlockCount
 	}
-	if layer < 0 || uint32(layer) >= limit {
+	if layer >= limit {
 		return CompiledLayerProgram{}, fmt.Errorf("model plan sequence layer %d is outside [0,%d)", layer, limit)
 	}
 	program, err := p.LayerProgram(layer)
@@ -861,12 +873,12 @@ func (p ModelPlan) sequenceProgram(layer int, decoder bool) (CompiledLayerProgra
 }
 
 // EncoderProgram returns one compiled encoder layer.
-func (p ModelPlan) EncoderProgram(layer int) (CompiledLayerProgram, error) {
+func (p ModelPlan) EncoderProgram(layer uint32) (CompiledLayerProgram, error) {
 	return p.sequenceProgram(layer, false)
 }
 
 // DecoderProgram returns one compiled causal/cross-attention decoder layer.
-func (p ModelPlan) DecoderProgram(layer int) (CompiledLayerProgram, error) {
+func (p ModelPlan) DecoderProgram(layer uint32) (CompiledLayerProgram, error) {
 	return p.sequenceProgram(layer, true)
 }
 
@@ -891,8 +903,8 @@ func (p ModelPlan) DraftProgram(offset uint32) (CompiledLayerProgram, error) {
 }
 
 // CacheSchema: materialized compiled layer-cache contract.
-func (p ModelPlan) CacheSchema(layer int, tokens uint32) (LayerCacheSchema, error) {
-	if layer < 0 || layer >= len(p.cacheSchemas) {
+func (p ModelPlan) CacheSchema(layer uint32, tokens uint32) (LayerCacheSchema, error) {
+	if uint64(layer) >= uint64(len(p.cacheSchemas)) {
 		return LayerCacheSchema{}, fmt.Errorf("model plan cache schema %d is unavailable", layer)
 	}
 	return p.cacheSchemas[layer].WithTokenCount(tokens), nil
@@ -900,7 +912,7 @@ func (p ModelPlan) CacheSchema(layer int, tokens uint32) (LayerCacheSchema, erro
 
 // HasCacheSchemas: physical cache layout compiled.
 func (p ModelPlan) HasCacheSchemas() bool {
-	return len(p.layers) != 0 && len(p.cacheSchemas) == len(p.layers)
+	return len(p.layers) != tensor.FirstOffset && len(p.cacheSchemas) == len(p.layers)
 }
 
 // CacheLayerCount: compiled cache-layer count.
@@ -927,7 +939,7 @@ func (p ModelPlan) CacheProjection() CacheProjectionProgram { return p.cacheProj
 func (p ModelPlan) SequenceOutput() SequenceOutputProgram { return p.sequenceOut }
 
 // AudioWaveform: compiled semantic-token waveform plan.
-func (p ModelPlan) AudioWaveform() AudioWaveformPlan { return p.waveform }
+func (p ModelPlan) AudioWaveform() AudioWaveformPlan { return p.forward.Waveform }
 
 // Draft: compiled speculative policy.
 func (p ModelPlan) Draft() DraftPlan { return p.draft }
@@ -949,7 +961,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 	if profile.LayerTopology == LayerTopologyAffineWKV6 {
 		return residualMixerProgram(
 			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardStandardSwiGLU,
-			plan.ResidualStages.residualScale > 0,
+			positiveFinite(plan.ResidualStages.residualScale),
 		)
 	}
 	if profile.Attention == AttentionGatedDelta {
@@ -1036,7 +1048,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 				layerStage(LayerOperatorResidual), tokenShiftLayerStage(LayerOperatorGatedTokenShiftSquaredReLU),
 				layerStage(LayerOperatorResidual),
 			}
-			if plan.PeriodicScale > 0 {
+			if positiveFinite(plan.PeriodicScale) {
 				stages = append(stages, layerStage(LayerOperatorPeriodicScale))
 			}
 			return newLayerProgram(stages...)
@@ -1159,8 +1171,8 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 }
 
 func (p LayerPlan) splitProjection() bool {
-	prefix, prefixOK := p.Program.Instruction(0)
-	suffix, suffixOK := p.Program.Instruction(1)
+	prefix, prefixOK := p.Program.Instruction(tensor.FirstOffset)
+	suffix, suffixOK := p.Program.Instruction(tensor.SingletonExtent)
 	return prefixOK && suffixOK && prefix.Operator == LayerOperatorActivationProjection &&
 		suffix.Operator == LayerOperatorActivatedOutput
 }
@@ -1215,28 +1227,22 @@ func layerStage(operator LayerOperator) LayerOperatorInstruction {
 }
 
 func attentionLayerStage(operator LayerOperator) LayerOperatorInstruction {
-	instruction := layerStage(operator)
-	instruction.CacheCount = 2
-	instruction.Caches[0] = RuntimeCachePrimaryKey
-	instruction.Caches[1] = RuntimeCachePrimaryValue
-	return instruction
+	return leafLayerStage(
+		operator, []RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
+	)
 }
 
 func hybridLayerStage() LayerOperatorInstruction {
-	instruction := layerStage(LayerOperatorHybridMix)
-	instruction.CacheCount = 4
-	instruction.Caches[0] = RuntimeCachePrimaryKey
-	instruction.Caches[1] = RuntimeCachePrimaryValue
-	instruction.Caches[2] = RuntimeCacheConvolution
-	instruction.Caches[3] = RuntimeCacheSSM
-	return instruction
+	return leafLayerStage(
+		LayerOperatorHybridMix,
+		[]RuntimeCacheBinding{
+			RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheConvolution, RuntimeCacheSSM,
+		}, nil,
+	)
 }
 
 func tokenShiftLayerStage(operator LayerOperator) LayerOperatorInstruction {
-	instruction := layerStage(operator)
-	instruction.CacheCount = 1
-	instruction.Caches[0] = RuntimeCachePrimaryKey
-	return instruction
+	return leafLayerStage(operator, []RuntimeCacheBinding{RuntimeCachePrimaryKey}, nil)
 }
 
 func pairedInputLayerStage() LayerOperatorInstruction {
@@ -1273,14 +1279,10 @@ func relativeDecoderProgram() (LayerProgram, error) {
 }
 
 func newLayerProgram(stages ...LayerOperatorInstruction) (LayerProgram, error) {
-	if len(stages) > maxLayerInstructions {
-		return LayerProgram{}, fmt.Errorf(
-			"layer program has %d instructions; capacity is %d", len(stages), maxLayerInstructions,
-		)
+	if len(stages) == tensor.FirstOffset {
+		return LayerProgram{}, errors.New("layer program is empty")
 	}
-	program := LayerProgram{Count: uint8(len(stages))}
-	copy(program.Instructions[:], stages)
-	return program, nil
+	return LayerProgram{Instructions: stages}, nil
 }
 
 func cachePolicy(spec Spec, profile ArchitectureProfile, layer uint32, recurrent bool) CachePolicy {
@@ -1290,8 +1292,8 @@ func cachePolicy(spec Spec, profile ArchitectureProfile, layer uint32, recurrent
 	if profile.Cache != CacheAttention {
 		return profile.Cache
 	}
-	if profile.CacheFallback == CacheFallbackFeedForward && spec.LayerFeedForwardLength(layer) > 0 ||
-		profile.CacheFallback == CacheFallbackMissingKV && spec.LayerKVHeadCount(layer) == 0 {
+	if profile.CacheFallback == CacheFallbackFeedForward && spec.LayerHasFeedForward(layer) ||
+		profile.CacheFallback == CacheFallbackMissingKV && !spec.LayerHasKVHeads(layer) {
 		return CacheSentinel
 	}
 	return CacheAttention

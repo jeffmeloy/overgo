@@ -1,5 +1,12 @@
 package model
 
+import (
+	"reflect"
+	"slices"
+
+	"overgo/internal/tensor"
+)
+
 // ForwardOperation: neutral top-level execution entry.
 type ForwardOperation uint8
 
@@ -37,24 +44,29 @@ type AlternateStateProgram struct {
 }
 
 // SparseLayer reports thresholded gated activation for layer.
-func (p AlternateStateProgram) SparseLayer(layer int) bool {
-	return layer >= 0 && uint32(layer) < p.SparseLayerCount
+func (p AlternateStateProgram) SparseLayer(layer uint32) bool {
+	return layer < p.SparseLayerCount
 }
 
 // ForwardProgram: compiled top-level execution contract.
 type ForwardProgram struct {
-	Operation             ForwardOperation
-	Session               ForwardSession
-	Alternate             AlternateStateProgram
-	continuousBatch       bool
-	persistentDeviceCache bool
-	layerCapture          bool
-	deviceBatchSelection  bool
-	nonCausalRecurrent    bool
+	Operation               ForwardOperation
+	Session                 ForwardSession
+	Waveform                AudioWaveformPlan
+	SequenceResiduals       []sequenceResidualOperator
+	SequenceInputKernel     uint32
+	SequenceResidualKernel  uint32
+	SequenceDepthwiseKernel uint32
+	Alternate               AlternateStateProgram
+	continuousBatch         bool
+	persistentDeviceCache   bool
+	layerCapture            bool
+	deviceBatchSelection    bool
+	nonCausalRecurrent      bool
 }
 
 func compileForwardProgram(spec Spec, profile ArchitectureProfile) ForwardProgram {
-	forward := resolveForwardProgram(profile.Forward, spec.NonCausalAttention)
+	forward := resolveForwardProgram(profile.Forward.clone(), spec.NonCausalAttention)
 	cached := forward.Operation == ForwardOperationCached
 	if profile.LayerTopology == LayerTopologySplitProjection {
 		forward.Alternate = AlternateStateProgram{
@@ -73,6 +85,19 @@ func compileForwardProgram(spec Spec, profile ArchitectureProfile) ForwardProgra
 	return forward
 }
 
+func (p ForwardProgram) clone() ForwardProgram {
+	p.SequenceResiduals = slices.Clone(p.SequenceResiduals)
+	return p
+}
+
+func (p ForwardProgram) equal(other ForwardProgram) bool {
+	if !slices.Equal(p.SequenceResiduals, other.SequenceResiduals) {
+		return false
+	}
+	p.SequenceResiduals, other.SequenceResiduals = nil, nil
+	return reflect.DeepEqual(p, other)
+}
+
 func (p ForwardProgram) ContinuousBatch() bool       { return p.continuousBatch }
 func (p ForwardProgram) PersistentDeviceCache() bool { return p.persistentDeviceCache }
 func (p ForwardProgram) LayerCapture() bool          { return p.layerCapture }
@@ -83,6 +108,17 @@ func (p ForwardProgram) AlternateStates() bool       { return p.Alternate.enable
 func (p ForwardProgram) valid() bool {
 	if p.Operation >= forwardOperationCount || p.Session >= forwardSessionCount {
 		return false
+	}
+	audio := p.Operation == ForwardOperationAudioTokens
+	sequenceKernels := p.SequenceInputKernel > tensor.FirstOffset &&
+		p.SequenceResidualKernel > tensor.FirstOffset && p.SequenceDepthwiseKernel > tensor.FirstOffset
+	if audio != p.Waveform.Valid() || audio != (len(p.SequenceResiduals) > 0) || audio != sequenceKernels {
+		return false
+	}
+	for _, operator := range p.SequenceResiduals {
+		if operator >= sequenceResidualOperatorCount {
+			return false
+		}
 	}
 	return (p.Operation == ForwardOperationSession) == (p.Session != ForwardSessionNone)
 }

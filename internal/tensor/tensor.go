@@ -302,7 +302,8 @@ const (
 type MoEActivation uint32
 
 const (
-	MoEActivationSiLU MoEActivation = iota + 1
+	MoEActivationNone MoEActivation = iota
+	MoEActivationSiLU
 	MoEActivationReLU
 	MoEActivationGELU
 	MoEActivationSwiGLUOAI

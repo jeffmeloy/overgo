@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 )
 
@@ -48,6 +49,8 @@ func buildLatentAttentionMixCached(
 	usesSparseIndexer := plan.Attention == AttentionSparseLatent
 	usesSparseNeoXIndexer := plan.LatentAttention == latentAttentionSparseNeoXIndexer
 	omitsRoPE := plan.LatentAttention == latentAttentionNoRoPE
+	expandQuery := usesNeoXResidualScale ||
+		((usesYaRNQuery || usesSparseIndexer || omitsRoPE) && spec.QLoRARank > tensor.FirstOffset)
 	required := graphWeights{
 		requireGraphWeight("attention Q", weights.AttentionQ),
 		requireGraphWeight("attention KV-A", weights.AttentionKVAMQA),
@@ -60,7 +63,7 @@ func buildLatentAttentionMixCached(
 		required.add("attention K-B", weights.AttentionKB)
 		required.add("attention V-B", weights.AttentionVB)
 	}
-	if usesNeoXResidualScale || ((usesYaRNQuery || usesSparseIndexer || omitsRoPE) && spec.QLoRARank > 0) {
+	if expandQuery {
 		required.add("attention Q-B", weights.AttentionQB)
 		required.add("attention Q-A norm", weights.AttentionQNorm)
 	}
@@ -78,37 +81,41 @@ func buildLatentAttentionMixCached(
 	if err := required.validate("latent-attention block"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	if builder == nil || normalized == nil || normalized.Shape.Rank != 2 || len(positions) == 0 ||
-		uint64(len(positions)) != normalized.Shape.Dims[1] {
+	if builder == nil || normalized == nil {
+		return DenseBlockResult{}, errors.New("latent-attention input shape is invalid")
+	}
+	tokenCount, validInput := tensor.MatrixRows32(normalized.Shape, uint64(spec.EmbeddingLength))
+	if !validInput || uint64(len(positions)) != uint64(tokenCount) {
 		return DenseBlockResult{}, errors.New("latent-attention input shape is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "latent-attention cache must contain both key and value"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	tokens := uint64(len(positions))
+	tokens := uint64(tokenCount)
 	heads := uint64(spec.HeadCount)
 	keyWidth := uint64(spec.KeyLength)
 	ropeWidth := uint64(spec.RopeDimensionCount)
 	nopeWidth := keyWidth - ropeWidth
 	valueWidth := uint64(spec.ValueLength)
 	queryMixed := builder.MulMat(weights.AttentionQ, normalized)
-	if usesNeoXResidualScale || ((usesYaRNQuery || usesSparseIndexer || omitsRoPE) && spec.QLoRARank > 0) {
+	if expandQuery {
 		queryMixed = builder.WeightedRMSNorm(queryMixed, weights.AttentionQNorm, spec.RMSNormEpsilon)
 	}
 	queryRank := queryMixed
-	if usesNeoXResidualScale || ((usesYaRNQuery || usesSparseIndexer || omitsRoPE) && spec.QLoRARank > 0) {
+	if expandQuery {
 		queryMixed = builder.MulMat(weights.AttentionQB, queryMixed)
 	}
-	qNoPE := builder.GroupSlice(queryMixed, 0, nopeWidth, heads, keyWidth)
+	qNoPE := builder.GroupSlice(queryMixed, tensor.FirstOffset, nopeWidth, heads, keyWidth)
 	qPE := builder.GroupSlice(queryMixed, nopeWidth, ropeWidth, heads, keyWidth)
 	kvPE := builder.MulMat(weights.AttentionKVAMQA, normalized)
+	kvStride := uint64(spec.KVLoRARank) + ropeWidth
 	kvCompressed := builder.Reshape(
-		builder.GroupSlice(kvPE, 0, uint64(spec.KVLoRARank), 1, uint64(spec.KVLoRARank)+ropeWidth),
+		builder.GroupSlice(kvPE, tensor.FirstOffset, uint64(spec.KVLoRARank), tensor.SingletonExtent, kvStride),
 		uint64(spec.KVLoRARank), tokens,
 	)
 	kPE := builder.Reshape(
-		builder.GroupSlice(kvPE, uint64(spec.KVLoRARank), ropeWidth, 1, uint64(spec.KVLoRARank)+ropeWidth),
-		ropeWidth, 1, tokens,
+		builder.GroupSlice(kvPE, uint64(spec.KVLoRARank), ropeWidth, tensor.SingletonExtent, kvStride),
+		ropeWidth, tensor.SingletonExtent, tokens,
 	)
 	kvCompressed = builder.WeightedRMSNorm(kvCompressed, weights.AttentionKVANorm, spec.RMSNormEpsilon)
 	if omitsRoPE {
@@ -127,7 +134,7 @@ func buildLatentAttentionMixCached(
 			spec, positions, uint32(ropeWidth), layout, factors, yarn,
 		))
 	}
-	if spec.RopeAttentionFactor > 0 && spec.RopeAttentionFactor != 1 {
+	if positiveFinite(spec.RopeAttentionFactor) && spec.RopeAttentionFactor != tensor.UnitScale {
 		qPE = builder.Scale(qPE, spec.RopeAttentionFactor)
 		kPE = builder.Scale(kPE, spec.RopeAttentionFactor)
 	}
@@ -137,7 +144,7 @@ func buildLatentAttentionMixCached(
 			indexerWidth := uint64(spec.IndexerKeyLength)
 			indexerHeads := uint64(spec.IndexerHeadCount)
 			indexerQuery := builder.MulMat(weights.IndexerAttentionQB, queryRank)
-			indexerQPE := builder.GroupSlice(indexerQuery, 0, ropeWidth, indexerHeads, indexerWidth)
+			indexerQPE := builder.GroupSlice(indexerQuery, tensor.FirstOffset, ropeWidth, indexerHeads, indexerWidth)
 			indexerQNoPE := builder.GroupSlice(indexerQuery, ropeWidth, indexerWidth-ropeWidth, indexerHeads, indexerWidth)
 			indexerLayout := tensor.RoPELayoutNormal
 			if usesSparseNeoXIndexer && spec.RopeScalingType == ropeScalingYaRN {
@@ -148,7 +155,7 @@ func buildLatentAttentionMixCached(
 				spec.RopeScalingType == ropeScalingYaRN,
 			)
 			indexerQPE = builder.RoPEWithOptions(indexerQPE, indexerOptions)
-			indexerQuery = builder.FWHT(builder.Concat(indexerQPE, indexerQNoPE, 0))
+			indexerQuery = builder.FWHT(builder.Concat(indexerQPE, indexerQNoPE, tensor.FirstOffset))
 
 			indexerKey = builder.MulMat(weights.IndexerAttentionK, normalized)
 			indexerEpsilon := spec.RMSNormEpsilon
@@ -156,19 +163,23 @@ func buildLatentAttentionMixCached(
 				indexerEpsilon = spec.LayerNormEpsilon
 			}
 			indexerKey = builder.AffineLayerNorm(indexerKey, weights.IndexerKNorm, weights.IndexerKNormBias, indexerEpsilon)
-			indexerKPE := builder.GroupSlice(indexerKey, 0, ropeWidth, 1, indexerWidth)
-			indexerKNoPE := builder.GroupSlice(indexerKey, ropeWidth, indexerWidth-ropeWidth, 1, indexerWidth)
+			indexerKPE := builder.GroupSlice(indexerKey, tensor.FirstOffset, ropeWidth, tensor.SingletonExtent, indexerWidth)
+			indexerKNoPE := builder.GroupSlice(indexerKey, ropeWidth, indexerWidth-ropeWidth, tensor.SingletonExtent, indexerWidth)
 			indexerKPE = builder.RoPEWithOptions(indexerKPE, indexerOptions)
-			indexerKey = builder.FWHT(builder.Concat(indexerKPE, indexerKNoPE, 0))
+			indexerKey = builder.FWHT(builder.Concat(indexerKPE, indexerKNoPE, tensor.FirstOffset))
 			if pastIndexerKey != nil {
-				indexerKey = builder.Concat(pastIndexerKey, indexerKey, 2)
+				indexerKey = builder.Concat(pastIndexerKey, indexerKey, tensor.PairedExtent)
 			}
 			indexerWeights := builder.MulMat(weights.IndexerProjection, normalized)
-			indexerScale := float32(1 / math.Sqrt(float64(spec.IndexerKeyLength*spec.IndexerHeadCount)))
-			scores := builder.IndexerScore(indexerQuery, indexerKey, indexerWeights, indexerScale, uint32(indexerKey.Shape.Dims[2]-tokens))
+			indexerScale := hostmath.InvSqrt32(uint64(spec.IndexerKeyLength * spec.IndexerHeadCount))
+			indexerTokens, _, validIndexer := tensor.TrailingExtent32(indexerKey.Shape, indexerWidth, tensor.SingletonExtent)
+			if !validIndexer || indexerTokens < tokenCount {
+				return DenseBlockResult{}, errors.New("sparse latent indexer cache shape is invalid")
+			}
+			scores := builder.IndexerScore(indexerQuery, indexerKey, indexerWeights, indexerScale, indexerTokens-tokenCount)
 			selected := spec.IndexerTopK
-			if uint64(selected) > indexerKey.Shape.Dims[2] {
-				selected = uint32(indexerKey.Shape.Dims[2])
+			if selected > indexerTokens {
+				selected = indexerTokens
 			}
 			topK = builder.TopK(scores, selected)
 		} else {
@@ -181,18 +192,18 @@ func buildLatentAttentionMixCached(
 	var query, key, value *tensor.Tensor
 	if weights.AttentionKB != nil {
 		qNoPE = builder.GroupedMulMat(weights.AttentionKB, qNoPE)
-		query = builder.Concat(qNoPE, qPE, 0)
-		kvCompressed = builder.Reshape(kvCompressed, uint64(spec.KVLoRARank), 1, tokens)
-		key = builder.Concat(kvCompressed, kPE, 0)
+		query = builder.Concat(qNoPE, qPE, tensor.FirstOffset)
+		kvCompressed = builder.Reshape(kvCompressed, uint64(spec.KVLoRARank), tensor.SingletonExtent, tokens)
+		key = builder.Concat(kvCompressed, kPE, tensor.FirstOffset)
 		value = kvCompressed
 	} else {
 		kv := builder.MulMat(weights.AttentionKVB, kvCompressed)
 		stride := nopeWidth + valueWidth
-		kNoPE := builder.GroupSlice(kv, 0, nopeWidth, heads, stride)
+		kNoPE := builder.GroupSlice(kv, tensor.FirstOffset, nopeWidth, heads, stride)
 		value = builder.GroupSlice(kv, nopeWidth, valueWidth, heads, stride)
 		kPEHeads := builder.RepeatHeads(kPE, spec.HeadCount)
-		query = builder.Concat(qNoPE, qPE, 0)
-		key = builder.Concat(kNoPE, kPEHeads, 0)
+		query = builder.Concat(qNoPE, qPE, tensor.FirstOffset)
+		key = builder.Concat(kNoPE, kPEHeads, tensor.FirstOffset)
 	}
 	if usesYaRNQuery && weights.AttentionTemperatureScale != nil {
 		query = builder.Multiply(query, weights.AttentionTemperatureScale)
@@ -200,11 +211,11 @@ func buildLatentAttentionMixCached(
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
 	if pastKey != nil {
-		queryStart = uint32(pastKey.Shape.Dims[2])
-		cacheKey = builder.Concat(pastKey, key, 2)
-		cacheValue = builder.Concat(pastValue, value, 2)
+		queryStart = uint32(pastKey.Shape.Dims[tensor.PairedExtent])
+		cacheKey = builder.Concat(pastKey, key, tensor.PairedExtent)
+		cacheValue = builder.Concat(pastValue, value, tensor.PairedExtent)
 	}
-	attentionScale := float32(1 / math.Sqrt(float64(spec.KeyLength)))
+	attentionScale := hostmath.InvSqrt32(uint64(spec.KeyLength))
 	if (usesYaRNQuery || usesSparseIndexer) && spec.RopeScalingType == ropeScalingYaRN {
 		logScale := float32(math.Log(float64(1 / spec.ropeFrequencyScale())))
 		originalFactor := spec.YaRNAttentionFactor * (1 + yarnLogFactorStep*logScale)

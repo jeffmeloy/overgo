@@ -22,14 +22,9 @@ func TestValidateModelPlanRejectsMutatedProgram(t *testing.T) {
 	}
 }
 
-func TestLayerProgramOverflowCannotMasqueradeAsEmpty(t *testing.T) {
-	stages := make([]LayerOperatorInstruction, maxLayerInstructions+1)
-	for index := range stages {
-		stages[index] = layerStage(LayerOperatorResidual)
-	}
-	program, err := newLayerProgram(stages...)
-	if err == nil || !strings.Contains(err.Error(), "instructions; capacity") || program != (LayerProgram{}) {
-		t.Fatalf("overflow result = %+v, %v", program, err)
+func TestLayerProgramRejectsEmptyRecipe(t *testing.T) {
+	if _, err := newLayerProgram(); err == nil {
+		t.Fatal("empty layer program accepted")
 	}
 }
 

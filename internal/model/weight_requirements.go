@@ -40,6 +40,30 @@ type tensorBinding struct {
 	present     bool
 }
 
+func relationalTensorPointer(
+	name string,
+	destination **gguf.TensorInfo,
+	rank uint32,
+	nonempty bool,
+	optional bool,
+	storages ...dtype.Type,
+) tensorBinding {
+	return tensorBinding{
+		name: name, rank: rank, nonempty: nonempty, storages: storages,
+		pointer: destination, optional: optional,
+	}
+}
+
+func requiredRelationalTensorPointer(
+	name string,
+	destination **gguf.TensorInfo,
+	rank uint32,
+	nonempty bool,
+	storages ...dtype.Type,
+) tensorBinding {
+	return relationalTensorPointer(name, destination, rank, nonempty, false, storages...)
+}
+
 func optionalRelationalTensorPointer(
 	name string,
 	destination **gguf.TensorInfo,
@@ -47,10 +71,7 @@ func optionalRelationalTensorPointer(
 	nonempty bool,
 	storages ...dtype.Type,
 ) tensorBinding {
-	return tensorBinding{
-		name: name, rank: rank, nonempty: nonempty, storages: storages,
-		pointer: destination, optional: true,
-	}
+	return relationalTensorPointer(name, destination, rank, nonempty, true, storages...)
 }
 
 func requiredTensor(name string, destination *gguf.TensorInfo, shape ...uint64) tensorBinding {

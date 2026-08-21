@@ -1,6 +1,7 @@
 package model
 
 import (
+	"reflect"
 	"sort"
 )
 
@@ -13,6 +14,11 @@ const (
 	DraftAppendedMulti
 	DraftAppendedSingle
 	DraftOptionalSingleCatalog
+)
+
+const (
+	firstDraftHead uint32 = iota
+	singleDraftHeadCount
 )
 
 // DraftSessionPolicy: runtime coordinator cardinality.
@@ -44,11 +50,12 @@ type DraftPlan struct {
 	ScaleLogits     bool
 	Normalization   DraftNormalizationPolicy
 	Session         DraftSessionPolicy
+	QueryCopies     uint32
 }
 
 // HasHead: bounded catalog head.
 func (p DraftPlan) HasHead(offset uint32) bool {
-	if p.Kind == DraftNone || p.Heads == 0 || p.SingleCatalog && p.Heads != 1 {
+	if p.Kind == DraftNone || p.Heads == firstDraftHead || p.SingleCatalog && p.Heads != singleDraftHeadCount {
 		return false
 	}
 	return offset < p.Heads
@@ -56,10 +63,10 @@ func (p DraftPlan) HasHead(offset uint32) bool {
 
 // SessionEligible: supported runtime coordinator cardinality.
 func (p DraftPlan) SessionEligible() bool {
-	if !p.HasHead(0) {
+	if !p.HasHead(firstDraftHead) {
 		return false
 	}
-	return p.Session != DraftSessionSingle || p.Heads == 1
+	return p.Session != DraftSessionSingle || p.Heads == singleDraftHeadCount
 }
 
 // Block: physical draft block index.
@@ -126,6 +133,22 @@ const (
 	// FeedForwardReLU: plain gateless ReLU MLP, the constructed topology's
 	// feed-forward contract.
 	FeedForwardReLU
+)
+
+func (p FeedForwardPolicy) separateGate() bool {
+	return p == FeedForwardSwiGLU || p == FeedForwardGEGLU
+}
+
+func (p FeedForwardPolicy) upProjectionCopies() uint64 {
+	if p == FeedForwardFusedGateUp {
+		return fusedGateUpProjectionCopies
+	}
+	return separateProjectionCopies
+}
+
+const (
+	separateProjectionCopies    = uint64(1)
+	fusedGateUpProjectionCopies = 2 * separateProjectionCopies
 )
 
 // AttentionPolicy: primary attention implementation.
@@ -308,43 +331,45 @@ const (
 
 // ArchitectureProfile: registry entry and capability set.
 type ArchitectureProfile struct {
-	Name             string
-	DraftKind        DraftKind
-	Forward          ForwardProgram
-	OutputNorm       OutputNormPolicy
-	Capabilities     ArchitectureCapability
-	Normalization    NormalizationPolicy
-	Position         PositionPolicy
-	Residual         ResidualPolicy
-	FeedForward      FeedForwardPolicy
-	Attention        AttentionPolicy
-	Overrides        EmbeddingOverridePolicy
-	Deepstack        DeepstackPolicy
-	AttentionBlocks  AttentionBlockPolicy
-	Auxiliary        AuxiliaryFlow
-	Temperature      AttentionTemperaturePolicy
-	PostNormLayout   PostNormLayoutPolicy
-	FFNNormLayout    FeedForwardNormLayoutPolicy
-	Cache            CachePolicy
-	RecurrentCache   CachePolicy
-	RecurrentMixer   RecurrentMixerPolicy
-	CacheFallback    CacheFallbackPolicy
-	LayerTopology    LayerTopologyPolicy
-	DenseStages      DenseStagePolicy
-	DenseWeights     DenseWeightPolicy
-	ModelCatalog     ModelCatalogPolicy
-	Rotary           RotaryPolicy
-	AttentionGraph   AttentionGraphPolicy
-	Experts          ExpertPolicy
-	Metadata         MetadataShapePolicy
-	MetadataRead     MetadataReadPolicy
-	MetadataDefaults MetadataDefaultPolicy
-	Validation       ValidationPolicy
-	EncoderOperator  EncoderOperatorPolicy
-	LatentAttention  latentAttentionPolicy
-	Cadence          LayerCadencePolicy
-	Runtime          RuntimePolicy
-	DeciSparse       bool
+	Name                      string
+	DraftKind                 DraftKind
+	DraftQueryCopies          uint32
+	Forward                   ForwardProgram
+	OutputNorm                OutputNormPolicy
+	Capabilities              ArchitectureCapability
+	Normalization             NormalizationPolicy
+	NormalizationFromMetadata bool
+	Position                  PositionPolicy
+	Residual                  ResidualPolicy
+	FeedForward               FeedForwardPolicy
+	Attention                 AttentionPolicy
+	Overrides                 EmbeddingOverridePolicy
+	Deepstack                 DeepstackPolicy
+	AttentionBlocks           AttentionBlockPolicy
+	Auxiliary                 AuxiliaryFlow
+	Temperature               AttentionTemperaturePolicy
+	PostNormLayout            PostNormLayoutPolicy
+	FFNNormLayout             FeedForwardNormLayoutPolicy
+	Cache                     CachePolicy
+	RecurrentCache            CachePolicy
+	RecurrentMixer            RecurrentMixerPolicy
+	CacheFallback             CacheFallbackPolicy
+	LayerTopology             LayerTopologyPolicy
+	DenseStages               DenseStagePolicy
+	DenseWeights              DenseWeightPolicy
+	ModelCatalog              ModelCatalogPolicy
+	Rotary                    RotaryPolicy
+	AttentionGraph            AttentionGraphPolicy
+	Experts                   ExpertPolicy
+	Metadata                  MetadataShapePolicy
+	MetadataRead              MetadataReadPolicy
+	MetadataDefaults          MetadataDefaultPolicy
+	Validation                ValidationPolicy
+	EncoderOperator           EncoderOperatorPolicy
+	LatentAttention           latentAttentionPolicy
+	Cadence                   LayerCadencePolicy
+	Runtime                   RuntimePolicy
+	DeciSparse                bool
 }
 
 // Has: capability predicate.
@@ -352,9 +377,22 @@ func (p ArchitectureProfile) Has(capability ArchitectureCapability) bool {
 	return p.Capabilities&capability != 0
 }
 
+func (p ArchitectureProfile) clone() ArchitectureProfile {
+	p.Forward = p.Forward.clone()
+	return p
+}
+
+func (p ArchitectureProfile) equal(other ArchitectureProfile) bool {
+	if !p.Forward.equal(other.Forward) {
+		return false
+	}
+	p.Forward, other.Forward = ForwardProgram{}, ForwardProgram{}
+	return reflect.DeepEqual(p, other)
+}
+
 // DraftPlan: architecture draft catalog/session descriptor.
 func (p ArchitectureProfile) DraftPlan(heads uint32) DraftPlan {
-	plan := DraftPlan{Kind: p.DraftKind, Heads: heads}
+	plan := DraftPlan{Kind: p.DraftKind, Heads: heads, QueryCopies: p.DraftQueryCopies}
 	switch p.DraftKind {
 	case DraftSingleCatalog:
 		plan.SingleCatalog = true
@@ -403,14 +441,16 @@ func (p ArchitectureProfile) FeedForwardNormTensor() string {
 // LookupArchitecture: registered profile lookup.
 func LookupArchitecture(name string) (ArchitectureProfile, bool) {
 	profile, ok := architectureRegistry[name]
-	return profile, ok
+	return profile.clone(), ok
 }
 
 // SupportedArchitectures: sorted registered names.
 func SupportedArchitectures() []string {
-	names := make([]string, 0, len(architectureRegistry))
+	names := make([]string, len(architectureRegistry))
+	var index int
 	for name := range architectureRegistry {
-		names = append(names, name)
+		names[index] = name
+		index++
 	}
 	sort.Strings(names)
 	return names
@@ -420,7 +460,7 @@ func (s Spec) boundProfile() (ArchitectureProfile, bool) {
 	if s.profile == nil {
 		return ArchitectureProfile{}, false
 	}
-	return *s.profile, s.profile.Name == s.Architecture
+	return s.profile.clone(), s.profile.Name == s.Architecture
 }
 
 // Profile: bound policy; zero profile for invalid specs.
@@ -430,8 +470,9 @@ func (s Spec) Profile() ArchitectureProfile {
 }
 
 func (s Spec) withProfile(profile ArchitectureProfile) Spec {
-	if profile.Validation.Attention == AttentionValidationRequiredSlidingRotaryExperts &&
-		s.LayerNormEpsilon <= 0 && s.RMSNormEpsilon > 0 {
+	profile = profile.clone()
+	if profile.NormalizationFromMetadata &&
+		!positiveFinite(s.LayerNormEpsilon) && positiveFinite(s.RMSNormEpsilon) {
 		profile.Normalization = NormalizationRMS
 	}
 	s.profile = &profile

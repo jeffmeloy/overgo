@@ -20,5 +20,5 @@ const (
 const allMetadataReadPolicies = (MetadataReadZeroALiBiDefault << 1) - 1
 
 func (p ArchitectureProfile) readsMetadata(policy MetadataReadPolicy) bool {
-	return p.MetadataRead&policy != 0
+	return p.MetadataRead&policy == policy
 }

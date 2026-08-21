@@ -1,5 +1,7 @@
 package model
 
+import "overgo/internal/tensor"
+
 type recurrentCadence uint8
 
 const (
@@ -37,11 +39,12 @@ type LayerCadencePolicy struct {
 }
 
 func (p LayerCadencePolicy) fullIndexer(context, layer uint32) bool {
-	if p.FullIndexerEveryLayer || p.FullIndexerContext > 0 && context < p.FullIndexerContext {
+	if p.FullIndexerEveryLayer ||
+		p.FullIndexerContext > tensor.FirstOffset && context < p.FullIndexerContext {
 		return true
 	}
-	return p.FullIndexerPeriod > 0 && (layer < p.FullIndexerPrefix ||
-		(layer-p.FullIndexerPrefix)%p.FullIndexerPeriod == 0)
+	return p.FullIndexerPeriod > tensor.FirstOffset && (layer < p.FullIndexerPrefix ||
+		(layer-p.FullIndexerPrefix)%p.FullIndexerPeriod == tensor.FirstOffset)
 }
 
 func (p LayerCadencePolicy) recurrent(spec Spec, block uint32) bool {
@@ -52,7 +55,8 @@ func (p LayerCadencePolicy) recurrent(spec Spec, block uint32) bool {
 		return spec.RecurrentLayers[block]
 	}
 	return p.Recurrent == recurrentCadenceAttentionInterval &&
-		spec.FullAttentionInterval > 0 && (block+1)%spec.FullAttentionInterval != 0
+		spec.FullAttentionInterval > tensor.FirstOffset &&
+		(block+tensor.SingletonExtent)%spec.FullAttentionInterval != tensor.FirstOffset
 }
 
 func (p LayerCadencePolicy) moe(spec Spec, block uint32) bool {
@@ -61,12 +65,14 @@ func (p LayerCadencePolicy) moe(spec Spec, block uint32) bool {
 	}
 	switch p.MoE {
 	case moeCadenceOffsetOne:
-		return spec.MoELayerStep > 1 && block%spec.MoELayerStep == 1
+		return spec.MoELayerStep > tensor.SingletonExtent &&
+			block%spec.MoELayerStep == tensor.SingletonExtent
 	case moeCadenceEvery:
-		return spec.MoELayerStep > 0 && (block+1)%spec.MoELayerStep == 0
+		return spec.MoELayerStep > tensor.FirstOffset &&
+			(block+tensor.SingletonExtent)%spec.MoELayerStep == tensor.FirstOffset
 	case moeCadenceAfterDense:
-		return block >= spec.LeadingDenseBlocks && spec.MoELayerStep > 0 &&
-			(block+1)%spec.MoELayerStep == 0
+		return block >= spec.LeadingDenseBlocks && spec.MoELayerStep > tensor.FirstOffset &&
+			(block+tensor.SingletonExtent)%spec.MoELayerStep == tensor.FirstOffset
 	default:
 		return false
 	}
@@ -78,13 +84,20 @@ func (p LayerCadencePolicy) sliding(spec Spec, block uint32) bool {
 	}
 	switch p.Sliding {
 	case slidingCadenceNonRecurrent:
-		return spec.SlidingWindow > 0 && !p.recurrent(spec, block)
+		return spec.SlidingWindow > tensor.FirstOffset && !p.recurrent(spec, block)
 	case slidingCadenceExceptFirst:
-		return spec.SlidingWindow > 0 && spec.SlidingPattern > 0 && block%spec.SlidingPattern != 0
+		return spec.SlidingWindow > tensor.FirstOffset && spec.SlidingPattern > tensor.FirstOffset &&
+			block%spec.SlidingPattern != tensor.FirstOffset
 	}
 	if block < uint32(len(spec.SlidingLayers)) {
 		return spec.SlidingLayers[block]
 	}
-	return p.Sliding == slidingCadenceExceptLast && spec.SlidingWindow > 0 && spec.SlidingPattern > 0 &&
-		block%spec.SlidingPattern < spec.SlidingPattern-1
+	return p.Sliding == slidingCadenceExceptLast && spec.SlidingWindow > tensor.FirstOffset &&
+		spec.SlidingPattern > tensor.FirstOffset &&
+		block%spec.SlidingPattern < spec.SlidingPattern-tensor.SingletonExtent
+}
+
+func (p LayerCadencePolicy) periodicRescale(spec Spec, block uint32) bool {
+	return spec.RescaleEvery > tensor.FirstOffset &&
+		(block+tensor.SingletonExtent)%spec.RescaleEvery == tensor.FirstOffset
 }

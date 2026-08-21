@@ -5,7 +5,7 @@ type BaseRotaryValidationPolicy uint8
 
 const (
 	BaseRotaryValidationDefault BaseRotaryValidationPolicy = iota
-	BaseRotaryValidationHalfWidth
+	BaseRotaryValidationPaired
 )
 
 // ExpertMetadataPolicy: expert metadata admission.
@@ -123,9 +123,9 @@ const (
 	HybridValidationScaledDense
 	HybridValidationScaledExperts
 	HybridValidationScaledStateSpace
-	HybridValidationModelWidthExperts
+	HybridValidationModelFeedForwardExperts
 	HybridValidationSharedExpertNorm
-	HybridValidationRequiredExpertWidth
+	HybridValidationRequiredExpertFeedForward
 	HybridValidationSharedExpertProduct
 	HybridValidationMultiHeadDraft
 	HybridValidationFullRotaryVision
@@ -194,7 +194,7 @@ func (p ValidationPolicy) optionalRopeBase() bool {
 
 func (p ValidationPolicy) supportsYaRN() bool {
 	return p.hybridOneOf(
-		HybridValidationPerLayerYaRNExperts, HybridValidationSharedExpertNorm, HybridValidationRequiredExpertWidth,
+		HybridValidationPerLayerYaRNExperts, HybridValidationSharedExpertNorm, HybridValidationRequiredExpertFeedForward,
 		HybridValidationOptionalExperts, HybridValidationExtendedRotary,
 	)
 }

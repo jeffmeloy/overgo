@@ -60,7 +60,7 @@ func compileFixtureLayerProgram(
 	if err != nil {
 		return model.CompiledLayerProgram{}, err
 	}
-	return plan.LayerProgram(int(layer))
+	return plan.LayerProgram(layer)
 }
 
 const cudaFixtureDevice = 0
@@ -165,7 +165,7 @@ func (f *cudaReferenceFixture) layer(
 	context model.CachedBlockContext,
 ) model.DenseBlockResult {
 	f.t.Helper()
-	compiled, err := program.LayerProgram(layer)
+	compiled, err := program.LayerProgram(uint32(layer))
 	if err != nil {
 		f.t.Fatal(err)
 	}

@@ -12,8 +12,8 @@ import (
 type CacheStateMode uint32
 
 const (
-	CacheStateFixed CacheStateMode = 1
-	CacheStateToken CacheStateMode = 2
+	CacheStateFixed CacheStateMode = iota + tensor.SingletonExtent
+	CacheStateToken
 )
 
 // CacheState: range behavior plus representation-specific value.
@@ -133,7 +133,7 @@ func compileCacheSchemas(
 		if index < len(layers) {
 			layer = layers[index]
 		}
-		schema, err := cacheSchemaForPlan(spec, plans[index], layer, 1)
+		schema, err := cacheSchemaForPlan(spec, plans[index], layer, tensor.SingletonExtent)
 		if err != nil {
 			return nil, fmt.Errorf("cache schema layer %d: %w", index, err)
 		}
@@ -151,14 +151,18 @@ func (s LayerCacheSchema) WithTokenCount(tokens uint32) LayerCacheSchema {
 }
 
 func (s LayerCacheSchema) materialize(state CacheState[CacheValueSchema]) CacheState[CacheValueSchema] {
-	if !state.Mode.TokenAligned() || state.Value.Shape.Rank == 0 {
+	if !state.Mode.TokenAligned() {
 		return state
 	}
 	tokens := s.tokens
-	if tokens == 0 {
-		tokens = 1
+	if tokens == tensor.FirstOffset {
+		tokens = tensor.SingletonExtent
 	}
-	state.Value.Shape.Dims[state.Value.Shape.Rank-1] = uint64(tokens)
+	shape, valid := tensor.WithTrailingExtent(state.Value.Shape, uint64(tokens))
+	if !valid {
+		return state
+	}
+	state.Value.Shape = shape
 	return state
 }
 
@@ -202,7 +206,7 @@ func (b *cacheSchemaBuilder) state(
 	if b.err != nil {
 		return
 	}
-	shape, err := cacheShape(dimensions...)
+	shape, err := tensor.NewShape(dimensions...)
 	if err != nil {
 		b.err = fmt.Errorf("state %q: %w", name, err)
 		return
@@ -225,51 +229,57 @@ func cacheSchemaForPlan(
 	info LayerWeights,
 	tokens uint32,
 ) (LayerCacheSchema, error) {
-	layerIndex := int(plan.Layer)
 	schema := LayerCacheSchema{Label: "KV"}
 	states := cacheSchemaBuilder{schema: &schema}
 	if plan.Attention == AttentionSparseLatent && spec.LayerHasFullIndexer(plan.Layer) {
 		states.state(CacheStateIndexerKey, CacheStateToken, false, false,
-			uint64(spec.IndexerKeyLength), 1, 1)
+			uint64(spec.IndexerKeyLength), tensor.SingletonExtent, tensor.SingletonExtent)
 	}
 	if plan.Cache == CacheCompressedAttention {
-		if layerIndex < 0 || layerIndex >= len(spec.CompressRatios) {
+		if int(plan.Layer) >= len(spec.CompressRatios) {
 			return LayerCacheSchema{}, fmt.Errorf(
-				"compressed-attention ratio for layer %d is unavailable", layerIndex,
+				"compressed-attention ratio for layer %d is unavailable", plan.Layer,
 			)
 		}
-		ratio := tensor.CompressionRatio(spec.CompressRatios[layerIndex])
+		ratio := tensor.CompressionRatio(spec.CompressRatios[plan.Layer])
 		schema.StrictStates = true
-		states.state(CacheStatePositions, CacheStateToken, false, false, 1, 1, 1)
+		states.state(
+			CacheStatePositions, CacheStateToken, false, false,
+			tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent,
+		)
 		if ratio.Enabled() {
 			coefficient := ratio.KVWidthMultiplier()
 			width := coefficient * uint64(spec.KeyLength)
-			states.state(CacheStateCompressorKV, CacheStateToken, false, false, width, 1, 1)
-			states.state(CacheStateCompressorScore, CacheStateToken, false, false, width, 1, 1)
+			states.state(CacheStateCompressorKV, CacheStateToken, false, false,
+				width, tensor.SingletonExtent, tensor.SingletonExtent)
+			states.state(CacheStateCompressorScore, CacheStateToken, false, false,
+				width, tensor.SingletonExtent, tensor.SingletonExtent)
 		}
 		if ratio.UsesIndexer() {
-			width := 2 * uint64(spec.IndexerKeyLength)
-			states.state(CacheStateIndexerCompressorKV, CacheStateToken, false, false, width, 1, 1)
-			states.state(CacheStateIndexerCompressorScore, CacheStateToken, false, false, width, 1, 1)
+			width := tensor.PairedExtent * uint64(spec.IndexerKeyLength)
+			states.state(CacheStateIndexerCompressorKV, CacheStateToken, false, false,
+				width, tensor.SingletonExtent, tensor.SingletonExtent)
+			states.state(CacheStateIndexerCompressorScore, CacheStateToken, false, false,
+				width, tensor.SingletonExtent, tensor.SingletonExtent)
 		}
 	}
 	if plan.Cache == CacheHybridAttentionScan {
-		if spec.SSMConvKernel == 0 {
+		if spec.ssmConvolutionWindow() == tensor.FirstOffset {
 			return LayerCacheSchema{}, fmt.Errorf("hybrid attention-scan convolution kernel is zero")
 		}
 		channels := uint64(spec.SSMInnerSize) +
-			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
+			tensor.PairedExtent*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 		states.state(CacheStateConvolution, CacheStateFixed, true, false,
-			uint64(spec.SSMConvKernel-1), channels)
+			spec.ssmConvolutionWindow(), channels)
 		states.state(CacheStateSSM, CacheStateFixed, true, false,
 			uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize))
 	}
 	if plan.Cache == CacheCrossAttention {
 		shapes := spec.TensorShapes(plan.Layer)
 		states.state(CacheStateCrossKey, CacheStateFixed, false, true,
-			shapes.Key, shapes.KVHeads, 1)
+			shapes.Key, shapes.KVHeads, tensor.SingletonExtent)
 		states.state(CacheStateCrossValue, CacheStateFixed, false, true,
-			shapes.Value, shapes.KVHeads, 1)
+			shapes.Value, shapes.KVHeads, tensor.SingletonExtent)
 	}
 	if states.err != nil {
 		return LayerCacheSchema{}, states.err
@@ -287,31 +297,28 @@ func cacheSchemaForPlan(
 		return schema.WithTokenCount(tokens), nil
 	}
 	if plan.Cache == CacheSentinel {
-		shape, err := cacheShape(1, 1, 1)
-		if err != nil {
-			return LayerCacheSchema{}, err
-		}
+		shape := tensor.MustShape(tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent)
 		schema.Label = "sentinel"
 		state := cacheValue(CacheStateToken, shape)
 		schema.Primary = NewCachePair(state, state)
 		return schema.WithTokenCount(tokens), nil
 	}
-	shapes := spec.TensorShapes(uint32(layerIndex))
+	shapes := spec.TensorShapes(plan.Layer)
 	keyWidth, valueWidth, heads := shapes.Key, shapes.Value, shapes.KVHeads
 	if plan.Attention == AttentionLatent || plan.Attention == AttentionSparseLatent || plan.Mixer == recurrentMixerKeyedDelta {
 		heads = uint64(spec.HeadCount)
 		if info.AttentionKB != nil {
 			keyWidth = uint64(spec.KVLoRARank + spec.RopeDimensionCount)
 			valueWidth = uint64(spec.KVLoRARank)
-			heads = 1
+			heads = tensor.SingletonExtent
 		}
 	}
 	shapes.Key, shapes.Value, shapes.KVHeads = keyWidth, valueWidth, heads
-	key, err := shapes.KeyCacheShape(1)
+	key, err := tensor.NewShape(shapes.Key, shapes.KVHeads, tensor.SingletonExtent)
 	if err != nil {
 		return LayerCacheSchema{}, fmt.Errorf("key cache: %w", err)
 	}
-	value, err := shapes.ValueCacheShape(1)
+	value, err := tensor.NewShape(shapes.Value, shapes.KVHeads, tensor.SingletonExtent)
 	if err != nil {
 		return LayerCacheSchema{}, fmt.Errorf("value cache: %w", err)
 	}
@@ -319,14 +326,6 @@ func cacheSchemaForPlan(
 		cacheValue(CacheStateToken, key), cacheValue(CacheStateToken, value),
 	)
 	return schema.WithTokenCount(tokens), nil
-}
-
-func cacheShape(dimensions ...uint64) (tensor.Shape, error) {
-	shape, err := tensor.NewShape(dimensions...)
-	if err != nil {
-		return tensor.Shape{}, fmt.Errorf("cache shape %v: %w", dimensions, err)
-	}
-	return shape, nil
 }
 
 func recurrentCacheSchema(
@@ -338,11 +337,14 @@ func recurrentCacheSchema(
 	}
 	embedding := uint64(spec.EmbeddingLength)
 	stateMatrix := []uint64{
-		uint64(spec.WKVHeadSize), uint64(spec.WKVHeadSize), uint64(spec.HeadCount), 1,
+		uint64(spec.WKVHeadSize), uint64(spec.WKVHeadSize),
+		uint64(spec.HeadCount), tensor.SingletonExtent,
 	}
 	switch plan.Cache {
 	case CacheDoubleTokenShiftRecurrence:
-		return recurrentCachePair("double token-shift recurrence", []uint64{embedding, 2}, stateMatrix)
+		return recurrentCachePair(
+			"double token-shift recurrence", []uint64{embedding, tensor.PairedExtent}, stateMatrix,
+		)
 	case CacheSingleTokenShiftRecurrence:
 		return recurrentCachePair("single token-shift recurrence", []uint64{embedding}, stateMatrix)
 	case CacheVariableTokenShiftRecurrence:
@@ -356,8 +358,11 @@ func recurrentCacheSchema(
 		}
 		return recurrentCachePair(
 			"keyed-delta recurrence",
-			[]uint64{previous, 3 * uint64(spec.SSMInnerSize)},
-			[]uint64{uint64(spec.KDAHeadDim), uint64(spec.KDAHeadDim), uint64(spec.HeadCount), 1},
+			[]uint64{previous, tensor.TripleExtent * uint64(spec.SSMInnerSize)},
+			[]uint64{
+				uint64(spec.KDAHeadDim), uint64(spec.KDAHeadDim),
+				uint64(spec.HeadCount), tensor.SingletonExtent,
+			},
 		)
 	case CacheGatedDelta:
 		previous, err := previousCacheElements(spec.SSMConvKernel, "gated-delta convolution kernel")
@@ -365,12 +370,12 @@ func recurrentCacheSchema(
 			return tensor.Shape{}, tensor.Shape{}, false, "", err
 		}
 		channels := uint64(spec.SSMInnerSize) +
-			2*uint64(spec.SSMStateSize)*uint64(spec.SSMGroupCount)
+			tensor.PairedExtent*uint64(spec.SSMStateSize)*uint64(spec.SSMGroupCount)
 		return recurrentCachePair(
 			"gated-delta recurrence", []uint64{previous, channels},
 			[]uint64{
 				uint64(spec.SSMStateSize), uint64(spec.SSMStateSize),
-				uint64(spec.SSMTimeStepRank), 1,
+				uint64(spec.SSMTimeStepRank), tensor.SingletonExtent,
 			},
 		)
 	case CacheGroupedSelectiveScan:
@@ -379,7 +384,7 @@ func recurrentCacheSchema(
 			return tensor.Shape{}, tensor.Shape{}, false, "", err
 		}
 		channels := uint64(spec.SSMInnerSize) +
-			2*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
+			tensor.PairedExtent*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
 		return recurrentCachePair(
 			"grouped selective-scan recurrence", []uint64{previous, channels},
 			[]uint64{uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)},
@@ -399,7 +404,8 @@ func recurrentCacheSchema(
 			return tensor.Shape{}, tensor.Shape{}, false, "", err
 		}
 		return recurrentCachePair(
-			"short-convolution recurrence", []uint64{previous, uint64(spec.EmbeddingLength)}, []uint64{1},
+			"short-convolution recurrence", []uint64{previous, uint64(spec.EmbeddingLength)},
+			[]uint64{tensor.SingletonExtent},
 		)
 	default:
 		return tensor.Shape{}, tensor.Shape{}, false, "", fmt.Errorf(
@@ -413,11 +419,11 @@ func recurrentCachePair(
 	label string,
 	firstDimensions, secondDimensions []uint64,
 ) (tensor.Shape, tensor.Shape, bool, string, error) {
-	first, err := cacheShape(firstDimensions...)
+	first, err := tensor.NewShape(firstDimensions...)
 	if err != nil {
 		return tensor.Shape{}, tensor.Shape{}, false, "", fmt.Errorf("%s first state: %w", label, err)
 	}
-	second, err := cacheShape(secondDimensions...)
+	second, err := tensor.NewShape(secondDimensions...)
 	if err != nil {
 		return tensor.Shape{}, tensor.Shape{}, false, "", fmt.Errorf("%s second state: %w", label, err)
 	}
@@ -425,8 +431,8 @@ func recurrentCachePair(
 }
 
 func previousCacheElements(length uint32, label string) (uint64, error) {
-	if length <= 1 {
-		return 0, fmt.Errorf("%s %d leaves no cache history", label, length)
+	if length <= tensor.SingletonExtent {
+		return tensor.FirstOffset, fmt.Errorf("%s %d leaves no cache history", label, length)
 	}
-	return uint64(length - 1), nil
+	return uint64(length - tensor.SingletonExtent), nil
 }

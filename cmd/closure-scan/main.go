@@ -702,13 +702,14 @@ func reportTestLiterals(sites []closurescan.TestLiteralSite, limit int) {
 
 func reportAssumptions(hints []closurescan.AssumptionHint, limit int) {
 	fmt.Printf("closure-scan: %d syntax-derived assumption hints\n", len(hints))
-	fmt.Printf("%-22s %-24s %s\n", "kind", "scope", "source")
+	fmt.Printf("%-32s %-7s %-24s %s\n", "binding", "policy", "scope", "source")
 	for index, hint := range hints {
 		if index >= limit {
 			fmt.Printf("... %d more (raise -limit)\n", len(hints)-limit)
 			break
 		}
-		fmt.Printf("%-22s %-24s %s:%d\n", hint.Kind, hint.Scope, hint.File, hint.Line)
+		fmt.Printf("%-32s %-7t %-24s %s:%d\n",
+			hint.Candidate().Name, hint.Policy, hint.Scope, hint.File, hint.Line)
 	}
 }
 

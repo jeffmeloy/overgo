@@ -11,7 +11,7 @@ type CachedBlockContext struct {
 	Builder          *tensor.Builder
 	Input            *tensor.Tensor
 	Positions        []uint32
-	MultiPositions   *[4][]uint32
+	MultiPositions   *[tensor.MaxDimensions][]uint32
 	TokenRows        []uint32
 	PastKey          *tensor.Tensor
 	PastValue        *tensor.Tensor
@@ -51,11 +51,15 @@ func executeCompiledLayer(options blockDispatchOptions) (DenseBlockResult, error
 	}
 	plan := *options.Plan
 	context := options.Context
+	if context.Sequences == tensor.FirstOffset {
+		context.Sequences = tensor.SingletonExtent
+		options.Context = context
+	}
 	if context.MultiPositions != nil {
 		if !plan.MultiAxis {
 			return DenseBlockResult{}, errors.New("layer architecture does not support multi-axis positions")
 		}
-		context.Positions = context.MultiPositions[0]
+		context.Positions = context.MultiPositions[tensor.FirstOffset]
 		options.Context = context
 	}
 	if plan.Layer != context.Layer || plan.Recurrent != context.Recurrent {
@@ -65,8 +69,8 @@ func executeCompiledLayer(options blockDispatchOptions) (DenseBlockResult, error
 }
 
 type layerOperands struct {
-	caches  [maxLayerCacheBindings]*tensor.Tensor
-	tensors [maxLayerTensorBindings]*tensor.Tensor
+	caches  [runtimeCacheBindingCount]*tensor.Tensor
+	tensors [runtimeTensorBindingCount]*tensor.Tensor
 }
 
 func resolveLayerOperands(
@@ -74,32 +78,34 @@ func resolveLayerOperands(
 	instruction LayerOperatorInstruction,
 ) layerOperands {
 	var operands layerOperands
-	for index := range int(instruction.CacheCount) {
-		switch instruction.Caches[index] {
+	for index := range instruction.Caches[:instruction.CacheCount] {
+		binding := instruction.Caches[index]
+		switch binding {
 		case RuntimeCachePrimaryKey:
-			operands.caches[index] = context.PastKey
+			operands.caches[binding] = context.PastKey
 		case RuntimeCachePrimaryValue:
-			operands.caches[index] = context.PastValue
+			operands.caches[binding] = context.PastValue
 		case RuntimeCacheConvolution:
-			operands.caches[index] = context.PastStates[CacheStateConvolution].Value
+			operands.caches[binding] = context.PastStates[CacheStateConvolution].Value
 		case RuntimeCacheSSM:
-			operands.caches[index] = context.PastStates[CacheStateSSM].Value
+			operands.caches[binding] = context.PastStates[CacheStateSSM].Value
 		case RuntimeCacheIndexerKey:
-			operands.caches[index] = context.PastStates[CacheStateIndexerKey].Value
+			operands.caches[binding] = context.PastStates[CacheStateIndexerKey].Value
 		case RuntimeCacheCrossKey:
-			operands.caches[index] = context.CrossKey
+			operands.caches[binding] = context.CrossKey
 		case RuntimeCacheCrossValue:
-			operands.caches[index] = context.CrossValue
+			operands.caches[binding] = context.CrossValue
 		}
 	}
-	for index := range int(instruction.TensorCount) {
-		switch instruction.Tensors[index] {
+	for index := range instruction.Tensors[:instruction.TensorCount] {
+		binding := instruction.Tensors[index]
+		switch binding {
 		case RuntimeTensorPerLayerInput:
-			operands.tensors[index] = context.PerLayerInput
+			operands.tensors[binding] = context.PerLayerInput
 		case RuntimeTensorCurrentPositions:
-			operands.tensors[index] = context.CurrentPositions
+			operands.tensors[binding] = context.CurrentPositions
 		case RuntimeTensorEncoder:
-			operands.tensors[index] = context.Encoder
+			operands.tensors[binding] = context.Encoder
 		}
 	}
 	return operands
@@ -124,7 +130,7 @@ func mergeLayerResult(destination *DenseBlockResult, result DenseBlockResult) {
 	if result.Query != nil {
 		destination.Query, destination.AttentionScale = result.Query, result.AttentionScale
 	}
-	if len(result.States) > 0 {
+	if len(result.States) > tensor.FirstOffset {
 		destination.States = result.States
 	}
 }
@@ -141,17 +147,13 @@ func executeAttentionOperator(
 	case LayerOperatorAttentionCausalProjection:
 		return buildCausalProjectionMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], plan.Layer,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], plan.Layer,
 		)
 	case LayerOperatorAttentionGatedProjection:
-		sequences := c.Sequences
-		if sequences == 0 {
-			sequences = 1
-		}
 		return buildGatedProjectionMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			c.Positions, c.MultiPositions, sequences,
-			operands.caches[0], operands.caches[1], c.CacheWrite,
+			c.Positions, c.MultiPositions, c.Sequences,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], c.CacheWrite,
 			plan.AttentionGraph.deltaProjection,
 		)
 	case LayerOperatorAttentionOutputProjection:
@@ -166,42 +168,42 @@ func executeAttentionOperator(
 	case LayerOperatorAttentionBidirectionalFusedQKV:
 		return buildBidirectionalFusedQKVMix(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], plan,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], plan,
 		)
 	case LayerOperatorAttentionBidirectionalQKNorm:
 		return buildBidirectionalQKNormMix(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], plan,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], plan,
 		)
 	case LayerOperatorAttentionCausalPostQKNorm:
 		return buildCausalPostQKNormMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], plan.Layer,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], plan.Layer,
 		)
 	case LayerOperatorAttentionSharedKVQKNorm:
 		return buildSharedKVQKNormMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], plan, c.CacheWrite,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], plan, c.CacheWrite,
 		)
 	case LayerOperatorAttentionBidirectionalEncoder:
 		return buildBidirectionalEncoderAttentionMix(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], plan,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], plan,
 		)
 	case LayerOperatorAttentionPairedCausalProjection:
 		return buildPairedCausalProjectionMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], c.CacheWrite,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], c.CacheWrite,
 		)
 	case LayerOperatorAttentionSharedCacheQKNorm:
 		return buildSharedCacheQKNormMix(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], plan,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], plan,
 		)
 	case LayerOperatorAttentionPlannedProjection:
 		return buildPolicyAttentionMix(
 			options, execution.current, execution.feedForwardBase,
-			operands.caches[0], operands.caches[1],
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue],
 		)
 	case LayerOperatorAttentionRelativeBidirectional:
 		return buildRelativeSelfAttentionMix(
@@ -210,12 +212,12 @@ func executeAttentionOperator(
 	case LayerOperatorAttentionRelativeCausal:
 		return buildRelativeSelfAttentionMix(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			operands.caches[0], operands.caches[1], true,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], true,
 		)
 	case LayerOperatorAttentionCross:
 		return buildCrossAttentionMix(
-			c.Builder, execution.current, operands.tensors[0], options.Spec, options.Weights,
-			operands.caches[0], operands.caches[1],
+			c.Builder, execution.current, operands.tensors[RuntimeTensorEncoder], options.Spec, options.Weights,
+			operands.caches[RuntimeCacheCrossKey], operands.caches[RuntimeCacheCrossValue],
 		)
 	default:
 		return DenseBlockResult{}, errors.New("compiled attention-mixing policy is invalid")
@@ -233,7 +235,7 @@ func executeRecurrentOperator(
 	case recurrentMixerSelectiveScan, recurrentMixerWeightedSelectiveScan:
 		return buildSelectiveScanMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			operands.caches[0], operands.caches[1], plan.Mixer,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], plan.Mixer,
 		)
 	case recurrentMixerGroupedSelectiveScan, recurrentMixerScaledGroupedSelectiveScan,
 		recurrentMixerSparseGroupedSelectiveScan:
@@ -242,47 +244,44 @@ func executeRecurrentOperator(
 		}
 		return buildGroupedSelectiveScanMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			operands.caches[0], operands.caches[1], plan.Mixer,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], plan.Mixer,
 		)
 	case recurrentMixerNormalizedSelectiveScan:
 		return buildNormalizedSelectiveScanMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			operands.caches[0], operands.caches[1],
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue],
 		)
 	case recurrentMixerGatedDelta:
-		sequences := c.Sequences
-		if sequences == 0 {
-			sequences = 1
-		}
 		return buildGatedDeltaMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			c.Positions, sequences, operands.caches[0], operands.caches[1],
+			c.Positions, c.Sequences,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue],
 			plan.AttentionGraph.deltaProjection,
 		)
 	case recurrentMixerShortConvolution:
 		return buildShortConvolutionMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1],
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue],
 		)
 	case recurrentMixerDynamicWKV6:
 		return buildDynamicWKV6MixCached(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			operands.caches[0], operands.caches[1],
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue],
 		)
 	case recurrentMixerAffineWKV6:
 		return buildAffineWKV6MixCached(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			operands.caches[0], operands.caches[1], plan,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], plan,
 		)
 	case recurrentMixerDynamicWKV7:
 		return buildDynamicWKV7MixCached(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			operands.caches[0], operands.caches[1], plan,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], plan,
 		)
 	case recurrentMixerKeyedDelta:
 		return buildKeyedDeltaAttentionMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1],
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue],
 		)
 	default:
 		return DenseBlockResult{}, errors.New("compiled recurrent-mixing policy is invalid")
@@ -296,8 +295,7 @@ func executeLayerProgram(
 	execution := layerExecution{
 		residual: options.Context.Input, current: options.Context.Input,
 	}
-	for index := range int(plan.Program.Count) {
-		instruction := plan.Program.Instructions[index]
+	for _, instruction := range plan.Program.Instructions {
 		operands := resolveLayerOperands(options.Context, instruction)
 		if err := executeLayerInstruction(options, plan, instruction, operands, &execution); err != nil {
 			return DenseBlockResult{}, err
@@ -351,10 +349,13 @@ func executeLayerInstruction(
 		execution.current = c.Builder.RMSNorm(execution.current, options.Spec.RMSNormEpsilon)
 		return c.Builder.Err()
 	case LayerOperatorPairedInputNorm:
-		target := operands.tensors[0]
+		target := operands.tensors[RuntimeTensorPerLayerInput]
+		validInput := false
+		if execution.current != nil {
+			_, validInput = tensor.MatrixRows(execution.current.Shape, uint64(options.Spec.EmbeddingLength))
+		}
 		if target == nil || execution.current == nil || !execution.current.Shape.Equal(target.Shape) ||
-			execution.current.Shape.Rank != 2 ||
-			execution.current.Shape.Dims[0] != uint64(options.Spec.EmbeddingLength) ||
+			!validInput ||
 			options.Weights.AttentionNorm == nil || options.Weights.AttentionNorm2 == nil {
 			return errors.New("compiled paired-input normalization stage is invalid")
 		}
@@ -364,7 +365,7 @@ func executeLayerInstruction(
 		targetNorm := c.Builder.WeightedRMSNorm(
 			target, options.Weights.AttentionNorm2, options.Spec.RMSNormEpsilon,
 		)
-		execution.current = c.Builder.Concat(tokenNorm, targetNorm, 0)
+		execution.current = c.Builder.Concat(tokenNorm, targetNorm, tensor.FirstOffset)
 		execution.residual = target
 		if options.Spec.NormBeforeResidual {
 			execution.residual = targetNorm
@@ -395,7 +396,7 @@ func executeLayerInstruction(
 	case LayerOperatorHybridMix:
 		result, err := buildAttentionSSMHybridMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], operands.caches[2], operands.caches[3], plan,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], operands.caches[RuntimeCacheConvolution], operands.caches[RuntimeCacheSSM], plan,
 		)
 		if err != nil {
 			return err
@@ -497,11 +498,12 @@ func executeLayerInstruction(
 		)
 		return c.Builder.Err()
 	case LayerOperatorCacheSentinel:
-		if len(c.Positions) == 0 || uint64(len(c.Positions)) != execution.residual.Shape.Dims[1] {
+		tokens, validInput := tensor.MatrixRows(execution.residual.Shape, uint64(options.Spec.EmbeddingLength))
+		if !validInput || uint64(len(c.Positions)) != tokens {
 			return errors.New("compiled sentinel-cache positions are invalid")
 		}
 		key, value, err := buildSentinelCache(
-			c.Builder, execution.residual, operands.caches[0], operands.caches[1],
+			c.Builder, execution.residual, operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue],
 		)
 		if err != nil {
 			return err
@@ -511,7 +513,7 @@ func executeLayerInstruction(
 		execution.result.Output = execution.residual
 		return nil
 	case LayerOperatorScale:
-		if plan.ResidualStages.residualScale <= 0 {
+		if !positiveFinite(plan.ResidualStages.residualScale) {
 			return errors.New("compiled scale stage is invalid")
 		}
 		execution.current = c.Builder.Scale(execution.current, plan.ResidualStages.residualScale)
@@ -590,7 +592,7 @@ func executeLayerInstruction(
 		}
 		result, err := buildTokenShiftFeedForwardMix(
 			c.Builder, execution.current, options.Spec, options.Weights,
-			operands.caches[0], execution.result.Key, instruction.Operator, plan.Normalization,
+			operands.caches[RuntimeCachePrimaryKey], execution.result.Key, instruction.Operator, plan.Normalization,
 			plan.RecurrentRuntime.TokenShiftCount,
 		)
 		if err != nil {
@@ -600,7 +602,7 @@ func executeLayerInstruction(
 		execution.result.Key = result.Key
 		return nil
 	case LayerOperatorPeriodicScale:
-		if execution.current == nil || plan.PeriodicScale <= 0 {
+		if execution.current == nil || !positiveFinite(plan.PeriodicScale) {
 			return errors.New("compiled periodic-scale stage is invalid")
 		}
 		execution.current = c.Builder.Scale(execution.current, plan.PeriodicScale)
@@ -610,7 +612,8 @@ func executeLayerInstruction(
 	case LayerOperatorLatentAttention:
 		result, err := buildLatentAttentionMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], operands.caches[1], operands.caches[2], operands.tensors[0], plan,
+			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue],
+			operands.caches[RuntimeCacheIndexerKey], operands.tensors[RuntimeTensorPerLayerInput], plan,
 		)
 		if err != nil {
 			return err
@@ -621,7 +624,8 @@ func executeLayerInstruction(
 	case LayerOperatorHyperAttention:
 		result, err := buildHyperAttentionStage(
 			c.Builder, c.Input, options.Spec, options.Weights, c.Positions,
-			operands.caches[0], c.PastStates, operands.tensors[0], plan,
+			operands.caches[RuntimeCachePrimaryKey], c.PastStates,
+			operands.tensors[RuntimeTensorCurrentPositions], plan,
 		)
 		if err != nil {
 			return err
@@ -648,35 +652,32 @@ func buildSentinelCache(
 	builder *tensor.Builder,
 	input, pastKey, pastValue *tensor.Tensor,
 ) (*tensor.Tensor, *tensor.Tensor, error) {
-	const (
-		sentinelOffset      = 0
-		sentinelWidth       = 1
-		sentinelGroupCount  = 1
-		cacheTokenDimension = 2
-	)
-	if input == nil || input.Shape.Rank != 2 {
+	if input == nil {
+		return nil, nil, errors.New("sentinel-cache input is invalid")
+	}
+	width, _, validInput := tensor.MatrixExtents(input.Shape)
+	if !validInput {
 		return nil, nil, errors.New("sentinel-cache input is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "sentinel cache must contain both tensors"); err != nil {
 		return nil, nil, err
 	}
-	// distinct node per cache stream: retained-output indexing rejects the
-	// same tensor appearing as both Key and Value
+	// Distinct nodes: retained outputs require unique cache tensors.
 	sentinel := func() *tensor.Tensor {
 		return builder.GroupSlice(
-			input, sentinelOffset, sentinelWidth, sentinelGroupCount, input.Shape.Dims[0],
+			input, tensor.FirstOffset, tensor.SingletonExtent, tensor.SingletonExtent, width,
 		)
 	}
 	cacheKey, cacheValue := sentinel(), sentinel()
 	if pastKey != nil {
-		wantPrefix, err := tensor.NewShape(
-			sentinelWidth, sentinelGroupCount, pastKey.Shape.Dims[cacheTokenDimension],
+		_, cacheAxis, validCache := tensor.TrailingExtent(
+			pastKey.Shape, tensor.SingletonExtent, tensor.SingletonExtent,
 		)
-		if err != nil || !pastKey.Shape.Equal(wantPrefix) || !pastValue.Shape.Equal(wantPrefix) {
+		if !validCache || !pastKey.Shape.Equal(pastValue.Shape) {
 			return nil, nil, errors.New("sentinel cache shape is invalid")
 		}
-		cacheKey = builder.Concat(pastKey, cacheKey, cacheTokenDimension)
-		cacheValue = builder.Concat(pastValue, cacheValue, cacheTokenDimension)
+		cacheKey = builder.Concat(pastKey, cacheKey, cacheAxis)
+		cacheValue = builder.Concat(pastValue, cacheValue, cacheAxis)
 	}
 	return cacheKey, cacheValue, builder.Err()
 }

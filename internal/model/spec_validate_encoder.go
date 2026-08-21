@@ -1,36 +1,42 @@
 package model
 
-import "errors"
+import (
+	"errors"
+
+	"overgo/internal/tensor"
+)
 
 func (s Spec) validateEncoderMetadata() error {
 	switch s.Profile().Validation.Encoder {
 	case EncoderValidationTokenTypesMatchingHeads:
-		if s.TokenTypeCount != 0 && s.HeadCountKV == s.HeadCount && s.KeyLength == s.ValueLength {
+		if s.TokenTypeCount > tensor.FirstOffset && s.HeadCountKV == s.HeadCount && s.KeyLength == s.ValueLength {
 			return nil
 		}
 		return errors.New("BERT metadata is invalid")
 	case EncoderValidationTokenTypesALiBi:
-		if s.TokenTypeCount != 0 && s.KeyLength == s.ValueLength && s.MaxALiBiBias == 8 {
+		if s.TokenTypeCount > tensor.FirstOffset && s.KeyLength == s.ValueLength &&
+			s.MaxALiBiBias == s.Profile().MetadataDefaults.MaxALiBiBias {
 			return nil
 		}
 		return errors.New("JinaBERT v2 metadata is invalid")
 	case EncoderValidationRotaryOptionalExperts:
-		if !invalidEncoderRotary(s) && validOptionalEncoderExperts(s) {
+		if validEncoderRotary(s) && validOptionalEncoderExperts(s) {
 			return nil
 		}
 		return errors.New("JinaBERT v3 metadata is invalid")
 	case EncoderValidationFullRotary:
-		if s.RopeDimensionCount == s.KeyLength && s.KeyLength == s.ValueLength && s.RopeDimensionCount%2 == 0 {
+		if s.RopeDimensionCount == s.KeyLength && s.KeyLength == s.ValueLength &&
+			validRotaryDimension(s.RopeDimensionCount, s.KeyLength) {
 			return nil
 		}
 		return errors.New("NeoBERT attention metadata is invalid")
 	case EncoderValidationRotary:
-		if !invalidEncoderRotary(s) {
+		if validEncoderRotary(s) {
 			return nil
 		}
 		return errors.New("NomicBERT metadata is invalid")
 	case EncoderValidationRotaryPeriodicExperts:
-		if !invalidEncoderRotary(s) && s.MoELayerStep >= 2 {
+		if validEncoderRotary(s) && s.MoELayerStep > tensor.SingletonExtent {
 			return nil
 		}
 		return errors.New("NomicBERT-MoE metadata is invalid")
@@ -38,17 +44,18 @@ func (s Spec) validateEncoderMetadata() error {
 	return nil
 }
 
-func invalidEncoderRotary(s Spec) bool {
-	return s.TokenTypeCount == 0 || s.RopeDimensionCount == 0 ||
-		s.RopeDimensionCount > s.KeyLength || s.RopeDimensionCount%2 != 0 ||
-		s.KeyLength != s.ValueLength
+func validEncoderRotary(s Spec) bool {
+	return s.TokenTypeCount > tensor.FirstOffset &&
+		validRotaryDimension(s.RopeDimensionCount, s.KeyLength) &&
+		s.KeyLength == s.ValueLength
 }
 
 func validOptionalEncoderExperts(s Spec) bool {
-	if s.ExpertCount == 0 {
-		return s.ExpertUsedCount == 0 && s.ExpertFeedForward == 0 && s.MoELayerStep == 0
+	if !s.HasExperts() {
+		return s.ExpertUsedCount == tensor.FirstOffset && s.ExpertFeedForward == tensor.FirstOffset &&
+			s.MoELayerStep == tensor.FirstOffset
 	}
-	return s.ExpertUsedCount > 0 && s.ExpertUsedCount <= s.ExpertCount &&
-		!exceedsMoETopK(s.ExpertUsedCount) && s.ExpertFeedForward == s.FeedForwardLength &&
-		s.MoELayerStep >= 2 && s.ExpertWeightsScale > 0
+	return validMoESelection(s.ExpertUsedCount, s.ExpertCount) &&
+		s.ExpertFeedForward == s.FeedForwardLength &&
+		s.MoELayerStep > tensor.SingletonExtent && positiveFinite(s.ExpertWeightsScale)
 }

@@ -1,12 +1,14 @@
 package model
 
+import "overgo/internal/tensor"
+
 // expert_gating_func serialized profile facts.
 const (
-	expertGatingUnset           uint32 = 0
-	expertGatingSoftmax         uint32 = 1
-	expertGatingSigmoid         uint32 = 2
-	expertGatingSelectedSoftmax uint32 = 3
-	expertGatingSqrtSoftplus    uint32 = 4
+	expertGatingUnset uint32 = iota
+	expertGatingSoftmax
+	expertGatingSigmoid
+	expertGatingSelectedSoftmax
+	expertGatingSqrtSoftplus
 )
 
 type ropeScalingKind string
@@ -19,10 +21,10 @@ const (
 )
 
 func (a AttentionSpec) ropeFrequencyScale() float32 {
-	if (a.RopeScalingType == ropeScalingLinear || a.RopeScalingType == ropeScalingYaRN) && a.RopeScalingFactor > 0 {
-		return 1 / a.RopeScalingFactor
+	if (a.RopeScalingType == ropeScalingLinear || a.RopeScalingType == ropeScalingYaRN) && positiveFinite(a.RopeScalingFactor) {
+		return tensor.UnitScale / a.RopeScalingFactor
 	}
-	return 1
+	return tensor.UnitScale
 }
 
 // Spec: architecture metadata grouped by runtime concern.
@@ -109,7 +111,7 @@ type AttentionSpec struct {
 	LayerKVHeadCounts     []uint32
 	SlidingLayers         []bool
 	RopeDimensionCount    uint32
-	RopeSections          [4]int32
+	RopeSections          [tensor.MaxDimensions]int32
 	IndexerHeadCount      uint32
 	IndexerKeyLength      uint32
 	IndexerTopK           uint32
@@ -168,13 +170,33 @@ type RecurrentSpec struct {
 	GateLoRARank          uint32
 }
 
+// PoolingType: serialized encoder pooling contract.
+type PoolingType uint32
+
+const (
+	PoolingUnspecified PoolingType = iota
+	PoolingMean
+	PoolingCLS
+	PoolingLast
+	PoolingRank
+)
+
+func (p PoolingType) Valid() bool {
+	switch p {
+	case PoolingUnspecified, PoolingMean, PoolingCLS, PoolingLast, PoolingRank:
+		return true
+	default:
+		return false
+	}
+}
+
 // EncoderSpec: encoder, decoder, and pooling metadata.
 type EncoderSpec struct {
 	TokenTypeCount      uint32
 	RelativeBuckets     uint32
 	DecoderBlockCount   uint32
 	DecoderStartTokenID uint32
-	PoolingType         uint32
+	PoolingType         PoolingType
 	ClassifierLabels    []string
 	DFlashBlockSize     uint32
 }

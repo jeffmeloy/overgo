@@ -192,6 +192,42 @@ type TensorInfo struct {
 	Size       uint64
 }
 
+// MatrixRows returns rank-two row count; zero marks absence.
+func (tensor *TensorInfo) MatrixRows() uint64 {
+	if tensor == nil || tensor.Dimensions != 2 {
+		return 0
+	}
+	return tensor.Shape[1]
+}
+
+// TensorRowLayout: validated rank-two storage geometry.
+type TensorRowLayout struct {
+	ElementsPerRow uint64
+	Count          uint64
+	BytesPerRow    uint64
+}
+
+// RowLayout validates rank-two quantized storage.
+func (tensor TensorInfo) RowLayout() (TensorRowLayout, error) {
+	if tensor.Dimensions != 2 {
+		return TensorRowLayout{}, fmt.Errorf("tensor %q must have rank 2", tensor.Name)
+	}
+	traits, ok := tensor.Type.Traits()
+	width, count := tensor.Shape[0], tensor.Shape[1]
+	if !ok || width == 0 || count == 0 || width%traits.BlockSize != 0 {
+		return TensorRowLayout{}, fmt.Errorf("tensor %q has unsupported row layout", tensor.Name)
+	}
+	blocks := width / traits.BlockSize
+	if blocks > math.MaxUint64/traits.TypeSize {
+		return TensorRowLayout{}, fmt.Errorf("tensor %q row storage overflows", tensor.Name)
+	}
+	bytes := blocks * traits.TypeSize
+	if count > math.MaxUint64/bytes || count*bytes != tensor.Size {
+		return TensorRowLayout{}, fmt.Errorf("tensor %q storage is inconsistent with its shape", tensor.Name)
+	}
+	return TensorRowLayout{ElementsPerRow: width, Count: count, BytesPerRow: bytes}, nil
+}
+
 // NewTensorInfo validates and compiles one logical tensor descriptor.
 func NewTensorInfo(name string, storage DType, shape []uint64) (TensorInfo, error) {
 	if name == "" {

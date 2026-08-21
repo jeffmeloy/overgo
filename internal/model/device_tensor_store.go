@@ -10,7 +10,16 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
+	"overgo/internal/tensor/dtype"
 )
+
+func scalarStorageBytes(kind dtype.Type) (uint64, error) {
+	bytes, valid := kind.ScalarBytes()
+	if !valid {
+		return bytes, fmt.Errorf("%s scalar storage traits are unavailable", kind)
+	}
+	return bytes, nil
+}
 
 // deviceTensorStore: shared CUDA tensor ownership.
 type deviceTensorStore struct {
@@ -105,7 +114,6 @@ func (s *deviceTensorStore) loadConverted(
 			}
 			if copyErr := state.Driver.MemcpyHtoD(pointer, storage); copyErr != nil {
 				_ = state.Driver.MemFree(pointer)
-				pointer = 0
 				return copyErr
 			}
 			return nil
@@ -127,15 +135,6 @@ func (s *deviceTensorStore) Lookup(name string) (DeviceTensor, bool) {
 	}
 	value, ok := s.tensors[name]
 	return value, ok
-}
-
-func (s *deviceTensorStore) Count() int {
-	if s == nil {
-		return 0
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.tensors)
 }
 
 func (s *deviceTensorStore) Close() error {

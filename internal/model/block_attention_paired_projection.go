@@ -19,10 +19,6 @@ func buildPairedCausalProjectionMixCached(
 	if builder == nil || input == nil {
 		return DenseBlockResult{}, errors.New("paired causal projection input is nil")
 	}
-	if input.Shape.Rank != 2 || input.Shape.Dims[0] != 2*uint64(spec.EmbeddingLength) ||
-		len(positions) != int(input.Shape.Dims[1]) {
-		return DenseBlockResult{}, errors.New("paired causal projection shape is incompatible")
-	}
 	if err := requireTensorPair(pastKey, pastValue, "paired causal projection cache is incomplete"); err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -34,7 +30,10 @@ func buildPairedCausalProjectionMixCached(
 	}).validate("paired causal projection"); err != nil {
 		return DenseBlockResult{}, err
 	}
-	tokens := input.Shape.Dims[1]
+	tokens, validInput := tensor.MatrixRows(input.Shape, weights.AttentionQ.Shape.Dims[0])
+	if !validInput || uint64(len(positions)) != tokens {
+		return DenseBlockResult{}, errors.New("paired causal projection shape is incompatible")
+	}
 	query := builder.Reshape(builder.MulMat(weights.AttentionQ, input), uint64(spec.KeyLength), uint64(spec.HeadCount), tokens)
 	key := builder.Reshape(builder.MulMat(weights.AttentionK, input), uint64(spec.KeyLength), uint64(spec.HeadCountKV), tokens)
 	value := builder.Reshape(builder.MulMat(weights.AttentionV, input), uint64(spec.ValueLength), uint64(spec.HeadCountKV), tokens)
@@ -46,12 +45,18 @@ func buildPairedCausalProjectionMixCached(
 	cacheKey, cacheValue := key, value
 	var queryStart uint32
 	if pastKey != nil {
-		if pastKey.Shape.Rank != 3 || pastKey.Shape.Dims[2] > math.MaxUint32 {
+		pastTokens, keyAxis, validKey := tensor.TrailingExtent32(
+			pastKey.Shape, uint64(spec.KeyLength), uint64(spec.HeadCountKV),
+		)
+		valueTokens, valueAxis, validValue := tensor.TrailingExtent32(
+			pastValue.Shape, uint64(spec.ValueLength), uint64(spec.HeadCountKV),
+		)
+		if !validKey || !validValue || pastTokens != valueTokens {
 			return DenseBlockResult{}, errors.New("paired causal projection cache shape is invalid")
 		}
-		queryStart = builder.CacheTokenOffset(uint32(pastKey.Shape.Dims[2]))
-		cacheKey = builder.WriteCache(pastKey, key, 2, cacheWrite)
-		cacheValue = builder.WriteCache(pastValue, value, 2, cacheWrite)
+		queryStart = builder.CacheTokenOffset(pastTokens)
+		cacheKey = builder.WriteCache(pastKey, key, keyAxis, cacheWrite)
+		cacheValue = builder.WriteCache(pastValue, value, valueAxis, cacheWrite)
 	}
 	attention := builder.AttentionWithOptions(query, cacheKey, cacheValue, tensor.AttentionOptions{
 		Scale: float32(1 / math.Sqrt(float64(spec.KeyLength))), Causal: true,

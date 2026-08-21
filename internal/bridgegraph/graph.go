@@ -51,10 +51,38 @@ type Program struct {
 	targetSize uint64
 }
 
+// Boundary is the immutable identity and tap metadata consumed by an
+// inference integration.
+type Boundary struct {
+	Contract artifact.ID
+	Model    artifact.ID
+	Tap      representation.TapPoint
+	Layer    *uint32
+	Channels uint64
+}
+
 var (
 	matrixExtents = tensor.MatrixRows
 	declareTensor = tensor.NewShape
 )
+
+// Boundaries returns the exact source and target interfaces admitted during
+// compilation.
+func (p Program) Boundaries() (Boundary, Boundary) {
+	return programBoundary(p.source, p.sourceSize), programBoundary(p.target, p.targetSize)
+}
+
+func programBoundary(contract representation.Contract, width uint64) Boundary {
+	boundary := Boundary{
+		Contract: contract.ID, Model: contract.Producer.Model,
+		Tap: contract.Producer.Tap, Channels: width,
+	}
+	if contract.Producer.Layer != nil {
+		layer := *contract.Producer.Layer
+		boundary.Layer = &layer
+	}
+	return boundary
+}
 
 // Compile validates contract identity, sequence preservation, and weight geometry.
 func (Compiler) Compile(definition Definition, sourceContent, targetContent []byte) (Program, error) {

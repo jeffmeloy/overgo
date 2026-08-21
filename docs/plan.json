@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "embedding-injection",
-          "title": "Capture source representations and inject validated bridge output at the target embedding boundary",
-          "status": "open",
-          "verify": "go test ./internal/inference -run '^TestRepresentationBridgeEmbeddingInjection$' -count=1",
-          "rationale": "Input embeddings are the narrowest architecture-neutral execution seam; values, masks, and positions must cross it together without runtime monkey-patching.",
-          "depends_on": [
-            "cross-model-representation-bridge/composite-recipe"
-          ],
-          "capabilities": [
-            "source-capture",
-            "embedding-boundary-injection",
-            "mask-position-preservation"
-          ]
-        },
-        {
           "id": "bridge-training",
           "title": "Train only bridge tensors while proving source and target artifacts remain frozen",
           "status": "open",

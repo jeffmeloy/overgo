@@ -1,5 +1,73 @@
 {
-  "campaign": "Substrate pattern integration",
-  "doctrine": "Reimplement the selected coordination patterns in Overgo's existing ownership boundaries. RepoDB identities, immutable facts, compare-and-set aliases, and recorded locations remain authoritative. Shared mechanisms must serve more than one workflow, typed policy replaces scattered literals, and tests must cover cancellation, conflict, replay, partial I/O, and missing-locality boundaries without assuming tensor shape, dataset distribution, model family, backend topology, or worker population.",
-  "items": []
+  "campaign": "Gentle AI control-plane tightening",
+  "doctrine": "Adapt only the Gentle AI mechanisms that strengthen Overgo's existing owners. RepoDB content identities, lineage, compare-and-set commits, recipe decisions, experiment lifecycles, and shared operation status remain authoritative. New contracts must compose with those owners, carry exact artifact and command identities, remain independent of model family, tensor shape, dataset distribution, backend topology, worker population, and user interface, and fail closed on stale, ambiguous, or incomplete evidence.",
+  "items": [
+    {
+      "id": "operator-recovery",
+      "title": "Make blocked operations recoverable through typed interface-neutral actions",
+      "status": "open",
+      "steps": [
+        {
+          "id": "action-envelope",
+          "title": "Add exact argv recovery and consent envelopes to shared operation status",
+          "status": "open",
+          "verify": "go test ./internal/operatoraction ./internal/operation -run '^(TestActionEnvelopeContract|TestRecoverableOperationStatus)$' -count=1",
+          "rationale": "Training, evaluation, serving, CLI, and GUI callers need the same machine-readable reason, evidence, and runnable continuation instead of parsing prose or inventing interface-specific recovery instructions.",
+          "depends_on": [
+            "artifact-authority/subject-receipts"
+          ],
+          "capabilities": [
+            "exact argv tokens",
+            "typed grant and decline consent",
+            "bounded recovery choices",
+            "shared operation transport"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "local-path-authority",
+      "title": "Use filesystem identity for model and dataset locations",
+      "status": "open",
+      "steps": [
+        {
+          "id": "canonical-locations",
+          "title": "Canonicalize and compare local RepoDB locations by filesystem identity",
+          "status": "open",
+          "verify": "go test ./internal/pathidentity ./internal/artifact -run '^(TestFilesystemIdentityContract|TestCanonicalLocalLocationContract)$' -count=1",
+          "rationale": "Different path spellings, links, case behavior, and nonexistent descendants must not create conflicting identities or let model and dataset roots escape their declared authority.",
+          "capabilities": [
+            "cross-platform filesystem identity",
+            "canonical local locations",
+            "ancestor containment",
+            "safe unavailable-path handling"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "recovery-friction",
+      "title": "Verify that blocked lifecycle paths have real recoveries",
+      "status": "open",
+      "steps": [
+        {
+          "id": "journey-contracts",
+          "title": "Add reusable journey checks for blocked training, evaluation, and serving operations",
+          "status": "open",
+          "verify": "go test ./internal/workflowcontract -run '^TestBlockedWorkflowRecoveryJourneys$' -count=1",
+          "rationale": "A refusal is operationally complete only when its advertised action is registered, bounded, interface-neutral, and demonstrably reaches a non-dead-end state for the same immutable subject.",
+          "depends_on": [
+            "operator-recovery/action-envelope",
+            "local-path-authority/canonical-locations"
+          ],
+          "capabilities": [
+            "dead-end detection",
+            "command registration checks",
+            "subject-preserving recovery",
+            "cross-workflow evidence"
+          ]
+        }
+      ]
+    }
+  ]
 }

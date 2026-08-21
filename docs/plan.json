@@ -1,30 +1,5 @@
 {
   "campaign": "Gentle AI control-plane tightening",
   "doctrine": "Adapt only the Gentle AI mechanisms that strengthen Overgo's existing owners. RepoDB content identities, lineage, compare-and-set commits, recipe decisions, experiment lifecycles, and shared operation status remain authoritative. New contracts must compose with those owners, carry exact artifact and command identities, remain independent of model family, tensor shape, dataset distribution, backend topology, worker population, and user interface, and fail closed on stale, ambiguous, or incomplete evidence.",
-  "items": [
-    {
-      "id": "recovery-friction",
-      "title": "Verify that blocked lifecycle paths have real recoveries",
-      "status": "open",
-      "steps": [
-        {
-          "id": "journey-contracts",
-          "title": "Add reusable journey checks for blocked training, evaluation, and serving operations",
-          "status": "open",
-          "verify": "go test ./internal/workflowcontract -run '^TestBlockedWorkflowRecoveryJourneys$' -count=1",
-          "rationale": "A refusal is operationally complete only when its advertised action is registered, bounded, interface-neutral, and demonstrably reaches a non-dead-end state for the same immutable subject.",
-          "depends_on": [
-            "operator-recovery/action-envelope",
-            "local-path-authority/canonical-locations"
-          ],
-          "capabilities": [
-            "dead-end detection",
-            "command registration checks",
-            "subject-preserving recovery",
-            "cross-workflow evidence"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

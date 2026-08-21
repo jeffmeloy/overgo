@@ -47,4 +47,26 @@ func TestRecoverableOperationStatus(t *testing.T) {
 			}
 		})
 	}
+
+	manager := newTestManager(t)
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "subject-bound recovery")
+	other := testutil.ArtifactID(t, artifact.KindRecipe, "different recovery subject")
+	runID := testutil.ArtifactID(t, artifact.KindRun, "mismatched recovery run")
+	id, err := manager.Submit(context.Background(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
+		func(context.Context, Reporter) (Completion, error) {
+			return Completion{Run: runID}, operatoraction.Recoverable(errors.New("wrong subject"), operatoraction.Block{
+				Subject: other, Reason: "wrong recipe is unavailable", Evidence: []artifact.ID{runID},
+				Actions: []operatoraction.Action{{Code: "retry", Summary: "Retry", Argv: []string{"overgo", "train"}}},
+			})
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.Wait(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != StateFailed || status.Recovery != nil {
+		t.Fatalf("cross-subject recovery was advertised: %+v", status)
+	}
 }

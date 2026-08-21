@@ -175,9 +175,13 @@ func (manager *Manager) run(ctx context.Context, id artifact.ID, execute Executo
 	case err != nil:
 		current.status.Run = &completion.Run
 		if recovery, ok := operatoraction.Recovery(err); ok {
-			current.status.State = StateBlocked
-			recovery = recovery.Clone()
-			current.status.Recovery = &recovery
+			if recovery.Subject == current.status.Recipe {
+				current.status.State = StateBlocked
+				recovery = recovery.Clone()
+				current.status.Recovery = &recovery
+			} else {
+				current.status.State = StateFailed
+			}
 		} else {
 			current.status.State = StateFailed
 		}

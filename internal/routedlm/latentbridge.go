@@ -174,14 +174,7 @@ func (t *LatentBridgeTrainer) Step(hidden []float32) (FlowHeadStepResult, error)
 	if err != nil {
 		return FlowHeadStepResult{}, err
 	}
-	if err := t.stepper.Step(); err != nil {
-		return FlowHeadStepResult{}, err
-	}
-	t.step++
-	return FlowHeadStepResult{
-		Loss: loss, Step: t.step,
-		LearningRate: t.config.LearningRate(t.step), GradientL2: gradientL2,
-	}, nil
+	return optimizer.Advance(t.stepper, t.config, &t.step, loss, gradientL2)
 }
 
 // lossAndBridgeGradients fills the packed gradient buffer for one pair

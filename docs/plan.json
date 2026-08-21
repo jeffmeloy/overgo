@@ -3,6 +3,51 @@
   "doctrine": "Follow skill.md. RepoDB owns closure evidence; the source census owns the complete deterministic file queue. Audit every non-generated Go file, one row at a time, in scanner order within each ownership wave. A file closes only after every numeric literal, named constant, assumption hint, repeated policy site, and test policy copy is classified by syntax and ownership. First delete, derive, reuse, or move the value to its existing typed authority. Model, tokenizer, tensor, topology, and training facts come from artifact metadata, profiles, recipes, or compiled plans. Protocol, ABI, mathematical, and irreducible fixture values may remain only with exact typed dispositions. Constants may express one irreducible relation; they may not conceal duplicated policy. Migrate every caller and delete displaced branches, defaults, wrappers, and compatibility readers in the same commit. Tests consume production contracts where practical. No magnitude thresholds, shape assumptions, distribution assumptions, family fallbacks, parallel registries, deferred adoption, or manually maintained counts. Each gated file records command-derived before/after pressure, code delta, authority, verifier, and closure retirement. Publish the complete queue and closure state as RepoDB evidence after each wave. Plan complete means every census file row is closed, every derivation-blocked row is resolved, no stale binding remains, and a fresh census finds no uncatalogued production decision or copied test policy. Merge current master after every gated step.",
   "items": [
     {
+      "id": "magic-wave-serving",
+      "title": "Eliminate server, sampling, operation, dataset, and media policy magics",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Move declared controls to recipes or resource policy and derive limits from request and ownership plans",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/server,internal/sampling,internal/operation,internal/trainingdata -require-classified -require-no-stale",
+          "rationale": "Request limits, polling intervals, media bounds, and sampler defaults must have one typed owner instead of command and handler literals.",
+          "depends_on": [
+            "magic-wave-optimizer/close"
+          ],
+          "capabilities": [
+            "resource-policy",
+            "recipe-authority",
+            "operation-contract"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-wave-device",
+      "title": "Eliminate CUDA, memory, launch, transfer, and workspace magics",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Derive extents from compiled plans or bind fixed values to kernel and device ABI contracts",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/cuda,internal/devicemath,internal/tensor -require-classified -require-no-stale",
+          "rationale": "Launch geometry and byte widths must come from shared typed operations, measured device policy, or guarded ABI declarations.",
+          "depends_on": [
+            "magic-wave-serving/close"
+          ],
+          "capabilities": [
+            "device-capability",
+            "kernel-abi",
+            "memory-plan",
+            "cuda-parity"
+          ]
+        }
+      ]
+    },
+    {
       "id": "magic-wave-model-runtime",
       "title": "Eliminate model, projector, inference, and modality facts duplicated in code",
       "status": "open",

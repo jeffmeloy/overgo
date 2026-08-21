@@ -10,6 +10,20 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+// Layer tensor suffixes: the single vocabulary every branch-routed loader
+// and trainer resolves through the binding.
+const (
+	suffixInputNorm = "input_layernorm.weight"
+	suffixQProj     = "self_attn.q_proj.weight"
+	suffixKProj     = "self_attn.k_proj.weight"
+	suffixVProj     = "self_attn.v_proj.weight"
+	suffixOProj     = "self_attn.o_proj.weight"
+	suffixPostNorm  = "post_attention_layernorm.weight"
+	suffixGateProj  = "mlp.gate_proj.weight"
+	suffixUpProj    = "mlp.up_proj.weight"
+	suffixDownProj  = "mlp.down_proj.weight"
+)
+
 // InputNormWeights: per-branch pre-attention RMSNorm scales.
 type InputNormWeights struct {
 	Text, Vision []float32
@@ -85,19 +99,19 @@ func compileBranchLayerPlans(src *safetensors.Source, cfg Config, b BranchBindin
 			return compileBranchTensor(src, b.LayerTensorName(layer, branch, suffix), in*out, true)
 		}
 		var err error
-		if plan.inputNorm, err = vector("input_layernorm.weight", h); err != nil {
+		if plan.inputNorm, err = vector(suffixInputNorm, h); err != nil {
 			return nil, err
 		}
-		if plan.q, err = matrix("self_attn.q_proj.weight", h, qOut); err != nil {
+		if plan.q, err = matrix(suffixQProj, h, qOut); err != nil {
 			return nil, err
 		}
-		if plan.k, err = matrix("self_attn.k_proj.weight", h, kvOut); err != nil {
+		if plan.k, err = matrix(suffixKProj, h, kvOut); err != nil {
 			return nil, err
 		}
-		if plan.v, err = matrix("self_attn.v_proj.weight", h, kvOut); err != nil {
+		if plan.v, err = matrix(suffixVProj, h, kvOut); err != nil {
 			return nil, err
 		}
-		if plan.o, err = matrix("self_attn.o_proj.weight", qOut, h); err != nil {
+		if plan.o, err = matrix(suffixOProj, qOut, h); err != nil {
 			return nil, err
 		}
 		if plan.qNorm, err = compileBranchSections(src, b, layer, branch, b.QNormSections, cfg.HeadDim); err != nil {
@@ -106,16 +120,16 @@ func compileBranchLayerPlans(src *safetensors.Source, cfg Config, b BranchBindin
 		if plan.kNorm, err = compileBranchSections(src, b, layer, branch, b.KNormSections, cfg.HeadDim); err != nil {
 			return nil, err
 		}
-		if plan.postNorm, err = vector("post_attention_layernorm.weight", h); err != nil {
+		if plan.postNorm, err = vector(suffixPostNorm, h); err != nil {
 			return nil, err
 		}
-		if plan.gate, err = matrix("mlp.gate_proj.weight", h, f); err != nil {
+		if plan.gate, err = matrix(suffixGateProj, h, f); err != nil {
 			return nil, err
 		}
-		if plan.up, err = matrix("mlp.up_proj.weight", h, f); err != nil {
+		if plan.up, err = matrix(suffixUpProj, h, f); err != nil {
 			return nil, err
 		}
-		if plan.down, err = matrix("mlp.down_proj.weight", f, h); err != nil {
+		if plan.down, err = matrix(suffixDownProj, f, h); err != nil {
 			return nil, err
 		}
 		plans[layer] = plan
@@ -281,17 +295,17 @@ func LoadBranchLayerWeights(src *safetensors.Source, cfg Config, b BranchBinding
 		}
 		*dst, err = materializeNormSectionsF32(src, names, cfg.HeadDim)
 	}
-	vec(&w.InputNorm, "input_layernorm.weight", h)
-	mat(&w.Q, "self_attn.q_proj.weight", h, qOut)
-	mat(&w.K, "self_attn.k_proj.weight", h, kvOut)
-	mat(&w.V, "self_attn.v_proj.weight", h, kvOut)
-	mat(&w.O, "self_attn.o_proj.weight", qOut, h)
+	vec(&w.InputNorm, suffixInputNorm, h)
+	mat(&w.Q, suffixQProj, h, qOut)
+	mat(&w.K, suffixKProj, h, kvOut)
+	mat(&w.V, suffixVProj, h, kvOut)
+	mat(&w.O, suffixOProj, qOut, h)
 	sections(&w.QNorm, b.QNormSections)
 	sections(&w.KNorm, b.KNormSections)
-	vec(&w.PostNorm, "post_attention_layernorm.weight", h)
-	mat(&w.Gate, "mlp.gate_proj.weight", h, f)
-	mat(&w.Up, "mlp.up_proj.weight", h, f)
-	mat(&w.Down, "mlp.down_proj.weight", f, h)
+	vec(&w.PostNorm, suffixPostNorm, h)
+	mat(&w.Gate, suffixGateProj, h, f)
+	mat(&w.Up, suffixUpProj, h, f)
+	mat(&w.Down, suffixDownProj, f, h)
 	if err != nil {
 		return BranchLayerWeights{}, fmt.Errorf("routed lm branch layer %d/%d: %w", layer, branch, err)
 	}
@@ -419,28 +433,28 @@ func LoadLayerWeights(src *safetensors.Source, cfg Config, b BranchBinding, laye
 		}
 		*dst, err = materializeNormSectionsF32(src, names, cfg.HeadDim)
 	}
-	vec(&w.InputNorm.Text, 0, "input_layernorm.weight", h)
-	vec(&w.InputNorm.Vision, 1, "input_layernorm.weight", h)
-	mat(&w.QKV.QText, 0, "self_attn.q_proj.weight", h, qOut)
-	mat(&w.QKV.KText, 0, "self_attn.k_proj.weight", h, kvOut)
-	mat(&w.QKV.VText, 0, "self_attn.v_proj.weight", h, kvOut)
-	mat(&w.QKV.OText, 0, "self_attn.o_proj.weight", qOut, h)
-	mat(&w.QKV.QVision, 1, "self_attn.q_proj.weight", h, qOut)
-	mat(&w.QKV.KVision, 1, "self_attn.k_proj.weight", h, kvOut)
-	mat(&w.QKV.VVision, 1, "self_attn.v_proj.weight", h, kvOut)
-	mat(&w.QKV.OVision, 1, "self_attn.o_proj.weight", qOut, h)
+	vec(&w.InputNorm.Text, 0, suffixInputNorm, h)
+	vec(&w.InputNorm.Vision, 1, suffixInputNorm, h)
+	mat(&w.QKV.QText, 0, suffixQProj, h, qOut)
+	mat(&w.QKV.KText, 0, suffixKProj, h, kvOut)
+	mat(&w.QKV.VText, 0, suffixVProj, h, kvOut)
+	mat(&w.QKV.OText, 0, suffixOProj, qOut, h)
+	mat(&w.QKV.QVision, 1, suffixQProj, h, qOut)
+	mat(&w.QKV.KVision, 1, suffixKProj, h, kvOut)
+	mat(&w.QKV.VVision, 1, suffixVProj, h, kvOut)
+	mat(&w.QKV.OVision, 1, suffixOProj, qOut, h)
 	for branch := 0; branch < 2; branch++ {
 		sections(&w.QKV.QNorm[branch], branch, b.QNormSections)
 		sections(&w.QKV.KNorm[branch], branch, b.KNormSections)
 	}
-	vec(&w.Output.PostText, 0, "post_attention_layernorm.weight", h)
-	vec(&w.Output.PostVision, 1, "post_attention_layernorm.weight", h)
-	mat(&w.Output.GateText, 0, "mlp.gate_proj.weight", h, f)
-	mat(&w.Output.UpText, 0, "mlp.up_proj.weight", h, f)
-	mat(&w.Output.DownText, 0, "mlp.down_proj.weight", f, h)
-	mat(&w.Output.GateVision, 1, "mlp.gate_proj.weight", h, f)
-	mat(&w.Output.UpVision, 1, "mlp.up_proj.weight", h, f)
-	mat(&w.Output.DownVision, 1, "mlp.down_proj.weight", f, h)
+	vec(&w.Output.PostText, 0, suffixPostNorm, h)
+	vec(&w.Output.PostVision, 1, suffixPostNorm, h)
+	mat(&w.Output.GateText, 0, suffixGateProj, h, f)
+	mat(&w.Output.UpText, 0, suffixUpProj, h, f)
+	mat(&w.Output.DownText, 0, suffixDownProj, f, h)
+	mat(&w.Output.GateVision, 1, suffixGateProj, h, f)
+	mat(&w.Output.UpVision, 1, suffixUpProj, h, f)
+	mat(&w.Output.DownVision, 1, suffixDownProj, f, h)
 	if err != nil {
 		return LayerWeights{}, fmt.Errorf("routed lm layer %d: %w", layer, err)
 	}

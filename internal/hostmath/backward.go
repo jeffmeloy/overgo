@@ -299,15 +299,51 @@ func MaskedBidirectionalAttentionBackward(
 	querySeq, keySeq, heads, kvHeads, headDim int,
 	keyMask []bool,
 ) {
+	ScaledMaskedBidirectionalAttentionBackward(dq, dk, dv, q, k, v, dOut, querySeq, keySeq, heads, kvHeads, headDim, 1, keyMask)
+}
+
+// ScaledMaskedBidirectionalAttentionBackward: the VJP of
+// ScaledMaskedBidirectionalAttention — recompute-based, with the score scale
+// applied to the recomputed logits and to the score gradient. Parallel over
+// kv-head groups: each worker owns a kv-head range plus its query heads, so
+// every dq/dk/dv row it writes is disjoint. scale 1 is bit-identical to the
+// unscaled backward.
+func ScaledMaskedBidirectionalAttentionBackward(
+	dq, dk, dv, q, k, v, dOut []float32,
+	querySeq, keySeq, heads, kvHeads, headDim int,
+	scale float64,
+	keyMask []bool,
+) {
 	if keyMask != nil && len(keyMask) != keySeq {
 		panic("hostmath: attention key mask length != keySeq")
 	}
 	clear(dq)
 	clear(dk)
 	clear(dv)
+	group := heads / kvHeads
+	// Per kv head: group query heads × querySeq×keySeq pairs at ~4 headDim
+	// MACs each (score recompute + value/score gradients).
+	ParallelRangeF64(kvHeads, group*querySeq*keySeq*4*headDim, func(kvLo, kvHi int) {
+		maskedBidirectionalAttentionBackwardHeads(
+			dq, dk, dv, q, k, v, dOut,
+			querySeq, keySeq, heads, kvHeads, headDim, scale, keyMask,
+			kvLo*group, kvHi*group,
+		)
+	})
+}
+
+// maskedBidirectionalAttentionBackwardHeads runs query heads [hStart,hEnd) —
+// callers split only on kv-group boundaries so dk/dv rows stay disjoint.
+func maskedBidirectionalAttentionBackwardHeads(
+	dq, dk, dv, q, k, v, dOut []float32,
+	querySeq, keySeq, heads, kvHeads, headDim int,
+	scale float64,
+	keyMask []bool,
+	hStart, hEnd int,
+) {
 	probs, dP := make([]float64, keySeq), make([]float64, keySeq)
 	group := heads / kvHeads
-	for h := 0; h < heads; h++ {
+	for h := hStart; h < hEnd; h++ {
 		kv := h / group
 		for qi := 0; qi < querySeq; qi++ {
 			qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
@@ -324,6 +360,7 @@ func MaskedBidirectionalAttentionBackward(
 				for x := range headDim {
 					score += float64(qRow[x]) * float64(kRow[x])
 				}
+				score *= scale
 				probs[ki] = score
 				mx = max(mx, score)
 			}
@@ -353,7 +390,7 @@ func MaskedBidirectionalAttentionBackward(
 				if probs[ki] == 0 {
 					continue
 				}
-				gradient := probs[ki] * (dP[ki] - dot)
+				gradient := probs[ki] * (dP[ki] - dot) * scale
 				kRow := k[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
 				dkRow := dk[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
 				for x := range headDim {
@@ -363,4 +400,46 @@ func MaskedBidirectionalAttentionBackward(
 			}
 		}
 	}
+}
+
+// LinearWeightGradient: dW += dy^T ⊗ x for a row-major [out,in] weight,
+// parallel over output rows (each worker owns disjoint dW rows, race-free).
+func LinearWeightGradient(dW, x, dy []float32, rows, inDim, outDim int) {
+	ParallelRangeF64(outDim, rows*inDim, func(oLo, oHi int) {
+		for o := oLo; o < oHi; o++ {
+			dWRow := dW[o*inDim : (o+1)*inDim]
+			for r := 0; r < rows; r++ {
+				g := dy[r*outDim+o]
+				if g == 0 {
+					continue
+				}
+				xRow := x[r*inDim : (r+1)*inDim]
+				for c := 0; c < inDim; c++ {
+					dWRow[c] += g * xRow[c]
+				}
+			}
+		}
+	})
+}
+
+// LinearBackwardInput: dx = dy·w for a row-major [out,in] weight (the input
+// VJP of Linear without materializing the transpose), parallel over rows —
+// each worker owns disjoint dx rows.
+func LinearBackwardInput(dx, dy, w []float32, rows, inDim, outDim int) {
+	ParallelRangeF64(rows, inDim*outDim, func(rLo, rHi int) {
+		for r := rLo; r < rHi; r++ {
+			dxRow := dx[r*inDim : (r+1)*inDim]
+			clear(dxRow)
+			dyRow := dy[r*outDim : (r+1)*outDim]
+			for o, g := range dyRow {
+				if g == 0 {
+					continue
+				}
+				wRow := w[o*inDim : (o+1)*inDim]
+				for c := 0; c < inDim; c++ {
+					dxRow[c] += g * wRow[c]
+				}
+			}
+		}
+	})
 }

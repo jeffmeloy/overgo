@@ -395,19 +395,127 @@ func pack(dst []float32, offset int, groups ...[]float32) int {
 	return offset
 }
 
+// packLayerGradients packs one layer's gradients into the given matrix and
+// vector windows in the canonical slab order, returning the packed extents.
+func packLayerGradients(g hostmath.HybridDecoderLayerGrads, mat, vec []float32) (mi, vi int) {
+	mi = pack(mat, 0, g.DMLP.Gate, g.DMLP.Up, g.DMLP.Down)
+	vi = pack(vec, 0, g.DInputNorm, g.DPostNorm)
+	if g.IsLinear {
+		mi = pack(mat, mi, g.DGDN.DWq, g.DGDN.DWk, g.DGDN.DWv, g.DGDN.DWbeta, g.DGDN.DWalpha, g.DGDN.DWz, g.DGDN.DWout)
+		vi = pack(vec, vi, g.DGDN.DConvQ, g.DGDN.DConvK, g.DGDN.DConvV, g.DGDN.DConvBiasQ, g.DGDN.DConvBiasK, g.DGDN.DConvBiasV, g.DGDN.DTimeStep, g.DGDN.DA, g.DGDN.DNorm)
+	} else {
+		mi = pack(mat, mi, g.DAttn.Wq, g.DAttn.Wk, g.DAttn.Wv, g.DAttn.Wo)
+		vi = pack(vec, vi, g.DAttn.QNorm, g.DAttn.KNorm)
+	}
+	return mi, vi
+}
+
 func (m *Model) packGradients(grads []hostmath.HybridDecoderLayerGrads, mat, vec []float32) {
 	mi, vi := 0, 0
 	for _, g := range grads {
-		mi = pack(mat, mi, g.DMLP.Gate, g.DMLP.Up, g.DMLP.Down)
-		vi = pack(vec, vi, g.DInputNorm, g.DPostNorm)
-		if g.IsLinear {
-			mi = pack(mat, mi, g.DGDN.DWq, g.DGDN.DWk, g.DGDN.DWv, g.DGDN.DWbeta, g.DGDN.DWalpha, g.DGDN.DWz, g.DGDN.DWout)
-			vi = pack(vec, vi, g.DGDN.DConvQ, g.DGDN.DConvK, g.DGDN.DConvV, g.DGDN.DConvBiasQ, g.DGDN.DConvBiasK, g.DGDN.DConvBiasV, g.DGDN.DTimeStep, g.DGDN.DA, g.DGDN.DNorm)
-		} else {
-			mi = pack(mat, mi, g.DAttn.Wq, g.DAttn.Wk, g.DAttn.Wv, g.DAttn.Wo)
-			vi = pack(vec, vi, g.DAttn.QNorm, g.DAttn.KNorm)
+		dm, dv := packLayerGradients(g, mat[mi:], vec[vi:])
+		mi += dm
+		vi += dv
+	}
+}
+
+// layerStreamPlan: one layer's contiguous windows in the flat optimizer slabs,
+// plus a rebased Muon plan over exactly that layer's matrix groups, so the
+// streamed device step can run on a single layer's masters/momentum with a
+// reusable one-layer gradient scratch.
+type layerStreamPlan struct {
+	matOff, matSize int
+	vecOff, vecSize int
+	plan            optimizer.Plan
+}
+
+// layerStreamPlans partitions the compiled matrix and vector plans into
+// per-layer windows. The slabs bind layer-major in the canonical pack order,
+// so each layer's groups are contiguous; CompilePlan over the rebased specs
+// re-validates that contiguity, and the trailing census check rejects any
+// group the partition failed to claim.
+func (m *Model) layerStreamPlans() ([]layerStreamPlan, error) {
+	plans := make([]layerStreamPlan, len(m.Weights))
+	mg, vg := 0, 0
+	for li := range m.Weights {
+		w := &m.Weights[li]
+		matGroups, vecGroups := 7, 4 // mlp gate/up/down + attn q/k/v/o; norms + q/k norms
+		if w.IsLinear {
+			matGroups, vecGroups = 10, 8 // + gdn matrices; norms + convs + dt/a/norm
+			if len(w.GDN.ConvBiasQ) > 0 {
+				vecGroups = 11 // + conv biases
+			}
+		}
+		p := &plans[li]
+		specs := make([]optimizer.GroupSpec, 0, matGroups)
+		for range matGroups {
+			group, ok := m.matPlan.Group(mg)
+			if !ok {
+				return nil, fmt.Errorf("layer plans: layer %d exhausts the matrix plan at group %d", li, mg)
+			}
+			mg++
+			if len(specs) == 0 {
+				p.matOff = group.Start
+			}
+			spec := group.GroupSpec
+			spec.Start -= p.matOff
+			spec.End -= p.matOff
+			specs = append(specs, spec)
+			p.matSize = spec.End
+		}
+		sub, err := optimizer.CompilePlan(p.matSize, specs)
+		if err != nil {
+			return nil, fmt.Errorf("layer plans: layer %d matrix window: %w", li, err)
+		}
+		p.plan = sub
+		for k := range vecGroups {
+			group, ok := m.vecPlan.Group(vg)
+			if !ok {
+				return nil, fmt.Errorf("layer plans: layer %d exhausts the vector plan at group %d", li, vg)
+			}
+			vg++
+			if k == 0 {
+				p.vecOff = group.Start
+			}
+			p.vecSize = group.End - p.vecOff
 		}
 	}
+	if mg != m.matPlan.GroupCount() || vg != m.vecPlan.GroupCount() {
+		return nil, fmt.Errorf("layer plans: partition claimed %d/%d matrix and %d/%d vector groups",
+			mg, m.matPlan.GroupCount(), vg, m.vecPlan.GroupCount())
+	}
+	return plans, nil
+}
+
+// LayerStreamedBudget: the bounded-host-triplication arithmetic of the
+// layer-streamed lane, in f32 elements. Masters and momentum are full slabs;
+// the gradient bound is ONE layer's matrix extent, never the parameter count.
+type LayerStreamedBudget struct {
+	MasterElems, MomentumElems, ScratchElems, VectorElems int
+}
+
+func (m *Model) LayerStreamedBudget() (LayerStreamedBudget, error) {
+	plans, err := m.layerStreamPlans()
+	if err != nil {
+		return LayerStreamedBudget{}, err
+	}
+	budget := LayerStreamedBudget{
+		MasterElems:   len(m.matW),
+		MomentumElems: len(m.matW),
+		VectorElems:   len(m.vecW),
+	}
+	for _, p := range plans {
+		budget.ScratchElems = max(budget.ScratchElems, p.matSize)
+	}
+	return budget, nil
+}
+
+// EvaluateLoss runs one host forward and returns the objective loss without
+// touching gradients or optimizer state.
+func (m *Model) EvaluateLoss() float64 {
+	out, _ := hostmath.HybridStackForward(m.X, m.Weights, m.Dims, m.States)
+	loss, _ := lossGradient(out, m.Target, nil)
+	return loss
 }
 
 type trainingBackend interface {
@@ -438,6 +546,12 @@ func (state *trainingState) lossGradient() error {
 func (state *trainingState) backward() error { return state.backend.Backward(state.dTop) }
 func (state *trainingState) optimize() error { return state.backend.Step(state.step + 1) }
 func runTraining(program trainingprogram.TrainingProgram, backend trainingBackend, target []float32, steps int) ([]float64, error) {
+	return runTrainingObserved(program, backend, target, steps, nil)
+}
+
+// runTrainingObserved runs the compiled loop, reporting each committed step's
+// loss to observe; an observer error stops training with the trajectory so far.
+func runTrainingObserved(program trainingprogram.TrainingProgram, backend trainingBackend, target []float32, steps int, observe func(step int, loss float64) error) ([]float64, error) {
 	execution, err := trainingprogram.Bind(program, []trainingprogram.Binding[trainingState]{
 		{Operator: "hybrid-forward", Execute: (*trainingState).forward},
 		{Operator: "squared-error", Execute: (*trainingState).lossGradient},
@@ -455,6 +569,11 @@ func runTraining(program trainingprogram.TrainingProgram, backend trainingBacken
 			return nil, err
 		}
 		trajectory[state.step] = state.loss
+		if observe != nil {
+			if err := observe(state.step, state.loss); err != nil {
+				return trajectory[:state.step+1], err
+			}
+		}
 	}
 	return trajectory, nil
 }

@@ -1,0 +1,27 @@
+overgo full video-diffusion (DiT) training stimulus declaration
+model: LiveEdit bid-diffusion checkpoint (Wan-architecture 30-block DiT with a
+32-channel patch embedding; 1,419,095,104 trainable parameters)
+
+This run trains the COMPLETE reference-edit diffusion transformer — every
+block, the widened 32-channel patch embedding, the checkpoint's own text
+embedding, the time embedding/projection, and the modulated head — with the
+frozen text encoder and VAE outside the trainable surface. The objective is
+flow matching on the 16 noise channels: MSE against v = noise - x0; the 16
+concatenated source-latent channels condition the input, and the gradient
+stops at them (the source is data, exactly as in serving).
+
+Text conditioning: the same real raw umt5-xxl encoder rows as the Wan DiT
+run (the committed g1 fox prompt through the streamed host encoder),
+projected by the LiveEdit checkpoint's own trainable text_embedding tensors.
+
+x0 (clean target latent): frame 0 of the committed g4 final latent
+(fixtures/wan/raw/g4_final_latent.f32le, sha256-pinned real denoised latent)
+tiled spatially to the training grid. Source latent (the editing condition):
+the committed g3 final latent tiled the same way. Noise from the golden
+Philox plan (seed 31). No demo video ships under the model directory, so the
+committed real latents are the seed grids — declared plainly rather than
+synthesizing from statistics.
+
+The fixtures live in this repository (fixtures/wan) and are sha256-verified
+at load; this declaration grounds the training-recipe dataset authority by
+content.

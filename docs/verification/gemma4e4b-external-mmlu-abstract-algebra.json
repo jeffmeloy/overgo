@@ -1,0 +1,41 @@
+{
+ "schema": "overgo/external-benchmark-evidence/v1",
+ "model": {
+  "name": "gemma-4-E4B-it-HF",
+  "path": "C:/Users/jeffm/adaptive_new/models/gemma-4-E4B-it",
+  "weights_sha256": "cfbd3d2f1cd71bd471c37fe2bf8546d5028d41e5736f64e1ca6c6b8893125503",
+  "weights_file": "model.safetensors",
+  "config_sha256": "dbac7d5471f091bc81044319930b0d523576ada76e5b4c8792186b86dfd23538",
+  "tokenizer_sha256": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f"
+ },
+ "tool": {
+  "name": "lm-evaluation-harness",
+  "version": "0.4.12",
+  "transformers": "5.15.1",
+  "torch": "2.11.0+cu128",
+  "accelerate": "1.14.0",
+  "python": "3.13.5",
+  "cuda": "12.8",
+  "device": "NVIDIA GeForce RTX 4090 D",
+  "environment": "C:/Users/jeffm/eval/env2 (new provenance; the pinned 0.4.9.1/4.57.1 env is preserved untouched for prior claims)"
+ },
+ "task": {
+  "name": "mmlu_abstract_algebra",
+  "fewshot": 0,
+  "cases": 100,
+  "definition_sha256": "f026cc8918a0a4a422af4286e22889de6f423483671975fdd5429c96c0d0d9ef",
+  "definition_file": "lm_eval/tasks/mmlu/default/mmlu_abstract_algebra.yaml",
+  "template_sha256": "a0997593bf94f52cc87eb1f9b621f52613a6c60f1fb48775b0926104fd385122",
+  "template_file": "lm_eval/tasks/mmlu/default/_default_template_yaml",
+  "hash_method": "sha256 of the installed file bytes; identical to the prior environment's pins, so results are directly comparable",
+  "dataset_revision": "c30699e8356da336a370243923dbaf21066bb9fe",
+  "test_split_sha256": "188d54be8bce5b30231f8e559ed5b9d0f6031db5d059c87438da3e1f3c135c41"
+ },
+ "invocation": "C:/Users/jeffm/eval/env2/Scripts/python.exe C:/Users/jeffm/eval/eval_single_model.py --model C:/Users/jeffm/adaptive_new/models/gemma-4-E4B-it --model_name gemma-4-E4B-it-HF --config C:/Users/jeffm/eval/overgo_gemma4e4b_benchmark.yaml --output_dir C:/Users/jeffm/eval/overgo_gemma4e4b_benchmark_results",
+ "result": {
+  "accuracy": 0.33,
+  "accuracy_standard_error": 0.04725815626252609,
+  "raw_results_sha256": "0aa43f78f3a9d797a146e87044c19d0916aa070141a82164d3718ec4e6150513",
+  "wall_ns": 39695024100
+ }
+}

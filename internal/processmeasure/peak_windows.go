@@ -25,6 +25,27 @@ type processMemoryCounters struct {
 	PrivateUsage               uintptr
 }
 
+// SelfPeakWorkingSet reports the calling process's own peak working set (the
+// RSS high-water), through the current-process pseudo handle.
+func SelfPeakWorkingSet() (uint64, error) {
+	handle, err := syscall.GetCurrentProcess()
+	if err != nil {
+		return 0, err
+	}
+	var counters processMemoryCounters
+	counters.Size = uint32(unsafe.Sizeof(counters))
+	result, _, callErr := getProcessMemoryInfo.Call(
+		uintptr(handle), uintptr(unsafe.Pointer(&counters)), uintptr(counters.Size),
+	)
+	if result == 0 {
+		if callErr == nil || errors.Is(callErr, syscall.Errno(0)) {
+			callErr = errors.New("GetProcessMemoryInfo failed")
+		}
+		return 0, callErr
+	}
+	return uint64(counters.PeakWorkingSetSize), nil
+}
+
 func peakWorkingSet(process *os.Process) (uint64, error) {
 	var counters processMemoryCounters
 	counters.Size = uint32(unsafe.Sizeof(counters))

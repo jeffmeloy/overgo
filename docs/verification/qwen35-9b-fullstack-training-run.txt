@@ -1,0 +1,127 @@
+overgo full-pipeline training verification run
+tool: cmd/hybrid-stack-train-probe -lane layer-streamed (hybridtrain.LoadStackArtifact
++ Model.TrainHostMasterLayerStreamed), session-supervised full-stack hybrid
+training with a MEMORY-BOUNDED layer-streamed master lifecycle
+model: Qwen3.5-9B-Q8 (Qwen3.5-9B-Q8_0.gguf),
+model:sha256:809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4
+(the ledger identity of docs/verification/qwen35-9b-training.json and
+fixtures/qwen35_9b_serving_smoke.json, matched by the run's own
+artifact.Identify at admission)
+
+promotion-gate-closed: Qwen3.5-9B full-stack hybrid training at 9B scale, memory-bounded layer-streamed master lifecycle (the "full-stack hybrid training at 9B scale is the named promotion gate" gate of docs/verification/qwen35-9b-training-run.txt, layer-0 Q8 organ cell superseded)
+
+trainable surface: EVERY layer of the real Q8_0 artifact — 32 layers (8
+full-attention + 24 recurrent gated-delta, kinds synthesized from the spec's
+full_attention_interval and cross-checked against each layer's tensor
+inventory) — 6,784,286,720 matrix + 1,057,280 vector = 6,785,344,000
+parameters as f32 masters decoded from the Q8_0 serving storage in one slab
+allocation (the generic quant.Dequantize path; no storage-type special case).
+
+the memory problem this row existed to solve: full host triplication
+(masters + gradients + momentum, all f32) is 81,424,128,000 bytes against
+95,875 MB physical RAM with 76,978 MB free at design measurement — it does
+not fit. Bounded design (choice (b), justified by the measured free RAM):
+  1. masters:  27,137,146,880 B  full f32 host slab (the forward needs it)
+  2. momentum: 27,137,146,880 B  full f32 host slab, PERSISTS across steps
+  3. gradients: NEVER a slab — 873,463,808 B reusable scratch bounded by the
+     largest single layer (218,365,952 f32); each layer's Muon step applies
+     during the backward walk, then the scratch is reused
+  bounded total 55,160,444,928 B vs 81,424,128,000 B full triplication.
+update ordering (hostmath.HybridStackBackwardStreamed): a layer's DX and
+weight gradients are both computed from its PRE-step weights BEFORE the
+layer's Muon step applies; inner layers consume only DX and their own saved
+activations, so the fused backward+step walk reproduces the full-slab
+trajectory exactly.
+trainer: the streamed device Muon unchanged (optimizer.DeviceMuonStepPlanStreamed
+over per-layer sub-plans): one matrix group staged on the device at a time,
+f32 momentum, device Newton-Schulz — no optimizer-state precision downgrades.
+lifecycle parity is test-proven at BOTH scales:
+  - TestHybridTrainLayerStreamedMatchesFullSlab: layer-streamed vs full-slab
+    trajectories AND trained masters BITWISE-IDENTICAL over 8 steps (exact
+    tolerance, mixed synthetic stack)
+  - the 4B real-artifact smoke of this lane reproduced the committed
+    full-slab evidence trajectory digit-for-digit
+    (60874.69837475851 -> 50120.64103034351,
+    docs/verification/qwen35-4b-fullstack-training-run.txt)
+hyperparameters fully DERIVED: base LR n_params^-1/2 = 1.21399e-05,
+momentum (CLT-1)/(CLT+1) = 0.935484, constant schedule — no free knobs.
+dataset: fixtures/qwen35_9b_serving_smoke.json "capital" case prompt ids —
+the committed 9B serving anchor (a plausibility-validated regression anchor,
+NOT a numeric golden: the bare Unsloth 9B ships no independent oracle; the
+fixture states this itself). Real token rows, 4 prediction rows,
+hidden-state objective (the lane's own contract).
+serving round trip (the Q8 master-weight serving bar of the organ cell,
+mirrored at full-stack scope): the trained f32 masters of
+blk.0.ffn_gate.weight — the SAME tensor the 9B organ cell proved —
+requantized to their declared q8_0 and the objective re-evaluated through
+the round trip: trained-masters loss 925061.833227 -> requantized
+926044.633714 (delta +982.8, ~0.11%): the requantized serving tensor
+carries the training.
+
+session supervision: the whole run executed as a model-session
+(internal/trainingsession) — recipe authority activated at the experimental
+tier for the 9B artifact
+(recipe:sha256:e62a08e6618403dd74defcdd4890fbbd55315460f1e93da049ece112ad3f1c22),
+component-session lease admission BEFORE the 27GB slab loaded, typed
+observation committed:
+session observation: evidence:sha256:1b8769834c4cd084803bcce219a0fa82a03c53aba11426cc53ec542f4110b056
+
+run output (unedited; GOMEMLIMIT=68GiB GOGC=50 bounded the GC high-water,
+peak working set 72,209,317,888 B under the 95,875 MB physical budget):
+artifact: C:/Users/jeffm/adaptive_new/models/Qwen3.5-9B-Q8_0.gguf
+objective tokens: case="capital" ids=[760 6511 314 9338 369] (4 prediction rows)
+training recipe activated: recipe:sha256:e62a08e6618403dd74defcdd4890fbbd55315460f1e93da049ece112ad3f1c22 (model model:sha256:809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4, experimental evidence tier)
+session admitted: model=model:sha256:809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4 recipe=recipe:sha256:e62a08e6618403dd74defcdd4890fbbd55315460f1e93da049ece112ad3f1c22
+stack census: 32 layers (8 attention, 24 recurrent)
+trainable parameters: 6784286720 matrix + 1057280 vector = 6785344000 total
+derived hyperparameters: baseLR=1.21399e-05 momentum=0.935484 schedule=constant (no free knobs)
+load wall: 12.795s  program=recipe:sha256:a304d8551182e5c79c95a12245c8bbc9a52e0b8d57b257173370e5244efbbd31
+memory budget (layer-streamed, bounded host triplication):
+  masters          27137146880 bytes (6784286720 f32, full host slab — the forward needs it)
+  momentum         27137146880 bytes (6784286720 f32, full host slab — persists across steps)
+  grad scratch       873463808 bytes (largest layer, 218365952 f32 — gradients NEVER triplicate)
+  vectors             12687360 bytes (1057280 f32, params+grads+momentum host-side)
+  bounded total    55160444928 bytes vs 81424128000 bytes full triplication
+process peak working set (after artifact load): 42074443776 bytes
+[hostmath-dispatch-calibration] task=186ns f32=0.3344ns/mac f64=0.5155ns/mac workers=32
+step 1/3  loss=1419814.891997  wall=3m11.049s
+projection: 3 steps x 3m11.049s = 9m33s (guard 2h0m0s)
+step 2/3  loss=1238372.189492  wall=3m3.965s
+step 3/3  loss=1073101.576640  wall=3m3.92s
+serving round trip (blk.0.ffn_gate.weight -> q8_0 -> f32): trained-masters loss 925061.833227 -> requantized 926044.633714 (delta +982.8)
+process peak working set (after training): 72209317888 bytes
+trajectory: [1.419814891997467e+06 1.2383721894922394e+06 1.0731015766402488e+06]
+session observation: evidence:sha256:1b8769834c4cd084803bcce219a0fa82a03c53aba11426cc53ec542f4110b056
+PASS: finite loss decreased over 3 full-stack steps in 9m18.934s
+
+monotone descent 1419814.89 -> 1238372.19 -> 1073101.58 (and the post-step-3
+forward at 925061.83 continues it). This supersedes the layer-0 Q8 organ
+cell (50.3M params, docs/verification/qwen35-9b-training-run.txt) by 135x
+trainable surface: every attention layer and every recurrent layer of the
+9B stack updates through the serving-storage round trip's own lane.
+
+caveats:
+- attention output gate excluded: the artifact fuses a per-head output gate
+  into the Q projection ([4096 x 8192] observed); the training mix models
+  ungated attention, so only the query rows of the fused tensor enter the
+  trainable slab (~134M of the 8 attention layers' fused q stays frozen).
+  Documented in bindAttentionLayer (same policy as the 4B full-stack cell).
+- loss magnitude (~1.4e6) is the unnormalized 32-layer residual-stream
+  hidden-state objective; finite strict decrease is the gate's criterion.
+- 3 steps on one real prompt from a regression-anchor fixture:
+  machinery-tier evidence (real-artifact-smoke), not a capability claim.
+- serving round trip requantizes ONE trained matrix (the organ cell's
+  tensor) at full-stack scope; requantizing the whole stack is out of scope
+  for this smoke.
+- GOMEMLIMIT=68GiB GOGC=50 were set for the run: Go's default GC headroom
+  (GOGC=100) doubles the live set's high-water, which fits at 4B but not at
+  9B; the soft memory limit is a runtime knob, not a precision or math
+  change.
+
+reproduce:
+  GOMEMLIMIT=68GiB GOGC=50 go run ./cmd/hybrid-stack-train-probe \
+    -model <models>/Qwen3.5-9B-Q8_0.gguf \
+    -fixture fixtures/qwen35_9b_serving_smoke.json \
+    -lane layer-streamed -serving-roundtrip -steps 3 -max-wall 120m
+  go run ./cmd/repodb-query -repo repodb-store -id <printed observation id> -content
+  go test ./internal/hybridtrain/ -run TestHybridTrainLayerStreamedMatchesFullSlab (OVERGO_CUDA_TEST=1)

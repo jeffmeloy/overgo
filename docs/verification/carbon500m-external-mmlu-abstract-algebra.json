@@ -1,0 +1,40 @@
+{
+ "schema": "overgo/external-benchmark-evidence/v1",
+ "model": {
+  "name": "Carbon-500M-HF",
+  "path": "C:/Users/jeffm/adaptive_new/models/Carbon-500M",
+  "weights_sha256": "e257506988203fdb8bb46976ee81c97e24f29073754bbff70137c7704dbadaa8",
+  "weights_file": "model.safetensors",
+  "config_sha256": "48874135ba22268f6817fac7c9142cd3a30844fcb90fe5e17186da283809f515",
+  "tokenizer_sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+ },
+ "tool": {
+  "name": "lm-evaluation-harness",
+  "version": "0.4.9.1",
+  "transformers": "4.57.1",
+  "torch": "2.6.0+cu124",
+  "python": "3.13.5",
+  "cuda": "12.4",
+  "device": "NVIDIA GeForce RTX 4090 D"
+ },
+ "task": {
+  "name": "mmlu_abstract_algebra",
+  "fewshot": 0,
+  "cases": 100,
+  "definition_sha256": "f026cc8918a0a4a422af4286e22889de6f423483671975fdd5429c96c0d0d9ef",
+  "definition_file": "lm_eval/tasks/mmlu/default/mmlu_abstract_algebra.yaml",
+  "template_sha256": "a0997593bf94f52cc87eb1f9b621f52613a6c60f1fb48775b0926104fd385122",
+  "template_file": "lm_eval/tasks/mmlu/default/_default_template_yaml",
+  "hash_method": "sha256 of the installed file bytes",
+  "dataset_revision": "c30699e8356da336a370243923dbaf21066bb9fe",
+  "test_split_sha256": "188d54be8bce5b30231f8e559ed5b9d0f6031db5d059c87438da3e1f3c135c41"
+ },
+ "invocation": "C:/Users/jeffm/eval/env/Scripts/python.exe C:/Users/jeffm/eval/eval_single_model.py --model C:/Users/jeffm/adaptive_new/models/Carbon-500M --model_name Carbon-500M-HF --config C:/Users/jeffm/eval/overgo_carbon500m_benchmark.yaml --output_dir C:/Users/jeffm/eval/overgo_carbon500m_benchmark_results --trust_remote_code",
+ "caveats": "trust_remote_code executes the checkpoint's local custom DNA tokenizer (tokenizer.py, the same code overgo's internal/tokenizer DNA path was ported from); accuracy 0.22 is at 4-way chance for this DNA-domain model -- the claim measures the harness integration honestly, not English capability",
+ "result": {
+  "accuracy": 0.22,
+  "accuracy_standard_error": 0.041633319989322654,
+  "raw_results_sha256": "d815f7dbdc15079d7c52a87c241cfa39aa06cc1feb97e884c998b1be675a635e",
+  "wall_ns": 27663428200
+ }
+}

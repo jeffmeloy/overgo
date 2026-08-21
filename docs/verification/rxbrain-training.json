@@ -2,10 +2,12 @@
  "model": "model:sha256:fa8d2cf13e6056494f89fb49ace96057dd9008371def50641c36a7d05e29d936",
  "name": "Hy-Embodied-RxBrain-1.0",
  "evidence_files": [
-  "docs/verification/rxbrain-training-run.txt"
+  "docs/verification/rxbrain-training-run.txt",
+  "docs/verification/rxbrain-mot-training-run.txt"
  ],
  "dataset_files": [
-  "docs/verification/rxbrain-training-stimulus.txt"
+  "docs/verification/rxbrain-training-stimulus.txt",
+  "docs/verification/rxbrain-mot-training-stimulus.txt"
  ],
  "claims": [
   {
@@ -17,6 +19,21 @@
    "wall_ns": 1264000000,
    "evidence": [
     "evidence:sha256:6b95d2dfb9a77d95f6b59a44dc38aa257a5b97bedad637f625111e8e0f5d3074"
+   ]
+  },
+  {
+   "capability": "full-pipeline-training",
+   "tier": "real-artifact-smoke",
+   "commit": "f6cdfe8f86787ee6ebf831863d8c45bf9ab387ac",
+   "dataset": "dataset-shard:sha256:bf6cdfcc6f188ba5e76c9760b851c4350743e04cffdc5bdb53361dfabfb37d15",
+   "span_steps": 3,
+   "span_tokens": 1038,
+   "wall_ns": 323990860800,
+   "context_tokens": 346,
+   "peak_device_bytes": 1977090048,
+   "evidence": [
+    "evidence:sha256:f01a13cc63bacdefedfabdc3b4a108d410e0424df7bb08df678279e9f47f6138",
+    "evidence:sha256:2eb5657243152a17b0852a510e20fe6cec1c377179687c9449066de54297329f"
    ]
   }
  ]

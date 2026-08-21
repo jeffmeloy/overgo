@@ -3,6 +3,8 @@
 package hybridtrain
 
 import (
+	"fmt"
+
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/devicemath"
@@ -85,6 +87,160 @@ func (training *residentTraining) Step(step int) error {
 	}
 	training.vecOpt.Step()
 	return nil
+}
+
+// hostMasterTraining: forward/backward on host f32 masters, Muon streamed
+// per matrix group through the device. This is the full-stack lane for models
+// whose complete weight/gradient/momentum triple exceeds device memory.
+type hostMasterTraining struct {
+	model             *Model
+	worker            *device.Worker
+	config            optimizer.Config
+	trace             hostmath.HybridStackTrace
+	grads             []hostmath.HybridDecoderLayerGrads
+	matGrad, momentum []float32
+	vecGrad           []float32
+	vecOpt            *optimizer.Optimizer
+}
+
+func (training *hostMasterTraining) Forward() ([]float32, error) {
+	output, trace := hostmath.HybridStackForward(training.model.X, training.model.Weights, training.model.Dims, training.model.States)
+	training.trace = trace
+	return output, nil
+}
+
+func (training *hostMasterTraining) Backward(dTop []float32) error {
+	model := training.model
+	training.grads, _ = hostmath.HybridStackBackward(training.trace, model.Weights, model.Dims, model.States, dTop, training.grads)
+	model.packGradients(training.grads, training.matGrad, training.vecGrad)
+	return nil
+}
+
+func (training *hostMasterTraining) Step(step int) error {
+	if err := optimizer.DeviceMuonStepPlanStreamed(
+		training.worker, training.model.matW, training.matGrad, training.momentum,
+		training.model.matPlan, step, training.config,
+	); err != nil {
+		return err
+	}
+	training.vecOpt.Step()
+	return nil
+}
+
+// TrainHostMasterStreamed trains with host-resident f32 masters, momentum and
+// gradients, streaming each Muon matrix group across the device per step.
+// Peak device memory is bounded by the largest single matrix, never the
+// parameter count, so the full stack of a multi-billion-parameter artifact
+// trains on a device that cannot hold its weights. observe (optional) sees
+// each committed step's loss and may stop training by returning an error.
+func (m *Model) TrainHostMasterStreamed(worker *device.Worker, steps int, cfg optimizer.Config, observe func(step int, loss float64) error) ([]float64, error) {
+	vecGrad := make([]float32, len(m.vecW))
+	vecOpt, err := optimizer.New(m.vecW, vecGrad, m.vecPlan, cfg)
+	if err != nil {
+		return nil, err
+	}
+	training := &hostMasterTraining{
+		model: m, worker: worker, config: cfg,
+		matGrad:  make([]float32, len(m.matW)),
+		momentum: make([]float32, len(m.matW)),
+		vecGrad:  vecGrad, vecOpt: vecOpt,
+	}
+	return runTrainingObserved(m.program, training, m.Target, steps, observe)
+}
+
+// hostMasterLayerStreamedTraining: forward on host f32 masters; the backward
+// walk fuses each layer's streamed Muon step as that layer's gradients
+// complete, so host gradient residency is bounded by ONE layer's reusable
+// scratch instead of a full parameter-count slab. Momentum stays a full host
+// f32 slab (it must persist across steps); the bounded triple is therefore
+// masters + momentum + one-layer scratch — the lane for stacks whose full
+// masters+gradients+momentum triplication exceeds host memory.
+type hostMasterLayerStreamedTraining struct {
+	model      *Model
+	worker     *device.Worker
+	config     optimizer.Config
+	trace      hostmath.HybridStackTrace
+	layers     []layerStreamPlan
+	matScratch []float32 // one-layer gradient window, reused across layers and steps
+	momentum   []float32 // full matrix momentum slab, persists across steps
+	vecGrad    []float32
+	vecOpt     *optimizer.Optimizer
+	stepped    int // committed steps; the backward walk applies Muon step stepped+1
+}
+
+func (training *hostMasterLayerStreamedTraining) Forward() ([]float32, error) {
+	output, trace := hostmath.HybridStackForward(training.model.X, training.model.Weights, training.model.Dims, training.model.States)
+	training.trace = trace
+	return output, nil
+}
+
+func (training *hostMasterLayerStreamedTraining) Backward(dTop []float32) error {
+	model := training.model
+	_, err := hostmath.HybridStackBackwardStreamed(&training.trace, model.Weights, model.Dims, model.States, dTop,
+		func(layer int, g hostmath.HybridDecoderLayerGrads) error {
+			// Update ordering: this visitor runs AFTER the layer's DX and weight
+			// gradients were computed from its PRE-step weights, so stepping the
+			// layer here cannot perturb the remaining backward — inner layers
+			// consume only DX and their own saved activations. Stepping before
+			// the layer's own backward would be wrong; stepping after it is the
+			// full-slab trajectory exactly.
+			lp := training.layers[layer]
+			mat := training.matScratch[:lp.matSize]
+			vec := training.vecGrad[lp.vecOff : lp.vecOff+lp.vecSize]
+			if mi, vi := packLayerGradients(g, mat, vec); mi != lp.matSize || vi != lp.vecSize {
+				return fmt.Errorf("layer %d packed %d+%d gradient values, window is %d+%d", layer, mi, vi, lp.matSize, lp.vecSize)
+			}
+			return optimizer.DeviceMuonStepPlanStreamed(
+				training.worker,
+				model.matW[lp.matOff:lp.matOff+lp.matSize], mat,
+				training.momentum[lp.matOff:lp.matOff+lp.matSize],
+				lp.plan, training.stepped+1, training.config,
+			)
+		})
+	return err
+}
+
+func (training *hostMasterLayerStreamedTraining) Step(step int) error {
+	if step != training.stepped+1 {
+		return fmt.Errorf("layer-streamed step %d does not follow committed step %d", step, training.stepped)
+	}
+	// Matrix groups were stepped during the backward walk; the vector step
+	// commits here so the optimize phase still closes every step.
+	training.vecOpt.Step()
+	training.stepped = step
+	return nil
+}
+
+// TrainHostMasterLayerStreamed trains with host-resident f32 masters and
+// momentum while gradients NEVER triplicate: each layer's gradients land in a
+// reusable one-layer scratch during the backward walk and that layer's Muon
+// step (streamed per matrix group across the device) applies immediately.
+// Peak host memory is masters + momentum + one layer of scratch; peak device
+// memory stays bounded by the largest single matrix. The Muon math is the
+// full-slab lane's unchanged — per-group f32 momentum and device
+// Newton-Schulz — so the trajectory matches TrainHostMasterStreamed exactly.
+func (m *Model) TrainHostMasterLayerStreamed(worker *device.Worker, steps int, cfg optimizer.Config, observe func(step int, loss float64) error) ([]float64, error) {
+	plans, err := m.layerStreamPlans()
+	if err != nil {
+		return nil, err
+	}
+	maxLayer := 0
+	for _, p := range plans {
+		maxLayer = max(maxLayer, p.matSize)
+	}
+	vecGrad := make([]float32, len(m.vecW))
+	vecOpt, err := optimizer.New(m.vecW, vecGrad, m.vecPlan, cfg)
+	if err != nil {
+		return nil, err
+	}
+	training := &hostMasterLayerStreamedTraining{
+		model: m, worker: worker, config: cfg,
+		layers:     plans,
+		matScratch: make([]float32, maxLayer),
+		momentum:   make([]float32, len(m.matW)),
+		vecGrad:    vecGrad, vecOpt: vecOpt,
+	}
+	return runTrainingObserved(m.program, training, m.Target, steps, observe)
 }
 
 // TrainDeviceResident keeps matrix state resident through the compiled loop.

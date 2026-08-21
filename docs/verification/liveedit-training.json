@@ -1,11 +1,16 @@
 {
  "model": "model:sha256:618e6c57a554b2d06a615ea782433df0174c32b64b0ffb6da25bea68969ca135",
  "name": "LiveEdit",
+ "supersedes": [
+  "evidence:sha256:009a55331943a83cc17211313ecb578aad532a7de1109da8f920bcaf8b14d894"
+ ],
  "evidence_files": [
-  "docs/verification/liveedit-training-run.txt"
+  "docs/verification/liveedit-training-run.txt",
+  "docs/verification/liveedit-dit-training-run.txt"
  ],
  "dataset_files": [
-  "docs/verification/liveedit-training-stimulus.txt"
+  "docs/verification/liveedit-training-stimulus.txt",
+  "docs/verification/liveedit-dit-training-stimulus.txt"
  ],
  "claims": [
   {
@@ -17,6 +22,18 @@
    "wall_ns": 633000000,
    "evidence": [
     "evidence:sha256:a6a11cd9748b6df4d558697da48978ef3e655f2040ced5aa87f3d75c481b9d1d"
+   ]
+  },
+  {
+   "capability": "full-pipeline-training",
+   "tier": "real-artifact-smoke",
+   "commit": "4dd29342eabc84ec1c351886838b82961c50b0e7",
+   "dataset": "dataset-shard:sha256:215f28ddf830216dcd640864f7e3145271a0d30dcd6eca986c5ac68f61db0327",
+   "span_steps": 3,
+   "wall_ns": 221343000000,
+   "evidence": [
+    "evidence:sha256:5876bee52cf60a914e374caff81ae4a71df8eb6c36da5e40fe75bc8ac8e66fb1",
+    "evidence:sha256:aba053c6ae2c7acfc32acc0aa0a9c73a1a6bed9f1af078d70fa101a1e3b216bb"
    ]
   }
  ]

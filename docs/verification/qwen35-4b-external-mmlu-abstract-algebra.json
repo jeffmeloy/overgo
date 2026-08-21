@@ -1,0 +1,41 @@
+{
+ "schema": "overgo/external-benchmark-evidence/v1",
+ "model": {
+  "name": "Qwen3.5-4B-HF",
+  "path": "C:/Users/jeffm/adaptive_new/models/Qwen3.5-4B",
+  "weights_sha256": "26a93f066e1916adb13453dae5a0c707c0fbc71299ed98779571a907b8e74c61",
+  "weights_file": "model.safetensors-00001-of-00002.safetensors",
+  "config_sha256": "c857db69a33400b29db19b4aa8212174253f8c76498b79c5aa9b2a6fd4013ecc",
+  "tokenizer_sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42"
+ },
+ "tool": {
+  "name": "lm-evaluation-harness",
+  "version": "0.4.12",
+  "transformers": "5.15.1",
+  "torch": "2.11.0+cu128",
+  "accelerate": "1.14.0",
+  "python": "3.13.5",
+  "cuda": "12.8",
+  "device": "NVIDIA GeForce RTX 4090 D",
+  "environment": "C:/Users/jeffm/eval/env2 (new provenance; the pinned 0.4.9.1/4.57.1 env is preserved untouched for prior claims)"
+ },
+ "task": {
+  "name": "mmlu_abstract_algebra",
+  "fewshot": 0,
+  "cases": 100,
+  "definition_sha256": "f026cc8918a0a4a422af4286e22889de6f423483671975fdd5429c96c0d0d9ef",
+  "definition_file": "lm_eval/tasks/mmlu/default/mmlu_abstract_algebra.yaml",
+  "template_sha256": "a0997593bf94f52cc87eb1f9b621f52613a6c60f1fb48775b0926104fd385122",
+  "template_file": "lm_eval/tasks/mmlu/default/_default_template_yaml",
+  "hash_method": "sha256 of the installed file bytes; identical to the prior environment's pins, so results are directly comparable",
+  "dataset_revision": "c30699e8356da336a370243923dbaf21066bb9fe",
+  "test_split_sha256": "188d54be8bce5b30231f8e559ed5b9d0f6031db5d059c87438da3e1f3c135c41"
+ },
+ "invocation": "C:/Users/jeffm/eval/env2/Scripts/python.exe C:/Users/jeffm/eval/eval_single_model.py --model C:/Users/jeffm/adaptive_new/models/Qwen3.5-4B --model_name Qwen3.5-4B-HF --config C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark.yaml --output_dir C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results",
+ "result": {
+  "accuracy": 0.58,
+  "accuracy_standard_error": 0.04960449637488582,
+  "raw_results_sha256": "00f9ffdd2dc46ed972098c665deb4d40f7e2c69b3dd73126bf123c6eeea84e12",
+  "wall_ns": 93847809800
+ }
+}

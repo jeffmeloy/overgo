@@ -6,7 +6,6 @@
 /datasets/
 /checkpoints/
 /kernels/generated/
-*.exe
 *.out
 *.test
 coverage.out
@@ -19,4 +18,3 @@ docs/plan_stop.json
 docs/.bounded_request
 docs/.loop_pause
 docs/loop.json
-bin/loophook.exe

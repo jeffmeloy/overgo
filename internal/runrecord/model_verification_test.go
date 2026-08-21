@@ -144,4 +144,23 @@ func TestModelVerificationLedger(t *testing.T) {
 	if TierCapabilityMeasured.Rank() <= TierExactGolden.Rank() || VerificationTier("vibes").Rank() != 0 {
 		t.Fatal("tier ranking broken")
 	}
+
+	correctedCommit := strings.Repeat("cd", 20)
+	correction, err := NewModelVerificationCorrection(model, "Carbon-500M", []CapabilityClaim{
+		{Capability: "inference", Tier: TierExactGolden, Commit: commit, Evidence: []artifact.ID{golden}},
+		{Capability: "training", Tier: TierRealArtifactSmoke, Commit: correctedCommit,
+			Dataset: dataset, SpanSteps: 60, SpanTokens: 480_000, Evidence: []artifact.ID{smoke}},
+	}, []artifact.ID{record.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	corrected := VerificationMatrix([]ModelVerification{record, correction})
+	if len(corrected) != 1 || len(corrected[0].Capabilities) != 2 ||
+		corrected[0].Capabilities[1].Commit != correctedCommit {
+		t.Fatalf("superseded record remained authoritative: %+v", corrected)
+	}
+	batch, err = correction.Batch("verification/correction/" + correction.ID.String())
+	if err != nil || len(batch.Lineage) != 5 {
+		t.Fatalf("correction lineage = %d edges (%v), want model, dataset, two evidence and superseded record", len(batch.Lineage), err)
+	}
 }

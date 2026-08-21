@@ -25,13 +25,15 @@ THE LOOP (do #1 -> complete -> refactor -> do #1, until the plan is complete):
  6. Repeat. Prefer continuing to the next #1; continuity is owned by cmd/loop
     (the harness-agnostic driver), never argued turn-by-turn.
 
-STOPS. The Stop gate protects WORK, not momentum: it blocks a turn-end only
-when turn-created uncommitted work would be orphaned -- commit through the
-gate or revert. For unattended continuity run go run ./cmd/loop. A recorded
-stop (go run ./cmd/plan -stop <user-stop|irreversible|external-prereq>:
-<detail>) documents why open work is deliberately paused.
+STOPS. The Stop gate protects WORK and the LOOP: it blocks a turn-end that
+would orphan turn-created uncommitted work (commit through the gate or
+revert), and it blocks a turn-end under an open plan row when the turn
+advanced nothing -- a prompt from the user NEVER pauses the loop (owner rule
+2026-08-20): answer it, then continue the dispatched row in the same turn.
+The one sanctioned pause is an explicit user stop, recorded with
+go run ./cmd/plan -stop <user-stop|irreversible|external-prereq>:<detail>.
+For unattended continuity run go run ./cmd/loop.
 
 SCOPE. A bounded request -- a status readout, an explanation, or a review --
-is a COMPLETE turn once answered; do not inflate it into a campaign or record
-a stop. UserPromptSubmit marks that turn and the Stop gate consumes the marker
-silently. The Stop gate enforces the loop, not bounded requests.`
+bounds the ANSWER, not the turn: keep the answer to what was asked (no
+inflating it into a campaign), then continue the dispatched row.`

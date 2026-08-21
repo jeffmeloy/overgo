@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	ModelVerificationMediaType = "application/vnd.overgo.model-verification+json"
-	ModelVerificationSchema    = "overgo/model-verification/v1"
+	ModelVerificationVersion   uint16 = 1
+	ModelVerificationMediaType        = "application/vnd.overgo.model-verification+json"
+	ModelVerificationSchema           = "overgo/model-verification/v1"
 )
 
 // VerificationTier: evidenced capability level; no implicit subsumption.
@@ -58,11 +59,12 @@ type CapabilityClaim struct {
 
 // ModelVerification: immutable model claims and evidence lineage.
 type ModelVerification struct {
-	Version uint16            `json:"version"`
-	Model   artifact.ID       `json:"model"`
-	Name    string            `json:"name"`
-	Claims  []CapabilityClaim `json:"claims"`
-	ID      artifact.ID       `json:"-"`
+	Version    uint16            `json:"version"`
+	Model      artifact.ID       `json:"model"`
+	Name       string            `json:"name"`
+	Claims     []CapabilityClaim `json:"claims"`
+	Supersedes []artifact.ID     `json:"supersedes,omitempty"`
+	ID         artifact.ID       `json:"-"`
 }
 
 var modelVerificationCodec = artifact.JSONDocumentCodec(
@@ -72,6 +74,7 @@ var modelVerificationCodec = artifact.JSONDocumentCodec(
 	func(value *ModelVerification, id artifact.ID) { value.ID = id },
 	func(value ModelVerification) ModelVerification {
 		value.Claims = slices.Clone(value.Claims)
+		value.Supersedes = slices.Clone(value.Supersedes)
 		for i := range value.Claims {
 			value.Claims[i].Evidence = slices.Clone(value.Claims[i].Evidence)
 		}
@@ -80,12 +83,24 @@ var modelVerificationCodec = artifact.JSONDocumentCodec(
 )
 
 func NewModelVerification(model artifact.ID, name string, claims []CapabilityClaim) (ModelVerification, error) {
+	return newModelVerification(model, name, claims, nil)
+}
+
+// NewModelVerificationCorrection replaces immutable verification records with
+// a corrected claim set. The matrix excludes the named records only when the
+// correction and replaced record bind the same model.
+func NewModelVerificationCorrection(model artifact.ID, name string, claims []CapabilityClaim, supersedes []artifact.ID) (ModelVerification, error) {
+	return newModelVerification(model, name, claims, supersedes)
+}
+
+func newModelVerification(model artifact.ID, name string, claims []CapabilityClaim, supersedes []artifact.ID) (ModelVerification, error) {
 	cloned := slices.Clone(claims)
 	for i := range cloned {
 		cloned[i].Evidence = slices.Clone(cloned[i].Evidence)
 	}
 	return modelVerificationCodec.New(ModelVerification{
-		Version: artifact.InitialDocumentVersion, Model: model, Name: name, Claims: cloned,
+		Version: ModelVerificationVersion, Model: model, Name: name, Claims: cloned,
+		Supersedes: slices.Clone(supersedes),
 	})
 }
 
@@ -113,6 +128,9 @@ func (v ModelVerification) Batch(key string) (artifact.Batch, error) {
 			appendParent(evidence)
 		}
 	}
+	for _, superseded := range v.Supersedes {
+		appendParent(superseded)
+	}
 	return modelVerificationCodec.Batch(key, v, artifact.DependencyLineage(v.ID, parents...), nil)
 }
 
@@ -127,6 +145,18 @@ type MatrixRow struct {
 func VerificationMatrix(records []ModelVerification) []MatrixRow {
 	records = slices.Clone(records)
 	sort.Slice(records, func(i, j int) bool { return records[i].ID.String() < records[j].ID.String() })
+	byID := make(map[artifact.ID]ModelVerification, len(records))
+	for _, record := range records {
+		byID[record.ID] = record
+	}
+	superseded := make(map[artifact.ID]bool)
+	for _, record := range records {
+		for _, prior := range record.Supersedes {
+			if replaced, ok := byID[prior]; ok && replaced.Model == record.Model {
+				superseded[prior] = true
+			}
+		}
+	}
 	type slot struct {
 		claim CapabilityClaim
 		seen  map[artifact.ID]bool
@@ -134,6 +164,9 @@ func VerificationMatrix(records []ModelVerification) []MatrixRow {
 	rows := map[artifact.ID]map[string]*slot{}
 	names := map[artifact.ID]string{}
 	for _, record := range records {
+		if superseded[record.ID] {
+			continue
+		}
 		if name, ok := names[record.Model]; !ok || record.Name < name {
 			names[record.Model] = record.Name
 		}
@@ -198,7 +231,7 @@ func VerificationMatrix(records []ModelVerification) []MatrixRow {
 }
 
 func canonicalizeModelVerification(value *ModelVerification) error {
-	if value == nil || value.Version != artifact.InitialDocumentVersion {
+	if value == nil || value.Version != ModelVerificationVersion {
 		return errors.New("run record: invalid model verification version")
 	}
 	if value.Model.Kind() != artifact.KindModel {
@@ -210,6 +243,15 @@ func canonicalizeModelVerification(value *ModelVerification) error {
 	if len(value.Claims) == 0 {
 		return errors.New("run record: model verification requires capability claims")
 	}
+	for _, superseded := range value.Supersedes {
+		if superseded.Kind() != artifact.KindEvidence {
+			return errors.New("run record: model verification supersedes a non-evidence artifact")
+		}
+	}
+	sort.Slice(value.Supersedes, func(i, j int) bool {
+		return value.Supersedes[i].String() < value.Supersedes[j].String()
+	})
+	value.Supersedes = slices.Compact(value.Supersedes)
 	for i := range value.Claims {
 		claim := &value.Claims[i]
 		if !textcheck.Bounded(claim.Capability, artifact.MaxContentBytes, "") ||

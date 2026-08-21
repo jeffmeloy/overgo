@@ -1,36 +1,38 @@
 # Overgo
 
-Overgo is a native Go model-engineering platform for creating, training,
-evaluating, composing, serving, and analyzing models across text, image,
-audio, video, time-series, and tabular workloads on consumer NVIDIA hardware.
+Overgo is a Go runtime and workbench for running, building, training,
+evaluating, and serving models on consumer NVIDIA hardware. It handles text,
+images, audio, video, time series, and tables in one system.
 
-Instead of implementing a separate executor for every model family, Overgo
-compiles typed recipes from shared model, tensor, training, media, and device
-components. Architecture profiles describe model structure. Recipes bind exact
-content-addressed artifacts to execution topology, placement, residency,
-processors, objectives, and evidence.
+Model names do not own execution. Architecture profiles describe tensor layouts
+and numerical rules. Typed recipes bind a profile and exact content-addressed
+artifacts to reusable operators, processors, training objectives, device
+placement, memory lifetime, and evidence. The runtime compiles those records
+into host and CUDA programs.
 
-The same runtime powers native training and evaluation, OpenAI-, Anthropic-,
-and llama.cpp-compatible APIs, command-line workflows, and an integrated model
-engineering workbench. RepoDB records artifact identity, lineage, runs,
-verification, promotion, and rollback so that catalog support, implemented
-capability, artifact verification, and production activation remain explicit
-and separate.
+That runtime also backs the command line, the workbench, native training and
+evaluation, and OpenAI-, Anthropic-, and llama.cpp-compatible APIs. RepoDB
+records artifact identity, lineage, runs, verification, promotion, and
+rollback. The repository therefore keeps four different facts separate: a
+model can be listed in the catalog, supported by the code, verified with a
+specific artifact, or approved for production.
 
-Overgo uses selected formats, numerical semantics, quantization behavior, and
-kernel concepts from llama.cpp, but its overall architecture is broader. It
-adds recipe compilation, common multimodal execution, native training,
-evaluation campaigns, model construction, evidence-bound activation, and one
-GUI spanning the model lifecycle.
+The code ports selected formats, numerical rules, quantization behavior, and
+kernel ideas from llama.cpp. The larger design is different. Overgo adds a
+recipe compiler, shared execution for several input and output types, native
+training, compiled evaluation campaigns, model construction, recorded release
+decisions, and a GUI that covers the complete workflow.
 
 **Current host:** Windows amd64, Go 1.26, NVIDIA CUDA driver,
 `CGO_ENABLED=0`. `github.com/dlclark/regexp2/v2` is the sole third-party Go
 runtime dependency. Public interfaces may change while the platform is under
 active development.
 
+**Release:** v0.1.1
+
 ## 1. What Overgo is
 
-Overgo is one runtime for the work that normally crosses several model tools:
+Overgo puts these jobs behind one runtime:
 
 | Area | Capabilities |
 | --- | --- |
@@ -46,47 +48,49 @@ Overgo is one runtime for the work that normally crosses several model tools:
 | Workbench | Use one embedded GUI for chat, generation, runtime telemetry, datasets, training, model building, export, evaluations, artifacts, and model analysis |
 | Evidence | Record artifact identities, lineage, runs, recipes, gates, evaluations, promotion, rollback, and release checks in RepoDB and generated compatibility records |
 
-Overgo is designed around compositional capability. A model does not require a
-new top-level executor merely because it has a new brand or architecture name.
-If its tensor layout and behavior can be expressed with existing profiles,
-operators, processors, and recipe modules, it can reuse the same compiled
-runtime paths. A model-specific implementation is needed only when the model
-introduces a materially new tensor convention, operator, processor, codec,
-numerical rule, or execution topology.
+A new model name does not require a new top-level executor. If the model's
+tensor layout and behavior fit existing profiles, operators, processors, and
+recipe modules, it reuses the same compiled paths. Model-specific code is only
+needed for a new tensor convention, operator, processor, codec, numerical rule,
+or execution topology.
 
-This makes two claims deliberately different:
+Overgo tracks code support and artifact verification as different claims:
 
-- **The code can represent and execute a capability** through tested generic
-  components and a valid recipe.
-- **A particular model artifact has been verified** with its exact bytes,
-  recipe, inputs, environment, and expected result.
+- **Implemented** means tested shared components and a valid recipe can express
+  and execute the behavior.
+- **Verified** means exact model bytes passed a named check with a fixed recipe,
+  inputs, environment, and expected result.
 
-The first scales by composition. The second remains artifact-specific and is
-recorded through RepoDB.
+Generic component tests establish the first claim. RepoDB records the second
+claim for each artifact.
+
+![Overgo platform architecture and model lifecycle](docs/assets/overgo-platform-architecture.png)
 
 ## 2. How Overgo works
 
 ### Shared components instead of model-family executors
 
-Overgo factors model behavior into reusable owners:
+Model behavior is split among reusable packages:
 
-- architecture profiles describe dimensions, tensor layout, attention,
-  recurrence, experts, normalization, position encoding, and operator policy;
-- tensor and graph packages describe computation independently of model names;
-- host operators provide numerical references;
-- CUDA operators execute compiled graphs and training programs;
-- processors, projectors, tokenizers, schedulers, and codecs handle typed data;
-- training programs own objectives, backward traversal, parameter groups, and
-  optimizer order;
-- runtime adapters bind compiled recipe modules to implementations;
-- RepoDB owns durable identity, lineage, evidence, and activation decisions.
+- Architecture profiles define dimensions, tensor layout, attention,
+  recurrence, experts, normalization, position encoding, and operator rules.
+- Tensor and graph packages describe computation without depending on model
+  names.
+- Host operators provide numerical references. CUDA operators run compiled
+  inference and training graphs.
+- Processors, projectors, tokenizers, schedulers, and codecs convert typed
+  inputs and outputs.
+- Training programs specify objectives, backward traversal, parameter groups,
+  and optimizer order.
+- Runtime adapters connect compiled recipe modules to their implementations.
+- RepoDB stores identity, lineage, evidence, and activation decisions.
 
-Runtime code consumes compiled plans. It does not rediscover model behavior
-from a model-family switch during execution.
+Execution consumes a compiled plan. It does not enter a model-family switch to
+reconstruct model behavior at run time.
 
 ### Profiles, definitions, and recipes
 
-A runnable capability is assembled from immutable records:
+A runnable task is assembled from immutable records:
 
 1. **Model artifact:** content-hashed model bytes and known locations.
 2. **Architecture profile:** model structure and operator policy with fact
@@ -100,9 +104,9 @@ A runnable capability is assembled from immutable records:
 6. **Run and evaluation records:** exact inputs, outputs, environment, outcome,
    and evidence associated with execution.
 
-Recipe compilation rejects unknown modules, invalid ordering, incompatible
-data kinds, unbound ports, incorrect cardinality, graph cycles, unreachable
-nodes, missing dependencies, and placement or residency conflicts.
+The compiler rejects unknown modules, bad ordering, incompatible data kinds,
+unbound ports, wrong cardinality, graph cycles, unreachable nodes, missing
+dependencies, and conflicts in device placement or memory lifetime.
 
 ### Execution and evidence loop
 
@@ -131,25 +135,23 @@ model bytes + tensor facts + architecture profile
               promoted active recipe
 ```
 
-Inference and production commands resolve the active recipe associated with a
-model artifact's content hash. They do not select a different residency mode or
-model-family path from convenience flags. Activating a candidate requires
-successful evidence tied to the exact model and recipe identities. Changing
-model bytes, tensor facts, profiles, or recipe content creates a new identity
-and requires new evidence.
+Inference and production commands resolve the active recipe from the model
+artifact's content hash. Command flags cannot silently choose another memory
+mode or model-family path. Activation requires successful evidence for the
+exact model and recipe identities. A change to model bytes, tensor facts,
+profiles, or recipe content creates a new identity and needs new evidence.
 
-RepoDB can retain several candidates for the same model and task. Only a
-promoted active recipe is used by production entry points. Missing evidence is
-an error rather than a reason to fall back to another execution path.
+RepoDB can retain several candidates for the same model and task. Production
+entry points use only the promoted active recipe. Missing evidence is an error,
+not permission to fall back to another execution path.
 
 ## 3. System architecture
 
 ### Typed execution runtime
 
-Recipes are executable data rather than descriptive labels. A versioned recipe
-names one task, its artifact dependencies, typed modules, host/device
-placement, ports, ordered edges, inputs, outputs, residency, and session
-lifetime.
+Recipes are executable data. A versioned recipe names one task, its artifact
+dependencies, typed modules, host or device placement, ports, ordered edges,
+inputs, outputs, memory policy, and session lifetime.
 
 Supported task classes include inference, token generation, embedding,
 reranking, projection, training, forecasting, tabular prediction,
@@ -157,32 +159,32 @@ sequence-to-sequence generation, speech synthesis, image generation, video
 generation, and VQA.
 
 Opening a model builds one indexed weight catalog. Compiled requirement schemas
-validate alternative shapes, storage, and cross-tensor relations. Layer
-programs carry indexed bindings so execution does not repeatedly search tensor
-names or reapply family policy.
+check allowed shapes, storage, and relations between tensors. Layer programs
+carry indexed bindings, so execution does not search tensor names or reapply
+family rules on every call.
 
 ### Host and CUDA execution
 
-The runtime remains no-cgo. It loads installed NVIDIA DLLs through the Windows
-ABI and maintains each CUDA driver context on a worker locked to one operating-
-system thread. Go memory is pinned while its address crosses a DLL boundary,
-and device copies are validated against live driver allocations.
+The runtime uses no cgo. It loads installed NVIDIA DLLs through the Windows ABI
+and keeps each CUDA driver context on a worker locked to one operating-system
+thread. Go memory stays pinned while its address crosses a DLL boundary. Device
+copies are checked against live driver allocations.
 
-Compiled graphs reuse validated topology, BLAS selection, memory-arena plans,
-indexed operands, fusion descriptors, and replay state. CUDA and PTX assets in
-the kernel manifest are the only non-Go runtime components maintained in the
-repository.
+Compiled graphs reuse checked topology, BLAS selection, memory-arena plans,
+indexed operands, fusion descriptors, and replay state. The CUDA and PTX files
+listed in the kernel manifest are the only non-Go runtime components kept in
+the repository.
 
 Preloaded decoding keeps weights, KV state, recurrent state, and graph outputs
-on the GPU. Only sampling inputs return to Go. Media sessions retain branch
-graphs, conditioning, prefix KV, hidden state, and latent state across
-generation steps where the recipe permits it.
+on the GPU. Only sampling inputs return to Go. When a recipe allows it, media
+sessions keep branch graphs, conditioning, prefix KV, hidden state, and latent
+state between generation steps.
 
 Sessions are keyed by model artifact, recipe, compiled resources, device, and
-execution policy. Session and component lifetimes are explicit recipe
-properties. Capacity-bound sessions may be reused; request-bound components
-are retired after their lease. Separate session locks allow independent models
-or capabilities to execute concurrently.
+execution policy. Recipes state how long sessions and components live.
+Capacity-bound sessions may be reused. Request-bound components are retired
+after their lease. Separate session locks let independent models or tasks run
+at the same time.
 
 ### Artifacts and RepoDB
 
@@ -196,10 +198,10 @@ RepoDB is a hash-chained artifact catalog and evidence ledger. It stores:
 - artifact locations without copying large model or dataset bytes into Git;
 - run, gate, evaluation, finding, decision, promotion, and rollback records.
 
-RepoDB rejects conflicting artifact facts, repeated batch keys with different
-content, invalid aliases, unknown lineage endpoints, and lineage cycles.
-Execution records are committed even when an operation is cancelled or fails,
-so the absence of an output does not erase the attempted run.
+RepoDB rejects conflicting artifact facts, reused batch keys with different
+content, invalid aliases, unknown lineage endpoints, and lineage cycles. A
+cancelled or failed operation still writes an execution record. Missing output
+cannot erase the attempted run.
 
 ### Dataset and training architecture
 
@@ -213,17 +215,17 @@ Dataset documents are immutable, content-addressed records:
 | `mixture` | Canonically ordered datasets with normalized integer weights |
 
 The training materializer resolves documents, selectors, memberships,
-processors, and external assets; validates sizes and content; removes exact
-duplicates; and constructs a deterministic stream. Dataset identity, mixture
-order, shuffle order, epoch, seed, and stream position are part of the resume
+processors, and external assets. It checks sizes and content, removes exact
+duplicates, and builds a deterministic stream. Dataset identity, mixture order,
+shuffle order, epoch, seed, and stream position are part of the resume
 contract.
 
-A training objective binds objective type, input and output modalities,
+A training objective binds its objective type, input and output data types,
 dataset and split, processors, optional projectors or codecs, loss, evaluation,
 and evidence. A compiled `TrainingProgram` defines ordered forward, backward,
 and Muon operations plus the exact trainable parameter plan. A
-`TrainingRunPlan` adds model construction, checkpoint, data stream, precision,
-placement, memory, evaluation, checkpointing, and promotion policy.
+`TrainingRunPlan` adds model construction, checkpoints, the data stream,
+precision, placement, memory, evaluation, and promotion rules.
 
 Resume is refused when the program, model, dataset, split, stream, processor,
 projector, codec, or other authority differs from the checkpoint.
@@ -251,18 +253,18 @@ projector, codec, or other authority differs from the checkpoint.
 | `compatibility.json` | Machine-checked feature and model claims |
 | `docs/plan.json` | Current unfinished campaign work and verification commands |
 
-## 4. Model and modality capabilities
+## 4. Models, inputs, and outputs
 
 ### Model formats and construction
 
-Overgo can inspect and validate GGUF and safetensors repositories, stream
-Hugging Face conversion, merge and split GGUF files, quantize tensors, compute
-content identity, inspect model metadata, and characterize tensor statistics.
+Overgo inspects and checks GGUF and safetensors repositories, streams Hugging
+Face conversion, merges and splits GGUF files, quantizes tensors, computes
+content identity, reads model metadata, and measures tensor statistics.
 
-It can also create models rather than only load them. Model-builder workflows
-support deterministic scratch construction, parameter manifests,
-initialization profiles, adapters, grafts, component proposals, derived-model
-lineage, evaluation, and promotion decisions.
+The model builder also creates models. Its workflows cover deterministic
+scratch construction, parameter manifests, initialization profiles, adapters,
+grafts, component proposals, derived-model lineage, evaluation, and promotion
+decisions.
 
 ### Runtime model classes
 
@@ -280,38 +282,38 @@ families in these groups:
 | Diffusion and discrete generation | LLaDA, LLaDA-MoE, Dream, RND1, SimpleDiffusion, and latent or oscillator image/video programs |
 | Media systems | Pocket-TTS, Krea and SenseNova image generation, Wan and LiveEdit video, Un-0 oscillator image/video |
 
-Catalog entries express profiles and requirements. They do not claim that
-every matching checkpoint has been installed and executed. Artifact-specific
-status is generated in `docs/COMPATIBILITY.md`.
+Catalog entries define profiles and requirements. A catalog entry does not
+claim that every matching checkpoint has been installed or executed.
+`docs/COMPATIBILITY.md` reports artifact-specific status.
 
 ### Inference and structured generation
 
-The common inference runtime supports dense, MoE, recurrent, hybrid, encoder,
+The common inference runtime handles dense, MoE, recurrent, hybrid, encoder,
 encoder-decoder, diffusion-text, embedding, reranking, speculative, and
-constrained token generation. Sampling includes common probability filters,
+constrained token generation. Sampling provides probability filters,
 penalties, grammar and JSON-schema constraints, prompt caching, context
-editing, and continuous multi-sequence execution where admitted by the active
-recipe.
+editing, and continuous multi-sequence execution when the active recipe allows
+it.
 
 ### Multimodal input
 
-Typed processors and projectors accept image, audio, and video inputs,
-including ordered mixed-media conversation history. Local media is bounded by
-size and geometry. Remote media is disabled unless an explicit policy enables
-allowed schemes, hosts, ports, redirects, timeouts, concurrency, private
-network access, and response sizes.
+Typed processors and projectors accept image, audio, and video inputs, including
+ordered mixed-media conversation history. Local media has size and geometry
+limits. Remote media stays disabled until a policy lists its allowed schemes,
+hosts, ports, redirects, timeouts, concurrency, private-network access, and
+response sizes.
 
 ### Image and video generation
 
-Image generation uses typed conditioning, compiled denoising or integration
-programs, resident CUDA sessions where supported, and durable output artifact
-publication. Implemented routes include latent diffusion, routed image
-transformers, and oscillator-based generation.
+Image generation uses typed conditioning and compiled denoising or integration
+programs. Supported recipes can keep CUDA sessions resident, and every output
+can be published as an artifact. Implemented routes include latent diffusion,
+routed image transformers, and oscillator-based generation.
 
 Video generation uses typed conditioning, temporal programs, resident latent
-state, VAE encoding and decoding, and GIF or externally encoded publication.
-Implemented routes include oscillator video, Wan-style latent video, and
-LiveEdit-style source-conditioned generation.
+state, VAE encoding and decoding, and GIF or external encoding. Implemented
+routes include oscillator video, Wan-style latent video, and LiveEdit-style
+source-conditioned generation.
 
 ### Speech, forecasting, tabular, and sequence-to-sequence
 
@@ -334,14 +336,14 @@ The server implements:
 - native generation, training, model-builder, export, evaluation, artifact,
   dataset, run, recipe, operation, telemetry, and analysis endpoints.
 
-Unsupported projectors, executors, tools, or recipe capabilities return an
-explicit refusal rather than substituting an unrelated path.
+An unsupported projector, executor, tool, or recipe capability returns an
+explicit error. The server does not substitute an unrelated path.
 
 ## 5. Model creation, training, and composition
 
 ### Model creation routes
 
-Overgo supports three construction routes:
+Overgo has three construction routes:
 
 1. Import or convert existing weights, derive a tensor inventory, bind an
    architecture profile, and compile task recipes.
@@ -350,21 +352,21 @@ Overgo supports three construction routes:
 3. Derive a model from adapters, grafts, or component proposals while
    retaining parent, construction, evidence, and decision lineage.
 
-The model-builder workflow is available through `cmd/model-build` and the web
-workbench. Import and conversion remain explicit format workflows. Serving a
-newly constructed model requires an export form compatible with a serving
-runtime profile.
+`cmd/model-build` and the web workbench expose the model-builder workflow.
+Import and conversion remain separate format workflows. A newly constructed
+model must be exported in a form supported by a serving profile before it can
+be served.
 
 ### Shared Muon training
 
 Muon is the production optimizer. Matrix, vector, and scalar groups use one
-compiled parameter plan. Host code provides the numerical reference; resident
-CUDA implementations provide device execution and checkpoint state.
+compiled parameter plan. Host code provides the numerical reference. Resident
+CUDA implementations perform device updates and store checkpoint state.
 
-Shared training infrastructure is used for dense causal, scratch,
-encoder-decoder, speech, diffusion-image, adapter, recurrent, and hybrid model
-paths where corresponding forward and VJP components exist. Each compiled
-program identifies its objective and trainable parameter authority.
+Dense causal, scratch, encoder-decoder, speech, diffusion-image, adapter,
+recurrent, and hybrid training use the same infrastructure when their forward
+and VJP components exist. Every compiled program identifies its objective and
+the exact parameters it may update.
 
 Checkpoints bind:
 
@@ -376,57 +378,136 @@ Checkpoints bind:
 - model, parent, and RepoDB lineage;
 - evaluation and promotion policy where applicable.
 
-Publishing is atomic and refuses an existing target. Resume into a new target
-requires exact authority agreement.
+Checkpoint publication is atomic and refuses an existing target. A resumed run
+must write to a new target and match every recorded authority.
 
 ### Preference optimization and RL
 
-DPO and GRPO are native objectives using the same recipe, data, execution,
-optimizer, checkpoint, resume, evaluation, evidence, and GUI contracts as
-other training workflows.
+DPO and GRPO use the same recipe, data, execution, optimizer, checkpoint,
+resume, evaluation, evidence, and GUI contracts as the other training
+workflows.
 
-DPO validates a shared prompt prefix, derives completion masks, scores chosen
-and rejected responses through policy and frozen reference models, computes
-the relative margin and loss, executes score VJPs, and applies Muon updates.
+DPO checks the shared prompt prefix, derives completion masks, scores chosen and
+rejected responses with policy and frozen reference models, computes the
+relative margin and loss, executes score VJPs, and applies Muon updates.
 
 GRPO reads candidate groups with evaluator-bound rewards, centers and
 RMS-normalizes rewards within each group, scores completions, accumulates VJPs,
 and applies the common update path. Equal-reward groups produce zero objective
 gradient without an artificial threshold.
 
-PPO, online environment rollout collection, reward-model training, and online
-policy serving are not currently implemented.
-
 ### Component composition
 
-Composition records describe model components, their capabilities, compatible
-ports, required bridge operations, construction parents, and evidence. A
-composition must compile through the same resource, placement, residency, and
-session authorities as ordinary execution. Derived models retain acyclic
-lineage to their parents and governing facts.
+Composition records describe model components, compatible ports, required
+bridge operations, construction parents, supported tasks, and evidence. A
+composition must pass the same resource, placement, memory, and session checks
+as any other execution plan. Derived models keep acyclic lineage to their
+parents and governing facts.
 
 Recursive or self-improving trials do not authorize their own promotion.
 Admission, development data, promotion data, evaluator, evaluation run,
 decision authority, and rollback target are separate recorded facts.
 
-## 6. Evaluation, evidence, and lifecycle management
+## 6. Evaluation system
 
-### Evaluation campaigns
+Evaluation runs inside Overgo. It is not a set of external scripts or an
+imported report. Suites, cases, scorers, execution policy, acceptance
+contracts, evaluators, reports, and results all have typed, content-addressed
+identities. Evaluation uses the same model sessions, recipes, artifact store,
+operation manager, CLI, HTTP server, and GUI as the rest of the system.
 
-Evaluation suites are compiled before model execution. A suite defines inputs,
-expected outputs or metrics, scoring policy, aggregation, and artifact
-dependencies. Evaluation runs bind:
+### Compiled suites and plans
 
-- the exact model and active recipe;
-- dataset or input artifacts;
-- scorer and evaluator identities;
-- source commit and environment;
-- individual records, failures, metrics, and reports;
-- output and trace artifacts.
+Suite JSON is strictly decoded and compiled before model execution begins. The
+compiler checks the suite kind, cases, scorer configuration, grouping, metric
+contract, and referenced data. The resulting plan binds the suite to:
 
-The workbench can run one or more suites, report progress, cancel execution,
-inspect records and failures, browse history, and compare two runs against an
-explicit baseline.
+- the exact model definition and runtime recipe;
+- dataset and immutable split identities;
+- case-profile and scorer identities;
+- isolated or resident execution lifecycle;
+- source commit and execution environment.
+
+A change to any of these records produces a different evaluation-plan
+identity. Two results with the same display name are still different
+experiments when their plans differ.
+
+The campaign runner supports these compiled suite classes:
+
+| Suite class | Evaluation behavior |
+| --- | --- |
+| Exact generation | Generate from fixed cases and require the declared exact result |
+| Multiple choice | Score candidate continuations and report aggregate and grouped accuracy |
+| Generated answer | Generate free-form answers and apply the suite's answer scorer |
+| MMLU-Pro | Score multiple-choice cases with category-level metrics |
+| Grouped choice | Evaluate demonstrated choices and report named-group accuracy |
+| Probability mass | Measure the probability mass assigned to declared positive outcomes |
+| Structured generation | Generate typed structured output and score validity and expected content by group |
+| Instruction rules | Evaluate strict and loose prompt- and instruction-level compliance |
+
+Training and model-building workflows reuse the same typed target scorers:
+
+- normalized text targets with exact, named, or verifier-backed scoring;
+- numeric targets with explicit assumptions, tolerances, and per-record
+  results;
+- media targets with named oracles, verifiers, and artifact observations;
+- preference targets for chosen and rejected outputs;
+- supervised-fine-tuning views bound to immutable dataset splits.
+
+A new model can use an existing scorer without copying its evaluation logic.
+
+### Metrics, acceptance, and evaluators
+
+Every compiled suite creates an acceptance contract before execution. A metric
+contract names the metric, its optional unit, and whether lower or higher is
+better. A report cannot add, remove, rename, or reverse metrics after the run.
+
+An evaluator binds an evaluation plan to its acceptance contract. Before
+promotion, it can be tested against a sealed set of known outcomes. The
+candidate must rank those outcomes consistently with every metric's declared
+direction. The promotion decision must name the same evaluator and sealed
+evidence. A scorer cannot be adopted solely because it favors the current
+candidate.
+
+Reports contain overall metrics, group or category metrics, per-record
+observations, explicit failures, and typed output artifacts. Failed records
+remain available for inspection instead of disappearing into an aggregate.
+
+### Campaign execution and publication
+
+An evaluation campaign runs one or more compiled suites against the same bound
+model runtime. A successful campaign publishes:
+
+1. the compiled evaluation plan;
+2. the suite report and its individual observations;
+3. a bound run record with code, environment, timing, inputs, and outputs;
+4. an evaluation record containing the declared metrics;
+5. an evidence document connecting the plan, acceptance policy, evaluator,
+   report, run, and evaluation.
+
+Failed and cancelled campaigns still publish terminal run evidence.
+Cancellation uses a separate finalization context, so the cancelled request
+cannot erase its own execution history.
+
+Exact-generation suites can run in deterministic shards and then combine under
+the same plan. Campaign history can be queried by model. Comparisons show the
+baseline, current value, delta, direction, and improvement result for each
+metric.
+
+### Evaluation interfaces
+
+`cmd/evaluate` runs compiled suites. `cmd/eval-lane` runs the repository's
+evidence-aware evaluation lane. The server accepts repeatable
+`-evaluation-suite <suite.json>` arguments and binds source identity through
+`-evaluation-commit <commit>`.
+
+The HTTP API exposes capability discovery, asynchronous campaign execution,
+history, reports, failures, and comparisons. The Evaluations tab uses those
+endpoints to select suites, report progress, cancel work, inspect records and
+failures, browse model history, and compare two runs against an explicit
+baseline.
+
+## 7. Evidence and lifecycle management
 
 ### Evidence-bound lifecycle
 
@@ -452,30 +533,30 @@ promoted active recipe
       +----> rollback to recorded prior recipe
 ```
 
-Activation is compare-and-set against the expected current binding. A failed
-candidate does not overwrite an active recipe. A rollback names the prior
-artifact and governing evidence instead of reconstructing historical state
-from mutable configuration.
+Activation uses compare-and-set against the expected current binding. A failed
+candidate cannot overwrite the active recipe. A rollback names the prior
+artifact and its evidence. It does not reconstruct old state from mutable
+configuration.
 
 ### Development and release evidence
 
 The repository's Go automation connects code changes to the current campaign
-plan and affected tests. The gate can derive package ownership from imports and
-`go:embed` files, check formatting and vetting, build commands, verify generated
-compatibility and SBOM data, inspect kernel manifests, and record results in
-RepoDB.
+plan and affected tests. The gate derives package ownership from imports and
+`go:embed` files. It also checks formatting and vetting, builds commands,
+verifies generated compatibility and SBOM data, inspects kernel manifests, and
+records results in RepoDB.
 
-CI, release, and local automation share the same short hermetic test owner.
-Tests excluded from short mode are listed and are not counted as passes. Model,
-GPU, smoke, and race lanes remain explicit commands because their prerequisites
-and evidence scopes differ.
+CI, release, and local automation use the same short hermetic test owner. Tests
+excluded from short mode are listed and do not count as passes. Model, GPU,
+smoke, and race lanes remain separate commands because they need different
+hardware, artifacts, and evidence.
 
-Independent SQA records can bind separate developer and reviewer worktrees,
+Independent SQA records can bind separate development and review worktrees,
 candidate and evaluator revisions, finding resolutions, target commits, and
-results. A human or external authority decides whether to merge or activate a
-candidate.
+results. A human or external authority decides whether a candidate may be
+merged or activated.
 
-## 7. Capability and verification levels
+## 8. Capability and verification levels
 
 Overgo uses explicit status terms:
 
@@ -486,26 +567,26 @@ Overgo uses explicit status terms:
 | **Verified** | A named fixture or model artifact passed its stated contract, reference-output, numerical, or device test. |
 | **Promoted** | A recipe tied to an exact artifact has successful gate and run evidence and may be selected by production entry points. |
 
-Each claim is scoped to its named artifact, input, execution lifecycle,
-precision, environment, and verification level. A profile may be cataloged
-without installed model weights. A generic component may be implemented and
-tested without rerunning every model that composes it. A model requires new
-artifact-specific evidence before promotion even when all of its components
-are already verified independently.
+Each claim names its artifact, input, execution lifecycle, precision,
+environment, and verification level. A profile may be cataloged without local
+model weights. A shared component may be implemented and tested without
+rerunning every model that uses it. Promotion still requires new evidence for
+the exact model artifact, even when its components have passed independent
+tests.
 
-Representative testing is organized around genuinely different behavior:
-operators, tensor conventions, topology classes, quantization formats,
-processors, codecs, schedulers, and cross-component boundaries. Branded models
-that reduce to the same proven components do not require duplicate unit tests,
-but their exact artifacts still require deployment evidence.
+Tests are organized around distinct behavior: operators, tensor conventions,
+topology classes, quantization formats, processors, codecs, schedulers, and
+package boundaries. Different model brands that compile to the same components
+do not need duplicate unit tests. Their exact artifacts still need deployment
+evidence.
 
-Known open areas are maintained in `docs/plan.json` and the generated
-compatibility matrix. They include model artifacts that are not locally
-available, incomplete full-stack training for some large profiles, remaining
-modality-pair evidence, incomplete comparable memory measurements, and
-capabilities whose source or reference artifacts are absent.
+`docs/plan.json` and the generated compatibility matrix list known gaps. These
+include model artifacts that are not locally available, incomplete full-stack
+training for some large profiles, untested input and output combinations,
+incomplete comparable memory measurements, and features whose source or
+reference artifacts are absent.
 
-## 8. Quick start
+## 9. Quick start
 
 ### Requirements
 
@@ -516,6 +597,24 @@ capabilities whose source or reference artifacts are absent.
 
 FFmpeg is optional for encoded video other than native GIF. Select it with
 `-ffmpeg`, `OVERGO_FFMPEG`, `PATH`, or a detected Windows installation.
+
+### Prebuilt release
+
+The Windows amd64 release archive places every executable under `bin/` and
+keeps configuration and reference documents at the archive root. Examples:
+
+```bash
+bin/cuda-info.exe
+bin/server.exe -listen 127.0.0.1:8080 D:/models/model.gguf
+```
+
+Source builds use the same output directory. The release command builds the
+curated executable set into `bin/`, creates a versioned archive under `dist/`,
+and can rebuild it to check byte-for-byte reproducibility:
+
+```bash
+go run ./cmd/release -out dist -verify-reproducible
+```
 
 ### Configure data roots
 
@@ -540,6 +639,28 @@ Example `local-models.json`:
 Large model, dataset, and checkpoint bytes stay outside Git. RepoDB records
 their identities and locations.
 
+Configuring these roots does not scan or register every file. Intake commands
+hash artifact bytes and commit a descriptor plus a file or directory location
+to RepoDB. External model and dataset manifests can be imported atomically:
+
+```bash
+go run ./cmd/repodb-import \
+  -repo D:/overgo-data/repodb-store \
+  -root D:/artifact-export \
+  < export.jsonl
+```
+
+The import stream can declare files, inline documents, model manifests,
+lineage, and aliases. Relative file paths are resolved under `-root`, hashed,
+and recorded without copying their bytes into RepoDB. Training also requires a
+dataset identity, split, processors, objective, and active recipe; a path alone
+does not grant training authority.
+
+The GUI dataset browser reads `datasets/manifest.json` from the configured
+dataset root. That browse manifest supplies names and metadata only. Training
+still resolves the selected dataset through its RepoDB identity and recorded
+location.
+
 ### Verify the checkout
 
 ```bash
@@ -549,8 +670,8 @@ go run ./cmd/compatibility -check
 go run ./cmd/test-lane ./...
 ```
 
-The common lane is hermetic and reports classified short-mode skips. Real GPU
-and model-artifact checks are separate:
+The common lane is hermetic and reports every classified short-mode skip. Real
+GPU and model-artifact checks run separately:
 
 ```bash
 go run ./cmd/device-lane
@@ -558,8 +679,8 @@ go run ./cmd/smoke-lane
 go run ./cmd/race-lane
 ```
 
-A required artifact or device result reported as `UNAVAILABLE` does not count
-as a pass for a claim that requires it.
+`UNAVAILABLE` does not count as a pass when a claim requires that artifact or
+device.
 
 ### Inspect a model
 
@@ -579,7 +700,7 @@ echo '{"text":"Weather in San Francisco?","max_tokens":64}' | \
   go run ./cmd/recipe verify -task seq2seq -input - needle
 ```
 
-Verification prints recipe-bound gate and run identities. Activation consumes
+Verification prints recipe-bound gate and run identities. Activation uses
 those immutable records:
 
 ```bash
@@ -597,8 +718,8 @@ Generate through the active recipe:
 go run ./cmd/generate -n 32 D:/models/model.gguf "Hello"
 ```
 
-Placement, residency, and quantized execution come from the recipe rather than
-generation flags.
+The recipe controls device placement, memory lifetime, and quantized execution.
+Generation flags cannot override them.
 
 ### Start the server and GUI
 
@@ -649,7 +770,7 @@ go run ./cmd/train \
 Run `go run ./cmd/<name> -h` for command flags. Subcommand help follows the
 subcommand, for example `go run ./cmd/recipe status -h`.
 
-## 9. CLI catalog and commands
+## 10. CLI catalog and commands
 
 ### Model inspection, formats, and conversion
 
@@ -745,8 +866,9 @@ subcommand, for example `go run ./cmd/recipe status -h`.
 | `cmd/loophook` | Execute validated loop lifecycle hooks |
 
 The gate associates staged paths with the current plan step, derives affected
-tests, checks structural and generated records, and writes RepoDB preparation
-and result evidence. If result recording fails after a Git commit, use:
+tests, checks structural and generated records, and writes preparation and
+result evidence to RepoDB. These commands repair result recording after a Git
+commit:
 
 ```bash
 go run ./cmd/gate -watchdog
@@ -762,14 +884,14 @@ go vet -tags integration ./...
 go run ./cmd/release -out dist -verify-reproducible
 ```
 
-## 10. GUI features and usage
+## 11. GUI features and usage
 
-The server embeds a thin HTML, CSS, and JavaScript workbench at
-`http://127.0.0.1:8080/`. The browser owns presentation state only. Models,
-recipes, datasets, operations, sessions, runs, and artifacts remain owned by
-the Go server and RepoDB.
+The server embeds an HTML, CSS, and JavaScript workbench at
+`http://127.0.0.1:8080/`. The browser stores presentation state only. The Go
+server and RepoDB own models, recipes, datasets, operations, sessions, runs,
+and artifacts.
 
-The workbench is organized into four sections and eighteen functional tabs:
+The workbench has four sections and eighteen tabs:
 
 | Section | Tabs | Primary use |
 | --- | --- | --- |
@@ -780,17 +902,17 @@ The workbench is organized into four sections and eighteen functional tabs:
 
 ### Capability-driven forms
 
-Generate, Train, Model Builder, and Export read their available operations and
-typed controls from the server. Forms therefore follow active recipes and
-configured workspaces instead of embedding a browser-side model catalog.
+Generate, Train, Model Builder, and Export read their operations and typed
+controls from the server. Their forms follow active recipes and configured
+workspaces. The browser does not keep a separate model catalog.
 
-If a capability is unavailable, the tab reports the missing recipe, dataset,
-projector, model-builder, training, evaluation, or export authority. It does
-not choose a fallback model or execution policy.
+When a capability is unavailable, the tab names the missing recipe, dataset,
+projector, model-builder, training, evaluation, or export record. It does not
+choose a fallback model or execution policy.
 
 ### Common operation lifecycle
 
-Long-running workflows share one lifecycle:
+Long-running jobs follow one lifecycle:
 
 1. Read admitted capabilities and controls from the server.
 2. Submit a typed request and receive an operation identity.
@@ -799,16 +921,16 @@ Long-running workflows share one lifecycle:
 5. Inspect the resulting run, checkpoint, report, trace, media, and lineage
    artifacts.
 
-Runs display outcome, recipe and commit identity, wall time, major phases,
-inputs, outputs, and linked artifacts. Training plots include DPO or GRPO
-measurements when those objectives are active. A selected run can become an
-explicit comparison baseline.
+Runs display outcome, recipe and commit identity, wall time, phases, inputs,
+outputs, and linked artifacts. Training plots include DPO or GRPO measurements
+when those objectives are active. A selected run can serve as the explicit
+comparison baseline.
 
 ### Chat and generation
 
 Chat supports system prompts, multi-turn history, streaming, stop, reset,
 Markdown rendering, token counting, prompt-cache reporting, and response
-copying. During execution it reports context use, cached and generated tokens,
+copying. During execution, it reports context use, cached and generated tokens,
 prefill and decode throughput, and elapsed time.
 
 Generate builds its controls from active generation recipes and can publish
@@ -824,21 +946,22 @@ measurements. Raw request and response bodies are not displayed.
 
 ### Datasets, training, and model building
 
-Dataset filtering covers name, family, modality, and language. Bounded previews
-show processor-produced roles, modalities, text, encodings, and byte counts
-without loading the complete dataset into the browser.
+Dataset filtering covers name, family, data type, and language. Bounded
+previews show processor-produced roles, input and output types, text,
+encodings, and byte counts without loading the complete dataset into the
+browser.
 
-Training resolves active recipes and exposes only their admitted dataset,
-checkpoint, optimizer, objective, and output controls. Model Builder runs
-corpus-derived construction through the same operation and evidence contracts.
-Export publishes compatible durable forms without moving model-family policy
-into the UI.
+Training resolves active recipes and exposes only the dataset, checkpoint,
+optimizer, objective, and output controls those recipes allow. Model Builder
+runs corpus-derived construction through the same operation and evidence
+contracts. Export publishes supported durable forms without putting
+model-family rules in the UI.
 
 ### Evaluations and artifacts
 
 Evaluations selects configured suites, runs campaigns, displays progress and
 failures, browses per-model history, and compares metrics with an explicit
-baseline. Artifacts supports kind filtering, paging, producer identity, and
+baseline. Artifacts provides kind filtering, paging, producer identity, and
 inline display of image, audio, and video outputs.
 
 ### Model analysis
@@ -854,14 +977,14 @@ The workbench includes:
   effective-rank analysis;
 - nearest-tensor lookup over comparable catalog measurements.
 
-Tensor similarity is descriptive analysis. It does not infer semantic
-interchangeability or authorize component composition.
+Tensor similarity is descriptive. It neither proves that two tensors are
+interchangeable nor authorizes their composition.
 
-## 11. Compatibility and benchmark references
+## 12. Compatibility and benchmark references
 
-Model support, verification, and performance claims are artifact-specific and
-change as recipes and evidence are recorded. The README intentionally does not
-duplicate the full result ledger.
+Model support, verification, and performance claims apply to specific
+artifacts. They change as recipes and evidence are recorded. The full result
+ledger stays outside the README.
 
 - [Compatibility matrix](docs/COMPATIBILITY.md) contains model profiles,
   capabilities, verification levels, known gaps, and reproduction commands.
@@ -877,7 +1000,7 @@ duplicate the full result ledger.
   verification, and development workflow rules.
 - [SBOM](SBOM.cdx.json) records dependency and binary provenance.
 
-Cross-system performance comparisons are valid only for the stated artifact,
-input, seed, precision, expected output, loading and cache state, measurement
-scope, and hardware environment. Consult the retained run records rather than
-treating a summary number as a portable guarantee.
+Cross-system performance comparisons apply only to the stated artifact, input,
+seed, precision, expected output, loading and cache state, measurement scope,
+and hardware. The retained run record is the authority; a summary number is
+not a portable guarantee.

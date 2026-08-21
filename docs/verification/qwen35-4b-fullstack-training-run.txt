@@ -1,0 +1,75 @@
+overgo full-pipeline training verification run
+tool: cmd/hybrid-stack-train-probe (hybridtrain.LoadStackArtifact +
+Model.TrainHostMasterStreamed), session-supervised full-stack hybrid training
+model: Qwen3.5-4B (checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf),
+model:sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec
+(the ledger identity of docs/verification/qwen35-4b-training.json, matched by
+the run's own artifact.Identify at admission)
+
+promotion-gate-closed: Qwen3.5-4B full-stack hybrid training (the "full-stack hybrid training is the named growth path" gate of docs/verification/qwen35-4b-training-run.txt, layer-0 organ cell superseded)
+
+trainable surface: EVERY layer of the real artifact — 32 layers (8
+full-attention + 24 recurrent gated-delta, kinds derived from the spec's own
+declarations, cross-checked against each layer's tensor inventory) —
+3,485,204,480 matrix + 958,976 vector = 3,486,163,456 parameters as f32
+masters decoded from the f16 serving storage in one slab allocation.
+trainer: hybridtrain host-master lane over the new streamed device Muon
+(optimizer.DeviceMuonStepPlanStreamed): one matrix group staged on the
+device at a time, so peak device residency is bounded by the largest matrix
+(~1.1GB scratch; measured device-global peak 1,977,090,048 bytes including
+desktop baseline) while the 14GB master slab stays host-side. Streamed-lane
+parity vs the resident lane is test-proven
+(TestHybridTrainHostMasterStreamedMatchesHost, maxRel 5.5e-6 over 8 steps).
+hyperparameters fully DERIVED: base LR n_params^-1/2 = 1.69366e-05,
+momentum (CLT-1)/(CLT+1) = 0.935484, constant schedule — no free knobs.
+dataset: fixtures/qwen35_4b_serving_golden.json "capital" case prompt ids —
+the same committed serving golden the organ cell grounded; real token rows,
+14 prediction rows, hidden-state objective (the lane's own contract).
+
+session supervision: the whole run executed as a model-session
+(internal/trainingsession) — component-session lease admission BEFORE the
+14GB slab loaded, recipe authority activated at the experimental tier
+(recipe:sha256:ebfebcc3827cb7d0946a2043b84b13865ae2b78838d5875dabf2c4d94f6e15f6),
+typed observation committed:
+session observation: evidence:sha256:1f274d39ccfdb374e4b76a6790f9d59f4971bc18e121eaf58bcfc08bcdb0df6b
+  task=training outcome=succeeded measured_ns=250262106700
+  phases: load 7946885100 ns, forward_backward 242143081200 ns
+  usage: input_tokens=15 (3 steps x 5 prompt rows)
+  resources: peak_device_bytes=1977090048
+  hardware series (device-global used bytes): start 1658322944,
+  mid-run 1977090048, finish 1977090048
+
+run output (unedited):
+stack census: 32 layers (8 attention, 24 recurrent)
+trainable parameters: 3485204480 matrix + 958976 vector = 3486163456 total
+derived hyperparameters: baseLR=1.69366e-05 momentum=0.935484 schedule=constant (no free knobs)
+load wall: 7.947s  program=recipe:sha256:2d6b299257ffd5875e3c06ba09125d628d3e4b2eaa60c5d552893f6ef1803f62
+step 1/3  loss=60874.698375  wall=1m22.047s
+projection: 3 steps x 1m22.047s = 4m6s (guard 25m0s)
+step 2/3  loss=50120.641030  wall=1m17.787s
+step 3/3  loss=41199.035750  wall=1m22.31s
+trajectory: [60874.69837475851 50120.64103034351 41199.0357500645]
+PASS: finite loss decreased over 3 full-stack steps in 4m2.143s
+
+monotone descent 60874.70 -> 50120.64 -> 41199.04. The supervised run's
+trajectory is bit-identical to the pre-supervision proof run — supervision
+observes without perturbing training. This supersedes the layer-0 organ cell
+(112.9M params, docs/verification/qwen35-4b-training-run.txt) by 31x
+trainable surface: every attention layer and every recurrent layer of the
+stack updates.
+
+caveats:
+- attention output gate excluded: the artifact fuses a per-head output gate
+  into the Q projection; the training mix models ungated attention, so only
+  the query rows of the fused tensor enter the trainable slab (~84M of the 8
+  attention layers' fused q stays frozen). Documented in bindAttentionLayer.
+- loss magnitude (~6e4) is the unnormalized 32-layer residual-stream
+  hidden-state objective — the same objective family as the organ cell;
+  finite strict decrease is the gate's criterion.
+- 3 steps on one real prompt: machinery-tier evidence (real-artifact-smoke),
+  not a capability claim. The 9B-scale gate named by the Qwen3.5-9B cell
+  stays open (its Q8 master-weight full stack exceeds host memory triplets).
+
+reproduce:
+  go run ./cmd/hybrid-stack-train-probe -steps 3
+  go run ./cmd/repodb-query -repo repodb-store -id <printed observation id> -content

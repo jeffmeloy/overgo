@@ -19,12 +19,7 @@ import (
 )
 
 // FlowHeadStepResult: measured facts of one observed organ training step.
-type FlowHeadStepResult struct {
-	Loss         float64
-	Step         int
-	LearningRate float64
-	GradientL2   float64
-}
+type FlowHeadStepResult = optimizer.ObservedStepResult
 
 // bf16Masters decodes BF16 serving storage into f32 master weights -- the
 // explicit training-precision contract (the serving artifact stays BF16; the
@@ -154,14 +149,7 @@ func (t *FlowHeadTrainer) Step(hidden, z, target []float32, timestep float64) (F
 	if err != nil {
 		return FlowHeadStepResult{}, err
 	}
-	if err := t.stepper.Step(); err != nil {
-		return FlowHeadStepResult{}, err
-	}
-	t.step++
-	return FlowHeadStepResult{
-		Loss: loss, Step: t.step,
-		LearningRate: t.config.LearningRate(t.step), GradientL2: gradientL2,
-	}, nil
+	return optimizer.Advance(t.stepper, t.config, &t.step, loss, gradientL2)
 }
 
 // lossAndGradients fills the packed gradient buffer for one pair and returns

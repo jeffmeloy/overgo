@@ -389,6 +389,13 @@ func WindowedCausalAttention(out, q, k, v []float32, seq, heads, kvHeads, headDi
 // reduce in f64. Layout: q/out [querySeq][heads][headDim] flat,
 // k/v [keySeq][kvHeads][headDim]; query head h reads kv head h/(heads/kvHeads).
 func MaskedBidirectionalAttention(out, q, k, v []float32, querySeq, keySeq, heads, kvHeads, headDim int, keyMask []bool) {
+	ScaledMaskedBidirectionalAttention(out, q, k, v, querySeq, keySeq, heads, kvHeads, headDim, 1, keyMask)
+}
+
+// ScaledMaskedBidirectionalAttention: MaskedBidirectionalAttention with an
+// explicit score scale — softmax(scale·q·k^T)·v. scale 1 is bit-identical to
+// the unscaled variant (the f64 score multiplies by exactly 1).
+func ScaledMaskedBidirectionalAttention(out, q, k, v []float32, querySeq, keySeq, heads, kvHeads, headDim int, scale float64, keyMask []bool) {
 	if keyMask != nil && len(keyMask) != keySeq {
 		panic("hostmath: attention key mask length != keySeq")
 	}
@@ -413,6 +420,7 @@ func MaskedBidirectionalAttention(out, q, k, v []float32, querySeq, keySeq, head
 					for d := 0; d < headDim; d++ {
 						dot += float64(qRow[d]) * float64(kRow[d])
 					}
+					dot *= scale
 					scores[ki] = dot
 					maxScore = max(maxScore, dot)
 				}

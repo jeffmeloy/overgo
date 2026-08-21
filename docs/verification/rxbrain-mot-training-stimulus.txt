@@ -1,0 +1,21 @@
+overgo full modality-transformer training stimulus declaration
+model: Hy-Embodied-RxBrain-1.0 (branch-routed unified MoT, 32 layers)
+
+This run trains on the REAL vision/text prompt the VQA parity ladder verified
+end-to-end (44/44 golden stages, docs/verification/rxbrain_vqa_ladder_log.txt):
+the canonical demo case bridgev2_move_toy/input/obs_1.jpg with the question
+"What objects are on the stovetop, and where is the green toy?".
+
+Hidden rows: routedlm.PrefillValues over the golden-verified token ids
+(rxbrain_vqa_prefill_golden.json input_ids, prompt_len 346) with the vision
+rows produced by the real patch-tower merger from the golden block_last
+activations (rxbrain_vqa_vision_golden.json, sha256-pinned f32 asset) — the
+exact embedding splice the serving prefill runs, not synthetic stimulus.
+
+Supervised positions: every prompt row whose next token is a text token
+(modality_mask == 0 at pos+1); targets are the prompt's own next token ids —
+the pipeline's next-token contract, teacher-forced on the real mixed sequence.
+
+The fixtures live in the read-only reference tree
+(C:/Users/jeffm/adaptive_new/fixtures) and are sha256-verified at load; this
+declaration grounds the training-recipe dataset authority by content.

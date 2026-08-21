@@ -170,11 +170,10 @@ type claimInput struct {
 // commits by content, and the record lands with lineage -- no external
 // scripting anywhere in the path.
 func runClaim(input claimInput, recordStore string, output io.Writer) error {
-	head, err := exec.Command("git", "log", "-1", "--format=%H").Output()
+	commit, err := verifyingCommit(".")
 	if err != nil {
-		return fmt.Errorf("resolve verifying commit: %w", err)
+		return err
 	}
-	commit := strings.TrimSpace(string(head))
 	weights, err := os.Open(input.modelFile)
 	if err != nil {
 		return err
@@ -239,8 +238,42 @@ func runClaim(input claimInput, recordStore string, output io.Writer) error {
 	}
 	fmt.Fprintf(output, "claim committed: %s model=%s name=%s %s=%s commit=%.12s\n",
 		record.ID, model, input.name, input.capability, input.tier, commit)
-	fmt.Fprintln(output, "honesty: the model identity is the weights digest; the claim is grounded in the committed evidence document")
+	fmt.Fprintln(output, "honesty: verifier source matched a clean HEAD; the model identity is the weights digest; the claim is grounded in the committed evidence document")
 	return nil
+}
+
+// verifyingCommit returns HEAD only when tracked and untracked worktree state
+// is empty, so a claim cannot identify a commit that differs from executed
+// source or fixture bytes.
+func verifyingCommit(root string) (string, error) {
+	status, err := exec.Command("git", "-C", root, "status", "--porcelain=v1", "--untracked-files=all").Output()
+	if err != nil {
+		return "", fmt.Errorf("inspect verifying worktree: %w", err)
+	}
+	if len(status) != 0 {
+		return "", errors.New("verifying worktree is dirty; commit or remove every change before recording a claim")
+	}
+	head, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output()
+	if err != nil {
+		return "", fmt.Errorf("resolve verifying commit: %w", err)
+	}
+	commit := strings.TrimSpace(string(head))
+	if !validGitCommit(commit) {
+		return "", errors.New("verifying HEAD is not a full Git commit identity")
+	}
+	return commit, nil
+}
+
+func validGitCommit(value string) bool {
+	if len(value) != 40 && len(value) != 64 {
+		return false
+	}
+	for _, char := range value {
+		if char < '0' || char > '9' && char < 'a' || char > 'f' {
+			return false
+		}
+	}
+	return true
 }
 
 // runRecordVerification commits one typed model-verification record: the
@@ -254,6 +287,7 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 	var specification struct {
 		Model         artifact.ID                 `json:"model"`
 		Name          string                      `json:"name"`
+		Supersedes    []artifact.ID               `json:"supersedes,omitempty"`
 		ModelFile     string                      `json:"model_file,omitempty"`
 		EvidenceFiles []string                    `json:"evidence_files,omitempty"`
 		DatasetFiles  []string                    `json:"dataset_files,omitempty"`
@@ -262,7 +296,9 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 	if err := jsonfile.Decode(specPath, &specification); err != nil {
 		return err
 	}
-	record, err := runrecord.NewModelVerification(specification.Model, specification.Name, specification.Claims)
+	record, err := runrecord.NewModelVerificationCorrection(
+		specification.Model, specification.Name, specification.Claims, specification.Supersedes,
+	)
 	if err != nil {
 		return err
 	}
@@ -278,6 +314,22 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 	}
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
+	for _, superseded := range record.Supersedes {
+		content, ok, err := store.Content(ctx, superseded)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("superseded model verification %s is absent", superseded)
+		}
+		prior, err := runrecord.ParseModelVerification(content.Data)
+		if err != nil {
+			return fmt.Errorf("parse superseded model verification %s: %w", superseded, err)
+		}
+		if prior.Model != record.Model {
+			return fmt.Errorf("superseded model verification %s names model %s, correction names %s", superseded, prior.Model, record.Model)
+		}
+	}
 	batch, err := record.Batch("verification/" + record.ID.String())
 	if err != nil {
 		return err

@@ -25,6 +25,43 @@ func TestReleaseDocumentsExist(t *testing.T) {
 	}
 }
 
+func TestReleaseVersionAndArchiveLayout(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, versionFile), []byte("0.1.1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	version, err := readReleaseVersion(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version != "0.1.1" || releaseArchiveName(version) != "overgo-v0.1.1-windows-amd64.zip" {
+		t.Fatalf("version=%q archive=%q", version, releaseArchiveName(version))
+	}
+	if err := os.WriteFile(filepath.Join(root, "bin", "server.exe"), []byte("binary"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outside, err := executableOutsideBin(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outside != "" {
+		t.Fatalf("bin executable reported outside bin: %s", outside)
+	}
+	if err := os.WriteFile(filepath.Join(root, "stray.exe"), []byte("stray"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outside, err = executableOutsideBin(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outside != "stray.exe" {
+		t.Fatalf("outside executable = %q", outside)
+	}
+}
+
 func TestReleaseIntegrityContract(t *testing.T) {
 	for _, historical := range []string{
 		"docs/IMPLEMENTATION_LOG.md", "docs/adaptive_new_parity_report.md", "docs/training_plan.md",
@@ -42,7 +79,7 @@ func TestReleaseIntegrityContract(t *testing.T) {
 
 func TestCreateArchiveIsDeterministic(t *testing.T) {
 	entries := []archiveEntry{
-		{Name: "tool.exe", Data: []byte("binary"), Mode: 0o755},
+		{Name: "bin/tool.exe", Data: []byte("binary"), Mode: 0o755},
 		{Name: "README.md", Data: []byte("readme"), Mode: 0o644},
 	}
 	first, err := createArchive(entries)

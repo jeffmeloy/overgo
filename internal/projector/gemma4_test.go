@@ -223,7 +223,7 @@ func TestGemma4AudioTinyFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.SampleRate != 16000 || spec.SamplesPerToken != 3 || spec.Hidden != 2 {
+	if spec.SampleRate != fixtureAudioSampleRate || spec.SamplesPerToken != 3 || spec.Hidden != 2 {
 		t.Fatalf("audio spec = %+v", spec)
 	}
 	frames, rows, err := PreprocessGemma4Audio([]float32{1, 2, 3, 4}, spec)
@@ -250,7 +250,7 @@ func TestGemma4AudioTinyFixture(t *testing.T) {
 func TestPreprocessGemma4ImagePatchOrder(t *testing.T) {
 	spec := Gemma4Spec{
 		TeacherPatch: 1, PoolKernel: 2, ModelPatch: 2, PatchWidth: 12,
-		Hidden: 2, PositionCount: 8, MaxImageTokens: 4,
+		Hidden: 2, PositionCount: 8, MaxImageTokens: 4, MaxVideoTokens: 1,
 		LayerNormEpsilon: 1e-5, RMSNormEpsilon: 1e-6,
 	}
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
@@ -283,7 +283,7 @@ func TestPreprocessGemma4ImagePatchOrder(t *testing.T) {
 func TestGemma4ResizeTargetMatchesPinnedDynamicResize(t *testing.T) {
 	spec := Gemma4Spec{
 		TeacherPatch: 16, PoolKernel: 3, ModelPatch: 48, PatchWidth: 48 * 48 * 3,
-		Hidden: 3840, PositionCount: 1120, MaxImageTokens: 280,
+		Hidden: 3840, PositionCount: 1120, MaxImageTokens: 280, MaxVideoTokens: 70,
 		LayerNormEpsilon: 1e-5, RMSNormEpsilon: 1e-6,
 	}
 	height, width, err := gemma4ResizeTarget(480, 832, spec)
@@ -689,10 +689,14 @@ func tinyGemma4Metadata() []gguf.Metadata {
 		{Key: "clip.vision.patch_size", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
 		{Key: "clip.vision.projection_dim", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
 		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
+		{Key: visionProjectorNormKey, Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: fixtureNormEpsilon}},
+		{Key: visionMaxSoftTokensKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(32)}},
+		{Key: visionVideoSoftTokensKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(8)}},
 		{Key: "clip.audio.projector_type", Value: gguf.Value{Type: gguf.ValueTypeString, Data: gemma4UAProjectorType}},
 		{Key: "clip.has_audio_encoder", Value: gguf.Value{Type: gguf.ValueTypeBool, Data: true}},
 		{Key: "clip.audio.embedding_length", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(3)}},
 		{Key: "clip.audio.projection_dim", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
+		{Key: "clip.audio.sample_rate", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureAudioSampleRate)}},
 		{Key: "clip.audio.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
 	}
 }

@@ -6,12 +6,20 @@ import (
 	"fmt"
 	"image"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
+	"overgo/internal/media"
+	"overgo/internal/tensor"
 )
 
+const mimoVLProjectorType = "mimovl"
+
+type spatialWindowMode int8
+
 const (
-	mimoVLProjectorType   = "mimovl"
-	mimoVLPostNormEpsilon = 1e-6
+	windowModeGlobal spatialWindowMode = iota - tensor.SingletonExtent
+	windowModeRow
+	windowModeColumn
 )
 
 type MiMoVLSpec struct {
@@ -24,7 +32,7 @@ type MiMoVLSpec struct {
 	WindowSize         int
 	MinPixels          int
 	MaxPixels          int
-	WindowModes        []int
+	WindowModes        []spatialWindowMode
 }
 
 type MiMoVLInput gridImage
@@ -54,6 +62,9 @@ func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
 	if err := readRotaryVisionBackbone(file, mimoVLProjectorType, &spec.ProjectionDim, &spec.visionBackboneSpec); err != nil {
 		return MiMoVLSpec{}, err
 	}
+	if err := readProjectionNorm(file, &spec.ProjectionNormEpsilon); err != nil {
+		return MiMoVLSpec{}, err
+	}
 	if err := readMetadataIntFields(file,
 		metadataIntField{"clip.vision.attention.head_count_kv", &spec.KVHeads},
 		metadataIntField{visionSpatialMergeKey, &spec.MergeSize},
@@ -63,24 +74,39 @@ func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
 	); err != nil {
 		return MiMoVLSpec{}, err
 	}
-	modes, err := granite4MetadataInts(file, "clip.vision.wa_pattern_mode", true)
+	modeValues, err := metadataInts(file, "clip.vision.wa_pattern_mode", tensorRequired, false)
 	if err != nil {
 		return MiMoVLSpec{}, err
 	}
+	modes := make([]spatialWindowMode, len(modeValues))
+	for index, value := range modeValues {
+		mode := spatialWindowMode(value)
+		switch mode {
+		case windowModeGlobal, windowModeRow, windowModeColumn:
+		default:
+			return MiMoVLSpec{}, fmt.Errorf("projector: MiMo-VL window mode %d at layer %d is invalid", value, index)
+		}
+		modes[index] = mode
+	}
 	qkv, ok := file.Tensor("v.blk.0.attn_qkv.weight")
-	if !ok || qkv.Dimensions != 2 {
+	if !ok || qkv.Dimensions != tensor.PairedExtent {
 		return MiMoVLSpec{}, errors.New("projector: MiMo-VL fused QKV tensor is unavailable")
 	}
-	denominator := spec.Heads + 2*spec.KVHeads
-	if denominator <= 0 || qkv.Shape[1]%uint64(denominator) != 0 {
+	if !checked.PositiveInts(spec.Heads, spec.KVHeads) {
+		return MiMoVLSpec{}, errors.New("projector: MiMo-VL fused QKV width is invalid")
+	}
+	kvWidth, ok := checked.Mul64(uint64(spec.KVHeads), tensor.PairedExtent)
+	denominator, ok := checked.Add64(uint64(spec.Heads), kvWidth)
+	headDim, ok := checked.DivExact64(qkv.Shape[tensor.SingletonExtent], denominator)
+	spec.HeadDim, ok = checked.Int(headDim)
+	if !ok {
 		return MiMoVLSpec{}, errors.New("projector: MiMo-VL fused QKV width is invalid")
 	}
 	merger, ok := file.Tensor(projectionFirstWeightTensor)
-	if !ok || merger.Dimensions != 2 {
+	spec.MergerIntermediate, ok = matrixRowsInt(merger, ok)
+	if !ok {
 		return MiMoVLSpec{}, errors.New("projector: MiMo-VL merger tensor is unavailable")
 	}
-	spec.HeadDim = int(qkv.Shape[1]) / denominator
-	spec.MergerIntermediate = int(merger.Shape[1])
 	spec.WindowModes = modes
 	if err := spec.validate(); err != nil {
 		return MiMoVLSpec{}, err
@@ -92,15 +118,12 @@ func (s MiMoVLSpec) validate() error {
 	if err := s.visionBackboneSpec.validateRotary(); err != nil {
 		return err
 	}
-	if s.ProjectionDim <= 0 || s.MergerIntermediate <= 0 || s.KVHeads <= 0 || s.HeadDim <= 0 ||
-		s.MergeSize <= 0 || s.WindowSize <= 0 || s.MinPixels <= 0 || s.MaxPixels < s.MinPixels ||
-		s.Heads%s.KVHeads != 0 || s.HeadDim%visionRoPEComponentCount != 0 || len(s.WindowModes) != s.Layers {
+	_, groupsOK := checked.DivExactInt(s.Heads, s.KVHeads)
+	_, rotaryOK := checked.DivExactInt(s.HeadDim, tensor.PairedExtent*tensor.PairedExtent)
+	if !checked.PositiveInts(s.ProjectionDim, s.MergerIntermediate, s.KVHeads, s.HeadDim, s.MergeSize, s.WindowSize, s.MinPixels) ||
+		s.MaxPixels < s.MinPixels || !checked.PositiveFinite32(s.ProjectionNormEpsilon) ||
+		!groupsOK || !rotaryOK || len(s.WindowModes) != s.Layers {
 		return fmt.Errorf("projector: invalid MiMo-VL metadata: %+v", s)
-	}
-	for layer, mode := range s.WindowModes {
-		if mode < -1 || mode > 1 {
-			return fmt.Errorf("projector: MiMo-VL window mode %d at layer %d is invalid", mode, layer)
-		}
 	}
 	return nil
 }
@@ -109,8 +132,8 @@ func validateMiMoVLCatalog(file *gguf.File, spec MiMoVLSpec) ([]string, error) {
 	qWidth := spec.Heads * spec.HeadDim
 	kvWidth := spec.KVHeads * spec.HeadDim
 	required := map[string][]uint64{
-		visionPatchWeightTensor:    {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
-		visionPatchWeightTensor1:   {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
+		visionPatchWeightTensor:    {uint64(spec.PatchSize), uint64(spec.PatchSize), media.RGBChannels, uint64(spec.Hidden)},
+		visionPatchWeightTensor1:   {uint64(spec.PatchSize), uint64(spec.PatchSize), media.RGBChannels, uint64(spec.Hidden)},
 		visionPostNormWeightTensor: {uint64(spec.Hidden)},
 	}
 	addTwoLayerProjectionCatalog(file, required, spec.Hidden*spec.MergeSize*spec.MergeSize, spec.MergerIntermediate, spec.ProjectionDim, tensorOptional)
@@ -132,7 +155,7 @@ func validateMiMoVLCatalog(file *gguf.File, spec MiMoVLSpec) ([]string, error) {
 		} {
 			required[prefix+name] = shape
 		}
-		if spec.WindowModes[layer] != -1 {
+		if spec.WindowModes[layer] != windowModeGlobal {
 			required[prefix+"attn_sinks"] = []uint64{uint64(spec.Heads)}
 		}
 		for name, width := range map[string]int{
@@ -156,7 +179,7 @@ func PreprocessMiMoVLImage(source image.Image, spec MiMoVLSpec) (MiMoVLInput, er
 		MergerIntermediate: spec.MergerIntermediate, OutputHidden: spec.ProjectionDim, MergeSize: spec.MergeSize,
 	}
 	input, err := preprocessQwen3VLFrames([]image.Image{source, source}, preprocessSpec, Qwen3VLPreprocessOptions{
-		MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels, MaxAspectRatio: defaultVisionMaxAspectRatio,
+		MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels,
 	})
 	if err != nil {
 		return MiMoVLInput{}, err
@@ -175,12 +198,12 @@ func (r *MiMoVLRunner) EncodeImage(ctx context.Context, source image.Image) (MiM
 	return r.encodeGraph(ctx, input)
 }
 
-func mimoVLColumnOrder(rows, columns, merge int) []int {
-	order := make([]int, 0, rows*columns*merge*merge)
-	for column := 0; column < columns; column++ {
-		for row := 0; row < rows; row++ {
+func columnMajorPatchOrder(rows, columns, merge int) []int {
+	order := make([]int, tensor.FirstOffset, rows*columns*merge*merge)
+	for column := range columns {
+		for row := range rows {
 			unit := row*columns + column
-			for patch := 0; patch < merge*merge; patch++ {
+			for patch := range merge * merge {
 				order = append(order, unit*merge*merge+patch)
 			}
 		}
@@ -194,14 +217,6 @@ func inversePermutation(order []int) []int {
 		inverse[source] = destination
 	}
 	return inverse
-}
-
-func reorderRows(input []float32, order []int, width int) []float32 {
-	output := make([]float32, len(input))
-	for destination, source := range order {
-		copy(output[destination*width:(destination+1)*width], input[source*width:(source+1)*width])
-	}
-	return output
 }
 
 func reorderInts(input []int, order []int) []int {

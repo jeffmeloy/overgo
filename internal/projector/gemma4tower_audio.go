@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -49,7 +50,7 @@ func (r *Gemma4TowerRunner) encodeAudioFeatures(
 		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, errRunnerClosed
 	}
 	spec := r.spec.Audio
-	if frames <= 0 || len(features) != frames*spec.MelBins {
+	if !checked.PositiveInts(frames) || len(features) != frames*spec.MelBins {
 		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, fmt.Errorf(
 			"projector: Gemma 4 audio features=%d, want %d x %d", len(features), frames, spec.MelBins)
 	}
@@ -57,11 +58,11 @@ func (r *Gemma4TowerRunner) encodeAudioFeatures(
 		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, fmt.Errorf("projector: Gemma 4 audio profile: %w", err)
 	}
 	builder := tensor.NewBuilder()
-	input := builder.Input("audio_features", dtype.F32, tensor.MustShape(1, uint64(spec.MelBins), uint64(frames)))
+	input := builder.Input("audio_features", dtype.F32, tensor.MustShape(tensor.SingletonExtent, uint64(spec.MelBins), uint64(frames)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[input] = reference.Value{Shape: input.Shape, Data: features}
 
-	hidden, sequence := r.gemma4AudioSubsampleGraph(graph, input, frames)
+	hidden, sequence := r.audioSubsampleGraph(graph, input, frames)
 	stageNames := []string{"subsample"}
 	stages := []*tensor.Tensor{hidden}
 	position, positionLength := gemma4AudioRelativePositions(spec, profile.AttentionRopeFreqBase)
@@ -70,7 +71,7 @@ func (r *Gemma4TowerRunner) encodeAudioFeatures(
 	graph.hostFeeds[positionInput] = reference.Value{Shape: positionInput.Shape, Data: position}
 	shift := gemma4AudioRelativeShiftGraph(graph, spec, positionLength)
 
-	for layer := 0; layer < spec.Layers; layer++ {
+	for layer := range spec.Layers {
 		prefix := fmt.Sprintf("a.blk.%d.", layer)
 		hidden = r.gemma4AudioFeedForwardGraph(graph, hidden, prefix+"ffn1_", spec)
 		norm := builder.WeightedRMSNorm(hidden, graph.weight(prefix+"attn_norm.weight"), spec.RMSNormEpsilon)
@@ -90,9 +91,11 @@ func (r *Gemma4TowerRunner) encodeAudioFeatures(
 	targets := []*tensor.Tensor{embeddings}
 	if trace {
 		for _, stage := range stages {
-			targets = append(targets, builder.FlatSlice(stage, 0, stage.Shape.Dims[0], uint64(min(4, int(stage.Shape.Dims[1])))))
+			targets = append(targets, builder.FlatSlice(stage, tensor.FirstOffset,
+				stage.Shape.Dims[tensor.FirstOffset], uint64(min(4, int(stage.Shape.Dims[tensor.SingletonExtent])))))
 		}
-		targets = append(targets, builder.FlatSlice(embeddings, 0, embeddings.Shape.Dims[0], uint64(min(4, sequence))))
+		targets = append(targets, builder.FlatSlice(embeddings, tensor.FirstOffset,
+			embeddings.Shape.Dims[tensor.FirstOffset], uint64(min(4, sequence))))
 	}
 	results, err := graph.execute(targets...)
 	if err != nil {
@@ -100,16 +103,16 @@ func (r *Gemma4TowerRunner) encodeAudioFeatures(
 	}
 	traced := Gemma4AudioTowerTrace{}
 	if trace {
-		traced.Stages = make(map[string]reference.Value, len(stageNames)+1)
+		traced.Stages = make(map[string]reference.Value, len(stageNames)+tensor.SingletonExtent)
 		for index, name := range stageNames {
-			traced.Stages[name] = results[targets[index+1]]
+			traced.Stages[name] = results[targets[index+tensor.SingletonExtent]]
 		}
-		traced.Stages["soft_tokens"] = results[targets[len(targets)-1]]
+		traced.Stages["soft_tokens"] = results[targets[len(targets)-tensor.SingletonExtent]]
 	}
 	return Gemma4AudioTowerOutput{Embeddings: results[embeddings], SoftTokens: sequence}, traced, nil
 }
 
-func (r *Gemma4TowerRunner) gemma4AudioSubsampleGraph(
+func (r *Gemma4TowerRunner) audioSubsampleGraph(
 	graph *projectorGraphRuntime,
 	input *tensor.Tensor,
 	frames int,
@@ -117,18 +120,18 @@ func (r *Gemma4TowerRunner) gemma4AudioSubsampleGraph(
 	spec := r.spec.Audio
 	hidden := input
 	width, height := spec.MelBins, frames
-	for layer, channels := range spec.SubChannels {
+	channels := spec.SubChannels[len(spec.SubChannels)-tensor.SingletonExtent]
+	for layer := range spec.SubChannels {
 		prefix := fmt.Sprintf("a.conv.%d.", layer)
-		hidden = graph.builder.Conv2D(hidden, graph.weight(prefix+"weight"), nil, 2, 2, 1, 1, 1, 1, false)
+		hidden = convolveCentered(graph.builder, hidden, graph.weight(prefix+"weight"), nil, tensor.PairedExtent, false)
 		hidden = graph.builder.Multiply(
 			graph.builder.LayerNorm(hidden, spec.RMSNormEpsilon), graph.weight(prefix+"norm.weight"),
 		)
 		hidden = graph.builder.ReLU(hidden)
-		width, height = (width+1)/2, (height+1)/2
-		if layer == len(spec.SubChannels)-1 {
-			hidden = graph.builder.Reshape(hidden, uint64(channels*width), uint64(height))
-		}
+		width = (width + tensor.SingletonExtent) / tensor.PairedExtent
+		height = (height + tensor.SingletonExtent) / tensor.PairedExtent
 	}
+	hidden = graph.builder.Reshape(hidden, uint64(channels*width), uint64(height))
 	return graph.builder.MulMat(graph.weight("a.input_proj.weight"), hidden), height
 }
 
@@ -139,8 +142,8 @@ func (r *Gemma4TowerRunner) gemma4AudioFeedForwardGraph(
 	spec Gemma4AudioTowerSpec,
 ) *tensor.Tensor {
 	norm := graph.builder.WeightedRMSNorm(input, graph.weight(prefix+"norm.weight"), spec.RMSNormEpsilon)
-	up := r.gemma4TowerClippedLinearGraph(graph, norm, prefix+"up")
-	down := r.gemma4TowerClippedLinearGraph(graph, graph.builder.SiLU(up), prefix+"down")
+	up := clippedLinearGraph(graph, norm, prefix+"up")
+	down := clippedLinearGraph(graph, graph.builder.SiLU(up), prefix+"down")
 	down = graph.builder.WeightedRMSNorm(down, graph.weight(prefix+"post_norm.weight"), spec.RMSNormEpsilon)
 	return graph.builder.Add(input, graph.builder.Scale(down, spec.ResidualWeight))
 }
@@ -153,35 +156,36 @@ func (r *Gemma4TowerRunner) gemma4AudioLightConvGraph(
 	spec Gemma4AudioTowerSpec,
 ) *tensor.Tensor {
 	norm := graph.builder.WeightedRMSNorm(input, graph.weight(prefix+"conv_pre_norm.weight"), spec.RMSNormEpsilon)
-	started := r.gemma4TowerClippedLinearGraph(graph, norm, prefix+"conv_start")
+	started := clippedLinearGraph(graph, norm, prefix+"conv_start")
 	first := graph.builder.Reshape(
-		graph.builder.GroupSlice(started, 0, uint64(spec.Hidden), 1, uint64(spec.Hidden)),
+		graph.builder.GroupSlice(started, tensor.FirstOffset, uint64(spec.Hidden), tensor.SingletonExtent, uint64(spec.Hidden)),
 		uint64(spec.Hidden), uint64(sequence),
 	)
 	gate := graph.builder.Reshape(
-		graph.builder.GroupSlice(started, uint64(spec.Hidden), uint64(spec.Hidden), 1, uint64(spec.Hidden)),
+		graph.builder.GroupSlice(started, uint64(spec.Hidden), uint64(spec.Hidden), tensor.SingletonExtent, uint64(spec.Hidden)),
 		uint64(spec.Hidden), uint64(sequence),
 	)
 	glu := graph.builder.Multiply(first, graph.builder.Sigmoid(gate))
-	padding := spec.ConvKernel - 1
-	padded := graph.builder.Concat(gemma4AudioZeros(graph, spec.Hidden, padding, "conv_padding", started.ID), glu, 1)
-	bias := gemma4AudioZeros(graph, spec.Hidden, 1, "conv_bias", started.ID)
+	padding := spec.ConvKernel - tensor.SingletonExtent
+	padded := graph.builder.Concat(gemma4AudioZeros(graph, spec.Hidden, padding, "conv_padding", started.ID), glu, tensor.SingletonExtent)
+	bias := gemma4AudioZeros(graph, spec.Hidden, tensor.SingletonExtent, "conv_bias", started.ID)
 	bias = graph.builder.Reshape(bias, uint64(spec.Hidden))
 	convolved := graph.builder.Conv1DSame(padded, graph.weight(prefix+"conv_dw.weight"), bias, true)
-	convolved = graph.builder.FlatSlice(convolved, uint64((spec.ConvKernel/2)*spec.Hidden), uint64(spec.Hidden), uint64(sequence))
+	convolved = graph.builder.FlatSlice(convolved, uint64((spec.ConvKernel/tensor.PairedExtent)*spec.Hidden), uint64(spec.Hidden), uint64(sequence))
 	convolved = graph.builder.WeightedRMSNorm(convolved, graph.weight(prefix+"conv_norm.weight"), spec.RMSNormEpsilon)
 	convolved = graph.builder.SiLU(convolved)
-	return graph.builder.Add(input, r.gemma4TowerClippedLinearGraph(graph, convolved, prefix+"conv_end"))
+	return graph.builder.Add(input, clippedLinearGraph(graph, convolved, prefix+"conv_end"))
 }
 
 func gemma4AudioRelativePositions(spec Gemma4AudioTowerSpec, frequencyBase float32) ([]float32, int) {
-	contextSize := spec.ChunkSize + spec.ContextLeft - 1 + spec.ContextRight
-	length := contextSize/2 + 1
-	half := spec.Hidden / 2
-	logIncrement := math.Log(float64(frequencyBase)) / max(float64(half-1), 1)
+	contextSize := spec.ChunkSize + spec.ContextLeft - tensor.SingletonExtent + spec.ContextRight
+	length := contextSize/tensor.PairedExtent + tensor.SingletonExtent
+	half := spec.Hidden / tensor.PairedExtent
+	logIncrement := math.Log(float64(frequencyBase)) /
+		max(float64(half-tensor.SingletonExtent), float64(tensor.SingletonExtent))
 	result := make([]float32, length*spec.Hidden)
 	for position := range length {
-		id := float64(contextSize/2 - position)
+		id := float64(contextSize/tensor.PairedExtent - position)
 		for index := range half {
 			angle := id * math.Exp(-float64(index)*logIncrement)
 			result[position*spec.Hidden+index] = float32(math.Sin(angle))
@@ -197,16 +201,16 @@ func gemma4AudioRelativeShiftGraph(
 	positionLength int,
 ) *tensor.Tensor {
 	chunk := spec.ChunkSize
-	contextSize := chunk + spec.ContextLeft - 1 + spec.ContextRight
+	contextSize := chunk + spec.ContextLeft - tensor.SingletonExtent + spec.ContextRight
 	inputElements := chunk * positionLength
 	outputElements := chunk * contextSize
 	values := make([]float32, inputElements*outputElements)
 	for query := range chunk {
 		for offset := range contextSize {
 			flat := query*contextSize + offset
-			row, column := flat/(contextSize+1), flat%(contextSize+1)
+			row, column := flat/(contextSize+tensor.SingletonExtent), flat%(contextSize+tensor.SingletonExtent)
 			if row < chunk && column < positionLength {
-				values[flat*inputElements+row*positionLength+column] = 1
+				values[flat*inputElements+row*positionLength+column] = tensor.SingletonExtent
 			}
 		}
 	}
@@ -223,17 +227,17 @@ func (r *Gemma4TowerRunner) gemma4AudioAttentionGraph(
 	sequence int,
 	spec Gemma4AudioTowerSpec,
 ) *tensor.Tensor {
-	query := r.gemma4TowerClippedLinearGraph(graph, input, prefix+"attn_q")
-	key := r.gemma4TowerClippedLinearGraph(graph, input, prefix+"attn_k")
-	value := r.gemma4TowerClippedLinearGraph(graph, input, prefix+"attn_v")
+	query := clippedLinearGraph(graph, input, prefix+"attn_q")
+	key := clippedLinearGraph(graph, input, prefix+"attn_k")
+	value := clippedLinearGraph(graph, input, prefix+"attn_v")
 	relative := graph.builder.MulMat(graph.weight(prefix+"attn_rel_k.weight"), positions)
 	headWidth := spec.Hidden / spec.Heads
 	perDim := graph.builder.Scale(graph.builder.Softplus(graph.weight(prefix+"attn_per_dim_scale.weight")),
-		float32(math.Pow(float64(headWidth), -0.5)/math.Ln2))
-	keyScale := float32(math.Log(1+math.E) / math.Ln2)
-	contextSize := spec.ChunkSize + spec.ContextLeft - 1 + spec.ContextRight
-	positionLength := contextSize/2 + 1
-	blocks := (sequence + spec.ChunkSize - 1) / spec.ChunkSize
+		float32((float64(tensor.SingletonExtent)/math.Sqrt(float64(headWidth)))/math.Ln2))
+	keyScale := float32(math.Log(float64(tensor.SingletonExtent)+math.E) / math.Ln2)
+	contextSize := spec.ChunkSize + spec.ContextLeft - tensor.SingletonExtent + spec.ContextRight
+	positionLength := contextSize/tensor.PairedExtent + tensor.SingletonExtent
+	blocks := (sequence + spec.ChunkSize - tensor.SingletonExtent) / spec.ChunkSize
 	var blockOutputs *tensor.Tensor
 	for block := range blocks {
 		start := block * spec.ChunkSize
@@ -249,39 +253,40 @@ func (r *Gemma4TowerRunner) gemma4AudioAttentionGraph(
 			if validQueries < spec.ChunkSize {
 				qBlock = gemma4AudioPadRight(graph, qBlock, headWidth, spec.ChunkSize-validQueries, "query")
 			}
-			kContext := gemma4AudioContext(graph, kHead, headWidth, sequence, start-spec.ContextLeft+1, contextSize, "key")
-			vContext := gemma4AudioContext(graph, vHead, headWidth, sequence, start-spec.ContextLeft+1, contextSize, "value")
+			kContext := gemma4AudioContext(graph, kHead, headWidth, sequence, start-spec.ContextLeft+tensor.SingletonExtent, contextSize, "key")
+			vContext := gemma4AudioContext(graph, vHead, headWidth, sequence, start-spec.ContextLeft+tensor.SingletonExtent, contextSize, "value")
 			content := graph.builder.MulMat(kContext, qBlock)
 			relativeLogits := graph.builder.MulMat(rHead, qBlock)
 			relativeLogits = graph.builder.MulMat(shift,
-				graph.builder.Reshape(relativeLogits, uint64(spec.ChunkSize*positionLength), 1))
+				graph.builder.Reshape(relativeLogits, uint64(spec.ChunkSize*positionLength), tensor.SingletonExtent))
 			relativeLogits = graph.builder.Reshape(relativeLogits, uint64(contextSize), uint64(spec.ChunkSize))
 			logits := graph.builder.Add(content, relativeLogits)
-			logits = graph.builder.Scale(graph.builder.Tanh(graph.builder.Scale(logits, 1/spec.LogitSoftcap)), spec.LogitSoftcap)
+			logits = graph.builder.Scale(graph.builder.Tanh(graph.builder.Scale(logits,
+				float32(tensor.SingletonExtent)/spec.LogitSoftcap)), spec.LogitSoftcap)
 			mask := gemma4AudioMask(graph, spec, sequence, start, block, head)
 			probability := graph.builder.Softmax(graph.builder.Add(logits, mask))
 			output := graph.builder.MulMat(graph.builder.Transpose2D(vContext), probability)
 			if validQueries < spec.ChunkSize {
-				output = graph.builder.FlatSlice(output, 0, uint64(headWidth), uint64(validQueries))
+				output = graph.builder.FlatSlice(output, tensor.FirstOffset, uint64(headWidth), uint64(validQueries))
 			}
 			if heads == nil {
 				heads = output
 			} else {
-				heads = graph.builder.Concat(heads, output, 0)
+				heads = graph.builder.Concat(heads, output, tensor.FirstOffset)
 			}
 		}
 		if blockOutputs == nil {
 			blockOutputs = heads
 		} else {
-			blockOutputs = graph.builder.Concat(blockOutputs, heads, 1)
+			blockOutputs = graph.builder.Concat(blockOutputs, heads, tensor.SingletonExtent)
 		}
 	}
-	return r.gemma4TowerClippedLinearGraph(graph, blockOutputs, prefix+"attn_output")
+	return clippedLinearGraph(graph, blockOutputs, prefix+"attn_output")
 }
 
 func gemma4AudioHead(builder *tensor.Builder, input *tensor.Tensor, head, width, sequence int) *tensor.Tensor {
 	return builder.Reshape(
-		builder.GroupSlice(input, uint64(head*width), uint64(width), 1, uint64(width)),
+		builder.GroupSlice(input, uint64(head*width), uint64(width), tensor.SingletonExtent, uint64(width)),
 		uint64(width), uint64(sequence),
 	)
 }
@@ -292,11 +297,11 @@ func gemma4AudioPadRight(
 	width, columns int,
 	label string,
 ) *tensor.Tensor {
-	if columns == 0 {
+	if columns == tensor.FirstOffset {
 		return input
 	}
 	zeros := gemma4AudioZeros(graph, width, columns, label+"_padding", input.ID)
-	return graph.builder.Concat(input, zeros, 1)
+	return graph.builder.Concat(input, zeros, tensor.SingletonExtent)
 }
 
 func gemma4AudioZeros(graph *projectorGraphRuntime, width, columns int, label string, id uint64) *tensor.Tensor {
@@ -312,27 +317,27 @@ func gemma4AudioContext(
 	width, sequence, start, length int,
 	label string,
 ) *tensor.Tensor {
-	prefix := max(0, -start)
-	validStart := max(0, start)
+	prefix := max(tensor.FirstOffset, -start)
+	validStart := max(tensor.FirstOffset, start)
 	validEnd := min(sequence, start+length)
-	valid := max(0, validEnd-validStart)
+	valid := max(tensor.FirstOffset, validEnd-validStart)
 	suffix := length - prefix - valid
 	var result *tensor.Tensor
 	appendPart := func(part *tensor.Tensor) {
 		if result == nil {
 			result = part
 		} else {
-			result = graph.builder.Concat(result, part, 1)
+			result = graph.builder.Concat(result, part, tensor.SingletonExtent)
 		}
 	}
-	if prefix > 0 {
+	if prefix > tensor.FirstOffset {
 		zeros := gemma4AudioZeros(graph, width, prefix, label+"_prefix", input.ID)
 		appendPart(zeros)
 	}
-	if valid > 0 {
+	if valid > tensor.FirstOffset {
 		appendPart(graph.builder.FlatSlice(input, uint64(validStart*width), uint64(width), uint64(valid)))
 	}
-	if suffix > 0 {
+	if suffix > tensor.FirstOffset {
 		zeros := gemma4AudioZeros(graph, width, suffix, label+"_suffix", input.ID)
 		appendPart(zeros)
 	}
@@ -344,14 +349,14 @@ func gemma4AudioMask(
 	spec Gemma4AudioTowerSpec,
 	sequence, start, block, head int,
 ) *tensor.Tensor {
-	contextSize := spec.ChunkSize + spec.ContextLeft - 1 + spec.ContextRight
+	contextSize := spec.ChunkSize + spec.ContextLeft - tensor.SingletonExtent + spec.ContextRight
 	values := make([]float32, contextSize*spec.ChunkSize)
 	for query := range spec.ChunkSize {
 		globalQuery := start + query
 		for offset := range contextSize {
-			globalKey := start + offset - spec.ContextLeft + 1
-			if globalQuery >= sequence || globalKey < 0 || globalKey >= sequence ||
-				globalKey < globalQuery-spec.ContextLeft+1 || globalKey > globalQuery+spec.ContextRight {
+			globalKey := start + offset - spec.ContextLeft + tensor.SingletonExtent
+			if globalQuery >= sequence || globalKey < tensor.FirstOffset || globalKey >= sequence ||
+				globalKey < globalQuery-spec.ContextLeft+tensor.SingletonExtent || globalKey > globalQuery+spec.ContextRight {
 				values[query*contextSize+offset] = -1e9
 			}
 		}

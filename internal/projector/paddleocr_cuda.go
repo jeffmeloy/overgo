@@ -4,21 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
+	"overgo/internal/media"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
 
 func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImage) (PaddleOCROutput, error) {
-	rows := input.GridH * input.GridW
-	patchWidth := 3 * r.spec.PatchSize * r.spec.PatchSize
-	if rows <= 0 || len(input.PixelValues) != rows*patchWidth {
+	rows, patchWidth, err := validateSpatialPatchStorage(
+		len(input.PixelValues), input.GridH, input.GridW, r.spec.PatchSize, media.RGBChannels,
+	)
+	if err != nil {
 		return PaddleOCROutput{}, errors.New("projector: PaddleOCR input shape is inconsistent")
-	}
-	if input.GridH%r.spec.MergeSize != 0 || input.GridW%r.spec.MergeSize != 0 {
-		return PaddleOCROutput{}, errors.New("projector: PaddleOCR input is not merge aligned")
 	}
 	mergePlan, err := newPixelMergePlan(input.GridH, input.GridW, r.spec.MergeSize)
 	if err != nil {
@@ -32,34 +30,36 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	weight := graph.weight
 	patch := builder.Reshape(weight(visionPatchWeightTensor), uint64(patchWidth), uint64(r.spec.Hidden))
 	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), visionPatchBiasTensor)
-	rowOrder, columnOrder := paddleOCRGrid(input.GridH, input.GridW)
-	hidden = r.paddleOCRPositionGraph(builder, hidden, weight(visionPositionWeightTensor), input, rowOrder, columnOrder, hostFeeds)
+	rowOrder, columnOrder := gridCoordinates(input.GridH, input.GridW)
+	tableSide := r.spec.ImageSize / r.spec.PatchSize
+	hidden = spatialPositionGraph(
+		builder, hidden, weight(visionPositionWeightTensor), rows, rows,
+		input.GridH, input.GridW, tableSide, rowOrder, columnOrder, hostFeeds,
+	)
 	if r.spec.PreLayerNorm {
 		hidden = builder.AffineLayerNorm(hidden, weight(visionPreNormWeightTensor), weight(visionPreNormBiasTensor), r.spec.LayerNormEpsilon)
 	}
-	positionsY := make([]uint32, rows)
-	positionsX := make([]uint32, rows)
-	for index := range positionsY {
-		positionsY[index] = uint32(rowOrder[index])
-		positionsX[index] = uint32(columnOrder[index])
-	}
-	for layer := 0; layer < r.spec.Layers; layer++ {
+	positionsY, positionsX := intsToUint32(rowOrder), intsToUint32(columnOrder)
+	for layer := range r.spec.Layers {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		norm := builder.AffineLayerNorm(hidden, weight(prefix+"ln1.weight"), weight(prefix+"ln1.bias"), r.spec.LayerNormEpsilon)
 		var qkv *tensor.Tensor
 		if r.spec.FusedQKV[layer] {
 			qkv = graph.addOptionalBias(builder.MulMat(weight(prefix+"attn_qkv.weight"), norm), prefix+"attn_qkv.bias")
 		} else {
-			parts := make([]*tensor.Tensor, 3)
+			parts := make([]*tensor.Tensor, tensor.TripleExtent)
 			for index, part := range []string{"q", "k", "v"} {
 				parts[index] = graph.addOptionalBias(builder.MulMat(weight(prefix+"attn_"+part+".weight"), norm), prefix+"attn_"+part+".bias")
 			}
-			qkv = builder.Concat(builder.Concat(parts[0], parts[1], 0), parts[2], 0)
+			qkv = builder.Concat(
+				builder.Concat(parts[tensor.FirstOffset], parts[tensor.SingletonExtent], tensor.FirstOffset),
+				parts[tensor.PairedExtent], tensor.FirstOffset,
+			)
 		}
 		headWidth := uint64(r.spec.Hidden / r.spec.Heads)
-		q := builder.GroupSlice(qkv, 0, headWidth, uint64(r.spec.Heads), headWidth)
+		q := builder.GroupSlice(qkv, tensor.FirstOffset, headWidth, uint64(r.spec.Heads), headWidth)
 		k := builder.GroupSlice(qkv, uint64(r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
-		v := builder.GroupSlice(qkv, uint64(2*r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
+		v := builder.GroupSlice(qkv, uint64(tensor.PairedExtent*r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
 		q = interleavedVisionRoPE(builder, q, positionsY, positionsX, r.spec.RopeFrequency)
 		k = interleavedVisionRoPE(builder, k, positionsY, positionsX, r.spec.RopeFrequency)
 		attention := r.attention.graph(builder, q, k, v)
@@ -76,7 +76,7 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 		hidden = builder.AffineLayerNorm(hidden, weight(visionPostNormWeightTensor), weight(visionPostNormBiasTensor), r.spec.LayerNormEpsilon)
 	}
 	hidden = builder.AffineLayerNorm(
-		hidden, weight("mm.input_norm.weight"), weight("mm.input_norm.bias"), paddleOCRInputNormEpsilon,
+		hidden, weight("mm.input_norm.weight"), weight("mm.input_norm.bias"), r.spec.ProjectionNormEpsilon,
 	)
 	merged := mergePlan.graph(builder, hidden)
 	fc1 := builder.Add(builder.MulMat(weight("mm.1.weight"), merged), weight("mm.1.bias"))
@@ -89,52 +89,4 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	return PaddleOCROutput{
 		Embeddings: results[output], GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize,
 	}, nil
-}
-
-func (r *PaddleOCRRunner) paddleOCRPositionGraph(
-	builder *tensor.Builder,
-	hidden, table *tensor.Tensor,
-	input RasterPatchImage,
-	rowOrder, columnOrder []int,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-) *tensor.Tensor {
-	rows := input.GridH * input.GridW
-	side := r.spec.ImageSize / r.spec.PatchSize
-	indexes := [4][]uint32{}
-	weights := [4][]float32{}
-	for corner := range indexes {
-		indexes[corner] = make([]uint32, rows)
-		weights[corner] = make([]float32, rows)
-	}
-	coordinate := func(index, extent int) float64 {
-		if extent == 1 {
-			return 0
-		}
-		return float64(side-1) * float64(index) / float64(extent-1)
-	}
-	for token := 0; token < rows; token++ {
-		y := coordinate(rowOrder[token], input.GridH)
-		x := coordinate(columnOrder[token], input.GridW)
-		y0, x0 := int(math.Floor(y)), int(math.Floor(x))
-		y1, x1 := min(y0+1, side-1), min(x0+1, side-1)
-		wy, wx := y-float64(y0), x-float64(x0)
-		cornerIndexes := [4]int{y0*side + x0, y0*side + x1, y1*side + x0, y1*side + x1}
-		cornerWeights := [4]float64{(1 - wy) * (1 - wx), (1 - wy) * wx, wy * (1 - wx), wy * wx}
-		for corner := range indexes {
-			indexes[corner][token] = uint32(cornerIndexes[corner])
-			weights[corner][token] = float32(cornerWeights[corner])
-		}
-	}
-	var position *tensor.Tensor
-	for corner := range indexes {
-		factor := builder.Input(fmt.Sprintf("paddle_position_weight.%d", corner), dtype.F32, tensor.MustShape(1, uint64(rows)))
-		hostFeeds[factor] = reference.Value{Shape: factor.Shape, Data: weights[corner]}
-		part := builder.Multiply(builder.GetRows(table, indexes[corner]), factor)
-		if position == nil {
-			position = part
-		} else {
-			position = builder.Add(position, part)
-		}
-	}
-	return builder.Add(hidden, position)
 }

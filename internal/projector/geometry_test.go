@@ -3,6 +3,8 @@ package projector
 import (
 	"slices"
 	"testing"
+
+	"overgo/internal/media"
 )
 
 func TestPixelMergePlan(t *testing.T) {
@@ -68,7 +70,7 @@ func TestSplitTemporalPatchPairs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if width != temporalPatchChannels*patchArea || !slices.Equal(first, []float32{0, 1, 4, 5, 8, 9}) ||
+	if width != media.RGBChannels*patchArea || !slices.Equal(first, []float32{0, 1, 4, 5, 8, 9}) ||
 		!slices.Equal(second, []float32{2, 3, 6, 7, 10, 11}) {
 		t.Fatalf("split = width %d, %v / %v", width, first, second)
 	}

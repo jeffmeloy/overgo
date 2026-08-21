@@ -168,12 +168,12 @@ func (runtime *projectorGraphRuntime) weight(name string) *tensor.Tensor {
 		runtime.err = fmt.Errorf("tensor %q is unavailable", name)
 		return nil
 	}
-	node := runtime.builder.Input(name, dtype.F32, tensorInfoShape(info))
 	value, err := model.LoadHostTensor(runtime.ctx, runtime.file, info)
 	if err != nil {
 		runtime.err = err
 		return nil
 	}
+	node := runtime.builder.Input(name, dtype.F32, value.Shape)
 	runtime.feeds.Host[node] = value
 	return node
 }
@@ -189,7 +189,7 @@ func visionActivationNode(
 	case visionSiLU:
 		return builder.SiLU(input)
 	default:
-		return builder.Multiply(input, builder.Sigmoid(builder.Scale(input, quickGELUScale)))
+		return builder.QuickGELU(input)
 	}
 }
 

@@ -5,6 +5,8 @@ import (
 	"image"
 	"slices"
 	"testing"
+
+	"overgo/internal/tensor"
 )
 
 func TestMediaHistoryChunkContract(t *testing.T) {
@@ -46,13 +48,13 @@ func TestMixedMediaPromptPlan(t *testing.T) {
 	}
 	encode := func(count int) func(context.Context, MediaInput) (imagePromptItem, error) {
 		return func(context.Context, MediaInput) (imagePromptItem, error) {
-			return imagePromptItem{Embeddings: make([]float32, count*2), Count: count, Width: 2}, nil
+			return imagePromptItem{Embeddings: make([]float32, count*2), Count: count}, nil
 		}
 	}
 	prompt, err := executeMixedMediaPromptPlan(
 		context.Background(), gemma4PromptTokenizer{}, media, []string{"a", "b", "c"},
 		mixedMediaPromptPlan{
-			Family: "test", AddSpecial: true, PromptLabel: "test history", Render: renderMixedMediaHistory,
+			Family: "test", AddSpecial: true, EmbeddingWidth: 2, PromptLabel: "test history", Render: renderMixedMediaHistory,
 			Kinds: map[MediaKind]mixedMediaKindPlan{
 				MediaImage: {Placeholder: "<|image|>", PlaceholderLabel: "image placeholder", Open: "<i>", Close: "</i>", Attention: true, Encode: encode(2)},
 				MediaAudio: {Placeholder: "<|audio|>", PlaceholderLabel: "audio placeholder", Open: "<a>", Close: "</a>", Encode: encode(1)},
@@ -95,8 +97,10 @@ func TestCompileMediaPromptRuns(t *testing.T) {
 	}
 }
 
-func TestQwen3VLMultiAxisPositions(t *testing.T) {
-	positions, err := Qwen3VLMultiAxisPositions(10, 2, 4, 4, 4, 2)
+func TestSpatialPositionsGrid2D(t *testing.T) {
+	positions, err := compileSpatialPositions(10, positionGrid2D, []spatialPositionChunk{{
+		Start: 2, Extents: [tensor.TripleExtent]int{2, 2},
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,8 +119,11 @@ func TestQwen3VLMultiAxisPositions(t *testing.T) {
 	}
 }
 
-func TestQwen3VLMultiChunkPositions(t *testing.T) {
-	positions, err := Qwen3VLMultiChunkPositions(12, []int{2, 8}, 2, 1, 2)
+func TestSpatialPositionsMultipleGrid2D(t *testing.T) {
+	positions, err := compileSpatialPositions(12, positionGrid2D, []spatialPositionChunk{
+		{Start: 2, Extents: [tensor.TripleExtent]int{1, 2}},
+		{Start: 8, Extents: [tensor.TripleExtent]int{1, 2}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,10 +142,10 @@ func TestQwen3VLMultiChunkPositions(t *testing.T) {
 	}
 }
 
-func TestQwen3VLVariableChunkPositions(t *testing.T) {
-	positions, err := Qwen3VLVariableChunkPositions(11, []Qwen3VLPositionChunk{
-		{Start: 2, Rows: 2, Columns: 2},
-		{Start: 7, Rows: 1, Columns: 2},
+func TestSpatialPositionsVariableGrid2D(t *testing.T) {
+	positions, err := compileSpatialPositions(11, positionGrid2D, []spatialPositionChunk{
+		{Start: 2, Extents: [tensor.TripleExtent]int{2, 2}},
+		{Start: 7, Extents: [tensor.TripleExtent]int{1, 2}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -154,7 +161,9 @@ func TestQwen3VLVariableChunkPositions(t *testing.T) {
 			t.Fatalf("axis %d positions = %v, want %v", axis, positions[axis], want[axis])
 		}
 	}
-	if _, err := Qwen3VLVariableChunkPositions(4, []Qwen3VLPositionChunk{{Start: 2, Rows: 2, Columns: 2}}); err == nil {
+	if _, err := compileSpatialPositions(4, positionGrid2D, []spatialPositionChunk{{
+		Start: 2, Extents: [tensor.TripleExtent]int{2, 2},
+	}}); err == nil {
 		t.Fatal("out-of-range variable chunk accepted")
 	}
 }

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"image"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
+	"overgo/internal/tensor"
 )
 
 const hunyuanVLProjectorType = "hunyuanvl"
@@ -52,15 +54,17 @@ func ReadHunyuanVLSpec(file *gguf.File) (HunyuanVLSpec, error) {
 		return HunyuanVLSpec{}, err
 	}
 	conv0, ok := file.Tensor("mm.0.weight")
-	if !ok || conv0.Dimensions != 4 {
+	convIntermediate, conv0OK := checked.Int(conv0.Shape[tensor.TripleExtent])
+	if !ok || conv0.Dimensions != tensor.MaxDimensions || !conv0OK {
 		return HunyuanVLSpec{}, errors.New("projector: Hunyuan-VL first convolution is unavailable or invalid")
 	}
 	conv2, ok := file.Tensor("mm.2.weight")
-	if !ok || conv2.Dimensions != 4 {
+	projectorInput, conv2OK := checked.Int(conv2.Shape[tensor.TripleExtent])
+	if !ok || conv2.Dimensions != tensor.MaxDimensions || !conv2OK {
 		return HunyuanVLSpec{}, errors.New("projector: Hunyuan-VL second convolution is unavailable or invalid")
 	}
-	spec.ConvIntermediate = int(conv0.Shape[3])
-	spec.ProjectorInput = int(conv2.Shape[3])
+	spec.ConvIntermediate = convIntermediate
+	spec.ProjectorInput = projectorInput
 	spec.PreLayerNorm = hasTensor(file, visionPreNormWeightTensor)
 	spec.PostLayerNorm = hasTensor(file, visionPostNormWeightTensor)
 	spec.FusedQKV = make([]bool, spec.Layers)
@@ -92,8 +96,8 @@ func (s HunyuanVLSpec) validate() error {
 	if err := s.visionBackboneSpec.validate(); err != nil {
 		return err
 	}
-	if s.OutputHidden <= 0 || s.MergeSize <= 0 || s.MinPixels <= 0 || s.MaxPixels < s.MinPixels ||
-		s.ConvIntermediate <= 0 || s.ProjectorInput <= 0 || len(s.FusedQKV) != s.Layers {
+	if !checked.PositiveInts(s.OutputHidden, s.MergeSize, s.MinPixels, s.ConvIntermediate, s.ProjectorInput) ||
+		s.MaxPixels < s.MinPixels || len(s.FusedQKV) != s.Layers {
 		return fmt.Errorf("projector: invalid Hunyuan-VL metadata: %+v", s)
 	}
 	return nil
@@ -105,7 +109,7 @@ func validateHunyuanVLCatalog(file *gguf.File, spec HunyuanVLSpec) ([]string, er
 		"mm.pre_norm.weight":       {uint64(spec.Hidden)},
 		"mm.0.weight":              {uint64(spec.MergeSize), uint64(spec.MergeSize), uint64(spec.Hidden), uint64(spec.ConvIntermediate)},
 		"mm.0.bias":                {uint64(spec.ConvIntermediate)},
-		"mm.2.weight":              {1, 1, uint64(spec.ConvIntermediate), uint64(spec.ProjectorInput)},
+		"mm.2.weight":              {tensor.SingletonExtent, tensor.SingletonExtent, uint64(spec.ConvIntermediate), uint64(spec.ProjectorInput)},
 		"mm.2.bias":                {uint64(spec.ProjectorInput)},
 		visionImageNewlineTensor:   {uint64(spec.ProjectorInput)},
 		multimodalProjectionWeight: {uint64(spec.ProjectorInput), uint64(spec.OutputHidden)},

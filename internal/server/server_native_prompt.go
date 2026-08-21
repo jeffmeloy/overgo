@@ -390,7 +390,7 @@ func (h *Handler) projectNativeMultimodalPrompt(
 		if fps == 0 {
 			fps = h.config.VideoFPS
 		}
-		frames, decodeErr := projector.DecodeEncodedVideo(
+		frames, decodeErr := media.DecodeEncodedVideo(
 			ctx, prompt.Video, h.config.FFmpegPath, fps, h.config.VideoMaxFrames,
 		)
 		if decodeErr != nil {

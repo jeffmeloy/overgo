@@ -1,15 +1,16 @@
 package projector
 
-// Gemma 4 tower projector (E4B layout): full vision transformer plus
-// conformer audio encoder. This file owns the mmproj contract — metadata
-// keys, tensor names, and shapes — that the converter must satisfy.
-// Encoding runs in a later serving step; opening validates the catalog.
+// Tower projector contract: metadata and tensor inventory.
 
 import (
 	"errors"
 	"fmt"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
+	"overgo/internal/media"
+	"overgo/internal/tensor"
+	"overgo/internal/tensorcatalog"
 )
 
 const (
@@ -32,8 +33,8 @@ type Gemma4VisionTowerSpec struct {
 	MaxVideoTokens   int
 	RMSNormEpsilon   float32
 	RopeFreqBase     float32
-	InputScale       [3]float32
-	InputBias        [3]float32
+	InputScale       [media.RGBChannels]float32
+	InputBias        [media.RGBChannels]float32
 	HiddenActivation string
 }
 
@@ -72,7 +73,7 @@ type Gemma4TowerSpec struct {
 type Gemma4TowerRunner struct {
 	projectorResources
 	spec      Gemma4TowerSpec
-	audioPlan *gemma4AudioFrontendPlan
+	audioPlan *audioFrontendPlan
 }
 
 func (r *Gemma4TowerRunner) Spec() Gemma4TowerSpec {
@@ -159,17 +160,17 @@ func ReadGemma4TowerSpec(file *gguf.File) (Gemma4TowerSpec, error) {
 		}
 		*field.target = value
 	}
-	inputScale, err := metadataFloat32Array(file, "clip.vision.input_scale", 3)
+	inputScale, err := metadataFloat32Array(file, "clip.vision.input_scale", media.RGBChannels)
 	if err != nil {
 		return spec, err
 	}
-	inputBias, err := metadataFloat32Array(file, "clip.vision.input_bias", 3)
+	inputBias, err := metadataFloat32Array(file, "clip.vision.input_bias", media.RGBChannels)
 	if err != nil {
 		return spec, err
 	}
 	copy(vision.InputScale[:], inputScale)
 	copy(vision.InputBias[:], inputBias)
-	subChannels, err := metadataInt32ArrayValues(file, "clip.audio.subsampling_conv_channels")
+	subChannels, err := metadataInts(file, "clip.audio.subsampling_conv_channels", tensorRequired, true)
 	if err != nil {
 		return spec, err
 	}
@@ -180,79 +181,65 @@ func ReadGemma4TowerSpec(file *gguf.File) (Gemma4TowerSpec, error) {
 	return spec, nil
 }
 
-func metadataInt32ArrayValues(file *gguf.File, key string) ([]int, error) {
-	value, ok := file.MetadataValue(key)
-	if !ok || value.Type != gguf.ValueTypeArray || value.ArrayType != gguf.ValueTypeInt32 {
-		return nil, fmt.Errorf("projector: metadata %q must be int32 array", key)
-	}
-	encoded, ok := value.Data.([]int32)
-	if !ok || len(encoded) == 0 {
-		return nil, fmt.Errorf("projector: metadata %q has invalid storage", key)
-	}
-	result := make([]int, len(encoded))
-	for index, item := range encoded {
-		if item <= 0 {
-			return nil, fmt.Errorf("projector: metadata %q entry %d is not positive", key, index)
-		}
-		result[index] = int(item)
-	}
-	return result, nil
-}
-
 func (s Gemma4TowerSpec) validate() error {
 	vision, audio := s.Vision, s.Audio
 	if err := vision.validate(); err != nil {
 		return err
 	}
-	if audio.Layers <= 0 || audio.Hidden <= 0 || audio.Heads <= 0 || audio.Hidden%audio.Heads != 0 ||
-		audio.Intermediate <= 0 || audio.ConvKernel <= 0 || len(audio.SubChannels) == 0 ||
-		audio.ChunkSize <= 0 || audio.ContextLeft < 0 || audio.ContextRight < 0 ||
-		audio.OutputProjDim <= 0 || audio.ProjectionDim <= 0 || audio.MelBins <= 0 ||
-		audio.FFTLength <= 0 || audio.FrameLength <= 0 || audio.HopLength <= 0 ||
-		audio.SampleRate <= 0 || audio.LogitSoftcap <= 0 || audio.ResidualWeight <= 0 ||
-		audio.RMSNormEpsilon <= 0 || audio.MinFrequency < 0 || audio.MaxFrequency <= audio.MinFrequency ||
-		audio.MelFloor <= 0 || audio.HiddenActivation == "" {
+	_, audioHeadsOK := checked.DivExactInt(audio.Hidden, audio.Heads)
+	if !checked.PositiveInts(
+		audio.Layers, audio.Hidden, audio.Heads, audio.Intermediate, audio.ConvKernel, len(audio.SubChannels),
+		audio.ChunkSize, audio.OutputProjDim, audio.ProjectionDim, audio.MelBins,
+		audio.FFTLength, audio.FrameLength, audio.HopLength, audio.SampleRate,
+	) || !checked.NonNegativeInts(audio.ContextLeft, audio.ContextRight) || !audioHeadsOK ||
+		audio.FFTLength < audio.FrameLength ||
+		!checked.PositiveFinite32(audio.LogitSoftcap) || !checked.PositiveFinite32(audio.ResidualWeight) ||
+		!checked.PositiveFinite32(audio.RMSNormEpsilon) || !checked.NonNegativeFinite32(audio.MinFrequency) ||
+		!checked.Finite32(audio.MaxFrequency) || audio.MaxFrequency <= audio.MinFrequency ||
+		audio.MaxFrequency > float32(audio.SampleRate)/tensor.PairedExtent ||
+		!checked.PositiveFinite32(audio.MelFloor) || audio.HiddenActivation == "" {
 		return fmt.Errorf("projector: invalid Gemma 4 audio tower metadata: %+v", audio)
 	}
 	return nil
 }
 
 func (vision Gemma4VisionTowerSpec) validate() error {
-	if vision.Layers <= 0 || vision.Hidden <= 0 || vision.Heads <= 0 || vision.KVHeads <= 0 ||
-		vision.HeadDim <= 0 || vision.HeadDim%4 != 0 || vision.Heads%vision.KVHeads != 0 ||
-		vision.Intermediate <= 0 || vision.PatchSize <= 0 ||
-		vision.PoolKernel <= 0 || vision.PositionCount <= 0 || vision.ProjectionDim <= 0 ||
-		vision.MaxImageTokens <= 0 || vision.MaxVideoTokens <= 0 ||
-		vision.RMSNormEpsilon <= 0 || vision.RopeFreqBase <= 0 || vision.HiddenActivation == "" {
+	_, headAxesOK := checked.DivExactInt(vision.HeadDim, tensor.PairedExtent*tensor.PairedExtent)
+	_, groupedHeadsOK := checked.DivExactInt(vision.Heads, vision.KVHeads)
+	if !checked.PositiveInts(
+		vision.Layers, vision.Hidden, vision.Heads, vision.KVHeads, vision.HeadDim, vision.Intermediate,
+		vision.PatchSize, vision.PoolKernel, vision.PositionCount, vision.ProjectionDim,
+		vision.MaxImageTokens, vision.MaxVideoTokens,
+	) || !headAxesOK || !groupedHeadsOK || !checked.PositiveFinite32(vision.RMSNormEpsilon) ||
+		!checked.PositiveFinite32(vision.RopeFreqBase) || vision.HiddenActivation == "" {
 		return fmt.Errorf("projector: invalid Gemma 4 vision tower metadata: %+v", vision)
 	}
 	for channel := range vision.InputScale {
-		if vision.InputScale[channel] == 0 || !finite32(vision.InputScale[channel]) || !finite32(vision.InputBias[channel]) {
+		if !checked.Nonzero(vision.InputScale[channel]) || !checked.Finite32(vision.InputScale[channel]) || !checked.Finite32(vision.InputBias[channel]) {
 			return fmt.Errorf("projector: invalid Gemma 4 vision input affine channel %d", channel)
 		}
 	}
 	return nil
 }
 
-// gemma4TowerClippedLinear: clipped-linear weights carry four rank-1 F32
-// calibration scalars beside the BF16 weight.
-func gemma4TowerClippedLinear(required map[string][]uint64, base string, shape []uint64) {
+// addClippedLinearCatalog: weight plus scalar clamp bounds.
+func addClippedLinearCatalog(required map[string][]uint64, base string, shape []uint64) {
 	required[base+".weight"] = shape
 	for _, scalar := range []string{"input_min", "input_max", "output_min", "output_max"} {
-		required[base+"."+scalar] = []uint64{1}
+		required[base+"."+scalar] = []uint64{tensor.SingletonExtent}
 	}
 }
 
 func validateGemma4TowerCatalog(file *gguf.File, spec Gemma4TowerSpec) ([]string, error) {
 	vision, audio := spec.Vision, spec.Audio
 	hidden := uint64(vision.Hidden)
-	patchPixels := uint64(vision.PatchSize * vision.PatchSize * 3)
+	patchPixels := uint64(vision.PatchSize * vision.PatchSize * media.RGBChannels)
 	queryWidth := uint64(vision.Heads * vision.HeadDim)
 	kvWidth := uint64(vision.KVHeads * vision.HeadDim)
 	inter := uint64(vision.Intermediate)
 	required := map[string][]uint64{
 		visionPatchWeightTensor:    {patchPixels, hidden},
-		visionPositionWeightTensor: {hidden, uint64(vision.PositionCount), 2},
+		visionPositionWeightTensor: {hidden, uint64(vision.PositionCount), tensor.PairedExtent},
 		multimodalInputProjection:  {hidden, uint64(vision.ProjectionDim)},
 	}
 	for layer := 0; layer < vision.Layers; layer++ {
@@ -262,13 +249,13 @@ func validateGemma4TowerCatalog(file *gguf.File, spec Gemma4TowerSpec) ([]string
 		}
 		required[prefix+"attn_q_norm.weight"] = []uint64{uint64(vision.HeadDim)}
 		required[prefix+"attn_k_norm.weight"] = []uint64{uint64(vision.HeadDim)}
-		gemma4TowerClippedLinear(required, prefix+"attn_q", []uint64{hidden, queryWidth})
-		gemma4TowerClippedLinear(required, prefix+"attn_k", []uint64{hidden, kvWidth})
-		gemma4TowerClippedLinear(required, prefix+"attn_v", []uint64{hidden, kvWidth})
-		gemma4TowerClippedLinear(required, prefix+"attn_output", []uint64{queryWidth, hidden})
-		gemma4TowerClippedLinear(required, prefix+"ffn_gate", []uint64{hidden, inter})
-		gemma4TowerClippedLinear(required, prefix+"ffn_up", []uint64{hidden, inter})
-		gemma4TowerClippedLinear(required, prefix+"ffn_down", []uint64{inter, hidden})
+		addClippedLinearCatalog(required, prefix+"attn_q", []uint64{hidden, queryWidth})
+		addClippedLinearCatalog(required, prefix+"attn_k", []uint64{hidden, kvWidth})
+		addClippedLinearCatalog(required, prefix+"attn_v", []uint64{hidden, kvWidth})
+		addClippedLinearCatalog(required, prefix+"attn_output", []uint64{queryWidth, hidden})
+		addClippedLinearCatalog(required, prefix+"ffn_gate", []uint64{hidden, inter})
+		addClippedLinearCatalog(required, prefix+"ffn_up", []uint64{hidden, inter})
+		addClippedLinearCatalog(required, prefix+"ffn_down", []uint64{inter, hidden})
 	}
 	audioHidden := uint64(audio.Hidden)
 	audioInter := uint64(audio.Intermediate)
@@ -283,37 +270,50 @@ func validateGemma4TowerCatalog(file *gguf.File, spec Gemma4TowerSpec) ([]string
 		}
 		required[prefix+"attn_per_dim_scale.weight"] = []uint64{uint64(audio.Hidden / audio.Heads)}
 		required[prefix+"attn_rel_k.weight"] = []uint64{audioHidden, audioHidden}
-		required[prefix+"conv_dw.weight"] = []uint64{uint64(audio.ConvKernel), 1, audioHidden}
-		gemma4TowerClippedLinear(required, prefix+"attn_q", []uint64{audioHidden, audioHidden})
-		gemma4TowerClippedLinear(required, prefix+"attn_k", []uint64{audioHidden, audioHidden})
-		gemma4TowerClippedLinear(required, prefix+"attn_v", []uint64{audioHidden, audioHidden})
-		gemma4TowerClippedLinear(required, prefix+"attn_output", []uint64{audioHidden, audioHidden})
-		gemma4TowerClippedLinear(required, prefix+"ffn1_up", []uint64{audioHidden, audioInter})
-		gemma4TowerClippedLinear(required, prefix+"ffn1_down", []uint64{audioInter, audioHidden})
-		gemma4TowerClippedLinear(required, prefix+"ffn2_up", []uint64{audioHidden, audioInter})
-		gemma4TowerClippedLinear(required, prefix+"ffn2_down", []uint64{audioInter, audioHidden})
-		gemma4TowerClippedLinear(required, prefix+"conv_start", []uint64{audioHidden, 2 * audioHidden})
-		gemma4TowerClippedLinear(required, prefix+"conv_end", []uint64{audioHidden, audioHidden})
+		required[prefix+"conv_dw.weight"] = []uint64{uint64(audio.ConvKernel), tensor.SingletonExtent, audioHidden}
+		addClippedLinearCatalog(required, prefix+"attn_q", []uint64{audioHidden, audioHidden})
+		addClippedLinearCatalog(required, prefix+"attn_k", []uint64{audioHidden, audioHidden})
+		addClippedLinearCatalog(required, prefix+"attn_v", []uint64{audioHidden, audioHidden})
+		addClippedLinearCatalog(required, prefix+"attn_output", []uint64{audioHidden, audioHidden})
+		addClippedLinearCatalog(required, prefix+"ffn1_up", []uint64{audioHidden, audioInter})
+		addClippedLinearCatalog(required, prefix+"ffn1_down", []uint64{audioInter, audioHidden})
+		addClippedLinearCatalog(required, prefix+"ffn2_up", []uint64{audioHidden, audioInter})
+		addClippedLinearCatalog(required, prefix+"ffn2_down", []uint64{audioInter, audioHidden})
+		addClippedLinearCatalog(required, prefix+"conv_start", []uint64{audioHidden, tensor.PairedExtent * audioHidden})
+		addClippedLinearCatalog(required, prefix+"conv_end", []uint64{audioHidden, audioHidden})
 	}
-	inputChannels := uint64(1)
+	inputChannels := uint64(tensor.SingletonExtent)
 	for index, channels := range audio.SubChannels {
 		name := fmt.Sprintf("a.conv.%d.weight", index)
 		info, ok := file.Tensor(name)
-		// kernel spatial dims are tensor-owned; channel dims come from config
-		if !ok || info.Dimensions != 4 || info.Shape[2] != inputChannels || info.Shape[3] != uint64(channels) {
-			return nil, fmt.Errorf(
-				"projector: Gemma 4 audio subsample tensor %q is unavailable or has invalid channels", name)
+		if !ok {
+			return nil, fmt.Errorf("projector: Gemma 4 audio subsample tensor %q is unavailable", name)
 		}
-		required[name] = []uint64{info.Shape[0], info.Shape[1], inputChannels, uint64(channels)}
+		if err := tensorcatalog.ValidateInfo(info, tensorcatalog.Requirement{Rank: tensor.MaxDimensions, NonEmpty: true}); err != nil {
+			return nil, fmt.Errorf("projector: Gemma 4 audio subsample tensor: %w", err)
+		}
+		if err := tensorcatalog.ValidateRelations(info, nil, []tensorcatalog.FixedAxis{
+			{Axis: tensor.PairedExtent, Extent: inputChannels}, {Axis: tensor.TripleExtent, Extent: uint64(channels)},
+		}); err != nil {
+			return nil, fmt.Errorf(
+				"projector: Gemma 4 audio subsample tensor %q: %w", name, err)
+		}
+		required[name] = []uint64{info.Shape[tensor.FirstOffset], info.Shape[tensor.SingletonExtent], inputChannels, uint64(channels)}
 		required[fmt.Sprintf("a.conv.%d.norm.weight", index)] = []uint64{uint64(channels)}
 		inputChannels = uint64(channels)
 	}
 	inputProj, ok := file.Tensor("a.input_proj.weight")
-	// flattened subsample width is tensor-owned; output width is the tower hidden
-	if !ok || inputProj.Dimensions != 2 || inputProj.Shape[1] != audioHidden || inputProj.Shape[0] == 0 {
-		return nil, errors.New("projector: Gemma 4 audio input projection is unavailable or invalid")
+	if !ok {
+		return nil, errors.New("projector: Gemma 4 audio input projection is unavailable")
 	}
-	required["a.input_proj.weight"] = []uint64{inputProj.Shape[0], audioHidden}
+	if err := tensorcatalog.ValidateInfo(inputProj, tensorcatalog.Requirement{Rank: tensor.PairedExtent, NonEmpty: true}); err != nil {
+		return nil, fmt.Errorf("projector: Gemma 4 audio input projection: %w", err)
+	}
+	if err := tensorcatalog.ValidateRelations(inputProj, nil,
+		[]tensorcatalog.FixedAxis{{Axis: tensor.SingletonExtent, Extent: audioHidden}}); err != nil {
+		return nil, fmt.Errorf("projector: Gemma 4 audio input projection: %w", err)
+	}
+	required["a.input_proj.weight"] = []uint64{inputProj.Shape[tensor.FirstOffset], audioHidden}
 	required["a.output_proj.weight"] = []uint64{audioHidden, uint64(audio.OutputProjDim)}
 	required["a.output_proj.bias"] = []uint64{uint64(audio.OutputProjDim)}
 	required["mm.a.input_projection.weight"] = []uint64{uint64(audio.OutputProjDim), uint64(audio.ProjectionDim)}

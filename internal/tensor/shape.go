@@ -38,6 +38,11 @@ func (s Shape) RowCount() uint64 {
 	return s.Dims[SingletonExtent]
 }
 
+func SquareSideInt(extent uint64) (int, bool) {
+	side := uint64(math.Sqrt(float64(extent)))
+	return int(side), side <= math.MaxInt && side*side == extent
+}
+
 func NewShape(dimensions ...uint64) (Shape, error) {
 	if len(dimensions) == 0 || len(dimensions) > MaxDimensions {
 		return Shape{}, fmt.Errorf("tensor rank must be in [1,%d]", MaxDimensions)

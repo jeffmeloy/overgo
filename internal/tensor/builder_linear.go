@@ -39,6 +39,10 @@ func (b *Builder) GEGLU(gate, up *Tensor) *Tensor {
 	return b.Multiply(b.GELU(gate), up)
 }
 
+func (b *Builder) QuickGELU(input *Tensor) *Tensor {
+	return b.Multiply(input, b.Sigmoid(b.Scale(input, hostmath.QuickGELUScale)))
+}
+
 // ReGLU: ReLU(gate) * up
 func (b *Builder) ReGLU(gate, up *Tensor) *Tensor {
 	return b.Multiply(b.ReLU(gate), up)

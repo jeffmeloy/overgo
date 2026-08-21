@@ -8,15 +8,17 @@ import (
 	"math"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
+	"overgo/internal/media"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/tensorcatalog"
 )
 
 const (
 	gemma3nVisionProjectorType = "gemma3nv"
-	gemma3nVisionNormEpsilon   = 1e-6
 	Gemma3nImagePad            = "<image_soft_token>"
 )
 
@@ -41,6 +43,7 @@ type Gemma3nVisionSpec struct {
 	OutputHidden int
 	ImageMean    [3]float32
 	ImageStd     [3]float32
+	NormEpsilon  float32
 	Blocks       []gemma3nVisionBlock
 	StageEnds    []int
 	TensorNames  []string
@@ -89,23 +92,26 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 	); err != nil {
 		return Gemma3nVisionSpec{}, err
 	}
-	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", 3)
+	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", media.RGBChannels)
 	if err != nil {
 		return Gemma3nVisionSpec{}, err
 	}
-	std, err := metadataFloat32Array(file, "clip.vision.image_std", 3)
+	std, err := metadataFloat32Array(file, "clip.vision.image_std", media.RGBChannels)
 	if err != nil {
 		return Gemma3nVisionSpec{}, err
 	}
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
+	if err := readProjectionNorm(file, &spec.NormEpsilon); err != nil {
+		return Gemma3nVisionSpec{}, err
+	}
 	if spec.ImageSize <= 0 || spec.PatchSize <= 0 ||
 		(spec.ImageSize/spec.PatchSize)*spec.PatchSize != spec.ImageSize ||
-		spec.VisionHidden <= 0 || spec.OutputHidden <= 0 {
+		spec.VisionHidden <= 0 || spec.OutputHidden <= 0 || spec.NormEpsilon <= 0 {
 		return Gemma3nVisionSpec{}, fmt.Errorf("projector: invalid Gemma 3n vision metadata: %+v", spec)
 	}
 	for channel := range spec.ImageStd {
-		if spec.ImageStd[channel] <= 0 || !finite32(spec.ImageMean[channel]) || !finite32(spec.ImageStd[channel]) {
+		if !checked.PositiveFinite32(spec.ImageStd[channel]) || !checked.Finite32(spec.ImageMean[channel]) {
 			return Gemma3nVisionSpec{}, fmt.Errorf("projector: invalid Gemma 3n normalization channel %d", channel)
 		}
 	}
@@ -122,9 +128,9 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 	if hasTensor(file, "v.conv_stem.conv.bias") {
 		required = append(required, "v.conv_stem.conv.bias")
 	}
-	for stage := 0; stage < 4; stage++ {
-		found := 0
-		for index := 0; ; index++ {
+	for stage := tensor.FirstOffset; ; stage++ {
+		found := tensor.FirstOffset
+		for index := tensor.FirstOffset; ; index++ {
 			prefix := fmt.Sprintf("v.blk.%d.%d.", stage, index)
 			edge := hasTensor(file, prefix+"conv_exp.weight")
 			inverted := hasTensor(file, prefix+"dw_start.conv.weight") || hasTensor(file, prefix+"pw_exp.conv.weight")
@@ -176,18 +182,21 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 			spec.Blocks = append(spec.Blocks, block)
 			found++
 		}
-		if found > 0 {
-			spec.StageEnds = append(spec.StageEnds, len(spec.Blocks)-1)
+		if found == tensor.FirstOffset {
+			break
 		}
+		spec.StageEnds = append(spec.StageEnds, len(spec.Blocks)-tensor.SingletonExtent)
 	}
-	if len(spec.Blocks) == 0 {
+	if len(spec.Blocks) == tensor.FirstOffset {
 		return Gemma3nVisionSpec{}, errors.New("projector: Gemma 3n MobileNetV5 has no blocks")
 	}
 	slices.Sort(required)
 	spec.TensorNames = slices.Compact(required)
 	for _, name := range spec.TensorNames {
 		info, ok := file.Tensor(name)
-		if !ok || info.Dimensions == 0 || info.Dimensions > 4 {
+		if !ok || tensorcatalog.ValidateInfo(info, tensorcatalog.Requirement{
+			Ranks: []uint32{tensor.SingletonExtent, tensor.PairedExtent, tensor.TripleExtent, tensor.MaxDimensions},
+		}) != nil {
 			return Gemma3nVisionSpec{}, fmt.Errorf("projector: tensor %q is unavailable or invalid", name)
 		}
 	}
@@ -199,17 +208,17 @@ func PreprocessGemma3nVisionImage(source image.Image, spec Gemma3nVisionSpec) ([
 		return nil, errors.New("projector: image is nil")
 	}
 	bounds := source.Bounds()
-	if bounds.Dx() <= 0 || bounds.Dy() <= 0 {
+	if bounds.Empty() {
 		return nil, errors.New("projector: image bounds are empty")
 	}
-	resized := resizeImageBicubic(source, spec.ImageSize, spec.ImageSize)
+	resized := media.ResizeBicubic(source, spec.ImageSize, spec.ImageSize)
 	pixels := make([]float32, 3*spec.ImageSize*spec.ImageSize)
 	for y := 0; y < spec.ImageSize; y++ {
 		for x := 0; x < spec.ImageSize; x++ {
 			r, g, b, _ := resized.At(x, y).RGBA()
-			for channel, raw := range [rgbChannelCount]uint32{r, g, b} {
-				pixels[channel+rgbChannelCount*(x+spec.ImageSize*y)] =
-					(normalizedImageChannel(raw) - spec.ImageMean[channel]) / spec.ImageStd[channel]
+			for channel, raw := range [media.RGBChannels]uint32{r, g, b} {
+				pixels[channel+media.RGBChannels*(x+spec.ImageSize*y)] =
+					(media.NormalizedRGBAChannel(raw) - spec.ImageMean[channel]) / spec.ImageStd[channel]
 			}
 		}
 	}
@@ -225,7 +234,7 @@ func (r *Gemma3nVisionRunner) EncodeImage(ctx context.Context, source image.Imag
 		return reference.Value{}, err
 	}
 	builder := tensor.NewBuilder()
-	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(3, uint64(r.spec.ImageSize), uint64(r.spec.ImageSize)))
+	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(media.RGBChannels, uint64(r.spec.ImageSize), uint64(r.spec.ImageSize)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[input] = pixelsValue(input, pixels)
 	output := r.buildGraph(builder, input, graph.weight, graph.hostFeeds)
@@ -236,21 +245,15 @@ func (r *Gemma3nVisionRunner) EncodeImage(ctx context.Context, source image.Imag
 	return results[output], nil
 }
 
-func tensorInfoShape(info gguf.TensorInfo) tensor.Shape {
-	dimensions := make([]uint64, info.Dimensions)
-	copy(dimensions, info.Shape[:info.Dimensions])
-	return tensor.MustShape(dimensions...)
-}
-
 func (r *Gemma3nVisionRunner) validateGraph() error {
 	builder := tensor.NewBuilder()
-	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(3, uint64(r.spec.ImageSize), uint64(r.spec.ImageSize)))
+	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(media.RGBChannels, uint64(r.spec.ImageSize), uint64(r.spec.ImageSize)))
 	weight := func(name string) *tensor.Tensor {
 		info, ok := r.file.Tensor(name)
 		if !ok {
 			return nil
 		}
-		return builder.Input(name, dtype.F32, tensorInfoShape(info))
+		return builder.Input(name, dtype.F32, tensor.MustShape(info.Extents()...))
 	}
 	_ = r.buildGraph(builder, input, weight, make(map[*tensor.Tensor]reference.Value))
 	if err := builder.Err(); err != nil {
@@ -276,26 +279,26 @@ func (r *Gemma3nVisionRunner) buildGraph(
 	if stemBias != nil {
 		stemBias = builder.Reshape(stemBias, stemWeight.Shape.Dims[3])
 	}
-	cur := gemma3nConvSame(builder, input, stemWeight, stemBias, 2, false)
-	cur = gemma3nSpatialNorm(builder, cur, weight("v.conv_stem.bn.weight"))
+	cur := convolveSame(builder, input, stemWeight, stemBias, tensor.PairedExtent, false)
+	cur = spatialWeightedRMSNorm(builder, cur, weight("v.conv_stem.bn.weight"), r.spec.NormEpsilon)
 	cur = builder.GELUTanhExact(cur)
-	features := make([]*tensor.Tensor, 0, 2)
+	features := make([]*tensor.Tensor, tensor.FirstOffset, tensor.PairedExtent)
 	for blockIndex, block := range r.spec.Blocks {
-		stride := uint32(1)
-		if blockIndex == 0 || slices.Contains(r.spec.StageEnds, blockIndex-1) {
-			stride = 2
+		stride := uint32(tensor.SingletonExtent)
+		if blockIndex == tensor.FirstOffset || slices.Contains(r.spec.StageEnds, blockIndex-tensor.SingletonExtent) {
+			stride = tensor.PairedExtent
 		}
 		switch block.Kind {
 		case gemma3nEdgeBlock:
 			residual := cur
-			cur = gemma3nConvSame(builder, cur, weight(block.Names["conv_exp.weight"]), nil, stride, false)
+			cur = convolveSame(builder, cur, weight(block.Names["conv_exp.weight"]), nil, stride, false)
 			if name := block.Names["bn1.weight"]; name != "" {
-				cur = gemma3nSpatialNorm(builder, cur, weight(name))
+				cur = spatialWeightedRMSNorm(builder, cur, weight(name), r.spec.NormEpsilon)
 			}
 			cur = builder.GELUTanhExact(cur)
-			cur = builder.Conv2D(cur, weight(block.Names["conv_pwl.weight"]), nil, 1, 1, 0, 0, 0, 0, false)
+			cur = convolveSame(builder, cur, weight(block.Names["conv_pwl.weight"]), nil, tensor.SingletonExtent, false)
 			if name := block.Names["bn2.weight"]; name != "" {
-				cur = gemma3nSpatialNorm(builder, cur, weight(name))
+				cur = spatialWeightedRMSNorm(builder, cur, weight(name), r.spec.NormEpsilon)
 			}
 			if residual.Shape.Equal(cur.Shape) {
 				cur = builder.Add(cur, residual)
@@ -305,33 +308,33 @@ func (r *Gemma3nVisionRunner) buildGraph(
 		default:
 			residual := cur
 			if name := block.Names["dw_start.conv.weight"]; name != "" {
-				cur = gemma3nConvSame(builder, cur, weight(name), nil, 1, true)
+				cur = convolveSame(builder, cur, weight(name), nil, tensor.SingletonExtent, true)
 				if norm := block.Names["dw_start.bn.weight"]; norm != "" {
-					cur = gemma3nSpatialNorm(builder, cur, weight(norm))
+					cur = spatialWeightedRMSNorm(builder, cur, weight(norm), r.spec.NormEpsilon)
 				}
 			}
 			if name := block.Names["pw_exp.conv.weight"]; name != "" {
-				cur = builder.Conv2D(cur, weight(name), nil, 1, 1, 0, 0, 0, 0, false)
+				cur = convolveSame(builder, cur, weight(name), nil, tensor.SingletonExtent, false)
 				if norm := block.Names["pw_exp.bn.weight"]; norm != "" {
-					cur = gemma3nSpatialNorm(builder, cur, weight(norm))
+					cur = spatialWeightedRMSNorm(builder, cur, weight(norm), r.spec.NormEpsilon)
 				}
 				cur = builder.GELUTanhExact(cur)
 			}
 			if name := block.Names["dw_mid.conv.weight"]; name != "" {
-				cur = gemma3nConvSame(builder, cur, weight(name), nil, stride, true)
+				cur = convolveSame(builder, cur, weight(name), nil, stride, true)
 				if norm := block.Names["dw_mid.bn.weight"]; norm != "" {
-					cur = gemma3nSpatialNorm(builder, cur, weight(norm))
+					cur = spatialWeightedRMSNorm(builder, cur, weight(norm), r.spec.NormEpsilon)
 				}
 				cur = builder.GELUTanhExact(cur)
 			}
 			if name := block.Names["pw_proj.conv.weight"]; name != "" {
-				cur = builder.Conv2D(cur, weight(name), nil, 1, 1, 0, 0, 0, 0, false)
+				cur = convolveSame(builder, cur, weight(name), nil, tensor.SingletonExtent, false)
 				if norm := block.Names["pw_proj.bn.weight"]; norm != "" {
-					cur = gemma3nSpatialNorm(builder, cur, weight(norm))
+					cur = spatialWeightedRMSNorm(builder, cur, weight(norm), r.spec.NormEpsilon)
 				}
 			}
 			if name := block.Names["layer_scale.gamma"]; name != "" {
-				cur = gemma3nChannelScale(builder, cur, weight(name))
+				cur = scaleChannels(builder, cur, weight(name))
 			}
 			if residual.Shape.Equal(cur.Shape) {
 				cur = builder.Add(cur, residual)
@@ -340,45 +343,49 @@ func (r *Gemma3nVisionRunner) buildGraph(
 		if builder.Err() != nil {
 			return nil
 		}
-		fusion := len(r.spec.StageEnds) >= 4 && (blockIndex == r.spec.StageEnds[2] || blockIndex == r.spec.StageEnds[3])
-		fusion = fusion || len(r.spec.StageEnds) < 4 && blockIndex == len(r.spec.Blocks)-1
-		if fusion {
+		if slices.Contains(r.spec.StageEnds, blockIndex) || blockIndex == len(r.spec.Blocks)-tensor.SingletonExtent {
 			features = append(features, cur)
 		}
 	}
-	if len(features) == 0 {
+	fusionWeight := weight("v.msfa.ffn.pw_exp.conv.weight")
+	start, selectedChannels := len(features), uint64(tensor.FirstOffset)
+	for start > tensor.FirstOffset && selectedChannels < fusionWeight.Shape.Dims[tensor.PairedExtent] {
+		start--
+		selectedChannels += features[start].Shape.Dims[tensor.FirstOffset]
+	}
+	if selectedChannels != fusionWeight.Shape.Dims[tensor.PairedExtent] {
 		return nil
 	}
-	targetW, targetH := int(features[0].Shape.Dims[1]), int(features[0].Shape.Dims[2])
+	features = features[start:]
+	targetW := int(features[tensor.FirstOffset].Shape.Dims[tensor.SingletonExtent])
+	targetH := int(features[tensor.FirstOffset].Shape.Dims[tensor.PairedExtent])
 	resized := make([]*tensor.Tensor, len(features))
 	for index, feature := range features {
-		resized[index] = gemma3nResizeNearest(builder, feature, targetW, targetH)
+		resized[index] = resizeSpatialNearest(builder, feature, targetW, targetH)
 	}
-	cur = resized[0]
-	for _, feature := range resized[1:] {
-		cur = builder.Concat(cur, feature, 0)
+	cur = resized[tensor.FirstOffset]
+	for _, feature := range resized[tensor.SingletonExtent:] {
+		cur = builder.Concat(cur, feature, tensor.FirstOffset)
 	}
-	cur = builder.Conv2D(cur, weight("v.msfa.ffn.pw_exp.conv.weight"), nil, 1, 1, 0, 0, 0, 0, false)
+	cur = convolveSame(builder, cur, fusionWeight, nil, tensor.SingletonExtent, false)
 	if hasTensor(r.file, "v.msfa.ffn.pw_exp.bn.weight") {
-		cur = gemma3nSpatialNorm(builder, cur, weight("v.msfa.ffn.pw_exp.bn.weight"))
+		cur = spatialWeightedRMSNorm(builder, cur, weight("v.msfa.ffn.pw_exp.bn.weight"), r.spec.NormEpsilon)
 	}
 	cur = builder.GELUTanhExact(cur)
-	cur = builder.Conv2D(cur, weight("v.msfa.ffn.pw_proj.conv.weight"), nil, 1, 1, 0, 0, 0, 0, false)
+	cur = convolveSame(builder, cur, weight("v.msfa.ffn.pw_proj.conv.weight"), nil, tensor.SingletonExtent, false)
 	if hasTensor(r.file, "v.msfa.ffn.pw_proj.bn.weight") {
-		cur = gemma3nSpatialNorm(builder, cur, weight("v.msfa.ffn.pw_proj.bn.weight"))
+		cur = spatialWeightedRMSNorm(builder, cur, weight("v.msfa.ffn.pw_proj.bn.weight"), r.spec.NormEpsilon)
 	}
 	gridSide := uint64(r.spec.ImageSize / r.spec.PatchSize)
-	if cur.Shape.Dims[1] > gridSide || cur.Shape.Dims[2] > gridSide {
-		cur = gemma3nAveragePool(builder, cur, int(gridSide), int(gridSide))
-	}
-	cur = gemma3nSpatialNorm(builder, cur, weight("v.msfa.norm.weight"))
-	channels := cur.Shape.Dims[0]
-	cur = builder.Reshape(cur, channels, cur.Shape.Dims[1]*cur.Shape.Dims[2])
+	cur = averagePoolSpatial(builder, cur, int(gridSide), int(gridSide))
+	cur = spatialWeightedRMSNorm(builder, cur, weight("v.msfa.norm.weight"), r.spec.NormEpsilon)
+	channels := cur.Shape.Dims[tensor.FirstOffset]
+	cur = builder.Reshape(cur, channels, cur.Shape.Dims[tensor.SingletonExtent]*cur.Shape.Dims[tensor.PairedExtent])
 	cur = builder.Scale(cur, float32(math.Sqrt(float64(channels))))
 	softNorm := builder.Reshape(weight("mm.soft_emb_norm.weight"), channels)
-	cur = builder.WeightedRMSNorm(cur, softNorm, gemma3nVisionNormEpsilon)
+	cur = builder.WeightedRMSNorm(cur, softNorm, r.spec.NormEpsilon)
 	cur = builder.MulMat(weight(multimodalInputProjection), cur)
-	return builder.RMSNorm(cur, gemma3nVisionNormEpsilon)
+	return builder.RMSNorm(cur, r.spec.NormEpsilon)
 }
 
 func (r *Gemma3nVisionRunner) buildAttentionGraph(
@@ -389,104 +396,45 @@ func (r *Gemma3nVisionRunner) buildAttentionGraph(
 ) *tensor.Tensor {
 	cur := input
 	if name := block.Names["norm.weight"]; name != "" {
-		cur = gemma3nSpatialNorm(builder, cur, weight(name))
+		cur = spatialWeightedRMSNorm(builder, cur, weight(name), r.spec.NormEpsilon)
 	}
-	q := builder.Conv2D(cur, weight(block.Names["attn.query.proj.weight"]), nil, 1, 1, 0, 0, 0, 0, false)
+	q := convolveSame(builder, cur, weight(block.Names["attn.query.proj.weight"]), nil, tensor.SingletonExtent, false)
 	buildKV := func(part string) *tensor.Tensor {
 		value := cur
 		if name := block.Names["attn."+part+".down_conv.weight"]; name != "" {
-			value = gemma3nConvSame(builder, value, weight(name), nil, 2, true)
+			value = convolveSame(builder, value, weight(name), nil, tensor.PairedExtent, true)
 			if norm := block.Names["attn."+part+".norm.weight"]; norm != "" {
-				value = gemma3nSpatialNorm(builder, value, weight(norm))
+				value = spatialWeightedRMSNorm(builder, value, weight(norm), r.spec.NormEpsilon)
 			}
 		}
-		return builder.Conv2D(value, weight(block.Names["attn."+part+".proj.weight"]), nil, 1, 1, 0, 0, 0, 0, false)
+		return convolveSame(builder, value, weight(block.Names["attn."+part+".proj.weight"]), nil, tensor.SingletonExtent, false)
 	}
 	k, v := buildKV("key"), buildKV("value")
 	headWidth := k.Shape.Dims[0]
-	if headWidth == 0 || q.Shape.Dims[0]%headWidth != 0 {
-		builder.Reshape(q, q.Shape.Dims[0]+1)
+	heads, exact := checked.DivExact64(q.Shape.Dims[0], headWidth)
+	if !exact {
+		builder.Reshape(q, q.Shape.Dims[tensor.FirstOffset]+tensor.SingletonExtent)
 		return input
 	}
-	heads := q.Shape.Dims[0] / headWidth
 	q = builder.Reshape(q, headWidth, heads, q.Shape.Dims[1]*q.Shape.Dims[2])
-	k = builder.Reshape(k, headWidth, 1, k.Shape.Dims[1]*k.Shape.Dims[2])
-	v = builder.Reshape(v, headWidth, 1, v.Shape.Dims[1]*v.Shape.Dims[2])
+	k = builder.Reshape(k, headWidth, tensor.SingletonExtent, k.Shape.Dims[tensor.SingletonExtent]*k.Shape.Dims[tensor.PairedExtent])
+	v = builder.Reshape(v, headWidth, tensor.SingletonExtent, v.Shape.Dims[tensor.SingletonExtent]*v.Shape.Dims[tensor.PairedExtent])
 	attention := compileVisionAttention(int(headWidth*heads), int(heads)).graph(builder, q, k, v)
 	if attention == nil {
 		return input
 	}
 	attention = builder.Reshape(attention, headWidth*heads, input.Shape.Dims[1], input.Shape.Dims[2])
-	attention = builder.Conv2D(attention, weight(block.Names["attn.output.proj.weight"]), nil, 1, 1, 0, 0, 0, 0, false)
+	attention = convolveSame(builder, attention, weight(block.Names["attn.output.proj.weight"]), nil, tensor.SingletonExtent, false)
 	if attention == nil {
 		return input
 	}
 	if name := block.Names["layer_scale.gamma"]; name != "" {
-		attention = gemma3nChannelScale(builder, attention, weight(name))
+		attention = scaleChannels(builder, attention, weight(name))
 	}
 	if attention.Shape.Equal(input.Shape) {
 		attention = builder.Add(attention, input)
 	}
 	return attention
-}
-
-func gemma3nConvSame(builder *tensor.Builder, input, weight, bias *tensor.Tensor, stride uint32, depthwise bool) *tensor.Tensor {
-	return sameConvolution(input, weight, stride, depthwise).graph(builder, input, weight, bias)
-}
-
-func gemma3nSpatialNorm(builder *tensor.Builder, input, weight *tensor.Tensor) *tensor.Tensor {
-	channels, width, height := input.Shape.Dims[0], input.Shape.Dims[1], input.Shape.Dims[2]
-	flat := builder.Reshape(input, channels, width*height)
-	normWeight := builder.Reshape(weight, channels)
-	return builder.Reshape(builder.WeightedRMSNorm(flat, normWeight, gemma3nVisionNormEpsilon), channels, width, height)
-}
-
-func gemma3nChannelScale(builder *tensor.Builder, input, weight *tensor.Tensor) *tensor.Tensor {
-	return builder.Multiply(input, builder.Reshape(weight, input.Shape.Dims[0], 1, 1))
-}
-
-func gemma3nResizeNearest(builder *tensor.Builder, input *tensor.Tensor, width, height int) *tensor.Tensor {
-	inputW, inputH := int(input.Shape.Dims[1]), int(input.Shape.Dims[2])
-	if inputW == width && inputH == height {
-		return input
-	}
-	indices := make([]uint32, width*height)
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			indices[x+width*y] = uint32((x * inputW / width) + inputW*(y*inputH/height))
-		}
-	}
-	flat := builder.Reshape(input, input.Shape.Dims[0], uint64(inputW*inputH))
-	return builder.Reshape(builder.GetRows(flat, indices), input.Shape.Dims[0], uint64(width), uint64(height))
-}
-
-func gemma3nAveragePool(builder *tensor.Builder, input *tensor.Tensor, width, height int) *tensor.Tensor {
-	inputW, inputH := int(input.Shape.Dims[1]), int(input.Shape.Dims[2])
-	if inputW%width != 0 || inputH%height != 0 {
-		builder.Reshape(input, 0)
-		return nil
-	}
-	factorW, factorH := inputW/width, inputH/height
-	flat := builder.Reshape(input, input.Shape.Dims[0], uint64(inputW*inputH))
-	var result *tensor.Tensor
-	for dy := 0; dy < factorH; dy++ {
-		for dx := 0; dx < factorW; dx++ {
-			indices := make([]uint32, width*height)
-			for y := 0; y < height; y++ {
-				for x := 0; x < width; x++ {
-					indices[x+width*y] = uint32(x*factorW + dx + inputW*(y*factorH+dy))
-				}
-			}
-			part := builder.GetRows(flat, indices)
-			if result == nil {
-				result = part
-			} else {
-				result = builder.Add(result, part)
-			}
-		}
-	}
-	result = builder.Scale(result, 1/float32(factorW*factorH))
-	return builder.Reshape(result, input.Shape.Dims[0], uint64(width), uint64(height))
 }
 
 func (r *Gemma3nVisionRunner) imagesPrompt(

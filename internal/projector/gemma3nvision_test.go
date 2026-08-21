@@ -110,7 +110,7 @@ func TestGemma3nVisionCUDAMatchesCPU(t *testing.T) {
 func TestGemma3nAveragePool(t *testing.T) {
 	builder := tensor.NewBuilder()
 	input := builder.Input("input", dtype.F32, mustShape(1, 4, 4))
-	output := gemma3nAveragePool(builder, input, 2, 2)
+	output := averagePoolSpatial(builder, input, 2, 2)
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -145,6 +145,7 @@ func tinyGemma3nVisionMetadata() []gguf.Metadata {
 		{Key: "clip.vision.patch_size", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(16)}},
 		{Key: "clip.vision.embedding_length", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(4)}},
 		{Key: "clip.vision.projection_dim", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(4)}},
+		{Key: visionProjectorNormKey, Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
 		{Key: "clip.vision.image_mean", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{0, 0, 0}}},
 		{Key: "clip.vision.image_std", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{1, 1, 1}}},
 	}

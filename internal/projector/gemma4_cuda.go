@@ -2,9 +2,9 @@ package projector
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
+	"overgo/internal/media"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -15,20 +15,16 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 	input Gemma4Image,
 	trace gemma4Trace,
 ) (Gemma4Output, error) {
-	rows := input.GridH * input.GridW
-	if len(input.PixelValues) != rows*r.spec.PatchWidth || len(input.Positions) != rows*2 {
-		return Gemma4Output{}, errors.New("projector: Gemma 4 input shape is inconsistent")
+	rows, err := validateGridStorage(input.GridH, input.GridW,
+		rowStorage{elements: len(input.PixelValues), width: r.spec.PatchWidth},
+		rowStorage{elements: len(input.Positions), width: tensor.PairedExtent},
+	)
+	if err != nil {
+		return Gemma4Output{}, fmt.Errorf("projector: Gemma 4 input: %w", err)
 	}
-	pixels := make([]float32, len(input.PixelValues))
-	patchArea := r.spec.ModelPatch * r.spec.ModelPatch
-	for row := 0; row < rows; row++ {
-		source := input.PixelValues[row*r.spec.PatchWidth:]
-		destination := pixels[row*r.spec.PatchWidth:]
-		for pixel := 0; pixel < patchArea; pixel++ {
-			for channel := 0; channel < 3; channel++ {
-				destination[channel*patchArea+pixel] = source[pixel*3+channel]
-			}
-		}
+	pixels, err := media.InterleavedToPlanarRows(input.PixelValues, rows, media.RGBChannels)
+	if err != nil {
+		return Gemma4Output{}, err
 	}
 
 	builder := tensor.NewBuilder()
@@ -46,13 +42,14 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 	))
 	ln2 := affineNorm.graph(builder, patchDense, weight("v.patch_norm.2.weight"), weight("v.patch_norm.2.bias"))
 	position := builder.Reshape(
-		weight(visionPositionWeightTensor), uint64(r.spec.Hidden), uint64(r.spec.PositionCount*2),
+		weight(visionPositionWeightTensor), uint64(r.spec.Hidden), uint64(r.spec.PositionCount*tensor.PairedExtent),
 	)
 	xRows := make([]uint32, rows)
 	yRows := make([]uint32, rows)
-	for row := 0; row < rows; row++ {
-		x, y := input.Positions[row*2], input.Positions[row*2+1]
-		if x < 0 || y < 0 || x >= r.spec.PositionCount || y >= r.spec.PositionCount {
+	for row := range rows {
+		x := input.Positions[row*tensor.PairedExtent]
+		y := input.Positions[row*tensor.PairedExtent+tensor.SingletonExtent]
+		if x < tensor.FirstOffset || y < tensor.FirstOffset || x >= r.spec.PositionCount || y >= r.spec.PositionCount {
 			return Gemma4Output{}, fmt.Errorf("projector: position %d,%d exceeds table", x, y)
 		}
 		xRows[row] = uint32(x)

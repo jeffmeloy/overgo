@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/checked"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -19,7 +21,6 @@ type imagePromptItem struct {
 	RunCount   int
 	Rows       int
 	Columns    int
-	Width      int
 }
 
 type imagePromptPlan struct {
@@ -30,7 +31,7 @@ type imagePromptPlan struct {
 	EmbeddingWidth   int
 	EmbeddingOffset  int
 	Render           func([]string, []imagePromptItem) string
-	Positions        func(int, []int, []imagePromptItem) ([4][]uint32, error)
+	Positions        func(int, []int, []imagePromptItem) ([tensor.MaxDimensions][]uint32, error)
 	AttentionBlocks  func([]int, []imagePromptItem) []AttentionBlock
 }
 
@@ -49,7 +50,7 @@ func delimitedImagePromptPlan(family, placeholder, label string, addSpecial bool
 func referenceImageEncoder(encode func(context.Context, image.Image) (reference.Value, error)) imagePromptEncoder {
 	return func(ctx context.Context, source image.Image) (imagePromptItem, error) {
 		value, err := encode(ctx, source)
-		return imagePromptItem{Embeddings: value.Data, Count: int(value.Shape.Dims[1])}, err
+		return imagePromptItem{Embeddings: value.Data, Count: int(value.Shape.Dims[tensor.SingletonExtent])}, err
 	}
 }
 
@@ -61,7 +62,6 @@ type mixedMediaPromptItem struct {
 	Embeddings  []float32
 	Token       tokenizer.TokenID
 	Count       int
-	Width       int
 	Attention   bool
 }
 
@@ -75,11 +75,12 @@ type mixedMediaKindPlan struct {
 }
 
 type mixedMediaPromptPlan struct {
-	Family      string
-	AddSpecial  bool
-	PromptLabel string
-	Kinds       map[MediaKind]mixedMediaKindPlan
-	Render      func([]string, []mixedMediaPromptItem) string
+	Family         string
+	AddSpecial     bool
+	EmbeddingWidth int
+	PromptLabel    string
+	Kinds          map[MediaKind]mixedMediaKindPlan
+	Render         func([]string, []mixedMediaPromptItem) string
 }
 
 type mediaPromptRunPlan struct {
@@ -108,7 +109,7 @@ type projectedPromptOutput struct {
 	Starts          []int
 	Counts          []int
 	EmbeddingOffset int
-	Positions       [4][]uint32
+	Positions       [tensor.MaxDimensions][]uint32
 	AttentionBlocks []AttentionBlock
 }
 
@@ -117,7 +118,7 @@ type projectedPromptPlan struct {
 	Embeddings      []float32
 	Deepstack       [][]float32
 	EmbeddingWidth  int
-	Positions       func(int, []int) ([4][]uint32, error)
+	Positions       func(int, []int) ([tensor.MaxDimensions][]uint32, error)
 	AttentionBlocks func([]int, int) []AttentionBlock
 }
 
@@ -125,7 +126,7 @@ func compileMediaPromptRuns(tokenizer ImageTokenizer, plan mediaPromptRunPlan) (
 	if tokenizer == nil {
 		return mediaPromptRuns{}, errors.New("projector: tokenizer is nil")
 	}
-	if plan.Runs <= 0 || plan.TokensPerRun <= 0 {
+	if !checked.PositiveInts(plan.Runs, plan.TokensPerRun) {
 		return mediaPromptRuns{}, errors.New("projector: media prompt run plan is invalid")
 	}
 	counts := make([]int, plan.Runs)
@@ -141,7 +142,7 @@ func compileMediaPromptRuns(tokenizer ImageTokenizer, plan mediaPromptRunPlan) (
 	}
 	return mediaPromptRuns{
 		TokenIDs: ids, Starts: starts, Counts: counts,
-		Indices: embeddingTokenIndices(starts, counts, 0),
+		Indices: embeddingTokenIndices(starts, counts, tensor.FirstOffset),
 	}, nil
 }
 
@@ -150,7 +151,7 @@ func executeProjectedPromptPlan(tokenizer ImageTokenizer, plan projectedPromptPl
 	if err != nil {
 		return MultimodalPrompt{}, err
 	}
-	positions := [4][]uint32{}
+	positions := [tensor.MaxDimensions][]uint32{}
 	if plan.Positions != nil {
 		positions, err = plan.Positions(len(runs.TokenIDs), runs.Starts)
 		if err != nil {
@@ -169,15 +170,15 @@ func executeProjectedPromptPlan(tokenizer ImageTokenizer, plan projectedPromptPl
 }
 
 func assembleProjectedPrompt(output projectedPromptOutput) (MultimodalPrompt, error) {
-	if len(output.Starts) == 0 || len(output.Starts) != len(output.Counts) {
+	if len(output.Starts) == tensor.FirstOffset || len(output.Starts) != len(output.Counts) {
 		return MultimodalPrompt{}, errors.New("projector: projected prompt runs are inconsistent")
 	}
-	if output.EmbeddingWidth <= 0 {
+	if !checked.PositiveInts(output.EmbeddingWidth) {
 		return MultimodalPrompt{}, errors.New("projector: projected prompt embedding width is invalid")
 	}
-	tokenCount := 0
+	tokenCount := tensor.FirstOffset
 	for _, count := range output.Counts {
-		if count <= 0 {
+		if !checked.PositiveInts(count) {
 			return MultimodalPrompt{}, errors.New("projector: projected prompt run is empty")
 		}
 		tokenCount += count
@@ -195,7 +196,7 @@ func assembleProjectedPrompt(output projectedPromptOutput) (MultimodalPrompt, er
 	}
 	return MultimodalPrompt{
 		TokenIDs: output.TokenIDs, Embeddings: output.Embeddings, DeepstackEmbeddings: output.Deepstack,
-		EmbeddingWidth: output.EmbeddingWidth, EmbeddingStart: output.Starts[0] + output.EmbeddingOffset,
+		EmbeddingWidth: output.EmbeddingWidth, EmbeddingStart: output.Starts[tensor.FirstOffset] + output.EmbeddingOffset,
 		EmbeddingTokenIndices: embeddingTokenIndices(output.Starts, output.Counts, output.EmbeddingOffset),
 		MultiAxisPositions:    output.Positions, AttentionBlocks: output.AttentionBlocks,
 	}, nil
@@ -220,7 +221,7 @@ func executeImagePromptPlan(
 	if err := validateImagePromptInputs(tokenizerAPI, sources, text, plan.Family); err != nil {
 		return MultimodalPrompt{}, err
 	}
-	if encode == nil || plan.Render == nil {
+	if encode == nil || plan.Render == nil || !checked.PositiveInts(plan.EmbeddingWidth) {
 		return MultimodalPrompt{}, errors.New("projector: image prompt plan is incomplete")
 	}
 	items := make([]imagePromptItem, len(sources))
@@ -230,10 +231,13 @@ func executeImagePromptPlan(
 		if err != nil {
 			return MultimodalPrompt{}, fmt.Errorf("projector: encode %s image %d: %w", plan.Family, index, err)
 		}
-		if item.Count <= 0 {
+		if !checked.PositiveInts(item.Count) {
 			return MultimodalPrompt{}, fmt.Errorf("projector: %s image %d produced no embedding tokens", plan.Family, index)
 		}
-		if item.RunCount == 0 {
+		if err := validateRowStorage(item.Count, rowStorage{elements: len(item.Embeddings), width: plan.EmbeddingWidth}); err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: %s image %d embedding shape: %w", plan.Family, index, err)
+		}
+		if item.RunCount == tensor.FirstOffset {
 			item.RunCount = item.Count
 		}
 		if item.RunCount < item.Count+plan.EmbeddingOffset {
@@ -242,8 +246,8 @@ func executeImagePromptPlan(
 		items[index] = item
 		counts[index] = item.RunCount
 	}
-	embeddingElements := 0
-	deepstackStreams := len(items[0].Deepstack)
+	embeddingElements := tensor.FirstOffset
+	deepstackStreams := len(items[tensor.FirstOffset].Deepstack)
 	for index, item := range items {
 		embeddingElements += len(item.Embeddings)
 		if len(item.Deepstack) != deepstackStreams {
@@ -252,14 +256,14 @@ func executeImagePromptPlan(
 			)
 		}
 	}
-	embeddings := make([]float32, 0, embeddingElements)
+	embeddings := make([]float32, tensor.FirstOffset, embeddingElements)
 	deepstack := make([][]float32, deepstackStreams)
 	for stream := range deepstack {
-		capacity := 0
+		capacity := tensor.FirstOffset
 		for _, item := range items {
 			capacity += len(item.Deepstack[stream])
 		}
-		deepstack[stream] = make([]float32, 0, capacity)
+		deepstack[stream] = make([]float32, tensor.FirstOffset, capacity)
 	}
 	for _, item := range items {
 		embeddings = append(embeddings, item.Embeddings...)
@@ -272,7 +276,7 @@ func executeImagePromptPlan(
 	if compact {
 		promptItems = slices.Clone(items)
 		for index := range promptItems {
-			promptItems[index].RunCount = 1
+			promptItems[index].RunCount = tensor.SingletonExtent
 		}
 	}
 	prompt := plan.Render(text, promptItems)
@@ -295,7 +299,7 @@ func executeImagePromptPlan(
 	if err != nil {
 		return MultimodalPrompt{}, err
 	}
-	positions := [4][]uint32{}
+	positions := [tensor.MaxDimensions][]uint32{}
 	if plan.Positions != nil {
 		positions, err = plan.Positions(len(ids), starts, items)
 		if err != nil {
@@ -306,17 +310,8 @@ func executeImagePromptPlan(
 	for index := range items {
 		embeddingCounts[index] = items[index].Count
 	}
-	width := plan.EmbeddingWidth
-	if width == 0 {
-		width = items[0].Width
-	}
-	for index, item := range items {
-		if item.Width != 0 && item.Width != width {
-			return MultimodalPrompt{}, fmt.Errorf("projector: %s image %d embedding width changed", plan.Family, index)
-		}
-	}
 	return assembleProjectedPrompt(projectedPromptOutput{
-		TokenIDs: ids, Embeddings: embeddings, Deepstack: deepstack, EmbeddingWidth: width,
+		TokenIDs: ids, Embeddings: embeddings, Deepstack: deepstack, EmbeddingWidth: plan.EmbeddingWidth,
 		Starts: starts, Counts: embeddingCounts, EmbeddingOffset: plan.EmbeddingOffset,
 		Positions: positions, AttentionBlocks: imagePromptAttentionBlocks(plan, starts, items),
 	})
@@ -332,11 +327,10 @@ func executeMixedMediaPromptPlan(
 	if err := validateMediaHistoryInputs(tokenizerAPI, media, text, plan.Family); err != nil {
 		return MultimodalPrompt{}, err
 	}
-	if plan.Render == nil || len(plan.Kinds) == 0 {
+	if plan.Render == nil || len(plan.Kinds) == tensor.FirstOffset || !checked.PositiveInts(plan.EmbeddingWidth) {
 		return MultimodalPrompt{}, errors.New("projector: mixed-media prompt plan is incomplete")
 	}
 	items := make([]mixedMediaPromptItem, len(media))
-	embeddingWidth := 0
 	for index, input := range media {
 		kind, ok := plan.Kinds[input.Kind]
 		if !ok || kind.Encode == nil || kind.Placeholder == "" {
@@ -346,31 +340,27 @@ func executeMixedMediaPromptPlan(
 		if err != nil {
 			return MultimodalPrompt{}, fmt.Errorf("projector: tokenize %s: %w", kind.PlaceholderLabel, err)
 		}
-		if len(placeholderIDs) != 1 {
+		if len(placeholderIDs) != tensor.SingletonExtent {
 			return MultimodalPrompt{}, fmt.Errorf("projector: %s maps to %d tokens", kind.PlaceholderLabel, len(placeholderIDs))
 		}
 		encoded, err := kind.Encode(ctx, input)
 		if err != nil {
 			return MultimodalPrompt{}, fmt.Errorf("projector: encode %s media %d: %w", plan.Family, index, err)
 		}
-		if encoded.Count <= 0 || encoded.Width <= 0 || len(encoded.Embeddings) != encoded.Count*encoded.Width {
+		if err := validateRowStorage(encoded.Count, rowStorage{elements: len(encoded.Embeddings), width: plan.EmbeddingWidth}); err != nil {
 			return MultimodalPrompt{}, fmt.Errorf("projector: %s media %d embedding shape is invalid", plan.Family, index)
 		}
-		if embeddingWidth != 0 && encoded.Width != embeddingWidth {
-			return MultimodalPrompt{}, fmt.Errorf("projector: %s media embedding widths differ", plan.Family)
-		}
-		embeddingWidth = encoded.Width
 		items[index] = mixedMediaPromptItem{
 			Kind: input.Kind, Placeholder: kind.Placeholder, Open: kind.Open, Close: kind.Close,
-			Embeddings: encoded.Embeddings, Token: placeholderIDs[0], Count: encoded.Count,
-			Width: encoded.Width, Attention: kind.Attention,
+			Embeddings: encoded.Embeddings, Token: placeholderIDs[tensor.FirstOffset], Count: encoded.Count,
+			Attention: kind.Attention,
 		}
 	}
-	embeddingElements := 0
+	embeddingElements := tensor.FirstOffset
 	for _, item := range items {
 		embeddingElements += len(item.Embeddings)
 	}
-	embeddings := make([]float32, 0, embeddingElements)
+	embeddings := make([]float32, tensor.FirstOffset, embeddingElements)
 	for _, item := range items {
 		embeddings = append(embeddings, item.Embeddings...)
 	}
@@ -387,14 +377,14 @@ func executeMixedMediaPromptPlan(
 	if err != nil {
 		return MultimodalPrompt{}, fmt.Errorf("projector: %s: %w", plan.PromptLabel, err)
 	}
-	blocks := make([]AttentionBlock, 0, len(items))
+	blocks := make([]AttentionBlock, tensor.FirstOffset, len(items))
 	for index, item := range items {
 		if item.Attention {
 			blocks = append(blocks, AttentionBlock{Start: uint32(starts[index]), End: uint32(starts[index] + item.Count)})
 		}
 	}
 	return assembleProjectedPrompt(projectedPromptOutput{
-		TokenIDs: ids, Embeddings: embeddings, EmbeddingWidth: embeddingWidth,
+		TokenIDs: ids, Embeddings: embeddings, EmbeddingWidth: plan.EmbeddingWidth,
 		Starts: starts, Counts: counts, AttentionBlocks: blocks,
 	})
 }
@@ -407,7 +397,7 @@ func renderMixedMediaHistory(text []string, items []mixedMediaPromptItem) string
 		prompt.WriteString(strings.Repeat(item.Placeholder, item.Count))
 		prompt.WriteString(item.Close)
 	}
-	prompt.WriteString(text[len(text)-1])
+	prompt.WriteString(text[len(text)-tensor.SingletonExtent])
 	return prompt.String()
 }
 
@@ -418,22 +408,22 @@ func imagePromptAttentionBlocks(plan imagePromptPlan, starts []int, items []imag
 	return plan.AttentionBlocks(starts, items)
 }
 
-func qwenImagePromptPositions(tokenCount int, starts []int, items []imagePromptItem) ([4][]uint32, error) {
-	chunks := make([]Qwen3VLPositionChunk, len(starts))
+func qwenImagePromptPositions(tokenCount int, starts []int, items []imagePromptItem) ([tensor.MaxDimensions][]uint32, error) {
+	chunks := make([]spatialPositionChunk, len(starts))
 	for index, start := range starts {
-		chunks[index] = Qwen3VLPositionChunk{Start: start, Rows: items[index].Rows, Columns: items[index].Columns}
+		chunks[index] = spatialPositionChunk{Start: start, Extents: [tensor.TripleExtent]int{items[index].Rows, items[index].Columns}}
 	}
-	return Qwen3VLVariableChunkPositions(tokenCount, chunks)
+	return compileSpatialPositions(tokenCount, positionGrid2D, chunks)
 }
 
-func hunyuanImagePromptPositions(tokenCount int, starts []int, items []imagePromptItem) ([4][]uint32, error) {
-	chunks := make([]HunyuanVLPositionChunk, len(starts))
+func hunyuanImagePromptPositions(tokenCount int, starts []int, items []imagePromptItem) ([tensor.MaxDimensions][]uint32, error) {
+	chunks := make([]spatialPositionChunk, len(starts))
 	for index, start := range starts {
-		chunks[index] = HunyuanVLPositionChunk{
-			Start: start, Rows: items[index].Rows, Columns: items[index].Columns, ImageIndex: index,
+		chunks[index] = spatialPositionChunk{
+			Start: start, Extents: [tensor.TripleExtent]int{items[index].Rows, items[index].Columns}, Index: index,
 		}
 	}
-	return HunyuanVLVariableChunkPositions(tokenCount, chunks)
+	return compileSpatialPositions(tokenCount, positionDelimitedRows, chunks)
 }
 
 func qwenImagePlan(
@@ -488,7 +478,7 @@ func qwenImagePromptItem(output Qwen3VLOutput) (imagePromptItem, error) {
 	}
 	return imagePromptItem{
 		Embeddings: output.Embeddings.Data, Deepstack: deepstack,
-		Count: int(output.Embeddings.Shape.Dims[1]),
+		Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent]),
 		Rows:  output.GridH / output.MergeSize, Columns: output.GridW / output.MergeSize,
 	}, nil
 }

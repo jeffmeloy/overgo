@@ -115,6 +115,7 @@ func tinyDeepSeekOCR2Metadata() []gguf.Metadata {
 	}
 	return append(metadata,
 		gguf.Metadata{Key: "clip.vision.attention.head_count_kv", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
+		gguf.Metadata{Key: visionRopeFrequencyKey, Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: fixtureExtendedRopeFrequency}},
 	)
 }
 

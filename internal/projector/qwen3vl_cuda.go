@@ -29,40 +29,38 @@ func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qw
 	hostFeeds := graph.hostFeeds
 	hostFeeds[input0] = reference.Value{Shape: input0.Shape, Data: pixels0}
 	hostFeeds[input1] = reference.Value{Shape: input1.Shape, Data: pixels1}
-	hidden = r.qwen3VLPositionGraph(builder, hidden, weight(visionPositionWeightTensor), input, rowOrder, columnOrder, hostFeeds)
-	positionsY := make([]uint32, rows)
-	positionsX := make([]uint32, rows)
-	spatial := input.GridH * input.GridW
-	for row := 0; row < rows; row++ {
-		positionsY[row] = uint32(rowOrder[row%spatial])
-		positionsX[row] = uint32(columnOrder[row%spatial])
-	}
+	tableSide := r.spec.ImageSize / r.spec.PatchSize
+	hidden = spatialPositionGraph(
+		builder, hidden, weight(visionPositionWeightTensor), rows, input.GridH*input.GridW,
+		input.GridH, input.GridW, tableSide, rowOrder, columnOrder, hostFeeds,
+	)
+	positionsY, positionsX, spatial := repeatCoordinates(rowOrder, columnOrder, rows)
 	var deepstack []*tensor.Tensor
 	mergeFactor := r.spec.MergeSize * r.spec.MergeSize
 	mergedRows := rows / mergeFactor
 	mergedWidth := r.spec.Hidden * mergeFactor
-	for layer := 0; layer < r.spec.Layers; layer++ {
+	for layer := range r.spec.Layers {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		norm := builder.AffineLayerNorm(hidden, weight(prefix+"ln1.weight"), weight(prefix+"ln1.bias"), r.spec.LayerNormEpsilon)
 		qkv := builder.Add(builder.MulMat(weight(prefix+"attn_qkv.weight"), norm), weight(prefix+"attn_qkv.bias"))
 		headWidth := uint64(r.spec.Hidden / r.spec.Heads)
-		q := builder.GroupSlice(qkv, 0, headWidth, uint64(r.spec.Heads), headWidth)
+		q := builder.GroupSlice(qkv, tensor.FirstOffset, headWidth, uint64(r.spec.Heads), headWidth)
 		k := builder.GroupSlice(qkv, uint64(r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
-		v := builder.GroupSlice(qkv, uint64(2*r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
+		v := builder.GroupSlice(qkv, uint64(tensor.PairedExtent*r.spec.Hidden), headWidth, uint64(r.spec.Heads), headWidth)
 		q = interleavedVisionRoPE(builder, q, positionsY, positionsX, r.spec.RopeFrequency)
 		k = interleavedVisionRoPE(builder, k, positionsY, positionsX, r.spec.RopeFrequency)
 		var attention *tensor.Tensor
-		for temporal := 0; temporal < input.GridT; temporal++ {
+		for temporal := range input.GridT {
 			offset := uint64(temporal * spatial * r.spec.Hidden)
 			shape := []uint64{headWidth, uint64(r.spec.Heads), uint64(spatial)}
 			part := builder.AttentionWithOptions(
 				builder.FlatSlice(q, offset, shape...), builder.FlatSlice(k, offset, shape...),
-				builder.FlatSlice(v, offset, shape...), tensor.AttentionOptions{Scale: float32(1 / math.Sqrt(float64(headWidth))), Causal: false})
+				builder.FlatSlice(v, offset, shape...), tensor.AttentionOptions{Scale: float32(tensor.SingletonExtent) / float32(math.Sqrt(float64(headWidth))), Causal: false})
 
 			if attention == nil {
 				attention = part
 			} else {
-				attention = builder.Concat(attention, part, 2)
+				attention = builder.Concat(attention, part, tensor.PairedExtent)
 			}
 		}
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), uint64(rows))
@@ -102,85 +100,31 @@ func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qw
 	}, nil
 }
 
-func (r *Qwen3VLRunner) qwen3VLPositionGraph(
-	builder *tensor.Builder,
-	hidden, table *tensor.Tensor,
-	input Qwen3VLImage,
-	rowOrder, columnOrder []int,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-) *tensor.Tensor {
-	rows := input.GridT * input.GridH * input.GridW
-	spatial := input.GridH * input.GridW
-	side := r.spec.ImageSize / r.spec.PatchSize
-	indexes := [bilinearCornerCount][]uint32{}
-	weights := [bilinearCornerCount][]float32{}
-	for corner := range indexes {
-		indexes[corner] = make([]uint32, rows)
-		weights[corner] = make([]float32, rows)
-	}
-	coordinate := func(index, extent int) float64 {
-		if extent == 1 {
-			return 0
-		}
-		return float64(side-1) * float64(index) / float64(extent-1)
-	}
-	for row := 0; row < rows; row++ {
-		token := row % spatial
-		y := coordinate(rowOrder[token], input.GridH)
-		x := coordinate(columnOrder[token], input.GridW)
-		y0, x0 := int(math.Floor(y)), int(math.Floor(x))
-		y1, x1 := min(y0+1, side-1), min(x0+1, side-1)
-		wy, wx := y-float64(y0), x-float64(x0)
-		cornerIndexes := [bilinearCornerCount]int{
-			y0*side + x0, y0*side + x1, y1*side + x0, y1*side + x1,
-		}
-		cornerWeights := [bilinearCornerCount]float64{
-			(1 - wy) * (1 - wx), (1 - wy) * wx, wy * (1 - wx), wy * wx,
-		}
-		for corner := range indexes {
-			indexes[corner][row] = uint32(cornerIndexes[corner])
-			weights[corner][row] = float32(cornerWeights[corner])
-		}
-	}
-	var position *tensor.Tensor
-	for corner := range indexes {
-		weight := builder.Input(fmt.Sprintf("position_weight.%d", corner), dtype.F32, tensor.MustShape(1, uint64(rows)))
-		hostFeeds[weight] = reference.Value{Shape: weight.Shape, Data: weights[corner]}
-		part := builder.Multiply(builder.GetRows(table, indexes[corner]), weight)
-		if position == nil {
-			position = part
-		} else {
-			position = builder.Add(position, part)
-		}
-	}
-	return builder.Add(hidden, position)
-}
-
 func interleavedVisionRoPE(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	positionsY, positionsX []uint32,
 	frequencyBase float32,
 ) *tensor.Tensor {
-	headWidth := input.Shape.Dims[0]
-	quarter := headWidth / visionRoPEComponentCount
-	heads := input.Shape.Dims[1]
-	rows := input.Shape.Dims[2]
-	axisWidth := headWidth / visionRoPEAxisCount
+	headWidth := input.Shape.Dims[tensor.FirstOffset]
+	quarter := headWidth / (tensor.PairedExtent * tensor.PairedExtent)
+	heads := input.Shape.Dims[tensor.SingletonExtent]
+	rows := input.Shape.Dims[tensor.PairedExtent]
+	axisWidth := headWidth / tensor.PairedExtent
 	y := builder.Reshape(
-		builder.GroupSlice(input, 0, quarter, visionRoPEAxisCount, axisWidth),
+		builder.GroupSlice(input, tensor.FirstOffset, quarter, tensor.PairedExtent, axisWidth),
 		axisWidth, heads, rows,
 	)
 	x := builder.Reshape(
-		builder.GroupSlice(input, quarter, quarter, visionRoPEAxisCount, axisWidth),
+		builder.GroupSlice(input, quarter, quarter, tensor.PairedExtent, axisWidth),
 		axisWidth, heads, rows,
 	)
-	y = builder.RoPEWithOptions(y, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positionsY, RotaryDimensions: uint32(axisWidth), FrequencyBase: frequencyBase, FrequencyScale: 1})
-	x = builder.RoPEWithOptions(x, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positionsX, RotaryDimensions: uint32(axisWidth), FrequencyBase: frequencyBase, FrequencyScale: 1})
+	y = builder.RoPEWithOptions(y, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positionsY, RotaryDimensions: uint32(axisWidth), FrequencyBase: frequencyBase, FrequencyScale: tensor.SingletonExtent})
+	x = builder.RoPEWithOptions(x, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positionsX, RotaryDimensions: uint32(axisWidth), FrequencyBase: frequencyBase, FrequencyScale: tensor.SingletonExtent})
 	split := func(value *tensor.Tensor, offset uint64) *tensor.Tensor {
-		return builder.Reshape(builder.GroupSlice(value, offset, quarter, 1, quarter), quarter, heads, rows)
+		return builder.Reshape(builder.GroupSlice(value, offset, quarter, tensor.SingletonExtent, quarter), quarter, heads, rows)
 	}
-	first := builder.Concat(split(y, 0), split(x, 0), 0)
-	second := builder.Concat(split(y, quarter), split(x, quarter), 0)
-	return builder.Concat(first, second, 0)
+	first := builder.Concat(split(y, tensor.FirstOffset), split(x, tensor.FirstOffset), tensor.FirstOffset)
+	second := builder.Concat(split(y, quarter), split(x, quarter), tensor.FirstOffset)
+	return builder.Concat(first, second, tensor.FirstOffset)
 }

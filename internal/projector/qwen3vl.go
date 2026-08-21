@@ -5,14 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"math"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
+	"overgo/internal/media"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
 
 const qwen3VLProjectorType = "qwen3vl_merger"
+
+var deepstackTensorSuffixes = [...]string{"norm.weight", "norm.bias", "fc1.weight", "fc1.bias", "fc2.weight", "fc2.bias"}
 
 type Qwen3VLSpec struct {
 	visionBackboneSpec
@@ -47,17 +51,15 @@ type Qwen3VLRunner struct {
 
 func DefaultQwen3VLPreprocessOptions() Qwen3VLPreprocessOptions {
 	return Qwen3VLPreprocessOptions{
-		MinPixels:      256 * 256,
-		MaxPixels:      4096 * 4096,
-		MaxAspectRatio: defaultVisionMaxAspectRatio,
+		MinPixels: 256 * 256,
+		MaxPixels: 4096 * 4096,
 	}
 }
 
 func DefaultQwen3VLVideoPreprocessOptions() Qwen3VLPreprocessOptions {
 	return Qwen3VLPreprocessOptions{
-		MinPixels:      56 * 56,
-		MaxPixels:      3584 * 3584,
-		MaxAspectRatio: defaultVisionMaxAspectRatio,
+		MinPixels: 56 * 56,
+		MaxPixels: 3584 * 3584,
 	}
 }
 
@@ -74,13 +76,9 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 	} else if !useGELU {
 		return Qwen3VLSpec{}, errors.New("projector: Qwen3VL GELU is disabled")
 	}
-	var deepstackLayers []bool
-	if deepstack, ok := file.MetadataValue("clip.vision.is_deepstack_layers"); ok {
-		layers, storageOK := deepstack.Data.([]bool)
-		if deepstack.Type != gguf.ValueTypeArray || deepstack.ArrayType != gguf.ValueTypeBool || !storageOK {
-			return Qwen3VLSpec{}, errors.New("projector: deepstack metadata must be a bool array")
-		}
-		deepstackLayers = slices.Clone(layers)
+	deepstackLayers, err := readMetadataBoolArray(file, "clip.vision.is_deepstack_layers", false)
+	if err != nil {
+		return Qwen3VLSpec{}, err
 	}
 	spec := Qwen3VLSpec{}
 	if err := readRotaryVisionBackbone(file, qwen3VLProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
@@ -94,18 +92,18 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 	tensorDeepstack := make([]bool, spec.Layers)
 	for layer := range tensorDeepstack {
 		prefix := fmt.Sprintf("v.deepstack.%d.", layer)
-		count := 0
-		for _, suffix := range []string{"norm.weight", "norm.bias", "fc1.weight", "fc1.bias", "fc2.weight", "fc2.bias"} {
+		count := tensor.FirstOffset
+		for _, suffix := range deepstackTensorSuffixes {
 			if _, ok := file.Tensor(prefix + suffix); ok {
 				count++
 			}
 		}
-		if count != 0 && count != 6 {
-			return Qwen3VLSpec{}, fmt.Errorf("projector: deepstack layer %d has %d of 6 tensors", layer, count)
+		if count != tensor.FirstOffset && count != len(deepstackTensorSuffixes) {
+			return Qwen3VLSpec{}, fmt.Errorf("projector: deepstack layer %d has %d of %d tensors", layer, count, len(deepstackTensorSuffixes))
 		}
-		tensorDeepstack[layer] = count == 6
+		tensorDeepstack[layer] = count == len(deepstackTensorSuffixes)
 	}
-	if len(deepstackLayers) == 0 {
+	if len(deepstackLayers) == tensor.FirstOffset {
 		for _, enabled := range tensorDeepstack {
 			if enabled {
 				deepstackLayers = tensorDeepstack
@@ -121,10 +119,10 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 	}
 	spec.DeepstackLayers = deepstackLayers
 	merger, ok := file.Tensor(projectionFirstWeightTensor)
-	if !ok || merger.Dimensions != 2 || merger.Shape[1] > uint64(^uint(0)>>1) {
+	spec.MergerIntermediate, ok = matrixRowsInt(merger, ok)
+	if !ok {
 		return Qwen3VLSpec{}, errors.New("projector: merger input tensor is unavailable or invalid")
 	}
-	spec.MergerIntermediate = int(merger.Shape[1])
 	if err := spec.validate(); err != nil {
 		return Qwen3VLSpec{}, err
 	}
@@ -135,10 +133,12 @@ func (s Qwen3VLSpec) validate() error {
 	if err := s.visionBackboneSpec.validateRotary(); err != nil {
 		return err
 	}
-	if s.MergerIntermediate <= 0 || s.OutputHidden <= 0 || (s.Hidden/s.Heads)%visionRoPEComponentCount != 0 || s.MergeSize <= 0 {
+	headWidth, headsOK := checked.DivExactInt(s.Hidden, s.Heads)
+	_, rotaryOK := checked.DivExactInt(headWidth, tensor.PairedExtent*tensor.PairedExtent)
+	if !checked.PositiveInts(s.MergerIntermediate, s.OutputHidden, s.MergeSize) || !headsOK || !rotaryOK {
 		return fmt.Errorf("projector: invalid Qwen3VL metadata: %+v", s)
 	}
-	if len(s.DeepstackLayers) != 0 && len(s.DeepstackLayers) != s.Layers {
+	if len(s.DeepstackLayers) != tensor.FirstOffset && len(s.DeepstackLayers) != s.Layers {
 		return fmt.Errorf("projector: deepstack flags = %d, want %d", len(s.DeepstackLayers), s.Layers)
 	}
 	return nil
@@ -146,7 +146,7 @@ func (s Qwen3VLSpec) validate() error {
 
 func validateQwen3VLCatalog(file *gguf.File, spec Qwen3VLSpec) ([]string, error) {
 	required := map[string][]uint64{
-		visionPatchWeightTensor1:   {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
+		visionPatchWeightTensor1:   {uint64(spec.PatchSize), uint64(spec.PatchSize), media.RGBChannels, uint64(spec.Hidden)},
 		visionPostNormWeightTensor: {uint64(spec.Hidden)},
 		visionPostNormBiasTensor:   {uint64(spec.Hidden)},
 	}
@@ -154,7 +154,7 @@ func validateQwen3VLCatalog(file *gguf.File, spec Qwen3VLSpec) ([]string, error)
 	positionSide := spec.ImageSize / spec.PatchSize
 	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, positionSide*positionSide, tensorRequired)
 	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, nil, true, tensorRequired)
-	for layer := 0; layer < spec.Layers; layer++ {
+	for layer := range spec.Layers {
 		if len(spec.DeepstackLayers) > layer && spec.DeepstackLayers[layer] {
 			deepstackPrefix := fmt.Sprintf("v.deepstack.%d.", layer)
 			mergedWidth := uint64(spec.Hidden * spec.MergeSize * spec.MergeSize)
@@ -177,15 +177,15 @@ func PreprocessQwen3VLImage(source image.Image, spec Qwen3VLSpec, options Qwen3V
 }
 
 func PreprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwen3VLPreprocessOptions) (Qwen3VLImage, error) {
-	if len(frames) == 0 {
+	if len(frames) == tensor.FirstOffset {
 		return Qwen3VLImage{}, errors.New("projector: video has no frames")
 	}
 	if options == (Qwen3VLPreprocessOptions{}) {
 		options = DefaultQwen3VLVideoPreprocessOptions()
 	}
 	padded := slices.Clone(frames)
-	if len(padded)%2 != 0 {
-		padded = append(padded, padded[len(padded)-1])
+	if len(padded)%tensor.PairedExtent != tensor.FirstOffset {
+		padded = append(padded, padded[len(padded)-tensor.SingletonExtent])
 	}
 	return preprocessQwen3VLFrames(padded, spec, options)
 }
@@ -194,10 +194,10 @@ func preprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwe
 	if err := spec.validate(); err != nil {
 		return Qwen3VLImage{}, err
 	}
-	if len(frames) == 0 || len(frames)%2 != 0 || frames[0] == nil {
+	if len(frames) == tensor.FirstOffset || len(frames)%tensor.PairedExtent != tensor.FirstOffset || frames[tensor.FirstOffset] == nil {
 		return Qwen3VLImage{}, errors.New("projector: temporal frames must form non-empty pairs")
 	}
-	bounds := frames[0].Bounds()
+	bounds := frames[tensor.FirstOffset].Bounds()
 	height, width := bounds.Dy(), bounds.Dx()
 	resizedH, resizedW, err := pixelBudget(options).resize(
 		height, width, spec.PatchSize*spec.MergeSize,
@@ -210,42 +210,42 @@ func preprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwe
 		if frame == nil || frame.Bounds().Dx() != width || frame.Bounds().Dy() != height {
 			return Qwen3VLImage{}, fmt.Errorf("projector: video frame %d geometry differs", frameIndex)
 		}
-		resized := resizeImageBicubic(frame, resizedW, resizedH)
-		planes[frameIndex] = make([][]float32, 3)
+		resized := media.ResizeBicubic(frame, resizedW, resizedH)
+		planes[frameIndex] = make([][]float32, media.RGBChannels)
 		for channel := range planes[frameIndex] {
 			planes[frameIndex][channel] = make([]float32, resizedH*resizedW)
 		}
-		for y := 0; y < resizedH; y++ {
-			for x := 0; x < resizedW; x++ {
+		for y := range resizedH {
+			for x := range resizedW {
 				r, g, b, _ := resized.At(x, y).RGBA()
-				values := [3]uint32{r, g, b}
+				values := [media.RGBChannels]uint32{r, g, b}
 				for channel := range values {
-					value := normalizedImageChannel(values[channel])
+					value := media.NormalizedRGBAChannel(values[channel])
 					planes[frameIndex][channel][y*resizedW+x] = (value - spec.ImageMean[channel]) / spec.ImageStd[channel]
 				}
 			}
 		}
 	}
 	gridH, gridW := resizedH/spec.PatchSize, resizedW/spec.PatchSize
-	gridT := len(frames) / 2
+	gridT := len(frames) / tensor.PairedExtent
 	patchArea := spec.PatchSize * spec.PatchSize
-	patchDim := 2 * 3 * patchArea
+	patchDim := tensor.PairedExtent * media.RGBChannels * patchArea
 	pixels := make([]float32, gridT*gridH*gridW*patchDim)
-	patch := 0
-	for temporalGroup := 0; temporalGroup < gridT; temporalGroup++ {
-		for blockH := 0; blockH < gridH/spec.MergeSize; blockH++ {
-			for blockW := 0; blockW < gridW/spec.MergeSize; blockW++ {
-				for mergeH := 0; mergeH < spec.MergeSize; mergeH++ {
-					for mergeW := 0; mergeW < spec.MergeSize; mergeW++ {
-						position := 0
-						for channel := 0; channel < 3; channel++ {
+	patch := tensor.FirstOffset
+	for temporalGroup := range gridT {
+		for blockH := range gridH / spec.MergeSize {
+			for blockW := range gridW / spec.MergeSize {
+				for mergeH := range spec.MergeSize {
+					for mergeW := range spec.MergeSize {
+						position := tensor.FirstOffset
+						for channel := range media.RGBChannels {
 							baseY := (blockH*spec.MergeSize + mergeH) * spec.PatchSize
 							baseX := (blockW*spec.MergeSize + mergeW) * spec.PatchSize
-							for temporal := 0; temporal < 2; temporal++ {
-								plane := planes[temporalGroup*2+temporal][channel]
-								for py := 0; py < spec.PatchSize; py++ {
+							for temporal := range tensor.PairedExtent {
+								plane := planes[temporalGroup*tensor.PairedExtent+temporal][channel]
+								for py := range spec.PatchSize {
 									row := (baseY+py)*resizedW + baseX
-									for px := 0; px < spec.PatchSize; px++ {
+									for px := range spec.PatchSize {
 										pixels[patch*patchDim+position] = plane[row+px]
 										position++
 									}
@@ -286,11 +286,11 @@ func (r *Qwen3VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, 
 func mergedGrid(height, width, merge int) ([]int, []int) {
 	rows := make([]int, height*width)
 	columns := make([]int, height*width)
-	index := 0
-	for blockY := 0; blockY < height/merge; blockY++ {
-		for blockX := 0; blockX < width/merge; blockX++ {
-			for y := 0; y < merge; y++ {
-				for x := 0; x < merge; x++ {
+	index := tensor.FirstOffset
+	for blockY := range height / merge {
+		for blockX := range width / merge {
+			for y := range merge {
+				for x := range merge {
 					rows[index] = blockY*merge + y
 					columns[index] = blockX*merge + x
 					index++
@@ -299,112 +299,6 @@ func mergedGrid(height, width, merge int) ([]int, []int) {
 		}
 	}
 	return rows, columns
-}
-
-func smartResizeAligned(height, width, factor, minPixels, maxPixels, maxAspectRatio int) (int, int, error) {
-	if height <= 0 || width <= 0 || factor <= 0 || minPixels <= 0 || maxPixels < minPixels || maxAspectRatio <= 0 {
-		return 0, 0, errors.New("projector: invalid resize contract")
-	}
-	high, low := max(height, width), min(height, width)
-	if float64(high)/float64(low) > float64(maxAspectRatio) {
-		return 0, 0, fmt.Errorf("projector: image aspect ratio exceeds %d", maxAspectRatio)
-	}
-	factorFloat := float64(factor)
-	resizedH := max(factor, int(math.RoundToEven(float64(height)/factorFloat))*factor)
-	resizedW := max(factor, int(math.RoundToEven(float64(width)/factorFloat))*factor)
-	switch {
-	case resizedH*resizedW > maxPixels:
-		beta := math.Sqrt(float64(height*width) / float64(maxPixels))
-		resizedH = max(factor, int(math.Floor(float64(height)/beta/factorFloat))*factor)
-		resizedW = max(factor, int(math.Floor(float64(width)/beta/factorFloat))*factor)
-	case resizedH*resizedW < minPixels:
-		beta := math.Sqrt(float64(minPixels) / float64(height*width))
-		resizedH = int(math.Ceil(float64(height)*beta/factorFloat)) * factor
-		resizedW = int(math.Ceil(float64(width)*beta/factorFloat)) * factor
-	}
-	return resizedH, resizedW, nil
-}
-
-func resizeImageBicubic(source image.Image, width, height int) *image.RGBA {
-	bounds := source.Bounds()
-	inputWidth, inputHeight := bounds.Dx(), bounds.Dy()
-	xMin, xCount, xWeights := antialiasWeights(inputWidth, width)
-	intermediate := make([][3]uint8, inputHeight*width)
-	for y := 0; y < inputHeight; y++ {
-		for outX := 0; outX < width; outX++ {
-			values := [3]float64{}
-			for offset := 0; offset < xCount[outX]; offset++ {
-				r, g, b, _ := source.At(bounds.Min.X+xMin[outX]+offset, bounds.Min.Y+y).RGBA()
-				weight := xWeights[outX][offset]
-				values[0] += weight * float64(r>>rgba16To8Shift)
-				values[1] += weight * float64(g>>rgba16To8Shift)
-				values[2] += weight * float64(b>>rgba16To8Shift)
-			}
-			for channel := range values {
-				intermediate[y*width+outX][channel] = clampUint8(values[channel])
-			}
-		}
-	}
-	yMin, yCount, yWeights := antialiasWeights(inputHeight, height)
-	output := image.NewRGBA(image.Rect(0, 0, width, height))
-	for outY := 0; outY < height; outY++ {
-		for x := 0; x < width; x++ {
-			values := [3]float64{}
-			for offset := 0; offset < yCount[outY]; offset++ {
-				pixel := intermediate[(yMin[outY]+offset)*width+x]
-				weight := yWeights[outY][offset]
-				for channel := range values {
-					values[channel] += weight * float64(pixel[channel])
-				}
-			}
-			index := outY*output.Stride + x*4
-			output.Pix[index] = clampUint8(values[0])
-			output.Pix[index+1] = clampUint8(values[1])
-			output.Pix[index+2] = clampUint8(values[2])
-			output.Pix[index+3] = opaqueAlpha
-		}
-	}
-	return output
-}
-
-func antialiasWeights(input, output int) ([]int, []int, [][]float64) {
-	scale := float64(input) / float64(output)
-	support, inverseScale := 2.0, 1.0
-	if scale >= 1 {
-		support, inverseScale = 2*scale, 1/scale
-	}
-	minimum := make([]int, output)
-	count := make([]int, output)
-	weights := make([][]float64, output)
-	for index := 0; index < output; index++ {
-		center := scale * (float64(index) + 0.5)
-		low := max(0, int(center-support+0.5))
-		high := min(input, int(center+support+0.5))
-		values := make([]float64, high-low)
-		total := 0.0
-		for offset := range values {
-			values[offset] = cubicInterpolationWeight((float64(offset+low) - center + 0.5) * inverseScale)
-			total += values[offset]
-		}
-		if total != 0 {
-			for offset := range values {
-				values[offset] /= total
-			}
-		}
-		minimum[index], count[index], weights[index] = low, len(values), values
-	}
-	return minimum, count, weights
-}
-
-func clampUint8(value float64) uint8 {
-	value = math.Floor(value + 0.5)
-	if value <= 0 {
-		return 0
-	}
-	if value >= maxUint8Channel {
-		return maxUint8Channel
-	}
-	return uint8(value)
 }
 
 func metadataString(file *gguf.File, key string) (string, error) {
@@ -422,11 +316,11 @@ func metadataString(file *gguf.File, key string) (string, error) {
 func metadataUint32(file *gguf.File, key string) (uint32, error) {
 	value, ok := file.MetadataValue(key)
 	if !ok || value.Type != gguf.ValueTypeUint32 {
-		return 0, fmt.Errorf("projector: metadata %q must be uint32", key)
+		return uint32(tensor.FirstOffset), fmt.Errorf("projector: metadata %q must be uint32", key)
 	}
 	result, ok := value.Data.(uint32)
 	if !ok {
-		return 0, fmt.Errorf("projector: metadata %q has invalid storage", key)
+		return uint32(tensor.FirstOffset), fmt.Errorf("projector: metadata %q has invalid storage", key)
 	}
 	return result, nil
 }
@@ -434,11 +328,11 @@ func metadataUint32(file *gguf.File, key string) (uint32, error) {
 func metadataFloat32(file *gguf.File, key string) (float32, error) {
 	value, ok := file.MetadataValue(key)
 	if !ok || value.Type != gguf.ValueTypeFloat32 {
-		return 0, fmt.Errorf("projector: metadata %q must be float32", key)
+		return float32(tensor.FirstOffset), fmt.Errorf("projector: metadata %q must be float32", key)
 	}
 	result, ok := value.Data.(float32)
-	if !ok || !finite32(result) {
-		return 0, fmt.Errorf("projector: metadata %q has invalid storage", key)
+	if !ok || !checked.Finite32(result) {
+		return float32(tensor.FirstOffset), fmt.Errorf("projector: metadata %q has invalid storage", key)
 	}
 	return result, nil
 }
@@ -465,8 +359,4 @@ func metadataFloat32Array(file *gguf.File, key string, length int) ([]float32, e
 		return nil, fmt.Errorf("projector: metadata %q must contain %d values", key, length)
 	}
 	return result, nil
-}
-
-func finite32(value float32) bool {
-	return !math.IsNaN(float64(value)) && !math.IsInf(float64(value), 0)
 }

@@ -192,6 +192,12 @@ type TensorInfo struct {
 	Size       uint64
 }
 
+func (tensor TensorInfo) Extents() []uint64 {
+	extents := make([]uint64, tensor.Dimensions)
+	copy(extents, tensor.Shape[:tensor.Dimensions])
+	return extents
+}
+
 // MatrixRows returns rank-two row count; zero marks absence.
 func (tensor *TensorInfo) MatrixRows() uint64 {
 	if tensor == nil || tensor.Dimensions != 2 {

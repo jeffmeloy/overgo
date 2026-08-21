@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/tensorcatalog"
 )
 
 const gemma4UAProjectorType = "gemma4ua"
@@ -44,24 +45,31 @@ func ReadGemma4AudioSpec(file *gguf.File) (Gemma4AudioSpec, error) {
 	if err != nil {
 		return Gemma4AudioSpec{}, err
 	}
-	maxNativeInt := uint64(^uint(0) >> 1)
-	if uint64(inputWidth) > maxNativeInt || uint64(hidden) > maxNativeInt {
+	sampleRate, err := metadataUint32(file, "clip.audio.sample_rate")
+	if err != nil {
+		return Gemma4AudioSpec{}, err
+	}
+	inputWidthInt, inputOK := checked.Int(uint64(inputWidth))
+	hiddenInt, hiddenOK := checked.Int(uint64(hidden))
+	sampleRateInt, rateOK := checked.Int(uint64(sampleRate))
+	if !inputOK || !hiddenOK || !rateOK {
 		return Gemma4AudioSpec{}, errors.New("projector: Gemma 4 audio dimensions exceed native limits")
 	}
 	spec := Gemma4AudioSpec{
-		SampleRate: 16000, SamplesPerToken: int(inputWidth), Hidden: int(hidden),
+		SampleRate: sampleRateInt, SamplesPerToken: inputWidthInt, Hidden: hiddenInt,
 		RMSNormEpsilon: epsilon,
 	}
 	if err := spec.validate(); err != nil {
 		return Gemma4AudioSpec{}, err
 	}
 	projection, ok := file.Tensor("mm.a.input_projection.weight")
-	if !ok || projection.Dimensions != 2 ||
-		projection.Shape[0] != uint64(spec.SamplesPerToken) || projection.Shape[1] != uint64(spec.Hidden) {
-		return Gemma4AudioSpec{}, fmt.Errorf(
-			"projector: Gemma 4 audio projection shape is invalid; want [%d %d]",
-			spec.SamplesPerToken, spec.Hidden,
-		)
+	if !ok {
+		return Gemma4AudioSpec{}, errors.New("projector: Gemma 4 audio projection is unavailable")
+	}
+	if err := tensorcatalog.ValidateInfo(projection, tensorcatalog.Requirement{Shapes: [][]uint64{{
+		uint64(spec.SamplesPerToken), uint64(spec.Hidden),
+	}}}); err != nil {
+		return Gemma4AudioSpec{}, fmt.Errorf("projector: Gemma 4 audio projection: %w", err)
 	}
 	return spec, nil
 }
@@ -88,15 +96,16 @@ func PreprocessGemma4Audio(samples []float32, spec Gemma4AudioSpec) ([]float32, 
 		return nil, 0, errors.New("projector: audio is empty")
 	}
 	for index, sample := range samples {
-		if math.IsNaN(float64(sample)) || math.IsInf(float64(sample), 0) {
+		if !checked.Finite32(sample) {
 			return nil, 0, fmt.Errorf("projector: audio sample %d is not finite", index)
 		}
 	}
 	rows := 1 + (len(samples)-1)/spec.SamplesPerToken
-	if rows > int(^uint(0)>>1)/spec.SamplesPerToken {
+	elements, ok := checked.MulInt(rows, spec.SamplesPerToken)
+	if !ok {
 		return nil, 0, errors.New("projector: audio frame count exceeds native limits")
 	}
-	frames := make([]float32, rows*spec.SamplesPerToken)
+	frames := make([]float32, elements)
 	copy(frames, samples)
 	return frames, rows, nil
 }

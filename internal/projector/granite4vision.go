@@ -8,17 +8,15 @@ import (
 	"math"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/hostmath"
+	"overgo/internal/media"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
 
-const (
-	granite4VisionProjectorType      = "granite4_vision"
-	granite4VisionAttentionHeadWidth = 64
-	granite4QFormerNormEpsilon       = 1e-12
-)
+const granite4VisionProjectorType = "granite4_vision"
 
 type Granite4VisionResolution struct {
 	Width  int
@@ -73,17 +71,20 @@ func ReadGranite4VisionSpec(file *gguf.File) (Granite4VisionSpec, error) {
 	if err := readVisionBackbone(file, granite4VisionProjectorType, &spec.ProjectionDim, &spec.visionBackboneSpec); err != nil {
 		return Granite4VisionSpec{}, err
 	}
+	if err := readProjectionNorm(file, &spec.ProjectionNormEpsilon); err != nil {
+		return Granite4VisionSpec{}, err
+	}
 	if err := readMetadataIntFields(file,
 		metadataIntField{"clip.vision.projector.window_side", &spec.WindowSide},
 		metadataIntField{"clip.vision.projector.query_side", &spec.QuerySide},
 	); err != nil {
 		return Granite4VisionSpec{}, err
 	}
-	features, err := granite4MetadataInts(file, "clip.vision.feature_layer", true)
+	features, err := metadataInts(file, "clip.vision.feature_layer", tensorRequired, false)
 	if err != nil {
 		return Granite4VisionSpec{}, err
 	}
-	offsets, err := granite4MetadataInts(file, "clip.vision.projector.spatial_offsets", true)
+	offsets, err := metadataInts(file, "clip.vision.projector.spatial_offsets", tensorRequired, false)
 	if err != nil {
 		return Granite4VisionSpec{}, err
 	}
@@ -92,10 +93,11 @@ func ReadGranite4VisionSpec(file *gguf.File) (Granite4VisionSpec, error) {
 		return Granite4VisionSpec{}, err
 	}
 	qfUp, ok := file.Tensor("v.proj_blk.0.ffn_up.weight")
-	if !ok || qfUp.Dimensions != 2 {
+	qfWidth, widthOK := matrixRowsInt(qfUp, ok)
+	if !widthOK {
 		return Granite4VisionSpec{}, errors.New("projector: Granite 4 Vision QFormer FFN is unavailable")
 	}
-	spec.QFormerWidth = int(qfUp.Shape[1])
+	spec.QFormerWidth = qfWidth
 	spec.FeatureLayers = features
 	spec.SpatialOffsets = offsets
 	spec.GridCandidates = candidates
@@ -105,52 +107,20 @@ func ReadGranite4VisionSpec(file *gguf.File) (Granite4VisionSpec, error) {
 	return spec, nil
 }
 
-func granite4MetadataInts(file *gguf.File, key string, required bool) ([]int, error) {
-	value, ok := file.MetadataValue(key)
-	if !ok {
-		if required {
-			return nil, fmt.Errorf("projector: metadata %q is unavailable", key)
-		}
-		return nil, nil
-	}
-	if value.Type != gguf.ValueTypeArray {
-		return nil, fmt.Errorf("projector: metadata %q must be an array", key)
-	}
-	var result []int
-	switch values := value.Data.(type) {
-	case []int32:
-		if value.ArrayType != gguf.ValueTypeInt32 {
-			return nil, fmt.Errorf("projector: metadata %q has mismatched array type", key)
-		}
-		result = make([]int, len(values))
-		for index, item := range values {
-			result[index] = int(item)
-		}
-	case []uint32:
-		if value.ArrayType != gguf.ValueTypeUint32 {
-			return nil, fmt.Errorf("projector: metadata %q has mismatched array type", key)
-		}
-		result = make([]int, len(values))
-		for index, item := range values {
-			result[index] = int(item)
-		}
-	default:
-		return nil, fmt.Errorf("projector: metadata %q has invalid storage", key)
-	}
-	return result, nil
-}
-
 func granite4GridCandidates(file *gguf.File) ([]Granite4VisionResolution, error) {
-	values, err := granite4MetadataInts(file, "clip.vision.image_grid_pinpoints", false)
+	values, err := metadataInts(file, "clip.vision.image_grid_pinpoints", tensorRequired, false)
 	if err != nil {
 		return nil, err
 	}
-	if len(values)%2 != 0 {
+	if len(values)%tensor.PairedExtent != tensor.FirstOffset {
 		return nil, errors.New("projector: Granite 4 Vision grid candidates must contain width/height pairs")
 	}
-	result := make([]Granite4VisionResolution, len(values)/2)
+	result := make([]Granite4VisionResolution, len(values)/tensor.PairedExtent)
 	for index := range result {
-		result[index] = Granite4VisionResolution{Width: values[index*2], Height: values[index*2+1]}
+		base := index * tensor.PairedExtent
+		result[index] = Granite4VisionResolution{
+			Width: values[base], Height: values[base+tensor.SingletonExtent],
+		}
 	}
 	return result, nil
 }
@@ -159,32 +129,32 @@ func (s Granite4VisionSpec) validate() error {
 	if err := s.visionBackboneSpec.validate(); err != nil {
 		return err
 	}
-	patchSide := 0
-	if s.PatchSize > 0 {
-		patchSide = s.ImageSize / s.PatchSize
-	}
-	newSide := 0
-	if s.WindowSide > 0 {
-		newSide = patchSide / s.WindowSide * s.QuerySide
-	}
-	if s.ProjectionDim <= 0 || s.QFormerWidth <= 0 || s.WindowSide <= 0 || s.QuerySide <= 0 ||
-		s.Hidden%granite4VisionAttentionHeadWidth != 0 || patchSide%s.WindowSide != 0 ||
-		s.WindowSide%s.QuerySide != 0 || newSide <= 0 || patchSide%newSide != 0 ||
-		len(s.FeatureLayers) == 0 || len(s.FeatureLayers) != len(s.SpatialOffsets) {
+	patchSide, patchOK := checked.DivExactInt(s.ImageSize, s.PatchSize)
+	windows, windowsOK := checked.DivExactInt(patchSide, s.WindowSide)
+	newSide, newSideOK := checked.MulInt(windows, s.QuerySide)
+	_, queryOK := checked.DivExactInt(s.WindowSide, s.QuerySide)
+	_, downsampleOK := checked.DivExactInt(patchSide, newSide)
+	_, headsOK := checked.DivExactInt(s.Hidden, s.Heads)
+	if !checked.PositiveInts(s.ProjectionDim, s.QFormerWidth, s.WindowSide, s.QuerySide, newSide, len(s.FeatureLayers)) ||
+		!checked.PositiveFinite32(s.ProjectionNormEpsilon) || !patchOK || !windowsOK || !newSideOK ||
+		!queryOK || !downsampleOK || !headsOK || len(s.FeatureLayers) != len(s.SpatialOffsets) {
 		return fmt.Errorf("projector: invalid Granite 4 Vision metadata: %+v", s)
 	}
 	for _, layer := range s.FeatureLayers {
-		if layer < 0 || layer >= s.Layers {
+		if layer < tensor.FirstOffset || layer >= s.Layers {
 			return fmt.Errorf("projector: Granite 4 Vision feature layer %d is invalid", layer)
 		}
 	}
 	for index, offset := range s.SpatialOffsets {
-		if offset < -1 || offset > 3 || offset >= 0 && newSide != patchSide/2 {
+		if offset < -tensor.SingletonExtent || offset > tensor.TripleExtent ||
+			offset >= tensor.FirstOffset && newSide != patchSide/tensor.PairedExtent {
 			return fmt.Errorf("projector: Granite 4 Vision spatial offset %d at block %d is invalid", offset, index)
 		}
 	}
 	for _, candidate := range s.GridCandidates {
-		if candidate.Width <= 0 || candidate.Height <= 0 || candidate.Width%s.ImageSize != 0 || candidate.Height%s.ImageSize != 0 {
+		_, widthOK := checked.DivExactInt(candidate.Width, s.ImageSize)
+		_, heightOK := checked.DivExactInt(candidate.Height, s.ImageSize)
+		if !widthOK || !heightOK {
 			return fmt.Errorf("projector: Granite 4 Vision grid candidate %+v is invalid", candidate)
 		}
 	}
@@ -233,42 +203,38 @@ func PreprocessGranite4VisionImage(source image.Image, spec Granite4VisionSpec) 
 		return Granite4VisionInput{}, err
 	}
 	bounds := source.Bounds()
-	if bounds.Dx() <= 0 || bounds.Dy() <= 0 {
+	if bounds.Empty() {
 		return Granite4VisionInput{}, errors.New("projector: image bounds are empty")
 	}
-	images := []image.Image{resizeFitBicubic(source, spec.ImageSize, spec.ImageSize)}
-	gridW, gridH := 0, 0
+	images := []image.Image{resizeFitBicubic(source, spec.ImageSize, spec.ImageSize, nil)}
+	gridW, gridH := tensor.FirstOffset, tensor.FirstOffset
 	if bounds.Dx() > spec.ImageSize || bounds.Dy() > spec.ImageSize {
 		resolution := granite4BestResolution(bounds.Dx(), bounds.Dy(), spec)
 		gridW, gridH = resolution.Width/spec.ImageSize, resolution.Height/spec.ImageSize
-		refined := resizeFitBicubic(source, resolution.Width, resolution.Height)
-		for y := 0; y < gridH; y++ {
-			for x := 0; x < gridW; x++ {
-				images = append(images, cropImage(refined, image.Rect(x*spec.ImageSize, y*spec.ImageSize, (x+1)*spec.ImageSize, (y+1)*spec.ImageSize)))
+		refined := resizeFitBicubic(source, resolution.Width, resolution.Height, nil)
+		for y := range gridH {
+			for x := range gridW {
+				images = append(images, cropImage(refined, image.Rect(x*spec.ImageSize, y*spec.ImageSize,
+					(x+tensor.SingletonExtent)*spec.ImageSize, (y+tensor.SingletonExtent)*spec.ImageSize)))
 			}
 		}
 	}
 	tiles := make([]Granite4VisionTile, len(images))
 	for index, current := range images {
-		addNewline := len(images) == 1 || index > 0
-		tiles[index] = Granite4VisionTile{PixelValues: granite4TilePixels(current, spec), AddNewline: addNewline}
+		patches, err := patchRasterImage(current, spec.PatchSize, spec.ImageMean, spec.ImageStd)
+		if err != nil {
+			return Granite4VisionInput{}, err
+		}
+		tiles[index] = Granite4VisionTile{PixelValues: patches.PixelValues,
+			AddNewline: len(images) == tensor.SingletonExtent || index > tensor.FirstOffset}
 	}
 	return Granite4VisionInput{Tiles: tiles, GridH: gridH, GridW: gridW}, nil
 }
 
 func granite4BestResolution(width, height int, spec Granite4VisionSpec) Granite4VisionResolution {
-	candidates := spec.GridCandidates
-	if len(candidates) == 0 {
-		candidates = make([]Granite4VisionResolution, 0, 9)
-		for gridW := 1; gridW <= 3; gridW++ {
-			for gridH := 1; gridH <= 3; gridH++ {
-				candidates = append(candidates, Granite4VisionResolution{Width: gridW * spec.ImageSize, Height: gridH * spec.ImageSize})
-			}
-		}
-	}
-	best := candidates[0]
-	bestEffective, bestWaste := -1, math.MaxInt
-	for _, candidate := range candidates {
+	best := spec.GridCandidates[tensor.FirstOffset]
+	bestEffective, bestWaste := -tensor.SingletonExtent, math.MaxInt
+	for _, candidate := range spec.GridCandidates {
 		scale := math.Min(float64(candidate.Width)/float64(width), float64(candidate.Height)/float64(height))
 		targetW, targetH := int(float64(width)*scale), int(float64(height)*scale)
 		effective := min(targetW*targetH, width*height)
@@ -280,29 +246,6 @@ func granite4BestResolution(width, height int, spec Granite4VisionSpec) Granite4
 	return best
 }
 
-func granite4TilePixels(source image.Image, spec Granite4VisionSpec) []float32 {
-	grid := spec.ImageSize / spec.PatchSize
-	patchArea := spec.PatchSize * spec.PatchSize
-	pixels := make([]float32, grid*grid*3*patchArea)
-	for patchY := 0; patchY < grid; patchY++ {
-		for patchX := 0; patchX < grid; patchX++ {
-			row := (patchY*grid + patchX) * 3 * patchArea
-			for channel := 0; channel < 3; channel++ {
-				position := row + channel*patchArea
-				for y := 0; y < spec.PatchSize; y++ {
-					for x := 0; x < spec.PatchSize; x++ {
-						r, g, b, _ := source.At(patchX*spec.PatchSize+x, patchY*spec.PatchSize+y).RGBA()
-						value := [3]uint32{r, g, b}[channel]
-						pixels[position] = (normalizedImageChannel(value) - spec.ImageMean[channel]) / spec.ImageStd[channel]
-						position++
-					}
-				}
-			}
-		}
-	}
-	return pixels
-}
-
 func (r *Granite4VisionRunner) EncodeImage(ctx context.Context, source image.Image) (Granite4VisionOutput, error) {
 	if r == nil || r.file == nil {
 		return Granite4VisionOutput{}, errRunnerClosed
@@ -312,7 +255,7 @@ func (r *Granite4VisionRunner) EncodeImage(ctx context.Context, source image.Ima
 		return Granite4VisionOutput{}, err
 	}
 	streams := make([][]float32, len(r.spec.FeatureLayers))
-	rows := 0
+	rows := tensor.FirstOffset
 	for tileIndex, tile := range input.Tiles {
 		values, tileErr := r.encodeTile(ctx, tile)
 		if tileErr != nil {
@@ -321,15 +264,15 @@ func (r *Granite4VisionRunner) EncodeImage(ctx context.Context, source image.Ima
 		for streamIndex, value := range values {
 			streams[streamIndex] = append(streams[streamIndex], value.Data...)
 		}
-		rows += int(values[0].Shape.Dims[1])
+		rows += int(values[tensor.FirstOffset].Shape.Dims[tensor.SingletonExtent])
 	}
-	base, err := reference.NewValue(tensor.MustShape(uint64(r.spec.ProjectionDim), uint64(rows)), streams[0])
+	base, err := reference.NewValue(tensor.MustShape(uint64(r.spec.ProjectionDim), uint64(rows)), streams[tensor.FirstOffset])
 	if err != nil {
 		return Granite4VisionOutput{}, err
 	}
-	deepstack := make([]reference.Value, len(streams)-1)
+	deepstack := make([]reference.Value, len(streams)-tensor.SingletonExtent)
 	for index := range deepstack {
-		deepstack[index], err = reference.NewValue(tensor.MustShape(uint64(r.spec.ProjectionDim), uint64(rows)), streams[index+1])
+		deepstack[index], err = reference.NewValue(tensor.MustShape(uint64(r.spec.ProjectionDim), uint64(rows)), streams[index+tensor.SingletonExtent])
 		if err != nil {
 			return Granite4VisionOutput{}, err
 		}
@@ -345,9 +288,11 @@ func (r *Granite4VisionRunner) encodeTile(ctx context.Context, tile Granite4Visi
 		return r.encodeTileCUDA(ctx, tile)
 	}
 	side := r.spec.ImageSize / r.spec.PatchSize
-	rows, patchWidth := side*side, 3*r.spec.PatchSize*r.spec.PatchSize
-	if len(tile.PixelValues) != rows*patchWidth {
-		return nil, errors.New("projector: Granite 4 Vision tile shape is inconsistent")
+	rows, patchWidth, err := validateSpatialPatchStorage(
+		len(tile.PixelValues), side, side, r.spec.PatchSize, media.RGBChannels,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("projector: Granite 4 Vision tile: %w", err)
 	}
 	patchWeight, err := r.load(ctx, visionPatchWeightTensor)
 	if err != nil {
@@ -401,18 +346,18 @@ func (r *Granite4VisionRunner) runVisionLayer(ctx context.Context, hidden []floa
 	if err != nil {
 		return err
 	}
-	qkv := make([]float32, rows*3*r.spec.Hidden)
+	rowWidth := tensor.TripleExtent * r.spec.Hidden
+	qkv := make([]float32, rows*rowWidth)
 	for partIndex, part := range []string{"q", "k", "v"} {
 		weight, bias, loadErr := r.loadPair(ctx, prefix+"attn_"+part+".weight", prefix+"attn_"+part+".bias")
 		if loadErr != nil {
 			return loadErr
 		}
-		projected := hostmath.LinearF64BiasFirstNew(norm, weight.Data, bias.Data, rows, r.spec.Hidden, r.spec.Hidden)
-		for row := 0; row < rows; row++ {
-			copy(qkv[row*3*r.spec.Hidden+partIndex*r.spec.Hidden:], projected[row*r.spec.Hidden:(row+1)*r.spec.Hidden])
-		}
+		hostmath.LinearF64BiasFirstStrided(
+			qkv, norm, weight.Data, bias.Data, rows, r.spec.Hidden, r.spec.Hidden, rowWidth, partIndex*r.spec.Hidden,
+		)
 	}
-	attention := r.attention.cpu(qkv, rows)
+	attention := hostmath.InterleavedQKVAttentionF64(qkv, rows, r.spec.Hidden, r.spec.Heads, float64(r.attention.scale()))
 	outWeight, outBias, err := r.loadPair(ctx, prefix+"attn_out.weight", prefix+"attn_out.bias")
 	if err != nil {
 		return err
@@ -454,9 +399,9 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 	windows := windowsPerSide * windowsPerSide
 	encLength, queryLength := windowSide*windowSide, querySide*querySide
 	newSide := windowsPerSide * querySide
-	enc := granite4Window(x, side, windowSide, r.spec.Hidden)
-	down := granite4Downsample(x, side, newSide, r.spec.Hidden, r.spec.SpatialOffsets[block])
-	queryWindows := granite4Window(down, newSide, querySide, r.spec.Hidden)
+	enc := windowSpatialRows(x, side, windowSide, r.spec.Hidden)
+	down := downsampleSpatialRows(x, side, newSide, r.spec.Hidden, r.spec.SpatialOffsets[block])
+	queryWindows := windowSpatialRows(down, newSide, querySide, r.spec.Hidden)
 	query, imagePosition, err := r.loadPair(ctx, prefix+"query", prefix+"img_pos")
 	if err != nil {
 		return nil, err
@@ -473,7 +418,7 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 			}
 		}
 	}
-	queryWindows, err = r.affineNormalize(ctx, queryWindows, windows*queryLength, prefix+"post_norm", granite4QFormerNormEpsilon)
+	queryWindows, err = r.affineNormalize(ctx, queryWindows, windows*queryLength, prefix+"post_norm", r.spec.ProjectionNormEpsilon)
 	if err != nil {
 		return nil, err
 	}
@@ -484,7 +429,7 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 	for index := range self {
 		self[index] += queryWindows[index]
 	}
-	self, err = r.affineNormalize(ctx, self, windows*queryLength, prefix+"self_attn_norm", granite4QFormerNormEpsilon)
+	self, err = r.affineNormalize(ctx, self, windows*queryLength, prefix+"self_attn_norm", r.spec.ProjectionNormEpsilon)
 	if err != nil {
 		return nil, err
 	}
@@ -495,7 +440,7 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 	for index := range cross {
 		cross[index] += self[index]
 	}
-	cross, err = r.affineNormalize(ctx, cross, windows*queryLength, prefix+"cross_attn_norm", granite4QFormerNormEpsilon)
+	cross, err = r.affineNormalize(ctx, cross, windows*queryLength, prefix+"cross_attn_norm", r.spec.ProjectionNormEpsilon)
 	if err != nil {
 		return nil, err
 	}
@@ -515,11 +460,11 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 	for index := range ffn {
 		ffn[index] += cross[index]
 	}
-	ffn, err = r.affineNormalize(ctx, ffn, windows*queryLength, prefix+"ffn_norm", granite4QFormerNormEpsilon)
+	ffn, err = r.affineNormalize(ctx, ffn, windows*queryLength, prefix+"ffn_norm", r.spec.ProjectionNormEpsilon)
 	if err != nil {
 		return nil, err
 	}
-	unwinned := granite4Unwindow(ffn, newSide, querySide, r.spec.Hidden)
+	unwinned := unwindowSpatialRows(ffn, newSide, querySide, r.spec.Hidden)
 	linearWeight, linearBias, err := r.loadPair(ctx, prefix+"linear.weight", prefix+"linear.bias")
 	if err != nil {
 		return nil, err
@@ -533,21 +478,21 @@ func (r *Granite4VisionRunner) qformerAttention(
 	windows, queryRows, keyRows int,
 	prefix string,
 ) ([]float32, error) {
-	parts := make([][]float32, 3)
-	for index, name := range []string{"q", "k", "v"} {
+	parts := make([][]float32, tensor.TripleExtent)
+	for index, name := range [tensor.TripleExtent]string{"q", "k", "v"} {
 		weight, bias, err := r.loadPair(ctx, prefix+"_"+name+".weight", prefix+"_"+name+".bias")
 		if err != nil {
 			return nil, err
 		}
 		input, rows := keyValueInput, windows*keyRows
-		if index == 0 {
+		if index == tensor.FirstOffset {
 			input, rows = queryInput, windows*queryRows
 		}
 		parts[index] = hostmath.LinearF64BiasFirstNew(input, weight.Data, bias.Data, rows, r.spec.Hidden, r.spec.Hidden)
 	}
-	attention := granite4BatchedAttention(
-		parts[0], parts[1], parts[2], windows, queryRows, keyRows,
-		r.spec.Hidden, r.spec.Hidden/granite4VisionAttentionHeadWidth,
+	attention := hostmath.BatchedAttentionF32(
+		parts[tensor.FirstOffset], parts[tensor.SingletonExtent], parts[tensor.PairedExtent], windows, queryRows, keyRows,
+		r.spec.Hidden, r.spec.Heads,
 	)
 	outWeight, outBias, err := r.loadPair(ctx, prefix+"_out.weight", prefix+"_out.bias")
 	if err != nil {
@@ -556,52 +501,14 @@ func (r *Granite4VisionRunner) qformerAttention(
 	return hostmath.LinearF64BiasFirstNew(attention, outWeight.Data, outBias.Data, windows*queryRows, r.spec.Hidden, r.spec.Hidden), nil
 }
 
-func granite4BatchedAttention(q, k, v []float32, batches, queryRows, keyRows, hidden, heads int) []float32 {
-	headWidth := hidden / heads
-	output := make([]float32, batches*queryRows*hidden)
-	scores := make([]float64, keyRows)
-	scale := 1 / math.Sqrt(float64(headWidth))
-	for batch := 0; batch < batches; batch++ {
-		for query := 0; query < queryRows; query++ {
-			for head := 0; head < heads; head++ {
-				maximum := math.Inf(-1)
-				for key := 0; key < keyRows; key++ {
-					score := 0.0
-					for channel := 0; channel < headWidth; channel++ {
-						qIndex := ((batch*queryRows+query)*hidden + head*headWidth + channel)
-						kIndex := ((batch*keyRows+key)*hidden + head*headWidth + channel)
-						score += float64(q[qIndex] * k[kIndex])
-					}
-					scores[key] = score * scale
-					maximum = math.Max(maximum, scores[key])
-				}
-				total := 0.0
-				for key := range scores {
-					scores[key] = math.Exp(scores[key] - maximum)
-					total += scores[key]
-				}
-				for key := 0; key < keyRows; key++ {
-					factor := float32(scores[key] / total)
-					for channel := 0; channel < headWidth; channel++ {
-						outIndex := ((batch*queryRows+query)*hidden + head*headWidth + channel)
-						vIndex := ((batch*keyRows+key)*hidden + head*headWidth + channel)
-						output[outIndex] += factor * v[vIndex]
-					}
-				}
-			}
-		}
-	}
-	return output
-}
-
-func granite4Window(input []float32, side, windowSide, hidden int) []float32 {
+func windowSpatialRows(input []float32, side, windowSide, hidden int) []float32 {
 	windowsPerSide := side / windowSide
 	output := make([]float32, len(input))
-	destination := 0
-	for windowY := 0; windowY < windowsPerSide; windowY++ {
-		for windowX := 0; windowX < windowsPerSide; windowX++ {
-			for y := 0; y < windowSide; y++ {
-				for x := 0; x < windowSide; x++ {
+	destination := tensor.FirstOffset
+	for windowY := range windowsPerSide {
+		for windowX := range windowsPerSide {
+			for y := range windowSide {
+				for x := range windowSide {
 					source := ((windowY*windowSide+y)*side + windowX*windowSide + x) * hidden
 					copy(output[destination:destination+hidden], input[source:source+hidden])
 					destination += hidden
@@ -612,14 +519,14 @@ func granite4Window(input []float32, side, windowSide, hidden int) []float32 {
 	return output
 }
 
-func granite4Unwindow(input []float32, side, windowSide, hidden int) []float32 {
+func unwindowSpatialRows(input []float32, side, windowSide, hidden int) []float32 {
 	windowsPerSide := side / windowSide
 	output := make([]float32, len(input))
-	source := 0
-	for windowY := 0; windowY < windowsPerSide; windowY++ {
-		for windowX := 0; windowX < windowsPerSide; windowX++ {
-			for y := 0; y < windowSide; y++ {
-				for x := 0; x < windowSide; x++ {
+	source := tensor.FirstOffset
+	for windowY := range windowsPerSide {
+		for windowX := range windowsPerSide {
+			for y := range windowSide {
+				for x := range windowSide {
 					destination := ((windowY*windowSide+y)*side + windowX*windowSide + x) * hidden
 					copy(output[destination:destination+hidden], input[source:source+hidden])
 					source += hidden
@@ -630,26 +537,27 @@ func granite4Unwindow(input []float32, side, windowSide, hidden int) []float32 {
 	return output
 }
 
-func granite4Downsample(input []float32, side, newSide, hidden, spatialOffset int) []float32 {
+func downsampleSpatialRows(input []float32, side, newSide, hidden, spatialOffset int) []float32 {
 	output := make([]float32, newSide*newSide*hidden)
-	if spatialOffset >= 0 {
-		offsetY, offsetX := (spatialOffset>>1)&1, spatialOffset&1
-		for y := 0; y < newSide; y++ {
-			for x := 0; x < newSide; x++ {
-				source := ((y*2+offsetY)*side + x*2 + offsetX) * hidden
+	if spatialOffset >= tensor.FirstOffset {
+		offsetY := (spatialOffset >> tensor.SingletonExtent) & tensor.SingletonExtent
+		offsetX := spatialOffset & tensor.SingletonExtent
+		for y := range newSide {
+			for x := range newSide {
+				source := ((y*tensor.PairedExtent+offsetY)*side + x*tensor.PairedExtent + offsetX) * hidden
 				copy(output[(y*newSide+x)*hidden:], input[source:source+hidden])
 			}
 		}
 		return output
 	}
 	kernel := side / newSide
-	for y := 0; y < newSide; y++ {
-		for x := 0; x < newSide; x++ {
+	for y := range newSide {
+		for x := range newSide {
 			destination := (y*newSide + x) * hidden
-			for ky := 0; ky < kernel; ky++ {
-				for kx := 0; kx < kernel; kx++ {
+			for ky := range kernel {
+				for kx := range kernel {
 					source := ((y*kernel+ky)*side + x*kernel + kx) * hidden
-					for channel := 0; channel < hidden; channel++ {
+					for channel := range hidden {
 						output[destination+channel] += input[source+channel] / float32(kernel*kernel)
 					}
 				}
@@ -673,12 +581,4 @@ func (r *Granite4VisionRunner) affineNormalize(
 	output := make([]float32, len(input))
 	hostmath.LayerNormF32AffineInto(output, input, weight.Data, bias.Data, rows, len(input)/rows, epsilon)
 	return output, nil
-}
-
-func (r *Granite4VisionRunner) load(ctx context.Context, name string) (reference.Value, error) {
-	return loadProjectorHostTensor(ctx, r.file, name)
-}
-
-func (r *Granite4VisionRunner) loadPair(ctx context.Context, first, second string) (reference.Value, reference.Value, error) {
-	return loadProjectorHostTensorPair(ctx, r.file, first, second)
 }

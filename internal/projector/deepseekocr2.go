@@ -7,10 +7,13 @@ import (
 	"image"
 	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
+	"overgo/internal/media"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/tensorcatalog"
 )
 
 const (
@@ -19,7 +22,8 @@ const (
 
 type DeepSeekOCR2Spec struct {
 	DeepSeekOCRSpec
-	KVHeads int
+	KVHeads       int
+	RopeFrequency float32
 }
 
 type DeepSeekOCR2Runner struct {
@@ -72,8 +76,12 @@ func ReadDeepSeekOCR2Spec(file *gguf.File) (DeepSeekOCR2Spec, error) {
 	if err != nil {
 		return DeepSeekOCR2Spec{}, err
 	}
-	spec := DeepSeekOCR2Spec{DeepSeekOCRSpec: base, KVHeads: int(kvHeads)}
-	if spec.KVHeads <= 0 || spec.Heads%spec.KVHeads != 0 {
+	ropeFrequency, err := metadataFloat32(file, visionRopeFrequencyKey)
+	if err != nil {
+		return DeepSeekOCR2Spec{}, err
+	}
+	spec := DeepSeekOCR2Spec{DeepSeekOCRSpec: base, KVHeads: int(kvHeads), RopeFrequency: ropeFrequency}
+	if spec.KVHeads <= 0 || spec.Heads%spec.KVHeads != 0 || !checked.PositiveFinite32(spec.RopeFrequency) {
 		return DeepSeekOCR2Spec{}, fmt.Errorf("projector: invalid DeepSeek-OCR-2 KV head count %d", spec.KVHeads)
 	}
 	spec.TensorNames = deepSeekOCR2TensorNames(file, spec)
@@ -92,7 +100,7 @@ func deepSeekOCR2TensorNames(file *gguf.File, spec DeepSeekOCR2Spec) []string {
 			names = append(names, name)
 		}
 	}
-	for layer := 0; layer < spec.Layers; layer++ {
+	for layer := range spec.Layers {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		for _, suffix := range []string{
 			"ln1.weight", "ln2.weight", "attn_q.weight", "attn_k.weight", "attn_v.weight",
@@ -118,27 +126,29 @@ func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
 		if !ok {
 			return fmt.Errorf("projector: missing tensor %q", name)
 		}
-		if info.Dimensions == 0 || info.Dimensions > 4 {
+		if err := tensorcatalog.ValidateInfo(info, tensorcatalog.Requirement{
+			Ranks: []uint32{tensor.SingletonExtent, tensor.PairedExtent, tensor.TripleExtent, tensor.MaxDimensions},
+		}); err != nil {
 			return fmt.Errorf("projector: tensor %q rank %d is invalid", name, info.Dimensions)
 		}
 	}
 	grid := uint64(spec.ImageSize / spec.PatchSize)
 	position, _ := file.Tensor("v.sam.pos_embd.weight")
 	positionShape := []uint64{uint64(spec.SAMHidden), grid, grid}
-	if position.Dimensions == 4 {
-		positionShape = append(positionShape, 1)
+	if position.Dimensions == tensor.MaxDimensions {
+		positionShape = append(positionShape, tensor.SingletonExtent)
 	}
 	requiredShapes := map[string][]uint64{
 		"v.sam.pos_embd.weight":   positionShape,
-		"v.sam.patch_embd.weight": {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.SAMHidden)},
+		"v.sam.patch_embd.weight": {uint64(spec.PatchSize), uint64(spec.PatchSize), media.RGBChannels, uint64(spec.SAMHidden)},
 		"v.sam.patch_embd.bias":   {uint64(spec.SAMHidden)},
 		"v.resample_query_768.weight": {uint64(spec.Hidden), uint64(
-			(spec.TileSize / spec.PatchSize / deepSeekOCRPositionDownsample) *
-				(spec.TileSize / spec.PatchSize / deepSeekOCRPositionDownsample),
+			(spec.TileSize / spec.PatchSize / (tensor.PairedExtent * tensor.PairedExtent)) *
+				(spec.TileSize / spec.PatchSize / (tensor.PairedExtent * tensor.PairedExtent)),
 		)},
 		"v.resample_query_1024.weight": {uint64(spec.Hidden), uint64(
-			(spec.ImageSize / spec.PatchSize / deepSeekOCRPositionDownsample) *
-				(spec.ImageSize / spec.PatchSize / deepSeekOCRPositionDownsample),
+			(spec.ImageSize / spec.PatchSize / (tensor.PairedExtent * tensor.PairedExtent)) *
+				(spec.ImageSize / spec.PatchSize / (tensor.PairedExtent * tensor.PairedExtent)),
 		)},
 		multimodalProjectionWeight: {uint64(spec.Hidden), uint64(spec.OutputHidden)},
 		multimodalProjectionBias:   {uint64(spec.OutputHidden)},
@@ -174,7 +184,7 @@ func (r *DeepSeekOCR2Runner) EncodeImage(ctx context.Context, source image.Image
 	}
 	values := make([]reference.Value, len(input.Tiles))
 	for index, tile := range input.Tiles {
-		values[index], err = r.encodeTile(ctx, tile, index == len(input.Tiles)-1)
+		values[index], err = r.encodeTile(ctx, tile, index == len(input.Tiles)-tensor.SingletonExtent)
 		if err != nil {
 			return reference.Value{}, fmt.Errorf("projector: encode DeepSeek-OCR-2 tile %d: %w", index, err)
 		}
@@ -183,12 +193,14 @@ func (r *DeepSeekOCR2Runner) EncodeImage(ctx context.Context, source image.Image
 }
 
 func (r *DeepSeekOCR2Runner) encodeTile(ctx context.Context, source image.Image, overview bool) (reference.Value, error) {
-	size := source.Bounds().Dx()
-	if size <= 0 || source.Bounds().Dy() != size || size%r.spec.PatchSize != 0 {
+	bounds := source.Bounds()
+	size := bounds.Dx()
+	_, aligned := checked.DivExactInt(size, r.spec.PatchSize)
+	if bounds.Empty() || bounds.Dy() != size || !aligned {
 		return reference.Value{}, errors.New("projector: DeepSeek-OCR-2 tile shape is invalid")
 	}
 	builder := tensor.NewBuilder()
-	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(rgbChannelCount, uint64(size), uint64(size)))
+	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(media.RGBChannels, uint64(size), uint64(size)))
 	shared := DeepSeekOCRRunner{spec: r.spec.DeepSeekOCRSpec}
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[input] = pixelsValue(input, shared.tilePixels(source))
@@ -203,18 +215,18 @@ func (r *DeepSeekOCR2Runner) encodeTile(ctx context.Context, source image.Image,
 func (r *DeepSeekOCR2Runner) buildGraph(builder *tensor.Builder, input *tensor.Tensor, size int, overview bool, weight func(string) *tensor.Tensor, hostFeeds map[*tensor.Tensor]reference.Value) *tensor.Tensor {
 	shared := DeepSeekOCRRunner{spec: r.spec.DeepSeekOCRSpec, samPosition: r.samPosition}
 	hidden := shared.buildSAMGraph(builder, input, size, weight, hostFeeds)
-	patches := hidden.Shape.Dims[1] * hidden.Shape.Dims[2]
-	hidden = builder.Reshape(hidden, hidden.Shape.Dims[0], patches)
+	patches := hidden.Shape.Dims[tensor.SingletonExtent] * hidden.Shape.Dims[tensor.PairedExtent]
+	hidden = builder.Reshape(hidden, hidden.Shape.Dims[tensor.FirstOffset], patches)
 	queryName := "v.resample_query_768.weight"
 	if overview {
 		queryName = "v.resample_query_1024.weight"
 	}
 	query := weight(queryName)
-	hidden = builder.Concat(hidden, query, 1)
-	sequence := 2 * patches
+	hidden = builder.Concat(hidden, query, tensor.SingletonExtent)
+	sequence := tensor.PairedExtent * patches
 	addOptionalBias := func(value *tensor.Tensor, name string, width uint64) *tensor.Tensor {
 		if hasTensor(r.file, name) {
-			return builder.Add(value, builder.Reshape(weight(name), width, 1))
+			return builder.Add(value, builder.Reshape(weight(name), width, tensor.SingletonExtent))
 		}
 		return value
 	}
@@ -231,7 +243,7 @@ func (r *DeepSeekOCR2Runner) buildGraph(builder *tensor.Builder, input *tensor.T
 	}
 	headWidth := uint64(r.spec.Hidden / r.spec.Heads)
 	kvWidth := headWidth * uint64(r.spec.KVHeads)
-	for layer := 0; layer < r.spec.Layers; layer++ {
+	for layer := range r.spec.Layers {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		residual := hidden
 		normalized := norm(hidden, prefix+"ln1")
@@ -241,16 +253,17 @@ func (r *DeepSeekOCR2Runner) buildGraph(builder *tensor.Builder, input *tensor.T
 		q = builder.Reshape(q, headWidth, uint64(r.spec.Heads), sequence)
 		k = builder.Reshape(k, headWidth, uint64(r.spec.KVHeads), sequence)
 		v = builder.Reshape(v, headWidth, uint64(r.spec.KVHeads), sequence)
-		q = builder.RoPEWithOptions(q, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headWidth), FrequencyBase: 1_000_000, FrequencyScale: 1})
-		k = builder.RoPEWithOptions(k, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headWidth), FrequencyBase: 1_000_000, FrequencyScale: 1})
-		imageQ := builder.FlatSlice(q, 0, headWidth, uint64(r.spec.Heads), patches)
-		imageK := builder.FlatSlice(k, 0, headWidth, uint64(r.spec.KVHeads), patches)
-		imageV := builder.FlatSlice(v, 0, headWidth, uint64(r.spec.KVHeads), patches)
+		rope := tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headWidth), FrequencyBase: r.spec.RopeFrequency, FrequencyScale: tensor.SingletonExtent}
+		q = builder.RoPEWithOptions(q, rope)
+		k = builder.RoPEWithOptions(k, rope)
+		imageQ := builder.FlatSlice(q, tensor.FirstOffset, headWidth, uint64(r.spec.Heads), patches)
+		imageK := builder.FlatSlice(k, tensor.FirstOffset, headWidth, uint64(r.spec.KVHeads), patches)
+		imageV := builder.FlatSlice(v, tensor.FirstOffset, headWidth, uint64(r.spec.KVHeads), patches)
 		imageAttention := builder.AttentionWithOptions(imageQ, imageK, imageV, tensor.AttentionOptions{Scale: float32(1 / math.Sqrt(float64(headWidth))), Causal: false})
 		queryOffset := headWidth * uint64(r.spec.Heads) * patches
 		queryQ := builder.FlatSlice(q, queryOffset, headWidth, uint64(r.spec.Heads), patches)
 		queryAttention := builder.AttentionWithOptions(queryQ, k, v, tensor.AttentionOptions{Scale: float32(1 / math.Sqrt(float64(headWidth))), Causal: true, QueryStart: uint32(patches)})
-		attention := builder.Concat(imageAttention, queryAttention, 2)
+		attention := builder.Concat(imageAttention, queryAttention, tensor.PairedExtent)
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), sequence)
 		attention = builder.MulMat(weight(prefix+"attn_out.weight"), attention)
 		attention = addOptionalBias(attention, prefix+"attn_out.bias", uint64(r.spec.Hidden))
@@ -269,18 +282,22 @@ func (r *DeepSeekOCR2Runner) buildGraph(builder *tensor.Builder, input *tensor.T
 	}
 	hidden = builder.FlatSlice(hidden, uint64(r.spec.Hidden)*patches, uint64(r.spec.Hidden), patches)
 	projected := builder.MulMat(weight(multimodalProjectionWeight), hidden)
-	return builder.Add(projected, builder.Reshape(weight(multimodalProjectionBias), uint64(r.spec.OutputHidden), 1))
+	return builder.Add(projected, builder.Reshape(weight(multimodalProjectionBias), uint64(r.spec.OutputHidden), tensor.SingletonExtent))
 }
 
 func (r *DeepSeekOCR2Runner) assemble(values []reference.Value, gridW, gridH int) (reference.Value, error) {
-	if len(values) != gridW*gridH+1 {
+	if len(values) != gridW*gridH+tensor.SingletonExtent {
 		return reference.Value{}, errors.New("projector: DeepSeek-OCR-2 tile grid is inconsistent")
 	}
-	var output []float32
+	elements := len(r.separator.Data)
 	for _, value := range values {
-		if value.Shape.Rank != 2 || value.Shape.Dims[0] != uint64(r.spec.OutputHidden) {
+		if !value.IsMatrixWidth(uint64(r.spec.OutputHidden)) {
 			return reference.Value{}, errors.New("projector: DeepSeek-OCR-2 tile output is inconsistent")
 		}
+		elements += len(value.Data)
+	}
+	output := make([]float32, tensor.FirstOffset, elements)
+	for _, value := range values {
 		output = append(output, value.Data...)
 	}
 	output = append(output, r.separator.Data...)
@@ -295,12 +312,12 @@ func (r *DeepSeekOCR2Runner) validateGraphs() error {
 		builder := tensor.NewBuilder()
 		input := builder.Input(
 			visionInputTensor, dtype.F32,
-			tensor.MustShape(rgbChannelCount, uint64(item.size), uint64(item.size)),
+			tensor.MustShape(media.RGBChannels, uint64(item.size), uint64(item.size)),
 		)
 		hostFeeds := make(map[*tensor.Tensor]reference.Value)
 		weight := func(name string) *tensor.Tensor {
 			info, _ := r.file.Tensor(name)
-			return builder.Input(name, dtype.F32, tensorInfoShape(info))
+			return builder.Input(name, dtype.F32, tensor.MustShape(info.Extents()...))
 		}
 		_ = r.buildGraph(builder, input, item.size, item.overview, weight, hostFeeds)
 		if err := builder.Err(); err != nil {

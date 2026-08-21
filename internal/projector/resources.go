@@ -19,6 +19,14 @@ type projectorResources struct {
 	cuda *projectorCUDA
 }
 
+func (r projectorResources) load(ctx context.Context, name string) (reference.Value, error) {
+	return loadProjectorHostTensor(ctx, r.file, name)
+}
+
+func (r projectorResources) loadPair(ctx context.Context, first, second string) (reference.Value, reference.Value, error) {
+	return loadProjectorHostTensorPair(ctx, r.file, first, second)
+}
+
 func (r *projectorResources) Close() error {
 	if r == nil {
 		return nil

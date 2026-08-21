@@ -155,7 +155,7 @@ func writeTinyDeepSeekOCR(t *testing.T, patterned bool) string {
 func tinyDeepSeekOCRSpec() DeepSeekOCRSpec {
 	return DeepSeekOCRSpec{ImageSize: 64, TileSize: 64, MinTiles: 2, MaxTiles: 9, PatchSize: 16,
 		Hidden: 2, FeedForward: 3, Layers: 1, Heads: 1, SAMHidden: 2, SAMLayers: 1, SAMHeads: 1,
-		Window: 2, OutputHidden: 3, LayerNormEpsilon: 1e-5, ImageStd: [3]float32{1, 1, 1}}
+		Window: 2, OutputHidden: 3, LayerNormEpsilon: 1e-5, ImageStd: [3]float32{1, 1, 1}, SAMGlobalLayers: []bool{false}}
 }
 
 func tinyDeepSeekOCRMetadata() []gguf.Metadata {
@@ -176,6 +176,7 @@ func tinyDeepSeekOCRMetadata() []gguf.Metadata {
 		{Key: "clip.vision.sam.embedding_length", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(spec.SAMHidden)}},
 		{Key: "clip.vision.sam.block_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(spec.SAMLayers)}},
 		{Key: "clip.vision.sam.head_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(spec.SAMHeads)}},
+		{Key: "clip.vision.sam.global_attention_layers", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeBool, Data: spec.SAMGlobalLayers}},
 		{Key: "clip.vision.window_size", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(spec.Window)}},
 		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: spec.LayerNormEpsilon}},
 		{Key: "clip.vision.image_mean", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{0, 0, 0}}},

@@ -26,6 +26,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/servingtest"
+	"overgo/internal/tensor"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
@@ -496,7 +497,7 @@ func testGemmaE4BImageLanguageParity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: E4B projector absent or CUDA unavailable; parity NOT verified: %v", err)
 	}
-	input, err := projector.PreprocessGemma4VisionTowerImage(source, projectorRunner.Spec().Vision)
+	input, err := projector.PreprocessVisionTowerImage(source, projectorRunner.Spec().Vision)
 	if err != nil {
 		_ = projectorRunner.Close()
 		t.Fatal(err)
@@ -596,29 +597,27 @@ func testGemmaE4BAudioParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prepared, preparedFrames, err := projector.PreprocessGemma4AudioTower(
-		wave, runner.Spec().Audio.SampleRate, runner.Spec().Audio,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	featureError := 0.0
-	if preparedFrames != golden.InputShape[1] || len(prepared) != len(features) {
-		t.Fatalf("E4B audio frontend shape = [%d,%d], want [%d,%d]",
-			preparedFrames, len(prepared), golden.InputShape[1], len(features))
-	}
-	for index, value := range prepared {
-		featureError = max(featureError, math.Abs(float64(value-features[index])))
-	}
-	if featureError > 1e-2 {
-		t.Fatalf("E4B audio frontend max error = %.6g, adaptive limit 0.01", featureError)
-	}
 	start := time.Now()
 	output, trace, err := runner.EncodeAudioTrace(
 		context.Background(), wave, runner.Spec().Audio.SampleRate, profile,
 	)
 	if err != nil {
 		t.Fatal(err)
+	}
+	frontend, ok := trace.Stages["frontend"]
+	if !ok {
+		t.Fatal("E4B audio trace lacks frontend")
+	}
+	featureError := 0.0
+	if int(frontend.Shape.Dims[tensor.SingletonExtent]) != golden.InputShape[1] || len(frontend.Data) != len(features) {
+		t.Fatalf("E4B audio frontend shape = %v, want [%d,%d]",
+			frontend.Shape, golden.InputShape[1], len(features))
+	}
+	for index, value := range frontend.Data {
+		featureError = max(featureError, math.Abs(float64(value-features[index])))
+	}
+	if featureError > 1e-2 {
+		t.Fatalf("E4B audio frontend max error = %.6g, adaptive limit 0.01", featureError)
 	}
 	wall := time.Since(start)
 	if output.SoftTokens != golden.SoftCount || int(output.Embeddings.Shape.Dims[0]) != golden.SoftDim {
@@ -710,7 +709,7 @@ func testGemmaE4BImageParity(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	input, err := projector.PreprocessGemma4VisionTowerImage(source, runner.Spec().Vision)
+	input, err := projector.PreprocessVisionTowerImage(source, runner.Spec().Vision)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -805,7 +804,7 @@ func testGemmaE4BResizeParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	input, err := projector.PreprocessGemma4VisionTowerImage(source, runner.Spec().Vision)
+	input, err := projector.PreprocessVisionTowerImage(source, runner.Spec().Vision)
 	if err != nil {
 		t.Fatal(err)
 	}

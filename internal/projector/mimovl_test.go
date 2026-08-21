@@ -84,14 +84,12 @@ func TestMiMoVLPromptContract(t *testing.T) {
 }
 
 func TestMiMoVLColumnOrderRoundTrip(t *testing.T) {
-	order := mimoVLColumnOrder(2, 3, 2)
-	values := make([]float32, len(order))
-	for index := range values {
-		values[index] = float32(index)
-	}
-	got := reorderRows(reorderRows(values, order, 1), inversePermutation(order), 1)
-	if !slices.Equal(got, values) {
-		t.Fatalf("round trip = %v", got)
+	order := columnMajorPatchOrder(2, 3, 2)
+	inverse := inversePermutation(order)
+	for destination, source := range order {
+		if inverse[source] != destination {
+			t.Fatalf("inverse[%d]=%d want=%d", source, inverse[source], destination)
+		}
 	}
 }
 
@@ -149,6 +147,7 @@ func tinyMiMoVLMetadata() []gguf.Metadata {
 		{Key: visionMinPixelsKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSmallPixelBudget)}},
 		{Key: visionMaxPixelsKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSmallPixelBudget)}},
 		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
+		{Key: visionProjectorNormKey, Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
 		{Key: "clip.vision.image_mean", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{0, 0, 0}}},
 		{Key: "clip.vision.image_std", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{1, 1, 1}}},
 		{Key: "clip.vision.wa_pattern_mode", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{0, 1, -1}}},

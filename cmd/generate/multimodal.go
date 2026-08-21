@@ -1,21 +1,14 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
-	"image/png"
-	"io"
-	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -113,7 +106,7 @@ func videoProjectedPrompt(
 	var frames []image.Image
 	if videoPath != "" {
 		var openErr error
-		frames, openErr = decodeVideoFile(ctx, videoPath, ffmpegPath, fps, videoMaxFrames)
+		frames, openErr = media.DecodeVideoFile(ctx, videoPath, ffmpegPath, fps, videoMaxFrames)
 		if openErr != nil {
 			return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: decode video: %w", openErr)
 		}
@@ -136,63 +129,4 @@ func videoProjectedPrompt(
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: encode video: %w", err)
 	}
 	return inference.ProjectedInputsForPrompt(runner, prompt)
-}
-
-func decodeVideoFile(ctx context.Context, path, configuredFFmpeg string, fps float64, maxFrames int) ([]image.Image, error) {
-	if maxFrames <= 0 || fps <= 0 || math.IsNaN(fps) || math.IsInf(fps, 0) {
-		return nil, errors.New("video FPS or frame limit is invalid")
-	}
-	absolutePath, err := filepath.Abs(path)
-	if err != nil {
-		return nil, err
-	}
-	if strings.EqualFold(filepath.Ext(path), ".gif") {
-		file, err := os.Open(absolutePath)
-		if err != nil {
-			return nil, err
-		}
-		frames, decodeErr := projector.DecodeGIFVideo(file, maxFrames)
-		closeErr := file.Close()
-		return frames, errors.Join(decodeErr, closeErr)
-	}
-	ffmpeg, err := projector.ResolveFFmpeg(configuredFFmpeg)
-	if err != nil {
-		return nil, err
-	}
-	filter := "fps=" + strconv.FormatFloat(fps, 'g', -1, 64)
-	command := exec.CommandContext(
-		ctx, ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1",
-		"-i", absolutePath, "-vf", filter, "-frames:v", strconv.Itoa(maxFrames),
-		"-f", "image2pipe", "-vcodec", "png", "pipe:1",
-	)
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	var stderr bytes.Buffer
-	command.Stderr = &stderr
-	if err := command.Start(); err != nil {
-		return nil, err
-	}
-	reader := bufio.NewReader(stdout)
-	frames := make([]image.Image, 0, maxFrames)
-	for len(frames) < maxFrames {
-		frame, decodeErr := png.Decode(reader)
-		if errors.Is(decodeErr, io.EOF) || errors.Is(decodeErr, io.ErrUnexpectedEOF) {
-			break
-		}
-		if decodeErr != nil {
-			_ = command.Process.Kill()
-			_ = command.Wait()
-			return nil, decodeErr
-		}
-		frames = append(frames, frame)
-	}
-	if err := command.Wait(); err != nil {
-		return nil, fmt.Errorf("FFmpeg: %w: %s", err, strings.TrimSpace(stderr.String()))
-	}
-	if len(frames) == 0 {
-		return nil, errors.New("FFmpeg produced no video frames")
-	}
-	return frames, nil
 }

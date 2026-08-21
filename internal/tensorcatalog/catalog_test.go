@@ -43,6 +43,24 @@ func TestValidateRelationalRequirement(t *testing.T) {
 	}
 }
 
+func TestValidateAllowedRanks(t *testing.T) {
+	requirement := Requirement{Ranks: []uint32{1, 3}, NonEmpty: true}
+	for _, rank := range []uint32{1, 3} {
+		info := gguf.TensorInfo{Name: "value", Dimensions: rank}
+		for axis := range rank {
+			info.Shape[axis] = 1
+		}
+		if err := ValidateInfo(info, requirement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := ValidateInfo(
+		gguf.TensorInfo{Name: "value", Dimensions: 2, Shape: [gguf.MaxDimensions]uint64{1, 1}}, requirement,
+	); err == nil {
+		t.Fatal("unlisted rank accepted")
+	}
+}
+
 func TestShapeAndIndexedCount(t *testing.T) {
 	shapes := map[string][]int{
 		"layer.0.weight": {2, 3},

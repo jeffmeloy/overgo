@@ -178,14 +178,14 @@ func Convert(options Options) (Report, error) {
 		report.ModelTensors = len(tensors)
 	}
 	if options.MMProjPath != "" {
+		var processor processorConfig
+		if err := jsonfile.Decode(filepath.Join(directory, "processor_config.json"), &processor); err != nil {
+			return report, fmt.Errorf("Gemma 4 converter: processor config: %w", err)
+		}
 		tower := towerLayout(config)
 		var metadata []gguf.Metadata
 		var tensors []gguf.TensorData
 		if tower {
-			var processor processorConfig
-			if err := jsonfile.Decode(filepath.Join(directory, "processor_config.json"), &processor); err != nil {
-				return report, fmt.Errorf("Gemma 4 converter: processor config: %w", err)
-			}
 			if err := validateTowerConfig(config, processor); err != nil {
 				return report, err
 			}
@@ -203,7 +203,13 @@ func Convert(options Options) (Report, error) {
 			if err := validateProjectorConfig(config); err != nil {
 				return report, err
 			}
-			metadata = projectorMetadata(name, config)
+			if processor.Image.MaxSoftTokens == 0 || processor.Video.MaxSoftTokens == 0 {
+				return report, errors.New("Gemma 4 converter: processor token budgets are incomplete")
+			}
+			if processor.Audio.SampleRate == 0 {
+				return report, errors.New("Gemma 4 converter: processor audio sample rate is missing")
+			}
+			metadata = projectorMetadata(name, config, processor)
 			var tensorErr error
 			tensors, tensorErr = projectorTensors(source, options.MMProjF32)
 			if tensorErr != nil {
@@ -554,7 +560,7 @@ func isFFNProjection(destination string) bool {
 		strings.HasSuffix(destination, ".ffn_down.weight")
 }
 
-func projectorMetadata(name string, config modelConfig) []gguf.Metadata {
+func projectorMetadata(name string, config modelConfig, processor processorConfig) []gguf.Metadata {
 	return []gguf.Metadata{
 		gguf.StringMetadata("general.architecture", "clip"),
 		gguf.StringMetadata("general.name", name+" multimodal projector"),
@@ -568,9 +574,12 @@ func projectorMetadata(name string, config modelConfig) []gguf.Metadata {
 		gguf.Uint32Metadata("clip.vision.attention.head_count", 0),
 		gguf.Uint32Metadata("clip.vision.projection_dim", config.Vision.Embedding),
 		gguf.Float32Metadata("clip.vision.attention.layer_norm_epsilon", config.Vision.RMSEpsilon),
+		gguf.Float32Metadata("clip.vision.projector.layer_norm_epsilon", sourceProjectorLayerNormEpsilon),
 		gguf.ArrayMetadata("clip.vision.image_mean", gguf.ValueTypeFloat32, []float32{0, 0, 0}),
 		gguf.ArrayMetadata("clip.vision.image_std", gguf.ValueTypeFloat32, []float32{1, 1, 1}),
 		gguf.Uint32Metadata("clip.vision.projector_scale_factor", config.Vision.PoolingSize),
+		gguf.Uint32Metadata("clip.vision.max_soft_tokens", processor.Image.MaxSoftTokens),
+		gguf.Uint32Metadata("clip.vision.video_max_soft_tokens", processor.Video.MaxSoftTokens),
 		gguf.StringMetadata("clip.audio.projector_type", "gemma4ua"),
 		gguf.BoolMetadata("clip.has_audio_encoder", true),
 		gguf.Uint32Metadata("clip.audio.embedding_length", config.Audio.Embedding),
@@ -579,6 +588,7 @@ func projectorMetadata(name string, config modelConfig) []gguf.Metadata {
 		gguf.Uint32Metadata("clip.audio.attention.head_count", 0),
 		gguf.Uint32Metadata("clip.audio.projection_dim", config.Text.HiddenSize),
 		gguf.Float32Metadata("clip.audio.attention.layer_norm_epsilon", config.Audio.RMSEpsilon),
+		gguf.Uint32Metadata("clip.audio.sample_rate", processor.Audio.SampleRate),
 		gguf.Uint32Metadata("clip.audio.num_mel_bins", 128),
 	}
 }

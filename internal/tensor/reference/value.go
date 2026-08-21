@@ -15,6 +15,10 @@ func (v Value) Clone() Value {
 	return Value{Shape: v.Shape, Data: slices.Clone(v.Data)}
 }
 
+func (v Value) IsMatrixWidth(width uint64) bool {
+	return v.Shape.Rank == tensor.PairedExtent && v.Shape.Dims[0] == width
+}
+
 func (v Value) Rows(start, count uint64) (Value, error) {
 	if v.Shape.Rank != 2 || count == 0 || start > v.Shape.Dims[1] || count > v.Shape.Dims[1]-start {
 		return Value{}, errors.New("reference row range is invalid")

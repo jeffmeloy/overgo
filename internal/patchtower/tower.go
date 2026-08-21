@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/media"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
 )
@@ -80,7 +81,7 @@ type MergerWeights struct {
 }
 
 func LoadPatchEmbedWeights(src *safetensors.Source, spec Spec) (PatchEmbedWeights, error) {
-	weight, err := MaterializeF32(src, PatchEmbedWeightName, spec.Hidden*RGBChannels*spec.PatchSize*spec.PatchSize)
+	weight, err := MaterializeF32(src, PatchEmbedWeightName, spec.Hidden*media.RGBChannels*spec.PatchSize*spec.PatchSize)
 	if err != nil {
 		return PatchEmbedWeights{}, err
 	}
@@ -184,9 +185,9 @@ func patchEmbedSourcePatch(rowMajorPatch, gridH, gridW, merge int) (int, error) 
 func patchEmbedOne(pixelValues []float32, srcPatch, channel int, spec Spec, w PatchEmbedWeights) float32 {
 	patchArea := spec.PatchSize * spec.PatchSize
 	pvBase := srcPatch * spec.PatchDim
-	wBase := channel * RGBChannels * patchArea
+	wBase := channel * media.RGBChannels * patchArea
 	acc := float64(w.Bias[channel])
-	for c := 0; c < RGBChannels; c++ {
+	for c := 0; c < media.RGBChannels; c++ {
 		for p := 0; p < patchArea; p++ {
 			x := dtype.RoundBF16(pixelValues[pvBase+c*patchArea+p])
 			acc += float64(x) * float64(w.Weight[wBase+c*patchArea+p])
@@ -244,7 +245,7 @@ func PreBlock0Values(pixelValues []float32, gridT, gridH, gridW int, spec Spec, 
 	}
 	out := make([]float32, nPatch*spec.Hidden)
 	var firstErr error
-	hostmath.ParallelRangeF64(nPatch, spec.Hidden*RGBChannels*spec.PatchSize*spec.PatchSize, func(lo, hi int) {
+	hostmath.ParallelRangeF64(nPatch, spec.Hidden*media.RGBChannels*spec.PatchSize*spec.PatchSize, func(lo, hi int) {
 		for token := lo; token < hi; token++ {
 			srcPatch, err := patchEmbedSourcePatch(token, gridH, gridW, spec.MergeSize)
 			if err != nil {

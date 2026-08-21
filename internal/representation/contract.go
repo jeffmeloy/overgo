@@ -188,6 +188,9 @@ var contractCodec = artifact.JSONDocumentCodec(
 	cloneContract,
 )
 
+// ParseContract admits canonical representation authority bytes.
+func ParseContract(content []byte) (Contract, error) { return contractCodec.Parse(content) }
+
 func (c Contract) ValidateIdentity() error { return contractCodec.ValidateIdentity(c) }
 
 func (c Contract) Content() (artifact.Content, error) { return contractCodec.Content(c) }

@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "mlp-bridge-graph",
-          "title": "Compile normalized linear and GELU bridge operators through one Go tensor contract",
-          "status": "open",
-          "verify": "go test ./internal/bridgegraph -run '^TestMLPBridgeForwardAndValidation$' -count=1",
-          "rationale": "The minimum useful width-changing bridge needs sealed shape validation and reference math before it is admitted to model execution.",
-          "depends_on": [
-            "cross-model-representation-bridge/representation-contract"
-          ],
-          "capabilities": [
-            "linear-bridge",
-            "normalized-mlp-bridge",
-            "sealed-operator-graph"
-          ]
-        },
-        {
           "id": "composite-recipe",
           "title": "Bind source model, target model, and bridge artifacts in one compiled component recipe",
           "status": "open",

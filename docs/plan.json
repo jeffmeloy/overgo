@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "composite-recipe",
-          "title": "Bind source model, target model, and bridge artifacts in one compiled component recipe",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -run '^TestRepresentationBridgeDefinition$' -count=1",
-          "rationale": "Independent models require exact slots, bridge lineage, validated data edges, and derived component lifetimes rather than filename or architecture-family dispatch.",
-          "depends_on": [
-            "cross-model-representation-bridge/mlp-bridge-graph"
-          ],
-          "capabilities": [
-            "two-model-recipe",
-            "bridge-artifact-lineage",
-            "component-session-lifetime"
-          ]
-        },
-        {
           "id": "embedding-injection",
           "title": "Capture source representations and inject validated bridge output at the target embedding boundary",
           "status": "open",

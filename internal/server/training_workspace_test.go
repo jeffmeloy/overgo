@@ -15,13 +15,14 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
 )
 
-func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
+func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	roots := dataroot.Roots{Models: filepath.Join(root, "models"), Datasets: filepath.Join(root, "datasets"), Checkpoints: filepath.Join(root, "checkpoints")}
@@ -100,6 +101,7 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 	for index, id := range authorities {
 		descriptors[index] = artifact.Descriptor{ID: id}
 	}
+	const championAlias = "models/training-workspace/champion"
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/training-workspace/artifacts",
 		Artifacts: append(descriptors, []artifact.Descriptor{
@@ -111,6 +113,7 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 			location(reference, artifact.LocationDirectory, referencePath),
 			location(dataset, artifact.LocationFile, datasetPath),
 		},
+		Aliases: []artifact.AliasBinding{{Name: championAlias, Target: policy}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -140,8 +143,9 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 		capabilities[0].Controls[0].Type != WorkflowControlDataset {
 		t.Fatalf("capabilities=%+v err=%v", capabilities, err)
 	}
+	expectedObservations := []struct{}{{}}
 	input, err := json.Marshal(map[string]any{
-		"dataset": dataset, "output": "trained", "steps": 1,
+		"dataset": dataset, "output": "trained", "steps": len(expectedObservations),
 		"objective_scale": 0.1,
 	})
 	if err != nil {
@@ -149,11 +153,38 @@ func TestTrainingWorkspaceAdmitsActiveDPORecipe(t *testing.T) {
 	}
 	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, recipe.TaskTraining, definition.ID, input, testReporter{})
 	if err != nil || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 3 ||
-		completion.Outputs[0].Kind() != artifact.KindCheckpoint || completion.Outputs[1].Kind() != artifact.KindEvidence {
+		completion.Outputs[0].Kind() != artifact.KindCheckpoint || completion.Outputs[1].Kind() != artifact.KindEvidence ||
+		completion.Outputs[2].Kind() != artifact.KindEvidence {
 		t.Fatalf("completion=%+v err=%v", completion, err)
 	}
 	if checkpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(roots.Checkpoints, "trained")); err != nil || checkpoint.ID() != completion.Outputs[0] {
 		t.Fatalf("checkpoint=%s err=%v", checkpoint.ID(), err)
+	}
+	traceContent, ok, err := store.Content(ctx, completion.Outputs[1])
+	if err != nil || !ok {
+		t.Fatalf("training trace content exists=%v err=%v", ok, err)
+	}
+	var trace runrecord.TrainingTrace
+	err = json.Unmarshal(traceContent.Data, &trace)
+	if err != nil || trace.Run != completion.Run || trace.Recipe != definition.ID ||
+		trace.Dataset != dataset || trace.Policy != policy || trace.Reference != reference ||
+		trace.Objective != trainingprogram.ObjectiveDPO || len(trace.DPO) != len(expectedObservations) {
+		t.Fatalf("trace=%+v err=%v", trace, err)
+	}
+	decisionContent, ok, err := store.Content(ctx, completion.Outputs[2])
+	if err != nil || !ok {
+		t.Fatalf("training decision content exists=%v err=%v", ok, err)
+	}
+	var decision runrecord.TrainingDecision
+	err = json.Unmarshal(decisionContent.Data, &decision)
+	if err != nil || decision.State != runrecord.TrainingEvaluationRequired ||
+		decision.Run != completion.Run || decision.Recipe != definition.ID || decision.Parent != policy ||
+		decision.Checkpoint != completion.Outputs[0] || decision.Trace != completion.Outputs[1] || decision.Rollback != policy {
+		t.Fatalf("decision=%+v err=%v", decision, err)
+	}
+	champion, ok, err := store.ResolveAlias(ctx, championAlias)
+	if err != nil || !ok || champion != policy {
+		t.Fatalf("champion after training=(%s,%v,%v), want unchanged parent %s", champion, ok, err, policy)
 	}
 }
 

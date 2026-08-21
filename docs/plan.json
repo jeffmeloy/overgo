@@ -3,28 +3,6 @@
   "doctrine": "Training evidence must distinguish a reusable implementation from an exact artifact campaign. Verify production workflows at their real objective, device, data, persistence, and lifecycle scope. Every admitted objective must prove uninterrupted/split equivalence and atomic checkpoint identity. A successful GUI run must publish a trace and an evaluation-required decision; promotion remains withheld until held-out evidence exists. Committed training specifications identify the exact model, dataset, commit, span, measurements, and evidence bytes, and a generated matrix exposes their strongest claims without upgrading smoke evidence. Missing model artifacts remain explicit verification gaps, never passes.",
   "items": [
     {
-      "id": "training-lifecycle",
-      "title": "Verify the train to evaluation boundary",
-      "status": "open",
-      "steps": [
-        {
-          "id": "handoff",
-          "title": "Prove GUI training publishes checkpoint, trace, and evaluation-required decision without premature promotion",
-          "status": "open",
-          "verify": "go test ./internal/server ./internal/runrecord -run '^(TestTrainingWorkspacePublishesEvaluationRequiredDecision|TestTrainingDecisionWithholdsPromotionUntilEvaluation)$' -count=1",
-          "rationale": "Successful optimization is not promotion evidence; the durable handoff must retain rollback authority until a held-out evaluator decides.",
-          "depends_on": [
-            "training-resume/matrix"
-          ],
-          "capabilities": [
-            "training-trace",
-            "evaluation-handoff",
-            "rollback-authority"
-          ]
-        }
-      ]
-    },
-    {
       "id": "training-admission",
       "title": "Expose production training scope without fallback claims",
       "status": "open",

@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -43,6 +44,7 @@ var releaseCommands = []string{
 }
 
 var releaseDocuments = []string{
+	"VERSION",
 	"README.md",
 	"docs/COMPATIBILITY.md",
 	"docs/REPODB_IMPORT.md",
@@ -53,7 +55,12 @@ var releaseDocuments = []string{
 	"kernels/manifest.json",
 }
 
-const archiveName = "overgo-windows-amd64.zip"
+const (
+	versionFile          = "VERSION"
+	releaseDirectoryMode = os.FileMode(0o755)
+)
+
+var versionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 
 type archiveEntry struct {
 	Name string
@@ -78,6 +85,17 @@ func main() {
 func buildRelease(root, output string, verify bool) error {
 	if output == "" {
 		return errors.New("release: output directory is empty")
+	}
+	version, err := readReleaseVersion(root)
+	if err != nil {
+		return err
+	}
+	outside, err := executableOutsideBin(root)
+	if err != nil {
+		return err
+	}
+	if outside != "" {
+		return fmt.Errorf("release: executable outside bin: %s", outside)
 	}
 	kernelCheck := exec.Command("go", "run", "./cmd/kernel-manifest")
 	kernelCheck.Dir = root
@@ -113,24 +131,24 @@ func buildRelease(root, output string, verify bool) error {
 	if err := os.MkdirAll(output, 0o755); err != nil {
 		return err
 	}
-	archivePath := filepath.Join(output, archiveName)
+	archive := releaseArchiveName(version)
+	archivePath := filepath.Join(output, archive)
 	if err := os.WriteFile(archivePath, first, 0o644); err != nil {
 		return err
 	}
 	sum := sha256.Sum256(first)
-	checksum := hex.EncodeToString(sum[:]) + "  " + archiveName + "\n"
+	checksum := hex.EncodeToString(sum[:]) + "  " + archive + "\n"
 	return os.WriteFile(archivePath+".sha256", []byte(checksum), 0o644)
 }
 
 func buildArchive(root string) ([]byte, error) {
-	stage, err := os.MkdirTemp("", "overgo-release-*")
-	if err != nil {
+	binaryDirectory := filepath.Join(root, "bin")
+	if err := os.MkdirAll(binaryDirectory, releaseDirectoryMode); err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(stage)
 	entries := make([]archiveEntry, 0, len(releaseCommands)+len(releaseDocuments)+1)
 	for _, name := range releaseCommands {
-		output := filepath.Join(stage, name+".exe")
+		output := filepath.Join(binaryDirectory, name+".exe")
 		command := exec.Command(
 			"go", "build",
 			"-trimpath",
@@ -148,7 +166,7 @@ func buildArchive(root string) ([]byte, error) {
 		if readErr != nil {
 			return nil, readErr
 		}
-		entries = append(entries, archiveEntry{Name: name + ".exe", Data: data, Mode: 0o755})
+		entries = append(entries, archiveEntry{Name: path.Join("bin", name+".exe"), Data: data, Mode: 0o755})
 	}
 	for _, name := range releaseDocuments {
 		data, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(name)))
@@ -170,6 +188,50 @@ func buildArchive(root string) ([]byte, error) {
 	})
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	return createArchive(entries)
+}
+
+func readReleaseVersion(root string) (string, error) {
+	raw, err := os.ReadFile(filepath.Join(root, versionFile))
+	if err != nil {
+		return "", fmt.Errorf("release: read %s: %w", versionFile, err)
+	}
+	version := strings.TrimSpace(string(raw))
+	if !versionPattern.MatchString(version) {
+		return "", fmt.Errorf("release: invalid version %q", version)
+	}
+	return version, nil
+}
+
+func releaseArchiveName(version string) string {
+	return "overgo-v" + version + "-windows-amd64.zip"
+}
+
+func executableOutsideBin(root string) (string, error) {
+	absoluteRoot, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	binRoot := filepath.Join(absoluteRoot, "bin")
+	gitRoot := filepath.Join(absoluteRoot, ".git")
+	var result string
+	err = filepath.WalkDir(absoluteRoot, func(current string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() && (current == binRoot || current == gitRoot) {
+			return filepath.SkipDir
+		}
+		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".exe") {
+			return nil
+		}
+		relative, err := filepath.Rel(absoluteRoot, current)
+		if err != nil {
+			return err
+		}
+		result = filepath.ToSlash(relative)
+		return filepath.SkipAll
+	})
+	return result, err
 }
 
 func createArchive(entries []archiveEntry) ([]byte, error) {

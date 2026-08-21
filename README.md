@@ -28,6 +28,8 @@ decisions, and a GUI that covers the complete workflow.
 runtime dependency. Public interfaces may change while the platform is under
 active development.
 
+**Release:** v0.1.1
+
 ## 1. What Overgo is
 
 Overgo puts these jobs behind one runtime:
@@ -596,6 +598,24 @@ reference artifacts are absent.
 FFmpeg is optional for encoded video other than native GIF. Select it with
 `-ffmpeg`, `OVERGO_FFMPEG`, `PATH`, or a detected Windows installation.
 
+### Prebuilt release
+
+The Windows amd64 release archive places every executable under `bin/` and
+keeps configuration and reference documents at the archive root. Examples:
+
+```bash
+bin/cuda-info.exe
+bin/server.exe -listen 127.0.0.1:8080 D:/models/model.gguf
+```
+
+Source builds use the same output directory. The release command builds the
+curated executable set into `bin/`, creates a versioned archive under `dist/`,
+and can rebuild it to check byte-for-byte reproducibility:
+
+```bash
+go run ./cmd/release -out dist -verify-reproducible
+```
+
 ### Configure data roots
 
 Model and workflow commands resolve data in this order:
@@ -618,6 +638,28 @@ Example `local-models.json`:
 
 Large model, dataset, and checkpoint bytes stay outside Git. RepoDB records
 their identities and locations.
+
+Configuring these roots does not scan or register every file. Intake commands
+hash artifact bytes and commit a descriptor plus a file or directory location
+to RepoDB. External model and dataset manifests can be imported atomically:
+
+```bash
+go run ./cmd/repodb-import \
+  -repo D:/overgo-data/repodb-store \
+  -root D:/artifact-export \
+  < export.jsonl
+```
+
+The import stream can declare files, inline documents, model manifests,
+lineage, and aliases. Relative file paths are resolved under `-root`, hashed,
+and recorded without copying their bytes into RepoDB. Training also requires a
+dataset identity, split, processors, objective, and active recipe; a path alone
+does not grant training authority.
+
+The GUI dataset browser reads `datasets/manifest.json` from the configured
+dataset root. That browse manifest supplies names and metadata only. Training
+still resolves the selected dataset through its RepoDB identity and recorded
+location.
 
 ### Verify the checkout
 

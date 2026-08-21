@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/hostmath"
 	"overgo/internal/representation"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -19,6 +20,7 @@ const (
 	OperatorLinear          Operator = "linear"
 	OperatorMLPGELU         Operator = "mlp-gelu"
 	OperatorAlignVocabulary Operator = "align-vocabulary"
+	OperatorPerceiver       Operator = "perceiver-resampler"
 )
 
 type EmbeddingMode string
@@ -30,17 +32,20 @@ const (
 
 // Definition binds one shape-changing operator to exact interface artifacts.
 type Definition struct {
-	Source          artifact.ID
-	Target          artifact.ID
-	Operator        Operator
-	Intermediate    uint64
-	Bias            bool
-	Vocabulary      artifact.ID
-	VocabularyHead  artifact.ID
-	TargetEmbedding artifact.ID
-	VocabularySize  uint64
-	VocabularyLimit uint64
-	EmbeddingMode   EmbeddingMode
+	Source           artifact.ID
+	Target           artifact.ID
+	Operator         Operator
+	Intermediate     uint64
+	Bias             bool
+	Vocabulary       artifact.ID
+	VocabularyHead   artifact.ID
+	TargetEmbedding  artifact.ID
+	VocabularySize   uint64
+	VocabularyLimit  uint64
+	EmbeddingMode    EmbeddingMode
+	LatentCount      uint64
+	HeadCount        uint64
+	SourceTokenLimit uint64
 }
 
 // Weights are graph nodes supplied by the bridge artifact loader.
@@ -50,6 +55,12 @@ type Weights struct {
 	Second     *tensor.Tensor
 	SecondBias *tensor.Tensor
 	Embedding  *tensor.Tensor
+	Latents    *tensor.Tensor
+	Query      *tensor.Tensor
+	Key        *tensor.Tensor
+	Value      *tensor.Tensor
+	Output     *tensor.Tensor
+	Mask       *tensor.Tensor
 }
 
 // Compiler is stateless; its zero value admits canonical contract bytes.
@@ -79,6 +90,7 @@ type Boundary struct {
 var (
 	matrixExtents = tensor.MatrixRows
 	declareTensor = tensor.NewShape
+	reframeTensor = (*tensor.Builder).Reshape
 )
 
 // Boundaries returns the exact source and target interfaces admitted during
@@ -120,25 +132,38 @@ func (Compiler) Compile(definition Definition, sourceContent, targetContent []by
 	if err != nil {
 		return Program{}, fmt.Errorf("bridge graph: target: %w", err)
 	}
-	if targetMin > sourceMin || targetMax < sourceMax ||
-		source.Sequence.Mask != target.Sequence.Mask ||
-		source.Sequence.Padding != target.Sequence.Padding ||
-		source.Sequence.Position != target.Sequence.Position ||
-		len(source.Sequence.PositionAxes) != len(target.Sequence.PositionAxes) ||
-		!slices.Equal(source.Sequence.SpecialTokens, target.Sequence.SpecialTokens) {
-		return Program{}, errors.New("bridge graph: linear operator cannot change sequence semantics")
-	}
 	switch definition.Operator {
 	case OperatorLinear:
-		if checked.Nonzero(definition.Intermediate) || vocabularyDefinitionPresent(definition) {
+		if checked.Nonzero(definition.Intermediate) || vocabularyDefinitionPresent(definition) ||
+			perceiverDefinitionPresent(definition) {
 			return Program{}, errors.New("bridge graph: linear operator has an intermediate width")
 		}
+		if err := validatePreservedSequence(source, target, sourceMin, sourceMax, targetMin, targetMax); err != nil {
+			return Program{}, err
+		}
 	case OperatorMLPGELU:
-		if !checked.Nonzero(definition.Intermediate) || vocabularyDefinitionPresent(definition) {
+		if !checked.Nonzero(definition.Intermediate) || vocabularyDefinitionPresent(definition) ||
+			perceiverDefinitionPresent(definition) {
 			return Program{}, errors.New("bridge graph: MLP operator requires an intermediate width")
 		}
+		if err := validatePreservedSequence(source, target, sourceMin, sourceMax, targetMin, targetMax); err != nil {
+			return Program{}, err
+		}
 	case OperatorAlignVocabulary:
+		if perceiverDefinitionPresent(definition) {
+			return Program{}, errors.New("bridge graph: vocabulary alignment has Perceiver settings")
+		}
+		if err := validatePreservedSequence(source, target, sourceMin, sourceMax, targetMin, targetMax); err != nil {
+			return Program{}, err
+		}
 		if err := validateVocabularyDefinition(definition, target); err != nil {
+			return Program{}, err
+		}
+	case OperatorPerceiver:
+		if vocabularyDefinitionPresent(definition) {
+			return Program{}, errors.New("bridge graph: Perceiver has vocabulary settings")
+		}
+		if err := validatePerceiverDefinition(definition, source, target, sourceMin, sourceMax, targetMin, targetMax, targetSize); err != nil {
 			return Program{}, err
 		}
 	default:
@@ -168,6 +193,9 @@ func (p Program) Build(builder *tensor.Builder, input *tensor.Tensor, weights We
 	}
 	if p.definition.Operator == OperatorAlignVocabulary {
 		return p.buildVocabularyAlignment(builder, input, weights, tokens)
+	}
+	if p.definition.Operator == OperatorPerceiver {
+		return p.buildPerceiver(builder, input, weights, tokens)
 	}
 	firstOutput := p.targetSize
 	if p.definition.Operator == OperatorMLPGELU {
@@ -216,6 +244,45 @@ func vocabularyDefinitionPresent(definition Definition) bool {
 	return definition.Vocabulary.Valid() || definition.VocabularyHead.Valid() ||
 		definition.TargetEmbedding.Valid() || checked.Nonzero(definition.VocabularySize) ||
 		checked.Nonzero(definition.VocabularyLimit) || definition.EmbeddingMode != ""
+}
+
+func perceiverDefinitionPresent(definition Definition) bool {
+	return checked.Nonzero(definition.LatentCount) || checked.Nonzero(definition.HeadCount) ||
+		checked.Nonzero(definition.SourceTokenLimit)
+}
+
+func validatePreservedSequence(
+	source, target representation.Contract,
+	sourceMin, sourceMax, targetMin, targetMax uint64,
+) error {
+	if targetMin > sourceMin || targetMax < sourceMax ||
+		source.Sequence.Mask != target.Sequence.Mask ||
+		source.Sequence.Padding != target.Sequence.Padding ||
+		source.Sequence.Position != target.Sequence.Position ||
+		len(source.Sequence.PositionAxes) != len(target.Sequence.PositionAxes) ||
+		!slices.Equal(source.Sequence.SpecialTokens, target.Sequence.SpecialTokens) {
+		return errors.New("bridge graph: sequence-preserving operator cannot change sequence semantics")
+	}
+	return nil
+}
+
+func validatePerceiverDefinition(
+	definition Definition,
+	source, target representation.Contract,
+	sourceMin, sourceMax, targetMin, targetMax, targetChannels uint64,
+) error {
+	_, divisible := checked.DivExact64(targetChannels, definition.HeadCount)
+	if checked.Nonzero(definition.Intermediate) || !checked.Nonzero(definition.LatentCount) ||
+		!checked.Nonzero(definition.HeadCount) || !divisible ||
+		!checked.Nonzero(definition.SourceTokenLimit) ||
+		definition.SourceTokenLimit < sourceMin || definition.SourceTokenLimit > sourceMax ||
+		targetMin != definition.LatentCount || targetMax != definition.LatentCount ||
+		source.Sequence.Mask == representation.MaskNone ||
+		target.Sequence.Mask != representation.MaskNone ||
+		target.Sequence.Padding != representation.PaddingNone {
+		return errors.New("bridge graph: Perceiver sequence or attention bounds are invalid")
+	}
+	return nil
 }
 
 func validateVocabularyDefinition(definition Definition, target representation.Contract) error {
@@ -289,6 +356,66 @@ func (p Program) buildVocabularyAlignment(
 	outputTokens, matrix := matrixExtents(output.Shape, p.targetSize)
 	if output.Type != dtype.F32 || !matrix || outputTokens != tokens {
 		return nil, errors.New("bridge graph: vocabulary output differs from target matrix contract")
+	}
+	return output, nil
+}
+
+func (p Program) buildPerceiver(
+	builder *tensor.Builder,
+	input *tensor.Tensor,
+	weights Weights,
+	tokens uint64,
+) (*tensor.Tensor, error) {
+	if weights.First != nil || weights.FirstBias != nil || weights.Second != nil ||
+		weights.SecondBias != nil || weights.Embedding != nil || weights.Mask == nil {
+		return nil, errors.New("bridge graph: Perceiver tensor set is incomplete or mixed")
+	}
+	if tokens > p.definition.SourceTokenLimit {
+		return nil, errors.New("bridge graph: Perceiver source exceeds its token limit")
+	}
+	checks := []struct {
+		name          string
+		value         *tensor.Tensor
+		input, output uint64
+	}{
+		{"latents", weights.Latents, p.targetSize, p.definition.LatentCount},
+		{"query", weights.Query, p.targetSize, p.targetSize},
+		{"key", weights.Key, p.sourceSize, p.targetSize},
+		{"value", weights.Value, p.sourceSize, p.targetSize},
+		{"output", weights.Output, p.targetSize, p.targetSize},
+	}
+	for _, check := range checks {
+		if err := validateProjection(check.value, nil, check.input, check.output, false); err != nil {
+			return nil, fmt.Errorf("bridge graph: Perceiver %s: %w", check.name, err)
+		}
+	}
+	headChannels, _ := checked.DivExact64(p.targetSize, p.definition.HeadCount)
+	source := applyNormalization(builder, input, p.source.Normalization)
+	latents := weights.Latents
+	query := reframeTensor(
+		builder, builder.MulMat(weights.Query, latents),
+		headChannels, p.definition.HeadCount, p.definition.LatentCount,
+	)
+	key := reframeTensor(
+		builder, builder.MulMat(weights.Key, source),
+		headChannels, p.definition.HeadCount, tokens,
+	)
+	value := reframeTensor(
+		builder, builder.MulMat(weights.Value, source),
+		headChannels, p.definition.HeadCount, tokens,
+	)
+	attention := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{
+		KeyBias: weights.Mask, Scale: hostmath.InvSqrt32(headChannels),
+	})
+	attention = reframeTensor(builder, attention, p.targetSize, p.definition.LatentCount)
+	output := builder.Add(latents, builder.MulMat(weights.Output, attention))
+	output = applyNormalization(builder, output, p.target.Normalization)
+	if err := builder.Err(); err != nil {
+		return nil, fmt.Errorf("bridge graph: build Perceiver: %w", err)
+	}
+	outputTokens, matrix := matrixExtents(output.Shape, p.targetSize)
+	if output.Type != dtype.F32 || !matrix || outputTokens != p.definition.LatentCount {
+		return nil, errors.New("bridge graph: Perceiver output differs from fixed target contract")
 	}
 	return output, nil
 }

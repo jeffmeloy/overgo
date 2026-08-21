@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "perceiver-resampler",
-          "title": "Add masked fixed-latent Perceiver resampling for long variable source sequences",
-          "status": "open",
-          "verify": "go test ./internal/bridgegraph -run '^TestPerceiverResampler$' -count=1",
-          "rationale": "Audio, image, and video towers need a derived fixed target token budget with exact masks and head geometry rather than unbounded source-token injection.",
-          "depends_on": [
-            "cross-model-representation-bridge/align-vocabulary"
-          ],
-          "capabilities": [
-            "fixed-latent-resampling",
-            "masked-cross-attention",
-            "bounded-target-token-budget"
-          ]
-        },
-        {
           "id": "interleaved-cross-attention",
           "title": "Admit zero-gated external cross-attention at explicit target layer-program seams",
           "status": "open",

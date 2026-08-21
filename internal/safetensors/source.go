@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"overgo/internal/binaryschema"
+	"overgo/internal/pathidentity"
 	"overgo/internal/strictjson"
 )
 
@@ -296,6 +297,9 @@ func shardPaths(directory string, limits Limits) ([]string, map[string]string, e
 	if len(index.WeightMap) == 0 {
 		return nil, nil, errors.New("safetensors: shard index has no weights")
 	}
+	if len(index.WeightMap) > limits.MaxTensors {
+		return nil, nil, fmt.Errorf("safetensors: shard index tensor count exceeds limit %d", limits.MaxTensors)
+	}
 	shards := make(map[string]string)
 	weightMap := make(map[string]string, len(index.WeightMap))
 	for name, shard := range index.WeightMap {
@@ -341,7 +345,12 @@ func shardIndexPath(directory string) (string, error) {
 	if len(indexes) == 0 {
 		return "", nil
 	}
-	return filepath.Join(directory, indexes[0]), nil
+	path := filepath.Join(directory, indexes[0])
+	contained, err := pathidentity.Contains(directory, path)
+	if err != nil || !contained {
+		return "", errors.Join(errors.New("safetensors: shard index escapes repository"), err)
+	}
+	return path, nil
 }
 
 func unindexedShardPaths(directory string, limits Limits) ([]string, map[string]string, error) {
@@ -352,7 +361,12 @@ func unindexedShardPaths(directory string, limits Limits) ([]string, map[string]
 	paths := make([]string, 0)
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".safetensors") {
-			paths = append(paths, filepath.Join(directory, entry.Name()))
+			path := filepath.Join(directory, entry.Name())
+			contained, err := pathidentity.Contains(directory, path)
+			if err != nil || !contained {
+				return nil, nil, errors.Join(errors.New("safetensors: shard escapes repository"), err)
+			}
+			paths = append(paths, path)
 		}
 	}
 	sort.Strings(paths)
@@ -373,7 +387,12 @@ func localShardPath(directory string, shard string) (string, string, error) {
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 		return "", "", fmt.Errorf("safetensors: shard path escapes repository: %q", shard)
 	}
-	return filepath.ToSlash(clean), filepath.Join(directory, clean), nil
+	path := filepath.Join(directory, clean)
+	contained, err := pathidentity.Contains(directory, path)
+	if err != nil || !contained {
+		return "", "", errors.Join(fmt.Errorf("safetensors: shard path escapes repository: %q", shard), err)
+	}
+	return filepath.ToSlash(clean), path, nil
 }
 
 func (s *Source) openShard(directory string, path string, limits Limits) error {
@@ -402,7 +421,7 @@ func (s *Source) openShard(directory string, path string, limits Limits) error {
 		return fmt.Errorf("safetensors: read %s header: %w", filepath.Base(path), err)
 	}
 	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(headerBytes, &raw); err != nil {
+	if err := strictjson.DecodeBytes(headerBytes, &raw); err != nil {
 		return fmt.Errorf("safetensors: parse %s header: %w", filepath.Base(path), err)
 	}
 	shard, err := filepath.Rel(directory, path)

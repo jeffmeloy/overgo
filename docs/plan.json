@@ -252,19 +252,6 @@
       ]
     },
     {
-      "id": "tier2-inventory-adversarial",
-      "title": "Harden bounded GGUF and safetensors inventory ingestion against adversarial catalog inputs",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Harden bounded GGUF and safetensors inventory ingestion against adversarial catalog inputs",
-          "status": "open",
-          "verify": "go test ./internal/gguf ./internal/safetensors ./internal/modelartifact -run 'Bounded|Adversarial|Inventory' -count=1"
-        }
-      ]
-    },
-    {
       "id": "tier2-cuda-replay-evidence",
       "title": "Measure CUDA replay, fallback, arena use, and numerical parity on target execution",
       "status": "open",

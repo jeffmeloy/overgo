@@ -2,6 +2,7 @@ package modelartifact
 
 import (
 	"bytes"
+	"math"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -37,11 +38,14 @@ func TestTensorInventoryDocumentRoundTrip(t *testing.T) {
 func TestTensorInventoryDocumentRejectsInvalidFacts(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "invalid-tensor-inventory-model")
 	tests := map[string][]TensorFact{
-		"empty":     {},
-		"unordered": {{Name: "z", Shape: []uint64{}, Storage: "f32"}, {Name: "a", Shape: []uint64{}, Storage: "f32"}},
-		"duplicate": {{Name: "a", Shape: []uint64{}, Storage: "f32"}, {Name: "a", Shape: []uint64{}, Storage: "f32"}},
-		"storage":   {{Name: "a", Shape: []uint64{}, Storage: "F32"}},
-		"nil shape": {{Name: "a", Storage: "f32"}},
+		"empty":          {},
+		"unordered":      {{Name: "z", Shape: []uint64{}, Storage: "f32"}, {Name: "a", Shape: []uint64{}, Storage: "f32"}},
+		"duplicate":      {{Name: "a", Shape: []uint64{}, Storage: "f32"}, {Name: "a", Shape: []uint64{}, Storage: "f32"}},
+		"storage":        {{Name: "a", Shape: []uint64{}, Storage: "F32"}},
+		"nil shape":      {{Name: "a", Storage: "f32"}},
+		"zero bytes":     {{Name: "a", Shape: []uint64{}, Storage: "f32"}},
+		"zero dimension": {{Name: "a", Shape: []uint64{0}, Storage: "f32", Bytes: 4}},
+		"shape overflow": {{Name: "a", Shape: []uint64{math.MaxUint64, 2}, Storage: "f32", Bytes: 4}},
 	}
 	for name, tensors := range tests {
 		t.Run(name, func(t *testing.T) {

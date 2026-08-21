@@ -19,6 +19,10 @@ func TestDecodeRejectsUnknownAndTrailingValues(t *testing.T) {
 	if err := Decode(strings.NewReader(`{} {}`), &value); !errors.Is(err, ErrTrailingValue) {
 		t.Fatalf("error = %v", err)
 	}
+	var nested map[string]any
+	if err := Decode(strings.NewReader(`{"outer":{"value":1,"value":2}}`), &nested); !errors.Is(err, ErrDuplicateName) {
+		t.Fatalf("duplicate error = %v", err)
+	}
 }
 
 func TestDecodeBoundedRejectsWhitespaceBeyondLimit(t *testing.T) {

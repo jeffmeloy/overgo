@@ -111,6 +111,8 @@ func main() {
 func run() error {
 	check := flag.Bool("check", false, "verify compatibility claims and generated matrix")
 	update := flag.Bool("update", false, "write generated compatibility matrix")
+	checkTraining := flag.Bool("check-training", false, "verify training specifications and generated matrix")
+	updateTraining := flag.Bool("update-training", false, "write generated training matrix")
 	refresh := flag.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
 	recordVerification := flag.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims)")
 	recordStore := flag.String("record", "", "RepoDB root for -record-verification/-claim")
@@ -124,6 +126,20 @@ func run() error {
 	claimContext := flag.Uint64("context", 0, "claim: context tokens (requires -wall)")
 	claimPeak := flag.Uint64("peak", 0, "claim: peak device bytes (requires -wall)")
 	flag.Parse()
+	if *checkTraining || *updateTraining {
+		if len(flag.Args()) != len([]string(nil)) || *checkTraining && *updateTraining || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
+			return errors.New("usage: compatibility [-check-training|-update-training]")
+		}
+		data, err := generateTraining(".")
+		if err != nil {
+			return err
+		}
+		return clioptions.OutputGenerated(
+			data, trainingMatrixPath, *checkTraining, *updateTraining,
+			"docs/TRAINING_COMPATIBILITY.md is stale; regenerate with: go run ./cmd/compatibility -update-training",
+			os.Stdout,
+		)
+	}
 	if *claimFlag {
 		if flag.NArg() != 0 || *claimModelFile == "" || *claimName == "" || *claimEvidenceFile == "" || *recordStore == "" {
 			return errors.New("usage: compatibility -claim -model-file <weights> -name <n> -evidence-file <doc> -record <repodb> [-capability c] [-tier t] [-wall d] [-context n] [-peak b]")
@@ -152,9 +168,20 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	return clioptions.OutputGenerated(
+	if err := clioptions.OutputGenerated(
 		data, matrixPath, *check, *update || *refresh,
 		"docs/COMPATIBILITY.md is stale; regenerate with: go run ./cmd/compatibility -update",
+		os.Stdout,
+	); err != nil {
+		return err
+	}
+	training, err := generateTraining(".")
+	if err != nil {
+		return err
+	}
+	return clioptions.OutputGenerated(
+		training, trainingMatrixPath, *check, *update || *refresh,
+		"docs/TRAINING_COMPATIBILITY.md is stale; regenerate with: go run ./cmd/compatibility -update-training",
 		os.Stdout,
 	)
 }

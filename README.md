@@ -826,7 +826,7 @@ subcommand, for example `go run ./cmd/recipe status -h`.
 | `cmd/eval-lane` | Run the repository evaluation lane |
 | `cmd/benchmark` | Record elapsed time, throughput, memory, launches, synchronization, and transfers |
 | `cmd/perf-sweep` | Execute bounded performance sweeps |
-| `cmd/compatibility` | Check claims or regenerate evidence identities and the compatibility matrix |
+| `cmd/compatibility` | Check claims and training specifications or regenerate their compatibility matrices |
 | `cmd/repodb-query` | Query artifacts, recipes, runs, evaluations, findings, and decisions |
 | `cmd/repodb-import` | Import validated external records into RepoDB |
 | `cmd/repodb-backup` | Create and verify RepoDB backups |
@@ -988,6 +988,9 @@ ledger stays outside the README.
 
 - [Compatibility matrix](docs/COMPATIBILITY.md) contains model profiles,
   capabilities, verification levels, known gaps, and reproduction commands.
+- [Training compatibility](docs/TRAINING_COMPATIBILITY.md) derives the strongest
+  artifact training claims, observed spans, wall times, device peaks, and
+  verifying commits from the typed specifications under `docs/verification`.
 - [Machine-readable compatibility data](compatibility.json) contains checked
   claims, evidence tiers, source identities, and verification commands.
 - RepoDB run and evaluation records contain exact artifact, recipe, input,

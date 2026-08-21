@@ -70,7 +70,7 @@ func TestReleaseIntegrityContract(t *testing.T) {
 			t.Errorf("chronological assessment shipped in release: %s", historical)
 		}
 	}
-	for _, durable := range []string{"docs/COMPATIBILITY.md", "docs/REPODB_IMPORT.md", "SBOM.cdx.json"} {
+	for _, durable := range []string{"docs/COMPATIBILITY.md", "docs/TRAINING_COMPATIBILITY.md", "docs/REPODB_IMPORT.md", "SBOM.cdx.json"} {
 		if !slices.Contains(releaseDocuments, durable) {
 			t.Errorf("durable release document missing: %s", durable)
 		}

@@ -1,148 +1,69 @@
 {
-  "campaign": "Exact magic-number inventory, RepoDB closure authority, and systematic elimination",
-  "doctrine": "Follow skill.md. RepoDB owns closure evidence; the source census owns the complete deterministic file queue. Audit every non-generated Go file, one row at a time, in scanner order within each ownership wave. A file closes only after every numeric literal, named constant, assumption hint, repeated policy site, and test policy copy is classified by syntax and ownership. First delete, derive, reuse, or move the value to its existing typed authority. Model, tokenizer, tensor, topology, and training facts come from artifact metadata, profiles, recipes, or compiled plans. Protocol, ABI, mathematical, and irreducible fixture values may remain only with exact typed dispositions. Constants may express one irreducible relation; they may not conceal duplicated policy. Migrate every caller and delete displaced branches, defaults, wrappers, and compatibility readers in the same commit. Tests consume production contracts where practical. No magnitude thresholds, shape assumptions, distribution assumptions, family fallbacks, parallel registries, deferred adoption, or manually maintained counts. Each gated file records command-derived before/after pressure, code delta, authority, verifier, and closure retirement. Publish the complete queue and closure state as RepoDB evidence after each wave. Plan complete means every census file row is closed, every derivation-blocked row is resolved, no stale binding remains, and a fresh census finds no uncatalogued production decision or copied test policy. Merge current master after every gated step.",
+  "campaign": "Training verification closure",
+  "doctrine": "Training evidence must distinguish a reusable implementation from an exact artifact campaign. Verify production workflows at their real objective, device, data, persistence, and lifecycle scope. Every admitted objective must prove uninterrupted/split equivalence and atomic checkpoint identity. A successful GUI run must publish a trace and an evaluation-required decision; promotion remains withheld until held-out evidence exists. Committed training specifications identify the exact model, dataset, commit, span, measurements, and evidence bytes, and a generated matrix exposes their strongest claims without upgrading smoke evidence. Missing model artifacts remain explicit verification gaps, never passes.",
   "items": [
     {
-      "id": "magic-wave-device",
-      "title": "Eliminate CUDA, memory, launch, transfer, and workspace magics",
+      "id": "training-resume",
+      "title": "Verify exact resume for every production training objective",
       "status": "open",
       "steps": [
         {
-          "id": "close",
-          "title": "Derive extents from compiled plans or bind fixed values to kernel and device ABI contracts",
+          "id": "matrix",
+          "title": "Compare uninterrupted and split token, DPO, and GRPO workflow executions",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/cuda,internal/devicemath,internal/tensor -require-classified -require-no-stale",
-          "rationale": "Launch geometry and byte widths must come from shared typed operations, measured device policy, or guarded ABI declarations.",
+          "verify": "go test ./internal/trainingworkflow -run '^TestTrainingWorkflowExactResumeMatrix$' -count=1",
+          "rationale": "A checkpoint claim is operational only when weights, optimizer state, dataset position, observations, and identity survive a workflow-level split.",
           "depends_on": [
-            "magic-wave-serving/close"
+            "training-evidence/audit"
           ],
           "capabilities": [
-            "device-capability",
-            "kernel-abi",
-            "memory-plan",
-            "cuda-parity"
+            "exact-resume",
+            "checkpoint-identity",
+            "stream-position"
           ]
         }
       ]
     },
     {
-      "id": "magic-wave-model-runtime",
-      "title": "Eliminate model, projector, inference, and modality facts duplicated in code",
+      "id": "training-lifecycle",
+      "title": "Verify the train to evaluation boundary",
       "status": "open",
       "steps": [
         {
-          "id": "close",
-          "title": "Move model facts to artifacts and recipes and make compiled neutral plans their sole consumers",
+          "id": "handoff",
+          "title": "Prove GUI training publishes checkpoint, trace, and evaluation-required decision without premature promotion",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/model,internal/modelartifact,internal/modelrecipe,internal/inference,internal/projector,internal/latentimage,internal/latentvideo,internal/speechsynth -require-classified -require-no-stale -require-no-model-facts",
-          "rationale": "Model dimensions, token IDs, topology choices, and modality geometry must not remain as family or checkpoint literals in generic runtime code.",
+          "verify": "go test ./internal/server ./internal/runrecord -run '^(TestTrainingWorkspacePublishesEvaluationRequiredDecision|TestTrainingDecisionWithholdsPromotionUntilEvaluation)$' -count=1",
+          "rationale": "Successful optimization is not promotion evidence; the durable handoff must retain rollback authority until a held-out evaluator decides.",
           "depends_on": [
-            "magic-wave-device/close"
+            "training-resume/matrix"
           ],
           "capabilities": [
-            "artifact-facts",
-            "recipe-authority",
-            "compiled-plan",
-            "model-neutral-runtime"
+            "training-trace",
+            "evaluation-handoff",
+            "rollback-authority"
           ]
         }
       ]
     },
     {
-      "id": "magic-wave-formats",
-      "title": "Classify and consolidate format, quantization, codec, and artifact constants",
+      "id": "training-admission",
+      "title": "Expose production training scope without fallback claims",
       "status": "open",
       "steps": [
         {
-          "id": "close",
-          "title": "Bind specification values to typed protocol owners and eliminate duplicated encodings and layout arithmetic",
+          "id": "matrix",
+          "title": "Verify objective, device, model, and GUI admission boundaries from executable owners",
           "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/gguf,internal/safetensors,internal/quant,internal/codec,internal/artifact,internal/repodb -require-classified -require-no-stale",
-          "rationale": "Specification constants may remain, but only in their protocol owner and never duplicated as runtime policy.",
+          "verify": "go test ./internal/trainingworkflow ./internal/densecausal ./internal/server -run '^(TestTrainingObjectiveAdmissionMatrix|TestDeviceTrainingSupportedAdmission|TestTrainingWorkspaceAdmissionMatrix)$' -count=1",
+          "rationale": "The release must distinguish token, DPO, and GRPO production routes from compiled-only objectives, host-only preference optimization, host-only MoE, and artifact-specific probes.",
           "depends_on": [
-            "magic-wave-model-runtime/close"
+            "training-lifecycle/handoff"
           ],
           "capabilities": [
-            "specification-disposition",
-            "typed-layout",
-            "wire-parity"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "magic-wave-remaining",
-      "title": "Close remaining production and command magic surfaces",
-      "status": "open",
-      "steps": [
-        {
-          "id": "close",
-          "title": "Audit every remaining internal and cmd owner and delete redundant flags, defaults, wrappers, and process constants",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "rationale": "Scoped waves must not leave uncatalogued debt in converters, tools, automation, or less frequently exercised packages.",
-          "depends_on": [
-            "magic-wave-formats/close"
-          ],
-          "capabilities": [
-            "full-repository-audit",
-            "surface-reduction"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "magic-test-discipline",
-      "title": "Remove duplicated production policy from tests",
-      "status": "open",
-      "steps": [
-        {
-          "id": "close",
-          "title": "Use production contracts and shared assertions while retaining irreducible typed fixtures",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-tests -require-no-policy-copies -require-classified-fixtures",
-          "rationale": "Tests should exercise production behavior rather than reimplement defaults, exit codes, dimensions, or tolerance policy in assertions.",
-          "depends_on": [
-            "magic-wave-remaining/close"
-          ],
-          "capabilities": [
-            "test-contract-reuse",
-            "fixture-disposition"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "magic-closure-final",
-      "title": "Reach and enforce zero open magic debt",
-      "status": "open",
-      "steps": [
-        {
-          "id": "zero-open",
-          "title": "Close every derivation-blocked row and verify no stale, uncatalogued, or duplicated authority remains",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts",
-          "rationale": "The campaign ends only when unresolved constants have been derived, replaced, consolidated, or made irrelevant.",
-          "depends_on": [
-            "magic-test-discipline/close"
-          ],
-          "capabilities": [
-            "zero-open-debt",
-            "single-authority"
-          ]
-        },
-        {
-          "id": "permanent-gate",
-          "title": "Make the zero-debt checks permanent and delete campaign-only import and compatibility machinery",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-all -require-zero-open",
-          "rationale": "The result must remain enforced without retaining one-time migration surface.",
-          "depends_on": [
-            "magic-closure-final/zero-open"
-          ],
-          "capabilities": [
-            "continuous-enforcement",
-            "migration-cleanup"
+            "objective-admission",
+            "device-admission",
+            "honest-refusal"
           ]
         }
       ]

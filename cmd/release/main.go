@@ -47,6 +47,7 @@ var releaseDocuments = []string{
 	"VERSION",
 	"README.md",
 	"docs/COMPATIBILITY.md",
+	"docs/TRAINING_COMPATIBILITY.md",
 	"docs/REPODB_IMPORT.md",
 	"compatibility.json",
 	"media_policy.json",

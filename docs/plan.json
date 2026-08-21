@@ -3,29 +3,6 @@
   "doctrine": "Adapt only the Gentle AI mechanisms that strengthen Overgo's existing owners. RepoDB content identities, lineage, compare-and-set commits, recipe decisions, experiment lifecycles, and shared operation status remain authoritative. New contracts must compose with those owners, carry exact artifact and command identities, remain independent of model family, tensor shape, dataset distribution, backend topology, worker population, and user interface, and fail closed on stale, ambiguous, or incomplete evidence.",
   "items": [
     {
-      "id": "operator-recovery",
-      "title": "Make blocked operations recoverable through typed interface-neutral actions",
-      "status": "open",
-      "steps": [
-        {
-          "id": "action-envelope",
-          "title": "Add exact argv recovery and consent envelopes to shared operation status",
-          "status": "open",
-          "verify": "go test ./internal/operatoraction ./internal/operation -run '^(TestActionEnvelopeContract|TestRecoverableOperationStatus)$' -count=1",
-          "rationale": "Training, evaluation, serving, CLI, and GUI callers need the same machine-readable reason, evidence, and runnable continuation instead of parsing prose or inventing interface-specific recovery instructions.",
-          "depends_on": [
-            "artifact-authority/subject-receipts"
-          ],
-          "capabilities": [
-            "exact argv tokens",
-            "typed grant and decline consent",
-            "bounded recovery choices",
-            "shared operation transport"
-          ]
-        }
-      ]
-    },
-    {
       "id": "local-path-authority",
       "title": "Use filesystem identity for model and dataset locations",
       "status": "open",

@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 
 	"overgo/internal/artifact"
+	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 )
 
@@ -23,6 +24,7 @@ const (
 	StateRunning    State = "running"
 	StatePublishing State = "publishing"
 	StateCompleted  State = "completed"
+	StateBlocked    State = "blocked"
 	StateCancelled  State = "cancelled"
 	StateFailed     State = "failed"
 )
@@ -39,15 +41,16 @@ type Metric struct {
 }
 
 type Status struct {
-	ID       artifact.ID   `json:"id"`
-	Task     recipe.Task   `json:"task"`
-	Recipe   artifact.ID   `json:"recipe"`
-	State    State         `json:"state"`
-	Progress Progress      `json:"progress"`
-	Metrics  []Metric      `json:"metrics,omitempty"`
-	Outputs  []artifact.ID `json:"outputs,omitempty"`
-	Run      *artifact.ID  `json:"run,omitempty"`
-	Failure  string        `json:"failure,omitempty"`
+	ID       artifact.ID           `json:"id"`
+	Task     recipe.Task           `json:"task"`
+	Recipe   artifact.ID           `json:"recipe"`
+	State    State                 `json:"state"`
+	Progress Progress              `json:"progress"`
+	Metrics  []Metric              `json:"metrics,omitempty"`
+	Outputs  []artifact.ID         `json:"outputs,omitempty"`
+	Run      *artifact.ID          `json:"run,omitempty"`
+	Failure  string                `json:"failure,omitempty"`
+	Recovery *operatoraction.Block `json:"recovery,omitempty"`
 }
 
 type Request struct {
@@ -171,7 +174,13 @@ func (manager *Manager) run(ctx context.Context, id artifact.ID, execute Executo
 		current.status.State = StateCancelled
 	case err != nil:
 		current.status.Run = &completion.Run
-		current.status.State = StateFailed
+		if recovery, ok := operatoraction.Recovery(err); ok {
+			current.status.State = StateBlocked
+			recovery = recovery.Clone()
+			current.status.Recovery = &recovery
+		} else {
+			current.status.State = StateFailed
+		}
 		current.status.Failure = err.Error()
 	default:
 		current.status.Run = &completion.Run
@@ -298,7 +307,7 @@ func (manager *Manager) trimLocked() {
 }
 
 func terminal(state State) bool {
-	return state == StateCompleted || state == StateCancelled || state == StateFailed
+	return state == StateCompleted || state == StateBlocked || state == StateCancelled || state == StateFailed
 }
 
 func cloneStatus(status Status) Status {
@@ -311,6 +320,10 @@ func cloneStatus(status Status) Status {
 	if status.Progress.Total != nil {
 		total := *status.Progress.Total
 		status.Progress.Total = &total
+	}
+	if status.Recovery != nil {
+		recovery := status.Recovery.Clone()
+		status.Recovery = &recovery
 	}
 	return status
 }

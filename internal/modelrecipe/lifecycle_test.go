@@ -15,6 +15,70 @@ import (
 
 const lifecycleDecisionCommit = "0123456789abcdef0123456789abcdef01234567"
 
+func TestAtomicEvidenceGatedActivation(t *testing.T) {
+	ctx := context.Background()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "atomic-activation-model")
+	testutil.PublishArtifact(t, store, modelID)
+	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := PublishCandidate(ctx, store, "fixture/atomic/candidate", definition); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Transition(
+		ctx, store, "fixture/atomic/validated", definition, recipe.StatusValidated, nil, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	verification := publishVerification(t, store, definition.ID, "fixture/atomic/verification")
+	_, before := store.Head()
+	if _, _, err := ActivateVerified(
+		ctx, store, "fixture/atomic/active", definition, verification,
+		recipe.EvidenceParity, "exact verifier evidence accepted", nil, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	_, after := store.Head()
+	expectedCommits := uint64(len([]string{"activation"}))
+	if after != before+expectedCommits {
+		t.Fatalf("activation commits = %d, want %d", after-before, expectedCommits)
+	}
+
+	event, err := currentEvent(ctx, store, definition.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decisions, err := loadDecisions(ctx, store, event.Evidence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(decisions) != int(expectedCommits) || !activationDecisionMatches(decisions[0], definition.ID, verification) {
+		t.Fatalf("activation decision = %+v", decisions)
+	}
+	if !slices.Contains(event.Evidence, decisions[0].ID) ||
+		!slices.Contains(event.Evidence, verification.Gate) ||
+		!slices.Contains(event.Evidence, verification.Run) {
+		t.Fatalf("activation evidence = %v", event.Evidence)
+	}
+	parents, err := store.Parents(ctx, decisions[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(parents) != len(decisions[0].Lineage()) {
+		t.Fatalf("decision lineage = %v", parents)
+	}
+	resolved, ok, err := store.ResolveAlias(ctx, activeAlias(modelID, definition.Task))
+	if err != nil || !ok || resolved != definition.ID {
+		t.Fatalf("active alias = (%s, %v, %v)", resolved, ok, err)
+	}
+}
+
 func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	ctx := context.Background()
 	store, err := repodb.Open(t.TempDir())
@@ -46,7 +110,10 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	); err == nil {
 		t.Fatal("ordinary lifecycle transition bypassed verified activation")
 	}
-	if _, _, err := ActivateVerified(ctx, store, "fixture/lifecycle/first/active", first, firstVerification, nil, nil); err != nil {
+	if _, _, err := ActivateVerified(
+		ctx, store, "fixture/lifecycle/first/active", first, firstVerification,
+		recipe.EvidenceExperimental, "first fixture activation", nil, nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 	activation, ok, err := ActiveRecord(ctx, store, modelID, recipe.TaskInference)
@@ -66,14 +133,15 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, _, err := ActivateVerified(
-		ctx, store, "fixture/lifecycle/second/mismatched", second, firstVerification, nil, &first.ID,
+		ctx, store, "fixture/lifecycle/second/mismatched", second, firstVerification,
+		recipe.EvidenceExperimental, "mismatched fixture activation", nil, &first.ID,
 	); err == nil {
 		t.Fatal("activation accepted verifier output for another recipe")
 	}
 	secondVerification := publishVerification(t, store, second.ID, "fixture/lifecycle/second/verification")
 	if _, _, err := ActivateVerified(
 		ctx, store, "fixture/lifecycle/second/active", second, secondVerification,
-		nil, &first.ID,
+		recipe.EvidenceExperimental, "second fixture activation", nil, &first.ID,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -229,17 +297,9 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 	verification := publishVerification(t, store, active.ID, "fixture/decision/active/verification")
-	accepted, err := recipe.NewDecision(
-		active.ID, recipe.DecisionAccepted, recipe.EvidenceParity, "",
-		recipe.Decider{CodeCommit: lifecycleDecisionCommit, Derivation: derivationID}, nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	publishDecision(t, store, "fixture/decision/accepted", accepted)
 	if _, _, err := ActivateVerified(
 		ctx, store, "fixture/decision/active", active, verification,
-		[]artifact.ID{accepted.ID}, nil,
+		recipe.EvidenceParity, "accepted fixture activation", nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

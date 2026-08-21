@@ -60,7 +60,7 @@ func Transition(
 	evidence []artifact.ID,
 	supersedes *artifact.ID,
 ) (artifact.CommitID, recipe.LifecycleEvent, error) {
-	return transition(ctx, store, key, definition, to, evidence, supersedes, nil, nil)
+	return transition(ctx, store, key, definition, to, evidence, supersedes, nil, nil, nil)
 }
 
 // Verification: immutable verifier gate/run identities.
@@ -78,8 +78,8 @@ func ActivateCapability(
 	tier recipe.EvidenceTier,
 	reason string,
 ) error {
-	if reason == "" {
-		return errors.New("model recipe: activation reason is empty")
+	if strings.TrimSpace(reason) == "" || strings.TrimSpace(reason) != reason || !tier.Valid() {
+		return errors.New("model recipe: activation decision is invalid")
 	}
 	state, published, err := Status(ctx, store, definition.ID)
 	if err != nil {
@@ -107,27 +107,6 @@ func ActivateCapability(
 	default:
 		return fmt.Errorf("model recipe: recipe %s is %q; activation resumes only from candidate or validated", definition.ID, state)
 	}
-	verified, err := runrecord.VerifyGateRun(ctx, store, definition.ID, verification.Gate, verification.Run)
-	if err != nil {
-		return err
-	}
-	decision, err := recipe.NewDecision(
-		definition.ID, recipe.DecisionAccepted, tier, reason,
-		recipe.Decider{CodeCommit: verified.Gate.CodeCommit, Derivation: verified.Gate.ID},
-		[]artifact.ID{verified.Gate.ID, verified.Run.ID},
-	)
-	if err != nil {
-		return err
-	}
-	decisionBatch, err := decision.Batch(
-		"recipe/activation-decision/" + definition.ID.String() + "/" + decision.ID.String(),
-	)
-	if err != nil {
-		return err
-	}
-	if _, err := artifact.CommitBatch(ctx, store, decisionBatch); err != nil {
-		return err
-	}
 	var supersedes *artifact.ID
 	activeID, active, err := artifact.ResolveAlias(ctx, store, activeAlias(definition.Model, definition.Task))
 	if err != nil {
@@ -138,7 +117,7 @@ func ActivateCapability(
 	}
 	if _, _, err := ActivateVerified(
 		ctx, store, "recipe/active/"+definition.ID.String(), definition,
-		verification, []artifact.ID{decision.ID}, supersedes,
+		verification, tier, reason, nil, supersedes,
 	); err != nil {
 		return fmt.Errorf("model recipe: transition active: %w", err)
 	}
@@ -264,19 +243,43 @@ func reverifyActiveCapability(
 	return err
 }
 
-// ActivateVerified: promote only from a successful recipe-bound verifier run.
+// ActivateVerified promotes with an accepted decision and alias transition in
+// one repository commit.
 func ActivateVerified(
 	ctx context.Context,
 	store artifact.Repository,
 	key string,
 	definition recipe.Definition,
 	verification Verification,
+	tier recipe.EvidenceTier,
+	reason string,
 	evidence []artifact.ID,
 	supersedes *artifact.ID,
 ) (artifact.CommitID, recipe.LifecycleEvent, error) {
-	evidence = append(slices.Clone(evidence), verification.Gate, verification.Run)
+	if strings.TrimSpace(reason) == "" || strings.TrimSpace(reason) != reason {
+		return artifact.CommitID{}, recipe.LifecycleEvent{}, errors.New("model recipe: activation reason is invalid")
+	}
+	verified, err := runrecord.VerifyGateRun(ctx, store, definition.ID, verification.Gate, verification.Run)
+	if err != nil {
+		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
+	}
+	decisionEvidence := append(slices.Clone(evidence), verified.Gate.ID, verified.Run.ID)
+	decision, err := recipe.NewDecision(
+		definition.ID, recipe.DecisionAccepted, tier, reason,
+		recipe.Decider{CodeCommit: verified.Gate.CodeCommit, Derivation: verified.Gate.ID},
+		decisionEvidence,
+	)
+	if err != nil {
+		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
+	}
+	decisionContent, err := decision.Content()
+	if err != nil {
+		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
+	}
+	evidence = append([]artifact.ID{decision.ID}, decision.Evidence...)
 	return transition(
-		ctx, store, key, definition, recipe.StatusActive, evidence, supersedes, nil, &verification,
+		ctx, store, key, definition, recipe.StatusActive, evidence, supersedes,
+		[]artifact.Content{decisionContent}, decision.Lineage(), &verification,
 	)
 }
 
@@ -289,6 +292,7 @@ func transition(
 	evidence []artifact.ID,
 	supersedes *artifact.ID,
 	pending []artifact.Content,
+	pendingLineage []artifact.Lineage,
 	verification *Verification,
 ) (artifact.CommitID, recipe.LifecycleEvent, error) {
 	previous, err := currentEvent(ctx, store, definition.ID)
@@ -312,6 +316,15 @@ func transition(
 			ctx, store, definition.ID, verification.Gate, verification.Run,
 		); verifyErr != nil {
 			return artifact.CommitID{}, recipe.LifecycleEvent{}, fmt.Errorf("model recipe: activation verification: %w", verifyErr)
+		}
+		decision, found, decisionErr := findDecision(
+			ctx, store, definition.ID, recipe.DecisionAccepted, evidence, pending,
+		)
+		if decisionErr != nil {
+			return artifact.CommitID{}, recipe.LifecycleEvent{}, decisionErr
+		}
+		if !found || !activationDecisionMatches(decision, definition.ID, *verification) {
+			return artifact.CommitID{}, recipe.LifecycleEvent{}, errors.New("model recipe: activation requires an exact accepted decision")
 		}
 	}
 	pendingIDs := make(map[artifact.ID]struct{}, len(pending))
@@ -390,7 +403,7 @@ func transition(
 			})
 		}
 	}
-	batch, err := artifact.NewDocumentBatch(key, contents, nil, aliases)
+	batch, err := artifact.NewDocumentBatch(key, contents, pendingLineage, aliases)
 	if err != nil {
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
@@ -451,19 +464,33 @@ func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.I
 		}
 		return Activation{}, false, fmt.Errorf("model recipe: active alias names recipe in %q state", event.To)
 	}
-	if _, err := runrecord.VerifyEvidence(ctx, store, definition.ID, event.Evidence); err != nil {
+	verified, err := runrecord.VerifyEvidence(ctx, store, definition.ID, event.Evidence)
+	if err != nil {
 		return Activation{}, false, fmt.Errorf("model recipe: active recipe lacks verified evidence: %w", err)
 	}
 	tier := recipe.EvidenceExperimental
+	accepted := false
 	for _, decision := range decisions {
-		if decision.Subject == definition.ID && decision.Outcome == recipe.DecisionAccepted &&
-			decision.Tier.StrongerThan(tier) {
-			tier = decision.Tier
+		verification := Verification{Gate: verified.Gate.ID, Run: verified.Run.ID}
+		if activationDecisionMatches(decision, definition.ID, verification) {
+			accepted = true
+			if decision.Tier.StrongerThan(tier) {
+				tier = decision.Tier
+			}
 		}
+	}
+	if !accepted {
+		return Activation{}, false, errors.New("model recipe: active recipe lacks exact accepted decision")
 	}
 	return Activation{
 		Definition: definition, Event: event, Tier: tier, Decisions: slices.Clone(decisions),
 	}, true, nil
+}
+
+func activationDecisionMatches(decision recipe.Decision, subject artifact.ID, verification Verification) bool {
+	return decision.Subject == subject && decision.Outcome == recipe.DecisionAccepted && decision.Reason != "" &&
+		decision.Decider.Derivation == verification.Gate &&
+		slices.Contains(decision.Evidence, verification.Gate) && slices.Contains(decision.Evidence, verification.Run)
 }
 
 // ResolveActiveCapability returns the verified executable capability program.

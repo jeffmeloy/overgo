@@ -110,7 +110,8 @@ func publishVerifiedActivation(t *testing.T, store *repodb.Store, modelID artifa
 		t.Fatal(err)
 	}
 	if _, _, err := modelrecipe.ActivateVerified(
-		ctx, store, "fixture/discovery/verified-active/"+suffix, definition, verification, nil, nil,
+		ctx, store, "fixture/discovery/verified-active/"+suffix, definition, verification,
+		recipe.EvidenceExperimental, "discovery fixture activation", nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

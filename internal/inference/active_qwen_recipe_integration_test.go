@@ -121,7 +121,8 @@ func publishActiveGGUFRecipe(
 		t.Fatal(err)
 	}
 	if _, _, err := modelrecipe.ActivateVerified(
-		ctx, store, "integration/qwen35/active", definition, verification, nil, nil,
+		ctx, store, "integration/qwen35/active", definition, verification,
+		recipe.EvidenceExperimental, "inference integration activation", nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

@@ -213,7 +213,10 @@ func activateProgram(t *testing.T, store artifact.Repository, definition recipe.
 		t.Fatal(err)
 	}
 	verification := publishVerification(t, store, definition.ID, "fixture/program/verification/"+definition.ID.String())
-	if _, _, err := ActivateVerified(ctx, store, "fixture/program/active/"+definition.ID.String(), definition, verification, nil, nil); err != nil {
+	if _, _, err := ActivateVerified(
+		ctx, store, "fixture/program/active/"+definition.ID.String(), definition, verification,
+		recipe.EvidenceExperimental, "loaded program fixture activation", nil, nil,
+	); err != nil {
 		t.Fatal(err)
 	}
 }

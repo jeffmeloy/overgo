@@ -70,7 +70,7 @@ func TestShiftedSessionRoundTripUsesAbsolutePosition(t *testing.T) {
 	runner.spec.VocabularySize = 32
 	cache := cacheTestValue(t)
 	cache.Position = 5
-	shifted, err := runner.ShiftCache(cache, 1)
+	shifted, err := runner.RemoveCacheRange(cache, 0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

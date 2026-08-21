@@ -142,11 +142,12 @@ func (r *Runner) projectAllLogits(
 	if r.spec.IsEncoderOnly() {
 		return reference.Value{}, errors.New("inference: encoder exposes hidden states, not vocabulary logits")
 	}
-	if hidden.Shape.Rank != 2 || hidden.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) {
+	rows, valid := r.spec.SequenceRows(hidden)
+	if !valid {
 		return reference.Value{}, errors.New("inference: non-causal hidden-state shape is incompatible")
 	}
 	outputInfo := r.outputTensor()
-	shape := tensor.MustShape(uint64(r.spec.VocabularySize), hidden.Shape.Dims[1])
+	shape := tensor.MustShape(uint64(r.spec.VocabularySize), rows)
 	if !r.hasPreloadedWeights() {
 		elements, err := shape.Elements()
 		if err != nil || elements > uint64(math.MaxInt) {
@@ -154,7 +155,7 @@ func (r *Runner) projectAllLogits(
 		}
 		result := reference.Value{Shape: shape, Data: make([]float32, 0, int(elements))}
 		width := int(hidden.Shape.Dims[0])
-		for token := 0; token < int(hidden.Shape.Dims[1]); token++ {
+		for token := range int(rows) {
 			start := token * width
 			logits, err := r.logits(ctx, outputInfo, hidden.Data[start:start+width])
 			if err != nil {
@@ -275,9 +276,8 @@ func (r *Runner) decodeEncoderDecoderLocked(
 	if session == nil {
 		return reference.Value{}, nil, errors.New("inference: encoder-decoder session is nil")
 	}
-	if session.Encoder.Shape.Rank != 2 ||
-		session.Encoder.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) ||
-		session.Encoder.Shape.Dims[1] == 0 {
+	encoderTokens, contractErr := r.spec.ValidateSequenceState(session.Encoder)
+	if contractErr != nil {
 		return reference.Value{}, nil, errors.New("inference: encoder state shape is incompatible")
 	}
 	if len(decoderIDs) == 0 {
@@ -285,7 +285,7 @@ func (r *Runner) decodeEncoderDecoderLocked(
 	}
 	var pastTokens, nextPosition uint32
 	if session.Cache != nil {
-		if err := r.validateEncoderDecoderCache(session.Cache, session.Encoder.Shape.Dims[1]); err != nil {
+		if err := r.validateEncoderDecoderCache(session.Cache, encoderTokens); err != nil {
 			return reference.Value{}, nil, err
 		}
 		pastTokens = session.Cache.Tokens

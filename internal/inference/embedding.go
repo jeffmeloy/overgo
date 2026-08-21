@@ -280,14 +280,3 @@ func normalizeEmbedding(vector []float32, norm int) {
 		vector[index] *= scale
 	}
 }
-
-func meanPoolNormalized(hidden reference.Value) ([]float32, error) {
-	vectors, err := poolEmbeddings(hidden, EmbeddingOptions{
-		Pooling:   EmbeddingPoolingMean,
-		Normalize: 2,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return vectors[0], nil
-}

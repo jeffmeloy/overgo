@@ -1,6 +1,44 @@
 package model
 
-import "overgo/internal/tensor"
+import (
+	"errors"
+
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
+)
+
+func (s Spec) SequenceRows(value reference.Value) (uint64, bool) {
+	return tensor.MatrixRows(value.Shape, uint64(s.EmbeddingLength))
+}
+
+func (s Spec) ValidateSequenceRow(value reference.Value) error {
+	rows, valid := s.SequenceRows(value)
+	if !valid || rows != tensor.SingletonExtent {
+		return errors.New("model sequence row is incompatible")
+	}
+	return nil
+}
+
+func (s Spec) ValidateSequenceState(value reference.Value) (uint64, error) {
+	return s.sequenceStateRows(value.Shape)
+}
+
+func (s Spec) sequenceStateRows(shape tensor.Shape) (uint64, error) {
+	rows, valid := tensor.MatrixRows(shape, uint64(s.EmbeddingLength))
+	if !valid || s.ContextLength != 0 && rows > uint64(s.ContextLength) {
+		return 0, errors.New("model sequence state shape is incompatible")
+	}
+	return rows, nil
+}
+
+func (s Spec) CompileSequenceState(width, rows uint64) (tensor.Shape, error) {
+	shape, err := tensor.NewShape(width, rows)
+	if err != nil {
+		return tensor.Shape{}, err
+	}
+	_, err = s.sequenceStateRows(shape)
+	return shape, err
+}
 
 // expert_gating_func serialized profile facts.
 const (

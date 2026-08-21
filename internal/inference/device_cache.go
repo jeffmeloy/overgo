@@ -195,13 +195,6 @@ func (c *deviceKVCache) Release(ctx context.Context) error {
 	return nil
 }
 
-func (r *Runner) shiftDeviceCacheForAppend(
-	cache *deviceKVCache,
-	incoming int,
-) error {
-	return r.shiftDeviceCacheForAppendPolicy(cache, incoming, -1)
-}
-
 func (r *Runner) shiftDeviceCacheForAppendPolicy(
 	cache *deviceKVCache,
 	incoming int,
@@ -222,7 +215,7 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 	discard := uint64(discardCount)
 	remaining := uint64(cache.Tokens) - discard
 	for layerIndex := range cache.Keys {
-		recurrent := r.layerPlan(layerIndex).CacheMode == model.CacheStateFixed
+		recurrent := r.layerProgram(layerIndex).Layer().CacheMode == model.CacheStateFixed
 		if recurrent {
 			// Recurrent primary state: position-independent.
 		} else {
@@ -310,7 +303,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 	stateTargets := make([]stateCopyTarget, 0)
 	stateCopies := make([]executor.DeviceCopy, 0)
 	for layerIndex := range cache.Keys {
-		recurrent := r.layerPlan(layerIndex).CacheMode == model.CacheStateFixed
+		recurrent := r.layerProgram(layerIndex).Layer().CacheMode == model.CacheStateFixed
 		for _, item := range []struct {
 			label string
 			value executor.DeviceValue
@@ -874,7 +867,7 @@ func (r *Runner) assembleDeviceBatchCaches(
 		var ok bool
 		for layer := range graph.keys {
 			// SharedKV layers alias the source layer's cache, as on the host path
-			if layerPlan := r.layerPlan(layer); layerPlan.SharedKV {
+			if layerPlan := r.layerProgram(layer).Layer(); layerPlan.SharedKV {
 				cache.Keys[layer] = cache.Keys[layerPlan.KVSource]
 				cache.Values[layer] = cache.Values[layerPlan.KVSource]
 				continue
@@ -937,7 +930,7 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 		))
 		for layer := range graph.keys {
 			// SharedKV layers read the source layer's cache in-graph and own no storage
-			if r.layerPlan(layer).SharedKV {
+			if r.layerProgram(layer).Layer().SharedKV {
 				continue
 			}
 			_, schema, err := r.cacheSchema(layer, graph.pastTokens+graph.tokenCount)

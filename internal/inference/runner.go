@@ -245,10 +245,6 @@ func (r *Runner) RecipeRuntimeDescription(task recipe.Task) (modelrecipe.Runtime
 // DeviceResident: all execution weights have device residency.
 func (r *Runner) DeviceResident() bool { return r != nil && r.hasPreloadedWeights() }
 
-func (r *Runner) layerPlan(layer int) model.LayerPlan {
-	return r.layerProgram(layer).Layer()
-}
-
 func (r *Runner) layerProgram(layer int) model.CompiledLayerProgram {
 	if r == nil {
 		panic("inference: compiled layer plan is unavailable")
@@ -665,7 +661,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	}
 	auxiliaryValues := make(map[model.AuxiliaryFlow]*reference.Value)
 	for layerIndex, layerInfo := range r.weights.Layers {
-		plan := r.layerPlan(layerIndex)
+		plan := r.layerProgram(layerIndex).Layer()
 		if stream := deepstackInputForLayer(plan.DeepstackBefore, deepstackBase, deepstackInputs); stream != nil {
 			activation, err = addDeepstackEmbedding(activation, *stream)
 			if err != nil {

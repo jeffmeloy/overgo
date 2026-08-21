@@ -211,10 +211,11 @@ func (r *Runner) logitsBatch(
 	outputInfo gguf.TensorInfo,
 	hidden reference.Value,
 ) ([]float32, error) {
-	if hidden.Shape.Rank != 2 || hidden.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) {
+	rows, valid := r.spec.SequenceRows(hidden)
+	if !valid {
 		return nil, errors.New("inference: batched logits require embedding-by-token hidden states")
 	}
-	tokenCount := int(hidden.Shape.Dims[1])
+	tokenCount := int(rows)
 	width := int(hidden.Shape.Dims[0])
 	if !r.hasPreloadedWeights() {
 		result := make([]float32, 0, tokenCount*r.vocab.Len())

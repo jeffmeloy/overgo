@@ -293,10 +293,9 @@ func (r *Runner) validateMultiHeadMTPSession(session *MultiHeadMTPSession) error
 	if err := r.validateCache(session.TrunkCache); err != nil {
 		return fmt.Errorf("inference: multi-head MTP trunk cache: %w", err)
 	}
+	pendingRows, pendingValid := r.spec.SequenceRows(session.PendingHidden)
 	if session.MTPStart != effectiveCachePosition(session.TrunkCache) ||
-		session.PendingHidden.Shape.Rank != 2 ||
-		session.PendingHidden.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) ||
-		session.PendingHidden.Shape.Dims[1] != 1 {
+		!pendingValid || pendingRows != tensor.SingletonExtent {
 		return errors.New("inference: multi-head MTP session state is incompatible")
 	}
 	for _, hidden := range session.DraftHidden {

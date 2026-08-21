@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"overgo/internal/pathidentity"
 )
 
 const maxLocationBytes = 32 << 10
@@ -95,6 +97,49 @@ func (e LocationEvent) Validate() error {
 	return nil
 }
 
+// CanonicalLocalLocation validates a live local file or directory and records
+// its absolute link-resolved spelling. Construction is intentionally separate
+// from Location.Validate: historical removal events must remain readable after
+// their files disappear.
+func CanonicalLocalLocation(id ID, kind LocationKind, path string) (Location, error) {
+	if !id.Valid() || kind != LocationFile && kind != LocationDirectory {
+		return Location{}, errors.New("artifact: invalid canonical local location request")
+	}
+	canonical, err := pathidentity.Canonical(path)
+	if err != nil {
+		return Location{}, fmt.Errorf("artifact: canonical local location: %w", err)
+	}
+	info, err := os.Stat(canonical)
+	if err != nil {
+		return Location{}, fmt.Errorf("artifact: inspect canonical local location: %w", err)
+	}
+	if info.IsDir() != (kind == LocationDirectory) {
+		return Location{}, errors.New("artifact: canonical local location kind differs")
+	}
+	location := Location{Artifact: id, Kind: kind, Value: canonical}
+	if err := location.Validate(); err != nil {
+		return Location{}, err
+	}
+	return location, nil
+}
+
+// SameLocalLocation compares two local addresses by filesystem identity. The
+// artifact and location kind remain part of the identity; aliases cannot make
+// one artifact's bytes satisfy another artifact's location claim.
+func SameLocalLocation(left, right Location) (bool, error) {
+	if err := left.Validate(); err != nil {
+		return false, err
+	}
+	if err := right.Validate(); err != nil {
+		return false, err
+	}
+	if left.Artifact != right.Artifact || left.Kind != right.Kind ||
+		left.Kind != LocationFile && left.Kind != LocationDirectory {
+		return false, nil
+	}
+	return pathidentity.Same(left.Value, right.Value)
+}
+
 // AvailablePath: first recorded live file or directory.
 func AvailablePath(ctx context.Context, reader Reader, id ID, kind LocationKind) (string, error) {
 	if ctx == nil || reader == nil || !id.Valid() || kind != LocationFile && kind != LocationDirectory {
@@ -111,9 +156,9 @@ func AvailablePath(ctx context.Context, reader Reader, id ID, kind LocationKind)
 		} else if location.Kind != kind {
 			continue
 		}
-		info, statErr := os.Stat(path)
-		if statErr == nil && info.IsDir() == (kind == LocationDirectory) {
-			return path, nil
+		canonical, canonicalErr := CanonicalLocalLocation(id, kind, path)
+		if canonicalErr == nil {
+			return canonical.Value, nil
 		}
 	}
 	return "", fmt.Errorf("artifact: %s has no available %s", id, kind)

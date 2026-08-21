@@ -94,13 +94,14 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (Public
 		return Publication{}, err
 	}
 	keepTemporary = false
+	location, err := artifact.CanonicalLocalLocation(id, artifact.LocationFile, target)
+	if err != nil {
+		return Publication{}, err
+	}
 	batch := artifact.Batch{
 		Key:       "objectstore/publish/" + id.String(),
 		Artifacts: []artifact.Descriptor{descriptor},
-		Locations: []artifact.LocationEvent{{
-			Location: artifact.Location{Artifact: id, Kind: artifact.LocationFile, Value: target},
-			Action:   artifact.LocationAdd,
-		}},
+		Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}},
 	}
 	commit, err := artifact.CommitBatch(ctx, store.repository, batch)
 	if err != nil {

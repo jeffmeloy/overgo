@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
+	"overgo/internal/pathidentity"
 	"overgo/internal/tensor"
 )
 
@@ -103,7 +104,11 @@ func FromGGUF(file *gguf.File, kind artifact.Kind) (Inventory, error) {
 			return Inventory{}, errors.New("model artifact: GGUF shards span directories")
 		}
 	}
-	locations = append(locations, artifact.Location{Artifact: manifest.ID, Kind: artifact.LocationDirectory, Value: root})
+	manifestLocation, err := artifact.CanonicalLocalLocation(manifest.ID, artifact.LocationDirectory, root)
+	if err != nil {
+		return Inventory{}, err
+	}
+	locations = append(locations, manifestLocation)
 	tensors, err := NewGGUFTensorInventory(manifest.ID, file)
 	if err != nil {
 		return Inventory{}, err
@@ -180,9 +185,11 @@ func FromHFRepository(repository *hfrepo.Repository) (Inventory, error) {
 	if err != nil {
 		return Inventory{}, err
 	}
-	locations = append(locations, artifact.Location{
-		Artifact: manifest.ID, Kind: artifact.LocationDirectory, Value: filepath.Clean(repository.Directory),
-	})
+	manifestLocation, err := artifact.CanonicalLocalLocation(manifest.ID, artifact.LocationDirectory, repository.Directory)
+	if err != nil {
+		return Inventory{}, err
+	}
+	locations = append(locations, manifestLocation)
 	tensors, err := NewSafetensorsTensorInventory(manifest.ID, repository.Tensors)
 	if err != nil {
 		return Inventory{}, err
@@ -191,7 +198,7 @@ func FromHFRepository(repository *hfrepo.Repository) (Inventory, error) {
 }
 
 func identifyFile(path string, kind artifact.Kind, mediaType string) (artifact.Descriptor, string, error) {
-	absolute, err := filepath.Abs(path)
+	absolute, err := pathidentity.Canonical(path)
 	if err != nil {
 		return artifact.Descriptor{}, "", err
 	}

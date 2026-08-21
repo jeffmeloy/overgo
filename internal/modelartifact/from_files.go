@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/pathidentity"
 	"overgo/internal/pytorchzip"
 	"overgo/internal/safetensors"
 )
@@ -31,6 +32,10 @@ func FromFiles(directory string, specs []FileSpec) (inventory Inventory, err err
 	if directory == "" || len(specs) == 0 {
 		return Inventory{}, errors.New("model artifact: file inventory requires a directory and components")
 	}
+	absoluteRoot, err := pathidentity.Canonical(directory)
+	if err != nil {
+		return Inventory{}, fmt.Errorf("model artifact: inventory root: %w", err)
+	}
 	roleOrdinals := map[artifact.ComponentRole]uint32{}
 	components := make([]artifact.Component, 0, len(specs))
 	descriptors := make([]artifact.Descriptor, 0, len(specs))
@@ -48,6 +53,10 @@ func FromFiles(directory string, specs []FileSpec) (inventory Inventory, err err
 		descriptor, absolute, err := identifyFile(spec.Path, kind, mediaType)
 		if err != nil {
 			return Inventory{}, fmt.Errorf("model artifact: component %s: %w", spec.Name, err)
+		}
+		contained, err := pathidentity.Contains(absoluteRoot, absolute)
+		if err != nil || !contained {
+			return Inventory{}, fmt.Errorf("model artifact: component %s escapes inventory root", spec.Name)
 		}
 		ordinal := roleOrdinals[spec.Role]
 		roleOrdinals[spec.Role]++
@@ -85,13 +94,11 @@ func FromFiles(directory string, specs []FileSpec) (inventory Inventory, err err
 	if err != nil {
 		return Inventory{}, err
 	}
-	absoluteRoot, err := filepath.Abs(directory)
+	manifestLocation, err := artifact.CanonicalLocalLocation(manifest.ID, artifact.LocationDirectory, absoluteRoot)
 	if err != nil {
 		return Inventory{}, err
 	}
-	locations = append(locations, artifact.Location{
-		Artifact: manifest.ID, Kind: artifact.LocationDirectory, Value: filepath.Clean(absoluteRoot),
-	})
+	locations = append(locations, manifestLocation)
 	sort.Slice(facts, func(left, right int) bool { return facts[left].Name < facts[right].Name })
 	format := TensorFormatSafetensors
 	if hasPyTorch {

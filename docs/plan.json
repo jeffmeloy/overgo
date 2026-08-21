@@ -3,26 +3,6 @@
   "doctrine": "Adapt only the Gentle AI mechanisms that strengthen Overgo's existing owners. RepoDB content identities, lineage, compare-and-set commits, recipe decisions, experiment lifecycles, and shared operation status remain authoritative. New contracts must compose with those owners, carry exact artifact and command identities, remain independent of model family, tensor shape, dataset distribution, backend topology, worker population, and user interface, and fail closed on stale, ambiguous, or incomplete evidence.",
   "items": [
     {
-      "id": "local-path-authority",
-      "title": "Use filesystem identity for model and dataset locations",
-      "status": "open",
-      "steps": [
-        {
-          "id": "canonical-locations",
-          "title": "Canonicalize and compare local RepoDB locations by filesystem identity",
-          "status": "open",
-          "verify": "go test ./internal/pathidentity ./internal/artifact -run '^(TestFilesystemIdentityContract|TestCanonicalLocalLocationContract)$' -count=1",
-          "rationale": "Different path spellings, links, case behavior, and nonexistent descendants must not create conflicting identities or let model and dataset roots escape their declared authority.",
-          "capabilities": [
-            "cross-platform filesystem identity",
-            "canonical local locations",
-            "ancestor containment",
-            "safe unavailable-path handling"
-          ]
-        }
-      ]
-    },
-    {
       "id": "recovery-friction",
       "title": "Verify that blocked lifecycle paths have real recoveries",
       "status": "open",

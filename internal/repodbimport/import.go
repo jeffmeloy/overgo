@@ -554,10 +554,11 @@ func importFile(root string, kind artifact.Kind, relative string) (
 	if err != nil {
 		return artifact.ID{}, artifact.Descriptor{}, artifact.LocationEvent{}, err
 	}
-	return id, artifact.Descriptor{ID: id, Size: size}, artifact.LocationEvent{
-		Location: artifact.Location{Artifact: id, Kind: artifact.LocationFile, Value: resolved},
-		Action:   artifact.LocationAdd,
-	}, nil
+	location, err := artifact.CanonicalLocalLocation(id, artifact.LocationFile, resolved)
+	if err != nil {
+		return artifact.ID{}, artifact.Descriptor{}, artifact.LocationEvent{}, err
+	}
+	return id, artifact.Descriptor{ID: id, Size: size}, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd}, nil
 }
 
 func importStoredFile(ctx context.Context, root string, objects *objectstore.Store, kind artifact.Kind, record wireRecord) (objectstore.Publication, error) {

@@ -478,7 +478,7 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:7bdcbe1aeec5d38b0123904db48d2f5d7eb3c879b368f26695bef76991df4e8e"
+     "identity": "file:sha256:af411c3f9d37de5a3f104ee9e6b5b448b4b759753d07fdb643b6c8335b361498"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -541,13 +541,13 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:e42134155166e1c994969b46f796e9b5113df1d71d7e78594730ed5840431f2f"
+     "identity": "file:sha256:c355e98cf4302ada66b96acbb465119537fcfe18cb5b1e737cc3bbb884722f60"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
      "path": "internal/inference/prompt_cache_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:261bca4524a41e46d47df0a1329719e2b400ca06df362db3713a07264f2251f9"
+     "identity": "evidence:sha256:8aa831bd332bf617300c9f7f669f597c7da503f28fbcd4552cf045e0d84d68bd"
     }
    ],
    "id": "editable-prompt-cache",
@@ -611,7 +611,7 @@
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
+     "identity": "evidence:sha256:bc38b2997e7b2a379006858e50d64c1695fe8c11fc36fd68487d2d9ed5eb4d45"
     }
    ],
    "id": "media-history",
@@ -632,7 +632,7 @@
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
+     "identity": "evidence:sha256:bc38b2997e7b2a379006858e50d64c1695fe8c11fc36fd68487d2d9ed5eb4d45"
     }
    ],
    "id": "mixed-media-history",
@@ -737,7 +737,7 @@
      "contains": "func TestMultimodalInputTokenCounting(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
+     "identity": "evidence:sha256:bc38b2997e7b2a379006858e50d64c1695fe8c11fc36fd68487d2d9ed5eb4d45"
     }
    ],
    "id": "multimodal-token-counting",
@@ -764,7 +764,7 @@
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
+     "identity": "evidence:sha256:bc38b2997e7b2a379006858e50d64c1695fe8c11fc36fd68487d2d9ed5eb4d45"
     }
    ],
    "id": "unified-prompt-preparation",
@@ -869,7 +869,7 @@
      "contains": "func TestResponsesPreviousResponseContinuation(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:486e89ccb04584bde3cd0be151764d4a70b167a7362e185255827cc094da6fc0"
+     "identity": "evidence:sha256:bc38b2997e7b2a379006858e50d64c1695fe8c11fc36fd68487d2d9ed5eb4d45"
     }
    ],
    "id": "responses-continuation",
@@ -905,7 +905,7 @@
      "contains": "func LookupArchitecture(",
      "path": "internal/model/architecture.go",
      "role": "source",
-     "identity": "file:sha256:70d0d0e1f42868b6f94deb5fa64f7909bcb5bc1755199c9c6c63ec81ab85e1f3"
+     "identity": "file:sha256:39f92c9c2d86c40e2a5b8bdfc931d8c8935f7b4faff954f95585be7ad5f890b3"
     },
     {
      "contains": "func TestArchitectureRegistryProfiles(",
@@ -953,13 +953,13 @@
      "contains": "func (b *ContinuousBatch) Step(",
      "path": "internal/inference/continuous_batch.go",
      "role": "source",
-     "identity": "file:sha256:568eca882bc0a6e98df7875ada9429af415af1deb41f68c69fb214580962e233"
+     "identity": "file:sha256:e97789aa00dd00cb86c6c13661694fed320eea2a7fe8541dedb1b8e7411105bb"
     },
     {
      "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
      "path": "internal/inference/device_cache_paging_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:9142f34cc6e30cb747bf48bfba82843f7cb0a3c90b40ead5de89eab4926afd80"
+     "identity": "evidence:sha256:9bc115f64dc82e886f1e53507065e790dbf6c9c851c2f007b6f7ac18d9ad16ad"
     }
    ],
    "id": "paged-continuous-cache",

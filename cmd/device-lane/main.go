@@ -11,6 +11,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"sort"
 	"strings"
@@ -44,7 +47,10 @@ func run() error {
 		return runrecord.LaneError(runrecord.LaneUnavailable, err.Error())
 	}
 	paths := splitPaths(*pathsFlag)
-	steps := deviceSteps(paths)
+	steps, err := deviceSteps(paths)
+	if err != nil {
+		return err
+	}
 	for _, step := range steps {
 		began := time.Now()
 		out, err := clioptions.CombinedOutput(append(os.Environ(), cudaTestEnv+"=1"), step[0], step[1:]...)
@@ -69,24 +75,40 @@ func splitPaths(csv string) []string {
 	return paths
 }
 
-func deviceSteps(paths []string) [][]string {
+func deviceSteps(paths []string) ([][]string, error) {
 	steps := [][]string{{"go", "run", "./cmd/cuda-smoke"}}
 	if len(paths) == 0 {
 		return append(steps,
 			deviceTestStep("./internal/cuda/...", "./internal/model", "./internal/projector", "./internal/optimizer", "./internal/devicemath"),
-			deviceTestStep("-run", "Device", "./internal/densecausal"))
+			deviceTestStep("-run", "Device", "./internal/densecausal")), nil
 	}
 	packages := map[string]bool{}
+	tests := map[string]map[string]bool{}
 	for _, path := range paths {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			continue
-		}
 		parts := strings.Split(path, "/")
 		switch {
 		case strings.HasPrefix(path, "kernels/") || strings.HasPrefix(path, "internal/cuda/"):
 			packages["./internal/cuda/..."] = true
 		case len(parts) > 2 && parts[0] == "internal":
-			packages["./internal/"+parts[1]] = true
+			pkg := "./internal/" + parts[1]
+			if !strings.HasSuffix(path, "_test.go") {
+				packages[pkg] = true
+				continue
+			}
+			names, err := changedDeviceTests(path)
+			if err != nil {
+				return nil, err
+			}
+			if names == nil {
+				packages[pkg] = true
+				continue
+			}
+			if tests[pkg] == nil {
+				tests[pkg] = map[string]bool{}
+			}
+			for _, name := range names {
+				tests[pkg][name] = true
+			}
 		}
 	}
 	ordered := make([]string, 0, len(packages))
@@ -98,7 +120,38 @@ func deviceSteps(paths []string) [][]string {
 		// One device owner: package concurrency invalidates wall and peak ratchets.
 		steps = append(steps, deviceTestStep(ordered...))
 	}
-	return steps
+	var testPackages []string
+	for pkg := range tests {
+		if !packages[pkg] {
+			testPackages = append(testPackages, pkg)
+		}
+	}
+	sort.Strings(testPackages)
+	for _, pkg := range testPackages {
+		var names []string
+		for name := range tests[pkg] {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		steps = append(steps, deviceTestStep("-run", "^("+strings.Join(names, "|")+")$", pkg))
+	}
+	return steps, nil
+}
+
+func changedDeviceTests(path string) ([]string, error) {
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
+	if err != nil {
+		return nil, fmt.Errorf("device-lane: parse changed test %s: %w", path, err)
+	}
+	var names []string
+	for _, declaration := range file.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if ok && function.Recv == nil &&
+			(strings.HasPrefix(function.Name.Name, "Test") || strings.HasPrefix(function.Name.Name, "Example")) {
+			names = append(names, function.Name.Name)
+		}
+	}
+	return names, nil
 }
 
 func deviceTestStep(arguments ...string) []string {

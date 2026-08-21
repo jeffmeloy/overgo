@@ -7,8 +7,6 @@ import (
 	"slices"
 
 	"overgo/internal/sequencescore"
-	"overgo/internal/tensor"
-	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
 
@@ -52,10 +50,9 @@ func (r *Runner) ScoreContinuations(
 	if err != nil {
 		return nil, err
 	}
-	width := int(hidden.Shape.Dims[0])
-	last := reference.Value{
-		Shape: tensor.MustShape(uint64(width), 1),
-		Data:  hidden.Data[len(hidden.Data)-width:],
+	last := hidden.LastRowView()
+	if len(last.Data) == 0 {
+		return nil, errors.New("inference: continuation hidden state is incompatible")
 	}
 	firstLogits, err := r.logitsBatch(ctx, r.outputTensor(), last)
 	if err != nil {

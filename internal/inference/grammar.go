@@ -9,12 +9,6 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-const (
-	maxGrammarChoices      = 128
-	maxGrammarChoiceTokens = 256
-	maxGrammarTotalTokens  = 4096
-)
-
 // TokenizeGrammarChoices: compiles exact textual completion alternatives into
 // token-level grammar for this runner's vocabulary
 func (r *Runner) TokenizeGrammarChoices(choices []string) (*sampling.TokenGrammar, error) {
@@ -24,11 +18,7 @@ func (r *Runner) TokenizeGrammarChoices(choices []string) (*sampling.TokenGramma
 	if len(choices) == 0 {
 		return nil, errors.New("inference: grammar choice list is empty")
 	}
-	if len(choices) > maxGrammarChoices {
-		return nil, fmt.Errorf("inference: grammar choice count exceeds %d", maxGrammarChoices)
-	}
 	tokenChoices := make([][]int, len(choices))
-	totalTokens := 0
 	for choiceIndex, choice := range choices {
 		if choice == "" {
 			return nil, fmt.Errorf("inference: grammar choice %d is empty", choiceIndex)
@@ -39,20 +29,6 @@ func (r *Runner) TokenizeGrammarChoices(choices []string) (*sampling.TokenGramma
 		}
 		if len(ids) == 0 {
 			return nil, fmt.Errorf("inference: grammar choice %d tokenizes to nothing", choiceIndex)
-		}
-		if len(ids) > maxGrammarChoiceTokens {
-			return nil, fmt.Errorf(
-				"inference: grammar choice %d exceeds %d tokens",
-				choiceIndex,
-				maxGrammarChoiceTokens,
-			)
-		}
-		totalTokens += len(ids)
-		if totalTokens > maxGrammarTotalTokens {
-			return nil, fmt.Errorf(
-				"inference: grammar choices exceed %d total tokens",
-				maxGrammarTotalTokens,
-			)
 		}
 		tokenChoices[choiceIndex] = make([]int, len(ids))
 		for tokenIndex, id := range ids {

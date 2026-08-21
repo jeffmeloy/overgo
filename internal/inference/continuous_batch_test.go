@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -21,8 +22,12 @@ func TestContinuousBatchSequenceLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	runner := attachFixtureProgram(&Runner{preparedModel: preparedModel{spec: model.Spec{
+		CommonSpec: model.CommonSpec{Architecture: "llama", ContextLength: 8},
+	}}})
+	runner.program.Decode.Session = modelrecipe.DecodeSessionCapacity
 	batch := &ContinuousBatch{
-		options: ContinuousBatchOptions{MaxSequences: 3, PageTokens: 2},
+		runner: runner, options: ContinuousBatchOptions{MaxSequences: 3},
 		sequences: map[SequenceID]*continuousSequence{
 			7: {host: &KVCache{
 				Layers: []LayerCache{{Key: value, Value: value}},
@@ -32,8 +37,8 @@ func TestContinuousBatchSequenceLifecycle(t *testing.T) {
 	}
 	states := batch.Snapshot()
 	if len(states) != 1 || states[0].ID != 7 || states[0].Tokens != 5 ||
-		states[0].Position != 9 || len(states[0].Pages) != 3 ||
-		states[0].Pages[2] != (SequenceCachePage{Start: 4, Tokens: 1}) {
+		states[0].Position != 9 || len(states[0].Pages) != 2 ||
+		states[0].Pages[1] != (SequenceCachePage{Start: 4, Tokens: 1}) {
 		t.Fatalf("states = %+v", states)
 	}
 	if err := batch.Fork(7, 8); err != nil {
@@ -129,7 +134,6 @@ func TestContinuousBatchAdmission(t *testing.T) {
 	runner = attachFixtureProgram(runner)
 	batch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
 		MaxSequences: 2,
-		PageTokens:   4,
 	})
 	if err != nil {
 		t.Fatal(err)

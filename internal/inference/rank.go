@@ -162,8 +162,8 @@ func (r *Runner) RankTokensWithProjectedInputs(
 		tokens != len(input) || len(hidden.Data) != width*tokens {
 		return RankResult{}, errors.New("inference: rank hidden-state shape is incompatible")
 	}
-	last := hidden.Data[(tokens-1)*width:]
-	scores, err := r.projectRankScores(ctx, last)
+	last := hidden.LastRowView()
+	scores, err := r.projectRankScores(ctx, last.Data)
 	if err != nil {
 		return RankResult{}, err
 	}
@@ -181,7 +181,7 @@ func (r *Runner) RankTokensWithProjectedInputs(
 func (r *Runner) projectRankScores(ctx context.Context, hidden []float32) ([]float32, error) {
 	info := *r.weights.ClassifierOutput
 	if !r.hasPreloadedWeights() {
-		return model.DotRows(ctx, r.file, info, hidden, 1024)
+		return model.DotRows(ctx, r.file, info, hidden)
 	}
 	inputShape := tensor.MustShape(uint64(len(hidden)), 1)
 	inputValue, err := reference.NewValue(inputShape, hidden)

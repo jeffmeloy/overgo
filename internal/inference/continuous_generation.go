@@ -16,7 +16,6 @@ import (
 // ContinuousGeneratorOptions: fused scheduler bounds.
 type ContinuousGeneratorOptions struct {
 	MaxSequences  int
-	PageTokens    uint32
 	ContextShift  bool
 	KeepTokens    uint32
 	DiscardTokens int
@@ -85,7 +84,6 @@ func (r *Runner) NewContinuousGenerator(
 	}
 	batch, err := r.NewContinuousBatch(ContinuousBatchOptions{
 		MaxSequences:  options.MaxSequences,
-		PageTokens:    options.PageTokens,
 		Device:        true,
 		ContextShift:  options.ContextShift,
 		KeepTokens:    options.KeepTokens,
@@ -233,7 +231,7 @@ func (g *ContinuousGenerator) run() {
 			continuousStatesUseDeviceGreedy(stepping)
 		topKBatch, bounded := g.batch.(continuousTopKBatchAPI)
 		topK := 0
-		if !greedy && bounded && !g.runner.program.Model.ProjectedInput().DiscreteTokens {
+		if !greedy && bounded && len(g.runner.outputExclusions) == 0 {
 			topK, bounded = continuousStatesUseDeviceTopK(stepping, int(g.runner.spec.VocabularySize))
 		} else if !greedy {
 			bounded = false

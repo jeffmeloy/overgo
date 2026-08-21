@@ -9,7 +9,6 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
-	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -165,7 +164,7 @@ func (r *Runner) projectEmbeddingVectorsHost(
 ) ([][]float32, error) {
 	result := make([][]float32, len(vectors))
 	for index, vector := range vectors {
-		projected, err := model.DotRows(ctx, r.file, projection, vector, 1024)
+		projected, err := model.DotRows(ctx, r.file, projection, vector)
 		if err != nil {
 			return nil, fmt.Errorf("inference: embedding projection %q: %w", projection.Name, err)
 		}
@@ -179,22 +178,7 @@ func (r *Runner) projectEmbeddingVectorsDevice(
 	vectors [][]float32,
 	projection gguf.TensorInfo,
 ) ([][]float32, error) {
-	if len(vectors) == 0 || len(vectors[0]) == 0 {
-		return nil, errors.New("inference: embedding projection input is empty")
-	}
-	width := len(vectors[0])
-	if width > math.MaxInt/len(vectors) {
-		return nil, errors.New("inference: embedding projection input is too large")
-	}
-	data := make([]float32, 0, width*len(vectors))
-	for _, vector := range vectors {
-		if len(vector) != width {
-			return nil, errors.New("inference: embedding projection vectors have differing widths")
-		}
-		data = append(data, vector...)
-	}
-	inputShape := tensor.MustShape(uint64(width), uint64(len(vectors)))
-	inputValue, err := reference.NewValue(inputShape, data)
+	inputValue, err := reference.NewMatrixRows(vectors)
 	if err != nil {
 		return nil, err
 	}
@@ -226,12 +210,8 @@ func poolEmbeddings(
 	hidden reference.Value,
 	options EmbeddingOptions,
 ) ([][]float32, error) {
-	width := int(hidden.Shape.Dims[0])
-	tokens := int(hidden.Shape.Dims[1])
-	if hidden.Shape.Rank != 2 ||
-		width <= 0 ||
-		tokens <= 0 ||
-		len(hidden.Data) != width*tokens {
+	width, tokens, valid := hidden.MatrixExtents()
+	if !valid {
 		return nil, errors.New("inference: hidden state has invalid embedding shape")
 	}
 	pooling := options.Pooling
@@ -249,7 +229,7 @@ func poolEmbeddings(
 		}
 		return result, nil
 	case EmbeddingPoolingLast:
-		vector := slices.Clone(hidden.Data[(tokens-1)*width:])
+		vector := slices.Clone(hidden.LastRowView().Data)
 		normalizeEmbedding(vector, options.Normalize)
 		return [][]float32{vector}, nil
 	case EmbeddingPoolingMean:

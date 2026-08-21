@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/model"
+	"overgo/internal/tokenizer"
 )
 
 func TestApplyLogitSoftcap(t *testing.T) {
@@ -35,19 +36,25 @@ func TestApplyLogitSoftcap(t *testing.T) {
 	}
 }
 
-func TestChameleonImageLogitsAreSuppressed(t *testing.T) {
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "chameleon", VocabularySize: 8200}}}}
+func TestSerializedCodebookLogitsAreSuppressed(t *testing.T) {
+	vocab := &tokenizer.Vocab{Tokens: []tokenizer.Token{
+		{Text: "text-a"}, {Text: "IMGIMGABZ"}, {Text: "IMGIMGIZ"}, {Text: "text-b"},
+	}}
+	runner := &Runner{preparedModel: preparedModel{
+		spec:  model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", VocabularySize: uint32(vocab.Len())}},
+		vocab: vocab, outputExclusions: vocab.NonTextGenerationRanges(),
+	}}
 	runner = attachFixtureProgram(runner)
-	logits := make([]float32, 2*8200)
+	logits := make([]float32, 2*vocab.Len())
 	for index := range logits {
 		logits[index] = float32(index)
 	}
 	runner.finalizeLogits(logits)
-	for _, base := range []int{0, 8200} {
-		if logits[base+3] == -math.MaxFloat32 || logits[base+8196] == -math.MaxFloat32 {
+	for _, base := range []int{0, vocab.Len()} {
+		if logits[base] == -math.MaxFloat32 || logits[base+3] == -math.MaxFloat32 {
 			t.Fatal("text logit was suppressed")
 		}
-		if logits[base+4] != -math.MaxFloat32 || logits[base+8195] != -math.MaxFloat32 {
+		if logits[base+1] != -math.MaxFloat32 || logits[base+2] != -math.MaxFloat32 {
 			t.Fatal("image-token logit was not suppressed")
 		}
 	}

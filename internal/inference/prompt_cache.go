@@ -11,6 +11,7 @@ import (
 	"slices"
 
 	"overgo/internal/cuda/executor"
+	"overgo/internal/recipe"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -272,7 +273,7 @@ func (r *Runner) trimHostPromptCache(
 	return result, trimmed, nil
 }
 
-func trimDeviceCacheSuffix(cache *deviceKVCache, keep uint32) error {
+func trimDeviceCacheSuffix(cache *deviceKVCache, keep uint32, session recipe.SessionPolicy) error {
 	if cache == nil || keep == 0 || keep >= cache.Tokens {
 		return errors.New("inference: invalid device prompt cache suffix trim")
 	}
@@ -299,5 +300,5 @@ func trimDeviceCacheSuffix(cache *deviceKVCache, keep uint32) error {
 	cache.session = nil
 	cache.Logits = nil
 	cache.Candidates = nil
-	return rebuildDeviceCachePages(cache, cache.PageTokens)
+	return rebuildDeviceCachePages(cache, session)
 }

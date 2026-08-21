@@ -2,7 +2,6 @@ package inference
 
 import (
 	"encoding/binary"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -121,16 +120,6 @@ func TestKVCacheNamedStateValidation(t *testing.T) {
 				t.Fatal("invalid named state was accepted")
 			}
 		})
-	}
-	cache := cacheTestValue(t)
-	cache.Layers[0].States = make(LayerStates)
-	for index := 0; index < maxLayerCacheStates-1; index++ {
-		cache.Layers[0].States[model.CacheStateName(fmt.Sprintf("state_%d", index))] = LayerState{
-			Mode: CacheStateFixed, Value: fixed,
-		}
-	}
-	if _, err := cacheTestRunner().SaveCache(cache); err == nil {
-		t.Fatal("excessive named state count was accepted")
 	}
 }
 
@@ -603,14 +592,14 @@ func TestKVCacheStateRejectsTruncationAndTrailingData(t *testing.T) {
 	}
 }
 
-func TestKVCacheStateRejectsExcessiveLayers(t *testing.T) {
+func TestKVCacheStateRejectsLayerCountBeyondPayload(t *testing.T) {
 	data := make([]byte, cacheStateHeaderSize)
 	copy(data, cacheStateMagic)
 	binary.LittleEndian.PutUint32(data[8:], 1)
 	binary.LittleEndian.PutUint32(data[12:], 1)
-	binary.LittleEndian.PutUint32(data[16:], maxCacheStateLayers+1)
+	binary.LittleEndian.PutUint32(data[16:], cacheTestRunner().program.Model.CacheLayerCount())
 	if _, err := cacheTestRunner().LoadCache(data); err == nil {
-		t.Fatal("excessive layer count was accepted")
+		t.Fatal("layer count beyond payload was accepted")
 	}
 }
 

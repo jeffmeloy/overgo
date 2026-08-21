@@ -11,7 +11,7 @@ type profileOrdinal interface {
 }
 
 const (
-	allArchitectureCapabilities = ((ArchitectureDiscreteImageTokens << 1) - 1) &^
+	allArchitectureCapabilities = ((ArchitectureLatentKVLayout << 1) - 1) &^
 		(architectureReservedGEGLU | architectureReservedAltUp)
 	allExpertSupplements = (expertSupplementDenseBranch << 1) - 1
 )

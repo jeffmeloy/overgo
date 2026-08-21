@@ -42,12 +42,12 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 		suffix,
 		prompt,
 		nil,
-		InfillFormatOptions{BatchSize: 16, MaxNewTokens: 2},
+		InfillFormatOptions{MaxNewTokens: 2},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantPSM := []tokenizer.TokenID{1, 2, 5, 6, 7, 8, 9, 13, 3, 10, 4}
+	wantPSM := []tokenizer.TokenID{1, 2, 5, 6, 7, 8, 9, 13, 3, 10, 11, 12, 4}
 	if !slices.Equal(psm, wantPSM) {
 		t.Fatalf("PSM tokens = %v, want %v", psm, wantPSM)
 	}
@@ -57,7 +57,6 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 		prompt,
 		nil,
 		InfillFormatOptions{
-			BatchSize:    16,
 			MaxNewTokens: 2,
 			SuffixPrefix: true,
 		},
@@ -65,7 +64,7 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantSPM := []tokenizer.TokenID{1, 3, 10, 2, 5, 6, 7, 8, 9, 13, 4}
+	wantSPM := []tokenizer.TokenID{1, 3, 10, 11, 12, 2, 5, 6, 7, 8, 9, 13, 4}
 	if !slices.Equal(spm, wantSPM) {
 		t.Fatalf("SPM tokens = %v, want %v", spm, wantSPM)
 	}
@@ -73,7 +72,7 @@ func TestFormatInfillTokensPSMAndSPM(t *testing.T) {
 
 func TestFormatInfillTokensTruncatesPrefixTailAndSuffixHead(t *testing.T) {
 	tokens := make([]tokenizer.Token, 32)
-	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 32}},
+	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{ContextLength: 11}},
 		vocab: &tokenizer.Vocab{
 			Tokens: tokens,
 			BOS:    tokenizer.NullToken,
@@ -92,12 +91,12 @@ func TestFormatInfillTokensTruncatesPrefixTailAndSuffixHead(t *testing.T) {
 		suffix,
 		nil,
 		nil,
-		InfillFormatOptions{BatchSize: 8},
+		InfillFormatOptions{},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []tokenizer.TokenID{1, 6, 7, 8, 9, 10, 11, 2, 3}
+	want := []tokenizer.TokenID{1, 6, 7, 8, 9, 10, 11, 2, 12, 13, 3}
 	if !slices.Equal(got, want) {
 		t.Fatalf("truncated FIM tokens = %v, want %v", got, want)
 	}
@@ -117,7 +116,7 @@ func TestFormatInfillTokensRequiresControlTokens(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		InfillFormatOptions{BatchSize: 4},
+		InfillFormatOptions{},
 	); err == nil {
 		t.Fatal("FIM formatter accepted a vocabulary without control tokens")
 	}

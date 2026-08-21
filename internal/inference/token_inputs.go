@@ -19,21 +19,28 @@ func (r *Runner) planForwardSequence(
 	tokenIDs []tokenizer.TokenID,
 	pastTokens, nextPosition uint32,
 ) (forwardSequencePlan, error) {
-	if uint64(pastTokens)+uint64(len(tokenIDs)) > uint64(r.spec.ContextLength) {
-		return forwardSequencePlan{}, fmt.Errorf(
-			"inference: cached plus new token count %d exceeds context length %d",
-			uint64(pastTokens)+uint64(len(tokenIDs)), r.spec.ContextLength,
-		)
-	}
-	if uint64(nextPosition)+uint64(len(tokenIDs)) > math.MaxUint32 {
-		return forwardSequencePlan{}, errors.New("inference: absolute token position exceeds uint32")
-	}
-	rows, err := r.tokenRows(tokenIDs)
+	rows, err := r.vocab.TensorIndices(tokenIDs)
 	if err != nil {
 		return forwardSequencePlan{}, err
 	}
+	return r.planForwardIndices(rows, pastTokens, nextPosition)
+}
+
+func (r *Runner) planForwardIndices(
+	rows []uint32,
+	pastTokens, nextPosition uint32,
+) (forwardSequencePlan, error) {
+	if uint64(pastTokens)+uint64(len(rows)) > uint64(r.spec.ContextLength) {
+		return forwardSequencePlan{}, fmt.Errorf(
+			"inference: cached plus new token count %d exceeds context length %d",
+			uint64(pastTokens)+uint64(len(rows)), r.spec.ContextLength,
+		)
+	}
+	if uint64(nextPosition)+uint64(len(rows)) > math.MaxUint32 {
+		return forwardSequencePlan{}, errors.New("inference: absolute token position exceeds uint32")
+	}
 	return forwardSequencePlan{
-		rows: rows, positions: tokenPositions(nextPosition, len(tokenIDs)),
+		rows: rows, positions: tokenPositions(nextPosition, len(rows)),
 		pastTokens: pastTokens, nextPosition: nextPosition,
 	}, nil
 }
@@ -47,17 +54,6 @@ func validateLearnedPositions(positions []uint32, contextLength uint32) error {
 		}
 	}
 	return nil
-}
-
-func (r *Runner) tokenRows(tokenIDs []tokenizer.TokenID) ([]uint32, error) {
-	rows := make([]uint32, len(tokenIDs))
-	for index, id := range tokenIDs {
-		if id < 0 || int(id) >= r.vocab.Len() {
-			return nil, fmt.Errorf("inference: token ID %d is out of range", id)
-		}
-		rows[index] = uint32(id)
-	}
-	return rows, nil
 }
 
 func tokenPositions(start uint32, count int) []uint32 {

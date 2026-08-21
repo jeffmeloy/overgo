@@ -50,6 +50,17 @@ func Add64(values ...uint64) (uint64, bool) {
 	return total, true
 }
 
+func AddInt(values ...int) (int, bool) {
+	var total int
+	for _, value := range values {
+		if value < 0 || total > math.MaxInt-value {
+			return 0, false
+		}
+		total += value
+	}
+	return total, true
+}
+
 func Mul64(left, right uint64) (uint64, bool) {
 	if left != 0 && right > math.MaxUint64/left {
 		return 0, false

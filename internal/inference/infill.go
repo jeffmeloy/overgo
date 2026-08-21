@@ -7,15 +7,12 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-const DefaultInfillBatchSize = 2048
-
 type InfillExtra struct {
 	Filename string
 	Tokens   []tokenizer.TokenID
 }
 
 type InfillFormatOptions struct {
-	BatchSize    int
 	MaxNewTokens int
 	SuffixPrefix bool
 }
@@ -38,16 +35,6 @@ func (r *Runner) FormatInfillTokens(
 	}
 	if r.vocab.FIMMid == tokenizer.NullToken {
 		return nil, errors.New("inference: FIM middle token is unavailable")
-	}
-	if options.BatchSize == 0 {
-		options.BatchSize = DefaultInfillBatchSize
-	}
-	if options.BatchSize < 1 ||
-		options.BatchSize > int(r.spec.ContextLength) {
-		return nil, fmt.Errorf(
-			"inference: FIM batch size must be in [1,%d]",
-			r.spec.ContextLength,
-		)
 	}
 	if options.MaxNewTokens < 0 {
 		return nil, errors.New("inference: FIM maximum new tokens is negative")
@@ -120,9 +107,18 @@ func (r *Runner) FormatInfillTokens(
 		extraTokens = append(extraTokens, filename...)
 	}
 
-	quarter := options.BatchSize / 4
-	prefixTake := min(len(prefix), 3*quarter)
-	suffixTake := min(len(suffix), max(0, quarter-(2+len(prompt))))
+	controls := [...]tokenizer.TokenID{r.vocab.FIMPre, r.vocab.FIMSuf, r.vocab.FIMMid}
+	available := max(0, int(r.spec.ContextLength)-options.MaxNewTokens-len(prompt)-len(controls))
+	if r.vocab.AddBOS {
+		available = max(0, available-1)
+	}
+	fileTake := min(len(prefix)+len(suffix), available)
+	prefixTake := min(len(prefix), 3*fileTake/4)
+	suffixTake := min(len(suffix), fileTake-prefixTake)
+	remaining := fileTake - prefixTake - suffixTake
+	additionalPrefix := min(len(prefix)-prefixTake, remaining)
+	prefixTake += additionalPrefix
+	suffixTake += min(len(suffix)-suffixTake, remaining-additionalPrefix)
 	prefix = prefix[len(prefix)-prefixTake:]
 	suffix = suffix[:suffixTake]
 
@@ -142,15 +138,7 @@ func (r *Runner) FormatInfillTokens(
 		first = append([]tokenizer.TokenID{r.vocab.BOS}, first...)
 	}
 
-	extraTake := min(
-		max(
-			0,
-			int(r.spec.ContextLength)-
-				options.BatchSize-
-				2*options.MaxNewTokens,
-		),
-		len(extraTokens),
-	)
+	extraTake := min(available-prefixTake-suffixTake, len(extraTokens))
 	result := make([]tokenizer.TokenID, 0, extraTake+len(first)+len(last)+1)
 	result = append(result, extraTokens[len(extraTokens)-extraTake:]...)
 	result = append(result, first...)

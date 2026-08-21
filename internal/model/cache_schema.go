@@ -68,6 +68,14 @@ func (m CacheStateMode) TokenAligned() bool {
 	return m == CacheStateToken
 }
 
+func (m CacheStateMode) MatchesTokenExtent(shape tensor.Shape, tokens uint32) bool {
+	if !m.TokenAligned() {
+		return true
+	}
+	extent, _, valid := tensor.FinalExtent(shape)
+	return valid && extent == uint64(tokens)
+}
+
 // CacheStateName: serialized named-state ABI key.
 type CacheStateName string
 
@@ -89,6 +97,32 @@ type CacheValueSchema struct {
 	Shape        tensor.Shape
 	VariableLast bool
 	ZeroInitial  bool
+}
+
+func (s CacheValueSchema) Matches(shape tensor.Shape) bool {
+	if !s.VariableLast {
+		return shape.Equal(s.Shape)
+	}
+	if shape.Rank != s.Shape.Rank || shape.Rank == tensor.FirstOffset {
+		return false
+	}
+	last := int(shape.Rank) - tensor.SingletonExtent
+	for index := range last {
+		if shape.Dims[index] != s.Shape.Dims[index] {
+			return false
+		}
+	}
+	return shape.Dims[last] > tensor.FirstOffset
+}
+
+func (s CacheValueSchema) MatchesTrailingExtent(shape tensor.Shape, extent uint64) bool {
+	expected, valid := tensor.WithTrailingExtent(s.Shape, extent)
+	return valid && shape.Equal(expected)
+}
+
+func (s CacheValueSchema) AcceptsTokenTarget(mode CacheStateMode, shape tensor.Shape) bool {
+	s.VariableLast = true
+	return mode.TokenAligned() && s.Matches(shape)
 }
 
 // CachePair: primary key/value contract.

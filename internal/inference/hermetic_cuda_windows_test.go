@@ -31,20 +31,20 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	path := writeHermeticLlamaGGUF(t)
-	runner, err := openF32FixtureRunner(path, OpenOptions{CachePageTokens: 4})
+	runner, err := openF32FixtureRunner(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer runner.Close()
 	deviceBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
-		MaxSequences: 2, Device: true, PageTokens: 4,
+		MaxSequences: 2, Device: true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer deviceBatch.Close(context.Background())
 	hostBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
-		MaxSequences: 2, PageTokens: 4,
+		MaxSequences: 2,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -137,20 +137,20 @@ func TestHermeticCUDACapacityCachePageBoundary(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	path := writeHermeticLlamaGGUF(t)
-	runner, err := openF32FixtureRunner(path, OpenOptions{CachePageTokens: 4})
+	runner, err := openF32FixtureRunner(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer runner.Close()
 	deviceBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
-		MaxSequences: 1, Device: true, PageTokens: 4,
+		MaxSequences: 1, Device: true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer deviceBatch.Close(context.Background())
 	hostBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
-		MaxSequences: 1, PageTokens: 4,
+		MaxSequences: 1,
 	})
 	if err != nil {
 		t.Fatal(err)

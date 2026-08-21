@@ -110,7 +110,7 @@ func TestGemma4FP8Leadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{CachePageTokens: 32})
+	runner, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

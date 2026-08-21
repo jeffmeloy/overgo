@@ -11,16 +11,14 @@ import (
 )
 
 const (
-	chatMLStart           = "<|im_start|>"
-	chatMLEnd             = "<|im_end|>"
-	gemmaTurnStart        = "<start_of_turn>"
-	gemmaTurnEnd          = "<end_of_turn>"
-	llama3HeaderStart     = "<|start_header_id|>"
-	llama3HeaderEnd       = "<|end_header_id|>"
-	llama3EndTurn         = "<|eot_id|>"
-	llama3BeginText       = "<|begin_of_text|>"
-	maxChatTemplateBytes  = 1 << 20
-	maxFormattedChatBytes = 16 << 20
+	chatMLStart       = "<|im_start|>"
+	chatMLEnd         = "<|im_end|>"
+	gemmaTurnStart    = "<start_of_turn>"
+	gemmaTurnEnd      = "<end_of_turn>"
+	llama3HeaderStart = "<|start_header_id|>"
+	llama3HeaderEnd   = "<|end_header_id|>"
+	llama3EndTurn     = "<|eot_id|>"
+	llama3BeginText   = "<|begin_of_text|>"
 )
 
 type ChatRole string

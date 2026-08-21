@@ -751,7 +751,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
-		MaxSequences: 2, Device: true, PageTokens: 4,
+		MaxSequences: 2, Device: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -777,7 +777,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 		alternate = next - 1
 	}
 	greedyBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
-		MaxSequences: 2, Device: true, PageTokens: 4,
+		MaxSequences: 2, Device: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -800,7 +800,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 		t.Fatalf("device feedback selections = %+v, error %v", selected, err)
 	}
 	sessionBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
-		MaxSequences: 1, Device: true, PageTokens: 4,
+		MaxSequences: 1, Device: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -837,7 +837,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	singles := make([]*ContinuousBatch, 2)
 	for index := range singles {
 		singles[index], err = runner.NewContinuousBatch(ContinuousBatchOptions{
-			MaxSequences: 1, Device: true, PageTokens: 4,
+			MaxSequences: 1, Device: true,
 		})
 		if err != nil {
 			t.Fatal(err)

@@ -36,7 +36,7 @@ func (r *Runner) NewNextNMTPSession(
 	}
 	position := effectiveCachePosition(cache)
 	session := &NextNMTPSession{
-		TrunkCache: cache, PendingHidden: lastHiddenColumn(hidden), MTPStart: position,
+		TrunkCache: cache, PendingHidden: hidden.LastRowView().Clone(), MTPStart: position,
 		Position: position, targetModel: targetModel,
 	}
 	if cache.SparseTopK != nil {

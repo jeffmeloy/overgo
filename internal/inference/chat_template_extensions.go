@@ -7,29 +7,15 @@ import (
 	"time"
 )
 
-const (
-	maxChatTemplateFunctionInput  = 4096
-	maxChatTemplateFunctionOutput = 4096
-)
-
 func chatTemplateRaiseException(message string) (string, error) {
-	if len(message) > maxChatTemplateFunctionInput {
-		message = message[:maxChatTemplateFunctionInput]
-	}
 	return "", errors.New(message)
 }
 
 func newChatTemplateStrftime(now time.Time) func(string) (string, error) {
 	return func(format string) (string, error) {
-		if len(format) > maxChatTemplateFunctionInput {
-			return "", errors.New("strftime_now format exceeds 4 KiB")
-		}
 		result, err := formatChatTemplateTime(now, format)
 		if err != nil {
 			return "", err
-		}
-		if len(result) > maxChatTemplateFunctionOutput {
-			return "", errors.New("strftime_now result exceeds 4 KiB")
 		}
 		return result, nil
 	}
@@ -105,9 +91,6 @@ func formatChatTemplateTime(value time.Time, format string) (string, error) {
 			)
 		}
 		output.WriteString(rendered)
-		if output.Len() > maxChatTemplateFunctionOutput {
-			return "", errors.New("strftime_now result exceeds 4 KiB")
-		}
 	}
 	return output.String(), nil
 }

@@ -326,7 +326,6 @@ const (
 	ArchitectureEmbeddingSkip
 	ArchitectureOutputLayerNormLayout
 	ArchitectureLatentKVLayout
-	ArchitectureDiscreteImageTokens
 )
 
 // ArchitectureProfile: registry entry and capability set.

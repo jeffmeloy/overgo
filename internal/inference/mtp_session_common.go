@@ -120,7 +120,7 @@ func (target *Runner) newSingleHeadMTPSession(
 	if err != nil {
 		return nil, err
 	}
-	last := lastHiddenColumn(hidden)
+	last := hidden.LastRowView().Clone()
 	targetModel, err := target.sessionModelSignature()
 	if err != nil {
 		return nil, err
@@ -130,14 +130,6 @@ func (target *Runner) newSingleHeadMTPSession(
 		TrunkCache: cache, PendingHidden: last, MTPStart: position, Position: position,
 		targetModel: targetModel,
 	}, nil
-}
-
-func lastHiddenColumn(hidden reference.Value) reference.Value {
-	width := int(hidden.Shape.Dims[0])
-	return reference.Value{
-		Shape: tensor.MustShape(uint64(width), 1),
-		Data:  slices.Clone(hidden.Data[len(hidden.Data)-width:]),
-	}
 }
 
 func advanceTargetVerification[S any](
@@ -182,7 +174,7 @@ func (r *Runner) advanceSingleHeadMTPVerification(
 			return next, err
 		},
 		func(next *MTPSession, hidden reference.Value, cache *KVCache) {
-			next.PendingHidden = lastHiddenColumn(hidden)
+			next.PendingHidden = hidden.LastRowView().Clone()
 			next.TrunkCache = cache
 		},
 	)

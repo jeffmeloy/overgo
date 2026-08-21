@@ -54,6 +54,53 @@ func TestTrainingWorkflowExactResumeMatrix(t *testing.T) {
 	t.Run("grpo", testGRPOResume)
 }
 
+func TestTrainingObjectiveAdmissionMatrix(t *testing.T) {
+	policy := testutil.ArtifactID(t, artifact.KindModel, "objective admission policy")
+	reference := testutil.ArtifactID(t, artifact.KindModel, "objective admission reference")
+	policyDependency := []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: policy}}
+	preferenceDependencies := append(append([]recipe.Dependency(nil), policyDependency...), recipe.Dependency{
+		Role: recipe.DependencyModel, Slot: 1, Artifact: reference,
+	})
+	cases := []struct {
+		name         string
+		want         trainingprogram.ObjectiveKind
+		definition   func([]recipe.Dependency) (recipe.Definition, error)
+		dependencies []recipe.Dependency
+	}{
+		{name: "token", want: trainingprogram.ObjectiveTokenPrediction, definition: tokenDefinition, dependencies: policyDependency},
+		{name: "dpo", want: trainingprogram.ObjectiveDPO, definition: dpoDefinition, dependencies: preferenceDependencies},
+		{name: "grpo", want: trainingprogram.ObjectiveGRPO, definition: grpoDefinition, dependencies: policyDependency},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			definition, err := test.definition(test.dependencies)
+			if err != nil {
+				t.Fatal(err)
+			}
+			program, err := recipe.CompileProgram(definition, workflowrecipe.Catalog())
+			if err != nil {
+				t.Fatal(err)
+			}
+			objective, err := ProgramObjective(program)
+			if err != nil || objective != test.want {
+				t.Fatalf("objective=(%s,%v), want %s", objective, err, test.want)
+			}
+		})
+	}
+
+	unsupported, err := compositionTrainingDefinition(policyDependency)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := recipe.CompileProgram(unsupported, workflowrecipe.Catalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if objective, err := ProgramObjective(program); err == nil || objective != "" {
+		t.Fatalf("unsupported composition objective=(%q,%v), want refusal", objective, err)
+	}
+}
+
 func TestGRPOUsesSharedRecipeTrainingRuntime(t *testing.T) {
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 9,
@@ -416,6 +463,25 @@ func tokenDefinition(dependencies []recipe.Dependency) (recipe.Definition, error
 			edge("backward", "gradients", "optimize", "gradients"),
 		}, nil,
 		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}},
+	)
+}
+
+func compositionTrainingDefinition(dependencies []recipe.Dependency) (recipe.Definition, error) {
+	nodes := []recipe.Node{
+		{ID: "select", Module: workflowrecipe.ModuleSelectComponent, Placement: recipe.PlacementHost},
+		{ID: "train", Module: workflowrecipe.ModuleTrainBridge, Placement: recipe.PlacementHost},
+		{ID: "evaluate", Module: workflowrecipe.ModuleEvaluateBridge, Placement: recipe.PlacementHost},
+	}
+	edge := func(fromNode recipe.NodeID, fromPort recipe.PortName, toNode recipe.NodeID, toPort recipe.PortName) recipe.Edge {
+		return recipe.Edge{From: recipe.Endpoint{Node: fromNode, Port: fromPort}, To: recipe.Endpoint{Node: toNode, Port: toPort}}
+	}
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskTraining, dependencies, nodes,
+		[]recipe.Edge{
+			edge("select", "component", "train", "component"),
+			edge("train", "bridge", "evaluate", "bridge"),
+		}, nil,
+		[]recipe.Output{{Name: "metrics", Data: recipe.DataMetrics, Source: recipe.Endpoint{Node: "evaluate", Port: "metrics"}}},
 	)
 }
 

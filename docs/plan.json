@@ -1,28 +1,5 @@
 {
   "campaign": "Training verification closure",
   "doctrine": "Training evidence must distinguish a reusable implementation from an exact artifact campaign. Verify production workflows at their real objective, device, data, persistence, and lifecycle scope. Every admitted objective must prove uninterrupted/split equivalence and atomic checkpoint identity. A successful GUI run must publish a trace and an evaluation-required decision; promotion remains withheld until held-out evidence exists. Committed training specifications identify the exact model, dataset, commit, span, measurements, and evidence bytes, and a generated matrix exposes their strongest claims without upgrading smoke evidence. Missing model artifacts remain explicit verification gaps, never passes.",
-  "items": [
-    {
-      "id": "training-admission",
-      "title": "Expose production training scope without fallback claims",
-      "status": "open",
-      "steps": [
-        {
-          "id": "matrix",
-          "title": "Verify objective, device, model, and GUI admission boundaries from executable owners",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow ./internal/densecausal ./internal/server -run '^(TestTrainingObjectiveAdmissionMatrix|TestDeviceTrainingSupportedAdmission|TestTrainingWorkspaceAdmissionMatrix)$' -count=1",
-          "rationale": "The release must distinguish token, DPO, and GRPO production routes from compiled-only objectives, host-only preference optimization, host-only MoE, and artifact-specific probes.",
-          "depends_on": [
-            "training-lifecycle/handoff"
-          ],
-          "capabilities": [
-            "objective-admission",
-            "device-admission",
-            "honest-refusal"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

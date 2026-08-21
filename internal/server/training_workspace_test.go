@@ -188,6 +188,78 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 	}
 }
 
+func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
+	cases := []struct {
+		name       string
+		objective  trainingprogram.ObjectiveKind
+		registered bool
+		admitted   bool
+	}{
+		{name: "dpo", objective: trainingprogram.ObjectiveDPO, registered: true, admitted: true},
+		{name: "grpo", objective: trainingprogram.ObjectiveGRPO, registered: true, admitted: true},
+		{name: "token", objective: trainingprogram.ObjectiveTokenPrediction, registered: true},
+		{name: "unregistered-model", objective: trainingprogram.ObjectiveDPO},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			root := t.TempDir()
+			store, err := repodb.Open(filepath.Join(root, "store"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			policy := testutil.ArtifactID(t, artifact.KindModel, test.name+" policy")
+			reference := testutil.ArtifactID(t, artifact.KindModel, test.name+" reference")
+			dependencies := []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: policy}}
+			artifacts := []artifact.Descriptor{{ID: policy}}
+			if test.objective == trainingprogram.ObjectiveDPO {
+				dependencies = append(dependencies, recipe.Dependency{Role: recipe.DependencyModel, Slot: 1, Artifact: reference})
+				artifacts = append(artifacts, artifact.Descriptor{ID: reference})
+			}
+			definition, err := trainingWorkspaceAdmissionDefinition(test.objective, dependencies)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/training-admission/artifacts", Artifacts: artifacts}); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/training-admission/candidate", definition); err != nil {
+				t.Fatal(err)
+			}
+			verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/training-admission/verification", definition.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceExperimental, "training admission fixture"); err != nil {
+				t.Fatal(err)
+			}
+			model := testutil.ArtifactID(t, artifact.KindModel, test.name+" absent model")
+			if test.registered {
+				model = policy
+			}
+			workspace, err := NewTrainingWorkspace(ctx, store, dataroot.Roots{Checkpoints: filepath.Join(root, "checkpoints")}, model)
+			if (err == nil) != test.admitted {
+				t.Fatalf("workspace admitted=%v err=%v, want admitted=%v", err == nil, err, test.admitted)
+			}
+			if !test.admitted {
+				return
+			}
+			capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowTraining)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, capability := range capabilities {
+				found = found || capability.Task == recipe.TaskTraining && capability.Recipe == definition.ID
+			}
+			if !found {
+				t.Fatalf("active training recipe %s absent from GUI capabilities", definition.ID)
+			}
+		})
+	}
+}
+
 func writeWorkspaceModel(t *testing.T, directory string, weights map[string][]float32, shapes map[string][]int) artifact.ID {
 	t.Helper()
 	if err := os.MkdirAll(directory, 0o755); err != nil {
@@ -244,6 +316,52 @@ func dpoFixtureDefinition(dependencies []recipe.Dependency) (recipe.Definition, 
 		}, nil,
 		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}},
 	)
+}
+
+func trainingWorkspaceAdmissionDefinition(objective trainingprogram.ObjectiveKind, dependencies []recipe.Dependency) (recipe.Definition, error) {
+	switch objective {
+	case trainingprogram.ObjectiveDPO:
+		return dpoFixtureDefinition(dependencies)
+	case trainingprogram.ObjectiveGRPO:
+		nodes := []recipe.Node{
+			{ID: "batch", Module: workflowrecipe.ModuleBatchRollout, Placement: recipe.PlacementHost},
+			{ID: "policy", Module: workflowrecipe.ModuleScorePolicy, Placement: recipe.PlacementHost},
+			{ID: "objective", Module: workflowrecipe.ModuleGRPOObjective, Placement: recipe.PlacementHost},
+			{ID: "backward", Module: workflowrecipe.ModuleBackward, Placement: recipe.PlacementHost},
+			{ID: "optimize", Module: workflowrecipe.ModuleOptimize, Placement: recipe.PlacementHost},
+		}
+		return linearTrainingDefinition(dependencies, nodes, []recipe.Edge{
+			trainingEdge("batch", "batch", "policy", "batch"),
+			trainingEdge("policy", "scores", "objective", "policy"),
+			trainingEdge("objective", "loss", "backward", "loss"),
+			trainingEdge("backward", "gradients", "optimize", "gradients"),
+		})
+	case trainingprogram.ObjectiveTokenPrediction:
+		nodes := []recipe.Node{
+			{ID: "batch", Module: workflowrecipe.ModuleBatchDataset, Placement: recipe.PlacementHost},
+			{ID: "forward", Module: workflowrecipe.ModuleTrainingForward, Placement: recipe.PlacementHost},
+			{ID: "backward", Module: workflowrecipe.ModuleBackward, Placement: recipe.PlacementHost},
+			{ID: "optimize", Module: workflowrecipe.ModuleOptimize, Placement: recipe.PlacementHost},
+		}
+		return linearTrainingDefinition(dependencies, nodes, []recipe.Edge{
+			trainingEdge("batch", "batch", "forward", "batch"),
+			trainingEdge("forward", "loss", "backward", "loss"),
+			trainingEdge("backward", "gradients", "optimize", "gradients"),
+		})
+	default:
+		return recipe.Definition{}, os.ErrInvalid
+	}
+}
+
+func linearTrainingDefinition(dependencies []recipe.Dependency, nodes []recipe.Node, edges []recipe.Edge) (recipe.Definition, error) {
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskTraining, dependencies, nodes, edges, nil,
+		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}},
+	)
+}
+
+func trainingEdge(fromNode recipe.NodeID, fromPort recipe.PortName, toNode recipe.NodeID, toPort recipe.PortName) recipe.Edge {
+	return recipe.Edge{From: recipe.Endpoint{Node: fromNode, Port: fromPort}, To: recipe.Endpoint{Node: toNode, Port: toPort}}
 }
 
 func policyDependencies(spec trainingprogram.PolicySpec) []recipe.Dependency {

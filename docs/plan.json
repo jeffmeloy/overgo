@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "bridge-training",
-          "title": "Train only bridge tensors while proving source and target artifacts remain frozen",
-          "status": "open",
-          "verify": "go test ./internal/bridgetrain -run '^TestBridgeOnlyTrainingPreservesFrozenModels$' -count=1",
-          "rationale": "Alignment needs exact trainable ownership, checkpoint authority, gradient parity, and a zero/no-media baseline before behavioral claims are admissible.",
-          "depends_on": [
-            "cross-model-representation-bridge/embedding-injection"
-          ],
-          "capabilities": [
-            "bridge-only-gradients",
-            "exact-resume",
-            "frozen-model-integrity"
-          ]
-        },
-        {
           "id": "align-vocabulary",
           "title": "Add target-embedding-basis alignment with bounded vocabulary projection",
           "status": "open",

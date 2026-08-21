@@ -148,11 +148,19 @@ func (id ID) Kind() Kind {
 	return id.kind
 }
 
+// DigestHex returns the filesystem-safe digest portion of a valid identity.
+func (id ID) DigestHex() string {
+	if !id.Valid() {
+		return ""
+	}
+	return hex.EncodeToString(id.digest[:])
+}
+
 func (id ID) String() string {
 	if !id.Valid() {
 		return ""
 	}
-	return id.kind.String() + ":" + idAlgorithm + ":" + hex.EncodeToString(id.digest[:])
+	return id.kind.String() + ":" + idAlgorithm + ":" + id.DigestHex()
 }
 
 func (id ID) MarshalText() ([]byte, error) {

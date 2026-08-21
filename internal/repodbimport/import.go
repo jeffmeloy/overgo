@@ -22,6 +22,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/objectstore"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
@@ -96,6 +97,31 @@ func Import(
 	root string,
 	input io.Reader,
 ) (Result, error) {
+	return importRecords(ctx, repository, root, nil, input)
+}
+
+// ImportStored ingests file records through streaming object storage before
+// committing the import's manifests, lineage, aliases, and source evidence.
+func ImportStored(
+	ctx context.Context,
+	repository artifact.Repository,
+	root string,
+	objects *objectstore.Store,
+	input io.Reader,
+) (Result, error) {
+	if objects == nil {
+		return Result{}, errors.New("repodb import: object store is required")
+	}
+	return importRecords(ctx, repository, root, objects, input)
+}
+
+func importRecords(
+	ctx context.Context,
+	repository artifact.Repository,
+	root string,
+	objects *objectstore.Store,
+	input io.Reader,
+) (Result, error) {
 	if ctx == nil || repository == nil || input == nil {
 		return Result{}, errors.New("repodb import: nil input")
 	}
@@ -158,6 +184,14 @@ func Import(
 				return Result{}, errors.New("repodb import: duplicate logical name")
 			}
 			if record.Path != "" {
+				if objects != nil {
+					publication, err := importStoredFile(ctx, absoluteRoot, objects, kind, record)
+					if err != nil {
+						return Result{}, err
+					}
+					names[record.Name] = publication.Descriptor.ID
+					continue
+				}
 				id, descriptor, location, err := importFile(absoluteRoot, kind, record.Path)
 				if err != nil {
 					return Result{}, err
@@ -511,23 +545,7 @@ func resolveReferences(value any, names map[string]artifact.ID) (any, bool, erro
 func importFile(root string, kind artifact.Kind, relative string) (
 	artifact.ID, artifact.Descriptor, artifact.LocationEvent, error,
 ) {
-	if filepath.IsAbs(relative) || filepath.Clean(relative) != relative {
-		return artifact.ID{}, artifact.Descriptor{}, artifact.LocationEvent{}, errors.New("repodb import: unsafe file path")
-	}
-	path := filepath.Join(root, relative)
-	resolved, err := filepath.Abs(path)
-	if err != nil {
-		return artifact.ID{}, artifact.Descriptor{}, artifact.LocationEvent{}, err
-	}
-	resolved, err = filepath.EvalSymlinks(resolved)
-	if err != nil {
-		return artifact.ID{}, artifact.Descriptor{}, artifact.LocationEvent{}, err
-	}
-	rel, err := filepath.Rel(root, resolved)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return artifact.ID{}, artifact.Descriptor{}, artifact.LocationEvent{}, errors.New("repodb import: file path escapes root")
-	}
-	file, err := os.Open(resolved)
+	resolved, file, err := openImportFile(root, relative)
 	if err != nil {
 		return artifact.ID{}, artifact.Descriptor{}, artifact.LocationEvent{}, err
 	}
@@ -540,6 +558,41 @@ func importFile(root string, kind artifact.Kind, relative string) (
 		Location: artifact.Location{Artifact: id, Kind: artifact.LocationFile, Value: resolved},
 		Action:   artifact.LocationAdd,
 	}, nil
+}
+
+func importStoredFile(ctx context.Context, root string, objects *objectstore.Store, kind artifact.Kind, record wireRecord) (objectstore.Publication, error) {
+	_, file, err := openImportFile(root, record.Path)
+	if err != nil {
+		return objectstore.Publication{}, err
+	}
+	defer file.Close()
+	return objects.Publish(ctx, objectstore.PublishRequest{
+		Kind: kind, MediaType: record.MediaType, Schema: record.Schema, Reader: file,
+	})
+}
+
+func openImportFile(root, relative string) (string, *os.File, error) {
+	if filepath.IsAbs(relative) || filepath.Clean(relative) != relative {
+		return "", nil, errors.New("repodb import: unsafe file path")
+	}
+	path := filepath.Join(root, relative)
+	resolved, err := filepath.Abs(path)
+	if err != nil {
+		return "", nil, err
+	}
+	resolved, err = filepath.EvalSymlinks(resolved)
+	if err != nil {
+		return "", nil, err
+	}
+	rel, err := filepath.Rel(root, resolved)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", nil, errors.New("repodb import: file path escapes root")
+	}
+	file, err := os.Open(resolved)
+	if err != nil {
+		return "", nil, err
+	}
+	return resolved, file, nil
 }
 
 func importSource(header Header, raw []byte) (artifact.Content, artifact.ID, error) {

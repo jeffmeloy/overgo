@@ -3,29 +3,6 @@
   "doctrine": "Reimplement the selected coordination patterns in Overgo's existing ownership boundaries. RepoDB identities, immutable facts, compare-and-set aliases, and recorded locations remain authoritative. Shared mechanisms must serve more than one workflow, typed policy replaces scattered literals, and tests must cover cancellation, conflict, replay, partial I/O, and missing-locality boundaries without assuming tensor shape, dataset distribution, model family, backend topology, or worker population.",
   "items": [
     {
-      "id": "streaming-storage",
-      "title": "Add streaming content-addressed object storage",
-      "status": "open",
-      "steps": [
-        {
-          "id": "publish-stream",
-          "title": "Stream objects into content-addressed storage and publish RepoDB availability only after durable completion",
-          "status": "open",
-          "verify": "go test ./internal/objectstore -run '^TestStreamPublicationContract$' -count=1",
-          "rationale": "Large models, datasets, and checkpoints must move without bounded inline buffering while RepoDB continues to own identity and availability truth.",
-          "depends_on": [
-            "repository-preconditions/commit-contract"
-          ],
-          "capabilities": [
-            "streaming ingest",
-            "content identity verification",
-            "atomic publication",
-            "partial-write cleanup"
-          ]
-        }
-      ]
-    },
-    {
       "id": "locality-scheduling",
       "title": "Extend scheduling with RepoDB data-locality constraints",
       "status": "open",

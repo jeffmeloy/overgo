@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
+	"overgo/internal/objectstore"
 	"overgo/internal/repodb"
 	"overgo/internal/repodbimport"
 )
@@ -35,7 +37,11 @@ func run(args []string, input io.Reader, output io.Writer) error {
 		return err
 	}
 	defer store.Close()
-	result, err := repodbimport.Import(context.Background(), store, *artifactRoot, input)
+	objects, err := objectstore.New(filepath.Join(*repositoryPath, "objects"), store)
+	if err != nil {
+		return err
+	}
+	result, err := repodbimport.ImportStored(context.Background(), store, *artifactRoot, objects, input)
 	if err != nil {
 		return err
 	}

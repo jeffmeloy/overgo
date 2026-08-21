@@ -69,7 +69,7 @@
      "contains": "func TestOpenSourceRejectsInvalidRepositories(",
      "path": "internal/safetensors/source_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:5fa50d4ed1bbf986d378c6c410151b23576acde2434294f1b82c643bd02bf785"
+     "identity": "evidence:sha256:860825d7dda9c28f44f95dade49f52a25d3e8aa69e991a31cccabebc45efc6dd"
     }
    ],
    "id": "bounded-safetensors-repositories",
@@ -132,7 +132,7 @@
      "contains": "func TestParseEnforcesLimits(",
      "path": "internal/gguf/reader_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:23d35a4d40ecfac67a48827b67d455fb0ea35a3b1880d3fa64a0391d59a5b879"
+     "identity": "evidence:sha256:e9d7672588e977b81fbe9a9ec17acb6f8e13181db1f591c966a17d97b7fb0dca"
     }
    ],
    "id": "bounded-gguf-parsing",
@@ -653,7 +653,7 @@
      "contains": "func TestRemoteMediaFetcherRejectsPrivateResolutionByDefault(",
      "path": "internal/server/media_policy_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:e957f34d51fe15889e6d6b8962bd00d375aa6aed764a59fadcda517dfd15604b"
+     "identity": "evidence:sha256:6708ff8ce4a9cc45159a3da161cb65aaaa7b88ac9c2505e6c0bf2b07967fcd3e"
     }
    ],
    "id": "bounded-remote-media",

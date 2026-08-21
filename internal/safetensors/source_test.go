@@ -120,7 +120,7 @@ func TestOpenSourceRejectsInvalidRepositories(t *testing.T) {
 	}
 }
 
-func TestOpenSourceEnforcesHeaderLimit(t *testing.T) {
+func TestBoundedBoundaryPolicyContract(t *testing.T) {
 	directory := t.TempDir()
 	writeShard(t, filepath.Join(directory, "model.safetensors"), map[string]testTensor{
 		"weight": {dataType: "U8", shape: []uint64{1}, data: []byte{1}},
@@ -129,6 +129,17 @@ func TestOpenSourceEnforcesHeaderLimit(t *testing.T) {
 	limits.MaxHeaderBytes = 1
 	if _, err := OpenSourceWithLimits(directory, limits); err == nil || !strings.Contains(err.Error(), "header size") {
 		t.Fatalf("error = %v", err)
+	}
+	if _, err := OpenSourceWithLimits(directory, Limits{}); err == nil || !strings.Contains(err.Error(), "invalid limits") {
+		t.Fatalf("zero limits error = %v", err)
+	}
+	reader := bytes.NewReader([]byte{0, 1, 2, 3, 4})
+	tensor, err := NewTensor("bounded", "U8", []uint64{3}, reader, 1, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tensor.ReadAt(make([]byte, 2), 2); err != io.ErrUnexpectedEOF {
+		t.Fatalf("out-of-range read error = %v", err)
 	}
 }
 

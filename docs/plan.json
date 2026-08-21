@@ -3,29 +3,6 @@
   "doctrine": "Follow skill.md. Current census: 894 production files, 20,081 inline literals, 2,599 assumption hints, 1,228 copied test-policy sites. Audit every non-generated Go file in deterministic scanner order. Process the first exact finding, then consolidate every same-semantic occurrence. Split heterogeneous packages into deletion-led ownership waves; finish each package with one exact closure gate. Classify literals as structural syntax, mathematical fact, protocol/ABI fact, fixture input, derived value, or runtime policy. Artifact facts, RepoDB recipes, compiled plans, and measured resource plans own runtime policy; missing authority fails. Constants may name stable mathematics or wire contracts, never local model policy. Recipes and neutral typed operators are sole runtime authorities. Every new or extended primitive migrates all equivalent callers and deletes displaced model orchestration, wrappers, fallbacks, duplicate probes, compatibility readers, and parallel registries in the same commit. Each implementation wave is production-code net-negative, including untracked Go files. Fixtures define inputs; tests reuse production contracts and shared assertions. Preserve numerical behavior while reducing allocations, transfers, probes, branches, maps, and operations. Run focused tests, the exact wave gate, full host tests, applicable CUDA gates, diff checks, and census publication before the gate commit; merge tightening/master before redispatch. Completion requires zero stale bindings, open derivation-blocked rows, uncatalogued production policy, copied test policy, and model facts outside artifact or recipe authorities.",
   "items": [
     {
-      "id": "authority-boundaries",
-      "title": "Apply one fail-closed policy to untrusted formats and remote resources",
-      "status": "open",
-      "steps": [
-        {
-          "id": "bounded-inputs",
-          "title": "Enforce derived allocation, count, range, and remote allowlist limits",
-          "status": "open",
-          "verify": "go test ./internal/gguf ./internal/safetensors ./internal/server -run '^TestBoundedBoundaryPolicyContract$' -count=1",
-          "rationale": "All artifact parsers and remote fetch paths must reject overflow, excessive allocation, malformed ranges, undeclared schemes, and non-allowlisted resources before bytes reach model execution.",
-          "depends_on": [
-            "authority-resume/exact-envelope"
-          ],
-          "capabilities": [
-            "bounded-format-parsing",
-            "overflow-refusal",
-            "remote-resource-allowlist",
-            "fail-closed-policy"
-          ]
-        }
-      ]
-    },
-    {
       "id": "magic-model-authority",
       "title": "Remove model facts and orchestration from runtime code",
       "status": "open",

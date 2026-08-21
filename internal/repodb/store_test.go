@@ -178,6 +178,43 @@ func TestAliasCompareAndSet(t *testing.T) {
 	}
 }
 
+func TestAliasTransitionRequiresExpectedBinding(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	base := fixtureBatch(t)
+	if _, err := store.Commit(context.Background(), base); err != nil {
+		t.Fatal(err)
+	}
+
+	next := fixtureDescriptor(t, artifact.KindModel, "replacement")
+	withoutExpected := artifact.Batch{
+		Key:       "fixture/alias/without-expected",
+		Artifacts: []artifact.Descriptor{next},
+		Aliases:   []artifact.AliasBinding{{Name: fixtureAlias, Target: next.ID}},
+	}
+	if _, err := store.Commit(context.Background(), withoutExpected); !errors.Is(err, ErrAliasConflict) {
+		t.Fatalf("unguarded alias transition error = %v, want ErrAliasConflict", err)
+	}
+	if _, ok, err := store.Artifact(context.Background(), next.ID); err != nil || ok {
+		t.Fatalf("failed transition published immutable content: ok=%v err=%v", ok, err)
+	}
+
+	previous := base.Aliases[0].Target
+	withExpected := withoutExpected
+	withExpected.Key = "fixture/alias/with-expected"
+	withExpected.Aliases[0].Previous = &previous
+	if _, err := store.Commit(context.Background(), withExpected); err != nil {
+		t.Fatal(err)
+	}
+	resolved, ok, err := store.ResolveAlias(context.Background(), fixtureAlias)
+	if err != nil || !ok || resolved != next.ID {
+		t.Fatalf("guarded alias transition = (%s, %v, %v)", resolved, ok, err)
+	}
+}
+
 func TestAliasCompareAndSetRetirement(t *testing.T) {
 	store, err := Open(t.TempDir())
 	if err != nil {

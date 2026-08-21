@@ -175,6 +175,7 @@ func tinyGranite4VisionMetadata() []gguf.Metadata {
 		{Key: "clip.vision.projector.window_side", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(2)}},
 		{Key: "clip.vision.projector.query_side", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
 		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
+		{Key: visionProjectorNormKey, Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-12)}},
 		{Key: "clip.vision.image_mean", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{0, 0, 0}}},
 		{Key: "clip.vision.image_std", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{1, 1, 1}}},
 		{Key: "clip.vision.feature_layer", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeInt32, Data: []int32{0, 0}}},
@@ -197,8 +198,10 @@ func granite4VisionMultiwindowMetadata() []gguf.Metadata {
 }
 
 func tinyGranite4VisionSpec() Granite4VisionSpec {
+	backbone := fixtureVisionBackbone(4, 2, 64, 8, 1, 1)
+	backbone.ProjectionNormEpsilon = fixtureNormEpsilon
 	return Granite4VisionSpec{
-		visionBackboneSpec: fixtureVisionBackbone(4, 2, 64, 8, 1, 1), ProjectionDim: 4, QFormerWidth: 8,
+		visionBackboneSpec: backbone, ProjectionDim: 4, QFormerWidth: 8,
 		WindowSide: 2, QuerySide: 1, FeatureLayers: []int{0, 0}, SpatialOffsets: []int{-1, 0},
 		GridCandidates: []Granite4VisionResolution{{Width: 4, Height: 4}, {Width: 8, Height: 4}},
 	}

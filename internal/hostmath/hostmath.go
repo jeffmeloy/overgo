@@ -1,10 +1,13 @@
-// Package hostmath is the neutral home for host (CPU, float32-storage,
-// float64-accumulation) reference math shared by capability packages. One
-// owner per primitive; nothing here knows any model family — callers supply
-// every dimension and weight, all derived from artifacts.
+// Package hostmath owns family-neutral host reference math.
 package hostmath
 
 import "math"
+
+const QuickGELUScale = 1.702
+
+func QuickGELU(value float64) float64 {
+	return value / (1 + math.Exp(-QuickGELUScale*value))
+}
 
 // Sqrt32: float32 square root; float64 evaluation.
 func Sqrt32(value uint64) float32 { return float32(math.Sqrt(float64(value))) }
@@ -275,19 +278,20 @@ func AddBias(v, bias []float32) {
 	}
 }
 
-// SiLUInPlace: x*sigmoid(x) element-wise.
+// SiLU: x*sigmoid(x).
+func SiLU(value float64) float64 { return value / (1 + math.Exp(-value)) }
+
+// SiLUInPlace: in-place SiLU.
 func SiLUInPlace(v []float32) {
 	for k := range v {
-		x := float64(v[k])
-		v[k] = float32(x / (1 + math.Exp(-x)))
+		v[k] = float32(SiLU(float64(v[k])))
 	}
 }
 
-// SiLUGate: dst = silu(gate) * up element-wise — the gated-MLP inner product.
+// SiLUGate: silu(gate) * up.
 func SiLUGate(dst, gate, up []float32) {
 	for i := range dst {
-		g := float64(gate[i])
-		dst[i] = float32(g / (1 + math.Exp(-g)) * float64(up[i]))
+		dst[i] = float32(SiLU(float64(gate[i])) * float64(up[i]))
 	}
 }
 

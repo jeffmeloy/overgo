@@ -88,7 +88,11 @@ func TestProjectorMetadataMatchesPinnedLoader(t *testing.T) {
 	config.Vision.RMSEpsilon = 1e-6
 	config.Audio.Embedding = 640
 	config.Audio.RMSEpsilon = 1e-6
-	metadata := projectorMetadata("fixture", config)
+	var processor processorConfig
+	processor.Image.MaxSoftTokens = 280
+	processor.Video.MaxSoftTokens = 70
+	processor.Audio.SampleRate = 16000
+	metadata := projectorMetadata("fixture", config, processor)
 	byKey := make(map[string]gguf.Value, len(metadata))
 	for _, item := range metadata {
 		byKey[item.Key] = item.Value
@@ -99,6 +103,9 @@ func TestProjectorMetadataMatchesPinnedLoader(t *testing.T) {
 		"clip.vision.attention.head_count", "clip.vision.image_mean", "clip.vision.image_std",
 		"clip.audio.feed_forward_length", "clip.audio.block_count",
 		"clip.audio.attention.head_count", "clip.audio.num_mel_bins",
+		"clip.audio.sample_rate",
+		"clip.vision.max_soft_tokens", "clip.vision.video_max_soft_tokens",
+		"clip.vision.projector.layer_norm_epsilon",
 	} {
 		if _, ok := byKey[key]; !ok {
 			t.Fatalf("metadata %q is missing", key)

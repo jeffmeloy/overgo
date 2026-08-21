@@ -12,10 +12,6 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// audioWaveformSlabWorkerFrames: frames staged per worker per slab; bounds
-// the window staging buffer at worker-chunk scale instead of frame scale.
-const audioWaveformSlabWorkerFrames = 8
-
 // audioWaveformTables: inverse-DFT basis and Hann window for one plan.
 // Runner-owned: built once per Runner, never cached at package scope.
 type audioWaveformTables struct {
@@ -62,7 +58,7 @@ func audioFeaturesToWaveform(
 	audio := make([]float32, outputSize)
 	envelope := make([]float32, outputSize)
 	workers := min(runtime.GOMAXPROCS(0), frames)
-	slabFrames := min(workers*audioWaveformSlabWorkerFrames, frames)
+	slabFrames := workers
 	windows := make([]float32, slabFrames*plan.FFTSize)
 	for slabStart := 0; slabStart < frames; slabStart += slabFrames {
 		slab := min(slabFrames, frames-slabStart)

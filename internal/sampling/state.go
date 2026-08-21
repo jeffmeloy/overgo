@@ -19,6 +19,8 @@ const (
 	maxSamplerStateBytes   = 1 << 20
 )
 
+func ValidStateSize(size uint64) bool { return size > 0 && size <= maxSamplerStateBytes }
+
 // SaveState: stores random stream, Mirostat, adaptive-p, and grammar state
 func (s *Sampler) SaveState() ([]byte, error) {
 	if s == nil || s.source == nil {
@@ -47,6 +49,9 @@ func (s *Sampler) SaveState() ([]byte, error) {
 func (s *Sampler) LoadState(data []byte) error {
 	if s == nil || s.source == nil {
 		return errors.New("sampler is nil")
+	}
+	if !ValidStateSize(uint64(len(data))) {
+		return errors.New("sampler state has invalid size")
 	}
 	decoder := statecodec.NewDecoder(data, maxSamplerStateBytes)
 	magic := string(decoder.Raw(samplerStateMagicBytes))

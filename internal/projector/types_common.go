@@ -14,7 +14,6 @@ const (
 	visionQuickGELU visionActivation = iota
 	visionGELU
 	visionSiLU
-	quickGELUScale = 1.702
 )
 
 type gridImage struct {
@@ -24,9 +23,8 @@ type gridImage struct {
 }
 
 type pixelBudget struct {
-	MinPixels      int
-	MaxPixels      int
-	MaxAspectRatio int
+	MinPixels int
+	MaxPixels int
 }
 
 type RasterPatchOptions = pixelBudget

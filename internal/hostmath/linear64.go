@@ -1,9 +1,6 @@
 package hostmath
 
-// f64-accumulate linears for bf16-disciplined reference paths (weights and
-// activations are bf16-rounded f32; the dot itself accumulates in f64, which
-// is the reference oracle's contract). Storage variants share one kernel
-// shape; the bf16 variant expands uint16 bf16 weights inline (exact).
+// FP64 accumulation; FP32/BF16 storage.
 
 import (
 	"fmt"
@@ -41,6 +38,16 @@ func LinearF64BiasFirstNew(x, w, bias []float32, rows, inDim, outDim int) []floa
 	dst := make([]float32, rows*outDim)
 	linearF64(dst, x, w, bias, rows, inDim, outDim, true)
 	return dst
+}
+
+// LinearF64BiasFirstStrided writes one projection into strided output rows.
+func LinearF64BiasFirstStrided(dst, x, w, bias []float32, rows, inDim, outDim, dstStride, dstOffset int) {
+	parallelRangeCost(rows, inDim*outDim, macF64, func(rLo, rHi int) {
+		for row := rLo; row < rHi; row++ {
+			start := row*dstStride + dstOffset
+			linearF64Cols(dst[start:start+outDim], x[row*inDim:(row+1)*inDim], w, bias, 0, outDim, inDim, true)
+		}
+	})
 }
 
 func linearF64Cols(dst, x, w, bias []float32, oLo, oHi, inDim int, biasFirst bool) {

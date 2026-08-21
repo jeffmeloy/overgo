@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"overgo/internal/gguf"
+	"overgo/internal/media"
 	"overgo/internal/tensorcatalog"
 )
 
@@ -45,7 +46,7 @@ func addSpatialVisionEmbeddingCatalog(
 	bias tensorPresence,
 ) {
 	required[visionPatchWeightTensor] = []uint64{
-		uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden),
+		uint64(spec.PatchSize), uint64(spec.PatchSize), media.RGBChannels, uint64(spec.Hidden),
 	}
 	required[visionPositionWeightTensor] = []uint64{uint64(spec.Hidden), uint64(positions)}
 	addProjectorTensor(file, required, visionPatchBiasTensor, []uint64{uint64(spec.Hidden)}, bias)

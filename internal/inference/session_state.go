@@ -19,8 +19,6 @@ import (
 const (
 	sessionStateMagic = "L2GSES01"
 	sessionHeaderSize = 56
-	maxSessionTokens  = 1 << 24
-	maxSamplerState   = 1 << 20
 )
 
 // Session: resumable generation state; final token is intentionally
@@ -89,10 +87,10 @@ func (r *Runner) LoadSession(data []byte, sampler *sampling.Sampler) (*Session, 
 	if decoder.Err() != nil {
 		return nil, errors.New("inference: session state is truncated")
 	}
-	if tokenCount == 0 || tokenCount > maxSessionTokens {
+	if tokenCount == 0 {
 		return nil, errors.New("inference: session token count is invalid or exceeds limit")
 	}
-	if samplerLength == 0 || samplerLength > maxSamplerState {
+	if !sampling.ValidStateSize(uint64(samplerLength)) {
 		return nil, errors.New("inference: sampler state size is invalid or exceeds limit")
 	}
 	tokenBytes, _ := checked.Bytes(uint64(tokenCount), 4)
@@ -157,7 +155,7 @@ func (r *Runner) validateSession(session *Session) error {
 	if session == nil {
 		return errors.New("inference: session is nil")
 	}
-	if len(session.TokenIDs) == 0 || len(session.TokenIDs) > maxSessionTokens {
+	if len(session.TokenIDs) == 0 || uint64(len(session.TokenIDs)) > math.MaxUint32 {
 		return errors.New("inference: session token count is invalid or exceeds limit")
 	}
 	if err := r.validateCache(session.Cache); err != nil {

@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"image"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
+	"overgo/internal/media"
+	"overgo/internal/tensor"
 )
 
 const qwen2VLProjectorType = "qwen2vl_merger"
@@ -47,7 +50,8 @@ func ReadQwen2VLSpec(file *gguf.File) (Qwen2VLSpec, error) {
 		return Qwen2VLSpec{}, err
 	}
 	merger, ok := file.Tensor(projectionFirstWeightTensor)
-	if !ok || merger.Dimensions != 2 || merger.Shape[1] > uint64(^uint(0)>>1) {
+	spec.MergerIntermediate, ok = matrixRowsInt(merger, ok)
+	if !ok {
 		return Qwen2VLSpec{}, errors.New("projector: merger input tensor is unavailable or invalid")
 	}
 	_, preWeight := file.Tensor(visionPreNormWeightTensor)
@@ -62,7 +66,6 @@ func ReadQwen2VLSpec(file *gguf.File) (Qwen2VLSpec, error) {
 		return Qwen2VLSpec{}, err
 	}
 	spec.MergeSize = int(mergeSize)
-	spec.MergerIntermediate = int(merger.Shape[1])
 	spec.PreLayerNorm = preWeight
 	spec.PostLayerNorm = postWeight
 	if err := spec.validate(); err != nil {
@@ -75,7 +78,9 @@ func (s Qwen2VLSpec) validate() error {
 	if err := s.visionBackboneSpec.validateRotary(); err != nil {
 		return err
 	}
-	if s.MergerIntermediate <= 0 || s.OutputHidden <= 0 || s.MergeSize <= 0 || (s.Hidden/s.Heads)%visionRoPEComponentCount != 0 {
+	headWidth, headsOK := checked.DivExactInt(s.Hidden, s.Heads)
+	_, rotaryOK := checked.DivExactInt(headWidth, tensor.PairedExtent*tensor.PairedExtent)
+	if !checked.PositiveInts(s.MergerIntermediate, s.OutputHidden, s.MergeSize) || !headsOK || !rotaryOK {
 		return fmt.Errorf("projector: invalid Qwen2-VL metadata: %+v", s)
 	}
 	return nil
@@ -90,8 +95,8 @@ func (s Qwen2VLSpec) preprocessSpec() Qwen3VLSpec {
 
 func validateQwen2VLCatalog(file *gguf.File, spec Qwen2VLSpec) ([]string, error) {
 	required := map[string][]uint64{
-		visionPatchWeightTensor:  {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
-		visionPatchWeightTensor1: {uint64(spec.PatchSize), uint64(spec.PatchSize), rgbChannelCount, uint64(spec.Hidden)},
+		visionPatchWeightTensor:  {uint64(spec.PatchSize), uint64(spec.PatchSize), media.RGBChannels, uint64(spec.Hidden)},
+		visionPatchWeightTensor1: {uint64(spec.PatchSize), uint64(spec.PatchSize), media.RGBChannels, uint64(spec.Hidden)},
 	}
 	addTwoLayerProjectionCatalog(file, required, spec.Hidden*spec.MergeSize*spec.MergeSize, spec.MergerIntermediate, spec.OutputHidden, tensorRequired)
 	if spec.PreLayerNorm {

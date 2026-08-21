@@ -52,9 +52,43 @@ type Requirement struct {
 	Name     string
 	Shapes   [][]uint64
 	Rank     uint32
+	Ranks    []uint32
 	NonEmpty bool
 	Optional bool
 	Storages []dtype.Type
+}
+
+type EqualAxes [2]uint32
+
+type FixedAxis struct {
+	Axis     uint32
+	Extent   uint64
+	Optional bool
+}
+
+func ValidateRelations(info gguf.TensorInfo, equal []EqualAxes, fixed []FixedAxis) error {
+	shape := info.Extents()
+	for _, relation := range equal {
+		left, right := relation[0], relation[1]
+		if left >= uint32(len(shape)) || right >= uint32(len(shape)) {
+			return fmt.Errorf("tensor %q relation axes %d,%d exceed rank %d", info.Name, left, right, len(shape))
+		}
+		if shape[left] != shape[right] {
+			return fmt.Errorf("tensor %q axes %d,%d differ: %d,%d", info.Name, left, right, shape[left], shape[right])
+		}
+	}
+	for _, constraint := range fixed {
+		if constraint.Axis >= uint32(len(shape)) {
+			if constraint.Optional {
+				continue
+			}
+			return fmt.Errorf("tensor %q axis %d exceeds rank %d", info.Name, constraint.Axis, len(shape))
+		}
+		if shape[constraint.Axis] != constraint.Extent {
+			return fmt.Errorf("tensor %q axis %d extent %d, want %d", info.Name, constraint.Axis, shape[constraint.Axis], constraint.Extent)
+		}
+	}
+	return nil
 }
 
 func ValidateInfo(info gguf.TensorInfo, requirement Requirement) error {
@@ -64,6 +98,9 @@ func ValidateInfo(info gguf.TensorInfo, requirement Requirement) error {
 	shape := info.Shape[:info.Dimensions]
 	if requirement.Rank > 0 && info.Dimensions != requirement.Rank {
 		return fmt.Errorf("tensor %q rank %d, want %d", info.Name, info.Dimensions, requirement.Rank)
+	}
+	if len(requirement.Ranks) > 0 && !slices.Contains(requirement.Ranks, info.Dimensions) {
+		return fmt.Errorf("tensor %q rank %d, want one of %v", info.Name, info.Dimensions, requirement.Ranks)
 	}
 	if requirement.NonEmpty {
 		for _, extent := range shape {

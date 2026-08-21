@@ -15,6 +15,7 @@ const (
 	bitsPerByte           = 8
 	pcm16Bits             = 16
 	float32Bits           = 32
+	float64Bits           = 64
 	float32Bytes          = float32Bits / bitsPerByte
 	pcm16Bytes            = pcm16Bits / bitsPerByte
 	pcm16Magnitude        = 1 << (pcm16Bits - 1)

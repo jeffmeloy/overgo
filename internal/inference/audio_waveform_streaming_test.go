@@ -31,8 +31,14 @@ func TestStreamedWaveformReconstruction(t *testing.T) {
 		t.Fatal("waveform tables share backing arrays across builds")
 	}
 
-	slabFrames := runtime.GOMAXPROCS(0) * audioWaveformSlabWorkerFrames
-	for _, frames := range []int{1, 3, slabFrames, slabFrames + 5, 3*slabFrames + 1} {
+	slabFrames := runtime.GOMAXPROCS(0)
+	for _, frames := range []int{
+		tensor.SingletonExtent,
+		tensor.TripleExtent,
+		slabFrames,
+		slabFrames + tensor.SingletonExtent,
+		tensor.TripleExtent*slabFrames + tensor.SingletonExtent,
+	} {
 		features := syntheticAudioFeatures(small, frames)
 		got, err := audioFeaturesToWaveform(small, first, features)
 		if err != nil {

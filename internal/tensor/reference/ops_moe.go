@@ -235,7 +235,7 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 					case tensor.MoEActivationSwiGLUOAI:
 						x := math.Min(gateDot, 7)
 						y := math.Max(-7, math.Min(7, upDot))
-						activation = x / (1 + math.Exp(-1.702*x)) * (y + 1)
+						activation = hostmath.QuickGELU(x) * (y + 1)
 					default:
 						return Value{}, errors.New("invalid MoE activation")
 					}

@@ -10,6 +10,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
+	"overgo/internal/tensor"
 	"overgo/internal/tokenizer"
 )
 
@@ -107,13 +108,13 @@ func TestLlama4MultipleImagePrompt(t *testing.T) {
 	}
 }
 
-func TestLlama4VisionRoPEUsesWidthAndHeight(t *testing.T) {
+func TestSpatialRotaryQKUsesWidthAndHeight(t *testing.T) {
 	qkv := make([]float32, 5*12)
 	qkv[12] = 1
 	qkv[14] = 1
 	qkv[2*12] = 1
 	qkv[2*12+2] = 1
-	llama4VisionRoPE(qkv, 2, 2, 4, 1, 10000)
+	applySpatialRotaryQK(qkv, 2, 2, 4, 1, 10000)
 	if qkv[12] == qkv[2*12] || qkv[14] == qkv[2*12+2] {
 		t.Fatalf("2D RoPE axes not separated: row0=%v row1=%v", qkv[12:16], qkv[2*12:2*12+4])
 	}
@@ -173,6 +174,7 @@ func tinyLlama4VisionMetadata() []gguf.Metadata {
 		{Key: "clip.vision.block_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
 		{Key: "clip.vision.attention.head_count", Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(1)}},
 		{Key: visionProjectorScaleKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(fixtureSpatialMerge)}},
+		{Key: visionMaxGridSideKey, Value: gguf.Value{Type: gguf.ValueTypeUint32, Data: uint32(tensor.TripleExtent)}},
 		{Key: visionRopeFrequencyKey, Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: fixtureRopeFrequency}},
 		{Key: "clip.vision.attention.layer_norm_epsilon", Value: gguf.Value{Type: gguf.ValueTypeFloat32, Data: float32(1e-6)}},
 		{Key: "clip.vision.image_mean", Value: gguf.Value{Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeFloat32, Data: []float32{0, 0, 0}}},
@@ -184,7 +186,8 @@ func tinyLlama4VisionSpec() Llama4VisionSpec {
 	return Llama4VisionSpec{
 		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1), OutputHidden: 6,
 		AdapterIntermediate: 8, AdapterHidden: 5, MergeSize: fixtureSpatialMerge,
-		FusedQKV: []bool{true},
+		MaxGridSide: tensor.TripleExtent,
+		FusedQKV:    []bool{true},
 	}
 }
 

@@ -20,9 +20,7 @@ func LoadHostTensor(ctx context.Context, file *gguf.File, info gguf.TensorInfo) 
 	if err := ctx.Err(); err != nil {
 		return reference.Value{}, err
 	}
-	shapeDimensions := make([]uint64, info.Dimensions)
-	copy(shapeDimensions, info.Shape[:info.Dimensions])
-	shape, err := tensor.NewShape(shapeDimensions...)
+	shape, err := tensor.NewShape(info.Extents()...)
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("host tensor %q shape: %w", info.Name, err)
 	}

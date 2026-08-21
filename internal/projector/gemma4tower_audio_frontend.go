@@ -5,6 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+
+	"overgo/internal/checked"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/reference"
 )
 
 const (
@@ -42,22 +46,18 @@ func (r *Gemma4TowerRunner) EncodeAudioTrace(
 	if err != nil {
 		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, err
 	}
-	return r.EncodeAudioFeaturesTrace(ctx, features, frames, profile)
-}
-
-// PreprocessGemma4AudioTower: semicausal Hann/RFFT/HTK-log-mel frontend.
-func PreprocessGemma4AudioTower(
-	samples []float32,
-	sampleRate int,
-	spec Gemma4AudioTowerSpec,
-) ([]float32, int, error) {
-	if err := validateGemma4AudioFrontend(spec); err != nil {
-		return nil, 0, err
+	output, trace, err := r.EncodeAudioFeaturesTrace(ctx, features, frames, profile)
+	if err != nil {
+		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, err
 	}
-	return newGemma4AudioFrontendPlan(spec).preprocess(samples, sampleRate)
+	trace.Stages["frontend"] = reference.Value{
+		Shape: tensor.MustShape(uint64(r.spec.Audio.MelBins), uint64(frames)),
+		Data:  features,
+	}
+	return output, trace, nil
 }
 
-type gemma4AudioFrontendPlan struct {
+type audioFrontendPlan struct {
 	spec         Gemma4AudioTowerSpec
 	window       []float64
 	cosine, sine []float64
@@ -65,41 +65,42 @@ type gemma4AudioFrontendPlan struct {
 	bins         int
 }
 
-func newGemma4AudioFrontendPlan(spec Gemma4AudioTowerSpec) *gemma4AudioFrontendPlan {
+func newAudioFrontendPlan(spec Gemma4AudioTowerSpec) *audioFrontendPlan {
 	window := make([]float64, spec.FrameLength)
 	for index := range window {
-		window[index] = 0.5 - 0.5*math.Cos(2*math.Pi*float64(index)/float64(spec.FrameLength))
+		half := float64(tensor.SingletonExtent) / float64(tensor.PairedExtent)
+		window[index] = half - half*math.Cos(float64(tensor.PairedExtent)*math.Pi*float64(index)/float64(spec.FrameLength))
 	}
-	bins := spec.FFTLength/2 + 1
-	cosine, sine := gemma4AudioDFTBasis(bins, spec.FrameLength, spec.FFTLength)
-	return &gemma4AudioFrontendPlan{
+	bins := spec.FFTLength/tensor.PairedExtent + tensor.SingletonExtent
+	cosine, sine := audioDFTBasis(bins, spec.FrameLength, spec.FFTLength)
+	return &audioFrontendPlan{
 		spec: spec, window: window, cosine: cosine, sine: sine,
-		filterbank: gemma4AudioMelFilterbank(spec, bins), bins: bins,
+		filterbank: audioMelFilterbank(spec, bins), bins: bins,
 	}
 }
 
-func (p *gemma4AudioFrontendPlan) preprocess(samples []float32, sampleRate int) ([]float32, int, error) {
+func (p *audioFrontendPlan) preprocess(samples []float32, sampleRate int) ([]float32, int, error) {
 	if p == nil {
-		return nil, 0, errors.New("projector: Gemma 4 audio frontend plan is unavailable")
+		return nil, tensor.FirstOffset, errors.New("projector: audio frontend plan is unavailable")
 	}
 	spec := p.spec
 	if sampleRate != spec.SampleRate {
-		return nil, 0, fmt.Errorf("projector: Gemma 4 audio sample rate=%d, want %d", sampleRate, spec.SampleRate)
+		return nil, tensor.FirstOffset, fmt.Errorf("projector: audio sample rate=%d, want %d", sampleRate, spec.SampleRate)
 	}
-	if len(samples) == 0 {
-		return nil, 0, errors.New("projector: Gemma 4 audio is empty")
+	if len(samples) == tensor.FirstOffset {
+		return nil, tensor.FirstOffset, errors.New("projector: audio is empty")
 	}
 	for index, sample := range samples {
-		if !finite32(sample) {
-			return nil, 0, fmt.Errorf("projector: Gemma 4 audio sample %d is not finite", index)
+		if !checked.Finite32(sample) {
+			return nil, tensor.FirstOffset, fmt.Errorf("projector: audio sample %d is not finite", index)
 		}
 	}
-	padding := spec.FrameLength / 2
-	frameSpan := spec.FrameLength + 1
+	padding := spec.FrameLength / tensor.PairedExtent
+	frameSpan := spec.FrameLength + tensor.SingletonExtent
 	if padding+len(samples) < frameSpan {
-		return nil, 0, errors.New("projector: Gemma 4 audio is shorter than one frame")
+		return nil, tensor.FirstOffset, errors.New("projector: audio is shorter than one frame")
 	}
-	frames := (padding+len(samples)-frameSpan)/spec.HopLength + 1
+	frames := (padding+len(samples)-frameSpan)/spec.HopLength + tensor.SingletonExtent
 	padded := make([]float64, padding+len(samples))
 	for index, sample := range samples {
 		padded[padding+index] = float64(sample)
@@ -132,21 +133,11 @@ func (p *gemma4AudioFrontendPlan) preprocess(samples []float32, sampleRate int) 
 	return features, frames, nil
 }
 
-func validateGemma4AudioFrontend(spec Gemma4AudioTowerSpec) error {
-	if spec.MelBins <= 0 || spec.FFTLength <= 0 || spec.FFTLength < spec.FrameLength ||
-		spec.FrameLength <= 0 || spec.HopLength <= 0 || spec.SampleRate <= 0 ||
-		spec.MinFrequency < 0 || spec.MaxFrequency <= spec.MinFrequency ||
-		spec.MaxFrequency > float32(spec.SampleRate)/2 || spec.MelFloor <= 0 {
-		return fmt.Errorf("projector: invalid Gemma 4 audio frontend metadata: %+v", spec)
-	}
-	return nil
-}
-
-func gemma4AudioDFTBasis(bins, frameLength, fftLength int) ([]float64, []float64) {
+func audioDFTBasis(bins, frameLength, fftLength int) ([]float64, []float64) {
 	cosine := make([]float64, bins*frameLength)
 	sine := make([]float64, bins*frameLength)
 	for bin := range bins {
-		angle := -2 * math.Pi * float64(bin) / float64(fftLength)
+		angle := -float64(tensor.PairedExtent) * math.Pi * float64(bin) / float64(fftLength)
 		for index := range frameLength {
 			cosine[bin*frameLength+index] = math.Cos(angle * float64(index))
 			sine[bin*frameLength+index] = math.Sin(angle * float64(index))
@@ -155,25 +146,27 @@ func gemma4AudioDFTBasis(bins, frameLength, fftLength int) ([]float64, []float64
 	return cosine, sine
 }
 
-func gemma4AudioMelFilterbank(spec Gemma4AudioTowerSpec, bins int) []float64 {
+func audioMelFilterbank(spec Gemma4AudioTowerSpec, bins int) []float64 {
 	mel := func(frequency float64) float64 {
-		return htkMelScale * math.Log10(1+frequency/htkMelBreakHz)
+		return htkMelScale * math.Log10(float64(tensor.SingletonExtent)+frequency/htkMelBreakHz)
 	}
 	frequency := func(value float64) float64 {
-		return htkMelBreakHz * (math.Pow(htkMelLogBase10, value/htkMelScale) - 1)
+		return htkMelBreakHz * (math.Pow(htkMelLogBase10, value/htkMelScale) - float64(tensor.SingletonExtent))
 	}
 	minimum, maximum := mel(float64(spec.MinFrequency)), mel(float64(spec.MaxFrequency))
-	points := make([]float64, spec.MelBins+2)
+	points := make([]float64, spec.MelBins+tensor.PairedExtent)
 	for index := range points {
-		points[index] = frequency(minimum + (maximum-minimum)*float64(index)/float64(spec.MelBins+1))
+		points[index] = frequency(minimum + (maximum-minimum)*float64(index)/float64(spec.MelBins+tensor.SingletonExtent))
 	}
 	filterbank := make([]float64, bins*spec.MelBins)
 	for bin := range bins {
-		fftFrequency := float64(spec.SampleRate) / 2 * float64(bin) / float64(bins-1)
+		fftFrequency := float64(spec.SampleRate) / float64(tensor.PairedExtent) * float64(bin) /
+			float64(bins-tensor.SingletonExtent)
 		for band := range spec.MelBins {
-			rising := (fftFrequency - points[band]) / (points[band+1] - points[band])
-			falling := (points[band+2] - fftFrequency) / (points[band+2] - points[band+1])
-			filterbank[bin*spec.MelBins+band] = max(0, min(rising, falling))
+			rising := (fftFrequency - points[band]) / (points[band+tensor.SingletonExtent] - points[band])
+			falling := (points[band+tensor.PairedExtent] - fftFrequency) /
+				(points[band+tensor.PairedExtent] - points[band+tensor.SingletonExtent])
+			filterbank[bin*spec.MelBins+band] = max(float64(tensor.FirstOffset), min(rising, falling))
 		}
 	}
 	return filterbank

@@ -2,6 +2,7 @@ package inference
 
 import (
 	"encoding/binary"
+	"math"
 	"reflect"
 	"testing"
 
@@ -192,7 +193,7 @@ func TestSessionStateRejectsMalformedMismatchedAndInvalidData(t *testing.T) {
 		t.Fatal("trailing session data was accepted")
 	}
 	badCount := append([]byte(nil), data...)
-	binary.LittleEndian.PutUint32(badCount[40:], maxSessionTokens+1)
+	binary.LittleEndian.PutUint32(badCount[40:], math.MaxUint32)
 	if _, err := runner.LoadSession(badCount, newSampler(t)); err == nil {
 		t.Fatal("excessive token count was accepted")
 	}

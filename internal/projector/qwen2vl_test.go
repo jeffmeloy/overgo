@@ -9,6 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
+	"overgo/internal/tensor"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -54,7 +55,7 @@ func TestQwen2VLRunnerTinyFixture(t *testing.T) {
 		}
 	}
 	output, err := runner.EncodeImage(context.Background(), input, Qwen2VLPreprocessOptions{
-		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -150,8 +151,10 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	}
 }
 
-func TestQwen2VLVideoPositions(t *testing.T) {
-	positions, err := Qwen2VLVideoPositions(12, 2, 2, 2, 2)
+func TestSpatialPositionsGrid3D(t *testing.T) {
+	positions, err := compileSpatialPositions(12, positionGrid3D, []spatialPositionChunk{{
+		Start: 2, Extents: [tensor.TripleExtent]int{2, 2, 2},
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +183,7 @@ func TestQwen2VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	options := Qwen2VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}
+	options := Qwen2VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
 	wantImage, err := cpu.EncodeImage(context.Background(), input, options)
 	if err != nil {
 		t.Fatal(err)

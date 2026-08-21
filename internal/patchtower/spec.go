@@ -14,9 +14,8 @@ import (
 	"path/filepath"
 
 	"overgo/internal/jsonfile"
+	"overgo/internal/media"
 )
-
-const RGBChannels = 3
 
 // LayerNormEps: torch nn.LayerNorm default eps; the checkpoint's
 // vision_config carries no layer_norm_eps key, so the reference model's
@@ -69,7 +68,7 @@ func LoadSpec(modelDir string) (Spec, error) {
 		Depth:         v.NumHiddenLayers,
 		Heads:         v.NumAttentionHeads,
 		PatchSize:     v.PatchSize,
-		PatchDim:      RGBChannels * pre.TemporalPatchSize * pre.PatchSize * pre.PatchSize,
+		PatchDim:      media.RGBChannels * pre.TemporalPatchSize * pre.PatchSize * pre.PatchSize,
 		MergeSize:     pre.MergeSize,
 		PositionSide:  v.MaxImageSize / v.PatchSize,
 		OutHidden:     cfg.HiddenSize,

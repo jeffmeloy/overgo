@@ -7,15 +7,15 @@ import (
 	"image"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
+	"overgo/internal/media"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
 
-const (
-	cogVLMProjectorType      = "cogvlm"
-	cogVLMAdapterNormEpsilon = 1e-5
-)
+const cogVLMProjectorType = "cogvlm"
 
 type CogVLMVisionSpec struct {
 	visionBackboneSpec
@@ -42,11 +42,14 @@ func ReadCogVLMVisionSpec(file *gguf.File) (CogVLMVisionSpec, error) {
 	if err := readVisionBackbone(file, cogVLMProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
 		return CogVLMVisionSpec{}, err
 	}
+	if err := readProjectionNorm(file, &spec.ProjectionNormEpsilon); err != nil {
+		return CogVLMVisionSpec{}, err
+	}
 	up, ok := file.Tensor("mm.up.weight")
-	if !ok || up.Dimensions != 2 {
+	spec.AdapterIntermediate, ok = matrixRowsInt(up, ok)
+	if !ok {
 		return CogVLMVisionSpec{}, errors.New("projector: CogVLM adapter up tensor is unavailable or invalid")
 	}
-	spec.AdapterIntermediate = int(up.Shape[1])
 	spec.GatedFFN = make([]bool, spec.Layers)
 	for layer := range spec.GatedFFN {
 		spec.GatedFFN[layer] = hasTensor(file, fmt.Sprintf("v.blk.%d.ffn_gate.weight", layer))
@@ -61,7 +64,8 @@ func (s CogVLMVisionSpec) validate() error {
 	if err := s.visionBackboneSpec.validate(); err != nil {
 		return err
 	}
-	if s.OutputHidden <= 0 || s.AdapterIntermediate <= 0 || len(s.GatedFFN) != s.Layers {
+	if !checked.PositiveInts(s.OutputHidden, s.AdapterIntermediate) ||
+		!checked.PositiveFinite32(s.ProjectionNormEpsilon) || len(s.GatedFFN) != s.Layers {
 		return fmt.Errorf("projector: invalid CogVLM vision metadata: %+v", s)
 	}
 	return nil
@@ -70,19 +74,20 @@ func (s CogVLMVisionSpec) validate() error {
 func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) ([]string, error) {
 	grid := spec.ImageSize / spec.PatchSize
 	required := map[string][]uint64{
-		visionClassEmbeddingTensor: {uint64(spec.Hidden), 1},
+		visionClassEmbeddingTensor: {uint64(spec.Hidden), uint64(tensor.SingletonExtent)},
 		multimodalProjectionWeight: {uint64(spec.Hidden), uint64(spec.OutputHidden)},
 		"mm.post_fc_norm.weight":   {uint64(spec.OutputHidden)}, "mm.post_fc_norm.bias": {uint64(spec.OutputHidden)},
 		"mm.up.weight":   {uint64(spec.OutputHidden), uint64(spec.AdapterIntermediate)},
 		"mm.gate.weight": {uint64(spec.OutputHidden), uint64(spec.AdapterIntermediate)},
 		"mm.down.weight": {uint64(spec.AdapterIntermediate), uint64(spec.OutputHidden)},
-		"v.boi":          {uint64(spec.OutputHidden), 1, 1}, "v.eoi": {uint64(spec.OutputHidden), 1, 1},
+		"v.boi":          {uint64(spec.OutputHidden), uint64(tensor.SingletonExtent), uint64(tensor.SingletonExtent)},
+		"v.eoi":          {uint64(spec.OutputHidden), uint64(tensor.SingletonExtent), uint64(tensor.SingletonExtent)},
 	}
-	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, grid*grid+1, tensorOptional)
-	for layer := 0; layer < spec.Layers; layer++ {
+	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, grid*grid+tensor.SingletonExtent, tensorOptional)
+	for layer := range spec.Layers {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		for name, shape := range map[string][]uint64{
-			"attn_qkv.weight": {uint64(spec.Hidden), uint64(3 * spec.Hidden)}, "attn_qkv.bias": {uint64(3 * spec.Hidden)},
+			"attn_qkv.weight": {uint64(spec.Hidden), uint64(tensor.TripleExtent * spec.Hidden)}, "attn_qkv.bias": {uint64(tensor.TripleExtent * spec.Hidden)},
 			"attn_out.weight": {uint64(spec.Hidden), uint64(spec.Hidden)}, "attn_out.bias": {uint64(spec.Hidden)},
 			"ffn_up.weight":   {uint64(spec.Hidden), uint64(spec.Intermediate)},
 			"ffn_down.weight": {uint64(spec.Intermediate), uint64(spec.Hidden)},
@@ -116,29 +121,15 @@ func PreprocessCogVLMImage(source image.Image, spec CogVLMVisionSpec) ([]float32
 		return nil, err
 	}
 	bounds := source.Bounds()
-	if bounds.Dx() <= 0 || bounds.Dy() <= 0 {
+	if bounds.Empty() {
 		return nil, errors.New("projector: image bounds are empty")
 	}
-	resized := resizeImageBicubic(source, spec.ImageSize, spec.ImageSize)
-	grid, patchArea := spec.ImageSize/spec.PatchSize, spec.PatchSize*spec.PatchSize
-	pixels := make([]float32, grid*grid*3*patchArea)
-	for patchY := 0; patchY < grid; patchY++ {
-		for patchX := 0; patchX < grid; patchX++ {
-			row := (patchY*grid + patchX) * 3 * patchArea
-			for channel := 0; channel < 3; channel++ {
-				position := row + channel*patchArea
-				for y := 0; y < spec.PatchSize; y++ {
-					for x := 0; x < spec.PatchSize; x++ {
-						r, g, b, _ := resized.At(patchX*spec.PatchSize+x, patchY*spec.PatchSize+y).RGBA()
-						value := [3]uint32{r, g, b}[channel]
-						pixels[position] = (normalizedImageChannel(value) - spec.ImageMean[channel]) / spec.ImageStd[channel]
-						position++
-					}
-				}
-			}
-		}
+	resized := media.ResizeBicubic(source, spec.ImageSize, spec.ImageSize)
+	patches, err := patchRasterImage(resized, spec.PatchSize, spec.ImageMean, spec.ImageStd)
+	if err != nil {
+		return nil, err
 	}
-	return pixels, nil
+	return patches.PixelValues, nil
 }
 
 func (r *CogVLMVisionRunner) EncodeImage(ctx context.Context, source image.Image) (reference.Value, error) {
@@ -179,14 +170,16 @@ func (r *CogVLMVisionRunner) buildImagesPrompt(
 	text string,
 ) (MultimodalPrompt, error) {
 	var embeddings []float32
-	visualTokens := 0
 	for index, source := range sources {
 		value, err := r.EncodeImage(ctx, source)
 		if err != nil {
 			return MultimodalPrompt{}, fmt.Errorf("projector: encode CogVLM image %d: %w", index, err)
 		}
 		embeddings = append(embeddings, value.Data...)
-		visualTokens += int(value.Shape.Dims[1])
+	}
+	visualTokens, ok := checked.DivExactInt(len(embeddings), r.spec.OutputHidden)
+	if !ok {
+		return MultimodalPrompt{}, errors.New("projector: CogVLM embedding storage is inconsistent")
 	}
 	ids, err := tokenizerAPI.TokenizeText(text, true, true)
 	if err != nil {
@@ -195,17 +188,18 @@ func (r *CogVLMVisionRunner) buildImagesPrompt(
 	if len(ids) == 0 {
 		return MultimodalPrompt{}, errors.New("projector: CogVLM tokenizer returned no BOS token")
 	}
+	prefixTokens := tensor.SingletonExtent
 	tokenIDs := make([]tokenizer.TokenID, 0, len(ids)+visualTokens)
-	tokenIDs = append(tokenIDs, ids[0])
+	tokenIDs = append(tokenIDs, ids[tensor.FirstOffset])
 	tokenIDs = append(tokenIDs, make([]tokenizer.TokenID, visualTokens)...)
-	for index := 1; index <= visualTokens; index++ {
-		tokenIDs[index] = ids[0]
+	for index := prefixTokens; index <= visualTokens; index++ {
+		tokenIDs[index] = ids[tensor.FirstOffset]
 	}
-	tokenIDs = append(tokenIDs, ids[1:]...)
-	indices := sequentialTokenIndices(1, visualTokens)
+	tokenIDs = append(tokenIDs, ids[prefixTokens:]...)
+	indices := sequentialTokenIndices(prefixTokens, visualTokens)
 	return MultimodalPrompt{
 		TokenIDs: tokenIDs, Embeddings: embeddings, EmbeddingWidth: r.spec.OutputHidden,
-		EmbeddingStart: 1, EmbeddingTokenIndices: indices,
-		VisualBlocks: []AttentionBlock{{Start: 1, End: uint32(visualTokens + 1)}},
+		EmbeddingStart: prefixTokens, EmbeddingTokenIndices: indices,
+		VisualBlocks: []AttentionBlock{{Start: uint32(prefixTokens), End: uint32(visualTokens + prefixTokens)}},
 	}, nil
 }

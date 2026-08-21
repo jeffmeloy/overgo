@@ -1,10 +1,68 @@
 package projector
 
 import (
+	"errors"
 	"fmt"
+	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
+	"overgo/internal/media"
+	"overgo/internal/tensor"
 )
+
+func matrixRowsInt(info gguf.TensorInfo, found bool) (int, bool) {
+	if !found || info.Dimensions != tensor.PairedExtent {
+		return tensor.FirstOffset, false
+	}
+	return checked.Int(info.Shape[tensor.SingletonExtent])
+}
+
+func metadataInts(file *gguf.File, key string, presence tensorPresence, positive bool) ([]int, error) {
+	value, ok := file.MetadataValue(key)
+	if !ok {
+		if presence == tensorRequired {
+			return nil, fmt.Errorf("projector: metadata %q is unavailable", key)
+		}
+		return nil, nil
+	}
+	if value.Type != gguf.ValueTypeArray {
+		return nil, fmt.Errorf("projector: metadata %q must be an integer array", key)
+	}
+	var result []int
+	switch values := value.Data.(type) {
+	case []int32:
+		if value.ArrayType != gguf.ValueTypeInt32 {
+			return nil, fmt.Errorf("projector: metadata %q has mismatched array type", key)
+		}
+		result = make([]int, len(values))
+		for index, item := range values {
+			result[index] = int(item)
+		}
+	case []uint32:
+		if value.ArrayType != gguf.ValueTypeUint32 {
+			return nil, fmt.Errorf("projector: metadata %q has mismatched array type", key)
+		}
+		result = make([]int, len(values))
+		for index, item := range values {
+			converted, valid := checked.Int(uint64(item))
+			if !valid {
+				return nil, fmt.Errorf("projector: metadata %q entry %d exceeds native limits", key, index)
+			}
+			result[index] = converted
+		}
+	default:
+		return nil, fmt.Errorf("projector: metadata %q has invalid storage", key)
+	}
+	if positive {
+		for index, item := range result {
+			if !checked.PositiveInts(item) {
+				return nil, fmt.Errorf("projector: metadata %q entry %d is not positive", key, index)
+			}
+		}
+	}
+	return result, nil
+}
 
 const (
 	visionImageSizeKey       = "clip.vision.image_size"
@@ -23,30 +81,44 @@ const (
 	visionRopeFrequencyKey   = "clip.vision.rope.freq_base"
 	visionMinPixelsKey       = "clip.vision.image_min_pixels"
 	visionMaxPixelsKey       = "clip.vision.image_max_pixels"
-	visionNormalizationWidth = rgbChannelCount
+	visionMaxSoftTokensKey   = "clip.vision.max_soft_tokens"
+	visionVideoSoftTokensKey = "clip.vision.video_max_soft_tokens"
+	visionMaxGridSideKey     = "clip.vision.preproc_max_grid_side"
+	visionProjectorNormKey   = "clip.vision.projector.layer_norm_epsilon"
+	visionNormalizationWidth = media.RGBChannels
 )
 
 type visionBackboneSpec struct {
-	ImageSize        int
-	PatchSize        int
-	Hidden           int
-	Intermediate     int
-	Layers           int
-	Heads            int
-	LayerNormEpsilon float32
-	RopeFrequency    float32
-	ImageMean        [visionNormalizationWidth]float32
-	ImageStd         [visionNormalizationWidth]float32
+	ImageSize             int
+	PatchSize             int
+	Hidden                int
+	Intermediate          int
+	Layers                int
+	Heads                 int
+	LayerNormEpsilon      float32
+	ProjectionNormEpsilon float32
+	RopeFrequency         float32
+	ImageMean             [visionNormalizationWidth]float32
+	ImageStd              [visionNormalizationWidth]float32
+}
+
+func readProjectionNorm(file *gguf.File, target *float32) error {
+	value, err := metadataFloat32(file, visionProjectorNormKey)
+	if err == nil {
+		*target = value
+	}
+	return err
 }
 
 func (s visionBackboneSpec) validate() error {
-	if s.ImageSize <= 0 || s.PatchSize <= 0 || s.Hidden <= 0 || s.Intermediate <= 0 ||
-		s.Layers <= 0 || s.Heads <= 0 || s.Hidden%s.Heads != 0 || s.ImageSize%s.PatchSize != 0 ||
-		s.LayerNormEpsilon <= 0 {
+	_, headsOK := checked.DivExactInt(s.Hidden, s.Heads)
+	_, patchesOK := checked.DivExactInt(s.ImageSize, s.PatchSize)
+	if !checked.PositiveInts(s.ImageSize, s.PatchSize, s.Hidden, s.Intermediate, s.Layers, s.Heads) ||
+		!headsOK || !patchesOK || !checked.PositiveFinite32(s.LayerNormEpsilon) {
 		return fmt.Errorf("projector: invalid vision backbone metadata: %+v", s)
 	}
 	for channel := range s.ImageStd {
-		if s.ImageStd[channel] <= 0 || !finite32(s.ImageMean[channel]) || !finite32(s.ImageStd[channel]) {
+		if !checked.PositiveFinite32(s.ImageStd[channel]) || !checked.Finite32(s.ImageMean[channel]) {
 			return fmt.Errorf("projector: invalid vision normalization channel %d", channel)
 		}
 	}
@@ -57,7 +129,7 @@ func (s visionBackboneSpec) validateRotary() error {
 	if err := s.validate(); err != nil {
 		return err
 	}
-	if s.RopeFrequency <= 0 {
+	if !checked.PositiveFinite32(s.RopeFrequency) {
 		return fmt.Errorf("projector: invalid vision RoPE frequency %g", s.RopeFrequency)
 	}
 	return nil
@@ -66,7 +138,7 @@ func (s visionBackboneSpec) validateRotary() error {
 func (s visionBackboneSpec) rasterPlan(mergeSize, minPixels, maxPixels int, interpolation rasterInterpolation) rasterPatchPlan {
 	return rasterPatchPlan{
 		patchSize: s.PatchSize, mergeSize: mergeSize,
-		defaultBudget: pixelBudget{MinPixels: minPixels, MaxPixels: maxPixels, MaxAspectRatio: defaultVisionMaxAspectRatio},
+		defaultBudget: pixelBudget{MinPixels: minPixels, MaxPixels: maxPixels},
 		mean:          s.ImageMean, std: s.ImageStd, interpolation: interpolation,
 	}
 }
@@ -85,6 +157,21 @@ func readMetadataIntFields(file *gguf.File, fields ...metadataIntField) error {
 		*field.target = int(value)
 	}
 	return nil
+}
+
+func readMetadataBoolArray(file *gguf.File, key string, required bool) ([]bool, error) {
+	value, ok := file.MetadataValue(key)
+	if !ok {
+		if required {
+			return nil, fmt.Errorf("projector: metadata %q is unavailable", key)
+		}
+		return nil, nil
+	}
+	values, storageOK := value.Data.([]bool)
+	if value.Type != gguf.ValueTypeArray || value.ArrayType != gguf.ValueTypeBool || !storageOK {
+		return nil, errors.New("projector: bool-array metadata is invalid")
+	}
+	return slices.Clone(values), nil
 }
 
 func readVisionBackbone(file *gguf.File, projectorType string, projection *int, spec *visionBackboneSpec) error {

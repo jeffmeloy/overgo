@@ -36,6 +36,8 @@ type processorConfig struct {
 	} `json:"video_processor"`
 }
 
+const sourceProjectorLayerNormEpsilon float32 = 1e-5
+
 // towerLayout: E4B checkpoints declare full towers via vision_config
 // num_hidden_layers; the embedder layout (12B) has no such key.
 func towerLayout(config modelConfig) bool {
@@ -117,6 +119,7 @@ func towerProjectorMetadata(
 		gguf.ArrayMetadata("clip.vision.input_bias", gguf.ValueTypeFloat32, []float32{-1, -1, -1}),
 		gguf.Uint32Metadata("clip.vision.max_soft_tokens", processor.Image.MaxSoftTokens),
 		gguf.Uint32Metadata("clip.vision.video_max_soft_tokens", processor.Video.MaxSoftTokens),
+		gguf.Float32Metadata("clip.vision.projector.layer_norm_epsilon", sourceProjectorLayerNormEpsilon),
 		gguf.StringMetadata("clip.vision.hidden_activation", vision.HiddenAct),
 		gguf.StringMetadata("clip.audio.projector_type", "gemma4audio"),
 		gguf.BoolMetadata("clip.has_audio_encoder", true),

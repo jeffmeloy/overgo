@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"overgo/internal/media"
 )
 
 const encodedMP4MediaType = "video/mp4"
@@ -20,7 +22,7 @@ type MP4Encoder struct {
 	command                             *exec.Cmd
 	input                               io.WriteCloser
 	output                              bytes.Buffer
-	errors                              boundedEncoderError
+	errors                              media.DiagnosticBuffer
 	raw, prior                          []byte
 	pixels                              PixelRange
 	fps, height, width, frames, changed int
@@ -121,16 +123,3 @@ func (s *MP4Encoder) Close() error {
 	s.command = nil
 	return err
 }
-
-type boundedEncoderError struct{ data []byte }
-
-func (w *boundedEncoderError) Write(data []byte) (int, error) {
-	written := len(data)
-	remaining := 64<<10 - len(w.data)
-	if remaining > 0 {
-		w.data = append(w.data, data[:min(len(data), remaining)]...)
-	}
-	return written, nil
-}
-
-func (w *boundedEncoderError) String() string { return string(w.data) }

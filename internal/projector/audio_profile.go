@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/strictjson"
 )
 
@@ -40,7 +41,7 @@ var audioProjectionProfileCodec = artifact.DocumentCodec[AudioProjectionProfile]
 		}
 		return data, nil
 	},
-	Canonicalize: func(value *AudioProjectionProfile) error { return value.validateShape() },
+	Canonicalize: func(value *AudioProjectionProfile) error { return value.validate() },
 	Identity:     func(value AudioProjectionProfile) artifact.ID { return value.ID },
 	SetIdentity:  func(value *AudioProjectionProfile, id artifact.ID) { value.ID = id },
 }
@@ -75,9 +76,8 @@ func (p AudioProjectionProfile) Content() (artifact.Content, error) {
 	return audioProjectionProfileCodec.Content(p)
 }
 
-func (p AudioProjectionProfile) validateShape() error {
-	if p.Version != AudioProjectionProfileVersion || p.AttentionRopeFreqBase <= 0 ||
-		!finite32(p.AttentionRopeFreqBase) {
+func (p AudioProjectionProfile) validate() error {
+	if p.Version != AudioProjectionProfileVersion || !checked.PositiveFinite32(p.AttentionRopeFreqBase) {
 		return errors.New("projector: invalid audio projection profile")
 	}
 	return nil

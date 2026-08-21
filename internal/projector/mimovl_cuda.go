@@ -12,10 +12,11 @@ import (
 )
 
 func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMoVLOutput, error) {
-	rows := input.GridH * input.GridW
-	if rows <= 0 || input.GridH%r.spec.MergeSize != 0 || input.GridW%r.spec.MergeSize != 0 {
+	mergePlan, err := newPixelMergePlan(input.GridH, input.GridW, r.spec.MergeSize)
+	if err != nil {
 		return MiMoVLOutput{}, errors.New("projector: MiMo-VL input geometry is inconsistent")
 	}
+	rows := mergePlan.inputRows
 	patchArea := r.spec.PatchSize * r.spec.PatchSize
 	pixels0, pixels1, temporalWidth, err := splitTemporalPatchPairs(input.PixelValues, rows, patchArea)
 	if err != nil {
@@ -33,37 +34,40 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 	patch1 := builder.Reshape(weight(visionPatchWeightTensor1), uint64(temporalWidth), uint64(r.spec.Hidden))
 	hidden := builder.Add(builder.MulMat(patch0, input0), builder.MulMat(patch1, input1))
 	rowPositions, columnPositions := mergedGrid(input.GridH, input.GridW, r.spec.MergeSize)
-	positionsH, positionsW := intsToUint32(rowPositions), intsToUint32(columnPositions)
-	columnOrder := mimoVLColumnOrder(input.GridH/r.spec.MergeSize, input.GridW/r.spec.MergeSize, r.spec.MergeSize)
+	basePositionsH, basePositionsW := intsToUint32(rowPositions), intsToUint32(columnPositions)
+	positionsH, positionsW := basePositionsH, basePositionsW
+	columnOrder := columnMajorPatchOrder(mergePlan.outputHeight, mergePlan.outputWidth, r.spec.MergeSize)
 	inverseColumnOrder := inversePermutation(columnOrder)
-	previousMode := -1
+	columnOrderRows, inverseColumnOrderRows := intsToUint32(columnOrder), intsToUint32(inverseColumnOrder)
+	columnPositionsH := intsToUint32(reorderInts(rowPositions, columnOrder))
+	columnPositionsW := intsToUint32(reorderInts(columnPositions, columnOrder))
+	previousMode := windowModeGlobal
 	qWidth := r.spec.Heads * r.spec.HeadDim
 	kvWidth := r.spec.KVHeads * r.spec.HeadDim
 	for layer, mode := range r.spec.WindowModes {
-		if mode == 1 && previousMode != 1 {
-			hidden = builder.GetRows(hidden, intsToUint32(columnOrder))
-			positionsH = intsToUint32(reorderInts(rowPositions, columnOrder))
-			positionsW = intsToUint32(reorderInts(columnPositions, columnOrder))
-		} else if mode != 1 && previousMode == 1 {
-			hidden = builder.GetRows(hidden, intsToUint32(inverseColumnOrder))
-			positionsH, positionsW = intsToUint32(rowPositions), intsToUint32(columnPositions)
+		if mode == windowModeColumn && previousMode != windowModeColumn {
+			hidden = builder.GetRows(hidden, columnOrderRows)
+			positionsH, positionsW = columnPositionsH, columnPositionsW
+		} else if mode != windowModeColumn && previousMode == windowModeColumn {
+			hidden = builder.GetRows(hidden, inverseColumnOrderRows)
+			positionsH, positionsW = basePositionsH, basePositionsW
 		}
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		norm := graph.weightedRMSNorm(hidden, prefix+"ln1", r.spec.LayerNormEpsilon)
 		qkv := builder.Add(builder.MulMat(weight(prefix+"attn_qkv.weight"), norm), weight(prefix+"attn_qkv.bias"))
 		headDim := uint64(r.spec.HeadDim)
-		q := builder.GroupSlice(qkv, 0, headDim, uint64(r.spec.Heads), headDim)
+		q := builder.GroupSlice(qkv, tensor.FirstOffset, headDim, uint64(r.spec.Heads), headDim)
 		k := builder.GroupSlice(qkv, uint64(qWidth), headDim, uint64(r.spec.KVHeads), headDim)
 		v := builder.GroupSlice(qkv, uint64(qWidth+kvWidth), headDim, uint64(r.spec.KVHeads), headDim)
 		q = interleavedVisionRoPE(builder, q, positionsH, positionsW, r.spec.RopeFrequency)
 		k = interleavedVisionRoPE(builder, k, positionsH, positionsW, r.spec.RopeFrequency)
-		scale := float32(1 / math.Sqrt(float64(r.spec.HeadDim)))
+		scale := float32(tensor.SingletonExtent) / float32(math.Sqrt(float64(r.spec.HeadDim)))
 		var attention *tensor.Tensor
-		if mode == -1 {
+		if mode == windowModeGlobal {
 			attention = builder.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: scale, Causal: false})
 		} else {
 			attention = builder.AttentionWithOptions(
-				q, k, v, tensor.AttentionOptions{Sinks: weight(prefix + "attn_sinks"), Scale: scale, SymmetricWindow: true, Window: uint32(2 * r.spec.WindowSize)})
+				q, k, v, tensor.AttentionOptions{Sinks: weight(prefix + "attn_sinks"), Scale: scale, SymmetricWindow: true, Window: uint32(tensor.PairedExtent * r.spec.WindowSize)})
 
 		}
 		attention = builder.Reshape(attention, uint64(qWidth), uint64(rows))
@@ -77,13 +81,12 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 		hidden = builder.Add(hidden, down)
 		previousMode = mode
 	}
-	if previousMode == 1 {
-		hidden = builder.GetRows(hidden, intsToUint32(inverseColumnOrder))
+	if previousMode == windowModeColumn {
+		hidden = builder.GetRows(hidden, inverseColumnOrderRows)
 	}
-	normalized := builder.Multiply(builder.LayerNorm(hidden, mimoVLPostNormEpsilon), weight(visionPostNormWeightTensor))
+	normalized := builder.Multiply(builder.LayerNorm(hidden, r.spec.ProjectionNormEpsilon), weight(visionPostNormWeightTensor))
 	normalized = graph.addOptionalBias(normalized, visionPostNormBiasTensor)
-	mergedRows := rows / (r.spec.MergeSize * r.spec.MergeSize)
-	merged := builder.Reshape(normalized, uint64(r.spec.Hidden*r.spec.MergeSize*r.spec.MergeSize), uint64(mergedRows))
+	merged := builder.Reshape(normalized, uint64(r.spec.Hidden*r.spec.MergeSize*r.spec.MergeSize), uint64(mergePlan.outputRows))
 	fc1 := builder.MulMat(weight(projectionFirstWeightTensor), merged)
 	fc1 = builder.GELUTanhExact(graph.addOptionalBias(fc1, projectionFirstBiasTensor))
 	output := builder.MulMat(weight(projectionSecondWeightTensor), fc1)

@@ -37,7 +37,7 @@ func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 	}
 	defer runner.Close()
 	output, err := runner.EncodeImage(context.Background(), image.NewRGBA(image.Rect(0, 0, 4, 4)), RasterPatchOptions{
-		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -114,9 +114,9 @@ func TestPreprocessRasterPatchOrder(t *testing.T) {
 	}
 	processed, err := preprocessRasterPatches(input, rasterPatchPlan{
 		patchSize: spec.PatchSize, mergeSize: spec.MergeSize,
-		defaultBudget: pixelBudget{MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels, MaxAspectRatio: defaultVisionMaxAspectRatio},
+		defaultBudget: pixelBudget{MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels},
 		mean:          spec.ImageMean, std: spec.ImageStd, interpolation: rasterBicubic,
-	}, RasterPatchOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio})
+	}, RasterPatchOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	options := RasterPatchOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}
+	options := RasterPatchOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget}
 	want, err := cpu.EncodeImage(context.Background(), input, options)
 	if err != nil {
 		t.Fatal(err)

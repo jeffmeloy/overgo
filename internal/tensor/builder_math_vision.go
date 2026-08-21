@@ -214,10 +214,14 @@ func (b *Builder) WindowUnpartition2D(input *Tensor, width, height uint32) *Tens
 		b.setError(errors.New("WindowUnpartition2D input is invalid"))
 		return nil
 	}
-	window := uint32(math.Sqrt(float64(input.Shape.Dims[1])))
+	windowSize, square := SquareSideInt(input.Shape.Dims[1])
+	if !square || uint64(windowSize) > math.MaxUint32 {
+		b.setError(errors.New("WindowUnpartition2D shape is incompatible"))
+		return nil
+	}
+	window := uint32(windowSize)
 	windowsX, windowsY := (width+window-1)/window, (height+window-1)/window
-	if window == 0 || uint64(window)*uint64(window) != input.Shape.Dims[1] ||
-		uint64(windowsX)*uint64(windowsY) != input.Shape.Dims[2] {
+	if uint64(windowsX)*uint64(windowsY) != input.Shape.Dims[2] {
 		b.setError(errors.New("WindowUnpartition2D shape is incompatible"))
 		return nil
 	}

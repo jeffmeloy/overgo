@@ -31,15 +31,9 @@ func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qw
 		hidden = builder.AffineLayerNorm(hidden, weight(visionPreNormWeightTensor), weight(visionPreNormBiasTensor), r.spec.LayerNormEpsilon)
 	}
 	rowOrder, columnOrder := mergedGrid(input.GridH, input.GridW, r.spec.MergeSize)
-	positionsY := make([]uint32, rows)
-	positionsX := make([]uint32, rows)
-	spatial := input.GridH * input.GridW
-	for row := 0; row < rows; row++ {
-		positionsY[row] = uint32(rowOrder[row%spatial])
-		positionsX[row] = uint32(columnOrder[row%spatial])
-	}
+	positionsY, positionsX, spatial := repeatCoordinates(rowOrder, columnOrder, rows)
 	headWidth := uint64(r.spec.Hidden / r.spec.Heads)
-	for layer := 0; layer < r.spec.Layers; layer++ {
+	for layer := range r.spec.Layers {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
 		norm := builder.AffineLayerNorm(hidden, weight(prefix+"ln1.weight"), weight(prefix+"ln1.bias"), r.spec.LayerNormEpsilon)
 		project := func(name string) *tensor.Tensor {
@@ -51,17 +45,17 @@ func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qw
 		q = interleavedVisionRoPE(builder, q, positionsY, positionsX, r.spec.RopeFrequency)
 		k = interleavedVisionRoPE(builder, k, positionsY, positionsX, r.spec.RopeFrequency)
 		var attention *tensor.Tensor
-		for temporal := 0; temporal < input.GridT; temporal++ {
+		for temporal := range input.GridT {
 			offset := uint64(temporal * spatial * r.spec.Hidden)
 			shape := []uint64{headWidth, uint64(r.spec.Heads), uint64(spatial)}
 			part := builder.AttentionWithOptions(
 				builder.FlatSlice(q, offset, shape...), builder.FlatSlice(k, offset, shape...),
-				builder.FlatSlice(v, offset, shape...), tensor.AttentionOptions{Scale: float32(1 / math.Sqrt(float64(headWidth))), Causal: false})
+				builder.FlatSlice(v, offset, shape...), tensor.AttentionOptions{Scale: float32(tensor.SingletonExtent) / float32(math.Sqrt(float64(headWidth))), Causal: false})
 
 			if attention == nil {
 				attention = part
 			} else {
-				attention = builder.Concat(attention, part, 2)
+				attention = builder.Concat(attention, part, tensor.PairedExtent)
 			}
 		}
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), uint64(rows))

@@ -5,15 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"math"
 	"slices"
 	"strings"
+	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
+	"overgo/internal/media"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/tensor"
 	"overgo/internal/tokenizer"
 )
 
@@ -48,7 +51,7 @@ type MultimodalPrompt struct {
 	EmbeddingWidth        int
 	EmbeddingStart        int
 	EmbeddingTokenIndices []uint32
-	MultiAxisPositions    [4][]uint32
+	MultiAxisPositions    [tensor.MaxDimensions][]uint32
 	AttentionBlocks       []AttentionBlock
 	VisualBlocks          []AttentionBlock
 }
@@ -70,7 +73,7 @@ type PromptOptions struct {
 type MediaKind uint8
 
 const (
-	MediaImage MediaKind = iota + 1
+	MediaImage MediaKind = iota + tensor.SingletonExtent
 	MediaAudio
 )
 
@@ -96,11 +99,11 @@ func (input MediaInput) validate(family string, index int) error {
 		if input.Image == nil {
 			return fmt.Errorf("projector: %s image %d is nil", family, index)
 		}
-		if len(input.Audio) != 0 {
+		if len(input.Audio) != tensor.FirstOffset {
 			return fmt.Errorf("projector: %s image %d contains audio", family, index)
 		}
 	case MediaAudio:
-		if len(input.Audio) == 0 {
+		if len(input.Audio) == tensor.FirstOffset {
 			return fmt.Errorf("projector: %s audio %d is empty", family, index)
 		}
 		if input.Image != nil {
@@ -136,7 +139,7 @@ func validatePromptSequence(
 	if tokenizer == nil {
 		return errors.New("projector: tokenizer is nil")
 	}
-	if itemCount == 0 || len(text) != itemCount+1 {
+	if itemCount == tensor.FirstOffset || len(text) != itemCount+tensor.SingletonExtent {
 		return fmt.Errorf("projector: %s sequence is inconsistent", sequenceLabel)
 	}
 	return nil
@@ -199,10 +202,10 @@ func tokenizePromptRuns(
 	if err != nil {
 		return nil, nil, fmt.Errorf("projector: tokenize %s: %w", placeholderLabel, err)
 	}
-	if len(placeholderIDs) != 1 {
+	if len(placeholderIDs) != tensor.SingletonExtent {
 		return nil, nil, fmt.Errorf("projector: %s maps to %d tokens", placeholderLabel, len(placeholderIDs))
 	}
-	starts, err := variableTokenRuns(ids, placeholderIDs[0], counts)
+	starts, err := variableTokenRuns(ids, placeholderIDs[tensor.FirstOffset], counts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("projector: %s: %w", runsLabel, err)
 	}
@@ -210,7 +213,7 @@ func tokenizePromptRuns(
 }
 
 func embeddingTokenIndices(starts, counts []int, offset int) []uint32 {
-	total := 0
+	total := tensor.FirstOffset
 	for _, count := range counts {
 		total += count
 	}
@@ -292,7 +295,7 @@ var projectorCatalog = []projectorDescriptor{
 		}, recipe.DataImage, recipe.DataAudio, recipe.DataVideo),
 	describeCatalogProjector(gemma4VisionTowerProjectorType, "Gemma 4 tower", nil, ReadGemma4TowerSpec, validateGemma4TowerCatalog,
 		func(file *gguf.File, spec Gemma4TowerSpec, cuda *projectorCUDA) *Gemma4TowerRunner {
-			return &Gemma4TowerRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, audioPlan: newGemma4AudioFrontendPlan(spec.Audio)}
+			return &Gemma4TowerRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, audioPlan: newAudioFrontendPlan(spec.Audio)}
 		}),
 }
 
@@ -411,7 +414,7 @@ func (r *Granite4VisionRunner) imagesPrompt(
 	plan := imagePromptPlan{
 		Family: "Granite 4 Vision", Placeholder: Granite4VisionImageToken,
 		PlaceholderLabel: "Granite 4 Vision image token", AddSpecial: history,
-		EmbeddingWidth: r.spec.ProjectionDim, EmbeddingOffset: 1,
+		EmbeddingWidth: r.spec.ProjectionDim, EmbeddingOffset: tensor.SingletonExtent,
 		Render: func(text []string, items []imagePromptItem) string {
 			var prompt strings.Builder
 			if !history {
@@ -437,9 +440,9 @@ func (r *Granite4VisionRunner) imagesPrompt(
 		for index := range output.DeepstackEmbeddings {
 			deepstack[index] = output.DeepstackEmbeddings[index].Data
 		}
-		count := int(output.Embeddings.Shape.Dims[1])
+		count := int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])
 		return imagePromptItem{
-			Embeddings: output.Embeddings.Data, Deepstack: deepstack, Count: count, RunCount: count + 1,
+			Embeddings: output.Embeddings.Data, Deepstack: deepstack, Count: count, RunCount: count + tensor.SingletonExtent,
 		}, nil
 	})
 }
@@ -478,7 +481,7 @@ func (r *Llama4VisionRunner) imagesPrompt(
 		if err != nil {
 			return imagePromptItem{}, err
 		}
-		return imagePromptItem{Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[1])}, nil
+		return imagePromptItem{Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])}, nil
 	})
 }
 
@@ -517,7 +520,7 @@ func (r *HunyuanVLRunner) imagesPrompt(
 			return imagePromptItem{}, err
 		}
 		return imagePromptItem{
-			Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[1]),
+			Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent]),
 			Rows: output.GridH / output.MergeSize, Columns: output.GridW / output.MergeSize,
 		}, nil
 	})
@@ -564,9 +567,9 @@ func (r *PaddleOCRRunner) imagesPrompt(
 			return imagePromptItem{}, err
 		}
 		return imagePromptItem{
-			Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[1]),
-			Rows:    (output.GridH + output.MergeSize - 1) / output.MergeSize,
-			Columns: (output.GridW + output.MergeSize - 1) / output.MergeSize,
+			Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent]),
+			Rows:    output.GridH / output.MergeSize,
+			Columns: output.GridW / output.MergeSize,
 		}, nil
 	})
 }
@@ -607,7 +610,7 @@ func (r *MiMoVLRunner) imagesPrompt(
 		if err != nil {
 			return imagePromptItem{}, err
 		}
-		return imagePromptItem{Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[1])}, nil
+		return imagePromptItem{Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])}, nil
 	})
 }
 
@@ -646,19 +649,21 @@ func (r *Qwen2VLRunner) videoPrompt(
 	if err != nil {
 		return MultimodalPrompt{}, err
 	}
-	count := int(output.Embeddings.Shape.Dims[1])
+	count := int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])
 	rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
 	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
 		mediaPromptRunPlan: mediaPromptRunPlan{
 			Prompt: "<|im_start|>user\n" + beforeVideo + "<|vision_start|>" +
 				strings.Repeat(Qwen3VLVideoPad, count) + "<|vision_end|>" + afterVideo +
 				"<|im_end|>\n<|im_start|>assistant\n",
-			Placeholder: Qwen3VLVideoPad, Runs: 1, TokensPerRun: count,
+			Placeholder: Qwen3VLVideoPad, Runs: tensor.SingletonExtent, TokensPerRun: count,
 			PromptLabel: "Qwen2-VL video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "Qwen2-VL video prompt",
 		},
 		Embeddings: output.Embeddings.Data, EmbeddingWidth: r.spec.OutputHidden,
-		Positions: func(tokenCount int, starts []int) ([4][]uint32, error) {
-			return Qwen2VLVideoPositions(tokenCount, starts[0], output.GridT, rows, columns)
+		Positions: func(tokenCount int, starts []int) ([tensor.MaxDimensions][]uint32, error) {
+			return compileSpatialPositions(tokenCount, positionGrid3D, []spatialPositionChunk{{
+				Start: starts[0], Extents: [tensor.TripleExtent]int{rows, columns, output.GridT},
+			}})
 		},
 	})
 }
@@ -682,7 +687,7 @@ func (r *Gemma4Runner) imagesPrompt(
 	}
 	plan := imagePromptPlan{
 		Family: "Gemma 4", Placeholder: "<|image|>", PlaceholderLabel: "Gemma 4 image placeholder",
-		AddSpecial: options.History, AttentionBlocks: imagePromptBlocks,
+		AddSpecial: options.History, EmbeddingWidth: r.spec.Hidden, AttentionBlocks: imagePromptBlocks,
 		Render: func(text []string, items []imagePromptItem) string {
 			var prompt strings.Builder
 			if !options.History {
@@ -715,8 +720,7 @@ func (r *Gemma4Runner) gemma4ImagePromptItem(ctx context.Context, source image.I
 	}
 	return imagePromptItem{
 		Embeddings: output.Embeddings.Data,
-		Count:      int(output.Embeddings.Shape.Dims[1]),
-		Width:      int(output.Embeddings.Shape.Dims[0]),
+		Count:      int(output.Embeddings.Shape.Dims[tensor.SingletonExtent]),
 	}, nil
 }
 
@@ -727,7 +731,7 @@ func (r *Gemma4Runner) mediaHistoryPrompt(
 	text []string,
 ) (MultimodalPrompt, error) {
 	plan := mixedMediaPromptPlan{
-		Family: "Gemma 4", AddSpecial: true, PromptLabel: "Gemma 4 media history",
+		Family: "Gemma 4", AddSpecial: true, EmbeddingWidth: r.spec.Hidden, PromptLabel: "Gemma 4 media history",
 		Render: renderMixedMediaHistory,
 		Kinds: map[MediaKind]mixedMediaKindPlan{
 			MediaImage: {
@@ -738,7 +742,7 @@ func (r *Gemma4Runner) mediaHistoryPrompt(
 					if err != nil {
 						return imagePromptItem{}, err
 					}
-					return imagePromptItem{Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[1]), Width: int(output.Embeddings.Shape.Dims[0])}, nil
+					return imagePromptItem{Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])}, nil
 				},
 			},
 			MediaAudio: {
@@ -749,7 +753,7 @@ func (r *Gemma4Runner) mediaHistoryPrompt(
 					if err != nil {
 						return imagePromptItem{}, err
 					}
-					return imagePromptItem{Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[1]), Width: int(output.Embeddings.Shape.Dims[0])}, nil
+					return imagePromptItem{Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])}, nil
 				},
 			},
 		},
@@ -773,14 +777,14 @@ func (r *Gemma4Runner) audioPrompt(
 	if err != nil {
 		return MultimodalPrompt{}, err
 	}
-	audioTokens := int(output.Embeddings.Shape.Dims[1])
+	audioTokens := int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])
 	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
 		mediaPromptRunPlan: mediaPromptRunPlan{
 			Prompt: Gemma4AudioPromptText(afterAudio, audioTokens), Placeholder: "<|audio|>",
-			Runs: 1, TokensPerRun: audioTokens,
+			Runs: tensor.SingletonExtent, TokensPerRun: audioTokens,
 			PromptLabel: "Gemma 4 audio prompt", PlaceholderLabel: "Gemma 4 audio placeholder", RunsLabel: "Gemma 4 audio prompt",
 		},
-		Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]),
+		Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
 	})
 }
 
@@ -804,7 +808,7 @@ func (r *Gemma4Runner) videoPrompt(
 	if strings.TrimSpace(beforeVideo) != "" {
 		return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires video before user text")
 	}
-	if fps <= 0 || math.IsNaN(fps) || math.IsInf(fps, 0) {
+	if !checked.PositiveFinite64(fps) {
 		return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
 	}
 	output, err := r.EncodeVideoFrames(ctx, frames)
@@ -817,7 +821,7 @@ func (r *Gemma4Runner) videoPrompt(
 			Runs: output.Frames, TokensPerRun: output.TokensPerFrame,
 			PromptLabel: "Gemma 4 video prompt", PlaceholderLabel: "Gemma 4 video placeholder", RunsLabel: "Gemma 4 video prompt",
 		},
-		Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]),
+		Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
 		AttentionBlocks: mediaPromptAttentionBlocks,
 	})
 }
@@ -825,12 +829,13 @@ func (r *Gemma4Runner) videoPrompt(
 func Gemma4VideoPromptText(question string, frames, tokensPerFrame int, fps float64) string {
 	var prompt strings.Builder
 	prompt.WriteString("<bos><|turn>user\n")
-	for frame := 0; frame < frames; frame++ {
-		if frame > 0 {
+	for frame := range frames {
+		if frame > tensor.FirstOffset {
 			prompt.WriteByte(' ')
 		}
 		seconds := int(float64(frame) / fps)
-		fmt.Fprintf(&prompt, "%02d:%02d <|image>", seconds/60, seconds%60)
+		secondsPerMinute := int(time.Minute / time.Second)
+		fmt.Fprintf(&prompt, "%02d:%02d <|image>", seconds/secondsPerMinute, seconds%secondsPerMinute)
 		prompt.WriteString(strings.Repeat("<|video|>", tokensPerFrame))
 		prompt.WriteString("<image|>")
 	}
@@ -876,7 +881,7 @@ func (r *Qwen3VLRunner) videoPrompt(
 	if tokenizer == nil {
 		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
 	}
-	if fps <= 0 || math.IsNaN(fps) || math.IsInf(fps, 0) {
+	if !checked.PositiveFinite64(fps) {
 		return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
 	}
 	output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
@@ -896,9 +901,13 @@ func (r *Qwen3VLRunner) videoPrompt(
 			PromptLabel: "video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "video prompt",
 		},
 		Embeddings: output.Embeddings.Data, Deepstack: item.Deepstack,
-		EmbeddingWidth: int(output.Embeddings.Shape.Dims[0]),
-		Positions: func(tokenCount int, starts []int) ([4][]uint32, error) {
-			return Qwen3VLMultiChunkPositions(tokenCount, starts, perGroup, rows, columns)
+		EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
+		Positions: func(tokenCount int, starts []int) ([tensor.MaxDimensions][]uint32, error) {
+			chunks := make([]spatialPositionChunk, len(starts))
+			for index, start := range starts {
+				chunks[index] = spatialPositionChunk{Start: start, Extents: [tensor.TripleExtent]int{rows, columns}}
+			}
+			return compileSpatialPositions(tokenCount, positionGrid2D, chunks)
 		},
 	})
 }
@@ -908,8 +917,8 @@ func Qwen35VideoPromptText(beforeVideo, afterVideo string, groups, tokensPerGrou
 	prompt.WriteString("<|im_start|>user\n")
 	prompt.WriteString(beforeVideo)
 	prompt.WriteString("<|vision_start|>")
-	for group := 0; group < groups; group++ {
-		timestamp := (float64(group*2) + 0.5) / fps
+	for group := range groups {
+		timestamp := (float64(group*tensor.PairedExtent) + media.RasterSampleCenter) / fps
 		fmt.Fprintf(&prompt, "<%.1f seconds><|vision_start|>", timestamp)
 		prompt.WriteString(strings.Repeat(Qwen3VLVideoPad, tokensPerGroup))
 		prompt.WriteString("<|vision_end|>")
@@ -924,22 +933,22 @@ func Qwen35VideoPromptText(beforeVideo, afterVideo string, groups, tokensPerGrou
 }
 
 func variableTokenRuns(ids []tokenizer.TokenID, token tokenizer.TokenID, counts []int) ([]int, error) {
-	if len(counts) == 0 {
+	if len(counts) == tensor.FirstOffset {
 		return nil, errors.New("media token counts are empty")
 	}
-	starts := make([]int, 0, len(counts))
-	for index := 0; index < len(ids); {
+	starts := make([]int, tensor.FirstOffset, len(counts))
+	for index := tensor.FirstOffset; index < len(ids); {
 		if ids[index] != token {
 			index++
 			continue
 		}
-		end := index + 1
+		end := index + tensor.SingletonExtent
 		for end < len(ids) && ids[end] == token {
 			end++
 		}
 		starts = append(starts, index)
-		if len(starts) > len(counts) || end-index != counts[len(starts)-1] {
-			return nil, fmt.Errorf("placeholder run %d has %d tokens", len(starts)-1, end-index)
+		if len(starts) > len(counts) || end-index != counts[len(starts)-tensor.SingletonExtent] {
+			return nil, fmt.Errorf("placeholder run %d has %d tokens", len(starts)-tensor.SingletonExtent, end-index)
 		}
 		index = end
 	}
@@ -954,17 +963,17 @@ func orderedVariableTokenRuns(
 	tokens []tokenizer.TokenID,
 	counts []int,
 ) ([]int, error) {
-	if len(tokens) == 0 || len(tokens) != len(counts) {
+	if len(tokens) == tensor.FirstOffset || len(tokens) != len(counts) {
 		return nil, errors.New("media token run specification is inconsistent")
 	}
 	mediaTokens := make(map[tokenizer.TokenID]struct{}, len(tokens))
 	for _, token := range tokens {
 		mediaTokens[token] = struct{}{}
 	}
-	starts := make([]int, 0, len(tokens))
-	foundTokens := make([]tokenizer.TokenID, 0, len(tokens))
-	foundCounts := make([]int, 0, len(tokens))
-	for index := 0; index < len(ids); {
+	starts := make([]int, tensor.FirstOffset, len(tokens))
+	foundTokens := make([]tokenizer.TokenID, tensor.FirstOffset, len(tokens))
+	foundCounts := make([]int, tensor.FirstOffset, len(tokens))
+	for index := tensor.FirstOffset; index < len(ids); {
 		if _, ok := mediaTokens[ids[index]]; !ok {
 			index++
 			continue
@@ -991,195 +1000,103 @@ func sequentialTokenIndices(start, count int) []uint32 {
 	return indices
 }
 
-func Qwen3VLMultiAxisPositions(
-	tokens, imageStart, imageTokens, gridH, gridW, merge int,
-) ([4][]uint32, error) {
-	if gridH <= 0 || gridW <= 0 || merge <= 0 || gridH%merge != 0 || gridW%merge != 0 {
-		return [4][]uint32{}, errors.New("projector: invalid image position geometry")
-	}
-	rows, columns := gridH/merge, gridW/merge
-	if rows*columns != imageTokens {
-		return [4][]uint32{}, fmt.Errorf(
-			"projector: image grid produces %d tokens, projector emitted %d", rows*columns, imageTokens,
-		)
-	}
-	return Qwen3VLMultiChunkPositions(tokens, []int{imageStart}, imageTokens, rows, columns)
-}
+type spatialPositionLayout uint8
 
-type Qwen3VLPositionChunk struct {
+const (
+	positionGrid2D spatialPositionLayout = iota
+	positionGrid3D
+	positionDelimitedRows
+)
+
+type spatialPositionChunk struct {
 	Start   int
-	Rows    int
-	Columns int
+	Extents [tensor.TripleExtent]int
+	Index   int
 }
 
-type HunyuanVLPositionChunk struct {
-	Start      int
-	Rows       int
-	Columns    int
-	ImageIndex int
-}
-
-func HunyuanVLVariableChunkPositions(tokens int, chunks []HunyuanVLPositionChunk) ([4][]uint32, error) {
-	if tokens <= 0 || len(chunks) == 0 {
-		return [4][]uint32{}, errors.New("projector: invalid Hunyuan-VL media positions")
+func compileSpatialPositions(tokens int, layout spatialPositionLayout, chunks []spatialPositionChunk) ([tensor.MaxDimensions][]uint32, error) {
+	var positions [tensor.MaxDimensions][]uint32
+	if !checked.PositiveInts(tokens, len(chunks)) || layout > positionDelimitedRows {
+		return positions, errors.New("projector: invalid spatial positions")
 	}
-	var positions [4][]uint32
 	for axis := range positions {
 		positions[axis] = make([]uint32, tokens)
 	}
-	next, physical := uint32(0), 0
-	for _, chunk := range chunks {
-		count := chunk.Rows*(chunk.Columns+1) + 2
-		if chunk.Rows <= 0 || chunk.Columns <= 0 || chunk.ImageIndex < 0 || chunk.Start < physical || chunk.Start+count > tokens {
-			return [4][]uint32{}, errors.New("projector: Hunyuan-VL media chunk is invalid")
-		}
-		for physical < chunk.Start {
+	next, physical := uint32(tensor.FirstOffset), tensor.FirstOffset
+	fillText := func(end int) {
+		for physical < end {
 			for axis := range positions {
 				positions[axis][physical] = next
 			}
 			next++
 			physical++
 		}
+	}
+	for _, chunk := range chunks {
+		first := chunk.Extents[tensor.FirstOffset]
+		second := chunk.Extents[tensor.SingletonExtent]
+		third := chunk.Extents[tensor.PairedExtent]
+		if !checked.PositiveInts(first, second) || layout == positionGrid3D && !checked.PositiveInts(third) ||
+			layout == positionDelimitedRows && chunk.Index < tensor.FirstOffset || chunk.Start < physical {
+			return [tensor.MaxDimensions][]uint32{}, errors.New("projector: spatial position chunk is invalid")
+		}
+		plane, ok := checked.MulInt(first, second)
+		count := plane
+		switch layout {
+		case positionGrid3D:
+			count, ok = checked.MulInt(plane, third)
+		case positionDelimitedRows:
+			columns, columnsOK := checked.Add64(uint64(second), tensor.SingletonExtent)
+			count64, countOK := checked.Mul64(uint64(first), columns)
+			count64, addOK := checked.Add64(count64, tensor.PairedExtent)
+			count, ok = checked.Int(count64)
+			ok = ok && columnsOK && countOK && addOK
+		}
+		end64, endOK := checked.Add64(uint64(chunk.Start), uint64(count))
+		end, endOK := checked.Int(end64)
+		if !ok || !endOK || end > tokens {
+			return [tensor.MaxDimensions][]uint32{}, errors.New("projector: spatial position chunk is invalid")
+		}
+		fillText(chunk.Start)
 		base := next
-		for index := 0; index < count; index++ {
+		for index := range count {
 			position := physical + index
-			positions[0][position] = base + uint32(index)
-			if index == 0 || index == count-1 {
-				for axis := 1; axis < 4; axis++ {
-					positions[axis][position] = base + uint32(index)
+			switch layout {
+			case positionGrid2D:
+				positions[0][position] = base
+				positions[1][position] = base + uint32(index/second)
+				positions[2][position] = base + uint32(index%second)
+			case positionGrid3D:
+				positions[0][position] = base + uint32(index/plane)
+				positions[1][position] = base + uint32((index%plane)/second)
+				positions[2][position] = base + uint32(index%second)
+			case positionDelimitedRows:
+				if index == 0 || index == count-tensor.SingletonExtent {
+					for axis := tensor.SingletonExtent; axis < tensor.MaxDimensions; axis++ {
+						positions[axis][position] = base + uint32(index)
+					}
+					positions[0][position] = base + uint32(index)
+					continue
 				}
-				continue
+				offset := index - tensor.SingletonExtent
+				positions[0][position] = base + uint32(index)
+				positions[1][position] = uint32(offset % (second + tensor.SingletonExtent))
+				positions[2][position] = uint32(offset / (second + tensor.SingletonExtent))
+				positions[3][position] = uint32(chunk.Index)
 			}
-			offset := index - 1
-			positions[1][position] = uint32(offset % (chunk.Columns + 1))
-			positions[2][position] = uint32(offset / (chunk.Columns + 1))
-			positions[3][position] = uint32(chunk.ImageIndex)
 		}
 		physical += count
-		next = base + uint32(count)
-	}
-	for physical < tokens {
-		for axis := range positions {
-			positions[axis][physical] = next
+		switch layout {
+		case positionGrid2D:
+			next = base + uint32(max(first, second))
+		case positionGrid3D:
+			next = base + uint32(max(first, second, third))
+		case positionDelimitedRows:
+			next = base + uint32(count)
+		default:
+			return [tensor.MaxDimensions][]uint32{}, errors.New("projector: unknown spatial position layout")
 		}
-		next++
-		physical++
 	}
-	return positions, nil
-}
-
-func Qwen3VLVariableChunkPositions(tokens int, chunks []Qwen3VLPositionChunk) ([4][]uint32, error) {
-	if tokens <= 0 || len(chunks) == 0 {
-		return [4][]uint32{}, errors.New("projector: invalid variable media positions")
-	}
-	var positions [4][]uint32
-	for axis := range positions {
-		positions[axis] = make([]uint32, tokens)
-	}
-	next, physical := uint32(0), 0
-	for _, chunk := range chunks {
-		count := chunk.Rows * chunk.Columns
-		if chunk.Rows <= 0 || chunk.Columns <= 0 || chunk.Start < physical || chunk.Start+count > tokens {
-			return [4][]uint32{}, errors.New("projector: variable media chunk is invalid")
-		}
-		for physical < chunk.Start {
-			for axis := range positions {
-				positions[axis][physical] = next
-			}
-			next++
-			physical++
-		}
-		base := next
-		for index := 0; index < count; index++ {
-			positions[0][physical+index] = base
-			positions[1][physical+index] = base + uint32(index/chunk.Columns)
-			positions[2][physical+index] = base + uint32(index%chunk.Columns)
-			positions[3][physical+index] = 0
-		}
-		physical += count
-		next = base + uint32(max(chunk.Rows, chunk.Columns))
-	}
-	for physical < tokens {
-		for axis := range positions {
-			positions[axis][physical] = next
-		}
-		next++
-		physical++
-	}
-	return positions, nil
-}
-
-func Qwen3VLMultiChunkPositions(tokens int, starts []int, tokensPerChunk, rows, columns int) ([4][]uint32, error) {
-	if tokens <= 0 || len(starts) == 0 || tokensPerChunk <= 0 || rows <= 0 || columns <= 0 ||
-		rows*columns != tokensPerChunk {
-		return [4][]uint32{}, errors.New("projector: invalid media position geometry")
-	}
-	var positions [4][]uint32
-	for axis := range positions {
-		positions[axis] = make([]uint32, tokens)
-	}
-	next, physical := uint32(0), 0
-	for _, start := range starts {
-		if start < physical || start+tokensPerChunk > tokens {
-			return [4][]uint32{}, errors.New("projector: media chunks overlap or exceed prompt")
-		}
-		for physical < start {
-			for axis := range positions {
-				positions[axis][physical] = next
-			}
-			next++
-			physical++
-		}
-		base := next
-		for index := 0; index < tokensPerChunk; index++ {
-			positions[0][physical+index] = base
-			positions[1][physical+index] = base + uint32(index/columns)
-			positions[2][physical+index] = base + uint32(index%columns)
-			positions[3][physical+index] = 0
-		}
-		physical += tokensPerChunk
-		next = base + uint32(max(rows, columns))
-	}
-	for physical < tokens {
-		for axis := range positions {
-			positions[axis][physical] = next
-		}
-		next++
-		physical++
-	}
-	return positions, nil
-}
-
-func Qwen2VLVideoPositions(tokens, start, temporal, rows, columns int) ([4][]uint32, error) {
-	count := temporal * rows * columns
-	if tokens <= 0 || start < 0 || temporal <= 0 || rows <= 0 || columns <= 0 || start+count > tokens {
-		return [4][]uint32{}, errors.New("projector: invalid Qwen2-VL video position geometry")
-	}
-	var positions [4][]uint32
-	for axis := range positions {
-		positions[axis] = make([]uint32, tokens)
-	}
-	next := uint32(0)
-	for index := 0; index < start; index++ {
-		for axis := range positions {
-			positions[axis][index] = next
-		}
-		next++
-	}
-	base := next
-	spatial := rows * columns
-	for index := 0; index < count; index++ {
-		positions[0][start+index] = base + uint32(index/spatial)
-		positions[1][start+index] = base + uint32((index%spatial)/columns)
-		positions[2][start+index] = base + uint32(index%columns)
-		positions[3][start+index] = 0
-	}
-	next = base + uint32(max(temporal, rows, columns))
-	for index := start + count; index < tokens; index++ {
-		for axis := range positions {
-			positions[axis][index] = next
-		}
-		next++
-	}
+	fillText(tokens)
 	return positions, nil
 }

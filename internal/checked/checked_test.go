@@ -22,8 +22,29 @@ func TestCheckedArithmetic(t *testing.T) {
 	if value, ok := Mul64(7, 8); !ok || value != 56 {
 		t.Fatalf("product = %d, %v", value, ok)
 	}
+	if value, ok := DivExact64(56, 8); !ok || value != 7 {
+		t.Fatalf("quotient = %d, %v", value, ok)
+	}
+	if _, ok := DivExact64(7, 0); ok {
+		t.Fatal("zero divisor accepted")
+	}
+	if _, ok := DivExact64(7, 2); ok {
+		t.Fatal("inexact quotient accepted")
+	}
+	if value, ok := DivExactInt(56, 8); !ok || value != 7 {
+		t.Fatalf("integer quotient = %d, %v", value, ok)
+	}
+	if _, ok := DivExactInt(-1, 1); ok {
+		t.Fatal("negative dividend accepted")
+	}
 	if _, ok := Mul64(math.MaxUint64, 2); ok {
 		t.Fatal("overflowing product accepted")
+	}
+	if value, ok := MulInt(7, 8); !ok || value != 56 {
+		t.Fatalf("integer product = %d, %v", value, ok)
+	}
+	if _, ok := MulInt(-1, 2); ok {
+		t.Fatal("negative integer product accepted")
 	}
 	if value, ok := Align(33, 32); !ok || value != 64 {
 		t.Fatalf("alignment = %d, %v", value, ok)

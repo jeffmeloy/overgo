@@ -5,43 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"math"
 
 	"overgo/internal/checked"
+	"overgo/internal/media"
 	"overgo/internal/tensor"
 )
-
-const (
-	maxPixelMergeRows           uint64 = 1 << 32
-	defaultVisionMaxAspectRatio        = 200
-	temporalPatchChannels              = 3
-	temporalPatchFrames                = 2
-	rgbChannelCount                    = 3
-	attentionProjectionCount           = 3
-	bilinearCornerCount                = 4
-	rotaryPairWidth                    = 2
-	visionRoPEAxisCount                = 2
-	visionRoPEComponentCount           = rotaryPairWidth * visionRoPEAxisCount
-	rgba16To8Shift                     = 8
-	maxUint8Channel                    = 255
-	opaqueAlpha                        = 255
-)
-
-func cubicInterpolationWeight(value float64) float64 {
-	const coefficient = -0.75
-	value = math.Abs(value)
-	if value <= 1 {
-		return ((coefficient+2)*value-(coefficient+3))*value*value + 1
-	}
-	if value < 2 {
-		return ((coefficient*value-5*coefficient)*value+8*coefficient)*value - 4*coefficient
-	}
-	return 0
-}
-
-func normalizedImageChannel(value uint32) float32 {
-	return float32(value>>rgba16To8Shift) / maxUint8Channel
-}
 
 type rasterInterpolation uint8
 
@@ -50,12 +20,54 @@ const (
 	rasterBilinear
 )
 
+type rowStorage struct {
+	elements int
+	width    int
+}
+
+func validateGridStorage(height, width int, storage ...rowStorage) (int, error) {
+	rows, ok := checked.MulInt(height, width)
+	if !ok || !checked.PositiveInts(rows) {
+		return tensor.FirstOffset, errors.New("projector: invalid grid geometry")
+	}
+	if err := validateRowStorage(rows, storage...); err != nil {
+		return tensor.FirstOffset, err
+	}
+	return rows, nil
+}
+
+func validateRowStorage(rows int, storage ...rowStorage) error {
+	if !checked.PositiveInts(rows) {
+		return errors.New("projector: invalid row count")
+	}
+	for _, binding := range storage {
+		expected, ok := checked.MulInt(rows, binding.width)
+		if !ok || !checked.PositiveInts(binding.width) || binding.elements != expected {
+			return errors.New("projector: row storage is inconsistent")
+		}
+	}
+	return nil
+}
+
+func validateSpatialPatchStorage(elements, gridH, gridW, patchSize, channels int) (int, int, error) {
+	rows, rowsOK := checked.MulInt(gridH, gridW)
+	patchArea, areaOK := checked.MulInt(patchSize, patchSize)
+	width, widthOK := checked.MulInt(patchArea, channels)
+	if !rowsOK || !areaOK || !widthOK {
+		return tensor.FirstOffset, tensor.FirstOffset, errors.New("projector: spatial patch extents overflow")
+	}
+	if err := validateRowStorage(rows, rowStorage{elements: elements, width: width}); err != nil {
+		return tensor.FirstOffset, tensor.FirstOffset, err
+	}
+	return rows, width, nil
+}
+
 type rasterPatchPlan struct {
 	patchSize     int
 	mergeSize     int
 	defaultBudget pixelBudget
-	mean          [rgbChannelCount]float32
-	std           [rgbChannelCount]float32
+	mean          [media.RGBChannels]float32
+	std           [media.RGBChannels]float32
 	interpolation rasterInterpolation
 }
 
@@ -75,11 +87,11 @@ func preprocessRasterPatches(source image.Image, plan rasterPatchPlan, options R
 	if source == nil {
 		return RasterPatchImage{}, errors.New("projector: image is nil")
 	}
-	if plan.patchSize <= 0 || plan.mergeSize <= 0 {
+	if !checked.PositiveInts(plan.patchSize, plan.mergeSize) {
 		return RasterPatchImage{}, errors.New("projector: invalid raster patch geometry")
 	}
 	for channel := range plan.std {
-		if plan.std[channel] <= 0 {
+		if !checked.PositiveFinite32(plan.std[channel]) {
 			return RasterPatchImage{}, fmt.Errorf("projector: invalid raster normalization channel %d", channel)
 		}
 	}
@@ -95,26 +107,35 @@ func preprocessRasterPatches(source image.Image, plan rasterPatchPlan, options R
 	var resized *image.RGBA
 	switch plan.interpolation {
 	case rasterBicubic:
-		resized = resizeImageBicubic(source, resizedW, resizedH)
+		resized = media.ResizeBicubic(source, resizedW, resizedH)
 	case rasterBilinear:
 		resized = resizeImageBilinear(source, resizedW, resizedH)
 	default:
 		return RasterPatchImage{}, errors.New("projector: invalid raster interpolation")
 	}
-	gridH, gridW := resizedH/plan.patchSize, resizedW/plan.patchSize
-	patchArea := plan.patchSize * plan.patchSize
-	patchWidth := rgbChannelCount * patchArea
+	return patchRasterImage(resized, plan.patchSize, plan.mean, plan.std)
+}
+
+func patchRasterImage(source image.Image, patchSize int, mean, std [media.RGBChannels]float32) (RasterPatchImage, error) {
+	bounds := source.Bounds()
+	gridH, heightOK := checked.DivExactInt(bounds.Dy(), patchSize)
+	gridW, widthOK := checked.DivExactInt(bounds.Dx(), patchSize)
+	if !heightOK || !widthOK || !checked.PositiveInts(gridH, gridW) {
+		return RasterPatchImage{}, errors.New("projector: raster is not patch aligned")
+	}
+	patchArea := patchSize * patchSize
+	patchWidth := media.RGBChannels * patchArea
 	pixels := make([]float32, gridH*gridW*patchWidth)
-	for patchY := 0; patchY < gridH; patchY++ {
-		for patchX := 0; patchX < gridW; patchX++ {
+	for patchY := range gridH {
+		for patchX := range gridW {
 			row := (patchY*gridW + patchX) * patchWidth
-			for y := 0; y < plan.patchSize; y++ {
-				for x := 0; x < plan.patchSize; x++ {
-					red, green, blue, _ := resized.At(patchX*plan.patchSize+x, patchY*plan.patchSize+y).RGBA()
-					values := [rgbChannelCount]uint32{red, green, blue}
-					pixel := y*plan.patchSize + x
+			for y := range patchSize {
+				for x := range patchSize {
+					red, green, blue, _ := source.At(bounds.Min.X+patchX*patchSize+x, bounds.Min.Y+patchY*patchSize+y).RGBA()
+					values := [media.RGBChannels]uint32{red, green, blue}
+					pixel := y*patchSize + x
 					for channel, value := range values {
-						pixels[row+channel*patchArea+pixel] = (normalizedImageChannel(value) - plan.mean[channel]) / plan.std[channel]
+						pixels[row+channel*patchArea+pixel] = (media.NormalizedRGBAChannel(value) - mean[channel]) / std[channel]
 					}
 				}
 			}
@@ -123,75 +144,135 @@ func preprocessRasterPatches(source image.Image, plan rasterPatchPlan, options R
 	return RasterPatchImage{PixelValues: pixels, GridH: gridH, GridW: gridW}, nil
 }
 
+func resizeFitBicubic(source image.Image, width, height int, fill color.Color) image.Image {
+	bounds := source.Bounds()
+	scale := math.Min(float64(width)/float64(bounds.Dx()), float64(height)/float64(bounds.Dy()))
+	resizedW := max(tensor.SingletonExtent, min(width, int(math.Ceil(float64(bounds.Dx())*scale))))
+	resizedH := max(tensor.SingletonExtent, min(height, int(math.Ceil(float64(bounds.Dy())*scale))))
+	resized := media.ResizeBicubic(source, resizedW, resizedH)
+	output := image.NewRGBA(image.Rect(tensor.FirstOffset, tensor.FirstOffset, width, height))
+	if fill != nil {
+		for y := range height {
+			for x := range width {
+				output.Set(x, y, fill)
+			}
+		}
+	}
+	offsetX, offsetY := (width-resizedW)/tensor.PairedExtent, (height-resizedH)/tensor.PairedExtent
+	for y := range resizedH {
+		for x := range resizedW {
+			output.Set(offsetX+x, offsetY+y, resized.At(x, y))
+		}
+	}
+	return output
+}
+
+func resizeImageBilinear(source image.Image, width, height int) *image.RGBA {
+	bounds := source.Bounds()
+	inputW, inputH := bounds.Dx(), bounds.Dy()
+	output := image.NewRGBA(image.Rect(tensor.FirstOffset, tensor.FirstOffset, width, height))
+	for y := range height {
+		sourceY := (float64(y)+media.RasterSampleCenter)*float64(inputH)/float64(height) - media.RasterSampleCenter
+		y0 := max(tensor.FirstOffset, min(inputH-tensor.SingletonExtent, int(math.Floor(sourceY))))
+		y1 := min(y0+tensor.SingletonExtent, inputH-tensor.SingletonExtent)
+		wy := sourceY - math.Floor(sourceY)
+		if sourceY < tensor.FirstOffset {
+			wy = tensor.FirstOffset
+		}
+		for x := range width {
+			sourceX := (float64(x)+media.RasterSampleCenter)*float64(inputW)/float64(width) - media.RasterSampleCenter
+			x0 := max(tensor.FirstOffset, min(inputW-tensor.SingletonExtent, int(math.Floor(sourceX))))
+			x1 := min(x0+tensor.SingletonExtent, inputW-tensor.SingletonExtent)
+			wx := sourceX - math.Floor(sourceX)
+			if sourceX < tensor.FirstOffset {
+				wx = tensor.FirstOffset
+			}
+			corners := [tensor.MaxDimensions][tensor.MaxDimensions]uint32{}
+			corners[tensor.FirstOffset][tensor.FirstOffset], corners[tensor.FirstOffset][tensor.SingletonExtent], corners[tensor.FirstOffset][tensor.PairedExtent], corners[tensor.FirstOffset][tensor.TripleExtent] = source.At(bounds.Min.X+x0, bounds.Min.Y+y0).RGBA()
+			corners[tensor.SingletonExtent][tensor.FirstOffset], corners[tensor.SingletonExtent][tensor.SingletonExtent], corners[tensor.SingletonExtent][tensor.PairedExtent], corners[tensor.SingletonExtent][tensor.TripleExtent] = source.At(bounds.Min.X+x1, bounds.Min.Y+y0).RGBA()
+			corners[tensor.PairedExtent][tensor.FirstOffset], corners[tensor.PairedExtent][tensor.SingletonExtent], corners[tensor.PairedExtent][tensor.PairedExtent], corners[tensor.PairedExtent][tensor.TripleExtent] = source.At(bounds.Min.X+x0, bounds.Min.Y+y1).RGBA()
+			corners[tensor.TripleExtent][tensor.FirstOffset], corners[tensor.TripleExtent][tensor.SingletonExtent], corners[tensor.TripleExtent][tensor.PairedExtent], corners[tensor.TripleExtent][tensor.TripleExtent] = source.At(bounds.Min.X+x1, bounds.Min.Y+y1).RGBA()
+			unit := float64(tensor.SingletonExtent)
+			weights := [tensor.MaxDimensions]float64{(unit - wx) * (unit - wy), wx * (unit - wy), (unit - wx) * wy, wx * wy}
+			index := output.PixOffset(x, y)
+			for channel := range media.RGBChannels {
+				var value float64
+				for corner := range corners {
+					value += weights[corner] * float64(media.RGBAChannel8(corners[corner][channel]))
+				}
+				output.Pix[index+channel] = media.RoundedUint8(value)
+			}
+			output.Pix[index+media.RGBChannels] = ^uint8(tensor.FirstOffset)
+		}
+	}
+	return output
+}
+
 type pixelMergePlan struct {
-	inputRows  int
-	outputRows int
-	indexSets  [][]uint32
+	inputRows                 int
+	outputRows                int
+	outputHeight, outputWidth int
+	indexSets                 [][]uint32
 }
 
 func newPixelMergePlan(height, width, merge int) (pixelMergePlan, error) {
-	if height <= 0 || width <= 0 || merge <= 0 || height%merge != 0 || width%merge != 0 {
+	blocksY, heightOK := checked.DivExactInt(height, merge)
+	blocksX, widthOK := checked.DivExactInt(width, merge)
+	if !heightOK || !widthOK || !checked.PositiveInts(blocksY, blocksX) {
 		return pixelMergePlan{}, errors.New("projector: invalid pixel merge geometry")
 	}
-	inputElements, ok := checked.Mul64(uint64(height), uint64(width))
-	if !ok {
+	inputRows, ok := checked.MulInt(height, width)
+	if !ok || uint64(inputRows) > uint64(math.MaxUint32)+tensor.SingletonExtent {
 		return pixelMergePlan{}, errors.New("projector: pixel merge input size overflow")
 	}
-	inputRows, ok := checked.Int(inputElements)
-	if !ok || inputElements > maxPixelMergeRows {
-		return pixelMergePlan{}, errors.New("projector: pixel merge input size overflow")
-	}
-	mergeElements, ok := checked.Mul64(uint64(merge), uint64(merge))
+	indexCount, ok := checked.MulInt(merge, merge)
 	if !ok {
 		return pixelMergePlan{}, errors.New("projector: pixel merge size overflow")
 	}
-	indexCount, ok := checked.Int(mergeElements)
-	if !ok {
-		return pixelMergePlan{}, errors.New("projector: pixel merge size overflow")
-	}
-	outputRows, ok := checked.Int(inputElements / mergeElements)
+	outputRows, ok := checked.MulInt(blocksY, blocksX)
 	if !ok {
 		return pixelMergePlan{}, errors.New("projector: pixel merge output size overflow")
 	}
 	indexSets := make([][]uint32, indexCount)
 	for index := range indexSets {
-		indexSets[index] = make([]uint32, 0, outputRows)
+		indexSets[index] = make([]uint32, tensor.FirstOffset, outputRows)
 	}
-	for blockY := 0; blockY < height/merge; blockY++ {
-		for blockX := 0; blockX < width/merge; blockX++ {
-			for y := 0; y < merge; y++ {
-				for x := 0; x < merge; x++ {
+	for blockY := range blocksY {
+		for blockX := range blocksX {
+			for y := range merge {
+				for x := range merge {
 					offset := y*merge + x
 					indexSets[offset] = append(indexSets[offset], uint32((blockY*merge+y)*width+blockX*merge+x))
 				}
 			}
 		}
 	}
-	return pixelMergePlan{inputRows: inputRows, outputRows: outputRows, indexSets: indexSets}, nil
+	return pixelMergePlan{
+		inputRows: inputRows, outputRows: outputRows,
+		outputHeight: blocksY, outputWidth: blocksX, indexSets: indexSets,
+	}, nil
 }
 
 func (plan pixelMergePlan) graph(builder *tensor.Builder, input *tensor.Tensor) *tensor.Tensor {
-	output := builder.GetRows(input, plan.indexSets[0])
-	for offset := 1; offset < len(plan.indexSets); offset++ {
-		output = builder.Concat(output, builder.GetRows(input, plan.indexSets[offset]), 0)
+	output := builder.GetRows(input, plan.indexSets[tensor.FirstOffset])
+	for offset := tensor.SingletonExtent; offset < len(plan.indexSets); offset++ {
+		output = builder.Concat(output, builder.GetRows(input, plan.indexSets[offset]), tensor.FirstOffset)
 	}
 	return output
 }
 
 func (plan pixelMergePlan) shuffle(values []float32, width int) ([]float32, error) {
-	if width <= 0 {
+	if !checked.PositiveInts(width) {
 		return nil, fmt.Errorf("projector: pixel merge input has %d values for %d rows at width %d", len(values), plan.inputRows, width)
 	}
-	inputElements, ok := checked.Mul64(uint64(plan.inputRows), uint64(width))
-	expected, ok := checked.Int(inputElements)
+	expected, ok := checked.MulInt(plan.inputRows, width)
 	if !ok || len(values) != expected {
 		return nil, fmt.Errorf("projector: pixel merge input has %d values for %d rows at width %d", len(values), plan.inputRows, width)
 	}
-	outputElements, ok := checked.Mul64(uint64(plan.outputRows), uint64(width))
+	outputSize, ok := checked.MulInt(plan.outputRows, width)
 	if ok {
-		outputElements, ok = checked.Mul64(outputElements, uint64(len(plan.indexSets)))
+		outputSize, ok = checked.MulInt(outputSize, len(plan.indexSets))
 	}
-	outputSize, ok := checked.Int(outputElements)
 	if !ok {
 		return nil, errors.New("projector: pixel merge output size overflow")
 	}
@@ -210,34 +291,34 @@ func splitTemporalPatchPairs(
 	values []float32,
 	rows, patchArea int,
 ) ([]float32, []float32, int, error) {
-	if rows <= 0 || patchArea <= 0 {
-		return nil, nil, 0, errors.New("projector: invalid temporal patch geometry")
+	if !checked.PositiveInts(rows, patchArea) {
+		return nil, nil, tensor.FirstOffset, errors.New("projector: invalid temporal patch geometry")
 	}
 	temporalElements, ok := checked.Mul64(uint64(rows), uint64(patchArea))
 	if !ok {
-		return nil, nil, 0, errors.New("projector: temporal patch size overflow")
+		return nil, nil, tensor.FirstOffset, errors.New("projector: temporal patch size overflow")
 	}
-	temporalElements, ok = checked.Mul64(temporalElements, temporalPatchChannels*temporalPatchFrames)
+	temporalElements, ok = checked.Mul64(temporalElements, media.RGBChannels*tensor.PairedExtent)
 	if !ok {
-		return nil, nil, 0, errors.New("projector: temporal patch size overflow")
+		return nil, nil, tensor.FirstOffset, errors.New("projector: temporal patch size overflow")
 	}
 	expected, ok := checked.Int(temporalElements)
 	if !ok {
-		return nil, nil, 0, errors.New("projector: temporal patch size overflow")
+		return nil, nil, tensor.FirstOffset, errors.New("projector: temporal patch size overflow")
 	}
 	if len(values) != expected {
-		return nil, nil, 0, fmt.Errorf("projector: temporal patch tensor has %d values, want %d", len(values), expected)
+		return nil, nil, tensor.FirstOffset, fmt.Errorf("projector: temporal patch tensor has %d values, want %d", len(values), expected)
 	}
-	temporalWidth := temporalPatchChannels * patchArea
+	temporalWidth := media.RGBChannels * patchArea
 	first := make([]float32, rows*temporalWidth)
 	second := make([]float32, rows*temporalWidth)
 	for row := range rows {
-		source := values[row*temporalWidth*temporalPatchFrames:]
-		for color := range temporalPatchChannels {
+		source := values[row*temporalWidth*tensor.PairedExtent:]
+		for color := range media.RGBChannels {
 			destination := row*temporalWidth + color*patchArea
-			pair := source[color*temporalPatchFrames*patchArea:]
+			pair := source[color*tensor.PairedExtent*patchArea:]
 			copy(first[destination:destination+patchArea], pair[:patchArea])
-			copy(second[destination:destination+patchArea], pair[patchArea:temporalPatchFrames*patchArea])
+			copy(second[destination:destination+patchArea], pair[patchArea:tensor.PairedExtent*patchArea])
 		}
 	}
 	return first, second, temporalWidth, nil

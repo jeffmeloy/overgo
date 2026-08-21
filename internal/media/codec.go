@@ -2,6 +2,21 @@ package media
 
 import "fmt"
 
+const maximumDiagnosticBytes = 64 << 10
+
+type DiagnosticBuffer struct{ data []byte }
+
+func (w *DiagnosticBuffer) Write(data []byte) (int, error) {
+	written := len(data)
+	remaining := maximumDiagnosticBytes - len(w.data)
+	if remaining > 0 {
+		w.data = append(w.data, data[:min(len(data), remaining)]...)
+	}
+	return written, nil
+}
+
+func (w *DiagnosticBuffer) String() string { return string(w.data) }
+
 // CodecOperator: typed media-codec stage.
 type CodecOperator uint8
 

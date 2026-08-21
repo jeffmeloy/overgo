@@ -7,7 +7,7 @@ func TestGemma4TowerAudioPlanReused(t *testing.T) {
 		MelBins: 4, FFTLength: 8, FrameLength: 4, HopLength: 2, SampleRate: 8,
 		MinFrequency: 0, MaxFrequency: 4, MelFloor: 1e-6,
 	}
-	plan := newGemma4AudioFrontendPlan(spec)
+	plan := newAudioFrontendPlan(spec)
 	window := &plan.window[0]
 	basis := &plan.cosine[0]
 	filterbank := &plan.filterbank[0]

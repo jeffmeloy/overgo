@@ -143,7 +143,7 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 		}
 	}
 	output, err := runner.EncodeImage(context.Background(), input, Qwen3VLPreprocessOptions{
-		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -177,7 +177,7 @@ func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
 	}
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	output, err := runner.EncodeImage(context.Background(), input, Qwen3VLPreprocessOptions{
-		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -205,7 +205,7 @@ func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
 	}
 	defer cuda.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	options := Qwen3VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}
+	options := Qwen3VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
 	want, err := cpu.EncodeImage(context.Background(), input, options)
 	if err != nil {
 		t.Fatal(err)
@@ -316,7 +316,7 @@ func TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	options := Qwen3VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio}
+	options := Qwen3VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
 	wantImage, err := cpu.EncodeImage(context.Background(), input, options)
 	if err != nil {
 		t.Fatal(err)
@@ -362,7 +362,7 @@ func TestPreprocessQwen3VLImageMergedOrder(t *testing.T) {
 		}
 	}
 	processed, err := PreprocessQwen3VLImage(input, spec, Qwen3VLPreprocessOptions{
-		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -395,7 +395,7 @@ func TestPreprocessQwen3VLFramesTemporalOrder(t *testing.T) {
 		frames[index] = frame
 	}
 	processed, err := PreprocessQwen3VLFrames(frames, spec, Qwen3VLPreprocessOptions{
-		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget, MaxAspectRatio: fixtureMaxAspectRatio,
+		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
 		t.Fatal(err)

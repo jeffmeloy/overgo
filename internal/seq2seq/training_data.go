@@ -389,7 +389,7 @@ func NewTrainer(model *Model, steps int, baseLR, momentum float64) (*Trainer, er
 		return nil, err
 	}
 	if baseLR <= 0 {
-		baseLR = optimizer.DeriveBaseLR(layout.count)
+		baseLR = trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(layout.count)
 	}
 	weights := make([]float32, layout.count)
 	for _, binding := range bindings {

@@ -14,6 +14,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
+	"overgo/internal/trainingprogram"
 )
 
 func TestRealCheckpointStructuredImageTraining(t *testing.T) {
@@ -45,7 +46,7 @@ func TestRealCheckpointStructuredImageTraining(t *testing.T) {
 	for _, values := range model.raw {
 		parameters += len(values)
 	}
-	baseLR := optimizer.DeriveBaseLR(parameters)
+	baseLR := trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(parameters)
 	trainer, err := NewTrainer(model, optimizer.Config{BaseLearningRate: baseLR, Momentum: 0.9, Schedule: optimizer.ScheduleConstant})
 	if err != nil {
 		t.Fatal(err)

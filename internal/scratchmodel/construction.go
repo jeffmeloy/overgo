@@ -61,7 +61,7 @@ func AdaptiveDerivationProfile() DerivationProfile {
 		Version:          "adaptive-corpus-derivation-v1",
 		SplitDenominator: 10, StableSplitMinimum: 30,
 		MinimumLayers: 2, MinimumMLPFactor: 2, MLPBudget: 256,
-		Epsilon: 1e-8, MuonMomentum: optimizer.DeriveMomentum(),
+		Epsilon: 1e-8, MuonMomentum: trainingprogram.BuiltinOptimizerPolicy().Momentum(),
 	})
 	if err != nil {
 		panic(err)

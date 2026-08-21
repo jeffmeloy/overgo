@@ -30,11 +30,12 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/hybridtrain"
 	"overgo/internal/model"
-	"overgo/internal/optimizer"
 	"overgo/internal/processmeasure"
 	"overgo/internal/quant"
+	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -146,10 +147,24 @@ func run() error {
 		}
 	}
 	total := trained.MatrixParamCount() + trained.VectorParamCount()
-	config := optimizer.Config{
-		BaseLearningRate: optimizer.DeriveBaseLR(total),
-		Momentum:         optimizer.DeriveMomentum(),
-		Schedule:         optimizer.ScheduleConstant,
+	recipeContent, ok, err := store.Content(ctx, recipeID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("training recipe content unavailable: %s", recipeID)
+	}
+	definition, err := recipe.ParseDefinition(recipeContent.Data)
+	if err != nil {
+		return err
+	}
+	optimizerPolicy, err := trainingprogram.OptimizerPolicyFromRecipe(ctx, store, definition)
+	if err != nil {
+		return err
+	}
+	config, err := optimizerPolicy.Config(total)
+	if err != nil {
+		return err
 	}
 	fmt.Printf("stack census: %d layers (%d attention, %d recurrent)\n", len(trained.Cfg.Types), attention, recurrent)
 	fmt.Printf("trainable parameters: %d matrix + %d vector = %d total\n",

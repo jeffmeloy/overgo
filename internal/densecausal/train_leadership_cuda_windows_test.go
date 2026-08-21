@@ -176,7 +176,7 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	result, err := model.TrainDeviceResident(worker, slices.Repeat([][]int{tokens}, 4), 0, 0.95, DeviceTrainingOptions{FrozenLexical: true})
+	result, err := model.TrainDeviceResident(worker, slices.Repeat([][]int{tokens}, 4), derivedTestLearningRate(t, model), 0.95, DeviceTrainingOptions{FrozenLexical: true})
 	wall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)

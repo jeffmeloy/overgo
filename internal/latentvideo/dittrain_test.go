@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
 // ditTestConfig: tiny synthetic diffusion transformer exercising every graph
@@ -81,7 +81,7 @@ func ditTestTrainer(t *testing.T) (*DiTTrainer, DiTTrainBatch) {
 
 func TestDiTTrainerDerivedHyperparameters(t *testing.T) {
 	trainer, _ := ditTestTrainer(t)
-	want := optimizer.DeriveBaseLR(trainer.ParameterCount())
+	want := trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(trainer.ParameterCount())
 	if trainer.Config().BaseLearningRate != want {
 		t.Fatalf("base LR %g, want derived %g", trainer.Config().BaseLearningRate, want)
 	}

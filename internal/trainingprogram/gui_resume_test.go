@@ -45,7 +45,8 @@ func TestGUIResumeRequiresExactAuthority(t *testing.T) {
 		Processors: []artifact.ID{processorID}, Program: program,
 		Policies: PolicySpec{
 			Objective: profile("objective"), Precision: profile("precision"), Placement: profile("placement"),
-			Memory: profile("memory"), Checkpoint: profile("checkpoint"), Evaluation: profile("evaluation"), Promotion: profile("promotion"),
+			Memory: profile("memory"), Optimizer: BuiltinOptimizerPolicy().ID,
+			Checkpoint: profile("checkpoint"), Evaluation: profile("evaluation"), Promotion: profile("promotion"),
 		},
 	})
 	if err != nil {

@@ -19,6 +19,7 @@ import (
 
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
 // MoTTarget: one supervised position — the prompt row whose next token is
@@ -118,8 +119,8 @@ func NewModalityTransformerTrainer(cfg Config, layers []LayerWeights, finalNorm 
 		weights:   make([]float32, total),
 		gradients: make([]float32, total),
 		config: optimizer.Config{
-			BaseLearningRate: optimizer.DeriveBaseLR(total),
-			Momentum:         optimizer.DeriveMomentum(),
+			BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(total),
+			Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
 			Schedule:         optimizer.ScheduleConstant,
 		},
 	}

@@ -102,7 +102,8 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 		Processors: objective.Processors, Projectors: objective.Projectors, Codecs: objective.Codecs,
 		Policies: PolicySpec{
 			Objective: objective.ID, Precision: profile("precision"), Placement: profile("placement"),
-			Memory: profile("memory"), Checkpoint: profile("checkpoint"), Evaluation: objective.Evaluation,
+			Memory: profile("memory"), Optimizer: BuiltinOptimizerPolicy().ID,
+			Checkpoint: profile("checkpoint"), Evaluation: objective.Evaluation,
 			Promotion: profile("promotion"),
 		},
 		Program: program,
@@ -110,7 +111,7 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "run-policies", Artifacts: []artifact.Descriptor{
 		{ID: spec.Policies.Precision}, {ID: spec.Policies.Placement}, {ID: spec.Policies.Memory},
 		{ID: spec.Policies.Checkpoint}, {ID: spec.Policies.Promotion},
-	}}); err != nil {
+	}, Contents: []artifact.Content{mustOptimizerPolicyContent(t)}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := CompileTrainingRunPlanFromRepository(ctx, store, spec); err != nil {
@@ -120,6 +121,15 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 	if _, err := CompileTrainingRunPlanFromRepository(ctx, store, spec); err == nil {
 		t.Fatal("run with a different modality signature accepted")
 	}
+}
+
+func mustOptimizerPolicyContent(t *testing.T) artifact.Content {
+	t.Helper()
+	content, err := BuiltinOptimizerPolicy().Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return content
 }
 
 func TestCompileObjectiveProgramDerivesOptimizerParameters(t *testing.T) {

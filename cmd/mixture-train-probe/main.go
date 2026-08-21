@@ -23,6 +23,7 @@ import (
 	"overgo/internal/densecausal"
 	"overgo/internal/hfbpe"
 	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
 func main() {
@@ -69,11 +70,13 @@ func run(modelDir, datasetPath string, steps, seq int, maxWall time.Duration) er
 	}
 	window := tokens[:seq]
 
-	plan, baseLR, err := model.TrainingPlan(0)
+	plan, err := model.TrainingPlan()
 	if err != nil {
 		return err
 	}
-	momentum := optimizer.DeriveMomentum()
+	policy := trainingprogram.BuiltinOptimizerPolicy()
+	baseLR := policy.BaseLearningRate(plan.ParameterCount())
+	momentum := policy.Momentum()
 	weights := make([]float32, plan.ParameterCount())
 	gradients := make([]float32, plan.ParameterCount())
 	// The flat buffers are optimizer storage only: the model's compiled layer

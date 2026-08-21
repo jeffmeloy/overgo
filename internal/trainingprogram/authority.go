@@ -5,7 +5,6 @@ package trainingprogram
 import (
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"sort"
 	"strings"
@@ -137,8 +136,7 @@ type PreferencePolicy struct {
 }
 
 func (policy PreferencePolicy) Validate() error {
-	if policy.Reference.Kind() != artifact.KindModel || policy.Scale <= 0 ||
-		math.IsNaN(policy.Scale) || math.IsInf(policy.Scale, 0) {
+	if policy.Reference.Kind() != artifact.KindModel || policy.Scale <= 0 || !finite(policy.Scale) {
 		return errors.New("training program: DPO requires reference model and finite positive scale")
 	}
 	return nil
@@ -223,6 +221,7 @@ type PolicySpec struct {
 	Precision  artifact.ID
 	Placement  artifact.ID
 	Memory     artifact.ID
+	Optimizer  artifact.ID
 	Checkpoint artifact.ID
 	Evaluation artifact.ID
 	Promotion  artifact.ID
@@ -230,7 +229,7 @@ type PolicySpec struct {
 
 var policyDependencyRoles = []recipe.DependencyRole{
 	recipe.DependencyObjective, recipe.DependencyPrecision, recipe.DependencyPlacement,
-	recipe.DependencyMemory, recipe.DependencyCheckpointPolicy, recipe.DependencyEvaluation,
+	recipe.DependencyMemory, recipe.DependencyOptimizer, recipe.DependencyCheckpointPolicy, recipe.DependencyEvaluation,
 	recipe.DependencyPromotion,
 }
 
@@ -245,7 +244,7 @@ func PoliciesFromRecipe(definition recipe.Definition) (PolicySpec, error) {
 	}
 	return PolicySpec{
 		Objective: ids[0], Precision: ids[1], Placement: ids[2], Memory: ids[3],
-		Checkpoint: ids[4], Evaluation: ids[5], Promotion: ids[6],
+		Optimizer: ids[4], Checkpoint: ids[5], Evaluation: ids[6], Promotion: ids[7],
 	}, nil
 }
 
@@ -471,7 +470,7 @@ func compileIDs(label string, source []artifact.ID, kind artifact.Kind) ([]artif
 }
 
 func validatePolicies(spec PolicySpec) error {
-	for _, id := range []artifact.ID{spec.Objective, spec.Precision, spec.Placement, spec.Memory, spec.Checkpoint, spec.Evaluation, spec.Promotion} {
+	for _, id := range []artifact.ID{spec.Objective, spec.Precision, spec.Placement, spec.Memory, spec.Optimizer, spec.Checkpoint, spec.Evaluation, spec.Promotion} {
 		if id.Kind() != artifact.KindProfile {
 			return errors.New("training program: invalid policy identity")
 		}

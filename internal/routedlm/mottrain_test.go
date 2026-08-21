@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
 // motTestConfig: tiny branch-routed stack exercising every graph piece —
@@ -93,7 +93,7 @@ func motTestTrainer(t *testing.T) (*ModalityTransformerTrainer, []float32, []int
 
 func TestModalityTransformerDerivedHyperparameters(t *testing.T) {
 	trainer, _, _, _ := motTestTrainer(t)
-	want := optimizer.DeriveBaseLR(trainer.ParameterCount())
+	want := trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(trainer.ParameterCount())
 	if trainer.Config().BaseLearningRate != want {
 		t.Fatalf("base LR %g, want derived %g", trainer.Config().BaseLearningRate, want)
 	}

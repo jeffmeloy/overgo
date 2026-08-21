@@ -71,7 +71,7 @@ func TestGRPOUsesSharedRecipeTrainingRuntime(t *testing.T) {
 	var observed []trainingprogram.GRPOObservation
 	result, err := Execute(context.Background(), Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
-		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Host: true, Momentum: 0.9,
+		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Host: true,
 		ObjectiveScale: 1, ObserveGRPO: func(value trainingprogram.GRPOObservation) { observed = append(observed, value) },
 	})
 	if err != nil {
@@ -98,7 +98,7 @@ func testTokenSession(t *testing.T) {
 	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveTokenPrediction)
 	result, err := Execute(context.Background(), Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
-		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Host: true, Momentum: 0.9,
+		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Host: true,
 	})
 	if err != nil || result.Objective != trainingprogram.ObjectiveTokenPrediction ||
 		len(result.Losses) != 1 || result.Checkpoint.ID().Kind() != artifact.KindCheckpoint {
@@ -123,7 +123,7 @@ func testDPOResume(t *testing.T) {
 	request := Request{
 		Repository: store, Recipe: recipeID,
 		ModelDirectory: policy, ReferenceDirectory: reference, DatasetPath: dataset,
-		Steps: 2, LearningRate: 0, Momentum: 0.9, ObjectiveScale: 0.1, Host: true,
+		Steps: 2, ObjectiveScale: 0.1, Host: true,
 	}
 	request.OutputDirectory = filepath.Join(root, "uninterrupted")
 	want, err := Execute(context.Background(), request)
@@ -238,6 +238,8 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 		Precision: profile(prefix + "precision"), Placement: profile(prefix + "placement"), Memory: profile(prefix + "memory"),
 		Checkpoint: profile(prefix + "checkpoint"), Evaluation: evaluation, Promotion: profile(prefix + "promotion"),
 	}
+	optimizerPolicy := trainingprogram.BuiltinOptimizerPolicy()
+	policies.Optimizer = optimizerPolicy.ID
 	loss, evidence := profile(prefix+"loss"), testutil.ArtifactID(t, artifact.KindEvidence, prefix+"evidence")
 	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: string(objectiveKind), Kind: objectiveKind,
@@ -257,6 +259,10 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 	if err != nil {
 		t.Fatal(err)
 	}
+	optimizerContent, err := optimizerPolicy.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
 	ids := []artifact.ID{
 		policy, dataset, split, processor, loss, evidence, policies.Precision,
 		policies.Placement, policies.Memory, policies.Checkpoint, policies.Evaluation, policies.Promotion,
@@ -269,7 +275,7 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 	for index, id := range ids {
 		descriptors[index] = artifact.Descriptor{ID: id}
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "training/workflow/authority", Artifacts: descriptors, Contents: []artifact.Content{content}}); err != nil {
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "training/workflow/authority", Artifacts: descriptors, Contents: []artifact.Content{content, optimizerContent}}); err != nil {
 		t.Fatal(err)
 	}
 	dependencies := append([]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: policy}}, policyDependencies(policies)...)
@@ -371,6 +377,7 @@ func policyDependencies(spec trainingprogram.PolicySpec) []recipe.Dependency {
 		{Role: recipe.DependencyPrecision, Artifact: spec.Precision},
 		{Role: recipe.DependencyPlacement, Artifact: spec.Placement},
 		{Role: recipe.DependencyMemory, Artifact: spec.Memory},
+		{Role: recipe.DependencyOptimizer, Artifact: spec.Optimizer},
 		{Role: recipe.DependencyCheckpointPolicy, Artifact: spec.Checkpoint},
 		{Role: recipe.DependencyEvaluation, Artifact: spec.Evaluation},
 		{Role: recipe.DependencyPromotion, Artifact: spec.Promotion},

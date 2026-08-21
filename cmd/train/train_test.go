@@ -24,13 +24,23 @@ func TestTrainCommandUsesNativeWorkflow(t *testing.T) {
 	if !imports["overgo/internal/trainingworkflow"] || imports["overgo/internal/densecausal"] || imports["overgo/internal/trainingprogram"] {
 		t.Fatalf("command imports=%v", imports)
 	}
-	declarations := 0
-	for _, declaration := range file.Decls {
-		if _, ok := declaration.(*ast.FuncDecl); ok {
-			declarations++
+	executesWorkflow := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
 		}
-	}
-	if declarations != 3 {
-		t.Fatalf("command function count=%d", declarations)
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		owner, ownerOK := selector.X.(*ast.Ident)
+		if ownerOK && owner.Name == "trainingworkflow" && selector.Sel.Name == "Execute" {
+			executesWorkflow = true
+		}
+		return true
+	})
+	if !executesWorkflow {
+		t.Fatal("command does not execute the native training workflow")
 	}
 }

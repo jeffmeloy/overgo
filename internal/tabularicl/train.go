@@ -60,7 +60,7 @@ func NewTrainer(head *Head, config optimizer.Config) (*Trainer, error) {
 		return nil, err
 	}
 	if config.BaseLearningRate <= 0 {
-		config.BaseLearningRate = optimizer.DeriveBaseLR(pack.ParameterCount())
+		config.BaseLearningRate = trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(pack.ParameterCount())
 	}
 	gradients := pack.BindMapViews(tensors)
 	head.decL0W, head.decL0B = tensors[decoderInputWeight], tensors[decoderInputBias]

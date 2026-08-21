@@ -383,6 +383,9 @@ func CompileTrainingRunPlanFromRepository(ctx context.Context, reader artifact.R
 			return TrainingRunPlan{}, fmt.Errorf("training objective: policy %s absent", id)
 		}
 	}
+	if _, err := RequireOptimizerPolicy(ctx, reader, spec.Policies.Optimizer); err != nil {
+		return TrainingRunPlan{}, err
+	}
 	objective, err := resolveObjective(ctx, reader, spec.Policies.Objective)
 	if err != nil {
 		return TrainingRunPlan{}, err

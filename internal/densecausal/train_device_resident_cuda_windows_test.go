@@ -27,11 +27,11 @@ func TestTrainDeviceResidentMatchesHost(t *testing.T) {
 	const steps = 12
 
 	batches := slices.Repeat([][]int{tokens}, steps)
-	trajHost, _, err := mHost.Train(batches, 0, 0.9, nil, nil)
+	trajHost, _, err := mHost.Train(batches, derivedTestLearningRate(t, mHost), 0.9, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	deviceResult, err := mDev.TrainDeviceResident(worker, batches, 0, 0.9, DeviceTrainingOptions{})
+	deviceResult, err := mDev.TrainDeviceResident(worker, batches, derivedTestLearningRate(t, mDev), 0.9, DeviceTrainingOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,11 +68,11 @@ func TestTrainDeviceResidentQwen2BiasMatchesHost(t *testing.T) {
 	host := modelFromGolden(t, golden)
 	resident := modelFromGolden(t, golden)
 	batches := slices.Repeat([][]int{golden.Tokens}, 2)
-	wantTrajectory, wantState, err := host.Train(batches, 0, 0.9, nil, nil)
+	wantTrajectory, wantState, err := host.Train(batches, derivedTestLearningRate(t, host), 0.9, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	deviceResult, err := resident.TrainDeviceResident(worker, batches, 0, 0.9, DeviceTrainingOptions{})
+	deviceResult, err := resident.TrainDeviceResident(worker, batches, derivedTestLearningRate(t, resident), 0.9, DeviceTrainingOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
 		t.Fatal(err)
 	}
 	embedBefore := slices.Clone(model.tensors.embedding.values)
-	deviceResult, err := model.TrainDeviceResident(worker, slices.Repeat([][]int{tokens}, 8), 0, 0.9, DeviceTrainingOptions{FrozenLexical: true})
+	deviceResult, err := model.TrainDeviceResident(worker, slices.Repeat([][]int{tokens}, 8), derivedTestLearningRate(t, model), 0.9, DeviceTrainingOptions{FrozenLexical: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,16 +130,16 @@ func TestTrainDeviceResidentResumeExact(t *testing.T) {
 	defer worker.Close()
 	batches := [][]int{{1, 5, 9, 3, 7, 2, 11, 4}, {4, 11, 2, 7, 3, 9, 5, 1}}
 	uninterrupted := tinyMuonModel(t)
-	want, err := uninterrupted.TrainDeviceResident(worker, batches, 0, 0.9, DeviceTrainingOptions{})
+	want, err := uninterrupted.TrainDeviceResident(worker, batches, derivedTestLearningRate(t, uninterrupted), 0.9, DeviceTrainingOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	resumed := tinyMuonModel(t)
-	first, err := resumed.TrainDeviceResident(worker, batches[:1], 0, 0.9, DeviceTrainingOptions{})
+	first, err := resumed.TrainDeviceResident(worker, batches[:1], derivedTestLearningRate(t, resumed), 0.9, DeviceTrainingOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := resumed.TrainDeviceResident(worker, batches[1:], 0, 0.9, DeviceTrainingOptions{Resume: &first.State})
+	got, err := resumed.TrainDeviceResident(worker, batches[1:], derivedTestLearningRate(t, resumed), 0.9, DeviceTrainingOptions{Resume: &first.State})
 	if err != nil {
 		t.Fatal(err)
 	}

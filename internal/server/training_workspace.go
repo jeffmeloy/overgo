@@ -56,8 +56,6 @@ func (workspace *TrainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 			{Name: "resume", Type: WorkflowControlCheckpoint},
 			{Name: "output", Type: WorkflowControlOutput, Required: true},
 			{Name: "steps", Type: WorkflowControlInteger, Required: true},
-			{Name: "learning_rate", Type: WorkflowControlNumber, Required: true},
-			{Name: "momentum", Type: WorkflowControlNumber, Required: true},
 			{Name: "objective_scale", Type: WorkflowControlNumber, Required: true},
 		},
 	}}, nil
@@ -68,8 +66,6 @@ type trainingWorkflowInput struct {
 	Resume         artifact.ID `json:"resume,omitempty"`
 	Output         string      `json:"output"`
 	Steps          int         `json:"steps"`
-	LearningRate   float64     `json:"learning_rate"`
-	Momentum       float64     `json:"momentum"`
 	ObjectiveScale float64     `json:"objective_scale"`
 }
 
@@ -136,7 +132,7 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 		Recipe:         recipeID,
 		ModelDirectory: policyDirectory, ReferenceDirectory: referenceDirectory,
 		DatasetPath: datasetPath, OutputDirectory: output, ResumeDirectory: resumeDirectory,
-		Steps: input.Steps, LearningRate: input.LearningRate, Momentum: input.Momentum,
+		Steps:          input.Steps,
 		ObjectiveScale: input.ObjectiveScale, Host: true,
 		ObserveDPO: func(observation trainingprogram.DPOObservation) {
 			dpo = append(dpo, observation)

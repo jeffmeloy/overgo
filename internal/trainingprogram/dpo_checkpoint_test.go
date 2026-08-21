@@ -46,7 +46,7 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 		Processors: []artifact.ID{processor}, Program: program,
 		Policies: PolicySpec{
 			Objective: profile("dpo-objective"), Precision: profile("dpo-precision"),
-			Placement: profile("dpo-placement"), Memory: profile("dpo-memory"),
+			Placement: profile("dpo-placement"), Memory: profile("dpo-memory"), Optimizer: BuiltinOptimizerPolicy().ID,
 			Checkpoint: profile("dpo-checkpoint"), Evaluation: profile("dpo-evaluation"),
 			Promotion: profile("dpo-promotion"),
 		},

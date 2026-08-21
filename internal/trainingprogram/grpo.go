@@ -42,7 +42,7 @@ func (observation GRPOObservation) Valid() bool {
 		return false
 	}
 	for _, value := range values {
-		if math.IsNaN(value) || math.IsInf(value, 0) {
+		if !finite(value) {
 			return false
 		}
 	}
@@ -51,12 +51,12 @@ func (observation GRPOObservation) Valid() bool {
 
 // GRPOLoss: centered, RMS-normalized group reward objective.
 func GRPOLoss(group []GroupedScore, scale float64) (GRPOResult, error) {
-	if len(group) < 2 || scale <= 0 || math.IsNaN(scale) || math.IsInf(scale, 0) {
+	if len(group) < 2 || scale <= 0 || !finite(scale) {
 		return GRPOResult{}, errors.New("training program: invalid GRPO group or scale")
 	}
 	var mean float64
 	for _, item := range group {
-		if !item.Score.Valid() || math.IsNaN(item.Reward) || math.IsInf(item.Reward, 0) {
+		if !item.Score.Valid() || !finite(item.Reward) {
 			return GRPOResult{}, errors.New("training program: invalid GRPO score or reward")
 		}
 		mean += item.Reward

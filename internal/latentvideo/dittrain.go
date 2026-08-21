@@ -21,6 +21,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/optimizer"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/trainingprogram"
 )
 
 // DiTTrainStepResult: measured facts of one observed full-DiT training step.
@@ -181,8 +182,8 @@ func NewDiTTrainer(cfg DenoiserConfig, textDim int, geometry LatentGeometry, ten
 		delete(tensors, spec.name)
 	}
 	trainer.optCfg = optimizer.Config{
-		BaseLearningRate: optimizer.DeriveBaseLR(total),
-		Momentum:         optimizer.DeriveMomentum(),
+		BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(total),
+		Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
 		Schedule:         optimizer.ScheduleConstant,
 	}
 	trainer.stepper, err = optimizer.NewStepper(trainer.weights, trainer.gradients, compiled, trainer.optCfg)

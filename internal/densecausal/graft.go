@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
 // Graft composes a frozen donor MLP into a frozen target model behind a
@@ -225,7 +226,7 @@ func (m *Model) TrainBridge(gr *Graft, batches [][]int, baseLR, mu float64, step
 		return nil, err
 	}
 	if baseLR <= 0 {
-		baseLR = optimizer.DeriveBaseLR(len(weights))
+		baseLR = trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(len(weights))
 	}
 	opt, err := optimizer.New(weights, gradients, plan, optimizer.Config{
 		BaseLearningRate: baseLR, Momentum: mu, Schedule: optimizer.ScheduleConstant,

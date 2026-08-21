@@ -157,15 +157,20 @@ func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Repos
 		Processors: objective.Processors, Projectors: objective.Projectors, Codecs: objective.Codecs,
 		Policies: trainingprogram.PolicySpec{
 			Objective: composition.ID, Precision: profile("precision"), Placement: profile("placement"),
-			Memory: profile("memory"), Checkpoint: profile("checkpoint"), Evaluation: objective.Evaluation,
+			Memory: profile("memory"), Optimizer: trainingprogram.BuiltinOptimizerPolicy().ID,
+			Checkpoint: profile("checkpoint"), Evaluation: objective.Evaluation,
 			Promotion: profile("promotion"),
 		},
 		Program: program,
 	}
+	optimizerContent, err := trainingprogram.BuiltinOptimizerPolicy().Content()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "composed-run-policies", Artifacts: []artifact.Descriptor{
 		{ID: spec.Policies.Precision}, {ID: spec.Policies.Placement}, {ID: spec.Policies.Memory},
 		{ID: spec.Policies.Checkpoint}, {ID: spec.Policies.Promotion},
-	}}); err != nil {
+	}, Contents: []artifact.Content{optimizerContent}}); err != nil {
 		t.Fatal(err)
 	}
 	_, err = trainingprogram.CompileTrainingRunPlanFromRepository(ctx, store, spec)

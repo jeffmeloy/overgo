@@ -209,7 +209,7 @@ func LoadArtifact(ctx context.Context, path string, layer uint32) (*Model, model
 	if err != nil {
 		return nil, model.ModelPlan{}, err
 	}
-	m.config = optimizer.Config{BaseLearningRate: optimizer.DeriveBaseLR(len(m.weights)), Schedule: optimizer.ScheduleConstant}
+	m.config = optimizer.Config{BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(len(m.weights)), Schedule: optimizer.ScheduleConstant}
 	m.program, err = trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
 		Objective: trainingprogram.ObjectiveTokenPrediction,
 		Operators: []trainingprogram.OperatorSpec{

@@ -16,6 +16,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/seriesforecast"
 	"overgo/internal/trainingdata"
+	"overgo/internal/trainingprogram"
 )
 
 func main() {
@@ -55,7 +56,7 @@ func run(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Dura
 	if err != nil {
 		return err
 	}
-	trainer, err := seriesforecast.NewTrainer(model, optimizer.Config{Momentum: optimizer.DeriveMomentum()})
+	trainer, err := seriesforecast.NewTrainer(model, optimizer.Config{Momentum: trainingprogram.BuiltinOptimizerPolicy().Momentum()})
 	if err != nil {
 		return err
 	}

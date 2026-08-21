@@ -84,7 +84,7 @@ func TestCompiledTrainingAuthority(t *testing.T) {
 		Processors: []artifact.ID{processorB, processorA},
 		Policies: PolicySpec{
 			Objective: profile("causal-objective"), Precision: profile("fp32"),
-			Placement: profile("resident-device"), Memory: profile("resident-memory"),
+			Placement: profile("resident-device"), Memory: profile("resident-memory"), Optimizer: BuiltinOptimizerPolicy().ID,
 			Checkpoint: profile("exact-checkpoint"), Evaluation: profile("heldout-evaluation"),
 			Promotion: profile("champion-challenger"),
 		},

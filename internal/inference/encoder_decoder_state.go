@@ -8,7 +8,6 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/statecodec"
-	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
 
@@ -66,8 +65,8 @@ func (r *Runner) LoadEncoderDecoderSession(data []byte) (*EncoderDecoderSession,
 	if decoder.Err() != nil {
 		return nil, errors.New("inference: encoder-decoder session is truncated")
 	}
-	if width != uint64(r.spec.EmbeddingLength) || tokens == 0 ||
-		(r.spec.ContextLength > 0 && tokens > uint64(r.spec.ContextLength)) {
+	geometry, contractErr := r.spec.CompileSequenceState(width, tokens)
+	if contractErr != nil {
 		return nil, errors.New("inference: encoder-decoder state shape is incompatible")
 	}
 	elements, ok := checked.Mul64(width, tokens)
@@ -83,7 +82,7 @@ func (r *Runner) LoadEncoderDecoderSession(data []byte) (*EncoderDecoderSession,
 		return nil, errors.New("inference: encoder-decoder payload lengths are invalid")
 	}
 	encoder := reference.Value{
-		Shape: tensor.MustShape(width, tokens),
+		Shape: geometry,
 		Data:  make([]float32, int(elements)),
 	}
 	for index := range encoder.Data {
@@ -111,19 +110,18 @@ func (r *Runner) validateEncoderDecoderSession(session *EncoderDecoderSession) e
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return errors.New("inference: session requires a compiled encoder-decoder program")
 	}
-	if session == nil || session.Encoder.Shape.Rank != 2 ||
-		session.Encoder.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) ||
-		session.Encoder.Shape.Dims[1] == 0 {
+	if session == nil {
 		return errors.New("inference: encoder state shape is incompatible")
 	}
-	if r.spec.ContextLength > 0 && session.Encoder.Shape.Dims[1] > uint64(r.spec.ContextLength) {
-		return errors.New("inference: encoder state exceeds context length")
+	encoderTokens, contractErr := r.spec.ValidateSequenceState(session.Encoder)
+	if contractErr != nil {
+		return errors.New("inference: encoder state shape is incompatible")
 	}
 	if err := validateStateValue(session.Encoder); err != nil {
 		return fmt.Errorf("inference: encoder state: %w", err)
 	}
 	if session.Cache != nil {
-		return r.validateEncoderDecoderCache(session.Cache, session.Encoder.Shape.Dims[1])
+		return r.validateEncoderDecoderCache(session.Cache, encoderTokens)
 	}
 	return nil
 }

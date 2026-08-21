@@ -13,7 +13,7 @@ func TestEncoderDecoderBatchRejectsInvalidSourceMask(t *testing.T) {
 	_, _, err := runner.DecodeEncoderDecoderBatch(
 		context.Background(),
 		&EncoderDecoderBatchSession{Sequences: []*EncoderDecoderSession{{}}},
-		PaddedTokenBatch{
+		tokenizer.PaddedBatch{
 			Tokens: [][]tokenizer.TokenID{{1}}, Lengths: []uint32{1},
 		},
 	)
@@ -23,16 +23,16 @@ func TestEncoderDecoderBatchRejectsInvalidSourceMask(t *testing.T) {
 }
 
 func TestValidatePaddedTokenBatchMasksSuffixes(t *testing.T) {
-	batch := PaddedTokenBatch{
+	batch := tokenizer.PaddedBatch{
 		Tokens: [][]tokenizer.TokenID{
 			{1, 2, 0, 0},
 			{3, 4, 5, 0},
 		},
 		Lengths: []uint32{2, 3},
 	}
-	width, err := validatePaddedTokenBatch(batch, 2)
-	if err != nil || width != 4 {
-		t.Fatalf("validation = width %d error %v", width, err)
+	layout, err := batch.Layout(2)
+	if err != nil || layout.Width != 4 {
+		t.Fatalf("validation = width %d error %v", layout.Width, err)
 	}
 	for index, length := range batch.Lengths {
 		active := batch.Tokens[index][:length]
@@ -43,7 +43,7 @@ func TestValidatePaddedTokenBatchMasksSuffixes(t *testing.T) {
 }
 
 func TestValidatePaddedTokenBatchRejectsInvalidMasks(t *testing.T) {
-	tests := []PaddedTokenBatch{
+	tests := []tokenizer.PaddedBatch{
 		{},
 		{Tokens: [][]tokenizer.TokenID{{1}}, Lengths: nil},
 		{Tokens: [][]tokenizer.TokenID{{1}, {2, 3}}, Lengths: []uint32{1, 2}},
@@ -51,13 +51,13 @@ func TestValidatePaddedTokenBatchRejectsInvalidMasks(t *testing.T) {
 		{Tokens: [][]tokenizer.TokenID{{1}}, Lengths: []uint32{2}},
 	}
 	for index, batch := range tests {
-		if _, err := validatePaddedTokenBatch(batch, 0); err == nil {
+		if _, err := batch.Layout(0); err == nil {
 			t.Fatalf("invalid batch %d accepted", index)
 		}
 	}
-	_, err := validatePaddedTokenBatch(PaddedTokenBatch{
+	_, err := (tokenizer.PaddedBatch{
 		Tokens: [][]tokenizer.TokenID{{1}}, Lengths: []uint32{1},
-	}, 2)
+	}).Layout(2)
 	if err == nil || !strings.Contains(err.Error(), "need 2") {
 		t.Fatalf("row-count error = %v", err)
 	}

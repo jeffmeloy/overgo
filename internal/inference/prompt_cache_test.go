@@ -242,7 +242,7 @@ func TestShiftDeviceCacheForAppendUsesPointerView(t *testing.T) {
 	}
 	cache := fixture.cache()
 	cache.Position = fixturePosition
-	if err := runner.shiftDeviceCacheForAppend(cache, fixtureDiscard); err != nil {
+	if err := runner.shiftDeviceCacheForAppendPolicy(cache, fixtureDiscard, -1); err != nil {
 		t.Fatal(err)
 	}
 	wantTokens := fixtureTokens - fixtureDiscard
@@ -272,7 +272,7 @@ func TestShiftDeviceCachePreservesRecurrentState(t *testing.T) {
 		Tokens:   2,
 		Position: 5,
 	}
-	if err := runner.shiftDeviceCacheForAppend(cache, 1); err != nil {
+	if err := runner.shiftDeviceCacheForAppendPolicy(cache, 1, -1); err != nil {
 		t.Fatal(err)
 	}
 	if cache.Tokens != 1 ||

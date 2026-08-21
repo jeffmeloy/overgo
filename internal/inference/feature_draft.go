@@ -81,7 +81,10 @@ func (r *Runner) AdvanceFeatureDraft(
 	tokenID tokenizer.TokenID,
 	session *FeatureDraftSession,
 ) (reference.Value, *FeatureDraftSession, error) {
-	if session == nil || session.PendingFeature.Shape.Rank != 2 {
+	if session == nil {
+		return reference.Value{}, nil, errors.New("inference: feature-draft session is invalid")
+	}
+	if err := r.spec.ValidateSequenceRow(session.PendingFeature); err != nil {
 		return reference.Value{}, nil, errors.New("inference: feature-draft session is invalid")
 	}
 	step, err := r.stepFeatureDraft(ctx, target, tokenID, session.PendingFeature, session.Position, session.Cache)
@@ -121,7 +124,7 @@ func (r *Runner) stepFeatureDraft(
 	if tokenID < 0 || int(tokenID) >= target.vocab.Len() {
 		return featureDraftStep{}, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
-	if feature.Shape.Rank != 2 || feature.Shape.Dims[0] != uint64(r.spec.EmbeddingLength) || feature.Shape.Dims[1] != 1 {
+	if err := r.spec.ValidateSequenceRow(feature); err != nil {
 		return featureDraftStep{}, errors.New("inference: feature-draft input shape is incompatible")
 	}
 	if cache != nil && (len(cache.Layers) != 1 || cache.Position != position) {

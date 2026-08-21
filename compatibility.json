@@ -547,7 +547,7 @@
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
      "path": "internal/inference/prompt_cache_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:8aa831bd332bf617300c9f7f669f597c7da503f28fbcd4552cf045e0d84d68bd"
+     "identity": "evidence:sha256:39832535b7c8eb5641d2d96864e4eabf04ae2a5df347236081cbbf6be1bf0741"
     }
    ],
    "id": "editable-prompt-cache",
@@ -974,13 +974,13 @@
      "contains": "func (r *Runner) NewEncoderDecoderBatchSession(",
      "path": "internal/inference/encoder_decoder_batch.go",
      "role": "source",
-     "identity": "file:sha256:31a9e3f17b25d76803308272ba4441c6da6bd3fce8796196f17bbe632304ac09"
+     "identity": "file:sha256:e453df5f1053047c3c11ab1862a544dba9bee03e7f24cb6e74375c73a2070dc6"
     },
     {
      "contains": "func TestValidatePaddedTokenBatchMasksSuffixes(",
      "path": "internal/inference/encoder_decoder_batch_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:8cae89ffee386e9c98e26c4fa01db1b33e738d140580a9768d5b0525e24ed2b3"
+     "identity": "evidence:sha256:56dd5f0fbf6e80a8b61a358cbdab208e58d784790500fcfa7554880da69a90d1"
     }
    ],
    "id": "padded-encoder-decoder-batches",

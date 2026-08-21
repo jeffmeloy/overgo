@@ -23,10 +23,11 @@ func TestMeanPoolNormalized(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	embedding, err := meanPoolNormalized(hidden)
+	vectors, err := poolEmbeddings(hidden, EmbeddingOptions{Pooling: EmbeddingPoolingMean, Normalize: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
+	embedding := vectors[0]
 	want := float32(1 / math.Sqrt(3))
 	for index, value := range embedding {
 		if difference := math.Abs(float64(value - want)); difference > 1e-6 {
@@ -51,10 +52,11 @@ func TestEmbedTokensRejectsEmptyAndOutOfRangeInput(t *testing.T) {
 
 func TestMeanPoolNormalizedPreservesUpstreamZero(t *testing.T) {
 	hidden, _ := reference.NewValue(tensor.MustShape(2, 1), []float32{0, 0})
-	got, err := meanPoolNormalized(hidden)
+	vectors, err := poolEmbeddings(hidden, EmbeddingOptions{Pooling: EmbeddingPoolingMean, Normalize: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
+	got := vectors[0]
 	if len(got) != 2 || got[0] != 0 || got[1] != 0 {
 		t.Fatalf("zero embedding = %v", got)
 	}

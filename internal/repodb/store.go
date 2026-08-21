@@ -22,6 +22,7 @@ var (
 	ErrBatchKeyConflict = errors.New("repodb: batch key already names different content")
 	ErrArtifactConflict = errors.New("repodb: artifact identity has conflicting facts")
 	ErrAliasConflict    = errors.New("repodb: alias compare-and-set failed")
+	ErrHeadConflict     = artifact.ErrCommitPrecondition
 	ErrLineageCycle     = errors.New("repodb: lineage cycle")
 	ErrStoreFaulted     = errors.New("repodb: store requires reopen after uncertain append")
 	ErrSnapshotAnchor   = errors.New("repodb: snapshot anchor is absent from commit chain")
@@ -305,6 +306,9 @@ func open(root string, readOnly bool) (*Store, error) {
 		if err != nil {
 			return err
 		}
+		if batch.ExpectedHead != nil && *batch.ExpectedHead != record.previous {
+			return fmt.Errorf("%w: recorded predecessor differs", ErrHeadConflict)
+		}
 		if _, exists := store.state.commits[batch.Key]; exists {
 			return fmt.Errorf("%w: %q repeats in log", ErrBatchKeyConflict, batch.Key)
 		}
@@ -352,6 +356,9 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 			return committed.id, nil
 		}
 		return artifact.CommitID{}, fmt.Errorf("%w: %q", ErrBatchKeyConflict, normalized.Key)
+	}
+	if normalized.ExpectedHead != nil && *normalized.ExpectedHead != s.head {
+		return artifact.CommitID{}, fmt.Errorf("%w: expected %s, have %s", ErrHeadConflict, *normalized.ExpectedHead, s.head)
 	}
 	if err := s.state.validate(normalized); err != nil {
 		return artifact.CommitID{}, err
@@ -579,13 +586,14 @@ func decodeBatch(payload []byte) (artifact.Batch, [sha256.Size]byte, error) {
 
 func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 	result := artifact.Batch{
-		Key:       batch.Key,
-		Artifacts: slices.Clone(batch.Artifacts),
-		Contents:  cloneValues(batch.Contents),
-		Manifests: cloneValues(batch.Manifests),
-		Lineage:   slices.Clone(batch.Lineage),
-		Aliases:   artifact.CloneAliasBindings(batch.Aliases),
-		Locations: slices.Clone(batch.Locations),
+		Key:          batch.Key,
+		ExpectedHead: cloneCommitID(batch.ExpectedHead),
+		Artifacts:    slices.Clone(batch.Artifacts),
+		Contents:     cloneValues(batch.Contents),
+		Manifests:    cloneValues(batch.Manifests),
+		Lineage:      slices.Clone(batch.Lineage),
+		Aliases:      artifact.CloneAliasBindings(batch.Aliases),
+		Locations:    slices.Clone(batch.Locations),
 	}
 	for _, content := range result.Contents {
 		result.Artifacts = append(result.Artifacts, content.Descriptor)
@@ -674,6 +682,14 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 		}
 	}
 	return result, nil
+}
+
+func cloneCommitID(value *artifact.CommitID) *artifact.CommitID {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func cloneValues[T interface{ Clone() T }](values []T) []T {

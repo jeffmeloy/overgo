@@ -1,5 +1,94 @@
 {
-  "campaign": "Training verification closure",
-  "doctrine": "Training evidence must distinguish a reusable implementation from an exact artifact campaign. Verify production workflows at their real objective, device, data, persistence, and lifecycle scope. Every admitted objective must prove uninterrupted/split equivalence and atomic checkpoint identity. A successful GUI run must publish a trace and an evaluation-required decision; promotion remains withheld until held-out evidence exists. Committed training specifications identify the exact model, dataset, commit, span, measurements, and evidence bytes, and a generated matrix exposes their strongest claims without upgrading smoke evidence. Missing model artifacts remain explicit verification gaps, never passes.",
-  "items": []
+  "campaign": "Substrate pattern integration",
+  "doctrine": "Reimplement the selected coordination patterns in Overgo's existing ownership boundaries. RepoDB identities, immutable facts, compare-and-set aliases, and recorded locations remain authoritative. Shared mechanisms must serve more than one workflow, typed policy replaces scattered literals, and tests must cover cancellation, conflict, replay, partial I/O, and missing-locality boundaries without assuming tensor shape, dataset distribution, model family, backend topology, or worker population.",
+  "items": [
+    {
+      "id": "reentrant-lifecycle",
+      "title": "Add reentrant lifecycle workflows for training and evaluation",
+      "status": "open",
+      "steps": [
+        {
+          "id": "durable-steps",
+          "title": "Persist and resume shared lifecycle steps by postcondition for both training and evaluation operations",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestTrainingAndEvaluationLifecycleReentry$' -count=1",
+          "rationale": "Training and evaluation operations must resume from committed results after interruption without repeating completed work or creating workflow-specific orchestration copies.",
+          "depends_on": [
+            "repository-preconditions/commit-contract"
+          ],
+          "capabilities": [
+            "immutable lifecycle state",
+            "compare-and-set transition",
+            "training and evaluation reentry"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bounded-admission",
+      "title": "Park requests behind bounded model-session admission",
+      "status": "open",
+      "steps": [
+        {
+          "id": "request-parking",
+          "title": "Add context-aware bounded parking to the shared session director and use it for serving requests",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime ./internal/server -run '^(TestBoundedSessionAdmission|TestServerParksBoundedGenerationRequests)$' -count=1",
+          "rationale": "Transient model saturation should apply bounded backpressure and honor cancellation instead of immediately rejecting every request, while overload remains finite and observable.",
+          "capabilities": [
+            "bounded waiters",
+            "context cancellation",
+            "slot-specific admission",
+            "shutdown wakeup"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "streaming-storage",
+      "title": "Add streaming content-addressed object storage",
+      "status": "open",
+      "steps": [
+        {
+          "id": "publish-stream",
+          "title": "Stream objects into content-addressed storage and publish RepoDB availability only after durable completion",
+          "status": "open",
+          "verify": "go test ./internal/objectstore -run '^TestStreamPublicationContract$' -count=1",
+          "rationale": "Large models, datasets, and checkpoints must move without bounded inline buffering while RepoDB continues to own identity and availability truth.",
+          "depends_on": [
+            "repository-preconditions/commit-contract"
+          ],
+          "capabilities": [
+            "streaming ingest",
+            "content identity verification",
+            "atomic publication",
+            "partial-write cleanup"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "locality-scheduling",
+      "title": "Extend scheduling with RepoDB data-locality constraints",
+      "status": "open",
+      "steps": [
+        {
+          "id": "locality-constraints",
+          "title": "Derive hard eligibility and deterministic locality preference from required artifacts and recorded worker locations",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestScheduleByArtifactLocality$' -count=1",
+          "rationale": "Distributed execution should avoid avoidable transfers without assuming a cluster shape, replica distribution, or model layout, and must explain when no worker satisfies hard requirements.",
+          "depends_on": [
+            "streaming-storage/publish-stream"
+          ],
+          "capabilities": [
+            "hard placement constraints",
+            "data-local preference",
+            "deterministic selection",
+            "explainable rejection"
+          ]
+        }
+      ]
+    }
+  ]
 }

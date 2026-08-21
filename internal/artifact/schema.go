@@ -12,6 +12,10 @@ const (
 	maxBatchKeyBytes = 512
 )
 
+// ErrCommitPrecondition is returned when repository state no longer matches
+// the state against which a batch was prepared.
+var ErrCommitPrecondition = errors.New("artifact: commit precondition failed")
+
 // Descriptor: immutable content fact
 type Descriptor struct {
 	ID        ID     `json:"id"`
@@ -151,13 +155,16 @@ func (b AliasBinding) Validate() error {
 
 // Batch: one atomic repository commit
 type Batch struct {
-	Key       string          `json:"key"`
-	Artifacts []Descriptor    `json:"artifacts,omitempty"`
-	Contents  []Content       `json:"contents,omitempty"`
-	Manifests []Manifest      `json:"manifests,omitempty"`
-	Lineage   []Lineage       `json:"lineage,omitempty"`
-	Aliases   []AliasBinding  `json:"aliases,omitempty"`
-	Locations []LocationEvent `json:"locations,omitempty"`
+	Key string `json:"key"`
+	// ExpectedHead is a store-wide compare-and-set precondition. Nil accepts
+	// any head; a pointer to the zero CommitID requires an empty repository.
+	ExpectedHead *CommitID       `json:"expected_head,omitempty"`
+	Artifacts    []Descriptor    `json:"artifacts,omitempty"`
+	Contents     []Content       `json:"contents,omitempty"`
+	Manifests    []Manifest      `json:"manifests,omitempty"`
+	Lineage      []Lineage       `json:"lineage,omitempty"`
+	Aliases      []AliasBinding  `json:"aliases,omitempty"`
+	Locations    []LocationEvent `json:"locations,omitempty"`
 }
 
 func (b Batch) Validate() error {

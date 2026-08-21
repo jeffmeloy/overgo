@@ -26,7 +26,7 @@ import (
 	"overgo/internal/routedlm"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
-	"overgo/internal/trainingsession"
+	"overgo/internal/trainingworkflow"
 )
 
 func main() {
@@ -109,11 +109,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	recipeID, err := trainingsession.BootstrapTokenRecipe(ctx, store, shards[0], *stimulus)
+	recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, shards[0], *stimulus)
 	if err != nil {
 		return err
 	}
-	observer, err := trainingsession.New(store, false)
+	observer, err := trainingworkflow.NewProbeObserver(store, false)
 	if err != nil {
 		return err
 	}

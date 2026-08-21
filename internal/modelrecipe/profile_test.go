@@ -15,12 +15,9 @@ import (
 	"overgo/internal/testutil"
 )
 
-// Digest advanced 2026-08-17: the adaptive-causal constructed-topology profile
-// entered the registered catalog (construction-profile-bridge row).
-const profileCatalogSemanticDigest = "94c8389846aea3f51792b5e550446db78640f51fa6b37d8bdec78bf5d944bb6c"
-const architectureProfileFactCount = 171
-const architectureProfileFactDigest = "d9328c4604f80a3c55ff544dd3f9eafbbfc716ea551e37f607a4e9884081553d"
-const architectureProfileFactSchemaDigest = "df525acf1cbdccfe460ce6d2b4b52dc6de98d684783869b426ea820da2a25e26"
+const profileCatalogSemanticDigest = "3864a0fad64e03f7313a392354a84adffdb512661af21eb182de8f1b8e502987"
+const architectureProfileFactDigest = "d76b89f0466bfdbf17cab840a0afd0d23883fc6a605653e9e6fce689b0a99a91"
+const architectureProfileFactSchemaDigest = "cf3d1f434c352874832653fb15c8ea2929a60a07dc00d66540b5fb99b3145718"
 
 const unsupportedProfilePolicyValue = ^uint8(0)
 
@@ -70,7 +67,7 @@ func TestProfileProvenanceHasExactTypedCoverage(t *testing.T) {
 		t.Fatal(err)
 	}
 	facts := slices.Clone(architectureProfileFacts)
-	if len(base) != len(facts) || len(base) != architectureProfileFactCount {
+	if len(base) != len(facts) {
 		t.Fatalf("profile facts = %d", len(base))
 	}
 	digest := sha256.New()

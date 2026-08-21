@@ -16,12 +16,8 @@ const (
 	AdvisoryMediaType        = "application/vnd.overgo.regression-advisory+json"
 	AdvisorySchema           = "overgo/regression-advisory/v1"
 
-	// Exported: drivers derive their window from history clamped to these
-	// bounds; a mirrored literal elsewhere would be a second owner. Both are
-	// open closure-ledger rows (min = small-sample floor, max = regime
-	// bound); they close by derivation, not by relocation.
+	// MinAdvisoryWindow: open small-sample evidence floor.
 	MinAdvisoryWindow = 3
-	MaxAdvisoryWindow = 1024
 )
 
 var advisoryContract = artifact.DocumentContract{
@@ -76,7 +72,7 @@ func DetectRegression(
 	window int,
 	threshold float64,
 ) (Advisory, bool, error) {
-	if window < MinAdvisoryWindow || window > MaxAdvisoryWindow ||
+	if window < MinAdvisoryWindow ||
 		threshold <= 0 || math.IsNaN(threshold) || math.IsInf(threshold, 0) || !textcheck.LowerIdentifier(metricName, maxLabelBytes) {
 		return Advisory{}, false, errors.New("run record: invalid advisory configuration")
 	}

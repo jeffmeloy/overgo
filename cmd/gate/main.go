@@ -1225,14 +1225,19 @@ func (g *gateContext) stepClaims() (bool, error) {
 	return false, err
 }
 
-// stepMagics is Automation Doctrine Layer 6, scoped to this commit's files:
-// numeric constants in changed production Go must have closure-ledger rows.
-// Matching is by row NAME (owner-surface file IDs are version-pinned content
-// hashes, so a name match is the honest path-stable heuristic). Advisory
-// first — uncatalogued constants land in the honesty line, not a refusal —
-// enforcement hardens once the 530-constant backlog is triaged
-// (first-run-calibrates applied to enforcement itself).
+// stepMagics: scoped constants against exact active closure evidence.
 func (g *gateContext) stepMagics() (bool, error) {
+	goSource := false
+	productionSource := false
+	for _, path := range g.paths {
+		if strings.HasSuffix(path, ".go") {
+			goSource = true
+			productionSource = productionSource || !strings.HasSuffix(path, "_test.go")
+		}
+	}
+	if !goSource {
+		return true, nil
+	}
 	snapshot, err := g.sourceSnapshot()
 	if err != nil {
 		return false, err
@@ -1241,23 +1246,50 @@ func (g *gateContext) stepMagics() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if len(candidates) == 0 {
-		return true, nil
-	}
-	baseline, err := magicCandidatesAtHEAD(g.repo, snapshot, g.paths)
+	baselineSnapshot, err := sourceSnapshotAtHEAD(g.repo, snapshot, g.paths)
 	if err != nil {
 		return false, err
 	}
-	catalogued, err := ledgerNames(g.repo, g.storePath)
+	baseline, err := closurescan.ScanSnapshot(baselineSnapshot, g.paths)
 	if err != nil {
-		g.honesty = append(g.honesty, "magic scan: ledger unreadable ("+err.Error()+"); constants unchecked")
-		return false, nil
+		return false, err
 	}
-	g.honesty = append(g.honesty, magicDiagnostics(candidates, baseline, catalogued)...)
+	catalogued := map[string]bool{}
+	if productionSource {
+		catalogued, err = activeMagicBindings(g.repo, g.storePath, snapshot, candidates)
+		if err != nil {
+			return false, err
+		}
+	}
+	diagnostic, err := admitMagicDelta(candidates, baseline, catalogued)
+	if diagnostic != "" {
+		g.honesty = append(g.honesty, diagnostic)
+	}
+	if err != nil {
+		return false, err
+	}
+	currentDebt, err := measureMagicDebt(snapshot, g.paths, candidates, catalogued, false)
+	if err != nil {
+		return false, err
+	}
+	activeDecisions := map[string]bool{}
+	for _, candidate := range candidates {
+		if catalogued[candidate.ExactKey()] {
+			activeDecisions[candidate.DecisionKey()] = true
+		}
+	}
+	baselineDebt, err := measureMagicDebt(baselineSnapshot, g.paths, baseline, activeDecisions, true)
+	if err != nil {
+		return false, err
+	}
+	if err := rejectMagicDebtIncrease(currentDebt, baselineDebt); err != nil {
+		return false, err
+	}
+	g.honesty = append(g.honesty, fmt.Sprintf("magic debt: current=%s baseline=%s", currentDebt, baselineDebt))
 	return false, nil
 }
 
-func magicCandidatesAtHEAD(repo string, snapshot repoanalysis.SourceSnapshot, paths []string) ([]closurescan.Candidate, error) {
+func sourceSnapshotAtHEAD(repo string, snapshot repoanalysis.SourceSnapshot, paths []string) (repoanalysis.SourceSnapshot, error) {
 	overlay := map[string][]byte{}
 	for _, path := range paths {
 		if !strings.HasSuffix(path, ".go") {
@@ -1271,77 +1303,165 @@ func magicCandidatesAtHEAD(repo string, snapshot repoanalysis.SourceSnapshot, pa
 				overlay[path] = nil
 				continue
 			}
-			return nil, err
+			return repoanalysis.SourceSnapshot{}, err
 		}
 		overlay[path] = data
 	}
-	baseline, err := snapshot.Overlay(overlay)
-	if err != nil {
-		return nil, err
-	}
-	return closurescan.ScanSnapshot(baseline, paths)
+	return snapshot.Overlay(overlay)
 }
 
-func magicDiagnostics(current, baseline []closurescan.Candidate, catalogued map[string]bool) []string {
+type magicDebt struct {
+	Named, Inline, TestPolicy, Assumption int
+}
+
+func (debt magicDebt) String() string {
+	return fmt.Sprintf("named=%d inline=%d test_policy=%d assumption=%d", debt.Named, debt.Inline, debt.TestPolicy, debt.Assumption)
+}
+
+func measureMagicDebt(
+	snapshot repoanalysis.SourceSnapshot,
+	paths []string,
+	candidates []closurescan.Candidate,
+	catalogued map[string]bool,
+	baseline bool,
+) (magicDebt, error) {
+	debt := magicDebt{}
+	for _, candidate := range candidates {
+		admitted := catalogued[candidate.ExactKey()]
+		if baseline {
+			admitted = catalogued[candidate.DecisionKey()]
+		}
+		if !admitted {
+			debt.Named++
+		}
+	}
+	literals, err := closurescan.CensusLiterals(snapshot, paths)
+	if err != nil {
+		return magicDebt{}, err
+	}
+	debt.Inline = len(literals)
+	debt.TestPolicy, err = closurescan.CountTestPolicyLiterals(snapshot)
+	if err != nil {
+		return magicDebt{}, err
+	}
+	assumptions, err := closurescan.CensusAssumptions(snapshot, paths)
+	if err != nil {
+		return magicDebt{}, err
+	}
+	debt.Assumption = len(assumptions)
+	return debt, nil
+}
+
+func rejectMagicDebtIncrease(current, baseline magicDebt) error {
+	for _, count := range []struct {
+		name              string
+		current, baseline int
+	}{
+		{"named", current.Named, baseline.Named},
+		{"inline", current.Inline, baseline.Inline},
+		{"test_policy", current.TestPolicy, baseline.TestPolicy},
+		{"assumption", current.Assumption, baseline.Assumption},
+	} {
+		if count.current > count.baseline {
+			return fmt.Errorf("magic scan: %s debt increased from %d to %d", count.name, count.baseline, count.current)
+		}
+	}
+	return nil
+}
+
+func admitMagicDelta(current, baseline []closurescan.Candidate, catalogued map[string]bool) (string, error) {
 	previous := map[string]bool{}
 	for _, candidate := range baseline {
-		previous[candidate.File+"\x00"+candidate.Name+"\x00"+candidate.Value] = true
+		previous[candidate.DecisionKey()] = true
 	}
-	var lines []string
 	inherited := 0
 	for _, candidate := range current {
-		if catalogued[candidate.Name] {
+		if catalogued[candidate.ExactKey()] {
 			continue
 		}
-		key := candidate.File + "\x00" + candidate.Name + "\x00" + candidate.Value
-		if previous[key] {
+		if previous[candidate.DecisionKey()] {
 			inherited++
 			continue
 		}
-		lines = append(lines, fmt.Sprintf(
-			"new uncatalogued constant %s=%s (%s) — triage via closure-scan",
+		return "", fmt.Errorf(
+			"magic scan: new or changed uncatalogued constant %s=%s (%s)",
 			candidate.Name, candidate.Value, candidate.File,
-		))
+		)
 	}
 	if inherited > 0 {
-		lines = append(lines, fmt.Sprintf(
+		return fmt.Sprintf(
 			"magic backlog: %d inherited uncatalogued constant(s) in touched files; run closure-scan for ranked detail",
 			inherited,
-		))
+		), nil
 	}
-	if len(lines) == 0 {
-		lines = append(lines, fmt.Sprintf("magic scan: %d constant(s) in scope, all catalogued", len(current)))
-	}
-	return lines
+	return fmt.Sprintf("magic scan: %d constant(s) in scope, all catalogued", len(current)), nil
 }
 
-func ledgerNames(repo, storePath string) (map[string]bool, error) {
+func activeMagicBindings(
+	repo, storePath string,
+	snapshot repoanalysis.SourceSnapshot,
+	candidates []closurescan.Candidate,
+) (map[string]bool, error) {
 	store, err := repodb.OpenReadOnly(filepath.Join(repo, storePath))
 	if err != nil {
 		return nil, err
 	}
 	defer store.Close()
-	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: 100_000})
+	result, err := store.Query(context.Background(), repodb.Query{
+		Kind: artifact.KindEvidence, MediaType: closureledger.MediaType,
+		Schema: closureledger.Schema, MaxResults: repodb.MaxQueryResults,
+	})
 	if err != nil {
 		return nil, err
 	}
-	names := map[string]bool{}
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != closureledger.MediaType {
+	if result.Truncated {
+		return nil, errors.New("magic scan: active-ledger query truncated")
+	}
+	seen := map[artifact.ID]bool{}
+	var documents []closureledger.Document
+	for _, alias := range result.Aliases {
+		if !closureledger.IsActiveAlias(alias.Name) || seen[alias.Target] {
 			continue
 		}
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
-			continue
+		seen[alias.Target] = true
+		content, found, err := store.Content(context.Background(), alias.Target)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			return nil, errors.New("magic scan: active document unavailable")
+		}
+		if err := content.Validate(); err != nil {
+			return nil, err
 		}
 		document, err := closureledger.Parse(content.Data)
-		if err != nil {
-			continue
+		if err != nil || document.ID != alias.Target {
+			return nil, errors.New("magic scan: active document identity mismatch")
 		}
-		names[document.Name] = true
+		documents = append(documents, document)
 	}
-	return names, nil
+	issues, err := closurescan.ValidateBindings(snapshot, documents)
+	if err != nil {
+		return nil, err
+	}
+	if len(issues) != 0 {
+		return nil, fmt.Errorf("magic scan: %d stale active binding(s), first=%s/%s", len(issues), issues[0].Kind, issues[0].Name)
+	}
+	bindings := map[string]bool{}
+	for _, candidate := range candidates {
+		binding, err := candidate.Binding()
+		if err != nil {
+			return nil, err
+		}
+		if _, active, err := closureledger.ResolveActiveBinding(
+			context.Background(), store, binding, candidate.ValueJSON(),
+		); err != nil {
+			return nil, err
+		} else if active {
+			bindings[candidate.ExactKey()] = true
+		}
+	}
+	return bindings, nil
 }
 
 // stepDevice is the manifest-scoped device lane routing (Automation Doctrine

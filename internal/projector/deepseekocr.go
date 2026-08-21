@@ -17,9 +17,6 @@ import (
 const (
 	deepSeekOCRProjectorType      = "deepseekocr"
 	deepSeekOCRSpatialNormEpsilon = 1e-6
-	deepSeekOCRDefaultTileSize    = 640
-	deepSeekOCRDefaultMinTiles    = 2
-	deepSeekOCRDefaultMaxTiles    = 9
 	deepSeekOCRPaddingGray        = 127
 	deepSeekOCRPositionDownsample = 4
 	deepSeekOCRProjectionInputs   = 2
@@ -97,9 +94,7 @@ func (r *DeepSeekOCRRunner) Spec() DeepSeekOCRSpec {
 }
 
 func ReadDeepSeekOCRSpec(file *gguf.File) (DeepSeekOCRSpec, error) {
-	spec, err := readDeepSeekOCRBaseSpec(
-		file, deepSeekOCRProjectorType, deepSeekOCRDefaultTileSize, deepSeekOCRDefaultMaxTiles,
-	)
+	spec, err := readDeepSeekOCRBaseSpec(file, deepSeekOCRProjectorType)
 	if err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
@@ -110,7 +105,7 @@ func ReadDeepSeekOCRSpec(file *gguf.File) (DeepSeekOCRSpec, error) {
 	return spec, nil
 }
 
-func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string, tileSize, maxTiles int) (DeepSeekOCRSpec, error) {
+func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string) (DeepSeekOCRSpec, error) {
 	if err := validateVisionProjector(file, "clip.projector_type", expectedType); err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
@@ -128,6 +123,9 @@ func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string, tileSize, max
 		"clip.vision.sam.block_count":      &spec.SAMLayers,
 		"clip.vision.sam.head_count":       &spec.SAMHeads,
 		"clip.vision.window_size":          &spec.Window,
+		"clip.vision.preproc_image_size":   &spec.TileSize,
+		"clip.vision.preproc_min_tiles":    &spec.MinTiles,
+		"clip.vision.preproc_max_tiles":    &spec.MaxTiles,
 	} {
 		*target, err = read(key)
 		if err != nil {
@@ -136,23 +134,6 @@ func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string, tileSize, max
 	}
 	if err := deriveDeepSeekOCRDimensions(file, &spec); err != nil {
 		return DeepSeekOCRSpec{}, err
-	}
-	spec.TileSize = tileSize
-	if value, ok, valueErr := optionalMetadataUint32(file, "clip.vision.preproc_image_size"); valueErr != nil {
-		return DeepSeekOCRSpec{}, valueErr
-	} else if ok {
-		spec.TileSize = int(value)
-	}
-	spec.MinTiles, spec.MaxTiles = deepSeekOCRDefaultMinTiles, maxTiles
-	if value, ok, valueErr := optionalMetadataUint32(file, "clip.vision.preproc_min_tiles"); valueErr != nil {
-		return DeepSeekOCRSpec{}, valueErr
-	} else if ok {
-		spec.MinTiles = int(value)
-	}
-	if value, ok, valueErr := optionalMetadataUint32(file, "clip.vision.preproc_max_tiles"); valueErr != nil {
-		return DeepSeekOCRSpec{}, valueErr
-	} else if ok {
-		spec.MaxTiles = int(value)
 	}
 	spec.LayerNormEpsilon, err = metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
 	if err != nil {

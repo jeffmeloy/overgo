@@ -35,7 +35,7 @@ import (
 	"overgo/internal/quant"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
-	"overgo/internal/trainingsession"
+	"overgo/internal/trainingworkflow"
 )
 
 type servingFixture struct {
@@ -118,11 +118,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	recipeID, err := trainingsession.BootstrapTokenRecipe(ctx, store, *modelPath, *fixturePath)
+	recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, *modelPath, *fixturePath)
 	if err != nil {
 		return err
 	}
-	observer, err := trainingsession.New(store, false)
+	observer, err := trainingworkflow.NewProbeObserver(store, false)
 	if err != nil {
 		return err
 	}

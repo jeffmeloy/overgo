@@ -7,7 +7,7 @@
 // with its environment so the training claim can carry session-measured
 // provenance. The package also bootstraps the token-training recipe authority
 // such a run resolves.
-package trainingsession
+package trainingworkflow
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 )
 
 // Observer: one supervised training run under a director lease.
-type Observer struct {
+type ProbeObserver struct {
 	store       artifact.Repository
 	environment runrecord.Environment
 	director    *capabilityruntime.ModelSessionDirector[struct{}, struct{}, struct{}]
@@ -39,7 +39,7 @@ type Observer struct {
 
 // New builds the environment identity and the training session director;
 // admission happens once the model identity is known.
-func New(store artifact.Repository, host bool) (*Observer, error) {
+func NewProbeObserver(store artifact.Repository, host bool) (*ProbeObserver, error) {
 	device, backend := "cuda0", "cuda-resident"
 	if host {
 		device, backend = "cpu", "host"
@@ -52,7 +52,7 @@ func New(store artifact.Repository, host bool) (*Observer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("training session: director: %w", err)
 	}
-	observer := &Observer{store: store, environment: environment, director: director, started: time.Now()}
+	observer := &ProbeObserver{store: store, environment: environment, director: director, started: time.Now()}
 	if !host {
 		observer.sampler = newSessionSampler()
 	}
@@ -61,7 +61,7 @@ func New(store artifact.Repository, host bool) (*Observer, error) {
 
 // Admit leases the exclusive training component session -- admission before
 // residency: a refused lease means the run never loads weights.
-func (o *Observer) Admit(ctx context.Context, model, recipeID artifact.ID) error {
+func (o *ProbeObserver) Admit(ctx context.Context, model, recipeID artifact.ID) error {
 	if o == nil {
 		return nil
 	}
@@ -78,7 +78,7 @@ func (o *Observer) Admit(ctx context.Context, model, recipeID artifact.ID) error
 }
 
 // Phase records one lifecycle stage wall.
-func (o *Observer) Phase(phase runrecord.Phase, wall time.Duration) {
+func (o *ProbeObserver) Phase(phase runrecord.Phase, wall time.Duration) {
 	if o == nil || wall <= 0 {
 		return
 	}
@@ -87,7 +87,7 @@ func (o *Observer) Phase(phase runrecord.Phase, wall time.Duration) {
 
 // sampleHardware appends a device-global residency sample for one lifecycle
 // stage.
-func (o *Observer) sampleHardware(stage runrecord.ServingHardwareStage) {
+func (o *ProbeObserver) sampleHardware(stage runrecord.ServingHardwareStage) {
 	if o == nil {
 		return
 	}
@@ -103,7 +103,7 @@ func (o *Observer) sampleHardware(stage runrecord.ServingHardwareStage) {
 
 // SampleStep records device-global residency at a step boundary; the largest
 // reading becomes the run's single mid-run hardware sample.
-func (o *Observer) SampleStep() {
+func (o *ProbeObserver) SampleStep() {
 	if o == nil {
 		return
 	}
@@ -117,7 +117,7 @@ func (o *Observer) SampleStep() {
 // Finish releases the lease, closes the director, and commits the typed
 // observation with its environment. The observation identity returns for
 // the run's evidence.
-func (o *Observer) Finish(
+func (o *ProbeObserver) Finish(
 	ctx context.Context, model, recipeID artifact.ID, runErr error, streamPosition uint64,
 ) (artifact.ID, error) {
 	if o == nil {

@@ -33,7 +33,7 @@ import (
 	"overgo/internal/latentvideo"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
-	"overgo/internal/trainingsession"
+	"overgo/internal/trainingworkflow"
 )
 
 func main() {
@@ -215,11 +215,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	recipeID, err := trainingsession.BootstrapTokenRecipe(ctx, store, weightsPath, *stimulus)
+	recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, weightsPath, *stimulus)
 	if err != nil {
 		return err
 	}
-	observer, err := trainingsession.New(store, false)
+	observer, err := trainingworkflow.NewProbeObserver(store, false)
 	if err != nil {
 		return err
 	}

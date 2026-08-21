@@ -12,7 +12,6 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/optimizer"
 	"overgo/internal/repodb"
-	"overgo/internal/trainingsession"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -44,8 +43,7 @@ func run() error {
 	}
 	defer store.Close()
 	if *bootstrapRecipe != "" {
-		_, err := trainingsession.BootstrapTokenRecipe(context.Background(), store, *bootstrapRecipe, *dataset)
-		return err
+		return bootstrapTrainingRecipe(store, *bootstrapRecipe, *dataset)
 	}
 	parsedRecipe, err := artifact.ParseID(*recipeID)
 	if err != nil {

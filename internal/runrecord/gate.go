@@ -129,7 +129,7 @@ func (g GateRecord) Batch(key string) (artifact.Batch, error) {
 func canonicalizeGateResult(result *GateResult) error {
 	if result == nil || result.Version != GateVersion || result.Recipe.Kind() != artifact.KindRecipe ||
 		result.Environment.Kind() != artifact.KindEvidence || !validCodeCommit(result.CodeCommit) ||
-		len(result.Steps) == 0 || len(result.Steps) > MaxAdvisoryWindow {
+		len(result.Steps) == 0 {
 		return errors.New("run record: invalid gate result")
 	}
 	switch result.Outcome {

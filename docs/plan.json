@@ -1,5 +1,195 @@
 {
-  "campaign": "Verification integrity: tagged artifact lanes, clean source provenance, and live-plan hygiene",
-  "doctrine": "Follow skill.md. docs/plan.json is the sole open-work authority; queue order is binding and plan complete means campaign complete.",
-  "items": []
+  "campaign": "Exact magic-number inventory, RepoDB closure authority, and systematic elimination",
+  "doctrine": "Follow skill.md. RepoDB owns closure evidence; the source census owns the complete deterministic file queue. Audit every non-generated Go file, one row at a time, in scanner order within each ownership wave. A file closes only after every numeric literal, named constant, assumption hint, repeated policy site, and test policy copy is classified by syntax and ownership. First delete, derive, reuse, or move the value to its existing typed authority. Model, tokenizer, tensor, topology, and training facts come from artifact metadata, profiles, recipes, or compiled plans. Protocol, ABI, mathematical, and irreducible fixture values may remain only with exact typed dispositions. Constants may express one irreducible relation; they may not conceal duplicated policy. Migrate every caller and delete displaced branches, defaults, wrappers, and compatibility readers in the same commit. Tests consume production contracts where practical. No magnitude thresholds, shape assumptions, distribution assumptions, family fallbacks, parallel registries, deferred adoption, or manually maintained counts. Each gated file records command-derived before/after pressure, code delta, authority, verifier, and closure retirement. Publish the complete queue and closure state as RepoDB evidence after each wave. Plan complete means every census file row is closed, every derivation-blocked row is resolved, no stale binding remains, and a fresh census finds no uncatalogued production decision or copied test policy. Merge current master after every gated step.",
+  "items": [
+    {
+      "id": "magic-wave-optimizer",
+      "title": "Eliminate optimizer, training, evaluation, and statistical decision magics",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Derive schedules and tolerances, consolidate shared policy, and record only evidenced residual obligations",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/optimizer,internal/trainingprogram,internal/trainingworkflow,internal/evaluation,internal/runrecord -require-classified -require-no-stale",
+          "rationale": "These packages contain decision thresholds, process horizons, and statistical assumptions that directly affect training and promotion.",
+          "depends_on": [
+            "magic-census-evidence/query"
+          ],
+          "capabilities": [
+            "derived-policy",
+            "distribution-discipline",
+            "runtime-parity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-wave-serving",
+      "title": "Eliminate server, sampling, operation, dataset, and media policy magics",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Move declared controls to recipes or resource policy and derive limits from request and ownership plans",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/server,internal/sampling,internal/operation,internal/trainingdata -require-classified -require-no-stale",
+          "rationale": "Request limits, polling intervals, media bounds, and sampler defaults must have one typed owner instead of command and handler literals.",
+          "depends_on": [
+            "magic-wave-optimizer/close"
+          ],
+          "capabilities": [
+            "resource-policy",
+            "recipe-authority",
+            "operation-contract"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-wave-device",
+      "title": "Eliminate CUDA, memory, launch, transfer, and workspace magics",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Derive extents from compiled plans or bind fixed values to kernel and device ABI contracts",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/cuda,internal/devicemath,internal/tensor -require-classified -require-no-stale",
+          "rationale": "Launch geometry and byte widths must come from shared typed operations, measured device policy, or guarded ABI declarations.",
+          "depends_on": [
+            "magic-wave-serving/close"
+          ],
+          "capabilities": [
+            "device-capability",
+            "kernel-abi",
+            "memory-plan",
+            "cuda-parity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-wave-model-runtime",
+      "title": "Eliminate model, projector, inference, and modality facts duplicated in code",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Move model facts to artifacts and recipes and make compiled neutral plans their sole consumers",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/model,internal/modelartifact,internal/modelrecipe,internal/inference,internal/projector,internal/latentimage,internal/latentvideo,internal/speechsynth -require-classified -require-no-stale -require-no-model-facts",
+          "rationale": "Model dimensions, token IDs, topology choices, and modality geometry must not remain as family or checkpoint literals in generic runtime code.",
+          "depends_on": [
+            "magic-wave-device/close"
+          ],
+          "capabilities": [
+            "artifact-facts",
+            "recipe-authority",
+            "compiled-plan",
+            "model-neutral-runtime"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-wave-formats",
+      "title": "Classify and consolidate format, quantization, codec, and artifact constants",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Bind specification values to typed protocol owners and eliminate duplicated encodings and layout arithmetic",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/gguf,internal/safetensors,internal/quant,internal/codec,internal/artifact,internal/repodb -require-classified -require-no-stale",
+          "rationale": "Specification constants may remain, but only in their protocol owner and never duplicated as runtime policy.",
+          "depends_on": [
+            "magic-wave-model-runtime/close"
+          ],
+          "capabilities": [
+            "specification-disposition",
+            "typed-layout",
+            "wire-parity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-wave-remaining",
+      "title": "Close remaining production and command magic surfaces",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Audit every remaining internal and cmd owner and delete redundant flags, defaults, wrappers, and process constants",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-uncatalogued-production",
+          "rationale": "Scoped waves must not leave uncatalogued debt in converters, tools, automation, or less frequently exercised packages.",
+          "depends_on": [
+            "magic-wave-formats/close"
+          ],
+          "capabilities": [
+            "full-repository-audit",
+            "surface-reduction"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-test-discipline",
+      "title": "Remove duplicated production policy from tests",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close",
+          "title": "Use production contracts and shared assertions while retaining irreducible typed fixtures",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-tests -require-no-policy-copies -require-classified-fixtures",
+          "rationale": "Tests should exercise production behavior rather than reimplement defaults, exit codes, dimensions, or tolerance policy in assertions.",
+          "depends_on": [
+            "magic-wave-remaining/close"
+          ],
+          "capabilities": [
+            "test-contract-reuse",
+            "fixture-disposition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "magic-closure-final",
+      "title": "Reach and enforce zero open magic debt",
+      "status": "open",
+      "steps": [
+        {
+          "id": "zero-open",
+          "title": "Close every derivation-blocked row and verify no stale, uncatalogued, or duplicated authority remains",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts",
+          "rationale": "The campaign ends only when unresolved constants have been derived, replaced, consolidated, or made irrelevant.",
+          "depends_on": [
+            "magic-test-discipline/close"
+          ],
+          "capabilities": [
+            "zero-open-debt",
+            "single-authority"
+          ]
+        },
+        {
+          "id": "permanent-gate",
+          "title": "Make the zero-debt checks permanent and delete campaign-only import and compatibility machinery",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-all -require-zero-open",
+          "rationale": "The result must remain enforced without retaining one-time migration surface.",
+          "depends_on": [
+            "magic-closure-final/zero-open"
+          ],
+          "capabilities": [
+            "continuous-enforcement",
+            "migration-cleanup"
+          ]
+        }
+      ]
+    }
+  ]
 }

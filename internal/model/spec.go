@@ -133,42 +133,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if validation.Hybrid == HybridValidationExtendedRotary || validation.MLA == MLAValidationScaledLatent {
-		spec.EmbeddingScale = 12
-		spec.ResidualScale = float32(1.4 / math.Sqrt(float64(spec.BlockCount)))
-		spec.LogitScale = 256 / float32(spec.EmbeddingLength)
-		if validation.MLA == MLAValidationScaledLatent {
-			spec.OriginalContextLength = spec.ContextLength
-			spec.RopeAttentionFactor = 1
-			if value, ok := optional[uint32](values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32); ok {
-				spec.OriginalContextLength = value
-			}
-			if value, ok := optional[float32](values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32); ok {
-				spec.RopeAttentionFactor = value
-			}
-		}
-		if value, ok := optional[float32](
-			values,
-			prefix+"embedding_scale",
-			gguf.ValueTypeFloat32,
-		); ok {
-			spec.EmbeddingScale = value
-		}
-		if value, ok := optional[float32](
-			values,
-			prefix+"residual_scale",
-			gguf.ValueTypeFloat32,
-		); ok {
-			spec.ResidualScale = value
-		}
-		if value, ok := optional[float32](
-			values,
-			prefix+"logit_scale",
-			gguf.ValueTypeFloat32,
-		); ok {
-			spec.LogitScale = value
-		}
-	}
 	if validation.hybridOneOf(
 		HybridValidationScaledDense, HybridValidationScaledExperts, HybridValidationScaledStateSpace,
 	) {
@@ -401,7 +365,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 			denominator := float32(1)
 			if spec.RopeYaRNLogMultiplier != 0 {
-				denominator += 0.1 * spec.RopeYaRNLogMultiplier *
+				denominator += yarnLogFactorStep * spec.RopeYaRNLogMultiplier *
 					float32(math.Log(float64(spec.RopeScalingFactor)))
 			}
 			spec.YaRNAttentionFactor = rawAttentionFactor / denominator
@@ -445,7 +409,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		if value, ok := optional[uint32](
 			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
 		); ok && value > 0 {
-			spec.SlidingWindow = 4096
+			spec.SlidingWindow = value
 			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
 	}
@@ -1031,7 +995,7 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 					rawAttentionFactor = value
 				}
 				spec.YaRNAttentionFactor = rawAttentionFactor /
-					(1 + 0.1*float32(math.Log(float64(spec.RopeScalingFactor))))
+					(1 + yarnLogFactorStep*float32(math.Log(float64(spec.RopeScalingFactor))))
 			}
 			spec.AttentionTempScale, _ = optional[float32](values, prefix+"attention.temperature_scale", gguf.ValueTypeFloat32)
 			spec.AttentionTempFloor, _ = optional[uint32](values, prefix+"attention.temperature_length", gguf.ValueTypeUint32)
@@ -1188,18 +1152,6 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 			if validation.Attention == AttentionValidationRequiredSlidingRotary && len(spec.SlidingLayers) == 0 {
 				spec.NoRopeLayerStep = spec.SlidingPattern
 			}
-		}
-	}
-	if validation.Hybrid == HybridValidationChunkedExperts {
-		window, hasWindow := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32)
-		if hasWindow && window == 0 {
-			spec.NoRopeLayerStep = 0
-		} else {
-			spec.SlidingWindow = 8192
-			spec.NoRopeLayerStep = spec.SlidingPattern
-			spec.AttentionTempFloor = 8192
-			spec.AttentionTempScale = 0.1
-			spec.AttentionTempOffset = 1
 		}
 	}
 	if validation.Attention == AttentionValidationPerLayerDualRotaryAttention {

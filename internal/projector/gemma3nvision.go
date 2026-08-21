@@ -17,7 +17,6 @@ import (
 const (
 	gemma3nVisionProjectorType = "gemma3nv"
 	gemma3nVisionNormEpsilon   = 1e-6
-	gemma3nVisionGridSide      = 16
 	Gemma3nImagePad            = "<image_soft_token>"
 )
 
@@ -100,7 +99,8 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 	}
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
-	if spec.ImageSize <= 0 || spec.PatchSize <= 0 || spec.ImageSize/spec.PatchSize != gemma3nVisionGridSide ||
+	if spec.ImageSize <= 0 || spec.PatchSize <= 0 ||
+		(spec.ImageSize/spec.PatchSize)*spec.PatchSize != spec.ImageSize ||
 		spec.VisionHidden <= 0 || spec.OutputHidden <= 0 {
 		return Gemma3nVisionSpec{}, fmt.Errorf("projector: invalid Gemma 3n vision metadata: %+v", spec)
 	}
@@ -367,8 +367,9 @@ func (r *Gemma3nVisionRunner) buildGraph(
 	if hasTensor(r.file, "v.msfa.ffn.pw_proj.bn.weight") {
 		cur = gemma3nSpatialNorm(builder, cur, weight("v.msfa.ffn.pw_proj.bn.weight"))
 	}
-	if cur.Shape.Dims[1] > gemma3nVisionGridSide || cur.Shape.Dims[2] > gemma3nVisionGridSide {
-		cur = gemma3nAveragePool(builder, cur, gemma3nVisionGridSide, gemma3nVisionGridSide)
+	gridSide := uint64(r.spec.ImageSize / r.spec.PatchSize)
+	if cur.Shape.Dims[1] > gridSide || cur.Shape.Dims[2] > gridSide {
+		cur = gemma3nAveragePool(builder, cur, int(gridSide), int(gridSide))
 	}
 	cur = gemma3nSpatialNorm(builder, cur, weight("v.msfa.norm.weight"))
 	channels := cur.Shape.Dims[0]

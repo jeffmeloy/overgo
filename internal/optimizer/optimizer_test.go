@@ -82,7 +82,13 @@ func TestMuonOwnsEveryTrainableGeometry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if muon.scratch.input != nil {
+		t.Fatal("constructor allocated step scratch")
+	}
 	result := muon.Step()
+	if len(muon.scratch.input) != plan.maxMatrix || len(muon.scratch.gram) != plan.maxSquare {
+		t.Fatal("first live step did not allocate planned scratch")
+	}
 	if result.Step != 1 || result.LearningRate != 0.01 {
 		t.Fatalf("step = %+v", result)
 	}

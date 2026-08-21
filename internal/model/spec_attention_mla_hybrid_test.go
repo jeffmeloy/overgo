@@ -314,10 +314,12 @@ func TestReadMiniCPM3Spec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defaults := spec.Profile().MetadataDefaults
 	if spec.QLoRARank != 3 || spec.KVLoRARank != 3 || spec.KeyLength != 6 || spec.ValueLength != 4 ||
 		spec.RopeDimensionCount != 2 || spec.RopeFrequencyBase != 10000 ||
-		spec.EmbeddingScale != 12 || spec.LogitScale != 32 ||
-		math.Abs(float64(spec.ResidualScale-float32(1.4/math.Sqrt(2)))) > 1e-6 {
+		spec.EmbeddingScale != defaults.EmbeddingScale ||
+		spec.LogitScale != defaults.LogitScaleNumerator/float32(spec.EmbeddingLength) ||
+		math.Abs(float64(spec.ResidualScale-defaults.ResidualScalePerSqrtBlock/float32(math.Sqrt(float64(spec.BlockCount))))) > 1e-6 {
 		t.Fatalf("unexpected MiniCPM3 spec: %+v", spec)
 	}
 }

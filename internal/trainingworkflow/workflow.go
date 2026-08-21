@@ -22,7 +22,6 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
-	"overgo/internal/trainingsession"
 	"overgo/internal/workflowrecipe"
 )
 
@@ -92,10 +91,10 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if request.Host && request.FreezeLexical {
 		return Result{}, errors.New("training workflow: host and frozen lexical execution are incompatible")
 	}
-	var observer *trainingsession.Observer
+	var observer *sessionObserver
 	if request.Observations != nil {
 		var err error
-		observer, err = trainingsession.New(request.Observations, request.Host)
+		observer, err = newSessionObserver(request.Observations, request.Host)
 		if err != nil {
 			return Result{}, err
 		}
@@ -120,9 +119,7 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 			return Result{}, fmt.Errorf("training workflow: identify model: %w", err)
 		}
 	}
-	if err := observer.Admit(ctx, modelID, request.Recipe); err != nil {
-		return Result{}, err
-	}
+	observer.sampleHardware(runrecord.ServingHardwareStart)
 	_, runtime, err := modelrecipe.ResolveActiveCapability(ctx, request.Repository, modelID, recipe.TaskTraining)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: resolve active recipe: %w", err)
@@ -161,16 +158,16 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: read dataset: %w", err)
 	}
-	observer.Phase(runrecord.PhaseLoad, time.Since(loadStarted))
+	observer.phase(runrecord.PhaseLoad, time.Since(loadStarted))
 	trainStarted := time.Now()
 	result, runErr := denseSession{
 		ctx: ctx, request: request, runtime: runtime, objective: objective,
 		inputDirectory: inputDirectory, model: model, encode: tokenizer.Encode, raw: raw,
-		resumed: resumed, resumeStream: resumeStream, stepSample: observer.SampleStep,
+		resumed: resumed, resumeStream: resumeStream, stepSample: observer.sampleStep,
 	}.run()
-	observer.Phase(runrecord.PhaseForwardBackward, time.Since(trainStarted))
+	observer.phase(runrecord.PhaseForwardBackward, time.Since(trainStarted))
 	if observer != nil {
-		observationID, observeErr := observer.Finish(ctx, modelID, request.Recipe, runErr, result.StreamPosition)
+		observationID, observeErr := observer.finish(ctx, modelID, request.Recipe, runErr, result.StreamPosition)
 		if observeErr != nil && runErr == nil {
 			return Result{}, observeErr
 		}

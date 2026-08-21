@@ -1,29 +1,5 @@
 {
   "campaign": "Substrate pattern integration",
   "doctrine": "Reimplement the selected coordination patterns in Overgo's existing ownership boundaries. RepoDB identities, immutable facts, compare-and-set aliases, and recorded locations remain authoritative. Shared mechanisms must serve more than one workflow, typed policy replaces scattered literals, and tests must cover cancellation, conflict, replay, partial I/O, and missing-locality boundaries without assuming tensor shape, dataset distribution, model family, backend topology, or worker population.",
-  "items": [
-    {
-      "id": "locality-scheduling",
-      "title": "Extend scheduling with RepoDB data-locality constraints",
-      "status": "open",
-      "steps": [
-        {
-          "id": "locality-constraints",
-          "title": "Derive hard eligibility and deterministic locality preference from required artifacts and recorded worker locations",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestScheduleByArtifactLocality$' -count=1",
-          "rationale": "Distributed execution should avoid avoidable transfers without assuming a cluster shape, replica distribution, or model layout, and must explain when no worker satisfies hard requirements.",
-          "depends_on": [
-            "streaming-storage/publish-stream"
-          ],
-          "capabilities": [
-            "hard placement constraints",
-            "data-local preference",
-            "deterministic selection",
-            "explainable rejection"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

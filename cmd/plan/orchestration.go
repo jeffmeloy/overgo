@@ -170,6 +170,25 @@ type leaseReport struct {
 	Reconciliation []plan.LeaseRecommendation `json:"reconciliation,omitempty"`
 }
 
+func printLocalitySchedule(root, inputPath string, output io.Writer) error {
+	var request plan.LocalityScheduleRequest
+	if err := jsonfile.DecodeStrict(inputPath, &request); err != nil {
+		return err
+	}
+	store, err := repodb.OpenReadOnly(filepath.Join(root, "repodb-store"))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	schedule, err := plan.ScheduleByArtifactLocality(context.Background(), store, request)
+	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(output)
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(schedule)
+}
+
 func printLeaseReport(root string, capacity plan.Resources, output io.Writer) error {
 	store, err := repodb.OpenReadOnly(filepath.Join(root, "repodb-store"))
 	if err != nil {

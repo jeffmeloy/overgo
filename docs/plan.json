@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "interleaved-cross-attention",
-          "title": "Admit zero-gated external cross-attention at explicit target layer-program seams",
-          "status": "open",
-          "verify": "go test ./internal/inference -run '^TestExternalCrossAttentionIdentityAndCacheIsolation$' -count=1",
-          "rationale": "Deep source-target cooperation must preserve target-only identity, request cache isolation, and compiled layer ownership before multi-layer injection is safe.",
-          "depends_on": [
-            "cross-model-representation-bridge/perceiver-resampler"
-          ],
-          "capabilities": [
-            "gated-external-cross-attention",
-            "source-kv-cache",
-            "request-isolation"
-          ]
-        },
-        {
           "id": "conditional-lora",
           "title": "Condition fixed low-rank adapter bases with bounded source-derived scales",
           "status": "open",

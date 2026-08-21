@@ -20,8 +20,7 @@ func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4
 	builder := tensor.NewBuilder()
 	pixels := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
-	hostFeeds := graph.hostFeeds
-	hostFeeds[pixels] = pixelsValue(pixels, tile.PixelValues)
+	graph.hostFeeds[pixels] = pixelsValue(pixels, tile.PixelValues)
 	weight := graph.weight
 	patch := builder.Reshape(weight(visionPatchWeightTensor), uint64(patchWidth), uint64(r.spec.Hidden))
 	hidden := builder.Add(builder.MulMat(patch, pixels), weight(visionPatchBiasTensor))
@@ -41,7 +40,7 @@ func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4
 		attention = builder.Reshape(attention, uint64(r.spec.Hidden), uint64(rows))
 		hidden = builder.Add(hidden, graph.linear(attention, prefix+".attn_out"))
 		norm = graph.affineNorm(hidden, prefix+".ln2", r.spec.LayerNormEpsilon)
-		up := qwen3VLGELUTanh(builder, graph.linear(norm, prefix+".ffn_up"), hostFeeds)
+		up := builder.GELUTanhExact(graph.linear(norm, prefix+".ffn_up"))
 		hidden = builder.Add(hidden, graph.linear(up, prefix+".ffn_down"))
 		layerOutputs[layer] = hidden
 	}

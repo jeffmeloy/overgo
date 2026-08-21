@@ -550,18 +550,6 @@ func deepSeekOCRSpatialLayerNorm(builder *tensor.Builder, input, weight, bias *t
 	return builder.Reshape(flat, channels, width, height)
 }
 
-func cubicWeight(value float64) float64 {
-	value = math.Abs(value)
-	const alpha = -0.75
-	if value <= 1 {
-		return ((alpha+2)*value-(alpha+3))*value*value + 1
-	}
-	if value < 2 {
-		return ((alpha*value-5*alpha)*value+8*alpha)*value - 4*alpha
-	}
-	return 0
-}
-
 func interpolateSpatialPosition(source reference.Value, channels, width, height int, classLast bool) reference.Value {
 	classTokens := 0
 	spatialTokens := int(source.Shape.Dims[1])
@@ -582,10 +570,10 @@ func interpolateSpatialPosition(source reference.Value, channels, width, height 
 				var sum, weights float64
 				for oy := -1; oy <= 2; oy++ {
 					py := max(0, min(sourceSide-1, int(math.Floor(sy))+oy))
-					wy := cubicWeight(sy - float64(int(math.Floor(sy))+oy))
+					wy := cubicInterpolationWeight(sy - float64(int(math.Floor(sy))+oy))
 					for ox := -1; ox <= 2; ox++ {
 						px := max(0, min(sourceSide-1, int(math.Floor(sx))+ox))
-						weight := wy * cubicWeight(sx-float64(int(math.Floor(sx))+ox))
+						weight := wy * cubicInterpolationWeight(sx-float64(int(math.Floor(sx))+ox))
 						sum += float64(source.Data[channel+channels*(px+sourceSide*py)]) * weight
 						weights += weight
 					}

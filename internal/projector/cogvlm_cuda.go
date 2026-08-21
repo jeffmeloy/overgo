@@ -18,7 +18,6 @@ func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[pixels] = pixelsValue(pixels, pixelsData)
 	weight := graph.weight
-	hostFeeds := graph.hostFeeds
 	patch := builder.Reshape(weight(visionPatchWeightTensor), uint64(patchWidth), uint64(r.spec.Hidden))
 	hidden := graph.addOptionalBias(builder.MulMat(patch, pixels), visionPatchBiasTensor)
 	hidden = builder.Concat(hidden, builder.Reshape(weight(visionClassEmbeddingTensor), uint64(r.spec.Hidden), 1), 1)
@@ -38,9 +37,9 @@ func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float
 		up := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_up.weight"), hidden), prefix+"ffn_up.bias")
 		if r.spec.GatedFFN[layer] {
 			gate := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_gate.weight"), hidden), prefix+"ffn_gate.bias")
-			up = builder.Multiply(up, qwen3VLGELUTanh(builder, gate, hostFeeds))
+			up = builder.Multiply(up, builder.GELUTanhExact(gate))
 		} else {
-			up = qwen3VLGELUTanh(builder, up, hostFeeds)
+			up = builder.GELUTanhExact(up)
 		}
 		ffn := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_down.weight"), up), prefix+"ffn_down.bias")
 		ffn = builder.AffineLayerNorm(ffn, weight(prefix+"ln2.weight"), weight(prefix+"ln2.bias"), r.spec.LayerNormEpsilon)
@@ -51,7 +50,7 @@ func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float
 	hidden = builder.AffineLayerNorm(
 		hidden, weight("mm.post_fc_norm.weight"), weight("mm.post_fc_norm.bias"), cogVLMAdapterNormEpsilon,
 	)
-	hidden = qwen3VLGELUTanh(builder, hidden, hostFeeds)
+	hidden = builder.GELUTanhExact(hidden)
 	up := builder.MulMat(weight("mm.up.weight"), hidden)
 	gate := builder.SiLU(builder.MulMat(weight("mm.gate.weight"), hidden))
 	hidden = builder.MulMat(weight("mm.down.weight"), builder.Multiply(gate, up))

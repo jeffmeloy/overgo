@@ -383,7 +383,7 @@ func antialiasWeights(input, output int) ([]int, []int, [][]float64) {
 		values := make([]float64, high-low)
 		total := 0.0
 		for offset := range values {
-			values[offset] = cubic((float64(offset+low) - center + 0.5) * inverseScale)
+			values[offset] = cubicInterpolationWeight((float64(offset+low) - center + 0.5) * inverseScale)
 			total += values[offset]
 		}
 		if total != 0 {
@@ -394,18 +394,6 @@ func antialiasWeights(input, output int) ([]int, []int, [][]float64) {
 		minimum[index], count[index], weights[index] = low, len(values), values
 	}
 	return minimum, count, weights
-}
-
-func cubic(value float64) float64 {
-	const coefficient = -0.75
-	value = math.Abs(value)
-	if value < 1 {
-		return ((coefficient+2)*value-(coefficient+3))*value*value + 1
-	}
-	if value < 2 {
-		return (((value-5)*value+8)*value - 4) * coefficient
-	}
-	return 0
 }
 
 func clampUint8(value float64) uint8 {

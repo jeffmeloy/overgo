@@ -65,7 +65,7 @@ func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4Vis
 		hidden = builder.Add(hidden, projected)
 		norm = builder.AffineLayerNorm(hidden, weight(prefix+"ln2.weight"), weight(prefix+"ln2.bias"), r.spec.LayerNormEpsilon)
 		up := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), prefix+"ffn_up.bias")
-		up = visionActivationNode(builder, up, hostFeeds, r.spec.Activation)
+		up = visionActivationNode(builder, up, r.spec.Activation)
 		down := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_down.weight"), up), prefix+"ffn_down.bias")
 		hidden = builder.Add(hidden, down)
 	}
@@ -75,9 +75,9 @@ func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4Vis
 	hidden = builder.FlatSlice(hidden, 0, uint64(r.spec.Hidden), uint64(patchRows))
 	merged := mergePlan.graph(builder, hidden)
 	adapted := builder.MulMat(weight("mm.model.mlp.1.weight"), merged)
-	adapted = qwen3VLGELUTanh(builder, adapted, hostFeeds)
+	adapted = builder.GELUTanhExact(adapted)
 	adapted = builder.MulMat(weight("mm.model.mlp.2.weight"), adapted)
-	adapted = qwen3VLGELUTanh(builder, adapted, hostFeeds)
+	adapted = builder.GELUTanhExact(adapted)
 	output := builder.MulMat(weight(multimodalProjectionWeight), adapted)
 	results, err := graph.execute(output)
 	if err != nil {

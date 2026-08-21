@@ -27,7 +27,6 @@ func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qw
 	hidden := builder.Add(builder.MulMat(patch0, input0), builder.MulMat(patch1, input1))
 	graph.hostFeeds[input0] = reference.Value{Shape: input0.Shape, Data: pixels0}
 	graph.hostFeeds[input1] = reference.Value{Shape: input1.Shape, Data: pixels1}
-	hostFeeds := graph.hostFeeds
 	if r.spec.PreLayerNorm {
 		hidden = builder.AffineLayerNorm(hidden, weight(visionPreNormWeightTensor), weight(visionPreNormBiasTensor), r.spec.LayerNormEpsilon)
 	}
@@ -70,7 +69,7 @@ func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qw
 		hidden = builder.Add(hidden, projected)
 		norm = builder.AffineLayerNorm(hidden, weight(prefix+"ln2.weight"), weight(prefix+"ln2.bias"), r.spec.LayerNormEpsilon)
 		up := builder.Add(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), weight(prefix+"ffn_up.bias"))
-		up = qwen3VLGELUTanh(builder, up, hostFeeds)
+		up = builder.GELUTanhExact(up)
 		down := builder.Add(builder.MulMat(weight(prefix+"ffn_down.weight"), up), weight(prefix+"ffn_down.bias"))
 		hidden = builder.Add(hidden, down)
 	}
@@ -80,7 +79,7 @@ func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qw
 	mergedRows := rows / (r.spec.MergeSize * r.spec.MergeSize)
 	merged := builder.Reshape(hidden, uint64(r.spec.Hidden*r.spec.MergeSize*r.spec.MergeSize), uint64(mergedRows))
 	fc1 := builder.Add(builder.MulMat(weight(projectionFirstWeightTensor), merged), weight(projectionFirstBiasTensor))
-	fc1 = qwen3VLGELUTanh(builder, fc1, hostFeeds)
+	fc1 = builder.GELUTanhExact(fc1)
 	output := builder.Add(builder.MulMat(weight(projectionSecondWeightTensor), fc1), weight(projectionSecondBiasTensor))
 	results, err := graph.execute(output)
 	if err != nil {

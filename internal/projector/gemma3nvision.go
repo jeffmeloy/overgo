@@ -278,7 +278,7 @@ func (r *Gemma3nVisionRunner) buildGraph(
 	}
 	cur := gemma3nConvSame(builder, input, stemWeight, stemBias, 2, false)
 	cur = gemma3nSpatialNorm(builder, cur, weight("v.conv_stem.bn.weight"))
-	cur = qwen3VLGELUTanh(builder, cur, hostFeeds)
+	cur = builder.GELUTanhExact(cur)
 	features := make([]*tensor.Tensor, 0, 2)
 	for blockIndex, block := range r.spec.Blocks {
 		stride := uint32(1)
@@ -292,7 +292,7 @@ func (r *Gemma3nVisionRunner) buildGraph(
 			if name := block.Names["bn1.weight"]; name != "" {
 				cur = gemma3nSpatialNorm(builder, cur, weight(name))
 			}
-			cur = qwen3VLGELUTanh(builder, cur, hostFeeds)
+			cur = builder.GELUTanhExact(cur)
 			cur = builder.Conv2D(cur, weight(block.Names["conv_pwl.weight"]), nil, 1, 1, 0, 0, 0, 0, false)
 			if name := block.Names["bn2.weight"]; name != "" {
 				cur = gemma3nSpatialNorm(builder, cur, weight(name))
@@ -315,14 +315,14 @@ func (r *Gemma3nVisionRunner) buildGraph(
 				if norm := block.Names["pw_exp.bn.weight"]; norm != "" {
 					cur = gemma3nSpatialNorm(builder, cur, weight(norm))
 				}
-				cur = qwen3VLGELUTanh(builder, cur, hostFeeds)
+				cur = builder.GELUTanhExact(cur)
 			}
 			if name := block.Names["dw_mid.conv.weight"]; name != "" {
 				cur = gemma3nConvSame(builder, cur, weight(name), nil, stride, true)
 				if norm := block.Names["dw_mid.bn.weight"]; norm != "" {
 					cur = gemma3nSpatialNorm(builder, cur, weight(norm))
 				}
-				cur = qwen3VLGELUTanh(builder, cur, hostFeeds)
+				cur = builder.GELUTanhExact(cur)
 			}
 			if name := block.Names["pw_proj.conv.weight"]; name != "" {
 				cur = builder.Conv2D(cur, weight(name), nil, 1, 1, 0, 0, 0, 0, false)
@@ -362,7 +362,7 @@ func (r *Gemma3nVisionRunner) buildGraph(
 	if hasTensor(r.file, "v.msfa.ffn.pw_exp.bn.weight") {
 		cur = gemma3nSpatialNorm(builder, cur, weight("v.msfa.ffn.pw_exp.bn.weight"))
 	}
-	cur = qwen3VLGELUTanh(builder, cur, hostFeeds)
+	cur = builder.GELUTanhExact(cur)
 	cur = builder.Conv2D(cur, weight("v.msfa.ffn.pw_proj.conv.weight"), nil, 1, 1, 0, 0, 0, 0, false)
 	if hasTensor(r.file, "v.msfa.ffn.pw_proj.bn.weight") {
 		cur = gemma3nSpatialNorm(builder, cur, weight("v.msfa.ffn.pw_proj.bn.weight"))

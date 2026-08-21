@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"math"
 
 	"overgo/internal/checked"
 	"overgo/internal/tensor"
@@ -17,6 +18,7 @@ const (
 	temporalPatchFrames                = 2
 	rgbChannelCount                    = 3
 	attentionProjectionCount           = 3
+	bilinearCornerCount                = 4
 	rotaryPairWidth                    = 2
 	visionRoPEAxisCount                = 2
 	visionRoPEComponentCount           = rotaryPairWidth * visionRoPEAxisCount
@@ -24,6 +26,18 @@ const (
 	maxUint8Channel                    = 255
 	opaqueAlpha                        = 255
 )
+
+func cubicInterpolationWeight(value float64) float64 {
+	const coefficient = -0.75
+	value = math.Abs(value)
+	if value <= 1 {
+		return ((coefficient+2)*value-(coefficient+3))*value*value + 1
+	}
+	if value < 2 {
+		return ((coefficient*value-5*coefficient)*value+8*coefficient)*value - 4*coefficient
+	}
+	return 0
+}
 
 func normalizedImageChannel(value uint32) float32 {
 	return float32(value>>rgba16To8Shift) / maxUint8Channel

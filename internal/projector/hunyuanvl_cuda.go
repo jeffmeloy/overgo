@@ -74,7 +74,7 @@ func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 		hidden = builder.Add(hidden, projected)
 		norm = builder.AffineLayerNorm(hidden, weight(prefix+"ln2.weight"), weight(prefix+"ln2.bias"), r.spec.LayerNormEpsilon)
 		up := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), prefix+"ffn_up.bias")
-		up = qwen3VLGELUTanh(builder, up, hostFeeds)
+		up = builder.GELUTanhExact(up)
 		down := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_down.weight"), up), prefix+"ffn_down.bias")
 		hidden = builder.Add(hidden, down)
 	}
@@ -85,7 +85,7 @@ func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	mergedH, mergedW := input.GridH/r.spec.MergeSize, input.GridW/r.spec.MergeSize
 	merged := mergePlan.graph(builder, hidden)
 	projected := builder.Add(builder.MulMat(conv0Input, merged), weight("mm.0.bias"))
-	projected = qwen3VLGELUTanh(builder, projected, hostFeeds)
+	projected = builder.GELUTanhExact(projected)
 	conv2 := builder.Reshape(weight("mm.2.weight"), uint64(r.spec.ConvIntermediate), uint64(r.spec.ProjectorInput))
 	projected = builder.Add(builder.MulMat(conv2, projected), weight("mm.2.bias"))
 	newline := builder.Reshape(weight(visionImageNewlineTensor), uint64(r.spec.ProjectorInput), 1)

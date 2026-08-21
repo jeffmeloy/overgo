@@ -85,7 +85,7 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 	mergedRows := rows / (r.spec.MergeSize * r.spec.MergeSize)
 	merged := builder.Reshape(normalized, uint64(r.spec.Hidden*r.spec.MergeSize*r.spec.MergeSize), uint64(mergedRows))
 	fc1 := builder.MulMat(weight(projectionFirstWeightTensor), merged)
-	fc1 = qwen3VLGELUTanh(builder, graph.addOptionalBias(fc1, projectionFirstBiasTensor), hostFeeds)
+	fc1 = builder.GELUTanhExact(graph.addOptionalBias(fc1, projectionFirstBiasTensor))
 	output := builder.MulMat(weight(projectionSecondWeightTensor), fc1)
 	output = graph.addOptionalBias(output, projectionSecondBiasTensor)
 	results, err := graph.execute(output)

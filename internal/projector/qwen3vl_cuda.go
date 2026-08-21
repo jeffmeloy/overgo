@@ -10,12 +10,6 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-const (
-	qwen3VLBilinearCornerCount = 4
-	qwen3VLGELUCubicFactor     = 0.044715
-	qwen3VLGELUOutputScale     = 0.5
-)
-
 func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qwen3VLOutput, error) {
 	rows := input.GridT * input.GridH * input.GridW
 	patchArea := r.spec.PatchSize * r.spec.PatchSize
@@ -76,7 +70,7 @@ func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qw
 		hidden = builder.Add(hidden, projected)
 		norm = builder.AffineLayerNorm(hidden, weight(prefix+"ln2.weight"), weight(prefix+"ln2.bias"), r.spec.LayerNormEpsilon)
 		up := builder.Add(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), weight(prefix+"ffn_up.bias"))
-		up = qwen3VLGELUTanh(builder, up, hostFeeds)
+		up = builder.GELUTanhExact(up)
 		down := builder.Add(builder.MulMat(weight(prefix+"ffn_down.weight"), up), weight(prefix+"ffn_down.bias"))
 		hidden = builder.Add(hidden, down)
 		if len(r.spec.DeepstackLayers) > layer && r.spec.DeepstackLayers[layer] {
@@ -84,14 +78,14 @@ func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qw
 			merged := builder.Reshape(hidden, uint64(mergedWidth), uint64(mergedRows))
 			norm = builder.AffineLayerNorm(merged, weight(prefix+"norm.weight"), weight(prefix+"norm.bias"), r.spec.LayerNormEpsilon)
 			fc1 := builder.Add(builder.MulMat(weight(prefix+"fc1.weight"), norm), weight(prefix+"fc1.bias"))
-			fc1 = qwen3VLGELUTanh(builder, fc1, hostFeeds)
+			fc1 = builder.GELUTanhExact(fc1)
 			deepstack = append(deepstack, builder.Add(builder.MulMat(weight(prefix+"fc2.weight"), fc1), weight(prefix+"fc2.bias")))
 		}
 	}
 	normalized := builder.AffineLayerNorm(hidden, weight(visionPostNormWeightTensor), weight(visionPostNormBiasTensor), r.spec.LayerNormEpsilon)
 	merged := builder.Reshape(normalized, uint64(mergedWidth), uint64(mergedRows))
 	fc1 := builder.Add(builder.MulMat(weight(projectionFirstWeightTensor), merged), weight(projectionFirstBiasTensor))
-	fc1 = qwen3VLGELUTanh(builder, fc1, hostFeeds)
+	fc1 = builder.GELUTanhExact(fc1)
 	output := builder.Add(builder.MulMat(weight(projectionSecondWeightTensor), fc1), weight(projectionSecondBiasTensor))
 	targets := append([]*tensor.Tensor{output}, deepstack...)
 	results, err := graph.execute(targets...)
@@ -118,8 +112,8 @@ func (r *Qwen3VLRunner) qwen3VLPositionGraph(
 	rows := input.GridT * input.GridH * input.GridW
 	spatial := input.GridH * input.GridW
 	side := r.spec.ImageSize / r.spec.PatchSize
-	indexes := [qwen3VLBilinearCornerCount][]uint32{}
-	weights := [qwen3VLBilinearCornerCount][]float32{}
+	indexes := [bilinearCornerCount][]uint32{}
+	weights := [bilinearCornerCount][]float32{}
 	for corner := range indexes {
 		indexes[corner] = make([]uint32, rows)
 		weights[corner] = make([]float32, rows)
@@ -137,10 +131,10 @@ func (r *Qwen3VLRunner) qwen3VLPositionGraph(
 		y0, x0 := int(math.Floor(y)), int(math.Floor(x))
 		y1, x1 := min(y0+1, side-1), min(x0+1, side-1)
 		wy, wx := y-float64(y0), x-float64(x0)
-		cornerIndexes := [qwen3VLBilinearCornerCount]int{
+		cornerIndexes := [bilinearCornerCount]int{
 			y0*side + x0, y0*side + x1, y1*side + x0, y1*side + x1,
 		}
-		cornerWeights := [qwen3VLBilinearCornerCount]float64{
+		cornerWeights := [bilinearCornerCount]float64{
 			(1 - wy) * (1 - wx), (1 - wy) * wx, wy * (1 - wx), wy * wx,
 		}
 		for corner := range indexes {
@@ -189,22 +183,4 @@ func interleavedVisionRoPE(
 	first := builder.Concat(split(y, 0), split(x, 0), 0)
 	second := builder.Concat(split(y, quarter), split(x, quarter), 0)
 	return builder.Concat(first, second, 0)
-}
-
-func qwen3VLGELUTanh(
-	builder *tensor.Builder,
-	input *tensor.Tensor,
-	hostFeeds map[*tensor.Tensor]reference.Value,
-) *tensor.Tensor {
-	ones := builder.Input(fmt.Sprintf("gelu_ones.%d", input.ID), dtype.F32, tensor.MustShape(1))
-	hostFeeds[ones] = reference.Value{Shape: ones.Shape, Data: []float32{1}}
-	cube := builder.Multiply(builder.Multiply(input, input), input)
-	inner := builder.Scale(
-		builder.Add(input, builder.Scale(cube, qwen3VLGELUCubicFactor)),
-		float32(math.Sqrt(2/math.Pi)),
-	)
-	return builder.Scale(
-		builder.Multiply(input, builder.Add(ones, builder.Tanh(inner))),
-		qwen3VLGELUOutputScale,
-	)
 }

@@ -68,7 +68,7 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 		hidden = builder.Add(hidden, projected)
 		norm = builder.AffineLayerNorm(hidden, weight(prefix+"ln2.weight"), weight(prefix+"ln2.bias"), r.spec.LayerNormEpsilon)
 		up := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_up.weight"), norm), prefix+"ffn_up.bias")
-		up = visionActivationNode(builder, up, hostFeeds, r.spec.Activation)
+		up = visionActivationNode(builder, up, r.spec.Activation)
 		down := graph.addOptionalBias(builder.MulMat(weight(prefix+"ffn_down.weight"), up), prefix+"ffn_down.bias")
 		hidden = builder.Add(hidden, down)
 	}
@@ -80,7 +80,7 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	)
 	merged := mergePlan.graph(builder, hidden)
 	fc1 := builder.Add(builder.MulMat(weight("mm.1.weight"), merged), weight("mm.1.bias"))
-	fc1 = visionActivationNode(builder, fc1, hostFeeds, r.spec.Activation)
+	fc1 = visionActivationNode(builder, fc1, r.spec.Activation)
 	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))
 	results, err := graph.execute(output)
 	if err != nil {

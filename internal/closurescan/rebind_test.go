@@ -68,13 +68,28 @@ func TestRebindMatchesExactBinding(t *testing.T) {
 	}
 }
 
+func TestStructuralRebindRejectsAmbiguousMigration(t *testing.T) {
+	legacy := rebindCandidate(t, "37", "legacy callsites")
+	legacy.StructuralID = ""
+	binding, err := legacy.Binding()
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := rebindDocument(t, legacy, binding)
+	left, right := rebindCandidate(t, "37", "current callsites"), rebindCandidate(t, "37", "current callsites")
+	left.StructuralID, right.StructuralID = sourceDigest("left"), sourceDigest("right")
+	if _, matched, reason, err := CompileRebindIndex([]Candidate{left, right}).Rebind(document); err != nil || matched || reason != "ambiguous" {
+		t.Fatalf("ambiguous migration = (%t, %s, %v)", matched, reason, err)
+	}
+}
+
 func rebindCandidate(t *testing.T, value, callsites string) Candidate {
 	t.Helper()
 	name := "PolicyWindow"
 	return Candidate{
 		Kind: closureledger.BindingConstant, Name: name, File: "internal/policy.go", Package: "internal", Scope: "package",
 		Line: len(name), Expression: value, Value: value,
-		SourceID: sourceDigest("original source"), CallsiteID: sourceDigest(callsites),
+		StructuralID: sourceDigest("policy-window"), SourceID: sourceDigest("original source"), CallsiteID: sourceDigest(callsites),
 	}
 }
 

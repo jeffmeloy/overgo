@@ -269,7 +269,8 @@ func compileActiveClosures(documents []closureledger.Document) map[string]closur
 	for _, document := range documents {
 		for _, binding := range document.Bindings {
 			key := (closurescan.Candidate{
-				Kind: binding.Kind, File: binding.File, Scope: binding.Scope, Line: binding.Line, Name: binding.Name,
+				Kind: binding.Kind, Package: binding.Package, File: binding.File, Scope: binding.Scope,
+				Line: binding.Line, Name: binding.Name, StructuralID: binding.StructuralID,
 			}).DeclarationKey()
 			active[key] = document
 		}
@@ -283,7 +284,10 @@ func activeCandidateClosure(active map[string]closureledger.Document, candidate 
 		return closureledger.Document{}, false
 	}
 	binding, err := candidate.Binding()
-	if err != nil || !slices.Contains(document.Bindings, binding) {
+	if err != nil || !slices.ContainsFunc(document.Bindings, func(current closureledger.SourceBinding) bool {
+		return current.StructuralID == binding.StructuralID && current.SourceID == binding.SourceID &&
+			current.CallsiteID == binding.CallsiteID && current.Expression == binding.Expression
+	}) {
 		return closureledger.Document{}, false
 	}
 	return document, true
@@ -411,7 +415,7 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 	if err != nil {
 		return count, unmatched, first, err
 	}
-	documents, sourceAliases, _, err := activeClosureDocuments(context.Background(), source)
+	documents, sourceAliases, sourceResult, err := activeClosureDocuments(context.Background(), source)
 	if err != nil {
 		return count, unmatched, first, err
 	}
@@ -437,7 +441,10 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 			continue
 		}
 		binding := document.Bindings[0]
-		key := (closurescan.Candidate{Kind: binding.Kind, File: binding.File, Scope: binding.Scope, Line: binding.Line, Name: binding.Name}).DeclarationKey()
+		key := (closurescan.Candidate{
+			Kind: binding.Kind, Package: binding.Package, File: binding.File, Scope: binding.Scope,
+			Line: binding.Line, Name: binding.Name, StructuralID: binding.StructuralID,
+		}).DeclarationKey()
 		alias, err := closureledger.ActiveAlias(binding)
 		if err != nil {
 			return count, unmatched, first, err
@@ -480,6 +487,48 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 			retired[previousAlias] = true
 		}
 		rebound = append(rebound, current)
+	}
+	if sameStore {
+		activeDocuments := make(map[artifact.ID]bool, len(documents))
+		for _, document := range documents {
+			activeDocuments[document.ID] = true
+		}
+		recovered := map[string]map[artifact.ID]closureledger.Document{}
+		for _, descriptor := range sourceResult.Artifacts {
+			if activeDocuments[descriptor.ID] || descriptor.MediaType != closureledger.MediaType {
+				continue
+			}
+			content, found, err := source.Content(context.Background(), descriptor.ID)
+			if err != nil || !found {
+				return count, unmatched, first, cmp.Or(err, errors.New("closure-scan: historical closure content absent"))
+			}
+			document, err := closureledger.Parse(content.Data)
+			if err != nil || len(document.Bindings) != 1 {
+				continue
+			}
+			current, matched, _, err := index.Rebind(document)
+			if err != nil {
+				return count, unmatched, first, err
+			}
+			if !matched {
+				continue
+			}
+			alias, err := closureledger.ActiveAlias(current.Bindings[0])
+			if err != nil || targetAliases[alias].Valid() {
+				continue
+			}
+			if recovered[alias] == nil {
+				recovered[alias] = map[artifact.ID]closureledger.Document{}
+			}
+			recovered[alias][current.ID] = current
+		}
+		for _, candidates := range recovered {
+			if len(candidates) == 1 {
+				for _, document := range candidates {
+					rebound = append(rebound, document)
+				}
+			}
+		}
 	}
 	fixtures, err := closureFixtureImports(context.Background(), source, rebound)
 	closeErr = source.Close()
@@ -627,6 +676,7 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 	byKey := map[string]closurescan.Candidate{}
 	for _, row := range candidates {
 		byKey[row.DeclarationKey()] = row
+		byKey[row.LegacyDeclarationKey()] = row
 	}
 	documents := make([]closureledger.Document, 0, len(triage.Rows))
 	for _, row := range triage.Rows {

@@ -27,19 +27,21 @@ import (
 )
 
 type Candidate struct {
-	Kind       closureledger.BindingKind `json:"kind"`
-	Name       string                    `json:"name"`
-	File       string                    `json:"file"`
-	Package    string                    `json:"package"`
-	Scope      string                    `json:"scope"`
-	Line       int                       `json:"line"`
-	Expression string                    `json:"expression"`
-	Value      string                    `json:"value"`
-	SourceID   string                    `json:"source_id"`
-	CallsiteID string                    `json:"callsite_id"`
-	Policy     bool                      `json:"policy"`
-	Doc        string                    `json:"doc,omitempty"`
-	Score      int                       `json:"score"`
+	Kind         closureledger.BindingKind `json:"kind"`
+	Name         string                    `json:"name"`
+	File         string                    `json:"file"`
+	Package      string                    `json:"package"`
+	Scope        string                    `json:"scope"`
+	Line         int                       `json:"line"`
+	Expression   string                    `json:"expression"`
+	Value        string                    `json:"value"`
+	StructuralID string                    `json:"structural_id"`
+	SourceID     string                    `json:"source_id"`
+	CallsiteID   string                    `json:"callsite_id"`
+	OwnerID      string                    `json:"owner_id"`
+	Policy       bool                      `json:"policy"`
+	Doc          string                    `json:"doc,omitempty"`
+	Score        int                       `json:"score"`
 }
 
 type CandidateKinds uint8
@@ -61,6 +63,14 @@ func (k CandidateKinds) includes(candidate CandidateKinds) bool {
 }
 
 func (c Candidate) DeclarationKey() string {
+	if c.StructuralID != "" {
+		return string(c.Kind) + "\x00" + c.Package + "\x00" + c.File + "\x00" + c.Scope + "\x00" + c.StructuralID
+	}
+	return c.LegacyDeclarationKey()
+}
+
+// LegacyDeclarationKey identifies the old source-location representation for migration and triage.
+func (c Candidate) LegacyDeclarationKey() string {
 	return string(c.Kind) + "\x00" + c.File + "\x00" + c.Scope + "\x00" + strconv.Itoa(c.Line) + "\x00" + c.Name
 }
 
@@ -82,7 +92,11 @@ func (c Candidate) ValueJSON() json.RawMessage {
 }
 
 func (c Candidate) Binding() (closureledger.SourceBinding, error) {
-	decoded, err := hex.DecodeString(c.SourceID)
+	ownerID := c.OwnerID
+	if ownerID == "" {
+		ownerID = c.SourceID
+	}
+	decoded, err := hex.DecodeString(ownerID)
 	if err != nil || len(decoded) != sha256.Size {
 		return closureledger.SourceBinding{}, fmt.Errorf("closure scan: invalid source identity for %s", c.Name)
 	}
@@ -95,7 +109,7 @@ func (c Candidate) Binding() (closureledger.SourceBinding, error) {
 	return closureledger.SourceBinding{
 		Kind: c.Kind, Package: c.Package, File: c.File,
 		Scope: c.Scope, Name: c.Name, Line: c.Line, Expression: c.Expression,
-		SourceID: c.SourceID, CallsiteID: c.CallsiteID, Owner: owner,
+		StructuralID: c.StructuralID, SourceID: c.SourceID, CallsiteID: c.CallsiteID, Owner: owner,
 	}, nil
 }
 
@@ -104,7 +118,8 @@ func (s LiteralSite) Candidate() Candidate {
 		Kind: closureledger.BindingLiteral, Name: "literal." + strconv.Itoa(s.Offset),
 		File: s.File, Package: s.Package, Scope: s.Scope, Line: s.Line,
 		Expression: s.Expression, Value: s.Value, SourceID: s.SourceID,
-		CallsiteID: sourceSiteID(s.File, s.SourceID, s.Scope, s.Line, s.Offset),
+		OwnerID:    s.SourceID,
+		CallsiteID: s.SourceID,
 		Policy:     s.Policy,
 	}
 }
@@ -115,7 +130,8 @@ func (s AssumptionHint) Candidate() Candidate {
 		Name: "assumption." + string(s.Kind) + "." + strconv.Itoa(s.Offset),
 		File: s.File, Package: s.Package, Scope: s.Scope, Line: s.Line,
 		Expression: s.Expression, Value: string(s.Kind), SourceID: s.SourceID,
-		CallsiteID: sourceSiteID(s.File, s.SourceID, s.Scope, s.Line, s.Offset),
+		OwnerID:    s.SourceID,
+		CallsiteID: s.SourceID,
 		Policy:     s.Policy,
 	}
 }
@@ -567,6 +583,7 @@ func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string, kind
 	if err != nil {
 		return nil, err
 	}
+	assignStructuralIdentities(out)
 	if kinds.includes(CandidateConstants) {
 		if err := bindCallsites(snapshot, out, objects); err != nil {
 			return nil, err
@@ -874,7 +891,7 @@ func collectObjects(file *ast.File, source repoanalysis.GoFile, out *[]Candidate
 			Kind: closureledger.BindingConstant, Name: declaration.name.Name, File: source.Path,
 			Package: filepath.ToSlash(filepath.Dir(source.Path)),
 			Scope:   declaration.scope, Line: source.Line(declaration.name.Pos()),
-			Expression: expression, Value: evaluated, SourceID: source.ContentID,
+			Expression: expression, Value: evaluated, SourceID: source.ContentID, OwnerID: source.ContentID,
 			Policy: true, Doc: declaration.doc, Score: score(declaration.name.Name, declaration.doc, evaluated),
 		})
 		if objects != nil && declaration.name.Obj != nil {
@@ -942,16 +959,6 @@ func bindCallsites(snapshot repoanalysis.SourceSnapshot, candidates []Candidate,
 	return nil
 }
 
-func sourceSiteID(file, source, scope string, line, offset int) string {
-	destination := sha256.New()
-	hashField(destination, file)
-	hashField(destination, source)
-	hashField(destination, scope)
-	hashField(destination, strconv.Itoa(line))
-	hashField(destination, strconv.Itoa(offset))
-	return hex.EncodeToString(destination.Sum(nil))
-}
-
 func candidateImports(file *ast.File, packages map[string]bool) map[string]string {
 	imports := map[string]string{}
 	for _, spec := range file.Imports {
@@ -979,12 +986,35 @@ func candidateImports(file *ast.File, packages map[string]bool) map[string]strin
 	return imports
 }
 
-func hashCallsite(destination hash.Hash, source repoanalysis.GoFile, scope string, position token.Pos) {
+func hashCallsite(destination hash.Hash, source repoanalysis.GoFile, scope string, _ token.Pos) {
 	hashField(destination, source.Path)
-	hashField(destination, source.ContentID)
 	hashField(destination, scope)
-	hashField(destination, strconv.Itoa(source.Line(position)))
-	hashField(destination, strconv.Itoa(int(position)-1))
+}
+
+func assignStructuralIdentities(candidates []Candidate) {
+	ordinals := map[string]int{}
+	for index := range candidates {
+		candidate := &candidates[index]
+		base := string(candidate.Kind) + "\x00" + candidate.Package + "\x00" + candidate.File + "\x00" + candidate.Scope
+		member := candidate.Name
+		if candidate.Kind != closureledger.BindingConstant {
+			member = strconv.Itoa(ordinals[base])
+			ordinals[base]++
+		}
+		candidate.StructuralID = digestFields(base, member)
+		candidate.SourceID = digestFields(candidate.StructuralID, candidate.Expression)
+		if candidate.Kind != closureledger.BindingConstant {
+			candidate.CallsiteID = candidate.StructuralID
+		}
+	}
+}
+
+func digestFields(fields ...string) string {
+	destination := sha256.New()
+	for _, field := range fields {
+		hashField(destination, field)
+	}
+	return hex.EncodeToString(destination.Sum(nil))
 }
 
 func hashField(destination hash.Hash, value string) {

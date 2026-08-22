@@ -11,7 +11,9 @@ type RebindIndex map[string][]Candidate
 func CompileRebindIndex(candidates []Candidate) RebindIndex {
 	current := make(RebindIndex, len(candidates))
 	for _, candidate := range candidates {
-		key := rebindKey(candidate.Kind, candidate.Package, candidate.File, candidate.Scope, candidate.Name, candidate.Expression)
+		current["s\x00"+candidate.StructuralID] = append(current["s\x00"+candidate.StructuralID], candidate)
+		current["l\x00"+candidate.LegacyDeclarationKey()] = append(current["l\x00"+candidate.LegacyDeclarationKey()], candidate)
+		key := "m\x00" + rebindKey(candidate.Kind, candidate.Package, candidate.File, candidate.Scope, candidate.Name, candidate.Expression)
 		current[key] = append(current[key], candidate)
 	}
 	return current
@@ -23,11 +25,34 @@ func (current RebindIndex) Rebind(document closureledger.Document) (closureledge
 	fixture := document.Fixture
 	changed := false
 	for index, previous := range document.Bindings {
-		candidates := current[rebindKey(previous.Kind, previous.Package, previous.File, previous.Scope, previous.Name, previous.Expression)]
+		key := "s\x00" + previous.StructuralID
+		migration := previous.StructuralID == ""
+		var candidates []Candidate
+		if migration {
+			legacyKey := "l\x00" + (Candidate{
+				Kind: previous.Kind, File: previous.File, Scope: previous.Scope, Line: previous.Line, Name: previous.Name,
+			}).LegacyDeclarationKey()
+			for _, candidate := range current[legacyKey] {
+				binding, err := candidate.Binding()
+				if err != nil {
+					return closureledger.Document{}, false, "binding", err
+				}
+				if binding.Owner == previous.Owner {
+					candidates = append(candidates, candidate)
+				}
+			}
+			if len(candidates) == 0 {
+				key = "m\x00" + rebindKey(previous.Kind, previous.Package, previous.File, previous.Scope, previous.Name, previous.Expression)
+				candidates = current[key]
+			}
+		}
+		if !migration {
+			candidates = current[key]
+		}
 		var match Candidate
 		matches, callsites := 0, false
 		for _, candidate := range candidates {
-			if candidate.CallsiteID != previous.CallsiteID {
+			if !migration && candidate.CallsiteID != previous.CallsiteID {
 				continue
 			}
 			callsites = true
@@ -70,5 +95,8 @@ func (current RebindIndex) Rebind(document closureledger.Document) (closureledge
 }
 
 func rebindKey(kind closureledger.BindingKind, pkg, file, scope, name, expression string) string {
+	if kind != closureledger.BindingConstant {
+		name = ""
+	}
 	return string(kind) + "\x00" + pkg + "\x00" + file + "\x00" + scope + "\x00" + name + "\x00" + expression
 }

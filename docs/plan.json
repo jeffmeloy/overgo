@@ -244,6 +244,76 @@
       ]
     },
     {
+      "id": "composite-generation-evidence",
+      "title": "Record exact baseline, composed, source-ablated, and bridge-ablated generation trials with frozen-model proof",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record exact baseline, composed, source-ablated, and bridge-ablated generation trials with frozen-model proof",
+          "status": "done",
+          "verify": "go test ./internal/composition ./internal/evaluation ./internal/runrecord -run 'TestCompositeGeneration(Evidence|FrozenModels|AblationArms|Identity)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "composite-generation-execution",
+      "title": "Execute every generation arm through the active recipe runtime and commit output, run, metric, latency, and memory lineage",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Execute every generation arm through the active recipe runtime and commit output, run, metric, latency, and memory lineage",
+          "status": "open",
+          "verify": "go test ./internal/composition ./internal/inference ./internal/workflowruntime -run 'TestCompositeGeneration(ActiveRecipe|Execution|OutputLineage|ResourceEvidence)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "composite-generation-quality",
+      "title": "Score real held-out generated artifacts for task quality, stability, non-degeneracy, and attributable source effect",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Score real held-out generated artifacts for task quality, stability, non-degeneracy, and attributable source effect",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/composition -run 'TestCompositeGeneration(HeldoutQuality|RepeatedSeeds|SourceEffect|Refusal)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "composite-generation-cuda",
+      "title": "Run the promoted composition and model-native baseline on identical real catalog artifacts and held-out inputs under CUDA",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the promoted composition and model-native baseline on identical real catalog artifacts and held-out inputs under CUDA",
+          "status": "open",
+          "verify": "go run ./cmd/composite-generation-lane"
+        }
+      ]
+    },
+    {
+      "id": "composite-generation-surfaces",
+      "title": "Require identical active-recipe generation through runtime, API, and GUI before evidence can promote the composition",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Require identical active-recipe generation through runtime, API, and GUI before evidence can promote the composition",
+          "status": "open",
+          "verify": "go test ./internal/composition ./internal/server ./internal/inference -run 'TestCompositeGeneration(SurfaceParity|PromotionGate|UnpromotedRefusal)' -count=1 \u0026\u0026 go run ./cmd/composite-generation-lane"
+        }
+      ]
+    },
+    {
       "id": "magic-runtime-remaining",
       "title": "Close remaining production literal surfaces",
       "status": "open",

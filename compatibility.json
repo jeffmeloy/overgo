@@ -434,7 +434,7 @@
      "contains": "func Quantize(",
      "path": "internal/quant/quantize.go",
      "role": "source",
-     "identity": "file:sha256:8edb08ac95d83d74c4a240be82c527f48c9852b12c445ef3fbcc7ee94b7a779b"
+     "identity": "file:sha256:d716e9b44651f447dd85a6219d9e52bcfdf6311b67171881a332d1334880a41e"
     },
     {
      "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
@@ -1107,7 +1107,7 @@
      "contains": "func LoadGenerator(",
      "path": "internal/sensenovarecipe/runtime_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:74a8478dfe30d46959267c0dbba8590748625ef066ad7c069f206e073c9df342"
+     "identity": "file:sha256:bbc1819c0801aef03a2f3318227e32cb56ea8a0f5806a706f6d4ae17e77b2838"
     },
     {
      "contains": "modelrecipe.ModuleRoutedImagePrepare:     routed,",

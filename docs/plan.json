@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "quant-codec",
-          "title": "Consolidate quantization and codec arithmetic into shared typed operations",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/quant,internal/codec -require-classified -require-no-stale -require-no-uncatalogued-production"
-        },
-        {
           "id": "artifact-storage",
           "title": "Remove artifact and RepoDB storage policy duplication",
           "status": "open",

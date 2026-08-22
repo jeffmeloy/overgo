@@ -8,18 +8,29 @@ import (
 )
 
 func TestPairedFeatureLogitRowSkipsLastTokenRow(t *testing.T) {
-	logits := reference.Value{
-		Shape: tensor.MustShape(3, 3),
-		Data:  []float32{1, 2, 3, 4, 5, 6, 7, 8, 9},
+	const (
+		vocabulary = 3
+		rows       = 3
+		rowIndex   = 1
+	)
+	data := make([]float32, vocabulary*rows)
+	for index := range data {
+		data[index] = float32(index + 1)
 	}
-	row, err := pairedFeatureLogitRow(logits, 1, 3)
+	logits := reference.Value{
+		Shape: tensor.MustShape(vocabulary, rows),
+		Data:  data,
+	}
+	row, err := pairedFeatureLogitRow(logits, rowIndex, vocabulary)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(row) != 3 || row[0] != 4 || row[2] != 6 {
+	wantStart := data[rowIndex*vocabulary]
+	wantEnd := data[(rowIndex+1)*vocabulary-1]
+	if len(row) != vocabulary || row[0] != wantStart || row[vocabulary-1] != wantEnd {
 		t.Fatalf("unexpected paired-feature proposal row: %v", row)
 	}
-	if _, err := pairedFeatureLogitRow(logits, 3, 3); err == nil {
+	if _, err := pairedFeatureLogitRow(logits, rows, vocabulary); err == nil {
 		t.Fatal("accepted out-of-range paired-feature proposal row")
 	}
 }

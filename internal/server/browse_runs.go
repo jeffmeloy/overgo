@@ -116,11 +116,7 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 
 	runs := make([]browseRunEntry, 0, end-offset)
 	for _, descriptor := range descriptors[offset:end] {
-		content, ok, contentErr := store.Content(request.Context(), descriptor.ID)
-		if contentErr != nil || !ok {
-			continue
-		}
-		run, parseErr := runrecord.ParseRun(content.Data)
+		run, parseErr := runrecord.RequireRun(request.Context(), store, descriptor.ID)
 		if parseErr != nil {
 			continue
 		}

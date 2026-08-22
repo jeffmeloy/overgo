@@ -266,14 +266,7 @@ func (workspace *EvaluationWorkspace) loadEvaluation(ctx context.Context, id art
 	if id.Kind() != artifact.KindEvaluation {
 		return runrecord.Evaluation{}, errors.New("evaluation workspace: invalid evaluation identity")
 	}
-	content, found, err := workspace.repository.Content(ctx, id)
-	if err != nil {
-		return runrecord.Evaluation{}, err
-	}
-	if !found {
-		return runrecord.Evaluation{}, errors.New("evaluation workspace: evaluation is absent")
-	}
-	record, err := runrecord.ParseEvaluation(content.Data)
+	record, err := runrecord.RequireEvaluation(ctx, workspace.repository, id)
 	if err != nil || record.Recipe != workspace.recipe {
 		return runrecord.Evaluation{}, errors.New("evaluation workspace: evaluation is not selected-model evidence")
 	}

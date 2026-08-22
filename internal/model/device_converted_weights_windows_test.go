@@ -5,16 +5,19 @@ package model
 import (
 	"bytes"
 	"context"
-	cudatest "overgo/internal/cuda/testutil"
+	"slices"
 	"testing"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/executor"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/reference"
 )
 
-func TestDeviceF32WeightsFeedExecutor(t *testing.T) {
+func TestDeviceConvertedWeightsFeedExecutor(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	data := hostTensorFixture(t)
@@ -22,12 +25,17 @@ func TestDeviceF32WeightsFeedExecutor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	worker, err := device.New(0)
+	info := file.Tensors[tensor.FirstOffset]
+	source, err := LoadHostTensor(context.Background(), file, info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := device.New(modelTestDeviceOrdinal)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer worker.Close()
-	weights, err := NewDeviceF32Weights(worker)
+	weights, err := NewDeviceConvertedWeights(worker, dtype.F32)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,11 +44,17 @@ func TestDeviceF32WeightsFeedExecutor(t *testing.T) {
 		t.Fatal(err)
 	}
 	builder := tensor.NewBuilder()
-	input, pointer, err := weights.Input(builder, "weight")
+	input, pointer, err := weights.Input(builder, info.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	output := builder.Scale(input, 2)
+	output := builder.Add(input, input)
+	want, err := reference.Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
+		input: {Shape: source.Shape, Data: source.Data},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cuda, err := executor.NewWithWorker(worker)
 	if err != nil {
 		t.Fatal(err)
@@ -58,10 +72,7 @@ func TestDeviceF32WeightsFeedExecutor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []float32{2, 4, 6, 8}
-	for index := range want {
-		if results[output].Data[index] != want[index] {
-			t.Fatalf("output[%d] = %v, want %v", index, results[output].Data[index], want[index])
-		}
+	if !slices.Equal(results[output].Data, want[output].Data) {
+		t.Fatalf("output = %v, want %v", results[output].Data, want[output].Data)
 	}
 }

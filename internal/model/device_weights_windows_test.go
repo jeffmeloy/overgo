@@ -14,6 +14,8 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+const modelTestDeviceOrdinal = 0
+
 func TestDeviceWeightsIntegration(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
@@ -22,7 +24,7 @@ func TestDeviceWeightsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	worker, err := device.New(0)
+	worker, err := device.New(modelTestDeviceOrdinal)
 	if err != nil {
 		t.Fatal(err)
 	}

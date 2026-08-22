@@ -10,16 +10,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
-	"overgo/internal/tensor/dtype"
 )
-
-func scalarStorageBytes(kind dtype.Type) (uint64, error) {
-	bytes, valid := kind.ScalarBytes()
-	if !valid {
-		return bytes, fmt.Errorf("%s scalar storage traits are unavailable", kind)
-	}
-	return bytes, nil
-}
 
 // deviceTensorStore: shared CUDA tensor ownership.
 type deviceTensorStore struct {

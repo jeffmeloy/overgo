@@ -63,16 +63,9 @@ func (campaign *Campaign) History(ctx context.Context, suites []CompiledSuite) (
 		if descriptor.MediaType != runrecord.RunMediaType && descriptor.MediaType != runrecord.EvaluationMediaType {
 			continue
 		}
-		content, found, err := repository.Content(ctx, edge.Child)
-		if err != nil {
-			return nil, err
-		}
-		if !found {
-			continue
-		}
 		switch {
 		case descriptor.MediaType == runrecord.RunMediaType:
-			run, err := runrecord.ParseRun(content.Data)
+			run, err := runrecord.RequireRun(ctx, repository, edge.Child)
 			if err != nil {
 				return nil, errors.Join(err, errors.New("evaluation: indexed run is invalid"))
 			}
@@ -82,7 +75,7 @@ func (campaign *Campaign) History(ctx context.Context, suites []CompiledSuite) (
 				}
 			}
 		case descriptor.MediaType == runrecord.EvaluationMediaType && descriptor.Schema == runrecord.EvaluationSchema:
-			record, err := runrecord.ParseEvaluation(content.Data)
+			record, err := runrecord.RequireEvaluation(ctx, repository, edge.Child)
 			if err != nil {
 				return nil, errors.Join(err, errors.New("evaluation: indexed metric record is invalid"))
 			}

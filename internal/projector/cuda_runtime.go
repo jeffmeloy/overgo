@@ -20,7 +20,7 @@ import (
 type projectorCUDA struct {
 	worker   *device.Worker
 	executor *executor.Executor
-	weights  *model.DeviceF32Weights
+	weights  *model.DeviceConvertedWeights
 }
 
 func openProjectorCUDA(
@@ -42,7 +42,7 @@ func openProjectorCUDA(
 	if err != nil {
 		return fail(err)
 	}
-	state.weights, err = model.NewDeviceF32Weights(worker)
+	state.weights, err = model.NewDeviceConvertedWeights(worker, dtype.F32)
 	if err != nil {
 		return fail(err)
 	}

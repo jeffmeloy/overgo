@@ -207,3 +207,26 @@ func (w *DeviceWeights) Input(
 	}
 	return node, value.Pointer, nil
 }
+
+// BindDeviceLayerGraphInputs binds a compiled layer catalog.
+func BindDeviceLayerGraphInputs(
+	builder *tensor.Builder,
+	info LayerWeights,
+	bind DeviceTensorBinder,
+) (LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
+	if builder == nil {
+		return LayerGraphWeights{}, nil, errors.New("device layer graph builder is nil")
+	}
+	if bind == nil {
+		return LayerGraphWeights{}, nil, errors.New("device layer graph binder is nil")
+	}
+	feeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	result := LayerGraphWeights{}
+	if err := bindDeviceLayerGraphFields(bind, builder, &info, &result, feeds); err != nil {
+		return LayerGraphWeights{}, nil, err
+	}
+	if err := builder.Err(); err != nil {
+		return LayerGraphWeights{}, nil, err
+	}
+	return result, feeds, nil
+}

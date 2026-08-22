@@ -376,7 +376,11 @@ func nextAction() (string, bool) {
 	if err != nil {
 		return "plan: " + err.Error(), false
 	}
-	it, st, ok := plan.Current(doc)
+	role, err := plan.AutomationRole("")
+	if err != nil {
+		return "", false
+	}
+	it, st, ok := plan.Current(doc, role)
 	if !ok {
 		return "plan complete: every item is done", true
 	}

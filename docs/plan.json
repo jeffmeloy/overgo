@@ -3,6 +3,19 @@
   "doctrine": "Follow skill.md. Repository census authority: evidence:sha256:4ca88e13e970faa30cc7b7b9702e69a767ae15eb7801fdad38067971f18ec4e8. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
   "items": [
     {
+      "id": "merge-524691512e21",
+      "title": "Merge master at 524691512e21",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 524691512e21",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
       "id": "census-doctrine-authority",
       "title": "Bind cleanup doctrine to published census evidence",
       "status": "done",
@@ -25,6 +38,19 @@
           "title": "Merge master at 46eb90b286b5",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "plan-completion-receipts",
+      "title": "Publish mergeable immutable plan completion receipts",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish mergeable immutable plan completion receipts",
+          "status": "open",
+          "verify": "go test ./internal/plan ./cmd/plan ./internal/runrecord -run 'Test(CompletionReceipt|MergeCompletionConflict|AdvancePublishesReceipt)' -count=1"
         }
       ]
     },
@@ -116,6 +142,19 @@
           "title": "Reuse bounded package test evidence by exact transitive input identity",
           "status": "done",
           "verify": "go test ./cmd/gate ./internal/automationcheck -run 'TestPackage(EvidenceCache|InputIdentity|SelectiveReuse)|TestCacheBoundedEviction' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "plan-census-authority",
+      "title": "Bind campaign baselines to published census evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bind campaign baselines to published census evidence",
+          "status": "open",
+          "verify": "go test ./cmd/plan ./cmd/closure-scan ./internal/plan -run 'Test(CampaignCensusAuthority|DoctrineRejectsMetricLiterals|PublishedCensusBaseline)' -count=1"
         }
       ]
     },

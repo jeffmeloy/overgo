@@ -235,7 +235,11 @@ func checkPlanBinding(repo, ref string) error {
 	if err := plan.Validate(document); err != nil {
 		return err
 	}
-	it, st, open := plan.Current(document)
+	role, err := plan.AutomationRole("")
+	if err != nil {
+		return err
+	}
+	it, st, open := plan.Current(document, role)
 	if !open {
 		return fmt.Errorf("gate: -plan %s given but the plan is COMPLETE (no open step) -- nothing to commit against", ref)
 	}
@@ -1406,7 +1410,11 @@ func acceptanceVerdictClass(repo string) testevidence.VerdictClass {
 	if err != nil {
 		return testevidence.VerdictBitwiseDeterministic
 	}
-	_, step, open := plan.Current(document)
+	role, roleErr := plan.AutomationRole("")
+	if roleErr != nil {
+		return testevidence.VerdictBitwiseDeterministic
+	}
+	_, step, open := plan.Current(document, role)
 	if !open {
 		return testevidence.VerdictBitwiseDeterministic
 	}

@@ -97,7 +97,7 @@ func BuildAutomationContext(document Plan, facts ContextFacts) (AutomationContex
 	if ctx.Workflow.Source == "" || ctx.Workflow.Phase != "implementation" && ctx.Workflow.Phase != "sqa" && ctx.Workflow.Phase != "priority" {
 		return AutomationContext{}, errors.New("automation context requires a valid workflow phase and source")
 	}
-	if item, step, ok := Current(document); ok {
+	if item, step, ok := Current(document, facts.Role); ok {
 		ctx.PlanState = "active"
 		ctx.CurrentTask = &TaskContext{
 			ItemID: item.ID, ItemTitle: item.Title,

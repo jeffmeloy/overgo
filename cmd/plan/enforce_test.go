@@ -41,7 +41,7 @@ func TestAdvanceRetainsCompletedWork(t *testing.T) {
 			{ID: "second", Status: "open", Verify: "go test ./..."},
 		},
 	}}}
-	if err := advanceStep(document, "item", "first", "test-verified", nil); err != nil {
+	if err := advanceStep(document, "item", "first", "test-verified", plan.UnassignedRole, nil); err != nil {
 		t.Fatal(err)
 	}
 	saved, err := plan.Load("")
@@ -72,7 +72,7 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 	if top.Items[0].ID != "new" || top.Items[0].Steps[0].ID != "do" || top.Items[0].Steps[0].Verify != "go test ./..." {
 		t.Fatalf("insert-at-top produced %+v", top.Items[0])
 	}
-	if it, st, ok := plan.Current(top); !ok || it.ID != "new" || st.ID != "do" {
+	if it, st, ok := plan.Current(top, plan.UnassignedRole); !ok || it.ID != "new" || st.ID != "do" {
 		t.Fatalf("new item must be the current step, got %s/%s", it.ID, st.ID)
 	}
 	mid, err := insertItem(base, "x", "t", "b", "")

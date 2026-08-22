@@ -14,7 +14,7 @@
           "verify": "go test ./internal/hybridtrain -run 'TestHybrid(CompiledHostLifecycle|TrainHostMasterStreamedMatchesHost|TrainLayerStreamedMatchesFullSlab)' -count=1",
           "rationale": "Host and host-master lanes execute identical forward, trace, backward, packing, and scratch reuse; optimizer ownership remains lane-specific.",
           "depends_on": [
-            "recipe-identity-validation/migrate"
+            "converted-device-fixture/migrate"
           ],
           "capabilities": [
             "shared-host-autodiff",

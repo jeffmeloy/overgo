@@ -152,10 +152,7 @@ func (r *Runner) multiHeadMTPTargetAdvance(
 	if err != nil {
 		return reference.Value{}, reference.Value{}, nil, err
 	}
-	lastHidden, err := lastValueColumn(hidden)
-	if err != nil {
-		return reference.Value{}, reference.Value{}, nil, err
-	}
+	lastHidden := hidden.LastRowView().Clone()
 	return logits, lastHidden, nextCache, nil
 }
 

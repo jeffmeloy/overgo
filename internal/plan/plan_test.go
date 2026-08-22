@@ -41,13 +41,6 @@ func TestPlanContainsOpenWorkOnly(t *testing.T) {
 	if err := ValidateOpenWork(legacy); err == nil {
 		t.Fatal("completion ledger passed live-plan validation")
 	}
-	compacted := Compact(legacy)
-	if err := ValidateOpenWork(compacted); err != nil {
-		t.Fatal(err)
-	}
-	if len(compacted.Items) != 1 || len(compacted.Items[0].Steps) != 1 || compacted.Items[0].Steps[0].Status != "open" {
-		t.Fatalf("compacted plan = %+v", compacted)
-	}
 }
 
 func TestOpenStepRequiresVerifier(t *testing.T) {
@@ -60,18 +53,5 @@ func TestOpenStepRequiresVerifier(t *testing.T) {
 	document.Items[0].Steps[0].Status = "blocked-external-prereq"
 	if err := ValidateOpenWork(document); err != nil {
 		t.Fatalf("blocked step should name its blocker without a runnable verifier: %v", err)
-	}
-}
-
-func TestCompactPropagatesBlockedStatus(t *testing.T) {
-	document := Plan{Items: []Item{{
-		ID: "roadmap", Status: "open", Steps: []Step{{ID: "license", Status: "blocked-external-prereq"}},
-	}}}
-	compacted := Compact(document)
-	if compacted.Items[0].Status != "blocked-external-prereq" {
-		t.Fatalf("blocked-only item status = %q", compacted.Items[0].Status)
-	}
-	if item, _, ok := Current(compacted); ok && item.ID == "roadmap" {
-		t.Fatal("blocked-only item remained dispatchable")
 	}
 }

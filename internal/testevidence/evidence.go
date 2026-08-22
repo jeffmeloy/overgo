@@ -29,23 +29,6 @@ type testResult struct {
 	Unavailable string
 }
 
-// GoTestJSON rejects skipped tests and unavailable oracle markers in go test
-// -json output. Package rows without tests remain neutral: derived gate scope
-// may include importers that intentionally own no tests.
-func GoTestJSON(out string) error {
-	report, err := GoTestJSONReport(out)
-	if err != nil {
-		return err
-	}
-	if len(report.Unavailable) > 0 {
-		return fmt.Errorf("%s", report.Unavailable[0])
-	}
-	if len(report.Skipped) > 0 {
-		return fmt.Errorf("%s skipped", report.Skipped[0])
-	}
-	return nil
-}
-
 // GoTestJSONShort permits only explicitly classified short-mode exclusions.
 func GoTestJSONShort(out string) error {
 	report, err := GoTestJSONShortReport(out)
@@ -154,14 +137,24 @@ func JSONCommand(command string) string {
 	return command
 }
 
-// VerifyGoTestTarget requires the declared -run target to pass while retaining
-// unrelated skips as visible, uncredited evidence.
-func VerifyGoTestTarget(command, out string) error {
-	target, err := goTestTarget(command)
+// VerifyGoTestEvidence accepts a passing explicit -run oracle or a complete
+// broad run that executed tests. Targeted runs do not credit unrelated skips;
+// broad runs own and therefore reject every skip or unavailable fixture.
+func VerifyGoTestEvidence(command, out string) error {
+	report, err := GoTestJSONReport(out)
 	if err != nil {
 		return err
 	}
-	report, err := GoTestJSONReport(out)
+	if !goTestRunFlag.MatchString(command) {
+		if err := RequireComplete(report); err != nil {
+			return err
+		}
+		if report.PassedTests == 0 || report.PassedPackages == 0 {
+			return fmt.Errorf("go test verifier executed no complete passing test package")
+		}
+		return nil
+	}
+	target, err := goTestTarget(command)
 	if err != nil {
 		return err
 	}
@@ -184,28 +177,6 @@ func VerifyGoTestTarget(command, out string) error {
 	}
 	if !passed {
 		return fmt.Errorf("go test -run %q matched no passing test", target.String())
-	}
-	return nil
-}
-
-// VerifyGoTestTargetAbsent accepts only a healthy package run in which the
-// declared target did not exist. It is the bootstrap verdict for roadmap work.
-func VerifyGoTestTargetAbsent(command, out string) error {
-	target, err := goTestTarget(command)
-	if err != nil {
-		return err
-	}
-	report, err := GoTestJSONReport(out)
-	if err != nil {
-		return err
-	}
-	for _, result := range report.tests {
-		if target.MatchString(result.Name) {
-			return fmt.Errorf("go test -run %q already matched %s", target.String(), result.Name)
-		}
-	}
-	if report.PassedPackages == 0 {
-		return fmt.Errorf("go test -run %q produced no passing package", target.String())
 	}
 	return nil
 }

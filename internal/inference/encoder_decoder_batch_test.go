@@ -2,6 +2,7 @@ package inference
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -22,23 +23,22 @@ func TestEncoderDecoderBatchRejectsInvalidSourceMask(t *testing.T) {
 	}
 }
 
-func TestValidatePaddedTokenBatchMasksSuffixes(t *testing.T) {
+func TestPaddedTokenBatchLayoutPreservesDerivedLengths(t *testing.T) {
+	active := [][]tokenizer.TokenID{{1, 2}, {3, 4, 5}}
+	var width int
+	for _, tokens := range active {
+		width += len(tokens)
+	}
 	batch := tokenizer.PaddedBatch{
-		Tokens: [][]tokenizer.TokenID{
-			{1, 2, 0, 0},
-			{3, 4, 5, 0},
-		},
-		Lengths: []uint32{2, 3},
+		Tokens: make([][]tokenizer.TokenID, len(active)), Lengths: make([]uint32, len(active)),
 	}
-	layout, err := batch.Layout(2)
-	if err != nil || layout.Width != 4 {
-		t.Fatalf("validation = width %d error %v", layout.Width, err)
+	for index, tokens := range active {
+		batch.Tokens[index] = append(slices.Clone(tokens), make([]tokenizer.TokenID, width-len(tokens))...)
+		batch.Lengths[index] = uint32(len(tokens))
 	}
-	for index, length := range batch.Lengths {
-		active := batch.Tokens[index][:length]
-		if len(active) != int(length) {
-			t.Fatalf("row %d active tokens = %v", index, active)
-		}
+	layout, err := batch.Layout(len(active))
+	if err != nil || layout.Width != uint32(width) || !slices.Equal(layout.Lengths, batch.Lengths) {
+		t.Fatalf("layout = %+v error %v", layout, err)
 	}
 }
 

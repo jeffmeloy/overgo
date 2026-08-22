@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -10,7 +11,7 @@ import (
 	"overgo/internal/runrecord"
 )
 
-func TestCompactAgentOutput(t *testing.T) {
+func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 	gate := gateContext{
 		start: time.Now(),
 		steps: []runrecord.GateStep{
@@ -28,10 +29,12 @@ func TestCompactAgentOutput(t *testing.T) {
 		},
 	}
 	var output bytes.Buffer
-	gate.printSummary(&output, runrecord.OutcomeSucceeded, "")
+	fmt.Fprintf(&output, gateProgressLine, "test", runrecord.HeartbeatRunning)
+	gate.printSummary(&output, runrecord.OutcomeFailed, "test: exit status 1")
 	text := output.String()
-	if len(text) > 1000 || !strings.Contains(text, "GATE SUCCEEDED") || !strings.Contains(text, "delta:") ||
-		!strings.Contains(text, "consumer:") || !strings.Contains(text, "warning:") {
+	if len(text) > 1000 || !strings.Contains(text, "phase=test heartbeat=running") ||
+		!strings.Contains(text, "GATE FAILED") || !strings.Contains(text, "blocker: test: exit status 1") ||
+		!strings.Contains(text, "advisory: delta:") || !strings.Contains(text, "advisory: warning:") {
 		t.Fatalf("gate output is not compact and decision-complete (%d bytes):\n%s", len(text), text)
 	}
 	if strings.Contains(text, "routine baseline") || strings.Contains(text, "claims skipped:") {
@@ -42,5 +45,18 @@ func TestCompactAgentOutput(t *testing.T) {
 	}}}
 	if clone := largestChangedClone(profile, map[string]bool{"cmd/first/main.go": true}, ""); clone != "none" {
 		t.Fatalf("CLI wrapper clone reached agent output: %s", clone)
+	}
+}
+
+func TestGateRunsAcceptanceBeforeExpensivePhases(t *testing.T) {
+	steps := (&gateContext{}).pipelineSteps()
+	positions := make(map[string]int, len(steps))
+	for index, step := range steps {
+		positions[step.name] = index
+	}
+	for _, expensive := range []string{"vet", "build", "test", "device"} {
+		if positions["acceptance"] >= positions[expensive] {
+			t.Fatalf("acceptance position %d is not before %s at %d", positions["acceptance"], expensive, positions[expensive])
+		}
 	}
 }

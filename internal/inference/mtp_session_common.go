@@ -185,22 +185,17 @@ func (r *Runner) validateSingleHeadMTPSession(
 	if err := r.validateCache(session.TrunkCache); err != nil {
 		return fmt.Errorf("inference: %s trunk cache: %w", label, err)
 	}
-	if !session.PendingHidden.Shape.Equal(tensor.MustShape(uint64(r.spec.EmbeddingLength), tensor.SingletonExtent)) ||
-		session.Position == math.MaxUint32 {
+	if r.spec.ValidateSequenceRow(session.PendingHidden) != nil || session.Position == math.MaxUint32 {
 		return fmt.Errorf("inference: %s session state is incompatible", label)
 	}
 	tokens := uint64(session.Position - session.MTPStart)
-	keyDefined := session.Layer.Key.Defined()
-	valueDefined := session.Layer.Value.Defined()
+	emptyCache := !session.Layer.Key.Defined() && !session.Layer.Value.Defined()
 	validCache := session.Position >= effectiveCachePosition(session.TrunkCache) &&
 		session.Position >= session.MTPStart &&
-		keyDefined == valueDefined &&
-		((!keyDefined && !checked.Nonzero(tokens)) ||
-			(session.Layer.Key.Shape.Equal(tensor.MustShape(uint64(r.spec.KeyLength), uint64(r.spec.HeadCountKV), tokens)) &&
-				session.Layer.Value.Shape.Equal(tensor.MustShape(uint64(r.spec.ValueLength), uint64(r.spec.HeadCountKV), tokens))))
-	if boundedContext && keyDefined && !checked.Less64(tokens, uint64(r.spec.ContextLength)) {
-		validCache = false
-	}
+		((emptyCache && !checked.Nonzero(tokens)) ||
+			(tensor.HasDimensions(session.Layer.Key.Shape, uint64(r.spec.KeyLength), uint64(r.spec.HeadCountKV), tokens) &&
+				tensor.HasDimensions(session.Layer.Value.Shape, uint64(r.spec.ValueLength), uint64(r.spec.HeadCountKV), tokens))) &&
+		(!boundedContext || !session.Layer.Key.Defined() || checked.Less64(tokens, uint64(r.spec.ContextLength)))
 	if !validCache {
 		return fmt.Errorf("inference: %s layer cache is incompatible", label)
 	}

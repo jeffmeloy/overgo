@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"slices"
+
+	"overgo/internal/artifact"
 )
 
 // MergeDocuments merges retained plan rows by identity.
@@ -16,9 +18,13 @@ func MergeDocuments(base, local, upstream Plan) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
+	census, err := mergeCensusAuthority(base.Census, local.Census, upstream.Census)
+	if err != nil {
+		return Plan{}, err
+	}
 	itemID := func(item Item) string { return item.ID }
 	baseItems, localItems, upstreamItems := indexByID(base.Items, itemID), indexByID(local.Items, itemID), indexByID(upstream.Items, itemID)
-	merged := Plan{Campaign: campaign, Doctrine: doctrine}
+	merged := Plan{Campaign: campaign, Doctrine: doctrine, Census: census}
 	for _, id := range unionOrder(itemID, base.Items, local.Items, upstream.Items) {
 		baseItem, inBase := baseItems[id]
 		localItem, inLocal := localItems[id]
@@ -44,6 +50,26 @@ func MergeDocuments(base, local, upstream Plan) (Plan, error) {
 		merged.Items = append(merged.Items, item)
 	}
 	return merged, Validate(merged)
+}
+
+func mergeCensusAuthority(base, local, upstream *artifact.ID) (*artifact.ID, error) {
+	equal := func(left, right *artifact.ID) bool {
+		return left == nil && right == nil || left != nil && right != nil && *left == *right
+	}
+	var selected *artifact.ID
+	switch {
+	case equal(local, upstream), equal(upstream, base):
+		selected = local
+	case equal(local, base):
+		selected = upstream
+	default:
+		return nil, fmt.Errorf("plan projection: concurrent census authority edits conflict")
+	}
+	if selected == nil {
+		return nil, nil
+	}
+	cloned := *selected
+	return &cloned, nil
 }
 
 func mergeItem(base, local, upstream Item) (Item, error) {

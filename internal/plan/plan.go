@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
 	"overgo/internal/strictjson"
 	"overgo/internal/textcheck"
@@ -63,9 +65,10 @@ type Item struct {
 
 // Plan is the whole campaign surface.
 type Plan struct {
-	Campaign string `json:"campaign"`
-	Doctrine string `json:"doctrine"`
-	Items    []Item `json:"items"`
+	Campaign string       `json:"campaign"`
+	Doctrine string       `json:"doctrine"`
+	Census   *artifact.ID `json:"census_evidence,omitempty"`
+	Items    []Item       `json:"items"`
 }
 
 // Load reads the plan from path (Path when empty).
@@ -102,6 +105,9 @@ func Save(path string, d Plan) error {
 
 // Validate checks retained plan state.
 func Validate(d Plan) error {
+	if d.Census != nil && (!d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence) {
+		return errors.New("plan: census authority is not evidence")
+	}
 	items := map[string]bool{}
 	for _, item := range d.Items {
 		if item.ID == "" || items[item.ID] {
@@ -130,6 +136,19 @@ func Validate(d Plan) error {
 		if item.Status == StatusDone && slices.ContainsFunc(item.Steps, func(step Step) bool { return step.Status != StatusDone }) {
 			return fmt.Errorf("plan item %s is done with unfinished steps", item.ID)
 		}
+	}
+	return nil
+}
+
+var doctrineMetricLiteral = regexp.MustCompile(`(?i)\b[0-9][0-9,]*\s+(?:production\s+files?|files?|literals?|assumptions?|policy\s+copies)\b`)
+
+// ValidateCampaignCensusAuthority requires RepoDB census identity.
+func ValidateCampaignCensusAuthority(d Plan) error {
+	if d.Census == nil || !d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence {
+		return errors.New("plan: campaign lacks census evidence authority")
+	}
+	if doctrineMetricLiteral.MatchString(d.Doctrine) {
+		return errors.New("plan: doctrine contains hand-typed census metrics")
 	}
 	return nil
 }

@@ -370,6 +370,25 @@ const (
 // work authority. Ranked current work belongs to the failable plan; prose may
 // retain its historical ordering only with an explicit warning and redirect.
 func (g *gateContext) stepDocumentation() (bool, error) {
+	document, err := plan.Load(filepath.Join(g.repo, plan.Path))
+	if err != nil {
+		return false, err
+	}
+	if err := plan.ValidateCampaignCensusAuthority(document); err != nil {
+		return false, err
+	}
+	store, err := repodb.OpenReadOnly(filepath.Join(g.repo, g.storePath))
+	if err != nil {
+		return false, err
+	}
+	_, found, readErr := closurescan.ReadCensusEvidence(context.Background(), store, *document.Census)
+	closeErr := store.Close()
+	if readErr != nil || closeErr != nil {
+		return false, errors.Join(readErr, closeErr)
+	}
+	if !found {
+		return false, errors.New("gate: campaign census evidence is absent from RepoDB")
+	}
 	return false, documentationFreshness(g.repo)
 }
 

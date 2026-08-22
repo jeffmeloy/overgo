@@ -106,11 +106,10 @@ func (r *Runner) GenerateEncoderDecoder(
 			return nil, "", nil, decodeErr
 		}
 		session = nextSession
-		width := int(logitRows.Shape.Dims[0])
-		if width != r.vocab.Len() || len(logitRows.Data) < width {
+		logits := logitRows.LastRowView().Data
+		if len(logits) != r.vocab.Len() {
 			return nil, "", nil, errors.New("inference: decoder logits shape is incompatible")
 		}
-		logits := logitRows.Data[len(logitRows.Data)-width:]
 		event, sampleErr := sampleGenerationToken(logits, history, options)
 		if sampleErr != nil {
 			return nil, "", nil, sampleErr

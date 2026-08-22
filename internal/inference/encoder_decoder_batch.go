@@ -4,24 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
-
 	"overgo/internal/model"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
 
-// PaddedTokenBatch: rectangular tokens plus unpadded lengths.
-type PaddedTokenBatch struct {
-	Tokens  [][]tokenizer.TokenID
-	Lengths []uint32
-}
-
 // EncoderDecoderBatchSession: independent encoder states and decoder caches.
 type EncoderDecoderBatchSession struct {
-	Sequences     []*EncoderDecoderSession
-	SourceLengths []uint32
-	SourceWidth   uint32
+	Sequences []*EncoderDecoderSession
+	Source    tokenizer.PaddedBatchLayout
 }
 
 // EncoderDecoderBatchResult: per-sequence unpadded logits.
@@ -33,12 +24,12 @@ type EncoderDecoderBatchResult struct {
 // NewEncoderDecoderBatchSession: masked padded-source encoding.
 func (r *Runner) NewEncoderDecoderBatchSession(
 	ctx context.Context,
-	batch PaddedTokenBatch,
+	batch tokenizer.PaddedBatch,
 ) (*EncoderDecoderBatchSession, error) {
 	if r == nil {
 		return nil, errRunnerNil
 	}
-	width, err := validatePaddedTokenBatch(batch, 0)
+	layout, err := batch.Layout(0)
 	if err != nil {
 		return nil, err
 	}
@@ -50,12 +41,11 @@ func (r *Runner) NewEncoderDecoderBatchSession(
 		return nil, errors.New("inference: batch session requires a compiled encoder-decoder program")
 	}
 	result := &EncoderDecoderBatchSession{
-		Sequences:     make([]*EncoderDecoderSession, len(batch.Tokens)),
-		SourceLengths: slices.Clone(batch.Lengths),
-		SourceWidth:   width,
+		Sequences: make([]*EncoderDecoderSession, len(batch.Tokens)),
+		Source:    layout,
 	}
 	for index, row := range batch.Tokens {
-		length := batch.Lengths[index]
+		length := layout.Lengths[index]
 		encoder, encodeErr := r.forwardEncoderLocked(ctx, row[:length])
 		if encodeErr != nil {
 			return nil, fmt.Errorf(
@@ -72,7 +62,7 @@ func (r *Runner) NewEncoderDecoderBatchSession(
 // DecodeEncoderDecoderBatch: masked padded-decoder append.
 func (r *Runner) DecodeEncoderDecoderBatch(
 	ctx context.Context,
-	session *EncoderDecoderBatchSession, batch PaddedTokenBatch,
+	session *EncoderDecoderBatchSession, batch tokenizer.PaddedBatch,
 ) (EncoderDecoderBatchResult, *EncoderDecoderBatchSession, error) {
 	if r == nil {
 		return EncoderDecoderBatchResult{}, nil, errRunnerNil
@@ -80,18 +70,18 @@ func (r *Runner) DecodeEncoderDecoderBatch(
 	if session == nil || len(session.Sequences) == 0 {
 		return EncoderDecoderBatchResult{}, nil, errors.New("inference: encoder-decoder batch session is empty")
 	}
-	if len(session.SourceLengths) != len(session.Sequences) || session.SourceWidth == 0 {
+	if !session.Source.Valid(len(session.Sequences)) {
 		return EncoderDecoderBatchResult{}, nil, errors.New("inference: encoder batch source mask is incompatible")
 	}
-	for index, length := range session.SourceLengths {
-		if length == 0 || length > session.SourceWidth || session.Sequences[index] == nil {
+	for index, sequence := range session.Sequences {
+		if sequence == nil {
 			return EncoderDecoderBatchResult{}, nil, fmt.Errorf(
 				"inference: encoder batch source %d state is incompatible",
 				index,
 			)
 		}
 	}
-	_, err := validatePaddedTokenBatch(batch, len(session.Sequences))
+	layout, err := batch.Layout(len(session.Sequences))
 	if err != nil {
 		return EncoderDecoderBatchResult{}, nil, err
 	}
@@ -103,16 +93,15 @@ func (r *Runner) DecodeEncoderDecoderBatch(
 		return EncoderDecoderBatchResult{}, nil, errors.New("inference: batch decode requires a compiled encoder-decoder program")
 	}
 	next := &EncoderDecoderBatchSession{
-		Sequences:     make([]*EncoderDecoderSession, len(session.Sequences)),
-		SourceLengths: slices.Clone(session.SourceLengths),
-		SourceWidth:   session.SourceWidth,
+		Sequences: make([]*EncoderDecoderSession, len(session.Sequences)),
+		Source:    session.Source.Clone(),
 	}
 	result := EncoderDecoderBatchResult{
 		Logits:  make([]reference.Value, len(session.Sequences)),
-		Lengths: slices.Clone(batch.Lengths),
+		Lengths: layout.Clone().Lengths,
 	}
 	for index, row := range batch.Tokens {
-		length := batch.Lengths[index]
+		length := layout.Lengths[index]
 		logits, sequence, decodeErr := r.decodeEncoderDecoderLocked(
 			ctx,
 			session.Sequences[index],
@@ -129,45 +118,4 @@ func (r *Runner) DecodeEncoderDecoderBatch(
 		next.Sequences[index] = sequence
 	}
 	return result, next, nil
-}
-
-func validatePaddedTokenBatch(
-	batch PaddedTokenBatch,
-	wantRows int,
-) (uint32, error) {
-	if len(batch.Tokens) == 0 {
-		return 0, errors.New("inference: padded token batch is empty")
-	}
-	if wantRows > 0 && len(batch.Tokens) != wantRows {
-		return 0, fmt.Errorf(
-			"inference: padded token batch has %d rows, need %d",
-			len(batch.Tokens),
-			wantRows,
-		)
-	}
-	if len(batch.Lengths) != len(batch.Tokens) {
-		return 0, errors.New("inference: padded token batch length count differs")
-	}
-	width := len(batch.Tokens[0])
-	if width == 0 {
-		return 0, errors.New("inference: padded token batch width is zero")
-	}
-	for index, row := range batch.Tokens {
-		if len(row) != width {
-			return 0, fmt.Errorf(
-				"inference: padded token batch row %d has width %d, need %d",
-				index,
-				len(row),
-				width,
-			)
-		}
-		if batch.Lengths[index] == 0 || batch.Lengths[index] > uint32(width) {
-			return 0, fmt.Errorf(
-				"inference: padded token batch row %d length %d is invalid",
-				index,
-				batch.Lengths[index],
-			)
-		}
-	}
-	return uint32(width), nil
 }

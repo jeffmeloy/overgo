@@ -244,7 +244,7 @@ func TestDeepSeek4CacheStateRoundTrip(t *testing.T) {
 	if !reflect.DeepEqual(restored, cache) {
 		t.Fatalf("restored cache = %+v, want %+v", restored, cache)
 	}
-	prefixShifted, err := runner.ShiftCache(cache, 1)
+	prefixShifted, err := runner.RemoveCacheRange(cache, 0, 1)
 	if err != nil || prefixShifted.Tokens != 1 || prefixShifted.Position != 2 {
 		t.Fatalf("DeepSeek 4 prefix shift = %+v, %v", prefixShifted, err)
 	}
@@ -348,7 +348,7 @@ func TestT5CacheValidation(t *testing.T) {
 	if err := runner.validateEncoderDecoderCache(cache, 3); err == nil {
 		t.Fatal("mismatched T5 encoder extent was accepted")
 	}
-	shifted, err := runner.ShiftCache(cache, 1)
+	shifted, err := runner.RemoveCacheRange(cache, 0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -607,7 +607,7 @@ func TestShiftCacheDropsAttentionPrefixAndPreservesPosition(t *testing.T) {
 	runner := cacheTestRunner()
 	cache := cacheTestValue(t)
 	cache.Position = 7
-	shifted, err := runner.ShiftCache(cache, 1)
+	shifted, err := runner.RemoveCacheRange(cache, 0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -681,7 +681,7 @@ func TestShiftHybridCacheRetainsIndependentRecurrentState(t *testing.T) {
 	runner := hybridCacheTestRunner()
 	cache := hybridCacheTestValue(t)
 	cache.Position = 9
-	shifted, err := runner.ShiftCache(cache, 1)
+	shifted, err := runner.RemoveCacheRange(cache, 0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -702,14 +702,14 @@ func TestCacheForAppendShiftsOnlyWhenEnabled(t *testing.T) {
 	runner.spec.ContextLength = 2
 	cache := cacheTestValue(t)
 	cache.Position = 5
-	unchanged, err := runner.cacheForAppend(cache, 1, false)
+	unchanged, err := runner.cacheForAppendKeeping(cache, 1, false, 0, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if unchanged != cache {
 		t.Fatal("disabled context shift replaced the cache")
 	}
-	shifted, err := runner.cacheForAppend(cache, 1, true)
+	shifted, err := runner.cacheForAppendKeeping(cache, 1, true, 0, -1)
 	if err != nil {
 		t.Fatal(err)
 	}

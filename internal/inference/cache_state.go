@@ -43,7 +43,7 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 	if err != nil {
 		return nil, err
 	}
-	if r.hasCachePolicy(model.CacheCompressedAttention) {
+	if r.program.Model.HasCache(model.CacheCompressedAttention) {
 		materializeCompressedCachePositions(cache)
 	}
 	if err := r.validateCache(cache); err != nil {
@@ -166,15 +166,11 @@ func (r *Runner) validateCache(cache *KVCache) error {
 	return nil
 }
 
-func (r *Runner) hasCachePolicy(policy model.CachePolicy) bool {
-	return r.program.Model.HasCache(policy)
-}
-
 func (r *Runner) cacheSchema(
 	layer int,
 	tokens uint32,
 ) (model.LayerPlan, model.LayerCacheSchema, error) {
-	plan := r.layerPlan(layer)
+	plan := r.layerProgram(layer).Layer()
 	schema, err := r.program.Model.CacheSchema(uint32(layer), tokens)
 	return plan, schema, err
 }
@@ -316,19 +312,6 @@ func editPrimaryCacheValue(
 		return value.Clone(), nil
 	}
 	return value.RemoveTrailingRange(uint64(start), uint64(discard))
-}
-
-// ShiftCache: prefix delete; absolute position retained.
-func (r *Runner) ShiftCache(cache *KVCache, discard uint32) (*KVCache, error) {
-	return r.RemoveCacheRange(cache, 0, discard)
-}
-
-func (r *Runner) cacheForAppend(
-	cache *KVCache,
-	incoming int,
-	contextShift bool,
-) (*KVCache, error) {
-	return r.cacheForAppendKeeping(cache, incoming, contextShift, 0, -1)
 }
 
 func (r *Runner) cacheForAppendKeeping(

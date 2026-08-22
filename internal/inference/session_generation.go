@@ -81,7 +81,7 @@ func (r *Runner) ContinueSession(
 	}
 	ids := slices.Clone(session.TokenIDs)
 	cache := session.Cache
-	if options.MaxNewTokens > 0 && !r.isTerminal(ids[len(ids)-1]) {
+	if options.MaxNewTokens > 0 && !r.vocab.IsEOG(ids[len(ids)-1]) {
 		var err error
 		ids, cache, err = r.generateCachedHost(
 			ctx, ids, reference.Value{}, cache, options, true, 0, -1,
@@ -186,8 +186,4 @@ func (r *Runner) sampleHidden(
 		return TokenEvent{}, err
 	}
 	return sampleGenerationToken(logits, ids, options)
-}
-
-func (r *Runner) isTerminal(id tokenizer.TokenID) bool {
-	return r.vocab.IsEOG(id)
 }

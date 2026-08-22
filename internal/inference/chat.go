@@ -156,7 +156,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 						Type string `json:"type"`
 						Text string `json:"text"`
 					}
-					if err := decodeChatContentPart(raw, &part); err != nil {
+					if err := strictjson.DecodeBytes(raw, &part); err != nil {
 						return fmt.Errorf("inference: chat content part %d: %w", index, err)
 					}
 					joined.WriteString(part.Text)
@@ -168,7 +168,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 							Detail string `json:"detail,omitempty"`
 						} `json:"image_url"`
 					}
-					if err := decodeChatContentPart(raw, &part); err != nil {
+					if err := strictjson.DecodeBytes(raw, &part); err != nil {
 						return fmt.Errorf("inference: chat content part %d: %w", index, err)
 					}
 					if part.ImageURL.URL == "" {
@@ -186,7 +186,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 							Format string `json:"format"`
 						} `json:"input_audio"`
 					}
-					if err := decodeChatContentPart(raw, &part); err != nil {
+					if err := strictjson.DecodeBytes(raw, &part); err != nil {
 						return fmt.Errorf("inference: chat content part %d: %w", index, err)
 					}
 					if (part.InputAudio.Data == "") == (part.InputAudio.URL == "") {
@@ -212,7 +212,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 							FPS  float64 `json:"fps,omitempty"`
 						} `json:"input_video"`
 					}
-					if err := decodeChatContentPart(raw, &part); err != nil {
+					if err := strictjson.DecodeBytes(raw, &part); err != nil {
 						return fmt.Errorf("inference: chat content part %d: %w", index, err)
 					}
 					if (part.InputVideo.Data == "") == (part.InputVideo.URL == "") {
@@ -259,10 +259,6 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 	m.ToolResultError = wire.ToolResultError
 	m.ToolCalls = toolCalls
 	return nil
-}
-
-func decodeChatContentPart(raw json.RawMessage, target any) error {
-	return strictjson.DecodeBytes(raw, target)
 }
 
 func (f *ChatToolFunction) UnmarshalJSON(data []byte) error {

@@ -63,7 +63,7 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 	if maximum > 5e-4 {
 		t.Fatalf("incremental/full max absolute difference = %g", maximum)
 	}
-	shifted, err := runner.ShiftCache(cache, 1)
+	shifted, err := runner.RemoveCacheRange(cache, 0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

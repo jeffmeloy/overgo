@@ -499,13 +499,13 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:d22baf466bbb7c6c5550330121b0eaa7b69b05a1c0b40c747df85b09e160bcc5"
+     "identity": "file:sha256:b119d807bcff239ea7c7ff7fca1d3bf4587a656805770a89fa12f81a3cd8a503"
     },
     {
      "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
      "path": "internal/cuda/executor/compile_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:e99e5b0519997925fc7a2b0efbecd3c0251522db0e56d390cbdb9ab83b5c94e6"
+     "identity": "evidence:sha256:c3a945a4d34311f4dce80b18286b97f85d278a0ba394a3afb14a70ca44141eaa"
     }
    ],
    "id": "compiled-cuda-graph",
@@ -520,7 +520,7 @@
      "contains": "func DescribeOperation(",
      "path": "internal/tensor/operation.go",
      "role": "source",
-     "identity": "file:sha256:abdc73e63895664be46b5dcbae0c46ff523b3eaff44a7ccdfa4655e4e45999a5"
+     "identity": "file:sha256:82523014a894cf50759b68e087dd80ac485734e903d12363bd364ef55aba1411"
     },
     {
      "contains": "func TestOperationCatalogIsDenseAndUnique(",

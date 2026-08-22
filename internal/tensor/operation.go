@@ -29,12 +29,35 @@ const (
 	BackendCUDA
 )
 
+// CUDAProgram is the compiled CUDA launcher family for one operation.
+type CUDAProgram uint8
+
+const (
+	// CUDAProgramNone rejects CUDA dispatch.
+	CUDAProgramNone CUDAProgram = iota
+	// CUDAProgramReference selects reference launchers.
+	CUDAProgramReference
+	// CUDAProgramMathVision selects math and vision launchers.
+	CUDAProgramMathVision
+	// CUDAProgramRecurrentSelection selects recurrent launchers.
+	CUDAProgramRecurrentSelection
+	// CUDAProgramMoE selects mixture-of-experts launchers.
+	CUDAProgramMoE
+	// CUDAProgramLinearLayout selects linear and layout launchers.
+	CUDAProgramLinearLayout
+	// CUDAProgramRoPE selects rotary-position launchers.
+	CUDAProgramRoPE
+	// CUDAProgramAttentionLayout selects attention launchers.
+	CUDAProgramAttentionLayout
+)
+
 // OperationDescriptor: single operation identity and backend contract.
 type OperationDescriptor struct {
 	Op       Op
 	Name     string
 	Class    OperationClass
 	Backends OperationBackend
+	CUDA     CUDAProgram
 }
 
 // OperationStorage: output storage relationship.
@@ -75,71 +98,71 @@ var operationStorage = [...]OperationStorage{
 const allExecutionBackends = BackendReference | BackendCUDA
 
 var operationDescriptors = [...]OperationDescriptor{
-	{OpInput, "input", OperationInput, 0},
-	{OpAdd, "add", OperationElementwise, allExecutionBackends},
-	{OpMultiply, "multiply", OperationElementwise, allExecutionBackends},
-	{OpScale, "scale", OperationElementwise, allExecutionBackends},
-	{OpRMSNorm, "rms_norm", OperationElementwise, allExecutionBackends},
-	{OpSoftmax, "softmax", OperationElementwise, allExecutionBackends},
-	{OpSiLU, "silu", OperationElementwise, allExecutionBackends},
-	{OpMulMat, "mul_mat", OperationLinear, allExecutionBackends},
-	{OpGetRows, "get_rows", OperationLinear, allExecutionBackends},
-	{OpRoPENeoX, "rope_neox", OperationPosition, allExecutionBackends},
-	{OpReshape, "reshape", OperationLayout, allExecutionBackends},
-	{OpAttention, "attention", OperationAttention, allExecutionBackends},
-	{OpConcat, "concat", OperationLayout, allExecutionBackends},
-	{OpRoPENormal, "rope_normal", OperationPosition, allExecutionBackends},
-	{OpSigmoid, "sigmoid", OperationElementwise, allExecutionBackends},
-	{OpSoftplus, "softplus", OperationElementwise, allExecutionBackends},
-	{OpL2Norm, "l2_norm", OperationElementwise, allExecutionBackends},
-	{OpSSMConv, "ssm_conv", OperationState, allExecutionBackends},
-	{OpSSMScan, "ssm_scan", OperationState, allExecutionBackends},
-	{OpGatedDeltaNet, "gated_delta_net", OperationState, allExecutionBackends},
-	{OpTranspose2D, "transpose_2d", OperationLayout, allExecutionBackends},
-	{OpGroupSlice, "group_slice", OperationLayout, allExecutionBackends},
-	{OpFlatSlice, "flat_slice", OperationLayout, allExecutionBackends},
-	{OpRoPEMulti, "rope_multi", OperationPosition, allExecutionBackends},
-	{OpGELU, "gelu", OperationElementwise, allExecutionBackends},
-	{OpLayerNorm, "layer_norm", OperationElementwise, allExecutionBackends},
-	{OpReLUSquared, "relu_squared", OperationElementwise, allExecutionBackends},
-	{OpXIELU, "xielu", OperationElementwise, allExecutionBackends},
-	{OpMoE, "moe", OperationLinear, allExecutionBackends},
-	{OpRepeatHeads, "repeat_heads", OperationLayout, allExecutionBackends},
-	{OpClamp, "clamp", OperationElementwise, allExecutionBackends},
-	{OpGroupedMulMat, "grouped_mul_mat", OperationLinear, allExecutionBackends},
-	{OpTanh, "tanh", OperationElementwise, allExecutionBackends},
-	{OpExp, "exp", OperationElementwise, allExecutionBackends},
-	{OpGatedLinearAttention, "gated_linear_attention", OperationState, allExecutionBackends},
-	{OpWKV6, "wkv6", OperationState, allExecutionBackends},
-	{OpSumRows, "sum_rows", OperationLinear, allExecutionBackends},
-	{OpWKV7, "wkv7", OperationState, allExecutionBackends},
-	{OpFWHT, "fwht", OperationLinear, allExecutionBackends},
-	{OpTopK, "top_k", OperationLinear, allExecutionBackends},
-	{OpGatherLast, "gather_last", OperationLayout, allExecutionBackends},
-	{OpSparseAttention, "sparse_attention", OperationAttention, allExecutionBackends},
-	{OpIndexerScore, "indexer_score", OperationAttention, allExecutionBackends},
-	{OpReLU, "relu", OperationElementwise, allExecutionBackends},
-	{OpConv1DSame, "conv_1d_same", OperationLinear, allExecutionBackends},
-	{OpGroupNorm, "group_norm", OperationElementwise, allExecutionBackends},
-	{OpHyperConnectionInit, "hyper_connection_init", OperationState, allExecutionBackends},
-	{OpHyperConnectionPre, "hyper_connection_pre", OperationState, allExecutionBackends},
-	{OpHyperConnectionPost, "hyper_connection_post", OperationState, allExecutionBackends},
-	{OpHyperConnectionHead, "hyper_connection_head", OperationState, allExecutionBackends},
-	{OpCompressedAttention, "compressed_attention", OperationAttention, allExecutionBackends},
-	{OpLoRAMerge, "lora_merge", OperationLinear, allExecutionBackends},
-	{OpDivide, "divide", OperationElementwise, allExecutionBackends},
-	{OpBF16Round, "bf16_round", OperationElementwise, allExecutionBackends},
-	{OpGELUErf, "gelu_erf", OperationElementwise, allExecutionBackends},
-	{OpConv2D, "conv_2d", OperationLinear, allExecutionBackends},
-	{OpWindowPartition2D, "window_partition_2d", OperationLayout, allExecutionBackends},
-	{OpWindowUnpartition2D, "window_unpartition_2d", OperationLayout, allExecutionBackends},
-	{OpSAMAttention, "sam_attention", OperationAttention, allExecutionBackends},
-	{OpTopKPairs, "top_k_pairs", OperationLinear, allExecutionBackends},
-	{OpTopKPartials, "top_k_partials", OperationLinear, allExecutionBackends},
-	{OpCacheAppend, "cache_append", OperationLayout, allExecutionBackends},
-	{OpMADNorm, "mad_norm", OperationElementwise, allExecutionBackends},
-	{OpAtan, "atan", OperationElementwise, allExecutionBackends},
-	{OpPixelShuffle2D, "pixel_shuffle_2d", OperationLayout, allExecutionBackends},
+	{OpInput, "input", OperationInput, 0, CUDAProgramNone},
+	{OpAdd, "add", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpMultiply, "multiply", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpScale, "scale", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpRMSNorm, "rms_norm", OperationElementwise, allExecutionBackends, CUDAProgramLinearLayout},
+	{OpSoftmax, "softmax", OperationElementwise, allExecutionBackends, CUDAProgramLinearLayout},
+	{OpSiLU, "silu", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpMulMat, "mul_mat", OperationLinear, allExecutionBackends, CUDAProgramLinearLayout},
+	{OpGetRows, "get_rows", OperationLinear, allExecutionBackends, CUDAProgramLinearLayout},
+	{OpRoPENeoX, "rope_neox", OperationPosition, allExecutionBackends, CUDAProgramRoPE},
+	{OpReshape, "reshape", OperationLayout, allExecutionBackends, CUDAProgramAttentionLayout},
+	{OpAttention, "attention", OperationAttention, allExecutionBackends, CUDAProgramAttentionLayout},
+	{OpConcat, "concat", OperationLayout, allExecutionBackends, CUDAProgramAttentionLayout},
+	{OpRoPENormal, "rope_normal", OperationPosition, allExecutionBackends, CUDAProgramRoPE},
+	{OpSigmoid, "sigmoid", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpSoftplus, "softplus", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpL2Norm, "l2_norm", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpSSMConv, "ssm_conv", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpSSMScan, "ssm_scan", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpGatedDeltaNet, "gated_delta_net", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpTranspose2D, "transpose_2d", OperationLayout, allExecutionBackends, CUDAProgramLinearLayout},
+	{OpGroupSlice, "group_slice", OperationLayout, allExecutionBackends, CUDAProgramLinearLayout},
+	{OpFlatSlice, "flat_slice", OperationLayout, allExecutionBackends, CUDAProgramLinearLayout},
+	{OpRoPEMulti, "rope_multi", OperationPosition, allExecutionBackends, CUDAProgramRoPE},
+	{OpGELU, "gelu", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpLayerNorm, "layer_norm", OperationElementwise, allExecutionBackends, CUDAProgramLinearLayout},
+	{OpReLUSquared, "relu_squared", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpXIELU, "xielu", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpMoE, "moe", OperationLinear, allExecutionBackends, CUDAProgramMoE},
+	{OpRepeatHeads, "repeat_heads", OperationLayout, allExecutionBackends, CUDAProgramLinearLayout},
+	{OpClamp, "clamp", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpGroupedMulMat, "grouped_mul_mat", OperationLinear, allExecutionBackends, CUDAProgramLinearLayout},
+	{OpTanh, "tanh", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpExp, "exp", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpGatedLinearAttention, "gated_linear_attention", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpWKV6, "wkv6", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpSumRows, "sum_rows", OperationLinear, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpWKV7, "wkv7", OperationState, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpFWHT, "fwht", OperationLinear, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpTopK, "top_k", OperationLinear, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpGatherLast, "gather_last", OperationLayout, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpSparseAttention, "sparse_attention", OperationAttention, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpIndexerScore, "indexer_score", OperationAttention, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpReLU, "relu", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpConv1DSame, "conv_1d_same", OperationLinear, allExecutionBackends, CUDAProgramMathVision},
+	{OpGroupNorm, "group_norm", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpHyperConnectionInit, "hyper_connection_init", OperationState, allExecutionBackends, CUDAProgramReference},
+	{OpHyperConnectionPre, "hyper_connection_pre", OperationState, allExecutionBackends, CUDAProgramReference},
+	{OpHyperConnectionPost, "hyper_connection_post", OperationState, allExecutionBackends, CUDAProgramReference},
+	{OpHyperConnectionHead, "hyper_connection_head", OperationState, allExecutionBackends, CUDAProgramReference},
+	{OpCompressedAttention, "compressed_attention", OperationAttention, allExecutionBackends, CUDAProgramReference},
+	{OpLoRAMerge, "lora_merge", OperationLinear, allExecutionBackends, CUDAProgramMathVision},
+	{OpDivide, "divide", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpBF16Round, "bf16_round", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpGELUErf, "gelu_erf", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpConv2D, "conv_2d", OperationLinear, allExecutionBackends, CUDAProgramMathVision},
+	{OpWindowPartition2D, "window_partition_2d", OperationLayout, allExecutionBackends, CUDAProgramMathVision},
+	{OpWindowUnpartition2D, "window_unpartition_2d", OperationLayout, allExecutionBackends, CUDAProgramMathVision},
+	{OpSAMAttention, "sam_attention", OperationAttention, allExecutionBackends, CUDAProgramMathVision},
+	{OpTopKPairs, "top_k_pairs", OperationLinear, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpTopKPartials, "top_k_partials", OperationLinear, allExecutionBackends, CUDAProgramRecurrentSelection},
+	{OpCacheAppend, "cache_append", OperationLayout, allExecutionBackends, CUDAProgramAttentionLayout},
+	{OpMADNorm, "mad_norm", OperationElementwise, allExecutionBackends, CUDAProgramLinearLayout},
+	{OpAtan, "atan", OperationElementwise, allExecutionBackends, CUDAProgramMathVision},
+	{OpPixelShuffle2D, "pixel_shuffle_2d", OperationLayout, allExecutionBackends, CUDAProgramMathVision},
 }
 
 // DescribeOperation: typed operation lookup.

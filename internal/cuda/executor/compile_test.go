@@ -25,6 +25,9 @@ func TestCompilePinsTopologyAndMemoryPlan(t *testing.T) {
 	if compiled.memory.ArenaSize == 0 || compiled.needBlas {
 		t.Fatalf("compiled memory/BLAS = %d/%t", compiled.memory.ArenaSize, compiled.needBlas)
 	}
+	if compiled.nodes[2].launchProgram != tensor.CUDAProgramMathVision {
+		t.Fatalf("compiled add launch program = %d", compiled.nodes[2].launchProgram)
+	}
 	inputs := compiled.NewDeviceInputs()
 	inputNodes := [...]*tensor.Tensor{left, right}
 	if len(inputs.Pointers) != len(inputNodes) {
@@ -37,6 +40,21 @@ func TestCompilePinsTopologyAndMemoryPlan(t *testing.T) {
 	}
 	if _, ok := compiled.InputSlot(output); ok {
 		t.Fatal("operator output received an input slot")
+	}
+}
+
+func TestCUDAOperationProgramsCoverRegistry(t *testing.T) {
+	for operation := tensor.OpInput + 1; ; operation++ {
+		descriptor, ok := tensor.DescribeOperation(operation)
+		if !ok {
+			break
+		}
+		if descriptor.Backends&tensor.BackendCUDA == 0 {
+			continue
+		}
+		if descriptor.CUDA == tensor.CUDAProgramNone {
+			t.Fatalf("CUDA operation %s has no compiled program", operation)
+		}
 	}
 }
 

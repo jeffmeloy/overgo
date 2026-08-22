@@ -16,38 +16,28 @@ func launchNode(
 	attributes tensor.Attributes,
 	pointers launchPointerFrame,
 	attributePointers devicePointerTable,
+	program tensor.CUDAProgram,
 ) error {
 	descriptor, ok := tensor.DescribeOperation(node.Op)
 	if !ok || descriptor.Backends&tensor.BackendCUDA == 0 {
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
-	switch node.Op {
-	case tensor.OpHyperConnectionInit, tensor.OpHyperConnectionPre, tensor.OpHyperConnectionPost,
-		tensor.OpHyperConnectionHead, tensor.OpCompressedAttention:
+	switch program {
+	case tensor.CUDAProgramReference:
 		return launchReferenceFamily(state, functions, blas, node, pointers, attributePointers)
-	case tensor.OpLoRAMerge, tensor.OpAdd, tensor.OpMultiply, tensor.OpDivide, tensor.OpScale,
-		tensor.OpClamp, tensor.OpBF16Round, tensor.OpSiLU, tensor.OpGELU, tensor.OpGELUErf,
-		tensor.OpReLU, tensor.OpReLUSquared, tensor.OpSigmoid, tensor.OpSoftplus, tensor.OpTanh, tensor.OpAtan,
-		tensor.OpExp, tensor.OpXIELU, tensor.OpConv1DSame, tensor.OpConv2D,
-		tensor.OpWindowPartition2D, tensor.OpWindowUnpartition2D, tensor.OpPixelShuffle2D, tensor.OpSAMAttention,
-		tensor.OpGroupNorm, tensor.OpL2Norm:
+	case tensor.CUDAProgramMathVision:
 		return launchMathVision(state, functions, blas, node, pointers, attributePointers)
-	case tensor.OpSSMConv, tensor.OpSSMScan, tensor.OpGatedDeltaNet,
-		tensor.OpGatedLinearAttention, tensor.OpWKV6, tensor.OpSumRows, tensor.OpFWHT,
-		tensor.OpTopK, tensor.OpTopKPairs, tensor.OpTopKPartials, tensor.OpGatherLast, tensor.OpSparseAttention, tensor.OpIndexerScore,
-		tensor.OpWKV7:
+	case tensor.CUDAProgramRecurrentSelection:
 		return launchRecurrentSelection(state, functions, blas, node, pointers, attributePointers)
-	case tensor.OpMoE:
+	case tensor.CUDAProgramMoE:
 		return launchMoE(state, functions, blas, node, pointers, attributePointers)
-	case tensor.OpRepeatHeads, tensor.OpTranspose2D, tensor.OpGroupSlice, tensor.OpFlatSlice,
-		tensor.OpRMSNorm, tensor.OpMADNorm, tensor.OpLayerNorm, tensor.OpSoftmax, tensor.OpMulMat,
-		tensor.OpGroupedMulMat, tensor.OpGetRows:
+	case tensor.CUDAProgramLinearLayout:
 		return launchLinearLayout(
 			state, functions, blas, q8Input, node, attributes, pointers, attributePointers,
 		)
-	case tensor.OpRoPENeoX, tensor.OpRoPENormal, tensor.OpRoPEMulti:
+	case tensor.CUDAProgramRoPE:
 		return launchRoPE(state, functions, blas, node, attributes, pointers, attributePointers)
-	case tensor.OpReshape, tensor.OpAttention, tensor.OpConcat, tensor.OpCacheAppend:
+	case tensor.CUDAProgramAttentionLayout:
 		return launchAttentionLayout(
 			state, functions, blas, node, attributes, pointers, attributePointers,
 		)

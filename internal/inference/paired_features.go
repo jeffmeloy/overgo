@@ -114,7 +114,8 @@ func (r *Runner) InjectPairedFeatures(
 	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures {
 		return nil, errors.New("inference: cache injection requires a paired-feature program")
 	}
-	if fused.Shape.Rank != 2 || fused.Shape.Dims[1] != uint64(len(positions)) {
+	_, rows, valid := fused.MatrixExtents()
+	if !valid || rows != len(positions) {
 		return nil, errors.New("inference: paired-feature shape is incompatible")
 	}
 	for index, position := range positions {

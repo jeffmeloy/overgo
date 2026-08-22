@@ -219,7 +219,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	observer, err := trainingworkflow.NewProbeObserver(store, false)
+	observer, err := trainingworkflow.NewObserver(store, false)
 	if err != nil {
 		return err
 	}

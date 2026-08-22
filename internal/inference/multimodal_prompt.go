@@ -10,18 +10,20 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// ProjectedInputsForPrompt: projector output -> inference admission.
-func ProjectedInputsForPrompt(
-	runner *Runner,
+// CompileProjectedInputs: projector output -> inference admission.
+func CompileProjectedInputs(
 	prompt projector.MultimodalPrompt,
+	embeddingWidth uint32,
 ) ([]tokenizer.TokenID, ProjectedInputs, error) {
-	if runner == nil || prompt.EmbeddingWidth != int(runner.Spec().EmbeddingLength) {
+	mediaTokens := len(prompt.EmbeddingTokenIndices)
+	shape, shapeErr := tensor.NewShape(uint64(prompt.EmbeddingWidth), uint64(mediaTokens))
+	embeddings := reference.Value{Shape: shape, Data: prompt.Embeddings}
+	if shapeErr != nil || !embeddings.IsMatrixWidth(uint64(embeddingWidth)) {
 		return nil, ProjectedInputs{}, fmt.Errorf(
 			"inference: projector width %d differs from model width", prompt.EmbeddingWidth,
 		)
 	}
-	mediaTokens := len(prompt.EmbeddingTokenIndices)
-	if len(prompt.Embeddings) != mediaTokens*prompt.EmbeddingWidth {
+	if validateStateValue(embeddings) != nil {
 		return nil, ProjectedInputs{}, errors.New("inference: projector embedding indices are invalid")
 	}
 	overrides := make([]EmbeddingOverride, mediaTokens)
@@ -35,7 +37,7 @@ func ProjectedInputsForPrompt(
 	projected := ProjectedInputs{EmbeddingOverrides: overrides}
 	projected.DeepstackEmbeddings = make([]reference.Value, len(prompt.DeepstackEmbeddings))
 	for streamIndex, stream := range prompt.DeepstackEmbeddings {
-		if len(stream) != mediaTokens*prompt.EmbeddingWidth {
+		if validateStateValue(reference.Value{Shape: shape, Data: stream}) != nil {
 			return nil, ProjectedInputs{}, fmt.Errorf("inference: projector deepstack stream %d is invalid", streamIndex)
 		}
 		data := make([]float32, len(prompt.TokenIDs)*prompt.EmbeddingWidth)
@@ -46,10 +48,11 @@ func ProjectedInputsForPrompt(
 			source := stream[index*prompt.EmbeddingWidth : (index+1)*prompt.EmbeddingWidth]
 			copy(data[int(tokenIndex)*prompt.EmbeddingWidth:], source)
 		}
-		projected.DeepstackEmbeddings[streamIndex] = reference.Value{
-			Shape: tensor.MustShape(uint64(prompt.EmbeddingWidth), uint64(len(prompt.TokenIDs))),
-			Data:  data,
+		fullShape, err := tensor.NewShape(uint64(embeddingWidth), uint64(len(prompt.TokenIDs)))
+		if err != nil {
+			return nil, ProjectedInputs{}, errors.New("inference: projector prompt shape is invalid")
 		}
+		projected.DeepstackEmbeddings[streamIndex] = reference.Value{Shape: fullShape, Data: data}
 	}
 	projected.BidirectionalAttentionBlocks = make([]AttentionBlock, len(prompt.AttentionBlocks))
 	for index, block := range prompt.AttentionBlocks {

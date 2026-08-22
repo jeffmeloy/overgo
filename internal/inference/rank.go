@@ -156,10 +156,9 @@ func (r *Runner) RankTokensWithProjectedInputs(
 	if err != nil {
 		return RankResult{}, err
 	}
-	width := int(hidden.Shape.Dims[0])
-	tokens := int(hidden.Shape.Dims[1])
-	if hidden.Shape.Rank != 2 || width != int(r.spec.EmbeddingLength) ||
-		tokens != len(input) || len(hidden.Data) != width*tokens {
+	rows, valid := r.spec.SequenceRows(hidden)
+	tokens := int(rows)
+	if !valid || tokens != len(input) {
 		return RankResult{}, errors.New("inference: rank hidden-state shape is incompatible")
 	}
 	last := hidden.LastRowView()

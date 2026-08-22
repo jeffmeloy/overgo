@@ -16,6 +16,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -146,8 +147,34 @@ func testTokenResume(t *testing.T) {
 	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveTokenPrediction)
 	verifyWorkflowResume(t, root, Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
-		Host: true,
+		Host: true, Observations: store,
 	})
+}
+
+func TestObserverSharesDirectedLifecycle(t *testing.T) {
+	store, err := repodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	observer, err := NewObserver(store, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "observed model")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "observed recipe")
+	testutil.PublishArtifact(t, store, modelID)
+	testutil.PublishArtifact(t, store, recipeID)
+	if err := observer.Admit(context.Background(), modelID, recipeID); err != nil {
+		t.Fatal(err)
+	}
+	observationID, err := observer.Finish(context.Background(), modelID, recipeID, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runrecord.RequireServingObservation(context.Background(), store, observationID); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func testDPOResume(t *testing.T) {
@@ -212,6 +239,13 @@ func verifyWorkflowResume(t *testing.T, root string, request Request) {
 	got, err := Execute(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if request.Observations != nil {
+		for _, result := range []Result{want, first, got} {
+			if _, err := runrecord.RequireServingObservation(context.Background(), request.Observations, result.Observation); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 	wantModel, err := densecausal.Load(filepath.Join(root, "uninterrupted"))
 	if err != nil {

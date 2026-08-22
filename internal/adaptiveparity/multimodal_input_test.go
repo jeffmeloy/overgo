@@ -261,7 +261,7 @@ func mustProjectorSession(t *testing.T, source projector.Projector) projector.Se
 
 func generatePromptFirstToken(t *testing.T, runner *inference.Runner, prompt projector.MultimodalPrompt) tokenizer.TokenID {
 	t.Helper()
-	ids, projected, err := inference.ProjectedInputsForPrompt(runner, prompt)
+	ids, projected, err := inference.CompileProjectedInputs(prompt, runner.Spec().EmbeddingLength)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -426,7 +426,7 @@ func assertQwen35FirstToken(t *testing.T, runner *inference.Runner, prompt proje
 	if len(want) == 0 {
 		t.Fatal("Qwen3.5 generated-token oracle is empty")
 	}
-	ids, projected, err := inference.ProjectedInputsForPrompt(runner, prompt)
+	ids, projected, err := inference.CompileProjectedInputs(prompt, runner.Spec().EmbeddingLength)
 	if err != nil {
 		t.Fatal(err)
 	}

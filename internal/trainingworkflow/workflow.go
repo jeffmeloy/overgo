@@ -39,8 +39,7 @@ type Request struct {
 	ObjectiveScale     float64
 	Host               bool
 	FreezeLexical      bool
-	// Observations: optional store; when set the run executes as a
-	// director-supervised session and commits a typed training observation.
+	// Observations: optional typed run evidence.
 	Observations artifact.Repository
 
 	ObserveDPO       func(trainingprogram.DPOObservation)
@@ -77,8 +76,7 @@ type Result struct {
 	GRPO           []trainingprogram.GRPOObservation
 	StreamPosition uint64
 	Checkpoint     trainingprogram.Checkpoint
-	// Observation: the committed session observation when the run was
-	// director-supervised.
+	// Observation: committed session evidence.
 	Observation artifact.ID
 }
 
@@ -91,10 +89,10 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if request.Host && request.FreezeLexical {
 		return Result{}, errors.New("training workflow: host and frozen lexical execution are incompatible")
 	}
-	var observer *sessionObserver
+	var observer *Observer
 	if request.Observations != nil {
 		var err error
-		observer, err = newSessionObserver(request.Observations, request.Host)
+		observer, err = NewObserver(request.Observations, request.Host)
 		if err != nil {
 			return Result{}, err
 		}
@@ -170,17 +168,17 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: read dataset: %w", err)
 	}
-	observer.phase(runrecord.PhaseLoad, time.Since(loadStarted))
+	observer.Phase(runrecord.PhaseLoad, time.Since(loadStarted))
 	trainStarted := time.Now()
 	result, runErr := denseSession{
 		ctx: ctx, request: request, runtime: runtime, objective: objective,
 		optimizerPlan: muonPlan, optimizerConfig: optimizerConfig,
 		inputDirectory: inputDirectory, model: model, encode: tokenizer.Encode, raw: raw,
-		resumed: resumed, resumeStream: resumeStream, stepSample: observer.sampleStep,
+		resumed: resumed, resumeStream: resumeStream, stepSample: observer.SampleStep,
 	}.run()
-	observer.phase(runrecord.PhaseForwardBackward, time.Since(trainStarted))
+	observer.Phase(runrecord.PhaseForwardBackward, time.Since(trainStarted))
 	if observer != nil {
-		observationID, observeErr := observer.finish(ctx, modelID, request.Recipe, runErr, result.StreamPosition)
+		observationID, observeErr := observer.Finish(ctx, modelID, request.Recipe, runErr, result.StreamPosition)
 		if observeErr != nil && runErr == nil {
 			return Result{}, observeErr
 		}

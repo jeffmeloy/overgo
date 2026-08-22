@@ -14,8 +14,6 @@ import (
 	"overgo/internal/media"
 	"overgo/internal/projector"
 	"overgo/internal/strictjson"
-	"overgo/internal/tensor"
-	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
 
@@ -479,9 +477,15 @@ func (h *Handler) projectNativeMultimodalPrompt(
 	if err != nil {
 		return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: project media: %w", err)
 	}
-	inputs, err := h.convertProjectedPrompt(projected)
+	properties, ok := h.generator.(ModelPropertiesAPI)
+	if !ok {
+		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: model properties unavailable for projected prompt")
+	}
+	_, inputs, err := inference.CompileProjectedInputs(
+		projected, properties.ModelProperties().EmbeddingLength,
+	)
 	if err != nil {
-		return nativePrompt{}, inference.ProjectedInputs{}, err
+		return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: %w", err)
 	}
 	prompt.TokenIDs = projected.TokenIDs
 	prompt.Image = nil
@@ -559,73 +563,6 @@ func (h *Handler) preparePrompt(
 	}
 	result.TokenIDs = tokens
 	return result, nil
-}
-
-func (h *Handler) convertProjectedPrompt(
-	projected projector.MultimodalPrompt,
-) (inference.ProjectedInputs, error) {
-	if projected.EmbeddingWidth <= 0 || len(projected.Embeddings)%projected.EmbeddingWidth != 0 {
-		return inference.ProjectedInputs{}, errors.New("server: projector returned invalid embeddings")
-	}
-	if properties, ok := h.generator.(ModelPropertiesAPI); ok &&
-		projected.EmbeddingWidth != int(properties.ModelProperties().EmbeddingLength) {
-		return inference.ProjectedInputs{}, fmt.Errorf(
-			"server: projector width %d differs from model width %d",
-			projected.EmbeddingWidth, properties.ModelProperties().EmbeddingLength,
-		)
-	}
-	imageTokens := len(projected.EmbeddingTokenIndices)
-	if len(projected.Embeddings) != imageTokens*projected.EmbeddingWidth {
-		return inference.ProjectedInputs{}, errors.New("server: projector returned invalid embedding indices")
-	}
-	overrides := make([]inference.EmbeddingOverride, imageTokens)
-	for index := range overrides {
-		start := index * projected.EmbeddingWidth
-		overrides[index] = inference.EmbeddingOverride{
-			TokenIndex: projected.EmbeddingTokenIndices[index],
-			Embedding:  projected.Embeddings[start : start+projected.EmbeddingWidth],
-		}
-	}
-	inputs := inference.ProjectedInputs{EmbeddingOverrides: overrides}
-	inputs.DeepstackEmbeddings = make([]reference.Value, len(projected.DeepstackEmbeddings))
-	for streamIndex, stream := range projected.DeepstackEmbeddings {
-		if len(stream) != imageTokens*projected.EmbeddingWidth {
-			return inference.ProjectedInputs{}, fmt.Errorf(
-				"server: projector deepstack stream %d has invalid length", streamIndex,
-			)
-		}
-		data := make([]float32, len(projected.TokenIDs)*projected.EmbeddingWidth)
-		for index, tokenIndex := range projected.EmbeddingTokenIndices {
-			if uint64(tokenIndex) >= uint64(len(projected.TokenIDs)) {
-				return inference.ProjectedInputs{}, errors.New("server: projector embedding index exceeds prompt")
-			}
-			source := stream[index*projected.EmbeddingWidth : (index+1)*projected.EmbeddingWidth]
-			copy(data[int(tokenIndex)*projected.EmbeddingWidth:], source)
-		}
-		inputs.DeepstackEmbeddings[streamIndex] = reference.Value{
-			Shape: tensor.MustShape(uint64(projected.EmbeddingWidth), uint64(len(projected.TokenIDs))),
-			Data:  data,
-		}
-	}
-	inputs.BidirectionalAttentionBlocks = make([]inference.AttentionBlock, len(projected.AttentionBlocks))
-	for index, block := range projected.AttentionBlocks {
-		inputs.BidirectionalAttentionBlocks[index] = inference.AttentionBlock{
-			Start: block.Start, End: block.End,
-		}
-	}
-	inputs.VisualExpertBlocks = make([]inference.AttentionBlock, len(projected.VisualBlocks))
-	for index, block := range projected.VisualBlocks {
-		inputs.VisualExpertBlocks[index] = inference.AttentionBlock{Start: block.Start, End: block.End}
-	}
-	hasMultiAxis := false
-	for _, axis := range projected.MultiAxisPositions {
-		hasMultiAxis = hasMultiAxis || len(axis) > 0
-	}
-	if hasMultiAxis {
-		positions := inference.MultiAxisPositions(projected.MultiAxisPositions)
-		inputs.MultiAxisPositions = &positions
-	}
-	return inputs, nil
 }
 
 func (h *Handler) parseNativePrompt(raw json.RawMessage) (nativePrompt, error) {

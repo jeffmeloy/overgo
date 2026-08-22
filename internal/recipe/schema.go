@@ -153,6 +153,8 @@ type SessionPolicy string
 const (
 	SessionRequest  SessionPolicy = "request"
 	SessionCapacity SessionPolicy = "capacity"
+	// SessionRequestCapacity: one request-owned resident session.
+	SessionRequestCapacity = 1
 )
 
 func (p SessionPolicy) Valid() bool {

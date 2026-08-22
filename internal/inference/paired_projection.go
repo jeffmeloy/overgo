@@ -76,9 +76,8 @@ func (r *Runner) AdvancePairedProjection(
 		return reference.Value{}, nil, fmt.Errorf("inference: paired target cache: %w", err)
 	}
 	if effectiveCachePosition(session.TargetCache) != session.Position ||
-		session.PendingHidden.Shape.Rank != 2 ||
-		session.PendingHidden.Shape.Dims[0] != uint64(r.spec.TargetHiddenSize) ||
-		session.PendingHidden.Shape.Dims[1] != 1 {
+		!tensor.IsMatrix(session.PendingHidden.Shape, uint64(r.spec.TargetHiddenSize), tensor.SingletonExtent) ||
+		validateStateValue(session.PendingHidden) != nil {
 		return reference.Value{}, nil, errors.New("inference: paired projection session state is incompatible")
 	}
 	if tokenID < 0 || int(tokenID) >= target.vocab.Len() {

@@ -7,9 +7,11 @@ import (
 	"math"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/sequencescore"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -170,20 +172,20 @@ func (r *Runner) scoreTokenWindow(
 	if err != nil {
 		return nil, sequencescore.Score{}, err
 	}
-	vocabularySize := r.vocab.Len()
-	if len(logits) != vocabularySize*(len(ids)-1) {
+	vocabularySize := uint64(r.vocab.Len())
+	if !tensor.IsMatrix(logits.Shape, vocabularySize, uint64(len(ids)-1)) {
 		return nil, sequencescore.Score{}, fmt.Errorf(
-			"inference: logits contain %d values, need %d",
-			len(logits),
-			vocabularySize*(len(ids)-1),
+			"inference: logits shape %v is incompatible",
+			logits.Shape.Slice(),
 		)
 	}
 	scores := make([]TokenScore, 0, len(ids)-firstTarget)
 	var continuation sequencescore.Accumulator
 	for targetPosition := firstTarget; targetPosition < len(ids); targetPosition++ {
 		logitPosition := targetPosition - 1
+		row := logits.RowView(uint64(logitPosition))
 		value, scoreErr := negativeLogProbability(
-			logits[logitPosition*vocabularySize:(logitPosition+1)*vocabularySize],
+			row.Data,
 			int(ids[targetPosition]),
 		)
 		if scoreErr != nil {
@@ -210,44 +212,48 @@ func (r *Runner) logitsBatch(
 	ctx context.Context,
 	outputInfo gguf.TensorInfo,
 	hidden reference.Value,
-) ([]float32, error) {
+) (reference.Value, error) {
 	rows, valid := r.spec.SequenceRows(hidden)
 	if !valid {
-		return nil, errors.New("inference: batched logits require embedding-by-token hidden states")
+		return reference.Value{}, errors.New("inference: batched logits require embedding-by-token hidden states")
 	}
 	tokenCount := int(rows)
-	width := int(hidden.Shape.Dims[0])
+	shape := tensor.MustShape(uint64(r.spec.VocabularySize), rows)
 	if !r.hasPreloadedWeights() {
-		result := make([]float32, 0, tokenCount*r.vocab.Len())
+		capacity, valid := checked.MulInt(tokenCount, int(r.spec.VocabularySize))
+		if !valid {
+			return reference.Value{}, errors.New("inference: batched logits shape is too large")
+		}
+		result := make([]float32, 0, capacity)
 		for token := range tokenCount {
 			logits, err := model.DotRows(
 				ctx,
 				r.file,
 				outputInfo,
-				hidden.Data[token*width:(token+1)*width],
+				hidden.RowView(uint64(token)).Data,
 			)
 			if err != nil {
-				return nil, err
+				return reference.Value{}, err
 			}
 			if err := addOutputBias(logits, r.outputBias); err != nil {
-				return nil, err
+				return reference.Value{}, err
 			}
 			scaleLogits(logits, r.spec.OutputLogitMultiplier())
 			result = append(result, logits...)
 		}
-		return r.finalizeLogits(result), nil
+		return reference.Value{Shape: shape, Data: r.finalizeLogits(result)}, nil
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
 	table, err := runtime.weight(outputInfo)
 	if err != nil {
-		return nil, err
+		return reference.Value{}, err
 	}
 	input := runtime.input("perplexity.logits.input", hidden)
 	output := runtime.builder.MulMat(table, input)
 	if r.weights.OutputBias != nil {
 		bias, biasErr := runtime.weight(*r.weights.OutputBias)
 		if biasErr != nil {
-			return nil, biasErr
+			return reference.Value{}, biasErr
 		}
 		output = runtime.builder.Add(output, bias)
 	}
@@ -255,13 +261,18 @@ func (r *Runner) logitsBatch(
 		output = runtime.builder.Scale(output, scale)
 	}
 	if err := runtime.builder.Err(); err != nil {
-		return nil, err
+		return reference.Value{}, err
 	}
 	results, err := runtime.execute(output)
 	if err != nil {
-		return nil, err
+		return reference.Value{}, err
 	}
-	return r.finalizeLogits(results[output].Data), nil
+	result := results[output]
+	if !result.Shape.Equal(shape) || validateStateValue(result) != nil {
+		return reference.Value{}, errors.New("inference: batched logits output is incompatible")
+	}
+	result.Data = r.finalizeLogits(result.Data)
+	return result, nil
 }
 
 func negativeLogProbability(logits []float32, target int) (float64, error) {

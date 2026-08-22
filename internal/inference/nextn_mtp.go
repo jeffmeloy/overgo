@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"overgo/internal/model"
 	"overgo/internal/tensor"
@@ -40,14 +39,9 @@ func (r *Runner) NewNextNMTPSession(
 		Position: position, targetModel: targetModel,
 	}
 	if cache.SparseTopK != nil {
-		if cache.SparseTopK.Shape.Rank != 2 || cache.SparseTopK.Shape.Dims[0] != uint64(r.spec.IndexerTopK) ||
-			cache.SparseTopK.Shape.Dims[1] == 0 {
+		value := cache.SparseTopK.LastRowView().Clone()
+		if !tensor.IsMatrix(value.Shape, uint64(r.spec.IndexerTopK), tensor.SingletonExtent) {
 			return nil, errors.New("inference: GLM-DSA trunk top-k handoff is incompatible")
-		}
-		width := int(cache.SparseTopK.Shape.Dims[0])
-		value := reference.Value{
-			Shape: tensor.MustShape(uint64(width), 1),
-			Data:  slices.Clone(cache.SparseTopK.Data[len(cache.SparseTopK.Data)-width:]),
 		}
 		session.Layer.Auxiliary = &value
 	}
@@ -211,7 +205,9 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 		wantTokens := uint64(session.Position - session.MTPStart)
 		if (wantTokens == 0 && hasIndexerState) || (wantTokens > 0 &&
 			(!hasIndexerState || !indexerState.Mode.TokenAligned() ||
-				indexerState.Value.Shape != tensor.MustShape(uint64(r.spec.IndexerKeyLength), 1, wantTokens))) {
+				!tensor.HasDimensions(indexerState.Value.Shape,
+					uint64(r.spec.IndexerKeyLength), tensor.SingletonExtent, wantTokens) ||
+				validateStateValue(indexerState.Value) != nil)) {
 			return errors.New("inference: NextN MTP indexer cache is incompatible")
 		}
 	} else if hasIndexerState {
@@ -219,7 +215,9 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 	}
 	if sparseTopK {
 		if session.Layer.Auxiliary == nil ||
-			session.Layer.Auxiliary.Shape != tensor.MustShape(uint64(r.spec.IndexerTopK), 1) {
+			!tensor.IsMatrix(session.Layer.Auxiliary.Shape,
+				uint64(r.spec.IndexerTopK), tensor.SingletonExtent) ||
+			validateStateValue(*session.Layer.Auxiliary) != nil {
 			return errors.New("inference: GLM-DSA NextN MTP top-k handoff is incompatible")
 		}
 	} else if session.Layer.Auxiliary != nil {

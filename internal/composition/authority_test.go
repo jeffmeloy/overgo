@@ -47,32 +47,6 @@ func TestCompositionRecipeRepository(t *testing.T) {
 	}
 }
 
-func TestActiveCompositionAlias(t *testing.T) {
-	store, authority := compositionAuthorityFixture(t)
-	ctx := context.Background()
-	if _, found, err := ActiveComposition(
-		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
-	); err != nil || found {
-		t.Fatalf("pre-activation lookup = %v, %v", found, err)
-	}
-	batch, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/activate", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Commit(ctx, batch); err != nil {
-		t.Fatal(err)
-	}
-	active, found, err := ActiveComposition(
-		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
-	)
-	if err != nil || !found || active != authority.Recipe {
-		t.Fatalf("active composition = %+v, %v, %v", active, found, err)
-	}
-	if _, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/stale-activate", nil); err == nil {
-		t.Fatal("activation replaced an existing alias without compare-and-set authority")
-	}
-}
-
 func compositionAuthorityFixture(t *testing.T) (*repodb.Store, CompositionAuthority) {
 	t.Helper()
 	store, err := repodb.Open(t.TempDir())

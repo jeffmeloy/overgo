@@ -468,6 +468,9 @@ func loadCompositionAuthority(
 	if err != nil {
 		return CompositionAuthority{}, err
 	}
+	if promotionPolicy != promotion.Policy {
+		return CompositionAuthority{}, errors.New("composition: promotion policy differs from promotion evidence")
+	}
 	executionContent, err := loadCompositionContent(ctx, reader, value.ExecutionRecipe, artifact.KindRecipe, recipe.MediaType, recipe.Schema)
 	if err != nil {
 		return CompositionAuthority{}, err

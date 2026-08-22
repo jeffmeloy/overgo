@@ -7,13 +7,24 @@ package plan
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"overgo/internal/jsonfile"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
+)
+
+const (
+	automationRoleMaxBytes = 2048
+	// AutomationRoleEnvironment is the shared lane-role input for dispatchers.
+	AutomationRoleEnvironment = "OVERGO_AUTOMATION_ROLE"
+	// UnassignedRole selects work without an explicit owner.
+	UnassignedRole = "unassigned"
 )
 
 // Path is the campaign plan, relative to the repo root.
@@ -42,6 +53,7 @@ type Step struct {
 type Item struct {
 	ID     string `json:"id"`
 	Title  string `json:"title"`
+	Owner  string `json:"owner,omitempty"`
 	Status string `json:"status"`
 	Steps  []Step `json:"steps"`
 }
@@ -95,6 +107,9 @@ func ValidateOpenWork(d Plan) error {
 			return fmt.Errorf("plan item id %q is empty or duplicated", item.ID)
 		}
 		items[item.ID] = true
+		if item.Owner != "" && !textcheck.Bounded(item.Owner, automationRoleMaxBytes, "\x00\r\n") {
+			return fmt.Errorf("plan item %s has invalid owner", item.ID)
+		}
 		if !unfinished(item.Status) {
 			return fmt.Errorf("plan item %s has chronology status %q", item.ID, item.Status)
 		}
@@ -123,9 +138,19 @@ func unfinished(status string) bool {
 // action the loop is allowed to work on and the only step a commit may serve.
 // An open item with no open step yields the sentinel step "." (open the rung).
 // ok is false when no open item remains.
-func Current(d Plan) (Item, Step, bool) {
+func Current(d Plan, role string) (Item, Step, bool) {
+	role = normalizedRole(role)
+	if role != UnassignedRole {
+		if item, step, ok := currentOwned(d, role); ok {
+			return item, step, true
+		}
+	}
+	return currentOwned(d, "")
+}
+
+func currentOwned(d Plan, owner string) (Item, Step, bool) {
 	for _, it := range d.Items {
-		if it.Status != "open" {
+		if it.Status != "open" || it.Owner != owner {
 			continue
 		}
 		for _, s := range it.Steps {
@@ -136,6 +161,27 @@ func Current(d Plan) (Item, Step, bool) {
 		return it, Step{ID: ".", Title: "open the rung (define its steps)"}, true
 	}
 	return Item{}, Step{}, false
+}
+
+// AutomationRole resolves the explicit role, then the shared environment,
+// and finally the unassigned fallback used by legacy open-work rows.
+func AutomationRole(explicit string) (string, error) {
+	role := strings.TrimSpace(explicit)
+	if role == "" {
+		role = strings.TrimSpace(os.Getenv(AutomationRoleEnvironment))
+	}
+	role = normalizedRole(role)
+	if !textcheck.Bounded(role, automationRoleMaxBytes, "\x00\r\n") {
+		return "", errors.New("plan: invalid automation role")
+	}
+	return role, nil
+}
+
+func normalizedRole(role string) string {
+	if role = strings.TrimSpace(role); role == "" {
+		return UnassignedRole
+	}
+	return role
 }
 
 // Advance returns the open-work plan after removing one completed step. The

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/plan"
 )
 
 // TestEnforcePlanBindingRefusesOffPlan pins the commit-gate's plan binding: a
@@ -30,5 +32,25 @@ func TestEnforcePlanBindingRefusesOffPlan(t *testing.T) {
 		if err := checkPlanBinding(dir, bad); err == nil {
 			t.Fatalf("-plan %q must be REFUSED (not the current open step / malformed)", bad)
 		}
+	}
+}
+
+func TestPlanBindingRole(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	js := `{"campaign":"t","doctrine":"d","items":[` +
+		`{"id":"developer","owner":"developer","status":"open","steps":[{"id":"do","status":"open","verify":"go test ./..."}]},` +
+		`{"id":"sqa","owner":"sqa","status":"open","steps":[{"id":"do","status":"open","verify":"go test ./..."}]}]}`
+	if err := os.WriteFile(filepath.Join(dir, "docs", "plan.json"), []byte(js), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(plan.AutomationRoleEnvironment, "sqa")
+	if err := checkPlanBinding(dir, "sqa/do"); err != nil {
+		t.Fatalf("owned plan binding: %v", err)
+	}
+	if err := checkPlanBinding(dir, "developer/do"); err == nil {
+		t.Fatal("foreign role plan binding passed")
 	}
 }

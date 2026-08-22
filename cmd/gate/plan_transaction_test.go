@@ -35,7 +35,7 @@ func TestGateCommitAdvancesPlanAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item, step, ok := plan.Current(advanced); !ok || item.ID != "automation" || step.ID != "second" {
+	if item, step, ok := plan.Current(advanced, plan.UnassignedRole); !ok || item.ID != "automation" || step.ID != "second" {
 		t.Fatalf("advanced current = %s/%s, open=%v", item.ID, step.ID, ok)
 	}
 	if err := rollback(); err != nil {

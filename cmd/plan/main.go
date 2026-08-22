@@ -65,7 +65,7 @@ func main() {
 	ramCapacity := flag.Int("ram-capacity-gib", 0, "with -lease-report: available host RAM GiB (0 unknown)")
 	vramCapacity := flag.Int("vram-capacity-gib", 0, "with -lease-report: available VRAM GiB (0 unknown)")
 	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
-	add := flag.Bool("add", false, "inject a new top-priority task: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
+	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
@@ -75,7 +75,7 @@ func main() {
 	title := flag.String("title", "", "with -add: the task title")
 	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
-	role := flag.String("role", "", "with -context: explicit lane role (default OVERGO_AUTOMATION_ROLE, then unassigned)")
+	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
 	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, prepareMerge: *prepareMergeFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
@@ -101,6 +101,10 @@ func run(c cli, args []string) error {
 	if err := plan.ValidateOpenWork(document); err != nil {
 		return err
 	}
+	role, err := plan.AutomationRole(c.role)
+	if err != nil {
+		return err
+	}
 	switch {
 	case c.prepareMerge != "":
 		return prepareMerge(".", c.prepareMerge, document, os.Stdout)
@@ -122,12 +126,12 @@ func run(c cli, args []string) error {
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")
 		}
-		return addItem(document, args[0], c.title, c.before, c.verifyCmd)
+		return addItem(document, args[0], c.title, c.before, c.verifyCmd, role)
 	case c.setverify:
 		if len(args) != 2 || strings.TrimSpace(c.verifyCmd) == "" {
 			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
 		}
-		return setStepVerify(document, args[0], args[1], c.verifyCmd)
+		return setStepVerify(document, args[0], args[1], c.verifyCmd, role)
 	case c.stop:
 		return recordStop(strings.Join(args, " "))
 	case c.contain != "":
@@ -136,24 +140,24 @@ func run(c cli, args []string) error {
 		if len(args) != 2 {
 			return errors.New("usage: plan -advance <item-id> <step-id|.>")
 		}
-		return advanceStep(document, args[0], args[1], c.force, recordOverride)
+		return advanceStep(document, args[0], args[1], c.force, role, recordOverride)
 	case c.status:
 		printStatus(document)
 		return nil
 	case c.context:
 		return printAutomationContext(document, c.role, os.Stdout)
 	case c.prompt:
-		printPrompt(document, os.Stdout)
+		printPrompt(document, role, os.Stdout)
 		return nil
 	case c.verify:
-		it, st, ok := plan.Current(document)
+		it, st, ok := plan.Current(document, role)
 		if !ok {
 			fmt.Println("plan complete: nothing to verify")
 			return nil
 		}
 		return runVerify(it, st)
 	case c.next:
-		action, open := nextAction(document)
+		action, open := nextAction(document, role)
 		if !open {
 			fmt.Println("plan complete: every item is done")
 			return nil
@@ -210,8 +214,9 @@ func collectContextFacts(role string) (plan.ContextFacts, error) {
 	if err != nil {
 		return plan.ContextFacts{}, err
 	}
-	if strings.TrimSpace(role) == "" {
-		role = os.Getenv("OVERGO_AUTOMATION_ROLE")
+	role, err = plan.AutomationRole(role)
+	if err != nil {
+		return plan.ContextFacts{}, err
 	}
 	debt, workflow := authoritativeContextEvidence(worktree, head)
 	return plan.ContextFacts{
@@ -286,15 +291,23 @@ func authoritativeReviewPriority(ctx context.Context, reader artifact.Reader, he
 // before `before` (or at the top of the plan when empty). This is the mechanical
 // "inject a task" operation -- a merge, a fix, or any owner-requested work becomes
 // a first-class dispatched/verified/advanced task without hand-editing plan.json.
-func addItem(document plan.Plan, id, title, before, verifyCmd string) error {
+func addItem(document plan.Plan, id, title, before, verifyCmd, role string) error {
 	updated, err := insertItem(document, id, title, before, verifyCmd)
 	if err != nil {
 		return err
 	}
+	if role != plan.UnassignedRole {
+		for index := range updated.Items {
+			if updated.Items[index].ID == id {
+				updated.Items[index].Owner = role
+				break
+			}
+		}
+	}
 	if err := plan.Save("", updated); err != nil {
 		return err
 	}
-	action, _ := nextAction(updated)
+	action, _ := nextAction(updated, role)
 	fmt.Printf("added item %s (step do); next: %s\n", id, action)
 	return nil
 }
@@ -354,7 +367,7 @@ func assignVerify(document plan.Plan, itemID, stepID, cmd string) (plan.Plan, er
 // forced hand-editing docs/plan.json), then runs it so an unrunnable command --
 // an unquoted shell metachar, a bad -run pattern -- is caught at set-time rather
 // than at the next advance.
-func setStepVerify(document plan.Plan, itemID, stepID, cmd string) error {
+func setStepVerify(document plan.Plan, itemID, stepID, cmd, role string) error {
 	updated, err := assignVerify(document, itemID, stepID, cmd)
 	if err != nil {
 		return err
@@ -363,7 +376,7 @@ func setStepVerify(document plan.Plan, itemID, stepID, cmd string) error {
 		return err
 	}
 	fmt.Printf("set verify for %s/%s: %s\n", itemID, stepID, strings.TrimSpace(cmd))
-	it, st, ok := plan.Current(updated)
+	it, st, ok := plan.Current(updated, role)
 	if ok && it.ID == itemID && st.ID == stepID {
 		return runVerify(it, st)
 	}
@@ -439,8 +452,8 @@ func printStatus(document plan.Plan) {
 }
 
 // nextAction: the one-line form of the current step.
-func nextAction(document plan.Plan) (string, bool) {
-	it, st, ok := plan.Current(document)
+func nextAction(document plan.Plan, role string) (string, bool) {
+	it, st, ok := plan.Current(document, role)
 	if !ok {
 		return "", false
 	}
@@ -452,8 +465,8 @@ func nextAction(document plan.Plan) (string, bool) {
 
 // printPrompt emits the self-contained, non-negotiable task for the current
 // step. The loop feeds THIS to the agent; the agent does not author it.
-func printPrompt(document plan.Plan, output io.Writer) {
-	it, st, ok := plan.Current(document)
+func printPrompt(document plan.Plan, role string, output io.Writer) {
+	it, st, ok := plan.Current(document, role)
 	if !ok {
 		fmt.Fprintln(output, "PLAN COMPLETE: every item is done. Stop and tell the user.")
 		return
@@ -529,8 +542,8 @@ func runVerify(it plan.Item, st plan.Step) error {
 // Environment-gated skips that DID run real assertions elsewhere still print a
 // package "ok" without these markers and are unaffected.
 
-func advanceStep(document plan.Plan, itemID, stepID, force string, onOverride func(string, string) error) error {
-	it, st, open := plan.Current(document)
+func advanceStep(document plan.Plan, itemID, stepID, force, role string, onOverride func(string, string) error) error {
+	it, st, open := plan.Current(document, role)
 	if !open || it.ID != itemID || st.ID != stepID {
 		return fmt.Errorf("%s/%s is not the current open step", itemID, stepID)
 	}
@@ -546,7 +559,7 @@ func advanceStep(document plan.Plan, itemID, stepID, force string, onOverride fu
 	if err != nil {
 		return err
 	}
-	return finishAdvance(updated, itemID, stepID)
+	return finishAdvance(updated, itemID, stepID, role)
 }
 
 func recordOverride(lane, detail string) error {
@@ -584,11 +597,11 @@ func gateAdvance(it plan.Item, st plan.Step, force string) error {
 	return runVerify(it, st)
 }
 
-func finishAdvance(document plan.Plan, itemID, stepID string) error {
+func finishAdvance(document plan.Plan, itemID, stepID, role string) error {
 	if err := plan.Save("", document); err != nil {
 		return err
 	}
-	action, open := nextAction(document)
+	action, open := nextAction(document, role)
 	if !open {
 		fmt.Printf("advanced %s/%s; PLAN COMPLETE\n", itemID, stepID)
 		return nil

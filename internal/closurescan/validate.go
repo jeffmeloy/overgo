@@ -27,9 +27,11 @@ func ValidateBindings(snapshot repoanalysis.SourceSnapshot, documents []closurel
 	if err != nil {
 		return nil, err
 	}
-	current := make(map[string]Candidate, len(candidates))
+	current := make(map[string][]Candidate, len(candidates))
 	for _, candidate := range candidates {
-		current[candidate.DeclarationKey()] = candidate
+		current["s\x00"+candidate.StructuralID] = append(current["s\x00"+candidate.StructuralID], candidate)
+		migration := rebindKey(candidate.Kind, candidate.Package, candidate.File, candidate.Scope, candidate.Name, candidate.Expression)
+		current["m\x00"+migration] = append(current["m\x00"+migration], candidate)
 	}
 	var issues []BindingIssue
 	for _, document := range documents {
@@ -38,20 +40,26 @@ func ValidateBindings(snapshot repoanalysis.SourceSnapshot, documents []closurel
 			continue
 		}
 		for _, binding := range document.Bindings {
-			key := (Candidate{Kind: binding.Kind, File: binding.File, Scope: binding.Scope, Line: binding.Line, Name: binding.Name}).DeclarationKey()
-			candidate, found := current[key]
-			if !found {
+			key := "s\x00" + binding.StructuralID
+			if binding.StructuralID == "" {
+				key = "m\x00" + rebindKey(binding.Kind, binding.Package, binding.File, binding.Scope, binding.Name, binding.Expression)
+			}
+			matches := current[key]
+			if len(matches) != 1 {
 				issues = append(issues, BindingIssue{Kind: DriftOrphan, Name: binding.Name, File: binding.File})
 				continue
 			}
+			candidate := matches[0]
 			expected, err := candidate.Binding()
 			if err != nil {
 				return nil, err
 			}
 			switch {
-			case expected.CallsiteID != binding.CallsiteID:
+			case binding.StructuralID != "" && expected.CallsiteID != binding.CallsiteID:
 				issues = append(issues, BindingIssue{Kind: DriftCallsite, Name: binding.Name, File: binding.File})
-			case expected != binding || !bytes.Equal(candidate.ValueJSON(), document.Value):
+			case binding.StructuralID == "" || expected.StructuralID != binding.StructuralID ||
+				expected.SourceID != binding.SourceID || expected.Expression != binding.Expression ||
+				!bytes.Equal(candidate.ValueJSON(), document.Value):
 				issues = append(issues, BindingIssue{Kind: DriftSource, Name: binding.Name, File: binding.File})
 			}
 		}

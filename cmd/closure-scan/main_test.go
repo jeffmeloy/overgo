@@ -330,8 +330,12 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if _, active, err := closureledger.ResolveActiveBinding(context.Background(), store, binding, candidate.ValueJSON()); err != nil || !active {
 		t.Fatalf("rebound document = (%t, %v)", active, err)
 	}
-	if _, found, err := artifact.ResolveAlias(context.Background(), store, mustActiveAlias(t, previous)); err != nil || found {
-		t.Fatalf("previous binding resolves = (%t, %v)", found, err)
+	previousAlias, currentAlias := mustActiveAlias(t, previous), mustActiveAlias(t, binding)
+	if previousAlias != currentAlias {
+		t.Fatalf("structural alias moved: %s != %s", previousAlias, currentAlias)
+	}
+	if _, found, err := artifact.ResolveAlias(context.Background(), store, previousAlias); err != nil || !found {
+		t.Fatalf("stable binding resolves = (%t, %v)", found, err)
 	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)

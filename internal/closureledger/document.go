@@ -64,16 +64,17 @@ const (
 )
 
 type SourceBinding struct {
-	Kind       BindingKind `json:"kind"`
-	Package    string      `json:"package"`
-	File       string      `json:"file"`
-	Scope      string      `json:"scope"`
-	Name       string      `json:"name"`
-	Line       int         `json:"line"`
-	Expression string      `json:"expression"`
-	SourceID   string      `json:"source_id"`
-	CallsiteID string      `json:"callsite_id"`
-	Owner      artifact.ID `json:"owner"`
+	Kind         BindingKind `json:"kind"`
+	Package      string      `json:"package"`
+	File         string      `json:"file"`
+	Scope        string      `json:"scope"`
+	Name         string      `json:"name"`
+	Line         int         `json:"line"`
+	Expression   string      `json:"expression"`
+	StructuralID string      `json:"structural_id,omitempty"`
+	SourceID     string      `json:"source_id"`
+	CallsiteID   string      `json:"callsite_id"`
+	Owner        artifact.ID `json:"owner"`
 }
 
 // Document: immutable closure obligation.
@@ -189,7 +190,9 @@ func validBinding(binding SourceBinding) bool {
 	}
 	source, sourceErr := hex.DecodeString(binding.SourceID)
 	callsites, callsiteErr := hex.DecodeString(binding.CallsiteID)
-	return sourceErr == nil && len(source) == sha256.Size && callsiteErr == nil && len(callsites) == sha256.Size
+	structure, structureErr := hex.DecodeString(binding.StructuralID)
+	return sourceErr == nil && len(source) == sha256.Size && callsiteErr == nil && len(callsites) == sha256.Size &&
+		(binding.StructuralID == "" || structureErr == nil && len(structure) == sha256.Size)
 }
 
 func bindingKey(binding SourceBinding) string {

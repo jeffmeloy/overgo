@@ -233,9 +233,26 @@ func publishActiveDocument(
 func testSourceBinding(owner artifact.ID) SourceBinding {
 	digest := sha256.Sum256([]byte("internal/cache/page.go"))
 	callsites := sha256.Sum256([]byte("internal/cache/use.go"))
+	structure := sha256.Sum256([]byte("pageSize declaration"))
 	return SourceBinding{
 		Kind: BindingConstant, Package: "internal/cache", File: "internal/cache/page.go",
 		Scope: "package", Name: "pageSize", Line: 12, Expression: "1 << 8",
-		SourceID: hex.EncodeToString(digest[:]), CallsiteID: hex.EncodeToString(callsites[:]), Owner: owner,
+		StructuralID: hex.EncodeToString(structure[:]), SourceID: hex.EncodeToString(digest[:]),
+		CallsiteID: hex.EncodeToString(callsites[:]), Owner: owner,
+	}
+}
+
+func TestStructuralAliasIgnoresLineAndOwner(t *testing.T) {
+	binding := testSourceBinding(testutil.ArtifactID(t, artifact.KindFile, "first owner"))
+	moved := binding
+	moved.Line += 10
+	moved.Owner = testutil.ArtifactID(t, artifact.KindFile, "second owner")
+	left, err := ActiveAlias(binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	right, err := ActiveAlias(moved)
+	if err != nil || left != right {
+		t.Fatalf("structural aliases = (%s, %s, %v)", left, right, err)
 	}
 }

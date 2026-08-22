@@ -3,6 +3,19 @@
   "doctrine": "Follow skill.md. Current evidence: 943 production files, 1,124,050 runtime AST nodes, 12,639 exact-clone excess nodes, 5,982 exports, 78 zero-consumer objects, 18,267 inline literals, and 14,235 repeated-literal sites. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
   "items": [
     {
+      "id": "merge-89d9bd99366a",
+      "title": "Merge master at 89d9bd99366a",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 89d9bd99366a",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
       "id": "plan-ledger-reconciliation",
       "title": "Retain completion state across worktrees",
       "status": "done",
@@ -38,6 +51,71 @@
           "title": "Compile repeated CUDA and reference dispatch policy into existing typed operation programs; delete displaced switches",
           "status": "open",
           "verify": "go test ./internal/tensor/reference ./internal/cuda/executor -count=1 \u0026\u0026 go run ./cmd/device-lane"
+        }
+      ]
+    },
+    {
+      "id": "gate-generalization-check-corrections",
+      "title": "Correct modular check outcomes, ordering, and applicability diagnostics",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Correct modular check outcomes, ordering, and applicability diagnostics",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/automationcheck -run 'Test(DescriptorOrder|ReusedOutcome|MissingManifestFails|CompatibilityImpactLazy)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gate-generalization-merge-snapshot",
+      "title": "Bind merge closure evidence to the exact Git snapshot",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bind merge closure evidence to the exact Git snapshot",
+          "status": "open",
+          "verify": "go test ./cmd/plan -run 'TestPrepareMerge(SnapshotEvidence|SourceAdvance)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gate-generalization-package-cache",
+      "title": "Reuse bounded package test evidence by exact transitive input identity",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Reuse bounded package test evidence by exact transitive input identity",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/automationcheck -run 'TestPackage(EvidenceCache|InputIdentity|SelectiveReuse)|TestCacheBoundedEviction' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gate-generalization-device-impact",
+      "title": "Derive device verification from kernel and function ownership",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Derive device verification from kernel and function ownership",
+          "status": "open",
+          "verify": "go test ./cmd/device-lane ./internal/automationcheck -run 'TestDevice(FunctionImpact|ConservativeFallback|Plan)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gate-generalization-dag",
+      "title": "Execute independent checks through a resource-aware evidence DAG",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Execute independent checks through a resource-aware evidence DAG",
+          "status": "open",
+          "verify": "go test ./internal/automationcheck ./cmd/gate -run 'Test(ResourceDAG|PolicyBarrier|ModularPipeline)' -count=1"
         }
       ]
     },

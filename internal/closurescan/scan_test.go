@@ -80,6 +80,31 @@ func TestCandidateIdentityIncludesEvaluatedSourceBinding(t *testing.T) {
 	}
 }
 
+func TestStructuralBindingSurvivesUnrelatedEdit(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{
+		"internal/policy.go": "package policy\nconst Limit = 8\nfunc use() int { return Limit }\n",
+	})
+	before, err := ScanSnapshot(snapshot, nil, CandidateConstants)
+	if err != nil || len(before) != 1 {
+		t.Fatalf("before = %+v, %v", before, err)
+	}
+	rewritten, err := snapshot.Overlay(map[string][]byte{
+		"internal/policy.go": []byte("package policy\n\n// unrelated documentation\nconst Limit = 8\nfunc use() int { return Limit }\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := ScanSnapshot(rewritten, nil, CandidateConstants)
+	if err != nil || len(after) != 1 {
+		t.Fatalf("after = %+v, %v", after, err)
+	}
+	left, right := before[0], after[0]
+	if left.StructuralID == "" || left.StructuralID != right.StructuralID || left.SourceID != right.SourceID ||
+		left.CallsiteID != right.CallsiteID || left.OwnerID == right.OwnerID || left.Line == right.Line {
+		t.Fatalf("before = %+v, after = %+v", left, right)
+	}
+}
+
 func TestTypedCandidatesBindEverySiteKind(t *testing.T) {
 	snapshot := scanTestSnapshot(t, map[string]string{"internal/policy.go": `package policy
 const Window = 8

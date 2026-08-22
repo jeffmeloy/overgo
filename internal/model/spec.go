@@ -237,43 +237,25 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			return Spec{}, err
 		}
 		patternKey := prefix + "attention.sliding_window_pattern"
-		if pattern, ok := optional[uint32](values, patternKey, gguf.ValueTypeUint32); ok {
-			spec.SlidingPattern = pattern
-		} else {
-			pattern, exists := values[patternKey]
-			if !exists || pattern.Type != gguf.ValueTypeArray {
+		pattern, exists := values[patternKey]
+		if !exists {
+			return Spec{}, fmt.Errorf("required metadata %q is missing", patternKey)
+		}
+		if pattern.Type == gguf.ValueTypeUint32 {
+			value, valid := pattern.Data.(uint32)
+			if !valid {
 				return Spec{}, fmt.Errorf("required metadata %q is missing", patternKey)
 			}
-			spec.SlidingLayers = make([]bool, spec.BlockCount)
-			switch pattern.ArrayType {
-			case gguf.ValueTypeBool:
-				layers, valid := pattern.Data.([]bool)
-				if !valid || len(layers) != int(declaredBlockCount) {
-					return Spec{}, fmt.Errorf("metadata %q has invalid layer values", patternKey)
-				}
-				copy(spec.SlidingLayers, layers)
-			case gguf.ValueTypeUint32:
-				layers, valid := pattern.Data.([]uint32)
-				if !valid || len(layers) != int(declaredBlockCount) {
-					return Spec{}, fmt.Errorf("metadata %q has invalid layer values", patternKey)
-				}
-				for index := range spec.SlidingLayers {
-					spec.SlidingLayers[index] = layers[index] != tensor.FirstOffset
-				}
-			case gguf.ValueTypeInt32:
-				layers, valid := pattern.Data.([]int32)
-				if !valid || len(layers) != int(declaredBlockCount) {
-					return Spec{}, fmt.Errorf("metadata %q has invalid layer values", patternKey)
-				}
-				for index := range spec.SlidingLayers {
-					if layers[index] < tensor.FirstOffset {
-						return Spec{}, fmt.Errorf("metadata %q has a negative layer value", patternKey)
-					}
-					spec.SlidingLayers[index] = layers[index] != tensor.FirstOffset
-				}
-			default:
-				return Spec{}, fmt.Errorf("metadata %q must be an integer or bool array", patternKey)
+			spec.SlidingPattern = value
+		} else {
+			if pattern.Type != gguf.ValueTypeArray {
+				return Spec{}, fmt.Errorf("required metadata %q is missing", patternKey)
 			}
+			layers, layerErr := requiredLayerBoolCompatible(values, patternKey, declaredBlockCount)
+			if layerErr != nil {
+				return Spec{}, layerErr
+			}
+			spec.SlidingLayers = slices.Clone(layers[:spec.BlockCount])
 		}
 		if value, ok := optional[float32](values, prefix+"attention.value_scale", gguf.ValueTypeFloat32); ok && value != tensor.UnitScale {
 			spec.AttentionValueScale = value
@@ -402,23 +384,8 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
 	}
-	if validation.Hybrid == HybridValidationRequiredExpertFeedForward {
-		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
-			spec.SlidingWindow = value
-		}
-		if spec.SlidingWindow > tensor.FirstOffset {
-			_, scalar := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32)
-			if layers, ok, arrayErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); !scalar && arrayErr != nil {
-				return Spec{}, arrayErr
-			} else if !scalar && ok {
-				if len(layers) != int(spec.BlockCount) {
-					return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
-				}
-				spec.SlidingLayers = slices.Clone(layers)
-			}
-		}
-	}
-	if validation.Attention == AttentionValidationPerLayerSlidingAttention {
+	if validation.Hybrid == HybridValidationRequiredExpertFeedForward ||
+		validation.Attention == AttentionValidationPerLayerSlidingAttention {
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
 		}
@@ -453,36 +420,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	if validation.hybridOneOf(
 		HybridValidationAlternatingGatedDelta, HybridValidationAlternatingGatedDeltaHybrid, HybridValidationAlternatingGatedDeltaExperts,
 	) {
-		if validation.Hybrid != HybridValidationAlternatingGatedDelta {
-			if spec.RopeDimensionCount, err = required[uint32](
-				values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
-			); err != nil {
-				return Spec{}, err
-			}
-			sections, sectionsErr := requiredArray[int32](
-				values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32,
-			)
-			if sectionsErr != nil {
-				return Spec{}, sectionsErr
-			}
-			if len(sections) != len(spec.RopeSections) {
-				return Spec{}, fmt.Errorf(
-					"metadata %q has %d values, need %d",
-					prefix+"rope.dimension_sections", len(sections), len(spec.RopeSections),
-				)
-			}
-			copy(spec.RopeSections[:], sections)
-		}
-		if err = readRequiredMetadataFields(
-			values, prefix, gguf.ValueTypeUint32,
-			metadataDestination("ssm.conv_kernel", &spec.SSMConvKernel),
-			metadataDestination("ssm.inner_size", &spec.SSMInnerSize),
-			metadataDestination("ssm.state_size", &spec.SSMStateSize),
-			metadataDestination("ssm.time_step_rank", &spec.SSMTimeStepRank),
-			metadataDestination("ssm.group_count", &spec.SSMGroupCount),
-		); err != nil {
-			return Spec{}, err
-		}
 		spec.FullAttentionInterval = m.profile.MetadataDefaults.uint(
 			values, prefix, "full_attention_interval", m.profile.MetadataDefaults.FullAttentionInterval,
 		)
@@ -504,22 +441,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 			spec.RecurrentLayers = slices.Clone(recurrent[:spec.BlockCount])
 		}
-	}
-	if validation.MLA == MLAValidationHybridLinearAttention {
-		spec.QLoRARank, _ = optional[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32)
-		if err = readRequiredMetadataFields(
-			values, prefix, gguf.ValueTypeUint32,
-			metadataDestination("attention.kv_lora_rank", &spec.KVLoRARank),
-			metadataDestination("rope.dimension_count", &spec.RopeDimensionCount),
-			metadataDestination("ssm.conv_kernel", &spec.SSMConvKernel),
-			metadataDestination("kda.head_dim", &spec.KDAHeadDim),
-		); err != nil {
-			return Spec{}, err
-		}
-		spec.SSMInnerSize = spec.HeadCount * spec.KDAHeadDim
-		spec.SSMStateSize = spec.KDAHeadDim
-		spec.SSMTimeStepRank = spec.HeadCount
-		spec.SSMGroupCount = spec.HeadCount
 	}
 	if validation.Recurrent == RecurrentValidationUngroupedScheduledStateSpace {
 		spec.AttentionScale = hostmath.InvSqrt32(uint64(spec.ValueLength))

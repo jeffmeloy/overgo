@@ -1456,9 +1456,12 @@
  {
   "Capabilities": 8388618,
   "Experts": {
+   "BiasCatalog": 3,
+   "Catalog": 4,
    "Composition": 1,
    "Normalization": 1,
-   "SelectionBias": true
+   "SelectionBias": true,
+   "SharedCatalog": 2
   },
   "LatentAttention": 4,
   "Metadata": {

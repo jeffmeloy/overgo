@@ -78,10 +78,10 @@ func TestCensusReportIsDeterministicAndComplete(t *testing.T) {
 	if err := clioptions.WritePrettyJSON(&secondJSON, second); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeCensusText(&firstText, first, len(first.Owners)); err != nil {
+	if err := writeCensusText(&firstText, first); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeCensusText(&secondText, second, len(second.Owners)); err != nil {
+	if err := writeCensusText(&secondText, second); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(firstJSON.Bytes(), secondJSON.Bytes()) || !bytes.Equal(firstText.Bytes(), secondText.Bytes()) {
@@ -359,7 +359,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	}
 }
 
-func TestPrepareMergeImportsClosureEvidence(t *testing.T) {
+func TestImportClosureDocumentsCopiesFixture(t *testing.T) {
 	root := t.TempDir()
 	relative := "internal/sample/policy.go"
 	path := filepath.Join(root, filepath.FromSlash(relative))
@@ -374,21 +374,21 @@ func TestPrepareMergeImportsClosureEvidence(t *testing.T) {
 		t.Fatalf("candidates=%d err=%v", len(candidates), err)
 	}
 	candidate := candidates[0]
-	triage := triageFile{Rows: []triageRow{{
-		Kind: candidate.Kind, Name: candidate.Name, File: candidate.File, Scope: candidate.Scope, Line: candidate.Line,
-		Tier: string(closureledger.TierImplementation), Status: string(closureledger.StatusClosed),
-		Understanding: "Request admission bound.", ClosurePath: "Typed request policy.",
-		RerankTrigger: "Request admission contract change.",
-	}}}
-	encoded, err := json.Marshal(triage)
+	binding, err := candidate.Binding()
 	if err != nil {
 		t.Fatal(err)
 	}
-	triagePath := filepath.Join(root, "triage.json")
-	if err := os.WriteFile(triagePath, encoded, 0o644); err != nil {
+	fixtureID, err := artifact.IdentifyBytes(artifact.KindFile, []byte("external fixture"))
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := emit(root, "source", triagePath, candidates); err != nil {
+	document, err := closureledger.New(candidate.Name, candidate.ValueJSON(), closureledger.TierImplementation, closureledger.StatusClosed,
+		"Request admission bound.", []closureledger.SourceBinding{binding}, "Typed request policy.", "Request admission contract change.", fixtureID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := artifact.Descriptor{ID: fixtureID, Size: 16}
+	if _, _, err := commitClosureDocuments(root, filepath.Join(root, "source"), []closureledger.Document{document}, nil, []artifact.Descriptor{fixture}); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
@@ -404,12 +404,12 @@ func TestPrepareMergeImportsClosureEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer target.Close()
-	binding, err := candidate.Binding()
-	if err != nil {
-		t.Fatal(err)
-	}
 	if _, found, err := closureledger.ResolveActiveBinding(t.Context(), target, binding, candidate.ValueJSON()); err != nil || !found {
 		t.Fatalf("imported binding=(%t, %v)", found, err)
+	}
+	result, err := target.Query(t.Context(), repodb.Query{Artifact: &fixtureID, MaxResults: 1})
+	if err != nil || len(result.Artifacts) != 1 || result.Artifacts[0] != fixture {
+		t.Fatalf("imported fixture=(%+v, %v)", result.Artifacts, err)
 	}
 }
 

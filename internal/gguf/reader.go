@@ -686,8 +686,8 @@ func (c *cursor) scalar(valueType ValueType) (any, error) {
 func (c *cursor) array(valueType ValueType, count int) (any, error) {
 	width := fixedWidth(valueType)
 	if width != 0 {
-		bytesNeeded := uint64(count) * width
-		if uint64(count) != 0 && bytesNeeded/uint64(count) != width {
+		bytesNeeded, valid := checked.Mul64(uint64(count), width)
+		if !valid {
 			return nil, errors.New("array byte size overflows uint64")
 		}
 		if bytesNeeded > c.size-c.offset {

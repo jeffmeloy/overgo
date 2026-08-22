@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "checkpoint-formats",
-          "title": "Bind GGUF and safetensors literals to typed wire contracts",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/gguf,internal/safetensors -require-classified -require-no-stale -require-no-uncatalogued-production"
-        },
-        {
           "id": "quant-codec",
           "title": "Consolidate quantization and codec arithmetic into shared typed operations",
           "status": "open",

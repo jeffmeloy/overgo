@@ -9,6 +9,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/tensor/dtype"
 )
 
@@ -18,8 +19,6 @@ var f32PromotionBuffers = sync.Pool{
 
 const (
 	f32PromotionBufferBytes = 1 << 20
-	float16StorageBytes     = 2
-	float32StorageBytes     = 4
 )
 
 // F32Reader: stream F32, F16, or BF16 payload as F32.
@@ -52,13 +51,13 @@ func ReadF32(tensor Tensor) ([]float32, error) {
 	switch tensor.DType {
 	case "F32":
 		for offset := 0; offset < count; {
-			batch := min(count-offset, len(encoded)/float32StorageBytes)
-			payload := encoded[:batch*float32StorageBytes]
-			if _, err := tensor.ReadAt(payload, int64(offset)*float32StorageBytes); err != nil {
+			batch := min(count-offset, len(encoded)/binaryschema.Uint32Bytes)
+			payload := encoded[:batch*binaryschema.Uint32Bytes]
+			if _, err := tensor.ReadAt(payload, int64(offset)*binaryschema.Uint32Bytes); err != nil {
 				return nil, err
 			}
 			for index := range batch {
-				values[offset+index] = math.Float32frombits(binary.LittleEndian.Uint32(payload[index*float32StorageBytes:]))
+				values[offset+index] = math.Float32frombits(binary.LittleEndian.Uint32(payload[index*binaryschema.Uint32Bytes:]))
 			}
 			offset += batch
 		}
@@ -68,13 +67,13 @@ func ReadF32(tensor Tensor) ([]float32, error) {
 			convert = dtype.BF16ToFloat32
 		}
 		for offset := 0; offset < count; {
-			batch := min(count-offset, len(encoded)/float16StorageBytes)
-			payload := encoded[:batch*float16StorageBytes]
-			if _, err := tensor.ReadAt(payload, int64(offset)*float16StorageBytes); err != nil {
+			batch := min(count-offset, len(encoded)/binaryschema.Uint16Bytes)
+			payload := encoded[:batch*binaryschema.Uint16Bytes]
+			if _, err := tensor.ReadAt(payload, int64(offset)*binaryschema.Uint16Bytes); err != nil {
 				return nil, err
 			}
 			for index := range batch {
-				values[offset+index] = convert(binary.LittleEndian.Uint16(payload[index*float16StorageBytes:]))
+				values[offset+index] = convert(binary.LittleEndian.Uint16(payload[index*binaryschema.Uint16Bytes:]))
 			}
 			offset += batch
 		}
@@ -119,13 +118,13 @@ func ReadBF16(tensor Tensor) ([]uint16, error) {
 	encoded := f32PromotionBuffers.Get().([]byte)
 	defer f32PromotionBuffers.Put(encoded)
 	for offset := 0; offset < count; {
-		batch := min(count-offset, len(encoded)/float16StorageBytes)
-		payload := encoded[:batch*float16StorageBytes]
-		if _, err := tensor.ReadAt(payload, int64(offset)*float16StorageBytes); err != nil {
+		batch := min(count-offset, len(encoded)/binaryschema.Uint16Bytes)
+		payload := encoded[:batch*binaryschema.Uint16Bytes]
+		if _, err := tensor.ReadAt(payload, int64(offset)*binaryschema.Uint16Bytes); err != nil {
 			return nil, err
 		}
 		for index := range batch {
-			values[offset+index] = binary.LittleEndian.Uint16(payload[index*float16StorageBytes:])
+			values[offset+index] = binary.LittleEndian.Uint16(payload[index*binaryschema.Uint16Bytes:])
 		}
 		offset += batch
 	}
@@ -168,19 +167,19 @@ func (r *f32Reader) Read(destination []byte) (int, error) {
 			r.input = make([]byte, f32PromotionBufferBytes)
 		}
 		count, err := r.source.Read(r.input)
-		if count%float16StorageBytes != 0 {
+		if count%binaryschema.Uint16Bytes != 0 {
 			return written, errors.New("safetensors: 16-bit source returned a partial element")
 		}
 		if count > 0 {
-			size := count * float32StorageBytes / float16StorageBytes
+			size := count * binaryschema.Uint32Bytes / binaryschema.Uint16Bytes
 			if cap(r.output) < size {
 				r.output = make([]byte, size)
 			} else {
 				r.output = r.output[:size]
 			}
-			for index := 0; index < count/float16StorageBytes; index++ {
-				value := r.convert(binary.LittleEndian.Uint16(r.input[index*float16StorageBytes:]))
-				binary.LittleEndian.PutUint32(r.output[index*float32StorageBytes:], math.Float32bits(value))
+			for index := 0; index < count/binaryschema.Uint16Bytes; index++ {
+				value := r.convert(binary.LittleEndian.Uint16(r.input[index*binaryschema.Uint16Bytes:]))
+				binary.LittleEndian.PutUint32(r.output[index*binaryschema.Uint32Bytes:], math.Float32bits(value))
 			}
 			r.offset = 0
 			continue

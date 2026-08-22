@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"hash"
 	"math/bits"
+
+	"overgo/internal/binaryschema"
+	"overgo/internal/extent"
 )
 
 // HashOptions: selects llama-gguf-hash-compatible payload digests
@@ -88,7 +91,7 @@ func (f *File) Hash(options HashOptions) (HashResult, error) {
 	model := newHashAccumulator(options)
 	result := HashResult{}
 	if options.PerTensor {
-		result.Tensors = make([]TensorHash, 0, len(f.Tensors))
+		result.Tensors = make([]TensorHash, extent.FirstOffset, len(f.Tensors))
 	}
 	buffer := make([]byte, hashReadBufferBytes)
 	for _, tensor := range f.Tensors {
@@ -185,7 +188,7 @@ func (a *hashAccumulator) values(includeUUID bool) HashValues {
 		value[uuidVariantByte] = value[uuidVariantByte]&uuidVariantClearMask | uuidVariantBits
 		var node uint64
 		for _, part := range value[uuidClockSequenceEnd:] {
-			node = node<<8 | uint64(part)
+			node = node<<binaryschema.BitsPerByte | uint64(part)
 		}
 		result.UUID = fmt.Sprintf(
 			"%08x-%04x-%04x-%04x-%012x",
@@ -200,6 +203,7 @@ func (a *hashAccumulator) values(includeUUID bool) HashValues {
 }
 
 const (
+	xxhZero   = uint64(0)
 	xxhPrime1 = uint64(11400714785074694791)
 	xxhPrime2 = uint64(14029467366897019727)
 	xxhPrime3 = uint64(1609587929392839161)
@@ -220,12 +224,12 @@ type xxh64Digest struct {
 func newXXH64() xxh64Digest {
 	first := xxhPrime1
 	first += xxhPrime2
-	fourth := uint64(0)
+	fourth := xxhZero
 	fourth -= xxhPrime1
 	return xxh64Digest{
 		v1: first,
 		v2: xxhPrime2,
-		v3: 0,
+		v3: xxhZero,
 		v4: fourth,
 	}
 }
@@ -236,12 +240,12 @@ func (d *xxh64Digest) Write(data []byte) {
 		d.used += copy(d.tail[d.used:], data)
 		return
 	}
-	if d.used != 0 {
+	if d.used != extent.FirstOffset {
 		needed := len(d.tail) - d.used
 		copy(d.tail[d.used:], data[:needed])
 		d.consume(d.tail[:])
 		data = data[needed:]
-		d.used = 0
+		d.used = extent.FirstOffset
 	}
 	for len(data) >= len(d.tail) {
 		d.consume(data[:len(d.tail)])
@@ -252,9 +256,9 @@ func (d *xxh64Digest) Write(data []byte) {
 
 func (d *xxh64Digest) consume(block []byte) {
 	d.v1 = xxhRound(d.v1, binary.LittleEndian.Uint64(block[:xxhLaneBytes]))
-	d.v2 = xxhRound(d.v2, binary.LittleEndian.Uint64(block[xxhLaneBytes:2*xxhLaneBytes]))
-	d.v3 = xxhRound(d.v3, binary.LittleEndian.Uint64(block[2*xxhLaneBytes:3*xxhLaneBytes]))
-	d.v4 = xxhRound(d.v4, binary.LittleEndian.Uint64(block[3*xxhLaneBytes:xxhStripeBytes]))
+	d.v2 = xxhRound(d.v2, binary.LittleEndian.Uint64(block[xxhLaneBytes:extent.PairedExtent*xxhLaneBytes]))
+	d.v3 = xxhRound(d.v3, binary.LittleEndian.Uint64(block[extent.PairedExtent*xxhLaneBytes:extent.TripleExtent*xxhLaneBytes]))
+	d.v4 = xxhRound(d.v4, binary.LittleEndian.Uint64(block[extent.TripleExtent*xxhLaneBytes:xxhStripeBytes]))
 }
 
 func (d *xxh64Digest) Sum64() uint64 {
@@ -274,7 +278,7 @@ func (d *xxh64Digest) Sum64() uint64 {
 	result += d.total
 	tail := d.tail[:d.used]
 	for len(tail) >= xxhLaneBytes {
-		lane := xxhRound(0, binary.LittleEndian.Uint64(tail[:xxhLaneBytes]))
+		lane := xxhRound(xxhZero, binary.LittleEndian.Uint64(tail[:xxhLaneBytes]))
 		result ^= lane
 		result = bits.RotateLeft64(result, xxhLaneRotation)*xxhPrime1 + xxhPrime4
 		tail = tail[xxhLaneBytes:]
@@ -303,6 +307,6 @@ func xxhRound(accumulator, input uint64) uint64 {
 }
 
 func xxhMergeRound(accumulator, value uint64) uint64 {
-	accumulator ^= xxhRound(0, value)
+	accumulator ^= xxhRound(xxhZero, value)
 	return accumulator*xxhPrime1 + xxhPrime4
 }

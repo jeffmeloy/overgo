@@ -63,7 +63,7 @@
      "contains": "func OpenSourceWithLimits(",
      "path": "internal/safetensors/source.go",
      "role": "source",
-     "identity": "file:sha256:8b08f2b13131b9522eb4af63d28b94d4776479d9688ad35d7b3ce3ab20b67ab7"
+     "identity": "file:sha256:20d082db54f374f866593286a9e06015208e10d8e5adaf36731fd16fc9758b98"
     },
     {
      "contains": "func TestOpenSourceRejectsInvalidRepositories(",
@@ -126,7 +126,7 @@
      "contains": "func OpenWithOptions(",
      "path": "internal/gguf/reader.go",
      "role": "source",
-     "identity": "file:sha256:c80c1423b8b507e70daba8fcb40fbe1bd4c9aedd6a07a288e35692d4c97c9001"
+     "identity": "file:sha256:91eecff189e9797a0913ba83b5a55330658880f948be68cf11d87aae40d1e411"
     },
     {
      "contains": "func TestParseEnforcesLimits(",
@@ -413,7 +413,7 @@
      "contains": "func splitPathPrefix(",
      "path": "internal/gguf/reader.go",
      "role": "source",
-     "identity": "file:sha256:c80c1423b8b507e70daba8fcb40fbe1bd4c9aedd6a07a288e35692d4c97c9001"
+     "identity": "file:sha256:91eecff189e9797a0913ba83b5a55330658880f948be68cf11d87aae40d1e411"
     },
     {
      "contains": "func TestOpenLoadsAndReadsSplitGGUF(",

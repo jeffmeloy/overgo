@@ -11,13 +11,9 @@ import (
 	"os"
 	"slices"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 )
-
-// headerAlignment pads the JSON header to an 8-byte boundary (trailing spaces,
-// valid JSON whitespace) so the payload starts 8-aligned for external loaders;
-// this reader does not require it.
-const headerAlignment = 8
 
 // Save writes tensors as a single-file safetensors artifact at path. Every
 // tensor stores F32 little-endian in name-sorted order with sequential disjoint
@@ -51,7 +47,7 @@ func Save(path string, tensors map[string][]float32, shapes map[string][]int, me
 			ushape[index] = uint64(dim)
 		}
 		size, err := TensorBytes("F32", ushape)
-		actual, valid := checked.Mul64(uint64(len(tensors[name])), dwordStorageBytes)
+		actual, valid := checked.Mul64(uint64(len(tensors[name])), binaryschema.Uint32Bytes)
 		if err != nil || !valid || actual != size {
 			return fmt.Errorf("safetensors: tensor %q shape %v does not match %d elements", name, shape, len(tensors[name]))
 		}
@@ -67,7 +63,7 @@ func Save(path string, tensors map[string][]float32, shapes map[string][]int, me
 	if err != nil {
 		return fmt.Errorf("safetensors: marshal header: %w", err)
 	}
-	for len(headerBytes)%headerAlignment != 0 {
+	for len(headerBytes)%binaryschema.Uint64Bytes != 0 {
 		headerBytes = append(headerBytes, ' ')
 	}
 
@@ -86,7 +82,7 @@ func Save(path string, tensors map[string][]float32, shapes map[string][]int, me
 // f32 payload in the same name-sorted order the offsets were assigned.
 func writeArtifact(file io.Writer, headerBytes []byte, names []string, tensors map[string][]float32) error {
 	writer := bufio.NewWriter(file)
-	var lengthLE [headerLengthBytes]byte
+	var lengthLE [binaryschema.Uint64Bytes]byte
 	binary.LittleEndian.PutUint64(lengthLE[:], uint64(len(headerBytes)))
 	if _, err := writer.Write(lengthLE[:]); err != nil {
 		return err
@@ -94,7 +90,7 @@ func writeArtifact(file io.Writer, headerBytes []byte, names []string, tensors m
 	if _, err := writer.Write(headerBytes); err != nil {
 		return err
 	}
-	var scratch [dwordStorageBytes]byte
+	var scratch [binaryschema.Uint32Bytes]byte
 	for _, name := range names {
 		for _, value := range tensors[name] {
 			binary.LittleEndian.PutUint32(scratch[:], math.Float32bits(value))

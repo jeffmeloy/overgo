@@ -7,11 +7,15 @@ import (
 	"math"
 	"strings"
 
+	"overgo/internal/extent"
 	"overgo/internal/quant"
 	"overgo/internal/tensor/dtype"
 )
 
-const quantizationVersion = 2
+const (
+	quantizationVersion       = extent.PairedExtent
+	quantizationChunkElements = uint64(256 << 10)
+)
 
 // QuantizeOptions: model quantization controls.
 type QuantizeOptions struct {
@@ -171,7 +175,7 @@ func quantizedMetadata(metadata []Metadata, target DType, options QuantizeOption
 			"quantize.imatrix.entries_count", "quantize.imatrix.chunks_count":
 			continue
 		case "general.file_type":
-			item.Value = Value{Type: ValueTypeUint32, Data: fileType}
+			item.Value = Value{Type: ValueTypeUint32, Data: uint32(fileType)}
 			fileTypeFound = true
 		case "general.quantization_version":
 			item.Value = Value{
@@ -185,7 +189,7 @@ func quantizedMetadata(metadata []Metadata, target DType, options QuantizeOption
 	if !fileTypeFound {
 		result = append(result, Metadata{
 			Key:   "general.file_type",
-			Value: Value{Type: ValueTypeUint32, Data: fileType},
+			Value: Value{Type: ValueTypeUint32, Data: uint32(fileType)},
 		})
 	}
 	if !versionFound {
@@ -228,7 +232,7 @@ func quantizedMetadata(metadata []Metadata, target DType, options QuantizeOption
 	return result, nil
 }
 
-func quantizedFileType(target DType) (uint32, bool) {
+func quantizedFileType(target DType) (FileType, bool) {
 	switch target {
 	case dtype.F32:
 		return fileTypeAllF32, true
@@ -355,10 +359,10 @@ func newQuantizingReader(
 		sourceTraits.BlockSize,
 		targetTraits.BlockSize,
 	)
-	if overflow || baseElements == 0 {
+	if overflow || baseElements == extent.FirstOffset {
 		return nil, fmt.Errorf("tensor %q conversion block size overflows", tensor.Name)
 	}
-	if elements%baseElements != 0 {
+	if elements%baseElements != extent.FirstOffset {
 		return nil, fmt.Errorf(
 			"tensor %q element count %d is not divisible by conversion block size %d",
 			tensor.Name,
@@ -366,31 +370,30 @@ func newQuantizingReader(
 			baseElements,
 		)
 	}
-	rowWidth := tensor.Shape[0]
-	if rowWidth == 0 || rowWidth%baseElements != 0 {
+	rowWidth := tensor.Shape[extent.FirstOffset]
+	if rowWidth == extent.FirstOffset || rowWidth%baseElements != extent.FirstOffset {
 		return nil, fmt.Errorf("tensor %q row width is not conversion-block aligned", tensor.Name)
 	}
-	const targetChunkElements = uint64(256 << 10)
-	chunkRows := targetChunkElements / rowWidth
-	if chunkRows == 0 {
-		chunkRows = 1
+	chunkRows := quantizationChunkElements / rowWidth
+	if chunkRows == extent.FirstOffset {
+		chunkRows = extent.SingletonExtent
 	}
 	chunkElements := chunkRows * rowWidth
-	rowsPerGroup := uint64(1)
-	if tensor.Dimensions > 1 {
-		rowsPerGroup = tensor.Shape[1]
+	rowsPerGroup := uint64(extent.SingletonExtent)
+	if tensor.Dimensions > extent.SingletonExtent {
+		rowsPerGroup = tensor.Shape[extent.SingletonExtent]
 	}
-	groups := uint64(1)
-	if tensor.Dimensions > 2 {
-		groups = tensor.Shape[2]
+	groups := uint64(extent.SingletonExtent)
+	if tensor.Dimensions > extent.PairedExtent {
+		groups = tensor.Shape[extent.PairedExtent]
 	}
-	if tensor.Dimensions > 3 && tensor.Shape[3] != 1 && len(importance) != 0 {
+	if tensor.Dimensions > extent.TripleExtent && tensor.Shape[extent.TripleExtent] != extent.SingletonExtent && len(importance) != extent.FirstOffset {
 		return nil, fmt.Errorf("tensor %q rank-4 importance mapping is unsupported", tensor.Name)
 	}
-	if len(importance) != 0 && (groups != 0 && rowWidth > math.MaxUint64/groups) {
+	if len(importance) != extent.FirstOffset && (groups != extent.FirstOffset && rowWidth > math.MaxUint64/groups) {
 		return nil, fmt.Errorf("tensor %q importance count overflows uint64", tensor.Name)
 	}
-	if len(importance) != 0 && uint64(len(importance)) != rowWidth*groups {
+	if len(importance) != extent.FirstOffset && uint64(len(importance)) != rowWidth*groups {
 		return nil, fmt.Errorf(
 			"tensor %q importance count %d differs from expected %d",
 			tensor.Name, len(importance), rowWidth*groups,
@@ -412,12 +415,12 @@ func newQuantizingReader(
 }
 
 func (r *quantizingReader) Read(destination []byte) (int, error) {
-	if len(destination) == 0 {
-		return 0, nil
+	if len(destination) == extent.FirstOffset {
+		return extent.FirstOffset, nil
 	}
 	if r.bufferOffset == len(r.buffer) {
-		if r.elementsRemaining == 0 {
-			return 0, io.EOF
+		if r.elementsRemaining == extent.FirstOffset {
+			return extent.FirstOffset, io.EOF
 		}
 		if err := r.fill(); err != nil {
 			return 0, err
@@ -443,7 +446,7 @@ func (r *quantizingReader) fill() error {
 	if err != nil {
 		return fmt.Errorf("dequantize tensor %q: %w", r.tensor.Name, err)
 	}
-	if len(r.importance) != 0 {
+	if len(r.importance) != extent.FirstOffset {
 		weights := make([]float32, len(values))
 		firstElement := r.totalElements - r.elementsRemaining
 		firstRow := firstElement / r.rowWidth

@@ -13,9 +13,11 @@ import (
 )
 
 type kernelManifest struct {
-	ABIVersion int            `json:"abiVersion"`
-	Target     string         `json:"target"`
-	Modules    []kernelModule `json:"modules"`
+	ABIVersion     int            `json:"abiVersion"`
+	Target         string         `json:"target"`
+	DefaultThreads int            `json:"defaultThreads"`
+	VAEConvTile    int            `json:"vaeConvTile"`
+	Modules        []kernelModule `json:"modules"`
 }
 
 type kernelModule struct {
@@ -97,7 +99,9 @@ func generateKernelManifest(document []byte) ([]byte, error) {
 	if err := json.Unmarshal(document, &manifest); err != nil {
 		return nil, err
 	}
-	if manifest.ABIVersion < 1 || manifest.Target == "" || len(manifest.Modules) == 0 {
+	if manifest.ABIVersion < 1 || manifest.Target == "" ||
+		manifest.DefaultThreads <= 0 || manifest.VAEConvTile <= 0 ||
+		len(manifest.Modules) == 0 {
 		return nil, errors.New("CUDA kernel ABI identity is incomplete")
 	}
 	var output bytes.Buffer
@@ -108,6 +112,8 @@ func generateKernelManifest(document []byte) ([]byte, error) {
 	fmt.Fprintln(&output, "const (")
 	fmt.Fprintf(&output, "\tBundleABIVersion = %d\n", manifest.ABIVersion)
 	fmt.Fprintf(&output, "\tBundleTarget = %q\n", manifest.Target)
+	fmt.Fprintf(&output, "\tBundleDefaultThreads = %d\n", manifest.DefaultThreads)
+	fmt.Fprintf(&output, "\tBundleVAEConvTile = %d\n", manifest.VAEConvTile)
 	for _, module := range manifest.Modules {
 		if module.Asset == "" || module.AssetSHA256 == "" {
 			return nil, errors.New("CUDA kernel asset identity is incomplete")

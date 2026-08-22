@@ -6,6 +6,7 @@ import (
 	"overgo/internal/tensor"
 )
 
+// SignedUnitBounds32 returns the inclusive normalized sample interval.
 func SignedUnitBounds32() (float32, float32) {
 	upper := float32(tensor.SingletonExtent)
 	return -upper, upper
@@ -29,6 +30,7 @@ func NormalizedF32ToU8(values []float32) []uint8 {
 	return output
 }
 
+// SignedUnitF32ToU8 maps one signed-unit sample to an unsigned byte.
 func SignedUnitF32ToU8(value float32) uint8 {
 	lower := float64(tensor.FirstOffset)
 	upper := float64(tensor.SingletonExtent)
@@ -37,6 +39,7 @@ func SignedUnitF32ToU8(value float32) uint8 {
 	return unitFloat64ToU8(max(lower, min(normalized, upper)))
 }
 
+// UnitF32ToU8 maps one unit-interval sample to an unsigned byte.
 func UnitF32ToU8(value float32) uint8 {
 	lower := float64(tensor.FirstOffset)
 	upper := float64(tensor.SingletonExtent)

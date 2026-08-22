@@ -19,7 +19,7 @@ import (
 
 const (
 	liveEditDeviceLatentOracle = "f73e55a69a2e5662100dfe664cc8234dc050d4b217174ce1a4ff45ac51bd4f17"
-	liveEditDeviceFrameOracle  = "3dc33bc823a9a8083b0325cf78d78369e1f559943aa843b11afdaa477b902068"
+	liveEditDeviceFrameOracle  = "19b2104b562a8fc93848aecf65737b58e9b50e0534dc96f85ffb1beb780061b1"
 )
 
 func TestLiveEditDeviceRuntime(t *testing.T) {

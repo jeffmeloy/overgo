@@ -478,7 +478,7 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:6f56d380b4ebded6b0ed5ee49ac31f4eded3c36bc3855c6a2a5f0dd3277bdac7"
+     "identity": "file:sha256:6010859bdef2157686cd3fc81ea7355b404f322c354cfe6d4c836c7c61f67960"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -710,7 +710,7 @@
      "contains": "func DecodeEncodedVideo(",
      "path": "internal/media/video.go",
      "role": "source",
-     "identity": "file:sha256:29df493ce9bfeb9c8507343acbd3dd1a421792fbf1d54913bb2539a1ce36cc03"
+     "identity": "file:sha256:5647da7a1d8d17f5d45a4b852727ef848fee91a51ee1d39f5b504a1354d2b59e"
     },
     {
      "contains": "func TestChatAndResponsesEncodedVideoProjection(",

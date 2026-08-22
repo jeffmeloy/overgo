@@ -13,9 +13,12 @@ import (
 )
 
 const (
-	RepresentationBridgePromotionVersion   = artifact.InitialDocumentVersion
+	// RepresentationBridgePromotionVersion is the current promotion document version.
+	RepresentationBridgePromotionVersion = artifact.InitialDocumentVersion
+	// RepresentationBridgePromotionMediaType identifies serialized bridge-promotion evidence.
 	RepresentationBridgePromotionMediaType = "application/vnd.overgo.representation-bridge-promotion+json"
-	RepresentationBridgePromotionSchema    = "overgo/representation-bridge-promotion/v1"
+	// RepresentationBridgePromotionSchema identifies the canonical bridge-promotion schema.
+	RepresentationBridgePromotionSchema = "overgo/representation-bridge-promotion/v1"
 )
 
 // RepresentationBridgePromotionPolicy declares one metric and the minimum

@@ -7,6 +7,7 @@ import (
 
 const channelRMSNormZeroGuard = 1e-12
 
+// ChannelRMSNormZeroGuard returns the lower norm bound used by media codecs.
 func ChannelRMSNormZeroGuard() float64 { return channelRMSNormZeroGuard }
 
 // ChannelRMSNormF64Into: channel norm; fixed per-position accumulation order.

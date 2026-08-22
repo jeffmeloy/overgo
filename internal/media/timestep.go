@@ -15,6 +15,7 @@ type SinusoidalProgram struct {
 	InputScale    float64
 }
 
+// Validate rejects invalid embedding dimensions, scales, and frequency bases.
 func (p SinusoidalProgram) Validate() error {
 	if p.Dimensions <= 0 || p.Dimensions%tensor.PairedExtent != 0 ||
 		p.FrequencyBase <= 0 || p.InputScale <= 0 ||
@@ -25,6 +26,7 @@ func (p SinusoidalProgram) Validate() error {
 	return nil
 }
 
+// Encode64 returns the double-precision sinusoidal embedding for value.
 func (p SinusoidalProgram) Encode64(value float64) ([]float64, error) {
 	if err := p.Validate(); err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
 		if err != nil {
@@ -43,6 +45,7 @@ func (p SinusoidalProgram) Encode64(value float64) ([]float64, error) {
 	return encoded, nil
 }
 
+// Encode32 returns the single-precision sinusoidal embedding for value.
 func (p SinusoidalProgram) Encode32(value float64) ([]float32, error) {
 	encoded, err := p.Encode64(value)
 	if err != nil {

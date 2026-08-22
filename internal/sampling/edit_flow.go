@@ -7,6 +7,7 @@ import (
 	"overgo/internal/checked"
 )
 
+// EditFlowConfig bounds compilation of a shifted flow-matching schedule.
 type EditFlowConfig struct {
 	InferenceSteps int
 	TrainTimesteps int

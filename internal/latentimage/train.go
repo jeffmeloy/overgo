@@ -6,6 +6,7 @@
 // hyperparameters; gradients stop at the organ input (the head is the
 // stack's last layer), and full-denoiser training remains the promotion
 // gate beyond it.
+
 package latentimage
 
 import (

@@ -35,6 +35,7 @@
 // CPU-only. This file therefore VERIFIES block shapes against the real checkpoint
 // (headers) and exercises the exact forward arithmetic at synthetic scale; the
 // exact-g3 endpoint is named as a gap in TestDenoiserExactG3IsHookGapped.
+
 package latentimage
 
 import (

@@ -28,6 +28,7 @@
 //   - nearest-2x upsample + 3x3 same conv        -> RepeatHeads x2 (a pure
 //     data-preserving gather, bit-exact on every backend) + Conv2D 3x3 pad1.
 //   - final clamp [-1,1]                          -> Clamp.
+
 package latentimage
 
 import (
@@ -43,7 +44,7 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-// VAEProgram: the compiled QwenImage spatial decode graph for one latent
+// VAEProgram is the compiled QwenImage spatial decode graph for one latent
 // geometry, plus the static weight feeds prepared (and temporally sliced) at
 // compile time. Latent is the per-decode HWC input; Output is planar-in-HWC RGB
 // before the CHW transpose DecodeGraph performs.

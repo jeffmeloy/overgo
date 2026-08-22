@@ -5,6 +5,7 @@
 // This mirrors adaptive's compileShiftedFlowSchedule(steps, math.Exp(mu),
 // shiftedFlowSigmaDescending) exactly. Pure host math, f64 throughout — the
 // g2 golden knots reproduce bit-for-bit from mu alone (no hardcoded knots).
+
 package latentimage
 
 import (

@@ -16,8 +16,6 @@ const NullToken TokenID = -1
 // TokenID: compatible with llama_token
 type TokenID int32
 
-func ValidID(id TokenID, size uint32) bool { return id >= 0 && uint32(id) < size }
-
 // ParseTokenID parses a decimal identifier within the serialized token range.
 func ParseTokenID(text string) (TokenID, error) {
 	value, err := strconv.Atoi(text)

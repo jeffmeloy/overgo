@@ -33,6 +33,7 @@ type manifest struct {
 	Target          string   `json:"target"`
 	CompilerFlags   []string `json:"compilerFlags"`
 	DefaultThreads  int      `json:"defaultThreads"`
+	VAEConvTile     int      `json:"vaeConvTile"`
 	SharedMemoryABI string   `json:"sharedMemoryABI"`
 	Modules         []module `json:"modules"`
 }
@@ -87,10 +88,14 @@ func run(root string, update bool) error {
 	if document.Schema != 2 || document.ABIVersion < 1 {
 		return errors.New("kernel manifest: unsupported schema or ABI version")
 	}
-	if document.Target != "compute_89" || document.DefaultThreads <= 0 || document.SharedMemoryABI == "" {
+	if document.Target != "compute_89" || document.DefaultThreads <= 0 ||
+		document.VAEConvTile <= 0 || document.SharedMemoryABI == "" {
 		return errors.New("kernel manifest: target or launch ABI is incomplete")
 	}
-	if document.ABIVersion != cudaKernel.BundleABIVersion || document.Target != cudaKernel.BundleTarget {
+	if document.ABIVersion != cudaKernel.BundleABIVersion ||
+		document.Target != cudaKernel.BundleTarget ||
+		document.DefaultThreads != cudaKernel.BundleDefaultThreads ||
+		document.VAEConvTile != cudaKernel.BundleVAEConvTile {
 		return errors.New("kernel manifest: Go host kernel ABI identity is stale")
 	}
 	runtimePins := map[string]string{

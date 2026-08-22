@@ -26,7 +26,9 @@ func SquarePatchExtent(vectorWidth, channels int) (int, error) {
 type PatchChannelOrder uint8
 
 const (
+	// PatchChannelsFirst stores all spatial values for each channel together.
 	PatchChannelsFirst PatchChannelOrder = iota
+	// PatchChannelsLast stores all channel values for each spatial position together.
 	PatchChannelsLast
 )
 

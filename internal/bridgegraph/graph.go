@@ -14,20 +14,29 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+// Operator identifies the shape-changing operation compiled into a bridge.
 type Operator string
 
 const (
-	OperatorLinear          Operator = "linear"
-	OperatorMLPGELU         Operator = "mlp-gelu"
+	// OperatorLinear applies one learned linear projection.
+	OperatorLinear Operator = "linear"
+	// OperatorMLPGELU applies a two-layer projection with a GELU activation.
+	OperatorMLPGELU Operator = "mlp-gelu"
+	// OperatorAlignVocabulary projects through a target vocabulary embedding.
 	OperatorAlignVocabulary Operator = "align-vocabulary"
-	OperatorPerceiver       Operator = "perceiver-resampler"
+	// OperatorPerceiver resamples a variable sequence into fixed latent slots.
+	OperatorPerceiver Operator = "perceiver-resampler"
+	// OperatorConditionalLoRA applies source-conditioned low-rank adaptation.
 	OperatorConditionalLoRA Operator = "conditional-lora"
 )
 
+// EmbeddingMode states whether vocabulary head and target embeddings share weights.
 type EmbeddingMode string
 
 const (
-	EmbeddingTied   EmbeddingMode = "tied"
+	// EmbeddingTied requires the vocabulary head and target embedding identities to match.
+	EmbeddingTied EmbeddingMode = "tied"
+	// EmbeddingUntied requires distinct vocabulary head and target embedding identities.
 	EmbeddingUntied EmbeddingMode = "untied"
 )
 

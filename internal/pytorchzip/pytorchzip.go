@@ -22,6 +22,7 @@ import (
 // bfloat16 tensors.
 func BFloat16StorageClass() string { return "BFloat16Storage" }
 
+// Float32StorageClass returns the PyTorch pickle storage-class spelling for float32 tensors.
 func Float32StorageClass() string { return "FloatStorage" }
 
 // TensorMeta: one tensor as described by the checkpoint pickle.

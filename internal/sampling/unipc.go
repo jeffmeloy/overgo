@@ -12,7 +12,8 @@ import (
 	"overgo/internal/checked"
 )
 
-// UniPCSchedule: shifted flow schedule. Returns inferenceSteps timesteps and
+// UniPCSchedule returns a shifted flow schedule with a terminal zero sigma.
+// It returns inferenceSteps timesteps and
 // inferenceSteps+1 sigmas; the trailing sigma is the terminal zero.
 func UniPCSchedule(numTrainTimesteps, inferenceSteps int, shift float64) ([]int64, []float32, error) {
 	if numTrainTimesteps <= 0 || inferenceSteps <= 0 {
@@ -33,7 +34,7 @@ func UniPCSchedule(numTrainTimesteps, inferenceSteps int, shift float64) ([]int6
 	return timesteps, sigmas, nil
 }
 
-// UniPCSampler: order-2 flow UniPC predictor/corrector over host buffers.
+// UniPCSampler implements an order-2 flow predictor/corrector over host buffers.
 // State layout and buffer rotation mirror the reference device scheduler.
 type UniPCSampler struct {
 	sigmas         []float32
@@ -48,6 +49,7 @@ type UniPCSampler struct {
 	currentValid   bool
 }
 
+// NewUniPCSampler validates a sigma schedule and allocates bounded sampler state.
 func NewUniPCSampler(sigmas []float32, elements int) (*UniPCSampler, error) {
 	if elements <= 0 {
 		return nil, fmt.Errorf("unipc sampler: invalid elements=%d", elements)
@@ -64,7 +66,7 @@ func NewUniPCSampler(sigmas []float32, elements int) (*UniPCSampler, error) {
 	}, nil
 }
 
-// Step: consumes the model output at the current sample and writes the next
+// Step consumes the model output at the current sample and writes the next
 // sample into output. Buffers may not alias.
 func (p *UniPCSampler) Step(output, sample, modelOutput []float32) error {
 	if p == nil || len(p.sigmas) < 2 {
@@ -188,7 +190,7 @@ func (p *UniPCSampler) uniCOrder2Coeffs(t, s0, previous int) (lastScale, modelSc
 	return sigmaT / sigmaS0, alphaT * hPhi1, alphaT * hPhi1 * rho1, alphaT * hPhi1 * rho0 / rk
 }
 
-// GuideInto: classifier-free guidance out = uncond + guide*(cond - uncond).
+// GuideInto applies classifier-free guidance into a distinct output buffer.
 func GuideInto(out, conditional, unconditional []float32, guide float64) error {
 	if len(out) != len(conditional) || len(out) != len(unconditional) {
 		return fmt.Errorf("guidance: buffer lengths %d/%d/%d differ", len(out), len(conditional), len(unconditional))

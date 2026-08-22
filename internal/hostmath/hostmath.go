@@ -321,43 +321,6 @@ func GELUTanhPrime(x float64) float64 {
 	return 0.5*(1+t) + 0.5*x*(1-t*t)*dudx
 }
 
-func NoEmbeddingNormalization() int { return -1 }
-
-func MaximumEmbeddingNormalization() int { return 0 }
-
-func L2EmbeddingNormalization() int { return 2 }
-
-// NormalizeEmbedding applies the embedding API's p-norm contract in place.
-func NormalizeEmbedding(vector []float32, norm int) {
-	var sum float64
-	switch {
-	case norm == NoEmbeddingNormalization():
-		sum = 1
-	case norm == MaximumEmbeddingNormalization():
-		for _, value := range vector {
-			sum = max(sum, math.Abs(float64(value)))
-		}
-		sum /= 32760
-	case norm == L2EmbeddingNormalization():
-		for _, value := range vector {
-			sum += float64(value) * float64(value)
-		}
-		sum = math.Sqrt(sum)
-	default:
-		for _, value := range vector {
-			sum += math.Pow(math.Abs(float64(value)), float64(norm))
-		}
-		sum = math.Pow(sum, 1/float64(norm))
-	}
-	var scale float32
-	if sum > 0 {
-		scale = float32(1 / sum)
-	}
-	for index := range vector {
-		vector[index] *= scale
-	}
-}
-
 // SparseGateInto: the gemma3n activation-sparsity gate. Per row of width
 // `width`, cutoff = mean + stdMult*sampleStd (sample std uses width-1), and
 // dst_i = relu(gate_i - cutoff). stdMult<=0 with a nil-effect cutoff reduces

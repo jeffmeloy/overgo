@@ -3,9 +3,6 @@ package textcheck
 
 import "strings"
 
-// FoundIndex reports whether a strings search returned an index.
-func FoundIndex(index int) bool { return index >= 0 }
-
 func Bounded(value string, maxBytes int, forbidden string) bool {
 	return value != "" && maxBytes > 0 && len(value) <= maxBytes && strings.TrimSpace(value) == value &&
 		!strings.ContainsAny(value, forbidden)

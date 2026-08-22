@@ -8,9 +8,6 @@ import (
 	"overgo/internal/tensor"
 )
 
-// AbsentAttentionBlock marks tokens outside a declared bidirectional block.
-func AbsentAttentionBlock() float32 { return -tensor.SingletonExtent }
-
 // RuntimeCacheBinding: indexed cache operand.
 type RuntimeCacheBinding uint8
 

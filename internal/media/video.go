@@ -24,7 +24,9 @@ import (
 )
 
 const (
+	// GIFMediaType identifies Graphics Interchange Format video content.
 	GIFMediaType = "image/gif"
+	// MP4MediaType identifies MPEG-4 video content.
 	MP4MediaType = "video/mp4"
 )
 

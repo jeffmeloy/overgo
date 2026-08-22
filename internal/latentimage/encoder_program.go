@@ -39,6 +39,7 @@
 // device==host bf16-band parity below exact and clean, and leaves pad-key
 // exclusion (needed only for element-exact match to the adaptive golden) as the
 // documented residual for the full e2e SHA; the telemetry oracle stays until then.
+
 package latentimage
 
 import (

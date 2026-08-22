@@ -14,6 +14,7 @@
 // per-step median/MAD distribution is). Bit-exact g3 reproduction therefore
 // requires the denoiser port (to regenerate the latent) or a latent-dump hook;
 // see DecodeImage / TestVAE* for what is verifiable now.
+
 package latentimage
 
 import (

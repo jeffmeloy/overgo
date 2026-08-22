@@ -6,6 +6,7 @@
 // numbers -- every dimension is config-read, and the bf16 mix is the ported
 // kernel formula. The torchrng-backed draw lives in latentinit_cuda_windows.go
 // (device-only); this file is the pure, CUDA-free core (geometry + mix).
+
 package latentimage
 
 import (

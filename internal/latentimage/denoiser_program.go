@@ -15,6 +15,7 @@
 // sinusoid/MLP are small once-per-prompt / once-per-step boundaries computed on
 // the host (Denoiser.textConditioning / timestepConditioning) and fed in, the
 // same split latentvideo uses for its context projection and timestep math.
+
 package latentimage
 
 import (

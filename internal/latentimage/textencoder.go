@@ -43,6 +43,7 @@
 // textinput.go (dtc brick 1/3); this encoder still accepts a raw id slice, so a
 // caller wiring the device text-conditioning path renders via renderTextInput
 // first. The remaining exact-parity residual is the DEVICE bf16 encoder forward.
+
 package latentimage
 
 import (

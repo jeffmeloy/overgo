@@ -85,9 +85,6 @@ var dispatchOnce = sync.OnceValue(measureDispatch)
 
 func poolWorkerLimit() int { return runtime.GOMAXPROCS(0) }
 
-// ParallelWorkerLimit reports the maximum worker count used by host kernels.
-func ParallelWorkerLimit() int { return poolWorkerLimit() }
-
 // calibrationNop must be top-level so the overhead measurement times the
 // dispatch machinery alone.
 func calibrationNop(int, int) {}

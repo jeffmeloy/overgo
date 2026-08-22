@@ -27,6 +27,7 @@
 // Every norm is the DiT ZERO-CENTERED (1+w) RMSNorm (zeroCenteredRMSNorm, shared
 // with the denoiser), NOT the encoder's standard WeightedRMSNorm. Geometry is
 // DERIVED from TransformerSpec (config-cross-checked in verify.go); no magics.
+
 package latentimage
 
 import (

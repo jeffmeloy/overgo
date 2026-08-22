@@ -14,6 +14,7 @@ func PairedShiftScaleGateFields(configured int) int {
 	return 2 * 3
 }
 
+// DefaultPairedShiftScaleGateFields returns the standard paired-triplet field count.
 func DefaultPairedShiftScaleGateFields() int { return PairedShiftScaleGateFields(0) }
 
 // PairedShiftScaleGateWidth returns the corresponding flattened width.
@@ -37,6 +38,7 @@ type ShiftFirstGateOffsets struct {
 	PostShift, PostScale, PostGate int
 }
 
+// PairedShiftFirstGateOffsets returns the alternate shift-first paired-triplet layout.
 func PairedShiftFirstGateOffsets() ShiftFirstGateOffsets {
 	return ShiftFirstGateOffsets{PreShift: 0, PreScale: 1, PreGate: 2, PostShift: 3, PostScale: 4, PostGate: 5}
 }
@@ -49,6 +51,7 @@ type NormalizationProgram struct {
 	TimeEmbeddingRMS float64 `json:"time_embedding_rms_epsilon"`
 }
 
+// Validate rejects absent or non-finite numerical guards.
 func (p NormalizationProgram) Validate() error {
 	for _, value := range [...]float64{p.TransformerLayer, p.FlowLayer, p.TimeEmbeddingRMS} {
 		if value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {

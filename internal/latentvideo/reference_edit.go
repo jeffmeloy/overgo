@@ -14,6 +14,7 @@ import (
 
 type EditFlowConfig = sampling.EditFlowConfig
 
+// CompileEditFlowSigmas exposes the shared edit-flow schedule compiler.
 var CompileEditFlowSigmas = sampling.CompileEditFlowSigmas
 
 type EditModelConfig struct {

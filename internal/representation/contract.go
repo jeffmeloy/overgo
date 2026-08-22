@@ -15,43 +15,68 @@ import (
 )
 
 const (
-	ContractVersion   uint16 = artifact.InitialDocumentVersion
-	ContractMediaType        = "application/vnd.overgo.representation-contract+json"
-	ContractSchema           = "overgo/representation-contract/v1"
+	// ContractVersion is the current representation contract document version.
+	ContractVersion uint16 = artifact.InitialDocumentVersion
+	// ContractMediaType identifies serialized representation contracts.
+	ContractMediaType = "application/vnd.overgo.representation-contract+json"
+	// ContractSchema identifies the canonical representation contract schema.
+	ContractSchema = "overgo/representation-contract/v1"
 )
 
+// TapPoint identifies a model boundary at which a representation is observed.
 type TapPoint string
 
 const (
+	// TapEmbeddingOutput selects the output of a model's embedding stage.
 	TapEmbeddingOutput TapPoint = "embedding-output"
-	TapEncoderOutput   TapPoint = "encoder-output"
-	TapLayerInput      TapPoint = "layer-input"
-	TapLayerOutput     TapPoint = "layer-output"
-	TapAttentionInput  TapPoint = "attention-input"
+	// TapEncoderOutput selects the output of a model's encoder.
+	TapEncoderOutput TapPoint = "encoder-output"
+	// TapLayerInput selects the input boundary of a numbered layer.
+	TapLayerInput TapPoint = "layer-input"
+	// TapLayerOutput selects the output boundary of a numbered layer.
+	TapLayerOutput TapPoint = "layer-output"
+	// TapAttentionInput selects the attention input of a numbered layer.
+	TapAttentionInput TapPoint = "attention-input"
 )
 
+// Modality identifies the semantic domain represented by a tensor interface.
 type Modality string
 
 const (
-	ModalityText    Modality = "text"
-	ModalityImage   Modality = "image"
-	ModalityAudio   Modality = "audio"
-	ModalityVideo   Modality = "video"
-	ModalityAction  Modality = "action"
-	ModalitySeries  Modality = "series"
+	// ModalityText identifies textual representations.
+	ModalityText Modality = "text"
+	// ModalityImage identifies image representations.
+	ModalityImage Modality = "image"
+	// ModalityAudio identifies audio representations.
+	ModalityAudio Modality = "audio"
+	// ModalityVideo identifies video representations.
+	ModalityVideo Modality = "video"
+	// ModalityAction identifies action representations.
+	ModalityAction Modality = "action"
+	// ModalitySeries identifies time-series representations.
+	ModalitySeries Modality = "series"
+	// ModalityTabular identifies tabular representations.
 	ModalityTabular Modality = "tabular"
-	ModalityLatent  Modality = "latent"
+	// ModalityLatent identifies modality-neutral latent representations.
+	ModalityLatent Modality = "latent"
 )
 
+// AxisKind identifies the semantic meaning of a tensor dimension.
 type AxisKind string
 
 const (
-	AxisChannel  AxisKind = "channel"
+	// AxisChannel identifies a feature-channel dimension.
+	AxisChannel AxisKind = "channel"
+	// AxisSequence identifies an ordered token or sample dimension.
 	AxisSequence AxisKind = "sequence"
-	AxisBatch    AxisKind = "batch"
-	AxisWidth    AxisKind = "width"
-	AxisHeight   AxisKind = "height"
-	AxisTime     AxisKind = "time"
+	// AxisBatch identifies an independent batch dimension.
+	AxisBatch AxisKind = "batch"
+	// AxisWidth identifies a spatial width dimension.
+	AxisWidth AxisKind = "width"
+	// AxisHeight identifies a spatial height dimension.
+	AxisHeight AxisKind = "height"
+	// AxisTime identifies a temporal dimension.
+	AxisTime AxisKind = "time"
 )
 
 // AxisBounds is either one exact Extent or an inclusive dynamic range.
@@ -61,60 +86,83 @@ type AxisBounds struct {
 	Maximum uint64 `json:"maximum,omitempty"`
 }
 
+// Axis binds semantic meaning to exact or bounded dimension geometry.
 type Axis struct {
 	Kind   AxisKind   `json:"kind"`
 	Bounds AxisBounds `json:"bounds"`
 }
 
+// TensorContract describes the data type and ordered axes of a representation.
 type TensorContract struct {
 	DataType dtype.Type `json:"data_type"`
 	Axes     []Axis     `json:"axes"`
 }
 
+// MaskPolicy defines how invalid sequence positions are represented.
 type MaskPolicy string
 
 const (
-	MaskNone     MaskPolicy = "none"
-	MaskPrefix   MaskPolicy = "valid-prefix"
+	// MaskNone declares that every sequence position is valid.
+	MaskNone MaskPolicy = "none"
+	// MaskPrefix declares a contiguous valid prefix followed by padding.
+	MaskPrefix MaskPolicy = "valid-prefix"
+	// MaskExplicit declares validity through an explicit mask.
 	MaskExplicit MaskPolicy = "explicit"
 )
 
+// PaddingPolicy defines where padding may occur in a sequence.
 type PaddingPolicy string
 
 const (
-	PaddingNone   PaddingPolicy = "none"
+	// PaddingNone declares that the sequence contains no padding.
+	PaddingNone PaddingPolicy = "none"
+	// PaddingSuffix declares that padding follows the valid sequence prefix.
 	PaddingSuffix PaddingPolicy = "suffix"
 )
 
+// PositionPolicy defines how positions are assigned to representation elements.
 type PositionPolicy string
 
 const (
-	PositionNone       PositionPolicy = "none"
+	// PositionNone declares that the representation carries no position semantics.
+	PositionNone PositionPolicy = "none"
+	// PositionSequential declares positions along one sequence axis.
 	PositionSequential PositionPolicy = "sequential"
-	PositionMultiAxis  PositionPolicy = "multi-axis"
+	// PositionMultiAxis declares positions across multiple tensor axes.
+	PositionMultiAxis PositionPolicy = "multi-axis"
 )
 
+// SpecialTokenRole identifies a model-defined structural token.
 type SpecialTokenRole string
 
 const (
-	SpecialTokenBOS       SpecialTokenRole = "bos"
-	SpecialTokenEOS       SpecialTokenRole = "eos"
-	SpecialTokenCLS       SpecialTokenRole = "cls"
+	// SpecialTokenBOS identifies a beginning-of-sequence token.
+	SpecialTokenBOS SpecialTokenRole = "bos"
+	// SpecialTokenEOS identifies an end-of-sequence token.
+	SpecialTokenEOS SpecialTokenRole = "eos"
+	// SpecialTokenCLS identifies a classification token.
+	SpecialTokenCLS SpecialTokenRole = "cls"
+	// SpecialTokenSeparator identifies a sequence separator token.
 	SpecialTokenSeparator SpecialTokenRole = "separator"
 )
 
+// TokenDisposition defines whether a structural token survives a bridge.
 type TokenDisposition string
 
 const (
+	// TokenKeep preserves a structural token.
 	TokenKeep TokenDisposition = "keep"
+	// TokenDrop removes a structural token.
 	TokenDrop TokenDisposition = "drop"
 )
 
+// SpecialToken binds a structural role to its bridge disposition.
 type SpecialToken struct {
 	Role        SpecialTokenRole `json:"role"`
 	Disposition TokenDisposition `json:"disposition"`
 }
 
+// SequenceContract defines masking, padding, positioning, and structural tokens.
 type SequenceContract struct {
 	Axis          AxisKind       `json:"axis"`
 	Mask          MaskPolicy     `json:"mask"`
@@ -124,44 +172,62 @@ type SequenceContract struct {
 	SpecialTokens []SpecialToken `json:"special_tokens,omitempty"`
 }
 
+// NormalizationKind identifies the normalization applied at an interface.
 type NormalizationKind string
 
 const (
-	NormalizationNone  NormalizationKind = "none"
-	NormalizationRMS   NormalizationKind = "rms"
+	// NormalizationNone declares an unnormalized representation.
+	NormalizationNone NormalizationKind = "none"
+	// NormalizationRMS declares root-mean-square normalization.
+	NormalizationRMS NormalizationKind = "rms"
+	// NormalizationLayer declares layer normalization.
 	NormalizationLayer NormalizationKind = "layer"
-	NormalizationL2    NormalizationKind = "l2"
+	// NormalizationL2 declares Euclidean unit normalization.
+	NormalizationL2 NormalizationKind = "l2"
 )
 
+// MagnitudePolicy defines how a bridge treats representation magnitude.
 type MagnitudePolicy string
 
 const (
-	MagnitudeNative   MagnitudePolicy = "native"
-	MagnitudeUnit     MagnitudePolicy = "unit"
+	// MagnitudeNative preserves the target interface's native magnitude convention.
+	MagnitudeNative MagnitudePolicy = "native"
+	// MagnitudeUnit requires a unit-magnitude representation.
+	MagnitudeUnit MagnitudePolicy = "unit"
+	// MagnitudePreserve retains the source representation's magnitude.
 	MagnitudePreserve MagnitudePolicy = "preserve-source"
 )
 
+// NormalizationContract defines normalization kind, guard, and magnitude semantics.
 type NormalizationContract struct {
 	Kind      NormalizationKind `json:"kind"`
 	Epsilon   float32           `json:"epsilon,omitempty"`
 	Magnitude MagnitudePolicy   `json:"magnitude"`
 }
 
+// AuthorityRole identifies an artifact responsible for representation semantics.
 type AuthorityRole string
 
 const (
+	// AuthorityTokenizer assigns token identity and vocabulary semantics.
 	AuthorityTokenizer AuthorityRole = "tokenizer"
+	// AuthorityProjector assigns modality projection semantics.
 	AuthorityProjector AuthorityRole = "projector"
+	// AuthorityProcessor assigns preprocessing semantics.
 	AuthorityProcessor AuthorityRole = "processor"
-	AuthorityProfile   AuthorityRole = "profile"
-	AuthorityAdapter   AuthorityRole = "adapter"
+	// AuthorityProfile assigns model profile semantics.
+	AuthorityProfile AuthorityRole = "profile"
+	// AuthorityAdapter assigns bridge adaptation semantics.
+	AuthorityAdapter AuthorityRole = "adapter"
 )
 
+// Authority binds one semantic role to an immutable artifact.
 type Authority struct {
 	Role     AuthorityRole `json:"role"`
 	Artifact artifact.ID   `json:"artifact"`
 }
 
+// Producer identifies the exact model boundary that emits a representation.
 type Producer struct {
 	Model      artifact.ID `json:"model"`
 	Definition artifact.ID `json:"definition"`
@@ -225,10 +291,13 @@ func LoadContract(ctx context.Context, reader artifact.Reader, id artifact.ID) (
 	return contract, nil
 }
 
+// ValidateIdentity verifies canonical content and its stored identity.
 func (c Contract) ValidateIdentity() error { return contractCodec.ValidateIdentity(c) }
 
+// Content returns the canonical serialized representation contract.
 func (c Contract) Content() (artifact.Content, error) { return contractCodec.Content(c) }
 
+// Lineage returns the model, definition, and semantic authorities bound by the contract.
 func (c Contract) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{c.Producer.Model, c.Producer.Definition}
 	for _, authority := range c.Authorities {
@@ -237,6 +306,7 @@ func (c Contract) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(c.ID, parents...)
 }
 
+// Batch returns an atomic publication containing the contract and its lineage.
 func (c Contract) Batch(key string) (artifact.Batch, error) {
 	return contractCodec.Batch(key, c, c.Lineage(), nil)
 }

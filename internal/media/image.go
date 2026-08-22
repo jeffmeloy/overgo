@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	// PNGMediaType identifies Portable Network Graphics image content.
 	PNGMediaType       = "image/png"
 	RGBChannels        = 3
 	RasterSampleCenter = 0.5
@@ -35,8 +36,13 @@ type normalizedRGBImage struct {
 	pixelStride, channelStride int
 }
 
+// ColorModel returns the standard RGBA color model.
 func (i normalizedRGBImage) ColorModel() color.Model { return color.RGBAModel }
+
+// Bounds returns the image pixel rectangle.
 func (i normalizedRGBImage) Bounds() image.Rectangle { return image.Rect(0, 0, i.width, i.height) }
+
+// At returns the normalized pixel at the requested coordinate.
 func (i normalizedRGBImage) At(x, y int) color.Color {
 	if x < 0 || x >= i.width || y < 0 || y >= i.height {
 		return color.RGBA{}

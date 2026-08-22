@@ -12,12 +12,14 @@ import (
 )
 
 const (
-	ModuleCompileModelPlan      recipe.ModuleID = "model.compile-plan"
-	ModuleCompileDecodePlan     recipe.ModuleID = "model.compile-decode-plan"
-	ModuleForwardTokens         recipe.ModuleID = "model.forward-tokens"
+	ModuleCompileModelPlan  recipe.ModuleID = "model.compile-plan"
+	ModuleCompileDecodePlan recipe.ModuleID = "model.compile-decode-plan"
+	ModuleForwardTokens     recipe.ModuleID = "model.forward-tokens"
+	// ModuleCaptureRepresentation identifies the model-boundary representation capture stage.
 	ModuleCaptureRepresentation recipe.ModuleID = "model.capture-representation"
-	ModuleInjectRepresentation  recipe.ModuleID = "model.inject-representation"
-	ModuleThoughtBankGenerate   recipe.ModuleID = "model.thoughtbank-generate"
+	// ModuleInjectRepresentation identifies the model-boundary representation injection stage.
+	ModuleInjectRepresentation recipe.ModuleID = "model.inject-representation"
+	ModuleThoughtBankGenerate  recipe.ModuleID = "model.thoughtbank-generate"
 	// ModuleForecastSeries: host forward for series-forecast capability
 	// packages; input series tensor, output quantile-forecast tensor.
 	ModuleForecastSeries recipe.ModuleID = "model.forecast-series"

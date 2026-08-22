@@ -3,11 +3,25 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 )
+
+func TestDeviceImpactUsesSymbolOwnership(t *testing.T) {
+	root := t.TempDir()
+	graph := packageInputGraph{root: root, nodes: []goPackageInput{
+		{ImportPath: "example/internal/cuda/executor", Dir: filepath.Join(root, "internal", "cuda", "executor")},
+		{ImportPath: "example/internal/optimizer", Dir: filepath.Join(root, "internal", "optimizer"), Imports: []string{"example/internal/cuda/executor"}},
+		{ImportPath: "example/internal/model", Dir: filepath.Join(root, "internal", "model")},
+	}}
+	packages, err := graph.dependentDirectories("internal/cuda")
+	if err != nil || !slices.Equal(packages, []string{"internal/cuda/executor", "internal/optimizer"}) {
+		t.Fatalf("device ownership = %v, %v", packages, err)
+	}
+}
 
 func TestPackageInputIdentityTracksTransitiveFiles(t *testing.T) {
 	root, graph := packageIdentityFixture(t)

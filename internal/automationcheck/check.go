@@ -64,6 +64,15 @@ type Resource struct {
 	Exclusive bool   `json:"exclusive,omitempty"`
 }
 
+// Ownership declares the exact package or symbol surface one check verifies.
+// Fact must also be one of the descriptor's triggers.
+type Ownership struct {
+	Fact            Fact     `json:"fact"`
+	Packages        []string `json:"packages,omitempty"`
+	PackagePrefixes []string `json:"package_prefixes,omitempty"`
+	Symbols         []Symbol `json:"symbols,omitempty"`
+}
+
 // Descriptor is the immutable, policy-neutral definition of a check.
 type Descriptor struct {
 	Name         string          `json:"name"`
@@ -73,6 +82,7 @@ type Descriptor struct {
 	Inapplicable string          `json:"inapplicable,omitempty"`
 	Dependencies []string        `json:"dependencies,omitempty"`
 	Resources    []Resource      `json:"resources,omitempty"`
+	Ownership    Ownership       `json:"ownership,omitempty"`
 }
 
 // Runner returns whether work was inapplicable, diagnostic detail, and error.
@@ -237,6 +247,14 @@ func validate(check Check) error {
 	for _, resource := range descriptor.Resources {
 		if strings.TrimSpace(resource.Name) == "" {
 			return fmt.Errorf("automation check %q: empty resource", descriptor.Name)
+		}
+	}
+	if descriptor.Ownership.Fact != "" {
+		if len(descriptor.Ownership.Packages) == 0 && len(descriptor.Ownership.PackagePrefixes) == 0 && len(descriptor.Ownership.Symbols) == 0 {
+			return fmt.Errorf("automation check %q: ownership has no surface", descriptor.Name)
+		}
+		if !slices.Contains(descriptor.Triggers, descriptor.Ownership.Fact) {
+			return fmt.Errorf("automation check %q: ownership fact is not a trigger", descriptor.Name)
 		}
 	}
 	return nil

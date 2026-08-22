@@ -17,13 +17,10 @@ func TestManifestCheck(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "kernels", "manifest.json"), []byte("{}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	facts, err := GeneratedImpact(root, []string{"kernels/cuda/a.cu"})
-	if err != nil {
-		t.Fatal(err)
-	}
 	var calls []string
 	checks := GeneratedChecks(root, recordingCommand(&calls))
-	planned, err := Plan(checks, facts)
+	impact := OwnershipImpact(checks, Surface{Identity: "candidate", Packages: []string{"cmd/kernel-manifest"}})
+	planned, err := Plan(checks, impact)
 	if err != nil || len(planned) != 1 || planned[0].Check.Name != "manifest" {
 		t.Fatalf("plan = %+v, %v", planned, err)
 	}
@@ -37,12 +34,10 @@ func TestManifestCheck(t *testing.T) {
 
 func TestSBOMCheck(t *testing.T) {
 	root := generatedRoot(t)
-	facts, err := GeneratedImpact(root, []string{"go.sum"})
-	if err != nil {
-		t.Fatal(err)
-	}
 	var calls []string
-	planned, err := Plan(GeneratedChecks(root, recordingCommand(&calls)), facts)
+	checks := GeneratedChecks(root, recordingCommand(&calls))
+	impact := OwnershipImpact(checks, Surface{Identity: "candidate", Packages: []string{"cmd/sbom"}})
+	planned, err := Plan(checks, impact)
 	if err != nil || len(planned) != 1 || planned[0].Check.Name != "sbom" {
 		t.Fatalf("plan = %+v, %v", planned, err)
 	}
@@ -59,12 +54,10 @@ func TestCompatibilityCheck(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "compatibility.json"), []byte(`{"evidence":"internal/runtime/changed.go"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	facts, err := GeneratedImpact(root, []string{"internal/runtime/changed.go"})
-	if err != nil {
-		t.Fatal(err)
-	}
 	var calls []string
-	planned, err := Plan(GeneratedChecks(root, recordingCommand(&calls)), facts)
+	checks := GeneratedChecks(root, recordingCommand(&calls))
+	impact := OwnershipImpact(checks, Surface{Identity: "candidate", Packages: []string{"internal/model"}})
+	planned, err := Plan(checks, impact)
 	if err != nil || len(planned) != 1 || planned[0].Check.Name != "claims" {
 		t.Fatalf("plan = %+v, %v", planned, err)
 	}
@@ -76,30 +69,21 @@ func TestCompatibilityCheck(t *testing.T) {
 	}
 }
 
-func TestMissingManifestFails(t *testing.T) {
-	root := t.TempDir()
-	_, err := GeneratedImpact(root, []string{"kernels/cuda/a.cu"})
-	if err == nil || !strings.Contains(err.Error(), "kernels/manifest.json is missing") {
-		t.Fatalf("missing manifest error = %v", err)
+func TestGeneratedImpactUsesDeclaredOwnership(t *testing.T) {
+	checks := GeneratedChecks(t.TempDir(), recordingCommand(new([]string)))
+	tests := []struct {
+		packagePath, check string
+	}{
+		{"cmd/kernel-bindings", manifestCheckName},
+		{"cmd/sbom", sbomCheckName},
+		{"cmd/compatibility", compatibilityCheckName},
 	}
-}
-
-func TestCompatibilityImpactLazy(t *testing.T) {
-	root := t.TempDir()
-	facts, err := GeneratedImpact(root, nil)
-	if err != nil {
-		t.Fatalf("empty impact read compatibility authority: %v", err)
-	}
-	if len(facts.Facts) != 0 || len(facts.Exclusions) != 0 {
-		t.Fatalf("facts = %v", facts)
-	}
-
-	facts, err = GeneratedImpact(root, []string{"compatibility.json"})
-	if err != nil {
-		t.Fatalf("direct compatibility impact read missing authority: %v", err)
-	}
-	if !slices.Equal(facts.Facts, []Fact{compatibilityImpact}) {
-		t.Fatalf("facts = %v", facts)
+	for _, test := range tests {
+		impact := OwnershipImpact(checks, Surface{Identity: "candidate", Packages: []string{test.packagePath}})
+		planned, err := Plan(checks, impact)
+		if err != nil || len(planned) != 1 || planned[0].Check.Name != test.check {
+			t.Fatalf("package %s planned = %+v impact=%+v err=%v", test.packagePath, planned, impact, err)
+		}
 	}
 }
 

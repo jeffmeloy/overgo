@@ -39,6 +39,7 @@ type FunctionImpact struct {
 	CandidateIdentity string           `json:"candidate_identity"`
 	Seeds             []FunctionSymbol `json:"seeds,omitempty"`
 	Reachable         []FunctionSymbol `json:"reachable,omitempty"`
+	Packages          []string         `json:"packages,omitempty"`
 	Unknown           []ImpactBoundary `json:"unknown,omitempty"`
 }
 
@@ -87,6 +88,7 @@ func DeriveFunctionImpact(
 	result := FunctionImpact{BaseIdentity: base.Identity(), CandidateIdentity: candidate.Identity()}
 	result.Seeds = symbolsForKeys(seedKeys, candidateSymbols, baseSymbols)
 	result.Reachable = symbolsForKeys(reachableKeys, candidateSymbols, baseSymbols)
+	result.Packages = changedPackageDirectories(base, candidate, changedPaths)
 	result.Unknown, err = impactBoundaries(
 		base, candidate, baseSelection, candidateSelection, changedPaths,
 		baseIndex, candidateIndex, baseIndices, candidateIndices, reachableKeys,
@@ -95,6 +97,29 @@ func DeriveFunctionImpact(
 		return FunctionImpact{}, err
 	}
 	return result, nil
+}
+
+func changedPackageDirectories(base, candidate repoanalysis.SourceSnapshot, changedPaths []string) []string {
+	baseFiles, candidateFiles := snapshotFiles(base), snapshotFiles(candidate)
+	packages := map[string]bool{}
+	for _, changed := range changedPaths {
+		changed = filepath.ToSlash(filepath.Clean(filepath.FromSlash(changed)))
+		if !strings.HasSuffix(changed, ".go") {
+			continue
+		}
+		if _, found := baseFiles[changed]; !found {
+			if _, found = candidateFiles[changed]; !found {
+				continue
+			}
+		}
+		packages[path.Dir(changed)] = true
+	}
+	result := make([]string, 0, len(packages))
+	for packagePath := range packages {
+		result = append(result, packagePath)
+	}
+	slices.Sort(result)
+	return result
 }
 
 func impactBoundaries(
@@ -125,9 +150,6 @@ func impactBoundaries(
 		for _, source := range []repoanalysis.GoFile{baseFile, candidateFile} {
 			if source.Path == "" {
 				continue
-			}
-			if source.Test {
-				addImpactBoundary(boundaries, ImpactBoundary{Kind: "test-source", Path: changed})
 			}
 			generated, err := source.Generated()
 			if err != nil {
@@ -163,6 +185,18 @@ func impactBoundaries(
 			if baseDeclarations != candidateDeclarations {
 				addImpactBoundary(boundaries, ImpactBoundary{Kind: "declaration", Path: changed})
 			}
+		} else {
+			source := baseFile
+			if inCandidate {
+				source = candidateFile
+			}
+			unmodeled, err := hasNonFunctionDeclarations(source)
+			if err != nil {
+				return nil, err
+			}
+			if unmodeled {
+				addImpactBoundary(boundaries, ImpactBoundary{Kind: "declaration", Path: changed})
+			}
 		}
 	}
 	appendReachableBoundaries(boundaries, baseIndex, baseIndices, reachable)
@@ -181,6 +215,19 @@ func impactBoundaries(
 		return strings.Compare(left.Symbol, right.Symbol)
 	})
 	return result, nil
+}
+
+func hasNonFunctionDeclarations(source repoanalysis.GoFile) (bool, error) {
+	file, err := source.Syntax()
+	if err != nil {
+		return false, err
+	}
+	for _, declaration := range file.Decls {
+		if _, function := declaration.(*ast.FuncDecl); !function {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func snapshotFiles(snapshot repoanalysis.SourceSnapshot) map[string]repoanalysis.GoFile {

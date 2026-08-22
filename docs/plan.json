@@ -9,12 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "ownership-cutover",
-          "title": "Select device and generated checks from declared package and symbol ownership",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck ./cmd/gate -run 'TestImpactOwnershipSelection|TestDeviceImpactUsesSymbolOwnership|TestGeneratedImpactUsesDeclaredOwnership' -count=1"
-        },
-        {
           "id": "falsifiability-metrics",
           "title": "Prove no false-negative exclusions and publish exclusion-rate evidence",
           "status": "open",
@@ -157,6 +151,11 @@
       "item": "gate-structural-impact",
       "step": "conservative-boundaries",
       "authority": "evidence:sha256:e0176a1590b58869bcac919f25443bc08411dce1b35cfd1f23a57d1b995ce43e"
+    },
+    {
+      "item": "gate-structural-impact",
+      "step": "ownership-cutover",
+      "authority": "evidence:sha256:401cff9a5d46c5ecf4e54ef3d553bc161d291b1219bea2caee213b5e2bf31481"
     }
   ]
 }

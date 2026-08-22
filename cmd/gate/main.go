@@ -21,6 +21,7 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -74,6 +75,8 @@ type gateContext struct {
 	stepEvidence map[string]string
 	cachePaths   []string
 	retryCache   *automationcheck.EvidenceCache
+	structural   *codeprofile.FunctionImpact
+	packageGraph *packageInputGraph
 }
 
 func main() {
@@ -249,9 +252,9 @@ func checkPlanBinding(repo, ref string) error {
 	return nil
 }
 
-func (g *gateContext) pipelineChecks() []automationcheck.Check {
+func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck.Check {
 	generated := automationcheck.GeneratedChecks(g.repo, command)
-	device := automationcheck.DeviceCheck(g.repo, g.paths, command)
+	device := automationcheck.DeviceCheck(g.repo, g.paths, devicePackages, command)
 	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
@@ -308,13 +311,24 @@ func gateSchedule(definitions []automationcheck.Check, planned []automationcheck
 }
 
 func (g *gateContext) pipeline() error {
-	definitions := g.pipelineChecks()
-	impact, err := automationcheck.GeneratedImpact(g.repo, g.paths)
-	if err != nil {
-		g.honesty = append(g.honesty, "impact analysis unavailable; generated checks defaulted to run: "+err.Error())
-		impact = automationcheck.Impact{}
+	graph, graphErr := g.inputGraph()
+	var devicePackages []string
+	if graphErr == nil {
+		devicePackages, graphErr = graph.dependentDirectories("internal/cuda")
 	}
-	impact = automationcheck.MergeImpact(impact, automationcheck.DeviceImpact(g.paths))
+	definitions := g.pipelineChecks(devicePackages...)
+	structural, structuralErr := g.deriveStructuralImpact()
+	surface := automationcheck.Surface{}
+	if structuralErr == nil {
+		surface = ownershipSurface(structural)
+	} else {
+		g.honesty = append(g.honesty, "structural impact unavailable; owned checks defaulted to run: "+structuralErr.Error())
+	}
+	if graphErr != nil {
+		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
+		g.honesty = append(g.honesty, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
+	}
+	impact := automationcheck.OwnershipImpact(definitions, surface)
 	checks, err := automationcheck.Plan(definitions, impact)
 	if err != nil {
 		return err
@@ -393,6 +407,63 @@ func (g *gateContext) pipeline() error {
 		}
 	}
 	return nil
+}
+
+func (g *gateContext) inputGraph() (packageInputGraph, error) {
+	if g.packageGraph != nil {
+		return *g.packageGraph, nil
+	}
+	graph, err := loadPackageInputGraph(g.repo)
+	if err == nil {
+		g.packageGraph = &graph
+	}
+	return graph, err
+}
+
+func (g *gateContext) deriveStructuralImpact() (codeprofile.FunctionImpact, error) {
+	if g.structural != nil {
+		return *g.structural, nil
+	}
+	candidate, err := g.sourceSnapshot()
+	if err != nil {
+		return codeprofile.FunctionImpact{}, err
+	}
+	base, err := sourceAtHEAD(g.repo, candidate)
+	if err != nil {
+		return codeprofile.FunctionImpact{}, err
+	}
+	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	if err != nil {
+		return codeprofile.FunctionImpact{}, err
+	}
+	impact, err := codeprofile.DeriveFunctionImpact(base, candidate, selection, selection, g.paths)
+	if err == nil {
+		g.structural, g.baseSource = &impact, &base
+	}
+	return impact, err
+}
+
+func ownershipSurface(impact codeprofile.FunctionImpact) automationcheck.Surface {
+	packages := map[string]bool{}
+	for _, packagePath := range impact.Packages {
+		packages[packagePath] = true
+	}
+	symbols := make([]automationcheck.Symbol, 0, len(impact.Reachable))
+	for _, symbol := range impact.Reachable {
+		packagePath := path.Dir(symbol.File)
+		packages[packagePath] = true
+		symbols = append(symbols, automationcheck.Symbol{
+			Package: packagePath, Receiver: symbol.Receiver, Name: symbol.Name,
+		})
+	}
+	unknown := make([]string, 0, len(impact.Unknown))
+	for _, boundary := range impact.Unknown {
+		unknown = append(unknown, strings.Join([]string{boundary.Kind, boundary.Path, boundary.Symbol}, ":"))
+	}
+	return automationcheck.Surface{
+		Identity: impact.BaseIdentity + ":" + impact.CandidateIdentity,
+		Packages: slices.Sorted(maps.Keys(packages)), Symbols: symbols, Unknown: unknown,
+	}
 }
 
 func scheduledGateCheckByName(schedule []scheduledGateCheck, name string) (scheduledGateCheck, bool) {
@@ -604,9 +675,14 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	impact, err := codeprofile.DeriveFunctionImpact(head, candidate, selection, selection, g.paths)
-	if err != nil {
-		return err
+	impact := codeprofile.FunctionImpact{}
+	if g.structural != nil {
+		impact = *g.structural
+	} else {
+		impact, err = codeprofile.DeriveFunctionImpact(head, candidate, selection, selection, g.paths)
+		if err != nil {
+			return err
+		}
 	}
 	g.honesty = append(g.honesty, fmt.Sprintf(
 		"function impact: base=%s candidate=%s seeds=%d reachable=%d unknown=%d",
@@ -1160,7 +1236,7 @@ func (g *gateContext) stepTest() (bool, error) {
 		return true, nil
 	}
 	g.honesty = append(g.honesty, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
-	inputGraph, err := loadPackageInputGraph(g.repo)
+	inputGraph, err := g.inputGraph()
 	if err != nil {
 		return false, err
 	}

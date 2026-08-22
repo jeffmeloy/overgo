@@ -37,7 +37,7 @@ func (cache *EvidenceCache) RunCached(ctx context.Context, invocation Invocation
 	if entry, found := cache.Entries[key]; found && entry.Outcome == runrecord.LanePassed {
 		return Evidence{
 			ID: entry.Evidence, InvocationID: entry.Invocation, Name: invocation.Check.Name,
-			Phase: invocation.Check.Phase, Outcome: entry.Outcome, Skipped: true,
+			Phase: invocation.Check.Phase, Outcome: entry.Outcome, Reused: true,
 		}, true, nil
 	}
 	evidence, err := Run(ctx, invocation)

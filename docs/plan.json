@@ -3,19 +3,6 @@
   "doctrine": "Follow skill.md. Composability is the research worktree's primary campaign; the literal-authority campaign remains ordered afterward. Freeze operator expansion until one existing embedding-injection operator is production-active end to end. MLP projection, vocabulary alignment, Perceiver, conditional LoRA, embedding injection, and external attention are sufficient research surfaces. RepoDB owns immutable representation contracts, bridge definitions and weights, composition recipes, promotion evidence, and active aliases scoped by exact source, target, and task. One typed CompositionExecutionPlan owns identities, ordered operators, capture and injection boundaries, placement, residency, lifetimes, training and promotion policy, and deterministic cache identity. Compilation hard-fails on missing active recipes, incompatible contracts, unpromoted bridges, unsupported operators, or artifact mismatch. Production execution must resolve the active recipe, source session, capture, bridge, target embedding injection, and target inference without direct constructors. Bridge training is dataset-driven, bridge-only, resumable, lineage-recorded, and proves source and target models remain frozen. Promotion compares target baseline, composed target, source ablation, held-out quality, repeated-run stability, resources, and latency using recipe-owned thresholds; only promoted bridges may activate. Keep representations and bridge weights device-resident where supported and cache immutable transformed representations by exact input, source, bridge, and contract identity. API and GUI expose inventory, refusal reasons, recipe graph, training, evaluation, promotion, activation, memory, and latency. External cross-attention follows embedding injection and owns cache separately from target KV state. Exact passthrough and task arithmetic remain offline artifact-production workflows with exact definition, inventory, and lineage compatibility. Gates distinguish contract-tested, runtime-wired, CUDA-verified, evidence-promoted, and production-active. Finish with full host and CUDA gates, zero direct composition constructors outside recipe runtime, no unpromoted bridge execution, and one real composition available through API and GUI. After every gated commit, merge master and redispatch.",
   "items": [
     {
-      "id": "gate-generalization-check-corrections",
-      "title": "Correct modular check outcomes, ordering, and applicability diagnostics",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Correct modular check outcomes, ordering, and applicability diagnostics",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/automationcheck -run 'Test(DescriptorOrder|ReusedOutcome|MissingManifestFails|CompatibilityImpactLazy)' -count=1"
-        }
-      ]
-    },
-    {
       "id": "gate-generalization-merge-snapshot",
       "title": "Bind merge closure evidence to the exact Git snapshot",
       "status": "open",

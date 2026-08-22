@@ -36,6 +36,8 @@ const (
 	StepFailed    StepOutcome = "failed"
 	StepCancelled StepOutcome = "cancelled"
 	StepSkipped   StepOutcome = "skipped"
+	// StepReused reports a successful step satisfied by exact cached evidence.
+	StepReused StepOutcome = "reused"
 )
 
 type GateStep struct {
@@ -166,7 +168,7 @@ func canonicalizeGateResult(result *GateResult) error {
 		}
 		seen[step.Name] = struct{}{}
 		switch step.Outcome {
-		case StepSucceeded, StepSkipped:
+		case StepSucceeded, StepSkipped, StepReused:
 		case StepFailed:
 			terminalMatch = terminalMatch || result.Outcome == OutcomeFailed
 		case StepCancelled:
@@ -174,7 +176,7 @@ func canonicalizeGateResult(result *GateResult) error {
 		default:
 			return errors.New("run record: invalid gate step outcome")
 		}
-		if result.Outcome == OutcomeSucceeded && step.Outcome != StepSucceeded && step.Outcome != StepSkipped {
+		if result.Outcome == OutcomeSucceeded && step.Outcome != StepSucceeded && step.Outcome != StepSkipped && step.Outcome != StepReused {
 			return errors.New("run record: successful gate has terminal step")
 		}
 	}

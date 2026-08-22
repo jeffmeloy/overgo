@@ -76,6 +76,33 @@ func TestCompatibilityCheck(t *testing.T) {
 	}
 }
 
+func TestMissingManifestFails(t *testing.T) {
+	root := t.TempDir()
+	_, err := GeneratedImpact(root, []string{"kernels/cuda/a.cu"})
+	if err == nil || !strings.Contains(err.Error(), "kernels/manifest.json is missing") {
+		t.Fatalf("missing manifest error = %v", err)
+	}
+}
+
+func TestCompatibilityImpactLazy(t *testing.T) {
+	root := t.TempDir()
+	facts, err := GeneratedImpact(root, nil)
+	if err != nil {
+		t.Fatalf("empty impact read compatibility authority: %v", err)
+	}
+	if len(facts) != 0 {
+		t.Fatalf("facts = %v", facts)
+	}
+
+	facts, err = GeneratedImpact(root, []string{"compatibility.json"})
+	if err != nil {
+		t.Fatalf("direct compatibility impact read missing authority: %v", err)
+	}
+	if !slices.Equal(facts, []Fact{compatibilityImpact}) {
+		t.Fatalf("facts = %v", facts)
+	}
+}
+
 func generatedRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()

@@ -268,6 +268,25 @@ func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) aut
 	}
 }
 
+type scheduledGateCheck struct {
+	descriptor automationcheck.Descriptor
+	invocation automationcheck.Invocation
+	applicable bool
+}
+
+func gateSchedule(definitions []automationcheck.Check, planned []automationcheck.Invocation) []scheduledGateCheck {
+	byName := make(map[string]automationcheck.Invocation, len(planned))
+	for _, invocation := range planned {
+		byName[invocation.Check.Name] = invocation
+	}
+	schedule := make([]scheduledGateCheck, 0, len(definitions))
+	for _, definition := range definitions {
+		invocation, applicable := byName[definition.Descriptor.Name]
+		schedule = append(schedule, scheduledGateCheck{descriptor: definition.Descriptor, invocation: invocation, applicable: applicable})
+	}
+	return schedule
+}
+
 func (g *gateContext) pipeline() error {
 	definitions := g.pipelineChecks()
 	impact, err := automationcheck.GeneratedImpact(g.repo, g.paths)
@@ -285,8 +304,14 @@ func (g *gateContext) pipeline() error {
 	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
 	// always run; commit is never cached.
 	cacheable := map[string]bool{"vet": true, "build": true, "test": true}
-	for _, check := range checks {
-		name := check.Check.Name
+	for _, scheduled := range gateSchedule(definitions, checks) {
+		name := scheduled.descriptor.Name
+		if !scheduled.applicable {
+			g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: scheduled.descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
+			g.honesty = append(g.honesty, name+" skipped: "+scheduled.descriptor.Inapplicable)
+			continue
+		}
+		check := scheduled.invocation
 		fmt.Fprintf(os.Stderr, gateProgressLine, name, runrecord.HeartbeatRunning)
 		var evidence automationcheck.Evidence
 		var reused bool
@@ -315,6 +340,8 @@ func (g *gateContext) pipeline() error {
 			record.Outcome = runrecord.StepFailed
 		case evidence.Skipped:
 			record.Outcome = runrecord.StepSkipped
+		case evidence.Reused:
+			record.Outcome = runrecord.StepReused
 		}
 		g.steps = append(g.steps, record)
 		if err == nil && cacheable[name] && !reused {
@@ -322,16 +349,6 @@ func (g *gateContext) pipeline() error {
 		}
 		if err != nil {
 			return fmt.Errorf("%s: %w", name, err)
-		}
-	}
-	selected := make(map[string]bool, len(checks))
-	for _, check := range checks {
-		selected[check.Check.Name] = true
-	}
-	for _, check := range definitions {
-		if !selected[check.Descriptor.Name] {
-			g.steps = append(g.steps, runrecord.GateStep{Name: check.Descriptor.Name, Phase: check.Descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
-			g.honesty = append(g.honesty, check.Descriptor.Name+" skipped: "+check.Descriptor.Inapplicable)
 		}
 	}
 	return nil
@@ -1759,15 +1776,18 @@ func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit st
 }
 
 func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, failure string) {
-	var run, skipped []string
+	var run, reused, skipped []string
 	for _, step := range g.steps {
-		if step.Outcome == runrecord.StepSkipped {
+		switch step.Outcome {
+		case runrecord.StepSkipped:
 			skipped = append(skipped, step.Name)
-		} else {
+		case runrecord.StepReused:
+			reused = append(reused, step.Name)
+		default:
 			run = append(run, step.Name)
 		}
 	}
-	fmt.Fprintf(output, "GATE %s %.1fs | ran=%s | skipped=%s\n", strings.ToUpper(string(outcome)), time.Since(g.start).Seconds(), strings.Join(run, ","), strings.Join(skipped, ","))
+	fmt.Fprintf(output, "GATE %s %.1fs | ran=%s | reused=%s | skipped=%s\n", strings.ToUpper(string(outcome)), time.Since(g.start).Seconds(), strings.Join(run, ","), strings.Join(reused, ","), strings.Join(skipped, ","))
 	if failure != "" {
 		fmt.Fprintf(output, "blocker: %s\n", failure)
 	}

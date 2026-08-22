@@ -8,7 +8,7 @@ import (
 	"overgo/internal/runrecord"
 )
 
-func TestCheckEvidenceCache(t *testing.T) {
+func TestReusedOutcomeIsDistinctFromSkipped(t *testing.T) {
 	environment, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("environment"))
 	input, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("inputs"))
 	runs := 0
@@ -26,7 +26,7 @@ func TestCheckEvidenceCache(t *testing.T) {
 		t.Fatalf("first = (%+v, %t, %v), runs=%d", first, reused, err, runs)
 	}
 	second, reused, err := cache.RunCached(context.Background(), planned[0], input)
-	if err != nil || !reused || runs != 1 || second.ID != first.ID || !second.Skipped {
+	if err != nil || !reused || runs != 1 || second.ID != first.ID || !second.Reused || second.Skipped {
 		t.Fatalf("second = (%+v, %t, %v), runs=%d", second, reused, err, runs)
 	}
 	otherEnvironment, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("other"))

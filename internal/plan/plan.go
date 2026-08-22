@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -72,6 +73,7 @@ type CompletionRef struct {
 type Plan struct {
 	Campaign  string          `json:"campaign"`
 	Doctrine  string          `json:"doctrine"`
+	Census    *artifact.ID    `json:"census_evidence,omitempty"`
 	Items     []Item          `json:"items"`
 	Completed []CompletionRef `json:"completed,omitempty"`
 }
@@ -112,6 +114,9 @@ func Save(path string, d Plan) error {
 // ValidateOpenWork rejects chronology in the live plan. Git and RepoDB own
 // completed evidence; the plan contains only dispatchable or blocked work.
 func ValidateOpenWork(d Plan) error {
+	if d.Census != nil && (!d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence) {
+		return errors.New("plan: census authority is not evidence")
+	}
 	completed := map[string]bool{}
 	for _, receipt := range d.Completed {
 		key := receipt.Item + "/" + receipt.Step
@@ -147,6 +152,20 @@ func ValidateOpenWork(d Plan) error {
 				return fmt.Errorf("plan step %s/%s is open without a verifier", item.ID, step.ID)
 			}
 		}
+	}
+	return nil
+}
+
+var doctrineMetricLiteral = regexp.MustCompile(`(?i)\b[0-9][0-9,]*\s+(?:production\s+files?|files?|literals?|assumptions?|policy\s+copies)\b`)
+
+// ValidateCampaignCensusAuthority requires campaign baselines to point to
+// immutable census evidence and rejects copied metric values in doctrine prose.
+func ValidateCampaignCensusAuthority(d Plan) error {
+	if d.Census == nil || !d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence {
+		return errors.New("plan: campaign lacks census evidence authority")
+	}
+	if doctrineMetricLiteral.MatchString(d.Doctrine) {
+		return errors.New("plan: doctrine contains hand-typed census metrics")
 	}
 	return nil
 }

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"slices"
+
+	"overgo/internal/artifact"
 )
 
 // MergeOpenProjections performs a three-way merge of generated open-work
@@ -25,13 +27,17 @@ func MergeOpenProjections(base, local, upstream Plan) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
+	census, err := mergeCensusAuthority(base.Census, local.Census, upstream.Census)
+	if err != nil {
+		return Plan{}, err
+	}
 	itemID := func(item Item) string { return item.ID }
 	baseItems, localItems, upstreamItems := indexByID(base.Items, itemID), indexByID(local.Items, itemID), indexByID(upstream.Items, itemID)
 	completed, err := mergeCompletionRefs(base.Completed, local.Completed, upstream.Completed)
 	if err != nil {
 		return Plan{}, err
 	}
-	merged := Plan{Campaign: campaign, Doctrine: doctrine, Completed: completed}
+	merged := Plan{Campaign: campaign, Doctrine: doctrine, Census: census, Completed: completed}
 	for _, id := range unionOrder(local.Items, upstream.Items, itemID) {
 		baseItem, inBase := baseItems[id]
 		localItem, inLocal := localItems[id]
@@ -57,6 +63,26 @@ func MergeOpenProjections(base, local, upstream Plan) (Plan, error) {
 		merged.Items = append(merged.Items, item)
 	}
 	return merged, ValidateOpenWork(merged)
+}
+
+func mergeCensusAuthority(base, local, upstream *artifact.ID) (*artifact.ID, error) {
+	equal := func(left, right *artifact.ID) bool {
+		return left == nil && right == nil || left != nil && right != nil && *left == *right
+	}
+	var selected *artifact.ID
+	switch {
+	case equal(local, upstream), equal(upstream, base):
+		selected = local
+	case equal(local, base):
+		selected = upstream
+	default:
+		return nil, fmt.Errorf("plan projection: concurrent census authority edits conflict")
+	}
+	if selected == nil {
+		return nil, nil
+	}
+	cloned := *selected
+	return &cloned, nil
 }
 
 func mergeItem(base, local, upstream Item) (Item, error) {

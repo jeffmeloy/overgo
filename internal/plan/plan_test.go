@@ -1,6 +1,10 @@
 package plan
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/artifact"
+)
 
 // TestEnforceCurrentFirstOpenStep pins the shared dispatch rule.
 func TestEnforceCurrentFirstOpenStep(t *testing.T) {
@@ -85,5 +89,28 @@ func TestOpenStepRequiresVerifier(t *testing.T) {
 	document.Items[0].Steps[0].Status = "blocked-external-prereq"
 	if err := ValidateOpenWork(document); err != nil {
 		t.Fatalf("blocked step should name its blocker without a runnable verifier: %v", err)
+	}
+}
+
+func TestCampaignCensusAuthority(t *testing.T) {
+	id, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("census"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := Plan{Campaign: "campaign", Doctrine: "Measured baselines live in RepoDB.", Census: &id}
+	if err := ValidateCampaignCensusAuthority(document); err != nil {
+		t.Fatal(err)
+	}
+	document.Census = nil
+	if err := ValidateCampaignCensusAuthority(document); err == nil {
+		t.Fatal("missing census authority passed")
+	}
+}
+
+func TestDoctrineRejectsMetricLiterals(t *testing.T) {
+	id, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("census"))
+	document := Plan{Campaign: "campaign", Doctrine: "Measured baseline: 18,277 literals and 869 policy copies.", Census: &id}
+	if err := ValidateCampaignCensusAuthority(document); err == nil {
+		t.Fatal("hand-typed doctrine metrics passed")
 	}
 }

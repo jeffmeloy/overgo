@@ -41,6 +41,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/closurescan"
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/repodb"
@@ -65,6 +66,7 @@ func main() {
 	ramCapacity := flag.Int("ram-capacity-gib", 0, "with -lease-report: available host RAM GiB (0 unknown)")
 	vramCapacity := flag.Int("vram-capacity-gib", 0, "with -lease-report: available VRAM GiB (0 unknown)")
 	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
+	bindCensus := flag.Bool("bind-census", false, "bind the campaign baseline to closure/census/latest in RepoDB")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
@@ -77,14 +79,14 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, prepareMerge: *prepareMergeFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, prepareMerge: *prepareMergeFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
-	next, prompt, verify, status, context, advance, add, setverify, stop                  bool
+	next, prompt, verify, status, context, advance, add, setverify, bindCensus, stop      bool
 	force, title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane string
 	prepareMerge                                                                          string
 	grantExploration, chargeExploration, recordExperiment                                 string
@@ -122,6 +124,8 @@ func run(c cli, args []string) error {
 		return printLeaseReport(".", c.capacity, os.Stdout)
 	case c.localitySchedule != "":
 		return printLocalitySchedule(".", c.localitySchedule, os.Stdout)
+	case c.bindCensus:
+		return bindCampaignCensus(".", document, os.Stdout)
 	case c.add:
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")
@@ -167,6 +171,33 @@ func run(c cli, args []string) error {
 	default:
 		return errors.New("one of -next, -prompt, -verify, -status, -context, -record-lease, -lease-report, -schedule-locality, -advance is required")
 	}
+}
+
+func bindCampaignCensus(root string, document plan.Plan, output io.Writer) error {
+	store, err := repodb.OpenReadOnly(filepath.Join(root, "repodb-store"))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	id, found, err := artifact.ResolveAlias(context.Background(), store, closurescan.CensusEvidenceAlias)
+	if err != nil || !found {
+		return errors.Join(err, errors.New("plan: published census evidence is absent"))
+	}
+	evidence, found, err := closurescan.ReadCensusEvidence(context.Background(), store, id)
+	if err != nil || !found || evidence.ID != id {
+		return errors.Join(err, errors.New("plan: published census evidence is invalid"))
+	}
+	document.Census = &id
+	if err := plan.ValidateCampaignCensusAuthority(document); err != nil {
+		return err
+	}
+	if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document); err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "bound campaign census %s source=%s files=%d literals=%d assumptions=%d policy_copies=%d\n",
+		id, evidence.Source, evidence.Counts.ProductionFiles, evidence.Counts.InlineLiterals,
+		evidence.Counts.AssumptionHints, evidence.Counts.TestPolicyCopies)
+	return nil
 }
 
 func printAutomationContext(document plan.Plan, role string, output io.Writer) error {

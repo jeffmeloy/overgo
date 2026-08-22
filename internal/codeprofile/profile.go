@@ -37,7 +37,9 @@ type Clone struct {
 }
 
 type Profile struct {
-	Production           Partition       `json:"production"`
+	Runtime              Partition       `json:"runtime"`
+	Automation           Partition       `json:"automation"`
+	Generated            Partition       `json:"generated"`
 	Test                 Partition       `json:"test"`
 	Functions            []Function      `json:"functions"`
 	Clones               []Clone         `json:"clones"`
@@ -61,6 +63,12 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 			return Profile{}, err
 		}
 		if generated {
+			profile.Generated.Files++
+			file, syntaxErr := source.Syntax()
+			if syntaxErr != nil {
+				return Profile{}, syntaxErr
+			}
+			profile.Generated.Nodes += NodeCount(file)
 			continue
 		}
 		file, err := source.Syntax()
@@ -68,9 +76,12 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 			return Profile{}, err
 		}
 		nodes := NodeCount(file)
-		partition := &profile.Production
-		if source.Test {
+		partition := &profile.Runtime
+		switch {
+		case source.Test:
 			partition = &profile.Test
+		case strings.HasPrefix(filepath.ToSlash(source.Path), "cmd/"):
+			partition = &profile.Automation
 		}
 		partition.Files++
 		partition.Nodes += nodes

@@ -32,7 +32,7 @@ func TestASTStructuralProfileGate(t *testing.T) {
 	}
 	g := gateContext{repo: root, paths: []string{"internal/p/p.go"}}
 	skipped, err := g.stepProfile()
-	if err != nil || skipped || len(g.honesty) < 4 || !strings.Contains(g.honesty[0], "production=1 files") ||
+	if err != nil || skipped || len(g.honesty) < 4 || !strings.Contains(g.honesty[0], "runtime=1 files") ||
 		!strings.Contains(g.honesty[1], "delta vs HEAD") {
 		t.Fatalf("profile step = skipped %v, err %v, honesty %v", skipped, err, g.honesty)
 	}
@@ -82,28 +82,26 @@ func TestAdvisoryCandidate(t *testing.T) {
 	}
 	got := profileReviewFocus(profile, []string{"internal/p/p.go", "internal/p/p_test.go"})
 	for _, want := range []string{
-		"production=internal/p/p.go:changed", "validator=internal/p/p.go:validateShape", "test=internal/p/p_test.go:TestChanged",
-		"exact_clone_production=nodes=12", "exact_clone_validator=nodes=10", "exact_clone_test=nodes=8",
+		"exact_clone=nodes=12",
 		"advisory_only=inspect semantic ownership and numerical contracts", "require parity evidence",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("review candidates %q lack %q", got, want)
 		}
 	}
-	if got := profileReviewFocus(profile, []string{"internal/new/empty.go"}); !strings.Contains(got, "production=none") ||
-		!strings.Contains(got, "exact_clone_test=none") {
+	if got := profileReviewFocus(profile, []string{"internal/new/empty.go"}); !strings.Contains(got, "exact_clone=none") {
 		t.Fatalf("empty review focus = %q", got)
 	}
 }
 
 func TestSurfaceDeltaHonesty(t *testing.T) {
 	base := codeprofile.Profile{
-		Production: codeprofile.Partition{Files: 2, Nodes: 100}, Test: codeprofile.Partition{Files: 1, Nodes: 30},
+		Runtime: codeprofile.Partition{Files: 2, Nodes: 100}, Test: codeprofile.Partition{Files: 1, Nodes: 30},
 		Functions: []codeprofile.Function{{File: "v.go", Name: "validateBase", Nodes: 20, AdvisoryClass: "validator"}},
 		Clones:    []codeprofile.Clone{{Nodes: 10, Functions: []string{"a:f", "b:g"}}}, DuplicateExcessNodes: 10,
 	}
 	candidate := codeprofile.Profile{
-		Production: codeprofile.Partition{Files: 3, Nodes: 125}, Test: codeprofile.Partition{Files: 1, Nodes: 35},
+		Runtime: codeprofile.Partition{Files: 3, Nodes: 125}, Test: codeprofile.Partition{Files: 1, Nodes: 35},
 		Functions: []codeprofile.Function{
 			{File: "v.go", Name: "validateBase", Nodes: 20, AdvisoryClass: "validator"},
 			{File: "v.go", Name: "validateAdded", Nodes: 5, AdvisoryClass: "validator"},
@@ -113,7 +111,7 @@ func TestSurfaceDeltaHonesty(t *testing.T) {
 	}
 	got := surfaceDeltaHonesty(base, candidate)
 	for _, want := range []string{
-		"production=+1 files/+25 nodes", "test=+0/+5", "validator_subset=+1 functions/+5 nodes",
+		"runtime=+1 files/+25 nodes", "automation=+0/+0", "generated=+0/+0", "test=+0/+5",
 		"duplicate_excess=-4", "exported=+2", "imports=+1",
 		"duplication fell while production grew; reduction does not offset surface growth",
 	} {
@@ -185,5 +183,5 @@ func TestASTProfileEvidenceGate(t *testing.T) {
 }
 
 func codeProfileFixture() codeprofile.Profile {
-	return codeprofile.Profile{Production: codeprofile.Partition{Files: 1, Nodes: 1}}
+	return codeprofile.Profile{Runtime: codeprofile.Partition{Files: 1, Nodes: 1}}
 }

@@ -4,12 +4,8 @@
 // that; this binary is the sanctioned path and marks its own commit
 // subprocess with guard.GateEnv=1 (the guard owns that env-var name).
 //
-// Incident lineage honored here: -message-file only (shell-parsed prose loses
-// backticked text to command substitution); a staged path outside -paths
-// refuses rather than sweeps (a review commit once shipped another slice's
-// staged deletions); the status mirror is advisory and the store record is
-// authoritative (a killed gate once left a stale "running" status file);
-// green output ends with the honesty line naming what did NOT run.
+// Message files preserve shell-sensitive prose, scope is exact, and RepoDB is
+// authoritative; green output names what did not run.
 package main
 
 import (
@@ -38,6 +34,7 @@ import (
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
 	"overgo/internal/codeprofile"
+	"overgo/internal/finding"
 	"overgo/internal/guard"
 	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
@@ -393,12 +390,10 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	signals := profileSignals(profile)
 	g.honesty = append(g.honesty, fmt.Sprintf(
-		"code profile: production=%d files/%d nodes test=%d/%d validator_subset=%d functions/%d nodes duplicate_excess=%d (production=%d validator=%d test=%d) clones=%d functions=%d exported=%d imports=%d",
-		profile.Production.Files, profile.Production.Nodes, profile.Test.Files, profile.Test.Nodes,
-		signals.validator.functions, signals.validator.nodes, profile.DuplicateExcessNodes,
-		signals.production.duplicateExcess, signals.validator.duplicateExcess, signals.test.duplicateExcess,
+		"code profile: runtime=%d files/%d nodes automation=%d/%d generated=%d/%d test=%d/%d duplicate_excess=%d clones=%d functions=%d exported=%d imports=%d",
+		profile.Runtime.Files, profile.Runtime.Nodes, profile.Automation.Files, profile.Automation.Nodes,
+		profile.Generated.Files, profile.Generated.Nodes, profile.Test.Files, profile.Test.Nodes, profile.DuplicateExcessNodes,
 		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
 	g.honesty = append(g.honesty, surfaceDeltaHonesty(base, profile))
@@ -501,28 +496,14 @@ func automationROIAdmission(scope string, movement codeprofile.ProductionMovemen
 }
 
 func consumerCensusHonesty(scope, context string, declarations []codeprofile.ConsumerDeclaration, base, current codeprofile.ConsumerSummary) string {
-	var candidates []string
-	for _, declaration := range declarations {
-		class := ""
-		switch {
-		case declaration.ProductionReferences == 0 && declaration.TestReferences > 0:
-			class = "test-only"
-		case declaration.ProductionReferences == 0 && declaration.TestReferences == 0 && declaration.Boundary == "":
-			class = "zero"
-		}
-		if class != "" {
-			candidates = append(candidates, consumerCandidate(declaration, class))
-		}
-	}
-	sort.Strings(candidates)
-	if len(candidates) > 5 {
-		candidates = candidates[:5]
-	}
+	declarations = slices.DeleteFunc(slices.Clone(declarations), func(value codeprofile.ConsumerDeclaration) bool {
+		return value.ProductionReferences > 0 || value.Boundary != ""
+	})
 	return fmt.Sprintf(
 		"consumer census %s context=%s delta: production=%+d test_only=%+d boundary=%+d zero=%+d; current=%d/%d/%d/%d; candidates=%s; advisory_only=ambiguous dispatch is a boundary, tests are not production consumers",
 		scope, context, current.Production-base.Production, current.TestOnly-base.TestOnly,
 		current.Boundary-base.Boundary, current.Zero-base.Zero,
-		current.Production, current.TestOnly, current.Boundary, current.Zero, strings.Join(candidates, ","),
+		current.Production, current.TestOnly, current.Boundary, current.Zero, consumerCandidates(declarations),
 	)
 }
 
@@ -583,92 +564,37 @@ func pathSet(paths []string) map[string]bool {
 	return set
 }
 
-type profileSignal struct {
-	functions, nodes, duplicateExcess int
-}
-
-type profileSignalSet struct {
-	production, validator, test profileSignal
-}
-
-func profileSignals(profile codeprofile.Profile) profileSignalSet {
-	var signals profileSignalSet
-	for _, function := range profile.Functions {
-		signal := signalForClass(&signals, function.AdvisoryClass)
-		signal.functions++
-		signal.nodes += function.Nodes
-	}
-	for _, clone := range profile.Clones {
-		signal := signalForClass(&signals, clone.AdvisoryClass)
-		signal.duplicateExcess += clone.Nodes * (len(clone.Functions) - 1)
-	}
-	return signals
-}
-
-func signalForClass(signals *profileSignalSet, class string) *profileSignal {
-	switch class {
-	case "validator":
-		return &signals.validator
-	case "test":
-		return &signals.test
-	default:
-		return &signals.production
-	}
-}
-
 func surfaceDeltaHonesty(base, candidate codeprofile.Profile) string {
-	baseSignals, candidateSignals := profileSignals(base), profileSignals(candidate)
-	productionFiles := candidate.Production.Files - base.Production.Files
-	productionNodes := candidate.Production.Nodes - base.Production.Nodes
+	runtimeFiles, runtimeNodes := candidate.Runtime.Files-base.Runtime.Files, candidate.Runtime.Nodes-base.Runtime.Nodes
+	automationFiles, automationNodes := candidate.Automation.Files-base.Automation.Files, candidate.Automation.Nodes-base.Automation.Nodes
 	duplicateExcess := candidate.DuplicateExcessNodes - base.DuplicateExcessNodes
 	adverse := "none"
-	if duplicateExcess < 0 && (productionFiles > 0 || productionNodes > 0) {
+	if duplicateExcess < 0 && (runtimeFiles+automationFiles > 0 || runtimeNodes+automationNodes > 0) {
 		adverse = "duplication fell while production grew; reduction does not offset surface growth"
 	}
 	return fmt.Sprintf(
-		"code profile delta vs HEAD: production=%+d files/%+d nodes test=%+d/%+d validator_subset=%+d functions/%+d nodes duplicate_excess=%+d (production=%+d validator=%+d test=%+d) clones=%+d function_count=%+d exported=%+d imports=%+d; adverse_pattern=%s",
-		productionFiles, productionNodes, candidate.Test.Files-base.Test.Files, candidate.Test.Nodes-base.Test.Nodes,
-		candidateSignals.validator.functions-baseSignals.validator.functions, candidateSignals.validator.nodes-baseSignals.validator.nodes,
-		duplicateExcess,
-		candidateSignals.production.duplicateExcess-baseSignals.production.duplicateExcess,
-		candidateSignals.validator.duplicateExcess-baseSignals.validator.duplicateExcess,
-		candidateSignals.test.duplicateExcess-baseSignals.test.duplicateExcess,
+		"code profile delta vs HEAD: runtime=%+d files/%+d nodes automation=%+d/%+d generated=%+d/%+d test=%+d/%+d duplicate_excess=%+d clones=%+d function_count=%+d exported=%+d imports=%+d; adverse_pattern=%s",
+		runtimeFiles, runtimeNodes, automationFiles, automationNodes,
+		candidate.Generated.Files-base.Generated.Files, candidate.Generated.Nodes-base.Generated.Nodes,
+		candidate.Test.Files-base.Test.Files, candidate.Test.Nodes-base.Test.Nodes, duplicateExcess,
 		len(candidate.Clones)-len(base.Clones), len(candidate.Functions)-len(base.Functions),
 		candidate.ExportedDeclarations-base.ExportedDeclarations, candidate.PackageImportEdges-base.PackageImportEdges, adverse,
 	)
 }
 
 func profileReviewFocus(profile codeprofile.Profile, changed []string) string {
-	paths := make(map[string]bool, len(changed))
-	for _, path := range changed {
-		paths[path] = true
-	}
-	return fmt.Sprintf(
-		"code review candidates: production=%s; validator=%s; test=%s; exact_clone_production=%s; exact_clone_validator=%s; exact_clone_test=%s; advisory_only=inspect semantic ownership and numerical contracts, migrate callers and delete displaced paths, require parity evidence",
-		largestChangedFunction(profile, paths, ""), largestChangedFunction(profile, paths, "validator"), largestChangedFunction(profile, paths, "test"),
-		largestChangedClone(profile, paths, ""), largestChangedClone(profile, paths, "validator"), largestChangedClone(profile, paths, "test"),
-	)
-}
-
-func largestChangedFunction(profile codeprofile.Profile, paths map[string]bool, class string) string {
-	for _, function := range profile.Functions {
-		if paths[function.File] && function.AdvisoryClass == class {
-			return fmt.Sprintf("%s:%s nodes=%d branches=%d", function.File, function.Name, function.Nodes, function.Branches)
-		}
-	}
-	return "none"
-}
-
-func largestChangedClone(profile codeprofile.Profile, paths map[string]bool, class string) string {
-	for _, clone := range profile.Clones {
-		if clone.AdvisoryClass == class && !cliMainClone(clone) && slices.ContainsFunc(clone.Functions, func(function string) bool {
+	paths := pathSet(changed)
+	cloneFocus := "none"
+	for _, candidate := range profile.Clones {
+		if !cliMainClone(candidate) && slices.ContainsFunc(candidate.Functions, func(function string) bool {
 			path, _, ok := strings.Cut(function, ":")
 			return ok && paths[path]
 		}) {
-			return fmt.Sprintf("nodes=%d functions=%s", clone.Nodes, strings.Join(clone.Functions, ","))
+			cloneFocus = fmt.Sprintf("nodes=%d functions=%s", candidate.Nodes, strings.Join(candidate.Functions, ","))
+			break
 		}
 	}
-	return "none"
+	return fmt.Sprintf("code review candidate: exact_clone=%s; advisory_only=inspect semantic ownership and numerical contracts, migrate callers and delete displaced paths, require parity evidence", cloneFocus)
 }
 
 func cliMainClone(clone codeprofile.Clone) bool {
@@ -1867,13 +1793,13 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 		return g.oweRecord(batch, err)
 	}
 	defer store.Close()
+	if err := appendGateAdvisoryFinding(context.Background(), store, &batch, g.paths, g.honesty); err != nil {
+		return g.oweRecord(batch, err)
+	}
 	if _, err := store.Commit(context.Background(), batch); err != nil {
 		return g.oweRecord(batch, err)
 	}
 	_ = os.Remove(filepath.Join(g.repo, filepath.FromSlash(gateDebtFile)))
-	if err := g.writeStatus(record, codeCommit, outcome, failure); err != nil {
-		g.honesty = append(g.honesty, "advisory gate status mirror write failed: "+err.Error())
-	}
 	return nil
 }
 
@@ -1898,18 +1824,6 @@ func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit st
 	return nil
 }
 
-// writeStatus mirrors the store record for cheap shell consumption; the store
-// is authoritative and this file is advisory by construction.
-func (g *gateContext) writeStatus(record runrecord.GateRecord, codeCommit string, outcome runrecord.Outcome, failure string) error {
-	status := map[string]any{
-		"result_id": record.Result.ID.String(), "code_commit": codeCommit,
-		"preparation_id": g.preparation.ID.String(), "environment_id": g.environment.ID.String(),
-		"outcome": outcome, "failure": failure, "steps": record.Result.Steps,
-		"honesty": g.honesty, "written": time.Now().UTC().Format(time.RFC3339),
-	}
-	return writeJSON(g.repo, "bin/gate_status.json", status, 0o644)
-}
-
 func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, failure string) {
 	var run, skipped []string
 	for _, step := range g.steps {
@@ -1928,6 +1842,34 @@ func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, 
 	}
 }
 
+func appendGateAdvisoryFinding(ctx context.Context, store *repodb.Store, batch *artifact.Batch, owners, honesty []string) error {
+	evidence := slices.DeleteFunc(compactHonesty(honesty), func(line string) bool {
+		return !strings.HasPrefix(line, "advisory: review:") && !strings.HasPrefix(line, "advisory: warning:") &&
+			(!strings.HasPrefix(line, "advisory: consumer:") || strings.Contains(line, "candidates=;"))
+	})
+	if len(evidence) == 0 {
+		return nil
+	}
+	if len(owners) == 0 {
+		owners = []string{"repository"}
+	}
+	document, findingBatch, err := finding.NewTextBatch("Actionable gate advisories", finding.SeverityMedium, owners, evidence,
+		"Resolve each advisory at its owning source and retain a failable regression check.", "The gate emits no actionable advisory for the same owner surface.")
+	if err != nil {
+		return err
+	}
+	alias := artifact.AliasBinding{Name: "finding/active/gate-advisories", Target: document.ID}
+	if previous, found, err := artifact.ResolveAlias(ctx, store, alias.Name); err != nil {
+		return err
+	} else if found {
+		alias.Previous = &previous
+	}
+	batch.Contents = append(batch.Contents, findingBatch.Contents...)
+	batch.Lineage = append(batch.Lineage, findingBatch.Lineage...)
+	batch.Aliases = append(batch.Aliases, alias)
+	return nil
+}
+
 func compactHonesty(lines []string) []string {
 	var output []string
 	for _, line := range lines {
@@ -1943,7 +1885,7 @@ func compactHonesty(lines []string) []string {
 			label = "advisory: scope: "
 		case strings.Contains(line, " reused:"):
 			label = "advisory: reuse: "
-		case strings.Contains(line, "exact_clone_") && !strings.Contains(line, "exact_clone_production=none; exact_clone_validator=none; exact_clone_test=none"):
+		case strings.Contains(line, "exact_clone=") && !strings.Contains(line, "exact_clone=none"):
 			label = "advisory: review: "
 		case strings.Contains(line, "uncatalogued") || strings.Contains(line, "unplanned dirty") ||
 			strings.Contains(line, "unavailable") || strings.Contains(line, "unreadable") || strings.Contains(line, "not persisted"):

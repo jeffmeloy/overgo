@@ -203,7 +203,7 @@
       "id": "composability-production",
       "title": "Make cross-model composability production-authoritative",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "promotion-activation",
@@ -238,8 +238,8 @@
         {
           "id": "production-gates",
           "title": "Enforce contract-tested, runtime-wired, CUDA-verified, evidence-promoted, and production-active completion",
-          "status": "open",
-          "verify": "go test ./... \u0026\u0026 go test -tags modeltest ./... \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go test ./internal/composition ./internal/server -run 'TestNoDirectCompositionConstructors|TestUnpromotedBridgeRefused|TestCompositionAPIWorkflow|TestCompositionGUIWorkflow' -count=1"
+          "status": "done",
+          "verify": "go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/test-lane ./internal/composition ./internal/inference ./internal/server"
         }
       ]
     },

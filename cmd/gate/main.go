@@ -1436,7 +1436,7 @@ func (g *gateContext) stepCommit() (bool, error) {
 	); err != nil {
 		return false, fmt.Errorf("pre-commit record validation: %w", err)
 	}
-	rollbackPlan, err := advancePlanFile(g.repo, g.planRef)
+	rollbackPlan, err := advancePlanFile(g.repo, g.planRef, g.preparation.ID)
 	if err != nil {
 		return false, err
 	}
@@ -1489,7 +1489,7 @@ func (g *gateContext) stepCommit() (bool, error) {
 	return false, nil
 }
 
-func advancePlanFile(repo, ref string) (func() error, error) {
+func advancePlanFile(repo, ref string, authority artifact.ID) (func() error, error) {
 	itemID, stepID, ok := strings.Cut(ref, "/")
 	if !ok || itemID == "" || stepID == "" {
 		return nil, fmt.Errorf("advance plan: invalid reference %q", ref)
@@ -1503,7 +1503,7 @@ func advancePlanFile(repo, ref string) (func() error, error) {
 	if err != nil {
 		return nil, err
 	}
-	updated, err := plan.Advance(document, itemID, stepID)
+	updated, err := plan.AdvanceWithEvidence(document, itemID, stepID, authority)
 	if err != nil {
 		return nil, err
 	}
@@ -1790,6 +1790,16 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	batch.Contents = append(batch.Contents, environmentContent, finalizedContent)
 	batch.Lineage = append(batch.Lineage, finalized.Lineage()...)
 	if outcome == runrecord.OutcomeSucceeded {
+		completion, err := g.completionReceipt(codeCommit, record.Result.ID)
+		if err != nil {
+			return err
+		}
+		completionContent, err := completion.Content()
+		if err != nil {
+			return err
+		}
+		batch.Contents = append(batch.Contents, completionContent)
+		batch.Lineage = append(batch.Lineage, completion.Lineage()...)
 		if err := g.appendProfileEvidence(&batch, codeCommit, record.Result.ID); err != nil {
 			return err
 		}
@@ -1831,6 +1841,23 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	}
 	_ = os.Remove(filepath.Join(g.repo, filepath.FromSlash(gateDebtFile)))
 	return nil
+}
+
+func (g *gateContext) completionReceipt(codeCommit string, gateResult artifact.ID) (plan.CompletionReceipt, error) {
+	document, err := plan.Load(filepath.Join(g.repo, plan.Path))
+	if err != nil {
+		return plan.CompletionReceipt{}, err
+	}
+	item, step, ok := strings.Cut(g.planRef, "/")
+	if !ok {
+		return plan.CompletionReceipt{}, errors.New("gate: invalid completion plan reference")
+	}
+	for _, receipt := range document.Completed {
+		if receipt.Item == item && receipt.Step == step && receipt.Authority == g.preparation.ID {
+			return plan.NewCompletionReceipt(item, step, receipt.Owner, receipt.Authority, codeCommit, gateResult)
+		}
+	}
+	return plan.CompletionReceipt{}, errors.New("gate: committed plan lacks matching completion authority")
 }
 
 func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit string, gateResult artifact.ID) error {

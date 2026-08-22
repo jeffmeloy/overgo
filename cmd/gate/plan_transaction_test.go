@@ -5,10 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/plan"
 )
 
-func TestGateCommitAdvancesPlanAtomically(t *testing.T) {
+func TestAdvancePublishesReceiptReference(t *testing.T) {
 	repo := t.TempDir()
 	if err := os.Mkdir(filepath.Join(repo, "docs"), 0o755); err != nil {
 		t.Fatal(err)
@@ -27,7 +28,11 @@ func TestGateCommitAdvancesPlanAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rollback, err := advancePlanFile(repo, "automation/first")
+	authority, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("completion"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rollback, err := advancePlanFile(repo, "automation/first", authority)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,6 +42,9 @@ func TestGateCommitAdvancesPlanAtomically(t *testing.T) {
 	}
 	if item, step, ok := plan.Current(advanced, plan.UnassignedRole); !ok || item.ID != "automation" || step.ID != "second" {
 		t.Fatalf("advanced current = %s/%s, open=%v", item.ID, step.ID, ok)
+	}
+	if len(advanced.Completed) != 1 || advanced.Completed[0].Authority != authority || advanced.Completed[0].Item != "automation" || advanced.Completed[0].Step != "first" {
+		t.Fatalf("completion reference = %+v", advanced.Completed)
 	}
 	if err := rollback(); err != nil {
 		t.Fatal(err)

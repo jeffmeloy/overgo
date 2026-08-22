@@ -555,7 +555,16 @@ func advanceStep(document plan.Plan, itemID, stepID, force, role string, onOverr
 			return err
 		}
 	}
-	updated, err := plan.Advance(document, itemID, stepID)
+	authority, err := artifact.JSONID(artifact.KindEvidence, struct {
+		Item     string    `json:"item"`
+		Step     plan.Step `json:"step"`
+		Role     string    `json:"role"`
+		Override bool      `json:"override"`
+	}{it.ID, st, role, force != ""})
+	if err != nil {
+		return err
+	}
+	updated, err := plan.AdvanceWithEvidence(document, itemID, stepID, authority)
 	if err != nil {
 		return err
 	}

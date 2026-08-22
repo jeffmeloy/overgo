@@ -22,6 +22,10 @@ func TestPrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs(t *testing.T) {
 	base := plan.Plan{Campaign: "campaign", Doctrine: "doctrine", Items: []plan.Item{item("base-local"), item("base-upstream")}}
 	local := plan.Plan{Campaign: base.Campaign, Doctrine: base.Doctrine, Items: []plan.Item{item("base-upstream"), item("local-new")}}
 	upstream := plan.Plan{Campaign: base.Campaign, Doctrine: base.Doctrine, Items: []plan.Item{item("base-local"), item("upstream-new")}}
+	localAuthority, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("local completion"))
+	upstreamAuthority, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("upstream completion"))
+	local.Completed = []plan.CompletionRef{{Item: "base-local", Step: "do", Authority: localAuthority}}
+	upstream.Completed = []plan.CompletionRef{{Item: "base-upstream", Step: "do", Authority: upstreamAuthority}}
 	merged, err := plan.MergeOpenProjections(base, local, upstream)
 	if err != nil {
 		t.Fatal(err)

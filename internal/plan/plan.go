@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
 	"overgo/internal/strictjson"
 	"overgo/internal/textcheck"
@@ -58,11 +59,21 @@ type Item struct {
 	Steps  []Step `json:"steps"`
 }
 
+// CompletionRef is the compact merge authority retained after an open step is
+// removed. Its full receipt lives in RepoDB under the same evidence authority.
+type CompletionRef struct {
+	Item      string      `json:"item"`
+	Step      string      `json:"step"`
+	Owner     string      `json:"owner,omitempty"`
+	Authority artifact.ID `json:"authority"`
+}
+
 // Plan is the whole campaign surface.
 type Plan struct {
-	Campaign string `json:"campaign"`
-	Doctrine string `json:"doctrine"`
-	Items    []Item `json:"items"`
+	Campaign  string          `json:"campaign"`
+	Doctrine  string          `json:"doctrine"`
+	Items     []Item          `json:"items"`
+	Completed []CompletionRef `json:"completed,omitempty"`
 }
 
 // Load reads the plan from path (Path when empty).
@@ -101,6 +112,16 @@ func Save(path string, d Plan) error {
 // ValidateOpenWork rejects chronology in the live plan. Git and RepoDB own
 // completed evidence; the plan contains only dispatchable or blocked work.
 func ValidateOpenWork(d Plan) error {
+	completed := map[string]bool{}
+	for _, receipt := range d.Completed {
+		key := receipt.Item + "/" + receipt.Step
+		if receipt.Item == "" || receipt.Step == "" || !receipt.Authority.Valid() ||
+			receipt.Authority.Kind() != artifact.KindEvidence || completed[key] ||
+			receipt.Owner != "" && !textcheck.Bounded(receipt.Owner, automationRoleMaxBytes, "\x00\r\n") {
+			return fmt.Errorf("plan completion %q is invalid or duplicated", key)
+		}
+		completed[key] = true
+	}
 	items := map[string]bool{}
 	for _, item := range d.Items {
 		if item.ID == "" || items[item.ID] {
@@ -188,12 +209,28 @@ func normalizedRole(role string) string {
 // gate writes this result in the implementation commit so dispatch cannot lag
 // the code it describes.
 func Advance(d Plan, itemID, stepID string) (Plan, error) {
+	return advance(d, itemID, stepID, nil)
+}
+
+// AdvanceWithEvidence removes one open step and retains its exact completion
+// authority for cross-lane merge reconciliation.
+func AdvanceWithEvidence(d Plan, itemID, stepID string, authority artifact.ID) (Plan, error) {
+	if !authority.Valid() || authority.Kind() != artifact.KindEvidence {
+		return Plan{}, errors.New("plan: completion authority is not evidence")
+	}
+	return advance(d, itemID, stepID, &authority)
+}
+
+func advance(d Plan, itemID, stepID string, authority *artifact.ID) (Plan, error) {
 	d.Items = slices.Clone(d.Items)
 	for itemIndex := range d.Items {
 		if d.Items[itemIndex].ID != itemID {
 			continue
 		}
 		if stepID == "." {
+			if authority != nil {
+				d.Completed = appendCompletion(d.Completed, CompletionRef{Item: itemID, Step: stepID, Owner: d.Items[itemIndex].Owner, Authority: *authority})
+			}
 			d.Items = append(d.Items[:itemIndex], d.Items[itemIndex+1:]...)
 			return d, ValidateOpenWork(d)
 		}
@@ -201,6 +238,9 @@ func Advance(d Plan, itemID, stepID string) (Plan, error) {
 		for stepIndex := range d.Items[itemIndex].Steps {
 			if d.Items[itemIndex].Steps[stepIndex].ID != stepID {
 				continue
+			}
+			if authority != nil {
+				d.Completed = appendCompletion(d.Completed, CompletionRef{Item: itemID, Step: stepID, Owner: d.Items[itemIndex].Owner, Authority: *authority})
 			}
 			d.Items[itemIndex].Steps = append(
 				d.Items[itemIndex].Steps[:stepIndex],
@@ -214,4 +254,14 @@ func Advance(d Plan, itemID, stepID string) (Plan, error) {
 		return Plan{}, fmt.Errorf("step %q not found in %q", stepID, itemID)
 	}
 	return Plan{}, fmt.Errorf("item %q not found", itemID)
+}
+
+func appendCompletion(completed []CompletionRef, receipt CompletionRef) []CompletionRef {
+	result := slices.Clone(completed)
+	for _, existing := range result {
+		if existing.Item == receipt.Item && existing.Step == receipt.Step {
+			return result
+		}
+	}
+	return append(result, receipt)
 }

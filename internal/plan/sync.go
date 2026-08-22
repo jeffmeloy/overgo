@@ -11,6 +11,12 @@ import (
 // independently added work survives. Conflicting edits to the same live row
 // are refused instead of guessed.
 func MergeOpenProjections(base, local, upstream Plan) (Plan, error) {
+	if err := validateCompletionRemovals(base, local); err != nil {
+		return Plan{}, err
+	}
+	if err := validateCompletionRemovals(base, upstream); err != nil {
+		return Plan{}, err
+	}
 	campaign, err := mergeText("campaign", base.Campaign, local.Campaign, upstream.Campaign)
 	if err != nil {
 		return Plan{}, err
@@ -21,7 +27,11 @@ func MergeOpenProjections(base, local, upstream Plan) (Plan, error) {
 	}
 	itemID := func(item Item) string { return item.ID }
 	baseItems, localItems, upstreamItems := indexByID(base.Items, itemID), indexByID(local.Items, itemID), indexByID(upstream.Items, itemID)
-	merged := Plan{Campaign: campaign, Doctrine: doctrine}
+	completed, err := mergeCompletionRefs(base.Completed, local.Completed, upstream.Completed)
+	if err != nil {
+		return Plan{}, err
+	}
+	merged := Plan{Campaign: campaign, Doctrine: doctrine, Completed: completed}
 	for _, id := range unionOrder(local.Items, upstream.Items, itemID) {
 		baseItem, inBase := baseItems[id]
 		localItem, inLocal := localItems[id]
@@ -60,7 +70,11 @@ func mergeItem(base, local, upstream Item) (Item, error) {
 	}
 	stepID := func(step Step) string { return step.ID }
 	baseSteps, localSteps, upstreamSteps := indexByID(base.Steps, stepID), indexByID(local.Steps, stepID), indexByID(upstream.Steps, stepID)
-	merged := Item{ID: base.ID, Title: title, Status: status}
+	owner, err := mergeText("item "+base.ID+" owner", base.Owner, local.Owner, upstream.Owner)
+	if err != nil {
+		return Item{}, err
+	}
+	merged := Item{ID: base.ID, Title: title, Owner: owner, Status: status}
 	for _, id := range unionOrder(local.Steps, upstream.Steps, stepID) {
 		baseStep, inBase := baseSteps[id]
 		localStep, inLocal := localSteps[id]
@@ -127,7 +141,7 @@ func unionOrder[T any](local, upstream []T, idOf func(T) string) []string {
 }
 
 func sameItem(left, right Item) bool {
-	return left.ID == right.ID && left.Title == right.Title && left.Status == right.Status && slices.EqualFunc(left.Steps, right.Steps, sameStep)
+	return left.ID == right.ID && left.Title == right.Title && left.Owner == right.Owner && left.Status == right.Status && slices.EqualFunc(left.Steps, right.Steps, sameStep)
 }
 
 func sameStep(left, right Step) bool {
@@ -135,4 +149,57 @@ func sameStep(left, right Step) bool {
 		left.Verify == right.Verify && left.Rationale == right.Rationale &&
 		slices.Equal(left.DependsOn, right.DependsOn) && slices.Equal(left.Capabilities, right.Capabilities) &&
 		bytes.Equal(left.Outcome, right.Outcome)
+}
+
+func validateCompletionRemovals(base, descendant Plan) error {
+	receipts := indexCompletionRefs(descendant.Completed)
+	descendantItems := indexByID(descendant.Items, func(item Item) string { return item.ID })
+	for _, baseItem := range base.Items {
+		descendantItem, itemPresent := descendantItems[baseItem.ID]
+		descendantSteps := indexByID(descendantItem.Steps, func(step Step) string { return step.ID })
+		for _, baseStep := range baseItem.Steps {
+			if itemPresent {
+				if _, stepPresent := descendantSteps[baseStep.ID]; stepPresent {
+					continue
+				}
+			}
+			key := baseItem.ID + "/" + baseStep.ID
+			if _, completed := receipts[key]; !completed {
+				return fmt.Errorf("plan projection: removed step %q lacks completion receipt", key)
+			}
+		}
+	}
+	return nil
+}
+
+func mergeCompletionRefs(base, local, upstream []CompletionRef) ([]CompletionRef, error) {
+	all := [][]CompletionRef{base, local, upstream}
+	merged := map[string]CompletionRef{}
+	var order []string
+	for _, refs := range all {
+		for _, receipt := range refs {
+			key := receipt.Item + "/" + receipt.Step
+			if existing, found := merged[key]; found {
+				if existing != receipt {
+					return nil, fmt.Errorf("plan projection: completion %q has conflicting authorities", key)
+				}
+				continue
+			}
+			merged[key] = receipt
+			order = append(order, key)
+		}
+	}
+	result := make([]CompletionRef, 0, len(order))
+	for _, key := range order {
+		result = append(result, merged[key])
+	}
+	return result, nil
+}
+
+func indexCompletionRefs(refs []CompletionRef) map[string]CompletionRef {
+	indexed := make(map[string]CompletionRef, len(refs))
+	for _, receipt := range refs {
+		indexed[receipt.Item+"/"+receipt.Step] = receipt
+	}
+	return indexed
 }

@@ -9,11 +9,15 @@
 package latentimage
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
+	"overgo/internal/checked"
+	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor"
 	"overgo/internal/trainingprogram"
 )
 
@@ -50,29 +54,35 @@ type FinalLayerWeights struct {
 // tensor shapes and reads exactly the four organ tensors.
 func LoadFinalLayerWeights(src *safetensors.Source, b FinalLayerBinding) (FinalLayerWeights, error) {
 	var w FinalLayerWeights
-	read := func(name string) ([]float32, []int, error) {
+	read := func(name string) ([]float32, safetensors.Tensor, error) {
 		tensor, ok := src.Tensors[name]
 		if !ok {
-			return nil, nil, fmt.Errorf("latentimage final layer: missing tensor %s", name)
+			return nil, safetensors.Tensor{}, fmt.Errorf("latentimage final layer: missing tensor %s", name)
 		}
 		values, err := safetensors.ReadF32(tensor)
 		if err != nil {
-			return nil, nil, err
+			return nil, safetensors.Tensor{}, err
 		}
-		shape := make([]int, len(tensor.Shape))
-		for i, extent := range tensor.Shape {
-			shape[i] = int(extent)
-		}
-		return values, shape, nil
+		return values, tensor, nil
 	}
-	linear, linearShape, err := read(b.Linear)
+	linear, linearTensor, err := read(b.Linear)
 	if err != nil {
 		return w, err
 	}
-	if len(linearShape) != 2 || linearShape[0] <= 0 || linearShape[1] <= 0 {
-		return w, fmt.Errorf("latentimage final layer: %s shape %v", b.Linear, linearShape)
+	outputExtent, hiddenExtent, err := safetensors.MatrixShape(linearTensor)
+	if err != nil {
+		return w, fmt.Errorf("latentimage final layer: %s: %w", b.Linear, err)
 	}
-	w.Out, w.Hidden, w.Linear = linearShape[0], linearShape[1], linear
+	var ok bool
+	w.Out, ok = checked.Int(outputExtent)
+	if !ok {
+		return w, errors.New("latentimage final layer: output extent exceeds host range")
+	}
+	w.Hidden, ok = checked.Int(hiddenExtent)
+	if !ok {
+		return w, errors.New("latentimage final layer: hidden extent exceeds host range")
+	}
+	w.Linear = linear
 	if b.Norm != "" {
 		if w.Norm, _, err = read(b.Norm); err != nil {
 			return w, err
@@ -87,9 +97,13 @@ func LoadFinalLayerWeights(src *safetensors.Source, b FinalLayerBinding) (FinalL
 	if w.Bias, _, err = read(b.Bias); err != nil {
 		return w, err
 	}
-	if len(w.Table) != 2*w.Hidden || len(w.Bias) != w.Out {
+	tableElements, ok := checked.MulInt(tensor.PairedExtent, w.Hidden)
+	if !ok {
+		return w, fmt.Errorf("latentimage final layer: table extent overflows")
+	}
+	if !checked.Equal(len(w.Table), tableElements) || !checked.Equal(len(w.Bias), w.Out) {
 		return w, fmt.Errorf("latentimage final layer: table=%d bias=%d, want %d/%d",
-			len(w.Table), len(w.Bias), 2*w.Hidden, w.Out)
+			len(w.Table), len(w.Bias), tableElements, w.Out)
 	}
 	return w, nil
 }
@@ -109,7 +123,7 @@ type FinalLayerTrainer struct {
 
 // NewFinalLayerTrainer packs the organ and compiles the derived Muon plan.
 func NewFinalLayerTrainer(w FinalLayerWeights, eps float64) (*FinalLayerTrainer, error) {
-	if w.Hidden <= 0 || w.Out <= 0 || eps <= 0 {
+	if !checked.PositiveInts(w.Hidden, w.Out) || !checked.PositiveFinite64(eps) {
 		return nil, fmt.Errorf("latentimage final layer: geometry %dx%d eps %g", w.Hidden, w.Out, eps)
 	}
 	type section struct {
@@ -120,18 +134,18 @@ func NewFinalLayerTrainer(w FinalLayerWeights, eps float64) (*FinalLayerTrainer,
 	}
 	trainerShell := &FinalLayerTrainer{hidden: w.Hidden, out: w.Out, eps: eps, normed: w.Norm != nil}
 	sections := []section{
-		{"final.table", w.Table, 2, w.Hidden, &trainerShell.table},
+		{"final.table", w.Table, tensor.PairedExtent, w.Hidden, &trainerShell.table},
 		{"final.linear", w.Linear, w.Out, w.Hidden, &trainerShell.linear},
-		{"final.bias", w.Bias, 1, w.Out, &trainerShell.bias},
+		{"final.bias", w.Bias, tensor.SingletonExtent, w.Out, &trainerShell.bias},
 	}
 	if w.Norm != nil {
-		sections = append([]section{{"final.norm", w.Norm, 1, w.Hidden, &trainerShell.norm}}, sections...)
+		sections = append([]section{{"final.norm", w.Norm, tensor.SingletonExtent, w.Hidden, &trainerShell.norm}}, sections...)
 	}
-	total := 0
+	total := tensor.FirstOffset
 	specs := make([]optimizer.GroupSpec, len(sections))
 	for i, s := range sections {
-		if len(s.values) != s.rows*s.cols {
-			return nil, fmt.Errorf("latentimage final layer: %s has %d values, want %d", s.name, len(s.values), s.rows*s.cols)
+		if err := checked.Length(s.values, s.rows, s.cols); err != nil {
+			return nil, fmt.Errorf("latentimage final layer: %s: %w", s.name, err)
 		}
 		specs[i] = optimizer.GroupSpec{Name: s.name, Start: total, End: total + len(s.values), Rows: s.rows, Cols: s.cols}
 		total += len(s.values)
@@ -171,7 +185,10 @@ func (t *FinalLayerTrainer) Close() error { return t.stepper.Close() }
 // Velocity runs the organ forward on the packed weights: zero-centered
 // RMSNorm, AdaLN affine from temb plus the learned table, linear head.
 func (t *FinalLayerTrainer) Velocity(hidden, temb []float64) ([]float64, error) {
-	rows, err := t.rows(hidden, temb)
+	if err := checked.Length(temb, t.hidden); err != nil {
+		return nil, fmt.Errorf("latentimage final layer: temb: %w", err)
+	}
+	rows, err := checked.Rows(hidden, t.hidden)
 	if err != nil {
 		return nil, err
 	}
@@ -219,67 +236,30 @@ func (t *FinalLayerTrainer) forwardTrace(hidden, temb []float64, rows int) (norm
 	table := t.weights[t.table.start:t.table.end]
 	linW := t.weights[t.linear.start:t.linear.end]
 	linB := t.weights[t.bias.start:t.bias.end]
-	normed = make([]float64, rows*h)
-	modulated = make([]float64, rows*h)
-	for r := 0; r < rows; r++ {
-		xr := hidden[r*h : (r+1)*h]
-		if t.normed {
-			var ss float64
-			for i := 0; i < h; i++ {
-				ss += xr[i] * xr[i]
-			}
-			inv := 1 / math.Sqrt(ss/float64(h)+t.eps)
-			for i := 0; i < h; i++ {
-				normed[r*h+i] = xr[i] * inv * (1 + float64(normW[i]))
-			}
-		} else {
-			// Non-parametric LayerNorm (the Wan2.1 head).
-			var mean float64
-			for i := 0; i < h; i++ {
-				mean += xr[i]
-			}
-			mean /= float64(h)
-			var variance float64
-			for i := 0; i < h; i++ {
-				d := xr[i] - mean
-				variance += d * d
-			}
-			inv := 1 / math.Sqrt(variance/float64(h)+t.eps)
-			for i := 0; i < h; i++ {
-				normed[r*h+i] = (xr[i] - mean) * inv
-			}
-		}
-		for i := 0; i < h; i++ {
-			scale := temb[i] + float64(table[i])
-			shift := temb[i] + float64(table[h+i])
-			modulated[r*h+i] = (1+scale)*normed[r*h+i] + shift
-		}
+	if t.normed {
+		normed = append([]float64(nil), hidden...)
+		hostmath.ZeroCenteredRMSNormF64InPlace(normed, normW, rows, h, t.eps)
+	} else {
+		normed = hostmath.LayerNormF64(hidden, rows, h, t.eps)
 	}
-	out = make([]float64, rows*o)
-	for r := 0; r < rows; r++ {
-		mr := modulated[r*h : (r+1)*h]
-		for c := 0; c < o; c++ {
-			acc := float64(linB[c])
-			wRow := linW[c*h : (c+1)*h]
-			for i := 0; i < h; i++ {
-				acc += mr[i] * float64(wRow[i])
-			}
-			out[r*o+c] = acc
-		}
-	}
+	modulated = hostmath.AdaptiveAffineF64(normed, temb, table, rows, h)
+	out = hostmath.LinearFloat64(modulated, linW, linB, rows, h, o)
 	return normed, modulated, out
 }
 
 // lossAndGradients fills the packed gradient buffer without stepping. The
 // organ is the stack's last layer, so no input gradient is produced.
 func (t *FinalLayerTrainer) lossAndGradients(hidden, temb, target []float64) (float64, float64, error) {
-	rows, err := t.rows(hidden, temb)
+	if err := checked.Length(temb, t.hidden); err != nil {
+		return 0, 0, fmt.Errorf("latentimage final layer: temb: %w", err)
+	}
+	rows, err := checked.Rows(hidden, t.hidden)
 	if err != nil {
 		return 0, 0, err
 	}
 	h, o := t.hidden, t.out
-	if len(target) != rows*o {
-		return 0, 0, fmt.Errorf("latentimage final layer: target len=%d, want %d", len(target), rows*o)
+	if err := checked.Length(target, rows, o); err != nil {
+		return 0, 0, fmt.Errorf("latentimage final layer: target: %w", err)
 	}
 	normed, modulated, out := t.forwardTrace(hidden, temb, rows)
 
@@ -300,48 +280,17 @@ func (t *FinalLayerTrainer) lossAndGradients(hidden, temb, target []float64) (fl
 	gBias := t.gradients[t.bias.start:t.bias.end]
 
 	dModulated := make([]float64, rows*h)
-	for r := 0; r < rows; r++ {
-		mr := modulated[r*h : (r+1)*h]
-		dor := dOut[r*o : (r+1)*o]
-		for c := 0; c < o; c++ {
-			g := dor[c]
-			gBias[c] += float32(g)
-			wRow := linW[c*h : (c+1)*h]
-			gRow := gLin[c*h : (c+1)*h]
-			for i := 0; i < h; i++ {
-				gRow[i] += float32(g * mr[i])
-				dModulated[r*h+i] += g * float64(wRow[i])
-			}
-		}
-	}
+	hostmath.LinearFloat64Backward(dModulated, gLin, gBias, modulated, linW, dOut, rows, h, o)
 	// Affine backward: modulated = (1+scale)*n + shift with scale/shift =
 	// temb + table rows (temb is data).
 	dNormed := make([]float64, rows*h)
-	for r := 0; r < rows; r++ {
-		for i := 0; i < h; i++ {
-			g := dModulated[r*h+i]
-			scale := temb[i] + float64(table[i])
-			dNormed[r*h+i] = g * (1 + scale)
-			gTable[i] += float32(g * normed[r*h+i]) // dScale
-			gTable[h+i] += float32(g)               // dShift
-		}
-	}
+	hostmath.AdaptiveAffineBackwardF64(dNormed, gTable, normed, temb, table, dModulated, rows, h)
 	// Zero-centered RMSNorm backward: n_i = x_i*inv*(1+w_i); only the weight
 	// gradient is needed at the organ boundary. The non-parametric LayerNorm
 	// head has no norm parameter, so nothing accumulates.
 	if t.normed {
 		gNorm := t.gradients[t.norm.start:t.norm.end]
-		for r := 0; r < rows; r++ {
-			xr := hidden[r*h : (r+1)*h]
-			var ss float64
-			for i := 0; i < h; i++ {
-				ss += xr[i] * xr[i]
-			}
-			inv := 1 / math.Sqrt(ss/float64(h)+t.eps)
-			for i := 0; i < h; i++ {
-				gNorm[i] += float32(dNormed[r*h+i] * xr[i] * inv)
-			}
-		}
+		hostmath.ZeroCenteredRMSNormWeightGradientF64(gNorm, hidden, dNormed, rows, h, t.eps)
 	}
 
 	var gradientSquared float64
@@ -349,14 +298,4 @@ func (t *FinalLayerTrainer) lossAndGradients(hidden, temb, target []float64) (fl
 		gradientSquared += float64(g) * float64(g)
 	}
 	return loss, math.Sqrt(gradientSquared), nil
-}
-
-func (t *FinalLayerTrainer) rows(hidden, temb []float64) (int, error) {
-	if len(temb) != t.hidden {
-		return 0, fmt.Errorf("latentimage final layer: temb len=%d, want %d", len(temb), t.hidden)
-	}
-	if len(hidden) == 0 || len(hidden)%t.hidden != 0 {
-		return 0, fmt.Errorf("latentimage final layer: hidden len=%d not divisible by %d", len(hidden), t.hidden)
-	}
-	return len(hidden) / t.hidden, nil
 }

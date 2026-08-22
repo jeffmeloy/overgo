@@ -11,6 +11,22 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+func TestBorrowedValueValidatesShapeWithoutCopy(t *testing.T) {
+	shape := tensor.MustShape(2)
+	data := []float32{1, 2}
+	value, err := BorrowedValue(shape, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data[0] = 3
+	if value.Data[0] != 3 {
+		t.Fatal("borrowed value did not retain caller storage")
+	}
+	if _, err := BorrowedValue(shape, data[:1]); err == nil {
+		t.Fatal("borrowed value accepted mismatched storage")
+	}
+}
+
 func TestExecuteElementwiseNormSoftmax(t *testing.T) {
 	builder := tensor.NewBuilder()
 	shape := tensor.MustShape(4, 2)

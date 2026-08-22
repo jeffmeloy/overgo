@@ -443,3 +443,13 @@ func LinearBackwardInput(dx, dy, w []float32, rows, inDim, outDim int) {
 		}
 	})
 }
+
+// AddBiasGradientF32 accumulates column sums from row-major output gradients.
+func AddBiasGradientF32(destination, gradients []float32, rows, width int) {
+	for row := range rows {
+		current := gradients[row*width : (row+1)*width]
+		for column, gradient := range current {
+			destination[column] += gradient
+		}
+	}
+}

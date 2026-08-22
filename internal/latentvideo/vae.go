@@ -17,20 +17,16 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/checked"
 	"overgo/internal/hostmath"
 	"overgo/internal/media"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/tensor"
 )
-
-// channelNormZeroGuard: zero-column RMS floor (reference constant).
-const channelNormZeroGuard = 1e-12
-
-// vaeSpatialScale: every resample stage is a fixed 2x (Wan resample stack).
-const vaeSpatialScale = 2
 
 type vaePlanCore struct {
 	media.CodecProgram[[]pytorchzip.TensorBinding]
-	Stride               [3]int
+	Stride               [tensor.TripleExtent]int
 	UsedTensorCount      int
 	UsedWeightBytes      int64
 	LargestOpWeightBytes int64
@@ -49,9 +45,9 @@ type VAELatentStats struct {
 	Mean, Std []float32
 }
 
-type vaeTensorShape struct {
-	name  string
-	shape []int64
+type vaeTensorMetadata struct {
+	name       string
+	dimensions []int64
 }
 
 type vaePlanStats struct {
@@ -76,12 +72,12 @@ func newVAEPlanCompiler(scope string, metas []pytorchzip.TensorMeta) *vaePlanCom
 	return compiler
 }
 
-func (c *vaePlanCompiler) shape(name string) (vaeTensorShape, error) {
+func (c *vaePlanCompiler) tensorMetadata(name string) (vaeTensorMetadata, error) {
 	meta, ok := c.byName[name]
 	if !ok {
-		return vaeTensorShape{}, fmt.Errorf("%s: missing tensor %s", c.scope, name)
+		return vaeTensorMetadata{}, fmt.Errorf("%s: missing tensor %s", c.scope, name)
 	}
-	return vaeTensorShape{name: name, shape: meta.Shape}, nil
+	return vaeTensorMetadata{name: name, dimensions: meta.Shape}, nil
 }
 
 func (c *vaePlanCompiler) vector(name string, elements int) error {
@@ -118,7 +114,7 @@ func (c *vaePlanCompiler) finish(owned func(string) bool) (vaePlanStats, error) 
 			unexpected = append(unexpected, meta.Name)
 		}
 	}
-	if len(unexpected) > 0 {
+	if checked.Nonempty(unexpected) {
 		sort.Strings(unexpected)
 		return vaePlanStats{}, fmt.Errorf("%s: unconsumed tensors %v", c.scope, unexpected)
 	}
@@ -127,7 +123,7 @@ func (c *vaePlanCompiler) finish(owned func(string) bool) (vaePlanStats, error) 
 		return vaePlanStats{}, err
 	}
 	var stats vaePlanStats
-	offset := 0
+	offset := tensor.FirstOffset
 	for index := range c.ops {
 		op := &c.ops[index]
 		count := op.BindingCount
@@ -145,24 +141,24 @@ func (c *vaePlanCompiler) finish(owned func(string) bool) (vaePlanStats, error) 
 		stats.weightBytes += operationBytes
 		stats.largestOpBytes = max(stats.largestOpBytes, operationBytes)
 	}
-	if offset != len(bindings) {
+	if !checked.Equal(offset, len(bindings)) {
 		return vaePlanStats{}, fmt.Errorf("%s: binding partition consumed %d of %d", c.scope, offset, len(bindings))
 	}
 	return stats, nil
 }
 
-func (s vaeTensorShape) conv3d(label string) (cOut, cIn, kt, kh, kw int, err error) {
-	if len(s.shape) != 5 {
-		return 0, 0, 0, 0, 0, fmt.Errorf("vae decoder %s: %s shape %v is not rank-5", label, s.name, s.shape)
+func (s vaeTensorMetadata) conv3d(label string) (cOut, cIn, kt, kh, kw int, err error) {
+	if !checked.Equal(len(s.dimensions), tensor.MaxDimensions+tensor.SingletonExtent) {
+		return 0, 0, 0, 0, 0, fmt.Errorf("vae decoder %s: %s shape %v is not rank-5", label, s.name, s.dimensions)
 	}
-	return int(s.shape[0]), int(s.shape[1]), int(s.shape[2]), int(s.shape[3]), int(s.shape[4]), nil
+	return int(s.dimensions[tensor.FirstOffset]), int(s.dimensions[tensor.SingletonExtent]), int(s.dimensions[tensor.PairedExtent]), int(s.dimensions[tensor.TripleExtent]), int(s.dimensions[tensor.MaxDimensions]), nil
 }
 
-func (s vaeTensorShape) conv2d(label string) (cOut, cIn, kh, kw int, err error) {
-	if len(s.shape) != 4 {
-		return 0, 0, 0, 0, fmt.Errorf("vae decoder %s: %s shape %v is not rank-4", label, s.name, s.shape)
+func (s vaeTensorMetadata) conv2d(label string) (cOut, cIn, kh, kw int, err error) {
+	if !checked.Equal(len(s.dimensions), tensor.MaxDimensions) {
+		return 0, 0, 0, 0, fmt.Errorf("vae decoder %s: %s shape %v is not rank-4", label, s.name, s.dimensions)
 	}
-	return int(s.shape[0]), int(s.shape[1]), int(s.shape[2]), int(s.shape[3]), nil
+	return int(s.dimensions[tensor.FirstOffset]), int(s.dimensions[tensor.SingletonExtent]), int(s.dimensions[tensor.PairedExtent]), int(s.dimensions[tensor.TripleExtent]), nil
 }
 
 // CompileVAEDecoderPlan derives the decode graph from checkpoint metadata:
@@ -175,7 +171,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 	var plan VAEDecoderPlan
 
 	// conv2: latent-space pointwise [z, z, 1, 1, 1].
-	conv2, err := compiler.shape("conv2.weight")
+	conv2, err := compiler.tensorMetadata("conv2.weight")
 	if err != nil {
 		return plan, err
 	}
@@ -183,14 +179,14 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 	if err != nil {
 		return plan, err
 	}
-	if zOut != zIn || kt != 1 || kh != 1 || kw != 1 {
-		return plan, fmt.Errorf("vae decoder: conv2.weight shape %v is not a latent pointwise", conv2.shape)
+	if !media.Convolution3DMatches(zOut, zIn, kt, kh, kw, zIn, zIn, tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent) {
+		return plan, fmt.Errorf("vae decoder: conv2.weight shape %v is not a latent pointwise", conv2.dimensions)
 	}
 	plan.ZDim = zIn
 	compiler.add(media.CodecPointwise, "conv2", zIn, zOut, "conv2.weight", "conv2.bias")
 
 	// decoder.conv1: latent -> feature volume conv [c, z, 3, 3, 3].
-	conv1, err := compiler.shape("decoder.conv1.weight")
+	conv1, err := compiler.tensorMetadata("decoder.conv1.weight")
 	if err != nil {
 		return plan, err
 	}
@@ -198,14 +194,14 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 	if err != nil {
 		return plan, err
 	}
-	if c1In != plan.ZDim || kt != 3 || kh != 3 || kw != 3 {
-		return plan, fmt.Errorf("vae decoder: decoder.conv1.weight shape %v incompatible with z_dim=%d", conv1.shape, plan.ZDim)
+	if !media.Convolution3DMatches(c1Out, c1In, kt, kh, kw, c1Out, plan.ZDim, tensor.TripleExtent, tensor.TripleExtent, tensor.TripleExtent) {
+		return plan, fmt.Errorf("vae decoder: decoder.conv1.weight shape %v incompatible with z_dim=%d", conv1.dimensions, plan.ZDim)
 	}
 	compiler.add(media.CodecConvolution, "decoder.conv1", c1In, c1Out, "decoder.conv1.weight", "decoder.conv1.bias")
 	channels := c1Out
 
 	compileResidual := func(prefix string) (int, error) {
-		w0, err := compiler.shape(prefix + ".residual.2.weight")
+		w0, err := compiler.tensorMetadata(prefix + ".residual.2.weight")
 		if err != nil {
 			return 0, err
 		}
@@ -213,10 +209,10 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		if err != nil {
 			return 0, err
 		}
-		if cIn != channels || kt != 3 || kh != 3 || kw != 3 {
-			return 0, fmt.Errorf("vae decoder: %s shape %v incompatible with input channels=%d", w0.name, w0.shape, channels)
+		if !media.Convolution3DMatches(cOut, cIn, kt, kh, kw, cOut, channels, tensor.TripleExtent, tensor.TripleExtent, tensor.TripleExtent) {
+			return 0, fmt.Errorf("vae decoder: %s shape %v incompatible with input channels=%d", w0.name, w0.dimensions, channels)
 		}
-		w1, err := compiler.shape(prefix + ".residual.6.weight")
+		w1, err := compiler.tensorMetadata(prefix + ".residual.6.weight")
 		if err != nil {
 			return 0, err
 		}
@@ -224,8 +220,8 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		if err != nil {
 			return 0, err
 		}
-		if c1 != cOut || c1In != cOut || kt != 3 || kh != 3 || kw != 3 {
-			return 0, fmt.Errorf("vae decoder: %s shape %v incompatible with channels=%d", w1.name, w1.shape, cOut)
+		if !media.Convolution3DMatches(c1, c1In, kt, kh, kw, cOut, cOut, tensor.TripleExtent, tensor.TripleExtent, tensor.TripleExtent) {
+			return 0, fmt.Errorf("vae decoder: %s shape %v incompatible with channels=%d", w1.name, w1.dimensions, cOut)
 		}
 		for _, check := range []struct {
 			name     string
@@ -243,11 +239,11 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 			prefix + ".residual.3.gamma", prefix + ".residual.6.weight", prefix + ".residual.6.bias",
 		}
 		hasShortcut := compiler.has(prefix + ".shortcut.weight")
-		if hasShortcut != (cIn != cOut) {
+		if !checked.Equal(hasShortcut, !checked.Equal(cIn, cOut)) {
 			return 0, fmt.Errorf("vae decoder: %s shortcut presence=%t but channels %d->%d", prefix, hasShortcut, cIn, cOut)
 		}
 		if hasShortcut {
-			sw, err := compiler.shape(prefix + ".shortcut.weight")
+			sw, err := compiler.tensorMetadata(prefix + ".shortcut.weight")
 			if err != nil {
 				return 0, err
 			}
@@ -255,8 +251,8 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 			if err != nil {
 				return 0, err
 			}
-			if sOut != cOut || sIn != cIn || kt != 1 || kh != 1 || kw != 1 {
-				return 0, fmt.Errorf("vae decoder: %s shape %v is not a %d->%d pointwise", sw.name, sw.shape, cIn, cOut)
+			if !media.Convolution3DMatches(sOut, sIn, kt, kh, kw, cOut, cIn, tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent) {
+				return 0, fmt.Errorf("vae decoder: %s shape %v is not a %d->%d pointwise", sw.name, sw.dimensions, cIn, cOut)
 			}
 			if err := compiler.vector(prefix+".shortcut.bias", cOut); err != nil {
 				return 0, err
@@ -267,7 +263,11 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		return cOut, nil
 	}
 	compileAttention := func(prefix string) error {
-		qkv, err := compiler.shape(prefix + ".to_qkv.weight")
+		qkvChannels, ok := checked.MulInt(tensor.TripleExtent, channels)
+		if !ok {
+			return fmt.Errorf("vae decoder: %s qkv channels overflow", prefix)
+		}
+		qkv, err := compiler.tensorMetadata(prefix + ".to_qkv.weight")
 		if err != nil {
 			return err
 		}
@@ -275,10 +275,10 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		if err != nil {
 			return err
 		}
-		if qkvIn != channels || qkvOut != 3*channels || kh != 1 || kw != 1 {
-			return fmt.Errorf("vae decoder: %s shape %v incompatible with channels=%d", qkv.name, qkv.shape, channels)
+		if !media.Convolution2DMatches(qkvOut, qkvIn, kh, kw, qkvChannels, channels, tensor.SingletonExtent, tensor.SingletonExtent) {
+			return fmt.Errorf("vae decoder: %s shape %v incompatible with channels=%d", qkv.name, qkv.dimensions, channels)
 		}
-		proj, err := compiler.shape(prefix + ".proj.weight")
+		proj, err := compiler.tensorMetadata(prefix + ".proj.weight")
 		if err != nil {
 			return err
 		}
@@ -286,14 +286,14 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		if err != nil {
 			return err
 		}
-		if projOut != channels || projIn != channels || kh != 1 || kw != 1 {
-			return fmt.Errorf("vae decoder: %s shape %v incompatible with channels=%d", proj.name, proj.shape, channels)
+		if !media.Convolution2DMatches(projOut, projIn, kh, kw, channels, channels, tensor.SingletonExtent, tensor.SingletonExtent) {
+			return fmt.Errorf("vae decoder: %s shape %v incompatible with channels=%d", proj.name, proj.dimensions, channels)
 		}
 		for _, check := range []struct {
 			name     string
 			elements int
 		}{
-			{prefix + ".norm.gamma", channels}, {prefix + ".to_qkv.bias", 3 * channels}, {prefix + ".proj.bias", channels},
+			{prefix + ".norm.gamma", channels}, {prefix + ".to_qkv.bias", qkvChannels}, {prefix + ".proj.bias", channels},
 		} {
 			if err := compiler.vector(check.name, check.elements); err != nil {
 				return err
@@ -305,7 +305,7 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		return nil
 	}
 	compileResample := func(prefix string) (int, error) {
-		rw, err := compiler.shape(prefix + ".resample.1.weight")
+		rw, err := compiler.tensorMetadata(prefix + ".resample.1.weight")
 		if err != nil {
 			return 0, err
 		}
@@ -313,19 +313,20 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		if err != nil {
 			return 0, err
 		}
-		if cIn != channels {
-			return 0, fmt.Errorf("vae decoder: %s shape %v incompatible with channels=%d", rw.name, rw.shape, channels)
+		if !checked.Equal(cIn, channels) {
+			return 0, fmt.Errorf("vae decoder: %s shape %v incompatible with channels=%d", rw.name, rw.dimensions, channels)
 		}
 		if err := compiler.vector(prefix+".resample.1.bias", cOut); err != nil {
 			return 0, err
 		}
 		if !compiler.has(prefix + ".time_conv.weight") {
-			compiler.add(media.CodecUpsampleSpatial, prefix, cIn, cOut, prefix+".resample.1.weight", prefix+".resample.1.bias")
-			plan.Stride[1] *= vaeSpatialScale
-			plan.Stride[2] *= vaeSpatialScale
+			operator := media.CodecUpsampleSpatial
+			compiler.add(operator, prefix, cIn, cOut, prefix+".resample.1.weight", prefix+".resample.1.bias")
+			plan.Stride[tensor.SingletonExtent] *= operator.SpatialScale()
+			plan.Stride[tensor.PairedExtent] *= operator.SpatialScale()
 			return cOut, nil
 		}
-		tw, err := compiler.shape(prefix + ".time_conv.weight")
+		tw, err := compiler.tensorMetadata(prefix + ".time_conv.weight")
 		if err != nil {
 			return 0, err
 		}
@@ -333,24 +334,26 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 		if err != nil {
 			return 0, err
 		}
-		if tIn != channels || tOut != 2*channels || kt != 3 || kh != 1 || kw != 1 {
-			return 0, fmt.Errorf("vae decoder: %s shape %v is not a %d->%d temporal conv", tw.name, tw.shape, channels, 2*channels)
+		temporalChannels, ok := checked.MulInt(tensor.PairedExtent, channels)
+		if !ok || !media.Convolution3DMatches(tOut, tIn, kt, kh, kw, temporalChannels, channels, tensor.TripleExtent, tensor.SingletonExtent, tensor.SingletonExtent) {
+			return 0, fmt.Errorf("vae decoder: %s shape %v is not a %d->%d temporal conv", tw.name, tw.dimensions, channels, temporalChannels)
 		}
 		if err := compiler.vector(prefix+".time_conv.bias", tOut); err != nil {
 			return 0, err
 		}
-		compiler.add(media.CodecUpsampleSpatiotemporal, prefix, cIn, cOut,
+		operator := media.CodecUpsampleSpatiotemporal
+		compiler.add(operator, prefix, cIn, cOut,
 			prefix+".time_conv.weight", prefix+".time_conv.bias",
 			prefix+".resample.1.weight", prefix+".resample.1.bias")
-		plan.Stride[0] *= vaeSpatialScale
-		plan.Stride[1] *= vaeSpatialScale
-		plan.Stride[2] *= vaeSpatialScale
+		plan.Stride[tensor.FirstOffset] *= operator.TemporalScale()
+		plan.Stride[tensor.SingletonExtent] *= operator.SpatialScale()
+		plan.Stride[tensor.PairedExtent] *= operator.SpatialScale()
 		return cOut, nil
 	}
 
-	plan.Stride = [3]int{1, 1, 1}
+	plan.Stride = [tensor.TripleExtent]int{tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent}
 	for _, group := range []string{"decoder.middle", "decoder.upsamples"} {
-		count := 0
+		count := tensor.FirstOffset
 		for {
 			prefix := fmt.Sprintf("%s.%d", group, count)
 			isResidual := compiler.has(prefix + ".residual.0.gamma")
@@ -374,13 +377,13 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 			}
 			count++
 		}
-		if count == 0 {
+		if checked.Equal(count, tensor.FirstOffset) {
 			return plan, fmt.Errorf("vae decoder: no operations under %s", group)
 		}
 	}
 
 	// decoder.head: norm+silu then conv to output channels.
-	hw, err := compiler.shape("decoder.head.2.weight")
+	hw, err := compiler.tensorMetadata("decoder.head.2.weight")
 	if err != nil {
 		return plan, err
 	}
@@ -388,8 +391,8 @@ func CompileVAEDecoderPlan(metas []pytorchzip.TensorMeta) (VAEDecoderPlan, error
 	if err != nil {
 		return plan, err
 	}
-	if headIn != channels || kt != 3 || kh != 3 || kw != 3 {
-		return plan, fmt.Errorf("vae decoder: decoder.head.2.weight shape %v incompatible with channels=%d", hw.shape, channels)
+	if !media.Convolution3DMatches(headOut, headIn, kt, kh, kw, headOut, channels, tensor.TripleExtent, tensor.TripleExtent, tensor.TripleExtent) {
+		return plan, fmt.Errorf("vae decoder: decoder.head.2.weight shape %v incompatible with channels=%d", hw.dimensions, channels)
 	}
 	if err := compiler.vector("decoder.head.0.gamma", channels); err != nil {
 		return plan, err
@@ -445,22 +448,20 @@ type vaeDecodeGeometry struct {
 
 func prepareVAEDecode(scope, engine string, plan VAEDecoderPlan, opCount int, stats VAELatentStats, z []float32, latentFrames, latentH, latentW int, sink VideoFrameSink) (VAEDecodeStats, vaeDecodeGeometry, error) {
 	var result VAEDecodeStats
-	if sink == nil || opCount == 0 {
+	if sink == nil || !checked.PositiveInts(opCount) {
 		return result, vaeDecodeGeometry{}, fmt.Errorf("%s: sink or operations absent", scope)
 	}
-	if len(stats.Mean) != plan.ZDim || len(stats.Std) != plan.ZDim {
-		return result, vaeDecodeGeometry{}, fmt.Errorf("%s: latent stats mean=%d std=%d want %d", scope, len(stats.Mean), len(stats.Std), plan.ZDim)
+	if err := media.ValidateChannelMoments(stats.Mean, stats.Std, plan.ZDim); err != nil {
+		return result, vaeDecodeGeometry{}, fmt.Errorf("%s: latent stats: %w", scope, err)
 	}
-	for channel, std := range stats.Std {
-		if std <= 0 {
-			return result, vaeDecodeGeometry{}, fmt.Errorf("%s: nonpositive std for channel %d", scope, channel)
-		}
+	spatial, ok := checked.MulInt(latentH, latentW)
+	if !ok {
+		return result, vaeDecodeGeometry{}, fmt.Errorf("%s: latent spatial extent overflows", scope)
 	}
-	spatial := latentH * latentW
-	if latentFrames <= 0 || spatial <= 0 || len(z) != plan.ZDim*latentFrames*spatial {
-		return result, vaeDecodeGeometry{}, fmt.Errorf("%s: latent len=%d want %d", scope, len(z), plan.ZDim*latentFrames*spatial)
+	if err := checked.Length(z, plan.ZDim, latentFrames, latentH, latentW); err != nil {
+		return result, vaeDecodeGeometry{}, fmt.Errorf("%s: latent storage: %w", scope, err)
 	}
-	channels, frames, height, width, err := VideoDecodeShape(plan, latentFrames, latentH, latentW)
+	channels, frames, height, width, err := CompileVideoDecodeGeometry(plan, latentFrames, latentH, latentW)
 	if err != nil {
 		return result, vaeDecodeGeometry{}, err
 	}
@@ -503,27 +504,27 @@ type vaeOpState struct {
 // frame when the chunk is a single frame; mode 1 (replicatePrefix): zero
 // frame then the chunk.
 func nextTemporalCache(prior vaeTemporalCache, x []float32, c, frames, spatial int, replicatePrefix bool) vaeTemporalCache {
-	nextFrames := min(2, frames)
-	if replicatePrefix || (frames < 2 && prior.initialized && prior.frames > 0) {
-		nextFrames = frames + 1
+	nextFrames := min(tensor.PairedExtent, frames)
+	if replicatePrefix || (!checked.AtLeastInt(frames, tensor.PairedExtent) && prior.initialized && checked.PositiveInts(prior.frames)) {
+		nextFrames, _ = checked.AddInt(frames, tensor.SingletonExtent)
 	}
 	out := make([]float32, c*nextFrames*spatial)
-	for ch := 0; ch < c; ch++ {
-		for ti := 0; ti < nextFrames; ti++ {
-			dst := out[(ch*nextFrames+ti)*spatial : (ch*nextFrames+ti+1)*spatial]
+	for ch := range c {
+		for ti := range nextFrames {
+			dst := out[(ch*nextFrames+ti)*spatial : (ch*nextFrames+ti+tensor.SingletonExtent)*spatial]
 			switch {
-			case replicatePrefix && ti == 0:
+			case replicatePrefix && checked.Equal(ti, tensor.FirstOffset):
 				// zero prefix (already zeroed)
 			case replicatePrefix:
-				copy(dst, x[(ch*frames+ti-1)*spatial:])
-			case frames >= 2:
+				copy(dst, x[(ch*frames+ti-tensor.SingletonExtent)*spatial:])
+			case checked.AtLeastInt(frames, tensor.PairedExtent):
 				copy(dst, x[(ch*frames+frames-nextFrames+ti)*spatial:])
-			case prior.frames > 0 && ti == 0:
-				copy(dst, prior.data[(ch*prior.frames+prior.frames-1)*spatial:])
+			case checked.PositiveInts(prior.frames) && checked.Equal(ti, tensor.FirstOffset):
+				copy(dst, prior.data[(ch*prior.frames+checked.ReverseIndex(tensor.FirstOffset, prior.frames))*spatial:])
 			default:
 				src := ti
-				if prior.frames > 0 {
-					src = ti - 1
+				if checked.PositiveInts(prior.frames) {
+					src = ti - tensor.SingletonExtent
 				}
 				copy(dst, x[(ch*frames+src)*spatial:])
 			}
@@ -536,15 +537,16 @@ func nextTemporalCache(prior vaeTemporalCache, x []float32, c, frames, spatial i
 // channel output [2c][t][s] interleaves to [c][2t][s], even output frames
 // from the first channel half (reference reshape+stack).
 func timeInterleaveInto(out, convolved []float32, c, frames, spatial int) error {
-	if len(convolved) != 2*c*frames*spatial || len(out) != len(convolved) {
+	want, ok := checked.ProductInt(tensor.PairedExtent, c, frames, spatial)
+	if !ok || !checked.Equal(len(convolved), want) || !checked.Equal(len(out), len(convolved)) {
 		return fmt.Errorf("vae time interleave: bad lengths out=%d convolved=%d", len(out), len(convolved))
 	}
-	outFrames := 2 * frames
-	for ch := 0; ch < c; ch++ {
-		for ti := 0; ti < outFrames; ti++ {
-			src := ((ti&1)*c + ch) * frames * spatial
-			copy(out[(ch*outFrames+ti)*spatial:(ch*outFrames+ti+1)*spatial],
-				convolved[src+(ti/2)*spatial:])
+	outFrames, _ := checked.MulInt(tensor.PairedExtent, frames)
+	for ch := range c {
+		for ti := range outFrames {
+			src := ((ti%tensor.PairedExtent)*c + ch) * frames * spatial
+			copy(out[(ch*outFrames+ti)*spatial:(ch*outFrames+ti+tensor.SingletonExtent)*spatial],
+				convolved[src+(ti/tensor.PairedExtent)*spatial:])
 		}
 	}
 	return nil
@@ -572,49 +574,12 @@ func loadVAEOps(reader *pytorchzip.Reader, plan vaePlanCore, scope string) ([]va
 	return ops, nil
 }
 
-func downsample2DInto(out, input, weight, bias []float32, channels, frames, height, width int) error {
-	if channels <= 0 || frames <= 0 || height <= 0 || width <= 0 || height%2 != 0 || width%2 != 0 ||
-		len(input) != channels*frames*height*width || len(weight) != channels*channels*3*3 || len(bias) != channels ||
-		len(out) != channels*frames*(height/2)*(width/2) {
-		return fmt.Errorf("vae downsample2d: invalid shape")
-	}
-	outHeight, outWidth := height/2, width/2
-	for outputChannel := range channels {
-		for frame := range frames {
-			for outputY := range outHeight {
-				for outputX := range outWidth {
-					sum := float64(bias[outputChannel])
-					for inputChannel := range channels {
-						for kernelY := range 3 {
-							inputY := 2*outputY + kernelY
-							if inputY >= height {
-								continue
-							}
-							for kernelX := range 3 {
-								inputX := 2*outputX + kernelX
-								if inputX >= width {
-									continue
-								}
-								inputIndex := ((inputChannel*frames+frame)*height+inputY)*width + inputX
-								weightIndex := ((outputChannel*channels+inputChannel)*3+kernelY)*3 + kernelX
-								sum += float64(input[inputIndex]) * float64(weight[weightIndex])
-							}
-						}
-					}
-					out[((outputChannel*frames+frame)*outHeight+outputY)*outWidth+outputX] = float32(sum)
-				}
-			}
-		}
-	}
-	return nil
-}
-
 func causalGeometry(cIn, cOut, kt, kh, kw, padT, t, h, w int) hostmath.Conv3DShape {
 	return hostmath.Conv3DShape{
 		CIn: cIn, COut: cOut, InT: t, InH: h, InW: w,
 		KT: kt, KH: kh, KW: kw,
-		PadT: padT, PadH: kh / 2, PadW: kw / 2,
-		StrideT: 1, StrideH: 1, StrideW: 1,
+		PadT: padT, PadH: kh / tensor.PairedExtent, PadW: kw / tensor.PairedExtent,
+		StrideT: tensor.SingletonExtent, StrideH: tensor.SingletonExtent, StrideW: tensor.SingletonExtent,
 	}
 }
 
@@ -624,11 +589,11 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 	spatial := h * w
 	c := op.InputChannels
 	cachedConv := func(out, input []float32, cache *vaeTemporalCache, weight, bias []float32, cOut, kt, kh, kw int) error {
-		shape := causalGeometry(c, cOut, kt, kh, kw, kt/2, frames, h, w)
+		shape := causalGeometry(c, cOut, kt, kh, kw, kt/tensor.PairedExtent, frames, h, w)
 		if err := hostmath.CausalConv3DInto(out, input, cache.data, weight, bias, cache.frames, shape); err != nil {
 			return err
 		}
-		if shape.PadT != 0 {
+		if checked.Nonzero(shape.PadT) {
 			*cache = nextTemporalCache(*cache, input, c, frames, spatial, false)
 		}
 		return nil
@@ -636,9 +601,9 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 	switch op.Operator {
 	case media.CodecPointwise, media.CodecConvolution:
 		weight, bias := op.values[0], op.values[1]
-		kt := 1
+		kt := tensor.SingletonExtent
 		if op.Operator == media.CodecConvolution {
-			kt = 3
+			kt = tensor.TripleExtent
 		}
 		out := make([]float32, op.OutputChannels*frames*spatial)
 		if err := cachedConv(out, x, &state.cache0, weight, bias, op.OutputChannels, kt, kt, kt); err != nil {
@@ -649,33 +614,37 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 		gamma0, w0, b0 := op.values[0], op.values[1], op.values[2]
 		gamma1, w1, b1 := op.values[3], op.values[4], op.values[5]
 		n0 := make([]float32, len(x))
-		if err := hostmath.ChannelRMSNormF64Into(n0, x, gamma0, c, frames*spatial, channelNormZeroGuard); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(n0, x, gamma0, c, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(n0)
 		h0 := make([]float32, op.OutputChannels*frames*spatial)
-		if err := cachedConv(h0, n0, &state.cache0, w0, b0, op.OutputChannels, 3, 3, 3); err != nil {
+		if err := cachedConv(h0, n0, &state.cache0, w0, b0, op.OutputChannels, tensor.TripleExtent, tensor.TripleExtent, tensor.TripleExtent); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		n1 := make([]float32, len(h0))
-		if err := hostmath.ChannelRMSNormF64Into(n1, h0, gamma1, op.OutputChannels, frames*spatial, channelNormZeroGuard); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(n1, h0, gamma1, op.OutputChannels, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(n1)
 		out := make([]float32, len(h0))
-		shape1 := causalGeometry(op.OutputChannels, op.OutputChannels, 3, 3, 3, 1, frames, h, w)
+		shape1 := causalGeometry(op.OutputChannels, op.OutputChannels, tensor.TripleExtent, tensor.TripleExtent, tensor.TripleExtent, tensor.SingletonExtent, frames, h, w)
 		if err := hostmath.CausalConv3DInto(out, n1, state.cache1.data, w1, b1, state.cache1.frames, shape1); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		state.cache1 = nextTemporalCache(state.cache1, n1, op.OutputChannels, frames, spatial, false)
-		if op.InputChannels == op.OutputChannels {
+		if !op.RequiresProjection() {
 			for i := range out {
 				out[i] += x[i]
 			}
 			return out, frames, h, w, nil
 		}
 		shortcut := make([]float32, len(out))
-		if err := hostmath.ChannelMixF64Into(shortcut, x, op.values[6], op.values[7], c, op.OutputChannels, frames*spatial); err != nil {
+		projection, ok := checked.Suffix(op.values, tensor.PairedExtent)
+		if !ok {
+			return nil, 0, 0, 0, fmt.Errorf("vae residual projection bindings are absent")
+		}
+		if err := hostmath.ChannelMixF64Into(shortcut, x, projection[tensor.FirstOffset], projection[tensor.SingletonExtent], c, op.OutputChannels, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		for i := range out {
@@ -686,11 +655,16 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 		gamma, qkvW, qkvB := op.values[0], op.values[1], op.values[2]
 		projW, projB := op.values[3], op.values[4]
 		norm := make([]float32, len(x))
-		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, frames*spatial, channelNormZeroGuard); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		qkv := make([]float32, 3*c*frames*spatial)
-		if err := hostmath.ChannelMixF64Into(qkv, norm, qkvW, qkvB, c, 3*c, frames*spatial); err != nil {
+		qkvChannels, ok := checked.MulInt(tensor.TripleExtent, c)
+		qkvElements, elementsOK := checked.ProductInt(qkvChannels, frames, spatial)
+		if !ok || !elementsOK {
+			return nil, 0, 0, 0, fmt.Errorf("vae attention geometry overflows")
+		}
+		qkv := make([]float32, qkvElements)
+		if err := hostmath.ChannelMixF64Into(qkv, norm, qkvW, qkvB, c, qkvChannels, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		if err := hostmath.SpatialAttentionF64Into(norm, qkv, c, frames, spatial); err != nil {
@@ -705,93 +679,103 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 		}
 		return out, frames, h, w, nil
 	case media.CodecDownsampleSpatial:
-		out := make([]float32, op.OutputChannels*frames*(h/2)*(w/2))
-		if err := downsample2DInto(out, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
+		scale := op.Operator.SpatialScale()
+		out := make([]float32, op.OutputChannels*frames*(h/scale)*(w/scale))
+		if err := hostmath.Downsample2DChannelsF64Into(out, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		return out, frames, h / 2, w / 2, nil
+		return out, frames, h / scale, w / scale, nil
 	case media.CodecDownsampleSpatiotemporal:
-		outH, outW := h/2, w/2
+		scale := op.Operator.SpatialScale()
+		outH, outW := h/scale, w/scale
 		spatialOut := make([]float32, op.OutputChannels*frames*outH*outW)
-		if err := downsample2DInto(spatialOut, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
+		if err := hostmath.Downsample2DChannelsF64Into(spatialOut, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		prior := state.cache0
 		state.cache0 = nextTemporalCache(state.cache0, spatialOut, op.OutputChannels, frames, outH*outW, false)
-		if chunkIndex == 0 {
+		if checked.Equal(chunkIndex, tensor.FirstOffset) {
 			return spatialOut, frames, outH, outW, nil
 		}
-		joinedFrames := frames + 1
+		joinedFrames, _ := checked.AddInt(frames, tensor.SingletonExtent)
 		joined := make([]float32, op.OutputChannels*joinedFrames*outH*outW)
 		for channel := range op.OutputChannels {
-			if prior.frames > 0 {
-				destination := joined[channel*joinedFrames*outH*outW : (channel*joinedFrames+1)*outH*outW]
-				source := prior.data[(channel*prior.frames+prior.frames-1)*outH*outW : (channel*prior.frames+prior.frames)*outH*outW]
+			if checked.PositiveInts(prior.frames) {
+				destination := joined[channel*joinedFrames*outH*outW : (channel*joinedFrames+tensor.SingletonExtent)*outH*outW]
+				source := prior.data[(channel*prior.frames+checked.ReverseIndex(tensor.FirstOffset, prior.frames))*outH*outW : (channel*prior.frames+prior.frames)*outH*outW]
 				copy(destination, source)
 			}
-			destination := joined[(channel*joinedFrames+1)*outH*outW : (channel+1)*joinedFrames*outH*outW]
-			source := spatialOut[channel*frames*outH*outW : (channel+1)*frames*outH*outW]
+			destination := joined[(channel*joinedFrames+tensor.SingletonExtent)*outH*outW : (channel+tensor.SingletonExtent)*joinedFrames*outH*outW]
+			source := spatialOut[channel*frames*outH*outW : (channel+tensor.SingletonExtent)*frames*outH*outW]
 			copy(destination, source)
 		}
 		shape := hostmath.Conv3DShape{
 			CIn: op.OutputChannels, COut: op.OutputChannels, InT: joinedFrames, InH: outH, InW: outW,
-			KT: 3, KH: 1, KW: 1, StrideT: 2, StrideH: 1, StrideW: 1,
+			KT: tensor.TripleExtent, KH: tensor.SingletonExtent, KW: tensor.SingletonExtent,
+			StrideT: op.Operator.TemporalScale(), StrideH: tensor.SingletonExtent, StrideW: tensor.SingletonExtent,
 		}
 		outFrames, _, _, err := shape.OutputDims()
 		if err != nil {
 			return nil, 0, 0, 0, err
 		}
 		out := make([]float32, op.OutputChannels*outFrames*outH*outW)
-		if err := hostmath.CausalConv3DInto(out, joined, nil, op.values[2], op.values[3], 0, shape); err != nil {
+		if err := hostmath.CausalConv3DInto(out, joined, nil, op.values[tensor.PairedExtent], op.values[tensor.TripleExtent], tensor.FirstOffset, shape); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, outFrames, outH, outW, nil
 	case media.CodecUpsampleSpatial:
 		weight, bias := op.values[0], op.values[1]
-		out := make([]float32, op.OutputChannels*frames*vaeSpatialScale*h*vaeSpatialScale*w)
+		scale := op.Operator.SpatialScale()
+		out := make([]float32, op.OutputChannels*frames*scale*h*scale*w)
 		if err := hostmath.ResizeConv2DInto(out, x, weight, bias, c, op.OutputChannels, frames, h, w); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		return out, frames, vaeSpatialScale * h, vaeSpatialScale * w, nil
+		return out, frames, scale * h, scale * w, nil
 	case media.CodecUpsampleSpatiotemporal:
 		timeW, timeB := op.values[0], op.values[1]
 		resampleW, resampleB := op.values[2], op.values[3]
 		spatialInput, spatialFrames := x, frames
-		if chunkIndex == 0 {
+		if checked.Equal(chunkIndex, tensor.FirstOffset) {
 			state.cache0 = vaeTemporalCache{initialized: true, rep: true}
 		} else {
-			replicatePrefix := state.cache0.rep && frames < 2
+			replicatePrefix := state.cache0.rep && !checked.AtLeastInt(frames, tensor.PairedExtent)
 			nextCache := nextTemporalCache(state.cache0, x, c, frames, spatial, replicatePrefix)
 			cacheData, cacheFrames := state.cache0.data, state.cache0.frames
 			if state.cache0.rep {
-				cacheData, cacheFrames = nil, 0
+				cacheData, cacheFrames = nil, tensor.FirstOffset
 			}
-			timeShape := causalGeometry(c, 2*c, 3, 1, 1, 1, frames, h, w)
-			timeOut := make([]float32, 2*c*frames*spatial)
+			temporalChannels, ok := checked.MulInt(tensor.PairedExtent, c)
+			timeElements, elementsOK := checked.ProductInt(temporalChannels, frames, spatial)
+			if !ok || !elementsOK {
+				return nil, 0, 0, 0, fmt.Errorf("vae temporal upsample geometry overflows")
+			}
+			timeShape := causalGeometry(c, temporalChannels, tensor.TripleExtent, tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent, frames, h, w)
+			timeOut := make([]float32, timeElements)
 			if err := hostmath.CausalConv3DInto(timeOut, x, cacheData, timeW, timeB, cacheFrames, timeShape); err != nil {
 				return nil, 0, 0, 0, err
 			}
-			spatialFrames = 2 * frames
+			spatialFrames, _ = checked.MulInt(tensor.PairedExtent, frames)
 			spatialInput = make([]float32, c*spatialFrames*spatial)
 			if err := timeInterleaveInto(spatialInput, timeOut, c, frames, spatial); err != nil {
 				return nil, 0, 0, 0, err
 			}
 			state.cache0 = nextCache
 		}
-		out := make([]float32, op.OutputChannels*spatialFrames*vaeSpatialScale*h*vaeSpatialScale*w)
+		scale := op.Operator.SpatialScale()
+		out := make([]float32, op.OutputChannels*spatialFrames*scale*h*scale*w)
 		if err := hostmath.ResizeConv2DInto(out, spatialInput, resampleW, resampleB, c, op.OutputChannels, spatialFrames, h, w); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		return out, spatialFrames, vaeSpatialScale * h, vaeSpatialScale * w, nil
+		return out, spatialFrames, scale * h, scale * w, nil
 	case media.CodecHead:
 		gamma, weight, bias := op.values[0], op.values[1], op.values[2]
 		norm := make([]float32, len(x))
-		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, frames*spatial, channelNormZeroGuard); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(norm)
 		out := make([]float32, op.OutputChannels*frames*spatial)
-		if err := cachedConv(out, norm, &state.cache0, weight, bias, op.OutputChannels, 3, 3, 3); err != nil {
+		if err := cachedConv(out, norm, &state.cache0, weight, bias, op.OutputChannels, tensor.TripleExtent, tensor.TripleExtent, tensor.TripleExtent); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, frames, h, w, nil
@@ -799,21 +783,18 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 	return nil, 0, 0, 0, fmt.Errorf("vae decoder: unsupported op %d", op.Operator)
 }
 
-// VideoDecodeShape: output extents for a latent volume under the plan's
+// CompileVideoDecodeGeometry returns output extents for a latent volume under the plan's
 // derived strides (frames = (F-1)*strideT + 1; the first latent frame decodes
 // to a single frame, every later one to strideT frames).
-func VideoDecodeShape(plan VAEDecoderPlan, latentFrames, latentH, latentW int) (channels, frames, height, width int, err error) {
-	if latentFrames <= 0 || latentH <= 0 || latentW <= 0 {
-		return 0, 0, 0, 0, fmt.Errorf("vae decode shape: bad latent %dx%dx%d", latentFrames, latentH, latentW)
-	}
-	if plan.ZDim <= 0 || plan.OutputChannels <= 0 || plan.Stride[0] <= 0 || plan.Stride[1] <= 0 || plan.Stride[2] <= 0 {
+func CompileVideoDecodeGeometry(plan VAEDecoderPlan, latentFrames, latentH, latentW int) (channels, frames, height, width int, err error) {
+	if !checked.PositiveInts(plan.ZDim, plan.OutputChannels) {
 		return 0, 0, 0, 0, fmt.Errorf("vae decode shape: invalid plan %+v", plan.Stride)
 	}
-	return plan.OutputChannels,
-		(latentFrames-1)*plan.Stride[0] + 1,
-		latentH * plan.Stride[1],
-		latentW * plan.Stride[2],
-		nil
+	volume, err := media.UpsampledCausalVolume(latentFrames, latentH, latentW, plan.Stride)
+	if err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("vae decode shape: %w", err)
+	}
+	return plan.OutputChannels, volume.Frames, volume.Height, volume.Width, nil
 }
 
 // DecodeLatentVideo streams the decode one latent frame at a time: denorm
@@ -849,11 +830,11 @@ func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentSt
 	samplePeak()
 	states := make([]vaeOpState, len(ops))
 	frameScratch := make([]float32, 0)
-	frameIndex := 0
-	for chunkIndex := 0; chunkIndex < latentFrames; chunkIndex++ {
+	frameIndex := tensor.FirstOffset
+	for chunkIndex := range latentFrames {
 		x := make([]float32, plan.ZDim*spatial)
 		denormalizeLatentChunk(x, z, stats, plan.ZDim, latentFrames, spatial, chunkIndex)
-		frames, h, w := 1, latentH, latentW
+		frames, h, w := tensor.SingletonExtent, latentH, latentW
 		for opIndex := range ops {
 			x, frames, h, w, err = runVAEOp(ops[opIndex], &states[opIndex], chunkIndex, x, frames, h, w)
 			if err != nil {
@@ -861,26 +842,25 @@ func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentSt
 			}
 			samplePeak()
 		}
-		if h != geometry.height || w != geometry.width {
+		if !checked.Equal(h, geometry.height) || !checked.Equal(w, geometry.width) {
 			return decodeStats, fmt.Errorf("vae decode chunk %d output %dx%d, want %dx%d", chunkIndex, w, h, geometry.width, geometry.height)
 		}
-		for i, v := range x {
-			switch {
-			case v < -1:
-				x[i] = -1
-			case v > 1:
-				x[i] = 1
-			}
+		media.ClampNormalizedF32InPlace(x)
+		chunkSpatial, ok := checked.MulInt(h, w)
+		if !ok {
+			return decodeStats, fmt.Errorf("vae decode chunk %d spatial geometry overflows", chunkIndex)
 		}
-		chunkSpatial := h * w
-		frameElements := geometry.channels * chunkSpatial
+		frameElements, ok := checked.MulInt(geometry.channels, chunkSpatial)
+		if !ok {
+			return decodeStats, fmt.Errorf("vae decode chunk %d frame geometry overflows", chunkIndex)
+		}
 		if cap(frameScratch) < frameElements {
 			frameScratch = make([]float32, frameElements)
 		}
 		frame := frameScratch[:frameElements]
-		for chunkFrame := 0; chunkFrame < frames; chunkFrame++ {
-			for ch := 0; ch < geometry.channels; ch++ {
-				copy(frame[ch*chunkSpatial:(ch+1)*chunkSpatial], x[(ch*frames+chunkFrame)*chunkSpatial:])
+		for chunkFrame := range frames {
+			for ch := range geometry.channels {
+				copy(frame[ch*chunkSpatial:(ch+tensor.SingletonExtent)*chunkSpatial], x[(ch*frames+chunkFrame)*chunkSpatial:])
 			}
 			if err := sink(frameIndex, frame, h, w); err != nil {
 				return decodeStats, fmt.Errorf("vae decode frame sink %d: %w", frameIndex, err)
@@ -889,7 +869,7 @@ func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentSt
 		}
 		samplePeak()
 	}
-	if frameIndex != geometry.frames {
+	if !checked.Equal(frameIndex, geometry.frames) {
 		return decodeStats, fmt.Errorf("vae decode produced %d frames, want %d", frameIndex, geometry.frames)
 	}
 	decodeStats.OutputFrames = frameIndex

@@ -8,6 +8,7 @@
     "tokenizer": "Qwen2Tokenizer",
     "scheduler": "FlowMatchEulerDiscreteScheduler",
     "default_steps": 8,
+    "timestep_frequency_base": 10000,
     "prompt": {
       "prefix": "<|im_start|>system\nDescribe the image by detailing the color, shape, size, texture, quantity, text, spatial relationships of the objects and background:<|im_end|>\n<|im_start|>user\n",
       "suffix": "<|im_end|>\n<|im_start|>assistant\n",

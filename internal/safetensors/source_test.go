@@ -5,8 +5,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -36,6 +38,45 @@ func TestOpenSourceUsesShardIndexAndReadsTensor(t *testing.T) {
 	}
 	if !bytes.Equal(data, []byte{1, 2, 3, 4, 5, 6, 7, 8}) {
 		t.Fatalf("payload = %v", data)
+	}
+}
+
+func TestReadTensorRowsF32(t *testing.T) {
+	directory := t.TempDir()
+	data := make([]byte, 12)
+	for index, value := range []float32{1, 2, 3} {
+		binary.LittleEndian.PutUint32(data[index*4:], math.Float32bits(value))
+	}
+	writeShard(t, filepath.Join(directory, "model.safetensors"), map[string]testTensor{
+		"rows": {dataType: "F32", shape: []uint64{3, 1}, data: data},
+	})
+	rows, err := ReadTensorRowsF32(directory, "rows", 1, []int{2, 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(rows, []float32{3, 1}) {
+		t.Fatalf("rows=%v", rows)
+	}
+	if _, err := ReadTensorRowsF32(directory, "rows", 1, []int{3}); err == nil {
+		t.Fatal("accepted out-of-range row")
+	}
+	source, err := OpenSource(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	rows64, err := TensorRowsF64(source.Tensors["rows"], 1, []int{1})
+	if err != nil || len(rows64) != 1 || rows64[0] != 2 {
+		t.Fatalf("rows64=%v err=%v", rows64, err)
+	}
+	if height, width, err := MatrixShape(source.Tensors["rows"]); err != nil || height != 3 || width != 1 {
+		t.Fatalf("matrix=%dx%d err=%v", width, height, err)
+	}
+	if extent, err := Dimension(source, "rows", 0); err != nil || extent != 3 {
+		t.Fatalf("extent=%d err=%v", extent, err)
+	}
+	if shape, err := HostShape(source.Tensors["rows"], 2); err != nil || !slices.Equal(shape, []int{3, 1}) {
+		t.Fatalf("host shape=%v err=%v", shape, err)
 	}
 }
 

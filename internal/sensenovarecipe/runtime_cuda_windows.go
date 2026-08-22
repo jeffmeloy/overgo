@@ -15,6 +15,7 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/hfbpe"
 	"overgo/internal/latentimage"
+	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
@@ -235,9 +236,9 @@ func (g *Generator) integrate(plan *generationPlan) (generationFeatures, error) 
 	z := plan.z
 	for step := range plan.request.Steps {
 		started := time.Now()
-		planar, err := latentimage.UnpackPlanarF32(
+		planar, err := media.UnpackPlanar(
 			z, g.flow.VisionChannels, plan.image.TokenHeight, plan.image.TokenWidth,
-			plan.image.TokenPatch, latentimage.PatchChannelsLast,
+			plan.image.TokenPatch, media.PatchChannelsLast,
 		)
 		if err != nil {
 			return generationFeatures{}, err

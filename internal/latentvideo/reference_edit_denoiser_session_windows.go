@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -59,9 +60,15 @@ func NewReferenceEditDenoiserCUDASession(
 		ctx = context.Background()
 	}
 	config := checkpoint.Config
-	if layers <= 0 || layers > config.NumLayers || geometry.Channels != config.InDim || framesPerChunk <= 0 ||
-		localAttentionFrames < framesPerChunk || localAttentionFrames%framesPerChunk != 0 ||
-		totalFrames <= framesPerChunk || totalFrames > localAttentionFrames+framesPerChunk || totalFrames%framesPerChunk != 0 {
+	if !checked.Equal(geometry.Channels, config.InDim) {
+		return nil, fmt.Errorf("reference edit denoiser: invalid geometry")
+	}
+	historyBound, boundOK := checked.AddInt(localAttentionFrames, framesPerChunk)
+	_, localAligned := checked.DivExactInt(localAttentionFrames, framesPerChunk)
+	_, totalAligned := checked.DivExactInt(totalFrames, framesPerChunk)
+	if !checked.PositiveInts(layers, framesPerChunk, localAttentionFrames, totalFrames) || !checked.AtMostInt(layers, config.NumLayers) ||
+		!checked.AtLeastInt(localAttentionFrames, framesPerChunk) || !localAligned ||
+		!checked.GreaterInt(totalFrames, framesPerChunk) || !boundOK || !checked.AtMostInt(totalFrames, historyBound) || !totalAligned {
 		return nil, fmt.Errorf("reference edit denoiser: invalid layers/geometry/history")
 	}
 	weights, err := checkpoint.LoadDenoiserWeights(layers)
@@ -148,9 +155,9 @@ func NewReferenceEditDenoiserCUDASession(
 }
 
 func (s *ReferenceEditDenoiserCUDASession) prepareHistoryCache(totalFrames int) error {
-	programs := map[int]*DenoiserProgram{0: s.cold}
-	graphs := map[int]*executor.CompiledGraph{0: s.coldGraph}
-	inputs := map[int]*executor.DeviceInputs{0: s.coldInputs}
+	programs := map[int]*DenoiserProgram{tensor.FirstOffset: s.cold}
+	graphs := map[int]*executor.CompiledGraph{tensor.FirstOffset: s.coldGraph}
+	inputs := map[int]*executor.DeviceInputs{tensor.FirstOffset: s.coldInputs}
 	for startFrame, program := range s.warm {
 		programs[startFrame] = program
 		graphs[startFrame] = s.warmGraphs[startFrame]
@@ -210,7 +217,7 @@ func (s *ReferenceEditDenoiserCUDASession) prepareHistoryCache(totalFrames int) 
 			if err := target.Set(program.currentSelfVals[layer], value); err != nil {
 				return err
 			}
-			if startFrame == 0 {
+			if checked.Equal(startFrame, tensor.FirstOffset) {
 				continue
 			}
 			keySlot, keyOK := graphs[startFrame].InputSlot(program.stepHistoryKeys[layer])
@@ -258,7 +265,7 @@ func (s *ReferenceEditDenoiserCUDASession) uploadWeights(weights *DenoiserWeight
 	}
 	for name, values := range weights.values {
 		var binds []binding
-		var shape *tensor.Tensor
+		var prototype *tensor.Tensor
 		for _, item := range graphs {
 			node := item.program.stepWeightInputs[name]
 			if item.context {
@@ -267,16 +274,16 @@ func (s *ReferenceEditDenoiserCUDASession) uploadWeights(weights *DenoiserWeight
 			if node == nil {
 				continue
 			}
-			if shape != nil && (shape.Type != node.Type || !shape.Shape.Equal(node.Shape)) {
+			if prototype != nil && !tensor.Compatible(prototype, node) {
 				return fmt.Errorf("reference edit denoiser weight %s disagrees across graphs", name)
 			}
-			shape = node
+			prototype = node
 			binds = append(binds, binding{item.graph, item.inputs, node})
 		}
 		if len(binds) == 0 {
 			continue
 		}
-		payload, err := encodeWeightPayload(values, shape.Type)
+		payload, err := encodeWeightPayload(values, prototype.Type)
 		if err != nil {
 			return err
 		}
@@ -347,7 +354,7 @@ func (s *ReferenceEditDenoiserCUDASession) RunChunk(patchTokens, blockE, headE [
 		return nil, errors.New("reference edit denoiser: closed")
 	}
 	program, graph, inputs := s.cold, s.coldGraph, s.coldInputs
-	if startFrame != 0 {
+	if checked.Nonzero(startFrame) {
 		var ok bool
 		program, ok = s.warm[startFrame]
 		if !ok {
@@ -355,10 +362,10 @@ func (s *ReferenceEditDenoiserCUDASession) RunChunk(patchTokens, blockE, headE [
 		}
 		graph, inputs = s.warmGraphs[startFrame], s.warmInputs[startFrame]
 	}
-	if startFrame != s.historyFrames {
+	if !checked.Equal(startFrame, s.historyFrames) {
 		return nil, fmt.Errorf("reference edit denoiser: start frame %d does not continue %d", startFrame, s.historyFrames)
 	}
-	feeds := make(map[*tensor.Tensor]reference.Value, 3)
+	feeds := make(map[*tensor.Tensor]reference.Value, tensor.TripleExtent)
 	for _, feed := range []struct {
 		node *tensor.Tensor
 		data []float32
@@ -415,7 +422,7 @@ func (s *ReferenceEditDenoiserCUDASession) ResetHistory() error {
 	if s == nil || s.cuda == nil {
 		return errors.New("reference edit denoiser: closed")
 	}
-	s.historyFrames, s.historyProgram = 0, nil
+	s.historyFrames, s.historyProgram = tensor.FirstOffset, nil
 	return nil
 }
 

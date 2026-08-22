@@ -85,29 +85,3 @@ func TestMixAliasedEqualsNonAliased(t *testing.T) {
 
 	requireExactF32(t, aliased, dst)
 }
-
-// TestSpecLatentShapeDerivation: latent geometry is config-derived (ZDim = VAE
-// z_dim, spatial = pixel/SpatialScale) with no magic numbers, and rejects sizes
-// not divisible by the VAE scale.
-func TestSpecLatentShapeDerivation(t *testing.T) {
-	// QwenImage VAE geometry: z_dim 16, dim_mult len 4 -> SpatialScale 2^3 = 8.
-	spec := &Spec{VAE: VAESpec{ZDim: 16, SpatialScale: 8}}
-
-	shape, err := spec.LatentShape(2048, 2048)
-	if err != nil {
-		t.Fatalf("LatentShape(2048,2048): %v", err)
-	}
-	if shape.ZDim != 16 || shape.Height != 256 || shape.Width != 256 {
-		t.Fatalf("shape=%+v want {16,256,256}", shape)
-	}
-	if shape.Elements() != 16*256*256 {
-		t.Fatalf("elements=%d want %d", shape.Elements(), 16*256*256)
-	}
-
-	if _, err := spec.LatentShape(2050, 2048); err == nil {
-		t.Fatal("expected error for pixel size not divisible by vae scale")
-	}
-	if _, err := (&Spec{VAE: VAESpec{ZDim: 16, SpatialScale: 0}}).LatentShape(2048, 2048); err == nil {
-		t.Fatal("expected error for zero vae scale")
-	}
-}

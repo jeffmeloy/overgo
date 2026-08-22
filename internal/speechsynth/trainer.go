@@ -3,6 +3,7 @@ package speechsynth
 import (
 	"errors"
 
+	"overgo/internal/checked"
 	"overgo/internal/optimizer"
 	"overgo/internal/trainingprogram"
 )
@@ -31,7 +32,7 @@ type JointTrainer struct {
 }
 
 func NewJointTrainer(model *Model, steps int, baseLR, momentum float64) (*JointTrainer, error) {
-	if model == nil || steps <= 0 || baseLR <= 0 {
+	if model == nil || !checked.PositiveInts(steps) || !checked.PositiveFinite64(baseLR) {
 		return nil, errors.New("speechsynth: invalid joint trainer")
 	}
 	tensors, shapes := model.TrainedTensors(true)
@@ -84,11 +85,14 @@ func (t *JointTrainer) Close() error {
 
 func (t *JointTrainer) forward(state *jointTrainingState) error {
 	example := state.example
-	if len(example.TextIDs) == 0 || example.Frames <= 0 || len(example.Latents) != example.Frames*t.model.Dims.LatentDim {
+	if checked.Empty(example.TextIDs) || !checked.PositiveInts(example.Frames) {
+		return errors.New("speechsynth: invalid training example")
+	}
+	if err := checked.Length(example.Latents, example.Frames, t.model.Dims.LatentDim); err != nil {
 		return errors.New("speechsynth: invalid training example")
 	}
 	for _, token := range example.TextIDs {
-		if token < 0 || token >= t.model.Dims.TextVocab {
+		if !checked.ValidIndex(token, t.model.Dims.TextVocab) {
 			return errors.New("speechsynth: training token outside vocabulary")
 		}
 	}

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/media"
 )
 
 // syntheticSpec builds a tiny but structurally faithful TransformerSpec that
@@ -75,7 +77,7 @@ func allFinite(v []float64) bool {
 // the final adaptive-norm projection.
 func TestDenoiserForwardFiniteDeterministic(t *testing.T) {
 	spec := syntheticSpec()
-	d, err := NewDenoiser(spec, 1e-5, 1000, syntheticStore(spec))
+	d, err := NewDenoiser(spec, 1e-5, fixtureTimestepProgram(spec), syntheticStore(spec))
 	if err != nil {
 		t.Fatalf("NewDenoiser: %v", err)
 	}
@@ -115,7 +117,7 @@ func TestDenoiserForwardFiniteDeterministic(t *testing.T) {
 // model output, x += delta*v) at the schedule from g2's config (mu=1.15).
 func TestDenoiserSamplerIntegration8Steps(t *testing.T) {
 	spec := syntheticSpec()
-	d, err := NewDenoiser(spec, 1e-5, 1000, syntheticStore(spec))
+	d, err := NewDenoiser(spec, 1e-5, fixtureTimestepProgram(spec), syntheticStore(spec))
 	if err != nil {
 		t.Fatalf("NewDenoiser: %v", err)
 	}
@@ -138,7 +140,7 @@ func TestDenoiserSamplerIntegration8Steps(t *testing.T) {
 	}
 	for step := 0; step < sched.Steps; step++ {
 		sigma := sched.Sigmas[step]
-		patches, gh, gw, err := PackLatent(sample, cLat, hLat, wLat, patch)
+		patches, gh, gw, err := media.PackPlanar(sample, cLat, hLat, wLat, patch, media.PatchChannelsFirst)
 		if err != nil {
 			t.Fatalf("PackLatent: %v", err)
 		}
@@ -146,7 +148,7 @@ func TestDenoiserSamplerIntegration8Steps(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Forward step %d: %v", step, err)
 		}
-		velocity, err := UnpackLatent(velPatches, cLat, gh, gw, patch)
+		velocity, err := media.UnpackPlanar(velPatches, cLat, gh, gw, patch, media.PatchChannelsFirst)
 		if err != nil {
 			t.Fatalf("UnpackLatent: %v", err)
 		}
@@ -167,7 +169,7 @@ func TestPackUnpackLatentRoundTrip(t *testing.T) {
 	for i := range latent {
 		latent[i] = float64(i)
 	}
-	patches, gh, gw, err := PackLatent(latent, c, h, w, patch)
+	patches, gh, gw, err := media.PackPlanar(latent, c, h, w, patch, media.PatchChannelsFirst)
 	if err != nil {
 		t.Fatalf("PackLatent: %v", err)
 	}
@@ -181,7 +183,7 @@ func TestPackUnpackLatentRoundTrip(t *testing.T) {
 	if patches[0] != latent[0] {
 		t.Fatalf("pack[0]=%g want %g", patches[0], latent[0])
 	}
-	back, err := UnpackLatent(patches, c, gh, gw, patch)
+	back, err := media.UnpackPlanar(patches, c, gh, gw, patch, media.PatchChannelsFirst)
 	if err != nil {
 		t.Fatalf("UnpackLatent: %v", err)
 	}
@@ -195,7 +197,7 @@ func TestPackUnpackLatentRoundTrip(t *testing.T) {
 func TestPackPlanarChannelsLastRoundTrip(t *testing.T) {
 	const c, h, w, patch = 2, 2, 2, 2
 	planar := []float32{0, 1, 2, 3, 10, 11, 12, 13}
-	packed, gh, gw, err := PackPlanarF32(planar, c, h, w, patch, PatchChannelsLast)
+	packed, gh, gw, err := media.PackPlanar(planar, c, h, w, patch, media.PatchChannelsLast)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +205,7 @@ func TestPackPlanarChannelsLastRoundTrip(t *testing.T) {
 	if !slices.Equal(packed, want) || gh != 1 || gw != 1 {
 		t.Fatalf("packed=%v grid=%dx%d, want=%v grid=1x1", packed, gh, gw, want)
 	}
-	back, err := UnpackPlanarF32(packed, c, gh, gw, patch, PatchChannelsLast)
+	back, err := media.UnpackPlanar(packed, c, gh, gw, patch, media.PatchChannelsLast)
 	if err != nil {
 		t.Fatal(err)
 	}

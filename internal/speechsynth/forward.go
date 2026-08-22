@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/tensor"
 )
 
 // DecodeState: per-layer KV caches; rows counts positions appended so far.
@@ -20,8 +21,8 @@ type DecodeState struct {
 func (m *Model) NewDecodeState(capacity int) *DecodeState {
 	st := &DecodeState{k: make([][]float32, m.Dims.Layers), v: make([][]float32, m.Dims.Layers)}
 	for i := range st.k {
-		st.k[i] = make([]float32, 0, capacity*m.Dims.DModel)
-		st.v[i] = make([]float32, 0, capacity*m.Dims.DModel)
+		st.k[i] = make([]float32, tensor.FirstOffset, capacity*m.Dims.DModel)
+		st.v[i] = make([]float32, tensor.FirstOffset, capacity*m.Dims.DModel)
 	}
 	return st
 }
@@ -35,7 +36,7 @@ func (m *Model) NewDecodeState(capacity int) *DecodeState {
 func (m *Model) AppendForward(st *DecodeState, x []float32, T int) {
 	d, h, hd, ff := m.Dims.DModel, m.Dims.Heads, m.Dims.HeadDim, m.Dims.FF
 	rows0 := st.rows
-	qkv := make([]float32, T*3*d)
+	qkv := make([]float32, T*tensor.TripleExtent*d)
 	q := make([]float32, T*d)
 	xn := make([]float32, T*d)
 	attn := make([]float32, T*d)
@@ -43,17 +44,18 @@ func (m *Model) AppendForward(st *DecodeState, x []float32, T int) {
 	h1 := make([]float32, T*ff)
 	for li := range m.layers {
 		l := &m.layers[li]
-		hostmath.LayerNormInto(xn, x, l.norm1W, l.norm1B, T, d, transformerLayerNormEps)
-		hostmath.Linear(qkv, xn, l.inProj, T, d, 3*d)
-		for t := 0; t < T; t++ {
-			qr, kr, vr := qkv[t*3*d:t*3*d+d], qkv[t*3*d+d:t*3*d+2*d], qkv[t*3*d+2*d:(t+1)*3*d]
-			for head := 0; head < h; head++ {
-				hostmath.ApplyRotaryInterleaved(qr[head*hd:(head+1)*hd], m.invFreq, rows0+t)
-				hostmath.ApplyRotaryInterleaved(kr[head*hd:(head+1)*hd], m.invFreq, rows0+t)
+		hostmath.LayerNormInto(xn, x, l.norm1W, l.norm1B, T, d, m.Normalization.TransformerLayer)
+		hostmath.Linear(qkv, xn, l.inProj, T, d, tensor.TripleExtent*d)
+		for t := tensor.FirstOffset; t < T; t++ {
+			base := t * tensor.TripleExtent * d
+			qr, kr, vr := qkv[base:base+d], qkv[base+d:base+tensor.PairedExtent*d], qkv[base+tensor.PairedExtent*d:(t+tensor.SingletonExtent)*tensor.TripleExtent*d]
+			for head := tensor.FirstOffset; head < h; head++ {
+				hostmath.ApplyRotaryInterleaved(qr[head*hd:(head+tensor.SingletonExtent)*hd], m.invFreq, rows0+t)
+				hostmath.ApplyRotaryInterleaved(kr[head*hd:(head+tensor.SingletonExtent)*hd], m.invFreq, rows0+t)
 			}
 			st.k[li] = append(st.k[li], kr...)
 			st.v[li] = append(st.v[li], vr...)
-			qt := q[t*d : (t+1)*d]
+			qt := q[t*d : (t+tensor.SingletonExtent)*d]
 			for i, v := range qr {
 				qt[i] = v * m.scoreScale
 			}
@@ -63,7 +65,7 @@ func (m *Model) AppendForward(st *DecodeState, x []float32, T int) {
 		for i := range x {
 			x[i] += proj[i]
 		}
-		hostmath.LayerNormInto(xn, x, l.norm2W, l.norm2B, T, d, transformerLayerNormEps)
+		hostmath.LayerNormInto(xn, x, l.norm2W, l.norm2B, T, d, m.Normalization.TransformerLayer)
 		hostmath.Linear(h1, xn, l.lin1, T, d, ff)
 		hostmath.GELUErfInPlace(h1)
 		hostmath.Linear(proj, h1, l.lin2, T, ff, d)
@@ -78,22 +80,22 @@ func (m *Model) AppendForward(st *DecodeState, x []float32, T int) {
 func (m *Model) TextEmbedInto(out []float32, ids []int) error {
 	d := m.Dims.DModel
 	for i, id := range ids {
-		if id < 0 || id >= m.Dims.TextVocab {
+		if id < tensor.FirstOffset || id >= m.Dims.TextVocab {
 			return fmt.Errorf("speechsynth: text id %d outside conditioner table %d", id, m.Dims.TextVocab)
 		}
-		copy(out[i*d:(i+1)*d], m.condEmbed[id*d:(id+1)*d])
+		copy(out[i*d:(i+tensor.SingletonExtent)*d], m.condEmbed[id*d:(id+tensor.SingletonExtent)*d])
 	}
 	return nil
 }
 
 // LatentInputInto projects one frame latent into the transformer width.
 func (m *Model) LatentInputInto(dst, latent []float32) {
-	hostmath.Linear(dst, latent, m.inputLinear, 1, m.Dims.LatentDim, m.Dims.DModel)
+	hostmath.Linear(dst, latent, m.inputLinear, tensor.SingletonExtent, m.Dims.LatentDim, m.Dims.DModel)
 }
 
 // OutNormInto applies the flow-LM output LayerNorm over rows of width d.
 func (m *Model) OutNormInto(dst, x []float32, rows int) {
-	hostmath.LayerNormInto(dst, x, m.outNormW, m.outNormB, rows, m.Dims.DModel, transformerLayerNormEps)
+	hostmath.LayerNormInto(dst, x, m.outNormW, m.outNormB, rows, m.Dims.DModel, m.Normalization.TransformerLayer)
 }
 
 // EOSLogit: the scalar end-of-speech head over one out_norm row.

@@ -69,7 +69,7 @@
      "contains": "func TestOpenSourceRejectsInvalidRepositories(",
      "path": "internal/safetensors/source_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:11ff3983426b22c571fe72183bd0bb02845037a04f1219d9be86eaa631523632"
+     "identity": "evidence:sha256:44a5a4bf5099e98a9f7a85cdb79666a0be167b116eaf1d9e4c9e12cc674817d8"
     }
    ],
    "id": "bounded-safetensors-repositories",
@@ -710,7 +710,7 @@
      "contains": "func DecodeEncodedVideo(",
      "path": "internal/media/video.go",
      "role": "source",
-     "identity": "file:sha256:d5edd1961e873374c01ddb608e2718a55cee40394f3a9487aec93fba0a87e2d3"
+     "identity": "file:sha256:29df493ce9bfeb9c8507343acbd3dd1a421792fbf1d54913bb2539a1ce36cc03"
     },
     {
      "contains": "func TestChatAndResponsesEncodedVideoProjection(",
@@ -1016,7 +1016,7 @@
      "contains": "func LoadSynthesizer(",
      "path": "internal/speechsynth/runtime.go",
      "role": "source",
-     "identity": "file:sha256:eff30c406de36c940dfdbcf4ae4a8bab08e848b0f70fdb35d32b30f0e91339c1"
+     "identity": "file:sha256:1c482b505bf369f6beb649d369b8184d6b79a46fc5670d5b50acb495f7f0fae5"
     },
     {
      "contains": "func TestPocketTTSProductionParity(",
@@ -1107,7 +1107,7 @@
      "contains": "func LoadGenerator(",
      "path": "internal/sensenovarecipe/runtime_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:6c1a29e7d42019bcb74957153cd12d2d6e51625e5e6eb976a2753fa9b737cd99"
+     "identity": "file:sha256:24e17b397affc815a0357b41c6753093b5903078909c508d2ab5d762b5b5bdd2"
     },
     {
      "contains": "capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed}",

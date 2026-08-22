@@ -23,6 +23,60 @@ import (
 	"overgo/internal/tensor"
 )
 
+const (
+	GIFMediaType = "image/gif"
+	MP4MediaType = "video/mp4"
+)
+
+// GIFFrameDelay converts frames per second to GIF centisecond delay units.
+func GIFFrameDelay(framesPerSecond int) int { return max(1, 100/framesPerSecond) }
+
+// ValidateEncodedRGBVideo validates a typed encoded-video publication.
+func ValidateEncodedRGBVideo(data []byte, mediaType, expectedMediaType string, frames, channels, height, width, fps int) error {
+	if len(data) == 0 || mediaType != expectedMediaType || !checked.PositiveInts(frames, height, width, fps) || channels != RGBChannels {
+		return errors.New("media: invalid encoded RGB video")
+	}
+	return nil
+}
+
+// ValidatePlanarVideo validates flat channel-major video storage.
+func ValidatePlanarVideo[T any](pixels []T, channels, frames, height, width int) error {
+	if !checked.PositiveInts(channels, frames, height, width) {
+		return errors.New("media: invalid planar video geometry")
+	}
+	if err := checked.Length(pixels, channels, frames, height, width); err != nil {
+		return fmt.Errorf("media: planar video: %w", err)
+	}
+	return nil
+}
+
+// CopyPlanarFrames copies a contiguous temporal span between channel-major
+// planar video tensors.
+func CopyPlanarFrames[T any](destination []T, destinationFrames, destinationStart int, source []T, sourceFrames, sourceStart, channels, frames, spatial int) error {
+	if !checked.PositiveInts(destinationFrames, sourceFrames, channels, spatial) || !checked.NonNegativeInts(destinationStart, sourceStart, frames) {
+		return errors.New("media: invalid planar frame copy")
+	}
+	destinationEnd, ok := checked.AddInt(destinationStart, frames)
+	if !ok || destinationEnd > destinationFrames {
+		return errors.New("media: destination frame copy is out of range")
+	}
+	sourceEnd, ok := checked.AddInt(sourceStart, frames)
+	if !ok || sourceEnd > sourceFrames {
+		return errors.New("media: source frame copy is out of range")
+	}
+	destinationElements := channels * destinationFrames * spatial
+	sourceElements := channels * sourceFrames * spatial
+	if len(destination) < destinationElements || len(source) < sourceElements {
+		return errors.New("media: planar frame storage is too short")
+	}
+	for channel := range channels {
+		destinationOffset := (channel*destinationFrames + destinationStart) * spatial
+		sourceOffset := (channel*sourceFrames + sourceStart) * spatial
+		copy(destination[destinationOffset:destinationOffset+frames*spatial], source[sourceOffset:sourceOffset+frames*spatial])
+	}
+	return nil
+}
+
 func DecodeGIF(reader io.Reader, maximum int) ([]image.Image, error) {
 	if reader == nil || !checked.PositiveInts(maximum) {
 		return nil, errors.New("media: GIF reader or frame limit is invalid")

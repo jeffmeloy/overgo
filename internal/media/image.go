@@ -1,15 +1,24 @@
 package media
 
 import (
+	"bytes"
 	"errors"
 	"image"
+	"image/color"
+	"image/png"
 	"math"
 )
 
 const (
+	PNGMediaType       = "image/png"
 	RGBChannels        = 3
 	RasterSampleCenter = 0.5
 )
+
+// ValidRGBRaster reports whether an encoded raster carries valid RGB geometry.
+func ValidRGBRaster(mediaType string, channels, height, width int) bool {
+	return mediaType == PNGMediaType && channels == RGBChannels && height > 0 && width > 0
+}
 
 func AffineRGB(values []float32, scale, bias [RGBChannels]float32) []float32 {
 	output := make([]float32, len(values))
@@ -18,6 +27,81 @@ func AffineRGB(values []float32, scale, bias [RGBChannels]float32) []float32 {
 		output[index] = value*scale[channel] + bias[channel]
 	}
 	return output
+}
+
+type normalizedRGBImage struct {
+	pixels                     []float32
+	width, height              int
+	pixelStride, channelStride int
+}
+
+func (i normalizedRGBImage) ColorModel() color.Model { return color.RGBAModel }
+func (i normalizedRGBImage) Bounds() image.Rectangle { return image.Rect(0, 0, i.width, i.height) }
+func (i normalizedRGBImage) At(x, y int) color.Color {
+	if x < 0 || x >= i.width || y < 0 || y >= i.height {
+		return color.RGBA{}
+	}
+	offset := (y*i.width + x) * i.pixelStride
+	return color.RGBA{
+		R: normalizedPixel8(i.pixels[offset]),
+		G: normalizedPixel8(i.pixels[offset+i.channelStride]),
+		B: normalizedPixel8(i.pixels[offset+(RGBChannels-1)*i.channelStride]),
+		A: ^uint8(0),
+	}
+}
+
+func normalizedPixel8(value float32) uint8 {
+	magnitude := float64(^uint8(0))
+	scaled := (float64(value) + 1) * magnitude / 2
+	return uint8(min(max(scaled, 0), magnitude))
+}
+
+// EncodeNormalizedRGBPNG encodes normalized [-1,1] RGB pixels without a
+// layout conversion. planar selects CHW; false selects HWC.
+func EncodeNormalizedRGBPNG(pixels []float32, height, width int, planar bool) ([]byte, float32, float32, error) {
+	if height <= 0 || width <= 0 || len(pixels) != height*width*RGBChannels {
+		return nil, 0, 0, errors.New("media: invalid normalized RGB output")
+	}
+	minimum, maximum := float32(math.Inf(1)), float32(math.Inf(-1))
+	for _, value := range pixels {
+		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+			return nil, 0, 0, errors.New("media: normalized RGB output is not finite")
+		}
+		minimum, maximum = min(minimum, value), max(maximum, value)
+	}
+	pixelStride, channelStride := RGBChannels, 1
+	if planar {
+		pixelStride, channelStride = 1, width*height
+	}
+	source := normalizedRGBImage{
+		pixels: pixels, width: width, height: height,
+		pixelStride: pixelStride, channelStride: channelStride,
+	}
+	var encoded bytes.Buffer
+	encoder := png.Encoder{CompressionLevel: png.DefaultCompression}
+	if err := encoder.Encode(&encoded, source); err != nil {
+		return nil, 0, 0, err
+	}
+	return encoded.Bytes(), minimum, maximum, nil
+}
+
+// EncodePlanarRGB8Into converts finite planar RGB values to interleaved bytes
+// using a caller-supplied quantizer.
+func EncodePlanarRGB8Into(destination []byte, pixels []float32, height, width int, quantize func(float32) uint8) error {
+	if quantize == nil || height <= 0 || width <= 0 || len(pixels) != height*width*RGBChannels || len(destination) != len(pixels) {
+		return errors.New("media: invalid planar RGB byte conversion")
+	}
+	plane := height * width
+	for index := range plane {
+		for channel := range RGBChannels {
+			value := pixels[channel*plane+index]
+			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+				return errors.New("media: planar RGB value is not finite")
+			}
+			destination[index*RGBChannels+channel] = quantize(value)
+		}
+	}
+	return nil
 }
 
 func CloneRGBA(source *image.RGBA) *image.RGBA {

@@ -1,0 +1,5 @@
+{
+  "transformer_layer_epsilon": 0.00001,
+  "flow_layer_epsilon": 0.000001,
+  "time_embedding_rms_epsilon": 0.00001
+}

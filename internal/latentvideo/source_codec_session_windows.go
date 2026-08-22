@@ -8,8 +8,12 @@ import (
 	"fmt"
 	"time"
 
+	"overgo/internal/binaryschema"
+	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/media"
+	"overgo/internal/tensor"
 )
 
 type SourceEncodeStats struct {
@@ -44,8 +48,8 @@ func (s *VAEEncoderCUDASession) Encode(ctx context.Context, plan SourceCodecPlan
 		ctx = context.Background()
 	}
 	sourceElements, err := plan.SourceElements()
-	if err != nil || len(source) != sourceElements || s.Plan.InputChannels != plan.Source.Channels ||
-		s.Plan.LatentChannels != plan.Latent.Channels || s.Plan.Stride != plan.Profile.Stride {
+	if err != nil || !checked.Equal(len(source), sourceElements) || !checked.Equal(s.Plan.InputChannels, plan.Source.Channels) ||
+		!checked.Equal(s.Plan.LatentChannels, plan.Latent.Channels) || !checked.Equal(s.Plan.Stride, plan.Profile.Stride) {
 		return nil, stats, errors.New("source codec CUDA session: contract mismatch")
 	}
 	started := time.Now()
@@ -56,15 +60,21 @@ func (s *VAEEncoderCUDASession) Encode(ctx context.Context, plan SourceCodecPlan
 		return nil, stats, err
 	}
 	means := make([]float32, latentElements)
-	sourceFrame, latentFrame := 0, 0
-	sourceSpatial := plan.Source.Height * plan.Source.Width
-	latentSpatial := plan.Latent.Height * plan.Latent.Width
+	sourceFrame, latentFrame := tensor.FirstOffset, tensor.FirstOffset
+	sourceSpatial, ok := checked.MulInt(plan.Source.Height, plan.Source.Width)
+	if !ok {
+		return nil, stats, errors.New("source codec CUDA session: source geometry overflows")
+	}
+	latentSpatial, ok := checked.MulInt(plan.Latent.Height, plan.Latent.Width)
+	if !ok {
+		return nil, stats, errors.New("source codec CUDA session: latent geometry overflows")
+	}
 	for chunkIndex, chunkFrames := range plan.SourceChunks {
 		staging := make([]float32, plan.Source.Channels*chunkFrames*sourceSpatial)
-		if err := copyChannelFrames(staging, chunkFrames, 0, source, plan.Source.Frames, sourceFrame, plan.Source.Channels, chunkFrames, sourceSpatial); err != nil {
+		if err := media.CopyPlanarFrames(staging, chunkFrames, tensor.FirstOffset, source, plan.Source.Frames, sourceFrame, plan.Source.Channels, chunkFrames, sourceSpatial); err != nil {
 			return nil, stats, err
 		}
-		producedFrames := 0
+		producedFrames := tensor.FirstOffset
 		err = s.codec.worker.Do(ctx, func(state *device.State) error {
 			x, allocErr := s.codec.buffer(state, "act_0", len(staging))
 			if allocErr != nil {
@@ -73,20 +83,20 @@ func (s *VAEEncoderCUDASession) Encode(ctx context.Context, plan SourceCodecPlan
 			if copyErr := state.Driver.MemcpyHtoD(x, driver.Bytes(staging)); copyErr != nil {
 				return copyErr
 			}
-			frames, height, width, actIndex := chunkFrames, plan.Source.Height, plan.Source.Width, 0
+			frames, height, width, actIndex := chunkFrames, plan.Source.Height, plan.Source.Width, tensor.FirstOffset
 			for opIndex := range s.codec.ops {
-				actIndex = 1 - actIndex
+				actIndex = tensor.SingletonExtent - actIndex
 				x, frames, height, width, allocErr = s.codec.runOp(state, opIndex, chunkIndex, &states[opIndex], x, fmt.Sprintf("act_%d", actIndex), frames, height, width)
 				if allocErr != nil {
 					return fmt.Errorf("source codec CUDA %s chunk %d: %w", s.codec.ops[opIndex].Name, chunkIndex, allocErr)
 				}
 			}
-			if height != plan.Latent.Height || width != plan.Latent.Width || frames <= 0 {
+			if !checked.Equal(height, plan.Latent.Height) || !checked.Equal(width, plan.Latent.Width) || !checked.PositiveInts(frames) {
 				return fmt.Errorf("source codec CUDA chunk %d output=%dx%dx%d", chunkIndex, frames, height, width)
 			}
 			for channel := range plan.Latent.Channels {
 				destination := means[(channel*plan.Latent.Frames+latentFrame)*latentSpatial:]
-				sourcePointer := x + driver.DevicePtr(channel*frames*latentSpatial*4)
+				sourcePointer := x + driver.DevicePtr(channel*frames*latentSpatial*binaryschema.Uint32Bytes)
 				if copyErr := state.Driver.MemcpyDtoH(driver.Bytes(destination[:frames*latentSpatial]), sourcePointer); copyErr != nil {
 					return copyErr
 				}
@@ -100,7 +110,7 @@ func (s *VAEEncoderCUDASession) Encode(ctx context.Context, plan SourceCodecPlan
 		sourceFrame += chunkFrames
 		latentFrame += producedFrames
 	}
-	if sourceFrame != plan.Source.Frames || latentFrame != plan.Latent.Frames {
+	if !checked.Equal(sourceFrame, plan.Source.Frames) || !checked.Equal(latentFrame, plan.Latent.Frames) {
 		return nil, stats, fmt.Errorf("source codec CUDA consumed source=%d/%d latent=%d/%d", sourceFrame, plan.Source.Frames, latentFrame, plan.Latent.Frames)
 	}
 	latent := make([]float32, len(means))

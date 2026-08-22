@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/representation"
+
 	"overgo/internal/hfbpe"
 )
 
@@ -57,7 +59,11 @@ func TestRenderKreaTextInputLayout(t *testing.T) {
 	suffix := []int{300}           // 1 row
 	const maxPrompt = 5
 	const padID = 9
-	in := assembleTextRows(prefix, prompt, suffix, maxPrompt, padID)
+	sequence, err := representation.AssemblePaddedSequence(prefix, prompt, suffix, maxPrompt, padID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := textInput{IDs: sequence.IDs, Mask: sequence.Mask, PromptRows: sequence.PromptRows}
 
 	// total = maxPrompt + len(prefix) = 5 + 3 = 8; padded = 5+3-1 = 7.
 	wantIDs := []int{100, 101, 102, 200, 201, padID, padID, 300}
@@ -76,7 +82,11 @@ func TestRenderKreaTextInputLayout(t *testing.T) {
 
 	// Over-long prompt is truncated to maxPrompt (mirrors adaptive).
 	long := []int{200, 201, 202, 203, 204, 205, 206}
-	tr := assembleTextRows(prefix, long, suffix, maxPrompt, padID)
+	sequence, err = representation.AssemblePaddedSequence(prefix, long, suffix, maxPrompt, padID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr := textInput{IDs: sequence.IDs, Mask: sequence.Mask, PromptRows: sequence.PromptRows}
 	if len(tr.IDs) != maxPrompt+len(prefix) || tr.PromptRows != maxPrompt {
 		t.Fatalf("truncated: ids=%d promptRows=%d", len(tr.IDs), tr.PromptRows)
 	}

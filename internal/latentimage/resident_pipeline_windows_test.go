@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/media"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -55,7 +56,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	pipeline, err := NewResidentImagePipeline(ctx, encoder, fusion, denoiser, vae, modelDir, 0)
+	pipeline, err := NewResidentImagePipeline(ctx, encoder, fusion, denoiser, vae, fixtureTimestepProgram(transformerSpec), modelDir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +92,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	host, err := NewDenoiser(transformerSpec, 1e-5, numTrainTimesteps, transformerWeights)
+	host, err := NewDenoiser(transformerSpec, 1e-5, fixtureTimestepProgram(transformerSpec), transformerWeights)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +113,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	unpacked, err := unpackLatent(got, vaeDecoder.ZDim, fixtureGrid, fixtureGrid, fixturePatch)
+	unpacked, err := media.UnpackPlanar(got, vaeDecoder.ZDim, fixtureGrid, fixtureGrid, fixturePatch, media.PatchChannelsFirst)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,8 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/sampling"
+	"overgo/internal/tensor"
 )
 
 // ReferenceEditRuntimeConfig binds one real LiveEdit artifact and geometry.
@@ -165,9 +168,14 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 	if err != nil {
 		return result, err
 	}
-	if len(initialNoise) == 0 {
-		initialNoise = make([]float32, r.editPlan.Latent.Channels*r.editPlan.Latent.LatentFrames*r.editPlan.Latent.LatentHeight*r.editPlan.Latent.LatentWidth)
-		if err := noise.FillChannelMajor(initialNoise, r.editPlan.Latent.Channels, r.editPlan.Latent.LatentFrames, r.editPlan.Latent.LatentHeight*r.editPlan.Latent.LatentWidth); err != nil {
+	if checked.Empty(initialNoise) {
+		initialElements, ok := checked.ProductInt(r.editPlan.Latent.Channels, r.editPlan.Latent.LatentFrames, r.editPlan.Latent.LatentHeight, r.editPlan.Latent.LatentWidth)
+		spatial, spatialOK := checked.MulInt(r.editPlan.Latent.LatentHeight, r.editPlan.Latent.LatentWidth)
+		if !ok || !spatialOK {
+			return result, errors.New("reference edit runtime: initial noise geometry overflows")
+		}
+		initialNoise = make([]float32, initialElements)
+		if err := noise.FillChannelMajor(initialNoise, r.editPlan.Latent.Channels, r.editPlan.Latent.LatentFrames, spatial); err != nil {
 			return result, err
 		}
 	} else if err := noise.Advance(len(initialNoise)); err != nil {
@@ -183,7 +191,7 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 		r.sourceFingerprint, r.sourceLatent, r.sourceStats = fingerprint, sourceLatent, sourceStats
 	} else {
 		sourceStats.CacheHit = true
-		sourceStats.WallSeconds = 0
+		sourceStats.WallSeconds = float64(tensor.FirstOffset)
 	}
 	result.Source = sourceStats
 	denoiseStarted := time.Now()
@@ -260,15 +268,15 @@ func (s *editNoiseStream) Advance(elements int) error {
 }
 
 func (s *editNoiseStream) FillChannelMajor(destination []float32, channels, frames, spatial int) error {
-	if len(destination) != channels*frames*spatial {
-		return errors.New("reference edit noise: channel-major shape differs")
+	if err := checked.Length(destination, channels, frames, spatial); err != nil {
+		return errors.New("reference edit noise: channel-major storage differs")
 	}
 	plan, advance, err := s.plan(len(destination))
 	if err != nil {
 		return err
 	}
 	frameMajor := make([]float32, len(destination))
-	if err := FillNormalNoise(frameMajor, plan); err != nil {
+	if err := sampling.FillCounterNormalNoise(frameMajor, plan); err != nil {
 		return err
 	}
 	for frame := range frames {
@@ -282,16 +290,8 @@ func (s *editNoiseStream) FillChannelMajor(destination []float32, channels, fram
 	return nil
 }
 
-func (s *editNoiseStream) plan(elements int) (NoisePlan, uint64, error) {
-	const block, unroll = 256, 4
-	if elements <= 0 || s.smCount <= 0 || s.threadsPerSM < block {
-		return NoisePlan{}, 0, errors.New("reference edit noise: invalid extent or device profile")
-	}
-	grid := min((elements+block-1)/block, s.smCount*(s.threadsPerSM/block))
-	grid = max(grid, 1)
-	stride := block * grid * unroll
-	advance := uint64((elements+stride-1)/stride) * unroll
-	return NoisePlan{Seed: s.seed, Offset: s.offset, Grid: grid, Block: block, Unroll: unroll}, advance, nil
+func (s *editNoiseStream) plan(elements int) (sampling.CounterNoisePlan, uint64, error) {
+	return sampling.CompileCounterNoisePlan(s.seed, s.offset, elements, s.smCount, s.threadsPerSM)
 }
 
 func (r *ReferenceEditRuntime) Close() error {

@@ -43,7 +43,7 @@ func TestFusionProgramMatchesHostReference(t *testing.T) {
 	const textSeq = 4
 	spec := syntheticSpec()
 	store := syntheticStore(spec)
-	d, err := NewDenoiser(spec, 1e-5, 1000, store)
+	d, err := NewDenoiser(spec, 1e-5, fixtureTimestepProgram(spec), store)
 	if err != nil {
 		t.Fatalf("NewDenoiser: %v", err)
 	}

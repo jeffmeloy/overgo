@@ -9,6 +9,8 @@ import (
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/sampling"
+	"overgo/internal/tensor"
 )
 
 // GeneratorConfig: fixed artifact, geometry, precision, and device binding.
@@ -31,7 +33,7 @@ type GenerateRequest struct {
 	CondContext   []float32
 	UncondContext []float32
 	InitialSample []float32
-	Noise         NoisePlan
+	Noise         sampling.CounterNoisePlan
 	Sink          VideoFrameSink
 	StepHook      func(step int, timestep int64)
 }
@@ -84,7 +86,7 @@ func NewGenerator(config GeneratorConfig) (generator *Generator, err error) {
 	}
 	generator = &Generator{
 		geometry: geometry, stats: config.LatentStats, denoiser: denoiser,
-		branches: make(map[[sha256.Size]byte]any, 2),
+		branches: make(map[[sha256.Size]byte]any, tensor.PairedExtent),
 	}
 	defer func() {
 		if err != nil {
@@ -161,7 +163,7 @@ func (g *Generator) ProjectBranchContext(values []float32) (any, error) {
 	if branch, ok := g.branches[key]; ok {
 		return branch, nil
 	}
-	if len(g.branches) == 2 {
+	if len(g.branches) == tensor.PairedExtent {
 		if err := g.denoiser.ReleaseRequestResources(); err != nil {
 			return nil, err
 		}

@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"path/filepath"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/strictjson"
 )
 
@@ -48,12 +48,13 @@ type classPolicy struct {
 }
 
 type samplingPolicy struct {
-	DefaultSteps      int     `json:"default_steps"`
-	TrainTimesteps    int     `json:"train_timesteps"`
-	BaseImageSequence int     `json:"base_image_sequence"`
-	MaxImageSequence  int     `json:"max_image_sequence"`
-	BaseShift         float64 `json:"base_shift"`
-	MaxShift          float64 `json:"max_shift"`
+	DefaultSteps          int     `json:"default_steps"`
+	TrainTimesteps        int     `json:"train_timesteps"`
+	TimestepFrequencyBase float64 `json:"timestep_frequency_base"`
+	BaseImageSequence     int     `json:"base_image_sequence"`
+	MaxImageSequence      int     `json:"max_image_sequence"`
+	BaseShift             float64 `json:"base_shift"`
+	MaxShift              float64 `json:"max_shift"`
 }
 
 // Profile: recipe-bound image execution facts.
@@ -66,15 +67,16 @@ type Profile struct {
 }
 
 type catalogProfile struct {
-	Pipeline          string       `json:"pipeline"`
-	Transformer       string       `json:"transformer"`
-	VAE               string       `json:"vae"`
-	TextEncoderModule string       `json:"text_encoder_module"`
-	TextEncoder       string       `json:"text_encoder"`
-	Tokenizer         string       `json:"tokenizer"`
-	Scheduler         string       `json:"scheduler"`
-	DefaultSteps      int          `json:"default_steps"`
-	Prompt            textTemplate `json:"prompt"`
+	Pipeline              string       `json:"pipeline"`
+	Transformer           string       `json:"transformer"`
+	VAE                   string       `json:"vae"`
+	TextEncoderModule     string       `json:"text_encoder_module"`
+	TextEncoder           string       `json:"text_encoder"`
+	Tokenizer             string       `json:"tokenizer"`
+	Scheduler             string       `json:"scheduler"`
+	DefaultSteps          int          `json:"default_steps"`
+	TimestepFrequencyBase float64      `json:"timestep_frequency_base"`
+	Prompt                textTemplate `json:"prompt"`
 }
 
 type schedulerProfile struct {
@@ -125,7 +127,8 @@ func ResolveProfile(modelDir string) (Profile, error) {
 		Version: profileVersion, Classes: classes, Prompt: prompt,
 		Sampling: samplingPolicy{
 			DefaultSteps: catalog.DefaultSteps, TrainTimesteps: scheduler.TrainTimesteps,
-			BaseImageSequence: scheduler.BaseImageSeqLen, MaxImageSequence: scheduler.MaxImageSeqLen,
+			TimestepFrequencyBase: catalog.TimestepFrequencyBase,
+			BaseImageSequence:     scheduler.BaseImageSeqLen, MaxImageSequence: scheduler.MaxImageSeqLen,
 			BaseShift: scheduler.BaseShift, MaxShift: scheduler.MaxShift,
 		},
 	})
@@ -174,28 +177,28 @@ func (p Profile) Content() (artifact.Content, error) { return profileCodec.Conte
 func (p Profile) validateIdentity() error { return profileCodec.ValidateIdentity(p) }
 
 func (p Profile) validate() error {
-	if p.Version != profileVersion || p.Classes.Pipeline == "" || p.Classes.Transformer == "" ||
-		p.Classes.VAE == "" || p.Classes.TextEncoderModule == "" || p.Classes.TextEncoder == "" || p.Classes.Tokenizer == "" ||
-		p.Classes.Scheduler == "" || p.Prompt.Prefix == "" || p.Prompt.Suffix == "" ||
-		p.Prompt.MaxTokens <= 0 || p.Prompt.PadToken == "" || p.Prompt.PrefixTokens <= 0 ||
-		p.Prompt.SuffixTokens <= 0 {
+	if !checked.Equal(p.Version, profileVersion) || !checked.NonzeroAll(
+		p.Classes.Pipeline, p.Classes.Transformer, p.Classes.VAE, p.Classes.TextEncoderModule,
+		p.Classes.TextEncoder, p.Classes.Tokenizer, p.Classes.Scheduler, p.Prompt.Prefix,
+		p.Prompt.Suffix, p.Prompt.PadToken) ||
+		!checked.PositiveInts(p.Prompt.MaxTokens, p.Prompt.PrefixTokens, p.Prompt.SuffixTokens) {
 		return errors.New("latent image: incomplete image profile")
 	}
 	sampling := p.Sampling
-	if sampling.DefaultSteps <= 0 || sampling.TrainTimesteps <= 0 || sampling.BaseImageSequence <= 0 ||
-		sampling.MaxImageSequence <= sampling.BaseImageSequence || sampling.BaseShift <= 0 ||
-		sampling.MaxShift < sampling.BaseShift || math.IsNaN(sampling.BaseShift) || math.IsNaN(sampling.MaxShift) ||
-		math.IsInf(sampling.BaseShift, 0) || math.IsInf(sampling.MaxShift, 0) {
+	if !checked.PositiveInts(sampling.DefaultSteps, sampling.TrainTimesteps, sampling.BaseImageSequence) ||
+		!checked.GreaterInt(sampling.MaxImageSequence, sampling.BaseImageSequence) ||
+		!checked.PositiveFinite64(sampling.TimestepFrequencyBase) || !checked.PositiveFinite64(sampling.BaseShift) ||
+		!checked.AtLeastFinite64(sampling.MaxShift, sampling.BaseShift) {
 		return errors.New("latent image: invalid sampling profile")
 	}
 	return nil
 }
 
 func (p samplingPolicy) dynamicShiftMu(imageSequence int) float64 {
-	if imageSequence <= p.BaseImageSequence {
+	if checked.AtMostInt(imageSequence, p.BaseImageSequence) {
 		return p.BaseShift
 	}
-	if imageSequence >= p.MaxImageSequence {
+	if checked.AtLeastInt(imageSequence, p.MaxImageSequence) {
 		return p.MaxShift
 	}
 	position := float64(imageSequence-p.BaseImageSequence) / float64(p.MaxImageSequence-p.BaseImageSequence)

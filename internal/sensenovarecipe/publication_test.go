@@ -3,7 +3,7 @@ package sensenovarecipe
 import (
 	"testing"
 
-	"overgo/internal/latentimage"
+	"overgo/internal/media"
 	"overgo/internal/routedlm"
 )
 
@@ -13,7 +13,7 @@ func TestDecodeGeneratedImagePublishesPlanarPNG(t *testing.T) {
 		0, 0, -1, 1,
 		1, -1, 0, 0,
 	}
-	patches, height, width, err := latentimage.PackPlanarF32(planar, 3, 2, 2, 2, latentimage.PatchChannelsLast)
+	patches, height, width, err := media.PackPlanar(planar, 3, 2, 2, 2, media.PatchChannelsLast)
 	if err != nil {
 		t.Fatal(err)
 	}

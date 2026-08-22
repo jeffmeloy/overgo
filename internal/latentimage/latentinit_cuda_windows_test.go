@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/media"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/torchrng"
 )
@@ -84,10 +85,11 @@ func TestSeededInitLatentKreaGeometry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Derive: %v", err)
 	}
-	shape, err := spec.LatentShape(2048, 2048)
+	channels, height, width, err := media.DownsampledPlanarGeometry(spec.VAE.ZDim, 2048, 2048, spec.VAE.SpatialScale)
 	if err != nil {
 		t.Fatalf("LatentShape: %v", err)
 	}
+	shape := LatentShape{ZDim: channels, Height: height, Width: width}
 	t.Logf("krea 2048x2048 latent geometry: [z=%d,h=%d,w=%d] elements=%d",
 		shape.ZDim, shape.Height, shape.Width, shape.Elements())
 

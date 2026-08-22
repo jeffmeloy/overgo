@@ -41,19 +41,22 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/hostmath"
+	"overgo/internal/media"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor"
 )
 
 // Denoiser: a compiled, weight-resident Krea2 transformer. store maps every
 // diffusers tensor name to its F32 payload; NewDenoiser validates the full set
 // against DenoiserTensorShapes so every capability tensor is bound and sized.
 type Denoiser struct {
-	T                 TransformerSpec
-	Eps               float64
-	NumTrainTimesteps int
-	store             map[string][]float32
-	WeightBytes       int64
+	T           TransformerSpec
+	Eps         float64
+	Timestep    media.SinusoidalProgram
+	store       map[string][]float32
+	WeightBytes int64
 }
 
 // textFusionHeadDim / attnHeadDim are DERIVED (dim/heads); the checkpoint pins
@@ -72,15 +75,15 @@ func DenoiserTensorShapes(t TransformerSpec) map[string][]int {
 		"time_embed.linear_1.bias":      {h},
 		"time_embed.linear_2.weight":    {h, h},
 		"time_embed.linear_2.bias":      {h},
-		"time_mod_proj.weight":          {6 * h, h},
-		"time_mod_proj.bias":            {6 * h},
+		"time_mod_proj.weight":          {media.PairedShiftScaleGateWidth(h), h},
+		"time_mod_proj.bias":            {media.PairedShiftScaleGateWidth(h)},
 		"txt_in.norm.weight":            {t.TextHidden},
 		"txt_in.linear_1.weight":        {h, t.TextHidden},
 		"txt_in.linear_1.bias":          {h},
 		"txt_in.linear_2.weight":        {h, h},
 		"txt_in.linear_2.bias":          {h},
-		"text_fusion.projector.weight":  {1, t.TextLayers},
-		"final_layer.scale_shift_table": {2, h},
+		"text_fusion.projector.weight":  {tensor.SingletonExtent, t.TextLayers},
+		"final_layer.scale_shift_table": {tensor.PairedExtent, h},
 		"final_layer.norm.weight":       {h},
 		"final_layer.linear.weight":     {t.InChannels, h},
 		"final_layer.linear.bias":       {t.InChannels},
@@ -107,10 +110,7 @@ func DenoiserTensorShapes(t TransformerSpec) map[string][]int {
 // ModFieldsOr6 returns the modulation field count, defaulting to the reference 6
 // when the spec has not been checkpoint-verified yet.
 func (t TransformerSpec) ModFieldsOr6() int {
-	if t.ModFields > 0 {
-		return t.ModFields
-	}
-	return 6
+	return media.PairedShiftScaleGateFields(t.ModFields)
 }
 
 // addAttnFF appends the shared attention + norm + SwiGLU tensor shapes for one
@@ -132,26 +132,24 @@ func addAttnFF(shapes map[string][]int, p string, dim, qDim, kvDim, headDim, int
 }
 
 func prod(shape []int) int {
-	n := 1
-	for _, s := range shape {
-		n *= s
-	}
-	return n
+	product, _ := checked.ProductInt(shape...)
+	return product
 }
 
 // NewDenoiser binds a weight store to the spec, validating that every tensor in
 // the derived manifest is present with the exact element count (capability
 // retention) and that no extra image-path tensor is silently ignored.
-func NewDenoiser(t TransformerSpec, eps float64, numTrainTimesteps int, store map[string][]float32) (*Denoiser, error) {
-	if eps <= 0 {
+func NewDenoiser(t TransformerSpec, eps float64, timestep media.SinusoidalProgram, store map[string][]float32) (*Denoiser, error) {
+	if !checked.PositiveFinite64(eps) {
 		return nil, fmt.Errorf("denoiser: eps must be positive, got %g", eps)
 	}
-	if numTrainTimesteps <= 0 {
-		return nil, fmt.Errorf("denoiser: num_train_timesteps must be positive, got %d", numTrainTimesteps)
+	if err := timestep.Validate(); err != nil {
+		return nil, fmt.Errorf("denoiser: invalid timestep program: %w", err)
 	}
-	if t.ModFields == 0 {
-		t.ModFields = 6
+	if !checked.Equal(timestep.Dimensions, t.TimestepEmbed) {
+		return nil, fmt.Errorf("denoiser: timestep dimensions=%d want=%d", timestep.Dimensions, t.TimestepEmbed)
 	}
+	t.ModFields = t.ModFieldsOr6()
 	shapes := DenoiserTensorShapes(t)
 	var bytes int64
 	for name, shape := range shapes {
@@ -164,7 +162,7 @@ func NewDenoiser(t TransformerSpec, eps float64, numTrainTimesteps int, store ma
 		}
 		bytes += int64(len(v)) * 4
 	}
-	return &Denoiser{T: t, Eps: eps, NumTrainTimesteps: numTrainTimesteps, store: store, WeightBytes: bytes}, nil
+	return &Denoiser{T: t, Eps: eps, Timestep: timestep, store: store, WeightBytes: bytes}, nil
 }
 
 func (d *Denoiser) w(name string) []float32 { return d.store[name] }
@@ -174,43 +172,14 @@ func (d *Denoiser) w(name string) []float32 { return d.store[name] }
 // dense computes y[rows,outDim] = x[rows,inDim] @ W^T (+bias), where W is the
 // torch Linear weight [outDim,inDim] row-major. bias may be nil.
 func dense(x []float64, weight, bias []float32, rows, inDim, outDim int) []float64 {
-	y := make([]float64, rows*outDim)
-	hostmath.ParallelRangeF64(rows, inDim*outDim, func(lo, hi int) {
-		for r := lo; r < hi; r++ {
-			xr := x[r*inDim : (r+1)*inDim]
-			yr := y[r*outDim : (r+1)*outDim]
-			for o := 0; o < outDim; o++ {
-				acc := 0.0
-				if bias != nil {
-					acc = float64(bias[o])
-				}
-				wo := weight[o*inDim : (o+1)*inDim]
-				for i := 0; i < inDim; i++ {
-					acc += xr[i] * float64(wo[i])
-				}
-				yr[o] = acc
-			}
-		}
-	})
-	return y
+	return hostmath.LinearFloat64(x, weight, bias, rows, inDim, outDim)
 }
 
 // rmsNormZeroCentered applies Krea2RMSNorm over the last axis of x[rows,d]:
 // out = x / sqrt(mean(x^2)+eps) * (1 + weight). Returns a new buffer.
 func rmsNormZeroCentered(x []float64, weight []float32, rows, d int, eps float64) []float64 {
-	out := make([]float64, len(x))
-	for r := 0; r < rows; r++ {
-		xr := x[r*d : (r+1)*d]
-		or := out[r*d : (r+1)*d]
-		var ss float64
-		for i := 0; i < d; i++ {
-			ss += xr[i] * xr[i]
-		}
-		inv := 1.0 / math.Sqrt(ss/float64(d)+eps)
-		for i := 0; i < d; i++ {
-			or[i] = xr[i] * inv * (1.0 + float64(weight[i]))
-		}
-	}
+	out := append([]float64(nil), x...)
+	hostmath.ZeroCenteredRMSNormF64InPlace(out, weight, rows, d, eps)
 	return out
 }
 
@@ -229,66 +198,19 @@ func sigmoidF64(v float64) float64 { return 1.0 / (1.0 + math.Exp(-v)) }
 // axis a contributes RopeAxes[a] channels via freqs theta^(-2i/da), angle
 // pos*freq, repeat-interleaved to width da (Flux/diffusers convention).
 func (d *Denoiser) ropeTable(textSeq, gh, gw int) (cos, sin []float64) {
-	seq := textSeq + gh*gw
-	hd := d.T.HeadDim
-	cos = make([]float64, seq*hd)
-	sin = make([]float64, seq*hd)
-	axes := d.T.RopeAxes
-	theta := d.T.RopeTheta
-	for tok := 0; tok < seq; tok++ {
-		var pos [3]float64
-		if tok >= textSeq {
-			n := tok - textSeq
-			pos = [3]float64{0, float64(n / gw), float64(n % gw)}
-		}
-		off := 0
-		for a := 0; a < 3; a++ {
-			da := axes[a]
-			half := da / 2
-			for i := 0; i < half; i++ {
-				freq := math.Pow(theta, -float64(2*i)/float64(da))
-				angle := pos[a] * freq
-				c, s := math.Cos(angle), math.Sin(angle)
-				// repeat-interleaved: channels off+2i and off+2i+1 share (c,s).
-				cos[tok*hd+off+2*i] = c
-				cos[tok*hd+off+2*i+1] = c
-				sin[tok*hd+off+2*i] = s
-				sin[tok*hd+off+2*i+1] = s
-			}
-			off += da
-		}
-	}
-	return cos, sin
-}
-
-// applyRopeInterleaved rotates one head vector in place: for each pair (2p,2p+1)
-// out0 = x0*cos - x1*sin ; out1 = x1*cos + x0*sin (cos/sin equal within a pair).
-func applyRopeInterleaved(vec []float64, cos, sin []float64, headDim int) {
-	for p := 0; p < headDim/2; p++ {
-		i0, i1 := 2*p, 2*p+1
-		x0, x1 := vec[i0], vec[i1]
-		vec[i0] = x0*cos[i0] - x1*sin[i0]
-		vec[i1] = x1*cos[i1] + x0*sin[i1]
-	}
+	return hostmath.AxisRotaryGridTableF64(textSeq, gh, gw, d.T.HeadDim, d.T.RopeAxes, d.T.RopeTheta)
 }
 
 // headRMSAndRope normalizes each head's q/k over head_dim with the zero-centered
 // scale and (optionally) applies RoPE. arr is [seq, heads*headDim] token-major.
 func (d *Denoiser) headRMSAndRope(arr []float64, normW []float32, seq, heads, headDim int, cos, sin []float64) {
+	hostmath.ZeroCenteredRMSNormF64InPlace(arr, normW, seq*heads, headDim, d.Eps)
 	for r := 0; r < seq; r++ {
 		for hh := 0; hh < heads; hh++ {
 			base := (r*heads + hh) * headDim
 			vec := arr[base : base+headDim]
-			var ss float64
-			for i := 0; i < headDim; i++ {
-				ss += vec[i] * vec[i]
-			}
-			inv := 1.0 / math.Sqrt(ss/float64(headDim)+d.Eps)
-			for i := 0; i < headDim; i++ {
-				vec[i] = vec[i] * inv * (1.0 + float64(normW[i]))
-			}
 			if cos != nil {
-				applyRopeInterleaved(vec, cos[r*headDim:(r+1)*headDim], sin[r*headDim:(r+1)*headDim], headDim)
+				hostmath.ApplyRotaryInterleavedF64(vec, cos[r*headDim:(r+1)*headDim], sin[r*headDim:(r+1)*headDim])
 			}
 		}
 	}
@@ -307,45 +229,7 @@ func (d *Denoiser) attention(prefix string, x []float64, seq, dim, heads, kvHead
 	d.headRMSAndRope(q, d.w(prefix+"norm_q.weight"), seq, heads, headDim, cos, sin)
 	d.headRMSAndRope(k, d.w(prefix+"norm_k.weight"), seq, kvHeads, headDim, cos, sin)
 
-	group := heads / kvHeads
-	scale := 1.0 / math.Sqrt(float64(headDim))
-	attnOut := make([]float64, seq*qDim) // [seq, heads*headDim]
-	hostmath.ParallelRangeF64(heads, seq*seq*headDim, func(loH, hiH int) {
-		scores := make([]float64, seq)
-		for hh := loH; hh < hiH; hh++ {
-			kvh := hh / group
-			for i := 0; i < seq; i++ {
-				qvec := q[(i*heads+hh)*headDim : (i*heads+hh)*headDim+headDim]
-				var mx float64 = math.Inf(-1)
-				for j := 0; j < seq; j++ {
-					kvec := k[(j*kvHeads+kvh)*headDim : (j*kvHeads+kvh)*headDim+headDim]
-					var dot float64
-					for c := 0; c < headDim; c++ {
-						dot += qvec[c] * kvec[c]
-					}
-					dot *= scale
-					scores[j] = dot
-					if dot > mx {
-						mx = dot
-					}
-				}
-				var sum float64
-				for j := 0; j < seq; j++ {
-					e := math.Exp(scores[j] - mx)
-					scores[j] = e
-					sum += e
-				}
-				dst := attnOut[(i*heads+hh)*headDim : (i*heads+hh)*headDim+headDim]
-				for j := 0; j < seq; j++ {
-					p := scores[j] / sum
-					vvec := v[(j*kvHeads+kvh)*headDim : (j*kvHeads+kvh)*headDim+headDim]
-					for c := 0; c < headDim; c++ {
-						dst[c] += p * vvec[c]
-					}
-				}
-			}
-		}
-	})
+	attnOut := hostmath.GroupedBidirectionalAttentionF64(q, k, v, seq, heads, kvHeads, headDim)
 	for idx := range attnOut {
 		attnOut[idx] *= sigmoidF64(gate[idx])
 	}
@@ -425,27 +309,32 @@ func (d *Denoiser) textConditioning(encoderHidden []float64, textSeq int) ([]flo
 // timestepConditioning returns temb [Hidden] and tembMod [6*Hidden] from the
 // flow-time sigma. temb = linear_2(gelu(linear_1(sinusoid(sigma)))); tembMod =
 // time_mod_proj(gelu(temb)). Sinusoid: cos-first, input scaled by 1e3.
-func (d *Denoiser) timestepConditioning(sigma float64) (temb, tembMod []float64) {
+func (d *Denoiser) timestepConditioning(sigma float64) (temb, tembMod []float64, err error) {
 	dim := d.T.TimestepEmbed
-	half := dim / 2
-	emb := make([]float64, dim)
-	for i := 0; i < half; i++ {
-		freq := math.Exp(-math.Log(1e4) * float64(i) / float64(half))
-		arg := sigma * 1e3 * freq
-		emb[i] = math.Cos(arg)
-		emb[half+i] = math.Sin(arg)
+	emb, err := d.Timestep.Encode64(sigma)
+	if err != nil {
+		return nil, nil, err
 	}
-	l1 := dense(emb, d.w("time_embed.linear_1.weight"), d.w("time_embed.linear_1.bias"), 1, dim, d.T.Hidden)
+	rows, err := checked.Rows(emb, dim)
+	if err != nil {
+		return nil, nil, err
+	}
+	l1 := dense(emb, d.w("time_embed.linear_1.weight"), d.w("time_embed.linear_1.bias"), rows, dim, d.T.Hidden)
 	for i := range l1 {
 		l1[i] = geluTanh(l1[i])
 	}
-	temb = dense(l1, d.w("time_embed.linear_2.weight"), d.w("time_embed.linear_2.bias"), 1, d.T.Hidden, d.T.Hidden)
+	temb = dense(l1, d.w("time_embed.linear_2.weight"), d.w("time_embed.linear_2.bias"), rows, d.T.Hidden, d.T.Hidden)
 	modIn := make([]float64, d.T.Hidden)
 	for i := range temb {
 		modIn[i] = geluTanh(temb[i])
 	}
-	tembMod = dense(modIn, d.w("time_mod_proj.weight"), d.w("time_mod_proj.bias"), 1, d.T.Hidden, 6*d.T.Hidden)
-	return temb, tembMod
+	modulationWeight := d.w("time_mod_proj.weight")
+	modulationWidth, err := checked.Rows(modulationWeight, d.T.Hidden)
+	if err != nil {
+		return nil, nil, err
+	}
+	tembMod = dense(modIn, modulationWeight, d.w("time_mod_proj.bias"), rows, d.T.Hidden, modulationWidth)
+	return temb, tembMod, nil
 }
 
 // Forward predicts the flow-matching velocity for one denoise step. latentPatches
@@ -454,14 +343,18 @@ func (d *Denoiser) timestepConditioning(sigma float64) (temb, tembMod []float64)
 // [0,1]. gh*gw must equal imgSeq. Returns velocity [imgSeq, InChannels].
 func (d *Denoiser) Forward(latentPatches, encoderHidden []float64, sigma float64, textSeq, gh, gw int) ([]float64, error) {
 	h := d.T.Hidden
-	imgSeq := gh * gw
-	if len(latentPatches) != imgSeq*d.T.InChannels {
-		return nil, fmt.Errorf("denoiser: latent patches len=%d want %d ([%d,%d])", len(latentPatches), imgSeq*d.T.InChannels, imgSeq, d.T.InChannels)
+	imgSeq, imageOK := checked.MulInt(gh, gw)
+	wantLatent, latentOK := checked.MulInt(imgSeq, d.T.InChannels)
+	if !imageOK || !latentOK || len(latentPatches) != wantLatent {
+		return nil, fmt.Errorf("denoiser: latent patches len=%d want %d ([%d,%d])", len(latentPatches), wantLatent, imgSeq, d.T.InChannels)
 	}
-	if textSeq <= 0 {
+	if !checked.PositiveInts(textSeq) {
 		return nil, fmt.Errorf("denoiser: textSeq must be positive, got %d", textSeq)
 	}
-	temb, tembMod := d.timestepConditioning(sigma)
+	temb, tembMod, err := d.timestepConditioning(sigma)
+	if err != nil {
+		return nil, err
+	}
 
 	txt, err := d.textConditioning(encoderHidden, textSeq)
 	if err != nil {
@@ -531,120 +424,6 @@ func (d *Denoiser) Forward(latentPatches, encoderHidden []float64, sigma float64
 	return dense(fn, d.w("final_layer.linear.weight"), d.w("final_layer.linear.bias"), imgSeq, h, d.T.InChannels), nil
 }
 
-// ---- latent <-> patch packing (mirrors pipeline _pack_latents) -------------
-
-// PatchChannelOrder selects the per-patch element order.
-type PatchChannelOrder uint8
-
-const (
-	PatchChannelsFirst PatchChannelOrder = iota // channel, row, column
-	PatchChannelsLast                           // row, column, channel
-)
-
-// PackPlanarF32 packs planar [C,H,W] into row-major patch tokens.
-func PackPlanarF32(planar []float32, c, hh, ww, patch int, order PatchChannelOrder) ([]float32, int, int, error) {
-	return packPlanar(planar, c, hh, ww, patch, order)
-}
-
-// UnpackPlanarF32 reverses PackPlanarF32.
-func UnpackPlanarF32(patches []float32, c, gh, gw, patch int, order PatchChannelOrder) ([]float32, error) {
-	return unpackPlanar(patches, c, gh, gw, patch, order)
-}
-
-// PackLatent packs a channel-major latent [C, H, W] into the transformer image
-// sequence [gh*gw, C*patch*patch] where gh=H/patch, gw=W/patch and the per-patch
-// row order is (channel, ph, pw) -- exactly diffusers _pack_latents.
-func PackLatent(latent []float64, c, hh, ww, patch int) ([]float64, int, int, error) {
-	return packPlanar(latent, c, hh, ww, patch, PatchChannelsFirst)
-}
-
-func packLatent[T ~float32 | ~float64](latent []T, c, hh, ww, patch int) ([]T, int, int, error) {
-	return packPlanar(latent, c, hh, ww, patch, PatchChannelsFirst)
-}
-
-func packPlanar[T ~float32 | ~float64](latent []T, c, hh, ww, patch int, order PatchChannelOrder) ([]T, int, int, error) {
-	if order != PatchChannelsFirst && order != PatchChannelsLast {
-		return nil, 0, 0, fmt.Errorf("pack: invalid channel order %d", order)
-	}
-	if hh%patch != 0 || ww%patch != 0 {
-		return nil, 0, 0, fmt.Errorf("pack: %dx%d not divisible by patch %d", hh, ww, patch)
-	}
-	if len(latent) != c*hh*ww {
-		return nil, 0, 0, fmt.Errorf("pack: latent len=%d want %d", len(latent), c*hh*ww)
-	}
-	gh, gw := hh/patch, ww/patch
-	inCh := c * patch * patch
-	out := make([]T, gh*gw*inCh)
-	for r := 0; r < gh; r++ {
-		for col := 0; col < gw; col++ {
-			row := out[(r*gw+col)*inCh : (r*gw+col+1)*inCh]
-			if order == PatchChannelsFirst {
-				for ch := 0; ch < c; ch++ {
-					for ph := 0; ph < patch; ph++ {
-						for pw := 0; pw < patch; pw++ {
-							row[(ch*patch+ph)*patch+pw] = latent[(ch*hh+r*patch+ph)*ww+col*patch+pw]
-						}
-					}
-				}
-			} else {
-				for ph := 0; ph < patch; ph++ {
-					for pw := 0; pw < patch; pw++ {
-						for ch := 0; ch < c; ch++ {
-							row[(ph*patch+pw)*c+ch] = latent[(ch*hh+r*patch+ph)*ww+col*patch+pw]
-						}
-					}
-				}
-			}
-		}
-	}
-	return out, gh, gw, nil
-}
-
-// UnpackLatent is the inverse of PackLatent: image sequence [gh*gw, C*patch^2]
-// -> channel-major latent [C, H, W].
-func UnpackLatent(patches []float64, c, gh, gw, patch int) ([]float64, error) {
-	return unpackPlanar(patches, c, gh, gw, patch, PatchChannelsFirst)
-}
-
-func unpackLatent[T ~float32 | ~float64](patches []T, c, gh, gw, patch int) ([]T, error) {
-	return unpackPlanar(patches, c, gh, gw, patch, PatchChannelsFirst)
-}
-
-func unpackPlanar[T ~float32 | ~float64](patches []T, c, gh, gw, patch int, order PatchChannelOrder) ([]T, error) {
-	if order != PatchChannelsFirst && order != PatchChannelsLast {
-		return nil, fmt.Errorf("unpack: invalid channel order %d", order)
-	}
-	inCh := c * patch * patch
-	if len(patches) != gh*gw*inCh {
-		return nil, fmt.Errorf("unpack: patches len=%d want %d", len(patches), gh*gw*inCh)
-	}
-	hh, ww := gh*patch, gw*patch
-	out := make([]T, c*hh*ww)
-	for r := 0; r < gh; r++ {
-		for col := 0; col < gw; col++ {
-			row := patches[(r*gw+col)*inCh : (r*gw+col+1)*inCh]
-			if order == PatchChannelsFirst {
-				for ch := 0; ch < c; ch++ {
-					for ph := 0; ph < patch; ph++ {
-						for pw := 0; pw < patch; pw++ {
-							out[(ch*hh+r*patch+ph)*ww+col*patch+pw] = row[(ch*patch+ph)*patch+pw]
-						}
-					}
-				}
-			} else {
-				for ph := 0; ph < patch; ph++ {
-					for pw := 0; pw < patch; pw++ {
-						for ch := 0; ch < c; ch++ {
-							out[(ch*hh+r*patch+ph)*ww+col*patch+pw] = row[(ph*patch+pw)*c+ch]
-						}
-					}
-				}
-			}
-		}
-	}
-	return out, nil
-}
-
 // ---- real-checkpoint structural verification (headers only) ----------------
 
 // DenoiserWitness: the structural oracle for the denoiser port -- every derived
@@ -656,7 +435,7 @@ type DenoiserWitness struct {
 	ModFields int
 }
 
-func (w DenoiserWitness) Failed() bool { return failedCheckCount(w.Checks) != 0 }
+func (w DenoiserWitness) Failed() bool { return checked.Nonzero(failedCheckCount(w.Checks)) }
 
 // VerifyDenoiserCheckpoint opens the transformer safetensors HEADERS under
 // modelDir and asserts every tensor the forward consumes exists with the exact
@@ -668,9 +447,7 @@ func VerifyDenoiserCheckpoint(modelDir string) (*DenoiserWitness, error) {
 		return nil, err
 	}
 	t := spec.Transformer
-	if t.ModFields == 0 {
-		t.ModFields = 6
-	}
+	t.ModFields = t.ModFieldsOr6()
 	src, err := safetensors.OpenSource(modelDir + "/transformer")
 	if err != nil {
 		return nil, fmt.Errorf("denoiser verify: open transformer: %w", err)
@@ -682,13 +459,13 @@ func VerifyDenoiserCheckpoint(modelDir string) (*DenoiserWitness, error) {
 	consumed := make(map[string]bool, len(shapes))
 	for name, shape := range shapes {
 		consumed[name] = true
-		tensor, ok := src.Tensors[name]
+		artifactTensor, ok := src.Tensors[name]
 		if !ok {
-			w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: -1, Source: "MISSING"})
+			w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: checked.UnknownCount(), Source: "MISSING"})
 			continue
 		}
-		got := 1
-		for _, s := range tensor.Shape {
+		got := tensor.SingletonExtent
+		for _, s := range artifactTensor.Shape {
 			got *= int(s)
 		}
 		w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: got, Source: name})
@@ -700,10 +477,10 @@ func VerifyDenoiserCheckpoint(modelDir string) (*DenoiserWitness, error) {
 			extra = append(extra, name)
 		}
 	}
-	if len(extra) > 0 {
-		w.Checks = append(w.Checks, Check{Name: "unconsumed_tensors", Want: 0, Got: len(extra), Source: extra[0]})
+	if !checked.Empty(extra) {
+		w.Checks = append(w.Checks, Check{Name: "unconsumed_tensors", Want: tensor.FirstOffset, Got: len(extra), Source: extra[0]})
 	}
-	if failures := failedCheckCount(w.Checks); failures != 0 {
+	if failures := failedCheckCount(w.Checks); checked.Nonzero(failures) {
 		return w, fmt.Errorf("denoiser verify: %d structural check(s) disagreed with checkpoint", failures)
 	}
 	return w, nil

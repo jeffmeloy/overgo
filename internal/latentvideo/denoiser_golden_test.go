@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"overgo/internal/model"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/testutil"
@@ -223,7 +224,7 @@ func TestNormalNoiseGoldenG3(t *testing.T) {
 	manifest, dir := loadDenoiseManifest(t, "g3_denoise.json")
 	want := manifest.trace(t, dir, "step_00_sample_in")
 	got := make([]float32, len(want))
-	if err := FillNormalNoise(got, NoisePlan{
+	if err := sampling.FillCounterNormalNoise(got, sampling.CounterNoisePlan{
 		Seed:   uint64(manifest.NoisePlan.Seed),
 		Grid:   manifest.NoisePlan.Grid,
 		Block:  manifest.NoisePlan.Block,

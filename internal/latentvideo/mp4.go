@@ -6,16 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/media"
 )
-
-const encodedMP4MediaType = "video/mp4"
 
 // MP4Encoder streams planar frames through one FFmpeg process.
 type MP4Encoder struct {
@@ -32,13 +30,16 @@ func NewMP4Encoder(ctx context.Context, ffmpeg string, fps, height, width int, p
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if ffmpeg == "" || fps <= 0 || height <= 0 || width <= 0 || !pixels.valid() {
+	if !checked.Nonzero(ffmpeg) || !checked.PositiveInts(fps) || !pixels.valid() {
 		return nil, errors.New("latent video: incomplete MP4 encoder config")
+	}
+	if err := media.ValidateSpatialGeometry(height, width); err != nil {
+		return nil, fmt.Errorf("latent video: MP4 geometry: %w", err)
 	}
 	if _, err := os.Stat(ffmpeg); err != nil {
 		return nil, fmt.Errorf("latent video: FFmpeg: %w", err)
 	}
-	encoder := &MP4Encoder{fps: fps, height: height, width: width, pixels: pixels, raw: make([]byte, 3*height*width)}
+	encoder := &MP4Encoder{fps: fps, height: height, width: width, pixels: pixels, raw: make([]byte, media.RGBChannels*height*width)}
 	encoder.command = exec.CommandContext(ctx, ffmpeg,
 		"-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1",
 		"-f", "rawvideo", "-pix_fmt", "rgb24", "-s", fmt.Sprintf("%dx%d", width, height),
@@ -60,19 +61,24 @@ func NewMP4Encoder(ctx context.Context, ffmpeg string, fps, height, width int, p
 }
 
 func (s *MP4Encoder) Add(_ int, frame []float32, height, width int) error {
-	if s == nil || s.input == nil || height != s.height || width != s.width || len(frame) != len(s.raw) {
+	if s == nil || s.input == nil {
 		return errors.New("latent video: invalid MP4 frame")
+	}
+	if !checked.Equal(height, s.height) {
+		return errors.New("latent video: invalid MP4 frame geometry")
+	}
+	if !checked.Equal(width, s.width) {
+		return errors.New("latent video: invalid MP4 frame geometry")
+	}
+	if err := media.EncodePlanarRGB8Into(s.raw, frame, height, width, func(value float32) uint8 {
+		return encodeVideoByte(value, s.pixels)
+	}); err != nil {
+		return err
 	}
 	plane := height * width
 	for index := range plane {
-		for channel := range 3 {
-			value := frame[channel*plane+index]
-			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
-				return errors.New("latent video: non-finite MP4 frame")
-			}
-			s.raw[index*3+channel] = encodeVideoByte(value, s.pixels)
-		}
-		if s.prior != nil && (s.raw[index*3] != s.prior[index*3] || s.raw[index*3+1] != s.prior[index*3+1] || s.raw[index*3+2] != s.prior[index*3+2]) {
+		base := index * media.RGBChannels
+		if s.prior != nil && !bytes.Equal(s.raw[base:base+media.RGBChannels], s.prior[base:base+media.RGBChannels]) {
 			s.changed++
 		}
 	}
@@ -88,7 +94,7 @@ func (s *MP4Encoder) Add(_ int, frame []float32, height, width int) error {
 }
 
 func (s *MP4Encoder) Finish() (EncodedVideo, error) {
-	if s == nil || s.input == nil || s.frames == 0 {
+	if s == nil || s.input == nil || !checked.PositiveInts(s.frames) {
 		return EncodedVideo{}, errors.New("latent video: no MP4 frames emitted")
 	}
 	if err := s.input.Close(); err != nil {
@@ -101,7 +107,7 @@ func (s *MP4Encoder) Finish() (EncodedVideo, error) {
 		return EncodedVideo{}, fmt.Errorf("latent video: FFmpeg: %w: %s", err, strings.TrimSpace(s.errors.String()))
 	}
 	return EncodedVideo{
-		Data: s.output.Bytes(), MediaType: encodedMP4MediaType, Frames: s.frames, Channels: 3,
+		Data: s.output.Bytes(), MediaType: media.MP4MediaType, Frames: s.frames, Channels: media.RGBChannels,
 		Height: s.height, Width: s.width, FPS: s.fps, ChangedPixels: s.changed,
 	}, nil
 }

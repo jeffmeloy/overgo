@@ -31,6 +31,17 @@ func ZeroValue(shape tensor.Shape) Value {
 }
 
 func NewValue(shape tensor.Shape, data []float32) (Value, error) {
+	value, err := BorrowedValue(shape, data)
+	if err != nil {
+		return Value{}, err
+	}
+	value.Data = slices.Clone(data)
+	return value, nil
+}
+
+// BorrowedValue validates data against shape without copying it. The caller
+// must keep data immutable for the lifetime of the returned value.
+func BorrowedValue(shape tensor.Shape, data []float32) (Value, error) {
 	elements, err := shape.Elements()
 	if err != nil {
 		return Value{}, err
@@ -38,8 +49,7 @@ func NewValue(shape tensor.Shape, data []float32) (Value, error) {
 	if elements != uint64(len(data)) {
 		return Value{}, fmt.Errorf("reference data has %d elements, need %d", len(data), elements)
 	}
-	copied := slices.Clone(data)
-	return Value{Shape: shape, Data: copied}, nil
+	return Value{Shape: shape, Data: data}, nil
 }
 
 func (v Value) validate() (uint64, error) {

@@ -3,7 +3,9 @@ package latentimage
 import (
 	"fmt"
 
+	"overgo/internal/checked"
 	"overgo/internal/hfbpe"
+	"overgo/internal/representation"
 )
 
 // Profile-driven text conditioning: template, fixed rows, pad mask.
@@ -47,10 +49,10 @@ type textInput struct {
 // renderTextInput builds templated ids plus the attention mask.
 func renderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl textTemplate) (textInput, error) {
 	var out textInput
-	if tmpl.Prefix == "" || tmpl.Suffix == "" {
+	if !checked.NonzeroAll(tmpl.Prefix, tmpl.Suffix) {
 		return out, fmt.Errorf("image text template prefix/suffix is empty")
 	}
-	if tmpl.MaxTokens <= 0 {
+	if !checked.PositiveInts(tmpl.MaxTokens) {
 		return out, fmt.Errorf("image text template max_tokens must be positive, got %d", tmpl.MaxTokens)
 	}
 	padID, ok := tok.SpecialID(tmpl.PadToken)
@@ -68,46 +70,22 @@ func renderTextInput(tok *hfbpe.Tokenizer, prompt string, tmpl textTemplate) (te
 	// Cross-check the tokenization against the reference conditioner's asserted
 	// token counts (encoder.py prompt_template_encode_start_idx / suffix_start_idx).
 	// A mismatch means the tokenizer or the template strings drifted from the golden.
-	if tmpl.PrefixTokens != 0 && len(prefixIDs) != tmpl.PrefixTokens {
+	if checked.Nonzero(tmpl.PrefixTokens) && !checked.Equal(len(prefixIDs), tmpl.PrefixTokens) {
 		return out, fmt.Errorf("image prefix tokenized to %d ids, profile asserts %d", len(prefixIDs), tmpl.PrefixTokens)
 	}
-	if tmpl.SuffixTokens != 0 && len(suffixIDs) != tmpl.SuffixTokens {
+	if checked.Nonzero(tmpl.SuffixTokens) && !checked.Equal(len(suffixIDs), tmpl.SuffixTokens) {
 		return out, fmt.Errorf("image suffix tokenized to %d ids, profile asserts %d", len(suffixIDs), tmpl.SuffixTokens)
 	}
-	if len(prefixIDs) == 0 || len(suffixIDs) == 0 {
+	if !checked.NonemptyAll(prefixIDs, suffixIDs) {
 		return out, fmt.Errorf("image template prefix/suffix tokenized empty")
 	}
 	promptIDs, err := tok.Encode(prompt)
 	if err != nil {
 		return out, fmt.Errorf("encode image prompt: %w", err)
 	}
-	return assembleTextRows(prefixIDs, promptIDs, suffixIDs, tmpl.MaxTokens, padID), nil
-}
-
-// assembleKreaRows builds the fixed-row [prefix][prompt][pad...][suffix] id
-// sequence + attention mask from the already-tokenized parts. Pure port of the
-// adaptive prepareSelectedLayerTextInput body (no tokenizer), so the layout math
-// is exercised in CI without the checkpoint. The prompt is truncated to
-// maxPromptTokens; padded = maxPromptTokens + len(prefix) - len(suffix); the pad
-// region between prompt and suffix is unattended (mask false).
-func assembleTextRows(prefixIDs, promptIDs, suffixIDs []int, maxPromptTokens, padID int) textInput {
-	if len(promptIDs) > maxPromptTokens {
-		promptIDs = promptIDs[:maxPromptTokens]
+	sequence, err := representation.AssemblePaddedSequence(prefixIDs, promptIDs, suffixIDs, tmpl.MaxTokens, padID)
+	if err != nil {
+		return out, fmt.Errorf("image text sequence: %w", err)
 	}
-	padded := maxPromptTokens + len(prefixIDs) - len(suffixIDs)
-	ids := make([]int, padded+len(suffixIDs))
-	mask := make([]bool, len(ids))
-	for i := range ids {
-		ids[i] = padID
-	}
-	n := copy(ids, prefixIDs)
-	n += copy(ids[n:], promptIDs)
-	for i := 0; i < n; i++ {
-		mask[i] = true
-	}
-	copy(ids[padded:], suffixIDs)
-	for i := padded; i < len(ids); i++ {
-		mask[i] = true
-	}
-	return textInput{IDs: ids, Mask: mask, PromptRows: len(ids) - len(prefixIDs)}
+	return textInput{IDs: sequence.IDs, Mask: sequence.Mask, PromptRows: sequence.PromptRows}, nil
 }

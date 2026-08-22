@@ -3,6 +3,8 @@ package latentvideo
 import (
 	"slices"
 	"testing"
+
+	"overgo/internal/media"
 )
 
 func TestLiveEditSourceCodecBoundary(t *testing.T) {
@@ -39,7 +41,7 @@ func TestLiveEditSourceCodecBoundary(t *testing.T) {
 		source[index] = float32(index)
 	}
 	chunk := make([]float32, plan.Source.Channels*plan.SourceChunks[1]*spatial)
-	if err := copyChannelFrames(chunk, plan.SourceChunks[1], 0, source, plan.Source.Frames, 1, plan.Source.Channels, plan.SourceChunks[1], spatial); err != nil {
+	if err := media.CopyPlanarFrames(chunk, plan.SourceChunks[1], 0, source, plan.Source.Frames, 1, plan.Source.Channels, plan.SourceChunks[1], spatial); err != nil {
 		t.Fatal(err)
 	}
 	for channel := range plan.Source.Channels {

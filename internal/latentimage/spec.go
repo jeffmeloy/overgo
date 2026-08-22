@@ -12,11 +12,15 @@ package latentimage
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
+	"overgo/internal/media"
+	"overgo/internal/tensor"
 )
 
 // FamilyTag is discovery metadata, not execution authority.
@@ -29,19 +33,19 @@ type TokenizerKind string
 // Field comments name the SOURCE: [cfg K] a config key, [der ...] a derivation,
 // [xcheck ...] the tensor(s) VerifyCheckpoint asserts it against.
 type TransformerSpec struct {
-	Layers        int     // [cfg num_layers] xcheck count(transformer_blocks.N)
-	Heads         int     // [cfg num_attention_heads]
-	KVHeads       int     // [cfg num_key_value_heads] GQA
-	HeadDim       int     // [cfg attention_head_dim] xcheck len(attn.norm_q.weight)
-	Hidden        int     // [der Heads*HeadDim] xcheck img_in.weight[0], attn.to_q.weight[0]
-	KVDim         int     // [der KVHeads*HeadDim] xcheck attn.to_k.weight[0], attn.to_v.weight[0]
-	InChannels    int     // [cfg in_channels] xcheck z_dim*patch^2, img_in.weight[1], final_layer.linear.weight[0]
-	Intermediate  int     // [cfg intermediate_size] xcheck ff.gate.weight[0], ff.down.weight[1]
-	RopeAxes      [3]int  // [cfg axes_dims_rope] xcheck sum==HeadDim
-	RopeTheta     float64 // [cfg rope_theta]
-	NormEps       float64 // [cfg norm_eps] zero-centered RMSNorm epsilon
-	TimestepEmbed int     // [cfg timestep_embed_dim] xcheck time_embed.linear_1.weight[1]
-	ModFields     int     // [der time_mod_proj.weight[0]/Hidden] xcheck transformer_blocks.0.scale_shift_table[0]
+	Layers        int                      // [cfg num_layers] xcheck count(transformer_blocks.N)
+	Heads         int                      // [cfg num_attention_heads]
+	KVHeads       int                      // [cfg num_key_value_heads] GQA
+	HeadDim       int                      // [cfg attention_head_dim] xcheck len(attn.norm_q.weight)
+	Hidden        int                      // [der Heads*HeadDim] xcheck img_in.weight[0], attn.to_q.weight[0]
+	KVDim         int                      // [der KVHeads*HeadDim] xcheck attn.to_k.weight[0], attn.to_v.weight[0]
+	InChannels    int                      // [cfg in_channels] xcheck z_dim*patch^2, img_in.weight[1], final_layer.linear.weight[0]
+	Intermediate  int                      // [cfg intermediate_size] xcheck ff.gate.weight[0], ff.down.weight[1]
+	RopeAxes      [tensor.TripleExtent]int // [cfg axes_dims_rope] xcheck sum==HeadDim
+	RopeTheta     float64                  // [cfg rope_theta]
+	NormEps       float64                  // [cfg norm_eps] zero-centered RMSNorm epsilon
+	TimestepEmbed int                      // [cfg timestep_embed_dim] xcheck time_embed.linear_1.weight[1]
+	ModFields     int                      // [der time_mod_proj.weight[0]/Hidden] xcheck transformer_blocks.0.scale_shift_table[0]
 
 	// text-fusion stream
 	TextLayers          int // [cfg num_text_layers] xcheck text_fusion.projector.weight[1], len(SelectLayers)
@@ -238,11 +242,24 @@ func Derive(dir string) (*Spec, error) {
 		return nil, fmt.Errorf("latentimage: text_encoder model_type %q != %q", ecfg.ModelType, profile.Classes.TextEncoder)
 	}
 
-	if len(tcfg.AxesDimsRope) != 3 {
-		return nil, fmt.Errorf("latentimage: axes_dims_rope rank %d != 3", len(tcfg.AxesDimsRope))
+	if !checked.Equal(len(tcfg.AxesDimsRope), tensor.TripleExtent) {
+		return nil, fmt.Errorf("latentimage: axes_dims_rope rank %d != %d", len(tcfg.AxesDimsRope), tensor.TripleExtent)
 	}
-	if len(vcfg.DimMult) == 0 {
+	if _, ok := checked.First(vcfg.DimMult); !ok {
 		return nil, fmt.Errorf("latentimage: empty dim_mult")
+	}
+	deepestMultiplier, _ := checked.Last(vcfg.DimMult)
+	deepestDimension, ok := checked.MulInt(vcfg.BaseDim, deepestMultiplier)
+	if !ok {
+		return nil, fmt.Errorf("latentimage: deepest VAE dimension overflows")
+	}
+	quantChannels, ok := checked.MulInt(tensor.PairedExtent, vcfg.ZDim)
+	if !ok {
+		return nil, fmt.Errorf("latentimage: quantization channel count overflows")
+	}
+	spatialScale, ok := checked.PowInt(tensor.PairedExtent, len(vcfg.DimMult)-tensor.SingletonExtent)
+	if !ok {
+		return nil, fmt.Errorf("latentimage: spatial scale overflows")
 	}
 
 	spec := &Spec{
@@ -255,19 +272,23 @@ func Derive(dir string) (*Spec, error) {
 		PatchSize:   index.PatchSize,
 		Tokenizer:   TokenizerKind(index.Tokenizer[1]),
 		Transformer: TransformerSpec{
-			Layers:              tcfg.NumLayers,
-			Heads:               tcfg.NumAttentionHeads,
-			KVHeads:             tcfg.NumKeyValueHeads,
-			HeadDim:             tcfg.AttentionHeadDim,
-			Hidden:              tcfg.NumAttentionHeads * tcfg.AttentionHeadDim,
-			KVDim:               tcfg.NumKeyValueHeads * tcfg.AttentionHeadDim,
-			InChannels:          tcfg.InChannels,
-			Intermediate:        tcfg.IntermediateSize,
-			RopeAxes:            [3]int{tcfg.AxesDimsRope[0], tcfg.AxesDimsRope[1], tcfg.AxesDimsRope[2]},
+			Layers:       tcfg.NumLayers,
+			Heads:        tcfg.NumAttentionHeads,
+			KVHeads:      tcfg.NumKeyValueHeads,
+			HeadDim:      tcfg.AttentionHeadDim,
+			Hidden:       tcfg.NumAttentionHeads * tcfg.AttentionHeadDim,
+			KVDim:        tcfg.NumKeyValueHeads * tcfg.AttentionHeadDim,
+			InChannels:   tcfg.InChannels,
+			Intermediate: tcfg.IntermediateSize,
+			RopeAxes: [tensor.TripleExtent]int{
+				tcfg.AxesDimsRope[tensor.FirstOffset],
+				tcfg.AxesDimsRope[tensor.SingletonExtent],
+				tcfg.AxesDimsRope[tensor.PairedExtent],
+			},
 			RopeTheta:           tcfg.RopeTheta,
 			NormEps:             tcfg.NormEps,
 			TimestepEmbed:       tcfg.TimestepEmbedDim,
-			ModFields:           0, // derived from tensor shape in VerifyCheckpoint
+			ModFields:           tensor.FirstOffset, // derived from tensor shape in VerifyCheckpoint
 			TextLayers:          tcfg.NumTextLayers,
 			TextHidden:          tcfg.TextHiddenDim,
 			TextIntermediate:    tcfg.TextIntermediate,
@@ -282,9 +303,9 @@ func Derive(dir string) (*Spec, error) {
 			DimMult:       vcfg.DimMult,
 			InputChannels: vcfg.InputChannels,
 			ResBlocks:     vcfg.NumResBlocks,
-			DeepestDim:    vcfg.BaseDim * vcfg.DimMult[len(vcfg.DimMult)-1],
-			QuantChannels: 2 * vcfg.ZDim,
-			SpatialScale:  1 << (len(vcfg.DimMult) - 1),
+			DeepestDim:    deepestDimension,
+			QuantChannels: quantChannels,
+			SpatialScale:  spatialScale,
 			LatentsMean:   vcfg.LatentsMean,
 			LatentsStd:    vcfg.LatentsStd,
 		},
@@ -315,16 +336,24 @@ func (s *Spec) crossCheckConfig() error {
 	t, v, e := &s.Transformer, &s.VAE, &s.TextEncoder
 
 	// in_channels == latent_ch(z_dim) * patch^2  (transformer <-> vae <-> model_index)
-	if want := v.ZDim * s.PatchSize * s.PatchSize; t.InChannels != want {
+	want, err := media.PatchVectorWidth(v.ZDim, s.PatchSize)
+	if err != nil {
+		return fmt.Errorf("latentimage: transformer patch width: %w", err)
+	}
+	if !checked.Equal(t.InChannels, want) {
 		return fmt.Errorf("latentimage: in_channels %d != z_dim*patch^2 %d (z=%d patch=%d)",
 			t.InChannels, want, v.ZDim, s.PatchSize)
 	}
 	// sum(axes_dims_rope) == head_dim
-	if sum := t.RopeAxes[0] + t.RopeAxes[1] + t.RopeAxes[2]; sum != t.HeadDim {
+	sum, ok := checked.AddInt(t.RopeAxes[:]...)
+	if !ok {
+		return errors.New("latentimage: axes_dims_rope overflows")
+	}
+	if !checked.Equal(sum, t.HeadDim) {
 		return fmt.Errorf("latentimage: sum(axes_dims_rope)=%d != head_dim %d", sum, t.HeadDim)
 	}
 	// len(select_layers) == num_text_layers  (model_index <-> transformer)
-	if len(e.SelectLayers) != t.TextLayers {
+	if !checked.Equal(len(e.SelectLayers), t.TextLayers) {
 		return fmt.Errorf("latentimage: len(select_layers)=%d != num_text_layers %d", len(e.SelectLayers), t.TextLayers)
 	}
 	// Selected layers index hidden_states[N] captured AFTER decoder layer N-1
@@ -332,21 +361,23 @@ func (s *Spec) crossCheckConfig() error {
 	// [1, HiddenLayers], matching captureSlots -- the code that executes the
 	// capture -- so a config that passes derivation cannot fail at execution.
 	for _, layer := range e.SelectLayers {
-		if layer < 1 || layer > e.HiddenLayers {
+		if !checked.ValidOneBasedIndex(layer, e.HiddenLayers) {
 			return fmt.Errorf("latentimage: select layer %d out of range [1,%d]", layer, e.HiddenLayers)
 		}
 	}
 	// latents_mean/std length == z_dim
-	if len(v.LatentsMean) != v.ZDim || len(v.LatentsStd) != v.ZDim {
-		return fmt.Errorf("latentimage: latents_mean/std len (%d/%d) != z_dim %d",
-			len(v.LatentsMean), len(v.LatentsStd), v.ZDim)
+	if err := media.ValidateChannelMoments(v.LatentsMean, v.LatentsStd, v.ZDim); err != nil {
+		return fmt.Errorf("latentimage: latent normalization: %w", err)
 	}
 	// fusion boundary: transformer text_hidden_dim == text encoder hidden_size
-	if t.TextHidden != e.Hidden {
+	if !checked.Equal(t.TextHidden, e.Hidden) {
 		return fmt.Errorf("latentimage: text_hidden_dim %d != text_encoder hidden_size %d", t.TextHidden, e.Hidden)
 	}
 	// GQA sanity
-	if t.KVHeads <= 0 || t.Heads%t.KVHeads != 0 {
+	if !checked.PositiveInts(t.Heads, t.KVHeads) {
+		return fmt.Errorf("latentimage: heads %d and kv_heads %d must be positive", t.Heads, t.KVHeads)
+	}
+	if _, ok := checked.DivExactInt(t.Heads, t.KVHeads); !ok {
 		return fmt.Errorf("latentimage: heads %d not a multiple of kv_heads %d", t.Heads, t.KVHeads)
 	}
 	return nil

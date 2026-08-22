@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
+	"overgo/internal/cuda/device"
+	"overgo/internal/media"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/workflowruntime"
@@ -26,13 +29,13 @@ func LoadWanRuntime(ctx context.Context, store artifact.Reader, path string, pro
 		return nil, err
 	}
 	storage := dtype.BF16
-	if profile.Precision != "bf16" {
+	if !checked.Equal(profile.Precision, dtype.BF16.String()) {
 		return nil, errors.New("latent video: unsupported production precision")
 	}
 	generator, err := NewGenerator(GeneratorConfig{
 		ModelDirectory: path, Policy: profile.Policy, LatentStats: profile.LatentStats,
 		Frames: request.Frames, Width: request.Width, Height: request.Height,
-		Precision: DenoiserPrecision{MatmulWeights: storage, RoundAttentionStorage: true}, DeviceOrdinal: 0,
+		Precision: DenoiserPrecision{MatmulWeights: storage, RoundAttentionStorage: true}, DeviceOrdinal: device.DefaultOrdinal(),
 	})
 	if err != nil {
 		return nil, err
@@ -45,9 +48,17 @@ func (r *WanRuntime) Reset(_ context.Context, request WanRequest) error {
 		return errors.New("latent video: Wan runtime is closed")
 	}
 	geometry := r.generator.Geometry()
-	if geometry.LatentFrames != (request.Frames-1)/r.profile.Policy.VAEStride[0]+1 ||
-		geometry.LatentHeight != request.Height/r.profile.Policy.VAEStride[1] ||
-		geometry.LatentWidth != request.Width/r.profile.Policy.VAEStride[2] {
+	volume, err := media.DownsampledVolume(request.Frames, request.Height, request.Width, r.profile.Policy.VAEStride)
+	if err != nil {
+		return err
+	}
+	if !checked.Equal(geometry.LatentFrames, volume.Frames) {
+		return errors.New("latent video: request differs from resident Wan geometry")
+	}
+	if !checked.Equal(geometry.LatentHeight, volume.Height) {
+		return errors.New("latent video: request differs from resident Wan geometry")
+	}
+	if !checked.Equal(geometry.LatentWidth, volume.Width) {
 		return errors.New("latent video: request differs from resident Wan geometry")
 	}
 	return nil
@@ -115,7 +126,7 @@ func LoadLiveEditRuntime(ctx context.Context, store artifact.Reader, path string
 		Source:         SourceVideoShape{Channels: source.Channels, Frames: source.Frames, Height: source.Height, Width: source.Width},
 		FramesPerChunk: condition.FramesPerChunk, LocalAttentionFrames: condition.LocalAttention,
 		Timesteps: condition.Timesteps, Sigmas: condition.Sigmas, ContextTimestep: condition.ContextTimestep,
-		Layers: base.NumLayers, DeviceOrdinal: 0, Seed: condition.Seed, TextContext: condition.TextContext,
+		Layers: base.NumLayers, DeviceOrdinal: device.DefaultOrdinal(), Seed: condition.Seed, TextContext: condition.TextContext,
 	})
 	if err != nil {
 		return nil, err

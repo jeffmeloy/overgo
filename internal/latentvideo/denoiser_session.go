@@ -235,7 +235,7 @@ func (s *DenoiserCUDASession) ForwardHead(patchTokens, blockE, headE []float32, 
 	if !ok || branch == nil {
 		return nil, fmt.Errorf("denoiser session forward: branch context is %T", branchContext)
 	}
-	hostFeeds := make(map[*tensor.Tensor]reference.Value, 3)
+	hostFeeds := make(map[*tensor.Tensor]reference.Value, tensor.TripleExtent)
 	for _, feed := range []struct {
 		node *tensor.Tensor
 		data []float32

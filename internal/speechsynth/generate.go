@@ -3,7 +3,11 @@
 // head, one-step flow decode, latent fed back through input_linear.
 package speechsynth
 
-import "fmt"
+import (
+	"fmt"
+
+	"overgo/internal/tensor"
+)
 
 // GenerateParams: explicit loop policy. NoiseAt supplies the per-step noise
 // (test injection or a caller-owned RNG); serving-policy defaults belong to
@@ -32,10 +36,10 @@ func (m *Model) GenerateLatents(voiceCond []float32, voiceFrames int, textIDs []
 	if len(voiceCond) != voiceFrames*d {
 		return LatentBatch{}, nil, fmt.Errorf("speechsynth: voice conditioning %d values != %d rows x %d", len(voiceCond), voiceFrames, d)
 	}
-	if p.MaxFrames <= 0 || p.NoiseAt == nil {
+	if p.MaxFrames <= tensor.FirstOffset || p.NoiseAt == nil {
 		return LatentBatch{}, nil, fmt.Errorf("speechsynth: generation needs MaxFrames > 0 and a noise source")
 	}
-	st := m.NewDecodeState(voiceFrames + len(textIDs) + p.MaxFrames + 1)
+	st := m.NewDecodeState(voiceFrames + len(textIDs) + p.MaxFrames + tensor.SingletonExtent)
 
 	// Prompt phases: outputs beyond the last row are discarded.
 	prompt := make([]float32, (voiceFrames+len(textIDs))*d)
@@ -46,30 +50,30 @@ func (m *Model) GenerateLatents(voiceCond []float32, voiceFrames int, textIDs []
 	m.AppendForward(st, prompt, voiceFrames+len(textIDs))
 
 	latents := LatentBatch{Values: make([]float32, p.MaxFrames*latent), Width: latent}
-	eos := make([]float64, 0, p.MaxFrames)
+	eos := make([]float64, tensor.FirstOffset, p.MaxFrames)
 	input := make([]float32, d)
 	cond := make([]float32, d)
 	noise := make([]float32, latent)
 	m.LatentInputInto(input, m.BosEmb)
-	eosStep := -1
-	for step := 0; step < p.MaxFrames; step++ {
-		m.AppendForward(st, input, 1)
-		m.OutNormInto(cond, input, 1)
+	eosStep := -tensor.SingletonExtent
+	for step := tensor.FirstOffset; step < p.MaxFrames; step++ {
+		m.AppendForward(st, input, tensor.SingletonExtent)
+		m.OutNormInto(cond, input, tensor.SingletonExtent)
 		logit := m.EOSLogit(cond)
-		if logit > p.EOSThreshold && eosStep < 0 {
+		if logit > p.EOSThreshold && eosStep < tensor.FirstOffset {
 			eosStep = step
 		}
-		if eosStep >= 0 && step >= eosStep+p.FramesAfterEOS {
+		if eosStep >= tensor.FirstOffset && step >= eosStep+p.FramesAfterEOS {
 			break // reference rule: the breaking frame is not decoded
 		}
 		eos = append(eos, logit)
 		p.NoiseAt(step, noise)
-		lat := latents.Values[latents.Frames*latent : (latents.Frames+1)*latent]
+		lat := latents.Values[latents.Frames*latent : (latents.Frames+tensor.SingletonExtent)*latent]
 		m.OneStepLatentInto(lat, cond, noise)
 		latents.Frames++
 		m.LatentInputInto(input, lat)
 	}
-	if latents.Frames == 0 {
+	if latents.Frames == tensor.FirstOffset {
 		return LatentBatch{}, nil, fmt.Errorf("speechsynth: no frames generated")
 	}
 	latents.Values = latents.Values[:latents.Frames*latent]

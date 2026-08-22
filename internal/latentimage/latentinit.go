@@ -11,7 +11,7 @@ package latentimage
 import (
 	"fmt"
 
-	"overgo/internal/tensor/dtype"
+	"overgo/internal/media"
 )
 
 // LatentShape is the [ZDim, Height, Width] geometry of a seeded initial latent,
@@ -28,45 +28,24 @@ type LatentShape struct {
 func (s LatentShape) Elements() int { return s.ZDim * s.Height * s.Width }
 
 func (s LatentShape) validate() error {
-	if s.ZDim <= 0 || s.Height <= 0 || s.Width <= 0 {
-		return fmt.Errorf("latentimage: bad latent shape [%d,%d,%d]", s.ZDim, s.Height, s.Width)
+	if err := media.ValidatePlanarGeometry(s.ZDim, s.Height, s.Width); err != nil {
+		return fmt.Errorf("latentimage: bad latent shape: %w", err)
 	}
 	return nil
-}
-
-// LatentShape derives the seeded-latent geometry for a pixel-space image size:
-// ZDim is the VAE z_dim and each latent spatial dim is the pixel dim divided by
-// the VAE spatial downsample factor (SpatialScale = 2^(len(dim_mult)-1)). Pixel
-// dims must divide the scale evenly. Every field is read from the derived Spec;
-// nothing is hardcoded (at 2048x2048 with scale 8 this yields [z_dim,256,256]).
-func (s *Spec) LatentShape(pixelHeight, pixelWidth int) (LatentShape, error) {
-	scale := s.VAE.SpatialScale
-	if scale <= 0 {
-		return LatentShape{}, fmt.Errorf("latentimage: bad vae spatial scale %d", scale)
-	}
-	if pixelHeight <= 0 || pixelWidth <= 0 || pixelHeight%scale != 0 || pixelWidth%scale != 0 {
-		return LatentShape{}, fmt.Errorf("latentimage: pixel size %dx%d not divisible by vae scale %d",
-			pixelHeight, pixelWidth, scale)
-	}
-	return LatentShape{ZDim: s.VAE.ZDim, Height: pixelHeight / scale, Width: pixelWidth / scale}, nil
 }
 
 // NoiseMix carries the scalars of adaptive's planar_mix_noise_bf16 kernel
 // (go/extmodel/cuda_ops_cuda_windows.go). The destination is overwritten with
 //
 //	bf16( SignalWeight*dst + NoiseWeight*bf16(noise*NoiseScale) ).
-type NoiseMix struct {
-	SignalWeight float32
-	NoiseWeight  float32
-	NoiseScale   float32
-}
+type NoiseMix = media.NoiseMix
 
 // InitNoiseMix is the seeded initial-latent contract for a fresh Krea serve:
 // adaptive calls mediaMixNoiseIntoDeviceCUDA(Seed, NoiseWeight=1, NoiseScale=1)
 // with the destination ALIASED to the noise buffer (joint_transformer_cuda_
 // windows.go). SignalWeight is the zero value, so with the alias the mix reduces
 // to bf16(randn): the raw torch.randn draw rounded once to bf16 storage.
-var InitNoiseMix = NoiseMix{SignalWeight: 0, NoiseWeight: 1, NoiseScale: 1}
+var InitNoiseMix = media.FreshNoiseMix()
 
 // mixNoiseInto reproduces planar_mix_noise_bf16 element-for-element in host f32.
 // Round-to-nearest-even bf16 (dtype.RoundBF16) equals the device runtime_bf16 for
@@ -75,10 +54,7 @@ var InitNoiseMix = NoiseMix{SignalWeight: 0, NoiseWeight: 1, NoiseScale: 1}
 // dst[i], so an in-place aliased call is exact. All arithmetic is float32,
 // matching the kernel's __fmul_rn/__fadd_rn round-to-nearest-even.
 func mixNoiseInto(dst, noise []float32, m NoiseMix) {
-	for i := range noise {
-		n := dtype.RoundBF16(noise[i] * m.NoiseScale)
-		dst[i] = dtype.RoundBF16(m.SignalWeight*dst[i] + m.NoiseWeight*n)
-	}
+	media.MixNoiseBF16Into(dst, noise, m)
 }
 
 // SeededLatentFromNoise applies the NoiseMix contract to a pre-drawn noise buffer

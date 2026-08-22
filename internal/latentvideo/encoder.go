@@ -13,8 +13,12 @@ import (
 	"slices"
 	"time"
 
+	"overgo/internal/binaryschema"
+	"overgo/internal/checked"
 	"overgo/internal/hostmath"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/representation"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
 
@@ -56,47 +60,67 @@ const (
 	blockFC2
 	blockPosition
 	blockTensorCount
-	tokenBinding        = 0
-	leadingTensorCount  = 1
-	boundaryTensorCount = 2
 )
-
-const encoderStorageDType = "BFloat16Storage"
 
 // deriveEncoderConfig reconstructs geometry from tensor shapes; policy
 // supplies only RelativeMaxDistance and NormEps.
 func deriveEncoderConfig(byName map[string]pytorchzip.TensorMeta, policy EncoderConfig) (EncoderConfig, error) {
 	c := EncoderConfig{RelativeMaxDistance: policy.RelativeMaxDistance, NormEps: policy.NormEps}
 	norm, ok := byName["norm.weight"]
-	if !ok || len(norm.Shape) != 1 || norm.Shape[0] <= 0 {
+	if !ok {
 		return c, fmt.Errorf("encoder config: norm.weight missing or not 1-d")
 	}
-	c.Dim = int(norm.Shape[0])
+	normShape, err := pytorchzip.HostShape(norm, tensor.SingletonExtent)
+	if err != nil {
+		return c, fmt.Errorf("encoder config: norm.weight: %w", err)
+	}
+	c.Dim = normShape[tensor.FirstOffset]
 	embed, ok := byName["token_embedding.weight"]
-	if !ok || len(embed.Shape) != 2 || embed.Shape[1] != norm.Shape[0] || embed.Shape[0] <= 0 {
+	if !ok {
 		return c, fmt.Errorf("encoder config: token_embedding.weight missing or incompatible with width=%d", c.Dim)
 	}
-	c.VocabSize = int(embed.Shape[0])
+	embedShape, err := pytorchzip.HostShape(embed, tensor.PairedExtent)
+	if err != nil {
+		return c, fmt.Errorf("encoder config: token_embedding.weight: %w", err)
+	}
+	if !checked.Equal(embedShape[tensor.SingletonExtent], c.Dim) {
+		return c, fmt.Errorf("encoder config: token_embedding.weight incompatible with width=%d", c.Dim)
+	}
+	c.VocabSize = embedShape[tensor.FirstOffset]
 	pos, ok := byName["blocks.0.pos_embedding.embedding.weight"]
-	if !ok || len(pos.Shape) != 2 || pos.Shape[0] <= 0 || pos.Shape[1] <= 0 {
+	if !ok {
 		return c, fmt.Errorf("encoder config: blocks.0 position embedding missing or not 2-d")
 	}
-	c.RelativeBuckets, c.Heads = int(pos.Shape[0]), int(pos.Shape[1])
+	positionShape, err := pytorchzip.HostShape(pos, tensor.PairedExtent)
+	if err != nil {
+		return c, fmt.Errorf("encoder config: position embedding: %w", err)
+	}
+	c.RelativeBuckets, c.Heads = positionShape[tensor.FirstOffset], positionShape[tensor.SingletonExtent]
 	fc1, ok := byName["blocks.0.ffn.fc1.weight"]
-	if !ok || len(fc1.Shape) != 2 || fc1.Shape[1] != norm.Shape[0] || fc1.Shape[0] <= 0 {
+	if !ok {
 		return c, fmt.Errorf("encoder config: blocks.0 ffn.fc1 missing or incompatible with width=%d", c.Dim)
 	}
-	c.FFNDim = int(fc1.Shape[0])
-	for layer := 0; ; layer++ {
+	ffnShape, err := pytorchzip.HostShape(fc1, tensor.PairedExtent)
+	if err != nil {
+		return c, fmt.Errorf("encoder config: blocks.0 ffn.fc1: %w", err)
+	}
+	if !checked.Equal(ffnShape[tensor.SingletonExtent], c.Dim) {
+		return c, fmt.Errorf("encoder config: blocks.0 ffn.fc1 incompatible with width=%d", c.Dim)
+	}
+	c.FFNDim = ffnShape[tensor.FirstOffset]
+	for layer := tensor.FirstOffset; ; layer++ {
 		if _, ok := byName[fmt.Sprintf("blocks.%d.norm1.weight", layer)]; !ok {
 			c.Layers = layer
 			break
 		}
 	}
-	if c.Layers == 0 {
+	if !checked.PositiveInts(c.Layers) {
 		return c, fmt.Errorf("encoder config: no blocks.N.norm1.weight tensors")
 	}
-	if c.Dim%c.Heads != 0 || c.RelativeMaxDistance <= 0 || c.NormEps <= 0 {
+	if _, ok := checked.DivExactInt(c.Dim, c.Heads); !ok {
+		return c, fmt.Errorf("encoder config: invalid derived contract %+v", c)
+	}
+	if !checked.PositiveInts(c.RelativeMaxDistance) || !checked.PositiveFinite64(c.NormEps) {
 		return c, fmt.Errorf("encoder config: invalid derived contract %+v", c)
 	}
 	return c, nil
@@ -126,15 +150,15 @@ func CompileEncoderPlan(metas []pytorchzip.TensorMeta, policy EncoderConfig) (En
 				plan.Missing = append(plan.Missing, TensorIssue{Name: name, Want: fmt.Sprint(spec.shape)})
 				continue
 			}
-			if got.DType != encoderStorageDType {
-				plan.DTypeMismatches = append(plan.DTypeMismatches, TensorIssue{Name: name, Want: encoderStorageDType, Got: got.DType})
+			if got.DType != pytorchzip.BFloat16StorageClass() {
+				plan.DTypeMismatches = append(plan.DTypeMismatches, TensorIssue{Name: name, Want: pytorchzip.BFloat16StorageClass(), Got: got.DType})
 			}
 			if !slices.Equal(got.Shape, spec.shape) {
 				plan.ShapeMismatches = append(plan.ShapeMismatches, TensorIssue{Name: name, Want: fmt.Sprint(spec.shape), Got: fmt.Sprint(got.Shape)})
 			}
 		}
 	}
-	plan.OK = len(plan.Missing) == 0 && len(plan.Unexpected) == 0 && len(plan.DTypeMismatches) == 0 && len(plan.ShapeMismatches) == 0
+	plan.OK = checked.Empty(plan.Missing, plan.Unexpected, plan.DTypeMismatches, plan.ShapeMismatches)
 	if plan.OK {
 		plan.bindings, plan.blockWeightBytes, configErr = compileEncoderBindings(metas, plan.Config)
 		if configErr != nil {
@@ -153,7 +177,7 @@ func expectedEncoderSpecs(c EncoderConfig) map[string]tensorSpec {
 		"token_embedding.weight": {shape: []int64{vocab, dim}},
 		"norm.weight":            {shape: []int64{dim}},
 	}
-	for i := 0; i < c.Layers; i++ {
+	for i := range c.Layers {
 		p := fmt.Sprintf("blocks.%d.", i)
 		specs[p+"norm1.weight"] = tensorSpec{shape: []int64{dim}}
 		specs[p+"attn.q.weight"] = tensorSpec{shape: []int64{dim, dim}}
@@ -185,20 +209,23 @@ func encoderBlockTensorNames(layer int) []string {
 	}
 }
 
-func compileEncoderBindings(metas []pytorchzip.TensorMeta, config EncoderConfig) ([]pytorchzip.TensorBinding, []int64, error) {
-	names := make([]string, 0, boundaryTensorCount+config.Layers*blockTensorCount)
-	names = append(names, "token_embedding.weight")
-	for layer := 0; layer < config.Layers; layer++ {
+func encoderTensorNames(layers int) []string {
+	names := []string{"token_embedding.weight"}
+	for layer := range layers {
 		names = append(names, encoderBlockTensorNames(layer)...)
 	}
-	names = append(names, "norm.weight")
+	return append(names, "norm.weight")
+}
+
+func compileEncoderBindings(metas []pytorchzip.TensorMeta, config EncoderConfig) ([]pytorchzip.TensorBinding, []int64, error) {
+	names := encoderTensorNames(config.Layers)
 	bindings, err := pytorchzip.CompileBindings(metas, names)
 	if err != nil {
 		return nil, nil, err
 	}
 	blockWeightBytes := make([]int64, config.Layers)
 	for layer := range blockWeightBytes {
-		start := leadingTensorCount + layer*blockTensorCount
+		start := tensor.SingletonExtent + layer*blockTensorCount
 		for _, binding := range bindings[start : start+blockTensorCount] {
 			bytes, byteErr := pytorchzip.TensorMetaBytes(binding.Meta)
 			if byteErr != nil {
@@ -211,8 +238,8 @@ func compileEncoderBindings(metas []pytorchzip.TensorMeta, config EncoderConfig)
 }
 
 func (p EncoderPlan) validateRuntimeBindings() error {
-	want := boundaryTensorCount + p.Config.Layers*blockTensorCount
-	if !p.OK || p.Config.Layers <= 0 || len(p.bindings) != want || len(p.blockWeightBytes) != p.Config.Layers {
+	want := len(encoderTensorNames(p.Config.Layers))
+	if !p.OK || !checked.PositiveInts(p.Config.Layers) || !checked.Equal(len(p.bindings), want) || !checked.Equal(len(p.blockWeightBytes), p.Config.Layers) {
 		return fmt.Errorf("encoder runtime plan: ok=%t layers=%d bindings=%d/%d block_bytes=%d", p.OK, p.Config.Layers, len(p.bindings), want, len(p.blockWeightBytes))
 	}
 	return nil
@@ -243,8 +270,6 @@ type EncoderStats struct {
 	PeakHeapAllocBytes  uint64
 }
 
-const uint16Bytes = 2
-
 // EncodeTokensStreamed runs the full encoder, loading one block's weights at
 // a time (peak host memory ~ one F32-decoded block, never the checkpoint).
 func EncodeTokensStreamed(checkpoint string, plan EncoderPlan, tokenIDs, mask []int) ([]float32, EncoderStats, error) {
@@ -264,15 +289,19 @@ func EncodeTokensStreamed(checkpoint string, plan EncoderPlan, tokenIDs, mask []
 		return nil, stats, err
 	}
 	defer reader.Close()
-	hidden, err := reader.ReadTensorRows(plan.bindings[tokenBinding], tokenIDs, config.Dim)
+	tokenBinding, ok := checked.First(plan.bindings)
+	if !ok {
+		return nil, stats, fmt.Errorf("encoder: token binding absent")
+	}
+	hidden, err := reader.ReadTensorRows(tokenBinding, tokenIDs, config.Dim)
 	if err != nil {
 		return nil, stats, err
 	}
 	stats.TokenRows = len(tokenIDs)
 	stats.Engine = "host_streamed"
 	started := time.Now()
-	stats.EmbeddingBytesRead = int64(len(tokenIDs) * config.Dim * uint16Bytes)
-	buckets, err := compileRelativePositionBuckets(len(tokenIDs), len(tokenIDs), config.RelativeBuckets, config.RelativeMaxDistance, true)
+	stats.EmbeddingBytesRead = int64(len(tokenIDs) * config.Dim * binaryschema.Uint16Bytes)
+	buckets, err := representation.RelativePositionBuckets(len(tokenIDs), len(tokenIDs), config.RelativeBuckets, config.RelativeMaxDistance, true)
 	if err != nil {
 		return nil, stats, err
 	}
@@ -287,13 +316,13 @@ func EncodeTokensStreamed(checkpoint string, plan EncoderPlan, tokenIDs, mask []
 			stats.PeakHeapAllocBytes = ms.HeapAlloc - baseline.HeapAlloc
 		}
 	}
-	for layer := 0; layer < config.Layers; layer++ {
-		start := leadingTensorCount + layer*blockTensorCount
+	for layer := range config.Layers {
+		start := tensor.SingletonExtent + layer*blockTensorCount
 		weights, err := loadEncoderBlockWeights(reader, plan.bindings[start:start+blockTensorCount])
 		if err != nil {
 			return nil, stats, err
 		}
-		next, err := encoderBlockForward(hidden, mask, buckets, 1, len(mask), config.Dim, config.Heads, config.FFNDim, config.RelativeBuckets, weights, config.NormEps, true)
+		next, err := encoderBlockForward(hidden, mask, buckets, tensor.SingletonExtent, len(mask), config.Dim, config.Heads, config.FFNDim, config.RelativeBuckets, weights, config.NormEps, true)
 		if err != nil {
 			return nil, stats, err
 		}
@@ -307,13 +336,17 @@ func EncodeTokensStreamed(checkpoint string, plan EncoderPlan, tokenIDs, mask []
 		}
 		runtime.GC()
 	}
-	norm, err := reader.ReadBinding(plan.bindings[len(plan.bindings)-1])
+	normBinding, ok := checked.Last(plan.bindings)
+	if !ok {
+		return nil, stats, fmt.Errorf("encoder: final normalization binding is absent")
+	}
+	norm, err := reader.ReadBinding(normBinding)
 	if err != nil {
 		return nil, stats, err
 	}
 	hostmath.RMSNormInto(hidden, hidden, norm, len(tokenIDs), config.Dim, config.NormEps)
 	dtype.RoundBF16Slice(hidden)
-	stats.FinalNormBytes = int64(len(norm) * uint16Bytes)
+	stats.FinalNormBytes = int64(len(norm) * binaryschema.Uint16Bytes)
 	stats.OutputRows = len(tokenIDs)
 	stats.OutputDim = config.Dim
 	stats.EncoderWallSec = time.Since(started).Seconds()
@@ -358,14 +391,19 @@ func validateEncoderBlockWeights(w encoderBlockWeights, dim, ffnDim, heads, numB
 // storage dtype: f32 accumulation with a BF16 round after every op, exactly
 // where the reference rounds.
 func encoderBlockForward(x []float32, mask, buckets []int, batch, seq, dim, heads, ffnDim, numBuckets int, w encoderBlockWeights, eps float64, bf16 bool) ([]float32, error) {
-	if batch <= 0 || seq <= 0 || dim <= 0 || heads <= 0 || ffnDim <= 0 || numBuckets <= 0 || dim%heads != 0 {
+	if !checked.PositiveInts(batch, seq, dim, heads, ffnDim, numBuckets) {
 		return nil, fmt.Errorf("encoder block: bad shape batch=%d seq=%d width=%d heads=%d hidden=%d buckets=%d", batch, seq, dim, heads, ffnDim, numBuckets)
 	}
-	if len(x) != batch*seq*dim {
-		return nil, fmt.Errorf("encoder block: input=%d want=%d", len(x), batch*seq*dim)
+	if _, ok := checked.DivExactInt(dim, heads); !ok {
+		return nil, fmt.Errorf("encoder block: width=%d does not divide across heads=%d", dim, heads)
 	}
-	if mask != nil && len(mask) != batch*seq {
-		return nil, fmt.Errorf("encoder block: mask=%d want=%d", len(mask), batch*seq)
+	if err := checked.Length(x, batch, seq, dim); err != nil {
+		return nil, fmt.Errorf("encoder block: input: %w", err)
+	}
+	if mask != nil {
+		if err := checked.Length(mask, batch, seq); err != nil {
+			return nil, fmt.Errorf("encoder block: mask: %w", err)
+		}
 	}
 	if err := validateEncoderBlockWeights(w, dim, ffnDim, heads, numBuckets); err != nil {
 		return nil, err
@@ -376,7 +414,7 @@ func encoderBlockForward(x []float32, mask, buckets []int, batch, seq, dim, head
 	k := linearWithAccumulation(norm1, w.K, batch*seq, dim, dim, bf16)
 	v := linearWithAccumulation(norm1, w.V, batch*seq, dim, dim, bf16)
 	roundBF16If(bf16, q, k, v)
-	attn, err := relativePositionSelfAttention(q, k, v, mask, buckets, w.PosEmbedding, batch, seq, heads, dim/heads, numBuckets, bf16)
+	attn, err := hostmath.RelativePositionAttentionF32(q, k, v, mask, buckets, w.PosEmbedding, batch, seq, heads, dim/heads, numBuckets, bf16)
 	if err != nil {
 		return nil, err
 	}
@@ -452,136 +490,4 @@ func rmsNormWithReduction(x, weight []float32, rows, dim int, eps float64, f32Re
 		}
 	})
 	return out
-}
-
-func relativePositionBucket(relPos, numBuckets int, bidirectional bool, maxDist int) int {
-	buckets := 0
-	n := relPos
-	if bidirectional {
-		half := numBuckets / 2
-		if n > 0 {
-			buckets += half
-		}
-		if n < 0 {
-			n = -n
-		}
-		numBuckets = half
-	} else if n > 0 {
-		n = 0
-	} else {
-		n = -n
-	}
-	maxExact := numBuckets / 2
-	if n < maxExact {
-		return buckets + n
-	}
-	if maxExact <= 0 {
-		return buckets
-	}
-	large := maxExact + int(math.Log(float64(n)/float64(maxExact))/math.Log(float64(maxDist)/float64(maxExact))*float64(numBuckets-maxExact))
-	if large > numBuckets-1 {
-		large = numBuckets - 1
-	}
-	return buckets + large
-}
-
-func compileRelativePositionBuckets(queryRows, keyRows, numBuckets, maxDistance int, bidirectional bool) ([]int, error) {
-	if queryRows <= 0 || keyRows <= 0 || numBuckets <= 0 || maxDistance <= 0 {
-		return nil, fmt.Errorf("relative-position buckets: query=%d key=%d buckets=%d max_distance=%d", queryRows, keyRows, numBuckets, maxDistance)
-	}
-	out := make([]int, queryRows*keyRows)
-	for query := 0; query < queryRows; query++ {
-		for key := 0; key < keyRows; key++ {
-			out[query*keyRows+key] = relativePositionBucket(key-query, numBuckets, bidirectional, maxDistance)
-		}
-	}
-	return out, nil
-}
-
-// relativePositionSelfAttention: unscaled scores + per-bucket additive bias,
-// -inf on masked keys. Per-(query,head) arithmetic is identical to the
-// reference; queries fan out across workers (row-independent).
-func relativePositionSelfAttention(q, k, v []float32, mask, buckets []int, embedding []float32, batch, seq, heads, headDim, numBuckets int, bf16 bool) ([]float32, error) {
-	want := batch * seq * heads * headDim
-	if len(q) != want || len(k) != want || len(v) != want {
-		return nil, fmt.Errorf("relative-position attention: q/k/v=%d/%d/%d want=%d", len(q), len(k), len(v), want)
-	}
-	if len(embedding) != numBuckets*heads {
-		return nil, fmt.Errorf("relative-position attention: embedding=%d want=%d", len(embedding), numBuckets*heads)
-	}
-	if len(buckets) != seq*seq {
-		return nil, fmt.Errorf("relative-position attention: buckets=%d want=%d", len(buckets), seq*seq)
-	}
-	out := make([]float32, want)
-	for b := 0; b < batch; b++ {
-		hostmath.ParallelRangeF64(seq, heads*seq*headDim*2, func(qLo, qHi int) {
-			scores := make([]float32, seq)
-			for qi := qLo; qi < qHi; qi++ {
-				for h := 0; h < heads; h++ {
-					for ki := 0; ki < seq; ki++ {
-						score := attentionDotWithAccumulation(q, k, b, qi, ki, h, seq, heads, headDim, bf16)
-						bucket := buckets[qi*seq+ki]
-						score += float64(embedding[bucket*heads+h])
-						if mask != nil && mask[b*seq+ki] == 0 {
-							score = math.Inf(-1)
-						}
-						scores[ki] = float32(score)
-					}
-					roundBF16If(bf16, scores)
-					softmaxWithAccumulation(scores, bf16)
-					roundBF16If(bf16, scores)
-					baseOut := ((b*seq+qi)*heads + h) * headDim
-					for j := 0; j < headDim; j++ {
-						out[baseOut+j] = 0
-					}
-					for ki, prob := range scores {
-						baseV := ((b*seq+ki)*heads + h) * headDim
-						for j := 0; j < headDim; j++ {
-							out[baseOut+j] += prob * v[baseV+j]
-						}
-					}
-					roundBF16If(bf16, out[baseOut:baseOut+headDim])
-				}
-			}
-		})
-	}
-	return out, nil
-}
-
-func softmaxWithAccumulation(row []float32, bf16 bool) {
-	if !bf16 {
-		hostmath.SoftmaxInPlace(row)
-		return
-	}
-	mx := float32(math.Inf(-1))
-	for _, value := range row {
-		if value > mx {
-			mx = value
-		}
-	}
-	var sum float32
-	for i, value := range row {
-		row[i] = float32(math.Exp(float64(value - mx)))
-		sum += row[i]
-	}
-	for i := range row {
-		row[i] /= sum
-	}
-}
-
-func attentionDotWithAccumulation(q, k []float32, b, qi, ki, h, seq, heads, headDim int, bf16 bool) float64 {
-	qBase := ((b*seq+qi)*heads + h) * headDim
-	kBase := ((b*seq+ki)*heads + h) * headDim
-	if bf16 {
-		var score float32
-		for j := 0; j < headDim; j++ {
-			score += q[qBase+j] * k[kBase+j]
-		}
-		return float64(score)
-	}
-	var score float64
-	for j := 0; j < headDim; j++ {
-		score += float64(q[qBase+j]) * float64(k[kBase+j])
-	}
-	return score
 }

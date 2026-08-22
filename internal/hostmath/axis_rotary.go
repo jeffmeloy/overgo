@@ -6,6 +6,36 @@
 // angles (the transpose of the orthogonal map).
 package hostmath
 
+import "math"
+
+// AxisRotaryGridTableF64 builds cos/sin rows for zero-position text followed
+// by a row-major two-dimensional media grid.
+func AxisRotaryGridTableF64(textRows, gridHeight, gridWidth, headWidth int, spans [3]int, base float64) (cosine, sine []float64) {
+	rows := textRows + gridHeight*gridWidth
+	cosine = make([]float64, rows*headWidth)
+	sine = make([]float64, rows*headWidth)
+	for row := range rows {
+		var position [3]float64
+		if row >= textRows {
+			gridIndex := row - textRows
+			position = [3]float64{0, float64(gridIndex / gridWidth), float64(gridIndex % gridWidth)}
+		}
+		offset := 0
+		for axis, span := range spans {
+			for pair := range span / 2 {
+				frequency := math.Pow(base, -float64(2*pair)/float64(span))
+				angle := position[axis] * frequency
+				cosValue, sinValue := math.Cos(angle), math.Sin(angle)
+				first := row*headWidth + offset + 2*pair
+				cosine[first], cosine[first+1] = cosValue, cosValue
+				sine[first], sine[first+1] = sinValue, sinValue
+			}
+			offset += span
+		}
+	}
+	return cosine, sine
+}
+
 // AxisRotaryInvFreq: per-span inverse-frequency ladders for the given spans.
 func AxisRotaryInvFreq(base float64, spans [3]int) [3][]float64 {
 	var out [3][]float64

@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/tensor"
 	"overgo/internal/workflowruntime"
 )
 
@@ -33,7 +34,7 @@ type generationPlan struct {
 }
 
 func ValidateSynthesisRequest(request SynthesisRequest) error {
-	if strings.TrimSpace(request.Text) == "" || request.MaxFrames <= 0 {
+	if strings.TrimSpace(request.Text) == "" || request.MaxFrames <= tensor.FirstOffset {
 		return errors.New("speechsynth: synthesis requires text and a positive frame limit")
 	}
 	return nil
@@ -75,12 +76,12 @@ func (s *Synthesizer) tokenize(request SynthesisRequest) (generationPlan, error)
 }
 
 func (s *Synthesizer) generate(plan generationPlan) (LatentBatch, error) {
-	if !s.complete() || len(plan.tokens) == 0 || plan.maxFrames <= 0 {
+	if !s.complete() || len(plan.tokens) == tensor.FirstOffset || plan.maxFrames <= tensor.FirstOffset {
 		return LatentBatch{}, errors.New("speechsynth: invalid generation plan")
 	}
 	random := rand.New(rand.NewSource(plan.seed))
-	latents, _, err := s.model.GenerateLatents(nil, 0, plan.tokens, GenerateParams{
-		MaxFrames: plan.maxFrames, EOSThreshold: math.Inf(1),
+	latents, _, err := s.model.GenerateLatents(nil, tensor.FirstOffset, plan.tokens, GenerateParams{
+		MaxFrames: plan.maxFrames, EOSThreshold: math.Inf(tensor.SingletonExtent),
 		NoiseAt: func(_ int, values []float32) {
 			for index := range values {
 				values[index] = float32(random.NormFloat64())
@@ -101,7 +102,7 @@ func (s *Synthesizer) decode(latents LatentBatch) (Audio, error) {
 	if err != nil {
 		return Audio{}, err
 	}
-	return Audio{PCM: pcm, SampleRate: s.model.Codec.SampleRate, Channels: 1}, nil
+	return Audio{PCM: pcm, SampleRate: s.model.Codec.SampleRate, Channels: tensor.SingletonExtent}, nil
 }
 
 // RegisterRuntime binds one synthesizer to its recipe stage.

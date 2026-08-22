@@ -18,6 +18,12 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+// BFloat16StorageClass returns the PyTorch pickle storage-class spelling for
+// bfloat16 tensors.
+func BFloat16StorageClass() string { return "BFloat16Storage" }
+
+func Float32StorageClass() string { return "FloatStorage" }
+
 // TensorMeta: one tensor as described by the checkpoint pickle.
 type TensorMeta struct {
 	Name          string

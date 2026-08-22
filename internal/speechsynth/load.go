@@ -21,26 +21,37 @@
 package speechsynth
 
 import (
+	_ "embed"
 	"fmt"
 	"math"
 	"path/filepath"
 
+	"overgo/internal/checked"
 	"overgo/internal/hostmath"
 	"overgo/internal/jsonfile"
+	"overgo/internal/media"
 	"overgo/internal/safetensors"
+	"overgo/internal/strictjson"
+	"overgo/internal/tensor"
 	"overgo/internal/tensorcatalog"
 )
 
 // Vendor-source epsilons: not config fields, not tensors — code facts of the
 // reference implementation (adaptive reference facts speech-flow-synthesis).
-const (
-	// torch.nn.LayerNorm default eps; the flow-LM transformer keeps it.
-	transformerLayerNormEps = 1e-5
-	// SimpleMLPAdaLN ResBlock/FinalLayer LayerNorm eps.
-	flowLayerNormEps = 1e-6
-	// TimestepEmbedder RMS eps (paired with its UNBIASED-variance quirk).
-	timeEmbedRMSEps = 1e-5
-)
+//
+//go:embed speech_program.json
+var speechProgramJSON []byte
+
+func loadSpeechProgram() (media.NormalizationProgram, error) {
+	var program media.NormalizationProgram
+	if err := strictjson.DecodeBytes(speechProgramJSON, &program); err != nil {
+		return program, fmt.Errorf("speechsynth: decode normalization program: %w", err)
+	}
+	if err := program.Validate(); err != nil {
+		return program, err
+	}
+	return program, nil
+}
 
 // Dims: model geometry, derived from tensor shapes plus the two
 // config-only facts (Heads, MaxPeriod).
@@ -89,7 +100,7 @@ type flowBlock struct {
 type flowNet struct {
 	inputProjW, inputProjB []float32 // latent -> flowDim
 	condEmbedW, condEmbedB []float32 // d -> flowDim
-	timeEmbeds             [2]timeEmbed
+	timeEmbeds             [tensor.PairedExtent]timeEmbed
 	blocks                 []flowBlock
 	finalAdaW, finalAdaB   []float32 // flowDim -> 2*flowDim
 	finalLinW, finalLinB   []float32 // flowDim -> latent
@@ -97,7 +108,8 @@ type flowNet struct {
 
 // Model: loaded backbone weights and derived dims.
 type Model struct {
-	Dims Dims
+	Dims          Dims
+	Normalization media.NormalizationProgram
 
 	layers      []attnLayer
 	condEmbed   []float32 // [textVocab, d] token lookup
@@ -184,10 +196,10 @@ func loadConfig(path string) (artifactConfig, error) {
 		return artifactConfig{}, fmt.Errorf("speechsynth: parse %s: %w", filepath.Base(path), err)
 	}
 	tr := config.FlowLM.Transformer
-	if tr.NumHeads <= 0 {
+	if tr.NumHeads <= tensor.FirstOffset {
 		return artifactConfig{}, fmt.Errorf("speechsynth: config lacks positive flow_lm.transformer.num_heads")
 	}
-	if tr.MaxPeriod <= 0 {
+	if tr.MaxPeriod <= tensor.FirstOffset {
 		return artifactConfig{}, fmt.Errorf("speechsynth: config lacks positive flow_lm.transformer.max_period")
 	}
 	return config, nil
@@ -207,6 +219,10 @@ func Load(directory string) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
+	normalization, err := loadSpeechProgram()
+	if err != nil {
+		return nil, err
+	}
 	source, err := safetensors.OpenSource(directory)
 	if err != nil {
 		return nil, err
@@ -223,13 +239,13 @@ func Load(directory string) (*Model, error) {
 		if !ok {
 			return nil, fmt.Errorf("speechsynth: tensor %q missing", name)
 		}
-		shape := shapes[name]
-		if len(shape) != len(wantShape) {
-			return nil, fmt.Errorf("speechsynth: tensor %q rank %d, want %d", name, len(shape), len(wantShape))
+		dimensions, err := tensorcatalog.Dimensions(shapes, name, len(wantShape))
+		if err != nil {
+			return nil, fmt.Errorf("speechsynth: %w", err)
 		}
 		for i, want := range wantShape {
-			if want > 0 && shape[i] != want {
-				return nil, fmt.Errorf("speechsynth: tensor %q shape %v, want dim %d = %d", name, shape, i, want)
+			if checked.PositiveInts(want) && !checked.Equal(dimensions[i], want) {
+				return nil, fmt.Errorf("speechsynth: tensor %q shape %v, want dim %d = %d", name, dimensions, i, want)
 			}
 		}
 		values, err := safetensors.ReadF32(tensor)
@@ -244,9 +260,10 @@ func Load(directory string) (*Model, error) {
 		return nil, err
 	}
 	m := &Model{
-		Dims:       dims,
-		invFreq:    hostmath.RopeInvFreq(dims.MaxPeriod, dims.HeadDim),
-		scoreScale: float32(1 / math.Sqrt(float64(dims.HeadDim))),
+		Dims:          dims,
+		Normalization: normalization,
+		invFreq:       hostmath.RopeInvFreq(dims.MaxPeriod, dims.HeadDim),
+		scoreScale:    float32(float64(tensor.SingletonExtent) / math.Sqrt(float64(dims.HeadDim))),
 	}
 
 	d, ff, latent, flowDim := dims.DModel, dims.FF, dims.LatentDim, dims.FlowDim
@@ -263,7 +280,7 @@ func Load(directory string) (*Model, error) {
 			{&l.norm1B, p + "norm1.bias", []int{d}},
 			{&l.norm2W, p + "norm2.weight", []int{d}},
 			{&l.norm2B, p + "norm2.bias", []int{d}},
-			{&l.inProj, p + "self_attn.in_proj.weight", []int{3 * d, d}},
+			{&l.inProj, p + "self_attn.in_proj.weight", []int{tensor.TripleExtent * d, d}},
 			{&l.outProj, p + "self_attn.out_proj.weight", []int{d, d}},
 			{&l.lin1, p + "linear1.weight", []int{ff, d}},
 			{&l.lin2, p + "linear2.weight", []int{d, ff}},
@@ -282,7 +299,7 @@ func Load(directory string) (*Model, error) {
 		{&m.inputLinear, "flow_lm.input_linear.weight", []int{d, latent}},
 		{&m.outNormW, "flow_lm.out_norm.weight", []int{d}},
 		{&m.outNormB, "flow_lm.out_norm.bias", []int{d}},
-		{&m.outEosW, "flow_lm.out_eos.weight", []int{1, d}},
+		{&m.outEosW, "flow_lm.out_eos.weight", []int{tensor.SingletonExtent, d}},
 		{&m.BosEmb, "flow_lm.bos_emb", []int{latent}},
 		{&m.EmbMean, "flow_lm.emb_mean", []int{latent}},
 		{&m.EmbStd, "flow_lm.emb_std", []int{latent}},
@@ -291,11 +308,11 @@ func Load(directory string) (*Model, error) {
 			return nil, err
 		}
 	}
-	eosBias, err := read("flow_lm.out_eos.bias", 1)
+	eosBias, err := read("flow_lm.out_eos.bias", tensor.SingletonExtent)
 	if err != nil {
 		return nil, err
 	}
-	m.outEosB = eosBias[0]
+	m.outEosB = eosBias[tensor.FirstOffset]
 
 	fn := &m.flow
 	for _, f := range []struct {
@@ -307,8 +324,8 @@ func Load(directory string) (*Model, error) {
 		{&fn.inputProjB, "flow_lm.flow_net.input_proj.bias", []int{flowDim}},
 		{&fn.condEmbedW, "flow_lm.flow_net.cond_embed.weight", []int{flowDim, d}},
 		{&fn.condEmbedB, "flow_lm.flow_net.cond_embed.bias", []int{flowDim}},
-		{&fn.finalAdaW, "flow_lm.flow_net.final_layer.adaLN_modulation.1.weight", []int{2 * flowDim, flowDim}},
-		{&fn.finalAdaB, "flow_lm.flow_net.final_layer.adaLN_modulation.1.bias", []int{2 * flowDim}},
+		{&fn.finalAdaW, "flow_lm.flow_net.final_layer.adaLN_modulation.1.weight", []int{tensor.PairedExtent * flowDim, flowDim}},
+		{&fn.finalAdaB, "flow_lm.flow_net.final_layer.adaLN_modulation.1.bias", []int{tensor.PairedExtent * flowDim}},
 		{&fn.finalLinW, "flow_lm.flow_net.final_layer.linear.weight", []int{latent, flowDim}},
 		{&fn.finalLinB, "flow_lm.flow_net.final_layer.linear.bias", []int{latent}},
 	} {
@@ -325,7 +342,7 @@ func Load(directory string) (*Model, error) {
 			want []int
 		}{
 			{&te.freqs, p + "freqs", []int{dims.TimeFreqs}},
-			{&te.l0w, p + "mlp.0.weight", []int{flowDim, 2 * dims.TimeFreqs}},
+			{&te.l0w, p + "mlp.0.weight", []int{flowDim, tensor.PairedExtent * dims.TimeFreqs}},
 			{&te.l0b, p + "mlp.0.bias", []int{flowDim}},
 			{&te.l2w, p + "mlp.2.weight", []int{flowDim, flowDim}},
 			{&te.l2b, p + "mlp.2.bias", []int{flowDim}},
@@ -351,15 +368,15 @@ func Load(directory string) (*Model, error) {
 			{&b.mlp0b, p + "mlp.0.bias", []int{flowDim}},
 			{&b.mlp2w, p + "mlp.2.weight", []int{flowDim, flowDim}},
 			{&b.mlp2b, p + "mlp.2.bias", []int{flowDim}},
-			{&b.adaW, p + "adaLN_modulation.1.weight", []int{3 * flowDim, flowDim}},
-			{&b.adaB, p + "adaLN_modulation.1.bias", []int{3 * flowDim}},
+			{&b.adaW, p + "adaLN_modulation.1.weight", []int{tensor.TripleExtent * flowDim, flowDim}},
+			{&b.adaB, p + "adaLN_modulation.1.bias", []int{tensor.TripleExtent * flowDim}},
 		} {
 			if *f.dst, err = read(f.name, f.want...); err != nil {
 				return nil, err
 			}
 		}
 	}
-	if m.Codec, err = loadCodecDecoder(read, shapes, config, dims.LatentDim); err != nil {
+	if m.Codec, err = loadCodecDecoder(read, shapes, config, dims.LatentDim, normalization); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -369,68 +386,67 @@ func Load(directory string) (*Model, error) {
 // num_heads and max_period, and its restated shape facts must agree.
 func deriveDims(shapes map[string][]int, config artifactConfig) (Dims, error) {
 	var d Dims
-	outNorm, ok := shapes["flow_lm.out_norm.weight"]
-	if !ok || len(outNorm) != 1 {
+	outNorm, err := tensorcatalog.Dimensions(shapes, "flow_lm.out_norm.weight", tensor.SingletonExtent)
+	if err != nil {
 		return d, fmt.Errorf("speechsynth: out_norm.weight missing; d_model underivable")
 	}
-	d.DModel = outNorm[0]
+	d.DModel = outNorm[tensor.FirstOffset]
 
-	var err error
 	if d.Layers, err = tensorcatalog.IndexedCount(shapes, layerPrefix, ".norm1.weight"); err != nil {
 		return d, err
 	}
-	lin1, ok := shapes[layerPrefix+"0.linear1.weight"]
-	if !ok || len(lin1) != 2 || lin1[1] != d.DModel {
+	lin1, err := tensorcatalog.Dimensions(shapes, layerPrefix+"0.linear1.weight", tensor.PairedExtent)
+	if err != nil || !checked.Equal(lin1[tensor.SingletonExtent], d.DModel) {
 		return d, fmt.Errorf("speechsynth: layer-0 linear1 incompatible with d_model %d", d.DModel)
 	}
-	d.FF = lin1[0]
-	inProj, ok := shapes[layerPrefix+"0.self_attn.in_proj.weight"]
-	if !ok || len(inProj) != 2 || inProj[0] != 3*d.DModel || inProj[1] != d.DModel {
+	d.FF = lin1[tensor.FirstOffset]
+	inProj, err := tensorcatalog.Dimensions(shapes, layerPrefix+"0.self_attn.in_proj.weight", tensor.PairedExtent)
+	if err != nil || !checked.Equal(inProj[tensor.FirstOffset], tensor.TripleExtent*d.DModel) || !checked.Equal(inProj[tensor.SingletonExtent], d.DModel) {
 		return d, fmt.Errorf("speechsynth: layer-0 in_proj %v is not fused [3d, d]", inProj)
 	}
 
-	embed, ok := shapes["flow_lm.conditioner.embed.weight"]
-	if !ok || len(embed) != 2 || embed[1] != d.DModel {
+	embed, err := tensorcatalog.Dimensions(shapes, "flow_lm.conditioner.embed.weight", tensor.PairedExtent)
+	if err != nil || !checked.Equal(embed[tensor.SingletonExtent], d.DModel) {
 		return d, fmt.Errorf("speechsynth: conditioner embed missing or width != d_model")
 	}
-	d.TextVocab = embed[0]
+	d.TextVocab = embed[tensor.FirstOffset]
 
-	inputLinear, ok := shapes["flow_lm.input_linear.weight"]
-	if !ok || len(inputLinear) != 2 || inputLinear[0] != d.DModel {
+	inputLinear, err := tensorcatalog.Dimensions(shapes, "flow_lm.input_linear.weight", tensor.PairedExtent)
+	if err != nil || !checked.Equal(inputLinear[tensor.FirstOffset], d.DModel) {
 		return d, fmt.Errorf("speechsynth: input_linear missing or rows != d_model")
 	}
-	d.LatentDim = inputLinear[1]
+	d.LatentDim = inputLinear[tensor.SingletonExtent]
 
-	inputProj, ok := shapes["flow_lm.flow_net.input_proj.weight"]
-	if !ok || len(inputProj) != 2 || inputProj[1] != d.LatentDim {
+	inputProj, err := tensorcatalog.Dimensions(shapes, "flow_lm.flow_net.input_proj.weight", tensor.PairedExtent)
+	if err != nil || !checked.Equal(inputProj[tensor.SingletonExtent], d.LatentDim) {
 		return d, fmt.Errorf("speechsynth: flow input_proj missing or columns != latent dim %d", d.LatentDim)
 	}
-	d.FlowDim = inputProj[0]
+	d.FlowDim = inputProj[tensor.FirstOffset]
 
 	if d.FlowDepth, err = tensorcatalog.IndexedCount(shapes, resBlockPrefix, ".in_ln.weight"); err != nil {
 		return d, err
 	}
-	freqs, ok := shapes["flow_lm.flow_net.time_embed.0.freqs"]
-	if !ok || len(freqs) != 1 {
+	freqs, err := tensorcatalog.Dimensions(shapes, "flow_lm.flow_net.time_embed.0.freqs", tensor.SingletonExtent)
+	if err != nil {
 		return d, fmt.Errorf("speechsynth: time_embed.0.freqs missing")
 	}
-	d.TimeFreqs = freqs[0]
+	d.TimeFreqs = freqs[tensor.FirstOffset]
 
 	tr := config.FlowLM.Transformer
 	d.Heads = tr.NumHeads
 	d.MaxPeriod = tr.MaxPeriod
-	if d.DModel%d.Heads != 0 {
+	if _, ok := checked.DivExactInt(d.DModel, d.Heads); !ok {
 		return d, fmt.Errorf("speechsynth: heads %d do not partition d_model %d", d.Heads, d.DModel)
 	}
 	d.HeadDim = d.DModel / d.Heads
-	if d.HeadDim%2 != 0 {
+	if !checked.EvenInt(d.HeadDim) {
 		return d, fmt.Errorf("speechsynth: head dim %d incompatible with paired RoPE", d.HeadDim)
 	}
 
 	// Config restatements of shape facts: agree or refuse (0 = unstated).
-	nBinsPlusOne := 0
-	if config.FlowLM.LookupTable.NBins != 0 {
-		nBinsPlusOne = config.FlowLM.LookupTable.NBins + 1
+	nBinsPlusOne := tensor.FirstOffset
+	if checked.Nonzero(config.FlowLM.LookupTable.NBins) {
+		nBinsPlusOne = config.FlowLM.LookupTable.NBins + tensor.SingletonExtent
 	}
 	for _, check := range []struct {
 		name             string
@@ -444,7 +460,7 @@ func deriveDims(shapes map[string][]int, config artifactConfig) (Dims, error) {
 		{"flow.dim", d.FlowDim, config.FlowLM.Flow.Dim},
 		{"flow.depth", d.FlowDepth, config.FlowLM.Flow.Depth},
 	} {
-		if check.claimed != 0 && check.claimed != check.derived {
+		if checked.Nonzero(check.claimed) && !checked.Equal(check.claimed, check.derived) {
 			return d, fmt.Errorf("speechsynth: config %s=%d contradicts derived %d", check.name, check.claimed, check.derived)
 		}
 	}

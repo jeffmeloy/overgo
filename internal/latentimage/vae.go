@@ -23,15 +23,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/hostmath"
 	"overgo/internal/media"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
-
-// vaeNormZeroGuard: channel-norm zero-column floor (reference constant, mirrors
-// latentvideo channelNormZeroGuard).
-const vaeNormZeroGuard = 1e-12
 
 // VAEDecoder: a compiled + weight-resident QwenImage spatial decoder.
 type VAEDecoder struct {
@@ -67,11 +65,14 @@ func loadVAEDecoder(modelDir, class string) (*VAEDecoder, error) {
 	if cfg.ClassName != class {
 		return nil, fmt.Errorf("latentimage vae: class %q != %q", cfg.ClassName, class)
 	}
-	if cfg.ZDim <= 0 || len(cfg.DimMult) == 0 || cfg.NumResBlks <= 0 {
+	if !checked.PositiveInts(cfg.ZDim, cfg.NumResBlks) {
 		return nil, fmt.Errorf("latentimage vae: bad config z=%d dim_mult=%v res=%d", cfg.ZDim, cfg.DimMult, cfg.NumResBlks)
 	}
-	if len(cfg.LatentsMean) != cfg.ZDim || len(cfg.LatentsStd) != cfg.ZDim {
-		return nil, fmt.Errorf("latentimage vae: latents_mean/std len (%d/%d) != z_dim %d", len(cfg.LatentsMean), len(cfg.LatentsStd), cfg.ZDim)
+	if _, ok := checked.First(cfg.DimMult); !ok {
+		return nil, fmt.Errorf("latentimage vae: bad config z=%d dim_mult=%v res=%d", cfg.ZDim, cfg.DimMult, cfg.NumResBlks)
+	}
+	if err := media.ValidateChannelMoments(cfg.LatentsMean, cfg.LatentsStd, cfg.ZDim); err != nil {
+		return nil, fmt.Errorf("latentimage vae: latent normalization: %w", err)
 	}
 	weights, err := loadVAEWeights(vaeDir)
 	if err != nil {
@@ -153,7 +154,14 @@ func (d *VAEDecoder) build(w map[string][]float32, cfg vaeConfigJSON) error {
 		return err
 	}
 	// decoder.conv_in: z -> deepest feature dim (base*dim_mult[last]).
-	deepest := cfg.BaseDim * cfg.DimMult[len(cfg.DimMult)-1]
+	deepestMultiplier, ok := checked.Last(cfg.DimMult)
+	if !ok {
+		return fmt.Errorf("latentimage vae: empty channel multiplier program")
+	}
+	deepest, ok := checked.MulInt(cfg.BaseDim, deepestMultiplier)
+	if !ok {
+		return fmt.Errorf("latentimage vae: deepest channel count overflows")
+	}
 	if err := add(media.CodecConvolution, "decoder.conv_in", cfg.ZDim, deepest,
 		"decoder.conv_in.weight", "decoder.conv_in.bias"); err != nil {
 		return err
@@ -161,13 +169,10 @@ func (d *VAEDecoder) build(w map[string][]float32, cfg vaeConfigJSON) error {
 	channels := deepest
 
 	addResnet := func(prefix string, cOut int) error {
-		names := []string{
+		names := media.ResidualBindings([]string{
 			prefix + ".norm1.gamma", prefix + ".conv1.weight", prefix + ".conv1.bias",
 			prefix + ".norm2.gamma", prefix + ".conv2.weight", prefix + ".conv2.bias",
-		}
-		if channels != cOut {
-			names = append(names, prefix+".conv_shortcut.weight", prefix+".conv_shortcut.bias")
-		}
+		}, channels, cOut, prefix+".conv_shortcut.weight", prefix+".conv_shortcut.bias")
 		if err := add(media.CodecResidual, prefix, channels, cOut, names...); err != nil {
 			return err
 		}
@@ -193,11 +198,18 @@ func (d *VAEDecoder) build(w map[string][]float32, cfg vaeConfigJSON) error {
 	// all but the last block. The output dim of block b is base*dim_mult[b]
 	// (reversed order), matching the encoder mirror.
 	nBlocks := len(cfg.DimMult)
-	d.SpatialScale = 1
-	for b := 0; b < nBlocks; b++ {
-		mult := cfg.DimMult[nBlocks-1-b]
-		blockOut := cfg.BaseDim * mult
-		for r := 0; r <= cfg.NumResBlks; r++ {
+	d.SpatialScale = tensor.SingletonExtent
+	residualStages, ok := checked.AddInt(cfg.NumResBlks, tensor.SingletonExtent)
+	if !ok {
+		return fmt.Errorf("latentimage vae: residual stage count overflows")
+	}
+	for b := range nBlocks {
+		mult := cfg.DimMult[nBlocks-tensor.SingletonExtent-b]
+		blockOut, ok := checked.MulInt(cfg.BaseDim, mult)
+		if !ok {
+			return fmt.Errorf("latentimage vae: block channel count overflows")
+		}
+		for r := range residualStages {
 			prefix := fmt.Sprintf("decoder.up_blocks.%d.resnets.%d", b, r)
 			if err := addResnet(prefix, blockOut); err != nil {
 				return err
@@ -218,13 +230,16 @@ func (d *VAEDecoder) build(w map[string][]float32, cfg vaeConfigJSON) error {
 				return err
 			}
 			channels = cOut
-			d.SpatialScale *= 2
+			d.SpatialScale, ok = checked.MulInt(d.SpatialScale, media.CodecUpsampleSpatial.SpatialScale())
+			if !ok {
+				return fmt.Errorf("latentimage vae: spatial scale overflows")
+			}
 		}
 	}
 
 	// head: norm_out + SiLU + conv_out. cOut derived from conv_out bias.
 	outCh := len(w["decoder.conv_out.bias"])
-	if outCh <= 0 {
+	if !checked.PositiveInts(outCh) {
 		return fmt.Errorf("latentimage vae: missing decoder.conv_out.bias")
 	}
 	if err := add(media.CodecHead, "decoder.head", channels, outCh,
@@ -253,18 +268,22 @@ func (d *VAEDecoder) build(w map[string][]float32, cfg vaeConfigJSON) error {
 // [OutChannels][h*scale][w*scale] in [-1,1]. Single-frame path: temporal extent
 // 1, causal convs cold-cache, upsamplers spatial-only (time conv skipped).
 func (d *VAEDecoder) DecodeImage(z []float32, h, w int) (pixels []float32, outH, outW int, err error) {
-	if d == nil || len(d.Operations) == 0 {
+	if d == nil {
 		return nil, 0, 0, fmt.Errorf("latentimage vae: decoder not built")
 	}
-	spatial := h * w
-	if h <= 0 || w <= 0 || len(z) != d.ZDim*spatial {
-		return nil, 0, 0, fmt.Errorf("latentimage vae: latent len=%d want %d (z=%d %dx%d)", len(z), d.ZDim*spatial, d.ZDim, h, w)
+	if !checked.NonemptyAll(d.Operations) {
+		return nil, 0, 0, fmt.Errorf("latentimage vae: decoder not built")
+	}
+	spatial, spatialOK := checked.MulInt(h, w)
+	want, lengthOK := checked.MulInt(d.ZDim, spatial)
+	if !checked.PositiveInts(h, w, d.ZDim) || !spatialOK || !lengthOK || !checked.Equal(len(z), want) {
+		return nil, 0, 0, fmt.Errorf("latentimage vae: latent len=%d want %d (z=%d %dx%d)", len(z), want, d.ZDim, h, w)
 	}
 	// denorm: z*std + mean (per channel).
 	x := make([]float32, len(z))
-	for ch := 0; ch < d.ZDim; ch++ {
+	for ch := range d.ZDim {
 		mean, std := d.LatentsMean[ch], d.LatentsStd[ch]
-		for pos := 0; pos < spatial; pos++ {
+		for pos := range spatial {
 			x[ch*spatial+pos] = z[ch*spatial+pos]*std + mean
 		}
 	}
@@ -275,14 +294,7 @@ func (d *VAEDecoder) DecodeImage(z []float32, h, w int) (pixels []float32, outH,
 			return nil, 0, 0, fmt.Errorf("latentimage vae: %s: %w", d.Operations[i].Name, err)
 		}
 	}
-	for i, v := range x {
-		switch {
-		case v < -1:
-			x[i] = -1
-		case v > 1:
-			x[i] = 1
-		}
-	}
+	media.ClampNormalizedF32InPlace(x)
 	return x, ch_h, ch_w, nil
 }
 
@@ -306,7 +318,7 @@ func (d *VAEDecoder) runOp(op media.CodecOperation[[][]float32], x []float32, c,
 		gamma0, w0, b0 := op.Bindings[0], op.Bindings[1], op.Bindings[2]
 		gamma1, w1, b1 := op.Bindings[3], op.Bindings[4], op.Bindings[5]
 		n0 := make([]float32, len(x))
-		if err := hostmath.ChannelRMSNormF64Into(n0, x, gamma0, c, plane, vaeNormZeroGuard); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(n0, x, gamma0, c, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(n0)
@@ -315,7 +327,7 @@ func (d *VAEDecoder) runOp(op media.CodecOperation[[][]float32], x []float32, c,
 			return nil, 0, 0, 0, err
 		}
 		n1 := make([]float32, len(h0))
-		if err := hostmath.ChannelRMSNormF64Into(n1, h0, gamma1, op.OutputChannels, plane, vaeNormZeroGuard); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(n1, h0, gamma1, op.OutputChannels, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(n1)
@@ -323,32 +335,44 @@ func (d *VAEDecoder) runOp(op media.CodecOperation[[][]float32], x []float32, c,
 		if err := vaeCausalConv(out, n1, w1, b1, op.OutputChannels, op.OutputChannels, h, w); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		if op.InputChannels == op.OutputChannels {
-			for i := range out {
-				out[i] += x[i]
+		var projection, projectionBias []float32
+		if op.RequiresProjection() {
+			projectionBindings, ok := checked.Suffix(op.Bindings, tensor.PairedExtent)
+			if !ok {
+				return nil, 0, 0, 0, fmt.Errorf("residual projection bindings are absent")
 			}
-			return out, op.OutputChannels, h, w, nil
+			projection = projectionBindings[tensor.FirstOffset]
+			projectionBias = projectionBindings[tensor.SingletonExtent]
 		}
-		shortcut := make([]float32, len(out))
-		if err := hostmath.ChannelMixF64Into(shortcut, x, op.Bindings[6], op.Bindings[7], c, op.OutputChannels, plane); err != nil {
+		if err := hostmath.AddResidualF64Into(out, x, projection, projectionBias, c, op.OutputChannels, plane); err != nil {
 			return nil, 0, 0, 0, err
-		}
-		for i := range out {
-			out[i] += shortcut[i]
 		}
 		return out, op.OutputChannels, h, w, nil
 	case media.CodecAttention:
-		gamma, qkvW, qkvB := op.Bindings[0], op.Bindings[1], op.Bindings[2]
-		projW, projB := op.Bindings[3], op.Bindings[4]
+		qkvBindings, qkvOK := checked.Prefix(op.Bindings, tensor.TripleExtent)
+		projectionBindings, projectionOK := checked.Suffix(op.Bindings, tensor.PairedExtent)
+		if !qkvOK || !projectionOK {
+			return nil, 0, 0, 0, fmt.Errorf("attention bindings are incomplete")
+		}
+		gamma := qkvBindings[tensor.FirstOffset]
+		qkvW := qkvBindings[tensor.SingletonExtent]
+		qkvB := qkvBindings[tensor.PairedExtent]
+		projW := projectionBindings[tensor.FirstOffset]
+		projB := projectionBindings[tensor.SingletonExtent]
 		norm := make([]float32, len(x))
-		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, plane, vaeNormZeroGuard); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		qkv := make([]float32, 3*c*plane)
-		if err := hostmath.ChannelMixF64Into(qkv, norm, qkvW, qkvB, c, 3*c, plane); err != nil {
+		qkvChannels, channelsOK := checked.MulInt(tensor.TripleExtent, c)
+		qkvElements, elementsOK := checked.MulInt(qkvChannels, plane)
+		if !channelsOK || !elementsOK {
+			return nil, 0, 0, 0, fmt.Errorf("attention geometry overflows")
+		}
+		qkv := make([]float32, qkvElements)
+		if err := hostmath.ChannelMixF64Into(qkv, norm, qkvW, qkvB, c, qkvChannels, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		if err := hostmath.SpatialAttentionF64Into(norm, qkv, c, 1, plane); err != nil {
+		if err := hostmath.SpatialAttentionF64Into(norm, qkv, c, tensor.SingletonExtent, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		out := make([]float32, len(x))
@@ -361,16 +385,26 @@ func (d *VAEDecoder) runOp(op media.CodecOperation[[][]float32], x []float32, c,
 		return out, c, h, w, nil
 	case media.CodecUpsampleSpatial:
 		// Single-frame: spatial 2x resample-conv only (time conv skipped).
-		rw, rb := op.Bindings[0], op.Bindings[1]
-		out := make([]float32, op.OutputChannels*4*plane)
-		if err := hostmath.ResizeConv2DInto(out, x, rw, rb, c, op.OutputChannels, 1, h, w); err != nil {
+		resampleBindings, ok := checked.Prefix(op.Bindings, tensor.PairedExtent)
+		if !ok {
+			return nil, 0, 0, 0, fmt.Errorf("spatial upsample bindings are incomplete")
+		}
+		rw := resampleBindings[tensor.FirstOffset]
+		rb := resampleBindings[tensor.SingletonExtent]
+		scale := op.Operator.SpatialScale()
+		outputElements, ok := checked.ProductInt(op.OutputChannels, scale, scale, plane)
+		if !ok {
+			return nil, 0, 0, 0, fmt.Errorf("spatial upsample geometry overflows")
+		}
+		out := make([]float32, outputElements)
+		if err := hostmath.ResizeConv2DInto(out, x, rw, rb, c, op.OutputChannels, tensor.SingletonExtent, h, w); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		return out, op.OutputChannels, 2 * h, 2 * w, nil
+		return out, op.OutputChannels, scale * h, scale * w, nil
 	case media.CodecHead:
 		gamma, weight, bias := op.Bindings[0], op.Bindings[1], op.Bindings[2]
 		norm := make([]float32, len(x))
-		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, plane, vaeNormZeroGuard); err != nil {
+		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(norm)
@@ -386,26 +420,11 @@ func (d *VAEDecoder) runOp(op media.CodecOperation[[][]float32], x []float32, c,
 // vaeCausalConv: kt=kh=kw=3 causal 3-D conv on a single frame (InT=1, cold
 // cache), delegating to the golden-verified hostmath primitive.
 func vaeCausalConv(out, x, weight, bias []float32, cIn, cOut, h, w int) error {
-	shape := hostmath.Conv3DShape{
-		CIn: cIn, COut: cOut, InT: 1, InH: h, InW: w,
-		KT: 3, KH: 3, KW: 3, PadT: 1, PadH: 1, PadW: 1,
-		StrideT: 1, StrideH: 1, StrideW: 1,
-	}
-	return hostmath.CausalConv3DInto(out, x, nil, weight, bias, 0, shape)
+	return hostmath.CausalConv3DSameSingleFrameInto(out, x, weight, bias, cIn, cOut, h, w)
 }
 
 // PixelsToU8 converts a planar [C][H][W] tensor in [-1,1] to the g3 8-bit
 // image convention: u8 = round(((x+1)/2 clamped to [0,1]) * 255).
 func PixelsToU8(pixels []float32) []uint8 {
-	out := make([]uint8, len(pixels))
-	for i, v := range pixels {
-		p := (float64(v) + 1) * 0.5
-		if p < 0 {
-			p = 0
-		} else if p > 1 {
-			p = 1
-		}
-		out[i] = uint8(math.Round(p * 255))
-	}
-	return out
+	return media.NormalizedF32ToU8(pixels)
 }

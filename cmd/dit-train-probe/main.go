@@ -33,6 +33,7 @@ import (
 	"overgo/internal/latentvideo"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/sampling"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -348,7 +349,7 @@ func run() error {
 	}
 	noise := make([]float32, noiseElements)
 	// The golden capture engine's noise plan (g3 seed 31 geometry).
-	if err := latentvideo.FillNormalNoise(noise, latentvideo.NoisePlan{Seed: 31, Grid: 1, Block: 256, Unroll: 4}); err != nil {
+	if err := sampling.FillCounterNormalNoise(noise, sampling.CounterNoisePlan{Seed: 31, Grid: 1, Block: 256, Unroll: 4}); err != nil {
 		return err
 	}
 	latent := make([]float32, geometry.Elements())

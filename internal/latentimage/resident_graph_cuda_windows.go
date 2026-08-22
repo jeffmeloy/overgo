@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -20,10 +21,11 @@ import (
 )
 
 func storageBytes(dataType dtype.Type) int {
-	if dataType == dtype.BF16 {
-		return 2
+	width, ok := dataType.ScalarBytes()
+	if !ok {
+		return tensor.FirstOffset
 	}
-	return 4
+	return int(width)
 }
 
 func weightPayload(value safetensors.Tensor, storage dtype.Type) ([]byte, error) {
@@ -200,7 +202,7 @@ func (r *residentRuntime) bind(
 	payload func() ([]byte, error),
 ) error {
 	slot, ok := graph.compiled.InputSlot(node)
-	if r.weightIndexes == nil || !ok || graph.inputs.Pointers[slot] != 0 {
+	if r.weightIndexes == nil || !ok || checked.Nonzero(graph.inputs.Pointers[slot]) {
 		return errors.New("resident graph: static input is invalid")
 	}
 	elements, err := node.Shape.Elements()
@@ -260,13 +262,13 @@ func (r *residentRuntime) releaseGraphs(ctx context.Context, graphs ...*resident
 			for _, slotIndex := range graph.weights {
 				slot := &r.weightSlots[slotIndex]
 				slot.refs--
-				if slot.refs > 0 {
+				if checked.PositiveInts(slot.refs) {
 					continue
 				}
-				if slot.pointer != 0 {
+				if checked.Nonzero(slot.pointer) {
 					errs = append(errs, state.Driver.MemFree(slot.pointer))
 				}
-				if slot.bytes <= r.weightBytes {
+				if checked.AtMost64(slot.bytes, r.weightBytes) {
 					r.weightBytes -= slot.bytes
 				}
 				delete(r.weightIndexes, slot.key)
@@ -274,7 +276,7 @@ func (r *residentRuntime) releaseGraphs(ctx context.Context, graphs ...*resident
 			}
 			graph.inputs = nil
 			graph.weights = nil
-			graph.bytes = 0
+			graph.bytes = uint64(tensor.FirstOffset)
 		}
 		return errors.Join(errs...)
 	})
@@ -325,12 +327,12 @@ func (r *residentRuntime) retain(
 }
 
 func (g *residentGraph) bindDynamic(pointers []driver.DevicePtr) error {
-	if g == nil || g.inputs == nil || len(pointers) != len(g.dynamic) {
+	if g == nil || g.inputs == nil || !checked.Equal(len(pointers), len(g.dynamic)) {
 		return errors.New("resident graph: dynamic inputs do not match compiled slots")
 	}
 	for index, pointer := range pointers {
 		slot := g.dynamic[index]
-		if pointer == 0 || g.inputs.Pointers[slot] != 0 {
+		if !checked.Nonzero(pointer) || checked.Nonzero(g.inputs.Pointers[slot]) {
 			g.clearDynamic(index)
 			return errors.New("resident graph: dynamic input is invalid")
 		}
@@ -341,7 +343,7 @@ func (g *residentGraph) bindDynamic(pointers []driver.DevicePtr) error {
 
 func (g *residentGraph) clearDynamic(count int) {
 	for index := range min(count, len(g.dynamic)) {
-		g.inputs.Pointers[g.dynamic[index]] = 0
+		g.inputs.Pointers[g.dynamic[index]] = driver.DevicePtr(tensor.FirstOffset)
 	}
 }
 
@@ -354,11 +356,11 @@ func (r *residentRuntime) close(ctx context.Context) error {
 		errs = append(errs, r.exec.Close())
 		r.exec = nil
 	}
-	if r.worker != nil && len(r.weightSlots) != 0 {
+	if r.worker != nil && !checked.Empty(r.weightSlots) {
 		errs = append(errs, r.worker.Do(ctx, func(state *device.State) error {
 			var freeErrors []error
 			for index := range r.weightSlots {
-				if pointer := r.weightSlots[index].pointer; pointer != 0 {
+				if pointer := r.weightSlots[index].pointer; checked.Nonzero(pointer) {
 					freeErrors = append(freeErrors, state.Driver.MemFree(pointer))
 					r.weightSlots[index] = residentWeightSlot{}
 				}

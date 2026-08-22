@@ -21,6 +21,7 @@ const (
 	OperatorMLPGELU         Operator = "mlp-gelu"
 	OperatorAlignVocabulary Operator = "align-vocabulary"
 	OperatorPerceiver       Operator = "perceiver-resampler"
+	OperatorConditionalLoRA Operator = "conditional-lora"
 )
 
 type EmbeddingMode string
@@ -46,6 +47,8 @@ type Definition struct {
 	LatentCount      uint64
 	HeadCount        uint64
 	SourceTokenLimit uint64
+	LoRARank         uint64
+	ScaleLimit       float32
 }
 
 // Weights are graph nodes supplied by the bridge artifact loader.
@@ -61,6 +64,14 @@ type Weights struct {
 	Value      *tensor.Tensor
 	Output     *tensor.Tensor
 	Mask       *tensor.Tensor
+}
+
+// ConditionalLoRAWeights keep both low-rank bases fixed while a source
+// projection produces one bounded scale per sequence position.
+type ConditionalLoRAWeights struct {
+	Conditioner *tensor.Tensor
+	A           *tensor.Tensor
+	B           *tensor.Tensor
 }
 
 // Compiler is stateless; its zero value admits canonical contract bytes.
@@ -135,7 +146,7 @@ func (Compiler) Compile(definition Definition, sourceContent, targetContent []by
 	switch definition.Operator {
 	case OperatorLinear:
 		if checked.Nonzero(definition.Intermediate) || vocabularyDefinitionPresent(definition) ||
-			perceiverDefinitionPresent(definition) {
+			perceiverDefinitionPresent(definition) || conditionalLoRADefinitionPresent(definition) {
 			return Program{}, errors.New("bridge graph: linear operator has an intermediate width")
 		}
 		if err := validatePreservedSequence(source, target, sourceMin, sourceMax, targetMin, targetMax); err != nil {
@@ -143,14 +154,14 @@ func (Compiler) Compile(definition Definition, sourceContent, targetContent []by
 		}
 	case OperatorMLPGELU:
 		if !checked.Nonzero(definition.Intermediate) || vocabularyDefinitionPresent(definition) ||
-			perceiverDefinitionPresent(definition) {
+			perceiverDefinitionPresent(definition) || conditionalLoRADefinitionPresent(definition) {
 			return Program{}, errors.New("bridge graph: MLP operator requires an intermediate width")
 		}
 		if err := validatePreservedSequence(source, target, sourceMin, sourceMax, targetMin, targetMax); err != nil {
 			return Program{}, err
 		}
 	case OperatorAlignVocabulary:
-		if perceiverDefinitionPresent(definition) {
+		if perceiverDefinitionPresent(definition) || conditionalLoRADefinitionPresent(definition) {
 			return Program{}, errors.New("bridge graph: vocabulary alignment has Perceiver settings")
 		}
 		if err := validatePreservedSequence(source, target, sourceMin, sourceMax, targetMin, targetMax); err != nil {
@@ -160,10 +171,20 @@ func (Compiler) Compile(definition Definition, sourceContent, targetContent []by
 			return Program{}, err
 		}
 	case OperatorPerceiver:
-		if vocabularyDefinitionPresent(definition) {
+		if vocabularyDefinitionPresent(definition) || conditionalLoRADefinitionPresent(definition) {
 			return Program{}, errors.New("bridge graph: Perceiver has vocabulary settings")
 		}
 		if err := validatePerceiverDefinition(definition, source, target, sourceMin, sourceMax, targetMin, targetMax, targetSize); err != nil {
+			return Program{}, err
+		}
+	case OperatorConditionalLoRA:
+		if vocabularyDefinitionPresent(definition) || perceiverDefinitionPresent(definition) {
+			return Program{}, errors.New("bridge graph: conditional LoRA has unrelated operator settings")
+		}
+		if err := validatePreservedSequence(source, target, sourceMin, sourceMax, targetMin, targetMax); err != nil {
+			return Program{}, err
+		}
+		if err := validateConditionalLoRADefinition(definition, targetSize); err != nil {
 			return Program{}, err
 		}
 	default:
@@ -196,6 +217,9 @@ func (p Program) Build(builder *tensor.Builder, input *tensor.Tensor, weights We
 	}
 	if p.definition.Operator == OperatorPerceiver {
 		return p.buildPerceiver(builder, input, weights, tokens)
+	}
+	if p.definition.Operator == OperatorConditionalLoRA {
+		return nil, errors.New("bridge graph: conditional LoRA requires source and target inputs")
 	}
 	firstOutput := p.targetSize
 	if p.definition.Operator == OperatorMLPGELU {
@@ -249,6 +273,18 @@ func vocabularyDefinitionPresent(definition Definition) bool {
 func perceiverDefinitionPresent(definition Definition) bool {
 	return checked.Nonzero(definition.LatentCount) || checked.Nonzero(definition.HeadCount) ||
 		checked.Nonzero(definition.SourceTokenLimit)
+}
+
+func conditionalLoRADefinitionPresent(definition Definition) bool {
+	return checked.Nonzero(definition.LoRARank) || checked.Nonzero(definition.ScaleLimit)
+}
+
+func validateConditionalLoRADefinition(definition Definition, targetBasis uint64) error {
+	if checked.Nonzero(definition.Intermediate) || !checked.Nonzero(definition.LoRARank) ||
+		definition.LoRARank > targetBasis || !checked.PositiveFinite32(definition.ScaleLimit) {
+		return errors.New("bridge graph: conditional LoRA rank or scale bound is invalid")
+	}
+	return nil
 }
 
 func validatePreservedSequence(
@@ -416,6 +452,52 @@ func (p Program) buildPerceiver(
 	outputTokens, matrix := matrixExtents(output.Shape, p.targetSize)
 	if output.Type != dtype.F32 || !matrix || outputTokens != p.definition.LatentCount {
 		return nil, errors.New("bridge graph: Perceiver output differs from fixed target contract")
+	}
+	return output, nil
+}
+
+// BuildConditionalLoRA applies fixed target-space low-rank bases with a
+// per-position scale bounded by tanh and the compiled positive limit.
+func (p Program) BuildConditionalLoRA(
+	builder *tensor.Builder,
+	condition, target *tensor.Tensor,
+	weights ConditionalLoRAWeights,
+) (*tensor.Tensor, error) {
+	if p.definition.Operator != OperatorConditionalLoRA || builder == nil || condition == nil || target == nil {
+		return nil, errors.New("bridge graph: conditional LoRA program or input is absent")
+	}
+	tokens, sourceMatrix := matrixExtents(condition.Shape, p.sourceSize)
+	targetTokens, targetMatrix := matrixExtents(target.Shape, p.targetSize)
+	if condition.Type != dtype.F32 || target.Type != dtype.F32 || !sourceMatrix || !targetMatrix ||
+		tokens != targetTokens || tokens < p.sourceMin || tokens > p.sourceMax {
+		return nil, errors.New("bridge graph: conditional LoRA input differs from contracted matrices")
+	}
+	checks := []struct {
+		name          string
+		value         *tensor.Tensor
+		input, output uint64
+	}{
+		{"conditioner", weights.Conditioner, p.sourceSize, tensor.SingletonExtent},
+		{"A", weights.A, p.targetSize, p.definition.LoRARank},
+		{"B", weights.B, p.definition.LoRARank, p.targetSize},
+	}
+	for _, check := range checks {
+		if err := validateProjection(check.value, nil, check.input, check.output, false); err != nil {
+			return nil, fmt.Errorf("bridge graph: conditional LoRA %s: %w", check.name, err)
+		}
+	}
+	scale := builder.Scale(
+		builder.Tanh(builder.MulMat(weights.Conditioner, condition)),
+		p.definition.ScaleLimit,
+	)
+	delta := builder.MulMat(weights.B, builder.MulMat(weights.A, target))
+	output := builder.Add(target, builder.Multiply(delta, scale))
+	if err := builder.Err(); err != nil {
+		return nil, fmt.Errorf("bridge graph: build conditional LoRA: %w", err)
+	}
+	outputTokens, matrix := matrixExtents(output.Shape, p.targetSize)
+	if output.Type != dtype.F32 || !matrix || outputTokens != tokens {
+		return nil, errors.New("bridge graph: conditional LoRA output differs from target contract")
 	}
 	return output, nil
 }

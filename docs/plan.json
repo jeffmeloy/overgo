@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "conditional-lora",
-          "title": "Condition fixed low-rank adapter bases with bounded source-derived scales",
-          "status": "open",
-          "verify": "go test ./internal/bridgegraph -run '^TestConditionalLoRAScale$' -count=1",
-          "rationale": "Source-conditioned scales over fixed bases provide a bounded hypernetwork experiment without generating arbitrary per-request weight matrices.",
-          "depends_on": [
-            "cross-model-representation-bridge/interleaved-cross-attention"
-          ],
-          "capabilities": [
-            "conditional-low-rank-adaptation",
-            "bounded-dynamic-state",
-            "no-op-initialization"
-          ]
-        },
-        {
           "id": "compatible-weight-merge",
           "title": "Add a separate offline path for exact-compatible passthrough and same-base task arithmetic",
           "status": "open",

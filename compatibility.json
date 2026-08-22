@@ -1110,10 +1110,10 @@
      "identity": "file:sha256:74a8478dfe30d46959267c0dbba8590748625ef066ad7c069f206e073c9df342"
     },
     {
-     "contains": "capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed}",
+     "contains": "modelrecipe.ModuleRoutedImagePrepare:     routed,",
      "path": "cmd/recipe/image_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:649b7764a98c6768375edf873cb503bb356375929db53c385f3b6283edec7e42"
+     "identity": "file:sha256:de732ef838febf58012ddffbd8d6c29c85cf88a4d4bb0898e31f1c986624872c"
     },
     {
      "contains": "func TestSenseNovaProductionImageGeneration(",

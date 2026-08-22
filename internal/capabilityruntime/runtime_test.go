@@ -193,6 +193,30 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 	}
 }
 
+func TestExecutorCatalogUsesCompiledEntryModule(t *testing.T) {
+	store, modelID, program := capabilityFixture(t, "executor-catalog")
+	catalog := ExecutorCatalog{scalarModule: func(
+		_ context.Context, _ artifact.Repository, _ string, bound artifact.ID, _ recipe.Program, raw string,
+	) (any, error) {
+		if bound != modelID {
+			t.Fatal("executor received another model")
+		}
+		return raw, nil
+	}}
+	const input = `{"value":4}`
+	got, err := catalog.Execute(t.Context(), store, "model", modelID, program, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != input {
+		t.Fatalf("output=%v", got)
+	}
+	delete(catalog, scalarModule)
+	if _, err := catalog.Execute(t.Context(), store, "model", modelID, program, input); err == nil {
+		t.Fatal("missing entry executor accepted")
+	}
+}
+
 type cachedScalarModel struct {
 	bias   int
 	closed *int

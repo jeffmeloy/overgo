@@ -61,11 +61,11 @@ func videoCapability() capability {
 
 	return capability{
 		resolve: resolveVideoSource,
-		execute: capabilityruntime.Dispatch(
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleLatentVideoPrepare, Execute: wan},
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleReferenceVideoPrepare, Execute: edit},
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleOscillatorVideoPrepare, Execute: oscillator},
-		),
+		execute: capabilityruntime.ExecutorCatalog{
+			modelrecipe.ModuleLatentVideoPrepare:     wan,
+			modelrecipe.ModuleReferenceVideoPrepare:  edit,
+			modelrecipe.ModuleOscillatorVideoPrepare: oscillator,
+		}.Execute,
 	}
 }
 

@@ -77,12 +77,12 @@ func imageCapability() capability {
 	diffusion := sessionExecutor(diffusionDirector, diffusionErr)
 	return capability{
 		resolve: resolveImageSource,
-		execute: capabilityruntime.Dispatch(
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed},
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleLatentImagePrepare, Execute: latent},
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleOscillatorImagePrepare, Execute: oscillator},
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleDiffusionImagePrepare, Execute: diffusion},
-		),
+		execute: capabilityruntime.ExecutorCatalog{
+			modelrecipe.ModuleRoutedImagePrepare:     routed,
+			modelrecipe.ModuleLatentImagePrepare:     latent,
+			modelrecipe.ModuleOscillatorImagePrepare: oscillator,
+			modelrecipe.ModuleDiffusionImagePrepare:  diffusion,
+		}.Execute,
 	}
 }
 

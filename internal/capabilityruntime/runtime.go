@@ -12,38 +12,28 @@ import (
 
 type Executor func(context.Context, artifact.Repository, string, artifact.ID, recipe.Program, string) (any, error)
 
-// ExecutorBinding binds one compiled entry module to its implementation.
-type ExecutorBinding struct {
-	Module  recipe.ModuleID
-	Execute Executor
-}
+// ExecutorCatalog binds compiled entry modules to implementations.
+type ExecutorCatalog map[recipe.ModuleID]Executor
 
-// Dispatch selects execution from the compiled recipe entry module.
-func Dispatch(bindings ...ExecutorBinding) Executor {
-	bindings = append([]ExecutorBinding(nil), bindings...)
-	return func(
-		ctx context.Context,
-		store artifact.Repository,
-		path string,
-		modelID artifact.ID,
-		program recipe.Program,
-		raw string,
-	) (any, error) {
-		stages := program.Stages()
-		if len(stages) == 0 {
-			return nil, errors.New("capability runtime: compiled program has no entry module")
-		}
-		entry := stages[0].Module.ID
-		for _, binding := range bindings {
-			if binding.Module == entry {
-				if binding.Execute == nil {
-					return nil, fmt.Errorf("capability runtime: entry module %q has no executor", entry)
-				}
-				return binding.Execute(ctx, store, path, modelID, program, raw)
-			}
-		}
+// Execute selects execution from the compiled recipe entry module.
+func (catalog ExecutorCatalog) Execute(
+	ctx context.Context,
+	store artifact.Repository,
+	path string,
+	modelID artifact.ID,
+	program recipe.Program,
+	raw string,
+) (any, error) {
+	stages := program.Stages()
+	if len(stages) == 0 {
+		return nil, errors.New("capability runtime: compiled program has no entry module")
+	}
+	entry := stages[0].Module.ID
+	execute := catalog[entry]
+	if execute == nil {
 		return nil, fmt.Errorf("capability runtime: entry module %q has no executor", entry)
 	}
+	return execute(ctx, store, path, modelID, program, raw)
 }
 
 func JSONScalar[Input, Model, Output any](

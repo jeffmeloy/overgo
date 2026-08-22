@@ -1,11 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/plan"
+	"overgo/internal/repodb"
 )
 
 func TestPrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs(t *testing.T) {
@@ -82,4 +88,94 @@ func clonePlan(t *testing.T, document plan.Plan) plan.Plan {
 		t.Fatal(err)
 	}
 	return cloned
+}
+
+func TestPrepareMergeSnapshotEvidence(t *testing.T) {
+	root, runGit := mergeTestRepository(t)
+	snapshot := runGit("rev-parse", "HEAD")
+	source, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := source.Commit(context.Background(), mergeEvidenceBatch(t, "first"))
+	closeErr := source.Close()
+	if err != nil || closeErr != nil {
+		t.Fatalf("seed source = %s, %v, close=%v", first, err, closeErr)
+	}
+
+	frozen, err := captureClosureEvidence(root, snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer frozen.cleanup()
+	if frozen.head != first || frozen.sequence != 1 || frozen.store == "" {
+		t.Fatalf("snapshot = %+v", frozen)
+	}
+	source, err = repodb.Open(filepath.Join(root, "repodb-store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := source.Commit(context.Background(), mergeEvidenceBatch(t, "second"))
+	closeErr = source.Close()
+	if err != nil || closeErr != nil || second == first {
+		t.Fatalf("advance source = %s, %v, close=%v", second, err, closeErr)
+	}
+	copyStore, err := repodb.OpenReadOnly(frozen.store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, sequence := copyStore.Head()
+	if err := copyStore.Close(); err != nil || head != first || sequence != 1 {
+		t.Fatalf("frozen snapshot advanced = %s@%d, close=%v", head, sequence, err)
+	}
+}
+
+func mergeEvidenceBatch(t *testing.T, key string) artifact.Batch {
+	t.Helper()
+	payload := []byte(key)
+	id, err := artifact.IdentifyBytes(artifact.KindEvidence, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return artifact.Batch{Key: key, Artifacts: []artifact.Descriptor{{
+		ID: id, Size: uint64(len(payload)), MediaType: "application/octet-stream",
+	}}}
+}
+
+func TestPrepareMergeSourceAdvance(t *testing.T) {
+	root, runGit := mergeTestRepository(t)
+	first := runGit("rev-parse", "HEAD")
+	if err := os.WriteFile(filepath.Join(root, "fixture"), []byte("two"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit("commit", "-am", "second")
+	latest, err := gitOutput(root, "rev-parse", "--verify", "HEAD^{commit}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := verifySourceSnapshot("HEAD", first, latest, nil); err == nil {
+		t.Fatal("advanced source snapshot was accepted")
+	}
+}
+
+func mergeTestRepository(t *testing.T) (string, func(...string) string) {
+	t.Helper()
+	root := t.TempDir()
+	runGit := func(arguments ...string) string {
+		t.Helper()
+		output, err := commandOutput(root, "git", arguments...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.TrimSpace(string(output))
+	}
+	runGit("init")
+	runGit("config", "user.email", "overgo@example.invalid")
+	runGit("config", "user.name", "Overgo Test")
+	if err := os.WriteFile(filepath.Join(root, "fixture"), []byte("one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "fixture")
+	runGit("commit", "-m", "first")
+	return root, runGit
 }

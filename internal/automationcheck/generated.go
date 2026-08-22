@@ -47,24 +47,38 @@ func GeneratedChecks(root string, command Command) []Check {
 // GeneratedImpact derives authority facts from shipped paths and manifests.
 func GeneratedImpact(root string, paths []string) ([]Fact, error) {
 	facts := map[Fact]bool{}
-	compatibility, err := os.ReadFile(filepath.Join(root, "compatibility.json"))
-	if err != nil {
-		return nil, err
-	}
+	searchCompatibility := false
 	for _, path := range paths {
 		path = filepath.ToSlash(path)
 		if ownsManifest(path) {
 			if _, err := os.Stat(filepath.Join(root, "kernels", "manifest.json")); err == nil {
 				facts[manifestImpact] = true
-			} else if !errors.Is(err, os.ErrNotExist) {
+			} else if errors.Is(err, os.ErrNotExist) {
+				return nil, errors.New("automation check: kernel authority changed but kernels/manifest.json is missing")
+			} else {
 				return nil, err
 			}
 		}
 		if path == "go.mod" || path == "go.sum" || path == "SBOM.cdx.json" || strings.HasPrefix(path, "cmd/sbom/") {
 			facts[sbomImpact] = true
 		}
-		if path == "compatibility.json" || strings.HasPrefix(path, "cmd/compatibility/") || strings.HasPrefix(path, "internal/model/") || strings.Contains(string(compatibility), path) {
+		if path == "compatibility.json" || strings.HasPrefix(path, "cmd/compatibility/") || strings.HasPrefix(path, "internal/model/") {
 			facts[compatibilityImpact] = true
+		} else {
+			searchCompatibility = true
+		}
+	}
+	if !facts[compatibilityImpact] && searchCompatibility {
+		compatibility, err := os.ReadFile(filepath.Join(root, "compatibility.json"))
+		if err != nil {
+			return nil, err
+		}
+		manifestText := string(compatibility)
+		for _, path := range paths {
+			if strings.Contains(manifestText, filepath.ToSlash(path)) {
+				facts[compatibilityImpact] = true
+				break
+			}
 		}
 	}
 	result := make([]Fact, 0, len(facts))

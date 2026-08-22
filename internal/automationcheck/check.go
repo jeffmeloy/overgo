@@ -61,6 +61,7 @@ type Evidence struct {
 	Outcome      runrecord.LaneOutcome `json:"outcome"`
 	DurationNS   uint64                `json:"duration_ns"`
 	Skipped      bool                  `json:"skipped,omitempty"`
+	Reused       bool                  `json:"reused,omitempty"`
 	Detail       string                `json:"detail,omitempty"`
 }
 
@@ -129,8 +130,9 @@ func Run(ctx context.Context, invocation Invocation) (Evidence, error) {
 		InvocationID artifact.ID           `json:"invocation_id"`
 		Outcome      runrecord.LaneOutcome `json:"outcome"`
 		Skipped      bool                  `json:"skipped,omitempty"`
+		Reused       bool                  `json:"reused,omitempty"`
 		Detail       string                `json:"detail,omitempty"`
-	}{evidence.InvocationID, evidence.Outcome, evidence.Skipped, evidence.Detail})
+	}{evidence.InvocationID, evidence.Outcome, evidence.Skipped, evidence.Reused, evidence.Detail})
 	if err != nil {
 		return Evidence{}, fmt.Errorf("automation check %q: identify evidence: %w", evidence.Name, err)
 	}

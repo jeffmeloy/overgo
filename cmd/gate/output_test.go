@@ -37,7 +37,7 @@ func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 		start: time.Now(),
 		steps: []runrecord.GateStep{
 			{Name: "build", Outcome: runrecord.StepSucceeded},
-			{Name: "test", Outcome: runrecord.StepSucceeded},
+			{Name: "test", Outcome: runrecord.StepReused},
 			{Name: "claims", Outcome: runrecord.StepSkipped},
 		},
 		honesty: []string{
@@ -55,6 +55,7 @@ func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 	text := output.String()
 	if len(text) > 1000 || !strings.Contains(text, "phase=test heartbeat=running") ||
 		!strings.Contains(text, "GATE FAILED") || !strings.Contains(text, "blocker: test: exit status 1") ||
+		!strings.Contains(text, "ran=build | reused=test | skipped=claims") ||
 		!strings.Contains(text, "advisory: delta:") || !strings.Contains(text, "advisory: warning:") {
 		t.Fatalf("gate output is not compact and decision-complete (%d bytes):\n%s", len(text), text)
 	}
@@ -66,6 +67,30 @@ func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 	}}}
 	if focus := profileReviewFocus(profile, []string{"cmd/first/main.go"}); !strings.Contains(focus, "exact_clone=none") {
 		t.Fatalf("CLI wrapper clone reached agent output: %s", focus)
+	}
+}
+
+func TestDescriptorOrderIncludesInapplicableChecksInPlace(t *testing.T) {
+	definitions := []automationcheck.Check{
+		gateCheck("first", runrecord.PhaseValidate, func() (bool, error) { return false, nil }),
+		{
+			Descriptor: automationcheck.Descriptor{
+				Name: "middle", Phase: runrecord.PhaseValidate,
+				Triggers: []automationcheck.Fact{"middle"}, Inapplicable: "not selected",
+			},
+			Run: func(context.Context, automationcheck.Invocation) (bool, string, error) { return false, "", nil },
+		},
+		gateCheck("last", runrecord.PhasePackage, func() (bool, error) { return false, nil }),
+	}
+	planned, err := automationcheck.Plan(definitions, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	schedule := gateSchedule(definitions, planned)
+	if len(schedule) != 3 || schedule[0].descriptor.Name != "first" ||
+		schedule[1].descriptor.Name != "middle" || schedule[1].applicable ||
+		schedule[2].descriptor.Name != "last" {
+		t.Fatalf("schedule = %+v", schedule)
 	}
 }
 

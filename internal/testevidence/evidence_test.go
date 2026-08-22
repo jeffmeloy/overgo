@@ -101,3 +101,30 @@ func TestVerifyGoTestEvidenceWithoutRun(t *testing.T) {
 		t.Fatal("broad acceptance credited a skipped test")
 	}
 }
+
+func TestVerifyGoTestEvidenceMixedCommand(t *testing.T) {
+	passing := "{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestOne\"}\n" +
+		"{\"Action\":\"pass\",\"Package\":\"x\"}\n"
+	command := "go test ./x && go run ./cmd/device-lane"
+	if err := VerifyGoTestEvidence(command, passing+"device lane green\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyGoTestEvidence(command, passing+"{malformed event\n"); err == nil {
+		t.Fatal("mixed verifier accepted malformed JSON event")
+	}
+	if err := VerifyGoTestEvidence(command, passing+"DEVICE UNAVAILABLE\n"); err == nil {
+		t.Fatal("mixed verifier accepted unavailable auxiliary evidence")
+	}
+	if err := VerifyGoTestEvidence("go test ./x", passing+"unexpected output\n"); err == nil {
+		t.Fatal("test-only verifier accepted auxiliary output")
+	}
+}
+
+func TestFailureSummary(t *testing.T) {
+	evidence := "{\"Action\":\"fail\",\"Package\":\"x\",\"Test\":\"TestBroken\"}\n" +
+		"{\"Action\":\"fail\",\"Package\":\"x\"}\n" +
+		"device diagnostics\n"
+	if got := FailureSummary(evidence); got != "x: TestBroken, x" {
+		t.Fatalf("failure summary = %q", got)
+	}
+}

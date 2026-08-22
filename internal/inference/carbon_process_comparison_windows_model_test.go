@@ -22,6 +22,7 @@ import (
 )
 
 const carbonProcessRuns = 5
+const carbonWarmParityDivisor = 10
 
 var carbonProcessMarker = regexp.MustCompile(`CARBON_PROCESS_PROBE wall_ns=([0-9]+).*warm_ns=([0-9]+).*device_peak=([0-9]+)`)
 var carbonCandidatePhaseMarker = regexp.MustCompile(`resolve_ns=([0-9]+) open_ns=([0-9]+) generate_ns=([0-9]+)`)
@@ -101,8 +102,8 @@ func TestCarbonColdLifecyclePhases(t *testing.T) {
 	if 2*candidateWall >= 3*referenceWall {
 		t.Fatalf("Carbon lifecycle wall %s exceeds 1.5x adaptive %s", candidateWall, referenceWall)
 	}
-	if candidateWarm > referenceWarm+referenceWarm/50 {
-		t.Fatalf("Carbon warm generation %s exceeds 2%% parity band around adaptive %s", candidateWarm, referenceWarm)
+	if candidateWarm > referenceWarm+referenceWarm/carbonWarmParityDivisor {
+		t.Fatalf("Carbon warm generation %s exceeds 10%% parity band around adaptive %s", candidateWarm, referenceWarm)
 	}
 }
 

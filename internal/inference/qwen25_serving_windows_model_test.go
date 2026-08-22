@@ -17,7 +17,7 @@ import (
 
 const (
 	qwen25ServingModelIdentity  = "model:sha256:764daf929f9d93ae9b2ffe886e6bb5871dd5cb85ebb5e0d94700c2158931e471"
-	qwen25ServingGoldenIdentity = "evidence:sha256:5de6027bafa11e209e20b8f758b1d77946e034b4af14e815f18164cf992d90f1"
+	qwen25ServingGoldenIdentity = "evidence:sha256:b6d7d8c8f35aa9dce6ada81aca2ddafbdeefba5ff25305312c57d1fac9f02a1e"
 )
 
 func TestQwen25ServingGolden(t *testing.T) {

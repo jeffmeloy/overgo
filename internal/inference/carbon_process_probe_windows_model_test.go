@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/checked"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
@@ -20,7 +21,10 @@ import (
 	"overgo/internal/testutil"
 )
 
-const carbonWarmSamples = 11
+const (
+	carbonWarmSamples                  = 11
+	carbonMinimumGraphLaunchesPerChurn = 4
+)
 
 type carbonProcessGolden struct {
 	Cases []struct {
@@ -49,7 +53,7 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Carbon-500M-f16-ropefix.gguf")
 	storePath := os.Getenv("OVERGO_CARBON_REPODB")
 	if storePath == "" {
-		t.Fatal("OVERGO_CARBON_REPODB is required")
+		t.Skip("child process probe requires OVERGO_CARBON_REPODB")
 	}
 	store, err := repodb.Open(storePath)
 	if err != nil {
@@ -97,6 +101,10 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 		return time.Since(requestStarted)
 	}
 	_ = generate()
+	before, err := runner.DeviceExecutionStats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
 	wall := time.Since(started)
 	warm := make([]time.Duration, carbonWarmSamples)
 	for index := range warm {
@@ -111,12 +119,18 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if execution.GraphInstantiations > 4 || execution.GraphUpdates > 2*carbonWarmSamples {
-		t.Fatalf("Carbon decode graph cache churn: instantiations=%d updates=%d",
-			execution.GraphInstantiations, execution.GraphUpdates)
+	instantiations := execution.GraphInstantiations - before.GraphInstantiations
+	updates := execution.GraphUpdates - before.GraphUpdates
+	graphLaunches := execution.GraphLaunches - before.GraphLaunches
+	churn, churnOK := checked.Add64(instantiations, updates)
+	scaledChurn, scaleOK := checked.Mul64(churn, carbonMinimumGraphLaunchesPerChurn)
+	if !churnOK || !scaleOK || !checked.Nonzero(graphLaunches) || !checked.AtMost64(scaledChurn, graphLaunches) {
+		t.Fatalf("Carbon decode graph replay is insufficient: churn=%d launches=%d",
+			churn, graphLaunches)
 	}
 	fmt.Printf("CARBON_PROCESS_PROBE wall_ns=%d resolve_ns=%d open_ns=%d generate_ns=%d warm_ns=%d device_peak=%d graph_instantiations=%d graph_updates=%d graph_launches=%d kernel_launches=%d\n",
 		wall.Nanoseconds(), resolvedAt.Sub(started).Nanoseconds(), openedAt.Sub(resolvedAt).Nanoseconds(),
 		wall-openedAt.Sub(started), warm[len(warm)/2].Nanoseconds(), memory.PeakBytes,
-		execution.GraphInstantiations, execution.GraphUpdates, execution.GraphLaunches, execution.KernelLaunches)
+		instantiations, updates, graphLaunches,
+		execution.KernelLaunches-before.KernelLaunches)
 }

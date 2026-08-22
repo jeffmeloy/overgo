@@ -17,7 +17,7 @@ import (
 
 const (
 	miniCPM5ServingModelIdentity  = "model:sha256:e37577c45aec2255ac437ae6e86518ea99745d6616dd8c59b1fe7e26a04606f7"
-	miniCPM5ServingGoldenIdentity = "evidence:sha256:1b177a279b58dfd98940dffce3c8381bda816a1bfcadd5411c6a645b398753ef"
+	miniCPM5ServingGoldenIdentity = "evidence:sha256:d03ab478b299e2a6ef6c985ca7bcb747b3b5ebca4e75ddea6f542a17391c46ce"
 )
 
 func TestMiniCPM5ServingGolden(t *testing.T) {

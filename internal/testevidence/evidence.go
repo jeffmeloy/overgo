@@ -54,16 +54,16 @@ func RequireComplete(report GoTestReport) error {
 // output carries ShortIntegrationSkip are classified exclusions; they remain
 // visible in the report and are never counted as passing evidence.
 func GoTestJSONShortReport(out string) (GoTestReport, error) {
-	return goTestJSONReport(out, true)
+	return goTestJSONReport(out, true, false)
 }
 
 // GoTestJSONReport decodes complete test evidence without crediting skips.
 // Callers decide whether the tested package is in the changed ownership cone.
 func GoTestJSONReport(out string) (GoTestReport, error) {
-	return goTestJSONReport(out, false)
+	return goTestJSONReport(out, false, false)
 }
 
-func goTestJSONReport(out string, short bool) (GoTestReport, error) {
+func goTestJSONReport(out string, short, allowAuxiliary bool) (GoTestReport, error) {
 	scanner := bufio.NewScanner(strings.NewReader(out))
 	seen := false
 	var report GoTestReport
@@ -79,6 +79,12 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 			Package string
 			Test    string
 			Output  string
+		}
+		if allowAuxiliary && !strings.HasPrefix(line, "{") {
+			if reason := unavailable(line); reason != "" {
+				return GoTestReport{}, fmt.Errorf("auxiliary verifier: %s", reason)
+			}
+			continue
 		}
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
 			return GoTestReport{}, fmt.Errorf("decode go test event: %w", err)
@@ -110,6 +116,8 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 			report.NoTestPackages++
 		case event.Action == "fail" && event.Test != "":
 			report.Failed = append(report.Failed, event.Package+": "+event.Test)
+		case event.Action == "fail" && event.Test == "":
+			report.Failed = append(report.Failed, event.Package)
 		}
 		if event.Test != "" && (event.Action == "pass" || event.Action == "skip" || event.Action == "fail") {
 			results[key].Action = event.Action
@@ -127,6 +135,16 @@ func goTestJSONReport(out string, short bool) (GoTestReport, error) {
 	return report, nil
 }
 
+// FailureSummary names failed tests and packages from a mixed verifier stream.
+// It is diagnostic only: callers still use the process exit code as authority.
+func FailureSummary(out string) string {
+	report, err := goTestJSONReport(out, false, true)
+	if err != nil || len(report.Failed) == 0 {
+		return ""
+	}
+	return strings.Join(report.Failed, ", ")
+}
+
 var goTestRunFlag = regexp.MustCompile(`(?:^|[ \t])-run(?:=|[ \t]+)(?:'([^']*)'|"([^"]*)"|([^ \t;&|]+))`)
 
 // JSONCommand enables structured events for every go test in a verifier.
@@ -141,7 +159,7 @@ func JSONCommand(command string) string {
 // broad run that executed tests. Targeted runs do not credit unrelated skips;
 // broad runs own and therefore reject every skip or unavailable fixture.
 func VerifyGoTestEvidence(command, out string) error {
-	report, err := GoTestJSONReport(out)
+	report, err := goTestJSONReport(out, false, hasNonTestCommand(command))
 	if err != nil {
 		return err
 	}
@@ -179,6 +197,18 @@ func VerifyGoTestEvidence(command, out string) error {
 		return fmt.Errorf("go test -run %q matched no passing test", target.String())
 	}
 	return nil
+}
+
+// hasNonTestCommand permits explicitly mixed shell verifiers to carry ordinary
+// output between structured go-test event streams. JSON-looking lines remain
+// strict so malformed test events cannot disappear as auxiliary output.
+func hasNonTestCommand(command string) bool {
+	for segment := range strings.SplitSeq(command, "&&") {
+		if trimmed := strings.TrimSpace(segment); trimmed != "" && !strings.HasPrefix(trimmed, "go test ") {
+			return true
+		}
+	}
+	return false
 }
 
 // ValidateGoTestCommand checks that a declared verifier is a go test command

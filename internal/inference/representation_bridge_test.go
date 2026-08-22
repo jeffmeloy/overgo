@@ -167,41 +167,18 @@ func TestNoDirectCompositionConstructors(t *testing.T) {
 }
 
 func TestTransformedRepresentationCacheIdentity(t *testing.T) {
-	store, authority := productionCompositionFixture(t, true)
-	source := &bridgeSourceFixture{
-		model: authority.Recipe.SourceModel,
-		value: inferenceBridgeValue(t, tensor.MustShape(2, 2), []float32{1, 2, 3, 4}),
-	}
-	target := &bridgeTargetFixture{
-		model:     authority.Recipe.TargetModel,
-		embedding: inferenceBridgeValue(t, tensor.MustShape(3, 2), []float32{0, 0, 0, 0, 0, 0}),
-	}
-	first := reference.ZeroValue(tensor.MustShape(2, 3))
-	bias := inferenceBridgeValue(t, tensor.MustShape(3), []float32{10, 20, 30})
-	resources := &bridgeRuntimeResourcesFixture{
-		source: source, target: target,
-		weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
-	}
-	runtime, err := OpenProductionComposition(
-		context.Background(), store,
-		authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task, resources,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	runtime, source := transformedRepresentationCacheFixture(t)
 	sourceTokens := []tokenizer.TokenID{1, 2}
 	targetTokens := []tokenizer.TokenID{3, 4}
-	identity, err := runtime.TransformedRepresentationCacheIdentity(sourceTokens, targetTokens)
+	identity, err := runtime.transformedRepresentationCacheIdentity(sourceTokens)
 	if err != nil {
 		t.Fatal(err)
 	}
-	repeated, err := runtime.TransformedRepresentationCacheIdentity(sourceTokens, targetTokens)
+	repeated, err := runtime.transformedRepresentationCacheIdentity(sourceTokens)
 	if err != nil || repeated != identity {
 		t.Fatalf("repeated cache identity = %s, want %s: %v", repeated, identity, err)
 	}
-	changed, err := runtime.TransformedRepresentationCacheIdentity(
-		[]tokenizer.TokenID{2, 1}, targetTokens,
-	)
+	changed, err := runtime.transformedRepresentationCacheIdentity([]tokenizer.TokenID{2, 1})
 	if err != nil || changed == identity {
 		t.Fatalf("changed cache identity = %s, original %s: %v", changed, identity, err)
 	}
@@ -214,6 +191,59 @@ func TestTransformedRepresentationCacheIdentity(t *testing.T) {
 	if source.calls != tensor.SingletonExtent {
 		t.Fatalf("immutable transformed representation recomputed %d times", source.calls)
 	}
+}
+
+func TestTransformedRepresentationCacheSourceScope(t *testing.T) {
+	runtime, source := transformedRepresentationCacheFixture(t)
+	sourceTokens := []tokenizer.TokenID{1, 2}
+	for _, targetTokens := range [][]tokenizer.TokenID{{3, 4}, {5, 6}} {
+		if _, err := runtime.Forward(context.Background(), sourceTokens, targetTokens); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if source.calls != tensor.SingletonExtent {
+		t.Fatalf("source-scoped representation computed %d times", source.calls)
+	}
+}
+
+func TestTransformedRepresentationCacheBoundedOwnership(t *testing.T) {
+	runtime, source := transformedRepresentationCacheFixture(t)
+	targetTokens := []tokenizer.TokenID{3, 4}
+	sequences := [][]tokenizer.TokenID{{1, 2}, {2, 1}, {1, 2}}
+	for _, sourceTokens := range sequences {
+		if _, err := runtime.Forward(context.Background(), sourceTokens, targetTokens); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if source.calls != len(sequences) {
+		t.Fatalf("single-entry source cache computed %d representations", source.calls)
+	}
+}
+
+func transformedRepresentationCacheFixture(t *testing.T) (*ProductionComposition, *bridgeSourceFixture) {
+	t.Helper()
+	store, authority := productionCompositionFixture(t, true)
+	source := &bridgeSourceFixture{
+		model: authority.Recipe.SourceModel,
+		value: inferenceBridgeValue(t, tensor.MustShape(2, 2), []float32{1, 2, 3, 4}),
+	}
+	target := &bridgeTargetFixture{
+		model:     authority.Recipe.TargetModel,
+		embedding: inferenceBridgeValue(t, tensor.MustShape(3, 2), []float32{0, 0, 0, 0, 0, 0}),
+	}
+	first := reference.ZeroValue(tensor.MustShape(2, 3))
+	bias := inferenceBridgeValue(t, tensor.MustShape(3), []float32{10, 20, 30})
+	runtime, err := OpenProductionComposition(
+		context.Background(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
+		authority.Recipe.Task, &bridgeRuntimeResourcesFixture{
+			source: source, target: target,
+			weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return runtime, source
 }
 
 func productionCompositionFixture(t *testing.T, activate bool) (*repodb.Store, composition.CompositionAuthority) {

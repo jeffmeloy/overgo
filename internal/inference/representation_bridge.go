@@ -53,10 +53,11 @@ type CompositionRuntimeResources interface {
 // ProductionComposition is an active-recipe-owned embedding-injection
 // runtime. Its bridge session cannot be constructed directly.
 type ProductionComposition struct {
-	plan    composition.CompositionExecutionPlan
-	session representationBridgeSession
-	cacheMu sync.RWMutex
-	cache   map[artifact.ID]reference.Value
+	plan                 composition.CompositionExecutionPlan
+	session              representationBridgeSession
+	cacheMu              sync.Mutex
+	cachedSource         artifact.ID
+	cachedRepresentation reference.Value
 }
 
 type representationBridgeSession struct {
@@ -143,7 +144,6 @@ func OpenProductionComposition(
 		session: representationBridgeSession{
 			source: sourceSession, target: targetSession, program: program, weights: weights,
 		},
-		cache: make(map[artifact.ID]reference.Value),
 	}, nil
 }
 
@@ -164,39 +164,34 @@ func (runtime *ProductionComposition) Forward(
 	if runtime == nil {
 		return reference.Value{}, errors.New("inference: production composition is absent")
 	}
-	identity, err := runtime.TransformedRepresentationCacheIdentity(sourceTokens, targetTokens)
+	identity, err := runtime.transformedRepresentationCacheIdentity(sourceTokens)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	runtime.cacheMu.RLock()
-	bridged, found := runtime.cache[identity]
-	runtime.cacheMu.RUnlock()
+	runtime.cacheMu.Lock()
+	bridged, found := runtime.cachedRepresentation, runtime.cachedSource == identity
+	runtime.cacheMu.Unlock()
 	if found {
-		return runtime.session.inject(ctx, targetTokens, bridged.Clone())
+		return runtime.session.inject(ctx, targetTokens, bridged)
 	}
 	bridged, err = runtime.session.captureAndTransform(ctx, sourceTokens)
 	if err != nil {
 		return reference.Value{}, err
 	}
 	runtime.cacheMu.Lock()
-	runtime.cache[identity] = bridged.Clone()
+	runtime.cachedSource, runtime.cachedRepresentation = identity, bridged
 	runtime.cacheMu.Unlock()
 	return runtime.session.inject(ctx, targetTokens, bridged)
 }
 
-// TransformedRepresentationCacheIdentity binds exact input tokens to the
-// plan's source, bridge, and contract cache authority.
-func (runtime *ProductionComposition) TransformedRepresentationCacheIdentity(
-	sourceTokens, targetTokens []tokenizer.TokenID,
-) (artifact.ID, error) {
+func (runtime *ProductionComposition) transformedRepresentationCacheIdentity(sourceTokens []tokenizer.TokenID) (artifact.ID, error) {
 	if runtime == nil || !runtime.plan.CacheIdentity.Valid() {
 		return artifact.ID{}, errors.New("inference: transformed representation cache authority is absent")
 	}
 	return artifact.JSONID(artifact.KindProfile, struct {
 		Authority artifact.ID         `json:"authority"`
 		Source    []tokenizer.TokenID `json:"source"`
-		Target    []tokenizer.TokenID `json:"target"`
-	}{Authority: runtime.plan.CacheIdentity, Source: sourceTokens, Target: targetTokens})
+	}{Authority: runtime.plan.CacheIdentity, Source: sourceTokens})
 }
 
 func (session representationBridgeSession) captureAndTransform(

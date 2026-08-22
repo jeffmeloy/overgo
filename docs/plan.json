@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "composition-cache-owner",
-          "title": "Replace the unbounded cloned composition map with bounded source-scoped immutable cache ownership",
-          "status": "open",
-          "verify": "go test ./internal/inference -run 'TestTransformedRepresentationCache(SourceScope|BoundedOwnership|Identity)' -count=1"
-        },
-        {
           "id": "projector-raster-programs",
           "title": "Route equivalent projector raster encoding and prompt assembly through neutral typed programs; delete duplicate methods",
           "status": "open",

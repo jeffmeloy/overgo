@@ -136,23 +136,15 @@ func (m *Model) TrainHostMasterStreamed(worker *device.Worker, steps int, cfg op
 // masters + momentum + one-layer scratch — the lane for stacks whose full
 // masters+gradients+momentum triplication exceeds host memory.
 type hostMasterLayerStreamedTraining struct {
-	model      *Model
+	hostForwardPass
 	worker     *device.Worker
 	config     optimizer.Config
-	trace      hostmath.HybridStackTrace
 	layers     []layerStreamPlan
 	matScratch []float32 // one-layer gradient window, reused across layers and steps
 	momentum   []float32 // full matrix momentum slab, persists across steps
 	vecGrad    []float32
 	vecOpt     *optimizer.Optimizer
 	stepped    int // committed steps; the backward walk applies Muon step stepped+1
-}
-
-func (training *hostMasterLayerStreamedTraining) Forward() ([]float32, error) {
-	model := training.model
-	output, trace := hostmath.HybridStackForward(model.X, model.Weights, model.Dims, model.States)
-	training.trace = trace
-	return output, nil
 }
 
 func (training *hostMasterLayerStreamedTraining) Backward(dTop []float32) error {
@@ -215,7 +207,8 @@ func (m *Model) TrainHostMasterLayerStreamed(worker *device.Worker, steps int, c
 		return nil, err
 	}
 	training := &hostMasterLayerStreamedTraining{
-		model: m, worker: worker, config: cfg,
+		hostForwardPass: hostForwardPass{model: m},
+		worker:          worker, config: cfg,
 		layers:     plans,
 		matScratch: make([]float32, maxLayer),
 		momentum:   make([]float32, len(m.matW)),

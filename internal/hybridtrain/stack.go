@@ -578,25 +578,30 @@ func runTrainingObserved(program trainingprogram.TrainingProgram, backend traini
 	return trajectory, nil
 }
 
+type hostForwardPass struct {
+	model *Model
+	trace hostmath.HybridStackTrace
+}
+
+func (pass *hostForwardPass) Forward() ([]float32, error) {
+	model := pass.model
+	output, trace := hostmath.HybridStackForward(model.X, model.Weights, model.Dims, model.States)
+	pass.trace = trace
+	return output, nil
+}
+
 type hostBackwardPass struct {
-	model            *Model
-	trace            hostmath.HybridStackTrace
+	hostForwardPass
 	grads            []hostmath.HybridDecoderLayerGrads
 	matGrad, vecGrad []float32
 }
 
 func newHostBackwardPass(model *Model) hostBackwardPass {
 	return hostBackwardPass{
-		model: model, matGrad: make([]float32, len(model.matW)),
-		vecGrad: make([]float32, len(model.vecW)),
+		hostForwardPass: hostForwardPass{model: model},
+		matGrad:         make([]float32, len(model.matW)),
+		vecGrad:         make([]float32, len(model.vecW)),
 	}
-}
-
-func (pass *hostBackwardPass) Forward() ([]float32, error) {
-	model := pass.model
-	output, trace := hostmath.HybridStackForward(model.X, model.Weights, model.Dims, model.States)
-	pass.trace = trace
-	return output, nil
 }
 
 func (pass *hostBackwardPass) Backward(dTop []float32) error {

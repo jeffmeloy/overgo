@@ -178,7 +178,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if mtp.TokenEmbedding != nil {
 		embeddingInfo = *mtp.TokenEmbedding
 	}
-	tokenEmbedding, err := r.loadRows(ctx, embeddingInfo, rows)
+	tokenEmbedding, err := r.gatherTensor(ctx, embeddingInfo, rows)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}

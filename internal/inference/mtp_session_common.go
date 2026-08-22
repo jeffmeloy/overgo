@@ -40,7 +40,7 @@ func (r *Runner) advanceSingleHeadMTP(
 	if adapter.tokenEmbedding != nil {
 		embeddingInfo = *adapter.tokenEmbedding
 	}
-	tokenEmbedding, err := r.loadRows(ctx, embeddingInfo, []uint32{uint32(tokenID)})
+	tokenEmbedding, err := r.gatherTensor(ctx, embeddingInfo, []uint32{uint32(tokenID)})
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

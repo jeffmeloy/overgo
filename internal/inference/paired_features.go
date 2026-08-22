@@ -215,7 +215,7 @@ func (r *Runner) DecodePairedFeatureBlock(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	activation, err := target.loadEmbeddings(ctx, rows)
+	activation, err := target.gatherTensor(ctx, target.weights.TokenEmbedding, rows)
 	if err != nil {
 		return reference.Value{}, err
 	}

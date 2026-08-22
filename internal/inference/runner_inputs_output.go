@@ -12,10 +12,6 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func (r *Runner) loadEmbeddings(ctx context.Context, rows []uint32) (reference.Value, error) {
-	return r.loadRows(ctx, r.weights.TokenEmbedding, rows)
-}
-
 func (r *Runner) preparePerLayerInputs(
 	ctx context.Context,
 	activation reference.Value,
@@ -28,7 +24,7 @@ func (r *Runner) preparePerLayerInputs(
 		r.weights.PerLayerProjectionNorm == nil {
 		return nil, errors.New("inference: per-layer input weights are incomplete")
 	}
-	selected, err := r.loadRows(ctx, *r.weights.PerLayerTokenEmbedding, rows)
+	selected, err := r.gatherTensor(ctx, *r.weights.PerLayerTokenEmbedding, rows)
 	if err != nil {
 		return nil, fmt.Errorf("inference: load per-layer embeddings: %w", err)
 	}
@@ -60,24 +56,24 @@ func (r *Runner) preparePerLayerInputs(
 	return values, nil
 }
 
-func (r *Runner) loadRows(
+func (r *Runner) gatherTensor(
 	ctx context.Context,
 	info gguf.TensorInfo,
-	rows []uint32,
+	indices []uint32,
 ) (reference.Value, error) {
 	if !r.hasPreloadedWeights() {
-		value, err := model.LoadHostRows(ctx, r.file, info, rows)
+		value, err := model.LoadHostRows(ctx, r.file, info, indices)
 		if err != nil {
 			return reference.Value{}, err
 		}
-		return r.applyLoRAEmbeddingRows(info.Name, rows, value)
+		return r.applyLoRAEmbeddingRows(info.Name, indices, value)
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
 	table, err := runtime.weight(info)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output := runtime.builder.GetRows(table, rows)
+	output := runtime.builder.GetRows(table, indices)
 	if err := runtime.builder.Err(); err != nil {
 		return reference.Value{}, err
 	}
@@ -99,7 +95,7 @@ func (r *Runner) addPositionEmbeddings(
 	if err := validateLearnedPositions(positions, r.spec.ContextLength); err != nil {
 		return reference.Value{}, err
 	}
-	positionRows, err := r.loadRows(ctx, *r.weights.PositionEmbedding, positions)
+	positionRows, err := r.gatherTensor(ctx, *r.weights.PositionEmbedding, positions)
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("inference: load position embeddings: %w", err)
 	}
@@ -119,7 +115,7 @@ func (r *Runner) addTokenTypeEmbedding(
 	if r.weights.TokenTypeEmbedding == nil {
 		return activation, nil
 	}
-	typeRow, err := r.loadRows(ctx, *r.weights.TokenTypeEmbedding, []uint32{0})
+	typeRow, err := r.gatherTensor(ctx, *r.weights.TokenTypeEmbedding, []uint32{0})
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("inference: load token-type embedding: %w", err)
 	}

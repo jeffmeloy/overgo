@@ -53,6 +53,9 @@ const (
 	// KindCompositionExecutionPlan compiles the active source-target-task
 	// composition authority into its sole executable plan.
 	KindCompositionExecutionPlan Kind = "composition-execution-plan"
+	// KindOfflineArtifactPlan compiles exact-lineage passthrough or task
+	// arithmetic as an artifact-production plan, outside representation runtime.
+	KindOfflineArtifactPlan Kind = "offline-artifact-plan"
 )
 
 // ChainAction: compose two whole validated models through typed ports.
@@ -141,6 +144,13 @@ type CompositionExecutionPlanAction struct {
 	Task   recipe.Task `json:"task"`
 }
 
+// OfflineArtifactPlanAction selects an artifact-production operator and its
+// exact model-definition inputs.
+type OfflineArtifactPlanAction struct {
+	Operator composition.OfflineArtifactOperator `json:"operator"`
+	Inputs   []composition.OfflineArtifactInput  `json:"inputs"`
+}
+
 // Action is one controller emission: exactly the payload matching Kind is
 // present. There is no field anywhere in the language that carries code or
 // shell -- parameters are artifact identities, typed facts and enums; the one
@@ -159,6 +169,7 @@ type Action struct {
 	Objective     *ObjectiveCompositionAction     `json:"objective,omitempty"`
 	Scheduling    *CandidateSchedulingAction      `json:"scheduling,omitempty"`
 	Composition   *CompositionExecutionPlanAction `json:"composition,omitempty"`
+	Offline       *OfflineArtifactPlanAction      `json:"offline,omitempty"`
 }
 
 // ParseAction decodes one strict action document.
@@ -178,7 +189,7 @@ func (a Action) validate() error {
 		return errors.New("controller action: unsupported version")
 	}
 	payloads := 0
-	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil, a.Composition != nil} {
+	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil, a.Composition != nil, a.Offline != nil} {
 		if present {
 			payloads++
 		}
@@ -226,6 +237,10 @@ func (a Action) validate() error {
 	case KindCompositionExecutionPlan:
 		if a.Composition == nil {
 			return errors.New("controller action: composition-execution-plan requires an active scope")
+		}
+	case KindOfflineArtifactPlan:
+		if a.Offline == nil {
+			return errors.New("controller action: offline-artifact-plan requires artifact inputs")
 		}
 	default:
 		return fmt.Errorf("controller action: kind %q is not in the allowlist", a.Kind)
@@ -340,6 +355,18 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 	case KindCompositionExecutionPlan:
 		plan, err := composition.CompileCompositionExecutionPlan(
 			ctx, reader, action.Composition.Source, action.Composition.Target, action.Composition.Task,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		content, err := plan.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		return []artifact.Content{content}, plan.Lineage(), nil
+	case KindOfflineArtifactPlan:
+		plan, err := composition.CompileOfflineArtifactPlan(
+			ctx, reader, action.Offline.Operator, action.Offline.Inputs,
 		)
 		if err != nil {
 			return nil, nil, err

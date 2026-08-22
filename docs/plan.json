@@ -232,7 +232,7 @@
         {
           "id": "offline-artifacts",
           "title": "Keep passthrough and task arithmetic in exact-lineage offline artifact workflows",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/composition -run 'TestOfflineCompositionArtifactCompatibility' -count=1"
         },
         {

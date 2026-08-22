@@ -237,43 +237,25 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			return Spec{}, err
 		}
 		patternKey := prefix + "attention.sliding_window_pattern"
-		if pattern, ok := optional[uint32](values, patternKey, gguf.ValueTypeUint32); ok {
-			spec.SlidingPattern = pattern
-		} else {
-			pattern, exists := values[patternKey]
-			if !exists || pattern.Type != gguf.ValueTypeArray {
+		pattern, exists := values[patternKey]
+		if !exists {
+			return Spec{}, fmt.Errorf("required metadata %q is missing", patternKey)
+		}
+		if pattern.Type == gguf.ValueTypeUint32 {
+			value, valid := pattern.Data.(uint32)
+			if !valid {
 				return Spec{}, fmt.Errorf("required metadata %q is missing", patternKey)
 			}
-			spec.SlidingLayers = make([]bool, spec.BlockCount)
-			switch pattern.ArrayType {
-			case gguf.ValueTypeBool:
-				layers, valid := pattern.Data.([]bool)
-				if !valid || len(layers) != int(declaredBlockCount) {
-					return Spec{}, fmt.Errorf("metadata %q has invalid layer values", patternKey)
-				}
-				copy(spec.SlidingLayers, layers)
-			case gguf.ValueTypeUint32:
-				layers, valid := pattern.Data.([]uint32)
-				if !valid || len(layers) != int(declaredBlockCount) {
-					return Spec{}, fmt.Errorf("metadata %q has invalid layer values", patternKey)
-				}
-				for index := range spec.SlidingLayers {
-					spec.SlidingLayers[index] = layers[index] != tensor.FirstOffset
-				}
-			case gguf.ValueTypeInt32:
-				layers, valid := pattern.Data.([]int32)
-				if !valid || len(layers) != int(declaredBlockCount) {
-					return Spec{}, fmt.Errorf("metadata %q has invalid layer values", patternKey)
-				}
-				for index := range spec.SlidingLayers {
-					if layers[index] < tensor.FirstOffset {
-						return Spec{}, fmt.Errorf("metadata %q has a negative layer value", patternKey)
-					}
-					spec.SlidingLayers[index] = layers[index] != tensor.FirstOffset
-				}
-			default:
-				return Spec{}, fmt.Errorf("metadata %q must be an integer or bool array", patternKey)
+			spec.SlidingPattern = value
+		} else {
+			if pattern.Type != gguf.ValueTypeArray {
+				return Spec{}, fmt.Errorf("required metadata %q is missing", patternKey)
 			}
+			layers, layerErr := requiredLayerBoolCompatible(values, patternKey, declaredBlockCount)
+			if layerErr != nil {
+				return Spec{}, layerErr
+			}
+			spec.SlidingLayers = slices.Clone(layers[:spec.BlockCount])
 		}
 		if value, ok := optional[float32](values, prefix+"attention.value_scale", gguf.ValueTypeFloat32); ok && value != tensor.UnitScale {
 			spec.AttentionValueScale = value

@@ -246,13 +246,13 @@
      "contains": "func validateMultimodalImages(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:76f69f31ca79eedacaf50ddfc252a3e69946facf9f07bac7b5a94c45dba8ae03"
+     "identity": "file:sha256:8d974c5897b56a6910b629aee9c643baa539024637aafa94c7fa3c061d147980"
     },
     {
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:4756e335ae8787079e45888b91d12637e53d1e6f43d66789dbefcc97eeee7053"
+     "identity": "evidence:sha256:6bc597c9f5eb8748d284ba7e7253007294c029cd7404699a06b4a29f77685bba"
     }
    ],
    "id": "bounded-server-media",
@@ -273,7 +273,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:774e237a05a81eb801d3d9fbc7b29773ba7170c91d5c7787a954704fb61d055f"
+     "identity": "evidence:sha256:526cce877d6e3784c7f7b0ec79328994eb79a75e6cbc46a0c844c82767b98200"
     }
    ],
    "id": "gemma4-multimodal-oracle",
@@ -326,7 +326,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:774e237a05a81eb801d3d9fbc7b29773ba7170c91d5c7787a954704fb61d055f"
+     "identity": "evidence:sha256:526cce877d6e3784c7f7b0ec79328994eb79a75e6cbc46a0c844c82767b98200"
     }
    ],
    "id": "gemma-e4b-image-language-oracle",
@@ -345,16 +345,16 @@
      "identity": "file:sha256:18ec789b229e95cf3b583635c6a39a10ed2156fd38c9a2c306e36574d62e0f26"
     },
     {
-     "contains": "func ProjectedInputsForPrompt(",
+     "contains": "func CompileProjectedInputs(",
      "path": "internal/inference/multimodal_prompt.go",
      "role": "source",
-     "identity": "file:sha256:4183a74c818e9e5d280a2deb7ca88d08363bfcdfd730ca934bf40a52c3075a5e"
+     "identity": "file:sha256:061d93dee75124b25ee86d652b3e7cfbf514331b598efbe0d5f38e96e55dbc68"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:774e237a05a81eb801d3d9fbc7b29773ba7170c91d5c7787a954704fb61d055f"
+     "identity": "evidence:sha256:526cce877d6e3784c7f7b0ec79328994eb79a75e6cbc46a0c844c82767b98200"
     }
    ],
    "id": "qwen35-image-video-language-oracle",
@@ -752,7 +752,7 @@
      "contains": "func (h *Handler) preparePrompt(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:76f69f31ca79eedacaf50ddfc252a3e69946facf9f07bac7b5a94c45dba8ae03"
+     "identity": "file:sha256:8d974c5897b56a6910b629aee9c643baa539024637aafa94c7fa3c061d147980"
     },
     {
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",

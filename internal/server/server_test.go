@@ -1722,31 +1722,6 @@ func TestNativeCompletionProjectedInputs(t *testing.T) {
 	}
 }
 
-func TestConvertProjectedPromptExpandsDeepstack(t *testing.T) {
-	handler := newTestHandler(t, &fakeGenerator{})
-	stream := make([]float32, 2*2560)
-	stream[0], stream[2560] = 1, 2
-	inputs, err := handler.convertProjectedPrompt(projector.MultimodalPrompt{
-		TokenIDs:              []tokenizer.TokenID{1, 2, 3, 4, 5},
-		Embeddings:            make([]float32, 2*2560),
-		DeepstackEmbeddings:   [][]float32{stream},
-		EmbeddingWidth:        2560,
-		EmbeddingTokenIndices: []uint32{1, 3},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(inputs.DeepstackEmbeddings) != 1 ||
-		inputs.DeepstackEmbeddings[0].Shape.Dims[0] != 2560 ||
-		inputs.DeepstackEmbeddings[0].Shape.Dims[1] != 5 {
-		t.Fatalf("deepstack inputs = %+v", inputs.DeepstackEmbeddings)
-	}
-	data := inputs.DeepstackEmbeddings[0].Data
-	if data[0] != 0 || data[2560] != 1 || data[2*2560] != 0 || data[3*2560] != 2 || data[4*2560] != 0 {
-		t.Fatalf("deepstack token starts = %v", []float32{data[0], data[2560], data[2*2560], data[3*2560], data[4*2560]})
-	}
-}
-
 func TestNativeCompletionImageProjectorMultimodalPrompt(t *testing.T) {
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}

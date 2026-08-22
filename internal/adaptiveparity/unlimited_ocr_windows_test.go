@@ -145,7 +145,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 			t.Fatalf("Unlimited OCR projection value %d is non-finite", index)
 		}
 	}
-	ids, projected, err := inference.ProjectedInputsForPrompt(language, prompt)
+	ids, projected, err := inference.CompileProjectedInputs(prompt, language.Spec().EmbeddingLength)
 	if err != nil {
 		t.Fatal(err)
 	}

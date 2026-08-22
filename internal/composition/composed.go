@@ -7,8 +7,30 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/model"
+	"overgo/internal/tensor"
 )
+
+// OfflineCompositionOperation identifies an immutable, non-serving model
+// artifact workflow.
+type OfflineCompositionOperation string
+
+const (
+	// OfflineCompositionPassthrough preserves one base model behind an exact
+	// compatibility authority without mutating its payload.
+	OfflineCompositionPassthrough OfflineCompositionOperation = "passthrough"
+	// OfflineCompositionTaskArithmetic applies exact rational coefficients to
+	// independently cataloged task-vector tensor sets.
+	OfflineCompositionTaskArithmetic OfflineCompositionOperation = "task-arithmetic"
+)
+
+// TaskArithmeticTerm binds one tensor-set delta to an exact rational scalar.
+type TaskArithmeticTerm struct {
+	Component   artifact.ID `json:"component"`
+	Numerator   int64       `json:"numerator"`
+	Denominator uint64      `json:"denominator"`
+}
 
 const (
 	ComposedModelVersion   uint16 = 1
@@ -18,14 +40,17 @@ const (
 
 // ComposedModelDocument: executable composition and immutable inputs.
 type ComposedModelDocument struct {
-	Version      uint16        `json:"version"`
-	Architecture string        `json:"architecture"`
-	Recipe       artifact.ID   `json:"recipe"`
-	Parents      []artifact.ID `json:"parents"`
-	Components   []artifact.ID `json:"components,omitempty"`
-	Adapter      artifact.ID   `json:"adapter,omitzero"`
-	Checkpoint   artifact.ID   `json:"checkpoint,omitzero"`
-	ID           artifact.ID   `json:"-"`
+	Version       uint16                      `json:"version"`
+	Architecture  string                      `json:"architecture"`
+	Recipe        artifact.ID                 `json:"recipe"`
+	Parents       []artifact.ID               `json:"parents"`
+	Components    []artifact.ID               `json:"components,omitempty"`
+	Adapter       artifact.ID                 `json:"adapter,omitzero"`
+	Checkpoint    artifact.ID                 `json:"checkpoint,omitzero"`
+	Operation     OfflineCompositionOperation `json:"operation,omitempty"`
+	Compatibility []artifact.ID               `json:"compatibility,omitempty"`
+	Arithmetic    []TaskArithmeticTerm        `json:"arithmetic,omitempty"`
+	ID            artifact.ID                 `json:"-"`
 }
 
 var composedModelCodec = artifact.JSONDocumentCodec(
@@ -36,6 +61,8 @@ var composedModelCodec = artifact.JSONDocumentCodec(
 	func(value ComposedModelDocument) ComposedModelDocument {
 		value.Parents = slices.Clone(value.Parents)
 		value.Components = slices.Clone(value.Components)
+		value.Compatibility = slices.Clone(value.Compatibility)
+		value.Arithmetic = slices.Clone(value.Arithmetic)
 		return value
 	},
 )
@@ -56,7 +83,7 @@ func (d ComposedModelDocument) Content() (artifact.Content, error) {
 }
 
 func (d ComposedModelDocument) Lineage() []artifact.Lineage {
-	capacity := 1 + len(d.Parents) + len(d.Components)
+	capacity := 1 + len(d.Parents) + len(d.Components) + len(d.Compatibility)
 	if d.Adapter.Valid() {
 		capacity++
 	}
@@ -67,6 +94,7 @@ func (d ComposedModelDocument) Lineage() []artifact.Lineage {
 	dependencies = append(dependencies, d.Recipe)
 	dependencies = append(dependencies, d.Parents...)
 	dependencies = append(dependencies, d.Components...)
+	dependencies = append(dependencies, d.Compatibility...)
 	if d.Adapter.Valid() {
 		dependencies = append(dependencies, d.Adapter)
 	}
@@ -111,6 +139,57 @@ func canonicalizeComposedModel(value *ComposedModelDocument) error {
 	}
 	if value.Checkpoint.Valid() && value.Checkpoint.Kind() != artifact.KindCheckpoint {
 		return errors.New("composition: composed checkpoint reference kind mismatch")
+	}
+	if err := validateOfflineComposition(value); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateOfflineComposition(value *ComposedModelDocument) error {
+	if value.Operation == "" {
+		if len(value.Compatibility) != 0 || len(value.Arithmetic) != 0 {
+			return errors.New("composition: offline authorities require an operation")
+		}
+		return nil
+	}
+	if len(value.Parents) != tensor.SingletonExtent || len(value.Compatibility) == 0 {
+		return errors.New("composition: offline composition requires one base and compatibility authority")
+	}
+	seenCompatibility := make(map[artifact.ID]struct{}, len(value.Compatibility))
+	for _, id := range value.Compatibility {
+		if id.Kind() != artifact.KindProfile && id.Kind() != artifact.KindTensorInventory {
+			return errors.New("composition: offline compatibility authority kind mismatch")
+		}
+		if _, duplicate := seenCompatibility[id]; duplicate {
+			return errors.New("composition: offline compatibility authority is duplicated")
+		}
+		seenCompatibility[id] = struct{}{}
+	}
+	switch value.Operation {
+	case OfflineCompositionPassthrough:
+		if len(value.Components) != 0 || len(value.Arithmetic) != 0 ||
+			value.Adapter.Valid() || value.Checkpoint.Valid() {
+			return errors.New("composition: passthrough cannot mutate the base model")
+		}
+	case OfflineCompositionTaskArithmetic:
+		if len(value.Components) == 0 || len(value.Arithmetic) != len(value.Components) {
+			return errors.New("composition: task arithmetic requires one coefficient per component")
+		}
+		seenComponents := make(map[artifact.ID]struct{}, len(value.Components))
+		for index, term := range value.Arithmetic {
+			if !checked.Equal(term.Component, value.Components[index]) ||
+				term.Component.Kind() != artifact.KindTensorSet || term.Numerator == 0 ||
+				!checked.Nonzero(term.Denominator) {
+				return errors.New("composition: task arithmetic term differs from component authority")
+			}
+			if _, duplicate := seenComponents[term.Component]; duplicate {
+				return errors.New("composition: task arithmetic component is duplicated")
+			}
+			seenComponents[term.Component] = struct{}{}
+		}
+	default:
+		return errors.New("composition: offline composition operation is invalid")
 	}
 	return nil
 }

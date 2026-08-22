@@ -9,12 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "offline-artifacts",
-          "title": "Keep passthrough and task arithmetic in exact-lineage offline artifact workflows",
-          "status": "open",
-          "verify": "go test ./internal/composition -run 'TestOfflineCompositionArtifactCompatibility' -count=1"
-        },
-        {
           "id": "production-gates",
           "title": "Enforce contract-tested, runtime-wired, CUDA-verified, evidence-promoted, and production-active completion",
           "status": "open",
@@ -132,6 +126,11 @@
       "item": "composability-production",
       "step": "external-cross-attention",
       "authority": "evidence:sha256:79ca20e73da56d2561502518be0d0920af289ef83be312b4f8db2eabdfa0d842"
+    },
+    {
+      "item": "composability-production",
+      "step": "offline-artifacts",
+      "authority": "evidence:sha256:ef306b95b970df592c30ee659bf5f590d13e96300a30cfc9c21f40539428b603"
     }
   ]
 }

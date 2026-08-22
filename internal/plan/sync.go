@@ -51,13 +51,17 @@ func mergeItem(base, local, upstream Item) (Item, error) {
 	if err != nil {
 		return Item{}, err
 	}
+	owner, err := mergeText("item "+base.ID+" owner", base.Owner, local.Owner, upstream.Owner)
+	if err != nil {
+		return Item{}, err
+	}
 	status, err := mergeText("item "+base.ID+" status", base.Status, local.Status, upstream.Status)
 	if err != nil {
 		return Item{}, err
 	}
 	stepID := func(step Step) string { return step.ID }
 	baseSteps, localSteps, upstreamSteps := indexByID(base.Steps, stepID), indexByID(local.Steps, stepID), indexByID(upstream.Steps, stepID)
-	merged := Item{ID: base.ID, Title: title, Status: status}
+	merged := Item{ID: base.ID, Title: title, Owner: owner, Status: status}
 	for _, id := range unionOrder(stepID, base.Steps, local.Steps, upstream.Steps) {
 		baseStep, inBase := baseSteps[id]
 		localStep, inLocal := localSteps[id]
@@ -156,7 +160,8 @@ func unionOrder[T any](idOf func(T) string, groups ...[]T) []string {
 }
 
 func sameItem(left, right Item) bool {
-	return left.ID == right.ID && left.Title == right.Title && left.Status == right.Status && slices.EqualFunc(left.Steps, right.Steps, sameStep)
+	return left.ID == right.ID && left.Title == right.Title && left.Owner == right.Owner && left.Status == right.Status &&
+		slices.EqualFunc(left.Steps, right.Steps, sameStep)
 }
 
 func sameStep(left, right Step) bool {

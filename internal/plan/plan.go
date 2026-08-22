@@ -138,8 +138,7 @@ func validStatus(status string) bool {
 	return status == StatusOpen || status == StatusDone || strings.HasPrefix(status, "blocked")
 }
 
-// Current returns the first open step of the first open item -- the single
-// action the loop is allowed to work on and the only step a commit may serve.
+// Current returns the role-owned open step, then the first unowned step.
 // An open item with no open step yields the sentinel step "." (open the rung).
 // ok is false when no open item remains.
 func Current(d Plan, role string) (Item, Step, bool) {

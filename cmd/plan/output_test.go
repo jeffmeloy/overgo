@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -23,4 +25,42 @@ func TestCompactAgentOutput(t *testing.T) {
 	if strings.Contains(text, "PROTOCOL") || strings.Contains(text, "long doctrine") {
 		t.Fatalf("prompt repeated full doctrine:\n%s", text)
 	}
+}
+
+func TestStatusCountsRetainedOpenRows(t *testing.T) {
+	document := plan.Plan{Items: []plan.Item{
+		{ID: "complete", Title: "complete", Status: plan.StatusDone, Steps: []plan.Step{{ID: "done", Status: plan.StatusDone}}},
+		{ID: "active", Title: "active", Status: plan.StatusOpen, Steps: []plan.Step{
+			{ID: "done", Status: plan.StatusDone},
+			{ID: "open", Status: plan.StatusOpen},
+		}},
+	}}
+	output := captureStdout(t, func() { printStatus(document) })
+	if !strings.Contains(output, "complete") || !strings.Contains(output, "0 open rows") ||
+		!strings.Contains(output, "active") || !strings.Contains(output, "1 open rows") {
+		t.Fatalf("status did not distinguish retained and open rows:\n%s", output)
+	}
+}
+
+func captureStdout(t *testing.T, run func()) string {
+	t.Helper()
+	read, write, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := os.Stdout
+	os.Stdout = write
+	defer func() { os.Stdout = original }()
+	run()
+	if err := write.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(read)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := read.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }

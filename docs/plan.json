@@ -43,14 +43,14 @@
     },
     {
       "id": "plan-completion-receipts",
-      "title": "Publish mergeable immutable plan completion receipts",
-      "status": "open",
+      "title": "Use retained plan state as completion authority",
+      "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Publish mergeable immutable plan completion receipts",
-          "status": "open",
-          "verify": "go test ./internal/plan ./cmd/plan ./internal/runrecord -run 'Test(CompletionReceipt|MergeCompletionConflict|AdvancePublishesReceipt)' -count=1"
+          "title": "Preserve lane ownership through merges and report retained completion accurately",
+          "status": "done",
+          "verify": "go test ./internal/plan ./cmd/plan ./cmd/gate -run 'Test(RoleOwnedDispatch|PlanRetainsCompletionState|PrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs|StatusCountsRetainedOpenRows|PlanBindingRole)$' -count=1"
         }
       ]
     },
@@ -96,6 +96,7 @@
     {
       "id": "surface-reduction",
       "title": "Delete duplicate and redundant runtime ownership",
+      "owner": "research",
       "status": "done",
       "steps": [
         {
@@ -187,6 +188,7 @@
     {
       "id": "composability-production",
       "title": "Make cross-model composability production-authoritative",
+      "owner": "research",
       "status": "open",
       "steps": [
         {

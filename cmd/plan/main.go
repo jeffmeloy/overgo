@@ -447,7 +447,13 @@ func recordStop(reason string) error {
 
 func printStatus(document plan.Plan) {
 	for _, entry := range document.Items {
-		fmt.Printf("%-30s %-24s %d open rows  %s\n", entry.ID, entry.Status, len(entry.Steps), entry.Title)
+		open := 0
+		for _, step := range entry.Steps {
+			if step.Status == plan.StatusOpen {
+				open++
+			}
+		}
+		fmt.Printf("%-30s %-24s %d open rows  %s\n", entry.ID, entry.Status, open, entry.Title)
 	}
 }
 

@@ -75,6 +75,19 @@ func TestPrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs(t *testing.T) {
 		!slices.Equal(step.Capabilities, []string{"runtime"}) || string(step.Outcome) != `{"verdict":"pass"}` {
 		t.Fatalf("merged step lost fields: %+v", step)
 	}
+
+	base.Items[0].Owner = ""
+	local = clonePlan(t, base)
+	upstream = clonePlan(t, base)
+	local.Items[0].Owner = "research"
+	merged, err = plan.MergeDocuments(base, local, upstream)
+	if err != nil || merged.Items[0].Owner != "research" {
+		t.Fatalf("merged owner = %q, %v", merged.Items[0].Owner, err)
+	}
+	upstream.Items[0].Owner = "developer"
+	if _, err := plan.MergeDocuments(base, local, upstream); err == nil {
+		t.Fatal("concurrent owner edits were guessed")
+	}
 }
 
 func clonePlan(t *testing.T, document plan.Plan) plan.Plan {

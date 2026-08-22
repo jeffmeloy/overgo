@@ -69,8 +69,12 @@ func audioProjectedPrompt(
 	case ".wav":
 		var sampleRate int
 		samples, sampleRate, err = media.DecodeWAV(data)
-		if err == nil && sampleRate != 16000 {
-			err = fmt.Errorf("sample rate %d Hz; want 16000 Hz", sampleRate)
+		want, rateErr := projector.AudioSampleRate(audio)
+		if err == nil {
+			err = rateErr
+		}
+		if err == nil && sampleRate != want {
+			err = fmt.Errorf("sample rate %d Hz; want %d Hz", sampleRate, want)
 		}
 	default:
 		err = errors.New("audio input must use .wav or .f32")

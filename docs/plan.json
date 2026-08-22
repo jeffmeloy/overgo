@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "configuration-training",
-          "title": "Derive command, configuration, and training policy",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope cmd/train,cmd/generate,internal/clioptions,internal/optimizer,internal/trainingprogram,internal/trainingworkflow,internal/modelrecipe -require-classified -require-no-stale -require-no-uncatalogued-production \u0026\u0026 go test ./cmd/train ./cmd/generate ./internal/clioptions ./internal/optimizer ./internal/trainingprogram ./internal/trainingworkflow ./internal/modelrecipe -count=1",
-          "rationale": "Audit files deterministically. Classify each literal as structural syntax, mathematical fact, protocol or ABI fact, typed fixture input, derived relation, or runtime policy. Derive model and optimizer facts from artifacts, recipes, RepoDB, dataset contracts, and measured resource plans. Consolidate repeated relations into existing typed owners. A constant is valid only when it names a stable role; never introduce value-named constants or const-plus-offset expressions merely to hide a literal.",
-          "depends_on": [
-            "go-style-authority/contract"
-          ],
-          "capabilities": [
-            "derived-training-policy",
-            "role-based-constants",
-            "shared-config-authority"
-          ]
-        },
-        {
           "id": "serving-tests",
           "title": "Derive serving policy and remove copied test policy",
           "status": "open",

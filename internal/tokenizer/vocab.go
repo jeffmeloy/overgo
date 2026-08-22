@@ -16,6 +16,15 @@ const NullToken TokenID = -1
 // TokenID: compatible with llama_token
 type TokenID int32
 
+// ParseTokenID parses a decimal identifier within the serialized token range.
+func ParseTokenID(text string) (TokenID, error) {
+	value, err := strconv.Atoi(text)
+	if err != nil || int(TokenID(value)) != value {
+		return NullToken, fmt.Errorf("token ID %q is invalid", text)
+	}
+	return TokenID(value), nil
+}
+
 // TokenType: tokenizer.ggml.token_type value.
 type TokenType int32
 

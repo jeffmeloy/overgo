@@ -79,6 +79,27 @@ type Config struct {
 	Infill            *InfillVocabulary
 }
 
+// DefaultConfig returns the shared command-line sampling policy.
+func DefaultConfig() Config {
+	return Config{
+		DynatempExponent: 1,
+		TopK:             40,
+		TopP:             0.95,
+		TypicalP:         1,
+		TopNSigma:        -1,
+		XTCThreshold:     DefaultXTCThreshold,
+		AdaptiveTarget:   -1,
+		AdaptiveDecay:    0.9,
+		RepeatPenalty:    1,
+		DryBase:          DefaultDryBase,
+		DryAllowedLength: DefaultDryLength,
+		DryPenaltyLastN:  -1,
+		MirostatTau:      DefaultMirostatTau,
+		MirostatEta:      DefaultMirostatEta,
+		Samplers:         DefaultSamplerOrder(),
+	}
+}
+
 type Sampler struct {
 	config           Config
 	random           *rand.Rand

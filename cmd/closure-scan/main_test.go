@@ -16,6 +16,21 @@ import (
 	"overgo/internal/repodb"
 )
 
+func TestTrainingConfigurationClosureGate(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	requirements := closureRequirements{classified: true, noStale: true, noUncatalogued: true}
+	if err := checkProductionClosures(
+		root, "repodb-store",
+		"cmd/train,cmd/generate,internal/clioptions,internal/optimizer,internal/trainingprogram,internal/trainingworkflow,internal/modelrecipe",
+		false, requirements,
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCensusReportIsDeterministicAndComplete(t *testing.T) {
 	snapshot := censusSnapshot(t)
 	first, err := closurescan.BuildCensus(snapshot)

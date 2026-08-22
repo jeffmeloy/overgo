@@ -26,7 +26,7 @@ func run() error {
 	reference := flag.String("reference", "", "frozen reference model directory for DPO")
 	scale := flag.Float64("objective-scale", 0, "RL objective scale")
 	steps := flag.Int("steps", 1, "number of Muon update steps")
-	maximumSequence := flag.Int("seq", 512, "maximum token sequence; nonpositive keeps all")
+	maximumSequence := flag.Int("seq", 0, "maximum token sequence; nonpositive derives from model context")
 	host := flag.Bool("host", false, "force host execution")
 	freezeLexical := flag.Bool("freeze-lexical", false, "freeze tied embedding/head; requires CUDA resident training")
 	maxWall := flag.Duration("max-wall", 30*time.Minute, "abort at a step boundary when the first measured step projects the run past this bound (0 disables)")

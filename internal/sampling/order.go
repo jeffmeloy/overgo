@@ -42,6 +42,15 @@ func DefaultSamplerOrder() []SamplerStage {
 	return slices.Clone(defaultSamplerOrder)
 }
 
+// FormatSamplerOrder returns the semicolon-delimited public stage names.
+func FormatSamplerOrder(order []SamplerStage) string {
+	names := make([]string, len(order))
+	for index, stage := range order {
+		names[index] = string(stage)
+	}
+	return strings.Join(names, ";")
+}
+
 // ParseSamplerOrder: parses llama.cpp's semicolon-delimited sampler names
 // empty string denotes explicitly empty chain
 func ParseSamplerOrder(value string) ([]SamplerStage, error) {

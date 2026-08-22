@@ -192,18 +192,20 @@ func inspectStyleFunction(report *goStyleReport, source GoFile, function *ast.Fu
 				report.finding(source, goStyleReceiverConsistency, receiver.Pos(), typeName, name))
 		}
 	}
-	if function.Type.Results != nil {
-		for _, result := range function.Type.Results.List {
-			if len(result.Names) != 0 {
-				report.add(source, goStyleNamedResult, result.Pos(), name, "named result requires caller-facing meaning or deferred mutation")
-			}
-		}
-	}
 	if function.Body == nil {
 		return
 	}
+	used := map[string]bool{}
+	ast.Inspect(function.Body, func(node ast.Node) bool {
+		if identifier, ok := node.(*ast.Ident); ok {
+			used[identifier.Name] = true
+		}
+		return true
+	})
 	ast.Inspect(function.Body, func(node ast.Node) bool {
 		switch value := node.(type) {
+		case *ast.FuncLit:
+			return false
 		case *ast.ReturnStmt:
 			if len(value.Results) == 0 && function.Type.Results != nil {
 				report.add(source, goStyleNakedReturn, value.Pos(), name, "function uses a naked return")
@@ -213,6 +215,15 @@ func inspectStyleFunction(report *goStyleReport, source GoFile, function *ast.Fu
 		}
 		return true
 	})
+	if function.Type.Results != nil {
+		for _, result := range function.Type.Results.List {
+			for _, resultName := range result.Names {
+				if resultName.Name == "result" && !used[resultName.Name] {
+					report.add(source, goStyleNamedResult, resultName.Pos(), name, "named result is unused by the function body")
+				}
+			}
+		}
+	}
 }
 
 func inspectStyleDeclaration(report *goStyleReport, source GoFile, declaration *ast.GenDecl) {
@@ -257,9 +268,22 @@ func inspectErrorText(report *goStyleReport, source GoFile, call *ast.CallExpr, 
 		return
 	}
 	first, _ := utf8.DecodeRuneInString(text)
-	if unicode.IsUpper(first) && !strings.HasPrefix(text, "CUDA") && !strings.HasPrefix(text, "GGUF") && !strings.HasPrefix(text, "HTTP") {
+	if unicode.IsUpper(first) && !technicalErrorPrefix(text) {
 		report.add(source, goStyleErrorText, literal.Pos(), scope, "error text starts with a capital letter")
 	}
+}
+
+func technicalErrorPrefix(text string) bool {
+	word := strings.Fields(text)[0]
+	uppercase := 0
+	for _, value := range word {
+		if unicode.IsUpper(value) {
+			uppercase++
+		} else if unicode.IsDigit(value) {
+			return true
+		}
+	}
+	return uppercase > 1
 }
 
 func appendInconsistentNames(report *goStyleReport, groups map[string]map[string]goStyleFinding, kind goStyleKind, label string) {

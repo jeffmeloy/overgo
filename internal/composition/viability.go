@@ -244,7 +244,7 @@ type donorComponent struct {
 	contract                   organ.Contract
 }
 
-func loadDonorComponent(directory string, layer int, tensorName string) (result donorComponent, err error) {
+func loadDonorComponent(directory string, layer int, tensorName string) (_ donorComponent, err error) {
 	source, err := safetensors.OpenSource(directory)
 	if err != nil {
 		return donorComponent{}, err

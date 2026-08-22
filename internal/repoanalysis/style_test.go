@@ -8,6 +8,20 @@ import (
 )
 
 func TestRepositoryGoStyleNamesAndComments(t *testing.T) {
+	requireNoRepositoryStyleFindings(t, map[goStyleKind]bool{
+		goStyleReceiverConsistency: true, goStyleInitialism: true,
+		goStyleGetter: true, goStyleImportAlias: true,
+	})
+}
+
+func TestRepositoryGoStyleFlowAndErrors(t *testing.T) {
+	requireNoRepositoryStyleFindings(t, map[goStyleKind]bool{
+		goStyleNamedResult: true, goStyleNakedReturn: true,
+	})
+}
+
+func requireNoRepositoryStyleFindings(t *testing.T, selected map[goStyleKind]bool) {
+	t.Helper()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -19,10 +33,6 @@ func TestRepositoryGoStyleNamesAndComments(t *testing.T) {
 	report, err := goStyleCensus(snapshot)
 	if err != nil {
 		t.Fatal(err)
-	}
-	selected := map[goStyleKind]bool{
-		goStyleReceiverConsistency: true, goStyleInitialism: true,
-		goStyleGetter: true, goStyleImportAlias: true,
 	}
 	var findings []string
 	for _, finding := range report.Findings {
@@ -46,15 +56,10 @@ func (receiver Public) GetUrl()(result int) {
 		return
 	}
 	_ = fmt.Errorf("Bad value")
-	_ = result
 	_ = receiver
-	_ = result
 	_ = receiver
-	_ = result
 	_ = receiver
-	_ = result
 	_ = receiver
-	_ = result
 	_ = receiver
 	return
 }

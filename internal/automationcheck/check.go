@@ -30,6 +30,7 @@ type Descriptor struct {
 	Phase        runrecord.Phase `json:"phase"`
 	Always       bool            `json:"always,omitempty"`
 	Triggers     []Fact          `json:"triggers,omitempty"`
+	Inapplicable string          `json:"inapplicable,omitempty"`
 	Dependencies []string        `json:"dependencies,omitempty"`
 	Resources    []Resource      `json:"resources,omitempty"`
 }
@@ -144,6 +145,9 @@ func validate(check Check) error {
 	}
 	if !descriptor.Always && len(descriptor.Triggers) == 0 {
 		return fmt.Errorf("automation check %q: no applicability trigger", descriptor.Name)
+	}
+	if !descriptor.Always && strings.TrimSpace(descriptor.Inapplicable) == "" {
+		return fmt.Errorf("automation check %q: no inapplicable evidence", descriptor.Name)
 	}
 	for _, fact := range descriptor.Triggers {
 		if strings.TrimSpace(string(fact)) == "" {

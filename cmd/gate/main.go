@@ -245,11 +245,11 @@ func checkPlanBinding(repo, ref string) error {
 }
 
 func (g *gateContext) pipelineChecks() []automationcheck.Check {
+	generated := automationcheck.GeneratedChecks(g.repo, command)
 	return []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
-		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), gateCheck("manifest", runrecord.PhaseValidate, g.stepManifest),
-		gateCheck("sbom", runrecord.PhaseValidate, g.stepSBOM), gateCheck("claims", runrecord.PhaseValidate, g.stepClaims),
+		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), generated[0], generated[1], generated[2],
 		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), gateCheck("vet", runrecord.PhaseVet, g.stepVet),
 		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), gateCheck("test", runrecord.PhaseTest, g.stepTest),
@@ -268,7 +268,12 @@ func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) aut
 }
 
 func (g *gateContext) pipeline() error {
-	checks, err := automationcheck.Plan(g.pipelineChecks(), nil)
+	definitions := g.pipelineChecks()
+	impact, err := automationcheck.GeneratedImpact(g.repo, g.paths)
+	if err != nil {
+		return err
+	}
+	checks, err := automationcheck.Plan(definitions, impact)
 	if err != nil {
 		return err
 	}
@@ -316,6 +321,16 @@ func (g *gateContext) pipeline() error {
 		}
 		if err != nil {
 			return fmt.Errorf("%s: %w", name, err)
+		}
+	}
+	selected := make(map[string]bool, len(checks))
+	for _, check := range checks {
+		selected[check.Check.Name] = true
+	}
+	for _, check := range definitions {
+		if !selected[check.Descriptor.Name] {
+			g.steps = append(g.steps, runrecord.GateStep{Name: check.Descriptor.Name, Phase: check.Descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
+			g.honesty = append(g.honesty, check.Descriptor.Name+" skipped: "+check.Descriptor.Inapplicable)
 		}
 	}
 	return nil
@@ -1054,61 +1069,6 @@ func runGoTestsAdvisory(repo string, packages []string) (testevidence.GoTestRepo
 		return testevidence.GoTestReport{}, fmt.Errorf("dependent test evidence: %w", err)
 	}
 	return report, nil
-}
-
-func (g *gateContext) stepManifest() (bool, error) {
-	if _, err := os.Stat(filepath.Join(g.repo, "kernels", "manifest.json")); err != nil {
-		return true, nil
-	}
-	if !g.pathsTouchAny("kernels/", "internal/cuda/kernel/", "cmd/kernel-manifest/", "cmd/build-kernels/", "cmd/kernel-bindings/") {
-		g.honesty = append(g.honesty, "manifest skipped: no kernel-owning paths in -paths")
-		return true, nil
-	}
-	if _, err := command(g.repo, "go", "run", "./cmd/kernel-manifest"); err != nil {
-		return false, err
-	}
-	// Bindings derive from the same manifest, but build-kernels updates the
-	// manifest + PTX WITHOUT regenerating the executor bindings (that needs
-	// `go generate ./internal/cuda/executor`). Verify freshness here so a stale
-	// kernel_bindings_generated.go cannot ship on a kernel change.
-	_, err := command(g.repo, "go", "test", "-run", "TestGeneratedBindingsMatchManifest", "-count=1", "./cmd/kernel-bindings")
-	return false, err
-}
-
-func (g *gateContext) stepSBOM() (bool, error) {
-	if !g.pathsTouchAny("go.mod", "go.sum", "SBOM.cdx.json", "cmd/sbom/") {
-		g.honesty = append(g.honesty, "sbom skipped: no dependency-owning paths in -paths")
-		return true, nil
-	}
-	_, err := command(g.repo, "go", "run", "./cmd/sbom", "-check")
-	return false, err
-}
-
-// stepClaims runs when the manifest itself, its checker, or any changed path
-// mentioned in the manifest's raw bytes is in scope. Substring matching is
-// deliberately safe-over-skip: a false positive runs the check, never the
-// reverse.
-func (g *gateContext) stepClaims() (bool, error) {
-	run := g.pathsTouchAny("compatibility.json", "cmd/compatibility/", "internal/model/")
-	if !run {
-		raw, err := os.ReadFile(filepath.Join(g.repo, "compatibility.json"))
-		if err != nil {
-			return false, err
-		}
-		manifestText := string(raw)
-		for _, p := range g.paths {
-			if strings.Contains(manifestText, p) {
-				run = true
-				break
-			}
-		}
-	}
-	if !run {
-		g.honesty = append(g.honesty, "claims skipped: no changed path appears in compatibility.json")
-		return true, nil
-	}
-	_, err := command(g.repo, "go", "run", "./cmd/compatibility", "-check")
-	return false, err
 }
 
 // stepMagics: scoped constants against exact active closure evidence.

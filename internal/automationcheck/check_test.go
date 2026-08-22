@@ -16,8 +16,8 @@ func TestDescriptorRejectsIncompleteDefinitions(t *testing.T) {
 
 func TestApplicabilitySelectsExactDerivedFacts(t *testing.T) {
 	checks := []Check{
-		{Descriptor: Descriptor{Name: "kernel", Phase: runrecord.PhaseValidate, Triggers: []Fact{"owner:kernel"}}, Run: pass},
-		{Descriptor: Descriptor{Name: "release", Phase: runrecord.PhaseValidate, Triggers: []Fact{"owner:release"}}, Run: pass},
+		{Descriptor: Descriptor{Name: "kernel", Phase: runrecord.PhaseValidate, Triggers: []Fact{"owner:kernel"}, Inapplicable: "other owner"}, Run: pass},
+		{Descriptor: Descriptor{Name: "release", Phase: runrecord.PhaseValidate, Triggers: []Fact{"owner:release"}, Inapplicable: "other owner"}, Run: pass},
 	}
 	planned, err := Plan(checks, []Fact{"owner:release", "owner:release"})
 	if err != nil {
@@ -31,7 +31,7 @@ func TestApplicabilitySelectsExactDerivedFacts(t *testing.T) {
 func TestPlanIncludesDependenciesInRegistrationOrder(t *testing.T) {
 	checks := []Check{
 		{Descriptor: Descriptor{Name: "inventory", Phase: runrecord.PhaseValidate, Always: true}, Run: pass},
-		{Descriptor: Descriptor{Name: "device", Phase: runrecord.PhaseTest, Triggers: []Fact{"capability:cuda"}, Dependencies: []string{"inventory"}, Resources: []Resource{{Name: "device", Exclusive: true}}}, Run: pass},
+		{Descriptor: Descriptor{Name: "device", Phase: runrecord.PhaseTest, Triggers: []Fact{"capability:cuda"}, Inapplicable: "no device impact", Dependencies: []string{"inventory"}, Resources: []Resource{{Name: "device", Exclusive: true}}}, Run: pass},
 	}
 	planned, err := Plan(checks, []Fact{"capability:cuda"})
 	if err != nil {

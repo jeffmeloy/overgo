@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "embedding-injection",
-          "title": "Complete the active-recipe embedding-injection vertical and delete direct construction",
-          "status": "open",
-          "verify": "go test ./internal/composition ./internal/modelrecipe ./internal/inference -run 'TestProductionEmbeddingInjection|TestNoDirectCompositionConstructors' -count=1"
-        },
-        {
           "id": "bridge-training",
           "title": "Build dataset-driven bridge-only training with checkpoint, lineage, metrics, and frozen-model proof",
           "status": "open",

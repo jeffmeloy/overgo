@@ -23,7 +23,7 @@ const (
 	minimumFrameVersion = uint16(1)
 	frameVersion        = uint16(2)
 	frameKindBatch      = uint16(1)
-	maxFramePayload     = 64 << 20
+	maxFramePayload     = artifact.MaxContentBytes
 	storeFileMode       = 0o644
 	storeDirectoryMode  = 0o755
 

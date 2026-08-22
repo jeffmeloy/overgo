@@ -41,7 +41,7 @@ func (s *Store) Backup(destinationRoot string) (artifact.CommitID, uint64, error
 	if _, err := os.Stat(partial); err == nil {
 		return artifact.CommitID{}, 0, fmt.Errorf("repodb: stale partial backup %q; inspect and remove it manually", partial)
 	}
-	if err := os.MkdirAll(partial, 0o755); err != nil {
+	if err := os.MkdirAll(partial, storeDirectoryMode); err != nil {
 		return artifact.CommitID{}, 0, err
 	}
 	if err := copyFileSync(filepath.Join(s.root, storeFilename), filepath.Join(partial, storeFilename)); err != nil {
@@ -81,7 +81,7 @@ func copyFileSync(sourcePath, destinationPath string) error {
 		return err
 	}
 	defer func() { _ = source.Close() }()
-	destination, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	destination, err := os.OpenFile(destinationPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, storeFileMode)
 	if err != nil {
 		return err
 	}

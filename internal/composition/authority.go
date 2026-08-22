@@ -214,6 +214,10 @@ func (authority CompositionAuthority) Batch(key string) (artifact.Batch, error) 
 	if err := appendDocument(promotionContent, authority.Promotion.Lineage(), err); err != nil {
 		return artifact.Batch{}, err
 	}
+	promotionPolicyContent, err := authority.Promotion.Policy.content()
+	if err := appendDocument(promotionPolicyContent, nil, err); err != nil {
+		return artifact.Batch{}, err
+	}
 	recipeContent, err := authority.Recipe.Content()
 	if err := appendDocument(recipeContent, authority.Recipe.Lineage(), err); err != nil {
 		return artifact.Batch{}, err
@@ -400,6 +404,10 @@ func validateCompositionAuthority(value CompositionAuthority) error {
 	if err := value.Promotion.ValidateIdentity(); err != nil {
 		return err
 	}
+	promotionPolicy, err := value.Promotion.Policy.Identity()
+	if err != nil {
+		return err
+	}
 	if err := value.Execution.ValidateIdentity(); err != nil {
 		return err
 	}
@@ -414,6 +422,7 @@ func validateCompositionAuthority(value CompositionAuthority) error {
 		value.Recipe.BridgeDefinition != value.Bridge.ID ||
 		value.Recipe.BridgeWeights != value.Bridge.Weights ||
 		value.Recipe.ExecutionRecipe != value.Execution.ID ||
+		value.Recipe.PromotionPolicy != promotionPolicy ||
 		value.Recipe.Promotion != value.Promotion.ID ||
 		value.Execution.Task != recipe.TaskProjection ||
 		value.Promotion.Bridge != value.Bridge.Weights ||
@@ -449,12 +458,16 @@ func loadCompositionAuthority(
 	if _, found, err := reader.Artifact(ctx, value.TrainingPolicy); err != nil || !found {
 		return CompositionAuthority{}, errors.Join(err, errors.New("composition: training policy is absent"))
 	}
-	if _, found, err := reader.Artifact(ctx, value.PromotionPolicy); err != nil || !found {
-		return CompositionAuthority{}, errors.Join(err, errors.New("composition: promotion policy is absent"))
-	}
 	promotion, err := LoadRepresentationBridgePromotion(ctx, reader, value.Promotion)
 	if err != nil {
 		return CompositionAuthority{}, err
+	}
+	promotionPolicy, err := loadRepresentationBridgePromotionPolicy(ctx, reader, value.PromotionPolicy)
+	if err != nil {
+		return CompositionAuthority{}, err
+	}
+	if promotionPolicy != promotion.Policy {
+		return CompositionAuthority{}, errors.New("composition: promotion policy differs from promotion evidence")
 	}
 	executionContent, err := loadCompositionContent(ctx, reader, value.ExecutionRecipe, artifact.KindRecipe, recipe.MediaType, recipe.Schema)
 	if err != nil {

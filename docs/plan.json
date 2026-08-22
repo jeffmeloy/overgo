@@ -9,12 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "promotion-activation",
-          "title": "Make recipe-owned promotion evidence authorize active composition",
-          "status": "open",
-          "verify": "go test ./internal/composition ./internal/evaluation -run 'TestCompositionPromotionActivation|TestUnpromotedBridgeRefused' -count=1"
-        },
-        {
           "id": "device-residency",
           "title": "Compile device residency, lifetimes, and immutable transformed-representation caching",
           "status": "open",
@@ -136,6 +130,11 @@
       "item": "gate-generalization-dag",
       "step": "do",
       "authority": "evidence:sha256:3b4cad2dc1f40ec75929f4a8be22adce3cbb648044e7937e20845af9c032de34"
+    },
+    {
+      "item": "composability-production",
+      "step": "promotion-activation",
+      "authority": "evidence:sha256:9ed73a38ff52c7085a720bddaa988a34662539950fac9273630e0998ab8cbedb"
     }
   ]
 }

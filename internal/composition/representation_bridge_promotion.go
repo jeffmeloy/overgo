@@ -19,6 +19,11 @@ const (
 	RepresentationBridgePromotionMediaType = "application/vnd.overgo.representation-bridge-promotion+json"
 	// RepresentationBridgePromotionSchema identifies the canonical bridge-promotion schema.
 	RepresentationBridgePromotionSchema = "overgo/representation-bridge-promotion/v1"
+	// RepresentationBridgePromotionPolicyMediaType identifies the exact policy
+	// authority embedded in bridge-promotion evidence.
+	RepresentationBridgePromotionPolicyMediaType = "application/vnd.overgo.representation-bridge-promotion-policy+json"
+	// RepresentationBridgePromotionPolicySchema identifies the policy wire schema.
+	RepresentationBridgePromotionPolicySchema = "overgo/representation-bridge-promotion-policy/v1"
 )
 
 // RepresentationBridgePromotionPolicy declares one metric and the minimum
@@ -29,6 +34,12 @@ type RepresentationBridgePromotionPolicy struct {
 	MinimumHeldOutGain      float64             `json:"minimum_held_out_gain"`
 	MinimumSourceDependence float64             `json:"minimum_source_dependence"`
 	MaximumRegression       float64             `json:"maximum_regression"`
+}
+
+type representationBridgePromotionPolicyDocument struct {
+	Version uint16                              `json:"version"`
+	Policy  RepresentationBridgePromotionPolicy `json:"policy"`
+	ID      artifact.ID                         `json:"-"`
 }
 
 // RepresentationBridgePromotionTrial records the same held-out metric for a
@@ -82,6 +93,62 @@ var representationBridgePromotionCodec = artifact.JSONDocumentCodec(
 		return value
 	},
 )
+
+var representationBridgePromotionPolicyCodec = artifact.JSONDocumentCodec(
+	"representation bridge promotion policy",
+	artifact.KindProfile,
+	RepresentationBridgePromotionPolicyMediaType,
+	RepresentationBridgePromotionPolicySchema,
+	func(value *representationBridgePromotionPolicyDocument) error {
+		if value == nil || value.Version != artifact.InitialDocumentVersion {
+			return errors.New("composition: invalid representation bridge promotion policy version")
+		}
+		return value.Policy.validate()
+	},
+	func(value representationBridgePromotionPolicyDocument) artifact.ID { return value.ID },
+	func(value *representationBridgePromotionPolicyDocument, id artifact.ID) { value.ID = id },
+	func(value representationBridgePromotionPolicyDocument) representationBridgePromotionPolicyDocument {
+		return value
+	},
+)
+
+// Identity returns the immutable profile identity for this exact promotion
+// policy. Composition recipes use this identity rather than a caller-selected
+// profile so activation is authorized by the policy that produced the evidence.
+func (policy RepresentationBridgePromotionPolicy) Identity() (artifact.ID, error) {
+	document, err := representationBridgePromotionPolicyCodec.New(
+		representationBridgePromotionPolicyDocument{
+			Version: artifact.InitialDocumentVersion,
+			Policy:  policy,
+		},
+	)
+	return document.ID, err
+}
+
+func (policy RepresentationBridgePromotionPolicy) content() (artifact.Content, error) {
+	document, err := representationBridgePromotionPolicyCodec.New(
+		representationBridgePromotionPolicyDocument{
+			Version: artifact.InitialDocumentVersion,
+			Policy:  policy,
+		},
+	)
+	if err != nil {
+		return artifact.Content{}, err
+	}
+	return representationBridgePromotionPolicyCodec.Content(document)
+}
+
+func loadRepresentationBridgePromotionPolicy(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (RepresentationBridgePromotionPolicy, error) {
+	document, err := representationBridgePromotionPolicyCodec.Require(ctx, reader, id)
+	if err != nil {
+		return RepresentationBridgePromotionPolicy{}, err
+	}
+	return document.Policy, nil
+}
 
 // Evaluate returns promotion evidence only when every seed clears every
 // declared threshold. A partial or average-only win is refused.

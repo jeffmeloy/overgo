@@ -47,7 +47,7 @@ func TestCompositionRecipeRepository(t *testing.T) {
 	}
 }
 
-func TestActiveCompositionAlias(t *testing.T) {
+func TestCompositionPromotionActivation(t *testing.T) {
 	store, authority := compositionAuthorityFixture(t)
 	ctx := context.Background()
 	if _, found, err := ActiveComposition(
@@ -73,6 +73,34 @@ func TestActiveCompositionAlias(t *testing.T) {
 	}
 }
 
+func TestUnpromotedBridgeRefused(t *testing.T) {
+	store, authority := compositionAuthorityFixture(t)
+	ctx := context.Background()
+	unpromoted := authority.Recipe
+	unpromoted.Promotion = testutil.ArtifactID(t, artifact.KindEvidence, "unpromoted bridge evidence")
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key:       "fixture/composition/unpromoted-evidence-descriptor",
+		Artifacts: []artifact.Descriptor{{ID: unpromoted.Promotion}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var err error
+	unpromoted, err = NewCompositionRecipe(unpromoted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := unpromoted.Batch("fixture/composition/unpromoted")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := unpromoted.ActivationBatch(ctx, store, "fixture/composition/unpromoted-activate", nil); err == nil {
+		t.Fatal("composition activated without repository-owned promotion evidence")
+	}
+}
+
 func compositionAuthorityFixture(t *testing.T) (*repodb.Store, CompositionAuthority) {
 	t.Helper()
 	store, err := repodb.Open(t.TempDir())
@@ -91,10 +119,9 @@ func compositionAuthorityFixture(t *testing.T) (*repodb.Store, CompositionAuthor
 	regression := testutil.ArtifactID(t, artifact.KindDatasetShard, "composition regression split")
 	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "composition evaluator")
 	trainingPolicy := testutil.ArtifactID(t, artifact.KindProfile, "composition training policy")
-	promotionPolicy := testutil.ArtifactID(t, artifact.KindProfile, "composition promotion policy")
 	parents := []artifact.ID{
 		sourceModel, targetModel, sourceDefinition, targetDefinition,
-		weights, inventory, heldOut, regression, evaluator, trainingPolicy, promotionPolicy,
+		weights, inventory, heldOut, regression, evaluator, trainingPolicy,
 	}
 	descriptors := make([]artifact.Descriptor, len(parents))
 	for index, id := range parents {
@@ -159,6 +186,10 @@ func compositionAuthorityFixture(t *testing.T) (*repodb.Store, CompositionAuthor
 			{Seed: 29, BridgeScore: 0.88, CheapBaselineScore: 0.8, DroppedSourceScore: 0.69, ShuffledSourceScore: 0.7, RegressionBaselineScore: 0.86, RegressionCandidateScore: 0.85},
 		},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	promotionPolicy, err := promotion.Policy.Identity()
 	if err != nil {
 		t.Fatal(err)
 	}

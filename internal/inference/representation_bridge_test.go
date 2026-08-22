@@ -176,10 +176,9 @@ func productionCompositionFixture(t *testing.T, activate bool) (*repodb.Store, c
 	regression := testutil.ArtifactID(t, artifact.KindDatasetShard, "bridge-regression")
 	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "bridge-evaluator")
 	trainingPolicy := testutil.ArtifactID(t, artifact.KindProfile, "bridge-training-policy")
-	promotionPolicy := testutil.ArtifactID(t, artifact.KindProfile, "bridge-promotion-policy")
 	parents := []artifact.ID{
 		sourceModel, targetModel, sourceContract.Producer.Definition, targetContract.Producer.Definition,
-		weights, inventory, heldOut, regression, evaluator, trainingPolicy, promotionPolicy,
+		weights, inventory, heldOut, regression, evaluator, trainingPolicy,
 	}
 	descriptors := make([]artifact.Descriptor, len(parents))
 	for index, id := range parents {
@@ -220,6 +219,10 @@ func productionCompositionFixture(t *testing.T, activate bool) (*repodb.Store, c
 			{Seed: 29, BridgeScore: 0.88, CheapBaselineScore: 0.8, DroppedSourceScore: 0.69, ShuffledSourceScore: 0.7, RegressionBaselineScore: 0.86, RegressionCandidateScore: 0.85},
 		},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	promotionPolicy, err := promotion.Policy.Identity()
 	if err != nil {
 		t.Fatal(err)
 	}

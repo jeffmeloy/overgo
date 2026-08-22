@@ -73,6 +73,7 @@ type gateContext struct {
 	profileDirty bool
 	stepEvidence map[string]string
 	cachePaths   []string
+	retryCache   *automationcheck.EvidenceCache
 }
 
 func main() {
@@ -299,11 +300,13 @@ func (g *gateContext) pipeline() error {
 		return err
 	}
 	cache := g.loadRetryCache()
+	cache.Compact()
+	g.retryCache = &cache
 	// Verification steps whose result depends only on tree state may reuse a
 	// prior identical-tree success (the retry-loop tax: a failed commit step
 	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
 	// always run; commit is never cached.
-	cacheable := map[string]bool{"vet": true, "build": true, "test": true}
+	cacheable := map[string]bool{"vet": true, "build": true}
 	for _, scheduled := range gateSchedule(definitions, checks) {
 		name := scheduled.descriptor.Name
 		if !scheduled.applicable {
@@ -1015,15 +1018,42 @@ func (g *gateContext) stepTest() (bool, error) {
 		return true, nil
 	}
 	g.honesty = append(g.honesty, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
-	if len(direct) > 0 {
-		if _, err := runGoTests(g.repo, direct); err != nil {
+	inputGraph, err := loadPackageInputGraph(g.repo)
+	if err != nil {
+		return false, err
+	}
+	directInputs, err := packageInputIdentities(inputGraph, direct)
+	if err != nil {
+		return false, err
+	}
+	directPending, directReused, err := g.packageCachePartition(direct, "short", directInputs)
+	if err != nil {
+		return false, err
+	}
+	if len(directPending) > 0 {
+		if _, err := runGoTests(g.repo, directPending); err != nil {
+			return false, err
+		}
+		if err := g.recordPackagePasses(directPending, "short", directInputs); err != nil {
 			return false, err
 		}
 	}
 	if len(dependent) == 0 {
+		g.packageCacheHonesty(directReused, len(directPending))
 		return false, nil
 	}
-	report, err := runGoTestsAdvisory(g.repo, dependent)
+	dependentInputs, err := packageInputIdentities(inputGraph, dependent)
+	if err != nil {
+		return false, err
+	}
+	dependentPending, dependentReused, err := g.packageCachePartition(dependent, "complete", dependentInputs)
+	if err != nil {
+		return false, err
+	}
+	report := testevidence.GoTestReport{}
+	if len(dependentPending) > 0 {
+		report, err = runGoTestsAdvisory(g.repo, dependentPending)
+	}
 	if err != nil {
 		return false, err
 	}
@@ -1032,8 +1062,49 @@ func (g *gateContext) stepTest() (bool, error) {
 			"dependent fixture evidence not credited: %d skipped, %d unavailable",
 			len(report.Skipped), len(report.Unavailable),
 		))
+	} else if err := g.recordPackagePasses(dependentPending, "complete", dependentInputs); err != nil {
+		return false, err
 	}
+	g.packageCacheHonesty(directReused+dependentReused, len(directPending)+len(dependentPending))
 	return false, nil
+}
+
+func (g *gateContext) packageCachePartition(packages []string, mode string, inputs map[string]artifact.ID) ([]string, int, error) {
+	if g.retryCache == nil {
+		cache := g.loadRetryCache()
+		cache.Compact()
+		g.retryCache = &cache
+	}
+	pending := make([]string, 0, len(packages))
+	reused := 0
+	for _, packagePath := range packages {
+		hit, err := g.retryCache.PackageReusable(packagePath, mode, inputs[packagePath])
+		if err != nil {
+			return nil, 0, err
+		}
+		if hit {
+			reused++
+		} else {
+			pending = append(pending, packagePath)
+		}
+	}
+	return pending, reused, nil
+}
+
+func (g *gateContext) recordPackagePasses(packages []string, mode string, inputs map[string]artifact.ID) error {
+	for _, packagePath := range packages {
+		if err := g.retryCache.RecordPackagePass(packagePath, mode, inputs[packagePath]); err != nil {
+			return err
+		}
+	}
+	g.saveRetryCache(*g.retryCache)
+	return nil
+}
+
+func (g *gateContext) packageCacheHonesty(reused, executed int) {
+	if reused+executed > 0 {
+		g.honesty = append(g.honesty, fmt.Sprintf("package test evidence: %d reused + %d executed", reused, executed))
+	}
 }
 
 func (g *gateContext) directChangedPackages() (map[string]bool, error) {
@@ -1837,6 +1908,8 @@ func compactHonesty(lines []string) []string {
 			label = "advisory: consumer: "
 		case strings.HasPrefix(line, "test scope:"):
 			label = "advisory: scope: "
+		case strings.HasPrefix(line, "package test evidence:"):
+			label = "advisory: reuse: "
 		case strings.Contains(line, " reused:"):
 			label = "advisory: reuse: "
 		case strings.Contains(line, "exact_clone=") && !strings.Contains(line, "exact_clone=none"):

@@ -72,7 +72,6 @@ type gateContext struct {
 	profile      *codeprofile.Profile
 	profileDirty bool
 	stepEvidence map[string]string
-	phaseKeys    map[string]string
 	cachePaths   []string
 }
 
@@ -139,7 +138,7 @@ func run() error {
 	}
 	g := &gateContext{
 		repo: repo, planRef: *planRef, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
-		stepEvidence: map[string]string{}, phaseKeys: map[string]string{},
+		stepEvidence: map[string]string{},
 	}
 	if *merge {
 		// Merge mode: the staged merge IS the plan. Deriving -paths from the
@@ -777,9 +776,6 @@ func retryReusable(cache retryCache, environment string) bool {
 }
 
 func (g *gateContext) phaseInputFingerprint(phase string) (string, error) {
-	if key := g.phaseKeys[phase]; key != "" {
-		return key, nil
-	}
 	paths := g.cachePaths
 	var err error
 	if paths == nil {
@@ -796,14 +792,7 @@ func (g *gateContext) phaseInputFingerprint(phase string) (string, error) {
 			return "", err
 		}
 	}
-	key, err := fingerprintPhaseInputs(g.repo, phase, paths, evidence)
-	if err == nil {
-		if g.phaseKeys == nil {
-			g.phaseKeys = map[string]string{}
-		}
-		g.phaseKeys[phase] = key
-	}
-	return key, err
+	return fingerprintPhaseInputs(g.repo, phase, paths, evidence)
 }
 
 func fingerprintPhaseInputs(root, phase string, paths []string, claimEvidence map[string]bool) (string, error) {
@@ -841,7 +830,7 @@ func phaseOwnsPath(phase, path string, claimEvidence map[string]bool) bool {
 	case "vet", "build":
 		return goInput
 	case "test":
-		return goInput || path == "README.md" || strings.HasPrefix(path, "docs/")
+		return goInput || path == "README.md" || strings.HasPrefix(path, "docs/") && path != plan.Path
 	case "manifest":
 		return goSource || strings.HasPrefix(path, "kernels/") || strings.HasPrefix(path, "cmd/kernel-") ||
 			strings.HasPrefix(path, "internal/cuda/executor/")

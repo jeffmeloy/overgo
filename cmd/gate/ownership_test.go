@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 )
 
@@ -47,12 +48,13 @@ func TestEnvironmentBoundRetry(t *testing.T) {
 	}
 }
 
-func TestPhaseCacheUsesDerivedInputs(t *testing.T) {
+func TestPhaseCacheIgnoresUnownedPlanChanges(t *testing.T) {
 	root := t.TempDir()
 	files := map[string]string{
 		"internal/feature.go":       "package internal\nfunc Feature() {}\n",
 		"compatibility.json":        `{}`,
 		"docs/COMPATIBILITY.md":     "current claims\n",
+		plan.Path:                   "{\"campaign\":\"before\"}\n",
 		"cmd/compatibility/main.go": "package main\n",
 	}
 	for path, content := range files {
@@ -86,5 +88,13 @@ func TestPhaseCacheUsesDerivedInputs(t *testing.T) {
 	}
 	if claimsBefore == claimsAfter {
 		t.Fatal("compatibility documentation did not invalidate claim inputs")
+	}
+	testBefore, _ := fingerprintPhaseInputs(root, "test", paths, nil)
+	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(plan.Path)), []byte("{\"campaign\":\"after\"}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testAfter, _ := fingerprintPhaseInputs(root, "test", paths, nil)
+	if testBefore != testAfter {
+		t.Fatal("plan-only acceptance change invalidated package tests")
 	}
 }

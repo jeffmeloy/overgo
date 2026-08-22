@@ -14,7 +14,7 @@
           "verify": "go run ./cmd/closure-scan -check-scope internal/inference -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production",
           "rationale": "Compiled recipes must own residency, prefill, decode, cache, and modality admission without parallel direct-open paths.",
           "depends_on": [
-            "magic-model-authority/padded-batch-fixture-authority"
+            "multi-head-mtp-contracts/do"
           ],
           "capabilities": [
             "recipe-selected-inference",

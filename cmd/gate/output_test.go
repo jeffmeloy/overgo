@@ -44,3 +44,16 @@ func TestCompactAgentOutput(t *testing.T) {
 		t.Fatalf("CLI wrapper clone reached agent output: %s", clone)
 	}
 }
+
+func TestGateRunsAcceptanceBeforeExpensivePhases(t *testing.T) {
+	steps := (&gateContext{}).pipelineSteps()
+	positions := make(map[string]int, len(steps))
+	for index, step := range steps {
+		positions[step.name] = index
+	}
+	for _, expensive := range []string{"vet", "build", "test", "device"} {
+		if positions["acceptance"] >= positions[expensive] {
+			t.Fatalf("acceptance position %d is not before %s at %d", positions["acceptance"], expensive, positions[expensive])
+		}
+	}
+}

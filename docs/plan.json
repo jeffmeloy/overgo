@@ -3,6 +3,58 @@
   "doctrine": "Follow skill.md. Current census: 894 production files, 20,081 inline literals, 2,599 assumption hints, 1,228 copied test-policy sites. Audit every non-generated Go file in deterministic scanner order. Process the first exact finding, then consolidate every same-semantic occurrence. Split heterogeneous packages into deletion-led ownership waves; finish each package with one exact closure gate. Classify literals as structural syntax, mathematical fact, protocol/ABI fact, fixture input, derived value, or runtime policy. Artifact facts, RepoDB recipes, compiled plans, and measured resource plans own runtime policy; missing authority fails. Constants may name stable mathematics or wire contracts, never local model policy. Recipes and neutral typed operators are sole runtime authorities. Every new or extended primitive migrates all equivalent callers and deletes displaced model orchestration, wrappers, fallbacks, duplicate probes, compatibility readers, and parallel registries in the same commit. Each implementation wave is production-code net-negative, including untracked Go files. Fixtures define inputs; tests reuse production contracts and shared assertions. Preserve numerical behavior while reducing allocations, transfers, probes, branches, maps, and operations. Run focused tests, the exact wave gate, full host tests, applicable CUDA gates, diff checks, and census publication before the gate commit; merge tightening/master before redispatch. Completion requires zero stale bindings, open derivation-blocked rows, uncatalogued production policy, copied test policy, and model facts outside artifact or recipe authorities.",
   "items": [
     {
+      "id": "automation-phase-reuse",
+      "title": "Reuse successful gate phases across changes outside each phase authority",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Reuse successful gate phases across changes outside each phase authority",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestPhaseCacheIgnoresUnownedPlanChanges$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "automation-live-progress",
+      "title": "Stream gate phase progress and heartbeat state during long verification",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stream gate phase progress and heartbeat state during long verification",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestGateReportsPhaseProgress$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "automation-merge-orchestration",
+      "title": "Prepare merges atomically with source snapshots, semantic plans, and regenerated compatibility docs",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Prepare merges atomically with source snapshots, semantic plans, and regenerated compatibility docs",
+          "status": "open",
+          "verify": "go test ./cmd/plan -run '^TestPrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "automation-actionable-summary",
+      "title": "Separate blocking failures from advisory debt and align gate help with enforced contracts",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Separate blocking failures from advisory debt and align gate help with enforced contracts",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestGateSummarySeparatesBlockersAndAdvisories$' -count=1"
+        }
+      ]
+    },
+    {
       "id": "magic-model-authority",
       "title": "Remove model facts and orchestration from runtime code",
       "status": "open",

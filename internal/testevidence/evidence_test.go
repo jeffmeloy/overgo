@@ -14,7 +14,11 @@ func TestGoTestJSONShort(t *testing.T) {
 	if err := GoTestJSONShort(classified); err != nil {
 		t.Fatal(err)
 	}
-	if err := GoTestJSON(classified); err == nil {
+	report, err := GoTestJSONReport(classified)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := RequireComplete(report); err == nil {
 		t.Fatal("strict evidence accepted a classified skip")
 	}
 	unclassified := "{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestX\"}\n"
@@ -32,7 +36,7 @@ func TestGoTestJSONReportPreservesSkippedEvidence(t *testing.T) {
 	if len(report.Skipped) != 1 || len(report.Unavailable) != 1 {
 		t.Fatalf("report = %+v", report)
 	}
-	if err := GoTestJSON(out); err == nil {
+	if err := RequireComplete(report); err == nil {
 		t.Fatal("strict evidence accepted a skipped fixture")
 	}
 }
@@ -82,17 +86,18 @@ func TestVerifyOutput(t *testing.T) {
 	}
 }
 
-func TestVerifyGoTestTargetAbsent(t *testing.T) {
-	command := "go test ./x -run '^TestMissing$' -count=1 -v"
-	absent := "{\"Action\":\"pass\",\"Package\":\"x\"}\n"
-	if err := VerifyGoTestTargetAbsent(command, absent); err != nil {
+func TestVerifyGoTestEvidenceWithoutRun(t *testing.T) {
+	passing := "{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestOne\"}\n" +
+		"{\"Action\":\"pass\",\"Package\":\"x\"}\n"
+	if err := VerifyGoTestEvidence("go test ./x -count=1", passing); err != nil {
 		t.Fatal(err)
 	}
-	matched := "{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestMissing\"}\n" + absent
-	if err := VerifyGoTestTargetAbsent(command, matched); err == nil {
-		t.Fatal("existing target accepted as an absent roadmap probe")
+	if err := VerifyGoTestEvidence("go test ./x -count=1", "{\"Action\":\"pass\",\"Package\":\"x\"}\n"); err == nil {
+		t.Fatal("package-only output passed without an executed test")
 	}
-	if err := VerifyGoTestTargetAbsent(command, "{\"Action\":\"fail\",\"Package\":\"x\"}\n"); err == nil {
-		t.Fatal("failed package accepted as an absent roadmap probe")
+	skipped := "{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestOne\"}\n" +
+		"{\"Action\":\"pass\",\"Package\":\"x\"}\n"
+	if err := VerifyGoTestEvidence("go test ./x -count=1", skipped); err == nil {
+		t.Fatal("broad acceptance credited a skipped test")
 	}
 }

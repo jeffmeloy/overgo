@@ -504,7 +504,7 @@ func runVerify(it plan.Item, st plan.Step) error {
 	}
 	var evidenceErr error
 	if structuredGoTest {
-		evidenceErr = testevidence.VerifyGoTestTarget(st.Verify, buf.String())
+		evidenceErr = testevidence.VerifyGoTestEvidence(st.Verify, buf.String())
 	} else {
 		evidenceErr = testevidence.VerifyOutput(st.Verify, buf.String())
 	}

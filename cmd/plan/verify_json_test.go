@@ -15,13 +15,13 @@ func TestVerifyGoTestJSONTargets(t *testing.T) {
 			"{\"Action\":\"pass\",\"Package\":\"overgo/x\"}\n",
 		"UNAVAILABLE: GPU fixture\n",
 	)
-	if err := testevidence.VerifyGoTestTarget("go test ./x -run '^TestAcceptance$'", out); err != nil {
+	if err := testevidence.VerifyGoTestEvidence("go test ./x -run '^TestAcceptance$'", out); err != nil {
 		t.Fatal(err)
 	}
-	if err := testevidence.VerifyGoTestTarget("go test ./x -run '^TestHardware$'", out); err == nil {
+	if err := testevidence.VerifyGoTestEvidence("go test ./x -run '^TestHardware$'", out); err == nil {
 		t.Fatal("targeted skipped hardware test passed")
 	}
-	if err := testevidence.VerifyGoTestTarget("go test ./x", out); err == nil {
-		t.Fatal("unnamed acceptance target passed")
+	if err := testevidence.VerifyGoTestEvidence("go test ./x", out); err == nil {
+		t.Fatal("broad acceptance credited a skipped test")
 	}
 }

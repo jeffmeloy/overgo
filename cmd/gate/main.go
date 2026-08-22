@@ -267,6 +267,7 @@ func (g *gateContext) pipelineSteps() []gateStep {
 		{"profile", runrecord.PhaseValidate, g.stepProfile},
 	}
 	return append(steps, []gateStep{
+		{"acceptance", runrecord.PhaseTest, g.stepAcceptance},
 		{"fmt", runrecord.PhaseValidate, g.stepFmt},
 		{"vet", runrecord.PhaseVet, g.stepVet},
 		{"build", runrecord.PhaseBuild, g.stepBuild},
@@ -277,7 +278,6 @@ func (g *gateContext) pipelineSteps() []gateStep {
 		{"docs", runrecord.PhaseValidate, g.stepDocumentation},
 		{"magics", runrecord.PhaseValidate, g.stepMagics},
 		{"device", runrecord.PhaseTest, g.stepDevice},
-		{"acceptance", runrecord.PhaseTest, g.stepAcceptance},
 		{"commit", runrecord.PhasePackage, g.stepCommit},
 	}...)
 }

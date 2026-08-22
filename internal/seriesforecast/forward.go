@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/extent"
 	"overgo/internal/hostmath"
 )
 
@@ -98,7 +99,7 @@ func patchStats(series, masks []float32, patchLen int, mu, sigma []float64) {
 // residual block into out[token*hidden:].
 func (m *Model) patchEmbed(out, series, masks []float32, mu, sigma []float64) error {
 	p := m.Dims.PatchLen
-	input := make([]float32, patchInputStreams*p)
+	input := make([]float32, extent.PairedExtent*p)
 	for i := range mu {
 		denom := sigma[i]
 		if denom < revinTolerance {

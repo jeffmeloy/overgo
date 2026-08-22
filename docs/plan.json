@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "derived-runtimes",
-          "title": "Delete literals and duplicate orchestration from derived model runtimes",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/densecausal,internal/routedlm,internal/scratchmodel,internal/seq2seq,internal/seriesforecast,internal/tabularicl,internal/patchtower -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production"
-        },
-        {
           "id": "training",
           "title": "Derive training and optimizer policy from compiled training plans",
           "status": "open",

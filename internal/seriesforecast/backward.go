@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/extent"
 	"overgo/internal/hostmath"
 )
 
@@ -129,7 +130,7 @@ func (m *Model) patchEmbedBackward(series, masks []float32, mu, sigma []float64,
 	dSeries := make([]float32, len(series))
 	dMu := make([]float64, len(mu))
 	dSigma := make([]float64, len(mu))
-	input := make([]float32, patchInputStreams*p)
+	input := make([]float32, extent.PairedExtent*p)
 	for i := range mu {
 		denom := sigma[i]
 		if denom < revinTolerance {

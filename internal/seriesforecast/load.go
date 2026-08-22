@@ -12,16 +12,11 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"overgo/internal/extent"
 	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensorcatalog"
 )
-
-// patchInputStreams: each patch token carries values plus their mask.
-const patchInputStreams = 2
-
-// qkvProjections: fused query/key/value projection rows per hidden column.
-const qkvProjections = 3
 
 // Dims: model geometry, derived from tensor shapes and config.
 type Dims struct {
@@ -219,10 +214,10 @@ func dimsFromShapes(shapes map[string][]int, outputDim int) (Dims, error) {
 	if err != nil {
 		return d, err
 	}
-	if tokenHidden[1]%patchInputStreams != 0 {
+	if tokenHidden[1]%extent.PairedExtent != 0 {
 		return d, fmt.Errorf("seriesforecast: tokenizer input width %d is not values+mask pairs", tokenHidden[1])
 	}
-	d.PatchLen = tokenHidden[1] / patchInputStreams
+	d.PatchLen = tokenHidden[1] / extent.PairedExtent
 
 	tokenOutput, err := tensorcatalog.Shape(shapes, "tokenizer.output_layer.weight", 2)
 	if err != nil {
@@ -243,7 +238,7 @@ func dimsFromShapes(shapes map[string][]int, outputDim int) (Dims, error) {
 		if err != nil {
 			return d, err
 		}
-		if qkv[0] != qkvProjections*d.Hidden || qkv[1] != d.Hidden {
+		if qkv[0] != extent.TripleExtent*d.Hidden || qkv[1] != d.Hidden {
 			return d, fmt.Errorf("seriesforecast: layer %d qkv shape %v incompatible with hidden %d", layer, qkv, d.Hidden)
 		}
 		queryNorm, err := tensorcatalog.Shape(shapes, prefix+"query_ln.scale", 1)

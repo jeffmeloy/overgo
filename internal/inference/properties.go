@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/tokenizer"
 )
@@ -54,41 +55,45 @@ func (r *Runner) ModelProperties() ModelProperties {
 		properties.VocabularyType = r.vocab.Model
 		properties.BOSToken = vocabularyTokenText(r.vocab, r.vocab.BOS)
 		properties.EOSToken = vocabularyTokenText(r.vocab, r.vocab.EOS)
-		if properties.VocabularySize == 0 {
-			properties.VocabularySize = uint32(r.vocab.Len())
-		}
 	}
 	return properties
 }
 
 func modelParameterCount(file *gguf.File) uint64 {
 	if file == nil {
-		return 0
+		var unavailable uint64
+		return unavailable
 	}
 	var total uint64
 	for _, tensor := range file.Tensors {
 		count, err := tensor.ElementCount()
 		if err != nil {
-			return 0
+			var unavailable uint64
+			return unavailable
 		}
-		if total > ^uint64(0)-count {
-			return 0
+		next, valid := checked.Add64(total, count)
+		if !valid {
+			var unavailable uint64
+			return unavailable
 		}
-		total += count
+		total = next
 	}
 	return total
 }
 
 func modelTensorBytes(file *gguf.File) uint64 {
 	if file == nil {
-		return 0
+		var unavailable uint64
+		return unavailable
 	}
 	var total uint64
 	for _, tensor := range file.Tensors {
-		if total > ^uint64(0)-tensor.Size {
-			return 0
+		next, valid := checked.Add64(total, tensor.Size)
+		if !valid {
+			var unavailable uint64
+			return unavailable
 		}
-		total += tensor.Size
+		total = next
 	}
 	return total
 }

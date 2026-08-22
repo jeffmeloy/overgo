@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -19,8 +20,6 @@ type layerSideInputs struct {
 type boundLayerSideInputs struct {
 	currentPositions *tensor.Tensor
 }
-
-const maxExactFloat32Position = uint32(1 << 24)
 
 func bindLayerSideInputs(
 	builder *tensor.Builder,
@@ -50,7 +49,7 @@ func bindLayerSideInputs(
 	if plan.Cache == model.CacheCompressedAttention {
 		data := make([]float32, len(positions))
 		for index, position := range positions {
-			if position > maxExactFloat32Position {
+			if !checked.ExactFloat32Uint(position) {
 				return boundLayerSideInputs{}, fmt.Errorf(
 					"%s position %d exceeds exact F32 cache representation",
 					spec.Architecture,
@@ -59,7 +58,7 @@ func bindLayerSideInputs(
 			}
 			data[index] = float32(position)
 		}
-		shape := tensor.MustShape(1, 1, uint64(len(positions)))
+		shape := tensor.MustShape(tensor.SingletonExtent, tensor.SingletonExtent, uint64(len(positions)))
 		result.currentPositions = builder.Input(
 			fmt.Sprintf("blk.%d.positions.current", plan.Layer), dtype.F32, shape,
 		)
@@ -77,17 +76,18 @@ func bindAttentionTemperature(
 	weights *model.LayerGraphWeights,
 ) error {
 	if plan.Temperature == model.AttentionTemperatureNone ||
-		plan.Temperature == model.AttentionTemperatureConfigured && spec.AttentionTempScale == 0 {
+		plan.Temperature == model.AttentionTemperatureConfigured && !checked.Nonzero(spec.AttentionTempScale) {
 		return nil
 	}
-	if spec.AttentionTempFloor == 0 {
+	if !checked.Nonzero(spec.AttentionTempFloor) {
 		return fmt.Errorf("%s attention temperature input is invalid", spec.Architecture)
 	}
-	shape := tensor.MustShape(1, 1, uint64(len(positions)))
+	shape := tensor.MustShape(tensor.SingletonExtent, tensor.SingletonExtent, uint64(len(positions)))
 	data := make([]float32, len(positions))
 	for index, position := range positions {
 		step := math.Floor((float64(position) + float64(spec.AttentionTempOffset)) / float64(spec.AttentionTempFloor))
-		data[index] = float32(math.Log(step+1))*spec.AttentionTempScale + 1
+		identity := float64(tensor.SingletonExtent)
+		data[index] = float32(math.Log(step+identity))*spec.AttentionTempScale + float32(identity)
 	}
 	input := builder.Input("attention_temperature", dtype.F32, shape)
 	hostFeeds[input] = reference.Value{Shape: shape, Data: data}

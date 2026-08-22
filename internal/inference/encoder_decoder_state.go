@@ -5,16 +5,14 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/statecodec"
 	"overgo/internal/tensor/reference"
 )
 
-const (
-	t5SessionMagic      = "L2GT5S01"
-	t5SessionHeaderSize = 64
-)
+const t5SessionMagic = "L2GT5S01"
 
 // SaveEncoderDecoderSession: model-bound encoder state and decoder cache.
 func (r *Runner) SaveEncoderDecoderSession(session *EncoderDecoderSession) ([]byte, error) {
@@ -39,8 +37,9 @@ func (r *Runner) SaveEncoderDecoderSession(session *EncoderDecoderSession) ([]by
 	encoder := statecodec.NewEncoder(uint64(math.MaxInt))
 	encoder.Raw([]byte(t5SessionMagic))
 	encoder.Raw(signature[:])
-	encoder.U64(session.Encoder.Shape.Dims[0])
-	encoder.U64(session.Encoder.Shape.Dims[1])
+	width, tokens, _ := session.Encoder.MatrixExtents()
+	encoder.U64(uint64(width))
+	encoder.U64(uint64(tokens))
 	encoder.U64(uint64(len(cacheData)))
 	for _, value := range session.Encoder.Data {
 		encoder.F32(value)
@@ -73,7 +72,7 @@ func (r *Runner) LoadEncoderDecoderSession(data []byte) (*EncoderDecoderSession,
 	if !ok {
 		return nil, errors.New("inference: encoder-decoder state size overflows")
 	}
-	encoderBytes, ok := checked.Bytes(elements, 4)
+	encoderBytes, ok := checked.Bytes(elements, binaryschema.Uint32Bytes)
 	if !ok {
 		return nil, errors.New("inference: encoder-decoder state byte size overflows")
 	}
@@ -93,7 +92,7 @@ func (r *Runner) LoadEncoderDecoderSession(data []byte) (*EncoderDecoderSession,
 		return nil, errors.New("inference: encoder-decoder payload lengths are invalid")
 	}
 	session := &EncoderDecoderSession{Encoder: encoder}
-	if cacheLength > 0 {
+	if checked.Nonzero(cacheLength) {
 		cache, cacheErr := r.LoadCache(cacheData)
 		if cacheErr != nil {
 			return nil, fmt.Errorf("inference: load decoder cache: %w", cacheErr)

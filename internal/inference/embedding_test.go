@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/hostmath"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -23,7 +24,7 @@ func TestMeanPoolNormalized(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	vectors, err := poolEmbeddings(hidden, EmbeddingOptions{Pooling: EmbeddingPoolingMean, Normalize: 2})
+	vectors, err := poolEmbeddings(hidden, EmbeddingOptions{Pooling: EmbeddingPoolingMean, Normalize: hostmath.L2EmbeddingNormalization()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +53,7 @@ func TestEmbedTokensRejectsEmptyAndOutOfRangeInput(t *testing.T) {
 
 func TestMeanPoolNormalizedPreservesUpstreamZero(t *testing.T) {
 	hidden, _ := reference.NewValue(tensor.MustShape(2, 1), []float32{0, 0})
-	vectors, err := poolEmbeddings(hidden, EmbeddingOptions{Pooling: EmbeddingPoolingMean, Normalize: 2})
+	vectors, err := poolEmbeddings(hidden, EmbeddingOptions{Pooling: EmbeddingPoolingMean, Normalize: hostmath.L2EmbeddingNormalization()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +70,7 @@ func TestEmbeddingPoolingAndNormalizationModes(t *testing.T) {
 	)
 	none, err := poolEmbeddings(hidden, EmbeddingOptions{
 		Pooling:   EmbeddingPoolingNone,
-		Normalize: 2,
+		Normalize: hostmath.L2EmbeddingNormalization(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -83,7 +84,7 @@ func TestEmbeddingPoolingAndNormalizationModes(t *testing.T) {
 	}
 	last, err := poolEmbeddings(hidden, EmbeddingOptions{
 		Pooling:   EmbeddingPoolingLast,
-		Normalize: 2,
+		Normalize: hostmath.L2EmbeddingNormalization(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -93,17 +94,17 @@ func TestEmbeddingPoolingAndNormalizationModes(t *testing.T) {
 		t.Fatalf("last L2 = %v", last)
 	}
 	raw := []float32{-2, 4}
-	normalizeEmbedding(raw, -1)
+	hostmath.NormalizeEmbedding(raw, hostmath.NoEmbeddingNormalization())
 	if raw[0] != -2 || raw[1] != 4 {
 		t.Fatalf("no normalization = %v", raw)
 	}
 	maxAbsolute := []float32{-2, 4}
-	normalizeEmbedding(maxAbsolute, 0)
+	hostmath.NormalizeEmbedding(maxAbsolute, hostmath.MaximumEmbeddingNormalization())
 	if math.Abs(float64(maxAbsolute[1]-32760)) > 0.01 {
 		t.Fatalf("max-absolute normalization = %v", maxAbsolute)
 	}
 	l1 := []float32{-2, 4}
-	normalizeEmbedding(l1, 1)
+	hostmath.NormalizeEmbedding(l1, tensor.SingletonExtent)
 	if math.Abs(float64(l1[0]-(-1.0/3))) > 1e-6 ||
 		math.Abs(float64(l1[1]-(2.0/3))) > 1e-6 {
 		t.Fatalf("L1 normalization = %v", l1)

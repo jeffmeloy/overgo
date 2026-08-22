@@ -7,6 +7,8 @@ func Nonzero[T comparable](value T) bool {
 	return value != zero
 }
 
+func Equal[T comparable](left, right T) bool { return left == right }
+
 func Finite32(value float32) bool {
 	return !math.IsNaN(float64(value)) && !math.IsInf(float64(value), 0)
 }
@@ -20,6 +22,12 @@ func PositiveFinite32(value float32) bool { return value > 0 && Finite32(value) 
 func PositiveFinite64(value float64) bool { return value > 0 && Finite64(value) }
 
 func NonNegativeFinite32(value float32) bool { return value >= 0 && Finite32(value) }
+
+func Negative64(value float64) bool { return value < 0 }
+
+func AutomaticOrNonNegative(value int) bool { return value >= -1 }
+
+func ExactFloat32Uint(value uint32) bool { return uint32(float32(value)) == value }
 
 func PositiveInts(values ...int) bool {
 	for _, value := range values {
@@ -38,6 +46,51 @@ func NonNegativeInts(values ...int) bool {
 	}
 	return true
 }
+
+// Less64 compares unsigned extents without assigning domain meaning.
+func Less64(left, right uint64) bool { return left < right }
+
+// AtMost64 compares bounded unsigned extents.
+func AtMost64(value, limit uint64) bool { return value <= limit }
+
+func First[T any](values []T) (T, bool) {
+	var zero T
+	if len(values) == 0 {
+		return zero, false
+	}
+	return values[0], true
+}
+
+func Multiple(count int) bool { return count > 1 }
+
+func Tail[T any](values []T) ([]T, bool) {
+	if len(values) == 0 {
+		return nil, false
+	}
+	return values[1:], true
+}
+
+func Init[T any](values []T) ([]T, bool) {
+	if len(values) == 0 {
+		return nil, false
+	}
+	return values[:len(values)-1], true
+}
+
+func Reset[T any](values []T) []T { return values[:0] }
+
+func LastSlice[T any](values []T) ([]T, bool) {
+	if len(values) == 0 {
+		return nil, false
+	}
+	return values[len(values)-1:], true
+}
+
+func Index(value, length int) int { return max(0, min(value, length)) }
+
+func ValidIndex(value, length int) bool { return value >= 0 && value < length }
+
+func ClampNonNegative(value int) int { return max(0, value) }
 
 func Add64(values ...uint64) (uint64, bool) {
 	var total uint64
@@ -124,4 +177,17 @@ func Align(value, alignment uint64) (uint64, bool) {
 		return 0, false
 	}
 	return (value + mask) &^ mask, true
+}
+
+// RoundUpMultiple rounds value to the next multiple without requiring a
+// power-of-two divisor.
+func RoundUpMultiple(value, multiple uint64) (uint64, bool) {
+	if multiple == 0 {
+		return 0, false
+	}
+	remainder := value % multiple
+	if remainder == 0 {
+		return value, true
+	}
+	return Add64(value, multiple-remainder)
 }

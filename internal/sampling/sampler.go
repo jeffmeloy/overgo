@@ -43,6 +43,8 @@ type InfillVocabulary struct {
 	signature uint64
 }
 
+func MissingTokenID() int { return -1 }
+
 type Config struct {
 	Temperature       float32
 	DynatempRange     float32

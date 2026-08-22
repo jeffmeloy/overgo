@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -32,7 +33,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	current := input
 	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
 	var attentionBlockInput *tensor.Tensor
-	if len(attentionBlockIDs) > 0 {
+	if checked.Nonzero(len(attentionBlockIDs)) {
 		shape := tensor.MustShape(uint64(len(attentionBlockIDs)))
 		attentionBlockInput = builder.Input("model.attention_block_ids", dtype.F32, shape)
 		hostFeeds[attentionBlockInput] = reference.Value{Shape: shape, Data: attentionBlockIDs}
@@ -66,7 +67,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			}
 		}
 		sideInputs := layerSideInputs{embeddingSkip: input, attentionBlock: attentionBlockInput}
-		if len(perLayerInputs) > 0 {
+		if checked.Nonzero(len(perLayerInputs)) {
 			perLayer := builder.Input(
 				fmt.Sprintf("blk.%d.per_layer_input", layerIndex),
 				dtype.F32,
@@ -98,9 +99,9 @@ func (r *Runner) forwardDenseLayersPreloaded(
 			hostFeeds[pastKey] = past.Key
 			hostFeeds[pastValue] = past.Value
 		}
-		var axes *[4][]uint32
+		var axes *[tensor.MaxDimensions][]uint32
 		if multiPositions != nil {
-			converted := [4][]uint32(*multiPositions)
+			converted := [tensor.MaxDimensions][]uint32(*multiPositions)
 			axes = &converted
 		}
 		result, err := program.Build(model.CachedBlockContext{
@@ -120,7 +121,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		}
 		keys[layerIndex] = result.Key
 		values[layerIndex] = result.Value
-		if capture != nil && capture.attnLayer == int32(layerIndex) && result.Query != nil {
+		if capture != nil && capture.attention && capture.attnLayer == int32(layerIndex) && result.Query != nil {
 			attnQueryNode = result.Query
 			capture.attnScale = result.AttentionScale
 			capture.attnHeads = int(r.spec.LayerHeadCount(plan.Layer))
@@ -254,7 +255,7 @@ func (r *Runner) runLayerCached(
 		hostFeeds[perLayer] = *perLayerInput
 		sideInputs.perLayerInput = perLayer
 	}
-	if len(attentionBlockIDs) > 0 {
+	if checked.Nonzero(len(attentionBlockIDs)) {
 		shape := tensor.MustShape(uint64(len(attentionBlockIDs)))
 		blockInput := builder.Input("attention_block_ids", dtype.F32, shape)
 		hostFeeds[blockInput] = reference.Value{Shape: shape, Data: attentionBlockIDs}
@@ -271,9 +272,9 @@ func (r *Runner) runLayerCached(
 		return reference.Value{}, LayerCache{}, cacheErr
 	}
 	var result model.DenseBlockResult
-	var dispatchMultiPositions *[4][]uint32
+	var dispatchMultiPositions *[tensor.MaxDimensions][]uint32
 	if multiPositions != nil {
-		converted := [4][]uint32(*multiPositions)
+		converted := [tensor.MaxDimensions][]uint32(*multiPositions)
 		dispatchMultiPositions = &converted
 	}
 	result, err = program.Build(model.CachedBlockContext{
@@ -294,7 +295,7 @@ func (r *Runner) runLayerCached(
 		return reference.Value{}, LayerCache{}, err
 	}
 	outputTensor := result.Output
-	if r.hasPreloadedWeights() && layerIndex == len(r.weights.Layers)-1 {
+	if r.hasPreloadedWeights() && layerIndex == len(r.weights.Layers)-tensor.SingletonExtent {
 		outputTensor, err = r.applyDeviceOutputNorm(builder, result.Output, deviceFeeds)
 		if err != nil {
 			return reference.Value{}, LayerCache{}, err
@@ -317,7 +318,7 @@ func (r *Runner) runLayerCached(
 		auxiliary := results[result.Auxiliary]
 		layerCache.Auxiliary = &auxiliary
 	}
-	if len(result.States) > 0 {
+	if checked.Nonzero(len(result.States)) {
 		layerCache.States = model.MapCacheStateValues(
 			result.States, func(value *tensor.Tensor) reference.Value { return results[value] },
 		)
@@ -343,15 +344,14 @@ func (r *Runner) runLFM2LayerNonCausal(
 	var state, reserved *tensor.Tensor
 	if info.Recurrent {
 		stateShape := tensor.MustShape(
-			uint64(r.spec.ShortConvCacheLength-1), uint64(r.spec.EmbeddingLength),
+			uint64(r.spec.ShortConvCacheLength-uint32(tensor.SingletonExtent)), uint64(r.spec.EmbeddingLength),
 		)
 		stateElements, _ := stateShape.Elements()
 		stateValue := reference.Value{
 			Shape: stateShape, Data: make([]float32, int(stateElements)),
 		}
-		reservedValue := reference.Value{
-			Shape: tensor.MustShape(1), Data: []float32{0},
-		}
+		reservedShape := tensor.MustShape(tensor.SingletonExtent)
+		reservedValue := reference.Value{Shape: reservedShape, Data: make([]float32, tensor.SingletonExtent)}
 		state = builder.Input(fmt.Sprintf("blk.%d.%s", layerIndex, model.CacheStateConvolution), dtype.F32, stateShape)
 		reserved = builder.Input(
 			fmt.Sprintf("blk.%d.reserved_state", layerIndex), dtype.F32, reservedValue.Shape,

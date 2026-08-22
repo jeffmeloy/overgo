@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -14,6 +14,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
 )
@@ -26,7 +27,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	if loaded == nil {
 		return nil, errors.New("inference: resolved model program is nil")
 	}
-	if options.PromptCacheEntries < 0 {
+	if !checked.NonNegativeInts(options.PromptCacheEntries) {
 		return nil, errors.New("inference: prompt cache entry count is negative")
 	}
 	if err := ctx.Err(); err != nil {
@@ -37,8 +38,8 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		return nil, fmt.Errorf("inference: take model program: %w", err)
 	}
 	promptCacheCapacity := options.PromptCacheEntries
-	if promptCacheCapacity == 0 {
-		promptCacheCapacity = 1
+	if !checked.Nonzero(promptCacheCapacity) {
+		promptCacheCapacity = tensor.SingletonExtent
 	}
 	// Residency is compiled into recipe identity; runtime flags may only confirm it.
 	residency, err := bindResidency(program.Residency)
@@ -63,7 +64,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	}
 	loraAdapters := make([]loadedLoRA, len(options.LoRAAdapters))
 	for index, configured := range options.LoRAAdapters {
-		if math.IsNaN(float64(configured.Scale)) || math.IsInf(float64(configured.Scale), 0) {
+		if !checked.Finite32(configured.Scale) {
 			return fail(fmt.Errorf("inference: LoRA adapter %d scale is invalid", index))
 		}
 		adapter, loadErr := model.LoadLoRA(ctx, configured.Path, file, spec)
@@ -192,8 +193,9 @@ func loadResidentWeights(
 			}
 		}
 		f32Required := f32RequiredModelTensors(weights)
-		embeddingTensors := getRowsSourceTensors(weights)
-		f32Tensors = make([]gguf.TensorInfo, 0, len(selected))
+		embeddingTensors := gatherSourceTensors(weights)
+		var initialLength int
+		f32Tensors = make([]gguf.TensorInfo, initialLength, len(selected))
 		var quantized []gguf.TensorInfo
 		for _, info := range selected {
 			_, adapted := adaptedTensors[info.Name]
@@ -207,7 +209,7 @@ func loadResidentWeights(
 			// directly; prefill upconverts to F32 for exact SGEMM. BF16 embeddings
 			// use native get_rows; other embeddings and adapted/f32-required
 			// tensors stay F32.
-			if !adapted && !requiresF32 && (!isEmbedding || info.Type == dtype.BF16) && info.Dimensions == 2 &&
+			if !adapted && !requiresF32 && (!isEmbedding || info.Type == dtype.BF16) && info.Dimensions == tensor.PairedExtent &&
 				(info.Type == dtype.F16 || info.Type == dtype.BF16 || info.Type == dtype.F8E4M3) {
 				quantized = append(quantized, info)
 				continue
@@ -232,18 +234,18 @@ func loadResidentWeights(
 		var decodeTensors []gguf.TensorInfo
 		_, outputIsRaw := (*rawWeights).Lookup(outputProjection.Name)
 		if _, isEmbedding := embeddingTensors[outputProjection.Name]; isEmbedding && !outputIsRaw &&
-			outputProjection.Type == dtype.BF16 && outputProjection.Dimensions == 2 {
+			outputProjection.Type == dtype.BF16 && outputProjection.Dimensions == tensor.PairedExtent {
 			decodeTensors = append(decodeTensors, outputProjection)
 		}
 		if residency.decodeBF16 {
 			for _, info := range quantized {
 				_, adapted := adaptedTensors[info.Name]
-				if !adapted && info.Type == dtype.Q8_0 && info.Dimensions >= 2 {
+				if !adapted && info.Type == dtype.Q8_0 && info.Dimensions >= tensor.PairedExtent {
 					decodeTensors = append(decodeTensors, info)
 				}
 			}
 		}
-		if len(decodeTensors) > 0 {
+		if checked.Nonzero(len(decodeTensors)) {
 			*decodeWeights, err = model.NewDeviceBF16Weights(worker)
 			if err == nil {
 				err = (*decodeWeights).Load(ctx, file, decodeTensors)
@@ -285,7 +287,7 @@ func (s *runnerState) detachPromptCaches() []*cachedPrompt {
 
 func releasePromptCaches(ctx context.Context, caches []*cachedPrompt) ([]*cachedPrompt, error) {
 	var errs []error
-	failed := caches[:0]
+	failed := checked.Reset(caches)
 	for _, promptCache := range caches {
 		if promptCache.Device != nil {
 			if err := promptCache.Device.Release(ctx); err != nil {

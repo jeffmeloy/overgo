@@ -251,7 +251,7 @@ func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T)
 	}
 	defer runner.Close()
 	ctx := context.Background()
-	replacement, err := runner.loadEmbeddings(ctx, []uint32{27})
+	replacement, err := runner.gatherTensor(ctx, runner.weights.TokenEmbedding, []uint32{27})
 	if err != nil {
 		t.Fatal(err)
 	}

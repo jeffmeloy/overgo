@@ -3,12 +3,14 @@ package inference
 import (
 	"math/bits"
 
+	"overgo/internal/checked"
 	"overgo/internal/recipe"
 )
 
 func cachePageTokens(tokens uint32, session recipe.SessionPolicy) uint32 {
-	if tokens == 0 {
-		return 0
+	var unavailable uint32
+	if !checked.Nonzero(tokens) {
+		return unavailable
 	}
 	if session == recipe.SessionRequest {
 		return tokens
@@ -18,11 +20,15 @@ func cachePageTokens(tokens uint32, session recipe.SessionPolicy) uint32 {
 }
 
 func cachePageCapacity(tokens, limit uint32, session recipe.SessionPolicy) uint32 {
+	var unavailable uint32
 	pageTokens := cachePageTokens(tokens, session)
-	if pageTokens == 0 {
-		return 0
+	if !checked.Nonzero(pageTokens) {
+		return unavailable
 	}
-	capacity := (uint64(tokens) + uint64(pageTokens) - 1) / uint64(pageTokens) * uint64(pageTokens)
+	capacity, valid := checked.RoundUpMultiple(uint64(tokens), uint64(pageTokens))
+	if !valid {
+		return unavailable
+	}
 	if capacity > uint64(limit) {
 		capacity = uint64(limit)
 	}

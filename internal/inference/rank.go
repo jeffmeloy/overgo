@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"strings"
 
+	"overgo/internal/checked"
+	"overgo/internal/hostmath"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -35,13 +36,13 @@ func (r *Runner) RankPair(
 	}
 	prompt := metadataString(r.file, "tokenizer.chat_template.rerank")
 	if prompt != "" {
-		ids, err := r.vocab.Encode(rankTemplatePrompt(prompt, query, document), tokenizer.EncodeOptions{
+		ids, err := r.vocab.Encode(renderClassifierPrompt(prompt, query, document), tokenizer.EncodeOptions{
 			ParseSpecial: true,
 		})
 		if err != nil {
 			return RankResult{}, err
 		}
-		return r.RankTokens(ctx, ids)
+		return r.classifyTokens(ctx, ids, ProjectedInputs{})
 	}
 	queryIDs, err := r.vocab.Encode(query, tokenizer.EncodeOptions{})
 	if err != nil {
@@ -51,19 +52,19 @@ func (r *Runner) RankPair(
 	if err != nil {
 		return RankResult{}, err
 	}
-	ids, err := assembleRankPairTokens(r.vocab, queryIDs, documentIDs)
+	ids, err := assembleClassifierPairTokens(r.vocab, queryIDs, documentIDs)
 	if err != nil {
 		return RankResult{}, err
 	}
-	return r.RankTokens(ctx, ids)
+	return r.classifyTokens(ctx, ids, ProjectedInputs{})
 }
 
-func rankTemplatePrompt(source, query, document string) string {
+func renderClassifierPrompt(source, query, document string) string {
 	prompt := strings.ReplaceAll(source, "{query}", query)
 	return strings.ReplaceAll(prompt, "{document}", document)
 }
 
-func assembleRankPairTokens(
+func assembleClassifierPairTokens(
 	vocab *tokenizer.Vocab,
 	query []tokenizer.TokenID,
 	document []tokenizer.TokenID,
@@ -110,18 +111,26 @@ func (r *Runner) Rank(ctx context.Context, text string) (RankResult, error) {
 	if err != nil {
 		return RankResult{}, err
 	}
-	return r.RankTokens(ctx, ids)
+	return r.classifyTokens(ctx, ids, ProjectedInputs{})
 }
 
 func (r *Runner) RankTokens(
 	ctx context.Context,
 	input []tokenizer.TokenID,
 ) (RankResult, error) {
-	return r.RankTokensWithProjectedInputs(ctx, input, ProjectedInputs{})
+	return r.classifyTokens(ctx, input, ProjectedInputs{})
 }
 
 // RankTokensWithProjectedInputs: exact-token rank with optional VL projections.
 func (r *Runner) RankTokensWithProjectedInputs(
+	ctx context.Context,
+	input []tokenizer.TokenID,
+	inputs ProjectedInputs,
+) (RankResult, error) {
+	return r.classifyTokens(ctx, input, inputs)
+}
+
+func (r *Runner) classifyTokens(
 	ctx context.Context,
 	input []tokenizer.TokenID,
 	inputs ProjectedInputs,
@@ -143,33 +152,35 @@ func (r *Runner) RankTokensWithProjectedInputs(
 	if r.weights.ClassifierOutput == nil {
 		return RankResult{}, errors.New("inference: classifier output tensor is missing")
 	}
-	if len(input) == 0 {
+	if !checked.Nonzero(len(input)) {
 		return RankResult{}, errors.New("inference: rank token list is empty")
 	}
 	if inputs.MultiAxisPositions != nil && !program.MultiAxis {
 		return RankResult{}, errors.New("inference: model does not support multi-axis positions")
 	}
-	if len(inputs.DeepstackEmbeddings) > 0 && program.DeepstackStreams == 0 {
+	if checked.Nonzero(len(inputs.DeepstackEmbeddings)) && !checked.Nonzero(program.DeepstackStreams) {
 		return RankResult{}, errors.New("inference: model does not support deepstack embeddings")
 	}
 	hidden, _, err := r.forwardCachedProjectedChunkLocked(ctx, slices.Clone(input), nil, inputs)
 	if err != nil {
 		return RankResult{}, err
 	}
-	width := int(hidden.Shape.Dims[0])
-	tokens := int(hidden.Shape.Dims[1])
-	if hidden.Shape.Rank != 2 || width != int(r.spec.EmbeddingLength) ||
-		tokens != len(input) || len(hidden.Data) != width*tokens {
+	width, tokens, validHidden := hidden.MatrixExtents()
+	if !validHidden || !checked.Equal(width, int(r.spec.EmbeddingLength)) ||
+		!checked.Equal(tokens, len(input)) {
 		return RankResult{}, errors.New("inference: rank hidden-state shape is incompatible")
 	}
-	last := hidden.LastRowView()
-	scores, err := r.projectRankScores(ctx, last.Data)
+	last, err := reference.FinalRows(hidden, tensor.SingletonExtent)
+	if err != nil {
+		return RankResult{}, errors.New("inference: rank hidden-state shape is incompatible")
+	}
+	scores, err := r.projectClassifierScores(ctx, last.Data)
 	if err != nil {
 		return RankResult{}, err
 	}
-	softmaxScores(scores)
+	hostmath.SoftmaxInPlace(scores)
 	labels := slices.Clone(r.spec.ClassifierLabels)
-	if len(labels) == 0 {
+	if !checked.Nonzero(len(labels)) {
 		labels = make([]string, len(scores))
 		for index := range labels {
 			labels[index] = fmt.Sprint(index)
@@ -178,12 +189,12 @@ func (r *Runner) RankTokensWithProjectedInputs(
 	return RankResult{Scores: scores, Labels: labels, Tokens: tokens}, nil
 }
 
-func (r *Runner) projectRankScores(ctx context.Context, hidden []float32) ([]float32, error) {
+func (r *Runner) projectClassifierScores(ctx context.Context, hidden []float32) ([]float32, error) {
 	info := *r.weights.ClassifierOutput
 	if !r.hasPreloadedWeights() {
 		return model.DotRows(ctx, r.file, info, hidden)
 	}
-	inputShape := tensor.MustShape(uint64(len(hidden)), 1)
+	inputShape := tensor.MustShape(uint64(len(hidden)), tensor.SingletonExtent)
 	inputValue, err := reference.NewValue(inputShape, hidden)
 	if err != nil {
 		return nil, err
@@ -203,27 +214,4 @@ func (r *Runner) projectRankScores(ctx context.Context, hidden []float32) ([]flo
 		return nil, err
 	}
 	return slices.Clone(results[output].Data), nil
-}
-
-func softmaxScores(scores []float32) {
-	if len(scores) == 0 {
-		return
-	}
-	maximum := scores[0]
-	for _, score := range scores[1:] {
-		maximum = max(maximum, score)
-	}
-	var sum float64
-	for index, score := range scores {
-		value := math.Exp(float64(score - maximum))
-		scores[index] = float32(value)
-		sum += value
-	}
-	if sum == 0 || math.IsNaN(sum) {
-		return
-	}
-	inverse := float32(1 / sum)
-	for index := range scores {
-		scores[index] *= inverse
-	}
 }

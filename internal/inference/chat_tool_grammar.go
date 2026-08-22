@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/sampling"
 )
 
@@ -25,7 +26,7 @@ func (r *Runner) ChatToolGrammar(
 	if r == nil {
 		return "", "", nil, errRunnerNil
 	}
-	if len(tools) == 0 {
+	if !checked.Nonzero(len(tools)) {
 		return "", "", nil, errors.New("inference: tool list is empty")
 	}
 	template := metadataString(r.file, "tokenizer.chat_template")
@@ -99,8 +100,9 @@ func jsonToolGrammar(tools []ChatTool, parallelToolCalls bool) (string, error) {
 			AdditionalProperties: false,
 		}
 	}
-	var schema any = alternatives[0]
-	if len(alternatives) > 1 {
+	first, _ := checked.First(alternatives)
+	var schema any = first
+	if checked.Multiple(len(alternatives)) {
 		schema = struct {
 			OneOf []callSchema `json:"oneOf"`
 		}{OneOf: alternatives}
@@ -126,7 +128,7 @@ func hermesToolGrammar(
 	tools []ChatTool,
 	parallelToolCalls bool,
 ) (string, error) {
-	rules := make([]string, 0, 2+len(tools)*2)
+	var rules []string
 	functionRules := make([]string, len(tools))
 	for index, tool := range tools {
 		if err := validateGrammarTool(tool); err != nil {
@@ -135,7 +137,7 @@ func hermesToolGrammar(
 		functionName := fmt.Sprintf("tool-function-%d", index)
 		functionRules[index] = functionName
 		properties, _ := tool.Function.Parameters["properties"].(map[string]any)
-		propertyNames := make([]string, 0, len(properties))
+		var propertyNames []string
 		for name := range properties {
 			if !chatToolNamePattern.MatchString(name) {
 				return "", fmt.Errorf(
@@ -164,7 +166,7 @@ func hermesToolGrammar(
 			)
 		}
 		body := ""
-		if len(parameterRules) != 0 {
+		if checked.Nonzero(len(parameterRules)) {
 			body = " (" + strings.Join(parameterRules, " | ") + ")*"
 		}
 		rules = append(

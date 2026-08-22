@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/tokenizer"
 )
 
@@ -30,13 +31,15 @@ func (r *Runner) planForwardIndices(
 	rows []uint32,
 	pastTokens, nextPosition uint32,
 ) (forwardSequencePlan, error) {
-	if uint64(pastTokens)+uint64(len(rows)) > uint64(r.spec.ContextLength) {
+	totalTokens, validTotal := checked.Add64(uint64(pastTokens), uint64(len(rows)))
+	if !validTotal || !checked.AtMost64(totalTokens, uint64(r.spec.ContextLength)) {
 		return forwardSequencePlan{}, fmt.Errorf(
 			"inference: cached plus new token count %d exceeds context length %d",
-			uint64(pastTokens)+uint64(len(rows)), r.spec.ContextLength,
+			totalTokens, r.spec.ContextLength,
 		)
 	}
-	if uint64(nextPosition)+uint64(len(rows)) > math.MaxUint32 {
+	absolutePosition, validPosition := checked.Add64(uint64(nextPosition), uint64(len(rows)))
+	if !validPosition || !checked.AtMost64(absolutePosition, math.MaxUint32) {
 		return forwardSequencePlan{}, errors.New("inference: absolute token position exceeds uint32")
 	}
 	return forwardSequencePlan{

@@ -6,15 +6,12 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
-
-func (r *Runner) loadEmbeddings(ctx context.Context, rows []uint32) (reference.Value, error) {
-	return r.loadRows(ctx, r.weights.TokenEmbedding, rows)
-}
 
 func (r *Runner) preparePerLayerInputs(
 	ctx context.Context,
@@ -28,7 +25,7 @@ func (r *Runner) preparePerLayerInputs(
 		r.weights.PerLayerProjectionNorm == nil {
 		return nil, errors.New("inference: per-layer input weights are incomplete")
 	}
-	selected, err := r.loadRows(ctx, *r.weights.PerLayerTokenEmbedding, rows)
+	selected, err := r.gatherTensor(ctx, *r.weights.PerLayerTokenEmbedding, rows)
 	if err != nil {
 		return nil, fmt.Errorf("inference: load per-layer embeddings: %w", err)
 	}
@@ -60,24 +57,24 @@ func (r *Runner) preparePerLayerInputs(
 	return values, nil
 }
 
-func (r *Runner) loadRows(
+func (r *Runner) gatherTensor(
 	ctx context.Context,
 	info gguf.TensorInfo,
-	rows []uint32,
+	indices []uint32,
 ) (reference.Value, error) {
 	if !r.hasPreloadedWeights() {
-		value, err := model.LoadHostRows(ctx, r.file, info, rows)
+		value, err := model.LoadHostRows(ctx, r.file, info, indices)
 		if err != nil {
 			return reference.Value{}, err
 		}
-		return r.applyLoRAEmbeddingRows(info.Name, rows, value)
+		return r.applyLoRAEmbeddingSelection(info.Name, indices, value)
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
 	table, err := runtime.weight(info)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output := runtime.builder.GetRows(table, rows)
+	output := tensor.GatherRows(runtime.builder, table, indices)
 	if err := runtime.builder.Err(); err != nil {
 		return reference.Value{}, err
 	}
@@ -99,11 +96,11 @@ func (r *Runner) addPositionEmbeddings(
 	if err := validateLearnedPositions(positions, r.spec.ContextLength); err != nil {
 		return reference.Value{}, err
 	}
-	positionRows, err := r.loadRows(ctx, *r.weights.PositionEmbedding, positions)
+	positionRows, err := r.gatherTensor(ctx, *r.weights.PositionEmbedding, positions)
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("inference: load position embeddings: %w", err)
 	}
-	if positionRows.Shape != activation.Shape || len(positionRows.Data) != len(activation.Data) {
+	if !positionRows.Shape.Equal(activation.Shape) || !checked.Equal(len(positionRows.Data), len(activation.Data)) {
 		return reference.Value{}, errors.New("inference: position embedding shape differs from token embeddings")
 	}
 	for index := range activation.Data {
@@ -119,16 +116,16 @@ func (r *Runner) addTokenTypeEmbedding(
 	if r.weights.TokenTypeEmbedding == nil {
 		return activation, nil
 	}
-	typeRow, err := r.loadRows(ctx, *r.weights.TokenTypeEmbedding, []uint32{0})
+	typeRow, err := r.gatherTensor(ctx, *r.weights.TokenTypeEmbedding, []uint32{uint32(tensor.FirstOffset)})
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("inference: load token-type embedding: %w", err)
 	}
-	width := int(activation.Shape.Dims[0])
-	if typeRow.Shape.Rank != 2 || typeRow.Shape.Dims[0] != uint64(width) ||
-		typeRow.Shape.Dims[1] != 1 || len(typeRow.Data) != width {
+	width, tokens, validActivation := activation.MatrixExtents()
+	if !validActivation || !tensor.IsMatrix(typeRow.Shape, uint64(width), tensor.SingletonExtent) ||
+		!checked.Equal(len(typeRow.Data), width) {
 		return reference.Value{}, errors.New("inference: token-type embedding shape is incompatible")
 	}
-	for token := 0; token < int(activation.Shape.Dims[1]); token++ {
+	for token := range tokens {
 		start := token * width
 		for index, value := range typeRow.Data {
 			activation.Data[start+index] += value
@@ -183,9 +180,7 @@ func (r *Runner) logits(
 		if err != nil {
 			return nil, err
 		}
-		if err := r.applyLoRALogits(outputInfo.Name, hidden, logits); err != nil {
-			return nil, err
-		}
+		r.applyLoRALogits(outputInfo.Name, hidden, logits)
 		if err := addOutputBias(logits, r.outputBias); err != nil {
 			return nil, err
 		}
@@ -197,7 +192,7 @@ func (r *Runner) logits(
 	if err != nil {
 		return nil, err
 	}
-	inputShape := tensor.MustShape(uint64(len(hidden)), 1)
+	inputShape := tensor.MustShape(uint64(len(hidden)), tensor.SingletonExtent)
 	inputValue, err := reference.NewValue(inputShape, hidden)
 	if err != nil {
 		return nil, err
@@ -211,7 +206,7 @@ func (r *Runner) logits(
 		}
 		output = runtime.builder.Add(output, bias)
 	}
-	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
+	if scale := r.spec.OutputLogitMultiplier(); !checked.Equal(scale, float32(tensor.SingletonExtent)) {
 		output = runtime.builder.Scale(output, scale)
 	}
 	if err := runtime.builder.Err(); err != nil {
@@ -225,7 +220,7 @@ func (r *Runner) logits(
 }
 
 func scaleLogits(logits []float32, scale float32) {
-	if scale == 1 {
+	if checked.Equal(scale, float32(tensor.SingletonExtent)) {
 		return
 	}
 	for index := range logits {
@@ -234,7 +229,7 @@ func scaleLogits(logits []float32, scale float32) {
 }
 
 func applyLogitSoftcap(logits []float32, cap float32) []float32 {
-	if cap <= 0 {
+	if !checked.PositiveFinite32(cap) {
 		return logits
 	}
 	for index, value := range logits {
@@ -245,14 +240,15 @@ func applyLogitSoftcap(logits []float32, cap float32) []float32 {
 
 func (r *Runner) finalizeLogits(logits []float32) []float32 {
 	logits = applyLogitSoftcap(logits, r.spec.FinalLogitSoftcap)
-	if len(r.outputExclusions) == 0 || r.spec.VocabularySize == 0 {
+	if !checked.Nonzero(len(r.outputExclusions)) || !checked.Nonzero(r.spec.VocabularySize) {
 		return logits
 	}
 	vocabulary := int(r.spec.VocabularySize)
-	if len(logits)%vocabulary != 0 {
+	if checked.Nonzero(len(logits) % vocabulary) {
 		return logits
 	}
-	for base := 0; base < len(logits); base += vocabulary {
+	for base := range len(logits) / vocabulary {
+		base *= vocabulary
 		for _, span := range r.outputExclusions {
 			start, end := int(span.Start), min(int(span.End), vocabulary)
 			for token := start; token < end; token++ {
@@ -264,10 +260,10 @@ func (r *Runner) finalizeLogits(logits []float32) []float32 {
 }
 
 func addOutputBias(logits, bias []float32) error {
-	if len(bias) == 0 {
+	if !checked.Nonzero(len(bias)) {
 		return nil
 	}
-	if len(logits)%len(bias) != 0 {
+	if checked.Nonzero(len(logits) % len(bias)) {
 		return fmt.Errorf(
 			"inference: %d logits are not divisible by output bias length %d",
 			len(logits),

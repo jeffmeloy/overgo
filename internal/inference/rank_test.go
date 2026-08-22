@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"math"
 	"strings"
 	"testing"
 
@@ -13,23 +12,8 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-func TestSoftmaxScoresStable(t *testing.T) {
-	scores := []float32{1000, 1001, 999}
-	softmaxScores(scores)
-	var sum float32
-	for _, score := range scores {
-		if math.IsNaN(float64(score)) || math.IsInf(float64(score), 0) {
-			t.Fatalf("invalid score: %v", scores)
-		}
-		sum += score
-	}
-	if math.Abs(float64(sum-1)) > 1e-6 || scores[1] <= scores[0] || scores[0] <= scores[2] {
-		t.Fatalf("softmax scores = %v", scores)
-	}
-}
-
 func TestRankPairPromptUsesNamedTemplate(t *testing.T) {
-	prompt := rankTemplatePrompt("Query: {query}\nDocument: {document}", "needle", "haystack")
+	prompt := renderClassifierPrompt("Query: {query}\nDocument: {document}", "needle", "haystack")
 	if prompt != "Query: needle\nDocument: haystack" {
 		t.Fatalf("rank prompt = %q", prompt)
 	}
@@ -39,7 +23,7 @@ func TestRankPairPromptUsesConfiguredSeparators(t *testing.T) {
 	vocab := &tokenizer.Vocab{
 		BOS: 1, EOS: 2, SEP: 3, AddBOS: true, AddEOS: true, AddSEP: true,
 	}
-	prompt, err := assembleRankPairTokens(vocab, []tokenizer.TokenID{4}, []tokenizer.TokenID{5})
+	prompt, err := assembleClassifierPairTokens(vocab, []tokenizer.TokenID{4}, []tokenizer.TokenID{5})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +75,7 @@ func TestProjectRankScoresHost(t *testing.T) {
 		t.Fatal("classifier tensor is missing")
 	}
 	runner := &Runner{preparedModel: preparedModel{file: file, weights: model.Weights{ClassifierOutput: &info}}}
-	scores, err := runner.projectRankScores(context.Background(), []float32{2, 3})
+	scores, err := runner.projectClassifierScores(context.Background(), []float32{2, 3})
 	if err != nil {
 		t.Fatal(err)
 	}

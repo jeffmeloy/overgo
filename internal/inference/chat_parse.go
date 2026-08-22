@@ -8,7 +8,9 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 )
 
 const (
@@ -26,7 +28,7 @@ func (r *Runner) ParseChatOutput(
 		return ChatMessage{}, errRunnerNil
 	}
 	source := metadataString(r.file, "tokenizer.chat_template")
-	if len(tools) != 0 {
+	if checked.Nonzero(len(tools)) {
 		if toolSource := metadataString(
 			r.file,
 			"tokenizer.chat_template.tool_use",
@@ -48,7 +50,7 @@ func parseChatOutput(
 	}
 	message.ReasoningContent = reasoning
 	firstCall := strings.Index(body, toolCallOpen)
-	if firstCall < 0 {
+	if !textcheck.FoundIndex(firstCall) {
 		if strings.Contains(body, toolCallClose) {
 			return ChatMessage{}, errors.New(
 				"inference: tool-call output has an unmatched closing tag",
@@ -60,7 +62,7 @@ func parseChatOutput(
 	message.Content = strings.TrimSpace(body[:firstCall])
 	remainder := body[firstCall:]
 	hermes := strings.Contains(template, "<function=example_function_name>")
-	for len(remainder) != 0 {
+	for checked.Nonzero(len(remainder)) {
 		remainder = strings.TrimLeft(remainder, " \t\r\n")
 		if remainder == "" {
 			break
@@ -71,7 +73,7 @@ func parseChatOutput(
 			)
 		}
 		end := strings.Index(remainder, toolCallClose)
-		if end < 0 {
+		if !textcheck.FoundIndex(end) {
 			return ChatMessage{}, errors.New(
 				"inference: tool-call output has an unterminated block",
 			)
@@ -104,7 +106,7 @@ func splitChatReasoning(output string) (reasoning, content string, err error) {
 	openIndex := strings.Index(output, open)
 	closeIndex := strings.Index(output, close)
 	switch {
-	case openIndex >= 0:
+	case textcheck.FoundIndex(openIndex):
 		if closeIndex < openIndex {
 			return "", "", errors.New(
 				"inference: reasoning output has an unterminated think block",
@@ -118,7 +120,7 @@ func splitChatReasoning(output string) (reasoning, content string, err error) {
 		}
 		reasoning = strings.Trim(output[openIndex+len(open):closeIndex], "\r\n")
 		content = strings.TrimLeft(output[closeIndex+len(close):], "\r\n")
-	case closeIndex >= 0:
+	case textcheck.FoundIndex(closeIndex):
 		// Some templates put opening tag in generation prompt;
 		// decoder output therefore starts inside reasoning block
 		reasoning = strings.Trim(output[:closeIndex], "\r\n")
@@ -148,13 +150,13 @@ func parseJSONToolCall(
 	if wire.Name == "" {
 		return ChatToolCall{}, errors.New("function name is required")
 	}
-	if len(tools) != 0 && !chatToolExists(tools, wire.Name) {
+	if checked.Nonzero(len(tools)) && !chatToolExists(tools, wire.Name) {
 		return ChatToolCall{}, fmt.Errorf(
 			"function %q is not present in tools",
 			wire.Name,
 		)
 	}
-	if len(wire.Arguments) == 0 {
+	if !checked.Nonzero(len(wire.Arguments)) {
 		return ChatToolCall{}, errors.New("function arguments are required")
 	}
 	arguments, err := compactToolArguments(wire.Arguments)
@@ -190,7 +192,7 @@ func parseHermesToolCall(
 		return ChatToolCall{}, errors.New("function opening tag is required")
 	}
 	nameEnd := strings.IndexByte(payload[len(functionPrefix):], '>')
-	if nameEnd < 0 {
+	if !textcheck.FoundIndex(nameEnd) {
 		return ChatToolCall{}, errors.New("function opening tag is unterminated")
 	}
 	nameEnd += len(functionPrefix)
@@ -198,14 +200,14 @@ func parseHermesToolCall(
 	if name == "" || strings.ContainsAny(name, "<>\r\n") {
 		return ChatToolCall{}, errors.New("function name is invalid")
 	}
-	if len(tools) != 0 && !chatToolExists(tools, name) {
+	if checked.Nonzero(len(tools)) && !chatToolExists(tools, name) {
 		return ChatToolCall{}, fmt.Errorf(
 			"function %q is not present in tools",
 			name,
 		)
 	}
 	const functionClose = "</function>"
-	bodyStart := nameEnd + 1
+	bodyStart := nameEnd + len(">")
 	functionEnd := strings.LastIndex(payload, functionClose)
 	if functionEnd < bodyStart ||
 		strings.TrimSpace(payload[functionEnd+len(functionClose):]) != "" {
@@ -249,7 +251,7 @@ func validateParsedToolArguments(
 	arguments any,
 	tools []ChatTool,
 ) error {
-	if len(tools) == 0 {
+	if !checked.Nonzero(len(tools)) {
 		return nil
 	}
 	var definition *ChatToolDefinition
@@ -374,7 +376,7 @@ func parseHermesParameters(
 			return nil, errors.New("parameter opening tag is required")
 		}
 		nameEnd := strings.IndexByte(remainder[len(parameterPrefix):], '>')
-		if nameEnd < 0 {
+		if !textcheck.FoundIndex(nameEnd) {
 			return nil, errors.New("parameter opening tag is unterminated")
 		}
 		nameEnd += len(parameterPrefix)
@@ -385,12 +387,12 @@ func parseHermesParameters(
 		if _, duplicate := parameters[name]; duplicate {
 			return nil, fmt.Errorf("parameter %q is duplicated", name)
 		}
-		end := strings.Index(remainder[nameEnd+1:], parameterClose)
-		if end < 0 {
+		end := strings.Index(remainder[nameEnd+len(">"):], parameterClose)
+		if !textcheck.FoundIndex(end) {
 			return nil, fmt.Errorf("parameter %q is unterminated", name)
 		}
-		end += nameEnd + 1
-		value := strings.Trim(remainder[nameEnd+1:end], "\r\n")
+		end += nameEnd + len(">")
+		value := strings.Trim(remainder[nameEnd+len(">"):end], "\r\n")
 		parameters[name] = coerceToolParameter(toolName, name, value, tools)
 		remainder = strings.TrimSpace(
 			remainder[end+len(parameterClose):],
@@ -412,11 +414,11 @@ func coerceToolParameter(
 		kind, _ := property["type"].(string)
 		switch kind {
 		case "integer":
-			if parsed, err := strconv.ParseInt(value, 10, 64); err == nil {
+			if parsed, err := strictjson.ParseInteger(value); err == nil {
 				return parsed
 			}
 		case "number":
-			if parsed, err := strconv.ParseFloat(value, 64); err == nil {
+			if parsed, err := strictjson.ParseNumber(value); err == nil {
 				return parsed
 			}
 		case "boolean":
@@ -435,7 +437,7 @@ func coerceToolParameter(
 }
 
 func compactToolArguments(raw json.RawMessage) (string, error) {
-	if len(raw) == 0 || !json.Valid(raw) {
+	if !checked.Nonzero(len(raw)) || !json.Valid(raw) {
 		return "", errors.New("function arguments must be valid JSON")
 	}
 	var output bytes.Buffer

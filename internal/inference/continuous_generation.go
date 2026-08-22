@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"overgo/internal/checked"
 	"overgo/internal/tensor"
 	"overgo/internal/tokenizer"
 )
@@ -79,7 +80,7 @@ func (r *Runner) NewContinuousGenerator(
 	if r == nil {
 		return nil, errRunnerNil
 	}
-	if options.MaxSequences <= 0 {
+	if !checked.PositiveInts(options.MaxSequences) {
 		return nil, errors.New("inference: maximum sequence count must be positive")
 	}
 	batch, err := r.NewContinuousBatch(ContinuousBatchOptions{
@@ -117,7 +118,7 @@ func (g *ContinuousGenerator) Generate(
 	}
 	request := continuousGenerateRequest{
 		ctx: ctx, prompt: prompt, options: options,
-		response: make(chan continuousGenerateResult, 1),
+		response: make(chan continuousGenerateResult, tensor.SingletonExtent),
 	}
 	select {
 	case g.submit <- request:
@@ -138,7 +139,7 @@ func (g *ContinuousGenerator) Generate(
 
 func (g *ContinuousGenerator) validateOptions(options GenerateOptions) error {
 	if options.ProjectedInputs != nil || options.CachePrompt ||
-		options.MinCacheReuse != 0 || options.LoRAConfigured || len(options.LoRA) > 0 ||
+		checked.Nonzero(options.MinCacheReuse) || options.LoRAConfigured || checked.Nonzero(len(options.LoRA)) ||
 		g.runner.hasInvocationLoRA() ||
 		options.KeepTokens != int(g.options.KeepTokens) ||
 		options.DiscardTokens != g.options.DiscardTokens ||
@@ -150,7 +151,7 @@ func (g *ContinuousGenerator) validateOptions(options GenerateOptions) error {
 
 func (r *Runner) hasInvocationLoRA() bool {
 	for _, loaded := range r.loraAdapters {
-		if loaded.adapter != nil && len(loaded.adapter.InvocationTokens) > 0 {
+		if loaded.adapter != nil && checked.Nonzero(len(loaded.adapter.InvocationTokens)) {
 			return true
 		}
 	}
@@ -180,7 +181,7 @@ func (g *ContinuousGenerator) run() {
 	stepping := make([]*continuousGenerateState, 0, g.options.MaxSequences)
 	var nextID SequenceID
 	for {
-		if len(active) == 0 {
+		if !checked.Nonzero(len(active)) {
 			select {
 			case <-g.ctx.Done():
 				g.rejectQueued(g.ctx.Err())
@@ -205,9 +206,9 @@ func (g *ContinuousGenerator) run() {
 			g.rejectQueued(g.ctx.Err())
 			return
 		}
-		stateIDs = sortedContinuousStateIDs(active, stateIDs[:0])
-		inputs = inputs[:0]
-		stepping = stepping[:0]
+		stateIDs = sortedContinuousStateIDs(active, checked.Reset(stateIDs))
+		inputs = checked.Reset(inputs)
+		stepping = checked.Reset(stepping)
 		for _, id := range stateIDs {
 			state := active[id]
 			if err := state.request.ctx.Err(); err != nil {
@@ -218,20 +219,20 @@ func (g *ContinuousGenerator) run() {
 			}
 			tokens := state.ids
 			if state.evaluated {
-				tokens = state.ids[len(state.ids)-1:]
+				tokens, _ = checked.LastSlice(state.ids)
 			}
 			inputs = append(inputs, SequenceBatchInput{ID: id, Tokens: tokens})
 			stepping = append(stepping, state)
 		}
-		if len(inputs) == 0 {
+		if !checked.Nonzero(len(inputs)) {
 			continue
 		}
 		greedyBatch, greedy := g.batch.(continuousGreedyBatchAPI)
 		greedy = greedy && g.runner.forwardProgram().DeviceBatchSelection() &&
 			continuousStatesUseDeviceGreedy(stepping)
 		topKBatch, bounded := g.batch.(continuousTopKBatchAPI)
-		topK := 0
-		if !greedy && bounded && len(g.runner.outputExclusions) == 0 {
+		var topK int
+		if !greedy && bounded && !checked.Nonzero(len(g.runner.outputExclusions)) {
 			topK, bounded = continuousStatesUseDeviceTopK(stepping, int(g.runner.spec.VocabularySize))
 		} else if !greedy {
 			bounded = false
@@ -279,12 +280,12 @@ func (g *ContinuousGenerator) run() {
 }
 
 func continuousStatesUseDeviceGreedy(states []*continuousGenerateState) bool {
-	if len(states) == 0 {
+	if !checked.Nonzero(len(states)) {
 		return false
 	}
 	for _, state := range states {
 		options := state.request.options
-		if !options.DeviceGreedy || options.PostSamplingProbabilities != 0 ||
+		if !options.DeviceGreedy || checked.Nonzero(options.PostSamplingProbabilities) ||
 			options.Sampler == nil || !options.Sampler.IsRawGreedy() {
 			return false
 		}
@@ -296,21 +297,21 @@ func continuousStatesUseDeviceTopK(
 	states []*continuousGenerateState,
 	vocabulary int,
 ) (int, bool) {
-	limit := 0
+	var limit int
 	for _, state := range states {
 		options := state.request.options
-		if !options.DeviceTopK || options.PostSamplingProbabilities != 0 || options.Sampler == nil {
-			return 0, false
+		if !options.DeviceTopK || checked.Nonzero(options.PostSamplingProbabilities) || options.Sampler == nil {
+			return limit, false
 		}
 		candidateLimit, ok := options.Sampler.BoundedTopK()
-		if !ok || candidateLimit <= 0 || candidateLimit > vocabulary ||
+		if !ok || !checked.PositiveInts(candidateLimit) || candidateLimit > vocabulary ||
 			candidateLimit > int(tensor.MaxTopKPairs) ||
-			(limit != 0 && candidateLimit != limit) {
-			return 0, false
+			(checked.Nonzero(limit) && candidateLimit != limit) {
+			return limit, false
 		}
 		limit = candidateLimit
 	}
-	return limit, limit > 0
+	return limit, checked.PositiveInts(limit)
 }
 
 func (g *ContinuousGenerator) admit(
@@ -333,7 +334,7 @@ func (g *ContinuousGenerator) admit(
 		request.response <- continuousGenerateResult{err: err}
 		return
 	}
-	if options.MaxNewTokens == 0 {
+	if !checked.Nonzero(options.MaxNewTokens) {
 		text, decodeErr := g.runner.vocab.Decode(ids, false)
 		request.response <- continuousGenerateResult{ids: ids, text: text, err: decodeErr}
 		return

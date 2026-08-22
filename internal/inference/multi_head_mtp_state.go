@@ -1,20 +1,20 @@
 package inference
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/statecodec"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
 
-const (
-	multiHeadMTPStateMagic  = "L2GMHM02"
-	multiHeadMTPStateHeader = 104
-)
+const multiHeadMTPStateMagic = "L2GMHM02"
 
 // SaveMultiHeadMTPSession serializes model-bound multi-head state.
 func (r *Runner) SaveMultiHeadMTPSession(session *MultiHeadMTPSession) ([]byte, error) {
@@ -27,7 +27,7 @@ func (r *Runner) SaveMultiHeadMTPSession(session *MultiHeadMTPSession) ([]byte, 
 	if err := r.validateMultiHeadMTPSession(session); err != nil {
 		return nil, err
 	}
-	if session.targetModel == [32]byte{} {
+	if !checked.Nonzero(session.targetModel) {
 		return nil, errors.New("inference: multi-head MTP target model binding is missing")
 	}
 	trunkData, err := r.SaveCache(session.TrunkCache)
@@ -48,15 +48,22 @@ func (r *Runner) SaveMultiHeadMTPSession(session *MultiHeadMTPSession) ([]byte, 
 		return nil, errors.New("inference: multi-head MTP session belongs to a different target model")
 	}
 	width := uint64(r.spec.EmbeddingLength)
-	hiddenCount, ok := checked.Add64(1, uint64(len(session.DraftHidden)))
+	hiddenCount, ok := checked.Add64(tensor.SingletonExtent, uint64(len(session.DraftHidden)))
 	hiddenElements, okElements := checked.Mul64(hiddenCount, width)
-	hiddenBytes, okBytes := checked.Mul64(hiddenElements, 4)
-	tokenBytes, okTokens := checked.Mul64(uint64(len(session.DraftTokens)), 4)
+	hiddenBytes, okBytes := checked.Mul64(hiddenElements, binaryschema.Uint32Bytes)
+	tokenBytes, okTokens := checked.Mul64(uint64(len(session.DraftTokens)), binaryschema.Uint32Bytes)
+	u32Header, validU32Header := checked.Mul64(uint64(tensor.MaxDimensions), binaryschema.Uint32Bytes)
+	u64Header, validU64Header := checked.Mul64(uint64(tensor.PairedExtent), binaryschema.Uint64Bytes)
+	headerBytes, validHeader := checked.Add64(
+		uint64(len(multiHeadMTPStateMagic)), uint64(len(draftModel)), uint64(len(session.targetModel)),
+		u32Header, u64Header,
+	)
 	total, okTotal := checked.Add64(
-		uint64(multiHeadMTPStateHeader), hiddenBytes, tokenBytes,
+		headerBytes, hiddenBytes, tokenBytes,
 		uint64(len(trunkData)), uint64(len(headData)),
 	)
-	if !ok || !okElements || !okBytes || !okTokens || !okTotal || total > uint64(math.MaxInt) {
+	if !ok || !okElements || !okBytes || !okTokens || !validU32Header || !validU64Header ||
+		!validHeader || !okTotal || total > uint64(math.MaxInt) {
 		return nil, errors.New("inference: multi-head MTP state exceeds addressable memory")
 	}
 	encoder := statecodec.NewEncoderCapacity(uint64(math.MaxInt), total)
@@ -103,9 +110,9 @@ func (r *Runner) LoadMultiHeadMTPSession(data []byte) (*MultiHeadMTPSession, err
 	if err != nil {
 		return nil, err
 	}
-	var targetModel [32]byte
-	copy(targetModel[:], decoder.Raw(32))
-	if targetModel == [32]byte{} {
+	var targetModel [sha256.Size]byte
+	copy(targetModel[:], decoder.Raw(sha256.Size))
+	if !checked.Nonzero(targetModel) {
 		return nil, errors.New("inference: multi-head MTP state target binding is invalid")
 	}
 	if targetModel != draftModel {
@@ -121,28 +128,29 @@ func (r *Runner) LoadMultiHeadMTPSession(data []byte) (*MultiHeadMTPSession, err
 		return nil, errors.New("inference: multi-head MTP state is truncated")
 	}
 	if headCount != plan.Heads || draftCount > headCount ||
-		position != mtpStart+draftCount || position == math.MaxUint32 || trunkLength == 0 || headLength == 0 {
+		position != mtpStart+draftCount || position == math.MaxUint32 ||
+		!checked.Nonzero(trunkLength) || !checked.Nonzero(headLength) {
 		return nil, errors.New("inference: multi-head MTP state metadata is invalid")
 	}
 	width := uint64(r.spec.EmbeddingLength)
-	hiddenCount, ok := checked.Add64(1, uint64(draftCount))
+	hiddenCount, ok := checked.Add64(tensor.SingletonExtent, uint64(draftCount))
 	hiddenElements, okElements := checked.Mul64(hiddenCount, width)
-	hiddenBytes, okBytes := checked.Mul64(hiddenElements, 4)
-	tokenBytes, okTokens := checked.Mul64(uint64(draftCount), 4)
+	hiddenBytes, okBytes := checked.Mul64(hiddenElements, binaryschema.Uint32Bytes)
+	tokenBytes, okTokens := checked.Mul64(uint64(draftCount), binaryschema.Uint32Bytes)
 	payload, okPayload := checked.Add64(hiddenBytes, tokenBytes, trunkLength, headLength)
 	if !ok || !okElements || !okBytes || !okTokens || !okPayload || payload != decoder.Remaining() {
 		return nil, errors.New("inference: multi-head MTP state payload lengths are invalid")
 	}
 	pendingHidden := decodeHiddenState(decoder, width)
 	var draftTokens []tokenizer.TokenID
-	if draftCount > 0 {
+	if checked.Nonzero(draftCount) {
 		draftTokens = make([]tokenizer.TokenID, int(draftCount))
 	}
 	for index := range draftTokens {
 		draftTokens[index] = tokenizer.TokenID(decoder.I32())
 	}
 	var draftHidden []reference.Value
-	if draftCount > 0 {
+	if checked.Nonzero(draftCount) {
 		draftHidden = make([]reference.Value, int(draftCount))
 	}
 	for index := range draftHidden {

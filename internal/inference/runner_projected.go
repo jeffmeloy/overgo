@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
@@ -19,10 +19,10 @@ import (
 func validateVisualExpertBlocks(tokenCount int, blocks []AttentionBlock, overrides []EmbeddingOverride) ([]AttentionBlock, error) {
 	ordered := slices.Clone(blocks)
 	slices.SortFunc(ordered, func(a, b AttentionBlock) int { return cmp.Compare(a.Start, b.Start) })
-	expected := 0
-	previousEnd := uint32(0)
+	var expected int
+	var previousEnd uint32
 	for index, block := range ordered {
-		if block.Start >= block.End || block.End > uint32(tokenCount) || index > 0 && block.Start < previousEnd {
+		if block.Start >= block.End || block.End > uint32(tokenCount) || checked.Nonzero(index) && block.Start < previousEnd {
 			return nil, fmt.Errorf("inference: invalid CogVLM visual expert block [%d,%d)", block.Start, block.End)
 		}
 		expected += int(block.End - block.Start)
@@ -55,7 +55,7 @@ func applyScaledRawEmbeddingOverrides(activation *reference.Value, overrides []E
 	if activation == nil {
 		return errors.New("inference: embedding activation is nil")
 	}
-	if scale != 1 {
+	if !checked.Equal(scale, float32(tensor.SingletonExtent)) {
 		for index := range activation.Data {
 			activation.Data[index] *= scale
 		}
@@ -64,20 +64,19 @@ func applyScaledRawEmbeddingOverrides(activation *reference.Value, overrides []E
 }
 
 func applyEmbeddingOverrides(activation *reference.Value, overrides []EmbeddingOverride) error {
-	if len(overrides) == 0 {
+	if !checked.Nonzero(len(overrides)) {
 		return nil
 	}
-	if activation == nil || activation.Shape.Rank != 2 {
+	if activation == nil {
 		return errors.New("inference: token embeddings have invalid shape")
 	}
-	width := int(activation.Shape.Dims[0])
-	tokens := activation.Shape.Dims[1]
-	if width <= 0 || len(activation.Data) != width*int(tokens) {
+	width, tokens, validActivation := activation.MatrixExtents()
+	if !validActivation {
 		return errors.New("inference: token embeddings have invalid storage")
 	}
 	seen := make(map[uint32]struct{}, len(overrides))
 	for overrideIndex, override := range overrides {
-		if uint64(override.TokenIndex) >= tokens {
+		if !checked.Less64(uint64(override.TokenIndex), uint64(tokens)) {
 			return fmt.Errorf(
 				"inference: embedding override %d token index %d is out of range for %d tokens",
 				overrideIndex, override.TokenIndex, tokens,
@@ -87,14 +86,14 @@ func applyEmbeddingOverrides(activation *reference.Value, overrides []EmbeddingO
 			return fmt.Errorf("inference: duplicate embedding override for token index %d", override.TokenIndex)
 		}
 		seen[override.TokenIndex] = struct{}{}
-		if len(override.Embedding) != width {
+		if !checked.Equal(len(override.Embedding), width) {
 			return fmt.Errorf(
 				"inference: embedding override %d width %d differs from model width %d",
 				overrideIndex, len(override.Embedding), width,
 			)
 		}
 		for valueIndex, value := range override.Embedding {
-			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+			if !checked.Finite32(value) {
 				return fmt.Errorf(
 					"inference: embedding override %d contains non-finite value at %d",
 					overrideIndex, valueIndex,
@@ -189,7 +188,7 @@ func selectCogVLMVisualGraphWeights(
 	if weights == nil {
 		return errors.New("inference: CogVLM graph weights are nil")
 	}
-	if len(nodes) != 5 {
+	if len(nodes) != tensor.MaxDimensions+tensor.SingletonExtent {
 		return errors.New("inference: CogVLM visual graph weight set is incomplete")
 	}
 	for _, node := range nodes {
@@ -198,11 +197,11 @@ func selectCogVLMVisualGraphWeights(
 		}
 	}
 	weights.AttentionQ, weights.AttentionK, weights.AttentionV = nil, nil, nil
-	weights.AttentionQKV = nodes[0]
-	weights.AttentionOutput = nodes[1]
-	weights.FeedForwardGate = nodes[2]
-	weights.FeedForwardUp = nodes[3]
-	weights.FeedForwardDown = nodes[4]
+	weights.AttentionQKV = nodes[tensor.FirstOffset]
+	weights.AttentionOutput = nodes[tensor.SingletonExtent]
+	weights.FeedForwardGate = nodes[tensor.PairedExtent]
+	weights.FeedForwardUp = nodes[tensor.TripleExtent]
+	weights.FeedForwardDown = nodes[tensor.MaxDimensions]
 	return nil
 }
 
@@ -212,10 +211,10 @@ func validateDeepstackInputs(
 	tokens int,
 	inputs []reference.Value,
 ) error {
-	if len(inputs) == 0 {
+	if !checked.Nonzero(len(inputs)) {
 		return nil
 	}
-	if streams == 0 {
+	if !checked.Nonzero(streams) {
 		return errors.New("inference: model does not support deepstack embeddings")
 	}
 	if len(inputs) != int(streams) {
@@ -230,7 +229,7 @@ func validateDeepstackInputs(
 			return fmt.Errorf("inference: deepstack stream %d has invalid shape", streamIndex)
 		}
 		for _, value := range stream.Data {
-			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
+			if !checked.Finite32(value) {
 				return fmt.Errorf("inference: deepstack stream %d contains non-finite value", streamIndex)
 			}
 		}
@@ -244,7 +243,7 @@ func projectedAttentionBlockIDs(
 	hasCache bool,
 	blocks []AttentionBlock,
 ) ([]float32, error) {
-	if len(blocks) == 0 {
+	if !checked.Nonzero(len(blocks)) {
 		return nil, nil
 	}
 	if policy != model.AttentionBlocksUncached {
@@ -255,14 +254,14 @@ func projectedAttentionBlockIDs(
 	}
 	ids := make([]float32, tokens)
 	for index := range ids {
-		ids[index] = -1
+		ids[index] = model.AbsentAttentionBlock()
 	}
 	var previousEnd uint32
 	for index, block := range blocks {
 		if block.Start >= block.End || uint64(block.End) > uint64(tokens) {
 			return nil, fmt.Errorf("inference: attention block %d range [%d,%d) is invalid for %d tokens", index, block.Start, block.End, tokens)
 		}
-		if index > 0 && block.Start < previousEnd {
+		if checked.Nonzero(index) && block.Start < previousEnd {
 			return nil, fmt.Errorf("inference: attention block %d overlaps or precedes the prior block", index)
 		}
 		for token := block.Start; token < block.End; token++ {
@@ -278,14 +277,14 @@ func deepstackInputForLayer(
 	base reference.Value,
 	inputs []reference.Value,
 ) *reference.Value {
-	if len(inputs) == 0 || source == model.DeepstackSourceNone {
+	if !checked.Nonzero(len(inputs)) || source == model.DeepstackSourceNone {
 		return nil
 	}
 	if source == model.DeepstackSourceBase {
 		return &base
 	}
 	index := int(source)
-	if index < 0 || index >= len(inputs) {
+	if !checked.ValidIndex(index, len(inputs)) {
 		return nil
 	}
 	return &inputs[index]

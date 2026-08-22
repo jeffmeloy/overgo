@@ -205,14 +205,14 @@ func TestDiffusionConfidenceAndSelection(t *testing.T) {
 
 func TestDiffusionGumbelNoise(t *testing.T) {
 	unchanged := []float32{-1, 0, 1}
-	addDiffusionGumbelNoise(unchanged, 0, rand.New(rand.NewSource(3)))
+	sampling.AddGumbelNoise(unchanged, 0, rand.New(rand.NewSource(3)))
 	if !reflect.DeepEqual(unchanged, []float32{-1, 0, 1}) {
 		t.Fatalf("zero-temperature logits = %v", unchanged)
 	}
 	first := []float32{-1, 0, 1}
 	second := append([]float32(nil), first...)
-	addDiffusionGumbelNoise(first, 0.7, rand.New(rand.NewSource(3)))
-	addDiffusionGumbelNoise(second, 0.7, rand.New(rand.NewSource(3)))
+	sampling.AddGumbelNoise(first, 0.7, rand.New(rand.NewSource(3)))
+	sampling.AddGumbelNoise(second, 0.7, rand.New(rand.NewSource(3)))
 	if !reflect.DeepEqual(first, second) || reflect.DeepEqual(first, []float32{-1, 0, 1}) {
 		t.Fatalf("Gumbel outputs = %v/%v", first, second)
 	}

@@ -6,6 +6,7 @@ import (
 	"math"
 	"slices"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/statecodec"
@@ -15,12 +16,7 @@ import (
 )
 
 const (
-	cacheStateMagic        = "L2GKV003"
-	cacheStateHeaderSize   = 20
-	cacheLayerCountBytes   = 4
-	cacheRecordPrefixBytes = 8
-	cacheRecordValueBytes  = 44
-	cacheScalarBytes       = 4
+	cacheStateMagic = "L2GKV003"
 )
 
 // SaveCache: validated named cache state.
@@ -53,7 +49,7 @@ func (r *Runner) LoadCache(data []byte) (*KVCache, error) {
 }
 
 func materializeCompressedCachePositions(cache *KVCache) {
-	if cache == nil || cache.Tokens == 0 || effectiveCachePosition(cache) < cache.Tokens {
+	if cache == nil || !checked.Nonzero(cache.Tokens) || effectiveCachePosition(cache) < cache.Tokens {
 		return
 	}
 	start := effectiveCachePosition(cache) - cache.Tokens
@@ -61,7 +57,7 @@ func materializeCompressedCachePositions(cache *KVCache) {
 	for index := range data {
 		data[index] = float32(start + uint32(index))
 	}
-	shape := tensor.MustShape(1, 1, uint64(cache.Tokens))
+	shape := tensor.MustShape(tensor.SingletonExtent, tensor.SingletonExtent, uint64(cache.Tokens))
 	for index := range cache.Layers {
 		if _, present := cache.Layers[index].States[model.CacheStatePositions]; present {
 			continue
@@ -79,7 +75,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 	if cache == nil {
 		return errors.New("inference: KV cache is nil")
 	}
-	if cache.Tokens == 0 {
+	if !checked.Nonzero(cache.Tokens) {
 		return errors.New("inference: KV cache token count is zero")
 	}
 	position := effectiveCachePosition(cache)
@@ -90,7 +86,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			cache.Tokens,
 		)
 	}
-	if r.spec.ContextLength > 0 && cache.Tokens > r.spec.ContextLength {
+	if checked.Nonzero(r.spec.ContextLength) && cache.Tokens > r.spec.ContextLength {
 		return fmt.Errorf(
 			"inference: KV cache has %d active tokens, context length is %d",
 			cache.Tokens,
@@ -98,7 +94,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		)
 	}
 	expectedLayers := int(r.program.Model.CacheLayerCount())
-	if expectedLayers == 0 {
+	if !checked.Nonzero(expectedLayers) {
 		return errors.New("inference: model program has no cache layers")
 	}
 	if len(cache.Layers) != expectedLayers {
@@ -125,7 +121,7 @@ func (r *Runner) validateCache(cache *KVCache) error {
 		if plan.Attention == model.AttentionSparseLatent {
 			state, present := layer.States[model.CacheStateIndexerKey]
 			if r.spec.LayerHasFullIndexer(uint32(index)) {
-				want := tensor.MustShape(uint64(r.spec.IndexerKeyLength), 1, uint64(cache.Tokens))
+				want := tensor.MustShape(uint64(r.spec.IndexerKeyLength), tensor.SingletonExtent, uint64(cache.Tokens))
 				if !present || !state.Mode.TokenAligned() || !state.Value.Shape.Equal(want) {
 					return fmt.Errorf("inference: DSA cache layer %d indexer shape is invalid", index)
 				}
@@ -137,12 +133,12 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			positions := layer.States[model.CacheStatePositions].Value.Data
 			for item, value := range positions {
 				position := uint32(value)
-				if value < 0 || float32(position) != value || position >= effectiveCachePosition(cache) ||
-					(item > 0 && position <= uint32(positions[item-1])) {
+				if !checked.NonNegativeFinite32(value) || float32(position) != value || position >= effectiveCachePosition(cache) ||
+					(item > tensor.FirstOffset && position <= uint32(positions[item-tensor.SingletonExtent])) {
 					return fmt.Errorf("inference: compressed cache layer %d positions are invalid", index)
 				}
 			}
-			if index == 0 {
+			if index == tensor.FirstOffset {
 				deepSeekPositions = slices.Clone(positions)
 			} else {
 				for item := range positions {
@@ -153,8 +149,8 @@ func (r *Runner) validateCache(cache *KVCache) error {
 			}
 		}
 		if plan.Cache == model.CacheCrossAttention {
-			crossKey := layer.States[model.CacheStateCrossKey].Value.Shape.Dims[2]
-			crossValue := layer.States[model.CacheStateCrossValue].Value.Shape.Dims[2]
+			crossKey := layer.States[model.CacheStateCrossKey].Value.Shape.Dims[tensor.PairedExtent]
+			crossValue := layer.States[model.CacheStateCrossValue].Value.Shape.Dims[tensor.PairedExtent]
 			if crossKey != crossValue {
 				return fmt.Errorf(
 					"inference: encoder-decoder cache layer %d cross-attention lengths differ",
@@ -253,7 +249,7 @@ func (r *Runner) RemoveCacheRange(
 	if err := r.validateCache(cache); err != nil {
 		return nil, err
 	}
-	if discard == 0 {
+	if !checked.Nonzero(discard) {
 		return cloneCache(cache), nil
 	}
 	end := uint64(start) + uint64(discard)
@@ -321,7 +317,7 @@ func (r *Runner) cacheForAppendKeeping(
 	keep uint32,
 	requestedDiscard int,
 ) (*KVCache, error) {
-	if cache == nil || incoming <= 0 {
+	if cache == nil || !checked.PositiveInts(incoming) {
 		return cache, nil
 	}
 	discard, needed, err := planContextShift(
@@ -343,11 +339,11 @@ func planContextShift(
 	requested int,
 	enabled bool,
 ) (discard uint32, needed bool, err error) {
-	if incoming <= 0 || uint64(tokens)+uint64(incoming) <= uint64(contextLength) || !enabled {
-		return 0, false, nil
+	if !checked.PositiveInts(incoming) || uint64(tokens)+uint64(incoming) <= uint64(contextLength) || !enabled {
+		return discard, false, nil
 	}
 	if uint64(incoming) > uint64(contextLength) {
-		return 0, false, fmt.Errorf(
+		return discard, false, fmt.Errorf(
 			"inference: new token count %d exceeds context length %d", incoming, contextLength,
 		)
 	}
@@ -361,17 +357,18 @@ func contextDiscardCount(
 	contextLength, keep uint32,
 	requested int,
 ) (uint32, error) {
+	var unavailable uint32
 	if keep >= tokens {
-		return 0, fmt.Errorf(
+		return unavailable, fmt.Errorf(
 			"inference: cannot preserve %d initial tokens in a %d-token cache",
 			keep,
 			tokens,
 		)
 	}
 	minimum := uint64(tokens) + uint64(incoming) - uint64(contextLength)
-	maximum := uint64(tokens - keep - 1)
+	maximum := uint64(tokens - keep - tensor.SingletonExtent)
 	if minimum > maximum {
-		return 0, fmt.Errorf(
+		return unavailable, fmt.Errorf(
 			"inference: cannot preserve %d initial tokens while fitting %d new tokens in a %d-token context",
 			keep,
 			incoming,
@@ -380,36 +377,33 @@ func contextDiscardCount(
 	}
 	discard := minimum
 	switch {
-	case requested > 0:
+	case checked.PositiveInts(requested):
 		discard = max(discard, uint64(requested))
-	case requested == 0:
-		discard = max(discard, uint64(tokens-keep)/2)
+	case !checked.Nonzero(requested):
+		discard = max(discard, uint64(tokens-keep)/tensor.PairedExtent)
 	}
 	discard = min(discard, maximum)
 	return uint32(discard), nil
 }
 
 func effectiveKeepTokens(requested, promptTokens int, contextLength uint32) uint32 {
-	if requested == 0 || promptTokens <= 0 || contextLength == 0 {
-		return 0
+	var unavailable uint32
+	if !checked.Nonzero(requested) || !checked.PositiveInts(promptTokens) || !checked.Nonzero(contextLength) {
+		return unavailable
 	}
 	keep := requested
-	if keep < 0 || keep > promptTokens {
+	if !checked.NonNegativeInts(keep) || keep > promptTokens {
 		keep = promptTokens
 	}
-	// Upstream-compatible four-token safety margin.
-	maximum := max(0, int(contextLength)-4)
+	maximum := max(tensor.FirstOffset, int(contextLength)-tensor.SingletonExtent)
 	keep = min(keep, maximum)
 	return uint32(keep)
 }
 
 func effectiveCachePosition(cache *KVCache) uint32 {
+	var unavailable uint32
 	if cache == nil {
-		return 0
-	}
-	if cache.Position == 0 {
-		// v1/in-memory zero: append-only position.
-		return cache.Tokens
+		return unavailable
 	}
 	return cache.Position
 }
@@ -462,16 +456,20 @@ func marshalCache(cache *KVCache) ([]byte, error) {
 	if cache == nil {
 		return nil, errors.New("inference: KV cache is nil")
 	}
-	total := uint64(cacheStateHeaderSize)
+	scalarHeader, validScalarHeader := checked.Mul64(uint64(tensor.TripleExtent), binaryschema.Uint32Bytes)
+	total, validHeader := checked.Add64(uint64(len(cacheStateMagic)), scalarHeader)
+	if !validScalarHeader || !validHeader {
+		return nil, errors.New("inference: KV cache state size overflows")
+	}
 	for index, layer := range cache.Layers {
 		var ok bool
-		total, ok = checked.Add64(total, cacheLayerCountBytes)
+		total, ok = checked.Add64(total, binaryschema.Uint32Bytes)
 		if !ok {
 			return nil, errors.New("inference: KV cache state size overflows")
 		}
 		records := cacheLayerRecords(layer)
 		for _, record := range records {
-			if record.mode != 0 {
+			if !record.primary {
 				if err := validateLayerState(model.CacheStateName(record.name), LayerState{
 					Mode: record.mode, Value: record.value,
 				}, cache.Tokens); err != nil {
@@ -480,11 +478,14 @@ func marshalCache(cache *KVCache) ([]byte, error) {
 			} else if err := validateStateValue(record.value); err != nil {
 				return nil, fmt.Errorf("inference: KV cache layer %d state %q: %w", index, record.name, err)
 			}
-			bytes, ok := checked.Bytes(uint64(len(record.value.Data)), cacheScalarBytes)
+			bytes, ok := checked.Bytes(uint64(len(record.value.Data)), binaryschema.Uint32Bytes)
+			dimensionBytes, validDimensions := checked.Mul64(uint64(tensor.MaxDimensions), binaryschema.Uint64Bytes)
+			recordPrefix, validPrefix := checked.Mul64(uint64(tensor.PairedExtent), binaryschema.Uint32Bytes)
+			recordValue, validValue := checked.Add64(binaryschema.Uint32Bytes, dimensionBytes, binaryschema.Uint64Bytes)
 			recordSize, okSize := checked.Add64(
-				cacheRecordPrefixBytes, uint64(len(record.name)), cacheRecordValueBytes, bytes,
+				recordPrefix, uint64(len(record.name)), recordValue, bytes,
 			)
-			if !ok || !okSize {
+			if !ok || !validDimensions || !validPrefix || !validValue || !okSize {
 				return nil, errors.New("inference: KV cache state size overflows")
 			}
 			total, ok = checked.Add64(total, recordSize)
@@ -514,16 +515,17 @@ func marshalCache(cache *KVCache) ([]byte, error) {
 }
 
 type cacheLayerRecord struct {
-	name  string
-	mode  CacheStateMode
-	value reference.Value
+	name    string
+	mode    CacheStateMode
+	value   reference.Value
+	primary bool
 }
 
 func cacheLayerRecords(layer LayerCache) []cacheLayerRecord {
-	records := make([]cacheLayerRecord, 0, 2+len(layer.States))
+	records := make([]cacheLayerRecord, tensor.FirstOffset, tensor.PairedExtent+len(layer.States))
 	records = append(records,
-		cacheLayerRecord{name: "key", value: layer.Key},
-		cacheLayerRecord{name: "value", value: layer.Value},
+		cacheLayerRecord{name: "key", value: layer.Key, primary: true},
+		cacheLayerRecord{name: "value", value: layer.Value, primary: true},
 	)
 	for _, name := range layer.States.SortedNames() {
 		state := layer.States[name]
@@ -545,7 +547,7 @@ func writeCacheValue(encoder *statecodec.Encoder, value reference.Value) {
 
 func unmarshalCache(data []byte) (*KVCache, error) {
 	decoder := statecodec.NewDecoder(data, uint64(math.MaxInt))
-	magic := string(decoder.Raw(8))
+	magic := string(decoder.Raw(uint64(len(cacheStateMagic))))
 	if magic != cacheStateMagic {
 		return nil, errors.New("inference: KV cache state has invalid magic or version")
 	}
@@ -555,16 +557,13 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 	if decoder.Err() != nil {
 		return nil, errors.New("inference: KV cache state is truncated")
 	}
-	if uint64(layers) > decoder.Remaining()/cacheLayerCountBytes {
+	if uint64(layers) > decoder.Remaining()/binaryschema.Uint32Bytes {
 		return nil, errors.New("inference: KV cache state layer count exceeds payload")
 	}
 	result := &KVCache{
 		Layers:   make([]LayerCache, int(layers)),
 		Tokens:   tokens,
 		Position: position,
-	}
-	if result.Position == 0 && result.Tokens != 0 {
-		result.Position = result.Tokens
 	}
 	readValue := func() (reference.Value, error) {
 		rank := decoder.U32()
@@ -573,7 +572,7 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 			dimensions[index] = decoder.U64()
 		}
 		count := decoder.U64()
-		bytes, ok := checked.Bytes(count, cacheScalarBytes)
+		bytes, ok := checked.Bytes(count, binaryschema.Uint32Bytes)
 		if decoder.Err() != nil || !ok || count > uint64(math.MaxInt) || bytes > decoder.Remaining() {
 			return reference.Value{}, errors.New("inference: KV cache tensor data is truncated or too large")
 		}
@@ -596,12 +595,12 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 		if decoder.Err() != nil {
 			return nil, fmt.Errorf("inference: KV cache layer %d state count is truncated", index)
 		}
-		if stateCount < 2 {
+		if stateCount < tensor.PairedExtent {
 			return nil, fmt.Errorf("inference: KV cache layer %d state count %d is invalid", index, stateCount)
 		}
 		seen := make(map[string]struct{})
 		layer := LayerCache{}
-		for stateIndex := uint32(0); stateIndex < stateCount; stateIndex++ {
+		for stateIndex := uint32(tensor.FirstOffset); stateIndex < stateCount; stateIndex++ {
 			name := decoder.String32(decoder.Remaining())
 			if decoder.Err() != nil || name == "" {
 				return nil, fmt.Errorf("inference: KV cache layer %d state name is invalid", index)
@@ -623,12 +622,12 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 			}
 			switch name {
 			case "key":
-				if mode != 0 {
+				if mode != CacheStateMode(tensor.FirstOffset) {
 					return nil, fmt.Errorf("inference: KV cache layer %d key mode %d is invalid", index, mode)
 				}
 				layer.Key = value
 			case "value":
-				if mode != 0 {
+				if mode != CacheStateMode(tensor.FirstOffset) {
 					return nil, fmt.Errorf("inference: KV cache layer %d value mode %d is invalid", index, mode)
 				}
 				layer.Value = value

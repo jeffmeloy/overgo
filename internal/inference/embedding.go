@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
+	"overgo/internal/hostmath"
 	"overgo/internal/model"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -35,12 +37,13 @@ type EmbeddingResult struct {
 func (r *Runner) Embed(ctx context.Context, text string) ([]float32, int, error) {
 	result, err := r.EmbedAdvanced(ctx, text, EmbeddingOptions{
 		Pooling:   EmbeddingPoolingMean,
-		Normalize: 2,
+		Normalize: hostmath.L2EmbeddingNormalization(),
 	})
 	if err != nil {
 		return nil, 0, err
 	}
-	return result.Vectors[0], result.Tokens, nil
+	vector, _ := checked.First(result.Vectors)
+	return vector, result.Tokens, nil
 }
 
 func (r *Runner) EmbedAdvanced(
@@ -55,7 +58,7 @@ func (r *Runner) EmbedAdvanced(
 	if err != nil {
 		return EmbeddingResult{}, err
 	}
-	if len(ids) == 0 {
+	if !checked.Nonzero(len(ids)) {
 		return EmbeddingResult{}, errors.New("inference: embedding text produced no tokens")
 	}
 	return r.EmbedTokensAdvanced(ctx, ids, options)
@@ -69,12 +72,13 @@ func (r *Runner) EmbedTokens(
 ) ([]float32, int, error) {
 	result, err := r.EmbedTokensAdvanced(ctx, input, EmbeddingOptions{
 		Pooling:   EmbeddingPoolingMean,
-		Normalize: 2,
+		Normalize: hostmath.L2EmbeddingNormalization(),
 	})
 	if err != nil {
 		return nil, 0, err
 	}
-	return result.Vectors[0], result.Tokens, nil
+	vector, _ := checked.First(result.Vectors)
+	return vector, result.Tokens, nil
 }
 
 func (r *Runner) EmbedTokensAdvanced(
@@ -85,7 +89,7 @@ func (r *Runner) EmbedTokensAdvanced(
 	if r == nil || r.vocab == nil {
 		return EmbeddingResult{}, errRunnerNil
 	}
-	if len(input) == 0 {
+	if !checked.Nonzero(len(input)) {
 		return EmbeddingResult{}, errors.New("inference: embedding token list is empty")
 	}
 	ids := slices.Clone(input)
@@ -107,7 +111,7 @@ func (r *Runner) EmbedTokensAdvanced(
 		return EmbeddingResult{}, err
 	}
 	poolOptions := options
-	poolOptions.Normalize = -1
+	poolOptions.Normalize = hostmath.NoEmbeddingNormalization()
 	vectors, err := poolEmbeddings(hidden, poolOptions)
 	if err != nil {
 		return EmbeddingResult{}, err
@@ -122,7 +126,7 @@ func (r *Runner) EmbedTokensAdvanced(
 	}
 	if pooling != EmbeddingPoolingNone {
 		for _, vector := range vectors {
-			normalizeEmbedding(vector, options.Normalize)
+			hostmath.NormalizeEmbedding(vector, options.Normalize)
 		}
 	}
 	return EmbeddingResult{Vectors: vectors, Tokens: len(ids)}, nil
@@ -132,14 +136,14 @@ func (r *Runner) projectEmbeddingVectors(
 	ctx context.Context,
 	vectors [][]float32,
 ) ([][]float32, error) {
-	projections := make([]gguf.TensorInfo, 0, 2)
+	var projections []gguf.TensorInfo
 	if r.weights.Dense2Output != nil {
 		projections = append(projections, *r.weights.Dense2Output)
 	}
 	if r.weights.Dense3Output != nil {
 		projections = append(projections, *r.weights.Dense3Output)
 	}
-	if len(projections) == 0 {
+	if !checked.Nonzero(len(projections)) {
 		return vectors, nil
 	}
 	current := vectors
@@ -197,7 +201,7 @@ func (r *Runner) projectEmbeddingVectorsDevice(
 		return nil, err
 	}
 	projected := results[output]
-	outWidth := int(projected.Shape.Dims[0])
+	outWidth := int(projected.Shape.Dims[tensor.FirstOffset])
 	result := make([][]float32, len(vectors))
 	for index := range result {
 		start := index * outWidth
@@ -222,61 +226,33 @@ func poolEmbeddings(
 	case EmbeddingPoolingNone:
 		result := make([][]float32, tokens)
 		for tokenIndex := range tokens {
+			rowStart := tokenIndex * width
 			result[tokenIndex] = append(
 				[]float32(nil),
-				hidden.Data[tokenIndex*width:(tokenIndex+1)*width]...,
+				hidden.Data[rowStart:rowStart+width]...,
 			)
 		}
 		return result, nil
 	case EmbeddingPoolingLast:
 		vector := slices.Clone(hidden.LastRowView().Data)
-		normalizeEmbedding(vector, options.Normalize)
+		hostmath.NormalizeEmbedding(vector, options.Normalize)
 		return [][]float32{vector}, nil
 	case EmbeddingPoolingMean:
 		vector := make([]float32, width)
 		for tokenIndex := range tokens {
-			row := hidden.Data[tokenIndex*width : (tokenIndex+1)*width]
+			rowStart := tokenIndex * width
+			row := hidden.Data[rowStart : rowStart+width]
 			for index, value := range row {
 				vector[index] += value
 			}
 		}
-		inverseTokens := float32(1) / float32(tokens)
+		inverseTokens := float32(tensor.SingletonExtent) / float32(tokens)
 		for index := range vector {
 			vector[index] *= inverseTokens
 		}
-		normalizeEmbedding(vector, options.Normalize)
+		hostmath.NormalizeEmbedding(vector, options.Normalize)
 		return [][]float32{vector}, nil
 	default:
 		return nil, fmt.Errorf("inference: unsupported embedding pooling %q", pooling)
-	}
-}
-
-func normalizeEmbedding(vector []float32, norm int) {
-	sum := 0.0
-	switch norm {
-	case -1:
-		sum = 1
-	case 0:
-		for _, value := range vector {
-			sum = max(sum, math.Abs(float64(value)))
-		}
-		sum /= 32760
-	case 2:
-		for _, value := range vector {
-			sum += float64(value) * float64(value)
-		}
-		sum = math.Sqrt(sum)
-	default:
-		for _, value := range vector {
-			sum += math.Pow(math.Abs(float64(value)), float64(norm))
-		}
-		sum = math.Pow(sum, 1/float64(norm))
-	}
-	scale := float32(0)
-	if sum > 0 {
-		scale = float32(1 / sum)
-	}
-	for index := range vector {
-		vector[index] *= scale
 	}
 }

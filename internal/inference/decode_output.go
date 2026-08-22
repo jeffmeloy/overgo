@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -27,11 +28,11 @@ type deviceOutputPlan struct {
 func compileDeviceOutputPlan(mode deviceOutputMode, topK, vocabulary uint32) (deviceOutputPlan, error) {
 	switch mode {
 	case deviceOutputLogits, deviceOutputGreedy:
-		if topK != 0 {
+		if checked.Nonzero(topK) {
 			return deviceOutputPlan{}, errors.New("inference: decode output count requires top-K mode")
 		}
 	case deviceOutputTopK:
-		if topK == 0 || topK > vocabulary {
+		if !checked.Nonzero(topK) || topK > vocabulary {
 			return deviceOutputPlan{}, errors.New("inference: device top-K count is invalid")
 		}
 	default:
@@ -47,7 +48,7 @@ func (p deviceOutputPlan) retainsSelection() bool { return p.mode == deviceOutpu
 func (p deviceOutputPlan) reduce(builder *tensor.Builder, logits *tensor.Tensor) (selection, candidates *tensor.Tensor) {
 	switch p.mode {
 	case deviceOutputGreedy:
-		selection = builder.TopK(logits, 1)
+		selection = builder.TopK(logits, tensor.SingletonExtent)
 	case deviceOutputTopK:
 		candidates = builder.TopKPairs(logits, p.topK)
 	}
@@ -78,8 +79,8 @@ func (p deviceOutputPlan) collect(ctx context.Context, r *Runner, retained *exec
 		}
 		for index, cache := range caches {
 			cache.Selection = device
-			if count > 1 {
-				cache.Selection, err = device.SliceLastAxis(dtype.F32, uint64(index), 1)
+			if checked.Multiple(count) {
+				cache.Selection, err = device.SliceLastAxis(dtype.F32, uint64(index), tensor.SingletonExtent)
 				if err != nil {
 					return err
 				}
@@ -103,12 +104,13 @@ func (p deviceOutputPlan) collect(ctx context.Context, r *Runner, retained *exec
 		if err != nil {
 			return err
 		}
-		if vocabulary <= 0 || len(value.Data) != vocabulary*count {
+		if !checked.PositiveInts(vocabulary) || len(value.Data) != vocabulary*count {
 			return errors.New("inference: decode logits shape is incompatible")
 		}
 		for index, cache := range caches {
-			logits := value.Data[index*vocabulary : (index+1)*vocabulary]
-			if count > 1 {
+			rowStart := index * vocabulary
+			logits := value.Data[rowStart : rowStart+vocabulary]
+			if checked.Multiple(count) {
 				logits = slices.Clone(logits)
 			}
 			cache.Logits = r.finalizeLogits(logits)

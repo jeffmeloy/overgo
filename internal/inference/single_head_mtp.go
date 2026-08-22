@@ -2,9 +2,11 @@ package inference
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 
+	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -17,7 +19,7 @@ type MTPSession struct {
 	PendingHidden reference.Value
 	MTPStart      uint32
 	Position      uint32
-	targetModel   [32]byte
+	targetModel   [sha256.Size]byte
 }
 
 func (r *Runner) singleHeadMTP() (model.DraftPlan, model.DraftWeightCatalog, error) {
@@ -39,7 +41,11 @@ func (r *Runner) lookupSingleHeadMTP() (model.DraftPlan, model.DraftWeightCatalo
 	if !plan.SingleCatalog || plan.Session != model.DraftSessionSingle || !plan.SessionEligible() {
 		return model.DraftPlan{}, model.DraftWeightCatalog{}, false
 	}
-	catalog, ok := r.weights.DraftCatalog(plan.Kind, 0)
+	head, valid := plan.LastHead()
+	if !valid {
+		return model.DraftPlan{}, model.DraftWeightCatalog{}, false
+	}
+	catalog, ok := r.weights.DraftCatalog(plan.Kind, head)
 	if !ok || catalog.Kind != plan.Kind {
 		return model.DraftPlan{}, model.DraftWeightCatalog{}, false
 	}
@@ -48,7 +54,7 @@ func (r *Runner) lookupSingleHeadMTP() (model.DraftPlan, model.DraftWeightCatalo
 
 // NewMTPSession compiles one bundled target-prefix draft session.
 func (r *Runner) NewMTPSession(ctx context.Context, tokenIDs []tokenizer.TokenID) (*MTPSession, error) {
-	if len(tokenIDs) == 0 {
+	if !checked.Nonzero(len(tokenIDs)) {
 		return nil, errors.New("inference: MTP inputs are empty")
 	}
 	_, catalog, err := r.singleHeadMTP()
@@ -67,7 +73,7 @@ func (r *Runner) NewMTPPairedSession(
 	target *Runner,
 	tokenIDs []tokenizer.TokenID,
 ) (*MTPSession, error) {
-	if r == nil || target == nil || r == target || r.path == target.path || len(tokenIDs) == 0 {
+	if r == nil || target == nil || r == target || r.path == target.path || !checked.Nonzero(len(tokenIDs)) {
 		return nil, errors.New("inference: MTP sidecar and target inputs are invalid")
 	}
 	if err := r.validateMTPTarget(target); err != nil {
@@ -97,10 +103,11 @@ func (r *Runner) AdvanceMTP(
 	if err := r.validateMTPSession(session); err != nil {
 		return reference.Value{}, nil, err
 	}
-	if tokenID < 0 || int(tokenID) >= r.vocab.Len() {
+	if _, valid := r.vocab.Token(tokenID); !valid {
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
-	program, err := r.draftLayerProgram(0)
+	head, _ := r.program.Model.Draft().LastHead()
+	program, err := r.draftLayerProgram(head)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

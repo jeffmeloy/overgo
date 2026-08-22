@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	"overgo/internal/model"
+	"overgo/internal/checked"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -17,6 +17,7 @@ type layerInputCapture struct {
 	requested map[int32]struct{}
 	values    map[int32]reference.Value
 	// Optional exact-attention inputs.
+	attention bool
 	attnLayer int32
 	attnScale float32
 	attnHeads int
@@ -26,7 +27,7 @@ type layerInputCapture struct {
 	attnKey   reference.Value
 }
 
-// AttentionCapture holds one layer's exact host-replay inputs.
+// AttentionCapture: exact host-replay inputs.
 type AttentionCapture struct {
 	Layer   int
 	Tokens  int
@@ -38,7 +39,7 @@ type AttentionCapture struct {
 	Key     reference.Value
 }
 
-// AttentionCaptureLayers reports exactly replayable layers.
+// AttentionCaptureLayers returns replayable layers.
 func (r *Runner) AttentionCaptureLayers() []int32 {
 	if r == nil {
 		return nil
@@ -48,22 +49,16 @@ func (r *Runner) AttentionCaptureLayers() []int32 {
 	if r.closed || !r.forwardProgram().LayerCapture() {
 		return nil
 	}
-	result := make([]int32, 0, len(r.weights.Layers))
+	var result []int32
 	for layer := range r.weights.Layers {
-		if exactAttentionCapture(r.layerProgram(layer).Layer()) {
+		if r.layerProgram(layer).Layer().ExactAttentionReplay() {
 			result = append(result, int32(layer))
 		}
 	}
 	return result
 }
 
-func exactAttentionCapture(plan model.LayerPlan) bool {
-	attention := plan.AttentionGraph
-	return plan.HasKV && attention.Causal && !attention.UseSinks && !attention.ChunkedWindow &&
-		attention.Window == 0 && attention.Softcap == 0 && attention.MaxALiBiBias == 0
-}
-
-// ExtractAttention records one exact-replay query/key boundary.
+// ExtractAttention captures one replay boundary.
 func (r *Runner) ExtractAttention(ctx context.Context, tokenIDs []tokenizer.TokenID, layer int32) (AttentionCapture, error) {
 	if r == nil {
 		return AttentionCapture{}, errRunnerNil
@@ -75,16 +70,15 @@ func (r *Runner) ExtractAttention(ctx context.Context, tokenIDs []tokenizer.Toke
 	if !r.forwardProgram().LayerCapture() {
 		return AttentionCapture{}, errors.New("inference: attention capture is unsupported for this architecture")
 	}
-	if layer < 0 || int(layer) >= len(r.weights.Layers) {
+	if !checked.NonNegativeInts(int(layer)) || int(layer) >= len(r.weights.Layers) {
 		return AttentionCapture{}, fmt.Errorf("inference: attention layer %d is out of range", layer)
 	}
-	if !exactAttentionCapture(r.layerProgram(int(layer)).Layer()) {
+	if !r.layerProgram(int(layer)).Layer().ExactAttentionReplay() {
 		return AttentionCapture{}, fmt.Errorf("inference: attention layer %d policy cannot be replayed exactly", layer)
 	}
 	capture := &layerInputCapture{
 		requested: map[int32]struct{}{},
-		values:    map[int32]reference.Value{},
-		attnLayer: layer,
+		attention: true, attnLayer: layer,
 	}
 	if _, _, err := r.forwardCachedProjectedChunkModeLocked(
 		ctx, tokenIDs, nil, ProjectedInputs{}, true, capture,
@@ -138,7 +132,7 @@ func (r *Runner) ForwardCachedExtractLayerInputs(
 	if err != nil {
 		return reference.Value{}, nil, reference.Value{}, err
 	}
-	extracted, err := capture.result(r.spec.EmbeddingLength, len(tokenIDs))
+	extracted, err := capture.result(int(r.spec.EmbeddingLength), len(tokenIDs))
 	if err != nil {
 		return reference.Value{}, nil, reference.Value{}, err
 	}
@@ -146,17 +140,16 @@ func (r *Runner) ForwardCachedExtractLayerInputs(
 }
 
 func newLayerInputCapture(layerIDs []int32, layers int) (*layerInputCapture, error) {
-	if len(layerIDs) == 0 {
+	if !checked.Nonzero(len(layerIDs)) {
 		return nil, errors.New("inference: extraction layer list is empty")
 	}
 	capture := &layerInputCapture{
 		order:     slices.Clone(layerIDs),
 		requested: make(map[int32]struct{}, len(layerIDs)),
 		values:    make(map[int32]reference.Value, len(layerIDs)),
-		attnLayer: -1,
 	}
 	for _, layer := range layerIDs {
-		if layer < 0 || int(layer) >= layers {
+		if !checked.NonNegativeInts(int(layer)) || int(layer) >= layers {
 			return nil, fmt.Errorf("inference: extraction layer %d is out of range", layer)
 		}
 		capture.requested[layer] = struct{}{}
@@ -176,27 +169,27 @@ func (c *layerInputCapture) set(layer int, value reference.Value) {
 	if !c.wants(layer) {
 		return
 	}
-	c.values[int32(layer)] = value.Clone()
+	c.values[int32(layer)] = value
 }
 
-func (c *layerInputCapture) result(width uint32, tokens int) (reference.Value, error) {
-	if c == nil || width == 0 || tokens <= 0 {
+func (c *layerInputCapture) result(expectedExtent, expectedTokens int) (reference.Value, error) {
+	if c == nil || !checked.PositiveInts(expectedExtent, expectedTokens) {
 		return reference.Value{}, errors.New("inference: layer extraction state is invalid")
 	}
 	result := reference.Value{
-		Shape: tensor.MustShape(uint64(width)*uint64(len(c.order)), uint64(tokens)),
-		Data:  make([]float32, int(width)*len(c.order)*tokens),
+		Shape: tensor.MustShape(uint64(expectedExtent*len(c.order)), uint64(expectedTokens)),
+		Data:  make([]float32, expectedExtent*len(c.order)*expectedTokens),
 	}
-	for token := 0; token < tokens; token++ {
-		for order, layer := range c.order {
-			value, ok := c.values[layer]
-			if !ok || value.Shape.Rank != 2 || value.Shape.Dims[0] != uint64(width) ||
-				value.Shape.Dims[1] != uint64(tokens) || len(value.Data) != int(width)*tokens {
-				return reference.Value{}, fmt.Errorf("inference: extraction layer %d was not captured", layer)
-			}
-			source := token * int(width)
-			destination := (token*len(c.order) + order) * int(width)
-			copy(result.Data[destination:destination+int(width)], value.Data[source:source+int(width)])
+	for order, layer := range c.order {
+		value, ok := c.values[layer]
+		extent, tokens, valid := value.MatrixExtents()
+		if !ok || !valid || extent != expectedExtent || tokens != expectedTokens {
+			return reference.Value{}, fmt.Errorf("inference: extraction layer %d was not captured", layer)
+		}
+		for token := range expectedTokens {
+			source := token * expectedExtent
+			destination := (token*len(c.order) + order) * expectedExtent
+			copy(result.Data[destination:destination+expectedExtent], value.Data[source:source+expectedExtent])
 		}
 	}
 	return result, nil

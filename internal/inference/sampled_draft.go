@@ -2,16 +2,17 @@ package inference
 
 import (
 	"fmt"
-	"math"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/sampling"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
 
 func validSampledLimits(maximum int, minimumProbability float64) bool {
-	return maximum > 0 && minimumProbability >= 0 && minimumProbability <= 1 && !math.IsNaN(minimumProbability)
+	return sampling.ValidDraftLimits(maximum, minimumProbability)
 }
 
 func validVerificationSamplers(draft, target *sampling.Sampler) bool {
@@ -49,12 +50,14 @@ func draftSampled[S any](
 			err = fmt.Errorf("inference: restore %s draft sampler: %w", label, restoreErr)
 		}
 	}()
-	initialToken := history[len(history)-1]
+	lastHistory, _ := checked.LastSlice(history)
+	initialToken, _ := checked.First(lastHistory)
+	var initialLength int
 	draft = &sampledDraft[S]{
 		InitialToken:  initialToken,
-		Tokens:        make([]tokenizer.TokenID, 0, maximum),
-		Probabilities: make([]float64, 0, maximum),
-		Distributions: make([][]sampling.TokenProbability, 0, maximum),
+		Tokens:        make([]tokenizer.TokenID, initialLength, maximum),
+		Probabilities: make([]float64, initialLength, maximum),
+		Distributions: make([][]sampling.TokenProbability, initialLength, maximum),
 		History:       slices.Clone(history),
 		Base:          base,
 		samplerStates: [][]byte{slices.Clone(initialState)},
@@ -92,11 +95,15 @@ func draftSampled[S any](
 }
 
 func validSampledDraft[S any](draft *sampledDraft[S]) bool {
-	return draft != nil && len(draft.History) > 0 &&
-		draft.History[len(draft.History)-1] == draft.InitialToken &&
+	if draft == nil || !checked.Nonzero(len(draft.History)) {
+		return false
+	}
+	lastHistory, _ := checked.LastSlice(draft.History)
+	lastToken, _ := checked.First(lastHistory)
+	return lastToken == draft.InitialToken &&
 		len(draft.Tokens) == len(draft.Probabilities) &&
 		len(draft.Tokens) == len(draft.Distributions) &&
-		len(draft.samplerStates) == len(draft.Tokens)+1
+		len(draft.samplerStates) == len(draft.Tokens)+tensor.SingletonExtent
 }
 
 func verifySampled[D, S, V any](
@@ -122,13 +129,13 @@ func verifySampled[D, S, V any](
 			_ = targetSampler.LoadState(targetOriginal)
 		}
 	}()
-	if err := draftSampler.LoadState(draft.samplerStates[0]); err != nil {
+	if err := draftSampler.LoadState(draft.samplerStates[tensor.FirstOffset]); err != nil {
 		return verification, fmt.Errorf("inference: restore %s draft base: %w", label, err)
 	}
 	state := initial
 	currentToken := draft.InitialToken
 	history := tokenHistory(draft.History)
-	accepted := 0
+	var accepted int
 	for {
 		logits, next, advanceErr := advance(currentToken, state)
 		if advanceErr != nil {

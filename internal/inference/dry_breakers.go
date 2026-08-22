@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"overgo/internal/tensor"
+	"overgo/internal/textcheck"
 	"overgo/internal/tokenizer"
 )
 
@@ -44,8 +46,8 @@ func (r *Runner) TokenizeDryBreakers(breakers []string) ([][]int, error) {
 				add([]tokenizer.TokenID{tokenID})
 				continue
 			}
-			for position := strings.IndexByte(piece, breaker[0]); position >= 0; {
-				matched := 1
+			for position := strings.IndexByte(piece, breaker[tensor.FirstOffset]); textcheck.FoundIndex(position); {
+				matched := tensor.SingletonExtent
 				for matched < len(breaker) &&
 					position+matched < len(piece) &&
 					piece[position+matched] == breaker[matched] {
@@ -59,16 +61,14 @@ func (r *Runner) TokenizeDryBreakers(breakers []string) ([][]int, error) {
 					if encodeErr != nil {
 						return nil, encodeErr
 					}
-					sequence := make([]tokenizer.TokenID, 1, len(tail)+1)
-					sequence[0] = tokenID
-					sequence = append(sequence, tail...)
+					sequence := append([]tokenizer.TokenID{tokenID}, tail...)
 					add(sequence)
 				}
-				next := strings.IndexByte(piece[position+1:], breaker[0])
-				if next < 0 {
+				next := strings.IndexByte(piece[position+tensor.SingletonExtent:], breaker[tensor.FirstOffset])
+				if !textcheck.FoundIndex(next) {
 					break
 				}
-				position += next + 1
+				position += next + tensor.SingletonExtent
 			}
 		}
 	}

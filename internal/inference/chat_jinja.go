@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/checked"
 	"overgo/internal/jinja"
 )
 
@@ -67,7 +68,7 @@ func (f chatTemplateCallFunction) JinjaGet(key string) (any, bool) {
 func newChatJinjaEnv() *jinja.Env {
 	env := jinja.New()
 	env.SetFilter("tojson", func(in any, args []any, kwargs map[string]any) (any, error) {
-		if len(args) == 0 && len(kwargs) == 0 {
+		if !checked.Nonzero(len(args)) && !checked.Nonzero(len(kwargs)) {
 			var output strings.Builder
 			writeChatTemplateJSON(&output, in)
 			return output.String(), nil
@@ -81,8 +82,8 @@ func newChatJinjaEnv() *jinja.Env {
 	strftime := newChatTemplateStrftime(time.Now())
 	env.SetGlobal("strftime_now", func(args []any, _ map[string]any) (any, error) {
 		format := ""
-		if len(args) >= 1 {
-			if s, ok := args[0].(string); ok {
+		if argument, present := checked.First(args); present {
+			if s, ok := argument.(string); ok {
 				format = s
 			}
 		}
@@ -90,8 +91,8 @@ func newChatJinjaEnv() *jinja.Env {
 	})
 	env.SetGlobal("raise_exception", func(args []any, _ map[string]any) (any, error) {
 		message := ""
-		if len(args) >= 1 {
-			if s, ok := args[0].(string); ok {
+		if argument, present := checked.First(args); present {
+			if s, ok := argument.(string); ok {
 				message = s
 			}
 		}
@@ -129,7 +130,7 @@ func (r *Runner) formatJinjaChatNative(
 	messages []ChatMessage,
 	options ChatFormatOptions,
 ) (string, error) {
-	if len(messages) == 0 {
+	if !checked.Nonzero(len(messages)) {
 		return "", errors.New("inference: chat message list is empty")
 	}
 	source = normalizeChatTemplateSource(source)

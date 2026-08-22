@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -37,7 +38,7 @@ func (r *Runner) forwardNonCausalLocked(
 	if r.forwardProgram().Operation == model.ForwardOperationAudioTokens {
 		return r.forwardAudioTokensLocked(ctx, tokenIDs)
 	}
-	if len(tokenIDs) == 0 {
+	if !checked.Nonzero(len(tokenIDs)) {
 		return reference.Value{}, errors.New("inference: token sequence is empty")
 	}
 	if len(tokenIDs) > int(r.spec.ContextLength) {
@@ -50,8 +51,9 @@ func (r *Runner) forwardNonCausalLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	positions := tokenPositions(0, len(tokenIDs))
-	activation, err := r.loadEmbeddings(ctx, rows)
+	var origin uint32
+	positions := tokenPositions(origin, len(tokenIDs))
+	activation, err := r.gatherTensor(ctx, r.weights.TokenEmbedding, rows)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -63,7 +65,7 @@ func (r *Runner) forwardNonCausalLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	if scale := r.spec.InputEmbeddingScale(); scale != 1 {
+	if scale := r.spec.InputEmbeddingScale(); !checked.Equal(scale, float32(tensor.SingletonExtent)) {
 		for index := range activation.Data {
 			activation.Data[index] *= scale
 		}
@@ -101,7 +103,7 @@ func (r *Runner) forwardAudioTokensLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
-	if len(tokenIDs) == 0 {
+	if !checked.Nonzero(len(tokenIDs)) {
 		return reference.Value{}, errors.New("inference: token sequence is empty")
 	}
 	if len(tokenIDs) > int(r.spec.ContextLength) {
@@ -114,7 +116,7 @@ func (r *Runner) forwardAudioTokensLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	embeddings, err := r.loadEmbeddings(ctx, rows)
+	embeddings, err := r.gatherTensor(ctx, r.weights.TokenEmbedding, rows)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -142,7 +144,7 @@ func (r *Runner) projectAllLogits(
 	if r.spec.IsEncoderOnly() {
 		return reference.Value{}, errors.New("inference: encoder exposes hidden states, not vocabulary logits")
 	}
-	rows, valid := r.spec.SequenceRows(hidden)
+	rows, valid := tensor.MatrixRows(hidden.Shape, uint64(r.spec.EmbeddingLength))
 	if !valid {
 		return reference.Value{}, errors.New("inference: non-causal hidden-state shape is incompatible")
 	}
@@ -153,8 +155,9 @@ func (r *Runner) projectAllLogits(
 		if err != nil || elements > uint64(math.MaxInt) {
 			return reference.Value{}, errors.New("inference: non-causal logits shape is too large")
 		}
-		result := reference.Value{Shape: shape, Data: make([]float32, 0, int(elements))}
-		width := int(hidden.Shape.Dims[0])
+		var initialLength int
+		result := reference.Value{Shape: shape, Data: make([]float32, initialLength, int(elements))}
+		width := int(r.spec.EmbeddingLength)
 		for token := range int(rows) {
 			start := token * width
 			logits, err := r.logits(ctx, outputInfo, hidden.Data[start:start+width])
@@ -179,7 +182,7 @@ func (r *Runner) projectAllLogits(
 		}
 		output = runtime.builder.Add(output, bias)
 	}
-	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
+	if scale := r.spec.OutputLogitMultiplier(); !checked.Equal(scale, float32(tensor.SingletonExtent)) {
 		output = runtime.builder.Scale(output, scale)
 	}
 	if err := runtime.builder.Err(); err != nil {
@@ -198,7 +201,7 @@ func (r *Runner) forwardEncoderLocked(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (reference.Value, error) {
-	if len(tokenIDs) == 0 {
+	if !checked.Nonzero(len(tokenIDs)) {
 		return reference.Value{}, errors.New("inference: token sequence is empty")
 	}
 	if len(tokenIDs) > int(r.spec.ContextLength) {
@@ -212,7 +215,7 @@ func (r *Runner) forwardEncoderLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	activation, err := r.loadEmbeddings(ctx, rows)
+	activation, err := r.gatherTensor(ctx, r.weights.TokenEmbedding, rows)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -280,7 +283,7 @@ func (r *Runner) decodeEncoderDecoderLocked(
 	if contractErr != nil {
 		return reference.Value{}, nil, errors.New("inference: encoder state shape is incompatible")
 	}
-	if len(decoderIDs) == 0 {
+	if !checked.Nonzero(len(decoderIDs)) {
 		return reference.Value{}, nil, errors.New("inference: decoder token sequence is empty")
 	}
 	var pastTokens, nextPosition uint32
@@ -298,7 +301,7 @@ func (r *Runner) decodeEncoderDecoderLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	activation, err := r.loadEmbeddings(ctx, rows)
+	activation, err := r.gatherTensor(ctx, r.weights.TokenEmbedding, rows)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

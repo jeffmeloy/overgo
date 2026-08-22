@@ -4,7 +4,7 @@
 // is composed from the FD-verified hostmath VJPs. Each function is checkpoint
 // style: it recomputes whatever forward intermediates it needs from its inputs.
 // GELU is differentiated as the smooth tanh-GELU (GELUTanhPrime); the forward's
-// fp16 round-trip in roundedGELUTanh is a serving-only quantization, not part of
+// fp16 round-trip in reference.RoundedGELUTanh is a serving-only quantization, not part of
 // the training-leg derivative. FD gates in gemma3n_backward_test.go are the
 // oracle (no adaptive E4B grad goldens exist).
 package inference
@@ -230,7 +230,7 @@ func g3nCorrectAndInjectBackward(dPredictions []reference.Value, dActivated, dPe
 	rawGate, _ := alternateLinear(*layer.PerLayerInputGate, scaled)
 	gate := rawGate.Clone()
 	for i := range gate.Data {
-		gate.Data[i] = roundedGELUTanh(gate.Data[i]) * perLayer.Data[i]
+		gate.Data[i] = reference.RoundedGELUTanh(gate.Data[i]) * perLayer.Data[i]
 	}
 	injectionPre, _ := alternateLinear(*layer.PerLayerProjection, gate)
 

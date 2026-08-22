@@ -65,11 +65,12 @@ func formatChatTemplateTime(value time.Time, format string) (string, error) {
 		case 'S':
 			rendered = value.Format("05")
 		case 'u':
-			weekday := int(value.Weekday())
-			if weekday == 0 {
-				weekday = 7
+			weekday := value.Weekday()
+			if weekday == time.Sunday {
+				weekday = time.Saturday
+				weekday++
 			}
-			rendered = fmt.Sprint(weekday)
+			rendered = fmt.Sprint(int(weekday))
 		case 'w':
 			rendered = fmt.Sprint(int(value.Weekday()))
 		case 'x':

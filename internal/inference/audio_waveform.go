@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"math"
-	"runtime"
 
 	"overgo/internal/checked"
 	"overgo/internal/hostmath"
@@ -64,7 +63,7 @@ func audioFeaturesToWaveform(
 	trimmedSize := outputSize - 2*plan.PadSize
 	audio := make([]float32, outputSize)
 	envelope := make([]float32, outputSize)
-	slabFrames := min(runtime.GOMAXPROCS(0), frames)
+	slabFrames := min(hostmath.ParallelWorkerLimit(), frames)
 	windowElements, validWindows := checked.MulInt(slabFrames, plan.FFTSize)
 	frameWork, validWork := checked.MulInt(plan.FFTSize, plan.Bins())
 	if !validWindows || !validWork {
@@ -104,7 +103,7 @@ func audioFeaturesToWaveform(
 			window := windows[offset*plan.FFTSize : (offset+1)*plan.FFTSize]
 			for sample, value := range window {
 				position := start + sample
-				if position < 0 || position >= outputSize {
+				if !checked.NonNegativeInts(position) || position >= outputSize {
 					continue
 				}
 				hann := tables.hann[sample]
@@ -115,11 +114,11 @@ func audioFeaturesToWaveform(
 	}
 	audio = audio[:trimmedSize]
 	for index := range audio {
-		if envelope[index] == 0 {
+		if !checked.Nonzero(envelope[index]) {
 			return nil, errors.New("inference: audio overlap envelope is zero")
 		}
 		audio[index] /= envelope[index]
-		if math.IsNaN(float64(audio[index])) || math.IsInf(float64(audio[index]), 0) {
+		if !checked.Finite64(float64(audio[index])) {
 			return nil, errors.New("inference: audio waveform is not finite")
 		}
 	}

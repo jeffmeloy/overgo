@@ -2,14 +2,17 @@ package inference
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 
+	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/sampling"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -74,20 +77,21 @@ func (r *Runner) Generate(
 	if err != nil {
 		return nil, "", err
 	}
-	aloraID, aloraStart, err := r.activeALoRA(ids)
+	alora, err := r.activeALoRA(ids)
 	if err != nil {
 		return nil, "", err
 	}
-	if options.ProjectedInputs != nil && aloraID >= 0 {
+	if options.ProjectedInputs != nil && alora.enabled {
 		return nil, "", errors.New("inference: projected inputs cannot use invocation-activated LoRA")
 	}
 	var aloraScale float32
-	if aloraID >= 0 {
-		aloraScale = r.loraAdapters[aloraID].scale
-		defer func() { r.loraAdapters[aloraID].scale = aloraScale }()
+	if alora.enabled {
+		aloraScale = r.loraAdapters[alora.adapter].scale
+		defer func() { r.loraAdapters[alora.adapter].scale = aloraScale }()
 		options.CachePrompt = false
-		if aloraStart < 0 {
-			r.loraAdapters[aloraID].scale = 0
+		if !alora.invoked {
+			var disabled float32
+			r.loraAdapters[alora.adapter].scale = disabled
 		}
 	}
 	keepTokens := effectiveKeepTokens(
@@ -99,17 +103,17 @@ func (r *Runner) Generate(
 	var cache *KVCache
 	var deviceCache *deviceKVCache
 	var selectedPromptCache *cachedPrompt
-	var projectionSignature [32]byte
+	var projectionSignature [sha256.Size]byte
 	if options.ProjectedInputs != nil {
 		projectionSignature = projectedInputsSignature(*options.ProjectedInputs)
 	}
-	useDeviceCache := options.ProjectedInputs == nil && aloraID < 0 &&
+	useDeviceCache := options.ProjectedInputs == nil && !alora.enabled &&
 		r.hasPreloadedWeights() && r.forwardProgram().PersistentDeviceCache()
 	// deviceGreedy: raw-greedy decode selects on device; only the winning
 	// token id crosses PCIe. Callbacks receive TokenEvent without Logits, so
 	// callback users must opt in via options.DeviceGreedy.
 	deviceGreedy := useDeviceCache && !options.CachePrompt &&
-		options.PostSamplingProbabilities == 0 && options.Sampler.IsRawGreedy() &&
+		!checked.Nonzero(options.PostSamplingProbabilities) && options.Sampler.IsRawGreedy() &&
 		(options.DeviceGreedy || (options.OnToken == nil && options.ShouldStop == nil))
 	defer func() {
 		if deviceCache != nil &&
@@ -117,9 +121,9 @@ func (r *Runner) Generate(
 			_ = deviceCache.Release(context.Background())
 		}
 	}()
-	if options.MaxNewTokens > 0 {
+	if checked.PositiveInts(options.MaxNewTokens) {
 		promptStarted := time.Now()
-		cached := 0
+		var cached int
 		if useDeviceCache {
 			var retainedPrefix *deviceKVCache
 			if options.CachePrompt {
@@ -130,21 +134,21 @@ func (r *Runner) Generate(
 				)
 			}
 			if selectedPromptCache != nil {
-				if cached > 0 &&
+				if checked.Nonzero(cached) &&
 					cached < len(selectedPromptCache.Tokens) &&
-					r.promptCacheCapacity > 1 {
+					checked.Multiple(r.promptCacheCapacity) {
 					// device suffix view would mutate selected entry
 					// Preserve independent multi-entry caches and evaluate
 					// divergent prompt from scratch
 					selectedPromptCache = nil
-					cached = 0
+					cached = tensor.FirstOffset
 				}
-				if cached > 0 &&
+				if checked.Nonzero(cached) &&
 					cached < len(selectedPromptCache.Tokens) &&
 					r.hasRecurrentCache() {
-					cached = 0
+					cached = tensor.FirstOffset
 				}
-				if cached > 0 {
+				if checked.Nonzero(cached) {
 					retainedPrefix = selectedPromptCache.Device
 					if cached < len(selectedPromptCache.Tokens) {
 						base := cached
@@ -154,8 +158,8 @@ func (r *Runner) Generate(
 						if cached == len(ids) {
 							base--
 						}
-						if base == 0 {
-							cached = 0
+						if !checked.Nonzero(base) {
+							cached = tensor.FirstOffset
 							retainedPrefix = nil
 						} else if trimErr := trimDeviceCacheSuffix(
 							retainedPrefix,
@@ -175,13 +179,13 @@ func (r *Runner) Generate(
 			}
 			if cached == len(ids) &&
 				retainedPrefix != nil &&
-				len(retainedPrefix.Logits) == 0 {
-				if cached <= 1 {
-					cached = 0
+				!checked.Nonzero(len(retainedPrefix.Logits)) {
+				if !checked.Multiple(cached) {
+					cached = tensor.FirstOffset
 					retainedPrefix = nil
 				} else if trimErr := trimDeviceCacheSuffix(
 					retainedPrefix,
-					uint32(cached-1),
+					uint32(cached-tensor.SingletonExtent),
 					r.program.Decode.Session,
 				); trimErr != nil {
 					return nil, "", trimErr
@@ -193,7 +197,7 @@ func (r *Runner) Generate(
 					)
 				}
 			}
-			if cached == len(ids) && len(retainedPrefix.Logits) > 0 {
+			if cached == len(ids) && checked.Nonzero(len(retainedPrefix.Logits)) {
 				deviceCache = retainedPrefix
 			} else {
 				deviceCache = retainedPrefix
@@ -213,14 +217,15 @@ func (r *Runner) Generate(
 					deviceCache = nextDevice
 				}
 			}
-		} else if aloraID >= 0 && aloraStart >= 0 {
-			r.loraAdapters[aloraID].scale = 0
-			if aloraStart > 0 {
-				_, cache, err = r.forwardCachedLocked(ctx, ids[:aloraStart], nil)
+		} else if alora.enabled && alora.invoked {
+			var disabled float32
+			r.loraAdapters[alora.adapter].scale = disabled
+			if checked.Nonzero(alora.start) {
+				_, cache, err = r.forwardCachedLocked(ctx, ids[:alora.start], nil)
 			}
-			r.loraAdapters[aloraID].scale = aloraScale
+			r.loraAdapters[alora.adapter].scale = aloraScale
 			if err == nil {
-				hidden, cache, err = r.forwardCachedLocked(ctx, ids[aloraStart:], cache)
+				hidden, cache, err = r.forwardCachedLocked(ctx, ids[alora.start:], cache)
 			}
 		} else if options.ProjectedInputs != nil {
 			if options.CachePrompt {
@@ -244,12 +249,12 @@ func (r *Runner) Generate(
 			if selectedPromptCache == nil {
 				hidden, cache, err = r.forwardCachedLocked(ctx, ids, nil)
 			} else {
-				if cached > 0 &&
+				if checked.Nonzero(cached) &&
 					cached < len(selectedPromptCache.Tokens) &&
 					r.hasRecurrentCache() {
-					cached = 0
+					cached = tensor.FirstOffset
 				}
-				if cached > 0 {
+				if checked.Nonzero(cached) {
 					hidden = selectedPromptCache.Hidden
 					cache = selectedPromptCache.Cache
 					if cached < len(selectedPromptCache.Tokens) {
@@ -311,13 +316,13 @@ func (r *Runner) Generate(
 
 	var generatedText strings.Builder
 	for generatedIndex := range options.MaxNewTokens {
-		if generatedIndex > 0 {
+		if checked.Nonzero(generatedIndex) {
 			if options.ContextShift {
 				var shiftedDeviceCache *deviceKVCache
 				shiftedDeviceCache, err = r.compactDeviceCacheForAppend(
 					ctx,
 					deviceCache,
-					1,
+					tensor.SingletonExtent,
 					keepTokens,
 					options.DiscardTokens,
 					r.ownsDevicePromptCache(deviceCache),
@@ -336,16 +341,17 @@ func (r *Runner) Generate(
 				}
 			}
 			var nextDeviceCache *deviceKVCache
+			lastIDs, _ := checked.LastSlice(ids)
 			if deviceGreedy {
 				nextDeviceCache, err = r.forwardDeviceCachedGreedyStepLocked(
 					ctx,
-					[]tokenizer.TokenID{ids[len(ids)-1]},
+					lastIDs,
 					deviceCache,
 				)
 			} else {
 				_, nextDeviceCache, err = r.forwardDeviceCachedLocked(
 					ctx,
-					[]tokenizer.TokenID{ids[len(ids)-1]},
+					lastIDs,
 					deviceCache,
 				)
 			}
@@ -390,18 +396,20 @@ func (r *Runner) Generate(
 }
 
 func reusablePromptPrefix(cached, requested []tokenizer.TokenID, minimum int) int {
-	if len(cached) == 0 || len(requested) == 0 {
-		return 0
+	if !checked.Nonzero(len(cached)) || !checked.Nonzero(len(requested)) {
+		var unavailable int
+		return unavailable
 	}
 	common := min(len(cached), len(requested))
-	for index := 0; index < common; index++ {
+	for index := range common {
 		if cached[index] != requested[index] {
 			common = index
 			break
 		}
 	}
 	if common < minimum {
-		return 0
+		var unavailable int
+		return unavailable
 	}
 	return common
 }
@@ -427,12 +435,12 @@ func (r *Runner) promptTokenIDs(prompt string, options GenerateOptions) ([]token
 		if err != nil {
 			return nil, err
 		}
-		if len(ids) == 0 {
+		if !checked.Nonzero(len(ids)) {
 			return nil, errors.New("inference: prompt produced no tokens")
 		}
 		return ids, nil
 	}
-	if len(options.PromptTokenIDs) == 0 {
+	if !checked.Nonzero(len(options.PromptTokenIDs)) {
 		return nil, errors.New("inference: exact prompt token list is empty")
 	}
 	ids := slices.Clone(options.PromptTokenIDs)
@@ -449,9 +457,6 @@ func (r *Runner) promptTokenIDs(prompt string, options GenerateOptions) ([]token
 }
 
 func validateStopSequences(stops []string) error {
-	if len(stops) > 256 {
-		return errors.New("inference: stop sequence count exceeds 256")
-	}
 	for _, stop := range stops {
 		if stop == "" {
 			return errors.New("inference: stop sequence is empty")

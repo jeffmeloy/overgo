@@ -42,6 +42,7 @@ func TestMistral3AttentionTemperatureInput(t *testing.T) {
 }
 
 func TestDeepSeek4PositionRequiresExactF32Representation(t *testing.T) {
+	maximumExactPosition := uint32(1 << 24)
 	builder := tensor.NewBuilder()
 	feeds := make(map[*tensor.Tensor]reference.Value)
 	weights := model.LayerGraphWeights{}
@@ -50,7 +51,7 @@ func TestDeepSeek4PositionRequiresExactF32Representation(t *testing.T) {
 	if _, err := bindLayerSideInputs(
 		builder,
 		spec,
-		[]uint32{maxExactFloat32Position},
+		[]uint32{maximumExactPosition},
 		plan,
 		feeds,
 		&weights,
@@ -61,7 +62,7 @@ func TestDeepSeek4PositionRequiresExactF32Representation(t *testing.T) {
 	if _, err := bindLayerSideInputs(
 		tensor.NewBuilder(),
 		spec,
-		[]uint32{maxExactFloat32Position + 1},
+		[]uint32{maximumExactPosition + 1},
 		plan,
 		make(map[*tensor.Tensor]reference.Value),
 		&model.LayerGraphWeights{},

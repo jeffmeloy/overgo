@@ -5,6 +5,8 @@ import (
 	"errors"
 	"slices"
 
+	"overgo/internal/checked"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -32,7 +34,7 @@ func (r *Runner) DraftPairedFeatureGreedy(
 	if err != nil {
 		return nil, err
 	}
-	index := 0
+	index := tensor.FirstOffset
 	return draftGreedy(
 		initialToken, session, maximum, minimumProbability, target.vocab.IsEOG,
 		func(_ tokenizer.TokenID, state *PairedFeatureSession) (reference.Value, *PairedFeatureSession, error) {
@@ -62,7 +64,7 @@ func (r *Runner) VerifyPairedFeatureGreedy(
 
 func validPairedFeatureSession(session *PairedFeatureSession) bool {
 	return session != nil && session.Cache != nil && session.TargetCache != nil &&
-		len(session.TargetTokens) > 0 && session.Position == uint32(len(session.TargetTokens)) &&
+		checked.Nonzero(len(session.TargetTokens)) && session.Position == uint32(len(session.TargetTokens)) &&
 		session.Cache.Position == session.Position &&
 		effectiveCachePosition(session.TargetCache) == session.Position
 }
@@ -94,7 +96,7 @@ func (r *Runner) advancePairedFeatureVerification(
 	}
 	next := &PairedFeatureSession{
 		Cache: cache, TargetCache: targetCache, TargetTokens: tokens,
-		Position: session.Position + 1,
+		Position: session.Position + uint32(tensor.SingletonExtent),
 	}
 	if !validPairedFeatureSession(next) {
 		return reference.Value{}, nil, errors.New("inference: paired-feature verification cache resync failed")
@@ -103,9 +105,14 @@ func (r *Runner) advancePairedFeatureVerification(
 }
 
 func pairedFeatureLogitRow(logits reference.Value, row int, vocabulary int) ([]float32, error) {
-	if logits.Shape.Rank != 2 || vocabulary <= 0 || logits.Shape.Dims[0] != uint64(vocabulary) ||
-		row < 0 || row >= int(logits.Shape.Dims[1]) || len(logits.Data) != vocabulary*int(logits.Shape.Dims[1]) {
+	rowIndex, validIndex := checked.Uint64(int64(row))
+	rows, validMatrix := tensor.MatrixRows(logits.Shape, uint64(vocabulary))
+	if !checked.PositiveInts(vocabulary) || !validIndex || !validMatrix || !checked.Less64(rowIndex, rows) {
 		return nil, errors.New("inference: paired-feature block logits are incompatible")
 	}
-	return logits.Data[row*vocabulary : (row+1)*vocabulary], nil
+	selected, err := reference.SelectRows(logits, rowIndex, tensor.SingletonExtent)
+	if err != nil {
+		return nil, errors.New("inference: paired-feature block logits are incompatible")
+	}
+	return selected.Data, nil
 }

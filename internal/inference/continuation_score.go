@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/sequencescore"
 	"overgo/internal/tokenizer"
 )
@@ -18,14 +19,14 @@ func (r *Runner) ScoreContinuations(
 	if r == nil || r.vocab == nil {
 		return nil, errRunnerNil
 	}
-	if ctx == nil || prompt == "" || len(candidates) < 2 {
+	if ctx == nil || prompt == "" || !checked.Multiple(len(candidates)) {
 		return nil, errors.New("inference: incomplete continuation scoring request")
 	}
 	promptIDs, err := r.vocab.Encode(prompt, tokenizer.EncodeOptions{AddSpecial: true})
 	if err != nil {
 		return nil, err
 	}
-	if len(promptIDs) == 0 {
+	if !checked.Nonzero(len(promptIDs)) {
 		return nil, errors.New("inference: continuation prompt produced no tokens")
 	}
 	continuations := make([][]tokenizer.TokenID, len(candidates))
@@ -51,7 +52,7 @@ func (r *Runner) ScoreContinuations(
 		return nil, err
 	}
 	last := hidden.LastRowView()
-	if len(last.Data) == 0 {
+	if !checked.Nonzero(len(last.Data)) {
 		return nil, errors.New("inference: continuation hidden state is incompatible")
 	}
 	firstLogits, err := r.logitsBatch(ctx, r.outputTensor(), last)
@@ -62,15 +63,17 @@ func (r *Runner) ScoreContinuations(
 	result := make([]sequencescore.Score, len(continuations))
 	for candidateIndex, continuation := range continuations {
 		var score sequencescore.Accumulator
-		value, err := negativeLogProbability(firstLogits, int(continuation[0]))
+		first, _ := checked.First(continuation)
+		value, err := negativeLogProbability(firstLogits, int(first))
 		if err != nil {
 			return nil, err
 		}
 		if err := score.Observe(-value); err != nil {
 			return nil, err
 		}
-		if len(continuation) > 1 {
-			branchHidden, _, err := r.forwardCachedLocked(ctx, continuation[:len(continuation)-1], cloneCache(cache))
+		if checked.Multiple(len(continuation)) {
+			prefix, _ := checked.Init(continuation)
+			branchHidden, _, err := r.forwardCachedLocked(ctx, prefix, cloneCache(cache))
 			if err != nil {
 				return nil, err
 			}
@@ -78,8 +81,10 @@ func (r *Runner) ScoreContinuations(
 			if err != nil {
 				return nil, err
 			}
-			for index, target := range continuation[1:] {
-				value, err := negativeLogProbability(logits[index*vocabulary:(index+1)*vocabulary], int(target))
+			targets, _ := checked.Tail(continuation)
+			for index, target := range targets {
+				rowStart := index * vocabulary
+				value, err := negativeLogProbability(logits[rowStart:rowStart+vocabulary], int(target))
 				if err != nil {
 					return nil, err
 				}

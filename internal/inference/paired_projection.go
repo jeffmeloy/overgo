@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -18,6 +19,11 @@ type PairedProjectionSession struct {
 	Position      uint32
 }
 
+type pairedProjectionCache struct {
+	key   *tensor.Tensor
+	value *tensor.Tensor
+}
+
 // NewPairedProjectionSession creates shared target-prefix context.
 func (r *Runner) NewPairedProjectionSession(
 	ctx context.Context,
@@ -25,7 +31,7 @@ func (r *Runner) NewPairedProjectionSession(
 	tokenIDs []tokenizer.TokenID,
 	inputs *ProjectedInputs,
 ) (*PairedProjectionSession, error) {
-	if r == nil || target == nil || r == target || r.path == target.path || len(tokenIDs) == 0 {
+	if r == nil || target == nil || r == target || r.path == target.path || !checked.Nonzero(len(tokenIDs)) {
 		return nil, errors.New("inference: paired projection inputs are invalid")
 	}
 	if err := r.validatePairedProjectionTarget(target); err != nil {
@@ -76,15 +82,13 @@ func (r *Runner) AdvancePairedProjection(
 		return reference.Value{}, nil, fmt.Errorf("inference: paired target cache: %w", err)
 	}
 	if effectiveCachePosition(session.TargetCache) != session.Position ||
-		session.PendingHidden.Shape.Rank != 2 ||
-		session.PendingHidden.Shape.Dims[0] != uint64(r.spec.TargetHiddenSize) ||
-		session.PendingHidden.Shape.Dims[1] != 1 {
+		!tensor.IsMatrix(session.PendingHidden.Shape, uint64(r.spec.TargetHiddenSize), tensor.SingletonExtent) {
 		return reference.Value{}, nil, errors.New("inference: paired projection session state is incompatible")
 	}
-	if tokenID < 0 || int(tokenID) >= target.vocab.Len() {
+	if _, valid := target.vocab.Token(tokenID); !valid {
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
-	targetEmbedding, err := target.loadEmbeddings(ctx, []uint32{uint32(tokenID)})
+	targetEmbedding, err := target.gatherTensor(ctx, target.weights.TokenEmbedding, []uint32{uint32(tokenID)})
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -103,16 +107,16 @@ func (r *Runner) AdvancePairedProjection(
 		return reference.Value{}, nil, err
 	}
 	current := fused.Primary
-	cacheInputs := make(map[bool][2]*tensor.Tensor, 2)
+	cacheInputs := make(map[bool]pairedProjectionCache)
 	for _, sliding := range []bool{true, false} {
-		source := len(session.TargetCache.Layers) - 1
+		source := len(session.TargetCache.Layers) - tensor.SingletonExtent
 		if sliding {
 			source--
 		}
 		layerCache := session.TargetCache.Layers[source]
 		key := runtime.input(fmt.Sprintf("paired_projection.shared_%t_key", sliding), layerCache.Key)
 		value := runtime.input(fmt.Sprintf("paired_projection.shared_%t_value", sliding), layerCache.Value)
-		cacheInputs[sliding] = [2]*tensor.Tensor{key, value}
+		cacheInputs[sliding] = pairedProjectionCache{key: key, value: value}
 	}
 	for layerIndex, info := range r.weights.Layers {
 		program := r.layerProgram(layerIndex)
@@ -124,7 +128,7 @@ func (r *Runner) AdvancePairedProjection(
 		shared := cacheInputs[plan.Sliding]
 		block, err := program.Build(model.CachedBlockContext{
 			Builder: runtime.builder, Input: current, Positions: []uint32{session.Position},
-			PastKey: shared[0], PastValue: shared[1], Layer: plan.Layer,
+			PastKey: shared.key, PastValue: shared.value, Layer: plan.Layer,
 		}, graphWeights)
 		if err != nil {
 			return reference.Value{}, nil, fmt.Errorf("inference paired projection layer %d: %w", layerIndex, err)

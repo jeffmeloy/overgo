@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
@@ -24,7 +25,7 @@ func (r *Runner) forwardPackedDeviceCohortsLocked(
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, bool, error) {
-	if len(appends) < 2 || !r.forwardProgram().DeviceBatchSelection() {
+	if !checked.Multiple(len(appends)) || !r.forwardProgram().DeviceBatchSelection() {
 		return nil, false, nil
 	}
 	for _, item := range appends {
@@ -33,7 +34,7 @@ func (r *Runner) forwardPackedDeviceCohortsLocked(
 		}
 	}
 	packed, remainder := planDeviceCohorts(appends)
-	if len(packed) == 0 {
+	if !checked.Nonzero(len(packed)) {
 		return nil, false, nil
 	}
 	next := make([]*deviceKVCache, len(appends))
@@ -78,7 +79,7 @@ func (r *Runner) forwardPackedDeviceCohortsLocked(
 			return fail(err)
 		}
 	}
-	if len(remainder) > 0 {
+	if checked.Nonzero(len(remainder)) {
 		if err := execute(remainder, false); err != nil {
 			return fail(err)
 		}
@@ -87,11 +88,11 @@ func (r *Runner) forwardPackedDeviceCohortsLocked(
 }
 
 func planDeviceCohorts(appends []deviceBatchAppend) ([][]int, []int) {
-	cohorts := make([][]int, 0)
+	var cohorts [][]int
 	byKey := make(map[deviceCohortKey]int)
-	remainder := make([]int, 0)
+	var remainder []int
 	for index, item := range appends {
-		if item.Past == nil || len(item.Tokens) != 1 {
+		if item.Past == nil || len(item.Tokens) != tensor.SingletonExtent {
 			remainder = append(remainder, index)
 			continue
 		}
@@ -104,15 +105,15 @@ func planDeviceCohorts(appends []deviceBatchAppend) ([][]int, []int) {
 		}
 		cohorts[cohort] = append(cohorts[cohort], index)
 	}
-	packed := cohorts[:0]
+	packed := checked.Reset(cohorts)
 	for _, cohort := range cohorts {
-		if len(cohort) < 2 {
+		if !checked.Multiple(len(cohort)) {
 			remainder = append(remainder, cohort...)
 			continue
 		}
 		packed = append(packed, cohort)
 	}
-	if len(packed) == 0 {
+	if !checked.Nonzero(len(packed)) {
 		return nil, remainder
 	}
 	slices.Sort(remainder)
@@ -133,13 +134,13 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	}
 	tokens := make([]tokenizer.TokenID, len(appends))
 	for index, item := range appends {
-		tokens[index] = item.Tokens[0]
+		tokens[index], _ = checked.First(item.Tokens)
 	}
 	builder := r.newGraphBuilder()
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
 	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
 	graph, err := r.buildDeviceCachedBatchBranch(
-		builder, 0, tokens, packedPast, uint64(len(appends)), plan,
+		builder, tensor.FirstOffset, tokens, packedPast, uint64(len(appends)), plan,
 		tensor.CacheWriteConcat, hostFeeds, deviceFeeds,
 	)
 	if err != nil {
@@ -180,7 +181,7 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 		if !present {
 			return fail(fmt.Errorf("inference: packed value is missing for layer %d", layer))
 		}
-		if len(graph.states[layer]) != 0 {
+		if checked.Nonzero(len(graph.states[layer])) {
 			packedStates[layer] = make(deviceLayerStates, len(graph.states[layer]))
 			for name, state := range graph.states[layer] {
 				value, ok := retained.Value(state.Value)
@@ -211,7 +212,7 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 			if err != nil {
 				return fail(fmt.Errorf("inference: split packed value layer %d: %w", layer, err))
 			}
-			if len(packedStates[layer]) != 0 {
+			if checked.Nonzero(len(packedStates[layer])) {
 				cache.States[layer] = make(deviceLayerStates, len(packedStates[layer]))
 				for name, state := range packedStates[layer] {
 					template, ok := item.Past.States[layer][name]
@@ -247,24 +248,26 @@ func (r *Runner) packDeviceBatchCaches(
 	ctx context.Context,
 	appends []deviceBatchAppend,
 ) (*deviceKVCache, *executor.RetainedOutputs, error) {
-	first := appends[0].Past
+	firstAppend, _ := checked.First(appends)
+	first := firstAppend.Past
 	if first == nil || len(first.Keys) != len(r.weights.Layers) || len(first.Values) != len(r.weights.Layers) {
 		return nil, nil, errors.New("inference: packed device cache layer count differs")
 	}
-	for _, item := range appends[1:] {
+	remainder, _ := checked.Tail(appends)
+	for _, item := range remainder {
 		if item.Past == nil || len(item.Past.Keys) != len(first.Keys) ||
 			len(item.Past.Values) != len(first.Values) || len(item.Past.States) != len(first.States) {
 			return nil, nil, errors.New("inference: packed device cache layout differs")
 		}
 	}
-	hasSelection := first.Selection.Pointer != 0
-	for _, item := range appends[1:] {
-		hasSelection = hasSelection && item.Past.Selection.Pointer != 0
+	hasSelection := checked.Nonzero(first.Selection.Pointer)
+	for _, item := range remainder {
+		hasSelection = hasSelection && checked.Nonzero(item.Past.Selection.Pointer)
 	}
 	if packed, ok := packedDeviceBatchView(appends); ok {
 		return packed, nil, nil
 	}
-	copies := make([]executor.DeviceCopy, 0, len(first.Keys)*2)
+	var copies []executor.DeviceCopy
 	stateNames := make([][]model.CacheStateName, len(first.Keys))
 	collect := func(selectValue func(*deviceKVCache) executor.DeviceValue) error {
 		values := make([]executor.DeviceValue, len(appends))
@@ -310,11 +313,11 @@ func (r *Runner) packDeviceBatchCaches(
 		States: make([]deviceLayerStates, len(first.States)), Tokens: first.Tokens,
 		Position: first.Position,
 	}
-	valueIndex := 0
+	var valueIndex int
 	for layer := range packed.Keys {
-		packed.Keys[layer], packed.Values[layer] = values[valueIndex], values[valueIndex+1]
+		packed.Keys[layer], packed.Values[layer] = values[valueIndex], values[valueIndex+tensor.SingletonExtent]
 		valueIndex += tensor.PairedExtent
-		if len(stateNames[layer]) != 0 {
+		if checked.Nonzero(len(stateNames[layer])) {
 			packed.States[layer] = make(deviceLayerStates, len(stateNames[layer]))
 			for _, name := range stateNames[layer] {
 				mode := first.States[layer][name].Mode
@@ -331,7 +334,8 @@ func (r *Runner) packDeviceBatchCaches(
 }
 
 func packedDeviceBatchView(appends []deviceBatchAppend) (*deviceKVCache, bool) {
-	first := appends[0].Past
+	firstAppend, _ := checked.First(appends)
+	first := firstAppend.Past
 	packed := &deviceKVCache{
 		Keys: make([]executor.DeviceValue, len(first.Keys)), Values: make([]executor.DeviceValue, len(first.Values)),
 		States: make([]deviceLayerStates, len(first.States)), Tokens: first.Tokens,
@@ -390,9 +394,9 @@ func packedDeviceBatchView(appends []deviceBatchAppend) (*deviceKVCache, bool) {
 			}
 		}
 	}
-	if first.Selection.Pointer != 0 {
+	if checked.Nonzero(first.Selection.Pointer) {
 		selection, ok := view(func(cache *deviceKVCache) (executor.DeviceValue, bool) {
-			return cache.Selection, cache.Selection.Pointer != 0
+			return cache.Selection, checked.Nonzero(cache.Selection.Pointer)
 		})
 		if !ok {
 			return nil, false

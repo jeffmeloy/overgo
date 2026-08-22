@@ -16,6 +16,8 @@ const NullToken TokenID = -1
 // TokenID: compatible with llama_token
 type TokenID int32
 
+func ValidID(id TokenID, size uint32) bool { return id >= 0 && uint32(id) < size }
+
 // TokenType: tokenizer.ggml.token_type value.
 type TokenType int32
 

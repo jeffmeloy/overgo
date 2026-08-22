@@ -320,7 +320,7 @@
      "contains": "func (r *Runner) forwardDenseLayersPreloaded(",
      "path": "internal/inference/runner_layers.go",
      "role": "source",
-     "identity": "file:sha256:2d019997e2cbd88a231a4afad5803d660c9c91d4cf70aee345c98f684acfb93a"
+     "identity": "file:sha256:8dacbdf119aa5b4908286cb8b3264a7e8266bb02671cc54c07c803ac358bc82f"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -348,7 +348,7 @@
      "contains": "func ProjectedInputsForPrompt(",
      "path": "internal/inference/multimodal_prompt.go",
      "role": "source",
-     "identity": "file:sha256:4183a74c818e9e5d280a2deb7ca88d08363bfcdfd730ca934bf40a52c3075a5e"
+     "identity": "file:sha256:c6d6d97fd36e890062a9a0e3b57ad749e8fbef968e72f4faa99b7cf723b1f5c1"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -478,7 +478,7 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:af411c3f9d37de5a3f104ee9e6b5b448b4b759753d07fdb643b6c8335b361498"
+     "identity": "file:sha256:6f56d380b4ebded6b0ed5ee49ac31f4eded3c36bc3855c6a2a5f0dd3277bdac7"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -541,7 +541,7 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:c355e98cf4302ada66b96acbb465119537fcfe18cb5b1e737cc3bbb884722f60"
+     "identity": "file:sha256:f8b0ad8e381480b5204739a2c4cfa1b2bceec185e0214ad07d12314f49d1c3b4"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
@@ -779,7 +779,7 @@
      "contains": "func (s *chatOutputStream) Accept(",
      "path": "internal/inference/chat_stream.go",
      "role": "source",
-     "identity": "file:sha256:dbe4579c983019ea1be0863ee4b87dba5314b342251fe1fdf249f3239b522955"
+     "identity": "file:sha256:89aa0fc5352d1ae0eed377fd60aec5077328e4c9489fa7bd51f337cce284b78e"
     },
     {
      "contains": "func TestStreamingResponsesFunctionCallLifecycle(",
@@ -905,7 +905,7 @@
      "contains": "func LookupArchitecture(",
      "path": "internal/model/architecture.go",
      "role": "source",
-     "identity": "file:sha256:39f92c9c2d86c40e2a5b8bdfc931d8c8935f7b4faff954f95585be7ad5f890b3"
+     "identity": "file:sha256:dc4a9b3e7cf017880188845a0404f6cfa040b0761028c5709edaa51c82db4ec9"
     },
     {
      "contains": "func TestArchitectureRegistryProfiles(",
@@ -953,7 +953,7 @@
      "contains": "func (b *ContinuousBatch) Step(",
      "path": "internal/inference/continuous_batch.go",
      "role": "source",
-     "identity": "file:sha256:e97789aa00dd00cb86c6c13661694fed320eea2a7fe8541dedb1b8e7411105bb"
+     "identity": "file:sha256:6437041980357bdb829e7f55796e2263c98044369f2b0787b3ac68d0982464a9"
     },
     {
      "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
@@ -974,7 +974,7 @@
      "contains": "func (r *Runner) NewEncoderDecoderBatchSession(",
      "path": "internal/inference/encoder_decoder_batch.go",
      "role": "source",
-     "identity": "file:sha256:e453df5f1053047c3c11ab1862a544dba9bee03e7f24cb6e74375c73a2070dc6"
+     "identity": "file:sha256:be6dc84cfb8733b4cf05cc01d88eb6fccff8abe28c7d8af37481a740a5fd1e20"
     },
     {
      "contains": "func TestValidatePaddedTokenBatchMasksSuffixes(",
@@ -1050,7 +1050,7 @@
      "contains": "func TestExactAttentionCaptureRejectsModifiedScorePolicies(",
      "path": "internal/inference/attention_capture_probe_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:00fe9df390b7a7d0525e7d3712fb696b529b66490422dfd9bcbec05e32cf66a1"
+     "identity": "evidence:sha256:47bb95c31229203da8f56765381ba4fc958a3bc08e27d3a26dbde024e6271d8a"
     }
    ],
    "id": "exact-attention-workbench",

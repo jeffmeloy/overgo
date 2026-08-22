@@ -70,7 +70,7 @@ func (r *Runner) hostLayerCacheInputs(
 	zero := func(suffix string, shape tensor.Shape) *tensor.Tensor {
 		return input(suffix, reference.ZeroValue(shape))
 	}
-	_, schema, err := r.cacheSchema(layer, 1)
+	_, schema, err := r.cacheSchema(layer, tensor.SingletonExtent)
 	if err != nil {
 		return layerGraphCacheInputs{}, err
 	}

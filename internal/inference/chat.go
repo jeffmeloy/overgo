@@ -10,17 +10,6 @@ import (
 	"overgo/internal/strictjson"
 )
 
-const (
-	chatMLStart       = "<|im_start|>"
-	chatMLEnd         = "<|im_end|>"
-	gemmaTurnStart    = "<start_of_turn>"
-	gemmaTurnEnd      = "<end_of_turn>"
-	llama3HeaderStart = "<|start_header_id|>"
-	llama3HeaderEnd   = "<|end_header_id|>"
-	llama3EndTurn     = "<|eot_id|>"
-	llama3BeginText   = "<|begin_of_text|>"
-)
-
 type ChatRole string
 
 const (
@@ -300,8 +289,7 @@ func validateChatToolCall(call ChatToolCall) error {
 	return nil
 }
 
-// FormatChat: selects native formatter from boundary tokens in loaded
-// vocabulary; Supported families currently include ChatML and Gemma turns
+// FormatChat renders the chat template carried by the loaded artifact.
 func (r *Runner) FormatChat(messages []ChatMessage) (string, error) {
 	return r.FormatChatWithOptions(messages, ChatFormatOptions{
 		AddGenerationPrompt: true,
@@ -336,27 +324,7 @@ func (r *Runner) FormatChatWithOptions(
 	if len(options.Tools) != 0 {
 		return "", errors.New("inference: tools require a GGUF Jinja chat template")
 	}
-	if !options.AddGenerationPrompt {
-		return "", errors.New("inference: native chat formatters require add_generation_prompt")
-	}
-	if _, start := r.vocab.ID(chatMLStart); start {
-		if _, end := r.vocab.ID(chatMLEnd); end {
-			return formatChatML(messages)
-		}
-	}
-	if _, start := r.vocab.ID(gemmaTurnStart); start {
-		if _, end := r.vocab.ID(gemmaTurnEnd); end {
-			return formatGemmaChat(messages)
-		}
-	}
-	if _, start := r.vocab.ID(llama3HeaderStart); start {
-		if _, end := r.vocab.ID(llama3HeaderEnd); end {
-			if _, eot := r.vocab.ID(llama3EndTurn); eot {
-				return formatLlama3Chat(messages)
-			}
-		}
-	}
-	return "", errors.New("inference: vocabulary has no supported chat-template boundaries")
+	return "", errors.New("inference: GGUF artifact has no chat template")
 }
 
 // buildChatContext assembles the template variable context shared by the gonja
@@ -576,138 +544,4 @@ func normalizeChatTemplateSource(source string) string {
 func chatTemplateUsesObjectArguments(source string) bool {
 	return strings.Contains(source, "tool_call.arguments") &&
 		strings.Contains(source, "| tojson")
-}
-
-func formatChatML(messages []ChatMessage) (string, error) {
-	if len(messages) == 0 {
-		return "", errors.New("inference: chat message list is empty")
-	}
-	var result strings.Builder
-	for index, message := range messages {
-		if !message.Role.Valid() {
-			return "", fmt.Errorf("inference: chat message %d has unsupported role %q", index, message.Role)
-		}
-		if strings.Contains(message.Content, chatMLStart) ||
-			strings.Contains(message.Content, chatMLEnd) {
-			return "", fmt.Errorf("inference: chat message %d contains a ChatML boundary token", index)
-		}
-		result.WriteString(chatMLStart)
-		result.WriteString(string(message.Role))
-		result.WriteByte('\n')
-		result.WriteString(message.Content)
-		result.WriteString(chatMLEnd)
-		result.WriteByte('\n')
-	}
-	result.WriteString(chatMLStart)
-	result.WriteString(string(ChatRoleAssistant))
-	result.WriteByte('\n')
-	return result.String(), nil
-}
-
-func formatGemmaChat(messages []ChatMessage) (string, error) {
-	if len(messages) == 0 {
-		return "", errors.New("inference: chat message list is empty")
-	}
-	firstUserPrefix := ""
-	first := 0
-	if messages[0].Role == ChatRoleSystem {
-		if err := rejectChatBoundary(messages[0].Content, 0, gemmaTurnStart, gemmaTurnEnd); err != nil {
-			return "", err
-		}
-		firstUserPrefix = messages[0].Content + "\n\n"
-		first = 1
-	}
-	var result strings.Builder
-	for index := first; index < len(messages); index++ {
-		message := messages[index]
-		wantRole := ChatRoleUser
-		renderedRole := "user"
-		if (index-first)%2 == 1 {
-			wantRole = ChatRoleAssistant
-			renderedRole = "model"
-		}
-		if message.Role != wantRole {
-			return "", fmt.Errorf(
-				"inference: Gemma chat message %d role %q; want %q",
-				index,
-				message.Role,
-				wantRole,
-			)
-		}
-		if err := rejectChatBoundary(message.Content, index, gemmaTurnStart, gemmaTurnEnd); err != nil {
-			return "", err
-		}
-		result.WriteString(gemmaTurnStart)
-		result.WriteString(renderedRole)
-		result.WriteByte('\n')
-		if index == first {
-			result.WriteString(firstUserPrefix)
-		}
-		result.WriteString(strings.TrimSpace(message.Content))
-		result.WriteString(gemmaTurnEnd)
-		result.WriteByte('\n')
-	}
-	result.WriteString(gemmaTurnStart)
-	result.WriteString("model\n")
-	return result.String(), nil
-}
-
-func formatLlama3Chat(messages []ChatMessage) (string, error) {
-	if len(messages) == 0 {
-		return "", errors.New("inference: chat message list is empty")
-	}
-	var result strings.Builder
-	nextRole := ChatRoleUser
-	for index, message := range messages {
-		if index == 0 && message.Role == ChatRoleSystem {
-			nextRole = ChatRoleUser
-		} else {
-			if message.Role != nextRole {
-				return "", fmt.Errorf(
-					"inference: Llama 3 chat message %d role %q; want %q",
-					index,
-					message.Role,
-					nextRole,
-				)
-			}
-			if nextRole == ChatRoleUser {
-				nextRole = ChatRoleAssistant
-			} else {
-				nextRole = ChatRoleUser
-			}
-		}
-		if err := rejectChatBoundary(
-			message.Content,
-			index,
-			llama3BeginText,
-			llama3HeaderStart,
-			llama3HeaderEnd,
-			llama3EndTurn,
-		); err != nil {
-			return "", err
-		}
-		result.WriteString(llama3HeaderStart)
-		result.WriteString(string(message.Role))
-		result.WriteString(llama3HeaderEnd)
-		result.WriteString("\n\n")
-		result.WriteString(strings.TrimSpace(message.Content))
-		result.WriteString(llama3EndTurn)
-	}
-	result.WriteString(llama3HeaderStart)
-	result.WriteString(string(ChatRoleAssistant))
-	result.WriteString(llama3HeaderEnd)
-	result.WriteString("\n\n")
-	return result.String(), nil
-}
-
-func rejectChatBoundary(content string, index int, boundaries ...string) error {
-	for _, boundary := range boundaries {
-		if strings.Contains(content, boundary) {
-			return fmt.Errorf(
-				"inference: chat message %d contains a chat boundary token",
-				index,
-			)
-		}
-	}
-	return nil
 }

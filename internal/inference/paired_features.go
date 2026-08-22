@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -26,7 +27,7 @@ func (r *Runner) NewPairedFeatureSession(
 	target *Runner,
 	tokenIDs []tokenizer.TokenID,
 ) (*PairedFeatureSession, error) {
-	if r == nil || target == nil || len(tokenIDs) == 0 {
+	if r == nil || target == nil || !checked.Nonzero(len(tokenIDs)) {
 		return nil, errors.New("inference: paired-feature session inputs are invalid")
 	}
 	_, targetCache, features, err := target.ForwardCachedExtractLayerInputs(
@@ -39,7 +40,8 @@ func (r *Runner) NewPairedFeatureSession(
 	if err != nil {
 		return nil, err
 	}
-	positions := tokenPositions(0, len(tokenIDs))
+	var origin uint32
+	positions := tokenPositions(origin, len(tokenIDs))
 	cache, err := r.InjectPairedFeatures(ctx, fused, positions, nil)
 	if err != nil {
 		return nil, err
@@ -67,7 +69,7 @@ func (r *Runner) SyncPairedFeaturePrefix(
 	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures || target.spec.EmbeddingLength != r.spec.EmbeddingLength {
 		return nil, errors.New("inference: paired-feature target is incompatible")
 	}
-	start := 0
+	var start int
 	if cache != nil {
 		start = int(cache.Tokens)
 		if start > len(tokenIDs) {
@@ -81,9 +83,9 @@ func (r *Runner) SyncPairedFeaturePrefix(
 	if err != nil {
 		return nil, err
 	}
-	featureWidth := int(features.Shape.Dims[0])
+	featureWidth, _, _ := features.MatrixExtents()
 	features = reference.Value{
-		Shape: tensor.MustShape(features.Shape.Dims[0], uint64(len(tokenIDs)-start)),
+		Shape: tensor.MustShape(uint64(featureWidth), uint64(len(tokenIDs)-start)),
 		Data:  slices.Clone(features.Data[start*featureWidth:]),
 	}
 	fused, err := r.projectFeatures(ctx, features)
@@ -114,16 +116,20 @@ func (r *Runner) InjectPairedFeatures(
 	if r.forwardProgram().Session != model.ForwardSessionPairedFeatures {
 		return nil, errors.New("inference: cache injection requires a paired-feature program")
 	}
-	if fused.Shape.Rank != 2 || fused.Shape.Dims[1] != uint64(len(positions)) {
+	_, fusedRows, validFused := fused.MatrixExtents()
+	if !validFused || !checked.Equal(fusedRows, len(positions)) {
 		return nil, errors.New("inference: paired-feature shape is incompatible")
 	}
-	for index, position := range positions {
-		if index > 0 && position != positions[index-1]+1 {
+	previousPositions, _ := checked.Init(positions)
+	nextPositions, _ := checked.Tail(positions)
+	for index, previous := range previousPositions {
+		if nextPositions[index] != previous+uint32(tensor.SingletonExtent) {
 			return nil, errors.New("inference: paired-feature positions are not contiguous")
 		}
-		if index == 0 && cache != nil && position != cache.Position {
-			return nil, errors.New("inference: paired-feature position does not append cache")
-		}
+	}
+	firstPosition, hasPosition := checked.First(positions)
+	if hasPosition && cache != nil && firstPosition != cache.Position {
+		return nil, errors.New("inference: paired-feature position does not append cache")
 	}
 	if cache != nil && len(cache.Layers) != len(r.weights.Layers) {
 		return nil, errors.New("inference: paired-feature cache layer count is incompatible")
@@ -144,8 +150,9 @@ func (r *Runner) InjectPairedFeatures(
 		next.Layers[layerIndex] = layer
 	}
 	next.Tokens += uint32(len(positions))
-	if len(positions) > 0 {
-		next.Position = positions[len(positions)-1] + 1
+	if finalSlice, ok := checked.LastSlice(positions); ok {
+		finalPosition, _ := checked.First(finalSlice)
+		next.Position = finalPosition + uint32(tensor.SingletonExtent)
 	}
 	return next, nil
 }
@@ -165,7 +172,7 @@ func (r *Runner) injectPairedFeatureLayer(
 		return LayerCache{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
-	if past != nil && past.Key.Shape.Rank != 0 {
+	if past != nil && past.Key.Defined() {
 		pastKey = runtime.input("paired_features.past_key", past.Key)
 		pastValue = runtime.input("paired_features.past_value", past.Value)
 	}
@@ -208,14 +215,14 @@ func (r *Runner) DecodePairedFeatureBlock(
 		target.spec.VocabularySize != r.spec.VocabularySize {
 		return reference.Value{}, errors.New("inference: paired-feature target is incompatible")
 	}
-	if len(tokenIDs) == 0 || len(tokenIDs) != len(positions) || cache == nil || len(cache.Layers) != len(r.weights.Layers) {
+	if !checked.Nonzero(len(tokenIDs)) || len(tokenIDs) != len(positions) || cache == nil || len(cache.Layers) != len(r.weights.Layers) {
 		return reference.Value{}, errors.New("inference: paired-feature block input is incompatible")
 	}
 	rows, err := target.vocab.TensorIndices(tokenIDs)
 	if err != nil {
 		return reference.Value{}, err
 	}
-	activation, err := target.loadEmbeddings(ctx, rows)
+	activation, err := target.gatherTensor(ctx, target.weights.TokenEmbedding, rows)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -244,19 +251,18 @@ func (r *Runner) DraftPairedFeatureBlock(
 	draftCount int,
 	cache *KVCache,
 ) (reference.Value, error) {
-	if r == nil || cache == nil || draftCount < 1 || draftCount >= int(r.spec.DFlashBlockSize) {
+	if r == nil || cache == nil || !checked.PositiveInts(draftCount) || draftCount >= int(r.spec.DFlashBlockSize) {
 		return reference.Value{}, errors.New("inference: paired-feature draft size is invalid")
 	}
 	if r.vocab.Mask == tokenizer.NullToken {
 		return reference.Value{}, errors.New("inference: paired-feature vocabulary has no mask token")
 	}
-	ids := make([]tokenizer.TokenID, draftCount+1)
-	positions := tokenPositions(cache.Position, draftCount+1)
-	ids[0] = last
+	blockLength := draftCount + tensor.SingletonExtent
+	ids := make([]tokenizer.TokenID, blockLength)
+	positions := tokenPositions(cache.Position, blockLength)
 	for index := range ids {
-		if index > 0 {
-			ids[index] = r.vocab.Mask
-		}
+		ids[index] = r.vocab.Mask
 	}
+	ids[tensor.FirstOffset] = last
 	return r.DecodePairedFeatureBlock(ctx, target, ids, positions, cache)
 }

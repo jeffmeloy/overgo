@@ -7,6 +7,7 @@ import (
 	"math"
 	"sync"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
@@ -49,7 +50,7 @@ func (s *deviceCacheStorage) retain() bool {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.refs <= 0 || s.releasing {
+	if !checked.PositiveInts(s.refs) || s.releasing {
 		return false
 	}
 	s.refs++
@@ -62,7 +63,7 @@ func (s *deviceCacheStorage) exclusive() bool {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.refs == 1 && !s.releasing
+	return s.refs == tensor.SingletonExtent && !s.releasing
 }
 
 func (s *deviceCacheStorage) release(ctx context.Context) error {
@@ -70,11 +71,11 @@ func (s *deviceCacheStorage) release(ctx context.Context) error {
 		return nil
 	}
 	s.mu.Lock()
-	if s.refs <= 0 || s.releasing {
+	if !checked.PositiveInts(s.refs) || s.releasing {
 		s.mu.Unlock()
 		return nil
 	}
-	if s.refs > 1 {
+	if checked.Multiple(s.refs) {
 		s.refs--
 		s.mu.Unlock()
 		return nil
@@ -84,13 +85,14 @@ func (s *deviceCacheStorage) release(ctx context.Context) error {
 		return err
 	}
 	keys, values := s.keys, s.values
-	s.refs = 0
+	var releasedRefs int
+	s.refs = releasedRefs
 	s.releasing = true
 	s.keys = nil
 	s.values = nil
 	s.mu.Unlock()
 
-	buffers := make([]*executor.DeviceBuffer, 0, len(keys)+len(values))
+	var buffers []*executor.DeviceBuffer
 	buffers = append(buffers, keys...)
 	buffers = append(buffers, values...)
 	err := executor.ReleaseDeviceBuffers(context.Background(), buffers...)
@@ -99,12 +101,12 @@ func (s *deviceCacheStorage) release(ctx context.Context) error {
 	defer s.mu.Unlock()
 	s.releasing = false
 	if err != nil {
-		s.refs = 1
+		s.refs = tensor.SingletonExtent
 		s.keys = keys
 		s.values = values
 		return err
 	}
-	s.refs = 0
+	s.refs = releasedRefs
 	return nil
 }
 
@@ -128,7 +130,7 @@ func (o *deviceCacheOwner) retain() bool {
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.refs <= 0 || o.outputs == nil {
+	if !checked.PositiveInts(o.refs) || o.outputs == nil {
 		return false
 	}
 	o.refs++
@@ -140,7 +142,7 @@ func (o *deviceCacheOwner) release(ctx context.Context) error {
 		return nil
 	}
 	o.mu.Lock()
-	if o.refs <= 0 {
+	if !checked.PositiveInts(o.refs) {
 		o.mu.Unlock()
 		return nil
 	}
@@ -149,7 +151,7 @@ func (o *deviceCacheOwner) release(ctx context.Context) error {
 		return err
 	}
 	o.refs--
-	if o.refs > 0 || o.outputs == nil {
+	if checked.PositiveInts(o.refs) || o.outputs == nil {
 		o.mu.Unlock()
 		return nil
 	}
@@ -160,8 +162,8 @@ func (o *deviceCacheOwner) release(ctx context.Context) error {
 	err := outputs.Release(ctx)
 	if err != nil {
 		o.mu.Lock()
-		if o.refs == 0 && o.outputs == nil {
-			o.refs = 1
+		if !checked.Nonzero(o.refs) && o.outputs == nil {
+			o.refs = tensor.SingletonExtent
 			o.outputs = outputs
 		}
 		o.mu.Unlock()
@@ -200,11 +202,11 @@ func (r *Runner) shiftDeviceCacheForAppendPolicy(
 	incoming int,
 	requestedDiscard int,
 ) error {
-	if cache == nil || incoming <= 0 {
+	if cache == nil || !checked.PositiveInts(incoming) {
 		return nil
 	}
 	discardCount, needed, err := planContextShift(
-		cache.Tokens, incoming, r.spec.ContextLength, 0, requestedDiscard, true,
+		cache.Tokens, incoming, r.spec.ContextLength, uint32(tensor.FirstOffset), requestedDiscard, true,
 	)
 	if err != nil {
 		return err
@@ -268,7 +270,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 	requestedDiscard int,
 	forceCopy bool,
 ) (*deviceKVCache, error) {
-	if cache == nil || incoming <= 0 {
+	if cache == nil || !checked.PositiveInts(incoming) {
 		return cache, nil
 	}
 	discard, needed, err := planContextShift(
@@ -280,7 +282,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 	if !needed {
 		return cache, nil
 	}
-	if keep == 0 && !forceCopy {
+	if !checked.Nonzero(keep) && !forceCopy {
 		if err := r.shiftDeviceCacheForAppendPolicy(
 			cache,
 			incoming,
@@ -294,14 +296,14 @@ func (r *Runner) compactDeviceCacheForAppend(
 		len(cache.Values) != len(r.weights.Layers) {
 		return nil, errors.New("inference: device cache layer count differs")
 	}
-	copies := make([]executor.DeviceCopy, 0, len(cache.Keys)*2)
+	var copies []executor.DeviceCopy
 	type stateCopyTarget struct {
 		layer int
 		name  model.CacheStateName
 		mode  CacheStateMode
 	}
-	stateTargets := make([]stateCopyTarget, 0)
-	stateCopies := make([]executor.DeviceCopy, 0)
+	var stateTargets []stateCopyTarget
+	var stateCopies []executor.DeviceCopy
 	for layerIndex := range cache.Keys {
 		recurrent := r.layerProgram(layerIndex).Layer().CacheMode == model.CacheStateFixed
 		for _, item := range []struct {
@@ -327,7 +329,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 			}
 			copies = append(copies, copySpec)
 		}
-		if layerIndex < len(cache.States) && len(cache.States[layerIndex]) != 0 {
+		if layerIndex < len(cache.States) && checked.Nonzero(len(cache.States[layerIndex])) {
 			for _, stateName := range cache.States[layerIndex].SortedNames() {
 				state := cache.States[layerIndex][stateName]
 				copySpec, copyErr := state.Value.Copy(dtype.F32)
@@ -355,7 +357,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 		return nil, err
 	}
 	next := &deviceKVCache{
-		owner:    newDeviceCacheOwner(outputs, 1),
+		owner:    newDeviceCacheOwner(outputs, tensor.SingletonExtent),
 		Keys:     make([]executor.DeviceValue, len(cache.Keys)),
 		Values:   make([]executor.DeviceValue, len(cache.Values)),
 		States:   make([]deviceLayerStates, len(cache.States)),
@@ -366,7 +368,7 @@ func (r *Runner) compactDeviceCacheForAppend(
 		next.Keys[index] = values[tensor.PairedExtent*index]
 		next.Values[index] = values[tensor.PairedExtent*index+tensor.SingletonExtent]
 	}
-	stateOffset := 2 * len(next.Keys)
+	stateOffset := tensor.PairedExtent * len(next.Keys)
 	for index, target := range stateTargets {
 		if next.States[target.layer] == nil {
 			next.States[target.layer] = make(deviceLayerStates)
@@ -387,7 +389,8 @@ func (r *Runner) forwardDeviceCachedLocked(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 ) (reference.Value, *deviceKVCache, error) {
-	plan, err := compileDeviceOutputPlan(deviceOutputLogits, 0, r.spec.VocabularySize)
+	var topK uint32
+	plan, err := compileDeviceOutputPlan(deviceOutputLogits, topK, r.spec.VocabularySize)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -398,7 +401,8 @@ func (r *Runner) forwardDeviceCachedLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	return reference.Value{}, next[0], nil
+	cache, _ := checked.First(next)
+	return reference.Value{}, cache, nil
 }
 
 // forwardDeviceCachedGreedyStepLocked: raw-greedy single-branch forward; the
@@ -408,7 +412,8 @@ func (r *Runner) forwardDeviceCachedGreedyStepLocked(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 ) (*deviceKVCache, error) {
-	plan, err := compileDeviceOutputPlan(deviceOutputGreedy, 0, r.spec.VocabularySize)
+	var topK uint32
+	plan, err := compileDeviceOutputPlan(deviceOutputGreedy, topK, r.spec.VocabularySize)
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +424,8 @@ func (r *Runner) forwardDeviceCachedGreedyStepLocked(
 	if err != nil {
 		return nil, err
 	}
-	return next[0], nil
+	cache, _ := checked.First(next)
+	return cache, nil
 }
 
 type deviceBatchAppend struct {
@@ -477,11 +483,11 @@ func retainedDeviceGreedySelections(
 	node *tensor.Tensor,
 	count, vocabulary int,
 ) ([]tokenizer.TokenID, executor.DeviceValue, error) {
-	if retained == nil || node == nil || count <= 0 || vocabulary <= 0 {
+	if retained == nil || node == nil || !checked.PositiveInts(count, vocabulary) {
 		return nil, executor.DeviceValue{}, errors.New("inference: device greedy selection is invalid")
 	}
 	device, ok := retained.Value(node)
-	if !ok || device.Pointer == 0 {
+	if !ok || !checked.Nonzero(device.Pointer) {
 		return nil, executor.DeviceValue{}, errors.New("inference: retained device greedy selection is missing")
 	}
 	host, err := retained.CopyToHost(ctx, node)
@@ -496,7 +502,7 @@ func retainedDeviceGreedySelections(
 	tokens := make([]tokenizer.TokenID, count)
 	for index, raw := range host.Data {
 		token := int(raw)
-		if raw != float32(token) || token < 0 || token >= vocabulary {
+		if raw != float32(token) || !checked.NonNegativeInts(token) || token >= vocabulary {
 			return nil, executor.DeviceValue{}, fmt.Errorf(
 				"inference: device greedy selection %d is invalid: %g", index, raw,
 			)
@@ -515,7 +521,7 @@ func (r *Runner) decodeCandidatePairs(
 	topK uint32,
 ) ([][]LogitCandidate, error) {
 	count := int(topK)
-	if sequences <= 0 || count <= 0 || len(data) != sequences*count*tensor.PairedExtent {
+	if !checked.PositiveInts(sequences, count) || len(data) != sequences*count*tensor.PairedExtent {
 		return nil, errors.New("inference: device top-K pair shape is invalid")
 	}
 	vocabulary := int(r.spec.VocabularySize)
@@ -527,7 +533,7 @@ func (r *Runner) decodeCandidatePairs(
 		for index := range count {
 			raw := data[base+index*tensor.PairedExtent]
 			id := int(raw)
-			if raw != float32(id) || id < 0 || id >= vocabulary {
+			if raw != float32(id) || !checked.NonNegativeInts(id) || id >= vocabulary {
 				return nil, fmt.Errorf("inference: device top-K token %d is invalid: %g", index, raw)
 			}
 			items[index].ID = tokenizer.TokenID(id)
@@ -548,7 +554,7 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
-	if len(appends) == 0 {
+	if !checked.Nonzero(len(appends)) {
 		return nil, errors.New("inference: device batch is empty")
 	}
 	if next, handled, err := r.forwardPackedDeviceCohortsLocked(ctx, appends, plan); handled {
@@ -561,26 +567,26 @@ func (r *Runner) parameterizedDecodeCapacity(
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
 ) (uint32, bool) {
-	if len(appends) == 0 || r.program.Decode.Session != modelrecipe.DecodeSessionCapacity {
-		return 0, false
-	}
 	var capacity, tokens uint32
+	if !checked.Nonzero(len(appends)) || r.program.Decode.Session != modelrecipe.DecodeSessionCapacity {
+		return capacity, false
+	}
 	for index, item := range appends {
 		past := item.Past
-		if len(item.Tokens) != 1 || past == nil || past.Tokens == 0 || past.storage == nil ||
-			(plan.retainsSelection() && past.Selection.Pointer == 0) ||
+		if len(item.Tokens) != tensor.SingletonExtent || past == nil || !checked.Nonzero(past.Tokens) || past.storage == nil ||
+			(plan.retainsSelection() && !checked.Nonzero(past.Selection.Pointer)) ||
 			past.Tokens >= r.spec.ContextLength || past.Tokens == math.MaxUint32 {
-			return 0, false
+			return capacity, false
 		}
 		current := cachePageCapacity(past.Tokens, r.spec.ContextLength, r.program.Decode.Session)
-		next := cachePageCapacity(past.Tokens+1, r.spec.ContextLength, r.program.Decode.Session)
+		next := cachePageCapacity(past.Tokens+tensor.SingletonExtent, r.spec.ContextLength, r.program.Decode.Session)
 		if current < past.Tokens || next <= past.Tokens {
-			return 0, false
+			return capacity, false
 		}
-		if index == 0 {
+		if index == tensor.FirstOffset {
 			capacity, tokens = next, past.Tokens
 		} else if next != capacity || past.Tokens != tokens {
-			return 0, false
+			return capacity, false
 		}
 	}
 	return capacity, true
@@ -600,11 +606,12 @@ func (r *Runner) executeParameterizedDecodeSession(
 		return nil, errors.New("inference: parameterized decode session is invalid")
 	}
 	for index, item := range appends {
-		if len(item.Tokens) != 1 || item.Tokens[0] < 0 || int(item.Tokens[0]) >= r.vocab.Len() {
+		token, present := checked.First(item.Tokens)
+		if len(item.Tokens) != tensor.SingletonExtent || !present || !checked.NonNegativeInts(int(token)) || int(token) >= r.vocab.Len() {
 			return nil, errors.New("inference: parameterized decode token is invalid")
 		}
 		if err := session.program.updateBranch(
-			index, uint32(item.Tokens[0]), item.Past.Position, item.Past.Tokens,
+			index, uint32(token), item.Past.Position, item.Past.Tokens,
 		); err != nil {
 			return nil, err
 		}
@@ -674,13 +681,13 @@ func bindParameterizedDecodeInputs(session *deviceDecodeSession, appends []devic
 			if inputs.value.present {
 				session.inputs.Pointers[inputs.value.slot] = past.Values[layer].Pointer
 			}
-			if len(inputs.states) != 0 && layer >= len(past.States) {
+			if checked.Nonzero(len(inputs.states)) && layer >= len(past.States) {
 				return errors.New("inference: parameterized cache state layer is missing")
 			}
 			for _, input := range inputs.states {
 				name := input.name
 				state, ok := past.States[layer][name]
-				if !ok || state.Value.Pointer == 0 {
+				if !ok || !checked.Nonzero(state.Value.Pointer) {
 					return fmt.Errorf("inference: parameterized cache state %q layer %d is missing", name, layer)
 				}
 				session.inputs.Pointers[input.slot] = state.Value.Pointer
@@ -696,13 +703,14 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
 	capacity, parameterized := r.parameterizedDecodeCapacity(appends, plan)
+	firstAppend, _ := checked.First(appends)
 	if parameterized {
 		identity := decodeSessionIdentity{
-			capacity: capacity,
-			branches: uint32(len(appends)), tokenCount: 1, output: plan,
+			capacity: capacity, branches: uint32(len(appends)),
+			tokenCount: tensor.SingletonExtent, output: plan,
 			lora: r.currentLoRASignature(),
 		}
-		session := appends[0].Past.session
+		session := firstAppend.Past.session
 		if session == nil && r.decodeSession != nil && r.decodeSession.program.identity == identity {
 			session = r.decodeSession
 		}
@@ -721,9 +729,9 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	builder := r.newGraphBuilder()
 	if parameterized {
 		builder.SetCacheAppendPlan(tensor.CacheAppendPlan{
-			ActiveTokens: appends[0].Past.Tokens,
+			ActiveTokens: firstAppend.Past.Tokens,
 			SourceCapacityTokens: cachePageCapacity(
-				appends[0].Past.Tokens, r.spec.ContextLength, r.program.Decode.Session,
+				firstAppend.Past.Tokens, r.spec.ContextLength, r.program.Decode.Session,
 			),
 			CapacityTokens: capacity,
 		})
@@ -735,10 +743,10 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if parameterized {
 		cacheWrite = tensor.CacheWriteAppend
 	}
-	outputs := make([]*tensor.Tensor, 0, len(appends)*(1+2*len(r.weights.Layers)))
+	var outputs []*tensor.Tensor
 	for index, appendInput := range appends {
 		graph, err := r.buildDeviceCachedBatchBranch(
-			builder, index, appendInput.Tokens, appendInput.Past, 1, plan,
+			builder, index, appendInput.Tokens, appendInput.Past, tensor.SingletonExtent, plan,
 			cacheWrite, hostFeeds, deviceFeeds,
 		)
 		if err != nil {
@@ -770,16 +778,16 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		retainable = retainable && (graph.feedback != nil || graph.tokenInput != nil)
 	}
 	if retainable {
-		rebuilds := uint64(1)
+		rebuilds := uint64(tensor.SingletonExtent)
 		var replays uint64
-		if prior := appends[0].Past.session; prior != nil {
+		if prior := firstAppend.Past.session; prior != nil {
 			rebuilds += prior.rebuilds
 			replays = prior.replays
 		}
 		program, programErr := compileDecodeSessionPlan(
 			compiled, graphs, targetPlans, decodeSessionIdentity{
-				capacity: capacity,
-				branches: uint32(len(graphs)), tokenCount: 1, output: plan,
+				capacity: capacity, branches: uint32(len(graphs)),
+				tokenCount: tensor.SingletonExtent, output: plan,
 				lora: r.currentLoRASignature(),
 			},
 		)
@@ -886,7 +894,7 @@ func (r *Runner) assembleDeviceBatchCaches(
 				cache.Keys[layer].Shape.Dims[cache.Keys[layer].Shape.Rank-1] = uint64(cache.Tokens)
 				cache.Values[layer].Shape.Dims[cache.Values[layer].Shape.Rank-1] = uint64(cache.Tokens)
 			}
-			if len(graph.states[layer]) != 0 {
+			if checked.Nonzero(len(graph.states[layer])) {
 				cache.States[layer] = make(deviceLayerStates, len(graph.states[layer]))
 				for name, state := range graph.states[layer] {
 					value, present := retained.Value(state.Value)
@@ -998,7 +1006,7 @@ func (r *Runner) prepareDeviceCacheTargets(
 		}
 		if storage == nil {
 			storage = &deviceCacheStorage{
-				refs:   1,
+				refs:   tensor.SingletonExtent,
 				keys:   make([]*executor.DeviceBuffer, len(graph.keys)),
 				values: make([]*executor.DeviceBuffer, len(graph.values)),
 			}
@@ -1083,7 +1091,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if r.spec.NonCausalAttention {
 		return fail(errors.New("non-causal models do not support a device KV cache"))
 	}
-	if len(tokenIDs) == 0 {
+	if !checked.Nonzero(len(tokenIDs)) {
 		return fail(errors.New("token sequence is empty"))
 	}
 	var pastTokens, nextPosition uint32
@@ -1094,10 +1102,11 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			return fail(errors.New("device cache layer count differs"))
 		}
 	}
-	if sequences == 0 || uint64(len(tokenIDs))%sequences != 0 {
+	tokensPerSequence64, validSequences := checked.DivExact64(uint64(len(tokenIDs)), sequences)
+	if !validSequences {
 		return fail(errors.New("packed sequence token count is invalid"))
 	}
-	tokensPerSequence := len(tokenIDs) / int(sequences)
+	tokensPerSequence := int(tokensPerSequence64)
 	tokenIndices, err := r.vocab.TensorIndices(tokenIDs)
 	if err != nil {
 		return fail(err)
@@ -1118,7 +1127,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	deviceFeeds[embeddingTable] = embeddingPointer
 	dynamicEmbedding := embeddingTable.Type == dtype.F32 || embeddingTable.Type == dtype.Q8_0
 	var feedback *tensor.Tensor
-	if plan.retainsSelection() && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
+	if plan.retainsSelection() && dynamicEmbedding && past != nil && checked.Nonzero(past.Selection.Pointer) && tokensPerSequence == tensor.SingletonExtent {
 		selection := builder.Input(prefix+"selected_token", dtype.F32, tensor.MustShape(sequences))
 		deviceFeeds[selection] = past.Selection.Pointer
 		current = builder.GatherLast(embeddingTable, selection)
@@ -1126,7 +1135,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		tokenRowInput = nil
 	}
 	if r.weights.PositionEmbedding != nil {
-		repeatedPositions := make([]uint32, 0, len(positions)*int(sequences))
+		var repeatedPositions []uint32
 		for range sequences {
 			repeatedPositions = append(repeatedPositions, positions...)
 		}
@@ -1142,7 +1151,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		positionRows = append(positionRows, positionInput)
 		current = builder.Add(current, positionInput)
 	}
-	if scale := r.spec.InputEmbeddingScale(); scale != 1 {
+	if scale := r.spec.InputEmbeddingScale(); !checked.Equal(scale, float32(tensor.SingletonExtent)) {
 		current = builder.Scale(current, scale)
 	}
 	if r.weights.TokenEmbeddingNorm != nil {
@@ -1198,7 +1207,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	states := make([]deviceGraphStates, len(r.weights.Layers))
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
-	decodeCatalog := plan.retainsSelection() && tokensPerSequence == 1 && r.decodeWeights != nil
+	decodeCatalog := plan.retainsSelection() && tokensPerSequence == tensor.SingletonExtent && r.decodeWeights != nil
 	bindLayerTensor := model.DeviceTensorBinder(r.deviceInput)
 	if decodeCatalog {
 		bindLayerTensor = r.decodeDeviceInput
@@ -1275,9 +1284,9 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		return fail(err)
 	}
 	lastHidden := current
-	if sequences == 1 {
-		lastHidden = builder.FlatSlice(current, hiddenElements-width, width, 1)
-	} else if tokensPerSequence != 1 {
+	if sequences == tensor.SingletonExtent {
+		lastHidden = builder.FlatSlice(current, hiddenElements-width, width, tensor.SingletonExtent)
+	} else if tokensPerSequence != tensor.SingletonExtent {
 		return fail(errors.New("packed output selection requires one token per sequence"))
 	}
 	logits := builder.MulMat(outputTable, lastHidden)
@@ -1289,7 +1298,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		deviceFeeds[bias] = pointer
 		logits = builder.Add(logits, bias)
 	}
-	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
+	if scale := r.spec.OutputLogitMultiplier(); !checked.Equal(scale, float32(tensor.SingletonExtent)) {
 		logits = builder.Scale(logits, scale)
 	}
 	selection, candidates := plan.reduce(builder, logits)
@@ -1323,7 +1332,7 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 		hostFeeds[input] = reference.ZeroValue(shape)
 		return input
 	}
-	_, schema, err := r.cacheSchema(layerIndex, 0)
+	_, schema, err := r.cacheSchema(layerIndex, tensor.SingletonExtent)
 	if err != nil {
 		return layerGraphCacheInputs{}, err
 	}
@@ -1358,21 +1367,20 @@ func rebuildDeviceCachePages(
 		return errors.New("inference: device cache is nil")
 	}
 	pageTokens := cachePageTokens(cache.Tokens, session)
-	if pageTokens == 0 {
+	if !checked.Nonzero(pageTokens) {
 		cache.Pages = nil
 		return nil
 	}
-	pageCount := int(cache.Tokens / pageTokens)
-	if cache.Tokens%pageTokens != 0 {
-		pageCount++
-	}
+	capacity, _ := checked.RoundUpMultiple(uint64(cache.Tokens), uint64(pageTokens))
+	pageCount := int(capacity / uint64(pageTokens))
 	if cap(cache.Pages) < pageCount {
 		cache.Pages = make([]deviceKVPage, pageCount)
 	} else {
 		cache.Pages = cache.Pages[:pageCount]
 	}
-	pageIndex := 0
-	for start := uint32(0); start < cache.Tokens; start += pageTokens {
+	var pageIndex int
+	var start uint32
+	for ; start < cache.Tokens; start += pageTokens {
 		count := pageTokens
 		if remaining := cache.Tokens - start; remaining < count {
 			count = remaining

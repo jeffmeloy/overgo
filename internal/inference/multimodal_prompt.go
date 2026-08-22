@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"overgo/internal/checked"
 	"overgo/internal/projector"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -15,13 +16,14 @@ func ProjectedInputsForPrompt(
 	runner *Runner,
 	prompt projector.MultimodalPrompt,
 ) ([]tokenizer.TokenID, ProjectedInputs, error) {
-	if runner == nil || prompt.EmbeddingWidth != int(runner.Spec().EmbeddingLength) {
+	if runner == nil || !checked.Equal(prompt.EmbeddingWidth, int(runner.Spec().EmbeddingLength)) {
 		return nil, ProjectedInputs{}, fmt.Errorf(
 			"inference: projector width %d differs from model width", prompt.EmbeddingWidth,
 		)
 	}
 	mediaTokens := len(prompt.EmbeddingTokenIndices)
-	if len(prompt.Embeddings) != mediaTokens*prompt.EmbeddingWidth {
+	embeddingElements, valid := checked.MulInt(mediaTokens, prompt.EmbeddingWidth)
+	if !valid || !checked.Equal(len(prompt.Embeddings), embeddingElements) {
 		return nil, ProjectedInputs{}, errors.New("inference: projector embedding indices are invalid")
 	}
 	overrides := make([]EmbeddingOverride, mediaTokens)
@@ -35,7 +37,7 @@ func ProjectedInputsForPrompt(
 	projected := ProjectedInputs{EmbeddingOverrides: overrides}
 	projected.DeepstackEmbeddings = make([]reference.Value, len(prompt.DeepstackEmbeddings))
 	for streamIndex, stream := range prompt.DeepstackEmbeddings {
-		if len(stream) != mediaTokens*prompt.EmbeddingWidth {
+		if !checked.Equal(len(stream), embeddingElements) {
 			return nil, ProjectedInputs{}, fmt.Errorf("inference: projector deepstack stream %d is invalid", streamIndex)
 		}
 		data := make([]float32, len(prompt.TokenIDs)*prompt.EmbeddingWidth)

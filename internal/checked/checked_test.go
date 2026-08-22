@@ -49,4 +49,13 @@ func TestCheckedArithmetic(t *testing.T) {
 	if value, ok := Align(33, 32); !ok || value != 64 {
 		t.Fatalf("alignment = %d, %v", value, ok)
 	}
+	if value, ok := RoundUpMultiple(5, 5); !ok || value != 5 {
+		t.Fatalf("round-up exact multiple = %d, %v", value, ok)
+	}
+	if value, ok := RoundUpMultiple(6, 5); !ok || value != 10 {
+		t.Fatalf("round-up multiple = %d, %v", value, ok)
+	}
+	if _, ok := RoundUpMultiple(1, 0); ok {
+		t.Fatal("zero round-up multiple accepted")
+	}
 }

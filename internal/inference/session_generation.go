@@ -6,8 +6,10 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -22,7 +24,7 @@ func (r *Runner) StartSession(
 	if r == nil || r.vocab == nil {
 		return nil, "", errRunnerNil
 	}
-	if options.MaxNewTokens <= 0 {
+	if !checked.PositiveInts(options.MaxNewTokens) {
 		return nil, "", errors.New("inference: resumable generation needs at least one new token")
 	}
 	if err := normalizeGenerateOptions(&options); err != nil {
@@ -41,7 +43,10 @@ func (r *Runner) StartSession(
 	if err != nil {
 		return nil, "", err
 	}
-	ids, cache, err = r.generateCachedHost(ctx, ids, hidden, cache, options, false, 0, -1)
+	keepTokens := effectiveKeepTokens(options.KeepTokens, len(ids), r.spec.ContextLength)
+	ids, cache, err = r.generateCachedHost(
+		ctx, ids, hidden, cache, options, false, keepTokens, options.DiscardTokens,
+	)
 	if err != nil {
 		return nil, "", err
 	}
@@ -66,7 +71,7 @@ func (r *Runner) ContinueSession(
 	if r == nil || r.vocab == nil {
 		return nil, "", errRunnerNil
 	}
-	if options.MaxNewTokens < 0 {
+	if !checked.NonNegativeInts(options.MaxNewTokens) {
 		return nil, "", errors.New("inference: max new tokens is negative")
 	}
 	if err := normalizeGenerateOptions(&options); err != nil {
@@ -81,10 +86,13 @@ func (r *Runner) ContinueSession(
 	}
 	ids := slices.Clone(session.TokenIDs)
 	cache := session.Cache
-	if options.MaxNewTokens > 0 && !r.vocab.IsEOG(ids[len(ids)-1]) {
+	lastIDs, _ := checked.LastSlice(ids)
+	lastID, _ := checked.First(lastIDs)
+	if checked.PositiveInts(options.MaxNewTokens) && !r.vocab.IsEOG(lastID) {
 		var err error
+		keepTokens := effectiveKeepTokens(options.KeepTokens, len(ids), r.spec.ContextLength)
 		ids, cache, err = r.generateCachedHost(
-			ctx, ids, reference.Value{}, cache, options, true, 0, -1,
+			ctx, ids, reference.Value{}, cache, options, true, keepTokens, options.DiscardTokens,
 		)
 		if err != nil {
 			return nil, "", err
@@ -114,17 +122,16 @@ func (r *Runner) generateCachedHost(
 	outputTable := r.outputTensor()
 	var generatedText strings.Builder
 	for generatedIndex := range options.MaxNewTokens {
-		if advanceFirst || generatedIndex > 0 {
+		if advanceFirst || checked.Nonzero(generatedIndex) {
 			var err error
 			cache, err = r.cacheForAppendKeeping(
-				cache, 1, options.ContextShift, keep, discard,
+				cache, tensor.SingletonExtent, options.ContextShift, keep, discard,
 			)
 			if err != nil {
 				return nil, nil, err
 			}
-			hidden, cache, err = r.forwardCachedLocked(
-				ctx, []tokenizer.TokenID{ids[len(ids)-1]}, cache,
-			)
+			lastIDs, _ := checked.LastSlice(ids)
+			hidden, cache, err = r.forwardCachedLocked(ctx, lastIDs, cache)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -178,7 +185,7 @@ func (r *Runner) sampleHidden(
 	options GenerateOptions,
 ) (TokenEvent, error) {
 	last := hidden.LastRowView()
-	if len(last.Data) == 0 {
+	if !last.Defined() {
 		return TokenEvent{}, errors.New("inference: generation hidden state is incompatible")
 	}
 	logits, err := r.logits(ctx, outputTable, last.Data)

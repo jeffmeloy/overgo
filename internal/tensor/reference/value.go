@@ -15,6 +15,9 @@ func (v Value) Clone() Value {
 	return Value{Shape: v.Shape, Data: slices.Clone(v.Data)}
 }
 
+// Defined reports whether a value carries a declared tensor shape.
+func (v Value) Defined() bool { return v.Shape.Rank != tensor.FirstOffset }
+
 func (v Value) IsMatrixWidth(width uint64) bool {
 	return v.Shape.Rank == tensor.PairedExtent && v.Shape.Dims[0] == width
 }
@@ -73,12 +76,18 @@ func (v Value) Rows(start, count uint64) (Value, error) {
 	}, nil
 }
 
+// SelectRows returns detached rows through the value contract.
+func SelectRows(value Value, start, count uint64) (Value, error) { return value.Rows(start, count) }
+
 func (v Value) TailRows(count uint64) (Value, error) {
 	if v.Shape.Rank != 2 || count > v.Shape.Dims[1] {
 		return Value{}, errors.New("reference tail row count is invalid")
 	}
 	return v.Rows(v.Shape.Dims[1]-count, count)
 }
+
+// FinalRows returns detached trailing rows through the value contract.
+func FinalRows(value Value, count uint64) (Value, error) { return value.TailRows(count) }
 
 // LastRowView returns a borrowed final matrix row.
 func (v Value) LastRowView() Value {

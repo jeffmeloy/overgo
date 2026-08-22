@@ -61,6 +61,14 @@ func (p DraftPlan) HasHead(offset uint32) bool {
 	return offset < p.Heads
 }
 
+// LastHead returns the final bounded catalog head.
+func (p DraftPlan) LastHead() (uint32, bool) {
+	if !p.HasHead(firstDraftHead) {
+		return firstDraftHead, false
+	}
+	return p.Heads - singleDraftHeadCount, true
+}
+
 // SessionEligible: supported runtime coordinator cardinality.
 func (p DraftPlan) SessionEligible() bool {
 	if !p.HasHead(firstDraftHead) {

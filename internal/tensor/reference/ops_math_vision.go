@@ -342,6 +342,19 @@ func float16Round(value float32) float32 {
 	return math.Float32frombits(sign32 | (exp16-15+127)<<23 | frac16<<13)
 }
 
+// RoundedGELUTanh applies the serving GELU contract used by the reference
+// executor: saturated tails and a binary16 round trip around the activation.
+func RoundedGELUTanh(value float32) float32 {
+	if value <= -10 {
+		return 0
+	}
+	if value >= 10 {
+		return value
+	}
+	x := float64(float16Round(value))
+	return float16Round(float32(hostmath.GELUTanh(x)))
+}
+
 func elementwiseBroadcast(
 	shape tensor.Shape,
 	left, right Value,

@@ -194,6 +194,11 @@ func (b *Builder) GetRows(table *Tensor, rows []uint32) *Tensor {
 	return result
 }
 
+// GatherRows routes indexed table selection through the builder contract.
+func GatherRows(builder *Builder, table *Tensor, indices []uint32) *Tensor {
+	return builder.GetRows(table, indices)
+}
+
 func (b *Builder) getRows(table *Tensor, rows []uint32) *Tensor {
 	if b.err != nil {
 		return nil

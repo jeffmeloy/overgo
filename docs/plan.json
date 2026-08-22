@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "inference",
-          "title": "Delete inference family dispatch, duplicate probes, and compatibility sessions",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/inference -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production"
-        },
-        {
           "id": "modalities",
           "title": "Delete image, video, and speech family policy in favor of neutral media programs",
           "status": "open",

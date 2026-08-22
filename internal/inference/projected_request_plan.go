@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor/reference"
 )
@@ -24,7 +25,7 @@ func (r *Runner) compileProjectedRequestPlan(
 	hasCache bool,
 	inputs ProjectedInputs,
 ) (projectedRequestPlan, error) {
-	if tokens == 0 {
+	if !checked.Nonzero(tokens) {
 		return projectedRequestPlan{}, errors.New("inference: token sequence is empty")
 	}
 	program := r.program.Model.ProjectedInput()
@@ -50,19 +51,19 @@ func (r *Runner) compileProjectedRequestPlan(
 	if err != nil {
 		return projectedRequestPlan{}, err
 	}
-	visualMode := program.Overrides == model.EmbeddingOverrideVisualSpan && len(inputs.EmbeddingOverrides) > 0
+	visualMode := program.Overrides == model.EmbeddingOverrideVisualSpan && checked.Nonzero(len(inputs.EmbeddingOverrides))
 	if visualMode {
 		if err := validateCogVLMVisualOverrides(tokens, inputs.EmbeddingOverrides); err != nil {
 			return projectedRequestPlan{}, err
 		}
 	}
 	var visualBlocks []AttentionBlock
-	if len(inputs.VisualExpertBlocks) > 0 {
+	if checked.Nonzero(len(inputs.VisualExpertBlocks)) {
 		if program.Overrides != model.EmbeddingOverrideVisualSpan {
 			return projectedRequestPlan{}, errors.New("inference: visual expert blocks require CogVLM architecture")
 		}
-		if inputs.MultiAxisPositions != nil || len(inputs.DeepstackEmbeddings) > 0 ||
-			len(inputs.BidirectionalAttentionBlocks) > 0 {
+		if inputs.MultiAxisPositions != nil || checked.Nonzero(len(inputs.DeepstackEmbeddings)) ||
+			checked.Nonzero(len(inputs.BidirectionalAttentionBlocks)) {
 			return projectedRequestPlan{}, errors.New("inference: CogVLM visual expert blocks cannot combine with MRoPE, deepstack, or bidirectional blocks")
 		}
 		visualBlocks, err = validateVisualExpertBlocks(tokens, inputs.VisualExpertBlocks, inputs.EmbeddingOverrides)
@@ -75,6 +76,6 @@ func (r *Runner) compileProjectedRequestPlan(
 		multiPositions: inputs.MultiAxisPositions, deepstackInputs: inputs.DeepstackEmbeddings,
 		attentionBlockIDs: attentionBlockIDs, visualBlocks: visualBlocks,
 		visualMode:    visualMode,
-		deepstackBase: program.Overrides == model.EmbeddingOverrideMappedBase && len(r.spec.DeepstackMapping) > 0,
+		deepstackBase: program.Overrides == model.EmbeddingOverrideMappedBase && checked.Nonzero(len(r.spec.DeepstackMapping)),
 	}, nil
 }

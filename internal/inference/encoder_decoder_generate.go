@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/checked"
 	"overgo/internal/model"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -36,7 +38,7 @@ func (r *Runner) GenerateEncoderDecoder(
 		return nil, "", nil, err
 	}
 	startID := tokenizer.TokenID(r.spec.DecoderStartTokenID)
-	if startID < 0 || int(startID) >= r.vocab.Len() {
+	if !checked.NonNegativeInts(int(startID)) || int(startID) >= r.vocab.Len() {
 		return nil, "", nil, errors.New("inference: decoder start token is out of range")
 	}
 
@@ -52,14 +54,14 @@ func (r *Runner) GenerateEncoderDecoder(
 
 	promptStarted := time.Now()
 	var encoder reference.Value
-	cached := 0
+	var cached int
 	if options.CachePrompt {
 		if selected, reused := r.selectEncoderSourceCache(sourceIDs, options.MinCacheReuse); selected != nil {
 			encoder = selected.Hidden
 			cached = reused
 		}
 	}
-	if cached == 0 {
+	if !checked.Nonzero(cached) {
 		encoder, err = r.forwardEncoderLocked(ctx, sourceIDs)
 		if err != nil {
 			return nil, "", nil, err
@@ -80,19 +82,19 @@ func (r *Runner) GenerateEncoderDecoder(
 		})
 	}
 	session := &EncoderDecoderSession{Encoder: encoder}
-	if options.MaxNewTokens == 0 {
+	if !checked.Nonzero(options.MaxNewTokens) {
 		return []tokenizer.TokenID{}, "", session, nil
 	}
 
 	history := []tokenizer.TokenID{startID}
 	pending := startID
-	generated := make([]tokenizer.TokenID, 0, options.MaxNewTokens)
+	var generated []tokenizer.TokenID
 	var generatedText strings.Builder
-	keepTokens := effectiveKeepTokens(options.KeepTokens, 1, r.spec.ContextLength)
+	keepTokens := effectiveKeepTokens(options.KeepTokens, tensor.SingletonExtent, r.spec.ContextLength)
 	for generatedIndex := range options.MaxNewTokens {
 		if session.Cache != nil {
 			shifted, shiftErr := r.cacheForAppendKeeping(
-				session.Cache, 1, options.ContextShift, keepTokens, options.DiscardTokens,
+				session.Cache, tensor.SingletonExtent, options.ContextShift, keepTokens, options.DiscardTokens,
 			)
 			if shiftErr != nil {
 				return nil, "", nil, shiftErr
@@ -127,7 +129,7 @@ func (r *Runner) GenerateEncoderDecoder(
 		}
 	}
 	shifted, shiftErr := r.cacheForAppendKeeping(
-		session.Cache, 1, options.ContextShift, keepTokens, options.DiscardTokens,
+		session.Cache, tensor.SingletonExtent, options.ContextShift, keepTokens, options.DiscardTokens,
 	)
 	if shiftErr != nil {
 		return nil, "", nil, shiftErr

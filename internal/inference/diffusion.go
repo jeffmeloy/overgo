@@ -10,9 +10,11 @@ import (
 	"sort"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/sampling"
+	"overgo/internal/tensor"
 	"overgo/internal/tokenizer"
 )
 
@@ -81,7 +83,7 @@ func (r *Runner) GenerateDiffusion(
 	}
 	defer r.mu.Unlock()
 	for _, adapter := range r.loraAdapters {
-		if adapter.scale != 0 && adapter.adapter != nil && len(adapter.adapter.InvocationTokens) != 0 {
+		if checked.Nonzero(adapter.scale) && adapter.adapter != nil && checked.Nonzero(len(adapter.adapter.InvocationTokens)) {
 			return nil, "", errors.New("inference: aLoRA is unsupported for non-causal diffusion")
 		}
 	}
@@ -214,22 +216,26 @@ func runDiffusion(
 	}
 	rng := rand.New(rand.NewSource(options.Seed))
 	selectionRNG := rand.New(rand.NewSource(options.Seed))
-	numBlocks, stepsPerBlock := 1, options.Steps
+	numBlocks, stepsPerBlock := tensor.SingletonExtent, options.Steps
 	if options.Schedule == DiffusionBlock {
 		numBlocks = options.MaxLength / options.BlockLength
 		stepsPerBlock = options.Steps / numBlocks
 	}
 	shift := options.ShiftLogits != nil && *options.ShiftLogits
-	for block := 0; block < numBlocks; block++ {
-		blockStart, blockEnd := 0, options.MaxLength
+	var block int
+	for ; block < numBlocks; block++ {
+		blockStart, blockEnd := tensor.FirstOffset, options.MaxLength
 		var transfers []int
 		if options.Schedule == DiffusionBlock {
 			blockStart = len(input) + block*options.BlockLength
-			blockEnd = min(len(input)+(block+1)*options.BlockLength, options.MaxLength)
+			nextBlock := block
+			nextBlock++
+			blockEnd = min(len(input)+nextBlock*options.BlockLength, options.MaxLength)
 			masked := countMasks(output, mask, blockStart, blockEnd)
 			transfers = diffusionBlockTransfers(masked, stepsPerBlock)
 		}
-		for step := 0; step < stepsPerBlock; step++ {
+		var step int
+		for ; step < stepsPerBlock; step++ {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
@@ -247,11 +253,11 @@ func runDiffusion(
 				return nil, err
 			}
 			positions := maskedPositions(output, mask, options.Schedule, blockStart, blockEnd)
-			if len(positions) == 0 {
+			if !checked.Nonzero(len(positions)) {
 				break
 			}
-			if options.AddGumbelNoise && options.Temperature > 0 {
-				addDiffusionGumbelNoise(logits, options.Temperature, rng)
+			if options.AddGumbelNoise && checked.PositiveFinite32(options.Temperature) {
+				sampling.AddGumbelNoise(logits, options.Temperature, rng)
 			}
 			transferCount := diffusionTransferCount(
 				step, stepsPerBlock, len(positions), options.Schedule, options.Epsilon, transfers,
@@ -274,7 +280,7 @@ func runDiffusion(
 			ranked := make([]diffusionCandidate, len(positions))
 			for index, position := range positions {
 				row := diffusionLogitRow(logits, vocabularySize, position, shift)
-				limit := 2
+				limit := tensor.PairedExtent
 				if options.Algorithm == DiffusionEntropy {
 					limit = vocabularySize
 				}
@@ -310,21 +316,21 @@ func validateDiffusion(
 	if evaluate == nil {
 		return errors.New("inference: diffusion evaluator is nil")
 	}
-	if len(input) == 0 {
+	if !checked.Nonzero(len(input)) {
 		return errors.New("inference: diffusion input is empty")
 	}
-	if vocabularySize < 1 || mask < 0 || int(mask) >= vocabularySize {
+	if !checked.PositiveInts(vocabularySize) || !checked.NonNegativeInts(int(mask)) || int(mask) >= vocabularySize {
 		return errors.New("inference: diffusion mask or vocabulary is invalid")
 	}
 	for index, token := range input {
-		if token < 0 || int(token) >= vocabularySize {
+		if !checked.NonNegativeInts(int(token)) || int(token) >= vocabularySize {
 			return fmt.Errorf("inference: diffusion input token %d is out of range", index)
 		}
 	}
 	if options.MaxLength <= len(input) {
 		return errors.New("inference: diffusion maximum length must exceed prompt length")
 	}
-	if options.Steps <= 0 {
+	if !checked.PositiveInts(options.Steps) {
 		return errors.New("inference: diffusion step count must be positive")
 	}
 	if options.Algorithm > DiffusionConfidence {
@@ -333,56 +339,57 @@ func validateDiffusion(
 	if options.Schedule > DiffusionBlock {
 		return errors.New("inference: diffusion schedule is invalid")
 	}
-	if options.Temperature < 0 || !finiteDiffusion(options.Temperature) ||
-		options.AlgorithmTemperature < 0 || !finiteDiffusion(options.AlgorithmTemperature) ||
-		options.CFGScale < 0 || !finiteDiffusion(options.CFGScale) {
+	if !checked.NonNegativeFinite32(options.Temperature) ||
+		!checked.NonNegativeFinite32(options.AlgorithmTemperature) ||
+		!checked.NonNegativeFinite32(options.CFGScale) {
 		return errors.New("inference: diffusion temperatures and CFG scale must be finite and non-negative")
 	}
-	if options.TopK < 0 {
+	if !checked.NonNegativeInts(options.TopK) {
 		return errors.New("inference: diffusion top-k is negative")
 	}
-	if options.TopP < 0 || options.TopP > 1 || !finiteDiffusion(options.TopP) {
+	if !checked.NonNegativeFinite32(options.TopP) || options.TopP > float32(tensor.SingletonExtent) {
 		return errors.New("inference: diffusion top-p must be in [0,1]")
 	}
 	if options.Schedule == DiffusionTimestep {
-		if options.Epsilon <= 0 || options.Epsilon > 1 || !finiteDiffusion(options.Epsilon) {
+		if !checked.PositiveFinite32(options.Epsilon) || options.Epsilon > float32(tensor.SingletonExtent) {
 			return errors.New("inference: timestep diffusion epsilon must be in (0,1]")
 		}
-		if options.BlockLength != 0 {
+		if checked.Nonzero(options.BlockLength) {
 			return errors.New("inference: diffusion epsilon and block length are mutually exclusive")
 		}
 	} else {
-		if options.Epsilon != 0 {
+		if checked.Nonzero(options.Epsilon) {
 			return errors.New("inference: diffusion epsilon and block length are mutually exclusive")
 		}
-		if options.BlockLength <= 0 || options.MaxLength%options.BlockLength != 0 {
+		_, divisibleLength := checked.DivExactInt(options.MaxLength, options.BlockLength)
+		if !checked.PositiveInts(options.BlockLength) || !divisibleLength {
 			return errors.New("inference: diffusion maximum length must be divisible by block length")
 		}
 		numBlocks := options.MaxLength / options.BlockLength
-		if options.Steps%numBlocks != 0 {
+		if _, divisibleSteps := checked.DivExactInt(options.Steps, numBlocks); !divisibleSteps {
 			return errors.New("inference: diffusion steps must be divisible by block count")
 		}
 	}
-	if uint64(options.MaxLength) > uint64(^uint(0)>>1)/uint64(vocabularySize) {
+	if uint64(options.MaxLength) > uint64(math.MaxInt)/uint64(vocabularySize) {
 		return errors.New("inference: diffusion logits size overflows int")
 	}
 	return nil
 }
 
 func newDiffusionSampler(options DiffusionOptions) (*sampling.Sampler, error) {
-	stages := make([]sampling.SamplerStage, 0, 3)
-	if options.TopK > 0 {
+	var stages []sampling.SamplerStage
+	if checked.PositiveInts(options.TopK) {
 		stages = append(stages, sampling.SamplerTopK)
 	}
-	if options.TopP > 0 && options.TopP < 1 {
+	if checked.PositiveFinite32(options.TopP) && options.TopP < float32(tensor.SingletonExtent) {
 		stages = append(stages, sampling.SamplerTopP)
 	}
-	if options.Temperature > 0 {
+	if checked.PositiveFinite32(options.Temperature) {
 		stages = append(stages, sampling.SamplerTemperature)
 	}
 	topP := options.TopP
-	if topP == 0 {
-		topP = 1
+	if !checked.Nonzero(topP) {
+		topP = float32(tensor.SingletonExtent)
 	}
 	return sampling.New(sampling.Config{
 		Temperature: options.Temperature,
@@ -410,7 +417,7 @@ func diffusionLogits(
 		return nil, fmt.Errorf("inference: diffusion logits count %d differs from expected %d", len(conditionalLogits), expected)
 	}
 	logits := slices.Clone(conditionalLogits)
-	if options.CFGScale == 0 {
+	if !checked.Nonzero(options.CFGScale) {
 		return logits, nil
 	}
 	unconditional := slices.Clone(conditional)
@@ -424,7 +431,7 @@ func diffusionLogits(
 	if len(unconditionalLogits) != expected {
 		return nil, fmt.Errorf("inference: diffusion unconditional logits count %d differs from expected %d", len(unconditionalLogits), expected)
 	}
-	scale := options.CFGScale + 1
+	scale := options.CFGScale + float32(tensor.SingletonExtent)
 	for index := range logits {
 		logits[index] = unconditionalLogits[index] + scale*(logits[index]-unconditionalLogits[index])
 	}
@@ -433,16 +440,17 @@ func diffusionLogits(
 
 func diffusionLogitRow(logits []float32, vocabularySize, position int, shift bool) []float32 {
 	row := position
-	if shift && row > 0 {
+	if shift && checked.PositiveInts(row) {
 		row--
 	}
-	return logits[row*vocabularySize : (row+1)*vocabularySize]
+	rowStart := row * vocabularySize
+	return logits[rowStart : rowStart+vocabularySize]
 }
 
 func countMasks(tokens []tokenizer.TokenID, mask tokenizer.TokenID, start, end int) int {
-	start = max(0, min(start, len(tokens)))
+	start = checked.Index(start, len(tokens))
 	end = max(start, min(end, len(tokens)))
-	count := 0
+	var count int
 	for _, token := range tokens[start:end] {
 		if token == mask {
 			count++
@@ -472,16 +480,22 @@ func diffusionTransferCount(
 	epsilon float32,
 	blockTransfers []int,
 ) int {
-	if remaining <= 0 {
-		return 0
+	if !checked.PositiveInts(remaining) {
+		var none int
+		return none
 	}
 	var count int
 	if schedule == DiffusionTimestep {
-		t := 1 - float32(step)/float32(totalSteps)*(1-epsilon)
-		s := 1 - float32(step+1)/float32(totalSteps)*(1-epsilon)
-		probability := float32(1)
-		if step < totalSteps-1 {
-			probability = 1 - s/t
+		identity := float32(tensor.SingletonExtent)
+		t := identity - float32(step)/float32(totalSteps)*(identity-epsilon)
+		nextStep := step
+		nextStep++
+		s := identity - float32(nextStep)/float32(totalSteps)*(identity-epsilon)
+		probability := identity
+		lastStep := totalSteps
+		lastStep--
+		if step < lastStep {
+			probability = identity - s/t
 		}
 		count = int(float32(remaining) * probability)
 	} else if step < len(blockTransfers) {
@@ -489,7 +503,7 @@ func diffusionTransferCount(
 	} else {
 		count = remaining / (totalSteps - step)
 	}
-	return max(0, min(count, remaining))
+	return max(tensor.FirstOffset, min(count, remaining))
 }
 
 func diffusionBlockTransfers(maskCount, steps int) []int {
@@ -502,18 +516,6 @@ func diffusionBlockTransfers(maskCount, steps int) []int {
 		}
 	}
 	return result
-}
-
-func addDiffusionGumbelNoise(logits []float32, temperature float32, rng *rand.Rand) {
-	if temperature == 0 {
-		return
-	}
-	for index, logit := range logits {
-		uniform := max(rng.Float64(), 1e-20)
-		noise := math.Pow(-math.Log(uniform), float64(temperature))
-		exponential := float32(math.Exp(float64(logit)))
-		logits[index] = float32(float64(exponential) / noise)
-	}
 }
 
 type diffusionCandidate struct {
@@ -530,19 +532,9 @@ func diffusionConfidence(
 ) float64 {
 	switch algorithm {
 	case DiffusionEntropy:
-		entropy := float64(0)
-		for _, candidate := range result.Top {
-			entropy -= candidate.Probability * math.Log(candidate.Probability+1e-10)
-		}
-		return entropy
+		return sampling.Entropy(result)
 	case DiffusionMargin:
-		if len(result.Top) < 2 {
-			if len(result.Top) == 1 {
-				return result.Top[0].Probability
-			}
-			return 0
-		}
-		return result.Top[0].Probability - result.Top[1].Probability
+		return sampling.ProbabilityMargin(result)
 	case DiffusionRandom:
 		return rng.Float64()
 	default:
@@ -556,12 +548,12 @@ func selectDiffusionCandidates(
 	temperature float32,
 	rng *rand.Rand,
 ) []diffusionCandidate {
-	count = min(max(count, 0), len(candidates))
-	if count == 0 {
+	count = checked.Index(count, len(candidates))
+	if !checked.Nonzero(count) {
 		return nil
 	}
 	remaining := slices.Clone(candidates)
-	if temperature == 0 {
+	if !checked.Nonzero(temperature) {
 		sort.SliceStable(remaining, func(left, right int) bool {
 			if remaining[left].confidence == remaining[right].confidence {
 				return remaining[left].order < remaining[right].order
@@ -570,33 +562,34 @@ func selectDiffusionCandidates(
 		})
 		return remaining[:count]
 	}
-	selected := make([]diffusionCandidate, 0, count)
+	var selected []diffusionCandidate
 	for len(selected) < count {
-		maximum := remaining[0].confidence
-		for _, candidate := range remaining[1:] {
+		first, _ := checked.First(remaining)
+		maximum := first.confidence
+		tail, _ := checked.Tail(remaining)
+		for _, candidate := range tail {
 			maximum = max(maximum, candidate.confidence)
 		}
 		weights := make([]float64, len(remaining))
-		total := float64(0)
+		var total float64
 		for index, candidate := range remaining {
 			weights[index] = math.Exp((candidate.confidence - maximum) / float64(temperature))
 			total += weights[index]
 		}
 		threshold := rng.Float64() * total
-		chosen := len(remaining) - 1
+		chosen := len(remaining)
+		chosen--
 		for index, weight := range weights {
 			threshold -= weight
-			if threshold < 0 {
+			if checked.Negative64(threshold) {
 				chosen = index
 				break
 			}
 		}
 		selected = append(selected, remaining[chosen])
-		remaining = append(remaining[:chosen], remaining[chosen+1:]...)
+		nextChosen := chosen
+		nextChosen++
+		remaining = append(remaining[:chosen], remaining[nextChosen:]...)
 	}
 	return selected
-}
-
-func finiteDiffusion(value float32) bool {
-	return !math.IsNaN(float64(value)) && !math.IsInf(float64(value), 0)
 }

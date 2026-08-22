@@ -2,11 +2,13 @@ package inference
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -22,7 +24,7 @@ type MultiHeadMTPSession struct {
 	DraftHidden   []reference.Value
 	MTPStart      uint32
 	Position      uint32
-	targetModel   [32]byte
+	targetModel   [sha256.Size]byte
 }
 
 // NewMultiHeadMTPSession compiles trunk prefill plus per-head catch-up.
@@ -30,7 +32,7 @@ func (r *Runner) NewMultiHeadMTPSession(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (*MultiHeadMTPSession, error) {
-	if r == nil || len(tokenIDs) == 0 {
+	if r == nil || !checked.Nonzero(len(tokenIDs)) {
 		return nil, errors.New("inference: multi-head MTP inputs are invalid")
 	}
 	r.mu.Lock()
@@ -57,10 +59,11 @@ func (r *Runner) NewMultiHeadMTPSession(
 		Shape: tensor.MustShape(uint64(width), uint64(len(tokenIDs))),
 		Data:  make([]float32, width*len(tokenIDs)),
 	}
-	if len(tokenIDs) > 1 {
+	if checked.Multiple(len(tokenIDs)) {
 		copy(shifted.Data[width:], hidden.Data[:len(hidden.Data)-width])
 	}
-	positions := tokenPositions(0, len(tokenIDs))
+	var origin uint32
+	positions := tokenPositions(origin, len(tokenIDs))
 	heads := make([]LayerCache, int(plan.Heads))
 	for offset := range heads {
 		_, _, headCache, runErr := r.runMultiHeadMTPHeadLocked(
@@ -104,7 +107,7 @@ func (r *Runner) AdvanceMultiHeadMTP(
 	if err := r.validateMultiHeadMTPSession(session); err != nil {
 		return reference.Value{}, nil, err
 	}
-	if tokenID < 0 || int(tokenID) >= r.vocab.Len() {
+	if _, valid := r.vocab.Token(tokenID); !valid {
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
 	offset := len(session.DraftTokens)
@@ -119,7 +122,7 @@ func (r *Runner) AdvanceMultiHeadMTP(
 	}
 	copy(hidden.Data, session.PendingHidden.Data)
 	for index, row := range session.DraftHidden {
-		copy(hidden.Data[(index+1)*width:], row.Data)
+		copy(hidden.Data[(index+tensor.SingletonExtent)*width:], row.Data)
 	}
 	positions := tokenPositions(session.MTPStart, len(tokens))
 	logits, nextHidden, headCache, err := r.runMultiHeadMTPHeadLocked(
@@ -163,7 +166,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	offset uint32,
 ) (reference.Value, reference.Value, LayerCache, error) {
 	plan, err := r.multiHeadMTP()
-	if err != nil || !plan.HasHead(offset) || len(tokenIDs) == 0 || len(positions) != len(tokenIDs) {
+	if err != nil || !plan.HasHead(offset) || !checked.Nonzero(len(tokenIDs)) || len(positions) != len(tokenIDs) {
 		return reference.Value{}, reference.Value{}, LayerCache{}, errors.New("inference: multi-head MTP head inputs are invalid")
 	}
 	rows, err := r.vocab.TensorIndices(tokenIDs)
@@ -178,7 +181,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if mtp.TokenEmbedding != nil {
 		embeddingInfo = *mtp.TokenEmbedding
 	}
-	tokenEmbedding, err := r.loadRows(ctx, embeddingInfo, rows)
+	tokenEmbedding, err := r.gatherTensor(ctx, embeddingInfo, rows)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
@@ -217,7 +220,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
-	if past != nil && past.Key.Shape.Rank != 0 {
+	if past != nil && past.Key.Defined() {
 		pastKey = runtime.input("multi_head_mtp.past_key", past.Key)
 		pastValue = runtime.input("multi_head_mtp.past_value", past.Value)
 	}
@@ -273,7 +276,11 @@ func (r *Runner) lookupMultiHeadMTP() (model.DraftPlan, bool) {
 	if plan.Session != model.DraftSessionMulti || !plan.AppendedBlocks || !plan.SessionEligible() {
 		return model.DraftPlan{}, false
 	}
-	catalog, ok := r.weights.DraftCatalog(plan.Kind, plan.Heads-1)
+	lastHead, valid := plan.LastHead()
+	if !valid {
+		return model.DraftPlan{}, false
+	}
+	catalog, ok := r.weights.DraftCatalog(plan.Kind, lastHead)
 	if !ok || catalog.Kind != plan.Kind {
 		return model.DraftPlan{}, false
 	}
@@ -293,9 +300,10 @@ func (r *Runner) validateMultiHeadMTPSession(session *MultiHeadMTPSession) error
 	if err := r.validateCache(session.TrunkCache); err != nil {
 		return fmt.Errorf("inference: multi-head MTP trunk cache: %w", err)
 	}
-	pendingRows, pendingValid := r.spec.SequenceRows(session.PendingHidden)
-	if session.MTPStart != effectiveCachePosition(session.TrunkCache) ||
-		!pendingValid || pendingRows != tensor.SingletonExtent {
+	if session.MTPStart != effectiveCachePosition(session.TrunkCache) {
+		return errors.New("inference: multi-head MTP session state is incompatible")
+	}
+	if err := r.spec.ValidateSequenceRow(session.PendingHidden); err != nil {
 		return errors.New("inference: multi-head MTP session state is incompatible")
 	}
 	for _, hidden := range session.DraftHidden {
@@ -306,7 +314,7 @@ func (r *Runner) validateMultiHeadMTPSession(session *MultiHeadMTPSession) error
 	for offset, layer := range session.Heads {
 		tokens := session.MTPStart
 		if offset < len(session.DraftTokens) {
-			tokens += uint32(offset + 1)
+			tokens += uint32(offset + tensor.SingletonExtent)
 		}
 		block := r.spec.BlockCount + uint32(offset)
 		keyShape := tensor.MustShape(
@@ -320,7 +328,7 @@ func (r *Runner) validateMultiHeadMTPSession(session *MultiHeadMTPSession) error
 			uint64(tokens),
 		)
 		if !layer.Key.Shape.Equal(keyShape) || !layer.Value.Shape.Equal(valueShape) ||
-			len(layer.Key.Data) == 0 || len(layer.Value.Data) == 0 {
+			!layer.Key.Defined() || !layer.Value.Defined() {
 			return fmt.Errorf("inference: multi-head MTP head %d cache is incompatible", offset)
 		}
 	}
@@ -328,10 +336,7 @@ func (r *Runner) validateMultiHeadMTPSession(session *MultiHeadMTPSession) error
 }
 
 func lastValueColumn(value reference.Value) (reference.Value, error) {
-	if value.Shape.Rank != 2 || value.Shape.Dims[0] == 0 || value.Shape.Dims[1] == 0 {
-		return reference.Value{}, errors.New("inference: output has no final column")
-	}
-	result, err := value.TailRows(1)
+	result, err := value.TailRows(tensor.SingletonExtent)
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("inference: output storage is invalid: %w", err)
 	}

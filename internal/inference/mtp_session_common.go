@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
@@ -22,14 +23,6 @@ type singleHeadMTPAdapter struct {
 	tokenEmbedding, outputNorm, output *gguf.TensorInfo
 }
 
-func (r *Runner) hasDraftSession(kind model.DraftKind, catalogs int) bool {
-	if r == nil {
-		return false
-	}
-	plan := r.program.Model.Draft()
-	return plan.Kind == kind && plan.SessionEligible() && catalogs == int(plan.Heads)
-}
-
 func (r *Runner) advanceSingleHeadMTP(
 	ctx context.Context,
 	tokenID tokenizer.TokenID,
@@ -40,7 +33,7 @@ func (r *Runner) advanceSingleHeadMTP(
 	if adapter.tokenEmbedding != nil {
 		embeddingInfo = *adapter.tokenEmbedding
 	}
-	tokenEmbedding, err := r.loadRows(ctx, embeddingInfo, []uint32{uint32(tokenID)})
+	tokenEmbedding, err := r.gatherTensor(ctx, embeddingInfo, []uint32{uint32(tokenID)})
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -71,15 +64,16 @@ func (r *Runner) advanceSingleHeadMTP(
 		return reference.Value{}, nil, err
 	}
 	var pastKey, pastValue *tensor.Tensor
-	if session.Layer.Key.Shape.Rank != 0 {
+	if session.Layer.Key.Defined() {
 		pastKey = graph.input(adapter.nodePrefix+".past_key", session.Layer.Key)
 		pastValue = graph.input(adapter.nodePrefix+".past_value", session.Layer.Value)
 	}
 	plan := adapter.program.Layer()
+	positions := []uint32{session.Position}
 	block, err := adapter.program.Build(model.CachedBlockContext{
-		Builder: builder, Input: current, Positions: []uint32{session.Position},
+		Builder: builder, Input: current, Positions: positions,
 		PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
-		CacheWrite: tensor.CacheWriteConcat, Sequences: 1,
+		CacheWrite: tensor.CacheWriteConcat, Sequences: uint64(len(positions)),
 	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -108,7 +102,7 @@ func (r *Runner) advanceSingleHeadMTP(
 		TrunkCache:    session.TrunkCache,
 		Layer:         LayerCache{Key: results[block.Key], Value: results[block.Value]},
 		PendingHidden: results[nextHidden], MTPStart: session.MTPStart,
-		Position: session.Position + 1, targetModel: session.targetModel,
+		Position: session.Position + uint32(len(positions)), targetModel: session.targetModel,
 	}, nil
 }
 
@@ -191,18 +185,20 @@ func (r *Runner) validateSingleHeadMTPSession(
 	if err := r.validateCache(session.TrunkCache); err != nil {
 		return fmt.Errorf("inference: %s trunk cache: %w", label, err)
 	}
-	if session.PendingHidden.Shape != tensor.MustShape(uint64(r.spec.EmbeddingLength), 1) ||
+	if !session.PendingHidden.Shape.Equal(tensor.MustShape(uint64(r.spec.EmbeddingLength), tensor.SingletonExtent)) ||
 		session.Position == math.MaxUint32 {
 		return fmt.Errorf("inference: %s session state is incompatible", label)
 	}
 	tokens := uint64(session.Position - session.MTPStart)
+	keyDefined := session.Layer.Key.Defined()
+	valueDefined := session.Layer.Value.Defined()
 	validCache := session.Position >= effectiveCachePosition(session.TrunkCache) &&
 		session.Position >= session.MTPStart &&
-		session.Layer.Key.Shape.Rank == session.Layer.Value.Shape.Rank &&
-		((session.Layer.Key.Shape.Rank == 0 && tokens == 0) ||
-			(session.Layer.Key.Shape == tensor.MustShape(uint64(r.spec.KeyLength), uint64(r.spec.HeadCountKV), tokens) &&
-				session.Layer.Value.Shape == tensor.MustShape(uint64(r.spec.ValueLength), uint64(r.spec.HeadCountKV), tokens)))
-	if boundedContext && session.Layer.Key.Shape.Rank != 0 && tokens >= uint64(r.spec.ContextLength) {
+		keyDefined == valueDefined &&
+		((!keyDefined && !checked.Nonzero(tokens)) ||
+			(session.Layer.Key.Shape.Equal(tensor.MustShape(uint64(r.spec.KeyLength), uint64(r.spec.HeadCountKV), tokens)) &&
+				session.Layer.Value.Shape.Equal(tensor.MustShape(uint64(r.spec.ValueLength), uint64(r.spec.HeadCountKV), tokens))))
+	if boundedContext && keyDefined && !checked.Less64(tokens, uint64(r.spec.ContextLength)) {
 		validCache = false
 	}
 	if !validCache {

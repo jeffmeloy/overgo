@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "bridge-training",
-          "title": "Build dataset-driven bridge-only training with checkpoint, lineage, metrics, and frozen-model proof",
-          "status": "open",
-          "verify": "go test ./internal/bridgetrain ./internal/composition -run 'TestDatasetBridgeTraining|TestBridgeCheckpointResume|TestBridgeTrainingFreezesModels' -count=1"
-        },
-        {
           "id": "promotion-activation",
           "title": "Make recipe-owned promotion evidence authorize active composition",
           "status": "open",

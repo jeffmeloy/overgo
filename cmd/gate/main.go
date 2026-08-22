@@ -55,6 +55,7 @@ const (
 	gateDebtFile      = "bin/gate_debt.json"
 	gateHeartbeatFile = "bin/gate_lifecycle.json"
 	gateRetryFile     = "bin/gate_cache.json"
+	gateProgressLine  = "gate: phase=%s heartbeat=%s\n"
 )
 
 type gateContext struct {
@@ -191,7 +192,7 @@ func run() error {
 	var pipelineErr error
 	if pipelineErr = g.pipeline(); pipelineErr != nil {
 		outcome = runrecord.OutcomeFailed
-		failureCode = terminalFailureCode(g.steps)
+		failureCode = g.steps[len(g.steps)-1].Name
 	}
 	recordErr := g.record(outcome, failureCode)
 	stopHeartbeat()
@@ -213,15 +214,6 @@ func run() error {
 		return fmt.Errorf("commit landed but RepoDB record debt remains: %w", recordErr)
 	}
 	return nil
-}
-
-func terminalFailureCode(steps []runrecord.GateStep) string {
-	for index := len(steps) - 1; index >= 0; index-- {
-		if steps[index].Outcome == runrecord.StepFailed {
-			return steps[index].Name
-		}
-	}
-	return "gate"
 }
 
 // checkPlanBinding refuses any commit whose -plan is not the plan's current open
@@ -260,12 +252,10 @@ type gateStep struct {
 }
 
 func (g *gateContext) pipelineSteps() []gateStep {
-	steps := []gateStep{
+	return []gateStep{
 		{"protection", runrecord.PhaseValidate, g.stepProtection},
 		{"scope", runrecord.PhaseValidate, g.stepScope},
 		{"profile", runrecord.PhaseValidate, g.stepProfile},
-	}
-	return append(steps, []gateStep{
 		{"acceptance", runrecord.PhaseTest, g.stepAcceptance},
 		{"fmt", runrecord.PhaseValidate, g.stepFmt},
 		{"vet", runrecord.PhaseVet, g.stepVet},
@@ -278,7 +268,7 @@ func (g *gateContext) pipelineSteps() []gateStep {
 		{"magics", runrecord.PhaseValidate, g.stepMagics},
 		{"device", runrecord.PhaseTest, g.stepDevice},
 		{"commit", runrecord.PhasePackage, g.stepCommit},
-	}...)
+	}
 }
 
 func (g *gateContext) pipeline() error {
@@ -291,6 +281,7 @@ func (g *gateContext) pipeline() error {
 	cacheable := map[string]bool{"vet": true, "build": true, "test": true, "manifest": true, "sbom": true, "claims": true}
 	for _, s := range steps {
 		began := time.Now()
+		fmt.Fprintf(os.Stderr, gateProgressLine, s.name, runrecord.HeartbeatRunning)
 		var skipped bool
 		var err error
 		input := ""
@@ -304,10 +295,7 @@ func (g *gateContext) pipeline() error {
 		} else if err == nil {
 			skipped, err = s.fn()
 		}
-		duration := uint64(time.Since(began).Nanoseconds())
-		if duration == 0 && !skipped {
-			duration = 1
-		}
+		duration := max(uint64(time.Since(began).Nanoseconds()), uint64(1))
 		record := runrecord.GateStep{
 			Name: s.name, Phase: s.phase, Outcome: runrecord.StepSucceeded,
 			DurationNS: duration, Evidence: g.stepEvidence[s.name],

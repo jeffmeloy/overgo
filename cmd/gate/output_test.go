@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -10,7 +11,7 @@ import (
 	"overgo/internal/runrecord"
 )
 
-func TestCompactAgentOutput(t *testing.T) {
+func TestGateReportsPhaseProgress(t *testing.T) {
 	gate := gateContext{
 		start: time.Now(),
 		steps: []runrecord.GateStep{
@@ -28,9 +29,11 @@ func TestCompactAgentOutput(t *testing.T) {
 		},
 	}
 	var output bytes.Buffer
+	fmt.Fprintf(&output, gateProgressLine, "test", runrecord.HeartbeatRunning)
 	gate.printSummary(&output, runrecord.OutcomeSucceeded, "")
 	text := output.String()
-	if len(text) > 1000 || !strings.Contains(text, "GATE SUCCEEDED") || !strings.Contains(text, "delta:") ||
+	if len(text) > 1000 || !strings.Contains(text, "phase=test heartbeat=running") ||
+		!strings.Contains(text, "GATE SUCCEEDED") || !strings.Contains(text, "delta:") ||
 		!strings.Contains(text, "consumer:") || !strings.Contains(text, "warning:") {
 		t.Fatalf("gate output is not compact and decision-complete (%d bytes):\n%s", len(text), text)
 	}

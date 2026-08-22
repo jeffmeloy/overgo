@@ -33,25 +33,24 @@ import (
 
 const (
 	errorCodeUnsupportedOperation = "unsupported_operation"
-
-	DefaultModelID             = "overgo"
-	DefaultMaxTokens           = 4096
-	DefaultMaxConcurrent       = 1
-	DefaultMaxEmbeddingInputs  = 16
-	DefaultVideoFPS            = 2
-	DefaultVideoFrameLimit     = 32
-	DefaultSamplingTemperature = float32(1)
-	DefaultSamplingTopP        = float32(1)
-	DefaultSamplingTopK        = 40
-	maxRequestBytes            = 1 << 20
-	maxMultimodalRequestBytes  = 32 << 20
-	maxImageBytes              = 16 << 20
-	maxMediaBytes              = 24 << 20
-	maxImageDimension          = 16384
-	maxImagePixels             = 16 << 20
-	maxRequestImagePixels      = 32 << 20
-	maxCompletionChoices       = 8
-	defaultProtocolMaxTokens   = 16
+	defaultModelID                = "overgo"
+	defaultMaxTokens              = 4096
+	defaultMaxConcurrent          = 1
+	defaultSamplingTemperature    = float32(1)
+	defaultSamplingTopP           = float32(1)
+	defaultSamplingTopK           = 40
+	defaultMaxEmbeddingInputs     = 16
+	defaultVideoFPS               = 2
+	defaultVideoFrameLimit        = 32
+	maxRequestBytes               = 1 << 20
+	maxMultimodalRequestBytes     = 32 << 20
+	maxImageBytes                 = 16 << 20
+	maxMediaBytes                 = 24 << 20
+	maxImageDimension             = 16384
+	maxImagePixels                = 16 << 20
+	maxRequestImagePixels         = 32 << 20
+	maxCompletionChoices          = 8
+	defaultProtocolMaxTokens      = 16
 )
 
 type Generator interface {
@@ -233,6 +232,23 @@ type Config struct {
 	Analysis     AnalysisPolicy
 }
 
+// DefaultConfig returns the shared serving policy.
+func DefaultConfig() Config {
+	return Config{
+		ModelID:            defaultModelID,
+		MaxTokens:          defaultMaxTokens,
+		MaxConcurrent:      defaultMaxConcurrent,
+		DefaultTemperature: defaultSamplingTemperature,
+		DefaultTopP:        defaultSamplingTopP,
+		DefaultTopK:        defaultSamplingTopK,
+		MaxEmbeddingInputs: defaultMaxEmbeddingInputs,
+		MaxStoredResponses: DefaultStoredResponses,
+		ResponseStoreBytes: DefaultResponseStoreBytes,
+		VideoFPS:           defaultVideoFPS,
+		VideoMaxFrames:     defaultVideoFrameLimit,
+	}
+}
+
 type slotRuntimeStats struct {
 	promptTokens    atomic.Uint64
 	cachedTokens    atomic.Uint64
@@ -355,6 +371,7 @@ type Handler struct {
 }
 
 func New(config Config, generator Generator) (*Handler, error) {
+	defaults := DefaultConfig()
 	if generator == nil {
 		return nil, errors.New("server: generator is nil")
 	}
@@ -364,31 +381,31 @@ func New(config Config, generator Generator) (*Handler, error) {
 		}
 	}
 	if config.ModelID == "" {
-		config.ModelID = DefaultModelID
+		config.ModelID = defaults.ModelID
 	}
 	if config.MaxTokens == 0 {
-		config.MaxTokens = DefaultMaxTokens
+		config.MaxTokens = defaults.MaxTokens
 	}
 	if config.MaxTokens < 0 {
 		return nil, errors.New("server: max tokens must be positive")
 	}
 	if config.MaxConcurrent == 0 {
-		config.MaxConcurrent = DefaultMaxConcurrent
+		config.MaxConcurrent = defaults.MaxConcurrent
 	}
 	if config.MaxConcurrent <= 0 {
 		return nil, errors.New("server: max concurrent requests must be positive")
 	}
 	if config.MaxEmbeddingInputs == 0 {
-		config.MaxEmbeddingInputs = DefaultMaxEmbeddingInputs
+		config.MaxEmbeddingInputs = defaults.MaxEmbeddingInputs
 	}
 	if config.MaxEmbeddingInputs < 0 {
 		return nil, errors.New("server: max embedding inputs must be positive")
 	}
 	if config.DefaultTemperature == 0 {
-		config.DefaultTemperature = DefaultSamplingTemperature
+		config.DefaultTemperature = defaults.DefaultTemperature
 	}
 	if config.DefaultTopP == 0 {
-		config.DefaultTopP = DefaultSamplingTopP
+		config.DefaultTopP = defaults.DefaultTopP
 	}
 	if config.RequestTimeout < 0 {
 		return nil, errors.New("server: request timeout must be non-negative")
@@ -398,25 +415,25 @@ func New(config Config, generator Generator) (*Handler, error) {
 		return nil, errors.New("server: response tool policy requires an external executor for non-deny modes")
 	}
 	if config.MaxStoredResponses == 0 {
-		config.MaxStoredResponses = DefaultStoredResponses
+		config.MaxStoredResponses = defaults.MaxStoredResponses
 	}
 	if config.MaxStoredResponses <= 0 {
 		return nil, errors.New("server: stored response count must be positive")
 	}
 	if config.ResponseStoreBytes == 0 {
-		config.ResponseStoreBytes = DefaultResponseStoreBytes
+		config.ResponseStoreBytes = defaults.ResponseStoreBytes
 	}
 	if config.ResponseStoreBytes <= 0 {
 		return nil, errors.New("server: response store bytes must be positive")
 	}
 	if config.VideoFPS == 0 {
-		config.VideoFPS = DefaultVideoFPS
+		config.VideoFPS = defaults.VideoFPS
 	}
 	if config.VideoFPS <= 0 || math.IsNaN(config.VideoFPS) || math.IsInf(config.VideoFPS, 0) {
 		return nil, errors.New("server: video FPS must be finite and positive")
 	}
 	if config.VideoMaxFrames == 0 {
-		config.VideoMaxFrames = DefaultVideoFrameLimit
+		config.VideoMaxFrames = defaults.VideoMaxFrames
 	}
 	if config.VideoMaxFrames <= 0 {
 		return nil, errors.New("server: video frame limit must be positive")

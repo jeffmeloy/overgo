@@ -41,17 +41,23 @@ func main() {
 }
 
 func run() error {
+	defaults := llamaserver.DefaultConfig()
+	analysisDefaults := llamaserver.AnalysisPolicy{
+		TensorSamples: defaultAnalysisTensorSamples, TensorReadBytes: defaultAnalysisTensorBytes,
+		StatePositions: defaultAnalysisPositions, MDSIterations: defaultAnalysisMDSIterations,
+		MDSTolerance: defaultAnalysisMDSTolerance,
+	}
 	address := flag.String("listen", "127.0.0.1:8080", "HTTP listen address")
-	modelID := flag.String("model-id", llamaserver.DefaultModelID, "API model identifier")
+	modelID := flag.String("model-id", defaults.ModelID, "API model identifier")
 	modelFlags := clioptions.AddModelFlags(flag.CommandLine, "load GGUF LoRA adapter at global scale 1; repeatable")
 	loraDisabled := flag.Bool("lora-init-without-apply", false, "load adapters with global scale 0")
-	maxTokens := flag.Int("max-tokens", llamaserver.DefaultMaxTokens, "maximum max_tokens accepted per request")
+	maxTokens := flag.Int("max-tokens", defaults.MaxTokens, "maximum max_tokens accepted per request")
 	contextShift := flag.Bool(
 		"context-shift",
 		false,
 		"discard oldest attention KV entries when generation reaches model context",
 	)
-	maxConcurrent := flag.Int("max-concurrent", llamaserver.DefaultMaxConcurrent, "maximum admitted generation requests")
+	maxConcurrent := flag.Int("max-concurrent", defaults.MaxConcurrent, "maximum admitted generation requests")
 	spmInfill := flag.Bool(
 		"spm-infill",
 		false,
@@ -63,7 +69,7 @@ func run() error {
 		"maximum independently reusable prompt states retained by the Runner",
 	)
 	maxEmbeddingInputs := flag.Int(
-		"max-embedding-inputs", llamaserver.DefaultMaxEmbeddingInputs, "maximum strings accepted by one embedding request",
+		"max-embedding-inputs", defaults.MaxEmbeddingInputs, "maximum strings accepted by one embedding request",
 	)
 	requestTimeout := flag.Duration(
 		"request-timeout",
@@ -72,12 +78,12 @@ func run() error {
 	)
 	responseStoreEntries := flag.Int(
 		"response-store-entries",
-		llamaserver.DefaultStoredResponses,
+		defaults.MaxStoredResponses,
 		"maximum Responses continuation histories retained in memory",
 	)
 	responseStoreBytes := flag.Int(
 		"response-store-bytes",
-		llamaserver.DefaultResponseStoreBytes,
+		defaults.ResponseStoreBytes,
 		"maximum aggregate bytes retained for Responses continuation",
 	)
 	apiKeyFile := flag.String(
@@ -90,8 +96,8 @@ func run() error {
 	mediaPolicyPath := flag.String("media-policy", "media_policy.json", "remote-media JSON policy; empty disables URLs")
 	resourcePolicyPath := flag.String("resource-policy", "resource_policy.json", "Responses file-ID JSON policy; empty disables file IDs")
 	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for encoded video")
-	videoFPS := flag.Float64("video-fps", llamaserver.DefaultVideoFPS, "video frame sampling rate")
-	videoMaxFrames := flag.Int("video-max-frames", llamaserver.DefaultVideoFrameLimit, "maximum decoded video frames")
+	videoFPS := flag.Float64("video-fps", defaults.VideoFPS, "video frame sampling rate")
+	videoMaxFrames := flag.Int("video-max-frames", defaults.VideoMaxFrames, "maximum decoded video frames")
 	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
 	modelBuilderEnabled := flag.Bool("model-builder", false, "enable corpus-derived model builder workspace")
 	var evaluationSuites []string
@@ -104,11 +110,11 @@ func run() error {
 		return nil
 	})
 	evaluationCommit := flag.String("evaluation-commit", "", "source commit bound to evaluation evidence")
-	analysisTensorSamples := flag.Uint64("analysis-tensor-samples", defaultAnalysisTensorSamples, "samples retained per analyzed tensor")
-	analysisTensorBytes := flag.Uint64("analysis-tensor-bytes", defaultAnalysisTensorBytes, "aggregate tensor bytes read per analysis")
-	analysisPositions := flag.Int("analysis-state-positions", defaultAnalysisPositions, "maximum positions retained by state analysis")
-	analysisMDSIterations := flag.Int("analysis-mds-iterations", defaultAnalysisMDSIterations, "state-layout convergence iteration bound")
-	analysisMDSTolerance := flag.Float64("analysis-mds-tolerance", defaultAnalysisMDSTolerance, "state-layout relative convergence tolerance")
+	analysisTensorSamples := flag.Uint64("analysis-tensor-samples", analysisDefaults.TensorSamples, "samples retained per analyzed tensor")
+	analysisTensorBytes := flag.Uint64("analysis-tensor-bytes", analysisDefaults.TensorReadBytes, "aggregate tensor bytes read per analysis")
+	analysisPositions := flag.Int("analysis-state-positions", analysisDefaults.StatePositions, "maximum positions retained by state analysis")
+	analysisMDSIterations := flag.Int("analysis-mds-iterations", analysisDefaults.MDSIterations, "state-layout convergence iteration bound")
+	analysisMDSTolerance := flag.Float64("analysis-mds-tolerance", analysisDefaults.MDSTolerance, "state-layout relative convergence tolerance")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		return errors.New("usage: server [options] <model.gguf>")
@@ -237,9 +243,9 @@ func run() error {
 		MaxTokens:          *maxTokens,
 		MaxConcurrent:      *maxConcurrent,
 		MaxEmbeddingInputs: *maxEmbeddingInputs,
-		DefaultTemperature: llamaserver.DefaultSamplingTemperature,
-		DefaultTopP:        llamaserver.DefaultSamplingTopP,
-		DefaultTopK:        llamaserver.DefaultSamplingTopK,
+		DefaultTemperature: defaults.DefaultTemperature,
+		DefaultTopP:        defaults.DefaultTopP,
+		DefaultTopK:        defaults.DefaultTopK,
 		APIKey:             apiKey,
 		ContextShift:       *contextShift,
 		RequestTimeout:     *requestTimeout,

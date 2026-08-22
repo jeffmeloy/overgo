@@ -3,28 +3,6 @@
   "doctrine": "Apply the Google Go Style Guide as the default readability standard, subordinate to correctness, numerical parity, external wire and ABI contracts, measured performance, repository authority, and established Go tooling. Clarity, simplicity, concision, maintainability, then consistency. Use gofmt and go vet. Prefer language and standard-library mechanisms. Preserve local style only when it does not spread a deviation. Do not rename packages, APIs, files, or identifiers solely for cosmetic conformity. Migrate every caller and delete displaced wrappers in the same wave. Delete or privatize unnecessary exports before documenting survivors. Exported Godoc comments are complete name-led sentences; internal ownership, invariant, and field comments may remain telegraphic. Constants name stable roles, never values; model and training policy remains recipe, artifact, or RepoDB derived. Tests own explicit fixture inputs but reuse production contracts and independent oracles. Generated code and externally fixed CUDA, GGUF, safetensors, JSON, and HTTP identifiers are excluded from stylistic renaming. Avoid repository-wide line-ending churn; gofmt each touched file. No new external linter dependency.",
   "items": [
     {
-      "id": "go-style-literals",
-      "title": "Remove policy literals from decision boundaries",
-      "status": "open",
-      "steps": [
-        {
-          "id": "serving-tests",
-          "title": "Derive serving policy and remove copied test policy",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope cmd/server,internal/inference,internal/server -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production \u0026\u0026 go test ./cmd/server ./internal/inference ./internal/server -count=1",
-          "rationale": "Move limits, timeouts, device selection, sampling defaults, modality geometry, and session policy to typed requests, active recipes, artifacts, or measured plans. In touched tests, keep deliberate inputs in fixture owners, use production constants and independent oracles, and delete expected values that merely reimplement production policy. Do not rewrite zero values, slice bounds, enum ordinals, tensor index arithmetic, quantization traits, or CUDA launch mathematics without evidence that they express policy.",
-          "depends_on": [
-            "go-style-literals/configuration-training"
-          ],
-          "capabilities": [
-            "derived-serving-policy",
-            "test-contract-reuse",
-            "literal-classification"
-          ]
-        }
-      ]
-    },
-    {
       "id": "go-style-api-surface",
       "title": "Reduce and document the public surface",
       "status": "open",

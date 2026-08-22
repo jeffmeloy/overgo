@@ -9,12 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "api-gui",
-          "title": "Expose composition inventory, compatibility, graph, training, evaluation, promotion, activation, and runtime evidence",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestComposition(API|GUI)Workflow' -count=1"
-        },
-        {
           "id": "external-cross-attention",
           "title": "Activate recipe-compiled external cross-attention with separate cache ownership",
           "status": "open",
@@ -134,6 +128,11 @@
       "item": "composability-production",
       "step": "device-residency",
       "authority": "evidence:sha256:2fd80cb9090845cc71847b718571471f4316436be453d546cd8338b73971b187"
+    },
+    {
+      "item": "composability-production",
+      "step": "api-gui",
+      "authority": "evidence:sha256:ab5eadc742be80633a7212dd1a435ae100112db40ad881ec4b21b61ad5800c74"
     }
   ]
 }

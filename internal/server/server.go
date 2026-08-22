@@ -599,6 +599,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/datasets/preview" ||
 		request.URL.Path == "/runs" ||
 		request.URL.Path == "/recipes/active" ||
+		request.URL.Path == "/compositions" ||
+		request.URL.Path == "/compositions/activate" ||
 		request.URL.Path == "/operations" ||
 		request.URL.Path == "/operations/cancel" ||
 		request.URL.Path == "/operations/wait" ||
@@ -710,6 +712,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.browseRuns(response, request)
 	case "/recipes/active":
 		h.activeRecipe(response, request)
+	case "/compositions":
+		h.compositionInventory(response, request)
+	case "/compositions/activate":
+		h.compositionActivate(response, request)
 	case "/operations":
 		h.operationStatus(response, request)
 	case "/operations/cancel":

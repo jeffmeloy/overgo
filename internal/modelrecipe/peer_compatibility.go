@@ -20,7 +20,7 @@ var remotePeerCompatibilityCodec = artifact.JSONDocumentCodec(
 	func(value *RemotePeerCompatibility, id artifact.ID) { value.ID = id }, nil,
 )
 
-// RemotePeerCompatibility: observed parity for one recipe resource plan.
+// RemotePeerCompatibility defines observed parity for one recipe resource plan.
 type RemotePeerCompatibility struct {
 	Version          uint16      `json:"version"`
 	Model            artifact.ID `json:"model"`

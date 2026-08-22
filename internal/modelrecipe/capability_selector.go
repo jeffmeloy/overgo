@@ -21,7 +21,7 @@ func (selection SessionSelection) Valid() bool {
 	return selection == SessionPin || selection == SessionWarm || selection == SessionSpillover
 }
 
-// CapabilityEvidenceSelector: typed model alias plus serving intent.
+// CapabilityEvidenceSelector defines typed model alias plus serving intent.
 type CapabilityEvidenceSelector struct {
 	Alias         string
 	Task          recipe.Task
@@ -29,7 +29,7 @@ type CapabilityEvidenceSelector struct {
 	Compatibility artifact.ID
 }
 
-// CapabilityEvidenceSelection: verified executable alias target.
+// CapabilityEvidenceSelection defines verified executable alias target.
 type CapabilityEvidenceSelection struct {
 	Identity   artifact.ID
 	Alias      string

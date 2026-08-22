@@ -46,7 +46,7 @@ type GateStep struct {
 	Evidence   string      `json:"evidence,omitempty"`
 }
 
-// GateResult: immutable named-step gate verdict.
+// GateResult defines immutable named-step gate verdict.
 type GateResult struct {
 	Version     uint16      `json:"version"`
 	Recipe      artifact.ID `json:"recipe"`
@@ -93,6 +93,7 @@ func NewGateRecord(
 	return GateRecord{Result: result, Run: run}, nil
 }
 
+// ParseGateResult decodes and validates a gate result.
 func ParseGateResult(content []byte) (GateResult, error) {
 	return gateCodec.Parse(content)
 }

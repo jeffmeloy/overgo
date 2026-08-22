@@ -35,6 +35,7 @@ type SFTEvaluationView struct {
 	Records            []dataset.Record                 `json:"records"`
 }
 
+// CompileSFTEvaluationView binds an objective to isolated training and held-out datasets.
 func CompileSFTEvaluationView(
 	objective trainingprogram.ObjectiveDocument,
 	training, heldout dataset.Membership,

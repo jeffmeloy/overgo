@@ -18,7 +18,7 @@ const (
 	identifyBufferBytes = 1 << 20
 )
 
-// Kind: durable artifact class
+// Kind defines durable artifact class.
 type Kind uint8
 
 const (
@@ -79,7 +79,7 @@ func ParseKind(value string) (Kind, error) {
 	return KindInvalid, fmt.Errorf("artifact: unknown kind %q", value)
 }
 
-// ID: kind-qualified SHA-256 content identity
+// ID defines kind-qualified SHA-256 content identity.
 type ID struct {
 	kind   Kind
 	digest [digestBytes]byte

@@ -65,12 +65,12 @@ type Plan struct {
 	Evidence  []artifact.ID
 }
 
-// Runtime: compiled execution surface.
+// Runtime defines compiled execution surface.
 type Runtime string
 
 const RuntimeInference Runtime = "inference"
 
-// ProgramIdentity: exact serving bindings.
+// ProgramIdentity defines exact serving bindings.
 type ProgramIdentity struct {
 	Model         artifact.ID            `json:"model"`
 	Profile       artifact.ID            `json:"profile"`
@@ -82,7 +82,7 @@ type ProgramIdentity struct {
 	Runtime       Runtime                `json:"runtime"`
 }
 
-// DecodeSessionPolicy: compiled decode-graph lifetime.
+// DecodeSessionPolicy defines compiled decode-graph lifetime.
 type DecodeSessionPolicy = recipe.SessionPolicy
 
 const (
@@ -90,7 +90,7 @@ const (
 	DecodeSessionCapacity = recipe.SessionCapacity
 )
 
-// DecodePlan: recipe-owned session program.
+// DecodePlan defines recipe-owned session program.
 type DecodePlan struct {
 	Session DecodeSessionPolicy
 }
@@ -137,7 +137,7 @@ var projectionStages = map[recipe.DataKind]projectionStage{
 	recipe.DataVideo: {"video", recipe.DataVideo, recipe.DataVideoTensor, workflowrecipe.ModuleDecodeVideo, workflowrecipe.ModuleProjectVideo},
 }
 
-// ProjectionDefinition: one exact projector bundle; one branch per supported modality.
+// ProjectionDefinition returns one exact projector bundle with one branch per supported modality.
 func ProjectionDefinition(
 	modelID, projectorID artifact.ID,
 	media ...recipe.DataKind,
@@ -274,7 +274,7 @@ var latentVideoCapability = linearCapability{placement: recipe.PlacementHybrid, 
 	{node: "decode", module: ModuleLatentVideoDecode, input: "features", output: "video", inputData: recipe.DataVideoTensor, outData: recipe.DataVideo},
 }}
 
-// CapabilityDefinition: task-indexed executable topology.
+// CapabilityDefinition returns task-indexed executable topology.
 func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
 	if task == recipe.TaskVQA {
 		return vqaDefinition(modelID)
@@ -286,41 +286,41 @@ func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 	return capability.definition(task, modelID)
 }
 
-// LatentImageDefinition: prompt-conditioned diffusion image graph.
+// LatentImageDefinition returns a prompt-conditioned diffusion image graph.
 func LatentImageDefinition(modelID, profileID artifact.ID) (recipe.Definition, error) {
 	return latentImageCapability.definition(recipe.TaskImageGen, modelID, recipe.Dependency{
 		Role: recipe.DependencyProfile, Artifact: profileID,
 	})
 }
 
-// OscillatorImageDefinition: class-conditioned oscillator image graph.
+// OscillatorImageDefinition returns a class-conditioned oscillator image graph.
 func OscillatorImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
 	return oscillatorImageCapability.definition(recipe.TaskImageGen, modelID)
 }
 
-// DiffusionImageDefinition: seeded image-tensor flow graph.
+// DiffusionImageDefinition returns a seeded image-tensor flow graph.
 func DiffusionImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
 	return diffusionImageCapability.definition(recipe.TaskImageGen, modelID)
 }
 
-// OscillatorVideoDefinition: class-conditioned oscillator video graph.
+// OscillatorVideoDefinition returns a class-conditioned oscillator video graph.
 func OscillatorVideoDefinition(modelID artifact.ID) (recipe.Definition, error) {
 	return oscillatorVideoCapability.definition(recipe.TaskVideoGen, modelID)
 }
 
-// RoutedImageDefinition: prompt-conditioned routed-transformer image graph.
+// RoutedImageDefinition returns a prompt-conditioned routed-transformer image graph.
 func RoutedImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
 	return routedImageCapability.definition(recipe.TaskImageGen, modelID)
 }
 
-// LatentVideoDefinition: prompt-conditioned latent-video graph.
+// LatentVideoDefinition returns a prompt-conditioned latent-video graph.
 func LatentVideoDefinition(modelID, profileID artifact.ID) (recipe.Definition, error) {
 	return latentVideoCapability.definition(recipe.TaskVideoGen, modelID, recipe.Dependency{
 		Role: recipe.DependencyProfile, Artifact: profileID,
 	})
 }
 
-// ReferenceVideoEditDefinition: prompt and source-video conditioned graph.
+// ReferenceVideoEditDefinition returns a prompt and source-video conditioned graph.
 func ReferenceVideoEditDefinition(modelID, profileID artifact.ID) (recipe.Definition, error) {
 	prepare := recipe.Node{ID: "prepare", Module: ModuleReferenceVideoPrepare, Placement: recipe.PlacementHybrid, Session: recipe.SessionCapacity}
 	integrate := recipe.Node{ID: "integrate", Module: ModuleReferenceVideoIntegrate, Placement: recipe.PlacementHybrid}
@@ -561,7 +561,7 @@ func validateProgramIdentity(definition recipe.Definition, identity ProgramIdent
 	return nil
 }
 
-// ValidateServing: complete identity-bound inference program.
+// ValidateServing validates a complete identity-bound inference program.
 func (p Plan) ValidateServing() error {
 	if err := validateProgramIdentity(p.Recipe, p.Identity); err != nil {
 		return err

@@ -8,20 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "contracts",
-          "title": "Audit contract and evidence packages export by export",
-          "status": "open",
-          "verify": "go test ./internal/artifact ./internal/dataset ./internal/recipe ./internal/modelrecipe ./internal/runrecord ./internal/evaluation -count=1",
-          "rationale": "Use the consumer census first. Delete zero-consumer exports, privatize package-local contracts, inline pass-through wrappers, shorten package-repetitive names only when every caller migrates, then add complete Godoc sentences to the remaining API.",
-          "depends_on": [
-            "go-style-literals/serving-tests"
-          ],
-          "capabilities": [
-            "minimal-contract-api",
-            "complete-public-docs"
-          ]
-        },
-        {
           "id": "runtime",
           "title": "Audit runtime and serving packages export by export",
           "status": "open",

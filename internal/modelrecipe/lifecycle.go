@@ -63,7 +63,7 @@ func Transition(
 	return transition(ctx, store, key, definition, to, evidence, supersedes, nil, nil)
 }
 
-// Verification: immutable verifier gate/run identities.
+// Verification defines immutable verifier gate/run identities.
 type Verification struct {
 	Gate artifact.ID
 	Run  artifact.ID
@@ -264,7 +264,7 @@ func reverifyActiveCapability(
 	return err
 }
 
-// ActivateVerified: promote only from a successful recipe-bound verifier run.
+// ActivateVerified promotes only from a successful recipe-bound verifier run.
 func ActivateVerified(
 	ctx context.Context,
 	store artifact.Repository,
@@ -483,7 +483,7 @@ func resolveActiveCapability(ctx context.Context, store artifact.Reader, modelID
 	return activation, program, err
 }
 
-// Status: current lifecycle state of a recipe; published=false when never seen.
+// Status returns the current recipe lifecycle state and whether it was published.
 func Status(ctx context.Context, store artifact.Reader, recipeID artifact.ID) (recipe.Status, bool, error) {
 	if _, ok, err := artifact.ResolveAlias(ctx, store, statusAlias(recipeID)); err != nil || !ok {
 		return "", false, err

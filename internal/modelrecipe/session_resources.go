@@ -9,7 +9,7 @@ import (
 	"overgo/internal/recipe"
 )
 
-// ComponentSession: one ordered recipe-stage lifetime.
+// ComponentSession defines one ordered recipe-stage lifetime.
 type ComponentSession struct {
 	Identity      artifact.ID            `json:"identity,omitzero"`
 	Node          recipe.NodeID          `json:"node"`
@@ -21,7 +21,7 @@ type ComponentSession struct {
 	ArtifactBytes uint64                 `json:"artifact_bytes"`
 }
 
-// ComponentSessionPlan: compiled stage lifetimes plus unique artifact extent.
+// ComponentSessionPlan defines compiled stage lifetimes plus unique artifact extent.
 type ComponentSessionPlan struct {
 	Identity      artifact.ID
 	Recipe        artifact.ID
@@ -45,7 +45,7 @@ var componentSessionPlanContract = artifact.DocumentContract{
 	Schema: "overgo/component-session-plan/v1",
 }
 
-// CompileComponentSessionPlan: ordered catalog-derived component lifetimes.
+// CompileComponentSessionPlan compiles ordered catalog-derived component lifetimes.
 func CompileComponentSessionPlan(ctx context.Context, reader artifact.Reader, program recipe.Program) (ComponentSessionPlan, error) {
 	if ctx == nil || reader == nil {
 		return ComponentSessionPlan{}, errors.New("model recipe: component session authority is absent")
@@ -55,7 +55,7 @@ func CompileComponentSessionPlan(ctx context.Context, reader artifact.Reader, pr
 	})
 }
 
-// CompileComponentSessionPlanWithExtents: ordered lifetimes from validated extents.
+// CompileComponentSessionPlanWithExtents compiles ordered lifetimes from validated extents.
 func CompileComponentSessionPlanWithExtents(
 	ctx context.Context,
 	program recipe.Program,

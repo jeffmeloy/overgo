@@ -12,7 +12,7 @@ const (
 	maxBatchKeyBytes = 512
 )
 
-// Descriptor: immutable content fact
+// Descriptor defines immutable content fact.
 type Descriptor struct {
 	ID        ID     `json:"id"`
 	Size      uint64 `json:"size"`
@@ -33,7 +33,7 @@ func (d Descriptor) Validate() error {
 	return nil
 }
 
-// Relation: child-to-parent lineage role
+// Relation defines child-to-parent lineage role.
 type Relation uint8
 
 const (
@@ -105,7 +105,7 @@ func (r *Relation) UnmarshalJSON(data []byte) error {
 	return unmarshalEnumInto(r, data, relationNames[:], "relation")
 }
 
-// Lineage: immutable dependency edge
+// Lineage defines immutable dependency edge.
 type Lineage struct {
 	Child    ID       `json:"child"`
 	Parent   ID       `json:"parent"`
@@ -125,7 +125,7 @@ func (l Lineage) Validate() error {
 	return nil
 }
 
-// AliasBinding: compare-and-set alias update or retirement.
+// AliasBinding defines compare-and-set alias update or retirement.
 type AliasBinding struct {
 	Name     string `json:"name"`
 	Target   ID     `json:"target"`
@@ -149,7 +149,7 @@ func (b AliasBinding) Validate() error {
 	return nil
 }
 
-// Batch: one atomic repository commit
+// Batch defines one atomic repository commit.
 type Batch struct {
 	Key       string          `json:"key"`
 	Artifacts []Descriptor    `json:"artifacts,omitempty"`
@@ -200,7 +200,7 @@ func (b Batch) Validate() error {
 	return nil
 }
 
-// CommitID: hash-chained transaction identity
+// CommitID defines hash-chained transaction identity.
 type CommitID [32]byte
 
 func (id CommitID) String() string {
@@ -211,7 +211,7 @@ func (id CommitID) Valid() bool {
 	return id != CommitID{}
 }
 
-// Reader: storage-neutral artifact queries
+// Reader defines storage-neutral artifact queries.
 type Reader interface {
 	Artifact(context.Context, ID) (Descriptor, bool, error)
 	Content(context.Context, ID) (Content, bool, error)
@@ -222,7 +222,7 @@ type Reader interface {
 	Locations(context.Context, ID) ([]Location, error)
 }
 
-// Repository: transactional artifact catalog
+// Repository defines transactional artifact catalog.
 type Repository interface {
 	Reader
 	Commit(context.Context, Batch) (CommitID, error)

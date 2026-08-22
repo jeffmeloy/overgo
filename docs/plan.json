@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "compute-runtime",
-          "title": "Consolidate tensor, host, device, CUDA, graph-runtime, and memory policy",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/tensor,internal/hostmath,internal/devicemath,internal/cuda,internal/graphruntime -require-classified -require-no-stale -require-no-uncatalogued-production"
-        },
-        {
           "id": "derived-runtimes",
           "title": "Delete literals and duplicate orchestration from derived model runtimes",
           "status": "open",

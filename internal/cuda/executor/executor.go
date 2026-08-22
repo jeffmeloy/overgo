@@ -391,6 +391,7 @@ type DeviceCopySegment struct {
 
 type DeviceCopy struct {
 	Shape    tensor.Shape
+	Storage  dtype.Type
 	Segments []DeviceCopySegment
 }
 
@@ -527,14 +528,10 @@ func (e *Executor) CopyDeviceValues(
 			return cause
 		}
 		for index, copySpec := range copies {
-			elements, shapeErr := copySpec.Shape.Elements()
+			expected, shapeErr := copySpec.Shape.Bytes(copySpec.Storage)
 			if shapeErr != nil {
 				return fail(shapeErr)
 			}
-			if elements > math.MaxUint64/4 {
-				return fail(errors.New("CUDA device copy size overflows"))
-			}
-			expected := elements * 4
 			var bytes uint64
 			for _, segment := range copySpec.Segments {
 				if segment.Source == 0 || segment.Bytes == 0 {

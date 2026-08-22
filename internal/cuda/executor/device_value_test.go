@@ -55,3 +55,27 @@ func TestDeviceValueSliceLastAxisRejectsInvalidViews(t *testing.T) {
 		}
 	}
 }
+
+func TestDeviceCopyRetainsTensorStorageContract(t *testing.T) {
+	shape := tensor.MustShape(32)
+	bytes, err := shape.Bytes(dtype.Q4_0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := DeviceValue{Pointer: 256, Shape: shape}
+	copySpec, err := value.Copy(dtype.Q4_0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if copySpec.Storage != dtype.Q4_0 || len(copySpec.Segments) != 1 || copySpec.Segments[0].Bytes != bytes {
+		t.Fatalf("Q4_0 copy contract = %+v", copySpec)
+	}
+
+	packed, err := PackedCopy([]DeviceValue{value, value}, dtype.BF16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if packed.Storage != dtype.BF16 || !packed.Shape.Equal(tensor.MustShape(32, 2)) {
+		t.Fatalf("BF16 packed copy contract = %+v", packed)
+	}
+}

@@ -11,7 +11,9 @@ import (
 	"slices"
 
 	"overgo/internal/cuda/executor"
+	"overgo/internal/model"
 	"overgo/internal/recipe"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -121,8 +123,11 @@ func (r *Runner) selectEncoderSourceCache(
 			candidate.HasProjection ||
 			candidate.LoRASignature != signature ||
 			candidate.Cache != nil ||
-			candidate.Hidden.Shape.Rank != 2 ||
 			!slices.Equal(candidate.Tokens, requested) {
+			continue
+		}
+		_, rows, valid := candidate.Hidden.MatrixExtents()
+		if !valid || rows != len(requested) {
 			continue
 		}
 		return r.promotePromptCache(index), len(requested)
@@ -249,26 +254,17 @@ func (r *Runner) trimHostPromptCache(
 		return reference.Value{}, nil, err
 	}
 	trimmed.Position = keep
-	if hidden.Shape.Rank != 2 ||
-		hidden.Shape.Dims[1] != uint64(cache.Tokens) {
+	_, rows, valid := hidden.MatrixExtents()
+	if !valid || uint64(rows) != uint64(cache.Tokens) {
 		return reference.Value{}, nil, fmt.Errorf(
 			"inference: prompt hidden shape %v does not contain %d tokens",
 			hidden.Shape.Slice(),
 			cache.Tokens,
 		)
 	}
-	width := hidden.Shape.Dims[0]
-	count := width * uint64(keep)
-	if count > uint64(len(hidden.Data)) {
-		return reference.Value{}, nil, errors.New(
-			"inference: prompt hidden data is shorter than its shape",
-		)
-	}
-	shape := hidden.Shape
-	shape.Dims[1] = uint64(keep)
-	result := reference.Value{
-		Shape: shape,
-		Data:  slices.Clone(hidden.Data[:int(count)]),
+	result, err := hidden.Rows(tensor.FirstOffset, uint64(keep))
+	if err != nil {
+		return reference.Value{}, nil, err
 	}
 	return result, trimmed, nil
 }
@@ -278,21 +274,22 @@ func trimDeviceCacheSuffix(cache *deviceKVCache, keep uint32, session recipe.Ses
 		return errors.New("inference: invalid device prompt cache suffix trim")
 	}
 	for index := range cache.Keys {
-		for label, value := range map[string]*executor.DeviceValue{
-			"key":   &cache.Keys[index],
-			"value": &cache.Values[index],
-		} {
-			if value.Shape.Rank != 3 ||
-				value.Shape.Dims[2] != uint64(cache.Tokens) {
+		values := [...]struct {
+			label string
+			value *executor.DeviceValue
+		}{{"key", &cache.Keys[index]}, {"value", &cache.Values[index]}}
+		for _, binding := range values {
+			shape, valid := tensor.WithTrailingExtent(binding.value.Shape, uint64(keep))
+			if !model.CacheStateToken.MatchesTokenExtent(binding.value.Shape, cache.Tokens) || !valid {
 				return fmt.Errorf(
 					"inference: layer %d device cache %s shape %v does not contain %d tokens",
 					index,
-					label,
-					value.Shape.Slice(),
+					binding.label,
+					binding.value.Shape.Slice(),
 					cache.Tokens,
 				)
 			}
-			value.Shape.Dims[2] = uint64(keep)
+			binding.value.Shape = shape
 		}
 	}
 	cache.Tokens = keep

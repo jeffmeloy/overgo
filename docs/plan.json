@@ -3,23 +3,6 @@
   "doctrine": "Deletion-led waves. Existing tensor, model, recipe, cache, and evidence owners remain authoritative. Move every caller and delete displaced checks, wrappers, copies, and loops in the same commit. No compatibility paths. Preserve numerical behavior. Require net-negative production surface, focused host tests, changed-path CUDA tests, and exact plan gates.",
   "items": [
     {
-      "id": "tighten-inference",
-      "title": "Close 44 inference shape assumptions with existing contracts",
-      "status": "open",
-      "steps": [
-        {
-          "id": "cache-contracts",
-          "title": "Replace prompt-cache trim and residency shape arithmetic",
-          "status": "open",
-          "verify": "go test ./internal/inference -run 'Test(PromptCache|ShiftDevice|DeviceCache)' -count=1",
-          "rationale": "Use range-owned host values, typed trailing extents, and inventory-backed residency admission.",
-          "depends_on": [
-            "tighten-inference/output-contracts"
-          ]
-        }
-      ]
-    },
-    {
       "id": "tighten-observation",
       "title": "Use one training observation recorder",
       "status": "open",

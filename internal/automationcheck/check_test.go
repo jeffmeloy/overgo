@@ -8,7 +8,7 @@ import (
 )
 
 func TestDescriptorRejectsIncompleteDefinitions(t *testing.T) {
-	_, err := Plan([]Check{{Descriptor: Descriptor{Name: "incomplete", Phase: runrecord.PhaseValidate}, Run: pass}}, nil)
+	_, err := Plan([]Check{{Descriptor: Descriptor{Name: "incomplete", Phase: runrecord.PhaseValidate}, Run: pass}}, Impact{})
 	if err == nil {
 		t.Fatal("descriptor without applicability passed validation")
 	}
@@ -19,7 +19,7 @@ func TestApplicabilitySelectsExactDerivedFacts(t *testing.T) {
 		{Descriptor: Descriptor{Name: "kernel", Phase: runrecord.PhaseValidate, Triggers: []Fact{"owner:kernel"}, Inapplicable: "other owner"}, Run: pass},
 		{Descriptor: Descriptor{Name: "release", Phase: runrecord.PhaseValidate, Triggers: []Fact{"owner:release"}, Inapplicable: "other owner"}, Run: pass},
 	}
-	planned, err := Plan(checks, []Fact{"owner:release", "owner:release"})
+	planned, err := Plan(checks, Impact{Facts: []Fact{"owner:release", "owner:release"}, Exclusions: []Exclusion{{Check: "kernel", Reason: "release-only change"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestPlanIncludesDependenciesInRegistrationOrder(t *testing.T) {
 		{Descriptor: Descriptor{Name: "inventory", Phase: runrecord.PhaseValidate, Always: true}, Run: pass},
 		{Descriptor: Descriptor{Name: "device", Phase: runrecord.PhaseTest, Triggers: []Fact{"capability:cuda"}, Inapplicable: "no device impact", Dependencies: []string{"inventory"}, Resources: []Resource{{Name: "device", Exclusive: true}}}, Run: pass},
 	}
-	planned, err := Plan(checks, []Fact{"capability:cuda"})
+	planned, err := Plan(checks, Impact{Facts: []Fact{"capability:cuda"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestPlanIncludesDependenciesInRegistrationOrder(t *testing.T) {
 
 func TestRunReturnsTypedFailureEvidence(t *testing.T) {
 	checks := []Check{{Descriptor: Descriptor{Name: "device", Phase: runrecord.PhaseTest, Always: true}, Run: pass}}
-	planned, err := Plan(checks, nil)
+	planned, err := Plan(checks, Impact{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,3 +58,58 @@ func TestRunReturnsTypedFailureEvidence(t *testing.T) {
 }
 
 func pass(context.Context, Invocation) (bool, string, error) { return false, "", nil }
+
+func TestImpactDefaultsToRun(t *testing.T) {
+	check := Check{Descriptor: Descriptor{
+		Name: "unknown", Phase: runrecord.PhaseValidate,
+		Triggers: []Fact{"owner:known"}, Inapplicable: "proven independent",
+	}, Run: pass}
+	planned, err := Plan([]Check{check}, Impact{})
+	if err != nil || len(planned) != 1 || planned[0].Check.Name != "unknown" {
+		t.Fatalf("unknown impact plan = %+v, %v", planned, err)
+	}
+}
+
+func TestImpactRequiresReasonedExclusion(t *testing.T) {
+	check := Check{Descriptor: Descriptor{
+		Name: "owned", Phase: runrecord.PhaseValidate,
+		Triggers: []Fact{"owner:owned"}, Inapplicable: "proven independent",
+	}, Run: pass}
+	if _, err := Plan([]Check{check}, Impact{Exclusions: []Exclusion{{Check: "owned"}}}); err == nil {
+		t.Fatal("reasonless exclusion accepted")
+	}
+	if _, err := Plan([]Check{check}, Impact{Exclusions: []Exclusion{{Check: "unknown", Reason: "typo"}}}); err == nil {
+		t.Fatal("unknown exclusion target accepted")
+	}
+	planned, err := Plan([]Check{check}, Impact{Exclusions: []Exclusion{{Check: "owned", Reason: "disjoint symbol closure"}}})
+	if err != nil || len(planned) != 0 {
+		t.Fatalf("reasoned exclusion plan = %+v, %v", planned, err)
+	}
+}
+
+func TestImpactTriggeredCheck(t *testing.T) {
+	check := Check{Descriptor: Descriptor{
+		Name: "owned", Phase: runrecord.PhaseValidate,
+		Triggers: []Fact{"owner:owned"}, Inapplicable: "proven independent",
+	}, Run: pass}
+	planned, err := Plan([]Check{check}, Impact{Facts: []Fact{"owner:owned"}})
+	if err != nil || len(planned) != 1 || len(planned[0].Matched) != 1 {
+		t.Fatalf("triggered impact plan = %+v, %v", planned, err)
+	}
+	if _, err := Plan([]Check{check}, Impact{
+		Facts: []Fact{"owner:owned"}, Exclusions: []Exclusion{{Check: "owned", Reason: "contradiction"}},
+	}); err == nil {
+		t.Fatal("contradictory impact accepted")
+	}
+}
+
+func TestImpactUnknownSourceRunsAll(t *testing.T) {
+	checks := []Check{
+		{Descriptor: Descriptor{Name: "first", Phase: runrecord.PhaseValidate, Triggers: []Fact{"owner:first"}, Inapplicable: "independent"}, Run: pass},
+		{Descriptor: Descriptor{Name: "second", Phase: runrecord.PhaseValidate, Triggers: []Fact{"owner:second"}, Inapplicable: "independent"}, Run: pass},
+	}
+	planned, err := Plan(checks, MergeImpact(Impact{}, Impact{}))
+	if err != nil || len(planned) != len(checks) {
+		t.Fatalf("unknown producer output planned = %+v, %v", planned, err)
+	}
+}

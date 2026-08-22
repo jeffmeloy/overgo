@@ -11,8 +11,9 @@ import (
 
 func TestDeviceCheck(t *testing.T) {
 	var calls []string
-	check := DeviceCheck(t.TempDir(), []string{"internal/cuda/kernel/load.go"}, recordingCommand(&calls))
-	planned, err := Plan([]Check{check}, DeviceImpact([]string{"internal/cuda/kernel/load.go"}))
+	check := DeviceCheck(t.TempDir(), []string{"internal/cuda/kernel/load.go"}, nil, recordingCommand(&calls))
+	impact := OwnershipImpact([]Check{check}, Surface{Identity: "candidate", Packages: []string{"internal/cuda/kernel"}})
+	planned, err := Plan([]Check{check}, impact)
 	if err != nil || len(planned) != 1 {
 		t.Fatalf("plan = %+v, %v", planned, err)
 	}
@@ -25,20 +26,25 @@ func TestDeviceCheck(t *testing.T) {
 }
 
 func TestDeviceResource(t *testing.T) {
-	resources := DeviceCheck(".", nil, recordingCommand(new([]string))).Descriptor.Resources
+	resources := DeviceCheck(".", nil, nil, recordingCommand(new([]string))).Descriptor.Resources
 	if len(resources) != 1 || resources[0].Name != "device" || !resources[0].Exclusive {
 		t.Fatalf("resources = %+v", resources)
 	}
 }
 
-func TestDeviceApplicability(t *testing.T) {
-	for _, path := range []string{"kernels/cuda/a.cu", "internal/cuda/executor/run.go", "internal/optimizer/step_cuda_windows.go"} {
-		if !slices.Equal(DeviceImpact([]string{path}), []Fact{deviceImpact}) {
-			t.Errorf("%s did not require device evidence", path)
+func TestDeviceImpactUsesSymbolOwnership(t *testing.T) {
+	check := DeviceCheck(".", nil, []string{"internal/optimizer"}, recordingCommand(new([]string)))
+	for _, packagePath := range []string{"internal/cuda/executor", "internal/optimizer"} {
+		impact := OwnershipImpact([]Check{check}, Surface{Identity: "candidate", Packages: []string{packagePath}})
+		planned, err := Plan([]Check{check}, impact)
+		if err != nil || len(planned) != 1 || !slices.Equal(impact.Facts, []Fact{deviceImpact}) {
+			t.Fatalf("device owner %s = %+v, %+v, %v", packagePath, impact, planned, err)
 		}
 	}
-	if impact := DeviceImpact([]string{"internal/model/config.go"}); len(impact) != 0 {
-		t.Fatalf("host-only impact = %v", impact)
+	impact := OwnershipImpact([]Check{check}, Surface{Identity: "candidate", Packages: []string{"internal/model"}})
+	planned, err := Plan([]Check{check}, impact)
+	if err != nil || len(planned) != 0 || len(impact.Exclusions) != 1 {
+		t.Fatalf("host-only impact = %+v, %+v, %v", impact, planned, err)
 	}
 }
 

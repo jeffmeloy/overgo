@@ -27,6 +27,9 @@ type Function struct {
 	Nodes         int    `json:"nodes"`
 	Branches      int    `json:"branches"`
 	AdvisoryClass string `json:"advisory_class,omitempty"`
+	packagePath   string
+	receiver      string
+	fingerprint   string
 }
 
 type Clone struct {
@@ -34,6 +37,16 @@ type Clone struct {
 	Nodes         int      `json:"nodes"`
 	Functions     []string `json:"functions"`
 	AdvisoryClass string   `json:"advisory_class,omitempty"`
+}
+
+// ImpactSelection records how structural ownership affected expensive checks.
+// Excluded/Owned is the exact exclusion rate; unresolved checks ran.
+type ImpactSelection struct {
+	Identity   string `json:"identity,omitempty"`
+	Owned      int    `json:"owned"`
+	Triggered  int    `json:"triggered"`
+	Excluded   int    `json:"excluded"`
+	Unresolved int    `json:"unresolved"`
 }
 
 type Profile struct {
@@ -47,6 +60,7 @@ type Profile struct {
 	ExportedDeclarations int             `json:"exported_declarations"`
 	PackageImportEdges   int             `json:"package_import_edges"`
 	Consumers            ConsumerSummary `json:"consumers"`
+	Impact               ImpactSelection `json:"impact_selection"`
 }
 
 func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
@@ -101,14 +115,19 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 				size, branches := NodeCount(value.Body), branchCount(value.Body)
 				ref := source.Path + ":" + value.Name.Name
 				class := advisoryClass(source.Test, value)
-				profile.Functions = append(profile.Functions, Function{
-					File: source.Path, Name: value.Name.Name, Nodes: size, Branches: branches, AdvisoryClass: class,
-				})
-				fingerprint, err := bodyFingerprint(value.Body)
+				fingerprint, err := functionFingerprint(value)
 				if err != nil {
 					return Profile{}, err
 				}
-				key := class + "\x00" + fingerprint
+				clone, err := cloneFingerprint(value.Body)
+				if err != nil {
+					return Profile{}, err
+				}
+				profile.Functions = append(profile.Functions, Function{
+					File: source.Path, Name: value.Name.Name, Nodes: size, Branches: branches, AdvisoryClass: class,
+					packagePath: packagePath, receiver: receiverName(value), fingerprint: fingerprint,
+				})
+				key := class + "\x00" + clone
 				if bodies[key] == nil {
 					bodies[key] = &body{nodes: size}
 				}
@@ -160,6 +179,30 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 	return profile, nil
 }
 
+func receiverName(function *ast.FuncDecl) string {
+	if function == nil || function.Recv == nil || len(function.Recv.List) == 0 {
+		return ""
+	}
+	return receiverTypeName(function.Recv.List[0].Type)
+}
+
+func receiverTypeName(expression ast.Expr) string {
+	switch value := expression.(type) {
+	case *ast.Ident:
+		return value.Name
+	case *ast.StarExpr:
+		return receiverTypeName(value.X)
+	case *ast.ParenExpr:
+		return receiverTypeName(value.X)
+	case *ast.IndexExpr:
+		return receiverTypeName(value.X)
+	case *ast.IndexListExpr:
+		return receiverTypeName(value.X)
+	default:
+		return ""
+	}
+}
+
 // NodeCount measures the AST surface rooted at node.
 func NodeCount(root ast.Node) int {
 	count := 0
@@ -184,7 +227,16 @@ func branchCount(root ast.Node) int {
 	return count
 }
 
-func bodyFingerprint(body *ast.BlockStmt) (string, error) {
+func functionFingerprint(function *ast.FuncDecl) (string, error) {
+	var rendered bytes.Buffer
+	if err := printer.Fprint(&rendered, token.NewFileSet(), function); err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(rendered.Bytes())
+	return string(digest[:]), nil
+}
+
+func cloneFingerprint(body *ast.BlockStmt) (string, error) {
 	var rendered bytes.Buffer
 	if err := printer.Fprint(&rendered, token.NewFileSet(), body); err != nil {
 		return "", err

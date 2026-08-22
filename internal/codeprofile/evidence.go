@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	EvidenceVersion   uint16 = 3
+	EvidenceVersion   uint16 = 4
 	EvidenceMediaType        = "application/vnd.overgo.code-profile+json"
-	EvidenceSchema           = "overgo/code-profile/v3"
+	EvidenceSchema           = "overgo/code-profile/v4"
 )
 
 type Evidence struct {
@@ -70,8 +70,13 @@ func validateProfile(profile Profile) error {
 		}
 	}
 	if profile.DuplicateExcessNodes < 0 || profile.ExportedDeclarations < 0 || profile.PackageImportEdges < 0 ||
-		profile.Consumers.Production < 0 || profile.Consumers.TestOnly < 0 || profile.Consumers.Boundary < 0 || profile.Consumers.Zero < 0 {
+		profile.Consumers.Production < 0 || profile.Consumers.TestOnly < 0 || profile.Consumers.Boundary < 0 || profile.Consumers.Zero < 0 ||
+		profile.Impact.Owned < 0 || profile.Impact.Triggered < 0 || profile.Impact.Excluded < 0 || profile.Impact.Unresolved < 0 {
 		return errors.New("negative profile metric")
+	}
+	if profile.Impact.Triggered+profile.Impact.Excluded+profile.Impact.Unresolved != profile.Impact.Owned ||
+		profile.Impact.Owned > 0 && profile.Impact.Identity == "" {
+		return errors.New("invalid impact selection metric")
 	}
 	excess := 0
 	for _, function := range profile.Functions {

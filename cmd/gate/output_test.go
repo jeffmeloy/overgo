@@ -82,13 +82,14 @@ func TestDescriptorOrderIncludesInapplicableChecksInPlace(t *testing.T) {
 		},
 		gateCheck("last", runrecord.PhasePackage, func() (bool, error) { return false, nil }),
 	}
-	planned, err := automationcheck.Plan(definitions, nil)
+	impact := automationcheck.Impact{Exclusions: []automationcheck.Exclusion{{Check: "middle", Reason: "fixture proves independence"}}}
+	planned, err := automationcheck.Plan(definitions, impact)
 	if err != nil {
 		t.Fatal(err)
 	}
-	schedule := gateSchedule(definitions, planned)
+	schedule := gateSchedule(definitions, planned, impact)
 	if len(schedule) != 3 || schedule[0].descriptor.Name != "first" ||
-		schedule[1].descriptor.Name != "middle" || schedule[1].applicable ||
+		schedule[1].descriptor.Name != "middle" || schedule[1].applicable || schedule[1].exclusion == "" ||
 		schedule[2].descriptor.Name != "last" {
 		t.Fatalf("schedule = %+v", schedule)
 	}

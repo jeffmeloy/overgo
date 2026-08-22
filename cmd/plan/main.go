@@ -544,7 +544,11 @@ func runVerify(it plan.Item, st plan.Step) error {
 	cmd := exec.Command(shell, "-c", verifyCommand)
 	cmd.Stdout, cmd.Stderr = &buf, &buf
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("verify FAILED for %s/%s: %w: %s", it.ID, st.ID, err, clioptions.Tail(buf.String(), 2000))
+		detail := clioptions.Tail(buf.String(), 2000)
+		if failures := testevidence.FailureSummary(buf.String()); failures != "" {
+			detail = "failed tests/packages: " + failures + "\n" + detail
+		}
+		return fmt.Errorf("verify FAILED for %s/%s: %w: %s", it.ID, st.ID, err, detail)
 	}
 	var evidenceErr error
 	if structuredGoTest {

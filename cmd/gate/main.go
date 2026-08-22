@@ -21,6 +21,7 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -74,6 +75,10 @@ type gateContext struct {
 	stepEvidence map[string]string
 	cachePaths   []string
 	retryCache   *automationcheck.EvidenceCache
+	structural   *codeprofile.FunctionImpact
+	packageGraph *packageInputGraph
+	selection    automationcheck.SelectionMetrics
+	selectionID  string
 }
 
 func main() {
@@ -249,9 +254,9 @@ func checkPlanBinding(repo, ref string) error {
 	return nil
 }
 
-func (g *gateContext) pipelineChecks() []automationcheck.Check {
+func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck.Check {
 	generated := automationcheck.GeneratedChecks(g.repo, command)
-	device := automationcheck.DeviceCheck(g.repo, g.paths, command)
+	device := automationcheck.DeviceCheck(g.repo, g.paths, devicePackages, command)
 	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
@@ -287,9 +292,10 @@ type scheduledGateCheck struct {
 	descriptor automationcheck.Descriptor
 	invocation automationcheck.Invocation
 	applicable bool
+	exclusion  string
 }
 
-func gateSchedule(definitions []automationcheck.Check, planned []automationcheck.Invocation) []scheduledGateCheck {
+func gateSchedule(definitions []automationcheck.Check, planned []automationcheck.Invocation, impact automationcheck.Impact) []scheduledGateCheck {
 	byName := make(map[string]automationcheck.Invocation, len(planned))
 	for _, invocation := range planned {
 		byName[invocation.Check.Name] = invocation
@@ -297,18 +303,36 @@ func gateSchedule(definitions []automationcheck.Check, planned []automationcheck
 	schedule := make([]scheduledGateCheck, 0, len(definitions))
 	for _, definition := range definitions {
 		invocation, applicable := byName[definition.Descriptor.Name]
-		schedule = append(schedule, scheduledGateCheck{descriptor: definition.Descriptor, invocation: invocation, applicable: applicable})
+		exclusion, _ := impact.ExclusionReason(definition.Descriptor.Name)
+		schedule = append(schedule, scheduledGateCheck{
+			descriptor: definition.Descriptor, invocation: invocation,
+			applicable: applicable, exclusion: exclusion,
+		})
 	}
 	return schedule
 }
 
 func (g *gateContext) pipeline() error {
-	definitions := g.pipelineChecks()
-	impact, err := automationcheck.GeneratedImpact(g.repo, g.paths)
-	if err != nil {
-		return err
+	graph, graphErr := g.inputGraph()
+	var devicePackages []string
+	if graphErr == nil {
+		devicePackages, graphErr = graph.dependentDirectories("internal/cuda")
 	}
-	impact = append(impact, automationcheck.DeviceImpact(g.paths)...)
+	definitions := g.pipelineChecks(devicePackages...)
+	structural, structuralErr := g.deriveStructuralImpact()
+	surface := automationcheck.Surface{}
+	if structuralErr == nil {
+		surface = ownershipSurface(structural)
+	} else {
+		g.honesty = append(g.honesty, "structural impact unavailable; owned checks defaulted to run: "+structuralErr.Error())
+	}
+	if graphErr != nil {
+		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
+		g.honesty = append(g.honesty, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
+	}
+	impact := automationcheck.OwnershipImpact(definitions, surface)
+	g.selection = automationcheck.MeasureSelection(definitions, impact)
+	g.selectionID = surface.Identity
 	checks, err := automationcheck.Plan(definitions, impact)
 	if err != nil {
 		return err
@@ -321,7 +345,7 @@ func (g *gateContext) pipeline() error {
 	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
 	// always run; commit is never cached.
 	cacheable := map[string]bool{"vet": true, "build": true}
-	schedule := gateSchedule(definitions, checks)
+	schedule := gateSchedule(definitions, checks, impact)
 	concurrentHandled := map[string]bool{}
 	for _, scheduled := range schedule {
 		name := scheduled.descriptor.Name
@@ -330,7 +354,7 @@ func (g *gateContext) pipeline() error {
 		}
 		if !scheduled.applicable {
 			g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: scheduled.descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
-			g.honesty = append(g.honesty, name+" skipped: "+scheduled.descriptor.Inapplicable)
+			g.honesty = append(g.honesty, name+" skipped: "+scheduled.exclusion)
 			continue
 		}
 		check := scheduled.invocation
@@ -387,6 +411,63 @@ func (g *gateContext) pipeline() error {
 		}
 	}
 	return nil
+}
+
+func (g *gateContext) inputGraph() (packageInputGraph, error) {
+	if g.packageGraph != nil {
+		return *g.packageGraph, nil
+	}
+	graph, err := loadPackageInputGraph(g.repo)
+	if err == nil {
+		g.packageGraph = &graph
+	}
+	return graph, err
+}
+
+func (g *gateContext) deriveStructuralImpact() (codeprofile.FunctionImpact, error) {
+	if g.structural != nil {
+		return *g.structural, nil
+	}
+	candidate, err := g.sourceSnapshot()
+	if err != nil {
+		return codeprofile.FunctionImpact{}, err
+	}
+	base, err := sourceAtHEAD(g.repo, candidate)
+	if err != nil {
+		return codeprofile.FunctionImpact{}, err
+	}
+	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	if err != nil {
+		return codeprofile.FunctionImpact{}, err
+	}
+	impact, err := codeprofile.DeriveFunctionImpact(base, candidate, selection, selection, g.paths)
+	if err == nil {
+		g.structural, g.baseSource = &impact, &base
+	}
+	return impact, err
+}
+
+func ownershipSurface(impact codeprofile.FunctionImpact) automationcheck.Surface {
+	packages := map[string]bool{}
+	for _, packagePath := range impact.Packages {
+		packages[packagePath] = true
+	}
+	symbols := make([]automationcheck.Symbol, 0, len(impact.Reachable))
+	for _, symbol := range impact.Reachable {
+		packagePath := path.Dir(symbol.File)
+		packages[packagePath] = true
+		symbols = append(symbols, automationcheck.Symbol{
+			Package: packagePath, Receiver: symbol.Receiver, Name: symbol.Name,
+		})
+	}
+	unknown := make([]string, 0, len(impact.Unknown))
+	for _, boundary := range impact.Unknown {
+		unknown = append(unknown, strings.Join([]string{boundary.Kind, boundary.Path, boundary.Symbol}, ":"))
+	}
+	return automationcheck.Surface{
+		Identity: impact.BaseIdentity + ":" + impact.CandidateIdentity,
+		Packages: slices.Sorted(maps.Keys(packages)), Symbols: symbols, Unknown: unknown,
+	}
 }
 
 func scheduledGateCheckByName(schedule []scheduledGateCheck, name string) (scheduledGateCheck, bool) {
@@ -558,6 +639,10 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	profile.Impact = codeprofile.ImpactSelection{
+		Identity: g.selectionID, Owned: g.selection.Owned, Triggered: g.selection.Triggered,
+		Excluded: g.selection.Excluded, Unresolved: g.selection.Unresolved,
+	}
 	baseSource, err := sourceAtHEAD(g.repo, snapshot)
 	if err != nil {
 		return false, err
@@ -598,6 +683,20 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
+	impact := codeprofile.FunctionImpact{}
+	if g.structural != nil {
+		impact = *g.structural
+	} else {
+		impact, err = codeprofile.DeriveFunctionImpact(head, candidate, selection, selection, g.paths)
+		if err != nil {
+			return err
+		}
+	}
+	g.honesty = append(g.honesty, fmt.Sprintf(
+		"function impact: base=%s candidate=%s seeds=%d reachable=%d unknown=%d",
+		impact.BaseIdentity, impact.CandidateIdentity, len(impact.Seeds), len(impact.Reachable), len(impact.Unknown),
+	))
+	g.honesty = append(g.honesty, impactSelectionHonesty(profile.Impact))
 	if _, profile.Consumers, err = codeprofile.ProductionConsumerCensus(candidate, selection, nil); err != nil {
 		return err
 	}
@@ -651,6 +750,13 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	}
 	g.honesty = append(g.honesty, consumerCensusHonesty("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
 	return nil
+}
+
+func impactSelectionHonesty(selection codeprofile.ImpactSelection) string {
+	return fmt.Sprintf(
+		"impact selection: excluded=%d/%d triggered=%d unresolved=%d snapshot=%s",
+		selection.Excluded, selection.Owned, selection.Triggered, selection.Unresolved, selection.Identity,
+	)
 }
 
 func (g *gateContext) automationPlan() bool {
@@ -1146,7 +1252,7 @@ func (g *gateContext) stepTest() (bool, error) {
 		return true, nil
 	}
 	g.honesty = append(g.honesty, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
-	inputGraph, err := loadPackageInputGraph(g.repo)
+	inputGraph, err := g.inputGraph()
 	if err != nil {
 		return false, err
 	}
@@ -2038,6 +2144,8 @@ func compactHonesty(lines []string) []string {
 			label = "advisory: roi: "
 		case strings.HasPrefix(line, "consumer census"):
 			label = "advisory: consumer: "
+		case strings.HasPrefix(line, "impact selection:"):
+			label = "advisory: impact: "
 		case strings.HasPrefix(line, "test scope:"):
 			label = "advisory: scope: "
 		case strings.HasPrefix(line, "package test evidence:"):

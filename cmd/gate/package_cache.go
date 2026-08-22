@@ -9,7 +9,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
+	"strings"
 
 	"overgo/internal/artifact"
 )
@@ -70,6 +72,60 @@ func loadPackageInputGraph(root string) (packageInputGraph, error) {
 		graph.byID[node.ImportPath] = append(graph.byID[node.ImportPath], index)
 	}
 	return graph, nil
+}
+
+// dependentDirectories returns every repository package that is or transitively
+// imports a package rooted in one of the declared repository directories.
+func (graph packageInputGraph) dependentDirectories(roots ...string) ([]string, error) {
+	owned := map[string]bool{}
+	for _, node := range graph.nodes {
+		relative, err := filepath.Rel(graph.root, node.Dir)
+		if err != nil {
+			return nil, err
+		}
+		relative = filepath.ToSlash(relative)
+		for _, root := range roots {
+			if relative == root || strings.HasPrefix(relative, root+"/") {
+				owned[node.ImportPath] = true
+				break
+			}
+		}
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, node := range graph.nodes {
+			if owned[node.ImportPath] {
+				continue
+			}
+			for _, imported := range append(append(slices.Clone(node.Imports), node.TestImports...), node.XTestImports...) {
+				if owned[imported] {
+					owned[node.ImportPath] = true
+					changed = true
+					break
+				}
+			}
+		}
+	}
+	directories := map[string]bool{}
+	for _, node := range graph.nodes {
+		if !owned[node.ImportPath] {
+			continue
+		}
+		relative, err := filepath.Rel(graph.root, node.Dir)
+		if err != nil {
+			return nil, err
+		}
+		if relative == ".." || filepath.IsAbs(relative) || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			continue
+		}
+		directories[filepath.ToSlash(relative)] = true
+	}
+	result := make([]string, 0, len(directories))
+	for directory := range directories {
+		result = append(result, directory)
+	}
+	sort.Strings(result)
+	return result, nil
 }
 
 func (graph packageInputGraph) identity(target string) (artifact.ID, error) {

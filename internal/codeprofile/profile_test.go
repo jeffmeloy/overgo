@@ -35,7 +35,8 @@ func TestDomainProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if profile.Runtime.Files != 4 || profile.Automation.Files != 1 || profile.Generated.Files != 1 || profile.Test.Files != 1 ||
+	expectedRuntimeFiles := len([]string{"internal/a.go", "internal/b.go", "internal/validate_a.go", "internal/validate_b.go"})
+	if profile.Runtime.Files != expectedRuntimeFiles || profile.Automation.Files != 1 || profile.Generated.Files != 1 || profile.Test.Files != 1 ||
 		profile.ExportedDeclarations != 2 || profile.PackageImportEdges != 1 {
 		t.Fatalf("profile = %+v", profile)
 	}

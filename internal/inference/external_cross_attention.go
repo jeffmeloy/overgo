@@ -18,12 +18,8 @@ import (
 )
 
 // ExternalCrossAttentionDefinition is the composition-owned immutable adapter
-// and seam authority retained as an alias for low-level compiler callers.
+// and seam authority retained by the runtime program.
 type ExternalCrossAttentionDefinition = composition.ExternalCrossAttentionDefinition
-
-// ExternalCrossAttentionCompiler admits seams from an already compiled target
-// model plan. Its zero value has no ambient model authority.
-type ExternalCrossAttentionCompiler struct{}
 
 // OpenExternalCrossAttention is the production construction path. It resolves
 // active recipe authority before admitting the runtime program.
@@ -40,7 +36,7 @@ func OpenExternalCrossAttention(
 	if err != nil {
 		return ExternalCrossAttentionProgram{}, err
 	}
-	return (ExternalCrossAttentionCompiler{}).CompilePlan(plan)
+	return compileExternalCrossAttentionPlan(plan)
 }
 
 // ExternalCrossAttentionProgram is the immutable layer admission and geometry
@@ -92,56 +88,9 @@ var (
 	externalReframe = (*tensor.Builder).Reshape
 )
 
-// Compile validates exact model identities, adapter identity, bounded head
-// geometry, and every requested target layer-program seam.
-func (ExternalCrossAttentionCompiler) Compile(
-	target artifact.ID,
-	plan model.ModelPlan,
-	definition ExternalCrossAttentionDefinition,
-) (ExternalCrossAttentionProgram, error) {
-	if !plan.Compiled() || target.Kind() != artifact.KindModel || definition.Target != target ||
-		definition.Source.Kind() != artifact.KindModel || definition.Source == target ||
-		definition.Adapter.Kind() != artifact.KindAdapter ||
-		!checked.Nonzero(definition.SourceChannels) || !checked.Nonzero(definition.HeadCount) ||
-		!checked.Nonzero(definition.SourceTokenLimit) || !checked.Nonzero(len(definition.Layers)) {
-		return ExternalCrossAttentionProgram{}, errors.New("inference: external cross-attention identity or bounds are invalid")
-	}
-	targetChannels := uint64(plan.Spec().EmbeddingLength)
-	headChannels, divisible := checked.DivExact64(targetChannels, definition.HeadCount)
-	if !checked.Nonzero(targetChannels) || !divisible {
-		return ExternalCrossAttentionProgram{}, errors.New("inference: external cross-attention head geometry is invalid")
-	}
-	ordered := slices.Clone(definition.Layers)
-	slices.Sort(ordered)
-	unique := slices.Compact(ordered)
-	if len(unique) != len(definition.Layers) {
-		return ExternalCrossAttentionProgram{}, errors.New("inference: external cross-attention layer seam is duplicated")
-	}
-	layers := make(map[uint32]struct{}, len(unique))
-	for _, layer := range unique {
-		program, err := plan.LayerProgram(layer)
-		if err != nil {
-			return ExternalCrossAttentionProgram{}, fmt.Errorf("inference: external layer seam %d: %w", layer, err)
-		}
-		if program.Layer().Cache == model.CacheCrossAttention {
-			return ExternalCrossAttentionProgram{}, errors.New("inference: external seam conflicts with model-owned cross-attention cache")
-		}
-		layers[layer] = struct{}{}
-	}
-	definition.Layers = unique
-	identity, err := artifact.JSONID(artifact.KindProfile, definition)
-	if err != nil {
-		return ExternalCrossAttentionProgram{}, err
-	}
-	return ExternalCrossAttentionProgram{
-		identity: identity, definition: definition,
-		targetChannels: targetChannels, headChannels: headChannels, layers: layers,
-	}, nil
-}
-
-// CompilePlan admits only a recipe-compiled external-attention plan. Its cache
+// compileExternalCrossAttentionPlan admits only a recipe-compiled external-attention plan. Its cache
 // identity remains in the composition-owned external domain.
-func (ExternalCrossAttentionCompiler) CompilePlan(
+func compileExternalCrossAttentionPlan(
 	plan composition.ExternalCrossAttentionPlan,
 ) (ExternalCrossAttentionProgram, error) {
 	if err := plan.ValidateIdentity(); err != nil {

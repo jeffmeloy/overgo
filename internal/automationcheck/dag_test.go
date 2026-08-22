@@ -16,7 +16,7 @@ func TestResourceDAG(t *testing.T) {
 		dagFixtureCheck("device-a", []Resource{{Name: "device", Exclusive: true}}),
 		dagFixtureCheck("device-b", []Resource{{Name: "device", Exclusive: true}}),
 	}
-	planned, err := Plan(checks, nil)
+	planned, err := Plan(checks, Impact{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestPolicyBarrier(t *testing.T) {
 		dagFixtureCheckAfter("work", "policy"),
 		dagFixtureCheckAfter("commit", "work"),
 	}
-	planned, err := Plan(checks, nil)
+	planned, err := Plan(checks, Impact{})
 	if err != nil {
 		t.Fatal(err)
 	}

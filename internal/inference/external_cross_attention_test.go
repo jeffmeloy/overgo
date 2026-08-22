@@ -32,12 +32,18 @@ func TestExternalCacheSeparateFromTargetKV(t *testing.T) {
 	sourceID := testutil.ArtifactID(t, artifact.KindModel, "external-source")
 	adapterID := testutil.ArtifactID(t, artifact.KindAdapter, "external-adapter")
 	sourceRepresentation := testutil.ArtifactID(t, artifact.KindOutput, "external-source-representation")
-	program, err := (ExternalCrossAttentionCompiler{}).Compile(targetID, plan, ExternalCrossAttentionDefinition{
+	definition := ExternalCrossAttentionDefinition{
 		Target: targetID, Source: sourceID, Adapter: adapterID,
 		Layers: []uint32{1}, SourceChannels: 2, HeadCount: 1, SourceTokenLimit: 3,
-	})
+	}
+	identityID, err := artifact.JSONID(artifact.KindProfile, definition)
 	if err != nil {
 		t.Fatal(err)
+	}
+	program := ExternalCrossAttentionProgram{
+		identity: identityID, definition: definition,
+		targetChannels: uint64(plan.Spec().EmbeddingLength), headChannels: uint64(plan.Spec().EmbeddingLength),
+		layers: map[uint32]struct{}{definition.Layers[0]: {}},
 	}
 	identity := inferenceBridgeValue(t, tensor.MustShape(2, 2), []float32{1, 0, 0, 1})
 	weights := ExternalCrossAttentionWeights{

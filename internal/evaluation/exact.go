@@ -16,18 +16,24 @@ import (
 )
 
 type ExactCase struct {
-	Name            string `json:"name"`
-	Prompt          string `json:"prompt"`
-	MaxTokens       int    `json:"max_tokens"`
-	Text            string `json:"text"`
-	PromptTokens    int    `json:"prompt_tokens"`
-	GeneratedTokens int    `json:"generated_tokens"`
+	Name            string  `json:"name"`
+	Prompt          string  `json:"prompt"`
+	MaxTokens       int     `json:"max_tokens"`
+	Text            string  `json:"text"`
+	PromptTokens    int     `json:"prompt_tokens"`
+	GeneratedTokens int     `json:"generated_tokens"`
+	DecodeMedianMS  float64 `json:"decode_median_ms,omitempty"`
+	DecodeTokPerSec float64 `json:"decode_tok_per_sec,omitempty"`
+	ServingPath     string  `json:"serving_path,omitempty"`
+	DecodeMode      string  `json:"decode_mode,omitempty"`
 }
 
 type ExactSuite struct {
-	Schema string      `json:"schema"`
-	Source string      `json:"source"`
-	Cases  []ExactCase `json:"cases"`
+	Schema   string      `json:"schema"`
+	Source   string      `json:"source"`
+	ModelDir string      `json:"model_dir,omitempty"`
+	Date     string      `json:"date,omitempty"`
+	Cases    []ExactCase `json:"cases"`
 }
 
 type ExactPlan struct {

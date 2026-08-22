@@ -8,6 +8,9 @@ import (
 	"overgo/internal/artifact"
 )
 
+// DefaultHeartbeatStaleAfter bounds silence before a running gate is classified stale.
+const DefaultHeartbeatStaleAfter = 30 * time.Second
+
 const (
 	GateLifecycleMediaType = "application/vnd.overgo.gate-lifecycle+json"
 	GateLifecycleSchema    = "overgo/gate-lifecycle/v1"

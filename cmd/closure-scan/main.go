@@ -124,7 +124,7 @@ func main() {
 		}
 		switch *format {
 		case "text":
-			err = writeCensusText(os.Stdout, summary, *limit)
+			err = writeCensusText(os.Stdout, summary)
 		case "json":
 			err = clioptions.WritePrettyJSON(os.Stdout, summary)
 		default:
@@ -412,19 +412,15 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 		return count, unmatched, first, err
 	}
 	documents, sourceAliases, _, err := activeClosureDocuments(context.Background(), source)
-	closeErr := source.Close()
 	if err != nil {
 		return count, unmatched, first, err
-	}
-	if closeErr != nil {
-		return count, unmatched, first, closeErr
 	}
 	target, err := repodb.Open(destinationPath)
 	if err != nil {
 		return count, unmatched, first, err
 	}
 	targetDocuments, targetAliases, _, err := activeClosureDocuments(context.Background(), target)
-	closeErr = target.Close()
+	closeErr := target.Close()
 	if err != nil || closeErr != nil {
 		return count, unmatched, first, errors.Join(err, closeErr)
 	}
@@ -485,13 +481,33 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 		}
 		rebound = append(rebound, current)
 	}
+	fixtures, err := closureFixtureImports(context.Background(), source, rebound)
+	closeErr = source.Close()
+	if err != nil || closeErr != nil {
+		return count, unmatched, first, errors.Join(err, closeErr)
+	}
 	if rebound == nil && retirements == nil {
 		return count, unmatched, first, nil
 	}
-	if _, _, err := commitClosureDocuments(root, destinationPath, rebound, retirements); err != nil {
+	if _, _, err := commitClosureDocuments(root, destinationPath, rebound, retirements, fixtures); err != nil {
 		return count, unmatched, first, err
 	}
 	return len(rebound), unmatched, first, nil
+}
+
+func closureFixtureImports(ctx context.Context, store *repodb.Store, documents []closureledger.Document) ([]artifact.Descriptor, error) {
+	var descriptors []artifact.Descriptor
+	for _, document := range documents {
+		if slices.ContainsFunc(document.Bindings, func(binding closureledger.SourceBinding) bool { return binding.Owner == document.Fixture }) {
+			continue
+		}
+		result, err := store.Query(ctx, repodb.Query{Artifact: &document.Fixture, MaxResults: repodb.MaxQueryResults})
+		if err != nil || len(result.Artifacts) != 1 {
+			return nil, errors.Join(err, fmt.Errorf("closure fixture is absent: %s", document.Fixture))
+		}
+		descriptors = append(descriptors, result.Artifacts[0])
+	}
+	return descriptors, nil
 }
 
 func activeClosureDocuments(ctx context.Context, store *repodb.Store) ([]closureledger.Document, map[string]artifact.ID, repodb.QueryResult, error) {
@@ -530,53 +546,18 @@ func activeClosureDocuments(ctx context.Context, store *repodb.Store) ([]closure
 	return active, aliases, result, nil
 }
 
-func writeCensusText(destination io.Writer, census closurescan.Census, limit int) error {
+func writeCensusText(destination io.Writer, census closurescan.Census) error {
 	counts := census.Counts
-	if _, err := fmt.Fprintf(destination,
+	_, err := fmt.Fprintf(destination,
 		"closure-scan census %s\nsource %s\nfiles production=%d test=%d\n"+
 			"surfaces named=%d inline=%d assumptions=%d test_policy=%d\n"+
 			"tests total=%d fixture=%d assertion=%d policy_copy=%d\n"+
-			"repeated groups=%d sites=%d\n",
+			"repeated groups=%d sites=%d\ndetail: rerun with -format json\n",
 		census.Schema, census.Source, counts.ProductionFiles, counts.TestFiles,
 		counts.NamedConstants, counts.InlineLiterals, counts.AssumptionHints, counts.TestPolicyCopies,
 		counts.TestLiterals, counts.TestFixtures, counts.TestAssertions, counts.TestPolicyCopies,
-		counts.RepeatedGroups, counts.RepeatedSites); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintln(destination, "owners decision repeated package"); err != nil {
-		return err
-	}
-	for index, owner := range census.Owners {
-		if index >= limit {
-			break
-		}
-		if _, err := fmt.Fprintf(destination, "%d %d %s\n", owner.DecisionSurfaces, owner.RepeatedSites, owner.Package); err != nil {
-			return err
-		}
-	}
-	if _, err := fmt.Fprintln(destination, "files decision repeated test source"); err != nil {
-		return err
-	}
-	for index, file := range census.Files {
-		if index >= limit {
-			break
-		}
-		if _, err := fmt.Fprintf(destination, "%d %d %t %s\n", file.DecisionSurfaces, file.RepeatedGroups, file.Test, file.File); err != nil {
-			return err
-		}
-	}
-	if _, err := fmt.Fprintln(destination, "candidates score count package value"); err != nil {
-		return err
-	}
-	for index, group := range census.Repeated {
-		if index >= limit {
-			break
-		}
-		if _, err := fmt.Fprintf(destination, "%d %d %s %s\n", group.Score, group.Count, group.Package, group.Value); err != nil {
-			return err
-		}
-	}
-	return nil
+		counts.RepeatedGroups, counts.RepeatedSites)
+	return err
 }
 
 func reportLiterals(sites []closurescan.LiteralSite, limit int) {
@@ -671,7 +652,7 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 		}
 		documents = append(documents, document)
 	}
-	owners, commit, err := commitClosureDocuments(root, filepath.Join(root, storePath), documents, nil)
+	owners, commit, err := commitClosureDocuments(root, filepath.Join(root, storePath), documents, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -680,13 +661,13 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 	return nil
 }
 
-func commitClosureDocuments(root, storePath string, documents []closureledger.Document, retirements []artifact.AliasBinding) (int, artifact.CommitID, error) {
+func commitClosureDocuments(root, storePath string, documents []closureledger.Document, retirements []artifact.AliasBinding, fixtures []artifact.Descriptor) (int, artifact.CommitID, error) {
 	store, err := repodb.Open(storePath)
 	if err != nil {
 		return 0, artifact.CommitID{}, err
 	}
 	defer store.Close()
-	batch := artifact.Batch{Aliases: retirements}
+	batch := artifact.Batch{Artifacts: fixtures, Aliases: retirements}
 	files := map[string]bool{}
 	for _, document := range documents {
 		for _, binding := range document.Bindings {

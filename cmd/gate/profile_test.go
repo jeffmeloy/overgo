@@ -82,16 +82,14 @@ func TestAdvisoryCandidate(t *testing.T) {
 	}
 	got := profileReviewFocus(profile, []string{"internal/p/p.go", "internal/p/p_test.go"})
 	for _, want := range []string{
-		"production=internal/p/p.go:changed", "validator=internal/p/p.go:validateShape", "test=internal/p/p_test.go:TestChanged",
-		"exact_clone_production=nodes=12", "exact_clone_validator=nodes=10", "exact_clone_test=nodes=8",
+		"exact_clone=nodes=12",
 		"advisory_only=inspect semantic ownership and numerical contracts", "require parity evidence",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("review candidates %q lack %q", got, want)
 		}
 	}
-	if got := profileReviewFocus(profile, []string{"internal/new/empty.go"}); !strings.Contains(got, "production=none") ||
-		!strings.Contains(got, "exact_clone_test=none") {
+	if got := profileReviewFocus(profile, []string{"internal/new/empty.go"}); !strings.Contains(got, "exact_clone=none") {
 		t.Fatalf("empty review focus = %q", got)
 	}
 }

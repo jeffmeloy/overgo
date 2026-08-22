@@ -2,14 +2,34 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/codeprofile"
+	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
+
+func TestGateAdvisoryFindingPublication(t *testing.T) {
+	store := mustReview(repodb.Open(filepath.Join(t.TempDir(), "store")))
+	defer store.Close()
+	batch := artifact.Batch{Key: "gate/fixture"}
+	honesty := []string{"magic backlog: 2 inherited uncatalogued constants"}
+	if err := appendGateAdvisoryFinding(context.Background(), store, &batch, []string{"internal/p"}, honesty); err != nil {
+		t.Fatal(err)
+	}
+	mustReview(store.Commit(context.Background(), batch))
+	next := artifact.Batch{Key: "gate/fixture/repeat"}
+	if err := appendGateAdvisoryFinding(context.Background(), store, &next, []string{"internal/p"}, honesty); err != nil ||
+		len(next.Aliases) != 1 || next.Aliases[0].Previous == nil || *next.Aliases[0].Previous != batch.Aliases[0].Target {
+		t.Fatalf("deduplicated finding = %+v, %v", next.Aliases, err)
+	}
+}
 
 func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 	gate := gateContext{
@@ -43,8 +63,8 @@ func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 	profile := codeprofile.Profile{Clones: []codeprofile.Clone{{
 		Nodes: 8, Functions: []string{"cmd/first/main.go:main", "cmd/second/main.go:main"},
 	}}}
-	if clone := largestChangedClone(profile, map[string]bool{"cmd/first/main.go": true}, ""); clone != "none" {
-		t.Fatalf("CLI wrapper clone reached agent output: %s", clone)
+	if focus := profileReviewFocus(profile, []string{"cmd/first/main.go"}); !strings.Contains(focus, "exact_clone=none") {
+		t.Fatalf("CLI wrapper clone reached agent output: %s", focus)
 	}
 }
 

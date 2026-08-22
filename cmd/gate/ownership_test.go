@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/artifact"
+	"overgo/internal/automationcheck"
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 )
@@ -39,11 +41,13 @@ func TestNonGoOwnershipGateScope(t *testing.T) {
 }
 
 func TestEnvironmentBoundRetry(t *testing.T) {
-	cache := retryCache{Environment: "env-a", Steps: map[string]phaseCache{"test": {Input: "source", Outcome: "succeeded"}}}
-	if !retryReusable(cache, "env-a") {
+	environment, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("env-a"))
+	other, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("env-b"))
+	cache := automationcheck.NewEvidenceCache(environment)
+	if !cache.Reusable(environment) {
 		t.Fatal("matching environment did not reuse cache")
 	}
-	if retryReusable(cache, "env-b") {
+	if cache.Reusable(other) {
 		t.Fatal("retry cache crossed environment identity")
 	}
 }

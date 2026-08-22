@@ -1,10 +1,52 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
+
+	"overgo/internal/artifact"
+	"overgo/internal/repodb"
 )
+
+type closureEvidenceSnapshot struct {
+	store    string
+	head     artifact.CommitID
+	sequence uint64
+	cleanup  func()
+}
+
+func captureClosureEvidence(root, gitSnapshot string) (closureEvidenceSnapshot, error) {
+	source, err := sourceRepoDB(root, gitSnapshot)
+	if err != nil || source == "" {
+		return closureEvidenceSnapshot{}, err
+	}
+	if _, err := os.Stat(source); errors.Is(err, os.ErrNotExist) {
+		return closureEvidenceSnapshot{}, nil
+	} else if err != nil {
+		return closureEvidenceSnapshot{}, err
+	}
+	store, err := repodb.OpenReadOnly(source)
+	if err != nil {
+		return closureEvidenceSnapshot{}, err
+	}
+	parent, err := os.MkdirTemp("", "overgo-merge-evidence-")
+	if err != nil {
+		_ = store.Close()
+		return closureEvidenceSnapshot{}, err
+	}
+	cleanup := func() { _ = os.RemoveAll(parent) }
+	destination := filepath.Join(parent, "repodb-store")
+	head, sequence, backupErr := store.Backup(destination)
+	closeErr := store.Close()
+	if backupErr != nil || closeErr != nil {
+		cleanup()
+		return closureEvidenceSnapshot{}, fmt.Errorf("prepare-merge: snapshot closure evidence: %w", errors.Join(backupErr, closeErr))
+	}
+	return closureEvidenceSnapshot{store: destination, head: head, sequence: sequence, cleanup: cleanup}, nil
+}
 
 func sourceRepoDB(root, snapshot string) (string, error) {
 	raw, err := gitOutput(root, "worktree", "list", "--porcelain")

@@ -30,6 +30,13 @@ func prepareMerge(root, source string, local plan.Plan, output io.Writer) error 
 		return err
 	}
 	snapshot := strings.TrimSpace(string(sourceRaw))
+	closureSnapshot, err := captureClosureEvidence(root, snapshot)
+	if err != nil {
+		return err
+	}
+	if closureSnapshot.cleanup != nil {
+		defer closureSnapshot.cleanup()
+	}
 	contains := exec.Command("git", "merge-base", "--is-ancestor", snapshot, "HEAD")
 	contains.Dir = root
 	if contains.Run() == nil {
@@ -84,27 +91,31 @@ func prepareMerge(root, source string, local plan.Plan, output io.Writer) error 
 		return fmt.Errorf("refresh merged compatibility: %w", err)
 	}
 	latest, err := gitOutput(root, "rev-parse", "--verify", source+"^{commit}")
-	if err != nil || strings.TrimSpace(string(latest)) != snapshot {
-		return fmt.Errorf("prepare-merge source %s moved from snapshot %s", source, snapshot)
+	if err := verifySourceSnapshot(source, snapshot, latest, err); err != nil {
+		return err
 	}
 	if _, err := gitOutput(root, "add", "--", plan.Path, "compatibility.json", compatibilityDocumentPath, trainingCompatibilityDocumentPath); err != nil {
 		return err
 	}
-	closureStore, err := sourceRepoDB(root, snapshot)
-	if err != nil {
-		return err
-	}
-	if closureStore != "" {
-		result, err := commandOutput(root, "go", "run", "./cmd/closure-scan", "-import-store", closureStore)
+	if closureSnapshot.store != "" {
+		result, err := commandOutput(root, "go", "run", "./cmd/closure-scan", "-import-store", closureSnapshot.store)
 		if err != nil {
 			return fmt.Errorf("prepare-merge closure evidence: %w", err)
 		}
-		fmt.Fprintf(output, "prepare-merge: closure evidence %s\n", strings.TrimSpace(string(result)))
+		fmt.Fprintf(output, "prepare-merge: closure evidence %s from %s@%d bound to git %s\n",
+			strings.TrimSpace(string(result)), closureSnapshot.head, closureSnapshot.sequence, snapshot)
 	} else {
 		fmt.Fprintln(output, "prepare-merge: closure evidence unavailable (source snapshot has no local RepoDB worktree)")
 	}
 	keepMerge = true
 	fmt.Fprintf(output, "prepare-merge: %s@%s staged; finalize with cmd/gate -merge -plan %s/do\n", source, snapshot, mergeID)
+	return nil
+}
+
+func verifySourceSnapshot(source, snapshot string, latest []byte, resolveErr error) error {
+	if resolveErr != nil || strings.TrimSpace(string(latest)) != snapshot {
+		return fmt.Errorf("prepare-merge source %s moved from snapshot %s", source, snapshot)
+	}
 	return nil
 }
 

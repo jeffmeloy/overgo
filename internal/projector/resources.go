@@ -19,6 +19,23 @@ type projectorResources struct {
 	cuda *projectorCUDA
 }
 
+func executePreparedProjector[Input, Output any](
+	ctx context.Context,
+	ready bool,
+	prepare func() (Input, error),
+	execute func(context.Context, Input) (Output, error),
+) (Output, error) {
+	var zero Output
+	if !ready {
+		return zero, errRunnerClosed
+	}
+	input, err := prepare()
+	if err != nil {
+		return zero, err
+	}
+	return execute(ctx, input)
+}
+
 func (r projectorResources) load(ctx context.Context, name string) (reference.Value, error) {
 	return loadProjectorHostTensor(ctx, r.file, name)
 }

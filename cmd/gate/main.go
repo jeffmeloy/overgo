@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
@@ -243,53 +244,71 @@ func checkPlanBinding(repo, ref string) error {
 	return nil
 }
 
-type gateStep struct {
-	name  string
-	phase runrecord.Phase
-	fn    func() (skipped bool, err error)
+func (g *gateContext) pipelineChecks() []automationcheck.Check {
+	generated := automationcheck.GeneratedChecks(g.repo, command)
+	device := automationcheck.DeviceCheck(g.repo, g.paths, command)
+	return []automationcheck.Check{
+		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
+		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
+		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), generated[0], generated[1], generated[2],
+		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
+		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), gateCheck("vet", runrecord.PhaseVet, g.stepVet),
+		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), gateCheck("test", runrecord.PhaseTest, g.stepTest),
+		device, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
+	}
 }
 
-func (g *gateContext) pipelineSteps() []gateStep {
-	return []gateStep{
-		{"protection", runrecord.PhaseValidate, g.stepProtection}, {"scope", runrecord.PhaseValidate, g.stepScope},
-		{"profile", runrecord.PhaseValidate, g.stepProfile}, {"fmt", runrecord.PhaseValidate, g.stepFmt},
-		{"style", runrecord.PhaseValidate, g.stepStyle}, {"manifest", runrecord.PhaseValidate, g.stepManifest},
-		{"sbom", runrecord.PhaseValidate, g.stepSBOM}, {"claims", runrecord.PhaseValidate, g.stepClaims},
-		{"docs", runrecord.PhaseValidate, g.stepDocumentation}, {"magics", runrecord.PhaseValidate, g.stepMagics},
-		{"acceptance", runrecord.PhaseTest, g.stepAcceptance}, {"vet", runrecord.PhaseVet, g.stepVet},
-		{"build", runrecord.PhaseBuild, g.stepBuild}, {"test", runrecord.PhaseTest, g.stepTest},
-		{"device", runrecord.PhaseTest, g.stepDevice}, {"commit", runrecord.PhasePackage, g.stepCommit},
+func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) automationcheck.Check {
+	return automationcheck.Check{
+		Descriptor: automationcheck.Descriptor{Name: name, Phase: phase, Always: true},
+		Run: func(context.Context, automationcheck.Invocation) (bool, string, error) {
+			skipped, err := run()
+			return skipped, "", err
+		},
 	}
 }
 
 func (g *gateContext) pipeline() error {
-	steps := g.pipelineSteps()
+	definitions := g.pipelineChecks()
+	impact, err := automationcheck.GeneratedImpact(g.repo, g.paths)
+	if err != nil {
+		return err
+	}
+	impact = append(impact, automationcheck.DeviceImpact(g.paths)...)
+	checks, err := automationcheck.Plan(definitions, impact)
+	if err != nil {
+		return err
+	}
 	cache := g.loadRetryCache()
 	// Verification steps whose result depends only on tree state may reuse a
 	// prior identical-tree success (the retry-loop tax: a failed commit step
 	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
 	// always run; commit is never cached.
 	cacheable := map[string]bool{"vet": true, "build": true, "test": true}
-	for _, s := range steps {
-		began := time.Now()
-		fmt.Fprintf(os.Stderr, gateProgressLine, s.name, runrecord.HeartbeatRunning)
+	for _, check := range checks {
+		name := check.Check.Name
+		fmt.Fprintf(os.Stderr, gateProgressLine, name, runrecord.HeartbeatRunning)
 		var skipped bool
-		var err error
+		var evidence automationcheck.Evidence
 		input := ""
-		if cacheable[s.name] {
-			input, err = g.phaseInputFingerprint(s.name)
+		if cacheable[name] {
+			input, err = g.phaseInputFingerprint(name)
 		}
-		cached := cache.Steps[s.name]
+		cached := cache.Steps[name]
 		if err == nil && cached.Input == input && cached.Outcome == string(runrecord.StepSucceeded) {
 			skipped = true
-			g.honesty = append(g.honesty, s.name+" reused: derived inputs already passed this step")
+			g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
 		} else if err == nil {
-			skipped, err = s.fn()
+			evidence, err = automationcheck.Run(context.Background(), check)
+			skipped = evidence.Skipped
 		}
-		duration := max(uint64(time.Since(began).Nanoseconds()), uint64(1))
+		duration := max(evidence.DurationNS, uint64(1))
 		record := runrecord.GateStep{
-			Name: s.name, Phase: s.phase, Outcome: runrecord.StepSucceeded,
-			DurationNS: duration, Evidence: g.stepEvidence[s.name],
+			Name: name, Phase: check.Check.Phase, Outcome: runrecord.StepSucceeded,
+			DurationNS: duration, Evidence: g.stepEvidence[name],
+		}
+		if record.Evidence == "" && evidence.ID.Valid() {
+			record.Evidence = evidence.ID.String()
 		}
 		switch {
 		case err != nil:
@@ -298,12 +317,22 @@ func (g *gateContext) pipeline() error {
 			record.Outcome = runrecord.StepSkipped
 		}
 		g.steps = append(g.steps, record)
-		if err == nil && cacheable[s.name] && !skipped {
-			cache.Steps[s.name] = phaseCache{Input: input, Outcome: string(runrecord.StepSucceeded)}
+		if err == nil && cacheable[name] && !skipped {
+			cache.Steps[name] = phaseCache{Input: input, Outcome: string(runrecord.StepSucceeded)}
 			g.saveRetryCache(cache)
 		}
 		if err != nil {
-			return fmt.Errorf("%s: %w", s.name, err)
+			return fmt.Errorf("%s: %w", name, err)
+		}
+	}
+	selected := make(map[string]bool, len(checks))
+	for _, check := range checks {
+		selected[check.Check.Name] = true
+	}
+	for _, check := range definitions {
+		if !selected[check.Descriptor.Name] {
+			g.steps = append(g.steps, runrecord.GateStep{Name: check.Descriptor.Name, Phase: check.Descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
+			g.honesty = append(g.honesty, check.Descriptor.Name+" skipped: "+check.Descriptor.Inapplicable)
 		}
 	}
 	return nil
@@ -1044,61 +1073,6 @@ func runGoTestsAdvisory(repo string, packages []string) (testevidence.GoTestRepo
 	return report, nil
 }
 
-func (g *gateContext) stepManifest() (bool, error) {
-	if _, err := os.Stat(filepath.Join(g.repo, "kernels", "manifest.json")); err != nil {
-		return true, nil
-	}
-	if !g.pathsTouchAny("kernels/", "internal/cuda/kernel/", "cmd/kernel-manifest/", "cmd/build-kernels/", "cmd/kernel-bindings/") {
-		g.honesty = append(g.honesty, "manifest skipped: no kernel-owning paths in -paths")
-		return true, nil
-	}
-	if _, err := command(g.repo, "go", "run", "./cmd/kernel-manifest"); err != nil {
-		return false, err
-	}
-	// Bindings derive from the same manifest, but build-kernels updates the
-	// manifest + PTX WITHOUT regenerating the executor bindings (that needs
-	// `go generate ./internal/cuda/executor`). Verify freshness here so a stale
-	// kernel_bindings_generated.go cannot ship on a kernel change.
-	_, err := command(g.repo, "go", "test", "-run", "TestGeneratedBindingsMatchManifest", "-count=1", "./cmd/kernel-bindings")
-	return false, err
-}
-
-func (g *gateContext) stepSBOM() (bool, error) {
-	if !g.pathsTouchAny("go.mod", "go.sum", "SBOM.cdx.json", "cmd/sbom/") {
-		g.honesty = append(g.honesty, "sbom skipped: no dependency-owning paths in -paths")
-		return true, nil
-	}
-	_, err := command(g.repo, "go", "run", "./cmd/sbom", "-check")
-	return false, err
-}
-
-// stepClaims runs when the manifest itself, its checker, or any changed path
-// mentioned in the manifest's raw bytes is in scope. Substring matching is
-// deliberately safe-over-skip: a false positive runs the check, never the
-// reverse.
-func (g *gateContext) stepClaims() (bool, error) {
-	run := g.pathsTouchAny("compatibility.json", "cmd/compatibility/", "internal/model/")
-	if !run {
-		raw, err := os.ReadFile(filepath.Join(g.repo, "compatibility.json"))
-		if err != nil {
-			return false, err
-		}
-		manifestText := string(raw)
-		for _, p := range g.paths {
-			if strings.Contains(manifestText, p) {
-				run = true
-				break
-			}
-		}
-	}
-	if !run {
-		g.honesty = append(g.honesty, "claims skipped: no changed path appears in compatibility.json")
-		return true, nil
-	}
-	_, err := command(g.repo, "go", "run", "./cmd/compatibility", "-check")
-	return false, err
-}
-
 // stepMagics: scoped constants against exact active closure evidence.
 func (g *gateContext) stepMagics() (bool, error) {
 	goSource := false
@@ -1342,19 +1316,6 @@ func activeMagicBindings(
 	return bindings, nil
 }
 
-// stepDevice is the manifest-scoped device lane routing (Automation Doctrine
-// Layer 3): the CUDA lane fires only when kernel-owning or CUDA-cone paths
-// change; a failure INCLUDING device unavailability fails the commit —
-// UNAVAILABLE never passes for a change that needs device evidence.
-func (g *gateContext) stepDevice() (bool, error) {
-	if !g.pathsTouchAny("kernels/", "internal/cuda/") && !g.pathsTouchDeviceSource() {
-		g.honesty = append(g.honesty, "device lane skipped: no kernel or CUDA-cone paths in -paths")
-		return true, nil
-	}
-	_, err := command(g.repo, "go", "run", "./cmd/device-lane", "-paths", strings.Join(g.paths, ","))
-	return false, err
-}
-
 func (g *gateContext) stepAcceptance() (bool, error) {
 	// cmd/plan -verify owns the verdict contract: it classifies the claim
 	// (bitwise-deterministic / tolerance-bounded / stochastic-multi-seed) and
@@ -1377,18 +1338,6 @@ func acceptanceVerdictClass(repo string) testevidence.VerdictClass {
 		return testevidence.VerdictBitwiseDeterministic
 	}
 	return testevidence.ClassifyVerifyCommand(step.Verify)
-}
-
-// pathsTouchDeviceSource: device-lane code lives outside internal/cuda too (e.g.
-// the device optimizer in internal/optimizer). Any _cuda_windows source/test in
-// -paths fires the lane so its device evidence is not silently skipped.
-func (g *gateContext) pathsTouchDeviceSource() bool {
-	for _, p := range g.paths {
-		if strings.Contains(p, "_cuda_windows") {
-			return true
-		}
-	}
-	return false
 }
 
 func (g *gateContext) stepCommit() (bool, error) {

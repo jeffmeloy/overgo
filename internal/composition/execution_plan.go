@@ -68,12 +68,19 @@ type CompositionExecutionPlan struct {
 }
 
 type compositionCacheAuthority struct {
-	SourceModel       artifact.ID            `json:"source_model"`
-	SourceContract    artifact.ID            `json:"source_contract"`
-	TargetContract    artifact.ID            `json:"target_contract"`
-	BridgeDefinitions []artifact.ID          `json:"bridge_definitions"`
-	BridgeWeights     []artifact.ID          `json:"bridge_weights"`
-	Operators         []bridgegraph.Operator `json:"operators"`
+	ExecutionRecipe   artifact.ID                `json:"execution_recipe"`
+	SourceModel       artifact.ID                `json:"source_model"`
+	SourceContract    artifact.ID                `json:"source_contract"`
+	TargetContract    artifact.ID                `json:"target_contract"`
+	BridgeDefinitions []artifact.ID              `json:"bridge_definitions"`
+	BridgeWeights     []artifact.ID              `json:"bridge_weights"`
+	Operators         []bridgegraph.Operator     `json:"operators"`
+	Components        []CompositionComponentPlan `json:"components"`
+}
+
+type transformedRepresentationCacheAuthority struct {
+	Transformation       artifact.ID `json:"transformation"`
+	SourceRepresentation artifact.ID `json:"source_representation"`
 }
 
 var compositionExecutionPlanCodec = artifact.JSONDocumentCodec(
@@ -151,6 +158,25 @@ func CompileCompositionExecutionPlan(
 // Content returns the exact compiled composition plan document.
 func (value CompositionExecutionPlan) Content() (artifact.Content, error) {
 	return compositionExecutionPlanCodec.Content(value)
+}
+
+// TransformedRepresentationCacheIdentity binds a captured representation to
+// the exact bridge program, device placement, residency, and component
+// lifetimes that transform it. Callers may use the result as an immutable
+// cache key without interpreting representation shape or distribution.
+func (value CompositionExecutionPlan) TransformedRepresentationCacheIdentity(
+	sourceRepresentation artifact.ID,
+) (artifact.ID, error) {
+	if err := compositionExecutionPlanCodec.ValidateIdentity(value); err != nil {
+		return artifact.ID{}, err
+	}
+	if !sourceRepresentation.Valid() {
+		return artifact.ID{}, errors.New("composition: source representation identity is invalid")
+	}
+	return artifact.JSONID(artifact.KindProfile, transformedRepresentationCacheAuthority{
+		Transformation:       value.CacheIdentity,
+		SourceRepresentation: sourceRepresentation,
+	})
 }
 
 // Lineage binds a compiled plan to every authority selected through its
@@ -248,10 +274,11 @@ func canonicalizeCompositionExecutionPlan(value *CompositionExecutionPlan) error
 
 func compositionCacheIdentity(value CompositionExecutionPlan) (artifact.ID, error) {
 	return artifact.JSONID(artifact.KindProfile, compositionCacheAuthority{
-		SourceModel: value.SourceModel, SourceContract: value.SourceContract,
+		ExecutionRecipe: value.ExecutionRecipe,
+		SourceModel:     value.SourceModel, SourceContract: value.SourceContract,
 		TargetContract:    value.TargetContract,
 		BridgeDefinitions: value.BridgeDefinitions, BridgeWeights: value.BridgeWeights,
-		Operators: value.Operators,
+		Operators: value.Operators, Components: value.Components,
 	})
 }
 

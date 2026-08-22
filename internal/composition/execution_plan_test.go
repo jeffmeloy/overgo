@@ -9,9 +9,10 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor"
+	"overgo/internal/testutil"
 )
 
-func TestCompositionExecutionPlan(t *testing.T) {
+func TestCompositionResidencyPlan(t *testing.T) {
 	store, authority := compositionAuthorityFixture(t)
 	ctx := context.Background()
 	compile := func() (CompositionExecutionPlan, error) {
@@ -61,6 +62,10 @@ func TestCompositionExecutionPlan(t *testing.T) {
 	if len(plan.Components) != tensor.PairedExtent ||
 		plan.Components[tensor.FirstOffset].Module != modelrecipe.ModuleCaptureRepresentation ||
 		plan.Components[tensor.SingletonExtent].Module != modelrecipe.ModuleInjectRepresentation ||
+		plan.Components[tensor.FirstOffset].Placement != authority.Execution.Nodes[tensor.FirstOffset].Placement ||
+		plan.Components[tensor.SingletonExtent].Placement != authority.Execution.Nodes[tensor.SingletonExtent].Placement ||
+		plan.Components[tensor.FirstOffset].Residency != authority.Execution.Nodes[tensor.FirstOffset].Residency ||
+		plan.Components[tensor.SingletonExtent].Residency != authority.Execution.Nodes[tensor.SingletonExtent].Residency ||
 		plan.Components[tensor.FirstOffset].Lifetime != recipe.SessionCapacity ||
 		plan.Components[tensor.SingletonExtent].Lifetime != recipe.SessionRequest {
 		t.Fatalf("components = %+v", plan.Components)
@@ -80,5 +85,51 @@ func TestCompositionExecutionPlan(t *testing.T) {
 		authority.Recipe.TargetModel, recipe.TaskEmbedding,
 	); err == nil {
 		t.Fatal("missing task-scoped composition compiled")
+	}
+}
+
+func TestTransformedRepresentationCacheIdentity(t *testing.T) {
+	store, authority := compositionAuthorityFixture(t)
+	ctx := context.Background()
+	batch, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/cache-activate", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := CompileCompositionExecutionPlan(
+		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstInput := testutil.ArtifactID(t, artifact.KindOutput, "captured representation one")
+	secondInput := testutil.ArtifactID(t, artifact.KindOutput, "captured representation two")
+	first, err := plan.TransformedRepresentationCacheIdentity(firstInput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repeated, err := plan.TransformedRepresentationCacheIdentity(firstInput)
+	if err != nil || repeated != first {
+		t.Fatalf("repeated cache identity = %s, want %s: %v", repeated, first, err)
+	}
+	second, err := plan.TransformedRepresentationCacheIdentity(secondInput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatal("distinct captured representations shared one transformed cache identity")
+	}
+	if _, err := plan.TransformedRepresentationCacheIdentity(artifact.ID{}); err == nil {
+		t.Fatal("invalid captured representation admitted to transformed cache")
+	}
+	changed := plan
+	changed.Components = append([]CompositionComponentPlan(nil), plan.Components...)
+	changed.Components[tensor.FirstOffset].Lifetime = recipe.SessionRequest
+	changed.ID = artifact.ID{}
+	changed.CacheIdentity, err = compositionCacheIdentity(changed)
+	if err != nil || changed.CacheIdentity == plan.CacheIdentity {
+		t.Fatalf("lifetime-specific cache authority = %s, original %s: %v", changed.CacheIdentity, plan.CacheIdentity, err)
 	}
 }

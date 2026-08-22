@@ -9,12 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "device-residency",
-          "title": "Compile device residency, lifetimes, and immutable transformed-representation caching",
-          "status": "open",
-          "verify": "go test ./internal/composition ./internal/inference -run 'TestCompositionResidencyPlan|TestTransformedRepresentationCacheIdentity' -count=1"
-        },
-        {
           "id": "api-gui",
           "title": "Expose composition inventory, compatibility, graph, training, evaluation, promotion, activation, and runtime evidence",
           "status": "open",
@@ -135,6 +129,11 @@
       "item": "composability-production",
       "step": "promotion-activation",
       "authority": "evidence:sha256:9ed73a38ff52c7085a720bddaa988a34662539950fac9273630e0998ab8cbedb"
+    },
+    {
+      "item": "composability-production",
+      "step": "device-residency",
+      "authority": "evidence:sha256:2fd80cb9090845cc71847b718571471f4316436be453d546cd8338b73971b187"
     }
   ]
 }

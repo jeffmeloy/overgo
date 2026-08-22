@@ -1,8 +1,4 @@
-// Package plan is the single owner of the campaign plan schema (docs/plan.json)
-// and the "current step" rule. cmd/plan dispatches and enforces the loop;
-// cmd/gate binds every commit to the current step. Both read the plan through
-// this package so they can never disagree about which step is active -- the
-// disagreement that would let off-plan work slip through the gate.
+// Package plan owns campaign state and dispatch order.
 package plan
 
 import (
@@ -18,6 +14,13 @@ import (
 
 // Path is the campaign plan, relative to the repo root.
 const Path = "docs/plan.json"
+
+const (
+	// StatusOpen permits dispatch.
+	StatusOpen = "open"
+	// StatusDone retains completed work.
+	StatusDone = "done"
+)
 
 // Step is one action within an item. Verify is a shell command (run via sh -c)
 // that exits 0 iff the step's acceptance holds; it is required before the step
@@ -65,19 +68,18 @@ func Load(path string) (Plan, error) {
 	return d, nil
 }
 
-// Parse decodes an in-memory plan projection, including projections read from
-// Git refs during semantic master synchronization.
+// Parse decodes an in-memory plan document.
 func Parse(data []byte) (Plan, error) {
 	var document Plan
 	if err := strictjson.DecodeBytes(data, &document); err != nil {
 		return Plan{}, err
 	}
-	return document, ValidateOpenWork(document)
+	return document, Validate(document)
 }
 
 // Save writes the plan back to path (Path when empty).
 func Save(path string, d Plan) error {
-	if err := ValidateOpenWork(d); err != nil {
+	if err := Validate(d); err != nil {
 		return err
 	}
 	if path == "" {
@@ -86,17 +88,16 @@ func Save(path string, d Plan) error {
 	return jsonfile.Write(filepath.FromSlash(path), d, 0o644)
 }
 
-// ValidateOpenWork rejects chronology in the live plan. Git and RepoDB own
-// completed evidence; the plan contains only dispatchable or blocked work.
-func ValidateOpenWork(d Plan) error {
+// Validate checks retained plan state.
+func Validate(d Plan) error {
 	items := map[string]bool{}
 	for _, item := range d.Items {
 		if item.ID == "" || items[item.ID] {
 			return fmt.Errorf("plan item id %q is empty or duplicated", item.ID)
 		}
 		items[item.ID] = true
-		if !unfinished(item.Status) {
-			return fmt.Errorf("plan item %s has chronology status %q", item.ID, item.Status)
+		if !validStatus(item.Status) {
+			return fmt.Errorf("plan item %s has invalid status %q", item.ID, item.Status)
 		}
 		steps := map[string]bool{}
 		for _, step := range item.Steps {
@@ -104,19 +105,22 @@ func ValidateOpenWork(d Plan) error {
 				return fmt.Errorf("plan step %s/%s is empty or duplicated", item.ID, step.ID)
 			}
 			steps[step.ID] = true
-			if !unfinished(step.Status) {
-				return fmt.Errorf("plan step %s/%s has chronology status %q", item.ID, step.ID, step.Status)
+			if !validStatus(step.Status) {
+				return fmt.Errorf("plan step %s/%s has invalid status %q", item.ID, step.ID, step.Status)
 			}
-			if step.Status == "open" && strings.TrimSpace(step.Verify) == "" {
+			if step.Status == StatusOpen && strings.TrimSpace(step.Verify) == "" {
 				return fmt.Errorf("plan step %s/%s is open without a verifier", item.ID, step.ID)
 			}
+		}
+		if item.Status == StatusDone && slices.ContainsFunc(item.Steps, func(step Step) bool { return step.Status != StatusDone }) {
+			return fmt.Errorf("plan item %s is done with unfinished steps", item.ID)
 		}
 	}
 	return nil
 }
 
-func unfinished(status string) bool {
-	return status == "open" || strings.HasPrefix(status, "blocked")
+func validStatus(status string) bool {
+	return status == StatusOpen || status == StatusDone || strings.HasPrefix(status, "blocked")
 }
 
 // Current returns the first open step of the first open item -- the single
@@ -125,11 +129,11 @@ func unfinished(status string) bool {
 // ok is false when no open item remains.
 func Current(d Plan) (Item, Step, bool) {
 	for _, it := range d.Items {
-		if it.Status != "open" {
+		if it.Status != StatusOpen {
 			continue
 		}
 		for _, s := range it.Steps {
-			if s.Status == "open" {
+			if s.Status == StatusOpen {
 				return it, s, true
 			}
 		}
@@ -138,9 +142,7 @@ func Current(d Plan) (Item, Step, bool) {
 	return Item{}, Step{}, false
 }
 
-// Advance returns the open-work plan after removing one completed step. The
-// gate writes this result in the implementation commit so dispatch cannot lag
-// the code it describes.
+// Advance retains and completes one open row.
 func Advance(d Plan, itemID, stepID string) (Plan, error) {
 	d.Items = slices.Clone(d.Items)
 	for itemIndex := range d.Items {
@@ -148,22 +150,25 @@ func Advance(d Plan, itemID, stepID string) (Plan, error) {
 			continue
 		}
 		if stepID == "." {
-			d.Items = append(d.Items[:itemIndex], d.Items[itemIndex+1:]...)
-			return d, ValidateOpenWork(d)
+			if len(d.Items[itemIndex].Steps) != 0 {
+				return Plan{}, fmt.Errorf("item %q has steps", itemID)
+			}
+			d.Items[itemIndex].Status = StatusDone
+			return d, Validate(d)
 		}
 		d.Items[itemIndex].Steps = slices.Clone(d.Items[itemIndex].Steps)
 		for stepIndex := range d.Items[itemIndex].Steps {
 			if d.Items[itemIndex].Steps[stepIndex].ID != stepID {
 				continue
 			}
-			d.Items[itemIndex].Steps = append(
-				d.Items[itemIndex].Steps[:stepIndex],
-				d.Items[itemIndex].Steps[stepIndex+1:]...,
-			)
-			if len(d.Items[itemIndex].Steps) == 0 {
-				d.Items = append(d.Items[:itemIndex], d.Items[itemIndex+1:]...)
+			if d.Items[itemIndex].Steps[stepIndex].Status != StatusOpen {
+				return Plan{}, fmt.Errorf("step %q in %q is not open", stepID, itemID)
 			}
-			return d, ValidateOpenWork(d)
+			d.Items[itemIndex].Steps[stepIndex].Status = StatusDone
+			if !slices.ContainsFunc(d.Items[itemIndex].Steps, func(step Step) bool { return step.Status != StatusDone }) {
+				d.Items[itemIndex].Status = StatusDone
+			}
+			return d, Validate(d)
 		}
 		return Plan{}, fmt.Errorf("step %q not found in %q", stepID, itemID)
 	}

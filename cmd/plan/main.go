@@ -98,7 +98,7 @@ func run(c cli, args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := plan.ValidateOpenWork(document); err != nil {
+	if err := plan.Validate(document); err != nil {
 		return err
 	}
 	switch {

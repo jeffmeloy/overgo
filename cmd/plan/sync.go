@@ -48,7 +48,7 @@ func prepareMerge(root, source string, local plan.Plan, output io.Writer) error 
 	if err != nil {
 		return err
 	}
-	merged, err := plan.MergeOpenProjections(base, local, incoming)
+	merged, err := plan.MergeDocuments(base, local, incoming)
 	if err != nil {
 		return err
 	}

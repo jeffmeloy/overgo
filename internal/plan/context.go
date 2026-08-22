@@ -66,7 +66,7 @@ type ContextFacts struct {
 }
 
 func BuildAutomationContext(document Plan, facts ContextFacts) (AutomationContext, error) {
-	if err := ValidateOpenWork(document); err != nil {
+	if err := Validate(document); err != nil {
 		return AutomationContext{}, err
 	}
 	facts.Head = strings.TrimSpace(facts.Head)

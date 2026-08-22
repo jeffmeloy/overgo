@@ -3,6 +3,32 @@
   "doctrine": "Follow skill.md. Current evidence: 943 production files, 1,124,050 runtime AST nodes, 12,639 exact-clone excess nodes, 5,982 exports, 78 zero-consumer objects, 18,267 inline literals, and 14,235 repeated-literal sites. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
   "items": [
     {
+      "id": "plan-ledger-reconciliation",
+      "title": "Retain completion state across worktrees",
+      "status": "done",
+      "steps": [
+        {
+          "id": "retained-completion-state",
+          "title": "Mark completed rows done; preserve full rows during semantic merge; refuse legacy deletion",
+          "status": "done",
+          "verify": "go test ./internal/plan ./cmd/plan ./cmd/gate -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gate-modularity-integration",
+      "title": "Run modular checks through centralized gate policy and evidence",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run modular checks through centralized gate policy and evidence",
+          "status": "done",
+          "verify": "go test ./cmd/gate ./internal/automationcheck -run 'TestModularPipeline|TestCheckEvidenceCache' -count=1"
+        }
+      ]
+    },
+    {
       "id": "surface-reduction",
       "title": "Delete duplicate and redundant runtime ownership",
       "status": "open",
@@ -20,6 +46,24 @@
       "title": "Make cross-model composability production-authoritative",
       "status": "open",
       "steps": [
+        {
+          "id": "promotion-activation",
+          "title": "Make recipe-owned promotion evidence authorize active composition",
+          "status": "done",
+          "verify": "go test ./internal/composition ./internal/evaluation -run 'TestCompositionPromotionActivation|TestUnpromotedBridgeRefused' -count=1"
+        },
+        {
+          "id": "device-residency",
+          "title": "Compile device residency, lifetimes, and immutable transformed-representation caching",
+          "status": "done",
+          "verify": "go test ./internal/composition ./internal/inference -run 'TestCompositionResidencyPlan|TestTransformedRepresentationCacheIdentity' -count=1"
+        },
+        {
+          "id": "api-gui",
+          "title": "Expose composition inventory, compatibility, graph, training, evaluation, promotion, activation, and runtime evidence",
+          "status": "done",
+          "verify": "go test ./internal/server -run 'TestComposition(API|GUI)Workflow' -count=1"
+        },
         {
           "id": "external-cross-attention",
           "title": "Activate recipe-compiled external cross-attention with separate cache ownership",

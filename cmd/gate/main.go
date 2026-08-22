@@ -231,7 +231,7 @@ func checkPlanBinding(repo, ref string) error {
 	if err != nil {
 		return err
 	}
-	if err := plan.ValidateOpenWork(document); err != nil {
+	if err := plan.Validate(document); err != nil {
 		return err
 	}
 	it, st, open := plan.Current(document)

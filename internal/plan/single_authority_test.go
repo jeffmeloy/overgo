@@ -29,7 +29,7 @@ func TestSinglePlanAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateOpenWork(document); err != nil {
+	if err := Validate(document); err != nil {
 		t.Fatal(err)
 	}
 }

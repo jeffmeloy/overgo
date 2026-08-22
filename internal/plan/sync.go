@@ -6,11 +6,8 @@ import (
 	"slices"
 )
 
-// MergeOpenProjections performs a three-way merge of generated open-work
-// projections. Removal from either descendant means the base work completed;
-// independently added work survives. Conflicting edits to the same live row
-// are refused instead of guessed.
-func MergeOpenProjections(base, local, upstream Plan) (Plan, error) {
+// MergeDocuments merges retained plan rows by identity.
+func MergeDocuments(base, local, upstream Plan) (Plan, error) {
 	campaign, err := mergeText("campaign", base.Campaign, local.Campaign, upstream.Campaign)
 	if err != nil {
 		return Plan{}, err
@@ -22,12 +19,12 @@ func MergeOpenProjections(base, local, upstream Plan) (Plan, error) {
 	itemID := func(item Item) string { return item.ID }
 	baseItems, localItems, upstreamItems := indexByID(base.Items, itemID), indexByID(local.Items, itemID), indexByID(upstream.Items, itemID)
 	merged := Plan{Campaign: campaign, Doctrine: doctrine}
-	for _, id := range unionOrder(local.Items, upstream.Items, itemID) {
+	for _, id := range unionOrder(itemID, base.Items, local.Items, upstream.Items) {
 		baseItem, inBase := baseItems[id]
 		localItem, inLocal := localItems[id]
 		upstreamItem, inUpstream := upstreamItems[id]
 		if inBase && (!inLocal || !inUpstream) {
-			continue
+			return Plan{}, fmt.Errorf("plan document: retained item %q was deleted", id)
 		}
 		if !inBase {
 			switch {
@@ -46,7 +43,7 @@ func MergeOpenProjections(base, local, upstream Plan) (Plan, error) {
 		}
 		merged.Items = append(merged.Items, item)
 	}
-	return merged, ValidateOpenWork(merged)
+	return merged, Validate(merged)
 }
 
 func mergeItem(base, local, upstream Item) (Item, error) {
@@ -61,12 +58,12 @@ func mergeItem(base, local, upstream Item) (Item, error) {
 	stepID := func(step Step) string { return step.ID }
 	baseSteps, localSteps, upstreamSteps := indexByID(base.Steps, stepID), indexByID(local.Steps, stepID), indexByID(upstream.Steps, stepID)
 	merged := Item{ID: base.ID, Title: title, Status: status}
-	for _, id := range unionOrder(local.Steps, upstream.Steps, stepID) {
+	for _, id := range unionOrder(stepID, base.Steps, local.Steps, upstream.Steps) {
 		baseStep, inBase := baseSteps[id]
 		localStep, inLocal := localSteps[id]
 		upstreamStep, inUpstream := upstreamSteps[id]
 		if inBase && (!inLocal || !inUpstream) {
-			continue
+			return Item{}, fmt.Errorf("plan document: retained step %q/%q was deleted", base.ID, id)
 		}
 		if !inBase {
 			if inLocal && inUpstream && !sameStep(localStep, upstreamStep) {
@@ -89,7 +86,24 @@ func mergeItem(base, local, upstream Item) (Item, error) {
 		if step.Verify, err = mergeText("step "+base.ID+"/"+id+" verify", baseStep.Verify, localStep.Verify, upstreamStep.Verify); err != nil {
 			return Item{}, err
 		}
+		if step.Rationale, err = mergeText("step "+base.ID+"/"+id+" rationale", baseStep.Rationale, localStep.Rationale, upstreamStep.Rationale); err != nil {
+			return Item{}, err
+		}
+		if step.DependsOn, err = mergeSlice("step "+base.ID+"/"+id+" dependencies", baseStep.DependsOn, localStep.DependsOn, upstreamStep.DependsOn); err != nil {
+			return Item{}, err
+		}
+		if step.Capabilities, err = mergeSlice("step "+base.ID+"/"+id+" capabilities", baseStep.Capabilities, localStep.Capabilities, upstreamStep.Capabilities); err != nil {
+			return Item{}, err
+		}
+		if step.Outcome, err = mergeSlice("step "+base.ID+"/"+id+" outcome", baseStep.Outcome, localStep.Outcome, upstreamStep.Outcome); err != nil {
+			return Item{}, err
+		}
 		merged.Steps = append(merged.Steps, step)
+	}
+	if slices.ContainsFunc(merged.Steps, func(step Step) bool { return step.Status == StatusOpen }) {
+		merged.Status = StatusOpen
+	} else if !slices.ContainsFunc(merged.Steps, func(step Step) bool { return step.Status != StatusDone }) {
+		merged.Status = StatusDone
 	}
 	return merged, nil
 }
@@ -113,9 +127,24 @@ func indexByID[T any](values []T, idOf func(T) string) map[string]T {
 	return result
 }
 
-func unionOrder[T any](local, upstream []T, idOf func(T) string) []string {
-	ids := make([]string, 0, len(local)+len(upstream))
-	for _, values := range [][]T{local, upstream} {
+func mergeSlice[T comparable](name string, base, local, upstream []T) ([]T, error) {
+	switch {
+	case slices.Equal(local, upstream) || slices.Equal(upstream, base):
+		return slices.Clone(local), nil
+	case slices.Equal(local, base):
+		return slices.Clone(upstream), nil
+	default:
+		return nil, fmt.Errorf("plan document: concurrent %s edits conflict", name)
+	}
+}
+
+func unionOrder[T any](idOf func(T) string, groups ...[]T) []string {
+	var capacity int
+	for _, values := range groups {
+		capacity += len(values)
+	}
+	ids := make([]string, 0, capacity)
+	for _, values := range groups {
 		for _, value := range values {
 			id := idOf(value)
 			if !slices.Contains(ids, id) {

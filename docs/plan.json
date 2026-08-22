@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "execution-plan",
-          "title": "Compile one typed authoritative composition execution plan",
-          "status": "open",
-          "verify": "go test ./internal/composition -run 'TestCompositionExecutionPlan' -count=1"
-        },
-        {
           "id": "embedding-injection",
           "title": "Complete the active-recipe embedding-injection vertical and delete direct construction",
           "status": "open",

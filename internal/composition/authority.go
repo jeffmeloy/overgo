@@ -58,6 +58,8 @@ type CompositionRecipe struct {
 	BridgeDefinition artifact.ID `json:"bridge_definition"`
 	BridgeWeights    artifact.ID `json:"bridge_weights"`
 	ExecutionRecipe  artifact.ID `json:"execution_recipe"`
+	TrainingPolicy   artifact.ID `json:"training_policy"`
+	PromotionPolicy  artifact.ID `json:"promotion_policy"`
 	Promotion        artifact.ID `json:"promotion"`
 	ID               artifact.ID `json:"-"`
 }
@@ -165,7 +167,8 @@ func (value CompositionRecipe) Content() (artifact.Content, error) {
 func (value CompositionRecipe) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, uniqueIDs([]artifact.ID{
 		value.SourceModel, value.TargetModel, value.SourceContract, value.TargetContract,
-		value.BridgeDefinition, value.BridgeWeights, value.ExecutionRecipe, value.Promotion,
+		value.BridgeDefinition, value.BridgeWeights, value.ExecutionRecipe,
+		value.TrainingPolicy, value.PromotionPolicy, value.Promotion,
 	})...)
 }
 
@@ -376,7 +379,8 @@ func canonicalizeCompositionRecipe(value *CompositionRecipe) error {
 		value.SourceModel == value.TargetModel || !value.Task.Valid() ||
 		value.SourceContract.Kind() != artifact.KindProfile || value.TargetContract.Kind() != artifact.KindProfile ||
 		value.BridgeDefinition.Kind() != artifact.KindProfile || value.BridgeWeights.Kind() != artifact.KindAdapter ||
-		value.ExecutionRecipe.Kind() != artifact.KindRecipe || value.Promotion.Kind() != artifact.KindEvidence {
+		value.ExecutionRecipe.Kind() != artifact.KindRecipe || value.TrainingPolicy.Kind() != artifact.KindProfile ||
+		value.PromotionPolicy.Kind() != artifact.KindProfile || value.Promotion.Kind() != artifact.KindEvidence {
 		return errors.New("composition: invalid composition recipe authority")
 	}
 	return nil
@@ -441,6 +445,12 @@ func loadCompositionAuthority(
 	}
 	if _, err := LoadBridgeWeights(ctx, reader, value.BridgeDefinition); err != nil {
 		return CompositionAuthority{}, err
+	}
+	if _, found, err := reader.Artifact(ctx, value.TrainingPolicy); err != nil || !found {
+		return CompositionAuthority{}, errors.Join(err, errors.New("composition: training policy is absent"))
+	}
+	if _, found, err := reader.Artifact(ctx, value.PromotionPolicy); err != nil || !found {
+		return CompositionAuthority{}, errors.Join(err, errors.New("composition: promotion policy is absent"))
 	}
 	promotion, err := LoadRepresentationBridgePromotion(ctx, reader, value.Promotion)
 	if err != nil {

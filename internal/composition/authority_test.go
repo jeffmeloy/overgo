@@ -90,9 +90,11 @@ func compositionAuthorityFixture(t *testing.T) (*repodb.Store, CompositionAuthor
 	heldOut := testutil.ArtifactID(t, artifact.KindDatasetShard, "composition held-out split")
 	regression := testutil.ArtifactID(t, artifact.KindDatasetShard, "composition regression split")
 	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "composition evaluator")
+	trainingPolicy := testutil.ArtifactID(t, artifact.KindProfile, "composition training policy")
+	promotionPolicy := testutil.ArtifactID(t, artifact.KindProfile, "composition promotion policy")
 	parents := []artifact.ID{
 		sourceModel, targetModel, sourceDefinition, targetDefinition,
-		weights, inventory, heldOut, regression, evaluator,
+		weights, inventory, heldOut, regression, evaluator, trainingPolicy, promotionPolicy,
 	}
 	descriptors := make([]artifact.Descriptor, len(parents))
 	for index, id := range parents {
@@ -164,7 +166,8 @@ func compositionAuthorityFixture(t *testing.T) (*repodb.Store, CompositionAuthor
 		SourceModel: sourceModel, TargetModel: targetModel, Task: recipe.TaskGeneration,
 		SourceContract: source.ID, TargetContract: target.ID,
 		BridgeDefinition: bridge.ID, BridgeWeights: weights,
-		ExecutionRecipe: execution.ID, Promotion: promotion.ID,
+		ExecutionRecipe: execution.ID, TrainingPolicy: trainingPolicy,
+		PromotionPolicy: promotionPolicy, Promotion: promotion.ID,
 	})
 	if err != nil {
 		t.Fatal(err)

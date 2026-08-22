@@ -148,11 +148,6 @@ func CompileCompositionExecutionPlan(
 	if err != nil {
 		return CompositionExecutionPlan{}, err
 	}
-	if authority.Bridge.Graph.Operator == bridgegraph.OperatorExternalAttention {
-		if _, err := CompileExternalCrossAttentionPlan(sealed, authority.Bridge); err != nil {
-			return CompositionExecutionPlan{}, err
-		}
-	}
 	return sealed, nil
 }
 

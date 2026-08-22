@@ -82,3 +82,33 @@ func TestCompositionExecutionPlan(t *testing.T) {
 		t.Fatal("missing task-scoped composition compiled")
 	}
 }
+
+func TestCompositionResidencyPlan(t *testing.T) {
+	store, authority := compositionAuthorityFixture(t)
+	ctx := context.Background()
+	batch, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/residency-activate", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := CompileCompositionExecutionPlan(
+		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, resource := range []CompositionResourcePlan{
+		plan.Residency.SourceOutput, plan.Residency.BridgeWeights, plan.Residency.TargetInjection,
+	} {
+		if resource.Placement != recipe.PlacementDevice || resource.Residency != recipe.ResidencyDeviceF32 {
+			t.Fatalf("non-resident composition resource = %+v", resource)
+		}
+	}
+	if plan.Residency.SourceOutput.Lifetime != recipe.SessionCapacity ||
+		plan.Residency.BridgeWeights.Lifetime != recipe.SessionCapacity ||
+		plan.Residency.TargetInjection.Lifetime != recipe.SessionRequest {
+		t.Fatalf("composition lifetimes = %+v", plan.Residency)
+	}
+}

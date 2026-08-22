@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "device-residency",
-          "title": "Compile device residency, lifetimes, and immutable transformed-representation caching",
-          "status": "open",
-          "verify": "go test ./internal/composition ./internal/inference -run 'TestCompositionResidencyPlan|TestTransformedRepresentationCacheIdentity' -count=1"
-        },
-        {
           "id": "api-gui",
           "title": "Expose composition inventory, compatibility, graph, training, evaluation, promotion, activation, and runtime evidence",
           "status": "open",

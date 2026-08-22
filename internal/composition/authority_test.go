@@ -146,8 +146,8 @@ func compositionAuthorityFixture(t *testing.T) (*repodb.Store, CompositionAuthor
 		t.Fatal(err)
 	}
 	execution, err := (modelrecipe.RepresentationBridgeCompiler{
-		SourcePlacement: recipe.PlacementHost, TargetPlacement: recipe.PlacementHost,
-		SourceResidency: recipe.ResidencyHostCache, TargetResidency: recipe.ResidencyHostCache,
+		SourcePlacement: recipe.PlacementDevice, TargetPlacement: recipe.PlacementDevice,
+		SourceResidency: recipe.ResidencyDeviceF32, TargetResidency: recipe.ResidencyDeviceF32,
 		SourceSession: recipe.SessionCapacity, TargetSession: recipe.SessionRequest,
 	}).Definition(sourceModel, targetModel, source.ID, target.ID, weights)
 	if err != nil {

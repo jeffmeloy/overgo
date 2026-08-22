@@ -43,6 +43,22 @@ type CompositionComponentPlan struct {
 	Lifetime  recipe.SessionPolicy   `json:"lifetime"`
 }
 
+// CompositionResourcePlan fixes placement, residency, and lifetime for one
+// representation or bridge-weight resource across the vertical.
+type CompositionResourcePlan struct {
+	Placement recipe.Placement       `json:"placement"`
+	Residency recipe.ResidencyPolicy `json:"residency"`
+	Lifetime  recipe.SessionPolicy   `json:"lifetime"`
+}
+
+// CompositionResidencyPlan keeps source output, bridge weights, and target
+// injection under one device-resident lifetime authority.
+type CompositionResidencyPlan struct {
+	SourceOutput    CompositionResourcePlan `json:"source_output"`
+	BridgeWeights   CompositionResourcePlan `json:"bridge_weights"`
+	TargetInjection CompositionResourcePlan `json:"target_injection"`
+}
+
 // CompositionExecutionPlan is the sole typed runtime authority compiled from
 // an active composition recipe and every immutable authority it references.
 type CompositionExecutionPlan struct {
@@ -60,6 +76,7 @@ type CompositionExecutionPlan struct {
 	Capture           CompositionBoundary        `json:"capture"`
 	Injection         CompositionBoundary        `json:"injection"`
 	Components        []CompositionComponentPlan `json:"components"`
+	Residency         CompositionResidencyPlan   `json:"residency"`
 	TrainingPolicy    artifact.ID                `json:"training_policy"`
 	PromotionPolicy   artifact.ID                `json:"promotion_policy"`
 	Promotion         artifact.ID                `json:"promotion"`
@@ -128,6 +145,10 @@ func CompileCompositionExecutionPlan(
 	if err != nil {
 		return CompositionExecutionPlan{}, err
 	}
+	residency, err := compileCompositionResidency(components)
+	if err != nil {
+		return CompositionExecutionPlan{}, err
+	}
 	plan := CompositionExecutionPlan{
 		Version:           CompositionExecutionPlanVersion,
 		CompositionRecipe: active.ID, ExecutionRecipe: active.ExecutionRecipe,
@@ -137,7 +158,7 @@ func CompileCompositionExecutionPlan(
 		BridgeWeights:     []artifact.ID{active.BridgeWeights},
 		Operators:         []bridgegraph.Operator{authority.Bridge.Graph.Operator},
 		Capture:           compositionBoundary(capture), Injection: compositionBoundary(injection),
-		Components:     components,
+		Components: components, Residency: residency,
 		TrainingPolicy: active.TrainingPolicy, PromotionPolicy: active.PromotionPolicy,
 		Promotion: active.Promotion,
 	}
@@ -239,6 +260,9 @@ func canonicalizeCompositionExecutionPlan(value *CompositionExecutionPlan) error
 			return errors.New("composition: invalid composition component plan")
 		}
 	}
+	if err := validateCompositionResidency(value.Residency, value.Components); err != nil {
+		return err
+	}
 	identity, err := compositionCacheIdentity(*value)
 	if err != nil || identity != value.CacheIdentity {
 		return errors.Join(err, errors.New("composition: cache identity differs from immutable authorities"))
@@ -275,6 +299,53 @@ func compositionBoundary(value bridgegraph.Boundary) CompositionBoundary {
 
 func compositionPlacementValid(value recipe.Placement) bool {
 	return value == recipe.PlacementHost || value == recipe.PlacementDevice || value == recipe.PlacementHybrid
+}
+
+func compileCompositionResidency(components []CompositionComponentPlan) (CompositionResidencyPlan, error) {
+	if len(components) != tensor.PairedExtent {
+		return CompositionResidencyPlan{}, errors.New("composition: residency components are incomplete")
+	}
+	source, target := components[tensor.FirstOffset], components[tensor.SingletonExtent]
+	value := CompositionResidencyPlan{
+		SourceOutput: CompositionResourcePlan{
+			Placement: source.Placement, Residency: source.Residency, Lifetime: source.Lifetime,
+		},
+		BridgeWeights: CompositionResourcePlan{
+			Placement: source.Placement, Residency: source.Residency, Lifetime: recipe.SessionCapacity,
+		},
+		TargetInjection: CompositionResourcePlan{
+			Placement: target.Placement, Residency: target.Residency, Lifetime: target.Lifetime,
+		},
+	}
+	if err := validateCompositionResidency(value, components); err != nil {
+		return CompositionResidencyPlan{}, err
+	}
+	return value, nil
+}
+
+func validateCompositionResidency(
+	value CompositionResidencyPlan,
+	components []CompositionComponentPlan,
+) error {
+	if len(components) != tensor.PairedExtent {
+		return errors.New("composition: residency components are incomplete")
+	}
+	source, target := components[tensor.FirstOffset], components[tensor.SingletonExtent]
+	if value.SourceOutput.Placement != recipe.PlacementDevice ||
+		value.BridgeWeights.Placement != recipe.PlacementDevice ||
+		value.TargetInjection.Placement != recipe.PlacementDevice ||
+		value.SourceOutput.Residency != source.Residency || value.SourceOutput.Lifetime != source.Lifetime ||
+		value.BridgeWeights.Residency != source.Residency || value.BridgeWeights.Lifetime != recipe.SessionCapacity ||
+		value.TargetInjection.Residency != target.Residency || value.TargetInjection.Lifetime != target.Lifetime ||
+		source.Residency != target.Residency || !compositionDeviceResidency(source.Residency) {
+		return errors.New("composition: production representation path is not device-resident")
+	}
+	return nil
+}
+
+func compositionDeviceResidency(value recipe.ResidencyPolicy) bool {
+	return value == recipe.ResidencyDeviceF32 || value == recipe.ResidencyDeviceNative ||
+		value == recipe.ResidencyDeviceNativeBF16
 }
 
 func cloneCompositionExecutionPlan(value CompositionExecutionPlan) CompositionExecutionPlan {

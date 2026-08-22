@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"slices"
+	"sync"
 
 	"overgo/internal/artifact"
 	"overgo/internal/bridgegraph"
@@ -53,6 +54,8 @@ type CompositionRuntimeResources interface {
 type ProductionComposition struct {
 	plan    composition.CompositionExecutionPlan
 	session representationBridgeSession
+	cacheMu sync.RWMutex
+	cache   map[artifact.ID]reference.Value
 }
 
 type representationBridgeSession struct {
@@ -137,6 +140,7 @@ func OpenProductionComposition(
 		session: representationBridgeSession{
 			source: sourceSession, target: targetSession, program: program, weights: weights,
 		},
+		cache: make(map[artifact.ID]reference.Value),
 	}, nil
 }
 
@@ -157,12 +161,44 @@ func (runtime *ProductionComposition) Forward(
 	if runtime == nil {
 		return reference.Value{}, errors.New("inference: production composition is absent")
 	}
-	return runtime.session.forward(ctx, sourceTokens, targetTokens)
+	identity, err := runtime.TransformedRepresentationCacheIdentity(sourceTokens, targetTokens)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	runtime.cacheMu.RLock()
+	bridged, found := runtime.cache[identity]
+	runtime.cacheMu.RUnlock()
+	if found {
+		return runtime.session.inject(ctx, targetTokens, bridged.Clone())
+	}
+	bridged, err = runtime.session.captureAndTransform(ctx, sourceTokens)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	runtime.cacheMu.Lock()
+	runtime.cache[identity] = bridged.Clone()
+	runtime.cacheMu.Unlock()
+	return runtime.session.inject(ctx, targetTokens, bridged)
 }
 
-func (session representationBridgeSession) forward(
-	ctx context.Context,
+// TransformedRepresentationCacheIdentity binds exact input tokens to the
+// plan's source, bridge, and contract cache authority.
+func (runtime *ProductionComposition) TransformedRepresentationCacheIdentity(
 	sourceTokens, targetTokens []tokenizer.TokenID,
+) (artifact.ID, error) {
+	if runtime == nil || !runtime.plan.CacheIdentity.Valid() {
+		return artifact.ID{}, errors.New("inference: transformed representation cache authority is absent")
+	}
+	return artifact.JSONID(artifact.KindProfile, struct {
+		Authority artifact.ID         `json:"authority"`
+		Source    []tokenizer.TokenID `json:"source"`
+		Target    []tokenizer.TokenID `json:"target"`
+	}{Authority: runtime.plan.CacheIdentity, Source: sourceTokens, Target: targetTokens})
+}
+
+func (session representationBridgeSession) captureAndTransform(
+	ctx context.Context,
+	sourceTokens []tokenizer.TokenID,
 ) (reference.Value, error) {
 	if ctx == nil || session.source == nil || session.target == nil {
 		return reference.Value{}, errors.New("inference: representation bridge authority is absent")
@@ -170,16 +206,13 @@ func (session representationBridgeSession) forward(
 	if err := ctx.Err(); err != nil {
 		return reference.Value{}, err
 	}
-	sourceBoundary, targetBoundary := session.program.Boundaries()
-	if session.source.ModelID() != sourceBoundary.Model || session.target.ModelID() != targetBoundary.Model {
+	sourceBoundary, _ := session.program.Boundaries()
+	if session.source.ModelID() != sourceBoundary.Model {
 		return reference.Value{}, errors.New("inference: representation bridge model identity differs")
 	}
 	if sourceBoundary.Tap != representation.TapLayerInput || sourceBoundary.Layer == nil ||
 		*sourceBoundary.Layer > math.MaxInt32 {
 		return reference.Value{}, errors.New("inference: representation source tap is not an addressable layer input")
-	}
-	if targetBoundary.Tap != representation.TapEmbeddingOutput || targetBoundary.Layer != nil {
-		return reference.Value{}, errors.New("inference: representation target tap is not the embedding boundary")
 	}
 	captured, err := session.source.ExtractLayerInputs(
 		ctx, sourceTokens, []int32{int32(*sourceBoundary.Layer)},
@@ -187,9 +220,24 @@ func (session representationBridgeSession) forward(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	bridged, err := session.transform(captured)
-	if err != nil {
+	return session.transform(captured)
+}
+
+func (session representationBridgeSession) inject(
+	ctx context.Context,
+	targetTokens []tokenizer.TokenID,
+	bridged reference.Value,
+) (reference.Value, error) {
+	if ctx == nil || session.target == nil {
+		return reference.Value{}, errors.New("inference: representation target authority is absent")
+	}
+	if err := ctx.Err(); err != nil {
 		return reference.Value{}, err
+	}
+	_, targetBoundary := session.program.Boundaries()
+	if session.target.ModelID() != targetBoundary.Model ||
+		targetBoundary.Tap != representation.TapEmbeddingOutput || targetBoundary.Layer != nil {
+		return reference.Value{}, errors.New("inference: representation target tap is not the embedding boundary")
 	}
 	rowCount := len(targetTokens)
 	if uint64(rowCount) > math.MaxUint32 || !representationMatrix(bridged, targetBoundary.Channels) {

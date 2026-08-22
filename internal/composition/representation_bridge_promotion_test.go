@@ -11,6 +11,19 @@ import (
 
 func TestRepresentationBridgePromotion(t *testing.T) {
 	promoter := RepresentationBridgePromoter{}
+	policy, err := NewRepresentationBridgePromotionPolicy(RepresentationBridgePromotionPolicy{
+		Direction:                 runrecord.DirectionMaximize,
+		MinimumSeeds:              3,
+		MinimumHeldOutGain:        0.05,
+		MinimumSourceDependence:   0.15,
+		MaximumRegression:         0.02,
+		MaximumSeedSpread:         0.05,
+		MaximumLatencyIncrease:    0.2,
+		MaximumDeviceByteIncrease: 64,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	request := RepresentationBridgePromotion{
 		Bridge:         testutil.ArtifactID(t, artifact.KindAdapter, "trained representation bridge"),
 		SourceModel:    testutil.ArtifactID(t, artifact.KindModel, "audio source model"),
@@ -20,27 +33,20 @@ func TestRepresentationBridgePromotion(t *testing.T) {
 		HeldOutSplit:   testutil.ArtifactID(t, artifact.KindDatasetShard, "held-out cross-modal split"),
 		RegressionSet:  testutil.ArtifactID(t, artifact.KindDatasetShard, "target-only regression suite"),
 		Evaluator:      testutil.ArtifactID(t, artifact.KindEvidence, "bridge promotion evaluator"),
-		Policy: RepresentationBridgePromotionPolicy{
-			Direction:               runrecord.DirectionMaximize,
-			MinimumSeeds:            3,
-			MinimumHeldOutGain:      0.05,
-			MinimumSourceDependence: 0.15,
-			MaximumRegression:       0.02,
-		},
 		Trials: []RepresentationBridgePromotionTrial{
-			{Seed: 31, BridgeScore: 0.83, CheapBaselineScore: 0.75, DroppedSourceScore: 0.60, ShuffledSourceScore: 0.62, RegressionBaselineScore: 0.90, RegressionCandidateScore: 0.89},
-			{Seed: 11, BridgeScore: 0.81, CheapBaselineScore: 0.74, DroppedSourceScore: 0.61, ShuffledSourceScore: 0.59, RegressionBaselineScore: 0.88, RegressionCandidateScore: 0.88},
-			{Seed: 23, BridgeScore: 0.82, CheapBaselineScore: 0.76, DroppedSourceScore: 0.63, ShuffledSourceScore: 0.65, RegressionBaselineScore: 0.91, RegressionCandidateScore: 0.90},
+			{Seed: 31, BridgeScore: 0.83, CheapBaselineScore: 0.75, DroppedSourceScore: 0.60, ShuffledSourceScore: 0.62, RegressionBaselineScore: 0.90, RegressionCandidateScore: 0.89, BaselineLatencyNS: 100, ComposedLatencyNS: 110, BaselinePeakDeviceBytes: 1000, ComposedPeakDeviceBytes: 1030},
+			{Seed: 11, BridgeScore: 0.81, CheapBaselineScore: 0.74, DroppedSourceScore: 0.61, ShuffledSourceScore: 0.59, RegressionBaselineScore: 0.88, RegressionCandidateScore: 0.88, BaselineLatencyNS: 100, ComposedLatencyNS: 112, BaselinePeakDeviceBytes: 1000, ComposedPeakDeviceBytes: 1020},
+			{Seed: 23, BridgeScore: 0.82, CheapBaselineScore: 0.76, DroppedSourceScore: 0.63, ShuffledSourceScore: 0.65, RegressionBaselineScore: 0.91, RegressionCandidateScore: 0.90, BaselineLatencyNS: 100, ComposedLatencyNS: 108, BaselinePeakDeviceBytes: 1000, ComposedPeakDeviceBytes: 1024},
 		},
 	}
-	promotion, err := promoter.Evaluate(request)
+	promotion, err := promoter.Evaluate(policy, request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if promotion.ID.Kind() != artifact.KindEvidence || promotion.Trials[0].Seed != 11 ||
-		promotion.WorstHeldOutGain < request.Policy.MinimumHeldOutGain ||
-		promotion.WorstSourceDependence < request.Policy.MinimumSourceDependence ||
-		promotion.WorstRegression > request.Policy.MaximumRegression {
+		promotion.WorstHeldOutGain < policy.MinimumHeldOutGain ||
+		promotion.WorstSourceDependence < policy.MinimumSourceDependence ||
+		promotion.WorstRegression > policy.MaximumRegression || promotion.PolicyID != policy.ID {
 		t.Fatalf("promotion evidence = %+v", promotion)
 	}
 	content, err := promotion.Content()
@@ -57,7 +63,6 @@ func TestRepresentationBridgePromotion(t *testing.T) {
 		mutate func(*RepresentationBridgePromotion)
 	}{
 		{"single seed", func(value *RepresentationBridgePromotion) {
-			value.Policy.MinimumSeeds = 2
 			value.Trials = value.Trials[:1]
 		}},
 		{"no held-out gain", func(value *RepresentationBridgePromotion) {
@@ -69,6 +74,12 @@ func TestRepresentationBridgePromotion(t *testing.T) {
 		{"target regression", func(value *RepresentationBridgePromotion) {
 			value.Trials[0].RegressionCandidateScore = value.Trials[0].RegressionBaselineScore - 0.03
 		}},
+		{"latency", func(value *RepresentationBridgePromotion) {
+			value.Trials[0].ComposedLatencyNS = 130
+		}},
+		{"device memory", func(value *RepresentationBridgePromotion) {
+			value.Trials[0].ComposedPeakDeviceBytes = 1100
+		}},
 		{"non-finite score", func(value *RepresentationBridgePromotion) {
 			value.Trials[0].BridgeScore = math.NaN()
 		}},
@@ -78,7 +89,7 @@ func TestRepresentationBridgePromotion(t *testing.T) {
 			candidate := request
 			candidate.Trials = append([]RepresentationBridgePromotionTrial(nil), request.Trials...)
 			test.mutate(&candidate)
-			if _, err := promoter.Evaluate(candidate); err == nil {
+			if _, err := promoter.Evaluate(policy, candidate); err == nil {
 				t.Fatal("invalid promotion evidence accepted")
 			}
 		})

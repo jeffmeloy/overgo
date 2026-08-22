@@ -176,10 +176,17 @@ func productionCompositionFixture(t *testing.T, activate bool) (*repodb.Store, c
 	regression := testutil.ArtifactID(t, artifact.KindDatasetShard, "bridge-regression")
 	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "bridge-evaluator")
 	trainingPolicy := testutil.ArtifactID(t, artifact.KindProfile, "bridge-training-policy")
-	promotionPolicy := testutil.ArtifactID(t, artifact.KindProfile, "bridge-promotion-policy")
+	promotionPolicy, err := composition.NewRepresentationBridgePromotionPolicy(composition.RepresentationBridgePromotionPolicy{
+		Direction: runrecord.DirectionMaximize, MinimumSeeds: 2,
+		MinimumHeldOutGain: 0.05, MinimumSourceDependence: 0.1, MaximumRegression: 0.02,
+		MaximumSeedSpread: 0.05, MaximumLatencyIncrease: 0.25, MaximumDeviceByteIncrease: 64,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	parents := []artifact.ID{
 		sourceModel, targetModel, sourceContract.Producer.Definition, targetContract.Producer.Definition,
-		weights, inventory, heldOut, regression, evaluator, trainingPolicy, promotionPolicy,
+		weights, inventory, heldOut, regression, evaluator, trainingPolicy,
 	}
 	descriptors := make([]artifact.Descriptor, len(parents))
 	for index, id := range parents {
@@ -207,17 +214,13 @@ func productionCompositionFixture(t *testing.T, activate bool) (*repodb.Store, c
 	if err != nil {
 		t.Fatal(err)
 	}
-	promotion, err := (composition.RepresentationBridgePromoter{}).Evaluate(composition.RepresentationBridgePromotion{
+	promotion, err := (composition.RepresentationBridgePromoter{}).Evaluate(promotionPolicy, composition.RepresentationBridgePromotion{
 		Bridge: weights, SourceModel: sourceModel, TargetModel: targetModel,
 		SourceContract: sourceContract.ID, TargetContract: targetContract.ID,
 		HeldOutSplit: heldOut, RegressionSet: regression, Evaluator: evaluator,
-		Policy: composition.RepresentationBridgePromotionPolicy{
-			Direction: runrecord.DirectionMaximize, MinimumSeeds: 2,
-			MinimumHeldOutGain: 0.05, MinimumSourceDependence: 0.1, MaximumRegression: 0.02,
-		},
 		Trials: []composition.RepresentationBridgePromotionTrial{
-			{Seed: 11, BridgeScore: 0.9, CheapBaselineScore: 0.8, DroppedSourceScore: 0.7, ShuffledSourceScore: 0.72, RegressionBaselineScore: 0.85, RegressionCandidateScore: 0.84},
-			{Seed: 29, BridgeScore: 0.88, CheapBaselineScore: 0.8, DroppedSourceScore: 0.69, ShuffledSourceScore: 0.7, RegressionBaselineScore: 0.86, RegressionCandidateScore: 0.85},
+			{Seed: 11, BridgeScore: 0.9, CheapBaselineScore: 0.8, DroppedSourceScore: 0.7, ShuffledSourceScore: 0.72, RegressionBaselineScore: 0.85, RegressionCandidateScore: 0.84, BaselineLatencyNS: 100, ComposedLatencyNS: 110, BaselinePeakDeviceBytes: 1000, ComposedPeakDeviceBytes: 1020},
+			{Seed: 29, BridgeScore: 0.88, CheapBaselineScore: 0.8, DroppedSourceScore: 0.69, ShuffledSourceScore: 0.7, RegressionBaselineScore: 0.86, RegressionCandidateScore: 0.85, BaselineLatencyNS: 100, ComposedLatencyNS: 112, BaselinePeakDeviceBytes: 1000, ComposedPeakDeviceBytes: 1024},
 		},
 	})
 	if err != nil {
@@ -227,14 +230,14 @@ func productionCompositionFixture(t *testing.T, activate bool) (*repodb.Store, c
 		SourceModel: sourceModel, TargetModel: targetModel, Task: recipe.TaskGeneration,
 		SourceContract: sourceContract.ID, TargetContract: targetContract.ID,
 		BridgeDefinition: bridge.ID, BridgeWeights: weights, ExecutionRecipe: execution.ID,
-		TrainingPolicy: trainingPolicy, PromotionPolicy: promotionPolicy, Promotion: promotion.ID,
+		TrainingPolicy: trainingPolicy, PromotionPolicy: promotionPolicy.ID, Promotion: promotion.ID,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	authority := composition.CompositionAuthority{
 		SourceContract: sourceContract, TargetContract: targetContract, Bridge: bridge,
-		Execution: execution, Promotion: promotion, Recipe: compositionRecipe,
+		Execution: execution, PromotionPolicy: promotionPolicy, Promotion: promotion, Recipe: compositionRecipe,
 	}
 	batch, err := authority.Batch("fixture/production-composition/authority")
 	if err != nil {

@@ -68,12 +68,13 @@ type CompositionRecipe struct {
 // production candidate. External model, weight, dataset, and evaluator facts
 // must already exist in the repository.
 type CompositionAuthority struct {
-	SourceContract representation.Contract
-	TargetContract representation.Contract
-	Bridge         BridgeDefinition
-	Execution      recipe.Definition
-	Promotion      RepresentationBridgePromotion
-	Recipe         CompositionRecipe
+	SourceContract  representation.Contract
+	TargetContract  representation.Contract
+	Bridge          BridgeDefinition
+	Execution       recipe.Definition
+	PromotionPolicy RepresentationBridgePromotionPolicy
+	Promotion       RepresentationBridgePromotion
+	Recipe          CompositionRecipe
 }
 
 var bridgeDefinitionCodec = artifact.JSONDocumentCodec(
@@ -211,6 +212,10 @@ func (authority CompositionAuthority) Batch(key string) (artifact.Batch, error) 
 		return artifact.Batch{}, err
 	}
 	promotionContent, err := authority.Promotion.Content()
+	policyContent, policyErr := authority.PromotionPolicy.Content()
+	if err := appendDocument(policyContent, nil, policyErr); err != nil {
+		return artifact.Batch{}, err
+	}
 	if err := appendDocument(promotionContent, authority.Promotion.Lineage(), err); err != nil {
 		return artifact.Batch{}, err
 	}
@@ -400,6 +405,9 @@ func validateCompositionAuthority(value CompositionAuthority) error {
 	if err := value.Promotion.ValidateIdentity(); err != nil {
 		return err
 	}
+	if err := value.PromotionPolicy.ValidateIdentity(); err != nil {
+		return err
+	}
 	if err := value.Execution.ValidateIdentity(); err != nil {
 		return err
 	}
@@ -414,9 +422,12 @@ func validateCompositionAuthority(value CompositionAuthority) error {
 		value.Recipe.BridgeDefinition != value.Bridge.ID ||
 		value.Recipe.BridgeWeights != value.Bridge.Weights ||
 		value.Recipe.ExecutionRecipe != value.Execution.ID ||
+		value.Recipe.PromotionPolicy != value.PromotionPolicy.ID ||
 		value.Recipe.Promotion != value.Promotion.ID ||
 		value.Execution.Task != recipe.TaskProjection ||
 		value.Promotion.Bridge != value.Bridge.Weights ||
+		value.Promotion.PolicyID != value.PromotionPolicy.ID ||
+		value.Promotion.Policy != value.PromotionPolicy ||
 		value.Promotion.SourceModel != value.Recipe.SourceModel ||
 		value.Promotion.TargetModel != value.Recipe.TargetModel ||
 		value.Promotion.SourceContract != value.SourceContract.ID ||
@@ -449,8 +460,9 @@ func loadCompositionAuthority(
 	if _, found, err := reader.Artifact(ctx, value.TrainingPolicy); err != nil || !found {
 		return CompositionAuthority{}, errors.Join(err, errors.New("composition: training policy is absent"))
 	}
-	if _, found, err := reader.Artifact(ctx, value.PromotionPolicy); err != nil || !found {
-		return CompositionAuthority{}, errors.Join(err, errors.New("composition: promotion policy is absent"))
+	promotionPolicy, err := LoadRepresentationBridgePromotionPolicy(ctx, reader, value.PromotionPolicy)
+	if err != nil {
+		return CompositionAuthority{}, err
 	}
 	promotion, err := LoadRepresentationBridgePromotion(ctx, reader, value.Promotion)
 	if err != nil {
@@ -466,7 +478,7 @@ func loadCompositionAuthority(
 	}
 	return CompositionAuthority{
 		SourceContract: source, TargetContract: target, Bridge: bridge,
-		Execution: execution, Promotion: promotion, Recipe: value,
+		Execution: execution, PromotionPolicy: promotionPolicy, Promotion: promotion, Recipe: value,
 	}, nil
 }
 

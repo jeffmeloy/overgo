@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "promotion-activation",
-          "title": "Make recipe-owned promotion evidence authorize active composition",
-          "status": "open",
-          "verify": "go test ./internal/composition ./internal/evaluation -run 'TestCompositionPromotionActivation|TestUnpromotedBridgeRefused' -count=1"
-        },
-        {
           "id": "device-residency",
           "title": "Compile device residency, lifetimes, and immutable transformed-representation caching",
           "status": "open",

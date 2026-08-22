@@ -102,3 +102,14 @@ func TestImpactTriggeredCheck(t *testing.T) {
 		t.Fatal("contradictory impact accepted")
 	}
 }
+
+func TestImpactUnknownSourceRunsAll(t *testing.T) {
+	checks := []Check{
+		{Descriptor: Descriptor{Name: "first", Phase: runrecord.PhaseValidate, Triggers: []Fact{"owner:first"}, Inapplicable: "independent"}, Run: pass},
+		{Descriptor: Descriptor{Name: "second", Phase: runrecord.PhaseValidate, Triggers: []Fact{"owner:second"}, Inapplicable: "independent"}, Run: pass},
+	}
+	planned, err := Plan(checks, MergeImpact(Impact{}, Impact{}))
+	if err != nil || len(planned) != len(checks) {
+		t.Fatalf("unknown producer output planned = %+v, %v", planned, err)
+	}
+}

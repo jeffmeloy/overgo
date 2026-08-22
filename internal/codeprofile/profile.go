@@ -104,7 +104,7 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 				size, branches := NodeCount(value.Body), branchCount(value.Body)
 				ref := source.Path + ":" + value.Name.Name
 				class := advisoryClass(source.Test, value)
-				fingerprint, err := bodyFingerprint(value.Body)
+				fingerprint, err := functionFingerprint(value)
 				if err != nil {
 					return Profile{}, err
 				}
@@ -214,9 +214,9 @@ func branchCount(root ast.Node) int {
 	return count
 }
 
-func bodyFingerprint(body *ast.BlockStmt) (string, error) {
+func functionFingerprint(function *ast.FuncDecl) (string, error) {
 	var rendered bytes.Buffer
-	if err := printer.Fprint(&rendered, token.NewFileSet(), body); err != nil {
+	if err := printer.Fprint(&rendered, token.NewFileSet(), function); err != nil {
 		return "", err
 	}
 	digest := sha256.Sum256(rendered.Bytes())

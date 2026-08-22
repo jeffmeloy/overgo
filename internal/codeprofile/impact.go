@@ -1,7 +1,13 @@
 package codeprofile
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"go/ast"
+	"go/printer"
+	"go/token"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -18,6 +24,14 @@ type FunctionSymbol struct {
 	Name     string `json:"name"`
 }
 
+// ImpactBoundary is one condition the syntactic graph cannot prove independent.
+// Kind is mechanically derived; Path and Symbol bind it to exact source.
+type ImpactBoundary struct {
+	Kind   string `json:"kind"`
+	Path   string `json:"path"`
+	Symbol string `json:"symbol,omitempty"`
+}
+
 // FunctionImpact binds exact changed-body seeds to every production caller
 // that can observe them through the syntactic reference index.
 type FunctionImpact struct {
@@ -25,6 +39,7 @@ type FunctionImpact struct {
 	CandidateIdentity string           `json:"candidate_identity"`
 	Seeds             []FunctionSymbol `json:"seeds,omitempty"`
 	Reachable         []FunctionSymbol `json:"reachable,omitempty"`
+	Unknown           []ImpactBoundary `json:"unknown,omitempty"`
 }
 
 // DeriveFunctionImpact diffs exact function bodies and closes transitively over
@@ -33,6 +48,7 @@ type FunctionImpact struct {
 func DeriveFunctionImpact(
 	base, candidate repoanalysis.SourceSnapshot,
 	baseSelection, candidateSelection repoanalysis.BuildSelection,
+	changedPaths []string,
 ) (FunctionImpact, error) {
 	baseProfile, err := Build(base)
 	if err != nil {
@@ -71,7 +87,159 @@ func DeriveFunctionImpact(
 	result := FunctionImpact{BaseIdentity: base.Identity(), CandidateIdentity: candidate.Identity()}
 	result.Seeds = symbolsForKeys(seedKeys, candidateSymbols, baseSymbols)
 	result.Reachable = symbolsForKeys(reachableKeys, candidateSymbols, baseSymbols)
+	result.Unknown, err = impactBoundaries(
+		base, candidate, baseSelection, candidateSelection, changedPaths,
+		baseIndex, candidateIndex, baseIndices, candidateIndices, reachableKeys,
+	)
+	if err != nil {
+		return FunctionImpact{}, err
+	}
 	return result, nil
+}
+
+func impactBoundaries(
+	base, candidate repoanalysis.SourceSnapshot,
+	baseSelection, candidateSelection repoanalysis.BuildSelection,
+	changedPaths []string,
+	baseIndex, candidateIndex consumerIndex,
+	baseIndices, candidateIndices map[string]int,
+	reachable map[string]bool,
+) ([]ImpactBoundary, error) {
+	boundaries := map[string]ImpactBoundary{}
+	baseFiles, candidateFiles := snapshotFiles(base), snapshotFiles(candidate)
+	if len(changedPaths) == 0 {
+		addImpactBoundary(boundaries, ImpactBoundary{Kind: "scope"})
+	}
+	for _, changed := range changedPaths {
+		changed = filepath.ToSlash(filepath.Clean(filepath.FromSlash(changed)))
+		if !strings.HasSuffix(changed, ".go") {
+			addImpactBoundary(boundaries, ImpactBoundary{Kind: "non-go", Path: changed})
+			continue
+		}
+		baseFile, inBase := baseFiles[changed]
+		candidateFile, inCandidate := candidateFiles[changed]
+		if !inBase && !inCandidate {
+			addImpactBoundary(boundaries, ImpactBoundary{Kind: "outside-snapshot", Path: changed})
+			continue
+		}
+		for _, source := range []repoanalysis.GoFile{baseFile, candidateFile} {
+			if source.Path == "" {
+				continue
+			}
+			if source.Test {
+				addImpactBoundary(boundaries, ImpactBoundary{Kind: "test-source", Path: changed})
+			}
+			generated, err := source.Generated()
+			if err != nil {
+				return nil, err
+			}
+			if generated {
+				addImpactBoundary(boundaries, ImpactBoundary{Kind: "generated", Path: changed})
+			}
+		}
+		if buildSelectionUnknown(changed, baseSelection) || buildSelectionUnknown(changed, candidateSelection) {
+			addImpactBoundary(boundaries, ImpactBoundary{Kind: "build-selection", Path: changed})
+		}
+		if inBase && inCandidate {
+			baseExpression, err := baseFile.BuildExpression()
+			if err != nil {
+				return nil, err
+			}
+			candidateExpression, err := candidateFile.BuildExpression()
+			if err != nil {
+				return nil, err
+			}
+			if baseExpression != candidateExpression {
+				addImpactBoundary(boundaries, ImpactBoundary{Kind: "build-expression", Path: changed})
+			}
+			baseDeclarations, err := nonFunctionFingerprint(baseFile)
+			if err != nil {
+				return nil, err
+			}
+			candidateDeclarations, err := nonFunctionFingerprint(candidateFile)
+			if err != nil {
+				return nil, err
+			}
+			if baseDeclarations != candidateDeclarations {
+				addImpactBoundary(boundaries, ImpactBoundary{Kind: "declaration", Path: changed})
+			}
+		}
+	}
+	appendReachableBoundaries(boundaries, baseIndex, baseIndices, reachable)
+	appendReachableBoundaries(boundaries, candidateIndex, candidateIndices, reachable)
+	result := make([]ImpactBoundary, 0, len(boundaries))
+	for _, boundary := range boundaries {
+		result = append(result, boundary)
+	}
+	slices.SortFunc(result, func(left, right ImpactBoundary) int {
+		if order := strings.Compare(left.Kind, right.Kind); order != 0 {
+			return order
+		}
+		if order := strings.Compare(left.Path, right.Path); order != 0 {
+			return order
+		}
+		return strings.Compare(left.Symbol, right.Symbol)
+	})
+	return result, nil
+}
+
+func snapshotFiles(snapshot repoanalysis.SourceSnapshot) map[string]repoanalysis.GoFile {
+	files := make(map[string]repoanalysis.GoFile, len(snapshot.Files))
+	for _, file := range snapshot.Files {
+		files[file.Path] = file
+	}
+	return files
+}
+
+func buildSelectionUnknown(sourcePath string, selection repoanalysis.BuildSelection) bool {
+	selected, known := selection.Files[sourcePath]
+	return !known || !selected
+}
+
+func nonFunctionFingerprint(source repoanalysis.GoFile) (string, error) {
+	file, err := source.Syntax()
+	if err != nil {
+		return "", err
+	}
+	var rendered bytes.Buffer
+	if err := printer.Fprint(&rendered, token.NewFileSet(), file.Name); err != nil {
+		return "", err
+	}
+	for _, declaration := range file.Decls {
+		if _, function := declaration.(*ast.FuncDecl); function {
+			continue
+		}
+		if err := printer.Fprint(&rendered, token.NewFileSet(), declaration); err != nil {
+			return "", err
+		}
+	}
+	digest := sha256.Sum256(rendered.Bytes())
+	return string(digest[:]), nil
+}
+
+func appendReachableBoundaries(boundaries map[string]ImpactBoundary, index consumerIndex, indices map[string]int, reachable map[string]bool) {
+	for key, declarationIndex := range indices {
+		if !reachable[key] {
+			continue
+		}
+		declaration := index.declarations[declarationIndex]
+		switch declaration.Boundary {
+		case "reflection", "cgo", "build-variant", "generated", "external":
+			symbol := declaration.Name
+			if declaration.Receiver != "" {
+				symbol = declaration.Receiver + "." + declaration.Name
+			}
+			addImpactBoundary(boundaries, ImpactBoundary{
+				Kind: declaration.Boundary, Path: declaration.File,
+				Symbol: symbol,
+			})
+		}
+	}
+}
+
+func addImpactBoundary(boundaries map[string]ImpactBoundary, boundary ImpactBoundary) {
+	key := boundary.Kind + "\x00" + boundary.Path + "\x00" + boundary.Symbol
+	boundaries[key] = boundary
 }
 
 func profileFunctionFingerprints(profile Profile) map[string]string {

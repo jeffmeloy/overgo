@@ -9,12 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "conservative-boundaries",
-          "title": "Force non-exclusion across reflection, cgo, build variants, generated and non-Go inputs",
-          "status": "open",
-          "verify": "go test ./internal/codeprofile ./internal/automationcheck -run 'TestFunctionImpactBoundaryNonExclusion|TestImpactUnknownSourceRunsAll' -count=1"
-        },
-        {
           "id": "ownership-cutover",
           "title": "Select device and generated checks from declared package and symbol ownership",
           "status": "open",
@@ -158,6 +152,11 @@
       "item": "gate-structural-impact",
       "step": "symbol-closure",
       "authority": "evidence:sha256:328528d5c22381be7e19346284684f6e122ef5c22a2b424fdde1495f287da401"
+    },
+    {
+      "item": "gate-structural-impact",
+      "step": "conservative-boundaries",
+      "authority": "evidence:sha256:e0176a1590b58869bcac919f25443bc08411dce1b35cfd1f23a57d1b995ce43e"
     }
   ]
 }

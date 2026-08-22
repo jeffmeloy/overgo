@@ -311,7 +311,8 @@ func (g *gateContext) pipeline() error {
 	definitions := g.pipelineChecks()
 	impact, err := automationcheck.GeneratedImpact(g.repo, g.paths)
 	if err != nil {
-		return err
+		g.honesty = append(g.honesty, "impact analysis unavailable; generated checks defaulted to run: "+err.Error())
+		impact = automationcheck.Impact{}
 	}
 	impact = automationcheck.MergeImpact(impact, automationcheck.DeviceImpact(g.paths))
 	checks, err := automationcheck.Plan(definitions, impact)
@@ -603,13 +604,13 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	impact, err := codeprofile.DeriveFunctionImpact(head, candidate, selection, selection)
+	impact, err := codeprofile.DeriveFunctionImpact(head, candidate, selection, selection, g.paths)
 	if err != nil {
 		return err
 	}
 	g.honesty = append(g.honesty, fmt.Sprintf(
-		"function impact: base=%s candidate=%s seeds=%d reachable=%d",
-		impact.BaseIdentity, impact.CandidateIdentity, len(impact.Seeds), len(impact.Reachable),
+		"function impact: base=%s candidate=%s seeds=%d reachable=%d unknown=%d",
+		impact.BaseIdentity, impact.CandidateIdentity, len(impact.Seeds), len(impact.Reachable), len(impact.Unknown),
 	))
 	if _, profile.Consumers, err = codeprofile.ProductionConsumerCensus(candidate, selection, nil); err != nil {
 		return err

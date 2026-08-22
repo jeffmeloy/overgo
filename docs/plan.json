@@ -275,12 +275,12 @@
       "id": "composite-generation-quality",
       "title": "Score real held-out generated artifacts for task quality, stability, non-degeneracy, and attributable source effect",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Score real held-out generated artifacts for task quality, stability, non-degeneracy, and attributable source effect",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/evaluation ./internal/composition -run 'TestCompositeGeneration(HeldoutQuality|RepeatedSeeds|SourceEffect|Refusal)' -count=1"
         }
       ]

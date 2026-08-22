@@ -1,7 +1,20 @@
 {
   "campaign": "Deletion-led production composability and repository tightening",
-  "doctrine": "Follow skill.md. Current evidence: 943 production files, 1,124,050 runtime AST nodes, 12,639 exact-clone excess nodes, 5,982 exports, 78 zero-consumer objects, 18,267 inline literals, and 14,235 repeated-literal sites. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
+  "doctrine": "Follow skill.md. Repository census authority: evidence:sha256:4ca88e13e970faa30cc7b7b9702e69a767ae15eb7801fdad38067971f18ec4e8. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
   "items": [
+    {
+      "id": "census-doctrine-authority",
+      "title": "Bind cleanup doctrine to published census evidence",
+      "status": "done",
+      "steps": [
+        {
+          "id": "published-evidence",
+          "title": "Replace hand-maintained repository counts with immutable census evidence identity",
+          "status": "done",
+          "verify": "go test ./cmd/closure-scan -run 'TestCensusEvidence(RoundTrip|BindsCatalogAndSourceFingerprint)$' -count=1"
+        }
+      ]
+    },
     {
       "id": "merge-46eb90b286b5",
       "title": "Merge master at 46eb90b286b5",

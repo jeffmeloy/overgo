@@ -1,27 +1,5 @@
 {
   "campaign": "Executable tightening: typed storage, device catalogs, and shared execution",
   "doctrine": "Deletion-led waves. Existing artifact codecs, tensor stores, recipe definitions, and mathematical operators remain authoritative. Move every production caller and delete displaced readers, dtype wrappers, validation walkers, and execution clones in the same commit. No compatibility aliases or fallback paths. Preserve numerical behavior. Each wave must be production-code net-negative and pass focused host tests, applicable CUDA lanes, plan verification, and the commit gate before merging tightening/master.",
-  "items": [
-    {
-      "id": "hybrid-host-pass",
-      "title": "Share host training pass ownership",
-      "status": "open",
-      "steps": [
-        {
-          "id": "migrate",
-          "title": "Use one host forward and backward pass across optimizer lanes",
-          "status": "open",
-          "verify": "go test ./internal/hybridtrain -run 'TestHybrid(CompiledHostLifecycle|TrainHostMasterStreamedMatchesHost|TrainLayerStreamedMatchesFullSlab)' -count=1",
-          "rationale": "Host and host-master lanes execute identical forward, trace, backward, packing, and scratch reuse; optimizer ownership remains lane-specific.",
-          "depends_on": [
-            "converted-device-fixture/migrate"
-          ],
-          "capabilities": [
-            "shared-host-autodiff",
-            "lane-specific-optimizer"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

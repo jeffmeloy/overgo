@@ -578,25 +578,37 @@ func runTrainingObserved(program trainingprogram.TrainingProgram, backend traini
 	return trajectory, nil
 }
 
-type hostTraining struct {
+type hostBackwardPass struct {
 	model            *Model
 	trace            hostmath.HybridStackTrace
 	grads            []hostmath.HybridDecoderLayerGrads
 	matGrad, vecGrad []float32
-	matOpt, vecOpt   *optimizer.Optimizer
 }
 
-func (training *hostTraining) Forward() ([]float32, error) {
-	output, trace := hostmath.HybridStackForward(training.model.X, training.model.Weights, training.model.Dims, training.model.States)
-	training.trace = trace
+func newHostBackwardPass(model *Model) hostBackwardPass {
+	return hostBackwardPass{
+		model: model, matGrad: make([]float32, len(model.matW)),
+		vecGrad: make([]float32, len(model.vecW)),
+	}
+}
+
+func (pass *hostBackwardPass) Forward() ([]float32, error) {
+	model := pass.model
+	output, trace := hostmath.HybridStackForward(model.X, model.Weights, model.Dims, model.States)
+	pass.trace = trace
 	return output, nil
 }
 
-func (training *hostTraining) Backward(dTop []float32) error {
-	model := training.model
-	training.grads, _ = hostmath.HybridStackBackward(training.trace, model.Weights, model.Dims, model.States, dTop, training.grads)
-	model.packGradients(training.grads, training.matGrad, training.vecGrad)
+func (pass *hostBackwardPass) Backward(dTop []float32) error {
+	model := pass.model
+	pass.grads, _ = hostmath.HybridStackBackward(pass.trace, model.Weights, model.Dims, model.States, dTop, pass.grads)
+	model.packGradients(pass.grads, pass.matGrad, pass.vecGrad)
 	return nil
+}
+
+type hostTraining struct {
+	hostBackwardPass
+	matOpt, vecOpt *optimizer.Optimizer
 }
 
 func (training *hostTraining) Step(_ int) error {
@@ -607,7 +619,7 @@ func (training *hostTraining) Step(_ int) error {
 
 // TrainHost runs the host parity lane.
 func (m *Model) TrainHost(steps int, cfg optimizer.Config) ([]float64, error) {
-	training := &hostTraining{model: m, matGrad: make([]float32, len(m.matW)), vecGrad: make([]float32, len(m.vecW))}
+	training := &hostTraining{hostBackwardPass: newHostBackwardPass(m)}
 	var err error
 	training.matOpt, err = optimizer.New(m.matW, training.matGrad, m.matPlan, cfg)
 	if err != nil {

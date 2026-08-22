@@ -89,31 +89,12 @@ func (training *residentTraining) Step(step int) error {
 	return nil
 }
 
-// hostMasterTraining: forward/backward on host f32 masters, Muon streamed
-// per matrix group through the device. This is the full-stack lane for models
-// whose complete weight/gradient/momentum triple exceeds device memory.
 type hostMasterTraining struct {
-	model             *Model
-	worker            *device.Worker
-	config            optimizer.Config
-	trace             hostmath.HybridStackTrace
-	grads             []hostmath.HybridDecoderLayerGrads
-	matGrad, momentum []float32
-	vecGrad           []float32
-	vecOpt            *optimizer.Optimizer
-}
-
-func (training *hostMasterTraining) Forward() ([]float32, error) {
-	output, trace := hostmath.HybridStackForward(training.model.X, training.model.Weights, training.model.Dims, training.model.States)
-	training.trace = trace
-	return output, nil
-}
-
-func (training *hostMasterTraining) Backward(dTop []float32) error {
-	model := training.model
-	training.grads, _ = hostmath.HybridStackBackward(training.trace, model.Weights, model.Dims, model.States, dTop, training.grads)
-	model.packGradients(training.grads, training.matGrad, training.vecGrad)
-	return nil
+	hostBackwardPass
+	worker   *device.Worker
+	config   optimizer.Config
+	momentum []float32
+	vecOpt   *optimizer.Optimizer
 }
 
 func (training *hostMasterTraining) Step(step int) error {
@@ -134,16 +115,15 @@ func (training *hostMasterTraining) Step(step int) error {
 // trains on a device that cannot hold its weights. observe (optional) sees
 // each committed step's loss and may stop training by returning an error.
 func (m *Model) TrainHostMasterStreamed(worker *device.Worker, steps int, cfg optimizer.Config, observe func(step int, loss float64) error) ([]float64, error) {
-	vecGrad := make([]float32, len(m.vecW))
-	vecOpt, err := optimizer.New(m.vecW, vecGrad, m.vecPlan, cfg)
+	pass := newHostBackwardPass(m)
+	vecOpt, err := optimizer.New(m.vecW, pass.vecGrad, m.vecPlan, cfg)
 	if err != nil {
 		return nil, err
 	}
 	training := &hostMasterTraining{
-		model: m, worker: worker, config: cfg,
-		matGrad:  make([]float32, len(m.matW)),
-		momentum: make([]float32, len(m.matW)),
-		vecGrad:  vecGrad, vecOpt: vecOpt,
+		hostBackwardPass: pass,
+		worker:           worker, config: cfg,
+		momentum: make([]float32, len(m.matW)), vecOpt: vecOpt,
 	}
 	return runTrainingObserved(m.program, training, m.Target, steps, observe)
 }
@@ -169,7 +149,8 @@ type hostMasterLayerStreamedTraining struct {
 }
 
 func (training *hostMasterLayerStreamedTraining) Forward() ([]float32, error) {
-	output, trace := hostmath.HybridStackForward(training.model.X, training.model.Weights, training.model.Dims, training.model.States)
+	model := training.model
+	output, trace := hostmath.HybridStackForward(model.X, model.Weights, model.Dims, model.States)
 	training.trace = trace
 	return output, nil
 }

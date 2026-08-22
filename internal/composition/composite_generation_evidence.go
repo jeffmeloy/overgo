@@ -12,11 +12,11 @@ import (
 
 const (
 	// CompositeGenerationEvidenceVersion is the immutable evidence document version.
-	CompositeGenerationEvidenceVersion = artifact.InitialDocumentVersion
+	CompositeGenerationEvidenceVersion = artifact.SecondDocumentVersion
 	// CompositeGenerationEvidenceMediaType identifies composite-generation evidence.
 	CompositeGenerationEvidenceMediaType = "application/vnd.overgo.composite-generation-evidence+json"
 	// CompositeGenerationEvidenceSchema identifies the evidence wire schema.
-	CompositeGenerationEvidenceSchema = "overgo/composite-generation-evidence/v1"
+	CompositeGenerationEvidenceSchema = "overgo/composite-generation-evidence/v2"
 )
 
 // CompositeGenerationArm identifies one required causal comparison.
@@ -50,12 +50,13 @@ type CompositeGenerationFrozenModel struct {
 // CompositeGenerationTrial binds one generated output to its exact input,
 // random seed, run record, and evaluation record.
 type CompositeGenerationTrial struct {
-	Seed       uint64                 `json:"seed"`
-	Arm        CompositeGenerationArm `json:"arm"`
-	Input      artifact.ID            `json:"input"`
-	Output     artifact.ID            `json:"output"`
-	Run        artifact.ID            `json:"run"`
-	Evaluation artifact.ID            `json:"evaluation"`
+	Seed        uint64                 `json:"seed"`
+	Arm         CompositeGenerationArm `json:"arm"`
+	Input       artifact.ID            `json:"input"`
+	Output      artifact.ID            `json:"output"`
+	Run         artifact.ID            `json:"run"`
+	Evaluation  artifact.ID            `json:"evaluation"`
+	Observation artifact.ID            `json:"observation"`
 }
 
 // CompositeGenerationEvidence records a complete four-arm generation matrix.
@@ -66,6 +67,7 @@ type CompositeGenerationEvidence struct {
 	SourceModel          CompositeGenerationFrozenModel `json:"source_model"`
 	TargetModel          CompositeGenerationFrozenModel `json:"target_model"`
 	Bridge               artifact.Descriptor            `json:"bridge"`
+	ExecutionPlan        artifact.ID                    `json:"execution_plan"`
 	TargetBaselineRecipe artifact.ID                    `json:"target_baseline_recipe"`
 	CompositionRecipe    artifact.ID                    `json:"composition_recipe"`
 	SourceAblatedRecipe  artifact.ID                    `json:"source_ablated_recipe"`
@@ -129,12 +131,13 @@ func (value CompositeGenerationEvidence) Content() (artifact.Content, error) {
 func (value CompositeGenerationEvidence) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{
 		value.SourceModel.Before.ID, value.TargetModel.Before.ID, value.Bridge.ID,
+		value.ExecutionPlan,
 		value.TargetBaselineRecipe, value.CompositionRecipe,
 		value.SourceAblatedRecipe, value.BridgeAblatedRecipe,
 		value.Dataset, value.HeldOutSplit, value.Evaluator,
 	}
 	for _, trial := range value.Trials {
-		parents = append(parents, trial.Input, trial.Output, trial.Run, trial.Evaluation)
+		parents = append(parents, trial.Input, trial.Output, trial.Run, trial.Evaluation, trial.Observation)
 	}
 	return artifact.DependencyLineage(value.ID, uniqueIDs(parents)...)
 }
@@ -159,6 +162,9 @@ func canonicalizeCompositeGenerationEvidence(value *CompositeGenerationEvidence)
 	}
 	if value.Bridge.ID.Kind() != artifact.KindAdapter || !checked.Nonzero(value.Bridge.Size) || value.Bridge.Validate() != nil {
 		return errors.New("composition: composite generation bridge descriptor is invalid")
+	}
+	if value.ExecutionPlan.Kind() != artifact.KindProfile {
+		return errors.New("composition: composite generation execution plan is invalid")
 	}
 	recipes := []artifact.ID{
 		value.TargetBaselineRecipe, value.CompositionRecipe,
@@ -196,12 +202,13 @@ func canonicalizeCompositeGenerationEvidence(value *CompositeGenerationEvidence)
 		Input artifact.ID
 	}
 	groups := make(map[caseSeed]map[CompositeGenerationArm]struct{})
-	outputs := make(map[artifact.ID]struct{}, len(value.Trials))
 	runs := make(map[artifact.ID]struct{}, len(value.Trials))
 	evaluations := make(map[artifact.ID]struct{}, len(value.Trials))
+	observations := make(map[artifact.ID]struct{}, len(value.Trials))
 	for _, trial := range value.Trials {
 		if trial.Input.Kind() != artifact.KindOutput || trial.Output.Kind() != artifact.KindOutput ||
-			trial.Run.Kind() != artifact.KindRun || trial.Evaluation.Kind() != artifact.KindEvaluation {
+			trial.Run.Kind() != artifact.KindRun || trial.Evaluation.Kind() != artifact.KindEvaluation ||
+			trial.Observation.Kind() != artifact.KindEvidence {
 			return errors.New("composition: composite generation trial reference kind mismatch")
 		}
 		if compositeGenerationArmOrder(trial.Arm) == len(compositeGenerationArms) {
@@ -215,16 +222,16 @@ func canonicalizeCompositeGenerationEvidence(value *CompositeGenerationEvidence)
 			return errors.New("composition: composite generation trial arm repeats")
 		}
 		groups[key][trial.Arm] = struct{}{}
-		if _, duplicate := outputs[trial.Output]; duplicate {
-			return errors.New("composition: composite generation output repeats")
-		}
 		if _, duplicate := runs[trial.Run]; duplicate {
 			return errors.New("composition: composite generation run repeats")
 		}
 		if _, duplicate := evaluations[trial.Evaluation]; duplicate {
 			return errors.New("composition: composite generation evaluation repeats")
 		}
-		outputs[trial.Output], runs[trial.Run], evaluations[trial.Evaluation] = struct{}{}, struct{}{}, struct{}{}
+		if _, duplicate := observations[trial.Observation]; duplicate {
+			return errors.New("composition: composite generation resource observation repeats")
+		}
+		runs[trial.Run], evaluations[trial.Evaluation], observations[trial.Observation] = struct{}{}, struct{}{}, struct{}{}
 	}
 	for _, arms := range groups {
 		if len(arms) != len(compositeGenerationArms) {

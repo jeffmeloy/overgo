@@ -156,6 +156,11 @@ func (value CompositionExecutionPlan) Content() (artifact.Content, error) {
 	return compositionExecutionPlanCodec.Content(value)
 }
 
+// ValidateIdentity verifies the compiled plan envelope and content identity.
+func (value CompositionExecutionPlan) ValidateIdentity() error {
+	return compositionExecutionPlanCodec.ValidateIdentity(value)
+}
+
 // TransformedRepresentationCacheIdentity binds a captured representation to
 // the exact bridge program, device placement, residency, and component
 // lifetimes that transform it. Callers may use the result as an immutable

@@ -110,13 +110,19 @@ func (value ServingObservation) Batch(key string) (artifact.Batch, error) {
 	return servingObservationCodec.Batch(key, value, value.Lineage(), nil)
 }
 
+// NewServingObservation validates and identifies one immutable serving fact
+// without committing it, allowing callers to publish a larger atomic graph.
+func NewServingObservation(value ServingObservation) (ServingObservation, error) {
+	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
+	return servingObservationCodec.New(value)
+}
+
 // PublishServingObservation identifies and commits one serving fact.
 func PublishServingObservation(ctx context.Context, repository artifact.Repository, value ServingObservation) (ServingObservation, error) {
 	if ctx == nil || repository == nil {
 		return ServingObservation{}, errors.New("run record: serving observation repository is absent")
 	}
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	identified, err := servingObservationCodec.New(value)
+	identified, err := NewServingObservation(value)
 	if err != nil {
 		return ServingObservation{}, err
 	}

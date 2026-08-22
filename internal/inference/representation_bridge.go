@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/bridgegraph"
+	"overgo/internal/checked"
 	"overgo/internal/composition"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
@@ -70,6 +71,7 @@ type representationBridgeSession struct {
 var (
 	representationMatrix = reference.Value.IsMatrixWidth
 	representationExtent = reference.Value.Rows
+	compositionTensor    = tensor.NewShape
 )
 
 // OpenProductionComposition is the only embedding-injection construction
@@ -164,6 +166,12 @@ func (runtime *ProductionComposition) Forward(
 	if runtime == nil {
 		return reference.Value{}, errors.New("inference: production composition is absent")
 	}
+	if ctx == nil {
+		return reference.Value{}, errors.New("inference: production composition context is absent")
+	}
+	if err := ctx.Err(); err != nil {
+		return reference.Value{}, err
+	}
 	identity, err := runtime.transformedRepresentationCacheIdentity(sourceTokens)
 	if err != nil {
 		return reference.Value{}, err
@@ -184,6 +192,61 @@ func (runtime *ProductionComposition) Forward(
 	return runtime.session.inject(ctx, targetTokens, bridged)
 }
 
+// ForwardArm executes one causal generation arm through this active-plan-owned
+// runtime. Ablations preserve the same source and target sessions and differ
+// only at the declared representation or bridge boundary.
+func (runtime *ProductionComposition) ForwardArm(
+	ctx context.Context,
+	arm composition.CompositeGenerationArm,
+	sourceTokens, targetTokens []tokenizer.TokenID,
+) (reference.Value, error) {
+	if runtime == nil {
+		return reference.Value{}, errors.New("inference: production composition is absent")
+	}
+	if ctx == nil {
+		return reference.Value{}, errors.New("inference: composite generation context is absent")
+	}
+	if err := ctx.Err(); err != nil {
+		return reference.Value{}, err
+	}
+	switch arm {
+	case composition.CompositeGenerationTargetBaseline:
+		return runtime.session.target.ForwardWithEmbeddingOverrides(ctx, targetTokens, nil)
+	case composition.CompositeGenerationComposed:
+		return runtime.Forward(ctx, sourceTokens, targetTokens)
+	case composition.CompositeGenerationSourceAblated:
+		captured, err := runtime.session.capture(ctx, sourceTokens)
+		if err != nil {
+			return reference.Value{}, err
+		}
+		zero, err := materializedZero(captured.Shape)
+		if err != nil {
+			return reference.Value{}, err
+		}
+		bridged, err := runtime.session.transform(zero)
+		if err != nil {
+			return reference.Value{}, err
+		}
+		return runtime.session.inject(ctx, targetTokens, bridged)
+	case composition.CompositeGenerationBridgeAblated:
+		if _, err := runtime.session.capture(ctx, sourceTokens); err != nil {
+			return reference.Value{}, err
+		}
+		_, targetBoundary := runtime.session.program.Boundaries()
+		shape, err := compositionTensor(targetBoundary.Channels, uint64(len(targetTokens)))
+		if err != nil {
+			return reference.Value{}, err
+		}
+		zero, err := materializedZero(shape)
+		if err != nil {
+			return reference.Value{}, err
+		}
+		return runtime.session.inject(ctx, targetTokens, zero)
+	default:
+		return reference.Value{}, errors.New("inference: composite generation arm is invalid")
+	}
+}
+
 func (runtime *ProductionComposition) transformedRepresentationCacheIdentity(sourceTokens []tokenizer.TokenID) (artifact.ID, error) {
 	if runtime == nil || !runtime.plan.CacheIdentity.Valid() {
 		return artifact.ID{}, errors.New("inference: transformed representation cache authority is absent")
@@ -195,6 +258,17 @@ func (runtime *ProductionComposition) transformedRepresentationCacheIdentity(sou
 }
 
 func (session representationBridgeSession) captureAndTransform(
+	ctx context.Context,
+	sourceTokens []tokenizer.TokenID,
+) (reference.Value, error) {
+	captured, err := session.capture(ctx, sourceTokens)
+	if err != nil {
+		return reference.Value{}, err
+	}
+	return session.transform(captured)
+}
+
+func (session representationBridgeSession) capture(
 	ctx context.Context,
 	sourceTokens []tokenizer.TokenID,
 ) (reference.Value, error) {
@@ -212,13 +286,21 @@ func (session representationBridgeSession) captureAndTransform(
 		*sourceBoundary.Layer > math.MaxInt32 {
 		return reference.Value{}, errors.New("inference: representation source tap is not an addressable layer input")
 	}
-	captured, err := session.source.ExtractLayerInputs(
+	return session.source.ExtractLayerInputs(
 		ctx, sourceTokens, []int32{int32(*sourceBoundary.Layer)},
 	)
+}
+
+func materializedZero(shape tensor.Shape) (reference.Value, error) {
+	elements, err := shape.Elements()
 	if err != nil {
 		return reference.Value{}, err
 	}
-	return session.transform(captured)
+	count, ok := checked.Int(elements)
+	if !ok {
+		return reference.Value{}, errors.New("inference: ablation representation exceeds host address space")
+	}
+	return reference.NewValue(shape, make([]float32, count))
 }
 
 func (session representationBridgeSession) inject(

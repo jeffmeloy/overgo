@@ -261,12 +261,12 @@
       "id": "composite-generation-execution",
       "title": "Execute every generation arm through the active recipe runtime and commit output, run, metric, latency, and memory lineage",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Execute every generation arm through the active recipe runtime and commit output, run, metric, latency, and memory lineage",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/composition ./internal/inference ./internal/workflowruntime -run 'TestCompositeGeneration(ActiveRecipe|Execution|OutputLineage|ResourceEvidence)' -count=1"
         }
       ]

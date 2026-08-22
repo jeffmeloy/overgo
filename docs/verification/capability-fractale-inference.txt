@@ -1,9 +1,0 @@
-overgo capability inference verification
-tool: go test internal/thoughtbank (modeltest tag)
-model file: C:/Users/jeffm/adaptive_new/models/Fractale-350M-base/model.pt
-protocol: twenty-token process probe through the thoughtbank fast-weight path
-(TestFractaleTwentyTokenProcessProbe), real PyTorch checkpoint
-measured wall_ns: 6950000000 (test wall including checkpoint load)
-notes: the Fractale process/prefill/incremental leadership tests exist and are
-env-gated to the probe lane; this claim covers the executed probe only.
-peak device memory not instrumented on this path -- wall-only claim by rule.

@@ -43,6 +43,7 @@ Overgo puts these jobs behind one runtime:
 | Model creation | Construct deterministic scratch models, initialize parameter manifests, build adapters, propose components, and preserve derived-model lineage |
 | Training | Compile objectives, stream datasets, execute Muon updates on host or CUDA, checkpoint, resume exactly, and record training evidence |
 | Preference optimization | Run DPO and GRPO with shared scoring, VJPs, Muon updates, checkpoints, evaluation, and GUI reporting |
+| Model composition | Compile promoted cross-model representation bridges, external cross-attention, device-resident component sessions, immutable transformed-representation caches, and exact-lineage offline artifacts |
 | Evaluation | Compile suites, run campaigns, inspect failures, compare metrics, and bind results to model, recipe, data, code, and environment identities |
 | Serving | Expose native llama.cpp-style, OpenAI-compatible, and Anthropic-compatible HTTP APIs with streaming, tools, structured output, media, batching, and caches |
 | Workbench | Use one embedded GUI for chat, generation, runtime telemetry, datasets, training, model building, export, evaluations, artifacts, and model analysis |
@@ -145,6 +146,11 @@ RepoDB can retain several candidates for the same model and task. Production
 entry points use only the promoted active recipe. Missing evidence is an error,
 not permission to fall back to another execution path.
 
+Composition follows the same rule. Runtime entry points resolve an active
+source-model, target-model, and task binding from RepoDB, then compile the
+bridge, boundaries, component sessions, placement, lifetimes, cache identity,
+training policy, and promotion evidence into one immutable execution plan.
+
 ## 3. System architecture
 
 ### Typed execution runtime
@@ -156,7 +162,7 @@ inputs, outputs, memory policy, and session lifetime.
 Supported task classes include inference, token generation, embedding,
 reranking, projection, training, forecasting, tabular prediction,
 sequence-to-sequence generation, speech synthesis, image generation, video
-generation, and VQA.
+generation, VQA, and cross-model representation composition.
 
 Opening a model builds one indexed weight catalog. Compiled requirement schemas
 check allowed shapes, storage, and relations between tensors. Layer programs
@@ -398,15 +404,40 @@ gradient without an artificial threshold.
 
 ### Component composition
 
-Composition records describe model components, compatible ports, required
-bridge operations, construction parents, supported tasks, and evidence. A
-composition must pass the same resource, placement, memory, and session checks
-as any other execution plan. Derived models keep acyclic lineage to their
-parents and governing facts.
+Composition records bind source and target models, representation contracts,
+bridge graph and weights, execution recipe, component lifetimes, training
+policy, promotion policy, and exact evidence. Runtime compilation is allowed
+only through the active alias for the source-model, target-model, and task
+tuple. Direct bridge construction cannot bypass activation.
+
+The compiled plan validates capture and injection boundaries, bridge operator
+order, model slots, artifact extents, device placement, residency, and session
+lifetime. Its cache identity includes every transformation authority. A cached
+source representation therefore cannot be reused with different bridge
+weights, contracts, models, placement, or lifetime policy. External
+cross-attention has separate source state and cache ownership from the target
+model's KV cache.
+
+Promotion evidence is recipe-owned and fail-closed. Every independent seed
+must clear the declared held-out gain, source-dependence, regression,
+seed-spread, latency, and device-memory bounds. Cheap baselines, dropped-source
+and shuffled-source ablations, and target-only regression controls are part of
+the evidence envelope; an average-only win cannot activate a composition.
+
+Compatible offline composition remains separate from runtime representation
+bridging. Passthrough and task-arithmetic plans require exact model-definition,
+architecture-profile, tensor-inventory, format, and lineage compatibility
+before producing a derived artifact.
 
 Recursive or self-improving trials do not authorize their own promotion.
 Admission, development data, promotion data, evaluator, evaluation run,
 decision authority, and rollback target are separate recorded facts.
+
+The server exposes composition inventory and compare-and-set activation at
+`/compositions` and `/compositions/activate`. The Compositions workbench tab
+shows compatibility refusals, the source-to-target graph, declared bridge
+training controls, multi-seed promotion results, active status, compiled
+session residency, cache identity, and runtime resource evidence.
 
 ## 6. Evaluation system
 
@@ -639,6 +670,18 @@ Example `local-models.json`:
 Large model, dataset, and checkpoint bytes stay outside Git. RepoDB records
 their identities and locations.
 
+RepoDB stores also stay outside Git and release archives. A store contains
+machine-local locations and append-only run, gate, evaluation, and decision
+history; committing its log would make the source repository machine-specific
+and exceed normal GitHub file limits. Preserve or transfer a store with a
+replay-verified backup instead:
+
+```bash
+go run ./cmd/repodb-backup \
+  -repo D:/overgo-data/repodb-store \
+  -dest E:/overgo-backups/repodb-2026-08-22
+```
+
 Configuring these roots does not scan or register every file. Intake commands
 hash artifact bytes and commit a descriptor plus a file or directory location
 to RepoDB. External model and dataset manifests can be imported atomically:
@@ -816,7 +859,7 @@ subcommand, for example `go run ./cmd/recipe status -h`.
 | `cmd/oscillatorimage-train-probe` | Verify oscillator-image training |
 | `cmd/seriesforecast-train-probe` | Verify forecasting training |
 | `cmd/tabular-train-probe` | Verify tabular training |
-| `cmd/controller-action` | Compile and execute repository-controller actions |
+| `cmd/controller-action` | Compile and execute repository-controller actions, including active composition and exact-lineage offline-artifact plans |
 
 ### Evaluation, evidence, and repository data
 
@@ -891,14 +934,14 @@ The server embeds an HTML, CSS, and JavaScript workbench at
 server and RepoDB own models, recipes, datasets, operations, sessions, runs,
 and artifacts.
 
-The workbench has four sections and eighteen tabs:
+The workbench has four sections and nineteen tabs:
 
 | Section | Tabs | Primary use |
 | --- | --- | --- |
 | Inference | Chat, Generate, Runtime, Activity | Run streaming conversations and recipe-driven generation; inspect sessions, throughput, transfers, and serving evidence |
 | Datasets | Datasets | Filter registered datasets and inspect bounded typed previews |
 | Training | Train, Model Builder, Export, Runs | Train or construct models, export artifacts, control operations, inspect checkpoints, and compare run evidence |
-| Workbench | Recipe, Artifacts, Evaluations, Model, Vocabulary, Logit lens, Hidden states, Attention, Tensors | Inspect compiled authority, outputs, evaluation campaigns, model structure, tokens, activations, attention, and tensor statistics |
+| Workbench | Recipe, Compositions, Artifacts, Evaluations, Model, Vocabulary, Logit lens, Hidden states, Attention, Tensors | Inspect compiled authority, composition graphs and promotion, outputs, evaluation campaigns, model structure, tokens, activations, attention, and tensor statistics |
 
 ### Capability-driven forms
 
@@ -956,6 +999,13 @@ optimizer, objective, and output controls those recipes allow. Model Builder
 runs corpus-derived construction through the same operation and evidence
 contracts. Export publishes supported durable forms without putting
 model-family rules in the UI.
+
+Compositions reads published recipes from RepoDB. Each card shows source and
+target contracts, bridge weights and operator, training policy, held-out and
+regression evidence, seed spread, latency and device-memory change, compiled
+session residency, cache identity, and completion state. Activation is an
+atomic compare-and-set transition; incompatible or incomplete recipes remain
+visible with their refusal reason.
 
 ### Evaluations and artifacts
 

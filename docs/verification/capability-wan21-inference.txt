@@ -1,9 +1,0 @@
-overgo capability inference verification
-tool: go test internal/adaptiveparity (modeltest tag, OVERGO_CUDA_TEST=1)
-model file: C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B/diffusion_pytorch_model.safetensors
-protocol: text-to-video generation leadership (TestVideoGenerationLeadership)
--- the real Wan2.1-T2V checkpoint through the latent-video production path
-with wall leadership measured on device.
-measured wall_ns: 138900000000 (suite wall including checkpoint load)
-modality: text-to-video. peak device memory not instrumented on this path --
-wall-only measurement by rule.

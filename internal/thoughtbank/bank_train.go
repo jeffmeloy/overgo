@@ -3,8 +3,8 @@ package thoughtbank
 import (
 	"errors"
 	"fmt"
-	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/optimizer"
 	"overgo/internal/trainingprogram"
 )
@@ -60,10 +60,7 @@ func newFastWeightBankTrainer(weights *FastWeightBankWeights, config optimizer.C
 		"bank.fw_o": weights.FWO,
 		"bank.norm": weights.NormWeight,
 	}
-	na := 1
-	if weights.SwiGLU {
-		na = 2
-	}
+	na := activationProjectionCount(weights.SwiGLU)
 	shapes := map[string][2]int{
 		"bank.fw_a": {na * weights.Rank * weights.DModel, weights.MemDim},
 		"bank.fw_b": {weights.DModel * weights.Rank, weights.MemDim},
@@ -123,7 +120,7 @@ func (t *FastWeightBankTrainer) forward(state *bankStepState) error {
 		state.loss += delta * delta * scale
 		state.dOutput[index] = float32(2 * delta * scale)
 	}
-	if math.IsNaN(state.loss) || math.IsInf(state.loss, 0) {
+	if !checked.Finite64(state.loss) {
 		return errors.New("non-finite bank training loss")
 	}
 	return nil

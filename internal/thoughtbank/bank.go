@@ -56,10 +56,7 @@ type FastWeightBankWeights struct {
 
 // Validate reports a bundle whose shapes disagree with the declared dimensions.
 func (weights *FastWeightBankWeights) Validate() error {
-	na := 1
-	if weights.SwiGLU {
-		na = 2
-	}
+	na := activationProjectionCount(weights.SwiGLU)
 	if weights.DModel < 1 || weights.MemDim < 1 || weights.Rank < 1 {
 		return fmt.Errorf("fast-weight bank: d=%d mem_dim=%d rank=%d must be positive", weights.DModel, weights.MemDim, weights.Rank)
 	}
@@ -96,10 +93,7 @@ func FastWeightBankRead(h, bank []float32, rows, slots int, w *FastWeightBankWei
 	if len(bank) != slots*w.MemDim {
 		return nil, fmt.Errorf("fast-weight bank: bank has %d values, want %d", len(bank), slots*w.MemDim)
 	}
-	na := 1
-	if w.SwiGLU {
-		na = 2
-	}
+	na := activationProjectionCount(w.SwiGLU)
 
 	y0 := rmsNormNew(h, w.NormWeight, rows, d, w.NormEps)
 	y := make([]float32, len(y0))
@@ -177,11 +171,26 @@ func FastWeightBankRead(h, bank []float32, rows, slots int, w *FastWeightBankWei
 	return out, nil
 }
 
+func fastWeightBankReadVector(h, bank []float32, slots int, weights *FastWeightBankWeights) ([]float32, error) {
+	return FastWeightBankRead(h, bank, len(h)/weights.DModel, slots, weights)
+}
+
+func activationProjectionCount(swiGLU bool) int {
+	if swiGLU {
+		return 2
+	}
+	return 1
+}
+
 // rmsNormNew: allocating RMSNorm through the hostmath owner.
 func rmsNormNew(x, weight []float32, rows, d int, eps float64) []float32 {
 	out := make([]float32, rows*d)
 	hostmath.RMSNormInto(out, x, weight, rows, d, eps)
 	return out
+}
+
+func rmsNormVector(x, weight []float32, d int, eps float64) []float32 {
+	return rmsNormNew(x, weight, len(x)/d, d, eps)
 }
 
 // dot is the f64-accumulated inner product of two f32 vectors.

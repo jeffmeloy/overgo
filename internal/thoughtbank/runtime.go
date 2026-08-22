@@ -3,7 +3,6 @@ package thoughtbank
 import (
 	"context"
 	"errors"
-	"fmt"
 	"path/filepath"
 
 	"overgo/internal/artifact"
@@ -11,8 +10,6 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/workflowruntime"
 )
-
-const maxGenerationTokens = 256
 
 var generationContract = artifact.JSONContract(artifact.KindOutput, "overgo.thoughtbank-generation.v1")
 
@@ -33,8 +30,8 @@ type Generator struct {
 }
 
 func ValidateGenerateRequest(request GenerateRequest) error {
-	if request.Text == "" || request.MaxTokens <= 0 || request.MaxTokens > maxGenerationTokens {
-		return fmt.Errorf("thoughtbank: generation requires text and 1..%d tokens", maxGenerationTokens)
+	if request.Text == "" || request.MaxTokens <= 0 {
+		return errors.New("thoughtbank: generation requires text and a positive token count")
 	}
 	return nil
 }
@@ -110,7 +107,7 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 
 func argmaxLogit(values []float32) int {
 	best := 0
-	for index := 1; index < len(values); index++ {
+	for index := range values {
 		if values[index] > values[best] {
 			best = index
 		}

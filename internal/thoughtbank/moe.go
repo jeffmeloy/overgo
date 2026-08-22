@@ -117,11 +117,6 @@ func SharedRoutedMoEForward(x []float32, rows int, w *sharedRoutedMoEWeights) ([
 	return out, MoEBalanceLoss(routings, w.NExperts, w.TopK), nil
 }
 
-// MoERouteEpsilon guards the renormalisation denominator. Softplus is strictly
-// positive so the sum cannot truly be zero; this protects against underflow when
-// every selected affinity is denormal.
-const MoERouteEpsilon = 1e-8
-
 // moERouting is one token's routing decision, in descending affinity order.
 type moERouting struct {
 	Experts []int
@@ -155,9 +150,15 @@ func RouteMoETopK(hidden, gate []float32, rows, d, nExperts, k int) []moERouting
 			sel[i] = order[i]
 			sum += scores[order[i]]
 		}
-		inv := 1.0 / (sum + MoERouteEpsilon)
-		for i := 0; i < k; i++ {
-			wts[i] = float32(scores[order[i]] * inv)
+		if sum == 0 {
+			for index := range wts {
+				wts[index] = 1 / float32(len(wts))
+			}
+		} else {
+			inv := 1 / sum
+			for index := range wts {
+				wts[index] = float32(scores[order[index]] * inv)
+			}
 		}
 		out[r] = moERouting{Experts: sel, Weights: wts}
 	}
@@ -167,9 +168,9 @@ func RouteMoETopK(hidden, gate []float32, rows, d, nExperts, k int) []moERouting
 // MoEBalanceLoss is the sequence-wise load-balancing auxiliary: mean squared
 // deviation of per-expert usage from uniform. Usage counts SELECTIONS, not
 // weights, so a low-weight choice still counts.
-func MoEBalanceLoss(routings []moERouting, nExperts, k int) float64 {
+func MoEBalanceLoss(routings []moERouting, nExperts, k int) (loss float64) {
 	if len(routings) == 0 || nExperts == 0 {
-		return 0
+		return loss
 	}
 	usage := make([]float64, nExperts)
 	for _, r := range routings {

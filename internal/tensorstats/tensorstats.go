@@ -16,7 +16,11 @@ import (
 	"math"
 	"slices"
 	"sort"
+
+	"overgo/internal/checked"
 )
+
+const medianQuantile = 0.5
 
 // LMoments are unbiased sample L-moments. L1 is location, L2 is scale (a robust
 // dispersion), Tau3 is L-skewness and Tau4 is L-kurtosis, each bounded in
@@ -47,15 +51,9 @@ func exactLMomentsSorted(values []float64) LMoments {
 	for i, value := range values {
 		fi := float64(i)
 		b0 += value
-		if n >= 2 {
-			b1 += fi * value
-		}
-		if n >= 3 {
-			b2 += fi * (fi - 1) * value
-		}
-		if n >= 4 {
-			b3 += fi * (fi - 1) * (fi - 2) * value
-		}
+		b1 += fi * value
+		b2 += fi * (fi - 1) * value
+		b3 += fi * (fi - 1) * (fi - 2) * value
 	}
 	b0 /= fn
 	out := LMoments{L1: b0}
@@ -128,7 +126,7 @@ type ValueAccumulator struct {
 func (a *ValueAccumulator) Add(values []float64) {
 	for _, x := range values {
 		a.total++
-		if math.IsNaN(x) || math.IsInf(x, 0) {
+		if !checked.Finite64(x) {
 			continue
 		}
 		a.finite++
@@ -143,15 +141,16 @@ func (a *ValueAccumulator) Add(values []float64) {
 			continue
 		}
 		a.nonzero++
+		unitEnergy := absolute / absolute
 		if a.maxAbs == 0 {
-			a.maxAbs, a.scaledEnergy = absolute, 1
+			a.maxAbs, a.scaledEnergy = absolute, unitEnergy
 			continue
 		}
 		if absolute > a.maxAbs {
 			ratio := a.maxAbs / absolute
 			scale := ratio * ratio
 			a.scaledEnergyLog = scale * (a.scaledEnergyLog + a.scaledEnergy*math.Log(scale))
-			a.scaledEnergy = scale*a.scaledEnergy + 1
+			a.scaledEnergy = scale*a.scaledEnergy + unitEnergy
 			a.maxAbs = absolute
 			continue
 		}
@@ -173,9 +172,10 @@ func (a *ValueAccumulator) Stats() (ValueStats, bool) {
 		return ValueStats{}, false
 	}
 	n := float64(a.finite)
-	variance := math.Max(0, a.m2/n)
+	var zero float64
+	variance := math.Max(zero, a.m2/n)
 	rms := a.rms()
-	normalizedL1L2, maxEnergyFraction, normalizedEnergyEntropy := 0.0, 0.0, 0.0
+	var normalizedL1L2, maxEnergyFraction, normalizedEnergyEntropy float64
 	if a.maxAbs > 0 {
 		normalizedL1L2 = clampUnit(a.sumAbs / (math.Sqrt(n) * a.maxAbs * math.Sqrt(a.scaledEnergy)))
 		maxEnergyFraction = clampUnit(1 / a.scaledEnergy)
@@ -184,7 +184,7 @@ func (a *ValueAccumulator) Stats() (ValueStats, bool) {
 			normalizedEnergyEntropy = clampUnit(entropy / math.Log(float64(a.nonzero)))
 		}
 	}
-	meanRMSRatio := 0.0
+	var meanRMSRatio float64
 	if rms > 0 {
 		meanRMSRatio = a.mean / rms
 	}
@@ -203,9 +203,9 @@ func (a *ValueAccumulator) Stats() (ValueStats, bool) {
 	}, true
 }
 
-func (a *ValueAccumulator) rms() float64 {
+func (a *ValueAccumulator) rms() (value float64) {
 	if a.finite == 0 || a.maxAbs == 0 {
-		return 0
+		return value
 	}
 	return a.maxAbs * math.Sqrt(a.scaledEnergy/float64(a.finite))
 }
@@ -230,12 +230,8 @@ type Characterization struct {
 func (c Characterization) Valid() bool {
 	return c.Elements > 0 && c.Samples > 0 && c.Samples <= c.Elements &&
 		c.FiniteSamples > 0 && c.FiniteSamples <= c.Samples &&
-		finite(c.LowerQuartile) && finite(c.Median) && finite(c.UpperQuartile) &&
+		checked.Finite64(c.LowerQuartile) && checked.Finite64(c.Median) && checked.Finite64(c.UpperQuartile) &&
 		c.InterquartileRange >= 0 && c.LowerQuartile <= c.Median && c.Median <= c.UpperQuartile
-}
-
-func finite(value float64) bool {
-	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
 // Characterize profiles a value population. samples may contain non-finite
@@ -251,7 +247,7 @@ func Characterize(elements uint64, samples []float64) (Characterization, bool) {
 	}
 	finite := make([]float64, 0, acc.finite)
 	for _, x := range samples {
-		if !math.IsNaN(x) && !math.IsInf(x, 0) {
+		if checked.Finite64(x) {
 			finite = append(finite, x)
 		}
 	}
@@ -263,9 +259,9 @@ func Characterize(elements uint64, samples []float64) (Characterization, bool) {
 		Samples:            uint64(len(samples)),
 		FiniteSamples:      acc.finite,
 		LowerQuartile:      lower,
-		Median:             Quantile(finite, 0.5),
+		Median:             Quantile(finite, medianQuantile),
 		UpperQuartile:      upper,
-		InterquartileRange: math.Max(0, upper-lower),
+		InterquartileRange: upper - lower,
 		LMoments:           exactLMomentsSorted(finite),
 		Values:             values,
 	}, true

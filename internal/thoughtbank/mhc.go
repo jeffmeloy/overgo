@@ -173,3 +173,7 @@ func HyperConnectionForward(x []float32, rows int, w *HyperConnectionWeights, la
 	}
 	return res, nil
 }
+
+func hyperConnectionVector(x []float32, weights *HyperConnectionWeights, layer HyperConnectionLayerFn) ([]float32, error) {
+	return HyperConnectionForward(x, len(x)/(weights.NHC*weights.DModel), weights, layer)
+}

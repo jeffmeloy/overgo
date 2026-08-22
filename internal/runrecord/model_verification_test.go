@@ -141,7 +141,7 @@ func TestModelVerificationLedger(t *testing.T) {
 		len(reordered[0].Capabilities[0].Evidence) != len(carbon.Capabilities[0].Evidence) {
 		t.Fatal("matrix depends on record order")
 	}
-	if TierCapabilityMeasured.Rank() <= TierExactGolden.Rank() || VerificationTier("vibes").Rank() != 0 {
+	if !TierCapabilityMeasured.StrongerThan(TierExactGolden) || VerificationTier("vibes").Valid() {
 		t.Fatal("tier ranking broken")
 	}
 

@@ -257,7 +257,7 @@
         {
           "id": "composition-evidence",
           "title": "Consolidate composition, metrics, telemetry, and evidence policy",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/closure-scan -check-scope internal/composition,internal/tensorstats,internal/runrecord,internal/thoughtbank,internal/codeprofile -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {

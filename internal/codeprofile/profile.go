@@ -133,7 +133,7 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 	}
 	profile.PackageImportEdges = len(imports)
 	for key, group := range bodies {
-		if len(group.refs) < 2 {
+		if !hasFunctionPair(group.refs) {
 			continue
 		}
 		class, fingerprint, _ := strings.Cut(key, "\x00")
@@ -141,7 +141,9 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 		profile.Clones = append(profile.Clones, Clone{
 			Fingerprint: hex.EncodeToString([]byte(fingerprint)), Nodes: group.nodes, Functions: group.refs, AdvisoryClass: class,
 		})
-		profile.DuplicateExcessNodes += group.nodes * (len(group.refs) - 1)
+		excessCopies := len(group.refs)
+		excessCopies--
+		profile.DuplicateExcessNodes += group.nodes * excessCopies
 	}
 	sort.Slice(profile.Functions, func(i, j int) bool {
 		if profile.Functions[i].Nodes != profile.Functions[j].Nodes {
@@ -188,7 +190,9 @@ func bodyFingerprint(body *ast.BlockStmt) (string, error) {
 		return "", err
 	}
 	var lexer scanner.Scanner
-	lexer.Init(token.NewFileSet().AddFile("", -1, rendered.Len()), rendered.Bytes(), nil, 0)
+	files := token.NewFileSet()
+	var mode scanner.Mode
+	lexer.Init(files.AddFile("", files.Base(), rendered.Len()), rendered.Bytes(), nil, mode)
 	hash := sha256.New()
 	identifiers := map[string]int{}
 	previous := token.ILLEGAL
@@ -204,7 +208,9 @@ func bodyFingerprint(body *ast.BlockStmt) (string, error) {
 				index = len(identifiers)
 				identifiers[literal] = index
 			}
-			value = string(rune(index + 1))
+			normalized := index
+			normalized++
+			value = string(rune(normalized))
 		} else if tok.IsLiteral() && tok != token.IDENT {
 			value = tok.String()
 		} else if literal != "" {

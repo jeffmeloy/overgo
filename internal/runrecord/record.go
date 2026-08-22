@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/strictjson"
 	"overgo/internal/textcheck"
 )
@@ -24,7 +25,6 @@ const (
 	RunSchema           = "overgo/run/v2"
 	EvaluationMediaType = "application/vnd.overgo.evaluation+json"
 	EvaluationSchema    = "overgo/evaluation/v1"
-	maxLabelBytes       = 128
 )
 
 var (
@@ -309,7 +309,7 @@ func canonicalizeRun(run *Run) error {
 	if run.Outcome == OutcomeSucceeded && (len(run.Outputs) == 0 || run.Failure != "") {
 		return errors.New("run record: invalid successful outcome")
 	}
-	if run.Outcome == OutcomeFailed && !textcheck.LowerIdentifier(run.Failure, maxLabelBytes) {
+	if run.Outcome == OutcomeFailed && !validLabel(run.Failure) {
 		return errors.New("run record: failed outcome requires failure code")
 	}
 	if run.Outcome == OutcomeCancelled && run.Failure != "" {
@@ -373,9 +373,8 @@ func canonicalizeEvaluation(evaluation *Evaluation) error {
 		return errors.New("run record: invalid evaluation envelope")
 	}
 	for _, metric := range evaluation.Metrics {
-		if !textcheck.LowerIdentifier(metric.Name, maxLabelBytes) || len(metric.Unit) > maxLabelBytes ||
-			strings.TrimSpace(metric.Unit) != metric.Unit || strings.ContainsAny(metric.Unit, "\r\n") ||
-			math.IsNaN(metric.Value) || math.IsInf(metric.Value, 0) ||
+		if !validLabel(metric.Name) || !validUnit(metric.Unit) ||
+			!checked.Finite64(metric.Value) ||
 			metric.Direction != DirectionNeutral && metric.Direction != DirectionMinimize &&
 				metric.Direction != DirectionMaximize {
 			return errors.New("run record: invalid metric")
@@ -384,12 +383,24 @@ func canonicalizeEvaluation(evaluation *Evaluation) error {
 	sort.Slice(evaluation.Metrics, func(i, j int) bool {
 		return evaluation.Metrics[i].Name < evaluation.Metrics[j].Name
 	})
-	for index := 1; index < len(evaluation.Metrics); index++ {
-		if evaluation.Metrics[index-1].Name == evaluation.Metrics[index].Name {
-			return errors.New("run record: duplicate metric")
-		}
+	if len(slices.CompactFunc(evaluation.Metrics, func(left, right Metric) bool {
+		return left.Name == right.Name
+	})) != len(evaluation.Metrics) {
+		return errors.New("run record: duplicate metric")
 	}
 	return nil
+}
+
+func validLabel(value string) bool {
+	return textcheck.LowerIdentifier(value, len(value))
+}
+
+func validUnit(value string) bool {
+	return value == "" || textcheck.Bounded(value, len(value), "\r\n")
+}
+
+func validText(value string) bool {
+	return textcheck.Bounded(value, len(value), "\x00\r\n")
 }
 
 func canonicalIDs(ids []artifact.ID) error {
@@ -399,10 +410,8 @@ func canonicalIDs(ids []artifact.ID) error {
 		}
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i].String() < ids[j].String() })
-	for index := 1; index < len(ids); index++ {
-		if ids[index-1] == ids[index] {
-			return errors.New("duplicate artifact identity")
-		}
+	if len(slices.Compact(ids)) != len(ids) {
+		return errors.New("duplicate artifact identity")
 	}
 	return nil
 }

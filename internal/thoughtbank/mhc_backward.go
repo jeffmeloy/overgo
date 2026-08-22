@@ -123,7 +123,7 @@ func HyperConnectionBackward(x, hOut, dRes []float32, rows int,
 				src := x[r*flat+j*d : r*flat+(j+1)*d]
 				dsrc := g.DX[r*flat+j*d : r*flat+(j+1)*d]
 				coeff := float64(bm[i*n+j])
-				acc := 0.0
+				var acc float64
 				for k, dv := range dst {
 					acc += float64(dv) * float64(src[k])
 					dsrc[k] += float32(coeff * float64(dv))
@@ -132,7 +132,7 @@ func HyperConnectionBackward(x, hOut, dRes []float32, rows int,
 			}
 			row := hOut[r*d : (r+1)*d]
 			c := cGate[r*n+i]
-			acc := 0.0
+			var acc float64
 			for k, dv := range dst {
 				acc += float64(dv) * float64(row[k])
 				g.DHOut[r*d+k] += float32(c * float64(dv))
@@ -158,7 +158,7 @@ func HyperConnectionBackward(x, hOut, dRes []float32, rows int,
 			src := x[r*flat+s*d : r*flat+(s+1)*d]
 			dsrc := g.DX[r*flat+s*d : r*flat+(s+1)*d]
 			gate := aGate[r*n+s]
-			acc := 0.0
+			var acc float64
 			for k, dv := range din {
 				acc += float64(dv) * float64(src[k])
 				dsrc[k] += float32(gate * float64(dv))

@@ -3,6 +3,8 @@ package tensorstats
 import (
 	"math"
 	"sort"
+
+	"overgo/internal/checked"
 )
 
 // IsMatrix reports the spectral operator's dimensional contract.
@@ -49,8 +51,9 @@ func SingularValues(data []float64, rows, cols int) ([]float64, bool) {
 	}
 	eigenvalues := symmetricEigenvalues(gram, k)
 	values := make([]float64, k)
+	var zero float64
 	for i, lambda := range eigenvalues {
-		values[i] = math.Sqrt(math.Max(0, lambda))
+		values[i] = math.Sqrt(math.Max(zero, lambda))
 	}
 	sort.Sort(sort.Reverse(sort.Float64Slice(values)))
 	return values, true
@@ -62,7 +65,8 @@ func SingularValues(data []float64, rows, cols int) ([]float64, bool) {
 func EffectiveRankOf(data []float64, rows, cols int) (float64, bool) {
 	values, ok := SingularValues(data, rows, cols)
 	if !ok {
-		return 0, false
+		var zero float64
+		return zero, false
 	}
 	return EffectiveRank(values)
 }
@@ -78,15 +82,19 @@ func symmetricEigenvalues(symmetric []float64, k int) []float64 {
 	if k == 1 {
 		return []float64{s[0]}
 	}
-	const maxSweeps = 80
-	for sweep := 0; sweep < maxSweeps; sweep++ {
+	epsilon := math.Nextafter(1, 2) - 1
+	for sweep, sweepLimit := 0, k*k; sweep < sweepLimit; sweep++ {
 		var off float64
 		for p := 0; p < k; p++ {
 			for q := p + 1; q < k; q++ {
 				off += s[p*k+q] * s[p*k+q]
 			}
 		}
-		if off <= 1e-30 {
+		scale := off
+		for diagonal := 0; diagonal < k; diagonal++ {
+			scale += s[diagonal*k+diagonal] * s[diagonal*k+diagonal]
+		}
+		if off <= epsilon*epsilon*scale {
 			break
 		}
 		for p := 0; p < k; p++ {
@@ -138,22 +146,23 @@ func symmetricEigenvalues(symmetric []float64, k int) []float64 {
 // positive singular value exists (a zero matrix) or an input is invalid.
 func EffectiveRank(singularValues []float64) (float64, bool) {
 	n := len(singularValues)
+	var zero float64
 	if n == 0 {
-		return 0, false
+		return zero, false
 	}
 	var sum float64
 	for _, s := range singularValues {
-		if s < 0 || math.IsNaN(s) || math.IsInf(s, 0) {
-			return 0, false
+		if !checked.NonNegativeFinite64(s) {
+			return zero, false
 		}
 		sum += s
 	}
-	if sum == 0 {
-		return 0, false
+	if sum == zero {
+		return zero, false
 	}
 	var entropy float64
 	for _, s := range singularValues {
-		if s == 0 {
+		if s == zero {
 			continue // 0·log0 = 0
 		}
 		p := s / sum
@@ -164,5 +173,5 @@ func EffectiveRank(singularValues []float64) (float64, bool) {
 
 // ValidEffectiveRank reports the normalized spectral interval.
 func ValidEffectiveRank(value float64) bool {
-	return value > 0 && value <= 1 && !math.IsNaN(value) && !math.IsInf(value, 0)
+	return checked.PositiveFinite64(value) && value <= 1
 }

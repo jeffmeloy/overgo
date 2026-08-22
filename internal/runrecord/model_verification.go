@@ -27,19 +27,27 @@ const (
 	TierCapabilityMeasured    VerificationTier = "capability-measured"
 )
 
-// Rank orders tiers for matrix derivation; zero marks an invalid tier.
-func (t VerificationTier) Rank() int {
+// Valid reports whether the tier belongs to the verification evidence contract.
+func (t VerificationTier) Valid() bool {
 	switch t {
-	case TierSyntheticDifferential:
-		return 1
-	case TierRealArtifactSmoke:
-		return 2
-	case TierExactGolden:
-		return 3
-	case TierCapabilityMeasured:
-		return 4
+	case TierSyntheticDifferential, TierRealArtifactSmoke, TierExactGolden, TierCapabilityMeasured:
+		return true
 	default:
-		return 0
+		return false
+	}
+}
+
+// StrongerThan reports strict evidence precedence without assigning numeric scores.
+func (t VerificationTier) StrongerThan(other VerificationTier) bool {
+	switch t {
+	case TierCapabilityMeasured:
+		return other.Valid() && other != TierCapabilityMeasured
+	case TierExactGolden:
+		return other == TierRealArtifactSmoke || other == TierSyntheticDifferential
+	case TierRealArtifactSmoke:
+		return other == TierSyntheticDifferential
+	default:
+		return false
 	}
 }
 
@@ -178,7 +186,7 @@ func VerificationMatrix(records []ModelVerification) []MatrixRow {
 		for _, claim := range record.Claims {
 			current := capabilities[claim.Capability]
 			switch {
-			case current == nil || claim.Tier.Rank() > current.claim.Tier.Rank():
+			case current == nil || claim.Tier.StrongerThan(current.claim.Tier):
 				seen := make(map[artifact.ID]bool, len(claim.Evidence))
 				for _, id := range claim.Evidence {
 					seen[id] = true
@@ -186,7 +194,7 @@ func VerificationMatrix(records []ModelVerification) []MatrixRow {
 				winning := claim
 				winning.Evidence = slices.Clone(claim.Evidence)
 				capabilities[claim.Capability] = &slot{claim: winning, seen: seen}
-			case claim.Tier.Rank() == current.claim.Tier.Rank():
+			case claim.Tier == current.claim.Tier:
 				// Equal-tier claims union their evidence. A measured claim
 				// displaces an unmeasured one's provenance -- performance
 				// numbers must surface in the matrix -- otherwise provenance
@@ -258,7 +266,7 @@ func canonicalizeModelVerification(value *ModelVerification) error {
 			strings.Trim(claim.Capability, "abcdefghijklmnopqrstuvwxyz-") != "" {
 			return fmt.Errorf("run record: capability %q must be lowercase kebab-case", claim.Capability)
 		}
-		if claim.Tier.Rank() == 0 {
+		if !claim.Tier.Valid() {
 			return fmt.Errorf("run record: capability %q carries invalid tier %q", claim.Capability, claim.Tier)
 		}
 		if !validCodeCommit(claim.Commit) {
@@ -291,10 +299,12 @@ func canonicalizeModelVerification(value *ModelVerification) error {
 	sort.Slice(value.Claims, func(a, b int) bool {
 		return value.Claims[a].Capability < value.Claims[b].Capability
 	})
-	for i := 1; i < len(value.Claims); i++ {
-		if value.Claims[i].Capability == value.Claims[i-1].Capability {
-			return errors.New("run record: capability claims must be unique")
-		}
+	claimCount := len(value.Claims)
+	value.Claims = slices.CompactFunc(value.Claims, func(left, right CapabilityClaim) bool {
+		return left.Capability == right.Capability
+	})
+	if len(value.Claims) != claimCount {
+		return errors.New("run record: capability claims must be unique")
 	}
 	return nil
 }

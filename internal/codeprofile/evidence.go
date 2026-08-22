@@ -1,6 +1,8 @@
 package codeprofile
 
 import (
+	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"slices"
@@ -54,7 +56,7 @@ func (value Evidence) Lineage() []artifact.Lineage {
 }
 
 func commitIdentity(value string) bool {
-	if len(value) != 40 && len(value) != 64 {
+	if len(value) != hex.EncodedLen(sha1.Size) && len(value) != hex.EncodedLen(sha256.Size) {
 		return false
 	}
 	_, err := hex.DecodeString(value)
@@ -78,13 +80,15 @@ func validateProfile(profile Profile) error {
 		}
 	}
 	for _, clone := range profile.Clones {
-		if len(clone.Fingerprint) != sha256HexLength || clone.Nodes <= 0 || len(clone.Functions) < 2 || !validAdvisoryClass(clone.AdvisoryClass) {
+		if len(clone.Fingerprint) != hex.EncodedLen(sha256.Size) || clone.Nodes <= 0 || !hasFunctionPair(clone.Functions) || !validAdvisoryClass(clone.AdvisoryClass) {
 			return errors.New("invalid clone profile")
 		}
 		if _, err := hex.DecodeString(clone.Fingerprint); err != nil {
 			return errors.New("invalid clone fingerprint")
 		}
-		excess += clone.Nodes * (len(clone.Functions) - 1)
+		excessCopies := len(clone.Functions)
+		excessCopies--
+		excess += clone.Nodes * excessCopies
 	}
 	if excess != profile.DuplicateExcessNodes {
 		return errors.New("duplicate excess does not match clones")
@@ -92,8 +96,17 @@ func validateProfile(profile Profile) error {
 	return nil
 }
 
+func hasFunctionPair(functions []string) bool {
+	found := false
+	for range functions {
+		if found {
+			return true
+		}
+		found = true
+	}
+	return false
+}
+
 func validAdvisoryClass(class string) bool {
 	return class == "" || class == "validator" || class == "test"
 }
-
-const sha256HexLength = 64

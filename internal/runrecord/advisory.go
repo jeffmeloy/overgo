@@ -5,10 +5,9 @@ import (
 	"math"
 	"slices"
 	"sort"
-	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/textcheck"
+	"overgo/internal/checked"
 )
 
 const (
@@ -72,7 +71,7 @@ func DetectRegression(
 	threshold float64,
 ) (Advisory, bool, error) {
 	if window < MinAdvisoryWindow ||
-		threshold <= 0 || math.IsNaN(threshold) || math.IsInf(threshold, 0) || !textcheck.LowerIdentifier(metricName, maxLabelBytes) {
+		!checked.PositiveFinite64(threshold) || !validLabel(metricName) {
 		return Advisory{}, false, errors.New("run record: invalid advisory configuration")
 	}
 	ordered := slices.Clone(observations)
@@ -136,11 +135,8 @@ func ParseAdvisory(content []byte) (Advisory, error) {
 }
 
 func (a Advisory) Surprise() float64 {
-	if a.MAD == 0 {
-		if a.SurpriseNumerator == 0 {
-			return 0
-		}
-		return math.Inf(1)
+	if a.MAD == 0 && a.SurpriseNumerator == 0 {
+		return a.SurpriseNumerator
 	}
 	return a.SurpriseNumerator / a.MAD
 }
@@ -192,11 +188,12 @@ func validateObservation(observation Observation, metricName string) (Metric, er
 }
 
 func regressionDistance(latest, baseline float64, direction Direction) float64 {
+	var noRegression float64
 	switch direction {
 	case DirectionMinimize:
-		return math.Max(0, latest-baseline)
+		return math.Max(noRegression, latest-baseline)
 	case DirectionMaximize:
-		return math.Max(0, baseline-latest)
+		return math.Max(noRegression, baseline-latest)
 	default:
 		return math.Abs(latest - baseline)
 	}
@@ -254,15 +251,14 @@ func medianUint(values []uint64) uint64 {
 func canonicalizeAdvisory(advisory *Advisory) error {
 	if advisory == nil || advisory.Version != artifact.InitialDocumentVersion ||
 		advisory.Recipe.Kind() != artifact.KindRecipe || advisory.Environment.Kind() != artifact.KindEvidence ||
-		advisory.LatestRun.Kind() != artifact.KindRun || !textcheck.LowerIdentifier(advisory.Metric, maxLabelBytes) ||
-		len(advisory.Unit) > maxLabelBytes || strings.TrimSpace(advisory.Unit) != advisory.Unit ||
-		strings.ContainsAny(advisory.Unit, "\r\n") || advisory.WindowStart == 0 ||
+		advisory.LatestRun.Kind() != artifact.KindRun || !validLabel(advisory.Metric) || !validUnit(advisory.Unit) ||
+		advisory.WindowStart == 0 ||
 		advisory.WindowEnd < advisory.WindowStart || advisory.LatestSequence <= advisory.WindowEnd ||
 		advisory.Direction != DirectionNeutral && advisory.Direction != DirectionMinimize &&
 			advisory.Direction != DirectionMaximize ||
-		!finite(advisory.LatestValue) || !finite(advisory.BaselineMedian) || advisory.MAD < 0 ||
-		!finite(advisory.MAD) || advisory.SurpriseNumerator <= 0 || !finite(advisory.SurpriseNumerator) ||
-		advisory.Threshold <= 0 || !finite(advisory.Threshold) ||
+		!checked.Finite64(advisory.LatestValue) || !checked.Finite64(advisory.BaselineMedian) ||
+		!checked.NonNegativeFinite64(advisory.MAD) || !checked.PositiveFinite64(advisory.SurpriseNumerator) ||
+		!checked.PositiveFinite64(advisory.Threshold) ||
 		len(advisory.SourceRuns) < MinAdvisoryWindow+1 ||
 		len(advisory.SourceRuns) != len(advisory.SourceEvaluations) {
 		return errors.New("run record: invalid advisory")
@@ -295,10 +291,6 @@ func canonicalizeAdvisory(advisory *Advisory) error {
 		}
 	}
 	return nil
-}
-
-func finite(value float64) bool {
-	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
 func cloneAdvisory(advisory Advisory) Advisory {

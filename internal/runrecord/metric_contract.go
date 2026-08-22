@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 )
 
 // SeedComparison is one seed's parent-versus-child held-out measurement
@@ -31,7 +32,7 @@ type MetricContract struct {
 }
 
 // ValidateDescendantImprovement judges the contract: every seed's child must
-// beat its parent; the mean improvement must exceed the observed parent
+// beat its parent; the worst seed improvement must exceed the observed parent
 // noise envelope (max-min across seeds -- measured, never a knob); no child
 // measurement may cross the critical floor; cost must be reported; and the
 // holdout spend must fit its budget. Any violation is a typed refusal.
@@ -39,18 +40,19 @@ func ValidateDescendantImprovement(contract MetricContract) error {
 	if !contract.Evaluator.Valid() || !contract.Split.Valid() {
 		return errors.New("run record: metric contract requires evaluator and split identities")
 	}
-	if len(contract.Comparisons) < 2 {
+	if !hasComparisonPair(contract.Comparisons) {
 		return fmt.Errorf("run record: metric contract requires multi-seed comparisons, have %d", len(contract.Comparisons))
 	}
-	if contract.CostNS == 0 {
+	if !checked.Nonzero(contract.CostNS) {
 		return errors.New("run record: metric contract requires the measured resource cost")
 	}
-	if contract.HoldoutBudget == 0 || contract.HoldoutQueries > contract.HoldoutBudget {
+	if !checked.Nonzero(contract.HoldoutBudget) || contract.HoldoutQueries > contract.HoldoutBudget {
 		return fmt.Errorf("run record: holdout spend %d exceeds budget %d",
 			contract.HoldoutQueries, contract.HoldoutBudget)
 	}
-	parentLow, parentHigh := contract.Comparisons[0].Parent, contract.Comparisons[0].Parent
-	meanImprovement := 0.0
+	first, _ := checked.First(contract.Comparisons)
+	parentLow, parentHigh := first.Parent, first.Parent
+	worstImprovement := first.Parent - first.Child
 	seen := map[uint64]bool{}
 	for _, comparison := range contract.Comparisons {
 		if seen[comparison.Seed] {
@@ -61,7 +63,7 @@ func ValidateDescendantImprovement(contract MetricContract) error {
 			return fmt.Errorf("run record: seed %d child %.6f does not beat parent %.6f",
 				comparison.Seed, comparison.Child, comparison.Parent)
 		}
-		if contract.CriticalFloor > 0 && comparison.Child > contract.CriticalFloor {
+		if checked.PositiveFinite64(contract.CriticalFloor) && comparison.Child > contract.CriticalFloor {
 			return fmt.Errorf("run record: seed %d child %.6f crosses the critical floor %.6f",
 				comparison.Seed, comparison.Child, contract.CriticalFloor)
 		}
@@ -71,12 +73,23 @@ func ValidateDescendantImprovement(contract MetricContract) error {
 		if comparison.Parent > parentHigh {
 			parentHigh = comparison.Parent
 		}
-		meanImprovement += (comparison.Parent - comparison.Child) / float64(len(contract.Comparisons))
+		worstImprovement = min(worstImprovement, comparison.Parent-comparison.Child)
 	}
 	noise := parentHigh - parentLow
-	if meanImprovement <= noise {
-		return fmt.Errorf("run record: mean improvement %.6f does not exceed the observed parent noise envelope %.6f",
-			meanImprovement, noise)
+	if worstImprovement <= noise {
+		return fmt.Errorf("run record: worst improvement %.6f does not exceed the observed parent noise envelope %.6f",
+			worstImprovement, noise)
 	}
 	return nil
+}
+
+func hasComparisonPair(comparisons []SeedComparison) bool {
+	found := false
+	for range comparisons {
+		if found {
+			return true
+		}
+		found = true
+	}
+	return false
 }

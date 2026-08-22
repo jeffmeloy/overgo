@@ -8,7 +8,6 @@ import (
 	"sort"
 
 	"overgo/internal/artifact"
-	"overgo/internal/textcheck"
 )
 
 const (
@@ -140,7 +139,7 @@ func canonicalizeGateResult(result *GateResult) error {
 			return errors.New("run record: successful gate has failure code")
 		}
 	case OutcomeFailed:
-		if !textcheck.LowerIdentifier(result.Failure, maxLabelBytes) {
+		if !validLabel(result.Failure) {
 			return errors.New("run record: failed gate lacks failure code")
 		}
 	case OutcomeCancelled:
@@ -155,11 +154,11 @@ func canonicalizeGateResult(result *GateResult) error {
 	for _, step := range result.Steps {
 		_, duplicate := seen[step.Name]
 		switch {
-		case !textcheck.LowerIdentifier(step.Name, maxLabelBytes):
+		case !validLabel(step.Name):
 			return fmt.Errorf("run record: invalid gate step name %q", step.Name)
 		case !validPhase(step.Phase):
 			return fmt.Errorf("run record: gate step %q has invalid phase", step.Name)
-		case step.Evidence != "" && !textcheck.Bounded(step.Evidence, 2048, "\x00\r\n"):
+		case step.Evidence != "" && !validText(step.Evidence):
 			return fmt.Errorf("run record: gate step %q has invalid evidence", step.Name)
 		case step.DurationNS > math.MaxInt64 || step.Outcome != StepSkipped && step.DurationNS == 0:
 			return fmt.Errorf("run record: gate step %q has invalid duration", step.Name)

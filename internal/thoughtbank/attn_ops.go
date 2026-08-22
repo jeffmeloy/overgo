@@ -3,6 +3,8 @@ package thoughtbank
 import (
 	"fmt"
 	"math"
+
+	"overgo/internal/checked"
 )
 
 // Attention primitives for the DeepSeek-V4-derived hybrid attention: rotary
@@ -77,8 +79,12 @@ func AttentionSinkSoftmaxInto(out, logits, sink []float32, rows, heads, n int) {
 		for h := 0; h < heads; h++ {
 			row := logits[(r*heads+h)*n : (r*heads+h+1)*n]
 			dst := out[(r*heads+h)*n : (r*heads+h+1)*n]
-			maxLogit := math.Inf(-1)
-			for _, v := range row {
+			first, ok := checked.First(row)
+			if !ok {
+				continue
+			}
+			maxLogit := float64(first)
+			for _, v := range row[1:] {
 				if f := float64(v); f > maxLogit {
 					maxLogit = f
 				}
@@ -97,13 +103,17 @@ func AttentionSinkSoftmaxInto(out, logits, sink []float32, rows, heads, n int) {
 	}
 }
 
+func attentionSinkSoftmaxVector(out, logits, sink []float32, heads, n int) {
+	AttentionSinkSoftmaxInto(out, logits, sink, len(logits)/(heads*n), heads, n)
+}
+
 type compressionSeries struct {
 	value, score, position []float32
 	blockOffset            int
 }
 
 func compressKV(hPad []float32, series []compressionSeries, blocks, m, dModel, dHead int) ([]float32, error) {
-	if len(hPad) != blocks*m*dModel || len(series) == 0 {
+	if !checked.PositiveInts(blocks, m, dModel, dHead) || len(hPad) != blocks*m*dModel || len(series) == 0 {
 		return nil, fmt.Errorf("compress kv: input or series shape differs")
 	}
 	for _, source := range series {
@@ -115,6 +125,7 @@ func compressKV(hPad []float32, series []compressionSeries, blocks, m, dModel, d
 	candidates := len(series) * m
 	values, scores := make([]float64, candidates*dHead), make([]float64, candidates*dHead)
 	out := make([]float32, blocks*dHead)
+	negativeInfinity := math.Inf(-len(series))
 	for block := 0; block < blocks; block++ {
 		for sourceIndex, source := range series {
 			sourceBlock := block + source.blockOffset
@@ -122,8 +133,7 @@ func compressKV(hPad []float32, series []compressionSeries, blocks, m, dModel, d
 				candidate := sourceIndex*m + position
 				if sourceBlock < 0 {
 					for feature := 0; feature < dHead; feature++ {
-						values[candidate*dHead+feature] = 0
-						scores[candidate*dHead+feature] = math.Inf(-1)
+						scores[candidate*dHead+feature] = negativeInfinity
 					}
 					continue
 				}
@@ -136,8 +146,8 @@ func compressKV(hPad []float32, series []compressionSeries, blocks, m, dModel, d
 			}
 		}
 		for feature := 0; feature < dHead; feature++ {
-			maxScore := math.Inf(-1)
-			for candidate := 0; candidate < candidates; candidate++ {
+			maxScore := scores[feature]
+			for candidate := range candidates {
 				maxScore = max(maxScore, scores[candidate*dHead+feature])
 			}
 			var denominator, numerator float64

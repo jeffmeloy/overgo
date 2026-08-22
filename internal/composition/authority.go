@@ -9,7 +9,6 @@ import (
 	"overgo/internal/bridgegraph"
 	"overgo/internal/recipe"
 	"overgo/internal/representation"
-	"overgo/internal/tensor"
 )
 
 const (
@@ -419,6 +418,7 @@ func validateCompositionAuthority(value CompositionAuthority) error {
 	if err := value.PromotionPolicy.ValidateIdentity(); err != nil {
 		return err
 	}
+	sourceChannels, hasSourceChannels := representationAxisExtent(value.SourceContract.Tensor, representation.AxisChannel)
 	if value.Recipe.ExternalCrossAttention.Valid() {
 		if value.ExternalCrossAttention == nil ||
 			value.ExternalCrossAttention.ValidateIdentity() != nil ||
@@ -426,7 +426,7 @@ func validateCompositionAuthority(value CompositionAuthority) error {
 			value.ExternalCrossAttention.Source != value.Recipe.SourceModel ||
 			value.ExternalCrossAttention.Target != value.Recipe.TargetModel ||
 			value.ExternalCrossAttention.Adapter != value.Recipe.BridgeWeights ||
-			value.ExternalCrossAttention.SourceChannels != value.SourceContract.Tensor.Axes[tensor.FirstOffset].Bounds.Extent {
+			!hasSourceChannels || value.ExternalCrossAttention.SourceChannels != sourceChannels {
 			return errors.New("composition: external cross-attention authority differs")
 		}
 	} else if value.ExternalCrossAttention != nil {
@@ -459,6 +459,16 @@ func validateCompositionAuthority(value CompositionAuthority) error {
 		return errors.New("composition: composition authority cross-reference differs")
 	}
 	return nil
+}
+
+func representationAxisExtent(value representation.TensorContract, kind representation.AxisKind) (uint64, bool) {
+	for _, axis := range value.Axes {
+		if axis.Kind == kind {
+			return axis.Bounds.Extent, true
+		}
+	}
+	var extent uint64
+	return extent, false
 }
 
 func loadCompositionAuthority(

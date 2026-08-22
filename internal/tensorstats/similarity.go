@@ -90,7 +90,7 @@ func featureRanks(pool []Characterization) [][7]float64 {
 	}
 	denom := float64(n - 1)
 	order := make([]int, n)
-	for f := 0; f < 7; f++ {
+	for f := range feats[0] {
 		for i := range order {
 			order[i] = i
 		}

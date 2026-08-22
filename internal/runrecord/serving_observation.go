@@ -8,7 +8,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
-	"overgo/internal/textcheck"
 )
 
 const (
@@ -149,7 +148,7 @@ func canonicalizeServingObservation(value *ServingObservation) error {
 			return errors.New("run record: successful serving observation has failure")
 		}
 	case OutcomeFailed:
-		if !textcheck.LowerIdentifier(value.Failure, maxLabelBytes) {
+		if !validLabel(value.Failure) {
 			return errors.New("run record: failed serving observation needs failure code")
 		}
 	case OutcomeCancelled:
@@ -163,28 +162,27 @@ func canonicalizeServingObservation(value *ServingObservation) error {
 		return err
 	}
 	var elapsed uint64
-	order := 0
+	var previousStage ServingHardwareStage
 	for index, sample := range value.Hardware {
-		next := servingHardwareStageOrder(sample.Stage)
-		if next <= order ||
+		if !servingHardwareStageFollows(previousStage, sample.Stage) ||
 			sample.DeviceCurrentBytes > sample.DevicePeakBytes || sample.ElapsedNS > value.MeasuredNS ||
 			index > 0 && sample.ElapsedNS < elapsed {
 			return errors.New("run record: invalid serving hardware sample")
 		}
-		order, elapsed = next, sample.ElapsedNS
+		previousStage, elapsed = sample.Stage, sample.ElapsedNS
 	}
 	return nil
 }
 
-func servingHardwareStageOrder(stage ServingHardwareStage) int {
-	switch stage {
+func servingHardwareStageFollows(previous, next ServingHardwareStage) bool {
+	switch previous {
+	case "":
+		return next == ServingHardwareStart || next == ServingHardwarePrefill || next == ServingHardwareFinish
 	case ServingHardwareStart:
-		return 1
+		return next == ServingHardwarePrefill || next == ServingHardwareFinish
 	case ServingHardwarePrefill:
-		return 2
-	case ServingHardwareFinish:
-		return 3
+		return next == ServingHardwareFinish
 	default:
-		return 0
+		return false
 	}
 }

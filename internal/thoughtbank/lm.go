@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/hostmath"
 )
 
@@ -143,12 +144,12 @@ func writeThoughtSlot(hText, bank []float32, seq, slots int, w *FastWeightBankLM
 
 	// Attention pool over positions.
 	scores := make([]float64, seq)
-	maxS := math.Inf(-1)
 	for t := 0; t < seq; t++ {
 		scores[t] = dot(wr.WriteCtxQ[:d], hText[t*d:(t+1)*d])
-		if scores[t] > maxS {
-			maxS = scores[t]
-		}
+	}
+	maxS, _ := checked.First(scores)
+	for _, score := range scores {
+		maxS = max(maxS, score)
 	}
 	var sum float64
 	for t := 0; t < seq; t++ {
@@ -167,7 +168,7 @@ func writeThoughtSlot(hText, bank []float32, seq, slots int, w *FastWeightBankLM
 	for i := 0; i < md; i++ {
 		thought[i] = float32(dot(wr.ThoughtHead[i*d:(i+1)*d], ctx))
 	}
-	thought = rmsNormNew(thought, wr.NormWrite, 1, md, w.NormEps)
+	thought = rmsNormVector(thought, wr.NormWrite, md, w.NormEps)
 
 	alpha := sigmoid(dot(wr.WriteDecision[:d], ctx) + float64(wr.WriteDecBias[0]))
 
@@ -290,12 +291,12 @@ func collapseStreams(x []float32, seq, n, d int, proj []float32) []float32 {
 			}
 			mean[j] = float32(acc / float64(n))
 		}
-		maxL := math.Inf(-1)
 		for s := 0; s < n; s++ {
 			logits[s] = dot(proj[s*d:(s+1)*d], mean)
-			if logits[s] > maxL {
-				maxL = logits[s]
-			}
+		}
+		maxL, _ := checked.First(logits)
+		for _, score := range logits {
+			maxL = max(maxL, score)
 		}
 		var sum float64
 		for s := 0; s < n; s++ {
@@ -310,4 +311,8 @@ func collapseStreams(x []float32, seq, n, d int, proj []float32) []float32 {
 		}
 	}
 	return out
+}
+
+func collapseStreamVector(x []float32, n, d int, projection []float32) []float32 {
+	return collapseStreams(x, len(x)/(n*d), n, d, projection)
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"overgo/internal/checked"
 	"overgo/internal/pytorchzip"
 )
 
@@ -156,13 +157,14 @@ func bindCheckpoint(config ArchConfig, tensors map[string][]float32) (*FastWeigh
 		value := func(name string) []float32 { return get(prefix + name) }
 		scalar := func(name string) float32 {
 			values := value(name)
-			if len(values) == 0 {
+			first, ok := checked.First(values)
+			if !ok {
 				if bindErr == nil {
 					bindErr = fmt.Errorf("thoughtbank checkpoint: tensor %q is empty", prefix+name)
 				}
-				return 0
+				return first
 			}
-			return values[0]
+			return first
 		}
 		sparse := layer%2 == 0
 		blockSize := config.HCAm

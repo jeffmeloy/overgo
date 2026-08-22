@@ -46,10 +46,7 @@ func FastWeightBankReadBackward(h, bank, dOut []float32, rows, slots int, w *Fas
 	if len(dOut) != rows*d {
 		return nil, fmt.Errorf("fast-weight bank backward: dOut has %d values, want %d", len(dOut), rows*d)
 	}
-	na := 1
-	if w.SwiGLU {
-		na = 2
-	}
+	na := activationProjectionCount(w.SwiGLU)
 	ds := 1.0 / math.Sqrt(float64(d))
 	rs := 1.0 / math.Sqrt(float64(r))
 	eps := w.NormEps

@@ -138,6 +138,7 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 	vAll := make([]float32, nkv*dh)
 	logits := make([]float32, nh*nkv)
 	weights := make([]float32, nh*nkv)
+	negativeInfinity := float32(math.Inf(-nkv))
 	headOut := make([]float32, seq*nh*dh)
 	scores := make([]float64, nBlocks)
 	order := make([]int, nBlocks)
@@ -152,8 +153,8 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 		if w.Sparse {
 			// Lightning indexer: multi-head ReLU affinity, aggregated by learned
 			// per-head scalars. It scores the RAW compressed blocks.
-			for b := 0; b < nBlocks; b++ {
-				scores[b] = 0
+			clear(scores)
+			for b := range nBlocks {
 				order[b] = b
 			}
 			c := cq[t*w.DLatentQ : (t+1)*w.DLatentQ]
@@ -167,27 +168,21 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 						acc += qi * float64(comp[b*dh+e])
 					}
 					acc /= math.Sqrt(float64(dh))
-					if acc < 0 {
-						acc = 0 // ReLU
+					var zero float64
+					if acc < zero {
+						acc = zero // ReLU
 					}
 					scores[b] += hw * acc
 				}
 			}
 			// Causal at BLOCK granularity: token t sees block j only if j < t/m.
-			for b := 0; b < nBlocks; b++ {
-				if blockOfT <= b {
-					scores[b] = math.Inf(-1)
-				}
-			}
-			sort.SliceStable(order, func(a, b int) bool { return scores[order[a]] > scores[order[b]] })
-			for i := 0; i < sel; i++ {
-				b := order[i]
-				if math.IsInf(scores[b], -1) {
-					continue // stays invalid; masked below
-				}
+			eligible := order[:blockOfT]
+			sort.SliceStable(eligible, func(a, b int) bool { return scores[eligible[a]] > scores[eligible[b]] })
+			for i := range min(sel, len(eligible)) {
+				b := eligible[i]
 				valid[i] = true
 				src := comp[b*dh : (b+1)*dh]
-				n := rmsNormNew(src, w.KVNorm, 1, dh, w.NormEps)
+				n := rmsNormVector(src, w.KVNorm, dh, w.NormEps)
 				copy(kAll[i*dh:(i+1)*dh], n)
 				copy(vAll[i*dh:(i+1)*dh], n)
 			}
@@ -198,9 +193,8 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 					copy(kAll[b*dh:(b+1)*dh], comp[b*dh:(b+1)*dh])
 					copy(vAll[b*dh:(b+1)*dh], comp[b*dh:(b+1)*dh])
 				} else {
-					for e := 0; e < dh; e++ {
-						kAll[b*dh+e], vAll[b*dh+e] = 0, 0
-					}
+					clear(kAll[b*dh : (b+1)*dh])
+					clear(vAll[b*dh : (b+1)*dh])
 				}
 			}
 		}
@@ -209,9 +203,8 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 			src := t - w.NWin + j
 			dst := (sel + j) * dh
 			if src < 0 {
-				for e := 0; e < dh; e++ {
-					kAll[dst+e], vAll[dst+e] = 0, 0
-				}
+				clear(kAll[dst : dst+dh])
+				clear(vAll[dst : dst+dh])
 				continue
 			}
 			copy(kAll[dst:dst+dh], wk[src*dh:(src+1)*dh])
@@ -224,18 +217,16 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 			qv := q[(t*nh+hd)*dh : (t*nh+hd+1)*dh]
 			for n := 0; n < nkv; n++ {
 				if n < sel && !valid[n] {
-					logits[hd*nkv+n] = float32(math.Inf(-1))
+					logits[hd*nkv+n] = negativeInfinity
 					continue
 				}
 				logits[hd*nkv+n] = float32(dot(kAll[n*dh:(n+1)*dh], qv) * invSqrt)
 			}
 		}
-		AttentionSinkSoftmaxInto(weights, logits, w.SinkLogits, 1, nh, nkv)
+		attentionSinkSoftmaxVector(weights, logits, w.SinkLogits, nh, nkv)
 		for hd := 0; hd < nh; hd++ {
 			dst := headOut[(t*nh+hd)*dh : (t*nh+hd+1)*dh]
-			for e := range dst {
-				dst[e] = 0
-			}
+			clear(dst)
 			for n := 0; n < nkv; n++ {
 				a := float64(weights[hd*nkv+n])
 				if a == 0 {
@@ -282,4 +273,8 @@ func groupedOutputProjection(headOut []float32, seq, nh, dh int, w *CompressedHy
 		}
 	}
 	return out, nil
+}
+
+func groupedOutputVector(headOut []float32, nh, dh int, weights *CompressedHybridAttnWeights) ([]float32, error) {
+	return groupedOutputProjection(headOut, len(headOut)/(nh*dh), nh, dh, weights)
 }

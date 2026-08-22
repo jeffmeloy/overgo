@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -166,6 +167,28 @@ func TestBoundRunEnvironmentAndPhasesRoundTrip(t *testing.T) {
 	}
 	if len(run.Lineage()) != 3 {
 		t.Fatalf("bound run lineage = %+v", run.Lineage())
+	}
+}
+
+func TestEnvironmentHasNoIndependentFieldLengthPolicy(t *testing.T) {
+	host := strings.Repeat("execution-node-", len(EnvironmentMediaType)*len(EnvironmentSchema))
+	if _, err := NewEnvironment(Environment{
+		Host: host, OS: "windows", Arch: "amd64", Device: "device", Backend: "backend", Driver: "driver",
+	}); err != nil {
+		t.Fatalf("canonical environment was rejected by an independent field-length policy: %v", err)
+	}
+}
+
+func TestMetricHasNoIndependentLabelLengthPolicy(t *testing.T) {
+	name := strings.Repeat("measured_metric_", len(EvaluationMediaType)) + "value"
+	unit := strings.Repeat("derived-unit-", len(EvaluationSchema)) + "value"
+	if _, err := NewEvaluation(
+		testutil.ArtifactID(t, artifact.KindRecipe, "long-metric-recipe"),
+		testutil.ArtifactID(t, artifact.KindRun, "long-metric-run"),
+		testutil.ArtifactID(t, artifact.KindDataset, "long-metric-dataset"),
+		[]Metric{{Name: name, Value: 1, Unit: unit, Direction: DirectionNeutral}},
+	); err != nil {
+		t.Fatalf("canonical metric was rejected by an independent label-length policy: %v", err)
 	}
 }
 

@@ -1,6 +1,8 @@
 package codeprofile
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"testing"
 
@@ -15,7 +17,7 @@ func TestASTProfileEvidence(t *testing.T) {
 	profile := Profile{
 		Runtime:              Partition{Files: 2, Nodes: 20},
 		Functions:            []Function{{File: "internal/p.go", Name: "f", Nodes: 5}},
-		Clones:               []Clone{{Fingerprint: strings.Repeat("0", sha256HexLength), Nodes: 5, Functions: []string{"a:f", "b:g"}}},
+		Clones:               []Clone{{Fingerprint: strings.Repeat("0", hex.EncodedLen(sha256.Size)), Nodes: 5, Functions: []string{"a:f", "b:g"}}},
 		DuplicateExcessNodes: 5,
 	}
 	evidence, err := NewEvidence("0123456789abcdef0123456789abcdef01234567", gate, profile)

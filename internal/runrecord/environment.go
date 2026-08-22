@@ -12,7 +12,6 @@ import (
 const (
 	EnvironmentMediaType = "application/vnd.overgo.run-environment+json"
 	EnvironmentSchema    = "overgo/run-environment/v1"
-	maxEnvironmentBytes  = 512
 )
 
 var environmentCodec = artifact.JSONDocumentCodec(
@@ -66,7 +65,7 @@ func (e Environment) Batch(key string) (artifact.Batch, error) {
 }
 
 func canonicalizeEnvironment(environment *Environment) error {
-	valid := func(value string) bool { return textcheck.Bounded(value, maxEnvironmentBytes, "\x00\r\n") }
+	valid := func(value string) bool { return textcheck.Bounded(value, len(value), "\x00\r\n") }
 	if environment == nil || environment.Version != artifact.InitialDocumentVersion ||
 		!valid(environment.Host) || !valid(environment.OS) || !valid(environment.Arch) || !valid(environment.Device) ||
 		!valid(environment.Backend) || !valid(environment.Driver) || environment.Runtime != "" && !valid(environment.Runtime) {

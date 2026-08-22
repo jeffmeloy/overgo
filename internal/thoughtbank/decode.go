@@ -153,8 +153,8 @@ func (s *FastWeightBankLMDecodeState) stepToken(id int32) ([]float32, error) {
 		x = out
 	}
 
-	hText := collapseStreams(x, 1, n, d, w.AOutNet)
-	hText = rmsNormNew(hText, w.NormOut, 1, d, w.NormEps)
+	hText := collapseStreamVector(x, n, d, w.AOutNet)
+	hText = rmsNormVector(hText, w.NormOut, d, w.NormEps)
 	s.hText = append(s.hText, hText...)
 
 	head := w.LMHead
@@ -179,7 +179,7 @@ func (c *fwbAttnLayerCache) decodeBlock(x, bank []float32, slots, pos int, w *Hy
 	n, d := w.NHC, w.DModel
 
 	var attnErr error
-	out, err := HyperConnectionForward(x, 1, w.MHCAttn, func(in []float32, rows, dd int) []float32 {
+	out, err := hyperConnectionVector(x, w.MHCAttn, func(in []float32, rows, dd int) []float32 {
 		normed := rmsNormNew(in, w.NormAttn, rows, dd, w.NormEps)
 		y, e := c.attnStep(normed, pos)
 		if e != nil {
@@ -196,8 +196,8 @@ func (c *fwbAttnLayerCache) decodeBlock(x, bank []float32, slots, pos int, w *Hy
 	}
 
 	if w.ReadBank && slots > 0 && len(bank) > 0 {
-		h0 := collapseStreams(out, 1, n, d, w.ACrossNet)
-		h1, e := FastWeightBankRead(h0, bank, 1, slots, w.Bank)
+		h0 := collapseStreamVector(out, n, d, w.ACrossNet)
+		h1, e := fastWeightBankReadVector(h0, bank, slots, w.Bank)
 		if e != nil {
 			return nil, e
 		}
@@ -209,7 +209,7 @@ func (c *fwbAttnLayerCache) decodeBlock(x, bank []float32, slots, pos int, w *Hy
 	}
 
 	var moeErr error
-	out, err = HyperConnectionForward(out, 1, w.MHCMoE, func(in []float32, rows, dd int) []float32 {
+	out, err = hyperConnectionVector(out, w.MHCMoE, func(in []float32, rows, dd int) []float32 {
 		normed := rmsNormNew(in, w.NormMoE, rows, dd, w.NormEps)
 		y, _, e := SharedRoutedMoEForward(normed, rows, w.MoE)
 		if e != nil {
@@ -277,8 +277,9 @@ func (c *fwbAttnLayerCache) attnStep(h []float32, pos int) ([]float32, error) {
 					acc += qi * float64(cb[e])
 				}
 				acc *= invSqrtDh
-				if acc < 0 {
-					acc = 0 // ReLU
+				var zero float64
+				if acc < zero {
+					acc = zero // ReLU
 				}
 				scores[b] += hw * acc
 			}
@@ -297,7 +298,7 @@ func (c *fwbAttnLayerCache) attnStep(h []float32, pos int) ([]float32, error) {
 	kAll := make([]float32, nkv*dh)
 	vAll := make([]float32, nkv*dh)
 	for i, b := range selBlocks {
-		nb := rmsNormNew(c.comp[b], w.KVNorm, 1, dh, w.NormEps)
+		nb := rmsNormVector(c.comp[b], w.KVNorm, dh, w.NormEps)
 		copy(kAll[i*dh:(i+1)*dh], nb)
 		copy(vAll[i*dh:(i+1)*dh], nb)
 	}
@@ -324,7 +325,7 @@ func (c *fwbAttnLayerCache) attnStep(h []float32, pos int) ([]float32, error) {
 			logits[hd*nkv+nn] = float32(dot(kAll[nn*dh:(nn+1)*dh], qv) * invSqrt)
 		}
 	}
-	AttentionSinkSoftmaxInto(weights, logits, w.SinkLogits, 1, nh, nkv)
+	attentionSinkSoftmaxVector(weights, logits, w.SinkLogits, nh, nkv)
 	headOut := make([]float32, nh*dh)
 	for hd := 0; hd < nh; hd++ {
 		dst := headOut[hd*dh : (hd+1)*dh]
@@ -338,7 +339,7 @@ func (c *fwbAttnLayerCache) attnStep(h []float32, pos int) ([]float32, error) {
 			}
 		}
 	}
-	out, err := groupedOutputProjection(headOut, 1, nh, dh, w)
+	out, err := groupedOutputVector(headOut, nh, dh, w)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +373,7 @@ func (c *fwbAttnLayerCache) appendToken(pos int, hidden []float32) error {
 		windowKey[feature] = float32(dot(w.WWk[feature*d:(feature+1)*d], hidden))
 		windowValue[feature] = float32(dot(w.WWv[feature*d:(feature+1)*d], hidden))
 	}
-	windowKey = rmsNormNew(windowKey, w.KVNorm, 1, dh, w.NormEps)
+	windowKey = rmsNormVector(windowKey, w.KVNorm, dh, w.NormEps)
 	c.pushWindow(pos, windowKey, windowValue)
 	return c.appendBlockToken(hidden)
 }
@@ -401,20 +402,23 @@ func (c *fwbAttnLayerCache) appendBlockToken(h []float32) error {
 	if w.Sparse {
 		if c.prevBlock == nil {
 			// Block 0: phantom predecessor, exactly the reference's block 0.
-			comp, err = CompressKVSparse(c.curBlock, w.WKVa, w.WKVb, w.WZa, w.WZb, w.PosA, w.PosB, 1, m, d, dh)
+			blocks := len(c.curBlock) / (m * d)
+			comp, err = CompressKVSparse(c.curBlock, w.WKVa, w.WKVb, w.WZa, w.WZb, w.PosA, w.PosB, blocks, m, d, dh)
 		} else {
 			// Block b>0 is index 1 of a [prev, cur] pair; its series-b reads prev.
-			cat := make([]float32, 2*m*d)
+			cat := make([]float32, len(c.prevBlock)+len(c.curBlock))
 			copy(cat, c.prevBlock)
 			copy(cat[m*d:], c.curBlock)
 			var two []float32
-			two, err = CompressKVSparse(cat, w.WKVa, w.WKVb, w.WZa, w.WZb, w.PosA, w.PosB, 2, m, d, dh)
+			blocks := len(cat) / (m * d)
+			two, err = CompressKVSparse(cat, w.WKVa, w.WKVb, w.WZa, w.WZb, w.PosA, w.PosB, blocks, m, d, dh)
 			if err == nil {
-				comp = two[dh : 2*dh]
+				comp = two[len(two)-dh:]
 			}
 		}
 	} else {
-		comp, err = CompressKVHeavy(c.curBlock, w.WKV, w.WZ, w.Pos, 1, m, d, dh)
+		blocks := len(c.curBlock) / (m * d)
+		comp, err = CompressKVHeavy(c.curBlock, w.WKV, w.WZ, w.Pos, blocks, m, d, dh)
 	}
 	if err != nil {
 		return err

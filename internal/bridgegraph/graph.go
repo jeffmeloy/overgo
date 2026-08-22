@@ -33,22 +33,32 @@ const (
 
 // Definition binds one shape-changing operator to exact interface artifacts.
 type Definition struct {
-	Source           artifact.ID
-	Target           artifact.ID
-	Operator         Operator
-	Intermediate     uint64
-	Bias             bool
-	Vocabulary       artifact.ID
-	VocabularyHead   artifact.ID
-	TargetEmbedding  artifact.ID
-	VocabularySize   uint64
-	VocabularyLimit  uint64
-	EmbeddingMode    EmbeddingMode
-	LatentCount      uint64
-	HeadCount        uint64
-	SourceTokenLimit uint64
-	LoRARank         uint64
-	ScaleLimit       float32
+	Source           artifact.ID   `json:"source"`
+	Target           artifact.ID   `json:"target"`
+	Operator         Operator      `json:"operator"`
+	Intermediate     uint64        `json:"intermediate,omitempty"`
+	Bias             bool          `json:"bias,omitempty"`
+	Vocabulary       artifact.ID   `json:"vocabulary,omitzero"`
+	VocabularyHead   artifact.ID   `json:"vocabulary_head,omitzero"`
+	TargetEmbedding  artifact.ID   `json:"target_embedding,omitzero"`
+	VocabularySize   uint64        `json:"vocabulary_size,omitempty"`
+	VocabularyLimit  uint64        `json:"vocabulary_limit,omitempty"`
+	EmbeddingMode    EmbeddingMode `json:"embedding_mode,omitempty"`
+	LatentCount      uint64        `json:"latent_count,omitempty"`
+	HeadCount        uint64        `json:"head_count,omitempty"`
+	SourceTokenLimit uint64        `json:"source_token_limit,omitempty"`
+	LoRARank         uint64        `json:"lora_rank,omitempty"`
+	ScaleLimit       float32       `json:"scale_limit,omitempty"`
+}
+
+// Valid reports whether the operator belongs to the sealed bridge vocabulary.
+func (operator Operator) Valid() bool {
+	switch operator {
+	case OperatorLinear, OperatorMLPGELU, OperatorAlignVocabulary, OperatorPerceiver, OperatorConditionalLoRA:
+		return true
+	default:
+		return false
+	}
 }
 
 // Weights are graph nodes supplied by the bridge artifact loader.

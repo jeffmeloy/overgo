@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "repodb-authority",
-          "title": "Establish RepoDB authority for contracts, bridges, recipes, promotion, and scoped activation",
-          "status": "open",
-          "verify": "go test ./internal/composition ./internal/repodb -run 'Test(RepresentationContractRepository|BridgeDefinitionRepository|CompositionRecipeRepository|ActiveCompositionAlias)' -count=1"
-        },
-        {
           "id": "execution-plan",
           "title": "Compile one typed authoritative composition execution plan",
           "status": "open",

@@ -1,6 +1,7 @@
 package composition
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"sort"
@@ -91,6 +92,29 @@ func (RepresentationBridgePromoter) Evaluate(
 // Parse validates canonical serialized promotion evidence.
 func (RepresentationBridgePromoter) Parse(data []byte) (RepresentationBridgePromotion, error) {
 	return representationBridgePromotionCodec.Parse(data)
+}
+
+// LoadRepresentationBridgePromotion resolves exact immutable promotion
+// evidence and rejects descriptor, schema, or content-identity drift.
+func LoadRepresentationBridgePromotion(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (RepresentationBridgePromotion, error) {
+	content, err := loadCompositionContent(
+		ctx, reader, id, artifact.KindEvidence,
+		RepresentationBridgePromotionMediaType, RepresentationBridgePromotionSchema,
+	)
+	if err != nil {
+		return RepresentationBridgePromotion{}, err
+	}
+	value, err := (RepresentationBridgePromoter{}).Parse(content.Data)
+	if err != nil || value.ID != id {
+		return RepresentationBridgePromotion{}, errors.Join(
+			err, errors.New("composition: representation bridge promotion identity differs"),
+		)
+	}
+	return value, nil
 }
 
 // ValidateIdentity verifies both the evidence envelope and content identity.

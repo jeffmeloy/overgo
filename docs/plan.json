@@ -9,12 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "external-cross-attention",
-          "title": "Activate recipe-compiled external cross-attention with separate cache ownership",
-          "status": "open",
-          "verify": "go test ./internal/composition ./internal/inference -run 'TestExternalCrossAttentionPlan|TestExternalCacheSeparateFromTargetKV' -count=1"
-        },
-        {
           "id": "offline-artifacts",
           "title": "Keep passthrough and task arithmetic in exact-lineage offline artifact workflows",
           "status": "open",
@@ -133,6 +127,11 @@
       "item": "composability-production",
       "step": "api-gui",
       "authority": "evidence:sha256:ab5eadc742be80633a7212dd1a435ae100112db40ad881ec4b21b61ad5800c74"
+    },
+    {
+      "item": "composability-production",
+      "step": "external-cross-attention",
+      "authority": "evidence:sha256:79ca20e73da56d2561502518be0d0920af289ef83be312b4f8db2eabdfa0d842"
     }
   ]
 }

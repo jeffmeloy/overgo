@@ -49,31 +49,33 @@ type BridgeWeightAuthority struct {
 // CompositionRecipe is the immutable activation subject. It joins the bridge
 // authority to an executable projection recipe and exact promotion evidence.
 type CompositionRecipe struct {
-	Version          uint16      `json:"version"`
-	SourceModel      artifact.ID `json:"source_model"`
-	TargetModel      artifact.ID `json:"target_model"`
-	Task             recipe.Task `json:"task"`
-	SourceContract   artifact.ID `json:"source_contract"`
-	TargetContract   artifact.ID `json:"target_contract"`
-	BridgeDefinition artifact.ID `json:"bridge_definition"`
-	BridgeWeights    artifact.ID `json:"bridge_weights"`
-	ExecutionRecipe  artifact.ID `json:"execution_recipe"`
-	TrainingPolicy   artifact.ID `json:"training_policy"`
-	PromotionPolicy  artifact.ID `json:"promotion_policy"`
-	Promotion        artifact.ID `json:"promotion"`
-	ID               artifact.ID `json:"-"`
+	Version                uint16      `json:"version"`
+	SourceModel            artifact.ID `json:"source_model"`
+	TargetModel            artifact.ID `json:"target_model"`
+	Task                   recipe.Task `json:"task"`
+	SourceContract         artifact.ID `json:"source_contract"`
+	TargetContract         artifact.ID `json:"target_contract"`
+	BridgeDefinition       artifact.ID `json:"bridge_definition"`
+	BridgeWeights          artifact.ID `json:"bridge_weights"`
+	ExecutionRecipe        artifact.ID `json:"execution_recipe"`
+	TrainingPolicy         artifact.ID `json:"training_policy"`
+	PromotionPolicy        artifact.ID `json:"promotion_policy"`
+	Promotion              artifact.ID `json:"promotion"`
+	ExternalCrossAttention artifact.ID `json:"external_cross_attention,omitzero"`
+	ID                     artifact.ID `json:"-"`
 }
 
 // CompositionAuthority is the complete atomic publication set for one
 // production candidate. External model, weight, dataset, and evaluator facts
 // must already exist in the repository.
 type CompositionAuthority struct {
-	SourceContract representation.Contract
-	TargetContract representation.Contract
-	Bridge         BridgeDefinition
-	Execution      recipe.Definition
-	Promotion      RepresentationBridgePromotion
-	Recipe         CompositionRecipe
+	SourceContract         representation.Contract
+	TargetContract         representation.Contract
+	Bridge                 BridgeDefinition
+	Execution              recipe.Definition
+	Promotion              RepresentationBridgePromotion
+	ExternalCrossAttention *ExternalCrossAttentionDefinition
+	Recipe                 CompositionRecipe
 }
 
 var bridgeDefinitionCodec = artifact.JSONDocumentCodec(
@@ -169,6 +171,7 @@ func (value CompositionRecipe) Lineage() []artifact.Lineage {
 		value.SourceModel, value.TargetModel, value.SourceContract, value.TargetContract,
 		value.BridgeDefinition, value.BridgeWeights, value.ExecutionRecipe,
 		value.TrainingPolicy, value.PromotionPolicy, value.Promotion,
+		value.ExternalCrossAttention,
 	})...)
 }
 
@@ -217,6 +220,12 @@ func (authority CompositionAuthority) Batch(key string) (artifact.Batch, error) 
 	promotionPolicyContent, err := authority.Promotion.Policy.content()
 	if err := appendDocument(promotionPolicyContent, nil, err); err != nil {
 		return artifact.Batch{}, err
+	}
+	if authority.ExternalCrossAttention != nil {
+		externalContent, externalErr := authority.ExternalCrossAttention.Content()
+		if err := appendDocument(externalContent, authority.ExternalCrossAttention.Lineage(), externalErr); err != nil {
+			return artifact.Batch{}, err
+		}
 	}
 	recipeContent, err := authority.Recipe.Content()
 	if err := appendDocument(recipeContent, authority.Recipe.Lineage(), err); err != nil {
@@ -384,7 +393,8 @@ func canonicalizeCompositionRecipe(value *CompositionRecipe) error {
 		value.SourceContract.Kind() != artifact.KindProfile || value.TargetContract.Kind() != artifact.KindProfile ||
 		value.BridgeDefinition.Kind() != artifact.KindProfile || value.BridgeWeights.Kind() != artifact.KindAdapter ||
 		value.ExecutionRecipe.Kind() != artifact.KindRecipe || value.TrainingPolicy.Kind() != artifact.KindProfile ||
-		value.PromotionPolicy.Kind() != artifact.KindProfile || value.Promotion.Kind() != artifact.KindEvidence {
+		value.PromotionPolicy.Kind() != artifact.KindProfile || value.Promotion.Kind() != artifact.KindEvidence ||
+		value.ExternalCrossAttention.Valid() && value.ExternalCrossAttention.Kind() != artifact.KindProfile {
 		return errors.New("composition: invalid composition recipe authority")
 	}
 	return nil
@@ -407,6 +417,18 @@ func validateCompositionAuthority(value CompositionAuthority) error {
 	promotionPolicy, err := value.Promotion.Policy.Identity()
 	if err != nil {
 		return err
+	}
+	if value.Recipe.ExternalCrossAttention.Valid() {
+		if value.ExternalCrossAttention == nil ||
+			value.ExternalCrossAttention.ValidateIdentity() != nil ||
+			value.ExternalCrossAttention.ID != value.Recipe.ExternalCrossAttention ||
+			value.ExternalCrossAttention.Source != value.Recipe.SourceModel ||
+			value.ExternalCrossAttention.Target != value.Recipe.TargetModel ||
+			value.ExternalCrossAttention.Adapter != value.Recipe.BridgeWeights {
+			return errors.New("composition: external cross-attention authority differs")
+		}
+	} else if value.ExternalCrossAttention != nil {
+		return errors.New("composition: unreferenced external cross-attention authority")
 	}
 	if err := value.Execution.ValidateIdentity(); err != nil {
 		return err
@@ -469,6 +491,14 @@ func loadCompositionAuthority(
 	if promotionPolicy != promotion.Policy {
 		return CompositionAuthority{}, errors.New("composition: promotion policy differs from promotion evidence")
 	}
+	var external *ExternalCrossAttentionDefinition
+	if value.ExternalCrossAttention.Valid() {
+		loaded, loadErr := LoadExternalCrossAttentionDefinition(ctx, reader, value.ExternalCrossAttention)
+		if loadErr != nil {
+			return CompositionAuthority{}, loadErr
+		}
+		external = &loaded
+	}
 	executionContent, err := loadCompositionContent(ctx, reader, value.ExecutionRecipe, artifact.KindRecipe, recipe.MediaType, recipe.Schema)
 	if err != nil {
 		return CompositionAuthority{}, err
@@ -479,7 +509,7 @@ func loadCompositionAuthority(
 	}
 	return CompositionAuthority{
 		SourceContract: source, TargetContract: target, Bridge: bridge,
-		Execution: execution, Promotion: promotion, Recipe: value,
+		Execution: execution, Promotion: promotion, ExternalCrossAttention: external, Recipe: value,
 	}, nil
 }
 

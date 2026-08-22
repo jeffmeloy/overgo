@@ -13,7 +13,7 @@ import (
 	"overgo/internal/testutil"
 )
 
-func TestExternalCrossAttentionIdentityAndCacheIsolation(t *testing.T) {
+func TestExternalCacheSeparateFromTargetKV(t *testing.T) {
 	const externalTokens = uint64(2)
 	spec := model.Spec{
 		CommonSpec: model.CommonSpec{
@@ -31,6 +31,7 @@ func TestExternalCrossAttentionIdentityAndCacheIsolation(t *testing.T) {
 	targetID := testutil.ArtifactID(t, artifact.KindModel, "external-target")
 	sourceID := testutil.ArtifactID(t, artifact.KindModel, "external-source")
 	adapterID := testutil.ArtifactID(t, artifact.KindAdapter, "external-adapter")
+	sourceRepresentation := testutil.ArtifactID(t, artifact.KindOutput, "external-source-representation")
 	program, err := (ExternalCrossAttentionCompiler{}).Compile(targetID, plan, ExternalCrossAttentionDefinition{
 		Target: targetID, Source: sourceID, Adapter: adapterID,
 		Layers: []uint32{1}, SourceChannels: 2, HeadCount: 1, SourceTokenLimit: 3,
@@ -53,7 +54,8 @@ func TestExternalCrossAttentionIdentityAndCacheIsolation(t *testing.T) {
 	}
 	cacheBefore := cloneCache(targetCache)
 	output, external, err := program.Apply(context.Background(), 1, ExternalCrossAttentionInput{
-		Target: target, TargetTokens: 2, Source: &source, SourceTokens: 2,
+		Target: target, TargetTokens: 2, Source: &source,
+		SourceIdentity: sourceRepresentation, SourceTokens: 2,
 	}, weights, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -62,12 +64,13 @@ func TestExternalCrossAttentionIdentityAndCacheIsolation(t *testing.T) {
 		t.Fatalf("zero-gated output=%v want identity=%v", output.Data, target.Data)
 	}
 	if external.Program != program.Identity() || external.Source != sourceID ||
-		external.Tokens != externalTokens || !reflect.DeepEqual(targetCache, cacheBefore) {
+		external.SourceRepresentation != sourceRepresentation || external.Tokens != externalTokens ||
+		!reflect.DeepEqual(targetCache, cacheBefore) {
 		t.Fatalf("external/target cache isolation failed: external=%+v target=%+v", external, targetCache)
 	}
 	weights.Gate = 1
 	conditioned, reused, err := program.Apply(context.Background(), 1, ExternalCrossAttentionInput{
-		Target: target, TargetTokens: 2,
+		Target: target, TargetTokens: 2, SourceIdentity: sourceRepresentation,
 	}, weights, &external)
 	if err != nil {
 		t.Fatal(err)
@@ -76,8 +79,14 @@ func TestExternalCrossAttentionIdentityAndCacheIsolation(t *testing.T) {
 		!reflect.DeepEqual(targetCache, cacheBefore) {
 		t.Fatalf("cached external attention=%v cache=%+v target-cache=%+v", conditioned.Data, reused, targetCache)
 	}
+	otherRepresentation := testutil.ArtifactID(t, artifact.KindOutput, "other external source representation")
+	if _, _, err := program.Apply(context.Background(), 1, ExternalCrossAttentionInput{
+		Target: target, TargetTokens: 2, SourceIdentity: otherRepresentation,
+	}, weights, &external); err == nil {
+		t.Fatal("external cache reused for a different source representation")
+	}
 	if _, _, err := program.Apply(context.Background(), 0, ExternalCrossAttentionInput{
-		Target: target, TargetTokens: 2,
+		Target: target, TargetTokens: 2, SourceIdentity: sourceRepresentation,
 	}, weights, &external); err == nil {
 		t.Fatal("undeclared target layer seam accepted")
 	}

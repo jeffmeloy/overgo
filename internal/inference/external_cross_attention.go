@@ -8,28 +8,40 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/composition"
 	"overgo/internal/hostmath"
 	"overgo/internal/model"
+	"overgo/internal/recipe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
 
-// ExternalCrossAttentionDefinition binds an adapter to explicit post-layer
-// target seams and a bounded external source representation.
-type ExternalCrossAttentionDefinition struct {
-	Target           artifact.ID
-	Source           artifact.ID
-	Adapter          artifact.ID
-	Layers           []uint32
-	SourceChannels   uint64
-	HeadCount        uint64
-	SourceTokenLimit uint64
-}
+// ExternalCrossAttentionDefinition is the composition-owned immutable adapter
+// and seam authority retained as an alias for low-level compiler callers.
+type ExternalCrossAttentionDefinition = composition.ExternalCrossAttentionDefinition
 
 // ExternalCrossAttentionCompiler admits seams from an already compiled target
 // model plan. Its zero value has no ambient model authority.
 type ExternalCrossAttentionCompiler struct{}
+
+// OpenExternalCrossAttention is the production construction path. It resolves
+// active recipe authority before admitting the runtime program.
+func OpenExternalCrossAttention(
+	ctx context.Context,
+	reader artifact.Reader,
+	source, target artifact.ID,
+	task recipe.Task,
+	targetPlan model.ModelPlan,
+) (ExternalCrossAttentionProgram, error) {
+	plan, err := composition.CompileExternalCrossAttentionPlan(
+		ctx, reader, source, target, task, targetPlan,
+	)
+	if err != nil {
+		return ExternalCrossAttentionProgram{}, err
+	}
+	return (ExternalCrossAttentionCompiler{}).CompilePlan(plan)
+}
 
 // ExternalCrossAttentionProgram is the immutable layer admission and geometry
 // contract for an interleaved adapter.
@@ -54,21 +66,23 @@ type ExternalCrossAttentionWeights struct {
 // ExternalCrossAttentionInput supplies one target seam and either fresh source
 // memory or a separately typed external cache.
 type ExternalCrossAttentionInput struct {
-	Target       reference.Value
-	TargetTokens uint64
-	Source       *reference.Value
-	SourceTokens uint64
-	Mask         *reference.Value
+	Target         reference.Value
+	TargetTokens   uint64
+	Source         *reference.Value
+	SourceIdentity artifact.ID
+	SourceTokens   uint64
+	Mask           *reference.Value
 }
 
 // ExternalCrossAttentionCache is deliberately disjoint from KVCache: it owns
 // fixed external K/V projections and cannot enter target self-attention state.
 type ExternalCrossAttentionCache struct {
-	Program artifact.ID
-	Source  artifact.ID
-	Tokens  uint64
-	Key     reference.Value
-	Value   reference.Value
+	Program              artifact.ID
+	Source               artifact.ID
+	SourceRepresentation artifact.ID
+	Tokens               uint64
+	Key                  reference.Value
+	Value                reference.Value
 }
 
 var (
@@ -122,6 +136,30 @@ func (ExternalCrossAttentionCompiler) Compile(
 	return ExternalCrossAttentionProgram{
 		identity: identity, definition: definition,
 		targetChannels: targetChannels, headChannels: headChannels, layers: layers,
+	}, nil
+}
+
+// CompilePlan admits only a recipe-compiled external-attention plan. Its cache
+// identity remains in the composition-owned external domain.
+func (ExternalCrossAttentionCompiler) CompilePlan(
+	plan composition.ExternalCrossAttentionPlan,
+) (ExternalCrossAttentionProgram, error) {
+	if err := plan.ValidateIdentity(); err != nil {
+		return ExternalCrossAttentionProgram{}, err
+	}
+	layers := make(map[uint32]struct{}, len(plan.Layers))
+	for _, layer := range plan.Layers {
+		layers[layer] = struct{}{}
+	}
+	return ExternalCrossAttentionProgram{
+		identity: plan.CacheIdentity,
+		definition: ExternalCrossAttentionDefinition{
+			Version: artifact.InitialDocumentVersion,
+			Target:  plan.Target, Source: plan.Source, Adapter: plan.Adapter,
+			Layers: slices.Clone(plan.Layers), SourceChannels: plan.SourceChannels,
+			HeadCount: plan.HeadCount, SourceTokenLimit: plan.SourceTokenLimit,
+		},
+		targetChannels: plan.TargetChannels, headChannels: plan.HeadChannels, layers: layers,
 	}, nil
 }
 
@@ -186,9 +224,10 @@ func (program ExternalCrossAttentionProgram) Apply(
 	var keyNode, valueNode *tensor.Tensor
 	external := ExternalCrossAttentionCache{
 		Program: program.identity, Source: program.definition.Source,
+		SourceRepresentation: input.SourceIdentity,
 	}
 	if cache == nil {
-		if input.Source == nil || !checked.Nonzero(input.SourceTokens) ||
+		if input.Source == nil || !input.SourceIdentity.Valid() || !checked.Nonzero(input.SourceTokens) ||
 			input.SourceTokens > program.definition.SourceTokenLimit {
 			return reference.Value{}, ExternalCrossAttentionCache{}, errors.New("inference: external source is absent or exceeds its token limit")
 		}
@@ -208,6 +247,7 @@ func (program ExternalCrossAttentionProgram) Apply(
 	} else {
 		if input.Source != nil || checked.Nonzero(input.SourceTokens) ||
 			cache.Program != program.identity || cache.Source != program.definition.Source ||
+			!input.SourceIdentity.Valid() || input.SourceIdentity != cache.SourceRepresentation ||
 			!checked.Nonzero(cache.Tokens) || cache.Tokens > program.definition.SourceTokenLimit {
 			return reference.Value{}, ExternalCrossAttentionCache{}, errors.New("inference: external cross-attention cache identity differs")
 		}

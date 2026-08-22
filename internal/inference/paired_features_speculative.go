@@ -103,10 +103,13 @@ func (r *Runner) advancePairedFeatureVerification(
 }
 
 func pairedFeatureLogitRow(logits reference.Value, row int, vocabulary int) ([]float32, error) {
-	width, rows, valid := logits.MatrixExtents()
-	if !valid || width != vocabulary || row < 0 || row >= rows {
+	width, _, valid := logits.MatrixExtents()
+	if !valid || width != vocabulary || row < 0 {
 		return nil, errors.New("inference: paired-feature block logits are incompatible")
 	}
-	start := row * width
-	return logits.Data[start : start+width], nil
+	view := logits.RowView(uint64(row))
+	if !view.Defined() {
+		return nil, errors.New("inference: paired-feature block logits are incompatible")
+	}
+	return view.Data, nil
 }

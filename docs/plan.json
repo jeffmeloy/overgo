@@ -8,16 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "output-contracts",
-          "title": "Replace rank, perplexity, and logits row arithmetic",
-          "status": "open",
-          "verify": "go test ./internal/inference -run 'Test(Rank|Perplexity|Continuation)' -count=1",
-          "rationale": "Use sequence plans and borrowed or owned row views; remove repeated shape and offset calculations.",
-          "depends_on": [
-            "tighten-inference/input-contracts"
-          ]
-        },
-        {
           "id": "cache-contracts",
           "title": "Replace prompt-cache trim and residency shape arithmetic",
           "status": "open",

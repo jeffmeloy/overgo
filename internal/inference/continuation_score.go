@@ -58,11 +58,10 @@ func (r *Runner) ScoreContinuations(
 	if err != nil {
 		return nil, err
 	}
-	vocabulary := r.vocab.Len()
 	result := make([]sequencescore.Score, len(continuations))
 	for candidateIndex, continuation := range continuations {
 		var score sequencescore.Accumulator
-		value, err := negativeLogProbability(firstLogits, int(continuation[0]))
+		value, err := negativeLogProbability(firstLogits.LastRowView().Data, int(continuation[0]))
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +78,7 @@ func (r *Runner) ScoreContinuations(
 				return nil, err
 			}
 			for index, target := range continuation[1:] {
-				value, err := negativeLogProbability(logits[index*vocabulary:(index+1)*vocabulary], int(target))
+				value, err := negativeLogProbability(logits.RowView(uint64(index)).Data, int(target))
 				if err != nil {
 					return nil, err
 				}

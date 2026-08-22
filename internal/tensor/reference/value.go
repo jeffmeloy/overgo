@@ -82,17 +82,26 @@ func (v Value) TailRows(count uint64) (Value, error) {
 	return v.Rows(v.Shape.Dims[1]-count, count)
 }
 
+// RowView returns one borrowed matrix row.
+func (v Value) RowView(row uint64) Value {
+	width, rows, valid := v.MatrixExtents()
+	if !valid || row >= uint64(rows) {
+		return Value{}
+	}
+	start := int(row) * width
+	return Value{
+		Shape: tensor.MustShape(uint64(width), tensor.SingletonExtent),
+		Data:  v.Data[start : start+width],
+	}
+}
+
 // LastRowView returns a borrowed final matrix row.
 func (v Value) LastRowView() Value {
-	width, rows, valid := v.MatrixExtents()
+	_, rows, valid := v.MatrixExtents()
 	if !valid {
 		return Value{}
 	}
-	startIndex := (rows - tensor.SingletonExtent) * width
-	return Value{
-		Shape: tensor.MustShape(uint64(width), tensor.SingletonExtent),
-		Data:  v.Data[startIndex:],
-	}
+	return v.RowView(uint64(rows - tensor.SingletonExtent))
 }
 
 // RemoveTrailingRange removes contiguous final-axis rows.

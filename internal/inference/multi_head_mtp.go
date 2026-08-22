@@ -128,14 +128,8 @@ func (r *Runner) AdvanceMultiHeadMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	lastLogits, err := lastValueColumn(logits)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
-	lastHidden, err := lastValueColumn(nextHidden)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
+	lastLogits := logits.LastRowView().Clone()
+	lastHidden := nextHidden.LastRowView().Clone()
 	next := &MultiHeadMTPSession{
 		TrunkCache: session.TrunkCache,
 		Heads:      slices.Clone(session.Heads),
@@ -293,13 +287,12 @@ func (r *Runner) validateMultiHeadMTPSession(session *MultiHeadMTPSession) error
 	if err := r.validateCache(session.TrunkCache); err != nil {
 		return fmt.Errorf("inference: multi-head MTP trunk cache: %w", err)
 	}
-	pendingRows, pendingValid := r.spec.SequenceRows(session.PendingHidden)
 	if session.MTPStart != effectiveCachePosition(session.TrunkCache) ||
-		!pendingValid || pendingRows != tensor.SingletonExtent {
+		r.spec.ValidateSequenceRow(session.PendingHidden) != nil {
 		return errors.New("inference: multi-head MTP session state is incompatible")
 	}
 	for _, hidden := range session.DraftHidden {
-		if !hidden.Shape.Equal(session.PendingHidden.Shape) {
+		if r.spec.ValidateSequenceRow(hidden) != nil {
 			return errors.New("inference: multi-head MTP draft hidden state is incompatible")
 		}
 	}
@@ -309,31 +302,13 @@ func (r *Runner) validateMultiHeadMTPSession(session *MultiHeadMTPSession) error
 			tokens += uint32(offset + 1)
 		}
 		block := r.spec.BlockCount + uint32(offset)
-		keyShape := tensor.MustShape(
-			uint64(r.spec.LayerKeyLength(block)),
-			uint64(r.spec.LayerKVHeadCount(block)),
-			uint64(tokens),
-		)
-		valueShape := tensor.MustShape(
-			uint64(r.spec.LayerValueLength(block)),
-			uint64(r.spec.LayerKVHeadCount(block)),
-			uint64(tokens),
-		)
-		if !layer.Key.Shape.Equal(keyShape) || !layer.Value.Shape.Equal(valueShape) ||
-			len(layer.Key.Data) == 0 || len(layer.Value.Data) == 0 {
+		if !tensor.HasDimensions(layer.Key.Shape,
+			uint64(r.spec.LayerKeyLength(block)), uint64(r.spec.LayerKVHeadCount(block)), uint64(tokens)) ||
+			!tensor.HasDimensions(layer.Value.Shape,
+				uint64(r.spec.LayerValueLength(block)), uint64(r.spec.LayerKVHeadCount(block)), uint64(tokens)) ||
+			validateStateValue(layer.Key) != nil || validateStateValue(layer.Value) != nil {
 			return fmt.Errorf("inference: multi-head MTP head %d cache is incompatible", offset)
 		}
 	}
 	return nil
-}
-
-func lastValueColumn(value reference.Value) (reference.Value, error) {
-	if value.Shape.Rank != 2 || value.Shape.Dims[0] == 0 || value.Shape.Dims[1] == 0 {
-		return reference.Value{}, errors.New("inference: output has no final column")
-	}
-	result, err := value.TailRows(1)
-	if err != nil {
-		return reference.Value{}, fmt.Errorf("inference: output storage is invalid: %w", err)
-	}
-	return result, nil
 }

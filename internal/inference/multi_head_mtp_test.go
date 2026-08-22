@@ -8,8 +8,6 @@ import (
 
 	"overgo/internal/model"
 	"overgo/internal/sampling"
-	"overgo/internal/tensor"
-	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
 
@@ -37,20 +35,6 @@ func TestCompiledMultiHeadMTPRequiresCompleteCatalog(t *testing.T) {
 		if _, err := runner.multiHeadMTP(); err == nil {
 			t.Fatalf("%s incomplete catalog was accepted", fixture.architecture)
 		}
-	}
-}
-
-func TestLastValueColumn(t *testing.T) {
-	value := reference.Value{
-		Shape: tensor.MustShape(2, 3),
-		Data:  []float32{1, 2, 3, 4, 5, 6},
-	}
-	last, err := lastValueColumn(value)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !last.Shape.Equal(tensor.MustShape(2, 1)) || len(last.Data) != 2 || last.Data[0] != 5 || last.Data[1] != 6 {
-		t.Fatalf("unexpected final column: %+v", last)
 	}
 }
 

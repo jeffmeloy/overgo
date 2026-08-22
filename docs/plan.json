@@ -8,20 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "audit",
-          "title": "Run the final repository census and classify justified exceptions",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run 'TestRepositoryGoStyleComplete' -count=1",
-          "rationale": "Completion requires no unexplained objective findings. Recorded exceptions must name the external contract, performance evidence, generated owner, or local clarity reason. CRLF-only untouched files are normalized as they are edited, not through an unrelated mass rewrite.",
-          "depends_on": [
-            "go-style-tests/fixtures-assertions"
-          ],
-          "capabilities": [
-            "repository-style-evidence",
-            "continuous-style-gate"
-          ]
-        },
-        {
           "id": "verification",
           "title": "Run host, CUDA, compatibility, and release gates",
           "status": "open",

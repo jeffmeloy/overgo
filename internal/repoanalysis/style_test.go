@@ -20,7 +20,40 @@ func TestRepositoryGoStyleFlowAndErrors(t *testing.T) {
 	})
 }
 
+func TestRepositoryGoStyleComplete(t *testing.T) {
+	report := repositoryGoStyleReport(t)
+	justified := map[goStyleKind]string{
+		goStyleFormat:     "untouched CRLF files normalize when edited",
+		goStylePackageDoc: "package documentation follows ownership migration",
+		goStyleExportDoc:  "export documentation follows consumer-led surface reduction",
+		goStyleErrorText:  "capitalized model and protocol names remain proper nouns",
+	}
+	var findings []string
+	for _, finding := range report.Findings {
+		if justified[finding.Kind] == "" {
+			findings = append(findings, fmt.Sprintf("%s:%d:%s:%s", finding.File, finding.Line, finding.Kind, finding.Symbol))
+		}
+	}
+	if len(findings) != 0 {
+		t.Fatalf("%d unclassified style findings:\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+}
+
 func requireNoRepositoryStyleFindings(t *testing.T, selected map[goStyleKind]bool) {
+	t.Helper()
+	report := repositoryGoStyleReport(t)
+	var findings []string
+	for _, finding := range report.Findings {
+		if selected[finding.Kind] {
+			findings = append(findings, fmt.Sprintf("%s:%d:%s:%s", finding.File, finding.Line, finding.Kind, finding.Symbol))
+		}
+	}
+	if len(findings) != 0 {
+		t.Fatalf("%d naming/comment findings:\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+}
+
+func repositoryGoStyleReport(t *testing.T) goStyleReport {
 	t.Helper()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -34,15 +67,7 @@ func requireNoRepositoryStyleFindings(t *testing.T, selected map[goStyleKind]boo
 	if err != nil {
 		t.Fatal(err)
 	}
-	var findings []string
-	for _, finding := range report.Findings {
-		if selected[finding.Kind] {
-			findings = append(findings, fmt.Sprintf("%s:%d:%s:%s", finding.File, finding.Line, finding.Kind, finding.Symbol))
-		}
-	}
-	if len(findings) != 0 {
-		t.Fatalf("%d naming/comment findings:\n%s", len(findings), strings.Join(findings, "\n"))
-	}
+	return report
 }
 
 func TestGoStyleCensus(t *testing.T) {

@@ -151,7 +151,7 @@ func testTokenResume(t *testing.T) {
 	})
 }
 
-func TestObserverSharesDirectedLifecycle(t *testing.T) {
+func TestTrainingObservationSharesDirectedLifecycle(t *testing.T) {
 	store, err := repodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)

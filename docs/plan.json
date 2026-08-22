@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "training-observation-owner",
-          "title": "Use one training hardware observation sampler and delete duplicate probe/session sampling",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -run 'Test.*(Observation|Hardware|Probe)' -count=1"
-        },
-        {
           "id": "dead-contract-surface",
           "title": "Delete non-contract zero-consumer and test-only production objects; retain protocol and enum sentinels",
           "status": "open",

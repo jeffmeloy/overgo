@@ -117,7 +117,9 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 			return Result{}, fmt.Errorf("training workflow: identify model: %w", err)
 		}
 	}
-	observer.sampleHardware(runrecord.ServingHardwareStart)
+	if err := observer.Admit(ctx, modelID, request.Recipe); err != nil {
+		return Result{}, err
+	}
 	_, runtime, err := modelrecipe.ResolveActiveCapability(ctx, request.Repository, modelID, recipe.TaskTraining)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: resolve active recipe: %w", err)

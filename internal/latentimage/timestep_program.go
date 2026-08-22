@@ -2,15 +2,11 @@ package latentimage
 
 import (
 	"fmt"
-	"math"
 
+	"overgo/internal/checked"
+	"overgo/internal/media"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
-)
-
-const (
-	timestepFrequencyBase = 1e4
-	timestepInputScale    = 1e3
 )
 
 type timestepProgram struct {
@@ -18,29 +14,38 @@ type timestepProgram struct {
 	Embedding    *tensor.Tensor
 	Modulation   *tensor.Tensor
 	weightInputs map[string]*tensor.Tensor
-	dim          int
+	encoding     media.SinusoidalProgram
 }
 
-func compileTimestepProgram(spec TransformerSpec, storage dtype.Type) (*timestepProgram, error) {
-	if spec.TimestepEmbed <= 0 || spec.TimestepEmbed%2 != 0 || spec.Hidden <= 0 || spec.ModFieldsOr6() <= 0 {
+func compileTimestepProgram(spec TransformerSpec, storage dtype.Type, sinusoid media.SinusoidalProgram) (*timestepProgram, error) {
+	fieldsCount := spec.ModFieldsOr6()
+	if !checked.PositiveInts(spec.TimestepEmbed, spec.Hidden, fieldsCount) || !checked.EvenInt(spec.TimestepEmbed) {
 		return nil, fmt.Errorf(
 			"timestep program: invalid geometry embed=%d hidden=%d fields=%d",
 			spec.TimestepEmbed, spec.Hidden, spec.ModFieldsOr6(),
 		)
 	}
-	if storage != dtype.F32 && storage != dtype.BF16 {
+	switch storage {
+	case dtype.F32, dtype.BF16:
+	default:
 		return nil, fmt.Errorf("timestep program: weight type %s unsupported", storage)
+	}
+	if err := sinusoid.Validate(); err != nil {
+		return nil, fmt.Errorf("timestep program: %w", err)
+	}
+	if !checked.Equal(sinusoid.Dimensions, spec.TimestepEmbed) {
+		return nil, fmt.Errorf("timestep program: sinusoid dimensions=%d incompatible with embed=%d", sinusoid.Dimensions, spec.TimestepEmbed)
 	}
 	builder := tensor.NewBuilder()
 	setBuilderMatmulCompute(builder, storage)
 	program := &timestepProgram{
-		weightInputs: make(map[string]*tensor.Tensor), dim: spec.TimestepEmbed,
+		weightInputs: make(map[string]*tensor.Tensor), encoding: sinusoid,
 	}
 	binder := tensor.WeightInputs{Builder: builder, Inputs: program.weightInputs, MatrixType: storage}
 	hidden := uint64(spec.Hidden)
-	fields := uint64(spec.ModFieldsOr6())
+	fields := uint64(fieldsCount)
 	program.Input = builder.Input(
-		"timestep_sinusoid", dtype.F32, tensor.MustShape(uint64(spec.TimestepEmbed), 1),
+		"timestep_sinusoid", dtype.F32, tensor.MustShape(uint64(spec.TimestepEmbed), tensor.SingletonExtent),
 	)
 	first := builder.GELUTanhExact(builder.Add(
 		builder.MulMat(binder.Input("time_embed.linear_1.weight", uint64(spec.TimestepEmbed), hidden), program.Input),
@@ -64,16 +69,8 @@ func compileTimestepProgram(spec TransformerSpec, storage dtype.Type) (*timestep
 }
 
 func (p *timestepProgram) sinusoid(sigma float64) ([]float32, error) {
-	if p == nil || p.dim <= 0 || math.IsNaN(sigma) || math.IsInf(sigma, 0) {
+	if p == nil {
 		return nil, fmt.Errorf("timestep program: invalid sigma %g", sigma)
 	}
-	half := p.dim / 2
-	values := make([]float32, p.dim)
-	for index := range half {
-		frequency := math.Exp(-math.Log(timestepFrequencyBase) * float64(index) / float64(half))
-		angle := sigma * timestepInputScale * frequency
-		values[index] = float32(math.Cos(angle))
-		values[half+index] = float32(math.Sin(angle))
-	}
-	return values, nil
+	return p.encoding.Encode32(sigma)
 }

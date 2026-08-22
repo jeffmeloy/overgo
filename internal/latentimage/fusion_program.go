@@ -27,12 +27,15 @@
 // Every norm is the DiT ZERO-CENTERED (1+w) RMSNorm (zeroCenteredRMSNorm, shared
 // with the denoiser), NOT the encoder's standard WeightedRMSNorm. Geometry is
 // DERIVED from TransformerSpec (config-cross-checked in verify.go); no magics.
+
 package latentimage
 
 import (
 	"fmt"
 	"math"
+	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -71,7 +74,7 @@ func FusionTensorShapes(t TransformerSpec) map[string][]int {
 	h := t.Hidden
 	th := t.TextHidden
 	shapes := map[string][]int{
-		"text_fusion.projector.weight": {1, t.TextLayers},
+		"text_fusion.projector.weight": {tensor.SingletonExtent, t.TextLayers},
 		"txt_in.norm.weight":           {th},
 		"txt_in.linear_1.weight":       {h, th},
 		"txt_in.linear_1.bias":         {h},
@@ -79,7 +82,7 @@ func FusionTensorShapes(t TransformerSpec) map[string][]int {
 		"txt_in.linear_2.bias":         {h},
 	}
 	addFusionBlocks := func(kind string, n int) {
-		for i := 0; i < n; i++ {
+		for i := range n {
 			p := fmt.Sprintf("text_fusion.%s.%d.", kind, i)
 			addAttnFF(shapes, p, th, t.TextHeads*t.HeadDim, t.TextKVHeads*t.HeadDim, t.HeadDim, t.TextIntermediate, false)
 		}
@@ -94,17 +97,17 @@ func FusionTensorShapes(t TransformerSpec) map[string][]int {
 // reference/CUDA parity path, dtype.BF16 device resident path).
 func CompileFusionProgram(t TransformerSpec, eps float32, textMask []bool, matmulType dtype.Type) (*FusionProgram, error) {
 	textSeq := len(textMask)
-	if eps <= 0 {
+	if !checked.PositiveFinite32(eps) {
 		return nil, fmt.Errorf("fusion program: eps must be positive, got %g", eps)
 	}
-	if textSeq <= 0 {
+	if !checked.PositiveInts(textSeq) {
 		return nil, fmt.Errorf("fusion program: textSeq must be positive, got %d", textSeq)
 	}
-	if t.TextLayers <= 0 || t.TextHidden <= 0 || t.LayerwiseTextBlocks <= 0 || t.RefinerTextBlocks <= 0 {
+	if !checked.PositiveInts(t.TextLayers, t.TextHidden, t.LayerwiseTextBlocks, t.RefinerTextBlocks) {
 		return nil, fmt.Errorf("fusion program: text-fusion geometry not derived (layers=%d hidden=%d layerwise=%d refiner=%d)",
 			t.TextLayers, t.TextHidden, t.LayerwiseTextBlocks, t.RefinerTextBlocks)
 	}
-	if matmulType != dtype.F32 && matmulType != dtype.BF16 {
+	if !slices.Contains([]dtype.Type{dtype.F32, dtype.BF16}, matmulType) {
 		return nil, fmt.Errorf("fusion program: matmul weight type %s unsupported", matmulType)
 	}
 
@@ -145,7 +148,7 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textMask []bool, matmu
 	// --- layerwise blocks: attend across the tapped-layer axis, per token ---
 	// sequence = TextLayers, batch = textSeq (rank-4 attention).
 	hidden := p.InEncoder
-	for i := 0; i < t.LayerwiseTextBlocks; i++ {
+	for i := range t.LayerwiseTextBlocks {
 		prefix := fmt.Sprintf("text_fusion.layerwise_blocks.%d.", i)
 		hidden = fusionAttnFF(b, bind, prefix, hidden, nil, eps, scale, th, headDim, qHeads, kvHeads, qDim, kvDim, inter, L, ts)
 	}
@@ -157,9 +160,9 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textMask []bool, matmu
 	projW := bind.Input("text_fusion.projector.weight", L) // F32 (L)
 	viewed := b.Reshape(hidden, L*th, ts)
 	var fused *tensor.Tensor
-	for l := uint64(0); l < L; l++ {
-		slice := b.Reshape(b.GroupSlice(viewed, l*th, th, 1, th), th, ts) // (th, textSeq)
-		term := b.Multiply(slice, b.FlatSlice(projW, l, 1))               // scale by proj[l]
+	for l := range L {
+		slice := b.Reshape(b.GroupSlice(viewed, l*th, th, tensor.SingletonExtent, th), th, ts) // (th, textSeq)
+		term := b.Multiply(slice, b.FlatSlice(projW, l, tensor.SingletonExtent))               // scale by proj[l]
 		if fused == nil {
 			fused = term
 		} else {
@@ -168,9 +171,9 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textMask []bool, matmu
 	}
 
 	// --- refiner blocks: attend across the token sequence (batch collapses) ---
-	for i := 0; i < t.RefinerTextBlocks; i++ {
+	for i := range t.RefinerTextBlocks {
 		prefix := fmt.Sprintf("text_fusion.refiner_blocks.%d.", i)
-		fused = fusionAttnFF(b, bind, prefix, fused, p.keyBias, eps, scale, th, headDim, qHeads, kvHeads, qDim, kvDim, inter, ts, 1)
+		fused = fusionAttnFF(b, bind, prefix, fused, p.keyBias, eps, scale, th, headDim, qHeads, kvHeads, qDim, kvDim, inter, ts, tensor.SingletonExtent)
 	}
 
 	// --- txt_in: zero-centered norm -> linear_1 -> gelu(tanh) -> linear_2 ---
@@ -216,7 +219,7 @@ func fusionAttnFF(
 	k = zeroCenteredRMSNorm(b, k, bind.Input(prefix+"attn.norm_k.weight", headDim), eps)
 	// NO RoPE, NO AdaLN modulation.
 
-	if batch > 1 {
+	if checked.Multiple(int(batch)) {
 		q = b.Reshape(q, headDim, qHeads, seqLen, batch)
 		k = b.Reshape(k, headDim, kvHeads, seqLen, batch)
 		v = b.Reshape(v, headDim, kvHeads, seqLen, batch)

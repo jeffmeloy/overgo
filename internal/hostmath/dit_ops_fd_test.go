@@ -53,6 +53,14 @@ func TestAdaptiveShiftScaleBackwardFiniteDifference(t *testing.T) {
 	check("dScale", scale, dScale)
 }
 
+func TestMultiplyBackward(t *testing.T) {
+	dLeft, dRight := make([]float32, 2), make([]float32, 2)
+	MultiplyBackward(dLeft, dRight, []float32{2, 3}, []float32{4, 5}, []float32{7, 11})
+	if dLeft[0] != 28 || dLeft[1] != 55 || dRight[0] != 14 || dRight[1] != 33 {
+		t.Fatalf("dLeft=%v dRight=%v", dLeft, dRight)
+	}
+}
+
 func TestAxisRotaryInterleavedBackwardFiniteDifference(t *testing.T) {
 	spans := [3]int{4, 4, 4}
 	invFreq := AxisRotaryInvFreq(10000, spans)

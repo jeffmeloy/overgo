@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/extent"
 	"overgo/internal/quant"
 	"overgo/internal/tensor/dtype"
 )
@@ -112,25 +113,25 @@ func loadGGUFImportanceMatrix(path string) (*ImportanceMatrix, error) {
 		if err != nil {
 			return nil, err
 		}
-		if len(counts) == 0 || len(sums)%len(counts) != 0 {
+		if len(counts) == extent.FirstOffset || len(sums)%len(counts) != extent.FirstOffset {
 			return nil, fmt.Errorf("importance entry %q shape is invalid", name)
 		}
 		width := len(sums) / len(counts)
 		normalized := make([]float32, len(sums))
 		for group, rawCount := range counts {
-			if !finiteFloat32GGUF(rawCount) || rawCount < 0 {
+			if !finiteFloat32GGUF(rawCount) || rawCount < extent.FirstOffset {
 				return nil, fmt.Errorf("importance entry %q count %d is invalid", name, group)
 			}
 			count := float32(math.Round(float64(rawCount)))
-			for column := 0; column < width; column++ {
+			for column := extent.FirstOffset; column < width; column++ {
 				index := group*width + column
-				if !finiteFloat32GGUF(sums[index]) || sums[index] < 0 {
+				if !finiteFloat32GGUF(sums[index]) || sums[index] < extent.FirstOffset {
 					return nil, fmt.Errorf("importance entry %q value %d is invalid", name, index)
 				}
-				if count > 0 {
+				if count > extent.FirstOffset {
 					normalized[index] = sums[index] / count
 				} else {
-					normalized[index] = 1
+					normalized[index] = extent.SingletonExtent
 				}
 			}
 		}

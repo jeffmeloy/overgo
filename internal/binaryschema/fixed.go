@@ -6,6 +6,10 @@ import (
 )
 
 const (
+	// BitsPerByte is the bit width of Go's byte and supported wire bytes.
+	BitsPerByte = 8
+	// Uint8Bytes is the storage width of an unsigned 8-bit scalar.
+	Uint8Bytes  = 1
 	Uint16Bytes = 2
 	Uint32Bytes = 4
 	Uint64Bytes = 8
@@ -28,6 +32,11 @@ func (s Fixed) Uint32(data []byte) uint32 {
 
 func (s Fixed) Uint64(data []byte) uint64 {
 	return s.Order.Uint64(data)
+}
+
+// Float32 decodes one IEEE 754 binary32 value in the fixed schema's byte order.
+func (s Fixed) Float32(data []byte) float32 {
+	return math.Float32frombits(s.Uint32(data))
 }
 
 func (s Fixed) PutUint16(data []byte, value uint16) {

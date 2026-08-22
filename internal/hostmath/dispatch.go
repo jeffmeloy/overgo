@@ -100,10 +100,9 @@ func measureDispatch() dispatchCalibration {
 	}) / float64(workers-1)
 
 	// f32 rate: the exact Linear column kernel, one row.
-	const dim = calibrationDim
-	x := make([]float32, dim)
-	w := make([]float32, dim*dim)
-	out := make([]float32, dim)
+	x := make([]float32, calibrationDim)
+	w := make([]float32, calibrationDim*calibrationDim)
+	out := make([]float32, calibrationDim)
 	for i := range x {
 		x[i] = float32(i%17) / 17
 	}
@@ -111,15 +110,15 @@ func measureDispatch() dispatchCalibration {
 		w[i] = float32(i%23) / 23
 	}
 	cal.macNs[macF32] = timePerOpNs(func() {
-		linearCols(out, x, w, 1, dim, dim, 0, dim)
-	}) / float64(dim*dim)
+		linearCols(out, x, w, 1, calibrationDim, calibrationDim, 0, calibrationDim)
+	}) / float64(calibrationDim*calibrationDim)
 
 	// f64 rate: the exact CausalConv1d channel kernel; shape realizes the
 	// same MAC budget as outT*cIn*k = 512*64*8 = 2^18, one output channel.
-	const cT, cIn, ck = 1 << 9, 1 << 6, 1 << 3
-	cx := make([]float32, cIn*cT)
+	const cIn, ck = 1 << 6, 1 << 3
+	cx := make([]float32, cIn*calibrationDim)
 	cw := make([]float32, cIn*ck)
-	cOut := make([]float32, cT)
+	cOut := make([]float32, calibrationDim)
 	for i := range cx {
 		cx[i] = float32(i%19) / 19
 	}
@@ -127,8 +126,8 @@ func measureDispatch() dispatchCalibration {
 		cw[i] = float32(i%23) / 23
 	}
 	cal.macNs[macF64] = timePerOpNs(func() {
-		causalConv1dChannels(cOut, cx, cw, nil, cIn, cT, cT, ck, 1, ck-1, 0, 1)
-	}) / float64(cT*cIn*ck)
+		causalConv1dChannels(cOut, cx, cw, nil, cIn, calibrationDim, calibrationDim, ck, 1, ck-1, 0, 1)
+	}) / float64(calibrationDim*cIn*ck)
 
 	// Loud one-line record of what this process derived its dispatch from: a
 	// biased calibration is invisible in every downstream symptom (it just

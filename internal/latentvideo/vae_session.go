@@ -17,18 +17,15 @@ import (
 	"time"
 	"unsafe"
 
+	"overgo/internal/binaryschema"
+	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/kernel"
 	"overgo/internal/media"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/tensor"
 )
-
-// vaeKernelBlock: manifest defaultThreads (shared launch ABI).
-const vaeKernelBlock = 256
-
-// vaeConvTile: conv kernel position-by-channel tile side (VAE_CONV_TILE).
-const vaeConvTile = 64
 
 // vaeDeviceOp: one plan op with weights resident on device.
 type vaeDeviceOp struct {
@@ -188,14 +185,14 @@ func (s *VAEDecoderCUDASession) uploadWeights(checkpoint string) error {
 // buffer: named grow-only device workspace; growth synchronizes the stream
 // before freeing the prior allocation (queued kernels may still read it).
 func (s *VAEDecoderCUDASession) buffer(state *device.State, name string, elements int) (driver.DevicePtr, error) {
-	if elements <= 0 {
+	if !checked.PositiveInts(elements) {
 		return 0, fmt.Errorf("vae cuda buffer %s: elements=%d", name, elements)
 	}
 	existing := s.buffers[name]
-	if existing.ptr != 0 && existing.elements >= elements {
+	if checked.Nonzero(existing.ptr) && checked.AtLeastInt(existing.elements, elements) {
 		return existing.ptr, nil
 	}
-	if existing.ptr != 0 {
+	if checked.Nonzero(existing.ptr) {
 		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
 			return 0, err
 		}
@@ -204,7 +201,7 @@ func (s *VAEDecoderCUDASession) buffer(state *device.State, name string, element
 		}
 		delete(s.buffers, name)
 	}
-	pointer, err := state.Driver.MemAlloc(uint64(elements) * 4)
+	pointer, err := state.Driver.MemAlloc(uint64(elements) * binaryschema.Uint32Bytes)
 	if err != nil {
 		return 0, fmt.Errorf("vae cuda buffer %s (%d elements): %w", name, elements, err)
 	}
@@ -231,41 +228,36 @@ func launchVAEKernel(state *device.State, function driver.Function, grid, block 
 	return err
 }
 
-func vaeElementwiseGrid(elements int) driver.Dim3 {
-	return driver.Dim3{X: uint32((elements + vaeKernelBlock - 1) / vaeKernelBlock), Y: 1, Z: 1}
-}
-
-var vaeBlock1D = driver.Dim3{X: vaeKernelBlock, Y: 1, Z: 1}
-
 func (s *VAEDecoderCUDASession) conv3d(state *device.State, out, x, cache driver.DevicePtr, cacheT int, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w, kt, kh, kw int) error {
 	positions := frames * h * w
-	channelTiles := (cOut + vaeConvTile - 1) / vaeConvTile
-	positionTiles := (positions + vaeConvTile - 1) / vaeConvTile
+	tile := kernel.VAEConvTile()
+	channelTiles := (cOut + tile - 1) / tile
+	positionTiles := (positions + tile - 1) / tile
 	cInArg, cOutArg := uint32(cIn), uint32(cOut)
 	inT, inH, inW := uint32(frames), uint32(h), uint32(w)
 	ktArg, khArg, kwArg := uint32(kt), uint32(kh), uint32(kw)
-	padT, padH, padW := uint32(kt/2), uint32(kh/2), uint32(kw/2)
+	padT, padH, padW := uint32(kt/tensor.PairedExtent), uint32(kh/tensor.PairedExtent), uint32(kw/tensor.PairedExtent)
 	cacheTArg := uint32(cacheT)
 	return launchVAEKernel(state, s.kernels.conv3d,
-		driver.Dim3{X: uint32(channelTiles * positionTiles), Y: 1, Z: 1}, vaeBlock1D, 0,
+		kernel.Grid1D(channelTiles*positionTiles), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&out, &x, &cache, &weight, &bias,
 		&cInArg, &cOutArg, &inT, &inH, &inW,
 		&ktArg, &khArg, &kwArg, &padT, &padH, &padW, &cacheTArg)
 }
 
 func (s *VAEDecoderCUDASession) rmsNorm(state *device.State, out, x, gamma driver.DevicePtr, c, plane int, silu bool) error {
-	channels, planeArg, applySiLU := uint32(c), uint32(plane), uint32(0)
+	channels, planeArg, applySiLU := uint32(c), uint32(plane), uint32(tensor.FirstOffset)
 	if silu {
-		applySiLU = 1
+		applySiLU = uint32(tensor.SingletonExtent)
 	}
 	return launchVAEKernel(state, s.kernels.rmsNorm,
-		driver.Dim3{X: uint32(plane), Y: 1, Z: 1}, vaeBlock1D, vaeKernelBlock*8,
+		kernel.Grid1D(plane), kernel.DefaultBlock1D(), uint32(kernel.DefaultThreads()*binaryschema.Uint64Bytes),
 		&out, &x, &gamma, &channels, &planeArg, &applySiLU)
 }
 
 func (s *VAEDecoderCUDASession) addInPlace(state *device.State, out, a, b driver.DevicePtr, elements int) error {
 	count := uint32(elements)
-	return launchVAEKernel(state, s.kernels.add, vaeElementwiseGrid(elements), vaeBlock1D, 0,
+	return launchVAEKernel(state, s.kernels.add, kernel.ElementwiseGrid(elements), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&a, &b, &out, &count)
 }
 
@@ -273,15 +265,15 @@ func (s *VAEDecoderCUDASession) addInPlace(state *device.State, out, a, b driver
 // cache lands in the opposite slot so in-flight consumers of the prior cache
 // stay valid on the stream.
 func (s *VAEDecoderCUDASession) updateCache(state *device.State, owner string, prior vaeDeviceCache, x driver.DevicePtr, c, frames, spatial int, replicatePrefix bool) (vaeDeviceCache, error) {
-	nextFrames := min(2, frames)
-	mode := uint32(0)
+	nextFrames := min(tensor.PairedExtent, frames)
+	mode := uint32(tensor.FirstOffset)
 	if replicatePrefix {
-		nextFrames = frames + 1
-		mode = 1
-	} else if frames < 2 && prior.initialized && prior.frames > 0 {
-		nextFrames = frames + 1
+		nextFrames, _ = checked.AddInt(frames, tensor.SingletonExtent)
+		mode = uint32(tensor.SingletonExtent)
+	} else if !checked.AtLeastInt(frames, tensor.PairedExtent) && prior.initialized && checked.PositiveInts(prior.frames) {
+		nextFrames, _ = checked.AddInt(frames, tensor.SingletonExtent)
 	}
-	slot := 1 - prior.slot
+	slot := tensor.SingletonExtent - prior.slot
 	out, err := s.buffer(state, fmt.Sprintf("cache_%s_%d", owner, slot), c*nextFrames*spatial)
 	if err != nil {
 		return vaeDeviceCache{}, err
@@ -289,7 +281,7 @@ func (s *VAEDecoderCUDASession) updateCache(state *device.State, owner string, p
 	elements := c * nextFrames * spatial
 	channels, currentFrames, priorFrames := uint32(c), uint32(frames), uint32(prior.frames)
 	outFrames, spatialArg, count := uint32(nextFrames), uint32(spatial), uint32(elements)
-	if err := launchVAEKernel(state, s.kernels.cacheUpdate, vaeElementwiseGrid(elements), vaeBlock1D, 0,
+	if err := launchVAEKernel(state, s.kernels.cacheUpdate, kernel.ElementwiseGrid(elements), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&out, &x, &prior.ptr,
 		&channels, &currentFrames, &priorFrames, &outFrames, &spatialArg, &mode, &count); err != nil {
 		return vaeDeviceCache{}, err
@@ -308,7 +300,7 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 		if err := s.conv3d(state, out, input, cache.ptr, cache.frames, weight, bias, c, cOut, frames, h, w, kt, kh, kw); err != nil {
 			return err
 		}
-		if kt/2 != 0 {
+		if checked.Nonzero(kt / tensor.PairedExtent) {
 			next, err := s.updateCache(state, fmt.Sprintf("op%d_c0", opIndex), *cache, input, c, frames, spatial, false)
 			if err != nil {
 				return err
@@ -320,9 +312,9 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 	switch op.Operator {
 	case media.CodecPointwise, media.CodecConvolution:
 		weight, bias := op.values[0], op.values[1]
-		kt := 1
+		kt := tensor.SingletonExtent
 		if op.Operator == media.CodecConvolution {
-			kt = 3
+			kt = tensor.TripleExtent
 		}
 		out, err := s.buffer(state, actName, op.OutputChannels*frames*spatial)
 		if err != nil {
@@ -346,7 +338,7 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
-		if err := cachedConv(h0, n0, &opState.cache0, w0, b0, op.OutputChannels, 3, 3, 3); err != nil {
+		if err := cachedConv(h0, n0, &opState.cache0, w0, b0, op.OutputChannels, tensor.TripleExtent, tensor.TripleExtent, tensor.TripleExtent); err != nil {
 			return 0, 0, 0, 0, err
 		}
 		n1, err := s.buffer(state, "work_a", op.OutputChannels*frames*spatial)
@@ -360,7 +352,7 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
-		if err := s.conv3d(state, out, n1, opState.cache1.ptr, opState.cache1.frames, w1, b1, op.OutputChannels, op.OutputChannels, frames, h, w, 3, 3, 3); err != nil {
+		if err := s.conv3d(state, out, n1, opState.cache1.ptr, opState.cache1.frames, w1, b1, op.OutputChannels, op.OutputChannels, frames, h, w, tensor.TripleExtent, tensor.TripleExtent, tensor.TripleExtent); err != nil {
 			return 0, 0, 0, 0, err
 		}
 		nextCache1, err := s.updateCache(state, fmt.Sprintf("op%d_c1", opIndex), opState.cache1, n1, op.OutputChannels, frames, spatial, false)
@@ -368,7 +360,7 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 			return 0, 0, 0, 0, err
 		}
 		opState.cache1 = nextCache1
-		if op.InputChannels == op.OutputChannels {
+		if !op.RequiresProjection() {
 			if err := s.addInPlace(state, out, out, x, op.OutputChannels*frames*spatial); err != nil {
 				return 0, 0, 0, 0, err
 			}
@@ -378,7 +370,12 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
-		if err := s.conv3d(state, shortcut, x, 0, 0, op.values[6], op.values[7], c, op.OutputChannels, frames, h, w, 1, 1, 1); err != nil {
+		projection, ok := checked.Suffix(op.values, tensor.PairedExtent)
+		if !ok {
+			return 0, 0, 0, 0, fmt.Errorf("vae cuda residual projection bindings are absent")
+		}
+		var noCache driver.DevicePtr
+		if err := s.conv3d(state, shortcut, x, noCache, tensor.FirstOffset, projection[tensor.FirstOffset], projection[tensor.SingletonExtent], c, op.OutputChannels, frames, h, w, tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent); err != nil {
 			return 0, 0, 0, 0, err
 		}
 		if err := s.addInPlace(state, out, out, shortcut, op.OutputChannels*frames*spatial); err != nil {
@@ -395,19 +392,28 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 		if err := s.rmsNorm(state, norm, x, gamma, c, frames*spatial, false); err != nil {
 			return 0, 0, 0, 0, err
 		}
-		qkv, err := s.buffer(state, "work_qkv", 3*c*frames*spatial)
+		qkvChannels, ok := checked.MulInt(tensor.TripleExtent, c)
+		qkvElements, elementsOK := checked.ProductInt(qkvChannels, frames, spatial)
+		if !ok || !elementsOK {
+			return 0, 0, 0, 0, fmt.Errorf("vae cuda attention geometry overflows")
+		}
+		qkv, err := s.buffer(state, "work_qkv", qkvElements)
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
-		if err := s.conv3d(state, qkv, norm, 0, 0, qkvW, qkvB, c, 3*c, frames, h, w, 1, 1, 1); err != nil {
+		var noCache driver.DevicePtr
+		if err := s.conv3d(state, qkv, norm, noCache, tensor.FirstOffset, qkvW, qkvB, c, qkvChannels, frames, h, w, tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent); err != nil {
 			return 0, 0, 0, 0, err
 		}
 		// scores (8-aligned) + one double per thread (kernel shared layout).
-		shared := uint32((spatial*4+7)/8*8 + vaeKernelBlock*8)
+		shared, ok := kernel.AttentionSharedMemoryBytes(spatial, kernel.DefaultThreads())
+		if !ok {
+			return 0, 0, 0, 0, fmt.Errorf("vae cuda attention shared-memory geometry overflows")
+		}
 		channels, groups, frame := uint32(c), uint32(frames), uint32(spatial)
-		scale := float32(1 / math.Sqrt(float64(c)))
+		scale := float32(tensor.SingletonExtent) / float32(math.Sqrt(float64(c)))
 		if err := launchVAEKernel(state, s.kernels.attention,
-			driver.Dim3{X: uint32(frames * spatial), Y: 1, Z: 1}, vaeBlock1D, shared,
+			kernel.Grid1D(frames*spatial), kernel.DefaultBlock1D(), shared,
 			&qkv, &norm, &channels, &groups, &frame, &scale); err != nil {
 			return 0, 0, 0, 0, err
 		}
@@ -415,7 +421,7 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
-		if err := s.conv3d(state, out, norm, 0, 0, projW, projB, c, c, frames, h, w, 1, 1, 1); err != nil {
+		if err := s.conv3d(state, out, norm, noCache, tensor.FirstOffset, projW, projB, c, c, frames, h, w, tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent); err != nil {
 			return 0, 0, 0, 0, err
 		}
 		if err := s.addInPlace(state, out, out, x, c*frames*spatial); err != nil {
@@ -423,16 +429,19 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 		}
 		return out, frames, h, w, nil
 	case media.CodecDownsampleSpatial:
-		out, err := s.buffer(state, actName, op.OutputChannels*frames*(h/2)*(w/2))
+		scale := op.Operator.SpatialScale()
+		outH, outW := h/scale, w/scale
+		out, err := s.buffer(state, actName, op.OutputChannels*frames*outH*outW)
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
 		if err := s.downsample2D(state, out, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
 			return 0, 0, 0, 0, err
 		}
-		return out, frames, h / 2, w / 2, nil
+		return out, frames, outH, outW, nil
 	case media.CodecDownsampleSpatiotemporal:
-		outH, outW := h/2, w/2
+		scale := op.Operator.SpatialScale()
+		outH, outW := h/scale, w/scale
 		spatial := outH * outW
 		spatialOut, err := s.buffer(state, "work_a", op.OutputChannels*frames*spatial)
 		if err != nil {
@@ -447,17 +456,17 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 			return 0, 0, 0, 0, err
 		}
 		opState.cache0 = next
-		if chunkIndex == 0 {
+		if checked.Equal(chunkIndex, tensor.FirstOffset) {
 			out, err := s.buffer(state, actName, op.OutputChannels*frames*spatial)
 			if err != nil {
 				return 0, 0, 0, 0, err
 			}
-			if err := state.Driver.MemcpyDtoD(out, spatialOut, uint64(op.OutputChannels*frames*spatial*4)); err != nil {
+			if err := state.Driver.MemcpyDtoD(out, spatialOut, uint64(op.OutputChannels*frames*spatial*binaryschema.Uint32Bytes)); err != nil {
 				return 0, 0, 0, 0, err
 			}
 			return out, frames, outH, outW, nil
 		}
-		outFrames := (frames-1)/2 + 1
+		outFrames := (frames-tensor.SingletonExtent)/op.Operator.TemporalScale() + tensor.SingletonExtent
 		out, err := s.buffer(state, actName, op.OutputChannels*outFrames*spatial)
 		if err != nil {
 			return 0, 0, 0, 0, err
@@ -467,59 +476,66 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 		}
 		return out, outFrames, outH, outW, nil
 	case media.CodecUpsampleSpatial:
-		out, err := s.buffer(state, actName, op.OutputChannels*frames*vaeSpatialScale*h*vaeSpatialScale*w)
+		scale := op.Operator.SpatialScale()
+		out, err := s.buffer(state, actName, op.OutputChannels*frames*scale*h*scale*w)
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
 		if err := s.upsample2D(state, out, x, op.values[0], op.values[1], c, op.OutputChannels, frames, h, w); err != nil {
 			return 0, 0, 0, 0, err
 		}
-		return out, frames, vaeSpatialScale * h, vaeSpatialScale * w, nil
+		return out, frames, scale * h, scale * w, nil
 	case media.CodecUpsampleSpatiotemporal:
 		timeW, timeB := op.values[0], op.values[1]
 		resampleW, resampleB := op.values[2], op.values[3]
 		spatialInput, spatialFrames := x, frames
-		if chunkIndex == 0 {
+		if checked.Equal(chunkIndex, tensor.FirstOffset) {
 			opState.cache0 = vaeDeviceCache{initialized: true, rep: true}
 		} else {
-			replicatePrefix := opState.cache0.rep && frames < 2
+			replicatePrefix := opState.cache0.rep && !checked.AtLeastInt(frames, tensor.PairedExtent)
 			nextCache, err := s.updateCache(state, fmt.Sprintf("op%d_c0", opIndex), opState.cache0, x, c, frames, spatial, replicatePrefix)
 			if err != nil {
 				return 0, 0, 0, 0, err
 			}
 			cachePtr, cacheFrames := opState.cache0.ptr, opState.cache0.frames
 			if opState.cache0.rep {
-				cachePtr, cacheFrames = 0, 0
+				var noCache driver.DevicePtr
+				cachePtr, cacheFrames = noCache, tensor.FirstOffset
 			}
-			timeOut, err := s.buffer(state, "work_a", 2*c*frames*spatial)
+			temporalChannels, ok := checked.MulInt(tensor.PairedExtent, c)
+			elements, elementsOK := checked.ProductInt(temporalChannels, frames, spatial)
+			if !ok || !elementsOK {
+				return 0, 0, 0, 0, fmt.Errorf("vae cuda temporal upsample geometry overflows")
+			}
+			timeOut, err := s.buffer(state, "work_a", elements)
 			if err != nil {
 				return 0, 0, 0, 0, err
 			}
-			if err := s.conv3d(state, timeOut, x, cachePtr, cacheFrames, timeW, timeB, c, 2*c, frames, h, w, 3, 1, 1); err != nil {
+			if err := s.conv3d(state, timeOut, x, cachePtr, cacheFrames, timeW, timeB, c, temporalChannels, frames, h, w, tensor.TripleExtent, tensor.SingletonExtent, tensor.SingletonExtent); err != nil {
 				return 0, 0, 0, 0, err
 			}
-			spatialFrames = 2 * frames
+			spatialFrames, _ = checked.MulInt(tensor.PairedExtent, frames)
 			interleaved, err := s.buffer(state, "work_b", c*spatialFrames*spatial)
 			if err != nil {
 				return 0, 0, 0, 0, err
 			}
-			elements := 2 * c * frames * spatial
 			channels, framesArg, spatialArg, count := uint32(c), uint32(frames), uint32(spatial), uint32(elements)
-			if err := launchVAEKernel(state, s.kernels.interleave, vaeElementwiseGrid(elements), vaeBlock1D, 0,
+			if err := launchVAEKernel(state, s.kernels.interleave, kernel.ElementwiseGrid(elements), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 				&interleaved, &timeOut, &channels, &framesArg, &spatialArg, &count); err != nil {
 				return 0, 0, 0, 0, err
 			}
 			spatialInput = interleaved
 			opState.cache0 = nextCache
 		}
-		out, err := s.buffer(state, actName, op.OutputChannels*spatialFrames*vaeSpatialScale*h*vaeSpatialScale*w)
+		scale := op.Operator.SpatialScale()
+		out, err := s.buffer(state, actName, op.OutputChannels*spatialFrames*scale*h*scale*w)
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
 		if err := s.upsample2D(state, out, spatialInput, resampleW, resampleB, c, op.OutputChannels, spatialFrames, h, w); err != nil {
 			return 0, 0, 0, 0, err
 		}
-		return out, spatialFrames, vaeSpatialScale * h, vaeSpatialScale * w, nil
+		return out, spatialFrames, scale * h, scale * w, nil
 	case media.CodecHead:
 		gamma, weight, bias := op.values[0], op.values[1], op.values[2]
 		norm, err := s.buffer(state, "work_a", c*frames*spatial)
@@ -533,7 +549,7 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 		if err != nil {
 			return 0, 0, 0, 0, err
 		}
-		if err := cachedConv(out, norm, &opState.cache0, weight, bias, op.OutputChannels, 3, 3, 3); err != nil {
+		if err := cachedConv(out, norm, &opState.cache0, weight, bias, op.OutputChannels, tensor.TripleExtent, tensor.TripleExtent, tensor.TripleExtent); err != nil {
 			return 0, 0, 0, 0, err
 		}
 		return out, frames, h, w, nil
@@ -542,23 +558,25 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 }
 
 func (s *VAEDecoderCUDASession) upsample2D(state *device.State, out, x, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w int) error {
-	outH, outW := vaeSpatialScale*h, vaeSpatialScale*w
+	scale := media.CodecUpsampleSpatial.SpatialScale()
+	outH, outW := scale*h, scale*w
 	elements := cOut * frames * outH * outW
 	cInArg, cOutArg, framesArg := uint32(cIn), uint32(cOut), uint32(frames)
 	heightArg, widthArg := uint32(h), uint32(w)
 	outHArg, outWArg, count := uint32(outH), uint32(outW), uint32(elements)
-	return launchVAEKernel(state, s.kernels.upsample2d, vaeElementwiseGrid(elements), vaeBlock1D, 0,
+	return launchVAEKernel(state, s.kernels.upsample2d, kernel.ElementwiseGrid(elements), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&out, &x, &weight, &bias,
 		&cInArg, &cOutArg, &framesArg, &heightArg, &widthArg, &outHArg, &outWArg, &count)
 }
 
 func (s *VAEDecoderCUDASession) downsample2D(state *device.State, out, x, weight, bias driver.DevicePtr, channels, frames, h, w int) error {
-	outH, outW := h/2, w/2
+	scale := media.CodecDownsampleSpatial.SpatialScale()
+	outH, outW := h/scale, w/scale
 	elements := channels * frames * outH * outW
 	channelsArg, framesArg := uint32(channels), uint32(frames)
 	heightArg, widthArg := uint32(h), uint32(w)
 	outHArg, outWArg, count := uint32(outH), uint32(outW), uint32(elements)
-	return launchVAEKernel(state, s.kernels.downsample2d, vaeElementwiseGrid(elements), vaeBlock1D, 0,
+	return launchVAEKernel(state, s.kernels.downsample2d, kernel.ElementwiseGrid(elements), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&out, &x, &weight, &bias, &channelsArg, &framesArg, &heightArg, &widthArg, &outHArg, &outWArg, &count)
 }
 
@@ -566,7 +584,7 @@ func (s *VAEDecoderCUDASession) temporalDownsample(state *device.State, out, x, 
 	elements := channels * outFrames * spatial
 	channelsArg, framesArg, priorFramesArg := uint32(channels), uint32(frames), uint32(priorFrames)
 	spatialArg, outFramesArg, count := uint32(spatial), uint32(outFrames), uint32(elements)
-	return launchVAEKernel(state, s.kernels.temporalDownsample, vaeElementwiseGrid(elements), vaeBlock1D, 0,
+	return launchVAEKernel(state, s.kernels.temporalDownsample, kernel.ElementwiseGrid(elements), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&out, &x, &prior, &weight, &bias, &channelsArg, &framesArg, &priorFramesArg, &spatialArg, &outFramesArg, &count)
 }
 
@@ -584,8 +602,8 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 	states := make([]vaeDeviceOpState, len(s.ops))
 	staging := make([]float32, plan.ZDim*spatial)
 	var frameScratch []float32
-	frameIndex := 0
-	for chunkIndex := 0; chunkIndex < latentFrames; chunkIndex++ {
+	frameIndex := tensor.FirstOffset
+	for chunkIndex := range latentFrames {
 		if err := s.worker.Do(s.ctx, func(state *device.State) error {
 			denormalizeLatentChunk(staging, z, stats, plan.ZDim, latentFrames, spatial, chunkIndex)
 			x, err := s.buffer(state, "act_0", plan.ZDim*spatial)
@@ -595,10 +613,10 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 			if err := state.Driver.MemcpyHtoD(x, driver.Bytes(staging)); err != nil {
 				return err
 			}
-			frames, h, w := 1, latentH, latentW
-			actIndex := 0
+			frames, h, w := tensor.SingletonExtent, latentH, latentW
+			actIndex := tensor.FirstOffset
 			for opIndex := range s.ops {
-				actIndex = 1 - actIndex
+				actIndex = tensor.SingletonExtent - actIndex
 				opStarted := time.Now()
 				x, frames, h, w, err = s.runOp(state, opIndex, chunkIndex, &states[opIndex], x, fmt.Sprintf("act_%d", actIndex), frames, h, w)
 				if err != nil {
@@ -611,28 +629,38 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 					s.profile[s.ops[opIndex].Name] += time.Since(opStarted)
 				}
 			}
-			if h != geometry.height || w != geometry.width {
+			if !checked.Equal(h, geometry.height) || !checked.Equal(w, geometry.width) {
 				return fmt.Errorf("vae cuda decode chunk %d output %dx%d, want %dx%d", chunkIndex, w, h, geometry.width, geometry.height)
 			}
-			elements := geometry.channels * frames * h * w
-			minimum, maximum, count := float32(-1), float32(1), uint32(elements)
-			if err := launchVAEKernel(state, s.kernels.clamp, vaeElementwiseGrid(elements), vaeBlock1D, 0,
+			elements, ok := checked.ProductInt(geometry.channels, frames, h, w)
+			if !ok {
+				return fmt.Errorf("vae cuda decode output geometry overflows")
+			}
+			minimum, maximum := media.SignedUnitBounds32()
+			count := uint32(elements)
+			if err := launchVAEKernel(state, s.kernels.clamp, kernel.ElementwiseGrid(elements), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 				&x, &x, &minimum, &maximum, &count); err != nil {
 				return err
 			}
 			if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
 				return err
 			}
-			chunkSpatial := h * w
-			frameElements := geometry.channels * chunkSpatial
+			chunkSpatial, ok := checked.MulInt(h, w)
+			if !ok {
+				return fmt.Errorf("vae cuda decode spatial geometry overflows")
+			}
+			frameElements, ok := checked.MulInt(geometry.channels, chunkSpatial)
+			if !ok {
+				return fmt.Errorf("vae cuda decode frame geometry overflows")
+			}
 			if cap(frameScratch) < frameElements {
 				frameScratch = make([]float32, frameElements)
 			}
 			frame := frameScratch[:frameElements]
-			for chunkFrame := 0; chunkFrame < frames; chunkFrame++ {
-				for ch := 0; ch < geometry.channels; ch++ {
-					source := x + driver.DevicePtr((ch*frames+chunkFrame)*chunkSpatial*4)
-					if err := state.Driver.MemcpyDtoH(driver.Bytes(frame[ch*chunkSpatial:(ch+1)*chunkSpatial]), source); err != nil {
+			for chunkFrame := range frames {
+				for ch := range geometry.channels {
+					source := x + driver.DevicePtr((ch*frames+chunkFrame)*chunkSpatial*binaryschema.Uint32Bytes)
+					if err := state.Driver.MemcpyDtoH(driver.Bytes(frame[ch*chunkSpatial:(ch+tensor.SingletonExtent)*chunkSpatial]), source); err != nil {
 						return err
 					}
 				}
@@ -646,7 +674,7 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 			return decodeStats, err
 		}
 	}
-	if frameIndex != geometry.frames {
+	if !checked.Equal(frameIndex, geometry.frames) {
 		return decodeStats, fmt.Errorf("vae cuda decode produced %d frames, want %d", frameIndex, geometry.frames)
 	}
 	decodeStats.OutputFrames = frameIndex
@@ -679,21 +707,22 @@ func (s *VAEDecoderCUDASession) Close() error {
 			innerErrs = append(innerErrs, state.Driver.StreamSynchronize(state.Stream))
 			for _, op := range s.ops {
 				for _, pointer := range op.values {
-					if pointer != 0 {
+					if checked.Nonzero(pointer) {
 						innerErrs = append(innerErrs, state.Driver.MemFree(pointer))
 					}
 				}
 			}
 			s.ops = nil
 			for name, buffer := range s.buffers {
-				if buffer.ptr != 0 {
+				if checked.Nonzero(buffer.ptr) {
 					innerErrs = append(innerErrs, state.Driver.MemFree(buffer.ptr))
 				}
 				delete(s.buffers, name)
 			}
-			if s.module != 0 {
+			if checked.Nonzero(s.module) {
 				innerErrs = append(innerErrs, state.Driver.ModuleUnload(s.module))
-				s.module = 0
+				var unloaded driver.Module
+				s.module = unloaded
 			}
 			return errors.Join(innerErrs...)
 		}))

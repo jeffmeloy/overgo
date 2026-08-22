@@ -63,13 +63,13 @@
      "contains": "func OpenSourceWithLimits(",
      "path": "internal/safetensors/source.go",
      "role": "source",
-     "identity": "file:sha256:8b08f2b13131b9522eb4af63d28b94d4776479d9688ad35d7b3ce3ab20b67ab7"
+     "identity": "file:sha256:20d082db54f374f866593286a9e06015208e10d8e5adaf36731fd16fc9758b98"
     },
     {
      "contains": "func TestOpenSourceRejectsInvalidRepositories(",
      "path": "internal/safetensors/source_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:11ff3983426b22c571fe72183bd0bb02845037a04f1219d9be86eaa631523632"
+     "identity": "evidence:sha256:44a5a4bf5099e98a9f7a85cdb79666a0be167b116eaf1d9e4c9e12cc674817d8"
     }
    ],
    "id": "bounded-safetensors-repositories",
@@ -126,7 +126,7 @@
      "contains": "func OpenWithOptions(",
      "path": "internal/gguf/reader.go",
      "role": "source",
-     "identity": "file:sha256:c80c1423b8b507e70daba8fcb40fbe1bd4c9aedd6a07a288e35692d4c97c9001"
+     "identity": "file:sha256:91eecff189e9797a0913ba83b5a55330658880f948be68cf11d87aae40d1e411"
     },
     {
      "contains": "func TestParseEnforcesLimits(",
@@ -413,7 +413,7 @@
      "contains": "func splitPathPrefix(",
      "path": "internal/gguf/reader.go",
      "role": "source",
-     "identity": "file:sha256:c80c1423b8b507e70daba8fcb40fbe1bd4c9aedd6a07a288e35692d4c97c9001"
+     "identity": "file:sha256:91eecff189e9797a0913ba83b5a55330658880f948be68cf11d87aae40d1e411"
     },
     {
      "contains": "func TestOpenLoadsAndReadsSplitGGUF(",
@@ -434,7 +434,7 @@
      "contains": "func Quantize(",
      "path": "internal/quant/quantize.go",
      "role": "source",
-     "identity": "file:sha256:8edb08ac95d83d74c4a240be82c527f48c9852b12c445ef3fbcc7ee94b7a779b"
+     "identity": "file:sha256:d716e9b44651f447dd85a6219d9e52bcfdf6311b67171881a332d1334880a41e"
     },
     {
      "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
@@ -478,7 +478,7 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:af411c3f9d37de5a3f104ee9e6b5b448b4b759753d07fdb643b6c8335b361498"
+     "identity": "file:sha256:6010859bdef2157686cd3fc81ea7355b404f322c354cfe6d4c836c7c61f67960"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -499,7 +499,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:7c8e662e785df4d5d9e579ee65d1c4d1a31a3ea27ccc4f98670637bebb01be90"
+     "identity": "file:sha256:d22baf466bbb7c6c5550330121b0eaa7b69b05a1c0b40c747df85b09e160bcc5"
     },
     {
      "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
@@ -710,7 +710,7 @@
      "contains": "func DecodeEncodedVideo(",
      "path": "internal/media/video.go",
      "role": "source",
-     "identity": "file:sha256:d5edd1961e873374c01ddb608e2718a55cee40394f3a9487aec93fba0a87e2d3"
+     "identity": "file:sha256:5647da7a1d8d17f5d45a4b852727ef848fee91a51ee1d39f5b504a1354d2b59e"
     },
     {
      "contains": "func TestChatAndResponsesEncodedVideoProjection(",
@@ -905,7 +905,7 @@
      "contains": "func LookupArchitecture(",
      "path": "internal/model/architecture.go",
      "role": "source",
-     "identity": "file:sha256:39f92c9c2d86c40e2a5b8bdfc931d8c8935f7b4faff954f95585be7ad5f890b3"
+     "identity": "file:sha256:dc4a9b3e7cf017880188845a0404f6cfa040b0761028c5709edaa51c82db4ec9"
     },
     {
      "contains": "func TestArchitectureRegistryProfiles(",
@@ -1016,7 +1016,7 @@
      "contains": "func LoadSynthesizer(",
      "path": "internal/speechsynth/runtime.go",
      "role": "source",
-     "identity": "file:sha256:eff30c406de36c940dfdbcf4ae4a8bab08e848b0f70fdb35d32b30f0e91339c1"
+     "identity": "file:sha256:1c482b505bf369f6beb649d369b8184d6b79a46fc5670d5b50acb495f7f0fae5"
     },
     {
      "contains": "func TestPocketTTSProductionParity(",
@@ -1107,7 +1107,7 @@
      "contains": "func LoadGenerator(",
      "path": "internal/sensenovarecipe/runtime_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:74a8478dfe30d46959267c0dbba8590748625ef066ad7c069f206e073c9df342"
+     "identity": "file:sha256:bbc1819c0801aef03a2f3318227e32cb56ea8a0f5806a706f6d4ae17e77b2838"
     },
     {
      "contains": "modelrecipe.ModuleRoutedImagePrepare:     routed,",

@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"math"
 
+	// GGUF tensor rank fact
 	"overgo/internal/tensor/dtype"
 )
 
 const (
-	Magic            = "GGUF"
-	CurrentVersion   = 3
-	DefaultAlignment = 32
-	MaxDimensions    = 4
-	MaxTensorName    = 64
+	Magic                   = "GGUF"
+	CurrentVersion   uint32 = 3
+	DefaultAlignment        = 32
+	MaxDimensions           = 4 // GGUF tensor max
+	MaxTensorName           = 64
 )
 
 // ValueType: GGUF metadata value type

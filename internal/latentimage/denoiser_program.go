@@ -15,12 +15,17 @@
 // sinusoid/MLP are small once-per-prompt / once-per-step boundaries computed on
 // the host (Denoiser.textConditioning / timestepConditioning) and fed in, the
 // same split latentvideo uses for its context projection and timestep math.
+
 package latentimage
 
 import (
 	"fmt"
 	"math"
+	"slices"
 
+	"overgo/internal/checked"
+	"overgo/internal/media"
+	"overgo/internal/representation"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -66,18 +71,16 @@ type DenoiserProgram struct {
 // device path). imgSeq must equal gh*gw.
 func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh, gw int, matmulType dtype.Type) (*DenoiserProgram, error) {
 	textSeq := len(textMask)
-	if eps <= 0 {
+	if !checked.PositiveFinite32(eps) {
 		return nil, fmt.Errorf("denoiser program: eps must be positive, got %g", eps)
 	}
-	if textSeq <= 0 || gh <= 0 || gw <= 0 {
+	if !checked.PositiveInts(textSeq, gh, gw) {
 		return nil, fmt.Errorf("denoiser program: textSeq/gh/gw must be positive (%d/%d/%d)", textSeq, gh, gw)
 	}
-	if matmulType != dtype.F32 && matmulType != dtype.BF16 {
+	if !slices.Contains([]dtype.Type{dtype.F32, dtype.BF16}, matmulType) {
 		return nil, fmt.Errorf("denoiser program: matmul weight type %s unsupported", matmulType)
 	}
-	if t.ModFields == 0 {
-		t.ModFields = 6
-	}
+	t.ModFields = t.ModFieldsOr6()
 	h := uint64(t.Hidden)
 	headDim := uint64(t.HeadDim)
 	heads := uint64(t.Heads)
@@ -102,7 +105,7 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 	p.InText = b.Input("text_conditioning", dtype.F32, tensor.MustShape(h, uint64(textSeq)))
 	p.InTemb = b.Input("timestep_embed", dtype.F32, tensor.MustShape(h))
 	p.InTembMod = b.Input("timestep_mod", dtype.F32, tensor.MustShape(uint64(t.ModFields)*h))
-	p.InDelta = b.Input("flow_delta", dtype.F32, tensor.MustShape(1))
+	p.InDelta = b.Input("flow_delta", dtype.F32, tensor.MustShape(tensor.SingletonExtent))
 	for _, attended := range textMask {
 		if !attended {
 			p.keyBias = b.Input("denoiser_key_bias", dtype.F32, tensor.MustShape(uint64(seq)))
@@ -122,33 +125,28 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 		bind.Input("img_in.bias", h),
 	)
 	// [text, image] token concatenation -> the co-attention sequence.
-	hidden := b.Concat(p.InText, img, 1) // (Hidden, seq)
+	hidden := b.Concat(p.InText, img, tensor.SingletonExtent) // (Hidden, seq)
 
 	// 3-axis interleaved RoPE positions: text tokens at the origin (identity),
 	// image token n at (0, n/gw, n%gw). Axis 0 (temporal) is always 0.
-	var positions [3][]uint32
-	for axis := range positions {
-		positions[axis] = make([]uint32, seq)
+	positions := representation.AxisGridPositions(textSeq, gh, gw)
+	axes := [tensor.TripleExtent]uint64{
+		uint64(t.RopeAxes[tensor.FirstOffset]),
+		uint64(t.RopeAxes[tensor.SingletonExtent]),
+		uint64(t.RopeAxes[tensor.PairedExtent]),
 	}
-	for tok := 0; tok < seq; tok++ {
-		if tok >= textSeq {
-			n := tok - textSeq
-			positions[1][tok] = uint32(n / gw)
-			positions[2][tok] = uint32(n % gw)
-		}
-	}
-	axes := [3]uint64{uint64(t.RopeAxes[0]), uint64(t.RopeAxes[1]), uint64(t.RopeAxes[2])}
 	theta := float32(t.RopeTheta)
-	scale := float32(1.0 / math.Sqrt(float64(headDim)))
+	scale := float32(float64(tensor.SingletonExtent) / math.Sqrt(float64(headDim)))
 
-	for layer := 0; layer < t.Layers; layer++ {
+	for layer := range t.Layers {
 		prefix := fmt.Sprintf("transformer_blocks.%d.", layer)
 
 		// AdaLN-single: shared timestep vector + per-block learned table.
-		mod := b.Add(p.InTembMod, bind.Input(prefix+"scale_shift_table", 6*h))
+		mod := b.Add(p.InTembMod, bind.Input(prefix+"scale_shift_table", uint64(t.ModFields)*h))
 		chunk := func(i uint64) *tensor.Tensor { return b.FlatSlice(mod, i*h, h) }
-		preScale, preShift, preGate := chunk(0), chunk(1), chunk(2)
-		postScale, postShift, postGate := chunk(3), chunk(4), chunk(5)
+		offsets := media.PairedShiftScaleGateOffsets()
+		preScale, preShift, preGate := chunk(uint64(offsets.PreScale)), chunk(uint64(offsets.PreShift)), chunk(uint64(offsets.PreGate))
+		postScale, postShift, postGate := chunk(uint64(offsets.PostScale)), chunk(uint64(offsets.PostShift)), chunk(uint64(offsets.PostGate))
 
 		// --- gated GQA co-attention ---
 		n1 := b.AdaptiveShiftScale(zeroCenteredRMSNorm(b, hidden, bind.Input(prefix+"norm1.weight", h), eps), preShift, preScale)
@@ -189,8 +187,8 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 	// final adaptive-norm + projection to the flow-matching velocity. The
 	// modulation is temb + the [2,Hidden] table; run over the full sequence
 	// (image columns are sliced host-side in Forward).
-	table := bind.Input("final_layer.scale_shift_table", 2*h)
-	finScale := b.Add(p.InTemb, b.FlatSlice(table, 0, h))
+	table := bind.Input("final_layer.scale_shift_table", tensor.PairedExtent*h)
+	finScale := b.Add(p.InTemb, b.FlatSlice(table, tensor.FirstOffset, h))
 	finShift := b.Add(p.InTemb, b.FlatSlice(table, h, h))
 	fn := b.AdaptiveShiftScale(
 		zeroCenteredRMSNorm(b, hidden, bind.Input("final_layer.norm.weight", h), eps),
@@ -237,11 +235,13 @@ func (p *DenoiserProgram) Forward(run GraphRunner, d *Denoiser, latentPatches, e
 		return ForwardResult{}, fmt.Errorf("denoiser forward: %w", err)
 	}
 	full := results[p.Velocity].Data // (InChannels, seq) token-major [seq][InChannels]
-	if len(full) != p.Seq*p.T.InChannels {
-		return ForwardResult{}, fmt.Errorf("denoiser forward: velocity len=%d want %d", len(full), p.Seq*p.T.InChannels)
+	fullWant, fullOK := checked.MulInt(p.Seq, p.T.InChannels)
+	velocityStart, startOK := checked.MulInt(p.TextSeq, p.T.InChannels)
+	if !fullOK || !startOK || len(full) != fullWant {
+		return ForwardResult{}, fmt.Errorf("denoiser forward: velocity len=%d want %d", len(full), fullWant)
 	}
 	res := ForwardResult{
-		Velocity:    append([]float32(nil), full[p.TextSeq*p.T.InChannels:]...),
+		Velocity:    append([]float32(nil), full[velocityStart:]...),
 		BlockHidden: make([][]float32, len(p.BlockOutputs)),
 	}
 	for i, node := range p.BlockOutputs {
@@ -258,10 +258,14 @@ func (p *DenoiserProgram) hostFeeds(
 	if p.MatmulType != dtype.F32 {
 		return nil, fmt.Errorf("denoiser forward: host-feed path needs F32 weights, program compiled %s", p.MatmulType)
 	}
-	if len(latentPatches) != p.ImgSeq*p.T.InChannels {
-		return nil, fmt.Errorf("denoiser forward: latent patches len=%d want %d", len(latentPatches), p.ImgSeq*p.T.InChannels)
+	latentWant, latentOK := checked.MulInt(p.ImgSeq, p.T.InChannels)
+	if !latentOK || len(latentPatches) != latentWant {
+		return nil, fmt.Errorf("denoiser forward: latent patches len=%d want %d", len(latentPatches), latentWant)
 	}
-	temb, tembMod := d.timestepConditioning(sigma)
+	temb, tembMod, err := d.timestepConditioning(sigma)
+	if err != nil {
+		return nil, err
+	}
 	txt, err := d.textConditioning(encoderHidden, p.TextSeq)
 	if err != nil {
 		return nil, err
@@ -279,7 +283,7 @@ func (p *DenoiserProgram) hostFeeds(
 	feeds[p.InText] = reference.Value{Shape: p.InText.Shape, Data: dtype.Float64SliceToFloat32(txt)}
 	feeds[p.InTemb] = reference.Value{Shape: p.InTemb.Shape, Data: dtype.Float64SliceToFloat32(temb)}
 	feeds[p.InTembMod] = reference.Value{Shape: p.InTembMod.Shape, Data: dtype.Float64SliceToFloat32(tembMod)}
-	feeds[p.InDelta] = reference.Value{Shape: p.InDelta.Shape, Data: []float32{0}}
+	feeds[p.InDelta] = reference.Value{Shape: p.InDelta.Shape, Data: make([]float32, tensor.SingletonExtent)}
 	if p.keyBias != nil {
 		feeds[p.keyBias] = reference.Value{Shape: p.keyBias.Shape, Data: p.keyData}
 	}
@@ -298,19 +302,19 @@ func zeroCenteredRMSNorm(b *tensor.Builder, x, weight *tensor.Tensor, eps float3
 // contiguous per-axis channel spans of x ([head_dim, heads, tokens]): axis a of
 // width axes[a] rotates pair j by position*theta^(-2j/axes[a]). Slice, rotate,
 // reassemble -- every stage is a cataloged op, matching the host ropeTable.
-func buildInterleavedRoPE(b *tensor.Builder, x *tensor.Tensor, axes [3]uint64, positions [3][]uint32, theta float32) *tensor.Tensor {
-	heads := x.Shape.Dims[1]
-	tokens := x.Shape.Dims[2]
+func buildInterleavedRoPE(b *tensor.Builder, x *tensor.Tensor, axes [tensor.TripleExtent]uint64, positions [tensor.TripleExtent][]uint32, theta float32) *tensor.Tensor {
+	heads := x.Shape.Dims[tensor.SingletonExtent]
+	tokens := x.Shape.Dims[tensor.PairedExtent]
 	var joined *tensor.Tensor
-	offset := uint64(0)
-	for axis := 0; axis < 3; axis++ {
+	offset := uint64(tensor.FirstOffset)
+	for axis := range axes {
 		span := axes[axis]
-		part := b.Reshape(b.GroupSlice(x, offset, span, 1, span), span, heads, tokens)
-		rotated := b.RoPEWithOptions(part, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: positions[axis], RotaryDimensions: uint32(span), FrequencyBase: theta, FrequencyScale: 1})
+		part := b.Reshape(b.GroupSlice(x, offset, span, tensor.SingletonExtent, span), span, heads, tokens)
+		rotated := b.RoPEWithOptions(part, tensor.RoPEOptions{Layout: tensor.RoPELayoutNormal, Positions: positions[axis], RotaryDimensions: uint32(span), FrequencyBase: theta, FrequencyScale: tensor.SingletonExtent})
 		if joined == nil {
 			joined = rotated
 		} else {
-			joined = b.Concat(joined, rotated, 0)
+			joined = b.Concat(joined, rotated, tensor.FirstOffset)
 		}
 		offset += span
 	}

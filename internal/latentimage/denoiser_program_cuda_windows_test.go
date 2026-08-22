@@ -25,7 +25,7 @@ func TestDenoiserProgramCUDAMatchesReference(t *testing.T) {
 	const gh, gw, textSeq = 2, 2, 3
 	imgSeq := gh * gw
 	spec := syntheticSpec()
-	d, err := NewDenoiser(spec, 1e-5, 1000, syntheticStore(spec))
+	d, err := NewDenoiser(spec, 1e-5, fixtureTimestepProgram(spec), syntheticStore(spec))
 	if err != nil {
 		t.Fatalf("NewDenoiser: %v", err)
 	}

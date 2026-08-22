@@ -7,19 +7,25 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/tensor/dtype"
 )
 
 func Shape(shapes map[string][]int, name string, rank int) ([]int, error) {
-	shape, ok := shapes[name]
+	return Dimensions(shapes, name, rank)
+}
+
+// Dimensions returns one catalog entry with an exact rank.
+func Dimensions(catalog map[string][]int, name string, rank int) ([]int, error) {
+	dimensions, ok := catalog[name]
 	if !ok {
 		return nil, fmt.Errorf("missing tensor %q", name)
 	}
-	if len(shape) != rank {
-		return nil, fmt.Errorf("tensor %q rank %d, want %d", name, len(shape), rank)
+	if !checked.Equal(len(dimensions), rank) {
+		return nil, fmt.Errorf("tensor %q rank %d, want %d", name, len(dimensions), rank)
 	}
-	return shape, nil
+	return dimensions, nil
 }
 
 // IndexedCount validates contiguous prefix+index+suffix names.

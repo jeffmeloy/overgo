@@ -39,12 +39,15 @@
 // device==host bf16-band parity below exact and clean, and leaves pad-key
 // exclusion (needed only for element-exact match to the adaptive golden) as the
 // documented residual for the full e2e SHA; the telemetry oracle stays until then.
+
 package latentimage
 
 import (
 	"fmt"
 	"math"
+	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -99,7 +102,7 @@ func CompileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 // adaptive masked encoder (runtime_causal_gqa_masked_bf16). The same graph runs
 // on the reference backend (host oracle) and the CUDA generic executor (device).
 func CompileEncoderProgramMasked(e TextEncoderSpec, eps float32, seq int, matmulType dtype.Type, mask []bool) (*EncoderProgram, error) {
-	if len(mask) != seq {
+	if !checked.Equal(len(mask), seq) {
 		return nil, fmt.Errorf("encoder program: mask len=%d want seq=%d", len(mask), seq)
 	}
 	return compileEncoderProgram(e, eps, seq, matmulType, mask)
@@ -107,16 +110,16 @@ func CompileEncoderProgramMasked(e TextEncoderSpec, eps float32, seq int, matmul
 
 // compileEncoderProgram is the shared builder; mask==nil => maskless causal.
 func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType dtype.Type, mask []bool) (*EncoderProgram, error) {
-	if eps <= 0 {
+	if !checked.PositiveFinite32(eps) {
 		return nil, fmt.Errorf("encoder program: eps must be positive, got %g", eps)
 	}
-	if seq <= 0 {
+	if !checked.PositiveInts(seq) {
 		return nil, fmt.Errorf("encoder program: seq must be positive, got %d", seq)
 	}
-	if e.Intermediate <= 0 {
+	if !checked.PositiveInts(e.Intermediate) {
 		return nil, fmt.Errorf("encoder program: intermediate must be positive, got %d", e.Intermediate)
 	}
-	if matmulType != dtype.F32 && matmulType != dtype.BF16 {
+	if !slices.Contains([]dtype.Type{dtype.F32, dtype.BF16}, matmulType) {
 		return nil, fmt.Errorf("encoder program: matmul weight type %s unsupported", matmulType)
 	}
 	slots, err := captureSlots(e)
@@ -183,8 +186,8 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 		v = b.Reshape(v, headDim, kvHeads, uint64(seq))
 		q = b.WeightedRMSNorm(q, bind.Input(prefix+"self_attn.q_norm.weight", headDim), eps)
 		k = b.WeightedRMSNorm(k, bind.Input(prefix+"self_attn.k_norm.weight", headDim), eps)
-		q = b.RoPEWithOptions(q, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: theta, FrequencyScale: 1})
-		k = b.RoPEWithOptions(k, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: theta, FrequencyScale: 1})
+		q = b.RoPEWithOptions(q, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: theta, FrequencyScale: tensor.SingletonExtent})
+		k = b.RoPEWithOptions(k, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: uint32(headDim), FrequencyBase: theta, FrequencyScale: tensor.SingletonExtent})
 
 		var attn *tensor.Tensor
 		if p.keyBias != nil {
@@ -232,8 +235,9 @@ func (p *EncoderProgram) RunHostFeed(run GraphRunner, weightAt EncoderFeed, embe
 	if p.MatmulType != dtype.F32 {
 		return nil, fmt.Errorf("encoder RunHostFeed: needs F32 weights, program compiled %s", p.MatmulType)
 	}
-	if len(embedRows) != p.Seq*p.E.Hidden {
-		return nil, fmt.Errorf("encoder RunHostFeed: embed rows len=%d want %d", len(embedRows), p.Seq*p.E.Hidden)
+	embedValue, err := reference.BorrowedValue(p.Embed.Shape, embedRows)
+	if err != nil {
+		return nil, fmt.Errorf("encoder RunHostFeed: embed rows: %w", err)
 	}
 	feeds := make(map[*tensor.Tensor]reference.Value, len(p.weightInputs)+1)
 	for name, node := range p.weightInputs {
@@ -247,7 +251,7 @@ func (p *EncoderProgram) RunHostFeed(run GraphRunner, weightAt EncoderFeed, embe
 		}
 		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
 	}
-	feeds[p.Embed] = reference.Value{Shape: p.Embed.Shape, Data: embedRows}
+	feeds[p.Embed] = embedValue
 	if p.keyBias != nil {
 		feeds[p.keyBias] = reference.Value{Shape: p.keyBias.Shape, Data: p.keyBiasData}
 	}

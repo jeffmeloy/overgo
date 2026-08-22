@@ -17,10 +17,14 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/hostmath"
+	"overgo/internal/media"
 	"overgo/internal/model"
 	"overgo/internal/optimizer"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/representation"
+	"overgo/internal/tensor"
 	"overgo/internal/trainingprogram"
 )
 
@@ -73,45 +77,48 @@ type ditTensorSpec struct {
 // head) then every block. Names are the checkpoint tensor names.
 func ditTensorSpecs(c DenoiserConfig, textDim int) []ditTensorSpec {
 	d, f := c.Dim, c.FFNDim
+	one := tensor.SingletonExtent
+	blockWidth := media.PairedShiftScaleGateWidth(d)
+	headModulationWidth := tensor.PairedExtent * d
 	specs := []ditTensorSpec{
 		{"patch_embedding.weight", d, c.patchIn()},
-		{"patch_embedding.bias", 1, d},
+		{"patch_embedding.bias", one, d},
 		{"text_embedding.0.weight", d, textDim},
-		{"text_embedding.0.bias", 1, d},
+		{"text_embedding.0.bias", one, d},
 		{"text_embedding.2.weight", d, d},
-		{"text_embedding.2.bias", 1, d},
+		{"text_embedding.2.bias", one, d},
 		{"time_embedding.0.weight", d, c.FreqDim},
-		{"time_embedding.0.bias", 1, d},
+		{"time_embedding.0.bias", one, d},
 		{"time_embedding.2.weight", d, d},
-		{"time_embedding.2.bias", 1, d},
-		{"time_projection.1.weight", 6 * d, d},
-		{"time_projection.1.bias", 1, 6 * d},
-		{"head.modulation", 1, 2 * d},
+		{"time_embedding.2.bias", one, d},
+		{"time_projection.1.weight", blockWidth, d},
+		{"time_projection.1.bias", one, blockWidth},
+		{"head.modulation", one, headModulationWidth},
 		{"head.head.weight", c.patchOut(), d},
-		{"head.head.bias", 1, c.patchOut()},
+		{"head.head.bias", one, c.patchOut()},
 	}
-	for layer := 0; layer < c.NumLayers; layer++ {
+	for layer := range c.NumLayers {
 		prefix := denoiserBlockPrefix(layer)
 		for _, attention := range []string{"self_attn.", "cross_attn."} {
 			for _, projection := range []string{"q", "k", "v", "o"} {
 				specs = append(specs,
 					ditTensorSpec{prefix + attention + projection + ".weight", d, d},
-					ditTensorSpec{prefix + attention + projection + ".bias", 1, d},
+					ditTensorSpec{prefix + attention + projection + ".bias", one, d},
 				)
 			}
 			specs = append(specs,
-				ditTensorSpec{prefix + attention + "norm_q.weight", 1, d},
-				ditTensorSpec{prefix + attention + "norm_k.weight", 1, d},
+				ditTensorSpec{prefix + attention + "norm_q.weight", one, d},
+				ditTensorSpec{prefix + attention + "norm_k.weight", one, d},
 			)
 		}
 		specs = append(specs,
 			ditTensorSpec{prefix + "ffn.0.weight", f, d},
-			ditTensorSpec{prefix + "ffn.0.bias", 1, f},
+			ditTensorSpec{prefix + "ffn.0.bias", one, f},
 			ditTensorSpec{prefix + "ffn.2.weight", d, f},
-			ditTensorSpec{prefix + "ffn.2.bias", 1, d},
-			ditTensorSpec{prefix + "modulation", 1, 6 * d},
-			ditTensorSpec{prefix + "norm3.weight", 1, d},
-			ditTensorSpec{prefix + "norm3.bias", 1, d},
+			ditTensorSpec{prefix + "ffn.2.bias", one, d},
+			ditTensorSpec{prefix + "modulation", one, blockWidth},
+			ditTensorSpec{prefix + "norm3.weight", one, d},
+			ditTensorSpec{prefix + "norm3.bias", one, d},
 		)
 	}
 	return specs
@@ -125,14 +132,25 @@ func NewDiTTrainer(cfg DenoiserConfig, textDim int, geometry LatentGeometry, ten
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-	if textDim <= 0 {
+	if !checked.PositiveInts(textDim) {
 		return nil, fmt.Errorf("dit train: text dim %d must be positive", textDim)
 	}
-	if geometry.Channels != cfg.InDim || geometry.Seq <= 0 ||
-		geometry.LatentFrames%cfg.PatchSize[0] != 0 ||
-		geometry.LatentHeight%cfg.PatchSize[1] != 0 ||
-		geometry.LatentWidth%cfg.PatchSize[2] != 0 ||
-		geometry.Seq != geometry.Grid[0]*geometry.Grid[1]*geometry.Grid[2] {
+	volume := media.VolumeGeometry{Frames: geometry.LatentFrames, Height: geometry.LatentHeight, Width: geometry.LatentWidth}
+	grid, err := media.VolumePatchGrid(volume, cfg.PatchSize)
+	if err != nil {
+		return nil, fmt.Errorf("dit train: geometry: %w", err)
+	}
+	sequence, err := media.VolumeElements(grid)
+	if err != nil {
+		return nil, fmt.Errorf("dit train: geometry: %w", err)
+	}
+	if !checked.Equal(geometry.Channels, cfg.InDim) {
+		return nil, fmt.Errorf("dit train: geometry %+v incompatible with config", geometry)
+	}
+	if !checked.Equal(geometry.Grid, grid) {
+		return nil, fmt.Errorf("dit train: geometry %+v incompatible with config", geometry)
+	}
+	if !checked.Equal(geometry.Seq, sequence) {
 		return nil, fmt.Errorf("dit train: geometry %+v incompatible with config", geometry)
 	}
 	headWidth := cfg.Dim / cfg.NumHeads
@@ -155,15 +173,22 @@ func NewDiTTrainer(cfg DenoiserConfig, textDim int, geometry LatentGeometry, ten
 	}
 
 	specs := ditTensorSpecs(cfg, textDim)
-	total := 0
+	total := tensor.FirstOffset
 	groups := make([]optimizer.GroupSpec, len(specs))
 	for i, spec := range specs {
-		size := spec.rows * spec.cols
+		size, ok := checked.MulInt(spec.rows, spec.cols)
+		if !ok {
+			return nil, fmt.Errorf("dit train: tensor %s geometry overflows", spec.name)
+		}
+		end, ok := checked.AddInt(total, size)
+		if !ok {
+			return nil, fmt.Errorf("dit train: packed parameter geometry overflows")
+		}
 		groups[i] = optimizer.GroupSpec{
-			Name: spec.name, Start: total, End: total + size,
+			Name: spec.name, Start: total, End: end,
 			Rows: spec.rows, Cols: spec.cols,
 		}
-		total += size
+		total = end
 	}
 	compiled, err := optimizer.CompilePlan(total, groups)
 	if err != nil {
@@ -173,8 +198,11 @@ func NewDiTTrainer(cfg DenoiserConfig, textDim int, geometry LatentGeometry, ten
 	trainer.gradients = make([]float32, total)
 	for i, spec := range specs {
 		values, ok := tensors[spec.name]
-		if !ok || len(values) != spec.rows*spec.cols {
-			return nil, fmt.Errorf("dit train: tensor %s has %d values, want %d", spec.name, len(values), spec.rows*spec.cols)
+		if !ok {
+			return nil, fmt.Errorf("dit train: tensor %s is absent", spec.name)
+		}
+		if err := checked.Length(values, spec.rows, spec.cols); err != nil {
+			return nil, fmt.Errorf("dit train: tensor %s: %w", spec.name, err)
 		}
 		copy(trainer.weights[groups[i].Start:groups[i].End], values)
 		trainer.spans[spec.name] = ditSpan{groups[i].Start, groups[i].End}
@@ -218,16 +246,6 @@ func (t *DiTTrainer) gradView(name string) []float32 {
 	return t.gradients[s.start:s.end]
 }
 
-// addBiasGradient: dB += column sums of dy [rows, out].
-func addBiasGradient(dB, dy []float32, rows, out int) {
-	for r := 0; r < rows; r++ {
-		row := dy[r*out : (r+1)*out]
-		for o, g := range row {
-			dB[o] += g
-		}
-	}
-}
-
 // ditTextActs: retained text-projection intermediates. The context is the
 // serving contract: the active token rows plus ONE zero-input pad-source row
 // broadcast to the fixed text length (the projection of a zero encoder row).
@@ -243,12 +261,12 @@ type ditTextActs struct {
 
 func (t *DiTTrainer) projectText(rawText []float32, tokens int) (*ditTextActs, error) {
 	d, textLen := t.cfg.Dim, t.cfg.TextLen
-	if tokens <= 0 || tokens > textLen || len(rawText) != tokens*t.textDim {
-		return nil, fmt.Errorf("dit train: raw text rows=%d len=%d, want len %d within %d rows", tokens, len(rawText), tokens*t.textDim, textLen)
+	activeRows, err := representation.ActivePrefixRows(tokens, textLen)
+	if err != nil {
+		return nil, fmt.Errorf("dit train: raw text: %w", err)
 	}
-	activeRows := tokens
-	if activeRows < textLen {
-		activeRows++
+	if err := checked.Length(rawText, tokens, t.textDim); err != nil {
+		return nil, fmt.Errorf("dit train: raw text: %w", err)
 	}
 	a := &ditTextActs{activeRows: activeRows, tokens: tokens}
 	a.rawFull = make([]float32, activeRows*t.textDim)
@@ -284,12 +302,12 @@ func (t *DiTTrainer) projectTextBackward(a *ditTextActs, dContext []float32) {
 		}
 	}
 	hostmath.LinearWeightGradient(t.gradView("text_embedding.2.weight"), a.hidden, dProjected, a.activeRows, d, d)
-	addBiasGradient(t.gradView("text_embedding.2.bias"), dProjected, a.activeRows, d)
+	hostmath.AddBiasGradientF32(t.gradView("text_embedding.2.bias"), dProjected, a.activeRows, d)
 	dHidden := make([]float32, a.activeRows*d)
 	hostmath.LinearBackwardInput(dHidden, dProjected, t.view("text_embedding.2.weight"), a.activeRows, d, d)
 	hostmath.GELUTanhBackward(dHidden, a.hiddenPre, dHidden)
 	hostmath.LinearWeightGradient(t.gradView("text_embedding.0.weight"), a.rawFull, dHidden, a.activeRows, t.textDim, d)
-	addBiasGradient(t.gradView("text_embedding.0.bias"), dHidden, a.activeRows, d)
+	hostmath.AddBiasGradientF32(t.gradView("text_embedding.0.bias"), dHidden, a.activeRows, d)
 }
 
 // ditTimeActs: retained timestep-conditioning intermediates. The forward
@@ -305,28 +323,32 @@ type ditTimeActs struct {
 }
 
 func (t *DiTTrainer) timestepConditioning(timestep float64) (*ditTimeActs, error) {
-	if math.IsNaN(timestep) || math.IsInf(timestep, 0) {
+	if !checked.Finite64(timestep) {
 		return nil, fmt.Errorf("dit train: timestep is non-finite")
 	}
 	d, freqDim := t.cfg.Dim, t.cfg.FreqDim
 	a := &ditTimeActs{freq: make([]float32, freqDim)}
-	half := freqDim / 2
+	half, ok := checked.DivExactInt(freqDim, tensor.PairedExtent)
+	if !ok {
+		return nil, fmt.Errorf("dit train: timestep embedding width must be even")
+	}
 	logPeriod := math.Log(float64(t.cfg.Policy.SinusoidalPeriod))
-	for i := 0; i < half; i++ {
+	for i := range half {
 		angle := timestep * math.Exp(-logPeriod*float64(i)/float64(half))
 		a.freq[i] = float32(math.Cos(angle))
 		a.freq[half+i] = float32(math.Sin(angle))
 	}
 	a.embed0Pre = make([]float32, d)
-	hostmath.LinearF64(a.embed0Pre, a.freq, t.view("time_embedding.0.weight"), t.view("time_embedding.0.bias"), 1, freqDim, d)
+	hostmath.LinearF64(a.embed0Pre, a.freq, t.view("time_embedding.0.weight"), t.view("time_embedding.0.bias"), tensor.SingletonExtent, freqDim, d)
 	a.embed0Act = append([]float32(nil), a.embed0Pre...)
 	hostmath.SiLUInPlace(a.embed0Act)
 	a.headE = make([]float32, d)
-	hostmath.LinearF64(a.headE, a.embed0Act, t.view("time_embedding.2.weight"), t.view("time_embedding.2.bias"), 1, d, d)
+	hostmath.LinearF64(a.headE, a.embed0Act, t.view("time_embedding.2.weight"), t.view("time_embedding.2.bias"), tensor.SingletonExtent, d, d)
 	a.headEAct = append([]float32(nil), a.headE...)
 	hostmath.SiLUInPlace(a.headEAct)
-	a.blockE = make([]float32, 6*d)
-	hostmath.LinearF64(a.blockE, a.headEAct, t.view("time_projection.1.weight"), t.view("time_projection.1.bias"), 1, d, 6*d)
+	blockWidth := media.PairedShiftScaleGateWidth(d)
+	a.blockE = make([]float32, blockWidth)
+	hostmath.LinearF64(a.blockE, a.headEAct, t.view("time_projection.1.weight"), t.view("time_projection.1.bias"), tensor.SingletonExtent, d, blockWidth)
 	return a, nil
 }
 
@@ -335,22 +357,23 @@ func (t *DiTTrainer) timestepConditioning(timestep float64) (*ditTimeActs, error
 // time_projection and time_embedding masters.
 func (t *DiTTrainer) timestepBackward(a *ditTimeActs, dBlockE, dHeadE []float32) {
 	d := t.cfg.Dim
-	hostmath.LinearWeightGradient(t.gradView("time_projection.1.weight"), a.headEAct, dBlockE, 1, d, 6*d)
-	addBiasGradient(t.gradView("time_projection.1.bias"), dBlockE, 1, 6*d)
+	blockWidth := media.PairedShiftScaleGateWidth(d)
+	hostmath.LinearWeightGradient(t.gradView("time_projection.1.weight"), a.headEAct, dBlockE, tensor.SingletonExtent, d, blockWidth)
+	hostmath.AddBiasGradientF32(t.gradView("time_projection.1.bias"), dBlockE, tensor.SingletonExtent, blockWidth)
 	dHeadEAct := make([]float32, d)
-	hostmath.LinearBackwardInput(dHeadEAct, dBlockE, t.view("time_projection.1.weight"), 1, d, 6*d)
+	hostmath.LinearBackwardInput(dHeadEAct, dBlockE, t.view("time_projection.1.weight"), tensor.SingletonExtent, d, blockWidth)
 	dHeadETotal := make([]float32, d)
 	hostmath.SiLUBackward(dHeadETotal, a.headE, dHeadEAct)
 	for i := range dHeadETotal {
 		dHeadETotal[i] += dHeadE[i]
 	}
-	hostmath.LinearWeightGradient(t.gradView("time_embedding.2.weight"), a.embed0Act, dHeadETotal, 1, d, d)
-	addBiasGradient(t.gradView("time_embedding.2.bias"), dHeadETotal, 1, d)
+	hostmath.LinearWeightGradient(t.gradView("time_embedding.2.weight"), a.embed0Act, dHeadETotal, tensor.SingletonExtent, d, d)
+	hostmath.AddBiasGradientF32(t.gradView("time_embedding.2.bias"), dHeadETotal, tensor.SingletonExtent, d)
 	dEmbed0Act := make([]float32, d)
-	hostmath.LinearBackwardInput(dEmbed0Act, dHeadETotal, t.view("time_embedding.2.weight"), 1, d, d)
+	hostmath.LinearBackwardInput(dEmbed0Act, dHeadETotal, t.view("time_embedding.2.weight"), tensor.SingletonExtent, d, d)
 	hostmath.SiLUBackward(dEmbed0Act, a.embed0Pre, dEmbed0Act)
-	hostmath.LinearWeightGradient(t.gradView("time_embedding.0.weight"), a.freq, dEmbed0Act, 1, t.cfg.FreqDim, d)
-	addBiasGradient(t.gradView("time_embedding.0.bias"), dEmbed0Act, 1, d)
+	hostmath.LinearWeightGradient(t.gradView("time_embedding.0.weight"), a.freq, dEmbed0Act, tensor.SingletonExtent, t.cfg.FreqDim, d)
+	hostmath.AddBiasGradientF32(t.gradView("time_embedding.0.bias"), dEmbed0Act, tensor.SingletonExtent, d)
 }
 
 // ditCrossActs: one block's fixed-context cross K/V (trainable projections).
@@ -418,7 +441,7 @@ func (t *DiTTrainer) blockForward(layer int, input, blockE []float32, cross ditC
 	prefix := denoiserBlockPrefix(layer)
 	modulation := t.view(prefix + "modulation")
 	a := ditBlockActs{input: input, cross: cross}
-	for chunk := 0; chunk < 6; chunk++ {
+	for chunk := range media.DefaultPairedShiftScaleGateFields() {
 		vec := make([]float32, d)
 		for i := range vec {
 			vec[i] = modulation[chunk*d+i] + blockE[chunk*d+i]
@@ -429,7 +452,8 @@ func (t *DiTTrainer) blockForward(layer int, input, blockE []float32, cross ditC
 	a.lnSelf = make([]float32, seq*d)
 	hostmath.LayerNormInto(a.lnSelf, input, nil, nil, seq, d, eps)
 	a.selfIn = make([]float32, seq*d)
-	hostmath.AdaptiveShiftScale(a.selfIn, a.lnSelf, a.mVec[0], a.mVec[1], seq, d)
+	offsets := media.PairedShiftFirstGateOffsets()
+	hostmath.AdaptiveShiftScale(a.selfIn, a.lnSelf, a.mVec[offsets.PreShift], a.mVec[offsets.PreScale], seq, d)
 
 	self := prefix + "self_attn."
 	a.qProj = make([]float32, seq*d)
@@ -456,7 +480,7 @@ func (t *DiTTrainer) blockForward(layer int, input, blockE []float32, cross ditC
 	a.selfPro = make([]float32, seq*d)
 	hostmath.LinearF64(a.selfPro, a.attnOut, t.view(self+"o.weight"), t.view(self+"o.bias"), seq, d, d)
 	a.selfRes = make([]float32, seq*d)
-	gate2 := a.mVec[2]
+	gate2 := a.mVec[offsets.PreGate]
 	for r := 0; r < seq; r++ {
 		for i := 0; i < d; i++ {
 			a.selfRes[r*d+i] = input[r*d+i] + a.selfPro[r*d+i]*gate2[i]
@@ -482,7 +506,7 @@ func (t *DiTTrainer) blockForward(layer int, input, blockE []float32, cross ditC
 	a.lnFFN = make([]float32, seq*d)
 	hostmath.LayerNormInto(a.lnFFN, a.crossRes, nil, nil, seq, d, eps)
 	a.ffnIn = make([]float32, seq*d)
-	hostmath.AdaptiveShiftScale(a.ffnIn, a.lnFFN, a.mVec[3], a.mVec[4], seq, d)
+	hostmath.AdaptiveShiftScale(a.ffnIn, a.lnFFN, a.mVec[offsets.PostShift], a.mVec[offsets.PostScale], seq, d)
 	a.ffnPre = make([]float32, seq*f)
 	hostmath.LinearF64(a.ffnPre, a.ffnIn, t.view(prefix+"ffn.0.weight"), t.view(prefix+"ffn.0.bias"), seq, d, f)
 	a.ffnAct = append([]float32(nil), a.ffnPre...)
@@ -490,7 +514,7 @@ func (t *DiTTrainer) blockForward(layer int, input, blockE []float32, cross ditC
 	a.ffnOut = make([]float32, seq*d)
 	hostmath.LinearF64(a.ffnOut, a.ffnAct, t.view(prefix+"ffn.2.weight"), t.view(prefix+"ffn.2.bias"), seq, f, d)
 	a.output = make([]float32, seq*d)
-	gate5 := a.mVec[5]
+	gate5 := a.mVec[offsets.PostGate]
 	for r := 0; r < seq; r++ {
 		for i := 0; i < d; i++ {
 			a.output[r*d+i] = a.crossRes[r*d+i] + a.ffnOut[r*d+i]*gate5[i]
@@ -513,6 +537,7 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 	eps := cfg.Eps
 	prefix := denoiserBlockPrefix(layer)
 	gradModulation := t.gradView(prefix + "modulation")
+	offsets := media.PairedShiftFirstGateOffsets()
 	chunkGrad := func(chunk int, add []float32) {
 		for i := 0; i < d; i++ {
 			gradModulation[chunk*d+i] += add[i]
@@ -524,7 +549,7 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 	dCrossRes := append([]float32(nil), dOutput...)
 	dFFNOut := make([]float32, seq*d)
 	dGate := make([]float32, d)
-	gate5 := a.mVec[5]
+	gate5 := a.mVec[offsets.PostGate]
 	for r := 0; r < seq; r++ {
 		for i := 0; i < d; i++ {
 			g := dOutput[r*d+i]
@@ -532,32 +557,32 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 			dGate[i] += g * a.ffnOut[r*d+i]
 		}
 	}
-	chunkGrad(5, dGate)
+	chunkGrad(offsets.PostGate, dGate)
 
 	// Feed-forward.
 	hostmath.LinearWeightGradient(t.gradView(prefix+"ffn.2.weight"), a.ffnAct, dFFNOut, seq, f, d)
-	addBiasGradient(t.gradView(prefix+"ffn.2.bias"), dFFNOut, seq, d)
+	hostmath.AddBiasGradientF32(t.gradView(prefix+"ffn.2.bias"), dFFNOut, seq, d)
 	dFFNAct := make([]float32, seq*f)
 	hostmath.LinearBackwardInput(dFFNAct, dFFNOut, t.view(prefix+"ffn.2.weight"), seq, f, d)
 	hostmath.GELUTanhBackward(dFFNAct, a.ffnPre, dFFNAct)
 	hostmath.LinearWeightGradient(t.gradView(prefix+"ffn.0.weight"), a.ffnIn, dFFNAct, seq, d, f)
-	addBiasGradient(t.gradView(prefix+"ffn.0.bias"), dFFNAct, seq, f)
+	hostmath.AddBiasGradientF32(t.gradView(prefix+"ffn.0.bias"), dFFNAct, seq, f)
 	dFFNIn := make([]float32, seq*d)
 	hostmath.LinearBackwardInput(dFFNIn, dFFNAct, t.view(prefix+"ffn.0.weight"), seq, d, f)
 
 	dShift := make([]float32, d)
 	dScale := make([]float32, d)
 	dLN := make([]float32, seq*d)
-	hostmath.AdaptiveShiftScaleBackward(dLN, dShift, dScale, a.lnFFN, a.mVec[4], dFFNIn, seq, d)
-	chunkGrad(3, dShift)
-	chunkGrad(4, dScale)
+	hostmath.AdaptiveShiftScaleBackward(dLN, dShift, dScale, a.lnFFN, a.mVec[offsets.PostScale], dFFNIn, seq, d)
+	chunkGrad(offsets.PostShift, dShift)
+	chunkGrad(offsets.PostScale, dScale)
 	hostmath.LayerNormBackward(dCrossRes, nil, nil, a.crossRes, nil, dLN, seq, d, eps, true)
 
 	// crossRes = selfRes + crossProjected.
 	dSelfRes := append([]float32(nil), dCrossRes...)
 	crossPrefix := prefix + "cross_attn."
 	hostmath.LinearWeightGradient(t.gradView(crossPrefix+"o.weight"), a.cAttn, dCrossRes, seq, d, d)
-	addBiasGradient(t.gradView(crossPrefix+"o.bias"), dCrossRes, seq, d)
+	hostmath.AddBiasGradientF32(t.gradView(crossPrefix+"o.bias"), dCrossRes, seq, d)
 	dCAttn := make([]float32, seq*d)
 	hostmath.LinearBackwardInput(dCAttn, dCrossRes, t.view(crossPrefix+"o.weight"), seq, d, d)
 
@@ -570,14 +595,14 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 	dKProj := make([]float32, textLen*d)
 	hostmath.RMSNormBackward(dKProj, t.gradView(crossPrefix+"norm_k.weight"), a.cross.kProj, t.view(crossPrefix+"norm_k.weight"), dK, textLen, d, eps, false)
 	hostmath.LinearWeightGradient(t.gradView(crossPrefix+"k.weight"), t.currentContext, dKProj, textLen, d, d)
-	addBiasGradient(t.gradView(crossPrefix+"k.bias"), dKProj, textLen, d)
+	hostmath.AddBiasGradientF32(t.gradView(crossPrefix+"k.bias"), dKProj, textLen, d)
 	dCtx := make([]float32, textLen*d)
 	hostmath.LinearBackwardInput(dCtx, dKProj, t.view(crossPrefix+"k.weight"), textLen, d, d)
 	for i := range dContext {
 		dContext[i] += dCtx[i]
 	}
 	hostmath.LinearWeightGradient(t.gradView(crossPrefix+"v.weight"), t.currentContext, dV, textLen, d, d)
-	addBiasGradient(t.gradView(crossPrefix+"v.bias"), dV, textLen, d)
+	hostmath.AddBiasGradientF32(t.gradView(crossPrefix+"v.bias"), dV, textLen, d)
 	hostmath.LinearBackwardInput(dCtx, dV, t.view(crossPrefix+"v.weight"), textLen, d, d)
 	for i := range dContext {
 		dContext[i] += dCtx[i]
@@ -587,7 +612,7 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 	dCQProj := make([]float32, seq*d)
 	hostmath.RMSNormBackward(dCQProj, t.gradView(crossPrefix+"norm_q.weight"), a.cQProj, t.view(crossPrefix+"norm_q.weight"), dCQ, seq, d, eps, false)
 	hostmath.LinearWeightGradient(t.gradView(crossPrefix+"q.weight"), a.crossIn, dCQProj, seq, d, d)
-	addBiasGradient(t.gradView(crossPrefix+"q.bias"), dCQProj, seq, d)
+	hostmath.AddBiasGradientF32(t.gradView(crossPrefix+"q.bias"), dCQProj, seq, d)
 	dCrossIn := make([]float32, seq*d)
 	hostmath.LinearBackwardInput(dCrossIn, dCQProj, t.view(crossPrefix+"q.weight"), seq, d, d)
 	hostmath.LayerNormBackward(dSelfRes, t.gradView(prefix+"norm3.weight"), t.gradView(prefix+"norm3.bias"),
@@ -597,7 +622,7 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 	dInput := append([]float32(nil), dSelfRes...)
 	dSelfPro := make([]float32, seq*d)
 	clear(dGate)
-	gate2 := a.mVec[2]
+	gate2 := a.mVec[offsets.PreGate]
 	for r := 0; r < seq; r++ {
 		for i := 0; i < d; i++ {
 			g := dSelfRes[r*d+i]
@@ -605,11 +630,11 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 			dGate[i] += g * a.selfPro[r*d+i]
 		}
 	}
-	chunkGrad(2, dGate)
+	chunkGrad(offsets.PreGate, dGate)
 
 	self := prefix + "self_attn."
 	hostmath.LinearWeightGradient(t.gradView(self+"o.weight"), a.attnOut, dSelfPro, seq, d, d)
-	addBiasGradient(t.gradView(self+"o.bias"), dSelfPro, seq, d)
+	hostmath.AddBiasGradientF32(t.gradView(self+"o.bias"), dSelfPro, seq, d)
 	dAttnOut := make([]float32, seq*d)
 	hostmath.LinearBackwardInput(dAttnOut, dSelfPro, t.view(self+"o.weight"), seq, d, d)
 
@@ -638,7 +663,7 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 		{dQProj, "q"}, {dKProjSelf, "k"}, {dVProj, "v"},
 	} {
 		hostmath.LinearWeightGradient(t.gradView(self+source.name+".weight"), a.selfIn, source.grad, seq, d, d)
-		addBiasGradient(t.gradView(self+source.name+".bias"), source.grad, seq, d)
+		hostmath.AddBiasGradientF32(t.gradView(self+source.name+".bias"), source.grad, seq, d)
 		hostmath.LinearBackwardInput(scratch, source.grad, t.view(self+source.name+".weight"), seq, d, d)
 		for i := range dSelfIn {
 			dSelfIn[i] += scratch[i]
@@ -647,9 +672,9 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 
 	clear(dShift)
 	clear(dScale)
-	hostmath.AdaptiveShiftScaleBackward(dLN, dShift, dScale, a.lnSelf, a.mVec[1], dSelfIn, seq, d)
-	chunkGrad(0, dShift)
-	chunkGrad(1, dScale)
+	hostmath.AdaptiveShiftScaleBackward(dLN, dShift, dScale, a.lnSelf, a.mVec[offsets.PreScale], dSelfIn, seq, d)
+	chunkGrad(offsets.PreShift, dShift)
+	chunkGrad(offsets.PreScale, dScale)
 	hostmath.LayerNormBackward(dInput, nil, nil, a.input, nil, dLN, seq, d, eps, true)
 	return dInput
 }
@@ -714,7 +739,7 @@ func (t *DiTTrainer) forwardConditioned(latent, context, blockE, headE []float32
 	headModulation := t.view("head.modulation")
 	state.headShift = make([]float32, d)
 	state.headScale = make([]float32, d)
-	for i := 0; i < d; i++ {
+	for i := range d {
 		state.headShift[i] = headModulation[i] + headE[i]
 		state.headScale[i] = headModulation[d+i] + headE[i]
 	}
@@ -746,26 +771,6 @@ func (t *DiTTrainer) forward(batch DiTTrainBatch) (*ditForward, error) {
 	return state, nil
 }
 
-func (t *DiTTrainer) meanSquaredError(state *ditForward, target []float32, withGradient bool) (float64, []float32, error) {
-	if len(target) != len(state.vLatent) {
-		return 0, nil, fmt.Errorf("dit train: target has %d elements, need %d", len(target), len(state.vLatent))
-	}
-	invN := 1 / float64(len(target))
-	var loss float64
-	var dV []float32
-	if withGradient {
-		dV = make([]float32, len(target))
-	}
-	for i := range target {
-		diff := float64(state.vLatent[i]) - float64(target[i])
-		loss += diff * diff * invN
-		if withGradient {
-			dV[i] = float32(2 * diff * invN)
-		}
-	}
-	return loss, dV, nil
-}
-
 // Loss: the training-precision forward and flow-matching MSE without
 // touching gradients.
 func (t *DiTTrainer) Loss(batch DiTTrainBatch) (float64, error) {
@@ -773,7 +778,7 @@ func (t *DiTTrainer) Loss(batch DiTTrainBatch) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	loss, _, err := t.meanSquaredError(state, batch.Target, false)
+	loss, _, err := trainingprogram.MeanSquaredErrorF32(state.vLatent, batch.Target, false)
 	return loss, err
 }
 
@@ -792,7 +797,7 @@ func (t *DiTTrainer) lossAndGradients(batch DiTTrainBatch) (float64, float64, er
 	if err != nil {
 		return 0, 0, err
 	}
-	loss, dV, err := t.meanSquaredError(state, batch.Target, true)
+	loss, dV, err := trainingprogram.MeanSquaredErrorF32(state.vLatent, batch.Target, true)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -806,7 +811,7 @@ func (t *DiTTrainer) lossAndGradients(batch DiTTrainBatch) (float64, float64, er
 	hostmath.UnpatchifyChannelMajorTranspose(dPatches, dV, cfg.OutDim, outputFrames, g.LatentHeight, g.LatentWidth,
 		cfg.PatchSize[0], cfg.PatchSize[1], cfg.PatchSize[2])
 	hostmath.LinearWeightGradient(t.gradView("head.head.weight"), state.modulated, dPatches, seq, d, cfg.patchOut())
-	addBiasGradient(t.gradView("head.head.bias"), dPatches, seq, cfg.patchOut())
+	hostmath.AddBiasGradientF32(t.gradView("head.head.bias"), dPatches, seq, cfg.patchOut())
 	dModulated := make([]float32, seq*d)
 	hostmath.LinearBackwardInput(dModulated, dPatches, t.view("head.head.weight"), seq, d, cfg.patchOut())
 	dShift := make([]float32, d)
@@ -820,20 +825,25 @@ func (t *DiTTrainer) lossAndGradients(batch DiTTrainBatch) (float64, float64, er
 		gradHeadModulation[d+i] += dScale[i]
 		dHeadE[i] = dShift[i] + dScale[i]
 	}
-	lastOutput := state.blocks[cfg.NumLayers-1].output
+	lastBlock, ok := checked.Last(state.blocks)
+	if !ok {
+		return 0, 0, fmt.Errorf("dit train: transformer block activations are absent")
+	}
+	lastOutput := lastBlock.output
 	dHidden := make([]float32, seq*d)
 	hostmath.LayerNormBackward(dHidden, nil, nil, lastOutput, nil, dLNHead, seq, d, cfg.Eps, false)
 
 	// Blocks in reverse; shared conditioning/context gradients accumulate.
-	dBlockE := make([]float32, 6*d)
+	dBlockE := make([]float32, media.PairedShiftScaleGateWidth(d))
 	dContext := make([]float32, cfg.TextLen*d)
-	for layer := cfg.NumLayers - 1; layer >= 0; layer-- {
+	for reverse := range cfg.NumLayers {
+		layer := checked.ReverseIndex(reverse, cfg.NumLayers)
 		dHidden = t.blockBackward(layer, &state.blocks[layer], dHidden, dBlockE, dContext)
 	}
 
 	// Patch embedding (the latent input is data; no input gradient needed).
 	hostmath.LinearWeightGradient(t.gradView("patch_embedding.weight"), state.patchTokens, dHidden, seq, cfg.patchIn(), d)
-	addBiasGradient(t.gradView("patch_embedding.bias"), dHidden, seq, d)
+	hostmath.AddBiasGradientF32(t.gradView("patch_embedding.bias"), dHidden, seq, d)
 
 	// Shared conditioning paths.
 	t.timestepBackward(state.time, dBlockE, dHeadE)
@@ -876,10 +886,11 @@ func LoadDiTTrainerTensors(dir string, c DenoiserConfig) (map[string][]float32, 
 	tensors["text_embedding.0.bias"] = projection.Linear0B
 	tensors["text_embedding.2.weight"] = projection.Linear2W
 	tensors["text_embedding.2.bias"] = projection.Linear2B
-	if c.Dim <= 0 || len(projection.Linear0W)%c.Dim != 0 {
-		return nil, 0, fmt.Errorf("dit train: text projection %d incompatible with dim %d", len(projection.Linear0W), c.Dim)
+	textDimension, err := checked.Rows(projection.Linear0W, c.Dim)
+	if err != nil {
+		return nil, 0, fmt.Errorf("dit train: text projection: %w", err)
 	}
-	return tensors, len(projection.Linear0W) / c.Dim, nil
+	return tensors, textDimension, nil
 }
 
 // LoadTrainerTensors: the LiveEdit-checkpoint variant — every denoiser
@@ -899,10 +910,11 @@ func (p ReferenceEditCheckpoint) LoadTrainerTensors() (map[string][]float32, int
 	tensors["text_embedding.0.bias"] = projection.Linear0B
 	tensors["text_embedding.2.weight"] = projection.Linear2W
 	tensors["text_embedding.2.bias"] = projection.Linear2B
-	if p.Config.Dim <= 0 || len(projection.Linear0W)%p.Config.Dim != 0 {
-		return nil, 0, fmt.Errorf("dit train: text projection %d incompatible with dim %d", len(projection.Linear0W), p.Config.Dim)
+	textDimension, err := checked.Rows(projection.Linear0W, p.Config.Dim)
+	if err != nil {
+		return nil, 0, fmt.Errorf("dit train: text projection: %w", err)
 	}
-	return tensors, len(projection.Linear0W) / p.Config.Dim, nil
+	return tensors, textDimension, nil
 }
 
 // RawTextRows: real frozen-encoder text rows for one prompt — tokenizer,
@@ -928,13 +940,13 @@ func RawTextRows(spec TextConditioningSpec, prompt string) ([]float32, int, int,
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	tokens := 0
+	tokens := tensor.FirstOffset
 	for _, v := range mask {
-		if v != 0 {
+		if checked.Nonzero(v) {
 			tokens++
 		}
 	}
-	if tokens <= 0 {
+	if !checked.PositiveInts(tokens) {
 		return nil, 0, 0, fmt.Errorf("dit train: prompt produced no active tokens")
 	}
 	encoded, _, err := EncodeTokensStreamed(spec.EncoderCheckpoint, plan, ids, mask)

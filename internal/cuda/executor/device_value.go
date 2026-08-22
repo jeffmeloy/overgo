@@ -19,7 +19,7 @@ func PackedCopy(values []DeviceValue, storage dtype.Type) (DeviceCopy, error) {
 	for index, value := range values {
 		segments[index] = DeviceCopySegment{Source: value.Pointer, Bytes: bytes}
 	}
-	return DeviceCopy{Shape: shape, Segments: segments}, nil
+	return DeviceCopy{Shape: shape, Storage: storage, Segments: segments}, nil
 }
 
 func PackedView(values []DeviceValue, storage dtype.Type) (DeviceValue, bool) {
@@ -137,7 +137,7 @@ func (v DeviceValue) Copy(storage dtype.Type) (DeviceCopy, error) {
 	if err != nil {
 		return DeviceCopy{}, err
 	}
-	return DeviceCopy{Shape: v.Shape, Segments: []DeviceCopySegment{{Source: v.Pointer, Bytes: bytes}}}, nil
+	return DeviceCopy{Shape: v.Shape, Storage: storage, Segments: []DeviceCopySegment{{Source: v.Pointer, Bytes: bytes}}}, nil
 }
 
 func (v DeviceValue) CopyWithoutLastAxisRange(
@@ -167,7 +167,7 @@ func (v DeviceValue) CopyWithoutLastAxisRange(
 		}
 		segments = append(segments, segment)
 	}
-	return DeviceCopy{Shape: shape, Segments: segments}, nil
+	return DeviceCopy{Shape: shape, Storage: storage, Segments: segments}, nil
 }
 
 func (v DeviceValue) copySegment(storage dtype.Type, start, count uint64) (DeviceCopySegment, error) {

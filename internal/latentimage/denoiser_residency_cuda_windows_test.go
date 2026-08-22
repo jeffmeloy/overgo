@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/media"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -88,7 +89,7 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 	var firstVel []float32
 	for step := 0; step < sched.Steps; step++ {
 		sigma := sched.Sigmas[step]
-		patches, pgh, pgw, err := PackLatent(sample, z, lh, lw, patch)
+		patches, pgh, pgw, err := media.PackPlanar(sample, z, lh, lw, patch, media.PatchChannelsFirst)
 		if err != nil {
 			t.Fatalf("PackLatent: %v", err)
 		}
@@ -131,7 +132,7 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 			t.Logf("deterministic replay verified (%d velocities bit-identical)", len(firstVel))
 		}
 
-		velocity, err := UnpackLatent(f64of(res.Velocity), z, gh, gw, patch)
+		velocity, err := media.UnpackPlanar(f64of(res.Velocity), z, gh, gw, patch, media.PatchChannelsFirst)
 		if err != nil {
 			t.Fatalf("UnpackLatent: %v", err)
 		}

@@ -3,6 +3,7 @@ package latentvideo
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,21 +12,27 @@ import (
 	"image/color/palette"
 	"image/draw"
 	"image/gif"
-	"math"
 	"os"
 	"path/filepath"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
+	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
+	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/workflowruntime"
 )
 
 const (
 	videoProfileVersion uint16 = 1
-	encodedGIFMediaType        = "image/gif"
 )
+
+//go:embed profiles.json
+var videoProfileCatalogJSON []byte
 
 // PixelRange names the decoder output interval.
 type PixelRange string
@@ -50,7 +57,7 @@ var (
 		SetIdentity:  func(value *Profile, id artifact.ID) { value.ID = id },
 	}
 	encodedGIFContract = artifact.DocumentContract{
-		Kind: artifact.KindOutput, MediaType: encodedGIFMediaType, Schema: "overgo.encoded-video.gif.v1",
+		Kind: artifact.KindOutput, MediaType: media.GIFMediaType, Schema: "overgo.encoded-video.gif.v1",
 	}
 )
 
@@ -66,18 +73,15 @@ type Profile struct {
 
 // ResolveProfile validates the artifact against the supported Wan profile.
 func ResolveProfile(modelDirectory string) (Profile, error) {
-	profile, err := videoProfileCodec.New(Profile{
-		Version: videoProfileVersion,
-		Policy: DenoiserPolicy{
-			NumTrainTimesteps: 1000, SinusoidalPeriod: 10000,
-			RotaryFrequencyBase: 10000, VAEStride: [3]int{4, 8, 8},
-		},
-		LatentStats: VAELatentStats{
-			Mean: []float32{-0.7571, -0.7089, -0.9113, 0.1075, -0.1745, 0.9653, -0.1517, 1.5508, 0.4134, -0.0715, 0.5517, -0.3632, -0.1922, -0.9497, 0.2503, -0.2921},
-			Std:  []float32{2.8184, 1.4541, 2.3275, 2.6558, 1.2196, 1.7708, 2.6052, 2.0743, 3.2687, 2.1526, 2.8652, 1.5579, 1.6382, 1.1253, 2.8251, 1.916},
-		},
-		SampleFPS: 16, Precision: "bf16",
-	})
+	var catalog []Profile
+	if err := strictjson.DecodeBytes(videoProfileCatalogJSON, &catalog); err != nil {
+		return Profile{}, fmt.Errorf("latent video: decode profile catalog: %w", err)
+	}
+	profileSource, ok := checked.First(catalog)
+	if !ok {
+		return Profile{}, errors.New("latent video: profile catalog is empty")
+	}
+	profile, err := videoProfileCodec.New(profileSource)
 	if err != nil {
 		return Profile{}, err
 	}
@@ -85,7 +89,10 @@ func ResolveProfile(modelDirectory string) (Profile, error) {
 	if err != nil {
 		return Profile{}, err
 	}
-	if config.InDim != len(profile.LatentStats.Mean) || config.OutDim != len(profile.LatentStats.Std) {
+	if !checked.Equal(config.InDim, len(profile.LatentStats.Mean)) {
+		return Profile{}, errors.New("latent video: profile latent channels differ from artifact")
+	}
+	if !checked.Equal(config.OutDim, len(profile.LatentStats.Std)) {
 		return Profile{}, errors.New("latent video: profile latent channels differ from artifact")
 	}
 	return profile, nil
@@ -98,17 +105,12 @@ func ReadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (Pr
 func (p Profile) Content() (artifact.Content, error) { return videoProfileCodec.Content(p) }
 
 func (p Profile) validate() error {
-	if p.Version != videoProfileVersion || p.SampleFPS <= 0 || p.Precision != "bf16" ||
-		p.Policy.NumTrainTimesteps <= 0 || p.Policy.SinusoidalPeriod <= 0 || p.Policy.RotaryFrequencyBase <= 0 {
+	if !checked.Equal(p.Version, videoProfileVersion) || !checked.PositiveInts(p.SampleFPS, p.Policy.NumTrainTimesteps, p.Policy.SinusoidalPeriod) ||
+		!checked.Equal(p.Precision, dtype.BF16.String()) || !checked.PositiveFinite64(p.Policy.RotaryFrequencyBase) {
 		return errors.New("latent video: incomplete profile")
 	}
-	if len(p.LatentStats.Mean) == 0 || len(p.LatentStats.Mean) != len(p.LatentStats.Std) {
-		return errors.New("latent video: invalid latent statistics")
-	}
-	for _, value := range p.LatentStats.Std {
-		if value <= 0 || math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
-			return errors.New("latent video: invalid latent standard deviation")
-		}
+	if err := media.ValidateChannelMoments(p.LatentStats.Mean, p.LatentStats.Std, len(p.LatentStats.Mean)); err != nil {
+		return fmt.Errorf("latent video: invalid latent statistics: %w", err)
 	}
 	return nil
 }
@@ -143,9 +145,8 @@ type EncodedVideo struct {
 }
 
 func GIFContent(video EncodedVideo) (artifact.Content, error) {
-	if video.MediaType != encodedGIFMediaType || video.Frames <= 0 || video.Channels != 3 ||
-		video.Height <= 0 || video.Width <= 0 || video.FPS <= 0 || len(video.Data) == 0 {
-		return artifact.Content{}, errors.New("latent video: invalid encoded GIF")
+	if err := media.ValidateEncodedRGBVideo(video.Data, video.MediaType, media.GIFMediaType, video.Frames, video.Channels, video.Height, video.Width, video.FPS); err != nil {
+		return artifact.Content{}, fmt.Errorf("latent video: invalid encoded GIF: %w", err)
 	}
 	return encodedGIFContract.OwnedContentBytes(video.Data)
 }
@@ -162,56 +163,61 @@ type GIFEncoder struct {
 }
 
 func NewGIFEncoder(fps int, pixels PixelRange) (*GIFEncoder, error) {
-	if fps <= 0 || !pixels.valid() {
+	if !checked.PositiveInts(fps) || !pixels.valid() {
 		return nil, errors.New("latent video: invalid GIF encoding policy")
 	}
 	return &GIFEncoder{fps: fps, pixels: pixels}, nil
 }
 
 func (s *GIFEncoder) Add(_ int, frame []float32, height, width int) error {
-	if height <= 0 || width <= 0 || len(frame) != 3*height*width {
-		return errors.New("latent video: invalid planar RGB frame")
+	raw := make([]uint8, len(frame))
+	if err := media.EncodePlanarRGB8Into(raw, frame, height, width, func(value float32) uint8 {
+		return encodeVideoByte(value, s.pixels)
+	}); err != nil {
+		return err
 	}
-	if len(s.animation.Image) > 0 && (height != s.height || width != s.width) {
-		return errors.New("latent video: frame geometry changed")
+	if len(s.animation.Image) > 0 {
+		if !checked.Equal(height, s.height) {
+			return errors.New("latent video: frame geometry changed")
+		}
+		if !checked.Equal(width, s.width) {
+			return errors.New("latent video: frame geometry changed")
+		}
 	}
 	s.height, s.width = height, width
-	rgba := image.NewRGBA(image.Rect(0, 0, width, height))
-	raw := make([]uint8, 3*height*width)
+	rgba := image.NewRGBA(image.Rectangle{Max: image.Pt(width, height)})
 	plane := height * width
 	for index := range plane {
-		for channel := range 3 {
-			value := frame[channel*plane+index]
-			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
-				return errors.New("latent video: non-finite frame")
-			}
-			raw[index*3+channel] = encodeVideoByte(value, s.pixels)
-		}
-		if s.prior != nil && (raw[index*3] != s.prior[index*3] || raw[index*3+1] != s.prior[index*3+1] || raw[index*3+2] != s.prior[index*3+2]) {
+		base := index * media.RGBChannels
+		if s.prior != nil && !bytes.Equal(raw[base:base+media.RGBChannels], s.prior[base:base+media.RGBChannels]) {
 			s.changed++
 		}
-		rgba.SetRGBA(index%width, index/width, color.RGBA{R: raw[index*3], G: raw[index*3+1], B: raw[index*3+2], A: 255})
+		rgba.SetRGBA(index%width, index/width, color.RGBA{
+			R: raw[base+tensor.FirstOffset],
+			G: raw[base+tensor.SingletonExtent],
+			B: raw[base+tensor.PairedExtent],
+			A: ^uint8(tensor.FirstOffset),
+		})
 	}
 	s.prior = raw
 	paletted := image.NewPaletted(rgba.Bounds(), palette.Plan9)
 	draw.FloydSteinberg.Draw(paletted, rgba.Bounds(), rgba, image.Point{})
 	s.animation.Image = append(s.animation.Image, paletted)
-	s.animation.Delay = append(s.animation.Delay, max(1, 100/s.fps))
+	s.animation.Delay = append(s.animation.Delay, media.GIFFrameDelay(s.fps))
 	return nil
 }
 
 func (p PixelRange) valid() bool { return p == SignedUnitPixels || p == UnitPixels }
 
 func encodeVideoByte(value float32, pixels PixelRange) byte {
-	scaled := float64(value) * 255
 	if pixels == SignedUnitPixels {
-		scaled = (float64(value) + 1) * 127.5
+		return media.SignedUnitF32ToU8(value)
 	}
-	return byte(min(max(math.Round(scaled), 0), 255))
+	return media.UnitF32ToU8(value)
 }
 
 func (s *GIFEncoder) Finish() (EncodedVideo, error) {
-	if len(s.animation.Image) == 0 {
+	if !checked.NonemptyAll(s.animation.Image) {
 		return EncodedVideo{}, errors.New("latent video: no frames emitted")
 	}
 	var encoded bytes.Buffer
@@ -219,28 +225,36 @@ func (s *GIFEncoder) Finish() (EncodedVideo, error) {
 		return EncodedVideo{}, err
 	}
 	return EncodedVideo{
-		Data: encoded.Bytes(), MediaType: encodedGIFMediaType, Frames: len(s.animation.Image), Channels: 3,
+		Data: encoded.Bytes(), MediaType: media.GIFMediaType, Frames: len(s.animation.Image), Channels: media.RGBChannels,
 		Height: s.height, Width: s.width, FPS: s.fps, ChangedPixels: s.changed,
 	}, nil
 }
 
 // WanRequest carries compiled text conditioning and sampling state.
 type WanRequest struct {
-	Frames        int       `json:"frames"`
-	Width         int       `json:"width"`
-	Height        int       `json:"height"`
-	Steps         int       `json:"steps"`
-	Shift         float64   `json:"shift"`
-	GuideScale    float64   `json:"guide_scale"`
-	CondContext   []float32 `json:"cond_context"`
-	UncondContext []float32 `json:"uncond_context"`
-	InitialSample []float32 `json:"initial_sample,omitempty"`
-	Noise         NoisePlan `json:"noise"`
+	Frames        int                       `json:"frames"`
+	Width         int                       `json:"width"`
+	Height        int                       `json:"height"`
+	Steps         int                       `json:"steps"`
+	Shift         float64                   `json:"shift"`
+	GuideScale    float64                   `json:"guide_scale"`
+	CondContext   []float32                 `json:"cond_context"`
+	UncondContext []float32                 `json:"uncond_context"`
+	InitialSample []float32                 `json:"initial_sample,omitempty"`
+	Noise         sampling.CounterNoisePlan `json:"noise"`
 }
 
 func ValidateWanRequest(request WanRequest) error {
-	if request.Frames <= 0 || request.Width <= 0 || request.Height <= 0 || request.Steps <= 0 ||
-		request.Shift <= 0 || request.GuideScale < 0 || len(request.CondContext) == 0 || len(request.UncondContext) == 0 {
+	if !checked.PositiveInts(request.Frames, request.Width, request.Height, request.Steps) {
+		return errors.New("latent video: incomplete Wan request")
+	}
+	if !checked.PositiveFinite64(request.Shift) || !checked.NonNegativeFinite64(request.GuideScale) {
+		return errors.New("latent video: incomplete Wan request")
+	}
+	if _, ok := checked.First(request.CondContext); !ok {
+		return errors.New("latent video: incomplete Wan request")
+	}
+	if _, ok := checked.First(request.UncondContext); !ok {
 		return errors.New("latent video: incomplete Wan request")
 	}
 	return nil
@@ -277,9 +291,22 @@ type ReferenceEditRequest struct {
 
 func ValidateReferenceEditRequest(request ReferenceEditRequest) error {
 	c, s := request.Condition, request.Source
-	if len(c.TextContext) == 0 || c.FramesPerChunk <= 0 || c.LocalAttention <= 0 ||
-		len(c.Timesteps) == 0 || len(c.Timesteps) != len(c.Sigmas) || s.Channels != 3 || s.Frames <= 0 || s.Height <= 0 || s.Width <= 0 ||
-		len(s.Pixels) != s.Channels*s.Frames*s.Height*s.Width {
+	if _, ok := checked.First(c.TextContext); !ok {
+		return errors.New("latent video: incomplete LiveEdit request")
+	}
+	if !checked.PositiveInts(c.FramesPerChunk, c.LocalAttention) {
+		return errors.New("latent video: incomplete LiveEdit request")
+	}
+	if _, ok := checked.First(c.Timesteps); !ok {
+		return errors.New("latent video: incomplete LiveEdit request")
+	}
+	if !checked.Equal(len(c.Timesteps), len(c.Sigmas)) {
+		return errors.New("latent video: incomplete LiveEdit request")
+	}
+	if !checked.Equal(s.Channels, media.RGBChannels) {
+		return errors.New("latent video: incomplete LiveEdit request")
+	}
+	if err := media.ValidatePlanarVideo(s.Pixels, s.Channels, s.Frames, s.Height, s.Width); err != nil {
 		return errors.New("latent video: incomplete LiveEdit request")
 	}
 	return nil

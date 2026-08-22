@@ -18,7 +18,7 @@ import (
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/jsonfile"
-	"overgo/internal/latentimage"
+	"overgo/internal/media"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 	"overgo/internal/torchrng"
@@ -206,7 +206,7 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 			zFloor = 0.999999
 		}
 		checkGenerationSample(t, "z", z, want.Z, zFloor)
-		planar, err := latentimage.UnpackPlanarF32(z, flow.VisionChannels, image.TokenHeight, image.TokenWidth, image.TokenPatch, latentimage.PatchChannelsLast)
+		planar, err := media.UnpackPlanar(z, flow.VisionChannels, image.TokenHeight, image.TokenWidth, image.TokenPatch, media.PatchChannelsLast)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"math"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ import (
 
 const (
 	liveEditDeviceLatentOracle = "f73e55a69a2e5662100dfe664cc8234dc050d4b217174ce1a4ff45ac51bd4f17"
-	liveEditDeviceFrameOracle  = "3dc33bc823a9a8083b0325cf78d78369e1f559943aa843b11afdaa477b902068"
+	liveEditDeviceFrameOracle  = "19b2104b562a8fc93848aecf65737b58e9b50e0534dc96f85ffb1beb780061b1"
 )
 
 func TestLiveEditDeviceRuntime(t *testing.T) {
@@ -29,6 +30,9 @@ func TestLiveEditDeviceRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	wanDir := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B")
+	if _, err := os.Stat(filepath.Join(wanDir, "config.json")); os.IsNotExist(err) {
+		t.Skipf("UNAVAILABLE: Wan denoiser config: %v", err)
+	}
 	policy := DenoiserPolicy{
 		NumTrainTimesteps: 1000, SinusoidalPeriod: 10000, RotaryFrequencyBase: 10000,
 		VAEStride: [3]int{4, 8, 8},

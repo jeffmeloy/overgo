@@ -9,7 +9,11 @@ import (
 	"testing"
 
 	"overgo/internal/pytorchzip"
+	"overgo/internal/representation"
+	"overgo/internal/tokenizer"
 )
+
+var normalizeEscapedWidthWhitespace = tokenizer.NormalizeEscapedWidthWhitespace
 
 // referenceEncoderPolicy: the two published-config facts the checkpoint
 // cannot carry (T5-family relative_attention_max_distance and
@@ -57,15 +61,18 @@ func TestEncoderBlockMatchesTorchFixture(t *testing.T) {
 		FC2:          arithmeticFloat32Sequence(0.08, 0.02, 24),
 		PosEmbedding: arithmeticFloat32Sequence(0.10, 0.02, 8),
 	}
-	if got := []int{
-		relativePositionBucket(0, 4, true, 8),
-		relativePositionBucket(1, 4, true, 8),
-		relativePositionBucket(2, 4, true, 8),
-		relativePositionBucket(-1, 4, true, 8),
-	}; !reflect.DeepEqual(got, []int{0, 3, 3, 1}) {
+	positive, err := representation.RelativePositionBuckets(1, 3, 4, 8, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	negative, err := representation.RelativePositionBuckets(2, 1, 4, 8, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := append(positive, negative[1]); !reflect.DeepEqual(got, []int{0, 3, 3, 1}) {
 		t.Fatalf("relative buckets=%v", got)
 	}
-	buckets, err := compileRelativePositionBuckets(3, 3, 4, referenceEncoderPolicy.RelativeMaxDistance, true)
+	buckets, err := representation.RelativePositionBuckets(3, 3, 4, referenceEncoderPolicy.RelativeMaxDistance, true)
 	if err != nil {
 		t.Fatal(err)
 	}

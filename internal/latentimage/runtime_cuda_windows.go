@@ -7,35 +7,20 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"math"
 	"path/filepath"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/hfbpe"
+	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/torchrng"
 	"overgo/internal/workflowruntime"
 )
-
-func readEmbedRowsF32(modelDir string, spec TextEncoderSpec, ids []int) ([]float32, error) {
-	source, err := safetensors.OpenSource(filepath.Join(modelDir, "text_encoder"))
-	if err != nil {
-		return nil, fmt.Errorf("resident encoder embed: %w", err)
-	}
-	defer source.Close()
-	rows, err := readEmbedRows(source, spec, ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]float32, len(rows))
-	for index, value := range rows {
-		result[index] = float32(value)
-	}
-	return result, nil
-}
 
 type Request struct {
 	Prompt            string  `json:"prompt"`
@@ -61,13 +46,13 @@ type Generator struct {
 }
 
 func ValidateRequest(request Request) error {
-	if request.Prompt == "" {
+	if !checked.Nonzero(request.Prompt) {
 		return errors.New("latent image: prompt is empty")
 	}
-	if request.Width <= 0 || request.Height <= 0 {
-		return fmt.Errorf("latent image: invalid extent %dx%d", request.Width, request.Height)
+	if err := media.ValidateSpatialGeometry(request.Height, request.Width); err != nil {
+		return fmt.Errorf("latent image: invalid extent: %w", err)
 	}
-	if request.Steps < 0 || request.NumTrainTimesteps < 0 || math.IsNaN(request.DynamicShiftMu) || math.IsInf(request.DynamicShiftMu, 0) {
+	if !checked.NonNegativeInts(request.Steps, request.NumTrainTimesteps) || !checked.Finite64(request.DynamicShiftMu) {
 		return errors.New("latent image: invalid sampling policy")
 	}
 	return nil
@@ -90,14 +75,17 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	if _, err := spec.VerifyCheckpoint(modelDir); err != nil {
 		return nil, err
 	}
-	shape, err := spec.LatentShape(request.Height, request.Width)
+	channels, latentHeight, latentWidth, err := media.DownsampledPlanarGeometry(
+		spec.VAE.ZDim, request.Height, request.Width, spec.VAE.SpatialScale,
+	)
 	if err != nil {
 		return nil, err
 	}
-	if spec.PatchSize <= 0 || shape.Height%spec.PatchSize != 0 || shape.Width%spec.PatchSize != 0 {
-		return nil, fmt.Errorf("latent image: latent extent %dx%d is incompatible with patch %d", shape.Width, shape.Height, spec.PatchSize)
+	shape := LatentShape{ZDim: channels, Height: latentHeight, Width: latentWidth}
+	gridH, gridW, err := media.PatchGrid(shape.Height, shape.Width, spec.PatchSize)
+	if err != nil {
+		return nil, fmt.Errorf("latent image: patch grid: %w", err)
 	}
-	gridH, gridW := shape.Height/spec.PatchSize, shape.Width/spec.PatchSize
 	request = request.withPolicy(profile.Sampling, gridH*gridW)
 	tokenizer, err := hfbpe.Load(filepath.Join(modelDir, "tokenizer"))
 	if err != nil {
@@ -107,7 +95,9 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	if err != nil {
 		return nil, err
 	}
-	embed, err := readEmbedRowsF32(modelDir, spec.TextEncoder, text.IDs)
+	embed, err := safetensors.ReadTensorRowsF32(
+		filepath.Join(modelDir, "text_encoder"), textEncoderPrefix+"embed_tokens.weight", spec.TextEncoder.Hidden, text.IDs,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +107,10 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	if err != nil {
 		return nil, err
 	}
-	textMask := text.Mask[len(text.Mask)-text.PromptRows:]
+	textMask, err := checked.SuffixExact(text.Mask, text.PromptRows)
+	if err != nil {
+		return nil, fmt.Errorf("latent image: prompt mask: %w", err)
+	}
 	fusion, err := CompileFusionProgram(
 		spec.Transformer, float32(spec.Transformer.NormEps), textMask, dtype.BF16,
 	)
@@ -138,7 +131,11 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 	if err != nil {
 		return nil, err
 	}
-	pipeline, err := NewResidentImagePipeline(ctx, encoder, fusion, denoiser, vae, modelDir, 0)
+	timestepEncoding := media.SinusoidalProgram{
+		Dimensions: spec.Transformer.TimestepEmbed, FrequencyBase: profile.Sampling.TimestepFrequencyBase,
+		InputScale: float64(request.NumTrainTimesteps),
+	}
+	pipeline, err := NewResidentImagePipeline(ctx, encoder, fusion, denoiser, vae, timestepEncoding, modelDir, tensor.FirstOffset)
 	if err != nil {
 		return nil, err
 	}
@@ -154,13 +151,13 @@ func LoadGenerator(ctx context.Context, modelDir string, profile Profile, reques
 }
 
 func (r Request) withPolicy(policy samplingPolicy, imageSequence int) Request {
-	if r.Steps == 0 {
+	if !checked.Nonzero(r.Steps) {
 		r.Steps = policy.DefaultSteps
 	}
-	if r.NumTrainTimesteps == 0 {
+	if !checked.Nonzero(r.NumTrainTimesteps) {
 		r.NumTrainTimesteps = policy.TrainTimesteps
 	}
-	if r.DynamicShiftMu == 0 {
+	if !checked.Nonzero(r.DynamicShiftMu) {
 		r.DynamicShiftMu = policy.dynamicShiftMu(imageSequence)
 	}
 	return r
@@ -213,8 +210,8 @@ func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, e
 	if err != nil {
 		return nil, err
 	}
-	packed, gridH, gridW, err := packLatent(
-		latent, g.shape.ZDim, g.shape.Height, g.shape.Width, g.spec.PatchSize,
+	packed, gridH, gridW, err := media.PackPlanar(
+		latent, g.shape.ZDim, g.shape.Height, g.shape.Width, g.spec.PatchSize, media.PatchChannelsFirst,
 	)
 	if err != nil {
 		return nil, err

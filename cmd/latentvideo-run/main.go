@@ -18,6 +18,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentvideo"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
 )
 
@@ -220,7 +221,7 @@ func run() error {
 	var prior, firstFrame []float32
 	result, err := generator.Generate(context.Background(), latentvideo.GenerateRequest{
 		Steps: *steps, Shift: *shift, GuideScale: *guide, CondContext: cond, UncondContext: uncond,
-		Noise: latentvideo.NoisePlan{Seed: *seed, Offset: *noiseOffset, Grid: grid, Block: 256, Unroll: 4},
+		Noise: sampling.CounterNoisePlan{Seed: *seed, Offset: *noiseOffset, Grid: grid, Block: 256, Unroll: 4},
 		StepHook: func(step int, timestep int64) {
 			fmt.Printf("step %02d/%02d t=%d wall=%.1fs\n", step+1, *steps, timestep, time.Since(started).Seconds())
 		},

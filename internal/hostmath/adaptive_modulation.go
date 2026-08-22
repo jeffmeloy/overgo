@@ -38,3 +38,16 @@ func AdaptiveShiftScaleBackward(dx, dShift, dScale, x, scale, dy []float32, rows
 		}
 	}
 }
+
+// MultiplyBackward applies the elementwise product VJP. Either destination
+// may be nil when its input gradient is not needed.
+func MultiplyBackward(dLeft, dRight, left, right, dOutput []float32) {
+	for index, gradient := range dOutput {
+		if dLeft != nil {
+			dLeft[index] = gradient * right[index]
+		}
+		if dRight != nil {
+			dRight[index] = gradient * left[index]
+		}
+	}
+}

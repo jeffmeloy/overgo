@@ -43,6 +43,7 @@
 // textinput.go (dtc brick 1/3); this encoder still accepts a raw id slice, so a
 // caller wiring the device text-conditioning path renders via renderTextInput
 // first. The remaining exact-parity residual is the DEVICE bf16 encoder forward.
+
 package latentimage
 
 import (
@@ -50,8 +51,10 @@ import (
 	"io"
 	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/hostmath"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor"
 )
 
 // textEncoderPrefix is the checkpoint namespace for the Qwen3-VL language model.
@@ -83,7 +86,7 @@ func EncoderTensorShapes(e TextEncoderSpec) map[string][]int {
 	shapes := map[string][]int{
 		textEncoderPrefix + "embed_tokens.weight": {e.VocabSize, h},
 	}
-	for l := 0; l < e.HiddenLayers; l++ {
+	for l := range e.HiddenLayers {
 		p := fmt.Sprintf("%slayers.%d.", textEncoderPrefix, l)
 		shapes[p+"input_layernorm.weight"] = []int{h}
 		shapes[p+"post_attention_layernorm.weight"] = []int{h}
@@ -104,17 +107,12 @@ func EncoderTensorShapes(e TextEncoderSpec) map[string][]int {
 // validates the selection against the adaptive convention: strictly increasing
 // values in [1, HiddenLayers] (index N captured after decoder layer N-1).
 func captureSlots(e TextEncoderSpec) (map[int]int, error) {
-	slots := make(map[int]int, len(e.SelectLayers))
-	last := 0
-	for i, v := range e.SelectLayers {
-		if v < 1 || v > e.HiddenLayers || (i > 0 && v <= last) {
-			return nil, fmt.Errorf("textencoder: select layers %v not strictly increasing in [1,%d]", e.SelectLayers, e.HiddenLayers)
-		}
-		slots[v] = i
-		last = v
+	if !checked.StrictlyIncreasingOneBased(e.SelectLayers, e.HiddenLayers) {
+		return nil, fmt.Errorf("textencoder: select layers %v not strictly increasing in [1,%d]", e.SelectLayers, e.HiddenLayers)
 	}
-	if len(slots) == 0 {
-		return nil, fmt.Errorf("textencoder: empty select layers")
+	slots := make(map[int]int, len(e.SelectLayers))
+	for i, v := range e.SelectLayers {
+		slots[v] = i
 	}
 	return slots, nil
 }
@@ -127,27 +125,6 @@ type encLayerWeights struct {
 	qProj, kProj, vProj []float32
 	oProj               []float32
 	gate, up, down      []float32
-}
-
-// ---- host math primitives (f64 accumulation) ------------------------------
-
-// rmsNormStandard applies the standard (Qwen3) RMSNorm over the last axis:
-// out = x / sqrt(mean(x^2)+eps) * weight. Returns a new buffer.
-func rmsNormStandard(x []float64, weight []float32, rows, d int, eps float64) []float64 {
-	out := make([]float64, len(x))
-	for r := 0; r < rows; r++ {
-		xr := x[r*d : (r+1)*d]
-		or := out[r*d : (r+1)*d]
-		var ss float64
-		for i := 0; i < d; i++ {
-			ss += xr[i] * xr[i]
-		}
-		inv := 1.0 / math.Sqrt(ss/float64(d)+eps)
-		for i := 0; i < d; i++ {
-			or[i] = xr[i] * inv * float64(weight[i])
-		}
-	}
-	return out
 }
 
 // ropeTableLlama builds per-position cos/sin of length headDim in the rotate-half
@@ -170,92 +147,6 @@ func ropeTableLlama(seq, headDim int, theta float64) (cos, sin []float64) {
 	return cos, sin
 }
 
-// encHeadRMSAndRope normalizes each head's q/k over head_dim with the standard
-// scale, then applies rotate-half RoPE at the token's position. arr is
-// [seq, heads*headDim] token-major.
-func encHeadRMSAndRope(arr []float64, normW []float32, seq, heads, headDim int, eps float64, cos, sin []float64) {
-	half := headDim / 2
-	for r := 0; r < seq; r++ {
-		crow := cos[r*headDim : (r+1)*headDim]
-		srow := sin[r*headDim : (r+1)*headDim]
-		for hh := 0; hh < heads; hh++ {
-			base := (r*heads + hh) * headDim
-			vec := arr[base : base+headDim]
-			var ss float64
-			for i := 0; i < headDim; i++ {
-				ss += vec[i] * vec[i]
-			}
-			inv := 1.0 / math.Sqrt(ss/float64(headDim)+eps)
-			for i := 0; i < headDim; i++ {
-				vec[i] = vec[i] * inv * float64(normW[i])
-			}
-			for i := 0; i < half; i++ {
-				a, b := vec[i], vec[half+i]
-				vec[i] = a*crow[i] - b*srow[i]
-				vec[half+i] = b*crow[half+i] + a*srow[half+i]
-			}
-		}
-	}
-}
-
-// causalGQA runs one causal grouped-query attention over the full sequence:
-// each query at position i attends to keys j<=i (lower-triangular), scale
-// 1/sqrt(headDim), softmax in f64. keyMask (nil = all-attended, else len seq)
-// drops an unattended KEY entirely from every query's softmax -- the f64 oracle
-// form of adaptive runtime_causal_gqa_masked_bf16 (attentionKeyAllowed: a masked
-// key is excluded from max, sum, and output). Returns [seq, heads*headDim].
-func causalGQA(q, k, v []float64, seq, heads, kvHeads, headDim int, keyMask []bool) []float64 {
-	group := heads / kvHeads
-	scale := 1.0 / math.Sqrt(float64(headDim))
-	out := make([]float64, seq*heads*headDim)
-	hostmath.ParallelRangeF64(heads, seq*seq*headDim, func(loH, hiH int) {
-		scores := make([]float64, seq)
-		for hh := loH; hh < hiH; hh++ {
-			kvh := hh / group
-			for i := 0; i < seq; i++ {
-				qvec := q[(i*heads+hh)*headDim : (i*heads+hh)*headDim+headDim]
-				mx := math.Inf(-1)
-				for j := 0; j <= i; j++ {
-					if keyMask != nil && !keyMask[j] {
-						continue
-					}
-					kvec := k[(j*kvHeads+kvh)*headDim : (j*kvHeads+kvh)*headDim+headDim]
-					var dot float64
-					for c := 0; c < headDim; c++ {
-						dot += qvec[c] * kvec[c]
-					}
-					dot *= scale
-					scores[j] = dot
-					if dot > mx {
-						mx = dot
-					}
-				}
-				var sum float64
-				for j := 0; j <= i; j++ {
-					if keyMask != nil && !keyMask[j] {
-						continue
-					}
-					e := math.Exp(scores[j] - mx)
-					scores[j] = e
-					sum += e
-				}
-				dst := out[(i*heads+hh)*headDim : (i*heads+hh)*headDim+headDim]
-				for j := 0; j <= i; j++ {
-					if keyMask != nil && !keyMask[j] {
-						continue
-					}
-					p := scores[j] / sum
-					vvec := v[(j*kvHeads+kvh)*headDim : (j*kvHeads+kvh)*headDim+headDim]
-					for c := 0; c < headDim; c++ {
-						dst[c] += p * vvec[c]
-					}
-				}
-			}
-		}
-	})
-	return out
-}
-
 // encLayerForward runs one Qwen3 decoder layer in place on x [seq, Hidden],
 // returning the mutated residual stream. inter is the MLP intermediate width.
 func encLayerForward(e TextEncoderSpec, eps float64, x []float64, seq, inter int, w *encLayerWeights, cos, sin []float64, keyMask []bool) []float64 {
@@ -263,18 +154,18 @@ func encLayerForward(e TextEncoderSpec, eps float64, x []float64, seq, inter int
 	qDim := e.Heads * e.HeadDim
 	kvDim := e.KVHeads * e.HeadDim
 
-	n1 := rmsNormStandard(x, w.inputNorm, seq, h, eps)
+	n1 := hostmath.StandardRMSNormF64(x, w.inputNorm, seq, h, eps)
 	q := dense(n1, w.qProj, nil, seq, h, qDim)
 	k := dense(n1, w.kProj, nil, seq, h, kvDim)
 	v := dense(n1, w.vProj, nil, seq, h, kvDim)
-	encHeadRMSAndRope(q, w.qNorm, seq, e.Heads, e.HeadDim, eps, cos, sin)
-	encHeadRMSAndRope(k, w.kNorm, seq, e.KVHeads, e.HeadDim, eps, cos, sin)
-	attn := causalGQA(q, k, v, seq, e.Heads, e.KVHeads, e.HeadDim, keyMask)
+	hostmath.NormalizeHeadsRotaryHalfF64(q, w.qNorm, seq, e.Heads, e.HeadDim, eps, cos, sin)
+	hostmath.NormalizeHeadsRotaryHalfF64(k, w.kNorm, seq, e.KVHeads, e.HeadDim, eps, cos, sin)
+	attn := hostmath.GroupedCausalAttentionF64(q, k, v, seq, e.Heads, e.KVHeads, e.HeadDim, keyMask)
 	ao := dense(attn, w.oProj, nil, seq, qDim, h)
 	for i := range x {
 		x[i] += ao[i]
 	}
-	n2 := rmsNormStandard(x, w.postNorm, seq, h, eps)
+	n2 := hostmath.StandardRMSNormF64(x, w.postNorm, seq, h, eps)
 	g := dense(n2, w.gate, nil, seq, h, inter)
 	u := dense(n2, w.up, nil, seq, h, inter)
 	for i := range g {
@@ -295,33 +186,35 @@ func encodeSelected(e TextEncoderSpec, eps float64, seq, inter int, embedRows []
 	if err != nil {
 		return nil, err
 	}
-	if len(embedRows) != seq*e.Hidden {
-		return nil, fmt.Errorf("textencoder: embed rows len=%d want %d ([%d,%d])", len(embedRows), seq*e.Hidden, seq, e.Hidden)
+	if err := checked.Length(embedRows, seq, e.Hidden); err != nil {
+		return nil, fmt.Errorf("textencoder: embed rows: %w", err)
 	}
-	if keyMask != nil && len(keyMask) != seq {
-		return nil, fmt.Errorf("textencoder: key mask len=%d want seq=%d", len(keyMask), seq)
+	if keyMask != nil {
+		if err := checked.Length(keyMask, seq); err != nil {
+			return nil, fmt.Errorf("textencoder: key mask: %w", err)
+		}
 	}
 	h := e.Hidden
 	L := len(e.SelectLayers)
 	out := &SelectedHiddenStates{Seq: seq, LayerCount: L, Hidden: h, Data: make([]float64, seq*L*h)}
 	cos, sin := ropeTableLlama(seq, e.HeadDim, e.RopeTheta)
 	x := embedRows
-	captured := 0
-	maxNeeded := e.SelectLayers[len(e.SelectLayers)-1] // highest tapped index; layers above it are never captured
-	for l := 0; l < e.HiddenLayers && l < maxNeeded; l++ {
+	captured := tensor.FirstOffset
+	maxNeeded, _ := checked.Last(e.SelectLayers) // captureSlots established a non-empty selection
+	for l := range min(e.HiddenLayers, maxNeeded) {
 		w, err := layerAt(l)
 		if err != nil {
 			return nil, fmt.Errorf("textencoder: layer %d: %w", l, err)
 		}
 		x = encLayerForward(e, eps, x, seq, inter, w, cos, sin, keyMask)
-		if slot, ok := slots[l+1]; ok {
-			for tok := 0; tok < seq; tok++ {
+		if slot, ok := slots[l+tensor.SingletonExtent]; ok {
+			for tok := range seq {
 				copy(out.Data[(tok*L+slot)*h:(tok*L+slot)*h+h], x[tok*h:tok*h+h])
 			}
 			captured++
 		}
 	}
-	if captured != L {
+	if !checked.Equal(captured, L) {
 		return nil, fmt.Errorf("textencoder: captured %d/%d selected layers", captured, L)
 	}
 	return out, nil
@@ -346,14 +239,14 @@ func EncodeSelectedLayersMasked(modelDir string, spec *Spec, promptIDs []int, ke
 	if len(promptIDs) == 0 {
 		return nil, fmt.Errorf("textencoder: empty prompt")
 	}
-	if keyMask != nil && len(keyMask) != len(promptIDs) {
+	if keyMask != nil && !checked.Equal(len(keyMask), len(promptIDs)) {
 		return nil, fmt.Errorf("textencoder: key mask len=%d want %d", len(keyMask), len(promptIDs))
 	}
 	e := spec.TextEncoder
-	if e.RMSNormEps <= 0 {
+	if !checked.PositiveFinite64(e.RMSNormEps) {
 		return nil, fmt.Errorf("textencoder: rms_norm_eps must be positive, got %g", e.RMSNormEps)
 	}
-	if e.Intermediate <= 0 {
+	if !checked.PositiveInts(e.Intermediate) {
 		return nil, fmt.Errorf("textencoder: intermediate_size must be positive, got %d", e.Intermediate)
 	}
 	src, err := safetensors.OpenSource(modelDir + "/text_encoder")
@@ -367,12 +260,16 @@ func EncodeSelectedLayersMasked(modelDir string, spec *Spec, promptIDs []int, ke
 	if err != nil {
 		return nil, err
 	}
-	if inter != e.Intermediate {
+	if !checked.Equal(inter, e.Intermediate) {
 		return nil, fmt.Errorf("textencoder: checkpoint intermediate %d != config %d", inter, e.Intermediate)
 	}
 
 	seq := len(promptIDs)
-	embedRows, err := readEmbedRows(src, e, promptIDs)
+	embedTensor, ok := src.Tensors[textEncoderPrefix+"embed_tokens.weight"]
+	if !ok {
+		return nil, fmt.Errorf("textencoder: missing embedding tensor")
+	}
+	embedRows, err := safetensors.TensorRowsF64(embedTensor, e.Hidden, promptIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -387,43 +284,14 @@ func EncodeSelectedLayersMasked(modelDir string, spec *Spec, promptIDs []int, ke
 func encoderCheckpointIntermediate(src *safetensors.Source) (int, error) {
 	name := textEncoderPrefix + "layers.0.mlp.down_proj.weight"
 	t, ok := src.Tensors[name]
-	if !ok || len(t.Shape) != 2 {
+	if !ok {
 		return 0, fmt.Errorf("textencoder: missing/short %s", name)
 	}
-	return int(t.Shape[1]), nil
-}
-
-// readEmbedRows reads only the embedding rows for the given token ids from the
-// BF16 embed_tokens.weight (selective ReadAt -- the full [vocab,hidden] table is
-// never materialized), decoding each row to f64.
-func readEmbedRows(src *safetensors.Source, e TextEncoderSpec, ids []int) ([]float64, error) {
-	name := textEncoderPrefix + "embed_tokens.weight"
-	t, ok := src.Tensors[name]
-	if !ok || len(t.Shape) != 2 {
-		return nil, fmt.Errorf("textencoder: missing/short %s", name)
+	_, width, err := safetensors.MatrixShape(t)
+	if err != nil {
+		return 0, fmt.Errorf("textencoder: %s: %w", name, err)
 	}
-	if t.DType != "BF16" {
-		return nil, fmt.Errorf("textencoder: %s dtype %q != BF16", name, t.DType)
-	}
-	vocab, h := int(t.Shape[0]), int(t.Shape[1])
-	if h != e.Hidden {
-		return nil, fmt.Errorf("textencoder: embed hidden %d != spec %d", h, e.Hidden)
-	}
-	out := make([]float64, len(ids)*h)
-	buf := make([]byte, h*2)
-	for i, id := range ids {
-		if id < 0 || id >= vocab {
-			return nil, fmt.Errorf("textencoder: token id %d out of range [0,%d)", id, vocab)
-		}
-		if _, err := t.ReadAt(buf, int64(id)*int64(h)*2); err != nil {
-			return nil, fmt.Errorf("textencoder: embed row %d: %w", id, err)
-		}
-		for c := 0; c < h; c++ {
-			bits := uint16(buf[2*c]) | uint16(buf[2*c+1])<<8
-			out[i*h+c] = float64(math.Float32frombits(uint32(bits) << 16))
-		}
-	}
-	return out, nil
+	return int(width), nil
 }
 
 // readEncoderLayer reads and decodes one decoder layer's weight set to f32.
@@ -498,7 +366,7 @@ type EncoderWitness struct {
 	Tensors      int
 }
 
-func (w EncoderWitness) Failed() bool { return failedCheckCount(w.Checks) != 0 }
+func (w EncoderWitness) Failed() bool { return checked.Nonzero(failedCheckCount(w.Checks)) }
 
 // VerifyEncoderCheckpoint opens the text_encoder safetensors HEADER under
 // modelDir and asserts every tensor the encoder forward consumes exists with the
@@ -529,23 +397,23 @@ func VerifyEncoderCheckpoint(modelDir string) (*EncoderWitness, error) {
 		Tensors:      len(shapes),
 	}
 	for _, v := range e.SelectLayers {
-		w.CaptureAfter = append(w.CaptureAfter, v-1)
+		w.CaptureAfter = append(w.CaptureAfter, v-tensor.SingletonExtent)
 	}
 	// config MLP width vs the real mlp.down_proj[1].
 	w.Checks = append(w.Checks, Check{Name: "e.intermediate", Want: e.Intermediate, Got: inter, Source: "mlp.down_proj.weight[1]"})
 	for name, shape := range shapes {
-		tensor, ok := src.Tensors[name]
+		checkpointTensor, ok := src.Tensors[name]
 		if !ok {
-			w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: -1, Source: "MISSING"})
+			w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: checked.UnknownCount(), Source: "MISSING"})
 			continue
 		}
-		got := 1
-		for _, s := range tensor.Shape {
-			got *= int(s)
+		got, ok := checked.Int(checkpointTensor.Elements())
+		if !ok {
+			got = checked.UnknownCount()
 		}
 		w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: got, Source: name})
 	}
-	if failures := failedCheckCount(w.Checks); failures != 0 {
+	if failures := failedCheckCount(w.Checks); checked.Nonzero(failures) {
 		return w, fmt.Errorf("textencoder verify: %d structural check(s) disagreed with checkpoint", failures)
 	}
 	return w, nil

@@ -6,7 +6,10 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/binaryschema"
+	"overgo/internal/checked"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/tensor"
 )
 
 type ReferenceEditCheckpoint struct {
@@ -33,30 +36,48 @@ func CompileReferenceEditCheckpoint(path string, base DenoiserConfig) (Reference
 	layers := make(map[int]bool)
 	for index, meta := range metas {
 		meta.Name = normalizeReferenceEditName(meta.Name)
-		if meta.Name == "" || seen[meta.Name] {
+		if !checked.Nonzero(meta.Name) || seen[meta.Name] {
 			return plan, fmt.Errorf("reference edit checkpoint: duplicate or empty tensor %q", meta.Name)
 		}
 		seen[meta.Name] = true
 		normalized[index] = meta
 		if strings.HasPrefix(meta.Name, "blocks.") {
 			remainder := strings.TrimPrefix(meta.Name, "blocks.")
-			ordinal, parseErr := strconv.Atoi(strings.SplitN(remainder, ".", 2)[0])
+			ordinal, parseErr := strconv.Atoi(strings.SplitN(remainder, ".", tensor.PairedExtent)[tensor.FirstOffset])
 			if parseErr == nil {
 				layers[ordinal] = true
 			}
 		}
 	}
 	patch, ok := findTensor(normalized, "patch_embedding.weight")
-	if !ok || len(patch.Shape) != 5 || patch.Shape[0] != int64(base.Dim) || patch.Shape[2] != int64(base.PatchSize[0]) || patch.Shape[3] != int64(base.PatchSize[1]) || patch.Shape[4] != int64(base.PatchSize[2]) {
-		sample := make([]string, min(8, len(normalized)))
+	if !ok {
+		return plan, fmt.Errorf("reference edit checkpoint: patch embedding is absent")
+	}
+	patchShape, err := pytorchzip.HostShape(patch, tensor.MaxDimensions+tensor.SingletonExtent)
+	if err != nil {
+		return plan, fmt.Errorf("reference edit checkpoint: patch embedding: %w", err)
+	}
+	patchExtent := [tensor.TripleExtent]int{
+		patchShape[tensor.PairedExtent],
+		patchShape[tensor.TripleExtent],
+		patchShape[tensor.MaxDimensions],
+	}
+	if !checked.Equal(patchShape[tensor.FirstOffset], base.Dim) {
+		return plan, fmt.Errorf("reference edit checkpoint: patch output %d differs from dim %d", patchShape[tensor.FirstOffset], base.Dim)
+	}
+	if !checked.Equal(patchExtent, base.PatchSize) {
+		sample := make([]string, min(tensor.PairedExtent*tensor.MaxDimensions, len(normalized)))
 		for index := range sample {
 			sample[index] = normalized[index].Name
 		}
 		return plan, fmt.Errorf("reference edit checkpoint: incompatible patch embedding %v; names=%v", patch.Shape, sample)
 	}
-	inputChannels := int(patch.Shape[1])
+	inputChannels := patchShape[tensor.SingletonExtent]
 	sourceChannels := inputChannels - base.InDim
-	if sourceChannels != base.InDim || len(layers) != base.NumLayers {
+	if !checked.Equal(sourceChannels, base.InDim) {
+		return plan, fmt.Errorf("reference edit checkpoint: input=%d source=%d, want source=%d", inputChannels, sourceChannels, base.InDim)
+	}
+	if !checked.Equal(len(layers), base.NumLayers) {
 		return plan, fmt.Errorf("reference edit checkpoint: input=%d source=%d layers=%d, want source=%d layers=%d", inputChannels, sourceChannels, len(layers), base.InDim, base.NumLayers)
 	}
 	live := base
@@ -74,7 +95,8 @@ func CompileReferenceEditCheckpoint(path string, base DenoiserConfig) (Reference
 	byName := make(map[string]pytorchzip.TensorBinding, len(bindings))
 	for index, binding := range bindings {
 		want := int64(lengths[names[index]])
-		if binding.Meta.Numel != want || binding.Meta.DType != "BFloat16Storage" && binding.Meta.DType != "FloatStorage" {
+		if !checked.Equal(binding.Meta.Numel, want) ||
+			!checked.Equal(binding.Meta.DType, pytorchzip.BFloat16StorageClass()) && !checked.Equal(binding.Meta.DType, pytorchzip.Float32StorageClass()) {
 			return plan, fmt.Errorf("reference edit checkpoint: %s dtype=%s elements=%d want=%d", names[index], binding.Meta.DType, binding.Meta.Numel, want)
 		}
 		byName[names[index]] = binding
@@ -118,7 +140,7 @@ func (p ReferenceEditCheckpoint) LoadWeights() (*DenoiserWeights, error) {
 
 // LoadDenoiserWeights streams common tensors plus the requested block prefix.
 func (p ReferenceEditCheckpoint) LoadDenoiserWeights(layers int) (*DenoiserWeights, error) {
-	if layers <= 0 || layers > p.Layers {
+	if !checked.PositiveInts(layers) || !checked.AtMostInt(layers, p.Layers) {
 		return nil, fmt.Errorf("reference edit checkpoint: layers=%d outside 1..%d", layers, p.Layers)
 	}
 	reader, err := pytorchzip.Open(p.Path)
@@ -140,7 +162,7 @@ func (p ReferenceEditCheckpoint) LoadDenoiserWeights(layers int) (*DenoiserWeigh
 			return nil, fmt.Errorf("reference edit checkpoint %s: %w", name, err)
 		}
 		weights.values[name] = values
-		weights.Bytes += int64(len(values) * 4)
+		weights.Bytes += int64(len(values) * binaryschema.Uint32Bytes)
 	}
 	return weights, nil
 }
@@ -163,9 +185,9 @@ func (p ReferenceEditCheckpoint) loadTextProjection() (projectionWeights, int64,
 		if err != nil {
 			return weights, 0, err
 		}
-		bytes += int64(len(values[index]) * 4)
+		bytes += int64(len(values[index]) * binaryschema.Uint32Bytes)
 	}
-	weights.Linear0W, weights.Linear0B = values[0], values[1]
-	weights.Linear2W, weights.Linear2B = values[2], values[3]
+	weights.Linear0W, weights.Linear0B = values[tensor.FirstOffset], values[tensor.SingletonExtent]
+	weights.Linear2W, weights.Linear2B = values[tensor.PairedExtent], values[tensor.TripleExtent]
 	return weights, bytes, nil
 }

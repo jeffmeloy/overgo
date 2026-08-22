@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/latentimage"
+	"overgo/internal/media"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/torchrng"
 )
@@ -29,8 +29,8 @@ func SeededFlowLatent(stream *torchrng.Stream, state *device.State, plan FlowPla
 		planar[i] = dtype.RoundBF16(planar[i])
 		planar[i] = dtype.RoundBF16(planar[i] * float32(image.NoiseScale))
 	}
-	patches, gh, gw, err := latentimage.PackPlanarF32(
-		planar, plan.VisionChannels, image.Height, image.Width, image.TokenPatch, latentimage.PatchChannelsLast,
+	patches, gh, gw, err := media.PackPlanar(
+		planar, plan.VisionChannels, image.Height, image.Width, image.TokenPatch, media.PatchChannelsLast,
 	)
 	if err != nil {
 		return nil, err

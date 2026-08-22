@@ -12,10 +12,14 @@ import (
 )
 
 const (
-	ModuleCompileModelPlan    recipe.ModuleID = "model.compile-plan"
-	ModuleCompileDecodePlan   recipe.ModuleID = "model.compile-decode-plan"
-	ModuleForwardTokens       recipe.ModuleID = "model.forward-tokens"
-	ModuleThoughtBankGenerate recipe.ModuleID = "model.thoughtbank-generate"
+	ModuleCompileModelPlan  recipe.ModuleID = "model.compile-plan"
+	ModuleCompileDecodePlan recipe.ModuleID = "model.compile-decode-plan"
+	ModuleForwardTokens     recipe.ModuleID = "model.forward-tokens"
+	// ModuleCaptureRepresentation identifies the model-boundary representation capture stage.
+	ModuleCaptureRepresentation recipe.ModuleID = "model.capture-representation"
+	// ModuleInjectRepresentation identifies the model-boundary representation injection stage.
+	ModuleInjectRepresentation recipe.ModuleID = "model.inject-representation"
+	ModuleThoughtBankGenerate  recipe.ModuleID = "model.thoughtbank-generate"
 	// ModuleForecastSeries: host forward for series-forecast capability
 	// packages; input series tensor, output quantile-forecast tensor.
 	ModuleForecastSeries recipe.ModuleID = "model.forecast-series"
@@ -108,6 +112,76 @@ func InferenceWithModelDefinition(
 		{Role: recipe.DependencyProfile, Artifact: profileID},
 		{Role: recipe.DependencyDefinition, Artifact: definitionID},
 	}, placement, session, residency)
+}
+
+const (
+	sourceModelSlot uint32 = iota
+	targetModelSlot
+)
+
+// RepresentationBridgeCompiler binds the execution and lifetime policies for
+// two models that exchange an exact contracted representation through an
+// adapter artifact.
+type RepresentationBridgeCompiler struct {
+	SourcePlacement recipe.Placement
+	TargetPlacement recipe.Placement
+	SourceResidency recipe.ResidencyPolicy
+	TargetResidency recipe.ResidencyPolicy
+	SourceSession   recipe.SessionPolicy
+	TargetSession   recipe.SessionPolicy
+}
+
+// Definition compiles the source capture and target injection stages into one
+// content-addressed recipe. Profile slots bind the representation contracts to
+// the same source and target ordering as the model slots.
+func (compiler RepresentationBridgeCompiler) Definition(
+	sourceModel, targetModel artifact.ID,
+	sourceContract, targetContract artifact.ID,
+	bridge artifact.ID,
+) (recipe.Definition, error) {
+	if err := validateResidencyPlacement(compiler.SourceResidency, compiler.SourcePlacement); err != nil {
+		return recipe.Definition{}, fmt.Errorf("model recipe: source representation component: %w", err)
+	}
+	if err := validateResidencyPlacement(compiler.TargetResidency, compiler.TargetPlacement); err != nil {
+		return recipe.Definition{}, fmt.Errorf("model recipe: target representation component: %w", err)
+	}
+	if compiler.SourceSession == "" || !compiler.SourceSession.Valid() ||
+		compiler.TargetSession == "" || !compiler.TargetSession.Valid() {
+		return recipe.Definition{}, errors.New("model recipe: representation component session is invalid")
+	}
+	capture := recipe.Node{
+		ID: "capture", Module: ModuleCaptureRepresentation,
+		Placement: compiler.SourcePlacement, Session: compiler.SourceSession,
+		Residency: compiler.SourceResidency, ModelSlot: sourceModelSlot,
+	}
+	inject := recipe.Node{
+		ID: "inject", Module: ModuleInjectRepresentation,
+		Placement: compiler.TargetPlacement, Session: compiler.TargetSession,
+		Residency: compiler.TargetResidency, ModelSlot: targetModelSlot,
+	}
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskProjection,
+		[]recipe.Dependency{
+			{Role: recipe.DependencyModel, Slot: sourceModelSlot, Artifact: sourceModel},
+			{Role: recipe.DependencyModel, Slot: targetModelSlot, Artifact: targetModel},
+			{Role: recipe.DependencyProfile, Slot: sourceModelSlot, Artifact: sourceContract},
+			{Role: recipe.DependencyProfile, Slot: targetModelSlot, Artifact: targetContract},
+			{Role: recipe.DependencyAdapter, Artifact: bridge},
+		},
+		[]recipe.Node{capture, inject},
+		[]recipe.Edge{{
+			From: recipe.Endpoint{Node: capture.ID, Port: "representation"},
+			To:   recipe.Endpoint{Node: inject.ID, Port: "representation"},
+		}},
+		[]recipe.Input{{
+			Name: "input", Data: recipe.DataTensor,
+			Target: recipe.Endpoint{Node: capture.ID, Port: "input"},
+		}},
+		[]recipe.Output{{
+			Name: "output", Data: recipe.DataTensor,
+			Source: recipe.Endpoint{Node: inject.ID, Port: "output"},
+		}},
+	)
 }
 
 type scalarStage struct {
@@ -603,6 +677,16 @@ func mustCatalog() *recipe.Catalog {
 				{Name: "tokens", Data: recipe.DataTokens, Cardinality: recipe.CardinalityOne},
 			},
 			Outputs: []recipe.Port{{Name: "logits", Data: recipe.DataLogits, Cardinality: recipe.CardinalityOne}},
+		},
+		{
+			ID: ModuleCaptureRepresentation, Tasks: []recipe.Task{recipe.TaskProjection}, Placements: placements,
+			Inputs:  []recipe.Port{{Name: "input", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
+			Outputs: []recipe.Port{{Name: "representation", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
+		},
+		{
+			ID: ModuleInjectRepresentation, Tasks: []recipe.Task{recipe.TaskProjection}, Placements: placements,
+			Inputs:  []recipe.Port{{Name: "representation", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
+			Outputs: []recipe.Port{{Name: "output", Data: recipe.DataTensor, Cardinality: recipe.CardinalityOne}},
 		},
 	}
 	for _, task := range []recipe.Task{

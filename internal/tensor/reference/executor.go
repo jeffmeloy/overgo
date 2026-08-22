@@ -6,7 +6,6 @@ import (
 	"math"
 	"slices"
 
-	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -32,6 +31,17 @@ func ZeroValue(shape tensor.Shape) Value {
 }
 
 func NewValue(shape tensor.Shape, data []float32) (Value, error) {
+	value, err := BorrowedValue(shape, data)
+	if err != nil {
+		return Value{}, err
+	}
+	value.Data = slices.Clone(data)
+	return value, nil
+}
+
+// BorrowedValue validates data against shape without copying it. The caller
+// must keep data immutable for the lifetime of the returned value.
+func BorrowedValue(shape tensor.Shape, data []float32) (Value, error) {
 	elements, err := shape.Elements()
 	if err != nil {
 		return Value{}, err
@@ -39,8 +49,7 @@ func NewValue(shape tensor.Shape, data []float32) (Value, error) {
 	if elements != uint64(len(data)) {
 		return Value{}, fmt.Errorf("reference data has %d elements, need %d", len(data), elements)
 	}
-	copied := slices.Clone(data)
-	return Value{Shape: shape, Data: copied}, nil
+	return Value{Shape: shape, Data: data}, nil
 }
 
 func (v Value) validate() (uint64, error) {
@@ -222,17 +231,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpGELU:
 		output := make([]float32, len(inputs[0].Data))
 		for i, value := range inputs[0].Data {
-			if value <= -10 {
-				output[i] = 0
-				continue
-			}
-			if value >= 10 {
-				output[i] = value
-				continue
-			}
-			x := float64(float16Round(value))
-			gelu := float32(hostmath.GELUTanh(x))
-			output[i] = float16Round(gelu)
+			output[i] = RoundedGELUTanh(value)
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpGELUErf:

@@ -9,16 +9,16 @@ package latentvideo
 import (
 	"encoding/json"
 	"fmt"
-	"html"
 	"io"
 	"math"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"overgo/internal/hostmath"
+	"overgo/internal/checked"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/representation"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor"
 	"overgo/internal/tokenizer"
 )
 
@@ -66,7 +66,7 @@ func TextConditioning(spec TextConditioningSpec, prompt string) (TextConditionin
 
 func textConditioningWithWeights(spec TextConditioningSpec, prompt string, weights projectionWeights, sourceBytes int64) (TextConditioningResult, error) {
 	var out TextConditioningResult
-	if spec.SequenceLength <= 0 {
+	if !checked.PositiveInts(spec.SequenceLength) {
 		return out, fmt.Errorf("text conditioning: positive sequence length required")
 	}
 	tok, err := loadFixedUnigramTokenizer(spec.TokenizerDir, spec.SequenceLength)
@@ -86,24 +86,22 @@ func textConditioningWithWeights(spec TextConditioningSpec, prompt string, weigh
 		return out, fmt.Errorf("text conditioning encoder contract: missing=%v unexpected=%v dtype=%v shape=%v", plan.Missing, plan.Unexpected, plan.DTypeMismatches, plan.ShapeMismatches)
 	}
 	textDim := plan.Config.Dim
-	if len(weights.Linear0W)%textDim != 0 {
-		return out, fmt.Errorf("text conditioning: projection input %d incompatible with encoder width %d", len(weights.Linear0W), textDim)
+	projection, err := representation.CompileTwoLayerProjectionF32(textDim, weights.Linear0W, weights.Linear0B, weights.Linear2W, weights.Linear2B)
+	if err != nil {
+		return out, fmt.Errorf("text conditioning: %w", err)
 	}
-	dim := len(weights.Linear0W) / textDim
-	if len(weights.Linear0B) != dim || len(weights.Linear2W) != dim*dim || len(weights.Linear2B) != dim {
-		return out, fmt.Errorf("text conditioning: inconsistent projection shapes")
-	}
+	dim := projection.OutputWidth
 	ids, mask, err := tok.EncodeWithMask(prompt)
 	if err != nil {
 		return out, err
 	}
-	tokenCount := 0
+	tokenCount := tensor.FirstOffset
 	for _, v := range mask {
-		if v != 0 {
+		if checked.Nonzero(v) {
 			tokenCount++
 		}
 	}
-	if tokenCount <= 0 || tokenCount > len(ids) {
+	if !checked.PositiveInts(tokenCount) || !checked.AtMostInt(tokenCount, len(ids)) {
 		return out, fmt.Errorf("text conditioning: bad token count %d", tokenCount)
 	}
 	encoded, encoderStats, err := EncodeTokensStreamed(spec.EncoderCheckpoint, plan, ids, mask)
@@ -161,64 +159,11 @@ func loadProjectionWeights(dir string) (projectionWeights, int64, error) {
 // zero encoder row), then pad-broadcast to textLen rows. bf16 rounds after
 // each op, mirroring the reference.
 func projectCompactTextConditioning(context []float32, contextTokens, textLen, textDim, dim int, w projectionWeights, bf16 bool) ([]float32, error) {
-	if contextTokens < 0 || contextTokens > textLen {
-		return nil, fmt.Errorf("compact text conditioning: context tokens=%d outside [0,%d]", contextTokens, textLen)
+	projection, err := representation.CompileTwoLayerProjectionF32(textDim, w.Linear0W, w.Linear0B, w.Linear2W, w.Linear2B)
+	if err != nil || !checked.Equal(projection.OutputWidth, dim) {
+		return nil, fmt.Errorf("compact text conditioning: invalid projection weights: %w", err)
 	}
-	if len(context) != contextTokens*textDim {
-		return nil, fmt.Errorf("compact text conditioning: context len=%d, want %d", len(context), contextTokens*textDim)
-	}
-	if len(w.Linear0W) != dim*textDim || len(w.Linear0B) != dim || len(w.Linear2W) != dim*dim || len(w.Linear2B) != dim {
-		return nil, fmt.Errorf("compact text conditioning: invalid projection weights")
-	}
-	activeRows := contextTokens
-	if activeRows < textLen {
-		activeRows++
-	}
-	hidden := make([]float32, activeRows*dim)
-	hostmath.ParallelRangeF64(activeRows, textDim*dim, func(lo, hi int) {
-		for r := lo; r < hi; r++ {
-			hrow := hidden[r*dim : (r+1)*dim]
-			for o := 0; o < dim; o++ {
-				acc := float64(w.Linear0B[o])
-				if r < contextTokens {
-					xrow := context[r*textDim : (r+1)*textDim]
-					wrow := w.Linear0W[o*textDim : (o+1)*textDim]
-					for i := 0; i < textDim; i++ {
-						acc += float64(xrow[i]) * float64(wrow[i])
-					}
-				}
-				hrow[o] = float32(acc)
-			}
-		}
-	})
-	roundBF16If(bf16, hidden)
-	hostmath.GELUTanhInPlace(hidden)
-	roundBF16If(bf16, hidden)
-	projected := make([]float32, activeRows*dim)
-	hostmath.ParallelRangeF64(activeRows, dim*dim, func(lo, hi int) {
-		for r := lo; r < hi; r++ {
-			xr, orow := hidden[r*dim:(r+1)*dim], projected[r*dim:(r+1)*dim]
-			for o := 0; o < dim; o++ {
-				wr := w.Linear2W[o*dim : (o+1)*dim]
-				var acc float64
-				for i, value := range xr {
-					acc += float64(value) * float64(wr[i])
-				}
-				acc += float64(w.Linear2B[o])
-				orow[o] = float32(acc)
-			}
-		}
-	})
-	roundBF16If(bf16, projected)
-	out := make([]float32, textLen*dim)
-	copy(out, projected[:contextTokens*dim])
-	if contextTokens < textLen {
-		pad := projected[contextTokens*dim : (contextTokens+1)*dim]
-		for r := contextTokens; r < textLen; r++ {
-			copy(out[r*dim:(r+1)*dim], pad)
-		}
-	}
-	return out, nil
+	return representation.ProjectPaddedF32(context, contextTokens, textLen, projection, bf16)
 }
 
 // fixedUnigramTokenizer: fixed-length encode policy (truncate to length-1,
@@ -243,7 +188,7 @@ func loadFixedUnigramTokenizer(dir string, length int) (*fixedUnigramTokenizer, 
 	if err := json.Unmarshal(raw, &roles); err != nil {
 		return nil, err
 	}
-	if length <= 0 || roles.Pad == "" || roles.End == "" || roles.UNK == "" {
+	if !checked.PositiveInts(length) || !checked.NonzeroAll(roles.Pad, roles.End, roles.UNK) {
 		return nil, fmt.Errorf("fixed unigram tokenizer: incomplete sequence policy")
 	}
 	table, artifactUnkID, byteFallback, err := tokenizer.LoadHFUnigramJSON(filepath.Join(dir, "tokenizer.json"))
@@ -272,7 +217,7 @@ func loadFixedUnigramTokenizer(dir string, length int) (*fixedUnigramTokenizer, 
 	if err != nil {
 		return nil, err
 	}
-	if unkID != artifactUnkID {
+	if !checked.Equal(unkID, artifactUnkID) {
 		return nil, fmt.Errorf("fixed unigram tokenizer: unknown token id=%d, artifact unk_id=%d", unkID, artifactUnkID)
 	}
 	return &fixedUnigramTokenizer{table: table, length: length, padID: padID, endID: endID}, nil
@@ -282,40 +227,23 @@ func (t *fixedUnigramTokenizer) EncodeWithMask(text string) ([]int, []int, error
 	if t == nil || t.table == nil {
 		return nil, nil, fmt.Errorf("fixed unigram tokenizer is nil")
 	}
-	text = normalizeEscapedWidthWhitespace(text)
+	text = tokenizer.NormalizeEscapedWidthWhitespace(text)
 	var pieces []int
 	var err error
-	if text != "" {
+	if checked.Nonzero(text) {
 		if pieces, err = t.table.Encode(text); err != nil {
 			return nil, nil, err
 		}
 	}
-	pieces = pieces[:min(len(pieces), t.length-1)]
+	pieces = pieces[:min(len(pieces), t.length-tensor.SingletonExtent)]
 	ids, mask := make([]int, t.length), make([]int, t.length)
 	n := copy(ids, pieces)
-	for i := 0; i < n; i++ {
-		mask[i] = 1
+	for i := range n {
+		mask[i] = tensor.SingletonExtent
 	}
-	ids[n], mask[n] = t.endID, 1
-	for i := n + 1; i < len(ids); i++ {
+	ids[n], mask[n] = t.endID, tensor.SingletonExtent
+	for i := n + tensor.SingletonExtent; i < len(ids); i++ {
 		ids[i] = t.padID
 	}
 	return ids, mask, nil
-}
-
-// normalizeEscapedWidthWhitespace: HTML-unescape twice, fold fullwidth ASCII
-// and ideographic space, collapse whitespace runs (reference normalization).
-func normalizeEscapedWidthWhitespace(text string) string {
-	text = html.UnescapeString(html.UnescapeString(text))
-	text = strings.Map(func(r rune) rune {
-		switch {
-		case r >= 0xFF01 && r <= 0xFF5E:
-			return r - 0xFEE0
-		case r == 0x3000:
-			return ' '
-		default:
-			return r
-		}
-	}, text)
-	return strings.Join(strings.Fields(strings.TrimSpace(text)), " ")
 }

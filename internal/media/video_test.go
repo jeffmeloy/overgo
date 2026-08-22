@@ -12,6 +12,24 @@ import (
 	"overgo/internal/tensor"
 )
 
+func TestValidateEncodedRGBVideo(t *testing.T) {
+	if err := ValidateEncodedRGBVideo([]byte{1}, GIFMediaType, GIFMediaType, 1, RGBChannels, 2, 2, 8); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateEncodedRGBVideo(nil, GIFMediaType, GIFMediaType, 1, RGBChannels, 2, 2, 8); err == nil {
+		t.Fatal("accepted empty encoded video")
+	}
+}
+
+func TestValidatePlanarVideo(t *testing.T) {
+	if err := ValidatePlanarVideo(make([]float32, 3*2*4*4), 3, 2, 4, 4); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidatePlanarVideo(make([]float32, 1), 3, 2, 4, 4); err == nil {
+		t.Fatal("accepted mismatched planar video")
+	}
+}
+
 func TestDecodeGIFCompositesDisposalAndSamples(t *testing.T) {
 	palette := color.Palette{
 		color.RGBA{}, color.RGBA{R: ^uint8(0), A: ^uint8(0)},

@@ -81,6 +81,7 @@ func TestRunUpdatesAndRejectsStaleManifest(t *testing.T) {
   "target": "compute_89",
   "compilerFlags": ["-ptx"],
   "defaultThreads": 256,
+  "vaeConvTile": 64,
   "sharedMemoryABI": "explicit-per-launch-v1",
   "modules": [{
     "source": "src/x.cu",

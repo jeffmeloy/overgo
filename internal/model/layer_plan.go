@@ -274,6 +274,14 @@ type LayerPlan struct {
 	PeriodicScale       float32
 }
 
+// ExactAttentionReplay reports whether captured Q/K tensors fully determine
+// this layer's attention result without additional position-dependent policy.
+func (p LayerPlan) ExactAttentionReplay() bool {
+	attention := p.AttentionGraph
+	return p.HasKV && attention.Causal && !attention.UseSinks && !attention.ChunkedWindow &&
+		attention.Window == 0 && attention.Softcap == 0 && attention.MaxALiBiBias == 0
+}
+
 func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent bool) (LayerPlan, error) {
 	recurrent = recurrent || s.IsRecurrentLayer(layer)
 	hasKV := s.LayerHasKV(layer)

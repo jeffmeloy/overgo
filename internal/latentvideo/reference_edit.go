@@ -4,58 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
+	"overgo/internal/checked"
+	"overgo/internal/media"
+	"overgo/internal/sampling"
+	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
 
-type EditFlowConfig struct {
-	InferenceSteps int
-	TrainTimesteps int
-	Shift          float32
-	SigmaMin       float32
-	SigmaMax       float32
-	ExtraStep      bool
-}
+type EditFlowConfig = sampling.EditFlowConfig
 
-// CompileEditFlowSigmas: source-order LiveEdit FP32 schedule.
-func CompileEditFlowSigmas(config EditFlowConfig, requested []int64) ([]float32, error) {
-	if config.InferenceSteps <= 0 || config.TrainTimesteps <= 0 || config.Shift <= 0 ||
-		config.SigmaMin < 0 || config.SigmaMax < config.SigmaMin || len(requested) == 0 {
-		return nil, errors.New("reference edit flow: invalid config")
-	}
-	linspace := config.InferenceSteps
-	if config.ExtraStep {
-		linspace++
-	}
-	if linspace < 2 {
-		return nil, errors.New("reference edit flow: insufficient schedule")
-	}
-	count := linspace
-	if config.ExtraStep {
-		count--
-	}
-	sigmas := make([]float32, count)
-	timesteps := make([]float32, count)
-	for index := range count {
-		raw := float32(float64(config.SigmaMax) + float64(index)*float64(config.SigmaMin-config.SigmaMax)/float64(linspace-1))
-		sigmas[index] = config.Shift * raw / (1 + (config.Shift-1)*raw)
-		timesteps[index] = sigmas[index] * float32(config.TrainTimesteps)
-	}
-	selected := make([]float32, len(requested))
-	for requestIndex, target := range requested {
-		best := 0
-		distance := math.Abs(float64(timesteps[0]) - float64(target))
-		for index := 1; index < len(timesteps); index++ {
-			candidate := math.Abs(float64(timesteps[index]) - float64(target))
-			if candidate < distance {
-				best, distance = index, candidate
-			}
-		}
-		selected[requestIndex] = sigmas[best]
-	}
-	return selected, nil
-}
+// CompileEditFlowSigmas exposes the shared edit-flow schedule compiler.
+var CompileEditFlowSigmas = sampling.CompileEditFlowSigmas
 
 type EditModelConfig struct {
 	PatchSize     [3]int
@@ -82,30 +42,47 @@ type EditPlan struct {
 // CompileEditPlan: shape-derived chunk and bounded-cache authority.
 func CompileEditPlan(config EditModelConfig, latent LatentGeometry, sourceChannels, framesPerChunk, localAttentionFrames int, timesteps []int64) (EditPlan, error) {
 	plan := EditPlan{Latent: latent, SourceChannels: sourceChannels}
-	if latent.Channels <= 0 || latent.LatentFrames <= 0 || latent.LatentHeight <= 0 || latent.LatentWidth <= 0 ||
-		sourceChannels <= 0 || config.InputChannels != latent.Channels+sourceChannels || framesPerChunk <= 0 ||
-		config.PatchSize[0] != 1 || config.PatchSize[1] <= 0 || config.PatchSize[2] <= 0 ||
-		latent.LatentHeight%config.PatchSize[1] != 0 || latent.LatentWidth%config.PatchSize[2] != 0 ||
-		config.Dim <= 0 || config.TextLength <= 0 || config.Layers <= 0 || len(timesteps) == 0 {
+	if !checked.PositiveInts(latent.Channels, latent.LatentFrames, latent.LatentHeight, latent.LatentWidth, sourceChannels, framesPerChunk) {
+		return plan, errors.New("reference edit plan: incomplete geometry")
+	}
+	inputChannels, ok := checked.AddInt(latent.Channels, sourceChannels)
+	if !ok {
+		return plan, errors.New("reference edit plan: incomplete geometry")
+	}
+	if !checked.Equal(config.InputChannels, inputChannels) {
+		return plan, errors.New("reference edit plan: incomplete geometry")
+	}
+	if !checked.Equal(config.PatchSize[0], tensor.SingletonExtent) {
+		return plan, errors.New("reference edit plan: incomplete geometry")
+	}
+	volume := media.VolumeGeometry{Frames: latent.LatentFrames, Height: latent.LatentHeight, Width: latent.LatentWidth}
+	grid, err := media.VolumePatchGrid(volume, config.PatchSize)
+	if err != nil {
+		return plan, fmt.Errorf("reference edit plan: %w", err)
+	}
+	if !checked.PositiveInts(config.Dim, config.TextLength, config.Layers) {
+		return plan, errors.New("reference edit plan: incomplete geometry")
+	}
+	if _, ok := checked.First(timesteps); !ok {
 		return plan, errors.New("reference edit plan: incomplete geometry")
 	}
 	for _, timestep := range timesteps {
-		if timestep < 0 || config.TrainSteps > 0 && timestep > int64(config.TrainSteps) {
+		if !checked.NonNegativeInt64(timestep) || checked.PositiveInts(config.TrainSteps) && !checked.AtMostInt64(timestep, int64(config.TrainSteps)) {
 			return plan, fmt.Errorf("reference edit plan: timestep %d outside schedule", timestep)
 		}
 	}
-	tokens, err := checkedProduct(latent.LatentHeight/config.PatchSize[1], latent.LatentWidth/config.PatchSize[2])
+	tokens, err := checkedProduct(grid[tensor.SingletonExtent], grid[tensor.PairedExtent])
 	if err != nil {
 		return plan, fmt.Errorf("reference edit plan tokens: %w", err)
 	}
 	plan.InputChannels, plan.TokensPerFrame = config.InputChannels, tokens
-	for remaining := latent.LatentFrames; remaining > 0; {
+	for remaining := latent.LatentFrames; checked.PositiveInts(remaining); {
 		frames := min(framesPerChunk, remaining)
 		plan.ChunkFrames = append(plan.ChunkFrames, frames)
 		remaining -= frames
 	}
 	cacheFrames := latent.LatentFrames
-	if localAttentionFrames > 0 {
+	if checked.PositiveInts(localAttentionFrames) {
 		cacheFrames = min(cacheFrames, localAttentionFrames)
 	}
 	if cacheFrames < min(framesPerChunk, latent.LatentFrames) {
@@ -146,10 +123,11 @@ func RunEditSchedule(ctx context.Context, plan EditPlan, contextTimestep int64, 
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if visit == nil || contextTimestep < 0 || plan.TokensPerFrame <= 0 || len(plan.ChunkFrames) == 0 || len(plan.Timesteps) == 0 {
+	if visit == nil || !checked.NonNegativeInt64(contextTimestep) || !checked.PositiveInts(plan.TokensPerFrame) ||
+		!checked.Nonempty(plan.ChunkFrames) || !checked.Nonempty(plan.Timesteps) {
 		return errors.New("reference edit schedule: incomplete contract")
 	}
-	startFrame, calls := 0, 0
+	startFrame, calls := tensor.FirstOffset, tensor.FirstOffset
 	for chunk, frames := range plan.ChunkFrames {
 		startToken := startFrame * plan.TokensPerFrame
 		endToken := (startFrame + frames) * plan.TokensPerFrame
@@ -157,7 +135,7 @@ func RunEditSchedule(ctx context.Context, plan EditPlan, contextTimestep int64, 
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if err := visit(ctx, EditStep{Pass: EditDenoise, Chunk: chunk, Step: step, StartFrame: startFrame, Frames: frames, StartToken: startToken, EndToken: endToken, Timestep: timestep, AdvanceHistory: step == 0}); err != nil {
+			if err := visit(ctx, EditStep{Pass: EditDenoise, Chunk: chunk, Step: step, StartFrame: startFrame, Frames: frames, StartToken: startToken, EndToken: endToken, Timestep: timestep, AdvanceHistory: checked.Equal(step, tensor.FirstOffset)}); err != nil {
 				return err
 			}
 			calls++
@@ -168,7 +146,7 @@ func RunEditSchedule(ctx context.Context, plan EditPlan, contextTimestep int64, 
 		calls++
 		startFrame += frames
 	}
-	if calls != plan.DenoiserCalls || startFrame != plan.Latent.LatentFrames {
+	if !checked.Equal(calls, plan.DenoiserCalls) || !checked.Equal(startFrame, plan.Latent.LatentFrames) {
 		return errors.New("reference edit schedule: execution count mismatch")
 	}
 	return nil
@@ -206,43 +184,60 @@ func RunEditSampler(ctx context.Context, request EditSamplerRequest) ([]float32,
 		return nil, stats, err
 	}
 	sourceElements, err := checkedProduct(plan.SourceChannels, latent.LatentFrames, latent.LatentHeight, latent.LatentWidth)
-	if err != nil || len(request.InitialNoise) != fullElements || len(request.Source) != sourceElements || len(request.Sigmas) != len(plan.Timesteps) || request.Denoise == nil || len(plan.Timesteps) > 1 && request.Noise == nil {
+	if err != nil || !checked.Equal(len(request.InitialNoise), fullElements) || !checked.Equal(len(request.Source), sourceElements) ||
+		!checked.Equal(len(request.Sigmas), len(plan.Timesteps)) || request.Denoise == nil || checked.Multiple(len(plan.Timesteps)) && request.Noise == nil {
 		return nil, stats, errors.New("reference edit sampler: incomplete request")
 	}
 	if err := quantizeEdit(nil, request.Arithmetic); err != nil {
 		return nil, stats, err
 	}
-	maxFrames := 0
+	maxFrames := tensor.FirstOffset
 	for _, frames := range plan.ChunkFrames {
 		maxFrames = max(maxFrames, frames)
 	}
-	spatial := latent.LatentHeight * latent.LatentWidth
-	chunkElements := latent.Channels * maxFrames * spatial
-	sourceChunkElements := plan.SourceChannels * maxFrames * spatial
+	spatial, err := checkedProduct(latent.LatentHeight, latent.LatentWidth)
+	if err != nil {
+		return nil, stats, err
+	}
+	chunkElements, err := checkedProduct(latent.Channels, maxFrames, spatial)
+	if err != nil {
+		return nil, stats, err
+	}
+	sourceChunkElements, err := checkedProduct(plan.SourceChannels, maxFrames, spatial)
+	if err != nil {
+		return nil, stats, err
+	}
 	current := make([]float32, chunkElements)
 	clean := make([]float32, chunkElements)
 	work := make([]float32, chunkElements)
 	combined := make([]float32, chunkElements+sourceChunkElements)
 	stats.PeakScratchElements = len(current) + len(clean) + len(work) + len(combined)
 	output := make([]float32, fullElements)
-	activeChunk := -1
+	activeChunk := checked.UnknownCount()
+	lastStep := checked.ReverseIndex(tensor.FirstOffset, len(plan.Timesteps))
 	err = RunEditSchedule(ctx, plan, request.ContextTimestep, func(ctx context.Context, step EditStep) error {
-		elements := latent.Channels * step.Frames * spatial
-		sourceElements := plan.SourceChannels * step.Frames * spatial
+		elements, productErr := checkedProduct(latent.Channels, step.Frames, spatial)
+		if productErr != nil {
+			return productErr
+		}
+		sourceElements, productErr := checkedProduct(plan.SourceChannels, step.Frames, spatial)
+		if productErr != nil {
+			return productErr
+		}
 		currentChunk, cleanChunk, workChunk := current[:elements], clean[:elements], work[:elements]
 		combinedChunk := combined[:elements+sourceElements]
 		if step.Chunk != activeChunk {
-			if step.Pass != EditDenoise || step.Step != 0 {
+			if step.Pass != EditDenoise || !checked.Equal(step.Step, tensor.FirstOffset) {
 				return errors.New("reference edit sampler: invalid chunk start")
 			}
-			if err := copyChannelFrames(currentChunk, step.Frames, 0, request.InitialNoise, latent.LatentFrames, step.StartFrame, latent.Channels, step.Frames, spatial); err != nil {
+			if err := media.CopyPlanarFrames(currentChunk, step.Frames, tensor.FirstOffset, request.InitialNoise, latent.LatentFrames, step.StartFrame, latent.Channels, step.Frames, spatial); err != nil {
 				return err
 			}
 			activeChunk = step.Chunk
 		}
 		copy(combinedChunk, currentChunk)
 		sourceChunk := combinedChunk[elements:]
-		if err := copyChannelFrames(sourceChunk, step.Frames, 0, request.Source, latent.LatentFrames, step.StartFrame, plan.SourceChannels, step.Frames, spatial); err != nil {
+		if err := media.CopyPlanarFrames(sourceChunk, step.Frames, tensor.FirstOffset, request.Source, latent.LatentFrames, step.StartFrame, plan.SourceChannels, step.Frames, spatial); err != nil {
 			return err
 		}
 		if err := request.Denoise(ctx, step, combinedChunk, workChunk); err != nil {
@@ -255,7 +250,7 @@ func RunEditSampler(ctx context.Context, request EditSamplerRequest) ([]float32,
 					return err
 				}
 			}
-			return copyChannelFrames(output, latent.LatentFrames, step.StartFrame, currentChunk, step.Frames, 0, latent.Channels, step.Frames, spatial)
+			return media.CopyPlanarFrames(output, latent.LatentFrames, step.StartFrame, currentChunk, step.Frames, tensor.FirstOffset, latent.Channels, step.Frames, spatial)
 		}
 		stats.DenoiseCalls++
 		if err := quantizeEdit(workChunk, request.Arithmetic); err != nil {
@@ -264,7 +259,7 @@ func RunEditSampler(ctx context.Context, request EditSamplerRequest) ([]float32,
 		for index := range cleanChunk {
 			cleanChunk[index] = float32(float64(currentChunk[index]) - float64(request.Sigmas[step.Step])*float64(workChunk[index]))
 		}
-		if step.Step+1 == len(plan.Timesteps) {
+		if checked.Equal(step.Step, lastStep) {
 			copy(currentChunk, cleanChunk)
 			return nil
 		}
@@ -293,25 +288,10 @@ func quantizeEdit(values []float32, arithmetic EditArithmetic) error {
 	}
 }
 
-func copyChannelFrames(destination []float32, destinationFrames, destinationStart int, source []float32, sourceFrames, sourceStart, channels, frames, spatial int) error {
-	if destinationStart < 0 || sourceStart < 0 || frames < 0 || destinationStart+frames > destinationFrames || sourceStart+frames > sourceFrames || len(destination) < channels*destinationFrames*spatial || len(source) < channels*sourceFrames*spatial {
-		return errors.New("reference edit sampler: frame copy outside tensor")
-	}
-	for channel := range channels {
-		destinationOffset := (channel*destinationFrames + destinationStart) * spatial
-		sourceOffset := (channel*sourceFrames + sourceStart) * spatial
-		copy(destination[destinationOffset:destinationOffset+frames*spatial], source[sourceOffset:sourceOffset+frames*spatial])
-	}
-	return nil
-}
-
 func checkedProduct(values ...int) (int, error) {
-	product := 1
-	for _, value := range values {
-		if value < 0 || value != 0 && product > int(^uint(0)>>1)/value {
-			return 0, errors.New("integer overflow")
-		}
-		product *= value
+	product, ok := checked.ProductInt(values...)
+	if !ok {
+		return 0, errors.New("integer overflow")
 	}
 	return product, nil
 }

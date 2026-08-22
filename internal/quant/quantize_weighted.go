@@ -18,10 +18,8 @@ var (
 
 const (
 	iq2XXSWeightedGroupWidth = 32
-	iq2XXSWeightedTypeSize   = iq2XXSBlockBytes
 	iq2XXSWeightedAttempts   = 6
 	iq2XSWeightedGroupWidth  = 16
-	iq2XSWeightedTypeSize    = iq2XSBlockBytes
 	iq2XSWeightedAttempts    = 9
 	iq2ScaleHeaderBytes      = iqScaleBytes
 	iq2XXSGroupBytes         = 8
@@ -55,18 +53,18 @@ func buildIQ1QuantCodebook(grid []uint64) iq1QuantCodebook {
 func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, output []byte) error {
 	codebook := iq2XXSQuantCodebook
 	groupWidth := iq2XXSWeightedGroupWidth
-	typeSize := iq2XXSWeightedTypeSize
+	layout := iq2XXSBlockLayout
 	attempts := iq2XXSWeightedAttempts
 	if dataType == dtype.IQ2XS {
 		codebook = iq2XSQuantCodebook
 		groupWidth = iq2XSWeightedGroupWidth
-		typeSize = iq2XSWeightedTypeSize
+		layout = iq2XSBlockLayout
 		attempts = iq2XSWeightedAttempts
 	}
-	for block := 0; block < len(values)/iqSuperBlockWidth; block++ {
-		input := values[block*iqSuperBlockWidth : (block+1)*iqSuperBlockWidth]
-		weights := importance[block*iqSuperBlockWidth : (block+1)*iqSuperBlockWidth]
-		destination := output[block*typeSize : (block+1)*typeSize]
+	for block := 0; block < len(values)/layout.elements; block++ {
+		input := layout.input(values, block)
+		weights := layout.input(importance, block)
+		destination := layout.storage(output, block)
 		for _, value := range input {
 			if !finiteFloat32(value) {
 				return fmt.Errorf("%s input contains a non-finite value", dataType)
@@ -76,8 +74,8 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 		for _, value := range input {
 			sumSquares += value * value
 		}
-		variance := sumSquares / iqSuperBlockWidth
-		scales := make([]float32, iqSuperBlockWidth/groupWidth)
+		variance := sumSquares / float32(layout.elements)
+		scales := make([]float32, layout.elements/groupWidth)
 		var maxScale float32
 		for group := range scales {
 			start := group * groupWidth
@@ -401,18 +399,15 @@ func iq1FindBest(encoded uint16, values, weights []float32, scale float32, allow
 }
 
 func quantizeIQ1SWeighted(values, importance []float32, output []byte) error {
-	const (
-		blockWidth = 256
-		groupWidth = 32
-		typeSize   = 50
-		delta      = float32(0.125)
-	)
+	const groupWidth = 32
+	layout := iq1SBlockLayout
+	delta := iq1DeltaMagnitude
 	positive := [3]float32{-1 + delta, delta, 1 + delta}
 	negative := [3]float32{-1 - delta, -delta, 1 - delta}
-	for block := 0; block < len(values)/blockWidth; block++ {
-		input := values[block*blockWidth : (block+1)*blockWidth]
-		importanceBlock := importance[block*blockWidth : (block+1)*blockWidth]
-		destination := output[block*typeSize : (block+1)*typeSize]
+	for block := 0; block < len(values)/layout.elements; block++ {
+		input := layout.input(values, block)
+		importanceBlock := layout.input(importance, block)
+		destination := layout.storage(output, block)
 		for _, value := range input {
 			if !finiteFloat32(value) {
 				return errors.New("IQ1_S input contains a non-finite value")
@@ -422,8 +417,8 @@ func quantizeIQ1SWeighted(values, importance []float32, output []byte) error {
 		for _, value := range input {
 			sumSquares += value * value
 		}
-		variance := 2 * sumSquares / blockWidth
-		scales := make([]float32, blockWidth/groupWidth)
+		variance := 2 * sumSquares / float32(layout.elements)
+		scales := make([]float32, layout.elements/groupWidth)
 		shifts := make([]int, len(scales))
 		var maxScale float32
 		for group := range scales {
@@ -556,19 +551,16 @@ func quantizeIQ1SWeighted(values, importance []float32, output []byte) error {
 }
 
 func quantizeIQ1MWeighted(values, importance []float32, output []byte) error {
-	const (
-		blockWidth = 256
-		groupWidth = 16
-		typeSize   = 56
-		delta      = float32(0.125)
-	)
+	const groupWidth = 16
+	layout := iq1MBlockLayout
+	delta := iq1DeltaMagnitude
 	positive := [3]float32{-1 + delta, delta, 1 + delta}
 	negative := [3]float32{-1 - delta, -delta, 1 - delta}
 	shiftMasks := [4]byte{0, 0x80, 0x08, 0x88}
-	for block := 0; block < len(values)/blockWidth; block++ {
-		input := values[block*blockWidth : (block+1)*blockWidth]
-		importanceBlock := importance[block*blockWidth : (block+1)*blockWidth]
-		destination := output[block*typeSize : (block+1)*typeSize]
+	for block := 0; block < len(values)/layout.elements; block++ {
+		input := layout.input(values, block)
+		importanceBlock := layout.input(importance, block)
+		destination := layout.storage(output, block)
 		for _, value := range input {
 			if !finiteFloat32(value) {
 				return errors.New("IQ1_M input contains a non-finite value")
@@ -578,8 +570,8 @@ func quantizeIQ1MWeighted(values, importance []float32, output []byte) error {
 		for _, value := range input {
 			sumSquares += value * value
 		}
-		variance := 2 * sumSquares / blockWidth
-		scales := make([]float32, blockWidth/groupWidth)
+		variance := 2 * sumSquares / float32(layout.elements)
+		scales := make([]float32, layout.elements/groupWidth)
 		shifts := make([]int, len(scales))
 		indices := make([][2]int, len(scales))
 		var maxScale float32

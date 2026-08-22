@@ -28,6 +28,9 @@ func TestLiveEditSourceCodec(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkpoint := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B", "Wan2.1_VAE.pth")
+	if _, err := os.Stat(checkpoint); os.IsNotExist(err) {
+		t.Skipf("UNAVAILABLE: Wan source codec: %v", err)
+	}
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: Wan source codec: %v", err)

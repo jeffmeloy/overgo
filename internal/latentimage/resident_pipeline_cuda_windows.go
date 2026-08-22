@@ -6,12 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"path/filepath"
 	"sync"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
+	"overgo/internal/media"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -24,27 +25,28 @@ type ResidentImagePipeline struct {
 	Denoiser *DenoiserProgram
 	VAE      *VAEProgram
 
-	runtime        *residentRuntime
-	encoder        *residentGraph
-	bridge         *residentGraph
-	bridgePointers []driver.DevicePtr
-	bridgeOutput   *tensor.Tensor
-	fusion         *residentGraph
-	timestepPlan   *timestepProgram
-	timestep       *residentGraph
-	denoiser       *residentGraph
-	denoiserInputs [4]driver.DevicePtr
-	upload         *residentGraph
-	uploadInput    *tensor.Tensor
-	uploadOutput   *tensor.Tensor
-	vaeBridge      *residentGraph
-	vaeOutput      *tensor.Tensor
-	vae            *residentGraph
-	residentBytes  uint64
-	modelDir       string
-	mu             sync.Mutex
-	conditioning   *ResidentConditioning
-	latent         *residentLatent
+	runtime          *residentRuntime
+	encoder          *residentGraph
+	bridge           *residentGraph
+	bridgePointers   []driver.DevicePtr
+	bridgeOutput     *tensor.Tensor
+	fusion           *residentGraph
+	timestepPlan     *timestepProgram
+	timestep         *residentGraph
+	denoiser         *residentGraph
+	denoiserInputs   [4]driver.DevicePtr
+	upload           *residentGraph
+	uploadInput      *tensor.Tensor
+	uploadOutput     *tensor.Tensor
+	vaeBridge        *residentGraph
+	vaeOutput        *tensor.Tensor
+	vae              *residentGraph
+	timestepEncoding media.SinusoidalProgram
+	residentBytes    uint64
+	modelDir         string
+	mu               sync.Mutex
+	conditioning     *ResidentConditioning
+	latent           *residentLatent
 }
 
 // ResidentConditioning owns fused text conditioning on the pipeline device.
@@ -66,10 +68,11 @@ func NewResidentImagePipeline(
 	fusion *FusionProgram,
 	denoiser *DenoiserProgram,
 	vae *VAEProgram,
+	timestepEncoding media.SinusoidalProgram,
 	modelDir string,
 	ordinal int,
 ) (pipeline *ResidentImagePipeline, err error) {
-	if encoder == nil || fusion == nil || denoiser == nil || vae == nil {
+	if encoder == nil || fusion == nil || denoiser == nil || vae == nil || timestepEncoding.Validate() != nil {
 		return nil, errors.New("resident image pipeline: program is nil")
 	}
 	if encoder.Seq < fusion.TextSeq || fusion.TextSeq != denoiser.TextSeq ||
@@ -81,7 +84,8 @@ func NewResidentImagePipeline(
 		return nil, fmt.Errorf("resident image pipeline: device: %w", err)
 	}
 	pipeline = &ResidentImagePipeline{
-		Encoder: encoder, Fusion: fusion, Denoiser: denoiser, VAE: vae, runtime: runtime, modelDir: modelDir,
+		Encoder: encoder, Fusion: fusion, Denoiser: denoiser, VAE: vae, runtime: runtime,
+		timestepEncoding: timestepEncoding, modelDir: modelDir,
 	}
 	defer func() {
 		if err != nil {
@@ -127,7 +131,7 @@ func NewResidentImagePipeline(
 
 func (p *ResidentImagePipeline) prepareGeneration(ctx context.Context) (err error) {
 	modelDir, denoiser, vae := p.modelDir, p.Denoiser, p.VAE
-	p.timestepPlan, err = compileTimestepProgram(denoiser.T, denoiser.MatmulType)
+	p.timestepPlan, err = compileTimestepProgram(denoiser.T, denoiser.MatmulType, p.timestepEncoding)
 	if err != nil {
 		return err
 	}
@@ -198,26 +202,26 @@ func latentVAEDecodeBridge(
 	denoiser *DenoiserProgram,
 	vae *VAEProgram,
 ) (*tensor.Tensor, *tensor.Tensor, map[*tensor.Tensor][]float32, error) {
-	patchArea := denoiser.T.InChannels / vae.ZDim
-	patch := int(math.Sqrt(float64(patchArea)))
-	if patch <= 0 || patch*patch != patchArea || vae.H != denoiser.GH*patch || vae.W != denoiser.GW*patch {
+	patch, patchErr := media.SquarePatchExtent(denoiser.T.InChannels, vae.ZDim)
+	if patchErr != nil || !checked.Equal(vae.H, denoiser.GH*patch) || !checked.Equal(vae.W, denoiser.GW*patch) {
 		return nil, nil, nil, fmt.Errorf(
 			"resident image pipeline: VAE geometry %dx%d/%d is incompatible with denoiser %dx%d/%d",
 			vae.W, vae.H, vae.ZDim, denoiser.GW, denoiser.GH, denoiser.T.InChannels,
 		)
 	}
+	patchArea, _ := checked.MulInt(patch, patch)
 	builder := tensor.NewBuilder()
 	input := builder.Input("packed_latent", dtype.F32, denoiser.InLatent.Shape)
 	var windows *tensor.Tensor
 	for local := range patchArea {
 		channels := builder.Reshape(
-			builder.GroupSlice(input, uint64(local), 1, uint64(vae.ZDim), uint64(patchArea)),
-			uint64(vae.ZDim), 1, uint64(denoiser.ImgSeq),
+			builder.GroupSlice(input, uint64(local), tensor.SingletonExtent, uint64(vae.ZDim), uint64(patchArea)),
+			uint64(vae.ZDim), tensor.SingletonExtent, uint64(denoiser.ImgSeq),
 		)
 		if windows == nil {
 			windows = channels
 		} else {
-			windows = builder.Concat(windows, channels, 1)
+			windows = builder.Concat(windows, channels, tensor.SingletonExtent)
 		}
 	}
 	spatial := builder.Reshape(
@@ -249,7 +253,7 @@ func selectedHiddenBridge(program *EncoderProgram, outputSeq int) ([]*tensor.Ten
 	if program == nil {
 		return nil, nil, errors.New("resident image pipeline: encoder program is nil")
 	}
-	if outputSeq <= 0 || outputSeq > program.Seq {
+	if !checked.PositiveInts(outputSeq) || !checked.AtMostInt(outputSeq, program.Seq) {
 		return nil, nil, errors.New("resident image pipeline: encoder output sequence is invalid")
 	}
 	builder := tensor.NewBuilder()
@@ -266,7 +270,7 @@ func selectedHiddenBridge(program *EncoderProgram, outputSeq int) ([]*tensor.Ten
 		if joined == nil {
 			joined = cropped
 		} else {
-			joined = builder.Concat(joined, cropped, 0)
+			joined = builder.Concat(joined, cropped, tensor.FirstOffset)
 		}
 	}
 	if joined == nil {
@@ -294,14 +298,12 @@ func (p *ResidentImagePipeline) Condition(
 	if p.conditioning != nil {
 		return nil, errors.New("resident image pipeline: conditioning is already retained")
 	}
-	if len(embedRows) != p.Encoder.Seq*p.Encoder.E.Hidden {
-		return nil, fmt.Errorf(
-			"resident image pipeline: embed len=%d want %d",
-			len(embedRows), p.Encoder.Seq*p.Encoder.E.Hidden,
-		)
+	embedValue, err := reference.BorrowedValue(p.Encoder.Embed.Shape, embedRows)
+	if err != nil {
+		return nil, fmt.Errorf("resident image pipeline: embed rows: %w", err)
 	}
 	feeds := map[*tensor.Tensor]reference.Value{
-		p.Encoder.Embed: {Shape: p.Encoder.Embed.Shape, Data: embedRows},
+		p.Encoder.Embed: embedValue,
 	}
 	if p.Encoder.keyBias != nil {
 		feeds[p.Encoder.keyBias] = reference.Value{
@@ -536,7 +538,7 @@ func (c *ResidentConditioning) Release(ctx context.Context) error {
 
 func (p *ResidentImagePipeline) ResidentBytes() uint64 {
 	if p == nil {
-		return 0
+		return uint64(tensor.FirstOffset)
 	}
 	return p.residentBytes
 }

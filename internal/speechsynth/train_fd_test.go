@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/media"
 )
 
 // gcStep / gradCheckTol: the reference finite-diff step and tolerance
@@ -33,9 +34,17 @@ func normVec(rng *rand.Rand, n int, base, s float64) []float32 {
 	return v
 }
 
+func fixtureSpeechProgram() media.NormalizationProgram {
+	program, err := loadSpeechProgram()
+	if err != nil {
+		panic(err)
+	}
+	return program
+}
+
 // tinyFlowModel: synthetic SimpleMLPAdaLN (reference tinyFlowNet geometry).
 func tinyFlowModel(rng *rand.Rand, dim, latent, condDim, depth, half int) *Model {
-	m := &Model{}
+	m := &Model{Normalization: fixtureSpeechProgram()}
 	m.Dims.FlowDim, m.Dims.LatentDim, m.Dims.DModel = dim, latent, condDim
 	m.Dims.FlowDepth, m.Dims.TimeFreqs = depth, half
 	fn := &m.flow
@@ -66,7 +75,7 @@ func tinyFlowModel(rng *rand.Rand, dim, latent, condDim, depth, half int) *Model
 // (reference tinySpeechFlowTransformer geometry, layerScale-free like the
 // real backbone).
 func tinyBackboneModel(rng *rand.Rand, d, heads, ff, layers int) *Model {
-	m := &Model{}
+	m := &Model{Normalization: fixtureSpeechProgram()}
 	m.Dims.DModel, m.Dims.Heads, m.Dims.HeadDim, m.Dims.FF, m.Dims.Layers = d, heads, d/heads, ff, layers
 	m.Dims.MaxPeriod = 10000
 	m.invFreq = hostmath.RopeInvFreq(m.Dims.MaxPeriod, m.Dims.HeadDim)
@@ -201,7 +210,7 @@ func TestBackboneBackwardFiniteDifference(t *testing.T) {
 
 	g := Grads{}
 	dStream := make([]float32, T*d)
-	hostmath.LayerNormBackward(dStream, hostmath.GradientSlot(g, "flow_lm.out_norm.weight", d), hostmath.GradientSlot(g, "flow_lm.out_norm.bias", d), states[layers], m.outNormW, target, T, d, transformerLayerNormEps, false)
+	hostmath.LayerNormBackward(dStream, hostmath.GradientSlot(g, "flow_lm.out_norm.weight", d), hostmath.GradientSlot(g, "flow_lm.out_norm.bias", d), states[layers], m.outNormW, target, T, d, m.Normalization.TransformerLayer, false)
 	for li := layers - 1; li >= 0; li-- {
 		dStream = m.layerBackward(li, states[li], dStream, T, g)
 	}

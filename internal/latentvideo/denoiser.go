@@ -16,9 +16,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"overgo/internal/checked"
 	"overgo/internal/hostmath"
+	"overgo/internal/media"
 	"overgo/internal/model"
 	"overgo/internal/safetensors"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -29,7 +32,7 @@ type DenoiserPolicy struct {
 	NumTrainTimesteps   int
 	SinusoidalPeriod    int
 	RotaryFrequencyBase float64
-	VAEStride           [3]int
+	VAEStride           [tensor.TripleExtent]int
 }
 
 // DenoiserConfig: checkpoint config.json facts plus policy.
@@ -39,7 +42,7 @@ type DenoiserConfig struct {
 	NumHeads, NumLayers  int
 	TextLen              int
 	Eps                  float64
-	PatchSize            [3]int
+	PatchSize            [tensor.TripleExtent]int
 	Policy               DenoiserPolicy
 }
 
@@ -70,18 +73,29 @@ func LoadDenoiserConfig(dir string, policy DenoiserPolicy) (DenoiserConfig, erro
 	}
 	defer source.Close()
 	patch, ok := source.Tensors["patch_embedding.weight"]
-	if !ok || len(patch.Shape) != 5 {
+	if !ok {
 		return DenoiserConfig{}, fmt.Errorf("denoiser config: patch_embedding.weight rank-5 tensor is absent")
+	}
+	patchShape, err := safetensors.HostShape(patch, tensor.MaxDimensions+tensor.SingletonExtent)
+	if err != nil {
+		return DenoiserConfig{}, fmt.Errorf("denoiser config: patch embedding: %w", err)
 	}
 	cfg := DenoiserConfig{
 		Dim: parsed.Dim, FFNDim: parsed.FFNDim, FreqDim: parsed.FreqDim,
 		InDim: parsed.InDim, OutDim: parsed.OutDim,
 		NumHeads: parsed.NumHeads, NumLayers: parsed.NumLayers,
 		TextLen: parsed.TextLen, Eps: parsed.Eps,
-		PatchSize: [3]int{int(patch.Shape[2]), int(patch.Shape[3]), int(patch.Shape[4])},
-		Policy:    policy,
+		PatchSize: [tensor.TripleExtent]int{
+			patchShape[tensor.PairedExtent],
+			patchShape[tensor.TripleExtent],
+			patchShape[tensor.MaxDimensions],
+		},
+		Policy: policy,
 	}
-	if uint64(cfg.Dim) != patch.Shape[0] || uint64(cfg.InDim) != patch.Shape[1] {
+	if !checked.Equal(cfg.Dim, patchShape[tensor.FirstOffset]) {
+		return DenoiserConfig{}, fmt.Errorf("denoiser config: patch embedding shape %v incompatible with dim=%d", patch.Shape, cfg.Dim)
+	}
+	if !checked.Equal(cfg.InDim, patchShape[tensor.SingletonExtent]) {
 		return DenoiserConfig{}, fmt.Errorf("denoiser config: patch embedding shape %v incompatible with dim=%d in_dim=%d", patch.Shape, cfg.Dim, cfg.InDim)
 	}
 	return cfg, cfg.validate()
@@ -98,18 +112,22 @@ func (c DenoiserConfig) validate() error {
 		{"num_train_timesteps", c.Policy.NumTrainTimesteps},
 		{"sinusoidal_period", c.Policy.SinusoidalPeriod},
 	} {
-		if field.value <= 0 {
+		if !checked.PositiveInts(field.value) {
 			return fmt.Errorf("denoiser config: %s must be positive, got %d", field.name, field.value)
 		}
 	}
-	if c.Eps <= 0 || c.Policy.RotaryFrequencyBase <= 0 {
+	if !checked.PositiveFinite64(c.Eps) || !checked.PositiveFinite64(c.Policy.RotaryFrequencyBase) {
 		return fmt.Errorf("denoiser config: eps/rotary base must be positive")
 	}
-	if c.Dim%c.NumHeads != 0 || (c.Dim/c.NumHeads)%2 != 0 {
+	headWidth, ok := checked.DivExactInt(c.Dim, c.NumHeads)
+	if !ok {
+		return fmt.Errorf("denoiser config: dim %d must split across heads (%d)", c.Dim, c.NumHeads)
+	}
+	if !checked.EvenInt(headWidth) {
 		return fmt.Errorf("denoiser config: dim %d must split into even-width heads (%d)", c.Dim, c.NumHeads)
 	}
 	for axis := range c.PatchSize {
-		if c.PatchSize[axis] <= 0 || c.Policy.VAEStride[axis] <= 0 {
+		if !checked.PositiveInts(c.PatchSize[axis], c.Policy.VAEStride[axis]) {
 			return fmt.Errorf("denoiser config: patch/vae stride axis %d must be positive", axis)
 		}
 	}
@@ -133,26 +151,24 @@ type LatentGeometry struct {
 }
 
 func (c DenoiserConfig) CompileLatentGeometry(frames, width, height int) (LatentGeometry, error) {
-	if frames <= 0 || width <= 0 || height <= 0 {
-		return LatentGeometry{}, fmt.Errorf("latent geometry: frames/width/height must be positive, got %d/%d/%d", frames, width, height)
+	volume, err := media.DownsampledVolume(frames, height, width, c.Policy.VAEStride)
+	if err != nil {
+		return LatentGeometry{}, fmt.Errorf("latent geometry: %w", err)
 	}
 	geometry := LatentGeometry{
 		Channels:     c.InDim,
-		LatentFrames: (frames-1)/c.Policy.VAEStride[0] + 1,
-		LatentHeight: height / c.Policy.VAEStride[1],
-		LatentWidth:  width / c.Policy.VAEStride[2],
+		LatentFrames: volume.Frames,
+		LatentHeight: volume.Height,
+		LatentWidth:  volume.Width,
 	}
-	if geometry.LatentHeight <= 0 || geometry.LatentWidth <= 0 ||
-		geometry.LatentHeight%c.PatchSize[1] != 0 || geometry.LatentWidth%c.PatchSize[2] != 0 ||
-		geometry.LatentFrames%c.PatchSize[0] != 0 {
-		return LatentGeometry{}, fmt.Errorf("latent geometry %dx%dx%d incompatible with patch %v", geometry.LatentFrames, geometry.LatentHeight, geometry.LatentWidth, c.PatchSize)
+	geometry.Grid, err = media.VolumePatchGrid(volume, c.PatchSize)
+	if err != nil {
+		return LatentGeometry{}, fmt.Errorf("latent geometry: %w", err)
 	}
-	geometry.Grid = [3]int{
-		geometry.LatentFrames / c.PatchSize[0],
-		geometry.LatentHeight / c.PatchSize[1],
-		geometry.LatentWidth / c.PatchSize[2],
+	geometry.Seq, err = media.VolumeElements(geometry.Grid)
+	if err != nil {
+		return LatentGeometry{}, fmt.Errorf("latent geometry: %w", err)
 	}
-	geometry.Seq = geometry.Grid[0] * geometry.Grid[1] * geometry.Grid[2]
 	return geometry, nil
 }
 
@@ -347,7 +363,7 @@ func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights,
 
 // CompileDenoiserProgramHistory adds retained rotated-K/value inputs.
 func CompileDenoiserProgramHistory(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision, history DenoiserHistory) (*DenoiserProgram, error) {
-	if history.Tokens <= 0 || history.StartFrame <= 0 {
+	if !checked.PositiveInts(history.Tokens, history.StartFrame) {
 		return nil, fmt.Errorf("denoiser history: tokens/start frame must be positive")
 	}
 	return compileDenoiserProgram(c, weights, geometry, precision, history)
@@ -358,14 +374,16 @@ func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 	if weights == nil {
 		return nil, fmt.Errorf("denoiser program: weights are nil")
 	}
-	if geometry.Seq <= 0 {
+	if !checked.PositiveInts(geometry.Seq) {
 		return nil, fmt.Errorf("denoiser program: geometry has no tokens")
 	}
-	if matmulWeightType != dtype.F32 && matmulWeightType != dtype.BF16 {
+	switch matmulWeightType {
+	case dtype.F32, dtype.BF16:
+	default:
 		return nil, fmt.Errorf("denoiser program: matmul weight type %s is unsupported", matmulWeightType)
 	}
 	matmulCompute := tensor.MulMatComputeExact
-	if matmulWeightType == dtype.BF16 {
+	if checked.Equal(matmulWeightType, dtype.BF16) {
 		matmulCompute = tensor.MulMatComputeBF16TensorCore
 	}
 	d := uint64(c.Dim)
@@ -428,20 +446,20 @@ func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 	program.stepWeightInputs = make(map[string]*tensor.Tensor)
 	bind := tensor.WeightInputs{Builder: builder, Inputs: program.stepWeightInputs, MatrixType: matmulWeightType}
 	program.stepPatch = builder.Input("patch_tokens", dtype.F32, tensor.MustShape(uint64(c.patchIn()), seq))
-	program.stepBlockE = builder.Input("conditioning_block", dtype.F32, tensor.MustShape(6*d))
+	program.stepBlockE = builder.Input("conditioning_block", dtype.F32, tensor.MustShape(uint64(media.PairedShiftScaleGateWidth(c.Dim))))
 	program.stepHeadE = builder.Input("conditioning_head", dtype.F32, tensor.MustShape(d))
 	embedW := bind.Input("patch_embedding.weight", uint64(c.patchIn()), d)
 	embedB := bind.Input("patch_embedding.bias", d)
 	hidden := builder.Add(builder.MulMat(embedW, program.stepPatch), embedB)
 
-	for layer := 0; layer < c.NumLayers; layer++ {
+	for layer := range c.NumLayers {
 		prefix := denoiserBlockPrefix(layer)
 		crossKey := builder.Input(prefix+"cross_key", dtype.F32, tensor.MustShape(headWidth, heads, textLen))
 		crossValue := builder.Input(prefix+"cross_value", dtype.F32, tensor.MustShape(headWidth, heads, textLen))
 		program.stepCrossKeys = append(program.stepCrossKeys, crossKey)
 		program.stepCrossValues = append(program.stepCrossValues, crossValue)
 		blockWeights := model.ConditionedDiffusionBlockWeights{
-			Modulation:      bind.Input(prefix+"modulation", 6*d),
+			Modulation:      bind.Input(prefix+"modulation", uint64(media.PairedShiftScaleGateWidth(c.Dim))),
 			SelfAttention:   selfAttentionWeights(bind, prefix+"self_attn.", d),
 			CrossAttention:  attentionQueryOutputWeights(bind, prefix+"cross_attn.", d),
 			CrossNormWeight: bind.Input(prefix+"norm3.weight", d),
@@ -452,7 +470,7 @@ func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 			FFNContractBias: bind.Input(prefix+"ffn.2.bias", d),
 		}
 		var result model.ConditionedDiffusionBlockResult
-		if history.Tokens > 0 {
+		if checked.PositiveInts(history.Tokens) {
 			historyKey := builder.Input(prefix+"self_history_key", dtype.F32, tensor.MustShape(headWidth, heads, uint64(history.Tokens)))
 			historyValue := builder.Input(prefix+"self_history_value", dtype.F32, tensor.MustShape(headWidth, heads, uint64(history.Tokens)))
 			program.stepHistoryKeys = append(program.stepHistoryKeys, historyKey)
@@ -475,7 +493,7 @@ func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 	}
 	head, err := diffusion.BuildHead(
 		builder, hidden, program.stepHeadE,
-		bind.Input("head.modulation", 2*d),
+		bind.Input("head.modulation", uint64(tensor.PairedExtent)*d),
 		bind.Input("head.head.weight", d, uint64(c.patchOut())),
 		bind.Input("head.head.bias", uint64(c.patchOut())),
 	)
@@ -628,7 +646,7 @@ type DenoiseRequest struct {
 	CondContext   []float32
 	UncondContext []float32
 	InitialSample []float32
-	Noise         NoisePlan
+	Noise         sampling.CounterNoisePlan
 	TraceSteps    bool
 	// StepHook: optional per-step progress observer (heartbeat for long runs).
 	StepHook func(step int, timestep int64)
@@ -704,7 +722,7 @@ func (p *DenoiserProgram) DenoiseWithBackend(backend DenoiseBackend, request Den
 			return result, fmt.Errorf("denoise: initial sample has %d elements, need %d", len(request.InitialSample), elements)
 		}
 		copy(sample, request.InitialSample)
-	} else if err := FillNormalNoise(sample, request.Noise); err != nil {
+	} else if err := sampling.FillCounterNormalNoise(sample, request.Noise); err != nil {
 		return result, err
 	}
 	condContext, err := backend.ProjectBranchContext(request.CondContext)

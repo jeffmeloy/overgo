@@ -58,7 +58,7 @@ func TestChannelRMSNormMatchesTorchFixture(t *testing.T) {
 		-1, 2, -3, 4, -5, 6, -7, 8,
 	}
 	got := make([]float32, len(x))
-	if err := hostmath.ChannelRMSNormF64Into(got, x, []float32{1.5, 0.5}, 2, 8, channelNormZeroGuard); err != nil {
+	if err := hostmath.ChannelRMSNormF64Into(got, x, []float32{1.5, 0.5}, 2, 8); err != nil {
 		t.Fatal(err)
 	}
 	want := []float32{

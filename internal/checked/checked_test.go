@@ -5,6 +5,52 @@ import (
 	"testing"
 )
 
+func TestSuffix(t *testing.T) {
+	values := []int{1, 2, 3}
+	got, ok := Suffix(values, 2)
+	if !ok || len(got) != 2 || got[0] != 2 || got[1] != 3 {
+		t.Fatalf("suffix=%v ok=%v", got, ok)
+	}
+	if _, ok := Suffix(values, 4); ok {
+		t.Fatal("accepted oversized suffix")
+	}
+	if got, err := SuffixExact(values, 2); err != nil || len(got) != 2 {
+		t.Fatalf("exact suffix=%v err=%v", got, err)
+	}
+	if _, err := SuffixExact(values, -1); err == nil {
+		t.Fatal("accepted negative exact suffix")
+	}
+}
+
+func TestPrefix(t *testing.T) {
+	values := []int{1, 2, 3}
+	got, ok := Prefix(values, 2)
+	if !ok || len(got) != 2 || got[1] != 2 {
+		t.Fatalf("prefix = %v, %t", got, ok)
+	}
+	if _, ok := Prefix(values, 4); ok {
+		t.Fatal("oversized prefix accepted")
+	}
+}
+
+func TestLength(t *testing.T) {
+	if err := Length(make([]float32, 6), 2, 3); err != nil {
+		t.Fatal(err)
+	}
+	if err := Length(make([]float32, 5), 2, 3); err == nil {
+		t.Fatal("accepted mismatched storage")
+	}
+}
+
+func TestRows(t *testing.T) {
+	if rows, err := Rows(make([]float32, 6), 3); err != nil || rows != 2 {
+		t.Fatalf("rows=%d err=%v", rows, err)
+	}
+	if _, err := Rows(make([]float32, 5), 3); err == nil {
+		t.Fatal("accepted unaligned rows")
+	}
+}
+
 func TestCheckedArithmetic(t *testing.T) {
 	const signedValue int64 = 7
 	if value, ok := Uint64(signedValue); !ok || value != uint64(signedValue) {
@@ -48,5 +94,14 @@ func TestCheckedArithmetic(t *testing.T) {
 	}
 	if value, ok := Align(33, 32); !ok || value != 64 {
 		t.Fatalf("alignment = %d, %v", value, ok)
+	}
+	if value, ok := RoundUpMultiple(5, 5); !ok || value != 5 {
+		t.Fatalf("round-up exact multiple = %d, %v", value, ok)
+	}
+	if value, ok := RoundUpMultiple(6, 5); !ok || value != 10 {
+		t.Fatalf("round-up multiple = %d, %v", value, ok)
+	}
+	if _, ok := RoundUpMultiple(1, 0); ok {
+		t.Fatal("zero round-up multiple accepted")
 	}
 }

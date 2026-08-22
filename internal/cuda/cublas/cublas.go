@@ -24,11 +24,13 @@ const (
 )
 
 const (
-	DataF32          DataType      = 0
-	DataBF16         DataType      = 14
-	ComputeF32       ComputeType   = 68
-	GemmDefault      GemmAlgorithm = -1
-	MathTF32TensorOp MathMode      = 3
+	DataF32              DataType      = 0
+	DataBF16             DataType      = 14
+	ComputeF32           ComputeType   = 68
+	GemmDefault          GemmAlgorithm = -1
+	MathTF32TensorOp     MathMode      = 3
+	gemmProductScale                   = float32(1)
+	gemmAccumulatorScale               = float32(0)
 )
 
 // RowMajorGEMMF32: row-major C[m,n] = A[m,k]*B[k,n].
@@ -59,10 +61,10 @@ func (l *Library) rowMajorGEMMEx(handle Handle, transA, transB bool, m, k, n int
 	}
 	return l.GEMMEx(
 		handle, opB, opA,
-		n, m, k, 1,
+		n, m, k, gemmProductScale,
 		b, typeB, ldb,
 		a, typeA, lda,
-		0, c, DataF32, n,
+		gemmAccumulatorScale, c, DataF32, n,
 		ComputeF32, GemmDefault,
 	)
 }
@@ -90,10 +92,10 @@ func (l *Library) RowMajorGEMMStridedBatchedF32(
 	}
 	return l.SGEMMStridedBatched(
 		handle, opB, opA,
-		n, m, k, 1,
+		n, m, k, gemmProductScale,
 		b, ldb, strideB,
 		a, lda, strideA,
-		0, c, n, strideC,
+		gemmAccumulatorScale, c, n, strideC,
 		batch,
 	)
 }

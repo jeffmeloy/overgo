@@ -2,6 +2,7 @@ package artifact
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -88,6 +89,24 @@ func TestCloneAliasBindingsOwnsCompareAndSetPointers(t *testing.T) {
 	*source[0].Previous = target
 	if cloned[0].Previous == source[0].Previous || *cloned[0].Previous != wantPrevious {
 		t.Fatal("alias clone retained caller pointer")
+	}
+}
+
+func TestRepositoryKeysShareOneBound(t *testing.T) {
+	target, err := IdentifyBytes(KindModel, []byte("target"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, length := range []int{maxRepositoryKeyBytes, maxRepositoryKeyBytes + 1} {
+		key := strings.Repeat("k", length)
+		aliasErr := (AliasBinding{Name: key, Target: target}).Validate()
+		batchErr := (Batch{Key: key, Artifacts: []Descriptor{{ID: target}}}).Validate()
+		if (aliasErr == nil) != (length <= maxRepositoryKeyBytes) {
+			t.Fatalf("alias key length %d: %v", length, aliasErr)
+		}
+		if (batchErr == nil) != (length <= maxRepositoryKeyBytes) {
+			t.Fatalf("batch key length %d: %v", length, batchErr)
+		}
 	}
 }
 

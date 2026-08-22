@@ -7,10 +7,7 @@ import (
 	"strings"
 )
 
-const (
-	maxAliasBytes    = 512
-	maxBatchKeyBytes = 512
-)
+const maxRepositoryKeyBytes = 512
 
 // ErrCommitPrecondition is returned when repository state no longer matches
 // the state against which a batch was prepared.
@@ -138,7 +135,7 @@ type AliasBinding struct {
 }
 
 func (b AliasBinding) Validate() error {
-	if b.Name == "" || len(b.Name) > maxAliasBytes || strings.TrimSpace(b.Name) != b.Name || strings.ContainsAny(b.Name, "\r\n") {
+	if b.Name == "" || len(b.Name) > maxRepositoryKeyBytes || strings.TrimSpace(b.Name) != b.Name || strings.ContainsAny(b.Name, "\r\n") {
 		return errors.New("artifact: invalid alias")
 	}
 	if !b.Target.Valid() {
@@ -168,7 +165,7 @@ type Batch struct {
 }
 
 func (b Batch) Validate() error {
-	if b.Key == "" || len(b.Key) > maxBatchKeyBytes || strings.TrimSpace(b.Key) != b.Key || strings.ContainsAny(b.Key, "\r\n") {
+	if b.Key == "" || len(b.Key) > maxRepositoryKeyBytes || strings.TrimSpace(b.Key) != b.Key || strings.ContainsAny(b.Key, "\r\n") {
 		return errors.New("artifact: invalid batch key")
 	}
 	if len(b.Artifacts)+len(b.Contents)+len(b.Manifests)+len(b.Lineage)+len(b.Aliases)+len(b.Locations) == 0 {

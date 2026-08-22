@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/media"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -12,11 +13,11 @@ import (
 func TestTimestepProgramMatchesHostReference(t *testing.T) {
 	const fixtureSigma = 0.9
 	spec := syntheticSpec()
-	denoiser, err := NewDenoiser(spec, 1e-5, 1000, syntheticStore(spec))
+	denoiser, err := NewDenoiser(spec, 1e-5, fixtureTimestepProgram(spec), syntheticStore(spec))
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := compileTimestepProgram(spec, dtype.F32)
+	program, err := compileTimestepProgram(spec, dtype.F32, fixtureTimestepProgram(spec))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,9 +36,16 @@ func TestTimestepProgramMatchesHostReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantEmbedding, wantModulation := denoiser.timestepConditioning(fixtureSigma)
+	wantEmbedding, wantModulation, err := denoiser.timestepConditioning(fixtureSigma)
+	if err != nil {
+		t.Fatal(err)
+	}
 	assertFloat64Near(t, results[program.Embedding].Data, wantEmbedding)
 	assertFloat64Near(t, results[program.Modulation].Data, wantModulation)
+}
+
+func fixtureTimestepProgram(spec TransformerSpec) media.SinusoidalProgram {
+	return media.SinusoidalProgram{Dimensions: spec.TimestepEmbed, FrequencyBase: 1e4, InputScale: 1e3}
 }
 
 func assertFloat64Near(t *testing.T, got []float32, want []float64) {

@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/testutil"
 )
@@ -75,7 +76,7 @@ func BenchmarkWanRealArtifactLeadership(b *testing.B) {
 		result, err := denoiser.Denoise(context.Background(), DenoiseRequest{
 			Steps: 50, Shift: 5, GuideScale: 6,
 			CondContext: cond, UncondContext: uncond,
-			Noise: NoisePlan{
+			Noise: sampling.CounterNoisePlan{
 				Seed: 31, Grid: productionNoiseGrid(b, geometry.Elements()), Block: 256, Unroll: 4,
 			},
 		})

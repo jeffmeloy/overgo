@@ -18,7 +18,10 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/checked"
 	"overgo/internal/hostmath"
+	"overgo/internal/media"
+	"overgo/internal/tensor"
 	"overgo/internal/tensorcatalog"
 )
 
@@ -51,11 +54,12 @@ type CodecDecoder struct {
 	upsampleW []float32 // depthwise ConvTranspose1d [outerDim][1][k]
 	upsampleK int       // kernel; stride = k/2 (vendor code fact)
 
-	layers     []codecAttnLayer
-	d, h, hd   int
-	ff, window int
-	invFreq    []float64
-	scoreScale float32
+	layers        []codecAttnLayer
+	d, h, hd      int
+	ff, window    int
+	invFreq       []float64
+	scoreScale    float32
+	normalization media.NormalizationProgram
 
 	convs   []codecConv    // SEANet chain in execution order
 	resnets [][2]codecConv // one residual block after each transpose conv
@@ -76,15 +80,15 @@ type seanetResnetSpec struct {
 // transpose kernel = 2*stride.
 func seanetDecoderLayout(c seanetConfig) ([]seanetConvSpec, []seanetResnetSpec) {
 	nStages := len(c.Ratios)
-	mult := 1 << nStages
-	chain := []seanetConvSpec{{0, c.Dimension, mult * c.NFilters, c.KernelSize, 1, false}}
+	mult := tensor.SingletonExtent << nStages
+	chain := []seanetConvSpec{{tensor.FirstOffset, c.Dimension, mult * c.NFilters, c.KernelSize, tensor.SingletonExtent, false}}
 	var resnets []seanetResnetSpec
 	for i, r := range c.Ratios {
-		width := (mult >> (i + 1)) * c.NFilters
-		chain = append(chain, seanetConvSpec{3*i + 2, 2 * width, width, 2 * r, r, true})
-		resnets = append(resnets, seanetResnetSpec{3*i + 3, width})
+		width := (mult >> (i + tensor.SingletonExtent)) * c.NFilters
+		chain = append(chain, seanetConvSpec{tensor.TripleExtent*i + tensor.PairedExtent, tensor.PairedExtent * width, width, tensor.PairedExtent * r, r, true})
+		resnets = append(resnets, seanetResnetSpec{tensor.TripleExtent*i + tensor.TripleExtent, width})
 	}
-	chain = append(chain, seanetConvSpec{3*nStages + 2, c.NFilters, c.Channels, c.LastKernelSize, 1, false})
+	chain = append(chain, seanetConvSpec{tensor.TripleExtent*nStages + tensor.PairedExtent, c.NFilters, c.Channels, c.LastKernelSize, tensor.SingletonExtent, false})
 	return chain, resnets
 }
 
@@ -96,50 +100,50 @@ const (
 )
 
 // loadCodecDecoder wires the decoder from the shared artifact reader.
-func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), shapes map[string][]int, config artifactConfig, latentDim int) (*CodecDecoder, error) {
+func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), shapes map[string][]int, config artifactConfig, latentDim int, normalization media.NormalizationProgram) (*CodecDecoder, error) {
 	mimi := config.Mimi
-	quantShape, ok := shapes[quantizerProjName]
-	if !ok || len(quantShape) != 3 || quantShape[1] != latentDim || quantShape[2] != 1 {
-		return nil, fmt.Errorf("speechsynth: quantizer output_proj %v incompatible with latent dim %d", quantShape, latentDim)
+	quantDimensions, err := tensorcatalog.Dimensions(shapes, quantizerProjName, tensor.TripleExtent)
+	if err != nil || !checked.Equal(quantDimensions[tensor.SingletonExtent], latentDim) || !checked.Equal(quantDimensions[tensor.PairedExtent], tensor.SingletonExtent) {
+		return nil, fmt.Errorf("speechsynth: quantizer output_proj %v incompatible with latent dim %d", quantDimensions, latentDim)
 	}
-	outerDim := quantShape[0]
-	upShape, ok := shapes[upsampleName]
-	if !ok || len(upShape) != 3 || upShape[0] != outerDim || upShape[1] != 1 {
-		return nil, fmt.Errorf("speechsynth: upsample convtr %v is not depthwise [outer,1,k]", upShape)
+	outerDim := quantDimensions[tensor.FirstOffset]
+	upDimensions, err := tensorcatalog.Dimensions(shapes, upsampleName, tensor.TripleExtent)
+	if err != nil || !checked.Equal(upDimensions[tensor.FirstOffset], outerDim) || !checked.Equal(upDimensions[tensor.SingletonExtent], tensor.SingletonExtent) {
+		return nil, fmt.Errorf("speechsynth: upsample convtr %v is not depthwise [outer,1,k]", upDimensions)
 	}
-	upsampleK := upShape[2]
-	if upsampleK%2 != 0 {
+	upsampleK := upDimensions[tensor.PairedExtent]
+	if !checked.EvenInt(upsampleK) {
 		return nil, fmt.Errorf("speechsynth: upsample kernel %d not 2*stride", upsampleK)
 	}
 
-	norm1, ok := shapes[codecLayerPrefix+"0.norm1.weight"]
-	if !ok || len(norm1) != 1 || norm1[0] != outerDim {
+	norm1, err := tensorcatalog.Dimensions(shapes, codecLayerPrefix+"0.norm1.weight", tensor.SingletonExtent)
+	if err != nil || !checked.Equal(norm1[tensor.FirstOffset], outerDim) {
 		return nil, fmt.Errorf("speechsynth: decoder transformer width %v != outer dim %d", norm1, outerDim)
 	}
-	d := norm1[0]
+	d := norm1[tensor.FirstOffset]
 	nLayers, err := tensorcatalog.IndexedCount(shapes, codecLayerPrefix, ".norm1.weight")
 	if err != nil {
 		return nil, err
 	}
-	lin1, ok := shapes[codecLayerPrefix+"0.linear1.weight"]
-	if !ok || len(lin1) != 2 || lin1[1] != d {
+	lin1, err := tensorcatalog.Dimensions(shapes, codecLayerPrefix+"0.linear1.weight", tensor.PairedExtent)
+	if err != nil || !checked.Equal(lin1[tensor.SingletonExtent], d) {
 		return nil, fmt.Errorf("speechsynth: decoder transformer linear1 incompatible with d %d", d)
 	}
-	ff := lin1[0]
+	ff := lin1[tensor.FirstOffset]
 
 	tr := mimi.Transformer
-	if tr.NumHeads <= 0 || tr.MaxPeriod <= 0 || tr.Context <= 0 {
+	if !checked.PositiveInts(tr.NumHeads, tr.Context) || !checked.PositiveFinite64(tr.MaxPeriod) {
 		return nil, fmt.Errorf("speechsynth: config lacks positive mimi.transformer num_heads/max_period/context")
 	}
-	if d%tr.NumHeads != 0 {
+	if _, ok := checked.DivExactInt(d, tr.NumHeads); !ok {
 		return nil, fmt.Errorf("speechsynth: codec heads %d do not partition d %d", tr.NumHeads, d)
 	}
-	if mimi.SampleRate <= 0 || mimi.FrameRate <= 0 {
+	if !checked.PositiveInts(mimi.SampleRate) || !checked.PositiveFinite64(mimi.FrameRate) {
 		return nil, fmt.Errorf("speechsynth: config lacks positive mimi sample_rate/frame_rate")
 	}
 	sn := mimi.Seanet
-	if len(sn.Ratios) == 0 || sn.Dimension <= 0 || sn.NFilters <= 0 || sn.KernelSize <= 0 ||
-		sn.LastKernelSize <= 0 || sn.Channels <= 0 || sn.Compress <= 0 || sn.ResidualKernelSize <= 0 {
+	if _, ok := checked.First(sn.Ratios); !ok || !checked.PositiveInts(sn.Dimension, sn.NFilters, sn.KernelSize,
+		sn.LastKernelSize, sn.Channels, sn.Compress, sn.ResidualKernelSize) {
 		return nil, fmt.Errorf("speechsynth: config lacks a complete mimi.seanet layout")
 	}
 	// Config restatements of shape facts: agree or refuse (0 = unstated).
@@ -155,7 +159,7 @@ func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), sh
 		{"transformer.num_layers", nLayers, tr.NumLayers},
 		{"transformer.dim_feedforward", ff, tr.DimFeedforward},
 	} {
-		if check.claimed != 0 && check.claimed != check.derived {
+		if checked.Nonzero(check.claimed) && !checked.Equal(check.claimed, check.derived) {
 			return nil, fmt.Errorf("speechsynth: config mimi.%s=%d contradicts derived %d", check.name, check.claimed, check.derived)
 		}
 	}
@@ -164,13 +168,14 @@ func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), sh
 		SampleRate: mimi.SampleRate, FrameRate: mimi.FrameRate,
 		outerDim: outerDim, upsampleK: upsampleK,
 		d: d, h: tr.NumHeads, hd: d / tr.NumHeads, ff: ff, window: tr.Context,
-		invFreq:    hostmath.RopeInvFreq(tr.MaxPeriod, d/tr.NumHeads),
-		scoreScale: float32(1 / math.Sqrt(float64(d/tr.NumHeads))),
+		invFreq:       hostmath.RopeInvFreq(tr.MaxPeriod, d/tr.NumHeads),
+		scoreScale:    float32(float64(tensor.SingletonExtent) / math.Sqrt(float64(d/tr.NumHeads))),
+		normalization: normalization,
 	}
-	if c.quantW, err = read(quantizerProjName, outerDim, latentDim, 1); err != nil {
+	if c.quantW, err = read(quantizerProjName, outerDim, latentDim, tensor.SingletonExtent); err != nil {
 		return nil, err
 	}
-	if c.upsampleW, err = read(upsampleName, outerDim, 1, upsampleK); err != nil {
+	if c.upsampleW, err = read(upsampleName, outerDim, tensor.SingletonExtent, upsampleK); err != nil {
 		return nil, err
 	}
 	c.layers = make([]codecAttnLayer, nLayers)
@@ -222,9 +227,10 @@ func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), sh
 	}
 	for _, ri := range resnetStages {
 		hidden := ri.dim / sn.Compress
-		var blk [2]codecConv
+		var blk [tensor.PairedExtent]codecConv
 		for bi, bs := range []struct{ sub, cIn, cOut, k int }{
-			{1, ri.dim, hidden, sn.ResidualKernelSize}, {3, hidden, ri.dim, 1},
+			{tensor.SingletonExtent, ri.dim, hidden, sn.ResidualKernelSize},
+			{tensor.TripleExtent, hidden, ri.dim, tensor.SingletonExtent},
 		} {
 			w, err := read(fmt.Sprintf("%s%d.block.%d.conv.weight", codecModelPrefix, ri.idx, bs.sub), bs.cOut, bs.cIn, bs.k)
 			if err != nil {
@@ -234,7 +240,7 @@ func loadCodecDecoder(read func(name string, want ...int) ([]float32, error), sh
 			if err != nil {
 				return nil, err
 			}
-			blk[bi] = codecConv{w: w, b: b, cIn: bs.cIn, cOut: bs.cOut, k: bs.k, strd: 1}
+			blk[bi] = codecConv{w: w, b: b, cIn: bs.cIn, cOut: bs.cOut, k: bs.k, strd: tensor.SingletonExtent}
 		}
 		c.resnets = append(c.resnets, blk)
 	}
@@ -275,40 +281,40 @@ func (c *CodecDecoder) forwardTimeMajor(x []float32, T int) {
 		kc[i] = make([]float32, 0, T*d)
 		vc[i] = make([]float32, 0, T*d)
 	}
-	qkv := make([]float32, 3*d)
+	qkv := make([]float32, tensor.TripleExtent*d)
 	xn := make([]float32, d)
 	attn := make([]float32, d)
 	proj := make([]float32, d)
 	h1 := make([]float32, ff)
-	for t := 0; t < T; t++ {
-		cur := x[t*d : (t+1)*d]
-		lo := t + 1 - c.window
-		if lo < 0 {
-			lo = 0
+	for t := tensor.FirstOffset; t < T; t++ {
+		cur := x[t*d : (t+tensor.SingletonExtent)*d]
+		lo := t + tensor.SingletonExtent - c.window
+		if lo < tensor.FirstOffset {
+			lo = tensor.FirstOffset
 		}
 		for li := range c.layers {
 			l := &c.layers[li]
-			hostmath.LayerNormInto(xn, cur, l.norm1W, l.norm1B, 1, d, transformerLayerNormEps)
-			hostmath.Linear(qkv, xn, l.inProj, 1, d, 3*d)
-			q, k, v := qkv[:d], qkv[d:2*d], qkv[2*d:]
+			hostmath.LayerNormInto(xn, cur, l.norm1W, l.norm1B, tensor.SingletonExtent, d, c.normalization.TransformerLayer)
+			hostmath.Linear(qkv, xn, l.inProj, tensor.SingletonExtent, d, tensor.TripleExtent*d)
+			q, k, v := qkv[:d], qkv[d:tensor.PairedExtent*d], qkv[tensor.PairedExtent*d:]
 			for head := 0; head < h; head++ {
-				hostmath.ApplyRotaryInterleaved(q[head*hd:(head+1)*hd], c.invFreq, t)
-				hostmath.ApplyRotaryInterleaved(k[head*hd:(head+1)*hd], c.invFreq, t)
+				hostmath.ApplyRotaryInterleaved(q[head*hd:(head+tensor.SingletonExtent)*hd], c.invFreq, t)
+				hostmath.ApplyRotaryInterleaved(k[head*hd:(head+tensor.SingletonExtent)*hd], c.invFreq, t)
 			}
 			kc[li] = append(kc[li], k...)
 			vc[li] = append(vc[li], v...)
 			for i := range q {
 				q[i] *= c.scoreScale
 			}
-			hostmath.CausalAttentionStep(attn, q, kc[li][lo*d:], vc[li][lo*d:], t+1-lo, h, h, hd)
-			hostmath.Linear(proj, attn, l.outProj, 1, d, d)
+			hostmath.CausalAttentionStep(attn, q, kc[li][lo*d:], vc[li][lo*d:], t+tensor.SingletonExtent-lo, h, h, hd)
+			hostmath.Linear(proj, attn, l.outProj, tensor.SingletonExtent, d, d)
 			for i := range cur {
 				cur[i] += l.ls1[i] * proj[i]
 			}
-			hostmath.LayerNormInto(xn, cur, l.norm2W, l.norm2B, 1, d, transformerLayerNormEps)
-			hostmath.Linear(h1, xn, l.lin1, 1, d, ff)
+			hostmath.LayerNormInto(xn, cur, l.norm2W, l.norm2B, tensor.SingletonExtent, d, c.normalization.TransformerLayer)
+			hostmath.Linear(h1, xn, l.lin1, tensor.SingletonExtent, d, ff)
 			hostmath.GELUErfInPlace(h1)
-			hostmath.Linear(proj, h1, l.lin2, 1, ff, d)
+			hostmath.Linear(proj, h1, l.lin2, tensor.SingletonExtent, ff, d)
 			for i := range cur {
 				cur[i] += l.ls2[i] * proj[i]
 			}
@@ -322,7 +328,7 @@ func (c *CodecDecoder) SeanetDecode(x []float32, T int) []float32 {
 	cur, curT := x, T
 	apply := func(cv codecConv) {
 		if cv.transpose {
-			cur = hostmath.ConvTranspose1dTrim(cur, cv.cIn, curT, cv.w, cv.b, cv.cOut, cv.k, cv.strd, 1)
+			cur = hostmath.ConvTranspose1dTrim(cur, cv.cIn, curT, cv.w, cv.b, cv.cOut, cv.k, cv.strd, tensor.SingletonExtent)
 			curT *= cv.strd
 		} else {
 			cur = hostmath.CausalConv1d(cur, cv.cIn, curT, cv.w, cv.b, cv.cOut, cv.k, cv.strd)
@@ -331,22 +337,22 @@ func (c *CodecDecoder) SeanetDecode(x []float32, T int) []float32 {
 	}
 	apply(c.convs[0])
 	hostmath.ELUInPlace(cur)
-	for i, conv := range c.convs[1 : len(c.convs)-1] {
+	for i, conv := range c.convs[tensor.SingletonExtent : len(c.convs)-tensor.SingletonExtent] {
 		apply(conv)
 		cur = seanetResnet(c.resnets[i], cur, curT)
 		hostmath.ELUInPlace(cur)
 	}
-	apply(c.convs[len(c.convs)-1])
+	apply(c.convs[len(c.convs)-tensor.SingletonExtent])
 	return cur
 }
 
 // seanetResnet: identity skip around [ELU -> conv k -> ELU -> conv 1].
-func seanetResnet(blk [2]codecConv, x []float32, T int) []float32 {
+func seanetResnet(blk [tensor.PairedExtent]codecConv, x []float32, T int) []float32 {
 	v := append([]float32(nil), x...)
 	hostmath.ELUInPlace(v)
-	v = hostmath.CausalConv1d(v, blk[0].cIn, T, blk[0].w, blk[0].b, blk[0].cOut, blk[0].k, 1)
+	v = hostmath.CausalConv1d(v, blk[tensor.FirstOffset].cIn, T, blk[tensor.FirstOffset].w, blk[tensor.FirstOffset].b, blk[tensor.FirstOffset].cOut, blk[tensor.FirstOffset].k, tensor.SingletonExtent)
 	hostmath.ELUInPlace(v)
-	v = hostmath.CausalConv1d(v, blk[1].cIn, T, blk[1].w, blk[1].b, blk[1].cOut, blk[1].k, 1)
+	v = hostmath.CausalConv1d(v, blk[tensor.SingletonExtent].cIn, T, blk[tensor.SingletonExtent].w, blk[tensor.SingletonExtent].b, blk[tensor.SingletonExtent].cOut, blk[tensor.SingletonExtent].k, tensor.SingletonExtent)
 	for i := range v {
 		v[i] += x[i]
 	}
@@ -357,7 +363,7 @@ func seanetResnet(blk [2]codecConv, x []float32, T int) []float32 {
 // [T * (k/2) * prod(ratios)].
 func (c *CodecDecoder) DecodeFromLatent(latent []float32, T int) []float32 {
 	up := c.Upsample(latent, T)
-	upT := T * c.upsampleK / 2
+	upT := T * c.upsampleK / tensor.PairedExtent
 	c.TransformInPlace(up, upT)
 	return c.SeanetDecode(up, upT)
 }
@@ -372,21 +378,15 @@ func (m *Model) LatentsToPCM(latents LatentBatch) ([]float32, error) {
 	}
 	ldim := m.Dims.LatentDim
 	F := latents.Frames
-	if latents.Width != ldim || F <= 0 || len(latents.Values) < F*ldim {
+	elements, ok := checked.MulInt(F, ldim)
+	values, valid := checked.Prefix(latents.Values, elements)
+	if !checked.Equal(latents.Width, ldim) || !checked.PositiveInts(F) || !ok || !valid {
 		return nil, fmt.Errorf("speechsynth: latent batch %dx%d (have %d values) incompatible with latent dim %d", F, latents.Width, len(latents.Values), ldim)
 	}
 	odim := m.Codec.outerDim
 	proj := make([]float32, odim*F)
-	for f := 0; f < F; f++ {
-		row := latents.Values[f*ldim : (f+1)*ldim]
-		for o := 0; o < odim; o++ {
-			wr := m.Codec.quantW[o*ldim : (o+1)*ldim]
-			var acc float64
-			for i := 0; i < ldim; i++ {
-				acc += float64(row[i]*m.EmbStd[i]+m.EmbMean[i]) * float64(wr[i])
-			}
-			proj[o*F+f] = float32(acc)
-		}
+	if err := hostmath.NormalizeProjectRowsToChannelsF64(proj, values, m.EmbStd, m.EmbMean, m.Codec.quantW, F, ldim, odim); err != nil {
+		return nil, fmt.Errorf("speechsynth: latent projection: %w", err)
 	}
 	return m.Codec.DecodeFromLatent(proj, F), nil
 }

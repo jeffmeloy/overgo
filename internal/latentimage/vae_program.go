@@ -28,19 +28,23 @@
 //   - nearest-2x upsample + 3x3 same conv        -> RepeatHeads x2 (a pure
 //     data-preserving gather, bit-exact on every backend) + Conv2D 3x3 pad1.
 //   - final clamp [-1,1]                          -> Clamp.
+
 package latentimage
 
 import (
 	"fmt"
-	"math"
 
+	"math"
+	"overgo/internal/checked"
+
+	"overgo/internal/hostmath"
 	"overgo/internal/media"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
 
-// VAEProgram: the compiled QwenImage spatial decode graph for one latent
+// VAEProgram is the compiled QwenImage spatial decode graph for one latent
 // geometry, plus the static weight feeds prepared (and temporally sliced) at
 // compile time. Latent is the per-decode HWC input; Output is planar-in-HWC RGB
 // before the CHW transpose DecodeGraph performs.
@@ -88,13 +92,16 @@ func (g *vaeGraphBuilder) weight(data []float32, dims ...uint64) *tensor.Tensor 
 // dtype.F32 is supported here (the host-feed exact-parity path -- the VAE decode
 // is one-shot so there is no BF16 resident-weight variant).
 func CompileVAEProgram(d *VAEDecoder, h, w int, matmulType dtype.Type) (*VAEProgram, error) {
-	if d == nil || len(d.Operations) == 0 {
+	if d == nil {
 		return nil, fmt.Errorf("vae program: decoder not built")
 	}
-	if h <= 0 || w <= 0 {
+	if !checked.NonemptyAll(d.Operations) {
+		return nil, fmt.Errorf("vae program: decoder not built")
+	}
+	if !checked.PositiveInts(h, w) {
 		return nil, fmt.Errorf("vae program: bad latent extent %dx%d", w, h)
 	}
-	if matmulType != dtype.F32 {
+	if !checked.Equal(matmulType, dtype.F32) {
 		return nil, fmt.Errorf("vae program: matmul weight type %s unsupported (host-feed exact path only)", matmulType)
 	}
 
@@ -120,7 +127,8 @@ func CompileVAEProgram(d *VAEDecoder, h, w int, matmulType dtype.Type) (*VAEProg
 			return nil, fmt.Errorf("vae program: op %d (%s): %w", i, d.Operations[i].Name, err)
 		}
 	}
-	p.Output = b.Clamp(x, -1, 1)
+	lower, upper := media.SignedUnitBounds32()
+	p.Output = b.Clamp(x, lower, upper)
 	p.OutH, p.OutW = ch, cw
 
 	if err := b.Err(); err != nil {
@@ -148,7 +156,7 @@ func (g *vaeGraphBuilder) buildOp(op media.CodecOperation[[][]float32], x *tenso
 		h0 := g.conv3x3(n0, w0, b0, c, op.OutputChannels, ch, cw)
 		n1 := b.SiLU(g.channelNorm(h0, gamma1, op.OutputChannels))
 		out := g.conv3x3(n1, w1, b1, op.OutputChannels, op.OutputChannels, ch, cw)
-		if op.InputChannels == op.OutputChannels {
+		if !op.RequiresProjection() {
 			return b.Add(out, x), op.OutputChannels, ch, cw, nil
 		}
 		shortcut := g.pointwise(x, op.Bindings[6], op.Bindings[7], c, op.OutputChannels, plane)
@@ -157,21 +165,26 @@ func (g *vaeGraphBuilder) buildOp(op media.CodecOperation[[][]float32], x *tenso
 		gamma, qkvW, qkvB := op.Bindings[0], op.Bindings[1], op.Bindings[2]
 		projW, projB := op.Bindings[3], op.Bindings[4]
 		norm := g.channelNorm(x, gamma, c)
+		qkvChannels, ok := checked.MulInt(tensor.TripleExtent, c)
+		if !ok {
+			return nil, 0, 0, 0, fmt.Errorf("attention channel geometry overflows")
+		}
 		qkv := b.Add(
-			b.MulMat(g.weight(qkvW, uint64(c), uint64(3*c)), norm),
-			g.weight(qkvB, uint64(3*c)),
+			b.MulMat(g.weight(qkvW, uint64(c), uint64(qkvChannels)), norm),
+			g.weight(qkvB, uint64(qkvChannels)),
 		)
 		cu, pu := uint64(c), uint64(plane)
-		q := b.GroupSlice(qkv, 0, cu, 1, cu)    // [c,1,plane]
-		k := b.GroupSlice(qkv, cu, cu, 1, cu)   // [c,1,plane]
-		v := b.GroupSlice(qkv, 2*cu, cu, 1, cu) // [c,1,plane]
-		scale := float32(1 / math.Sqrt(float64(c)))
+		q := b.GroupSlice(qkv, tensor.FirstOffset, cu, tensor.SingletonExtent, cu) // [c,1,plane]
+		k := b.GroupSlice(qkv, cu, cu, tensor.SingletonExtent, cu)                 // [c,1,plane]
+		v := b.GroupSlice(qkv, uint64(tensor.PairedExtent)*cu, cu, tensor.SingletonExtent, cu)
+		scale := float32(tensor.SingletonExtent) / float32(math.Sqrt(float64(c)))
 		attn := b.Reshape(b.AttentionWithOptions(q, k, v, tensor.AttentionOptions{Scale: scale, Causal: false}), cu, pu)
 		out := b.Add(b.MulMat(g.weight(projW, cu, cu), attn), g.weight(projB, cu))
 		return b.Add(out, x), c, ch, cw, nil
 	case media.CodecUpsampleSpatial:
 		out := g.upsample(x, op.Bindings[0], op.Bindings[1], c, op.OutputChannels, ch, cw)
-		return out, op.OutputChannels, 2 * ch, 2 * cw, nil
+		scale := op.Operator.SpatialScale()
+		return out, op.OutputChannels, scale * ch, scale * cw, nil
 	case media.CodecHead:
 		gamma, weight, bias := op.Bindings[0], op.Bindings[1], op.Bindings[2]
 		norm := b.SiLU(g.channelNorm(x, gamma, c))
@@ -197,11 +210,13 @@ func (g *vaeGraphBuilder) pointwise(x *tensor.Tensor, weight, bias []float32, cI
 // torch weight into a [cOut,cIn,3,3] tap fed as the Conv2D weight [kw,kh,cIn,cOut].
 func (g *vaeGraphBuilder) conv3x3(x *tensor.Tensor, weight5d, bias []float32, cIn, cOut, ch, cw int) *tensor.Tensor {
 	b := g.b
-	tap := sliceLastTemporalTap(weight5d, cOut, cIn)
+	tap, kernel := sliceLastTemporalTap(weight5d, cOut, cIn)
 	img := b.Reshape(x, uint64(cIn), uint64(cw), uint64(ch)) // [c,width,height]
-	wNode := g.weight(tap, 3, 3, uint64(cIn), uint64(cOut))
+	wNode := g.weight(tap, uint64(kernel), uint64(kernel), uint64(cIn), uint64(cOut))
 	bNode := g.weight(bias, uint64(cOut))
-	conv := b.Conv2D(img, wNode, bNode, 1, 1, 1, 1, 1, 1, false) // stride1, pad1 all sides
+	pad := uint32((kernel - tensor.SingletonExtent) / tensor.PairedExtent)
+	stride := uint32(tensor.SingletonExtent)
+	conv := b.Conv2D(img, wNode, bNode, stride, stride, pad, pad, pad, pad, false)
 	return b.Reshape(conv, uint64(cOut), uint64(ch*cw))
 }
 
@@ -210,7 +225,7 @@ func (g *vaeGraphBuilder) conv3x3(x *tensor.Tensor, weight5d, bias []float32, cI
 // sqrt(C) scale and per-channel gamma broadcast over the plane.
 func (g *vaeGraphBuilder) channelNorm(x *tensor.Tensor, gamma []float32, c int) *tensor.Tensor {
 	b := g.b
-	n := b.Scale(b.L2Norm(x, vaeNormZeroGuard), float32(math.Sqrt(float64(c))))
+	n := b.Scale(b.L2Norm(x, float32(hostmath.ChannelRMSNormZeroGuard())), float32(math.Sqrt(float64(c))))
 	return b.Multiply(n, g.weight(gamma, uint64(c)))
 }
 
@@ -222,32 +237,42 @@ func (g *vaeGraphBuilder) channelNorm(x *tensor.Tensor, gamma []float32, c int) 
 func (g *vaeGraphBuilder) upsample(x *tensor.Tensor, resampleW, resampleB []float32, cIn, cOut, ch, cw int) *tensor.Tensor {
 	b := g.b
 	cu := uint64(cIn)
+	scale := media.CodecUpsampleSpatial.SpatialScale()
+	scaledWidth := scale * cw
+	scaledHeight := scale * ch
+	one := uint64(tensor.SingletonExtent)
 	// double width: [c,plane] -> [c,1,plane] -> [c,2,plane] -> [c,2w,h]
-	xw := b.Reshape(b.RepeatHeads(b.Reshape(x, cu, 1, uint64(ch*cw)), 2), cu, uint64(2*cw), uint64(ch))
+	xw := b.Reshape(b.RepeatHeads(b.Reshape(x, cu, one, uint64(ch*cw)), uint32(scale)), cu, uint64(scaledWidth), uint64(ch))
 	// double height: [c,2w,h] -> [c*2w,1,h] -> [c*2w,2,h] -> [c,2w,2h]
-	up := b.Reshape(b.RepeatHeads(b.Reshape(xw, cu*uint64(2*cw), 1, uint64(ch)), 2), cu, uint64(2*cw), uint64(2*ch))
+	up := b.Reshape(b.RepeatHeads(b.Reshape(xw, cu*uint64(scaledWidth), one, uint64(ch)), uint32(scale)), cu, uint64(scaledWidth), uint64(scaledHeight))
 	// 3x3 same conv on the [c,2w,2h] nearest-upsampled volume.
 	tap := resampleW // resample.1.weight is a plain 2-D conv [cOut,cIn,3,3]
-	wNode := g.weight(tap, 3, 3, cu, uint64(cOut))
+	kernelArea := len(tap) / (cIn * cOut)
+	kernel := int(math.Round(math.Sqrt(float64(kernelArea))))
+	wNode := g.weight(tap, uint64(kernel), uint64(kernel), cu, uint64(cOut))
 	bNode := g.weight(resampleB, uint64(cOut))
-	conv := b.Conv2D(up, wNode, bNode, 1, 1, 1, 1, 1, 1, false)
-	return b.Reshape(conv, uint64(cOut), uint64(2*ch*2*cw))
+	padding := uint32((kernel - tensor.SingletonExtent) / tensor.PairedExtent)
+	stride := uint32(tensor.SingletonExtent)
+	conv := b.Conv2D(up, wNode, bNode, stride, stride, padding, padding, padding, padding, false)
+	return b.Reshape(conv, uint64(cOut), uint64(scaledHeight*scaledWidth))
 }
 
 // sliceLastTemporalTap extracts w[:, :, 2, :, :] from a [cOut,cIn,3,3,3] torch
 // weight into a [cOut,cIn,3,3] tap (kw fastest), matching the Conv2D weight
 // memory order [kw,kh,cIn,cOut].
-func sliceLastTemporalTap(weight5d []float32, cOut, cIn int) []float32 {
-	const kt, kh, kw = 3, 3, 3
-	out := make([]float32, cOut*cIn*kh*kw)
+func sliceLastTemporalTap(weight5d []float32, cOut, cIn int) ([]float32, int) {
+	kernelVolume := len(weight5d) / (cOut * cIn)
+	kernel := int(math.Round(math.Cbrt(float64(kernelVolume))))
+	spatialKernel := kernel * kernel
+	out := make([]float32, cOut*cIn*spatialKernel)
 	for co := 0; co < cOut; co++ {
 		for ci := 0; ci < cIn; ci++ {
-			srcBase := (((co*cIn+ci)*kt + (kt - 1)) * kh) * kw
-			dstBase := ((co*cIn + ci) * kh) * kw
-			copy(out[dstBase:dstBase+kh*kw], weight5d[srcBase:srcBase+kh*kw])
+			srcBase := ((co*cIn+ci)*kernel + (kernel - 1)) * spatialKernel
+			dstBase := (co*cIn + ci) * spatialKernel
+			copy(out[dstBase:dstBase+spatialKernel], weight5d[srcBase:srcBase+spatialKernel])
 		}
 	}
-	return out
+	return out, kernel
 }
 
 // DecodeGraph runs the compiled decode through run (reference.Execute for the
@@ -257,24 +282,24 @@ func sliceLastTemporalTap(weight5d []float32, cOut, cIn int) []float32 {
 // VAEDecoder.DecodeImage. mean/std are the per-channel denorm stats.
 func (p *VAEProgram) DecodeGraph(run GraphRunner, mean, std []float32, z []float32) (pixels []float32, outH, outW int, err error) {
 	plane := p.H * p.W
-	if len(z) != p.ZDim*plane {
-		return nil, 0, 0, fmt.Errorf("vae program: latent len=%d want %d", len(z), p.ZDim*plane)
+	if err := checked.Length(z, p.ZDim, plane); err != nil {
+		return nil, 0, 0, fmt.Errorf("vae program: latent: %w", err)
 	}
-	if len(mean) != p.ZDim || len(std) != p.ZDim {
-		return nil, 0, 0, fmt.Errorf("vae program: mean/std len=%d/%d want %d", len(mean), len(std), p.ZDim)
+	if err := media.ValidateChannelMoments(mean, std, p.ZDim); err != nil {
+		return nil, 0, 0, fmt.Errorf("vae program: latent normalization: %w", err)
 	}
 	// denorm + CHW->HWC transpose: hwc[pos*ZDim+ch] = z[ch*plane+pos]*std+mean.
 	hwc := make([]float32, len(z))
-	for ch := 0; ch < p.ZDim; ch++ {
+	for ch := range p.ZDim {
 		m, s := mean[ch], std[ch]
-		for pos := 0; pos < plane; pos++ {
+		for pos := range plane {
 			hwc[pos*p.ZDim+ch] = z[ch*plane+pos]*s + m
 		}
 	}
-	feeds := make(map[*tensor.Tensor]reference.Value, len(p.feeds)+1)
+	feeds := make(map[*tensor.Tensor]reference.Value, len(p.feeds)+tensor.SingletonExtent)
 	for _, f := range p.feeds {
 		elements, _ := f.node.Shape.Elements()
-		if uint64(len(f.data)) != elements {
+		if !checked.Equal(uint64(len(f.data)), elements) {
 			return nil, 0, 0, fmt.Errorf("vae program: feed len=%d want %d", len(f.data), elements)
 		}
 		feeds[f.node] = reference.Value{Shape: f.node.Shape, Data: f.data}
@@ -286,16 +311,10 @@ func (p *VAEProgram) DecodeGraph(run GraphRunner, mean, std []float32, z []float
 		return nil, 0, 0, fmt.Errorf("vae program: run: %w", err)
 	}
 	out := results[p.Output].Data
-	outPlane := p.OutH * p.OutW
-	if len(out) != p.OutChannels*outPlane {
-		return nil, 0, 0, fmt.Errorf("vae program: output len=%d want %d", len(out), p.OutChannels*outPlane)
-	}
 	// HWC->CHW transpose back to the planar [C][H][W] vae.go returns.
-	chw := make([]float32, len(out))
-	for pos := 0; pos < outPlane; pos++ {
-		for ch := 0; ch < p.OutChannels; ch++ {
-			chw[ch*outPlane+pos] = out[pos*p.OutChannels+ch]
-		}
+	chw, err := media.UnpackPlanar(out, p.OutChannels, p.OutH, p.OutW, tensor.SingletonExtent, media.PatchChannelsLast)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("vae program: output: %w", err)
 	}
 	return chw, p.OutH, p.OutW, nil
 }

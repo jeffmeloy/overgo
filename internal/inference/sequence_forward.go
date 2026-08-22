@@ -142,20 +142,19 @@ func (r *Runner) projectAllLogits(
 	if r.spec.IsEncoderOnly() {
 		return reference.Value{}, errors.New("inference: encoder exposes hidden states, not vocabulary logits")
 	}
-	rows, valid := r.spec.SequenceRows(hidden)
-	if !valid {
+	width, rows, valid := hidden.MatrixExtents()
+	if !valid || uint64(width) != uint64(r.spec.EmbeddingLength) {
 		return reference.Value{}, errors.New("inference: non-causal hidden-state shape is incompatible")
 	}
 	outputInfo := r.outputTensor()
-	shape := tensor.MustShape(uint64(r.spec.VocabularySize), rows)
+	shape := tensor.MustShape(uint64(r.spec.VocabularySize), uint64(rows))
 	if !r.hasPreloadedWeights() {
 		elements, err := shape.Elements()
 		if err != nil || elements > uint64(math.MaxInt) {
 			return reference.Value{}, errors.New("inference: non-causal logits shape is too large")
 		}
 		result := reference.Value{Shape: shape, Data: make([]float32, 0, int(elements))}
-		width := int(hidden.Shape.Dims[0])
-		for token := range int(rows) {
+		for token := range rows {
 			start := token * width
 			logits, err := r.logits(ctx, outputInfo, hidden.Data[start:start+width])
 			if err != nil {

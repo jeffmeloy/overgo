@@ -8,16 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "input-contracts",
-          "title": "Replace embedding and sequence input arithmetic",
-          "status": "open",
-          "verify": "go test ./internal/inference -run 'Test(ApplyEmbeddingOverrides|ApplyGemmaRawEmbeddingOverrides|EmbeddingOverride|ForwardSequence)' -count=1",
-          "rationale": "Use reference matrix storage, compiled sequence bounds, and exact tensor identity for gather, position, type, and projected inputs.",
-          "depends_on": [
-            "tighten-inference/paired-contracts"
-          ]
-        },
-        {
           "id": "output-contracts",
           "title": "Replace rank, perplexity, and logits row arithmetic",
           "status": "open",

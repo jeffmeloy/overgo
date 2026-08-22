@@ -99,7 +99,8 @@ func (r *Runner) addPositionEmbeddings(
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("inference: load position embeddings: %w", err)
 	}
-	if positionRows.Shape != activation.Shape || len(positionRows.Data) != len(activation.Data) {
+	if !positionRows.Shape.Equal(activation.Shape) ||
+		validateStateValue(positionRows) != nil || validateStateValue(activation) != nil {
 		return reference.Value{}, errors.New("inference: position embedding shape differs from token embeddings")
 	}
 	for index := range activation.Data {
@@ -119,12 +120,12 @@ func (r *Runner) addTokenTypeEmbedding(
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("inference: load token-type embedding: %w", err)
 	}
-	width := int(activation.Shape.Dims[0])
-	if typeRow.Shape.Rank != 2 || typeRow.Shape.Dims[0] != uint64(width) ||
-		typeRow.Shape.Dims[1] != 1 || len(typeRow.Data) != width {
+	width, tokens, valid := activation.MatrixExtents()
+	if !valid || !tensor.IsMatrix(typeRow.Shape, uint64(width), tensor.SingletonExtent) ||
+		validateStateValue(typeRow) != nil {
 		return reference.Value{}, errors.New("inference: token-type embedding shape is incompatible")
 	}
-	for token := 0; token < int(activation.Shape.Dims[1]); token++ {
+	for token := 0; token < tokens; token++ {
 		start := token * width
 		for index, value := range typeRow.Data {
 			activation.Data[start+index] += value

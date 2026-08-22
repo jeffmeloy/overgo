@@ -67,17 +67,16 @@ func applyEmbeddingOverrides(activation *reference.Value, overrides []EmbeddingO
 	if len(overrides) == 0 {
 		return nil
 	}
-	if activation == nil || activation.Shape.Rank != 2 {
+	if activation == nil {
 		return errors.New("inference: token embeddings have invalid shape")
 	}
-	width := int(activation.Shape.Dims[0])
-	tokens := activation.Shape.Dims[1]
-	if width <= 0 || len(activation.Data) != width*int(tokens) {
+	width, tokens, valid := activation.MatrixExtents()
+	if !valid {
 		return errors.New("inference: token embeddings have invalid storage")
 	}
 	seen := make(map[uint32]struct{}, len(overrides))
 	for overrideIndex, override := range overrides {
-		if uint64(override.TokenIndex) >= tokens {
+		if uint64(override.TokenIndex) >= uint64(tokens) {
 			return fmt.Errorf(
 				"inference: embedding override %d token index %d is out of range for %d tokens",
 				overrideIndex, override.TokenIndex, tokens,

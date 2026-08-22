@@ -27,7 +27,7 @@ func (s *Stream) ensureLoaded(state *device.State) error {
 	if err := kernel.ValidateAssets(); err != nil {
 		return err
 	}
-	module, err := state.Driver.ModuleLoadData(kernel.TorchCudaRandnPTX)
+	module, err := state.Driver.ModuleLoadData(kernel.TorchCUDARandnPTX)
 	if err != nil {
 		return err
 	}

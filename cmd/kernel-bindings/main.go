@@ -261,5 +261,5 @@ func kernelIdentifier(name string) string {
 func assetIdentifier(path string) string {
 	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 	identifier := strings.TrimPrefix(kernelIdentifier(name), "kernel")
-	return identifier
+	return strings.ReplaceAll(identifier, "Cuda", "CUDA")
 }

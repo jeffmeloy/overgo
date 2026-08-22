@@ -12,7 +12,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
-	server "overgo/internal/server"
+	"overgo/internal/server"
 	"overgo/internal/servingtest"
 	"overgo/internal/testevidence"
 )

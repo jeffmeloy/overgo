@@ -1,6 +1,39 @@
 package repoanalysis
 
-import "testing"
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestRepositoryGoStyleNamesAndComments(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := DiscoverGo(root, "cmd", "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := goStyleCensus(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := map[goStyleKind]bool{
+		goStyleReceiverConsistency: true, goStyleInitialism: true,
+		goStyleGetter: true, goStyleImportAlias: true,
+	}
+	var findings []string
+	for _, finding := range report.Findings {
+		if selected[finding.Kind] {
+			findings = append(findings, fmt.Sprintf("%s:%d:%s:%s", finding.File, finding.Line, finding.Kind, finding.Symbol))
+		}
+	}
+	if len(findings) != 0 {
+		t.Fatalf("%d naming/comment findings:\n%s", len(findings), strings.Join(findings, "\n"))
+	}
+}
 
 func TestGoStyleCensus(t *testing.T) {
 	snapshot, err := (SourceSnapshot{}).Overlay(map[string][]byte{

@@ -220,9 +220,9 @@ type frozenCausalTailBuffers struct {
 	normed, logits, losses, dNormed, dHidden driver.DevicePtr
 }
 
-func (session *cudaBLAS) frozenTailBuffers(seq, vocab, hidden int) (*frozenCausalTailBuffers, error) {
-	if session.frozenTail != nil {
-		b := session.frozenTail
+func (s *cudaBLAS) frozenTailBuffers(seq, vocab, hidden int) (*frozenCausalTailBuffers, error) {
+	if s.frozenTail != nil {
+		b := s.frozenTail
 		if b.seq != seq || b.vocab != vocab || b.hidden != hidden {
 			return nil, fmt.Errorf("resident causal tail: retained geometry changed")
 		}
@@ -234,11 +234,11 @@ func (session *cudaBLAS) frozenTailBuffers(seq, vocab, hidden int) (*frozenCausa
 		pointer *driver.DevicePtr
 		count   int
 	}{{&b.normed, seq * hidden}, {&b.logits, (seq - 1) * vocab}, {&b.losses, seq - 1}, {&b.dNormed, seq * hidden}, {&b.dHidden, seq * hidden}} {
-		if *spec.pointer, err = session.alloc(spec.count); err != nil {
+		if *spec.pointer, err = s.alloc(spec.count); err != nil {
 			return nil, err
 		}
 	}
-	session.frozenTail = b
+	s.frozenTail = b
 	return b, nil
 }
 

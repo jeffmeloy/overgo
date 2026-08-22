@@ -8,20 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "names-comments",
-          "title": "Normalize receiver names, initialisms, local names, and commentary by owner",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run 'TestRepositoryGoStyleNamesAndComments' -count=1",
-          "rationale": "Use short consistent receiver abbreviations, role-based constant names, conventional initialism case, and context-sized local names. Replace colon-form exported comments with full Godoc sentences. Keep internal comments only for rationale, ownership, invariants, source references, and failure behavior; remove narration and chronology.",
-          "depends_on": [
-            "go-style-api-surface/runtime"
-          ],
-          "capabilities": [
-            "predictable-naming",
-            "signal-bearing-comments"
-          ]
-        },
-        {
           "id": "flow-errors",
           "title": "Simplify result, error, and control-flow patterns",
           "status": "open",

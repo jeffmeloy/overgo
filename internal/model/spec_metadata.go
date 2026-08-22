@@ -193,9 +193,9 @@ func (m specMetadata) readAttentionMetadata(spec *Spec, state specReadState) err
 	case metadataMirrorHeads, metadataMirrorHeadsOptional:
 		spec.HeadCountKV = spec.HeadCount
 		if policy.KVHeads == metadataMirrorHeadsOptional {
-			if value, ok := optional[uint32](values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32); ok {
-				spec.HeadCountKV = value
-			}
+			spec.HeadCountKV = optionalOr(
+				values, prefix+"attention.head_count_kv", gguf.ValueTypeUint32, spec.HeadCount,
+			)
 		}
 	case metadataLayer:
 		spec.LayerKVHeadCounts, err = requiredLayerUint32(values, prefix+"attention.head_count_kv", state.declaredBlockCount)
@@ -291,10 +291,9 @@ func (m specMetadata) readPosition(spec *Spec) error {
 	if !spec.RopeDisabled && profile.Forward.Operation != ForwardOperationEncoder {
 		optionalBase := validation.optionalRopeBase()
 		if optionalBase {
-			spec.RopeFrequencyBase = profile.MetadataDefaults.RopeFrequencyBase
-			if value, ok := optional[float32](values, prefix+"rope.freq_base", gguf.ValueTypeFloat32); ok {
-				spec.RopeFrequencyBase = value
-			}
+			spec.RopeFrequencyBase = optionalOr(
+				values, prefix+"rope.freq_base", gguf.ValueTypeFloat32, profile.MetadataDefaults.RopeFrequencyBase,
+			)
 		} else if value, err := required[float32](values, prefix+"rope.freq_base", gguf.ValueTypeFloat32); err != nil {
 			return err
 		} else {
@@ -841,10 +840,9 @@ func (m specMetadata) readProfileMetadata(spec *Spec) error {
 		if spec.TargetLayers, err = requiredArray[int32](values, prefix+"target_layers", gguf.ValueTypeInt32); err != nil {
 			return err
 		}
-		spec.DFlashBlockSize = defaults.DraftBlockSize
-		if value, ok := optional[uint32](values, prefix+"block_size", gguf.ValueTypeUint32); ok {
-			spec.DFlashBlockSize = value
-		}
+		spec.DFlashBlockSize = optionalOr(
+			values, prefix+"block_size", gguf.ValueTypeUint32, defaults.DraftBlockSize,
+		)
 	case validation.Recurrent == RecurrentValidationSingleBlockTarget:
 		if spec.TargetLayers, err = requiredArray[int32](values, prefix+"target_layers", gguf.ValueTypeInt32); err != nil {
 			return err

@@ -111,9 +111,9 @@ func validateHunyuanVLCatalog(file *gguf.File, spec HunyuanVLSpec) ([]string, er
 }
 
 func (r *HunyuanVLRunner) EncodeImage(ctx context.Context, source image.Image, options RasterPatchOptions) (HunyuanVLOutput, error) {
-	if r == nil || r.file == nil {
-		return HunyuanVLOutput{}, errRunnerClosed
-	}
-	plan := r.spec.visionBackboneSpec.rasterPlan(r.spec.MergeSize, r.spec.MinPixels, r.spec.MaxPixels, rasterBicubic)
-	return encodeRasterPatches(ctx, source, options, plan, r.spec.validate, r.encodeGraph)
+	spec := r.Spec()
+	plan := spec.visionBackboneSpec.rasterPlan(spec.MergeSize, spec.MinPixels, spec.MaxPixels, rasterBicubic)
+	return executePreparedProjector(
+		ctx, r != nil && r.file != nil, source, plan, options, preprocessRasterPatches, r.encodeGraph,
+	)
 }

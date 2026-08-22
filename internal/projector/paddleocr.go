@@ -151,9 +151,9 @@ func validatePaddleOCRCatalog(file *gguf.File, spec PaddleOCRSpec) ([]string, er
 }
 
 func (r *PaddleOCRRunner) EncodeImage(ctx context.Context, source image.Image, options RasterPatchOptions) (PaddleOCROutput, error) {
-	if r == nil || r.file == nil {
-		return PaddleOCROutput{}, errRunnerClosed
-	}
-	plan := r.spec.visionBackboneSpec.rasterPlan(r.spec.MergeSize, r.spec.MinPixels, r.spec.MaxPixels, rasterBilinear)
-	return encodeRasterPatches(ctx, source, options, plan, r.spec.validate, r.encodeGraph)
+	spec := r.Spec()
+	plan := spec.visionBackboneSpec.rasterPlan(spec.MergeSize, spec.MinPixels, spec.MaxPixels, rasterBilinear)
+	return executePreparedProjector(
+		ctx, r != nil && r.file != nil, source, plan, options, preprocessRasterPatches, r.encodeGraph,
+	)
 }

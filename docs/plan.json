@@ -1,23 +1,5 @@
 {
   "campaign": "Executable tightening: inference contracts and observation ownership",
   "doctrine": "Deletion-led waves. Existing tensor, model, recipe, cache, and evidence owners remain authoritative. Move every caller and delete displaced checks, wrappers, copies, and loops in the same commit. No compatibility paths. Preserve numerical behavior. Require net-negative production surface, focused host tests, changed-path CUDA tests, and exact plan gates.",
-  "items": [
-    {
-      "id": "tighten-observation",
-      "title": "Use one training observation recorder",
-      "status": "open",
-      "steps": [
-        {
-          "id": "shared-recorder",
-          "title": "Delete duplicate probe and workflow observation state",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow ./cmd/dit-train-probe ./cmd/hybrid-stack-train-probe ./cmd/mot-train-probe -count=1",
-          "rationale": "Share environment, sampling, phases, peak tracking, publication, and close behavior; retain director lease ownership only in ProbeObserver.",
-          "depends_on": [
-            "tighten-inference/cache-contracts"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

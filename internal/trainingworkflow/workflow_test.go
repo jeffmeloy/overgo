@@ -16,6 +16,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -98,11 +99,43 @@ func testTokenSession(t *testing.T) {
 	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveTokenPrediction)
 	result, err := Execute(context.Background(), Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
-		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Host: true,
+		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Host: true, Observations: store,
 	})
-	if err != nil || result.Objective != trainingprogram.ObjectiveTokenPrediction ||
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runrecord.RequireServingObservation(context.Background(), store, result.Observation); err != nil {
+		t.Fatal(err)
+	}
+	if result.Objective != trainingprogram.ObjectiveTokenPrediction ||
 		len(result.Losses) != 1 || result.Checkpoint.ID().Kind() != artifact.KindCheckpoint {
 		t.Fatalf("token result=%+v err=%v", result, err)
+	}
+}
+
+func TestObserverSharesDirectedLifecycle(t *testing.T) {
+	store, err := repodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	observer, err := NewObserver(store, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "observed model")
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "observed recipe")
+	testutil.PublishArtifact(t, store, modelID)
+	testutil.PublishArtifact(t, store, recipeID)
+	if err := observer.Admit(context.Background(), modelID, recipeID); err != nil {
+		t.Fatal(err)
+	}
+	observationID, err := observer.Finish(context.Background(), modelID, recipeID, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runrecord.RequireServingObservation(context.Background(), store, observationID); err != nil {
+		t.Fatal(err)
 	}
 }
 

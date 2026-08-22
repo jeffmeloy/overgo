@@ -28,6 +28,8 @@ const (
 	OperatorPerceiver Operator = "perceiver-resampler"
 	// OperatorConditionalLoRA applies source-conditioned low-rank adaptation.
 	OperatorConditionalLoRA Operator = "conditional-lora"
+	// OperatorExternalAttention injects separately cached source K/V at target layer seams.
+	OperatorExternalAttention Operator = "external-cross-attention"
 )
 
 // EmbeddingMode states whether vocabulary head and target embeddings share weights.
@@ -63,7 +65,7 @@ type Definition struct {
 // Valid reports whether the operator belongs to the sealed bridge vocabulary.
 func (operator Operator) Valid() bool {
 	switch operator {
-	case OperatorLinear, OperatorMLPGELU, OperatorAlignVocabulary, OperatorPerceiver, OperatorConditionalLoRA:
+	case OperatorLinear, OperatorMLPGELU, OperatorAlignVocabulary, OperatorPerceiver, OperatorConditionalLoRA, OperatorExternalAttention:
 		return true
 	default:
 		return false
@@ -206,6 +208,15 @@ func (Compiler) Compile(definition Definition, sourceContent, targetContent []by
 		if err := validateConditionalLoRADefinition(definition, targetSize); err != nil {
 			return Program{}, err
 		}
+	case OperatorExternalAttention:
+		_, divisible := checked.DivExact64(targetSize, definition.HeadCount)
+		if checked.Nonzero(definition.Intermediate) || definition.Bias || vocabularyDefinitionPresent(definition) ||
+			checked.Nonzero(definition.LatentCount) || conditionalLoRADefinitionPresent(definition) ||
+			!checked.Nonzero(definition.HeadCount) || !divisible ||
+			definition.SourceTokenLimit < sourceMin || definition.SourceTokenLimit > sourceMax ||
+			target.Producer.Layer == nil || target.Producer.Tap != representation.TapLayerOutput {
+			return Program{}, errors.New("bridge graph: external cross-attention seam or bounds are invalid")
+		}
 	default:
 		return Program{}, errors.New("bridge graph: unsupported operator")
 	}
@@ -239,6 +250,9 @@ func (p Program) Build(builder *tensor.Builder, input *tensor.Tensor, weights We
 	}
 	if p.definition.Operator == OperatorConditionalLoRA {
 		return nil, errors.New("bridge graph: conditional LoRA requires source and target inputs")
+	}
+	if p.definition.Operator == OperatorExternalAttention {
+		return nil, errors.New("bridge graph: external cross-attention requires a target layer seam")
 	}
 	firstOutput := p.targetSize
 	if p.definition.Operator == OperatorMLPGELU {

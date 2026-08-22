@@ -7,13 +7,14 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/composition"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/testutil"
 )
 
-func TestExternalCrossAttentionIdentityAndCacheIsolation(t *testing.T) {
+func TestExternalCacheSeparateFromTargetKV(t *testing.T) {
 	const externalTokens = uint64(2)
 	spec := model.Spec{
 		CommonSpec: model.CommonSpec{
@@ -31,10 +32,13 @@ func TestExternalCrossAttentionIdentityAndCacheIsolation(t *testing.T) {
 	targetID := testutil.ArtifactID(t, artifact.KindModel, "external-target")
 	sourceID := testutil.ArtifactID(t, artifact.KindModel, "external-source")
 	adapterID := testutil.ArtifactID(t, artifact.KindAdapter, "external-adapter")
-	program, err := (ExternalCrossAttentionCompiler{}).Compile(targetID, plan, ExternalCrossAttentionDefinition{
-		Target: targetID, Source: sourceID, Adapter: adapterID,
-		Layers: []uint32{1}, SourceChannels: 2, HeadCount: 1, SourceTokenLimit: 3,
-	})
+	compiled := composition.ExternalCrossAttentionPlan{
+		Execution:   testutil.ArtifactID(t, artifact.KindProfile, "external-execution"),
+		SourceModel: sourceID, TargetModel: targetID, Adapter: adapterID,
+		Layer: 1, SourceChannels: 2, TargetChannels: 2, HeadCount: 1, SourceTokenLimit: 3,
+		ID: testutil.ArtifactID(t, artifact.KindProfile, "external-plan"),
+	}
+	program, err := (ExternalCrossAttentionCompiler{}).Compile(compiled, plan)
 	if err != nil {
 		t.Fatal(err)
 	}

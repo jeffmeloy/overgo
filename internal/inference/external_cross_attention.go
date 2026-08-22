@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/composition"
 	"overgo/internal/hostmath"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
@@ -30,6 +31,23 @@ type ExternalCrossAttentionDefinition struct {
 // ExternalCrossAttentionCompiler admits seams from an already compiled target
 // model plan. Its zero value has no ambient model authority.
 type ExternalCrossAttentionCompiler struct{}
+
+// Compile admits only the recipe-compiled
+// adapter identity and layer seam, then binds that seam to the target model plan.
+func (compiler ExternalCrossAttentionCompiler) Compile(
+	plan composition.ExternalCrossAttentionPlan,
+	target model.ModelPlan,
+) (ExternalCrossAttentionProgram, error) {
+	if plan.ID.Kind() != artifact.KindProfile || plan.Execution.Kind() != artifact.KindProfile ||
+		plan.Adapter.Kind() != artifact.KindAdapter || !checked.Equal(uint64(target.Spec().EmbeddingLength), plan.TargetChannels) {
+		return ExternalCrossAttentionProgram{}, errors.New("inference: external composition plan is invalid")
+	}
+	return compiler.compileDefinition(plan.TargetModel, target, ExternalCrossAttentionDefinition{
+		Target: plan.TargetModel, Source: plan.SourceModel, Adapter: plan.Adapter,
+		Layers: []uint32{plan.Layer}, SourceChannels: plan.SourceChannels,
+		HeadCount: plan.HeadCount, SourceTokenLimit: plan.SourceTokenLimit,
+	})
+}
 
 // ExternalCrossAttentionProgram is the immutable layer admission and geometry
 // contract for an interleaved adapter.
@@ -80,7 +98,7 @@ var (
 
 // Compile validates exact model identities, adapter identity, bounded head
 // geometry, and every requested target layer-program seam.
-func (ExternalCrossAttentionCompiler) Compile(
+func (ExternalCrossAttentionCompiler) compileDefinition(
 	target artifact.ID,
 	plan model.ModelPlan,
 	definition ExternalCrossAttentionDefinition,

@@ -128,6 +128,39 @@ func TestMLPBridgeForwardAndValidation(t *testing.T) {
 	})
 }
 
+func TestExternalAttentionBridgeAdmission(t *testing.T) {
+	sourceContent, source := bridgeContract(t, "external-source", representation.ModalityAudio, 3, 1, 4,
+		representation.NormalizationContract{Kind: representation.NormalizationNone, Magnitude: representation.MagnitudeNative})
+	_, target := bridgeContract(t, "external-target", representation.ModalityText, 6, 1, 8,
+		representation.NormalizationContract{Kind: representation.NormalizationNone, Magnitude: representation.MagnitudeNative})
+	layer := uint32(2)
+	target.Producer.Tap, target.Producer.Layer, target.ID = representation.TapLayerOutput, &layer, artifact.ID{}
+	targetContent, err := json.Marshal(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err = representation.ParseContract(targetContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetContent, err = json.Marshal(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := (Compiler{}).Compile(Definition{
+		Source: source.ID, Target: target.ID, Operator: OperatorExternalAttention,
+		HeadCount: 2, SourceTokenLimit: 4,
+	}, sourceContent, targetContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	builder := tensor.NewBuilder()
+	input := builder.Input("source", dtype.F32, tensor.MustShape(3, 2))
+	if _, err := program.Build(builder, input, Weights{}); err == nil {
+		t.Fatal("external attention was admitted as a unary representation projection")
+	}
+}
+
 func bridgeContract(
 	t *testing.T,
 	name string,

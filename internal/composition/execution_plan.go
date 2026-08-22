@@ -137,7 +137,16 @@ func CompileCompositionExecutionPlan(
 	if err != nil {
 		return CompositionExecutionPlan{}, err
 	}
-	return compositionExecutionPlanCodec.New(plan)
+	sealed, err := compositionExecutionPlanCodec.New(plan)
+	if err != nil {
+		return CompositionExecutionPlan{}, err
+	}
+	if authority.Bridge.Graph.Operator == bridgegraph.OperatorExternalAttention {
+		if _, err := CompileExternalCrossAttentionPlan(sealed, authority.Bridge); err != nil {
+			return CompositionExecutionPlan{}, err
+		}
+	}
+	return sealed, nil
 }
 
 // Content returns the exact compiled composition plan document.

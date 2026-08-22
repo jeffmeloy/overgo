@@ -212,7 +212,7 @@
         {
           "id": "external-cross-attention",
           "title": "Activate recipe-compiled external cross-attention with separate cache ownership",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/composition ./internal/inference -run 'TestExternalCrossAttentionPlan|TestExternalCacheSeparateFromTargetKV' -count=1"
         },
         {

@@ -19,6 +19,8 @@ type scalarRequest struct {
 	Value int `json:"value"`
 }
 
+func (scalarRequest) SessionKey() (string, error) { return "shape:scalar", nil }
+
 type concurrentScalarModel struct {
 	bias    int
 	entered chan<- struct{}
@@ -45,7 +47,6 @@ func TestModelSessionDirectorConcurrentKeys(t *testing.T) {
 			}
 			return nil
 		},
-		func(scalarRequest) (string, error) { return "shape:scalar", nil },
 		func(_ context.Context, _ artifact.Repository, _ string, _ recipe.Program, request scalarRequest) (*concurrentScalarModel, error) {
 			return &concurrentScalarModel{bias: request.Value, entered: entered, release: release, closed: &closed}, nil
 		},
@@ -192,6 +193,30 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 	}
 }
 
+func TestExecutorCatalogUsesCompiledEntryModule(t *testing.T) {
+	store, modelID, program := capabilityFixture(t, "executor-catalog")
+	catalog := ExecutorCatalog{scalarModule: func(
+		_ context.Context, _ artifact.Repository, _ string, bound artifact.ID, _ recipe.Program, raw string,
+	) (any, error) {
+		if bound != modelID {
+			t.Fatal("executor received another model")
+		}
+		return raw, nil
+	}}
+	const input = `{"value":4}`
+	got, err := catalog.Execute(t.Context(), store, "model", modelID, program, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != input {
+		t.Fatalf("output=%v", got)
+	}
+	delete(catalog, scalarModule)
+	if _, err := catalog.Execute(t.Context(), store, "model", modelID, program, input); err == nil {
+		t.Fatal("missing entry executor accepted")
+	}
+}
+
 type cachedScalarModel struct {
 	bias   int
 	closed *int
@@ -221,7 +246,6 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 			}
 			return nil
 		},
-		func(scalarRequest) (string, error) { return "shape:scalar", nil },
 		func(_ context.Context, _ artifact.Repository, _ string, _ recipe.Program, request scalarRequest) (*cachedScalarModel, error) {
 			loads++
 			return &cachedScalarModel{bias: request.Value, closed: &closes}, nil
@@ -303,6 +327,8 @@ type mappedVideoRequest struct {
 	Source    int `json:"source"`
 }
 
+func (mappedVideoRequest) SessionKey() (string, error) { return "video:1x1", nil }
+
 type mappedVideoModel struct {
 	runs   int
 	closed *int
@@ -370,7 +396,6 @@ func TestVideoProductionActivation(t *testing.T) {
 			}
 			return nil
 		},
-		func(mappedVideoRequest) (string, error) { return "video:1x1", nil },
 		func(context.Context, artifact.Repository, string, recipe.Program, mappedVideoRequest) (*mappedVideoModel, error) {
 			loads++
 			return &mappedVideoModel{closed: &closes}, nil

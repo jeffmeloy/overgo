@@ -166,13 +166,10 @@ func (r Request) withPolicy(policy samplingPolicy, imageSequence int) Request {
 	return r
 }
 
-// SessionPolicy identifies graph- and conditioning-compatible requests.
-func SessionPolicy(request Request) (string, error) {
-	if err := ValidateRequest(request); err != nil {
-		return "", err
-	}
-	prompt := sha256.Sum256([]byte(request.Prompt))
-	return fmt.Sprintf("%dx%d/prompt:%x", request.Width, request.Height, prompt), nil
+// SessionKey identifies reusable resident state for the request.
+func (r Request) SessionKey() (string, error) {
+	prompt := sha256.Sum256([]byte(r.Prompt))
+	return fmt.Sprintf("%dx%d/prompt:%x", r.Width, r.Height, prompt), nil
 }
 
 // Reset reuses resident graphs for compatible request-local sampling state.

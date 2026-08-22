@@ -15,6 +15,11 @@ func (b *Builder) Multiply(left, right *Tensor) *Tensor {
 	return b.binary(OpMultiply, left, right)
 }
 
+// AdaptiveShiftScale applies x*(1+scale)+shift with broadcast parameters.
+func (b *Builder) AdaptiveShiftScale(input, shift, scale *Tensor) *Tensor {
+	return b.Add(b.Add(input, b.Multiply(input, scale)), shift)
+}
+
 func (b *Builder) Divide(left, right *Tensor) *Tensor {
 	return b.binary(OpDivide, left, right)
 }

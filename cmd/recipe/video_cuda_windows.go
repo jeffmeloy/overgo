@@ -19,7 +19,7 @@ import (
 func videoCapability() capability {
 	wanDirector, wanErr := capabilityruntime.NewModelSessionDirector[latentvideo.WanRequest, *latentvideo.WanRuntime, latentvideo.EncodedVideo](
 		"video-gen", imageDevice, imageSessionCapacity,
-		latentvideo.ValidateWanRequest, latentvideo.WanSessionPolicy,
+		latentvideo.ValidateWanRequest,
 		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentvideo.WanRequest) (*latentvideo.WanRuntime, error) {
 			return latentvideo.LoadWanRuntime(ctx, store, path, program, request)
 		},
@@ -32,7 +32,7 @@ func videoCapability() capability {
 
 	editDirector, editErr := capabilityruntime.NewMappedModelSessionDirector[latentvideo.ReferenceEditRequest, *latentvideo.LiveEditRuntime, latentvideo.EncodedVideo](
 		"video-gen", imageDevice, imageSessionCapacity,
-		latentvideo.ValidateReferenceEditRequest, latentvideo.ReferenceEditSessionPolicy,
+		latentvideo.ValidateReferenceEditRequest,
 		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentvideo.ReferenceEditRequest) (*latentvideo.LiveEditRuntime, error) {
 			return latentvideo.LoadLiveEditRuntime(ctx, store, path, program, request)
 		},
@@ -61,11 +61,11 @@ func videoCapability() capability {
 
 	return capability{
 		resolve: resolveVideoSource,
-		execute: capabilityruntime.Dispatch(
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleLatentVideoPrepare, Execute: wan},
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleReferenceVideoPrepare, Execute: edit},
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleOscillatorVideoPrepare, Execute: oscillator},
-		),
+		execute: capabilityruntime.ExecutorCatalog{
+			modelrecipe.ModuleLatentVideoPrepare:     wan,
+			modelrecipe.ModuleReferenceVideoPrepare:  edit,
+			modelrecipe.ModuleOscillatorVideoPrepare: oscillator,
+		}.Execute,
 	}
 }
 

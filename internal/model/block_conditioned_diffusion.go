@@ -202,12 +202,6 @@ func buildAxisPartitionedRoPE(
 	return joined
 }
 
-// buildAdaptiveShiftScale: x*(1+scale) + shift with [dim] rows broadcast
-// over tokens.
-func buildAdaptiveShiftScale(builder *tensor.Builder, x, shift, scale *tensor.Tensor) *tensor.Tensor {
-	return builder.Add(builder.Add(x, builder.Multiply(x, scale)), shift)
-}
-
 func buildBiasedProjection(builder *tensor.Builder, weight, bias, input *tensor.Tensor) *tensor.Tensor {
 	return builder.Add(builder.MulMat(weight, input), bias)
 }
@@ -306,8 +300,8 @@ func buildConditionedDiffusionBlock(
 	}
 	attentionScale := hostmath.InvSqrt32(headWidth)
 
-	selfIn := buildAdaptiveShiftScale(
-		builder, builder.LayerNorm(input, options.Epsilon),
+	selfIn := builder.AdaptiveShiftScale(
+		builder.LayerNorm(input, options.Epsilon),
 		chunk(conditionedSelfShift), chunk(conditionedSelfScale),
 	)
 	result.SelfQueryProjected = buildBiasedProjection(builder, weights.SelfAttention.Query, weights.SelfAttention.QueryBias, selfIn)
@@ -369,8 +363,8 @@ func buildConditionedDiffusionBlock(
 	)
 	result.CrossResidual = builder.Add(result.SelfResidual, result.CrossProjected)
 
-	ffnIn := buildAdaptiveShiftScale(
-		builder, builder.LayerNorm(result.CrossResidual, options.Epsilon),
+	ffnIn := builder.AdaptiveShiftScale(
+		builder.LayerNorm(result.CrossResidual, options.Epsilon),
 		chunk(conditionedFFNShift), chunk(conditionedFFNScale),
 	)
 	hidden := builder.GELUTanhExact(buildBiasedProjection(builder, weights.FFNExpand, weights.FFNExpandBias, ffnIn))
@@ -411,7 +405,7 @@ func buildConditionedDiffusionHead(
 	}
 	shift := builder.Add(builder.FlatSlice(modulation, tensor.FirstOffset, dim), conditioning)
 	scale := builder.Add(builder.FlatSlice(modulation, dim, dim), conditioning)
-	modulated := buildAdaptiveShiftScale(builder, builder.LayerNorm(input, epsilon), shift, scale)
+	modulated := builder.AdaptiveShiftScale(builder.LayerNorm(input, epsilon), shift, scale)
 	output := buildBiasedProjection(builder, weight, bias, modulated)
 	if err := builder.Err(); err != nil {
 		return nil, err

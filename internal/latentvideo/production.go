@@ -246,10 +246,8 @@ func ValidateWanRequest(request WanRequest) error {
 	return nil
 }
 
-func WanSessionPolicy(request WanRequest) (string, error) {
-	if err := ValidateWanRequest(request); err != nil {
-		return "", err
-	}
+// SessionKey identifies reusable resident state for the request.
+func (request WanRequest) SessionKey() (string, error) {
 	return fmt.Sprintf("wan:%dx%dx%d", request.Frames, request.Height, request.Width), nil
 }
 
@@ -287,10 +285,8 @@ func ValidateReferenceEditRequest(request ReferenceEditRequest) error {
 	return nil
 }
 
-func ReferenceEditSessionPolicy(request ReferenceEditRequest) (string, error) {
-	if err := ValidateReferenceEditRequest(request); err != nil {
-		return "", err
-	}
+// SessionKey identifies reusable resident state for the request.
+func (request ReferenceEditRequest) SessionKey() (string, error) {
 	content, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.liveedit-session-policy.v1"), struct {
 		Context  []float32 `json:"context"`
 		Shape    [4]int    `json:"shape"`

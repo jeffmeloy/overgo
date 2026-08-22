@@ -151,7 +151,7 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 		postScale, postShift, postGate := chunk(3), chunk(4), chunk(5)
 
 		// --- gated GQA co-attention ---
-		n1 := adaptiveShiftScale(b, zeroCenteredRMSNorm(b, hidden, bind.Input(prefix+"norm1.weight", h), eps), preShift, preScale)
+		n1 := b.AdaptiveShiftScale(zeroCenteredRMSNorm(b, hidden, bind.Input(prefix+"norm1.weight", h), eps), preShift, preScale)
 		q := b.MulMat(bind.Input(prefix+"attn.to_q.weight", h, qDim), n1)
 		k := b.MulMat(bind.Input(prefix+"attn.to_k.weight", h, kvDim), n1)
 		v := b.MulMat(bind.Input(prefix+"attn.to_v.weight", h, kvDim), n1)
@@ -177,7 +177,7 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 		hidden = b.Add(hidden, b.Multiply(attn, preGate))
 
 		// --- SwiGLU feed-forward ---
-		n2 := adaptiveShiftScale(b, zeroCenteredRMSNorm(b, hidden, bind.Input(prefix+"norm2.weight", h), eps), postShift, postScale)
+		n2 := b.AdaptiveShiftScale(zeroCenteredRMSNorm(b, hidden, bind.Input(prefix+"norm2.weight", h), eps), postShift, postScale)
 		g := b.MulMat(bind.Input(prefix+"ff.gate.weight", h, inter), n2)
 		u := b.MulMat(bind.Input(prefix+"ff.up.weight", h, inter), n2)
 		ff := b.MulMat(bind.Input(prefix+"ff.down.weight", inter, h), b.SwiGLU(g, u))
@@ -192,7 +192,7 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 	table := bind.Input("final_layer.scale_shift_table", 2*h)
 	finScale := b.Add(p.InTemb, b.FlatSlice(table, 0, h))
 	finShift := b.Add(p.InTemb, b.FlatSlice(table, h, h))
-	fn := adaptiveShiftScale(b,
+	fn := b.AdaptiveShiftScale(
 		zeroCenteredRMSNorm(b, hidden, bind.Input("final_layer.norm.weight", h), eps),
 		finShift, finScale)
 	p.Velocity = b.Add(
@@ -292,12 +292,6 @@ func (p *DenoiserProgram) hostFeeds(
 func zeroCenteredRMSNorm(b *tensor.Builder, x, weight *tensor.Tensor, eps float32) *tensor.Tensor {
 	n := b.RMSNorm(x, eps)
 	return b.Add(n, b.Multiply(n, weight))
-}
-
-// adaptiveShiftScale computes x*(1+scale) + shift with [Dims0] rows broadcast
-// over tokens (AdaLN modulation).
-func adaptiveShiftScale(b *tensor.Builder, x, shift, scale *tensor.Tensor) *tensor.Tensor {
-	return b.Add(b.Add(x, b.Multiply(x, scale)), shift)
 }
 
 // buildInterleavedRoPE applies the 3-axis interleaved (adjacent-pair) RoPE over

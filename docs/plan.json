@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:b4b8e28df25428406013455d214ab7779c660c1bef7e3bfa83f81b8950364199",
   "items": [
     {
-      "id": "gate-generalization-device-impact",
-      "title": "Derive device verification from kernel and function ownership",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Derive device verification from kernel and function ownership",
-          "status": "open",
-          "verify": "go test ./cmd/device-lane ./internal/automationcheck -run 'TestDevice(FunctionImpact|ConservativeFallback|Plan)' -count=1"
-        }
-      ]
-    },
-    {
       "id": "gate-generalization-dag",
       "title": "Execute independent checks through a resource-aware evidence DAG",
       "status": "open",
@@ -152,6 +139,11 @@
       "item": "plan-census-authority",
       "step": "do",
       "authority": "evidence:sha256:74d78a57168f9c8f426788bb0b802a5fb33bda9acdadb028770411f573ea86bd"
+    },
+    {
+      "item": "gate-generalization-device-impact",
+      "step": "do",
+      "authority": "evidence:sha256:192aa9c3b7b447c255f493b155b3688e177e0171f520069dfab50a2ea0856383"
     }
   ]
 }

@@ -1,11 +1,12 @@
 package main
 
 import (
-	"os"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"overgo/internal/automationcheck"
 )
 
 func TestDeviceLaneProgress(t *testing.T) {
@@ -17,25 +18,16 @@ func TestDeviceLaneProgress(t *testing.T) {
 	}
 }
 
-func TestDeviceLaneSelectionAndReporting(t *testing.T) {
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir("../.."); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(working) })
-	paths := splitPaths("internal/optimizer/muon_step_cuda_windows.go,kernels/cuda/vector_add.cu,internal/optimizer/removed_cuda_windows.go")
-	steps := deviceSteps(paths)
+func TestDevicePlan(t *testing.T) {
+	steps := deviceSteps(automationcheck.DeviceVerificationPlan{Packages: []string{"./internal/cuda/kernel", "./internal/optimizer"}})
 	if len(steps) != 2 || !slices.Equal(steps[0], []string{"go", "run", "./cmd/cuda-smoke"}) {
 		t.Fatalf("scoped steps = %v", steps)
 	}
-	want := []string{"go", "test", "-p=1", "-timeout=20m", "./internal/cuda/...", "./internal/optimizer", "-count=1"}
+	want := []string{"go", "test", "-p=1", "-timeout=20m", "./internal/cuda/kernel", "./internal/optimizer", "-count=1"}
 	if !slices.Equal(steps[1], want) {
 		t.Fatalf("selected packages = %v, want %v", steps[1], want)
 	}
-	full := deviceSteps(nil)
+	full := deviceSteps(automationcheck.DeviceVerificationPlan{Full: true})
 	if len(full) != 3 {
 		t.Fatalf("full steps=%v", full)
 	}
@@ -50,15 +42,7 @@ func TestDeviceLaneSelectionAndReporting(t *testing.T) {
 }
 
 func TestDeviceLaneRunsChangedTestPackage(t *testing.T) {
-	working, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir("../.."); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(working) })
-	steps := deviceSteps([]string{"internal/adaptiveparity/gemma4_fp8_leadership_windows_test.go"})
+	steps := deviceSteps(automationcheck.DeviceVerificationPlan{Packages: []string{"./internal/adaptiveparity"}})
 	want := []string{
 		"go", "test", "-p=1", "-timeout=20m", "./internal/adaptiveparity", "-count=1",
 	}

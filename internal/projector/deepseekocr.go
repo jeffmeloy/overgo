@@ -320,10 +320,6 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 	return nil
 }
 
-func PreprocessDeepSeekOCRImage(source image.Image, spec DeepSeekOCRSpec) (DeepSeekOCRInput, error) {
-	return preprocessDeepSeekOCRImage(source, spec, true)
-}
-
 func preprocessDeepSeekOCRImage(source image.Image, spec DeepSeekOCRSpec, dynamicTiles bool) (DeepSeekOCRInput, error) {
 	if source == nil {
 		return DeepSeekOCRInput{}, errors.New("projector: image is nil")

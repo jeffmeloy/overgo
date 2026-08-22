@@ -17,7 +17,7 @@ const (
 	maxComponents     = 1 << 20
 )
 
-// ComponentRole: manifest component contract
+// ComponentRole defines manifest component contract.
 type ComponentRole uint8
 
 const (
@@ -74,7 +74,7 @@ func (r *ComponentRole) UnmarshalJSON(data []byte) error {
 	return unmarshalEnumInto(r, data, componentRoleNames[:], "component role")
 }
 
-// Component: canonical manifest member
+// Component defines canonical manifest member.
 type Component struct {
 	Role     ComponentRole `json:"role"`
 	Ordinal  uint32        `json:"ordinal"`
@@ -95,7 +95,7 @@ func (c Component) Validate() error {
 	return nil
 }
 
-// Manifest: canonical logical artifact inventory
+// Manifest defines canonical logical artifact inventory.
 type Manifest struct {
 	Version    uint16      `json:"version"`
 	ID         ID          `json:"id"`

@@ -22,7 +22,7 @@ func newSessionSampler() *sessionSampler {
 
 func (s *sessionSampler) sample() (used uint64, ok bool) {
 	if s == nil {
-		return
+		return used, ok
 	}
 	err := s.worker.Do(context.Background(), func(state *device.State) error {
 		free, total, err := state.Driver.MemInfo()
@@ -33,10 +33,9 @@ func (s *sessionSampler) sample() (used uint64, ok bool) {
 		return nil
 	})
 	if err != nil {
-		return
+		return used, ok
 	}
-	ok = true
-	return
+	return used, true
 }
 
 func (s *sessionSampler) close() {

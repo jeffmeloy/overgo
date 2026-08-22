@@ -39,7 +39,7 @@ type SplitPartition struct {
 	Weight uint64 `json:"weight"`
 }
 
-// Membership: immutable group-safe partition assignment.
+// Membership defines immutable group-safe partition assignment.
 type Membership struct {
 	Version   uint16      `json:"version"`
 	Source    artifact.ID `json:"source"`
@@ -196,6 +196,7 @@ func (p SplitPlan) validate() error {
 	return nil
 }
 
+// DuplicateLineage returns a validated duplicate-to-canonical lineage edge.
 func DuplicateLineage(duplicate, canonical artifact.ID) (artifact.Lineage, error) {
 	edge := artifact.Lineage{Child: duplicate, Parent: canonical, Relation: artifact.RelationDuplicateOf}
 	if duplicate.Kind() != canonical.Kind() {

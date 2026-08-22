@@ -50,7 +50,7 @@ type modelDefinitionBody struct {
 	Spec            model.Spec  `json:"spec"`
 }
 
-// ModelDefinitionDocument: resolved model metadata bindings.
+// ModelDefinitionDocument defines resolved model metadata bindings.
 type ModelDefinitionDocument struct {
 	ID              artifact.ID
 	Version         uint16
@@ -61,7 +61,7 @@ type ModelDefinitionDocument struct {
 	Spec            model.Spec
 }
 
-// ResolvedModelDefinition: definition plus exact policy and tensor facts.
+// ResolvedModelDefinition defines definition plus exact policy and tensor facts.
 type ResolvedModelDefinition struct {
 	Document ModelDefinitionDocument
 	Profile  ProfileDocument
@@ -69,7 +69,7 @@ type ResolvedModelDefinition struct {
 	Spec     model.Spec
 }
 
-// Batch: atomic model inventory and definition publication.
+// Batch returns an atomic model inventory and definition publication.
 func (r ResolvedModelDefinition) Batch(
 	key string,
 	inventory modelartifact.Inventory,
@@ -108,7 +108,7 @@ func (r ResolvedModelDefinition) Batch(
 	return batch, nil
 }
 
-// PublishResolvedModelDefinition: atomic bound-definition commit.
+// PublishResolvedModelDefinition commits an atomic bound definition.
 func PublishResolvedModelDefinition(
 	ctx context.Context,
 	store artifact.Repository,

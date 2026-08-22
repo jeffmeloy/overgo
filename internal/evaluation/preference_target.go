@@ -76,6 +76,7 @@ var (
 	)
 )
 
+// CompilePreferenceTargetPlan binds preference evaluation authorities.
 func CompilePreferenceTargetPlan(
 	objective trainingprogram.ObjectiveDocument,
 	view SFTEvaluationView,
@@ -105,6 +106,7 @@ func (plan PreferenceTargetPlan) Batch(key string) (artifact.Batch, error) {
 	return preferenceTargetPlanCodec.Batch(key, plan, artifact.DependencyLineage(plan.ID, parents...), nil)
 }
 
+// ScorePreferenceTargets evaluates preference observations against frozen authorities.
 func ScorePreferenceTargets(plan PreferenceTargetPlan, observations []PreferenceTargetObservation) (PreferenceTargetReport, error) {
 	if err := preferenceTargetPlanCodec.ValidateIdentity(plan); err != nil || len(observations) != len(plan.Records) {
 		return PreferenceTargetReport{}, errors.New("evaluation: preference observations differ from plan")

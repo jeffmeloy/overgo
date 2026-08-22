@@ -64,10 +64,6 @@ func NewAudioProjectionProfile(attentionRopeFreqBase float32) (AudioProjectionPr
 	})
 }
 
-func ParseAudioProjectionProfile(data []byte) (AudioProjectionProfile, error) {
-	return audioProjectionProfileCodec.Parse(data)
-}
-
 func (p AudioProjectionProfile) ValidateIdentity() error {
 	return audioProjectionProfileCodec.ValidateIdentity(p)
 }

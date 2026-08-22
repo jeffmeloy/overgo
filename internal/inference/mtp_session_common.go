@@ -112,16 +112,16 @@ func (r *Runner) advanceSingleHeadMTP(
 	}, nil
 }
 
-func (target *Runner) newSingleHeadMTPSession(
+func (r *Runner) newSingleHeadMTPSession(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (*MTPSession, error) {
-	hidden, cache, err := target.ForwardCached(ctx, tokenIDs, nil)
+	hidden, cache, err := r.ForwardCached(ctx, tokenIDs, nil)
 	if err != nil {
 		return nil, err
 	}
 	last := hidden.LastRowView().Clone()
-	targetModel, err := target.sessionModelSignature()
+	targetModel, err := r.sessionModelSignature()
 	if err != nil {
 		return nil, err
 	}

@@ -375,17 +375,21 @@ func collectLiteralSites(file *ast.File, source repoanalysis.GoFile, out *[]Lite
 			Scope: literalScope(node, parents), Line: source.Line(expression.Pos()), Offset: int(expression.Pos()) - 1,
 			Kind: literal.Kind.String(), Expression: formatExpression(expression), Value: value.ExactString(),
 			Context: context, SourceID: source.ContentID,
-			Policy: runtimeLiteralContext(context) && !structuralZero(literal, parent, parents),
+			Policy: runtimeLiteralContext(context) && !structuralIdentity(literal, parent, parents),
 		})
 	})
 }
 
-func structuralZero(literal *ast.BasicLit, parent ast.Node, parents map[ast.Node]ast.Node) bool {
-	if literal.Value != "0" {
+func structuralIdentity(literal *ast.BasicLit, parent ast.Node, parents map[ast.Node]ast.Node) bool {
+	if literal.Value != "0" && literal.Value != "1" {
 		return false
 	}
 	switch value := parent.(type) {
 	case *ast.BinaryExpr:
+		if value.Op == token.EQL || value.Op == token.NEQ || value.Op == token.LSS ||
+			value.Op == token.LEQ || value.Op == token.GTR || value.Op == token.GEQ {
+			return true
+		}
 		other := value.X
 		if other == literal {
 			other = value.Y
@@ -408,8 +412,11 @@ func structuralZero(literal *ast.BasicLit, parent ast.Node, parents map[ast.Node
 		}
 		return false
 	case *ast.AssignStmt:
+		if literal.Value == "0" && value.Tok == token.DEFINE {
+			return true
+		}
 		loop, ok := parents[value].(*ast.ForStmt)
-		return ok && loop.Init == value
+		return literal.Value == "0" && ok && loop.Init == value
 	default:
 		return false
 	}

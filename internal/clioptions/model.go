@@ -13,6 +13,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/repodb"
+	"overgo/internal/tensor"
 )
 
 // ModelFlags: common model-loading flags.
@@ -49,9 +50,8 @@ func AddModelFlags(flags *flag.FlagSet, loraHelp string) *ModelFlags {
 func (flags *ModelFlags) OpenRunner(
 	ctx context.Context,
 	path string,
-	loraScale float32,
 ) (*inference.Runner, error) {
-	return flags.OpenRunnerWithOptions(ctx, path, flags.OpenOptions(loraScale))
+	return flags.OpenRunnerWithOptions(ctx, path, flags.OpenOptions(tensor.UnitScale))
 }
 
 // OpenRunnerWithOptions: flag-bound repository and model resolution.

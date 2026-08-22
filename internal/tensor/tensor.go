@@ -82,7 +82,6 @@ const (
 	OpMADNorm
 	OpAtan
 	OpPixelShuffle2D
-	OpCount
 )
 
 type ScaleAttributes struct {

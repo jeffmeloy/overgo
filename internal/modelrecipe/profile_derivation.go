@@ -47,7 +47,7 @@ type catalogProfileDerivationBody struct {
 	PolicySHA256     string `json:"policy_sha256"`
 }
 
-// CatalogProfileDerivation: immutable catalog-to-profile derivation fact.
+// CatalogProfileDerivation defines immutable catalog-to-profile derivation fact.
 type CatalogProfileDerivation struct {
 	ID artifact.ID
 	catalogProfileDerivationBody

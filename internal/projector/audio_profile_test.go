@@ -11,7 +11,7 @@ func TestAudioProjectionProfileRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := ParseAudioProjectionProfile(content.Data)
+	parsed, err := audioProjectionProfileCodec.Parse(content.Data)
 	if err != nil || parsed != profile {
 		t.Fatalf("audio projection profile = (%+v, %v)", parsed, err)
 	}

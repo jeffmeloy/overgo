@@ -4,7 +4,7 @@ import "encoding/json"
 
 const JSONMediaType = "application/json"
 
-// JSONContract defines one typed JSON artifact schema.
+// JSONContract returns one typed JSON artifact schema.
 func JSONContract(kind Kind, schema string) DocumentContract {
 	return DocumentContract{Kind: kind, MediaType: JSONMediaType, Schema: schema}
 }

@@ -55,23 +55,23 @@ type FastWeightBankWeights struct {
 }
 
 // Validate reports a bundle whose shapes disagree with the declared dimensions.
-func (w *FastWeightBankWeights) Validate() error {
+func (weights *FastWeightBankWeights) Validate() error {
 	na := 1
-	if w.SwiGLU {
+	if weights.SwiGLU {
 		na = 2
 	}
-	if w.DModel < 1 || w.MemDim < 1 || w.Rank < 1 {
-		return fmt.Errorf("fast-weight bank: d=%d mem_dim=%d rank=%d must be positive", w.DModel, w.MemDim, w.Rank)
+	if weights.DModel < 1 || weights.MemDim < 1 || weights.Rank < 1 {
+		return fmt.Errorf("fast-weight bank: d=%d mem_dim=%d rank=%d must be positive", weights.DModel, weights.MemDim, weights.Rank)
 	}
 	for _, c := range []struct {
 		name string
 		got  int
 		want int
 	}{
-		{"fw_A", len(w.FWA), na * w.Rank * w.DModel * w.MemDim},
-		{"fw_B", len(w.FWB), w.DModel * w.Rank * w.MemDim},
-		{"fw_o", len(w.FWO), w.DModel * w.DModel},
-		{"norm_fw", len(w.NormWeight), w.DModel},
+		{"fw_A", len(weights.FWA), na * weights.Rank * weights.DModel * weights.MemDim},
+		{"fw_B", len(weights.FWB), weights.DModel * weights.Rank * weights.MemDim},
+		{"fw_o", len(weights.FWO), weights.DModel * weights.DModel},
+		{"norm_fw", len(weights.NormWeight), weights.DModel},
 	} {
 		if c.got != c.want {
 			return fmt.Errorf("fast-weight bank: %s has %d values, want %d", c.name, c.got, c.want)

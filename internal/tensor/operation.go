@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
 
 	"overgo/internal/tensor/dtype"
 )
@@ -150,11 +149,6 @@ func DescribeOperation(op Op) (OperationDescriptor, bool) {
 	}
 	descriptor := operationDescriptors[op]
 	return descriptor, descriptor.Op == op && descriptor.Name != ""
-}
-
-// Operations: ordered immutable operation catalog copy.
-func Operations() []OperationDescriptor {
-	return slices.Clone(operationDescriptors[:])
 }
 
 // DescribeOperationStorage: authoritative output-storage contract.

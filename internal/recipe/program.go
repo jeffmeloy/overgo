@@ -5,13 +5,13 @@ import (
 	"slices"
 )
 
-// Stage: validated node plus its immutable module contract.
+// Stage defines validated node plus its immutable module contract.
 type Stage struct {
 	Node   Node   `json:"node"`
 	Module Module `json:"module"`
 }
 
-// Program: catalog-resolved executable recipe graph.
+// Program defines catalog-resolved executable recipe graph.
 type Program struct {
 	definition Definition
 	stages     []Stage

@@ -37,7 +37,7 @@ func run() error {
 	if *modelPath == "" {
 		return errors.New("-model is required")
 	}
-	runner, err := modelFlags.OpenRunner(context.Background(), *modelPath, 1)
+	runner, err := modelFlags.OpenRunner(context.Background(), *modelPath)
 	if err != nil {
 		return err
 	}

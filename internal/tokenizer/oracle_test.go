@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -91,11 +90,11 @@ func readExpectedTokenIDs(path string) ([][]TokenID, error) {
 		fields := strings.Fields(scanner.Text())
 		ids := make([]TokenID, len(fields))
 		for i, field := range fields {
-			value, parseErr := strconv.ParseInt(field, 10, 32)
+			value, parseErr := ParseTokenID(field)
 			if parseErr != nil {
 				return nil, parseErr
 			}
-			ids[i] = TokenID(value)
+			ids[i] = value
 		}
 		result = append(result, ids)
 	}

@@ -1695,7 +1695,7 @@ func execute(
 	buffers *deviceBufferPool,
 	execCache *graphExecCache,
 	retainOutputs bool,
-) (result *executionResult, err error) {
+) (_ *executionResult, err error) {
 	outputs := compiled.outputs
 	order := compiled.order
 	plan := compiled.memory

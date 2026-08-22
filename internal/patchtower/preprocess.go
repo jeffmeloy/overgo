@@ -155,7 +155,7 @@ func aaWeights(inSize, outSize int) (xmin []int, ksize []int, weights [][]float6
 		}
 		xmin[i], ksize[i], weights[i] = lo, k, w
 	}
-	return
+	return xmin, ksize, weights
 }
 
 func resizeNormalizeRGBBicubic(rgb []uint8, h, w, outH, outW int, mean, std []float64) ([]float32, error) {

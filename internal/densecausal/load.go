@@ -45,6 +45,7 @@ type Dims struct {
 	// trainer runs full causal attention, exact for sequences within the
 	// window, and refuses longer training sequences.
 	AttentionWindow int
+	ContextLength   int
 }
 
 // Model owns weights, shapes, geometry, and compiled bindings.
@@ -78,12 +79,13 @@ type artifactConfig struct {
 	// Routed-mixture declarations (the DeepSeek-V2 family). Absent fields
 	// keep the declared family defaults: softmax scoring, no top-k
 	// normalization, unit routed scaling.
-	NumExpertsPerTok    int      `json:"num_experts_per_tok"`
-	MoEIntermediateSize int      `json:"moe_intermediate_size"`
-	RoutedScalingFactor *float64 `json:"routed_scaling_factor"`
-	NormTopKProb        bool     `json:"norm_topk_prob"`
-	ScoringFunc         string   `json:"scoring_func"`
-	SlidingWindowSize   int      `json:"sliding_window_size"`
+	NumExpertsPerTok      int      `json:"num_experts_per_tok"`
+	MoEIntermediateSize   int      `json:"moe_intermediate_size"`
+	RoutedScalingFactor   *float64 `json:"routed_scaling_factor"`
+	NormTopKProb          bool     `json:"norm_topk_prob"`
+	ScoringFunc           string   `json:"scoring_func"`
+	SlidingWindowSize     int      `json:"sliding_window_size"`
+	MaxPositionEmbeddings int      `json:"max_position_embeddings"`
 
 	// Multimodal wrappers (Unlimited-OCR) nest the decoder declarations.
 	LanguageConfig *artifactConfig `json:"language_config"`
@@ -156,6 +158,10 @@ func Load(directory string) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
+	if decoder.MaxPositionEmbeddings < 0 {
+		return nil, fmt.Errorf("densecausal: negative context length")
+	}
+	m.Dims.ContextLength = decoder.MaxPositionEmbeddings
 	// model_type vs derived cross-checks: qwen2 REQUIRES qkv biases, llama
 	// forbids them, unlimited-ocr declares a routed mixture; anything else
 	// is unverified.

@@ -54,7 +54,7 @@ func topLogitIndices(logits []float32, n int) []int {
 			continue
 		}
 		if len(top) < n {
-			top = append(top, 0)
+			top = append(top, len(top))
 		}
 		copy(top[position+1:], top[position:])
 		top[position] = id
@@ -63,6 +63,7 @@ func topLogitIndices(logits []float32, n int) []int {
 }
 
 func run() error {
+	samplingDefaults := sampling.DefaultConfig()
 	maxNewTokens := flag.Int("n", 1, "maximum number of new tokens")
 	contextShift := flag.Bool(
 		"context-shift",
@@ -80,37 +81,37 @@ func run() error {
 		"tokens removed per context shift; zero removes half of the discardable cache",
 	)
 	modelFlags := clioptions.AddModelFlags(flag.CommandLine, "load GGUF LoRA adapter at scale 1; repeatable")
-	temperature := flag.Float64("temp", 0, "sampling temperature; zero is greedy")
-	dynatempRange := flag.Float64("dynatemp-range", 0, "dynamic temperature range; zero disables")
-	dynatempExponent := flag.Float64("dynatemp-exp", 1, "entropy-to-temperature exponent")
+	temperature := flag.Float64("temp", float64(samplingDefaults.Temperature), "sampling temperature; zero is greedy")
+	dynatempRange := flag.Float64("dynatemp-range", float64(samplingDefaults.DynatempRange), "dynamic temperature range; zero disables")
+	dynatempExponent := flag.Float64("dynatemp-exp", float64(samplingDefaults.DynatempExponent), "entropy-to-temperature exponent")
 	samplerNames := flag.String(
 		"samplers",
-		"penalties;dry;top_n_sigma;top_k;typ_p;top_p;min_p;xtc;temperature",
+		sampling.FormatSamplerOrder(samplingDefaults.Samplers),
 		"ordered sampler names separated by semicolons; use none for an empty chain",
 	)
-	topK := flag.Int("top-k", 40, "top-k candidates; zero disables")
-	topP := flag.Float64("top-p", 0.95, "nucleus sampling probability")
-	minP := flag.Float64("min-p", 0, "minimum probability relative to the most likely token; zero disables")
-	typicalP := flag.Float64("typical-p", 1, "locally typical cumulative probability")
-	topNSigma := flag.Float64("top-n-sigma", -1, "keep logits within N standard deviations of the maximum; non-positive disables")
-	xtcProbability := flag.Float64("xtc-probability", 0, "chance of removing leading high-probability tokens")
-	xtcThreshold := flag.Float64("xtc-threshold", 0.1, "XTC high-probability threshold; above 0.5 disables")
-	minKeep := flag.Int("min-keep", 0, "minimum candidates retained by probability filters")
-	adaptiveTarget := flag.Float64("adaptive-target", -1, "adaptive-p target probability; negative disables")
-	adaptiveDecay := flag.Float64("adaptive-decay", 0.9, "adaptive-p EMA decay")
+	topK := flag.Int("top-k", samplingDefaults.TopK, "top-k candidates; zero disables")
+	topP := flag.Float64("top-p", float64(samplingDefaults.TopP), "nucleus sampling probability")
+	minP := flag.Float64("min-p", float64(samplingDefaults.MinP), "minimum probability relative to the most likely token; zero disables")
+	typicalP := flag.Float64("typical-p", float64(samplingDefaults.TypicalP), "locally typical cumulative probability")
+	topNSigma := flag.Float64("top-n-sigma", float64(samplingDefaults.TopNSigma), "keep logits within N standard deviations of the maximum; non-positive disables")
+	xtcProbability := flag.Float64("xtc-probability", float64(samplingDefaults.XTCProbability), "chance of removing leading high-probability tokens")
+	xtcThreshold := flag.Float64("xtc-threshold", float64(samplingDefaults.XTCThreshold), "XTC high-probability threshold; above 0.5 disables")
+	minKeep := flag.Int("min-keep", samplingDefaults.MinKeep, "minimum candidates retained by probability filters")
+	adaptiveTarget := flag.Float64("adaptive-target", float64(samplingDefaults.AdaptiveTarget), "adaptive-p target probability; negative disables")
+	adaptiveDecay := flag.Float64("adaptive-decay", float64(samplingDefaults.AdaptiveDecay), "adaptive-p EMA decay")
 	logitBiasValues := stringListFlag{}
 	flag.Var(&logitBiasValues, "logit-bias", "TOKEN=BIAS logit adjustment; use -inf to ban, repeatable")
 	ignoreEOS := flag.Bool("ignore-eos", false, "ban all recognized end-of-generation tokens")
-	repeatLastN := flag.Int("repeat-last-n", 0, "history tokens subject to penalties; -1 uses all, zero disables")
-	repeatPenalty := flag.Float64("repeat-penalty", 1, "multiplicative repetition penalty")
-	presencePenalty := flag.Float64("presence-penalty", 0, "penalty applied once to tokens in history")
-	frequencyPenalty := flag.Float64("frequency-penalty", 0, "penalty applied per token occurrence in history")
-	noRepeatNgramSize := flag.Int("no-repeat-ngram-size", 0, "block repeated n-grams; zero disables")
-	ngramWindow := flag.Int("ngram-window", 0, "history window for no-repeat n-grams; zero uses all")
-	dryMultiplier := flag.Float64("dry-multiplier", 0, "DRY repetition penalty multiplier; zero disables")
-	dryBase := flag.Float64("dry-base", 1.75, "DRY exponential penalty base")
-	dryAllowedLength := flag.Int("dry-allowed-length", 2, "repetition length allowed before DRY penalties")
-	dryPenaltyLastN := flag.Int("dry-penalty-last-n", -1, "history tokens scanned by DRY; -1 uses all")
+	repeatLastN := flag.Int("repeat-last-n", samplingDefaults.RepeatLastN, "history tokens subject to penalties; -1 uses all, zero disables")
+	repeatPenalty := flag.Float64("repeat-penalty", float64(samplingDefaults.RepeatPenalty), "multiplicative repetition penalty")
+	presencePenalty := flag.Float64("presence-penalty", float64(samplingDefaults.PresencePenalty), "penalty applied once to tokens in history")
+	frequencyPenalty := flag.Float64("frequency-penalty", float64(samplingDefaults.FrequencyPenalty), "penalty applied per token occurrence in history")
+	noRepeatNgramSize := flag.Int("no-repeat-ngram-size", samplingDefaults.NoRepeatNgramSize, "block repeated n-grams; zero disables")
+	ngramWindow := flag.Int("ngram-window", samplingDefaults.NgramWindow, "history window for no-repeat n-grams; zero uses all")
+	dryMultiplier := flag.Float64("dry-multiplier", float64(samplingDefaults.DryMultiplier), "DRY repetition penalty multiplier; zero disables")
+	dryBase := flag.Float64("dry-base", float64(samplingDefaults.DryBase), "DRY exponential penalty base")
+	dryAllowedLength := flag.Int("dry-allowed-length", samplingDefaults.DryAllowedLength, "repetition length allowed before DRY penalties")
+	dryPenaltyLastN := flag.Int("dry-penalty-last-n", samplingDefaults.DryPenaltyLastN, "history tokens scanned by DRY; -1 uses all")
 	dryBreakers := stringListFlag{"\n", ":", "\"", "*"}
 	flag.Var(&dryBreakers, "dry-sequence-breaker", "DRY restart string; repeat to add, or use 'none' first to clear defaults")
 	grammarChoices := stringListFlag{}
@@ -123,10 +124,10 @@ func run() error {
 	flag.Var(&grammarTriggerPatterns, "grammar-trigger-pattern", "lazy GBNF trigger regex; repeat to add")
 	grammarTriggerTokenValues := stringListFlag{}
 	flag.Var(&grammarTriggerTokenValues, "grammar-trigger-token", "lazy GBNF trigger token ID; repeat to add")
-	mirostat := flag.Int("mirostat", 0, "Mirostat version; zero disables, 1 or 2 enables that version")
-	mirostatTau := flag.Float64("mirostat-tau", 5, "Mirostat target surprise")
-	mirostatEta := flag.Float64("mirostat-eta", 0.1, "Mirostat learning rate")
-	seed := flag.Int64("seed", 0, "sampling RNG seed")
+	mirostat := flag.Int("mirostat", samplingDefaults.Mirostat, "Mirostat version; zero disables, 1 or 2 enables that version")
+	mirostatTau := flag.Float64("mirostat-tau", float64(samplingDefaults.MirostatTau), "Mirostat target surprise")
+	mirostatEta := flag.Float64("mirostat-eta", float64(samplingDefaults.MirostatEta), "Mirostat learning rate")
+	seed := flag.Int64("seed", samplingDefaults.Seed, "sampling RNG seed")
 	projectedInputsFile := flag.String("projected-inputs", "", "projected multimodal input JSON")
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
 	projectorCUDA := flag.Bool("mmproj-cuda", false, "offload supported multimodal projector operations to CUDA")
@@ -146,7 +147,12 @@ func run() error {
 	if flag.NArg() != 2 && !(*promptIDsFlag != "" && flag.NArg() == 1) {
 		return errors.New("usage: generate [options] <model.gguf> <prompt>  (prompt optional with -prompt-ids)")
 	}
-	runner, err := modelFlags.OpenRunner(context.Background(), flag.Arg(0), 1)
+	args := flag.Args()
+	prompt := ""
+	if len(args) > 1 {
+		prompt = args[1]
+	}
+	runner, err := modelFlags.OpenRunner(context.Background(), args[0])
 	if err != nil {
 		return err
 	}
@@ -164,7 +170,7 @@ func run() error {
 		if !ok {
 			return fmt.Errorf("generate: invalid logit bias %q; want TOKEN=BIAS", raw)
 		}
-		token, parseErr := strconv.ParseInt(tokenText, 10, 32)
+		token, parseErr := tokenizer.ParseTokenID(tokenText)
 		if parseErr != nil || token < 0 {
 			return fmt.Errorf("generate: invalid logit-bias token %q", tokenText)
 		}
@@ -215,11 +221,11 @@ func run() error {
 	if source != "" {
 		triggerTokens := make([]tokenizer.TokenID, len(grammarTriggerTokenValues))
 		for index, raw := range grammarTriggerTokenValues {
-			value, parseErr := strconv.ParseInt(raw, 10, 32)
+			value, parseErr := tokenizer.ParseTokenID(raw)
 			if parseErr != nil || value < 0 {
 				return fmt.Errorf("generate: invalid grammar trigger token %q", raw)
 			}
-			triggerTokens[index] = tokenizer.TokenID(value)
+			triggerTokens[index] = value
 		}
 		if *grammarLazy {
 			gbnf, err = runner.CompileLazyGBNF(
@@ -371,18 +377,18 @@ func run() error {
 		defer store.Close()
 		if *imagePath != "" {
 			promptIDs, projected, projectedErr = imageProjectedPrompt(
-				context.Background(), store, runner, *projectorPath, *imagePath, flag.Arg(1), *imageThinking,
+				context.Background(), store, runner, *projectorPath, *imagePath, prompt, *imageThinking,
 				projectorOptions,
 			)
 		} else if *audioPath != "" {
 			promptIDs, projected, projectedErr = audioProjectedPrompt(
-				context.Background(), store, runner, *projectorPath, *audioPath, flag.Arg(1),
+				context.Background(), store, runner, *projectorPath, *audioPath, prompt,
 				projectorOptions,
 			)
 		} else {
 			promptIDs, projected, projectedErr = videoProjectedPrompt(
 				context.Background(), store, runner, *projectorPath, videoFrames, *videoPath, *videoMaxFrames,
-				*ffmpegPath, flag.Arg(1), *videoFPS, *imageThinking,
+				*ffmpegPath, prompt, *videoFPS, *imageThinking,
 				projectorOptions,
 			)
 		}
@@ -397,19 +403,19 @@ func run() error {
 			return errors.New("generate: -prompt-ids and media inputs are mutually exclusive")
 		}
 		for _, raw := range strings.Split(*promptIDsFlag, ",") {
-			value, parseErr := strconv.ParseInt(strings.TrimSpace(raw), 10, 32)
+			value, parseErr := tokenizer.ParseTokenID(strings.TrimSpace(raw))
 			if parseErr != nil || value < 0 {
 				return fmt.Errorf("generate: invalid prompt token id %q", raw)
 			}
-			options.PromptTokenIDs = append(options.PromptTokenIDs, tokenizer.TokenID(value))
+			options.PromptTokenIDs = append(options.PromptTokenIDs, value)
 		}
 	}
 	var ids []tokenizer.TokenID
 	var text string
 	if runner.Spec().Profile().Forward.Session == model.ForwardSessionEncoderDecoder {
-		ids, text, _, err = runner.GenerateEncoderDecoder(context.Background(), flag.Arg(1), options)
+		ids, text, _, err = runner.GenerateEncoderDecoder(context.Background(), prompt, options)
 	} else {
-		ids, text, err = runner.Generate(context.Background(), flag.Arg(1), options)
+		ids, text, err = runner.Generate(context.Background(), prompt, options)
 	}
 	if err != nil {
 		return err

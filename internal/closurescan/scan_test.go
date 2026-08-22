@@ -173,17 +173,13 @@ func decodeJoined() (int, error) { return 0, errors.Join(errors.New("invalid")) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	var policySeen bool
 	for _, candidate := range candidates {
 		if candidate.Policy {
-			if policySeen {
-				t.Fatalf("multiple runtime policies: %+v", candidates)
-			}
-			policySeen = true
+			t.Fatalf("structural identity classified as runtime policy: %+v", candidates)
 		}
 	}
-	if !policySeen || len(candidates) != strings.Count(source, "0") {
-		t.Fatalf("literal authority policy=%t candidates=%+v", policySeen, candidates)
+	if len(candidates) != strings.Count(source, "0") {
+		t.Fatalf("literal authority candidates=%+v", candidates)
 	}
 }
 

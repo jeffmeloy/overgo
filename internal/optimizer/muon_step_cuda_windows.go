@@ -26,8 +26,8 @@ func deviceMuonMatrixStep(worker *device.Worker, weights, gradient, momentum []f
 
 // muonMatrixGroupResident: transfer-free update on resident W/G/M.
 func (o *deviceOps) muonMatrixGroupResident(dW, dG, dM driver.DevicePtr, rows, cols int, mu, rate float64) error {
-	n := rows * cols
-	if rows <= 0 || cols <= 0 {
+	n, valid := matrixElements(rows, cols)
+	if !valid {
 		return fmt.Errorf("muonMatrixGroupResident: bad shape (rows=%d cols=%d)", rows, cols)
 	}
 	if uint64(n) > math.MaxUint32 {
@@ -91,8 +91,8 @@ func (o *deviceOps) muonMatrixGroupWithScratch(
 	scratch muonScratch,
 	orthogonalize func(nsBuffers, int, int) (driver.DevicePtr, error),
 ) error {
-	n := rows * cols
-	if rows <= 0 || cols <= 0 || n <= 0 || scratch.ns.dX == 0 || scratch.tmp == 0 {
+	n, valid := matrixElements(rows, cols)
+	if !valid || scratch.ns.dX == 0 || scratch.tmp == 0 {
 		return fmt.Errorf("muonMatrixGroupResidentWithScratch: invalid group or scratch")
 	}
 	scale := math.Sqrt(float64(max(rows, cols))) * stepRMS(mu) * rate
@@ -122,8 +122,8 @@ func (o *deviceOps) muonMatrixGroupWithScratch(
 
 // muonMatrixGroup: stage, update, return weights and momentum.
 func (o *deviceOps) muonMatrixGroup(weights, gradient, momentum []float32, rows, cols int, mu, rate float64) error {
-	n := rows * cols
-	if rows <= 0 || cols <= 0 || len(weights) != n || len(gradient) != n || len(momentum) != n {
+	n, valid := matrixElements(rows, cols)
+	if !valid || len(weights) != n || len(gradient) != n || len(momentum) != n {
 		return fmt.Errorf("muonMatrixGroup: shape mismatch (n=%d w=%d g=%d m=%d)", n, len(weights), len(gradient), len(momentum))
 	}
 	buffers, err := o.uploadF32Set(weights, gradient, momentum)
@@ -214,13 +214,11 @@ func newResidentMatrixMuonPlan(worker *device.Worker, matrices []ResidentMatrix,
 	}
 	maxMatrix, maxSquare := 0, 0
 	for _, matrix := range matrices {
-		if matrix.Weights == 0 || matrix.Gradient == 0 || matrix.Momentum == 0 || matrix.Rows <= 0 || matrix.Cols <= 0 {
+		elements, valid := matrixElements(matrix.Rows, matrix.Cols)
+		if matrix.Weights == 0 || matrix.Gradient == 0 || matrix.Momentum == 0 || !valid {
 			return nil, errors.New("resident matrix Muon plan: invalid matrix")
 		}
-		if matrix.Rows > int(^uint(0)>>1)/matrix.Cols {
-			return nil, errors.New("resident matrix Muon plan: matrix size overflow")
-		}
-		maxMatrix = max(maxMatrix, matrix.Rows*matrix.Cols)
+		maxMatrix = max(maxMatrix, elements)
 		dimension := min(matrix.Rows, matrix.Cols)
 		maxSquare = max(maxSquare, dimension*dimension)
 	}

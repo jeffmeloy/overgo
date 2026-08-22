@@ -11,7 +11,7 @@ import (
 	"overgo/internal/strictjson"
 )
 
-// DocumentCodec: canonical typed lifecycle.
+// DocumentCodec defines canonical typed lifecycle.
 type DocumentCodec[T any] struct {
 	Name         string
 	Contract     DocumentContract
@@ -24,7 +24,7 @@ type DocumentCodec[T any] struct {
 	SetIdentity  func(*T, ID)
 }
 
-// JSONDocumentCodec: strict JSON; caller-owned schema and cloning.
+// JSONDocumentCodec returns a strict JSON codec with caller-owned schema and cloning.
 func JSONDocumentCodec[T any](
 	name string,
 	kind Kind,
@@ -81,7 +81,7 @@ func (c DocumentCodec[T]) Parse(data []byte) (T, error) {
 	return value, nil
 }
 
-// Read: validated typed read; no intermediate content clone.
+// Read returns a validated typed document without an intermediate content clone.
 func (c DocumentCodec[T]) Read(ctx context.Context, reader Reader, id ID) (T, bool, error) {
 	var zero T
 	if err := c.validate(); err != nil {
@@ -111,7 +111,7 @@ func (c DocumentCodec[T]) Read(ctx context.Context, reader Reader, id ID) (T, bo
 	return value, true, nil
 }
 
-// Require: validated typed read; absence is an error.
+// Require returns a validated typed document and rejects absence.
 func (c DocumentCodec[T]) Require(ctx context.Context, reader Reader, id ID) (T, error) {
 	value, ok, err := c.Read(ctx, reader, id)
 	if err != nil {
@@ -123,7 +123,7 @@ func (c DocumentCodec[T]) Require(ctx context.Context, reader Reader, id ID) (T,
 	return value, nil
 }
 
-// Normalize: external bytes to canonical value and identity bytes.
+// Normalize converts external bytes to a canonical value and identity bytes.
 func (c DocumentCodec[T]) Normalize(data []byte) (T, []byte, error) {
 	var decoded T
 	if err := c.validate(); err != nil {
@@ -185,7 +185,7 @@ func (c DocumentCodec[T]) Content(value T) (Content, error) {
 	return contract.Content(id, data)
 }
 
-// Batch: one canonical document plus its publication edges.
+// Batch returns one canonical document with its publication edges.
 func (c DocumentCodec[T]) Batch(key string, value T, lineage []Lineage, aliases []AliasBinding) (Batch, error) {
 	content, err := c.Content(value)
 	if err != nil {

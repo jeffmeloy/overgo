@@ -18,7 +18,7 @@ func TestBuildReusesExpiredAllocation(t *testing.T) {
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := Build([]*tensor.Tensor{output}, 16)
+	plan, err := BuildWithRewrites([]*tensor.Tensor{output}, 16, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestBuildKeepsOutputLive(t *testing.T) {
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := Build([]*tensor.Tensor{first, second}, 16)
+	plan, err := BuildWithRewrites([]*tensor.Tensor{first, second}, 16, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestBuildAliasesReshapeStorageAndLifetime(t *testing.T) {
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := Build([]*tensor.Tensor{output}, 16)
+	plan, err := BuildWithRewrites([]*tensor.Tensor{output}, 16, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,9 +87,10 @@ func TestBuildWithDependenciesExtendsProducerLifetime(t *testing.T) {
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := BuildWithDependencies(
+	plan, err := BuildWithRewrites(
 		[]*tensor.Tensor{consumer}, 16,
 		map[*tensor.Tensor][]*tensor.Tensor{consumer: {producer}},
+		nil,
 	)
 	if err != nil {
 		t.Fatal(err)

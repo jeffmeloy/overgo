@@ -36,7 +36,7 @@ const (
 	ServingHardwareFinish  ServingHardwareStage = "finish"
 )
 
-// ServingHardwareSample: lifecycle-bound device allocation state.
+// ServingHardwareSample defines lifecycle-bound device allocation state.
 type ServingHardwareSample struct {
 	Stage              ServingHardwareStage `json:"stage"`
 	ElapsedNS          uint64               `json:"elapsed_ns"`
@@ -45,7 +45,7 @@ type ServingHardwareSample struct {
 	DeviceAllocations  uint64               `json:"device_allocations"`
 }
 
-// ServingUsage: payload-free request accounting.
+// ServingUsage defines payload-free request accounting.
 type ServingUsage struct {
 	InputTokens  uint64 `json:"input_tokens,omitempty"`
 	OutputTokens uint64 `json:"output_tokens,omitempty"`
@@ -53,7 +53,7 @@ type ServingUsage struct {
 	OutputBytes  uint64 `json:"output_bytes,omitempty"`
 }
 
-// ServingResources: observed memory and transfer facts.
+// ServingResources defines observed memory and transfer facts.
 type ServingResources struct {
 	PeakHostBytes     uint64 `json:"peak_host_bytes,omitempty"`
 	PeakDeviceBytes   uint64 `json:"peak_device_bytes,omitempty"`
@@ -61,7 +61,7 @@ type ServingResources struct {
 	DeviceToHostBytes uint64 `json:"device_to_host_bytes,omitempty"`
 }
 
-// ServingObservation: one recipe-bound serving attempt.
+// ServingObservation defines one recipe-bound serving attempt.
 type ServingObservation struct {
 	Version       uint16                  `json:"version"`
 	Model         artifact.ID             `json:"model"`
@@ -90,7 +90,7 @@ func ParseServingObservation(content []byte) (ServingObservation, error) {
 	return servingObservationCodec.Parse(content)
 }
 
-// RequireServingObservation: validated repository read.
+// RequireServingObservation returns a validated repository record.
 func RequireServingObservation(ctx context.Context, reader artifact.Reader, id artifact.ID) (ServingObservation, error) {
 	return servingObservationCodec.Require(ctx, reader, id)
 }
@@ -111,7 +111,7 @@ func (value ServingObservation) Batch(key string) (artifact.Batch, error) {
 	return servingObservationCodec.Batch(key, value, value.Lineage(), nil)
 }
 
-// PublishServingObservation: identify and commit one serving fact.
+// PublishServingObservation identifies and commits one serving fact.
 func PublishServingObservation(ctx context.Context, repository artifact.Repository, value ServingObservation) (ServingObservation, error) {
 	if ctx == nil || repository == nil {
 		return ServingObservation{}, errors.New("run record: serving observation repository is absent")

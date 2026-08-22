@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"math"
 )
 
 const planIdentityDomain = "overgo.optimizer.plan.v2"
@@ -60,7 +61,8 @@ func CompilePlan(parameterCount int, specs []GroupSpec) (Plan, error) {
 		if spec.Start != next || spec.End < spec.Start || spec.End > parameterCount {
 			return Plan{}, fmt.Errorf("optimizer plan: group %q range [%d,%d) does not continue at %d", spec.Name, spec.Start, spec.End, next)
 		}
-		if spec.Rows <= 0 || spec.Cols <= 0 || spec.Rows > int(^uint(0)>>1)/spec.Cols || spec.Rows*spec.Cols != spec.End-spec.Start {
+		elements, valid := matrixElements(spec.Rows, spec.Cols)
+		if !valid || elements != spec.End-spec.Start {
 			return Plan{}, fmt.Errorf("optimizer plan: group %q shape %dx%d does not match range [%d,%d)", spec.Name, spec.Rows, spec.Cols, spec.Start, spec.End)
 		}
 		groups[index] = Group{GroupSpec: spec}
@@ -71,6 +73,13 @@ func CompilePlan(parameterCount int, specs []GroupSpec) (Plan, error) {
 		return Plan{}, fmt.Errorf("optimizer plan: groups cover %d of %d parameters", next, parameterCount)
 	}
 	return newPlan(parameterCount, groups), nil
+}
+
+func matrixElements(rows, cols int) (int, bool) {
+	if rows <= 0 || cols <= 0 || rows > math.MaxInt/cols {
+		return 0, false
+	}
+	return rows * cols, true
 }
 
 func newPlan(parameterCount int, groups []Group) Plan {

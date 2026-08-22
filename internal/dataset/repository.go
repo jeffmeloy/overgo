@@ -8,7 +8,7 @@ import (
 	"overgo/internal/artifact"
 )
 
-// PublicationBatch: atomic dataset document publication.
+// PublicationBatch defines atomic dataset document publication.
 func PublicationBatch(
 	key string,
 	documents []Document,
@@ -37,12 +37,12 @@ func PublicationBatch(
 	return artifact.NewDocumentBatch(key, contents, lineage, aliases)
 }
 
-// Load: resolves one inline dataset document.
+// Load resolves one inline dataset document.
 func Load(ctx context.Context, store artifact.Reader, id artifact.ID) (Document, bool, error) {
 	return documentCodec.Read(ctx, store, id)
 }
 
-// Resolve: resolves an alias to one dataset document.
+// Resolve returns the dataset document bound to an alias.
 func Resolve(ctx context.Context, store artifact.Reader, alias string) (Document, bool, error) {
 	if store == nil {
 		return Document{}, false, errors.New("dataset: nil repository")

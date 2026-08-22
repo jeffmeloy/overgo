@@ -59,7 +59,7 @@ func TestDeepSeekOCRRequiresPreprocessingMetadata(t *testing.T) {
 
 func TestDeepSeekOCRPreprocessesLocalTilesBeforeOverview(t *testing.T) {
 	spec := tinyDeepSeekOCRSpec()
-	input, err := PreprocessDeepSeekOCRImage(image.NewRGBA(image.Rect(0, 0, 128, 64)), spec)
+	input, err := preprocessDeepSeekOCRImage(image.NewRGBA(image.Rect(0, 0, 128, 64)), spec, true)
 	if err != nil {
 		t.Fatal(err)
 	}

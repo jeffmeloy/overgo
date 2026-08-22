@@ -100,6 +100,7 @@ var (
 	)
 )
 
+// CompileNumericTargetPlan binds a numeric suite to a held-out dataset view.
 func CompileNumericTargetPlan(view SFTEvaluationView, suite NumericTargetSuite) (NumericTargetPlan, error) {
 	if _, err := view.Content(); err != nil {
 		return NumericTargetPlan{}, err
@@ -126,6 +127,7 @@ func (plan NumericTargetPlan) Batch(key string) (artifact.Batch, error) {
 	return numericTargetPlanCodec.Batch(key, plan, artifact.DependencyLineage(plan.ID, plan.View), nil)
 }
 
+// ScoreNumericTargets evaluates numeric observations with declared scorers.
 func ScoreNumericTargets(plan NumericTargetPlan, observations []NumericTargetObservation) (NumericTargetReport, error) {
 	if err := numericTargetPlanCodec.ValidateIdentity(plan); err != nil || len(observations) != len(plan.Cases) {
 		return NumericTargetReport{}, errors.New("evaluation: numeric target observations differ from plan")

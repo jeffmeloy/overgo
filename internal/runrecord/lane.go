@@ -39,8 +39,7 @@ func LaneError(outcome LaneOutcome, detail string) error {
 	}
 }
 
-// LaneOutcomeOf maps nil to pass, typed lane errors to their terminal outcome,
-// and all other errors to fail.
+// LaneOutcomeOf maps an error to its terminal lane outcome.
 func LaneOutcomeOf(err error) LaneOutcome {
 	if err == nil {
 		return LanePassed

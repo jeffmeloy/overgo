@@ -152,6 +152,9 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: load model: %w", err)
 	}
+	if request.MaximumSequence <= 0 {
+		request.MaximumSequence = model.Dims.ContextLength
+	}
 	muonPlan, err := model.TrainingPlan()
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: compile optimizer plan: %w", err)

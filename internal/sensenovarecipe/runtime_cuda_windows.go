@@ -49,10 +49,8 @@ func ValidateGenerationRequest(request GenerationRequest) error {
 	return nil
 }
 
-func GenerationSessionPolicy(request GenerationRequest) (string, error) {
-	if err := ValidateGenerationRequest(request); err != nil {
-		return "", err
-	}
+// SessionKey identifies reusable resident state for the request.
+func (request GenerationRequest) SessionKey() (string, error) {
 	prompt := sha256.Sum256([]byte(request.Prompt))
 	return fmt.Sprintf("%dx%d/%d/%x", request.Width, request.Height, request.Steps, prompt), nil
 }

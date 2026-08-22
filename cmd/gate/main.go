@@ -254,22 +254,14 @@ type gateStep struct {
 
 func (g *gateContext) pipelineSteps() []gateStep {
 	return []gateStep{
-		{"protection", runrecord.PhaseValidate, g.stepProtection},
-		{"scope", runrecord.PhaseValidate, g.stepScope},
-		{"profile", runrecord.PhaseValidate, g.stepProfile},
-		{"acceptance", runrecord.PhaseTest, g.stepAcceptance},
-		{"fmt", runrecord.PhaseValidate, g.stepFmt},
-		{"style", runrecord.PhaseValidate, g.stepStyle},
-		{"vet", runrecord.PhaseVet, g.stepVet},
-		{"build", runrecord.PhaseBuild, g.stepBuild},
-		{"test", runrecord.PhaseTest, g.stepTest},
-		{"manifest", runrecord.PhaseValidate, g.stepManifest},
-		{"sbom", runrecord.PhaseValidate, g.stepSBOM},
-		{"claims", runrecord.PhaseValidate, g.stepClaims},
-		{"docs", runrecord.PhaseValidate, g.stepDocumentation},
-		{"magics", runrecord.PhaseValidate, g.stepMagics},
-		{"device", runrecord.PhaseTest, g.stepDevice},
-		{"commit", runrecord.PhasePackage, g.stepCommit},
+		{"protection", runrecord.PhaseValidate, g.stepProtection}, {"scope", runrecord.PhaseValidate, g.stepScope},
+		{"profile", runrecord.PhaseValidate, g.stepProfile}, {"fmt", runrecord.PhaseValidate, g.stepFmt},
+		{"style", runrecord.PhaseValidate, g.stepStyle}, {"manifest", runrecord.PhaseValidate, g.stepManifest},
+		{"sbom", runrecord.PhaseValidate, g.stepSBOM}, {"claims", runrecord.PhaseValidate, g.stepClaims},
+		{"docs", runrecord.PhaseValidate, g.stepDocumentation}, {"magics", runrecord.PhaseValidate, g.stepMagics},
+		{"acceptance", runrecord.PhaseTest, g.stepAcceptance}, {"vet", runrecord.PhaseVet, g.stepVet},
+		{"build", runrecord.PhaseBuild, g.stepBuild}, {"test", runrecord.PhaseTest, g.stepTest},
+		{"device", runrecord.PhaseTest, g.stepDevice}, {"commit", runrecord.PhasePackage, g.stepCommit},
 	}
 }
 
@@ -280,7 +272,7 @@ func (g *gateContext) pipeline() error {
 	// prior identical-tree success (the retry-loop tax: a failed commit step
 	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
 	// always run; commit is never cached.
-	cacheable := map[string]bool{"vet": true, "build": true, "test": true, "manifest": true, "sbom": true, "claims": true}
+	cacheable := map[string]bool{"vet": true, "build": true, "test": true}
 	for _, s := range steps {
 		began := time.Now()
 		fmt.Fprintf(os.Stderr, gateProgressLine, s.name, runrecord.HeartbeatRunning)
@@ -776,21 +768,14 @@ func (g *gateContext) phaseInputFingerprint(phase string) (string, error) {
 		}
 		g.cachePaths = paths
 	}
-	var evidence map[string]bool
-	if phase == "claims" {
-		evidence, err = compatibilityEvidencePaths(g.repo)
-		if err != nil {
-			return "", err
-		}
-	}
-	return fingerprintPhaseInputs(g.repo, phase, paths, evidence)
+	return fingerprintPhaseInputs(g.repo, phase, paths)
 }
 
-func fingerprintPhaseInputs(root, phase string, paths []string, claimEvidence map[string]bool) (string, error) {
+func fingerprintPhaseInputs(root, phase string, paths []string) (string, error) {
 	var selected []string
 	for _, path := range paths {
 		path = filepath.ToSlash(path)
-		if phaseOwnsPath(phase, path, claimEvidence) {
+		if phaseOwnsPath(phase, path) {
 			selected = append(selected, path)
 		}
 	}
@@ -813,7 +798,7 @@ func fingerprintPhaseInputs(root, phase string, paths []string, claimEvidence ma
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-func phaseOwnsPath(phase, path string, claimEvidence map[string]bool) bool {
+func phaseOwnsPath(phase, path string) bool {
 	goSource := path == "go.mod" || path == "go.sum" || strings.HasSuffix(path, ".go")
 	goInput := goSource ||
 		(strings.HasPrefix(path, "internal/") || strings.HasPrefix(path, "cmd/")) && !strings.HasSuffix(path, ".md")
@@ -822,44 +807,9 @@ func phaseOwnsPath(phase, path string, claimEvidence map[string]bool) bool {
 		return goInput
 	case "test":
 		return goInput || path == "README.md" || strings.HasPrefix(path, "docs/") && path != plan.Path
-	case "manifest":
-		return goSource || strings.HasPrefix(path, "kernels/") || strings.HasPrefix(path, "cmd/kernel-") ||
-			strings.HasPrefix(path, "internal/cuda/executor/")
-	case "sbom":
-		return goSource || path == "SBOM.cdx.json" || strings.HasPrefix(path, "cmd/sbom/")
-	case "claims":
-		return goSource || path == "compatibility.json" || path == "docs/COMPATIBILITY.md" ||
-			strings.HasPrefix(path, "cmd/compatibility/") || claimEvidence[path]
 	default:
 		return false
 	}
-}
-
-func compatibilityEvidencePaths(root string) (map[string]bool, error) {
-	raw, err := os.ReadFile(filepath.Join(root, "compatibility.json"))
-	if errors.Is(err, os.ErrNotExist) {
-		return map[string]bool{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var document struct {
-		Claims []struct {
-			Evidence []struct {
-				Path string `json:"path"`
-			} `json:"evidence"`
-		} `json:"claims"`
-	}
-	if err := json.Unmarshal(raw, &document); err != nil {
-		return nil, err
-	}
-	paths := map[string]bool{}
-	for _, claim := range document.Claims {
-		for _, evidence := range claim.Evidence {
-			paths[filepath.ToSlash(evidence.Path)] = true
-		}
-	}
-	return paths, nil
 }
 
 func discoverEnvironment(repo string) (runrecord.Environment, error) {

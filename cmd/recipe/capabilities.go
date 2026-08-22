@@ -75,7 +75,7 @@ func sessionExecutor[Input, Model, Output any](
 func thoughtBankCapability() capability {
 	director, err := capabilityruntime.NewModelSessionDirector[thoughtbank.GenerateRequest, *thoughtbank.Generator, thoughtbank.Generation](
 		"generation", "host", recipe.SessionRequestCapacity,
-		thoughtbank.ValidateGenerateRequest, thoughtbank.GenerationSessionPolicy,
+		thoughtbank.ValidateGenerateRequest,
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ thoughtbank.GenerateRequest) (*thoughtbank.Generator, error) {
 			return thoughtbank.LoadGenerator(path)
 		},

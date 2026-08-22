@@ -305,8 +305,8 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count, err := rebindUnchangedClosures(root, "store", snapshot); err != nil || count != len(triage.Rows) {
-		t.Fatalf("rebound documents = (%d, %v)", count, err)
+	if count, unmatched, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot); err != nil || count != len(triage.Rows) || unmatched != 0 {
+		t.Fatalf("rebound documents = (%d, unmatched=%d, %v)", count, unmatched, err)
 	}
 	candidates, err = closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateConstants)
 	if err != nil {
@@ -336,8 +336,8 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if retained, err := retireOrphanAliases(root, "store", snapshot); err != nil || retained != nil {
-		t.Fatalf("retired live bindings = (%d, %v)", len(retained), err)
+	if _, _, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot); err != nil {
+		t.Fatalf("retain live bindings: %v", err)
 	}
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
@@ -346,8 +346,8 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if retired, err := retireOrphanAliases(root, "store", snapshot); err != nil || len(retired) != 1 {
-		t.Fatalf("retired bindings = (%d, %v)", len(retired), err)
+	if _, _, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot); err != nil {
+		t.Fatalf("retire orphan bindings: %v", err)
 	}
 	store, err = repodb.OpenReadOnly(filepath.Join(root, "store"))
 	if err != nil {
@@ -356,6 +356,60 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	defer store.Close()
 	if _, found, err := artifact.ResolveAlias(context.Background(), store, mustActiveAlias(t, binding)); err != nil || found {
 		t.Fatalf("retired binding resolves = (%t, %v)", found, err)
+	}
+}
+
+func TestPrepareMergeImportsClosureEvidence(t *testing.T) {
+	root := t.TempDir()
+	relative := "internal/sample/policy.go"
+	path := filepath.Join(root, filepath.FromSlash(relative))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("package sample\nconst RequestLimit = 7\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateConstants)
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("candidates=%d err=%v", len(candidates), err)
+	}
+	candidate := candidates[0]
+	triage := triageFile{Rows: []triageRow{{
+		Kind: candidate.Kind, Name: candidate.Name, File: candidate.File, Scope: candidate.Scope, Line: candidate.Line,
+		Tier: string(closureledger.TierImplementation), Status: string(closureledger.StatusClosed),
+		Understanding: "Request admission bound.", ClosurePath: "Typed request policy.",
+		RerankTrigger: "Request admission contract change.",
+	}}}
+	encoded, err := json.Marshal(triage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	triagePath := filepath.Join(root, "triage.json")
+	if err := os.WriteFile(triagePath, encoded, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := emit(root, "source", triagePath, candidates); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	count, unmatched, err := importClosureDocuments(root, "target", filepath.Join(root, "source"), snapshot)
+	if err != nil || count != 1 || unmatched != 0 {
+		t.Fatalf("import=(%d, unmatched=%d, %v)", count, unmatched, err)
+	}
+	target, err := repodb.OpenReadOnly(filepath.Join(root, "target"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	binding, err := candidate.Binding()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := closureledger.ResolveActiveBinding(t.Context(), target, binding, candidate.ValueJSON()); err != nil || !found {
+		t.Fatalf("imported binding=(%t, %v)", found, err)
 	}
 }
 

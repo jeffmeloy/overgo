@@ -60,3 +60,18 @@ func TestGateRunsAcceptanceBeforeExpensivePhases(t *testing.T) {
 		}
 	}
 }
+
+func TestMergeGateRunsAuthorityPreflightBeforeBroadTests(t *testing.T) {
+	steps := (&gateContext{}).pipelineSteps()
+	positions := make(map[string]int, len(steps))
+	for index, step := range steps {
+		positions[step.name] = index
+	}
+	for _, authority := range []string{"fmt", "style", "manifest", "sbom", "claims", "docs", "magics"} {
+		for _, expensive := range []string{"acceptance", "vet", "build", "test", "device"} {
+			if positions[authority] >= positions[expensive] {
+				t.Fatalf("authority step %s at %d follows %s at %d", authority, positions[authority], expensive, positions[expensive])
+			}
+		}
+	}
+}

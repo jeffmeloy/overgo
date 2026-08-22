@@ -1107,13 +1107,13 @@
      "contains": "func LoadGenerator(",
      "path": "internal/sensenovarecipe/runtime_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:24e17b397affc815a0357b41c6753093b5903078909c508d2ab5d762b5b5bdd2"
+     "identity": "file:sha256:74a8478dfe30d46959267c0dbba8590748625ef066ad7c069f206e073c9df342"
     },
     {
-     "contains": "capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed}",
+     "contains": "modelrecipe.ModuleRoutedImagePrepare:     routed,",
      "path": "cmd/recipe/image_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:d8da243093ada23c0fec4636f394722128aaab8d904c73ed2e70980416136d29"
+     "identity": "file:sha256:de732ef838febf58012ddffbd8d6c29c85cf88a4d4bb0898e31f1c986624872c"
     },
     {
      "contains": "func TestSenseNovaProductionImageGeneration(",

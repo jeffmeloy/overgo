@@ -41,9 +41,9 @@ func imageCapability() capability {
 			inventory, err := imageGenInventory(path)
 			return definitionSource(inventory, err, modelrecipe.OscillatorImageDefinition)
 		},
-		execute: capabilityruntime.Dispatch(
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleDiffusionImagePrepare, Execute: diffusion},
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleOscillatorImagePrepare, Execute: oscillator},
-		),
+		execute: capabilityruntime.ExecutorCatalog{
+			modelrecipe.ModuleDiffusionImagePrepare:  diffusion,
+			modelrecipe.ModuleOscillatorImagePrepare: oscillator,
+		}.Execute,
 	}
 }

@@ -187,6 +187,20 @@ func TestBuilderBroadcastWeightedNormAndSwiGLU(t *testing.T) {
 	}
 }
 
+func TestBuilderAdaptiveShiftScale(t *testing.T) {
+	builder := NewBuilder()
+	input := builder.Input("input", dtype.F32, MustShape(4, 3))
+	shift := builder.Input("shift", dtype.F32, MustShape(4))
+	scale := builder.Input("scale", dtype.F32, MustShape(4))
+	output := builder.AdaptiveShiftScale(input, shift, scale)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if output.Op != OpAdd || output.Inputs[0].Op != OpAdd || output.Inputs[0].Inputs[1].Op != OpMultiply {
+		t.Fatalf("unexpected adaptive modulation graph ending in %s", output.Op)
+	}
+}
+
 func TestBuilderAffineLayerNorm(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(4, 2))

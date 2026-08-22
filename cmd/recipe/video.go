@@ -32,8 +32,8 @@ func videoCapability() capability {
 			inventory, err := imageGenInventory(path)
 			return definitionSource(inventory, err, modelrecipe.OscillatorVideoDefinition)
 		},
-		execute: capabilityruntime.Dispatch(
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleOscillatorVideoPrepare, Execute: execute},
-		),
+		execute: capabilityruntime.ExecutorCatalog{
+			modelrecipe.ModuleOscillatorVideoPrepare: execute,
+		}.Execute,
 	}
 }

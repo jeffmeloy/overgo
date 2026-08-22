@@ -29,7 +29,7 @@ const (
 func imageCapability() capability {
 	routedDirector, routedErr := capabilityruntime.NewModelSessionDirector[sensenovarecipe.GenerationRequest, *sensenovarecipe.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
-		sensenovarecipe.ValidateGenerationRequest, sensenovarecipe.GenerationSessionPolicy,
+		sensenovarecipe.ValidateGenerationRequest,
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ sensenovarecipe.GenerationRequest) (*sensenovarecipe.Generator, error) {
 			return sensenovarecipe.LoadGenerator(path)
 		},
@@ -41,7 +41,7 @@ func imageCapability() capability {
 	routed := sessionExecutor(routedDirector, routedErr)
 	latentDirector, err := capabilityruntime.NewModelSessionDirector[latentimage.Request, *latentimage.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
-		latentimage.ValidateRequest, latentimage.SessionPolicy,
+		latentimage.ValidateRequest,
 		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentimage.Request) (*latentimage.Generator, error) {
 			profileID, ok := program.Definition().PrimaryDependency(recipe.DependencyProfile)
 			if !ok {
@@ -65,7 +65,7 @@ func imageCapability() capability {
 	)
 	diffusionDirector, diffusionErr := capabilityruntime.NewModelSessionDirector[diffusionimage.Request, *diffusionimage.ResidentGenerator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
-		diffusionimage.ValidateRequest, diffusionimage.SessionPolicy,
+		diffusionimage.ValidateRequest,
 		func(ctx context.Context, _ artifact.Repository, path string, _ recipe.Program, request diffusionimage.Request) (*diffusionimage.ResidentGenerator, error) {
 			return diffusionimage.LoadResidentGenerator(ctx, path, request)
 		},
@@ -77,12 +77,12 @@ func imageCapability() capability {
 	diffusion := sessionExecutor(diffusionDirector, diffusionErr)
 	return capability{
 		resolve: resolveImageSource,
-		execute: capabilityruntime.Dispatch(
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleRoutedImagePrepare, Execute: routed},
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleLatentImagePrepare, Execute: latent},
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleOscillatorImagePrepare, Execute: oscillator},
-			capabilityruntime.ExecutorBinding{Module: modelrecipe.ModuleDiffusionImagePrepare, Execute: diffusion},
-		),
+		execute: capabilityruntime.ExecutorCatalog{
+			modelrecipe.ModuleRoutedImagePrepare:     routed,
+			modelrecipe.ModuleLatentImagePrepare:     latent,
+			modelrecipe.ModuleOscillatorImagePrepare: oscillator,
+			modelrecipe.ModuleDiffusionImagePrepare:  diffusion,
+		}.Execute,
 	}
 }
 

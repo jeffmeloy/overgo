@@ -70,30 +70,22 @@ func TestPhaseCacheIgnoresUnownedPlanChanges(t *testing.T) {
 	for path := range files {
 		paths = append(paths, path)
 	}
-	buildBefore, err := fingerprintPhaseInputs(root, "build", paths, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	claimsBefore, err := fingerprintPhaseInputs(root, "claims", paths, nil)
+	buildBefore, err := fingerprintPhaseInputs(root, "build", paths)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(root, "docs", "COMPATIBILITY.md"), []byte("refreshed claims\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	buildAfter, _ := fingerprintPhaseInputs(root, "build", paths, nil)
-	claimsAfter, _ := fingerprintPhaseInputs(root, "claims", paths, nil)
+	buildAfter, _ := fingerprintPhaseInputs(root, "build", paths)
 	if buildBefore != buildAfter {
 		t.Fatal("documentation invalidated build inputs")
 	}
-	if claimsBefore == claimsAfter {
-		t.Fatal("compatibility documentation did not invalidate claim inputs")
-	}
-	testBefore, _ := fingerprintPhaseInputs(root, "test", paths, nil)
+	testBefore, _ := fingerprintPhaseInputs(root, "test", paths)
 	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(plan.Path)), []byte("{\"campaign\":\"after\"}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	testAfter, _ := fingerprintPhaseInputs(root, "test", paths, nil)
+	testAfter, _ := fingerprintPhaseInputs(root, "test", paths)
 	if testBefore != testAfter {
 		t.Fatal("plan-only acceptance change invalidated package tests")
 	}

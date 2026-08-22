@@ -77,21 +77,6 @@ func ReadHunyuanVLSpec(file *gguf.File) (HunyuanVLSpec, error) {
 	return spec, nil
 }
 
-func optionalMetadataUint32(file *gguf.File, key string) (uint32, bool, error) {
-	value, ok := file.MetadataValue(key)
-	if !ok {
-		return 0, false, nil
-	}
-	if value.Type != gguf.ValueTypeUint32 {
-		return 0, false, fmt.Errorf("projector: metadata %q must be uint32", key)
-	}
-	result, ok := value.Data.(uint32)
-	if !ok {
-		return 0, false, fmt.Errorf("projector: metadata %q has invalid storage", key)
-	}
-	return result, true, nil
-}
-
 func (s HunyuanVLSpec) validate() error {
 	if err := s.visionBackboneSpec.validate(); err != nil {
 		return err

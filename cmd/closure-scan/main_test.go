@@ -41,6 +41,26 @@ func TestConfigurationClosureGates(t *testing.T) {
 	}
 }
 
+func TestRepositoryGoStyleTests(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := repoanalysis.DiscoverGo(root, "cmd", "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sites, err := closurescan.CensusTestLiterals(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, site := range sites {
+		if site.File == "cmd/benchmark/main_test.go" && site.Class == closurescan.TestPolicyCopy {
+			t.Errorf("%s:%d copies production policy %s", site.File, site.Line, site.Value)
+		}
+	}
+}
+
 func TestCensusReportIsDeterministicAndComplete(t *testing.T) {
 	snapshot := censusSnapshot(t)
 	first, err := closurescan.BuildCensus(snapshot)

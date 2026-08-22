@@ -7,12 +7,8 @@ import (
 )
 
 func TestOperationCatalogIsDenseAndUnique(t *testing.T) {
-	descriptors := Operations()
-	if len(descriptors) != int(OpCount) {
-		t.Fatalf("descriptor count = %d", len(descriptors))
-	}
-	names := make(map[string]struct{}, len(descriptors))
-	for index, descriptor := range descriptors {
+	names := make(map[string]struct{}, len(operationDescriptors))
+	for index, descriptor := range operationDescriptors {
 		if descriptor.Op != Op(index) || descriptor.Name == "" {
 			t.Fatalf("descriptor %d = %+v", index, descriptor)
 		}

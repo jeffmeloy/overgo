@@ -392,13 +392,13 @@
      "contains": "func NewAudioProjectionProfile(",
      "path": "internal/projector/audio_profile.go",
      "role": "source",
-     "identity": "file:sha256:4d846b4e68c91b51a68f5052caf91a4962e1dcc4313c79df1959c8b2b49c6fc3"
+     "identity": "file:sha256:40ffff5cbbca3ded8eca5e8c35ecd9f62df141c9218ba24dcff35bcfb1dd9d96"
     },
     {
      "contains": "func TestAudioProjectionProfileRoundTrip(",
      "path": "internal/projector/audio_profile_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1a154acc46059df8420b3c4cf7e008edf59e61cbf62461b18b98994ee0f1bfa1"
+     "identity": "evidence:sha256:45034c99b2dc0554c0181b09d47b0a8d5ea67fe9d247c5a4a0cc98ecde10c238"
     }
    ],
    "id": "audio-projection-profile",
@@ -520,13 +520,13 @@
      "contains": "func DescribeOperation(",
      "path": "internal/tensor/operation.go",
      "role": "source",
-     "identity": "file:sha256:0353ded6c18f7300acd01b2a3dfac07e16e9c4618d7755464d51390ad1869557"
+     "identity": "file:sha256:abdc73e63895664be46b5dcbae0c46ff523b3eaff44a7ccdfa4655e4e45999a5"
     },
     {
      "contains": "func TestOperationCatalogIsDenseAndUnique(",
      "path": "internal/tensor/operation_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:17aa538899344181d8c22440447775488c1875ddf9ac5e27cca3b70dda3d4d15"
+     "identity": "evidence:sha256:9051d1963c5e8b6d51e6877ac77e080109416ba427ae2f603db5194e9118e4de"
     }
    ],
    "id": "tensor-operation-catalog",

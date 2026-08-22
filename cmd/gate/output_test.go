@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/automationcheck"
 	"overgo/internal/codeprofile"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
@@ -93,5 +94,22 @@ func TestMergeGateRunsAuthorityPreflightBeforeBroadTests(t *testing.T) {
 				t.Fatalf("authority step %s at %d follows %s at %d", authority, positions[authority], expensive, positions[expensive])
 			}
 		}
+	}
+}
+
+func TestModularPipelineDeclaresApplicabilityAndResources(t *testing.T) {
+	checks := (&gateContext{repo: t.TempDir(), paths: []string{"internal/cuda/kernel/load.go"}}).pipelineChecks()
+	byName := make(map[string]automationcheck.Descriptor, len(checks))
+	for _, check := range checks {
+		byName[check.Descriptor.Name] = check.Descriptor
+	}
+	for _, name := range []string{"manifest", "sbom", "claims", "device"} {
+		if len(byName[name].Triggers) == 0 || byName[name].Inapplicable == "" {
+			t.Errorf("%s lacks modular applicability: %+v", name, byName[name])
+		}
+	}
+	resources := byName["device"].Resources
+	if len(resources) != 1 || resources[0].Name != "device" || !resources[0].Exclusive {
+		t.Fatalf("device resources = %+v", resources)
 	}
 }

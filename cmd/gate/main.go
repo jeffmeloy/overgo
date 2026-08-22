@@ -288,19 +288,19 @@ func (g *gateContext) pipeline() error {
 	for _, check := range checks {
 		name := check.Check.Name
 		fmt.Fprintf(os.Stderr, gateProgressLine, name, runrecord.HeartbeatRunning)
-		var skipped bool
 		var evidence automationcheck.Evidence
-		input := ""
+		var reused bool
+		var input artifact.ID
 		if cacheable[name] {
 			input, err = g.phaseInputFingerprint(name)
 		}
-		cached := cache.Steps[name]
-		if err == nil && cached.Input == input && cached.Outcome == string(runrecord.StepSucceeded) {
-			skipped = true
-			g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
+		if err == nil && cacheable[name] {
+			evidence, reused, err = cache.RunCached(context.Background(), check, input)
+			if reused {
+				g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
+			}
 		} else if err == nil {
 			evidence, err = automationcheck.Run(context.Background(), check)
-			skipped = evidence.Skipped
 		}
 		duration := max(evidence.DurationNS, uint64(1))
 		record := runrecord.GateStep{
@@ -313,12 +313,11 @@ func (g *gateContext) pipeline() error {
 		switch {
 		case err != nil:
 			record.Outcome = runrecord.StepFailed
-		case skipped:
+		case evidence.Skipped:
 			record.Outcome = runrecord.StepSkipped
 		}
 		g.steps = append(g.steps, record)
-		if err == nil && cacheable[name] && !skipped {
-			cache.Steps[name] = phaseCache{Input: input, Outcome: string(runrecord.StepSucceeded)}
+		if err == nil && cacheable[name] && !reused {
 			g.saveRetryCache(cache)
 		}
 		if err != nil {
@@ -684,49 +683,35 @@ func (g *gateContext) treeStateKey() (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-type phaseCache struct {
-	Input   string `json:"input"`
-	Outcome string `json:"outcome"`
-}
-
-type retryCache struct {
-	Environment string                `json:"environment"`
-	Steps       map[string]phaseCache `json:"steps"`
-}
-
-func (g *gateContext) loadRetryCache() retryCache {
-	empty := retryCache{Environment: g.environment.ID.String(), Steps: map[string]phaseCache{}}
-	var cache retryCache
-	if readJSON(g.repo, gateRetryFile, &cache) != nil || !retryReusable(cache, empty.Environment) {
+func (g *gateContext) loadRetryCache() automationcheck.EvidenceCache {
+	empty := automationcheck.NewEvidenceCache(g.environment.ID)
+	var cache automationcheck.EvidenceCache
+	if readJSON(g.repo, gateRetryFile, &cache) != nil || !cache.Reusable(g.environment.ID) {
 		return empty
 	}
 	return cache
 }
 
-func (g *gateContext) saveRetryCache(cache retryCache) {
-	if cache.Environment != "" {
+func (g *gateContext) saveRetryCache(cache automationcheck.EvidenceCache) {
+	if cache.Environment.Valid() {
 		_ = writeJSON(g.repo, gateRetryFile, cache, 0o644)
 	}
 }
 
-func retryReusable(cache retryCache, environment string) bool {
-	return cache.Environment == environment && cache.Steps != nil
-}
-
-func (g *gateContext) phaseInputFingerprint(phase string) (string, error) {
+func (g *gateContext) phaseInputFingerprint(phase string) (artifact.ID, error) {
 	paths := g.cachePaths
 	var err error
 	if paths == nil {
 		paths, err = gitLines(g.repo, "ls-files", "-co", "--exclude-standard")
 		if err != nil {
-			return "", err
+			return artifact.ID{}, err
 		}
 		g.cachePaths = paths
 	}
 	return fingerprintPhaseInputs(g.repo, phase, paths)
 }
 
-func fingerprintPhaseInputs(root, phase string, paths []string) (string, error) {
+func fingerprintPhaseInputs(root, phase string, paths []string) (artifact.ID, error) {
 	var selected []string
 	for _, path := range paths {
 		path = filepath.ToSlash(path)
@@ -745,12 +730,12 @@ func fingerprintPhaseInputs(root, phase string, paths []string) (string, error) 
 			continue
 		}
 		if err != nil {
-			return "", err
+			return artifact.ID{}, err
 		}
 		hasher.Write(data)
 		hasher.Write([]byte{0})
 	}
-	return hex.EncodeToString(hasher.Sum(nil)), nil
+	return artifact.IdentifyBytes(artifact.KindEvidence, hasher.Sum(nil))
 }
 
 func phaseOwnsPath(phase, path string) bool {

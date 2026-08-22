@@ -15,10 +15,8 @@ type ResidentGenerator struct {
 	width   int
 }
 
-func SessionPolicy(request Request) (string, error) {
-	if err := ValidateRequest(request); err != nil {
-		return "", err
-	}
+// SessionKey identifies reusable resident state for the request.
+func (request Request) SessionKey() (string, error) {
 	return fmt.Sprintf("f32:%dx%d", request.Height, request.Width), nil
 }
 

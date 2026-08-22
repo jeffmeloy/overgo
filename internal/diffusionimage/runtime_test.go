@@ -4,16 +4,16 @@ import (
 	"testing"
 )
 
-func TestResidentSessionPolicyUsesOnlyCompiledGeometry(t *testing.T) {
-	first, err := SessionPolicy(Request{Seed: 7, Steps: 2, Height: 64, Width: 64})
+func TestResidentSessionKeyUsesOnlyCompiledGeometry(t *testing.T) {
+	first, err := (Request{Seed: 7, Steps: 2, Height: 64, Width: 64}).SessionKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := SessionPolicy(Request{Seed: 99, Steps: 8, Height: 64, Width: 64})
+	second, err := (Request{Seed: 99, Steps: 8, Height: 64, Width: 64}).SessionKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := SessionPolicy(Request{Seed: 7, Steps: 2, Height: 32, Width: 64})
+	other, err := (Request{Seed: 7, Steps: 2, Height: 32, Width: 64}).SessionKey()
 	if err != nil {
 		t.Fatal(err)
 	}

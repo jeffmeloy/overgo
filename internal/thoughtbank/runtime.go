@@ -39,7 +39,8 @@ func ValidateGenerateRequest(request GenerateRequest) error {
 	return nil
 }
 
-func GenerationSessionPolicy(GenerateRequest) (string, error) { return "thoughtbank-host", nil }
+// SessionKey identifies reusable resident state for the request.
+func (GenerateRequest) SessionKey() (string, error) { return "thoughtbank-host", nil }
 
 func LoadGenerator(directory string) (*Generator, error) {
 	weights, config, err := LoadCheckpoint(filepath.Join(directory, "model.pt"))

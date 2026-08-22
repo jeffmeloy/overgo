@@ -18,6 +18,11 @@ type sessionKey struct {
 	device, policy           string
 }
 
+// SessionInput identifies request state that controls resident compatibility.
+type SessionInput interface {
+	SessionKey() (string, error)
+}
+
 type sessionEntry[Model any] struct {
 	mu        sync.Mutex
 	model     Model
@@ -180,17 +185,16 @@ func (c *ModelSessionDirector[Input, Model, Output]) Snapshot() SessionSnapshot 
 	}
 }
 
-func NewModelSessionDirector[Input, Model, Output any](
+func NewModelSessionDirector[Input SessionInput, Model, Output any](
 	name, device string,
 	capacity int,
 	validate func(Input) error,
-	policy func(Input) (string, error),
 	load func(context.Context, artifact.Repository, string, recipe.Program, Input) (Model, error),
 	reset func(context.Context, Model, Input) error,
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
 ) (*ModelSessionDirector[Input, Model, Output], error) {
 	return newModelSessionDirector[Input, Model, Output](
-		name, device, capacity, validate, policy, load, reset, bind,
+		name, device, capacity, validate, func(input Input) (string, error) { return input.SessionKey() }, load, reset, bind,
 		func(input Input, content artifact.Content, definition recipe.Definition) (map[recipe.PortName]workflowruntime.Value, error) {
 			if len(definition.Inputs) != 1 {
 				return nil, errors.New("capability runtime: scalar program identity differs")
@@ -250,11 +254,10 @@ type MappedInput struct {
 }
 
 // NewMappedModelSessionDirector: multi-input session authority.
-func NewMappedModelSessionDirector[Input, Model, Output any](
+func NewMappedModelSessionDirector[Input SessionInput, Model, Output any](
 	name, device string,
 	capacity int,
 	validate func(Input) error,
-	policy func(Input) (string, error),
 	load func(context.Context, artifact.Repository, string, recipe.Program, Input) (Model, error),
 	reset func(context.Context, Model, Input) error,
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
@@ -264,7 +267,7 @@ func NewMappedModelSessionDirector[Input, Model, Output any](
 		return nil, errors.New("capability runtime: input mapper is nil")
 	}
 	return newModelSessionDirector[Input, Model, Output](
-		name, device, capacity, validate, policy, load, reset, bind,
+		name, device, capacity, validate, func(input Input) (string, error) { return input.SessionKey() }, load, reset, bind,
 		func(input Input, _ artifact.Content, definition recipe.Definition) (map[recipe.PortName]workflowruntime.Value, error) {
 			mapped, err := mapInputs(input)
 			if err != nil {

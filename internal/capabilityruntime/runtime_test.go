@@ -19,6 +19,8 @@ type scalarRequest struct {
 	Value int `json:"value"`
 }
 
+func (scalarRequest) SessionKey() (string, error) { return "shape:scalar", nil }
+
 type concurrentScalarModel struct {
 	bias    int
 	entered chan<- struct{}
@@ -45,7 +47,6 @@ func TestModelSessionDirectorConcurrentKeys(t *testing.T) {
 			}
 			return nil
 		},
-		func(scalarRequest) (string, error) { return "shape:scalar", nil },
 		func(_ context.Context, _ artifact.Repository, _ string, _ recipe.Program, request scalarRequest) (*concurrentScalarModel, error) {
 			return &concurrentScalarModel{bias: request.Value, entered: entered, release: release, closed: &closed}, nil
 		},
@@ -221,7 +222,6 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 			}
 			return nil
 		},
-		func(scalarRequest) (string, error) { return "shape:scalar", nil },
 		func(_ context.Context, _ artifact.Repository, _ string, _ recipe.Program, request scalarRequest) (*cachedScalarModel, error) {
 			loads++
 			return &cachedScalarModel{bias: request.Value, closed: &closes}, nil
@@ -303,6 +303,8 @@ type mappedVideoRequest struct {
 	Source    int `json:"source"`
 }
 
+func (mappedVideoRequest) SessionKey() (string, error) { return "video:1x1", nil }
+
 type mappedVideoModel struct {
 	runs   int
 	closed *int
@@ -370,7 +372,6 @@ func TestVideoProductionActivation(t *testing.T) {
 			}
 			return nil
 		},
-		func(mappedVideoRequest) (string, error) { return "video:1x1", nil },
 		func(context.Context, artifact.Repository, string, recipe.Program, mappedVideoRequest) (*mappedVideoModel, error) {
 			loads++
 			return &mappedVideoModel{closed: &closes}, nil

@@ -176,12 +176,12 @@
     {
       "id": "gate-generalization-device-impact",
       "title": "Derive device verification from kernel and function ownership",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Derive device verification from kernel and function ownership",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./cmd/device-lane ./internal/automationcheck -run 'TestDevice(FunctionImpact|ConservativeFallback|Plan)' -count=1"
         }
       ]

@@ -11,13 +11,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"maps"
 	"os"
-	"slices"
 	"strings"
 	"time"
 	"unicode"
 
+	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
 	"overgo/internal/runrecord"
 )
@@ -38,7 +37,11 @@ func main() {
 func run() error {
 	start := time.Now()
 	paths := splitPaths(*pathsFlag)
-	steps := deviceSteps(paths)
+	plan, err := automationcheck.DevicePlan(".", paths)
+	if err != nil {
+		return err
+	}
+	steps := deviceSteps(plan)
 	steps = append([][]string{{"go", "run", "./cmd/cuda-info"}}, steps...)
 	for index, step := range steps {
 		began := time.Now()
@@ -58,10 +61,10 @@ func run() error {
 		}
 	}
 	fmt.Printf("=== DEVICE LANE GREEN in %.1fs ===\n", time.Since(start).Seconds())
-	if len(paths) == 0 {
-		fmt.Println("honesty: device scope=full")
+	if plan.Full {
+		fmt.Printf("honesty: device scope=full reason=%s\n", plan.Reason)
 	} else {
-		fmt.Printf("honesty: device scope=changed-paths(%d)\n", len(paths))
+		fmt.Printf("honesty: device scope=packages(%d) functions(%d)\n", len(plan.Packages), len(plan.Functions))
 	}
 	return nil
 }
@@ -88,27 +91,16 @@ func deviceProgress(step []string, index, total int, elapsed time.Duration) stri
 	return fmt.Sprintf("[device] phase=%d/%d heartbeat=running elapsed=%.1fs command=%s", index+1, total, elapsed.Seconds(), strings.Join(step, " "))
 }
 
-func deviceSteps(paths []string) [][]string {
+func deviceSteps(plan automationcheck.DeviceVerificationPlan) [][]string {
 	steps := [][]string{{"go", "run", "./cmd/cuda-smoke"}}
-	if len(paths) == 0 {
+	if plan.Full {
 		return append(steps,
 			deviceTestStep("./internal/cuda/...", "./internal/model", "./internal/projector", "./internal/optimizer", "./internal/devicemath"),
 			deviceTestStep("-run", "Device", "./internal/densecausal"))
 	}
-	packages := map[string]bool{}
-	for _, path := range paths {
-		parts := strings.Split(path, "/")
-		switch {
-		case strings.HasPrefix(path, "kernels/") || strings.HasPrefix(path, "internal/cuda/"):
-			packages["./internal/cuda/..."] = true
-		case len(parts) > 2 && parts[0] == "internal":
-			packages["./internal/"+parts[1]] = true
-		}
-	}
-	ordered := slices.Sorted(maps.Keys(packages))
-	if len(ordered) > 0 {
+	if len(plan.Packages) > 0 {
 		// One device owner: package concurrency invalidates wall and peak ratchets.
-		steps = append(steps, deviceTestStep(ordered...))
+		steps = append(steps, deviceTestStep(plan.Packages...))
 	}
 	return steps
 }

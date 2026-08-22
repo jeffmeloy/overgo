@@ -115,43 +115,6 @@ func ValidateOpenWork(d Plan) error {
 	return nil
 }
 
-// Compact drops completed rows and normalizes partial rows back to open work.
-func Compact(d Plan) Plan {
-	items := d.Items[:0]
-	for _, item := range d.Items {
-		if item.Status == "done" {
-			continue
-		}
-		steps := item.Steps[:0]
-		for _, step := range item.Steps {
-			if step.Status == "done" {
-				continue
-			}
-			if step.Status == "partial" {
-				if strings.HasPrefix(item.Status, "blocked") {
-					step.Status = item.Status
-				} else {
-					step.Status = "open"
-				}
-			}
-			steps = append(steps, step)
-		}
-		item.Steps = steps
-		if item.Status == "open" && len(steps) > 0 && !slices.ContainsFunc(steps, func(step Step) bool { return step.Status == "open" }) {
-			item.Status = steps[0].Status
-			for _, step := range steps[1:] {
-				if step.Status != item.Status {
-					item.Status = "blocked-external-prereq"
-					break
-				}
-			}
-		}
-		items = append(items, item)
-	}
-	d.Items = items
-	return d
-}
-
 func unfinished(status string) bool {
 	return status == "open" || strings.HasPrefix(status, "blocked")
 }

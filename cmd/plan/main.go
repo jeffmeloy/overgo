@@ -16,9 +16,7 @@
 //	                               verify command exits 0 (step "." closes the
 //	                               item). -force <reason> overrides loudly.
 //	plan -status                   one line per item
-//	plan -compact                  drop completed rows; normalize partial work
-//	plan -sync-master              prepare a safe master merge and semantically
-//	                               merge generated plan projections
+//	plan -prepare-merge <ref>      snapshot and prepare a gated semantic merge
 //
 // Enforcement rationale (owner 2026-08-11, after a session drifted off-plan for
 // ~13 commits with zero -advance): "done" must be machine-checked, not
@@ -69,8 +67,7 @@ func main() {
 	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
 	add := flag.Bool("add", false, "inject a new top-priority task: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
-	compact := flag.Bool("compact", false, "drop completed rows and normalize partial rows to open work")
-	syncMasterFlag := flag.Bool("sync-master", false, "prepare a master merge with a semantic docs/plan.json projection")
+	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
 	contain := flag.String("contain", "", "record typed lane containment: -contain <reason-code> -lane <lane> <detail>")
 	lane := flag.String("lane", "", "lane affected by -contain")
@@ -80,19 +77,20 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "with -context: explicit lane role (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, compact: *compact, syncMaster: *syncMasterFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, prepareMerge: *prepareMergeFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
-	next, prompt, verify, status, context, advance, add, setverify, compact, syncMaster, stop bool
-	force, title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane     string
-	grantExploration, chargeExploration, recordExperiment                                     string
-	localitySchedule                                                                          string
-	leaseReport                                                                               bool
-	capacity                                                                                  plan.Resources
+	next, prompt, verify, status, context, advance, add, setverify, stop                  bool
+	force, title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane string
+	prepareMerge                                                                          string
+	grantExploration, chargeExploration, recordExperiment                                 string
+	localitySchedule                                                                      string
+	leaseReport                                                                           bool
+	capacity                                                                              plan.Resources
 }
 
 func run(c cli, args []string) error {
@@ -100,21 +98,12 @@ func run(c cli, args []string) error {
 	if err != nil {
 		return err
 	}
-	if c.compact {
-		beforeItems := len(document.Items)
-		document = plan.Compact(document)
-		if err := plan.Save("", document); err != nil {
-			return err
-		}
-		fmt.Printf("compacted plan: %d -> %d items\n", beforeItems, len(document.Items))
-		return nil
-	}
 	if err := plan.ValidateOpenWork(document); err != nil {
 		return err
 	}
 	switch {
-	case c.syncMaster:
-		return syncMaster(".", document, os.Stdout)
+	case c.prepareMerge != "":
+		return prepareMerge(".", c.prepareMerge, document, os.Stdout)
 	case c.recordLease != "":
 		return recordWorkLease(".", c.recordLease, os.Stdout)
 	case c.recordLeaseOutcome != "":

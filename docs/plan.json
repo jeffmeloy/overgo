@@ -1,5 +1,32 @@
 {
   "campaign": "Go style: clarity through deletion and local ownership",
   "doctrine": "Apply the Google Go Style Guide as the default readability standard, subordinate to correctness, numerical parity, external wire and ABI contracts, measured performance, repository authority, and established Go tooling. Clarity, simplicity, concision, maintainability, then consistency. Use gofmt and go vet. Prefer language and standard-library mechanisms. Preserve local style only when it does not spread a deviation. Do not rename packages, APIs, files, or identifiers solely for cosmetic conformity. Migrate every caller and delete displaced wrappers in the same wave. Delete or privatize unnecessary exports before documenting survivors. Exported Godoc comments are complete name-led sentences; internal ownership, invariant, and field comments may remain telegraphic. Constants name stable roles, never values; model and training policy remains recipe, artifact, or RepoDB derived. Tests own explicit fixture inputs but reuse production contracts and independent oracles. Generated code and externally fixed CUDA, GGUF, safetensors, JSON, and HTTP identifiers are excluded from stylistic renaming. Avoid repository-wide line-ending churn; gofmt each touched file. No new external linter dependency.",
-  "items": []
+  "items": [
+    {
+      "id": "optional-metadata-fields",
+      "title": "Compile optional metadata field groups",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile optional metadata field groups",
+          "status": "open",
+          "verify": "go test ./internal/model -run '^TestRead' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "metadata-reader-verification",
+      "title": "Verify metadata reader consolidation",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify metadata reader consolidation",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-all -require-no-stale \u0026\u0026 go test ./internal/model -run '^TestRead' -count=1 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/compatibility -check"
+        }
+      ]
+    }
+  ]
 }

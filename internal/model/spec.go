@@ -522,24 +522,13 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 	}
 	if validation.MLA == MLAValidationHybridLinearAttention {
-		if spec.KVLoRARank, err = required[uint32](
-			values, prefix+"attention.kv_lora_rank", gguf.ValueTypeUint32,
-		); err != nil {
-			return Spec{}, err
-		}
 		spec.QLoRARank, _ = optional[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32)
-		if spec.RopeDimensionCount, err = required[uint32](
-			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
-		); err != nil {
-			return Spec{}, err
-		}
-		if spec.SSMConvKernel, err = required[uint32](
-			values, prefix+"ssm.conv_kernel", gguf.ValueTypeUint32,
-		); err != nil {
-			return Spec{}, err
-		}
-		if spec.KDAHeadDim, err = required[uint32](
-			values, prefix+"kda.head_dim", gguf.ValueTypeUint32,
+		if err = readRequiredMetadataFields(
+			values, prefix, gguf.ValueTypeUint32,
+			metadataDestination("attention.kv_lora_rank", &spec.KVLoRARank),
+			metadataDestination("rope.dimension_count", &spec.RopeDimensionCount),
+			metadataDestination("ssm.conv_kernel", &spec.SSMConvKernel),
+			metadataDestination("kda.head_dim", &spec.KDAHeadDim),
 		); err != nil {
 			return Spec{}, err
 		}
@@ -762,10 +751,11 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		}
 	}
 	if validation.Attention == AttentionValidationRequiredSlidingRotaryExperts {
-		if spec.LeadingDenseBlocks, err = required[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
+		if err = readRequiredMetadataFields(
+			values, prefix, gguf.ValueTypeUint32,
+			metadataDestination("leading_dense_block_count", &spec.LeadingDenseBlocks),
+			metadataDestination("expert_feed_forward_length", &spec.ExpertFeedForward),
+		); err != nil {
 			return Spec{}, err
 		}
 		spec.ExpertGatingFunc = expertGatingSigmoid
@@ -801,10 +791,11 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 	}
 	if validation.Hybrid == HybridValidationFullRotaryVision {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
-		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
+		if err = readRequiredMetadataFields(
+			values, prefix, gguf.ValueTypeUint32,
+			metadataDestination("expert_feed_forward_length", &spec.ExpertFeedForward),
+			metadataDestination("expert_shared_count", &spec.SharedExpertCount),
+		); err != nil {
 			return Spec{}, err
 		}
 		if spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
@@ -970,13 +961,10 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 				return Spec{}, err
 			}
 		}
-		if spec.KVLoRARank, err = required[uint32](
-			values, prefix+"attention.kv_lora_rank", gguf.ValueTypeUint32,
-		); err != nil {
-			return Spec{}, err
-		}
-		if spec.RopeDimensionCount, err = required[uint32](
-			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
+		if err = readRequiredMetadataFields(
+			values, prefix, gguf.ValueTypeUint32,
+			metadataDestination("attention.kv_lora_rank", &spec.KVLoRARank),
+			metadataDestination("rope.dimension_count", &spec.RopeDimensionCount),
 		); err != nil {
 			return Spec{}, err
 		}
@@ -1051,14 +1039,10 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		}
 	}
 	if validation.MLA == MLAValidationCompressedHyper {
-		if spec.QLoRARank, err = required[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		if spec.RopeDimensionCount, err = required[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
+			metadataDestination("attention.q_lora_rank", &spec.QLoRARank),
+			metadataDestination("rope.dimension_count", &spec.RopeDimensionCount),
 			metadataDestination("attention.sliding_window", &spec.SlidingWindow),
 			metadataDestination("attention.indexer.head_count", &spec.IndexerHeadCount),
 			metadataDestination("attention.indexer.key_length", &spec.IndexerKeyLength),
@@ -1158,18 +1142,11 @@ func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, err
 		}
 	}
 	if validation.Attention == AttentionValidationPerLayerDualRotaryAttention {
-		if spec.RopeDimensionCount, err = required[uint32](
-			values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
-		); err != nil {
-			return Spec{}, err
-		}
-		if spec.RopeDimensionSWA, err = required[uint32](
-			values, prefix+"rope.dimension_count_swa", gguf.ValueTypeUint32,
-		); err != nil {
-			return Spec{}, err
-		}
-		if spec.EmbeddingPerLayer, err = required[uint32](
-			values, prefix+"embedding_length_per_layer_input", gguf.ValueTypeUint32,
+		if err = readRequiredMetadataFields(
+			values, prefix, gguf.ValueTypeUint32,
+			metadataDestination("rope.dimension_count", &spec.RopeDimensionCount),
+			metadataDestination("rope.dimension_count_swa", &spec.RopeDimensionSWA),
+			metadataDestination("embedding_length_per_layer_input", &spec.EmbeddingPerLayer),
 		); err != nil {
 			return Spec{}, err
 		}

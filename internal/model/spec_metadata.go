@@ -827,11 +827,9 @@ func (m specMetadata) readProfileMetadata(spec *Spec) error {
 		}
 	case m.profile.Forward.Operation == ForwardOperationAudioTokens:
 		spec.OutputEmbeddingLength = spec.EmbeddingLength
-		if spec.EmbeddingLength, err = required[uint32](values, prefix+"features_length", gguf.ValueTypeUint32); err != nil {
-			return err
-		}
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
+			metadataDestination("features_length", &spec.EmbeddingLength),
 			metadataDestination("posnet.embedding_length", &spec.PosNetEmbeddingLength),
 			metadataDestination("posnet.block_count", &spec.PosNetBlockCount),
 			metadataDestination("convnext.embedding_length", &spec.ConvNextEmbeddingLength),

@@ -9,7 +9,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
-	"overgo/internal/textcheck"
 )
 
 type definitionBody struct {
@@ -100,12 +99,12 @@ func canonicalize(d *Definition) error {
 	sort.Slice(d.Dependencies, func(i, j int) bool {
 		return dependencyKey(d.Dependencies[i]) < dependencyKey(d.Dependencies[j])
 	})
-	if duplicateAdjacentKey(d.Dependencies, dependencyKey) {
+	if hasDuplicateKey(d.Dependencies, dependencyKey) {
 		return errors.New("recipe: duplicate dependency role and slot")
 	}
 	model, found := artifact.ID{}, false
 	for _, dependency := range d.Dependencies {
-		if dependency.Role == DependencyModel && dependency.Slot == 0 {
+		if dependency.Role == DependencyModel && dependency.Slot == primaryDependencySlot {
 			model, found = dependency.Artifact, true
 		}
 	}
@@ -120,7 +119,7 @@ func canonicalize(d *Definition) error {
 		return errors.New("recipe: definition requires nodes and outputs")
 	}
 	for _, node := range d.Nodes {
-		if !textcheck.LowerIdentifier(string(node.ID), maxName) || !textcheck.LowerIdentifier(string(node.Module), maxName) {
+		if !validName(string(node.ID)) || !validName(string(node.Module)) {
 			return errors.New("recipe: invalid node or module identity")
 		}
 		if err := validatePlacement(node.Placement); err != nil {
@@ -131,7 +130,7 @@ func canonicalize(d *Definition) error {
 		}
 	}
 	for _, input := range d.Inputs {
-		if !textcheck.LowerIdentifier(string(input.Name), maxName) || !validEndpoint(input.Target) {
+		if !validName(string(input.Name)) || !validEndpoint(input.Target) {
 			return errors.New("recipe: invalid graph input")
 		}
 		if err := validateDataKind(input.Data); err != nil {
@@ -139,7 +138,7 @@ func canonicalize(d *Definition) error {
 		}
 	}
 	for _, output := range d.Outputs {
-		if !textcheck.LowerIdentifier(string(output.Name), maxName) || !validEndpoint(output.Source) {
+		if !validName(string(output.Name)) || !validEndpoint(output.Source) {
 			return errors.New("recipe: invalid graph output")
 		}
 		if err := validateDataKind(output.Data); err != nil {
@@ -155,10 +154,10 @@ func canonicalize(d *Definition) error {
 	sort.Slice(d.Edges, func(i, j int) bool { return edgeKey(d.Edges[i]) < edgeKey(d.Edges[j]) })
 	sort.Slice(d.Inputs, func(i, j int) bool { return d.Inputs[i].Name < d.Inputs[j].Name })
 	sort.Slice(d.Outputs, func(i, j int) bool { return d.Outputs[i].Name < d.Outputs[j].Name })
-	if duplicateAdjacentKey(d.Nodes, func(node Node) NodeID { return node.ID }) ||
-		duplicateAdjacentKey(d.Edges, edgeKey) ||
-		duplicateAdjacentKey(d.Inputs, func(input Input) PortName { return input.Name }) ||
-		duplicateAdjacentKey(d.Outputs, func(output Output) PortName { return output.Name }) {
+	if hasDuplicateKey(d.Nodes, func(node Node) NodeID { return node.ID }) ||
+		hasDuplicateKey(d.Edges, edgeKey) ||
+		hasDuplicateKey(d.Inputs, func(input Input) PortName { return input.Name }) ||
+		hasDuplicateKey(d.Outputs, func(output Output) PortName { return output.Name }) {
 		return errors.New("recipe: duplicate graph identity")
 	}
 	return nil
@@ -177,7 +176,7 @@ func definitionContent(d Definition) ([]byte, error) {
 }
 
 func validEndpoint(endpoint Endpoint) bool {
-	return textcheck.LowerIdentifier(string(endpoint.Node), maxName) && textcheck.LowerIdentifier(string(endpoint.Port), maxName)
+	return validName(string(endpoint.Node)) && validName(string(endpoint.Port))
 }
 
 func edgeKey(edge Edge) string {
@@ -188,11 +187,14 @@ func dependencyKey(dependency Dependency) string {
 	return string(dependency.Role) + fmt.Sprintf("\x00%010d", dependency.Slot)
 }
 
-func duplicateAdjacentKey[T any, K comparable](values []T, key func(T) K) bool {
-	for index := 1; index < len(values); index++ {
-		if key(values[index-1]) == key(values[index]) {
+func hasDuplicateKey[T any, K comparable](values []T, key func(T) K) bool {
+	seen := make(map[K]struct{}, len(values))
+	for _, value := range values {
+		identity := key(value)
+		if _, found := seen[identity]; found {
 			return true
 		}
+		seen[identity] = struct{}{}
 	}
 	return false
 }
@@ -208,5 +210,5 @@ func (d Definition) Dependency(role DependencyRole, slot uint32) (artifact.ID, b
 
 // PrimaryDependency returns slot zero for a required singleton role.
 func (d Definition) PrimaryDependency(role DependencyRole) (artifact.ID, bool) {
-	return d.Dependency(role, 0)
+	return d.Dependency(role, primaryDependencySlot)
 }

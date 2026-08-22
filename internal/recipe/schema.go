@@ -12,7 +12,6 @@ const (
 	Version   = uint16(2)
 	MediaType = "application/vnd.overgo.recipe+json"
 	Schema    = "overgo.recipe.v2"
-	maxName   = 128
 )
 
 type Task string
@@ -106,6 +105,8 @@ type NodeID string
 type PortName string
 
 type DependencyRole string
+
+const primaryDependencySlot uint32 = iota
 
 const (
 	DependencyModel            DependencyRole = "model"
@@ -294,7 +295,7 @@ func validateDataKind(kind DataKind) error {
 }
 
 func (p Port) validate() error {
-	if !textcheck.LowerIdentifier(string(p.Name), maxName) {
+	if !validName(string(p.Name)) {
 		return errors.New("recipe: invalid port name")
 	}
 	if err := validateDataKind(p.Data); err != nil {
@@ -306,4 +307,8 @@ func (p Port) validate() error {
 	default:
 		return fmt.Errorf("recipe: invalid cardinality %q", p.Cardinality)
 	}
+}
+
+func validName(value string) bool {
+	return textcheck.LowerIdentifier(value, len(value))
 }

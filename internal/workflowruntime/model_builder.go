@@ -29,6 +29,11 @@ type ModelBuildSession interface {
 	Promote(context.Context, ModelBuildState) (ModelBuildState, error)
 }
 
+type modelBuildPhase struct {
+	execute  func(context.Context, ModelBuildState) (ModelBuildState, error)
+	complete func(ModelBuildState) bool
+}
+
 func ExecuteModelBuild(ctx context.Context, session ModelBuildSession) (ModelBuildState, error) {
 	if ctx == nil || session == nil {
 		return ModelBuildState{}, errors.New("model builder: context and session required")
@@ -37,18 +42,18 @@ func ExecuteModelBuild(ctx context.Context, session ModelBuildSession) (ModelBui
 	if err != nil {
 		return ModelBuildState{}, err
 	}
-	if err = validateBuildState(state, 0); err != nil {
+	if err = validateBuildState(state); err != nil {
 		return ModelBuildState{}, err
 	}
-	for phase, execute := range []func(context.Context, ModelBuildState) (ModelBuildState, error){
-		session.Train, session.Evaluate, session.Record, session.Promote,
-	} {
-		next, executeErr := execute(ctx, state)
+	var required []func(ModelBuildState) bool
+	for _, phase := range modelBuildPhases(session) {
+		next, executeErr := phase.execute(ctx, state)
 		if executeErr != nil {
 			return state, executeErr
 		}
+		required = append(required, phase.complete)
 		if next.Recipe != state.Recipe || next.Dataset != state.Dataset || next.Construction != state.Construction ||
-			validateBuildState(next, phase+1) != nil {
+			validateBuildState(next, required...) != nil {
 			return state, errors.New("model builder: phase changed authority or omitted output")
 		}
 		state = next
@@ -56,20 +61,28 @@ func ExecuteModelBuild(ctx context.Context, session ModelBuildSession) (ModelBui
 	return state, nil
 }
 
-func validateBuildState(state ModelBuildState, phase int) error {
+func modelBuildPhases(session ModelBuildSession) []modelBuildPhase {
+	return []modelBuildPhase{
+		{execute: session.Train, complete: func(state ModelBuildState) bool {
+			return state.Checkpoint.Kind() == artifact.KindCheckpoint
+		}},
+		{execute: session.Evaluate, complete: func(state ModelBuildState) bool {
+			return state.Run.Kind() == artifact.KindRun && state.Evaluation.Kind() == artifact.KindEvaluation
+		}},
+		{execute: session.Record, complete: func(state ModelBuildState) bool {
+			return state.Evidence.Kind() == artifact.KindEvidence
+		}},
+		{execute: session.Promote, complete: func(state ModelBuildState) bool {
+			return state.Decision.Kind() == artifact.KindEvidence
+		}},
+	}
+}
+
+func validateBuildState(state ModelBuildState, required ...func(ModelBuildState) bool) error {
 	valid := state.Recipe.Kind() == artifact.KindRecipe && state.Dataset.Kind() == artifact.KindDataset &&
 		state.Construction.Kind() == artifact.KindRecipe && state.Model.Kind() == artifact.KindModel
-	if phase >= 1 {
-		valid = valid && state.Checkpoint.Kind() == artifact.KindCheckpoint
-	}
-	if phase >= 2 {
-		valid = valid && state.Run.Kind() == artifact.KindRun && state.Evaluation.Kind() == artifact.KindEvaluation
-	}
-	if phase >= 3 {
-		valid = valid && state.Evidence.Kind() == artifact.KindEvidence
-	}
-	if phase >= 4 {
-		valid = valid && state.Decision.Kind() == artifact.KindEvidence
+	for _, complete := range required {
+		valid = valid && complete(state)
 	}
 	if !valid {
 		return errors.New("model builder: incomplete phase state")

@@ -98,8 +98,8 @@ func (d Definition) Validate(catalog *Catalog) error {
 		}
 		outputNodes[output.Source.Node] = struct{}{}
 	}
-	if cycle := graphCycle(d.Nodes, adjacency); cycle {
-		return errors.New("recipe: graph contains a cycle")
+	if _, err := executionOrder(d); err != nil {
+		return err
 	}
 	if err := validateReachability(d, nodes, adjacency, reverse, outputNodes); err != nil {
 		return err
@@ -138,37 +138,6 @@ func outputPort(nodes map[NodeID]nodeContract, endpoint Endpoint) (Port, error) 
 		return Port{}, fmt.Errorf("recipe: unknown output %s.%s", endpoint.Node, endpoint.Port)
 	}
 	return port, nil
-}
-
-func graphCycle(nodes []Node, adjacency map[NodeID][]NodeID) bool {
-	indegree := make(map[NodeID]int, len(nodes))
-	for _, node := range nodes {
-		indegree[node.ID] = 0
-	}
-	for _, targets := range adjacency {
-		for _, target := range targets {
-			indegree[target]++
-		}
-	}
-	queue := make([]NodeID, 0, len(nodes))
-	for node, degree := range indegree {
-		if degree == 0 {
-			queue = append(queue, node)
-		}
-	}
-	visited := 0
-	for len(queue) > 0 {
-		node := queue[len(queue)-1]
-		queue = queue[:len(queue)-1]
-		visited++
-		for _, target := range adjacency[node] {
-			indegree[target]--
-			if indegree[target] == 0 {
-				queue = append(queue, target)
-			}
-		}
-	}
-	return visited != len(nodes)
 }
 
 func validateReachability(

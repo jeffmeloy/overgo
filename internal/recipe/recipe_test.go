@@ -80,6 +80,16 @@ func TestCatalogModuleResultDoesNotMutateCatalog(t *testing.T) {
 	}
 }
 
+func TestCatalogIdentifierSyntaxHasNoIndependentLengthPolicy(t *testing.T) {
+	name := ModuleID(strings.Repeat("segment.", len(MediaType)) + "end")
+	if _, err := NewCatalog(Module{
+		ID: name, Tasks: []Task{TaskInference}, Placements: []Placement{PlacementHost},
+		Outputs: []Port{{Name: "result", Data: DataTensor, Cardinality: CardinalityOne}},
+	}); err != nil {
+		t.Fatalf("canonical identifier was rejected by an independent length policy: %v", err)
+	}
+}
+
 func TestDefinitionDependenciesDriveIdentity(t *testing.T) {
 	definition, _ := fixtureRecipe(t)
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "profile")

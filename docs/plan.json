@@ -251,7 +251,7 @@
         {
           "id": "server-workflows",
           "title": "Remove server, workflow, session, and protocol policy duplication",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/closure-scan -check-scope internal/server,internal/workflowrecipe,internal/workflowruntime,internal/recipe,internal/modelrecipe -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production"
         },
         {

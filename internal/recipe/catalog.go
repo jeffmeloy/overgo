@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"sort"
-
-	"overgo/internal/textcheck"
 )
 
 type Catalog struct {
@@ -62,7 +60,7 @@ func (c *Catalog) Modules() []Module {
 }
 
 func canonicalModule(module Module) (Module, error) {
-	if !textcheck.LowerIdentifier(string(module.ID), maxName) || len(module.Tasks) == 0 || len(module.Placements) == 0 {
+	if !validName(string(module.ID)) || len(module.Tasks) == 0 || len(module.Placements) == 0 {
 		return Module{}, errors.New("recipe: invalid module identity or policy")
 	}
 	result := cloneModule(module)
@@ -100,10 +98,8 @@ func canonicalPorts(ports []Port) ([]Port, error) {
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
-	for index := 1; index < len(result); index++ {
-		if result[index-1].Name == result[index].Name {
-			return nil, fmt.Errorf("duplicate port %q", result[index].Name)
-		}
+	if hasDuplicateKey(result, func(port Port) PortName { return port.Name }) {
+		return nil, errors.New("recipe: duplicate module port")
 	}
 	return result, nil
 }

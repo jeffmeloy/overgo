@@ -1,6 +1,8 @@
 package recipe
 
 import (
+	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -13,10 +15,8 @@ import (
 )
 
 const (
-	DecisionVersion        uint16 = 1
-	DecisionMediaType             = "application/vnd.overgo.decision+json"
-	DecisionSchema                = "overgo/decision/v1"
-	maxDecisionReasonBytes        = 4 << 10
+	DecisionMediaType = "application/vnd.overgo.decision+json"
+	DecisionSchema    = "overgo/decision/v1"
 )
 
 var decisionContract = artifact.DocumentContract{
@@ -93,7 +93,7 @@ func NewDecision(
 	evidence []artifact.ID,
 ) (Decision, error) {
 	return decisionCodec.New(Decision{
-		Version: DecisionVersion, Subject: subject, Outcome: outcome, Tier: tier,
+		Version: artifact.InitialDocumentVersion, Subject: subject, Outcome: outcome, Tier: tier,
 		Reason: reason, Decider: decider, Evidence: slices.Clone(evidence),
 	})
 }
@@ -131,13 +131,13 @@ func (d Decision) Batch(key string) (artifact.Batch, error) {
 }
 
 func canonicalizeDecision(decision *Decision) error {
-	if decision == nil || decision.Version != DecisionVersion || !decision.Subject.Valid() {
+	if decision == nil || decision.Version != artifact.InitialDocumentVersion || !decision.Subject.Valid() {
 		return errors.New("recipe: invalid decision envelope")
 	}
 	if !validDecisionOutcome(decision.Outcome) || !validEvidenceTier(decision.Tier) {
 		return errors.New("recipe: invalid decision outcome or tier")
 	}
-	if strings.TrimSpace(decision.Reason) != decision.Reason || len(decision.Reason) > maxDecisionReasonBytes ||
+	if strings.TrimSpace(decision.Reason) != decision.Reason ||
 		(decision.Outcome == DecisionFailed || decision.Outcome == DecisionInapplicable || decision.Outcome == DecisionRefused) && decision.Reason == "" {
 		return errors.New("recipe: invalid decision reason")
 	}
@@ -174,7 +174,8 @@ func validEvidenceTier(tier EvidenceTier) bool {
 }
 
 func validGitCommit(value string) bool {
-	if len(value) != 40 && len(value) != 64 || strings.ToLower(value) != value {
+	if len(value) != hex.EncodedLen(sha1.Size) && len(value) != hex.EncodedLen(sha256.Size) ||
+		strings.ToLower(value) != value {
 		return false
 	}
 	_, err := hex.DecodeString(value)

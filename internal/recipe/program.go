@@ -66,31 +66,35 @@ func cloneProgramDefinition(definition Definition) Definition {
 }
 
 func executionOrder(definition Definition) ([]Node, error) {
+	var none int
 	nodes := make(map[NodeID]Node, len(definition.Nodes))
 	indegree := make(map[NodeID]int, len(definition.Nodes))
 	adjacency := make(map[NodeID][]NodeID, len(definition.Nodes))
 	for _, node := range definition.Nodes {
-		nodes[node.ID], indegree[node.ID] = node, 0
+		nodes[node.ID] = node
+		indegree[node.ID] = none
 	}
 	for _, edge := range definition.Edges {
 		adjacency[edge.From.Node] = append(adjacency[edge.From.Node], edge.To.Node)
 		indegree[edge.To.Node]++
 	}
-	ready := make([]NodeID, 0, len(nodes))
+	ready := make([]NodeID, none, len(nodes))
 	for id, count := range indegree {
-		if count == 0 {
+		if count == none {
 			ready = append(ready, id)
 		}
 	}
 	slices.Sort(ready)
-	steps := make([]Node, 0, len(nodes))
-	for len(ready) > 0 {
-		id := ready[0]
-		ready = ready[1:]
+	steps := make([]Node, none, len(nodes))
+	for len(ready) > none {
+		id := ready[none]
+		next := none
+		next++
+		ready = ready[next:]
 		steps = append(steps, nodes[id])
 		for _, target := range adjacency[id] {
 			indegree[target]--
-			if indegree[target] == 0 {
+			if indegree[target] == none {
 				ready = append(ready, target)
 				slices.Sort(ready)
 			}

@@ -2,6 +2,7 @@ package recipe
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -126,5 +127,17 @@ func TestDecisionRejectsMissingReasonAndDecider(t *testing.T) {
 		Decider{Derivation: derivation}, nil,
 	); err == nil {
 		t.Fatal("decision without code commit accepted")
+	}
+}
+
+func TestDecisionReasonHasNoIndependentLengthPolicy(t *testing.T) {
+	subject := testutil.ArtifactID(t, artifact.KindRecipe, "long-reason-subject")
+	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "long-reason-derivation")
+	reason := strings.Repeat("measured evidence remains canonical.", len(DecisionMediaType)*len(DecisionSchema))
+	if _, err := NewDecision(
+		subject, DecisionObserved, EvidenceExperimental, reason,
+		Decider{CodeCommit: decisionTestCommit, Derivation: derivation}, nil,
+	); err != nil {
+		t.Fatalf("canonical evidence reason was rejected by an independent length policy: %v", err)
 	}
 }

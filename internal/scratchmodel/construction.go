@@ -74,12 +74,12 @@ func NewDerivationProfile(profile DerivationProfile) (DerivationProfile, error) 
 	return derivationProfileCodec.New(profile)
 }
 
-func (profile DerivationProfile) ValidateIdentity() error {
-	return derivationProfileCodec.ValidateIdentity(profile)
+func (p DerivationProfile) ValidateIdentity() error {
+	return derivationProfileCodec.ValidateIdentity(p)
 }
 
-func (profile DerivationProfile) Content() (artifact.Content, error) {
-	return derivationProfileCodec.Content(profile)
+func (p DerivationProfile) Content() (artifact.Content, error) {
+	return derivationProfileCodec.Content(p)
 }
 
 func (p DerivationProfile) validate() error {

@@ -52,7 +52,7 @@ type profileBody struct {
 	Provenance   []ProfileFactProvenance   `json:"provenance,omitempty"`
 }
 
-// ProfileDocument: immutable architecture policy.
+// ProfileDocument defines immutable architecture policy.
 type ProfileDocument struct {
 	ID           artifact.ID
 	Version      uint16

@@ -42,7 +42,7 @@ type PhaseDelta struct {
 	DeltaNS          int64  `json:"delta_ns"`
 }
 
-// Advisory: immutable robust regression verdict.
+// Advisory defines immutable robust regression verdict.
 type Advisory struct {
 	Version           uint16        `json:"version"`
 	Recipe            artifact.ID   `json:"recipe"`

@@ -43,3 +43,9 @@ func TestKernelIdentifierPreservesABIWords(t *testing.T) {
 		t.Fatalf("identifier = %q, want %q", got, want)
 	}
 }
+
+func TestAssetIdentifierPreservesCUDA(t *testing.T) {
+	if got, want := assetIdentifier("torch_cuda_randn.ptx"), "TorchCUDARandn"; got != want {
+		t.Fatalf("identifier = %q, want %q", got, want)
+	}
+}

@@ -114,6 +114,7 @@ var (
 	)
 )
 
+// CompileMediaTargetPlan binds a media suite to a held-out dataset view.
 func CompileMediaTargetPlan(view SFTEvaluationView, suite MediaTargetSuite) (MediaTargetPlan, error) {
 	if _, err := view.Content(); err != nil {
 		return MediaTargetPlan{}, err
@@ -147,6 +148,7 @@ func (plan MediaTargetPlan) Batch(key string) (artifact.Batch, error) {
 	return mediaTargetPlanCodec.Batch(key, plan, artifact.DependencyLineage(plan.ID, parents...), nil)
 }
 
+// ScoreMediaTargets verifies media observations against a compiled plan.
 func ScoreMediaTargets(plan MediaTargetPlan, observations []MediaTargetObservation) (MediaTargetReport, error) {
 	if err := mediaTargetPlanCodec.ValidateIdentity(plan); err != nil || len(observations) != len(plan.Cases) {
 		return MediaTargetReport{}, errors.New("evaluation: media target observations differ from plan")

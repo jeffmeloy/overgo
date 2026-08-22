@@ -21,7 +21,7 @@ var environmentCodec = artifact.JSONDocumentCodec(
 	func(value *Environment, id artifact.ID) { value.ID = id }, nil,
 )
 
-// Environment: immutable execution platform identity.
+// Environment defines immutable execution platform identity.
 type Environment struct {
 	Version uint16      `json:"version"`
 	Host    string      `json:"host"`
@@ -41,7 +41,7 @@ func NewEnvironment(environment Environment) (Environment, error) {
 	return environmentCodec.New(environment)
 }
 
-// CurrentEnvironment: process runtime identity.
+// CurrentEnvironment returns the process runtime identity.
 func CurrentEnvironment(device, backend string) (Environment, error) {
 	host, err := os.Hostname()
 	if err != nil {

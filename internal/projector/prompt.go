@@ -788,6 +788,11 @@ func (r *Gemma4Runner) audioPrompt(
 	})
 }
 
+func (r *Gemma4Runner) audioSampleRate() (int, error) {
+	spec, err := r.AudioSpec()
+	return spec.SampleRate, err
+}
+
 func Gemma4AudioPromptText(question string, audioTokens int) string {
 	return "<bos><|turn>user\n<|audio>" + strings.Repeat("<|audio|>", audioTokens) +
 		"<audio|>" + strings.TrimSpace(question) +

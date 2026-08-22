@@ -16,6 +16,51 @@ import (
 	"overgo/internal/repodb"
 )
 
+func TestConfigurationClosureGates(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	checks := []struct {
+		scope        string
+		requirements closureRequirements
+	}{
+		{
+			"cmd/train,cmd/generate,internal/clioptions,internal/optimizer,internal/trainingprogram,internal/trainingworkflow,internal/modelrecipe",
+			closureRequirements{classified: true, noStale: true, noUncatalogued: true},
+		},
+		{
+			"cmd/server,internal/inference,internal/server",
+			closureRequirements{classified: true, noStale: true, noUncatalogued: true, noModelFacts: true},
+		},
+	}
+	for _, check := range checks {
+		if err := checkProductionClosures(root, "repodb-store", check.scope, false, check.requirements); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestRepositoryGoStyleTests(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := repoanalysis.DiscoverGo(root, "cmd", "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sites, err := closurescan.CensusTestLiterals(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, site := range sites {
+		if site.File == "cmd/benchmark/main_test.go" && site.Class == closurescan.TestPolicyCopy {
+			t.Errorf("%s:%d copies production policy %s", site.File, site.Line, site.Value)
+		}
+	}
+}
+
 func TestCensusReportIsDeterministicAndComplete(t *testing.T) {
 	snapshot := censusSnapshot(t)
 	first, err := closurescan.BuildCensus(snapshot)

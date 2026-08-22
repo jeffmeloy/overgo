@@ -10,7 +10,7 @@ const (
 	SecondDocumentVersion
 )
 
-// DocumentContract: inline content identity and storage schema.
+// DocumentContract defines inline content identity and storage schema.
 type DocumentContract struct {
 	Kind      Kind
 	MediaType string

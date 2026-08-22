@@ -104,6 +104,7 @@ var (
 	)
 )
 
+// CompileTextTargetPlan binds a text suite to a held-out dataset view.
 func CompileTextTargetPlan(view SFTEvaluationView, suite TextTargetSuite) (TextTargetPlan, error) {
 	if _, err := view.Content(); err != nil {
 		return TextTargetPlan{}, err
@@ -141,6 +142,7 @@ func (plan TextTargetPlan) Batch(key string) (artifact.Batch, error) {
 	return textTargetPlanCodec.Batch(key, plan, artifact.DependencyLineage(plan.ID, parents...), nil)
 }
 
+// ScoreTextTargets evaluates text observations with declared scorers.
 func ScoreTextTargets(plan TextTargetPlan, observations []TextTargetObservation) (TextTargetReport, error) {
 	if err := textTargetPlanCodec.ValidateIdentity(plan); err != nil || len(observations) != len(plan.Cases) {
 		return TextTargetReport{}, errors.New("evaluation: text target observations differ from plan")

@@ -8,13 +8,13 @@ import (
 	"overgo/internal/artifact"
 )
 
-// Verification: completed gate and its bound run.
+// Verification defines completed gate and its bound run.
 type Verification struct {
 	Gate GateResult
 	Run  Run
 }
 
-// VerifyGateRun: load and bind a successful verifier gate/run pair.
+// VerifyGateRun loads and binds a successful verifier gate and run pair.
 func VerifyGateRun(
 	ctx context.Context,
 	store artifact.Reader,
@@ -23,7 +23,7 @@ func VerifyGateRun(
 	return verifyGateRunOutcome(ctx, store, recipeID, gateID, runID, OutcomeSucceeded)
 }
 
-// VerifyFailedGateRun: load and bind a failed verifier gate/run pair.
+// VerifyFailedGateRun loads and binds a failed verifier gate and run pair.
 func VerifyFailedGateRun(
 	ctx context.Context,
 	store artifact.Reader,
@@ -59,7 +59,7 @@ func verifyGateRunOutcome(
 	return Verification{Gate: gate, Run: run}, nil
 }
 
-// VerifyEvidence: resolve one successful gate/run pair from lifecycle evidence.
+// VerifyEvidence resolves one successful gate and run pair from lifecycle evidence.
 func VerifyEvidence(
 	ctx context.Context,
 	store artifact.Reader,

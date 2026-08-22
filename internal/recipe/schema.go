@@ -147,7 +147,7 @@ type Module struct {
 	Outputs    []Port      `json:"outputs,omitempty"`
 }
 
-// SessionPolicy: decode cache/graph lifetime.
+// SessionPolicy defines decode cache/graph lifetime.
 type SessionPolicy string
 
 const (
@@ -161,7 +161,7 @@ func (p SessionPolicy) Valid() bool {
 	return p == "" || p == SessionRequest || p == SessionCapacity
 }
 
-// ResidencyPolicy: compiled model-weight storage and execution policy.
+// ResidencyPolicy defines compiled model-weight storage and execution policy.
 type ResidencyPolicy string
 
 const (

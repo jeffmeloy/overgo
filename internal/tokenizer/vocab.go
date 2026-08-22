@@ -18,6 +18,15 @@ type TokenID int32
 
 func ValidID(id TokenID, size uint32) bool { return id >= 0 && uint32(id) < size }
 
+// ParseTokenID parses a decimal identifier within the serialized token range.
+func ParseTokenID(text string) (TokenID, error) {
+	value, err := strconv.Atoi(text)
+	if err != nil || int(TokenID(value)) != value {
+		return NullToken, fmt.Errorf("token ID %q is invalid", text)
+	}
+	return TokenID(value), nil
+}
+
 // TokenType: tokenizer.ggml.token_type value.
 type TokenType int32
 

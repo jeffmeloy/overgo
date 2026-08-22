@@ -31,7 +31,7 @@ func run() error {
 	if *query == "" || *document == "" {
 		return errors.New("-query and -document are required")
 	}
-	runner, err := modelFlags.OpenRunner(context.Background(), *modelPath, 1)
+	runner, err := modelFlags.OpenRunner(context.Background(), *modelPath)
 	if err != nil {
 		return err
 	}

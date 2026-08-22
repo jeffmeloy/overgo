@@ -342,12 +342,12 @@ func projectorClipBounds(
 	minimum, err := loadProjectorScalar(graph.ctx, graph.file, prefix+"."+side+"_min")
 	if err != nil {
 		graph.err = err
-		return
+		return minimum, maximum
 	}
 	maximum, err = loadProjectorScalar(graph.ctx, graph.file, prefix+"."+side+"_max")
 	if err != nil {
 		graph.err = err
-		return
+		return minimum, maximum
 	}
 	return minimum, maximum
 }

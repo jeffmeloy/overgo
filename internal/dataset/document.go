@@ -29,7 +29,7 @@ var documentCodec = artifact.JSONDocumentCodec(
 	func(value *Document, id artifact.ID) { value.ID = id }, cloneDocument,
 )
 
-// Type: canonical dataset document form.
+// Type defines canonical dataset document form.
 type Type string
 
 const (
@@ -39,26 +39,26 @@ const (
 	TypeMixture Type = "mixture"
 )
 
-// Asset: version-owned external data component.
+// Asset defines version-owned external data component.
 type Asset struct {
 	Name     string      `json:"name"`
 	Artifact artifact.ID `json:"artifact"`
 	Records  uint64      `json:"records"`
 }
 
-// Partition: named split view.
+// Partition defines named split view.
 type Partition struct {
 	Name string      `json:"name"`
 	View artifact.ID `json:"view"`
 }
 
-// Member: normalized mixture contribution.
+// Member defines normalized mixture contribution.
 type Member struct {
 	Dataset artifact.ID `json:"dataset"`
 	Weight  uint64      `json:"weight"`
 }
 
-// Document: immutable dataset composition fact.
+// Document defines immutable dataset composition fact.
 type Document struct {
 	Version    uint16       `json:"version"`
 	Type       Type         `json:"type"`
@@ -89,10 +89,12 @@ func NewSplit(source artifact.ID, partitions []Partition) (Document, error) {
 	})
 }
 
+// NewMixture returns a normalized weighted dataset composition.
 func NewMixture(members []Member) (Document, error) {
 	return newDocument(Document{Version: Version, Type: TypeMixture, Members: slices.Clone(members)})
 }
 
+// Parse decodes and validates a dataset document.
 func Parse(content []byte) (Document, error) {
 	return documentCodec.Parse(content)
 }

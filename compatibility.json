@@ -267,7 +267,7 @@
      "contains": "func OpenAs[T Projector](",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:85decaf08767f555e9a039c6843d7de5798bafb9ae013c4e9df9d5331fecf996"
+     "identity": "file:sha256:61b204535befa82c53f338442d0717da3c3f75ae517f41b87abedd9212107cee"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -392,13 +392,13 @@
      "contains": "func NewAudioProjectionProfile(",
      "path": "internal/projector/audio_profile.go",
      "role": "source",
-     "identity": "file:sha256:4d846b4e68c91b51a68f5052caf91a4962e1dcc4313c79df1959c8b2b49c6fc3"
+     "identity": "file:sha256:40ffff5cbbca3ded8eca5e8c35ecd9f62df141c9218ba24dcff35bcfb1dd9d96"
     },
     {
      "contains": "func TestAudioProjectionProfileRoundTrip(",
      "path": "internal/projector/audio_profile_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1a154acc46059df8420b3c4cf7e008edf59e61cbf62461b18b98994ee0f1bfa1"
+     "identity": "evidence:sha256:45034c99b2dc0554c0181b09d47b0a8d5ea67fe9d247c5a4a0cc98ecde10c238"
     }
    ],
    "id": "audio-projection-profile",
@@ -499,7 +499,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:c90b031d15be5b5d015ae9b9454ce90f1ee6894bec0b14a4475706b127f9144e"
+     "identity": "file:sha256:7c8e662e785df4d5d9e579ee65d1c4d1a31a3ea27ccc4f98670637bebb01be90"
     },
     {
      "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
@@ -520,13 +520,13 @@
      "contains": "func DescribeOperation(",
      "path": "internal/tensor/operation.go",
      "role": "source",
-     "identity": "file:sha256:0353ded6c18f7300acd01b2a3dfac07e16e9c4618d7755464d51390ad1869557"
+     "identity": "file:sha256:abdc73e63895664be46b5dcbae0c46ff523b3eaff44a7ccdfa4655e4e45999a5"
     },
     {
      "contains": "func TestOperationCatalogIsDenseAndUnique(",
      "path": "internal/tensor/operation_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:28bce882b157e290a944219d62d65e4918cca7e17f2131706f2540fd4dfc1131"
+     "identity": "evidence:sha256:62f5d1071a9ae96a654b22ee82ad59d9f9a2bb6a3e45c4351ef32f7d62506563"
     }
    ],
    "id": "tensor-operation-catalog",
@@ -584,7 +584,7 @@
      "contains": "func (r *Qwen3VLRunner) imagesPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:85decaf08767f555e9a039c6843d7de5798bafb9ae013c4e9df9d5331fecf996"
+     "identity": "file:sha256:61b204535befa82c53f338442d0717da3c3f75ae517f41b87abedd9212107cee"
     },
     {
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -605,7 +605,7 @@
      "contains": "func (r *Gemma4Runner) mediaHistoryPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:85decaf08767f555e9a039c6843d7de5798bafb9ae013c4e9df9d5331fecf996"
+     "identity": "file:sha256:61b204535befa82c53f338442d0717da3c3f75ae517f41b87abedd9212107cee"
     },
     {
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -626,7 +626,7 @@
      "contains": "func (r *Gemma4Runner) mediaHistoryPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:85decaf08767f555e9a039c6843d7de5798bafb9ae013c4e9df9d5331fecf996"
+     "identity": "file:sha256:61b204535befa82c53f338442d0717da3c3f75ae517f41b87abedd9212107cee"
     },
     {
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",

@@ -8,7 +8,7 @@ import (
 
 const MaxContentBytes = 64 << 20
 
-// Content: bounded inline content-addressed document
+// Content defines bounded inline content-addressed document.
 type Content struct {
 	Descriptor Descriptor `json:"descriptor"`
 	Data       []byte     `json:"data"`

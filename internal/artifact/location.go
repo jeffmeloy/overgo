@@ -13,7 +13,7 @@ import (
 
 const maxLocationBytes = 32 << 10
 
-// LocationKind: physical artifact address class
+// LocationKind defines physical artifact address class.
 type LocationKind uint8
 
 const (
@@ -45,11 +45,11 @@ func (k *LocationKind) UnmarshalJSON(data []byte) error {
 	return unmarshalEnumInto(k, data, locationKindNames[:], "location kind")
 }
 
-// LocationAction: append-only availability transition
+// LocationAction defines append-only availability transition.
 type LocationAction uint8
 
 const (
-	LocationActionInvalid LocationAction = iota
+	_ LocationAction = iota
 	LocationAdd
 	LocationRemove
 )
@@ -64,7 +64,7 @@ func (a *LocationAction) UnmarshalJSON(data []byte) error {
 	return unmarshalEnumInto(a, data, locationActionNames[:], "location action")
 }
 
-// Location: current physical artifact address
+// Location defines current physical artifact address.
 type Location struct {
 	Artifact ID           `json:"artifact"`
 	Kind     LocationKind `json:"kind"`
@@ -81,7 +81,7 @@ func (l Location) Validate() error {
 	return nil
 }
 
-// LocationEvent: availability set mutation
+// LocationEvent defines availability set mutation.
 type LocationEvent struct {
 	Location
 	Action LocationAction `json:"action"`
@@ -140,7 +140,7 @@ func SameLocalLocation(left, right Location) (bool, error) {
 	return pathidentity.Same(left.Value, right.Value)
 }
 
-// AvailablePath: first recorded live file or directory.
+// AvailablePath returns the first recorded live file or directory.
 func AvailablePath(ctx context.Context, reader Reader, id ID, kind LocationKind) (string, error) {
 	if ctx == nil || reader == nil || !id.Valid() || kind != LocationFile && kind != LocationDirectory {
 		return "", errors.New("artifact: invalid available-path query")

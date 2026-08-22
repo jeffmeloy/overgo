@@ -31,20 +31,6 @@ type freeBlock struct {
 	size   uint64
 }
 
-// Build assigns storage to non-input graph nodes using graph liveness.
-func Build(outputs []*tensor.Tensor, alignment uint64) (Plan, error) {
-	return BuildWithDependencies(outputs, alignment, nil)
-}
-
-// BuildWithDependencies extends graph liveness for rewritten consumers.
-func BuildWithDependencies(
-	outputs []*tensor.Tensor,
-	alignment uint64,
-	dependencies map[*tensor.Tensor][]*tensor.Tensor,
-) (Plan, error) {
-	return BuildWithRewrites(outputs, alignment, dependencies, nil)
-}
-
 // BuildWithRewrites extends liveness for fused dependencies, aliases, and eliminated nodes.
 func BuildWithRewrites(
 	outputs []*tensor.Tensor,

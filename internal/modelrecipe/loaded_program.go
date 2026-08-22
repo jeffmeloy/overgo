@@ -13,7 +13,7 @@ import (
 	"overgo/internal/recipe"
 )
 
-// LoadedProgram: sealed verified GGUF ownership.
+// LoadedProgram defines sealed verified GGUF ownership.
 type LoadedProgram struct {
 	state *loadedProgramState
 }
@@ -28,7 +28,7 @@ type loadedProgramState struct {
 	Program      Plan
 }
 
-// ResolveActiveGGUF: verifies and compiles the active recipe before execution.
+// ResolveActiveGGUF verifies and compiles the active recipe before execution.
 func ResolveActiveGGUF(
 	ctx context.Context,
 	store artifact.Reader,
@@ -69,7 +69,7 @@ func ResolveActiveGGUF(
 	return loaded, nil
 }
 
-// ResolveCandidateGGUF: verifies one explicit candidate before promotion.
+// ResolveCandidateGGUF verifies one explicit candidate before promotion.
 func ResolveCandidateGGUF(
 	path string,
 	definition recipe.Definition,
@@ -100,7 +100,7 @@ func ResolveCandidateGGUF(
 	return loaded, nil
 }
 
-// Identity: compiled authority before transfer.
+// Identity returns the compiled authority before transfer.
 func (l *LoadedProgram) Identity() (ProgramIdentity, error) {
 	if l == nil || l.state == nil || l.state.File == nil {
 		return ProgramIdentity{}, errors.New("model recipe: loaded program is unavailable or consumed")
@@ -160,7 +160,7 @@ func (l *LoadedProgram) bindResolved(
 	return nil
 }
 
-// Take: transfers resolved serving ownership exactly once.
+// Take transfers resolved serving ownership exactly once.
 func (l *LoadedProgram) Take() (
 	*gguf.File, string, model.Spec, model.Weights, Plan, recipe.EvidenceTier, error,
 ) {
@@ -173,7 +173,7 @@ func (l *LoadedProgram) Take() (
 	return state.File, state.Path, state.Spec, state.Weights, state.Program, state.EvidenceTier, nil
 }
 
-// Close: releases untransferred GGUF ownership.
+// Close releases untransferred GGUF ownership.
 func (l *LoadedProgram) Close() error {
 	if l == nil || l.state == nil || l.state.File == nil {
 		return nil

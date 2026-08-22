@@ -17,7 +17,7 @@ const (
 	ModelVerificationSchema           = "overgo/model-verification/v1"
 )
 
-// VerificationTier: evidenced capability level; no implicit subsumption.
+// VerificationTier defines evidenced capability level; no implicit subsumption.
 type VerificationTier string
 
 const (
@@ -57,7 +57,7 @@ type CapabilityClaim struct {
 	Evidence        []artifact.ID    `json:"evidence"`
 }
 
-// ModelVerification: immutable model claims and evidence lineage.
+// ModelVerification defines immutable model claims and evidence lineage.
 type ModelVerification struct {
 	Version    uint16            `json:"version"`
 	Model      artifact.ID       `json:"model"`
@@ -134,7 +134,7 @@ func (v ModelVerification) Batch(key string) (artifact.Batch, error) {
 	return modelVerificationCodec.Batch(key, v, artifact.DependencyLineage(v.ID, parents...), nil)
 }
 
-// MatrixRow: strongest evidenced claim per capability.
+// MatrixRow defines strongest evidenced claim per capability.
 type MatrixRow struct {
 	Model        artifact.ID       `json:"model"`
 	Name         string            `json:"name"`

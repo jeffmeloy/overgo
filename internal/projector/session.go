@@ -43,6 +43,7 @@ type videoPromptProvider interface {
 
 type audioPromptProvider interface {
 	audioPrompt(context.Context, ImageTokenizer, []float32, string, string) (MultimodalPrompt, error)
+	audioSampleRate() (int, error)
 }
 
 type mediaHistoryPromptProvider interface {
@@ -97,7 +98,8 @@ func OpenActiveSession(
 func (s *compiledSession) Capabilities() SessionCapabilities {
 	return SessionCapabilities{
 		Image: s.images != nil, MultiImage: s.images != nil,
-		Video: s.video != nil, Audio: s.audio != nil, MediaHistory: s.media != nil,
+		Video: s.video != nil, Audio: s.audio != nil,
+		MediaHistory: s.media != nil,
 	}
 }
 
@@ -156,6 +158,22 @@ func (s *compiledSession) BuildAudioPrompt(
 		return MultimodalPrompt{}, errors.New("projector: session does not build audio prompts")
 	}
 	return s.audio.audioPrompt(ctx, tokenizer, samples, beforeAudio, afterAudio)
+}
+
+func (s *compiledSession) audioInputSampleRate() (int, error) {
+	if s.audio == nil {
+		return 0, errors.New("projector: session does not build audio prompts")
+	}
+	return s.audio.audioSampleRate()
+}
+
+// AudioSampleRate returns the artifact-declared rate for a compiled session.
+func AudioSampleRate(session Session) (int, error) {
+	provider, ok := session.(interface{ audioInputSampleRate() (int, error) })
+	if !ok {
+		return 0, errors.New("projector: session has no audio sample-rate contract")
+	}
+	return provider.audioInputSampleRate()
 }
 
 func (s *compiledSession) BuildMediaHistoryPrompt(

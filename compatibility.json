@@ -1086,7 +1086,7 @@
      "contains": "func (h *Handler) browseRuns(",
      "path": "internal/server/browse_runs.go",
      "role": "source",
-     "identity": "file:sha256:87edd5d2c19f01cd9c5fa857e361c48e90f34546b6cf2531f0cab1849023c220"
+     "identity": "file:sha256:e0fed95d235c7f346697ea90195d799f89d84811f7e504c0dab106b4151e30b2"
     },
     {
      "contains": "func TestBrowseRunsReadsRepoDBRecords(",

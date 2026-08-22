@@ -1,5 +1,68 @@
 {
-  "campaign": "Executable tightening: inference contracts and observation ownership",
-  "doctrine": "Deletion-led waves. Existing tensor, model, recipe, cache, and evidence owners remain authoritative. Move every caller and delete displaced checks, wrappers, copies, and loops in the same commit. No compatibility paths. Preserve numerical behavior. Require net-negative production surface, focused host tests, changed-path CUDA tests, and exact plan gates.",
-  "items": []
+  "campaign": "Executable tightening: typed storage, device catalogs, and shared execution",
+  "doctrine": "Deletion-led waves. Existing artifact codecs, tensor stores, recipe definitions, and mathematical operators remain authoritative. Move every production caller and delete displaced readers, dtype wrappers, validation walkers, and execution clones in the same commit. No compatibility aliases or fallback paths. Preserve numerical behavior. Each wave must be production-code net-negative and pass focused host tests, applicable CUDA lanes, plan verification, and the commit gate before merging tightening/master.",
+  "items": [
+    {
+      "id": "converted-device-catalog",
+      "title": "Use one converted CUDA weight catalog",
+      "status": "open",
+      "steps": [
+        {
+          "id": "migrate",
+          "title": "Parameterize converted residency by dtype and delete F32 and BF16 wrappers",
+          "status": "open",
+          "verify": "go test ./internal/model ./internal/inference ./internal/projector -run 'Test(DeviceConvertedWeights|OpenProjectorResource|SelectedModelTensors|CompiledSession)' -count=1",
+          "rationale": "Converted tensors share allocation, loading, lookup, input binding, and lifetime ownership; dtype selects only storage conversion and graph input type.",
+          "depends_on": [
+            "stored-record-authority/migrate"
+          ],
+          "capabilities": [
+            "typed-device-residency",
+            "shared-converted-catalog"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "recipe-identity-validation",
+      "title": "Consolidate canonical recipe identity validation",
+      "status": "open",
+      "steps": [
+        {
+          "id": "migrate",
+          "title": "Replace duplicate graph identity walkers with one adjacent-key validator",
+          "status": "open",
+          "verify": "go test ./internal/recipe -run 'TestDefinition' -count=1",
+          "rationale": "Canonical sorting already defines every identity key; duplicate detection should consume those keys once.",
+          "depends_on": [
+            "converted-device-catalog/migrate"
+          ],
+          "capabilities": [
+            "canonical-identity-validation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hybrid-host-pass",
+      "title": "Share host training pass ownership",
+      "status": "open",
+      "steps": [
+        {
+          "id": "migrate",
+          "title": "Use one host forward and backward pass across optimizer lanes",
+          "status": "open",
+          "verify": "go test ./internal/hybridtrain -run 'TestHybrid(CompiledHostLifecycle|TrainHostMasterStreamedMatchesHost|TrainLayerStreamedMatchesFullSlab)' -count=1",
+          "rationale": "Host and host-master lanes execute identical forward, trace, backward, packing, and scratch reuse; optimizer ownership remains lane-specific.",
+          "depends_on": [
+            "recipe-identity-validation/migrate"
+          ],
+          "capabilities": [
+            "shared-host-autodiff",
+            "lane-specific-optimizer"
+          ]
+        }
+      ]
+    }
+  ]
 }

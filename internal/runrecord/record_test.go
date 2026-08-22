@@ -77,6 +77,10 @@ func TestRunAndEvaluationPersistWithLineage(t *testing.T) {
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
+	storedRun, err := RequireRun(ctx, store, run.ID)
+	if err != nil || storedRun.ID != run.ID {
+		t.Fatalf("stored run = (%+v, %v)", storedRun, err)
+	}
 	evaluation, err := NewEvaluation(recipeID, run.ID, datasetID, []Metric{{
 		Name: "quality", Value: 1, Direction: DirectionMaximize,
 	}})
@@ -89,6 +93,10 @@ func TestRunAndEvaluationPersistWithLineage(t *testing.T) {
 	}
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
+	}
+	storedEvaluation, err := RequireEvaluation(ctx, store, evaluation.ID)
+	if err != nil || storedEvaluation.ID != evaluation.ID {
+		t.Fatalf("stored evaluation = (%+v, %v)", storedEvaluation, err)
 	}
 	parents, err := store.Parents(ctx, evaluation.ID)
 	if err != nil || len(parents) != 3 {

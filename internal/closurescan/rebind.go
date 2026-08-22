@@ -11,31 +11,45 @@ type RebindIndex map[string][]Candidate
 func CompileRebindIndex(candidates []Candidate) RebindIndex {
 	current := make(RebindIndex, len(candidates))
 	for _, candidate := range candidates {
-		current[rebindCandidateKey(candidate)] = append(current[rebindCandidateKey(candidate)], candidate)
+		key := rebindKey(candidate.Kind, candidate.Package, candidate.File, candidate.Scope, candidate.Name, candidate.Expression)
+		current[key] = append(current[key], candidate)
 	}
 	return current
 }
 
 // Rebind matches policy and callsites, moving source identity when needed.
-func (current RebindIndex) Rebind(document closureledger.Document) (closureledger.Document, bool, error) {
+func (current RebindIndex) Rebind(document closureledger.Document) (closureledger.Document, bool, string, error) {
 	bindings := make([]closureledger.SourceBinding, len(document.Bindings))
 	fixture := document.Fixture
 	changed := false
 	for index, previous := range document.Bindings {
+		candidates := current[rebindKey(previous.Kind, previous.Package, previous.File, previous.Scope, previous.Name, previous.Expression)]
 		var match Candidate
-		found := false
-		for _, candidate := range current[rebindBindingKey(previous)] {
-			if found {
-				return closureledger.Document{}, false, nil
+		matches, callsites := 0, false
+		for _, candidate := range candidates {
+			if candidate.CallsiteID != previous.CallsiteID {
+				continue
 			}
-			match, found = candidate, true
+			callsites = true
+			if bytes.Equal(candidate.ValueJSON(), document.Value) {
+				match, matches = candidate, matches+1
+			}
 		}
-		if !found || !bytes.Equal(match.ValueJSON(), document.Value) {
-			return closureledger.Document{}, false, nil
+		if matches != 1 {
+			reason := "value"
+			switch {
+			case len(candidates) == 0:
+				reason = "declaration"
+			case !callsites:
+				reason = "callsite"
+			case matches > 1:
+				reason = "ambiguous"
+			}
+			return closureledger.Document{}, false, reason, nil
 		}
 		binding, err := match.Binding()
 		if err != nil {
-			return closureledger.Document{}, false, err
+			return closureledger.Document{}, false, "binding", err
 		}
 		bindings[index] = binding
 		if fixture == previous.Owner {
@@ -46,21 +60,15 @@ func (current RebindIndex) Rebind(document closureledger.Document) (closureledge
 		}
 	}
 	if !changed {
-		return document, true, nil
+		return document, true, "exact", nil
 	}
 	rebound, err := closureledger.New(
 		document.Name, document.Value, document.Tier, document.Status, document.Understanding,
 		bindings, document.ClosurePath, document.RerankTrigger, fixture,
 	)
-	return rebound, err == nil, err
+	return rebound, err == nil, "source", err
 }
 
-func rebindCandidateKey(candidate Candidate) string {
-	return string(candidate.Kind) + "\x00" + candidate.Package + "\x00" + candidate.File + "\x00" +
-		candidate.Scope + "\x00" + candidate.Name + "\x00" + candidate.Expression + "\x00" + candidate.CallsiteID
-}
-
-func rebindBindingKey(binding closureledger.SourceBinding) string {
-	return string(binding.Kind) + "\x00" + binding.Package + "\x00" + binding.File + "\x00" +
-		binding.Scope + "\x00" + binding.Name + "\x00" + binding.Expression + "\x00" + binding.CallsiteID
+func rebindKey(kind closureledger.BindingKind, pkg, file, scope, name, expression string) string {
+	return string(kind) + "\x00" + pkg + "\x00" + file + "\x00" + scope + "\x00" + name + "\x00" + expression
 }

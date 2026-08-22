@@ -56,7 +56,6 @@ func main() {
 	triagePath := flag.String("triage", "", "triage JSON ({rows:[{kind,name,file,scope,line,tier,status,understanding,closure_path,rerank_trigger}]})")
 	storePath := flag.String("store", "repodb-store", "RepoDB store directory (emit mode)")
 	limit := flag.Int("limit", 40, "report mode: top-N candidates to print")
-	raw := flag.Bool("raw", false, "rank repeated raw policy literals instead of declared constants")
 	literals := flag.Bool("literals", false, "report classified production literals instead of declared constants")
 	testLiterals := flag.Bool("test-literals", false, "report classified test literals and production overlaps")
 	assumptions := flag.Bool("assumptions", false, "report syntax-derived distribution, geometry, and shape hints")
@@ -81,7 +80,7 @@ func main() {
 	}
 	modes := 0
 	for _, enabled := range []bool{
-		*raw, *literals, *testLiterals, *assumptions, *census, *importStore != "",
+		*literals, *testLiterals, *assumptions, *census, *importStore != "",
 		*checkScope != "", *checkAll, *checkTests,
 	} {
 		if enabled {
@@ -152,19 +151,11 @@ func main() {
 		return
 	}
 	if *importStore != "" {
-		count, unmatched, err := importClosureDocuments(root, *storePath, *importStore, mustSnapshot(root))
+		count, unmatched, first, err := importClosureDocuments(root, *storePath, *importStore, mustSnapshot(root))
 		if err != nil {
 			fatal(err)
 		}
-		fmt.Printf("imported %d closure document(s), unmatched=%d\n", count, unmatched)
-		return
-	}
-	if *raw {
-		ranked, err := closurescan.RepeatedPolicyLiterals(mustSnapshot(root))
-		if err != nil {
-			fatal(err)
-		}
-		reportRaw(ranked, *limit)
+		fmt.Printf("imported %d closure document(s), unmatched=%d first=%s\n", count, unmatched, first)
 		return
 	}
 	if *literals {
@@ -409,33 +400,33 @@ func publishCensusEvidence(ctx context.Context, store *repodb.Store, snapshot re
 	return stored, nil
 }
 
-func importClosureDocuments(root, storePath, sourcePath string, snapshot repoanalysis.SourceSnapshot) (count, unmatched int, finalErr error) {
+func importClosureDocuments(root, storePath, sourcePath string, snapshot repoanalysis.SourceSnapshot) (count, unmatched int, first string, finalErr error) {
 	candidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
 	if err != nil {
-		return count, unmatched, err
+		return count, unmatched, first, err
 	}
 	destinationPath := filepath.Join(root, storePath)
 	sameStore := filepath.Clean(destinationPath) == filepath.Clean(sourcePath)
 	source, err := repodb.OpenReadOnly(sourcePath)
 	if err != nil {
-		return count, unmatched, err
+		return count, unmatched, first, err
 	}
 	documents, sourceAliases, _, err := activeClosureDocuments(context.Background(), source)
 	closeErr := source.Close()
 	if err != nil {
-		return count, unmatched, err
+		return count, unmatched, first, err
 	}
 	if closeErr != nil {
-		return count, unmatched, closeErr
+		return count, unmatched, first, closeErr
 	}
 	target, err := repodb.Open(destinationPath)
 	if err != nil {
-		return count, unmatched, err
+		return count, unmatched, first, err
 	}
 	targetDocuments, targetAliases, _, err := activeClosureDocuments(context.Background(), target)
 	closeErr = target.Close()
 	if err != nil || closeErr != nil {
-		return count, unmatched, errors.Join(err, closeErr)
+		return count, unmatched, first, errors.Join(err, closeErr)
 	}
 	var rebound []closureledger.Document
 	var retirements []artifact.AliasBinding
@@ -453,7 +444,7 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 		key := (closurescan.Candidate{Kind: binding.Kind, File: binding.File, Scope: binding.Scope, Line: binding.Line, Name: binding.Name}).DeclarationKey()
 		alias, err := closureledger.ActiveAlias(binding)
 		if err != nil {
-			return count, unmatched, err
+			return count, unmatched, first, err
 		}
 		if !declarations[key] && targetAliases[alias] == document.ID && !retired[alias] {
 			retirements = append(retirements, artifact.AliasBinding{Name: alias, Target: document.ID, Previous: &document.ID, Remove: true})
@@ -463,19 +454,22 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 	for _, document := range documents {
 		if len(document.Bindings) != 1 {
 			unmatched++
+			first = cmp.Or(first, document.Name+":bindings")
 			continue
 		}
 		previousAlias, err := closureledger.ActiveAlias(document.Bindings[0])
 		if err != nil || sourceAliases[previousAlias] != document.ID {
 			unmatched++
+			first = cmp.Or(first, document.Name+":source-alias")
 			continue
 		}
-		current, matched, err := index.Rebind(document)
+		current, matched, reason, err := index.Rebind(document)
 		if err != nil {
-			return count, unmatched, err
+			return count, unmatched, first, err
 		}
 		if !matched {
 			unmatched++
+			first = cmp.Or(first, document.Name+":"+reason)
 			continue
 		}
 		if sameStore && current.ID == document.ID {
@@ -483,7 +477,7 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 		}
 		currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
 		if err != nil {
-			return count, unmatched, err
+			return count, unmatched, first, err
 		}
 		if sameStore && currentAlias != previousAlias && !retired[previousAlias] {
 			retirements = append(retirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: &document.ID, Remove: true})
@@ -492,12 +486,12 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 		rebound = append(rebound, current)
 	}
 	if rebound == nil && retirements == nil {
-		return count, unmatched, nil
+		return count, unmatched, first, nil
 	}
 	if _, _, err := commitClosureDocuments(root, destinationPath, rebound, retirements); err != nil {
-		return count, unmatched, err
+		return count, unmatched, first, err
 	}
-	return len(rebound), unmatched, nil
+	return len(rebound), unmatched, first, nil
 }
 
 func activeClosureDocuments(ctx context.Context, store *repodb.Store) ([]closureledger.Document, map[string]artifact.ID, repodb.QueryResult, error) {
@@ -634,14 +628,6 @@ func report(candidates []closurescan.Candidate, limit int) {
 	fmt.Printf("%-6s %-44s %-16s %-24s %s\n", "score", "const", "value", "scope", "source")
 	for _, row := range candidates[:min(len(candidates), limit)] {
 		fmt.Printf("%-6d %-44s %-16s %-24s %s:%d\n", row.Score, row.Name, row.Value, row.Scope, row.File, row.Line)
-	}
-}
-
-func reportRaw(candidates []closurescan.RawPolicyLiteral, limit int) {
-	fmt.Printf("closure-scan: %d repeated raw policy candidates (tests, generated, structural math excluded)\n", len(candidates))
-	fmt.Printf("%-6s %-8s %-24s %-28s %s\n", "score", "count", "value", "package", "functions")
-	for _, row := range candidates[:min(len(candidates), limit)] {
-		fmt.Printf("%-6d %-8d %-24s %-28s %s\n", row.Score, row.Count, row.Value, row.Package, strings.Join(row.Functions, ","))
 	}
 }
 

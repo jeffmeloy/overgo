@@ -10,18 +10,26 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/optimizer"
+	"overgo/internal/runrecord"
 )
 
 // Request binds the two frozen model artifacts and the complete mutable bridge
 // parameter slab to one compiled optimizer plan.
 type Request struct {
-	Reader    artifact.Reader
-	Source    artifact.ID
-	Target    artifact.ID
-	Weights   []float32
-	Gradients []float32
-	Plan      optimizer.Plan
-	Config    optimizer.Config
+	Reader         artifact.Reader
+	Source         artifact.ID
+	Target         artifact.ID
+	Weights        []float32
+	Gradients      []float32
+	Plan           optimizer.Plan
+	Config         optimizer.Config
+	Dataset        artifact.ID
+	Examples       []Example
+	SourceForward  FrozenForward
+	TargetForward  FrozenForward
+	TrainingPolicy artifact.ID
+	Epochs         int
+	Resume         artifact.ID
 }
 
 // ModelEvidence records the immutable descriptor at both sides of the update.
@@ -39,6 +47,9 @@ type Result struct {
 	BridgeAfter  artifact.ID
 	Optimizer    optimizer.StepResult
 	Lineage      []artifact.Lineage
+	Checkpoint   artifact.ID
+	Metrics      []runrecord.Metric
+	Batch        artifact.Batch
 }
 
 // Trainer has no repository mutation capability; its zero value performs one
@@ -48,6 +59,9 @@ type Trainer struct{}
 // Step commits bridge weights to the caller only after frozen-model evidence
 // and a non-empty bridge update have both been verified.
 func (trainer Trainer) Step(ctx context.Context, request Request) (Result, error) {
+	if len(request.Examples) != 0 || request.Dataset.Valid() || request.Resume.Valid() {
+		return trainer.trainDataset(ctx, request)
+	}
 	if ctx == nil || request.Reader == nil {
 		return Result{}, errors.New("bridge training: artifact authority is absent")
 	}

@@ -278,18 +278,6 @@ func (c weightCatalog) tensor(name string) (gguf.TensorInfo, bool) {
 	return c.items[index], true
 }
 
-// loadQLoRAQuery binds the low-rank query projection triple.
-func loadQLoRAQuery(catalog weightCatalog, prefix string, spec Spec, queryLength uint64, layer *LayerWeights) error {
-	return bindTensorProgram(catalog, prefix, []tensorBinding{
-		requiredTensorPointer("attn_q_a.weight", &layer.AttentionQ,
-			uint64(spec.EmbeddingLength), uint64(spec.QLoRARank)),
-		requiredTensorPointer("attn_q_a_norm.weight", &layer.AttentionQNorm,
-			uint64(spec.QLoRARank)),
-		requiredTensorPointer("attn_q_b.weight", &layer.AttentionQB,
-			uint64(spec.QLoRARank), queryLength),
-	})
-}
-
 func (c weightCatalog) selectName(prefix, primary, alternate string) string {
 	if alternate == "" {
 		return primary
@@ -718,116 +706,6 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, normErr
 			}
 		}
-		if layerPlan.Mixer == recurrentMixerKeyedDelta {
-			layer.Recurrent = spec.IsRecurrentLayer(block)
-			if layer.Recurrent {
-				inner := uint64(spec.SSMInnerSize)
-				width := uint64(spec.EmbeddingLength)
-				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-					requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ, width, inner),
-					requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK, width, inner),
-					requiredTensorPointer(attentionValueWeightTensor, &layer.AttentionV, width, inner),
-					requiredTensorPointer(attentionOutputWeightTensor, &layer.AttentionOutput, inner, width),
-				}); itemErr != nil {
-					return Weights{}, itemErr
-				}
-				convShape := []uint64{uint64(spec.SSMConvKernel), tensor.SingletonExtent, inner}
-				convShape4D := []uint64{
-					uint64(spec.SSMConvKernel), tensor.SingletonExtent, inner, tensor.SingletonExtent,
-				}
-				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-					requiredTensorPointerShapes("ssm_conv1d_q.weight", &layer.SSMQueryConv, convShape, convShape4D),
-					requiredTensorPointerShapes("ssm_conv1d_k.weight", &layer.SSMKeyConv, convShape, convShape4D),
-					requiredTensorPointerShapes("ssm_conv1d_v.weight", &layer.SSMValueConv, convShape, convShape4D),
-					requiredTensorPointer("ssm_f_a.weight", &layer.SSMForgetA, width, uint64(spec.KDAHeadDim)),
-					requiredTensorPointer("ssm_f_b.weight", &layer.SSMForgetB, uint64(spec.KDAHeadDim), inner),
-					requiredTensorPointer("ssm_beta.weight", &layer.SSMBeta, width, uint64(spec.HeadCount)),
-					requiredTensorPointer("ssm_dt.bias", &layer.SSMTimeStep, inner),
-					requiredTensorPointer("ssm_g_a.weight", &layer.SSMOutputGateA, width, uint64(spec.KDAHeadDim)),
-					requiredTensorPointer("ssm_g_b.weight", &layer.SSMOutputGateB, uint64(spec.KDAHeadDim), inner),
-					requiredTensorPointer("ssm_norm.weight", &layer.SSMNorm, uint64(spec.KDAHeadDim)),
-				}); itemErr != nil {
-					return Weights{}, itemErr
-				}
-				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-					requiredTensorPointerShapes("ssm_a", &layer.SSMA,
-						[]uint64{tensor.SingletonExtent, uint64(spec.HeadCount)},
-						[]uint64{
-							tensor.SingletonExtent, uint64(spec.HeadCount),
-							tensor.SingletonExtent, tensor.SingletonExtent,
-						}),
-				}); itemErr != nil {
-					return Weights{}, itemErr
-				}
-			} else {
-				if spec.QLoRARank > tensor.FirstOffset {
-					if err := loadQLoRAQuery(catalog, prefix, spec, queryLength, layer); err != nil {
-						return Weights{}, err
-					}
-				}
-				var requirements []tensorBinding
-				if spec.QLoRARank == tensor.FirstOffset {
-					requirements = append(requirements, requiredTensorPointer(
-						attentionQueryWeightTensor, &layer.AttentionQ,
-						uint64(spec.EmbeddingLength), queryLength))
-				}
-				requirements = append(requirements,
-					requiredTensorPointer(attentionOutputWeightTensor, &layer.AttentionOutput,
-						attentionOutputLength, uint64(spec.EmbeddingLength)),
-					requiredTensorPointer("attn_kv_a_mqa.weight", &layer.AttentionKVAMQA,
-						uint64(spec.EmbeddingLength), uint64(spec.KVLoRARank+spec.RopeDimensionCount)),
-					requiredTensorPointer("attn_kv_a_norm.weight", &layer.AttentionKVANorm,
-						uint64(spec.KVLoRARank)),
-				)
-				nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
-				if _, ok := catalog.tensors[prefix+"attn_k_b.weight"]; ok {
-					requirements = append(requirements,
-						requiredTensorPointer("attn_k_b.weight", &layer.AttentionKB,
-							nope, uint64(spec.KVLoRARank), uint64(spec.HeadCount)),
-						requiredTensorPointer("attn_v_b.weight", &layer.AttentionVB,
-							uint64(spec.KVLoRARank), uint64(spec.ValueLength), uint64(spec.HeadCount)),
-					)
-				} else {
-					requirements = append(requirements, requiredTensorPointer(
-						"attn_kv_b.weight", &layer.AttentionKVB, uint64(spec.KVLoRARank),
-						uint64(spec.HeadCount)*(nope+uint64(spec.ValueLength))))
-				}
-				if itemErr := bindTensorProgram(catalog, prefix, requirements); itemErr != nil {
-					return Weights{}, itemErr
-				}
-			}
-			if normErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-				requiredTensorPointer(feedForwardNormWeightTensor, &layer.FeedForwardNorm,
-					uint64(spec.EmbeddingLength)),
-			}); normErr != nil {
-				return Weights{}, normErr
-			}
-			if block < spec.LeadingDenseBlocks {
-				width := uint64(spec.EmbeddingLength)
-				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-					requiredTensorPointer(feedForwardGateWeightTensor, &layer.FeedForwardGate, width, uint64(spec.FeedForwardLength)),
-					requiredTensorPointer(feedForwardUpWeightTensor, &layer.FeedForwardUp, width, uint64(spec.FeedForwardLength)),
-					requiredTensorPointer(feedForwardDownWeightTensor, &layer.FeedForwardDown, uint64(spec.FeedForwardLength), width),
-				}); itemErr != nil {
-					return Weights{}, itemErr
-				}
-			} else {
-				width := uint64(spec.EmbeddingLength)
-				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-					requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, width, uint64(spec.ExpertCount)),
-					requiredTensorPointer("ffn_gate_exps.weight", &layer.FeedForwardGateExperts, width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
-					requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, width, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
-					requiredTensorPointer("ffn_down_exps.weight", &layer.FeedForwardDownExperts, uint64(spec.ExpertFeedForward), width, uint64(spec.ExpertCount)),
-					requiredTensorPointer("exp_probs_b.bias", &layer.FeedForwardExpertBias, uint64(spec.ExpertCount)),
-				}); itemErr != nil {
-					return Weights{}, itemErr
-				}
-				if itemErr := loadSharedExpertWeights(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, false); itemErr != nil {
-					return Weights{}, itemErr
-				}
-			}
-			continue
-		}
 		if mixer := layerPlan.Mixer; mixer >= recurrentMixerDynamicWKV6 && mixer <= recurrentMixerDynamicWKV7 {
 			if mixerErr := loadTokenShiftRecurrentLayer(catalog, prefix, spec, layer, block, layerPlan.Mixer); mixerErr != nil {
 				return Weights{}, mixerErr
@@ -939,8 +817,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, outputErr
 			}
 		} else if handled, mixerErr := loadRecurrentMixerLayer(
-			catalog, prefix, spec, layer, block, layerPlan.Mixer,
-			layerPlan.AttentionGraph.deltaProjection, layerPlan.Recurrent,
+			catalog, prefix, spec, layer, layerPlan,
 			queryLength, keyLength, valueLength, attentionOutputLength,
 		); mixerErr != nil {
 			return Weights{}, mixerErr
@@ -967,51 +844,10 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, attentionErr
 			}
 		} else if layerPlan.Attention == AttentionLatent || layerPlan.Attention == AttentionSparseLatent {
-			nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
-			var mlaTensors []tensorBinding
-			if profile.LatentAttention == latentAttentionNeoXResidualScale ||
-				(profile.Has(ArchitectureLatentKVLayout) && spec.QLoRARank > tensor.FirstOffset) {
-				mlaTensors = append(mlaTensors,
-					requiredTensorPointer("attn_q_a.weight", &layer.AttentionQ,
-						uint64(spec.EmbeddingLength), uint64(spec.QLoRARank)),
-					requiredTensorPointer("attn_q_b.weight", &layer.AttentionQB,
-						uint64(spec.QLoRARank), queryLength),
-					requiredTensorPointer("attn_q_a_norm.weight", &layer.AttentionQNorm,
-						uint64(spec.QLoRARank)),
-				)
-			} else {
-				mlaTensors = append(mlaTensors, requiredTensorPointer(
-					attentionQueryWeightTensor, &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength))
-			}
-			mlaTensors = append(mlaTensors,
-				requiredTensorPointer("attn_kv_a_mqa.weight", &layer.AttentionKVAMQA,
-					uint64(spec.EmbeddingLength), uint64(spec.KVLoRARank+spec.RopeDimensionCount)),
-				requiredTensorPointer("attn_kv_a_norm.weight", &layer.AttentionKVANorm, uint64(spec.KVLoRARank)),
-			)
-			if _, modern := catalog.tensors[prefix+"attn_k_b.weight"]; modern {
-				mlaTensors = append(mlaTensors,
-					requiredTensorPointer("attn_k_b.weight", &layer.AttentionKB, nope, uint64(spec.KVLoRARank), uint64(spec.HeadCount)),
-					requiredTensorPointer("attn_v_b.weight", &layer.AttentionVB, uint64(spec.KVLoRARank), uint64(spec.ValueLength), uint64(spec.HeadCount)),
-				)
-			} else {
-				mlaTensors = append(mlaTensors, requiredTensorPointer(
-					"attn_kv_b.weight", &layer.AttentionKVB,
-					uint64(spec.KVLoRARank), uint64(spec.HeadCount)*(nope+uint64(spec.ValueLength)),
-				))
-			}
-			if spec.LayerHasFullIndexer(block) {
-				mlaTensors = append(mlaTensors,
-					requiredTensorPointer("indexer.k_norm.weight", &layer.IndexerKNorm, uint64(spec.IndexerKeyLength)),
-					requiredTensorPointer("indexer.k_norm.bias", &layer.IndexerKNormBias, uint64(spec.IndexerKeyLength)),
-					requiredTensorPointer("indexer.proj.weight", &layer.IndexerProjection, uint64(spec.EmbeddingLength), uint64(spec.IndexerHeadCount)),
-					requiredTensorPointer("indexer.attn_k.weight", &layer.IndexerAttentionK, uint64(spec.EmbeddingLength), uint64(spec.IndexerKeyLength)),
-					requiredTensorPointer("indexer.attn_q_b.weight", &layer.IndexerAttentionQB, uint64(spec.QLoRARank), uint64(spec.IndexerHeadCount)*uint64(spec.IndexerKeyLength)),
-				)
-			}
-			mlaTensors = append(mlaTensors, requiredTensorPointer(
-				attentionOutputWeightTensor, &layer.AttentionOutput,
-				uint64(spec.HeadCount)*uint64(spec.ValueLength), uint64(spec.EmbeddingLength)))
-			if itemErr := bindTensorProgram(catalog, prefix, mlaTensors); itemErr != nil {
+			if itemErr := loadLatentAttentionCatalog(
+				catalog, prefix, spec, layer, layerPlan,
+				queryLength, uint64(spec.HeadCount)*uint64(spec.ValueLength),
+			); itemErr != nil {
 				return Weights{}, itemErr
 			}
 		} else if attentionErr := loadStandardAttentionCatalog(

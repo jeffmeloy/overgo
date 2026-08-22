@@ -178,15 +178,7 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 		return err
 	}
 	request = request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW)
-	nextPolicy, err := SessionPolicy(request)
-	if err != nil {
-		return err
-	}
-	currentPolicy, err := SessionPolicy(g.request)
-	if err != nil {
-		return err
-	}
-	if nextPolicy != currentPolicy {
+	if request.Prompt != g.request.Prompt || request.Width != g.request.Width || request.Height != g.request.Height {
 		return errors.New("latent image: request requires another resident session")
 	}
 	schedule, err := CompileFlowSchedule(request.Steps, request.NumTrainTimesteps, request.DynamicShiftMu)

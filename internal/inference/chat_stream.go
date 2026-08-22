@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-
-	"overgo/internal/checked"
-	"overgo/internal/textcheck"
 )
 
 // ChatToolCallDelta: incremental function-call update.
@@ -110,7 +107,7 @@ func (s *chatOutputStream) Accept(
 			}
 			if started && !s.prefixSent {
 				prefix := s.output.String()
-				if toolStart := strings.Index(prefix, toolCallOpen); textcheck.FoundIndex(toolStart) {
+				if toolStart := strings.Index(prefix, toolCallOpen); toolStart >= 0 {
 					var prefixErr error
 					delta.ReasoningContent, delta.Content, prefixErr =
 						splitChatReasoning(prefix[:toolStart])
@@ -136,15 +133,15 @@ func chatToolSnapshots(
 	tools []ChatTool,
 ) ([]chatToolSnapshot, error) {
 	hermes := strings.Contains(template, "<function=example_function_name>")
-	var snapshots []chatToolSnapshot
+	snapshots := make([]chatToolSnapshot, 0, 1)
 	remainder := output
 	for {
 		start := strings.Index(remainder, toolCallOpen)
-		if !textcheck.FoundIndex(start) {
+		if start < 0 {
 			break
 		}
 		payload := remainder[start+len(toolCallOpen):]
-		if end := strings.Index(payload, toolCallClose); textcheck.FoundIndex(end) {
+		if end := strings.Index(payload, toolCallClose); end >= 0 {
 			payload = payload[:end]
 			remainder = remainder[start+len(toolCallOpen)+end+len(toolCallClose):]
 		} else {
@@ -200,48 +197,47 @@ func jsonToolSnapshot(payload string) (chatToolSnapshot, error) {
 func jsonObjectFieldStart(
 	input, wanted string,
 ) (int, bool, error) {
-	var unavailable int
-	index := skipJSONSpace(input, unavailable)
+	index := skipJSONSpace(input, 0)
 	if index >= len(input) {
-		return unavailable, false, nil
+		return 0, false, nil
 	}
 	if input[index] != '{' {
-		return unavailable, false, nil
+		return 0, false, nil
 	}
-	index += len("{")
+	index++
 	for {
 		index = skipJSONSpace(input, index)
 		if index >= len(input) || input[index] == '}' {
-			return unavailable, false, nil
+			return 0, false, nil
 		}
 		keyEnd, complete, err := jsonValuePrefixEnd(input, index)
 		if err != nil || !complete {
-			return unavailable, false, err
+			return 0, false, err
 		}
 		var key string
 		if err := json.Unmarshal([]byte(input[index:keyEnd]), &key); err != nil {
-			return unavailable, false, nil
+			return 0, false, nil
 		}
 		index = skipJSONSpace(input, keyEnd)
 		if index >= len(input) || input[index] != ':' {
-			return unavailable, false, nil
+			return 0, false, nil
 		}
-		index = skipJSONSpace(input, index+len(":"))
+		index = skipJSONSpace(input, index+1)
 		if index >= len(input) {
-			return unavailable, false, nil
+			return 0, false, nil
 		}
 		if key == wanted {
 			return index, true, nil
 		}
 		valueEnd, complete, err := jsonValuePrefixEnd(input, index)
 		if err != nil || !complete {
-			return unavailable, false, err
+			return 0, false, err
 		}
 		index = skipJSONSpace(input, valueEnd)
 		if index >= len(input) || input[index] != ',' {
-			return unavailable, false, nil
+			return 0, false, nil
 		}
-		index += len(",")
+		index++
 	}
 }
 
@@ -255,14 +251,14 @@ func jsonValuePrefixEnd(
 	switch input[start] {
 	case '"':
 		escaped := false
-		for index := start + len("\""); index < len(input); index++ {
+		for index := start + 1; index < len(input); index++ {
 			switch {
 			case escaped:
 				escaped = false
 			case input[index] == '\\':
 				escaped = true
 			case input[index] == '"':
-				return index + len("\""), true, nil
+				return index + 1, true, nil
 			}
 		}
 		return len(input), false, nil
@@ -272,7 +268,7 @@ func jsonValuePrefixEnd(
 		if open == '[' {
 			close = ']'
 		}
-		var depth int
+		depth := 0
 		inString := false
 		escaped := false
 		for index := start; index < len(input); index++ {
@@ -295,8 +291,8 @@ func jsonValuePrefixEnd(
 				depth++
 			case close:
 				depth--
-				if !checked.Nonzero(depth) {
-					return index + len("}"), true, nil
+				if depth == 0 {
+					return index + 1, true, nil
 				}
 			}
 		}
@@ -324,12 +320,12 @@ func hermesToolSnapshot(
 ) (chatToolSnapshot, error) {
 	const functionPrefix = "<function="
 	start := strings.Index(payload, functionPrefix)
-	if !textcheck.FoundIndex(start) {
+	if start < 0 {
 		return chatToolSnapshot{}, nil
 	}
 	nameStart := start + len(functionPrefix)
 	nameEnd := strings.IndexByte(payload[nameStart:], '>')
-	if !textcheck.FoundIndex(nameEnd) {
+	if nameEnd < 0 {
 		return chatToolSnapshot{}, nil
 	}
 	nameEnd += nameStart
@@ -339,35 +335,35 @@ func hermesToolSnapshot(
 	}
 	arguments := strings.Builder{}
 	arguments.WriteByte('{')
-	remainder := payload[nameEnd+len(">"):]
-	hasParameter := false
+	remainder := payload[nameEnd+1:]
+	parameterCount := 0
 	for {
 		const parameterPrefix = "<parameter="
 		parameterStart := strings.Index(remainder, parameterPrefix)
 		functionEnd := strings.Index(remainder, "</function>")
-		if textcheck.FoundIndex(functionEnd) && (!textcheck.FoundIndex(parameterStart) || functionEnd < parameterStart) {
+		if functionEnd >= 0 && (parameterStart < 0 || functionEnd < parameterStart) {
 			arguments.WriteByte('}')
 			break
 		}
-		if !textcheck.FoundIndex(parameterStart) {
+		if parameterStart < 0 {
 			break
 		}
 		keyStart := parameterStart + len(parameterPrefix)
 		keyEnd := strings.IndexByte(remainder[keyStart:], '>')
-		if !textcheck.FoundIndex(keyEnd) {
+		if keyEnd < 0 {
 			break
 		}
 		keyEnd += keyStart
 		key := remainder[keyStart:keyEnd]
-		if hasParameter {
+		if parameterCount != 0 {
 			arguments.WriteByte(',')
 		}
 		encodedKey, _ := json.Marshal(key)
 		arguments.Write(encodedKey)
 		arguments.WriteByte(':')
-		valueStart := keyEnd + len(">")
+		valueStart := keyEnd + 1
 		valueEnd := strings.Index(remainder[valueStart:], "</parameter>")
-		complete := textcheck.FoundIndex(valueEnd)
+		complete := valueEnd >= 0
 		if complete {
 			valueEnd += valueStart
 		} else {
@@ -380,12 +376,12 @@ func hermesToolSnapshot(
 			if complete {
 				arguments.Write(encodedValue)
 			} else {
-				arguments.Write(encodedValue[:len(encodedValue)-len("\"")])
+				arguments.Write(encodedValue[:len(encodedValue)-1])
 			}
 		} else {
 			arguments.WriteString(value)
 		}
-		hasParameter = true
+		parameterCount++
 		if !complete {
 			break
 		}

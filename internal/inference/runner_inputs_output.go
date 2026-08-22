@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 
-	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
@@ -74,7 +73,7 @@ func (r *Runner) gatherTensor(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	output := tensor.GatherRows(runtime.builder, table, indices)
+	output := runtime.builder.GetRows(table, indices)
 	if err := runtime.builder.Err(); err != nil {
 		return reference.Value{}, err
 	}
@@ -100,7 +99,8 @@ func (r *Runner) addPositionEmbeddings(
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("inference: load position embeddings: %w", err)
 	}
-	if !positionRows.Shape.Equal(activation.Shape) || !checked.Equal(len(positionRows.Data), len(activation.Data)) {
+	if !positionRows.Shape.Equal(activation.Shape) ||
+		validateStateValue(positionRows) != nil || validateStateValue(activation) != nil {
 		return reference.Value{}, errors.New("inference: position embedding shape differs from token embeddings")
 	}
 	for index := range activation.Data {
@@ -116,16 +116,16 @@ func (r *Runner) addTokenTypeEmbedding(
 	if r.weights.TokenTypeEmbedding == nil {
 		return activation, nil
 	}
-	typeRow, err := r.gatherTensor(ctx, *r.weights.TokenTypeEmbedding, []uint32{uint32(tensor.FirstOffset)})
+	typeRow, err := r.gatherTensor(ctx, *r.weights.TokenTypeEmbedding, []uint32{0})
 	if err != nil {
 		return reference.Value{}, fmt.Errorf("inference: load token-type embedding: %w", err)
 	}
-	width, tokens, validActivation := activation.MatrixExtents()
-	if !validActivation || !tensor.IsMatrix(typeRow.Shape, uint64(width), tensor.SingletonExtent) ||
-		!checked.Equal(len(typeRow.Data), width) {
+	width, tokens, valid := activation.MatrixExtents()
+	if !valid || !tensor.IsMatrix(typeRow.Shape, uint64(width), tensor.SingletonExtent) ||
+		validateStateValue(typeRow) != nil {
 		return reference.Value{}, errors.New("inference: token-type embedding shape is incompatible")
 	}
-	for token := range tokens {
+	for token := 0; token < tokens; token++ {
 		start := token * width
 		for index, value := range typeRow.Data {
 			activation.Data[start+index] += value
@@ -192,7 +192,7 @@ func (r *Runner) logits(
 	if err != nil {
 		return nil, err
 	}
-	inputShape := tensor.MustShape(uint64(len(hidden)), tensor.SingletonExtent)
+	inputShape := tensor.MustShape(uint64(len(hidden)), 1)
 	inputValue, err := reference.NewValue(inputShape, hidden)
 	if err != nil {
 		return nil, err
@@ -206,7 +206,7 @@ func (r *Runner) logits(
 		}
 		output = runtime.builder.Add(output, bias)
 	}
-	if scale := r.spec.OutputLogitMultiplier(); !checked.Equal(scale, float32(tensor.SingletonExtent)) {
+	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
 		output = runtime.builder.Scale(output, scale)
 	}
 	if err := runtime.builder.Err(); err != nil {
@@ -220,7 +220,7 @@ func (r *Runner) logits(
 }
 
 func scaleLogits(logits []float32, scale float32) {
-	if checked.Equal(scale, float32(tensor.SingletonExtent)) {
+	if scale == 1 {
 		return
 	}
 	for index := range logits {
@@ -229,7 +229,7 @@ func scaleLogits(logits []float32, scale float32) {
 }
 
 func applyLogitSoftcap(logits []float32, cap float32) []float32 {
-	if !checked.PositiveFinite32(cap) {
+	if cap <= 0 {
 		return logits
 	}
 	for index, value := range logits {
@@ -240,15 +240,14 @@ func applyLogitSoftcap(logits []float32, cap float32) []float32 {
 
 func (r *Runner) finalizeLogits(logits []float32) []float32 {
 	logits = applyLogitSoftcap(logits, r.spec.FinalLogitSoftcap)
-	if !checked.Nonzero(len(r.outputExclusions)) || !checked.Nonzero(r.spec.VocabularySize) {
+	if len(r.outputExclusions) == 0 || r.spec.VocabularySize == 0 {
 		return logits
 	}
 	vocabulary := int(r.spec.VocabularySize)
-	if checked.Nonzero(len(logits) % vocabulary) {
+	if len(logits)%vocabulary != 0 {
 		return logits
 	}
-	for base := range len(logits) / vocabulary {
-		base *= vocabulary
+	for base := 0; base < len(logits); base += vocabulary {
 		for _, span := range r.outputExclusions {
 			start, end := int(span.Start), min(int(span.End), vocabulary)
 			for token := start; token < end; token++ {
@@ -260,10 +259,10 @@ func (r *Runner) finalizeLogits(logits []float32) []float32 {
 }
 
 func addOutputBias(logits, bias []float32) error {
-	if !checked.Nonzero(len(bias)) {
+	if len(bias) == 0 {
 		return nil
 	}
-	if checked.Nonzero(len(logits) % len(bias)) {
+	if len(logits)%len(bias) != 0 {
 		return fmt.Errorf(
 			"inference: %d logits are not divisible by output bias length %d",
 			len(logits),

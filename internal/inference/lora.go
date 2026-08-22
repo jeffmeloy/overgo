@@ -10,8 +10,6 @@ import (
 	"slices"
 	"sort"
 
-	"overgo/internal/binaryschema"
-	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -38,52 +36,52 @@ type LoRAAdapterInfo struct {
 	ALoRAInvocationTokens []uint32 `json:"alora_invocation_tokens,omitempty"`
 }
 
-type activeALoRA struct {
-	adapter int
-	start   int
-	enabled bool
-	invoked bool
-}
-
-func (r *Runner) activeALoRA(ids []tokenizer.TokenID) (activeALoRA, error) {
-	var active activeALoRA
+func (r *Runner) activeALoRA(ids []tokenizer.TokenID) (int, int, error) {
+	enabled := -1
 	for index, loaded := range r.loraAdapters {
-		if !checked.Nonzero(loaded.scale) {
+		if loaded.scale == 0 {
 			continue
 		}
-		if !checked.Nonzero(len(loaded.adapter.InvocationTokens)) {
-			return activeALoRA{}, nil
+		if len(loaded.adapter.InvocationTokens) == 0 {
+			return -1, -1, nil
 		}
-		if active.enabled {
-			return activeALoRA{}, errors.New("inference: multiple aLoRA adapters are enabled")
+		if enabled >= 0 {
+			return -1, -1, errors.New("inference: multiple aLoRA adapters are enabled")
 		}
-		active.adapter = index
-		active.enabled = true
+		enabled = index
 	}
-	if !active.enabled {
-		return active, nil
+	if enabled < 0 {
+		return -1, -1, nil
 	}
-	invocation := r.loraAdapters[active.adapter].adapter.InvocationTokens
-	if start, found := tokenizer.LastInvocation(ids, invocation); found {
-		active.start = start
-		active.invoked = true
+	invocation := r.loraAdapters[enabled].adapter.InvocationTokens
+	for start := len(ids) - len(invocation); start >= 0; start-- {
+		matched := true
+		for offset, expected := range invocation {
+			if ids[start+offset] < 0 || uint32(ids[start+offset]) != expected {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return enabled, start, nil
+		}
 	}
-	return active, nil
+	return enabled, -1, nil
 }
 
 type loadedLoRA struct {
 	adapter   *model.LoRAAdapter
 	scale     float32
-	signature [sha256.Size]byte
+	signature [32]byte
 }
 
-func loRAStaticSignature(adapter *model.LoRAAdapter) [sha256.Size]byte {
+func loRAStaticSignature(adapter *model.LoRAAdapter) [32]byte {
 	if adapter == nil {
-		return [sha256.Size]byte{}
+		return [32]byte{}
 	}
 	hasher := sha256.New()
 	writeFingerprintString(hasher, adapter.Path)
-	var encoded [binaryschema.Uint32Bytes]byte
+	var encoded [4]byte
 	binary.LittleEndian.PutUint32(encoded[:], math.Float32bits(adapter.Alpha))
 	_, _ = hasher.Write(encoded[:])
 	for _, token := range adapter.InvocationTokens {
@@ -105,27 +103,27 @@ func loRAStaticSignature(adapter *model.LoRAAdapter) [sha256.Size]byte {
 			}
 		}
 	}
-	var result [sha256.Size]byte
+	var result [32]byte
 	copy(result[:], hasher.Sum(nil))
 	return result
 }
 
-func (r *Runner) currentLoRASignature() [sha256.Size]byte {
-	if r == nil || !checked.Nonzero(len(r.loraAdapters)) {
-		return [sha256.Size]byte{}
+func (r *Runner) currentLoRASignature() [32]byte {
+	if r == nil || len(r.loraAdapters) == 0 {
+		return [32]byte{}
 	}
 	hasher := sha256.New()
 	for _, loaded := range r.loraAdapters {
 		signature := loaded.signature
-		if signature == ([sha256.Size]byte{}) {
+		if signature == ([32]byte{}) {
 			signature = loRAStaticSignature(loaded.adapter)
 		}
 		_, _ = hasher.Write(signature[:])
-		var encoded [binaryschema.Uint32Bytes]byte
+		var encoded [4]byte
 		binary.LittleEndian.PutUint32(encoded[:], math.Float32bits(loaded.scale))
 		_, _ = hasher.Write(encoded[:])
 	}
-	var result [sha256.Size]byte
+	var result [32]byte
 	copy(result[:], hasher.Sum(nil))
 	return result
 }
@@ -134,13 +132,13 @@ func validatedLoRAScales(count int, scales []LoRAScale) ([]float32, error) {
 	next := make([]float32, count)
 	seen := make(map[int]struct{}, len(scales))
 	for _, requested := range scales {
-		if !checked.ValidIndex(requested.ID, len(next)) {
+		if requested.ID < 0 || requested.ID >= len(next) {
 			return nil, fmt.Errorf("inference: LoRA adapter ID %d is out of range", requested.ID)
 		}
 		if _, duplicate := seen[requested.ID]; duplicate {
 			return nil, fmt.Errorf("inference: LoRA adapter ID %d is duplicated", requested.ID)
 		}
-		if !checked.Finite32(requested.Scale) {
+		if math.IsNaN(float64(requested.Scale)) || math.IsInf(float64(requested.Scale), 0) {
 			return nil, fmt.Errorf("inference: LoRA adapter ID %d scale is invalid", requested.ID)
 		}
 		seen[requested.ID] = struct{}{}
@@ -151,12 +149,11 @@ func validatedLoRAScales(count int, scales []LoRAScale) ([]float32, error) {
 
 func loRAScale(loaded loadedLoRA, weight model.LoRAWeight) float32 {
 	bridge, _, valid := weight.B.MatrixExtents()
-	if loaded.adapter == nil || !checked.Nonzero(loaded.scale) || !valid {
-		var disabled float32
-		return disabled
+	if loaded.adapter == nil || loaded.scale == 0 || !valid {
+		return 0
 	}
 	scale := loaded.scale
-	if checked.Nonzero(loaded.adapter.Alpha) {
+	if loaded.adapter.Alpha != 0 {
 		scale *= loaded.adapter.Alpha / float32(bridge)
 	}
 	return scale
@@ -164,12 +161,12 @@ func loRAScale(loaded loadedLoRA, weight model.LoRAWeight) float32 {
 
 func (r *Runner) newGraphBuilder() *tensor.Builder {
 	builder := tensor.NewBuilder()
-	if r == nil || !checked.Nonzero(len(r.loraAdapters)) {
+	if r == nil || len(r.loraAdapters) == 0 {
 		return builder
 	}
 	bindings := make(map[string][]tensor.LoRADefinition)
 	for adapterID, loaded := range r.loraAdapters {
-		if loaded.adapter == nil || !checked.Nonzero(loaded.scale) {
+		if loaded.adapter == nil || loaded.scale == 0 {
 			continue
 		}
 		for baseName, weight := range loaded.adapter.Weights {
@@ -194,7 +191,7 @@ func (r *Runner) applyLoRAEmbeddingSelection(name string, indices []uint32, base
 			continue
 		}
 		scale := loRAScale(loaded, weight)
-		if !checked.Nonzero(scale) {
+		if scale == 0 {
 			continue
 		}
 		bridge, entries, _ := weight.A.MatrixExtents()
@@ -203,12 +200,10 @@ func (r *Runner) applyLoRAEmbeddingSelection(name string, indices []uint32, base
 			if uint64(index) >= uint64(entries) {
 				return reference.Value{}, fmt.Errorf("inference: LoRA embedding index %d is out of range", index)
 			}
-			aStart := int(index) * bridge
-			a := weight.A.Data[aStart : aStart+bridge]
+			a := weight.A.Data[int(index)*bridge : (int(index)+1)*bridge]
 			for output := range outputExtent {
 				var delta float32
-				bStart := output * bridge
-				b := weight.B.Data[bStart : bStart+bridge]
+				b := weight.B.Data[output*bridge : (output+1)*bridge]
 				for inner := range bridge {
 					delta += b[inner] * a[inner]
 				}
@@ -226,7 +221,7 @@ func (r *Runner) applyLoRALogits(name string, hidden, logits []float32) {
 			continue
 		}
 		scale := loRAScale(loaded, weight)
-		if !checked.Nonzero(scale) {
+		if scale == 0 {
 			continue
 		}
 		inputExtent, bridge, _ := weight.A.MatrixExtents()

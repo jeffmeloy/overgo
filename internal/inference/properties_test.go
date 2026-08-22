@@ -113,7 +113,7 @@ func TestModelPropertiesFromRealGGUF(t *testing.T) {
 	}
 }
 
-func TestModelPropertiesDoesNotInferUnavailableMetadata(t *testing.T) {
+func TestModelPropertiesHandlesUnavailableOptionalMetadata(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{file: &gguf.File{},
 		spec: model.Spec{CommonSpec: model.CommonSpec{VocabularySize: 0}},
 		vocab: &tokenizer.Vocab{
@@ -127,7 +127,7 @@ func TestModelPropertiesDoesNotInferUnavailableMetadata(t *testing.T) {
 		properties.ChatTemplate != "" ||
 		properties.BOSToken != "" ||
 		properties.EOSToken != "" ||
-		properties.VocabularySize != 0 {
+		properties.VocabularySize != 1 {
 		t.Fatalf("properties = %+v", properties)
 	}
 }

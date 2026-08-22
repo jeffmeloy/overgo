@@ -246,13 +246,13 @@
      "contains": "func validateMultimodalImages(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:76f69f31ca79eedacaf50ddfc252a3e69946facf9f07bac7b5a94c45dba8ae03"
+     "identity": "file:sha256:8d974c5897b56a6910b629aee9c643baa539024637aafa94c7fa3c061d147980"
     },
     {
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:956edd8d74bd9dd09878c161c1636c2c913ae331cd4db73471fd51289a4a2fff"
+     "identity": "evidence:sha256:8f418797fc537284a412a6a421d5809f15c5d6adfcee93c797c4910b0fd9642d"
     }
    ],
    "id": "bounded-server-media",
@@ -273,7 +273,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:774e237a05a81eb801d3d9fbc7b29773ba7170c91d5c7787a954704fb61d055f"
+     "identity": "evidence:sha256:526cce877d6e3784c7f7b0ec79328994eb79a75e6cbc46a0c844c82767b98200"
     }
    ],
    "id": "gemma4-multimodal-oracle",
@@ -320,13 +320,13 @@
      "contains": "func (r *Runner) forwardDenseLayersPreloaded(",
      "path": "internal/inference/runner_layers.go",
      "role": "source",
-     "identity": "file:sha256:8dacbdf119aa5b4908286cb8b3264a7e8266bb02671cc54c07c803ac358bc82f"
+     "identity": "file:sha256:2d019997e2cbd88a231a4afad5803d660c9c91d4cf70aee345c98f684acfb93a"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:774e237a05a81eb801d3d9fbc7b29773ba7170c91d5c7787a954704fb61d055f"
+     "identity": "evidence:sha256:526cce877d6e3784c7f7b0ec79328994eb79a75e6cbc46a0c844c82767b98200"
     }
    ],
    "id": "gemma-e4b-image-language-oracle",
@@ -345,16 +345,16 @@
      "identity": "file:sha256:18ec789b229e95cf3b583635c6a39a10ed2156fd38c9a2c306e36574d62e0f26"
     },
     {
-     "contains": "func ProjectedInputsForPrompt(",
+     "contains": "func CompileProjectedInputs(",
      "path": "internal/inference/multimodal_prompt.go",
      "role": "source",
-     "identity": "file:sha256:c6d6d97fd36e890062a9a0e3b57ad749e8fbef968e72f4faa99b7cf723b1f5c1"
+     "identity": "file:sha256:061d93dee75124b25ee86d652b3e7cfbf514331b598efbe0d5f38e96e55dbc68"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:774e237a05a81eb801d3d9fbc7b29773ba7170c91d5c7787a954704fb61d055f"
+     "identity": "evidence:sha256:526cce877d6e3784c7f7b0ec79328994eb79a75e6cbc46a0c844c82767b98200"
     }
    ],
    "id": "qwen35-image-video-language-oracle",
@@ -541,7 +541,7 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:f8b0ad8e381480b5204739a2c4cfa1b2bceec185e0214ad07d12314f49d1c3b4"
+     "identity": "file:sha256:f03b06ab758ddcfa35429c26ce2f798bc0d1e40b06682ff3335c6f4db3623d70"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
@@ -752,7 +752,7 @@
      "contains": "func (h *Handler) preparePrompt(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:76f69f31ca79eedacaf50ddfc252a3e69946facf9f07bac7b5a94c45dba8ae03"
+     "identity": "file:sha256:8d974c5897b56a6910b629aee9c643baa539024637aafa94c7fa3c061d147980"
     },
     {
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
@@ -779,7 +779,7 @@
      "contains": "func (s *chatOutputStream) Accept(",
      "path": "internal/inference/chat_stream.go",
      "role": "source",
-     "identity": "file:sha256:89aa0fc5352d1ae0eed377fd60aec5077328e4c9489fa7bd51f337cce284b78e"
+     "identity": "file:sha256:dbe4579c983019ea1be0863ee4b87dba5314b342251fe1fdf249f3239b522955"
     },
     {
      "contains": "func TestStreamingResponsesFunctionCallLifecycle(",
@@ -953,7 +953,7 @@
      "contains": "func (b *ContinuousBatch) Step(",
      "path": "internal/inference/continuous_batch.go",
      "role": "source",
-     "identity": "file:sha256:6437041980357bdb829e7f55796e2263c98044369f2b0787b3ac68d0982464a9"
+     "identity": "file:sha256:e97789aa00dd00cb86c6c13661694fed320eea2a7fe8541dedb1b8e7411105bb"
     },
     {
      "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
@@ -974,7 +974,7 @@
      "contains": "func (r *Runner) NewEncoderDecoderBatchSession(",
      "path": "internal/inference/encoder_decoder_batch.go",
      "role": "source",
-     "identity": "file:sha256:be6dc84cfb8733b4cf05cc01d88eb6fccff8abe28c7d8af37481a740a5fd1e20"
+     "identity": "file:sha256:e453df5f1053047c3c11ab1862a544dba9bee03e7f24cb6e74375c73a2070dc6"
     },
     {
      "contains": "func TestPaddedTokenBatchLayoutPreservesDerivedLengths(",
@@ -1050,7 +1050,7 @@
      "contains": "func TestExactAttentionCaptureRejectsModifiedScorePolicies(",
      "path": "internal/inference/attention_capture_probe_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:47bb95c31229203da8f56765381ba4fc958a3bc08e27d3a26dbde024e6271d8a"
+     "identity": "evidence:sha256:00fe9df390b7a7d0525e7d3712fb696b529b66490422dfd9bcbec05e32cf66a1"
     }
    ],
    "id": "exact-attention-workbench",
@@ -1086,7 +1086,7 @@
      "contains": "func (h *Handler) browseRuns(",
      "path": "internal/server/browse_runs.go",
      "role": "source",
-     "identity": "file:sha256:87edd5d2c19f01cd9c5fa857e361c48e90f34546b6cf2531f0cab1849023c220"
+     "identity": "file:sha256:e0fed95d235c7f346697ea90195d799f89d84811f7e504c0dab106b4151e30b2"
     },
     {
      "contains": "func TestBrowseRunsReadsRepoDBRecords(",

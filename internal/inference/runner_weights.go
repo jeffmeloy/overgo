@@ -29,8 +29,8 @@ func f32RequiredModelTensors(weights model.Weights) map[string]struct{} {
 	return result
 }
 
-// gatherSourceTensors: indexed table inventory.
-func gatherSourceTensors(weights model.Weights) map[string]struct{} {
+// getRowsSourceTensors: embedding table inventory.
+func getRowsSourceTensors(weights model.Weights) map[string]struct{} {
 	result := make(map[string]struct{})
 	result[weights.TokenEmbedding.Name] = struct{}{}
 	for _, info := range []*gguf.TensorInfo{

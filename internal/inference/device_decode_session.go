@@ -1,11 +1,9 @@
 package inference
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 
-	"overgo/internal/checked"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
@@ -25,7 +23,7 @@ type decodeDynamicSlot struct {
 	branch    int
 	kind      decodeDynamicKind
 	value     tensor.Attributes
-	positions [tensor.MaxDimensions][]uint32
+	positions [4][]uint32
 	attention *tensor.AttentionAttributes
 	append    *tensor.CacheAppendAttributes
 }
@@ -35,16 +33,16 @@ type decodeSessionIdentity struct {
 	branches   uint32
 	tokenCount uint32
 	output     deviceOutputPlan
-	lora       [sha256.Size]byte
+	lora       [32]byte
 }
 
 func (i decodeSessionIdentity) matches(
 	capacity uint32,
 	output deviceOutputPlan,
-	lora [sha256.Size]byte,
+	lora [32]byte,
 ) bool {
 	return i.capacity == capacity &&
-		checked.Nonzero(i.branches) && i.tokenCount == tensor.SingletonExtent && i.output == output && i.lora == lora
+		i.branches > 0 && i.tokenCount == 1 && i.output == output && i.lora == lora
 }
 
 type decodeSessionBranchPlan struct {
@@ -81,7 +79,7 @@ func compileDecodeSessionPlan(
 	targets []deviceCacheTargetPlan,
 	identity decodeSessionIdentity,
 ) (decodeSessionPlan, error) {
-	if compiled == nil || !checked.Nonzero(identity.capacity) || !checked.Nonzero(identity.branches) || !checked.Nonzero(identity.tokenCount) ||
+	if compiled == nil || identity.capacity == 0 || identity.branches == 0 || identity.tokenCount == 0 ||
 		len(graphs) != int(identity.branches) || len(targets) != len(graphs) {
 		return decodeSessionPlan{}, errors.New("inference: decode session identity is invalid")
 	}
@@ -146,7 +144,7 @@ func compileDecodeSessionPlan(
 				}
 				value := node.Attrs.(tensor.GetRowsAttributes)
 				value.Rows = append([]uint32(nil), value.Rows...)
-				slot.value, slot.positions[tensor.FirstOffset] = &value, value.Rows
+				slot.value, slot.positions[0] = &value, value.Rows
 				if node == graph.tokenInput {
 					slot.kind = decodeDynamicTokenRows
 				} else {
@@ -155,7 +153,7 @@ func compileDecodeSessionPlan(
 			case tensor.OpRoPENormal, tensor.OpRoPENeoX:
 				value := node.Attrs.(tensor.RoPEAttributes)
 				value.Positions = append([]uint32(nil), value.Positions...)
-				slot.kind, slot.value, slot.positions[tensor.FirstOffset] = decodeDynamicPositions, &value, value.Positions
+				slot.kind, slot.value, slot.positions[0] = decodeDynamicPositions, &value, value.Positions
 			case tensor.OpRoPEMulti:
 				value := node.Attrs.(tensor.RoPEMultiAttributes)
 				for axis := range value.Positions {
@@ -226,7 +224,7 @@ func (p *decodeSessionPlan) updateBranch(
 	if p == nil || p.attributes == nil {
 		return errors.New("inference: decode session plan is unavailable")
 	}
-	if !checked.NonNegativeInts(branch) || branch >= len(p.branches) || p.identity.tokenCount != tensor.SingletonExtent {
+	if branch < 0 || branch >= len(p.branches) || p.identity.tokenCount != 1 {
 		return errors.New("inference: decode session branch is invalid")
 	}
 	if uint64(pastTokens)+uint64(p.identity.tokenCount) > uint64(p.identity.capacity) {
@@ -239,19 +237,19 @@ func (p *decodeSessionPlan) updateBranch(
 		}
 		switch slot.kind {
 		case decodeDynamicTokenRows:
-			if len(slot.positions[tensor.FirstOffset]) != tensor.SingletonExtent {
+			if len(slot.positions[0]) != 1 {
 				return errors.New("inference: decode token-row count changed")
 			}
-			slot.positions[tensor.FirstOffset][tensor.FirstOffset] = row
+			slot.positions[0][0] = row
 		case decodeDynamicPositions:
 			for _, target := range slot.positions {
-				if !checked.Nonzero(len(target)) {
+				if len(target) == 0 {
 					continue
 				}
-				if len(target) != tensor.SingletonExtent {
+				if len(target) != 1 {
 					return errors.New("inference: decode position count changed")
 				}
-				target[tensor.FirstOffset] = position
+				target[0] = position
 			}
 		case decodeDynamicAttention:
 			slot.attention.QueryStart = pastTokens

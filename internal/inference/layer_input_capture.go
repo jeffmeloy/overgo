@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"slices"
 
-	"overgo/internal/checked"
+	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -17,7 +17,6 @@ type layerInputCapture struct {
 	requested map[int32]struct{}
 	values    map[int32]reference.Value
 	// Optional exact-attention inputs.
-	attention bool
 	attnLayer int32
 	attnScale float32
 	attnHeads int
@@ -49,13 +48,19 @@ func (r *Runner) AttentionCaptureLayers() []int32 {
 	if r.closed || !r.forwardProgram().LayerCapture() {
 		return nil
 	}
-	var result []int32
+	result := make([]int32, 0, len(r.weights.Layers))
 	for layer := range r.weights.Layers {
-		if r.layerProgram(layer).Layer().ExactAttentionReplay() {
+		if exactAttentionCapture(r.layerProgram(layer).Layer()) {
 			result = append(result, int32(layer))
 		}
 	}
 	return result
+}
+
+func exactAttentionCapture(plan model.LayerPlan) bool {
+	attention := plan.AttentionGraph
+	return plan.HasKV && attention.Causal && !attention.UseSinks && !attention.ChunkedWindow &&
+		attention.Window == 0 && attention.Softcap == 0 && attention.MaxALiBiBias == 0
 }
 
 // ExtractAttention captures one replay boundary.
@@ -70,15 +75,15 @@ func (r *Runner) ExtractAttention(ctx context.Context, tokenIDs []tokenizer.Toke
 	if !r.forwardProgram().LayerCapture() {
 		return AttentionCapture{}, errors.New("inference: attention capture is unsupported for this architecture")
 	}
-	if !checked.NonNegativeInts(int(layer)) || int(layer) >= len(r.weights.Layers) {
+	if layer < 0 || int(layer) >= len(r.weights.Layers) {
 		return AttentionCapture{}, fmt.Errorf("inference: attention layer %d is out of range", layer)
 	}
-	if !r.layerProgram(int(layer)).Layer().ExactAttentionReplay() {
+	if !exactAttentionCapture(r.layerProgram(int(layer)).Layer()) {
 		return AttentionCapture{}, fmt.Errorf("inference: attention layer %d policy cannot be replayed exactly", layer)
 	}
 	capture := &layerInputCapture{
 		requested: map[int32]struct{}{},
-		attention: true, attnLayer: layer,
+		attnLayer: layer,
 	}
 	if _, _, err := r.forwardCachedProjectedChunkModeLocked(
 		ctx, tokenIDs, nil, ProjectedInputs{}, true, capture,
@@ -140,16 +145,17 @@ func (r *Runner) ForwardCachedExtractLayerInputs(
 }
 
 func newLayerInputCapture(layerIDs []int32, layers int) (*layerInputCapture, error) {
-	if !checked.Nonzero(len(layerIDs)) {
+	if len(layerIDs) == 0 {
 		return nil, errors.New("inference: extraction layer list is empty")
 	}
 	capture := &layerInputCapture{
 		order:     slices.Clone(layerIDs),
 		requested: make(map[int32]struct{}, len(layerIDs)),
 		values:    make(map[int32]reference.Value, len(layerIDs)),
+		attnLayer: -1,
 	}
 	for _, layer := range layerIDs {
-		if !checked.NonNegativeInts(int(layer)) || int(layer) >= layers {
+		if layer < 0 || int(layer) >= layers {
 			return nil, fmt.Errorf("inference: extraction layer %d is out of range", layer)
 		}
 		capture.requested[layer] = struct{}{}
@@ -173,7 +179,7 @@ func (c *layerInputCapture) set(layer int, value reference.Value) {
 }
 
 func (c *layerInputCapture) result(expectedExtent, expectedTokens int) (reference.Value, error) {
-	if c == nil || !checked.PositiveInts(expectedExtent, expectedTokens) {
+	if c == nil || expectedExtent <= 0 || expectedTokens <= 0 {
 		return reference.Value{}, errors.New("inference: layer extraction state is invalid")
 	}
 	result := reference.Value{

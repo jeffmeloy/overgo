@@ -98,11 +98,11 @@ func ValidateEvaluationEvidence(ctx context.Context, reader artifact.Reader, val
 		!slices.Equal(evaluator.Metrics, policy.Metrics) {
 		return errors.Join(err, errors.New("evaluation: stored evaluator differs"))
 	}
-	run, err := loadEvidenceRun(ctx, reader, value.Run)
+	run, err := runrecord.RequireRun(ctx, reader, value.Run)
 	if err != nil {
 		return err
 	}
-	record, err := loadEvidenceRecord(ctx, reader, value.Evaluation)
+	record, err := runrecord.RequireEvaluation(ctx, reader, value.Evaluation)
 	if err != nil {
 		return err
 	}
@@ -286,22 +286,6 @@ func validateStoredPlanAuthorities(ctx context.Context, reader artifact.Reader, 
 		}
 	}
 	return nil
-}
-
-func loadEvidenceRun(ctx context.Context, reader artifact.Reader, id artifact.ID) (runrecord.Run, error) {
-	content, found, err := reader.Content(ctx, id)
-	if err != nil || !found {
-		return runrecord.Run{}, errors.Join(err, errors.New("evaluation: stored run is absent"))
-	}
-	return runrecord.ParseRun(content.Data)
-}
-
-func loadEvidenceRecord(ctx context.Context, reader artifact.Reader, id artifact.ID) (runrecord.Evaluation, error) {
-	content, found, err := reader.Content(ctx, id)
-	if err != nil || !found {
-		return runrecord.Evaluation{}, errors.Join(err, errors.New("evaluation: stored metric record is absent"))
-	}
-	return runrecord.ParseEvaluation(content.Data)
 }
 
 func canonicalizeEvaluationEvidence(value *EvaluationEvidence) error {

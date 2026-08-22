@@ -2,13 +2,11 @@ package inference
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math"
 	"slices"
 
-	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -24,7 +22,7 @@ type MultiHeadMTPSession struct {
 	DraftHidden   []reference.Value
 	MTPStart      uint32
 	Position      uint32
-	targetModel   [sha256.Size]byte
+	targetModel   [32]byte
 }
 
 // NewMultiHeadMTPSession compiles trunk prefill plus per-head catch-up.
@@ -32,7 +30,7 @@ func (r *Runner) NewMultiHeadMTPSession(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (*MultiHeadMTPSession, error) {
-	if r == nil || !checked.Nonzero(len(tokenIDs)) {
+	if r == nil || len(tokenIDs) == 0 {
 		return nil, errors.New("inference: multi-head MTP inputs are invalid")
 	}
 	r.mu.Lock()
@@ -59,11 +57,10 @@ func (r *Runner) NewMultiHeadMTPSession(
 		Shape: tensor.MustShape(uint64(width), uint64(len(tokenIDs))),
 		Data:  make([]float32, width*len(tokenIDs)),
 	}
-	if checked.Multiple(len(tokenIDs)) {
+	if len(tokenIDs) > 1 {
 		copy(shifted.Data[width:], hidden.Data[:len(hidden.Data)-width])
 	}
-	var origin uint32
-	positions := tokenPositions(origin, len(tokenIDs))
+	positions := tokenPositions(0, len(tokenIDs))
 	heads := make([]LayerCache, int(plan.Heads))
 	for offset := range heads {
 		_, _, headCache, runErr := r.runMultiHeadMTPHeadLocked(
@@ -107,7 +104,7 @@ func (r *Runner) AdvanceMultiHeadMTP(
 	if err := r.validateMultiHeadMTPSession(session); err != nil {
 		return reference.Value{}, nil, err
 	}
-	if _, valid := r.vocab.Token(tokenID); !valid {
+	if tokenID < 0 || int(tokenID) >= r.vocab.Len() {
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
 	offset := len(session.DraftTokens)
@@ -122,7 +119,7 @@ func (r *Runner) AdvanceMultiHeadMTP(
 	}
 	copy(hidden.Data, session.PendingHidden.Data)
 	for index, row := range session.DraftHidden {
-		copy(hidden.Data[(index+tensor.SingletonExtent)*width:], row.Data)
+		copy(hidden.Data[(index+1)*width:], row.Data)
 	}
 	positions := tokenPositions(session.MTPStart, len(tokens))
 	logits, nextHidden, headCache, err := r.runMultiHeadMTPHeadLocked(
@@ -160,7 +157,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	offset uint32,
 ) (reference.Value, reference.Value, LayerCache, error) {
 	plan, err := r.multiHeadMTP()
-	if err != nil || !plan.HasHead(offset) || !checked.Nonzero(len(tokenIDs)) || len(positions) != len(tokenIDs) {
+	if err != nil || !plan.HasHead(offset) || len(tokenIDs) == 0 || len(positions) != len(tokenIDs) {
 		return reference.Value{}, reference.Value{}, LayerCache{}, errors.New("inference: multi-head MTP head inputs are invalid")
 	}
 	rows, err := r.vocab.TensorIndices(tokenIDs)
@@ -270,11 +267,7 @@ func (r *Runner) lookupMultiHeadMTP() (model.DraftPlan, bool) {
 	if plan.Session != model.DraftSessionMulti || !plan.AppendedBlocks || !plan.SessionEligible() {
 		return model.DraftPlan{}, false
 	}
-	lastHead, valid := plan.LastHead()
-	if !valid {
-		return model.DraftPlan{}, false
-	}
-	catalog, ok := r.weights.DraftCatalog(plan.Kind, lastHead)
+	catalog, ok := r.weights.DraftCatalog(plan.Kind, plan.Heads-1)
 	if !ok || catalog.Kind != plan.Kind {
 		return model.DraftPlan{}, false
 	}
@@ -306,7 +299,7 @@ func (r *Runner) validateMultiHeadMTPSession(session *MultiHeadMTPSession) error
 	for offset, layer := range session.Heads {
 		tokens := session.MTPStart
 		if offset < len(session.DraftTokens) {
-			tokens += uint32(offset + tensor.SingletonExtent)
+			tokens += uint32(offset + 1)
 		}
 		block := r.spec.BlockCount + uint32(offset)
 		if !tensor.HasDimensions(layer.Key.Shape,

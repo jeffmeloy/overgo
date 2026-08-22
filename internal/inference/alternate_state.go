@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"math"
 
-	"overgo/internal/checked"
 	"overgo/internal/hostmath"
 	"overgo/internal/model"
+	"overgo/internal/quant"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
@@ -226,7 +226,7 @@ func correctAndInjectAlternateStates(
 		return nil, err
 	}
 	active := int(activeState)
-	if active >= len(predictions) {
+	if active < 0 || active >= len(predictions) {
 		return nil, errors.New("inference: alternate correction active state is invalid")
 	}
 	widthExtent, tokenExtent, _ := tensor.MatrixExtents(activated.Shape)
@@ -235,7 +235,7 @@ func correctAndInjectAlternateStates(
 	for index := range predictions {
 		result[index] = predictions[index].Clone()
 		for token := range tokens {
-			coefficient := coefficients.Data[token*len(predictions)+index] + float32(tensor.SingletonExtent)
+			coefficient := coefficients.Data[token*len(predictions)+index] + 1
 			for feature := range width {
 				position := token*width + feature
 				innovation := activated.Data[position] - predictions[active].Data[position]
@@ -255,7 +255,7 @@ func correctAndInjectAlternateStates(
 		return nil, errors.New("inference: alternate-state per-layer input shape differs")
 	}
 	for index := range gate.Data {
-		gate.Data[index] = reference.RoundedGELUTanh(gate.Data[index]) * perLayer.Data[index]
+		gate.Data[index] = roundedGELUTanh(gate.Data[index]) * perLayer.Data[index]
 	}
 	injection, err := alternateLinear(*layer.PerLayerProjection, gate)
 	if err != nil {
@@ -265,7 +265,7 @@ func correctAndInjectAlternateStates(
 	if err != nil {
 		return nil, err
 	}
-	for index := tensor.SingletonExtent; index < len(result); index++ {
+	for index := 1; index < len(result); index++ {
 		for valueIndex := range result[index].Data {
 			result[index].Data[valueIndex] += injection.Data[valueIndex]
 		}
@@ -282,7 +282,7 @@ func alternateStateModalities(
 	if layer.AltUpRouterNorm == nil || layer.AltUpRouter == nil {
 		return reference.Value{}, errors.New("inference: alternate-state router weights are incomplete")
 	}
-	if !checked.Nonzero(embeddingLength) {
+	if embeddingLength == 0 {
 		return reference.Value{}, errors.New("inference: alternate router embedding width is invalid")
 	}
 	normalized, err := alternateRMSNorm(input, *layer.AltUpRouterNorm, normalizationEpsilon)
@@ -327,15 +327,14 @@ func activateAlternateFFN(
 				delta := float64(gate.Data[base+index]) - mean
 				squared += delta * delta
 			}
-			degreesOfFreedom := max(width-tensor.SingletonExtent, tensor.SingletonExtent)
-			cutoff = float32(mean + float64(standardDeviationMultiplier)*math.Sqrt(squared/float64(degreesOfFreedom)))
+			cutoff = float32(mean + float64(standardDeviationMultiplier)*math.Sqrt(squared/float64(max(width-1, 1))))
 		}
 		for index := range width {
 			value := gate.Data[base+index]
 			if sparse {
-				value = max(value-cutoff, float32(tensor.FirstOffset))
+				value = max(value-cutoff, 0)
 			}
-			result.Data[base+index] = reference.RoundedGELUTanh(value) * up.Data[base+index]
+			result.Data[base+index] = roundedGELUTanh(value) * up.Data[base+index]
 		}
 	}
 	return result, nil
@@ -347,13 +346,13 @@ func mergeAlternateStates(
 	active int,
 ) (reference.Value, error) {
 	_, _, projectedStates, valid := tensor.Extents3(unembedding.Shape)
-	if len(states) <= tensor.SingletonExtent || !checked.NonNegativeInts(active) || active >= len(states) ||
-		!valid || projectedStates != uint64(len(states)-tensor.SingletonExtent) {
+	if len(states) <= tensor.SingletonExtent || active < 0 || active >= len(states) ||
+		!valid || projectedStates != uint64(len(states)-1) {
 		return reference.Value{}, errors.New("inference: alternate-state unembedding shape is invalid")
 	}
 	result := states[active].Clone()
-	for index := tensor.SingletonExtent; index < len(states); index++ {
-		projected, err := alternateLinearSlice(unembedding, index-tensor.SingletonExtent, states[index])
+	for index := 1; index < len(states); index++ {
+		projected, err := alternateLinearSlice(unembedding, index-1, states[index])
 		if err != nil {
 			return reference.Value{}, err
 		}
@@ -385,7 +384,7 @@ func alternateLinear(weight, input reference.Value) (reference.Value, error) {
 
 func alternateLinearSlice(weight reference.Value, slice int, input reference.Value) (reference.Value, error) {
 	inner, output, slices, valid := tensor.Extents3(weight.Shape)
-	if !valid || !checked.NonNegativeInts(slice) || uint64(slice) >= slices {
+	if !valid || slice < 0 || uint64(slice) >= slices {
 		return reference.Value{}, errors.New("inference: alternate-state grouped projection slice is invalid")
 	}
 	size := int(inner * output)
@@ -424,7 +423,7 @@ func rescaleMagnitudeInPlace(input *reference.Value, target reference.Value) {
 			inputSquared += inputValue * inputValue
 			targetSquared += targetValue * targetValue
 		}
-		if !checked.Nonzero(inputSquared) {
+		if inputSquared == 0 {
 			continue
 		}
 		scale := float32(math.Sqrt(targetSquared / inputSquared))
@@ -432,4 +431,16 @@ func rescaleMagnitudeInPlace(input *reference.Value, target reference.Value) {
 			input.Data[base+index] *= scale
 		}
 	}
+}
+
+func roundedGELUTanh(value float32) float32 {
+	if value <= -10 {
+		return 0
+	}
+	if value >= 10 {
+		return value
+	}
+	x := float64(quant.Float16ToFloat32(quant.Float32ToFloat16(value)))
+	result := float32(0.5 * x * (1 + math.Tanh(math.Sqrt(2/math.Pi)*x*(1+0.044715*x*x))))
+	return quant.Float16ToFloat32(quant.Float32ToFloat16(result))
 }

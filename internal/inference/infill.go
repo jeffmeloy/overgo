@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"overgo/internal/checked"
 	"overgo/internal/tokenizer"
 )
 
@@ -37,7 +36,7 @@ func (r *Runner) FormatInfillTokens(
 	if r.vocab.FIMMid == tokenizer.NullToken {
 		return nil, errors.New("inference: FIM middle token is unavailable")
 	}
-	if !checked.NonNegativeInts(options.MaxNewTokens) {
+	if options.MaxNewTokens < 0 {
 		return nil, errors.New("inference: FIM maximum new tokens is negative")
 	}
 	for name, tokens := range map[string][]tokenizer.TokenID{
@@ -50,7 +49,7 @@ func (r *Runner) FormatInfillTokens(
 		}
 	}
 
-	var extraTokens []tokenizer.TokenID
+	extraTokens := make([]tokenizer.TokenID, 0)
 	if r.vocab.FIMRep != tokenizer.NullToken {
 		project, err := r.vocab.Encode("myproject\n", tokenizer.EncodeOptions{})
 		if err != nil {
@@ -109,12 +108,12 @@ func (r *Runner) FormatInfillTokens(
 	}
 
 	controls := [...]tokenizer.TokenID{r.vocab.FIMPre, r.vocab.FIMSuf, r.vocab.FIMMid}
-	available := checked.ClampNonNegative(int(r.spec.ContextLength) - options.MaxNewTokens - len(prompt) - len(controls))
-	if r.vocab.AddBOS && checked.PositiveInts(available) {
-		available--
+	available := max(0, int(r.spec.ContextLength)-options.MaxNewTokens-len(prompt)-len(controls))
+	if r.vocab.AddBOS {
+		available = max(0, available-1)
 	}
 	fileTake := min(len(prefix)+len(suffix), available)
-	prefixTake := min(len(prefix), tokenizer.InfillPrefixShare(fileTake))
+	prefixTake := min(len(prefix), 3*fileTake/4)
 	suffixTake := min(len(suffix), fileTake-prefixTake)
 	remaining := fileTake - prefixTake - suffixTake
 	additionalPrefix := min(len(prefix)-prefixTake, remaining)
@@ -123,11 +122,11 @@ func (r *Runner) FormatInfillTokens(
 	prefix = prefix[len(prefix)-prefixTake:]
 	suffix = suffix[:suffixTake]
 
-	var prefixPart []tokenizer.TokenID
+	prefixPart := make([]tokenizer.TokenID, 0, 1+len(prefix)+len(prompt))
 	prefixPart = append(prefixPart, r.vocab.FIMPre)
 	prefixPart = append(prefixPart, prefix...)
 	prefixPart = append(prefixPart, prompt...)
-	var suffixPart []tokenizer.TokenID
+	suffixPart := make([]tokenizer.TokenID, 0, 1+len(suffix))
 	suffixPart = append(suffixPart, r.vocab.FIMSuf)
 	suffixPart = append(suffixPart, suffix...)
 
@@ -140,7 +139,7 @@ func (r *Runner) FormatInfillTokens(
 	}
 
 	extraTake := min(available-prefixTake-suffixTake, len(extraTokens))
-	var result []tokenizer.TokenID
+	result := make([]tokenizer.TokenID, 0, extraTake+len(first)+len(last)+1)
 	result = append(result, extraTokens[len(extraTokens)-extraTake:]...)
 	result = append(result, first...)
 	result = append(result, last...)
@@ -160,7 +159,7 @@ func (r *Runner) validateInfillTokens(
 	tokens []tokenizer.TokenID,
 ) error {
 	for index, token := range tokens {
-		if !checked.NonNegativeInts(int(token)) || int(token) >= r.vocab.Len() {
+		if token < 0 || int(token) >= r.vocab.Len() {
 			return fmt.Errorf(
 				"inference: FIM %s token %d ID %d is out of range",
 				name,

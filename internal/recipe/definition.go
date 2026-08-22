@@ -100,7 +100,7 @@ func canonicalize(d *Definition) error {
 	sort.Slice(d.Dependencies, func(i, j int) bool {
 		return dependencyKey(d.Dependencies[i]) < dependencyKey(d.Dependencies[j])
 	})
-	if duplicateDependencies(d.Dependencies) {
+	if duplicateAdjacentKey(d.Dependencies, dependencyKey) {
 		return errors.New("recipe: duplicate dependency role and slot")
 	}
 	model, found := artifact.ID{}, false
@@ -155,7 +155,10 @@ func canonicalize(d *Definition) error {
 	sort.Slice(d.Edges, func(i, j int) bool { return edgeKey(d.Edges[i]) < edgeKey(d.Edges[j]) })
 	sort.Slice(d.Inputs, func(i, j int) bool { return d.Inputs[i].Name < d.Inputs[j].Name })
 	sort.Slice(d.Outputs, func(i, j int) bool { return d.Outputs[i].Name < d.Outputs[j].Name })
-	if duplicateNodes(d.Nodes) || duplicateEdges(d.Edges) || duplicateInputs(d.Inputs) || duplicateOutputs(d.Outputs) {
+	if duplicateAdjacentKey(d.Nodes, func(node Node) NodeID { return node.ID }) ||
+		duplicateAdjacentKey(d.Edges, edgeKey) ||
+		duplicateAdjacentKey(d.Inputs, func(input Input) PortName { return input.Name }) ||
+		duplicateAdjacentKey(d.Outputs, func(output Output) PortName { return output.Name }) {
 		return errors.New("recipe: duplicate graph identity")
 	}
 	return nil
@@ -185,10 +188,9 @@ func dependencyKey(dependency Dependency) string {
 	return string(dependency.Role) + fmt.Sprintf("\x00%010d", dependency.Slot)
 }
 
-func duplicateDependencies(dependencies []Dependency) bool {
-	for index := 1; index < len(dependencies); index++ {
-		if dependencies[index-1].Role == dependencies[index].Role &&
-			dependencies[index-1].Slot == dependencies[index].Slot {
+func duplicateAdjacentKey[T any, K comparable](values []T, key func(T) K) bool {
+	for index := 1; index < len(values); index++ {
+		if key(values[index-1]) == key(values[index]) {
 			return true
 		}
 	}
@@ -207,40 +209,4 @@ func (d Definition) Dependency(role DependencyRole, slot uint32) (artifact.ID, b
 // PrimaryDependency returns slot zero for a required singleton role.
 func (d Definition) PrimaryDependency(role DependencyRole) (artifact.ID, bool) {
 	return d.Dependency(role, 0)
-}
-
-func duplicateNodes(nodes []Node) bool {
-	for index := 1; index < len(nodes); index++ {
-		if nodes[index-1].ID == nodes[index].ID {
-			return true
-		}
-	}
-	return false
-}
-
-func duplicateEdges(edges []Edge) bool {
-	for index := 1; index < len(edges); index++ {
-		if edges[index-1] == edges[index] {
-			return true
-		}
-	}
-	return false
-}
-
-func duplicateInputs(inputs []Input) bool {
-	for index := 1; index < len(inputs); index++ {
-		if inputs[index-1].Name == inputs[index].Name {
-			return true
-		}
-	}
-	return false
-}
-
-func duplicateOutputs(outputs []Output) bool {
-	for index := 1; index < len(outputs); index++ {
-		if outputs[index-1].Name == outputs[index].Name {
-			return true
-		}
-	}
-	return false
 }

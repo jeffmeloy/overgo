@@ -8,7 +8,6 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modeltest"
-	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -90,7 +89,7 @@ func TestSelectedModelTensorsIncludesStep35MTP(t *testing.T) {
 }
 
 func TestGreedyLogitProbability(t *testing.T) {
-	token, probability, err := sampling.GreedyLogit([]float32{0, 1, 1})
+	token, probability, err := greedyLogit([]float32{0, 1, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +97,7 @@ func TestGreedyLogitProbability(t *testing.T) {
 	if token != 1 || math.Abs(probability-want) > 1e-12 {
 		t.Fatalf("greedy result = %d/%g, want 1/%g", token, probability, want)
 	}
-	if _, _, err := sampling.GreedyLogit([]float32{0, float32(math.NaN())}); err == nil {
+	if _, _, err := greedyLogit([]float32{0, float32(math.NaN())}); err == nil {
 		t.Fatal("NaN greedy logits were accepted")
 	}
 }

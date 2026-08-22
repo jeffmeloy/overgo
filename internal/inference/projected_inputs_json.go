@@ -2,9 +2,9 @@ package inference
 
 import (
 	"fmt"
+	"math"
 	"slices"
 
-	"overgo/internal/checked"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
@@ -67,7 +67,7 @@ func (document ProjectedInputsJSON) ProjectedInputs() (ProjectedInputs, error) {
 
 func finiteProjectedFloats(values []float32) bool {
 	for _, value := range values {
-		if !checked.Finite32(value) {
+		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
 			return false
 		}
 	}

@@ -413,11 +413,11 @@ func compileImprovementTrial(
 	if ctx == nil || reader == nil {
 		return nil, nil, errors.New("controller action: improvement decision store is absent")
 	}
-	run, err := loadRun(ctx, reader, action.Decision.Run)
+	run, err := runrecord.RequireRun(ctx, reader, action.Decision.Run)
 	if err != nil {
 		return nil, nil, err
 	}
-	evaluation, err := loadEvaluation(ctx, reader, action.Decision.Evaluation)
+	evaluation, err := runrecord.RequireEvaluation(ctx, reader, action.Decision.Evaluation)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -448,20 +448,4 @@ func validImprovementDecisionFields(action ImprovementAction) bool {
 	return action.Decision.Child.Kind() == artifact.KindModel && action.Decision.Run.Kind() == artifact.KindRun &&
 		action.Decision.Evaluation.Kind() == artifact.KindEvaluation && action.Decision.Decider.Kind() == artifact.KindEvidence &&
 		(action.Decision.State == runrecord.ImprovementPromote || action.Decision.State == runrecord.ImprovementRefuse)
-}
-
-func loadRun(ctx context.Context, reader artifact.Reader, id artifact.ID) (runrecord.Run, error) {
-	content, found, err := reader.Content(ctx, id)
-	if err != nil || !found {
-		return runrecord.Run{}, errors.Join(err, errors.New("controller action: improvement run is absent"))
-	}
-	return runrecord.ParseRun(content.Data)
-}
-
-func loadEvaluation(ctx context.Context, reader artifact.Reader, id artifact.ID) (runrecord.Evaluation, error) {
-	content, found, err := reader.Content(ctx, id)
-	if err != nil || !found {
-		return runrecord.Evaluation{}, errors.Join(err, errors.New("controller action: improvement evaluation is absent"))
-	}
-	return runrecord.ParseEvaluation(content.Data)
 }

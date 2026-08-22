@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"context"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
@@ -213,6 +214,10 @@ func ParseRun(content []byte) (Run, error) {
 	return runCodec.Parse(content)
 }
 
+func RequireRun(ctx context.Context, reader artifact.Reader, id artifact.ID) (Run, error) {
+	return runCodec.Require(ctx, reader, id)
+}
+
 func (r Run) ValidateIdentity() error {
 	return runCodec.ValidateIdentity(r)
 }
@@ -260,6 +265,10 @@ func NewEvaluation(
 
 func ParseEvaluation(content []byte) (Evaluation, error) {
 	return evaluationCodec.Parse(content)
+}
+
+func RequireEvaluation(ctx context.Context, reader artifact.Reader, id artifact.ID) (Evaluation, error) {
+	return evaluationCodec.Require(ctx, reader, id)
 }
 
 func (e Evaluation) ValidateIdentity() error {

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -31,8 +29,7 @@ func (r *Runner) NewEncoderDecoderBatchSession(
 	if r == nil {
 		return nil, errRunnerNil
 	}
-	var inferredSequences int
-	layout, err := batch.Layout(inferredSequences)
+	layout, err := batch.Layout(0)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +67,7 @@ func (r *Runner) DecodeEncoderDecoderBatch(
 	if r == nil {
 		return EncoderDecoderBatchResult{}, nil, errRunnerNil
 	}
-	if session == nil || !checked.Nonzero(len(session.Sequences)) {
+	if session == nil || len(session.Sequences) == 0 {
 		return EncoderDecoderBatchResult{}, nil, errors.New("inference: encoder-decoder batch session is empty")
 	}
 	if !session.Source.Valid(len(session.Sequences)) {

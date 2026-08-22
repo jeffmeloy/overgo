@@ -2,7 +2,6 @@ package inference
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
@@ -19,7 +17,6 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
-	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -133,7 +130,7 @@ type EmbeddingOverride struct {
 }
 
 // MultiAxisPositions: temporal, height, width, extra MRoPE coordinates.
-type MultiAxisPositions [tensor.MaxDimensions][]uint32
+type MultiAxisPositions [4][]uint32
 
 // AttentionBlock: half-open prompt range with bidirectional intra-block attention.
 type AttentionBlock struct {
@@ -161,14 +158,14 @@ type preparedModel struct {
 	vocab               *tokenizer.Vocab
 	cuda                *executor.Executor
 	worker              *device.Worker
-	deviceWeights       *model.DeviceF32Weights
+	deviceWeights       *model.DeviceConvertedWeights
 	rawWeights          *model.DeviceWeights
-	decodeWeights       *model.DeviceBF16Weights
+	decodeWeights       *model.DeviceConvertedWeights
 	hostWeights         *model.HostTensorStore
 	outputBias          []float32
 	outputExclusions    []tokenizer.TokenRange
 	promptCacheCapacity int
-	modelSignature      [sha256.Size]byte
+	modelSignature      [32]byte
 	modelSignatureErr   error
 	modelSignatureOnce  sync.Once
 	audioTables         *audioWaveformTables
@@ -195,8 +192,8 @@ type cachedPrompt struct {
 	Hidden              reference.Value
 	Cache               *KVCache
 	Device              *deviceKVCache
-	LoRASignature       [sha256.Size]byte
-	ProjectionSignature [sha256.Size]byte
+	LoRASignature       [32]byte
+	ProjectionSignature [32]byte
 	HasProjection       bool
 }
 
@@ -455,7 +452,7 @@ func (r *Runner) forwardCachedWithProjectedInputsLocked(
 	cache *KVCache,
 	inputs ProjectedInputs,
 ) (reference.Value, *KVCache, error) {
-	if !checked.Nonzero(len(inputs.VisualExpertBlocks)) {
+	if len(inputs.VisualExpertBlocks) == 0 {
 		return r.forwardCachedProjectedChunkLocked(ctx, tokenIDs, cache, inputs)
 	}
 	projected, err := r.compileProjectedRequestPlan(len(tokenIDs), cache != nil, inputs)
@@ -468,7 +465,7 @@ func (r *Runner) forwardCachedWithProjectedInputsLocked(
 	}
 	var hidden reference.Value
 	next := cache
-	var start int
+	start := 0
 	for _, block := range projected.visualBlocks {
 		if start < int(block.Start) {
 			hidden, next, err = r.forwardCachedProjectedChunkLocked(
@@ -568,7 +565,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	}
 	rows, positions := sequence.rows, sequence.positions
 	if multiPositions != nil {
-		positions = append(checked.Reset(positions), (*multiPositions)[tensor.FirstOffset]...)
+		positions = append(positions[:0], (*multiPositions)[0]...)
 	}
 	activation, err := r.gatherTensor(ctx, r.weights.TokenEmbedding, rows)
 	if err != nil {
@@ -585,7 +582,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		if err := applyEmbeddingOverrides(&deepstackBase, overrides); err != nil {
 			return reference.Value{}, nil, err
 		}
-		if scale := r.spec.InputEmbeddingScale(); !checked.Equal(scale, float32(tensor.SingletonExtent)) {
+		if scale := r.spec.InputEmbeddingScale(); scale != 1 {
 			for index := range activation.Data {
 				activation.Data[index] *= scale
 			}
@@ -593,7 +590,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		if err := applyEmbeddingOverrides(&activation, overrides); err != nil {
 			return reference.Value{}, nil, err
 		}
-	} else if projected.overridePolicy == model.EmbeddingOverrideRawScaled && checked.Nonzero(len(overrides)) {
+	} else if projected.overridePolicy == model.EmbeddingOverrideRawScaled && len(overrides) > 0 {
 		if err := applyScaledRawEmbeddingOverrides(&activation, overrides, r.spec.InputEmbeddingScale()); err != nil {
 			return reference.Value{}, nil, err
 		}
@@ -605,8 +602,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	if scale := r.spec.InputEmbeddingScale(); !graniteDeepstack && !embeddingScaleApplied &&
-		!checked.Equal(scale, float32(tensor.SingletonExtent)) {
+	if scale := r.spec.InputEmbeddingScale(); !graniteDeepstack && !embeddingScaleApplied && scale != 1 {
 		for index := range activation.Data {
 			activation.Data[index] *= scale
 		}
@@ -646,7 +642,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		if maximum == math.MaxUint32 {
 			return reference.Value{}, nil, errors.New("inference: multi-axis position exceeds resumable range")
 		}
-		cachePosition = maximum + uint32(tensor.SingletonExtent)
+		cachePosition = maximum + 1
 		if cache != nil && cachePosition < nextPosition {
 			return reference.Value{}, nil, errors.New("inference: multi-axis positions regress cached position")
 		}
@@ -680,7 +676,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 			past = &cache.Layers[layerIndex]
 		}
 		var perLayerInput *reference.Value
-		if checked.Nonzero(len(perLayerInputs)) {
+		if len(perLayerInputs) > 0 {
 			perLayerInput = &perLayerInputs[layerIndex]
 		}
 		if plan.AuxiliaryInput != model.AuxiliaryNone {

@@ -8,7 +8,6 @@ import (
 	"sort"
 	"sync"
 
-	"overgo/internal/checked"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -89,7 +88,7 @@ func (r *Runner) NewContinuousBatch(
 	if r == nil {
 		return nil, errRunnerNil
 	}
-	if !checked.PositiveInts(options.MaxSequences) {
+	if options.MaxSequences <= 0 {
 		return nil, errors.New("inference: maximum sequence count must be positive")
 	}
 	if err := r.lockOpen(); err != nil {
@@ -118,8 +117,7 @@ func (b *ContinuousBatch) Step(
 	ctx context.Context,
 	inputs []SequenceBatchInput,
 ) ([]SequenceBatchOutput, error) {
-	var topK uint32
-	return b.step(ctx, inputs, deviceOutputLogits, topK)
+	return b.step(ctx, inputs, deviceOutputLogits, 0)
 }
 
 // StepGreedy: device argmax with retained token feedback.
@@ -127,8 +125,7 @@ func (b *ContinuousBatch) StepGreedy(
 	ctx context.Context,
 	inputs []SequenceBatchInput,
 ) ([]SequenceBatchOutput, error) {
-	var topK uint32
-	return b.step(ctx, inputs, deviceOutputGreedy, topK)
+	return b.step(ctx, inputs, deviceOutputGreedy, 0)
 }
 
 // StepTopK: bounded device candidate transfer.
@@ -149,7 +146,7 @@ func (b *ContinuousBatch) step(
 	if b == nil || b.runner == nil {
 		return nil, errors.New("inference: continuous batch is nil")
 	}
-	if !checked.Nonzero(len(inputs)) {
+	if len(inputs) == 0 {
 		return nil, errors.New("inference: continuous batch step is empty")
 	}
 	plan, err := compileDeviceOutputPlan(mode, topK, b.runner.spec.VocabularySize)
@@ -166,7 +163,7 @@ func (b *ContinuousBatch) step(
 	seen := make(map[SequenceID]struct{}, len(inputs))
 	newCount := len(b.sequences)
 	for index, input := range inputs {
-		if !checked.Nonzero(len(input.Tokens)) {
+		if len(input.Tokens) == 0 {
 			b.mu.Unlock()
 			return nil, fmt.Errorf("inference: sequence %d token append is empty", index)
 		}
@@ -223,7 +220,7 @@ func (b *ContinuousBatch) step(
 			return nil, fmt.Errorf("inference: sequence %d: %w", input.ID, err)
 		}
 		last := hidden.LastRowView()
-		if !checked.Nonzero(len(last.Data)) {
+		if len(last.Data) == 0 {
 			return nil, fmt.Errorf("inference: sequence %d hidden state is incompatible", input.ID)
 		}
 		outputInfo := r.outputTensor()
@@ -396,8 +393,7 @@ func cloneDeviceCache(source *deviceKVCache) (*deviceKVCache, error) {
 	}
 	result := *source
 	result.session = nil
-	var initialBranch int
-	result.sessionBranch = initialBranch
+	result.sessionBranch = 0
 	result.Keys = slices.Clone(source.Keys)
 	result.Values = slices.Clone(source.Values)
 	result.Logits = slices.Clone(source.Logits)
@@ -427,7 +423,7 @@ func (b *ContinuousBatch) Snapshot() []SequenceBatchState {
 	defer b.operation.Unlock()
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	var states []SequenceBatchState
+	states := make([]SequenceBatchState, 0, len(b.sequences))
 	for id, sequence := range b.sequences {
 		state := SequenceBatchState{ID: id}
 		if sequence.device != nil {
@@ -454,7 +450,7 @@ func (b *ContinuousBatch) Close(ctx context.Context) error {
 	}
 	b.operation.Lock()
 	b.mu.Lock()
-	if b.closed && !checked.Nonzero(len(b.sequences)) && !checked.Nonzero(len(b.deferred)) {
+	if b.closed && len(b.sequences) == 0 && len(b.deferred) == 0 {
 		b.mu.Unlock()
 		b.operation.Unlock()
 		return nil
@@ -468,7 +464,7 @@ func (b *ContinuousBatch) Close(ctx context.Context) error {
 	b.sequences = make(map[SequenceID]*continuousSequence)
 	b.mu.Unlock()
 	b.operation.Unlock()
-	var remaining []*deviceKVCache
+	remaining := deferred[:0]
 	for _, cache := range deferred {
 		if err := cache.Release(ctx); err != nil {
 			errs = append(errs, err)
@@ -484,7 +480,7 @@ func (b *ContinuousBatch) Close(ctx context.Context) error {
 			}
 		}
 	}
-	if checked.Nonzero(len(remaining)) {
+	if len(remaining) > 0 {
 		b.mu.Lock()
 		b.deferred = append(b.deferred, remaining...)
 		b.mu.Unlock()
@@ -502,12 +498,12 @@ func (b *ContinuousBatch) deferCleanup(cache *deviceKVCache, err error) {
 
 func sequencePages(tokens uint32, session recipe.SessionPolicy) []SequenceCachePage {
 	pageTokens := cachePageTokens(tokens, session)
-	if !checked.Nonzero(pageTokens) {
+	if pageTokens == 0 {
 		return nil
 	}
-	var pages []SequenceCachePage
-	var start uint32
-	for ; start < tokens; start += pageTokens {
+	pageCount := (uint64(tokens) + uint64(pageTokens) - 1) / uint64(pageTokens)
+	pages := make([]SequenceCachePage, 0, int(pageCount))
+	for start := uint32(0); start < tokens; start += pageTokens {
 		count := min(pageTokens, tokens-start)
 		pages = append(pages, SequenceCachePage{Start: start, Tokens: count})
 	}

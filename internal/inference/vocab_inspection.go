@@ -6,8 +6,7 @@ import "overgo/internal/tokenizer"
 // vocabulary is present. Read-only; safe without the generation mutex.
 func (r *Runner) VocabularyLen() int {
 	if r == nil || r.vocab == nil {
-		var unavailable int
-		return unavailable
+		return 0
 	}
 	return r.vocab.Len()
 }

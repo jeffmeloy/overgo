@@ -9,16 +9,17 @@ import (
 	"hash"
 	"math"
 
-	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/sampling"
 	"overgo/internal/statecodec"
-	"overgo/internal/tensor"
 	"overgo/internal/tokenizer"
 )
 
-const sessionStateMagic = "L2GSES01"
+const (
+	sessionStateMagic = "L2GSES01"
+	sessionHeaderSize = 56
+)
 
 // Session: resumable generation state; final token is intentionally
 // pending: Cache contains every token before it, so ContinueSession can
@@ -86,13 +87,13 @@ func (r *Runner) LoadSession(data []byte, sampler *sampling.Sampler) (*Session, 
 	if decoder.Err() != nil {
 		return nil, errors.New("inference: session state is truncated")
 	}
-	if !checked.Nonzero(tokenCount) {
+	if tokenCount == 0 {
 		return nil, errors.New("inference: session token count is invalid or exceeds limit")
 	}
 	if !sampling.ValidStateSize(uint64(samplerLength)) {
 		return nil, errors.New("inference: sampler state size is invalid or exceeds limit")
 	}
-	tokenBytes, _ := checked.Bytes(uint64(tokenCount), binaryschema.Uint32Bytes)
+	tokenBytes, _ := checked.Bytes(uint64(tokenCount), 4)
 	payloadLength := decoder.Remaining()
 	if tokenBytes > payloadLength ||
 		cacheLength > payloadLength-tokenBytes ||
@@ -154,38 +155,39 @@ func (r *Runner) validateSession(session *Session) error {
 	if session == nil {
 		return errors.New("inference: session is nil")
 	}
-	if !checked.Nonzero(len(session.TokenIDs)) || uint64(len(session.TokenIDs)) > math.MaxUint32 {
+	if len(session.TokenIDs) == 0 || uint64(len(session.TokenIDs)) > math.MaxUint32 {
 		return errors.New("inference: session token count is invalid or exceeds limit")
 	}
 	if err := r.validateCache(session.Cache); err != nil {
 		return err
 	}
-	if uint64(effectiveCachePosition(session.Cache))+tensor.SingletonExtent != uint64(len(session.TokenIDs)) {
+	if uint64(effectiveCachePosition(session.Cache))+1 != uint64(len(session.TokenIDs)) {
 		return fmt.Errorf(
 			"inference: session has %d tokens but cache next position is %d; need exactly one pending token",
 			len(session.TokenIDs),
 			effectiveCachePosition(session.Cache),
 		)
 	}
-	if checked.Nonzero(r.spec.ContextLength) && session.Cache.Tokens > r.spec.ContextLength {
+	if r.spec.ContextLength > 0 && session.Cache.Tokens > r.spec.ContextLength {
 		return fmt.Errorf(
 			"inference: session cache token count %d exceeds context state limit %d",
 			session.Cache.Tokens,
 			r.spec.ContextLength,
 		)
 	}
-	if !checked.Nonzero(r.spec.VocabularySize) {
-		return errors.New("inference: session vocabulary is unavailable")
+	vocabularySize := r.spec.VocabularySize
+	if vocabularySize == 0 && r.vocab != nil {
+		vocabularySize = uint32(len(r.vocab.Tokens))
 	}
 	for index, tokenID := range session.TokenIDs {
-		if !tokenizer.ValidID(tokenID, r.spec.VocabularySize) {
+		if tokenID < 0 || (vocabularySize > 0 && uint32(tokenID) >= vocabularySize) {
 			return fmt.Errorf("inference: session token %d has invalid ID %d", index, tokenID)
 		}
 	}
 	return nil
 }
 
-func (r *Runner) sessionModelSignature() ([sha256.Size]byte, error) {
+func (r *Runner) sessionModelSignature() ([32]byte, error) {
 	r.modelSignatureOnce.Do(func() {
 		hasher := sha256.New()
 		writeFingerprintString(hasher, r.spec.Architecture)
@@ -218,43 +220,43 @@ func (r *Runner) sessionModelSignature() ([sha256.Size]byte, error) {
 			r.spec.RelativeBuckets,
 			r.spec.DecoderStartTokenID,
 		} {
-			var encoded [binaryschema.Uint32Bytes]byte
+			var encoded [4]byte
 			binary.LittleEndian.PutUint32(encoded[:], value)
 			_, _ = hasher.Write(encoded[:])
 		}
 		for _, section := range r.spec.RopeSections {
-			var encoded [binaryschema.Uint32Bytes]byte
+			var encoded [4]byte
 			binary.LittleEndian.PutUint32(encoded[:], uint32(section))
 			_, _ = hasher.Write(encoded[:])
 		}
 		for _, heads := range r.spec.LayerHeadCounts {
-			var encoded [binaryschema.Uint32Bytes]byte
+			var encoded [4]byte
 			binary.LittleEndian.PutUint32(encoded[:], heads)
 			_, _ = hasher.Write(encoded[:])
 		}
 		for _, heads := range r.spec.LayerKVHeadCounts {
-			var encoded [binaryschema.Uint32Bytes]byte
+			var encoded [4]byte
 			binary.LittleEndian.PutUint32(encoded[:], heads)
 			_, _ = hasher.Write(encoded[:])
 		}
 		for _, width := range r.spec.LayerFeedForward {
-			var encoded [binaryschema.Uint32Bytes]byte
+			var encoded [4]byte
 			binary.LittleEndian.PutUint32(encoded[:], width)
 			_, _ = hasher.Write(encoded[:])
 		}
 		for _, sliding := range r.spec.SlidingLayers {
-			var encoded [tensor.SingletonExtent]byte
 			if sliding {
-				encoded[tensor.FirstOffset] = byte(tensor.SingletonExtent)
+				_, _ = hasher.Write([]byte{1})
+			} else {
+				_, _ = hasher.Write([]byte{0})
 			}
-			_, _ = hasher.Write(encoded[:])
 		}
 		for _, recurrent := range r.spec.RecurrentLayers {
-			var encoded [tensor.SingletonExtent]byte
 			if recurrent {
-				encoded[tensor.FirstOffset] = byte(tensor.SingletonExtent)
+				_, _ = hasher.Write([]byte{1})
+			} else {
+				_, _ = hasher.Write([]byte{0})
 			}
-			_, _ = hasher.Write(encoded[:])
 		}
 		if r.file != nil {
 			for _, metadata := range r.file.Metadata {
@@ -268,11 +270,17 @@ func (r *Runner) sessionModelSignature() ([sha256.Size]byte, error) {
 			}
 			for _, info := range r.file.Tensors {
 				writeFingerprintString(hasher, info.Name)
-				var encoded [binaryschema.Uint64Bytes]byte
-				values := []uint64{uint64(info.Dimensions)}
-				values = append(values, info.Shape[:]...)
-				values = append(values, uint64(info.Type), info.Offset, info.Size)
-				for _, value := range values {
+				var encoded [8]byte
+				for _, value := range []uint64{
+					uint64(info.Dimensions),
+					info.Shape[0],
+					info.Shape[1],
+					info.Shape[2],
+					info.Shape[3],
+					uint64(info.Type),
+					info.Offset,
+					info.Size,
+				} {
 					binary.LittleEndian.PutUint64(encoded[:], value)
 					_, _ = hasher.Write(encoded[:])
 				}
@@ -288,20 +296,20 @@ func (r *Runner) sessionModelSignature() ([sha256.Size]byte, error) {
 		}
 		copy(r.modelSignature[:], hasher.Sum(nil))
 	})
-	if r.modelSignatureErr != nil || !checked.Nonzero(len(r.loraAdapters)) {
+	if r.modelSignatureErr != nil || len(r.loraAdapters) == 0 {
 		return r.modelSignature, r.modelSignatureErr
 	}
 	hasher := sha256.New()
 	_, _ = hasher.Write(r.modelSignature[:])
 	loraSignature := r.currentLoRASignature()
 	_, _ = hasher.Write(loraSignature[:])
-	var result [sha256.Size]byte
+	var result [32]byte
 	copy(result[:], hasher.Sum(nil))
 	return result, nil
 }
 
 func writeFingerprintString(hasher hash.Hash, value string) {
-	var length [binaryschema.Uint64Bytes]byte
+	var length [8]byte
 	binary.LittleEndian.PutUint64(length[:], uint64(len(value)))
 	_, _ = hasher.Write(length[:])
 	_, _ = hasher.Write([]byte(value))
@@ -313,13 +321,12 @@ func hashTensorEdges(
 	info gguf.TensorInfo,
 ) error {
 	const sampleSize = uint64(64)
-	if !checked.Nonzero(info.Size) {
+	if info.Size == 0 {
 		return nil
 	}
 	length := min(info.Size, sampleSize)
 	data := make([]byte, int(length))
-	var offset uint64
-	if err := file.ReadTensorRange(info, offset, data); err != nil {
+	if err := file.ReadTensorRange(info, 0, data); err != nil {
 		return err
 	}
 	_, _ = hasher.Write(data)

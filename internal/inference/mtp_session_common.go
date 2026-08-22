@@ -7,7 +7,6 @@ import (
 	"math"
 	"slices"
 
-	"overgo/internal/checked"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
@@ -21,6 +20,14 @@ type singleHeadMTPAdapter struct {
 	program                            model.CompiledLayerProgram
 	embeddingNorm, hiddenNorm, project gguf.TensorInfo
 	tokenEmbedding, outputNorm, output *gguf.TensorInfo
+}
+
+func (r *Runner) hasDraftSession(kind model.DraftKind, catalogs int) bool {
+	if r == nil {
+		return false
+	}
+	plan := r.program.Model.Draft()
+	return plan.Kind == kind && plan.SessionEligible() && catalogs == int(plan.Heads)
 }
 
 func (r *Runner) advanceSingleHeadMTP(
@@ -69,11 +76,10 @@ func (r *Runner) advanceSingleHeadMTP(
 		pastValue = graph.input(adapter.nodePrefix+".past_value", session.Layer.Value)
 	}
 	plan := adapter.program.Layer()
-	positions := []uint32{session.Position}
 	block, err := adapter.program.Build(model.CachedBlockContext{
-		Builder: builder, Input: current, Positions: positions,
+		Builder: builder, Input: current, Positions: []uint32{session.Position},
 		PastKey: pastKey, PastValue: pastValue, Layer: plan.Layer,
-		CacheWrite: tensor.CacheWriteConcat, Sequences: uint64(len(positions)),
+		CacheWrite: tensor.CacheWriteConcat, Sequences: 1,
 	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -102,7 +108,7 @@ func (r *Runner) advanceSingleHeadMTP(
 		TrunkCache:    session.TrunkCache,
 		Layer:         LayerCache{Key: results[block.Key], Value: results[block.Value]},
 		PendingHidden: results[nextHidden], MTPStart: session.MTPStart,
-		Position: session.Position + uint32(len(positions)), targetModel: session.targetModel,
+		Position: session.Position + 1, targetModel: session.targetModel,
 	}, nil
 }
 
@@ -192,10 +198,10 @@ func (r *Runner) validateSingleHeadMTPSession(
 	emptyCache := !session.Layer.Key.Defined() && !session.Layer.Value.Defined()
 	validCache := session.Position >= effectiveCachePosition(session.TrunkCache) &&
 		session.Position >= session.MTPStart &&
-		((emptyCache && !checked.Nonzero(tokens)) ||
+		((emptyCache && tokens == 0) ||
 			(tensor.HasDimensions(session.Layer.Key.Shape, uint64(r.spec.KeyLength), uint64(r.spec.HeadCountKV), tokens) &&
 				tensor.HasDimensions(session.Layer.Value.Shape, uint64(r.spec.ValueLength), uint64(r.spec.HeadCountKV), tokens))) &&
-		(!boundedContext || !session.Layer.Key.Defined() || checked.Less64(tokens, uint64(r.spec.ContextLength)))
+		(!boundedContext || !session.Layer.Key.Defined() || tokens < uint64(r.spec.ContextLength))
 	if !validCache {
 		return fmt.Errorf("inference: %s layer cache is incompatible", label)
 	}

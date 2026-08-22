@@ -142,20 +142,20 @@ func TestActiveALoRAUsesLastInvocationAndRejectsMultiple(t *testing.T) {
 		return loadedLoRA{adapter: &model.LoRAAdapter{Path: path, InvocationTokens: invocation}, scale: 1}
 	}
 	runner := &Runner{runnerState: runnerState{loraAdapters: []loadedLoRA{adapter("a", 2, 3)}}}
-	active, err := runner.activeALoRA([]tokenizer.TokenID{1, 2, 3, 2, 3, 4})
-	if err != nil || !active.enabled || !active.invoked || active.adapter != 0 || active.start != 3 {
-		t.Fatalf("active aLoRA = %+v err:%v", active, err)
+	id, start, err := runner.activeALoRA([]tokenizer.TokenID{1, 2, 3, 2, 3, 4})
+	if err != nil || id != 0 || start != 3 {
+		t.Fatalf("active aLoRA = id:%d start:%d err:%v", id, start, err)
 	}
-	active, err = runner.activeALoRA([]tokenizer.TokenID{1, 2, 4})
-	if err != nil || !active.enabled || active.invoked {
-		t.Fatalf("missing invocation = %+v err:%v", active, err)
+	_, start, err = runner.activeALoRA([]tokenizer.TokenID{1, 2, 4})
+	if err != nil || start != -1 {
+		t.Fatalf("missing invocation start/error = %d %v", start, err)
 	}
 	runner.loraAdapters = append(runner.loraAdapters, adapter("b", 5))
-	if _, err := runner.activeALoRA([]tokenizer.TokenID{2, 3, 5}); err == nil {
+	if _, _, err := runner.activeALoRA([]tokenizer.TokenID{2, 3, 5}); err == nil {
 		t.Fatal("multiple aLoRA adapters were accepted")
 	}
 	runner.loraAdapters[1].adapter.InvocationTokens = nil
-	if active, err := runner.activeALoRA([]tokenizer.TokenID{2, 3}); err != nil || active.enabled {
-		t.Fatalf("mixed ordinary/aLoRA activation = %+v err:%v", active, err)
+	if id, start, err := runner.activeALoRA([]tokenizer.TokenID{2, 3}); err != nil || id != -1 || start != -1 {
+		t.Fatalf("mixed ordinary/aLoRA activation = id:%d start:%d err:%v", id, start, err)
 	}
 }

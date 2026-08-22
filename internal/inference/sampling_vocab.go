@@ -42,8 +42,7 @@ func (r *Runner) SamplingEOGTokens() []tokenizer.TokenID {
 
 func (r *Runner) SamplingVocabularySize() int {
 	if r == nil || r.vocab == nil {
-		var unavailable int
-		return unavailable
+		return 0
 	}
 	return len(r.vocab.Tokens)
 }
@@ -77,7 +76,7 @@ func (r *Runner) SamplingInfillVocabulary() (*sampling.InfillVocabulary, error) 
 
 func samplingTokenID(id tokenizer.TokenID) int {
 	if id == tokenizer.NullToken {
-		return sampling.MissingTokenID()
+		return -1
 	}
 	return int(id)
 }

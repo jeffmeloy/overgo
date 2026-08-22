@@ -10,9 +10,8 @@ import (
 	"math"
 	"slices"
 
-	"overgo/internal/binaryschema"
-	"overgo/internal/checked"
 	"overgo/internal/cuda/executor"
+	"overgo/internal/model"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -33,7 +32,7 @@ func (r *Runner) ClearPromptCaches(ctx context.Context) error {
 	caches := r.detachPromptCaches()
 	r.mu.Unlock()
 	failed, err := releasePromptCaches(ctx, caches)
-	if !checked.Nonzero(len(failed)) {
+	if len(failed) == 0 {
 		return err
 	}
 	r.mu.Lock()
@@ -50,13 +49,13 @@ func (r *Runner) ClearPromptCaches(ctx context.Context) error {
 }
 
 func (r *Runner) promotePromptCache(index int) *cachedPrompt {
-	if !checked.ValidIndex(index, len(r.promptCaches)) {
+	if index < 0 || index >= len(r.promptCaches) {
 		return nil
 	}
 	selected := r.promptCaches[index]
-	if checked.Nonzero(index) {
-		copy(r.promptCaches[tensor.SingletonExtent:index+tensor.SingletonExtent], r.promptCaches[:index])
-		r.promptCaches[tensor.FirstOffset] = selected
+	if index > 0 {
+		copy(r.promptCaches[1:index+1], r.promptCaches[:index])
+		r.promptCaches[0] = selected
 	}
 	return selected
 }
@@ -67,9 +66,8 @@ func (r *Runner) selectPromptCache(
 	device bool,
 ) (*cachedPrompt, int) {
 	var selected *cachedPrompt
-	var selectedIndex int
-	var found bool
-	var best int
+	selectedIndex := -1
+	best := 0
 	signature := r.currentLoRASignature()
 	for index, candidate := range r.promptCaches {
 		if candidate == nil ||
@@ -83,11 +81,10 @@ func (r *Runner) selectPromptCache(
 		if common > best {
 			selected = candidate
 			selectedIndex = index
-			found = true
 			best = common
 		}
 	}
-	if found && checked.Nonzero(selectedIndex) {
+	if selectedIndex > 0 {
 		r.promotePromptCache(selectedIndex)
 	}
 	return selected, best
@@ -95,12 +92,11 @@ func (r *Runner) selectPromptCache(
 
 func (r *Runner) selectProjectedPromptCache(
 	requested []tokenizer.TokenID,
-	projection [sha256.Size]byte,
+	projection [32]byte,
 	minimum int,
 ) (*cachedPrompt, int) {
 	if len(requested) < minimum {
-		var reused int
-		return nil, reused
+		return nil, 0
 	}
 	lora := r.currentLoRASignature()
 	for index, candidate := range r.promptCaches {
@@ -111,8 +107,7 @@ func (r *Runner) selectProjectedPromptCache(
 		}
 		return r.promotePromptCache(index), len(requested)
 	}
-	var reused int
-	return nil, reused
+	return nil, 0
 }
 
 func (r *Runner) selectEncoderSourceCache(
@@ -120,26 +115,24 @@ func (r *Runner) selectEncoderSourceCache(
 	minimum int,
 ) (*cachedPrompt, int) {
 	if len(requested) < minimum {
-		var reused int
-		return nil, reused
+		return nil, 0
 	}
 	signature := r.currentLoRASignature()
 	for index, candidate := range r.promptCaches {
-		if candidate == nil {
-			continue
-		}
-		_, _, validHidden := tensor.MatrixExtents(candidate.Hidden.Shape)
-		if candidate.HasProjection ||
+		if candidate == nil ||
+			candidate.HasProjection ||
 			candidate.LoRASignature != signature ||
 			candidate.Cache != nil ||
-			!validHidden ||
 			!slices.Equal(candidate.Tokens, requested) {
+			continue
+		}
+		_, rows, valid := candidate.Hidden.MatrixExtents()
+		if !valid || rows != len(requested) {
 			continue
 		}
 		return r.promotePromptCache(index), len(requested)
 	}
-	var reused int
-	return nil, reused
+	return nil, 0
 }
 
 func (r *Runner) ownsDevicePromptCache(cache *deviceKVCache) bool {
@@ -159,12 +152,11 @@ func (r *Runner) storePromptCache(
 	next *cachedPrompt,
 ) error {
 	capacity := r.promptCacheCapacity
-	if !checked.PositiveInts(capacity) {
-		capacity = tensor.SingletonExtent
+	if capacity <= 0 {
+		capacity = 1
 	}
 	var release []*cachedPrompt
-	var initialLength int
-	filtered := make([]*cachedPrompt, initialLength, capacity)
+	filtered := make([]*cachedPrompt, 0, capacity)
 	for _, candidate := range r.promptCaches {
 		if candidate == nil {
 			continue
@@ -193,7 +185,7 @@ func (r *Runner) storePromptCache(
 	return errors.Join(errs...)
 }
 
-func projectedInputsSignature(inputs ProjectedInputs) [sha256.Size]byte {
+func projectedInputsSignature(inputs ProjectedInputs) [32]byte {
 	digest := sha256.New()
 	hashUint64(digest, uint64(len(inputs.EmbeddingOverrides)))
 	for _, override := range inputs.EmbeddingOverrides {
@@ -201,10 +193,9 @@ func projectedInputsSignature(inputs ProjectedInputs) [sha256.Size]byte {
 		hashFloat32s(digest, override.Embedding)
 	}
 	if inputs.MultiAxisPositions == nil {
-		var absent uint64
-		hashUint64(digest, absent)
+		hashUint64(digest, 0)
 	} else {
-		hashUint64(digest, tensor.SingletonExtent)
+		hashUint64(digest, 1)
 		for _, axis := range *inputs.MultiAxisPositions {
 			hashUint64(digest, uint64(len(axis)))
 			for _, value := range axis {
@@ -230,7 +221,7 @@ func projectedInputsSignature(inputs ProjectedInputs) [sha256.Size]byte {
 		hashUint64(digest, uint64(block.Start))
 		hashUint64(digest, uint64(block.End))
 	}
-	var result [sha256.Size]byte
+	var result [32]byte
 	copy(result[:], digest.Sum(nil))
 	return result
 }
@@ -243,7 +234,7 @@ func hashFloat32s(digest hash.Hash, values []float32) {
 }
 
 func hashUint64(digest hash.Hash, value uint64) {
-	var encoded [binaryschema.Uint64Bytes]byte
+	var encoded [8]byte
 	binary.LittleEndian.PutUint64(encoded[:], value)
 	_, _ = digest.Write(encoded[:])
 }
@@ -253,7 +244,7 @@ func (r *Runner) trimHostPromptCache(
 	cache *KVCache,
 	keep uint32,
 ) (reference.Value, *KVCache, error) {
-	if cache == nil || !checked.Nonzero(keep) || keep >= cache.Tokens {
+	if cache == nil || keep == 0 || keep >= cache.Tokens {
 		return reference.Value{}, nil, errors.New(
 			"inference: invalid host prompt cache suffix trim",
 		)
@@ -263,42 +254,42 @@ func (r *Runner) trimHostPromptCache(
 		return reference.Value{}, nil, err
 	}
 	trimmed.Position = keep
-	_, hiddenTokens, validHidden := tensor.MatrixExtents(hidden.Shape)
-	if !validHidden || !checked.Equal(hiddenTokens, uint64(cache.Tokens)) {
+	_, rows, valid := hidden.MatrixExtents()
+	if !valid || uint64(rows) != uint64(cache.Tokens) {
 		return reference.Value{}, nil, fmt.Errorf(
 			"inference: prompt hidden shape %v does not contain %d tokens",
 			hidden.Shape.Slice(),
 			cache.Tokens,
 		)
 	}
-	result, err := reference.SelectRows(hidden, tensor.FirstOffset, uint64(keep))
+	result, err := hidden.Rows(tensor.FirstOffset, uint64(keep))
 	if err != nil {
-		return reference.Value{}, nil, errors.New("inference: prompt hidden data is shorter than its shape")
+		return reference.Value{}, nil, err
 	}
 	return result, trimmed, nil
 }
 
 func trimDeviceCacheSuffix(cache *deviceKVCache, keep uint32, session recipe.SessionPolicy) error {
-	if cache == nil || !checked.Nonzero(keep) || keep >= cache.Tokens {
+	if cache == nil || keep == 0 || keep >= cache.Tokens {
 		return errors.New("inference: invalid device prompt cache suffix trim")
 	}
 	for index := range cache.Keys {
-		for label, value := range map[string]*executor.DeviceValue{
-			"key":   &cache.Keys[index],
-			"value": &cache.Values[index],
-		} {
-			_, _, tokens, validShape := tensor.Extents3(value.Shape)
-			shape, validTrim := tensor.WithTrailingExtent(value.Shape, uint64(keep))
-			if !validShape || !validTrim || !checked.Equal(tokens, uint64(cache.Tokens)) {
+		values := [...]struct {
+			label string
+			value *executor.DeviceValue
+		}{{"key", &cache.Keys[index]}, {"value", &cache.Values[index]}}
+		for _, binding := range values {
+			shape, valid := tensor.WithTrailingExtent(binding.value.Shape, uint64(keep))
+			if !model.CacheStateToken.MatchesTokenExtent(binding.value.Shape, cache.Tokens) || !valid {
 				return fmt.Errorf(
 					"inference: layer %d device cache %s shape %v does not contain %d tokens",
 					index,
-					label,
-					value.Shape.Slice(),
+					binding.label,
+					binding.value.Shape.Slice(),
 					cache.Tokens,
 				)
 			}
-			value.Shape = shape
+			binding.value.Shape = shape
 		}
 	}
 	cache.Tokens = keep

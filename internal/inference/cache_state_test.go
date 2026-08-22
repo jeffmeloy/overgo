@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"testing"
 
-	"overgo/internal/binaryschema"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
@@ -594,7 +593,7 @@ func TestKVCacheStateRejectsTruncationAndTrailingData(t *testing.T) {
 }
 
 func TestKVCacheStateRejectsLayerCountBeyondPayload(t *testing.T) {
-	data := make([]byte, len(cacheStateMagic)+tensor.TripleExtent*binaryschema.Uint32Bytes)
+	data := make([]byte, cacheStateHeaderSize)
 	copy(data, cacheStateMagic)
 	binary.LittleEndian.PutUint32(data[8:], 1)
 	binary.LittleEndian.PutUint32(data[12:], 1)
@@ -807,7 +806,7 @@ func TestEffectiveKeepTokens(t *testing.T) {
 		{3, 8, 16, 3},
 		{20, 8, 16, 8},
 		{-1, 8, 16, 8},
-		{-1, 20, 16, 15},
+		{-1, 20, 16, 12},
 	} {
 		if got := effectiveKeepTokens(
 			test.requested,

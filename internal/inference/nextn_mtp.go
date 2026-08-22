@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -20,7 +19,7 @@ func (r *Runner) NewNextNMTPSession(
 	ctx context.Context,
 	tokenIDs []tokenizer.TokenID,
 ) (*NextNMTPSession, error) {
-	if r == nil || !checked.Nonzero(len(tokenIDs)) {
+	if r == nil || len(tokenIDs) == 0 {
 		return nil, errors.New("inference: NextN MTP inputs are invalid")
 	}
 	if err := r.validateNextNMTP(); err != nil {
@@ -40,12 +39,8 @@ func (r *Runner) NewNextNMTPSession(
 		Position: position, targetModel: targetModel,
 	}
 	if cache.SparseTopK != nil {
-		width, _, valid := cache.SparseTopK.MatrixExtents()
-		if !valid || !checked.Equal(width, int(r.spec.IndexerTopK)) {
-			return nil, errors.New("inference: GLM-DSA trunk top-k handoff is incompatible")
-		}
-		value, err := reference.FinalRows(*cache.SparseTopK, tensor.SingletonExtent)
-		if err != nil {
+		value := cache.SparseTopK.LastRowView().Clone()
+		if !tensor.IsMatrix(value.Shape, uint64(r.spec.IndexerTopK), tensor.SingletonExtent) {
 			return nil, errors.New("inference: GLM-DSA trunk top-k handoff is incompatible")
 		}
 		session.Layer.Auxiliary = &value
@@ -76,12 +71,10 @@ func (r *Runner) AdvanceNextNMTP(
 	if err := r.validateNextNMTPSession(session); err != nil {
 		return reference.Value{}, nil, err
 	}
-	if _, valid := r.vocab.Token(tokenID); !valid {
+	if tokenID < 0 || int(tokenID) >= r.vocab.Len() {
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
-	plan := r.program.Model.Draft()
-	head, _ := plan.LastHead()
-	mtp, _ := r.weights.DraftCatalog(plan.Kind, head)
+	mtp := &r.weights.AppendedSingleDraft[0]
 	embeddingInfo := r.weights.TokenEmbedding
 	if mtp.TokenEmbedding != nil {
 		embeddingInfo = *mtp.TokenEmbedding
@@ -110,7 +103,7 @@ func (r *Runner) AdvanceNextNMTP(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	draftProgram, err := r.draftLayerProgram(head)
+	draftProgram, err := r.draftLayerProgram(0)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
@@ -131,15 +124,14 @@ func (r *Runner) AdvanceNextNMTP(
 	if session.Layer.Auxiliary != nil {
 		previousTopK = graph.input("nextn_mtp.previous_top_k", *session.Layer.Auxiliary)
 	}
-	layerPlan := draftProgram.Layer()
-	positions := []uint32{session.Position}
+	plan := draftProgram.Layer()
 	block, err := draftProgram.Build(model.CachedBlockContext{
-		Builder: builder, Input: current, Positions: positions,
+		Builder: builder, Input: current, Positions: []uint32{session.Position},
 		PastKey: pastKey, PastValue: pastValue,
 		PastStates: model.CacheStates[*tensor.Tensor]{
 			model.CacheStateIndexerKey: {Mode: model.CacheStateToken, Value: pastIndexerKey},
 		},
-		PerLayerInput: previousTopK, Layer: layerPlan.Layer, Recurrent: layerPlan.Recurrent,
+		PerLayerInput: previousTopK, Layer: plan.Layer, Recurrent: plan.Recurrent,
 	}, graphWeights)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -185,19 +177,13 @@ func (r *Runner) AdvanceNextNMTP(
 		TrunkCache:    session.TrunkCache,
 		Layer:         nextLayer,
 		PendingHidden: results[nextHidden], MTPStart: session.MTPStart,
-		Position: session.Position + uint32(len(positions)), targetModel: session.targetModel,
+		Position: session.Position + 1, targetModel: session.targetModel,
 	}
 	return logitValue, next, nil
 }
 
 func (r *Runner) validateNextNMTP() error {
-	if r == nil {
-		return errors.New("inference: model has no supported NextN MTP block")
-	}
-	plan := r.program.Model.Draft()
-	head, valid := plan.LastHead()
-	_, catalog := r.weights.DraftCatalog(plan.Kind, head)
-	if !valid || !catalog || plan.Session != model.DraftSessionSingle || !plan.AppendedBlocks {
+	if r == nil || !r.hasDraftSession(model.DraftAppendedSingle, len(r.weights.AppendedSingleDraft)) {
 		return errors.New("inference: model has no supported NextN MTP block")
 	}
 	return nil
@@ -207,8 +193,7 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 	if err := r.validateSingleHeadMTPSession(session, "NextN MTP", false); err != nil {
 		return err
 	}
-	head, _ := r.program.Model.Draft().LastHead()
-	program, err := r.draftLayerProgram(head)
+	program, err := r.draftLayerProgram(0)
 	if err != nil {
 		return err
 	}
@@ -218,9 +203,11 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 	indexerState, hasIndexerState := session.Layer.States[model.CacheStateIndexerKey]
 	if layer.Attention == model.AttentionSparseLatent && !sparseTopK {
 		wantTokens := uint64(session.Position - session.MTPStart)
-		if (!checked.Nonzero(wantTokens) && hasIndexerState) || (checked.Nonzero(wantTokens) &&
+		if (wantTokens == 0 && hasIndexerState) || (wantTokens > 0 &&
 			(!hasIndexerState || !indexerState.Mode.TokenAligned() ||
-				!indexerState.Value.Shape.Equal(tensor.MustShape(uint64(r.spec.IndexerKeyLength), tensor.SingletonExtent, wantTokens)))) {
+				!tensor.HasDimensions(indexerState.Value.Shape,
+					uint64(r.spec.IndexerKeyLength), tensor.SingletonExtent, wantTokens) ||
+				validateStateValue(indexerState.Value) != nil)) {
 			return errors.New("inference: NextN MTP indexer cache is incompatible")
 		}
 	} else if hasIndexerState {
@@ -228,7 +215,9 @@ func (r *Runner) validateNextNMTPSession(session *NextNMTPSession) error {
 	}
 	if sparseTopK {
 		if session.Layer.Auxiliary == nil ||
-			!session.Layer.Auxiliary.Shape.Equal(tensor.MustShape(uint64(r.spec.IndexerTopK), tensor.SingletonExtent)) {
+			!tensor.IsMatrix(session.Layer.Auxiliary.Shape,
+				uint64(r.spec.IndexerTopK), tensor.SingletonExtent) ||
+			validateStateValue(*session.Layer.Auxiliary) != nil {
 			return errors.New("inference: GLM-DSA NextN MTP top-k handoff is incompatible")
 		}
 	} else if session.Layer.Auxiliary != nil {

@@ -1,13 +1,11 @@
 package inference
 
 import (
-	"crypto/sha256"
 	"encoding/binary"
 	"math"
 	"reflect"
 	"testing"
 
-	"overgo/internal/binaryschema"
 	"overgo/internal/model"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
@@ -184,10 +182,8 @@ func TestSessionStateRejectsMalformedMismatchedAndInvalidData(t *testing.T) {
 		}
 		return result
 	}
-	signatureOffset := len(sessionStateMagic) + sha256.Size
-	headerBytes := signatureOffset + binaryschema.Uint32Bytes + binaryschema.Uint64Bytes + binaryschema.Uint32Bytes
 
-	for _, length := range []int{0, headerBytes - 1, headerBytes, len(data) - 1} {
+	for _, length := range []int{0, sessionHeaderSize - 1, sessionHeaderSize, len(data) - 1} {
 		if _, loadErr := runner.LoadSession(data[:length], newSampler(t)); loadErr == nil {
 			t.Fatalf("truncated length %d was accepted", length)
 		}
@@ -197,12 +193,12 @@ func TestSessionStateRejectsMalformedMismatchedAndInvalidData(t *testing.T) {
 		t.Fatal("trailing session data was accepted")
 	}
 	badCount := append([]byte(nil), data...)
-	binary.LittleEndian.PutUint32(badCount[signatureOffset:], math.MaxUint32)
+	binary.LittleEndian.PutUint32(badCount[40:], math.MaxUint32)
 	if _, err := runner.LoadSession(badCount, newSampler(t)); err == nil {
 		t.Fatal("excessive token count was accepted")
 	}
 	badToken := append([]byte(nil), data...)
-	binary.LittleEndian.PutUint32(badToken[headerBytes:], 1<<31)
+	binary.LittleEndian.PutUint32(badToken[sessionHeaderSize:], 1<<31)
 	if _, err := runner.LoadSession(badToken, newSampler(t)); err == nil {
 		t.Fatal("out-of-range token ID was accepted")
 	}

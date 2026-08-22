@@ -43,7 +43,7 @@ func imageProjectedPrompt(
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: encode image: %w", err)
 	}
-	return inference.ProjectedInputsForPrompt(runner, prompt)
+	return inference.CompileProjectedInputs(prompt, runner.Spec().EmbeddingLength)
 }
 
 func audioProjectedPrompt(
@@ -82,7 +82,7 @@ func audioProjectedPrompt(
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: encode audio: %w", err)
 	}
-	return inference.ProjectedInputsForPrompt(runner, prompt)
+	return inference.CompileProjectedInputs(prompt, runner.Spec().EmbeddingLength)
 }
 
 func videoProjectedPrompt(
@@ -128,5 +128,5 @@ func videoProjectedPrompt(
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: encode video: %w", err)
 	}
-	return inference.ProjectedInputsForPrompt(runner, prompt)
+	return inference.CompileProjectedInputs(prompt, runner.Spec().EmbeddingLength)
 }

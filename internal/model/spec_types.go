@@ -8,7 +8,8 @@ import (
 )
 
 func (s Spec) SequenceRows(value reference.Value) (uint64, bool) {
-	return tensor.MatrixRows(value.Shape, uint64(s.EmbeddingLength))
+	width, rows, valid := value.MatrixExtents()
+	return uint64(rows), valid && uint64(width) == uint64(s.EmbeddingLength)
 }
 
 func (s Spec) ValidateSequenceRow(value reference.Value) error {

@@ -65,7 +65,7 @@ func TestMultiHeadMTPSessionStateRejectsCorruption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, length := range []int{0, len(multiHeadMTPStateMagic) + 1, len(data) - 1} {
+	for _, length := range []int{0, multiHeadMTPStateHeader - 1, len(data) - 1} {
 		if _, err := runner.LoadMultiHeadMTPSession(data[:length]); err == nil {
 			t.Fatalf("truncated multi-head MTP state length %d was accepted", length)
 		}

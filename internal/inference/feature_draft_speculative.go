@@ -5,7 +5,6 @@ import (
 	"errors"
 	"slices"
 
-	"overgo/internal/checked"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -57,14 +56,9 @@ func (r *Runner) VerifyFeatureDraftGreedy(
 }
 
 func validFeatureDraftSession(session *FeatureDraftSession) bool {
-	if session == nil {
-		return false
-	}
-	nextPosition := session.Position
-	nextPosition++
-	return session.TargetCache != nil && checked.Nonzero(len(session.TargetTokens)) &&
+	return session != nil && session.TargetCache != nil && len(session.TargetTokens) > 0 &&
 		effectiveCachePosition(session.TargetCache) == uint32(len(session.TargetTokens)) &&
-		nextPosition == uint32(len(session.TargetTokens))
+		session.Position+1 == uint32(len(session.TargetTokens))
 }
 
 func (r *Runner) advanceFeatureDraftVerification(
@@ -92,12 +86,12 @@ func (r *Runner) advanceFeatureDraftVerification(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	pending, err := reference.FinalRows(fused, tensor.SingletonExtent)
-	if err != nil {
-		return reference.Value{}, nil, err
-	}
+	width := int(fused.Shape.Dims[0])
 	next.TargetCache = targetCache
 	next.TargetTokens = tokens
-	next.PendingFeature = pending
+	next.PendingFeature = reference.Value{
+		Shape: tensor.MustShape(uint64(width), 1),
+		Data:  slices.Clone(fused.Data[len(fused.Data)-width:]),
+	}
 	return logits, next, nil
 }

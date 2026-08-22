@@ -214,7 +214,7 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 	}
 	loads, resets, closes := 0, 0, 0
 	director, err := NewModelSessionDirector[scalarRequest, *cachedScalarModel, int](
-		"scalar", "cuda:0", 1,
+		"scalar", "cuda:0", recipe.SessionRequestCapacity,
 		func(request scalarRequest) error {
 			if request.Value <= 0 {
 				return errors.New("positive value required")
@@ -363,7 +363,7 @@ func TestVideoProductionActivation(t *testing.T) {
 	}
 	loads, resets, closes := 0, 0, 0
 	director, err := NewMappedModelSessionDirector[mappedVideoRequest, *mappedVideoModel, int](
-		"video", "cuda:0", 1,
+		"video", "cuda:0", recipe.SessionRequestCapacity,
 		func(request mappedVideoRequest) error {
 			if request.Condition <= 0 || request.Source <= 0 {
 				return errors.New("positive video inputs required")

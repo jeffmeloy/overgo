@@ -6,49 +6,77 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
 
-// sessionObserver: one Execute run under a director lease.
-type sessionObserver struct {
+// Observer: one measured training session.
+type Observer struct {
 	store       artifact.Repository
 	environment runrecord.Environment
+	director    *capabilityruntime.ModelSessionDirector[struct{}, struct{}, struct{}]
+	lease       *capabilityruntime.SessionLease[struct{}]
 	sampler     *sessionSampler
 	started     time.Time
 	phases      []runrecord.PhaseMetric
 	hardware    []runrecord.ServingHardwareSample
-	// stepUsed/stepElapsed: the largest device-global residency seen at any
-	// step boundary, recorded as the run's single mid-run hardware sample.
 	stepUsed    uint64
 	stepElapsed uint64
 	stepSampled bool
 }
 
-func newSessionObserver(store artifact.Repository, host bool) (*sessionObserver, error) {
+// NewObserver starts session measurement.
+func NewObserver(store artifact.Repository, host bool) (*Observer, error) {
 	device, backend := "cuda0", "cuda-resident"
 	if host {
 		device, backend = "cpu", "host"
 	}
 	environment, err := runrecord.CurrentEnvironment(device, backend)
 	if err != nil {
-		return nil, fmt.Errorf("training workflow: session environment: %w", err)
+		return nil, fmt.Errorf("training observation: environment: %w", err)
 	}
-	observer := &sessionObserver{store: store, environment: environment, started: time.Now()}
+	observer := &Observer{store: store, environment: environment, started: time.Now()}
 	if !host {
 		observer.sampler = newSessionSampler()
 	}
 	return observer, nil
 }
 
-func (o *sessionObserver) phase(phase runrecord.Phase, wall time.Duration) {
+// Admit acquires directed training ownership.
+func (o *Observer) Admit(ctx context.Context, model, recipeID artifact.ID) error {
 	if o == nil {
+		return nil
+	}
+	director, err := capabilityruntime.NewComponentSessionDirector[struct{}](
+		"training", o.environment.Device, recipe.SessionRequestCapacity,
+	)
+	if err != nil {
+		return fmt.Errorf("training observation: director: %w", err)
+	}
+	lease, err := director.LeaseComponent(ctx, modelrecipe.ComponentSession{
+		Identity: recipeID, Node: "training", Module: "training.session",
+		Model: model, Session: recipe.SessionRequest,
+	}, func(context.Context) (struct{}, error) { return struct{}{}, nil })
+	if err != nil {
+		_ = director.Close(ctx)
+		return fmt.Errorf("training observation: admission refused: %w", err)
+	}
+	o.director, o.lease = director, lease
+	o.sampleHardware(runrecord.ServingHardwareStart)
+	return nil
+}
+
+// Phase records one lifecycle wall.
+func (o *Observer) Phase(phase runrecord.Phase, wall time.Duration) {
+	if o == nil || wall <= 0 {
 		return
 	}
 	o.phases = append(o.phases, runrecord.PhaseMetric{Phase: phase, DurationNS: uint64(wall)})
 }
 
-func (o *sessionObserver) sampleHardware(stage runrecord.ServingHardwareStage) {
+func (o *Observer) sampleHardware(stage runrecord.ServingHardwareStage) {
 	if o == nil {
 		return
 	}
@@ -62,18 +90,20 @@ func (o *sessionObserver) sampleHardware(stage runrecord.ServingHardwareStage) {
 	})
 }
 
-func (o *sessionObserver) sampleStep() {
+// SampleStep retains peak sampled residency.
+func (o *Observer) SampleStep() {
 	if o == nil {
 		return
 	}
 	used, ok := o.sampler.sample()
-	if !ok || used <= o.stepUsed {
+	if !ok || o.stepSampled && used <= o.stepUsed {
 		return
 	}
 	o.stepUsed, o.stepElapsed, o.stepSampled = used, uint64(time.Since(o.started)), true
 }
 
-func (o *sessionObserver) finish(
+// Finish releases directed ownership; publishes evidence.
+func (o *Observer) Finish(
 	ctx context.Context, model, recipeID artifact.ID, runErr error, streamPosition uint64,
 ) (artifact.ID, error) {
 	if o == nil {
@@ -87,6 +117,16 @@ func (o *sessionObserver) finish(
 	}
 	o.sampleHardware(runrecord.ServingHardwareFinish)
 	o.sampler.close()
+	if o.lease != nil {
+		if err := o.lease.Release(); err != nil {
+			return artifact.ID{}, fmt.Errorf("training observation: release: %w", err)
+		}
+	}
+	if o.director != nil {
+		if err := o.director.Close(ctx); err != nil {
+			return artifact.ID{}, fmt.Errorf("training observation: close: %w", err)
+		}
+	}
 	outcome, failure := runrecord.OutcomeSucceeded, ""
 	if runErr != nil {
 		outcome, failure = runrecord.OutcomeFailed, "training_failed"
@@ -108,13 +148,14 @@ func (o *sessionObserver) finish(
 		return artifact.ID{}, err
 	}
 	if _, err := o.store.Commit(ctx, artifact.Batch{
-		Key: "training-session-environment/" + o.environment.ID.String(), Contents: []artifact.Content{environmentContent},
+		Key:      "training-session-environment/" + o.environment.ID.String(),
+		Contents: []artifact.Content{environmentContent},
 	}); err != nil {
-		return artifact.ID{}, fmt.Errorf("training workflow: commit session environment: %w", err)
+		return artifact.ID{}, fmt.Errorf("training observation: commit environment: %w", err)
 	}
 	published, err := runrecord.PublishServingObservation(ctx, o.store, observation)
 	if err != nil {
-		return artifact.ID{}, fmt.Errorf("training workflow: publish session observation: %w", err)
+		return artifact.ID{}, fmt.Errorf("training observation: publish: %w", err)
 	}
 	return published.ID, nil
 }

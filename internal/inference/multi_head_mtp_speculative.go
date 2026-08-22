@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"overgo/internal/checked"
-	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -29,12 +27,12 @@ func (r *Runner) DraftMultiHeadMTPGreedy(
 	if _, err := r.multiHeadMTP(); err != nil {
 		return nil, err
 	}
-	if r == nil || session == nil || checked.Nonzero(len(session.DraftTokens)) ||
+	if r == nil || session == nil || len(session.DraftTokens) != 0 ||
 		!validSampledLimits(maximum, minimumProbability) {
 		return nil, errors.New("inference: multi-head MTP draft inputs are invalid")
 	}
 	remaining := len(session.Heads)
-	if !checked.Nonzero(remaining) {
+	if remaining <= 0 {
 		return nil, errors.New("inference: multi-head MTP head chain is exhausted")
 	}
 	maximum = min(maximum, remaining)
@@ -74,10 +72,9 @@ func (r *Runner) VerifyMultiHeadMTPGreedy(
 	}
 	targetCache := draft.Base.TrunkCache
 	currentToken := draft.InitialToken
-	processedCapacity := len(draft.Tokens) + tensor.SingletonExtent
-	processedTokens := make([]tokenizer.TokenID, 0, processedCapacity)
-	processedHidden := make([]reference.Value, 0, processedCapacity)
-	var accepted int
+	processedTokens := make([]tokenizer.TokenID, 0, len(draft.Tokens)+1)
+	processedHidden := make([]reference.Value, 0, len(draft.Tokens)+1)
+	accepted := 0
 	for {
 		logits, hidden, nextTargetCache, advanceErr := target.multiHeadMTPTargetAdvance(
 			ctx, currentToken, targetCache,
@@ -88,7 +85,7 @@ func (r *Runner) VerifyMultiHeadMTPGreedy(
 		processedTokens = append(processedTokens, currentToken)
 		processedHidden = append(processedHidden, hidden)
 		targetCache = nextTargetCache
-		nextToken, _, sampleErr := sampling.GreedyLogit(logits.Data)
+		nextToken, _, sampleErr := greedyLogit(logits.Data)
 		if sampleErr != nil {
 			return nil, sampleErr
 		}
@@ -163,7 +160,7 @@ func (r *Runner) resyncMultiHeadMTPSession(
 	tokens []tokenizer.TokenID,
 	targetHidden []reference.Value,
 ) (*MultiHeadMTPSession, error) {
-	if r == nil || base == nil || trunkCache == nil || !checked.Nonzero(len(tokens)) || len(tokens) != len(targetHidden) {
+	if r == nil || base == nil || trunkCache == nil || len(tokens) == 0 || len(tokens) != len(targetHidden) {
 		return nil, errors.New("inference: multi-head MTP resync inputs are invalid")
 	}
 	r.mu.Lock()
@@ -177,9 +174,8 @@ func (r *Runner) resyncMultiHeadMTPSession(
 		Data:  make([]float32, width*len(tokens)),
 	}
 	copy(hidden.Data, base.PendingHidden.Data)
-	precedingHidden, _ := checked.Init(targetHidden)
-	for index, row := range precedingHidden {
-		copy(hidden.Data[(index+tensor.SingletonExtent)*width:], row.Data)
+	for index := 1; index < len(tokens); index++ {
+		copy(hidden.Data[index*width:], targetHidden[index-1].Data)
 	}
 	positions := tokenPositions(base.MTPStart, len(tokens))
 	heads := make([]LayerCache, len(base.Heads))
@@ -193,11 +189,9 @@ func (r *Runner) resyncMultiHeadMTPSession(
 		heads[offset] = headCache
 	}
 	position := effectiveCachePosition(trunkCache)
-	lastSlice, _ := checked.LastSlice(targetHidden)
-	lastHidden, _ := checked.First(lastSlice)
 	return &MultiHeadMTPSession{
 		TrunkCache: trunkCache, Heads: heads,
-		PendingHidden: lastHidden,
+		PendingHidden: targetHidden[len(targetHidden)-1],
 		MTPStart:      position, Position: position, targetModel: base.targetModel,
 	}, nil
 }

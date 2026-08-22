@@ -4,25 +4,24 @@ import (
 	"errors"
 	"strings"
 
-	"overgo/internal/checked"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
 
 func normalizeGenerateOptions(options *GenerateOptions) error {
-	if !checked.NonNegativeInts(options.MaxNewTokens) {
+	if options.MaxNewTokens < 0 {
 		return errors.New("inference: max new tokens is negative")
 	}
-	if !checked.NonNegativeInts(options.MinCacheReuse) {
+	if options.MinCacheReuse < 0 {
 		return errors.New("inference: minimum cache reuse is negative")
 	}
-	if !checked.AutomaticOrNonNegative(options.KeepTokens) {
+	if options.KeepTokens < -1 {
 		return errors.New("inference: keep token count must be at least -1")
 	}
-	if !checked.NonNegativeInts(options.DiscardTokens) {
+	if options.DiscardTokens < 0 {
 		return errors.New("inference: discard token count is negative")
 	}
-	if !checked.NonNegativeInts(options.PostSamplingProbabilities) {
+	if options.PostSamplingProbabilities < 0 {
 		return errors.New("inference: post-sampling probability count is negative")
 	}
 	if err := validateStopSequences(options.StopSequences); err != nil {
@@ -70,7 +69,7 @@ func sampleGenerationToken(
 	options GenerateOptions,
 ) (TokenEvent, error) {
 	history := tokenHistory(ids)
-	if checked.PositiveInts(options.PostSamplingProbabilities) {
+	if options.PostSamplingProbabilities > 0 {
 		result, err := options.Sampler.SampleWithHistoryProbabilities(
 			logits, history, options.PostSamplingProbabilities,
 		)
@@ -89,7 +88,7 @@ func (r *Runner) deliverGenerationToken(
 	options GenerateOptions,
 	generatedText *strings.Builder,
 ) (bool, error) {
-	if options.OnToken != nil || options.ShouldStop != nil || checked.Nonzero(len(options.StopSequences)) {
+	if options.OnToken != nil || options.ShouldStop != nil || len(options.StopSequences) > 0 {
 		piece, err := r.vocab.DecodePiece(event.ID, false)
 		if err != nil {
 			return false, err

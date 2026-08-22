@@ -15,7 +15,6 @@ func (v Value) Clone() Value {
 	return Value{Shape: v.Shape, Data: slices.Clone(v.Data)}
 }
 
-// Defined reports whether a value carries a declared tensor shape.
 func (v Value) Defined() bool { return v.Shape.Rank != tensor.FirstOffset }
 
 func (v Value) IsMatrixWidth(width uint64) bool {
@@ -76,9 +75,6 @@ func (v Value) Rows(start, count uint64) (Value, error) {
 	}, nil
 }
 
-// SelectRows returns detached rows through the value contract.
-func SelectRows(value Value, start, count uint64) (Value, error) { return value.Rows(start, count) }
-
 func (v Value) TailRows(count uint64) (Value, error) {
 	if v.Shape.Rank != 2 || count > v.Shape.Dims[1] {
 		return Value{}, errors.New("reference tail row count is invalid")
@@ -86,20 +82,26 @@ func (v Value) TailRows(count uint64) (Value, error) {
 	return v.Rows(v.Shape.Dims[1]-count, count)
 }
 
-// FinalRows returns detached trailing rows through the value contract.
-func FinalRows(value Value, count uint64) (Value, error) { return value.TailRows(count) }
+// RowView returns one borrowed matrix row.
+func (v Value) RowView(row uint64) Value {
+	width, rows, valid := v.MatrixExtents()
+	if !valid || row >= uint64(rows) {
+		return Value{}
+	}
+	start := int(row) * width
+	return Value{
+		Shape: tensor.MustShape(uint64(width), tensor.SingletonExtent),
+		Data:  v.Data[start : start+width],
+	}
+}
 
 // LastRowView returns a borrowed final matrix row.
 func (v Value) LastRowView() Value {
-	width, rows, valid := v.MatrixExtents()
+	_, rows, valid := v.MatrixExtents()
 	if !valid {
 		return Value{}
 	}
-	startIndex := (rows - tensor.SingletonExtent) * width
-	return Value{
-		Shape: tensor.MustShape(uint64(width), tensor.SingletonExtent),
-		Data:  v.Data[startIndex:],
-	}
+	return v.RowView(uint64(rows - tensor.SingletonExtent))
 }
 
 // RemoveTrailingRange removes contiguous final-axis rows.

@@ -61,12 +61,12 @@ func (r *Runner) PerplexityWithOptions(
 	if err != nil {
 		return PerplexityResult{}, err
 	}
-	if len(ids) < tensor.PairedExtent {
+	if len(ids) < 2 {
 		return PerplexityResult{}, errors.New(
 			"inference: perplexity requires at least two tokens including special tokens",
 		)
 	}
-	if !checked.NonNegativeInts(options.ContextSize) {
+	if options.ContextSize < 0 {
 		return PerplexityResult{}, errors.New("inference: perplexity context size is negative")
 	}
 	if options.ContextSize > int(r.spec.ContextLength) {
@@ -76,8 +76,7 @@ func (r *Runner) PerplexityWithOptions(
 			r.spec.ContextLength,
 		)
 	}
-	minimumWindow := tensor.PairedExtent * tensor.PairedExtent
-	if checked.Nonzero(options.ContextSize) && options.ContextSize < minimumWindow {
+	if options.ContextSize > 0 && options.ContextSize < 4 {
 		return PerplexityResult{}, errors.New(
 			"inference: windowed perplexity context size must be at least 4",
 		)
@@ -91,12 +90,12 @@ func (r *Runner) PerplexityWithOptions(
 	result := PerplexityResult{
 		TokenCount: len(ids),
 	}
-	if !checked.Nonzero(options.ContextSize) {
+	if options.ContextSize == 0 {
 		scores, negativeLogLik, scoreErr := r.scoreTokenWindow(
 			ctx,
 			ids,
-			tensor.SingletonExtent,
-			tensor.FirstOffset,
+			1,
+			0,
 			outputTable,
 		)
 		if scoreErr != nil {
@@ -106,18 +105,18 @@ func (r *Runner) PerplexityWithOptions(
 		result.NegativeLogLikelihood = -negativeLogLik.LogProbability
 	} else {
 		contextSize := options.ContextSize
-		if len(ids) < tensor.PairedExtent*contextSize {
+		if len(ids) < 2*contextSize {
 			return PerplexityResult{}, fmt.Errorf(
 				"inference: windowed perplexity needs at least %d tokens, got %d",
-				tensor.PairedExtent*contextSize,
+				2*contextSize,
 				len(ids),
 			)
 		}
 		windowCount := len(ids) / contextSize
-		firstTarget := contextSize/tensor.PairedExtent + tensor.SingletonExtent
+		firstTarget := contextSize/2 + 1
 		result.Scores = make(
 			[]TokenScore,
-			tensor.FirstOffset,
+			0,
 			windowCount*(contextSize-firstTarget),
 		)
 		for window := range windowCount {
@@ -125,7 +124,7 @@ func (r *Runner) PerplexityWithOptions(
 			windowIDs := ids[offset : offset+contextSize]
 			if r.vocab.AddBOS {
 				windowIDs = slices.Clone(windowIDs)
-				windowIDs[tensor.FirstOffset] = r.vocab.BOS
+				windowIDs[0] = r.vocab.BOS
 			}
 			scores, continuation, scoreErr := r.scoreTokenWindow(
 				ctx,
@@ -149,7 +148,7 @@ func (r *Runner) PerplexityWithOptions(
 	result.Perplexity = math.Exp(
 		result.NegativeLogLikelihood / float64(result.EvaluatedTokens),
 	)
-	if !checked.Finite64(result.Perplexity) {
+	if math.IsNaN(result.Perplexity) || math.IsInf(result.Perplexity, 0) {
 		return PerplexityResult{}, errors.New("inference: perplexity is not finite")
 	}
 	return result, nil
@@ -162,10 +161,10 @@ func (r *Runner) scoreTokenWindow(
 	globalOffset int,
 	outputInfo gguf.TensorInfo,
 ) ([]TokenScore, sequencescore.Score, error) {
-	if firstTarget < tensor.SingletonExtent || firstTarget >= len(ids) {
+	if firstTarget < 1 || firstTarget >= len(ids) {
 		return nil, sequencescore.Score{}, errors.New("invalid first target position")
 	}
-	hidden, _, err := r.forwardCachedLocked(ctx, ids[:len(ids)-tensor.SingletonExtent], nil)
+	hidden, _, err := r.forwardCachedLocked(ctx, ids[:len(ids)-1], nil)
 	if err != nil {
 		return nil, sequencescore.Score{}, err
 	}
@@ -173,20 +172,20 @@ func (r *Runner) scoreTokenWindow(
 	if err != nil {
 		return nil, sequencescore.Score{}, err
 	}
-	vocabularySize := r.vocab.Len()
-	if len(logits) != vocabularySize*(len(ids)-tensor.SingletonExtent) {
+	vocabularySize := uint64(r.vocab.Len())
+	if !tensor.IsMatrix(logits.Shape, vocabularySize, uint64(len(ids)-1)) {
 		return nil, sequencescore.Score{}, fmt.Errorf(
-			"inference: logits contain %d values, need %d",
-			len(logits),
-			vocabularySize*(len(ids)-tensor.SingletonExtent),
+			"inference: logits shape %v is incompatible",
+			logits.Shape.Slice(),
 		)
 	}
 	scores := make([]TokenScore, 0, len(ids)-firstTarget)
 	var continuation sequencescore.Accumulator
 	for targetPosition := firstTarget; targetPosition < len(ids); targetPosition++ {
-		logitPosition := targetPosition - tensor.SingletonExtent
+		logitPosition := targetPosition - 1
+		row := logits.RowView(uint64(logitPosition))
 		value, scoreErr := negativeLogProbability(
-			logits[logitPosition*vocabularySize:(logitPosition+tensor.SingletonExtent)*vocabularySize],
+			row.Data,
 			int(ids[targetPosition]),
 		)
 		if scoreErr != nil {
@@ -213,89 +212,93 @@ func (r *Runner) logitsBatch(
 	ctx context.Context,
 	outputInfo gguf.TensorInfo,
 	hidden reference.Value,
-) ([]float32, error) {
-	rows, valid := tensor.MatrixRows(hidden.Shape, uint64(r.spec.EmbeddingLength))
+) (reference.Value, error) {
+	rows, valid := r.spec.SequenceRows(hidden)
 	if !valid {
-		return nil, errors.New("inference: batched logits require embedding-by-token hidden states")
+		return reference.Value{}, errors.New("inference: batched logits require embedding-by-token hidden states")
 	}
 	tokenCount := int(rows)
-	width := int(r.spec.EmbeddingLength)
+	shape := tensor.MustShape(uint64(r.spec.VocabularySize), rows)
 	if !r.hasPreloadedWeights() {
-		var initialLength int
-		result := make([]float32, initialLength, tokenCount*r.vocab.Len())
+		capacity, valid := checked.MulInt(tokenCount, int(r.spec.VocabularySize))
+		if !valid {
+			return reference.Value{}, errors.New("inference: batched logits shape is too large")
+		}
+		result := make([]float32, 0, capacity)
 		for token := range tokenCount {
 			logits, err := model.DotRows(
 				ctx,
 				r.file,
 				outputInfo,
-				hidden.Data[token*width:(token+tensor.SingletonExtent)*width],
+				hidden.RowView(uint64(token)).Data,
 			)
 			if err != nil {
-				return nil, err
+				return reference.Value{}, err
 			}
 			if err := addOutputBias(logits, r.outputBias); err != nil {
-				return nil, err
+				return reference.Value{}, err
 			}
 			scaleLogits(logits, r.spec.OutputLogitMultiplier())
 			result = append(result, logits...)
 		}
-		return r.finalizeLogits(result), nil
+		return reference.Value{Shape: shape, Data: r.finalizeLogits(result)}, nil
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
 	table, err := runtime.weight(outputInfo)
 	if err != nil {
-		return nil, err
+		return reference.Value{}, err
 	}
 	input := runtime.input("perplexity.logits.input", hidden)
 	output := runtime.builder.MulMat(table, input)
 	if r.weights.OutputBias != nil {
 		bias, biasErr := runtime.weight(*r.weights.OutputBias)
 		if biasErr != nil {
-			return nil, biasErr
+			return reference.Value{}, biasErr
 		}
 		output = runtime.builder.Add(output, bias)
 	}
-	if scale := r.spec.OutputLogitMultiplier(); !checked.Equal(scale, float32(tensor.SingletonExtent)) {
+	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
 		output = runtime.builder.Scale(output, scale)
 	}
 	if err := runtime.builder.Err(); err != nil {
-		return nil, err
+		return reference.Value{}, err
 	}
 	results, err := runtime.execute(output)
 	if err != nil {
-		return nil, err
+		return reference.Value{}, err
 	}
-	return r.finalizeLogits(results[output].Data), nil
+	result := results[output]
+	if !result.Shape.Equal(shape) || validateStateValue(result) != nil {
+		return reference.Value{}, errors.New("inference: batched logits output is incompatible")
+	}
+	result.Data = r.finalizeLogits(result.Data)
+	return result, nil
 }
 
 func negativeLogProbability(logits []float32, target int) (float64, error) {
-	if !checked.Nonzero(len(logits)) || !checked.ValidIndex(target, len(logits)) {
-		var invalid float64
-		return invalid, errors.New("invalid logits or target")
+	if len(logits) == 0 || target < 0 || target >= len(logits) {
+		return 0, errors.New("invalid logits or target")
 	}
-	maximum := math.Inf(-tensor.SingletonExtent)
+	maximum := math.Inf(-1)
 	for _, value := range logits {
 		converted := float64(value)
 		if math.IsNaN(converted) {
-			var invalid float64
-			return invalid, errors.New("logits contain NaN")
+			return 0, errors.New("logits contain NaN")
 		}
 		if converted > maximum {
 			maximum = converted
 		}
 	}
-	if math.IsInf(maximum, -tensor.SingletonExtent) {
-		var invalid float64
-		return invalid, errors.New("all logits are negative infinity")
+	if math.IsInf(maximum, -1) {
+		return 0, errors.New("all logits are negative infinity")
 	}
 	var exponentialSum float64
 	for _, value := range logits {
 		exponentialSum += math.Exp(float64(value) - maximum)
 	}
 	result := maximum + math.Log(exponentialSum) - float64(logits[target])
-	if !checked.Finite64(result) {
-		var invalid float64
-		return invalid, errors.New("negative log-likelihood is not finite")
+	if math.IsNaN(result) || math.IsInf(result, 0) {
+		return 0, errors.New("negative log-likelihood is not finite")
 	}
 	return result, nil
 }

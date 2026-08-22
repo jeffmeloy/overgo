@@ -11,7 +11,7 @@ import (
 
 func TestExactAttentionCaptureRejectsModifiedScorePolicies(t *testing.T) {
 	base := model.LayerPlan{HasKV: true, AttentionGraph: model.AttentionGraphPlan{Causal: true}}
-	if !base.ExactAttentionReplay() {
+	if !exactAttentionCapture(base) {
 		t.Fatal("plain causal attention rejected")
 	}
 	for name, graph := range map[string]model.AttentionGraphPlan{
@@ -22,7 +22,7 @@ func TestExactAttentionCaptureRejectsModifiedScorePolicies(t *testing.T) {
 		"alibi":     {Causal: true, MaxALiBiBias: 8},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if (model.LayerPlan{HasKV: true, AttentionGraph: graph}).ExactAttentionReplay() {
+			if exactAttentionCapture(model.LayerPlan{HasKV: true, AttentionGraph: graph}) {
 				t.Fatal("modified score policy accepted")
 			}
 		})

@@ -7,7 +7,6 @@ import (
 	"math"
 	"slices"
 
-	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -36,7 +35,7 @@ func (r *Runner) NewFeatureDraftSession(
 	target *Runner,
 	tokenIDs []tokenizer.TokenID,
 ) (*FeatureDraftSession, error) {
-	if r == nil || target == nil || r == target || r.path == target.path || !checked.Nonzero(len(tokenIDs)) {
+	if r == nil || target == nil || r == target || r.path == target.path || len(tokenIDs) == 0 {
 		return nil, errors.New("inference: feature-draft inputs are invalid")
 	}
 	if r.forwardProgram().Session != model.ForwardSessionFeatureDraft || target.spec.EmbeddingLength != r.spec.TargetHiddenSize {
@@ -52,26 +51,21 @@ func (r *Runner) NewFeatureDraftSession(
 	if err != nil {
 		return nil, err
 	}
-	_, _, validFused := fused.MatrixExtents()
-	if !validFused {
-		return nil, errors.New("inference: feature-draft projection shape is incompatible")
+	width := int(fused.Shape.Dims[0])
+	pending := reference.Value{
+		Shape: tensor.MustShape(uint64(width), 1),
+		Data:  slices.Clone(fused.Data[(len(tokenIDs)-1)*width:]),
 	}
-	pending, err := reference.FinalRows(fused, tensor.SingletonExtent)
-	if err != nil {
-		return nil, err
-	}
-	prefix, _ := checked.Init(tokenIDs)
-	tail, _ := checked.Tail(tokenIDs)
 	session := &FeatureDraftSession{
 		TargetCache: targetCache, TargetTokens: slices.Clone(tokenIDs),
-		PendingFeature: pending, Position: uint32(len(prefix)),
+		PendingFeature: pending, Position: uint32(len(tokenIDs) - 1),
 	}
-	for index := range prefix {
-		feature, selectErr := reference.SelectRows(fused, uint64(index), tensor.SingletonExtent)
-		if selectErr != nil {
-			return nil, selectErr
+	for index := 0; index+1 < len(tokenIDs); index++ {
+		feature := reference.Value{
+			Shape: tensor.MustShape(uint64(width), 1),
+			Data:  slices.Clone(fused.Data[index*width : (index+1)*width]),
 		}
-		step, stepErr := r.stepFeatureDraft(ctx, target, tail[index], feature, uint32(index), session.Cache)
+		step, stepErr := r.stepFeatureDraft(ctx, target, tokenIDs[index+1], feature, uint32(index), session.Cache)
 		if stepErr != nil {
 			return nil, stepErr
 		}
@@ -97,12 +91,10 @@ func (r *Runner) AdvanceFeatureDraft(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	nextPosition := session.Position
-	nextPosition++
 	next := &FeatureDraftSession{
 		Cache: step.Cache, TargetCache: session.TargetCache,
 		TargetTokens:   slices.Clone(session.TargetTokens),
-		PendingFeature: step.NextFeature, Position: nextPosition,
+		PendingFeature: step.NextFeature, Position: session.Position + 1,
 	}
 	return step.Logits, next, nil
 }
@@ -129,13 +121,13 @@ func (r *Runner) stepFeatureDraft(
 	if r.closed || target.closed || r.forwardProgram().Session != model.ForwardSessionFeatureDraft {
 		return featureDraftStep{}, errors.New("inference: feature-draft runner is unavailable")
 	}
-	if !checked.NonNegativeInts(int(tokenID)) || int(tokenID) >= target.vocab.Len() {
+	if tokenID < 0 || int(tokenID) >= target.vocab.Len() {
 		return featureDraftStep{}, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
 	if err := r.spec.ValidateSequenceRow(feature); err != nil {
 		return featureDraftStep{}, errors.New("inference: feature-draft input shape is incompatible")
 	}
-	if cache != nil && (len(cache.Layers) != tensor.SingletonExtent || cache.Position != position) {
+	if cache != nil && (len(cache.Layers) != 1 || cache.Position != position) {
 		return featureDraftStep{}, errors.New("inference: feature-draft cache position is incompatible")
 	}
 	rows := []uint32{uint32(tokenID)}
@@ -146,16 +138,16 @@ func (r *Runner) stepFeatureDraft(
 	runtime := r.newInferenceGraphRuntime(ctx)
 	tokenInput := runtime.input("feature_draft.token", tokenEmbedding)
 	featureInput := runtime.input("feature_draft.feature", feature)
-	graphWeights, err := runtime.layer(r.weights.Layers[tensor.FirstOffset], "blk.0.")
+	graphWeights, err := runtime.layer(r.weights.Layers[0], "blk.0.")
 	if err != nil {
 		return featureDraftStep{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
 	if cache != nil {
-		pastKey = runtime.input("feature_draft.past_key", cache.Layers[tensor.FirstOffset].Key)
-		pastValue = runtime.input("feature_draft.past_value", cache.Layers[tensor.FirstOffset].Value)
+		pastKey = runtime.input("feature_draft.past_key", cache.Layers[0].Key)
+		pastValue = runtime.input("feature_draft.past_value", cache.Layers[0].Value)
 	}
-	program := r.layerProgram(tensor.FirstOffset)
+	program := r.layerProgram(0)
 	plan := program.Layer()
 	block, err := program.Build(model.CachedBlockContext{
 		Builder: runtime.builder, Input: tokenInput, Positions: []uint32{position},
@@ -201,15 +193,9 @@ func (r *Runner) stepFeatureDraft(
 			return featureDraftStep{}, err
 		}
 	}
-	_, _, cacheTokens, validCache := tensor.Extents3(results[block.Key].Shape)
-	if !validCache {
-		return featureDraftStep{}, errors.New("inference: feature-draft cache shape is incompatible")
-	}
-	nextPosition := position
-	nextPosition++
 	nextCache := &KVCache{
 		Layers: []LayerCache{{Key: results[block.Key], Value: results[block.Value]}},
-		Tokens: uint32(cacheTokens), Position: nextPosition,
+		Tokens: uint32(results[block.Key].Shape.Dims[2]), Position: position + 1,
 	}
 	return featureDraftStep{Logits: logitValue, NextFeature: results[block.Output], Cache: nextCache}, nil
 }
@@ -219,13 +205,13 @@ func (r *Runner) remapFeatureDraftLogits(ctx context.Context, logits reference.V
 	if err != nil {
 		return reference.Value{}, err
 	}
-	result := reference.Value{Shape: tensor.MustShape(uint64(r.spec.VocabularySize), tensor.SingletonExtent), Data: make([]float32, r.spec.VocabularySize)}
+	result := reference.Value{Shape: tensor.MustShape(uint64(r.spec.VocabularySize), 1), Data: make([]float32, r.spec.VocabularySize)}
 	for index := range result.Data {
-		result.Data[index] = float32(math.Inf(-tensor.SingletonExtent))
+		result.Data[index] = float32(math.Inf(-1))
 	}
 	for draft, rawTarget := range mapping.Data {
 		target := int(rawTarget)
-		if !checked.NonNegativeInts(target) || target >= len(result.Data) || draft >= len(logits.Data) {
+		if target < 0 || target >= len(result.Data) || draft >= len(logits.Data) {
 			return reference.Value{}, errors.New("inference: feature-draft vocabulary map is invalid")
 		}
 		result.Data[target] = logits.Data[draft]

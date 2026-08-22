@@ -54,6 +54,30 @@ func referenceImageEncoder(encode func(context.Context, image.Image) (reference.
 	}
 }
 
+func gridImagePromptEncoder(
+	encode func(context.Context, image.Image, RasterPatchOptions) (gridOutput, error),
+) imagePromptEncoder {
+	return func(ctx context.Context, source image.Image) (imagePromptItem, error) {
+		output, err := encode(ctx, source, RasterPatchOptions{})
+		return imagePromptItem{
+			Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent]),
+			Rows: output.GridH / output.MergeSize, Columns: output.GridW / output.MergeSize,
+		}, err
+	}
+}
+
+func qwenImagePromptEncoder(
+	encode func(context.Context, image.Image, Qwen3VLPreprocessOptions) (Qwen3VLOutput, error),
+) imagePromptEncoder {
+	return func(ctx context.Context, source image.Image) (imagePromptItem, error) {
+		output, err := encode(ctx, source, DefaultQwen3VLPreprocessOptions())
+		if err != nil {
+			return imagePromptItem{}, err
+		}
+		return qwenImagePromptItem(output)
+	}
+}
+
 type mixedMediaPromptItem struct {
 	Kind        MediaKind
 	Placeholder string

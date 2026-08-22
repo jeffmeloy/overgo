@@ -11,16 +11,16 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImage) (PaddleOCROutput, error) {
+func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImage) (gridOutput, error) {
 	rows, patchWidth, err := validateSpatialPatchStorage(
 		len(input.PixelValues), input.GridH, input.GridW, r.spec.PatchSize, media.RGBChannels,
 	)
 	if err != nil {
-		return PaddleOCROutput{}, errors.New("projector: PaddleOCR input shape is inconsistent")
+		return gridOutput{}, errors.New("projector: PaddleOCR input shape is inconsistent")
 	}
 	mergePlan, err := newPixelMergePlan(input.GridH, input.GridW, r.spec.MergeSize)
 	if err != nil {
-		return PaddleOCROutput{}, err
+		return gridOutput{}, err
 	}
 	builder := tensor.NewBuilder()
 	pixels := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
@@ -84,9 +84,9 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))
 	results, err := graph.execute(output)
 	if err != nil {
-		return PaddleOCROutput{}, fmt.Errorf("projector: execute PaddleOCR graph: %w", err)
+		return gridOutput{}, fmt.Errorf("projector: execute PaddleOCR graph: %w", err)
 	}
-	return PaddleOCROutput{
+	return gridOutput{
 		Embeddings: results[output], GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize,
 	}, nil
 }

@@ -1,10 +1,8 @@
 package projector
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"image"
 
 	"overgo/internal/checked"
 	"overgo/internal/gguf"
@@ -26,19 +24,11 @@ type HunyuanVLSpec struct {
 	FusedQKV         []bool
 }
 
-type HunyuanVLOutput gridOutput
-
 type HunyuanVLRunner struct {
 	projectorResources
+	rasterPatchEncoder
 	spec      HunyuanVLSpec
 	attention visionAttentionPlan
-}
-
-func (r *HunyuanVLRunner) Spec() HunyuanVLSpec {
-	if r == nil {
-		return HunyuanVLSpec{}
-	}
-	return r.spec
 }
 
 func ReadHunyuanVLSpec(file *gguf.File) (HunyuanVLSpec, error) {
@@ -108,12 +98,4 @@ func validateHunyuanVLCatalog(file *gguf.File, spec HunyuanVLSpec) ([]string, er
 	}
 	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, spec.FusedQKV, false, tensorOptional)
 	return validateProjectorTensorCatalog(file, required, "mm.0.weight")
-}
-
-func (r *HunyuanVLRunner) EncodeImage(ctx context.Context, source image.Image, options RasterPatchOptions) (HunyuanVLOutput, error) {
-	spec := r.Spec()
-	plan := spec.visionBackboneSpec.rasterPlan(spec.MergeSize, spec.MinPixels, spec.MaxPixels, rasterBicubic)
-	return executePreparedProjector(
-		ctx, r != nil && r.file != nil, source, plan, options, preprocessRasterPatches, r.encodeGraph,
-	)
 }

@@ -271,11 +271,23 @@ var projectorCatalog = []projectorDescriptor{
 		}, recipe.DataImage),
 	describeCatalogProjector(hunyuanVLProjectorType, "Hunyuan-VL", nil, ReadHunyuanVLSpec, validateHunyuanVLCatalog,
 		func(file *gguf.File, spec HunyuanVLSpec, cuda *projectorCUDA) *HunyuanVLRunner {
-			return &HunyuanVLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
+			runner := &HunyuanVLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
+			runner.rasterPatchEncoder = rasterPatchEncoder{
+				resources: &runner.projectorResources,
+				plan:      spec.visionBackboneSpec.rasterPlan(spec.MergeSize, spec.MinPixels, spec.MaxPixels, rasterBicubic),
+				execute:   runner.encodeGraph,
+			}
+			return runner
 		}, recipe.DataImage),
 	describeCatalogProjector(paddleOCRProjectorType, "PaddleOCR", nil, ReadPaddleOCRSpec, validatePaddleOCRCatalog,
 		func(file *gguf.File, spec PaddleOCRSpec, cuda *projectorCUDA) *PaddleOCRRunner {
-			return &PaddleOCRRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
+			runner := &PaddleOCRRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
+			runner.rasterPatchEncoder = rasterPatchEncoder{
+				resources: &runner.projectorResources,
+				plan:      spec.visionBackboneSpec.rasterPlan(spec.MergeSize, spec.MinPixels, spec.MaxPixels, rasterBilinear),
+				execute:   runner.encodeGraph,
+			}
+			return runner
 		}, recipe.DataImage),
 	describeCatalogProjector(qwen2VLProjectorType, "Qwen2-VL", nil, ReadQwen2VLSpec, validateQwen2VLCatalog,
 		func(file *gguf.File, spec Qwen2VLSpec, cuda *projectorCUDA) *Qwen2VLRunner {
@@ -514,16 +526,7 @@ func (r *HunyuanVLRunner) imagesPrompt(
 			return prompt.String()
 		},
 	}
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
-		output, err := r.EncodeImage(ctx, source, RasterPatchOptions{})
-		if err != nil {
-			return imagePromptItem{}, err
-		}
-		return imagePromptItem{
-			Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent]),
-			Rows: output.GridH / output.MergeSize, Columns: output.GridW / output.MergeSize,
-		}, nil
-	})
+	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, gridImagePromptEncoder(r.EncodeImage))
 }
 
 func (r *PaddleOCRRunner) imagesPrompt(
@@ -561,17 +564,7 @@ func (r *PaddleOCRRunner) imagesPrompt(
 			return prompt.String()
 		},
 	}
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
-		output, err := r.EncodeImage(ctx, source, RasterPatchOptions{})
-		if err != nil {
-			return imagePromptItem{}, err
-		}
-		return imagePromptItem{
-			Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent]),
-			Rows:    output.GridH / output.MergeSize,
-			Columns: output.GridW / output.MergeSize,
-		}, nil
-	})
+	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, gridImagePromptEncoder(r.EncodeImage))
 }
 
 func (r *MiMoVLRunner) imagesPrompt(
@@ -625,13 +618,7 @@ func (r *Qwen2VLRunner) imagesPrompt(
 	plan := qwenImagePlan("Qwen2-VL", history, r.spec.OutputHidden, func(text []string, items []imagePromptItem) string {
 		return renderQwenImagePrompt(text, items, history, "<|im_end|>\n<|im_start|>assistant\n")
 	})
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
-		output, err := r.EncodeImage(ctx, source, DefaultQwen3VLPreprocessOptions())
-		if err != nil {
-			return imagePromptItem{}, err
-		}
-		return qwenImagePromptItem(output)
-	})
+	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, qwenImagePromptEncoder(r.EncodeImage))
 }
 
 func (r *Qwen2VLRunner) videoPrompt(
@@ -866,13 +853,7 @@ func (r *Qwen3VLRunner) imagesPrompt(
 	plan := qwenImagePlan("Qwen3-VL", options.History, r.spec.OutputHidden, func(text []string, items []imagePromptItem) string {
 		return renderQwenImagePrompt(text, items, options.History, suffix)
 	})
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
-		output, err := r.EncodeImage(ctx, source, DefaultQwen3VLPreprocessOptions())
-		if err != nil {
-			return imagePromptItem{}, err
-		}
-		return qwenImagePromptItem(output)
-	})
+	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, qwenImagePromptEncoder(r.EncodeImage))
 }
 
 func (r *Qwen3VLRunner) videoPrompt(

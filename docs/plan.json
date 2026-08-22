@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "projector-raster-programs",
-          "title": "Route equivalent projector raster encoding and prompt assembly through neutral typed programs; delete duplicate methods",
-          "status": "open",
-          "verify": "go test ./internal/projector -run 'Test(HunyuanVL|PaddleOCR|DeepSeekOCR|Qwen).*' -count=1"
-        },
-        {
           "id": "training-observation-owner",
           "title": "Use one training hardware observation sampler and delete duplicate probe/session sampling",
           "status": "open",

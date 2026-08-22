@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
@@ -17,6 +18,24 @@ type projectorResource interface {
 type projectorResources struct {
 	file *gguf.File
 	cuda *projectorCUDA
+}
+
+type rasterPatchEncoder struct {
+	resources *projectorResources
+	plan      rasterPatchPlan
+	execute   func(context.Context, RasterPatchImage) (gridOutput, error)
+}
+
+// EncodeImage executes the compiled raster projection.
+func (program rasterPatchEncoder) EncodeImage(
+	ctx context.Context,
+	source image.Image,
+	options RasterPatchOptions,
+) (gridOutput, error) {
+	return executePreparedProjector(
+		ctx, program.resources != nil && program.resources.file != nil,
+		source, program.plan, options, preprocessRasterPatches, program.execute,
+	)
 }
 
 func executePreparedProjector[Source, Spec, Options, Input, Output any](

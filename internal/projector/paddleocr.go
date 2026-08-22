@@ -1,10 +1,8 @@
 package projector
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"image"
 
 	"overgo/internal/checked"
 	"overgo/internal/gguf"
@@ -26,19 +24,11 @@ type PaddleOCRSpec struct {
 	FusedQKV              []bool
 }
 
-type PaddleOCROutput gridOutput
-
 type PaddleOCRRunner struct {
 	projectorResources
+	rasterPatchEncoder
 	spec      PaddleOCRSpec
 	attention visionAttentionPlan
-}
-
-func (r *PaddleOCRRunner) Spec() PaddleOCRSpec {
-	if r == nil {
-		return PaddleOCRSpec{}
-	}
-	return r.spec
 }
 
 func ReadPaddleOCRSpec(file *gguf.File) (PaddleOCRSpec, error) {
@@ -148,12 +138,4 @@ func validatePaddleOCRCatalog(file *gguf.File, spec PaddleOCRSpec) ([]string, er
 	}
 	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, spec.FusedQKV, false, tensorOptional)
 	return validateProjectorTensorCatalog(file, required)
-}
-
-func (r *PaddleOCRRunner) EncodeImage(ctx context.Context, source image.Image, options RasterPatchOptions) (PaddleOCROutput, error) {
-	spec := r.Spec()
-	plan := spec.visionBackboneSpec.rasterPlan(spec.MergeSize, spec.MinPixels, spec.MaxPixels, rasterBilinear)
-	return executePreparedProjector(
-		ctx, r != nil && r.file != nil, source, plan, options, preprocessRasterPatches, r.encodeGraph,
-	)
 }

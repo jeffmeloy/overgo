@@ -13,20 +13,20 @@ import (
 
 const interpolationExtentBias = 0.1
 
-func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImage) (HunyuanVLOutput, error) {
+func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImage) (gridOutput, error) {
 	rows, patchWidth, err := validateSpatialPatchStorage(
 		len(input.PixelValues), input.GridH, input.GridW, r.spec.PatchSize, media.RGBChannels,
 	)
 	if err != nil {
-		return HunyuanVLOutput{}, fmt.Errorf("projector: Hunyuan-VL input: %w", err)
+		return gridOutput{}, fmt.Errorf("projector: Hunyuan-VL input: %w", err)
 	}
 	mergePlan, err := newPixelMergePlan(input.GridH, input.GridW, r.spec.MergeSize)
 	if err != nil {
-		return HunyuanVLOutput{}, err
+		return gridOutput{}, err
 	}
 	conv0, err := loadProjectorHostTensor(ctx, r.file, "mm.0.weight")
 	if err != nil {
-		return HunyuanVLOutput{}, err
+		return gridOutput{}, err
 	}
 	mergeFactor := r.spec.MergeSize * r.spec.MergeSize
 	convWidth := r.spec.Hidden * mergeFactor
@@ -111,9 +111,9 @@ func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	output = builder.WeightedRMSNorm(output, weight("mm.post_norm.weight"), r.spec.LayerNormEpsilon)
 	results, err := graph.execute(output)
 	if err != nil {
-		return HunyuanVLOutput{}, fmt.Errorf("projector: execute Hunyuan-VL graph: %w", err)
+		return gridOutput{}, fmt.Errorf("projector: execute Hunyuan-VL graph: %w", err)
 	}
-	return HunyuanVLOutput{Embeddings: results[output], GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize}, nil
+	return gridOutput{Embeddings: results[output], GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize}, nil
 }
 
 func pixelsValue(node *tensor.Tensor, data []float32) reference.Value {

@@ -1,18 +1,61 @@
 {
-  "campaign": "Production-authoritative cross-model composability",
-  "doctrine": "Follow skill.md. Composability is the research worktree's primary campaign; the literal-authority campaign remains ordered afterward. Freeze operator expansion until one existing embedding-injection operator is production-active end to end. MLP projection, vocabulary alignment, Perceiver, conditional LoRA, embedding injection, and external attention are sufficient research surfaces. RepoDB owns immutable representation contracts, bridge definitions and weights, composition recipes, promotion evidence, and active aliases scoped by exact source, target, and task. One typed CompositionExecutionPlan owns identities, ordered operators, capture and injection boundaries, placement, residency, lifetimes, training and promotion policy, and deterministic cache identity. Compilation hard-fails on missing active recipes, incompatible contracts, unpromoted bridges, unsupported operators, or artifact mismatch. Production execution must resolve the active recipe, source session, capture, bridge, target embedding injection, and target inference without direct constructors. Bridge training is dataset-driven, bridge-only, resumable, lineage-recorded, and proves source and target models remain frozen. Promotion compares target baseline, composed target, source ablation, held-out quality, repeated-run stability, resources, and latency using recipe-owned thresholds; only promoted bridges may activate. Keep representations and bridge weights device-resident where supported and cache immutable transformed representations by exact input, source, bridge, and contract identity. API and GUI expose inventory, refusal reasons, recipe graph, training, evaluation, promotion, activation, memory, and latency. External cross-attention follows embedding injection and owns cache separately from target KV state. Exact passthrough and task arithmetic remain offline artifact-production workflows with exact definition, inventory, and lineage compatibility. Gates distinguish contract-tested, runtime-wired, CUDA-verified, evidence-promoted, and production-active. Finish with full host and CUDA gates, zero direct composition constructors outside recipe runtime, no unpromoted bridge execution, and one real composition available through API and GUI. After every gated commit, merge master and redispatch.",
+  "campaign": "Deletion-led production composability and repository tightening",
+  "doctrine": "Follow skill.md. Current evidence: 943 production files, 1,124,050 runtime AST nodes, 12,639 exact-clone excess nodes, 5,982 exports, 78 zero-consumer objects, 18,267 inline literals, and 14,235 repeated-literal sites. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
   "items": [
+    {
+      "id": "surface-reduction",
+      "title": "Delete duplicate and redundant runtime ownership",
+      "status": "open",
+      "steps": [
+        {
+          "id": "composition-session-authority",
+          "title": "Use modelrecipe component sessions as sole composition lifetime authority and delete parallel component/resource plans",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/composition ./internal/inference -run 'Test(ComponentSessionPlan|CompositionExecutionPlan|CompositionResidencyPlan|ProductionComposition)' -count=1"
+        },
+        {
+          "id": "composition-cache-owner",
+          "title": "Replace the unbounded cloned composition map with bounded source-scoped immutable cache ownership",
+          "status": "open",
+          "verify": "go test ./internal/inference -run 'TestTransformedRepresentationCache(SourceScope|BoundedOwnership|Identity)' -count=1"
+        },
+        {
+          "id": "projector-raster-programs",
+          "title": "Route equivalent projector raster encoding and prompt assembly through neutral typed programs; delete duplicate methods",
+          "status": "open",
+          "verify": "go test ./internal/projector -run 'Test(HunyuanVL|PaddleOCR|DeepSeekOCR|Qwen).*' -count=1"
+        },
+        {
+          "id": "training-observation-owner",
+          "title": "Use one training hardware observation sampler and delete duplicate probe/session sampling",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -run 'Test.*(Observation|Hardware|Probe)' -count=1"
+        },
+        {
+          "id": "dead-contract-surface",
+          "title": "Delete non-contract zero-consumer and test-only production objects; retain protocol and enum sentinels",
+          "status": "open",
+          "verify": "go test ./internal/codeprofile ./internal/gguf ./internal/model ./internal/inference ./internal/latentvideo ./internal/recipecontract ./internal/servingtest -count=1"
+        },
+        {
+          "id": "catalog-policy-authority",
+          "title": "Move complete weight-catalog policy groups into compiled recipe schemas and delete imperative loadLayerCatalogs branches",
+          "status": "open",
+          "verify": "go test ./internal/model ./internal/modelrecipe -run 'Test.*(Weight|Catalog|Recipe|Profile)' -count=1"
+        },
+        {
+          "id": "dispatch-program-authority",
+          "title": "Compile repeated CUDA and reference dispatch policy into existing typed operation programs; delete displaced switches",
+          "status": "open",
+          "verify": "go test ./internal/tensor/reference ./internal/cuda/executor -count=1 \u0026\u0026 go run ./cmd/device-lane"
+        }
+      ]
+    },
     {
       "id": "composability-production",
       "title": "Make cross-model composability production-authoritative",
       "status": "open",
       "steps": [
-        {
-          "id": "api-gui",
-          "title": "Expose composition inventory, compatibility, graph, training, evaluation, promotion, activation, and runtime evidence",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestComposition(API|GUI)Workflow' -count=1"
-        },
         {
           "id": "external-cross-attention",
           "title": "Activate recipe-compiled external cross-attention with separate cache ownership",

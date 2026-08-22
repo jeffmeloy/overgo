@@ -629,6 +629,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/runtime/sessions" ||
 		request.URL.Path == "/runtime/activity" ||
 		request.URL.Path == "/slots" ||
+		request.URL.Path == "/compositions" ||
+		request.URL.Path == "/compositions/activate" ||
 		request.URL.Path == "/chat/completions" ||
 		request.URL.Path == "/chat/completions/input_tokens" ||
 		request.URL.Path == "/responses/input_tokens" ||
@@ -756,6 +758,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.slotStatus(response, request)
 	case "/lora-adapters":
 		h.loraAdapters(response, request)
+	case "/compositions":
+		h.compositionInventory(response, request)
+	case "/compositions/activate":
+		h.activateComposition(response, request)
 	default:
 		h.serveWebUI(response, request)
 	}

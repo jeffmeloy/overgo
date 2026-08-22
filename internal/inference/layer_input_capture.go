@@ -26,7 +26,7 @@ type layerInputCapture struct {
 	attnKey   reference.Value
 }
 
-// AttentionCapture holds one layer's exact host-replay inputs.
+// AttentionCapture: exact host-replay inputs.
 type AttentionCapture struct {
 	Layer   int
 	Tokens  int
@@ -38,7 +38,7 @@ type AttentionCapture struct {
 	Key     reference.Value
 }
 
-// AttentionCaptureLayers reports exactly replayable layers.
+// AttentionCaptureLayers returns replayable layers.
 func (r *Runner) AttentionCaptureLayers() []int32 {
 	if r == nil {
 		return nil
@@ -63,7 +63,7 @@ func exactAttentionCapture(plan model.LayerPlan) bool {
 		attention.Window == 0 && attention.Softcap == 0 && attention.MaxALiBiBias == 0
 }
 
-// ExtractAttention records one exact-replay query/key boundary.
+// ExtractAttention captures one replay boundary.
 func (r *Runner) ExtractAttention(ctx context.Context, tokenIDs []tokenizer.TokenID, layer int32) (AttentionCapture, error) {
 	if r == nil {
 		return AttentionCapture{}, errRunnerNil
@@ -83,7 +83,6 @@ func (r *Runner) ExtractAttention(ctx context.Context, tokenIDs []tokenizer.Toke
 	}
 	capture := &layerInputCapture{
 		requested: map[int32]struct{}{},
-		values:    map[int32]reference.Value{},
 		attnLayer: layer,
 	}
 	if _, _, err := r.forwardCachedProjectedChunkModeLocked(
@@ -138,7 +137,7 @@ func (r *Runner) ForwardCachedExtractLayerInputs(
 	if err != nil {
 		return reference.Value{}, nil, reference.Value{}, err
 	}
-	extracted, err := capture.result(r.spec.EmbeddingLength, len(tokenIDs))
+	extracted, err := capture.result(int(r.spec.EmbeddingLength), len(tokenIDs))
 	if err != nil {
 		return reference.Value{}, nil, reference.Value{}, err
 	}
@@ -176,27 +175,27 @@ func (c *layerInputCapture) set(layer int, value reference.Value) {
 	if !c.wants(layer) {
 		return
 	}
-	c.values[int32(layer)] = value.Clone()
+	c.values[int32(layer)] = value
 }
 
-func (c *layerInputCapture) result(width uint32, tokens int) (reference.Value, error) {
-	if c == nil || width == 0 || tokens <= 0 {
+func (c *layerInputCapture) result(expectedExtent, expectedTokens int) (reference.Value, error) {
+	if c == nil || expectedExtent <= 0 || expectedTokens <= 0 {
 		return reference.Value{}, errors.New("inference: layer extraction state is invalid")
 	}
 	result := reference.Value{
-		Shape: tensor.MustShape(uint64(width)*uint64(len(c.order)), uint64(tokens)),
-		Data:  make([]float32, int(width)*len(c.order)*tokens),
+		Shape: tensor.MustShape(uint64(expectedExtent*len(c.order)), uint64(expectedTokens)),
+		Data:  make([]float32, expectedExtent*len(c.order)*expectedTokens),
 	}
-	for token := 0; token < tokens; token++ {
-		for order, layer := range c.order {
-			value, ok := c.values[layer]
-			if !ok || value.Shape.Rank != 2 || value.Shape.Dims[0] != uint64(width) ||
-				value.Shape.Dims[1] != uint64(tokens) || len(value.Data) != int(width)*tokens {
-				return reference.Value{}, fmt.Errorf("inference: extraction layer %d was not captured", layer)
-			}
-			source := token * int(width)
-			destination := (token*len(c.order) + order) * int(width)
-			copy(result.Data[destination:destination+int(width)], value.Data[source:source+int(width)])
+	for order, layer := range c.order {
+		value, ok := c.values[layer]
+		extent, tokens, valid := value.MatrixExtents()
+		if !ok || !valid || extent != expectedExtent || tokens != expectedTokens {
+			return reference.Value{}, fmt.Errorf("inference: extraction layer %d was not captured", layer)
+		}
+		for token := range expectedTokens {
+			source := token * expectedExtent
+			destination := (token*len(c.order) + order) * expectedExtent
+			copy(result.Data[destination:destination+expectedExtent], value.Data[source:source+expectedExtent])
 		}
 	}
 	return result, nil

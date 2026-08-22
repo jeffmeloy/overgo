@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "training",
-          "title": "Derive training and optimizer policy from compiled training plans",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/optimizer,internal/trainingprogram,internal/trainingworkflow,internal/hybridtrain,internal/adaptertrain,internal/controllertrain -require-classified -require-no-stale -require-no-uncatalogued-production"
-        },
-        {
           "id": "data-evaluation",
           "title": "Consolidate tokenizer, dataset, evaluation, and sampling policy",
           "status": "open",

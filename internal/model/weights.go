@@ -6,7 +6,6 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
-	"overgo/internal/tensor/dtype"
 )
 
 var (
@@ -145,14 +144,18 @@ func loadSharedExpertWeights(
 	width uint64,
 	spec Spec,
 	layer *LayerWeights,
-	withRouter bool,
+	policy sharedExpertCatalogPolicy,
 ) error {
 	requirements := []tensorBinding{
-		requiredTensorPointer("ffn_gate_shexp.weight", &layer.FeedForwardSharedGate, width, uint64(spec.SharedExpertFF)),
 		requiredTensorPointer("ffn_up_shexp.weight", &layer.FeedForwardSharedUp, width, uint64(spec.SharedExpertFF)),
 		requiredTensorPointer("ffn_down_shexp.weight", &layer.FeedForwardSharedDown, uint64(spec.SharedExpertFF), width),
 	}
-	if withRouter {
+	if policy != sharedExpertCatalogUngated {
+		requirements = append(requirements, requiredTensorPointer(
+			"ffn_gate_shexp.weight", &layer.FeedForwardSharedGate, width, uint64(spec.SharedExpertFF),
+		))
+	}
+	if policy == sharedExpertCatalogGated {
 		requirements = append(requirements,
 			requiredTensorPointer("ffn_gate_inp_shexp.weight", &layer.FeedForwardSharedRouter, width),
 		)
@@ -620,70 +623,8 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, scaleErr
 			}
 		}
-		ropeFactors, hasRopeFactors := l.catalog.tensor(prefix + "rope_freqs.weight")
-		if (profile.Rotary.FactorPairs || profile.LayerTopology == LayerTopologySharedKVAdapter && !layerPlan.Sliding) && !hasRopeFactors {
-			ropeFactors, hasRopeFactors = l.catalog.tensor("rope_freqs.weight")
-		}
-		if hasRopeFactors {
-			if layerPlan.Attention == AttentionGatedDelta {
-				return Weights{}, fmt.Errorf(
-					"tensor %q requires unsupported hybrid RoPE factors",
-					ropeFactors.Name,
-				)
-			}
-			rotaryDimensions := spec.KeyLength
-			if spec.RopeDimensionCount > tensor.FirstOffset {
-				rotaryDimensions = spec.RopeDimensionCount
-			}
-			if rotaryDimensions%rotaryPairAlignment != tensor.FirstOffset {
-				return Weights{}, fmt.Errorf("tensor %q has odd rotary width %d", ropeFactors.Name, rotaryDimensions)
-			}
-			if validateErr := validateTensorInfo(
-				ropeFactors, []dtype.Type{dtype.F32},
-				[]uint64{uint64(rotaryDimensions / rotaryPairAlignment)},
-			); validateErr != nil {
-				return Weights{}, validateErr
-			}
-			layer.RopeFactors = &ropeFactors
-		}
-		if profile.Has(ArchitectureLongRoPE) {
-			longName := prefix + "rope_factors_long.weight"
-			shortName := prefix + "rope_factors_short.weight"
-			if profile.Rotary.FactorPairs {
-				longName = "rope_factors_long.weight"
-				shortName = "rope_factors_short.weight"
-			}
-			longFactors, hasLong := l.catalog.tensor(longName)
-			shortFactors, hasShort := l.catalog.tensor(shortName)
-			if block > tensor.FirstOffset {
-				if !hasLong {
-					longFactors, hasLong = l.catalog.tensor(firstBlockTensorPrefix + "rope_factors_long.weight")
-				}
-				if !hasShort {
-					shortFactors, hasShort = l.catalog.tensor(firstBlockTensorPrefix + "rope_factors_short.weight")
-				}
-			}
-			if hasLong != hasShort {
-				return Weights{}, fmt.Errorf("%s LongRoPE factor tensors must both be present or absent", spec.Architecture)
-			}
-			if spec.RopeScalingType == ropeScalingLongRoPE && !hasLong {
-				return Weights{}, fmt.Errorf("%s LongRoPE factor tensors are missing", spec.Architecture)
-			}
-			if hasLong {
-				for _, item := range []gguf.TensorInfo{longFactors, shortFactors} {
-					if itemErr := validateTensorInfo(
-						item, []dtype.Type{dtype.F32},
-						[]uint64{uint64(spec.RopeDimensionCount / rotaryPairAlignment)},
-					); itemErr != nil {
-						return Weights{}, itemErr
-					}
-				}
-				if spec.ContextLength > spec.OriginalContextLength {
-					layer.RopeFactors = &longFactors
-				} else {
-					layer.RopeFactors = &shortFactors
-				}
-			}
+		if rotaryErr := layerPlan.rotaryCatalog.bind(catalog, spec.Architecture, layer); rotaryErr != nil {
+			return Weights{}, rotaryErr
 		}
 		if profile.LayerTopology == LayerTopologyBidirectionalFusedQKV {
 			norm := optionalTensorPointer(attentionNormWeightTensor, &layer.AttentionNorm, uint64(spec.EmbeddingLength))
@@ -709,70 +650,6 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		if mixer := layerPlan.Mixer; mixer >= recurrentMixerDynamicWKV6 && mixer <= recurrentMixerDynamicWKV7 {
 			if mixerErr := loadTokenShiftRecurrentLayer(catalog, prefix, spec, layer, block, layerPlan.Mixer); mixerErr != nil {
 				return Weights{}, mixerErr
-			}
-			continue
-		}
-		if layerPlan.Mixer == recurrentMixerSparseGroupedSelectiveScan {
-			if spec.IsRecurrentLayer(block) {
-				layer.Recurrent = true
-				convDimension := uint64(spec.SSMInnerSize) +
-					tensor.PairedExtent*uint64(spec.SSMGroupCount)*uint64(spec.SSMStateSize)
-				requirements := append(
-					groupedSelectiveScanTensorRequirements(spec, layer, true),
-					optionalTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, convDimension),
-				)
-				if itemErr := bindTensorProgram(catalog, prefix, requirements); itemErr != nil {
-					return Weights{}, itemErr
-				}
-				continue
-			}
-			if !spec.LayerHasFeedForward(block) {
-				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-					requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
-					requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
-					requiredTensorPointer(attentionValueWeightTensor, &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
-					requiredTensorPointer(attentionOutputWeightTensor, &layer.AttentionOutput, attentionOutputLength, uint64(spec.EmbeddingLength)),
-					optionalF32TensorPointer("attn_q.bias", &layer.AttentionQBias, queryLength),
-					optionalF32TensorPointer("attn_k.bias", &layer.AttentionKBias, keyLength),
-					optionalF32TensorPointer("attn_v.bias", &layer.AttentionVBias, valueLength),
-					optionalF32TensorPointer("attn_output.bias", &layer.AttentionOutputBias, uint64(spec.EmbeddingLength)),
-				}); itemErr != nil {
-					return Weights{}, itemErr
-				}
-				continue
-			}
-			if !profile.Has(ArchitectureMoE) {
-				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-					requiredTensorPointer(feedForwardUpWeightTensor, &layer.FeedForwardUp, uint64(spec.EmbeddingLength), uint64(spec.LayerFeedForwardLength(block))),
-					requiredTensorPointer(feedForwardDownWeightTensor, &layer.FeedForwardDown, uint64(spec.LayerFeedForwardLength(block)), uint64(spec.EmbeddingLength)),
-					optionalF32TensorPointer("ffn_up.bias", &layer.FeedForwardUpBias, uint64(spec.LayerFeedForwardLength(block))),
-					optionalF32TensorPointer("ffn_down.bias", &layer.FeedForwardDownBias, uint64(spec.EmbeddingLength)),
-				}); itemErr != nil {
-					return Weights{}, itemErr
-				}
-				continue
-			}
-			moeWidth := uint64(spec.EmbeddingLength)
-			if spec.MoELatentSize > tensor.FirstOffset {
-				moeWidth = uint64(spec.MoELatentSize)
-				if latentErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-					requiredTensorPointer("ffn_latent_down.weight", &layer.FeedForwardLatentDown,
-						uint64(spec.EmbeddingLength), moeWidth),
-					requiredTensorPointer("ffn_latent_up.weight", &layer.FeedForwardLatentUp,
-						moeWidth, uint64(spec.EmbeddingLength)),
-				}); latentErr != nil {
-					return Weights{}, latentErr
-				}
-			}
-			if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-				requiredTensorPointer("ffn_gate_inp.weight", &layer.FeedForwardRouter, uint64(spec.EmbeddingLength), uint64(spec.ExpertCount)),
-				requiredF32TensorPointer("exp_probs_b.bias", &layer.FeedForwardExpertBias, uint64(spec.ExpertCount)),
-				requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts, moeWidth, uint64(spec.ExpertFeedForward), uint64(spec.ExpertCount)),
-				requiredTensorPointer("ffn_down_exps.weight", &layer.FeedForwardDownExperts, uint64(spec.ExpertFeedForward), moeWidth, uint64(spec.ExpertCount)),
-				requiredTensorPointer("ffn_up_shexp.weight", &layer.FeedForwardSharedUp, uint64(spec.EmbeddingLength), uint64(spec.SharedExpertFF)),
-				requiredTensorPointer("ffn_down_shexp.weight", &layer.FeedForwardSharedDown, uint64(spec.SharedExpertFF), uint64(spec.EmbeddingLength)),
-			}); itemErr != nil {
-				return Weights{}, itemErr
 			}
 			continue
 		}
@@ -807,7 +684,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, scaleErr
 			}
 		}
-		if layerPlan.DeciSparse && !spec.LayerHasAttention(block) {
+		if layerPlan.Composition == LayerCompositionFeedForwardOnly {
+			// No attention catalog.
+		} else if layerPlan.DeciSparse && !spec.LayerHasAttention(block) {
 			// Attention-free layer.
 		} else if layerPlan.DeciSparse && !spec.LayerHasKVHeads(block) {
 			if outputErr := bindTensorProgram(catalog, prefix, []tensorBinding{
@@ -1064,7 +943,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, itemErr
 			}
 		}
-		if layerPlan.Mixer == recurrentMixerSelectiveScan || layerPlan.Mixer == recurrentMixerGroupedSelectiveScan {
+		if layerPlan.Composition == LayerCompositionAttentionOnly ||
+			layerPlan.Composition == LayerCompositionRecurrentOnly ||
+			layerPlan.Mixer == recurrentMixerSelectiveScan || layerPlan.Mixer == recurrentMixerGroupedSelectiveScan {
 			continue
 		}
 		feedForwardNormName := normPlan.FeedForwardNormTensor()
@@ -1077,10 +958,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			); normErr != nil {
 				return Weights{}, normErr
 			}
-		} else if !layerPlan.DenseWeights.requireExpertProjectionBiases && normPlan.PreFeedForward &&
-			(!layerPlan.DeciSparse || spec.LayerHasFeedForward(block)) &&
-			profile.Residual != ResidualParallel &&
-			!spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() {
+		} else if !layerPlan.DenseWeights.requireExpertProjectionBiases &&
+			layerPlan.DenseWeights.requireFeedForwardNorm &&
+			(!layerPlan.DeciSparse || spec.LayerHasFeedForward(block)) {
 			requirements := []tensorBinding{
 				requiredTensorPointer(feedForwardNormName, &layer.FeedForwardNorm,
 					uint64(spec.EmbeddingLength)),

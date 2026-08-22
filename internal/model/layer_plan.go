@@ -262,6 +262,7 @@ type LayerPlan struct {
 	Experts             MoEGraphPlan
 	ExpertComposition   ExpertCompositionPlan
 	DenseWeights        DenseWeightPlan
+	rotaryCatalog       rotaryCatalogPlan
 	ExplicitEncoder     bool
 	AllowNonCausalCache bool
 	DeciSparse          bool
@@ -395,6 +396,7 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 		RecurrentRuntime:    profile.Runtime.Recurrent,
 		PeriodicScale:       periodicScale,
 	}
+	plan.rotaryCatalog = s.rotaryCatalogPlan(profile, plan)
 	program, err := compileLayerProgram(plan, profile)
 	if err != nil {
 		return LayerPlan{}, fmt.Errorf("model plan layer %d: %w", layer, err)

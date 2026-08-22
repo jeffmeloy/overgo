@@ -74,6 +74,7 @@ const (
 	sharedExpertCatalogAlways
 	sharedExpertCatalogWithWidth
 	sharedExpertCatalogGated
+	sharedExpertCatalogUngated
 )
 
 type expertSupplementalCatalog uint8
@@ -85,6 +86,7 @@ const (
 	expertSupplementOptionalDenseGEGLU
 	expertSupplementExpertInputNorm
 	expertSupplementDenseBranch
+	expertSupplementLatentProjection
 )
 
 func (c expertSupplementalCatalog) has(item expertSupplementalCatalog) bool {

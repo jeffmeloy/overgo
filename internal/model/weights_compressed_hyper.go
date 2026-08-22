@@ -48,7 +48,7 @@ func readCompressedHyperWeightCatalog(catalog weightCatalog, spec Spec) (Weights
 		}); err != nil {
 			return Weights{}, err
 		}
-		if err := loadSharedExpertWeights(catalog, prefix, width, spec, layer, false); err != nil {
+		if err := loadSharedExpertWeights(catalog, prefix, width, spec, layer, sharedExpertCatalogAlways); err != nil {
 			return Weights{}, err
 		}
 		if block < spec.HashLayerCount {

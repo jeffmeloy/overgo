@@ -91,7 +91,7 @@ func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWe
 	plan.requireAttentionSinks = policy.RequireAttentionSinks
 	plan.requireQKNorm = plan.requirePostNorm || requireQKNorm(qk.Projection) ||
 		requireQKNorm(qk.Heads) || requireQKNorm(qk.PostRotary) || plan.requireAttentionGate
-	plan.requireBaseNorm = !postOnly && !s.UsesUnweightedLayerNorm()
+	plan.requireBaseNorm = !postOnly && !s.UsesUnweightedLayerNorm() && !s.UsesUnweightedRMSNorm()
 	plan.requireFeedForwardNorm = plan.requireBaseNorm && profile.Residual != ResidualParallel &&
 		!policy.SkipFeedForwardNorm
 	plan.requireNormBias = plan.requireBaseNorm && s.RequiresLayerNormBias()

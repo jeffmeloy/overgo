@@ -13,7 +13,7 @@ type profileOrdinal interface {
 const (
 	allArchitectureCapabilities = ((ArchitectureLatentKVLayout << 1) - 1) &^
 		(architectureReservedGEGLU | architectureReservedAltUp)
-	allExpertSupplements = (expertSupplementDenseBranch << 1) - 1
+	allExpertSupplements = (expertSupplementLatentProjection << 1) - 1
 )
 
 // ValidateArchitectureProfile checks persisted policy domains and relationships.
@@ -65,7 +65,7 @@ func ValidateArchitectureProfile(profile ArchitectureProfile) error {
 		validateProfileOrdinal("Experts.Activation", profile.Experts.Activation, tensor.MoEActivationReLUSquared),
 		validateProfileOrdinal("Experts.Catalog", profile.Experts.Catalog, expertCatalogAfterDenseExceptDraft),
 		validateProfileOrdinal("Experts.BiasCatalog", profile.Experts.BiasCatalog, expertBiasCatalogRequiredF32),
-		validateProfileOrdinal("Experts.SharedCatalog", profile.Experts.SharedCatalog, sharedExpertCatalogGated),
+		validateProfileOrdinal("Experts.SharedCatalog", profile.Experts.SharedCatalog, sharedExpertCatalogUngated),
 		validateProfileOrdinal("Metadata.FeedForward", profile.Metadata.FeedForward, metadataHybridLayers),
 		validateProfileOrdinal("Metadata.Heads", profile.Metadata.Heads, metadataHybridLayers),
 		validateProfileOrdinal("Metadata.KVHeads", profile.Metadata.KVHeads, metadataHybridLayers),

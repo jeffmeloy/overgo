@@ -63,56 +63,38 @@ func loadRecurrentMixerLayer(
 			return true, itemErr
 		}
 	} else if mixer == recurrentMixerAttentionGroupedSelectiveScan {
-		convDimension := groupedStateSpaceConvolutionWidth(spec)
 		if itemErr := bindTensorProgram(
-			catalog, prefix, groupedSelectiveScanTensorRequirements(spec, layer, false),
+			catalog, prefix, groupedSelectiveScanTensorRequirements(spec, layer, false, mixer),
 		); itemErr != nil {
 			return true, itemErr
 		}
 		if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-			optionalF32TensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, convDimension),
 			optionalTensorPointer("ssm_norm.weight", &layer.SSMNorm,
 				uint64(spec.SSMInnerSize/spec.SSMGroupCount), uint64(spec.SSMGroupCount)),
 		}); itemErr != nil {
 			return true, itemErr
 		}
-		if _, ok := catalog.tensors[prefix+"attn_qkv.weight"]; ok {
-			if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-				requiredTensorPointer("attn_qkv.weight", &layer.AttentionQKV,
-					uint64(spec.EmbeddingLength), queryLength+keyLength+valueLength),
-				optionalF32TensorPointer("attn_qkv.bias", &layer.AttentionQKVBias,
-					queryLength+keyLength+valueLength),
-			}); itemErr != nil {
-				return true, itemErr
-			}
-		} else {
-			if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-				requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
-				requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
-				requiredTensorPointer(attentionValueWeightTensor, &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
-			}); itemErr != nil {
-				return true, itemErr
-			}
+		if itemErr := loadStandardAttentionCatalog(
+			catalog, prefix, spec, layer,
+			queryLength, keyLength, valueLength, attentionOutputLength,
+		); itemErr != nil {
+			return true, itemErr
 		}
-		if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
-			requiredTensorPointer(attentionOutputWeightTensor, &layer.AttentionOutput,
-				attentionOutputLength, uint64(spec.EmbeddingLength)),
-		}); itemErr != nil {
+	} else if mixer == recurrentMixerSparseGroupedSelectiveScan {
+		if !recurrent {
+			return false, nil
+		}
+		layer.Recurrent = true
+		if itemErr := bindTensorProgram(
+			catalog, prefix, groupedSelectiveScanTensorRequirements(spec, layer, true, mixer),
+		); itemErr != nil {
 			return true, itemErr
 		}
 	} else if mixer == recurrentMixerGroupedSelectiveScan || mixer == recurrentMixerScaledGroupedSelectiveScan {
 		layer.Recurrent = true
-		convDimension := groupedStateSpaceConvolutionWidth(spec)
 		if itemErr := bindTensorProgram(
-			catalog, prefix, groupedSelectiveScanTensorRequirements(spec, layer, true),
+			catalog, prefix, groupedSelectiveScanTensorRequirements(spec, layer, true, mixer),
 		); itemErr != nil {
-			return true, itemErr
-		}
-		bias := optionalTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, convDimension)
-		if mixer == recurrentMixerGroupedSelectiveScan {
-			bias.optional = false
-		}
-		if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{bias}); itemErr != nil {
 			return true, itemErr
 		}
 	} else if mixer == recurrentMixerGatedDelta {
@@ -246,7 +228,12 @@ func selectiveScanTensorRequirements(spec Spec, layer *LayerWeights) []tensorBin
 	}
 }
 
-func groupedSelectiveScanTensorRequirements(spec Spec, layer *LayerWeights, includeNorm bool) []tensorBinding {
+func groupedSelectiveScanTensorRequirements(
+	spec Spec,
+	layer *LayerWeights,
+	includeNorm bool,
+	mixer RecurrentMixerPolicy,
+) []tensorBinding {
 	convDimension := groupedStateSpaceConvolutionWidth(spec)
 	inputDimension := uint64(spec.SSMInnerSize) + convDimension + uint64(spec.SSMTimeStepRank)
 	requirements := []tensorBinding{
@@ -263,6 +250,12 @@ func groupedSelectiveScanTensorRequirements(spec Spec, layer *LayerWeights, incl
 			uint64(spec.SSMInnerSize/spec.SSMGroupCount), uint64(spec.SSMGroupCount),
 		))
 	}
+	bias := optionalTensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, convDimension)
+	if mixer == recurrentMixerAttentionGroupedSelectiveScan {
+		bias = optionalF32TensorPointer("ssm_conv1d.bias", &layer.SSMConv1DBias, convDimension)
+	}
+	bias.optional = mixer != recurrentMixerGroupedSelectiveScan
+	requirements = append(requirements, bias)
 	return requirements
 }
 

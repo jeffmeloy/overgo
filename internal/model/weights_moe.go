@@ -84,6 +84,18 @@ func loadMoECoreCatalog(
 	fusedGateUp := false
 	policy := spec.Profile().Experts
 	shapes := spec.TensorShapes(tensor.FirstOffset)
+	projectionWidth := shapes.Embedding
+	if policy.SupplementalCatalog.has(expertSupplementLatentProjection) {
+		projectionWidth = uint64(spec.MoELatentSize)
+		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
+			requiredTensorPointer("ffn_latent_down.weight", &layer.FeedForwardLatentDown,
+				shapes.Embedding, projectionWidth),
+			requiredTensorPointer("ffn_latent_up.weight", &layer.FeedForwardLatentUp,
+				projectionWidth, shapes.Embedding),
+		}); err != nil {
+			return false, err
+		}
+	}
 	if policy.FusedGateUp {
 		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
 			optionalTensorPointer("ffn_gate_up_exps.weight", &layer.FeedForwardGateUpExperts,
@@ -99,11 +111,12 @@ func loadMoECoreCatalog(
 	if !fusedGateUp {
 		requirements = append(requirements,
 			requiredTensorPointer("ffn_up_exps.weight", &layer.FeedForwardUpExperts,
-				shapes.ExpertUp(FeedForwardSwiGLU.upProjectionCopies())...),
+				projectionWidth, shapes.ExpertWidth, shapes.Experts),
 		)
 	}
 	requirements = append(requirements,
-		requiredTensorPointer("ffn_down_exps.weight", &layer.FeedForwardDownExperts, shapes.ExpertDown()...),
+		requiredTensorPointer("ffn_down_exps.weight", &layer.FeedForwardDownExperts,
+			shapes.ExpertWidth, projectionWidth, shapes.Experts),
 	)
 	if !fusedGateUp && !policy.OptionalGate {
 		requirements = append(requirements,
@@ -168,13 +181,13 @@ func loadMoEPolicyCatalog(
 	}
 	switch policy.SharedCatalog {
 	case sharedExpertCatalogAlways:
-		return loadSharedExpertWeights(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, false)
+		return loadSharedExpertWeights(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, policy.SharedCatalog)
 	case sharedExpertCatalogWithWidth:
 		if spec.SharedExpertFF > tensor.FirstOffset {
-			return loadSharedExpertWeights(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, false)
+			return loadSharedExpertWeights(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, policy.SharedCatalog)
 		}
-	case sharedExpertCatalogGated:
-		return loadSharedExpertWeights(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, true)
+	case sharedExpertCatalogGated, sharedExpertCatalogUngated:
+		return loadSharedExpertWeights(catalog, prefix, uint64(spec.EmbeddingLength), spec, layer, policy.SharedCatalog)
 	}
 	return nil
 }

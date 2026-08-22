@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "catalog-policy-authority",
-          "title": "Move complete weight-catalog policy groups into compiled recipe schemas and delete imperative loadLayerCatalogs branches",
-          "status": "open",
-          "verify": "go test ./internal/model ./internal/modelrecipe -run 'Test.*(Weight|Catalog|Recipe|Profile)' -count=1"
-        },
-        {
           "id": "dispatch-program-authority",
           "title": "Compile repeated CUDA and reference dispatch policy into existing typed operation programs; delete displaced switches",
           "status": "open",

@@ -11,13 +11,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/runrecord"
@@ -38,131 +37,84 @@ func main() {
 
 func run() error {
 	start := time.Now()
-	// cuda-info first: it is the availability probe. Failure here means no
-	// usable device/driver -- report UNAVAILABLE and exit nonzero so a caller
-	// can never mistake absence for green.
-	if out, err := clioptions.CombinedOutput(os.Environ(), "go", "run", "./cmd/cuda-info"); err != nil {
-		fmt.Println("device-lane: UNAVAILABLE -- cuda-info failed; no passing evidence exists")
-		fmt.Print(clioptions.Tail(out, 800))
-		return runrecord.LaneError(runrecord.LaneUnavailable, err.Error())
-	}
 	paths := splitPaths(*pathsFlag)
-	steps, err := deviceSteps(paths)
-	if err != nil {
-		return err
-	}
-	for _, step := range steps {
+	steps := deviceSteps(paths)
+	steps = append([][]string{{"go", "run", "./cmd/cuda-info"}}, steps...)
+	for index, step := range steps {
 		began := time.Now()
+		done, stopped := make(chan struct{}), make(chan struct{})
+		fmt.Println(deviceProgress(step, index, len(steps), 0))
+		go deviceHeartbeat(step, index, len(steps), began, done, stopped)
 		out, err := clioptions.CombinedOutput(append(os.Environ(), cudaTestEnv+"=1"), step[0], step[1:]...)
+		close(done)
+		<-stopped
 		fmt.Printf("[device] %-60s %6.1fs %s\n", strings.Join(step[1:], " "), time.Since(began).Seconds(), clioptions.Verdict(err))
 		if err != nil {
 			fmt.Print(clioptions.Tail(out, 2000))
+			if index == 0 {
+				return runrecord.LaneError(runrecord.LaneUnavailable, "cuda-info failed; no passing evidence exists")
+			}
 			return runrecord.LaneError(runrecord.LaneFailed, strings.Join(step, " ")+" failed")
 		}
 	}
 	fmt.Printf("=== DEVICE LANE GREEN in %.1fs ===\n", time.Since(start).Seconds())
-	fmt.Printf("honesty: device scope=%s\n", deviceScopeLabel(paths))
+	if len(paths) == 0 {
+		fmt.Println("honesty: device scope=full")
+	} else {
+		fmt.Printf("honesty: device scope=changed-paths(%d)\n", len(paths))
+	}
 	return nil
 }
 
 func splitPaths(csv string) []string {
-	var paths []string
-	for _, path := range strings.Split(csv, ",") {
-		if path = strings.TrimSpace(strings.ReplaceAll(path, "\\", "/")); path != "" {
-			paths = append(paths, path)
-		}
-	}
-	return paths
+	return strings.FieldsFunc(strings.ReplaceAll(csv, "\\", "/"), func(r rune) bool { return r == ',' || unicode.IsSpace(r) })
 }
 
-func deviceSteps(paths []string) ([][]string, error) {
+func deviceHeartbeat(step []string, index, total int, began time.Time, done <-chan struct{}, stopped chan<- struct{}) {
+	defer close(stopped)
+	ticker := time.NewTicker(runrecord.DefaultHeartbeatStaleAfter / 2)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			fmt.Println(deviceProgress(step, index, total, time.Since(began)))
+		}
+	}
+}
+
+func deviceProgress(step []string, index, total int, elapsed time.Duration) string {
+	return fmt.Sprintf("[device] phase=%d/%d heartbeat=running elapsed=%.1fs command=%s", index+1, total, elapsed.Seconds(), strings.Join(step, " "))
+}
+
+func deviceSteps(paths []string) [][]string {
 	steps := [][]string{{"go", "run", "./cmd/cuda-smoke"}}
 	if len(paths) == 0 {
 		return append(steps,
 			deviceTestStep("./internal/cuda/...", "./internal/model", "./internal/projector", "./internal/optimizer", "./internal/devicemath"),
-			deviceTestStep("-run", "Device", "./internal/densecausal")), nil
+			deviceTestStep("-run", "Device", "./internal/densecausal"))
 	}
 	packages := map[string]bool{}
-	tests := map[string]map[string]bool{}
 	for _, path := range paths {
 		parts := strings.Split(path, "/")
 		switch {
 		case strings.HasPrefix(path, "kernels/") || strings.HasPrefix(path, "internal/cuda/"):
 			packages["./internal/cuda/..."] = true
 		case len(parts) > 2 && parts[0] == "internal":
-			pkg := "./internal/" + parts[1]
-			if !strings.HasSuffix(path, "_test.go") {
-				packages[pkg] = true
-				continue
-			}
-			names, err := changedDeviceTests(path)
-			if err != nil {
-				return nil, err
-			}
-			if names == nil {
-				packages[pkg] = true
-				continue
-			}
-			if tests[pkg] == nil {
-				tests[pkg] = map[string]bool{}
-			}
-			for _, name := range names {
-				tests[pkg][name] = true
-			}
+			packages["./internal/"+parts[1]] = true
 		}
 	}
-	ordered := make([]string, 0, len(packages))
-	for pkg := range packages {
-		ordered = append(ordered, pkg)
-	}
-	sort.Strings(ordered)
+	ordered := slices.Sorted(maps.Keys(packages))
 	if len(ordered) > 0 {
 		// One device owner: package concurrency invalidates wall and peak ratchets.
 		steps = append(steps, deviceTestStep(ordered...))
 	}
-	var testPackages []string
-	for pkg := range tests {
-		if !packages[pkg] {
-			testPackages = append(testPackages, pkg)
-		}
-	}
-	sort.Strings(testPackages)
-	for _, pkg := range testPackages {
-		var names []string
-		for name := range tests[pkg] {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		steps = append(steps, deviceTestStep("-run", "^("+strings.Join(names, "|")+")$", pkg))
-	}
-	return steps, nil
-}
-
-func changedDeviceTests(path string) ([]string, error) {
-	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-	if err != nil {
-		return nil, fmt.Errorf("device-lane: parse changed test %s: %w", path, err)
-	}
-	var names []string
-	for _, declaration := range file.Decls {
-		function, ok := declaration.(*ast.FuncDecl)
-		if ok && function.Recv == nil &&
-			(strings.HasPrefix(function.Name.Name, "Test") || strings.HasPrefix(function.Name.Name, "Example")) {
-			names = append(names, function.Name.Name)
-		}
-	}
-	return names, nil
+	return steps
 }
 
 func deviceTestStep(arguments ...string) []string {
 	command := []string{"go", "test", "-p=1", "-timeout=" + devicePackageTimeout}
 	command = append(command, arguments...)
 	return append(command, "-count=1")
-}
-
-func deviceScopeLabel(paths []string) string {
-	if len(paths) == 0 {
-		return "full"
-	}
-	return fmt.Sprintf("changed-paths(%d)", len(paths))
 }

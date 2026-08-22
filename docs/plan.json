@@ -1,7 +1,74 @@
 {
-  "campaign": "Repository-wide literal elimination and single runtime authority",
-  "doctrine": "Follow skill.md. Current census: 894 production files, 20,081 inline literals, 2,599 assumption hints, 1,228 copied test-policy sites. Audit every non-generated Go file in deterministic scanner order. Process the first exact finding, then consolidate every same-semantic occurrence. Split heterogeneous packages into deletion-led ownership waves; finish each package with one exact closure gate. Classify literals as structural syntax, mathematical fact, protocol/ABI fact, fixture input, derived value, or runtime policy. Artifact facts, RepoDB recipes, compiled plans, and measured resource plans own runtime policy; missing authority fails. Constants may name stable mathematics or wire contracts, never local model policy. Recipes and neutral typed operators are sole runtime authorities. Every new or extended primitive migrates all equivalent callers and deletes displaced model orchestration, wrappers, fallbacks, duplicate probes, compatibility readers, and parallel registries in the same commit. Each implementation wave is production-code net-negative, including untracked Go files. Fixtures define inputs; tests reuse production contracts and shared assertions. Preserve numerical behavior while reducing allocations, transfers, probes, branches, maps, and operations. Run focused tests, the exact wave gate, full host tests, applicable CUDA gates, diff checks, and census publication before the gate commit; merge tightening/master before redispatch. Completion requires zero stale bindings, open derivation-blocked rows, uncatalogued production policy, copied test policy, and model facts outside artifact or recipe authorities.",
+  "campaign": "Production-authoritative cross-model composability",
+  "doctrine": "Follow skill.md. Composability is the research worktree's primary campaign; the literal-authority campaign remains ordered afterward. Freeze operator expansion until one existing embedding-injection operator is production-active end to end. MLP projection, vocabulary alignment, Perceiver, conditional LoRA, embedding injection, and external attention are sufficient research surfaces. RepoDB owns immutable representation contracts, bridge definitions and weights, composition recipes, promotion evidence, and active aliases scoped by exact source, target, and task. One typed CompositionExecutionPlan owns identities, ordered operators, capture and injection boundaries, placement, residency, lifetimes, training and promotion policy, and deterministic cache identity. Compilation hard-fails on missing active recipes, incompatible contracts, unpromoted bridges, unsupported operators, or artifact mismatch. Production execution must resolve the active recipe, source session, capture, bridge, target embedding injection, and target inference without direct constructors. Bridge training is dataset-driven, bridge-only, resumable, lineage-recorded, and proves source and target models remain frozen. Promotion compares target baseline, composed target, source ablation, held-out quality, repeated-run stability, resources, and latency using recipe-owned thresholds; only promoted bridges may activate. Keep representations and bridge weights device-resident where supported and cache immutable transformed representations by exact input, source, bridge, and contract identity. API and GUI expose inventory, refusal reasons, recipe graph, training, evaluation, promotion, activation, memory, and latency. External cross-attention follows embedding injection and owns cache separately from target KV state. Exact passthrough and task arithmetic remain offline artifact-production workflows with exact definition, inventory, and lineage compatibility. Gates distinguish contract-tested, runtime-wired, CUDA-verified, evidence-promoted, and production-active. Finish with full host and CUDA gates, zero direct composition constructors outside recipe runtime, no unpromoted bridge execution, and one real composition available through API and GUI. After every gated commit, merge master and redispatch.",
   "items": [
+    {
+      "id": "composability-production",
+      "title": "Make cross-model composability production-authoritative",
+      "status": "open",
+      "steps": [
+        {
+          "id": "repodb-authority",
+          "title": "Establish RepoDB authority for contracts, bridges, recipes, promotion, and scoped activation",
+          "status": "open",
+          "verify": "go test ./internal/composition ./internal/repodb -run 'Test(RepresentationContractRepository|BridgeDefinitionRepository|CompositionRecipeRepository|ActiveCompositionAlias)' -count=1"
+        },
+        {
+          "id": "execution-plan",
+          "title": "Compile one typed authoritative composition execution plan",
+          "status": "open",
+          "verify": "go test ./internal/composition -run 'TestCompositionExecutionPlan' -count=1"
+        },
+        {
+          "id": "embedding-injection",
+          "title": "Complete the active-recipe embedding-injection vertical and delete direct construction",
+          "status": "open",
+          "verify": "go test ./internal/composition ./internal/modelrecipe ./internal/inference -run 'TestProductionEmbeddingInjection|TestNoDirectCompositionConstructors' -count=1"
+        },
+        {
+          "id": "bridge-training",
+          "title": "Build dataset-driven bridge-only training with checkpoint, lineage, metrics, and frozen-model proof",
+          "status": "open",
+          "verify": "go test ./internal/bridgetrain ./internal/composition -run 'TestDatasetBridgeTraining|TestBridgeCheckpointResume|TestBridgeTrainingFreezesModels' -count=1"
+        },
+        {
+          "id": "promotion-activation",
+          "title": "Make recipe-owned promotion evidence authorize active composition",
+          "status": "open",
+          "verify": "go test ./internal/composition ./internal/evaluation -run 'TestCompositionPromotionActivation|TestUnpromotedBridgeRefused' -count=1"
+        },
+        {
+          "id": "device-residency",
+          "title": "Compile device residency, lifetimes, and immutable transformed-representation caching",
+          "status": "open",
+          "verify": "go test ./internal/composition ./internal/inference -run 'TestCompositionResidencyPlan|TestTransformedRepresentationCacheIdentity' -count=1"
+        },
+        {
+          "id": "api-gui",
+          "title": "Expose composition inventory, compatibility, graph, training, evaluation, promotion, activation, and runtime evidence",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestComposition(API|GUI)Workflow' -count=1"
+        },
+        {
+          "id": "external-cross-attention",
+          "title": "Activate recipe-compiled external cross-attention with separate cache ownership",
+          "status": "open",
+          "verify": "go test ./internal/composition ./internal/inference -run 'TestExternalCrossAttentionPlan|TestExternalCacheSeparateFromTargetKV' -count=1"
+        },
+        {
+          "id": "offline-artifacts",
+          "title": "Keep passthrough and task arithmetic in exact-lineage offline artifact workflows",
+          "status": "open",
+          "verify": "go test ./internal/composition -run 'TestOfflineCompositionArtifactCompatibility' -count=1"
+        },
+        {
+          "id": "production-gates",
+          "title": "Enforce contract-tested, runtime-wired, CUDA-verified, evidence-promoted, and production-active completion",
+          "status": "open",
+          "verify": "go test ./... \u0026\u0026 go test -tags modeltest ./... \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go test ./internal/composition ./internal/server -run 'TestNoDirectCompositionConstructors|TestUnpromotedBridgeRefused|TestCompositionAPIWorkflow|TestCompositionGUIWorkflow' -count=1"
+        }
+      ]
+    },
     {
       "id": "magic-runtime-remaining",
       "title": "Close remaining production literal surfaces",

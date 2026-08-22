@@ -71,7 +71,7 @@ func (r *Runner) advanceSingleHeadMTP(
 		return reference.Value{}, nil, err
 	}
 	var pastKey, pastValue *tensor.Tensor
-	if session.Layer.Key.Shape.Rank != 0 {
+	if session.Layer.Key.Defined() {
 		pastKey = graph.input(adapter.nodePrefix+".past_key", session.Layer.Key)
 		pastValue = graph.input(adapter.nodePrefix+".past_value", session.Layer.Value)
 	}
@@ -191,20 +191,17 @@ func (r *Runner) validateSingleHeadMTPSession(
 	if err := r.validateCache(session.TrunkCache); err != nil {
 		return fmt.Errorf("inference: %s trunk cache: %w", label, err)
 	}
-	if session.PendingHidden.Shape != tensor.MustShape(uint64(r.spec.EmbeddingLength), 1) ||
-		session.Position == math.MaxUint32 {
+	if r.spec.ValidateSequenceRow(session.PendingHidden) != nil || session.Position == math.MaxUint32 {
 		return fmt.Errorf("inference: %s session state is incompatible", label)
 	}
 	tokens := uint64(session.Position - session.MTPStart)
+	emptyCache := !session.Layer.Key.Defined() && !session.Layer.Value.Defined()
 	validCache := session.Position >= effectiveCachePosition(session.TrunkCache) &&
 		session.Position >= session.MTPStart &&
-		session.Layer.Key.Shape.Rank == session.Layer.Value.Shape.Rank &&
-		((session.Layer.Key.Shape.Rank == 0 && tokens == 0) ||
-			(session.Layer.Key.Shape == tensor.MustShape(uint64(r.spec.KeyLength), uint64(r.spec.HeadCountKV), tokens) &&
-				session.Layer.Value.Shape == tensor.MustShape(uint64(r.spec.ValueLength), uint64(r.spec.HeadCountKV), tokens)))
-	if boundedContext && session.Layer.Key.Shape.Rank != 0 && tokens >= uint64(r.spec.ContextLength) {
-		validCache = false
-	}
+		((emptyCache && tokens == 0) ||
+			(tensor.HasDimensions(session.Layer.Key.Shape, uint64(r.spec.KeyLength), uint64(r.spec.HeadCountKV), tokens) &&
+				tensor.HasDimensions(session.Layer.Value.Shape, uint64(r.spec.ValueLength), uint64(r.spec.HeadCountKV), tokens))) &&
+		(!boundedContext || !session.Layer.Key.Defined() || tokens < uint64(r.spec.ContextLength))
 	if !validCache {
 		return fmt.Errorf("inference: %s layer cache is incompatible", label)
 	}

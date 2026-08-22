@@ -165,7 +165,7 @@ func (r *Runner) injectPairedFeatureLayer(
 		return LayerCache{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
-	if past != nil && past.Key.Shape.Rank != 0 {
+	if past != nil && past.Key.Defined() {
 		pastKey = runtime.input("paired_features.past_key", past.Key)
 		pastValue = runtime.input("paired_features.past_value", past.Value)
 	}

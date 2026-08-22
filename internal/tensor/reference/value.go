@@ -15,6 +15,8 @@ func (v Value) Clone() Value {
 	return Value{Shape: v.Shape, Data: slices.Clone(v.Data)}
 }
 
+func (v Value) Defined() bool { return v.Shape.Rank != tensor.FirstOffset }
+
 func (v Value) IsMatrixWidth(width uint64) bool {
 	return v.Shape.Rank == tensor.PairedExtent && v.Shape.Dims[0] == width
 }

@@ -120,7 +120,7 @@ func (r *Runner) AdvanceNextNMTP(
 		return reference.Value{}, nil, err
 	}
 	var pastKey, pastValue, pastIndexerKey, previousTopK *tensor.Tensor
-	if session.Layer.Key.Shape.Rank != 0 {
+	if session.Layer.Key.Defined() {
 		pastKey = graph.input("nextn_mtp.past_key", session.Layer.Key)
 		pastValue = graph.input("nextn_mtp.past_value", session.Layer.Value)
 	}

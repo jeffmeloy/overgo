@@ -262,15 +262,17 @@ func preprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwe
 }
 
 func (r *Qwen3VLRunner) EncodeImage(ctx context.Context, source image.Image, options Qwen3VLPreprocessOptions) (Qwen3VLOutput, error) {
-	return executePreparedProjector(ctx, r != nil && r.file != nil, func() (Qwen3VLImage, error) {
-		return PreprocessQwen3VLImage(source, r.spec, options)
-	}, r.encodeGraph)
+	return executePreparedProjector(
+		ctx, r != nil && r.file != nil, source, r.Spec(), options,
+		PreprocessQwen3VLImage, r.encodeGraph,
+	)
 }
 
 func (r *Qwen3VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, options Qwen3VLPreprocessOptions) (Qwen3VLOutput, error) {
-	return executePreparedProjector(ctx, r != nil && r.file != nil, func() (Qwen3VLImage, error) {
-		return PreprocessQwen3VLFrames(frames, r.spec, options)
-	}, r.encodeGraph)
+	return executePreparedProjector(
+		ctx, r != nil && r.file != nil, frames, r.Spec(), options,
+		PreprocessQwen3VLFrames, r.encodeGraph,
+	)
 }
 
 func mergedGrid(height, width, merge int) ([]int, []int) {

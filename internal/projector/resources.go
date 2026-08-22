@@ -19,17 +19,20 @@ type projectorResources struct {
 	cuda *projectorCUDA
 }
 
-func executePreparedProjector[Input, Output any](
+func executePreparedProjector[Source, Spec, Options, Input, Output any](
 	ctx context.Context,
 	ready bool,
-	prepare func() (Input, error),
+	source Source,
+	spec Spec,
+	options Options,
+	prepare func(Source, Spec, Options) (Input, error),
 	execute func(context.Context, Input) (Output, error),
 ) (Output, error) {
 	var zero Output
 	if !ready {
 		return zero, errRunnerClosed
 	}
-	input, err := prepare()
+	input, err := prepare(source, spec, options)
 	if err != nil {
 		return zero, err
 	}

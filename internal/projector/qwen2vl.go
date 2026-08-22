@@ -112,13 +112,15 @@ func validateQwen2VLCatalog(file *gguf.File, spec Qwen2VLSpec) ([]string, error)
 }
 
 func (r *Qwen2VLRunner) EncodeImage(ctx context.Context, source image.Image, options Qwen2VLPreprocessOptions) (Qwen2VLOutput, error) {
-	return executePreparedProjector(ctx, r != nil && r.file != nil, func() (Qwen2VLImage, error) {
-		return PreprocessQwen3VLImage(source, r.spec.preprocessSpec(), options)
-	}, r.encodeGraph)
+	return executePreparedProjector(
+		ctx, r != nil && r.file != nil, source, r.Spec().preprocessSpec(), options,
+		PreprocessQwen3VLImage, r.encodeGraph,
+	)
 }
 
 func (r *Qwen2VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, options Qwen2VLPreprocessOptions) (Qwen2VLOutput, error) {
-	return executePreparedProjector(ctx, r != nil && r.file != nil, func() (Qwen2VLImage, error) {
-		return PreprocessQwen3VLFrames(frames, r.spec.preprocessSpec(), options)
-	}, r.encodeGraph)
+	return executePreparedProjector(
+		ctx, r != nil && r.file != nil, frames, r.Spec().preprocessSpec(), options,
+		PreprocessQwen3VLFrames, r.encodeGraph,
+	)
 }

@@ -1,9 +1,11 @@
 package inference
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"math"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/statecodec"
 	"overgo/internal/tensor"
@@ -11,9 +13,8 @@ import (
 )
 
 const (
-	singleHeadMTPStateHeader = 96
-	singleHeadMTPStateMagic  = "L2GMTP02"
-	mtpLabel                 = "MTP"
+	singleHeadMTPStateMagic = "L2GMTP02"
+	mtpLabel                = "MTP"
 )
 
 // SaveMTPSession encodes compiled-program-bound single-head draft state.
@@ -28,7 +29,7 @@ func (r *Runner) SaveMTPSession(session *MTPSession) ([]byte, error) {
 	if err := r.validateMTPSession(session); err != nil {
 		return nil, err
 	}
-	if session.targetModel == [32]byte{} {
+	if session.targetModel == [sha256.Size]byte{} {
 		return nil, fmt.Errorf("inference: %s target model binding is missing", mtpLabel)
 	}
 	trunkData, err := r.SaveCache(session.TrunkCache)
@@ -74,7 +75,7 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 	if r == nil {
 		return nil, errRunnerNil
 	}
-	_, _, err := r.singleHeadMTP()
+	plan, _, err := r.singleHeadMTP()
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +83,7 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	targetSignature := decoder.Raw(32)
+	targetSignature := decoder.Raw(sha256.Size)
 	mtpStart := decoder.U32()
 	position := decoder.U32()
 	trunkLength := decoder.U64()
@@ -90,16 +91,16 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 	if decoder.Err() != nil {
 		return nil, fmt.Errorf("inference: %s state is truncated", mtpLabel)
 	}
-	var targetModel [32]byte
+	var targetModel [sha256.Size]byte
 	copy(targetModel[:], targetSignature)
-	if targetModel == [32]byte{} {
+	if targetModel == [sha256.Size]byte{} {
 		return nil, fmt.Errorf("inference: %s state target binding is invalid", mtpLabel)
 	}
 	if position < mtpStart || position == math.MaxUint32 ||
 		(position == mtpStart) != (layerLength == 0) {
 		return nil, fmt.Errorf("inference: %s state positions are invalid", mtpLabel)
 	}
-	hiddenBytes, ok := checked.Bytes(uint64(r.spec.EmbeddingLength), 4)
+	hiddenBytes, ok := checked.Bytes(uint64(r.spec.EmbeddingLength), binaryschema.Uint32Bytes)
 	if !ok {
 		return nil, fmt.Errorf("inference: %s state payload lengths are invalid", mtpLabel)
 	}
@@ -127,7 +128,7 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 		if err != nil {
 			return nil, fmt.Errorf("inference: load %s layer cache: %w", mtpLabel, err)
 		}
-		if len(layerCache.Layers) != 1 || layerCache.Tokens != position-mtpStart ||
+		if len(layerCache.Layers) != int(plan.Heads) || layerCache.Tokens != position-mtpStart ||
 			layerCache.Position != position {
 			return nil, fmt.Errorf("inference: %s layer cache metadata is invalid", mtpLabel)
 		}
@@ -140,7 +141,7 @@ func (r *Runner) LoadMTPSession(data []byte) (*MTPSession, error) {
 }
 
 func decodeHiddenState(decoder *statecodec.Decoder, width uint64) reference.Value {
-	hidden := reference.Value{Shape: tensor.MustShape(width, 1), Data: make([]float32, int(width))}
+	hidden := reference.Value{Shape: tensor.MustShape(width, tensor.SingletonExtent), Data: make([]float32, int(width))}
 	for index := range hidden.Data {
 		hidden.Data[index] = decoder.F32()
 	}

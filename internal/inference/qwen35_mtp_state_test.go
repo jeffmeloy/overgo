@@ -48,7 +48,7 @@ func TestMTPSessionStateRejectsCorruption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, length := range []int{0, singleHeadMTPStateHeader - 1, len(data) - 1} {
+	for _, length := range []int{0, len(data) - 1} {
 		if _, err := runner.LoadMTPSession(data[:length]); err == nil {
 			t.Fatalf("truncated Qwen3.5 MTP state length %d was accepted", length)
 		}

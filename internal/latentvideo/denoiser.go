@@ -707,12 +707,12 @@ func (p *DenoiserProgram) Denoise(run GraphRunner, request DenoiseRequest) (Deno
 func (p *DenoiserProgram) DenoiseWithBackend(backend DenoiseBackend, request DenoiseRequest) (DenoiseResult, error) {
 	var result DenoiseResult
 	elements := p.Geometry.Elements()
-	timesteps, sigmas, err := UniPCSchedule(p.Config.Policy.NumTrainTimesteps, request.Steps, request.Shift)
+	timesteps, sigmas, err := sampling.UniPCSchedule(p.Config.Policy.NumTrainTimesteps, request.Steps, request.Shift)
 	if err != nil {
 		return result, err
 	}
 	result.Timesteps, result.Sigmas = timesteps, sigmas
-	sampler, err := NewUniPCSampler(sigmas, elements)
+	sampler, err := sampling.NewUniPCSampler(sigmas, elements)
 	if err != nil {
 		return result, err
 	}
@@ -759,7 +759,7 @@ func (p *DenoiserProgram) DenoiseWithBackend(backend DenoiseBackend, request Den
 		if err != nil {
 			return result, fmt.Errorf("denoise step %d unconditional branch: %w", i, err)
 		}
-		if err := GuideInto(guided, condOut, uncondOut, request.GuideScale); err != nil {
+		if err := sampling.GuideInto(guided, condOut, uncondOut, request.GuideScale); err != nil {
 			return result, err
 		}
 		var trace DenoiseStepTrace

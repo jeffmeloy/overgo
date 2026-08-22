@@ -16,22 +16,6 @@ import (
 	"overgo/internal/repodb"
 )
 
-// ResolveActiveGGUF: temporary RepoDB-backed serving fixture (capacity session).
-func ResolveActiveGGUF(path string, placement recipe.Placement) (modelrecipe.LoadedProgram, error) {
-	return ResolveActiveGGUFWithPolicy(
-		path, placement, modelrecipe.DecodeSessionCapacity, defaultResidency(placement),
-	)
-}
-
-// ResolveActiveGGUFWithSession: serving fixture with an explicit decode-session
-// policy, so tests can compare the capacity (append) path against the request
-// (concat) path on the same model.
-func ResolveActiveGGUFWithSession(
-	path string, placement recipe.Placement, session modelrecipe.DecodeSessionPolicy,
-) (modelrecipe.LoadedProgram, error) {
-	return ResolveActiveGGUFWithPolicy(path, placement, session, defaultResidency(placement))
-}
-
 // ResolveActiveGGUFWithPolicy: serving fixture with exact session and residency identity.
 func ResolveActiveGGUFWithPolicy(
 	path string,
@@ -128,15 +112,4 @@ func PublishActiveGGUFWithPolicy(
 		return err
 	}
 	return nil
-}
-
-func defaultResidency(placement recipe.Placement) recipe.ResidencyPolicy {
-	switch placement {
-	case recipe.PlacementDevice:
-		return recipe.ResidencyDeviceNative
-	case recipe.PlacementHost:
-		return recipe.ResidencyHostCache
-	default:
-		return recipe.ResidencyHybridNative
-	}
 }

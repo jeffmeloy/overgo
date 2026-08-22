@@ -317,7 +317,7 @@ func run() error {
 
 	// Real flow-matching batch: x0 from committed sha-pinned real latents,
 	// golden Philox noise, the committed shifted schedule.
-	timesteps, sigmas, err := latentvideo.UniPCSchedule(cfg.Policy.NumTrainTimesteps, 4, 5)
+	timesteps, sigmas, err := sampling.UniPCSchedule(cfg.Policy.NumTrainTimesteps, 4, 5)
 	if err != nil {
 		return err
 	}

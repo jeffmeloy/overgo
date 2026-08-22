@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "dead-contract-surface",
-          "title": "Delete non-contract zero-consumer and test-only production objects; retain protocol and enum sentinels",
-          "status": "open",
-          "verify": "go test ./internal/codeprofile ./internal/gguf ./internal/model ./internal/inference ./internal/latentvideo ./internal/recipecontract ./internal/servingtest -count=1"
-        },
-        {
           "id": "catalog-policy-authority",
           "title": "Move complete weight-catalog policy groups into compiled recipe schemas and delete imperative loadLayerCatalogs branches",
           "status": "open",

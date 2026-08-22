@@ -198,7 +198,7 @@ func requireParity(t *testing.T, name string, got, want []float32, tolerance flo
 // schedule (fixture-only; no model artifacts).
 func TestUniPCScheduleGoldenG3(t *testing.T) {
 	manifest, _ := loadDenoiseManifest(t, "g3_denoise.json")
-	timesteps, sigmas, err := UniPCSchedule(referenceDenoiserPolicy.NumTrainTimesteps, manifest.Request.Steps, manifest.Request.Shift)
+	timesteps, sigmas, err := sampling.UniPCSchedule(referenceDenoiserPolicy.NumTrainTimesteps, manifest.Request.Steps, manifest.Request.Shift)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +354,7 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 	uncondContext := loadRawContext(t, dir, manifest.Request.UncondContext, contextElements)
 	sampleIn := manifest.trace(t, dir, "step_00_sample_in")
 
-	timesteps, _, err := UniPCSchedule(config.Policy.NumTrainTimesteps, manifest.Request.Steps, manifest.Request.Shift)
+	timesteps, _, err := sampling.UniPCSchedule(config.Policy.NumTrainTimesteps, manifest.Request.Steps, manifest.Request.Shift)
 	if err != nil {
 		t.Fatal(err)
 	}

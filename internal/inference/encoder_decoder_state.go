@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/model"
 	"overgo/internal/statecodec"
@@ -12,8 +13,7 @@ import (
 )
 
 const (
-	t5SessionMagic      = "L2GT5S01"
-	t5SessionHeaderSize = 64
+	t5SessionMagic = "L2GT5S01"
 )
 
 // SaveEncoderDecoderSession: model-bound encoder state and decoder cache.
@@ -73,7 +73,7 @@ func (r *Runner) LoadEncoderDecoderSession(data []byte) (*EncoderDecoderSession,
 	if !ok {
 		return nil, errors.New("inference: encoder-decoder state size overflows")
 	}
-	encoderBytes, ok := checked.Bytes(elements, 4)
+	encoderBytes, ok := checked.Bytes(elements, binaryschema.Uint32Bytes)
 	if !ok {
 		return nil, errors.New("inference: encoder-decoder state byte size overflows")
 	}

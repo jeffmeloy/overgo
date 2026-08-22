@@ -13,7 +13,7 @@ func TestASTProfileEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	profile := Profile{
-		Production:           Partition{Files: 2, Nodes: 20},
+		Runtime:              Partition{Files: 2, Nodes: 20},
 		Functions:            []Function{{File: "internal/p.go", Name: "f", Nodes: 5}},
 		Clones:               []Clone{{Fingerprint: strings.Repeat("0", sha256HexLength), Nodes: 5, Functions: []string{"a:f", "b:g"}}},
 		DuplicateExcessNodes: 5,

@@ -393,12 +393,10 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	signals := profileSignals(profile)
 	g.honesty = append(g.honesty, fmt.Sprintf(
-		"code profile: production=%d files/%d nodes test=%d/%d validator_subset=%d functions/%d nodes duplicate_excess=%d (production=%d validator=%d test=%d) clones=%d functions=%d exported=%d imports=%d",
-		profile.Production.Files, profile.Production.Nodes, profile.Test.Files, profile.Test.Nodes,
-		signals.validator.functions, signals.validator.nodes, profile.DuplicateExcessNodes,
-		signals.production.duplicateExcess, signals.validator.duplicateExcess, signals.test.duplicateExcess,
+		"code profile: runtime=%d files/%d nodes automation=%d/%d generated=%d/%d test=%d/%d duplicate_excess=%d clones=%d functions=%d exported=%d imports=%d",
+		profile.Runtime.Files, profile.Runtime.Nodes, profile.Automation.Files, profile.Automation.Nodes,
+		profile.Generated.Files, profile.Generated.Nodes, profile.Test.Files, profile.Test.Nodes, profile.DuplicateExcessNodes,
 		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
 	g.honesty = append(g.honesty, surfaceDeltaHonesty(base, profile))
@@ -583,56 +581,19 @@ func pathSet(paths []string) map[string]bool {
 	return set
 }
 
-type profileSignal struct {
-	functions, nodes, duplicateExcess int
-}
-
-type profileSignalSet struct {
-	production, validator, test profileSignal
-}
-
-func profileSignals(profile codeprofile.Profile) profileSignalSet {
-	var signals profileSignalSet
-	for _, function := range profile.Functions {
-		signal := signalForClass(&signals, function.AdvisoryClass)
-		signal.functions++
-		signal.nodes += function.Nodes
-	}
-	for _, clone := range profile.Clones {
-		signal := signalForClass(&signals, clone.AdvisoryClass)
-		signal.duplicateExcess += clone.Nodes * (len(clone.Functions) - 1)
-	}
-	return signals
-}
-
-func signalForClass(signals *profileSignalSet, class string) *profileSignal {
-	switch class {
-	case "validator":
-		return &signals.validator
-	case "test":
-		return &signals.test
-	default:
-		return &signals.production
-	}
-}
-
 func surfaceDeltaHonesty(base, candidate codeprofile.Profile) string {
-	baseSignals, candidateSignals := profileSignals(base), profileSignals(candidate)
-	productionFiles := candidate.Production.Files - base.Production.Files
-	productionNodes := candidate.Production.Nodes - base.Production.Nodes
+	runtimeFiles, runtimeNodes := candidate.Runtime.Files-base.Runtime.Files, candidate.Runtime.Nodes-base.Runtime.Nodes
+	automationFiles, automationNodes := candidate.Automation.Files-base.Automation.Files, candidate.Automation.Nodes-base.Automation.Nodes
 	duplicateExcess := candidate.DuplicateExcessNodes - base.DuplicateExcessNodes
 	adverse := "none"
-	if duplicateExcess < 0 && (productionFiles > 0 || productionNodes > 0) {
+	if duplicateExcess < 0 && (runtimeFiles+automationFiles > 0 || runtimeNodes+automationNodes > 0) {
 		adverse = "duplication fell while production grew; reduction does not offset surface growth"
 	}
 	return fmt.Sprintf(
-		"code profile delta vs HEAD: production=%+d files/%+d nodes test=%+d/%+d validator_subset=%+d functions/%+d nodes duplicate_excess=%+d (production=%+d validator=%+d test=%+d) clones=%+d function_count=%+d exported=%+d imports=%+d; adverse_pattern=%s",
-		productionFiles, productionNodes, candidate.Test.Files-base.Test.Files, candidate.Test.Nodes-base.Test.Nodes,
-		candidateSignals.validator.functions-baseSignals.validator.functions, candidateSignals.validator.nodes-baseSignals.validator.nodes,
-		duplicateExcess,
-		candidateSignals.production.duplicateExcess-baseSignals.production.duplicateExcess,
-		candidateSignals.validator.duplicateExcess-baseSignals.validator.duplicateExcess,
-		candidateSignals.test.duplicateExcess-baseSignals.test.duplicateExcess,
+		"code profile delta vs HEAD: runtime=%+d files/%+d nodes automation=%+d/%+d generated=%+d/%+d test=%+d/%+d duplicate_excess=%+d clones=%+d function_count=%+d exported=%+d imports=%+d; adverse_pattern=%s",
+		runtimeFiles, runtimeNodes, automationFiles, automationNodes,
+		candidate.Generated.Files-base.Generated.Files, candidate.Generated.Nodes-base.Generated.Nodes,
+		candidate.Test.Files-base.Test.Files, candidate.Test.Nodes-base.Test.Nodes, duplicateExcess,
 		len(candidate.Clones)-len(base.Clones), len(candidate.Functions)-len(base.Functions),
 		candidate.ExportedDeclarations-base.ExportedDeclarations, candidate.PackageImportEdges-base.PackageImportEdges, adverse,
 	)

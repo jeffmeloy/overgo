@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	EvidenceVersion   uint16 = 2
+	EvidenceVersion   uint16 = 3
 	EvidenceMediaType        = "application/vnd.overgo.code-profile+json"
-	EvidenceSchema           = "overgo/code-profile/v2"
+	EvidenceSchema           = "overgo/code-profile/v3"
 )
 
 type Evidence struct {
@@ -62,8 +62,12 @@ func commitIdentity(value string) bool {
 }
 
 func validateProfile(profile Profile) error {
-	if profile.Production.Files < 0 || profile.Production.Nodes < 0 || profile.Test.Files < 0 || profile.Test.Nodes < 0 ||
-		profile.DuplicateExcessNodes < 0 || profile.ExportedDeclarations < 0 || profile.PackageImportEdges < 0 ||
+	for _, partition := range []Partition{profile.Runtime, profile.Automation, profile.Generated, profile.Test} {
+		if partition.Files < 0 || partition.Nodes < 0 {
+			return errors.New("negative profile metric")
+		}
+	}
+	if profile.DuplicateExcessNodes < 0 || profile.ExportedDeclarations < 0 || profile.PackageImportEdges < 0 ||
 		profile.Consumers.Production < 0 || profile.Consumers.TestOnly < 0 || profile.Consumers.Boundary < 0 || profile.Consumers.Zero < 0 {
 		return errors.New("negative profile metric")
 	}

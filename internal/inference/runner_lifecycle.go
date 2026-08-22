@@ -47,9 +47,9 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	}
 	var cuda *executor.Executor
 	var worker *device.Worker
-	var deviceWeights *model.DeviceF32Weights
+	var deviceWeights *model.DeviceConvertedWeights
 	var rawWeights *model.DeviceWeights
-	var decodeWeights *model.DeviceBF16Weights
+	var decodeWeights *model.DeviceConvertedWeights
 	fail := func(openErr error) (*Runner, error) {
 		return nil, errors.Join(
 			openErr,
@@ -173,12 +173,12 @@ func loadResidentWeights(
 	loraAdapters []loadedLoRA,
 	residency residencyBinding,
 	worker *device.Worker,
-	deviceWeights **model.DeviceF32Weights,
+	deviceWeights **model.DeviceConvertedWeights,
 	rawWeights **model.DeviceWeights,
-	decodeWeights **model.DeviceBF16Weights,
+	decodeWeights **model.DeviceConvertedWeights,
 ) error {
 	var err error
-	*deviceWeights, err = model.NewDeviceF32Weights(worker)
+	*deviceWeights, err = model.NewDeviceConvertedWeights(worker, dtype.F32)
 	if err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func loadResidentWeights(
 			}
 		}
 		if len(decodeTensors) > 0 {
-			*decodeWeights, err = model.NewDeviceBF16Weights(worker)
+			*decodeWeights, err = model.NewDeviceConvertedWeights(worker, dtype.BF16)
 			if err == nil {
 				err = (*decodeWeights).Load(ctx, file, decodeTensors)
 			}
@@ -300,9 +300,9 @@ func releasePromptCaches(ctx context.Context, caches []*cachedPrompt) ([]*cached
 }
 
 func closeAcceleratorResources(
-	decodeWeights *model.DeviceBF16Weights,
+	decodeWeights *model.DeviceConvertedWeights,
 	rawWeights *model.DeviceWeights,
-	deviceWeights *model.DeviceF32Weights,
+	deviceWeights *model.DeviceConvertedWeights,
 	cuda *executor.Executor,
 	worker *device.Worker,
 ) error {
@@ -328,9 +328,9 @@ func closeAcceleratorResources(
 type preparedResources struct {
 	file          *gguf.File
 	hostWeights   *model.HostTensorStore
-	decodeWeights *model.DeviceBF16Weights
+	decodeWeights *model.DeviceConvertedWeights
 	rawWeights    *model.DeviceWeights
-	deviceWeights *model.DeviceF32Weights
+	deviceWeights *model.DeviceConvertedWeights
 	cuda          *executor.Executor
 	worker        *device.Worker
 }

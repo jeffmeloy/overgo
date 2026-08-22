@@ -158,9 +158,9 @@ type preparedModel struct {
 	vocab               *tokenizer.Vocab
 	cuda                *executor.Executor
 	worker              *device.Worker
-	deviceWeights       *model.DeviceF32Weights
+	deviceWeights       *model.DeviceConvertedWeights
 	rawWeights          *model.DeviceWeights
-	decodeWeights       *model.DeviceBF16Weights
+	decodeWeights       *model.DeviceConvertedWeights
 	hostWeights         *model.HostTensorStore
 	outputBias          []float32
 	outputExclusions    []tokenizer.TokenRange

@@ -5,16 +5,17 @@ package model
 import (
 	"bytes"
 	"context"
-	cudatest "overgo/internal/cuda/testutil"
 	"testing"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/executor"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 )
 
-func TestDeviceF32WeightsFeedExecutor(t *testing.T) {
+func TestDeviceConvertedWeightsFeedExecutor(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
 	data := hostTensorFixture(t)
@@ -27,7 +28,7 @@ func TestDeviceF32WeightsFeedExecutor(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer worker.Close()
-	weights, err := NewDeviceF32Weights(worker)
+	weights, err := NewDeviceConvertedWeights(worker, dtype.F32)
 	if err != nil {
 		t.Fatal(err)
 	}

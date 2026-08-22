@@ -1,7 +1,7 @@
 {
   "campaign": "Deletion-led production composability and repository tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:b4b8e28df25428406013455d214ab7779c660c1bef7e3bfa83f81b8950364199",
+  "census_evidence": "evidence:sha256:8ab23243ebc57ac2b5d23c96a10e88a90066ee5fd1c75be740775a13b34f157d",
   "items": [
     {
       "id": "merge-524691512e21",
@@ -157,6 +157,19 @@
           "title": "Bind campaign baselines to published census evidence",
           "status": "done",
           "verify": "go test ./cmd/plan ./cmd/closure-scan ./internal/plan -run 'Test(CampaignCensusAuthority|DoctrineRejectsMetricLiterals|PublishedCensusBaseline)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "research-census-rebind",
+      "title": "Bind merged research source to local census evidence",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish the resolved source census and replace the foreign worktree evidence identity",
+          "status": "done",
+          "verify": "go test ./cmd/plan ./internal/plan -run 'Test(PublishedCensusBaseline|CampaignCensusAuthority|DoctrineRejectsMetricLiterals)$' -count=1"
         }
       ]
     },

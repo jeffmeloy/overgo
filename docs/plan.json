@@ -4,6 +4,37 @@
   "census_evidence": "evidence:sha256:b4b8e28df25428406013455d214ab7779c660c1bef7e3bfa83f81b8950364199",
   "items": [
     {
+      "id": "gate-structural-impact",
+      "title": "Select verification from symbol-level impact evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "symbol-closure",
+          "title": "Derive changed functions and transitive reverse consumers from source snapshots",
+          "status": "open",
+          "verify": "go test ./internal/codeprofile -run 'TestFunctionImpactChangedBodyReverseReachability|TestFunctionImpactInterfaceNameOverApproximation' -count=1"
+        },
+        {
+          "id": "conservative-boundaries",
+          "title": "Force non-exclusion across reflection, cgo, build variants, generated and non-Go inputs",
+          "status": "open",
+          "verify": "go test ./internal/codeprofile ./internal/automationcheck -run 'TestFunctionImpactBoundaryNonExclusion|TestImpactUnknownSourceRunsAll' -count=1"
+        },
+        {
+          "id": "ownership-cutover",
+          "title": "Select device and generated checks from declared package and symbol ownership",
+          "status": "open",
+          "verify": "go test ./internal/automationcheck ./cmd/gate -run 'TestImpactOwnershipSelection|TestDeviceImpactUsesSymbolOwnership|TestGeneratedImpactUsesDeclaredOwnership' -count=1"
+        },
+        {
+          "id": "falsifiability-metrics",
+          "title": "Prove no false-negative exclusions and publish exclusion-rate evidence",
+          "status": "open",
+          "verify": "go test ./internal/automationcheck ./internal/codeprofile ./cmd/gate -run 'TestImpactFalseNegativeCorpus|TestImpactExclusionRateEvidence|TestNoPathPrefixImpactSelection' -count=1"
+        }
+      ]
+    },
+    {
       "id": "magic-runtime-remaining",
       "title": "Close remaining production literal surfaces",
       "status": "open",
@@ -123,6 +154,11 @@
       "item": "composability-production",
       "step": "production-gates",
       "authority": "evidence:sha256:0d5ce2f631087c8997dc88427566751c57f19f8639d66f8f6d014d903d108528"
+    },
+    {
+      "item": "gate-structural-impact",
+      "step": "impact-verdict",
+      "authority": "evidence:sha256:fbecef0c783bc0e731343f72a826e2ad4bba2223cd9a2243c44c02427b9a14c0"
     }
   ]
 }

@@ -16,7 +16,7 @@ func TestReusedOutcomeIsDistinctFromSkipped(t *testing.T) {
 		Descriptor: Descriptor{Name: "cached", Phase: runrecord.PhaseTest, Always: true},
 		Run:        func(context.Context, Invocation) (bool, string, error) { runs++; return false, "", nil },
 	}
-	planned, err := Plan([]Check{check}, nil)
+	planned, err := Plan([]Check{check}, Impact{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestCacheBoundedEviction(t *testing.T) {
 		Descriptor: Descriptor{Name: "bounded", Phase: runrecord.PhaseTest, Always: true},
 		Run:        func(context.Context, Invocation) (bool, string, error) { return false, "", nil },
 	}
-	planned, err := Plan([]Check{check}, nil)
+	planned, err := Plan([]Check{check}, Impact{})
 	if err != nil {
 		t.Fatal(err)
 	}

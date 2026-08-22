@@ -12,9 +12,15 @@ import (
 )
 
 const (
-	manifestImpact      Fact = "authority:kernel-manifest"
-	sbomImpact          Fact = "authority:release-integrity"
-	compatibilityImpact Fact = "authority:compatibility"
+	manifestCheckName                = "manifest"
+	sbomCheckName                    = "sbom"
+	compatibilityCheckName           = "claims"
+	manifestExcludedReason           = "changed paths are independent of kernel authority"
+	sbomExcludedReason               = "changed paths are independent of dependency authority"
+	compatibilityExcludedReason      = "changed paths are independent of compatibility authority"
+	manifestImpact              Fact = "authority:kernel-manifest"
+	sbomImpact                  Fact = "authority:release-integrity"
+	compatibilityImpact         Fact = "authority:compatibility"
 )
 
 // Command runs one check command from an explicit repository root.
@@ -24,7 +30,7 @@ type Command func(root, name string, arguments ...string) (string, error)
 func GeneratedChecks(root string, command Command) []Check {
 	return []Check{
 		{
-			Descriptor: Descriptor{Name: "manifest", Phase: runrecord.PhaseValidate, Triggers: []Fact{manifestImpact}, Inapplicable: "no kernel authority changed"},
+			Descriptor: Descriptor{Name: manifestCheckName, Phase: runrecord.PhaseValidate, Triggers: []Fact{manifestImpact}, Inapplicable: "no kernel authority changed"},
 			Run: func(_ context.Context, _ Invocation) (bool, string, error) {
 				if _, err := command(root, "go", "run", "./cmd/kernel-manifest"); err != nil {
 					return false, "", err
@@ -34,18 +40,18 @@ func GeneratedChecks(root string, command Command) []Check {
 			},
 		},
 		{
-			Descriptor: Descriptor{Name: "sbom", Phase: runrecord.PhaseValidate, Triggers: []Fact{sbomImpact}, Inapplicable: "no dependency authority changed"},
+			Descriptor: Descriptor{Name: sbomCheckName, Phase: runrecord.PhaseValidate, Triggers: []Fact{sbomImpact}, Inapplicable: "no dependency authority changed"},
 			Run:        commandRunner(root, command, "go", "run", "./cmd/sbom", "-check"),
 		},
 		{
-			Descriptor: Descriptor{Name: "claims", Phase: runrecord.PhaseValidate, Triggers: []Fact{compatibilityImpact}, Inapplicable: "no compatibility evidence changed"},
+			Descriptor: Descriptor{Name: compatibilityCheckName, Phase: runrecord.PhaseValidate, Triggers: []Fact{compatibilityImpact}, Inapplicable: "no compatibility evidence changed"},
 			Run:        commandRunner(root, command, "go", "run", "./cmd/compatibility", "-check"),
 		},
 	}
 }
 
 // GeneratedImpact derives authority facts from shipped paths and manifests.
-func GeneratedImpact(root string, paths []string) ([]Fact, error) {
+func GeneratedImpact(root string, paths []string) (Impact, error) {
 	facts := map[Fact]bool{}
 	searchCompatibility := false
 	for _, path := range paths {
@@ -54,9 +60,9 @@ func GeneratedImpact(root string, paths []string) ([]Fact, error) {
 			if _, err := os.Stat(filepath.Join(root, "kernels", "manifest.json")); err == nil {
 				facts[manifestImpact] = true
 			} else if errors.Is(err, os.ErrNotExist) {
-				return nil, errors.New("automation check: kernel authority changed but kernels/manifest.json is missing")
+				return Impact{}, errors.New("automation check: kernel authority changed but kernels/manifest.json is missing")
 			} else {
-				return nil, err
+				return Impact{}, err
 			}
 		}
 		if path == "go.mod" || path == "go.sum" || path == "SBOM.cdx.json" || strings.HasPrefix(path, "cmd/sbom/") {
@@ -71,7 +77,7 @@ func GeneratedImpact(root string, paths []string) ([]Fact, error) {
 	if !facts[compatibilityImpact] && searchCompatibility {
 		compatibility, err := os.ReadFile(filepath.Join(root, "compatibility.json"))
 		if err != nil {
-			return nil, err
+			return Impact{}, err
 		}
 		manifestText := string(compatibility)
 		for _, path := range paths {
@@ -81,11 +87,22 @@ func GeneratedImpact(root string, paths []string) ([]Fact, error) {
 			}
 		}
 	}
-	result := make([]Fact, 0, len(facts))
+	result := Impact{Facts: make([]Fact, 0, len(facts))}
 	for fact := range facts {
-		result = append(result, fact)
+		result.Facts = append(result.Facts, fact)
 	}
-	slices.Sort(result)
+	slices.Sort(result.Facts)
+	if len(paths) != 0 {
+		if !facts[manifestImpact] {
+			result.Exclusions = append(result.Exclusions, Exclusion{Check: manifestCheckName, Reason: manifestExcludedReason})
+		}
+		if !facts[sbomImpact] {
+			result.Exclusions = append(result.Exclusions, Exclusion{Check: sbomCheckName, Reason: sbomExcludedReason})
+		}
+		if !facts[compatibilityImpact] {
+			result.Exclusions = append(result.Exclusions, Exclusion{Check: compatibilityCheckName, Reason: compatibilityExcludedReason})
+		}
+	}
 	return result, nil
 }
 

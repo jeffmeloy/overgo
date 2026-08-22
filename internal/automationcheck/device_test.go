@@ -33,11 +33,11 @@ func TestDeviceResource(t *testing.T) {
 
 func TestDeviceApplicability(t *testing.T) {
 	for _, path := range []string{"kernels/cuda/a.cu", "internal/cuda/executor/run.go", "internal/optimizer/step_cuda_windows.go"} {
-		if !slices.Equal(DeviceImpact([]string{path}), []Fact{deviceImpact}) {
+		if !slices.Equal(DeviceImpact([]string{path}).Facts, []Fact{deviceImpact}) {
 			t.Errorf("%s did not require device evidence", path)
 		}
 	}
-	if impact := DeviceImpact([]string{"internal/model/config.go"}); len(impact) != 0 {
+	if impact := DeviceImpact([]string{"internal/model/config.go"}); len(impact.Facts) != 0 || len(impact.Exclusions) != 1 {
 		t.Fatalf("host-only impact = %v", impact)
 	}
 }

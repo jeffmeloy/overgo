@@ -90,7 +90,7 @@ func TestCompatibilityImpactLazy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("empty impact read compatibility authority: %v", err)
 	}
-	if len(facts) != 0 {
+	if len(facts.Facts) != 0 || len(facts.Exclusions) != 0 {
 		t.Fatalf("facts = %v", facts)
 	}
 
@@ -98,7 +98,7 @@ func TestCompatibilityImpactLazy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("direct compatibility impact read missing authority: %v", err)
 	}
-	if !slices.Equal(facts, []Fact{compatibilityImpact}) {
+	if !slices.Equal(facts.Facts, []Fact{compatibilityImpact}) {
 		t.Fatalf("facts = %v", facts)
 	}
 }

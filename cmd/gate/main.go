@@ -287,9 +287,10 @@ type scheduledGateCheck struct {
 	descriptor automationcheck.Descriptor
 	invocation automationcheck.Invocation
 	applicable bool
+	exclusion  string
 }
 
-func gateSchedule(definitions []automationcheck.Check, planned []automationcheck.Invocation) []scheduledGateCheck {
+func gateSchedule(definitions []automationcheck.Check, planned []automationcheck.Invocation, impact automationcheck.Impact) []scheduledGateCheck {
 	byName := make(map[string]automationcheck.Invocation, len(planned))
 	for _, invocation := range planned {
 		byName[invocation.Check.Name] = invocation
@@ -297,7 +298,11 @@ func gateSchedule(definitions []automationcheck.Check, planned []automationcheck
 	schedule := make([]scheduledGateCheck, 0, len(definitions))
 	for _, definition := range definitions {
 		invocation, applicable := byName[definition.Descriptor.Name]
-		schedule = append(schedule, scheduledGateCheck{descriptor: definition.Descriptor, invocation: invocation, applicable: applicable})
+		exclusion, _ := impact.ExclusionReason(definition.Descriptor.Name)
+		schedule = append(schedule, scheduledGateCheck{
+			descriptor: definition.Descriptor, invocation: invocation,
+			applicable: applicable, exclusion: exclusion,
+		})
 	}
 	return schedule
 }
@@ -308,7 +313,7 @@ func (g *gateContext) pipeline() error {
 	if err != nil {
 		return err
 	}
-	impact = append(impact, automationcheck.DeviceImpact(g.paths)...)
+	impact = automationcheck.MergeImpact(impact, automationcheck.DeviceImpact(g.paths))
 	checks, err := automationcheck.Plan(definitions, impact)
 	if err != nil {
 		return err
@@ -321,7 +326,7 @@ func (g *gateContext) pipeline() error {
 	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
 	// always run; commit is never cached.
 	cacheable := map[string]bool{"vet": true, "build": true}
-	schedule := gateSchedule(definitions, checks)
+	schedule := gateSchedule(definitions, checks, impact)
 	concurrentHandled := map[string]bool{}
 	for _, scheduled := range schedule {
 		name := scheduled.descriptor.Name
@@ -330,7 +335,7 @@ func (g *gateContext) pipeline() error {
 		}
 		if !scheduled.applicable {
 			g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: scheduled.descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
-			g.honesty = append(g.honesty, name+" skipped: "+scheduled.descriptor.Inapplicable)
+			g.honesty = append(g.honesty, name+" skipped: "+scheduled.exclusion)
 			continue
 		}
 		check := scheduled.invocation

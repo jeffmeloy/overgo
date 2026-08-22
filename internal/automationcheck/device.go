@@ -14,7 +14,11 @@ import (
 	"overgo/internal/runrecord"
 )
 
-const deviceImpact Fact = "capability:device"
+const (
+	deviceCheckName           = "device"
+	deviceExcludedReason      = "changed paths are independent of device implementation"
+	deviceImpact         Fact = "capability:device"
+)
 
 // DeviceVerificationPlan is the exact package/function scope for one device
 // lane. Full is the fail-closed result when ownership cannot be proven.
@@ -44,7 +48,7 @@ type deviceDependency struct {
 func DeviceCheck(root string, paths []string, command Command) Check {
 	return Check{
 		Descriptor: Descriptor{
-			Name: "device", Phase: runrecord.PhaseTest, Triggers: []Fact{deviceImpact},
+			Name: deviceCheckName, Phase: runrecord.PhaseTest, Triggers: []Fact{deviceImpact},
 			Inapplicable: "no kernel or device implementation changed",
 			Resources:    []Resource{{Name: "device", Exclusive: true}},
 		},
@@ -56,14 +60,17 @@ func DeviceCheck(root string, paths []string, command Command) Check {
 }
 
 // DeviceImpact derives whether shipped paths require device evidence.
-func DeviceImpact(paths []string) []Fact {
+func DeviceImpact(paths []string) Impact {
 	for _, path := range paths {
 		path = filepath.ToSlash(path)
 		if strings.HasPrefix(path, "kernels/") || strings.HasPrefix(path, "internal/cuda/") || strings.Contains(path, "_cuda_windows") {
-			return []Fact{deviceImpact}
+			return Impact{Facts: []Fact{deviceImpact}}
 		}
 	}
-	return nil
+	if len(paths) == 0 {
+		return Impact{}
+	}
+	return Impact{Exclusions: []Exclusion{{Check: deviceCheckName, Reason: deviceExcludedReason}}}
 }
 
 // DevicePlan derives kernel-function ownership from the generated manifest and

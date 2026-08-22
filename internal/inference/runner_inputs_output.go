@@ -66,7 +66,7 @@ func (r *Runner) gatherTensor(
 		if err != nil {
 			return reference.Value{}, err
 		}
-		return r.applyLoRAEmbeddingRows(info.Name, indices, value)
+		return r.applyLoRAEmbeddingSelection(info.Name, indices, value)
 	}
 	runtime := r.newInferenceGraphRuntime(ctx)
 	table, err := runtime.weight(info)
@@ -179,9 +179,7 @@ func (r *Runner) logits(
 		if err != nil {
 			return nil, err
 		}
-		if err := r.applyLoRALogits(outputInfo.Name, hidden, logits); err != nil {
-			return nil, err
-		}
+		r.applyLoRALogits(outputInfo.Name, hidden, logits)
 		if err := addOutputBias(logits, r.outputBias); err != nil {
 			return nil, err
 		}

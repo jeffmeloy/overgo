@@ -419,6 +419,7 @@ const (
 	metadataOpSharedFeedForwardFromExpert
 	metadataOpSharedFeedForwardScale
 	metadataOpSharedFeedForwardPolicy
+	metadataOpKeyedDeltaDimensions
 )
 
 // metadataOp: one compiled read/derive/validate/bind operation. field names
@@ -629,6 +630,28 @@ var coreRecurrentPrograms = map[RecurrentValidationPolicy][]metadataOp{
 	RecurrentValidationGroupedStateSpaceAttention:       ssmProgram(true),
 }
 
+var gatedDeltaCoreProgram = ssmProgram(true)
+var gatedDeltaRotaryCoreProgram = append(
+	[]metadataOp{ropeDimensionRequired, sectionsRequired}, gatedDeltaCoreProgram...,
+)
+
+var coreHybridPrograms = map[HybridValidationPolicy][]metadataOp{
+	HybridValidationAlternatingGatedDelta:        gatedDeltaCoreProgram,
+	HybridValidationAlternatingGatedDeltaHybrid:  gatedDeltaRotaryCoreProgram,
+	HybridValidationAlternatingGatedDeltaExperts: gatedDeltaRotaryCoreProgram,
+}
+
+var coreMLAPrograms = map[MLAValidationPolicy][]metadataOp{
+	MLAValidationHybridLinearAttention: {
+		opZeroU32.at("attention.q_lora_rank", "QLoRARank"),
+		opReqU32.at("attention.kv_lora_rank", "KVLoRARank"),
+		ropeDimensionRequired,
+		opReqU32.at("ssm.conv_kernel", "SSMConvKernel"),
+		opReqU32.at("kda.head_dim", "KDAHeadDim"),
+		{kind: metadataOpKeyedDeltaDimensions},
+	},
+}
+
 // lfm2RuntimeProgram: short-convolution cache and sliding-window reads.
 var lfm2RuntimeProgram = []metadataOp{
 	opReqU32.at("shortconv.l_cache", "ShortConvCacheLength"),
@@ -677,7 +700,9 @@ func compileArchitectureCoreProgram(profile ArchitectureProfile) []metadataOp {
 	if profile.MetadataDefaults.NoRopeLayerStep > tensor.FirstOffset {
 		program = append(program, setU32("NoRopeLayerStep", profile.MetadataDefaults.NoRopeLayerStep))
 	}
-	return append(program, coreRecurrentPrograms[validation.Recurrent]...)
+	program = append(program, coreRecurrentPrograms[validation.Recurrent]...)
+	program = append(program, coreHybridPrograms[validation.Hybrid]...)
+	return append(program, coreMLAPrograms[validation.MLA]...)
 }
 
 // compileExpertProgram: ordered expert metadata operations from a profile.
@@ -789,6 +814,11 @@ func (m specMetadata) runMetadataProgram(spec Spec, program []metadataOp) (Spec,
 			spec.SharedExpertFF *= spec.SharedExpertCount
 		case metadataOpSharedFeedForwardPolicy:
 			spec.SharedExpertFF, err = m.profile.MetadataDefaults.readSharedExpertFeedForward(values, prefix, spec)
+		case metadataOpKeyedDeltaDimensions:
+			spec.SSMInnerSize = spec.HeadCount * spec.KDAHeadDim
+			spec.SSMStateSize = spec.KDAHeadDim
+			spec.SSMTimeStepRank = spec.HeadCount
+			spec.SSMGroupCount = spec.HeadCount
 		}
 		if err != nil {
 			return Spec{}, err

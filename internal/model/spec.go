@@ -402,23 +402,8 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
 	}
-	if validation.Hybrid == HybridValidationRequiredExpertFeedForward {
-		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
-			spec.SlidingWindow = value
-		}
-		if spec.SlidingWindow > tensor.FirstOffset {
-			_, scalar := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32)
-			if layers, ok, arrayErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); !scalar && arrayErr != nil {
-				return Spec{}, arrayErr
-			} else if !scalar && ok {
-				if len(layers) != int(spec.BlockCount) {
-					return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
-				}
-				spec.SlidingLayers = slices.Clone(layers)
-			}
-		}
-	}
-	if validation.Attention == AttentionValidationPerLayerSlidingAttention {
+	if validation.Hybrid == HybridValidationRequiredExpertFeedForward ||
+		validation.Attention == AttentionValidationPerLayerSlidingAttention {
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
 		}
@@ -453,36 +438,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	if validation.hybridOneOf(
 		HybridValidationAlternatingGatedDelta, HybridValidationAlternatingGatedDeltaHybrid, HybridValidationAlternatingGatedDeltaExperts,
 	) {
-		if validation.Hybrid != HybridValidationAlternatingGatedDelta {
-			if spec.RopeDimensionCount, err = required[uint32](
-				values, prefix+"rope.dimension_count", gguf.ValueTypeUint32,
-			); err != nil {
-				return Spec{}, err
-			}
-			sections, sectionsErr := requiredArray[int32](
-				values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32,
-			)
-			if sectionsErr != nil {
-				return Spec{}, sectionsErr
-			}
-			if len(sections) != len(spec.RopeSections) {
-				return Spec{}, fmt.Errorf(
-					"metadata %q has %d values, need %d",
-					prefix+"rope.dimension_sections", len(sections), len(spec.RopeSections),
-				)
-			}
-			copy(spec.RopeSections[:], sections)
-		}
-		if err = readRequiredMetadataFields(
-			values, prefix, gguf.ValueTypeUint32,
-			metadataDestination("ssm.conv_kernel", &spec.SSMConvKernel),
-			metadataDestination("ssm.inner_size", &spec.SSMInnerSize),
-			metadataDestination("ssm.state_size", &spec.SSMStateSize),
-			metadataDestination("ssm.time_step_rank", &spec.SSMTimeStepRank),
-			metadataDestination("ssm.group_count", &spec.SSMGroupCount),
-		); err != nil {
-			return Spec{}, err
-		}
 		spec.FullAttentionInterval = m.profile.MetadataDefaults.uint(
 			values, prefix, "full_attention_interval", m.profile.MetadataDefaults.FullAttentionInterval,
 		)
@@ -504,22 +459,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 			spec.RecurrentLayers = slices.Clone(recurrent[:spec.BlockCount])
 		}
-	}
-	if validation.MLA == MLAValidationHybridLinearAttention {
-		spec.QLoRARank, _ = optional[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32)
-		if err = readRequiredMetadataFields(
-			values, prefix, gguf.ValueTypeUint32,
-			metadataDestination("attention.kv_lora_rank", &spec.KVLoRARank),
-			metadataDestination("rope.dimension_count", &spec.RopeDimensionCount),
-			metadataDestination("ssm.conv_kernel", &spec.SSMConvKernel),
-			metadataDestination("kda.head_dim", &spec.KDAHeadDim),
-		); err != nil {
-			return Spec{}, err
-		}
-		spec.SSMInnerSize = spec.HeadCount * spec.KDAHeadDim
-		spec.SSMStateSize = spec.KDAHeadDim
-		spec.SSMTimeStepRank = spec.HeadCount
-		spec.SSMGroupCount = spec.HeadCount
 	}
 	if validation.Recurrent == RecurrentValidationUngroupedScheduledStateSpace {
 		spec.AttentionScale = hostmath.InvSqrt32(uint64(spec.ValueLength))

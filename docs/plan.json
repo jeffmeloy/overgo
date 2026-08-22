@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:b4b8e28df25428406013455d214ab7779c660c1bef7e3bfa83f81b8950364199",
   "items": [
     {
-      "id": "gate-generalization-dag",
-      "title": "Execute independent checks through a resource-aware evidence DAG",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Execute independent checks through a resource-aware evidence DAG",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck ./cmd/gate -run 'Test(ResourceDAG|PolicyBarrier|ModularPipeline)' -count=1"
-        }
-      ]
-    },
-    {
       "id": "composability-production",
       "title": "Make cross-model composability production-authoritative",
       "status": "open",
@@ -144,6 +131,11 @@
       "item": "gate-generalization-device-impact",
       "step": "do",
       "authority": "evidence:sha256:192aa9c3b7b447c255f493b155b3688e177e0171f520069dfab50a2ea0856383"
+    },
+    {
+      "item": "gate-generalization-dag",
+      "step": "do",
+      "authority": "evidence:sha256:3b4cad2dc1f40ec75929f4a8be22adce3cbb648044e7937e20845af9c032de34"
     }
   ]
 }

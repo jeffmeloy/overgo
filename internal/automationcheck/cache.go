@@ -47,18 +47,35 @@ func (cache *EvidenceCache) Compact() {
 
 // RunCached executes or reuses one successful environment- and input-bound result.
 func (cache *EvidenceCache) RunCached(ctx context.Context, invocation Invocation, input artifact.ID) (Evidence, bool, error) {
-	key := cacheKey(invocation.ID)
-	if entry, found := cache.Entries[key]; found && entry.Input == input && entry.Outcome == runrecord.LanePassed {
-		return Evidence{
-			ID: entry.Evidence, InvocationID: entry.Invocation, Name: invocation.Check.Name,
-			Phase: invocation.Check.Phase, Outcome: entry.Outcome, Reused: true,
-		}, true, nil
+	if evidence, found := cache.Lookup(invocation, input); found {
+		return evidence, true, nil
 	}
 	evidence, err := Run(ctx, invocation)
 	if err == nil && !evidence.Skipped {
-		cache.Entries[key] = CacheEntry{Invocation: invocation.ID, Input: input, Evidence: evidence.ID, Outcome: evidence.Outcome}
+		cache.Record(invocation, input, evidence)
 	}
 	return evidence, false, err
+}
+
+// Lookup returns exact reusable evidence without executing the invocation.
+func (cache *EvidenceCache) Lookup(invocation Invocation, input artifact.ID) (Evidence, bool) {
+	entry, found := cache.Entries[cacheKey(invocation.ID)]
+	if !found || entry.Input != input || entry.Outcome != runrecord.LanePassed {
+		return Evidence{}, false
+	}
+	return Evidence{
+		ID: entry.Evidence, InvocationID: entry.Invocation, Name: invocation.Check.Name,
+		Phase: invocation.Check.Phase, Outcome: entry.Outcome, Reused: true,
+	}, true
+}
+
+// Record replaces the stable invocation slot with one successful result.
+func (cache *EvidenceCache) Record(invocation Invocation, input artifact.ID, evidence Evidence) {
+	if evidence.Outcome == runrecord.LanePassed && !evidence.Skipped {
+		cache.Entries[cacheKey(invocation.ID)] = CacheEntry{
+			Invocation: invocation.ID, Input: input, Evidence: evidence.ID, Outcome: evidence.Outcome,
+		}
+	}
 }
 
 // PackageInvocation identifies one package/mode pair independently of its

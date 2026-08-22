@@ -603,6 +603,14 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
+	impact, err := codeprofile.DeriveFunctionImpact(head, candidate, selection, selection)
+	if err != nil {
+		return err
+	}
+	g.honesty = append(g.honesty, fmt.Sprintf(
+		"function impact: base=%s candidate=%s seeds=%d reachable=%d",
+		impact.BaseIdentity, impact.CandidateIdentity, len(impact.Seeds), len(impact.Reachable),
+	))
 	if _, profile.Consumers, err = codeprofile.ProductionConsumerCensus(candidate, selection, nil); err != nil {
 		return err
 	}

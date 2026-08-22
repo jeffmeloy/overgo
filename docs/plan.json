@@ -9,12 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "symbol-closure",
-          "title": "Derive changed functions and transitive reverse consumers from source snapshots",
-          "status": "open",
-          "verify": "go test ./internal/codeprofile -run 'TestFunctionImpactChangedBodyReverseReachability|TestFunctionImpactInterfaceNameOverApproximation' -count=1"
-        },
-        {
           "id": "conservative-boundaries",
           "title": "Force non-exclusion across reflection, cgo, build variants, generated and non-Go inputs",
           "status": "open",
@@ -159,6 +153,11 @@
       "item": "gate-structural-impact",
       "step": "impact-verdict",
       "authority": "evidence:sha256:fbecef0c783bc0e731343f72a826e2ad4bba2223cd9a2243c44c02427b9a14c0"
+    },
+    {
+      "item": "gate-structural-impact",
+      "step": "symbol-closure",
+      "authority": "evidence:sha256:328528d5c22381be7e19346284684f6e122ef5c22a2b424fdde1495f287da401"
     }
   ]
 }

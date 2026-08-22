@@ -14,6 +14,7 @@ type ConsumerDeclaration struct {
 	File                 string `json:"file"`
 	Package              string `json:"package"`
 	Name                 string `json:"name"`
+	Receiver             string `json:"receiver,omitempty"`
 	Kind                 string `json:"kind"`
 	Exported             bool   `json:"exported,omitempty"`
 	ProductionReferences int    `json:"production_references,omitempty"`
@@ -46,7 +47,7 @@ func NewUnconsumedSurface(base, candidate []ConsumerDeclaration) []ConsumerDecla
 }
 
 func declarationIdentity(declaration ConsumerDeclaration) string {
-	return strings.Join([]string{declaration.Package, declaration.File, declaration.Kind, declaration.Name}, "\x00")
+	return strings.Join([]string{declaration.Package, declaration.File, declaration.Kind, declaration.Receiver, declaration.Name}, "\x00")
 }
 
 type consumerIndex struct {
@@ -54,7 +55,8 @@ type consumerIndex struct {
 	keys         map[string][]int
 	methods      map[string][]int
 	objects      map[*ast.Object]int
-	definitions  map[*ast.Ident]bool
+	definitions  map[*ast.Ident]int
+	reverse      map[int]map[int]bool
 	// interfaceMethods holds every method name declared by any interface in
 	// the snapshot; only concrete methods matching one (or exported methods,
 	// which may satisfy interfaces outside the snapshot such as io.Reader)
@@ -66,17 +68,31 @@ type consumerIndex struct {
 	testOnlyImports map[string]bool
 }
 
+type referenceCaller struct {
+	index int
+	valid bool
+}
+
 // ProductionConsumerCensus classifies declarations in changed production
 // files using the repository's parsed syntax and go-list build selection.
 // A nil changed set includes every production declaration.
 func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.BuildSelection, changed map[string]bool) ([]ConsumerDeclaration, ConsumerSummary, error) {
+	index, err := productionConsumerIndex(snapshot, selection, changed)
+	if err != nil {
+		return nil, ConsumerSummary{}, err
+	}
+	return index.declarations, summarizeConsumers(index.declarations), nil
+}
+
+func productionConsumerIndex(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.BuildSelection, changed map[string]bool) (consumerIndex, error) {
 	index := consumerIndex{
 		keys: map[string][]int{}, methods: map[string][]int{}, objects: map[*ast.Object]int{},
-		definitions: map[*ast.Ident]bool{}, interfaceMethods: map[string]bool{}, testOnlyImports: map[string]bool{},
+		definitions: map[*ast.Ident]int{}, reverse: map[int]map[int]bool{},
+		interfaceMethods: map[string]bool{}, testOnlyImports: map[string]bool{},
 	}
 	packageNames, err := repoanalysis.PackageNames(snapshot, selection)
 	if err != nil {
-		return nil, ConsumerSummary{}, err
+		return consumerIndex{}, err
 	}
 	productionImporters := map[string]map[string]bool{}
 	testImports := map[string]bool{}
@@ -143,7 +159,7 @@ func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection re
 		file, _ := source.Syntax()
 		generated, err := source.Generated()
 		if err != nil {
-			return nil, ConsumerSummary{}, err
+			return consumerIndex{}, err
 		}
 		index.addFile(source, file, packagePath(source, file, selection), selected(source.Path, selection), generated)
 	}
@@ -151,7 +167,7 @@ func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection re
 		file, _ := source.Syntax()
 		index.references(source, file, packagePath(source, file, selection), packageNames, selected(source.Path, selection))
 	}
-	return index.declarations, summarizeConsumers(index.declarations), nil
+	return index, nil
 }
 
 func (c *consumerIndex) addFile(source repoanalysis.GoFile, file *ast.File, packagePath string, active, generated bool) {
@@ -167,8 +183,9 @@ func (c *consumerIndex) addFile(source repoanalysis.GoFile, file *ast.File, pack
 		switch value := declaration.(type) {
 		case *ast.FuncDecl:
 			kind, key, functionBoundary := "function", symbolKey(packagePath, value.Name.Name), boundary
+			receiver := ""
 			if value.Recv != nil {
-				kind, key = "method", ""
+				kind, key, receiver = "method", "", receiverName(value)
 				// Only plausibly-dispatched methods stay boundary: exported
 				// (may satisfy interfaces outside the snapshot) or matching a
 				// declared interface method. Unexported non-interface methods
@@ -184,12 +201,12 @@ func (c *consumerIndex) addFile(source repoanalysis.GoFile, file *ast.File, pack
 			} else if exportedByCgo(value) {
 				functionBoundary = "cgo"
 			}
-			c.add(source.Path, packagePath, value.Name, kind, key, functionBoundary)
+			c.add(source.Path, packagePath, value.Name, receiver, kind, key, functionBoundary)
 		case *ast.GenDecl:
 			for _, spec := range value.Specs {
 				switch named := spec.(type) {
 				case *ast.TypeSpec:
-					c.add(source.Path, packagePath, named.Name, "type", symbolKey(packagePath, named.Name.Name), boundary)
+					c.add(source.Path, packagePath, named.Name, "", "type", symbolKey(packagePath, named.Name.Name), boundary)
 					c.addBoundaryFields(source.Path, packagePath, named)
 				case *ast.ValueSpec:
 					valueBoundary := boundary
@@ -197,7 +214,7 @@ func (c *consumerIndex) addFile(source repoanalysis.GoFile, file *ast.File, pack
 						valueBoundary = "initialization"
 					}
 					for _, name := range named.Names {
-						c.add(source.Path, packagePath, name, strings.ToLower(value.Tok.String()), symbolKey(packagePath, name.Name), valueBoundary)
+						c.add(source.Path, packagePath, name, "", strings.ToLower(value.Tok.String()), symbolKey(packagePath, name.Name), valueBoundary)
 					}
 				}
 			}
@@ -220,12 +237,13 @@ func hasDirective(group *ast.CommentGroup, want string) bool {
 	return false
 }
 
-func (c *consumerIndex) add(file, packagePath string, name *ast.Ident, kind, key, boundary string) {
+func (c *consumerIndex) add(file, packagePath string, name *ast.Ident, receiver, kind, key, boundary string) {
 	index := len(c.declarations)
 	c.declarations = append(c.declarations, ConsumerDeclaration{
-		File: file, Package: packagePath, Name: name.Name, Kind: kind, Exported: ast.IsExported(name.Name), Boundary: boundary,
+		File: file, Package: packagePath, Name: name.Name, Receiver: receiver,
+		Kind: kind, Exported: ast.IsExported(name.Name), Boundary: boundary,
 	})
-	c.definitions[name] = true
+	c.definitions[name] = index
 	if name.Obj != nil {
 		c.objects[name.Obj] = index
 	}
@@ -253,7 +271,7 @@ func (c *consumerIndex) addBoundaryFields(file, packagePath string, spec *ast.Ty
 			continue
 		}
 		for _, name := range field.Names {
-			c.add(file, packagePath, name, kind, "", boundary)
+			c.add(file, packagePath, name, "", kind, "", boundary)
 		}
 	}
 }
@@ -274,21 +292,33 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 		}
 		aliases[alias] = importPath
 	}
+	for _, declaration := range file.Decls {
+		caller := referenceCaller{}
+		if function, ok := declaration.(*ast.FuncDecl); ok {
+			if index, found := c.definitions[function.Name]; found {
+				caller = referenceCaller{index: index, valid: true}
+			}
+		}
+		c.referenceNode(source, declaration, packagePath, aliases, active, caller)
+	}
+}
+
+func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node, packagePath string, aliases map[string]string, active bool, caller referenceCaller) {
 	selectorNames := map[*ast.Ident]bool{}
-	ast.Inspect(file, func(node ast.Node) bool {
+	ast.Inspect(root, func(node ast.Node) bool {
 		if selector, ok := node.(*ast.SelectorExpr); ok {
 			selectorNames[selector.Sel] = true
 		}
 		return true
 	})
-	ast.Inspect(file, func(node ast.Node) bool {
+	ast.Inspect(root, func(node ast.Node) bool {
 		switch value := node.(type) {
 		case *ast.CallExpr:
 			c.reflectionBoundary(value)
 		case *ast.SelectorExpr:
 			if qualifier, ok := value.X.(*ast.Ident); ok {
 				if imported := aliases[qualifier.Name]; imported != "" {
-					c.count(c.resolve(c.keys[symbolKey(imported, value.Sel.Name)], active), source.Test, true)
+					c.count(c.resolve(c.keys[symbolKey(imported, value.Sel.Name)], active), source.Test, true, caller)
 					return true
 				}
 			}
@@ -297,9 +327,9 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 			// over-credit errs toward "used", never toward a false dead
 			// report). The old blanket method-dispatch marking hid every
 			// unused concrete method from the census.
-			c.count(c.resolve(c.methods[value.Sel.Name], active), source.Test, false)
+			c.count(c.resolve(c.methods[value.Sel.Name], active), source.Test, false, caller)
 		case *ast.Ident:
-			if c.definitions[value] {
+			if _, defined := c.definitions[value]; defined {
 				return true
 			}
 			if selectorNames[value] {
@@ -307,12 +337,12 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 			}
 			if value.Obj != nil {
 				if index, ok := c.objects[value.Obj]; ok {
-					c.count([]int{index}, source.Test, false)
+					c.count([]int{index}, source.Test, false, caller)
 				}
 				return true
 			}
 			if candidates := c.resolve(c.keys[symbolKey(packagePath, value.Name)], active); len(candidates) == 1 {
-				c.count(candidates, source.Test, false)
+				c.count(candidates, source.Test, false, caller)
 			}
 		}
 		return true
@@ -350,7 +380,7 @@ func (c *consumerIndex) reflectionBoundary(call *ast.CallExpr) {
 	}
 }
 
-func (c *consumerIndex) count(indices []int, test, external bool) {
+func (c *consumerIndex) count(indices []int, test, external bool, caller referenceCaller) {
 	for _, index := range indices {
 		if external {
 			c.declarations[index].ExternalReferences++
@@ -359,6 +389,12 @@ func (c *consumerIndex) count(indices []int, test, external bool) {
 			c.declarations[index].TestReferences++
 		} else {
 			c.declarations[index].ProductionReferences++
+		}
+		if caller.valid {
+			if c.reverse[index] == nil {
+				c.reverse[index] = map[int]bool{}
+			}
+			c.reverse[index][caller.index] = true
 		}
 	}
 }

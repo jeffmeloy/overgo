@@ -2,6 +2,7 @@
 package representation
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -254,8 +255,41 @@ var contractCodec = artifact.JSONDocumentCodec(
 	cloneContract,
 )
 
+// NewContract validates, canonicalizes, and identifies one representation
+// interface declaration before it can be published or referenced by a bridge.
+func NewContract(value Contract) (Contract, error) {
+	value.Version = ContractVersion
+	value.ID = artifact.ID{}
+	return contractCodec.New(value)
+}
+
 // ParseContract admits canonical representation authority bytes.
 func ParseContract(content []byte) (Contract, error) { return contractCodec.Parse(content) }
+
+// LoadContract resolves an exact immutable representation contract from an
+// artifact repository and refuses descriptor, schema, or identity drift.
+func LoadContract(ctx context.Context, reader artifact.Reader, id artifact.ID) (Contract, error) {
+	if ctx == nil || reader == nil || id.Kind() != artifact.KindProfile {
+		return Contract{}, errors.New("representation: contract repository authority is invalid")
+	}
+	content, found, err := reader.Content(ctx, id)
+	if err != nil {
+		return Contract{}, err
+	}
+	if !found || content.Descriptor.ID != id || content.Descriptor.MediaType != ContractMediaType ||
+		content.Descriptor.Schema != ContractSchema || content.Validate() != nil {
+		return Contract{}, errors.New("representation: contract content is absent or incompatible")
+	}
+	contract, err := ParseContract(content.Data)
+	if err != nil {
+		return Contract{}, err
+	}
+	canonical, err := NewContract(contract)
+	if err != nil || contract.ID != id || canonical.ID != id {
+		return Contract{}, errors.New("representation: contract content identity differs")
+	}
+	return contract, nil
+}
 
 // ValidateIdentity verifies canonical content and its stored identity.
 func (c Contract) ValidateIdentity() error { return contractCodec.ValidateIdentity(c) }

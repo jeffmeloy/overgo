@@ -20,8 +20,8 @@ type UnigramPiece struct {
 	Score float64
 }
 
-// unigramSpaceMarker: SentencePiece's U+2581 word-boundary marker.
-const unigramSpaceMarker = "▁"
+// sentencePieceSpaceMarker is SentencePiece's U+2581 word-boundary marker.
+const sentencePieceSpaceMarker = "\u2581"
 
 // Unigram owns Viterbi policy over a parsed piece table.
 type Unigram struct {
@@ -70,7 +70,7 @@ func (t *Unigram) Decode(ids []int) string {
 			decoded = append(decoded, value)
 			continue
 		}
-		decoded = append(decoded, strings.ReplaceAll(piece, unigramSpaceMarker, " ")...)
+		decoded = append(decoded, strings.ReplaceAll(piece, sentencePieceSpaceMarker, " ")...)
 	}
 	return strings.TrimPrefix(string(decoded), " ")
 }
@@ -108,7 +108,7 @@ func (t *Unigram) PieceID(piece string) (int, bool) {
 // text would beat every real piece and degrade to per-byte output. UNK is a
 // last resort when a byte piece is missing (never fires on a full table).
 func (t *Unigram) Encode(text string) ([]int, error) {
-	norm := unigramSpaceMarker + strings.ReplaceAll(text, " ", unigramSpaceMarker)
+	norm := sentencePieceSpaceMarker + strings.ReplaceAll(text, " ", sentencePieceSpaceMarker)
 	runes := []rune(norm)
 	n := len(runes)
 	negInf := math.Inf(-1)

@@ -105,9 +105,8 @@ func (v *Vocab) encodeUGM(text string) ([]TokenID, error) {
 }
 
 func (v *Vocab) normalizeUGM(text string) string {
-	const escapedSpace = "\u2581"
 	var result strings.Builder
-	result.Grow(len(text) + len(escapedSpace))
+	result.Grow(len(text) + len(sentencePieceSpaceMarker))
 	spacePrepended := false
 	processingNonWhitespace := false
 	for _, value := range strings.ToValidUTF8(text, "\ufffd") {
@@ -115,14 +114,14 @@ func (v *Vocab) normalizeUGM(text string) string {
 			if !processingNonWhitespace {
 				processingNonWhitespace = true
 				if v.AddPrefix && !spacePrepended {
-					result.WriteString(escapedSpace)
+					result.WriteString(sentencePieceSpaceMarker)
 					spacePrepended = true
 				}
 			}
 			result.WriteRune(value)
 		} else {
 			processingNonWhitespace = false
-			result.WriteString(escapedSpace)
+			result.WriteString(sentencePieceSpaceMarker)
 		}
 	}
 	return result.String()

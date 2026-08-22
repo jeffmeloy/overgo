@@ -4,6 +4,7 @@ package hybridtrain
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
@@ -438,20 +439,13 @@ func (m *Model) layerStreamPlans() ([]layerStreamPlan, error) {
 	plans := make([]layerStreamPlan, len(m.Weights))
 	mg, vg := 0, 0
 	for li := range m.Weights {
-		w := &m.Weights[li]
-		matGroups, vecGroups := 7, 4 // mlp gate/up/down + attn q/k/v/o; norms + q/k norms
-		if w.IsLinear {
-			matGroups, vecGroups = 10, 8 // + gdn matrices; norms + convs + dt/a/norm
-			if len(w.GDN.ConvBiasQ) > 0 {
-				vecGroups = 11 // + conv biases
-			}
-		}
 		p := &plans[li]
-		specs := make([]optimizer.GroupSpec, 0, matGroups)
-		for range matGroups {
-			group, ok := m.matPlan.Group(mg)
-			if !ok {
-				return nil, fmt.Errorf("layer plans: layer %d exhausts the matrix plan at group %d", li, mg)
+		prefix := name(li, "")
+		var specs []optimizer.GroupSpec
+		for mg < m.matPlan.GroupCount() {
+			group, _ := m.matPlan.Group(mg)
+			if !strings.HasPrefix(group.Name, prefix) {
+				break
 			}
 			mg++
 			if len(specs) == 0 {
@@ -463,21 +457,27 @@ func (m *Model) layerStreamPlans() ([]layerStreamPlan, error) {
 			specs = append(specs, spec)
 			p.matSize = spec.End
 		}
+		if len(specs) == 0 {
+			return nil, fmt.Errorf("layer plans: layer %d has no matrix groups", li)
+		}
 		sub, err := optimizer.CompilePlan(p.matSize, specs)
 		if err != nil {
 			return nil, fmt.Errorf("layer plans: layer %d matrix window: %w", li, err)
 		}
 		p.plan = sub
-		for k := range vecGroups {
-			group, ok := m.vecPlan.Group(vg)
-			if !ok {
-				return nil, fmt.Errorf("layer plans: layer %d exhausts the vector plan at group %d", li, vg)
+		for vg < m.vecPlan.GroupCount() {
+			group, _ := m.vecPlan.Group(vg)
+			if !strings.HasPrefix(group.Name, prefix) {
+				break
 			}
 			vg++
-			if k == 0 {
+			if p.vecSize == 0 {
 				p.vecOff = group.Start
 			}
 			p.vecSize = group.End - p.vecOff
+		}
+		if p.vecSize == 0 {
+			return nil, fmt.Errorf("layer plans: layer %d has no vector groups", li)
 		}
 	}
 	if mg != m.matPlan.GroupCount() || vg != m.vecPlan.GroupCount() {

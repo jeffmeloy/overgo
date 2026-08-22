@@ -50,6 +50,9 @@ const (
 	KindEvaluatorPromotion   Kind = "evaluator-promotion"
 	KindObjectiveComposition Kind = "objective-composition"
 	KindCandidateScheduling  Kind = "candidate-scheduling"
+	// KindCompositionExecutionPlan compiles the active source-target-task
+	// composition authority into its sole executable plan.
+	KindCompositionExecutionPlan Kind = "composition-execution-plan"
 )
 
 // ChainAction: compose two whole validated models through typed ports.
@@ -130,23 +133,32 @@ type CandidateSchedulingAction struct {
 	Budget     plan.SchedulerBudget      `json:"budget"`
 }
 
+// CompositionExecutionPlanAction selects one active composition by its exact
+// source, target, and task scope; the recipe itself remains RepoDB-authoritative.
+type CompositionExecutionPlanAction struct {
+	Source artifact.ID `json:"source"`
+	Target artifact.ID `json:"target"`
+	Task   recipe.Task `json:"task"`
+}
+
 // Action is one controller emission: exactly the payload matching Kind is
 // present. There is no field anywhere in the language that carries code or
 // shell -- parameters are artifact identities, typed facts and enums; the one
 // command-shaped string (RequiredVerifier) must validate as a failable go
 // test declaration inside the proposal authority itself.
 type Action struct {
-	Version       uint16                      `json:"version"`
-	Kind          Kind                        `json:"kind"`
-	Chain         *ChainAction                `json:"chain,omitempty"`
-	Proposal      *ProposalAction             `json:"proposal,omitempty"`
-	Decomposition *DecompositionAction        `json:"decomposition,omitempty"`
-	Compose       *ComposeAction              `json:"compose,omitempty"`
-	Improvement   *ImprovementAction          `json:"improvement,omitempty"`
-	Budget        *EvaluationBudgetAction     `json:"budget,omitempty"`
-	Evaluator     *EvaluatorPromotionAction   `json:"evaluator,omitempty"`
-	Objective     *ObjectiveCompositionAction `json:"objective,omitempty"`
-	Scheduling    *CandidateSchedulingAction  `json:"scheduling,omitempty"`
+	Version       uint16                          `json:"version"`
+	Kind          Kind                            `json:"kind"`
+	Chain         *ChainAction                    `json:"chain,omitempty"`
+	Proposal      *ProposalAction                 `json:"proposal,omitempty"`
+	Decomposition *DecompositionAction            `json:"decomposition,omitempty"`
+	Compose       *ComposeAction                  `json:"compose,omitempty"`
+	Improvement   *ImprovementAction              `json:"improvement,omitempty"`
+	Budget        *EvaluationBudgetAction         `json:"budget,omitempty"`
+	Evaluator     *EvaluatorPromotionAction       `json:"evaluator,omitempty"`
+	Objective     *ObjectiveCompositionAction     `json:"objective,omitempty"`
+	Scheduling    *CandidateSchedulingAction      `json:"scheduling,omitempty"`
+	Composition   *CompositionExecutionPlanAction `json:"composition,omitempty"`
 }
 
 // ParseAction decodes one strict action document.
@@ -166,7 +178,7 @@ func (a Action) validate() error {
 		return errors.New("controller action: unsupported version")
 	}
 	payloads := 0
-	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil} {
+	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil, a.Composition != nil} {
 		if present {
 			payloads++
 		}
@@ -210,6 +222,10 @@ func (a Action) validate() error {
 	case KindCandidateScheduling:
 		if a.Scheduling == nil {
 			return errors.New("controller action: candidate-scheduling requires typed evidence")
+		}
+	case KindCompositionExecutionPlan:
+		if a.Composition == nil {
+			return errors.New("controller action: composition-execution-plan requires an active scope")
 		}
 	default:
 		return fmt.Errorf("controller action: kind %q is not in the allowlist", a.Kind)
@@ -321,6 +337,18 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 			return nil, nil, err
 		}
 		return []artifact.Content{content}, scheduler.Lineage(), nil
+	case KindCompositionExecutionPlan:
+		plan, err := composition.CompileCompositionExecutionPlan(
+			ctx, reader, action.Composition.Source, action.Composition.Target, action.Composition.Task,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		content, err := plan.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		return []artifact.Content{content}, plan.Lineage(), nil
 	default:
 		return nil, nil, fmt.Errorf("controller action: kind %q has no executor", action.Kind)
 	}

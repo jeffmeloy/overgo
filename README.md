@@ -65,7 +65,7 @@ Overgo tracks code support and artifact verification as different claims:
 Generic component tests establish the first claim. RepoDB records the second
 claim for each artifact.
 
-![Overgo platform architecture and model lifecycle](docs/assets/overgo-platform-architecture.png)
+![Overgo platform architecture and evidence-bound model lifecycle](docs/assets/overgo-platform-architecture-v2.png)
 
 ## 2. How Overgo works
 

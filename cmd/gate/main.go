@@ -246,6 +246,7 @@ func checkPlanBinding(repo, ref string) error {
 
 func (g *gateContext) pipelineChecks() []automationcheck.Check {
 	generated := automationcheck.GeneratedChecks(g.repo, command)
+	device := automationcheck.DeviceCheck(g.repo, g.paths, command)
 	return []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
@@ -253,7 +254,7 @@ func (g *gateContext) pipelineChecks() []automationcheck.Check {
 		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), gateCheck("vet", runrecord.PhaseVet, g.stepVet),
 		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), gateCheck("test", runrecord.PhaseTest, g.stepTest),
-		gateCheck("device", runrecord.PhaseTest, g.stepDevice), gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
+		device, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
 }
 
@@ -273,6 +274,7 @@ func (g *gateContext) pipeline() error {
 	if err != nil {
 		return err
 	}
+	impact = append(impact, automationcheck.DeviceImpact(g.paths)...)
 	checks, err := automationcheck.Plan(definitions, impact)
 	if err != nil {
 		return err
@@ -1314,19 +1316,6 @@ func activeMagicBindings(
 	return bindings, nil
 }
 
-// stepDevice is the manifest-scoped device lane routing (Automation Doctrine
-// Layer 3): the CUDA lane fires only when kernel-owning or CUDA-cone paths
-// change; a failure INCLUDING device unavailability fails the commit —
-// UNAVAILABLE never passes for a change that needs device evidence.
-func (g *gateContext) stepDevice() (bool, error) {
-	if !g.pathsTouchAny("kernels/", "internal/cuda/") && !g.pathsTouchDeviceSource() {
-		g.honesty = append(g.honesty, "device lane skipped: no kernel or CUDA-cone paths in -paths")
-		return true, nil
-	}
-	_, err := command(g.repo, "go", "run", "./cmd/device-lane", "-paths", strings.Join(g.paths, ","))
-	return false, err
-}
-
 func (g *gateContext) stepAcceptance() (bool, error) {
 	// cmd/plan -verify owns the verdict contract: it classifies the claim
 	// (bitwise-deterministic / tolerance-bounded / stochastic-multi-seed) and
@@ -1349,18 +1338,6 @@ func acceptanceVerdictClass(repo string) testevidence.VerdictClass {
 		return testevidence.VerdictBitwiseDeterministic
 	}
 	return testevidence.ClassifyVerifyCommand(step.Verify)
-}
-
-// pathsTouchDeviceSource: device-lane code lives outside internal/cuda too (e.g.
-// the device optimizer in internal/optimizer). Any _cuda_windows source/test in
-// -paths fires the lane so its device evidence is not silently skipped.
-func (g *gateContext) pathsTouchDeviceSource() bool {
-	for _, p := range g.paths {
-		if strings.Contains(p, "_cuda_windows") {
-			return true
-		}
-	}
-	return false
 }
 
 func (g *gateContext) stepCommit() (bool, error) {

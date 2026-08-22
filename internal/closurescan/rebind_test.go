@@ -20,12 +20,12 @@ func TestRebindUnchangedClosureMovesExactBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	document := rebindDocument(t, previous, oldBinding)
-	rebound, changed, err := CompileRebindIndex([]Candidate{current}).Rebind(document)
+	rebound, matched, reason, err := CompileRebindIndex([]Candidate{current}).Rebind(document)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !changed || len(rebound.Bindings) != len(document.Bindings) {
-		t.Fatalf("rebind = (%t, %d bindings)", changed, len(rebound.Bindings))
+	if !matched || reason != "source" || len(rebound.Bindings) != len(document.Bindings) {
+		t.Fatalf("rebind = (%t, %s, %d bindings)", matched, reason, len(rebound.Bindings))
 	}
 	for _, binding := range rebound.Bindings {
 		if binding == oldBinding || binding.Line != current.Line || binding.SourceID != current.SourceID {
@@ -34,7 +34,7 @@ func TestRebindUnchangedClosureMovesExactBinding(t *testing.T) {
 	}
 }
 
-func TestRebindRefusesChangedValueOrCallsites(t *testing.T) {
+func TestRebindDiagnostics(t *testing.T) {
 	previous := rebindCandidate(t, "37", "stable callsites")
 	binding, err := previous.Binding()
 	if err != nil {
@@ -45,9 +45,12 @@ func TestRebindRefusesChangedValueOrCallsites(t *testing.T) {
 	changedValue.Value = "38"
 	changedCallsites := previous
 	changedCallsites.CallsiteID = sourceDigest("changed callsites")
-	for _, candidate := range []Candidate{changedValue, changedCallsites} {
-		if _, changed, err := CompileRebindIndex([]Candidate{candidate}).Rebind(document); err != nil || changed {
-			t.Fatalf("changed candidate rebound: %t, %v", changed, err)
+	for _, test := range []struct {
+		candidate Candidate
+		reason    string
+	}{{changedValue, "value"}, {changedCallsites, "callsite"}} {
+		if _, matched, reason, err := CompileRebindIndex([]Candidate{test.candidate}).Rebind(document); err != nil || matched || reason != test.reason {
+			t.Fatalf("changed candidate = (%t, %s, %v), want %s", matched, reason, err, test.reason)
 		}
 	}
 }
@@ -59,9 +62,9 @@ func TestRebindMatchesExactBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	document := rebindDocument(t, candidate, binding)
-	current, matched, err := CompileRebindIndex([]Candidate{candidate}).Rebind(document)
-	if err != nil || !matched || current.ID != document.ID {
-		t.Fatalf("exact rebind = (%s, %t, %v)", current.ID, matched, err)
+	current, matched, reason, err := CompileRebindIndex([]Candidate{candidate}).Rebind(document)
+	if err != nil || !matched || reason != "exact" || current.ID != document.ID {
+		t.Fatalf("exact rebind = (%s, %t, %s, %v)", current.ID, matched, reason, err)
 	}
 }
 

@@ -305,8 +305,8 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count, unmatched, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot); err != nil || count != len(triage.Rows) || unmatched != 0 {
-		t.Fatalf("rebound documents = (%d, unmatched=%d, %v)", count, unmatched, err)
+	if count, unmatched, first, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot); err != nil || count != len(triage.Rows) || unmatched != 0 || first != "" {
+		t.Fatalf("rebound documents = (%d, unmatched=%d first=%s, %v)", count, unmatched, first, err)
 	}
 	candidates, err = closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateConstants)
 	if err != nil {
@@ -336,7 +336,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot); err != nil {
+	if _, _, _, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot); err != nil {
 		t.Fatalf("retain live bindings: %v", err)
 	}
 	if err := os.Remove(path); err != nil {
@@ -346,7 +346,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot); err != nil {
+	if _, _, _, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot); err != nil {
 		t.Fatalf("retire orphan bindings: %v", err)
 	}
 	store, err = repodb.OpenReadOnly(filepath.Join(root, "store"))
@@ -395,9 +395,9 @@ func TestPrepareMergeImportsClosureEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	count, unmatched, err := importClosureDocuments(root, "target", filepath.Join(root, "source"), snapshot)
-	if err != nil || count != 1 || unmatched != 0 {
-		t.Fatalf("import=(%d, unmatched=%d, %v)", count, unmatched, err)
+	count, unmatched, first, err := importClosureDocuments(root, "target", filepath.Join(root, "source"), snapshot)
+	if err != nil || count != 1 || unmatched != 0 || first != "" {
+		t.Fatalf("import=(%d, unmatched=%d first=%s, %v)", count, unmatched, first, err)
 	}
 	target, err := repodb.OpenReadOnly(filepath.Join(root, "target"))
 	if err != nil {

@@ -69,6 +69,7 @@ type gateContext struct {
 	environment  runrecord.Environment
 	preparation  runrecord.GateLifecycle
 	source       *repoanalysis.SourceSnapshot
+	baseSource   *repoanalysis.SourceSnapshot
 	profile      *codeprofile.Profile
 	profileDirty bool
 	stepEvidence map[string]string
@@ -268,6 +269,7 @@ func (g *gateContext) pipelineSteps() []gateStep {
 	}
 	return append(steps, []gateStep{
 		{"fmt", runrecord.PhaseValidate, g.stepFmt},
+		{"style", runrecord.PhaseValidate, g.stepStyle},
 		{"vet", runrecord.PhaseVet, g.stepVet},
 		{"build", runrecord.PhaseBuild, g.stepBuild},
 		{"test", runrecord.PhaseTest, g.stepTest},
@@ -436,6 +438,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err := g.appendConsumerCensus(snapshot, baseSource, changed, &profile); err != nil {
 		return false, err
 	}
+	g.baseSource = &baseSource
 	g.profile = &profile
 	return false, nil
 }
@@ -1038,6 +1041,24 @@ func (g *gateContext) stepFmt() (bool, error) {
 	return false, nil
 }
 
+func (g *gateContext) stepStyle() (bool, error) {
+	if len(g.changedGoFiles()) == 0 {
+		return true, nil
+	}
+	snapshot, err := g.sourceSnapshot()
+	if err != nil {
+		return false, err
+	}
+	if g.baseSource == nil {
+		baseline, err := sourceAtHEAD(g.repo, snapshot)
+		if err != nil {
+			return false, err
+		}
+		g.baseSource = &baseline
+	}
+	return false, repoanalysis.ValidateGoStyleDelta(snapshot, *g.baseSource)
+}
+
 func (g *gateContext) stepVet() (bool, error) {
 	if len(g.changedGoFiles()) == 0 {
 		return true, nil
@@ -1339,7 +1360,11 @@ func measureMagicDebt(
 	if err != nil {
 		return magicDebt{}, err
 	}
-	debt.Inline = len(literals)
+	for _, literal := range literals {
+		if literal.Policy {
+			debt.Inline++
+		}
+	}
 	debt.TestPolicy, err = closurescan.CountTestPolicyLiterals(snapshot)
 	if err != nil {
 		return magicDebt{}, err

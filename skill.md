@@ -83,6 +83,19 @@ your own reasoning.
 Lower never overrides higher: "never stop" never licenses churn; tightness never
 licenses reinventing an existing owner.
 
+## Go Style
+
+- Default to the Google Go Style Guide: clarity, simplicity, concision,
+  maintainability, consistency. Correctness, numerical parity, external
+  contracts, measured performance, and repository authority take precedence.
+- Use `gofmt`, `go vet`, core language, then standard library. No cosmetic
+  abstraction, rename, constant, or dependency.
+- Delete or privatize exports before documenting survivors. Exported Godoc uses
+  complete name-led sentences. Internal comments stay telegraphic and explain
+  rationale, ownership, invariants, sources, or failure behavior.
+- Constants name stable roles, never values. Model and training policy derives
+  from recipes, artifacts, RepoDB, datasets, or measured resource plans.
+
 ## Scope and Precedence
 
 - Direct user request outranks the loop. Review/explanation/status/scoped edit =

@@ -1,5 +1,172 @@
 {
-  "campaign": "Executable tightening: typed storage, device catalogs, and shared execution",
-  "doctrine": "Deletion-led waves. Existing artifact codecs, tensor stores, recipe definitions, and mathematical operators remain authoritative. Move every production caller and delete displaced readers, dtype wrappers, validation walkers, and execution clones in the same commit. No compatibility aliases or fallback paths. Preserve numerical behavior. Each wave must be production-code net-negative and pass focused host tests, applicable CUDA lanes, plan verification, and the commit gate before merging tightening/master.",
-  "items": []
+  "campaign": "Go style: clarity through deletion and local ownership",
+  "doctrine": "Apply the Google Go Style Guide as the default readability standard, subordinate to correctness, numerical parity, external wire and ABI contracts, measured performance, repository authority, and established Go tooling. Clarity, simplicity, concision, maintainability, then consistency. Use gofmt and go vet. Prefer language and standard-library mechanisms. Preserve local style only when it does not spread a deviation. Do not rename packages, APIs, files, or identifiers solely for cosmetic conformity. Migrate every caller and delete displaced wrappers in the same wave. Delete or privatize unnecessary exports before documenting survivors. Exported Godoc comments are complete name-led sentences; internal ownership, invariant, and field comments may remain telegraphic. Constants name stable roles, never values; model and training policy remains recipe, artifact, or RepoDB derived. Tests own explicit fixture inputs but reuse production contracts and independent oracles. Generated code and externally fixed CUDA, GGUF, safetensors, JSON, and HTTP identifiers are excluded from stylistic renaming. Avoid repository-wide line-ending churn; gofmt each touched file. No new external linter dependency.",
+  "items": [
+    {
+      "id": "go-style-literals",
+      "title": "Remove policy literals from decision boundaries",
+      "status": "open",
+      "steps": [
+        {
+          "id": "configuration-training",
+          "title": "Derive command, configuration, and training policy",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope cmd/train,cmd/generate,internal/clioptions,internal/optimizer,internal/trainingprogram,internal/trainingworkflow,internal/modelrecipe -require-classified -require-no-stale -require-no-uncatalogued-production \u0026\u0026 go test ./cmd/train ./cmd/generate ./internal/clioptions ./internal/optimizer ./internal/trainingprogram ./internal/trainingworkflow ./internal/modelrecipe -count=1",
+          "rationale": "Audit files deterministically. Classify each literal as structural syntax, mathematical fact, protocol or ABI fact, typed fixture input, derived relation, or runtime policy. Derive model and optimizer facts from artifacts, recipes, RepoDB, dataset contracts, and measured resource plans. Consolidate repeated relations into existing typed owners. A constant is valid only when it names a stable role; never introduce value-named constants or const-plus-offset expressions merely to hide a literal.",
+          "depends_on": [
+            "go-style-authority/contract"
+          ],
+          "capabilities": [
+            "derived-training-policy",
+            "role-based-constants",
+            "shared-config-authority"
+          ]
+        },
+        {
+          "id": "serving-tests",
+          "title": "Derive serving policy and remove copied test policy",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-scope cmd/server,internal/inference,internal/server -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production \u0026\u0026 go test ./cmd/server ./internal/inference ./internal/server -count=1",
+          "rationale": "Move limits, timeouts, device selection, sampling defaults, modality geometry, and session policy to typed requests, active recipes, artifacts, or measured plans. In touched tests, keep deliberate inputs in fixture owners, use production constants and independent oracles, and delete expected values that merely reimplement production policy. Do not rewrite zero values, slice bounds, enum ordinals, tensor index arithmetic, quantization traits, or CUDA launch mathematics without evidence that they express policy.",
+          "depends_on": [
+            "go-style-literals/configuration-training"
+          ],
+          "capabilities": [
+            "derived-serving-policy",
+            "test-contract-reuse",
+            "literal-classification"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "go-style-api-surface",
+      "title": "Reduce and document the public surface",
+      "status": "open",
+      "steps": [
+        {
+          "id": "contracts",
+          "title": "Audit contract and evidence packages export by export",
+          "status": "open",
+          "verify": "go test ./internal/artifact ./internal/dataset ./internal/recipe ./internal/modelrecipe ./internal/runrecord ./internal/evaluation -count=1",
+          "rationale": "Use the consumer census first. Delete zero-consumer exports, privatize package-local contracts, inline pass-through wrappers, shorten package-repetitive names only when every caller migrates, then add complete Godoc sentences to the remaining API.",
+          "depends_on": [
+            "go-style-literals/serving-tests"
+          ],
+          "capabilities": [
+            "minimal-contract-api",
+            "complete-public-docs"
+          ]
+        },
+        {
+          "id": "runtime",
+          "title": "Audit runtime and serving packages export by export",
+          "status": "open",
+          "verify": "go test ./internal/tensor/... ./internal/cuda/... ./internal/graphruntime ./internal/inference ./internal/projector ./internal/server -count=1",
+          "rationale": "Apply the same delete-first process to execution APIs. Preserve exported names fixed by CUDA, tensor layouts, protocols, or compatibility claims; document their contracts rather than cosmetically renaming them.",
+          "depends_on": [
+            "go-style-api-surface/contracts"
+          ],
+          "capabilities": [
+            "minimal-runtime-api",
+            "documented-ownership"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "go-style-local-readability",
+      "title": "Make local code predictable without cosmetic churn",
+      "status": "open",
+      "steps": [
+        {
+          "id": "names-comments",
+          "title": "Normalize receiver names, initialisms, local names, and commentary by owner",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run 'TestRepositoryGoStyleNamesAndComments' -count=1",
+          "rationale": "Use short consistent receiver abbreviations, role-based constant names, conventional initialism case, and context-sized local names. Replace colon-form exported comments with full Godoc sentences. Keep internal comments only for rationale, ownership, invariants, source references, and failure behavior; remove narration and chronology.",
+          "depends_on": [
+            "go-style-api-surface/runtime"
+          ],
+          "capabilities": [
+            "predictable-naming",
+            "signal-bearing-comments"
+          ]
+        },
+        {
+          "id": "flow-errors",
+          "title": "Simplify result, error, and control-flow patterns",
+          "status": "open",
+          "verify": "go test ./... -count=1",
+          "rationale": "Remove unnecessary named results and medium-function naked returns, wrap causal errors with %w, retain lower-case non-proper error text, return early where it clarifies ownership, and prefer direct language or standard-library constructs over local mechanisms. Do not rewrite performance-critical loops unless parity and benchmarks support it.",
+          "depends_on": [
+            "go-style-local-readability/names-comments"
+          ],
+          "capabilities": [
+            "clear-error-chains",
+            "explicit-control-flow",
+            "least-mechanism"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "go-style-tests",
+      "title": "Make tests concise and contract driven",
+      "status": "open",
+      "steps": [
+        {
+          "id": "fixtures-assertions",
+          "title": "Consolidate repeated fixtures and improve failure diagnostics",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run 'TestRepositoryGoStyleTests' -count=1 \u0026\u0026 go test ./... -count=1",
+          "rationale": "Use table-driven tests only where cases share behavior, mark helpers with t.Helper, keep deliberate fixture literals in typed fixture owners, derive policy from production contracts, compare numerical paths with independent oracles, and report got before want with enough context to locate the failure.",
+          "depends_on": [
+            "go-style-local-readability/flow-errors"
+          ],
+          "capabilities": [
+            "typed-test-fixtures",
+            "actionable-failures",
+            "production-contract-reuse"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "go-style-complete",
+      "title": "Close style debt and retain enforcement",
+      "status": "open",
+      "steps": [
+        {
+          "id": "audit",
+          "title": "Run the final repository census and classify justified exceptions",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run 'TestRepositoryGoStyleComplete' -count=1",
+          "rationale": "Completion requires no unexplained objective findings. Recorded exceptions must name the external contract, performance evidence, generated owner, or local clarity reason. CRLF-only untouched files are normalized as they are edited, not through an unrelated mass rewrite.",
+          "depends_on": [
+            "go-style-tests/fixtures-assertions"
+          ],
+          "capabilities": [
+            "repository-style-evidence",
+            "continuous-style-gate"
+          ]
+        },
+        {
+          "id": "verification",
+          "title": "Run host, CUDA, compatibility, and release gates",
+          "status": "open",
+          "verify": "go test ./... -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/compatibility -check",
+          "rationale": "Style migration is complete only when numerical behavior, device execution, compatibility evidence, and release mechanics remain unchanged.",
+          "depends_on": [
+            "go-style-complete/audit"
+          ],
+          "capabilities": [
+            "host-parity",
+            "device-parity",
+            "compatibility-preserved"
+          ]
+        }
+      ]
+    }
+  ]
 }

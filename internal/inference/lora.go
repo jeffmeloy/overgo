@@ -148,12 +148,13 @@ func validatedLoRAScales(count int, scales []LoRAScale) ([]float32, error) {
 }
 
 func loRAScale(loaded loadedLoRA, weight model.LoRAWeight) float32 {
-	if loaded.adapter == nil || loaded.scale == 0 || weight.B.Shape.Dims[0] == 0 {
+	bridge, _, valid := weight.B.MatrixExtents()
+	if loaded.adapter == nil || loaded.scale == 0 || !valid {
 		return 0
 	}
 	scale := loaded.scale
 	if loaded.adapter.Alpha != 0 {
-		scale *= loaded.adapter.Alpha / float32(weight.B.Shape.Dims[0])
+		scale *= loaded.adapter.Alpha / float32(bridge)
 	}
 	return scale
 }
@@ -183,7 +184,7 @@ func (r *Runner) newGraphBuilder() *tensor.Builder {
 	return builder
 }
 
-func (r *Runner) applyLoRAEmbeddingRows(name string, rows []uint32, base reference.Value) (reference.Value, error) {
+func (r *Runner) applyLoRAEmbeddingSelection(name string, indices []uint32, base reference.Value) (reference.Value, error) {
 	for _, loaded := range r.loraAdapters {
 		weight, ok := loaded.adapter.Weights[name]
 		if !ok || !weight.Embedding {
@@ -193,27 +194,27 @@ func (r *Runner) applyLoRAEmbeddingRows(name string, rows []uint32, base referen
 		if scale == 0 {
 			continue
 		}
-		rank := int(weight.A.Shape.Dims[0])
-		width := int(weight.B.Shape.Dims[1])
-		for token, row := range rows {
-			if uint64(row) >= weight.A.Shape.Dims[1] {
-				return reference.Value{}, fmt.Errorf("inference: LoRA embedding row %d is out of range", row)
+		bridge, entries, _ := weight.A.MatrixExtents()
+		_, outputExtent, _ := weight.B.MatrixExtents()
+		for token, index := range indices {
+			if uint64(index) >= uint64(entries) {
+				return reference.Value{}, fmt.Errorf("inference: LoRA embedding index %d is out of range", index)
 			}
-			a := weight.A.Data[int(row)*rank : (int(row)+1)*rank]
-			for output := 0; output < width; output++ {
+			a := weight.A.Data[int(index)*bridge : (int(index)+1)*bridge]
+			for output := range outputExtent {
 				var delta float32
-				b := weight.B.Data[output*rank : (output+1)*rank]
-				for index := 0; index < rank; index++ {
-					delta += b[index] * a[index]
+				b := weight.B.Data[output*bridge : (output+1)*bridge]
+				for inner := range bridge {
+					delta += b[inner] * a[inner]
 				}
-				base.Data[token*width+output] += scale * delta
+				base.Data[token*outputExtent+output] += scale * delta
 			}
 		}
 	}
 	return base, nil
 }
 
-func (r *Runner) applyLoRALogits(name string, hidden, logits []float32) error {
+func (r *Runner) applyLoRALogits(name string, hidden, logits []float32) {
 	for _, loaded := range r.loraAdapters {
 		weight, ok := loaded.adapter.Weights[name]
 		if !ok || weight.Embedding {
@@ -223,25 +224,22 @@ func (r *Runner) applyLoRALogits(name string, hidden, logits []float32) error {
 		if scale == 0 {
 			continue
 		}
-		input, rank, output := len(hidden), int(weight.A.Shape.Dims[1]), len(logits)
-		if int(weight.A.Shape.Dims[0]) != input || int(weight.B.Shape.Dims[0]) != rank || int(weight.B.Shape.Dims[1]) != output {
-			return fmt.Errorf("inference: LoRA output tensor %q shape changed", name)
-		}
-		projected := make([]float32, rank)
-		for row := 0; row < rank; row++ {
+		inputExtent, bridge, _ := weight.A.MatrixExtents()
+		_, outputExtent, _ := weight.B.MatrixExtents()
+		projected := make([]float32, bridge)
+		for row := range bridge {
 			for column, value := range hidden {
-				projected[row] += weight.A.Data[row*input+column] * value
+				projected[row] += weight.A.Data[row*inputExtent+column] * value
 			}
 		}
-		for row := 0; row < output; row++ {
+		for row := range outputExtent {
 			var delta float32
 			for column, value := range projected {
-				delta += weight.B.Data[row*rank+column] * value
+				delta += weight.B.Data[row*bridge+column] * value
 			}
 			logits[row] += scale * delta
 		}
 	}
-	return nil
 }
 
 // LoRAAdapters: detached global adapter state.

@@ -178,7 +178,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 	if mtp.TokenEmbedding != nil {
 		embeddingInfo = *mtp.TokenEmbedding
 	}
-	tokenEmbedding, err := r.loadRows(ctx, embeddingInfo, rows)
+	tokenEmbedding, err := r.gatherTensor(ctx, embeddingInfo, rows)
 	if err != nil {
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
@@ -217,7 +217,7 @@ func (r *Runner) runMultiHeadMTPHeadLocked(
 		return reference.Value{}, reference.Value{}, LayerCache{}, err
 	}
 	var pastKey, pastValue *tensor.Tensor
-	if past != nil && past.Key.Shape.Rank != 0 {
+	if past != nil && past.Key.Defined() {
 		pastKey = runtime.input("multi_head_mtp.past_key", past.Key)
 		pastValue = runtime.input("multi_head_mtp.past_value", past.Value)
 	}

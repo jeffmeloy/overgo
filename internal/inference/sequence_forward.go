@@ -51,7 +51,7 @@ func (r *Runner) forwardNonCausalLocked(
 		return reference.Value{}, err
 	}
 	positions := tokenPositions(0, len(tokenIDs))
-	activation, err := r.loadEmbeddings(ctx, rows)
+	activation, err := r.gatherTensor(ctx, r.weights.TokenEmbedding, rows)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -114,7 +114,7 @@ func (r *Runner) forwardAudioTokensLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	embeddings, err := r.loadEmbeddings(ctx, rows)
+	embeddings, err := r.gatherTensor(ctx, r.weights.TokenEmbedding, rows)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -212,7 +212,7 @@ func (r *Runner) forwardEncoderLocked(
 	if err != nil {
 		return reference.Value{}, err
 	}
-	activation, err := r.loadEmbeddings(ctx, rows)
+	activation, err := r.gatherTensor(ctx, r.weights.TokenEmbedding, rows)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -298,7 +298,7 @@ func (r *Runner) decodeEncoderDecoderLocked(
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	activation, err := r.loadEmbeddings(ctx, rows)
+	activation, err := r.gatherTensor(ctx, r.weights.TokenEmbedding, rows)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

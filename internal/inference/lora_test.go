@@ -58,7 +58,7 @@ func TestLoRAHostEmbeddingAndLogitPaths(t *testing.T) {
 			},
 		},
 	}, scale: 0.25}}}}
-	embedded, err := runner.applyLoRAEmbeddingRows(
+	embedded, err := runner.applyLoRAEmbeddingSelection(
 		"token_embd.weight", []uint32{1},
 		reference.Value{Shape: tensor.MustShape(2, 1), Data: []float32{10, 20}},
 	)
@@ -69,9 +69,7 @@ func TestLoRAHostEmbeddingAndLogitPaths(t *testing.T) {
 		t.Fatalf("embedding = %v, want %v", got, want)
 	}
 	logits := []float32{1, 2}
-	if err := runner.applyLoRALogits("output.weight", []float32{2, 1}, logits); err != nil {
-		t.Fatal(err)
-	}
+	runner.applyLoRALogits("output.weight", []float32{2, 1}, logits)
 	if got, want := logits, []float32{15, 19.5}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("logits = %v, want %v", got, want)
 	}

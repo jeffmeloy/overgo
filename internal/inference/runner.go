@@ -567,7 +567,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 	if multiPositions != nil {
 		positions = append(positions[:0], (*multiPositions)[0]...)
 	}
-	activation, err := r.loadEmbeddings(ctx, rows)
+	activation, err := r.gatherTensor(ctx, r.weights.TokenEmbedding, rows)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

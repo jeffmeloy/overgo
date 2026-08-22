@@ -131,13 +131,7 @@ func (r *Runner) stepFeatureDraft(
 		return featureDraftStep{}, errors.New("inference: feature-draft cache position is incompatible")
 	}
 	rows := []uint32{uint32(tokenID)}
-	var tokenEmbedding reference.Value
-	var err error
-	if r.weights.TokenEmbedding.Name != "" {
-		tokenEmbedding, err = r.loadRows(ctx, r.weights.TokenEmbedding, rows)
-	} else {
-		tokenEmbedding, err = target.loadEmbeddings(ctx, rows)
-	}
+	tokenEmbedding, err := r.gatherTensor(ctx, r.weights.TokenEmbedding, rows)
 	if err != nil {
 		return featureDraftStep{}, err
 	}

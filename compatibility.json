@@ -977,15 +977,15 @@
      "identity": "file:sha256:e453df5f1053047c3c11ab1862a544dba9bee03e7f24cb6e74375c73a2070dc6"
     },
     {
-     "contains": "func TestValidatePaddedTokenBatchMasksSuffixes(",
+     "contains": "func TestPaddedTokenBatchLayoutPreservesDerivedLengths(",
      "path": "internal/inference/encoder_decoder_batch_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:56dd5f0fbf6e80a8b61a358cbdab208e58d784790500fcfa7554880da69a90d1"
+     "identity": "evidence:sha256:f80e4e2369a2915e9884a3ef157f4a6d82cf16ba2da16fadea9cb16ef5a3f877"
     }
    ],
    "id": "padded-encoder-decoder-batches",
    "evidence_tier": "contract-tested",
-   "verify": "go test ./internal/inference -run '^TestValidatePaddedTokenBatchMasksSuffixes$' -count=1 -v",
+   "verify": "go test ./internal/inference -run '^TestPaddedTokenBatchLayoutPreservesDerivedLengths$' -count=1 -v",
    "status": "implemented",
    "summary": "Rectangular encoder-decoder batches use explicit source and decoder lengths so padding never enters attention state."
   },

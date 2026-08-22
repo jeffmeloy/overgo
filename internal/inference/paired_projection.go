@@ -84,7 +84,7 @@ func (r *Runner) AdvancePairedProjection(
 	if tokenID < 0 || int(tokenID) >= target.vocab.Len() {
 		return reference.Value{}, nil, fmt.Errorf("inference: token ID %d is out of range", tokenID)
 	}
-	targetEmbedding, err := target.loadEmbeddings(ctx, []uint32{uint32(tokenID)})
+	targetEmbedding, err := target.gatherTensor(ctx, target.weights.TokenEmbedding, []uint32{uint32(tokenID)})
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

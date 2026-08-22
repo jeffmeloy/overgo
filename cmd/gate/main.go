@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
@@ -243,53 +244,64 @@ func checkPlanBinding(repo, ref string) error {
 	return nil
 }
 
-type gateStep struct {
-	name  string
-	phase runrecord.Phase
-	fn    func() (skipped bool, err error)
+func (g *gateContext) pipelineChecks() []automationcheck.Check {
+	return []automationcheck.Check{
+		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
+		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
+		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), gateCheck("manifest", runrecord.PhaseValidate, g.stepManifest),
+		gateCheck("sbom", runrecord.PhaseValidate, g.stepSBOM), gateCheck("claims", runrecord.PhaseValidate, g.stepClaims),
+		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
+		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), gateCheck("vet", runrecord.PhaseVet, g.stepVet),
+		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), gateCheck("test", runrecord.PhaseTest, g.stepTest),
+		gateCheck("device", runrecord.PhaseTest, g.stepDevice), gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
+	}
 }
 
-func (g *gateContext) pipelineSteps() []gateStep {
-	return []gateStep{
-		{"protection", runrecord.PhaseValidate, g.stepProtection}, {"scope", runrecord.PhaseValidate, g.stepScope},
-		{"profile", runrecord.PhaseValidate, g.stepProfile}, {"fmt", runrecord.PhaseValidate, g.stepFmt},
-		{"style", runrecord.PhaseValidate, g.stepStyle}, {"manifest", runrecord.PhaseValidate, g.stepManifest},
-		{"sbom", runrecord.PhaseValidate, g.stepSBOM}, {"claims", runrecord.PhaseValidate, g.stepClaims},
-		{"docs", runrecord.PhaseValidate, g.stepDocumentation}, {"magics", runrecord.PhaseValidate, g.stepMagics},
-		{"acceptance", runrecord.PhaseTest, g.stepAcceptance}, {"vet", runrecord.PhaseVet, g.stepVet},
-		{"build", runrecord.PhaseBuild, g.stepBuild}, {"test", runrecord.PhaseTest, g.stepTest},
-		{"device", runrecord.PhaseTest, g.stepDevice}, {"commit", runrecord.PhasePackage, g.stepCommit},
+func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) automationcheck.Check {
+	return automationcheck.Check{
+		Descriptor: automationcheck.Descriptor{Name: name, Phase: phase, Always: true},
+		Run: func(context.Context, automationcheck.Invocation) (bool, string, error) {
+			skipped, err := run()
+			return skipped, "", err
+		},
 	}
 }
 
 func (g *gateContext) pipeline() error {
-	steps := g.pipelineSteps()
+	checks, err := automationcheck.Plan(g.pipelineChecks(), nil)
+	if err != nil {
+		return err
+	}
 	cache := g.loadRetryCache()
 	// Verification steps whose result depends only on tree state may reuse a
 	// prior identical-tree success (the retry-loop tax: a failed commit step
 	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
 	// always run; commit is never cached.
 	cacheable := map[string]bool{"vet": true, "build": true, "test": true}
-	for _, s := range steps {
-		began := time.Now()
-		fmt.Fprintf(os.Stderr, gateProgressLine, s.name, runrecord.HeartbeatRunning)
+	for _, check := range checks {
+		name := check.Check.Name
+		fmt.Fprintf(os.Stderr, gateProgressLine, name, runrecord.HeartbeatRunning)
 		var skipped bool
-		var err error
+		var evidence automationcheck.Evidence
 		input := ""
-		if cacheable[s.name] {
-			input, err = g.phaseInputFingerprint(s.name)
+		if cacheable[name] {
+			input, err = g.phaseInputFingerprint(name)
 		}
-		cached := cache.Steps[s.name]
+		cached := cache.Steps[name]
 		if err == nil && cached.Input == input && cached.Outcome == string(runrecord.StepSucceeded) {
 			skipped = true
-			g.honesty = append(g.honesty, s.name+" reused: derived inputs already passed this step")
+			g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
 		} else if err == nil {
-			skipped, err = s.fn()
+			evidence, err = automationcheck.Run(context.Background(), check)
+			skipped = evidence.Skipped
 		}
-		duration := max(uint64(time.Since(began).Nanoseconds()), uint64(1))
+		duration := max(evidence.DurationNS, uint64(1))
 		record := runrecord.GateStep{
-			Name: s.name, Phase: s.phase, Outcome: runrecord.StepSucceeded,
-			DurationNS: duration, Evidence: g.stepEvidence[s.name],
+			Name: name, Phase: check.Check.Phase, Outcome: runrecord.StepSucceeded,
+			DurationNS: duration, Evidence: g.stepEvidence[name],
+		}
+		if record.Evidence == "" && evidence.ID.Valid() {
+			record.Evidence = evidence.ID.String()
 		}
 		switch {
 		case err != nil:
@@ -298,12 +310,12 @@ func (g *gateContext) pipeline() error {
 			record.Outcome = runrecord.StepSkipped
 		}
 		g.steps = append(g.steps, record)
-		if err == nil && cacheable[s.name] && !skipped {
-			cache.Steps[s.name] = phaseCache{Input: input, Outcome: string(runrecord.StepSucceeded)}
+		if err == nil && cacheable[name] && !skipped {
+			cache.Steps[name] = phaseCache{Input: input, Outcome: string(runrecord.StepSucceeded)}
 			g.saveRetryCache(cache)
 		}
 		if err != nil {
-			return fmt.Errorf("%s: %w", s.name, err)
+			return fmt.Errorf("%s: %w", name, err)
 		}
 	}
 	return nil

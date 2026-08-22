@@ -85,7 +85,7 @@ func run() error {
 	pathsCSV := flag.String("paths", "", "comma-separated repo-relative paths this commit ships (required unless -merge)")
 	storePath := flag.String("store", "repodb-store", "RepoDB store directory (relative to repo root)")
 	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with `git merge --no-ff --no-commit <branch>`)")
-	planRef := flag.String("plan", "", "item/step this commit serves; MUST equal the plan's current open step (see `go run ./cmd/plan -next`). Required unless -merge. Off-plan commits are refused.")
+	planRef := flag.String("plan", "", "item/step this commit serves; MUST equal the current open step, including for -merge. Off-plan commits are refused.")
 	reconcile := flag.Bool("reconcile", false, "finalize the deterministic RepoDB batch in bin/gate_debt.json")
 	recordFailure := flag.Bool("record-failure", false, "recover an unbatchable post-commit record as a typed failed finalization")
 	admitReview := flag.String("admit-review", "", "read-only: admit a RepoDB review-verdict ID against the current HEAD")
@@ -1946,7 +1946,7 @@ func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, 
 	}
 	fmt.Fprintf(output, "GATE %s %.1fs | ran=%s | skipped=%s\n", strings.ToUpper(string(outcome)), time.Since(g.start).Seconds(), strings.Join(run, ","), strings.Join(skipped, ","))
 	if failure != "" {
-		fmt.Fprintf(output, "failure: %s\n", failure)
+		fmt.Fprintf(output, "blocker: %s\n", failure)
 	}
 	for _, line := range compactHonesty(g.honesty) {
 		fmt.Fprintln(output, line)
@@ -1959,20 +1959,20 @@ func compactHonesty(lines []string) []string {
 		label := ""
 		switch {
 		case strings.Contains(line, "code profile delta vs HEAD"):
-			label = "delta: "
+			label = "advisory: delta: "
 		case strings.HasPrefix(line, "automation ROI"):
-			label = "roi: "
+			label = "advisory: roi: "
 		case strings.HasPrefix(line, "consumer census"):
-			label = "consumer: "
+			label = "advisory: consumer: "
 		case strings.HasPrefix(line, "test scope:"):
-			label = "scope: "
+			label = "advisory: scope: "
 		case strings.Contains(line, " reused:"):
-			label = "reuse: "
+			label = "advisory: reuse: "
 		case strings.Contains(line, "exact_clone_") && !strings.Contains(line, "exact_clone_production=none; exact_clone_validator=none; exact_clone_test=none"):
-			label = "review: "
+			label = "advisory: review: "
 		case strings.Contains(line, "uncatalogued") || strings.Contains(line, "unplanned dirty") ||
 			strings.Contains(line, "unavailable") || strings.Contains(line, "unreadable") || strings.Contains(line, "not persisted"):
-			label = "warning: "
+			label = "advisory: warning: "
 		}
 		if label == "" {
 			continue

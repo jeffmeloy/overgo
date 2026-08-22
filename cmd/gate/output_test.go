@@ -11,7 +11,7 @@ import (
 	"overgo/internal/runrecord"
 )
 
-func TestGateReportsPhaseProgress(t *testing.T) {
+func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 	gate := gateContext{
 		start: time.Now(),
 		steps: []runrecord.GateStep{
@@ -30,11 +30,11 @@ func TestGateReportsPhaseProgress(t *testing.T) {
 	}
 	var output bytes.Buffer
 	fmt.Fprintf(&output, gateProgressLine, "test", runrecord.HeartbeatRunning)
-	gate.printSummary(&output, runrecord.OutcomeSucceeded, "")
+	gate.printSummary(&output, runrecord.OutcomeFailed, "test: exit status 1")
 	text := output.String()
 	if len(text) > 1000 || !strings.Contains(text, "phase=test heartbeat=running") ||
-		!strings.Contains(text, "GATE SUCCEEDED") || !strings.Contains(text, "delta:") ||
-		!strings.Contains(text, "consumer:") || !strings.Contains(text, "warning:") {
+		!strings.Contains(text, "GATE FAILED") || !strings.Contains(text, "blocker: test: exit status 1") ||
+		!strings.Contains(text, "advisory: delta:") || !strings.Contains(text, "advisory: warning:") {
 		t.Fatalf("gate output is not compact and decision-complete (%d bytes):\n%s", len(text), text)
 	}
 	if strings.Contains(text, "routine baseline") || strings.Contains(text, "claims skipped:") {

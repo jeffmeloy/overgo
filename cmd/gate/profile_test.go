@@ -152,7 +152,7 @@ func TestAutomationROIProjection(t *testing.T) {
 		!strings.Contains(got, "production_ast=") || !strings.Contains(got, "go_lines=") || err == nil {
 		t.Fatalf("automation ROI = %+v, %q, %v", movement, got, err)
 	}
-	if compact := compactHonesty([]string{got}); len(compact) != 1 || !strings.HasPrefix(compact[0], "roi: ") {
+	if compact := compactHonesty([]string{got}); len(compact) != 1 || !strings.HasPrefix(compact[0], "advisory: roi: ") {
 		t.Fatalf("automation ROI hidden from gate summary: %v", compact)
 	}
 	if _, err := automationROIAdmission("deletion", codeprofile.ProductionMovement{Deleted: 1, GoLinesDeleted: 1}); err != nil {

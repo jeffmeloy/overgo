@@ -6,8 +6,6 @@ import (
 	"unicode"
 )
 
-const escapedWordPieceSpace = "▁"
-
 func (v *Vocab) encodeWPM(text string) ([]TokenID, error) {
 	if v.UNK == NullToken {
 		return nil, errors.New("tokenizer: WPM vocabulary has no unknown token")
@@ -15,7 +13,7 @@ func (v *Vocab) encodeWPM(text string) ([]TokenID, error) {
 	words := v.preprocessWPM(text)
 	output := make([]TokenID, 0, len(words)*2)
 	for _, word := range words {
-		word = escapedWordPieceSpace + word
+		word = sentencePieceSpaceMarker + word
 		start := len(output)
 		for offset := 0; offset < len(word); {
 			maximum := min(len(word), offset+v.maxTokenLen)

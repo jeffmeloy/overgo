@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "data-evaluation",
-          "title": "Consolidate tokenizer, dataset, evaluation, and sampling policy",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/tokenizer,internal/dataset,internal/trainingdata,internal/evaluation,internal/sampling -require-classified -require-no-stale -require-no-uncatalogued-production"
-        },
-        {
           "id": "server-workflows",
           "title": "Remove server, workflow, session, and protocol policy duplication",
           "status": "open",

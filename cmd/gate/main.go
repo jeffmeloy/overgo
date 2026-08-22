@@ -77,6 +77,8 @@ type gateContext struct {
 	retryCache   *automationcheck.EvidenceCache
 	structural   *codeprofile.FunctionImpact
 	packageGraph *packageInputGraph
+	selection    automationcheck.SelectionMetrics
+	selectionID  string
 }
 
 func main() {
@@ -329,6 +331,8 @@ func (g *gateContext) pipeline() error {
 		g.honesty = append(g.honesty, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
 	}
 	impact := automationcheck.OwnershipImpact(definitions, surface)
+	g.selection = automationcheck.MeasureSelection(definitions, impact)
+	g.selectionID = surface.Identity
 	checks, err := automationcheck.Plan(definitions, impact)
 	if err != nil {
 		return err
@@ -635,6 +639,10 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	profile.Impact = codeprofile.ImpactSelection{
+		Identity: g.selectionID, Owned: g.selection.Owned, Triggered: g.selection.Triggered,
+		Excluded: g.selection.Excluded, Unresolved: g.selection.Unresolved,
+	}
 	baseSource, err := sourceAtHEAD(g.repo, snapshot)
 	if err != nil {
 		return false, err
@@ -688,6 +696,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 		"function impact: base=%s candidate=%s seeds=%d reachable=%d unknown=%d",
 		impact.BaseIdentity, impact.CandidateIdentity, len(impact.Seeds), len(impact.Reachable), len(impact.Unknown),
 	))
+	g.honesty = append(g.honesty, impactSelectionHonesty(profile.Impact))
 	if _, profile.Consumers, err = codeprofile.ProductionConsumerCensus(candidate, selection, nil); err != nil {
 		return err
 	}
@@ -741,6 +750,13 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	}
 	g.honesty = append(g.honesty, consumerCensusHonesty("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
 	return nil
+}
+
+func impactSelectionHonesty(selection codeprofile.ImpactSelection) string {
+	return fmt.Sprintf(
+		"impact selection: excluded=%d/%d triggered=%d unresolved=%d snapshot=%s",
+		selection.Excluded, selection.Owned, selection.Triggered, selection.Unresolved, selection.Identity,
+	)
 }
 
 func (g *gateContext) automationPlan() bool {
@@ -2155,6 +2171,8 @@ func compactHonesty(lines []string) []string {
 			label = "advisory: roi: "
 		case strings.HasPrefix(line, "consumer census"):
 			label = "advisory: consumer: "
+		case strings.HasPrefix(line, "impact selection:"):
+			label = "advisory: impact: "
 		case strings.HasPrefix(line, "test scope:"):
 			label = "advisory: scope: "
 		case strings.HasPrefix(line, "package test evidence:"):

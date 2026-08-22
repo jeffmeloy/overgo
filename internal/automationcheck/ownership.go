@@ -21,6 +21,15 @@ type Surface struct {
 	Unknown  []string `json:"unknown,omitempty"`
 }
 
+// SelectionMetrics makes the selector's precision observable without treating
+// a high exclusion rate as correctness evidence.
+type SelectionMetrics struct {
+	Owned      int `json:"owned"`
+	Triggered  int `json:"triggered"`
+	Excluded   int `json:"excluded"`
+	Unresolved int `json:"unresolved"`
+}
+
 // OwnershipImpact intersects a structural change closure with each declared
 // check surface. Unknown analysis returns no verdict and therefore runs checks.
 func OwnershipImpact(checks []Check, surface Surface) Impact {
@@ -56,6 +65,28 @@ func OwnershipImpact(checks []Check, surface Surface) Impact {
 		return strings.Compare(left.Check, right.Check)
 	})
 	return impact
+}
+
+// MeasureSelection reports the complete disposition of declared ownership.
+func MeasureSelection(checks []Check, impact Impact) SelectionMetrics {
+	metrics := SelectionMetrics{}
+	for _, check := range checks {
+		ownership := check.Descriptor.Ownership
+		if ownership.Fact == "" {
+			continue
+		}
+		metrics.Owned++
+		_, excluded := impact.ExclusionReason(check.Descriptor.Name)
+		switch {
+		case slices.Contains(impact.Facts, ownership.Fact):
+			metrics.Triggered++
+		case excluded:
+			metrics.Excluded++
+		default:
+			metrics.Unresolved++
+		}
+	}
+	return metrics
 }
 
 func ownershipIntersects(ownership Ownership, packages map[string]bool, symbols map[Symbol]bool) bool {

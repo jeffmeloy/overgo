@@ -39,6 +39,16 @@ type Clone struct {
 	AdvisoryClass string   `json:"advisory_class,omitempty"`
 }
 
+// ImpactSelection records how structural ownership affected expensive checks.
+// Excluded/Owned is the exact exclusion rate; unresolved checks ran.
+type ImpactSelection struct {
+	Identity   string `json:"identity,omitempty"`
+	Owned      int    `json:"owned"`
+	Triggered  int    `json:"triggered"`
+	Excluded   int    `json:"excluded"`
+	Unresolved int    `json:"unresolved"`
+}
+
 type Profile struct {
 	Runtime              Partition       `json:"runtime"`
 	Automation           Partition       `json:"automation"`
@@ -50,6 +60,7 @@ type Profile struct {
 	ExportedDeclarations int             `json:"exported_declarations"`
 	PackageImportEdges   int             `json:"package_import_edges"`
 	Consumers            ConsumerSummary `json:"consumers"`
+	Impact               ImpactSelection `json:"impact_selection"`
 }
 
 func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {

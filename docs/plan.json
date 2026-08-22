@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:b4b8e28df25428406013455d214ab7779c660c1bef7e3bfa83f81b8950364199",
   "items": [
     {
-      "id": "gate-structural-impact",
-      "title": "Select verification from symbol-level impact evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "falsifiability-metrics",
-          "title": "Prove no false-negative exclusions and publish exclusion-rate evidence",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck ./internal/codeprofile ./cmd/gate -run 'TestImpactFalseNegativeCorpus|TestImpactExclusionRateEvidence|TestNoPathPrefixImpactSelection' -count=1"
-        }
-      ]
-    },
-    {
       "id": "magic-runtime-remaining",
       "title": "Close remaining production literal surfaces",
       "status": "open",
@@ -156,6 +143,11 @@
       "item": "gate-structural-impact",
       "step": "ownership-cutover",
       "authority": "evidence:sha256:401cff9a5d46c5ecf4e54ef3d553bc161d291b1219bea2caee213b5e2bf31481"
+    },
+    {
+      "item": "gate-structural-impact",
+      "step": "falsifiability-metrics",
+      "authority": "evidence:sha256:ead9197cfe1c7040fc56bdf271929e9909b833aa7accba5afd3e71a6cfa115f1"
     }
   ]
 }

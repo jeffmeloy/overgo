@@ -252,7 +252,7 @@ func checkPlanBinding(repo, ref string) error {
 func (g *gateContext) pipelineChecks() []automationcheck.Check {
 	generated := automationcheck.GeneratedChecks(g.repo, command)
 	device := automationcheck.DeviceCheck(g.repo, g.paths, command)
-	return []automationcheck.Check{
+	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
 		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), generated[0], generated[1], generated[2],
@@ -261,6 +261,16 @@ func (g *gateContext) pipelineChecks() []automationcheck.Check {
 		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), gateCheck("test", runrecord.PhaseTest, g.stepTest),
 		device, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
+	dependencies := map[string][]string{
+		"scope": {"protection"}, "profile": {"scope"}, "fmt": {"profile"}, "style": {"fmt"},
+		"docs": {"style"}, "magics": {"docs"}, "acceptance": {"magics"},
+		"vet": {"acceptance"}, "build": {"acceptance"}, "test": {"vet", "build"},
+		"device": {"test"}, "commit": {"test"},
+	}
+	for index := range checks {
+		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
+	}
+	return checks
 }
 
 func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) automationcheck.Check {
@@ -311,14 +321,32 @@ func (g *gateContext) pipeline() error {
 	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
 	// always run; commit is never cached.
 	cacheable := map[string]bool{"vet": true, "build": true}
-	for _, scheduled := range gateSchedule(definitions, checks) {
+	schedule := gateSchedule(definitions, checks)
+	concurrentHandled := map[string]bool{}
+	for _, scheduled := range schedule {
 		name := scheduled.descriptor.Name
+		if concurrentHandled[name] {
+			continue
+		}
 		if !scheduled.applicable {
 			g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: scheduled.descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
 			g.honesty = append(g.honesty, name+" skipped: "+scheduled.descriptor.Inapplicable)
 			continue
 		}
 		check := scheduled.invocation
+		if name == "vet" {
+			build, found := scheduledGateCheckByName(schedule, "build")
+			if !found || !build.applicable {
+				return errors.New("gate: build check is absent from the concurrent verification wave")
+			}
+			records, runErr := g.runConcurrentChecks([]automationcheck.Invocation{check, build.invocation}, &cache)
+			g.steps = append(g.steps, records...)
+			concurrentHandled[build.descriptor.Name] = true
+			if runErr != nil {
+				return runErr
+			}
+			continue
+		}
 		fmt.Fprintf(os.Stderr, gateProgressLine, name, runrecord.HeartbeatRunning)
 		var evidence automationcheck.Evidence
 		var reused bool
@@ -359,6 +387,83 @@ func (g *gateContext) pipeline() error {
 		}
 	}
 	return nil
+}
+
+func scheduledGateCheckByName(schedule []scheduledGateCheck, name string) (scheduledGateCheck, bool) {
+	for _, check := range schedule {
+		if check.descriptor.Name == name {
+			return check, true
+		}
+	}
+	return scheduledGateCheck{}, false
+}
+
+func (g *gateContext) runConcurrentChecks(checks []automationcheck.Invocation, cache *automationcheck.EvidenceCache) ([]runrecord.GateStep, error) {
+	inputs := make(map[artifact.ID]artifact.ID, len(checks))
+	for _, check := range checks {
+		input, err := g.phaseInputFingerprint(check.Check.Name)
+		if err != nil {
+			return nil, err
+		}
+		inputs[check.ID] = input
+		fmt.Fprintf(os.Stderr, gateProgressLine, check.Check.Name, runrecord.HeartbeatRunning)
+	}
+	var cacheMutex sync.Mutex
+	results, err := automationcheck.ExecuteDAG(context.Background(), checks, map[string]bool{"acceptance": true}, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {
+		cacheMutex.Lock()
+		evidence, reused := cache.Lookup(check, inputs[check.ID])
+		cacheMutex.Unlock()
+		if reused {
+			return evidence, nil
+		}
+		evidence, runErr := automationcheck.Run(ctx, check)
+		if runErr == nil {
+			cacheMutex.Lock()
+			cache.Record(check, inputs[check.ID], evidence)
+			cacheMutex.Unlock()
+		}
+		return evidence, runErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	g.saveRetryCache(*cache)
+	records := make([]runrecord.GateStep, 0, len(results))
+	var firstErr error
+	for _, result := range results {
+		if !result.Invocation.ID.Valid() {
+			continue
+		}
+		name := result.Invocation.Check.Name
+		record := gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name])
+		records = append(records, record)
+		if result.Evidence.Reused {
+			g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
+		}
+		if firstErr == nil && result.Err != nil {
+			firstErr = fmt.Errorf("%s: %w", name, result.Err)
+		}
+	}
+	return records, firstErr
+}
+
+func gateEvidenceRecord(name string, phase runrecord.Phase, evidence automationcheck.Evidence, runErr error, storedEvidence string) runrecord.GateStep {
+	record := runrecord.GateStep{
+		Name: name, Phase: phase, Outcome: runrecord.StepSucceeded,
+		DurationNS: max(evidence.DurationNS, uint64(1)), Evidence: storedEvidence,
+	}
+	if record.Evidence == "" && evidence.ID.Valid() {
+		record.Evidence = evidence.ID.String()
+	}
+	switch {
+	case runErr != nil:
+		record.Outcome = runrecord.StepFailed
+	case evidence.Skipped:
+		record.Outcome = runrecord.StepSkipped
+	case evidence.Reused:
+		record.Outcome = runrecord.StepReused
+	}
+	return record
 }
 
 const (

@@ -8,21 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "compatible-weight-merge",
-          "title": "Add a separate offline path for exact-compatible passthrough and same-base task arithmetic",
-          "status": "open",
-          "verify": "go test ./internal/modelmerge -run '^TestCompatiblePassthroughAndTaskArithmetic$' -count=1",
-          "rationale": "Offline weight algebra has different compatibility rules from runtime representation fusion and must reject mismatched tensor geometry, model definitions, and base authority.",
-          "depends_on": [
-            "cross-model-representation-bridge/conditional-lora"
-          ],
-          "capabilities": [
-            "compatible-layer-passthrough",
-            "same-base-task-arithmetic",
-            "output-model-validation"
-          ]
-        },
-        {
           "id": "promotion-evidence",
           "title": "Promote bridges only from multi-seed held-out gains with source-dependence and regression evidence",
           "status": "open",

@@ -23,10 +23,10 @@ type ComponentSession struct {
 
 // ComponentSessionPlan defines compiled stage lifetimes plus unique artifact extent.
 type ComponentSessionPlan struct {
-	Identity      artifact.ID
-	Recipe        artifact.ID
-	ArtifactBytes uint64
-	Components    []ComponentSession
+	Identity      artifact.ID        `json:"identity"`
+	Recipe        artifact.ID        `json:"recipe"`
+	ArtifactBytes uint64             `json:"artifact_bytes"`
+	Components    []ComponentSession `json:"components"`
 }
 
 type componentSessionPlanDocument struct {
@@ -53,6 +53,19 @@ func CompileComponentSessionPlan(ctx context.Context, reader artifact.Reader, pr
 	return compileComponentSessionPlan(ctx, program, func(ctx context.Context, id artifact.ID) (uint64, error) {
 		return manifestArtifactBytes(ctx, reader, id, map[artifact.ID]struct{}{})
 	})
+}
+
+// CompileDefinitionSessionPlan compiles catalog-validated component lifetimes.
+func CompileDefinitionSessionPlan(
+	ctx context.Context,
+	reader artifact.Reader,
+	definition recipe.Definition,
+) (ComponentSessionPlan, error) {
+	program, err := recipe.CompileProgram(definition, catalog)
+	if err != nil {
+		return ComponentSessionPlan{}, err
+	}
+	return CompileComponentSessionPlan(ctx, reader, program)
 }
 
 // CompileComponentSessionPlanWithExtents compiles ordered lifetimes from validated extents.

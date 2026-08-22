@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/bridgegraph"
 	"overgo/internal/composition"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/strictjson"
@@ -53,9 +54,9 @@ type compositionEvaluationView struct {
 }
 
 type compositionRuntimeView struct {
-	Plan          artifact.ID                          `json:"plan"`
-	CacheIdentity artifact.ID                          `json:"cache_identity"`
-	Residency     composition.CompositionResidencyPlan `json:"residency"`
+	Plan          artifact.ID                      `json:"plan"`
+	CacheIdentity artifact.ID                      `json:"cache_identity"`
+	Sessions      modelrecipe.ComponentSessionPlan `json:"sessions"`
 }
 
 type compositionWorkflowView struct {
@@ -169,7 +170,7 @@ func (h *Handler) compositionWorkflowView(ctx context.Context, id artifact.ID) c
 		view.Refusal = err.Error()
 		return view
 	}
-	view.Runtime = &compositionRuntimeView{Plan: plan.ID, CacheIdentity: plan.CacheIdentity, Residency: plan.Residency}
+	view.Runtime = &compositionRuntimeView{Plan: plan.ID, CacheIdentity: plan.CacheIdentity, Sessions: plan.Sessions}
 	view.Completion.RuntimeWired = true
 	return view
 }

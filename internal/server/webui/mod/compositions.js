@@ -86,9 +86,9 @@
             el("div", { class: "statgrid" },
               overgo.stat("Plan", fmt.shortID(runtime.plan)),
               overgo.stat("Cache", fmt.shortID(runtime.cache_identity)),
-              overgo.stat("Source residency", runtime.residency.source_output.residency),
-              overgo.stat("Weights residency", runtime.residency.bridge_weights.residency),
-              overgo.stat("Injection residency", runtime.residency.target_injection.residency)));
+              overgo.stat("Session bytes", fmt.bytes(runtime.sessions.artifact_bytes)),
+              overgo.stat("Source residency", runtime.sessions.components[0].residency),
+              overgo.stat("Injection residency", runtime.sessions.components[1].residency)));
         }
         return card;
       }

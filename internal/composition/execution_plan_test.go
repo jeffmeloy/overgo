@@ -58,12 +58,12 @@ func TestCompositionExecutionPlan(t *testing.T) {
 		plan.Injection.Model != authority.Recipe.TargetModel || plan.Injection.Contract != authority.TargetContract.ID {
 		t.Fatalf("boundaries = %+v -> %+v", plan.Capture, plan.Injection)
 	}
-	if len(plan.Components) != tensor.PairedExtent ||
-		plan.Components[tensor.FirstOffset].Module != modelrecipe.ModuleCaptureRepresentation ||
-		plan.Components[tensor.SingletonExtent].Module != modelrecipe.ModuleInjectRepresentation ||
-		plan.Components[tensor.FirstOffset].Lifetime != recipe.SessionCapacity ||
-		plan.Components[tensor.SingletonExtent].Lifetime != recipe.SessionRequest {
-		t.Fatalf("components = %+v", plan.Components)
+	if plan.Sessions.Recipe != authority.Execution.ID || len(plan.Sessions.Components) != tensor.PairedExtent ||
+		plan.Sessions.Components[tensor.FirstOffset].Module != modelrecipe.ModuleCaptureRepresentation ||
+		plan.Sessions.Components[tensor.SingletonExtent].Module != modelrecipe.ModuleInjectRepresentation ||
+		plan.Sessions.Components[tensor.FirstOffset].Session != recipe.SessionCapacity ||
+		plan.Sessions.Components[tensor.SingletonExtent].Session != recipe.SessionRequest {
+		t.Fatalf("sessions = %+v", plan.Sessions)
 	}
 	content, err := plan.Content()
 	if err != nil || content.Descriptor.ID != plan.ID {
@@ -99,16 +99,13 @@ func TestCompositionResidencyPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, resource := range []CompositionResourcePlan{
-		plan.Residency.SourceOutput, plan.Residency.BridgeWeights, plan.Residency.TargetInjection,
-	} {
-		if resource.Placement != recipe.PlacementDevice || resource.Residency != recipe.ResidencyDeviceF32 {
-			t.Fatalf("non-resident composition resource = %+v", resource)
+	for _, component := range plan.Sessions.Components {
+		if component.Placement != recipe.PlacementDevice || component.Residency != recipe.ResidencyDeviceF32 {
+			t.Fatalf("non-resident composition component = %+v", component)
 		}
 	}
-	if plan.Residency.SourceOutput.Lifetime != recipe.SessionCapacity ||
-		plan.Residency.BridgeWeights.Lifetime != recipe.SessionCapacity ||
-		plan.Residency.TargetInjection.Lifetime != recipe.SessionRequest {
-		t.Fatalf("composition lifetimes = %+v", plan.Residency)
+	if plan.Sessions.Components[tensor.FirstOffset].Session != recipe.SessionCapacity ||
+		plan.Sessions.Components[tensor.SingletonExtent].Session != recipe.SessionRequest {
+		t.Fatalf("composition lifetimes = %+v", plan.Sessions)
 	}
 }

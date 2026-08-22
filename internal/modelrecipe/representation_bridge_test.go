@@ -9,7 +9,7 @@ import (
 	"overgo/internal/testutil"
 )
 
-func TestRepresentationBridgeDefinition(t *testing.T) {
+func TestComponentSessionPlanRepresentationBridge(t *testing.T) {
 	sourceModel := testutil.ArtifactID(t, artifact.KindModel, "source-model")
 	targetModel := testutil.ArtifactID(t, artifact.KindModel, "target-model")
 	sourceContract := testutil.ArtifactID(t, artifact.KindProfile, "source-contract")

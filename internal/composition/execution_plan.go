@@ -32,56 +32,28 @@ type CompositionBoundary struct {
 	Channels uint64                  `json:"channels"`
 }
 
-// CompositionComponentPlan fixes execution placement and lifetime for one
-// ordered source-capture or target-injection component.
-type CompositionComponentPlan struct {
-	Node      recipe.NodeID          `json:"node"`
-	Module    recipe.ModuleID        `json:"module"`
-	Model     artifact.ID            `json:"model"`
-	Placement recipe.Placement       `json:"placement"`
-	Residency recipe.ResidencyPolicy `json:"residency"`
-	Lifetime  recipe.SessionPolicy   `json:"lifetime"`
-}
-
-// CompositionResourcePlan fixes placement, residency, and lifetime for one
-// representation or bridge-weight resource across the vertical.
-type CompositionResourcePlan struct {
-	Placement recipe.Placement       `json:"placement"`
-	Residency recipe.ResidencyPolicy `json:"residency"`
-	Lifetime  recipe.SessionPolicy   `json:"lifetime"`
-}
-
-// CompositionResidencyPlan keeps source output, bridge weights, and target
-// injection under one device-resident lifetime authority.
-type CompositionResidencyPlan struct {
-	SourceOutput    CompositionResourcePlan `json:"source_output"`
-	BridgeWeights   CompositionResourcePlan `json:"bridge_weights"`
-	TargetInjection CompositionResourcePlan `json:"target_injection"`
-}
-
 // CompositionExecutionPlan is the sole typed runtime authority compiled from
 // an active composition recipe and every immutable authority it references.
 type CompositionExecutionPlan struct {
-	Version           uint16                     `json:"version"`
-	CompositionRecipe artifact.ID                `json:"composition_recipe"`
-	ExecutionRecipe   artifact.ID                `json:"execution_recipe"`
-	SourceModel       artifact.ID                `json:"source_model"`
-	TargetModel       artifact.ID                `json:"target_model"`
-	Task              recipe.Task                `json:"task"`
-	SourceContract    artifact.ID                `json:"source_contract"`
-	TargetContract    artifact.ID                `json:"target_contract"`
-	BridgeDefinitions []artifact.ID              `json:"bridge_definitions"`
-	BridgeWeights     []artifact.ID              `json:"bridge_weights"`
-	Operators         []bridgegraph.Operator     `json:"operators"`
-	Capture           CompositionBoundary        `json:"capture"`
-	Injection         CompositionBoundary        `json:"injection"`
-	Components        []CompositionComponentPlan `json:"components"`
-	Residency         CompositionResidencyPlan   `json:"residency"`
-	TrainingPolicy    artifact.ID                `json:"training_policy"`
-	PromotionPolicy   artifact.ID                `json:"promotion_policy"`
-	Promotion         artifact.ID                `json:"promotion"`
-	CacheIdentity     artifact.ID                `json:"cache_identity"`
-	ID                artifact.ID                `json:"-"`
+	Version           uint16                           `json:"version"`
+	CompositionRecipe artifact.ID                      `json:"composition_recipe"`
+	ExecutionRecipe   artifact.ID                      `json:"execution_recipe"`
+	SourceModel       artifact.ID                      `json:"source_model"`
+	TargetModel       artifact.ID                      `json:"target_model"`
+	Task              recipe.Task                      `json:"task"`
+	SourceContract    artifact.ID                      `json:"source_contract"`
+	TargetContract    artifact.ID                      `json:"target_contract"`
+	BridgeDefinitions []artifact.ID                    `json:"bridge_definitions"`
+	BridgeWeights     []artifact.ID                    `json:"bridge_weights"`
+	Operators         []bridgegraph.Operator           `json:"operators"`
+	Capture           CompositionBoundary              `json:"capture"`
+	Injection         CompositionBoundary              `json:"injection"`
+	Sessions          modelrecipe.ComponentSessionPlan `json:"sessions"`
+	TrainingPolicy    artifact.ID                      `json:"training_policy"`
+	PromotionPolicy   artifact.ID                      `json:"promotion_policy"`
+	Promotion         artifact.ID                      `json:"promotion"`
+	CacheIdentity     artifact.ID                      `json:"cache_identity"`
+	ID                artifact.ID                      `json:"-"`
 }
 
 type compositionCacheAuthority struct {
@@ -138,15 +110,14 @@ func CompileCompositionExecutionPlan(
 		return CompositionExecutionPlan{}, err
 	}
 	capture, injection := program.Boundaries()
-	components, err := compileCompositionComponents(
-		authority.Execution, source, target,
-		active.SourceContract, active.TargetContract, active.BridgeWeights,
-	)
+	sessions, err := modelrecipe.CompileDefinitionSessionPlan(ctx, reader, authority.Execution)
 	if err != nil {
 		return CompositionExecutionPlan{}, err
 	}
-	residency, err := compileCompositionResidency(components)
-	if err != nil {
+	if err := validateCompositionSessionAuthority(
+		sessions, authority.Execution.ID, source, target,
+		active.SourceContract, active.TargetContract, active.BridgeWeights,
+	); err != nil {
 		return CompositionExecutionPlan{}, err
 	}
 	plan := CompositionExecutionPlan{
@@ -158,7 +129,7 @@ func CompileCompositionExecutionPlan(
 		BridgeWeights:     []artifact.ID{active.BridgeWeights},
 		Operators:         []bridgegraph.Operator{authority.Bridge.Graph.Operator},
 		Capture:           compositionBoundary(capture), Injection: compositionBoundary(injection),
-		Components: components, Residency: residency,
+		Sessions:       sessions,
 		TrainingPolicy: active.TrainingPolicy, PromotionPolicy: active.PromotionPolicy,
 		Promotion: active.Promotion,
 	}
@@ -187,41 +158,6 @@ func (value CompositionExecutionPlan) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, uniqueIDs(parents)...)
 }
 
-func compileCompositionComponents(
-	definition recipe.Definition,
-	source, target artifact.ID,
-	sourceContract, targetContract, bridgeWeight artifact.ID,
-) ([]CompositionComponentPlan, error) {
-	if definition.Task != recipe.TaskProjection || len(definition.Nodes) != tensor.PairedExtent {
-		return nil, errors.New("composition: execution recipe is not the sealed capture-injection program")
-	}
-	models := []artifact.ID{source, target}
-	modules := []recipe.ModuleID{modelrecipe.ModuleCaptureRepresentation, modelrecipe.ModuleInjectRepresentation}
-	components := make([]CompositionComponentPlan, len(definition.Nodes))
-	for index, node := range definition.Nodes {
-		model, found := definition.Dependency(recipe.DependencyModel, node.ModelSlot)
-		if !found || model != models[index] || node.Module != modules[index] ||
-			!compositionPlacementValid(node.Placement) || node.Residency == "" || !node.Residency.Valid() ||
-			node.Session == "" || !node.Session.Valid() {
-			return nil, errors.New("composition: execution component authority is incompatible")
-		}
-		components[index] = CompositionComponentPlan{
-			Node: node.ID, Module: node.Module, Model: model,
-			Placement: node.Placement, Residency: node.Residency, Lifetime: node.Session,
-		}
-	}
-	if profile, found := definition.Dependency(recipe.DependencyProfile, tensor.FirstOffset); !found || profile != sourceContract {
-		return nil, errors.New("composition: source contract dependency is absent")
-	}
-	if profile, found := definition.Dependency(recipe.DependencyProfile, tensor.SingletonExtent); !found || profile != targetContract {
-		return nil, errors.New("composition: target contract dependency is absent")
-	}
-	if bridge, found := definition.Dependency(recipe.DependencyAdapter, tensor.FirstOffset); !found || bridge != bridgeWeight {
-		return nil, errors.New("composition: bridge dependency is absent")
-	}
-	return components, nil
-}
-
 func canonicalizeCompositionExecutionPlan(value *CompositionExecutionPlan) error {
 	if value == nil || value.Version != CompositionExecutionPlanVersion ||
 		value.CompositionRecipe.Kind() != artifact.KindRecipe || value.ExecutionRecipe.Kind() != artifact.KindRecipe ||
@@ -246,21 +182,17 @@ func canonicalizeCompositionExecutionPlan(value *CompositionExecutionPlan) error
 	if err := validateCompositionBoundary(value.Injection, value.TargetModel, value.TargetContract); err != nil {
 		return err
 	}
-	if len(value.Components) != tensor.PairedExtent ||
-		value.Components[tensor.FirstOffset].Model != value.SourceModel ||
-		value.Components[tensor.FirstOffset].Module != modelrecipe.ModuleCaptureRepresentation ||
-		value.Components[tensor.SingletonExtent].Model != value.TargetModel ||
-		value.Components[tensor.SingletonExtent].Module != modelrecipe.ModuleInjectRepresentation {
+	if value.Sessions.Recipe != value.ExecutionRecipe || len(value.Sessions.Components) != tensor.PairedExtent ||
+		value.Sessions.Components[tensor.FirstOffset].Model != value.SourceModel ||
+		value.Sessions.Components[tensor.FirstOffset].Module != modelrecipe.ModuleCaptureRepresentation ||
+		value.Sessions.Components[tensor.SingletonExtent].Model != value.TargetModel ||
+		value.Sessions.Components[tensor.SingletonExtent].Module != modelrecipe.ModuleInjectRepresentation {
 		return errors.New("composition: invalid ordered composition components")
 	}
-	for _, component := range value.Components {
-		if component.Node == "" || !compositionPlacementValid(component.Placement) ||
-			component.Residency == "" || !component.Residency.Valid() ||
-			component.Lifetime == "" || !component.Lifetime.Valid() {
-			return errors.New("composition: invalid composition component plan")
-		}
+	if _, err := value.Sessions.Content(); err != nil {
+		return err
 	}
-	if err := validateCompositionResidency(value.Residency, value.Components); err != nil {
+	if err := validateCompositionSessions(value.Sessions); err != nil {
 		return err
 	}
 	identity, err := compositionCacheIdentity(*value)
@@ -297,48 +229,34 @@ func compositionBoundary(value bridgegraph.Boundary) CompositionBoundary {
 	return result
 }
 
-func compositionPlacementValid(value recipe.Placement) bool {
-	return value == recipe.PlacementHost || value == recipe.PlacementDevice || value == recipe.PlacementHybrid
-}
-
-func compileCompositionResidency(components []CompositionComponentPlan) (CompositionResidencyPlan, error) {
-	if len(components) != tensor.PairedExtent {
-		return CompositionResidencyPlan{}, errors.New("composition: residency components are incomplete")
-	}
-	source, target := components[tensor.FirstOffset], components[tensor.SingletonExtent]
-	value := CompositionResidencyPlan{
-		SourceOutput: CompositionResourcePlan{
-			Placement: source.Placement, Residency: source.Residency, Lifetime: source.Lifetime,
-		},
-		BridgeWeights: CompositionResourcePlan{
-			Placement: source.Placement, Residency: source.Residency, Lifetime: recipe.SessionCapacity,
-		},
-		TargetInjection: CompositionResourcePlan{
-			Placement: target.Placement, Residency: target.Residency, Lifetime: target.Lifetime,
-		},
-	}
-	if err := validateCompositionResidency(value, components); err != nil {
-		return CompositionResidencyPlan{}, err
-	}
-	return value, nil
-}
-
-func validateCompositionResidency(
-	value CompositionResidencyPlan,
-	components []CompositionComponentPlan,
-) error {
-	if len(components) != tensor.PairedExtent {
+func validateCompositionSessions(value modelrecipe.ComponentSessionPlan) error {
+	if len(value.Components) != tensor.PairedExtent {
 		return errors.New("composition: residency components are incomplete")
 	}
-	source, target := components[tensor.FirstOffset], components[tensor.SingletonExtent]
-	if value.SourceOutput.Placement != recipe.PlacementDevice ||
-		value.BridgeWeights.Placement != recipe.PlacementDevice ||
-		value.TargetInjection.Placement != recipe.PlacementDevice ||
-		value.SourceOutput.Residency != source.Residency || value.SourceOutput.Lifetime != source.Lifetime ||
-		value.BridgeWeights.Residency != source.Residency || value.BridgeWeights.Lifetime != recipe.SessionCapacity ||
-		value.TargetInjection.Residency != target.Residency || value.TargetInjection.Lifetime != target.Lifetime ||
+	source, target := value.Components[tensor.FirstOffset], value.Components[tensor.SingletonExtent]
+	if source.Placement != recipe.PlacementDevice || target.Placement != recipe.PlacementDevice ||
+		source.Session != recipe.SessionCapacity || target.Session != recipe.SessionRequest ||
 		source.Residency != target.Residency || !compositionDeviceResidency(source.Residency) {
 		return errors.New("composition: production representation path is not device-resident")
+	}
+	return nil
+}
+
+func validateCompositionSessionAuthority(
+	value modelrecipe.ComponentSessionPlan,
+	definition, source, target, sourceContract, targetContract, bridge artifact.ID,
+) error {
+	if err := validateCompositionSessions(value); err != nil {
+		return err
+	}
+	sourceSession, targetSession := value.Components[tensor.FirstOffset], value.Components[tensor.SingletonExtent]
+	expected, err := (modelrecipe.RepresentationBridgeCompiler{
+		SourcePlacement: sourceSession.Placement, TargetPlacement: targetSession.Placement,
+		SourceResidency: sourceSession.Residency, TargetResidency: targetSession.Residency,
+		SourceSession: sourceSession.Session, TargetSession: targetSession.Session,
+	}).Definition(source, target, sourceContract, targetContract, bridge)
+	if err != nil || expected.ID != definition {
+		return errors.Join(err, errors.New("composition: component session authority differs from execution recipe"))
 	}
 	return nil
 }
@@ -352,7 +270,7 @@ func cloneCompositionExecutionPlan(value CompositionExecutionPlan) CompositionEx
 	value.BridgeDefinitions = append([]artifact.ID(nil), value.BridgeDefinitions...)
 	value.BridgeWeights = append([]artifact.ID(nil), value.BridgeWeights...)
 	value.Operators = append([]bridgegraph.Operator(nil), value.Operators...)
-	value.Components = append([]CompositionComponentPlan(nil), value.Components...)
+	value.Sessions.Components = append([]modelrecipe.ComponentSession(nil), value.Sessions.Components...)
 	if value.Capture.Layer != nil {
 		layer := *value.Capture.Layer
 		value.Capture.Layer = &layer

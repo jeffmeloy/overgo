@@ -105,7 +105,7 @@ func compositionAuthorityFixture(t *testing.T) (*repodb.Store, CompositionAuthor
 	}
 	descriptors := make([]artifact.Descriptor, len(parents))
 	for index, id := range parents {
-		descriptors[index] = artifact.Descriptor{ID: id}
+		descriptors[index] = artifact.Descriptor{ID: id, Size: 1}
 	}
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/composition/parents", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)

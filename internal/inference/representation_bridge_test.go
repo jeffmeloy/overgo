@@ -52,31 +52,38 @@ type bridgeRuntimeResourcesFixture struct {
 	weights    RepresentationBridgeWeights
 	definition artifact.ID
 	authority  composition.BridgeWeightAuthority
+	sourcePlan modelrecipe.ComponentSession
+	targetPlan modelrecipe.ComponentSession
+	weightPlan modelrecipe.ComponentSession
 	calls      int
 }
 
 func (resources *bridgeRuntimeResourcesFixture) Source(
 	_ context.Context,
-	_ composition.CompositionComponentPlan,
+	plan modelrecipe.ComponentSession,
 ) (RepresentationSource, error) {
 	resources.calls++
+	resources.sourcePlan = plan
 	return resources.source, nil
 }
 
 func (resources *bridgeRuntimeResourcesFixture) Target(
 	_ context.Context,
-	_ composition.CompositionComponentPlan,
+	plan modelrecipe.ComponentSession,
 ) (RepresentationTarget, error) {
 	resources.calls++
+	resources.targetPlan = plan
 	return resources.target, nil
 }
 
 func (resources *bridgeRuntimeResourcesFixture) BridgeWeights(
 	_ context.Context,
+	plan modelrecipe.ComponentSession,
 	definition artifact.ID,
 	authority composition.BridgeWeightAuthority,
 ) (RepresentationBridgeWeights, error) {
 	resources.calls++
+	resources.weightPlan = plan
 	resources.definition, resources.authority = definition, authority
 	return resources.weights, nil
 }
@@ -129,6 +136,10 @@ func TestProductionEmbeddingInjection(t *testing.T) {
 		resources.definition != authority.Bridge.ID || resources.authority.Weights.ID != authority.Bridge.Weights ||
 		resources.authority.Inventory.ID != authority.Bridge.WeightInventory || runtime.PlanIdentity().Kind() != artifact.KindProfile {
 		t.Fatalf("bridge result=%v overrides=%v layers=%v", result.Data, target.overrides, source.layers)
+	}
+	if resources.sourcePlan.Identity != resources.weightPlan.Identity ||
+		resources.sourcePlan.Session != recipe.SessionCapacity || resources.targetPlan.Session != recipe.SessionRequest {
+		t.Fatalf("runtime component session authority = source %+v target %+v weights %+v", resources.sourcePlan, resources.targetPlan, resources.weightPlan)
 	}
 	wrongTarget := *target
 	wrongTarget.model = sourceModel
@@ -242,7 +253,7 @@ func productionCompositionFixture(t *testing.T, activate bool) (*repodb.Store, c
 	}
 	descriptors := make([]artifact.Descriptor, len(parents))
 	for index, id := range parents {
-		descriptors[index] = artifact.Descriptor{ID: id}
+		descriptors[index] = artifact.Descriptor{ID: id, Size: 1}
 	}
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/production-composition/parents", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)

@@ -8,12 +8,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "composition-session-authority",
-          "title": "Use modelrecipe component sessions as sole composition lifetime authority and delete parallel component/resource plans",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/composition ./internal/inference -run 'Test(ComponentSessionPlan|CompositionExecutionPlan|CompositionResidencyPlan|ProductionComposition)' -count=1"
-        },
-        {
           "id": "composition-cache-owner",
           "title": "Replace the unbounded cloned composition map with bounded source-scoped immutable cache ownership",
           "status": "open",

@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/bridgegraph"
 	"overgo/internal/composition"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/representation"
 	"overgo/internal/tensor"
@@ -44,9 +45,9 @@ type RepresentationBridgeWeights struct {
 // CompositionRuntimeResources resolves live sessions and bridge weights only
 // after an active execution plan has fixed their immutable authorities.
 type CompositionRuntimeResources interface {
-	Source(context.Context, composition.CompositionComponentPlan) (RepresentationSource, error)
-	Target(context.Context, composition.CompositionComponentPlan) (RepresentationTarget, error)
-	BridgeWeights(context.Context, artifact.ID, composition.BridgeWeightAuthority) (RepresentationBridgeWeights, error)
+	Source(context.Context, modelrecipe.ComponentSession) (RepresentationSource, error)
+	Target(context.Context, modelrecipe.ComponentSession) (RepresentationTarget, error)
+	BridgeWeights(context.Context, modelrecipe.ComponentSession, artifact.ID, composition.BridgeWeightAuthority) (RepresentationBridgeWeights, error)
 }
 
 // ProductionComposition is an active-recipe-owned embedding-injection
@@ -88,7 +89,7 @@ func OpenProductionComposition(
 		return nil, err
 	}
 	if len(plan.BridgeDefinitions) != tensor.SingletonExtent ||
-		len(plan.BridgeWeights) != tensor.SingletonExtent || len(plan.Components) != tensor.PairedExtent {
+		len(plan.BridgeWeights) != tensor.SingletonExtent || len(plan.Sessions.Components) != tensor.PairedExtent {
 		return nil, errors.New("inference: embedding injection requires one sealed bridge")
 	}
 	bridge, err := composition.LoadBridgeDefinition(ctx, reader, plan.BridgeDefinitions[tensor.FirstOffset])
@@ -115,11 +116,13 @@ func OpenProductionComposition(
 	if err != nil {
 		return nil, err
 	}
-	sourceSession, err := resources.Source(ctx, plan.Components[tensor.FirstOffset])
+	sourceComponent := plan.Sessions.Components[tensor.FirstOffset]
+	targetComponent := plan.Sessions.Components[tensor.SingletonExtent]
+	sourceSession, err := resources.Source(ctx, sourceComponent)
 	if err != nil {
 		return nil, err
 	}
-	targetSession, err := resources.Target(ctx, plan.Components[tensor.SingletonExtent])
+	targetSession, err := resources.Target(ctx, targetComponent)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +130,7 @@ func OpenProductionComposition(
 	if err != nil {
 		return nil, err
 	}
-	weights, err := resources.BridgeWeights(ctx, bridge.ID, weightAuthority)
+	weights, err := resources.BridgeWeights(ctx, sourceComponent, bridge.ID, weightAuthority)
 	if err != nil {
 		return nil, err
 	}

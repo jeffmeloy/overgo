@@ -63,8 +63,7 @@ func main() {
 	census := flag.Bool("census", false, "report complete source denominators and consolidation pressure")
 	format := flag.String("format", "text", "census format: text or json")
 	publish := flag.Bool("publish", false, "publish census evidence to RepoDB")
-	retireOrphans := flag.Bool("retire-orphans", false, "retire active bindings whose declarations were deleted")
-	rebindUnchanged := flag.Bool("rebind-unchanged", false, "move unchanged decisions to current exact source bindings")
+	importStore := flag.String("import-store", "", "import and rebind matching active decisions from another RepoDB store")
 	checkScope := flag.String("check-scope", "", "comma-separated production package prefixes to validate")
 	checkAll := flag.Bool("check-all", false, "validate every production package")
 	checkTests := flag.Bool("check-tests", false, "validate test literal ownership")
@@ -82,7 +81,7 @@ func main() {
 	}
 	modes := 0
 	for _, enabled := range []bool{
-		*raw, *literals, *testLiterals, *assumptions, *census, *retireOrphans, *rebindUnchanged,
+		*raw, *literals, *testLiterals, *assumptions, *census, *importStore != "",
 		*checkScope != "", *checkAll, *checkTests,
 	} {
 		if enabled {
@@ -152,20 +151,12 @@ func main() {
 		}
 		return
 	}
-	if *retireOrphans {
-		retired, err := retireOrphanAliases(root, *storePath, mustSnapshot(root))
+	if *importStore != "" {
+		count, unmatched, err := importClosureDocuments(root, *storePath, *importStore, mustSnapshot(root))
 		if err != nil {
 			fatal(err)
 		}
-		fmt.Printf("retired %d orphan closure binding(s)\n", len(retired))
-		return
-	}
-	if *rebindUnchanged {
-		count, err := rebindUnchangedClosures(root, *storePath, mustSnapshot(root))
-		if err != nil {
-			fatal(err)
-		}
-		fmt.Printf("rebound %d unchanged closure document(s)\n", count)
+		fmt.Printf("imported %d closure document(s), unmatched=%d\n", count, unmatched)
 		return
 	}
 	if *raw {
@@ -380,78 +371,6 @@ func scopedPath(path string, prefixes []string) bool {
 	})
 }
 
-func retireOrphanAliases(root, storePath string, snapshot repoanalysis.SourceSnapshot) ([]artifact.AliasBinding, error) {
-	candidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
-	if err != nil {
-		return nil, err
-	}
-	current := make(map[string]struct{}, len(candidates))
-	for _, candidate := range candidates {
-		current[candidate.DeclarationKey()] = struct{}{}
-	}
-	store, err := repodb.Open(filepath.Join(root, storePath))
-	if err != nil {
-		return nil, err
-	}
-	defer store.Close()
-	result, err := store.Query(context.Background(), repodb.Query{
-		Kind: artifact.KindEvidence, MediaType: closureledger.MediaType,
-		Schema: closureledger.Schema, MaxResults: repodb.MaxQueryResults,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if result.Truncated {
-		return nil, errors.New("closure-scan: active-ledger query truncated")
-	}
-	var retirements []artifact.AliasBinding
-	for _, alias := range result.Aliases {
-		if !closureledger.IsActiveAlias(alias.Name) {
-			continue
-		}
-		content, found, err := store.Content(context.Background(), alias.Target)
-		if err != nil || !found {
-			return nil, errors.New("closure-scan: active closure content absent")
-		}
-		document, err := closureledger.Parse(content.Data)
-		if err != nil {
-			return nil, err
-		}
-		for _, binding := range document.Bindings {
-			bindingAlias, err := closureledger.ActiveAlias(binding)
-			if err != nil {
-				return nil, err
-			}
-			if bindingAlias != alias.Name {
-				continue
-			}
-			key := (closurescan.Candidate{
-				Kind: binding.Kind, File: binding.File, Scope: binding.Scope, Line: binding.Line, Name: binding.Name,
-			}).DeclarationKey()
-			if _, exists := current[key]; !exists {
-				previous := alias.Target
-				retirements = append(retirements, artifact.AliasBinding{
-					Name: alias.Name, Target: alias.Target, Previous: &previous, Remove: true,
-				})
-			}
-			break
-		}
-	}
-	if retirements == nil {
-		return nil, nil
-	}
-	encoded, err := json.Marshal(retirements)
-	if err != nil {
-		return nil, err
-	}
-	digest := sha256.Sum256(encoded)
-	batch := artifact.Batch{Key: "closure-scan/retire/" + hex.EncodeToString(digest[:]), Aliases: retirements}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
-		return nil, err
-	}
-	return retirements, nil
-}
-
 func publishCensusEvidence(ctx context.Context, store *repodb.Store, snapshot repoanalysis.SourceSnapshot, census closurescan.Census) (closurescan.CensusEvidence, error) {
 	active, _, result, err := activeClosureDocuments(ctx, store)
 	if err != nil {
@@ -490,99 +409,95 @@ func publishCensusEvidence(ctx context.Context, store *repodb.Store, snapshot re
 	return stored, nil
 }
 
-func rebindUnchangedClosures(root, storePath string, snapshot repoanalysis.SourceSnapshot) (count int, finalErr error) {
+func importClosureDocuments(root, storePath, sourcePath string, snapshot repoanalysis.SourceSnapshot) (count, unmatched int, finalErr error) {
 	candidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
 	if err != nil {
-		return count, err
+		return count, unmatched, err
 	}
-	store, err := repodb.Open(filepath.Join(root, storePath))
+	destinationPath := filepath.Join(root, storePath)
+	sameStore := filepath.Clean(destinationPath) == filepath.Clean(sourcePath)
+	source, err := repodb.OpenReadOnly(sourcePath)
 	if err != nil {
-		return count, err
+		return count, unmatched, err
 	}
-	defer store.Close()
-	documents, aliases, _, err := activeClosureDocuments(context.Background(), store)
+	documents, sourceAliases, _, err := activeClosureDocuments(context.Background(), source)
+	closeErr := source.Close()
 	if err != nil {
-		return count, err
+		return count, unmatched, err
 	}
-	batch := artifact.Batch{}
-	files := map[string]artifact.ID{}
+	if closeErr != nil {
+		return count, unmatched, closeErr
+	}
+	target, err := repodb.Open(destinationPath)
+	if err != nil {
+		return count, unmatched, err
+	}
+	targetDocuments, targetAliases, _, err := activeClosureDocuments(context.Background(), target)
+	closeErr = target.Close()
+	if err != nil || closeErr != nil {
+		return count, unmatched, errors.Join(err, closeErr)
+	}
 	var rebound []closureledger.Document
+	var retirements []artifact.AliasBinding
+	retired := map[string]bool{}
 	index := closurescan.CompileRebindIndex(candidates)
-	for _, document := range documents {
-		current, changed, err := index.Rebind(document)
-		if err != nil {
-			return count, err
-		}
-		if !changed {
+	declarations := make(map[string]bool, len(candidates))
+	for _, candidate := range candidates {
+		declarations[candidate.DeclarationKey()] = true
+	}
+	for _, document := range targetDocuments {
+		if len(document.Bindings) != 1 {
 			continue
 		}
-		currentAliases := map[string]bool{}
-		for _, binding := range current.Bindings {
-			if _, ok := files[binding.File]; !ok {
-				id, descriptor, location, err := fileArtifact(root, binding.File)
-				if err != nil || id != binding.Owner {
-					return count, fmt.Errorf("rebind %s: inconsistent source owner", binding.Name)
-				}
-				files[binding.File] = id
-				batch.Artifacts = append(batch.Artifacts, descriptor)
-				batch.Locations = append(batch.Locations, location)
-			}
-			currentAlias, err := closureledger.ActiveAlias(binding)
-			if err != nil {
-				return count, err
-			}
-			currentAliases[currentAlias] = true
-			active := artifact.AliasBinding{Name: currentAlias, Target: current.ID}
-			if prior, ok := aliases[currentAlias]; ok {
-				if prior != document.ID {
-					return count, fmt.Errorf("rebind %s: current source alias collision", binding.Name)
-				}
-				active.Previous = &prior
-			}
-			batch.Aliases = append(batch.Aliases, active)
-		}
-		for _, binding := range document.Bindings {
-			previousAlias, err := closureledger.ActiveAlias(binding)
-			if err != nil || aliases[previousAlias] != document.ID {
-				return count, fmt.Errorf("rebind %s: active source alias mismatch", binding.Name)
-			}
-			if !currentAliases[previousAlias] {
-				prior := document.ID
-				batch.Aliases = append(batch.Aliases, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: &prior, Remove: true})
-			}
-		}
-		content, err := current.Content()
+		binding := document.Bindings[0]
+		key := (closurescan.Candidate{Kind: binding.Kind, File: binding.File, Scope: binding.Scope, Line: binding.Line, Name: binding.Name}).DeclarationKey()
+		alias, err := closureledger.ActiveAlias(binding)
 		if err != nil {
-			return count, err
+			return count, unmatched, err
 		}
-		batch.Contents = append(batch.Contents, content)
-		batch.Lineage = append(batch.Lineage, current.Lineage()...)
+		if !declarations[key] && targetAliases[alias] == document.ID && !retired[alias] {
+			retirements = append(retirements, artifact.AliasBinding{Name: alias, Target: document.ID, Previous: &document.ID, Remove: true})
+			retired[alias] = true
+		}
+	}
+	for _, document := range documents {
+		if len(document.Bindings) != 1 {
+			unmatched++
+			continue
+		}
+		previousAlias, err := closureledger.ActiveAlias(document.Bindings[0])
+		if err != nil || sourceAliases[previousAlias] != document.ID {
+			unmatched++
+			continue
+		}
+		current, matched, err := index.Rebind(document)
+		if err != nil {
+			return count, unmatched, err
+		}
+		if !matched {
+			unmatched++
+			continue
+		}
+		if sameStore && current.ID == document.ID {
+			continue
+		}
+		currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
+		if err != nil {
+			return count, unmatched, err
+		}
+		if sameStore && currentAlias != previousAlias && !retired[previousAlias] {
+			retirements = append(retirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: &document.ID, Remove: true})
+			retired[previousAlias] = true
+		}
 		rebound = append(rebound, current)
 	}
-	if rebound == nil {
-		return count, nil
+	if rebound == nil && retirements == nil {
+		return count, unmatched, nil
 	}
-	encoded, err := json.Marshal(batch)
-	if err != nil {
-		return count, err
+	if _, _, err := commitClosureDocuments(root, destinationPath, rebound, retirements); err != nil {
+		return count, unmatched, err
 	}
-	digest := sha256.Sum256(encoded)
-	batch.Key = "closure-scan/rebind/" + hex.EncodeToString(digest[:])
-	if _, err := store.Commit(context.Background(), batch); err != nil {
-		return count, err
-	}
-	for _, document := range rebound {
-		for _, binding := range document.Bindings {
-			_, found, err := closureledger.ResolveActiveBinding(context.Background(), store, binding, document.Value)
-			if err != nil {
-				return count, fmt.Errorf("verify rebound binding %s: %w", binding.Name, err)
-			}
-			if !found {
-				return count, fmt.Errorf("verify rebound binding %s: absent", binding.Name)
-			}
-		}
-	}
-	return len(rebound), nil
+	return len(rebound), unmatched, nil
 }
 
 func activeClosureDocuments(ctx context.Context, store *repodb.Store) ([]closureledger.Document, map[string]artifact.ID, repodb.QueryResult, error) {
@@ -673,11 +588,7 @@ func writeCensusText(destination io.Writer, census closurescan.Census, limit int
 func reportLiterals(sites []closurescan.LiteralSite, limit int) {
 	fmt.Printf("closure-scan: %d classified production numeric literals (named constants excluded)\n", len(sites))
 	fmt.Printf("%-18s %-16s %-24s %s\n", "context", "value", "scope", "source")
-	for index, site := range sites {
-		if index >= limit {
-			fmt.Printf("... %d more (raise -limit)\n", len(sites)-limit)
-			break
-		}
+	for _, site := range sites[:min(len(sites), limit)] {
 		fmt.Printf("%-18s %-16s %-24s %s:%d\n", site.Context, site.Value, site.Scope, site.File, site.Line)
 	}
 }
@@ -690,11 +601,7 @@ func reportTestLiterals(sites []closurescan.TestLiteralSite, limit int) {
 	fmt.Printf("closure-scan: %d classified test literals (fixture=%d assertion=%d policy_copy=%d)\n",
 		len(sites), counts[closurescan.TestFixture], counts[closurescan.TestAssertion], counts[closurescan.TestPolicyCopy])
 	fmt.Printf("%-14s %-18s %-16s %-24s %s\n", "class", "context", "value", "scope", "source")
-	for index, site := range sites {
-		if index >= limit {
-			fmt.Printf("... %d more (raise -limit)\n", len(sites)-limit)
-			break
-		}
+	for _, site := range sites[:min(len(sites), limit)] {
 		fmt.Printf("%-14s %-18s %-16s %-24s %s:%d\n",
 			site.Class, site.Context, site.Value, site.Scope, site.File, site.Line)
 	}
@@ -703,11 +610,7 @@ func reportTestLiterals(sites []closurescan.TestLiteralSite, limit int) {
 func reportAssumptions(hints []closurescan.AssumptionHint, limit int) {
 	fmt.Printf("closure-scan: %d syntax-derived assumption hints\n", len(hints))
 	fmt.Printf("%-32s %-7s %-24s %s\n", "binding", "policy", "scope", "source")
-	for index, hint := range hints {
-		if index >= limit {
-			fmt.Printf("... %d more (raise -limit)\n", len(hints)-limit)
-			break
-		}
+	for _, hint := range hints[:min(len(hints), limit)] {
 		fmt.Printf("%-32s %-7t %-24s %s:%d\n",
 			hint.Candidate().Name, hint.Policy, hint.Scope, hint.File, hint.Line)
 	}
@@ -729,11 +632,7 @@ func fatal(err error) {
 func report(candidates []closurescan.Candidate, limit int) {
 	fmt.Printf("closure-scan: %d numeric constants (iota enums, tests, generated excluded)\n", len(candidates))
 	fmt.Printf("%-6s %-44s %-16s %-24s %s\n", "score", "const", "value", "scope", "source")
-	for index, row := range candidates {
-		if index >= limit {
-			fmt.Printf("... %d more (raise -limit)\n", len(candidates)-limit)
-			break
-		}
+	for _, row := range candidates[:min(len(candidates), limit)] {
 		fmt.Printf("%-6d %-44s %-16s %-24s %s:%d\n", row.Score, row.Name, row.Value, row.Scope, row.File, row.Line)
 	}
 }
@@ -741,16 +640,8 @@ func report(candidates []closurescan.Candidate, limit int) {
 func reportRaw(candidates []closurescan.RawPolicyLiteral, limit int) {
 	fmt.Printf("closure-scan: %d repeated raw policy candidates (tests, generated, structural math excluded)\n", len(candidates))
 	fmt.Printf("%-6s %-8s %-24s %-28s %s\n", "score", "count", "value", "package", "functions")
-	for index, row := range candidates {
-		if index >= limit {
-			fmt.Printf("... %d more (raise -limit)\n", len(candidates)-limit)
-			break
-		}
-		owners := row.Functions
-		if len(owners) > 5 {
-			owners = append(append([]string(nil), owners[:5]...), fmt.Sprintf("+%d", len(row.Functions)-5))
-		}
-		fmt.Printf("%-6d %-8d %-24s %-28s %s\n", row.Score, row.Count, row.Value, row.Package, strings.Join(owners, ","))
+	for _, row := range candidates[:min(len(candidates), limit)] {
+		fmt.Printf("%-6d %-8d %-24s %-28s %s\n", row.Score, row.Count, row.Value, row.Package, strings.Join(row.Functions, ","))
 	}
 }
 
@@ -770,18 +661,7 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 	for _, row := range candidates {
 		byKey[row.DeclarationKey()] = row
 	}
-	store, err := repodb.Open(filepath.Join(root, storePath))
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	batch := artifact.Batch{}
-	fileIDs := map[string]artifact.ID{}
-	type publishedBinding struct {
-		binding closureledger.SourceBinding
-		value   json.RawMessage
-	}
-	published := make([]publishedBinding, 0, len(triage.Rows))
+	documents := make([]closureledger.Document, 0, len(triage.Rows))
 	for _, row := range triage.Rows {
 		found, ok := byKey[(closurescan.Candidate{
 			Kind: row.Kind, File: row.File, Scope: row.Scope, Line: row.Line, Name: row.Name,
@@ -789,72 +669,80 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 		if !ok {
 			return fmt.Errorf("triage row %s not found by scan in %s (stale triage?)", row.Name, row.File)
 		}
-		fileID, ok := fileIDs[row.File]
-		if !ok {
-			id, descriptor, location, err := fileArtifact(root, row.File)
-			if err != nil {
-				return err
-			}
-			batch.Artifacts = append(batch.Artifacts, descriptor)
-			batch.Locations = append(batch.Locations, location)
-			fileIDs[row.File] = id
-			fileID = id
-		}
 		valueJSON := found.ValueJSON()
 		binding, err := found.Binding()
-		if err != nil || binding.Owner != fileID {
-			return fmt.Errorf("row %s: inconsistent source owner", row.Name)
+		if err != nil {
+			return err
 		}
 		document, err := closureledger.New(
 			row.Name, valueJSON,
 			closureledger.Tier(row.Tier), closureledger.Status(row.Status),
 			row.Understanding, []closureledger.SourceBinding{binding},
-			row.ClosurePath, row.RerankTrigger, fileID,
+			row.ClosurePath, row.RerankTrigger, binding.Owner,
 		)
 		if err != nil {
 			return fmt.Errorf("row %s: %w", row.Name, err)
 		}
+		documents = append(documents, document)
+	}
+	owners, commit, err := commitClosureDocuments(root, filepath.Join(root, storePath), documents, nil)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("emitted %d closure documents (%d owner files) commit %x\n",
+		len(documents), owners, commit[:8])
+	return nil
+}
+
+func commitClosureDocuments(root, storePath string, documents []closureledger.Document, retirements []artifact.AliasBinding) (int, artifact.CommitID, error) {
+	store, err := repodb.Open(storePath)
+	if err != nil {
+		return 0, artifact.CommitID{}, err
+	}
+	defer store.Close()
+	batch := artifact.Batch{Aliases: retirements}
+	files := map[string]bool{}
+	for _, document := range documents {
+		for _, binding := range document.Bindings {
+			if !files[binding.File] {
+				id, descriptor, location, err := fileArtifact(root, binding.File)
+				if err != nil || id != binding.Owner {
+					return 0, artifact.CommitID{}, fmt.Errorf("closure %s: inconsistent source owner", binding.Name)
+				}
+				files[binding.File] = true
+				batch.Artifacts = append(batch.Artifacts, descriptor)
+				batch.Locations = append(batch.Locations, location)
+			}
+			alias, err := closureledger.ActiveAlias(binding)
+			if err != nil {
+				return 0, artifact.CommitID{}, err
+			}
+			active := artifact.AliasBinding{Name: alias, Target: document.ID}
+			if previous, found, err := artifact.ResolveAlias(context.Background(), store, alias); err != nil {
+				return 0, artifact.CommitID{}, err
+			} else if found {
+				active.Previous = &previous
+			}
+			batch.Aliases = append(batch.Aliases, active)
+		}
 		content, err := document.Content()
 		if err != nil {
-			return err
+			return 0, artifact.CommitID{}, err
 		}
 		batch.Contents = append(batch.Contents, content)
 		batch.Lineage = append(batch.Lineage, document.Lineage()...)
-		alias, err := closureledger.ActiveAlias(binding)
-		if err != nil {
-			return err
-		}
-		active := artifact.AliasBinding{Name: alias, Target: document.ID}
-		if previous, exists, err := artifact.ResolveAlias(context.Background(), store, alias); err != nil {
-			return err
-		} else if exists {
-			active.Previous = &previous
-		}
-		batch.Aliases = append(batch.Aliases, active)
-		published = append(published, publishedBinding{binding: binding, value: valueJSON})
 	}
 	encoded, err := json.Marshal(batch)
 	if err != nil {
-		return err
+		return 0, artifact.CommitID{}, err
 	}
 	digest := sha256.Sum256(encoded)
 	batch.Key = "closure-scan/" + hex.EncodeToString(digest[:])
 	commit, err := store.Commit(context.Background(), batch)
 	if err != nil {
-		return err
+		return 0, artifact.CommitID{}, err
 	}
-	for _, row := range published {
-		_, found, err := closureledger.ResolveActiveBinding(context.Background(), store, row.binding, row.value)
-		if err != nil {
-			return fmt.Errorf("verify active binding %s: %w", row.binding.Name, err)
-		}
-		if !found {
-			return fmt.Errorf("verify active binding %s: absent", row.binding.Name)
-		}
-	}
-	fmt.Printf("emitted %d closure documents (%d owner files) commit %x\n",
-		len(triage.Rows), len(fileIDs), commit[:8])
-	return nil
+	return len(files), commit, nil
 }
 
 func fileArtifact(root, relative string) (artifact.ID, artifact.Descriptor, artifact.LocationEvent, error) {

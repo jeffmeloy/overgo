@@ -16,9 +16,10 @@ func CompileRebindIndex(candidates []Candidate) RebindIndex {
 	return current
 }
 
-// Rebind moves exact source identity; policy and callsites stay fixed.
+// Rebind matches policy and callsites, moving source identity when needed.
 func (current RebindIndex) Rebind(document closureledger.Document) (closureledger.Document, bool, error) {
 	bindings := make([]closureledger.SourceBinding, len(document.Bindings))
+	fixture := document.Fixture
 	changed := false
 	for index, previous := range document.Bindings {
 		var match Candidate
@@ -37,16 +38,19 @@ func (current RebindIndex) Rebind(document closureledger.Document) (closureledge
 			return closureledger.Document{}, false, err
 		}
 		bindings[index] = binding
+		if fixture == previous.Owner {
+			fixture = binding.Owner
+		}
 		if binding != previous {
 			changed = true
 		}
 	}
 	if !changed {
-		return document, false, nil
+		return document, true, nil
 	}
 	rebound, err := closureledger.New(
 		document.Name, document.Value, document.Tier, document.Status, document.Understanding,
-		bindings, document.ClosurePath, document.RerankTrigger, document.Fixture,
+		bindings, document.ClosurePath, document.RerankTrigger, fixture,
 	)
 	return rebound, err == nil, err
 }

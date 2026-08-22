@@ -57,9 +57,7 @@ func prepareMerge(root, source string, local plan.Plan, output io.Writer) error 
 	if err != nil {
 		return err
 	}
-	merge := exec.Command("git", "merge", "--no-ff", "--no-commit", snapshot)
-	merge.Dir = root
-	mergeOutput, mergeErr := merge.CombinedOutput()
+	_, mergeErr := commandOutput(root, "git", "merge", "--no-ff", "--no-commit", snapshot)
 	keepMerge := false
 	defer func() {
 		if !keepMerge {
@@ -75,17 +73,15 @@ func prepareMerge(root, source string, local plan.Plan, output io.Writer) error 
 		}
 		for _, path := range strings.Fields(string(conflicts)) {
 			if path != plan.Path && path != compatibilityDocumentPath && path != trainingCompatibilityDocumentPath {
-				return fmt.Errorf("prepare-merge source conflict; merge aborted: %s", strings.TrimSpace(string(mergeOutput)))
+				return fmt.Errorf("prepare-merge source conflict; merge aborted: %w", mergeErr)
 			}
 		}
 	}
 	if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), merged); err != nil {
 		return err
 	}
-	refresh := exec.Command("go", "run", "./cmd/compatibility", "-refresh-identities")
-	refresh.Dir = root
-	if result, refreshErr := refresh.CombinedOutput(); refreshErr != nil {
-		return fmt.Errorf("refresh merged compatibility: %w: %s", refreshErr, strings.TrimSpace(string(result)))
+	if _, err := commandOutput(root, "go", "run", "./cmd/compatibility", "-refresh-identities"); err != nil {
+		return fmt.Errorf("refresh merged compatibility: %w", err)
 	}
 	latest, err := gitOutput(root, "rev-parse", "--verify", source+"^{commit}")
 	if err != nil || strings.TrimSpace(string(latest)) != snapshot {
@@ -93,6 +89,19 @@ func prepareMerge(root, source string, local plan.Plan, output io.Writer) error 
 	}
 	if _, err := gitOutput(root, "add", "--", plan.Path, "compatibility.json", compatibilityDocumentPath, trainingCompatibilityDocumentPath); err != nil {
 		return err
+	}
+	closureStore, err := sourceRepoDB(root, snapshot)
+	if err != nil {
+		return err
+	}
+	if closureStore != "" {
+		result, err := commandOutput(root, "go", "run", "./cmd/closure-scan", "-import-store", closureStore)
+		if err != nil {
+			return fmt.Errorf("prepare-merge closure evidence: %w", err)
+		}
+		fmt.Fprintf(output, "prepare-merge: closure evidence %s\n", strings.TrimSpace(string(result)))
+	} else {
+		fmt.Fprintln(output, "prepare-merge: closure evidence unavailable (source snapshot has no local RepoDB worktree)")
 	}
 	keepMerge = true
 	fmt.Fprintf(output, "prepare-merge: %s@%s staged; finalize with cmd/gate -merge -plan %s/do\n", source, snapshot, mergeID)
@@ -108,11 +117,15 @@ func planAtRef(root, ref string) (plan.Plan, error) {
 }
 
 func gitOutput(root string, args ...string) ([]byte, error) {
-	command := exec.Command("git", args...)
+	return commandOutput(root, "git", args...)
+}
+
+func commandOutput(root, name string, args ...string) ([]byte, error) {
+	command := exec.Command(name, args...)
 	command.Dir = root
-	output, err := command.Output()
+	output, err := command.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+		return output, fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}
 	return output, nil
 }

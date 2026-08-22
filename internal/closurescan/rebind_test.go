@@ -52,6 +52,19 @@ func TestRebindRefusesChangedValueOrCallsites(t *testing.T) {
 	}
 }
 
+func TestRebindMatchesExactBinding(t *testing.T) {
+	candidate := rebindCandidate(t, "37", "stable callsites")
+	binding, err := candidate.Binding()
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := rebindDocument(t, candidate, binding)
+	current, matched, err := CompileRebindIndex([]Candidate{candidate}).Rebind(document)
+	if err != nil || !matched || current.ID != document.ID {
+		t.Fatalf("exact rebind = (%s, %t, %v)", current.ID, matched, err)
+	}
+}
+
 func rebindCandidate(t *testing.T, value, callsites string) Candidate {
 	t.Helper()
 	name := "PolicyWindow"

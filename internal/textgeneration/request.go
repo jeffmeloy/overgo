@@ -9,7 +9,7 @@ type Request struct {
 	MaxTokens int    `json:"max_tokens"`
 }
 
-// SessionKey: shared text-generation residency.
+// SessionKey names the shared text-generation residency session.
 func (Request) SessionKey() (string, error) { return "text-generation", nil }
 
 // Validate rejects incomplete text-generation requests.

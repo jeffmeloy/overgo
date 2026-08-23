@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:ffddab7c8b8de15a67406bc93380f6d3bc35c4e9e67fe25544bc02b6e2539e6f",
   "items": [
     {
+      "id": "merge-master-c17ba32c",
+      "title": "Merge master c17ba32c into research worktree while retaining research plan authority",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master c17ba32c into research worktree while retaining research plan authority",
+          "status": "done",
+          "verify": "git diff --quiet c17ba32c7d372c8c15bc1efd9edebaac7ac09390 MERGE_HEAD"
+        }
+      ]
+    },
+    {
       "id": "merge-fcd3bf26ed77",
       "title": "Merge master at fcd3bf26ed77 after offline tensor execution plan",
       "owner": "research",

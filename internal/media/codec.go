@@ -227,13 +227,13 @@ type CodecProgram[Bindings any] struct {
 	Operations []CodecOperation[Bindings]
 }
 
-// CodecVolume: backend storage and current geometry.
+// CodecVolume carries backend storage together with its current geometry.
 type CodecVolume[Storage any] struct {
 	Storage                         Storage
 	Channels, Frames, Height, Width int
 }
 
-// CodecStep: one compiled codec operation.
+// CodecStep executes one compiled codec operation.
 type CodecStep[Bindings, Storage, State any] func(
 	int,
 	CodecOperation[Bindings],

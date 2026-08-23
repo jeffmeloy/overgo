@@ -134,9 +134,10 @@ func run() error {
 	defer runner.Close()
 	// Browse roots remain optional unless training is enabled.
 	roots, rootsErr := dataroot.ResolveCurrent()
-	datasetsRoot, repoPath := "", strings.TrimSpace(*modelFlags.Repository)
+	datasetsRoot, repoPath, hubRoot := "", strings.TrimSpace(*modelFlags.Repository), ""
 	if rootsErr == nil {
 		datasetsRoot = roots.Datasets
+		hubRoot = roots.Models
 		if repoPath == "" {
 			repoPath = roots.Store
 		}
@@ -263,6 +264,8 @@ func run() error {
 		DatasetsRoot:       datasetsRoot,
 		RepoDBPath:         repoPath,
 		Repository:         workspaceStore,
+		HubToken:           os.Getenv("OVERGO_HF_TOKEN"),
+		HubDownloadRoot:    hubRoot,
 		Evaluation:         evaluationWorkspace,
 		Analysis: llamaserver.AnalysisPolicy{
 			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,

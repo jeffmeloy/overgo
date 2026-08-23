@@ -229,9 +229,15 @@ type Config struct {
 	DatasetsRoot string
 	RepoDBPath   string
 	Repository   *repodb.Store
-	Environment  runrecord.Environment
-	Evaluation   EvaluationWorkspaceAPI
-	Analysis     AnalysisPolicy
+	// HubEndpoint and HubToken configure Hugging Face intake; an empty
+	// endpoint means the public hub. HubDownloadRoot is the only directory
+	// download jobs may write under; empty disables downloads.
+	HubEndpoint     string
+	HubToken        string
+	HubDownloadRoot string
+	Environment     runrecord.Environment
+	Evaluation      EvaluationWorkspaceAPI
+	Analysis        AnalysisPolicy
 }
 
 // DefaultConfig returns the shared serving policy.
@@ -360,6 +366,7 @@ type Handler struct {
 	requestsActive     atomic.Int64
 	generationRequests atomic.Uint64
 	generationErrors   atomic.Uint64
+	downloads          downloadRegistry
 	generatedTokens    atomic.Uint64
 	mediaFetcher       *remoteMediaFetcher
 	responseHistory    *responseHistoryStore
@@ -770,6 +777,12 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.slotStatus(response, request)
 	case "/lora-adapters":
 		h.loraAdapters(response, request)
+	case "/catalog/models":
+		h.catalogModels(response, request)
+	case "/hub/search":
+		h.hubSearch(response, request)
+	case "/hub/downloads":
+		h.hubDownloads(response, request)
 	default:
 		h.serveWebUI(response, request)
 	}

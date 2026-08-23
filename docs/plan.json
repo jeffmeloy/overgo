@@ -1,121 +1,18 @@
 {
   "campaign": "Deletion-led production composability and repository tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:62d1d4a9dc99abbf408cc6fcd0d8c5d803b48fe78999ab017bc7e3965e24ca28",
+  "census_evidence": "evidence:sha256:ffddab7c8b8de15a67406bc93380f6d3bc35c4e9e67fe25544bc02b6e2539e6f",
   "items": [
     {
-      "id": "cleanup-model-program-authority",
-      "title": "Make compiled metadata and invariant programs the sole model policy authority",
-      "owner": "research",
-      "status": "done",
-      "steps": [
-        {
-          "id": "core-metadata",
-          "title": "Compile repeated architecture-core metadata reads and delete displaced reader branches",
-          "status": "done",
-          "verify": "go test ./internal/model -run 'Test(Architecture|Metadata)' -count=1"
-        },
-        {
-          "id": "expert-runtime-metadata",
-          "title": "Compile expert and runtime metadata reads and delete displaced policy branches",
-          "status": "done",
-          "verify": "go test ./internal/model -run 'Test(Architecture|Metadata|Expert|Runtime)' -count=1"
-        },
-        {
-          "id": "runtime-metadata-residual",
-          "title": "Compile residual runtime metadata reads and delete displaced policy branches",
-          "status": "done",
-          "verify": "go test ./internal/model -run 'Test(ProfileCompiledMetadataLoading|Read.*Spec)' -count=1"
-        },
-        {
-          "id": "invariant-program",
-          "title": "Compile model invariants by profile and delete parallel attention and hybrid policy interpreters",
-          "status": "done",
-          "verify": "go test ./internal/model -run 'Test(ProfileCompiledMetadataLoading|Read.*Spec)' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "cleanup-tensor-catalog-program",
-      "title": "Replace imperative model weight loading with indexed tensor catalog programs",
-      "owner": "research",
+      "id": "merge-74abae91e639",
+      "title": "Merge master at 74abae91e639",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Replace imperative model weight loading with indexed tensor catalog programs",
+          "title": "Merge master at 74abae91e639",
           "status": "done",
-          "verify": "go test ./internal/model -run 'Test(TensorCatalogProgramIsAuthoritative|LayerCatalogPlan)' -count=1 \u0026\u0026 go test ./internal/inference -run 'Test(SelectedModelTensors|CompiledMultiHeadMTP|SingleHeadMTP)' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "cleanup-projector-plan-authority",
-      "title": "Make typed projector plans the sole prompt and media orchestration authority",
-      "owner": "research",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make typed projector plans the sole prompt and media orchestration authority",
-          "status": "open",
-          "verify": "go test ./internal/projector ./internal/inference -count=1"
-        }
-      ]
-    },
-    {
-      "id": "cleanup-media-codec-program",
-      "title": "Make one media codec program authoritative across host and CUDA",
-      "owner": "research",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make one media codec program authoritative across host and CUDA",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1"
-        }
-      ]
-    },
-    {
-      "id": "cleanup-cuda-launch-contracts",
-      "title": "Compile typed CUDA and reference launch contracts",
-      "owner": "research",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compile typed CUDA and reference launch contracts",
-          "status": "open",
-          "verify": "go test ./internal/tensor/... ./internal/cuda/executor -count=1"
-        }
-      ]
-    },
-    {
-      "id": "cleanup-gate-dag-authority",
-      "title": "Make automationcheck DAG the sole gate scheduler",
-      "owner": "research",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make automationcheck DAG the sole gate scheduler",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/automationcheck -count=1"
-        }
-      ]
-    },
-    {
-      "id": "cleanup-parity-validation",
-      "title": "Consolidate parity campaigns and duplicate request validators",
-      "owner": "research",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Consolidate parity campaigns and duplicate request validators",
-          "status": "open",
-          "verify": "go test ./cmd/vqaparity ./cmd/sensenovaparity ./internal/seq2seq ./internal/thoughtbank -count=1"
+          "verify": "go run ./cmd/compatibility -check"
         }
       ]
     },
@@ -360,6 +257,191 @@
       ]
     },
     {
+      "id": "magic-runtime-remaining",
+      "title": "Close remaining production literal surfaces",
+      "status": "done",
+      "steps": [
+        {
+          "id": "server-workflows",
+          "title": "Remove server, workflow, session, and protocol policy duplication",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/server,internal/workflowrecipe,internal/workflowruntime,internal/recipe,internal/modelrecipe -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production"
+        },
+        {
+          "id": "composition-evidence",
+          "title": "Consolidate composition, metrics, telemetry, and evidence policy",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-scope internal/composition,internal/tensorstats,internal/runrecord,internal/thoughtbank,internal/codeprofile -require-classified -require-no-stale -require-no-uncatalogued-production"
+        },
+        {
+          "id": "shared-runtime",
+          "title": "Delete duplicated policy across remaining internal runtime owners",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-scope internal -require-classified -require-no-stale -require-no-uncatalogued-production"
+        },
+        {
+          "id": "commands-automation",
+          "title": "Delete command defaults, duplicate probes, and automation literals",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-scope cmd -require-classified -require-no-stale -require-no-uncatalogued-production"
+        },
+        {
+          "id": "production-complete",
+          "title": "Verify every production source has an exact literal disposition",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts"
+        }
+      ]
+    },
+    {
+      "id": "magic-test-authority",
+      "title": "Remove copied production policy from tests",
+      "status": "done",
+      "steps": [
+        {
+          "id": "production-contracts",
+          "title": "Replace copied defaults, dimensions, tolerances, and exit codes with production contracts",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-tests -require-no-policy-copies -require-classified-fixtures"
+        }
+      ]
+    },
+    {
+      "id": "magic-zero-debt",
+      "title": "Enforce zero literal-authority debt permanently",
+      "status": "open",
+      "steps": [
+        {
+          "id": "close-open-rows",
+          "title": "Resolve every derivation-blocked row and retire stale migration evidence",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts"
+        },
+        {
+          "id": "permanent-gate",
+          "title": "Integrate zero-debt checks and delete campaign-only compatibility machinery",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestPermanentMagicGate' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-model-program-authority",
+      "title": "Make compiled metadata and invariant programs the sole model policy authority",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "core-metadata",
+          "title": "Compile repeated architecture-core metadata reads and delete displaced reader branches",
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(Architecture|Metadata)' -count=1"
+        },
+        {
+          "id": "expert-runtime-metadata",
+          "title": "Compile expert and runtime metadata reads and delete displaced policy branches",
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(Architecture|Metadata|Expert|Runtime)' -count=1"
+        },
+        {
+          "id": "runtime-metadata-residual",
+          "title": "Compile residual runtime metadata reads and delete displaced policy branches",
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(ProfileCompiledMetadataLoading|Read.*Spec)' -count=1"
+        },
+        {
+          "id": "invariant-program",
+          "title": "Compile model invariants by profile and delete parallel attention and hybrid policy interpreters",
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(ProfileCompiledMetadataLoading|Read.*Spec)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-tensor-catalog-program",
+      "title": "Replace imperative model weight loading with indexed tensor catalog programs",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace imperative model weight loading with indexed tensor catalog programs",
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(TensorCatalogProgramIsAuthoritative|LayerCatalogPlan)' -count=1 \u0026\u0026 go test ./internal/inference -run 'Test(SelectedModelTensors|CompiledMultiHeadMTP|SingleHeadMTP)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-projector-plan-authority",
+      "title": "Make typed projector plans the sole prompt and media orchestration authority",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make typed projector plans the sole prompt and media orchestration authority",
+          "status": "open",
+          "verify": "go test ./internal/projector -run 'Test(CompiledSessionOwnsPrompts|MixedMediaPromptPlan|CompileMediaPromptRuns|Gemma4TowerAudioPlanReused)' -count=1 \u0026\u0026 go test ./internal/inference -run 'Test(CompileProjectedRequestPlan|ProjectedInputDeepstackAdmission|ProjectedInputsSignatureIncludesMediaPayload)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-media-codec-program",
+      "title": "Make one media codec program authoritative across host and CUDA",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make one media codec program authoritative across host and CUDA",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-cuda-launch-contracts",
+      "title": "Compile typed CUDA and reference launch contracts",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile typed CUDA and reference launch contracts",
+          "status": "open",
+          "verify": "go test ./internal/tensor/... ./internal/cuda/executor -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-gate-dag-authority",
+      "title": "Make automationcheck DAG the sole gate scheduler",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make automationcheck DAG the sole gate scheduler",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/automationcheck -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-parity-validation",
+      "title": "Consolidate parity campaigns and duplicate request validators",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Consolidate parity campaigns and duplicate request validators",
+          "status": "open",
+          "verify": "go test ./cmd/vqaparity ./cmd/sensenovaparity ./internal/seq2seq ./internal/thoughtbank -count=1"
+        }
+      ]
+    },
+    {
       "id": "composite-generation-evidence",
       "title": "Record exact baseline, composed, source-ablated, and bridge-ablated generation trials with frozen-model proof",
       "owner": "research",
@@ -430,71 +512,86 @@
       ]
     },
     {
-      "id": "magic-runtime-remaining",
-      "title": "Close remaining production literal surfaces",
+      "id": "repodb-closure-authority",
+      "title": "Import the closure authority merge 15bd36d0 skipped",
+      "owner": "gui",
       "status": "done",
       "steps": [
         {
-          "id": "server-workflows",
-          "title": "Remove server, workflow, session, and protocol policy duplication",
+          "id": "do",
+          "title": "Import the closure authority merge 15bd36d0 skipped",
           "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/server,internal/workflowrecipe,internal/workflowruntime,internal/recipe,internal/modelrecipe -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production"
-        },
-        {
-          "id": "composition-evidence",
-          "title": "Consolidate composition, metrics, telemetry, and evidence policy",
-          "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-scope internal/composition,internal/tensorstats,internal/runrecord,internal/thoughtbank,internal/codeprofile -require-classified -require-no-stale -require-no-uncatalogued-production"
-        },
-        {
-          "id": "shared-runtime",
-          "title": "Delete duplicated policy across remaining internal runtime owners",
-          "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-scope internal -require-classified -require-no-stale -require-no-uncatalogued-production"
-        },
-        {
-          "id": "commands-automation",
-          "title": "Delete command defaults, duplicate probes, and automation literals",
-          "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-scope cmd -require-classified -require-no-stale -require-no-uncatalogued-production"
-        },
-        {
-          "id": "production-complete",
-          "title": "Verify every production source has an exact literal disposition",
-          "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts"
+          "verify": "go run ./cmd/closure-scan -check-scope internal -require-no-stale"
         }
       ]
     },
     {
-      "id": "magic-test-authority",
-      "title": "Remove copied production policy from tests",
+      "id": "gui-profile-restore",
+      "title": "Migrate stored profile documents to v3 so models load",
+      "owner": "gui",
       "status": "done",
       "steps": [
         {
-          "id": "production-contracts",
-          "title": "Replace copied defaults, dimensions, tolerances, and exit codes with production contracts",
+          "id": "do",
+          "title": "Migrate stored profile documents to v3 so models load",
           "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-tests -require-no-policy-copies -require-classified-fixtures"
+          "verify": "go test ./internal/modelrecipe ./internal/repodbimport -run 'TestProfileRenameUpgrade|TestProfileRenameUpgradeRefusesUnknownShape|TestProfileSchemaVersion|TestRegisteredProfileSemanticDigest' -count=1"
         }
       ]
     },
     {
-      "id": "magic-zero-debt",
-      "title": "Enforce zero literal-authority debt permanently",
+      "id": "gui-profile-schema",
+      "title": "Restore qwen35 model loading after the profile field rename",
+      "owner": "gui",
       "status": "open",
       "steps": [
         {
-          "id": "close-open-rows",
-          "title": "Resolve every derivation-blocked row and retire stale migration evidence",
-          "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts"
-        },
-        {
-          "id": "permanent-gate",
-          "title": "Integrate zero-debt checks and delete campaign-only compatibility machinery",
+          "id": "do",
+          "title": "Restore qwen35 model loading after the profile field rename",
           "status": "open",
-          "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestPermanentMagicGate' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts"
+          "verify": "go test ./internal/modelrecipe ./internal/repodbimport -run 'TestProfileRenameUpgrade|TestProfileSchemaVersion' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "validate-model-inference",
+      "title": "Validate inference across every adaptive_new model",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate inference across every adaptive_new model",
+          "status": "open",
+          "verify": "go test -p 1 -tags modeltest ./internal/inference ./internal/densecausal ./internal/routedlm ./internal/seq2seq ./internal/latentimage ./internal/latentvideo ./internal/speechsynth -count=1"
+        }
+      ]
+    },
+    {
+      "id": "validate-model-training",
+      "title": "Validate training across every adaptive_new model",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate training across every adaptive_new model",
+          "status": "open",
+          "verify": "go test -p 1 -tags modeltest ./internal/trainingprogram ./internal/trainingworkflow ./internal/adaptertrain ./internal/hybridtrain ./internal/controllertrain ./internal/bridgetrain -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-refactor",
+      "title": "Refactor the workbench GUI into a correct, reliable interface",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refactor the workbench GUI into a correct, reliable interface",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestWebUI|TestEvaluationWorkbench' -count=1"
         }
       ]
     }

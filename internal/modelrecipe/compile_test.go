@@ -29,7 +29,7 @@ func TestInferenceRecipeCompilesExistingModelPlan(t *testing.T) {
 	if plan.Recipe.ID != definition.ID || plan.Model.Forward().Operation != model.ForwardOperationCached {
 		t.Fatalf("compiled plan = %+v", plan)
 	}
-	if len(plan.Nodes) != 3 || plan.Decode.Session != DecodeSessionRequest ||
+	if len(plan.Nodes) != len(definition.Nodes) || plan.Decode.Session != DecodeSessionRequest ||
 		plan.Residency != recipe.ResidencyHostCache || plan.Identity.Residency != plan.Residency {
 		t.Fatalf("compiled runtime program = %+v", plan)
 	}
@@ -47,7 +47,7 @@ func TestRuntimeProgramOwnsCapacityDecodePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if program.Decode.Session != DecodeSessionCapacity || len(program.Nodes) != 3 ||
+	if program.Decode.Session != DecodeSessionCapacity || len(program.Nodes) != len(definition.Nodes) ||
 		program.Residency != recipe.ResidencyHybridNative {
 		t.Fatalf("runtime program = %+v", program)
 	}

@@ -15,7 +15,12 @@ import (
 	"overgo/internal/testutil"
 )
 
-const profileCatalogSemanticDigest = "6d62c1684e948f640e8205be525f29ab4cdecb5e5870675218b721d589b1fced"
+// profileCatalogSemanticDigest hashes every registered profile document ID, so
+// it moves whenever profile identity moves. Rebound for ProfileVersion 3: the
+// version is part of every document, so the bump re-mints the whole catalog.
+// That is the intended blast radius -- stored v2 documents keep their old IDs
+// and reach v3 through repodbimport's upgrade, never by mutation in place.
+const profileCatalogSemanticDigest = "a0bdc95305760a24034620758e79ddce013a19de096abc09438ee216ca8fdd9b"
 const architectureProfileFactDigest = "132c449f200e154bc934021d297b8dcfbbd8ccfc76fdde47a5f9843d4257f1f2"
 const architectureProfileFactSchemaDigest = "11960eada0141704aa80b8fa009834e9f40e9b0d5da2e3ef744da3b0269815dc"
 

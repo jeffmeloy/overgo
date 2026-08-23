@@ -77,12 +77,12 @@
       "id": "offline-artifact-generation",
       "title": "Gate produced model artifacts on real load, generation, repeat stability, resources, and promotion evidence",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Gate produced model artifacts on real load, generation, repeat stability, resources, and promotion evidence",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/composition ./internal/evaluation -run '^TestOfflineArtifactGeneration(ExactPassthrough|TaskArithmetic|RepeatedSeeds|PromotionRefusal)$' -count=1"
         }
       ]

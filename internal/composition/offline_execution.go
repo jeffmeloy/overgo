@@ -180,6 +180,15 @@ func (value OfflineTensorExecutionPlan) ValidateIdentity() error {
 	return offlineTensorExecutionPlanCodec.ValidateIdentity(value)
 }
 
+// LoadOfflineTensorExecutionPlan requires one exact immutable execution plan.
+func LoadOfflineTensorExecutionPlan(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (OfflineTensorExecutionPlan, error) {
+	return offlineTensorExecutionPlanCodec.Require(ctx, reader, id)
+}
+
 // Lineage binds the tensor-execution plan to every exact input authority.
 func (value OfflineTensorExecutionPlan) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.ArtifactPlan, value.ResourcePolicy}

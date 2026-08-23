@@ -17,6 +17,7 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/evaluation"
 	"overgo/internal/modelartifact"
+	"overgo/internal/modelmerge"
 	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -271,6 +272,29 @@ func CompileTransaction(ctx context.Context, reader artifact.Reader, action Acti
 	return artifact.NewDocumentBatch("controller-action/"+string(action.Kind)+"/"+identity.String(), contents, lineage, nil)
 }
 
+// ExecuteOfflineArtifact compiles the action through the same authorities as
+// CompileTransaction, then executes its exact tensor plan into destination.
+// It is intentionally unavailable to every non-offline action kind.
+func ExecuteOfflineArtifact(
+	ctx context.Context,
+	reader artifact.Reader,
+	action Action,
+	sources []modelmerge.StreamingSource,
+	destination string,
+) (modelmerge.StreamingResult, error) {
+	if err := action.validate(); err != nil {
+		return modelmerge.StreamingResult{}, err
+	}
+	if action.Kind != KindOfflineArtifactPlan || action.Offline == nil {
+		return modelmerge.StreamingResult{}, errors.New("controller action: offline execution requires an offline artifact plan")
+	}
+	_, _, execution, err := compileOfflineAuthorities(ctx, reader, *action.Offline)
+	if err != nil {
+		return modelmerge.StreamingResult{}, err
+	}
+	return modelmerge.ExecuteStreaming(ctx, execution, sources, destination)
+}
+
 func compileAction(ctx context.Context, reader artifact.Reader, action Action) ([]artifact.Content, []artifact.Lineage, error) {
 	switch action.Kind {
 	case KindChainRecipes:
@@ -370,20 +394,7 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 		}
 		return []artifact.Content{content}, plan.Lineage(), nil
 	case KindOfflineArtifactPlan:
-		plan, err := composition.CompileOfflineArtifactPlan(
-			ctx, reader, action.Offline.Operator, action.Offline.Inputs,
-		)
-		if err != nil {
-			return nil, nil, err
-		}
-		policy, err := composition.NewOfflineTensorResourcePolicy(
-			action.Offline.Placement, action.Offline.MaxResidentBytes, action.Offline.MaxShardBytes,
-			action.Offline.ResourceRationale, action.Offline.ResourceTrigger,
-		)
-		if err != nil {
-			return nil, nil, err
-		}
-		execution, err := composition.CompileOfflineTensorExecutionPlan(ctx, reader, plan, policy)
+		plan, policy, execution, err := compileOfflineAuthorities(ctx, reader, *action.Offline)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -404,6 +415,29 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 	default:
 		return nil, nil, fmt.Errorf("controller action: kind %q has no executor", action.Kind)
 	}
+}
+
+func compileOfflineAuthorities(
+	ctx context.Context,
+	reader artifact.Reader,
+	action OfflineArtifactPlanAction,
+) (composition.OfflineArtifactPlan, composition.OfflineTensorResourcePolicy, composition.OfflineTensorExecutionPlan, error) {
+	plan, err := composition.CompileOfflineArtifactPlan(ctx, reader, action.Operator, action.Inputs)
+	if err != nil {
+		return composition.OfflineArtifactPlan{}, composition.OfflineTensorResourcePolicy{}, composition.OfflineTensorExecutionPlan{}, err
+	}
+	policy, err := composition.NewOfflineTensorResourcePolicy(
+		action.Placement, action.MaxResidentBytes, action.MaxShardBytes,
+		action.ResourceRationale, action.ResourceTrigger,
+	)
+	if err != nil {
+		return composition.OfflineArtifactPlan{}, composition.OfflineTensorResourcePolicy{}, composition.OfflineTensorExecutionPlan{}, err
+	}
+	execution, err := composition.CompileOfflineTensorExecutionPlan(ctx, reader, plan, policy)
+	if err != nil {
+		return composition.OfflineArtifactPlan{}, composition.OfflineTensorResourcePolicy{}, composition.OfflineTensorExecutionPlan{}, err
+	}
+	return plan, policy, execution, nil
 }
 
 func compileEvaluatorPromotion(action EvaluatorPromotionAction) ([]artifact.Content, []artifact.Lineage, error) {

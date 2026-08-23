@@ -44,6 +44,77 @@ type streamPlan struct {
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
+// StreamingTensorSpec declares one tensor whose extent is derived from dtype
+// and shape before any output file is created.
+type StreamingTensorSpec struct {
+	Name  string
+	DType string
+	Shape []uint64
+}
+
+// StreamingShardSpec declares one deterministic output shard.
+type StreamingShardSpec struct {
+	Name    string
+	Tensors []StreamingTensorSpec
+}
+
+// StreamingPlan declares the complete immutable output catalog.
+type StreamingPlan struct {
+	Shards   []StreamingShardSpec
+	Metadata map[string]string
+}
+
+// StreamingWriter stages exact tensor extents and atomically publishes the
+// completed Safetensors directory. A new writer resumes only the same plan.
+type StreamingWriter struct {
+	inner *streamWriter
+}
+
+// NewStreamingWriter compiles a complete output catalog before creating its
+// private staging directory.
+func NewStreamingWriter(destination string, plan StreamingPlan) (*StreamingWriter, error) {
+	internal := streamPlan{Metadata: plan.Metadata, Shards: make([]streamShardSpec, len(plan.Shards))}
+	for shardIndex, shard := range plan.Shards {
+		internal.Shards[shardIndex].Name = shard.Name
+		internal.Shards[shardIndex].Tensors = make([]streamTensorSpec, len(shard.Tensors))
+		for tensorIndex, spec := range shard.Tensors {
+			internal.Shards[shardIndex].Tensors[tensorIndex] = streamTensorSpec{
+				Name: spec.Name, DType: spec.DType, Shape: slices.Clone(spec.Shape),
+			}
+		}
+	}
+	writer, err := newStreamWriter(destination, internal)
+	if err != nil {
+		return nil, err
+	}
+	return &StreamingWriter{inner: writer}, nil
+}
+
+// WriteTensor streams exactly payloadBytes into the planned tensor extent.
+func (writer *StreamingWriter) WriteTensor(name string, payloadBytes uint64, payload io.Reader) error {
+	if writer == nil {
+		return errors.New("safetensors: streaming writer is absent")
+	}
+	return writer.inner.writeTensor(name, payloadBytes, payload)
+}
+
+// Completed reports whether resume evidence already sealed name in staging.
+func (writer *StreamingWriter) Completed(name string) bool {
+	if writer == nil || writer.inner == nil {
+		return false
+	}
+	_, completed := writer.inner.completed[name]
+	return completed
+}
+
+// Finalize publishes the complete output directory with one rename.
+func (writer *StreamingWriter) Finalize() error {
+	if writer == nil {
+		return errors.New("safetensors: streaming writer is absent")
+	}
+	return writer.inner.finalize()
+}
+
 type streamResume struct {
 	Plan      string   `json:"plan"`
 	Completed []string `json:"completed"`

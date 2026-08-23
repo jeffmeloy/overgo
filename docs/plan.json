@@ -63,12 +63,12 @@
       "id": "offline-tensor-executor",
       "title": "Execute exact passthrough and task arithmetic tensor-by-tensor with bounded residency and hard refusal",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Execute exact passthrough and task arithmetic tensor-by-tensor with bounded residency and hard refusal",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/modelmerge -run '^TestStreaming(Passthrough|TaskArithmetic|BoundedResidency|Refusal)$' -count=1"
         }
       ]

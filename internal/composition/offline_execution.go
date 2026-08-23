@@ -174,6 +174,12 @@ func (value OfflineTensorExecutionPlan) Content() (artifact.Content, error) {
 	return offlineTensorExecutionPlanCodec.Content(value)
 }
 
+// ValidateIdentity verifies the complete execution plan and its content
+// identity before an offline executor consumes it.
+func (value OfflineTensorExecutionPlan) ValidateIdentity() error {
+	return offlineTensorExecutionPlanCodec.ValidateIdentity(value)
+}
+
 // Lineage binds the tensor-execution plan to every exact input authority.
 func (value OfflineTensorExecutionPlan) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.ArtifactPlan, value.ResourcePolicy}

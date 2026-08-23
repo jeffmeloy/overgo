@@ -358,12 +358,12 @@
       "id": "gate-published-data",
       "title": "Make the gate verify published data against current source",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Make the gate verify published data against current source",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./cmd/gate ./internal/modelrecipe -run 'TestGateReadsPublishedDocuments|TestStoredDocumentsDecodeUnderCurrentSchema' -count=1"
         }
       ]

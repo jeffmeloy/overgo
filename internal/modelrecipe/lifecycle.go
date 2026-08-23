@@ -633,6 +633,9 @@ func statusAlias(recipeID artifact.ID) string {
 	return "recipe.status." + recipeID.String()
 }
 
+// activeAliasPrefix opens every activation alias; ParseActiveAlias inverts it.
+const activeAliasPrefix = "recipe.active."
+
 func activeAlias(modelID artifact.ID, task recipe.Task) string {
-	return "recipe.active." + string(task) + "." + modelID.String()
+	return activeAliasPrefix + string(task) + "." + modelID.String()
 }

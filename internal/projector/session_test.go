@@ -8,11 +8,11 @@ import (
 	"testing"
 )
 
-// TestCompiledSessionOwnsPrompts: the compiled projection session is the sole
+// TestCompiledSessionOwnsPromptDispatch: the compiled projection session is the sole
 // prompt authority. No family runner exposes a Build*Prompt entry point, the
 // session compiles the correct capability surface per family, and it builds
 // prompts for representative families over hermetic fixtures.
-func TestCompiledSessionOwnsPrompts(t *testing.T) {
+func TestCompiledSessionOwnsPromptDispatch(t *testing.T) {
 	families := []struct {
 		name   string
 		runner Projector

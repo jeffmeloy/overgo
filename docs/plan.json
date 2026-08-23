@@ -378,10 +378,22 @@
       "status": "open",
       "steps": [
         {
-          "id": "do",
-          "title": "Make typed projector plans the sole prompt and media orchestration authority",
+          "id": "session-dispatch",
+          "title": "Compile projector capabilities and prompt dispatch once per session",
+          "status": "done",
+          "verify": "go test ./internal/projector -run 'Test(CompiledSessionOwnsPromptDispatch|SessionCapabilities)' -count=1"
+        },
+        {
+          "id": "image-programs",
+          "title": "Compile image prompt templates and delete displaced family orchestration",
           "status": "open",
-          "verify": "go test ./internal/projector -run 'Test(CompiledSessionOwnsPrompts|MixedMediaPromptPlan|CompileMediaPromptRuns|Gemma4TowerAudioPlanReused)' -count=1 \u0026\u0026 go test ./internal/inference -run 'Test(CompileProjectedRequestPlan|ProjectedInputDeepstackAdmission|ProjectedInputsSignatureIncludesMediaPayload)' -count=1"
+          "verify": "go test ./internal/projector -run 'Test(CompiledImagePromptPrograms|MultipleImagePrompt|ImagePrompt)' -count=1"
+        },
+        {
+          "id": "media-programs",
+          "title": "Compile video, audio, and history programs and delete displaced provider methods",
+          "status": "open",
+          "verify": "go test ./internal/projector -run 'Test(MixedMediaPromptPlan|CompileMediaPromptRuns|Gemma4TowerAudioPlanReused|VideoPrompt|AudioPrompt)' -count=1 \u0026\u0026 go test ./internal/inference -run 'Test(CompileProjectedRequestPlan|ProjectedInputDeepstackAdmission|ProjectedInputsSignatureIncludesMediaPayload)' -count=1"
         }
       ]
     },

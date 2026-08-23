@@ -184,37 +184,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.DeepstackMapping = slices.Clone(mapping)
 		}
 	}
-	if validation.Attention == AttentionValidationFullHeadSlidingRotary {
-		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
-			spec.SlidingWindow = value
-		}
-		hiddenActivation := optionalOr(values, prefix+"hidden_activation", gguf.ValueTypeString, "geglu")
-		switch hiddenActivation {
-		case "gelu", "geglu":
-			spec.HiddenActivation = "geglu"
-		case "silu", "swish", "swiglu":
-			spec.HiddenActivation = "swiglu"
-		case "reglu":
-			spec.HiddenActivation = "reglu"
-		default:
-			return Spec{}, fmt.Errorf("ModernBERT hidden activation %q is unsupported", hiddenActivation)
-		}
-	}
-	if validation.Attention == AttentionValidationFullScaledRotaryXIELU {
-		for _, field := range []metadataField[[]float32]{
-			metadataDestination("xielu.alpha_n", &spec.XIELUAlphaN),
-			metadataDestination("xielu.alpha_p", &spec.XIELUAlphaP),
-			metadataDestination("xielu.beta", &spec.XIELUBeta),
-			metadataDestination("xielu.eps", &spec.XIELUEpsilon),
-		} {
-			*field.destination, err = requiredLayerFloat32(
-				values, prefix+field.key, spec.BlockCount,
-			)
-			if err != nil {
-				return Spec{}, err
-			}
-		}
-	}
 	if validation.Hybrid == HybridValidationCompressedHyperDraft {
 		if spec.LayerSwiGLUClamp, err = optionalLayerFloat32(
 			values, prefix+"swiglu_clamp_exp", declaredBlockCount,
@@ -226,13 +195,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); err != nil {
 			return Spec{}, err
 		}
-	}
-	if m.profile.readsMetadata(MetadataReadBaichuanBlocks) &&
-		spec.BlockCount != validation.RequiredBlockCount && spec.BlockCount != validation.AlternateBlockCount {
-		return Spec{}, fmt.Errorf(
-			"metadata block count must select profile variant %d or %d",
-			validation.RequiredBlockCount, validation.AlternateBlockCount,
-		)
 	}
 	if validation.MLA == MLAValidationOptionalExpertsLatent {
 		spec.OriginalContextLength = optionalOr(
@@ -273,64 +235,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			); ok && value != tensor.FirstOffset {
 				spec.ExpertWeightsScale = value
 			}
-		}
-	}
-	if validation.Attention == AttentionValidationLayerwiseQKNorm {
-		if sections, ok, sectionsErr := optionalArray[int32](values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32); sectionsErr != nil {
-			return Spec{}, sectionsErr
-		} else if ok {
-			if len(sections) != tensor.MaxDimensions {
-				return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"rope.dimension_sections", len(sections), tensor.MaxDimensions)
-			}
-			copy(spec.RopeSections[:], sections)
-		}
-		if alpha, ok := optional[float32](values, prefix+"rope.scaling.alpha", gguf.ValueTypeFloat32); ok && alpha != tensor.FirstOffset {
-			if alpha < tensor.FirstOffset || spec.KeyLength <= tensor.PairedExtent || !finite(alpha) {
-				return Spec{}, errors.New("Hunyuan-Dense XDRoPE alpha is invalid")
-			}
-			exponent := float64(spec.KeyLength) / float64(spec.KeyLength-tensor.PairedExtent)
-			spec.RopeFrequencyBase *= float32(math.Pow(float64(alpha), exponent))
-		}
-	}
-	if m.profile.Forward.Session == ForwardSessionEncoderDecoder ||
-		m.profile.Forward.Operation == ForwardOperationEncoder {
-		if spec.RelativeBuckets, err = required[uint32](
-			values,
-			prefix+"attention.relative_buckets_count",
-			gguf.ValueTypeUint32,
-		); err != nil {
-			return Spec{}, err
-		}
-		if m.profile.Forward.Session == ForwardSessionEncoderDecoder {
-			spec.DecoderBlockCount = m.profile.MetadataDefaults.uint(
-				values, prefix, "decoder_block_count", spec.BlockCount,
-			)
-			spec.DecoderStartTokenID, _ = optional[uint32](values, prefix+"decoder_start_token_id", gguf.ValueTypeUint32)
-		}
-	}
-	if validation.hybridOneOf(
-		HybridValidationAlternatingGatedDelta, HybridValidationAlternatingGatedDeltaHybrid, HybridValidationAlternatingGatedDeltaExperts,
-	) {
-		spec.FullAttentionInterval = m.profile.MetadataDefaults.uint(
-			values, prefix, "full_attention_interval", m.profile.MetadataDefaults.FullAttentionInterval,
-		)
-		if recurrent, ok, recurrentErr := optionalArray[bool](
-			values,
-			prefix+"attention.recurrent_layers",
-			gguf.ValueTypeBool,
-		); recurrentErr != nil {
-			return Spec{}, recurrentErr
-		} else if ok {
-			if len(recurrent) != int(spec.BlockCount) && len(recurrent) != int(declaredBlockCount) {
-				return Spec{}, fmt.Errorf(
-					"metadata %q has %d values, need %d or %d",
-					prefix+"attention.recurrent_layers",
-					len(recurrent),
-					spec.BlockCount,
-					declaredBlockCount,
-				)
-			}
-			spec.RecurrentLayers = slices.Clone(recurrent[:spec.BlockCount])
 		}
 	}
 	if validation.Recurrent == RecurrentValidationGroupedStateSpaceOptionalExperts {

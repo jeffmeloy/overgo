@@ -18,7 +18,7 @@
         {
           "id": "expert-runtime-metadata",
           "title": "Compile expert and runtime metadata reads and delete displaced policy branches",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/model -run 'Test(Architecture|Metadata|Expert|Runtime)' -count=1"
         },
         {

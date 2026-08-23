@@ -612,7 +612,11 @@ func (r *DeepSeekOCRRunner) validateGraph() error {
 	return nil
 }
 
-func (r *DeepSeekOCRRunner) imagesPrompt(ctx context.Context, tokenizer ImageTokenizer, sources []image.Image, text []string, _ PromptOptions) (MultimodalPrompt, error) {
-	plan := delimitedImagePromptPlan("DeepSeek-OCR", DeepSeekOCRImagePad, "DeepSeek-OCR placeholder", true, r.spec.OutputHidden, "", "")
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, referenceImageEncoder(r.EncodeImage))
+func (r *DeepSeekOCRRunner) imagePromptProgram() compiledImagePromptProgram {
+	return compiledImagePromptProgram{
+		Default: delimitedImagePromptPlan(
+			"DeepSeek-OCR", DeepSeekOCRImagePad, "DeepSeek-OCR placeholder", true, r.spec.OutputHidden, "", "",
+		),
+		Encode: referenceImageEncoder(r.EncodeImage),
+	}
 }

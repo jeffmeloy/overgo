@@ -51,21 +51,13 @@ func compilePromptDispatch(source Projector) promptDispatch {
 		dispatch.images = program.execute
 	}
 	if provider, ok := source.(interface {
-		videoPrompt(context.Context, ImageTokenizer, []image.Image, string, string, float64, bool) (MultimodalPrompt, error)
+		mediaPromptProgram() compiledMediaPromptProgram
 	}); ok {
-		dispatch.video = provider.videoPrompt
-	}
-	if provider, ok := source.(interface {
-		audioPrompt(context.Context, ImageTokenizer, []float32, string, string) (MultimodalPrompt, error)
-		audioSampleRate() (int, error)
-	}); ok {
-		dispatch.audio = provider.audioPrompt
-		dispatch.audioSampleRate = provider.audioSampleRate
-	}
-	if provider, ok := source.(interface {
-		mediaHistoryPrompt(context.Context, ImageTokenizer, []MediaInput, []string) (MultimodalPrompt, error)
-	}); ok {
-		dispatch.media = provider.mediaHistoryPrompt
+		program := provider.mediaPromptProgram()
+		dispatch.video = program.Video
+		dispatch.audio = program.Audio
+		dispatch.audioSampleRate = program.AudioSampleRate
+		dispatch.media = program.History
 	}
 	return dispatch
 }

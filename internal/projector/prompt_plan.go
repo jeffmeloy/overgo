@@ -23,6 +23,8 @@ type imagePromptItem struct {
 	Columns    int
 }
 
+type promptDelimiters struct{ Prefix, Suffix string }
+
 type imagePromptPlan struct {
 	Family           string
 	Placeholder      string
@@ -30,6 +32,8 @@ type imagePromptPlan struct {
 	AddSpecial       bool
 	EmbeddingWidth   int
 	EmbeddingOffset  int
+	Prompt           promptDelimiters
+	Image            promptDelimiters
 	Render           func([]string, []imagePromptItem) string
 	Positions        func(int, []int, []imagePromptItem) ([tensor.MaxDimensions][]uint32, error)
 	AttentionBlocks  func([]int, []imagePromptItem) []AttentionBlock
@@ -37,14 +41,82 @@ type imagePromptPlan struct {
 
 type imagePromptEncoder func(context.Context, image.Image) (imagePromptItem, error)
 
+type compiledImagePromptProgram struct {
+	Default  imagePromptPlan
+	History  imagePromptPlan
+	Thinking imagePromptPlan
+	Encode   imagePromptEncoder
+	Prepare  func([]string, PromptOptions) ([]string, error)
+	Custom   imagesPromptFunc
+}
+
+func compileFramedImagePromptProgram(
+	base imagePromptPlan,
+	prompt, image promptDelimiters,
+	encode imagePromptEncoder,
+) compiledImagePromptProgram {
+	compile := func(history bool, frame promptDelimiters) imagePromptPlan {
+		plan := base
+		plan.AddSpecial, plan.Prompt, plan.Image = history, frame, image
+		return plan
+	}
+	return compiledImagePromptProgram{
+		Default: compile(false, prompt),
+		History: compile(true, promptDelimiters{}),
+		Encode:  encode,
+	}
+}
+
+type compiledMediaPromptProgram struct {
+	Video           videoPromptFunc
+	Audio           audioPromptFunc
+	AudioSampleRate func() (int, error)
+	History         mediaHistoryPromptFunc
+}
+
+func (program compiledImagePromptProgram) execute(
+	ctx context.Context,
+	tokenizer ImageTokenizer,
+	sources []image.Image,
+	text []string,
+	options PromptOptions,
+) (MultimodalPrompt, error) {
+	if program.Custom != nil {
+		return program.Custom(ctx, tokenizer, sources, text, options)
+	}
+	if program.Prepare != nil {
+		prepared, err := program.Prepare(text, options)
+		if err != nil {
+			return MultimodalPrompt{}, err
+		}
+		text = prepared
+	}
+	plan := program.Default
+	if options.History && program.History.Placeholder != "" {
+		plan = program.History
+	} else if options.Thinking && program.Thinking.Placeholder != "" {
+		plan = program.Thinking
+	}
+	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, program.Encode)
+}
+
 func delimitedImagePromptPlan(family, placeholder, label string, addSpecial bool, width int, prefix, suffix string) imagePromptPlan {
 	return imagePromptPlan{
 		Family: family, Placeholder: placeholder, PlaceholderLabel: label,
 		AddSpecial: addSpecial, EmbeddingWidth: width,
-		Render: func(text []string, items []imagePromptItem) string {
-			return renderDelimitedImagePrompt(text, items, placeholder, prefix, suffix)
-		},
+		Image: promptDelimiters{Prefix: prefix, Suffix: suffix},
 	}
+}
+
+func (plan imagePromptPlan) render(text []string, items []imagePromptItem) string {
+	if plan.Render != nil {
+		return plan.Render(text, items)
+	}
+	var prompt strings.Builder
+	prompt.WriteString(plan.Prompt.Prefix)
+	prompt.WriteString(renderDelimitedImagePrompt(text, items, plan.Placeholder, plan.Image.Prefix, plan.Image.Suffix))
+	prompt.WriteString(plan.Prompt.Suffix)
+	return prompt.String()
 }
 
 func referenceImageEncoder(encode func(context.Context, image.Image) (reference.Value, error)) imagePromptEncoder {
@@ -66,7 +138,7 @@ func gridImagePromptEncoder(
 	}
 }
 
-func qwenImagePromptEncoder(
+func spatialGridImagePromptEncoder(
 	encode func(context.Context, image.Image, Qwen3VLPreprocessOptions) (Qwen3VLOutput, error),
 ) imagePromptEncoder {
 	return func(ctx context.Context, source image.Image) (imagePromptItem, error) {
@@ -74,7 +146,7 @@ func qwenImagePromptEncoder(
 		if err != nil {
 			return imagePromptItem{}, err
 		}
-		return qwenImagePromptItem(output)
+		return spatialGridImagePromptItem(output)
 	}
 }
 
@@ -245,7 +317,7 @@ func executeImagePromptPlan(
 	if err := validateImagePromptInputs(tokenizerAPI, sources, text, plan.Family); err != nil {
 		return MultimodalPrompt{}, err
 	}
-	if encode == nil || plan.Render == nil || !checked.PositiveInts(plan.EmbeddingWidth) {
+	if encode == nil || plan.Placeholder == "" || !checked.PositiveInts(plan.EmbeddingWidth) {
 		return MultimodalPrompt{}, errors.New("projector: image prompt plan is incomplete")
 	}
 	items := make([]imagePromptItem, len(sources))
@@ -303,7 +375,7 @@ func executeImagePromptPlan(
 			promptItems[index].RunCount = tensor.SingletonExtent
 		}
 	}
-	prompt := plan.Render(text, promptItems)
+	prompt := plan.render(text, promptItems)
 	var ids []tokenizer.TokenID
 	var starts []int
 	var err error
@@ -339,6 +411,48 @@ func executeImagePromptPlan(
 		Starts: starts, Counts: embeddingCounts, EmbeddingOffset: plan.EmbeddingOffset,
 		Positions: positions, AttentionBlocks: imagePromptAttentionBlocks(plan, starts, items),
 	})
+}
+
+func executePrefixInsertedImagePrompt(
+	ctx context.Context,
+	tokenizerAPI ImageTokenizer,
+	sources []image.Image,
+	prompt, label string,
+	width int,
+	encode func(context.Context, image.Image) (reference.Value, error),
+) (MultimodalPrompt, error) {
+	embeddings := make([]float32, tensor.FirstOffset)
+	for index, source := range sources {
+		value, err := encode(ctx, source)
+		if err != nil {
+			return MultimodalPrompt{}, fmt.Errorf("projector: encode %s image %d: %w", label, index, err)
+		}
+		embeddings = append(embeddings, value.Data...)
+	}
+	visualTokens, ok := checked.DivExactInt(len(embeddings), width)
+	if !ok {
+		return MultimodalPrompt{}, fmt.Errorf("projector: %s embedding storage is inconsistent", label)
+	}
+	ids, err := tokenizerAPI.TokenizeText(prompt, true, true)
+	if err != nil {
+		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize %s prompt: %w", label, err)
+	}
+	if len(ids) == tensor.FirstOffset {
+		return MultimodalPrompt{}, fmt.Errorf("projector: %s tokenizer returned no BOS token", label)
+	}
+	prefixTokens := tensor.SingletonExtent
+	tokenIDs := make([]tokenizer.TokenID, 0, len(ids)+visualTokens)
+	tokenIDs = append(tokenIDs, ids[tensor.FirstOffset])
+	tokenIDs = append(tokenIDs, make([]tokenizer.TokenID, visualTokens)...)
+	for index := prefixTokens; index <= visualTokens; index++ {
+		tokenIDs[index] = ids[tensor.FirstOffset]
+	}
+	tokenIDs = append(tokenIDs, ids[prefixTokens:]...)
+	return MultimodalPrompt{
+		TokenIDs: tokenIDs, Embeddings: embeddings, EmbeddingWidth: width,
+		EmbeddingStart: prefixTokens, EmbeddingTokenIndices: sequentialTokenIndices(prefixTokens, visualTokens),
+		VisualBlocks: []AttentionBlock{{Start: uint32(prefixTokens), End: uint32(visualTokens + prefixTokens)}},
+	}, nil
 }
 
 func executeMixedMediaPromptPlan(
@@ -432,7 +546,7 @@ func imagePromptAttentionBlocks(plan imagePromptPlan, starts []int, items []imag
 	return plan.AttentionBlocks(starts, items)
 }
 
-func qwenImagePromptPositions(tokenCount int, starts []int, items []imagePromptItem) ([tensor.MaxDimensions][]uint32, error) {
+func grid2DImagePromptPositions(tokenCount int, starts []int, items []imagePromptItem) ([tensor.MaxDimensions][]uint32, error) {
 	chunks := make([]spatialPositionChunk, len(starts))
 	for index, start := range starts {
 		chunks[index] = spatialPositionChunk{Start: start, Extents: [tensor.TripleExtent]int{items[index].Rows, items[index].Columns}}
@@ -450,34 +564,30 @@ func hunyuanImagePromptPositions(tokenCount int, starts []int, items []imageProm
 	return compileSpatialPositions(tokenCount, positionDelimitedRows, chunks)
 }
 
-func qwenImagePlan(
+func compileSpatialChatImagePromptProgram(
 	family string,
-	history bool,
 	width int,
-	render func([]string, []imagePromptItem) string,
-) imagePromptPlan {
-	return imagePromptPlan{
-		Family: family, Placeholder: Qwen3VLImagePad, PlaceholderLabel: "image placeholder",
-		AddSpecial: history, EmbeddingWidth: width, Render: render, Positions: qwenImagePromptPositions,
+	defaultSuffix, thinkingSuffix string,
+	encode imagePromptEncoder,
+) compiledImagePromptProgram {
+	compile := func(history bool, suffix string) imagePromptPlan {
+		plan := imagePromptPlan{
+			Family: family, Placeholder: Qwen3VLImagePad, PlaceholderLabel: "image placeholder",
+			AddSpecial: history, EmbeddingWidth: width, Positions: grid2DImagePromptPositions,
+			Image: promptDelimiters{Prefix: "<|vision_start|>", Suffix: "<|vision_end|>"},
+		}
+		if !history {
+			plan.Prompt = promptDelimiters{Prefix: "<|im_start|>user\n", Suffix: suffix}
+		}
+		return plan
 	}
-}
-
-func renderQwenImagePrompt(text []string, items []imagePromptItem, history bool, suffix string) string {
-	var prompt strings.Builder
-	if !history {
-		prompt.WriteString("<|im_start|>user\n")
+	program := compiledImagePromptProgram{
+		Default: compile(false, defaultSuffix), History: compile(true, ""), Encode: encode,
 	}
-	for index, item := range items {
-		prompt.WriteString(text[index])
-		prompt.WriteString("<|vision_start|>")
-		prompt.WriteString(strings.Repeat(Qwen3VLImagePad, item.RunCount))
-		prompt.WriteString("<|vision_end|>")
+	if thinkingSuffix != "" {
+		program.Thinking = compile(false, thinkingSuffix)
 	}
-	prompt.WriteString(text[len(text)-1])
-	if !history {
-		prompt.WriteString(suffix)
-	}
-	return prompt.String()
+	return program
 }
 
 func renderDelimitedImagePrompt(text []string, items []imagePromptItem, placeholder, prefix, suffix string) string {
@@ -492,7 +602,7 @@ func renderDelimitedImagePrompt(text []string, items []imagePromptItem, placehol
 	return prompt.String()
 }
 
-func qwenImagePromptItem(output Qwen3VLOutput) (imagePromptItem, error) {
+func spatialGridImagePromptItem(output Qwen3VLOutput) (imagePromptItem, error) {
 	deepstack := make([][]float32, len(output.DeepstackEmbeddings))
 	for index, stream := range output.DeepstackEmbeddings {
 		if !stream.Shape.Equal(output.Embeddings.Shape) {

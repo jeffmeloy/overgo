@@ -375,7 +375,7 @@
       "id": "cleanup-projector-plan-authority",
       "title": "Make typed projector plans the sole prompt and media orchestration authority",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "session-dispatch",
@@ -392,7 +392,7 @@
         {
           "id": "media-programs",
           "title": "Compile video, audio, and history programs and delete displaced provider methods",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/projector -run 'Test(MixedMediaPromptPlan|CompileMediaPromptRuns|Gemma4TowerAudioPlanReused|VideoPrompt|AudioPrompt)' -count=1 \u0026\u0026 go test ./internal/inference -run 'Test(CompileProjectedRequestPlan|ProjectedInputDeepstackAdmission|ProjectedInputsSignatureIncludesMediaPayload)' -count=1"
         }
       ]

@@ -12,7 +12,6 @@ import (
 	"overgo/internal/media"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
-	"overgo/internal/tokenizer"
 )
 
 const cogVLMProjectorType = "cogvlm"
@@ -143,63 +142,23 @@ func (r *CogVLMVisionRunner) EncodeImage(ctx context.Context, source image.Image
 	return r.encodeGraph(ctx, pixels)
 }
 
-func (r *CogVLMVisionRunner) imagesPrompt(
-	ctx context.Context,
-	tokenizerAPI ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	options PromptOptions,
-) (MultimodalPrompt, error) {
-	if tokenizerAPI == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
-	}
-	if len(sources) == 0 || len(text) != len(sources)+1 {
-		return MultimodalPrompt{}, errors.New("projector: CogVLM image/text sequence is inconsistent")
-	}
-	prompt := strings.Join(text, "")
-	if !options.History {
-		prompt = "Question: " + prompt + " Answer:"
-	}
-	return r.buildImagesPrompt(ctx, tokenizerAPI, sources, prompt)
-}
-
-func (r *CogVLMVisionRunner) buildImagesPrompt(
-	ctx context.Context,
-	tokenizerAPI ImageTokenizer,
-	sources []image.Image,
-	text string,
-) (MultimodalPrompt, error) {
-	var embeddings []float32
-	for index, source := range sources {
-		value, err := r.EncodeImage(ctx, source)
-		if err != nil {
-			return MultimodalPrompt{}, fmt.Errorf("projector: encode CogVLM image %d: %w", index, err)
+func (r *CogVLMVisionRunner) imagePromptProgram() compiledImagePromptProgram {
+	return compiledImagePromptProgram{Custom: func(
+		ctx context.Context,
+		tokenizerAPI ImageTokenizer,
+		sources []image.Image,
+		text []string,
+		options PromptOptions,
+	) (MultimodalPrompt, error) {
+		if err := validateImagePromptInputs(tokenizerAPI, sources, text, "CogVLM"); err != nil {
+			return MultimodalPrompt{}, err
 		}
-		embeddings = append(embeddings, value.Data...)
-	}
-	visualTokens, ok := checked.DivExactInt(len(embeddings), r.spec.OutputHidden)
-	if !ok {
-		return MultimodalPrompt{}, errors.New("projector: CogVLM embedding storage is inconsistent")
-	}
-	ids, err := tokenizerAPI.TokenizeText(text, true, true)
-	if err != nil {
-		return MultimodalPrompt{}, fmt.Errorf("projector: tokenize CogVLM prompt: %w", err)
-	}
-	if len(ids) == 0 {
-		return MultimodalPrompt{}, errors.New("projector: CogVLM tokenizer returned no BOS token")
-	}
-	prefixTokens := tensor.SingletonExtent
-	tokenIDs := make([]tokenizer.TokenID, 0, len(ids)+visualTokens)
-	tokenIDs = append(tokenIDs, ids[tensor.FirstOffset])
-	tokenIDs = append(tokenIDs, make([]tokenizer.TokenID, visualTokens)...)
-	for index := prefixTokens; index <= visualTokens; index++ {
-		tokenIDs[index] = ids[tensor.FirstOffset]
-	}
-	tokenIDs = append(tokenIDs, ids[prefixTokens:]...)
-	indices := sequentialTokenIndices(prefixTokens, visualTokens)
-	return MultimodalPrompt{
-		TokenIDs: tokenIDs, Embeddings: embeddings, EmbeddingWidth: r.spec.OutputHidden,
-		EmbeddingStart: prefixTokens, EmbeddingTokenIndices: indices,
-		VisualBlocks: []AttentionBlock{{Start: uint32(prefixTokens), End: uint32(visualTokens + prefixTokens)}},
-	}, nil
+		prompt := strings.Join(text, "")
+		if !options.History {
+			prompt = "Question: " + prompt + " Answer:"
+		}
+		return executePrefixInsertedImagePrompt(
+			ctx, tokenizerAPI, sources, prompt, "CogVLM", r.spec.OutputHidden, r.EncodeImage,
+		)
+	}}
 }

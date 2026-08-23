@@ -566,14 +566,49 @@ const renamedProfileExcludedExperts float64 = 128
 // PostRotaryRMSNon128. The policy is remapped as generic JSON because the
 // current ArchitectureProfile has no field of that name and strict decoding
 // would refuse the document before the rename could run.
+// catalogPolicyBase renders the registered profile for one architecture as
+// generic JSON, supplying defaults for policy fields that postdate a published
+// document. An architecture the catalog does not register cannot be upgraded:
+// there is no declared authority to complete it from.
+func catalogPolicyBase(architecture string) (map[string]any, error) {
+	registered, found := model.LookupArchitecture(architecture)
+	if !found {
+		return nil, fmt.Errorf("renamed model profile: architecture %q is not registered", architecture)
+	}
+	encoded, err := json.Marshal(registered)
+	if err != nil {
+		return nil, err
+	}
+	var base map[string]any
+	if err := json.Unmarshal(encoded, &base); err != nil {
+		return nil, err
+	}
+	return base, nil
+}
+
 func upgradeRenamedProfile(data []byte) ([]byte, error) {
 	var body map[string]any
 	if err := json.Unmarshal(data, &body); err != nil {
 		return nil, err
 	}
-	policy, ok := body["policy"].(map[string]any)
+	stored, ok := body["policy"].(map[string]any)
 	if !ok {
 		return nil, errors.New("renamed model profile: policy is absent")
+	}
+	architecture, _ := body["architecture"].(string)
+	// Documents published before v3 predate more than the rename: policy fields
+	// added to ArchitectureProfile since then are simply absent, and decoding
+	// them as zero values fails the current validator. The registered catalog is
+	// the declared authority for architecture facts, so it supplies whatever the
+	// document never recorded while every value it did record still wins. No
+	// model fact is named here; the architecture the document declares selects
+	// its own defaults.
+	policy, err := catalogPolicyBase(architecture)
+	if err != nil {
+		return nil, err
+	}
+	for key, value := range stored {
+		policy[key] = value
 	}
 	stages, ok := policy["DenseStages"].(map[string]any)
 	if !ok {
@@ -599,7 +634,6 @@ func upgradeRenamedProfile(data []byte) ([]byte, error) {
 	if err := strictjson.DecodeBytes(remapped, &profile); err != nil {
 		return nil, err
 	}
-	architecture, _ := body["architecture"].(string)
 	if architecture == "" || profile.Name != architecture {
 		return nil, errors.New("invalid renamed model profile")
 	}

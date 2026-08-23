@@ -4,15 +4,57 @@
   "census_evidence": "evidence:sha256:ffddab7c8b8de15a67406bc93380f6d3bc35c4e9e67fe25544bc02b6e2539e6f",
   "items": [
     {
-      "id": "merge-74abae91e639",
-      "title": "Merge master at 74abae91e639",
+      "id": "merge-6dd655ba5061",
+      "title": "Merge master at 6dd655ba5061",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Merge master at 74abae91e639",
+          "title": "Merge master at 6dd655ba5061",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "repodb-closure-authority",
+      "title": "Import the closure authority merge 15bd36d0 skipped",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Import the closure authority merge 15bd36d0 skipped",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-scope internal -require-no-stale"
+        }
+      ]
+    },
+    {
+      "id": "gui-profile-restore",
+      "title": "Migrate stored profile documents to v3 so models load",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Migrate stored profile documents to v3 so models load",
+          "status": "done",
+          "verify": "go test ./internal/modelrecipe ./internal/repodbimport -run 'TestProfileRenameUpgrade|TestProfileRenameUpgradeRefusesUnknownShape|TestProfileSchemaVersion|TestRegisteredProfileSemanticDigest' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-profile-schema",
+      "title": "Restore qwen35 model loading after the profile field rename",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore qwen35 model loading after the profile field rename",
+          "status": "done",
+          "verify": "go test ./internal/repodbimport -run 'TestProfileUpgradeBackfillsFieldsAddedAfterPublication|TestProfileUpgradeRefusesUnregisteredArchitecture|TestProfileRenameUpgrade' -count=1"
         }
       ]
     },
@@ -257,6 +299,48 @@
       ]
     },
     {
+      "id": "validate-model-inference",
+      "title": "Validate inference across every adaptive_new model",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate inference across every adaptive_new model",
+          "status": "open",
+          "verify": "go test -p 1 -tags modeltest ./internal/inference ./internal/densecausal ./internal/routedlm ./internal/seq2seq ./internal/latentimage ./internal/latentvideo ./internal/speechsynth -count=1"
+        }
+      ]
+    },
+    {
+      "id": "validate-model-training",
+      "title": "Validate training across every adaptive_new model",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate training across every adaptive_new model",
+          "status": "open",
+          "verify": "go test -p 1 -tags modeltest ./internal/trainingprogram ./internal/trainingworkflow ./internal/adaptertrain ./internal/hybridtrain ./internal/controllertrain ./internal/bridgetrain -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-refactor",
+      "title": "Refactor the workbench GUI into a correct, reliable interface",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refactor the workbench GUI into a correct, reliable interface",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestWebUI|TestEvaluationWorkbench' -count=1"
+        }
+      ]
+    },
+    {
       "id": "magic-runtime-remaining",
       "title": "Close remaining production literal surfaces",
       "status": "done",
@@ -322,6 +406,19 @@
           "title": "Integrate zero-debt checks and delete campaign-only compatibility machinery",
           "status": "open",
           "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestPermanentMagicGate' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts"
+        }
+      ]
+    },
+    {
+      "id": "merge-74abae91e639",
+      "title": "Merge master at 74abae91e639",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 74abae91e639",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
         }
       ]
     },
@@ -524,86 +621,30 @@
       ]
     },
     {
-      "id": "repodb-closure-authority",
-      "title": "Import the closure authority merge 15bd36d0 skipped",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Import the closure authority merge 15bd36d0 skipped",
-          "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-scope internal -require-no-stale"
-        }
-      ]
-    },
-    {
-      "id": "gui-profile-restore",
-      "title": "Migrate stored profile documents to v3 so models load",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Migrate stored profile documents to v3 so models load",
-          "status": "done",
-          "verify": "go test ./internal/modelrecipe ./internal/repodbimport -run 'TestProfileRenameUpgrade|TestProfileRenameUpgradeRefusesUnknownShape|TestProfileSchemaVersion|TestRegisteredProfileSemanticDigest' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-profile-schema",
-      "title": "Restore qwen35 model loading after the profile field rename",
+      "id": "gate-published-data",
+      "title": "Make the gate verify published data against current source",
       "owner": "gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Restore qwen35 model loading after the profile field rename",
+          "title": "Make the gate verify published data against current source",
           "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/repodbimport -run 'TestProfileRenameUpgrade|TestProfileSchemaVersion' -count=1"
+          "verify": "go test ./cmd/gate ./internal/modelrecipe -run 'TestGateReadsPublishedDocuments|TestStoredDocumentsDecodeUnderCurrentSchema' -count=1"
         }
       ]
     },
     {
-      "id": "validate-model-inference",
-      "title": "Validate inference across every adaptive_new model",
+      "id": "repodb-retention",
+      "title": "Set a RepoDB retention policy for superseded evidence",
       "owner": "gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Validate inference across every adaptive_new model",
+          "title": "Set a RepoDB retention policy for superseded evidence",
           "status": "open",
-          "verify": "go test -p 1 -tags modeltest ./internal/inference ./internal/densecausal ./internal/routedlm ./internal/seq2seq ./internal/latentimage ./internal/latentvideo ./internal/speechsynth -count=1"
-        }
-      ]
-    },
-    {
-      "id": "validate-model-training",
-      "title": "Validate training across every adaptive_new model",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Validate training across every adaptive_new model",
-          "status": "open",
-          "verify": "go test -p 1 -tags modeltest ./internal/trainingprogram ./internal/trainingworkflow ./internal/adaptertrain ./internal/hybridtrain ./internal/controllertrain ./internal/bridgetrain -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-refactor",
-      "title": "Refactor the workbench GUI into a correct, reliable interface",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refactor the workbench GUI into a correct, reliable interface",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestWebUI|TestEvaluationWorkbench' -count=1"
+          "verify": "go test ./internal/repodb ./internal/closureledger -run 'TestRetention|TestSupersededCollection' -count=1"
         }
       ]
     }

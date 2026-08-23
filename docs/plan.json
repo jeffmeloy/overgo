@@ -399,13 +399,41 @@
       "id": "validate-model-training",
       "title": "Validate training across every adaptive_new model",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Validate training across every adaptive_new model",
-          "status": "open",
+          "status": "done",
           "verify": "OVERGO_CUDA_TEST=1 go test -p 1 -tags modeltest ./internal/diffusionimage ./internal/seq2seq ./internal/seriesforecast ./internal/thoughtbank -run 'Train' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "carbon-extension",
+      "title": "Restore Carbon's sequence-extension declaration and pass its golden",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Carbon's sequence-extension declaration and pass its golden",
+          "status": "done",
+          "verify": "go run ./cmd/reverify -claims docs/verification/carbon-500m.json -reason carbon-extension-restored C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Carbon-500M-f16.gguf"
+        }
+      ]
+    },
+    {
+      "id": "goldenless-training",
+      "title": "Verify training from first principles for models without goldens",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify training from first principles for models without goldens",
+          "status": "done",
+          "verify": "go run ./cmd/store-check \u0026\u0026 go run ./cmd/reverify -claims docs/verification/carbon-500m.json -reason goldenless-row-verify C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Carbon-500M-f16.gguf"
         }
       ]
     },

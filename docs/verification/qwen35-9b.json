@@ -12,6 +12,16 @@
    "evidence": [
     "evidence:sha256:cde0d4def898cc590379c55a8fc7c11e7f38c33f76944a69dadcf2a4c54b3de0"
    ]
+  },
+  {
+   "capability": "inference",
+   "tier": "exact-golden",
+   "commit": "HEAD-at-activation",
+   "evidence": [
+    "evidence:sha256:8bb5e45c3746f4cd9a207207d9fa31a339410ecb3d77ab69b62845aca469794f",
+    "run:sha256:4a71eeff328601b30edcae84fb3a1bb17d93950758a643e5f6fe477345ee40a2"
+   ],
+   "suite_fixture": "fixtures/qwen35_9b_serving_smoke.json"
   }
  ],
  "evidence_files": [

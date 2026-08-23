@@ -251,8 +251,9 @@ func (s catalogState) querySeed(query Query) (artifact.ID, bool, error) {
 
 func (s catalogState) followEdges(id artifact.ID, direction FollowDirection, relation artifact.Relation) []artifact.Lineage {
 	var edges []artifact.Lineage
-	appendIndex := func(index map[artifact.ID]map[relationKey]artifact.Lineage) {
-		for _, edge := range index[id] {
+	appendIndex := func(index map[artifact.ID]map[relationKey]struct{}) {
+		for key := range index[id] {
+			edge := s.lineage[key]
 			if relation == artifact.RelationInvalid || edge.Relation == relation {
 				edges = append(edges, edge)
 			}

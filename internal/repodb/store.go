@@ -50,13 +50,12 @@ type catalogState struct {
 	artifacts           map[artifact.ID]artifact.Descriptor
 	artifactsByMedia    map[string]map[artifact.ID]struct{}
 	artifactsBySchema   map[string]map[artifact.ID]struct{}
-	contents            map[artifact.ID]artifact.Content
+	contents            map[artifact.ID][]byte
 	manifests           map[artifact.ID]artifact.Manifest
 	aliases             map[string]artifact.ID
 	lineage             map[relationKey]artifact.Lineage
-	parentEdges         map[artifact.ID]map[relationKey]artifact.Lineage
-	childEdges          map[artifact.ID]map[relationKey]artifact.Lineage
-	parents             map[artifact.ID]map[artifact.ID]struct{}
+	parentEdges         map[artifact.ID]map[relationKey]struct{}
+	childEdges          map[artifact.ID]map[relationKey]struct{}
 	locations           map[locationKey]artifact.Location
 	locationsByArtifact map[artifact.ID]map[locationKey]artifact.Location
 	commits             map[string]committedBatch
@@ -67,13 +66,12 @@ func newCatalogState() catalogState {
 		artifacts:           map[artifact.ID]artifact.Descriptor{},
 		artifactsByMedia:    map[string]map[artifact.ID]struct{}{},
 		artifactsBySchema:   map[string]map[artifact.ID]struct{}{},
-		contents:            map[artifact.ID]artifact.Content{},
+		contents:            map[artifact.ID][]byte{},
 		manifests:           map[artifact.ID]artifact.Manifest{},
 		aliases:             map[string]artifact.ID{},
 		lineage:             map[relationKey]artifact.Lineage{},
-		parentEdges:         map[artifact.ID]map[relationKey]artifact.Lineage{},
-		childEdges:          map[artifact.ID]map[relationKey]artifact.Lineage{},
-		parents:             map[artifact.ID]map[artifact.ID]struct{}{},
+		parentEdges:         map[artifact.ID]map[relationKey]struct{}{},
+		childEdges:          map[artifact.ID]map[relationKey]struct{}{},
 		locations:           map[locationKey]artifact.Location{},
 		locationsByArtifact: map[artifact.ID]map[locationKey]artifact.Location{},
 		commits:             map[string]committedBatch{},
@@ -94,7 +92,7 @@ func (s catalogState) validate(batch artifact.Batch) error {
 		}
 	}
 	for _, content := range batch.Contents {
-		if current, ok := s.contents[content.Descriptor.ID]; ok && !sameContent(current, content) {
+		if current, ok := s.contents[content.Descriptor.ID]; ok && !bytes.Equal(current, content.Data) {
 			return fmt.Errorf("%w: content %s", ErrArtifactConflict, content.Descriptor.ID)
 		}
 	}
@@ -164,7 +162,7 @@ func (s *catalogState) apply(batch artifact.Batch) {
 		indexDescriptor(s.artifactsBySchema, descriptor.Schema, descriptor.ID)
 	}
 	for _, content := range batch.Contents {
-		s.contents[content.Descriptor.ID] = content.Clone()
+		s.contents[content.Descriptor.ID] = slices.Clone(content.Data)
 	}
 	for _, manifest := range batch.Manifests {
 		s.manifests[manifest.ID] = manifest.Clone()
@@ -182,14 +180,8 @@ func (s *catalogState) apply(batch artifact.Batch) {
 			continue
 		}
 		s.lineage[key] = edge
-		indexRelation(s.parentEdges, edge.Child, key, edge)
-		indexRelation(s.childEdges, edge.Parent, key, edge)
-		parents := s.parents[edge.Child]
-		if parents == nil {
-			parents = map[artifact.ID]struct{}{}
-			s.parents[edge.Child] = parents
-		}
-		parents[edge.Parent] = struct{}{}
+		indexRelation(s.parentEdges, edge.Child, key)
+		indexRelation(s.childEdges, edge.Parent, key)
 	}
 	for _, event := range batch.Locations {
 		key := locationKey{artifact: event.Artifact, kind: event.Kind, value: event.Value}
@@ -225,25 +217,20 @@ func indexDescriptor(index map[string]map[artifact.ID]struct{}, key string, id a
 }
 
 func indexRelation(
-	index map[artifact.ID]map[relationKey]artifact.Lineage,
+	index map[artifact.ID]map[relationKey]struct{},
 	id artifact.ID,
 	key relationKey,
-	edge artifact.Lineage,
 ) {
 	edges := index[id]
 	if edges == nil {
-		edges = map[relationKey]artifact.Lineage{}
+		edges = map[relationKey]struct{}{}
 		index[id] = edges
 	}
-	edges[key] = edge
+	edges[key] = struct{}{}
 }
 
 func sameManifest(left, right artifact.Manifest) bool {
 	return left.Version == right.Version && left.ID == right.ID && slices.Equal(left.Components, right.Components)
-}
-
-func sameContent(left, right artifact.Content) bool {
-	return left.Descriptor == right.Descriptor && bytes.Equal(left.Data, right.Data)
 }
 
 func (s catalogState) reaches(start, target artifact.ID, pending map[artifact.ID]map[artifact.ID]struct{}) bool {
@@ -252,19 +239,28 @@ func (s catalogState) reaches(start, target artifact.ID, pending map[artifact.ID
 	}
 	seen := map[artifact.ID]struct{}{start: {}}
 	queue := []artifact.ID{start}
+	visit := func(parent artifact.ID) bool {
+		if parent == target {
+			return true
+		}
+		if _, ok := seen[parent]; ok {
+			return false
+		}
+		seen[parent] = struct{}{}
+		queue = append(queue, parent)
+		return false
+	}
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
-		for _, parents := range []map[artifact.ID]struct{}{s.parents[current], pending[current]} {
-			for parent := range parents {
-				if parent == target {
-					return true
-				}
-				if _, ok := seen[parent]; ok {
-					continue
-				}
-				seen[parent] = struct{}{}
-				queue = append(queue, parent)
+		for key := range s.parentEdges[current] {
+			if visit(key.parent) {
+				return true
+			}
+		}
+		for parent := range pending[current] {
+			if visit(parent) {
+				return true
 			}
 		}
 	}
@@ -411,8 +407,11 @@ func (s *Store) Content(ctx context.Context, id artifact.ID) (artifact.Content, 
 	if err := s.ready(false); err != nil {
 		return artifact.Content{}, false, err
 	}
-	value, ok := s.state.contents[id]
-	return value.Clone(), ok, nil
+	data, ok := s.state.contents[id]
+	if !ok {
+		return artifact.Content{}, false, nil
+	}
+	return artifact.Content{Descriptor: s.state.artifacts[id], Data: slices.Clone(data)}, true, nil
 }
 
 func (s *Store) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descriptor, io.Reader, bool, error) {
@@ -424,11 +423,11 @@ func (s *Store) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descr
 	if err := s.ready(false); err != nil {
 		return artifact.Descriptor{}, nil, false, err
 	}
-	value, ok := s.state.contents[id]
+	data, ok := s.state.contents[id]
 	if !ok {
 		return artifact.Descriptor{}, nil, false, nil
 	}
-	return value.Descriptor, bytes.NewReader(value.Data), true, nil
+	return s.state.artifacts[id], bytes.NewReader(data), true, nil
 }
 
 func (s *Store) HasContent(ctx context.Context, id artifact.ID) (bool, error) {
@@ -502,8 +501,8 @@ func (s *Store) lineageFor(ctx context.Context, id artifact.ID, parents bool) ([
 		edges = s.state.parentEdges[id]
 	}
 	result := make([]artifact.Lineage, 0, len(edges))
-	for _, edge := range edges {
-		result = append(result, edge)
+	for key := range edges {
+		result = append(result, s.state.lineage[key])
 	}
 	sort.Slice(result, func(i, j int) bool {
 		left, right := result[i], result[j]

@@ -1,7 +1,7 @@
 {
   "campaign": "Deletion-led production composability and repository tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:b5760b4d8d8379359c1c4ec356e935a5f8b4e54be24ae931e8bc49e87fbf88ed",
+  "census_evidence": "evidence:sha256:8bbc15777a4f9d2222d1a432287db69611dfbd71b31df6886b2331f13b02ac06",
   "items": [
     {
       "id": "merge-6a0da4d57de3",
@@ -11,6 +11,159 @@
         {
           "id": "do",
           "title": "Merge codex/overgo_research at 6a0da4d57de3",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "merge-master-c17ba32c",
+      "title": "Merge master c17ba32c into research worktree while retaining research plan authority",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master c17ba32c into research worktree while retaining research plan authority",
+          "status": "done",
+          "verify": "git diff --quiet c17ba32c7d372c8c15bc1efd9edebaac7ac09390 MERGE_HEAD"
+        }
+      ]
+    },
+    {
+      "id": "merge-fcd3bf26ed77",
+      "title": "Merge master at fcd3bf26ed77 after offline tensor execution plan",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at fcd3bf26ed77 after offline tensor execution plan",
+          "status": "done",
+          "verify": "git diff --quiet fcd3bf26ed774571e18371bad0c0d4cdb344b78d MERGE_HEAD"
+        }
+      ]
+    },
+    {
+      "id": "offline-tensor-execution-plan",
+      "title": "Compile exact offline tensor execution, placement, lifetime, and shard policy from RepoDB authorities without merge heuristics or magic defaults",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile exact offline tensor execution, placement, lifetime, and shard policy from RepoDB authorities without merge heuristics or magic defaults",
+          "status": "done",
+          "verify": "go test ./internal/composition ./internal/modelmerge -run '^TestOffline(TensorExecutionPlan|PlanDerivesResourcePolicy|PlanRejectsLiteralPolicy)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "safetensors-stream-writer",
+      "title": "Write deterministic bounded Safetensors shards through temporary artifacts with resume and atomic finalization",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Write deterministic bounded Safetensors shards through temporary artifacts with resume and atomic finalization",
+          "status": "done",
+          "verify": "go test ./internal/safetensors -run '^TestStreamingWriter(DeterministicShards|AtomicFinalize|Resume|DerivedBounds)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "offline-tensor-executor",
+      "title": "Execute exact passthrough and task arithmetic tensor-by-tensor with bounded residency and hard refusal",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Execute exact passthrough and task arithmetic tensor-by-tensor with bounded residency and hard refusal",
+          "status": "done",
+          "verify": "go test ./internal/modelmerge -run '^TestStreaming(Passthrough|TaskArithmetic|BoundedResidency|Refusal)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "offline-artifact-generation",
+      "title": "Gate produced model artifacts on real load, generation, repeat stability, resources, and promotion evidence",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Gate produced model artifacts on real load, generation, repeat stability, resources, and promotion evidence",
+          "status": "done",
+          "verify": "go test ./internal/composition ./internal/evaluation -run '^TestOfflineArtifactGeneration(ExactPassthrough|TaskArithmetic|RepeatedSeeds|PromotionRefusal)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "offline-lora-extraction",
+      "title": "Extract lineage-bound LoRA adapters from exact base deltas with rank derived from reconstruction evidence",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Extract lineage-bound LoRA adapters from exact base deltas with rank derived from reconstruction evidence",
+          "status": "done",
+          "verify": "go test ./internal/modelmerge ./internal/model -run '^TestLoRAExtraction(ExactBase|ResidualBudget|FrozenReconstruction|Lineage)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "vocabulary-artifact-interoperability",
+      "title": "Compile exact vocabulary remapping and embedding provenance with semantic refusal and generated-artifact validation",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile exact vocabulary remapping and embedding provenance with semantic refusal and generated-artifact validation",
+          "status": "open",
+          "verify": "go test ./internal/modelmerge ./internal/tokenizer -run '^TestVocabularyArtifact(ExactMapping|EmbeddingProvenance|SemanticRefusal|Generation)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "dense-to-moe-evidence-screen",
+      "title": "Admit dense-to-MoE artifact construction only through an evidence screen with derived router policy and promotion refusal",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit dense-to-MoE artifact construction only through an evidence screen with derived router policy and promotion refusal",
+          "status": "open",
+          "verify": "go test ./internal/modelmerge ./internal/model -run '^TestDenseToMoE(EvidenceScreen|RouterInitialization|ExpertInventory|PromotionRefusal)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "offline-artifact-closure",
+      "title": "Close the offline artifact campaign with full tests, vet, magic census, and no heuristic merge operators",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Close the offline artifact campaign with full tests, vet, magic census, and no heuristic merge operators",
+          "status": "open",
+          "verify": "go run ./cmd/test-lane \u0026\u0026 go vet ./..."
+        }
+      ]
+    },
+    {
+      "id": "merge-6dd655ba5061",
+      "title": "Merge master at 6dd655ba5061",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 6dd655ba5061",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
         }
@@ -383,6 +536,34 @@
       ]
     },
     {
+      "id": "merge-research",
+      "title": "Merge overgo_research into master through the gated merge",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge overgo_research into master through the gated merge",
+          "status": "done",
+          "verify": "git merge-base --is-ancestor codex/overgo_research HEAD || git rev-parse -q --verify MERGE_HEAD"
+        }
+      ]
+    },
+    {
+      "id": "merge-tightening",
+      "title": "Merge overgo_tightening into master through the gated merge",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge overgo_tightening into master through the gated merge",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor overgo_tightening HEAD"
+        }
+      ]
+    },
+    {
       "id": "validate-model-training",
       "title": "Validate training across every adaptive_new model",
       "owner": "gui",
@@ -407,20 +588,6 @@
           "title": "Refactor the workbench GUI into a correct, reliable interface",
           "status": "open",
           "verify": "go test ./internal/server -run 'TestWebUI|TestEvaluationWorkbench' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "repodb-retention",
-      "title": "Set a RepoDB retention policy for superseded evidence",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Set a RepoDB retention policy for superseded evidence",
-          "status": "open",
-          "verify": "go test ./internal/repodb ./internal/closureledger -run 'TestRetention|TestSupersededCollection' -count=1"
         }
       ]
     },
@@ -490,47 +657,6 @@
           "title": "Integrate zero-debt checks and delete campaign-only compatibility machinery",
           "status": "done",
           "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestPermanentMagicGate' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "merge-research",
-      "title": "Merge overgo_research into master through the gated merge",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge overgo_research into master through the gated merge",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor codex/overgo_research HEAD"
-        }
-      ]
-    },
-    {
-      "id": "merge-tightening",
-      "title": "Merge overgo_tightening into master through the gated merge",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge overgo_tightening into master through the gated merge",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor overgo_tightening HEAD"
-        }
-      ]
-    },
-    {
-      "id": "merge-6dd655ba5061",
-      "title": "Merge master at 6dd655ba5061",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge master at 6dd655ba5061",
-          "status": "done",
-          "verify": "go run ./cmd/compatibility -check"
         }
       ]
     },
@@ -770,6 +896,20 @@
           "title": "Require identical active-recipe generation through runtime, API, and GUI before evidence can promote the composition",
           "status": "done",
           "verify": "go test ./internal/composition ./internal/server ./internal/inference -run 'TestCompositeGeneration(SurfaceParity|PromotionGate|UnpromotedRefusal)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "repodb-retention",
+      "title": "Set a RepoDB retention policy for superseded evidence",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Set a RepoDB retention policy for superseded evidence",
+          "status": "open",
+          "verify": "go test ./internal/repodb ./internal/closureledger -run 'TestRetention|TestSupersededCollection' -count=1"
         }
       ]
     }

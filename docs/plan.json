@@ -1415,12 +1415,12 @@
       "id": "adk-capability-bundles",
       "title": "Expose instruction, resource, and tool bundles through existing artifact manifests and recipes",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Represent capability bundles as typed artifact manifest roles and recipe dependencies; select bundles by capability and evidence; load referenced resources on demand; avoid filesystem scanning and injected free-form authority",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/artifact ./internal/modelrecipe ./internal/workflowruntime ./internal/server -run 'Test(CapabilityBundleManifest|CapabilityBundleRecipeSelection|CapabilityResourceOnDemand|UnpromotedBundleRefusal)' -count=1",
           "rationale": "ADK skills package instructions and resources usefully, but Overgo should use content-addressed manifests, active recipes, and promotion evidence. Bundle text remains input data, never executable policy; tools remain typed recipe modules.",
           "depends_on": [

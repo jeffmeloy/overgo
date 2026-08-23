@@ -210,6 +210,11 @@ type toolCallExecutor interface {
 	ExecuteTool(context.Context, recipe.ToolCall) (recipe.ToolResult, error)
 }
 
+type capabilityBundleAPI interface {
+	CapabilityBundles() []artifact.ID
+	LoadCapabilityComponent(context.Context, artifact.ID, artifact.ComponentRole, string) (artifact.Content, error)
+}
+
 type Config struct {
 	ModelID            string
 	MaxTokens          int
@@ -646,6 +651,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/datasets/preview" ||
 		request.URL.Path == "/runs" ||
 		request.URL.Path == "/interactions/replay" ||
+		request.URL.Path == "/capabilities/bundles" ||
 		request.URL.Path == "/recipes/active" ||
 		request.URL.Path == "/compositions" ||
 		request.URL.Path == "/compositions/activate" ||
@@ -763,6 +769,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.browseRuns(response, request)
 	case "/interactions/replay":
 		h.interactionReplay(response, request)
+	case "/capabilities/bundles":
+		h.capabilityBundles(response, request)
 	case "/recipes/active":
 		h.activeRecipe(response, request)
 	case "/compositions":

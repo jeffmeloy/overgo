@@ -38,6 +38,7 @@ type CapabilityEvidenceSelection struct {
 	Activation Activation
 	Program    recipe.Program
 	Resources  ComponentSessionPlan
+	Bundles    []CapabilityBundle
 	Peer       RemotePeerCompatibility
 }
 
@@ -48,6 +49,7 @@ type capabilitySelectionIdentity struct {
 	Model     artifact.ID      `json:"model"`
 	Recipe    artifact.ID      `json:"recipe"`
 	Resources artifact.ID      `json:"resources"`
+	Bundles   []artifact.ID    `json:"bundles,omitempty"`
 	Evidence  *artifact.ID     `json:"evidence,omitempty"`
 	Peer      *artifact.ID     `json:"peer,omitempty"`
 }
@@ -68,7 +70,7 @@ func CompileCandidateExecution(
 	if err != nil {
 		return CapabilityEvidenceSelection{}, err
 	}
-	return compileCapabilitySelection("", SessionWarm, Activation{Definition: program.Definition()}, program, resources, RemotePeerCompatibility{})
+	return compileCapabilitySelection("", SessionWarm, Activation{Definition: program.Definition()}, program, resources, nil, RemotePeerCompatibility{})
 }
 
 // ResolveActiveExecution resolves one model's active local execution.
@@ -90,7 +92,11 @@ func ResolveActiveExecution(
 	if err != nil {
 		return CapabilityEvidenceSelection{}, err
 	}
-	return compileCapabilitySelection("", session, activation, program, resources, RemotePeerCompatibility{})
+	bundles, err := resolveCapabilityBundles(ctx, store, activation)
+	if err != nil {
+		return CapabilityEvidenceSelection{}, err
+	}
+	return compileCapabilitySelection("", session, activation, program, resources, bundles, RemotePeerCompatibility{})
 }
 
 // ResolveCapabilityEvidenceSelector resolves RepoDB alias, recipe, evidence, and resources.
@@ -115,6 +121,10 @@ func ResolveCapabilityEvidenceSelector(
 	if err != nil {
 		return CapabilityEvidenceSelection{}, err
 	}
+	bundles, err := resolveCapabilityBundles(ctx, store, activation)
+	if err != nil {
+		return CapabilityEvidenceSelection{}, err
+	}
 	if selector.Session != SessionSpillover && resources.RequestScoped() {
 		return CapabilityEvidenceSelection{}, errors.New("model recipe: retained selector requires capacity session")
 	}
@@ -132,7 +142,7 @@ func ResolveCapabilityEvidenceSelector(
 	} else if selector.Compatibility.Valid() {
 		return CapabilityEvidenceSelection{}, errors.New("model recipe: local selection carries remote compatibility")
 	}
-	return compileCapabilitySelection(selector.Alias, selector.Session, activation, program, resources, peer)
+	return compileCapabilitySelection(selector.Alias, selector.Session, activation, program, resources, bundles, peer)
 }
 
 // RefreshCapabilityExecution returns current authority or rejects incompatible replacement.
@@ -146,7 +156,7 @@ func RefreshCapabilityExecution(
 	}
 	validated, err := compileCapabilitySelection(
 		selection.Alias, selection.Session, selection.Activation,
-		selection.Program, selection.Resources, selection.Peer,
+		selection.Program, selection.Resources, selection.Bundles, selection.Peer,
 	)
 	if err != nil || validated.Identity != selection.Identity {
 		return CapabilityEvidenceSelection{}, errors.Join(errors.New("model recipe: capability execution identity differs"), err)
@@ -207,7 +217,7 @@ func sameCapabilityExecution(left, right CapabilityEvidenceSelection) bool {
 	return left.Program.Definition().Model == right.Program.Definition().Model &&
 		left.Program.Definition().ID == right.Program.Definition().ID &&
 		left.Resources.Identity == right.Resources.Identity && left.Session == right.Session &&
-		left.Peer.ID == right.Peer.ID
+		sameCapabilityBundles(left.Bundles, right.Bundles) && left.Peer.ID == right.Peer.ID
 }
 
 func compileCapabilitySelection(
@@ -216,6 +226,7 @@ func compileCapabilitySelection(
 	activation Activation,
 	program recipe.Program,
 	resources ComponentSessionPlan,
+	bundles []CapabilityBundle,
 	peer RemotePeerCompatibility,
 ) (CapabilityEvidenceSelection, error) {
 	definition := program.Definition()
@@ -230,6 +241,10 @@ func compileCapabilitySelection(
 	}
 	if alias != "" && !activation.Event.ID.Valid() {
 		return CapabilityEvidenceSelection{}, errors.New("model recipe: capability alias lacks active evidence")
+	}
+	bundleIDs, err := validateCapabilityBundles(activation, bundles)
+	if err != nil {
+		return CapabilityEvidenceSelection{}, err
 	}
 	var peerID *artifact.ID
 	if peer.ID.Valid() {
@@ -252,13 +267,13 @@ func compileCapabilitySelection(
 	identity, err := artifact.JSONID(artifact.KindProfile, capabilitySelectionIdentity{
 		Scope: scope, Alias: alias, Session: session,
 		Model: definition.Model, Recipe: definition.ID,
-		Resources: resources.Identity, Evidence: evidenceID, Peer: peerID,
+		Resources: resources.Identity, Bundles: bundleIDs, Evidence: evidenceID, Peer: peerID,
 	})
 	if err != nil {
 		return CapabilityEvidenceSelection{}, err
 	}
 	return CapabilityEvidenceSelection{
 		Identity: identity, Scope: scope, Alias: alias, Session: session,
-		Activation: activation, Program: program, Resources: resources, Peer: peer,
+		Activation: activation, Program: program, Resources: resources, Bundles: cloneCapabilityBundles(bundles), Peer: peer,
 	}, nil
 }

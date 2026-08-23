@@ -35,6 +35,10 @@ const (
 	ComponentProjector
 	ComponentAdapter
 	ComponentCompanion
+	// ComponentInstruction contains non-executable instruction data.
+	ComponentInstruction
+	// ComponentResource contains on-demand supporting data.
+	ComponentResource
 )
 
 var componentRoleNames = [...]string{
@@ -52,6 +56,8 @@ var componentRoleNames = [...]string{
 	ComponentProjector:        "projector",
 	ComponentAdapter:          "adapter",
 	ComponentCompanion:        "companion",
+	ComponentInstruction:      "instruction",
+	ComponentResource:         "resource",
 }
 
 func (r ComponentRole) String() string {

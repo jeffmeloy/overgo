@@ -130,6 +130,8 @@ const (
 	DependencyEvaluation       DependencyRole = "training-evaluation"
 	DependencyEvaluator        DependencyRole = "evaluator"
 	DependencyPromotion        DependencyRole = "training-promotion"
+	// DependencyCapabilityBundle binds typed instruction and resource data.
+	DependencyCapabilityBundle DependencyRole = "capability-bundle"
 )
 
 type Dependency struct {
@@ -242,7 +244,7 @@ func validateDependency(dependency Dependency) error {
 	switch dependency.Role {
 	case DependencyModel:
 		want = artifact.KindModel
-	case DependencyProfile, DependencyObjective, DependencyPrecision, DependencyPlacement,
+	case DependencyProfile, DependencyCapabilityBundle, DependencyObjective, DependencyPrecision, DependencyPlacement,
 		DependencyMemory, DependencyOptimizer, DependencyCheckpointPolicy, DependencyEvaluation, DependencyPromotion:
 		want = artifact.KindProfile
 	case DependencyEvaluator:

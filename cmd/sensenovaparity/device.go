@@ -46,6 +46,11 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
+const (
+	nativeBF16RelativeTolerance = 0.03
+	eulerFixtureTolerance       = 6e-3
+)
+
 // worstAbs: worst |a-b| over aligned slices.
 func worstAbs(a, b []float32) float64 {
 	worst := 0.0
@@ -288,11 +293,10 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 		rel := worst / ref
 		// bf16-GEMM (device) vs f64-accumulate GEMM (host) through 2 linears +
 		// SiLU + add: a few % relative is the expected native-bf16 gap.
-		const relTol = 0.03
-		if rel > relTol {
-			return "", worst, "", fmt.Errorf("device condition rel=%.3e (worst|d|=%.3e, max|host|=%.3e) > %.3e", rel, worst, ref, relTol)
+		if rel > nativeBF16RelativeTolerance {
+			return "", worst, "", fmt.Errorf("device condition rel=%.3e (worst|d|=%.3e, max|host|=%.3e) > %.3e", rel, worst, ref, nativeBF16RelativeTolerance)
 		}
-		return verdictWired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowConditionRow) on real fm_modules embedders: hidden=%d t=0 norm_noise=%.5f worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e (native-bf16 vs f64 GEMM)", H, normNoise, worst, ref, rel, relTol), nil
+		return verdictWired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowConditionRow) on real fm_modules embedders: hidden=%d t=0 norm_noise=%.5f worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e (native-bf16 vs f64 GEMM)", H, normNoise, worst, ref, rel, nativeBF16RelativeTolerance), nil
 	})
 
 	// ---- device flow head velocity (device-vs-host, real fm_head weights) -----
@@ -360,9 +364,8 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 		worst := worstAbs(devVel, hostVel)
 		ref := maxAbs(hostVel)
 		rel := worst / ref
-		const relTol = 0.03 // native-bf16 GEMM vs f64 accumulate, 2 linears + erf-GELU
-		if rel > relTol {
-			return "", worst, "", fmt.Errorf("device flow head rel=%.3e (worst|d|=%.3e, max|host|=%.3e) > %.3e", rel, worst, ref, relTol)
+		if rel > nativeBF16RelativeTolerance { // native-bf16 GEMM vs f64 accumulate, 2 linears + erf-GELU
+			return "", worst, "", fmt.Errorf("device flow head rel=%.3e (worst|d|=%.3e, max|host|=%.3e) > %.3e", rel, worst, ref, nativeBF16RelativeTolerance)
 		}
 
 		// measurement: denoise-step TERMINAL latency (flow head over 64 tokens).
@@ -379,7 +382,7 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			}
 		}
 		perCall := float64(time.Since(start).Microseconds()) / float64(iters) / 1000.0
-		return verdictWired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowHeadVelocity) on real fm_head: rows=%d hidden=%d flow_dim=%d worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e | head-terminal %.3fms/step", rows, H, F, worst, ref, rel, relTol, perCall), nil
+		return verdictWired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowHeadVelocity) on real fm_head: rows=%d hidden=%d flow_dim=%d worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e | head-terminal %.3fms/step", rows, H, F, worst, ref, rel, nativeBF16RelativeTolerance, perCall), nil
 	})
 
 	// ---- device FlowMatchEuler update vs REAL z-trajectory oracle -------------
@@ -437,12 +440,11 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			ref := maxAbs(nv)
 			rel := worst / ref
 			// bf16 relative granularity is 2^-8 ~= 3.9e-3; allow ~1.5 ulp.
-			const relTol = 6e-3
 			if devVsHost > 1e-6 {
 				return "", devVsHost, "", fmt.Errorf("device euler != host euler by %.3e (kernel bug, not oracle precision)", devVsHost)
 			}
-			if rel > relTol {
-				return "", worst, "", fmt.Errorf("device euler rel=%.3e (worst|d|=%.3e, max|oracle|=%.3e) > %.3e (dt=%g, %d probes)", rel, worst, ref, relTol, dt, n)
+			if rel > eulerFixtureTolerance {
+				return "", worst, "", fmt.Errorf("device euler rel=%.3e (worst|d|=%.3e, max|oracle|=%.3e) > %.3e (dt=%g, %d probes)", rel, worst, ref, eulerFixtureTolerance, dt, n)
 			}
 			return verdictOracle, worst, fmt.Sprintf("DEVICE next_z == ORACLE next_z on %d aligned probes: next=z+%.3f*v worst|d|=%.3e max|oracle|=%.3e rel=%.3e (dev==host exact; residual=fixture bf16 trajectory) RNG-independent", n, dt, worst, ref, rel), nil
 		}

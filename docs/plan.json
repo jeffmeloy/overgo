@@ -339,7 +339,7 @@
         {
           "id": "commands-automation",
           "title": "Delete command defaults, duplicate probes, and automation literals",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/closure-scan -check-scope cmd -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {

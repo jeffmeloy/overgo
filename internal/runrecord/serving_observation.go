@@ -3,6 +3,7 @@ package runrecord
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 
@@ -13,6 +14,7 @@ import (
 const (
 	ServingObservationMediaType = "application/vnd.overgo.serving-observation+json"
 	ServingObservationSchema    = "overgo/serving-observation/v1"
+	servingAttemptAliasRoot     = "serving/attempt/"
 )
 
 var servingObservationCodec = artifact.JSONDocumentCodec(
@@ -60,6 +62,20 @@ type ServingResources struct {
 	DeviceToHostBytes uint64 `json:"device_to_host_bytes,omitempty"`
 }
 
+// ServingAttemptKind classifies a validated attempt transition.
+type ServingAttemptKind string
+
+const (
+	// ServingAttemptPrimary identifies the initial local execution.
+	ServingAttemptPrimary ServingAttemptKind = "primary"
+	// ServingAttemptRetry identifies repeated model and recipe execution.
+	ServingAttemptRetry ServingAttemptKind = "retry"
+	// ServingAttemptReselection identifies changed model or recipe execution.
+	ServingAttemptReselection ServingAttemptKind = "reselection"
+	// ServingAttemptSpillover identifies compatibility-bound peer execution.
+	ServingAttemptSpillover ServingAttemptKind = "spillover"
+)
+
 // ServingObservation defines one recipe-bound serving attempt.
 type ServingObservation struct {
 	Version       uint16                  `json:"version"`
@@ -68,6 +84,9 @@ type ServingObservation struct {
 	Environment   artifact.ID             `json:"environment"`
 	Operation     artifact.ID             `json:"operation,omitzero"`
 	Run           artifact.ID             `json:"run,omitzero"`
+	Previous      artifact.ID             `json:"previous,omitzero"`
+	Compatibility artifact.ID             `json:"compatibility,omitzero"`
+	Attempt       uint32                  `json:"attempt,omitempty"`
 	Task          recipe.Task             `json:"task"`
 	Outcome       Outcome                 `json:"outcome"`
 	StartedUnixNS int64                   `json:"started_unix_ns"`
@@ -100,6 +119,11 @@ func (value ServingObservation) Content() (artifact.Content, error) {
 
 func (value ServingObservation) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.Model, value.Recipe, value.Environment}
+	for _, parent := range []artifact.ID{value.Previous, value.Compatibility} {
+		if parent.Valid() {
+			parents = append(parents, parent)
+		}
+	}
 	if value.Run.Valid() {
 		parents = append(parents, value.Run)
 	}
@@ -107,7 +131,11 @@ func (value ServingObservation) Lineage() []artifact.Lineage {
 }
 
 func (value ServingObservation) Batch(key string) (artifact.Batch, error) {
-	return servingObservationCodec.Batch(key, value, value.Lineage(), nil)
+	var aliases []artifact.AliasBinding
+	if value.Operation.Valid() {
+		aliases = []artifact.AliasBinding{{Name: servingAttemptAlias(value.Operation, value.Attempt), Target: value.ID}}
+	}
+	return servingObservationCodec.Batch(key, value, value.Lineage(), aliases)
 }
 
 // NewServingObservation validates and identifies one immutable serving fact
@@ -126,6 +154,9 @@ func PublishServingObservation(ctx context.Context, repository artifact.Reposito
 	if err != nil {
 		return ServingObservation{}, err
 	}
+	if err := validateServingAttempt(ctx, repository, identified); err != nil {
+		return ServingObservation{}, err
+	}
 	batch, err := identified.Batch("serving/observation/" + identified.ID.String())
 	if err != nil {
 		return ServingObservation{}, err
@@ -136,6 +167,48 @@ func PublishServingObservation(ctx context.Context, repository artifact.Reposito
 	return identified, nil
 }
 
+// AttemptKind classifies the effective route transition.
+func (value ServingObservation) AttemptKind(previous *ServingObservation) ServingAttemptKind {
+	if value.Compatibility.Valid() {
+		return ServingAttemptSpillover
+	}
+	if previous == nil {
+		return ServingAttemptPrimary
+	}
+	if value.Model == previous.Model && value.Recipe == previous.Recipe {
+		return ServingAttemptRetry
+	}
+	return ServingAttemptReselection
+}
+
+func validateServingAttempt(ctx context.Context, reader artifact.Reader, value ServingObservation) error {
+	if !value.Previous.Valid() {
+		return nil
+	}
+	previous, err := RequireServingObservation(ctx, reader, value.Previous)
+	if err != nil {
+		return err
+	}
+	previousAttempt := value.Attempt
+	previousAttempt--
+	previousID, found, err := artifact.ResolveAlias(ctx, reader, servingAttemptAlias(value.Operation, previousAttempt))
+	if err != nil || !found || previousID != value.Previous {
+		return errors.Join(errors.New("run record: previous serving attempt differs"), err)
+	}
+	nextAttempt := previous.Attempt
+	nextAttempt++
+	if previous.Outcome != OutcomeFailed || value.Attempt != nextAttempt ||
+		value.Operation != previous.Operation || value.Task != previous.Task ||
+		value.Environment != previous.Environment {
+		return errors.New("run record: serving attempt chain differs")
+	}
+	return nil
+}
+
+func servingAttemptAlias(operation artifact.ID, attempt uint32) string {
+	return servingAttemptAliasRoot + operation.String() + "/" + fmt.Sprint(attempt)
+}
+
 func canonicalizeServingObservation(value *ServingObservation) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Model.Kind() != artifact.KindModel ||
 		value.Recipe.Kind() != artifact.KindRecipe || value.Environment.Kind() != artifact.KindEvidence ||
@@ -144,6 +217,15 @@ func canonicalizeServingObservation(value *ServingObservation) error {
 	}
 	if value.Operation.Valid() && (value.Operation.Kind() != artifact.KindEvidence || value.Operation == value.Environment) {
 		return errors.New("run record: invalid serving operation")
+	}
+	if value.Previous.Valid() && (value.Previous.Kind() != artifact.KindEvidence || !value.Operation.Valid() ||
+		value.Previous == value.Operation || value.Previous == value.Environment || value.Attempt == 0) ||
+		!value.Previous.Valid() && value.Attempt != 0 {
+		return errors.New("run record: invalid serving attempt")
+	}
+	if value.Compatibility.Valid() && (value.Compatibility.Kind() != artifact.KindEvidence ||
+		value.Compatibility == value.Operation || value.Compatibility == value.Environment || value.Compatibility == value.Previous) {
+		return errors.New("run record: invalid serving compatibility")
 	}
 	if value.Run.Valid() && value.Run.Kind() != artifact.KindRun {
 		return errors.New("run record: invalid serving run")

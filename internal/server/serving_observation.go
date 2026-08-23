@@ -52,14 +52,17 @@ func (h *Handler) servingIdentity(task recipe.Task) (artifact.ID, artifact.ID, b
 	return description.Identity.Model, description.Identity.Recipe, true
 }
 
-func (h *Handler) publishServing(ctx context.Context, observation runrecord.ServingObservation) {
+func (h *Handler) publishServing(ctx context.Context, observation runrecord.ServingObservation) artifact.ID {
 	if h == nil || h.repository == nil {
-		return
+		return artifact.ID{}
 	}
 	observation.Environment = h.environment.ID
-	if _, err := runrecord.PublishServingObservation(context.WithoutCancel(ctx), h.repository, observation); err != nil {
+	published, err := runrecord.PublishServingObservation(context.WithoutCancel(ctx), h.repository, observation)
+	if err != nil {
 		h.observationErrors.Add(1)
+		return artifact.ID{}
 	}
+	return published.ID
 }
 
 func (h *Handler) executeObservedOperation(
@@ -90,7 +93,7 @@ func (h *Handler) executeObservedOperation(
 	if completion.Run.Kind() == artifact.KindRun {
 		observation.Run = completion.Run
 	}
-	h.publishServing(ctx, observation)
+	reporter.Attempt(h.publishServing(ctx, observation))
 	return completion, err
 }
 

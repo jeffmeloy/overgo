@@ -48,6 +48,7 @@ type Status struct {
 	Progress Progress              `json:"progress"`
 	Metrics  []Metric              `json:"metrics,omitempty"`
 	Outputs  []artifact.ID         `json:"outputs,omitempty"`
+	Attempts []artifact.ID         `json:"attempts,omitempty"`
 	Run      *artifact.ID          `json:"run,omitempty"`
 	Failure  string                `json:"failure,omitempty"`
 	Recovery *operatoraction.Block `json:"recovery,omitempty"`
@@ -68,6 +69,7 @@ type Reporter interface {
 	OperationID() artifact.ID
 	Progress(uint64, *uint64)
 	Metric(Metric)
+	Attempt(artifact.ID)
 	Publishing()
 }
 
@@ -317,6 +319,7 @@ func terminal(state State) bool {
 func cloneStatus(status Status) Status {
 	status.Metrics = slices.Clone(status.Metrics)
 	status.Outputs = slices.Clone(status.Outputs)
+	status.Attempts = slices.Clone(status.Attempts)
 	if status.Run != nil {
 		run := *status.Run
 		status.Run = &run
@@ -338,6 +341,19 @@ type operationReporter struct {
 }
 
 func (reporter operationReporter) OperationID() artifact.ID { return reporter.id }
+
+// Attempt records ordered serving evidence.
+func (reporter operationReporter) Attempt(id artifact.ID) {
+	if id.Kind() != artifact.KindEvidence {
+		return
+	}
+	reporter.manager.mu.Lock()
+	if current := reporter.manager.entries[reporter.id]; current != nil &&
+		!terminal(current.status.State) && !slices.Contains(current.status.Attempts, id) {
+		current.status.Attempts = append(current.status.Attempts, id)
+	}
+	reporter.manager.mu.Unlock()
+}
 
 func (reporter operationReporter) Progress(completed uint64, total *uint64) {
 	reporter.manager.mu.Lock()

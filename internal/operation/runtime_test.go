@@ -2,6 +2,7 @@ package operation
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -63,6 +64,29 @@ func TestReporterMetricsRemainBounded(t *testing.T) {
 	}
 	if len(status.Metrics) != 1 || status.Metrics[0].Name != "loss" || status.Metrics[0].Value != 99 {
 		t.Fatalf("metrics=%+v", status.Metrics)
+	}
+}
+
+func TestServingAttemptEvidenceRemainsOrderedAndUnique(t *testing.T) {
+	manager := newTestManager(t)
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "attempt-evidence-recipe")
+	runID := testutil.ArtifactID(t, artifact.KindRun, "attempt-evidence-run")
+	first := testutil.ArtifactID(t, artifact.KindEvidence, "attempt-evidence-first")
+	second := testutil.ArtifactID(t, artifact.KindEvidence, "attempt-evidence-second")
+	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskInference, Recipe: recipeID},
+		func(_ context.Context, reporter Reporter) (Completion, error) {
+			reporter.Attempt(first)
+			reporter.Attempt(first)
+			reporter.Attempt(runID)
+			reporter.Attempt(second)
+			return Completion{Run: runID}, nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.Wait(t.Context(), id)
+	if err != nil || !slices.Equal(status.Attempts, []artifact.ID{first, second}) {
+		t.Fatalf("attempt evidence = (%v, %v)", status.Attempts, err)
 	}
 }
 

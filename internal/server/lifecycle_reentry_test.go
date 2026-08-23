@@ -17,6 +17,7 @@ import (
 type lifecycleTestReporter struct{ id artifact.ID }
 
 func (reporter lifecycleTestReporter) OperationID() artifact.ID { return reporter.id }
+func (reporter lifecycleTestReporter) Attempt(artifact.ID)      {}
 func (lifecycleTestReporter) Progress(uint64, *uint64)          {}
 func (lifecycleTestReporter) Metric(operation.Metric)           {}
 func (lifecycleTestReporter) Publishing()                       {}

@@ -380,6 +380,7 @@ func policyDependencies(spec trainingprogram.PolicySpec) []recipe.Dependency {
 type testReporter struct{}
 
 func (testReporter) OperationID() artifact.ID { return artifact.ID{} }
+func (testReporter) Attempt(artifact.ID)      {}
 func (testReporter) Progress(uint64, *uint64) {}
 func (testReporter) Metric(operation.Metric)  {}
 func (testReporter) Publishing()              {}

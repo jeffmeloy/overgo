@@ -34,12 +34,12 @@
       "id": "bifrost-attempt-authority",
       "title": "Unify recipe-bound serving attempts, retries, reselection, and spillover evidence",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Unify recipe-bound serving attempts, retries, reselection, and spillover evidence",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/operation ./internal/runrecord ./internal/server -run 'Test(ServingAttempt|ServingObservation|RecipeBoundAttempt)' -count=1"
         }
       ]

@@ -64,7 +64,8 @@ func TestServingObservationPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := handler.operations.Wait(context.Background(), operationID); err != nil {
+	status, err := handler.operations.Wait(context.Background(), operationID)
+	if err != nil {
 		t.Fatal(err)
 	}
 	result, err := store.Query(context.Background(), repodb.Query{
@@ -77,6 +78,9 @@ func TestServingObservationPublication(t *testing.T) {
 	}
 	if len(result.Artifacts) != 2 || handler.observationErrors.Load() != 0 {
 		t.Fatalf("observations=%d publication_errors=%d", len(result.Artifacts), handler.observationErrors.Load())
+	}
+	if len(status.Attempts) != 1 || status.Attempts[0].Kind() != artifact.KindEvidence {
+		t.Fatalf("recipe-bound attempts = %v", status.Attempts)
 	}
 	for _, descriptor := range result.Artifacts {
 		content, found, err := store.Content(context.Background(), descriptor.ID)

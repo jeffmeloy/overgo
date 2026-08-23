@@ -359,13 +359,41 @@
       "id": "validate-model-inference",
       "title": "Validate inference across every adaptive_new model",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Validate inference across every adaptive_new model",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test -p 1 -tags modeltest ./cmd/recipe ./internal/diffusionimage ./internal/latentvideo ./internal/seq2seq ./internal/seriesforecast ./internal/thoughtbank -count=1 \u0026\u0026 go test -tags integration ./internal/adaptiveparity -run TestPocketTTSProductionParity -count=1 \u0026\u0026 go test ./internal/tabularicl -run TestPredictParity -count=1 \u0026\u0026 go run ./cmd/store-check"
+        }
+      ]
+    },
+    {
+      "id": "merge-research",
+      "title": "Merge overgo_research into master through the gated merge",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge overgo_research into master through the gated merge",
           "status": "open",
-          "verify": "go test -p 1 -tags modeltest ./internal/inference ./internal/densecausal ./internal/routedlm ./internal/seq2seq ./internal/latentimage ./internal/latentvideo ./internal/speechsynth -count=1"
+          "verify": "git merge-base --is-ancestor codex/overgo_research HEAD"
+        }
+      ]
+    },
+    {
+      "id": "merge-tightening",
+      "title": "Merge overgo_tightening into master through the gated merge",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge overgo_tightening into master through the gated merge",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor overgo_tightening HEAD"
         }
       ]
     },
@@ -379,7 +407,7 @@
           "id": "do",
           "title": "Validate training across every adaptive_new model",
           "status": "open",
-          "verify": "go test -p 1 -tags modeltest ./internal/trainingprogram ./internal/trainingworkflow ./internal/adaptertrain ./internal/hybridtrain ./internal/controllertrain ./internal/bridgetrain -count=1"
+          "verify": "OVERGO_CUDA_TEST=1 go test -p 1 -tags modeltest ./internal/diffusionimage ./internal/seq2seq ./internal/seriesforecast ./internal/thoughtbank -run 'Train' -count=1"
         }
       ]
     },

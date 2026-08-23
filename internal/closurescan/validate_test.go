@@ -58,6 +58,26 @@ func TestValidateBindingsDetectsOrphansAndCallsiteDrift(t *testing.T) {
 	})
 }
 
+func TestPermanentMagicGateAuthorityHasNoGrandfatheredDebt(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{
+		"internal/policy.go": "package policy\nconst RequestLimit = 8\n",
+	})
+	candidate := onlyCandidate(t, snapshot)
+	document := candidateDocument(t, candidate)
+	report, err := ValidatePermanentAuthority(snapshot, []closureledger.Document{document})
+	if err != nil || report.ProductionSites == 0 || report.ClassifiedSites != 1 {
+		t.Fatalf("permanent authority = (%+v, %v)", report, err)
+	}
+	if _, err := ValidatePermanentAuthority(snapshot, nil); err == nil {
+		t.Fatal("uncatalogued production policy passed permanent authority")
+	}
+	document.Tier = closureledger.TierDerivationBlocked
+	document.Status = closureledger.StatusOpen
+	if _, err := ValidatePermanentAuthority(snapshot, []closureledger.Document{document}); err == nil {
+		t.Fatal("open closure row passed permanent authority")
+	}
+}
+
 func onlyCandidate(t *testing.T, snapshot repoanalysis.SourceSnapshot) Candidate {
 	t.Helper()
 	candidates, err := ScanSnapshot(snapshot, nil, CandidateConstants)

@@ -38,7 +38,7 @@ func TestDocumentRoundTripPreservesExactBinding(t *testing.T) {
 	}
 }
 
-func TestDocumentRejectsIncompleteClosureEvidence(t *testing.T) {
+func TestPermanentMagicGateRejectsIncompleteClosureEvidence(t *testing.T) {
 	owner := testutil.ArtifactID(t, artifact.KindFile, "owner")
 	fixture := testutil.ArtifactID(t, artifact.KindEvidence, "fixture")
 	binding := testSourceBinding(owner)

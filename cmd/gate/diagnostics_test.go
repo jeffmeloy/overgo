@@ -13,27 +13,23 @@ import (
 	"overgo/internal/repodb"
 )
 
-func TestMagicGateRejectsUncataloguedChangedAndStaleBindings(t *testing.T) {
-	t.Run("unrelated source edit", func(t *testing.T) {
-		baseline := closurescan.Candidate{
-			Name: "ExistingLimit", Package: "internal/p", File: "internal/p/p.go",
-			Scope: "package", Expression: "8", Value: "8", SourceID: "before",
-		}
-		current := baseline
-		current.SourceID = "after"
-		if _, err := admitMagicDelta([]closurescan.Candidate{current}, []closurescan.Candidate{baseline}, nil); err != nil {
-			t.Fatalf("unrelated source edit rejected: %v", err)
+func TestPermanentMagicGate(t *testing.T) {
+	t.Run("accepts exact closed authority", func(t *testing.T) {
+		root, _ := magicGateFixture(t, true)
+		gate := gateContext{repo: root, paths: []string{"internal/p/p.go"}, storePath: "store"}
+		if _, err := gate.stepMagics(); err != nil {
+			t.Fatalf("closed authority rejected: %v", err)
 		}
 	})
-	t.Run("uncatalogued", func(t *testing.T) {
+	t.Run("rejects uncatalogued policy", func(t *testing.T) {
 		root, path := magicGateFixture(t, false)
-		writeMagicSource(t, path, "package p\nconst ExistingLimit = 8\nconst AddedLimit = 9\n")
+		writeMagicSource(t, path, "package p\nconst ExistingLimit = 8\n")
 		gate := gateContext{repo: root, paths: []string{"internal/p/p.go"}, storePath: "store"}
-		if _, err := gate.stepMagics(); err == nil || !strings.Contains(err.Error(), "new or changed uncatalogued") {
+		if _, err := gate.stepMagics(); err == nil || !strings.Contains(err.Error(), "uncatalogued production policy") {
 			t.Fatalf("uncatalogued error = %v", err)
 		}
 	})
-	t.Run("stale", func(t *testing.T) {
+	t.Run("rejects stale authority", func(t *testing.T) {
 		root, path := magicGateFixture(t, true)
 		writeMagicSource(t, path, "package p\nconst ExistingLimit = 9\n")
 		gate := gateContext{repo: root, paths: []string{"internal/p/p.go"}, storePath: "store"}
@@ -41,56 +37,26 @@ func TestMagicGateRejectsUncataloguedChangedAndStaleBindings(t *testing.T) {
 			t.Fatalf("stale error = %v", err)
 		}
 	})
-	t.Run("stale callsite", func(t *testing.T) {
+	t.Run("rejects copied test policy", func(t *testing.T) {
 		root, _ := magicGateFixture(t, true)
-		relative := "internal/p/use.go"
-		writeMagicSource(t, filepath.Join(root, filepath.FromSlash(relative)), "package p\nvar configured = 8\n")
+		relative := "internal/p/p_test.go"
+		writeMagicSource(t, filepath.Join(root, filepath.FromSlash(relative)),
+			"package p\nconst expectedExistingLimit = 8\nfunc verify() { if ExistingLimit != expectedExistingLimit { panic(\"policy\") } }\n")
 		gate := gateContext{repo: root, paths: []string{relative}, storePath: "store"}
-		if _, err := gate.stepMagics(); err == nil || !strings.Contains(err.Error(), "callsite") {
-			t.Fatalf("stale callsite error = %v", err)
+		if _, err := gate.stepMagics(); err == nil || !strings.Contains(err.Error(), "test policy copy") {
+			t.Fatalf("policy-copy error = %v", err)
 		}
 	})
-}
-
-func TestMagicGateFailsClosedWhenLedgerUnavailable(t *testing.T) {
-	root, path := magicGateFixture(t, false)
-	if err := os.RemoveAll(filepath.Join(root, "store")); err != nil {
-		t.Fatal(err)
-	}
-	writeMagicSource(t, path, "package p\nconst ExistingLimit = 9\n")
-	gate := gateContext{repo: root, paths: []string{"internal/p/p.go"}, storePath: "store"}
-	if _, err := gate.stepMagics(); err == nil {
-		t.Fatal("missing ledger accepted")
-	}
-}
-
-func TestMagicGateRejectsLiteralAndAssumptionDebtIncrease(t *testing.T) {
-	for _, fixture := range []struct {
-		name, relative, source string
-	}{
-		{"inline", "internal/p/p.go", "package p\nconst ExistingLimit = 8\nfunc use() int { return 7 }\n"},
-		{"assumption", "internal/p/p.go", "package p\nconst ExistingLimit = 8\nfunc fits(tensorRows int) bool { return tensorRows > ExistingLimit }\n"},
-		{"test_policy", "internal/p/p_test.go", "package p\nconst expectedExistingLimit = 8\nfunc verify() { if ExistingLimit != expectedExistingLimit { panic(\"policy\") } }\n"},
-	} {
-		t.Run(fixture.name, func(t *testing.T) {
-			root, path := magicGateFixture(t, false)
-			if fixture.relative != "internal/p/p.go" {
-				path = filepath.Join(root, filepath.FromSlash(fixture.relative))
-			}
-			writeMagicSource(t, path, fixture.source)
-			gate := gateContext{repo: root, paths: []string{fixture.relative}, storePath: "store"}
-			if _, err := gate.stepMagics(); err == nil || !strings.Contains(err.Error(), fixture.name) {
-				t.Fatalf("%s increase error = %v", fixture.name, err)
-			}
-		})
-	}
-}
-
-func TestMagicGateAllowsMeasuredDebtReduction(t *testing.T) {
-	baseline := magicDebt{Named: 1, Inline: 1, TestPolicy: 1, Assumption: 1}
-	if err := rejectMagicDebtIncrease(magicDebt{}, baseline); err != nil {
-		t.Fatalf("measured reduction rejected: %v", err)
-	}
+	t.Run("fails closed without ledger", func(t *testing.T) {
+		root, _ := magicGateFixture(t, false)
+		if err := os.RemoveAll(filepath.Join(root, "store")); err != nil {
+			t.Fatal(err)
+		}
+		gate := gateContext{repo: root, paths: []string{"internal/p/p.go"}, storePath: "store"}
+		if _, err := gate.stepMagics(); err == nil {
+			t.Fatal("missing ledger accepted")
+		}
+	})
 }
 
 func magicGateFixture(t *testing.T, publish bool) (string, string) {

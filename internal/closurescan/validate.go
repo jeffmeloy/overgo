@@ -27,6 +27,10 @@ func ValidateBindings(snapshot repoanalysis.SourceSnapshot, documents []closurel
 	if err != nil {
 		return nil, err
 	}
+	return validateCandidateBindings(candidates, documents)
+}
+
+func validateCandidateBindings(candidates []Candidate, documents []closureledger.Document) ([]BindingIssue, error) {
 	current := make(map[string][]Candidate, len(candidates))
 	for _, candidate := range candidates {
 		current["s\x00"+candidate.StructuralID] = append(current["s\x00"+candidate.StructuralID], candidate)

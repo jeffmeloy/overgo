@@ -41,6 +41,22 @@ func TestConfigurationClosureGates(t *testing.T) {
 	}
 }
 
+func TestPermanentMagicGateRepositoryZeroDebt(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	requirements := closureRequirements{
+		classified: true, noStale: true, noUncatalogued: true, noModelFacts: true, zeroOpen: true,
+	}
+	if err := checkProductionClosures(root, "repodb-store", "", true, requirements); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkTestAuthority(mustSnapshot(root), testRequirements{noPolicyCopies: true}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRepositoryGoStyleTests(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -343,6 +359,29 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if _, _, _, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot); err != nil {
 		t.Fatalf("retain live bindings: %v", err)
 	}
+	if err := os.WriteFile(path, source, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = repoanalysis.DiscoverGo(root, "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot); err != nil {
+		t.Fatalf("restore historical binding: %v", err)
+	}
+	candidates, err = closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateConstants)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, current := range candidates {
+		if current.Name == candidate.Name {
+			binding, err = current.Binding()
+			break
+		}
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
@@ -474,7 +513,7 @@ func TestScopedClosureCheckRequiresExactActiveEvidence(t *testing.T) {
 	}
 }
 
-func TestAuthorityEnforcement(t *testing.T) {
+func TestPermanentMagicGateAuthorityEnforcement(t *testing.T) {
 	root := t.TempDir()
 	relative := "internal/model/policy.go"
 	path := filepath.Join(root, filepath.FromSlash(relative))

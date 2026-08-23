@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const logFileMode = 0o644
+
 // Verdict identifies a stage evidence class.
 type Verdict string
 
@@ -46,7 +48,7 @@ func NewCampaign(logPath string) *Campaign {
 func (c *Campaign) Log(line string) {
 	full := time.Now().UTC().Format(time.RFC3339) + " " + line + "\n"
 	fmt.Print(full)
-	if file, err := os.OpenFile(c.logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
+	if file, err := os.OpenFile(c.logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, logFileMode); err == nil {
 		_, _ = file.WriteString(full)
 		_ = file.Close()
 	}

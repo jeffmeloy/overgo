@@ -70,7 +70,7 @@ func TestMagicGateRejectsLiteralAndAssumptionDebtIncrease(t *testing.T) {
 	}{
 		{"inline", "internal/p/p.go", "package p\nconst ExistingLimit = 8\nfunc use() int { return 7 }\n"},
 		{"assumption", "internal/p/p.go", "package p\nconst ExistingLimit = 8\nfunc fits(tensorRows int) bool { return tensorRows > ExistingLimit }\n"},
-		{"test_policy", "internal/p/p_test.go", "package p\nfunc verify() { if ExistingLimit != 8 { panic(\"policy\") } }\n"},
+		{"test_policy", "internal/p/p_test.go", "package p\nconst expectedExistingLimit = 8\nfunc verify() { if ExistingLimit != expectedExistingLimit { panic(\"policy\") } }\n"},
 	} {
 		t.Run(fixture.name, func(t *testing.T) {
 			root, path := magicGateFixture(t, false)

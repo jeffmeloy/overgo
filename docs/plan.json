@@ -353,12 +353,12 @@
     {
       "id": "magic-test-authority",
       "title": "Remove copied production policy from tests",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "production-contracts",
           "title": "Replace copied defaults, dimensions, tolerances, and exit codes with production contracts",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/closure-scan -check-tests -require-no-policy-copies -require-classified-fixtures"
         }
       ]

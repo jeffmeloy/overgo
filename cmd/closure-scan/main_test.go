@@ -535,7 +535,7 @@ func TestAuthorityEnforcement(t *testing.T) {
 		t.Fatal("open closure row passed")
 	}
 	testPath := filepath.Join(root, "internal", "model", "policy_test.go")
-	if err := os.WriteFile(testPath, []byte("package model\nfunc verify() { if allowed(1) == 7 { panic(\"policy\") } }\n"), 0o644); err != nil {
+	if err := os.WriteFile(testPath, []byte("package model\nconst expectedPolicyLimit = 7\nfunc verify() { if allowed(1) == expectedPolicyLimit { panic(\"policy\") } }\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")

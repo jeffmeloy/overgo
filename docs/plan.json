@@ -1,8 +1,21 @@
 {
   "campaign": "Deletion-led production composability, durable agent execution, and RepoDB tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Modelrecipe owns component sessions; recipe owns topology and policy; workflowruntime owns stage execution; operation owns lifecycle; runrecord and RepoDB own immutable facts; inference owns model math; server owns protocols and GUI. ADK is a behavior inventory and oracle, never a dependency or second runtime. No second workflow graph, plugin callback mesh, mutable property bag, string branch authority, duplicate session or artifact store, wrapper, fallback, or advisory execution plan. Compact RepoDB before adding event volume: remove duplicate indexes and payload copies, stream durable writes, expose bounded projected queries, and retain one refreshable browse owner. Each capability wave migrates every caller and deletes the displaced ephemeral owner in the same commit. Retry, concurrency, context, and retention policy derive from recipes, resource plans, requests, or measured evidence. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:c97d91b2f5a57118c7a45f36973fce9577f4082d2ee1bec3e152de797c53c8bd",
+  "census_evidence": "evidence:sha256:0e88a340588bf591df2743a0aa71cbfb8e7898819464f9ce122d2be133ab72bc",
   "items": [
+    {
+      "id": "merge-129885a3dd3d",
+      "title": "Merge codex/overgo_research at 129885a3dd3d",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge codex/overgo_research at 129885a3dd3d",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
     {
       "id": "merge-b0d982f0ab2e",
       "title": "Merge overgo_tightening at b0d982f0ab2e",
@@ -1014,12 +1027,12 @@
       "id": "vocabulary-artifact-interoperability",
       "title": "Compile exact vocabulary remapping and embedding provenance with semantic refusal and generated-artifact validation",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Compile exact vocabulary remapping and embedding provenance with semantic refusal and generated-artifact validation",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/modelmerge ./internal/tokenizer -run '^TestVocabularyArtifact(ExactMapping|EmbeddingProvenance|SemanticRefusal|Generation)$' -count=1"
         }
       ]
@@ -1028,12 +1041,12 @@
       "id": "dense-to-moe-evidence-screen",
       "title": "Admit dense-to-MoE artifact construction only through an evidence screen with derived router policy and promotion refusal",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Admit dense-to-MoE artifact construction only through an evidence screen with derived router policy and promotion refusal",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/modelmerge ./internal/model -run '^TestDenseToMoE(EvidenceScreen|RouterInitialization|ExpertInventory|PromotionRefusal)$' -count=1"
         }
       ]
@@ -1042,12 +1055,12 @@
       "id": "offline-artifact-closure",
       "title": "Close the offline artifact campaign with full tests, vet, magic census, and no heuristic merge operators",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Close the offline artifact campaign with full tests, vet, magic census, and no heuristic merge operators",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/test-lane \u0026\u0026 go vet ./..."
         }
       ]

@@ -132,7 +132,7 @@ func ExecuteProgram(program tensor.Program, feeds map[*tensor.Tensor]Value) (map
 			}
 			inputs[index] = value
 		}
-		value, err := ExecuteOperation(node, inputs)
+		value, err := executeNode(node, inputs)
 		if err != nil {
 			return nil, fmt.Errorf("execute tensor %d (%s): %w", node.ID, node.Op, err)
 		}
@@ -155,6 +155,10 @@ func ExecuteOperation(node *tensor.Tensor, inputs []Value) (Value, error) {
 	if !ok || descriptor.Backends&tensor.BackendReference == 0 {
 		return Value{}, fmt.Errorf("unsupported reference operation %s", node.Op)
 	}
+	return executeNode(node, inputs)
+}
+
+func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	view, aliases, err := tensor.ResolveStorageView(node)
 	if err != nil {
 		return Value{}, err
@@ -165,10 +169,6 @@ func ExecuteOperation(node *tensor.Tensor, inputs []Value) (Value, error) {
 		}
 		return materializeStorageView(node.Shape, inputs[view.Input], view.ElementOffset)
 	}
-	return executeNode(node, inputs)
-}
-
-func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	switch node.Op {
 	case tensor.OpAdd:
 		return elementwiseBroadcast(node.Shape, inputs[0], inputs[1], func(a, b float32) float32 { return a + b })

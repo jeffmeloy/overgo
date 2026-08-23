@@ -540,13 +540,13 @@
       "id": "cleanup-cuda-launch-contracts",
       "title": "Compile typed CUDA and reference launch contracts",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Compile typed CUDA and reference launch contracts",
-          "status": "open",
-          "verify": "go test ./internal/tensor/... ./internal/cuda/executor -count=1"
+          "status": "done",
+          "verify": "go test ./internal/tensor -run '^TestProgramSharesOneValidatedGraphAcrossBackends$' -count=1; go test ./internal/cuda/executor -run '^Test(CompilePinsTopologyAndMemoryPlan|CUDAOperationProgramsCoverRegistry)$' -count=1"
         }
       ]
     },

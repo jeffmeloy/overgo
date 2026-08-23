@@ -18,10 +18,6 @@ func launchNode(
 	attributePointers devicePointerTable,
 	program tensor.CUDAProgram,
 ) error {
-	descriptor, ok := tensor.DescribeOperation(node.Op)
-	if !ok || descriptor.Backends&tensor.BackendCUDA == 0 {
-		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
-	}
 	switch program {
 	case tensor.CUDAProgramReference:
 		return launchReferenceFamily(state, functions, blas, node, pointers, attributePointers)

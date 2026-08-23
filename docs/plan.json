@@ -1491,12 +1491,12 @@
       "id": "adk-overgo-closure",
       "title": "Close ADK-inspired capability work with one authority per fact and measured RepoDB efficiency",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Run host and device gates; compare RepoDB replay, query, snapshot, resident memory, and response-history allocation evidence; require no ADK dependency, second scheduler, callback mesh, compatibility wrapper, or ephemeral session authority",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/artifact ./internal/repodb ./internal/recipe ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/evaluation ./internal/server -count=1 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
           "rationale": "Completion requires functional session, tool, human-decision, parallel workflow, replay, capability-bundle, remote, and GUI evidence plus measured storage and processing improvement against the pre-campaign RepoDB benchmark record. Production code must contain no imported ADK runtime and no displaced owner retained for compatibility.",
           "depends_on": [
@@ -1507,6 +1507,168 @@
             "performance",
             "memory",
             "single-authority"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "repodb-delta-publication",
+      "title": "Persist only effective RepoDB transaction deltas",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile each submitted batch against catalog state, persist request identity plus only new or changed facts, migrate redundant closure and authority publishers, and delete no-op retransmission paths",
+          "status": "open",
+          "verify": "go test ./internal/artifact ./internal/repodb ./internal/closureledger ./cmd/closure-scan -run 'Test(CommitDelta|CommitRetry|RepeatedFacts|ClosurePublicationDelta|AliasCompareAndSet)' -count=1",
+          "rationale": "The 646 MB live log contains repeated immutable descriptors, contents, lineage, locations, and unchanged aliases. Preserve batch-key retry identity and compare-and-set behavior while making the durable frame represent the effective state transition rather than caller repetition.",
+          "depends_on": [
+            "adk-overgo-closure/do"
+          ],
+          "capabilities": [
+            "repodb",
+            "persistence",
+            "storage"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "repodb-lazy-content",
+      "title": "Keep RepoDB document payloads out of resident catalog state",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Store raw content in checksummed frame sections, retain immutable file locators in catalog state, make streaming reads authoritative, migrate DocumentCodec and all callers, and delete resident payload maps and cloned Content reads",
+          "status": "open",
+          "verify": "go test ./internal/artifact ./internal/repodb ./internal/objectstore -run 'Test(LazyContent|OpenContent|DocumentCodecRead|CommitReplay|StreamingSnapshot|AppendFault)' -count=1",
+          "rationale": "A one-result query currently reconstructs every inline payload, takes about 6.9 seconds, and peaks near 918 MB. Content identity remains hash-bound while metadata replay and queries retain only offsets and lengths.",
+          "depends_on": [
+            "repodb-delta-publication/do"
+          ],
+          "capabilities": [
+            "repodb",
+            "memory",
+            "streaming"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "repodb-indexed-catalog",
+      "title": "Compile RepoDB catalog facts into ordered indexed slots",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace repeated ID-keyed descriptor, contract, lineage, location, and commit representations with one artifact slot table and compact ordered secondary indexes; migrate validation and replay; delete displaced maps",
+          "status": "open",
+          "verify": "go test ./internal/repodb -run 'Test(CanonicalCatalogOwnership|LineageIndexes|Location|CommitReplay|QueryFilters|Snapshot)' -count=1",
+          "rationale": "The catalog repeats full artifact and relation identities across canonical maps and multiple nested-set indexes. Numeric slots retain exact contracts while reducing allocation, lookup, and update work and provide insertion-sequence order for bounded queries.",
+          "depends_on": [
+            "repodb-lazy-content/do"
+          ],
+          "capabilities": [
+            "repodb",
+            "indexing",
+            "memory"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "repodb-typed-stream-query",
+      "title": "Make bounded ordered typed document scans the only history query path",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add exact DocumentContract, sequence order, cursor, and alias-prefix selectors with streaming decode; migrate every production QueryExtent and descriptor-content loop; delete ProjectContentData, parallel result arrays, and caller-side latest selection",
+          "status": "open",
+          "verify": "go test ./internal/artifact ./internal/repodb ./internal/runrecord ./internal/modelrecipe ./internal/evaluation ./internal/server ./cmd/repodb-query -run 'Test(TypedDocumentScan|NewestFirstCursor|AliasPrefix|RuntimeActivityProjectedPage|BrowseRunsReadsRepoDBRecords)' -count=1",
+          "rationale": "Thirty-one callers request global QueryExtent bounds and many deserialize broad artifact kinds before filtering. Exact contract indexes and sequence-aware bounded scans remove history-wide allocation and centralize document validation without a second query system.",
+          "depends_on": [
+            "repodb-indexed-catalog/do"
+          ],
+          "capabilities": [
+            "repodb",
+            "query",
+            "processing"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "repodb-runtime-projection",
+      "title": "Project current runtime evidence without rebuilding full histories",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Use bounded newest-first typed scans and active alias projections for Runtime, Activity, evaluation, plan, advisory, and closure consumers; delete repeated parsing maps, full-history sorts, and terminal-operation catalog rescans",
+          "status": "open",
+          "verify": "go test ./internal/server ./internal/runrecord ./internal/evaluation ./cmd/plan ./cmd/advisories ./cmd/closure-scan -run 'Test(RuntimeActivity|Interaction|StageReceipt|Evaluation|Closure)' -count=1",
+          "rationale": "Runtime activity currently issues four content-history queries and sorts them again for each initial SSE snapshot and terminal operation. Domain views should request only their exact current or bounded historical projection.",
+          "depends_on": [
+            "repodb-typed-stream-query/do"
+          ],
+          "capabilities": [
+            "repodb",
+            "server",
+            "runtime"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "repodb-maintenance",
+      "title": "Derive RepoDB checkpoint, retention, and backup work from exact durable facts",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make snapshots metadata-only and observable, retain artifacts through typed parent relations instead of content regex and bidirectional walks, size compaction frames exactly, and back up one captured committed extent; delete approximate chunk and silent fallback logic",
+          "status": "open",
+          "verify": "go test ./internal/repodb ./cmd/repodb-backup ./cmd/repodb-compact -run 'Test(MetadataSnapshot|SnapshotFallbackReport|RetentionTypedLineage|ExactCompactionFrames|ConcurrentBackupExtent)' -count=1",
+          "rationale": "Current snapshots retain all payload bytes under the store lock, retention scans content and both graph directions with approximate byte costs, and backup may copy a concurrent torn tail. Existing hashes, relations, and committed extents provide exact authority.",
+          "depends_on": [
+            "repodb-runtime-projection/do"
+          ],
+          "capabilities": [
+            "repodb",
+            "retention",
+            "robustness"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "repodb-efficiency-closure",
+      "title": "Close RepoDB tightening with measured storage, replay, query, and memory evidence",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Migrate the live ledger, verify catalog and alias parity, publish replay and allocation evidence, remove legacy storage and query paths, and run host and device gates",
+          "status": "open",
+          "verify": "go test ./internal/artifact ./internal/repodb ./internal/runrecord ./internal/modelrecipe ./internal/evaluation ./internal/server -count=1 \u0026\u0026 go test ./internal/repodb -run '^$' -bench . -benchmem -count=3 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
+          "rationale": "Completion requires one durable frame authority, one indexed catalog, one streaming payload path, no QueryExtent production scans, no legacy compatibility path, and measured improvement against the 646 MB, 6.9 second, 918 MB baseline.",
+          "depends_on": [
+            "repodb-maintenance/do"
+          ],
+          "capabilities": [
+            "repodb",
+            "performance",
+            "memory",
+            "closure"
           ]
         }
       ]

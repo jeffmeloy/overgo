@@ -469,12 +469,12 @@
       "id": "gui-api",
       "title": "Typed workbench API: catalog, evidence tiers, jobs, downloads",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Typed workbench API: catalog, evidence tiers, jobs, downloads",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'TestWorkbenchAPI' -count=1"
         }
       ]

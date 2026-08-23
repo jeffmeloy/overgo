@@ -25,11 +25,7 @@ func retentionContent(t *testing.T, kind artifact.Kind, body any) artifact.Conte
 	}
 }
 
-// TestSupersededCollection pins retention's whole contract: a compacted store
-// keeps everything reachable from aliases -- including artifacts referenced
-// only inside retained document content -- and leaves superseded documents
-// behind, while the source store survives untouched.
-func TestSupersededCollection(t *testing.T) {
+func TestRetentionTypedLineage(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	source, err := Open(filepath.Join(root, "source"))
@@ -41,12 +37,15 @@ func TestSupersededCollection(t *testing.T) {
 	evidence := retentionContent(t, artifact.KindEvidence, map[string]any{"run": "gate evidence body"})
 	superseded := retentionContent(t, artifact.KindEvidence, map[string]any{"decision": "old"})
 	current := retentionContent(t, artifact.KindEvidence, map[string]any{
-		"decision": "new", "verified": evidence.Descriptor.ID.String(),
+		"decision": "new", "untyped_reference": superseded.Descriptor.ID.String(),
 	})
 	if _, err := source.Commit(ctx, artifact.Batch{
 		Key:      "test/retention/seed",
 		Contents: []artifact.Content{evidence, superseded, current},
-		Aliases:  []artifact.AliasBinding{{Name: "test/active", Target: superseded.Descriptor.ID}},
+		Lineage: []artifact.Lineage{{
+			Child: current.Descriptor.ID, Parent: evidence.Descriptor.ID, Relation: artifact.RelationDependsOn,
+		}},
+		Aliases: []artifact.AliasBinding{{Name: "test/active", Target: superseded.Descriptor.ID}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -76,13 +75,50 @@ func TestSupersededCollection(t *testing.T) {
 		t.Fatalf("alias = %v %v %v", target, ok, err)
 	}
 	if ok, err := compacted.HasContent(ctx, evidence.Descriptor.ID); err != nil || !ok {
-		t.Fatalf("content-referenced evidence dropped: %v %v", ok, err)
+		t.Fatalf("typed parent dropped: %v %v", ok, err)
 	}
 	if ok, err := compacted.HasContent(ctx, superseded.Descriptor.ID); err != nil || ok {
 		t.Fatalf("superseded document survived compaction: %v %v", ok, err)
 	}
 	if ok, err := source.HasContent(ctx, superseded.Descriptor.ID); err != nil || !ok {
 		t.Fatalf("source archive lost the superseded document: %v %v", ok, err)
+	}
+}
+
+func TestExactCompactionFrames(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	source, err := Open(filepath.Join(root, "source"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	parent := retentionContent(t, artifact.KindEvidence, map[string]any{"stage": "parent"})
+	child := retentionContent(t, artifact.KindEvidence, map[string]any{"stage": "child"})
+	if _, err := source.Commit(ctx, artifact.Batch{
+		Key: "test/retention/exact", Contents: []artifact.Content{parent, child},
+		Lineage: []artifact.Lineage{{
+			Child: child.Descriptor.ID, Parent: parent.Descriptor.ID, Relation: artifact.RelationDependsOn,
+		}},
+		Aliases: []artifact.AliasBinding{{Name: "test/exact", Target: child.Descriptor.ID}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(root, "compact")
+	if _, err := Compact(ctx, source, destination); err != nil {
+		t.Fatal(err)
+	}
+	compacted, err := OpenReadOnly(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer compacted.Close()
+	if _, sequence := compacted.Head(); sequence == 0 {
+		t.Fatal("compaction emitted no exact-sized frame")
+	}
+	parents, err := compacted.Parents(ctx, child.Descriptor.ID)
+	if err != nil || len(parents) != 1 || parents[0].Parent != parent.Descriptor.ID {
+		t.Fatalf("typed lineage = (%v, %v)", parents, err)
 	}
 }
 

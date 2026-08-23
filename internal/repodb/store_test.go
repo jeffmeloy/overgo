@@ -1,6 +1,7 @@
 package repodb
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -67,7 +68,7 @@ func TestContentUsesDescriptorAuthority(t *testing.T) {
 	}
 }
 
-func TestLazyContentOpenContentAndSnapshotReplay(t *testing.T) {
+func TestMetadataSnapshot(t *testing.T) {
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {
@@ -84,8 +85,16 @@ func TestLazyContentOpenContentAndSnapshotReplay(t *testing.T) {
 	if locator.size != int64(len(content.Data)) || locator.frameVersion != frameVersion {
 		t.Fatalf("content locator = %+v", locator)
 	}
-	if _, err := store.Snapshot(context.Background()); err != nil {
+	snapshot, err := store.Snapshot(context.Background())
+	if err != nil {
 		t.Fatal(err)
+	}
+	snapshotData, err := os.ReadFile(snapshot.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(snapshotData, content.Data) {
+		t.Fatal("snapshot retained content payload")
 	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
@@ -95,6 +104,9 @@ func TestLazyContentOpenContentAndSnapshotReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
+	if status := store.SnapshotReplay(); !status.Loaded || status.Path != snapshot.Path || status.Fallback != "" {
+		t.Fatalf("snapshot replay = %+v", status)
+	}
 	gotDescriptor, reader, found, err := store.OpenContent(context.Background(), descriptor.ID)
 	if err != nil || !found || gotDescriptor != descriptor {
 		t.Fatalf("open content = (%+v, %v, %v)", gotDescriptor, found, err)

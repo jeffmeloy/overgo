@@ -45,6 +45,13 @@ type SnapshotInfo struct {
 	Path     string
 }
 
+// SnapshotReplay reports startup checkpoint selection.
+type SnapshotReplay struct {
+	Path     string
+	Loaded   bool
+	Fallback string
+}
+
 type snapshotAlias struct {
 	Name   string      `json:"name"`
 	Target artifact.ID `json:"target"`
@@ -405,20 +412,25 @@ func encodeSnapshotHeader(sequence uint64, head artifact.CommitID, size uint64, 
 	return header
 }
 
-func loadLatestSnapshot(root string) (catalogState, replayAnchor, bool) {
+func loadLatestSnapshot(root string) (catalogState, replayAnchor, SnapshotReplay) {
 	paths, err := filepath.Glob(filepath.Join(root, snapshotDirectory, "*"+snapshotExtension))
 	if err != nil {
-		return catalogState{}, replayAnchor{}, false
+		return catalogState{}, replayAnchor{}, SnapshotReplay{Fallback: err.Error()}
 	}
 	slices.Sort(paths)
 	slices.Reverse(paths)
+	status := SnapshotReplay{}
 	for _, path := range paths {
 		state, anchor, err := readSnapshot(path)
 		if err == nil {
-			return state, anchor, true
+			status.Path, status.Loaded = path, true
+			return state, anchor, status
+		}
+		if status.Fallback == "" {
+			status.Path, status.Fallback = path, err.Error()
 		}
 	}
-	return catalogState{}, replayAnchor{}, false
+	return catalogState{}, replayAnchor{}, status
 }
 
 func readSnapshot(path string) (catalogState, replayAnchor, error) {

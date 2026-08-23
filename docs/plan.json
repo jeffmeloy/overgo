@@ -1630,12 +1630,12 @@
       "id": "repodb-maintenance",
       "title": "Derive RepoDB checkpoint, retention, and backup work from exact durable facts",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Make snapshots metadata-only and observable, retain artifacts through typed parent relations instead of content regex and bidirectional walks, size compaction frames exactly, and back up one captured committed extent; delete approximate chunk and silent fallback logic",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/repodb ./cmd/repodb-backup ./cmd/repodb-compact -run 'Test(MetadataSnapshot|SnapshotFallbackReport|RetentionTypedLineage|ExactCompactionFrames|ConcurrentBackupExtent)' -count=1",
           "rationale": "Current snapshots retain all payload bytes under the store lock, retention scans content and both graph directions with approximate byte costs, and backup may copy a concurrent torn tail. Existing hashes, relations, and committed extents provide exact authority.",
           "depends_on": [

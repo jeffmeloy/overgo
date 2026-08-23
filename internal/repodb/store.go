@@ -28,6 +28,7 @@ var (
 	ErrLineageCycle     = errors.New("repodb: lineage cycle")
 	ErrStoreFaulted     = errors.New("repodb: store requires reopen after uncertain append")
 	ErrSnapshotAnchor   = errors.New("repodb: snapshot anchor is absent from commit chain")
+	errPayloadLimit     = errors.New("repodb: payload limit exceeded")
 	// ErrNoChange reports a batch with no effective catalog mutation.
 	ErrNoChange = errors.New("repodb: batch has no effective catalog change")
 )
@@ -370,6 +371,7 @@ type Store struct {
 	closed    bool
 	fault     error
 	root      string
+	snapshot  SnapshotReplay
 }
 
 func Open(root string) (*Store, error) {
@@ -384,14 +386,17 @@ func open(root string, readOnly bool) (*Store, error) {
 	if root == "" {
 		return nil, errors.New("repodb: empty root")
 	}
-	state, anchor, loaded := loadLatestSnapshot(root)
+	state, anchor, snapshot := loadLatestSnapshot(root)
+	loaded := snapshot.Loaded
 	if !loaded {
 		state = newCatalogState()
 	}
-	store := &Store{state: state, readOnly: readOnly, root: root}
+	store := &Store{state: state, readOnly: readOnly, root: root, snapshot: snapshot}
 	log, replay, err := openRecordLog(root, readOnly, anchor, store.applyRecord)
 	if errors.Is(err, ErrSnapshotAnchor) && loaded {
 		store.state = newCatalogState()
+		store.snapshot.Loaded = false
+		store.snapshot.Fallback = ErrSnapshotAnchor.Error()
 		log, replay, err = openRecordLog(root, readOnly, replayAnchor{}, store.applyRecord)
 	}
 	if err != nil {
@@ -402,6 +407,13 @@ func open(root string, readOnly bool) (*Store, error) {
 	store.sequence = replay.sequence
 	store.replayEnd = replay.validEnd
 	return store, nil
+}
+
+// SnapshotReplay reports checkpoint use or fallback.
+func (s *Store) SnapshotReplay() SnapshotReplay {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.snapshot
 }
 
 func (s *Store) applyRecord(record logRecord) error {
@@ -497,6 +509,33 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 	s.head = id
 	s.replayEnd = replayEnd
 	return id, nil
+}
+
+func (s *Store) transactionFits(batch artifact.Batch) (bool, error) {
+	_, normalized, requestHash, err := encodeBatch(batch)
+	if errors.Is(err, errPayloadLimit) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(true); err != nil {
+		return false, err
+	}
+	if err := s.state.validate(normalized); err != nil {
+		return false, err
+	}
+	delta := s.state.delta(normalized)
+	if delta.Empty() {
+		return true, nil
+	}
+	_, _, err = encodeTransaction(requestHash, delta)
+	if errors.Is(err, errPayloadLimit) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func (s *Store) Artifact(ctx context.Context, id artifact.ID) (artifact.Descriptor, bool, error) {
@@ -810,7 +849,7 @@ func encodeBatch(batch artifact.Batch) ([]byte, artifact.Batch, [sha256.Size]byt
 		return nil, artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("repodb: encode batch: %w", err)
 	}
 	if len(payload) > maxFramePayload {
-		return nil, artifact.Batch{}, [sha256.Size]byte{}, errors.New("repodb: batch exceeds payload limit")
+		return nil, artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("%w: batch", errPayloadLimit)
 	}
 	return payload, normalized, sha256.Sum256(payload), nil
 }
@@ -853,7 +892,7 @@ func encodeTransaction(request [sha256.Size]byte, delta artifact.Batch) ([]byte,
 		payload = append(payload, content.Data...)
 	}
 	if len(payload) > maxFramePayload {
-		return nil, nil, errors.New("repodb: transaction exceeds payload limit")
+		return nil, nil, fmt.Errorf("%w: transaction", errPayloadLimit)
 	}
 	return payload, locators, nil
 }

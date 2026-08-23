@@ -13,6 +13,7 @@ func metadataOpSignature(op metadataOp) string {
 		metadataReadRequired:    "req",
 		metadataReadAssignZero:  "zero",
 		metadataReadKeepCurrent: "keep",
+		metadataReadKeepNonZero: "nonzero",
 	}
 	switch op.kind {
 	case metadataOpUint32:

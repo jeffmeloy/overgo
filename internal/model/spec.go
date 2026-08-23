@@ -397,27 +397,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsNorm = true
 		}
 	}
-	if validation.Hybrid == HybridValidationCompressedHyperDraft {
-		if spec.ExpertFeedForward, err = required[uint32](
-			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
-		); err != nil {
-			return Spec{}, err
-		}
-		spec.SharedExpertFF, _ = optional[uint32](
-			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
-		)
-		spec.LeadingDenseBlocks, _ = optional[uint32](
-			values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32,
-		)
-		spec.MoELayerStep = profile.MetadataDefaults.uint(
-			values, prefix, "moe_every_n_layers", profile.MetadataDefaults.MoELayerStep,
-		)
-		spec.ExpertGatingFunc = expertGatingSigmoid
-		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != tensor.FirstOffset {
-			spec.ExpertGatingFunc = value
-		}
-		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
-	}
 	if validation.Attention == AttentionValidationOptionalRopeSectionsExperts {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 		if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
@@ -468,20 +447,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			}
 		}
 	}
-	if validation.Hybrid == HybridValidationMultiHeadDraft {
-		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertFeedForward(values, prefix, spec); err != nil {
-			return Spec{}, err
-		}
-		spec.ExpertGatingFunc = optionalOr(
-			values, prefix+"expert_gating_func", gguf.ValueTypeUint32, expertGatingSigmoid,
-		)
-		if value, ok := optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool); ok {
-			spec.ExpertWeightsNorm = value
-		}
-	}
 	if validation.Hybrid == HybridValidationFullRotaryVision {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 		if err = readRequiredMetadataFields(
@@ -517,14 +482,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if cadence, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok && cadence > tensor.FirstOffset {
 			return Spec{}, errors.New("NomicBERT MoE cadence requires nomic-bert-moe architecture")
 		}
-	}
-	if validation.Hybrid == HybridValidationSharedExpertNorm {
-		if _, ok := optional[uint32](
-			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
-		); !ok {
-			spec.ExpertFeedForward = spec.FeedForwardLength
-		}
-		spec.ExpertWeightsNorm = true
 	}
 	if validation.Hybrid == HybridValidationScaledExperts ||
 		validation.Hybrid == HybridValidationScaledDense && spec.HasExperts() {
@@ -580,20 +537,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
 			spec.SlidingWindow = value
 		}
-	}
-	if validation.Hybrid == HybridValidationSlidingSharedExperts {
-		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		spec.SharedExpertFF = optionalOr(
-			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32, spec.ExpertFeedForward,
-		)
-		spec.SharedExpertCount, _ = optional[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32)
-		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
-		if spec.ExpertGatingFunc, err = required[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 	}
 	if validation.Hybrid == HybridValidationPerLayerYaRNExperts {
 		if err = readRequiredMetadataFields(

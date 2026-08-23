@@ -398,6 +398,7 @@ const (
 	metadataReadRequired metadataReadMode = iota
 	metadataReadAssignZero
 	metadataReadKeepCurrent
+	metadataReadKeepNonZero
 )
 
 // metadataOpKind: shape of one compiled metadata operation.
@@ -416,6 +417,7 @@ const (
 	metadataOpSlidingPatternType
 	metadataOpHalveFeedForward
 	metadataOpExpertFeedForwardFromModel
+	metadataOpExpertFeedForwardOptionalModel
 	metadataOpSharedFeedForwardFromModel
 	metadataOpSharedFeedForwardFromExpert
 	metadataOpSharedFeedForwardScale
@@ -471,14 +473,15 @@ func (o metadataOp) at(key, field string) metadataOp {
 
 // scalar-read templates: kind and missing-key mode without a binding.
 var (
-	opReqU32   = metadataOp{kind: metadataOpUint32}
-	opZeroU32  = metadataOp{kind: metadataOpUint32, mode: metadataReadAssignZero}
-	opKeepU32  = metadataOp{kind: metadataOpUint32, mode: metadataReadKeepCurrent}
-	opReqF32   = metadataOp{kind: metadataOpFloat32}
-	opZeroF32  = metadataOp{kind: metadataOpFloat32, mode: metadataReadAssignZero}
-	opKeepF32  = metadataOp{kind: metadataOpFloat32, mode: metadataReadKeepCurrent}
-	opReqBool  = metadataOp{kind: metadataOpBool}
-	opZeroBool = metadataOp{kind: metadataOpBool, mode: metadataReadAssignZero}
+	opReqU32     = metadataOp{kind: metadataOpUint32}
+	opZeroU32    = metadataOp{kind: metadataOpUint32, mode: metadataReadAssignZero}
+	opKeepU32    = metadataOp{kind: metadataOpUint32, mode: metadataReadKeepCurrent}
+	opNonzeroU32 = metadataOp{kind: metadataOpUint32, mode: metadataReadKeepNonZero}
+	opReqF32     = metadataOp{kind: metadataOpFloat32}
+	opZeroF32    = metadataOp{kind: metadataOpFloat32, mode: metadataReadAssignZero}
+	opKeepF32    = metadataOp{kind: metadataOpFloat32, mode: metadataReadKeepCurrent}
+	opReqBool    = metadataOp{kind: metadataOpBool}
+	opZeroBool   = metadataOp{kind: metadataOpBool, mode: metadataReadAssignZero}
 )
 
 var (
@@ -604,6 +607,26 @@ var expertHybridPrograms = map[HybridValidationPolicy][]metadataOp{
 		setU32("SharedExpertCount", tensor.SingletonExtent),
 		{kind: metadataOpSharedFeedForwardFromModel},
 		sharedWidthOptional,
+	},
+	HybridValidationSharedExpertNorm: {
+		{kind: metadataOpExpertFeedForwardOptionalModel},
+		expertNormAlways,
+	},
+	HybridValidationMultiHeadDraft: {
+		expertFeedForwardRequired,
+		{kind: metadataOpSharedFeedForwardPolicy},
+		setU32("ExpertGatingFunc", expertGatingSigmoid),
+		opNonzeroU32.at("expert_gating_func", "ExpertGatingFunc"),
+		expertNormOptional,
+	},
+	HybridValidationSlidingSharedExperts: {
+		expertFeedForwardRequired,
+		{kind: metadataOpSharedFeedForwardFromExpert},
+		sharedWidthOptional,
+		opZeroU32.at("expert_shared_count", "SharedExpertCount"),
+		leadingDenseOptional,
+		expertGatingRequired,
+		expertNormOptional,
 	},
 }
 
@@ -776,6 +799,18 @@ func compileExpertProgram(profile ArchitectureProfile) []metadataOp {
 	program = append(program, expertAttentionPrograms[validation.Attention]...)
 	if validation.Encoder == EncoderValidationRotaryPeriodicExperts {
 		program = append(program, opReqU32.at("moe_every_n_layers", "MoELayerStep"))
+	}
+	if validation.Hybrid == HybridValidationCompressedHyperDraft {
+		program = append(program,
+			expertFeedForwardRequired,
+			sharedWidthOptional,
+			leadingDenseOptional,
+			setU32("MoELayerStep", profile.MetadataDefaults.MoELayerStep),
+			opKeepU32.at("moe_every_n_layers", "MoELayerStep"),
+			setU32("ExpertGatingFunc", expertGatingSigmoid),
+			opNonzeroU32.at("expert_gating_func", "ExpertGatingFunc"),
+			expertNormOptional,
+		)
 	}
 	return program
 }
@@ -952,7 +987,14 @@ func (m specMetadata) runMetadataProgram(spec Spec, state specReadState, program
 		var err error
 		switch op.kind {
 		case metadataOpUint32:
-			err = runMetadataRead(values, prefix+op.key, gguf.ValueTypeUint32, op.mode, spec.fieldDestination(op.field).(*uint32))
+			destination := spec.fieldDestination(op.field).(*uint32)
+			if op.mode == metadataReadKeepNonZero {
+				if value, ok := optional[uint32](values, prefix+op.key, gguf.ValueTypeUint32); ok && value != tensor.FirstOffset {
+					*destination = value
+				}
+			} else {
+				err = runMetadataRead(values, prefix+op.key, gguf.ValueTypeUint32, op.mode, destination)
+			}
 		case metadataOpFloat32:
 			err = runMetadataRead(values, prefix+op.key, gguf.ValueTypeFloat32, op.mode, spec.fieldDestination(op.field).(*float32))
 		case metadataOpBool:
@@ -989,6 +1031,12 @@ func (m specMetadata) runMetadataProgram(spec Spec, state specReadState, program
 			}
 		case metadataOpExpertFeedForwardFromModel:
 			if !op.flag || spec.ExpertFeedForward == tensor.FirstOffset {
+				spec.ExpertFeedForward = spec.FeedForwardLength
+			}
+		case metadataOpExpertFeedForwardOptionalModel:
+			if value, ok := optional[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); ok {
+				spec.ExpertFeedForward = value
+			} else {
 				spec.ExpertFeedForward = spec.FeedForwardLength
 			}
 		case metadataOpSharedFeedForwardFromModel:

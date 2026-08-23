@@ -289,7 +289,7 @@ func verifyCapability(repository, path string, task recipe.Task, capability capa
 		return err
 	}
 	defer store.Close()
-	modelID, definition, err := prepareCapability(ctx, store, path, task, capability)
+	_, definition, err := prepareCapability(ctx, store, path, task, capability)
 	if err != nil {
 		return err
 	}
@@ -304,10 +304,14 @@ func verifyCapability(repository, path string, task recipe.Task, capability capa
 	if err != nil {
 		return err
 	}
+	execution, err := modelrecipe.CompileCandidateExecution(ctx, store, program)
+	if err != nil {
+		return err
+	}
 	started := time.Now()
 	var output any
 	if capability.execute != nil {
-		output, err = capability.execute(ctx, store, path, modelID, program, input)
+		output, err = capability.execute(ctx, store, path, execution, input)
 		if err != nil {
 			return err
 		}
@@ -436,7 +440,6 @@ func executeCapability(
 			return err
 		}
 	}
-	var program recipe.Program
 	var selected modelrecipe.CapabilityEvidenceSelection
 	if alias != "" {
 		selected, err = modelrecipe.ResolveCapabilityEvidenceSelector(
@@ -462,14 +465,13 @@ func executeCapability(
 		if selected.Activation.Definition.Model != modelID {
 			return errors.New("recipe: capability alias differs from loaded model")
 		}
-		program = selected.Program
 	} else {
-		_, program, err = modelrecipe.ResolveActiveCapability(ctx, store, modelID, task)
+		selected, err = modelrecipe.ResolveActiveExecution(ctx, store, modelID, task, selection)
 		if err != nil {
 			return err
 		}
 	}
-	output, err := capability.execute(ctx, store, path, modelID, program, input)
+	output, err := capability.execute(ctx, store, path, selected, input)
 	if err != nil {
 		return err
 	}

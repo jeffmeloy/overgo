@@ -6,11 +6,12 @@ import (
 	"fmt"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/workflowruntime"
 )
 
-type Executor func(context.Context, artifact.Repository, string, artifact.ID, recipe.Program, string) (any, error)
+type Executor func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error)
 
 // ExecutorCatalog binds compiled entry modules to implementations.
 type ExecutorCatalog map[recipe.ModuleID]Executor
@@ -20,10 +21,10 @@ func (catalog ExecutorCatalog) Execute(
 	ctx context.Context,
 	store artifact.Repository,
 	path string,
-	modelID artifact.ID,
-	program recipe.Program,
+	execution modelrecipe.CapabilityEvidenceSelection,
 	raw string,
 ) (any, error) {
+	program := execution.Program
 	stages := program.Stages()
 	if len(stages) == 0 {
 		return nil, errors.New("capability runtime: compiled program has no entry module")
@@ -33,7 +34,7 @@ func (catalog ExecutorCatalog) Execute(
 	if execute == nil {
 		return nil, fmt.Errorf("capability runtime: entry module %q has no executor", entry)
 	}
-	return execute(ctx, store, path, modelID, program, raw)
+	return execute(ctx, store, path, execution, raw)
 }
 
 func JSONScalar[Input, Model, Output any](
@@ -46,10 +47,10 @@ func JSONScalar[Input, Model, Output any](
 		ctx context.Context,
 		store artifact.Repository,
 		path string,
-		modelID artifact.ID,
-		program recipe.Program,
+		execution modelrecipe.CapabilityEvidenceSelection,
 		raw string,
 	) (any, error) {
+		modelID, program := execution.Program.Definition().Model, execution.Program
 		input, content, err := decodeScalarInput(name, validate, modelID, program, raw)
 		if err != nil {
 			return nil, err

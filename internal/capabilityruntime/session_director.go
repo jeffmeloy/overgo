@@ -31,11 +31,14 @@ type SessionInput interface {
 type sessionEntry[Model any] struct {
 	mu        sync.Mutex
 	model     Model
+	scope     artifact.ID
 	ready     chan struct{}
 	loadErr   error
 	used      uint64
 	borrowers int
 	dead      bool
+	closing   bool
+	retiring  bool
 	closed    bool
 }
 
@@ -68,6 +71,8 @@ type ModelSessionDirector[Input, Model, Output any] struct {
 	reuses        uint64
 	evictions     uint64
 	retirements   uint64
+	retiring      int
+	retiringUsers int
 }
 
 // SessionLease: admitted use of one resident model session.
@@ -93,6 +98,7 @@ type SessionSnapshot struct {
 	Reuses      uint64 `json:"reuses"`
 	Evictions   uint64 `json:"evictions"`
 	Retirements uint64 `json:"retirements"`
+	Retiring    int    `json:"retiring"`
 	Closed      bool   `json:"closed"`
 }
 
@@ -248,7 +254,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) Snapshot() SessionSnapshot 
 		available = len(c.admissions)
 	}
 	var noBorrowers int
-	active, idle, busy := c.residentUsers, noBorrowers, noBorrowers
+	active, idle, busy := c.residentUsers+c.retiringUsers, noBorrowers, noBorrowers
 	for _, entry := range c.entries {
 		active += entry.borrowers
 		if entry.borrowers == noBorrowers {
@@ -258,13 +264,14 @@ func (c *ModelSessionDirector[Input, Model, Output]) Snapshot() SessionSnapshot 
 		}
 	}
 	if c.admissions == nil {
-		available = c.capacity - busy
+		available = c.capacity - busy - c.retiring
 	}
 	return SessionSnapshot{
 		Name: c.name, Device: c.device, Capacity: c.capacity,
 		Active: active, Waiting: c.waiters, Available: available,
 		Entries: len(c.entries), Idle: idle,
-		Loads: c.loads, Reuses: c.reuses, Evictions: c.evictions, Retirements: c.retirements,
+		Loads: c.loads, Reuses: c.reuses, Evictions: c.evictions,
+		Retirements: c.retirements, Retiring: c.retiring,
 		Closed: c.closed,
 	}
 }
@@ -315,7 +322,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) LeaseComponent(
 		model: component.Model, resources: component.Identity,
 		device: c.device, policy: string(component.Session),
 	}
-	entry, _, err := c.leaseEntry(ctx, key, load)
+	entry, _, err := c.leaseEntry(ctx, key, component.Identity, nil, load)
 	if err != nil {
 		return nil, err
 	}
@@ -404,11 +411,16 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 	ctx context.Context,
 	store artifact.Repository,
 	path string,
-	modelID artifact.ID,
-	program recipe.Program,
+	execution modelrecipe.CapabilityEvidenceSelection,
 	raw string,
 ) (any, error) {
 	var zero Output
+	execution, err := modelrecipe.RefreshCapabilityExecution(ctx, store, execution)
+	if err != nil {
+		return zero, err
+	}
+	program := execution.Program
+	modelID := program.Definition().Model
 	input, content, err := decodeJSONInput(c.name, c.validate, modelID, program, raw)
 	if err != nil {
 		return zero, err
@@ -417,17 +429,13 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 	if err != nil || policy == "" {
 		return zero, errors.Join(errors.New("capability runtime: invalid execution policy"), err)
 	}
-	definition := program.Definition()
-	resources, err := modelrecipe.CompileComponentSessionPlan(ctx, store, program)
-	if err != nil {
-		return zero, err
-	}
+	definition, resources := program.Definition(), execution.Resources
 	key := sessionKey{
 		model: modelID, recipe: definition.ID, resources: resources.Identity,
 		device: c.device, policy: policy,
 	}
 
-	entry, fresh, err := c.lease(ctx, store, path, key, program, input)
+	entry, fresh, err := c.lease(ctx, store, path, key, execution, input)
 	if err != nil {
 		return zero, err
 	}
@@ -462,17 +470,24 @@ func (c *ModelSessionDirector[Input, Model, Output]) lease(
 	store artifact.Repository,
 	path string,
 	key sessionKey,
-	program recipe.Program,
+	execution modelrecipe.CapabilityEvidenceSelection,
 	input Input,
 ) (*sessionEntry[Model], bool, error) {
-	return c.leaseEntry(ctx, key, func(ctx context.Context) (Model, error) {
-		return c.load(ctx, store, path, program, input)
-	})
+	return c.leaseEntry(ctx, key, execution.Scope,
+		func(ctx context.Context) error {
+			_, err := modelrecipe.RefreshCapabilityExecution(ctx, store, execution)
+			return err
+		},
+		func(ctx context.Context) (Model, error) {
+			return c.load(ctx, store, path, execution.Program, input)
+		})
 }
 
 func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
 	ctx context.Context,
 	key sessionKey,
+	scope artifact.ID,
+	refresh func(context.Context) error,
 	load func(context.Context) (Model, error),
 ) (*sessionEntry[Model], bool, error) {
 	for {
@@ -485,7 +500,17 @@ func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
 			return nil, false, errors.New("capability runtime: model session director is closed")
 		}
 		c.tick++
+		retired := c.supersedeLocked(scope, key)
+		if len(retired) > 0 {
+			c.notify()
+			c.mu.Unlock()
+			for _, stale := range retired {
+				c.finishRetirement(context.WithoutCancel(ctx), stale)
+			}
+			continue
+		}
 		if entry, ok := c.entries[key]; ok {
+			entry.scope = scope
 			entry.used = c.tick
 			select {
 			case <-entry.ready:
@@ -520,7 +545,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
 				continue
 			}
 		}
-		if len(c.entries) >= c.capacity {
+		if len(c.entries)+c.retiring >= c.capacity {
 			oldestKey, oldest := c.oldestIdle()
 			if oldest == nil {
 				changed := c.changed
@@ -542,11 +567,16 @@ func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
 			}
 			continue
 		}
-		entry := &sessionEntry[Model]{ready: make(chan struct{}), used: c.tick, borrowers: 1}
+		entry := &sessionEntry[Model]{
+			ready: make(chan struct{}), scope: scope, used: c.tick, borrowers: 1,
+		}
 		c.entries[key] = entry
 		c.notify()
 		c.mu.Unlock()
 		model, err := load(ctx)
+		if err == nil && refresh != nil {
+			err = refresh(ctx)
+		}
 		entry.mu.Lock()
 		entry.model, entry.loadErr = model, err
 		close(entry.ready)
@@ -557,6 +587,9 @@ func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
 			entry.dead = true
 			if c.entries[key] == entry {
 				delete(c.entries, key)
+				entry.retiring = true
+				c.retiring++
+				c.retiringUsers += entry.borrowers
 			}
 		}
 		dead := entry.dead
@@ -605,7 +638,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) Close(ctx context.Context) 
 	}
 	c.closed = true
 	c.notify()
-	for c.residentUsers > 0 {
+	for c.residentUsers > 0 || c.retiring > 0 {
 		changed := c.changed
 		c.mu.Unlock()
 		select {
@@ -652,6 +685,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) oldestIdle() (sessionKey, *
 func (c *ModelSessionDirector[Input, Model, Output]) retire(ctx context.Context, key sessionKey, entry *sessionEntry[Model], cause error) error {
 	c.mu.Lock()
 	entry.dead = true
+	entry.closing = true
 	if c.entries[key] == entry {
 		delete(c.entries, key)
 		c.retirements++
@@ -669,8 +703,62 @@ func (c *ModelSessionDirector[Input, Model, Output]) release(entry *sessionEntry
 func (c *ModelSessionDirector[Input, Model, Output]) releaseBorrower(entry *sessionEntry[Model]) {
 	c.mu.Lock()
 	entry.borrowers--
+	if entry.retiring {
+		c.retiringUsers--
+	}
+	closeRetired := entry.borrowers == 0 && entry.dead && !entry.closing
+	if closeRetired {
+		entry.closing = true
+	}
 	c.notify()
 	c.mu.Unlock()
+	if closeRetired {
+		c.finishRetirement(context.Background(), entry)
+	}
+}
+
+func (c *ModelSessionDirector[Input, Model, Output]) supersedeLocked(
+	scope artifact.ID,
+	keep sessionKey,
+) []*sessionEntry[Model] {
+	if !scope.Valid() {
+		return nil
+	}
+	var idle []*sessionEntry[Model]
+	for key, entry := range c.entries {
+		if key == keep || entry.scope != scope || entry.dead {
+			continue
+		}
+		entry.dead = true
+		entry.retiring = true
+		delete(c.entries, key)
+		c.retirements++
+		c.retiring++
+		c.retiringUsers += entry.borrowers
+		select {
+		case <-entry.ready:
+			if entry.borrowers == 0 {
+				entry.closing = true
+				idle = append(idle, entry)
+			}
+		default:
+		}
+	}
+	return idle
+}
+
+func (c *ModelSessionDirector[Input, Model, Output]) finishRetirement(ctx context.Context, entry *sessionEntry[Model]) error {
+	entry.mu.Lock()
+	err := closeEntry(ctx, entry)
+	entry.mu.Unlock()
+	c.mu.Lock()
+	if entry.retiring {
+		entry.retiring = false
+		c.retiring--
+	}
+	c.notify()
+	c.mu.Unlock()
+	return err
 }
 
 func (c *ModelSessionDirector[Input, Model, Output]) notify() {

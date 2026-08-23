@@ -89,9 +89,10 @@ func TestVideoProductionActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	capability := videoCapability()
+	execution := candidateCapabilityExecution(t, store, program)
 	var firstHash string
 	for run := 1; run <= 2; run++ {
-		output, err := capability.execute(t.Context(), store, edit, modelID, program, string(raw))
+		output, err := capability.execute(t.Context(), store, edit, execution, string(raw))
 		if err != nil {
 			t.Fatal(err)
 		}

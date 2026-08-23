@@ -17,6 +17,90 @@
       ]
     },
     {
+      "id": "bifrost-session-authority",
+      "title": "Bind session admission to immutable recipe authority and publish replacements before draining superseded sessions",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bind session admission to immutable recipe authority and publish replacements before draining superseded sessions",
+          "status": "done",
+          "verify": "go test ./internal/capabilityruntime ./internal/modelrecipe -run 'Test(SessionAuthority|SessionReplacement|CapabilityEvidenceSelector)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "bifrost-attempt-authority",
+      "title": "Unify recipe-bound serving attempts, retries, reselection, and spillover evidence",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Unify recipe-bound serving attempts, retries, reselection, and spillover evidence",
+          "status": "open",
+          "verify": "go test ./internal/operation ./internal/runrecord ./internal/server -run 'Test(ServingAttempt|ServingObservation|RecipeBoundAttempt)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "bifrost-operation-recovery",
+      "title": "Recover durable operations through existing lifecycle and recipe execution owners",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Recover durable operations through existing lifecycle and recipe execution owners",
+          "status": "open",
+          "verify": "go test ./internal/operation ./internal/server -run 'Test(OperationRecovery|OperationLifecycle|OperationEvent)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "bifrost-runtime-events",
+      "title": "Stream bounded operation state and artifact identities through the existing SSE owner",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stream bounded operation state and artifact identities through the existing SSE owner",
+          "status": "open",
+          "verify": "go test ./internal/operation ./internal/server -run 'Test(OperationEvent|RuntimeActivity|SSE)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "bifrost-runtime-gui",
+      "title": "Expose session authority, attempts, resources, and operation activity in existing runtime views",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Expose session authority, attempts, resources, and operation activity in existing runtime views",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'Test(Runtime|Activity|Operation).*' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "bifrost-control-closure",
+      "title": "Close Bifrost-inspired control-plane work with bounded memory, parity, and single-authority evidence",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Close Bifrost-inspired control-plane work with bounded memory, parity, and single-authority evidence",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime ./internal/modelrecipe ./internal/operation ./internal/runrecord ./internal/server -count=1"
+        }
+      ]
+    },
+    {
       "id": "repodb-closure-authority",
       "title": "Import the closure authority merge 15bd36d0 skipped",
       "owner": "gui",

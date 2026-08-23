@@ -105,6 +105,47 @@ func TestCapabilityEvidenceSelector(t *testing.T) {
 	}
 }
 
+func TestCapabilityExecutionAuthorityTracksAliasWithoutChangingExecution(t *testing.T) {
+	ctx := context.Background()
+	fixture := newCapabilitySelectorFixture(t)
+	const alternateAlias = "capability/generation/alternate"
+	if _, err := fixture.store.Commit(ctx, artifact.Batch{
+		Key:     "selector/alternate-alias",
+		Aliases: []artifact.AliasBinding{{Name: alternateAlias, Target: fixture.model}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	resolve := func(alias string) CapabilityEvidenceSelection {
+		selection, err := ResolveCapabilityEvidenceSelector(ctx, fixture.store, CapabilityEvidenceSelector{
+			Alias: alias, Task: recipe.TaskGeneration, Session: SessionWarm,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return selection
+	}
+	primary, alternate := resolve(fixture.alias), resolve(alternateAlias)
+	if primary.Identity == alternate.Identity || primary.Scope == alternate.Scope ||
+		!sameCapabilityExecution(primary, alternate) {
+		t.Fatalf("alias executions = %+v / %+v", primary, alternate)
+	}
+	previous := fixture.model
+	if _, err := fixture.store.Commit(ctx, artifact.Batch{
+		Key: "selector/retire-primary-alias",
+		Aliases: []artifact.AliasBinding{{
+			Name: fixture.alias, Target: fixture.model, Previous: &previous, Remove: true,
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RefreshCapabilityExecution(ctx, fixture.store, primary); err == nil {
+		t.Fatal("retired alias authority remained current")
+	}
+	if current, err := RefreshCapabilityExecution(ctx, fixture.store, alternate); err != nil || current.Identity != alternate.Identity {
+		t.Fatalf("alternate authority = %+v, %v", current, err)
+	}
+}
+
 func TestRemotePeerSpilloverRequiresCompatibilityEvidence(t *testing.T) {
 	ctx := context.Background()
 	fixture := newCapabilitySelectorFixture(t)

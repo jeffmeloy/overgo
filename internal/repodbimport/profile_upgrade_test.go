@@ -123,3 +123,67 @@ func TestProfileSchemaVersion(t *testing.T) {
 		}
 	}
 }
+
+// TestProfileUpgradeBackfillsFieldsAddedAfterPublication covers the second way
+// these documents are stale. The rename was not the only unversioned change:
+// policy fields added to ArchitectureProfile after a document was published are
+// simply absent from it, and decoding them as zero values fails the current
+// validator. The registered catalog completes them, so a document that predates
+// a field still upgrades instead of being refused.
+func TestProfileUpgradeBackfillsFieldsAddedAfterPublication(t *testing.T) {
+	document := renamedProfileFixture(t, false)
+	var body map[string]any
+	if err := json.Unmarshal(document, &body); err != nil {
+		t.Fatal(err)
+	}
+	policy, ok := body["policy"].(map[string]any)
+	if !ok {
+		t.Fatal("fixture policy is absent")
+	}
+	// Drop every field the catalog declares, leaving only what identifies the
+	// architecture. A document this sparse is the limit case of publication
+	// predating the current profile shape.
+	name := policy["Name"]
+	stages := policy["DenseStages"]
+	for key := range policy {
+		delete(policy, key)
+	}
+	policy["Name"] = name
+	policy["DenseStages"] = stages
+	sparse, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	upgraded, err := upgradeRenamedProfile(sparse)
+	if err != nil {
+		t.Fatalf("sparse published document refused: %v", err)
+	}
+	var decoded struct {
+		Architecture string                    `json:"architecture"`
+		Version      uint16                    `json:"version"`
+		Policy       model.ArchitectureProfile `json:"policy"`
+		Provenance   []json.RawMessage         `json:"provenance,omitempty"`
+	}
+	if err := strictjson.DecodeBytes(upgraded, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	registered, found := model.LookupArchitecture(decoded.Architecture)
+	if !found {
+		t.Fatalf("upgraded architecture %q is not registered", decoded.Architecture)
+	}
+	if decoded.Policy.DraftKind != registered.DraftKind ||
+		decoded.Policy.DraftQueryCopies != registered.DraftQueryCopies {
+		t.Fatalf("catalog fields were not backfilled: got kind=%v copies=%v want kind=%v copies=%v",
+			decoded.Policy.DraftKind, decoded.Policy.DraftQueryCopies,
+			registered.DraftKind, registered.DraftQueryCopies)
+	}
+}
+
+// TestProfileUpgradeRefusesUnregisteredArchitecture keeps the backfill honest:
+// an architecture the catalog does not declare has no authority to complete it.
+func TestProfileUpgradeRefusesUnregisteredArchitecture(t *testing.T) {
+	if _, err := upgradeRenamedProfile([]byte(
+		`{"architecture":"absent","policy":{"DenseStages":{}}}`)); err == nil {
+		t.Fatal("upgrade completed a document with no registered architecture")
+	}
+}

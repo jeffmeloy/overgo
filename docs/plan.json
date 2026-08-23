@@ -35,13 +35,13 @@
       "id": "gui-profile-schema",
       "title": "Restore qwen35 model loading after the profile field rename",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Restore qwen35 model loading after the profile field rename",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/repodbimport -run 'TestProfileRenameUpgrade|TestProfileSchemaVersion' -count=1"
+          "status": "done",
+          "verify": "go test ./internal/repodbimport -run 'TestProfileUpgradeBackfillsFieldsAddedAfterPublication|TestProfileUpgradeRefusesUnregisteredArchitecture|TestProfileRenameUpgrade' -count=1"
         }
       ]
     },
@@ -286,6 +286,20 @@
       ]
     },
     {
+      "id": "gate-published-data",
+      "title": "Make the gate verify published data against current source",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make the gate verify published data against current source",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/modelrecipe -run 'TestGateReadsPublishedDocuments|TestStoredDocumentsDecodeUnderCurrentSchema' -count=1"
+        }
+      ]
+    },
+    {
       "id": "validate-model-inference",
       "title": "Validate inference across every adaptive_new model",
       "owner": "gui",
@@ -324,6 +338,20 @@
           "title": "Refactor the workbench GUI into a correct, reliable interface",
           "status": "open",
           "verify": "go test ./internal/server -run 'TestWebUI|TestEvaluationWorkbench' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "repodb-retention",
+      "title": "Set a RepoDB retention policy for superseded evidence",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Set a RepoDB retention policy for superseded evidence",
+          "status": "open",
+          "verify": "go test ./internal/repodb ./internal/closureledger -run 'TestRetention|TestSupersededCollection' -count=1"
         }
       ]
     },

@@ -289,12 +289,12 @@
       "id": "composite-generation-cuda",
       "title": "Run the promoted composition and model-native baseline on identical real catalog artifacts and held-out inputs under CUDA",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Run the promoted composition and model-native baseline on identical real catalog artifacts and held-out inputs under CUDA",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/composite-generation-lane"
         }
       ]

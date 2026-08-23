@@ -371,7 +371,7 @@
         {
           "id": "close-open-rows",
           "title": "Resolve every derivation-blocked row and retire stale migration evidence",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts"
         },
         {

@@ -1,0 +1,24 @@
+Closure authority zero-debt verification
+========================================
+
+Command:
+
+  go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts
+
+Observed result:
+
+  closure-scan: scoped sites=20916 classified=6563 stale=0
+  closure-scan: test sites=49480 policy_copies=0
+
+Interpretation:
+
+  * no active closure document remains derivation-blocked;
+  * every detected production-policy site has exact active closure evidence;
+  * every active source binding matches the current source and callsite identity;
+  * model-runtime policy facts have an authoritative non-open classification; and
+  * tests contain no semantically named copies of production policy.
+
+This is a repository-wide authority result, not a claim that every numeric literal
+is configurable. Implementation constraints and mathematical facts remain fixed by
+their closed ledger records; measured or adaptation-backed values remain monitored
+through their immutable records and rerank triggers.

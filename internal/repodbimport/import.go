@@ -27,17 +27,19 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/tensor"
 	"overgo/internal/textcheck"
 )
 
 const (
-	Version             uint16 = 1
-	SourceMediaType            = "application/vnd.overgo.repodb-import+json"
-	SourceSchema               = "overgo/repodb-import/v1"
-	maxLineBytes               = artifact.MaxContentBytes
-	maxImportBytes             = 512 << 20
-	maxRecords                 = 1_000_000
-	legacyProfileSchema        = "overgo/model-profile/v1"
+	Version              uint16 = 1
+	SourceMediaType             = "application/vnd.overgo.repodb-import+json"
+	SourceSchema                = "overgo/repodb-import/v1"
+	maxLineBytes                = artifact.MaxContentBytes
+	maxImportBytes              = 512 << 20
+	maxRecords                  = 1_000_000
+	legacyProfileSchema         = "overgo/model-profile/v1"
+	renamedProfileSchema        = "overgo/model-profile/v2"
 )
 
 var sourceContract = artifact.DocumentContract{
@@ -401,14 +403,18 @@ func canonicalizeKnownDocument(mediaType, schema string, data []byte) ([]byte, s
 		}
 		_, canonical, err = recipe.NormalizeDecision(data)
 	case modelrecipe.ProfileMediaType:
-		requireSchema(modelrecipe.ProfileSchema, legacyProfileSchema)
+		requireSchema(modelrecipe.ProfileSchema, legacyProfileSchema, renamedProfileSchema)
 		if err != nil {
 			break
 		}
-		if schema == legacyProfileSchema {
+		switch schema {
+		case legacyProfileSchema:
 			canonical, err = upgradeLegacyProfile(data)
 			resolvedSchema = modelrecipe.ProfileSchema
-		} else {
+		case renamedProfileSchema:
+			canonical, err = upgradeRenamedProfile(data)
+			resolvedSchema = modelrecipe.ProfileSchema
+		default:
 			_, canonical, err = modelrecipe.NormalizeProfileDocument(data)
 		}
 	case modelrecipe.CatalogProfileDerivationMediaType:
@@ -543,6 +549,61 @@ func upgradeLegacyProfile(data []byte) ([]byte, error) {
 		return nil, errors.New("invalid legacy model profile")
 	}
 	document, err := modelrecipe.NewProfileDocument(legacy.Policy)
+	if err != nil {
+		return nil, err
+	}
+	return document.Content()
+}
+
+// renamedProfileExcludedExperts is the expert count the pre-v3 boolean held
+// implicitly: PostRotaryRMSNon128 was true exactly when post-rotary RMS applied
+// to every expert count except this one. v3 declares the count as data, so the
+// upgrade is exact in both directions -- true becomes this count, false becomes
+// the disabled sentinel.
+const renamedProfileExcludedExperts float64 = 128
+
+// upgradeRenamedProfile rewrites a v2 profile whose DenseStages still carries
+// PostRotaryRMSNon128. The policy is remapped as generic JSON because the
+// current ArchitectureProfile has no field of that name and strict decoding
+// would refuse the document before the rename could run.
+func upgradeRenamedProfile(data []byte) ([]byte, error) {
+	var body map[string]any
+	if err := json.Unmarshal(data, &body); err != nil {
+		return nil, err
+	}
+	policy, ok := body["policy"].(map[string]any)
+	if !ok {
+		return nil, errors.New("renamed model profile: policy is absent")
+	}
+	stages, ok := policy["DenseStages"].(map[string]any)
+	if !ok {
+		return nil, errors.New("renamed model profile: dense stages are absent")
+	}
+	if legacy, present := stages["PostRotaryRMSNon128"]; present {
+		applied, ok := legacy.(bool)
+		if !ok {
+			return nil, errors.New("renamed model profile: PostRotaryRMSNon128 is not boolean")
+		}
+		delete(stages, "PostRotaryRMSNon128")
+		excluded := float64(tensor.FirstOffset)
+		if applied {
+			excluded = renamedProfileExcludedExperts
+		}
+		stages["PostRotaryRMSExcludedExperts"] = excluded
+	}
+	remapped, err := json.Marshal(policy)
+	if err != nil {
+		return nil, err
+	}
+	var profile model.ArchitectureProfile
+	if err := strictjson.DecodeBytes(remapped, &profile); err != nil {
+		return nil, err
+	}
+	architecture, _ := body["architecture"].(string)
+	if architecture == "" || profile.Name != architecture {
+		return nil, errors.New("invalid renamed model profile")
+	}
+	document, err := modelrecipe.NewProfileDocument(profile)
 	if err != nil {
 		return nil, err
 	}

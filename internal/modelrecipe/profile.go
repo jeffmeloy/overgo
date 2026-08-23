@@ -13,9 +13,16 @@ import (
 )
 
 const (
-	ProfileVersion   uint16 = 2
+	// ProfileVersion 3 renamed DenseStages.PostRotaryRMSNon128 (bool, with the
+	// excluded expert count fixed at 128) to PostRotaryRMSExcludedExperts
+	// (uint32, the count declared as data). The rename shipped without this
+	// bump, so v2 documents already published carried the old key under the
+	// current schema label and strict decoding refused every one of them: no
+	// stored profile could load. The bump makes v2 a legacy label again so
+	// repodbimport can route those documents through an exact upgrade.
+	ProfileVersion   uint16 = 3
 	ProfileMediaType        = "application/vnd.overgo.model-profile+json"
-	ProfileSchema           = "overgo/model-profile/v2"
+	ProfileSchema           = "overgo/model-profile/v3"
 )
 
 var profileContract = artifact.DocumentContract{

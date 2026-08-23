@@ -1,8 +1,50 @@
 {
   "campaign": "Deletion-led production composability and repository tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:8ab23243ebc57ac2b5d23c96a10e88a90066ee5fd1c75be740775a13b34f157d",
+  "census_evidence": "evidence:sha256:62d1d4a9dc99abbf408cc6fcd0d8c5d803b48fe78999ab017bc7e3965e24ca28",
   "items": [
+    {
+      "id": "repodb-closure-authority",
+      "title": "Import the closure authority merge 15bd36d0 skipped",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Import the closure authority merge 15bd36d0 skipped",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-scope internal -require-no-stale"
+        }
+      ]
+    },
+    {
+      "id": "gui-profile-restore",
+      "title": "Migrate stored profile documents to v3 so models load",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Migrate stored profile documents to v3 so models load",
+          "status": "done",
+          "verify": "go test ./internal/modelrecipe ./internal/repodbimport -run 'TestProfileRenameUpgrade|TestProfileRenameUpgradeRefusesUnknownShape|TestProfileSchemaVersion|TestRegisteredProfileSemanticDigest' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-profile-schema",
+      "title": "Restore qwen35 model loading after the profile field rename",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore qwen35 model loading after the profile field rename",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/repodbimport -run 'TestProfileRenameUpgrade|TestProfileSchemaVersion' -count=1"
+        }
+      ]
+    },
     {
       "id": "merge-524691512e21",
       "title": "Merge master at 524691512e21",
@@ -240,6 +282,48 @@
           "title": "Enforce contract-tested, runtime-wired, CUDA-verified, evidence-promoted, and production-active completion",
           "status": "done",
           "verify": "go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/test-lane ./internal/composition ./internal/inference ./internal/server"
+        }
+      ]
+    },
+    {
+      "id": "validate-model-inference",
+      "title": "Validate inference across every adaptive_new model",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate inference across every adaptive_new model",
+          "status": "open",
+          "verify": "go test -p 1 -tags modeltest ./internal/inference ./internal/densecausal ./internal/routedlm ./internal/seq2seq ./internal/latentimage ./internal/latentvideo ./internal/speechsynth -count=1"
+        }
+      ]
+    },
+    {
+      "id": "validate-model-training",
+      "title": "Validate training across every adaptive_new model",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate training across every adaptive_new model",
+          "status": "open",
+          "verify": "go test -p 1 -tags modeltest ./internal/trainingprogram ./internal/trainingworkflow ./internal/adaptertrain ./internal/hybridtrain ./internal/controllertrain ./internal/bridgetrain -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-refactor",
+      "title": "Refactor the workbench GUI into a correct, reliable interface",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refactor the workbench GUI into a correct, reliable interface",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestWebUI|TestEvaluationWorkbench' -count=1"
         }
       ]
     },

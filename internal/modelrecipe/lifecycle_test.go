@@ -66,6 +66,15 @@ func TestAtomicEvidenceGatedActivation(t *testing.T) {
 		!slices.Contains(event.Evidence, verification.Run) {
 		t.Fatalf("activation evidence = %v", event.Evidence)
 	}
+	eventParents, err := store.Parents(ctx, event.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, edge := range event.Lineage() {
+		if !slices.Contains(eventParents, edge) {
+			t.Fatalf("activation lineage lacks %+v: %v", edge, eventParents)
+		}
+	}
 	parents, err := store.Parents(ctx, decisions[0].ID)
 	if err != nil {
 		t.Fatal(err)

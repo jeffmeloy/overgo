@@ -49,7 +49,9 @@ func TestLogAppendStreamsFrame(t *testing.T) {
 	if err != nil || !writer.synced {
 		t.Fatalf("append = (%s, %v), synced=%v", id, err, writer.synced)
 	}
-	_, want := encodeRecordVersion(frameVersion, 1, artifact.CommitID{}, payload)
+	_, header, trailer := encodeFrame(1, artifact.CommitID{}, payload)
+	want := append(header, payload...)
+	want = append(want, trailer[:]...)
 	if got := bytes.Join(writer.parts, nil); !bytes.Equal(got, want) {
 		t.Fatalf("streamed frame bytes=%d, want %d", len(got), len(want))
 	}

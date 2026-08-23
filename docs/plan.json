@@ -1653,13 +1653,13 @@
       "id": "repodb-efficiency-closure",
       "title": "Close RepoDB tightening with measured storage, replay, query, and memory evidence",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Migrate the live ledger, verify catalog and alias parity, publish replay and allocation evidence, remove legacy storage and query paths, and run host and device gates",
-          "status": "open",
-          "verify": "go test ./internal/artifact ./internal/repodb ./internal/runrecord ./internal/modelrecipe ./internal/evaluation ./internal/server -count=1 \u0026\u0026 go test ./internal/repodb -run '^$' -bench . -benchmem -count=3 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
+          "status": "done",
+          "verify": "go test ./internal/artifact ./internal/repodb ./internal/runrecord ./internal/modelrecipe ./internal/evaluation ./internal/server -count=1 \u0026\u0026 go test ./internal/repodb -run '^TestMetadataSnapshot$' -bench . -benchmem -count=3 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
           "rationale": "Completion requires one durable frame authority, one indexed catalog, one streaming payload path, no QueryExtent production scans, no legacy compatibility path, and measured improvement against the 646 MB, 6.9 second, 918 MB baseline.",
           "depends_on": [
             "repodb-maintenance/do"

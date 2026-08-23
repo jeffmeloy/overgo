@@ -117,7 +117,6 @@ func (s *Store) VisitDocuments(
 		}
 	}
 	s.mu.RUnlock()
-	legacy := map[int64]map[artifact.ID][]byte{}
 	for _, entry := range entries {
 		if err := contextError(ctx); err != nil {
 			return DocumentPage{}, err
@@ -127,7 +126,7 @@ func (s *Store) VisitDocuments(
 			s.mu.RUnlock()
 			return DocumentPage{}, err
 		}
-		data, err := s.materializeQueryContent(entry.locator, entry.descriptor.ID, legacy)
+		data, err := s.materializeContent(entry.locator)
 		s.mu.RUnlock()
 		if err != nil {
 			return DocumentPage{}, err

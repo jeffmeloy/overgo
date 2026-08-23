@@ -23,7 +23,7 @@ const (
 	snapshotDirectory         = "snapshots"
 	snapshotExtension         = ".snapshot"
 	snapshotHeaderBytes       = 92
-	snapshotVersion           = uint16(5)
+	snapshotVersion           = uint16(6)
 	snapshotPayloadMultiplier = 4
 	maxSnapshotPayload        = maxFramePayload * snapshotPayloadMultiplier
 
@@ -65,12 +65,9 @@ type snapshotCommit struct {
 }
 
 type snapshotContent struct {
-	Artifact      artifact.ID `json:"artifact"`
-	Offset        int64       `json:"offset"`
-	Size          int64       `json:"size"`
-	FrameVersion  uint16      `json:"frame_version"`
-	PayloadOffset int64       `json:"payload_offset"`
-	PayloadSize   int64       `json:"payload_size"`
+	Artifact artifact.ID `json:"artifact"`
+	Offset   int64       `json:"offset"`
+	Size     int64       `json:"size"`
 }
 
 type snapshotArtifact struct {
@@ -165,15 +162,11 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 	state.apply(normalized, nil, document.Sequence)
 	for _, content := range document.Contents {
 		slot := state.slots[content.Artifact]
-		if slot == nil || content.Size <= 0 || uint64(content.Size) != slot.descriptor.Size ||
-			content.FrameVersion < minimumFrameVersion || content.FrameVersion > frameVersion ||
-			content.PayloadOffset < storeHeaderBytes || content.PayloadSize <= 0 {
+		if slot == nil || content.Offset < storeHeaderBytes || content.Size <= 0 ||
+			uint64(content.Size) != slot.descriptor.Size {
 			return catalogState{}, errors.New("repodb: invalid snapshot content locator")
 		}
-		slot.content = contentLocator{
-			offset: content.Offset, size: content.Size, frameVersion: content.FrameVersion,
-			payloadOffset: content.PayloadOffset, payloadSize: content.PayloadSize,
-		}
+		slot.content = contentLocator{offset: content.Offset, size: content.Size}
 		slot.hasContent = true
 	}
 	for index, entry := range document.Commits {
@@ -295,10 +288,7 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 	stream.array("contents", len(contentIDs), true, func(index int) {
 		id := contentIDs[index]
 		locator := state.slots[id].content
-		stream.value(snapshotContent{
-			Artifact: id, Offset: locator.offset, Size: locator.size, FrameVersion: locator.frameVersion,
-			PayloadOffset: locator.payloadOffset, PayloadSize: locator.payloadSize,
-		})
+		stream.value(snapshotContent{Artifact: id, Offset: locator.offset, Size: locator.size})
 	})
 	manifestIDs := snapshotArtifactIDs(state, func(slot *artifactSlot) bool { return slot.hasManifest })
 	stream.array("manifests", len(manifestIDs), true, func(index int) {

@@ -1,7 +1,6 @@
 package repodb
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -15,18 +14,16 @@ import (
 )
 
 const (
-	storeFilename           = "repodb.log"
-	lockFilename            = "repodb.lock"
-	storeHeaderBytes        = 16
-	frameHeaderBytes        = 84
-	storeVersion            = uint16(1)
-	minimumFrameVersion     = uint16(1)
-	transactionFrameVersion = uint16(3)
-	frameVersion            = transactionFrameVersion + 1
-	frameKindBatch          = uint16(1)
-	maxFramePayload         = artifact.MaxContentBytes
-	storeFileMode           = 0o644
-	storeDirectoryMode      = 0o755
+	storeFilename      = "repodb.log"
+	lockFilename       = "repodb.lock"
+	storeHeaderBytes   = 16
+	frameHeaderBytes   = 84
+	storeVersion       = uint16(1)
+	frameVersion       = uint16(4)
+	frameKindBatch     = uint16(1)
+	maxFramePayload    = artifact.MaxContentBytes
+	storeFileMode      = 0o644
+	storeDirectoryMode = 0o755
 
 	storeMagicOffset    = 0
 	storeVersionOffset  = 8
@@ -317,7 +314,7 @@ func decodeFrameHeader(header []byte) (uint32, logRecord, error) {
 		return 0, logRecord{}, errors.New("invalid frame magic")
 	}
 	version := binary.LittleEndian.Uint16(header[frameVersionOffset:frameKindOffset])
-	if version < minimumFrameVersion || version > frameVersion {
+	if version != frameVersion {
 		return 0, logRecord{}, errors.New("unsupported frame version")
 	}
 	if binary.LittleEndian.Uint16(header[frameKindOffset:frameSequenceOffset]) != frameKindBatch {
@@ -343,15 +340,6 @@ func commitIdentity(version uint16, sequence uint64, previous artifact.CommitID,
 	return id
 }
 
-func encodeRecordVersion(version uint16, sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, []byte) {
-	id := commitIdentity(version, sequence, previous, payload)
-	header := encodeFrameHeader(version, sequence, previous, id, len(payload))
-	frame := make([]byte, 0, len(header)+len(payload)+crc32.Size)
-	frame = append(frame, header...)
-	frame = append(frame, payload...)
-	return id, binary.LittleEndian.AppendUint32(frame, crc32.Checksum(frame, crcTable))
-}
-
 func encodeFrameHeader(version uint16, sequence uint64, previous, id artifact.CommitID, payloadSize int) []byte {
 	header := make([]byte, frameHeaderBytes)
 	binary.LittleEndian.PutUint32(header[frameMagicOffset:frameVersionOffset], frameMagic)
@@ -362,6 +350,16 @@ func encodeFrameHeader(version uint16, sequence uint64, previous, id artifact.Co
 	copy(header[frameIDOffset:framePayloadSizeOffset], id[:])
 	binary.LittleEndian.PutUint32(header[framePayloadSizeOffset:frameHeaderBytes], uint32(payloadSize))
 	return header
+}
+
+func encodeFrame(sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, []byte, [crc32.Size]byte) {
+	id := commitIdentity(frameVersion, sequence, previous, payload)
+	header := encodeFrameHeader(frameVersion, sequence, previous, id, len(payload))
+	checksum := crc32.Checksum(header, crcTable)
+	checksum = crc32.Update(checksum, crcTable, payload)
+	var trailer [crc32.Size]byte
+	binary.LittleEndian.PutUint32(trailer[:], checksum)
+	return id, header, trailer
 }
 
 func (l *recordLog) append(sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, int64, int64, error) {
@@ -375,12 +373,7 @@ func (l *recordLog) append(sequence uint64, previous artifact.CommitID, payload 
 	if err != nil {
 		return artifact.CommitID{}, 0, 0, fmt.Errorf("repodb: locate append: %w", err)
 	}
-	id := commitIdentity(frameVersion, sequence, previous, payload)
-	header := encodeFrameHeader(frameVersion, sequence, previous, id, len(payload))
-	checksum := crc32.Checksum(header, crcTable)
-	checksum = crc32.Update(checksum, crcTable, payload)
-	var trailer [crc32.Size]byte
-	binary.LittleEndian.PutUint32(trailer[:], checksum)
+	id, header, trailer := encodeFrame(sequence, previous, payload)
 	writer := l.writer
 	if writer == nil {
 		writer = l.file
@@ -398,24 +391,8 @@ func (l *recordLog) append(sequence uint64, previous artifact.CommitID, payload 
 	return id, payloadOffset, end, nil
 }
 
-func (l *recordLog) openContent(locator contentLocator, id artifact.ID) (io.Reader, error) {
-	if locator.frameVersion >= frameVersion {
-		return io.NewSectionReader(l.file, locator.offset, locator.size), nil
-	}
-	payload := make([]byte, locator.payloadSize)
-	if _, err := l.file.ReadAt(payload, locator.payloadOffset); err != nil {
-		return nil, fmt.Errorf("repodb: read legacy content frame: %w", err)
-	}
-	batch, _, err := decodeLegacyRecord(logRecord{version: locator.frameVersion, payload: payload})
-	if err != nil {
-		return nil, err
-	}
-	for _, content := range batch.Contents {
-		if content.Descriptor.ID == id {
-			return bytes.NewReader(content.Data), nil
-		}
-	}
-	return nil, errors.New("repodb: legacy content is absent")
+func (l *recordLog) openContent(locator contentLocator) io.Reader {
+	return io.NewSectionReader(l.file, locator.offset, locator.size)
 }
 
 func writeAll(writer io.Writer, data []byte) error {

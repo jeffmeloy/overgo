@@ -82,7 +82,7 @@ func TestMetadataSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	locator := store.state.slots[descriptor.ID].content
-	if locator.size != int64(len(content.Data)) || locator.frameVersion != frameVersion {
+	if locator.size != int64(len(content.Data)) {
 		t.Fatalf("content locator = %+v", locator)
 	}
 	snapshot, err := store.Snapshot(context.Background())
@@ -239,7 +239,9 @@ func TestReadOnlyRefreshRejectsFork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, frame := encodeRecordVersion(frameVersion, sequence+1, artifact.CommitID{}, payload)
+	_, header, trailer := encodeFrame(sequence+1, artifact.CommitID{}, payload)
+	frame := append(header, payload...)
+	frame = append(frame, trailer[:]...)
 	file, err := os.OpenFile(filepath.Join(root, storeFilename), os.O_APPEND|os.O_WRONLY, storeFileMode)
 	if err != nil {
 		t.Fatal(err)
@@ -627,28 +629,6 @@ func TestCompleteCorruptFrameRejected(t *testing.T) {
 	if reopened, err := Open(root); err == nil {
 		_ = reopened.Close()
 		t.Fatal("corrupt complete frame accepted")
-	}
-}
-
-func TestLegacyArtifactFrameReplays(t *testing.T) {
-	root := t.TempDir()
-	batch := fixtureBatch(t)
-	payload, _, _, err := encodeBatch(batch)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, frame := encodeRecordVersion(minimumFrameVersion, 1, artifact.CommitID{}, payload)
-	data := append(encodeStoreHeader(), frame...)
-	if err := os.WriteFile(filepath.Join(root, storeFilename), data, storeFileMode); err != nil {
-		t.Fatal(err)
-	}
-	store, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	if _, ok, err := store.Artifact(context.Background(), batch.Artifacts[0].ID); err != nil || !ok {
-		t.Fatalf("legacy artifact = (%v, %v)", ok, err)
 	}
 }
 

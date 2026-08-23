@@ -53,11 +53,8 @@ type persistedTransaction struct {
 }
 
 type contentLocator struct {
-	offset        int64
-	size          int64
-	frameVersion  uint16
-	payloadOffset int64
-	payloadSize   int64
+	offset int64
+	size   int64
 }
 
 type artifactSlot struct {
@@ -502,7 +499,7 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 		s.fault = err
 		return id, fmt.Errorf("%w: %w", ErrStoreFaulted, err)
 	}
-	bindContentLocators(locators, payloadOffset, int64(len(payload)), frameVersion)
+	bindContentLocators(locators, payloadOffset)
 	s.state.apply(delta, locators, sequence)
 	s.state.addCommit(committedBatch{key: normalized.Key, id: id, payload: payloadHash, sequence: sequence})
 	s.sequence = sequence
@@ -583,11 +580,7 @@ func (s *Store) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descr
 	if !ok || !slot.hasContent {
 		return artifact.Descriptor{}, nil, false, nil
 	}
-	reader, err := s.log.openContent(slot.content, id)
-	if err != nil {
-		return artifact.Descriptor{}, nil, false, err
-	}
-	return slot.descriptor, reader, true, nil
+	return slot.descriptor, s.log.openContent(slot.content), true, nil
 }
 
 // VisitContents streams requested content in storage order.
@@ -623,56 +616,21 @@ func (s *Store) VisitContents(ctx context.Context, ids []artifact.ID, visit func
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		left, right := entries[i].locator, entries[j].locator
-		if left.frameVersion != right.frameVersion {
-			return left.frameVersion < right.frameVersion
-		}
-		if left.payloadOffset != right.payloadOffset {
-			return left.payloadOffset < right.payloadOffset
-		}
 		return left.offset < right.offset
 	})
-	var legacyOffset int64
-	var haveLegacy bool
-	var legacy map[artifact.ID][]byte
 	for _, entry := range entries {
 		if err := contextError(ctx); err != nil {
 			return err
 		}
-		var reader io.Reader
-		if entry.locator.frameVersion < frameVersion {
-			if !haveLegacy || entry.locator.payloadOffset != legacyOffset {
-				var err error
-				legacy, err = s.legacyContents(entry.locator)
-				if err != nil {
-					return err
-				}
-				legacyOffset = entry.locator.payloadOffset
-				haveLegacy = true
-			}
-			data, found := legacy[entry.id]
-			if !found {
-				return errors.New("repodb: legacy content is absent")
-			}
-			reader = bytes.NewReader(data)
-		} else {
-			var err error
-			reader, err = s.log.openContent(entry.locator, entry.id)
-			if err != nil {
-				return err
-			}
-		}
-		if err := visit(entry.descriptor, reader); err != nil {
+		if err := visit(entry.descriptor, s.log.openContent(entry.locator)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Store) materializeContent(locator contentLocator, id artifact.ID) ([]byte, error) {
-	reader, err := s.log.openContent(locator, id)
-	if err != nil {
-		return nil, err
-	}
+func (s *Store) materializeContent(locator contentLocator) ([]byte, error) {
+	reader := s.log.openContent(locator)
 	data, err := io.ReadAll(io.LimitReader(reader, locator.size+1))
 	if err != nil {
 		return nil, err
@@ -681,46 +639,6 @@ func (s *Store) materializeContent(locator contentLocator, id artifact.ID) ([]by
 		return nil, errors.New("repodb: content locator size differs")
 	}
 	return data, nil
-}
-
-func (s *Store) materializeQueryContent(
-	locator contentLocator,
-	id artifact.ID,
-	legacy map[int64]map[artifact.ID][]byte,
-) ([]byte, error) {
-	if locator.frameVersion >= frameVersion {
-		return s.materializeContent(locator, id)
-	}
-	contents := legacy[locator.payloadOffset]
-	if contents == nil {
-		var err error
-		contents, err = s.legacyContents(locator)
-		if err != nil {
-			return nil, err
-		}
-		legacy[locator.payloadOffset] = contents
-	}
-	data, found := contents[id]
-	if !found {
-		return nil, errors.New("repodb: legacy content is absent")
-	}
-	return data, nil
-}
-
-func (s *Store) legacyContents(locator contentLocator) (map[artifact.ID][]byte, error) {
-	payload := make([]byte, locator.payloadSize)
-	if _, err := s.log.file.ReadAt(payload, locator.payloadOffset); err != nil {
-		return nil, fmt.Errorf("repodb: read legacy content frame: %w", err)
-	}
-	batch, _, err := decodeLegacyRecord(logRecord{version: locator.frameVersion, payload: payload})
-	if err != nil {
-		return nil, err
-	}
-	contents := make(map[artifact.ID][]byte, len(batch.Contents))
-	for _, content := range batch.Contents {
-		contents[content.Descriptor.ID] = content.Data
-	}
-	return contents, nil
 }
 
 func (s *Store) HasContent(ctx context.Context, id artifact.ID) (bool, error) {
@@ -854,25 +772,6 @@ func encodeBatch(batch artifact.Batch) ([]byte, artifact.Batch, [sha256.Size]byt
 	return payload, normalized, sha256.Sum256(payload), nil
 }
 
-func decodeBatch(payload []byte) (artifact.Batch, [sha256.Size]byte, error) {
-	var batch artifact.Batch
-	if err := strictjson.DecodeBytes(payload, &batch); err != nil {
-		return artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("repodb: decode batch: %w", err)
-	}
-	normalized, err := normalizeBatch(batch)
-	if err != nil {
-		return artifact.Batch{}, [sha256.Size]byte{}, err
-	}
-	canonical, err := json.Marshal(normalized)
-	if err != nil {
-		return artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("repodb: canonicalize batch: %w", err)
-	}
-	if !bytes.Equal(canonical, payload) {
-		return artifact.Batch{}, [sha256.Size]byte{}, errors.New("repodb: non-canonical batch payload")
-	}
-	return normalized, sha256.Sum256(payload), nil
-}
-
 func encodeTransaction(request [sha256.Size]byte, delta artifact.Batch) ([]byte, map[artifact.ID]contentLocator, error) {
 	contents := delta.Contents
 	delta.Contents = nil
@@ -898,20 +797,6 @@ func encodeTransaction(request [sha256.Size]byte, delta artifact.Batch) ([]byte,
 }
 
 func decodeRecord(record logRecord) (artifact.Batch, [sha256.Size]byte, map[artifact.ID]contentLocator, error) {
-	if record.version < frameVersion {
-		batch, request, err := decodeLegacyRecord(record)
-		if err != nil {
-			return artifact.Batch{}, [sha256.Size]byte{}, nil, err
-		}
-		locators := make(map[artifact.ID]contentLocator, len(batch.Contents))
-		for _, content := range batch.Contents {
-			locators[content.Descriptor.ID] = contentLocator{
-				size: int64(len(content.Data)), frameVersion: record.version,
-				payloadOffset: record.offset, payloadSize: int64(len(record.payload)),
-			}
-		}
-		return batch, request, locators, nil
-	}
 	if len(record.payload) < binary.Size(uint32(0)) {
 		return artifact.Batch{}, [sha256.Size]byte{}, nil, errors.New("repodb: short transaction metadata")
 	}
@@ -954,38 +839,13 @@ func decodeRecord(record logRecord) (artifact.Batch, [sha256.Size]byte, map[arti
 	if dataOffset != len(record.payload) {
 		return artifact.Batch{}, [sha256.Size]byte{}, nil, errors.New("repodb: trailing transaction content")
 	}
-	bindContentLocators(locators, record.offset, int64(len(record.payload)), record.version)
+	bindContentLocators(locators, record.offset)
 	return normalized, transaction.Request, locators, nil
 }
 
-func decodeLegacyRecord(record logRecord) (artifact.Batch, [sha256.Size]byte, error) {
-	if record.version < transactionFrameVersion {
-		return decodeBatch(record.payload)
-	}
-	var transaction struct {
-		Request [sha256.Size]byte `json:"request"`
-		Delta   artifact.Batch    `json:"delta"`
-	}
-	if err := strictjson.DecodeBytes(record.payload, &transaction); err != nil {
-		return artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("repodb: decode transaction: %w", err)
-	}
-	normalized, err := normalizeBatch(transaction.Delta)
-	if err != nil {
-		return artifact.Batch{}, [sha256.Size]byte{}, err
-	}
-	canonical, err := json.Marshal(transaction)
-	if err != nil || !bytes.Equal(canonical, record.payload) {
-		return artifact.Batch{}, [sha256.Size]byte{}, errors.New("repodb: non-canonical transaction payload")
-	}
-	return normalized, transaction.Request, nil
-}
-
-func bindContentLocators(locators map[artifact.ID]contentLocator, payloadOffset, payloadSize int64, version uint16) {
+func bindContentLocators(locators map[artifact.ID]contentLocator, payloadOffset int64) {
 	for id, locator := range locators {
 		locator.offset += payloadOffset
-		locator.frameVersion = version
-		locator.payloadOffset = payloadOffset
-		locator.payloadSize = payloadSize
 		locators[id] = locator
 	}
 }

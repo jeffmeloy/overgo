@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 
 	"overgo/internal/artifact"
@@ -27,6 +28,7 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 	}
 	descriptors := map[artifact.ID]artifact.Descriptor{}
 	manifests := map[artifact.ID]artifact.Manifest{}
+	contents := map[artifact.ID]bool{}
 	parents := map[artifact.ID][]relationKey{}
 	locations := map[artifact.ID][]artifact.Location{}
 	source.mu.RLock()
@@ -38,6 +40,9 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 		descriptors[id] = slot.descriptor
 		parents[id] = slices.Clone(slot.parents)
 		locations[id] = slices.Clone(slot.locations)
+		if slot.hasContent {
+			contents[id] = true
+		}
 		if slot.hasManifest {
 			manifests[id] = slot.manifest.Clone()
 		}
@@ -82,21 +87,16 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 		return report, fmt.Errorf("repodb retention: destination %s already holds %d commit(s)", destinationRoot, sequence)
 	}
 	writer := compactionWriter{ctx: ctx, destination: destination}
+	contentIDs := make([]artifact.ID, 0, len(contents))
 	for _, id := range ids {
 		if _, manifest := manifests[id]; manifest {
 			continue
 		}
-		item := artifact.Batch{}
-		content, found, err := artifact.ReadContent(ctx, source, id)
-		if err != nil {
-			return report, err
+		if contents[id] {
+			contentIDs = append(contentIDs, id)
+			continue
 		}
-		if found {
-			item.Contents = []artifact.Content{content}
-			report.RetainedContents++
-		} else {
-			item.Artifacts = []artifact.Descriptor{descriptors[id]}
-		}
+		item := artifact.Batch{Artifacts: []artifact.Descriptor{descriptors[id]}}
 		for _, location := range locations[id] {
 			item.Locations = append(item.Locations, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd})
 		}
@@ -104,6 +104,24 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 			return report, err
 		}
 		report.RetainedArtifacts++
+	}
+	if err := source.VisitContents(ctx, contentIDs, func(descriptor artifact.Descriptor, reader io.Reader) error {
+		data, err := io.ReadAll(reader)
+		if err != nil {
+			return err
+		}
+		item := artifact.Batch{Contents: []artifact.Content{{Descriptor: descriptor, Data: data}}}
+		for _, location := range locations[descriptor.ID] {
+			item.Locations = append(item.Locations, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd})
+		}
+		if err := writer.add(item); err != nil {
+			return err
+		}
+		report.RetainedArtifacts++
+		report.RetainedContents++
+		return nil
+	}); err != nil {
+		return report, err
 	}
 	if err := writer.flush(); err != nil {
 		return report, err
@@ -165,6 +183,9 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 	if err := writer.flush(); err != nil {
 		return report, err
 	}
+	if _, err := destination.Snapshot(ctx); err != nil {
+		return report, err
+	}
 	report.DroppedArtifacts = len(descriptors) - report.RetainedArtifacts - report.RetainedManifests
 	return report, nil
 }
@@ -172,63 +193,98 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 type compactionWriter struct {
 	ctx         context.Context
 	destination *Store
-	batch       artifact.Batch
+	items       []artifact.Batch
+	content     int
 	chunk       int
 }
 
 func (writer *compactionWriter) add(item artifact.Batch) error {
-	previous := writer.batch
-	writer.batch.Key = writer.nextKey()
-	appendCompactionBatch(&writer.batch, item)
-	fits, err := writer.destination.transactionFits(writer.batch)
-	if err != nil {
-		return err
+	content := 0
+	for _, value := range item.Contents {
+		content += len(value.Data)
 	}
-	if fits {
-		return nil
-	}
-	writer.batch = previous
-	if previous.Empty() {
+	if content > maxFramePayload {
 		return errors.New("repodb retention: one compacted fact exceeds the frame limit")
 	}
-	if err := writer.flush(); err != nil {
-		return err
+	if writer.content > maxFramePayload-content {
+		if err := writer.flush(); err != nil {
+			return err
+		}
 	}
-	writer.batch.Key = writer.nextKey()
-	appendCompactionBatch(&writer.batch, item)
-	fits, err = writer.destination.transactionFits(writer.batch)
-	if err != nil {
-		return err
-	}
-	if !fits {
-		return errors.New("repodb retention: one compacted fact exceeds the frame limit")
-	}
+	writer.items = append(writer.items, item)
+	writer.content += content
 	return nil
 }
 
 func (writer *compactionWriter) flush() error {
-	if writer.batch.Empty() {
+	if len(writer.items) == 0 {
 		return nil
 	}
-	if _, err := writer.destination.Commit(writer.ctx, writer.batch); err != nil {
+	if err := writer.commit(writer.items); err != nil {
 		return err
 	}
-	writer.chunk++
-	writer.batch = artifact.Batch{}
+	clear(writer.items)
+	writer.items = writer.items[:0]
+	writer.content = len(writer.items)
 	return nil
+}
+
+func (writer *compactionWriter) commit(items []artifact.Batch) error {
+	batch := mergeCompactionItems(items)
+	batch.Key = writer.nextKey()
+	fits, err := writer.destination.transactionFits(batch)
+	if err != nil {
+		return err
+	}
+	if fits {
+		if _, err := writer.destination.Commit(writer.ctx, batch); err != nil {
+			return err
+		}
+		writer.chunk++
+		return nil
+	}
+	if len(items) == 1 {
+		return errors.New("repodb retention: one compacted fact exceeds the frame limit")
+	}
+	middle := len(items) / 2
+	if err := writer.commit(items[:middle]); err != nil {
+		return err
+	}
+	return writer.commit(items[middle:])
 }
 
 func (writer *compactionWriter) nextKey() string {
 	return fmt.Sprintf("retention/compact/%d", writer.chunk+1)
 }
 
-func appendCompactionBatch(destination *artifact.Batch, source artifact.Batch) {
-	destination.Artifacts = append(destination.Artifacts, source.Artifacts...)
-	destination.Contents = append(destination.Contents, source.Contents...)
-	destination.Manifests = append(destination.Manifests, source.Manifests...)
-	destination.Lineage = append(destination.Lineage, source.Lineage...)
-	destination.Aliases = append(destination.Aliases, source.Aliases...)
-	destination.Locations = append(destination.Locations, source.Locations...)
+func mergeCompactionItems(items []artifact.Batch) artifact.Batch {
+	var artifacts, contents, manifests, lineage, aliases, locations int
+	for _, item := range items {
+		artifacts += len(item.Artifacts)
+		contents += len(item.Contents)
+		manifests += len(item.Manifests)
+		lineage += len(item.Lineage)
+		aliases += len(item.Aliases)
+		locations += len(item.Locations)
+	}
+	merged := artifact.Batch{
+		Artifacts: make([]artifact.Descriptor, artifacts),
+		Contents:  make([]artifact.Content, contents),
+		Manifests: make([]artifact.Manifest, manifests),
+		Lineage:   make([]artifact.Lineage, lineage),
+		Aliases:   make([]artifact.AliasBinding, aliases),
+		Locations: make([]artifact.LocationEvent, locations),
+	}
+	var artifactAt, contentAt, manifestAt, lineageAt, aliasAt, locationAt int
+	for _, item := range items {
+		artifactAt += copy(merged.Artifacts[artifactAt:], item.Artifacts)
+		contentAt += copy(merged.Contents[contentAt:], item.Contents)
+		manifestAt += copy(merged.Manifests[manifestAt:], item.Manifests)
+		lineageAt += copy(merged.Lineage[lineageAt:], item.Lineage)
+		aliasAt += copy(merged.Aliases[aliasAt:], item.Aliases)
+		locationAt += copy(merged.Locations[locationAt:], item.Locations)
+	}
+	return merged
 }
 
 // String renders the report.

@@ -35,7 +35,7 @@ func publishCandidate(
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
 	contents := []artifact.Content{definitionContent, eventContent}
-	lineage := make([]artifact.Lineage, 0, len(definition.Dependencies))
+	lineage := event.Lineage()
 	for _, dependency := range definition.Dependencies {
 		lineage = append(lineage, artifact.Lineage{
 			Child: definition.ID, Parent: dependency.Artifact, Relation: artifact.RelationDependsOn,
@@ -362,6 +362,7 @@ func transition(
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
 	contents := append(append([]artifact.Content(nil), pending...), eventContent)
+	pendingLineage = append(pendingLineage, event.Lineage()...)
 	aliases := []artifact.AliasBinding{{Name: statusAlias(definition.ID), Target: event.ID, Previous: &previous.ID}}
 	if to == recipe.StatusActive {
 		activeID, active, lookupErr := artifact.ResolveAlias(ctx, store, activeAlias(definition.Model, definition.Task))
@@ -398,6 +399,7 @@ func transition(
 				return artifact.CommitID{}, recipe.LifecycleEvent{}, loadErr
 			}
 			contents = append(contents, supersededContent)
+			pendingLineage = append(pendingLineage, superseded.Lineage()...)
 			aliases = append(aliases, artifact.AliasBinding{
 				Name: statusAlias(activeID), Target: superseded.ID, Previous: &oldEvent.ID,
 			})

@@ -91,11 +91,9 @@ func goldenSuite(repository, claimsPath string) ([]byte, string, error) {
 				lastErr = err
 				continue
 			}
-			var suite struct {
-				Cases []json.RawMessage `json:"cases"`
-			}
-			if json.Unmarshal(content, &suite) == nil && len(suite.Cases) > 0 {
-				return content, evidence, nil
+			normalized, ok := normalizeSuite(content)
+			if ok {
+				return normalized, evidence, nil
 			}
 		}
 	}
@@ -103,6 +101,49 @@ func goldenSuite(repository, claimsPath string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("reverify: no readable exact-golden suite in claims evidence: %w", lastErr)
 	}
 	return nil, "", errors.New("reverify: claims manifest names no exact-golden inference suite")
+}
+
+// normalizeSuite accepts the stored golden dialects. Some goldens record
+// explicit token counts; older ones record the exact prompt and generated id
+// sequences instead. The counts are the lengths of those sequences, so the
+// derivation is lossless and stays inside the same evidence -- no new golden
+// is invented here.
+func normalizeSuite(content []byte) ([]byte, bool) {
+	var suite map[string]any
+	if json.Unmarshal(content, &suite) != nil {
+		return nil, false
+	}
+	rawCases, _ := suite["cases"].([]any)
+	if len(rawCases) == 0 {
+		return nil, false
+	}
+	for _, entry := range rawCases {
+		testCase, ok := entry.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		promptIDs, _ := testCase["prompt_ids"].([]any)
+		generatedIDs, _ := testCase["generated_ids"].([]any)
+		if _, counted := testCase["prompt_tokens"]; !counted && len(promptIDs) > 0 && len(generatedIDs) > 0 {
+			testCase["prompt_tokens"] = len(promptIDs)
+			testCase["generated_tokens"] = len(generatedIDs)
+			testCase["max_tokens"] = len(generatedIDs)
+			// This dialect's text carries prompt plus generation; the evaluator
+			// compares generation alone, so the prompt prefix is removed. Both
+			// halves come from the same stored case.
+			prompt, _ := testCase["prompt"].(string)
+			if text, ok := testCase["text"].(string); ok && prompt != "" && strings.HasPrefix(text, prompt) {
+				testCase["text"] = strings.TrimPrefix(text, prompt)
+			}
+			delete(testCase, "prompt_ids")
+			delete(testCase, "generated_ids")
+		}
+	}
+	normalized, err := json.Marshal(suite)
+	if err != nil {
+		return nil, false
+	}
+	return normalized, true
 }
 
 func verify(repository, modelPath string, suite []byte) (verifyResult, error) {

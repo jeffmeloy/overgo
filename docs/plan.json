@@ -22,10 +22,16 @@
           "verify": "go test ./internal/model -run 'Test(Architecture|Metadata|Expert|Runtime)' -count=1"
         },
         {
+          "id": "runtime-metadata-residual",
+          "title": "Compile residual runtime metadata reads and delete displaced policy branches",
+          "status": "open",
+          "verify": "go test ./internal/model -run 'Test(ProfileCompiledMetadataLoading|Read.*Spec)' -count=1"
+        },
+        {
           "id": "invariant-program",
           "title": "Compile model invariants by profile and delete parallel attention and hybrid policy interpreters",
-          "status": "open",
-          "verify": "go test ./internal/model -count=1"
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(ProfileCompiledMetadataLoading|Read.*Spec)' -count=1"
         }
       ]
     },

@@ -11,9 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"overgo/internal/hfbpe"
+	"overgo/internal/parity"
 	"overgo/internal/patchtower"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
@@ -43,42 +43,10 @@ var promptRoles = routedlm.PromptRoleLiterals{
 	FlowLatent: "<\uFF5Chy_place\u2581holder\u2581no\u2581672\uFF5C>",
 }
 
-type ladder struct {
+type campaignContext struct {
+	*parity.Campaign
 	modelDir    string
 	fixturesDir string
-	logPath     string
-	failed      bool
-	stagesRun   int
-	stagesPass  int
-}
-
-func (l *ladder) log(line string) {
-	stamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	full := stamp + " " + line + "\n"
-	fmt.Print(full)
-	f, err := os.OpenFile(l.logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err == nil {
-		_, _ = f.WriteString(full)
-		_ = f.Close()
-	}
-}
-
-// stage: runs fn unless a prior stage failed; logs PASS/FAIL + wall.
-func (l *ladder) stage(name string, fn func() (string, error)) {
-	if l.failed {
-		return
-	}
-	l.stagesRun++
-	start := time.Now()
-	detail, err := fn()
-	wall := time.Since(start).Round(time.Millisecond)
-	if err != nil {
-		l.failed = true
-		l.log(fmt.Sprintf("STAGE %-28s FAIL wall=%-9s %v", name, wall, err))
-		return
-	}
-	l.stagesPass++
-	l.log(fmt.Sprintf("STAGE %-28s PASS wall=%-9s %s", name, wall, detail))
 }
 
 func main() {
@@ -99,75 +67,75 @@ func main() {
 	imageFlag := flag.String("image", `C:\Users\jeffm\adaptive_new\models\Hy-Embodied-RxBrain-1.0\Hy-Embodied-RxBrain-1.0\demo_cases\bridgev2_move_toy\input\obs_1.jpg`, "serve image path")
 	questionFlag := flag.String("question", "What objects are on the stovetop, and where is the green toy?", "serve question")
 	flag.Parse()
-	l := &ladder{modelDir: *modelDir, fixturesDir: *fixturesDir, logPath: *logPath}
+	l := &campaignContext{Campaign: parity.NewCampaign(*logPath), modelDir: *modelDir, fixturesDir: *fixturesDir}
 	if *recipeVerifyMode {
 		if err := verifyActivateVQA(l, *repoFlag, *imageFlag, *questionFlag); err != nil {
-			l.log("RECIPE verify ERROR " + err.Error())
+			l.Log("RECIPE verify ERROR " + err.Error())
 			os.Exit(1)
 		}
 		return
 	}
 	if *recipeServeMode {
 		if err := runRecipeServe(l, *repoFlag, *imageFlag, *questionFlag); err != nil {
-			l.log("RECIPE serve ERROR " + err.Error())
+			l.Log("RECIPE serve ERROR " + err.Error())
 			os.Exit(1)
 		}
 		return
 	}
 	if *deviceFullMode {
 		if err := runDeviceFull(l); err != nil {
-			l.log("DEVICE FULL ERROR " + err.Error())
+			l.Log("DEVICE FULL ERROR " + err.Error())
 			os.Exit(1)
 		}
 		return
 	}
 	if *devicePrefillMode {
 		if err := runDevicePrefill(l); err != nil {
-			l.log("DEVICE PREFILL ERROR " + err.Error())
+			l.Log("DEVICE PREFILL ERROR " + err.Error())
 			os.Exit(1)
 		}
 		return
 	}
 	if *deviceMergerMode {
 		if err := runDeviceMerger(l); err != nil {
-			l.log("DEVICE MERGER ERROR " + err.Error())
+			l.Log("DEVICE MERGER ERROR " + err.Error())
 			os.Exit(1)
 		}
 		return
 	}
 	if *deviceVisionMode {
 		if err := runDeviceVision(l); err != nil {
-			l.log("DEVICE VISION ERROR " + err.Error())
+			l.Log("DEVICE VISION ERROR " + err.Error())
 			os.Exit(1)
 		}
 		return
 	}
 	if *deviceDecodeMode {
 		if err := runDeviceDecode(l); err != nil {
-			l.log("DEVICE DECODE ERROR " + err.Error())
+			l.Log("DEVICE DECODE ERROR " + err.Error())
 			os.Exit(1)
 		}
 		return
 	}
 	if *deviceMode {
 		if err := runDevice(l); err != nil {
-			l.log("DEVICE ERROR " + err.Error())
+			l.Log("DEVICE ERROR " + err.Error())
 			os.Exit(1)
 		}
 		return
 	}
 	if err := run(l, *fromStage, *toStage); err != nil {
-		l.log("LADDER ERROR " + err.Error())
+		l.Log("LADDER ERROR " + err.Error())
 		os.Exit(1)
 	}
-	if l.failed {
-		l.log(fmt.Sprintf("LADDER STOPPED after %d/%d stages passed", l.stagesPass, l.stagesRun))
+	if l.Failed() {
+		l.Log(fmt.Sprintf("LADDER STOPPED after %d/%d stages passed", l.Count(parity.Pass), l.Total()))
 		os.Exit(1)
 	}
-	l.log(fmt.Sprintf("LADDER COMPLETE %d/%d stages passed", l.stagesPass, l.stagesRun))
+	l.Log(fmt.Sprintf("LADDER COMPLETE %d/%d stages passed", l.Count(parity.Pass), l.Total()))
 }
 
-func run(l *ladder, fromStage, toStage string) error {
+func run(l *campaignContext, fromStage, toStage string) error {
 	skipUntil := fromStage
 	stopAfter := toStage
 	gate := func(name string, fn func() (string, error)) {
@@ -181,7 +149,10 @@ func run(l *ladder, fromStage, toStage string) error {
 		if stopAfter == "done" {
 			return
 		}
-		l.stage(name, fn)
+		l.Run(name, func() (parity.Verdict, float64, string, error) {
+			detail, err := fn()
+			return parity.Pass, math.NaN(), detail, err
+		})
 		if name == stopAfter {
 			stopAfter = "done"
 		}

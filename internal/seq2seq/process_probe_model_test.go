@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/testutil"
+	"overgo/internal/textgeneration"
 )
 
 func TestSingleTokenProcessProbe(t *testing.T) {
@@ -20,7 +21,7 @@ func TestSingleTokenProcessProbe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output, err := generateThroughRecipe(t, generator, GenerateRequest{Text: "hello", MaxTokens: 1})
+	output, err := generateThroughRecipe(t, generator, textgeneration.Request{Text: "hello", MaxTokens: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

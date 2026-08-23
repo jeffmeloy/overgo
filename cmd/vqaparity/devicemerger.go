@@ -22,9 +22,9 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func runDeviceMerger(l *ladder) error {
+func runDeviceMerger(l *campaignContext) error {
 	ctx := context.Background()
-	l.log("DEVICE merger START")
+	l.Log("DEVICE merger START")
 
 	vg, err := loadGoldenJSON[visionGolden](l.fixturesDir, "rxbrain_vqa_vision_golden.json")
 	if err != nil {
@@ -66,7 +66,7 @@ func runDeviceMerger(l *ladder) error {
 	for row := 0; row < imageRows; row++ {
 		patchtower.MergerRowInto(hostMerged[row*O:(row+1)*O], blockLast, row, gridH, gridW, spec, merger, &scratch)
 	}
-	l.log(fmt.Sprintf("DEVICE merger host oracle ready rows=%d out=%d vHidden=%d nPatch=%d", imageRows, O, spec.Hidden, nPatch))
+	l.Log(fmt.Sprintf("DEVICE merger host oracle ready rows=%d out=%d vHidden=%d nPatch=%d", imageRows, O, spec.Hidden, nPatch))
 
 	g, err := patchtower.BuildDeviceMerger(spec, imageRows, gridT, gridH, gridW)
 	if err != nil {
@@ -161,14 +161,14 @@ func runDeviceMerger(l *ladder) error {
 			worstDH = d
 		}
 	}
-	l.log(fmt.Sprintf("DEVICE merger HOST device-vs-host worst|d|=%.3e", worstDH))
+	l.Log(fmt.Sprintf("DEVICE merger HOST device-vs-host worst|d|=%.3e", worstDH))
 
 	// device vs golden (reference tolerances 0.08/0.04, the ladder merger gate).
 	detail, err := probeCheck("device merger", devMerged, vg.VisionTensors["merger"], 0.08, 0.04)
 	if err != nil {
 		return err
 	}
-	l.log("DEVICE merger GOLDEN " + detail)
+	l.Log("DEVICE merger GOLDEN " + detail)
 
 	// measurement.
 	statsBefore, _ := worker.ExecutionStats(ctx)
@@ -186,11 +186,11 @@ func runDeviceMerger(l *ladder) error {
 	}
 	perCall := time.Since(start) / iters
 	statsAfter, _ := worker.ExecutionStats(ctx)
-	l.log(fmt.Sprintf("DEVICE merger MEASURE %.3f ms/merge (%d rows, F32 weights resident)",
+	l.Log(fmt.Sprintf("DEVICE merger MEASURE %.3f ms/merge (%d rows, F32 weights resident)",
 		float64(perCall.Microseconds())/1000.0, imageRows))
-	l.log(fmt.Sprintf("DEVICE merger REPLAY graph_launches=%d graph_instantiations=%d graph_updates=%d over %d warm+%d measure",
+	l.Log(fmt.Sprintf("DEVICE merger REPLAY graph_launches=%d graph_instantiations=%d graph_updates=%d over %d warm+%d measure",
 		statsAfter.GraphLaunches-statsBefore.GraphLaunches, statsAfter.GraphInstantiations-statsBefore.GraphInstantiations,
 		statsAfter.GraphUpdates-statsBefore.GraphUpdates, warm, iters))
-	l.log("DEVICE merger LANE GREEN")
+	l.Log("DEVICE merger LANE GREEN")
 	return nil
 }

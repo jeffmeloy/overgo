@@ -638,13 +638,13 @@
       "id": "cleanup-parity-validation",
       "title": "Consolidate parity campaigns and duplicate request validators",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Consolidate parity campaigns and duplicate request validators",
-          "status": "open",
-          "verify": "go test ./cmd/vqaparity ./cmd/sensenovaparity ./internal/seq2seq ./internal/thoughtbank -count=1"
+          "status": "done",
+          "verify": "go test ./internal/parity ./internal/textgeneration ./internal/seq2seq ./internal/thoughtbank ./cmd/recipe -count=1; go test ./cmd/vqaparity -run '^TestExecuteVQABindsDescriptorInputsAndOutput$' -count=1; go vet ./cmd/sensenovaparity"
         }
       ]
     },

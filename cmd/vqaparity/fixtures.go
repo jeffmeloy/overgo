@@ -5,6 +5,7 @@ import (
 	"math"
 	"path/filepath"
 
+	"overgo/internal/checked"
 	"overgo/internal/fixtureasset"
 	"overgo/internal/jsonfile"
 )
@@ -108,18 +109,11 @@ func loadGoldenJSON[T any](fixturesDir, name string) (T, error) {
 // loadTensorAsset: raw little-endian f32 asset checked against the golden
 // sha256 and shape product.
 func loadTensorAsset(fixturesDir, asset string, tensor goldenTensor) ([]float32, error) {
-	values, err := fixtureasset.LoadF32(fixturesDir, asset, tensor.Sha256, 0)
-	if err != nil {
-		return nil, err
+	elements, ok := checked.ProductInt(tensor.Shape...)
+	if !ok || elements <= 0 {
+		return nil, fmt.Errorf("%s has invalid shape %v", asset, tensor.Shape)
 	}
-	want := 1
-	for _, dim := range tensor.Shape {
-		want *= dim
-	}
-	if len(values) != want {
-		return nil, fmt.Errorf("%s len %d != shape %v product %d", asset, len(values), tensor.Shape, want)
-	}
-	return values, nil
+	return fixtureasset.LoadF32(fixturesDir, asset, tensor.Sha256, elements)
 }
 
 // probeCheck: worst-probe rule — fail when worst |got-want| exceeds

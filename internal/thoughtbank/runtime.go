@@ -8,15 +8,11 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/hfbpe"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/textgeneration"
 	"overgo/internal/workflowruntime"
 )
 
 var generationContract = artifact.JSONContract(artifact.KindOutput, "overgo.thoughtbank-generation.v1")
-
-type GenerateRequest struct {
-	Text      string `json:"text"`
-	MaxTokens int    `json:"max_tokens"`
-}
 
 type Generation struct {
 	Text   string `json:"text"`
@@ -28,16 +24,6 @@ type Generator struct {
 	config    ArchConfig
 	tokenizer *hfbpe.Tokenizer
 }
-
-func ValidateGenerateRequest(request GenerateRequest) error {
-	if request.Text == "" || request.MaxTokens <= 0 {
-		return errors.New("thoughtbank: generation requires text and a positive token count")
-	}
-	return nil
-}
-
-// SessionKey identifies reusable resident state for the request.
-func (GenerateRequest) SessionKey() (string, error) { return "thoughtbank-host", nil }
 
 func LoadGenerator(directory string) (*Generator, error) {
 	weights, config, err := LoadCheckpoint(filepath.Join(directory, "model.pt"))
@@ -58,11 +44,11 @@ func (g *Generator) Close(context.Context) error {
 	return nil
 }
 
-func (g *Generator) Generate(request GenerateRequest) (Generation, error) {
+func (g *Generator) Generate(request textgeneration.Request) (Generation, error) {
 	if g == nil || g.weights == nil || g.tokenizer == nil {
 		return Generation{}, errors.New("thoughtbank: generator is unavailable")
 	}
-	if err := ValidateGenerateRequest(request); err != nil {
+	if err := textgeneration.Validate(request); err != nil {
 		return Generation{}, err
 	}
 	encoded, err := g.tokenizer.Encode(request.Text)
@@ -100,7 +86,7 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 	if generator == nil {
 		return errors.New("thoughtbank: incomplete runtime binding")
 	}
-	return workflowruntime.RegisterJSONStage[GenerateRequest, Generation](
+	return workflowruntime.RegisterJSONStage[textgeneration.Request, Generation](
 		runtime, modelrecipe.ModuleThoughtBankGenerate, modelID, generationContract, generator.Generate,
 	)
 }

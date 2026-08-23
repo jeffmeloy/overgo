@@ -5,9 +5,10 @@ import (
 
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
+	"overgo/internal/textgeneration"
 )
 
-func generateThroughRecipe(t testing.TB, generator *Generator, request GenerateRequest) (string, error) {
+func generateThroughRecipe(t testing.TB, generator *Generator, request textgeneration.Request) (string, error) {
 	t.Helper()
 	fixture := modelrecipetest.NewCapability(t, "seq2seq-model", recipe.TaskSeq2Seq)
 	if err := RegisterRuntime(fixture.Runtime, fixture.Model, generator); err != nil {

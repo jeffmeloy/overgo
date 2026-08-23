@@ -46,7 +46,7 @@ type decodeHarness struct {
 // loadDecodeHarness: reproduce the host decode setup (main.go decode_steps):
 // prompt embeds from the golden block_last + merger, per-layer resident KV from
 // each layer's golden input boundary.
-func loadDecodeHarness(l *ladder) (*decodeHarness, error) {
+func loadDecodeHarness(l *campaignContext) (*decodeHarness, error) {
 	vg, err := loadGoldenJSON[visionGolden](l.fixturesDir, "rxbrain_vqa_vision_golden.json")
 	if err != nil {
 		return nil, err
@@ -159,9 +159,9 @@ type devKV struct {
 }
 
 // runDeviceDecode: device 32-layer decode parity + measurement.
-func runDeviceDecode(l *ladder) error {
+func runDeviceDecode(l *campaignContext) error {
 	ctx := context.Background()
-	l.log("DEVICE decode START")
+	l.Log("DEVICE decode START")
 
 	h, err := loadDecodeHarness(l)
 	if err != nil {
@@ -176,7 +176,7 @@ func runDeviceDecode(l *ladder) error {
 	vocab := cfg.VocabSize
 	steps := len(h.dg.DecodeSteps)
 	capacity := uint32(h.promptLen + steps + 1)
-	l.log(fmt.Sprintf("DEVICE decode harness ready prompt_len=%d steps=%d capacity=%d layers=%d", h.promptLen, steps, capacity, cfg.NumHiddenLayers))
+	l.Log(fmt.Sprintf("DEVICE decode harness ready prompt_len=%d steps=%d capacity=%d layers=%d", h.promptLen, steps, capacity, cfg.NumHiddenLayers))
 
 	g, err := routedlm.BuildDeviceDecodeGraph(cfg, capacity)
 	if err != nil {
@@ -341,7 +341,7 @@ func runDeviceDecode(l *ladder) error {
 			return err
 		}
 	}
-	l.log(fmt.Sprintf("DEVICE decode residency kv_capacity_bytes=%d/layer", kvBytes))
+	l.Log(fmt.Sprintf("DEVICE decode residency kv_capacity_bytes=%d/layer", kvBytes))
 
 	// ---- per-step runtime attribute updater --------------------------------
 	attrs := compiled.NewRuntimeAttributes()
@@ -454,8 +454,8 @@ func runDeviceDecode(l *ladder) error {
 	if err := requireIntSliceEqual("device decode chain", generated, h.dg.GeneratedTokens); err != nil {
 		return err
 	}
-	l.log(fmt.Sprintf("DEVICE decode EXACT 12-step chain=%v", generated))
-	l.log(fmt.Sprintf("DEVICE decode device-vs-host worst|d|=%.3e over probe+top logits", worstDevHost))
+	l.Log(fmt.Sprintf("DEVICE decode EXACT 12-step chain=%v", generated))
+	l.Log(fmt.Sprintf("DEVICE decode device-vs-host worst|d|=%.3e over probe+top logits", worstDevHost))
 
 	// ---- measurement: replay the final-position step ------------------------
 	finalPos := h.promptLen + steps - 1
@@ -490,10 +490,10 @@ func runDeviceDecode(l *ladder) error {
 	dInst := statsAfter.GraphInstantiations - statsBefore.GraphInstantiations
 	dUpd := statsAfter.GraphUpdates - statsBefore.GraphUpdates
 	dLaunch := statsAfter.GraphLaunches - statsBefore.GraphLaunches
-	l.log(fmt.Sprintf("DEVICE decode MEASURE %.3f ms/token (32 layers + KV resident, replayed %d x)",
+	l.Log(fmt.Sprintf("DEVICE decode MEASURE %.3f ms/token (32 layers + KV resident, replayed %d x)",
 		float64(perTok.Microseconds())/1000.0, iters))
-	l.log(fmt.Sprintf("DEVICE decode REPLAY over %d steps + %d measure iters: graph_launches=%d graph_instantiations=%d graph_updates=%d (single compiled graph, per-step runtime attrs only: rope pos, attn window, cache offset)", steps, iters+warm, dLaunch, dInst, dUpd))
-	l.log("DEVICE decode LANE GREEN")
+	l.Log(fmt.Sprintf("DEVICE decode REPLAY over %d steps + %d measure iters: graph_launches=%d graph_instantiations=%d graph_updates=%d (single compiled graph, per-step runtime attrs only: rope pos, attn window, cache offset)", steps, iters+warm, dLaunch, dInst, dUpd))
+	l.Log("DEVICE decode LANE GREEN")
 	return nil
 }
 

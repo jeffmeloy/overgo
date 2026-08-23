@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/testutil"
+	"overgo/internal/textgeneration"
 )
 
 func TestRealTextGeneration(t *testing.T) {
@@ -22,7 +23,7 @@ func TestRealTextGeneration(t *testing.T) {
 		t.Fatalf("Needle artifact unavailable: %v", err)
 	}
 	prompt := `What's the weather in San Francisco? <tools> [{"name":"get_weather","parameters":{"location":"string"}}]`
-	output, err := generateThroughRecipe(t, generator, GenerateRequest{Text: prompt, MaxTokens: 64})
+	output, err := generateThroughRecipe(t, generator, textgeneration.Request{Text: prompt, MaxTokens: 64})
 	if err != nil {
 		t.Fatal(err)
 	}

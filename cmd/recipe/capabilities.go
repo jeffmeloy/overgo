@@ -19,6 +19,7 @@ import (
 	"overgo/internal/seriesforecast"
 	"overgo/internal/speechsynth"
 	"overgo/internal/tabularicl"
+	"overgo/internal/textgeneration"
 	"overgo/internal/thoughtbank"
 )
 
@@ -73,13 +74,13 @@ func sessionExecutor[Input, Model, Output any](
 }
 
 func thoughtBankCapability() capability {
-	director, err := capabilityruntime.NewModelSessionDirector[thoughtbank.GenerateRequest, *thoughtbank.Generator, thoughtbank.Generation](
+	director, err := capabilityruntime.NewModelSessionDirector[textgeneration.Request, *thoughtbank.Generator, thoughtbank.Generation](
 		"generation", "host", recipe.SessionRequestCapacity,
-		thoughtbank.ValidateGenerateRequest,
-		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ thoughtbank.GenerateRequest) (*thoughtbank.Generator, error) {
+		textgeneration.Validate,
+		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ textgeneration.Request) (*thoughtbank.Generator, error) {
 			return thoughtbank.LoadGenerator(path)
 		},
-		func(context.Context, *thoughtbank.Generator, thoughtbank.GenerateRequest) error { return nil },
+		func(context.Context, *thoughtbank.Generator, textgeneration.Request) error { return nil },
 		thoughtbank.RegisterRuntime,
 	)
 	return capability{
@@ -129,9 +130,9 @@ var capabilities = map[recipe.Task]capability{
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, request tabularicl.Request) (*tabularicl.Model, error) {
 			return tabularicl.LoadTask(path, request.Task)
 		}, tabularicl.RegisterRuntime)),
-	recipe.TaskSeq2Seq: inventoryCapability(modelartifact.FromHFPath, capabilityruntime.JSONScalar[seq2seq.GenerateRequest, *seq2seq.Generator, string](
-		"seq2seq", seq2seq.ValidateGenerateRequest,
-		capabilityruntime.IgnoreInput[seq2seq.GenerateRequest](seq2seq.LoadGenerator), seq2seq.RegisterRuntime)),
+	recipe.TaskSeq2Seq: inventoryCapability(modelartifact.FromHFPath, capabilityruntime.JSONScalar[textgeneration.Request, *seq2seq.Generator, string](
+		"seq2seq", textgeneration.Validate,
+		capabilityruntime.IgnoreInput[textgeneration.Request](seq2seq.LoadGenerator), seq2seq.RegisterRuntime)),
 	recipe.TaskSpeech: inventoryCapability(speechInventory, capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
 		"speech", speechsynth.ValidateSynthesisRequest,
 		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)),

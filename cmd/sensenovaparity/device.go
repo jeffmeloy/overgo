@@ -39,6 +39,8 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
+	"overgo/internal/jsonfile"
+	"overgo/internal/parity"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
@@ -75,16 +77,16 @@ func maxAbs(a []float32) float64 {
 
 // runDevice: the SenseNova generation-lane denoise-step terminal + sampler on
 // the CUDA generic executor, appended to the ladder as device stages.
-func runDevice(l *ladder, modelDir, fixturesDir string) error {
+func runDevice(l *parity.Campaign, modelDir, fixturesDir string) error {
 	ctx := context.Background()
-	l.log("DEVICE denoise-terminal START")
+	l.Log("DEVICE denoise-terminal START")
 
 	var edit editOracle
-	if err := loadJSON(fixturesDir+string(os.PathSeparator)+"edit_oracle_v3_256.json", &edit); err != nil {
+	if err := jsonfile.Decode(fixturesDir+string(os.PathSeparator)+"edit_oracle_v3_256.json", &edit); err != nil {
 		return fmt.Errorf("load edit oracle: %w", err)
 	}
 	var gen genOracle
-	if err := loadJSON(fixturesDir+string(os.PathSeparator)+"generation_oracle_256.json", &gen); err != nil {
+	if err := jsonfile.Decode(fixturesDir+string(os.PathSeparator)+"generation_oracle_256.json", &gen); err != nil {
 		return fmt.Errorf("load gen oracle: %w", err)
 	}
 
@@ -134,7 +136,7 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 	// (GroupSlice -> RoPENeoX(theta,axis) -> Concat), no family kernel. Verified
 	// device-vs-host on the REAL checkpoint's compiled plan over REAL block-causal
 	// multi-axis positions. RNG/source-PNG independent.
-	l.stage("device_multiaxis_rope", func() (string, float64, string, error) {
+	l.Run("device_multiaxis_rope", func() (parity.Verdict, float64, string, error) {
 		plan, err := routedlm.CompileRopePlan(src, cfg, binding)
 		if err != nil {
 			return "", math.NaN(), "", err
@@ -204,7 +206,7 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 		// (applyRotary) — expected ~bf16 granularity, reported not gated.
 		worstBF16 := worstAbs(dev, bf16ref)
 		ref := maxAbs(bf16ref)
-		return verdictWired, worstF32, fmt.Sprintf("DEVICE==HOST multi-axis rope on real plan [64/5e6/T,32/1e4/H,32/1e4/W]: tokens=%d heads=%d hd=%d block-causal(text+4x4 image) | vs-f32-ref worst|d|=%.3e (tol 1e-4) | vs-bf16-discipline worst|d|=%.3e max|ref|=%.3e (3 RoPENeoX spliced, no family kernel; RoPEMulti single-base cannot express this)", tokens, heads, hd, worstF32, worstBF16, ref), nil
+		return parity.Wired, worstF32, fmt.Sprintf("DEVICE==HOST multi-axis rope on real plan [64/5e6/T,32/1e4/H,32/1e4/W]: tokens=%d heads=%d hd=%d block-causal(text+4x4 image) | vs-f32-ref worst|d|=%.3e (tol 1e-4) | vs-bf16-discipline worst|d|=%.3e max|ref|=%.3e (3 RoPENeoX spliced, no family kernel; RoPEMulti single-base cannot express this)", tokens, heads, hd, worstF32, worstBF16, ref), nil
 	})
 
 	H := flowPlan.Hidden
@@ -212,7 +214,7 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 	freqDim := flowPlan.FrequencyDim
 
 	// ---- device flow condition row (device-vs-host, real fm_modules weights) --
-	l.stage("device_flow_condition", func() (string, float64, string, error) {
+	l.Run("device_flow_condition", func() (parity.Verdict, float64, string, error) {
 		normNoise := flowPlan.NormalizedNoiseScale(shape256.NoiseScale)
 		hostCond, err := routedlm.FlowConditionRow(weights, flowPlan, 0, normNoise)
 		if err != nil {
@@ -296,11 +298,11 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 		if rel > nativeBF16RelativeTolerance {
 			return "", worst, "", fmt.Errorf("device condition rel=%.3e (worst|d|=%.3e, max|host|=%.3e) > %.3e", rel, worst, ref, nativeBF16RelativeTolerance)
 		}
-		return verdictWired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowConditionRow) on real fm_modules embedders: hidden=%d t=0 norm_noise=%.5f worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e (native-bf16 vs f64 GEMM)", H, normNoise, worst, ref, rel, nativeBF16RelativeTolerance), nil
+		return parity.Wired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowConditionRow) on real fm_modules embedders: hidden=%d t=0 norm_noise=%.5f worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e (native-bf16 vs f64 GEMM)", H, normNoise, worst, ref, rel, nativeBF16RelativeTolerance), nil
 	})
 
 	// ---- device flow head velocity (device-vs-host, real fm_head weights) -----
-	l.stage("device_flow_head", func() (string, float64, string, error) {
+	l.Run("device_flow_head", func() (parity.Verdict, float64, string, error) {
 		const rows = 64 // the 256x256 image's latent-token count (denoise-step width)
 		hidden := make([]float32, rows*H)
 		for i := range hidden {
@@ -382,12 +384,12 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			}
 		}
 		perCall := float64(time.Since(start).Microseconds()) / float64(iters) / 1000.0
-		return verdictWired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowHeadVelocity) on real fm_head: rows=%d hidden=%d flow_dim=%d worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e | head-terminal %.3fms/step", rows, H, F, worst, ref, rel, nativeBF16RelativeTolerance, perCall), nil
+		return parity.Wired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowHeadVelocity) on real fm_head: rows=%d hidden=%d flow_dim=%d worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e | head-terminal %.3fms/step", rows, H, F, worst, ref, rel, nativeBF16RelativeTolerance, perCall), nil
 	})
 
 	// ---- device FlowMatchEuler update vs REAL z-trajectory oracle -------------
-	eulerStage := func(dt float64, zS, vS, nzS sampledTensor) func() (string, float64, string, error) {
-		return func() (string, float64, string, error) {
+	eulerStage := func(dt float64, zS, vS, nzS sampledTensor) func() (parity.Verdict, float64, string, error) {
+		return func() (parity.Verdict, float64, string, error) {
 			zi, zv, err := zS.samples()
 			if err != nil {
 				return "", math.NaN(), "", fmt.Errorf("z: %w", err)
@@ -446,18 +448,18 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 			if rel > eulerFixtureTolerance {
 				return "", worst, "", fmt.Errorf("device euler rel=%.3e (worst|d|=%.3e, max|oracle|=%.3e) > %.3e (dt=%g, %d probes)", rel, worst, ref, eulerFixtureTolerance, dt, n)
 			}
-			return verdictOracle, worst, fmt.Sprintf("DEVICE next_z == ORACLE next_z on %d aligned probes: next=z+%.3f*v worst|d|=%.3e max|oracle|=%.3e rel=%.3e (dev==host exact; residual=fixture bf16 trajectory) RNG-independent", n, dt, worst, ref, rel), nil
+			return parity.Oracle, worst, fmt.Sprintf("DEVICE next_z == ORACLE next_z on %d aligned probes: next=z+%.3f*v worst|d|=%.3e max|oracle|=%.3e rel=%.3e (dev==host exact; residual=fixture bf16 trajectory) RNG-independent", n, dt, worst, ref, rel), nil
 		}
 	}
 	for s := range gen.Steps {
 		st := gen.Steps[s]
-		l.stage("device_euler_gen_step"+strconv.Itoa(s), eulerStage(st.NextTimestep-st.Timestep, st.Z, st.GuidedVelocity, st.NextZ))
+		l.Run("device_euler_gen_step"+strconv.Itoa(s), eulerStage(st.NextTimestep-st.Timestep, st.Z, st.GuidedVelocity, st.NextZ))
 	}
 	es := edit.Steps[0]
-	l.stage("device_euler_edit_step0", eulerStage(es.NextTimestep-es.Timestep, es.Z, es.GuidedVelocity, es.NextZ))
+	l.Run("device_euler_edit_step0", eulerStage(es.NextTimestep-es.Timestep, es.Z, es.GuidedVelocity, es.NextZ))
 
 	// ---- trajectory continuity (host, real oracle invariant) -----------------
-	l.stage("gen_trajectory_continuity", func() (string, float64, string, error) {
+	l.Run("gen_trajectory_continuity", func() (parity.Verdict, float64, string, error) {
 		if len(gen.Steps) < 2 {
 			return "", math.NaN(), "", fmt.Errorf("need >=2 gen steps")
 		}
@@ -481,12 +483,12 @@ func runDevice(l *ladder, modelDir, fixturesDir string) error {
 		if worst > 1e-6 {
 			return "", worst, "", fmt.Errorf("step0.next_z != step1.z worst|d|=%.3e", worst)
 		}
-		return verdictOracle, worst, fmt.Sprintf("step0.next_z == step1.z on %d aligned probes (worst|d|=%.3e): denoise loop feeds each step's output forward", len(i0), worst), nil
+		return parity.Oracle, worst, fmt.Sprintf("step0.next_z == step1.z on %d aligned probes (worst|d|=%.3e): denoise loop feeds each step's output forward", len(i0), worst), nil
 	})
 
-	l.log("DEVICE denoise-terminal DONE")
-	if !l.failed {
-		l.log("DEVICE denoise-terminal LANE GREEN (terminal+sampler verified; 42-layer body = named remainder)")
+	l.Log("DEVICE denoise-terminal DONE")
+	if !l.Failed() {
+		l.Log("DEVICE denoise-terminal LANE GREEN (terminal+sampler verified; 42-layer body = named remainder)")
 	}
 	return nil
 }

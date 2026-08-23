@@ -7,23 +7,12 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/textgeneration"
 	"overgo/internal/tokenizer"
 	"overgo/internal/workflowruntime"
 )
 
 var generatedTextContract = artifact.JSONContract(artifact.KindFile, "overgo.seq2seq-text.v1")
-
-type GenerateRequest struct {
-	Text      string `json:"text"`
-	MaxTokens int    `json:"max_tokens"`
-}
-
-func ValidateGenerateRequest(request GenerateRequest) error {
-	if request.Text == "" || request.MaxTokens <= 0 {
-		return errors.New("seq2seq: generation requires text and a positive token limit")
-	}
-	return nil
-}
 
 // Generator binds one model to its artifact tokenizer.
 type Generator struct {
@@ -47,11 +36,11 @@ func LoadGenerator(directory string) (*Generator, error) {
 	return &Generator{model: model, tokenizer: table}, nil
 }
 
-func (g *Generator) encodeRequest(request GenerateRequest) (encodedRequest, error) {
+func (g *Generator) encodeRequest(request textgeneration.Request) (encodedRequest, error) {
 	if g == nil || g.model == nil || g.tokenizer == nil {
 		return encodedRequest{}, errors.New("seq2seq: generator is unavailable")
 	}
-	if err := ValidateGenerateRequest(request); err != nil {
+	if err := textgeneration.Validate(request); err != nil {
 		return encodedRequest{}, err
 	}
 	source, err := g.tokenizer.Encode(request.Text)

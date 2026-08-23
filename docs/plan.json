@@ -1014,12 +1014,12 @@
       "id": "vocabulary-artifact-interoperability",
       "title": "Compile exact vocabulary remapping and embedding provenance with semantic refusal and generated-artifact validation",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Compile exact vocabulary remapping and embedding provenance with semantic refusal and generated-artifact validation",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/modelmerge ./internal/tokenizer -run '^TestVocabularyArtifact(ExactMapping|EmbeddingProvenance|SemanticRefusal|Generation)$' -count=1"
         }
       ]

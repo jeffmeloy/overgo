@@ -23,11 +23,14 @@ import (
 
 	"image/png"
 
+	"overgo/internal/artifact"
 	"overgo/internal/cuda/driver"
 
 	"overgo/internal/inference"
+	"overgo/internal/modelrecipe"
 
 	"overgo/internal/projector"
+	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 
 	"overgo/internal/sampling"
@@ -980,6 +983,19 @@ func newTestHandlerWithRepository(t testing.TB, generator Generator) *Handler {
 
 func newTestHandlerForRepository(t testing.TB, repository *repodb.Store, generator Generator) *Handler {
 	t.Helper()
+	if inspector, ok := generator.(interface {
+		RecipeRuntimeDescription(recipe.Task) (modelrecipe.RuntimeDescription, error)
+	}); ok {
+		description, err := inspector.RecipeRuntimeDescription(recipe.TaskInference)
+		if err == nil && description.Identity.Recipe.Valid() {
+			if _, err := repository.Commit(context.Background(), artifact.Batch{
+				Key:       "test/serving-recipe/" + description.Identity.Recipe.String(),
+				Artifacts: []artifact.Descriptor{{ID: description.Identity.Recipe}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	handler, err := New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens,
 		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,

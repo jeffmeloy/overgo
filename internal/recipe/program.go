@@ -15,6 +15,7 @@ type Stage struct {
 type Program struct {
 	definition Definition
 	stages     []Stage
+	visibility InteractionVisibility
 	catalog    *Catalog
 }
 
@@ -36,6 +37,14 @@ func (p Program) UsesCatalog(catalog *Catalog) bool { return catalog != nil && p
 // Catalog returns the immutable module authority used during compilation.
 func (p Program) Catalog() *Catalog { return p.catalog }
 
+// InteractionScope binds one node to compiled graph visibility.
+func (p Program) InteractionScope(node NodeID) (InteractionScope, error) {
+	if !p.visibility.contains(node) {
+		return InteractionScope{}, errors.New("recipe: interaction node is absent")
+	}
+	return InteractionScope{Node: node, Visibility: p.visibility}, nil
+}
+
 // CompileProgram resolves module contracts and orders executable stages.
 func CompileProgram(definition Definition, catalog *Catalog) (Program, error) {
 	if err := definition.Validate(catalog); err != nil {
@@ -53,7 +62,10 @@ func CompileProgram(definition Definition, catalog *Catalog) (Program, error) {
 		}
 		stages[index] = Stage{Node: node, Module: module}
 	}
-	return Program{definition: cloneProgramDefinition(definition), stages: stages, catalog: catalog}, nil
+	return Program{
+		definition: cloneProgramDefinition(definition), stages: stages,
+		visibility: compileInteractionVisibility(definition, ordered), catalog: catalog,
+	}, nil
 }
 
 func cloneProgramDefinition(definition Definition) Definition {

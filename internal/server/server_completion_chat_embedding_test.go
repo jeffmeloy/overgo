@@ -2184,9 +2184,9 @@ func TestBufferedResponsesAliases(t *testing.T) {
 	}
 }
 
-func TestResponsesContinuationDurable(t *testing.T) {
+func TestProtocolHistoryParity(t *testing.T) {
 	generator := &fakeGenerator{}
-	handler := newTestHandlerWithRepository(t, generator)
+	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, generator))
 	first := httptest.NewRecorder()
 	handler.ServeHTTP(
 		first,
@@ -2237,7 +2237,7 @@ func TestResponsesContinuationRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	firstHandler := newTestHandlerForRepository(t, repository, &fakeGenerator{})
+	firstHandler := newTestHandlerForRepository(t, repository, responseRecipeGenerator(t, &fakeGenerator{}))
 	first := serveTestRequest(firstHandler, http.MethodPost, "/v1/responses", `{"input":"hello","max_output_tokens":1}`)
 	if first.Code != http.StatusOK {
 		t.Fatalf("first status=%d body=%s", first.Code, first.Body.String())
@@ -2257,7 +2257,7 @@ func TestResponsesContinuationRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = repository.Close() })
-	secondHandler := newTestHandlerForRepository(t, repository, &fakeGenerator{})
+	secondHandler := newTestHandlerForRepository(t, repository, responseRecipeGenerator(t, &fakeGenerator{}))
 	continuation := serveTestRequest(
 		secondHandler, http.MethodPost, "/v1/responses",
 		`{"input":"next","max_output_tokens":1,"previous_response_id":"`+initial.ID+`"}`,
@@ -2320,7 +2320,7 @@ func TestResponsesContinuationRetainsGeneratedToolCallID(t *testing.T) {
 		`<tool_call><function=weather><parameter=city>`,
 		`Paris</parameter></function></tool_call>`,
 	}}
-	handler := newTestHandlerWithRepository(t, generator)
+	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, generator))
 	first := httptest.NewRecorder()
 	handler.ServeHTTP(
 		first,

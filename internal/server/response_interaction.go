@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -55,9 +56,9 @@ func interactionMessages(messages []inference.ChatMessage) []runrecord.Interacti
 	return result
 }
 
-func responseMessages(transcript runrecord.InteractionTranscript) []inference.ChatMessage {
-	result := make([]inference.ChatMessage, len(transcript.Messages))
-	for index, message := range transcript.Messages {
+func responseMessages(messages []runrecord.InteractionMessage) []inference.ChatMessage {
+	result := make([]inference.ChatMessage, len(messages))
+	for index, message := range messages {
 		converted := inference.ChatMessage{
 			Role: inference.ChatRole(message.Role), Content: message.Content, ReasoningContent: message.ReasoningContent,
 			Name: message.Name, ToolCallID: message.ToolCallID, ToolResultError: message.ToolResultError,
@@ -94,9 +95,14 @@ func (h *Handler) publishResponseInteraction(
 	if h.repository == nil {
 		return
 	}
-	_, recipeID, _ := h.servingIdentity(recipe.TaskInference)
+	description, ok := h.interactionDescription()
+	if !ok {
+		h.observationErrors.Add(counterStep)
+		return
+	}
 	_, err := runrecord.PublishInteraction(ctx, h.repository, runrecord.Interaction{
-		Response: responseID, Recipe: recipeID, Parent: parent,
+		Response: responseID, Recipe: description.Identity.Recipe,
+		Node: description.Interaction.Node, Parent: parent,
 	}, interactionMessages(messages))
 	if err != nil {
 		h.observationErrors.Add(counterStep)
@@ -111,12 +117,27 @@ func (h *Handler) loadResponseInteraction(ctx context.Context, responseID string
 	if err != nil || !found {
 		return nil, artifact.ID{}, false
 	}
-	transcript, err := runrecord.RequireInteractionTranscript(ctx, h.repository, interaction.Message)
+	description, admitted := h.interactionDescription()
+	if !admitted || interaction.Recipe != description.Identity.Recipe {
+		return nil, artifact.ID{}, false
+	}
+	messages, err := runrecord.VisibleInteractionMessages(ctx, h.repository, description.Interaction, interaction)
 	if err != nil {
 		return nil, artifact.ID{}, false
 	}
 	h.observeResponseID(responseID)
-	return responseMessages(transcript), interaction.ID, true
+	return responseMessages(messages), interaction.ID, true
+}
+
+func (h *Handler) interactionDescription() (modelrecipe.RuntimeDescription, bool) {
+	inspector, ok := h.generator.(interface {
+		RecipeRuntimeDescription(recipe.Task) (modelrecipe.RuntimeDescription, error)
+	})
+	if !ok {
+		return modelrecipe.RuntimeDescription{}, false
+	}
+	description, err := inspector.RecipeRuntimeDescription(recipe.TaskInference)
+	return description, err == nil && description.Interaction.Valid()
 }
 
 func (h *Handler) observeResponseID(responseID string) {

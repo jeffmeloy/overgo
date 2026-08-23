@@ -7,13 +7,14 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/recipe"
 )
 
 const (
 	// InteractionMediaType identifies interaction documents.
 	InteractionMediaType = "application/vnd.overgo.interaction+json"
 	// InteractionSchema identifies the interaction contract.
-	InteractionSchema = "overgo/interaction/v1"
+	InteractionSchema = "overgo/interaction/v2"
 	// InteractionTranscriptMediaType identifies transcript documents.
 	InteractionTranscriptMediaType = "application/vnd.overgo.interaction-transcript+json"
 	// InteractionTranscriptSchema identifies the transcript contract.
@@ -46,6 +47,7 @@ type Interaction struct {
 	Version   uint16        `json:"version"`
 	Response  string        `json:"response"`
 	Recipe    artifact.ID   `json:"recipe,omitzero"`
+	Node      recipe.NodeID `json:"node"`
 	Operation artifact.ID   `json:"operation,omitzero"`
 	Run       artifact.ID   `json:"run,omitzero"`
 	Parent    artifact.ID   `json:"parent,omitzero"`
@@ -93,7 +95,8 @@ type InteractionToolCall struct {
 
 func canonicalizeInteraction(value *Interaction) error {
 	if value.Version != artifact.InitialDocumentVersion || strings.TrimSpace(value.Response) != value.Response || value.Response == "" ||
-		value.Message.Kind() != artifact.KindEvidence {
+		value.Recipe.Kind() != artifact.KindRecipe || value.Node == "" || value.Message.Kind() != artifact.KindEvidence ||
+		(value.Parent.Valid() && value.Parent.Kind() != artifact.KindEvidence) {
 		return errors.New("run record: invalid interaction")
 	}
 	for _, id := range append(slices.Clone(value.Tools), value.Media...) {
@@ -102,6 +105,11 @@ func canonicalizeInteraction(value *Interaction) error {
 		}
 	}
 	return nil
+}
+
+// Activation returns this event's typed graph identity.
+func (value Interaction) Activation() recipe.Activation {
+	return recipe.Activation{Recipe: value.Recipe, Node: value.Node, Event: value.ID}
 }
 
 func canonicalizeInteractionTranscript(value *InteractionTranscript) error {
@@ -156,6 +164,50 @@ func ResolveInteraction(ctx context.Context, reader artifact.Reader, response st
 	}
 	value, err := RequireInteraction(ctx, reader, id)
 	return value, err == nil, err
+}
+
+// VisibleInteractionMessages materializes one branch-isolated parent chain.
+func VisibleInteractionMessages(
+	ctx context.Context,
+	reader artifact.Reader,
+	scope recipe.InteractionScope,
+	leaf Interaction,
+) ([]InteractionMessage, error) {
+	if ctx == nil || reader == nil || !scope.Valid() || leaf.Node != scope.Node {
+		return nil, errors.New("run record: invalid interaction visibility request")
+	}
+	current := leaf.Activation()
+	seen := make(map[artifact.ID]struct{})
+	var lineage []Interaction
+	for {
+		activation := leaf.Activation()
+		if _, found := seen[activation.Event]; found {
+			return nil, errors.New("run record: interaction lineage contains cycle")
+		}
+		if !scope.Visibility.Allows(current, activation) {
+			return nil, errors.New("run record: interaction lineage is not visible")
+		}
+		seen[activation.Event] = struct{}{}
+		lineage = append(lineage, leaf)
+		if !leaf.Parent.Valid() {
+			break
+		}
+		next, err := RequireInteraction(ctx, reader, leaf.Parent)
+		if err != nil {
+			return nil, err
+		}
+		leaf = next
+	}
+	slices.Reverse(lineage)
+	var messages []InteractionMessage
+	for _, interaction := range lineage {
+		transcript, err := RequireInteractionTranscript(ctx, reader, interaction.Message)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, transcript.Messages...)
+	}
+	return messages, nil
 }
 
 // PublishInteraction commits the transcript and event atomically.

@@ -153,7 +153,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	messages := responseRequestMessages(previous, current, body.Instructions)
-	history := append(cloneResponseMessages(previous), current...)
+	turn := cloneResponseMessages(current)
 	multimodal := chatMediaCount(messages) != 0
 	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
 	if len(toolSelection.prompt) != 0 || body.Reasoning != nil {
@@ -214,7 +214,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			responseID,
 			messageID,
 			toolSelection.active,
-			history,
+			turn,
 			parent,
 			body.Store == nil || *body.Store,
 			reasoningSummary,
@@ -248,7 +248,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary)
 	promptTokens := result.promptTokens()
 	if body.Store == nil || *body.Store {
-		h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(history, message))
+		h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, message))
 	}
 	writeJSON(response, http.StatusOK, responsesResponse{
 		CompletedAt: now,
@@ -273,7 +273,7 @@ func (h *Handler) streamResponses(
 	plan *protocolGenerationPlan,
 	responseID, messageID string,
 	tools []inference.ChatTool,
-	history []inference.ChatMessage,
+	turn []inference.ChatMessage,
 	parent artifact.ID,
 	store bool,
 	reasoningSummary bool,
@@ -589,7 +589,7 @@ func (h *Handler) streamResponses(
 		},
 	}
 	if store {
-		h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(history, parsedMessage))
+		h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, parsedMessage))
 	}
 	_ = writeEvent("response.completed", responsesStreamEvent{
 		Type: "response.completed", Response: final,

@@ -1268,12 +1268,12 @@
       "id": "adk-context-visibility",
       "title": "Compile branch-isolated prompt history from recipe activations",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Bind interaction visibility to typed recipe node and activation identities; compile ancestor-visible history; reject sibling leakage; keep protocol role formatting in inference",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/recipe ./internal/runrecord ./internal/inference ./internal/server -run 'Test(InteractionVisibility|SiblingHistoryIsolation|AncestorHistoryVisibility|CurrentTurnProjection|ProtocolHistoryParity)' -count=1",
           "rationale": "ADK demonstrates the need for sibling isolation but uses dotted branch strings. Overgo should derive visibility from compiled recipe topology and immutable activation lineage. No semantic retrieval is introduced; context selection is literal graph membership plus request or recipe-owned context policy.",
           "depends_on": [

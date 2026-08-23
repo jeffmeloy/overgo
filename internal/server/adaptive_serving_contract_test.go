@@ -19,7 +19,7 @@ func TestAdaptiveServingContractMatrix(t *testing.T) {
 		{"media/ordered-native", TestNativeCompletionMixedMediaPreservesChunkOrder},
 		{"media/ordered-responses", TestResponsesMixedImageAudioPreservesChunkOrder},
 		{"media/video", TestChatAndResponsesEncodedVideoProjection},
-		{"sessions/continuation", TestResponsesContinuationDurable},
+		{"sessions/continuation", TestProtocolHistoryParity},
 		{"sessions/tool-call-identity", TestResponsesContinuationRetainsGeneratedToolCallID},
 		{"cache/edit-window", TestNativeCompletionNKeepReachesGenerator},
 		{"cache/reuse-accounting", TestNativeCompletionPromptCacheAccounting},

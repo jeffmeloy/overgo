@@ -36,6 +36,46 @@ func (generator *recipeInspectorGenerator) RecipeRuntimeDescription(
 	return generator.description, nil
 }
 
+func responseRecipeGenerator(t testing.TB, generator *fakeGenerator) *recipeInspectorGenerator {
+	t.Helper()
+	const (
+		nodeID   recipe.NodeID   = "respond"
+		moduleID recipe.ModuleID = "test.respond"
+		portName recipe.PortName = "messages"
+	)
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "response-model")
+	catalog, err := recipe.NewCatalog(recipe.Module{
+		ID: moduleID, Tasks: []recipe.Task{recipe.TaskInference}, Placements: []recipe.Placement{recipe.PlacementHost},
+		Outputs: []recipe.Port{{Name: portName, Data: recipe.DataLogits, Cardinality: recipe.CardinalityOne}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err := recipe.NewDefinitionWithDependencies(
+		recipe.TaskInference,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
+		[]recipe.Node{{ID: nodeID, Module: moduleID, Placement: recipe.PlacementHost}}, nil, nil,
+		[]recipe.Output{{Name: portName, Data: recipe.DataLogits, Source: recipe.Endpoint{Node: nodeID, Port: portName}}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := recipe.CompileProgram(definition, catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope, err := program.InteractionScope(nodeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &recipeInspectorGenerator{fakeGenerator: generator, description: modelrecipe.RuntimeDescription{
+		Task:     recipe.TaskInference,
+		Identity: modelrecipe.ProgramIdentity{Model: modelID, Recipe: definition.ID},
+		Stages:   program.Stages(), Outputs: definition.Outputs,
+		CacheIdentity: definition.ID, Interaction: scope,
+	}}
+}
+
 func TestActiveRecipeInspectorUsesCompiledOrder(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "inspector-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "inspector-recipe")

@@ -8,16 +8,23 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<header class="topbar">
-  <a href="/" style="text-decoration:none"><span class="wordmark"><span class="caret">&rsaquo;</span>overgo</span><span class="sub">analysis</span></a>
-  <span class="pill" id="status-pill">probing…</span>
-  <span class="pill" id="model-pill"></span>
-  <span class="grow"></span>
-  <input class="keyfield" id="api-key" type="password" placeholder="API key (if required)" autocomplete="off" spellcheck="false">
-</header>
-<nav class="sections" id="sections"></nav>
-<nav class="tabs" id="tabs"></nav>
-<main class="wrap"><div id="panels"></div></main>
+<div class="shell">
+  <nav class="sidebar">
+    <a class="brand" href="/" style="text-decoration:none"><span class="wordmark"><span class="caret">&rsaquo;</span>overgo</span><span class="sub">workbench</span></a>
+    <div id="sections"></div>
+    <div id="tabs" style="display:none"></div>
+    <div class="foot"><span class="note" id="footer-note"></span></div>
+  </nav>
+  <div class="content">
+    <header class="topbar">
+      <span class="pill" id="status-pill">probing…</span>
+      <span class="pill" id="model-pill"></span>
+      <span class="grow"></span>
+      <input class="keyfield" id="api-key" type="password" placeholder="API key (if required)" autocomplete="off" spellcheck="false">
+    </header>
+    <main class="wrap"><div id="panels"></div></main>
+  </div>
+</div>
 
 <!-- boot first (defines window.overgo), then each module self-registers into a
      section. Adding a tab = drop a file in mod/ and add one <script> line here. -->

@@ -266,9 +266,10 @@
     return SECTION_ORDER.filter((s) => tabs.some((t) => tabSection(t) === s.id));
   }
 
+  // Sidebar navigation shows every section's tabs at once; the active section
+  // header only highlights the group the active tab belongs to.
   function syncSectionUI() {
     for (const sb of sectionButtons) sb.button.classList.toggle("active", sb.id === activeSection);
-    for (const tab of tabs) tab.button.style.display = tabSection(tab) === activeSection ? "" : "none";
   }
 
   function activate(id) {
@@ -375,18 +376,19 @@
 
   function initShell() {
     const sectionBar = document.getElementById("sections");
-    const tabBar = document.getElementById("tabs");
     const panels = document.getElementById("panels");
     for (const section of sectionsPresent()) {
       const button = el("button", { class: "section", onclick: () => selectSection(section.id) }, section.label);
-      sectionBar.appendChild(button);
+      const group = el("div", { class: "nav-group" }, button);
       sectionButtons.push({ id: section.id, button: button });
-    }
-    for (const tab of tabs) {
-      tab.button = el("button", { class: "tab", onclick: () => activate(tab.id) }, tab.label);
-      tab.panel = el("div", { class: "panel", id: "panel-" + tab.id });
-      tabBar.appendChild(tab.button);
-      panels.appendChild(tab.panel);
+      for (const tab of tabs) {
+        if (tabSection(tab) !== section.id) continue;
+        tab.button = el("button", { class: "tab", onclick: () => activate(tab.id) }, tab.label);
+        tab.panel = el("div", { class: "panel", id: "panel-" + tab.id });
+        group.appendChild(tab.button);
+        panels.appendChild(tab.panel);
+      }
+      sectionBar.appendChild(group);
     }
     authNoticeEl = el("div", { class: "auth-banner", style: "display:none" },
       "This server requires an API key — enter it in the field at the top right to load analysis and chat.");

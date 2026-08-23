@@ -483,12 +483,12 @@
       "id": "gui-shell",
       "title": "Rebuild the workbench shell as a consumer-grade app",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Rebuild the workbench shell as a consumer-grade app",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'TestWebUI' -count=1"
         }
       ]

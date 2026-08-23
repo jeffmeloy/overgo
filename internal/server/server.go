@@ -21,6 +21,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/discovery"
 	"overgo/internal/inference"
 	"overgo/internal/operation"
 	"overgo/internal/projector"
@@ -367,6 +368,7 @@ type Handler struct {
 	generationRequests atomic.Uint64
 	generationErrors   atomic.Uint64
 	downloads          downloadRegistry
+	catalogMemo        *discovery.Memo
 	generatedTokens    atomic.Uint64
 	mediaFetcher       *remoteMediaFetcher
 	responseHistory    *responseHistoryStore
@@ -488,6 +490,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 		return nil, err
 	}
 	handler := &Handler{
+		catalogMemo:     discovery.NewMemo(),
 		config:          config,
 		generator:       generator,
 		sessions:        sessions,

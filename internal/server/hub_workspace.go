@@ -32,7 +32,7 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusServiceUnavailable, "hub_unavailable", "no artifact repository is configured")
 		return
 	}
-	entries, err := discovery.Servable(request.Context(), h.config.Repository, maxCatalogEntries)
+	entries, err := discovery.ServableWithMemo(request.Context(), h.config.Repository, maxCatalogEntries, h.catalogMemo)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "catalog_error", err.Error())
 		return

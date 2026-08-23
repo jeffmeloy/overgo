@@ -511,12 +511,12 @@
       "id": "gui-discovery-surface",
       "title": "Model and dataset discovery with HuggingFace download",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Model and dataset discovery with HuggingFace download",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server ./internal/hfhub -run 'TestHub|TestDiscovery' -count=1"
         }
       ]

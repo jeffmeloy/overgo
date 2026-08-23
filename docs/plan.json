@@ -511,12 +511,12 @@
       "id": "gui-discovery-surface",
       "title": "Model and dataset discovery with HuggingFace download",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Model and dataset discovery with HuggingFace download",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server ./internal/hfhub -run 'TestHub|TestDiscovery' -count=1"
         }
       ]
@@ -525,13 +525,13 @@
       "id": "gui-training-surface",
       "title": "Training surface: launch, monitor, and stream real runs",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Training surface: launch, monitor, and stream real runs",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestWorkbenchTraining|TestWebUI' -count=1"
+          "status": "done",
+          "verify": "go test ./internal/server -run 'TestTrainingWorkspace|TestWebUI' -count=1"
         }
       ]
     },
@@ -539,12 +539,12 @@
       "id": "gui-polish",
       "title": "Consumer polish pass: responsive, empty states, errors, keyboard",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Consumer polish pass: responsive, empty states, errors, keyboard",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'TestWebUI' -count=1"
         }
       ]

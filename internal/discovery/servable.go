@@ -33,6 +33,12 @@ type Entry struct {
 // recorded locations (manifest first, then components; recorded-but-missing
 // or unrecorded reports Present=false, honestly).
 func Servable(ctx context.Context, store *repodb.Store, limit int) ([]Entry, error) {
+	return ServableWithMemo(ctx, store, limit, nil)
+}
+
+// ServableWithMemo is Servable with digest reuse for interactive callers: a
+// nil memo hashes every file fresh, exactly as Servable always has.
+func ServableWithMemo(ctx context.Context, store *repodb.Store, limit int, memo *Memo) ([]Entry, error) {
 	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindModel, MaxResults: limit})
 	if err != nil {
 		return nil, err
@@ -47,7 +53,7 @@ func Servable(ctx context.Context, store *repodb.Store, limit int) ([]Entry, err
 		if !declared {
 			continue
 		}
-		location, present := presence(ctx, store, manifest, identities)
+		location, present := presence(ctx, store, manifest, identities, memo)
 		if !present {
 			continue
 		}
@@ -82,6 +88,7 @@ func presence(
 	store *repodb.Store,
 	manifest artifact.Manifest,
 	identities map[string]fileIdentity,
+	memo *Memo,
 ) (string, bool) {
 	recorded, servingLocation := "", ""
 	for _, component := range manifest.Components {
@@ -101,7 +108,7 @@ func presence(
 			if recorded == "" {
 				recorded = location.Value
 			}
-			identity := identifyLocation(location.Value, descriptor.ID.Kind(), identities)
+			identity := identifyLocation(location.Value, descriptor.ID.Kind(), identities, memo)
 			if identity.present && identity.id == descriptor.ID && identity.size == descriptor.Size {
 				matched = true
 				if servingLocation == "" {
@@ -129,7 +136,7 @@ func presence(
 	return "", false
 }
 
-func identifyLocation(path string, kind artifact.Kind, identities map[string]fileIdentity) fileIdentity {
+func identifyLocation(path string, kind artifact.Kind, identities map[string]fileIdentity, memo *Memo) fileIdentity {
 	key := path + "\x00" + kind.String()
 	if identity, ok := identities[key]; ok {
 		return identity
@@ -139,6 +146,10 @@ func identifyLocation(path string, kind artifact.Kind, identities map[string]fil
 	if err != nil || before.IsDir() {
 		identities[key] = identity
 		return identity
+	}
+	if remembered, ok := memo.lookup(key, before); ok {
+		identities[key] = remembered
+		return remembered
 	}
 	file, err := os.Open(path)
 	if err != nil {
@@ -151,6 +162,9 @@ func identifyLocation(path string, kind artifact.Kind, identities map[string]fil
 	if errors.Join(identifyErr, closeErr, statErr) == nil &&
 		before.Size() == after.Size() && before.ModTime().Equal(after.ModTime()) && size == uint64(after.Size()) {
 		identity = fileIdentity{id: id, size: size, present: true}
+	}
+	if identity.present {
+		memo.record(key, after, identity)
 	}
 	identities[key] = identity
 	return identity

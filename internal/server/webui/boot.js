@@ -254,6 +254,7 @@
   // declares `section`; those without one fall into "workbench".
   const SECTION_ORDER = [
     { id: "inference", label: "Inference" },
+    { id: "library", label: "Library" },
     { id: "datasets", label: "Datasets" },
     { id: "training", label: "Training" },
     { id: "workbench", label: "Workbench" },

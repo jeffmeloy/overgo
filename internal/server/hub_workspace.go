@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/hfhub"
 	"overgo/internal/strictjson"
@@ -31,12 +32,39 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusServiceUnavailable, "hub_unavailable", "no artifact repository is configured")
 		return
 	}
-	entries, err := discovery.Servable(request.Context(), h.config.Repository, maxCatalogEntries)
+	entries, err := discovery.ServableWithMemo(request.Context(), h.config.Repository, maxCatalogEntries, h.catalogMemo)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "catalog_error", err.Error())
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"models": entries})
+	listed := make([]catalogModel, 0, len(entries))
+	for _, entry := range entries {
+		listed = append(listed, catalogModel{
+			Model: idText(entry.Model), Recipe: idText(entry.Recipe), Tier: string(entry.Tier),
+			Location: entry.Location, Present: entry.Present, Stale: entry.Stale,
+		})
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"models": listed})
+}
+
+// catalogModel is the catalog's wire shape. A stale entry can carry invalid
+// artifact identities; the codec refuses to marshal those, and one broken
+// activation must not blank the whole catalog, so identities render as text
+// with absence rendered empty.
+type catalogModel struct {
+	Model    string `json:"model"`
+	Recipe   string `json:"recipe"`
+	Tier     string `json:"tier,omitempty"`
+	Location string `json:"location"`
+	Present  bool   `json:"present"`
+	Stale    string `json:"stale,omitempty"`
+}
+
+func idText(id artifact.ID) string {
+	if !id.Valid() {
+		return ""
+	}
+	return id.String()
 }
 
 // hubSearch proxies one bounded discovery query to the configured hub.

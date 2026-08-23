@@ -53,7 +53,7 @@ type fullResult struct {
 	updates    uint64
 }
 
-func runDeviceFull(l *ladder) error {
+func runDeviceFull(l *campaignContext) error {
 	ctx := context.Background()
 	pc, err := loadPrefillContext(l)
 	if err != nil {
@@ -101,14 +101,14 @@ func runDeviceFull(l *ladder) error {
 	if text != want {
 		return fmt.Errorf("device full decoded text %q != %q", text, want)
 	}
-	l.log(fmt.Sprintf("DEVICE full ANSWER EXACT chain=%v", res.generated))
-	l.log(fmt.Sprintf("DEVICE full TEXT %q", text))
-	l.log(fmt.Sprintf("DEVICE full MEASURE e2e=%s (vision+merger+prefill+decode) decode=%s (%d steps, %.3f ms/token)",
+	l.Log(fmt.Sprintf("DEVICE full ANSWER EXACT chain=%v", res.generated))
+	l.Log(fmt.Sprintf("DEVICE full TEXT %q", text))
+	l.Log(fmt.Sprintf("DEVICE full MEASURE e2e=%s (vision+merger+prefill+decode) decode=%s (%d steps, %.3f ms/token)",
 		res.e2eWall.Round(time.Millisecond), res.decodeWall.Round(time.Millisecond), res.steps, float64(res.decodeWall.Microseconds())/1000.0/float64(res.steps)))
-	l.log(fmt.Sprintf("DEVICE full REPLAY decode graph_launches=%d graph_instantiations=%d graph_updates=%d over %d steps (single compiled decode graph, per-step runtime attrs only)",
+	l.Log(fmt.Sprintf("DEVICE full REPLAY decode graph_launches=%d graph_instantiations=%d graph_updates=%d over %d steps (single compiled decode graph, per-step runtime attrs only)",
 		res.launches, res.instantis, res.updates, res.steps))
-	l.log(fmt.Sprintf("DEVICE full vs ADAPTIVE e2e bar 18.4-23.1s: overgo=%s (golden-seeded KV REPLACED by device prefill)", res.e2eWall.Round(time.Millisecond)))
-	l.log("DEVICE full LANE GREEN")
+	l.Log(fmt.Sprintf("DEVICE full vs ADAPTIVE e2e bar 18.4-23.1s: overgo=%s (golden-seeded KV REPLACED by device prefill)", res.e2eWall.Round(time.Millisecond)))
+	l.Log("DEVICE full LANE GREEN")
 	return nil
 }
 
@@ -117,8 +117,7 @@ func runDeviceFull(l *ladder) error {
 // pixelValues is the preprocessed image. Returns the generated token chain +
 // timing/residency measurements. Logs the per-stage boundaries.
 func runFullPipeline(
-	l *ladder,
-	ctx context.Context,
+	l *campaignContext, ctx context.Context,
 	worker *device.Worker,
 	exe *executor.Executor,
 	pc *prefillContext,
@@ -126,7 +125,7 @@ func runFullPipeline(
 	opts fullOpts,
 ) (fullResult, error) {
 	var res fullResult
-	l.log("DEVICE full START")
+	l.Log("DEVICE full START")
 
 	cfg := pc.cfg
 	H := cfg.HiddenSize
@@ -150,14 +149,14 @@ func runFullPipeline(
 	if err != nil {
 		return res, err
 	}
-	l.log(fmt.Sprintf("DEVICE full STAGE0 vision tower done nPatch=%d hidden=%d", nPatch, pc.spec.Hidden))
+	l.Log(fmt.Sprintf("DEVICE full STAGE0 vision tower done nPatch=%d hidden=%d", nPatch, pc.spec.Hidden))
 
 	// ================= STAGE 1: DEVICE MERGER -> image features ==============
 	devMerged, err := runFullMerger(ctx, exe, &allocations, pc, blockLast, nPatch, O)
 	if err != nil {
 		return res, err
 	}
-	l.log(fmt.Sprintf("DEVICE full STAGE1 merger done rows=%d out=%d", pc.imageRows, O))
+	l.Log(fmt.Sprintf("DEVICE full STAGE1 merger done rows=%d out=%d", pc.imageRows, O))
 
 	// prefill embeds = embedding-table text rows + device merger image rows.
 	prefillEmbeds, err := routedlm.PrefillValues(pc.src, cfg, binding, pc.inputIDs, pc.imageMaskPositions, pc.imageRows, func(dst []float32, ordinal int) error {
@@ -181,7 +180,7 @@ func runFullPipeline(
 		return res, fmt.Errorf("device full prefill terminal top %d != golden first token %d", firstToken, opts.verify.FirstToken)
 	}
 	res.firstToken = firstToken
-	l.log(fmt.Sprintf("DEVICE full STAGE2 prefill done, terminal first token=%d logit=%.4f KV exported for %d layers", firstToken, firstLogit, cfg.NumHiddenLayers))
+	l.Log(fmt.Sprintf("DEVICE full STAGE2 prefill done, terminal first token=%d logit=%.4f KV exported for %d layers", firstToken, firstLogit, cfg.NumHiddenLayers))
 
 	// ================= STAGE 3: DEVICE DECODE seeded from prefill KV =========
 	weights := make([]routedlm.LayerWeights, cfg.NumHiddenLayers)
@@ -513,7 +512,7 @@ func runFullPrefill(
 
 // runFullVision: host front-end + device 27-block vision tower from the supplied
 // pixel_values, returning the device block_last [hidden, nPatch] (host copy).
-func runFullVision(l *ladder, ctx context.Context, worker *device.Worker, exe *executor.Executor, pc *prefillContext, pixelValues []float32, nPatch int) ([]float32, error) {
+func runFullVision(l *campaignContext, ctx context.Context, worker *device.Worker, exe *executor.Executor, pc *prefillContext, pixelValues []float32, nPatch int) ([]float32, error) {
 	patchWeights, err := patchtower.LoadPatchEmbedWeights(pc.src, pc.spec)
 	if err != nil {
 		return nil, err

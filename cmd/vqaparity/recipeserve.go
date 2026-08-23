@@ -117,8 +117,7 @@ type vqaExecution struct {
 }
 
 func executeVQAProgram(
-	l *ladder,
-	ctx context.Context,
+	l *campaignContext, ctx context.Context,
 	store artifact.Repository,
 	modelID artifact.ID,
 	program recipe.Program,
@@ -140,7 +139,7 @@ func executeVQAProgram(
 		func(image []byte, question string) (preparedVQA, error) {
 			prepared, prepareErr := prepareVQA(l.modelDir, image, question)
 			if prepareErr == nil {
-				l.log(fmt.Sprintf("RECIPE serve %s PROCESSOR image=%s grid=[%d,%d,%d] promptLen=%d imageTokens=%d question=%q",
+				l.Log(fmt.Sprintf("RECIPE serve %s PROCESSOR image=%s grid=[%d,%d,%d] promptLen=%d imageTokens=%d question=%q",
 					tag, filepath.Base(imagePath), prepared.gridT, prepared.gridH, prepared.gridW,
 					len(prepared.inputIDs), len(prepared.positions), question))
 			}
@@ -184,15 +183,15 @@ func executeVQAProgram(
 		return vqaExecution{}, err
 	}
 	execution.text = answer
-	l.log(fmt.Sprintf("RECIPE serve %s chain=%v", tag, execution.chain))
-	l.log(fmt.Sprintf("RECIPE serve %s TEXT %q", tag, execution.text))
-	l.log(fmt.Sprintf("RECIPE serve %s MEASURE e2e=%s decode=%s (%d steps, %.3f ms/token)",
+	l.Log(fmt.Sprintf("RECIPE serve %s chain=%v", tag, execution.chain))
+	l.Log(fmt.Sprintf("RECIPE serve %s TEXT %q", tag, execution.text))
+	l.Log(fmt.Sprintf("RECIPE serve %s MEASURE e2e=%s decode=%s (%d steps, %.3f ms/token)",
 		tag, execution.result.e2eWall.Round(time.Millisecond), execution.result.decodeWall.Round(time.Millisecond),
 		execution.result.steps, float64(execution.result.decodeWall.Microseconds())/1000.0/float64(max1(execution.result.steps))))
 	return execution, nil
 }
 
-func validateCanonicalVQA(l *ladder, execution vqaExecution, tag string) error {
+func validateCanonicalVQA(l *campaignContext, execution vqaExecution, tag string) error {
 	dg, err := loadGoldenJSON[decodeStepsGolden](l.fixturesDir, "rxbrain_vqa_decode_steps_golden.json")
 	if err != nil {
 		return err
@@ -207,13 +206,13 @@ func validateCanonicalVQA(l *ladder, execution vqaExecution, tag string) error {
 	if !strings.HasPrefix(execution.text, wantPrefix) {
 		return fmt.Errorf("recipe serve answer %q does not start with %q", execution.text, wantPrefix)
 	}
-	l.log(fmt.Sprintf("RECIPE serve %s EXACT golden-prefix (%d tokens) + phrase; full answer %d tokens, first=%d e2e=%s",
+	l.Log(fmt.Sprintf("RECIPE serve %s EXACT golden-prefix (%d tokens) + phrase; full answer %d tokens, first=%d e2e=%s",
 		tag, len(dg.GeneratedTokens), len(execution.chain), execution.chain[0], execution.result.e2eWall.Round(time.Millisecond)))
 	return nil
 }
 
 // runRecipeServe: canonical case through the active recipe.
-func runRecipeServe(l *ladder, repo, imagePath, question string) error {
+func runRecipeServe(l *campaignContext, repo, imagePath, question string) error {
 	ctx := context.Background()
 	store, err := openRecipeStore(repo)
 	if err != nil {
@@ -225,7 +224,7 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 		return err
 	}
 	recipeID := program.Definition().ID.String()
-	l.log(fmt.Sprintf("RECIPE serve active vqa recipe resolved model=%s recipe=%s", modelID, recipeID))
+	l.Log(fmt.Sprintf("RECIPE serve active vqa recipe resolved model=%s recipe=%s", modelID, recipeID))
 
 	first, err := executeVQAProgram(l, ctx, store, modelID, program, imagePath, question, "RUN1")
 	if err != nil {
@@ -246,10 +245,10 @@ func runRecipeServe(l *ladder, repo, imagePath, question string) error {
 	if second.text != first.text {
 		return fmt.Errorf("recipe serve RUN2 answer %q != RUN1 %q", second.text, first.text)
 	}
-	l.log(fmt.Sprintf("RECIPE serve DETERMINISTIC RUN1==RUN2 chain (%d tokens) e2e1=%s e2e2=%s",
+	l.Log(fmt.Sprintf("RECIPE serve DETERMINISTIC RUN1==RUN2 chain (%d tokens) e2e1=%s e2e2=%s",
 		len(first.chain), first.result.e2eWall.Round(time.Millisecond), second.result.e2eWall.Round(time.Millisecond)))
-	l.log(fmt.Sprintf("RECIPE serve ANSWER %q", first.text))
-	l.log("RECIPE serve LANE GREEN (served THROUGH activated recipe " + recipeID + ")")
+	l.Log(fmt.Sprintf("RECIPE serve ANSWER %q", first.text))
+	l.Log("RECIPE serve LANE GREEN (served THROUGH activated recipe " + recipeID + ")")
 	return nil
 }
 

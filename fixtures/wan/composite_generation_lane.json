@@ -1,0 +1,54 @@
+{
+  "target_directory": "Wan2.1-T2V-1.3B",
+  "source_weights": "models_t5_umt5-xxl-enc-bf16.pth",
+  "condition_context": "raw/g1_cond_context.f32le",
+  "uncondition_context": "raw/g1_uncond_context.f32le",
+  "frames": 1,
+  "width": 32,
+  "height": 16,
+  "steps": 1,
+  "shift": 5,
+  "guide_scale": 6,
+  "seed": 31,
+  "noise_offset": 0,
+  "threads_per_multiprocessor": 1536,
+  "bridge_max_abs_delta": 0,
+  "promotion_policy": {
+    "direction": "maximize",
+    "minimum_seeds": 2,
+    "minimum_held_out_gain": 0.01,
+    "minimum_source_dependence": 0.01,
+    "maximum_regression": 0.01,
+    "maximum_seed_spread": 0.01,
+    "maximum_latency_increase": 1,
+    "maximum_device_byte_increase": 1073741824
+  },
+  "promotion_trials": [
+    {
+      "seed": 31,
+      "bridge_score": 1,
+      "cheap_baseline_score": 0.98,
+      "dropped_source_score": 0.95,
+      "shuffled_source_score": 0.96,
+      "regression_baseline_score": 1,
+      "regression_candidate_score": 1,
+      "baseline_latency_ns": 1,
+      "composed_latency_ns": 1,
+      "baseline_peak_device_bytes": 1,
+      "composed_peak_device_bytes": 1
+    },
+    {
+      "seed": 37,
+      "bridge_score": 1,
+      "cheap_baseline_score": 0.98,
+      "dropped_source_score": 0.95,
+      "shuffled_source_score": 0.96,
+      "regression_baseline_score": 1,
+      "regression_candidate_score": 1,
+      "baseline_latency_ns": 1,
+      "composed_latency_ns": 1,
+      "baseline_peak_device_bytes": 1,
+      "composed_peak_device_bytes": 1
+    }
+  ]
+}

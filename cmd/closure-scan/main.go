@@ -754,8 +754,12 @@ func commitClosureDocuments(root, storePath string, documents []closureledger.Do
 		if err != nil {
 			return 0, artifact.CommitID{}, err
 		}
-		batch.Contents = append(batch.Contents, content)
-		batch.Lineage = append(batch.Lineage, document.Lineage()...)
+		if _, found, err := store.Content(context.Background(), document.ID); err != nil {
+			return 0, artifact.CommitID{}, err
+		} else if !found {
+			batch.Contents = append(batch.Contents, content)
+			batch.Lineage = append(batch.Lineage, document.Lineage()...)
+		}
 	}
 	encoded, err := json.Marshal(batch)
 	if err != nil {

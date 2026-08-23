@@ -437,34 +437,29 @@ func (r *Gemma3nVisionRunner) buildAttentionGraph(
 	return attention
 }
 
-func (r *Gemma3nVisionRunner) imagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	options PromptOptions,
-) (MultimodalPrompt, error) {
-	if len(sources) == 0 || len(text) != len(sources)+1 {
-		return MultimodalPrompt{}, errors.New("projector: Gemma 3n image/text sequence is inconsistent")
+func (r *Gemma3nVisionRunner) imagePromptProgram() compiledImagePromptProgram {
+	compile := func(history bool) imagePromptPlan {
+		return delimitedImagePromptPlan(
+			"Gemma 3n", Gemma3nImagePad, "Gemma 3n image placeholder", history, r.spec.OutputHidden,
+			"<start_of_image>", "<end_of_image>",
+		)
 	}
-	if !options.History {
-		text = slices.Clone(text)
-		text[0] = "<bos><start_of_turn>user\n" + text[0]
-		text[len(text)-1] += "<end_of_turn>\n<start_of_turn>model\n"
+	return compiledImagePromptProgram{
+		Default: compile(false),
+		History: compile(true),
+		Encode:  referenceImageEncoder(r.EncodeImage),
+		Prepare: func(text []string, options PromptOptions) ([]string, error) {
+			if len(text) < tensor.SingletonExtent {
+				return nil, errors.New("projector: Gemma 3n image/text sequence is inconsistent")
+			}
+			if options.History {
+				return text, nil
+			}
+			prepared := slices.Clone(text)
+			prepared[tensor.FirstOffset] = "<bos><start_of_turn>user\n" + prepared[tensor.FirstOffset]
+			last := len(prepared) - tensor.SingletonExtent
+			prepared[last] += "<end_of_turn>\n<start_of_turn>model\n"
+			return prepared, nil
+		},
 	}
-	return r.buildImagesPrompt(ctx, tokenizer, sources, text, options.History)
-}
-
-func (r *Gemma3nVisionRunner) buildImagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	history bool,
-) (MultimodalPrompt, error) {
-	plan := delimitedImagePromptPlan(
-		"Gemma 3n", Gemma3nImagePad, "Gemma 3n image placeholder", history, r.spec.OutputHidden,
-		"<start_of_image>", "<end_of_image>",
-	)
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, referenceImageEncoder(r.EncodeImage))
 }

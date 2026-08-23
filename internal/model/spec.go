@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"overgo/internal/gguf"
-	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 )
 
@@ -95,7 +94,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	values, prefix := m.values, m.prefix
 	validation := m.profile.Validation
 	declaredBlockCount := state.declaredBlockCount
-	spec, err := m.runMetadataProgram(spec, compileArchitectureCoreProgram(m.profile))
+	spec, err := m.runMetadataProgram(spec, state, compileArchitectureCoreProgram(m.profile))
 	if err != nil {
 		return Spec{}, err
 	}
@@ -114,22 +113,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			)
 			spec.ExpertWeightsNorm = true
 			spec.ExpertWeightsScale = tensor.UnitScale
-		}
-	}
-	if validation.Recurrent == RecurrentValidationTargetLayerBlock {
-		if window, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok && window > tensor.FirstOffset {
-			spec.SlidingWindow = window
-			spec.RopeFrequencySWA = spec.RopeFrequencyBase
-			if pattern, patternOK := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); patternOK {
-				spec.SlidingPattern = pattern
-			} else if layers, layersOK, layersErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); layersErr != nil {
-				return Spec{}, layersErr
-			} else if layersOK {
-				if len(layers) != int(spec.BlockCount) {
-					return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
-				}
-				spec.SlidingLayers = slices.Clone(layers)
-			}
 		}
 	}
 	if validation.hybridOneOf(
@@ -201,75 +184,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.DeepstackMapping = slices.Clone(mapping)
 		}
 	}
-	if validation.Attention == AttentionValidationFullHeadSlidingRotary {
-		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
-			spec.SlidingWindow = value
-		}
-		hiddenActivation := optionalOr(values, prefix+"hidden_activation", gguf.ValueTypeString, "geglu")
-		switch hiddenActivation {
-		case "gelu", "geglu":
-			spec.HiddenActivation = "geglu"
-		case "silu", "swish", "swiglu":
-			spec.HiddenActivation = "swiglu"
-		case "reglu":
-			spec.HiddenActivation = "reglu"
-		default:
-			return Spec{}, fmt.Errorf("ModernBERT hidden activation %q is unsupported", hiddenActivation)
-		}
-	}
-	if validation.Attention == AttentionValidationFullScaledRotaryXIELU {
-		for _, field := range []metadataField[[]float32]{
-			metadataDestination("xielu.alpha_n", &spec.XIELUAlphaN),
-			metadataDestination("xielu.alpha_p", &spec.XIELUAlphaP),
-			metadataDestination("xielu.beta", &spec.XIELUBeta),
-			metadataDestination("xielu.eps", &spec.XIELUEpsilon),
-		} {
-			*field.destination, err = requiredLayerFloat32(
-				values, prefix+field.key, spec.BlockCount,
-			)
-			if err != nil {
-				return Spec{}, err
-			}
-		}
-	}
-	if validation.Hybrid == HybridValidationSigmoidExperts {
-		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		patternKey := prefix + "attention.sliding_window_pattern"
-		pattern, exists := values[patternKey]
-		if !exists {
-			return Spec{}, fmt.Errorf("required metadata %q is missing", patternKey)
-		}
-		if pattern.Type == gguf.ValueTypeUint32 {
-			value, valid := pattern.Data.(uint32)
-			if !valid {
-				return Spec{}, fmt.Errorf("required metadata %q is missing", patternKey)
-			}
-			spec.SlidingPattern = value
-		} else {
-			if pattern.Type != gguf.ValueTypeArray {
-				return Spec{}, fmt.Errorf("required metadata %q is missing", patternKey)
-			}
-			layers, layerErr := requiredLayerBoolCompatible(values, patternKey, declaredBlockCount)
-			if layerErr != nil {
-				return Spec{}, layerErr
-			}
-			spec.SlidingLayers = slices.Clone(layers[:spec.BlockCount])
-		}
-		if value, ok := optional[float32](values, prefix+"attention.value_scale", gguf.ValueTypeFloat32); ok && value != tensor.UnitScale {
-			spec.AttentionValueScale = value
-		}
-	}
 	if validation.Hybrid == HybridValidationCompressedHyperDraft {
-		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		if spec.SlidingLayers, err = requiredLayerBoolCompatible(
-			values, prefix+"attention.sliding_window_pattern", declaredBlockCount,
-		); err != nil {
-			return Spec{}, err
-		}
 		if spec.LayerSwiGLUClamp, err = optionalLayerFloat32(
 			values, prefix+"swiglu_clamp_exp", declaredBlockCount,
 		); err != nil {
@@ -280,42 +195,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); err != nil {
 			return Spec{}, err
 		}
-	}
-	if validation.Attention == AttentionValidationSharedKVAttention {
-		if value, ok := optional[uint32](
-			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
-		); ok {
-			spec.SlidingWindow = value
-		}
-		if spec.SlidingWindow > tensor.FirstOffset {
-			if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
-				spec.SlidingPattern = value
-			}
-			spec.NoRopeLayerStep = spec.SlidingPattern
-		}
-	}
-	if validation.Hybrid == HybridValidationSlidingSharedExperts {
-		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		spec.SlidingPattern = m.profile.MetadataDefaults.SlidingPattern
-		if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
-			spec.SlidingPattern = value
-		} else if layers, ok, arrayErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); arrayErr != nil {
-			return Spec{}, arrayErr
-		} else if ok {
-			if len(layers) != int(spec.BlockCount) {
-				return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
-			}
-			spec.SlidingLayers = slices.Clone(layers)
-		}
-	}
-	if m.profile.readsMetadata(MetadataReadBaichuanBlocks) &&
-		spec.BlockCount != validation.RequiredBlockCount && spec.BlockCount != validation.AlternateBlockCount {
-		return Spec{}, fmt.Errorf(
-			"metadata block count must select profile variant %d or %d",
-			validation.RequiredBlockCount, validation.AlternateBlockCount,
-		)
 	}
 	if validation.MLA == MLAValidationOptionalExpertsLatent {
 		spec.OriginalContextLength = optionalOr(
@@ -357,93 +236,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 				spec.ExpertWeightsScale = value
 			}
 		}
-	}
-	if validation.Attention == AttentionValidationLayerwiseQKNorm {
-		if sections, ok, sectionsErr := optionalArray[int32](values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32); sectionsErr != nil {
-			return Spec{}, sectionsErr
-		} else if ok {
-			if len(sections) != tensor.MaxDimensions {
-				return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"rope.dimension_sections", len(sections), tensor.MaxDimensions)
-			}
-			copy(spec.RopeSections[:], sections)
-		}
-		if alpha, ok := optional[float32](values, prefix+"rope.scaling.alpha", gguf.ValueTypeFloat32); ok && alpha != tensor.FirstOffset {
-			if alpha < tensor.FirstOffset || spec.KeyLength <= tensor.PairedExtent || !finite(alpha) {
-				return Spec{}, errors.New("Hunyuan-Dense XDRoPE alpha is invalid")
-			}
-			exponent := float64(spec.KeyLength) / float64(spec.KeyLength-tensor.PairedExtent)
-			spec.RopeFrequencyBase *= float32(math.Pow(float64(alpha), exponent))
-		}
-	}
-	if validation.Hybrid == HybridValidationDualExpertProduct {
-		spec.NoRopeLayerStep = spec.BlockCount
-		if value, ok := optional[uint32](
-			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
-		); ok && value > tensor.FirstOffset {
-			spec.SlidingWindow = value
-			spec.NoRopeLayerStep = spec.SlidingPattern
-		}
-	}
-	if validation.Hybrid == HybridValidationRequiredExpertFeedForward ||
-		validation.Attention == AttentionValidationPerLayerSlidingAttention {
-		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
-			spec.SlidingWindow = value
-		}
-		if spec.SlidingWindow > tensor.FirstOffset {
-			_, scalar := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32)
-			if layers, ok, arrayErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); !scalar && arrayErr != nil {
-				return Spec{}, arrayErr
-			} else if !scalar && ok {
-				if len(layers) != int(spec.BlockCount) {
-					return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
-				}
-				spec.SlidingLayers = slices.Clone(layers)
-			}
-		}
-	}
-	if m.profile.Forward.Session == ForwardSessionEncoderDecoder ||
-		m.profile.Forward.Operation == ForwardOperationEncoder {
-		if spec.RelativeBuckets, err = required[uint32](
-			values,
-			prefix+"attention.relative_buckets_count",
-			gguf.ValueTypeUint32,
-		); err != nil {
-			return Spec{}, err
-		}
-		if m.profile.Forward.Session == ForwardSessionEncoderDecoder {
-			spec.DecoderBlockCount = m.profile.MetadataDefaults.uint(
-				values, prefix, "decoder_block_count", spec.BlockCount,
-			)
-			spec.DecoderStartTokenID, _ = optional[uint32](values, prefix+"decoder_start_token_id", gguf.ValueTypeUint32)
-		}
-	}
-	if validation.hybridOneOf(
-		HybridValidationAlternatingGatedDelta, HybridValidationAlternatingGatedDeltaHybrid, HybridValidationAlternatingGatedDeltaExperts,
-	) {
-		spec.FullAttentionInterval = m.profile.MetadataDefaults.uint(
-			values, prefix, "full_attention_interval", m.profile.MetadataDefaults.FullAttentionInterval,
-		)
-		if recurrent, ok, recurrentErr := optionalArray[bool](
-			values,
-			prefix+"attention.recurrent_layers",
-			gguf.ValueTypeBool,
-		); recurrentErr != nil {
-			return Spec{}, recurrentErr
-		} else if ok {
-			if len(recurrent) != int(spec.BlockCount) && len(recurrent) != int(declaredBlockCount) {
-				return Spec{}, fmt.Errorf(
-					"metadata %q has %d values, need %d or %d",
-					prefix+"attention.recurrent_layers",
-					len(recurrent),
-					spec.BlockCount,
-					declaredBlockCount,
-				)
-			}
-			spec.RecurrentLayers = slices.Clone(recurrent[:spec.BlockCount])
-		}
-	}
-	if validation.Recurrent == RecurrentValidationUngroupedScheduledStateSpace {
-		spec.AttentionScale = hostmath.InvSqrt32(uint64(spec.ValueLength))
 	}
 	if validation.Recurrent == RecurrentValidationGroupedStateSpaceOptionalExperts {
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
@@ -588,7 +380,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertGatingFunc = value
 		}
 	}
-	if spec, err = m.runMetadataProgram(spec, compileExpertProgram(profile)); err != nil {
+	if spec, err = m.runMetadataProgram(spec, state, compileExpertProgram(profile)); err != nil {
 		return Spec{}, err
 	}
 	if validation.Attention == AttentionValidationPerLayerDualRotaryAttention {
@@ -604,27 +396,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsScale = tensor.UnitScale
 			spec.ExpertWeightsNorm = true
 		}
-	}
-	if validation.Hybrid == HybridValidationCompressedHyperDraft {
-		if spec.ExpertFeedForward, err = required[uint32](
-			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
-		); err != nil {
-			return Spec{}, err
-		}
-		spec.SharedExpertFF, _ = optional[uint32](
-			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
-		)
-		spec.LeadingDenseBlocks, _ = optional[uint32](
-			values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32,
-		)
-		spec.MoELayerStep = profile.MetadataDefaults.uint(
-			values, prefix, "moe_every_n_layers", profile.MetadataDefaults.MoELayerStep,
-		)
-		spec.ExpertGatingFunc = expertGatingSigmoid
-		if value, ok := optional[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); ok && value != tensor.FirstOffset {
-			spec.ExpertGatingFunc = value
-		}
-		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
 	}
 	if validation.Attention == AttentionValidationOptionalRopeSectionsExperts {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
@@ -676,20 +447,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			}
 		}
 	}
-	if validation.Hybrid == HybridValidationMultiHeadDraft {
-		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertFeedForward(values, prefix, spec); err != nil {
-			return Spec{}, err
-		}
-		spec.ExpertGatingFunc = optionalOr(
-			values, prefix+"expert_gating_func", gguf.ValueTypeUint32, expertGatingSigmoid,
-		)
-		if value, ok := optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool); ok {
-			spec.ExpertWeightsNorm = value
-		}
-	}
 	if validation.Hybrid == HybridValidationFullRotaryVision {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 		if err = readRequiredMetadataFields(
@@ -725,14 +482,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		if cadence, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok && cadence > tensor.FirstOffset {
 			return Spec{}, errors.New("NomicBERT MoE cadence requires nomic-bert-moe architecture")
 		}
-	}
-	if validation.Hybrid == HybridValidationSharedExpertNorm {
-		if _, ok := optional[uint32](
-			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
-		); !ok {
-			spec.ExpertFeedForward = spec.FeedForwardLength
-		}
-		spec.ExpertWeightsNorm = true
 	}
 	if validation.Hybrid == HybridValidationScaledExperts ||
 		validation.Hybrid == HybridValidationScaledDense && spec.HasExperts() {
@@ -789,20 +538,6 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.SlidingWindow = value
 		}
 	}
-	if validation.Hybrid == HybridValidationSlidingSharedExperts {
-		if spec.ExpertFeedForward, err = required[uint32](values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		spec.SharedExpertFF = optionalOr(
-			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32, spec.ExpertFeedForward,
-		)
-		spec.SharedExpertCount, _ = optional[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32)
-		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
-		if spec.ExpertGatingFunc, err = required[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		spec.ExpertWeightsNorm, _ = optional[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool)
-	}
 	if validation.Hybrid == HybridValidationPerLayerYaRNExperts {
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
@@ -838,257 +573,9 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 }
 
 func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, error) {
-	values, prefix, profile := m.values, m.prefix, m.profile
-	validation := profile.Validation
-	spec, err := m.runMetadataProgram(spec, compileRuntimeProgram(profile))
+	spec, err := m.runMetadataProgram(spec, specReadState{}, compileRuntimeProgram(m.profile))
 	if err != nil {
 		return Spec{}, err
-	}
-	if profile.Attention == AttentionLatent || profile.Attention == AttentionSparseLatent {
-		if validation.MLA == MLAValidationScaledLatent {
-			if spec.QLoRARank, err = required[uint32](
-				values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32,
-			); err != nil {
-				return Spec{}, err
-			}
-		}
-		if profile.Has(ArchitectureLatentKVLayout) {
-			if validation.QLoRARankOptional {
-				spec.QLoRARank, _ = optional[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32)
-			} else if spec.QLoRARank, err = required[uint32](values, prefix+"attention.q_lora_rank", gguf.ValueTypeUint32); err != nil {
-				return Spec{}, err
-			}
-		}
-		if err = readRequiredMetadataFields(
-			values, prefix, gguf.ValueTypeUint32,
-			metadataDestination("attention.kv_lora_rank", &spec.KVLoRARank),
-			metadataDestination("rope.dimension_count", &spec.RopeDimensionCount),
-		); err != nil {
-			return Spec{}, err
-		}
-		if profile.Has(ArchitectureLatentKVLayout) {
-			spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
-			if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
-				return Spec{}, err
-			}
-			if spec.ExpertFeedForward > tensor.FirstOffset && spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
-				return Spec{}, errors.New("DeepSeek2 shared expert width overflows")
-			}
-			spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
-			if value, ok := optional[float32](values, prefix+"rope.scaling.yarn_log_multiplier", gguf.ValueTypeFloat32); ok {
-				spec.RopeYaRNLogMultiplier = value / yarnLogFactorStep
-			}
-			if spec.RopeScalingType == ropeScalingYaRN && positiveFinite(spec.RopeScalingFactor) {
-				rawAttentionFactor := optionalOr(
-					values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32, tensor.UnitScale,
-				)
-				spec.YaRNAttentionFactor = rawAttentionFactor /
-					(tensor.UnitScale + yarnLogFactorStep*float32(math.Log(float64(spec.RopeScalingFactor))))
-			}
-			spec.AttentionTempScale, _ = optional[float32](values, prefix+"attention.temperature_scale", gguf.ValueTypeFloat32)
-			spec.AttentionTempFloor, _ = optional[uint32](values, prefix+"attention.temperature_length", gguf.ValueTypeUint32)
-		}
-	}
-	if profile.Attention == AttentionSparseLatent {
-		sections, hasSections, sectionsErr := optionalArray[int32](values, prefix+"rope.dimension_sections", gguf.ValueTypeInt32)
-		if sectionsErr != nil {
-			return Spec{}, sectionsErr
-		}
-		if hasSections && len(sections) != len(spec.RopeSections) {
-			return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"rope.dimension_sections", len(sections), len(spec.RopeSections))
-		}
-		if hasSections {
-			copy(spec.RopeSections[:], sections)
-		}
-		if err = readRequiredMetadataFields(
-			values, prefix, gguf.ValueTypeUint32,
-			metadataDestination("attention.indexer.head_count", &spec.IndexerHeadCount),
-			metadataDestination("attention.indexer.key_length", &spec.IndexerKeyLength),
-			metadataDestination("attention.indexer.top_k", &spec.IndexerTopK),
-		); err != nil {
-			return Spec{}, err
-		}
-		spec.IndexerFullLayers = make([]bool, spec.BlockCount)
-		for index := range spec.IndexerFullLayers {
-			spec.IndexerFullLayers[index] = profile.Cadence.fullIndexer(spec.ContextLength, uint32(index))
-		}
-		indexerTypesKey := prefix + "attention.indexer.types"
-		if value, present := values[indexerTypesKey]; present && value.Type == gguf.ValueTypeUint32 {
-			typeValue, valid := value.Data.(uint32)
-			if !valid || typeValue > tensor.SingletonExtent {
-				return Spec{}, fmt.Errorf("metadata %q must be 0 or 1", indexerTypesKey)
-			}
-			for index := range spec.IndexerFullLayers {
-				spec.IndexerFullLayers[index] = typeValue == tensor.SingletonExtent
-			}
-		} else if types, ok, arrayErr := optionalArray[uint32](values, indexerTypesKey, gguf.ValueTypeUint32); arrayErr != nil {
-			return Spec{}, arrayErr
-		} else if ok {
-			if len(types) != int(spec.BlockCount) {
-				return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", indexerTypesKey, len(types), spec.BlockCount)
-			}
-			for index, typeValue := range types {
-				if typeValue > tensor.SingletonExtent {
-					return Spec{}, fmt.Errorf("metadata %q value %d is not 0 or 1", indexerTypesKey, typeValue)
-				}
-				spec.IndexerFullLayers[index] = typeValue == tensor.SingletonExtent
-			}
-		}
-	}
-	if validation.MLA == MLAValidationCompressedHyper {
-		if err = readRequiredMetadataFields(
-			values, prefix, gguf.ValueTypeUint32,
-			metadataDestination("attention.q_lora_rank", &spec.QLoRARank),
-			metadataDestination("rope.dimension_count", &spec.RopeDimensionCount),
-			metadataDestination("attention.sliding_window", &spec.SlidingWindow),
-			metadataDestination("attention.indexer.head_count", &spec.IndexerHeadCount),
-			metadataDestination("attention.indexer.key_length", &spec.IndexerKeyLength),
-			metadataDestination("attention.indexer.top_k", &spec.IndexerTopK),
-			metadataDestination("attention.output_group_count", &spec.AttentionOutputGroups),
-			metadataDestination("attention.output_lora_rank", &spec.AttentionOutputRank),
-			metadataDestination("hyper_connection.count", &spec.HyperConnectionCount),
-			metadataDestination("hyper_connection.sinkhorn_iterations", &spec.HyperSinkhornIters),
-			metadataDestination("hash_layer_count", &spec.HashLayerCount),
-			metadataDestination("expert_count", &spec.ExpertCount),
-			metadataDestination("expert_used_count", &spec.ExpertUsedCount),
-			metadataDestination("expert_feed_forward_length", &spec.ExpertFeedForward),
-			metadataDestination("expert_shared_count", &spec.SharedExpertCount),
-			metadataDestination("expert_gating_func", &spec.ExpertGatingFunc),
-		); err != nil {
-			return Spec{}, err
-		}
-		if err = readRequiredMetadataFields(
-			values, prefix, gguf.ValueTypeFloat32,
-			metadataDestination("attention.compress_rope_freq_base", &spec.CompressRopeBase),
-			metadataDestination("hyper_connection.epsilon", &spec.HyperConnectionEps),
-			metadataDestination("expert_weights_scale", &spec.ExpertWeightsScale),
-		); err != nil {
-			return Spec{}, err
-		}
-		if spec.ExpertWeightsNorm, err = required[bool](values, prefix+"expert_weights_norm", gguf.ValueTypeBool); err != nil {
-			return Spec{}, err
-		}
-		if spec.CompressRatios, err = requiredArray[uint32](values, prefix+"attention.compress_ratios", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		if len(spec.CompressRatios) < int(spec.BlockCount) {
-			return Spec{}, errors.New("DeepSeek 4 compression schedule is shorter than its block count")
-		}
-		spec.CompressRatios = spec.CompressRatios[:spec.BlockCount]
-		if spec.LayerSwiGLUClamp, err = optionalLayerFloat32(values, prefix+"swiglu_clamp_exp", spec.BlockCount); err != nil {
-			return Spec{}, err
-		}
-		if len(spec.LayerSwiGLUClamp) == tensor.FirstOffset {
-			return Spec{}, errors.New("DeepSeek 4 expert SwiGLU clamp is missing")
-		}
-		if spec.LayerSharedSwiGLUClamp, err = optionalLayerFloat32(values, prefix+"swiglu_clamp_shexp", spec.BlockCount); err != nil {
-			return Spec{}, err
-		}
-		if len(spec.LayerSharedSwiGLUClamp) == tensor.FirstOffset {
-			spec.LayerSharedSwiGLUClamp = slices.Clone(spec.LayerSwiGLUClamp)
-		}
-		if spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
-			return Spec{}, errors.New("DeepSeek 4 shared expert width overflows")
-		}
-		spec.SharedExpertFF = spec.SharedExpertCount * spec.ExpertFeedForward
-	}
-	if validation.attentionOneOf(
-		AttentionValidationRequiredSlidingFrequency, AttentionValidationScaledSlidingAttention, AttentionValidationSharedKVAlternatingState,
-		AttentionValidationPerLayerDualRotaryAttention, AttentionValidationTargetHiddenDualRotaryAttention,
-		AttentionValidationOptionalSlidingFrequency, AttentionValidationRequiredSlidingRotary, AttentionValidationRequiredSlidingRotaryExperts,
-	) {
-		if value, ok := optional[uint32](
-			values,
-			prefix+"attention.sliding_window",
-			gguf.ValueTypeUint32,
-		); ok {
-			spec.SlidingWindow = value
-		}
-		if spec.SlidingWindow > tensor.FirstOffset {
-			if validation.attentionOneOf(
-				AttentionValidationPerLayerDualRotaryAttention, AttentionValidationTargetHiddenDualRotaryAttention,
-			) {
-				if spec.SlidingLayers, err = requiredLayerBoolCompatible(
-					values, prefix+"attention.sliding_window_pattern", spec.BlockCount,
-				); err != nil {
-					return Spec{}, err
-				}
-			}
-			if value, ok := optional[uint32](
-				values,
-				prefix+"attention.sliding_window_pattern",
-				gguf.ValueTypeUint32,
-			); ok {
-				spec.SlidingPattern = value
-			}
-			patternValue := values[prefix+"attention.sliding_window_pattern"]
-			if validation.attentionOneOf(AttentionValidationRequiredSlidingRotary, AttentionValidationRequiredSlidingRotaryExperts) &&
-				patternValue.Type == gguf.ValueTypeArray {
-				if layers, ok, layersErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); layersErr != nil {
-					return Spec{}, layersErr
-				} else if ok {
-					if len(layers) != int(spec.BlockCount) {
-						return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
-					}
-					spec.SlidingLayers = slices.Clone(layers)
-				}
-			}
-			if validation.Attention == AttentionValidationRequiredSlidingRotary && len(spec.SlidingLayers) == tensor.FirstOffset {
-				spec.NoRopeLayerStep = spec.SlidingPattern
-			}
-		}
-	}
-	if validation.Attention == AttentionValidationPerLayerDualRotaryAttention {
-		if err = readRequiredMetadataFields(
-			values, prefix, gguf.ValueTypeUint32,
-			metadataDestination("rope.dimension_count", &spec.RopeDimensionCount),
-			metadataDestination("rope.dimension_count_swa", &spec.RopeDimensionSWA),
-			metadataDestination("embedding_length_per_layer_input", &spec.EmbeddingPerLayer),
-		); err != nil {
-			return Spec{}, err
-		}
-		spec.SharedKVLayers, _ = optional[uint32](
-			values, prefix+"attention.shared_kv_layers", gguf.ValueTypeUint32,
-		)
-		spec.AttentionScale = tensor.UnitScale
-	}
-	if validation.Attention == AttentionValidationTargetHiddenDualRotaryAttention {
-		spec.RopeDimensionSWA = spec.KeyLengthSWA
-		spec.AttentionScale = tensor.UnitScale
-	}
-	if spec.RopeScalingType == ropeScalingLongRoPE && profile.Has(ArchitectureLongRoPE) {
-		spec.RopeDimensionCount = spec.KeyLength
-		spec.OriginalContextLength = optionalOr(
-			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32, spec.ContextLength,
-		)
-		spec.RopeAttentionFactor = optionalOr(
-			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32, tensor.UnitScale,
-		)
-	}
-	if spec.RopeScalingType == ropeScalingYaRN &&
-		(validation.Hybrid == HybridValidationOptionalExperts ||
-			validation.Hybrid == HybridValidationExtendedRotary && validation.MLA == MLAValidationNone) {
-		spec.YaRNAttentionFactor = optionalOr(
-			values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32, tensor.UnitScale,
-		)
-	}
-	spec.VocabularySize, _ = optional[uint32](values, prefix+"vocab_size", gguf.ValueTypeUint32)
-	if tokens, ok := values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == tensor.FirstOffset {
-		if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
-			return Spec{}, errors.New(`metadata "tokenizer.ggml.tokens" must be a string array`)
-		}
-		if tokens.Count() > int(math.MaxUint32) {
-			return Spec{}, errors.New("tokenizer vocabulary exceeds uint32")
-		}
-		spec.VocabularySize = uint32(tokens.Count())
-	}
-	if validation.encoderOneOf(
-		EncoderValidationTokenTypesMatchingHeads, EncoderValidationTokenTypesALiBi, EncoderValidationRotaryOptionalExperts,
-		EncoderValidationRotary, EncoderValidationRotaryPeriodicExperts,
-	) {
-		if spec.TokenTypeCount, err = required[uint32](values, "tokenizer.ggml.token_type_count", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
 	}
 	if err := spec.validate(); err != nil {
 		return Spec{}, err

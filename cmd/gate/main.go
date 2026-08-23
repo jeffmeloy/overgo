@@ -269,9 +269,10 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	}
 	dependencies := map[string][]string{
 		"scope": {"protection"}, "profile": {"scope"}, "fmt": {"profile"}, "style": {"fmt"},
-		"docs": {"style"}, "magics": {"docs"}, "acceptance": {"magics"},
+		"manifest": {"style"}, "sbom": {"style"}, "claims": {"style"},
+		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "acceptance": {"magics"},
 		"vet": {"acceptance"}, "build": {"acceptance"}, "test": {"vet", "build"},
-		"device": {"test"}, "commit": {"test"},
+		"device": {"test"}, "commit": {"device"},
 	}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
@@ -287,30 +288,6 @@ func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) aut
 			return skipped, "", err
 		},
 	}
-}
-
-type scheduledGateCheck struct {
-	descriptor automationcheck.Descriptor
-	invocation automationcheck.Invocation
-	applicable bool
-	exclusion  string
-}
-
-func gateSchedule(definitions []automationcheck.Check, planned []automationcheck.Invocation, impact automationcheck.Impact) []scheduledGateCheck {
-	byName := make(map[string]automationcheck.Invocation, len(planned))
-	for _, invocation := range planned {
-		byName[invocation.Check.Name] = invocation
-	}
-	schedule := make([]scheduledGateCheck, 0, len(definitions))
-	for _, definition := range definitions {
-		invocation, applicable := byName[definition.Descriptor.Name]
-		exclusion, _ := impact.ExclusionReason(definition.Descriptor.Name)
-		schedule = append(schedule, scheduledGateCheck{
-			descriptor: definition.Descriptor, invocation: invocation,
-			applicable: applicable, exclusion: exclusion,
-		})
-	}
-	return schedule
 }
 
 func (g *gateContext) pipeline() error {
@@ -341,74 +318,67 @@ func (g *gateContext) pipeline() error {
 	cache := g.loadRetryCache()
 	cache.Compact()
 	g.retryCache = &cache
-	// Verification steps whose result depends only on tree state may reuse a
-	// prior identical-tree success (the retry-loop tax: a failed commit step
-	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
-	// always run; commit is never cached.
 	cacheable := map[string]bool{"vet": true, "build": true}
-	schedule := gateSchedule(definitions, checks, impact)
-	concurrentHandled := map[string]bool{}
-	for _, scheduled := range schedule {
-		name := scheduled.descriptor.Name
-		if concurrentHandled[name] {
-			continue
-		}
-		if !scheduled.applicable {
-			g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: scheduled.descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
-			g.honesty = append(g.honesty, name+" skipped: "+scheduled.exclusion)
-			continue
-		}
-		check := scheduled.invocation
-		if name == "vet" {
-			build, found := scheduledGateCheckByName(schedule, "build")
-			if !found || !build.applicable {
-				return errors.New("gate: build check is absent from the concurrent verification wave")
+	inputs := make(map[artifact.ID]artifact.ID, len(cacheable))
+	for _, check := range checks {
+		if cacheable[check.Check.Name] {
+			input, inputErr := g.phaseInputFingerprint(check.Check.Name)
+			if inputErr != nil {
+				return inputErr
 			}
-			records, runErr := g.runConcurrentChecks([]automationcheck.Invocation{check, build.invocation}, &cache)
-			g.steps = append(g.steps, records...)
-			concurrentHandled[build.descriptor.Name] = true
-			if runErr != nil {
-				return runErr
-			}
-			continue
+			inputs[check.ID] = input
 		}
-		fmt.Fprintf(os.Stderr, gateProgressLine, name, runrecord.HeartbeatRunning)
-		var evidence automationcheck.Evidence
-		var reused bool
-		var input artifact.ID
-		if cacheable[name] {
-			input, err = g.phaseInputFingerprint(name)
-		}
-		if err == nil && cacheable[name] {
-			evidence, reused, err = cache.RunCached(context.Background(), check, input)
+	}
+	satisfied := make(map[string]bool, len(impact.Exclusions))
+	for _, exclusion := range impact.Exclusions {
+		satisfied[exclusion.Check] = true
+	}
+	var cacheMutex sync.Mutex
+	results, err := automationcheck.ExecuteDAG(context.Background(), checks, satisfied, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {
+		fmt.Fprintf(os.Stderr, gateProgressLine, check.Check.Name, runrecord.HeartbeatRunning)
+		input, cacheCheck := inputs[check.ID]
+		if cacheCheck {
+			cacheMutex.Lock()
+			evidence, reused := cache.Lookup(check, input)
+			cacheMutex.Unlock()
 			if reused {
-				g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
+				return evidence, nil
 			}
-		} else if err == nil {
-			evidence, err = automationcheck.Run(context.Background(), check)
 		}
-		duration := max(evidence.DurationNS, uint64(1))
-		record := runrecord.GateStep{
-			Name: name, Phase: check.Check.Phase, Outcome: runrecord.StepSucceeded,
-			DurationNS: duration, Evidence: g.stepEvidence[name],
+		evidence, runErr := automationcheck.Run(ctx, check)
+		if runErr == nil && cacheCheck {
+			cacheMutex.Lock()
+			cache.Record(check, input, evidence)
+			cacheMutex.Unlock()
 		}
-		if record.Evidence == "" && evidence.ID.Valid() {
-			record.Evidence = evidence.ID.String()
+		return evidence, runErr
+	})
+	if err != nil {
+		return err
+	}
+	g.saveRetryCache(cache)
+	byName := make(map[string]automationcheck.DAGResult, len(results))
+	for _, result := range results {
+		if result.Invocation.ID.Valid() {
+			byName[result.Invocation.Check.Name] = result
 		}
-		switch {
-		case err != nil:
-			record.Outcome = runrecord.StepFailed
-		case evidence.Skipped:
-			record.Outcome = runrecord.StepSkipped
-		case evidence.Reused:
-			record.Outcome = runrecord.StepReused
+	}
+	for _, definition := range definitions {
+		name := definition.Descriptor.Name
+		result, ran := byName[name]
+		if !ran {
+			if exclusion, excluded := impact.ExclusionReason(name); excluded {
+				g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: definition.Descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
+				g.honesty = append(g.honesty, name+" skipped: "+exclusion)
+			}
+			continue
 		}
-		g.steps = append(g.steps, record)
-		if err == nil && cacheable[name] && !reused {
-			g.saveRetryCache(cache)
+		g.steps = append(g.steps, gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name]))
+		if result.Evidence.Reused {
+			g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
 		}
-		if err != nil {
-			return fmt.Errorf("%s: %w", name, err)
+		if result.Err != nil {
+			return fmt.Errorf("%s: %w", name, result.Err)
 		}
 	}
 	return nil
@@ -469,64 +439,6 @@ func ownershipSurface(impact codeprofile.FunctionImpact) automationcheck.Surface
 		Identity: impact.BaseIdentity + ":" + impact.CandidateIdentity,
 		Packages: slices.Sorted(maps.Keys(packages)), Symbols: symbols, Unknown: unknown,
 	}
-}
-
-func scheduledGateCheckByName(schedule []scheduledGateCheck, name string) (scheduledGateCheck, bool) {
-	for _, check := range schedule {
-		if check.descriptor.Name == name {
-			return check, true
-		}
-	}
-	return scheduledGateCheck{}, false
-}
-
-func (g *gateContext) runConcurrentChecks(checks []automationcheck.Invocation, cache *automationcheck.EvidenceCache) ([]runrecord.GateStep, error) {
-	inputs := make(map[artifact.ID]artifact.ID, len(checks))
-	for _, check := range checks {
-		input, err := g.phaseInputFingerprint(check.Check.Name)
-		if err != nil {
-			return nil, err
-		}
-		inputs[check.ID] = input
-		fmt.Fprintf(os.Stderr, gateProgressLine, check.Check.Name, runrecord.HeartbeatRunning)
-	}
-	var cacheMutex sync.Mutex
-	results, err := automationcheck.ExecuteDAG(context.Background(), checks, map[string]bool{"acceptance": true}, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {
-		cacheMutex.Lock()
-		evidence, reused := cache.Lookup(check, inputs[check.ID])
-		cacheMutex.Unlock()
-		if reused {
-			return evidence, nil
-		}
-		evidence, runErr := automationcheck.Run(ctx, check)
-		if runErr == nil {
-			cacheMutex.Lock()
-			cache.Record(check, inputs[check.ID], evidence)
-			cacheMutex.Unlock()
-		}
-		return evidence, runErr
-	})
-	if err != nil {
-		return nil, err
-	}
-	g.saveRetryCache(*cache)
-	records := make([]runrecord.GateStep, 0, len(results))
-	var firstErr error
-	for _, result := range results {
-		if !result.Invocation.ID.Valid() {
-			continue
-		}
-		name := result.Invocation.Check.Name
-		record := gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name])
-		records = append(records, record)
-		if result.Evidence.Reused {
-			g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
-		}
-		if firstErr == nil && result.Err != nil {
-			firstErr = fmt.Errorf("%s: %w", name, result.Err)
-		}
-	}
-	return records, firstErr
 }
 
 func gateEvidenceRecord(name string, phase runrecord.Phase, evidence automationcheck.Evidence, runErr error, storedEvidence string) runrecord.GateStep {
@@ -1381,14 +1293,12 @@ func runGoTestsAdvisory(repo string, packages []string) (testevidence.GoTestRepo
 	return report, nil
 }
 
-// stepMagics: scoped constants against exact active closure evidence.
+// stepMagics enforces repository-wide zero debt.
 func (g *gateContext) stepMagics() (bool, error) {
 	goSource := false
-	productionSource := false
 	for _, path := range g.paths {
 		if strings.HasSuffix(path, ".go") {
 			goSource = true
-			productionSource = productionSource || !strings.HasSuffix(path, "_test.go")
 		}
 	}
 	if !goSource {
@@ -1398,170 +1308,22 @@ func (g *gateContext) stepMagics() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	candidates, err := closurescan.ScanSnapshot(snapshot, g.paths, closurescan.CandidateConstants)
+	documents, err := activeMagicBindings(g.repo, g.storePath)
 	if err != nil {
 		return false, err
 	}
-	baselineSnapshot, err := sourceSnapshotAtHEAD(g.repo, snapshot, g.paths)
+	report, err := closurescan.ValidatePermanentAuthority(snapshot, documents)
 	if err != nil {
 		return false, err
 	}
-	baseline, err := closurescan.ScanSnapshot(baselineSnapshot, g.paths, closurescan.CandidateConstants)
-	if err != nil {
-		return false, err
-	}
-	catalogued := map[string]bool{}
-	if productionSource {
-		catalogued, err = activeMagicBindings(g.repo, g.storePath, snapshot, candidates)
-		if err != nil {
-			return false, err
-		}
-	}
-	diagnostic, err := admitMagicDelta(candidates, baseline, catalogued)
-	if diagnostic != "" {
-		g.honesty = append(g.honesty, diagnostic)
-	}
-	if err != nil {
-		return false, err
-	}
-	currentDebt, err := measureMagicDebt(snapshot, g.paths, candidates, catalogued, false)
-	if err != nil {
-		return false, err
-	}
-	activeDecisions := map[string]bool{}
-	for _, candidate := range candidates {
-		if catalogued[candidate.ExactKey()] {
-			activeDecisions[candidate.DecisionKey()] = true
-		}
-	}
-	baselineDebt, err := measureMagicDebt(baselineSnapshot, g.paths, baseline, activeDecisions, true)
-	if err != nil {
-		return false, err
-	}
-	if err := rejectMagicDebtIncrease(currentDebt, baselineDebt); err != nil {
-		return false, err
-	}
-	g.honesty = append(g.honesty, fmt.Sprintf("magic debt: current=%s baseline=%s", currentDebt, baselineDebt))
+	g.honesty = append(g.honesty, fmt.Sprintf(
+		"permanent magic authority: production=%d classified=%d tests=%d open=0 stale=0 policy_copies=0",
+		report.ProductionSites, report.ClassifiedSites, report.TestSites,
+	))
 	return false, nil
 }
 
-func sourceSnapshotAtHEAD(repo string, snapshot repoanalysis.SourceSnapshot, paths []string) (repoanalysis.SourceSnapshot, error) {
-	overlay := map[string][]byte{}
-	for _, path := range paths {
-		if !strings.HasSuffix(path, ".go") {
-			continue
-		}
-		cmd := exec.Command("git", "show", "HEAD:"+path)
-		cmd.Dir = repo
-		data, err := cmd.Output()
-		if err != nil {
-			if _, missing := err.(*exec.ExitError); missing {
-				overlay[path] = nil
-				continue
-			}
-			return repoanalysis.SourceSnapshot{}, err
-		}
-		overlay[path] = data
-	}
-	return snapshot.Overlay(overlay)
-}
-
-type magicDebt struct {
-	Named, Inline, TestPolicy, Assumption int
-}
-
-func (debt magicDebt) String() string {
-	return fmt.Sprintf("named=%d inline=%d test_policy=%d assumption=%d", debt.Named, debt.Inline, debt.TestPolicy, debt.Assumption)
-}
-
-func measureMagicDebt(
-	snapshot repoanalysis.SourceSnapshot,
-	paths []string,
-	candidates []closurescan.Candidate,
-	catalogued map[string]bool,
-	baseline bool,
-) (magicDebt, error) {
-	debt := magicDebt{}
-	for _, candidate := range candidates {
-		admitted := catalogued[candidate.ExactKey()]
-		if baseline {
-			admitted = catalogued[candidate.DecisionKey()]
-		}
-		if !admitted {
-			debt.Named++
-		}
-	}
-	literals, err := closurescan.CensusLiterals(snapshot, paths)
-	if err != nil {
-		return magicDebt{}, err
-	}
-	for _, literal := range literals {
-		if literal.Policy {
-			debt.Inline++
-		}
-	}
-	debt.TestPolicy, err = closurescan.CountTestPolicyLiterals(snapshot)
-	if err != nil {
-		return magicDebt{}, err
-	}
-	assumptions, err := closurescan.CensusAssumptions(snapshot, paths)
-	if err != nil {
-		return magicDebt{}, err
-	}
-	debt.Assumption = len(assumptions)
-	return debt, nil
-}
-
-func rejectMagicDebtIncrease(current, baseline magicDebt) error {
-	for _, count := range []struct {
-		name              string
-		current, baseline int
-	}{
-		{"named", current.Named, baseline.Named},
-		{"inline", current.Inline, baseline.Inline},
-		{"test_policy", current.TestPolicy, baseline.TestPolicy},
-		{"assumption", current.Assumption, baseline.Assumption},
-	} {
-		if count.current > count.baseline {
-			return fmt.Errorf("magic scan: %s debt increased from %d to %d", count.name, count.baseline, count.current)
-		}
-	}
-	return nil
-}
-
-func admitMagicDelta(current, baseline []closurescan.Candidate, catalogued map[string]bool) (string, error) {
-	previous := map[string]bool{}
-	for _, candidate := range baseline {
-		previous[candidate.DecisionKey()] = true
-	}
-	inherited := 0
-	for _, candidate := range current {
-		if catalogued[candidate.ExactKey()] {
-			continue
-		}
-		if previous[candidate.DecisionKey()] {
-			inherited++
-			continue
-		}
-		return "", fmt.Errorf(
-			"magic scan: new or changed uncatalogued constant %s=%s (%s)",
-			candidate.Name, candidate.Value, candidate.File,
-		)
-	}
-	if inherited > 0 {
-		return fmt.Sprintf(
-			"magic backlog: %d inherited uncatalogued constant(s) in touched files; run closure-scan for ranked detail",
-			inherited,
-		), nil
-	}
-	return fmt.Sprintf("magic scan: %d constant(s) in scope, all catalogued", len(current)), nil
-}
-
-func activeMagicBindings(
-	repo, storePath string,
-	snapshot repoanalysis.SourceSnapshot,
-	candidates []closurescan.Candidate,
-) (map[string]bool, error) {
+func activeMagicBindings(repo, storePath string) ([]closureledger.Document, error) {
 	store, err := repodb.OpenReadOnly(filepath.Join(repo, storePath))
 	if err != nil {
 		return nil, err
@@ -1600,28 +1362,7 @@ func activeMagicBindings(
 		}
 		documents = append(documents, document)
 	}
-	issues, err := closurescan.ValidateBindings(snapshot, documents)
-	if err != nil {
-		return nil, err
-	}
-	if len(issues) != 0 {
-		return nil, fmt.Errorf("magic scan: %d stale active binding(s), first=%s/%s", len(issues), issues[0].Kind, issues[0].Name)
-	}
-	bindings := map[string]bool{}
-	for _, candidate := range candidates {
-		binding, err := candidate.Binding()
-		if err != nil {
-			return nil, err
-		}
-		if _, active, err := closureledger.ResolveActiveBinding(
-			context.Background(), store, binding, candidate.ValueJSON(),
-		); err != nil {
-			return nil, err
-		} else if active {
-			bindings[candidate.ExactKey()] = true
-		}
-	}
-	return bindings, nil
+	return documents, nil
 }
 
 func (g *gateContext) stepAcceptance() (bool, error) {

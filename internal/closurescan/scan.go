@@ -181,6 +181,7 @@ const (
 )
 
 type LiteralSite struct {
+	Name       string         `json:"name,omitempty"`
 	File       string         `json:"file"`
 	Package    string         `json:"package"`
 	Scope      string         `json:"scope"`
@@ -282,7 +283,7 @@ func visitTestLiterals(snapshot repoanalysis.SourceSnapshot, visit func(TestLite
 		var candidates []Candidate
 		collect(file, source, &candidates)
 		for _, candidate := range candidates {
-			addProductionValue(production, candidate.Package, candidate.Value, candidate.File, candidate.Line)
+			addProductionValue(production, candidate.Package, candidate.Name, candidate.Value, candidate.File, candidate.Line)
 		}
 	})
 	if err != nil {
@@ -298,7 +299,7 @@ func visitTestLiterals(snapshot repoanalysis.SourceSnapshot, visit func(TestLite
 		collect(file, source, &named)
 		for _, candidate := range named {
 			visit(classifyTestLiteral(LiteralSite{
-				File: candidate.File, Package: candidate.Package, Scope: candidate.Scope,
+				Name: candidate.Name, File: candidate.File, Package: candidate.Package, Scope: candidate.Scope,
 				Line: candidate.Line, Expression: candidate.Expression, Value: candidate.Value,
 				Context: LiteralOther, SourceID: candidate.SourceID,
 			}, true, production))
@@ -307,21 +308,42 @@ func visitTestLiterals(snapshot repoanalysis.SourceSnapshot, visit func(TestLite
 	return err
 }
 
-func addProductionValue(values map[string][]string, pkg, value, file string, line int) {
+func addProductionValue(values map[string][]string, pkg, name, value, file string, line int) {
 	key := pkg + "\x00" + value
-	values[key] = append(values[key], file+":"+strconv.Itoa(line))
+	values[key] = append(values[key], name+"\x00"+file+":"+strconv.Itoa(line))
 }
 
 func classifyTestLiteral(site LiteralSite, named bool, production map[string][]string) TestLiteralSite {
-	matches := slices.Clone(production[site.Package+"\x00"+site.Value])
+	var matches []string
+	for _, encoded := range production[site.Package+"\x00"+site.Value] {
+		name, location, found := strings.Cut(encoded, "\x00")
+		if !named || relatedPolicyNames(site.Name, name) {
+			matches = append(matches, location)
+		}
+		if !found {
+			continue
+		}
+	}
 	class := TestFixture
 	if site.Context == LiteralComparison {
 		class = TestAssertion
 	}
-	if len(matches) > 0 && (named || site.Context == LiteralComparison) {
+	if len(matches) > 0 && named {
 		class = TestPolicyCopy
 	}
 	return TestLiteralSite{LiteralSite: site, Named: named, Class: class, ProductionMatches: matches}
+}
+
+func relatedPolicyNames(testName, productionName string) bool {
+	normalize := func(value string) string {
+		value = strings.ToLower(value)
+		for _, prefix := range []string{"expected", "fixture", "test", "want"} {
+			value = strings.TrimPrefix(value, prefix)
+		}
+		return value
+	}
+	left, right := normalize(testName), normalize(productionName)
+	return left != "" && right != "" && (strings.HasSuffix(left, right) || strings.HasSuffix(right, left))
 }
 
 // CensusAssumptions reports syntax-derived decision hints; it proves none.

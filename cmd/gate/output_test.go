@@ -70,31 +70,6 @@ func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 	}
 }
 
-func TestDescriptorOrderIncludesInapplicableChecksInPlace(t *testing.T) {
-	definitions := []automationcheck.Check{
-		gateCheck("first", runrecord.PhaseValidate, func() (bool, error) { return false, nil }),
-		{
-			Descriptor: automationcheck.Descriptor{
-				Name: "middle", Phase: runrecord.PhaseValidate,
-				Triggers: []automationcheck.Fact{"middle"}, Inapplicable: "not selected",
-			},
-			Run: func(context.Context, automationcheck.Invocation) (bool, string, error) { return false, "", nil },
-		},
-		gateCheck("last", runrecord.PhasePackage, func() (bool, error) { return false, nil }),
-	}
-	impact := automationcheck.Impact{Exclusions: []automationcheck.Exclusion{{Check: "middle", Reason: "fixture proves independence"}}}
-	planned, err := automationcheck.Plan(definitions, impact)
-	if err != nil {
-		t.Fatal(err)
-	}
-	schedule := gateSchedule(definitions, planned, impact)
-	if len(schedule) != 3 || schedule[0].descriptor.Name != "first" ||
-		schedule[1].descriptor.Name != "middle" || schedule[1].applicable || schedule[1].exclusion == "" ||
-		schedule[2].descriptor.Name != "last" {
-		t.Fatalf("schedule = %+v", schedule)
-	}
-}
-
 func TestGateRunsAcceptanceBeforeExpensivePhases(t *testing.T) {
 	steps := (&gateContext{}).pipelineChecks()
 	positions := make(map[string]int, len(steps))
@@ -137,5 +112,9 @@ func TestModularPipelineDeclaresApplicabilityAndResources(t *testing.T) {
 	resources := byName["device"].Resources
 	if len(resources) != 1 || resources[0].Name != "device" || !resources[0].Exclusive {
 		t.Fatalf("device resources = %+v", resources)
+	}
+	commitDependencies := byName["commit"].Dependencies
+	if len(commitDependencies) != 1 || commitDependencies[0] != "device" {
+		t.Fatalf("commit dependencies = %v", commitDependencies)
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/media"
+	"overgo/internal/pytorchzip"
 	"overgo/internal/tensor"
 )
 
@@ -54,7 +55,7 @@ func (s *VAEEncoderCUDASession) Encode(ctx context.Context, plan SourceCodecPlan
 	}
 	started := time.Now()
 	s.codec.ctx = ctx
-	states := make([]vaeDeviceOpState, len(s.codec.ops))
+	states := make([]vaeDeviceOpState, len(s.Plan.Operations))
 	latentElements, err := plan.LatentElements()
 	if err != nil {
 		return nil, stats, err
@@ -83,14 +84,18 @@ func (s *VAEEncoderCUDASession) Encode(ctx context.Context, plan SourceCodecPlan
 			if copyErr := state.Driver.MemcpyHtoD(x, driver.Bytes(staging)); copyErr != nil {
 				return copyErr
 			}
-			frames, height, width, actIndex := chunkFrames, plan.Source.Height, plan.Source.Width, tensor.FirstOffset
-			for opIndex := range s.codec.ops {
+			actIndex := tensor.FirstOffset
+			volume, runErr := media.ExecuteCodecProgram("source codec CUDA", s.Plan.CodecProgram, states, media.CodecVolume[driver.DevicePtr]{
+				Storage: x, Channels: plan.Source.Channels, Frames: chunkFrames, Height: plan.Source.Height, Width: plan.Source.Width,
+			}, func(index int, operation media.CodecOperation[[]pytorchzip.TensorBinding], opState *vaeDeviceOpState, current media.CodecVolume[driver.DevicePtr]) (media.CodecVolume[driver.DevicePtr], error) {
 				actIndex = tensor.SingletonExtent - actIndex
-				x, frames, height, width, allocErr = s.codec.runOp(state, opIndex, chunkIndex, &states[opIndex], x, fmt.Sprintf("act_%d", actIndex), frames, height, width)
-				if allocErr != nil {
-					return fmt.Errorf("source codec CUDA %s chunk %d: %w", s.codec.ops[opIndex].Name, chunkIndex, allocErr)
-				}
+				next, frames, height, width, stepErr := s.codec.runOp(state, index, chunkIndex, operation, s.codec.weights[index], opState, current.Storage, fmt.Sprintf("act_%d", actIndex), current.Frames, current.Height, current.Width)
+				return media.CodecVolume[driver.DevicePtr]{Storage: next, Channels: operation.OutputChannels, Frames: frames, Height: height, Width: width}, stepErr
+			})
+			if runErr != nil {
+				return fmt.Errorf("source codec CUDA chunk %d: %w", chunkIndex, runErr)
 			}
+			x, frames, height, width := volume.Storage, volume.Frames, volume.Height, volume.Width
 			if !checked.Equal(height, plan.Latent.Height) || !checked.Equal(width, plan.Latent.Width) || !checked.PositiveInts(frames) {
 				return fmt.Errorf("source codec CUDA chunk %d output=%dx%dx%d", chunkIndex, frames, height, width)
 			}

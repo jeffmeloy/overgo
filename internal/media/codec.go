@@ -227,6 +227,20 @@ type CodecProgram[Bindings any] struct {
 	Operations []CodecOperation[Bindings]
 }
 
+// CodecVolume carries backend storage together with its current geometry.
+type CodecVolume[Storage any] struct {
+	Storage                         Storage
+	Channels, Frames, Height, Width int
+}
+
+// CodecStep executes one compiled codec operation.
+type CodecStep[Bindings, Storage, State any] func(
+	int,
+	CodecOperation[Bindings],
+	*State,
+	CodecVolume[Storage],
+) (CodecVolume[Storage], error)
+
 func (p CodecProgram[Bindings]) Validate(scope string) error {
 	if len(p.Operations) == 0 {
 		return fmt.Errorf("%s: operations absent", scope)
@@ -241,6 +255,39 @@ func (p CodecProgram[Bindings]) Validate(scope string) error {
 		}
 	}
 	return nil
+}
+
+// ExecuteCodecProgram owns stage order and geometry validation.
+func ExecuteCodecProgram[Bindings, Storage, State any](
+	scope string,
+	program CodecProgram[Bindings],
+	states []State,
+	input CodecVolume[Storage],
+	step CodecStep[Bindings, Storage, State],
+) (CodecVolume[Storage], error) {
+	if err := program.Validate(scope); err != nil {
+		return input, err
+	}
+	if len(states) != len(program.Operations) || step == nil ||
+		!checked.PositiveInts(input.Channels, input.Frames, input.Height, input.Width) ||
+		!checked.Equal(input.Channels, program.Operations[tensor.FirstOffset].InputChannels) {
+		return input, fmt.Errorf("%s: execution contract mismatch", scope)
+	}
+	current := input
+	for index, operation := range program.Operations {
+		if !checked.Equal(current.Channels, operation.InputChannels) {
+			return current, fmt.Errorf("%s: operation %d (%s) input channels=%d, volume channels=%d", scope, index, operation.Name, operation.InputChannels, current.Channels)
+		}
+		next, err := step(index, operation, &states[index], current)
+		if err != nil {
+			return current, fmt.Errorf("%s: operation %d (%s): %w", scope, index, operation.Name, err)
+		}
+		if !checked.Equal(next.Channels, operation.OutputChannels) || !checked.PositiveInts(next.Frames, next.Height, next.Width) {
+			return current, fmt.Errorf("%s: operation %d (%s) returned invalid geometry", scope, index, operation.Name)
+		}
+		current = next
+	}
+	return current, nil
 }
 
 func (p CodecProgram[Bindings]) Names() []string {

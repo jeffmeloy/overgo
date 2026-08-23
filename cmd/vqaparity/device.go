@@ -26,9 +26,9 @@ import (
 )
 
 // runDevice: device terminal parity + measurement.
-func runDevice(l *ladder) error {
+func runDevice(l *campaignContext) error {
 	ctx := context.Background()
-	l.log("DEVICE terminal parity START")
+	l.Log("DEVICE terminal parity START")
 
 	cfg, err := routedlm.LoadConfig(l.modelDir, binding)
 	if err != nil {
@@ -211,10 +211,10 @@ func runDevice(l *ladder) error {
 		}
 	}
 	perCall := time.Since(start) / iters
-	l.log(fmt.Sprintf("DEVICE terminal EXACT top=%d (golden first=%d) dev-vs-host worst|d|=%.3e",
+	l.Log(fmt.Sprintf("DEVICE terminal EXACT top=%d (golden first=%d) dev-vs-host worst|d|=%.3e",
 		devTop, dg.FirstToken, worstDH))
-	l.log(fmt.Sprintf("DEVICE terminal MEASURE proj=%.3fms/token head_resident=%.0fMiB",
+	l.Log(fmt.Sprintf("DEVICE terminal MEASURE proj=%.3fms/token head_resident=%.0fMiB",
 		float64(perCall.Microseconds())/1000.0, float64(len(headBytes))/(1<<20)))
-	l.log("DEVICE terminal LANE GREEN")
+	l.Log("DEVICE terminal LANE GREEN")
 	return nil
 }

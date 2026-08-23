@@ -143,13 +143,19 @@ func Plan(checks []Check, impact Impact) ([]Invocation, error) {
 	}
 	for name, active := range selected {
 		if active {
-			if err := include(name, definitions, selected, map[string]bool{}); err != nil {
+			if err := include(name, definitions, selected, exclusions, map[string]bool{}); err != nil {
 				return nil, err
 			}
 		}
 	}
 	var planned []Invocation
-	done := map[string]bool{}
+	done := make(map[string]bool, len(exclusions))
+	for name := range exclusions {
+		done[name] = true
+	}
+	for name := range exclusions {
+		done[name] = true
+	}
 	for len(planned) < selectedCount(selected) {
 		before := len(planned)
 		for _, check := range checks {
@@ -260,7 +266,7 @@ func validate(check Check) error {
 	return nil
 }
 
-func include(name string, definitions map[string]Check, selected, visiting map[string]bool) error {
+func include(name string, definitions map[string]Check, selected map[string]bool, exclusions map[string]string, visiting map[string]bool) error {
 	if visiting[name] {
 		return errors.New("automation check: dependency cycle")
 	}
@@ -269,8 +275,11 @@ func include(name string, definitions map[string]Check, selected, visiting map[s
 		if _, exists := definitions[dependency]; !exists {
 			return fmt.Errorf("automation check %q: unknown dependency %q", name, dependency)
 		}
+		if exclusions[dependency] != "" {
+			continue
+		}
 		selected[dependency] = true
-		if err := include(dependency, definitions, selected, visiting); err != nil {
+		if err := include(dependency, definitions, selected, exclusions, visiting); err != nil {
 			return err
 		}
 	}

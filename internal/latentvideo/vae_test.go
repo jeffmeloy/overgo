@@ -83,7 +83,7 @@ func TestVAESiLUMatchesTorchFixture(t *testing.T) {
 }
 
 // residualFixtureOp: the deterministic ramp weights the torch fixture used.
-func residualFixtureOp(cIn, cOut int) (vaeLoadedOp, *vaeOpState) {
+func residualFixtureOp(cIn, cOut int) (media.CodecOperation[[]pytorchzip.TensorBinding], vaeLoadedWeights, *vaeOpState) {
 	next := 1
 	take := vaeFixtureTake(&next, 50, 0.2)
 	values := [][]float32{
@@ -97,10 +97,7 @@ func residualFixtureOp(cIn, cOut int) (vaeLoadedOp, *vaeOpState) {
 	if cIn != cOut {
 		values = append(values, take(cOut*cIn), take(cOut))
 	}
-	return vaeLoadedOp{
-		CodecOperation: fixtureCodecOperation(media.CodecResidual, cIn, cOut),
-		values:         values,
-	}, &vaeOpState{}
+	return fixtureCodecOperation(media.CodecResidual, cIn, cOut), values, &vaeOpState{}
 }
 
 func fixtureCodecOperation(kind media.CodecOperator, cIn, cOut int) media.CodecOperation[[]pytorchzip.TensorBinding] {
@@ -111,8 +108,8 @@ func fixtureCodecOperation(kind media.CodecOperator, cIn, cOut int) media.CodecO
 
 func TestVAEResidualBlockMatchesTorchIdentityShortcutFixture(t *testing.T) {
 	x := vaeFixtureInputDims(2, 2, 2, 2, -0.5)
-	op, state := residualFixtureOp(2, 2)
-	got, frames, h, w, err := runVAEOp(op, state, 0, x, 2, 2, 2)
+	op, values, state := residualFixtureOp(2, 2)
+	got, frames, h, w, err := runVAEOp(op, values, state, 0, x, 2, 2, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,8 +129,8 @@ func TestVAEResidualBlockMatchesTorchIdentityShortcutFixture(t *testing.T) {
 
 func TestVAEResidualBlockMatchesTorchConvShortcutFixture(t *testing.T) {
 	x := vaeFixtureInputDims(2, 2, 2, 2, -0.5)
-	op, state := residualFixtureOp(2, 3)
-	got, _, _, _, err := runVAEOp(op, state, 0, x, 2, 2, 2)
+	op, values, state := residualFixtureOp(2, 3)
+	got, _, _, _, err := runVAEOp(op, values, state, 0, x, 2, 2, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,17 +149,15 @@ func TestVAESpatialAttentionMatchesTorchFixture(t *testing.T) {
 	x := vaeFixtureInputDims(3, 2, 2, 2, -0.7)
 	next := 1
 	take := vaeFixtureTake(&next, 40, 0.3)
-	op := vaeLoadedOp{
-		CodecOperation: fixtureCodecOperation(media.CodecAttention, 3, 3),
-		values: [][]float32{
-			take(3),         // norm gamma
-			take(3 * 3 * 3), // to_qkv w
-			take(3 * 3),     // to_qkv b
-			take(3 * 3),     // proj w
-			take(3),         // proj b
-		},
+	op := fixtureCodecOperation(media.CodecAttention, 3, 3)
+	values := vaeLoadedWeights{
+		take(3),         // norm gamma
+		take(3 * 3 * 3), // to_qkv w
+		take(3 * 3),     // to_qkv b
+		take(3 * 3),     // proj w
+		take(3),         // proj b
 	}
-	got, _, _, _, err := runVAEOp(op, &vaeOpState{}, 0, x, 2, 2, 2)
+	got, _, _, _, err := runVAEOp(op, values, &vaeOpState{}, 0, x, 2, 2, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,12 +219,10 @@ func TestVAEUpsample3DFirstChunkSkipsTimeConv(t *testing.T) {
 	}
 	resampleW := make([]float32, c*c*3*3)
 	resampleW[4] = 1 // identity tap: pure nearest upsample
-	op := vaeLoadedOp{
-		CodecOperation: fixtureCodecOperation(media.CodecUpsampleSpatiotemporal, c, c),
-		values:         [][]float32{timeW, make([]float32, 2*c), resampleW, make([]float32, c)},
-	}
+	op := fixtureCodecOperation(media.CodecUpsampleSpatiotemporal, c, c)
+	values := vaeLoadedWeights{timeW, make([]float32, 2*c), resampleW, make([]float32, c)}
 	state := &vaeOpState{}
-	out, frames, h, w, err := runVAEOp(op, state, 0, []float32{3}, 1, 1, 1)
+	out, frames, h, w, err := runVAEOp(op, values, state, 0, []float32{3}, 1, 1, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +230,7 @@ func TestVAEUpsample3DFirstChunkSkipsTimeConv(t *testing.T) {
 		t.Fatalf("chunk0 frames=%d h=%d w=%d rep=%t", frames, h, w, state.cache0.rep)
 	}
 	requireVAEClose(t, out, []float32{3, 3, 3, 3}, 0)
-	out, frames, _, _, err = runVAEOp(op, state, 1, []float32{5}, 1, 1, 1)
+	out, frames, _, _, err = runVAEOp(op, values, state, 1, []float32{5}, 1, 1, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -601,6 +601,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/recipes/active" ||
 		request.URL.Path == "/compositions" ||
 		request.URL.Path == "/compositions/activate" ||
+		request.URL.Path == "/compositions/generate" ||
 		request.URL.Path == "/operations" ||
 		request.URL.Path == "/operations/cancel" ||
 		request.URL.Path == "/operations/wait" ||
@@ -716,6 +717,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.compositionInventory(response, request)
 	case "/compositions/activate":
 		h.activateComposition(response, request)
+	case "/compositions/generate":
+		h.compositeGeneration(response, request)
 	case "/operations":
 		h.operationStatus(response, request)
 	case "/operations/cancel":

@@ -60,6 +60,17 @@ func (current RebindIndex) Rebind(document closureledger.Document) (closureledge
 				match, matches = candidate, matches+1
 			}
 		}
+		if !migration && previous.Kind == closureledger.BindingLiteral && matches == 0 {
+			key = "m\x00" + rebindKey(previous.Kind, previous.Package, previous.File, previous.Scope, previous.Name, previous.Expression)
+			candidates = current[key]
+			migration, callsites = true, false
+			for _, candidate := range candidates {
+				callsites = true
+				if bytes.Equal(candidate.ValueJSON(), document.Value) {
+					match, matches = candidate, matches+1
+				}
+			}
+		}
 		if matches != 1 {
 			reason := "value"
 			switch {

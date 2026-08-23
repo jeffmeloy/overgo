@@ -104,11 +104,11 @@ func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodec
 		return nil, err
 	}
 	defer reader.Close()
-	ops, err := loadVAEOps(reader, graph.vaePlanCore, "encoder")
+	weights, err := loadVAEOps(reader, graph.vaePlanCore, "encoder")
 	if err != nil {
 		return nil, err
 	}
-	states := make([]vaeOpState, len(ops))
+	states := make([]vaeOpState, len(graph.Operations))
 	latentElements, err := plan.LatentElements()
 	if err != nil {
 		return nil, err
@@ -128,13 +128,16 @@ func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodec
 		if err := media.CopyPlanarFrames(current, frames, tensor.FirstOffset, source, plan.Source.Frames, sourceFrame, plan.Source.Channels, frames, sourceSpatial); err != nil {
 			return nil, err
 		}
-		height, width := plan.Source.Height, plan.Source.Width
-		for opIndex := range ops {
-			current, frames, height, width, err = runVAEOp(ops[opIndex], &states[opIndex], chunkIndex, current, frames, height, width)
-			if err != nil {
-				return nil, fmt.Errorf("source codec: %s chunk %d: %w", ops[opIndex].Name, chunkIndex, err)
-			}
+		volume, err := media.ExecuteCodecProgram("source codec", graph.CodecProgram, states, media.CodecVolume[[]float32]{
+			Storage: current, Channels: plan.Source.Channels, Frames: frames, Height: plan.Source.Height, Width: plan.Source.Width,
+		}, func(index int, operation media.CodecOperation[[]pytorchzip.TensorBinding], state *vaeOpState, input media.CodecVolume[[]float32]) (media.CodecVolume[[]float32], error) {
+			next, nextFrames, height, width, runErr := runVAEOp(operation, weights[index], state, chunkIndex, input.Storage, input.Frames, input.Height, input.Width)
+			return media.CodecVolume[[]float32]{Storage: next, Channels: operation.OutputChannels, Frames: nextFrames, Height: height, Width: width}, runErr
+		})
+		if err != nil {
+			return nil, fmt.Errorf("source codec chunk %d: %w", chunkIndex, err)
 		}
+		current, frames, height, width := volume.Storage, volume.Frames, volume.Height, volume.Width
 		if err := checked.Length(current, graph.MomentChannels, frames, latentSpatial); err != nil {
 			return nil, fmt.Errorf("source codec: chunk %d output storage: %w", chunkIndex, err)
 		}

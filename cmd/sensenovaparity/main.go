@@ -26,61 +26,14 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"time"
 
 	"overgo/internal/hfbpe"
+	"overgo/internal/jsonfile"
+	"overgo/internal/parity"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
 )
-
-const (
-	verdictOracle   = "PASS-ORACLE" // real value oracle asserted
-	verdictDerive   = "PASS-DERIVE" // derivation/structural on the real checkpoint
-	verdictWired    = "PASS-WIRED"  // forward computed on real weights; ORACLE-ABSENT
-	verdictFrontier = "FRONTIER"    // oracle exists but input unavailable; no parity claim
-	verdictFail     = "FAIL"
-)
-
-type ladder struct {
-	logPath string
-	failed  bool
-	counts  map[string]int
-}
-
-func (l *ladder) log(line string) {
-	stamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	full := stamp + " " + line + "\n"
-	fmt.Print(full)
-	if f, err := os.OpenFile(l.logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-		_, _ = f.WriteString(full)
-		_ = f.Close()
-	}
-}
-
-// stage: runs fn unless a prior stage FAILED (frontier/oracle-absent do not
-// stop the ladder — they are documented boundaries, not failures). worst is
-// the worst |d| against the oracle where one exists, NaN where none does.
-func (l *ladder) stage(name string, fn func() (verdict string, worst float64, detail string, err error)) {
-	if l.failed {
-		return
-	}
-	start := time.Now()
-	verdict, worst, detail, err := fn()
-	wall := time.Since(start).Round(time.Millisecond)
-	if err != nil {
-		l.failed = true
-		l.counts[verdictFail]++
-		l.log(fmt.Sprintf("STAGE %-26s %-11s worst|d|=%-11s wall=%-9s %v", name, verdictFail, "-", wall, err))
-		return
-	}
-	l.counts[verdict]++
-	worstStr := "n/a"
-	if !math.IsNaN(worst) {
-		worstStr = fmt.Sprintf("%.3e", worst)
-	}
-	l.log(fmt.Sprintf("STAGE %-26s %-11s worst|d|=%-11s wall=%-9s %s", name, verdict, worstStr, wall, detail))
-}
 
 func main() {
 	modelDir := flag.String("model", `C:\Users\jeffm\adaptive_new\models\SenseNova-U1-8B-MoT-Infographic-V3`, "checkpoint dir (READ-ONLY)")
@@ -89,36 +42,36 @@ func main() {
 	deviceMode := flag.Bool("device", false, "run the CUDA device denoise-terminal stages after the CPU ladder")
 	flag.Parse()
 
-	l := &ladder{logPath: *logPath, counts: map[string]int{}}
+	l := parity.NewCampaign(*logPath)
 	// First line immediately (liveness).
-	l.log(fmt.Sprintf("LADDER START sensenovaparity model=%s fixtures=%s device=%v", *modelDir, *fixturesDir, *deviceMode))
+	l.Log(fmt.Sprintf("LADDER START sensenovaparity model=%s fixtures=%s device=%v", *modelDir, *fixturesDir, *deviceMode))
 
 	if err := run(l, *modelDir, *fixturesDir); err != nil {
-		l.log("LADDER ERROR " + err.Error())
+		l.Log("LADDER ERROR " + err.Error())
 		os.Exit(1)
 	}
-	if *deviceMode && !l.failed {
+	if *deviceMode && !l.Failed() {
 		if err := runDevice(l, *modelDir, *fixturesDir); err != nil {
-			l.log("DEVICE ERROR " + err.Error())
+			l.Log("DEVICE ERROR " + err.Error())
 			os.Exit(1)
 		}
 	}
 	summary := fmt.Sprintf("oracle=%d derive=%d wired=%d frontier=%d",
-		l.counts[verdictOracle], l.counts[verdictDerive], l.counts[verdictWired], l.counts[verdictFrontier])
-	if l.failed {
-		l.log("LADDER STOPPED at first FAIL (" + summary + ")")
+		l.Count(parity.Oracle), l.Count(parity.Derived), l.Count(parity.Wired), l.Count(parity.Frontier))
+	if l.Failed() {
+		l.Log("LADDER STOPPED at first FAIL (" + summary + ")")
 		os.Exit(1)
 	}
-	l.log("LADDER COMPLETE longest-verifiable-prefix bound (" + summary + ")")
+	l.Log("LADDER COMPLETE longest-verifiable-prefix bound (" + summary + ")")
 }
 
-func run(l *ladder, modelDir, fixturesDir string) error {
+func run(l *parity.Campaign, modelDir, fixturesDir string) error {
 	var edit editOracle
-	if err := loadJSON(fixturesDir+string(os.PathSeparator)+"edit_oracle_v3_256.json", &edit); err != nil {
+	if err := jsonfile.Decode(fixturesDir+string(os.PathSeparator)+"edit_oracle_v3_256.json", &edit); err != nil {
 		return fmt.Errorf("load edit oracle: %w", err)
 	}
 	var gen genOracle
-	if err := loadJSON(fixturesDir+string(os.PathSeparator)+"generation_oracle_256.json", &gen); err != nil {
+	if err := jsonfile.Decode(fixturesDir+string(os.PathSeparator)+"generation_oracle_256.json", &gen); err != nil {
 		return fmt.Errorf("load generation oracle: %w", err)
 	}
 
@@ -141,7 +94,7 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 	var flowPlan routedlm.FlowPlan
 
 	// ---- fixture integrity ------------------------------------------------
-	l.stage("edit_fixture_load", func() (string, float64, string, error) {
+	l.Run("edit_fixture_load", func() (parity.Verdict, float64, string, error) {
 		if edit.Schema != "adaptive_gpt.sensenova_edit_oracle/v1" {
 			return "", math.NaN(), "", fmt.Errorf("schema=%q", edit.Schema)
 		}
@@ -160,11 +113,11 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 			return "", math.NaN(), "", fmt.Errorf("source embedding: %w", err)
 		}
 		grid := edit.SourceContract.GridHW[0]
-		return verdictDerive, math.NaN(), fmt.Sprintf("grid=%dx%d tokens=%d pixel_samples=%d embed_samples=%d prefix_layers=%v",
+		return parity.Derived, math.NaN(), fmt.Sprintf("grid=%dx%d tokens=%d pixel_samples=%d embed_samples=%d prefix_layers=%v",
 			grid[0], grid[1], edit.SourceContract.TokenCount, pixelSamples, embedSamples, sortedLayerKeys(edit.PrefixLayers)), nil
 	})
 
-	l.stage("gen_fixture_load", func() (string, float64, string, error) {
+	l.Run("gen_fixture_load", func() (parity.Verdict, float64, string, error) {
 		if gen.Schema != "adaptive_gpt.sensenova_generation_oracle/v1" {
 			return "", math.NaN(), "", fmt.Errorf("schema=%q", gen.Schema)
 		}
@@ -178,12 +131,12 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 		if err != nil {
 			return "", math.NaN(), "", fmt.Errorf("gen z probes: %w", err)
 		}
-		return verdictDerive, math.NaN(), fmt.Sprintf("cond_ids=%d uncond_ids=%d z_samples=%d",
+		return parity.Derived, math.NaN(), fmt.Sprintf("cond_ids=%d uncond_ids=%d z_samples=%d",
 			len(gen.TextInputs.ConditionalIDs), len(gen.TextInputs.UnconditionalIDs), zSamples), nil
 	})
 
 	// ---- rope plan derivation (real checkpoint) ---------------------------
-	l.stage("rope_plan_derive", func() (string, float64, string, error) {
+	l.Run("rope_plan_derive", func() (parity.Verdict, float64, string, error) {
 		plan, err := routedlm.CompileRopePlan(src, cfg, binding)
 		if err != nil {
 			return "", math.NaN(), "", err
@@ -206,11 +159,11 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 		if total != cfg.HeadDim {
 			return "", math.NaN(), "", fmt.Errorf("sections span %d != head_dim %d", total, cfg.HeadDim)
 		}
-		return verdictDerive, 0, fmt.Sprintf("sections=[64/5e6/T, 32/1e4/H, 32/1e4/W] head_dim=%d (widths from k/q_norm tensors, thetas from llm_config)", cfg.HeadDim), nil
+		return parity.Derived, 0, fmt.Sprintf("sections=[64/5e6/T, 32/1e4/H, 32/1e4/W] head_dim=%d (widths from k/q_norm tensors, thetas from llm_config)", cfg.HeadDim), nil
 	})
 
 	// ---- flow plan derivation (real checkpoint) ---------------------------
-	l.stage("flow_plan_derive", func() (string, float64, string, error) {
+	l.Run("flow_plan_derive", func() (parity.Verdict, float64, string, error) {
 		flowPlan, err = routedlm.CompileFlowPlan(src, cfg, flowCfg, flowBind)
 		if err != nil {
 			return "", math.NaN(), "", err
@@ -229,12 +182,12 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 		if shape.NoiseScale != 1 || flowPlan.NormalizedNoiseScale(shape.NoiseScale) != 0.125 {
 			return "", math.NaN(), "", fmt.Errorf("256x256 sigma=%g normalized=%g", shape.NoiseScale, flowPlan.NormalizedNoiseScale(shape.NoiseScale))
 		}
-		return verdictDerive, 0, fmt.Sprintf("hidden=%d vision_hidden=%d merge=%d flow_dim=%d freq_dim=%d tokens256=%d sigma=%g",
+		return parity.Derived, 0, fmt.Sprintf("hidden=%d vision_hidden=%d merge=%d flow_dim=%d freq_dim=%d tokens256=%d sigma=%g",
 			flowPlan.Hidden, flowPlan.VisionHidden, flowPlan.ImageMerge, flowPlan.FlowDim, flowPlan.FrequencyDim, shape.Tokens, shape.NoiseScale), nil
 	})
 
 	// ---- schedule knots (real oracle, exact) ------------------------------
-	l.stage("edit_schedule", func() (string, float64, string, error) {
+	l.Run("edit_schedule", func() (parity.Verdict, float64, string, error) {
 		sched, err := routedlm.ShiftedFlowTimeSchedule(edit.Request.Steps, edit.Request.TimestepShift)
 		if err != nil {
 			return "", math.NaN(), "", err
@@ -247,10 +200,10 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 		if worst > 1e-9 {
 			return "", worst, "", fmt.Errorf("schedule %v vs oracle knots, worst=%.3e", sched, worst)
 		}
-		return verdictOracle, worst, fmt.Sprintf("shift=%g steps=%d knots=%v", edit.Request.TimestepShift, edit.Request.Steps, sched), nil
+		return parity.Oracle, worst, fmt.Sprintf("shift=%g steps=%d knots=%v", edit.Request.TimestepShift, edit.Request.Steps, sched), nil
 	})
 
-	l.stage("gen_schedule", func() (string, float64, string, error) {
+	l.Run("gen_schedule", func() (parity.Verdict, float64, string, error) {
 		sched, err := routedlm.ShiftedFlowTimeSchedule(gen.Request.Steps, gen.Request.TimestepShift)
 		if err != nil {
 			return "", math.NaN(), "", err
@@ -263,11 +216,11 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 		if worst > 1e-9 {
 			return "", worst, "", fmt.Errorf("schedule %v vs oracle knots, worst=%.3e", sched, worst)
 		}
-		return verdictOracle, worst, fmt.Sprintf("shift=%g steps=%d knots=%v", gen.Request.TimestepShift, gen.Request.Steps, sched), nil
+		return parity.Oracle, worst, fmt.Sprintf("shift=%g steps=%d knots=%v", gen.Request.TimestepShift, gen.Request.Steps, sched), nil
 	})
 
 	// ---- z geometry + derived noise sigma (real oracle) -------------------
-	l.stage("gen_z_sigma", func() (string, float64, string, error) {
+	l.Run("gen_z_sigma", func() (parity.Verdict, float64, string, error) {
 		shape, err := flowPlan.ImagePlan(gen.Request.Width, gen.Request.Height)
 		if err != nil {
 			return "", math.NaN(), "", err
@@ -282,10 +235,10 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 		if worst > 0.01*sigma {
 			return "", worst, "", fmt.Errorf("z std=%g vs derived sigma=%g (worst=%.3e > %.3e)", z.Std, sigma, worst, 0.01*sigma)
 		}
-		return verdictOracle, worst, fmt.Sprintf("z elements=%d std=%.5f derived_sigma=%g (256x256 tokens=%d)", z.Elements, z.Std, sigma, shape.Tokens), nil
+		return parity.Oracle, worst, fmt.Sprintf("z elements=%d std=%.5f derived_sigma=%g (256x256 tokens=%d)", z.Elements, z.Std, sigma, shape.Tokens), nil
 	})
 
-	l.stage("edit_z_geometry", func() (string, float64, string, error) {
+	l.Run("edit_z_geometry", func() (parity.Verdict, float64, string, error) {
 		shape, err := flowPlan.ImagePlan(edit.Request.Width, edit.Request.Height)
 		if err != nil {
 			return "", math.NaN(), "", err
@@ -308,11 +261,11 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 				return "", math.NaN(), "", fmt.Errorf("%s elements=%d != derived %d", c.name, c.got, c.want)
 			}
 		}
-		return verdictDerive, 0, fmt.Sprintf("z/vel/next_z=%d (tokens*flow_dim) boundaries=%d (tokens*hidden) tokens=%d", zElems, bElems, shape.Tokens), nil
+		return parity.Derived, 0, fmt.Sprintf("z/vel/next_z=%d (tokens*flow_dim) boundaries=%d (tokens*hidden) tokens=%d", zElems, bElems, shape.Tokens), nil
 	})
 
 	// ---- source-contract geometry (real oracle, structural) ---------------
-	l.stage("edit_source_geometry", func() (string, float64, string, error) {
+	l.Run("edit_source_geometry", func() (parity.Verdict, float64, string, error) {
 		grid := edit.SourceContract.GridHW[0]
 		if grid[0] != grid[1] {
 			return "", math.NaN(), "", fmt.Errorf("non-square source grid %v", grid)
@@ -329,12 +282,12 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 			}
 		}
 		sourceImage := grid[0] * flowPlan.VisionPatch
-		return verdictDerive, 0, fmt.Sprintf("grid=%dx%d merge=%d -> tokens=%d (source image %dx%d px)",
+		return parity.Derived, 0, fmt.Sprintf("grid=%dx%d merge=%d -> tokens=%d (source image %dx%d px)",
 			grid[0], grid[1], flowPlan.ImageMerge, wantTokens, sourceImage, sourceImage), nil
 	})
 
 	// ---- flow terminal wiring (ORACLE-ABSENT: no fixture for these) --------
-	l.stage("flow_terminal_wiring", func() (string, float64, string, error) {
+	l.Run("flow_terminal_wiring", func() (parity.Verdict, float64, string, error) {
 		weights, err := routedlm.LoadFlowTerminalWeights(src, flowPlan, flowBind)
 		if err != nil {
 			return "", math.NaN(), "", err
@@ -379,11 +332,11 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 				return "", math.NaN(), "", fmt.Errorf("velocity has non-finite value")
 			}
 		}
-		return verdictWired, math.NaN(), fmt.Sprintf("ORACLE-ABSENT: condition row (%d nonzero/%d) + flow head (len=%d) forward finite on real weights; fixtures carry no condition/head-output tensor", nonzero, len(cond), len(velocity)), nil
+		return parity.Wired, math.NaN(), fmt.Sprintf("ORACLE-ABSENT: condition row (%d nonzero/%d) + flow head (len=%d) forward finite on real weights; fixtures carry no condition/head-output tensor", nonzero, len(cond), len(velocity)), nil
 	})
 
 	// ---- vision embedder wiring (ORACLE-ABSENT for value; input sampled) ---
-	l.stage("vision_embedder_wiring", func() (string, float64, string, error) {
+	l.Run("vision_embedder_wiring", func() (parity.Verdict, float64, string, error) {
 		for _, prefix := range []struct {
 			name string
 			p    string
@@ -395,12 +348,12 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 				return "", math.NaN(), "", fmt.Errorf("%s embedder: %w", prefix.name, err)
 			}
 		}
-		return verdictWired, math.NaN(), fmt.Sprintf("ORACLE-ABSENT: both conv embedders load+shape-validate on real checkpoint; value parity BLOCKED — source_contract.pixels is a %d/%d-sample probe (need external source image to reconstruct the embedder input)",
+		return parity.Wired, math.NaN(), fmt.Sprintf("ORACLE-ABSENT: both conv embedders load+shape-validate on real checkpoint; value parity BLOCKED — source_contract.pixels is a %d/%d-sample probe (need external source image to reconstruct the embedder input)",
 			edit.SourceContract.Pixels.sampleCount(), edit.SourceContract.Pixels.Elements), nil
 	})
 
 	// ---- text_inputs (real sha256 oracle; renderer ported) ----------------
-	l.stage("text_inputs", func() (string, float64, string, error) {
+	l.Run("text_inputs", func() (parity.Verdict, float64, string, error) {
 		tok, err := hfbpe.LoadSplit(modelDir)
 		if err != nil {
 			return "", math.NaN(), "", fmt.Errorf("load tokenizer: %w", err)
@@ -445,12 +398,12 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 				}
 			}
 		}
-		return verdictOracle, 0, fmt.Sprintf("ids+time+height+width sha256 match: conditional=%d source_only=%d tokens (renderer=routedlm.RenderEditPrompt, tokenizer=hfbpe.LoadSplit vocab+merges, template=SenseNovaPromptTemplate, merge=%d source=%dx%d=%d)",
+		return parity.Oracle, 0, fmt.Sprintf("ids+time+height+width sha256 match: conditional=%d source_only=%d tokens (renderer=routedlm.RenderEditPrompt, tokenizer=hfbpe.LoadSplit vocab+merges, template=SenseNovaPromptTemplate, merge=%d source=%dx%d=%d)",
 			edit.TextInputs.Conditional.IDs.Elements, edit.TextInputs.SourceOnly.IDs.Elements, merge, source.TokenHeight, source.TokenWidth, source.TokenCount), nil
 	})
 
 	// ---- FRONTIER: prefix / KV / generation forward parity ----------------
-	l.stage("prefix_forward_frontier", func() (string, float64, string, error) {
+	l.Run("prefix_forward_frontier", func() (parity.Verdict, float64, string, error) {
 		pk := edit.PrefixKV["0"].Conditional.Keys
 		pl := edit.PrefixLayers["0"].Conditional
 		detail := fmt.Sprintf("FRONTIER: prefix_layers/prefix_kv/generation_layers parity (probes at layers %v). "+
@@ -459,13 +412,13 @@ func run(l *ladder, modelDir, fixturesDir string) error {
 			"(3) generation-branch denoise stack (cross-attn to prefix KV + condition inject + flow head) NOT ported. Each probe is sparse (kv=%d/%d, hidden=%d/%d), so a FULL 42-layer/%d-token forward is required to evaluate any single probe.",
 			sortedLayerKeys(edit.PrefixLayers), edit.SourceContract.Embedding.sampleCount(), edit.SourceContract.Embedding.Elements,
 			pk.sampleCount(), pk.Elements, pl.sampleCount(), pl.Elements, edit.TextInputs.Conditional.IDs.Elements)
-		return verdictFrontier, math.NaN(), detail, nil
+		return parity.Frontier, math.NaN(), detail, nil
 	})
 
 	// ---- FRONTIER: guided velocity / next_z (generation oracle) ------------
-	l.stage("velocity_frontier", func() (string, float64, string, error) {
+	l.Run("velocity_frontier", func() (parity.Verdict, float64, string, error) {
 		detail := "FRONTIER: guided velocity + next_z parity needs the full generation body output (see prefix_forward_frontier). Seeded z is exact through shared torchrng. The generation oracle carries only terminal probes, so the 42-layer body must be verified end-to-end."
-		return verdictFrontier, math.NaN(), detail, nil
+		return parity.Frontier, math.NaN(), detail, nil
 	})
 
 	return nil

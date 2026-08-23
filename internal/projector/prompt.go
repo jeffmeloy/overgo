@@ -415,35 +415,8 @@ func resolveProjectorDescriptor(file *gguf.File) (projectorDescriptor, error) {
 	return projectorDescriptor{}, fmt.Errorf("projector: artifact projector type %q is unsupported", projectorType)
 }
 
-func (r *Granite4VisionRunner) imagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	options PromptOptions,
-) (MultimodalPrompt, error) {
-	history := options.History
-	plan := imagePromptPlan{
-		Family: "Granite 4 Vision", Placeholder: Granite4VisionImageToken,
-		PlaceholderLabel: "Granite 4 Vision image token", AddSpecial: history,
-		EmbeddingWidth: r.spec.ProjectionDim, EmbeddingOffset: tensor.SingletonExtent,
-		Render: func(text []string, items []imagePromptItem) string {
-			var prompt strings.Builder
-			if !history {
-				prompt.WriteString("<|start_of_role|>user<|end_of_role|>\n")
-			}
-			for index, item := range items {
-				prompt.WriteString(text[index])
-				prompt.WriteString(strings.Repeat(Granite4VisionImageToken, item.RunCount))
-			}
-			prompt.WriteString(text[len(text)-1])
-			if !history {
-				prompt.WriteString("<|end_of_text|>\n<|start_of_role|>assistant<|end_of_role|>\n")
-			}
-			return prompt.String()
-		},
-	}
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
+func (r *Granite4VisionRunner) imagePromptProgram() compiledImagePromptProgram {
+	encode := func(ctx context.Context, source image.Image) (imagePromptItem, error) {
 		output, err := r.EncodeImage(ctx, source)
 		if err != nil {
 			return imagePromptItem{}, err
@@ -456,268 +429,199 @@ func (r *Granite4VisionRunner) imagesPrompt(
 		return imagePromptItem{
 			Embeddings: output.Embeddings.Data, Deepstack: deepstack, Count: count, RunCount: count + tensor.SingletonExtent,
 		}, nil
-	})
+	}
+	return compileFramedImagePromptProgram(imagePromptPlan{
+		Family: "Granite 4 Vision", Placeholder: Granite4VisionImageToken,
+		PlaceholderLabel: "Granite 4 Vision image token", EmbeddingWidth: r.spec.ProjectionDim,
+		EmbeddingOffset: tensor.SingletonExtent,
+	}, promptDelimiters{
+		Prefix: "<|start_of_role|>user<|end_of_role|>\n",
+		Suffix: "<|end_of_text|>\n<|start_of_role|>assistant<|end_of_role|>\n",
+	}, promptDelimiters{}, encode)
 }
 
-func (r *Llama4VisionRunner) imagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	options PromptOptions,
-) (MultimodalPrompt, error) {
-	history := options.History
-	plan := imagePromptPlan{
+func (r *Llama4VisionRunner) imagePromptProgram() compiledImagePromptProgram {
+	encode := func(ctx context.Context, source image.Image) (imagePromptItem, error) {
+		output, err := r.EncodeImage(ctx, source)
+		if err != nil {
+			return imagePromptItem{}, err
+		}
+		return imagePromptItem{Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])}, nil
+	}
+	return compileFramedImagePromptProgram(imagePromptPlan{
 		Family: "Llama-4", Placeholder: Llama4ImagePad, PlaceholderLabel: "Llama-4 placeholder",
-		AddSpecial: history, EmbeddingWidth: r.spec.OutputHidden,
-		Render: func(text []string, items []imagePromptItem) string {
-			var prompt strings.Builder
-			if !history {
-				prompt.WriteString("<|begin_of_text|><|header_start|>user<|header_end|>\n\n")
-			}
-			for index, item := range items {
-				prompt.WriteString(text[index])
-				prompt.WriteString(Llama4ImageStart)
-				prompt.WriteString(strings.Repeat(Llama4ImagePad, item.RunCount))
-				prompt.WriteString(Llama4ImageEnd)
-			}
-			prompt.WriteString(text[len(text)-1])
-			if !history {
-				prompt.WriteString("<|eot|><|header_start|>assistant<|header_end|>\n\n")
-			}
-			return prompt.String()
-		},
-	}
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
-		output, err := r.EncodeImage(ctx, source)
-		if err != nil {
-			return imagePromptItem{}, err
-		}
-		return imagePromptItem{Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])}, nil
-	})
+		EmbeddingWidth: r.spec.OutputHidden,
+	}, promptDelimiters{
+		Prefix: "<|begin_of_text|><|header_start|>user<|header_end|>\n\n",
+		Suffix: "<|eot|><|header_start|>assistant<|header_end|>\n\n",
+	}, promptDelimiters{Prefix: Llama4ImageStart, Suffix: Llama4ImageEnd}, encode)
 }
 
-func (r *HunyuanVLRunner) imagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	options PromptOptions,
-) (MultimodalPrompt, error) {
-	history := options.History
-	plan := imagePromptPlan{
+func (r *HunyuanVLRunner) imagePromptProgram() compiledImagePromptProgram {
+	return compileFramedImagePromptProgram(imagePromptPlan{
 		Family: "Hunyuan-VL", Placeholder: HunyuanVLImagePad, PlaceholderLabel: "Hunyuan-VL placeholder",
-		AddSpecial: history, EmbeddingWidth: r.spec.OutputHidden, Positions: hunyuanImagePromptPositions,
-		Render: func(text []string, items []imagePromptItem) string {
-			var prompt strings.Builder
-			if !history {
-				prompt.WriteString("<｜hy_begin▁of▁sentence｜>")
-			}
-			for index, item := range items {
-				prompt.WriteString(text[index])
-				prompt.WriteString(HunyuanVLImageStart)
-				prompt.WriteString(strings.Repeat(HunyuanVLImagePad, item.RunCount))
-				prompt.WriteString(HunyuanVLImageEnd)
-			}
-			prompt.WriteString(text[len(text)-1])
-			if !history {
-				prompt.WriteString("<｜hy_User｜>")
-			}
-			return prompt.String()
-		},
-	}
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, gridImagePromptEncoder(r.EncodeImage))
+		EmbeddingWidth: r.spec.OutputHidden, Positions: hunyuanImagePromptPositions,
+	}, promptDelimiters{
+		Prefix: "<｜hy_begin▁of▁sentence｜>", Suffix: "<｜hy_User｜>",
+	}, promptDelimiters{Prefix: HunyuanVLImageStart, Suffix: HunyuanVLImageEnd}, gridImagePromptEncoder(r.EncodeImage))
 }
 
-func (r *PaddleOCRRunner) imagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	options PromptOptions,
-) (MultimodalPrompt, error) {
-	history := options.History
-	plan := imagePromptPlan{
-		Family: "PaddleOCR", Placeholder: PaddleOCRImagePad, PlaceholderLabel: "PaddleOCR placeholder",
-		AddSpecial: history, EmbeddingWidth: r.spec.OutputHidden, Positions: qwenImagePromptPositions,
-		Render: func(text []string, items []imagePromptItem) string {
-			var prompt strings.Builder
-			if !history {
-				prompt.WriteString("<|begin_of_sentence|>User: ")
-			}
-			for index, item := range items {
+func (r *PaddleOCRRunner) imagePromptProgram() compiledImagePromptProgram {
+	compile := func(history bool) imagePromptPlan {
+		return imagePromptPlan{
+			Family: "PaddleOCR", Placeholder: PaddleOCRImagePad, PlaceholderLabel: "PaddleOCR placeholder",
+			AddSpecial: history, EmbeddingWidth: r.spec.OutputHidden, Positions: grid2DImagePromptPositions,
+			Render: func(text []string, items []imagePromptItem) string {
+				var prompt strings.Builder
+				if !history {
+					prompt.WriteString("<|begin_of_sentence|>User: ")
+				}
+				for index, item := range items {
+					if history {
+						prompt.WriteString(text[index])
+					}
+					prompt.WriteString("<|IMAGE_START|>")
+					prompt.WriteString(strings.Repeat(PaddleOCRImagePad, item.RunCount))
+					prompt.WriteString("<|IMAGE_END|>")
+				}
 				if history {
-					prompt.WriteString(text[index])
+					prompt.WriteString(text[len(text)-1])
+				} else {
+					for _, fragment := range text {
+						prompt.WriteString(fragment)
+					}
+					prompt.WriteString("\nAssistant: ")
 				}
-				prompt.WriteString("<|IMAGE_START|>")
-				prompt.WriteString(strings.Repeat(PaddleOCRImagePad, item.RunCount))
-				prompt.WriteString("<|IMAGE_END|>")
-			}
-			if history {
-				prompt.WriteString(text[len(text)-1])
-			} else {
-				for _, fragment := range text {
-					prompt.WriteString(fragment)
-				}
-				prompt.WriteString("\nAssistant: ")
-			}
-			return prompt.String()
-		},
+				return prompt.String()
+			},
+		}
 	}
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, gridImagePromptEncoder(r.EncodeImage))
+	return compiledImagePromptProgram{
+		Default: compile(false),
+		History: compile(true),
+		Encode:  gridImagePromptEncoder(r.EncodeImage),
+	}
 }
 
-func (r *MiMoVLRunner) imagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	options PromptOptions,
-) (MultimodalPrompt, error) {
-	history := options.History
-	plan := imagePromptPlan{
-		Family: "MiMo-VL", Placeholder: Qwen3VLImagePad, PlaceholderLabel: "MiMo-VL placeholder",
-		AddSpecial: history, EmbeddingWidth: r.spec.ProjectionDim,
-		Render: func(text []string, items []imagePromptItem) string {
-			var prompt strings.Builder
-			if !history {
-				prompt.WriteString("<|im_start|>system\n")
-				prompt.WriteString(MiMoVLSystemPrompt)
-				prompt.WriteString("<|im_end|>\n<|im_start|>user\n")
-			}
-			for index, item := range items {
-				prompt.WriteString(text[index])
-				prompt.WriteString("<|vision_start|>")
-				prompt.WriteString(strings.Repeat(Qwen3VLImagePad, item.RunCount))
-				prompt.WriteString("<|vision_end|>")
-			}
-			prompt.WriteString(text[len(text)-1])
-			if !history {
-				prompt.WriteString("<|im_end|>\n<|im_start|>assistant\n")
-			}
-			return prompt.String()
-		},
-	}
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, func(ctx context.Context, source image.Image) (imagePromptItem, error) {
+func (r *MiMoVLRunner) imagePromptProgram() compiledImagePromptProgram {
+	encode := func(ctx context.Context, source image.Image) (imagePromptItem, error) {
 		output, err := r.EncodeImage(ctx, source)
 		if err != nil {
 			return imagePromptItem{}, err
 		}
 		return imagePromptItem{Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])}, nil
-	})
+	}
+	return compileFramedImagePromptProgram(imagePromptPlan{
+		Family: "MiMo-VL", Placeholder: Qwen3VLImagePad, PlaceholderLabel: "MiMo-VL placeholder",
+		EmbeddingWidth: r.spec.ProjectionDim,
+	}, promptDelimiters{
+		Prefix: "<|im_start|>system\n" + MiMoVLSystemPrompt + "<|im_end|>\n<|im_start|>user\n",
+		Suffix: "<|im_end|>\n<|im_start|>assistant\n",
+	}, promptDelimiters{Prefix: "<|vision_start|>", Suffix: "<|vision_end|>"}, encode)
 }
 
-func (r *Qwen2VLRunner) imagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	options PromptOptions,
-) (MultimodalPrompt, error) {
-	history := options.History
-	plan := qwenImagePlan("Qwen2-VL", history, r.spec.OutputHidden, func(text []string, items []imagePromptItem) string {
-		return renderQwenImagePrompt(text, items, history, "<|im_end|>\n<|im_start|>assistant\n")
-	})
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, qwenImagePromptEncoder(r.EncodeImage))
+func (r *Qwen2VLRunner) imagePromptProgram() compiledImagePromptProgram {
+	return compileSpatialChatImagePromptProgram(
+		"Qwen2-VL", r.spec.OutputHidden, "<|im_end|>\n<|im_start|>assistant\n", "",
+		spatialGridImagePromptEncoder(r.EncodeImage),
+	)
 }
 
-func (r *Qwen2VLRunner) videoPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	frames []image.Image,
-	beforeVideo, afterVideo string,
-	_ float64,
-	_ bool,
-) (MultimodalPrompt, error) {
-	if tokenizer == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
-	}
-	output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	count := int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])
-	rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
-	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
-		mediaPromptRunPlan: mediaPromptRunPlan{
-			Prompt: "<|im_start|>user\n" + beforeVideo + "<|vision_start|>" +
-				strings.Repeat(Qwen3VLVideoPad, count) + "<|vision_end|>" + afterVideo +
-				"<|im_end|>\n<|im_start|>assistant\n",
-			Placeholder: Qwen3VLVideoPad, Runs: tensor.SingletonExtent, TokensPerRun: count,
-			PromptLabel: "Qwen2-VL video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "Qwen2-VL video prompt",
-		},
-		Embeddings: output.Embeddings.Data, EmbeddingWidth: r.spec.OutputHidden,
-		Positions: func(tokenCount int, starts []int) ([tensor.MaxDimensions][]uint32, error) {
-			return compileSpatialPositions(tokenCount, positionGrid3D, []spatialPositionChunk{{
-				Start: starts[0], Extents: [tensor.TripleExtent]int{rows, columns, output.GridT},
-			}})
-		},
-	})
+func (r *Qwen2VLRunner) mediaPromptProgram() compiledMediaPromptProgram {
+	return compiledMediaPromptProgram{Video: func(
+		ctx context.Context,
+		tokenizer ImageTokenizer,
+		frames []image.Image,
+		beforeVideo, afterVideo string,
+		_ float64,
+		_ bool,
+	) (MultimodalPrompt, error) {
+		if tokenizer == nil {
+			return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+		}
+		output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
+		if err != nil {
+			return MultimodalPrompt{}, err
+		}
+		count := int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])
+		rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
+		return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
+			mediaPromptRunPlan: mediaPromptRunPlan{
+				Prompt: "<|im_start|>user\n" + beforeVideo + "<|vision_start|>" +
+					strings.Repeat(Qwen3VLVideoPad, count) + "<|vision_end|>" + afterVideo +
+					"<|im_end|>\n<|im_start|>assistant\n",
+				Placeholder: Qwen3VLVideoPad, Runs: tensor.SingletonExtent, TokensPerRun: count,
+				PromptLabel: "Qwen2-VL video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "Qwen2-VL video prompt",
+			},
+			Embeddings: output.Embeddings.Data, EmbeddingWidth: r.spec.OutputHidden,
+			Positions: func(tokenCount int, starts []int) ([tensor.MaxDimensions][]uint32, error) {
+				return compileSpatialPositions(tokenCount, positionGrid3D, []spatialPositionChunk{{
+					Start: starts[0], Extents: [tensor.TripleExtent]int{rows, columns, output.GridT},
+				}})
+			},
+		})
+	}}
 }
 
-func (r *Gemma4Runner) imagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	options PromptOptions,
-) (MultimodalPrompt, error) {
-	if err := validateImagePromptInputs(tokenizer, sources, text, "Gemma 4"); err != nil {
-		return MultimodalPrompt{}, err
-	}
-	if !options.History {
-		for _, segment := range text[:len(text)-1] {
-			if strings.TrimSpace(segment) != "" {
-				return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires images before user text")
-			}
+func (r *Gemma4Runner) imagePromptProgram() compiledImagePromptProgram {
+	compile := func(history bool) imagePromptPlan {
+		return imagePromptPlan{
+			Family: "Gemma 4", Placeholder: "<|image|>", PlaceholderLabel: "Gemma 4 image placeholder",
+			AddSpecial: history, EmbeddingWidth: r.spec.Hidden, AttentionBlocks: imagePromptBlocks,
+			Render: func(text []string, items []imagePromptItem) string {
+				var prompt strings.Builder
+				if !history {
+					prompt.WriteString("<bos><|turn>user\n")
+				}
+				for index, item := range items {
+					if history {
+						prompt.WriteString(text[index])
+					}
+					prompt.WriteString("<|image>")
+					prompt.WriteString(strings.Repeat("<|image|>", item.RunCount))
+					prompt.WriteString("<image|>")
+				}
+				if history {
+					prompt.WriteString(text[len(text)-1])
+				} else {
+					prompt.WriteString(strings.TrimSpace(text[len(text)-1]))
+					prompt.WriteString("<turn|>\n<|turn>model\n<|channel>thought\n<channel|>")
+				}
+				return prompt.String()
+			},
 		}
 	}
-	plan := imagePromptPlan{
-		Family: "Gemma 4", Placeholder: "<|image|>", PlaceholderLabel: "Gemma 4 image placeholder",
-		AddSpecial: options.History, EmbeddingWidth: r.spec.Hidden, AttentionBlocks: imagePromptBlocks,
-		Render: func(text []string, items []imagePromptItem) string {
-			var prompt strings.Builder
+	return compiledImagePromptProgram{
+		Default: compile(false),
+		History: compile(true),
+		Encode: func(ctx context.Context, source image.Image) (imagePromptItem, error) {
+			output, err := r.EncodeImage(ctx, source)
+			if err != nil {
+				return imagePromptItem{}, err
+			}
+			return imagePromptItem{
+				Embeddings: output.Embeddings.Data,
+				Count:      int(output.Embeddings.Shape.Dims[tensor.SingletonExtent]),
+			}, nil
+		},
+		Prepare: func(text []string, options PromptOptions) ([]string, error) {
+			if len(text) < tensor.SingletonExtent {
+				return nil, errors.New("projector: Gemma 4 image/text sequence is inconsistent")
+			}
 			if !options.History {
-				prompt.WriteString("<bos><|turn>user\n")
-			}
-			for index, item := range items {
-				if options.History {
-					prompt.WriteString(text[index])
+				for _, segment := range text[:len(text)-tensor.SingletonExtent] {
+					if strings.TrimSpace(segment) != "" {
+						return nil, errors.New("projector: Gemma 4 requires images before user text")
+					}
 				}
-				prompt.WriteString("<|image>")
-				prompt.WriteString(strings.Repeat("<|image|>", item.RunCount))
-				prompt.WriteString("<image|>")
 			}
-			if options.History {
-				prompt.WriteString(text[len(text)-1])
-			} else {
-				prompt.WriteString(strings.TrimSpace(text[len(text)-1]))
-				prompt.WriteString("<turn|>\n<|turn>model\n<|channel>thought\n<channel|>")
-			}
-			return prompt.String()
+			return text, nil
 		},
 	}
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, r.gemma4ImagePromptItem)
 }
 
-func (r *Gemma4Runner) gemma4ImagePromptItem(ctx context.Context, source image.Image) (imagePromptItem, error) {
-	output, err := r.EncodeImage(ctx, source)
-	if err != nil {
-		return imagePromptItem{}, err
-	}
-	return imagePromptItem{
-		Embeddings: output.Embeddings.Data,
-		Count:      int(output.Embeddings.Shape.Dims[tensor.SingletonExtent]),
-	}, nil
-}
-
-func (r *Gemma4Runner) mediaHistoryPrompt(
-	ctx context.Context,
-	tokenizerAPI ImageTokenizer,
-	media []MediaInput,
-	text []string,
-) (MultimodalPrompt, error) {
-	plan := mixedMediaPromptPlan{
+func (r *Gemma4Runner) mediaPromptProgram() compiledMediaPromptProgram {
+	history := mixedMediaPromptPlan{
 		Family: "Gemma 4", AddSpecial: true, EmbeddingWidth: r.spec.Hidden, PromptLabel: "Gemma 4 media history",
 		Render: renderMixedMediaHistory,
 		Kinds: map[MediaKind]mixedMediaKindPlan{
@@ -745,77 +649,79 @@ func (r *Gemma4Runner) mediaHistoryPrompt(
 			},
 		},
 	}
-	return executeMixedMediaPromptPlan(ctx, tokenizerAPI, media, text, plan)
-}
-
-func (r *Gemma4Runner) audioPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	samples []float32,
-	beforeAudio, afterAudio string,
-) (MultimodalPrompt, error) {
-	if tokenizer == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	video := func(
+		ctx context.Context,
+		tokenizer ImageTokenizer,
+		frames []image.Image,
+		beforeVideo, afterVideo string,
+		fps float64,
+		_ bool,
+	) (MultimodalPrompt, error) {
+		if tokenizer == nil {
+			return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+		}
+		if strings.TrimSpace(beforeVideo) != "" {
+			return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires video before user text")
+		}
+		if !checked.PositiveFinite64(fps) {
+			return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
+		}
+		output, err := r.EncodeVideoFrames(ctx, frames)
+		if err != nil {
+			return MultimodalPrompt{}, err
+		}
+		return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
+			mediaPromptRunPlan: mediaPromptRunPlan{
+				Prompt: Gemma4VideoPromptText(afterVideo, output.Frames, output.TokensPerFrame, fps), Placeholder: "<|video|>",
+				Runs: output.Frames, TokensPerRun: output.TokensPerFrame,
+				PromptLabel: "Gemma 4 video prompt", PlaceholderLabel: "Gemma 4 video placeholder", RunsLabel: "Gemma 4 video prompt",
+			},
+			Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
+			AttentionBlocks: mediaPromptAttentionBlocks,
+		})
 	}
-	if strings.TrimSpace(beforeAudio) != "" {
-		return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires audio before user text")
-	}
-	output, err := r.EncodeAudio(ctx, samples)
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	audioTokens := int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])
-	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
-		mediaPromptRunPlan: mediaPromptRunPlan{
-			Prompt: Gemma4AudioPromptText(afterAudio, audioTokens), Placeholder: "<|audio|>",
-			Runs: tensor.SingletonExtent, TokensPerRun: audioTokens,
-			PromptLabel: "Gemma 4 audio prompt", PlaceholderLabel: "Gemma 4 audio placeholder", RunsLabel: "Gemma 4 audio prompt",
+	return compiledMediaPromptProgram{
+		Video: video,
+		History: func(ctx context.Context, tokenizer ImageTokenizer, media []MediaInput, text []string) (MultimodalPrompt, error) {
+			return executeMixedMediaPromptPlan(ctx, tokenizer, media, text, history)
 		},
-		Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
-	})
-}
-
-func (r *Gemma4Runner) audioSampleRate() (int, error) {
-	spec, err := r.AudioSpec()
-	return spec.SampleRate, err
+		Audio: func(
+			ctx context.Context,
+			tokenizer ImageTokenizer,
+			samples []float32,
+			beforeAudio, afterAudio string,
+		) (MultimodalPrompt, error) {
+			if tokenizer == nil {
+				return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+			}
+			if strings.TrimSpace(beforeAudio) != "" {
+				return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires audio before user text")
+			}
+			output, err := r.EncodeAudio(ctx, samples)
+			if err != nil {
+				return MultimodalPrompt{}, err
+			}
+			audioTokens := int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])
+			return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
+				mediaPromptRunPlan: mediaPromptRunPlan{
+					Prompt: Gemma4AudioPromptText(afterAudio, audioTokens), Placeholder: "<|audio|>",
+					Runs: tensor.SingletonExtent, TokensPerRun: audioTokens,
+					PromptLabel: "Gemma 4 audio prompt", PlaceholderLabel: "Gemma 4 audio placeholder", RunsLabel: "Gemma 4 audio prompt",
+				},
+				Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
+			})
+		},
+		AudioSampleRate: func() (int, error) {
+			spec, err := r.AudioSpec()
+			return spec.SampleRate, err
+		},
+	}
 }
 
 func Gemma4AudioPromptText(question string, audioTokens int) string {
 	return "<bos><|turn>user\n<|audio>" + strings.Repeat("<|audio|>", audioTokens) +
 		"<audio|>" + strings.TrimSpace(question) +
 		"<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
-}
-
-func (r *Gemma4Runner) videoPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	frames []image.Image,
-	beforeVideo, afterVideo string,
-	fps float64,
-	_ bool,
-) (MultimodalPrompt, error) {
-	if tokenizer == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
-	}
-	if strings.TrimSpace(beforeVideo) != "" {
-		return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires video before user text")
-	}
-	if !checked.PositiveFinite64(fps) {
-		return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
-	}
-	output, err := r.EncodeVideoFrames(ctx, frames)
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
-		mediaPromptRunPlan: mediaPromptRunPlan{
-			Prompt: Gemma4VideoPromptText(afterVideo, output.Frames, output.TokensPerFrame, fps), Placeholder: "<|video|>",
-			Runs: output.Frames, TokensPerRun: output.TokensPerFrame,
-			PromptLabel: "Gemma 4 video prompt", PlaceholderLabel: "Gemma 4 video placeholder", RunsLabel: "Gemma 4 video prompt",
-		},
-		Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
-		AttentionBlocks: mediaPromptAttentionBlocks,
-	})
 }
 
 func Gemma4VideoPromptText(question string, frames, tokensPerFrame int, fps float64) string {
@@ -836,66 +742,56 @@ func Gemma4VideoPromptText(question string, frames, tokensPerFrame int, fps floa
 	return prompt.String()
 }
 
-func (r *Qwen3VLRunner) imagesPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	options PromptOptions,
-) (MultimodalPrompt, error) {
-	suffix := ""
-	if !options.History {
-		suffix = "<|im_end|>\n<|im_start|>assistant\n<think>\n"
-		if !options.Thinking {
-			suffix += "\n</think>\n\n"
-		}
-	}
-	plan := qwenImagePlan("Qwen3-VL", options.History, r.spec.OutputHidden, func(text []string, items []imagePromptItem) string {
-		return renderQwenImagePrompt(text, items, options.History, suffix)
-	})
-	return executeImagePromptPlan(ctx, tokenizer, sources, text, plan, qwenImagePromptEncoder(r.EncodeImage))
+func (r *Qwen3VLRunner) imagePromptProgram() compiledImagePromptProgram {
+	baseSuffix := "<|im_end|>\n<|im_start|>assistant\n<think>\n"
+	return compileSpatialChatImagePromptProgram(
+		"Qwen3-VL", r.spec.OutputHidden, baseSuffix+"\n</think>\n\n", baseSuffix,
+		spatialGridImagePromptEncoder(r.EncodeImage),
+	)
 }
 
-func (r *Qwen3VLRunner) videoPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	frames []image.Image,
-	beforeVideo, afterVideo string,
-	fps float64,
-	thinking bool,
-) (MultimodalPrompt, error) {
-	if tokenizer == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
-	}
-	if !checked.PositiveFinite64(fps) {
-		return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
-	}
-	output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
-	perGroup := rows * columns
-	item, err := qwenImagePromptItem(output)
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
-		mediaPromptRunPlan: mediaPromptRunPlan{
-			Prompt:      Qwen35VideoPromptText(beforeVideo, afterVideo, output.GridT, perGroup, fps, thinking),
-			Placeholder: Qwen3VLVideoPad, Runs: output.GridT, TokensPerRun: perGroup,
-			PromptLabel: "video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "video prompt",
-		},
-		Embeddings: output.Embeddings.Data, Deepstack: item.Deepstack,
-		EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
-		Positions: func(tokenCount int, starts []int) ([tensor.MaxDimensions][]uint32, error) {
-			chunks := make([]spatialPositionChunk, len(starts))
-			for index, start := range starts {
-				chunks[index] = spatialPositionChunk{Start: start, Extents: [tensor.TripleExtent]int{rows, columns}}
-			}
-			return compileSpatialPositions(tokenCount, positionGrid2D, chunks)
-		},
-	})
+func (r *Qwen3VLRunner) mediaPromptProgram() compiledMediaPromptProgram {
+	return compiledMediaPromptProgram{Video: func(
+		ctx context.Context,
+		tokenizer ImageTokenizer,
+		frames []image.Image,
+		beforeVideo, afterVideo string,
+		fps float64,
+		thinking bool,
+	) (MultimodalPrompt, error) {
+		if tokenizer == nil {
+			return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+		}
+		if !checked.PositiveFinite64(fps) {
+			return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
+		}
+		output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
+		if err != nil {
+			return MultimodalPrompt{}, err
+		}
+		rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
+		perGroup := rows * columns
+		item, err := spatialGridImagePromptItem(output)
+		if err != nil {
+			return MultimodalPrompt{}, err
+		}
+		return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
+			mediaPromptRunPlan: mediaPromptRunPlan{
+				Prompt:      Qwen35VideoPromptText(beforeVideo, afterVideo, output.GridT, perGroup, fps, thinking),
+				Placeholder: Qwen3VLVideoPad, Runs: output.GridT, TokensPerRun: perGroup,
+				PromptLabel: "video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "video prompt",
+			},
+			Embeddings: output.Embeddings.Data, Deepstack: item.Deepstack,
+			EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
+			Positions: func(tokenCount int, starts []int) ([tensor.MaxDimensions][]uint32, error) {
+				chunks := make([]spatialPositionChunk, len(starts))
+				for index, start := range starts {
+					chunks[index] = spatialPositionChunk{Start: start, Extents: [tensor.TripleExtent]int{rows, columns}}
+				}
+				return compileSpatialPositions(tokenCount, positionGrid2D, chunks)
+			},
+		})
+	}}
 }
 
 func Qwen35VideoPromptText(beforeVideo, afterVideo string, groups, tokensPerGroup int, fps float64, thinking bool) string {

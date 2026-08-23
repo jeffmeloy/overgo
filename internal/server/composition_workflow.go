@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/bridgegraph"
 	"overgo/internal/composition"
+	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
@@ -59,6 +60,12 @@ type compositionRuntimeView struct {
 	Sessions      modelrecipe.ComponentSessionPlan `json:"sessions"`
 }
 
+type compositionGenerationView struct {
+	Promotion artifact.ID `json:"promotion"`
+	Evidence  artifact.ID `json:"evidence"`
+	Output    artifact.ID `json:"output"`
+}
+
 type compositionWorkflowView struct {
 	Recipe     artifact.ID                `json:"recipe"`
 	Source     artifact.ID                `json:"source"`
@@ -71,6 +78,7 @@ type compositionWorkflowView struct {
 	Training   *compositionTrainingView   `json:"training,omitempty"`
 	Evaluation *compositionEvaluationView `json:"evaluation,omitempty"`
 	Runtime    *compositionRuntimeView    `json:"runtime,omitempty"`
+	Generation *compositionGenerationView `json:"generation,omitempty"`
 	Completion compositionCompletion      `json:"completion"`
 }
 
@@ -87,6 +95,12 @@ type compositionActivationResponse struct {
 	Recipe artifact.ID `json:"recipe"`
 	Alias  string      `json:"alias"`
 	Commit string      `json:"commit"`
+}
+
+type compositionGenerationRequest struct {
+	Source artifact.ID `json:"source"`
+	Target artifact.ID `json:"target"`
+	Task   recipe.Task `json:"task"`
 }
 
 func (h *Handler) compositionInventory(response http.ResponseWriter, request *http.Request) {
@@ -172,7 +186,37 @@ func (h *Handler) compositionWorkflowView(ctx context.Context, id artifact.ID) c
 	}
 	view.Runtime = &compositionRuntimeView{Plan: plan.ID, CacheIdentity: plan.CacheIdentity, Sessions: plan.Sessions}
 	view.Completion.RuntimeWired = true
+	generation, err := inference.ResolveCompositeGenerationSurface(ctx, h.repository, value.SourceModel, value.TargetModel, value.Task)
+	if err == nil {
+		view.Generation = &compositionGenerationView{
+			Promotion: generation.Promotion, Evidence: generation.Evidence, Output: generation.Output,
+		}
+		view.Completion.CUDAVerified = true
+	}
 	return view
+}
+
+func (h *Handler) compositeGeneration(response http.ResponseWriter, request *http.Request) {
+	if !requireMethod(response, request, http.MethodPost) {
+		return
+	}
+	if h.repository == nil {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "composition repository is unavailable")
+		return
+	}
+	var input compositionGenerationRequest
+	if err := strictjson.Decode(request.Body, &input); err != nil {
+		writeInvalidRequest(response, err)
+		return
+	}
+	selection, err := inference.ResolveCompositeGenerationSurface(
+		request.Context(), h.repository, input.Source, input.Target, input.Task,
+	)
+	if err != nil {
+		writeInvalidRequest(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, selection)
 }
 
 func (h *Handler) activateComposition(response http.ResponseWriter, request *http.Request) {

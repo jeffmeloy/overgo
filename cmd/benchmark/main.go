@@ -19,6 +19,8 @@ import (
 	"overgo/internal/tokenizer"
 )
 
+// Benchmark admission bounds are owned here so every CLI path rejects the
+// same unsafe workload envelope before allocating runtime resources.
 const (
 	defaultBenchmarkTokens = 32
 	minBenchmarkTokens     = 1

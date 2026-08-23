@@ -71,6 +71,25 @@ func TestMixedMediaPromptPlan(t *testing.T) {
 	}
 }
 
+func TestCompiledImagePromptPrograms(t *testing.T) {
+	plan := delimitedImagePromptPlan(
+		"fixture", "<|image|>", "fixture image placeholder", true, 2, "<i>", "</i>",
+	)
+	prompt, err := executeImagePromptPlan(
+		context.Background(), gemma4PromptTokenizer{},
+		[]image.Image{image.NewRGBA(image.Rect(0, 0, 1, 1))}, []string{"a", "b"}, plan,
+		func(context.Context, image.Image) (imagePromptItem, error) {
+			return imagePromptItem{Embeddings: make([]float32, 4), Count: 2, RunCount: 2}, nil
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prompt.EmbeddingWidth != 2 || len(prompt.EmbeddingTokenIndices) != 2 || len(prompt.Embeddings) != 4 {
+		t.Fatalf("compiled image prompt = %+v", prompt)
+	}
+}
+
 func TestQwen35VideoPromptText(t *testing.T) {
 	prompt := Qwen35VideoPromptText("", "Question", 2, 2, 24, true)
 	want := "<|im_start|>user\n<|vision_start|>" +

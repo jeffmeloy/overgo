@@ -26,9 +26,9 @@ import (
 )
 
 // runDeviceVision: device vision-blocks parity + measurement.
-func runDeviceVision(l *ladder) error {
+func runDeviceVision(l *campaignContext) error {
 	ctx := context.Background()
-	l.log("DEVICE vision START")
+	l.Log("DEVICE vision START")
 
 	vg, err := loadGoldenJSON[visionGolden](l.fixturesDir, "rxbrain_vqa_vision_golden.json")
 	if err != nil {
@@ -81,7 +81,7 @@ func runDeviceVision(l *ladder) error {
 		}
 		hostHidden = stages.Output
 	}
-	l.log(fmt.Sprintf("DEVICE vision host oracle ready depth=%d rows=%d hidden=%d", spec.Depth, nPatch, H))
+	l.Log(fmt.Sprintf("DEVICE vision host oracle ready depth=%d rows=%d hidden=%d", spec.Depth, nPatch, H))
 
 	// ---- device graph -------------------------------------------------------
 	g, err := patchtower.BuildDeviceVisionBlocks(spec, nPatch)
@@ -176,7 +176,7 @@ func runDeviceVision(l *ladder) error {
 	// ---- exactness: device vs host oracle (whole-tensor worst|d|) ------------
 	worst := func(name string, a, b []float32) {
 		if len(a) != len(b) {
-			l.log(fmt.Sprintf("DEVICE vision HOST %-13s len %d != %d", name, len(a), len(b)))
+			l.Log(fmt.Sprintf("DEVICE vision HOST %-13s len %d != %d", name, len(a), len(b)))
 			return
 		}
 		var w float64
@@ -185,7 +185,7 @@ func runDeviceVision(l *ladder) error {
 				w = d
 			}
 		}
-		l.log(fmt.Sprintf("DEVICE vision HOST %-13s device-vs-host worst|d|=%.3e", name, w))
+		l.Log(fmt.Sprintf("DEVICE vision HOST %-13s device-vs-host worst|d|=%.3e", name, w))
 	}
 	worst("block0_norm1", out[g.Block0Norm1].Data, hostBlock0.Norm1)
 	worst("block0_qkv", out[g.Block0QKV].Data, hostBlock0.QKV)
@@ -214,7 +214,7 @@ func runDeviceVision(l *ladder) error {
 			}
 		}
 		token, ch := iDG/H, iDG%H
-		l.log(fmt.Sprintf("DEVICE vision DIAG block_last dev-vs-golden worst|d|=%.3e at token=%d ch=%d (dev=%.4f host=%.4f golden=%.4f) host-vs-golden worst|d|=%.3e nanDev=%d nanHost=%d",
+		l.Log(fmt.Sprintf("DEVICE vision DIAG block_last dev-vs-golden worst|d|=%.3e at token=%d ch=%d (dev=%.4f host=%.4f golden=%.4f) host-vs-golden worst|d|=%.3e nanDev=%d nanHost=%d",
 			wDG, token, ch, dev[iDG], hostHidden[iDG], gl[iDG], wHG, nanDev, nanHost))
 	}
 
@@ -248,17 +248,17 @@ func runDeviceVision(l *ladder) error {
 			}
 		}
 		if fails > 0 {
-			l.log(fmt.Sprintf("DEVICE vision GOLDEN CENSUS %s: %d/%d probes over tol; worst over by %.3e (|d|=%.3e lim=%.3e)", p.name, fails, len(p.golden.ProbeIndex), worstD-worstLim, worstD, worstLim))
+			l.Log(fmt.Sprintf("DEVICE vision GOLDEN CENSUS %s: %d/%d probes over tol; worst over by %.3e (|d|=%.3e lim=%.3e)", p.name, fails, len(p.golden.ProbeIndex), worstD-worstLim, worstD, worstLim))
 		}
 		detail, err := probeCheck("device "+p.name, p.dev, p.golden, p.atol, p.rtol)
 		if err != nil {
-			l.log("DEVICE vision GOLDEN FAIL " + err.Error())
+			l.Log("DEVICE vision GOLDEN FAIL " + err.Error())
 			if probeErr == nil {
 				probeErr = err
 			}
 			continue
 		}
-		l.log("DEVICE vision GOLDEN " + detail)
+		l.Log("DEVICE vision GOLDEN " + detail)
 	}
 	if probeErr != nil {
 		return probeErr
@@ -280,12 +280,12 @@ func runDeviceVision(l *ladder) error {
 	}
 	perCall := time.Since(start) / iters
 	statsAfter, _ := worker.ExecutionStats(ctx)
-	l.log(fmt.Sprintf("DEVICE vision MEASURE %.3f ms/tower (%d blocks, %d rows, F32 weights resident)",
+	l.Log(fmt.Sprintf("DEVICE vision MEASURE %.3f ms/tower (%d blocks, %d rows, F32 weights resident)",
 		float64(perCall.Microseconds())/1000.0, spec.Depth, nPatch))
-	l.log(fmt.Sprintf("DEVICE vision REPLAY graph_launches=%d graph_instantiations=%d graph_updates=%d over %d warm+%d measure",
+	l.Log(fmt.Sprintf("DEVICE vision REPLAY graph_launches=%d graph_instantiations=%d graph_updates=%d over %d warm+%d measure",
 		statsAfter.GraphLaunches-statsBefore.GraphLaunches,
 		statsAfter.GraphInstantiations-statsBefore.GraphInstantiations,
 		statsAfter.GraphUpdates-statsBefore.GraphUpdates, warm, iters))
-	l.log("DEVICE vision LANE GREEN")
+	l.Log("DEVICE vision LANE GREEN")
 	return nil
 }

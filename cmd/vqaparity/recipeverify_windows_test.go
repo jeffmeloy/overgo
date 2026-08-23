@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/parity"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
@@ -25,9 +26,9 @@ func TestRxBrainProductionParity(t *testing.T) {
 	}
 	model := filepath.Join(roots.Models, "Hy-Embodied-RxBrain-1.0")
 	image := filepath.Join(model, "Hy-Embodied-RxBrain-1.0", "demo_cases", "bridgev2_move_toy", "input", "obs_1.jpg")
-	l := &ladder{
+	l := &campaignContext{
+		Campaign: parity.NewCampaign(filepath.Join(t.TempDir(), "rxbrain.log")),
 		modelDir: model, fixturesDir: filepath.Join(filepath.Dir(roots.Models), "fixtures"),
-		logPath: filepath.Join(t.TempDir(), "rxbrain.log"),
 	}
 	if err := verifyActivateVQA(
 		l, t.TempDir(), image, "What objects are on the stovetop, and where is the green toy?",

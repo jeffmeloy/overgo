@@ -267,7 +267,7 @@
      "contains": "func OpenAs[T Projector](",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:382a0874aa10bb9445bcc3289e1e3a44e0619dd33c5c1f3e4b56f52a155fda24"
+     "identity": "file:sha256:b9171d2d80aadd755fce051b5e4d77bce2b53423fbf5dfc42046ec7f67a19eca"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -370,13 +370,13 @@
      "contains": "func executeVQAProgram(",
      "path": "cmd/vqaparity/recipeserve.go",
      "role": "source",
-     "identity": "file:sha256:51996c80aafa2b1451fcc7f7e8b42e5adc44f93ea4d17a98a53547cbd46d22fd"
+     "identity": "file:sha256:b0c53fa0fef038021175e0e717f9b52042e63586e59f20665c988c573d7fd871"
     },
     {
      "contains": "func TestRxBrainProductionParity(",
      "path": "cmd/vqaparity/recipeverify_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:5dbc9b53136a430495e980ae9b5bfc48f08954108254a5d53422862cab49f70b"
+     "identity": "evidence:sha256:8cf100ba6ad7a9347d8f25838b88f57959505686e4248caa8bc9690ff0353cb8"
     }
    ],
    "id": "rxbrain-vqa-production-oracle",
@@ -581,10 +581,10 @@
   {
    "evidence": [
     {
-     "contains": "func (r *Qwen3VLRunner) imagesPrompt(",
+     "contains": "func (r *Qwen3VLRunner) imagePromptProgram(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:382a0874aa10bb9445bcc3289e1e3a44e0619dd33c5c1f3e4b56f52a155fda24"
+     "identity": "file:sha256:b9171d2d80aadd755fce051b5e4d77bce2b53423fbf5dfc42046ec7f67a19eca"
     },
     {
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -602,10 +602,10 @@
   {
    "evidence": [
     {
-     "contains": "func (r *Gemma4Runner) mediaHistoryPrompt(",
+     "contains": "func (r *Gemma4Runner) mediaPromptProgram(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:382a0874aa10bb9445bcc3289e1e3a44e0619dd33c5c1f3e4b56f52a155fda24"
+     "identity": "file:sha256:b9171d2d80aadd755fce051b5e4d77bce2b53423fbf5dfc42046ec7f67a19eca"
     },
     {
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -623,10 +623,10 @@
   {
    "evidence": [
     {
-     "contains": "func (r *Gemma4Runner) mediaHistoryPrompt(",
+     "contains": "func (r *Gemma4Runner) mediaPromptProgram(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:382a0874aa10bb9445bcc3289e1e3a44e0619dd33c5c1f3e4b56f52a155fda24"
+     "identity": "file:sha256:b9171d2d80aadd755fce051b5e4d77bce2b53423fbf5dfc42046ec7f67a19eca"
     },
     {
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",

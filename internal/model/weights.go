@@ -351,174 +351,147 @@ type layerCatalogLoader struct {
 	mtpOnly         bool
 }
 
-func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
-	catalog := l.catalog
-	spec, profile, draftPlan, normPlan := l.spec, l.profile, l.draftPlan, l.normPlan
-	tokenEmbeddingAlternate := ""
+func compileModelTensorBindings(
+	catalog weightCatalog,
+	spec Spec,
+	profile ArchitectureProfile,
+	normPlan NormalizationPlan,
+	result *Weights,
+) ([]tensorBinding, error) {
+	var bindings []tensorBinding
+	alternate := ""
 	if profile.ModelCatalog.TiedTokenEmbedding {
-		tokenEmbeddingAlternate = outputWeightTensor
+		alternate = outputWeightTensor
 	}
-	if embeddingErr := bindTensorProgram(catalog, "", []tensorBinding{
-		requiredTensor(catalog.selectName("", tokenEmbeddingWeightTensor, tokenEmbeddingAlternate),
-			&result.TokenEmbedding, uint64(spec.EmbeddingLength), uint64(spec.VocabularySize)),
-	}); embeddingErr != nil {
-		return Weights{}, embeddingErr
+	bindings = append(bindings, requiredTensor(
+		catalog.selectName("", tokenEmbeddingWeightTensor, alternate),
+		&result.TokenEmbedding,
+		uint64(spec.EmbeddingLength), uint64(spec.VocabularySize),
+	))
+	if profile.ModelCatalog.PositionEmbedding != positionEmbeddingAbsent {
+		position := optionalTensorPointer(
+			"position_embd.weight", &result.PositionEmbedding,
+			uint64(spec.EmbeddingLength), uint64(spec.ContextLength),
+		)
+		position.optional = profile.ModelCatalog.PositionEmbedding == positionEmbeddingOptional
+		bindings = append(bindings, position)
 	}
-	if profile.ModelCatalog.PositionEmbedding == positionEmbeddingRequired {
-		if positionErr := bindTensorProgram(catalog, "", []tensorBinding{
-			requiredTensorPointer("position_embd.weight", &result.PositionEmbedding,
-				uint64(spec.EmbeddingLength), uint64(spec.ContextLength)),
-		}); positionErr != nil {
-			return Weights{}, positionErr
-		}
-	}
-	if normPlan.PostNormLayout == PostNormLayoutOutputLayer {
+	outputLayerNorm := normPlan.PostNormLayout == PostNormLayoutOutputLayer
+	if outputLayerNorm {
 		tokenTypes := optionalTensorPointer(
 			"token_types.weight", &result.TokenTypeEmbedding,
 			uint64(spec.EmbeddingLength), uint64(spec.TokenTypeCount),
 		)
 		tokenTypes.optional = !profile.ModelCatalog.RequireTokenTypes
-		if typeErr := bindTensorProgram(catalog, "", []tensorBinding{tokenTypes}); typeErr != nil {
-			return Weights{}, typeErr
-		}
-		if normErr := bindTensorProgram(catalog, "", []tensorBinding{
-			requiredTensorPointer("token_embd_norm.weight", &result.TokenEmbeddingNorm,
-				uint64(spec.EmbeddingLength)),
-			requiredTensorPointer("token_embd_norm.bias", &result.TokenEmbeddingNormBias,
-				uint64(spec.EmbeddingLength)),
-		}); normErr != nil {
-			return Weights{}, normErr
-		}
+		bindings = append(bindings, tokenTypes)
 	}
-	if profile.ModelCatalog.TokenNorm == tokenNormWeight {
-		if normErr := bindTensorProgram(catalog, "", []tensorBinding{
-			requiredTensorPointer("token_embd_norm.weight", &result.TokenEmbeddingNorm,
-				uint64(spec.EmbeddingLength)),
-		}); normErr != nil {
-			return Weights{}, normErr
-		}
+	if outputLayerNorm || profile.ModelCatalog.TokenNorm != tokenNormAbsent {
+		bindings = append(bindings, requiredTensorPointer(
+			"token_embd_norm.weight", &result.TokenEmbeddingNorm, uint64(spec.EmbeddingLength),
+		))
 	}
-	if profile.ModelCatalog.PositionEmbedding == positionEmbeddingOptional {
-		if positionErr := bindTensorProgram(catalog, "", []tensorBinding{
-			optionalTensorPointer("position_embd.weight", &result.PositionEmbedding,
-				uint64(spec.EmbeddingLength), uint64(spec.ContextLength)),
-		}); positionErr != nil {
-			return Weights{}, positionErr
-		}
+	if outputLayerNorm || profile.ModelCatalog.TokenNorm == tokenNormAffine {
+		bindings = append(bindings, requiredTensorPointer(
+			"token_embd_norm.bias", &result.TokenEmbeddingNormBias, uint64(spec.EmbeddingLength),
+		))
 	}
-	if profile.ModelCatalog.TokenNorm == tokenNormAffine {
-		if normErr := bindTensorProgram(catalog, "", []tensorBinding{
-			requiredTensorPointer("token_embd_norm.weight", &result.TokenEmbeddingNorm,
-				uint64(spec.EmbeddingLength)),
-			requiredTensorPointer("token_embd_norm.bias", &result.TokenEmbeddingNormBias,
-				uint64(spec.EmbeddingLength)),
-		}); normErr != nil {
-			return Weights{}, normErr
-		}
+	if !spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() && profile.OutputNorm != OutputNormAbsent {
+		bindings = append(bindings, requiredTensor(
+			profile.OutputNormTensor(), &result.OutputNorm, uint64(spec.EmbeddingLength),
+		))
 	}
-	if !spec.UsesUnweightedLayerNorm() && !spec.UsesUnweightedRMSNorm() &&
-		profile.OutputNorm != OutputNormAbsent {
-		if normErr := bindTensorProgram(catalog, "", []tensorBinding{
-			requiredTensor(profile.OutputNormTensor(), &result.OutputNorm, uint64(spec.EmbeddingLength)),
-		}); normErr != nil {
-			return Weights{}, normErr
-		}
-	}
-	if spec.RequiresLayerNormBias() && profile.OutputNorm != OutputNormAbsent {
-		if biasErr := bindTensorProgram(catalog, "", []tensorBinding{
-			requiredTensorPointer("output_norm.bias", &result.OutputNormBias,
-				uint64(spec.EmbeddingLength)),
-		}); biasErr != nil {
-			return Weights{}, biasErr
-		}
-	}
-	if profile.ModelCatalog.OptionalOutputNormBias {
-		if biasErr := bindTensorProgram(catalog, "", []tensorBinding{
-			optionalTensorPointer("output_norm.bias", &result.OutputNormBias,
-				uint64(spec.EmbeddingLength)),
-		}); biasErr != nil {
-			return Weights{}, biasErr
-		}
+	if profile.OutputNorm != OutputNormAbsent && (spec.RequiresLayerNormBias() || profile.ModelCatalog.OptionalOutputNormBias) {
+		bias := optionalTensorPointer("output_norm.bias", &result.OutputNormBias, uint64(spec.EmbeddingLength))
+		bias.optional = !spec.RequiresLayerNormBias()
+		bindings = append(bindings, bias)
 	}
 	if !profile.ModelCatalog.SkipOutput {
-		if outputErr := bindTensorProgram(catalog, "", []tensorBinding{
-			optionalTensorPointer(outputWeightTensor, &result.Output,
-				uint64(spec.EmbeddingLength), uint64(spec.VocabularySize)),
-		}); outputErr != nil {
-			return Weights{}, outputErr
-		}
+		bindings = append(bindings, optionalTensorPointer(
+			outputWeightTensor, &result.Output, uint64(spec.EmbeddingLength), uint64(spec.VocabularySize),
+		))
 	}
-	if profile.Has(ArchitectureRequiresOutput) && result.Output == nil {
-		return Weights{}, fmt.Errorf("required tensor %q is missing", outputWeightTensor)
-	}
-	if outputErr := bindTensorProgram(catalog, "", []tensorBinding{
-		optionalF32TensorPointer("output.bias", &result.OutputBias, uint64(spec.VocabularySize)),
-	}); outputErr != nil {
-		return Weights{}, outputErr
-	}
+	bindings = append(bindings, optionalF32TensorPointer(
+		"output.bias", &result.OutputBias, uint64(spec.VocabularySize),
+	))
 	if profile.Has(ArchitectureClassifierHead) {
 		outputCount := uint64(tensor.SingletonExtent)
 		if len(spec.ClassifierLabels) > tensor.FirstOffset {
 			outputCount = uint64(len(spec.ClassifierLabels))
 		}
-		if classifierErr := bindTensorProgram(catalog, "", []tensorBinding{
-			optionalTensorPointer("cls.output.weight", &result.ClassifierOutput,
-				uint64(spec.EmbeddingLength), outputCount),
-		}); classifierErr != nil {
-			return Weights{}, classifierErr
-		}
-	}
-	if profile.ModelCatalog.RequireOutputBias && result.OutputBias == nil {
-		return Weights{}, errors.New(`required tensor "output.bias" is missing`)
+		bindings = append(bindings, optionalTensorPointer(
+			"cls.output.weight", &result.ClassifierOutput, uint64(spec.EmbeddingLength), outputCount,
+		))
 	}
 	if profile.LayerTopology == LayerTopologyBidirectionalQKNorm {
-		if item, ok := l.catalog.tensor("dense_2.weight"); ok {
-			if spec.Dense2FeatureIn == tensor.FirstOffset || spec.Dense2FeatureOut == tensor.FirstOffset {
-				return Weights{}, errors.New("Gemma embedding dense-2 tensor has no shape metadata")
+		for _, projection := range []struct {
+			name        string
+			input       uint32
+			output      uint32
+			destination **gguf.TensorInfo
+		}{
+			{
+				name:        "dense_2.weight",
+				input:       spec.Dense2FeatureIn,
+				output:      spec.Dense2FeatureOut,
+				destination: &result.Dense2Output,
+			},
+			{
+				name:        "dense_3.weight",
+				input:       spec.Dense3FeatureIn,
+				output:      spec.Dense3FeatureOut,
+				destination: &result.Dense3Output,
+			},
+		} {
+			if _, ok := catalog.tensor(projection.name); !ok {
+				continue
 			}
-			if denseErr := bindTensorProgram(catalog, "", []tensorBinding{
-				requiredTensorPointer(item.Name, &result.Dense2Output,
-					uint64(spec.Dense2FeatureIn), uint64(spec.Dense2FeatureOut)),
-			}); denseErr != nil {
-				return Weights{}, denseErr
+			if projection.input == tensor.FirstOffset || projection.output == tensor.FirstOffset {
+				return nil, fmt.Errorf("tensor %q has no shape metadata", projection.name)
 			}
-		}
-		if item, ok := l.catalog.tensor("dense_3.weight"); ok {
-			if spec.Dense3FeatureIn == tensor.FirstOffset || spec.Dense3FeatureOut == tensor.FirstOffset {
-				return Weights{}, errors.New("Gemma embedding dense-3 tensor has no shape metadata")
-			}
-			if denseErr := bindTensorProgram(catalog, "", []tensorBinding{
-				requiredTensorPointer(item.Name, &result.Dense3Output,
-					uint64(spec.Dense3FeatureIn), uint64(spec.Dense3FeatureOut)),
-			}); denseErr != nil {
-				return Weights{}, denseErr
-			}
+			bindings = append(bindings, requiredTensorPointer(
+				projection.name, projection.destination, uint64(projection.input), uint64(projection.output),
+			))
 		}
 	}
 	if profile.Has(ArchitecturePerLayerEmbeddings) && spec.EmbeddingPerLayer > tensor.FirstOffset {
 		perLayerWidth := uint64(spec.EmbeddingPerLayer) * uint64(spec.BlockCount)
-		if itemErr := bindTensorProgram(catalog, "", []tensorBinding{
+		bindings = append(bindings,
 			requiredTensorPointer("per_layer_token_embd.weight", &result.PerLayerTokenEmbedding,
 				perLayerWidth, uint64(spec.VocabularySize)),
 			requiredTensorPointer("per_layer_model_proj.weight", &result.PerLayerModelProjection,
 				uint64(spec.EmbeddingLength), perLayerWidth),
 			requiredTensorPointer("per_layer_proj_norm.weight", &result.PerLayerProjectionNorm,
 				uint64(spec.EmbeddingPerLayer)),
-		}); itemErr != nil {
-			return Weights{}, itemErr
-		}
+		)
 	}
 	if profile.LayerTopology == LayerTopologySplitProjection {
 		shape := []uint64{
 			uint64(spec.EmbeddingLength), uint64(spec.EmbeddingLength),
 			uint64(spec.AltUpCount - tensor.SingletonExtent),
 		}
-		if itemErr := bindTensorProgram(catalog, "", []tensorBinding{
+		bindings = append(bindings,
 			requiredTensorPointer("altup_proj.weight", &result.AltUpProjection, shape...),
 			requiredTensorPointer("altup_unembd_proj.weight", &result.AltUpUnembedding, shape...),
-		}); itemErr != nil {
-			return Weights{}, itemErr
-		}
+		)
+	}
+	return bindings, nil
+}
+
+func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
+	catalog := l.catalog
+	spec, profile, draftPlan, normPlan := l.spec, l.profile, l.draftPlan, l.normPlan
+	bindings, err := compileModelTensorBindings(catalog, spec, profile, normPlan, &result)
+	if err != nil {
+		return Weights{}, err
+	}
+	if err := bindTensorProgram(catalog, "", bindings); err != nil {
+		return Weights{}, err
+	}
+	if profile.Has(ArchitectureRequiresOutput) && result.Output == nil {
+		return Weights{}, fmt.Errorf("required tensor %q is missing", outputWeightTensor)
+	}
+	if profile.ModelCatalog.RequireOutputBias && result.OutputBias == nil {
+		return Weights{}, errors.New(`required tensor "output.bias" is missing`)
 	}
 
 	trunkBlockCount := spec.BlockCount

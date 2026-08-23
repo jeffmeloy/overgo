@@ -51,7 +51,8 @@ func tensorBindingFixtures(
 	return fixtures
 }
 
-func TestRelationalProfileOwnsCompilationAndBindings(t *testing.T) {
+// TestTensorCatalogProgramIsAuthoritative checks compiled atomic binding.
+func TestTensorCatalogProgramIsAuthoritative(t *testing.T) {
 	const (
 		firstTensor  = "first"
 		secondTensor = "second"

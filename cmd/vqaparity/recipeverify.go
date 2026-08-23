@@ -103,7 +103,7 @@ func publishVQAVerification(
 }
 
 // verifyActivateVQA: real processor/device proof, promotion, active replay.
-func verifyActivateVQA(l *ladder, repo, imagePath, question string) error {
+func verifyActivateVQA(l *campaignContext, repo, imagePath, question string) error {
 	ctx := context.Background()
 	store, err := openRecipeStore(repo)
 	if err != nil {
@@ -169,7 +169,7 @@ func verifyActivateVQA(l *ladder, repo, imagePath, question string) error {
 	if !slices.Equal(active.chain, verified.chain) || active.text != verified.text {
 		return errors.New("VQA verifier: active replay differs from promotion run")
 	}
-	l.log(fmt.Sprintf(
+	l.Log(fmt.Sprintf(
 		"RECIPE verify LANE GREEN recipe=%s gate=%s run=%s verify=%s active=%s",
 		definition.ID, verification.Gate, verification.Run,
 		verified.result.e2eWall.Round(time.Millisecond), active.result.e2eWall.Round(time.Millisecond),

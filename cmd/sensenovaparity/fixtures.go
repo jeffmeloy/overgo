@@ -13,8 +13,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-
-	"overgo/internal/jsonfile"
 )
 
 // intContract: an integer input vector recorded as element count + sha256 of
@@ -193,8 +191,4 @@ func (s sampledTensor) finiteProbes() (int, error) {
 		return len(values), fmt.Errorf("decoded non_finite=%d != recorded %d", nonFinite, s.NonFinite)
 	}
 	return len(values), nil
-}
-
-func loadJSON[T any](path string, out *T) error {
-	return jsonfile.Decode(path, out)
 }

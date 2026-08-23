@@ -83,6 +83,34 @@ func TestStructuralRebindRejectsAmbiguousMigration(t *testing.T) {
 	}
 }
 
+func TestStructuralRebindRecoversReassignedLiteralIdentity(t *testing.T) {
+	previous := rebindCandidate(t, "3", "old literal")
+	previous.Kind, previous.Name = closureledger.BindingLiteral, "literal.100"
+	binding, err := previous.Binding()
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := rebindDocument(t, previous, binding)
+	collision := previous
+	collision.Name, collision.Expression, collision.Value = "literal.90", "0", "0"
+	moved := previous
+	moved.Name, moved.Line = "literal.200", previous.Line+1
+	moved.StructuralID = sourceDigest("moved literal structure")
+	moved.SourceID = sourceDigest("moved literal source")
+	moved.CallsiteID = sourceDigest("moved literal callsite")
+	rebound, matched, reason, err := CompileRebindIndex([]Candidate{collision, moved}).Rebind(document)
+	if err != nil || !matched || reason != "source" {
+		t.Fatalf("reassigned literal rebind = (%t, %s, %v)", matched, reason, err)
+	}
+	if got := rebound.Bindings[0]; got.Name != moved.Name || got.StructuralID != moved.StructuralID {
+		t.Fatalf("reassigned literal binding = %+v", got)
+	}
+	rebound, matched, reason, err = CompileRebindIndex([]Candidate{moved}).Rebind(document)
+	if err != nil || !matched || reason != "source" || rebound.Bindings[0].StructuralID != moved.StructuralID {
+		t.Fatalf("removed literal structure rebind = (%+v, %t, %s, %v)", rebound.Bindings, matched, reason, err)
+	}
+}
+
 func rebindCandidate(t *testing.T, value, callsites string) Candidate {
 	t.Helper()
 	name := "PolicyWindow"

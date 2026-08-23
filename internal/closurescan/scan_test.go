@@ -255,7 +255,7 @@ func verify() {
 			t.Fatalf("unbound policy copy = %+v", site)
 		}
 	}
-	if classes[TestPolicyCopy] != 2 || classes[TestFixture] != 2 || classes[TestAssertion] != 0 {
+	if classes[TestPolicyCopy] != 1 || classes[TestFixture] != 2 || classes[TestAssertion] != 1 {
 		t.Fatalf("classes = %v, sites = %+v", classes, sites)
 	}
 	count, err := CountTestPolicyLiterals(snapshot)

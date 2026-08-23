@@ -1,8 +1,21 @@
 {
   "campaign": "Deletion-led production composability and repository tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:62d1d4a9dc99abbf408cc6fcd0d8c5d803b48fe78999ab017bc7e3965e24ca28",
+  "census_evidence": "evidence:sha256:b5760b4d8d8379359c1c4ec356e935a5f8b4e54be24ae931e8bc49e87fbf88ed",
   "items": [
+    {
+      "id": "merge-6a0da4d57de3",
+      "title": "Merge codex/overgo_research at 6a0da4d57de3",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge codex/overgo_research at 6a0da4d57de3",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
     {
       "id": "repodb-closure-authority",
       "title": "Import the closure authority merge 15bd36d0 skipped",
@@ -370,34 +383,6 @@
       ]
     },
     {
-      "id": "merge-research",
-      "title": "Merge overgo_research into master through the gated merge",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge overgo_research into master through the gated merge",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor codex/overgo_research HEAD"
-        }
-      ]
-    },
-    {
-      "id": "merge-tightening",
-      "title": "Merge overgo_tightening into master through the gated merge",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge overgo_tightening into master through the gated merge",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor overgo_tightening HEAD"
-        }
-      ]
-    },
-    {
       "id": "validate-model-training",
       "title": "Validate training across every adaptive_new model",
       "owner": "gui",
@@ -442,7 +427,7 @@
     {
       "id": "magic-runtime-remaining",
       "title": "Close remaining production literal surfaces",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "server-workflows",
@@ -459,19 +444,19 @@
         {
           "id": "shared-runtime",
           "title": "Delete duplicated policy across remaining internal runtime owners",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/closure-scan -check-scope internal -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {
           "id": "commands-automation",
           "title": "Delete command defaults, duplicate probes, and automation literals",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/closure-scan -check-scope cmd -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {
           "id": "production-complete",
           "title": "Verify every production source has an exact literal disposition",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts"
         }
       ]
@@ -479,12 +464,12 @@
     {
       "id": "magic-test-authority",
       "title": "Remove copied production policy from tests",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "production-contracts",
           "title": "Replace copied defaults, dimensions, tolerances, and exit codes with production contracts",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/closure-scan -check-tests -require-no-policy-copies -require-classified-fixtures"
         }
       ]
@@ -492,19 +477,299 @@
     {
       "id": "magic-zero-debt",
       "title": "Enforce zero literal-authority debt permanently",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "close-open-rows",
           "title": "Resolve every derivation-blocked row and retire stale migration evidence",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts"
         },
         {
           "id": "permanent-gate",
           "title": "Integrate zero-debt checks and delete campaign-only compatibility machinery",
+          "status": "done",
+          "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestPermanentMagicGate' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "merge-research",
+      "title": "Merge overgo_research into master through the gated merge",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge overgo_research into master through the gated merge",
           "status": "open",
-          "verify": "go test ./cmd/gate ./cmd/closure-scan ./internal/closureledger ./internal/closurescan -run 'TestPermanentMagicGate' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts"
+          "verify": "git merge-base --is-ancestor codex/overgo_research HEAD"
+        }
+      ]
+    },
+    {
+      "id": "merge-tightening",
+      "title": "Merge overgo_tightening into master through the gated merge",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge overgo_tightening into master through the gated merge",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor overgo_tightening HEAD"
+        }
+      ]
+    },
+    {
+      "id": "merge-6dd655ba5061",
+      "title": "Merge master at 6dd655ba5061",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 6dd655ba5061",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "merge-74abae91e639",
+      "title": "Merge master at 74abae91e639",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 74abae91e639",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-model-program-authority",
+      "title": "Make compiled metadata and invariant programs the sole model policy authority",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "core-metadata",
+          "title": "Compile repeated architecture-core metadata reads and delete displaced reader branches",
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(Architecture|Metadata)' -count=1"
+        },
+        {
+          "id": "expert-runtime-metadata",
+          "title": "Compile expert and runtime metadata reads and delete displaced policy branches",
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(Architecture|Metadata|Expert|Runtime)' -count=1"
+        },
+        {
+          "id": "runtime-metadata-residual",
+          "title": "Compile residual runtime metadata reads and delete displaced policy branches",
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(ProfileCompiledMetadataLoading|Read.*Spec)' -count=1"
+        },
+        {
+          "id": "invariant-program",
+          "title": "Compile model invariants by profile and delete parallel attention and hybrid policy interpreters",
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(ProfileCompiledMetadataLoading|Read.*Spec)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-tensor-catalog-program",
+      "title": "Replace imperative model weight loading with indexed tensor catalog programs",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace imperative model weight loading with indexed tensor catalog programs",
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(TensorCatalogProgramIsAuthoritative|LayerCatalogPlan)' -count=1 \u0026\u0026 go test ./internal/inference -run 'Test(SelectedModelTensors|CompiledMultiHeadMTP|SingleHeadMTP)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-projector-plan-authority",
+      "title": "Make typed projector plans the sole prompt and media orchestration authority",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "session-dispatch",
+          "title": "Compile projector capabilities and prompt dispatch once per session",
+          "status": "done",
+          "verify": "go test ./internal/projector -run 'Test(CompiledSessionOwnsPromptDispatch|SessionCapabilities)' -count=1"
+        },
+        {
+          "id": "image-programs",
+          "title": "Compile image prompt templates and delete displaced family orchestration",
+          "status": "done",
+          "verify": "go test ./internal/projector -run 'Test(CompiledImagePromptPrograms|MultipleImagePrompt|ImagePrompt)' -count=1"
+        },
+        {
+          "id": "media-programs",
+          "title": "Compile video, audio, and history programs and delete displaced provider methods",
+          "status": "done",
+          "verify": "go test ./internal/projector -run 'Test(MixedMediaPromptPlan|CompileMediaPromptRuns|Gemma4TowerAudioPlanReused|VideoPrompt|AudioPrompt)' -count=1 \u0026\u0026 go test ./internal/inference -run 'Test(CompileProjectedRequestPlan|ProjectedInputDeepstackAdmission|ProjectedInputsSignatureIncludesMediaPayload)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-projector-media-wrappers",
+      "title": "Delete residual projector media wrappers",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Delete residual projector media wrappers",
+          "status": "done",
+          "verify": "go test ./internal/projector -run 'Test(CompiledSessionOwnsPromptDispatch|CompiledSessionOwnsNoPromptWrappers|MixedMediaPromptPlan|VideoPrompt|AudioPrompt)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-media-codec-program",
+      "title": "Make one media codec program authoritative across host and CUDA",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make one media codec program authoritative across host and CUDA",
+          "status": "done",
+          "verify": "go test ./internal/media -run '^TestExecuteCodecProgram$' -count=1; go test ./internal/latentvideo -run '^Test(VAEResidualBlockMatchesTorchIdentityShortcutFixture|VAESpatialAttentionMatchesTorchFixture|VAEUpsample3DFirstChunkSkipsTimeConv)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-generated-authority-reconciliation",
+      "title": "Rebind generated projector claims and finish shared codec API authority",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Rebind generated projector claims and finish shared codec API authority",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./internal/media ./internal/projector -run 'Test(ExecuteCodecProgram|CompiledSessionOwnsNoPromptWrappers)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-cuda-launch-contracts",
+      "title": "Compile typed CUDA and reference launch contracts",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile typed CUDA and reference launch contracts",
+          "status": "done",
+          "verify": "go test ./internal/tensor -run '^TestProgramSharesOneValidatedGraphAcrossBackends$' -count=1; go test ./internal/cuda/executor -run '^Test(CompilePinsTopologyAndMemoryPlan|CUDAOperationProgramsCoverRegistry)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-gate-dag-authority",
+      "title": "Make automationcheck DAG the sole gate scheduler",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make automationcheck DAG the sole gate scheduler",
+          "status": "done",
+          "verify": "go test ./cmd/gate ./internal/automationcheck -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-parity-validation",
+      "title": "Consolidate parity campaigns and duplicate request validators",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Consolidate parity campaigns and duplicate request validators",
+          "status": "done",
+          "verify": "go test ./internal/parity ./internal/textgeneration ./internal/seq2seq ./internal/thoughtbank ./cmd/recipe -count=1; go test ./cmd/vqaparity -run '^TestExecuteVQABindsDescriptorInputsAndOutput$' -count=1; go vet ./cmd/sensenovaparity"
+        }
+      ]
+    },
+    {
+      "id": "composite-generation-evidence",
+      "title": "Record exact baseline, composed, source-ablated, and bridge-ablated generation trials with frozen-model proof",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record exact baseline, composed, source-ablated, and bridge-ablated generation trials with frozen-model proof",
+          "status": "done",
+          "verify": "go test ./internal/composition ./internal/evaluation ./internal/runrecord -run 'TestCompositeGeneration(Evidence|FrozenModels|AblationArms|Identity)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "composite-generation-execution",
+      "title": "Execute every generation arm through the active recipe runtime and commit output, run, metric, latency, and memory lineage",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Execute every generation arm through the active recipe runtime and commit output, run, metric, latency, and memory lineage",
+          "status": "done",
+          "verify": "go test ./internal/composition ./internal/inference ./internal/workflowruntime -run 'TestCompositeGeneration(ActiveRecipe|Execution|OutputLineage|ResourceEvidence)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "composite-generation-quality",
+      "title": "Score real held-out generated artifacts for task quality, stability, non-degeneracy, and attributable source effect",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Score real held-out generated artifacts for task quality, stability, non-degeneracy, and attributable source effect",
+          "status": "done",
+          "verify": "go test ./internal/evaluation ./internal/composition -run 'TestCompositeGeneration(HeldoutQuality|RepeatedSeeds|SourceEffect|Refusal)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "composite-generation-cuda",
+      "title": "Run the promoted composition and model-native baseline on identical real catalog artifacts and held-out inputs under CUDA",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the promoted composition and model-native baseline on identical real catalog artifacts and held-out inputs under CUDA",
+          "status": "done",
+          "verify": "go run ./cmd/composite-generation-lane"
+        }
+      ]
+    },
+    {
+      "id": "composite-generation-surfaces",
+      "title": "Require identical active-recipe generation through runtime, API, and GUI before evidence can promote the composition",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Require identical active-recipe generation through runtime, API, and GUI before evidence can promote the composition",
+          "status": "done",
+          "verify": "go test ./internal/composition ./internal/server ./internal/inference -run 'TestCompositeGeneration(SurfaceParity|PromotionGate|UnpromotedRefusal)' -count=1"
         }
       ]
     }

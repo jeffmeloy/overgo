@@ -552,26 +552,22 @@ func timeInterleaveInto(out, convolved []float32, c, frames, spatial int) error 
 	return nil
 }
 
-// vaeLoadedOp: an op with weights resident (gammas flattened to channels).
-type vaeLoadedOp struct {
-	media.CodecOperation[[]pytorchzip.TensorBinding]
-	values [][]float32
-}
+type vaeLoadedWeights [][]float32
 
-func loadVAEDecoderOps(reader *pytorchzip.Reader, plan VAEDecoderPlan) ([]vaeLoadedOp, error) {
+func loadVAEDecoderOps(reader *pytorchzip.Reader, plan VAEDecoderPlan) ([]vaeLoadedWeights, error) {
 	return loadVAEOps(reader, plan.vaePlanCore, "decoder")
 }
 
-func loadVAEOps(reader *pytorchzip.Reader, plan vaePlanCore, scope string) ([]vaeLoadedOp, error) {
-	ops := make([]vaeLoadedOp, len(plan.Operations))
+func loadVAEOps(reader *pytorchzip.Reader, plan vaePlanCore, scope string) ([]vaeLoadedWeights, error) {
+	weights := make([]vaeLoadedWeights, len(plan.Operations))
 	for index, op := range plan.Operations {
 		values, err := reader.ReadBindingValues(op.Bindings)
 		if err != nil {
 			return nil, fmt.Errorf("vae %s %s: %w", scope, op.Name, err)
 		}
-		ops[index] = vaeLoadedOp{CodecOperation: op, values: values}
+		weights[index] = values
 	}
-	return ops, nil
+	return weights, nil
 }
 
 func causalGeometry(cIn, cOut, kt, kh, kw, padT, t, h, w int) hostmath.Conv3DShape {
@@ -585,7 +581,7 @@ func causalGeometry(cIn, cOut, kt, kh, kw, padT, t, h, w int) hostmath.Conv3DSha
 
 // runVAEOp executes one op on one chunk [cIn][frames][h][w], mutating the
 // op's temporal state exactly as the reference chunk-major graph does.
-func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, frames, h, w int) ([]float32, int, int, int, error) {
+func runVAEOp(op media.CodecOperation[[]pytorchzip.TensorBinding], values vaeLoadedWeights, state *vaeOpState, chunkIndex int, x []float32, frames, h, w int) ([]float32, int, int, int, error) {
 	spatial := h * w
 	c := op.InputChannels
 	cachedConv := func(out, input []float32, cache *vaeTemporalCache, weight, bias []float32, cOut, kt, kh, kw int) error {
@@ -600,7 +596,7 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 	}
 	switch op.Operator {
 	case media.CodecPointwise, media.CodecConvolution:
-		weight, bias := op.values[0], op.values[1]
+		weight, bias := values[0], values[1]
 		kt := tensor.SingletonExtent
 		if op.Operator == media.CodecConvolution {
 			kt = tensor.TripleExtent
@@ -611,8 +607,8 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 		}
 		return out, frames, h, w, nil
 	case media.CodecResidual:
-		gamma0, w0, b0 := op.values[0], op.values[1], op.values[2]
-		gamma1, w1, b1 := op.values[3], op.values[4], op.values[5]
+		gamma0, w0, b0 := values[0], values[1], values[2]
+		gamma1, w1, b1 := values[3], values[4], values[5]
 		n0 := make([]float32, len(x))
 		if err := hostmath.ChannelRMSNormF64Into(n0, x, gamma0, c, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
@@ -640,7 +636,7 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 			return out, frames, h, w, nil
 		}
 		shortcut := make([]float32, len(out))
-		projection, ok := checked.Suffix(op.values, tensor.PairedExtent)
+		projection, ok := checked.Suffix(values, tensor.PairedExtent)
 		if !ok {
 			return nil, 0, 0, 0, fmt.Errorf("vae residual projection bindings are absent")
 		}
@@ -652,8 +648,8 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 		}
 		return out, frames, h, w, nil
 	case media.CodecAttention:
-		gamma, qkvW, qkvB := op.values[0], op.values[1], op.values[2]
-		projW, projB := op.values[3], op.values[4]
+		gamma, qkvW, qkvB := values[0], values[1], values[2]
+		projW, projB := values[3], values[4]
 		norm := make([]float32, len(x))
 		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
@@ -681,7 +677,7 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 	case media.CodecDownsampleSpatial:
 		scale := op.Operator.SpatialScale()
 		out := make([]float32, op.OutputChannels*frames*(h/scale)*(w/scale))
-		if err := hostmath.Downsample2DChannelsF64Into(out, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
+		if err := hostmath.Downsample2DChannelsF64Into(out, x, values[0], values[1], c, frames, h, w); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, frames, h / scale, w / scale, nil
@@ -689,7 +685,7 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 		scale := op.Operator.SpatialScale()
 		outH, outW := h/scale, w/scale
 		spatialOut := make([]float32, op.OutputChannels*frames*outH*outW)
-		if err := hostmath.Downsample2DChannelsF64Into(spatialOut, x, op.values[0], op.values[1], c, frames, h, w); err != nil {
+		if err := hostmath.Downsample2DChannelsF64Into(spatialOut, x, values[0], values[1], c, frames, h, w); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		prior := state.cache0
@@ -719,12 +715,12 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 			return nil, 0, 0, 0, err
 		}
 		out := make([]float32, op.OutputChannels*outFrames*outH*outW)
-		if err := hostmath.CausalConv3DInto(out, joined, nil, op.values[tensor.PairedExtent], op.values[tensor.TripleExtent], tensor.FirstOffset, shape); err != nil {
+		if err := hostmath.CausalConv3DInto(out, joined, nil, values[tensor.PairedExtent], values[tensor.TripleExtent], tensor.FirstOffset, shape); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, outFrames, outH, outW, nil
 	case media.CodecUpsampleSpatial:
-		weight, bias := op.values[0], op.values[1]
+		weight, bias := values[0], values[1]
 		scale := op.Operator.SpatialScale()
 		out := make([]float32, op.OutputChannels*frames*scale*h*scale*w)
 		if err := hostmath.ResizeConv2DInto(out, x, weight, bias, c, op.OutputChannels, frames, h, w); err != nil {
@@ -732,8 +728,8 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 		}
 		return out, frames, scale * h, scale * w, nil
 	case media.CodecUpsampleSpatiotemporal:
-		timeW, timeB := op.values[0], op.values[1]
-		resampleW, resampleB := op.values[2], op.values[3]
+		timeW, timeB := values[0], values[1]
+		resampleW, resampleB := values[2], values[3]
 		spatialInput, spatialFrames := x, frames
 		if checked.Equal(chunkIndex, tensor.FirstOffset) {
 			state.cache0 = vaeTemporalCache{initialized: true, rep: true}
@@ -768,7 +764,7 @@ func runVAEOp(op vaeLoadedOp, state *vaeOpState, chunkIndex int, x []float32, fr
 		}
 		return out, spatialFrames, scale * h, scale * w, nil
 	case media.CodecHead:
-		gamma, weight, bias := op.values[0], op.values[1], op.values[2]
+		gamma, weight, bias := values[0], values[1], values[2]
 		norm := make([]float32, len(x))
 		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, frames*spatial); err != nil {
 			return nil, 0, 0, 0, err
@@ -823,25 +819,28 @@ func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentSt
 		return decodeStats, err
 	}
 	defer reader.Close()
-	ops, err := loadVAEDecoderOps(reader, plan)
+	weights, err := loadVAEDecoderOps(reader, plan)
 	if err != nil {
 		return decodeStats, err
 	}
 	samplePeak()
-	states := make([]vaeOpState, len(ops))
+	states := make([]vaeOpState, len(plan.Operations))
 	frameScratch := make([]float32, 0)
 	frameIndex := tensor.FirstOffset
 	for chunkIndex := range latentFrames {
 		x := make([]float32, plan.ZDim*spatial)
 		denormalizeLatentChunk(x, z, stats, plan.ZDim, latentFrames, spatial, chunkIndex)
-		frames, h, w := tensor.SingletonExtent, latentH, latentW
-		for opIndex := range ops {
-			x, frames, h, w, err = runVAEOp(ops[opIndex], &states[opIndex], chunkIndex, x, frames, h, w)
-			if err != nil {
-				return decodeStats, fmt.Errorf("vae decode %s chunk %d: %w", ops[opIndex].Name, chunkIndex, err)
-			}
+		volume, err := media.ExecuteCodecProgram("vae decode", plan.CodecProgram, states, media.CodecVolume[[]float32]{
+			Storage: x, Channels: plan.ZDim, Frames: tensor.SingletonExtent, Height: latentH, Width: latentW,
+		}, func(index int, operation media.CodecOperation[[]pytorchzip.TensorBinding], state *vaeOpState, current media.CodecVolume[[]float32]) (media.CodecVolume[[]float32], error) {
+			next, frames, height, width, runErr := runVAEOp(operation, weights[index], state, chunkIndex, current.Storage, current.Frames, current.Height, current.Width)
 			samplePeak()
+			return media.CodecVolume[[]float32]{Storage: next, Channels: operation.OutputChannels, Frames: frames, Height: height, Width: width}, runErr
+		})
+		if err != nil {
+			return decodeStats, fmt.Errorf("vae decode chunk %d: %w", chunkIndex, err)
 		}
+		x, frames, h, w := volume.Storage, volume.Frames, volume.Height, volume.Width
 		if !checked.Equal(h, geometry.height) || !checked.Equal(w, geometry.width) {
 			return decodeStats, fmt.Errorf("vae decode chunk %d output %dx%d, want %dx%d", chunkIndex, w, h, geometry.width, geometry.height)
 		}

@@ -113,8 +113,9 @@ func measureDispatch() dispatchCalibration {
 		linearCols(out, x, w, 1, calibrationDim, calibrationDim, 0, calibrationDim)
 	}) / float64(calibrationDim*calibrationDim)
 
-	// f64 rate: the exact CausalConv1d channel kernel; shape realizes the
-	// same MAC budget as outT*cIn*k = 512*64*8 = 2^18, one output channel.
+	// f64 rate: the exact CausalConv1d channel kernel. These protocol extents
+	// realize the same MAC budget as the square F32 calibration while keeping
+	// one output channel; closure evidence owns both local constants.
 	const cIn, ck = 1 << 6, 1 << 3
 	cx := make([]float32, cIn*calibrationDim)
 	cw := make([]float32, cIn*ck)

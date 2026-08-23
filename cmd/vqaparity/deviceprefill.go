@@ -103,7 +103,7 @@ func newPrefillContext(modelDir string, inputIDs, imageMaskPositions []int, grid
 	}, nil
 }
 
-func loadPrefillContext(l *ladder) (*prefillContext, error) {
+func loadPrefillContext(l *campaignContext) (*prefillContext, error) {
 	vg, err := loadGoldenJSON[visionGolden](l.fixturesDir, "rxbrain_vqa_vision_golden.json")
 	if err != nil {
 		return nil, err
@@ -200,9 +200,9 @@ func bindPrefillBranch(ctx context.Context, allocations *device.AllocationSet, f
 	)
 }
 
-func runDevicePrefill(l *ladder) error {
+func runDevicePrefill(l *campaignContext) error {
 	ctx := context.Background()
-	l.log("DEVICE prefill START")
+	l.Log("DEVICE prefill START")
 
 	pc, err := loadPrefillContext(l)
 	if err != nil {
@@ -211,7 +211,7 @@ func runDevicePrefill(l *ladder) error {
 	defer pc.src.Close()
 	cfg := pc.cfg
 	H := cfg.HiddenSize
-	l.log(fmt.Sprintf("DEVICE prefill ctx prompt_len=%d image_rows=%d segments=%v blocks=%v", pc.promptLen, pc.imageRows, pc.segments, pc.blocks))
+	l.Log(fmt.Sprintf("DEVICE prefill ctx prompt_len=%d image_rows=%d segments=%v blocks=%v", pc.promptLen, pc.imageRows, pc.segments, pc.blocks))
 
 	g, err := routedlm.BuildDevicePrefillLayer(cfg, pc.promptLen, pc.blocks)
 	if err != nil {
@@ -298,7 +298,7 @@ func runDevicePrefill(l *ladder) error {
 		}
 		detail, err := probeCheck("layer"+strconv.Itoa(layer), devOut, golden.MoTTensors[key], atol, rtol)
 		if err != nil {
-			l.log(fmt.Sprintf("DEVICE prefill LADDER layer%d FAIL %v", layer, err))
+			l.Log(fmt.Sprintf("DEVICE prefill LADDER layer%d FAIL %v", layer, err))
 			return err
 		}
 		// parse worst from detail is noisy; recompute worst on probes.
@@ -311,7 +311,7 @@ func runDevicePrefill(l *ladder) error {
 		}
 		worstByLayer[layer] = worst
 		if layer == 0 || layer == cfg.NumHiddenLayers-1 || layer%8 == 0 {
-			l.log(fmt.Sprintf("DEVICE prefill LADDER layer%-2d %s", layer, detail))
+			l.Log(fmt.Sprintf("DEVICE prefill LADDER layer%-2d %s", layer, detail))
 		}
 	}
 	var worstAll float64
@@ -321,7 +321,7 @@ func runDevicePrefill(l *ladder) error {
 			worstAll, worstLayer = w, i
 		}
 	}
-	l.log(fmt.Sprintf("DEVICE prefill LADDER PASS 32/32 layers vs golden boundaries; worst|d|=%.3e at layer %d", worstAll, worstLayer))
+	l.Log(fmt.Sprintf("DEVICE prefill LADDER PASS 32/32 layers vs golden boundaries; worst|d|=%.3e at layer %d", worstAll, worstLayer))
 
 	// ---- chained: all 32 layers from host prefill embeds (no golden anchors)-
 	terminal, err := routedlm.LoadTerminalWeights(pc.src, cfg, binding)
@@ -392,12 +392,12 @@ func runDevicePrefill(l *ladder) error {
 	if err != nil {
 		return err
 	}
-	l.log(fmt.Sprintf("DEVICE prefill CHAINED 32 layers from prefill embeds: worst|d| vs golden=%.3e wall=%s", chainWorst, chainWall.Round(time.Millisecond)))
+	l.Log(fmt.Sprintf("DEVICE prefill CHAINED 32 layers from prefill embeds: worst|d| vs golden=%.3e wall=%s", chainWorst, chainWall.Round(time.Millisecond)))
 	if topID != dg.FirstToken {
-		l.log(fmt.Sprintf("DEVICE prefill CHAINED terminal top=%d logit=%.4f != golden first token=%d", topID, topLogit, dg.FirstToken))
+		l.Log(fmt.Sprintf("DEVICE prefill CHAINED terminal top=%d logit=%.4f != golden first token=%d", topID, topLogit, dg.FirstToken))
 		return fmt.Errorf("device prefill chained terminal top %d != golden first token %d", topID, dg.FirstToken)
 	}
-	l.log(fmt.Sprintf("DEVICE prefill CHAINED terminal top=%d logit=%.4f == golden first token (EXACT)", topID, topLogit))
-	l.log("DEVICE prefill LANE GREEN")
+	l.Log(fmt.Sprintf("DEVICE prefill CHAINED terminal top=%d logit=%.4f == golden first token (EXACT)", topID, topLogit))
+	l.Log("DEVICE prefill LANE GREEN")
 	return nil
 }

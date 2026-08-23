@@ -8,8 +8,7 @@ import (
 	"overgo/internal/artifact"
 )
 
-// SessionCapabilities: the media prompt surfaces a compiled projection
-// session offers. Compiled once at session construction.
+// SessionCapabilities: compiled prompt surfaces.
 type SessionCapabilities struct {
 	Image        bool
 	MultiImage   bool
@@ -18,9 +17,7 @@ type SessionCapabilities struct {
 	MediaHistory bool
 }
 
-// Session: the compiled projection session — the sole prompt authority over an
-// opened projector artifact. Families declare unexported prompt providers;
-// callers never touch family-specific entry points.
+// Session: compiled projector prompt authority.
 type Session interface {
 	BuildImagePrompt(context.Context, ImageTokenizer, image.Image, string, string, bool) (MultimodalPrompt, error)
 	BuildImagesPrompt(context.Context, ImageTokenizer, []image.Image, []string, PromptOptions) (MultimodalPrompt, error)
@@ -31,44 +28,58 @@ type Session interface {
 	Close() error
 }
 
-// Family prompt providers. Unexported by design: the session is the only
-// public route to prompt construction.
-type imagesPromptProvider interface {
-	imagesPrompt(context.Context, ImageTokenizer, []image.Image, []string, PromptOptions) (MultimodalPrompt, error)
+// Prompt callbacks: compiled once per session.
+type imagesPromptFunc func(context.Context, ImageTokenizer, []image.Image, []string, PromptOptions) (MultimodalPrompt, error)
+type videoPromptFunc func(context.Context, ImageTokenizer, []image.Image, string, string, float64, bool) (MultimodalPrompt, error)
+type audioPromptFunc func(context.Context, ImageTokenizer, []float32, string, string) (MultimodalPrompt, error)
+type mediaHistoryPromptFunc func(context.Context, ImageTokenizer, []MediaInput, []string) (MultimodalPrompt, error)
+
+type promptDispatch struct {
+	images          imagesPromptFunc
+	video           videoPromptFunc
+	audio           audioPromptFunc
+	audioSampleRate func() (int, error)
+	media           mediaHistoryPromptFunc
 }
 
-type videoPromptProvider interface {
-	videoPrompt(context.Context, ImageTokenizer, []image.Image, string, string, float64, bool) (MultimodalPrompt, error)
-}
-
-type audioPromptProvider interface {
-	audioPrompt(context.Context, ImageTokenizer, []float32, string, string) (MultimodalPrompt, error)
-	audioSampleRate() (int, error)
-}
-
-type mediaHistoryPromptProvider interface {
-	mediaHistoryPrompt(context.Context, ImageTokenizer, []MediaInput, []string) (MultimodalPrompt, error)
+func compilePromptDispatch(source Projector) promptDispatch {
+	dispatch := promptDispatch{}
+	if provider, ok := source.(interface {
+		imagesPrompt(context.Context, ImageTokenizer, []image.Image, []string, PromptOptions) (MultimodalPrompt, error)
+	}); ok {
+		dispatch.images = provider.imagesPrompt
+	}
+	if provider, ok := source.(interface {
+		videoPrompt(context.Context, ImageTokenizer, []image.Image, string, string, float64, bool) (MultimodalPrompt, error)
+	}); ok {
+		dispatch.video = provider.videoPrompt
+	}
+	if provider, ok := source.(interface {
+		audioPrompt(context.Context, ImageTokenizer, []float32, string, string) (MultimodalPrompt, error)
+		audioSampleRate() (int, error)
+	}); ok {
+		dispatch.audio = provider.audioPrompt
+		dispatch.audioSampleRate = provider.audioSampleRate
+	}
+	if provider, ok := source.(interface {
+		mediaHistoryPrompt(context.Context, ImageTokenizer, []MediaInput, []string) (MultimodalPrompt, error)
+	}); ok {
+		dispatch.media = provider.mediaHistoryPrompt
+	}
+	return dispatch
 }
 
 type compiledSession struct {
 	source Projector
-	images imagesPromptProvider
-	video  videoPromptProvider
-	audio  audioPromptProvider
-	media  mediaHistoryPromptProvider
+	prompt promptDispatch
 }
 
-// NewSession compiles the projection session for an opened projector.
+// NewSession compiles prompt dispatch.
 func NewSession(source Projector) (Session, error) {
 	if source == nil {
 		return nil, errors.New("projector: session source is nil")
 	}
-	session := &compiledSession{source: source}
-	session.images, _ = source.(imagesPromptProvider)
-	session.video, _ = source.(videoPromptProvider)
-	session.audio, _ = source.(audioPromptProvider)
-	session.media, _ = source.(mediaHistoryPromptProvider)
-	return session, nil
+	return &compiledSession{source: source, prompt: compilePromptDispatch(source)}, nil
 }
 
 // OpenSession: open a projector artifact and compile its prompt session.
@@ -97,9 +108,9 @@ func OpenActiveSession(
 
 func (s *compiledSession) Capabilities() SessionCapabilities {
 	return SessionCapabilities{
-		Image: s.images != nil, MultiImage: s.images != nil,
-		Video: s.video != nil, Audio: s.audio != nil,
-		MediaHistory: s.media != nil,
+		Image: s.prompt.images != nil, MultiImage: s.prompt.images != nil,
+		Video: s.prompt.video != nil, Audio: s.prompt.audio != nil,
+		MediaHistory: s.prompt.media != nil,
 	}
 }
 
@@ -112,10 +123,10 @@ func (s *compiledSession) BuildImagePrompt(
 	beforeImage, afterImage string,
 	thinking bool,
 ) (MultimodalPrompt, error) {
-	if s.images == nil {
+	if s.prompt.images == nil {
 		return MultimodalPrompt{}, errors.New("projector: session does not build image prompts")
 	}
-	return s.images.imagesPrompt(
+	return s.prompt.images(
 		ctx, tokenizer, []image.Image{source},
 		[]string{beforeImage, afterImage}, PromptOptions{Thinking: thinking},
 	)
@@ -128,10 +139,10 @@ func (s *compiledSession) BuildImagesPrompt(
 	text []string,
 	options PromptOptions,
 ) (MultimodalPrompt, error) {
-	if s.images == nil {
+	if s.prompt.images == nil {
 		return MultimodalPrompt{}, errors.New("projector: session does not build image prompts")
 	}
-	return s.images.imagesPrompt(ctx, tokenizer, sources, text, options)
+	return s.prompt.images(ctx, tokenizer, sources, text, options)
 }
 
 func (s *compiledSession) BuildVideoPrompt(
@@ -142,10 +153,10 @@ func (s *compiledSession) BuildVideoPrompt(
 	fps float64,
 	thinking bool,
 ) (MultimodalPrompt, error) {
-	if s.video == nil {
+	if s.prompt.video == nil {
 		return MultimodalPrompt{}, errors.New("projector: session does not build video prompts")
 	}
-	return s.video.videoPrompt(ctx, tokenizer, frames, beforeVideo, afterVideo, fps, thinking)
+	return s.prompt.video(ctx, tokenizer, frames, beforeVideo, afterVideo, fps, thinking)
 }
 
 func (s *compiledSession) BuildAudioPrompt(
@@ -154,17 +165,17 @@ func (s *compiledSession) BuildAudioPrompt(
 	samples []float32,
 	beforeAudio, afterAudio string,
 ) (MultimodalPrompt, error) {
-	if s.audio == nil {
+	if s.prompt.audio == nil {
 		return MultimodalPrompt{}, errors.New("projector: session does not build audio prompts")
 	}
-	return s.audio.audioPrompt(ctx, tokenizer, samples, beforeAudio, afterAudio)
+	return s.prompt.audio(ctx, tokenizer, samples, beforeAudio, afterAudio)
 }
 
 func (s *compiledSession) audioInputSampleRate() (int, error) {
-	if s.audio == nil {
+	if s.prompt.audioSampleRate == nil {
 		return 0, errors.New("projector: session does not build audio prompts")
 	}
-	return s.audio.audioSampleRate()
+	return s.prompt.audioSampleRate()
 }
 
 // AudioSampleRate returns the artifact-declared rate for a compiled session.
@@ -182,8 +193,8 @@ func (s *compiledSession) BuildMediaHistoryPrompt(
 	media []MediaInput,
 	text []string,
 ) (MultimodalPrompt, error) {
-	if s.media == nil {
+	if s.prompt.media == nil {
 		return MultimodalPrompt{}, errors.New("projector: session does not build media history prompts")
 	}
-	return s.media.mediaHistoryPrompt(ctx, tokenizer, media, text)
+	return s.prompt.media(ctx, tokenizer, media, text)
 }

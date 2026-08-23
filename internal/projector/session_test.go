@@ -8,10 +8,7 @@ import (
 	"testing"
 )
 
-// TestCompiledSessionOwnsPromptDispatch: the compiled projection session is the sole
-// prompt authority. No family runner exposes a Build*Prompt entry point, the
-// session compiles the correct capability surface per family, and it builds
-// prompts for representative families over hermetic fixtures.
+// TestCompiledSessionOwnsPromptDispatch checks session-only prompt entry points.
 func TestCompiledSessionOwnsPromptDispatch(t *testing.T) {
 	families := []struct {
 		name   string

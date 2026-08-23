@@ -101,7 +101,7 @@ func (h *Handler) publishResponseInteraction(
 		return
 	}
 	_, err := runrecord.PublishInteraction(ctx, h.repository, runrecord.Interaction{
-		Response: responseID, Recipe: description.Identity.Recipe,
+		Response: responseID, Recipe: description.Identity.Recipe, Model: description.Identity.Model,
 		Node: description.Interaction.Node, Parent: parent,
 	}, interactionMessages(messages))
 	if err != nil {

@@ -1390,12 +1390,12 @@
       "id": "adk-interaction-replay-evaluation",
       "title": "Record and replay exact model and tool interactions through RepoDB evaluation authority",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Capture recipe, model request, ordered output events, tool actions, decisions, and final artifacts as one trace manifest; add a test-only replay adapter and evaluation comparison; delete callback and YAML cassette requirements",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/runrecord ./internal/workflowruntime ./internal/evaluation ./internal/server -run 'Test(InteractionTraceIdentity|InteractionReplayExact|ReplayRejectsRequestDrift|WorkflowEvaluationBindsTrace|ReplayGUI)' -count=1",
           "rationale": "ADK record and replay is valuable for conformance, but Overgo already owns artifact identity, runs, and evaluations. Trace components should be immutable artifacts with lineage and explicit nondeterministic fields, allowing exact replay, regression comparison, and GUI inspection without lifecycle plugins.",
           "depends_on": [

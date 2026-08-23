@@ -47,11 +47,13 @@ type Interaction struct {
 	Version   uint16        `json:"version"`
 	Response  string        `json:"response"`
 	Recipe    artifact.ID   `json:"recipe,omitzero"`
+	Model     artifact.ID   `json:"model"`
 	Node      recipe.NodeID `json:"node"`
 	Operation artifact.ID   `json:"operation,omitzero"`
 	Run       artifact.ID   `json:"run,omitzero"`
 	Parent    artifact.ID   `json:"parent,omitzero"`
 	Message   artifact.ID   `json:"message"`
+	Trace     artifact.ID   `json:"trace"`
 	Tools     []artifact.ID `json:"tools,omitempty"`
 	Media     []artifact.ID `json:"media,omitempty"`
 	ID        artifact.ID   `json:"-"`
@@ -95,7 +97,8 @@ type InteractionToolCall struct {
 
 func canonicalizeInteraction(value *Interaction) error {
 	if value.Version != artifact.InitialDocumentVersion || strings.TrimSpace(value.Response) != value.Response || value.Response == "" ||
-		value.Recipe.Kind() != artifact.KindRecipe || value.Node == "" || value.Message.Kind() != artifact.KindEvidence ||
+		value.Recipe.Kind() != artifact.KindRecipe || value.Model.Kind() != artifact.KindModel || value.Node == "" ||
+		value.Message.Kind() != artifact.KindEvidence || value.Trace.Kind() != artifact.KindEvidence ||
 		(value.Parent.Valid() && value.Parent.Kind() != artifact.KindEvidence) {
 		return errors.New("run record: invalid interaction")
 	}
@@ -219,7 +222,28 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 	if err != nil {
 		return Interaction{}, err
 	}
+	requestMessages := messages
+	if len(messages) > 1 && messages[len(messages)-1].Role == "assistant" {
+		requestMessages = messages[:len(messages)-1]
+	}
+	requestTranscript, err := NewInteractionTranscript(requestMessages)
+	if err != nil {
+		return Interaction{}, err
+	}
 	value.Message = transcript.ID
+	var decisions []artifact.ID
+	if value.Operation.Valid() {
+		if decision, found, resolveErr := ResolveHumanDecision(ctx, repository, value.Operation); resolveErr != nil {
+			return Interaction{}, resolveErr
+		} else if found {
+			decisions = append(decisions, decision.ID)
+		}
+	}
+	trace, err := NewInteractionTrace(value, requestTranscript.ID, messages, decisions)
+	if err != nil {
+		return Interaction{}, err
+	}
+	value.Trace = trace.ID
 	value, err = NewInteraction(value)
 	if err != nil {
 		return Interaction{}, err
@@ -232,14 +256,28 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 	if err != nil {
 		return Interaction{}, err
 	}
-	parents := []artifact.ID{value.Message, value.Recipe, value.Operation, value.Run, value.Parent}
+	traceContent, err := interactionTraceCodec.Content(trace)
+	if err != nil {
+		return Interaction{}, err
+	}
+	parents := []artifact.ID{value.Trace, value.Recipe, value.Operation, value.Run, value.Parent}
 	parents = append(parents, value.Tools...)
 	parents = append(parents, value.Media...)
 	parents = slices.DeleteFunc(parents, func(id artifact.ID) bool { return !id.Valid() })
+	contents := []artifact.Content{transcriptContent}
+	if requestTranscript.ID != transcript.ID {
+		requestContent, err := interactionTranscriptCodec.Content(requestTranscript)
+		if err != nil {
+			return Interaction{}, err
+		}
+		contents = append(contents, requestContent)
+	}
+	contents = append(contents, traceContent, interactionContent)
 	lineage := artifact.DependencyLineage(value.ID, parents...)
+	lineage = append(lineage, artifact.DependencyLineage(trace.ID, trace.Request)...)
 	batch, err := artifact.NewDocumentBatch(
 		"interaction/"+value.ID.String(),
-		[]artifact.Content{transcriptContent, interactionContent},
+		contents,
 		lineage,
 		[]artifact.AliasBinding{{Name: interactionResponseAliasRoot + value.Response, Target: value.ID}},
 	)

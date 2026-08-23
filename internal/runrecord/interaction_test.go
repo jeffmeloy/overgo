@@ -14,6 +14,7 @@ const interactionTestNode recipe.NodeID = "respond"
 
 func TestInteractionIdentity(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "interaction-identity-recipe")
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "interaction-identity-model")
 	messages := []InteractionMessage{{Role: "user", Content: "hello"}}
 	first, err := NewInteractionTranscript(messages)
 	if err != nil {
@@ -24,7 +25,8 @@ func TestInteractionIdentity(t *testing.T) {
 		t.Fatalf("transcript identity = (%s, %s, %v)", first.ID, second.ID, err)
 	}
 	interaction, err := NewInteraction(Interaction{
-		Response: "resp_fixture", Recipe: recipeID, Node: interactionTestNode, Message: first.ID,
+		Response: "resp_fixture", Recipe: recipeID, Model: modelID, Node: interactionTestNode, Message: first.ID,
+		Trace: testutil.ArtifactID(t, artifact.KindEvidence, "interaction trace"),
 	})
 	if err != nil || interaction.ID.Kind() != artifact.KindEvidence {
 		t.Fatalf("interaction identity = (%s, %v)", interaction.ID, err)
@@ -38,6 +40,7 @@ func TestInteractionLineage(t *testing.T) {
 	}
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "interaction-recipe")
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "interaction-model")
 	parentID := testutil.ArtifactID(t, artifact.KindEvidence, "parent-interaction")
 	if _, err := store.Commit(context.Background(), artifact.Batch{
 		Key: "interaction/parents", Artifacts: []artifact.Descriptor{{ID: recipeID}, {ID: parentID}},
@@ -45,7 +48,7 @@ func TestInteractionLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 	published, err := PublishInteraction(context.Background(), store, Interaction{
-		Response: "resp_lineage", Recipe: recipeID, Node: interactionTestNode, Parent: parentID,
+		Response: "resp_lineage", Recipe: recipeID, Model: modelID, Node: interactionTestNode, Parent: parentID,
 	}, []InteractionMessage{{Role: "assistant", Content: "answer"}})
 	if err != nil {
 		t.Fatal(err)
@@ -102,14 +105,14 @@ func TestCurrentTurnProjection(t *testing.T) {
 	}
 	rootMessages := []InteractionMessage{{Role: "user", Content: "root"}, {Role: "assistant", Content: "first"}}
 	root, err := PublishInteraction(context.Background(), store, Interaction{
-		Response: "resp_root", Recipe: definition.ID, Node: interactionTestNode,
+		Response: "resp_root", Recipe: definition.ID, Model: modelID, Node: interactionTestNode,
 	}, rootMessages)
 	if err != nil {
 		t.Fatal(err)
 	}
 	turnMessages := []InteractionMessage{{Role: "user", Content: "child"}, {Role: "assistant", Content: "second"}}
 	child, err := PublishInteraction(context.Background(), store, Interaction{
-		Response: "resp_child", Recipe: definition.ID, Node: interactionTestNode, Parent: root.ID,
+		Response: "resp_child", Recipe: definition.ID, Model: modelID, Node: interactionTestNode, Parent: root.ID,
 	}, turnMessages)
 	if err != nil {
 		t.Fatal(err)

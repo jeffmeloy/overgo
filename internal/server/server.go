@@ -645,6 +645,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/datasets" ||
 		request.URL.Path == "/datasets/preview" ||
 		request.URL.Path == "/runs" ||
+		request.URL.Path == "/interactions/replay" ||
 		request.URL.Path == "/recipes/active" ||
 		request.URL.Path == "/compositions" ||
 		request.URL.Path == "/compositions/activate" ||
@@ -760,6 +761,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.previewDataset(response, request)
 	case "/runs":
 		h.browseRuns(response, request)
+	case "/interactions/replay":
+		h.interactionReplay(response, request)
 	case "/recipes/active":
 		h.activeRecipe(response, request)
 	case "/compositions":

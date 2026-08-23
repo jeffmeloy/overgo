@@ -49,6 +49,7 @@ func TestCompositionGUIWorkflow(t *testing.T) {
 	}
 	for _, token := range []string{
 		`api.get("/compositions")`, `api.post("/compositions/activate"`,
+		`api.post("/compositions/generate"`, "Open promoted generation",
 		"compatible", "recipe graph", "Bridge training controls and metrics",
 		"Evaluation and promotion history", "Runtime memory and latency evidence",
 		"contract-tested", "cuda-verified", "production-active",
@@ -60,5 +61,28 @@ func TestCompositionGUIWorkflow(t *testing.T) {
 	shell := serveTestRequest(handler, http.MethodGet, "/app.html", "")
 	if !strings.Contains(shell.Body.String(), "/mod/compositions.js") {
 		t.Fatal("workbench shell does not load composition module")
+	}
+}
+
+func TestCompositeGenerationUnpromotedRefusal(t *testing.T) {
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := New(Config{Repository: store}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = handler.Close()
+		_ = store.Close()
+	})
+	response := serveTestRequest(handler, http.MethodPost, "/compositions/generate", `{
+		"source":"model:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"target":"model:sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"task":"generation"
+	}`)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "not evidence-promoted") {
+		t.Fatalf("unpromoted response status=%d body=%s", response.Code, response.Body.String())
 	}
 }

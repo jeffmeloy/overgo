@@ -2,6 +2,7 @@ package composition
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"slices"
 
@@ -68,6 +69,26 @@ func (CompositeGenerationCUDAAuthority) New(
 // Parse admits canonical serialized CUDA evidence.
 func (CompositeGenerationCUDAAuthority) Parse(data []byte) (CompositeGenerationCUDAEvidence, error) {
 	return compositeGenerationCUDAEvidenceCodec.Parse(data)
+}
+
+// Load requires exact CUDA evidence content from RepoDB.
+func (CompositeGenerationCUDAAuthority) Load(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (CompositeGenerationCUDAEvidence, error) {
+	content, err := loadCompositionContent(
+		ctx, reader, id, artifact.KindEvidence,
+		CompositeGenerationCUDAEvidenceMediaType, CompositeGenerationCUDAEvidenceSchema,
+	)
+	if err != nil {
+		return CompositeGenerationCUDAEvidence{}, err
+	}
+	value, err := compositeGenerationCUDAEvidenceCodec.Parse(content.Data)
+	if err != nil || value.ID != id {
+		return CompositeGenerationCUDAEvidence{}, errors.Join(err, errors.New("composition: composite generation CUDA evidence identity differs"))
+	}
+	return value, nil
 }
 
 // ValidateIdentity verifies the CUDA evidence envelope and content identity.

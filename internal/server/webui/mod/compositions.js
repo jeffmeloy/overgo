@@ -50,16 +50,31 @@
         }
       }
 
+      async function generate(item, output) {
+        status.textContent = "resolving promoted generation " + fmt.shortID(item.recipe);
+        try {
+          const value = await overgo.api.post("/compositions/generate", {
+            source: item.source, target: item.target, task: item.task,
+          });
+          output.textContent = "recipe " + fmt.shortID(value.recipe) + " · plan " + fmt.shortID(value.plan) + " · output " + fmt.shortID(value.output);
+          status.textContent = "promoted generation resolved";
+        } catch (err) {
+          status.textContent = overgo.friendlyError(err);
+        }
+      }
+
       function render(item) {
         const card = el("section", { class: "composition-card" });
+		const generated = el("div", { class: "note" });
         card.append(
           el("div", { class: "row" },
             el("span", { class: "tag " + (item.compatible ? "user_defined" : "control"), text: item.compatible ? "compatible" : "refused" }),
             item.active ? el("span", { class: "tag user_defined", text: "active" }) : null,
             id(overgo, item.recipe),
-            !item.active && item.compatible ? el("button", { class: "btn", text: "Activate", onclick: () => activate(item.recipe) }) : null),
+			!item.active && item.compatible ? el("button", { class: "btn", text: "Activate", onclick: () => activate(item.recipe) }) : null,
+			item.active && item.generation ? el("button", { class: "btn", text: "Open promoted generation", onclick: () => generate(item, generated) }) : null),
           item.refusal ? overgo.errorBanner(item.refusal) : null,
-          graph(overgo, item.graph), completion(overgo, item.completion || {}));
+		  graph(overgo, item.graph), completion(overgo, item.completion || {}), generated);
         if (item.training) {
           card.append(el("div", { class: "section-title", text: "Bridge training controls and metrics" }),
             el("div", { class: "control-grid" },

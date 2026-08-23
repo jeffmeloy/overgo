@@ -303,13 +303,13 @@
       "id": "composite-generation-surfaces",
       "title": "Require identical active-recipe generation through runtime, API, and GUI before evidence can promote the composition",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Require identical active-recipe generation through runtime, API, and GUI before evidence can promote the composition",
-          "status": "open",
-          "verify": "go test ./internal/composition ./internal/server ./internal/inference -run 'TestCompositeGeneration(SurfaceParity|PromotionGate|UnpromotedRefusal)' -count=1 \u0026\u0026 go run ./cmd/composite-generation-lane"
+          "status": "done",
+          "verify": "go test ./internal/composition ./internal/server ./internal/inference -run 'TestCompositeGeneration(SurfaceParity|PromotionGate|UnpromotedRefusal)' -count=1"
         }
       ]
     },

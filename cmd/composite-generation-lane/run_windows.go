@@ -700,8 +700,16 @@ func publishLaneEvidence(
 	if err != nil {
 		return composition.CompositeGenerationCUDAEvidence{}, err
 	}
+	surfacePromotion, err := (composition.CompositeGenerationPromotionAuthority{}).Promote(authority.Plan, evidence)
+	if err != nil {
+		return composition.CompositeGenerationCUDAEvidence{}, err
+	}
+	promotionContent, err := surfacePromotion.Content()
+	if err != nil {
+		return composition.CompositeGenerationCUDAEvidence{}, err
+	}
 	contents := []artifact.Content{
-		baseline.Content, planContent, deviceFact, bridgeFact, evidenceContent,
+		baseline.Content, planContent, deviceFact, bridgeFact, evidenceContent, promotionContent,
 	}
 	for _, document := range []interface {
 		Content() (artifact.Content, error)
@@ -720,8 +728,21 @@ func publishLaneEvidence(
 	lineage = append(lineage, baselineObservation.Lineage()...)
 	lineage = append(lineage, composedObservation.Lineage()...)
 	lineage = append(lineage, evidence.Lineage()...)
+	lineage = append(lineage, surfacePromotion.Lineage()...)
+	alias, err := composition.CompositeGenerationPromotionAlias(catalog.Source, catalog.Target, authority.Plan.Task)
+	if err != nil {
+		return composition.CompositeGenerationCUDAEvidence{}, err
+	}
+	previous, found, err := artifact.ResolveAlias(ctx, store, alias)
+	if err != nil {
+		return composition.CompositeGenerationCUDAEvidence{}, err
+	}
+	aliases := []artifact.AliasBinding{{Name: alias, Target: surfacePromotion.ID}}
+	if found {
+		aliases[tensor.FirstOffset].Previous = &previous
+	}
 	batch, err := artifact.NewDocumentBatch(
-		"composite-generation/cuda/evidence/"+evidence.ID.String(), contents, lineage, nil,
+		"composite-generation/cuda/evidence/"+evidence.ID.String(), contents, lineage, aliases,
 	)
 	if err != nil {
 		return composition.CompositeGenerationCUDAEvidence{}, err

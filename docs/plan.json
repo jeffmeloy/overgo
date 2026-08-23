@@ -441,13 +441,111 @@
       "id": "gui-refactor",
       "title": "Refactor the workbench GUI into a correct, reliable interface",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Refactor the workbench GUI into a correct, reliable interface",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'TestWebUI|TestEvaluationWorkbench' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-hub-client",
+      "title": "HuggingFace hub client: search, resolve, verified download",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "HuggingFace hub client: search, resolve, verified download",
+          "status": "done",
+          "verify": "go test ./internal/hfhub -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-api",
+      "title": "Typed workbench API: catalog, evidence tiers, jobs, downloads",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Typed workbench API: catalog, evidence tiers, jobs, downloads",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestWorkbenchAPI' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-shell",
+      "title": "Rebuild the workbench shell as a consumer-grade app",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Rebuild the workbench shell as a consumer-grade app",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestWebUI' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-inference-surface",
+      "title": "Multimodal inference surface: chat, image, speech, video, series, tabular",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Multimodal inference surface: chat, image, speech, video, series, tabular",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestWorkbenchInference|TestWebUI' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-discovery-surface",
+      "title": "Model and dataset discovery with HuggingFace download",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Model and dataset discovery with HuggingFace download",
+          "status": "open",
+          "verify": "go test ./internal/server ./internal/hfhub -run 'TestHub|TestDiscovery' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-training-surface",
+      "title": "Training surface: launch, monitor, and stream real runs",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Training surface: launch, monitor, and stream real runs",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestWorkbenchTraining|TestWebUI' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-polish",
+      "title": "Consumer polish pass: responsive, empty states, errors, keyboard",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Consumer polish pass: responsive, empty states, errors, keyboard",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestWebUI' -count=1"
         }
       ]
     },

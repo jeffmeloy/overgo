@@ -34,6 +34,10 @@ import (
 
 const (
 	counterStep = 1
+	// DefaultStoredResponses bounds retained server records.
+	DefaultStoredResponses = 128
+	// DefaultResponseStoreBytes bounds response payload operations.
+	DefaultResponseStoreBytes = 64 << 20
 
 	errorCodeUnsupportedOperation = "unsupported_operation"
 	defaultModelID                = "overgo"
@@ -371,7 +375,6 @@ type Handler struct {
 	catalogMemo        *discovery.Memo
 	generatedTokens    atomic.Uint64
 	mediaFetcher       *remoteMediaFetcher
-	responseHistory    *responseHistoryStore
 	responseFiles      ResponseFileResolver
 	thinkingSigner     *anthropicThinkingSigner
 	operations         *operation.Manager
@@ -501,20 +504,16 @@ func New(config Config, generator Generator) (*Handler, error) {
 		return nil, err
 	}
 	handler := &Handler{
-		catalogMemo:     discovery.NewMemo(),
-		config:          config,
-		generator:       generator,
-		sessions:        sessions,
-		defaultSampling: defaultSampler.Config(),
-		slotBusy:        make([]atomic.Bool, config.MaxConcurrent),
-		slotTasks:       make([]atomic.Uint64, config.MaxConcurrent),
-		slotStats:       make([]slotRuntimeStats, config.MaxConcurrent),
-		started:         time.Now(),
-		mediaFetcher:    mediaFetcher,
-		responseHistory: newResponseHistoryStore(
-			config.MaxStoredResponses,
-			config.ResponseStoreBytes,
-		),
+		catalogMemo:      discovery.NewMemo(),
+		config:           config,
+		generator:        generator,
+		sessions:         sessions,
+		defaultSampling:  defaultSampler.Config(),
+		slotBusy:         make([]atomic.Bool, config.MaxConcurrent),
+		slotTasks:        make([]atomic.Uint64, config.MaxConcurrent),
+		slotStats:        make([]slotRuntimeStats, config.MaxConcurrent),
+		started:          time.Now(),
+		mediaFetcher:     mediaFetcher,
 		responseFiles:    config.ResponseFiles,
 		thinkingSigner:   thinkingSigner,
 		repository:       repository,

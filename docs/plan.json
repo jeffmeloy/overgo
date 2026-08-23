@@ -1244,12 +1244,12 @@
       "id": "adk-interaction-ledger",
       "title": "Replace cloned response histories with immutable RepoDB interaction lineage",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Add a typed runrecord interaction document bound to recipe, operation, run, parent event, message, tool, and media artifacts; migrate Responses continuation and delete responseHistoryStore",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/runrecord ./internal/repodb ./internal/server -run 'Test(InteractionIdentity|InteractionLineage|ResponsesContinuationDurable|ResponsesContinuationRestart|ResponseHistoryStoreAbsent)' -count=1",
           "rationale": "Responses continuation currently clones every prior message into a bounded process-local LRU. Store each new event once, reference immutable media content, advance an external response alias by compare-and-set, and materialize only the requested lineage. RepoDB becomes session truth without introducing an ADK-style session database.",
           "depends_on": [

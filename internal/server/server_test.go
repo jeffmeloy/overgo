@@ -28,6 +28,7 @@ import (
 	"overgo/internal/inference"
 
 	"overgo/internal/projector"
+	"overgo/internal/repodb"
 
 	"overgo/internal/sampling"
 	"overgo/internal/testutil"
@@ -963,6 +964,31 @@ func newTestHandler(t testing.TB, generator Generator) *Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return handler
+}
+
+func newTestHandlerWithRepository(t testing.TB, generator Generator) *Handler {
+	t.Helper()
+	repository, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := newTestHandlerForRepository(t, repository, generator)
+	t.Cleanup(func() { _ = repository.Close() })
+	return handler
+}
+
+func newTestHandlerForRepository(t testing.TB, repository *repodb.Store, generator Generator) *Handler {
+	t.Helper()
+	handler, err := New(Config{
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
+		Analysis: testAnalysisPolicy, Repository: repository,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = handler.Close() })
 	return handler
 }
 

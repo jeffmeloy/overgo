@@ -76,12 +76,12 @@
       "id": "bifrost-runtime-gui",
       "title": "Expose session authority, attempts, resources, and operation activity in existing runtime views",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Expose session authority, attempts, resources, and operation activity in existing runtime views",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'Test(Runtime|Activity|Operation).*' -count=1"
         }
       ]

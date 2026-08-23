@@ -133,6 +133,9 @@ func TestWebUIRuntimeActivityUsesSessionAndRepoDBAPIs(t *testing.T) {
 	if response.Code != http.StatusOK || sessions.Session.Capacity != 1 || len(sessions.Slots) != 1 {
 		t.Fatalf("sessions status=%d response=%+v", response.Code, sessions)
 	}
+	if sessions.Authority == nil || sessions.Authority.Model != modelID || sessions.Authority.Recipe != recipeID {
+		t.Fatalf("runtime authority = %+v", sessions.Authority)
+	}
 	var activity runtimeActivityResponse
 	response = serveTestRequest(handler, http.MethodGet, "/runtime/activity", "")
 	if err := strictjson.DecodeBytes(response.Body.Bytes(), &activity); err != nil {
@@ -143,7 +146,7 @@ func TestWebUIRuntimeActivityUsesSessionAndRepoDBAPIs(t *testing.T) {
 		t.Fatalf("activity status=%d response=%+v", response.Code, activity)
 	}
 	module := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String()
-	for _, endpoint := range []string{"/runtime/sessions", "/runtime/activity"} {
+	for _, endpoint := range []string{"/runtime/sessions", "/runtime/activity", "/runtime/activity/stream"} {
 		if !strings.Contains(module, endpoint) {
 			t.Fatalf("runtime module lacks %q", endpoint)
 		}

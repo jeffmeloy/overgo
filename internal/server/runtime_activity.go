@@ -6,13 +6,28 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/operation"
+	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
 
 type runtimeSessionsResponse struct {
-	Session capabilityruntime.SessionSnapshot `json:"session"`
-	Slots   []slotStatusItem                  `json:"slots"`
+	Session   capabilityruntime.SessionSnapshot `json:"session"`
+	Authority *runtimeAuthority                 `json:"authority,omitempty"`
+	Slots     []slotStatusItem                  `json:"slots"`
+}
+
+type runtimeAuthority struct {
+	Model     artifact.ID            `json:"model"`
+	Recipe    artifact.ID            `json:"recipe"`
+	Task      recipe.Task            `json:"task"`
+	Runtime   modelrecipe.Runtime    `json:"runtime,omitempty"`
+	Placement recipe.Placement       `json:"placement,omitempty"`
+	Residency recipe.ResidencyPolicy `json:"residency,omitempty"`
+	Stages    int                    `json:"stages"`
+	Evidence  []artifact.ID          `json:"evidence,omitempty"`
 }
 
 type servingActivity struct {
@@ -21,23 +36,41 @@ type servingActivity struct {
 }
 
 type runtimeActivityResponse struct {
-	Count       int               `json:"count"`
-	Truncated   bool              `json:"truncated"`
-	PublishFail uint64            `json:"publish_failures"`
-	Activity    []servingActivity `json:"activity"`
+	Count       int                `json:"count"`
+	Truncated   bool               `json:"truncated"`
+	PublishFail uint64             `json:"publish_failures"`
+	Activity    []servingActivity  `json:"activity"`
+	Operations  []operation.Status `json:"operations"`
 }
 
 func (h *Handler) runtimeSessions(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
+	var authority *runtimeAuthority
+	if inspector, ok := h.generator.(interface {
+		RecipeRuntimeDescription(recipe.Task) (modelrecipe.RuntimeDescription, error)
+	}); ok {
+		if description, err := inspector.RecipeRuntimeDescription(recipe.TaskInference); err == nil &&
+			description.Identity.Model.Kind() == artifact.KindModel && description.Identity.Recipe.Kind() == artifact.KindRecipe {
+			authority = &runtimeAuthority{
+				Model: description.Identity.Model, Recipe: description.Identity.Recipe, Task: description.Task,
+				Runtime: description.Identity.Runtime, Placement: description.Identity.Placement,
+				Residency: description.Identity.Residency, Stages: len(description.Stages), Evidence: description.Evidence,
+			}
+		}
+	}
 	writeJSON(response, http.StatusOK, runtimeSessionsResponse{
-		Session: h.sessions.Snapshot(), Slots: h.sessionStatus(false),
+		Session: h.sessions.Snapshot(), Authority: authority, Slots: h.sessionStatus(false),
 	})
 }
 
 func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodGet) {
+		return
+	}
+	if h.repository == nil && h.config.RepoDBPath == "" {
+		writeJSON(response, http.StatusOK, runtimeActivityResponse{Operations: h.operations.List()})
 		return
 	}
 	store, release, ok := h.openBrowseStore(response)
@@ -71,7 +104,7 @@ func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Re
 	})
 	writeJSON(response, http.StatusOK, runtimeActivityResponse{
 		Count: len(activity), Truncated: result.Truncated,
-		PublishFail: h.observationErrors.Load(), Activity: activity,
+		PublishFail: h.observationErrors.Load(), Activity: activity, Operations: h.operations.List(),
 	})
 }
 

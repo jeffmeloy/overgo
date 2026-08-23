@@ -231,13 +231,11 @@ func run() error {
 		}
 	}
 	var resourcePolicy *llamaserver.ResponseFilePolicy
-	var responseToolPolicy llamaserver.ResponseToolPolicy
 	if *resourcePolicyPath != "" {
 		resourcePolicy, err = llamaserver.LoadResponseFilePolicy(*resourcePolicyPath)
 		if err != nil {
 			return err
 		}
-		responseToolPolicy = resourcePolicy.ResponseTools
 	}
 	handler, err := llamaserver.New(llamaserver.Config{
 		ModelID:            *modelID,
@@ -255,7 +253,6 @@ func run() error {
 		AudioProjector:     audio,
 		RemoteMediaPolicy:  mediaPolicy,
 		ResponseFiles:      resourcePolicy,
-		ResponseToolPolicy: responseToolPolicy,
 		MaxStoredResponses: *responseStoreEntries,
 		ResponseStoreBytes: *responseStoreBytes,
 		FFmpegPath:         *ffmpegPath,

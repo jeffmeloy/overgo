@@ -668,13 +668,13 @@
      "contains": "func LoadResponseFilePolicy(",
      "path": "internal/server/resource_policy.go",
      "role": "source",
-     "identity": "file:sha256:9ec789907f48988a0a7471a71f8c03c8e01a4de120cfe45dc45c567656dd79a4"
+     "identity": "file:sha256:115c4a0fccebba8cacf7fe84c19e3853820b300cec4053a534da35a38c74be2d"
     },
     {
      "contains": "func TestResponsesInputFileSources(",
      "path": "internal/server/resource_policy_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:41301bc9c5f6e68d5c89c4fe73378433efb221692f0096aaf30336efd982cbeb"
+     "identity": "evidence:sha256:eef3a997d263045446d42f06aa22d61329c64dd271810cdb9c4bd9da3866d6a6"
     }
    ],
    "id": "responses-file-inputs",
@@ -686,23 +686,23 @@
   {
    "evidence": [
     {
-     "contains": "by response_tools.%s policy",
-     "path": "internal/server/responses_tools.go",
+     "contains": "func (h *Handler) executePendingTools(",
+     "path": "internal/server/tool_execution.go",
      "role": "source",
-     "identity": "file:sha256:4e9458f4ee8a035bc90cc71495f1e1f4d3f7301f82acd14f04ed0d42a7d55671"
+     "identity": "file:sha256:8bb9425d98b4cb2653e66a17a69f885d341946430601ab86fc7576a0ca036b6b"
     },
     {
-     "contains": "func TestResponsesHostedAndCustomToolsUseExplicitPolicy(",
-     "path": "internal/server/resource_policy_test.go",
+     "contains": "func TestProtocolToolExecutionParity(",
+     "path": "internal/server/tool_execution_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:41301bc9c5f6e68d5c89c4fe73378433efb221692f0096aaf30336efd982cbeb"
+     "identity": "evidence:sha256:a0f2f82a973e2d93c52ae93307bfd6f4a82d93c4ac9b9a2bac273e13529e2f07"
     }
    ],
-   "id": "explicit-response-tool-policy",
+   "id": "recipe-admitted-tool-runtime",
    "evidence_tier": "contract-tested",
-   "verify": "go test ./internal/server -run '^TestResponsesHostedAndCustomToolsUseExplicitPolicy$' -count=1 -v",
+   "verify": "go test ./internal/server -run '^TestProtocolToolExecutionParity$' -count=1 -v",
    "status": "implemented",
-   "summary": "Hosted, MCP, and free-form custom Responses tools are classified and denied unless an external executor contract is added."
+   "summary": "Chat, Responses, and Anthropic tool histories use one recipe-admitted typed executor; unsupported tool types are refused."
   },
   {
    "evidence": [
@@ -731,7 +731,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:3f7fe5132b95d0daac24f6ded70d82166e920474c890e7f82f2fd3a9f8786651"
+     "identity": "file:sha256:6078e9c7b608feb9a6a8f47c11c01251e13ef6e5a9f8a4e61e437278a7a86eb0"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -800,7 +800,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:08d74beafd391914c7d49d2bce954773b9dec2167da055829cab998182b4a571"
+     "identity": "file:sha256:8b0392e92729f5cbb2f60305a4e78d6bef2c83347c447e10d969e7ba965a00c2"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -884,7 +884,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:3f7fe5132b95d0daac24f6ded70d82166e920474c890e7f82f2fd3a9f8786651"
+     "identity": "file:sha256:6078e9c7b608feb9a6a8f47c11c01251e13ef6e5a9f8a4e61e437278a7a86eb0"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",

@@ -5,9 +5,5 @@
     "files": {},
     "max_file_bytes": 16777216
   },
-  "response_tools": {
-    "custom": "deny",
-    "hosted": "deny"
-  },
   "schema": 1
 }

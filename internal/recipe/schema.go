@@ -89,6 +89,10 @@ const (
 	DataSequenceScores     DataKind = "sequence-scores"
 	DataLoss               DataKind = "loss"
 	DataGradients          DataKind = "gradients"
+	// DataToolCall carries one strict tool invocation.
+	DataToolCall DataKind = "tool-call"
+	// DataToolResult carries one typed invocation result.
+	DataToolResult DataKind = "tool-result"
 )
 
 type Cardinality string
@@ -287,7 +291,8 @@ func validateDataKind(kind DataKind) error {
 	case DataArtifact, DataText, DataTokens, DataEmbeddings, DataTensor, DataModelPlan, DataSessionPlan,
 		DataCache, DataLogits, DataImage, DataImageTensor, DataPromptConditioning, DataClassConditioning,
 		DataAudio, DataAudioTensor, DataVideo, DataVideoTensor, DataMetrics, DataCheckpoint,
-		DataScores, DataRanking, DataBatch, DataPreferenceBatch, DataSequenceScores, DataLoss, DataGradients:
+		DataScores, DataRanking, DataBatch, DataPreferenceBatch, DataSequenceScores, DataLoss, DataGradients,
+		DataToolCall, DataToolResult:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid data kind %q", kind)

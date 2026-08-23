@@ -330,7 +330,15 @@ func (h *Handler) normalizeChatPrompt(
 	formatter ChatFormatter,
 	body chatCompletionRequest,
 	promptTools []inference.ChatTool,
+	executeTools bool,
 ) (nativePrompt, error) {
+	if executeTools {
+		messages, err := h.executePendingTools(ctx, body.Messages)
+		if err != nil {
+			return nativePrompt{}, err
+		}
+		body.Messages = messages
+	}
 	if chatMediaCount(body.Messages) != 0 {
 		return h.parseChatMultimodalPrompt(ctx, formatter, body, promptTools)
 	}
@@ -386,7 +394,7 @@ func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Re
 		writeInvalidRequest(response, err)
 		return
 	}
-	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, body, toolSelection.prompt)
+	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, body, toolSelection.prompt, false)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return
@@ -418,7 +426,7 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		writeInvalidRequest(response, err)
 		return
 	}
-	normalizedPrompt, err := h.normalizeChatPrompt(request.Context(), formatter, body, toolSelection.prompt)
+	normalizedPrompt, err := h.normalizeChatPrompt(request.Context(), formatter, body, toolSelection.prompt, true)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return

@@ -25,11 +25,13 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/operation"
 	"overgo/internal/projector"
+	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
 	"overgo/internal/tokenizer"
+	"overgo/internal/workflowruntime"
 )
 
 const (
@@ -204,6 +206,10 @@ type DeviceExecutionAPI interface {
 	DeviceExecutionStats(context.Context) (driver.ExecutionStats, error)
 }
 
+type toolCallExecutor interface {
+	ExecuteTool(context.Context, recipe.ToolCall) (recipe.ToolResult, error)
+}
+
 type Config struct {
 	ModelID            string
 	MaxTokens          int
@@ -221,7 +227,8 @@ type Config struct {
 	AudioProjector     projector.Session
 	RemoteMediaPolicy  *RemoteMediaPolicy
 	ResponseFiles      ResponseFileResolver
-	ResponseToolPolicy ResponseToolPolicy
+	ToolProgram        recipe.Program
+	ToolAdapter        func(context.Context, recipe.ToolCall) (recipe.ToolResult, error)
 	MaxStoredResponses int
 	ResponseStoreBytes int
 	DatasetPreview     DatasetPreviewAPI
@@ -378,6 +385,7 @@ type Handler struct {
 	responseFiles      ResponseFileResolver
 	thinkingSigner     *anthropicThinkingSigner
 	operations         *operation.Manager
+	tools              toolCallExecutor
 	repository         *repodb.Store
 	browseRepository   *repodb.Store
 	environment        runrecord.Environment
@@ -424,10 +432,6 @@ func New(config Config, generator Generator) (*Handler, error) {
 	}
 	if config.RequestTimeout < 0 {
 		return nil, errors.New("server: request timeout must be non-negative")
-	}
-	if (config.ResponseToolPolicy.Hosted != "" && config.ResponseToolPolicy.Hosted != "deny") ||
-		(config.ResponseToolPolicy.Custom != "" && config.ResponseToolPolicy.Custom != "deny") {
-		return nil, errors.New("server: response tool policy requires an external executor for non-deny modes")
 	}
 	if config.MaxStoredResponses == 0 {
 		config.MaxStoredResponses = defaults.MaxStoredResponses
@@ -528,6 +532,19 @@ func New(config Config, generator Generator) (*Handler, error) {
 		_ = handler.Close()
 		return nil, err
 	}
+	if config.ToolAdapter != nil {
+		if repository == nil {
+			_ = handler.Close()
+			return nil, errors.New("server: tool runtime requires a repository")
+		}
+		handler.tools, err = workflowruntime.NewToolExecutor(
+			repository, config.ToolProgram, config.MaxStoredResponses, config.ToolAdapter,
+		)
+		if err != nil {
+			_ = handler.Close()
+			return nil, fmt.Errorf("server tool runtime: %w", err)
+		}
+	}
 	return handler, nil
 }
 
@@ -538,6 +555,9 @@ func (h *Handler) Close() error {
 	}
 	if h.operations != nil {
 		h.operations.Close()
+	}
+	if tools, ok := h.tools.(*workflowruntime.ToolExecutor); ok {
+		tools.Close()
 	}
 	var closeErrors []error
 	if h.sessions != nil {

@@ -124,7 +124,6 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		body.Tools,
 		body.ToolChoice,
 		body.ParallelTools,
-		h.config.ResponseToolPolicy,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -167,6 +166,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		formatter,
 		normalizedBody,
 		toolSelection.prompt,
+		true,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -618,7 +618,6 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 		body.Tools,
 		body.ToolChoice,
 		body.ParallelTools,
-		h.config.ResponseToolPolicy,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -637,7 +636,7 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 	if chatMediaCount(messages) != 0 {
 		normalizedBody.Tools = toolSelection.active
 	}
-	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, normalizedBody, toolSelection.prompt)
+	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, normalizedBody, toolSelection.prompt, false)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return

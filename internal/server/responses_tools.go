@@ -19,7 +19,6 @@ import (
 func selectResponsesTools(
 	rawTools, rawChoice json.RawMessage,
 	parallelTools *bool,
-	policy ResponseToolPolicy,
 ) (chatToolSelection, error) {
 	var tools []inference.ChatTool
 	if strictjson.HasValue(rawTools) {
@@ -37,20 +36,9 @@ func selectResponsesTools(
 			if header.Type == "function" {
 				continue
 			}
-			category := "hosted"
-			if header.Type == "custom" {
-				category = "custom"
-			}
-			mode := policy.Hosted
-			if category == "custom" {
-				mode = policy.Custom
-			}
-			if mode == "" {
-				mode = "deny"
-			}
 			return chatToolSelection{}, fmt.Errorf(
-				"tool %d type %q is %s by response_tools.%s policy; an external executor is required",
-				index, header.Type, mode, category,
+				"tool %d type %q is unsupported; use a recipe-admitted function tool",
+				index, header.Type,
 			)
 		}
 		var definitions []struct {

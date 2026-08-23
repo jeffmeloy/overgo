@@ -119,7 +119,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": thinkingEnabled}
 	}
 	normalized, err := h.normalizeChatPrompt(
-		request.Context(), formatter, normalizedBody, toolSelection.prompt,
+		request.Context(), formatter, normalizedBody, toolSelection.prompt, true,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -519,7 +519,7 @@ func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *ht
 		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": thinkingEnabled}
 	}
 	normalized, err := h.normalizeChatPrompt(
-		request.Context(), formatter, normalizedBody, toolSelection.prompt,
+		request.Context(), formatter, normalizedBody, toolSelection.prompt, false,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)

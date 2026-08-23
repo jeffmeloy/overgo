@@ -127,3 +127,52 @@ func TestServingObservationRefusesInvalidFacts(t *testing.T) {
 		t.Fatalf("failed observation refused: %v", err)
 	}
 }
+
+func TestServingAttemptChainClassifiesRetryReselectionAndSpillover(t *testing.T) {
+	ctx := t.Context()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	first := servingObservationFixture(t)
+	first.Outcome, first.Failure = OutcomeFailed, "execution_failed"
+	alternateRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "serving-alternate-recipe")
+	compatibility := testutil.ArtifactID(t, artifact.KindEvidence, "serving-peer-compatibility")
+	parents := []artifact.ID{first.Model, first.Recipe, alternateRecipe, first.Environment, compatibility}
+	descriptors := make([]artifact.Descriptor, len(parents))
+	for index, id := range parents {
+		descriptors[index] = artifact.Descriptor{ID: id}
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "serving/attempt/authorities", Artifacts: descriptors}); err != nil {
+		t.Fatal(err)
+	}
+	first, err = PublishServingObservation(ctx, store, first)
+	if err != nil || first.AttemptKind(nil) != ServingAttemptPrimary {
+		t.Fatalf("primary attempt = (%+v, %v)", first, err)
+	}
+	next := func(recipeID artifact.ID, compatibilityID artifact.ID) ServingObservation {
+		observation := servingObservationFixture(t)
+		observation.Recipe, observation.Compatibility = recipeID, compatibilityID
+		observation.Previous, observation.Attempt = first.ID, first.Attempt
+		observation.Attempt++
+		observation.StartedUnixNS = first.StartedUnixNS + int64(first.MeasuredNS)
+		return observation
+	}
+	retry := next(first.Recipe, artifact.ID{})
+	retry, err = PublishServingObservation(ctx, store, retry)
+	if err != nil || retry.AttemptKind(&first) != ServingAttemptRetry {
+		t.Fatalf("retry attempt = (%+v, %v)", retry, err)
+	}
+	reselection := next(alternateRecipe, artifact.ID{})
+	if reselection.AttemptKind(&first) != ServingAttemptReselection {
+		t.Fatalf("reselection kind = %q", reselection.AttemptKind(&first))
+	}
+	spillover := next(alternateRecipe, compatibility)
+	if spillover.AttemptKind(&first) != ServingAttemptSpillover {
+		t.Fatalf("spillover kind = %q", spillover.AttemptKind(&first))
+	}
+	if _, err := PublishServingObservation(ctx, store, spillover); err == nil {
+		t.Fatal("branched serving attempt accepted")
+	}
+}

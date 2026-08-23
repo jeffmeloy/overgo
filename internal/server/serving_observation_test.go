@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -64,7 +65,8 @@ func TestServingObservationPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := handler.operations.Wait(context.Background(), operationID); err != nil {
+	status, err := handler.operations.Wait(context.Background(), operationID)
+	if err != nil {
 		t.Fatal(err)
 	}
 	result, err := store.Query(context.Background(), repodb.Query{
@@ -77,6 +79,9 @@ func TestServingObservationPublication(t *testing.T) {
 	}
 	if len(result.Artifacts) != 2 || handler.observationErrors.Load() != 0 {
 		t.Fatalf("observations=%d publication_errors=%d", len(result.Artifacts), handler.observationErrors.Load())
+	}
+	if len(status.Attempts) != 1 || status.Attempts[0].Kind() != artifact.KindEvidence {
+		t.Fatalf("recipe-bound attempts = %v", status.Attempts)
 	}
 	for _, descriptor := range result.Artifacts {
 		content, found, err := store.Content(context.Background(), descriptor.ID)
@@ -128,6 +133,9 @@ func TestWebUIRuntimeActivityUsesSessionAndRepoDBAPIs(t *testing.T) {
 	if response.Code != http.StatusOK || sessions.Session.Capacity != 1 || len(sessions.Slots) != 1 {
 		t.Fatalf("sessions status=%d response=%+v", response.Code, sessions)
 	}
+	if sessions.Authority == nil || sessions.Authority.Model != modelID || sessions.Authority.Recipe != recipeID {
+		t.Fatalf("runtime authority = %+v", sessions.Authority)
+	}
 	var activity runtimeActivityResponse
 	response = serveTestRequest(handler, http.MethodGet, "/runtime/activity", "")
 	if err := strictjson.DecodeBytes(response.Body.Bytes(), &activity); err != nil {
@@ -138,13 +146,32 @@ func TestWebUIRuntimeActivityUsesSessionAndRepoDBAPIs(t *testing.T) {
 		t.Fatalf("activity status=%d response=%+v", response.Code, activity)
 	}
 	module := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String()
-	for _, endpoint := range []string{"/runtime/sessions", "/runtime/activity"} {
+	for _, endpoint := range []string{"/runtime/sessions", "/runtime/activity", "/runtime/activity/stream"} {
 		if !strings.Contains(module, endpoint) {
 			t.Fatalf("runtime module lacks %q", endpoint)
 		}
 	}
 	if strings.Contains(module, `api.get("/slots"`) {
 		t.Fatal("runtime module bypasses session authority")
+	}
+}
+
+func TestOperationEventSSEUsesSharedEmitter(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	defer handler.Close()
+	ctx, cancel := context.WithCancel(t.Context())
+	recorder := &signalingRecorder{ResponseRecorder: httptest.NewRecorder(), flushed: make(chan struct{})}
+	done := make(chan struct{})
+	go func() {
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/runtime/activity/stream", nil).WithContext(ctx))
+		close(done)
+	}()
+	<-recorder.flushed
+	cancel()
+	<-done
+	if recorder.Header().Get("Content-Type") != "text/event-stream" ||
+		!strings.Contains(recorder.Body.String(), "event: operation.snapshot") {
+		t.Fatalf("operation SSE headers=%v body=%s", recorder.Header(), recorder.Body.String())
 	}
 }
 

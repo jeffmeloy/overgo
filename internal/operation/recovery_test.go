@@ -70,3 +70,32 @@ func TestRecoverableOperationStatus(t *testing.T) {
 		t.Fatalf("cross-subject recovery was advertised: %+v", status)
 	}
 }
+
+func TestOperationRecoveryReusesIdentity(t *testing.T) {
+	manager := newTestManager(t)
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "operation recovery recipe")
+	runID := testutil.ArtifactID(t, artifact.KindRun, "operation recovery run")
+	request := Request{Task: recipe.TaskTraining, Recipe: recipeID}
+	id, err := manager.Submit(t.Context(), request, func(context.Context, Reporter) (Completion, error) {
+		return Completion{Run: runID}, errors.New("interrupted")
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status, err := manager.Wait(t.Context(), id); err != nil || status.State != StateFailed {
+		t.Fatalf("initial status = (%+v, %v)", status, err)
+	}
+	if _, err := manager.Recover(t.Context(), id, Request{Task: recipe.TaskInference, Recipe: recipeID}, nil); err == nil {
+		t.Fatal("mismatched recovery was admitted")
+	}
+	recovered, err := manager.Recover(t.Context(), id, request, func(context.Context, Reporter) (Completion, error) {
+		return Completion{Run: runID}, nil
+	})
+	if err != nil || recovered != id {
+		t.Fatalf("recovery = (%s, %v)", recovered, err)
+	}
+	status, err := manager.Wait(t.Context(), id)
+	if err != nil || status.State != StateCompleted || status.Run == nil || *status.Run != runID {
+		t.Fatalf("recovered status = (%+v, %v)", status, err)
+	}
+}

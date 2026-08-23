@@ -428,7 +428,7 @@ func compileAuthority(
 		return compiledAuthority{}, errors.New("training workflow: recipe model or task differs")
 	}
 	if preference != nil {
-		reference, ok := definition.Dependency(recipe.DependencyModel, 1)
+		reference, ok := ProgramReference(runtime)
 		if !ok || reference != preference.Reference {
 			return compiledAuthority{}, errors.New("training workflow: recipe reference differs")
 		}
@@ -518,6 +518,17 @@ func ProgramObjective(program recipe.Program) (trainingprogram.ObjectiveKind, er
 		return trainingprogram.ObjectiveGRPO, nil
 	}
 	return "", errors.New("training workflow: active recipe has no supported dense objective")
+}
+
+// ProgramReference resolves the recipe-declared reference model.
+func ProgramReference(program recipe.Program) (artifact.ID, bool) {
+	definition := program.Definition()
+	for _, stage := range program.Stages() {
+		if stage.Module.ID == workflowrecipe.ModuleScoreReference {
+			return definition.Dependency(recipe.DependencyModel, stage.Node.ModelSlot)
+		}
+	}
+	return artifact.ID{}, false
 }
 
 func (authority compiledAuthority) checkpointSpec(state densecausal.TrainState) (trainingprogram.CheckpointSpec, error) {

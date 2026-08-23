@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
@@ -84,9 +84,10 @@ func (set WorkflowWorkspaceSet) ExecuteWorkflow(ctx context.Context, kind Workfl
 }
 
 type workflowRequest struct {
-	Task   recipe.Task     `json:"task"`
-	Recipe artifact.ID     `json:"recipe"`
-	Input  json.RawMessage `json:"input"`
+	Task      recipe.Task     `json:"task"`
+	Recipe    artifact.ID     `json:"recipe"`
+	Input     json.RawMessage `json:"input"`
+	Operation *artifact.ID    `json:"operation,omitempty"`
 }
 
 type workflowResponse struct {
@@ -145,9 +146,11 @@ func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Reques
 		writeInvalidRequest(response, err)
 		return
 	}
-	id, err := h.submitWorkflow(
-		context.WithoutCancel(request.Context()), workspace, kind, capability, body.Input,
-	)
+	var operationID artifact.ID
+	if body.Operation != nil {
+		operationID = *body.Operation
+	}
+	id, err := h.submitWorkflow(context.WithoutCancel(request.Context()), workspace, kind, capability, body.Input, operationID)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
@@ -161,15 +164,35 @@ func (h *Handler) submitWorkflow(
 	kind WorkflowKind,
 	capability WorkflowCapability,
 	input json.RawMessage,
+	operationID artifact.ID,
 ) (artifact.ID, error) {
-	return h.operations.Submit(ctx, operation.Request{
-		Task: capability.Task, Recipe: capability.Recipe,
-	}, func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
+	if h.repository == nil {
+		return artifact.ID{}, errors.New("workflow workspace: durable repository required")
+	}
+	request := operation.Request{Task: capability.Task, Recipe: capability.Recipe}
+	intent, err := artifact.JSONID(artifact.KindEvidence, struct {
+		Version uint16          `json:"version"`
+		Kind    WorkflowKind    `json:"kind"`
+		Task    recipe.Task     `json:"task"`
+		Recipe  artifact.ID     `json:"recipe"`
+		Input   json.RawMessage `json:"input"`
+	}{artifact.InitialDocumentVersion, kind, capability.Task, capability.Recipe, input})
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	execute := func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
 		return h.executeObservedOperation(ctx, reporter, capability.Task, capability.Recipe,
 			func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
-				return workspace.ExecuteWorkflow(ctx, kind, capability.Task, capability.Recipe, input, reporter)
+				return operation.ExecuteReentrant(ctx, h.repository, reporter, request, intent,
+					func(ctx context.Context) (operation.Completion, error) {
+						return workspace.ExecuteWorkflow(ctx, kind, capability.Task, capability.Recipe, input, reporter)
+					})
 			})
-	})
+	}
+	if operationID.Valid() {
+		return h.operations.Recover(ctx, operationID, request, execute)
+	}
+	return h.operations.Submit(ctx, request, execute)
 }
 
 func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
@@ -269,7 +292,7 @@ func validateWorkflowValue(controlType WorkflowControlType, raw json.RawMessage)
 	if err := strictjson.Decode(bytes.NewReader(raw), target); err != nil {
 		return err
 	}
-	if number, ok := target.(*float64); ok && (math.IsNaN(*number) || math.IsInf(*number, 0)) {
+	if number, ok := target.(*float64); ok && !checked.Finite64(*number) {
 		return errors.New("number must be finite")
 	}
 	return nil

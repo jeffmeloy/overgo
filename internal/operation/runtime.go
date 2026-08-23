@@ -6,12 +6,12 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"sync"
 	"sync/atomic"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 )
@@ -19,6 +19,9 @@ import (
 type State string
 
 const (
+	operationSequenceStep = 1
+	operationEventBuffer  = 1
+
 	StateAdmitted   State = "admitted"
 	StatePreparing  State = "preparing"
 	StateRunning    State = "running"
@@ -48,6 +51,7 @@ type Status struct {
 	Progress Progress              `json:"progress"`
 	Metrics  []Metric              `json:"metrics,omitempty"`
 	Outputs  []artifact.ID         `json:"outputs,omitempty"`
+	Attempts []artifact.ID         `json:"attempts,omitempty"`
 	Run      *artifact.ID          `json:"run,omitempty"`
 	Failure  string                `json:"failure,omitempty"`
 	Recovery *operatoraction.Block `json:"recovery,omitempty"`
@@ -63,11 +67,18 @@ type Completion struct {
 	Outputs []artifact.ID
 }
 
+// Event carries one ordered operation snapshot.
+type Event struct {
+	Sequence uint64 `json:"sequence"`
+	Status   Status `json:"status"`
+}
+
 // Reporter: operation identity and bounded progress publication.
 type Reporter interface {
 	OperationID() artifact.ID
 	Progress(uint64, *uint64)
 	Metric(Metric)
+	Attempt(artifact.ID)
 	Publishing()
 }
 
@@ -82,6 +93,9 @@ type Manager struct {
 	sequence atomic.Uint64
 	wait     sync.WaitGroup
 	closed   bool
+	watchers map[uint64]chan Event
+	watchID  uint64
+	eventID  uint64
 }
 
 type entry struct {
@@ -101,7 +115,7 @@ func NewManager(limit int) (*Manager, error) {
 	if limit <= 0 {
 		return nil, errors.New("operation: retention limit must be positive")
 	}
-	manager := &Manager{entries: make(map[artifact.ID]*entry), limit: limit}
+	manager := &Manager{entries: make(map[artifact.ID]*entry), limit: limit, watchers: make(map[uint64]chan Event)}
 	if _, err := rand.Read(manager.salt[:]); err != nil {
 		return nil, fmt.Errorf("operation: initialize identity: %w", err)
 	}
@@ -116,11 +130,29 @@ func (manager *Manager) Submit(parent context.Context, request Request, execute 
 		return artifact.ID{}, errors.New("operation: invalid task or recipe")
 	}
 	id, err := artifact.JSONID(artifact.KindEvidence, ticket{
-		Salt: manager.salt, Sequence: manager.sequence.Add(1),
+		Salt: manager.salt, Sequence: manager.sequence.Add(operationSequenceStep),
 		Task: request.Task, Recipe: request.Recipe,
 	})
 	if err != nil {
 		return artifact.ID{}, err
+	}
+	return manager.start(parent, id, request, execute, false)
+}
+
+// Recover resumes a terminal or process-lost operation identity.
+func (manager *Manager) Recover(parent context.Context, id artifact.ID, request Request, execute Executor) (artifact.ID, error) {
+	if id.Kind() != artifact.KindEvidence {
+		return artifact.ID{}, errors.New("operation: invalid recovery identity")
+	}
+	return manager.start(parent, id, request, execute, true)
+}
+
+func (manager *Manager) start(parent context.Context, id artifact.ID, request Request, execute Executor, recover bool) (artifact.ID, error) {
+	if manager == nil || parent == nil || execute == nil {
+		return artifact.ID{}, errors.New("operation: nil manager, context, or executor")
+	}
+	if !request.Task.Valid() || request.Recipe.Kind() != artifact.KindRecipe {
+		return artifact.ID{}, errors.New("operation: invalid task or recipe")
 	}
 	ctx, cancel := context.WithCancel(parent)
 	manager.mu.Lock()
@@ -129,21 +161,34 @@ func (manager *Manager) Submit(parent context.Context, request Request, execute 
 		cancel()
 		return artifact.ID{}, errors.New("operation: manager is closed")
 	}
+	if current := manager.entries[id]; current != nil {
+		if !recover || !terminal(current.status.State) {
+			manager.mu.Unlock()
+			cancel()
+			return artifact.ID{}, errors.New("operation: operation is active or already admitted")
+		}
+		if current.status.Task != request.Task || current.status.Recipe != request.Recipe {
+			manager.mu.Unlock()
+			cancel()
+			return artifact.ID{}, ErrLifecycleConflict
+		}
+	}
 	manager.entries[id] = &entry{
 		status: Status{ID: id, Task: request.Task, Recipe: request.Recipe, State: StateAdmitted},
 		cancel: cancel,
 		done:   make(chan struct{}),
 	}
-	manager.order = append(manager.order, id)
+	if !slices.Contains(manager.order, id) {
+		manager.order = append(manager.order, id)
+	}
+	manager.publishLocked(manager.entries[id].status)
 	manager.trimLocked()
-	manager.wait.Add(1)
 	manager.mu.Unlock()
-	go manager.run(ctx, id, execute)
+	manager.wait.Go(func() { manager.run(ctx, id, execute) })
 	return id, nil
 }
 
 func (manager *Manager) run(ctx context.Context, id artifact.ID, execute Executor) {
-	defer manager.wait.Done()
 	defer func() {
 		manager.mu.Lock()
 		if current := manager.entries[id]; current != nil {
@@ -191,6 +236,7 @@ func (manager *Manager) run(ctx context.Context, id artifact.ID, execute Executo
 		current.status.Outputs = slices.Clone(completion.Outputs)
 		current.status.State = StateCompleted
 	}
+	manager.publishLocked(current.status)
 }
 
 func validateCompletion(completion Completion) error {
@@ -231,6 +277,30 @@ func (manager *Manager) List() []Status {
 		}
 	}
 	return result
+}
+
+// Subscribe returns latest-only operation events.
+func (manager *Manager) Subscribe() (<-chan Event, func(), error) {
+	if manager == nil {
+		return nil, nil, errors.New("operation: nil manager")
+	}
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if manager.closed || len(manager.watchers) >= manager.limit {
+		return nil, nil, errors.New("operation: event subscription unavailable")
+	}
+	manager.watchID++
+	id := manager.watchID
+	events := make(chan Event, operationEventBuffer)
+	manager.watchers[id] = events
+	return events, func() {
+		manager.mu.Lock()
+		if current := manager.watchers[id]; current != nil {
+			delete(manager.watchers, id)
+			close(current)
+		}
+		manager.mu.Unlock()
+	}, nil
 }
 
 func (manager *Manager) Wait(ctx context.Context, id artifact.ID) (Status, error) {
@@ -281,6 +351,10 @@ func (manager *Manager) Close() {
 			current.cancel()
 		}
 	}
+	for id, watcher := range manager.watchers {
+		delete(manager.watchers, id)
+		close(watcher)
+	}
 	manager.mu.Unlock()
 	manager.wait.Wait()
 }
@@ -289,8 +363,31 @@ func (manager *Manager) setState(id artifact.ID, state State) {
 	manager.mu.Lock()
 	if current := manager.entries[id]; current != nil && !terminal(current.status.State) {
 		current.status.State = state
+		manager.publishLocked(current.status)
 	}
 	manager.mu.Unlock()
+}
+
+func (manager *Manager) publishLocked(status Status) {
+	if len(manager.watchers) == 0 {
+		return
+	}
+	manager.eventID++
+	for _, target := range manager.watchers {
+		event := Event{Sequence: manager.eventID, Status: cloneStatus(status)}
+		select {
+		case target <- event:
+		default:
+			select {
+			case <-target:
+			default:
+			}
+			select {
+			case target <- event:
+			default:
+			}
+		}
+	}
 }
 
 func (manager *Manager) trimLocked() {
@@ -317,6 +414,7 @@ func terminal(state State) bool {
 func cloneStatus(status Status) Status {
 	status.Metrics = slices.Clone(status.Metrics)
 	status.Outputs = slices.Clone(status.Outputs)
+	status.Attempts = slices.Clone(status.Attempts)
 	if status.Run != nil {
 		run := *status.Run
 		status.Run = &run
@@ -339,6 +437,23 @@ type operationReporter struct {
 
 func (reporter operationReporter) OperationID() artifact.ID { return reporter.id }
 
+// Attempt records ordered serving evidence.
+func (reporter operationReporter) Attempt(id artifact.ID) {
+	if id.Kind() != artifact.KindEvidence {
+		return
+	}
+	reporter.manager.mu.Lock()
+	if current := reporter.manager.entries[reporter.id]; current != nil &&
+		!terminal(current.status.State) && !slices.Contains(current.status.Attempts, id) {
+		current.status.Attempts = append(current.status.Attempts, id)
+		if len(current.status.Attempts) > reporter.manager.limit {
+			current.status.Attempts = slices.Clone(current.status.Attempts[len(current.status.Attempts)-reporter.manager.limit:])
+		}
+		reporter.manager.publishLocked(current.status)
+	}
+	reporter.manager.mu.Unlock()
+}
+
 func (reporter operationReporter) Progress(completed uint64, total *uint64) {
 	reporter.manager.mu.Lock()
 	defer reporter.manager.mu.Unlock()
@@ -349,11 +464,12 @@ func (reporter operationReporter) Progress(completed uint64, total *uint64) {
 			value := *total
 			current.status.Progress.Total = &value
 		}
+		reporter.manager.publishLocked(current.status)
 	}
 }
 
 func (reporter operationReporter) Metric(metric Metric) {
-	if metric.Name == "" || math.IsNaN(metric.Value) || math.IsInf(metric.Value, 0) {
+	if metric.Name == "" || !checked.Finite64(metric.Value) {
 		return
 	}
 	reporter.manager.mu.Lock()
@@ -362,10 +478,15 @@ func (reporter operationReporter) Metric(metric Metric) {
 		for index := range current.status.Metrics {
 			if current.status.Metrics[index].Name == metric.Name {
 				current.status.Metrics[index] = metric
+				reporter.manager.publishLocked(current.status)
 				return
 			}
 		}
 		current.status.Metrics = append(current.status.Metrics, metric)
+		if len(current.status.Metrics) > reporter.manager.limit {
+			current.status.Metrics = slices.Clone(current.status.Metrics[len(current.status.Metrics)-reporter.manager.limit:])
+		}
+		reporter.manager.publishLocked(current.status)
 	}
 }
 

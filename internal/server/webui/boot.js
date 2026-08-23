@@ -57,6 +57,33 @@
       if (!response.ok) await readJSON(response);
       return response;
     },
+    async events(path, handler, opts) {
+	  const separator = "\n\n";
+	  const eventPrefix = "event: ";
+	  const dataPrefix = "data: ";
+      const response = await fetch(path, { headers: authHeaders(), signal: opts && opts.signal });
+      if (!response.ok) await readJSON(response);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffered = "";
+      for (;;) {
+        const chunk = await reader.read();
+        buffered += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done });
+        let boundary;
+		while ((boundary = buffered.indexOf(separator)) >= 0) {
+          const block = buffered.slice(0, boundary);
+		  buffered = buffered.slice(boundary + separator.length);
+          let event = "message";
+          const data = [];
+          for (const line of block.split("\n")) {
+			if (line.startsWith(eventPrefix)) event = line.slice(eventPrefix.length);
+			else if (line.startsWith(dataPrefix)) data.push(line.slice(dataPrefix.length));
+          }
+          if (data.length) handler(event, JSON.parse(data.join("\n")));
+        }
+        if (chunk.done) return;
+      }
+    },
   };
 
   // /analyze/model is fetched by the shell (capability gating), the Model tab,

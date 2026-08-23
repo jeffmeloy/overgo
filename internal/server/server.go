@@ -32,6 +32,8 @@ import (
 )
 
 const (
+	counterStep = 1
+
 	errorCodeUnsupportedOperation = "unsupported_operation"
 	defaultModelID                = "overgo"
 	defaultMaxTokens              = 4096
@@ -446,11 +448,11 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	defaultSampler, err := sampling.New(sampling.Config{
-		Temperature: config.DefaultTemperature,
-		TopK:        config.DefaultTopK,
-		TopP:        config.DefaultTopP,
-	})
+	defaultSampling := sampling.DefaultConfig()
+	defaultSampling.Temperature = config.DefaultTemperature
+	defaultSampling.TopK = config.DefaultTopK
+	defaultSampling.TopP = config.DefaultTopP
+	defaultSampler, err := sampling.New(defaultSampling)
 	if err != nil {
 		return nil, fmt.Errorf("server defaults: %w", err)
 	}
@@ -537,7 +539,7 @@ func (h *Handler) acquireSession(requested int) (*requestSession, bool) {
 
 func (h *Handler) activateSession(lease *requestSession) {
 	id := lease.ID
-	h.slotTasks[id].Store(h.nextTask.Add(1))
+	h.slotTasks[id].Store(h.nextTask.Add(counterStep))
 	h.slotStats[id].reset(time.Now())
 	h.slotBusy[id].Store(true)
 }
@@ -578,9 +580,9 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		defer cancel()
 		request = request.WithContext(ctx)
 	}
-	h.requestsTotal.Add(1)
-	h.requestsActive.Add(1)
-	defer h.requestsActive.Add(-1)
+	h.requestsTotal.Add(counterStep)
+	h.requestsActive.Add(counterStep)
+	defer h.requestsActive.Add(-counterStep)
 	protectedV1 := strings.HasPrefix(request.URL.Path, "/v1/") &&
 		request.URL.Path != "/v1/models" &&
 		request.URL.Path != "/v1/health"
@@ -605,6 +607,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/operations" ||
 		request.URL.Path == "/operations/cancel" ||
 		request.URL.Path == "/operations/wait" ||
+		request.URL.Path == "/runtime/activity/stream" ||
 		request.URL.Path == "/evaluations/capabilities" ||
 		request.URL.Path == "/evaluations/run" ||
 		request.URL.Path == "/evaluations/history" ||
@@ -761,6 +764,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.runtimeSessions(response, request)
 	case "/runtime/activity":
 		h.runtimeActivity(response, request)
+	case "/runtime/activity/stream":
+		h.runtimeActivityStream(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":
@@ -783,11 +788,11 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 	if body.TopK != nil {
 		topK = *body.TopK
 	}
-	adaptiveTarget := float32(-1)
+	adaptiveTarget := h.defaultSampling.AdaptiveTarget
 	if body.AdaptiveTarget != nil {
 		adaptiveTarget = *body.AdaptiveTarget
 	}
-	adaptiveDecay := float32(0.9)
+	adaptiveDecay := h.defaultSampling.AdaptiveDecay
 	if body.AdaptiveDecay != nil {
 		adaptiveDecay = *body.AdaptiveDecay
 	}

@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
@@ -18,6 +19,7 @@ type trainingExportGenerator struct {
 	*fakeGenerator
 	capabilities map[WorkflowKind]WorkflowCapability
 	runs         map[WorkflowKind]artifact.ID
+	repository   artifact.Repository
 	mu           sync.Mutex
 	executed     []WorkflowKind
 }
@@ -31,7 +33,7 @@ func (generator *trainingExportGenerator) WorkflowCapabilities(_ context.Context
 }
 
 func (generator *trainingExportGenerator) ExecuteWorkflow(
-	_ context.Context,
+	ctx context.Context,
 	kind WorkflowKind,
 	_ recipe.Task,
 	_ artifact.ID,
@@ -41,11 +43,22 @@ func (generator *trainingExportGenerator) ExecuteWorkflow(
 	generator.mu.Lock()
 	generator.executed = append(generator.executed, kind)
 	generator.mu.Unlock()
+	if _, err := generator.repository.Commit(ctx, artifact.Batch{
+		Key:       "fixture/workflow/" + generator.runs[kind].String(),
+		Artifacts: []artifact.Descriptor{{ID: generator.runs[kind]}},
+	}); err != nil {
+		return operation.Completion{Run: generator.runs[kind]}, err
+	}
 	reporter.Publishing()
 	return operation.Completion{Run: generator.runs[kind]}, nil
 }
 
 func TestGUITrainingAndExportShareServices(t *testing.T) {
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
 	capability := func(kind WorkflowKind) WorkflowCapability {
 		return WorkflowCapability{
 			Task:     recipe.TaskTraining,
@@ -56,6 +69,7 @@ func TestGUITrainingAndExportShareServices(t *testing.T) {
 	}
 	generator := &trainingExportGenerator{
 		fakeGenerator: &fakeGenerator{},
+		repository:    store,
 		capabilities: map[WorkflowKind]WorkflowCapability{
 			WorkflowTraining: capability(WorkflowTraining),
 			WorkflowExport:   capability(WorkflowExport),
@@ -65,7 +79,11 @@ func TestGUITrainingAndExportShareServices(t *testing.T) {
 			WorkflowExport:   testutil.ArtifactID(t, artifact.KindRun, "export-run"),
 		},
 	}
-	handler := newTestHandler(t, generator)
+	handler, err := New(Config{Repository: store}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = handler.Close() })
 	for _, kind := range []WorkflowKind{WorkflowTraining, WorkflowExport} {
 		capability := generator.capabilities[kind]
 		listed := serveTestRequest(handler, http.MethodGet, "/"+string(kind)+"/capabilities", "")

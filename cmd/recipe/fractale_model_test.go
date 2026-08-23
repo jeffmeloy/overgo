@@ -43,7 +43,7 @@ func TestFractaleRecipeActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	output, err := capability.execute(
-		ctx, store, modelPath, modelID, program,
+		ctx, store, modelPath, candidateCapabilityExecution(t, store, program),
 		`{"text":"def fibonacci(n):","max_tokens":8}`,
 	)
 	if err != nil {

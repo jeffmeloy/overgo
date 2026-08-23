@@ -74,8 +74,9 @@ func TestModelSessionDirectorConcurrentKeys(t *testing.T) {
 		err   error
 	}
 	results := make(chan result, 2)
-	run := func(store artifact.Repository, model artifact.ID, program recipe.Program, raw string) {
-		value, err := director.Executor()(context.Background(), store, "model", model, program, raw)
+	run := func(store artifact.Repository, _ artifact.ID, program recipe.Program, raw string) {
+		execution := candidateExecution(t, store, program)
+		value, err := director.Executor()(context.Background(), store, "model", execution, raw)
 		results <- result{value: value, err: err}
 	}
 	go run(firstStore, firstID, firstProgram, `{"value":2}`)
@@ -158,8 +159,17 @@ func capabilityFixture(t *testing.T, name string) (*repodb.Store, artifact.ID, r
 	return store, modelID, program
 }
 
+func candidateExecution(t *testing.T, store artifact.Reader, program recipe.Program) modelrecipe.CapabilityEvidenceSelection {
+	t.Helper()
+	execution, err := modelrecipe.CompileCandidateExecution(t.Context(), store, program)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return execution
+}
+
 func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
-	store, modelID, program := capabilityFixture(t, "scalar-model")
+	store, _, program := capabilityFixture(t, "scalar-model")
 	execute := JSONScalar[scalarRequest, int, int](
 		"scalar", func(request scalarRequest) error {
 			if request.Value <= 0 {
@@ -178,14 +188,15 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 			)
 		},
 	)
-	got, err := execute(context.Background(), store, "abc", modelID, program, `{"value":4}`)
+	execution := candidateExecution(t, store, program)
+	got, err := execute(context.Background(), store, "abc", execution, `{"value":4}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != 11 {
 		t.Fatalf("output = %v, want 11", got)
 	}
-	if _, err := execute(context.Background(), store, "abc", modelID, program, `{"value":4,"extra":1}`); err == nil {
+	if _, err := execute(context.Background(), store, "abc", execution, `{"value":4,"extra":1}`); err == nil {
 		t.Fatal("unknown input field accepted")
 	}
 	if program.Definition().Task != recipe.TaskImageGen {
@@ -195,16 +206,17 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 
 func TestExecutorCatalogUsesCompiledEntryModule(t *testing.T) {
 	store, modelID, program := capabilityFixture(t, "executor-catalog")
+	execution := candidateExecution(t, store, program)
 	catalog := ExecutorCatalog{scalarModule: func(
-		_ context.Context, _ artifact.Repository, _ string, bound artifact.ID, _ recipe.Program, raw string,
+		_ context.Context, _ artifact.Repository, _ string, bound modelrecipe.CapabilityEvidenceSelection, raw string,
 	) (any, error) {
-		if bound != modelID {
+		if bound.Program.Definition().Model != modelID {
 			t.Fatal("executor received another model")
 		}
 		return raw, nil
 	}}
 	const input = `{"value":4}`
-	got, err := catalog.Execute(t.Context(), store, "model", modelID, program, input)
+	got, err := catalog.Execute(t.Context(), store, "model", execution, input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +224,7 @@ func TestExecutorCatalogUsesCompiledEntryModule(t *testing.T) {
 		t.Fatalf("output=%v", got)
 	}
 	delete(catalog, scalarModule)
-	if _, err := catalog.Execute(t.Context(), store, "model", modelID, program, input); err == nil {
+	if _, err := catalog.Execute(t.Context(), store, "model", execution, input); err == nil {
 		t.Fatal("missing entry executor accepted")
 	}
 }
@@ -268,14 +280,16 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 	}
 	execute := director.Executor()
 	foreign := testutil.ArtifactID(t, artifact.KindModel, "foreign-cached-model")
-	if _, err := execute(context.Background(), store, "model", foreign, program, `{"value":4}`); err == nil {
+	execution := candidateExecution(t, store, program)
+	execution.Activation.Definition.Model = foreign
+	if _, err := execute(context.Background(), store, "model", execution, `{"value":4}`); err == nil {
 		t.Fatal("foreign model loaded into session director")
 	}
 	if loads != 0 {
 		t.Fatalf("foreign admission loaded %d models", loads)
 	}
 	for raw, want := range map[string]int{`{"value":4}`: 8, `{"value":5}`: 10} {
-		got, err := execute(context.Background(), store, "model", modelID, program, raw)
+		got, err := execute(context.Background(), store, "model", candidateExecution(t, store, program), raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -307,7 +321,7 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 		t.Fatalf("request resources=%+v", requestResources)
 	}
 	for range 2 {
-		if _, err := execute(context.Background(), store, "model", modelID, requestProgram, `{"value":6}`); err != nil {
+		if _, err := execute(context.Background(), store, "model", candidateExecution(t, store, requestProgram), `{"value":6}`); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -431,7 +445,7 @@ func TestVideoProductionActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		output, err := director.Executor()(t.Context(), store, "model", modelID, program, `{"condition":2,"source":3}`)
+		output, err := director.Executor()(t.Context(), store, "model", candidateExecution(t, store, program), `{"condition":2,"source":3}`)
 		if err != nil {
 			t.Fatal(err)
 		}

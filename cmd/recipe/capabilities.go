@@ -68,7 +68,7 @@ func sessionExecutor[Input, Model, Output any](
 	if err == nil {
 		return director.Executor()
 	}
-	return func(context.Context, artifact.Repository, string, artifact.ID, recipe.Program, string) (any, error) {
+	return func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {
 		return nil, err
 	}
 }

@@ -293,7 +293,7 @@ func TestAliasPrefix(t *testing.T) {
 	defer store.Close()
 	var got []DocumentView
 	page, err := store.VisitDocuments(context.Background(), DocumentQuery{
-		Contracts: []artifact.DocumentContract{contract}, AliasPrefix: "fixture/active/", Order: DocumentOldestFirst,
+		Contracts: []artifact.DocumentContract{contract}, AliasPrefixes: []string{"fixture/active/"}, Order: DocumentOldestFirst,
 	}, func(view DocumentView) error {
 		got = append(got, view)
 		return nil

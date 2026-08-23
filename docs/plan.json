@@ -1607,12 +1607,12 @@
       "id": "repodb-runtime-projection",
       "title": "Project current runtime evidence without rebuilding full histories",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Use bounded newest-first typed scans and active alias projections for Runtime, Activity, evaluation, plan, advisory, and closure consumers; delete repeated parsing maps, full-history sorts, and terminal-operation catalog rescans",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server ./internal/runrecord ./internal/evaluation ./cmd/plan ./cmd/advisories ./cmd/closure-scan -run 'Test(RuntimeActivity|Interaction|StageReceipt|Evaluation|Closure)' -count=1",
           "rationale": "Runtime activity currently issues four content-history queries and sorts them again for each initial SSE snapshot and terminal operation. Domain views should request only their exact current or bounded historical projection.",
           "depends_on": [

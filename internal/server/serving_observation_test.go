@@ -95,7 +95,7 @@ func TestServingObservationPublication(t *testing.T) {
 	}
 }
 
-func TestSessionLedgerGUI(t *testing.T) {
+func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 	store, err := repodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func TestSessionLedgerGUI(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler, err := New(Config{
-		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store,
+		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store, MaxStoredResponses: 1,
 	}, &recipeInspectorGenerator{
 		fakeGenerator: &fakeGenerator{},
 		description: modelrecipe.RuntimeDescription{
@@ -125,6 +125,10 @@ func TestSessionLedgerGUI(t *testing.T) {
 	completion := serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"runtime","max_tokens":1}`)
 	if completion.Code != http.StatusOK {
 		t.Fatalf("completion status=%d body=%s", completion.Code, completion.Body.String())
+	}
+	completion = serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"runtime-next","max_tokens":1}`)
+	if completion.Code != http.StatusOK {
+		t.Fatalf("second completion status=%d body=%s", completion.Code, completion.Body.String())
 	}
 	var sessions runtimeSessionsResponse
 	response := serveTestRequest(handler, http.MethodGet, "/runtime/sessions", "")
@@ -142,7 +146,7 @@ func TestSessionLedgerGUI(t *testing.T) {
 	if err := strictjson.DecodeBytes(response.Body.Bytes(), &activity); err != nil {
 		t.Fatal(err)
 	}
-	if response.Code != http.StatusOK || activity.Count != 1 || len(activity.Activity) != 1 ||
+	if response.Code != http.StatusOK || activity.Count != 1 || len(activity.Activity) != 1 || !activity.Truncated ||
 		activity.Activity[0].Model != modelID || activity.Activity[0].Recipe != recipeID {
 		t.Fatalf("activity status=%d response=%+v", response.Code, activity)
 	}

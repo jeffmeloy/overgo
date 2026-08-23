@@ -184,7 +184,7 @@ func run() error {
 		}
 		evaluationWorkspace, err = llamaserver.NewEvaluationWorkspace(
 			workspaceStore, runner, description.Identity, environment,
-			strings.TrimSpace(*evaluationCommit), evaluationSuites,
+			strings.TrimSpace(*evaluationCommit), *responseStoreEntries, evaluationSuites,
 		)
 		if err != nil {
 			return fmt.Errorf("open evaluation workspace: %w", err)

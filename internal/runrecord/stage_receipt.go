@@ -13,8 +13,9 @@ const (
 	// StageReceiptMediaType identifies stage receipt documents.
 	StageReceiptMediaType = "application/vnd.overgo.stage-receipt+json"
 	// StageReceiptSchema identifies the stage receipt contract.
-	StageReceiptSchema    = "overgo/stage-receipt/v1"
-	stageReceiptAliasRoot = "stage-receipt/"
+	StageReceiptSchema = "overgo/stage-receipt/v1"
+	// StageReceiptAliasRoot scopes current workflow stage receipts.
+	StageReceiptAliasRoot = "stage-receipt/"
 )
 
 // StageState defines durable node lifecycle.
@@ -192,5 +193,5 @@ func cloneStageBindings(values []StageBinding) []StageBinding {
 }
 
 func stageReceiptAlias(operation artifact.ID, node recipe.NodeID) string {
-	return stageReceiptAliasRoot + operation.String() + "/" + string(node)
+	return StageReceiptAliasRoot + operation.String() + "/" + string(node)
 }

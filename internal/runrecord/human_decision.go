@@ -14,8 +14,9 @@ const (
 	// HumanDecisionMediaType identifies human decision documents.
 	HumanDecisionMediaType = "application/vnd.overgo.human-decision+json"
 	// HumanDecisionSchema identifies the human decision contract.
-	HumanDecisionSchema    = "overgo/human-decision/v1"
-	humanDecisionAliasRoot = "operations/decision/"
+	HumanDecisionSchema = "overgo/human-decision/v1"
+	// HumanDecisionAliasRoot scopes current operation decisions.
+	HumanDecisionAliasRoot = "operations/decision/"
 )
 
 // HumanDecision records one exact approval outcome.
@@ -53,7 +54,7 @@ func NewHumanDecision(request operatoraction.ApprovalRequest, answer operatoract
 
 // ResolveHumanDecision returns the latest decision for one operation.
 func ResolveHumanDecision(ctx context.Context, reader artifact.Reader, operation artifact.ID) (HumanDecision, bool, error) {
-	id, found, err := artifact.ResolveAlias(ctx, reader, humanDecisionAliasRoot+operation.String())
+	id, found, err := artifact.ResolveAlias(ctx, reader, HumanDecisionAliasRoot+operation.String())
 	if err != nil || !found {
 		return HumanDecision{}, found, err
 	}
@@ -86,7 +87,7 @@ func PublishHumanDecision(
 	if err != nil {
 		return err
 	}
-	alias := artifact.AliasBinding{Name: humanDecisionAliasRoot + request.Operation.String(), Target: decision.ID}
+	alias := artifact.AliasBinding{Name: HumanDecisionAliasRoot + request.Operation.String(), Target: decision.ID}
 	if found {
 		alias.Previous = artifact.IDPointer(prior.ID)
 	}

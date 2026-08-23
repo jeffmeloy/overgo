@@ -23,11 +23,11 @@ const (
 
 // DocumentQuery selects one exact document contract.
 type DocumentQuery struct {
-	Contracts   []artifact.DocumentContract
-	AliasPrefix string
-	Order       DocumentOrder
-	MaxResults  int
-	Cursor      *QueryCursor
+	Contracts     []artifact.DocumentContract
+	AliasPrefixes []string
+	Order         DocumentOrder
+	MaxResults    int
+	Cursor        *QueryCursor
 }
 
 // DocumentView carries one streamed document and catalog facts.
@@ -44,6 +44,11 @@ type DocumentPage struct {
 	Matched   int
 	Truncated bool
 	Next      *QueryCursor
+}
+
+// DocumentReader streams exact document projections.
+type DocumentReader interface {
+	VisitDocuments(context.Context, DocumentQuery, func(DocumentView) error) (DocumentPage, error)
 }
 
 // VisitDocuments streams exact-contract documents in introduction order.
@@ -73,7 +78,7 @@ func (s *Store) VisitDocuments(
 		return DocumentPage{}, errors.New("repodb: document cursor is stale or belongs to another query")
 	}
 	page := DocumentPage{Head: s.head, Sequence: s.sequence}
-	aliases := s.state.aliasesByTarget(query.AliasPrefix)
+	aliases := s.state.aliasesByTarget(query.AliasPrefixes)
 	entries := make([]documentEntry, 0, min(query.MaxResults, len(s.state.bySequence)))
 	var last artifactSlotCursor
 	emitted := 0
@@ -88,7 +93,7 @@ func (s *Store) VisitDocuments(
 			continue
 		}
 		names, selected := aliases[id]
-		if query.AliasPrefix != "" && !selected {
+		if len(query.AliasPrefixes) != 0 && !selected {
 			continue
 		}
 		page.Matched++
@@ -147,7 +152,7 @@ type documentEntry struct {
 // VisitDecodedDocuments decodes each streamed document before publication.
 func VisitDecodedDocuments[T any](
 	ctx context.Context,
-	store *Store,
+	store DocumentReader,
 	query DocumentQuery,
 	decode func([]byte) (T, error),
 	visit func(DocumentView, T) error,
@@ -196,9 +201,11 @@ func validateDocumentQuery(query DocumentQuery, visit func(DocumentView) error) 
 	if query.MaxResults < 0 || visit == nil {
 		return errors.New("repodb: invalid document query bound or visitor")
 	}
-	if query.AliasPrefix != "" && (strings.TrimSpace(query.AliasPrefix) != query.AliasPrefix ||
-		strings.ContainsAny(query.AliasPrefix, "\r\n")) {
-		return errors.New("repodb: invalid document alias prefix")
+	for index, prefix := range query.AliasPrefixes {
+		if prefix == "" || strings.TrimSpace(prefix) != prefix || strings.ContainsAny(prefix, "\r\n") ||
+			slices.Contains(query.AliasPrefixes[:index], prefix) {
+			return errors.New("repodb: invalid document alias prefixes")
+		}
 	}
 	if query.Cursor != nil && (!query.Cursor.After.Valid() || query.Cursor.AfterSequence == 0) {
 		return errors.New("repodb: invalid document cursor")
@@ -208,10 +215,10 @@ func validateDocumentQuery(query DocumentQuery, visit func(DocumentView) error) 
 
 func documentQueryDigest(query DocumentQuery) ([sha256.Size]byte, error) {
 	payload, err := json.Marshal(struct {
-		Contracts   []artifact.DocumentContract
-		AliasPrefix string
-		Order       DocumentOrder
-	}{query.Contracts, query.AliasPrefix, query.Order})
+		Contracts     []artifact.DocumentContract
+		AliasPrefixes []string
+		Order         DocumentOrder
+	}{query.Contracts, query.AliasPrefixes, query.Order})
 	if err != nil {
 		return [sha256.Size]byte{}, err
 	}
@@ -224,13 +231,13 @@ func matchesDocumentContract(descriptor artifact.Descriptor, contracts []artifac
 	})
 }
 
-func (s catalogState) aliasesByTarget(prefix string) map[artifact.ID][]string {
-	if prefix == "" {
+func (s catalogState) aliasesByTarget(prefixes []string) map[artifact.ID][]string {
+	if len(prefixes) == 0 {
 		return nil
 	}
 	result := map[artifact.ID][]string{}
 	for name, target := range s.aliases {
-		if strings.HasPrefix(name, prefix) {
+		if slices.ContainsFunc(prefixes, func(prefix string) bool { return strings.HasPrefix(name, prefix) }) {
 			result[target] = append(result[target], name)
 		}
 	}

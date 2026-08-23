@@ -193,19 +193,15 @@ func TestReviewPriority(t *testing.T) {
 	if _, err := store.Commit(context.Background(), batch); err != nil {
 		t.Fatal(err)
 	}
-	descriptors := make([]artifact.Descriptor, len(contents))
-	for index := range contents {
-		descriptors[index] = contents[index].Descriptor
-	}
-	priority, err := DeriveReviewPriority(context.Background(), store, reviewCommitB, descriptors[:len(descriptors)-1])
+	priority, err := DeriveReviewPriority(context.Background(), store, reviewCommitB, []ReviewCandidate{candidate}, nil)
 	if err != nil || priority.Phase != ReviewPhaseSQA || priority.Candidate != candidate.ID {
 		t.Fatalf("candidate phase = (%+v, %v)", priority, err)
 	}
-	priority, err = DeriveReviewPriority(context.Background(), store, reviewCommitB, descriptors)
+	priority, err = DeriveReviewPriority(context.Background(), store, reviewCommitB, []ReviewCandidate{candidate}, []ReviewVerdict{verdict})
 	if err != nil || priority.Phase != ReviewPhasePriority || priority.Candidate != candidate.ID || priority.Verdict != verdict.ID {
 		t.Fatalf("admitted phase = (%+v, %v)", priority, err)
 	}
-	priority, err = DeriveReviewPriority(context.Background(), store, reviewCommitA, descriptors)
+	priority, err = DeriveReviewPriority(context.Background(), store, reviewCommitA, []ReviewCandidate{candidate}, []ReviewVerdict{verdict})
 	if err != nil || priority.Phase != ReviewPhaseImplementation {
 		t.Fatalf("unreviewed head phase = (%+v, %v)", priority, err)
 	}

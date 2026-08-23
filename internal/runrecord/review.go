@@ -359,24 +359,30 @@ func LoadReviewAdmission(ctx context.Context, reader artifact.Reader, verdictID 
 	if err != nil {
 		return ReviewAdmission{}, err
 	}
-	return loadReviewAdmission(ctx, reader, verdict)
+	candidate, err := readReviewDocument(ctx, reader, verdict.Candidate, reviewCandidateCodec)
+	if err != nil {
+		return ReviewAdmission{}, err
+	}
+	return loadReviewAdmission(ctx, reader, candidate, verdict)
 }
 
 // DeriveReviewPriority maps Git HEAD plus admitted RepoDB review evidence to
 // implementation -> SQA -> priority. Invalid or rejected verdicts do not
 // advance the phase; incomplete evidence for the current candidate is loud.
-func DeriveReviewPriority(ctx context.Context, reader artifact.Reader, targetHead string, descriptors []artifact.Descriptor) (ReviewPriority, error) {
+func DeriveReviewPriority(
+	ctx context.Context,
+	reader artifact.Reader,
+	targetHead string,
+	knownCandidates []ReviewCandidate,
+	verdicts []ReviewVerdict,
+) (ReviewPriority, error) {
 	if !validCodeCommit(targetHead) {
 		return ReviewPriority{}, errors.New("run record: review priority target is invalid")
 	}
 	candidates := make(map[artifact.ID]ReviewCandidate)
 	var selected artifact.ID
-	for _, descriptor := range descriptors {
-		if descriptor.MediaType != ReviewCandidateMediaType || descriptor.Schema != ReviewCandidateSchema {
-			continue
-		}
-		candidate, err := readReviewDocument(ctx, reader, descriptor.ID, reviewCandidateCodec)
-		if err != nil {
+	for _, candidate := range knownCandidates {
+		if err := candidate.ValidateIdentity(); err != nil {
 			return ReviewPriority{}, fmt.Errorf("run record: review priority candidate: %w", err)
 		}
 		if candidate.CodeCommit != targetHead {
@@ -391,21 +397,18 @@ func DeriveReviewPriority(ctx context.Context, reader artifact.Reader, targetHea
 		return ReviewPriority{Phase: ReviewPhaseImplementation}, nil
 	}
 	priority := ReviewPriority{Phase: ReviewPhaseSQA, Candidate: selected}
-	for _, descriptor := range descriptors {
-		if descriptor.MediaType != ReviewVerdictMediaType || descriptor.Schema != ReviewVerdictSchema {
-			continue
-		}
-		verdict, err := readReviewDocument(ctx, reader, descriptor.ID, reviewVerdictCodec)
-		if err != nil {
+	for _, verdict := range verdicts {
+		if err := verdict.ValidateIdentity(); err != nil {
 			return ReviewPriority{}, fmt.Errorf("run record: review priority verdict: %w", err)
 		}
 		if verdict.TargetHead != targetHead {
 			continue
 		}
-		if _, ok := candidates[verdict.Candidate]; !ok {
+		candidate, ok := candidates[verdict.Candidate]
+		if !ok {
 			continue
 		}
-		admission, err := loadReviewAdmission(ctx, reader, verdict)
+		admission, err := loadReviewAdmission(ctx, reader, candidate, verdict)
 		if err != nil {
 			return ReviewPriority{}, fmt.Errorf("run record: review priority admission: %w", err)
 		}
@@ -419,11 +422,7 @@ func DeriveReviewPriority(ctx context.Context, reader artifact.Reader, targetHea
 	return priority, nil
 }
 
-func loadReviewAdmission(ctx context.Context, reader artifact.Reader, verdict ReviewVerdict) (ReviewAdmission, error) {
-	candidate, err := readReviewDocument(ctx, reader, verdict.Candidate, reviewCandidateCodec)
-	if err != nil {
-		return ReviewAdmission{}, err
-	}
+func loadReviewAdmission(ctx context.Context, reader artifact.Reader, candidate ReviewCandidate, verdict ReviewVerdict) (ReviewAdmission, error) {
 	developer, err := readReviewDocument(ctx, reader, candidate.Developer, reviewActorCodec)
 	if err != nil {
 		return ReviewAdmission{}, err
@@ -457,6 +456,14 @@ func loadReviewAdmission(ctx context.Context, reader artifact.Reader, verdict Re
 		Evaluator: evaluator, Candidate: candidate, Findings: findings, Verdict: verdict,
 	}, nil
 }
+
+// ParseReviewCandidate decodes a candidate document.
+func ParseReviewCandidate(data []byte) (ReviewCandidate, error) {
+	return reviewCandidateCodec.Parse(data)
+}
+
+// ParseReviewVerdict decodes a verdict document.
+func ParseReviewVerdict(data []byte) (ReviewVerdict, error) { return reviewVerdictCodec.Parse(data) }
 
 func readReviewDocument[T any](ctx context.Context, reader artifact.Reader, id artifact.ID, codec artifact.DocumentCodec[T]) (T, error) {
 	value, err := codec.Require(ctx, reader, id)

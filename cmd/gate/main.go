@@ -1333,7 +1333,7 @@ func activeMagicBindings(repo, storePath string) ([]closureledger.Document, erro
 	_, err = repodb.VisitDecodedDocuments(context.Background(), store, repodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: closureledger.MediaType, Schema: closureledger.Schema,
-		}}, AliasPrefix: closureledger.ActiveAliasPrefix, Order: repodb.DocumentOldestFirst,
+		}}, AliasPrefixes: []string{closureledger.ActiveAliasPrefix}, Order: repodb.DocumentOldestFirst,
 	}, closureledger.Parse, func(view repodb.DocumentView, document closureledger.Document) error {
 		if document.ID != view.Content.Descriptor.ID {
 			return errors.New("magic scan: active document identity mismatch")

@@ -18,8 +18,9 @@ const (
 	// InteractionTranscriptMediaType identifies transcript documents.
 	InteractionTranscriptMediaType = "application/vnd.overgo.interaction-transcript+json"
 	// InteractionTranscriptSchema identifies the transcript contract.
-	InteractionTranscriptSchema  = "overgo/interaction-transcript/v1"
-	interactionResponseAliasRoot = "interaction/response/"
+	InteractionTranscriptSchema = "overgo/interaction-transcript/v1"
+	// InteractionResponseAliasRoot scopes current response interactions.
+	InteractionResponseAliasRoot = "interaction/response/"
 )
 
 var interactionCodec = artifact.JSONDocumentCodec(
@@ -161,7 +162,7 @@ func RequireInteraction(ctx context.Context, reader artifact.Reader, id artifact
 
 // ResolveInteraction resolves a response identity to its durable event.
 func ResolveInteraction(ctx context.Context, reader artifact.Reader, response string) (Interaction, bool, error) {
-	id, found, err := artifact.ResolveAlias(ctx, reader, interactionResponseAliasRoot+response)
+	id, found, err := artifact.ResolveAlias(ctx, reader, InteractionResponseAliasRoot+response)
 	if err != nil || !found {
 		return Interaction{}, found, err
 	}
@@ -279,7 +280,7 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 		"interaction/"+value.ID.String(),
 		contents,
 		lineage,
-		[]artifact.AliasBinding{{Name: interactionResponseAliasRoot + value.Response, Target: value.ID}},
+		[]artifact.AliasBinding{{Name: InteractionResponseAliasRoot + value.Response, Target: value.ID}},
 	)
 	if err != nil {
 		return Interaction{}, err

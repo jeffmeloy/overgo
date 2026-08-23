@@ -24,11 +24,7 @@ func TestGateLifecycleAndDebt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	preparedContent, err := prepared.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
-	debt, err := OutstandingGateDebt([]artifact.Content{preparedContent})
+	debt, err := OutstandingGateDebt([]GateLifecycle{prepared})
 	if err != nil || len(debt) != 1 || debt[0].ID != prepared.ID {
 		t.Fatalf("prepared debt = (%+v, %v)", debt, err)
 	}
@@ -36,11 +32,7 @@ func TestGateLifecycleAndDebt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	finalizedContent, err := finalized.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
-	debt, err = OutstandingGateDebt([]artifact.Content{preparedContent, finalizedContent})
+	debt, err = OutstandingGateDebt([]GateLifecycle{prepared, finalized})
 	if err != nil || len(debt) != 0 {
 		t.Fatalf("finalized debt = (%+v, %v)", debt, err)
 	}

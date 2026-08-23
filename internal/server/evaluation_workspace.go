@@ -64,12 +64,13 @@ type EvaluationWorkspaceAPI interface {
 }
 
 type EvaluationWorkspace struct {
-	repository *repodb.Store
-	campaign   *evaluation.Campaign
-	model      artifact.ID
-	recipe     artifact.ID
-	suites     []evaluation.CompiledSuite
-	byPlan     map[artifact.ID]int
+	repository   *repodb.Store
+	campaign     *evaluation.Campaign
+	model        artifact.ID
+	recipe       artifact.ID
+	suites       []evaluation.CompiledSuite
+	byPlan       map[artifact.ID]int
+	historyLimit int
 }
 
 func NewEvaluationWorkspace(
@@ -78,8 +79,12 @@ func NewEvaluationWorkspace(
 	identity modelrecipe.ProgramIdentity,
 	environment runrecord.Environment,
 	commit string,
+	historyLimit int,
 	suitePaths []string,
 ) (*EvaluationWorkspace, error) {
+	if historyLimit <= 0 {
+		return nil, errors.New("evaluation workspace: history limit is invalid")
+	}
 	campaign, err := evaluation.NewCampaign(repository, runtime, identity, environment, commit)
 	if err != nil {
 		return nil, err
@@ -87,6 +92,7 @@ func NewEvaluationWorkspace(
 	workspace := &EvaluationWorkspace{
 		repository: repository, campaign: campaign, model: identity.Model, recipe: identity.Recipe,
 		suites: make([]evaluation.CompiledSuite, 0, len(suitePaths)), byPlan: make(map[artifact.ID]int, len(suitePaths)),
+		historyLimit: historyLimit,
 	}
 	for _, path := range suitePaths {
 		data, err := os.ReadFile(path)
@@ -190,7 +196,7 @@ func (workspace *EvaluationWorkspace) EvaluationHistory(ctx context.Context, mod
 	if workspace == nil || workspace.repository == nil || model != workspace.model {
 		return nil, errors.New("evaluation workspace: model is not selected")
 	}
-	return workspace.campaign.History(ctx, workspace.suites)
+	return workspace.campaign.History(ctx, workspace.suites, workspace.historyLimit)
 }
 
 func (workspace *EvaluationWorkspace) EvaluationReport(ctx context.Context, id artifact.ID) (EvaluationReport, error) {

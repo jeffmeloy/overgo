@@ -200,7 +200,7 @@ func printLeaseReport(root string, capacity plan.Resources, output io.Writer) er
 	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: plan.WorkLeaseMediaType, Schema: plan.WorkLeaseSchema,
-		}}, AliasPrefix: plan.WorkLeaseAliasRoot, Order: repodb.DocumentOldestFirst,
+		}}, AliasPrefixes: []string{plan.WorkLeaseAliasRoot}, Order: repodb.DocumentOldestFirst,
 	}, plan.ParseWorkLease, func(_ repodb.DocumentView, lease plan.WorkLease) error {
 		leases = append(leases, lease)
 		return nil

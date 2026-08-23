@@ -19,6 +19,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"slices"
 	"sort"
 	"strings"
 
@@ -64,7 +65,8 @@ func run() error {
 	defer store.Close()
 	ctx := context.Background()
 
-	observations, err := loadObservations(ctx, store, *metric)
+	observationLimit := calibrationObservationLimit(*budget)
+	observations, err := loadObservations(ctx, store, *metric, observationLimit)
 	if err != nil {
 		return err
 	}
@@ -107,66 +109,65 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	alias := runrecord.AdvisoryAlias(advisory.Recipe, advisory.Environment, advisory.Metric)
+	previous, found, err := artifact.ResolveAlias(ctx, store, alias)
+	if err != nil {
+		return err
+	}
+	binding := artifact.AliasBinding{Name: alias, Target: advisory.ID}
+	if found {
+		binding.Previous = &previous
+	}
+	batch.Aliases = append(batch.Aliases, binding)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return err
 	}
 	fmt.Printf("ADVISORY raised: latest=%g baseline_median=%g mad=%g surprise=%g (committed %s)\n",
 		advisory.LatestValue, advisory.BaselineMedian, advisory.MAD, advisory.Surprise(), advisory.ID)
-	return escalate(ctx, store, advisory)
+	return escalate(ctx, store, advisory, binding.Previous)
 }
 
 // escalate opens a finding only after the same series raises on two
 // non-overlapping windows. One open finding per series; repeats add no new
 // document.
-func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisory) error {
-	var confirming []runrecord.Advisory
-	openFindingExists := false
+func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisory, previous *artifact.ID) error {
 	seriesKey := latest.Recipe.String() + "/" + latest.Environment.String() + "/" + latest.Metric
-	_, err := store.VisitDocuments(ctx, repodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{
-			{Kind: artifact.KindEvidence, MediaType: runrecord.AdvisoryMediaType, Schema: runrecord.AdvisorySchema},
-			{Kind: artifact.KindEvidence, MediaType: finding.MediaType, Schema: finding.Schema},
-		}, Order: repodb.DocumentOldestFirst,
-	}, func(view repodb.DocumentView) error {
-		switch view.Content.Descriptor.MediaType {
-		case runrecord.AdvisoryMediaType:
-			prior, err := runrecord.ParseAdvisory(view.Content.Data)
-			if err != nil || prior.Metric != latest.Metric ||
-				prior.Recipe != latest.Recipe || prior.Environment != latest.Environment ||
-				!nonOverlappingConfirmation(prior, latest) {
-				return nil
-			}
-			confirming = append(confirming, prior)
-		case finding.MediaType:
-			document, err := finding.Parse(view.Content.Data)
-			if err != nil || document.Status != finding.StatusOpen {
-				return nil
-			}
-			if strings.Contains(document.Title, seriesKey) {
-				openFindingExists = true
-			}
-		}
+	if previous == nil {
+		fmt.Println("honesty: directional advisory only; a later non-overlapping window is required for a finding")
 		return nil
-	})
+	}
+	content, found, err := artifact.ReadContent(ctx, store, *previous)
 	if err != nil {
 		return err
 	}
-	if len(confirming) == 0 {
+	if !found {
+		return errors.New("advisories: prior series advisory is absent")
+	}
+	prior, err := runrecord.ParseAdvisory(content.Data)
+	if err != nil {
+		return err
+	}
+	if prior.Metric != latest.Metric || prior.Recipe != latest.Recipe || prior.Environment != latest.Environment {
+		return errors.New("advisories: active series alias is inconsistent")
+	}
+	if !nonOverlappingConfirmation(prior, latest) {
 		fmt.Println("honesty: directional advisory only; a later non-overlapping window is required for a finding")
 		return nil
+	}
+	findingAlias := "finding/active/regression/" + strings.TrimPrefix(runrecord.AdvisoryAlias(
+		latest.Recipe, latest.Environment, latest.Metric), runrecord.AdvisoryAliasRoot)
+	_, openFindingExists, err := artifact.ResolveAlias(ctx, store, findingAlias)
+	if err != nil {
+		return err
 	}
 	if openFindingExists {
 		fmt.Println("honesty: confirmed regression already has an open finding; no duplicate emitted")
 		return nil
 	}
-	evidence := []artifact.ID{latest.ID}
-	for _, prior := range confirming {
-		evidence = append(evidence, prior.ID)
-	}
 	document, err := finding.New(
 		"repeated directional regression in series "+seriesKey,
 		finding.SeverityMedium, finding.StatusOpen,
-		[]artifact.ID{latest.Recipe, latest.Environment}, evidence,
+		[]artifact.ID{latest.Recipe, latest.Environment}, []artifact.ID{latest.ID, prior.ID},
 		"Diagnose the regression source via the advisories' phase deltas; close with the fix landed and this series back under its empirical threshold.",
 		"advisories for this series stop raising across two consecutive non-overlapping windows after the fix commit.",
 	)
@@ -177,10 +178,12 @@ func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisor
 	if err != nil {
 		return err
 	}
+	binding := artifact.AliasBinding{Name: findingAlias, Target: document.ID}
+	batch.Aliases = append(batch.Aliases, binding)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		return err
 	}
-	fmt.Printf("FINDING opened (non-overlapping two-window repetition, %d prior advisor(ies)): %s\n", len(confirming), document.ID)
+	fmt.Printf("FINDING opened (non-overlapping two-window repetition): %s\n", document.ID)
 	return nil
 }
 
@@ -189,62 +192,53 @@ func nonOverlappingConfirmation(prior, latest runrecord.Advisory) bool {
 }
 
 // loadObservations joins evaluations to runs in store-owned introduction order.
-func loadObservations(ctx context.Context, store *repodb.Store, metric string) ([]runrecord.Observation, error) {
-	runs := map[artifact.ID]runrecord.Run{}
-	sequences := map[artifact.ID]uint64{}
-	var order []artifact.ID
-	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{
-			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.LegacyRunSchema},
-			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.RunSchema},
-		}, Order: repodb.DocumentOldestFirst,
-	}, runrecord.ParseRun, func(view repodb.DocumentView, parsed runrecord.Run) error {
-		runs[parsed.ID] = parsed
-		sequences[parsed.ID] = view.Sequence
-		order = append(order, parsed.ID)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	evaluations := map[artifact.ID][]runrecord.Evaluation{}
-	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+func loadObservations(ctx context.Context, store *repodb.Store, metric string, maxResults int) ([]runrecord.Observation, error) {
+	query := repodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvaluation, MediaType: runrecord.EvaluationMediaType, Schema: runrecord.EvaluationSchema,
-		}}, Order: repodb.DocumentOldestFirst,
-	}, runrecord.ParseEvaluation, func(_ repodb.DocumentView, evaluation runrecord.Evaluation) error {
-		run, ok := runs[evaluation.Run]
-		if !ok {
-			return nil
-		}
-		hasMetric := false
-		for _, m := range evaluation.Metrics {
-			hasMetric = hasMetric || m.Name == metric
-		}
-		if hasMetric {
-			evaluations[run.ID] = append(evaluations[run.ID], evaluation)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+		}}, Order: repodb.DocumentNewestFirst, MaxResults: maxResults,
 	}
-	observations := make([]runrecord.Observation, 0, len(evaluations))
-	for _, id := range order {
-		for _, evaluation := range evaluations[id] {
-			observations = append(observations, runrecord.Observation{
-				Sequence: sequences[id], Run: runs[id], Evaluation: evaluation,
+	observations := make([]runrecord.Observation, 0, maxResults)
+	for len(observations) < maxResults {
+		page, err := repodb.VisitDecodedDocuments(ctx, store, query, runrecord.ParseEvaluation,
+			func(view repodb.DocumentView, evaluation runrecord.Evaluation) error {
+				if len(observations) == maxResults || !slices.ContainsFunc(evaluation.Metrics, func(value runrecord.Metric) bool {
+					return value.Name == metric
+				}) {
+					return nil
+				}
+				run, err := runrecord.RequireRun(ctx, store, evaluation.Run)
+				if err != nil {
+					return err
+				}
+				observations = append(observations, runrecord.Observation{
+					Sequence: view.Sequence, Run: run, Evaluation: evaluation,
+				})
+				return nil
 			})
+		if err != nil {
+			return nil, err
 		}
+		if page.Next == nil {
+			break
+		}
+		query.Cursor = page.Next
 	}
+	slices.Reverse(observations)
 	return observations, nil
 }
 
+func calibrationObservationLimit(budget float64) int {
+	var observed int
+	return planCalibration(observed, budget).RequiredObservations
+}
+
 type calibrationPlan struct {
-	Window          int
-	RequiredScores  int
-	AvailableScores int
-	LatestStart     int
+	Window               int
+	RequiredScores       int
+	AvailableScores      int
+	LatestStart          int
+	RequiredObservations int
 }
 
 func planCalibration(observations int, budget float64) calibrationPlan {
@@ -264,7 +258,7 @@ func planCalibration(observations int, budget float64) calibrationPlan {
 	}
 	return calibrationPlan{
 		Window: window, RequiredScores: required,
-		AvailableScores: available, LatestStart: latestStart,
+		AvailableScores: available, LatestStart: latestStart, RequiredObservations: (required + 1) * block,
 	}
 }
 

@@ -95,12 +95,13 @@ func (h *Handler) runtimeActivitySnapshot(ctx context.Context) (runtimeActivityR
 	if err != nil {
 		return runtimeActivityResponse{}, err
 	}
-	activity := make([]servingActivity, 0)
-	result, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	activity := make([]servingActivity, 0, h.config.MaxStoredResponses)
+	page, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
 		}},
-		Order: repodb.DocumentNewestFirst,
+		AliasPrefixes: []string{runrecord.ServingAttemptAliasRoot},
+		Order:         repodb.DocumentNewestFirst, MaxResults: h.config.MaxStoredResponses,
 	}, runrecord.ParseServingObservation, func(view repodb.DocumentView, observation runrecord.ServingObservation) error {
 		activity = append(activity, servingActivity{ID: view.Content.Descriptor.ID, ServingObservation: observation})
 		return nil
@@ -108,35 +109,35 @@ func (h *Handler) runtimeActivitySnapshot(ctx context.Context) (runtimeActivityR
 	if err != nil {
 		return runtimeActivityResponse{}, err
 	}
-	stages, stagesTruncated, err := projectedDocuments(ctx, store, runrecord.StageReceiptMediaType, runrecord.StageReceiptSchema)
+	stages, stagesTruncated, err := projectedDocuments(ctx, store,
+		runrecord.StageReceiptMediaType, runrecord.StageReceiptSchema, runrecord.StageReceiptAliasRoot, h.config.MaxStoredResponses)
 	if err != nil {
 		return runtimeActivityResponse{}, err
 	}
-	decisions, decisionsTruncated, err := projectedDocuments(ctx, store, runrecord.HumanDecisionMediaType, runrecord.HumanDecisionSchema)
+	decisions, decisionsTruncated, err := projectedDocuments(ctx, store,
+		runrecord.HumanDecisionMediaType, runrecord.HumanDecisionSchema, runrecord.HumanDecisionAliasRoot, h.config.MaxStoredResponses)
 	if err != nil {
 		return runtimeActivityResponse{}, err
 	}
-	interactions, interactionsTruncated, err := projectedDocuments(ctx, store, runrecord.InteractionMediaType, runrecord.InteractionSchema)
-	if err != nil {
-		return runtimeActivityResponse{}, err
-	}
+	interactions, interactionsTruncated, err := projectedDocuments(ctx, store,
+		runrecord.InteractionMediaType, runrecord.InteractionSchema, runrecord.InteractionResponseAliasRoot, h.config.MaxStoredResponses)
 	return runtimeActivityResponse{
-		Count:       len(activity),
-		PublishFail: h.observationErrors.Load(), Activity: activity, Operations: h.operations.List(),
+		Count: len(activity), PublishFail: h.observationErrors.Load(), Activity: activity, Operations: h.operations.List(),
 		Stages: stages, Decisions: decisions, Interactions: interactions,
-		Truncated: result.Truncated || stagesTruncated || decisionsTruncated || interactionsTruncated,
-	}, nil
+		Truncated: page.Truncated || stagesTruncated || decisionsTruncated || interactionsTruncated,
+	}, err
 }
 
 func projectedDocuments(
 	ctx context.Context,
 	store *repodb.Store,
-	mediaType, schema string,
+	mediaType, schema, aliasPrefix string,
+	limit int,
 ) ([]json.RawMessage, bool, error) {
-	documents := make([]json.RawMessage, 0)
+	documents := make([]json.RawMessage, 0, limit)
 	page, err := store.VisitDocuments(ctx, repodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: mediaType, Schema: schema}},
-		Order:     repodb.DocumentNewestFirst,
+		Contracts:     []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: mediaType, Schema: schema}},
+		AliasPrefixes: []string{aliasPrefix}, Order: repodb.DocumentNewestFirst, MaxResults: limit,
 	}, func(view repodb.DocumentView) error {
 		documents = append(documents, json.RawMessage(view.Content.Data))
 		return nil
@@ -185,21 +186,6 @@ func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *h
 				stream.named("runtime.sessions", h.runtimeSessionsSnapshot()) != nil {
 				return
 			}
-			if operationTerminal(event.Status.State) {
-				activity, snapshotErr := h.runtimeActivitySnapshot(request.Context())
-				if snapshotErr == nil {
-					if stream.named("runtime.activity", activity) != nil {
-						return
-					}
-				} else if errors.Is(snapshotErr, errBrowseRepositoryUnavailable) &&
-					stream.named("runtime.activity", runtimeActivityResponse{Operations: h.operations.List()}) != nil {
-					return
-				}
-			}
 		}
 	}
-}
-
-func operationTerminal(state operation.State) bool {
-	return state == operation.StateCompleted || state == operation.StateCancelled || state == operation.StateFailed
 }

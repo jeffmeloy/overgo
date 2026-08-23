@@ -541,7 +541,7 @@ func activeClosureDocuments(ctx context.Context, store *repodb.Store) ([]closure
 	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: closureledger.MediaType, Schema: closureledger.Schema,
-		}}, AliasPrefix: closureledger.ActiveAliasPrefix, Order: repodb.DocumentOldestFirst,
+		}}, AliasPrefixes: []string{closureledger.ActiveAliasPrefix}, Order: repodb.DocumentOldestFirst,
 	}, closureledger.Parse, func(view repodb.DocumentView, document closureledger.Document) error {
 		documents = append(documents, document)
 		for _, name := range view.Aliases {

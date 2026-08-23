@@ -705,20 +705,6 @@
       ]
     },
     {
-      "id": "gate-published-data",
-      "title": "Make the gate verify published data against current source",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make the gate verify published data against current source",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/modelrecipe -run 'TestGateReadsPublishedDocuments|TestStoredDocumentsDecodeUnderCurrentSchema' -count=1"
-        }
-      ]
-    },
-    {
       "id": "repodb-retention",
       "title": "Set a RepoDB retention policy for superseded evidence",
       "owner": "gui",

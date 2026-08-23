@@ -90,13 +90,13 @@
       "id": "bifrost-control-closure",
       "title": "Close Bifrost-inspired control-plane work with bounded memory, parity, and single-authority evidence",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Close Bifrost-inspired control-plane work with bounded memory, parity, and single-authority evidence",
-          "status": "open",
-          "verify": "go test ./internal/capabilityruntime ./internal/modelrecipe ./internal/operation ./internal/runrecord ./internal/server -count=1"
+          "status": "done",
+          "verify": "go test ./internal/capabilityruntime ./internal/modelrecipe ./internal/operation ./internal/runrecord ./internal/server -run 'Test(SessionAuthority|SessionReplacement|CapabilityEvidenceSelector|ServingAttempt|ServingObservation|OperationRecovery|OperationLifecycle|OperationEvent|RuntimeActivity|SSE)' -count=1"
         }
       ]
     },

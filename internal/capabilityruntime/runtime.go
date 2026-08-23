@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
+	"overgo/internal/strictjson"
 	"overgo/internal/workflowruntime"
 )
 
@@ -98,7 +99,11 @@ func Execute[Output any](
 	if err := bind(runtime); err != nil {
 		return zero, err
 	}
-	result, err := runtime.ExecuteProgram(ctx, key, program, inputs)
+	operation, err := workflowruntime.ExecutionID(definition.ID, key)
+	if err != nil {
+		return zero, err
+	}
+	result, err := runtime.ExecuteProgram(ctx, key, operation, program, inputs)
 	if err != nil {
 		return zero, err
 	}
@@ -108,8 +113,13 @@ func Execute[Output any](
 		return zero, fmt.Errorf("capability runtime: output %q is not scalar", output.Name)
 	}
 	value, ok := datum.Value.(Output)
-	if !ok {
-		return zero, fmt.Errorf("capability runtime: output %q has invalid value type", output.Name)
+	if ok {
+		return value, nil
 	}
-	return value, nil
+	if datum.Content != nil {
+		if err := strictjson.DecodeBytes(datum.Content.Data, &zero); err == nil {
+			return zero, nil
+		}
+	}
+	return zero, fmt.Errorf("capability runtime: output %q has invalid value type", output.Name)
 }

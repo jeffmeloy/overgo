@@ -315,7 +315,11 @@ func executeChainArm(
 	if err != nil {
 		return nil, "", err
 	}
-	result, err := runtime.ExecuteProgram(ctx, key, program, map[recipe.PortName]workflowruntime.Value{
+	operation, err := workflowruntime.ExecutionID(program.Definition().ID, key)
+	if err != nil {
+		return nil, "", err
+	}
+	result, err := runtime.ExecuteProgram(ctx, key, operation, program, map[recipe.PortName]workflowruntime.Value{
 		"prompt": promptValue,
 	})
 	if err != nil {

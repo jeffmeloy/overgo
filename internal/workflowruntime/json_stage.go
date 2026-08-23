@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/strictjson"
 )
 
 // RegisterJSONStage binds typed computation to a catalog-owned scalar module.
@@ -72,10 +73,15 @@ func ScalarInput[Input any](request StepRequest, name recipe.PortName) (Input, e
 		return zero, fmt.Errorf("workflow runtime: input %q is not scalar", name)
 	}
 	input, ok := datum.Value.(Input)
-	if !ok {
-		return zero, fmt.Errorf("workflow runtime: input %q has invalid value type", name)
+	if ok {
+		return input, nil
 	}
-	return input, nil
+	if datum.Content != nil {
+		if err := strictjson.DecodeBytes(datum.Content.Data, &zero); err == nil {
+			return zero, nil
+		}
+	}
+	return zero, fmt.Errorf("workflow runtime: input %q has invalid value type", name)
 }
 
 // RegisterScalarStage binds typed computation with optional artifact output.

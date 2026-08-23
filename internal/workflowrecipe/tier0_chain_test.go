@@ -1,4 +1,5 @@
-package workflowrecipe
+// Package workflowrecipe_test verifies public recipe execution contracts.
+package workflowrecipe_test
 
 import (
 	"context"
@@ -9,6 +10,7 @@ import (
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
+	"overgo/internal/workflowrecipe"
 	"overgo/internal/workflowruntime"
 )
 
@@ -30,7 +32,7 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 	if definition.ID != replay.ID {
 		t.Fatalf("chain artifact is not content-addressed: %v != %v", definition.ID, replay.ID)
 	}
-	program, err := recipe.CompileProgram(definition, Catalog())
+	program, err := recipe.CompileProgram(definition, workflowrecipe.Catalog())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,13 +68,13 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	register(ModuleTokenize, "tokens", func(request workflowruntime.StepRequest) workflowruntime.Value {
+	register(workflowrecipe.ModuleTokenize, "tokens", func(request workflowruntime.StepRequest) workflowruntime.Value {
 		return workflowruntime.Value{Kind: recipe.DataTokens, Items: request.Inputs["text"].Items}
 	})
-	register(ModuleGenerate, "tokens", func(request workflowruntime.StepRequest) workflowruntime.Value {
+	register(workflowrecipe.ModuleGenerate, "tokens", func(request workflowruntime.StepRequest) workflowruntime.Value {
 		return workflowruntime.Value{Kind: recipe.DataTokens, Items: request.Inputs["tokens"].Items}
 	})
-	register(ModuleDetokenize, "text", func(request workflowruntime.StepRequest) workflowruntime.Value {
+	register(workflowrecipe.ModuleDetokenize, "text", func(request workflowruntime.StepRequest) workflowruntime.Value {
 		datum := request.Inputs["tokens"].Items[0]
 		text := datum.Value.(string) + "+model"
 		content := artifact.Content{
@@ -86,7 +88,11 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 		return workflowruntime.ArtifactValue(recipe.DataText, text, content)
 	})
 
-	result, err := runtime.ExecuteProgram(ctx, "tier0/chain", program, map[recipe.PortName]workflowruntime.Value{
+	operation, err := workflowruntime.ExecutionID(definition.ID, "tier0/chain")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := runtime.ExecuteProgram(ctx, "tier0/chain", operation, program, map[recipe.PortName]workflowruntime.Value{
 		"prompt": {Kind: recipe.DataText, Items: []workflowruntime.Datum{{Value: "prompt"}}},
 	})
 	if err != nil {
@@ -138,12 +144,12 @@ func chainDefinition(t *testing.T, modelA, modelB artifact.ID) recipe.Definition
 			{Role: recipe.DependencyModel, Slot: 1, Artifact: modelB},
 		},
 		[]recipe.Node{
-			node("a-tokenize", ModuleTokenize, 0),
-			node("a-generate", ModuleGenerate, 0),
-			node("a-detokenize", ModuleDetokenize, 0),
-			node("b-tokenize", ModuleTokenize, 1),
-			node("b-generate", ModuleGenerate, 1),
-			node("b-detokenize", ModuleDetokenize, 1),
+			node("a-tokenize", workflowrecipe.ModuleTokenize, 0),
+			node("a-generate", workflowrecipe.ModuleGenerate, 0),
+			node("a-detokenize", workflowrecipe.ModuleDetokenize, 0),
+			node("b-tokenize", workflowrecipe.ModuleTokenize, 1),
+			node("b-generate", workflowrecipe.ModuleGenerate, 1),
+			node("b-detokenize", workflowrecipe.ModuleDetokenize, 1),
 		},
 		[]recipe.Edge{
 			edge("a-tokenize", "tokens", "a-generate", "tokens"),

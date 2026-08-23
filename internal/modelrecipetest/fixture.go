@@ -103,7 +103,11 @@ func (f Capability) ExecuteScalar(key string, value any) (workflowruntime.Result
 		return workflowruntime.Result{}, fmt.Errorf("model recipe fixture: want one input, got %d", len(definition.Inputs))
 	}
 	input := definition.Inputs[0]
-	return f.Runtime.ExecuteProgram(context.Background(), key, f.Program, map[recipe.PortName]workflowruntime.Value{
+	operation, err := workflowruntime.ExecutionID(definition.ID, key)
+	if err != nil {
+		return workflowruntime.Result{}, err
+	}
+	return f.Runtime.ExecuteProgram(context.Background(), key, operation, f.Program, map[recipe.PortName]workflowruntime.Value{
 		input.Name: {Kind: input.Data, Items: []workflowruntime.Datum{{Value: value}}},
 	})
 }

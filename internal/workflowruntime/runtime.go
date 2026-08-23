@@ -7,14 +7,18 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"overgo/internal/artifact"
+	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
 
-const executionFailureCode = "execution_failed"
+const (
+	executionFailureCode = "execution_failed"
+)
 
 // Datum: runtime value plus optional provenance fact.
 type Datum struct {
@@ -110,6 +114,7 @@ func (r *Runtime) Register(module recipe.ModuleID, adapter Adapter) error {
 func (r *Runtime) ExecuteProgram(
 	ctx context.Context,
 	key string,
+	operation artifact.ID,
 	program recipe.Program,
 	inputs map[recipe.PortName]Value,
 ) (Result, error) {
@@ -119,29 +124,43 @@ func (r *Runtime) ExecuteProgram(
 	if ctx == nil {
 		return Result{}, errors.New("workflow runtime: nil context")
 	}
-	definition := program.Definition()
-	if definition.Task == recipe.TaskTraining {
-		return Result{}, errors.New("workflow runtime: orchestration-only plan")
+	if operation.Kind() != artifact.KindEvidence {
+		return Result{}, errors.New("workflow runtime: invalid operation identity")
 	}
 	if !program.UsesCatalog(r.catalog) {
 		return Result{}, errors.New("workflow runtime: compiled program uses another module catalog")
 	}
-	return r.executeProgram(ctx, key, program, inputs)
+	return r.executeProgram(ctx, key, operation, program, inputs)
+}
+
+// ExecutionID derives one stable operation identity from recipe and caller key.
+func ExecutionID(recipeID artifact.ID, key string) (artifact.ID, error) {
+	if recipeID.Kind() != artifact.KindRecipe || key == "" {
+		return artifact.ID{}, errors.New("workflow runtime: invalid execution identity input")
+	}
+	return artifact.JSONID(artifact.KindEvidence, struct {
+		Recipe artifact.ID `json:"recipe"`
+		Key    string      `json:"key"`
+	}{Recipe: recipeID, Key: key})
 }
 
 func (r *Runtime) executeProgram(
 	ctx context.Context,
 	key string,
+	operation artifact.ID,
 	program recipe.Program,
 	inputs map[recipe.PortName]Value,
 ) (Result, error) {
 	definition := program.Definition()
 	stages := program.Stages()
+	if err := r.publishExecutionAuthority(context.WithoutCancel(ctx), definition, operation); err != nil {
+		return Result{}, err
+	}
 	inputIDs, inputFacts, err := externalFacts(inputs, false)
 	if err != nil {
 		return Result{}, err
 	}
-	outputs, executeErr := r.executePlan(ctx, definition, stages, inputs)
+	outputs, executeErr := r.executePlan(ctx, definition, stages, operation, inputs)
 	outcome, failure := runrecord.OutcomeSucceeded, ""
 	if executeErr != nil {
 		outputs = nil
@@ -161,7 +180,7 @@ func (r *Runtime) executeProgram(
 	if err != nil {
 		return Result{}, errors.Join(executeErr, err)
 	}
-	batch, err := executionBatch(key, definition, run, inputFacts, outputFacts)
+	batch, err := executionBatch(key+"/"+run.ID.String(), definition, run, inputFacts, outputFacts)
 	if err != nil {
 		return Result{Outputs: outputs, Run: run}, errors.Join(executeErr, err)
 	}
@@ -181,6 +200,7 @@ func (r *Runtime) executePlan(
 	ctx context.Context,
 	definition recipe.Definition,
 	stages []recipe.Stage,
+	operation artifact.ID,
 	external map[recipe.PortName]Value,
 ) (map[recipe.PortName]Value, error) {
 	bound := make(map[recipe.Endpoint][]Value)
@@ -218,9 +238,14 @@ func (r *Runtime) executePlan(
 		if !ok {
 			return nil, fmt.Errorf("workflow runtime: step %q model slot %d is unbound", step.ID, step.ModelSlot)
 		}
-		produced, err := adapter.Execute(ctx, StepRequest{
-			Model: model, Inputs: stepInputs,
-		})
+		request := StepRequest{Model: model, Inputs: stepInputs}
+		produced, recovered, err := r.recoverStage(ctx, definition, stage, operation)
+		if err != nil {
+			return nil, err
+		}
+		if !recovered {
+			produced, err = r.executeStage(ctx, definition, stage, operation, request, adapter)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("workflow runtime: step %q: %w", step.ID, err)
 		}
@@ -252,6 +277,150 @@ func (r *Runtime) executePlan(
 		outputs[output.Name] = value
 	}
 	return outputs, nil
+}
+
+func (r *Runtime) publishExecutionAuthority(
+	ctx context.Context,
+	definition recipe.Definition,
+	operation artifact.ID,
+) error {
+	content, err := definition.ArtifactContent()
+	if err != nil {
+		return err
+	}
+	identities := make([]artifact.ID, 0, len(definition.Dependencies)+1)
+	identities = append(identities, operation)
+	for _, dependency := range definition.Dependencies {
+		identities = append(identities, dependency.Artifact)
+	}
+	for _, id := range identities {
+		if _, found, loadErr := r.store.Artifact(ctx, id); loadErr != nil {
+			return loadErr
+		} else if !found {
+			if _, commitErr := r.store.Commit(ctx, artifact.Batch{
+				Key:       "workflow/authority/artifact/" + id.String(),
+				Artifacts: []artifact.Descriptor{{ID: id}},
+			}); commitErr != nil {
+				return commitErr
+			}
+		}
+	}
+	_, err = r.store.Commit(ctx, artifact.Batch{
+		Key: "workflow/authority/recipe/" + definition.ID.String(), Contents: []artifact.Content{content},
+	})
+	return err
+}
+
+func (r *Runtime) recoverStage(
+	ctx context.Context,
+	definition recipe.Definition,
+	stage recipe.Stage,
+	operation artifact.ID,
+) (map[recipe.PortName]Value, bool, error) {
+	receipt, found, err := runrecord.ResolveStageReceipt(ctx, r.store, operation, stage.Node.ID)
+	if err != nil || !found {
+		return nil, false, err
+	}
+	if receipt.Recipe != definition.ID {
+		return nil, false, errors.New("workflow runtime: recovery recipe differs")
+	}
+	if receipt.State != runrecord.StageCompleted {
+		return nil, false, nil
+	}
+	outputs := make(map[recipe.PortName]Value, len(receipt.Outputs))
+	for _, binding := range receipt.Outputs {
+		port, found := slices.BinarySearchFunc(stage.Module.Outputs, binding.Port, func(port recipe.Port, name recipe.PortName) int {
+			return cmp.Compare(port.Name, name)
+		})
+		if !found {
+			return nil, false, errors.New("workflow runtime: receipt output differs from module")
+		}
+		value := Value{Kind: stage.Module.Outputs[port].Data, Items: make([]Datum, len(binding.Artifacts))}
+		for index, id := range binding.Artifacts {
+			content, contentFound, loadErr := r.store.Content(ctx, id)
+			if loadErr != nil {
+				return nil, false, loadErr
+			}
+			if contentFound {
+				value.Items[index] = recoveredDatum(content)
+				continue
+			}
+			descriptor, descriptorFound, loadErr := r.store.Artifact(ctx, id)
+			if loadErr != nil || !descriptorFound {
+				if loadErr == nil {
+					loadErr = errors.New("workflow runtime: receipt output artifact is absent")
+				}
+				return nil, false, loadErr
+			}
+			value.Items[index].Artifact = descriptor
+		}
+		outputs[binding.Port] = value
+	}
+	validated, err := validateOutputs(stage.Module, outputs)
+	return validated, err == nil, err
+}
+
+func recoveredDatum(content artifact.Content) Datum {
+	cloned := content.Clone()
+	value := any(slices.Clone(cloned.Data))
+	if strings.HasPrefix(cloned.Descriptor.MediaType, "text/") {
+		value = string(cloned.Data)
+	}
+	return Datum{Artifact: cloned.Descriptor, Content: &cloned, Value: value}
+}
+
+func (r *Runtime) executeStage(
+	ctx context.Context,
+	definition recipe.Definition,
+	stage recipe.Stage,
+	operation artifact.ID,
+	request StepRequest,
+	adapter Adapter,
+) (map[recipe.PortName]Value, error) {
+	previous, found, err := runrecord.ResolveStageReceipt(ctx, r.store, operation, stage.Node.ID)
+	if err != nil {
+		return nil, err
+	}
+	attempt := previous.Attempt + 1
+	if found {
+		if previous.Recipe != definition.ID {
+			return nil, errors.New("workflow runtime: recovery recipe differs")
+		}
+	}
+	inputs, inputFacts, err := stageFacts(request.Inputs)
+	if err != nil {
+		return nil, err
+	}
+	base := runrecord.StageReceipt{
+		Recipe: definition.ID, Node: stage.Node.ID, Operation: operation, Attempt: attempt, Inputs: inputs,
+	}
+	if _, err = runrecord.PublishStageReceipt(ctx, r.store, withStageState(base, runrecord.StageAdmitted, ""), inputFacts.contents, inputFacts.descriptors); err != nil {
+		return nil, err
+	}
+	if _, err = runrecord.PublishStageReceipt(ctx, r.store, withStageState(base, runrecord.StageRunning, ""), nil, nil); err != nil {
+		return nil, err
+	}
+	produced, executeErr := adapter.Execute(ctx, request)
+	if executeErr != nil {
+		state, failure := runrecord.StageFailed, executionFailureCode
+		if _, waiting := operatoraction.Recovery(executeErr); waiting {
+			state, failure = runrecord.StageWaiting, ""
+		}
+		_, receiptErr := runrecord.PublishStageReceipt(context.WithoutCancel(ctx), r.store, withStageState(base, state, failure), nil, nil)
+		return nil, errors.Join(executeErr, receiptErr)
+	}
+	outputs, outputFacts, err := stageFacts(produced)
+	if err != nil {
+		return nil, err
+	}
+	base.Outputs = outputs
+	_, err = runrecord.PublishStageReceipt(ctx, r.store, withStageState(base, runrecord.StageCompleted, ""), outputFacts.contents, outputFacts.descriptors)
+	return produced, err
+}
+
+func withStageState(value runrecord.StageReceipt, state runrecord.StageState, failure string) runrecord.StageReceipt {
+	value.State, value.Failure = state, failure
+	return value
 }
 
 func (r *Runtime) adapter(module recipe.ModuleID) (Adapter, bool) {
@@ -316,6 +485,26 @@ func cardinalityValid(cardinality recipe.Cardinality, count int) bool {
 type artifactFacts struct {
 	descriptors []artifact.Descriptor
 	contents    []artifact.Content
+}
+
+func stageFacts(values map[recipe.PortName]Value) ([]runrecord.StageBinding, artifactFacts, error) {
+	ports := make([]recipe.PortName, 0, len(values))
+	for port := range values {
+		ports = append(ports, port)
+	}
+	slices.Sort(ports)
+	bindings := make([]runrecord.StageBinding, 0, len(ports))
+	combined := artifactFacts{}
+	for _, port := range ports {
+		ids, facts, err := externalFacts(map[recipe.PortName]Value{port: values[port]}, false)
+		if err != nil {
+			return nil, artifactFacts{}, err
+		}
+		bindings = append(bindings, runrecord.StageBinding{Port: port, Artifacts: ids})
+		combined.descriptors = append(combined.descriptors, facts.descriptors...)
+		combined.contents = append(combined.contents, facts.contents...)
+	}
+	return bindings, combined, nil
 }
 
 func externalFacts(values map[recipe.PortName]Value, require bool) ([]artifact.ID, artifactFacts, error) {

@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
 
@@ -21,7 +22,8 @@ func TestScratchBuilderPublishesCampaign(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := workflowruntime.ExecuteModelBuild(context.Background(), session)
+	operation := testutil.ArtifactID(t, artifact.KindEvidence, "scratch-builder-operation")
+	result, err := workflowruntime.ExecuteModelBuild(context.Background(), store, operation, session)
 	if err != nil {
 		t.Fatal(err)
 	}

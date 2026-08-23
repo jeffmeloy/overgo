@@ -243,6 +243,63 @@ func TestCommitIsIdempotentByKeyAndContent(t *testing.T) {
 	}
 }
 
+func TestCommitDeltaRetainsRequestIdentity(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	base := fixtureBatch(t)
+	if _, err := store.Commit(context.Background(), base); err != nil {
+		t.Fatal(err)
+	}
+	added := fixtureDescriptor(t, artifact.KindOutput, "delta-output")
+	request := artifact.Batch{
+		Key:       "fixture/delta/v1",
+		Artifacts: append(slices.Clone(base.Artifacts), added),
+		Lineage:   slices.Clone(base.Lineage),
+	}
+	_, normalized, requestDigest, err := encodeBatch(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delta := store.state.delta(normalized)
+	if !slices.Equal(delta.Artifacts, []artifact.Descriptor{added}) || len(delta.Lineage) != 0 {
+		t.Fatalf("delta = %+v", delta)
+	}
+	if _, err := store.Commit(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if committed := store.state.commits[request.Key]; committed.payload != requestDigest {
+		t.Fatalf("request digest = %x, want %x", committed.payload, requestDigest)
+	}
+}
+
+func TestRepeatedFactsDoNotAdvance(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	base := fixtureBatch(t)
+	if _, err := store.Commit(context.Background(), base); err != nil {
+		t.Fatal(err)
+	}
+	head, sequence := store.Head()
+	previous := base.Aliases[0].Target
+	repeated := base
+	repeated.Key = "fixture/repeated/v1"
+	repeated.Aliases = []artifact.AliasBinding{{
+		Name: fixtureAlias, Target: previous, Previous: &previous,
+	}}
+	if _, err := store.Commit(context.Background(), repeated); !errors.Is(err, ErrNoChange) {
+		t.Fatalf("repeated commit error = %v, want ErrNoChange", err)
+	}
+	if current, currentSequence := store.Head(); current != head || currentSequence != sequence {
+		t.Fatalf("head after no-op = (%s, %d), want (%s, %d)", current, currentSequence, head, sequence)
+	}
+}
+
 func TestFailedBatchPublishesNothing(t *testing.T) {
 	store, err := Open(t.TempDir())
 	if err != nil {

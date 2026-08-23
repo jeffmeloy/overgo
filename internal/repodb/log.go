@@ -21,7 +21,7 @@ const (
 	frameChecksumSize   = 4
 	storeVersion        = uint16(1)
 	minimumFrameVersion = uint16(1)
-	frameVersion        = uint16(2)
+	frameVersion        = uint16(3)
 	frameKindBatch      = uint16(1)
 	maxFramePayload     = artifact.MaxContentBytes
 	storeFileMode       = 0o644

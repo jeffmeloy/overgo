@@ -402,7 +402,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	}
 }
 
-func TestImportClosureDocumentsCopiesFixture(t *testing.T) {
+func TestClosurePublicationDeltaCopiesFixtureAndSkipsRepeat(t *testing.T) {
 	root := t.TempDir()
 	relative := "internal/sample/policy.go"
 	path := filepath.Join(root, filepath.FromSlash(relative))
@@ -432,6 +432,19 @@ func TestImportClosureDocumentsCopiesFixture(t *testing.T) {
 	}
 	fixture := artifact.Descriptor{ID: fixtureID, Size: 16}
 	if _, _, err := commitClosureDocuments(root, filepath.Join(root, "source"), []closureledger.Document{document}, nil, []artifact.Descriptor{fixture}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := commitClosureDocuments(root, filepath.Join(root, "source"), []closureledger.Document{document}, nil, []artifact.Descriptor{fixture}); err != nil {
+		t.Fatal(err)
+	}
+	source, err := repodb.OpenReadOnly(filepath.Join(root, "source"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, sequence := source.Head(); sequence != 1 {
+		t.Fatalf("closure publication sequence = %d, want 1", sequence)
+	}
+	if err := source.Close(); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err := repoanalysis.DiscoverGo(root, "internal")

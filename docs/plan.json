@@ -1515,12 +1515,12 @@
       "id": "repodb-delta-publication",
       "title": "Persist only effective RepoDB transaction deltas",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Compile each submitted batch against catalog state, persist request identity plus only new or changed facts, migrate redundant closure and authority publishers, and delete no-op retransmission paths",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/artifact ./internal/repodb ./internal/closureledger ./cmd/closure-scan -run 'Test(CommitDelta|CommitRetry|RepeatedFacts|ClosurePublicationDelta|AliasCompareAndSet)' -count=1",
           "rationale": "The 646 MB live log contains repeated immutable descriptors, contents, lineage, locations, and unchanged aliases. Preserve batch-key retry identity and compare-and-set behavior while making the durable frame represent the effective state transition rather than caller repetition.",
           "depends_on": [

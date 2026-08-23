@@ -164,11 +164,16 @@ type Batch struct {
 	Locations    []LocationEvent `json:"locations,omitempty"`
 }
 
+// Empty reports whether the batch carries no catalog mutation.
+func (b Batch) Empty() bool {
+	return len(b.Artifacts)+len(b.Contents)+len(b.Manifests)+len(b.Lineage)+len(b.Aliases)+len(b.Locations) == 0
+}
+
 func (b Batch) Validate() error {
 	if b.Key == "" || len(b.Key) > maxRepositoryKeyBytes || strings.TrimSpace(b.Key) != b.Key || strings.ContainsAny(b.Key, "\r\n") {
 		return errors.New("artifact: invalid batch key")
 	}
-	if len(b.Artifacts)+len(b.Contents)+len(b.Manifests)+len(b.Lineage)+len(b.Aliases)+len(b.Locations) == 0 {
+	if b.Empty() {
 		return errors.New("artifact: empty batch")
 	}
 	for _, descriptor := range b.Artifacts {

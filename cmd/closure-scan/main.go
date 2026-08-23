@@ -723,7 +723,14 @@ func commitClosureDocuments(root, storePath string, documents []closureledger.Do
 		return 0, artifact.CommitID{}, err
 	}
 	defer store.Close()
-	batch := artifact.Batch{Artifacts: fixtures, Aliases: retirements}
+	batch := artifact.Batch{Aliases: retirements}
+	for _, fixture := range fixtures {
+		if _, found, err := store.Artifact(context.Background(), fixture.ID); err != nil {
+			return 0, artifact.CommitID{}, err
+		} else if !found {
+			batch.Artifacts = append(batch.Artifacts, fixture)
+		}
+	}
 	files := map[string]bool{}
 	for _, document := range documents {
 		for _, binding := range document.Bindings {
@@ -733,8 +740,18 @@ func commitClosureDocuments(root, storePath string, documents []closureledger.Do
 					return 0, artifact.CommitID{}, fmt.Errorf("closure %s: inconsistent source owner", binding.Name)
 				}
 				files[binding.File] = true
-				batch.Artifacts = append(batch.Artifacts, descriptor)
-				batch.Locations = append(batch.Locations, location)
+				if _, found, err := store.Artifact(context.Background(), descriptor.ID); err != nil {
+					return 0, artifact.CommitID{}, err
+				} else if !found {
+					batch.Artifacts = append(batch.Artifacts, descriptor)
+				}
+				locations, err := store.Locations(context.Background(), descriptor.ID)
+				if err != nil {
+					return 0, artifact.CommitID{}, err
+				}
+				if !slices.Contains(locations, location.Location) {
+					batch.Locations = append(batch.Locations, location)
+				}
 			}
 			alias, err := closureledger.ActiveAlias(binding)
 			if err != nil {
@@ -744,6 +761,9 @@ func commitClosureDocuments(root, storePath string, documents []closureledger.Do
 			if previous, found, err := artifact.ResolveAlias(context.Background(), store, alias); err != nil {
 				return 0, artifact.CommitID{}, err
 			} else if found {
+				if previous == document.ID {
+					continue
+				}
 				active.Previous = &previous
 			}
 			batch.Aliases = append(batch.Aliases, active)
@@ -758,6 +778,10 @@ func commitClosureDocuments(root, storePath string, documents []closureledger.Do
 			batch.Contents = append(batch.Contents, content)
 			batch.Lineage = append(batch.Lineage, document.Lineage()...)
 		}
+	}
+	if batch.Empty() {
+		head, _ := store.Head()
+		return len(files), head, nil
 	}
 	encoded, err := json.Marshal(batch)
 	if err != nil {

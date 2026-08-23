@@ -26,6 +26,8 @@ var (
 	ErrLineageCycle     = errors.New("repodb: lineage cycle")
 	ErrStoreFaulted     = errors.New("repodb: store requires reopen after uncertain append")
 	ErrSnapshotAnchor   = errors.New("repodb: snapshot anchor is absent from commit chain")
+	// ErrNoChange reports a batch with no effective catalog mutation.
+	ErrNoChange = errors.New("repodb: batch has no effective catalog change")
 )
 
 type relationKey struct {
@@ -44,6 +46,11 @@ type committedBatch struct {
 	id       artifact.CommitID
 	payload  [sha256.Size]byte
 	sequence uint64
+}
+
+type persistedTransaction struct {
+	Request [sha256.Size]byte `json:"request"`
+	Delta   artifact.Batch    `json:"delta"`
 }
 
 type catalogState struct {
@@ -204,6 +211,45 @@ func (s *catalogState) apply(batch artifact.Batch) {
 	}
 }
 
+func (s catalogState) delta(batch artifact.Batch) artifact.Batch {
+	delta := artifact.Batch{Key: batch.Key, ExpectedHead: cloneCommitID(batch.ExpectedHead)}
+	for _, descriptor := range batch.Artifacts {
+		if _, exists := s.artifacts[descriptor.ID]; !exists {
+			delta.Artifacts = append(delta.Artifacts, descriptor)
+		}
+	}
+	for _, content := range batch.Contents {
+		if _, exists := s.contents[content.Descriptor.ID]; !exists {
+			delta.Contents = append(delta.Contents, content)
+		}
+	}
+	for _, manifest := range batch.Manifests {
+		if _, exists := s.manifests[manifest.ID]; !exists {
+			delta.Manifests = append(delta.Manifests, manifest)
+		}
+	}
+	for _, binding := range batch.Aliases {
+		current, exists := s.aliases[binding.Name]
+		if binding.Remove || !exists || current != binding.Target {
+			delta.Aliases = append(delta.Aliases, binding)
+		}
+	}
+	for _, edge := range batch.Lineage {
+		key := relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation}
+		if _, exists := s.lineage[key]; !exists {
+			delta.Lineage = append(delta.Lineage, edge)
+		}
+	}
+	for _, event := range batch.Locations {
+		key := locationKey{artifact: event.Artifact, kind: event.Kind, value: event.Value}
+		_, exists := s.locations[key]
+		if event.Action == artifact.LocationRemove || !exists {
+			delta.Locations = append(delta.Locations, event)
+		}
+	}
+	return delta
+}
+
 func indexDescriptor(index map[string]map[artifact.ID]struct{}, key string, id artifact.ID) {
 	if key == "" {
 		return
@@ -314,7 +360,7 @@ func open(root string, readOnly bool) (*Store, error) {
 }
 
 func (s *Store) applyRecord(record logRecord) error {
-	batch, payloadHash, err := decodeBatch(record.payload)
+	batch, payloadHash, err := decodeRecord(record)
 	if err != nil {
 		return err
 	}
@@ -385,6 +431,14 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 		return artifact.CommitID{}, fmt.Errorf("%w: expected %s, have %s", ErrHeadConflict, *normalized.ExpectedHead, s.head)
 	}
 	if err := s.state.validate(normalized); err != nil {
+		return artifact.CommitID{}, err
+	}
+	delta := s.state.delta(normalized)
+	if delta.Empty() {
+		return artifact.CommitID{}, ErrNoChange
+	}
+	payload, err = encodeTransaction(payloadHash, delta)
+	if err != nil {
 		return artifact.CommitID{}, err
 	}
 	sequence := s.sequence + 1
@@ -611,6 +665,39 @@ func decodeBatch(payload []byte) (artifact.Batch, [sha256.Size]byte, error) {
 	return normalized, sha256.Sum256(payload), nil
 }
 
+func encodeTransaction(request [sha256.Size]byte, delta artifact.Batch) ([]byte, error) {
+	payload, err := json.Marshal(persistedTransaction{Request: request, Delta: delta})
+	if err != nil {
+		return nil, fmt.Errorf("repodb: encode transaction: %w", err)
+	}
+	if len(payload) > maxFramePayload {
+		return nil, errors.New("repodb: transaction exceeds payload limit")
+	}
+	return payload, nil
+}
+
+func decodeRecord(record logRecord) (artifact.Batch, [sha256.Size]byte, error) {
+	if record.version < frameVersion {
+		return decodeBatch(record.payload)
+	}
+	var transaction persistedTransaction
+	if err := strictjson.DecodeBytes(record.payload, &transaction); err != nil {
+		return artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("repodb: decode transaction: %w", err)
+	}
+	normalized, err := normalizeBatch(transaction.Delta)
+	if err != nil {
+		return artifact.Batch{}, [sha256.Size]byte{}, err
+	}
+	canonical, err := json.Marshal(persistedTransaction{Request: transaction.Request, Delta: normalized})
+	if err != nil {
+		return artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("repodb: canonicalize transaction: %w", err)
+	}
+	if !bytes.Equal(canonical, record.payload) {
+		return artifact.Batch{}, [sha256.Size]byte{}, errors.New("repodb: non-canonical transaction payload")
+	}
+	return normalized, transaction.Request, nil
+}
+
 func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 	result := artifact.Batch{
 		Key:          batch.Key,
@@ -640,39 +727,42 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 		return result.Artifacts[i].ID.String() < result.Artifacts[j].ID.String()
 	})
 	artifacts := result.Artifacts[:0]
+	var previousArtifact artifact.Descriptor
+	haveArtifact := false
 	for _, descriptor := range result.Artifacts {
-		if len(artifacts) > 0 && artifacts[len(artifacts)-1].ID == descriptor.ID {
-			if artifacts[len(artifacts)-1] != descriptor {
+		if haveArtifact && previousArtifact.ID == descriptor.ID {
+			if previousArtifact != descriptor {
 				return artifact.Batch{}, fmt.Errorf("%w: %s", ErrArtifactConflict, descriptor.ID)
 			}
 			continue
 		}
 		artifacts = append(artifacts, descriptor)
+		previousArtifact, haveArtifact = descriptor, true
 	}
 	result.Artifacts = artifacts
 	sort.Slice(result.Contents, func(i, j int) bool {
 		return result.Contents[i].Descriptor.ID.String() < result.Contents[j].Descriptor.ID.String()
 	})
-	for index := 1; index < len(result.Contents); index++ {
-		if result.Contents[index-1].Descriptor.ID == result.Contents[index].Descriptor.ID {
-			return artifact.Batch{}, fmt.Errorf("repodb: duplicate content %s", result.Contents[index].Descriptor.ID)
-		}
+	if duplicate, found := adjacentDuplicate(result.Contents, func(left, right artifact.Content) bool {
+		return left.Descriptor.ID == right.Descriptor.ID
+	}); found {
+		return artifact.Batch{}, fmt.Errorf("repodb: duplicate content %s", duplicate.Descriptor.ID)
 	}
 	sort.Slice(result.Manifests, func(i, j int) bool {
 		return result.Manifests[i].ID.String() < result.Manifests[j].ID.String()
 	})
-	for index := 1; index < len(result.Manifests); index++ {
-		if result.Manifests[index-1].ID == result.Manifests[index].ID {
-			return artifact.Batch{}, fmt.Errorf("repodb: duplicate manifest %s", result.Manifests[index].ID)
-		}
+	if duplicate, found := adjacentDuplicate(result.Manifests, func(left, right artifact.Manifest) bool {
+		return left.ID == right.ID
+	}); found {
+		return artifact.Batch{}, fmt.Errorf("repodb: duplicate manifest %s", duplicate.ID)
 	}
 	sort.Slice(result.Aliases, func(i, j int) bool {
 		return result.Aliases[i].Name < result.Aliases[j].Name
 	})
-	for index := 1; index < len(result.Aliases); index++ {
-		if result.Aliases[index-1].Name == result.Aliases[index].Name {
-			return artifact.Batch{}, fmt.Errorf("repodb: duplicate alias %q", result.Aliases[index].Name)
-		}
+	if duplicate, found := adjacentDuplicate(result.Aliases, func(left, right artifact.AliasBinding) bool {
+		return left.Name == right.Name
+	}); found {
+		return artifact.Batch{}, fmt.Errorf("repodb: duplicate alias %q", duplicate.Name)
 	}
 	sort.Slice(result.Lineage, func(i, j int) bool {
 		left, right := result.Lineage[i], result.Lineage[j]
@@ -685,11 +775,14 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 		return left.Relation < right.Relation
 	})
 	lineage := result.Lineage[:0]
+	var previousEdge artifact.Lineage
+	haveEdge := false
 	for _, edge := range result.Lineage {
-		if len(lineage) > 0 && lineage[len(lineage)-1] == edge {
+		if haveEdge && previousEdge == edge {
 			continue
 		}
 		lineage = append(lineage, edge)
+		previousEdge, haveEdge = edge, true
 	}
 	result.Lineage = lineage
 	sort.Slice(result.Locations, func(i, j int) bool {
@@ -702,13 +795,28 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 		}
 		return left.Value < right.Value
 	})
-	for index := 1; index < len(result.Locations); index++ {
-		left, right := result.Locations[index-1], result.Locations[index]
+	if duplicate, found := adjacentDuplicate(result.Locations, func(left, right artifact.LocationEvent) bool {
 		if left.Artifact == right.Artifact && left.Kind == right.Kind && left.Value == right.Value {
-			return artifact.Batch{}, fmt.Errorf("repodb: duplicate location mutation %q", right.Value)
+			return true
 		}
+		return false
+	}); found {
+		return artifact.Batch{}, fmt.Errorf("repodb: duplicate location mutation %q", duplicate.Value)
 	}
 	return result, nil
+}
+
+func adjacentDuplicate[T any](values []T, equal func(T, T) bool) (T, bool) {
+	var previous T
+	havePrevious := false
+	for _, value := range values {
+		if havePrevious && equal(previous, value) {
+			return value, true
+		}
+		previous, havePrevious = value, true
+	}
+	var zero T
+	return zero, false
 }
 
 func cloneCommitID(value *artifact.CommitID) *artifact.CommitID {

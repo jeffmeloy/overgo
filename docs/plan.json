@@ -495,6 +495,20 @@
       ]
     },
     {
+      "id": "cleanup-projector-media-wrappers",
+      "title": "Delete residual projector media wrappers",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Delete residual projector media wrappers",
+          "status": "done",
+          "verify": "go test ./internal/projector -run 'Test(CompiledSessionOwnsPromptDispatch|CompiledSessionOwnsNoPromptWrappers|MixedMediaPromptPlan|VideoPrompt|AudioPrompt)' -count=1"
+        }
+      ]
+    },
+    {
       "id": "cleanup-media-codec-program",
       "title": "Make one media codec program authoritative across host and CUDA",
       "owner": "research",

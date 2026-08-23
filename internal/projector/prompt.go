@@ -536,30 +536,30 @@ func (r *Qwen2VLRunner) mediaPromptProgram() compiledMediaPromptProgram {
 		_ float64,
 		_ bool,
 	) (MultimodalPrompt, error) {
-	if tokenizer == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
-	}
-	output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	count := int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])
-	rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
-	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
-		mediaPromptRunPlan: mediaPromptRunPlan{
-			Prompt: "<|im_start|>user\n" + beforeVideo + "<|vision_start|>" +
-				strings.Repeat(Qwen3VLVideoPad, count) + "<|vision_end|>" + afterVideo +
-				"<|im_end|>\n<|im_start|>assistant\n",
-			Placeholder: Qwen3VLVideoPad, Runs: tensor.SingletonExtent, TokensPerRun: count,
-			PromptLabel: "Qwen2-VL video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "Qwen2-VL video prompt",
-		},
-		Embeddings: output.Embeddings.Data, EmbeddingWidth: r.spec.OutputHidden,
-		Positions: func(tokenCount int, starts []int) ([tensor.MaxDimensions][]uint32, error) {
-			return compileSpatialPositions(tokenCount, positionGrid3D, []spatialPositionChunk{{
-				Start: starts[0], Extents: [tensor.TripleExtent]int{rows, columns, output.GridT},
-			}})
-		},
-	})
+		if tokenizer == nil {
+			return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+		}
+		output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
+		if err != nil {
+			return MultimodalPrompt{}, err
+		}
+		count := int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])
+		rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
+		return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
+			mediaPromptRunPlan: mediaPromptRunPlan{
+				Prompt: "<|im_start|>user\n" + beforeVideo + "<|vision_start|>" +
+					strings.Repeat(Qwen3VLVideoPad, count) + "<|vision_end|>" + afterVideo +
+					"<|im_end|>\n<|im_start|>assistant\n",
+				Placeholder: Qwen3VLVideoPad, Runs: tensor.SingletonExtent, TokensPerRun: count,
+				PromptLabel: "Qwen2-VL video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "Qwen2-VL video prompt",
+			},
+			Embeddings: output.Embeddings.Data, EmbeddingWidth: r.spec.OutputHidden,
+			Positions: func(tokenCount int, starts []int) ([tensor.MaxDimensions][]uint32, error) {
+				return compileSpatialPositions(tokenCount, positionGrid3D, []spatialPositionChunk{{
+					Start: starts[0], Extents: [tensor.TripleExtent]int{rows, columns, output.GridT},
+				}})
+			},
+		})
 	}}
 }
 
@@ -621,19 +621,7 @@ func (r *Gemma4Runner) imagePromptProgram() compiledImagePromptProgram {
 }
 
 func (r *Gemma4Runner) mediaPromptProgram() compiledMediaPromptProgram {
-	return compiledMediaPromptProgram{
-		Video: r.videoPrompt, Audio: r.audioPrompt,
-		AudioSampleRate: r.audioSampleRate, History: r.mediaHistoryPrompt,
-	}
-}
-
-func (r *Gemma4Runner) mediaHistoryPrompt(
-	ctx context.Context,
-	tokenizerAPI ImageTokenizer,
-	media []MediaInput,
-	text []string,
-) (MultimodalPrompt, error) {
-	plan := mixedMediaPromptPlan{
+	history := mixedMediaPromptPlan{
 		Family: "Gemma 4", AddSpecial: true, EmbeddingWidth: r.spec.Hidden, PromptLabel: "Gemma 4 media history",
 		Render: renderMixedMediaHistory,
 		Kinds: map[MediaKind]mixedMediaKindPlan{
@@ -661,77 +649,79 @@ func (r *Gemma4Runner) mediaHistoryPrompt(
 			},
 		},
 	}
-	return executeMixedMediaPromptPlan(ctx, tokenizerAPI, media, text, plan)
-}
-
-func (r *Gemma4Runner) audioPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	samples []float32,
-	beforeAudio, afterAudio string,
-) (MultimodalPrompt, error) {
-	if tokenizer == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+	video := func(
+		ctx context.Context,
+		tokenizer ImageTokenizer,
+		frames []image.Image,
+		beforeVideo, afterVideo string,
+		fps float64,
+		_ bool,
+	) (MultimodalPrompt, error) {
+		if tokenizer == nil {
+			return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+		}
+		if strings.TrimSpace(beforeVideo) != "" {
+			return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires video before user text")
+		}
+		if !checked.PositiveFinite64(fps) {
+			return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
+		}
+		output, err := r.EncodeVideoFrames(ctx, frames)
+		if err != nil {
+			return MultimodalPrompt{}, err
+		}
+		return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
+			mediaPromptRunPlan: mediaPromptRunPlan{
+				Prompt: Gemma4VideoPromptText(afterVideo, output.Frames, output.TokensPerFrame, fps), Placeholder: "<|video|>",
+				Runs: output.Frames, TokensPerRun: output.TokensPerFrame,
+				PromptLabel: "Gemma 4 video prompt", PlaceholderLabel: "Gemma 4 video placeholder", RunsLabel: "Gemma 4 video prompt",
+			},
+			Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
+			AttentionBlocks: mediaPromptAttentionBlocks,
+		})
 	}
-	if strings.TrimSpace(beforeAudio) != "" {
-		return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires audio before user text")
-	}
-	output, err := r.EncodeAudio(ctx, samples)
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	audioTokens := int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])
-	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
-		mediaPromptRunPlan: mediaPromptRunPlan{
-			Prompt: Gemma4AudioPromptText(afterAudio, audioTokens), Placeholder: "<|audio|>",
-			Runs: tensor.SingletonExtent, TokensPerRun: audioTokens,
-			PromptLabel: "Gemma 4 audio prompt", PlaceholderLabel: "Gemma 4 audio placeholder", RunsLabel: "Gemma 4 audio prompt",
+	return compiledMediaPromptProgram{
+		Video: video,
+		History: func(ctx context.Context, tokenizer ImageTokenizer, media []MediaInput, text []string) (MultimodalPrompt, error) {
+			return executeMixedMediaPromptPlan(ctx, tokenizer, media, text, history)
 		},
-		Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
-	})
-}
-
-func (r *Gemma4Runner) audioSampleRate() (int, error) {
-	spec, err := r.AudioSpec()
-	return spec.SampleRate, err
+		Audio: func(
+			ctx context.Context,
+			tokenizer ImageTokenizer,
+			samples []float32,
+			beforeAudio, afterAudio string,
+		) (MultimodalPrompt, error) {
+			if tokenizer == nil {
+				return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+			}
+			if strings.TrimSpace(beforeAudio) != "" {
+				return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires audio before user text")
+			}
+			output, err := r.EncodeAudio(ctx, samples)
+			if err != nil {
+				return MultimodalPrompt{}, err
+			}
+			audioTokens := int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])
+			return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
+				mediaPromptRunPlan: mediaPromptRunPlan{
+					Prompt: Gemma4AudioPromptText(afterAudio, audioTokens), Placeholder: "<|audio|>",
+					Runs: tensor.SingletonExtent, TokensPerRun: audioTokens,
+					PromptLabel: "Gemma 4 audio prompt", PlaceholderLabel: "Gemma 4 audio placeholder", RunsLabel: "Gemma 4 audio prompt",
+				},
+				Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
+			})
+		},
+		AudioSampleRate: func() (int, error) {
+			spec, err := r.AudioSpec()
+			return spec.SampleRate, err
+		},
+	}
 }
 
 func Gemma4AudioPromptText(question string, audioTokens int) string {
 	return "<bos><|turn>user\n<|audio>" + strings.Repeat("<|audio|>", audioTokens) +
 		"<audio|>" + strings.TrimSpace(question) +
 		"<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
-}
-
-func (r *Gemma4Runner) videoPrompt(
-	ctx context.Context,
-	tokenizer ImageTokenizer,
-	frames []image.Image,
-	beforeVideo, afterVideo string,
-	fps float64,
-	_ bool,
-) (MultimodalPrompt, error) {
-	if tokenizer == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
-	}
-	if strings.TrimSpace(beforeVideo) != "" {
-		return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires video before user text")
-	}
-	if !checked.PositiveFinite64(fps) {
-		return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
-	}
-	output, err := r.EncodeVideoFrames(ctx, frames)
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
-		mediaPromptRunPlan: mediaPromptRunPlan{
-			Prompt: Gemma4VideoPromptText(afterVideo, output.Frames, output.TokensPerFrame, fps), Placeholder: "<|video|>",
-			Runs: output.Frames, TokensPerRun: output.TokensPerFrame,
-			PromptLabel: "Gemma 4 video prompt", PlaceholderLabel: "Gemma 4 video placeholder", RunsLabel: "Gemma 4 video prompt",
-		},
-		Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
-		AttentionBlocks: mediaPromptAttentionBlocks,
-	})
 }
 
 func Gemma4VideoPromptText(question string, frames, tokensPerFrame int, fps float64) string {
@@ -769,38 +759,38 @@ func (r *Qwen3VLRunner) mediaPromptProgram() compiledMediaPromptProgram {
 		fps float64,
 		thinking bool,
 	) (MultimodalPrompt, error) {
-	if tokenizer == nil {
-		return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
-	}
-	if !checked.PositiveFinite64(fps) {
-		return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
-	}
-	output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
-	perGroup := rows * columns
-	item, err := spatialGridImagePromptItem(output)
-	if err != nil {
-		return MultimodalPrompt{}, err
-	}
-	return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
-		mediaPromptRunPlan: mediaPromptRunPlan{
-			Prompt:      Qwen35VideoPromptText(beforeVideo, afterVideo, output.GridT, perGroup, fps, thinking),
-			Placeholder: Qwen3VLVideoPad, Runs: output.GridT, TokensPerRun: perGroup,
-			PromptLabel: "video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "video prompt",
-		},
-		Embeddings: output.Embeddings.Data, Deepstack: item.Deepstack,
-		EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
-		Positions: func(tokenCount int, starts []int) ([tensor.MaxDimensions][]uint32, error) {
-			chunks := make([]spatialPositionChunk, len(starts))
-			for index, start := range starts {
-				chunks[index] = spatialPositionChunk{Start: start, Extents: [tensor.TripleExtent]int{rows, columns}}
-			}
-			return compileSpatialPositions(tokenCount, positionGrid2D, chunks)
-		},
-	})
+		if tokenizer == nil {
+			return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
+		}
+		if !checked.PositiveFinite64(fps) {
+			return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
+		}
+		output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
+		if err != nil {
+			return MultimodalPrompt{}, err
+		}
+		rows, columns := output.GridH/output.MergeSize, output.GridW/output.MergeSize
+		perGroup := rows * columns
+		item, err := spatialGridImagePromptItem(output)
+		if err != nil {
+			return MultimodalPrompt{}, err
+		}
+		return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
+			mediaPromptRunPlan: mediaPromptRunPlan{
+				Prompt:      Qwen35VideoPromptText(beforeVideo, afterVideo, output.GridT, perGroup, fps, thinking),
+				Placeholder: Qwen3VLVideoPad, Runs: output.GridT, TokensPerRun: perGroup,
+				PromptLabel: "video prompt", PlaceholderLabel: "video placeholder", RunsLabel: "video prompt",
+			},
+			Embeddings: output.Embeddings.Data, Deepstack: item.Deepstack,
+			EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
+			Positions: func(tokenCount int, starts []int) ([tensor.MaxDimensions][]uint32, error) {
+				chunks := make([]spatialPositionChunk, len(starts))
+				for index, start := range starts {
+					chunks[index] = spatialPositionChunk{Start: start, Extents: [tensor.TripleExtent]int{rows, columns}}
+				}
+				return compileSpatialPositions(tokenCount, positionGrid2D, chunks)
+			},
+		})
 	}}
 }
 

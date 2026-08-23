@@ -155,24 +155,11 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 	})
 }
 
-// storeComponentPool assembles the cross-model retrieval pool from every
-// committed tensor-measurement document in RepoDB, labeling each entry with
-// its owning model via the measurement's inventory lineage. An absent or
-// empty catalog returns nil so the caller falls back to the loaded model --
-// retrieval degrades to within-model, never errors, when the catalog is
-// unpopulated.
+// storeComponentPool reads the retained cross-model tensor catalog.
 func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, string) {
-	store := h.repository
-	if store == nil && h.config.RepoDBPath == "" {
+	store, err := h.browseStore(request.Context())
+	if err != nil {
 		return nil, ""
-	}
-	if store == nil {
-		var err error
-		store, err = repodb.OpenReadOnly(h.config.RepoDBPath)
-		if err != nil {
-			return nil, ""
-		}
-		defer store.Close()
 	}
 	ctx := request.Context()
 	result, err := store.Query(ctx, repodb.Query{

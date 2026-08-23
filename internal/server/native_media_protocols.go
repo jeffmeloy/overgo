@@ -44,11 +44,10 @@ func (h *Handler) nativeImageGeneration(response http.ResponseWriter, request *h
 	if !ok {
 		return
 	}
-	store, release, ok := h.openBrowseStore(response)
+	store, ok := h.requireBrowseStore(response, request)
 	if !ok {
 		return
 	}
-	defer release()
 	data := make([]nativeImageData, len(status.Outputs))
 	for index, id := range status.Outputs {
 		descriptor, found, err := store.Artifact(request.Context(), id)
@@ -79,11 +78,10 @@ func (h *Handler) nativeAudioSpeech(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusInternalServerError, "invalid_output", "speech generation requires one audio artifact")
 		return
 	}
-	store, release, ok := h.openBrowseStore(response)
+	store, ok := h.requireBrowseStore(response, request)
 	if !ok {
 		return
 	}
-	defer release()
 	descriptor, reader, found, err := store.OpenContent(request.Context(), status.Outputs[0])
 	if err != nil || !found || !strings.HasPrefix(descriptor.MediaType, "audio/") {
 		writeError(response, http.StatusInternalServerError, "invalid_output", "speech output is not an audio artifact")

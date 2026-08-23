@@ -1086,13 +1086,13 @@
      "contains": "func (h *Handler) browseRuns(",
      "path": "internal/server/browse_runs.go",
      "role": "source",
-     "identity": "file:sha256:c4a6bc201faf70b6a86d3043bb756a6e378c8d388a21a22ab23c1b5a7ad0c9a3"
+     "identity": "file:sha256:b98334a7aca075d2f657a3888bac3ebd6ba7ddfa52a34eba273bb275b65a6d8d"
     },
     {
      "contains": "func TestBrowseRunsReadsRepoDBRecords(",
      "path": "internal/server/browse_runs_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:26c02cc89bc0b60879030cd339589be6e15c5a22ca082c8093a3786f0152a823"
+     "identity": "evidence:sha256:e7ec29e8a9ebdb006b3c3315d8900515a2f1d4afa891f9b32a2c6890185f2f85"
     }
    ],
    "id": "repodb-run-browser",

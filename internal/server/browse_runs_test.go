@@ -76,6 +76,7 @@ func TestBrowseRunsReadsRepoDBRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = handler.Close() })
 	response := serveTestRequest(handler, http.MethodGet, "/runs?limit=1", "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
@@ -121,6 +122,7 @@ func TestRunDetailReconstructsImmutableEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = handler.Close() })
 	response := serveTestRequest(handler, http.MethodGet, "/runs?id="+run.ID.String(), "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())

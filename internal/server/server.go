@@ -376,6 +376,7 @@ type Handler struct {
 	thinkingSigner     *anthropicThinkingSigner
 	operations         *operation.Manager
 	repository         *repodb.Store
+	browseRepository   *repodb.Store
 	environment        runrecord.Environment
 	modelArtifact      artifact.ID
 	observationErrors  atomic.Uint64
@@ -469,6 +470,13 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	var browseRepository *repodb.Store
+	if repository == nil && config.RepoDBPath != "" {
+		browseRepository, err = repodb.OpenReadOnly(config.RepoDBPath)
+		if err != nil {
+			return nil, fmt.Errorf("server browse repository: %w", err)
+		}
+	}
 	generation := generator
 	if config.MaxConcurrent > 1 {
 		if factory, ok := generator.(ContinuousGeneratorFactory); ok {
@@ -487,6 +495,9 @@ func New(config Config, generator Generator) (*Handler, error) {
 		"inference", "compiled", config.MaxConcurrent, generation,
 	)
 	if err != nil {
+		if browseRepository != nil {
+			_ = browseRepository.Close()
+		}
 		return nil, err
 	}
 	handler := &Handler{
@@ -504,16 +515,18 @@ func New(config Config, generator Generator) (*Handler, error) {
 			config.MaxStoredResponses,
 			config.ResponseStoreBytes,
 		),
-		responseFiles:  config.ResponseFiles,
-		thinkingSigner: thinkingSigner,
-		repository:     repository,
-		environment:    environment,
+		responseFiles:    config.ResponseFiles,
+		thinkingSigner:   thinkingSigner,
+		repository:       repository,
+		browseRepository: browseRepository,
+		environment:      environment,
 	}
 	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
 		handler.modelArtifact = identity.ModelID()
 	}
 	handler.operations, err = operation.NewManager(config.MaxStoredResponses)
 	if err != nil {
+		_ = handler.Close()
 		return nil, err
 	}
 	return handler, nil
@@ -527,13 +540,16 @@ func (h *Handler) Close() error {
 	if h.operations != nil {
 		h.operations.Close()
 	}
-	if h.sessions == nil {
-		return nil
+	var closeErrors []error
+	if h.sessions != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		closeErrors = append(closeErrors, h.sessions.Close(ctx))
+		cancel()
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := h.sessions.Close(ctx)
-	cancel()
-	return err
+	if h.browseRepository != nil {
+		closeErrors = append(closeErrors, h.browseRepository.Close())
+	}
+	return errors.Join(closeErrors...)
 }
 
 type requestSession = capabilityruntime.SessionLease[Generator]

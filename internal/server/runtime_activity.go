@@ -73,11 +73,10 @@ func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Re
 		writeJSON(response, http.StatusOK, runtimeActivityResponse{Operations: h.operations.List()})
 		return
 	}
-	store, release, ok := h.openBrowseStore(response)
+	store, ok := h.requireBrowseStore(response, request)
 	if !ok {
 		return
 	}
-	defer release()
 	result, err := store.Query(request.Context(), repodb.Query{
 		Kind:       artifact.KindEvidence,
 		MediaType:  runrecord.ServingObservationMediaType,

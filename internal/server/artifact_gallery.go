@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/repodb"
 )
+
+var errBrowseRepositoryUnavailable = errors.New("artifact browsing is not configured")
 
 type artifactSummary struct {
 	Descriptor artifact.Descriptor `json:"descriptor"`
@@ -28,11 +31,10 @@ func (h *Handler) artifactGallery(response http.ResponseWriter, request *http.Re
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
-	store, release, ok := h.openBrowseStore(response)
+	store, ok := h.requireBrowseStore(response, request)
 	if !ok {
 		return
 	}
-	defer release()
 	query, limit, err := h.artifactQuery(request)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -73,11 +75,10 @@ func (h *Handler) artifactContent(response http.ResponseWriter, request *http.Re
 		writeInvalidRequest(response, err)
 		return
 	}
-	store, release, ok := h.openBrowseStore(response)
+	store, ok := h.requireBrowseStore(response, request)
 	if !ok {
 		return
 	}
-	defer release()
 	descriptor, reader, found, err := store.OpenContent(request.Context(), id)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
@@ -140,18 +141,28 @@ func encodeNextCursor(cursor *repodb.QueryCursor) (string, error) {
 	return repodb.EncodeQueryCursor(*cursor)
 }
 
-func (h *Handler) openBrowseStore(response http.ResponseWriter) (*repodb.Store, func(), bool) {
+func (h *Handler) browseStore(ctx context.Context) (*repodb.Store, error) {
 	if h.repository != nil {
-		return h.repository, func() {}, true
+		return h.repository, nil
 	}
-	if h.config.RepoDBPath == "" {
+	if h.browseRepository == nil {
+		return nil, errBrowseRepositoryUnavailable
+	}
+	if err := h.browseRepository.Refresh(ctx); err != nil {
+		return nil, err
+	}
+	return h.browseRepository, nil
+}
+
+func (h *Handler) requireBrowseStore(response http.ResponseWriter, request *http.Request) (*repodb.Store, bool) {
+	store, err := h.browseStore(request.Context())
+	if errors.Is(err, errBrowseRepositoryUnavailable) {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "artifact browsing is not configured")
-		return nil, nil, false
+		return nil, false
 	}
-	store, err := repodb.OpenReadOnly(h.config.RepoDBPath)
 	if err != nil {
-		writeError(response, http.StatusInternalServerError, "repodb_error", "cannot open the artifact store")
-		return nil, nil, false
+		writeError(response, http.StatusInternalServerError, "repodb_error", "cannot refresh the artifact store")
+		return nil, false
 	}
-	return store, func() { _ = store.Close() }, true
+	return store, true
 }

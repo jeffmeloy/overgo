@@ -269,15 +269,16 @@ func (s catalogState) reaches(start, target artifact.ID, pending map[artifact.ID
 
 // Store: hash-chained artifact catalog
 type Store struct {
-	mu       sync.RWMutex
-	log      *recordLog
-	state    catalogState
-	head     artifact.CommitID
-	sequence uint64
-	readOnly bool
-	closed   bool
-	fault    error
-	root     string
+	mu        sync.RWMutex
+	log       *recordLog
+	state     catalogState
+	head      artifact.CommitID
+	sequence  uint64
+	replayEnd int64
+	readOnly  bool
+	closed    bool
+	fault     error
+	root      string
 }
 
 func Open(root string) (*Store, error) {
@@ -297,30 +298,10 @@ func open(root string, readOnly bool) (*Store, error) {
 		state = newCatalogState()
 	}
 	store := &Store{state: state, readOnly: readOnly, root: root}
-	apply := func(record logRecord) error {
-		batch, payloadHash, err := decodeBatch(record.payload)
-		if err != nil {
-			return err
-		}
-		if batch.ExpectedHead != nil && *batch.ExpectedHead != record.previous {
-			return fmt.Errorf("%w: recorded predecessor differs", ErrHeadConflict)
-		}
-		if _, exists := store.state.commits[batch.Key]; exists {
-			return fmt.Errorf("%w: %q repeats in log", ErrBatchKeyConflict, batch.Key)
-		}
-		if err := store.state.validate(batch); err != nil {
-			return err
-		}
-		store.state.apply(batch)
-		store.state.commits[batch.Key] = committedBatch{
-			id: record.id, payload: payloadHash, sequence: record.sequence,
-		}
-		return nil
-	}
-	log, replay, err := openRecordLog(root, readOnly, anchor, apply)
+	log, replay, err := openRecordLog(root, readOnly, anchor, store.applyRecord)
 	if errors.Is(err, ErrSnapshotAnchor) && loaded {
 		store.state = newCatalogState()
-		log, replay, err = openRecordLog(root, readOnly, replayAnchor{}, apply)
+		log, replay, err = openRecordLog(root, readOnly, replayAnchor{}, store.applyRecord)
 	}
 	if err != nil {
 		return nil, err
@@ -328,7 +309,54 @@ func open(root string, readOnly bool) (*Store, error) {
 	store.log = log
 	store.head = replay.head
 	store.sequence = replay.sequence
+	store.replayEnd = replay.validEnd
 	return store, nil
+}
+
+func (s *Store) applyRecord(record logRecord) error {
+	batch, payloadHash, err := decodeBatch(record.payload)
+	if err != nil {
+		return err
+	}
+	if batch.ExpectedHead != nil && *batch.ExpectedHead != record.previous {
+		return fmt.Errorf("%w: recorded predecessor differs", ErrHeadConflict)
+	}
+	if _, exists := s.state.commits[batch.Key]; exists {
+		return fmt.Errorf("%w: %q repeats in log", ErrBatchKeyConflict, batch.Key)
+	}
+	if err := s.state.validate(batch); err != nil {
+		return err
+	}
+	s.state.apply(batch)
+	s.state.commits[batch.Key] = committedBatch{
+		id: record.id, payload: payloadHash, sequence: record.sequence,
+	}
+	return nil
+}
+
+// Refresh applies the validated committed tail to a read-only store.
+func (s *Store) Refresh(ctx context.Context) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.ready(false); err != nil {
+		return err
+	}
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if !s.readOnly {
+		return nil
+	}
+	result, err := s.log.refresh(replayAnchor{sequence: s.sequence, head: s.head}, s.replayEnd, s.applyRecord)
+	if err != nil {
+		s.fault = err
+		return err
+	}
+	s.head, s.sequence, s.replayEnd = result.head, result.sequence, result.validEnd
+	return nil
 }
 
 func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.CommitID, error) {

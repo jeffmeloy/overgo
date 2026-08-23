@@ -132,6 +132,84 @@ func TestCommitReplayAndReadOnlyQueries(t *testing.T) {
 	}
 }
 
+func TestReadOnlyRefreshAppliesCommittedTail(t *testing.T) {
+	root := t.TempDir()
+	writer, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	if _, err := writer.Commit(context.Background(), fixtureBatch(t)); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+
+	descriptor := fixtureDescriptor(t, artifact.KindOutput, fixturePayload)
+	if _, err := writer.Commit(context.Background(), artifact.Batch{
+		Key: "fixture/refresh/v1", Artifacts: []artifact.Descriptor{descriptor},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := reader.Artifact(context.Background(), descriptor.ID); err != nil || found {
+		t.Fatalf("artifact before refresh = (%v, %v)", found, err)
+	}
+	if err := reader.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got, found, err := reader.Artifact(context.Background(), descriptor.ID); err != nil || !found || got != descriptor {
+		t.Fatalf("artifact after refresh = (%+v, %v, %v)", got, found, err)
+	}
+}
+
+func TestReadOnlyRefreshRejectsFork(t *testing.T) {
+	root := t.TempDir()
+	writer, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.Commit(context.Background(), fixtureBatch(t)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	head, sequence := reader.Head()
+	descriptor := fixtureDescriptor(t, artifact.KindOutput, fixturePayload)
+	payload, _, _, err := encodeBatch(artifact.Batch{
+		Key: "fixture/fork/v1", Artifacts: []artifact.Descriptor{descriptor},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, frame := encodeRecordVersion(frameVersion, sequence+1, artifact.CommitID{}, payload)
+	file, err := os.OpenFile(filepath.Join(root, storeFilename), os.O_APPEND|os.O_WRONLY, storeFileMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Write(frame); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.Refresh(context.Background()); err == nil {
+		t.Fatal("forked tail accepted")
+	}
+	if got, gotSequence := reader.Head(); got != head || gotSequence != sequence {
+		t.Fatalf("head after fork = (%s, %d), want (%s, %d)", got, gotSequence, head, sequence)
+	}
+}
+
 func TestCommitIsIdempotentByKeyAndContent(t *testing.T) {
 	store, err := Open(t.TempDir())
 	if err != nil {

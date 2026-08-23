@@ -201,6 +201,25 @@ func (l *recordLog) replay(anchor replayAnchor, apply func(logRecord) error) (re
 		return replayResult{}, err
 	}
 	result := replayResult{validEnd: storeHeaderBytes}
+	return l.replayFrames(result, anchor, apply)
+}
+
+func (l *recordLog) refresh(anchor replayAnchor, offset int64, apply func(logRecord) error) (replayResult, error) {
+	info, err := l.file.Stat()
+	if err != nil {
+		return replayResult{}, fmt.Errorf("repodb: stat log tail: %w", err)
+	}
+	if info.Size() < offset {
+		return replayResult{}, ErrSnapshotAnchor
+	}
+	if _, err := l.file.Seek(offset, io.SeekStart); err != nil {
+		return replayResult{}, fmt.Errorf("repodb: seek log tail: %w", err)
+	}
+	result := replayResult{head: anchor.head, sequence: anchor.sequence, validEnd: offset}
+	return l.replayFrames(result, anchor, apply)
+}
+
+func (l *recordLog) replayFrames(result replayResult, anchor replayAnchor, apply func(logRecord) error) (replayResult, error) {
 	frameHeader := make([]byte, frameHeaderBytes)
 	var body []byte
 	for {
@@ -232,7 +251,7 @@ func (l *recordLog) replay(anchor replayAnchor, apply func(logRecord) error) (re
 		}
 		record.payload = body[:payloadSize]
 		checksum := binary.LittleEndian.Uint32(body[payloadSize:])
-		actual := crc32.Update(0, crcTable, frameHeader)
+		actual := crc32.Checksum(frameHeader, crcTable)
 		actual = crc32.Update(actual, crcTable, record.payload)
 		if checksum != actual {
 			return replayResult{}, fmt.Errorf("repodb: frame at %d has invalid checksum", frameStart)

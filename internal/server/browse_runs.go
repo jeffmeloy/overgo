@@ -57,18 +57,15 @@ type browseRunDetail struct {
 	Children    []artifact.Lineage      `json:"children"`
 }
 
-// browseRuns: read-only listing of training/run artifacts from the RepoDB —
-// outcome, recipe, code commit, wall time, and per-phase durations, decoded via
-// runrecord.ParseRun. No job control. Opens the store read-only per request.
+// browseRuns lists run artifacts from the retained RepoDB view.
 func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
-	store, release, ok := h.openBrowseStore(response)
+	store, ok := h.requireBrowseStore(response, request)
 	if !ok {
 		return
 	}
-	defer release()
 	if value := request.URL.Query().Get("id"); value != "" {
 		id, parseErr := artifact.ParseID(value)
 		if parseErr != nil || id.Kind() != artifact.KindRun {

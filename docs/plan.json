@@ -1,7 +1,7 @@
 {
   "campaign": "Deletion-led production composability and repository tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:8ab23243ebc57ac2b5d23c96a10e88a90066ee5fd1c75be740775a13b34f157d",
+  "census_evidence": "evidence:sha256:77219ef30e269cd9a5e15984236a9e26dc8b782599dd683c67bbd6cff9777641",
   "items": [
     {
       "id": "merge-524691512e21",
@@ -316,7 +316,7 @@
     {
       "id": "magic-runtime-remaining",
       "title": "Close remaining production literal surfaces",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "server-workflows",
@@ -345,7 +345,7 @@
         {
           "id": "production-complete",
           "title": "Verify every production source has an exact literal disposition",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts"
         }
       ]

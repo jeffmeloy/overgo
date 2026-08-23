@@ -386,7 +386,7 @@
         {
           "id": "image-programs",
           "title": "Compile image prompt templates and delete displaced family orchestration",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/projector -run 'Test(CompiledImagePromptPrograms|MultipleImagePrompt|ImagePrompt)' -count=1"
         },
         {

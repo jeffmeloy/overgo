@@ -45,9 +45,10 @@ type promptDispatch struct {
 func compilePromptDispatch(source Projector) promptDispatch {
 	dispatch := promptDispatch{}
 	if provider, ok := source.(interface {
-		imagesPrompt(context.Context, ImageTokenizer, []image.Image, []string, PromptOptions) (MultimodalPrompt, error)
+		imagePromptProgram() compiledImagePromptProgram
 	}); ok {
-		dispatch.images = provider.imagesPrompt
+		program := provider.imagePromptProgram()
+		dispatch.images = program.execute
 	}
 	if provider, ok := source.(interface {
 		videoPrompt(context.Context, ImageTokenizer, []image.Image, string, string, float64, bool) (MultimodalPrompt, error)

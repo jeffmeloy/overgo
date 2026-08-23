@@ -146,7 +146,7 @@ func TestCapabilityExecutionAuthorityTracksAliasWithoutChangingExecution(t *test
 	}
 }
 
-func TestRemotePeerSpilloverRequiresCompatibilityEvidence(t *testing.T) {
+func TestRemoteCapabilityAdmission(t *testing.T) {
 	ctx := context.Background()
 	fixture := newCapabilitySelectorFixture(t)
 	local := testutil.ArtifactID(t, artifact.KindEvidence, "selector-local-environment")
@@ -182,12 +182,29 @@ func TestRemotePeerSpilloverRequiresCompatibilityEvidence(t *testing.T) {
 	if _, err := fixture.store.Commit(ctx, artifact.Batch{Key: "selector/resources", Contents: []artifact.Content{resourceContent}}); err != nil {
 		t.Fatal(err)
 	}
+	peerCapability, err := remotePeerCapabilityCodec.New(RemotePeerCapability{
+		Version: remotePeerCapabilityVersion, Environment: peer,
+		Tasks: []recipe.Task{recipe.TaskGeneration}, Endpoint: "https://peer.example/v1/generation",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	capabilityBatch, err := remotePeerCapabilityCodec.Batch(
+		"selector/peer-capability", peerCapability,
+		artifact.DependencyLineage(peerCapability.ID, peer), nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.store.Commit(ctx, capabilityBatch); err != nil {
+		t.Fatal(err)
+	}
 	compatibility, err := remotePeerCompatibilityCodec.New(RemotePeerCompatibility{
 		Version: remotePeerCompatibilityVersion,
 		Model:   fixture.model, Recipe: fixture.definition.ID, Resources: resources.Identity, Task: recipe.TaskGeneration,
 		LocalEnvironment: local, PeerEnvironment: peer,
+		PeerCapability:   peerCapability.ID,
 		LocalObservation: localObservation.ID, PeerObservation: peerObservation.ID,
-		Endpoint: "https://peer.example/v1/generation",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -209,5 +226,28 @@ func TestRemotePeerSpilloverRequiresCompatibilityEvidence(t *testing.T) {
 	if selected.Peer.ID != compatibility.ID || selected.Peer.PeerObservation != peerObservation.ID ||
 		selected.Resources.Identity != resources.Identity {
 		t.Fatalf("spillover selection=%+v", selected)
+	}
+}
+
+func TestIncompatiblePeerRefusal(t *testing.T) {
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	id := func(kind artifact.Kind, label string) artifact.ID {
+		return testutil.ArtifactID(t, kind, label)
+	}
+	peer := id(artifact.KindEvidence, "incompatible-peer")
+	if _, err := PublishRemotePeerAuthority(t.Context(), store, "incompatible", RemotePeerCapability{
+		Environment: peer, Tasks: []recipe.Task{recipe.TaskInference}, Endpoint: "https://peer.example/v1/inference",
+	}, RemotePeerCompatibility{
+		Model: id(artifact.KindModel, "incompatible-model"), Recipe: id(artifact.KindRecipe, "incompatible-recipe"),
+		Resources: id(artifact.KindProfile, "incompatible-resources"), Task: recipe.TaskGeneration,
+		LocalEnvironment: id(artifact.KindEvidence, "incompatible-local"), PeerEnvironment: peer,
+		LocalObservation: id(artifact.KindEvidence, "incompatible-local-observation"),
+		PeerObservation:  id(artifact.KindEvidence, "incompatible-peer-observation"),
+	}); err == nil {
+		t.Fatal("incompatible peer task accepted")
 	}
 }

@@ -115,7 +115,7 @@ func (executor *ToolExecutor) ExecuteToolOperation(ctx context.Context, call rec
 		Task: recipe.TaskInference, Recipe: executor.admission.Recipe,
 	}, func(runContext context.Context, reporter operation.Reporter) (operation.Completion, error) {
 		result, executeErr := executor.runtime.ExecuteProgram(
-			runContext, "tool/"+call.ID, reporter.OperationID(), executor.program,
+			runContext, "tool/"+call.ID, reporter.OperationID(), reporter, executor.program,
 			map[recipe.PortName]Value{
 				recipe.ToolCallPort: ArtifactValue(recipe.DataToolCall, call, content),
 			},

@@ -104,7 +104,7 @@ func ExecuteModelBuild(
 		return ModelBuildState{}, err
 	}
 	result, err := runtime.ExecuteProgram(
-		ctx, "model-build/"+operation.String(), operation, program,
+		ctx, "model-build/"+operation.String(), operation, nil, program,
 		map[recipe.PortName]Value{modelBuildStatePort: ArtifactValue(recipe.DataArtifact, initial, content)},
 	)
 	if err != nil {

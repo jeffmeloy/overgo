@@ -1440,12 +1440,12 @@
       "id": "adk-remote-operation-adapter",
       "title": "Add evidence-admitted remote execution as a workflow adapter after local orchestration is authoritative",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Define machine-readable peer capability and compatibility records; execute remote stages through workflowruntime Adapter and operation attempt chains; preserve artifact lineage and local fallback refusal; avoid importing ADK or A2A runtime ownership",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/modelrecipe ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/server -run 'Test(RemoteCapabilityAdmission|RemoteStageAttemptLineage|RemoteCancellation|RemoteArtifactIdentity|IncompatiblePeerRefusal)' -count=1",
           "rationale": "ADK A2A demonstrates a useful interoperability boundary. Overgo should treat a peer as another recipe-selected executor with explicit capability, environment, and artifact contracts. The ModelSessionDirector and serving attempt ledger retain routing authority; remote transport never selects models or recipes.",
           "depends_on": [

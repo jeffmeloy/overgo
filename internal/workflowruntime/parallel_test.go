@@ -236,7 +236,7 @@ func registerParallelAdapters(
 }
 
 func (fixture parallelFixture) execute(ctx context.Context) (Result, error) {
-	return fixture.runtime.ExecuteProgram(ctx, "parallel", fixture.operation, fixture.program,
+	return fixture.runtime.ExecuteProgram(ctx, "parallel", fixture.operation, nil, fixture.program,
 		map[recipe.PortName]Value{
 			parallelLeftPort:  {Kind: recipe.DataText, Items: []Datum{{Value: "left"}}},
 			parallelRightPort: {Kind: recipe.DataText, Items: []Datum{{Value: "right"}}},

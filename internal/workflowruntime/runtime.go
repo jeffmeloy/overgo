@@ -50,8 +50,18 @@ func ArtifactValue(kind recipe.DataKind, value any, content artifact.Content) Va
 
 // StepRequest: one compiled module invocation.
 type StepRequest struct {
-	Model  artifact.ID
-	Inputs map[recipe.PortName]Value
+	Recipe    artifact.ID
+	Operation artifact.ID
+	Model     artifact.ID
+	Task      recipe.Task
+	Node      recipe.NodeID
+	Attempts  AttemptRecorder
+	Inputs    map[recipe.PortName]Value
+}
+
+// AttemptRecorder receives durable execution evidence.
+type AttemptRecorder interface {
+	Attempt(artifact.ID)
 }
 
 // Adapter: module execution boundary.
@@ -115,6 +125,7 @@ func (r *Runtime) ExecuteProgram(
 	ctx context.Context,
 	key string,
 	operation artifact.ID,
+	attempts AttemptRecorder,
 	program recipe.Program,
 	inputs map[recipe.PortName]Value,
 ) (Result, error) {
@@ -130,7 +141,7 @@ func (r *Runtime) ExecuteProgram(
 	if !program.UsesCatalog(r.catalog) {
 		return Result{}, errors.New("workflow runtime: compiled program uses another module catalog")
 	}
-	return r.executeProgram(ctx, key, operation, program, inputs)
+	return r.executeProgram(ctx, key, operation, attempts, program, inputs)
 }
 
 // ExecutionID derives one stable operation identity from recipe and caller key.
@@ -148,6 +159,7 @@ func (r *Runtime) executeProgram(
 	ctx context.Context,
 	key string,
 	operation artifact.ID,
+	attempts AttemptRecorder,
 	program recipe.Program,
 	inputs map[recipe.PortName]Value,
 ) (Result, error) {
@@ -160,7 +172,7 @@ func (r *Runtime) executeProgram(
 	if err != nil {
 		return Result{}, err
 	}
-	outputs, executeErr := r.executePlan(ctx, definition, readySets, operation, inputs)
+	outputs, executeErr := r.executePlan(ctx, definition, readySets, operation, attempts, inputs)
 	outcome, failure := runrecord.OutcomeSucceeded, ""
 	if executeErr != nil {
 		outputs = nil
@@ -201,6 +213,7 @@ func (r *Runtime) executePlan(
 	definition recipe.Definition,
 	readySets [][]recipe.Stage,
 	operation artifact.ID,
+	attempts AttemptRecorder,
 	external map[recipe.PortName]Value,
 ) (map[recipe.PortName]Value, error) {
 	bound := make(map[recipe.Endpoint][]Value)
@@ -218,7 +231,7 @@ func (r *Runtime) executePlan(
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		completed, err := r.executeReadySet(ctx, definition, ready, operation, bound)
+		completed, err := r.executeReadySet(ctx, definition, ready, operation, attempts, bound)
 		if err != nil {
 			return nil, err
 		}
@@ -271,12 +284,13 @@ func (r *Runtime) executeReadySet(
 	definition recipe.Definition,
 	ready []recipe.Stage,
 	operation artifact.ID,
+	attempts AttemptRecorder,
 	bound map[recipe.Endpoint][]Value,
 ) ([]stageExecution, error) {
 	stages := make([]stageExecution, len(ready))
 	active := 0
 	for index, stage := range ready {
-		execution, err := r.prepareStage(ctx, definition, stage, operation, bound)
+		execution, err := r.prepareStage(ctx, definition, stage, operation, attempts, bound)
 		if err != nil {
 			return nil, fmt.Errorf("workflow runtime: step %q: %w", stage.Node.ID, err)
 		}
@@ -331,6 +345,7 @@ func (r *Runtime) prepareStage(
 	definition recipe.Definition,
 	stage recipe.Stage,
 	operation artifact.ID,
+	attempts AttemptRecorder,
 	bound map[recipe.Endpoint][]Value,
 ) (stageExecution, error) {
 	step, module := stage.Node, stage.Module
@@ -353,7 +368,10 @@ func (r *Runtime) prepareStage(
 	if !ok {
 		return stageExecution{}, fmt.Errorf("step %q model slot %d is unbound", step.ID, step.ModelSlot)
 	}
-	execution := stageExecution{stage: stage, request: StepRequest{Model: model, Inputs: inputs}, adapter: adapter}
+	execution := stageExecution{stage: stage, request: StepRequest{
+		Recipe: definition.ID, Operation: operation, Model: model,
+		Task: definition.Task, Node: step.ID, Attempts: attempts, Inputs: inputs,
+	}, adapter: adapter}
 	outputs, recovered, err := r.recoverStage(ctx, definition, stage, operation)
 	if err != nil || recovered {
 		execution.outputs, execution.recovered = outputs, recovered

@@ -661,6 +661,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/operations/decision" ||
 		request.URL.Path == "/operations/wait" ||
 		request.URL.Path == "/runtime/activity/stream" ||
+		request.URL.Path == "/runtime/peers" ||
 		request.URL.Path == "/evaluations/capabilities" ||
 		request.URL.Path == "/evaluations/run" ||
 		request.URL.Path == "/evaluations/history" ||
@@ -825,6 +826,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.runtimeActivity(response, request)
 	case "/runtime/activity/stream":
 		h.runtimeActivityStream(response, request)
+	case "/runtime/peers":
+		h.remotePeerAuthority(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

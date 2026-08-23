@@ -92,7 +92,7 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := runtime.ExecuteProgram(ctx, "tier0/chain", operation, program, map[recipe.PortName]workflowruntime.Value{
+	result, err := runtime.ExecuteProgram(ctx, "tier0/chain", operation, nil, program, map[recipe.PortName]workflowruntime.Value{
 		"prompt": {Kind: recipe.DataText, Items: []workflowruntime.Datum{{Value: "prompt"}}},
 	})
 	if err != nil {

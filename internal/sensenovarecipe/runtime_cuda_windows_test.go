@@ -88,7 +88,7 @@ func runProductionImageGeneration(t testing.TB, request GenerationRequest) produ
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := runtime.ExecuteProgram(ctx, "sensenova/production", operation, program, map[recipe.PortName]workflowruntime.Value{
+	result, err := runtime.ExecuteProgram(ctx, "sensenova/production", operation, nil, program, map[recipe.PortName]workflowruntime.Value{
 		input.Name: {Kind: input.Data, Items: []workflowruntime.Datum{{Value: request}}},
 	})
 	if err != nil {

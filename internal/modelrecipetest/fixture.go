@@ -107,7 +107,7 @@ func (f Capability) ExecuteScalar(key string, value any) (workflowruntime.Result
 	if err != nil {
 		return workflowruntime.Result{}, err
 	}
-	return f.Runtime.ExecuteProgram(context.Background(), key, operation, f.Program, map[recipe.PortName]workflowruntime.Value{
+	return f.Runtime.ExecuteProgram(context.Background(), key, operation, nil, f.Program, map[recipe.PortName]workflowruntime.Value{
 		input.Name: {Kind: input.Data, Items: []workflowruntime.Datum{{Value: value}}},
 	})
 }

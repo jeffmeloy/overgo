@@ -19,6 +19,7 @@ func TestRemotePeerSpilloverRequiresCompatibilityEvidence(t *testing.T) {
 	recipeID := id(artifact.KindRecipe, "peer-recipe")
 	resourcesID := id(artifact.KindProfile, "peer-resources")
 	compatibilityID := id(artifact.KindEvidence, "peer-compatibility")
+	capabilityID := id(artifact.KindEvidence, "peer-capability")
 	input, responseBody := `{"prompt":"peer"}`, `{"result":"remote"}`
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || request.Header.Get(peerModelHeader) != modelID.String() ||
@@ -39,7 +40,9 @@ func TestRemotePeerSpilloverRequiresCompatibilityEvidence(t *testing.T) {
 		Activation: modelrecipe.Activation{Definition: recipe.Definition{Model: modelID, ID: recipeID}},
 		Resources:  modelrecipe.ComponentSessionPlan{Identity: resourcesID},
 		Peer: modelrecipe.RemotePeerCompatibility{
-			ID: compatibilityID, Model: modelID, Recipe: recipeID, Resources: resourcesID, Endpoint: server.URL,
+			ID: compatibilityID, Model: modelID, Recipe: recipeID, Resources: resourcesID,
+			PeerCapability: capabilityID,
+			Capability:     modelrecipe.RemotePeerCapability{ID: capabilityID, Endpoint: server.URL},
 		},
 	}
 	var output strings.Builder

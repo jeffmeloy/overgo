@@ -103,7 +103,7 @@ func Execute[Output any](
 	if err != nil {
 		return zero, err
 	}
-	result, err := runtime.ExecuteProgram(ctx, key, operation, program, inputs)
+	result, err := runtime.ExecuteProgram(ctx, key, operation, nil, program, inputs)
 	if err != nil {
 		return zero, err
 	}

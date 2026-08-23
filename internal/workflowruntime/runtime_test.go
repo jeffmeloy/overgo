@@ -24,7 +24,7 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	}
 	registerGenerationAdapters(t, runtime, false)
 	prompt := fixtureContent(t, artifact.KindFile, "hello")
-	result, err := runtime.ExecuteProgram(ctx, "runtime/success", runtimeExecutionID(t, program, "runtime/success"), program, map[recipe.PortName]Value{
+	result, err := runtime.ExecuteProgram(ctx, "runtime/success", runtimeExecutionID(t, program, "runtime/success"), nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "hello"}}},
 	})
 	if err != nil {
@@ -56,7 +56,7 @@ func TestRuntimePublishesFailedRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	registerGenerationAdapters(t, runtime, true)
-	result, err := runtime.ExecuteProgram(ctx, "runtime/failure", runtimeExecutionID(t, program, "runtime/failure"), program, map[recipe.PortName]Value{
+	result, err := runtime.ExecuteProgram(ctx, "runtime/failure", runtimeExecutionID(t, program, "runtime/failure"), nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "hello"}}},
 	})
 	if err == nil || result.Run.Outcome != runrecord.OutcomeFailed || result.Run.Failure != executionFailureCode {
@@ -77,7 +77,7 @@ func TestRuntimePublishesCancelledRun(t *testing.T) {
 	registerGenerationAdapters(t, runtime, false)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	result, err := runtime.ExecuteProgram(ctx, "runtime/cancelled", runtimeExecutionID(t, program, "runtime/cancelled"), program, map[recipe.PortName]Value{
+	result, err := runtime.ExecuteProgram(ctx, "runtime/cancelled", runtimeExecutionID(t, program, "runtime/cancelled"), nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "hello"}}},
 	})
 	if !errors.Is(err, context.Canceled) || result.Run.Outcome != runrecord.OutcomeCancelled {
@@ -102,7 +102,7 @@ func TestWorkflowRestartSkipsCompletedStages(t *testing.T) {
 	inputs := map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "restart"}}},
 	}
-	if _, err := first.ExecuteProgram(ctx, "runtime/restart", operation, program, inputs); err == nil {
+	if _, err := first.ExecuteProgram(ctx, "runtime/restart", operation, nil, program, inputs); err == nil {
 		t.Fatal("interrupted workflow succeeded")
 	}
 	second, err := NewForProgram(store, program)
@@ -130,7 +130,7 @@ func TestWorkflowRestartSkipsCompletedStages(t *testing.T) {
 	})); err != nil {
 		t.Fatal(err)
 	}
-	result, err := second.ExecuteProgram(ctx, "runtime/restart", operation, program, inputs)
+	result, err := second.ExecuteProgram(ctx, "runtime/restart", operation, nil, program, inputs)
 	if err != nil || tokenizeRuns != 0 || result.Run.Outcome != runrecord.OutcomeSucceeded {
 		t.Fatalf("recovered workflow = (runs=%d, outcome=%s, err=%v)", tokenizeRuns, result.Run.Outcome, err)
 	}
@@ -146,7 +146,7 @@ func TestWorkflowRecoveryRejectsRecipeDrift(t *testing.T) {
 		t.Fatal(err)
 	}
 	registerGenerationAdapters(t, runtime, true)
-	if _, err := runtime.ExecuteProgram(ctx, "runtime/drift", operation, program, map[recipe.PortName]Value{
+	if _, err := runtime.ExecuteProgram(ctx, "runtime/drift", operation, nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "drift"}}},
 	}); err == nil {
 		t.Fatal("drift fixture did not stop")
@@ -168,7 +168,7 @@ func TestWorkflowRecoveryRejectsRecipeDrift(t *testing.T) {
 		t.Fatal(err)
 	}
 	registerGenerationAdapters(t, driftedRuntime, false)
-	if _, err := driftedRuntime.ExecuteProgram(ctx, "runtime/drift", operation, driftedProgram, map[recipe.PortName]Value{
+	if _, err := driftedRuntime.ExecuteProgram(ctx, "runtime/drift", operation, nil, driftedProgram, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "drift"}}},
 	}); err == nil || !strings.Contains(err.Error(), "recovery recipe differs") {
 		t.Fatalf("recipe drift error = %v", err)
@@ -199,7 +199,7 @@ func TestExecuteProgramPreservesOrchestrationBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runtime.ExecuteProgram(context.Background(), "runtime/training", runtimeExecutionID(t, program, "runtime/training"), program, nil); err == nil {
+	if _, err := runtime.ExecuteProgram(context.Background(), "runtime/training", runtimeExecutionID(t, program, "runtime/training"), nil, program, nil); err == nil {
 		t.Fatal("orchestration-only program executed")
 	}
 }
@@ -219,7 +219,7 @@ func TestExecuteProgramRejectsAnotherCatalogAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runtime.ExecuteProgram(context.Background(), "runtime/foreign", runtimeExecutionID(t, program, "runtime/foreign"), program, nil); err == nil {
+	if _, err := runtime.ExecuteProgram(context.Background(), "runtime/foreign", runtimeExecutionID(t, program, "runtime/foreign"), nil, program, nil); err == nil {
 		t.Fatal("program compiled by another catalog accepted")
 	}
 }

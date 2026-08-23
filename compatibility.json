@@ -1119,7 +1119,7 @@
      "contains": "func TestSenseNovaProductionImageGeneration(",
      "path": "internal/sensenovarecipe/runtime_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:a40e8075f5c09176e6a274f1da029ac028912c31bdb0062dde87a728d3fb0848"
+     "identity": "evidence:sha256:a3c97a2dabe6487f13fe4807b03054622df057c5bdbce298fb74227620d5c594"
     }
    ],
    "id": "sensenova-production-image-oracle",

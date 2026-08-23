@@ -4,6 +4,116 @@
   "census_evidence": "evidence:sha256:77219ef30e269cd9a5e15984236a9e26dc8b782599dd683c67bbd6cff9777641",
   "items": [
     {
+      "id": "cleanup-model-program-authority",
+      "title": "Make compiled metadata and invariant programs the sole model policy authority",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "core-metadata",
+          "title": "Compile repeated architecture-core metadata reads and delete displaced reader branches",
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(Architecture|Metadata)' -count=1"
+        },
+        {
+          "id": "expert-runtime-metadata",
+          "title": "Compile expert and runtime metadata reads and delete displaced policy branches",
+          "status": "open",
+          "verify": "go test ./internal/model -run 'Test(Architecture|Metadata|Expert|Runtime)' -count=1"
+        },
+        {
+          "id": "invariant-program",
+          "title": "Compile model invariants by profile and delete parallel attention and hybrid policy interpreters",
+          "status": "open",
+          "verify": "go test ./internal/model -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-tensor-catalog-program",
+      "title": "Replace imperative model weight loading with indexed tensor catalog programs",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace imperative model weight loading with indexed tensor catalog programs",
+          "status": "open",
+          "verify": "go test ./internal/model ./internal/inference -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-projector-plan-authority",
+      "title": "Make typed projector plans the sole prompt and media orchestration authority",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make typed projector plans the sole prompt and media orchestration authority",
+          "status": "open",
+          "verify": "go test ./internal/projector ./internal/inference -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-media-codec-program",
+      "title": "Make one media codec program authoritative across host and CUDA",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make one media codec program authoritative across host and CUDA",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-cuda-launch-contracts",
+      "title": "Compile typed CUDA and reference launch contracts",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile typed CUDA and reference launch contracts",
+          "status": "open",
+          "verify": "go test ./internal/tensor/... ./internal/cuda/executor -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-gate-dag-authority",
+      "title": "Make automationcheck DAG the sole gate scheduler",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make automationcheck DAG the sole gate scheduler",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/automationcheck -count=1"
+        }
+      ]
+    },
+    {
+      "id": "cleanup-parity-validation",
+      "title": "Consolidate parity campaigns and duplicate request validators",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Consolidate parity campaigns and duplicate request validators",
+          "status": "open",
+          "verify": "go test ./cmd/vqaparity ./cmd/sensenovaparity ./internal/seq2seq ./internal/thoughtbank -count=1"
+        }
+      ]
+    },
+    {
       "id": "merge-524691512e21",
       "title": "Merge master at 524691512e21",
       "status": "done",

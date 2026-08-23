@@ -50,6 +50,20 @@ func metadataOpSignature(op metadataOp) string {
 		return "shared-width-scale"
 	case metadataOpSharedFeedForwardPolicy:
 		return "shared-width-policy"
+	case metadataOpKeyedDeltaDimensions:
+		return "keyed-delta-dimensions"
+	case metadataOpSlidingSchedule:
+		return "sliding-schedule " + map[slidingMetadataPolicy]string{
+			slidingTargetLayer:        "target-layer",
+			slidingRequiredMixed:      "required-mixed",
+			slidingRequiredCompatible: "required-compatible",
+			slidingSharedKV:           "shared-kv",
+			slidingDefaultMixed:       "default-mixed",
+			slidingOptionalMixed:      "optional-mixed",
+			slidingDualExpert:         "dual-expert",
+		}[op.slide]
+	case metadataOpAttentionScaleFromValueWidth:
+		return "attention-scale-from-value-width"
 	}
 	return "unknown"
 }
@@ -168,16 +182,16 @@ func TestProfileCompiledMetadataLoading(t *testing.T) {
 			"sections req rope.dimension_sections",
 			"keep u32 n_deepstack_layers->DeepstackLayerCount"), nil},
 		{"afmoe", append(commonCoreOps(rmsEpsilonOp), "set u32 NoRopeLayerStep=4"), nil},
-		{"mimo2", commonCoreOps(rmsEpsilonOp), []string{
+		{"mimo2", append(commonCoreOps(rmsEpsilonOp), "sliding-schedule required-mixed"), []string{
 			"set u32 ExpertGatingFunc=2", "set bool ExpertWeightsNorm=true"}},
-		{"mellum", commonCoreOps(rmsEpsilonOp), []string{
+		{"mellum", append(commonCoreOps(rmsEpsilonOp), "sliding-schedule optional-mixed"), []string{
 			"req u32 expert_feed_forward_length->ExpertFeedForward", "set bool ExpertWeightsNorm=true"}},
 		{"hunyuan-moe", commonCoreOps(rmsEpsilonOp), []string{
 			"req u32 expert_feed_forward_length->ExpertFeedForward",
 			"shared-width-policy", "set bool ExpertWeightsNorm=true"}},
 		{"dbrx", commonCoreOps(layerEpsilonOp), []string{
 			"expert-width-from-model", "set bool ExpertWeightsNorm=true"}},
-		{"smallthinker", commonCoreOps(rmsEpsilonOp), []string{
+		{"smallthinker", append(commonCoreOps(rmsEpsilonOp), "sliding-schedule dual-expert"), []string{
 			"expert-width-from-model", "set bool ExpertWeightsNorm=true",
 			"req u32 expert_gating_func->ExpertGatingFunc"}},
 		{"dots1", commonCoreOps(rmsEpsilonOp), []string{
@@ -232,7 +246,7 @@ func TestProfileCompiledMetadataLoading(t *testing.T) {
 		{"jamba", append(commonCoreOps(rmsEpsilonOp), ssmSuffix(false)...), nil},
 		{"mamba2", append(commonCoreOps(rmsEpsilonOp), ssmSuffix(true)...), nil},
 		{"granitehybrid", append(commonCoreOps(rmsEpsilonOp), ssmSuffix(true)...), nil},
-		{"plamo2", append(commonCoreOps(rmsEpsilonOp), ssmSuffix(true)...), nil},
+		{"plamo2", append(append(commonCoreOps(rmsEpsilonOp), ssmSuffix(true)...), "attention-scale-from-value-width"), nil},
 		{"nemotron_h", append(commonCoreOps(rmsEpsilonOp), ssmSuffix(true)...), nil},
 		{"nemotron_h_moe", append(commonCoreOps(rmsEpsilonOp), ssmSuffix(true)...), nil},
 		{"falcon-h1", append(commonCoreOps(rmsEpsilonOp), ssmSuffix(true)...), nil},
@@ -370,7 +384,7 @@ func TestProfileCompiledMetadataLoading(t *testing.T) {
 		bound := cohere2moeProfile
 		probe := Spec{CommonSpec: CommonSpec{Architecture: "cohere2moe"}}
 		probe.profile = &bound
-		result, programErr := reader.runMetadataProgram(probe, []metadataOp{{kind: metadataOpEpsilonEither}})
+		result, programErr := reader.runMetadataProgram(probe, specReadState{}, []metadataOp{{kind: metadataOpEpsilonEither}})
 		if entry.wantError {
 			if programErr == nil {
 				t.Fatalf("epsilon case %d: missing epsilon accepted", index)
@@ -395,7 +409,7 @@ func TestProfileCompiledMetadataLoading(t *testing.T) {
 		"dots1.expert_gating_func":         {Type: gguf.ValueTypeUint32, Data: expertGatingSigmoid},
 	}
 	dots1Reader := specMetadata{values: dots1Values, architecture: "dots1", prefix: "dots1.", profile: dots1Profile}
-	dots1Spec, dots1Err := dots1Reader.runMetadataProgram(Spec{}, compileExpertProgram(dots1Profile))
+	dots1Spec, dots1Err := dots1Reader.runMetadataProgram(Spec{}, specReadState{}, compileExpertProgram(dots1Profile))
 	if dots1Err != nil {
 		t.Fatal(dots1Err)
 	}
@@ -408,7 +422,7 @@ func TestProfileCompiledMetadataLoading(t *testing.T) {
 	qwen2moeProfile, _ := LookupArchitecture("qwen2moe")
 	qwen2moeReader := specMetadata{values: map[string]gguf.Value{}, architecture: "qwen2moe", prefix: "qwen2moe.", profile: qwen2moeProfile}
 	qwen2moeSpec, qwen2moeErr := qwen2moeReader.runMetadataProgram(
-		Spec{CommonSpec: CommonSpec{FeedForwardLength: 48}}, compileExpertProgram(qwen2moeProfile),
+		Spec{CommonSpec: CommonSpec{FeedForwardLength: 48}}, specReadState{}, compileExpertProgram(qwen2moeProfile),
 	)
 	if qwen2moeErr != nil {
 		t.Fatal(qwen2moeErr)

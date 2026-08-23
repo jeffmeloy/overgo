@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"overgo/internal/gguf"
-	"overgo/internal/hostmath"
 	"overgo/internal/tensor"
 )
 
@@ -95,7 +94,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	values, prefix := m.values, m.prefix
 	validation := m.profile.Validation
 	declaredBlockCount := state.declaredBlockCount
-	spec, err := m.runMetadataProgram(spec, compileArchitectureCoreProgram(m.profile))
+	spec, err := m.runMetadataProgram(spec, state, compileArchitectureCoreProgram(m.profile))
 	if err != nil {
 		return Spec{}, err
 	}
@@ -114,22 +113,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			)
 			spec.ExpertWeightsNorm = true
 			spec.ExpertWeightsScale = tensor.UnitScale
-		}
-	}
-	if validation.Recurrent == RecurrentValidationTargetLayerBlock {
-		if window, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok && window > tensor.FirstOffset {
-			spec.SlidingWindow = window
-			spec.RopeFrequencySWA = spec.RopeFrequencyBase
-			if pattern, patternOK := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); patternOK {
-				spec.SlidingPattern = pattern
-			} else if layers, layersOK, layersErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); layersErr != nil {
-				return Spec{}, layersErr
-			} else if layersOK {
-				if len(layers) != int(spec.BlockCount) {
-					return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
-				}
-				spec.SlidingLayers = slices.Clone(layers)
-			}
 		}
 	}
 	if validation.hybridOneOf(
@@ -232,44 +215,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if validation.Hybrid == HybridValidationSigmoidExperts {
-		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		patternKey := prefix + "attention.sliding_window_pattern"
-		pattern, exists := values[patternKey]
-		if !exists {
-			return Spec{}, fmt.Errorf("required metadata %q is missing", patternKey)
-		}
-		if pattern.Type == gguf.ValueTypeUint32 {
-			value, valid := pattern.Data.(uint32)
-			if !valid {
-				return Spec{}, fmt.Errorf("required metadata %q is missing", patternKey)
-			}
-			spec.SlidingPattern = value
-		} else {
-			if pattern.Type != gguf.ValueTypeArray {
-				return Spec{}, fmt.Errorf("required metadata %q is missing", patternKey)
-			}
-			layers, layerErr := requiredLayerBoolCompatible(values, patternKey, declaredBlockCount)
-			if layerErr != nil {
-				return Spec{}, layerErr
-			}
-			spec.SlidingLayers = slices.Clone(layers[:spec.BlockCount])
-		}
-		if value, ok := optional[float32](values, prefix+"attention.value_scale", gguf.ValueTypeFloat32); ok && value != tensor.UnitScale {
-			spec.AttentionValueScale = value
-		}
-	}
 	if validation.Hybrid == HybridValidationCompressedHyperDraft {
-		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		if spec.SlidingLayers, err = requiredLayerBoolCompatible(
-			values, prefix+"attention.sliding_window_pattern", declaredBlockCount,
-		); err != nil {
-			return Spec{}, err
-		}
 		if spec.LayerSwiGLUClamp, err = optionalLayerFloat32(
 			values, prefix+"swiglu_clamp_exp", declaredBlockCount,
 		); err != nil {
@@ -279,35 +225,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			values, prefix+"swiglu_clamp_shexp", declaredBlockCount,
 		); err != nil {
 			return Spec{}, err
-		}
-	}
-	if validation.Attention == AttentionValidationSharedKVAttention {
-		if value, ok := optional[uint32](
-			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
-		); ok {
-			spec.SlidingWindow = value
-		}
-		if spec.SlidingWindow > tensor.FirstOffset {
-			if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
-				spec.SlidingPattern = value
-			}
-			spec.NoRopeLayerStep = spec.SlidingPattern
-		}
-	}
-	if validation.Hybrid == HybridValidationSlidingSharedExperts {
-		if spec.SlidingWindow, err = required[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); err != nil {
-			return Spec{}, err
-		}
-		spec.SlidingPattern = m.profile.MetadataDefaults.SlidingPattern
-		if value, ok := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32); ok {
-			spec.SlidingPattern = value
-		} else if layers, ok, arrayErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); arrayErr != nil {
-			return Spec{}, arrayErr
-		} else if ok {
-			if len(layers) != int(spec.BlockCount) {
-				return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
-			}
-			spec.SlidingLayers = slices.Clone(layers)
 		}
 	}
 	if m.profile.readsMetadata(MetadataReadBaichuanBlocks) &&
@@ -375,32 +292,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.RopeFrequencyBase *= float32(math.Pow(float64(alpha), exponent))
 		}
 	}
-	if validation.Hybrid == HybridValidationDualExpertProduct {
-		spec.NoRopeLayerStep = spec.BlockCount
-		if value, ok := optional[uint32](
-			values, prefix+"attention.sliding_window", gguf.ValueTypeUint32,
-		); ok && value > tensor.FirstOffset {
-			spec.SlidingWindow = value
-			spec.NoRopeLayerStep = spec.SlidingPattern
-		}
-	}
-	if validation.Hybrid == HybridValidationRequiredExpertFeedForward ||
-		validation.Attention == AttentionValidationPerLayerSlidingAttention {
-		if value, ok := optional[uint32](values, prefix+"attention.sliding_window", gguf.ValueTypeUint32); ok {
-			spec.SlidingWindow = value
-		}
-		if spec.SlidingWindow > tensor.FirstOffset {
-			_, scalar := optional[uint32](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32)
-			if layers, ok, arrayErr := optionalArray[bool](values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeBool); !scalar && arrayErr != nil {
-				return Spec{}, arrayErr
-			} else if !scalar && ok {
-				if len(layers) != int(spec.BlockCount) {
-					return Spec{}, fmt.Errorf("metadata %q has %d values, need %d", prefix+"attention.sliding_window_pattern", len(layers), spec.BlockCount)
-				}
-				spec.SlidingLayers = slices.Clone(layers)
-			}
-		}
-	}
 	if m.profile.Forward.Session == ForwardSessionEncoderDecoder ||
 		m.profile.Forward.Operation == ForwardOperationEncoder {
 		if spec.RelativeBuckets, err = required[uint32](
@@ -441,9 +332,6 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 			spec.RecurrentLayers = slices.Clone(recurrent[:spec.BlockCount])
 		}
-	}
-	if validation.Recurrent == RecurrentValidationUngroupedScheduledStateSpace {
-		spec.AttentionScale = hostmath.InvSqrt32(uint64(spec.ValueLength))
 	}
 	if validation.Recurrent == RecurrentValidationGroupedStateSpaceOptionalExperts {
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
@@ -588,7 +476,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertGatingFunc = value
 		}
 	}
-	if spec, err = m.runMetadataProgram(spec, compileExpertProgram(profile)); err != nil {
+	if spec, err = m.runMetadataProgram(spec, state, compileExpertProgram(profile)); err != nil {
 		return Spec{}, err
 	}
 	if validation.Attention == AttentionValidationPerLayerDualRotaryAttention {
@@ -840,7 +728,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 func (m specMetadata) readRuntimeMetadata(spec Spec, _ specReadState) (Spec, error) {
 	values, prefix, profile := m.values, m.prefix, m.profile
 	validation := profile.Validation
-	spec, err := m.runMetadataProgram(spec, compileRuntimeProgram(profile))
+	spec, err := m.runMetadataProgram(spec, specReadState{}, compileRuntimeProgram(profile))
 	if err != nil {
 		return Spec{}, err
 	}

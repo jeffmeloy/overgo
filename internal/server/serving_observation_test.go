@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -149,6 +150,25 @@ func TestWebUIRuntimeActivityUsesSessionAndRepoDBAPIs(t *testing.T) {
 	}
 	if strings.Contains(module, `api.get("/slots"`) {
 		t.Fatal("runtime module bypasses session authority")
+	}
+}
+
+func TestOperationEventSSEUsesSharedEmitter(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	defer handler.Close()
+	ctx, cancel := context.WithCancel(t.Context())
+	recorder := &signalingRecorder{ResponseRecorder: httptest.NewRecorder(), flushed: make(chan struct{})}
+	done := make(chan struct{})
+	go func() {
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/runtime/activity/stream", nil).WithContext(ctx))
+		close(done)
+	}()
+	<-recorder.flushed
+	cancel()
+	<-done
+	if recorder.Header().Get("Content-Type") != "text/event-stream" ||
+		!strings.Contains(recorder.Body.String(), "event: operation.snapshot") {
+		t.Fatalf("operation SSE headers=%v body=%s", recorder.Header(), recorder.Body.String())
 	}
 }
 

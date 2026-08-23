@@ -90,6 +90,39 @@ func TestServingAttemptEvidenceRemainsOrderedAndUnique(t *testing.T) {
 	}
 }
 
+func TestOperationEventStreamKeepsLatestBoundedState(t *testing.T) {
+	manager := newTestManager(t)
+	events, unsubscribe, err := manager.Subscribe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unsubscribe()
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "operation event recipe")
+	runID := testutil.ArtifactID(t, artifact.KindRun, "operation event run")
+	outputID := testutil.ArtifactID(t, artifact.KindOutput, "operation event output")
+	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskGeneration, Recipe: recipeID},
+		func(_ context.Context, reporter Reporter) (Completion, error) {
+			reporter.Attempt(testutil.ArtifactID(t, artifact.KindEvidence, "operation event attempt"))
+			reporter.Metric(Metric{Name: "loss", Value: 1})
+			reporter.Publishing()
+			return Completion{Run: runID, Outputs: []artifact.ID{outputID}}, nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Wait(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	if cap(events) != operationEventBuffer || len(events) != operationEventBuffer {
+		t.Fatalf("event queue capacity=%d length=%d", cap(events), len(events))
+	}
+	event := <-events
+	if event.Sequence == 0 || event.Status.State != StateCompleted || event.Status.Run == nil ||
+		*event.Status.Run != runID || !slices.Equal(event.Status.Outputs, []artifact.ID{outputID}) || len(event.Status.Attempts) != 1 {
+		t.Fatalf("latest event = %+v", event)
+	}
+}
+
 func TestOperationCancellationReleasesResources(t *testing.T) {
 	manager := newTestManager(t)
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "operation-cancel-recipe")

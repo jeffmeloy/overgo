@@ -74,3 +74,33 @@ func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Re
 		PublishFail: h.observationErrors.Load(), Activity: activity,
 	})
 }
+
+func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *http.Request) {
+	if !requireMethod(response, request, http.MethodGet) {
+		return
+	}
+	events, unsubscribe, err := h.operations.Subscribe()
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	defer unsubscribe()
+	flusher, ok := beginSSE(response)
+	if !ok {
+		return
+	}
+	stream := newSSEEmitter(request.Context(), response, flusher)
+	if stream.named("operation.snapshot", h.operations.List()) != nil {
+		return
+	}
+	for {
+		select {
+		case <-request.Context().Done():
+			return
+		case event, open := <-events:
+			if !open || stream.named("operation", event) != nil {
+				return
+			}
+		}
+	}
+}

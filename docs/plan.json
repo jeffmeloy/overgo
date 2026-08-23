@@ -62,12 +62,12 @@
       "id": "bifrost-runtime-events",
       "title": "Stream bounded operation state and artifact identities through the existing SSE owner",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Stream bounded operation state and artifact identities through the existing SSE owner",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/operation ./internal/server -run 'Test(OperationEvent|RuntimeActivity|SSE)' -count=1"
         }
       ]

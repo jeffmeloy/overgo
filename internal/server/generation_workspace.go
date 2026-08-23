@@ -84,10 +84,9 @@ func (set WorkflowWorkspaceSet) ExecuteWorkflow(ctx context.Context, kind Workfl
 }
 
 type workflowRequest struct {
-	Task      recipe.Task     `json:"task"`
-	Recipe    artifact.ID     `json:"recipe"`
-	Input     json.RawMessage `json:"input"`
-	Operation *artifact.ID    `json:"operation,omitempty"`
+	Task   recipe.Task     `json:"task"`
+	Recipe artifact.ID     `json:"recipe"`
+	Input  json.RawMessage `json:"input"`
 }
 
 type workflowResponse struct {
@@ -146,11 +145,7 @@ func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Reques
 		writeInvalidRequest(response, err)
 		return
 	}
-	var operationID artifact.ID
-	if body.Operation != nil {
-		operationID = *body.Operation
-	}
-	id, err := h.submitWorkflow(context.WithoutCancel(request.Context()), workspace, kind, capability, body.Input, operationID)
+	id, err := h.submitWorkflow(context.WithoutCancel(request.Context()), workspace, kind, capability, body.Input)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
@@ -164,7 +159,6 @@ func (h *Handler) submitWorkflow(
 	kind WorkflowKind,
 	capability WorkflowCapability,
 	input json.RawMessage,
-	operationID artifact.ID,
 ) (artifact.ID, error) {
 	if h.repository == nil {
 		return artifact.ID{}, errors.New("workflow workspace: durable repository required")
@@ -188,9 +182,6 @@ func (h *Handler) submitWorkflow(
 						return workspace.ExecuteWorkflow(ctx, kind, capability.Task, capability.Recipe, input, reporter)
 					})
 			})
-	}
-	if operationID.Valid() {
-		return h.operations.Recover(ctx, operationID, request, execute)
 	}
 	return h.operations.Submit(ctx, request, execute)
 }

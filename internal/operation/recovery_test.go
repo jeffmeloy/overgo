@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
 
@@ -97,5 +98,48 @@ func TestOperationRecoveryReusesIdentity(t *testing.T) {
 	status, err := manager.Wait(t.Context(), id)
 	if err != nil || status.State != StateCompleted || status.Run == nil || *status.Run != runID {
 		t.Fatalf("recovered status = (%+v, %v)", status, err)
+	}
+}
+
+func TestBlockedOperationResumesAfterDecision(t *testing.T) {
+	manager := newTestManager(t)
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "decision recipe")
+	runID := testutil.ArtifactID(t, artifact.KindRun, "decision run")
+	action := operatoraction.Action{Code: "resume", Summary: "Resume exact work", Argv: []string{"overgo", "resume"}}
+	attempts := 0
+	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
+		func(context.Context, Reporter) (Completion, error) {
+			attempts++
+			if attempts == 1 {
+				return Completion{Run: runID}, operatoraction.Recoverable(errors.New("approval required"), operatoraction.Block{
+					Subject: recipeID, Reason: "operator approval required", Evidence: []artifact.ID{runID},
+					Actions: []operatoraction.Action{action},
+				})
+			}
+			return Completion{Run: runID}, nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status, err := manager.Wait(t.Context(), id); err != nil || status.State != StateBlocked {
+		t.Fatalf("blocked status = (%+v, %v)", status, err)
+	}
+	approval, err := operatoraction.NewApprovalRequest(id, recipeID, action, artifact.ID{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision, err := runrecord.NewHumanDecision(approval, operatoraction.AnswerGrant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.RecoverAfterDecision(t.Context(), decision); err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.Wait(t.Context(), id)
+	if err != nil || status.State != StateCompleted || attempts != 2 {
+		t.Fatalf("recovered status = (%+v, %v), attempts=%d", status, err, attempts)
+	}
+	if _, err := manager.RecoverAfterDecision(t.Context(), decision); err == nil {
+		t.Fatal("decision replay resumed completed work")
 	}
 }

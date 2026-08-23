@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
@@ -144,22 +143,23 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 	}
 	state.apply(normalized, nil)
 	for _, content := range document.Contents {
-		descriptor, found := state.artifacts[content.Artifact]
-		if !found || content.Size <= 0 || uint64(content.Size) != descriptor.Size ||
+		slot := state.slots[content.Artifact]
+		if slot == nil || content.Size <= 0 || uint64(content.Size) != slot.descriptor.Size ||
 			content.FrameVersion < minimumFrameVersion || content.FrameVersion > frameVersion ||
 			content.PayloadOffset < storeHeaderBytes || content.PayloadSize <= 0 {
 			return catalogState{}, errors.New("repodb: invalid snapshot content locator")
 		}
-		state.contents[content.Artifact] = contentLocator{
+		slot.content = contentLocator{
 			offset: content.Offset, size: content.Size, frameVersion: content.FrameVersion,
 			payloadOffset: content.PayloadOffset, payloadSize: content.PayloadSize,
 		}
+		slot.hasContent = true
 	}
 	for index, entry := range document.Commits {
 		if entry.Sequence != uint64(index)+1 {
 			return catalogState{}, errors.New("repodb: invalid snapshot commit sequence")
 		}
-		if _, duplicate := state.commits[entry.Key]; duplicate || !entry.ID.Valid() {
+		if _, duplicate := state.commit(entry.Key); duplicate || !entry.ID.Valid() {
 			return catalogState{}, errors.New("repodb: invalid snapshot commit")
 		}
 		if err := (artifact.Batch{
@@ -173,7 +173,7 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 		}
 		var payload [sha256.Size]byte
 		copy(payload[:], decoded)
-		state.commits[entry.Key] = committedBatch{id: entry.ID, payload: payload, sequence: entry.Sequence}
+		state.addCommit(committedBatch{key: entry.Key, id: entry.ID, payload: payload, sequence: entry.Sequence})
 	}
 	if document.Commits[len(document.Commits)-1].ID != document.Head {
 		return catalogState{}, errors.New("repodb: snapshot head is not a commit")
@@ -265,74 +265,65 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 	stream.raw(`,"log_anchor":`)
 	stream.value(anchor)
 
-	idLess := func(left, right artifact.ID) bool { return left.String() < right.String() }
-	artifactIDs := sortedSnapshotKeys(state.artifacts, idLess)
+	artifactIDs := snapshotArtifactIDs(state, func(*artifactSlot) bool { return true })
 	stream.array("artifacts", len(artifactIDs), false, func(index int) {
-		stream.value(state.artifacts[artifactIDs[index]])
+		stream.value(state.slots[artifactIDs[index]].descriptor)
 	})
-	contentIDs := sortedSnapshotKeys(state.contents, idLess)
+	contentIDs := snapshotArtifactIDs(state, func(slot *artifactSlot) bool { return slot.hasContent })
 	stream.array("contents", len(contentIDs), true, func(index int) {
 		id := contentIDs[index]
-		locator := state.contents[id]
+		locator := state.slots[id].content
 		stream.value(snapshotContent{
 			Artifact: id, Offset: locator.offset, Size: locator.size, FrameVersion: locator.frameVersion,
 			PayloadOffset: locator.payloadOffset, PayloadSize: locator.payloadSize,
 		})
 	})
-	manifestIDs := sortedSnapshotKeys(state.manifests, idLess)
+	manifestIDs := snapshotArtifactIDs(state, func(slot *artifactSlot) bool { return slot.hasManifest })
 	stream.array("manifests", len(manifestIDs), true, func(index int) {
-		stream.value(state.manifests[manifestIDs[index]])
+		stream.value(state.slots[manifestIDs[index]].manifest)
 	})
-	aliases := sortedSnapshotKeys(state.aliases, func(left, right string) bool { return left < right })
+	aliases := make([]string, 0, len(state.aliases))
+	for name := range state.aliases {
+		aliases = append(aliases, name)
+	}
+	slices.Sort(aliases)
 	stream.array("aliases", len(aliases), true, func(index int) {
 		name := aliases[index]
 		stream.value(snapshotAlias{Name: name, Target: state.aliases[name]})
 	})
-	lineage := sortedSnapshotKeys(state.lineage, func(left, right relationKey) bool {
-		if left.child != right.child {
-			return left.child.String() < right.child.String()
-		}
-		if left.parent != right.parent {
-			return left.parent.String() < right.parent.String()
-		}
-		return left.relation < right.relation
-	})
+	lineage := make([]relationKey, 0, state.edgeCount)
+	locations := make([]artifact.Location, 0)
+	for _, id := range artifactIDs {
+		slot := state.slots[id]
+		lineage = append(lineage, slot.parents...)
+		locations = append(locations, slot.locations...)
+	}
 	stream.array("lineage", len(lineage), true, func(index int) {
-		stream.value(state.lineage[lineage[index]])
-	})
-	locations := sortedSnapshotKeys(state.locations, func(left, right locationKey) bool {
-		if left.artifact != right.artifact {
-			return left.artifact.String() < right.artifact.String()
-		}
-		if left.kind != right.kind {
-			return left.kind < right.kind
-		}
-		return left.value < right.value
+		key := lineage[index]
+		stream.value(artifact.Lineage{Child: key.child, Parent: key.parent, Relation: key.relation})
 	})
 	stream.array("locations", len(locations), true, func(index int) {
-		stream.value(state.locations[locations[index]])
+		stream.value(locations[index])
 	})
-	commits := sortedSnapshotKeys(state.commits, func(left, right string) bool {
-		return state.commits[left].sequence < state.commits[right].sequence
-	})
-	stream.array("commits", len(commits), false, func(index int) {
-		key := commits[index]
-		commit := state.commits[key]
+	stream.array("commits", len(state.commits), false, func(index int) {
+		commit := state.commits[index]
 		stream.value(snapshotCommit{
-			Key: key, ID: commit.id, Payload: hex.EncodeToString(commit.payload[:]), Sequence: commit.sequence,
+			Key: commit.key, ID: commit.id, Payload: hex.EncodeToString(commit.payload[:]), Sequence: commit.sequence,
 		})
 	})
 	stream.raw("}")
 	return stream.err
 }
 
-func sortedSnapshotKeys[K comparable, V any](values map[K]V, less func(K, K) bool) []K {
-	keys := make([]K, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
+func snapshotArtifactIDs(state catalogState, include func(*artifactSlot) bool) []artifact.ID {
+	ids := make([]artifact.ID, 0, len(state.slots))
+	for id, slot := range state.slots {
+		if include(slot) {
+			ids = append(ids, id)
+		}
 	}
-	sort.Slice(keys, func(left, right int) bool { return less(keys[left], keys[right]) })
-	return keys
+	slices.SortFunc(ids, artifact.CompareID)
+	return ids
 }
 
 func writeSnapshot(ctx context.Context, root string, sequence uint64, head artifact.CommitID, offset int64, anchor string, state catalogState) (string, error) {

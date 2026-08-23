@@ -2,6 +2,7 @@ package repodb
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -37,13 +38,8 @@ type relationKey struct {
 	relation artifact.Relation
 }
 
-type locationKey struct {
-	artifact artifact.ID
-	kind     artifact.LocationKind
-	value    string
-}
-
 type committedBatch struct {
+	key      string
 	id       artifact.CommitID
 	payload  [sha256.Size]byte
 	sequence uint64
@@ -63,54 +59,51 @@ type contentLocator struct {
 	payloadSize   int64
 }
 
+type artifactSlot struct {
+	descriptor  artifact.Descriptor
+	content     contentLocator
+	manifest    artifact.Manifest
+	parents     []relationKey
+	children    []relationKey
+	locations   []artifact.Location
+	hasContent  bool
+	hasManifest bool
+}
+
 type catalogState struct {
-	artifacts           map[artifact.ID]artifact.Descriptor
-	artifactsByMedia    map[string]map[artifact.ID]struct{}
-	artifactsBySchema   map[string]map[artifact.ID]struct{}
-	contents            map[artifact.ID]contentLocator
-	manifests           map[artifact.ID]artifact.Manifest
-	aliases             map[string]artifact.ID
-	lineage             map[relationKey]artifact.Lineage
-	parentEdges         map[artifact.ID]map[relationKey]struct{}
-	childEdges          map[artifact.ID]map[relationKey]struct{}
-	locations           map[locationKey]artifact.Location
-	locationsByArtifact map[artifact.ID]map[locationKey]artifact.Location
-	commits             map[string]committedBatch
+	slots       map[artifact.ID]*artifactSlot
+	byMedia     map[string][]artifact.ID
+	bySchema    map[string][]artifact.ID
+	aliases     map[string]artifact.ID
+	commits     []committedBatch
+	commitByKey map[string]int
+	edgeCount   int
 }
 
 func newCatalogState() catalogState {
 	return catalogState{
-		artifacts:           map[artifact.ID]artifact.Descriptor{},
-		artifactsByMedia:    map[string]map[artifact.ID]struct{}{},
-		artifactsBySchema:   map[string]map[artifact.ID]struct{}{},
-		contents:            map[artifact.ID]contentLocator{},
-		manifests:           map[artifact.ID]artifact.Manifest{},
-		aliases:             map[string]artifact.ID{},
-		lineage:             map[relationKey]artifact.Lineage{},
-		parentEdges:         map[artifact.ID]map[relationKey]struct{}{},
-		childEdges:          map[artifact.ID]map[relationKey]struct{}{},
-		locations:           map[locationKey]artifact.Location{},
-		locationsByArtifact: map[artifact.ID]map[locationKey]artifact.Location{},
-		commits:             map[string]committedBatch{},
+		slots: map[artifact.ID]*artifactSlot{}, byMedia: map[string][]artifact.ID{},
+		bySchema: map[string][]artifact.ID{}, aliases: map[string]artifact.ID{},
+		commitByKey: map[string]int{},
 	}
 }
 
 func (s catalogState) validate(batch artifact.Batch) error {
 	added := make(map[artifact.ID]struct{}, len(batch.Artifacts))
 	for _, descriptor := range batch.Artifacts {
-		if current, ok := s.artifacts[descriptor.ID]; ok && current != descriptor {
+		if slot, ok := s.slots[descriptor.ID]; ok && slot.descriptor != descriptor {
 			return fmt.Errorf("%w: %s", ErrArtifactConflict, descriptor.ID)
 		}
 		added[descriptor.ID] = struct{}{}
 	}
 	for _, manifest := range batch.Manifests {
-		if current, ok := s.manifests[manifest.ID]; ok && !sameManifest(current, manifest) {
+		if slot, ok := s.slots[manifest.ID]; ok && slot.hasManifest && !sameManifest(slot.manifest, manifest) {
 			return fmt.Errorf("%w: manifest %s", ErrArtifactConflict, manifest.ID)
 		}
 	}
 	for _, binding := range batch.Aliases {
 		if !binding.Remove {
-			if _, stored := s.artifacts[binding.Target]; !stored {
+			if _, stored := s.slots[binding.Target]; !stored {
 				if _, pending := added[binding.Target]; !pending {
 					return fmt.Errorf("repodb: alias %q targets unknown artifact %s", binding.Name, binding.Target)
 				}
@@ -133,7 +126,7 @@ func (s catalogState) validate(batch artifact.Batch) error {
 			return fmt.Errorf("repodb: lineage parent is unknown: %s", edge.Parent)
 		}
 		key := relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation}
-		if _, exists := s.lineage[key]; exists {
+		if s.hasRelation(key) {
 			continue
 		}
 		if s.reaches(edge.Parent, edge.Child, pendingParents) {
@@ -150,8 +143,7 @@ func (s catalogState) validate(batch artifact.Batch) error {
 		if !s.hasArtifact(event.Artifact, added) {
 			return fmt.Errorf("repodb: location artifact is unknown: %s", event.Artifact)
 		}
-		key := locationKey{artifact: event.Artifact, kind: event.Kind, value: event.Value}
-		_, exists := s.locations[key]
+		exists := s.hasLocation(event.Location)
 		if event.Action == artifact.LocationRemove && !exists {
 			return fmt.Errorf("repodb: remove unknown location %q", event.Value)
 		}
@@ -160,7 +152,7 @@ func (s catalogState) validate(batch artifact.Batch) error {
 }
 
 func (s catalogState) hasArtifact(id artifact.ID, added map[artifact.ID]struct{}) bool {
-	if _, ok := s.artifacts[id]; ok {
+	if _, ok := s.slots[id]; ok {
 		return true
 	}
 	_, ok := added[id]
@@ -169,15 +161,20 @@ func (s catalogState) hasArtifact(id artifact.ID, added map[artifact.ID]struct{}
 
 func (s *catalogState) apply(batch artifact.Batch, locators map[artifact.ID]contentLocator) {
 	for _, descriptor := range batch.Artifacts {
-		s.artifacts[descriptor.ID] = descriptor
-		indexDescriptor(s.artifactsByMedia, descriptor.MediaType, descriptor.ID)
-		indexDescriptor(s.artifactsBySchema, descriptor.Schema, descriptor.ID)
+		if _, found := s.slots[descriptor.ID]; found {
+			continue
+		}
+		s.slots[descriptor.ID] = &artifactSlot{descriptor: descriptor}
+		indexDescriptor(s.byMedia, descriptor.MediaType, descriptor.ID)
+		indexDescriptor(s.bySchema, descriptor.Schema, descriptor.ID)
 	}
 	for _, content := range batch.Contents {
-		s.contents[content.Descriptor.ID] = locators[content.Descriptor.ID]
+		slot := s.slots[content.Descriptor.ID]
+		slot.content, slot.hasContent = locators[content.Descriptor.ID], true
 	}
 	for _, manifest := range batch.Manifests {
-		s.manifests[manifest.ID] = manifest.Clone()
+		slot := s.slots[manifest.ID]
+		slot.manifest, slot.hasManifest = manifest.Clone(), true
 	}
 	for _, binding := range batch.Aliases {
 		if binding.Remove {
@@ -188,30 +185,23 @@ func (s *catalogState) apply(batch artifact.Batch, locators map[artifact.ID]cont
 	}
 	for _, edge := range batch.Lineage {
 		key := relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation}
-		if _, exists := s.lineage[key]; exists {
+		if s.hasRelation(key) {
 			continue
 		}
-		s.lineage[key] = edge
-		indexRelation(s.parentEdges, edge.Child, key)
-		indexRelation(s.childEdges, edge.Parent, key)
+		child, parent := s.slots[edge.Child], s.slots[edge.Parent]
+		child.parents = insertRelation(child.parents, key)
+		parent.children = insertRelation(parent.children, key)
+		s.edgeCount++
 	}
 	for _, event := range batch.Locations {
-		key := locationKey{artifact: event.Artifact, kind: event.Kind, value: event.Value}
+		slot := s.slots[event.Artifact]
+		index, found := slices.BinarySearchFunc(slot.locations, event.Location, compareLocation)
 		if event.Action == artifact.LocationAdd {
-			s.locations[key] = event.Location
-			locations := s.locationsByArtifact[event.Artifact]
-			if locations == nil {
-				locations = map[locationKey]artifact.Location{}
-				s.locationsByArtifact[event.Artifact] = locations
+			if !found {
+				slot.locations = slices.Insert(slot.locations, index, event.Location)
 			}
-			locations[key] = event.Location
-		} else {
-			delete(s.locations, key)
-			locations := s.locationsByArtifact[event.Artifact]
-			delete(locations, key)
-			if len(locations) == 0 {
-				delete(s.locationsByArtifact, event.Artifact)
-			}
+		} else if found {
+			slot.locations = slices.Delete(slot.locations, index, index+1)
 		}
 	}
 }
@@ -219,17 +209,17 @@ func (s *catalogState) apply(batch artifact.Batch, locators map[artifact.ID]cont
 func (s catalogState) delta(batch artifact.Batch) artifact.Batch {
 	delta := artifact.Batch{Key: batch.Key, ExpectedHead: cloneCommitID(batch.ExpectedHead)}
 	for _, descriptor := range batch.Artifacts {
-		if _, exists := s.artifacts[descriptor.ID]; !exists {
+		if _, exists := s.slots[descriptor.ID]; !exists {
 			delta.Artifacts = append(delta.Artifacts, descriptor)
 		}
 	}
 	for _, content := range batch.Contents {
-		if _, exists := s.contents[content.Descriptor.ID]; !exists {
+		if slot, exists := s.slots[content.Descriptor.ID]; !exists || !slot.hasContent {
 			delta.Contents = append(delta.Contents, content)
 		}
 	}
 	for _, manifest := range batch.Manifests {
-		if _, exists := s.manifests[manifest.ID]; !exists {
+		if slot, exists := s.slots[manifest.ID]; !exists || !slot.hasManifest {
 			delta.Manifests = append(delta.Manifests, manifest)
 		}
 	}
@@ -241,13 +231,12 @@ func (s catalogState) delta(batch artifact.Batch) artifact.Batch {
 	}
 	for _, edge := range batch.Lineage {
 		key := relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation}
-		if _, exists := s.lineage[key]; !exists {
+		if !s.hasRelation(key) {
 			delta.Lineage = append(delta.Lineage, edge)
 		}
 	}
 	for _, event := range batch.Locations {
-		key := locationKey{artifact: event.Artifact, kind: event.Kind, value: event.Value}
-		_, exists := s.locations[key]
+		exists := s.hasLocation(event.Location)
 		if event.Action == artifact.LocationRemove || !exists {
 			delta.Locations = append(delta.Locations, event)
 		}
@@ -255,33 +244,75 @@ func (s catalogState) delta(batch artifact.Batch) artifact.Batch {
 	return delta
 }
 
-func indexDescriptor(index map[string]map[artifact.ID]struct{}, key string, id artifact.ID) {
+func indexDescriptor(index map[string][]artifact.ID, key string, id artifact.ID) {
 	if key == "" {
 		return
 	}
 	ids := index[key]
-	if ids == nil {
-		ids = map[artifact.ID]struct{}{}
-		index[key] = ids
+	offset, found := slices.BinarySearchFunc(ids, id, artifact.CompareID)
+	if !found {
+		index[key] = slices.Insert(ids, offset, id)
 	}
-	ids[id] = struct{}{}
 }
 
-func indexRelation(
-	index map[artifact.ID]map[relationKey]struct{},
-	id artifact.ID,
-	key relationKey,
-) {
-	edges := index[id]
-	if edges == nil {
-		edges = map[relationKey]struct{}{}
-		index[id] = edges
+func compareRelation(left, right relationKey) int {
+	if order := artifact.CompareID(left.child, right.child); order != 0 {
+		return order
 	}
-	edges[key] = struct{}{}
+	if order := artifact.CompareID(left.parent, right.parent); order != 0 {
+		return order
+	}
+	return cmp.Compare(left.relation, right.relation)
+}
+
+func insertRelation(edges []relationKey, key relationKey) []relationKey {
+	index, found := slices.BinarySearchFunc(edges, key, compareRelation)
+	if found {
+		return edges
+	}
+	return slices.Insert(edges, index, key)
+}
+
+func (s catalogState) hasRelation(key relationKey) bool {
+	slot := s.slots[key.child]
+	if slot == nil {
+		return false
+	}
+	_, found := slices.BinarySearchFunc(slot.parents, key, compareRelation)
+	return found
+}
+
+func compareLocation(left, right artifact.Location) int {
+	if order := cmp.Compare(left.Kind, right.Kind); order != 0 {
+		return order
+	}
+	return cmp.Compare(left.Value, right.Value)
+}
+
+func (s catalogState) hasLocation(location artifact.Location) bool {
+	slot := s.slots[location.Artifact]
+	if slot == nil {
+		return false
+	}
+	_, found := slices.BinarySearchFunc(slot.locations, location, compareLocation)
+	return found
 }
 
 func sameManifest(left, right artifact.Manifest) bool {
 	return left.Version == right.Version && left.ID == right.ID && slices.Equal(left.Components, right.Components)
+}
+
+func (s catalogState) commit(key string) (committedBatch, bool) {
+	index, found := s.commitByKey[key]
+	if !found {
+		return committedBatch{}, false
+	}
+	return s.commits[index], true
+}
+
+func (s *catalogState) addCommit(commit committedBatch) {
+	s.commitByKey[commit.key] = len(s.commits)
+	s.commits = append(s.commits, commit)
 }
 
 func (s catalogState) reaches(start, target artifact.ID, pending map[artifact.ID]map[artifact.ID]struct{}) bool {
@@ -304,9 +335,11 @@ func (s catalogState) reaches(start, target artifact.ID, pending map[artifact.ID
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
-		for key := range s.parentEdges[current] {
-			if visit(key.parent) {
-				return true
+		if slot := s.slots[current]; slot != nil {
+			for _, key := range slot.parents {
+				if visit(key.parent) {
+					return true
+				}
 			}
 		}
 		for parent := range pending[current] {
@@ -372,16 +405,14 @@ func (s *Store) applyRecord(record logRecord) error {
 	if batch.ExpectedHead != nil && *batch.ExpectedHead != record.previous {
 		return fmt.Errorf("%w: recorded predecessor differs", ErrHeadConflict)
 	}
-	if _, exists := s.state.commits[batch.Key]; exists {
+	if _, exists := s.state.commit(batch.Key); exists {
 		return fmt.Errorf("%w: %q repeats in log", ErrBatchKeyConflict, batch.Key)
 	}
 	if err := s.state.validate(batch); err != nil {
 		return err
 	}
 	s.state.apply(batch, locators)
-	s.state.commits[batch.Key] = committedBatch{
-		id: record.id, payload: payloadHash, sequence: record.sequence,
-	}
+	s.state.addCommit(committedBatch{key: batch.Key, id: record.id, payload: payloadHash, sequence: record.sequence})
 	return nil
 }
 
@@ -426,7 +457,7 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 	if err := contextError(ctx); err != nil {
 		return artifact.CommitID{}, err
 	}
-	if committed, ok := s.state.commits[normalized.Key]; ok {
+	if committed, ok := s.state.commit(normalized.Key); ok {
 		if committed.payload == payloadHash {
 			return committed.id, nil
 		}
@@ -454,7 +485,7 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 	}
 	bindContentLocators(locators, payloadOffset, int64(len(payload)), frameVersion)
 	s.state.apply(delta, locators)
-	s.state.commits[normalized.Key] = committedBatch{id: id, payload: payloadHash, sequence: sequence}
+	s.state.addCommit(committedBatch{key: normalized.Key, id: id, payload: payloadHash, sequence: sequence})
 	s.sequence = sequence
 	s.head = id
 	s.replayEnd = replayEnd
@@ -470,8 +501,11 @@ func (s *Store) Artifact(ctx context.Context, id artifact.ID) (artifact.Descript
 	if err := s.ready(false); err != nil {
 		return artifact.Descriptor{}, false, err
 	}
-	value, ok := s.state.artifacts[id]
-	return value, ok, nil
+	slot, ok := s.state.slots[id]
+	if !ok {
+		return artifact.Descriptor{}, false, nil
+	}
+	return slot.descriptor, true, nil
 }
 
 func (s *Store) Manifest(ctx context.Context, id artifact.ID) (artifact.Manifest, bool, error) {
@@ -483,8 +517,11 @@ func (s *Store) Manifest(ctx context.Context, id artifact.ID) (artifact.Manifest
 	if err := s.ready(false); err != nil {
 		return artifact.Manifest{}, false, err
 	}
-	value, ok := s.state.manifests[id]
-	return value.Clone(), ok, nil
+	slot, ok := s.state.slots[id]
+	if !ok || !slot.hasManifest {
+		return artifact.Manifest{}, false, nil
+	}
+	return slot.manifest.Clone(), true, nil
 }
 
 func (s *Store) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descriptor, io.Reader, bool, error) {
@@ -496,15 +533,15 @@ func (s *Store) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descr
 	if err := s.ready(false); err != nil {
 		return artifact.Descriptor{}, nil, false, err
 	}
-	locator, ok := s.state.contents[id]
-	if !ok {
+	slot, ok := s.state.slots[id]
+	if !ok || !slot.hasContent {
 		return artifact.Descriptor{}, nil, false, nil
 	}
-	reader, err := s.log.openContent(locator, id)
+	reader, err := s.log.openContent(slot.content, id)
 	if err != nil {
 		return artifact.Descriptor{}, nil, false, err
 	}
-	return s.state.artifacts[id], reader, true, nil
+	return slot.descriptor, reader, true, nil
 }
 
 // VisitContents streams requested content in storage order.
@@ -532,11 +569,11 @@ func (s *Store) VisitContents(ctx context.Context, ids []artifact.ID, visit func
 			continue
 		}
 		seen[id] = struct{}{}
-		locator, found := s.state.contents[id]
-		if !found {
+		slot, found := s.state.slots[id]
+		if !found || !slot.hasContent {
 			return fmt.Errorf("repodb: content is absent: %s", id)
 		}
-		entries = append(entries, entry{id: id, descriptor: s.state.artifacts[id], locator: locator})
+		entries = append(entries, entry{id: id, descriptor: slot.descriptor, locator: slot.content})
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		left, right := entries[i].locator, entries[j].locator
@@ -649,8 +686,8 @@ func (s *Store) HasContent(ctx context.Context, id artifact.ID) (bool, error) {
 	if err := s.ready(false); err != nil {
 		return false, err
 	}
-	_, ok := s.state.contents[id]
-	return ok, nil
+	slot, ok := s.state.slots[id]
+	return ok && slot.hasContent, nil
 }
 
 func (s *Store) ResolveAlias(ctx context.Context, name string) (artifact.ID, bool, error) {
@@ -683,18 +720,11 @@ func (s *Store) Locations(ctx context.Context, id artifact.ID) ([]artifact.Locat
 	if err := s.ready(false); err != nil {
 		return nil, err
 	}
-	locations := s.state.locationsByArtifact[id]
-	result := make([]artifact.Location, 0, len(locations))
-	for _, location := range locations {
-		result = append(result, location)
+	slot := s.state.slots[id]
+	if slot == nil {
+		return nil, nil
 	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Kind != result[j].Kind {
-			return result[i].Kind < result[j].Kind
-		}
-		return result[i].Value < result[j].Value
-	})
-	return result, nil
+	return slices.Clone(slot.locations), nil
 }
 
 func (s *Store) lineageFor(ctx context.Context, id artifact.ID, parents bool) ([]artifact.Lineage, error) {
@@ -706,13 +736,17 @@ func (s *Store) lineageFor(ctx context.Context, id artifact.ID, parents bool) ([
 	if err := s.ready(false); err != nil {
 		return nil, err
 	}
-	edges := s.state.childEdges[id]
+	slot := s.state.slots[id]
+	if slot == nil {
+		return nil, nil
+	}
+	edges := slot.children
 	if parents {
-		edges = s.state.parentEdges[id]
+		edges = slot.parents
 	}
 	result := make([]artifact.Lineage, 0, len(edges))
-	for key := range edges {
-		result = append(result, s.state.lineage[key])
+	for _, key := range edges {
+		result = append(result, artifact.Lineage{Child: key.child, Parent: key.parent, Relation: key.relation})
 	}
 	sort.Slice(result, func(i, j int) bool {
 		left, right := result[i], result[j]

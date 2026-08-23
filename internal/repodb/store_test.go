@@ -27,9 +27,9 @@ const (
 
 func TestCanonicalCatalogOwnership(t *testing.T) {
 	state := newCatalogState()
-	var _ map[artifact.ID]contentLocator = state.contents
-	var _ map[artifact.ID]map[relationKey]struct{} = state.parentEdges
-	var _ map[artifact.ID]map[relationKey]struct{} = state.childEdges
+	if state.slots == nil || state.byMedia == nil || state.bySchema == nil || state.commitByKey == nil {
+		t.Fatal("catalog indexes are not initialized")
+	}
 }
 
 func TestLineageIndexesReferenceCanonicalEdges(t *testing.T) {
@@ -38,13 +38,10 @@ func TestLineageIndexesReferenceCanonicalEdges(t *testing.T) {
 	state.apply(batch, nil)
 	edge := batch.Lineage[0]
 	key := relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation}
-	if state.lineage[key] != edge {
-		t.Fatalf("canonical edge = %+v, want %+v", state.lineage[key], edge)
-	}
-	if _, ok := state.parentEdges[edge.Child][key]; !ok {
+	if _, ok := slices.BinarySearchFunc(state.slots[edge.Child].parents, key, compareRelation); !ok {
 		t.Fatal("parent index lacks canonical edge key")
 	}
-	if _, ok := state.childEdges[edge.Parent][key]; !ok {
+	if _, ok := slices.BinarySearchFunc(state.slots[edge.Parent].children, key, compareRelation); !ok {
 		t.Fatal("child index lacks canonical edge key")
 	}
 }
@@ -63,7 +60,7 @@ func TestContentUsesDescriptorAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	descriptor.Schema = "fixture/canonical/v1"
-	store.state.artifacts[descriptor.ID] = descriptor
+	store.state.slots[descriptor.ID].descriptor = descriptor
 	got, ok, err := artifact.ReadContent(context.Background(), store, descriptor.ID)
 	if err != nil || !ok || got.Descriptor != descriptor || !slices.Equal(got.Data, content.Data) {
 		t.Fatalf("content = (%+v, %v, %v)", got, ok, err)
@@ -83,7 +80,7 @@ func TestLazyContentOpenContentAndSnapshotReplay(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	locator := store.state.contents[descriptor.ID]
+	locator := store.state.slots[descriptor.ID].content
 	if locator.size != int64(len(content.Data)) || locator.frameVersion != frameVersion {
 		t.Fatalf("content locator = %+v", locator)
 	}
@@ -310,7 +307,7 @@ func TestCommitDeltaRetainsRequestIdentity(t *testing.T) {
 	if _, err := store.Commit(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
-	if committed := store.state.commits[request.Key]; committed.payload != requestDigest {
+	if committed, found := store.state.commit(request.Key); !found || committed.payload != requestDigest {
 		t.Fatalf("request digest = %x, want %x", committed.payload, requestDigest)
 	}
 }

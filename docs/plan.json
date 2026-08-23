@@ -1561,12 +1561,12 @@
       "id": "repodb-indexed-catalog",
       "title": "Compile RepoDB catalog facts into ordered indexed slots",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Replace repeated ID-keyed descriptor, contract, lineage, location, and commit representations with one artifact slot table and compact ordered secondary indexes; migrate validation and replay; delete displaced maps",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/repodb -run 'Test(CanonicalCatalogOwnership|LineageIndexes|Location|CommitReplay|QueryFilters|Snapshot)' -count=1",
           "rationale": "The catalog repeats full artifact and relation identities across canonical maps and multiple nested-set indexes. Numeric slots retain exact contracts while reducing allocation, lookup, and update work and provide insertion-sequence order for bounded queries.",
           "depends_on": [

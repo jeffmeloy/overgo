@@ -1,7 +1,9 @@
 package artifact
 
 import (
+	"context"
 	"errors"
+	"io"
 	"slices"
 )
 
@@ -15,6 +17,38 @@ type DocumentContract struct {
 	Kind      Kind
 	MediaType string
 	Schema    string
+}
+
+// ReadContent materializes one bounded content stream.
+func ReadContent(ctx context.Context, reader Reader, id ID) (Content, bool, error) {
+	if ctx == nil || reader == nil {
+		return Content{}, false, errors.New("artifact: nil content context or reader")
+	}
+	descriptor, stream, found, err := reader.OpenContent(ctx, id)
+	if err != nil || !found {
+		return Content{}, found, err
+	}
+	content, err := ReadContentFrom(descriptor, stream)
+	return content, err == nil, err
+}
+
+// ReadContentFrom materializes one opened content stream.
+func ReadContentFrom(descriptor Descriptor, stream io.Reader) (Content, error) {
+	if stream == nil {
+		return Content{}, errors.New("artifact: nil content stream")
+	}
+	if descriptor.Size == 0 || descriptor.Size > MaxContentBytes {
+		return Content{}, errors.New("artifact: invalid content descriptor size")
+	}
+	data, err := io.ReadAll(io.LimitReader(stream, int64(descriptor.Size)+1))
+	if err != nil {
+		return Content{}, err
+	}
+	content := Content{Descriptor: descriptor, Data: data}
+	if err := content.Validate(); err != nil {
+		return Content{}, err
+	}
+	return content, nil
 }
 
 func (c DocumentContract) Identify(data []byte) (ID, error) {

@@ -120,7 +120,7 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 	}
 
 	module := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
-	for _, token := range []string{"capability.controls", "capability.recipe", "/operations?id="} {
+	for _, token := range []string{"capability.controls", "capability.recipe", "overgo.waitOperation"} {
 		if !strings.Contains(module, token) {
 			t.Errorf("generation module missing %q", token)
 		}

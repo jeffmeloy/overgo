@@ -10,12 +10,19 @@
       panel.appendChild(el("div", { class: "note", text: "loading active recipe" }));
 
       let data;
+      let bundles = [];
       try {
         data = await overgo.api.get("/recipes/active?task=inference");
       } catch (err) {
         panel.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
         return;
       }
+	  try {
+		const bundleData = await overgo.api.get("/capabilities/bundles");
+		bundles = bundleData.bundles || [];
+	  } catch (_) {
+		bundles = [];
+	  }
       clear(panel);
       if (!data.admitted) {
         panel.append(
@@ -70,6 +77,12 @@
         }
         panel.appendChild(evidence);
       }
+	  if (bundles.length) {
+		panel.appendChild(el("div", { class: "section-title", text: "Capability bundles" }));
+		const bundleList = el("div", { class: "row" });
+		for (const id of bundles) bundleList.appendChild(el("span", { class: "tag", title: id, text: fmt.shortID(id) }));
+		panel.appendChild(bundleList);
+	  }
     },
   });
 })();

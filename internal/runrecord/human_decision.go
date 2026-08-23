@@ -11,8 +11,10 @@ import (
 )
 
 const (
-	humanDecisionMediaType = "application/vnd.overgo.human-decision+json"
-	humanDecisionSchema    = "overgo/human-decision/v1"
+	// HumanDecisionMediaType identifies human decision documents.
+	HumanDecisionMediaType = "application/vnd.overgo.human-decision+json"
+	// HumanDecisionSchema identifies the human decision contract.
+	HumanDecisionSchema    = "overgo/human-decision/v1"
 	humanDecisionAliasRoot = "operations/decision/"
 )
 
@@ -30,7 +32,7 @@ type HumanDecision struct {
 }
 
 var humanDecisionCodec = artifact.JSONDocumentCodec(
-	"human decision", artifact.KindEvidence, humanDecisionMediaType, humanDecisionSchema,
+	"human decision", artifact.KindEvidence, HumanDecisionMediaType, HumanDecisionSchema,
 	canonicalizeHumanDecision,
 	func(value HumanDecision) artifact.ID { return value.ID },
 	func(value *HumanDecision, id artifact.ID) { value.ID = id },

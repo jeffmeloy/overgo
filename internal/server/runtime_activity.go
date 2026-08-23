@@ -1,6 +1,9 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"sort"
 
@@ -36,17 +39,24 @@ type servingActivity struct {
 }
 
 type runtimeActivityResponse struct {
-	Count       int                `json:"count"`
-	Truncated   bool               `json:"truncated"`
-	PublishFail uint64             `json:"publish_failures"`
-	Activity    []servingActivity  `json:"activity"`
-	Operations  []operation.Status `json:"operations"`
+	Count        int                `json:"count"`
+	Truncated    bool               `json:"truncated"`
+	PublishFail  uint64             `json:"publish_failures"`
+	Activity     []servingActivity  `json:"activity"`
+	Operations   []operation.Status `json:"operations"`
+	Stages       []json.RawMessage  `json:"stages,omitempty"`
+	Decisions    []json.RawMessage  `json:"decisions,omitempty"`
+	Interactions []json.RawMessage  `json:"interactions,omitempty"`
 }
 
 func (h *Handler) runtimeSessions(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
+	writeJSON(response, http.StatusOK, h.runtimeSessionsSnapshot())
+}
+
+func (h *Handler) runtimeSessionsSnapshot() runtimeSessionsResponse {
 	var authority *runtimeAuthority
 	if inspector, ok := h.generator.(interface {
 		RecipeRuntimeDescription(recipe.Task) (modelrecipe.RuntimeDescription, error)
@@ -60,24 +70,33 @@ func (h *Handler) runtimeSessions(response http.ResponseWriter, request *http.Re
 			}
 		}
 	}
-	writeJSON(response, http.StatusOK, runtimeSessionsResponse{
+	return runtimeSessionsResponse{
 		Session: h.sessions.Snapshot(), Authority: authority, Slots: h.sessionStatus(false),
-	})
+	}
 }
 
 func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
-	if h.repository == nil && h.config.RepoDBPath == "" {
+	activity, err := h.runtimeActivitySnapshot(request.Context())
+	if errors.Is(err, errBrowseRepositoryUnavailable) {
 		writeJSON(response, http.StatusOK, runtimeActivityResponse{Operations: h.operations.List()})
 		return
 	}
-	store, ok := h.requireBrowseStore(response, request)
-	if !ok {
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
 		return
 	}
-	result, err := store.Query(request.Context(), repodb.Query{
+	writeJSON(response, http.StatusOK, activity)
+}
+
+func (h *Handler) runtimeActivitySnapshot(ctx context.Context) (runtimeActivityResponse, error) {
+	store, err := h.browseStore(ctx)
+	if err != nil {
+		return runtimeActivityResponse{}, err
+	}
+	result, err := store.Query(ctx, repodb.Query{
 		Kind:       artifact.KindEvidence,
 		MediaType:  runrecord.ServingObservationMediaType,
 		Schema:     runrecord.ServingObservationSchema,
@@ -85,8 +104,7 @@ func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Re
 		Projection: repodb.ProjectContentData,
 	})
 	if err != nil {
-		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
-		return
+		return runtimeActivityResponse{}, err
 	}
 	activity := make([]servingActivity, 0, len(result.Contents))
 	for _, content := range result.Contents {
@@ -98,10 +116,43 @@ func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Re
 	sort.Slice(activity, func(left, right int) bool {
 		return activity[left].StartedUnixNS > activity[right].StartedUnixNS
 	})
-	writeJSON(response, http.StatusOK, runtimeActivityResponse{
-		Count: len(activity), Truncated: result.Truncated,
+	stages, stagesTruncated, err := projectedDocuments(ctx, store, runrecord.StageReceiptMediaType, runrecord.StageReceiptSchema)
+	if err != nil {
+		return runtimeActivityResponse{}, err
+	}
+	decisions, decisionsTruncated, err := projectedDocuments(ctx, store, runrecord.HumanDecisionMediaType, runrecord.HumanDecisionSchema)
+	if err != nil {
+		return runtimeActivityResponse{}, err
+	}
+	interactions, interactionsTruncated, err := projectedDocuments(ctx, store, runrecord.InteractionMediaType, runrecord.InteractionSchema)
+	if err != nil {
+		return runtimeActivityResponse{}, err
+	}
+	return runtimeActivityResponse{
+		Count:       len(activity),
 		PublishFail: h.observationErrors.Load(), Activity: activity, Operations: h.operations.List(),
+		Stages: stages, Decisions: decisions, Interactions: interactions,
+		Truncated: result.Truncated || stagesTruncated || decisionsTruncated || interactionsTruncated,
+	}, nil
+}
+
+func projectedDocuments(
+	ctx context.Context,
+	store *repodb.Store,
+	mediaType, schema string,
+) ([]json.RawMessage, bool, error) {
+	result, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindEvidence, MediaType: mediaType, Schema: schema,
+		MaxResults: store.QueryExtent(), Projection: repodb.ProjectContentData,
 	})
+	if err != nil {
+		return nil, false, err
+	}
+	documents := make([]json.RawMessage, len(result.Contents))
+	for index, content := range result.Contents {
+		documents[index] = json.RawMessage(content.Data)
+	}
+	return documents, result.Truncated, nil
 }
 
 func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *http.Request) {
@@ -119,6 +170,20 @@ func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *h
 		return
 	}
 	stream := newSSEEmitter(request.Context(), response, flusher)
+	if stream.named("runtime.sessions", h.runtimeSessionsSnapshot()) != nil {
+		return
+	}
+	if activity, snapshotErr := h.runtimeActivitySnapshot(request.Context()); snapshotErr == nil {
+		if stream.named("runtime.activity", activity) != nil {
+			return
+		}
+	} else if errors.Is(snapshotErr, errBrowseRepositoryUnavailable) {
+		if stream.named("runtime.activity", runtimeActivityResponse{Operations: h.operations.List()}) != nil {
+			return
+		}
+	} else {
+		return
+	}
 	if stream.named("operation.snapshot", h.operations.List()) != nil {
 		return
 	}
@@ -127,9 +192,25 @@ func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *h
 		case <-request.Context().Done():
 			return
 		case event, open := <-events:
-			if !open || stream.named("operation", event) != nil {
+			if !open || stream.named("operation", event) != nil ||
+				stream.named("runtime.sessions", h.runtimeSessionsSnapshot()) != nil {
 				return
+			}
+			if operationTerminal(event.Status.State) {
+				activity, snapshotErr := h.runtimeActivitySnapshot(request.Context())
+				if snapshotErr == nil {
+					if stream.named("runtime.activity", activity) != nil {
+						return
+					}
+				} else if errors.Is(snapshotErr, errBrowseRepositoryUnavailable) &&
+					stream.named("runtime.activity", runtimeActivityResponse{Operations: h.operations.List()}) != nil {
+					return
+				}
 			}
 		}
 	}
+}
+
+func operationTerminal(state operation.State) bool {
+	return state == operation.StateCompleted || state == operation.StateCancelled || state == operation.StateFailed
 }

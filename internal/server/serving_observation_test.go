@@ -95,7 +95,7 @@ func TestServingObservationPublication(t *testing.T) {
 	}
 }
 
-func TestRuntimeActivityProjectedPageUsesSessionAndRepoDBAPIs(t *testing.T) {
+func TestSessionLedgerGUI(t *testing.T) {
 	store, err := repodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -147,10 +147,9 @@ func TestRuntimeActivityProjectedPageUsesSessionAndRepoDBAPIs(t *testing.T) {
 		t.Fatalf("activity status=%d response=%+v", response.Code, activity)
 	}
 	module := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String()
-	for _, endpoint := range []string{"/runtime/sessions", "/runtime/activity", "/runtime/activity/stream"} {
-		if !strings.Contains(module, endpoint) {
-			t.Fatalf("runtime module lacks %q", endpoint)
-		}
+	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
+	if !strings.Contains(workflow, "/runtime/activity/stream") || !strings.Contains(module, "runtime.sessions") {
+		t.Fatal("runtime GUI lacks shared session stream")
 	}
 	if strings.Contains(module, `api.get("/slots"`) {
 		t.Fatal("runtime module bypasses session authority")

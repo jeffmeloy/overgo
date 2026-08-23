@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -69,16 +70,6 @@ type trainingWorkflowInput struct {
 	ObjectiveScale float64     `json:"objective_scale"`
 }
 
-type trainingLifecycleIntent struct {
-	Version        uint16       `json:"version"`
-	Recipe         artifact.ID  `json:"recipe"`
-	Dataset        artifact.ID  `json:"dataset"`
-	Resume         *artifact.ID `json:"resume,omitempty"`
-	Output         string       `json:"output"`
-	Steps          int          `json:"steps"`
-	ObjectiveScale float64      `json:"objective_scale"`
-}
-
 func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
 	if workspace == nil || ctx == nil || reporter == nil || kind != WorkflowTraining || task != recipe.TaskTraining || recipeID != workspace.program.Definition().ID {
 		return operation.Completion{}, errors.New("training workspace: workflow is not admitted")
@@ -87,23 +78,7 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	if err := strictjson.DecodeBytes(raw, &input); err != nil {
 		return operation.Completion{}, err
 	}
-	var resume *artifact.ID
-	if input.Resume.Valid() {
-		value := input.Resume
-		resume = &value
-	}
-	intent, err := artifact.JSONID(artifact.KindEvidence, trainingLifecycleIntent{
-		Version: artifact.InitialDocumentVersion, Recipe: recipeID, Dataset: input.Dataset,
-		Resume: resume, Output: input.Output, Steps: input.Steps, ObjectiveScale: input.ObjectiveScale,
-	})
-	if err != nil {
-		return operation.Completion{}, err
-	}
-	return operation.ExecuteReentrant(ctx, workspace.store, reporter, operation.Request{
-		Task: task, Recipe: recipeID,
-	}, intent, func(ctx context.Context) (operation.Completion, error) {
-		return workspace.executeWorkflow(ctx, recipeID, input, reporter)
-	})
+	return workspace.executeWorkflow(ctx, recipeID, input, reporter)
 }
 
 func (workspace *TrainingWorkspace) executeWorkflow(
@@ -124,7 +99,7 @@ func (workspace *TrainingWorkspace) executeWorkflow(
 	var reference artifact.ID
 	referenceDirectory := ""
 	if workspace.objective == trainingprogram.ObjectiveDPO {
-		reference, ok = definition.Dependency(recipe.DependencyModel, 1)
+		reference, ok = trainingworkflow.ProgramReference(workspace.program)
 		if !ok {
 			return operation.Completion{}, errors.New("training workspace: reference dependency absent")
 		}
@@ -158,10 +133,10 @@ func (workspace *TrainingWorkspace) executeWorkflow(
 		return workspace.fail(ctx, definition.ID, inputs, err)
 	}
 	total := uint64(input.Steps)
-	reporter.Progress(0, &total)
 	var completed uint64
-	dpo := make([]trainingprogram.DPOObservation, 0, input.Steps)
-	grpo := make([]trainingprogram.GRPOObservation, 0, input.Steps)
+	reporter.Progress(completed, &total)
+	dpo := slices.Grow([]trainingprogram.DPOObservation(nil), input.Steps)
+	grpo := slices.Grow([]trainingprogram.GRPOObservation(nil), input.Steps)
 	result, executeErr := trainingworkflow.Execute(ctx, trainingworkflow.Request{
 		Repository:     workspace.store,
 		Recipe:         recipeID,
@@ -212,7 +187,7 @@ func (workspace *TrainingWorkspace) publish(ctx context.Context, recipeID artifa
 		return operation.Completion{}, err
 	}
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: checkpoint.ID(), Size: uint64(len(data))})
-	evaluators := make([]artifact.ID, 0)
+	var evaluators []artifact.ID
 	seen := make(map[artifact.ID]struct{})
 	for _, observation := range grpo {
 		if _, ok := seen[observation.Evaluator]; !ok {

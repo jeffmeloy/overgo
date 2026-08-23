@@ -48,12 +48,12 @@
       "id": "bifrost-operation-recovery",
       "title": "Recover durable operations through existing lifecycle and recipe execution owners",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Recover durable operations through existing lifecycle and recipe execution owners",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/operation ./internal/server -run 'Test(OperationRecovery|OperationLifecycle|OperationEvent)' -count=1"
         }
       ]

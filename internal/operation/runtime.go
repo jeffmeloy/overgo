@@ -6,12 +6,12 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"sync"
 	"sync/atomic"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 )
@@ -19,6 +19,8 @@ import (
 type State string
 
 const (
+	operationSequenceStep = 1
+
 	StateAdmitted   State = "admitted"
 	StatePreparing  State = "preparing"
 	StateRunning    State = "running"
@@ -118,11 +120,29 @@ func (manager *Manager) Submit(parent context.Context, request Request, execute 
 		return artifact.ID{}, errors.New("operation: invalid task or recipe")
 	}
 	id, err := artifact.JSONID(artifact.KindEvidence, ticket{
-		Salt: manager.salt, Sequence: manager.sequence.Add(1),
+		Salt: manager.salt, Sequence: manager.sequence.Add(operationSequenceStep),
 		Task: request.Task, Recipe: request.Recipe,
 	})
 	if err != nil {
 		return artifact.ID{}, err
+	}
+	return manager.start(parent, id, request, execute, false)
+}
+
+// Recover resumes a terminal or process-lost operation identity.
+func (manager *Manager) Recover(parent context.Context, id artifact.ID, request Request, execute Executor) (artifact.ID, error) {
+	if id.Kind() != artifact.KindEvidence {
+		return artifact.ID{}, errors.New("operation: invalid recovery identity")
+	}
+	return manager.start(parent, id, request, execute, true)
+}
+
+func (manager *Manager) start(parent context.Context, id artifact.ID, request Request, execute Executor, recover bool) (artifact.ID, error) {
+	if manager == nil || parent == nil || execute == nil {
+		return artifact.ID{}, errors.New("operation: nil manager, context, or executor")
+	}
+	if !request.Task.Valid() || request.Recipe.Kind() != artifact.KindRecipe {
+		return artifact.ID{}, errors.New("operation: invalid task or recipe")
 	}
 	ctx, cancel := context.WithCancel(parent)
 	manager.mu.Lock()
@@ -131,21 +151,33 @@ func (manager *Manager) Submit(parent context.Context, request Request, execute 
 		cancel()
 		return artifact.ID{}, errors.New("operation: manager is closed")
 	}
+	if current := manager.entries[id]; current != nil {
+		if !recover || !terminal(current.status.State) {
+			manager.mu.Unlock()
+			cancel()
+			return artifact.ID{}, errors.New("operation: operation is active or already admitted")
+		}
+		if current.status.Task != request.Task || current.status.Recipe != request.Recipe {
+			manager.mu.Unlock()
+			cancel()
+			return artifact.ID{}, ErrLifecycleConflict
+		}
+	}
 	manager.entries[id] = &entry{
 		status: Status{ID: id, Task: request.Task, Recipe: request.Recipe, State: StateAdmitted},
 		cancel: cancel,
 		done:   make(chan struct{}),
 	}
-	manager.order = append(manager.order, id)
+	if !slices.Contains(manager.order, id) {
+		manager.order = append(manager.order, id)
+	}
 	manager.trimLocked()
-	manager.wait.Add(1)
 	manager.mu.Unlock()
-	go manager.run(ctx, id, execute)
+	manager.wait.Go(func() { manager.run(ctx, id, execute) })
 	return id, nil
 }
 
 func (manager *Manager) run(ctx context.Context, id artifact.ID, execute Executor) {
-	defer manager.wait.Done()
 	defer func() {
 		manager.mu.Lock()
 		if current := manager.entries[id]; current != nil {
@@ -369,7 +401,7 @@ func (reporter operationReporter) Progress(completed uint64, total *uint64) {
 }
 
 func (reporter operationReporter) Metric(metric Metric) {
-	if metric.Name == "" || math.IsNaN(metric.Value) || math.IsInf(metric.Value, 0) {
+	if metric.Name == "" || !checked.Finite64(metric.Value) {
 		return
 	}
 	reporter.manager.mu.Lock()

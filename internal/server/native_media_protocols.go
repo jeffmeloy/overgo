@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
@@ -159,7 +160,7 @@ func (h *Handler) runNativeWorkflow(
 	capability WorkflowCapability,
 	input json.RawMessage,
 ) (operation.Status, bool) {
-	id, err := h.submitWorkflow(request.Context(), workspace, WorkflowGeneration, capability, input)
+	id, err := h.submitWorkflow(request.Context(), workspace, WorkflowGeneration, capability, input, artifact.ID{})
 	if err != nil {
 		writeGenerationError(response, err)
 		return operation.Status{}, false

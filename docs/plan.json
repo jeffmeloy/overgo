@@ -299,6 +299,62 @@
       ]
     },
     {
+      "id": "repodb-export",
+      "title": "Export the model graph as canonical repodb-import JSONL",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Export the model graph as canonical repodb-import JSONL",
+          "status": "done",
+          "verify": "go test ./cmd/repodb-export ./internal/repodbimport -run 'TestExport' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "reverify-tool",
+      "title": "Own model re-verification as a deterministic command",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Own model re-verification as a deterministic command",
+          "status": "done",
+          "verify": "go vet ./cmd/reverify \u0026\u0026 go build ./cmd/reverify"
+        }
+      ]
+    },
+    {
+      "id": "repodb-remint",
+      "title": "Re-mint the model graph so every stored profile loads",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Re-mint the model graph so every stored profile loads",
+          "status": "open",
+          "verify": "go run ./cmd/repodb-query -repo repodb-store -servable"
+        }
+      ]
+    },
+    {
+      "id": "gate-published-data",
+      "title": "Make the gate verify published data against current source",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make the gate verify published data against current source",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/modelrecipe -run 'TestGateReadsPublishedDocuments|TestStoredDocumentsDecodeUnderCurrentSchema' -count=1"
+        }
+      ]
+    },
+    {
       "id": "validate-model-inference",
       "title": "Validate inference across every adaptive_new model",
       "owner": "gui",

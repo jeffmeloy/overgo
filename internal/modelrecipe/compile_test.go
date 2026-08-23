@@ -190,18 +190,22 @@ func TestProjectionDefinitionCompilesAllSelectedModalities(t *testing.T) {
 	if !program.UsesCatalog(workflowrecipe.Catalog()) {
 		t.Fatal("projection program omitted workflow catalog authority")
 	}
-	want := []recipe.ModuleID{
-		workflowrecipe.ModuleDecodeAudio, workflowrecipe.ModuleProjectAudio,
-		workflowrecipe.ModuleDecodeImage, workflowrecipe.ModuleProjectImage,
-		workflowrecipe.ModuleDecodeVideo, workflowrecipe.ModuleProjectVideo,
+	want := [][]recipe.ModuleID{
+		{workflowrecipe.ModuleDecodeAudio, workflowrecipe.ModuleDecodeImage, workflowrecipe.ModuleDecodeVideo},
+		{workflowrecipe.ModuleProjectAudio, workflowrecipe.ModuleProjectImage, workflowrecipe.ModuleProjectVideo},
 	}
-	stages := program.Stages()
-	if len(stages) != len(want) {
-		t.Fatalf("projection stages = %+v", stages)
+	sets := program.ReadySets()
+	if len(sets) != len(want) {
+		t.Fatalf("projection ready sets = %+v", sets)
 	}
-	for index := range stages {
-		if stages[index].Module.ID != want[index] {
-			t.Fatalf("projection stage[%d] = %+v", index, stages[index])
+	for setIndex := range sets {
+		if len(sets[setIndex]) != len(want[setIndex]) {
+			t.Fatalf("projection ready set[%d] = %+v", setIndex, sets[setIndex])
+		}
+		for stageIndex := range sets[setIndex] {
+			if sets[setIndex][stageIndex].Module.ID != want[setIndex][stageIndex] {
+				t.Fatalf("projection ready set[%d][%d] = %+v", setIndex, stageIndex, sets[setIndex][stageIndex])
+			}
 		}
 	}
 	if _, err := ProjectionDefinition(modelID, projectorID); err == nil {

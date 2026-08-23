@@ -1364,12 +1364,12 @@
       "id": "adk-parallel-recipe-runtime",
       "title": "Execute independent recipe stages concurrently under one deterministic lifecycle owner",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Compile ready sets and joins from recipe.Program; run adapters concurrently within the resource plan; publish results through one state mutator; preserve deterministic output and event order; delete serial-only stage traversal",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/recipe ./internal/workflowruntime ./internal/operation -run 'Test(ParallelReadySet|JoinInputOrder|SingleLifecycleMutator|ParallelCancellation|ResourceDerivedConcurrency|DeterministicParallelReceipts)' -count=1",
           "rationale": "Borrow ADK's single-consumer scheduler invariant, not its graph implementation. Recipe topology determines readiness and joins. Resource plans determine concurrency; no fixed worker count. Each adapter receives isolated inputs and publishes immutable outputs before successors become eligible.",
           "depends_on": [

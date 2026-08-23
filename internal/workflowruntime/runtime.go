@@ -152,7 +152,7 @@ func (r *Runtime) executeProgram(
 	inputs map[recipe.PortName]Value,
 ) (Result, error) {
 	definition := program.Definition()
-	stages := program.Stages()
+	readySets := program.ReadySets()
 	if err := r.publishExecutionAuthority(context.WithoutCancel(ctx), definition, operation); err != nil {
 		return Result{}, err
 	}
@@ -160,7 +160,7 @@ func (r *Runtime) executeProgram(
 	if err != nil {
 		return Result{}, err
 	}
-	outputs, executeErr := r.executePlan(ctx, definition, stages, operation, inputs)
+	outputs, executeErr := r.executePlan(ctx, definition, readySets, operation, inputs)
 	outcome, failure := runrecord.OutcomeSucceeded, ""
 	if executeErr != nil {
 		outputs = nil
@@ -199,7 +199,7 @@ func (r *Runtime) executeProgram(
 func (r *Runtime) executePlan(
 	ctx context.Context,
 	definition recipe.Definition,
-	stages []recipe.Stage,
+	readySets [][]recipe.Stage,
 	operation artifact.ID,
 	external map[recipe.PortName]Value,
 ) (map[recipe.PortName]Value, error) {
@@ -214,54 +214,25 @@ func (r *Runtime) executePlan(
 		}
 		bound[input.Target] = append(bound[input.Target], cloneValue(value))
 	}
-	for _, stage := range stages {
+	for _, ready := range readySets {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		step, module := stage.Node, stage.Module
-		stepInputs := make(map[recipe.PortName]Value, len(module.Inputs))
-		for _, port := range module.Inputs {
-			value, err := mergeValues(port.Data, bound[recipe.Endpoint{Node: step.ID, Port: port.Name}])
-			if err != nil || !cardinalityValid(port.Cardinality, len(value.Items)) {
-				if err == nil {
-					err = fmt.Errorf("cardinality %s rejects %d items", port.Cardinality, len(value.Items))
-				}
-				return nil, fmt.Errorf("workflow runtime: input %s.%s: %w", step.ID, port.Name, err)
-			}
-			stepInputs[port.Name] = value
-		}
-		adapter, ok := r.adapter(step.Module)
-		if !ok {
-			return nil, fmt.Errorf("workflow runtime: module %q has no adapter", step.Module)
-		}
-		model, ok := definition.Dependency(recipe.DependencyModel, step.ModelSlot)
-		if !ok {
-			return nil, fmt.Errorf("workflow runtime: step %q model slot %d is unbound", step.ID, step.ModelSlot)
-		}
-		request := StepRequest{Model: model, Inputs: stepInputs}
-		produced, recovered, err := r.recoverStage(ctx, definition, stage, operation)
+		completed, err := r.executeReadySet(ctx, definition, ready, operation, bound)
 		if err != nil {
 			return nil, err
 		}
-		if !recovered {
-			produced, err = r.executeStage(ctx, definition, stage, operation, request, adapter)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("workflow runtime: step %q: %w", step.ID, err)
-		}
-		validated, err := validateOutputs(module, produced)
-		if err != nil {
-			return nil, fmt.Errorf("workflow runtime: step %q: %w", step.ID, err)
-		}
-		for _, edge := range definition.Edges {
-			if edge.From.Node == step.ID {
-				if value, ok := validated[edge.From.Port]; ok {
-					bound[edge.To] = append(bound[edge.To], cloneValue(value))
+		for _, stage := range completed {
+			for _, edge := range definition.Edges {
+				if edge.From.Node == stage.stage.Node.ID {
+					if value, ok := stage.outputs[edge.From.Port]; ok {
+						bound[edge.To] = append(bound[edge.To], cloneValue(value))
+					}
 				}
 			}
-		}
-		for name, value := range validated {
-			bound[recipe.Endpoint{Node: step.ID, Port: name}] = []Value{value}
+			for name, value := range stage.outputs {
+				bound[recipe.Endpoint{Node: stage.stage.Node.ID, Port: name}] = []Value{value}
+			}
 		}
 	}
 	outputs := make(map[recipe.PortName]Value, len(definition.Outputs))
@@ -277,6 +248,119 @@ func (r *Runtime) executePlan(
 		outputs[output.Name] = value
 	}
 	return outputs, nil
+}
+
+type stageExecution struct {
+	stage     recipe.Stage
+	request   StepRequest
+	adapter   Adapter
+	base      runrecord.StageReceipt
+	outputs   map[recipe.PortName]Value
+	recovered bool
+	err       error
+}
+
+type stageResult struct {
+	index   int
+	outputs map[recipe.PortName]Value
+	err     error
+}
+
+func (r *Runtime) executeReadySet(
+	ctx context.Context,
+	definition recipe.Definition,
+	ready []recipe.Stage,
+	operation artifact.ID,
+	bound map[recipe.Endpoint][]Value,
+) ([]stageExecution, error) {
+	stages := make([]stageExecution, len(ready))
+	active := 0
+	for index, stage := range ready {
+		execution, err := r.prepareStage(ctx, definition, stage, operation, bound)
+		if err != nil {
+			return nil, fmt.Errorf("workflow runtime: step %q: %w", stage.Node.ID, err)
+		}
+		stages[index] = execution
+		if !execution.recovered {
+			active++
+		}
+	}
+	if active != 0 {
+		runContext, cancel := context.WithCancel(ctx)
+		results := make(chan stageResult, active)
+		for index := range stages {
+			if stages[index].recovered {
+				continue
+			}
+			go func(index int) {
+				stage := stages[index]
+				outputs, err := stage.adapter.Execute(runContext, stage.request)
+				results <- stageResult{index: index, outputs: outputs, err: err}
+			}(index)
+		}
+		for range active {
+			result := <-results
+			stages[result.index].outputs, stages[result.index].err = result.outputs, result.err
+			if result.err != nil {
+				cancel()
+			}
+		}
+		cancel()
+	}
+	var executeErr error
+	for index := range stages {
+		stage := &stages[index]
+		if stage.recovered {
+			continue
+		}
+		if stage.err == nil {
+			stage.outputs, stage.err = validateOutputs(stage.stage.Module, stage.outputs)
+		}
+		if err := r.finishStage(ctx, stage.base, stage.outputs, stage.err); err != nil {
+			stage.err = errors.Join(stage.err, err)
+		}
+		if stage.err != nil && executeErr == nil {
+			executeErr = fmt.Errorf("workflow runtime: step %q: %w", stage.stage.Node.ID, stage.err)
+		}
+	}
+	return stages, executeErr
+}
+
+func (r *Runtime) prepareStage(
+	ctx context.Context,
+	definition recipe.Definition,
+	stage recipe.Stage,
+	operation artifact.ID,
+	bound map[recipe.Endpoint][]Value,
+) (stageExecution, error) {
+	step, module := stage.Node, stage.Module
+	inputs := make(map[recipe.PortName]Value, len(module.Inputs))
+	for _, port := range module.Inputs {
+		value, err := mergeValues(port.Data, bound[recipe.Endpoint{Node: step.ID, Port: port.Name}])
+		if err != nil || !cardinalityValid(port.Cardinality, len(value.Items)) {
+			if err == nil {
+				err = fmt.Errorf("cardinality %s rejects %d items", port.Cardinality, len(value.Items))
+			}
+			return stageExecution{}, fmt.Errorf("input %s.%s: %w", step.ID, port.Name, err)
+		}
+		inputs[port.Name] = value
+	}
+	adapter, ok := r.adapter(step.Module)
+	if !ok {
+		return stageExecution{}, fmt.Errorf("module %q has no adapter", step.Module)
+	}
+	model, ok := definition.Dependency(recipe.DependencyModel, step.ModelSlot)
+	if !ok {
+		return stageExecution{}, fmt.Errorf("step %q model slot %d is unbound", step.ID, step.ModelSlot)
+	}
+	execution := stageExecution{stage: stage, request: StepRequest{Model: model, Inputs: inputs}, adapter: adapter}
+	outputs, recovered, err := r.recoverStage(ctx, definition, stage, operation)
+	if err != nil || recovered {
+		execution.outputs, execution.recovered = outputs, recovered
+		return execution, err
+	}
+	execution.base, err = r.beginStage(ctx, definition, stage, operation, execution.request)
+	return execution, err
 }
 
 func (r *Runtime) publishExecutionAuthority(
@@ -369,53 +453,64 @@ func recoveredDatum(content artifact.Content) Datum {
 	return Datum{Artifact: cloned.Descriptor, Content: &cloned, Value: value}
 }
 
-func (r *Runtime) executeStage(
+func (r *Runtime) beginStage(
 	ctx context.Context,
 	definition recipe.Definition,
 	stage recipe.Stage,
 	operation artifact.ID,
 	request StepRequest,
-	adapter Adapter,
-) (map[recipe.PortName]Value, error) {
+) (runrecord.StageReceipt, error) {
 	previous, found, err := runrecord.ResolveStageReceipt(ctx, r.store, operation, stage.Node.ID)
 	if err != nil {
-		return nil, err
+		return runrecord.StageReceipt{}, err
 	}
 	attempt := previous.Attempt + 1
 	if found {
 		if previous.Recipe != definition.ID {
-			return nil, errors.New("workflow runtime: recovery recipe differs")
+			return runrecord.StageReceipt{}, errors.New("workflow runtime: recovery recipe differs")
 		}
 	}
 	inputs, inputFacts, err := stageFacts(request.Inputs)
 	if err != nil {
-		return nil, err
+		return runrecord.StageReceipt{}, err
 	}
 	base := runrecord.StageReceipt{
 		Recipe: definition.ID, Node: stage.Node.ID, Operation: operation, Attempt: attempt, Inputs: inputs,
 	}
 	if _, err = runrecord.PublishStageReceipt(ctx, r.store, withStageState(base, runrecord.StageAdmitted, ""), inputFacts.contents, inputFacts.descriptors); err != nil {
-		return nil, err
+		return runrecord.StageReceipt{}, err
 	}
 	if _, err = runrecord.PublishStageReceipt(ctx, r.store, withStageState(base, runrecord.StageRunning, ""), nil, nil); err != nil {
-		return nil, err
+		return runrecord.StageReceipt{}, err
 	}
-	produced, executeErr := adapter.Execute(ctx, request)
+	return base, nil
+}
+
+func (r *Runtime) finishStage(
+	ctx context.Context,
+	base runrecord.StageReceipt,
+	produced map[recipe.PortName]Value,
+	executeErr error,
+) error {
+	publishContext := ctx
+	if ctx.Err() != nil {
+		publishContext = context.WithoutCancel(ctx)
+	}
 	if executeErr != nil {
 		state, failure := runrecord.StageFailed, executionFailureCode
 		if _, waiting := operatoraction.Recovery(executeErr); waiting {
 			state, failure = runrecord.StageWaiting, ""
 		}
-		_, receiptErr := runrecord.PublishStageReceipt(context.WithoutCancel(ctx), r.store, withStageState(base, state, failure), nil, nil)
-		return nil, errors.Join(executeErr, receiptErr)
+		_, err := runrecord.PublishStageReceipt(publishContext, r.store, withStageState(base, state, failure), nil, nil)
+		return err
 	}
 	outputs, outputFacts, err := stageFacts(produced)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	base.Outputs = outputs
-	_, err = runrecord.PublishStageReceipt(ctx, r.store, withStageState(base, runrecord.StageCompleted, ""), outputFacts.contents, outputFacts.descriptors)
-	return produced, err
+	_, err = runrecord.PublishStageReceipt(publishContext, r.store, withStageState(base, runrecord.StageCompleted, ""), outputFacts.contents, outputFacts.descriptors)
+	return err
 }
 
 func withStageState(value runrecord.StageReceipt, state runrecord.StageState, failure string) runrecord.StageReceipt {

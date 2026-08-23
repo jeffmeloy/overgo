@@ -512,13 +512,13 @@
       "id": "cleanup-media-codec-program",
       "title": "Make one media codec program authoritative across host and CUDA",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Make one media codec program authoritative across host and CUDA",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -count=1"
+          "status": "done",
+          "verify": "go test ./internal/media -run '^TestExecuteCodecProgram$' -count=1; go test ./internal/latentvideo -run '^Test(VAEResidualBlockMatchesTorchIdentityShortcutFixture|VAESpatialAttentionMatchesTorchFixture|VAEUpsample3DFirstChunkSkipsTimeConv)$' -count=1"
         }
       ]
     },

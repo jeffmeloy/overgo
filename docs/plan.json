@@ -1028,12 +1028,12 @@
       "id": "dense-to-moe-evidence-screen",
       "title": "Admit dense-to-MoE artifact construction only through an evidence screen with derived router policy and promotion refusal",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Admit dense-to-MoE artifact construction only through an evidence screen with derived router policy and promotion refusal",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/modelmerge ./internal/model -run '^TestDenseToMoE(EvidenceScreen|RouterInitialization|ExpertInventory|PromotionRefusal)$' -count=1"
         }
       ]

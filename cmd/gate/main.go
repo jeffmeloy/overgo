@@ -268,9 +268,10 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	}
 	dependencies := map[string][]string{
 		"scope": {"protection"}, "profile": {"scope"}, "fmt": {"profile"}, "style": {"fmt"},
-		"docs": {"style"}, "magics": {"docs"}, "acceptance": {"magics"},
+		"manifest": {"style"}, "sbom": {"style"}, "claims": {"style"},
+		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "acceptance": {"magics"},
 		"vet": {"acceptance"}, "build": {"acceptance"}, "test": {"vet", "build"},
-		"device": {"test"}, "commit": {"test"},
+		"device": {"test"}, "commit": {"device"},
 	}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
@@ -286,30 +287,6 @@ func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) aut
 			return skipped, "", err
 		},
 	}
-}
-
-type scheduledGateCheck struct {
-	descriptor automationcheck.Descriptor
-	invocation automationcheck.Invocation
-	applicable bool
-	exclusion  string
-}
-
-func gateSchedule(definitions []automationcheck.Check, planned []automationcheck.Invocation, impact automationcheck.Impact) []scheduledGateCheck {
-	byName := make(map[string]automationcheck.Invocation, len(planned))
-	for _, invocation := range planned {
-		byName[invocation.Check.Name] = invocation
-	}
-	schedule := make([]scheduledGateCheck, 0, len(definitions))
-	for _, definition := range definitions {
-		invocation, applicable := byName[definition.Descriptor.Name]
-		exclusion, _ := impact.ExclusionReason(definition.Descriptor.Name)
-		schedule = append(schedule, scheduledGateCheck{
-			descriptor: definition.Descriptor, invocation: invocation,
-			applicable: applicable, exclusion: exclusion,
-		})
-	}
-	return schedule
 }
 
 func (g *gateContext) pipeline() error {
@@ -340,74 +317,67 @@ func (g *gateContext) pipeline() error {
 	cache := g.loadRetryCache()
 	cache.Compact()
 	g.retryCache = &cache
-	// Verification steps whose result depends only on tree state may reuse a
-	// prior identical-tree success (the retry-loop tax: a failed commit step
-	// re-paid full hygiene on every attempt). scope/fmt/magics are cheap and
-	// always run; commit is never cached.
 	cacheable := map[string]bool{"vet": true, "build": true}
-	schedule := gateSchedule(definitions, checks, impact)
-	concurrentHandled := map[string]bool{}
-	for _, scheduled := range schedule {
-		name := scheduled.descriptor.Name
-		if concurrentHandled[name] {
-			continue
-		}
-		if !scheduled.applicable {
-			g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: scheduled.descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
-			g.honesty = append(g.honesty, name+" skipped: "+scheduled.exclusion)
-			continue
-		}
-		check := scheduled.invocation
-		if name == "vet" {
-			build, found := scheduledGateCheckByName(schedule, "build")
-			if !found || !build.applicable {
-				return errors.New("gate: build check is absent from the concurrent verification wave")
+	inputs := make(map[artifact.ID]artifact.ID, len(cacheable))
+	for _, check := range checks {
+		if cacheable[check.Check.Name] {
+			input, inputErr := g.phaseInputFingerprint(check.Check.Name)
+			if inputErr != nil {
+				return inputErr
 			}
-			records, runErr := g.runConcurrentChecks([]automationcheck.Invocation{check, build.invocation}, &cache)
-			g.steps = append(g.steps, records...)
-			concurrentHandled[build.descriptor.Name] = true
-			if runErr != nil {
-				return runErr
-			}
-			continue
+			inputs[check.ID] = input
 		}
-		fmt.Fprintf(os.Stderr, gateProgressLine, name, runrecord.HeartbeatRunning)
-		var evidence automationcheck.Evidence
-		var reused bool
-		var input artifact.ID
-		if cacheable[name] {
-			input, err = g.phaseInputFingerprint(name)
-		}
-		if err == nil && cacheable[name] {
-			evidence, reused, err = cache.RunCached(context.Background(), check, input)
+	}
+	satisfied := make(map[string]bool, len(impact.Exclusions))
+	for _, exclusion := range impact.Exclusions {
+		satisfied[exclusion.Check] = true
+	}
+	var cacheMutex sync.Mutex
+	results, err := automationcheck.ExecuteDAG(context.Background(), checks, satisfied, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {
+		fmt.Fprintf(os.Stderr, gateProgressLine, check.Check.Name, runrecord.HeartbeatRunning)
+		input, cacheCheck := inputs[check.ID]
+		if cacheCheck {
+			cacheMutex.Lock()
+			evidence, reused := cache.Lookup(check, input)
+			cacheMutex.Unlock()
 			if reused {
-				g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
+				return evidence, nil
 			}
-		} else if err == nil {
-			evidence, err = automationcheck.Run(context.Background(), check)
 		}
-		duration := max(evidence.DurationNS, uint64(1))
-		record := runrecord.GateStep{
-			Name: name, Phase: check.Check.Phase, Outcome: runrecord.StepSucceeded,
-			DurationNS: duration, Evidence: g.stepEvidence[name],
+		evidence, runErr := automationcheck.Run(ctx, check)
+		if runErr == nil && cacheCheck {
+			cacheMutex.Lock()
+			cache.Record(check, input, evidence)
+			cacheMutex.Unlock()
 		}
-		if record.Evidence == "" && evidence.ID.Valid() {
-			record.Evidence = evidence.ID.String()
+		return evidence, runErr
+	})
+	if err != nil {
+		return err
+	}
+	g.saveRetryCache(cache)
+	byName := make(map[string]automationcheck.DAGResult, len(results))
+	for _, result := range results {
+		if result.Invocation.ID.Valid() {
+			byName[result.Invocation.Check.Name] = result
 		}
-		switch {
-		case err != nil:
-			record.Outcome = runrecord.StepFailed
-		case evidence.Skipped:
-			record.Outcome = runrecord.StepSkipped
-		case evidence.Reused:
-			record.Outcome = runrecord.StepReused
+	}
+	for _, definition := range definitions {
+		name := definition.Descriptor.Name
+		result, ran := byName[name]
+		if !ran {
+			if exclusion, excluded := impact.ExclusionReason(name); excluded {
+				g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: definition.Descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
+				g.honesty = append(g.honesty, name+" skipped: "+exclusion)
+			}
+			continue
 		}
-		g.steps = append(g.steps, record)
-		if err == nil && cacheable[name] && !reused {
-			g.saveRetryCache(cache)
+		g.steps = append(g.steps, gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name]))
+		if result.Evidence.Reused {
+			g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
 		}
-		if err != nil {
-			return fmt.Errorf("%s: %w", name, err)
+		if result.Err != nil {
+			return fmt.Errorf("%s: %w", name, result.Err)
 		}
 	}
 	return nil
@@ -468,64 +438,6 @@ func ownershipSurface(impact codeprofile.FunctionImpact) automationcheck.Surface
 		Identity: impact.BaseIdentity + ":" + impact.CandidateIdentity,
 		Packages: slices.Sorted(maps.Keys(packages)), Symbols: symbols, Unknown: unknown,
 	}
-}
-
-func scheduledGateCheckByName(schedule []scheduledGateCheck, name string) (scheduledGateCheck, bool) {
-	for _, check := range schedule {
-		if check.descriptor.Name == name {
-			return check, true
-		}
-	}
-	return scheduledGateCheck{}, false
-}
-
-func (g *gateContext) runConcurrentChecks(checks []automationcheck.Invocation, cache *automationcheck.EvidenceCache) ([]runrecord.GateStep, error) {
-	inputs := make(map[artifact.ID]artifact.ID, len(checks))
-	for _, check := range checks {
-		input, err := g.phaseInputFingerprint(check.Check.Name)
-		if err != nil {
-			return nil, err
-		}
-		inputs[check.ID] = input
-		fmt.Fprintf(os.Stderr, gateProgressLine, check.Check.Name, runrecord.HeartbeatRunning)
-	}
-	var cacheMutex sync.Mutex
-	results, err := automationcheck.ExecuteDAG(context.Background(), checks, map[string]bool{"acceptance": true}, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {
-		cacheMutex.Lock()
-		evidence, reused := cache.Lookup(check, inputs[check.ID])
-		cacheMutex.Unlock()
-		if reused {
-			return evidence, nil
-		}
-		evidence, runErr := automationcheck.Run(ctx, check)
-		if runErr == nil {
-			cacheMutex.Lock()
-			cache.Record(check, inputs[check.ID], evidence)
-			cacheMutex.Unlock()
-		}
-		return evidence, runErr
-	})
-	if err != nil {
-		return nil, err
-	}
-	g.saveRetryCache(*cache)
-	records := make([]runrecord.GateStep, 0, len(results))
-	var firstErr error
-	for _, result := range results {
-		if !result.Invocation.ID.Valid() {
-			continue
-		}
-		name := result.Invocation.Check.Name
-		record := gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name])
-		records = append(records, record)
-		if result.Evidence.Reused {
-			g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
-		}
-		if firstErr == nil && result.Err != nil {
-			firstErr = fmt.Errorf("%s: %w", name, result.Err)
-		}
-	}
-	return records, firstErr
 }
 
 func gateEvidenceRecord(name string, phase runrecord.Phase, evidence automationcheck.Evidence, runErr error, storedEvidence string) runrecord.GateStep {

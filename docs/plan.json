@@ -610,12 +610,12 @@
       "id": "cleanup-gate-dag-authority",
       "title": "Make automationcheck DAG the sole gate scheduler",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Make automationcheck DAG the sole gate scheduler",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./cmd/gate ./internal/automationcheck -count=1"
         }
       ]

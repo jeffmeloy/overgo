@@ -73,6 +73,25 @@ func TestPolicyBarrier(t *testing.T) {
 	}
 }
 
+func TestExcludedDependencySatisfiesPolicyBarrier(t *testing.T) {
+	optional := dagFixtureCheck("optional", nil)
+	optional.Descriptor.Always = false
+	optional.Descriptor.Triggers = []Fact{"optional"}
+	optional.Descriptor.Inapplicable = "fixture exclusion"
+	checks := []Check{optional, dagFixtureCheckAfter("commit", "optional")}
+	impact := Impact{Exclusions: []Exclusion{{Check: "optional", Reason: "fixture proves independence"}}}
+	planned, err := Plan(checks, impact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := ExecuteDAG(context.Background(), planned, map[string]bool{"optional": true}, func(ctx context.Context, invocation Invocation) (Evidence, error) {
+		return Run(ctx, invocation)
+	})
+	if err != nil || len(results) != 1 || results[0].Invocation.Check.Name != "commit" {
+		t.Fatalf("results=%+v err=%v", results, err)
+	}
+}
+
 func dagFixtureCheck(name string, resources []Resource) Check {
 	return Check{
 		Descriptor: Descriptor{Name: name, Phase: runrecord.PhaseTest, Always: true, Resources: resources},

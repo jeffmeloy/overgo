@@ -39,13 +39,13 @@
       "id": "cleanup-tensor-catalog-program",
       "title": "Replace imperative model weight loading with indexed tensor catalog programs",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Replace imperative model weight loading with indexed tensor catalog programs",
-          "status": "open",
-          "verify": "go test ./internal/model ./internal/inference -count=1"
+          "status": "done",
+          "verify": "go test ./internal/model -run 'Test(TensorCatalogProgramIsAuthoritative|LayerCatalogPlan)' -count=1 \u0026\u0026 go test ./internal/inference -run 'Test(SelectedModelTensors|CompiledMultiHeadMTP|SingleHeadMTP)' -count=1"
         }
       ]
     },

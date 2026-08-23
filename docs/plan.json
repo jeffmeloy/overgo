@@ -523,6 +523,20 @@
       ]
     },
     {
+      "id": "cleanup-generated-authority-reconciliation",
+      "title": "Rebind generated projector claims and finish shared codec API authority",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Rebind generated projector claims and finish shared codec API authority",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./internal/media ./internal/projector -run 'Test(ExecuteCodecProgram|CompiledSessionOwnsNoPromptWrappers)' -count=1"
+        }
+      ]
+    },
+    {
       "id": "cleanup-cuda-launch-contracts",
       "title": "Compile typed CUDA and reference launch contracts",
       "owner": "research",

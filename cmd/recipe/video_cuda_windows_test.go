@@ -55,7 +55,7 @@ func TestVideoProductionActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	testutil.PublishArtifact(t, store, modelID)
+	publishArtifactExtent(t, store, modelID, edit)
 	if _, err := store.Commit(context.Background(), artifact.Batch{
 		Key: "test/video-profile", Contents: []artifact.Content{profileContent},
 	}); err != nil {
@@ -178,4 +178,38 @@ func loadVideoSourceCrops(t testing.TB, path string, frames, height, width int) 
 		}
 	}
 	return output
+}
+
+// publishArtifactExtent publishes the model fixture with the real on-disk
+// extent of its backing path. Session-resource planning refuses a component
+// artifact with no size, so the fixture measures the bytes it stands in for
+// rather than inventing a figure.
+func publishArtifactExtent(t testing.TB, repository artifact.Repository, id artifact.ID, path string) {
+	t.Helper()
+	var total uint64
+	err := filepath.WalkDir(path, func(_ string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		total += uint64(info.Size())
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total == 0 {
+		t.Fatalf("artifact backing path %s holds no bytes", path)
+	}
+	if _, err := repository.Commit(context.Background(), artifact.Batch{
+		Key: "test/artifact/" + id.String(), Artifacts: []artifact.Descriptor{{ID: id, Size: total}},
+	}); err != nil {
+		t.Fatal(err)
+	}
 }

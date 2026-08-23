@@ -162,31 +162,16 @@ func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, st
 		return nil, ""
 	}
 	ctx := request.Context()
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindTensorInventory, MediaType: modelartifact.TensorMeasurementMediaType,
-		Schema: modelartifact.TensorMeasurementSchema, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
-	})
-	if err != nil {
-		return nil, ""
-	}
 	var profiles []analyzeTensor
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != modelartifact.TensorMeasurementMediaType ||
-			descriptor.Schema != modelartifact.TensorMeasurementSchema {
-			continue
-		}
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		document, err := modelartifact.ParseTensorMeasurementDocument(content)
-		if err != nil {
-			continue
-		}
+	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindTensorInventory, MediaType: modelartifact.TensorMeasurementMediaType,
+			Schema: modelartifact.TensorMeasurementSchema,
+		}}, Order: repodb.DocumentOldestFirst,
+	}, modelartifact.ParseTensorMeasurementDocument, func(_ repodb.DocumentView, document modelartifact.TensorMeasurementDocument) error {
 		inventory, ok, err := modelartifact.ReadTensorInventoryDocument(ctx, store, document.Inventory)
 		if err != nil || !ok {
-			continue
+			return nil
 		}
 		model := inventory.Model.String()
 		for _, measurement := range document.Measurements {
@@ -196,6 +181,10 @@ func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, st
 			}
 			profiles = append(profiles, entry)
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, ""
 	}
 	return profiles, "store-catalog"
 }

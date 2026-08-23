@@ -17,53 +17,34 @@ import (
 // proposal, and ranking training all index the same components.
 func LoadCatalog(ctx context.Context, store *repodb.Store) ([]CatalogComponent, error) {
 	statistics := map[string]tensorstats.Characterization{}
-	measurementResult, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindTensorInventory, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, descriptor := range measurementResult.Artifacts {
-		if descriptor.MediaType != modelartifact.TensorMeasurementMediaType {
-			continue
-		}
-		content, ok := measurementResult.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		document, err := modelartifact.ParseTensorMeasurementDocument(content)
-		if err != nil {
-			continue
-		}
+	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindTensorInventory, MediaType: modelartifact.TensorMeasurementMediaType,
+			Schema: modelartifact.TensorMeasurementSchema,
+		}}, Order: repodb.DocumentOldestFirst,
+	}, modelartifact.ParseTensorMeasurementDocument, func(_ repodb.DocumentView, document modelartifact.TensorMeasurementDocument) error {
 		inventory, ok, err := modelartifact.ReadTensorInventoryDocument(ctx, store, document.Inventory)
-		if err != nil || !ok {
-			continue
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
 		}
 		for _, measurement := range document.Measurements {
 			statistics[inventory.Model.String()+"\x00"+measurement.Name] = measurement.Characterization
 		}
-	}
-	components := make([]CatalogComponent, 0)
-	decompositionResult, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindTensorSet, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	for _, descriptor := range decompositionResult.Artifacts {
-		if descriptor.MediaType != modelartifact.ComponentDecompositionMediaType {
-			continue
-		}
-		content, ok := decompositionResult.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		decomposition, err := modelartifact.ParseComponentDecomposition(content)
-		if err != nil {
-			continue
-		}
+	components := make([]CatalogComponent, 0)
+	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindTensorSet, MediaType: modelartifact.ComponentDecompositionMediaType,
+			Schema: modelartifact.ComponentDecompositionSchema,
+		}}, Order: repodb.DocumentOldestFirst,
+	}, modelartifact.ParseComponentDecomposition, func(_ repodb.DocumentView, decomposition modelartifact.ComponentDecompositionDocument) error {
 		for _, component := range decomposition.Components {
 			entry := CatalogComponent{
 				Model: decomposition.Model, Name: component.Name, Contract: component.Contract,
@@ -73,6 +54,10 @@ func LoadCatalog(ctx context.Context, store *repodb.Store) ([]CatalogComponent, 
 			}
 			components = append(components, entry)
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	if len(components) == 0 {
 		return nil, errors.New("composition: no committed component decompositions to index")

@@ -48,20 +48,9 @@ var evaluationEvidenceCodec = artifact.JSONDocumentCodec(
 	func(value *EvaluationEvidence, id artifact.ID) { value.ID = id }, cloneEvaluationEvidence,
 )
 
-func LoadEvaluationEvidence(
-	ctx context.Context,
-	reader artifact.Reader,
-	id artifact.ID,
-) (EvaluationEvidence, bool, error) {
-	content, found, err := artifact.ReadContent(ctx, reader, id)
-	if err != nil || !found || content.Descriptor.MediaType != evaluationEvidenceMedia || content.Descriptor.Schema != evaluationEvidenceSchema {
-		return EvaluationEvidence{}, false, err
-	}
-	value, err := evaluationEvidenceCodec.Parse(content.Data)
-	if err != nil || value.ID != id {
-		return EvaluationEvidence{}, false, err
-	}
-	return value, true, nil
+// ParseEvaluationEvidence decodes canonical evaluation evidence.
+func ParseEvaluationEvidence(content []byte) (EvaluationEvidence, error) {
+	return evaluationEvidenceCodec.Parse(content)
 }
 
 // Content returns the native RepoDB evidence document.

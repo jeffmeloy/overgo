@@ -48,23 +48,21 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 	if source == nil {
 		return report, errors.New("repodb retention: nil source store")
 	}
-	// The store derives its own inventory bound: the exact current fact-class
-	// extent, so the full catalog is one query with no restated capacity.
-	everything, err := source.Query(ctx, Query{MaxResults: source.QueryExtent(), Projection: ProjectCatalog})
-	if err != nil {
+	descriptors := map[artifact.ID]artifact.Descriptor{}
+	manifests := map[artifact.ID]artifact.Manifest{}
+	source.mu.RLock()
+	if err := source.ready(false); err != nil {
+		source.mu.RUnlock()
 		return report, err
 	}
-	if everything.Truncated {
-		return report, errors.New("repodb retention: source inventory truncated; raise the query bound")
+	for id, slot := range source.state.slots {
+		descriptors[id] = slot.descriptor
+		if slot.hasManifest {
+			manifests[id] = slot.manifest.Clone()
+		}
 	}
-	descriptors := map[artifact.ID]artifact.Descriptor{}
-	for _, descriptor := range everything.Artifacts {
-		descriptors[descriptor.ID] = descriptor
-	}
-	manifests := map[artifact.ID]artifact.Manifest{}
-	for _, manifest := range everything.Manifests {
-		manifests[manifest.ID] = manifest
-	}
+	aliases := source.state.aliasViews("")
+	source.mu.RUnlock()
 
 	retained := map[artifact.ID]bool{}
 	var walk func(id artifact.ID) error
@@ -118,7 +116,7 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 		}
 		return nil
 	}
-	for _, alias := range everything.Aliases {
+	for _, alias := range aliases {
 		if err := walk(alias.Target); err != nil {
 			return report, err
 		}
@@ -229,7 +227,7 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 	if err := flush(&batch, true, &payload); err != nil {
 		return report, err
 	}
-	for _, alias := range everything.Aliases {
+	for _, alias := range aliases {
 		if !retained[alias.Target] {
 			continue
 		}

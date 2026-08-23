@@ -101,27 +101,21 @@ func activeChainFailures(repository string) ([]brokenChain, int, error) {
 		return nil, 0, err
 	}
 	defer store.Close()
-	extent := store.QueryExtent()
-	result, err := store.Query(ctx, repodb.Query{
-		MaxResults: extent, Projection: repodb.ProjectAliases,
-	})
-	if err != nil {
-		return nil, 0, err
-	}
-	if result.Truncated {
-		return nil, 0, fmt.Errorf("store-check: alias query truncated at %d results", extent)
-	}
 	var failures []brokenChain
 	checked := 0
-	for _, alias := range result.Aliases {
+	err = store.VisitAliases(ctx, "", func(alias repodb.AliasView) error {
 		modelID, task, ok := modelrecipe.ParseActiveAlias(alias.Name)
 		if !ok {
-			continue
+			return nil
 		}
 		checked++
 		if err := modelrecipe.VerifyPublishedChain(ctx, store, modelID, task); err != nil {
 			failures = append(failures, brokenChain{Alias: alias.Name, Failure: err.Error()})
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, 0, err
 	}
 	sort.Slice(failures, func(left, right int) bool { return failures[left].Alias < failures[right].Alias })
 	return failures, checked, nil

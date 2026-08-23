@@ -31,8 +31,6 @@ const (
 	ProjectArtifacts QueryProjection = 1 << iota
 	// ProjectContentPresence returns payload identities.
 	ProjectContentPresence
-	// ProjectContentData returns payload identities and bytes.
-	ProjectContentData
 	// ProjectManifests returns selected manifests.
 	ProjectManifests
 	// ProjectAliases returns selected alias bindings.
@@ -45,7 +43,7 @@ const (
 
 	// ProjectCatalog returns the original catalog query surface.
 	ProjectCatalog = ProjectArtifacts | ProjectManifests | ProjectAliases | projectLineage | ProjectCommits
-	projectAll     = ProjectCatalog | ProjectContentPresence | ProjectContentData | ProjectParents
+	projectAll     = ProjectCatalog | ProjectContentPresence | ProjectParents
 )
 
 func (p QueryProjection) includes(field QueryProjection) bool {
@@ -54,9 +52,10 @@ func (p QueryProjection) includes(field QueryProjection) bool {
 
 // QueryCursor binds continuation to a catalog head and query contract.
 type QueryCursor struct {
-	Head     artifact.CommitID `json:"head"`
-	Contract [sha256.Size]byte `json:"contract"`
-	After    artifact.ID       `json:"after"`
+	Head          artifact.CommitID `json:"head"`
+	Contract      [sha256.Size]byte `json:"contract"`
+	After         artifact.ID       `json:"after"`
+	AfterSequence uint64            `json:"after_sequence,omitempty"`
 }
 
 // EncodeQueryCursor encodes a URL-safe continuation.
@@ -108,10 +107,9 @@ type CommitView struct {
 	Sequence uint64            `json:"sequence"`
 }
 
-// ContentView carries projected payload facts.
+// ContentView carries projected payload identity.
 type ContentView struct {
 	Artifact artifact.ID `json:"artifact"`
-	Data     []byte      `json:"data,omitempty"`
 }
 
 type QueryResult struct {
@@ -128,17 +126,6 @@ type QueryResult struct {
 	Next      *QueryCursor          `json:"next,omitempty"`
 }
 
-// Content returns projected bytes without another store read.
-func (r QueryResult) Content(id artifact.ID) ([]byte, bool) {
-	index, found := slices.BinarySearchFunc(r.Contents, id, func(view ContentView, target artifact.ID) int {
-		return artifact.CompareID(view.Artifact, target)
-	})
-	if !found {
-		return nil, false
-	}
-	return r.Contents[index].Data, true
-}
-
 func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	if err := validateQuery(query); err != nil {
 		return QueryResult{}, err
@@ -151,7 +138,8 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	if err := s.ready(false); err != nil {
 		return QueryResult{}, err
 	}
-	if query.MaxResults == 0 && s.state.queryExtent() != 0 {
+	if query.MaxResults == 0 && (len(s.state.slots) != 0 || len(s.state.aliases) != 0 ||
+		s.state.edgeCount != 0 || len(s.state.commits) != 0) {
 		return QueryResult{}, errors.New("repodb: zero query bound requires an empty catalog")
 	}
 	contract, err := queryContractDigest(query)
@@ -168,7 +156,6 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	}
 	result.Truncated = truncated
 	result.Matched = matched
-	legacyContent := map[int64]map[artifact.ID][]byte{}
 	for _, id := range ids {
 		slot := s.state.slots[id]
 		if slot == nil {
@@ -177,15 +164,8 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 		if query.Projection.includes(ProjectArtifacts) {
 			result.Artifacts = append(result.Artifacts, slot.descriptor)
 		}
-		if slot.hasContent && query.Projection.includes(ProjectContentPresence|ProjectContentData) {
-			view := ContentView{Artifact: id}
-			if query.Projection.includes(ProjectContentData) {
-				view.Data, err = s.materializeQueryContent(slot.content, id, legacyContent)
-				if err != nil {
-					return QueryResult{}, err
-				}
-			}
-			result.Contents = append(result.Contents, view)
+		if slot.hasContent && query.Projection.includes(ProjectContentPresence) {
+			result.Contents = append(result.Contents, ContentView{Artifact: id})
 		}
 		if slot.hasManifest && query.Projection.includes(ProjectManifests) {
 			result.Manifests = append(result.Manifests, slot.manifest.Clone())
@@ -208,17 +188,6 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 		result.Next = &QueryCursor{Head: s.head, Contract: contract, After: ids[len(ids)-1]}
 	}
 	return result, nil
-}
-
-// QueryExtent returns the exact current fact-class bound.
-func (s *Store) QueryExtent() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.state.queryExtent()
-}
-
-func (s catalogState) queryExtent() int {
-	return max(len(s.slots), len(s.aliases), s.edgeCount, len(s.commits))
 }
 
 func validateQuery(query Query) error {

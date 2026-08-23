@@ -66,6 +66,7 @@ type artifactSlot struct {
 	parents     []relationKey
 	children    []relationKey
 	locations   []artifact.Location
+	sequence    uint64
 	hasContent  bool
 	hasManifest bool
 }
@@ -74,6 +75,7 @@ type catalogState struct {
 	slots       map[artifact.ID]*artifactSlot
 	byMedia     map[string][]artifact.ID
 	bySchema    map[string][]artifact.ID
+	bySequence  []artifact.ID
 	aliases     map[string]artifact.ID
 	commits     []committedBatch
 	commitByKey map[string]int
@@ -159,14 +161,9 @@ func (s catalogState) hasArtifact(id artifact.ID, added map[artifact.ID]struct{}
 	return ok
 }
 
-func (s *catalogState) apply(batch artifact.Batch, locators map[artifact.ID]contentLocator) {
+func (s *catalogState) apply(batch artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64) {
 	for _, descriptor := range batch.Artifacts {
-		if _, found := s.slots[descriptor.ID]; found {
-			continue
-		}
-		s.slots[descriptor.ID] = &artifactSlot{descriptor: descriptor}
-		indexDescriptor(s.byMedia, descriptor.MediaType, descriptor.ID)
-		indexDescriptor(s.bySchema, descriptor.Schema, descriptor.ID)
+		s.addArtifact(descriptor, sequence)
 	}
 	for _, content := range batch.Contents {
 		slot := s.slots[content.Descriptor.ID]
@@ -204,6 +201,16 @@ func (s *catalogState) apply(batch artifact.Batch, locators map[artifact.ID]cont
 			slot.locations = slices.Delete(slot.locations, index, index+1)
 		}
 	}
+}
+
+func (s *catalogState) addArtifact(descriptor artifact.Descriptor, sequence uint64) {
+	if _, found := s.slots[descriptor.ID]; found {
+		return
+	}
+	s.slots[descriptor.ID] = &artifactSlot{descriptor: descriptor, sequence: sequence}
+	indexDescriptor(s.byMedia, descriptor.MediaType, descriptor.ID)
+	indexDescriptor(s.bySchema, descriptor.Schema, descriptor.ID)
+	s.bySequence = append(s.bySequence, descriptor.ID)
 }
 
 func (s catalogState) delta(batch artifact.Batch) artifact.Batch {
@@ -411,7 +418,7 @@ func (s *Store) applyRecord(record logRecord) error {
 	if err := s.state.validate(batch); err != nil {
 		return err
 	}
-	s.state.apply(batch, locators)
+	s.state.apply(batch, locators, record.sequence)
 	s.state.addCommit(committedBatch{key: batch.Key, id: record.id, payload: payloadHash, sequence: record.sequence})
 	return nil
 }
@@ -484,7 +491,7 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 		return id, fmt.Errorf("%w: %w", ErrStoreFaulted, err)
 	}
 	bindContentLocators(locators, payloadOffset, int64(len(payload)), frameVersion)
-	s.state.apply(delta, locators)
+	s.state.apply(delta, locators, sequence)
 	s.state.addCommit(committedBatch{key: normalized.Key, id: id, payload: payloadHash, sequence: sequence})
 	s.sequence = sequence
 	s.head = id

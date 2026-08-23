@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"overgo/internal/artifact"
@@ -52,7 +53,9 @@ func (h *Handler) artifactGallery(response http.ResponseWriter, request *http.Re
 	}
 	items := make([]artifactSummary, 0, len(result.Artifacts))
 	for _, descriptor := range result.Artifacts {
-		_, payload := result.Content(descriptor.ID)
+		_, payload := slices.BinarySearchFunc(result.Contents, descriptor.ID, func(content repodb.ContentView, id artifact.ID) int {
+			return artifact.CompareID(content.Artifact, id)
+		})
 		producers := make([]artifact.ID, 0)
 		for _, edge := range result.Lineage {
 			if edge.Child == descriptor.ID && edge.Relation == artifact.RelationProducedBy {

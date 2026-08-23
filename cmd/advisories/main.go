@@ -119,39 +119,37 @@ func run() error {
 // non-overlapping windows. One open finding per series; repeats add no new
 // document.
 func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisory) error {
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
-	})
-	if err != nil {
-		return err
-	}
 	var confirming []runrecord.Advisory
 	openFindingExists := false
 	seriesKey := latest.Recipe.String() + "/" + latest.Environment.String() + "/" + latest.Metric
-	for _, descriptor := range result.Artifacts {
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		switch descriptor.MediaType {
+	_, err := store.VisitDocuments(ctx, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{
+			{Kind: artifact.KindEvidence, MediaType: runrecord.AdvisoryMediaType, Schema: runrecord.AdvisorySchema},
+			{Kind: artifact.KindEvidence, MediaType: finding.MediaType, Schema: finding.Schema},
+		}, Order: repodb.DocumentOldestFirst,
+	}, func(view repodb.DocumentView) error {
+		switch view.Content.Descriptor.MediaType {
 		case runrecord.AdvisoryMediaType:
-			prior, err := runrecord.ParseAdvisory(content)
+			prior, err := runrecord.ParseAdvisory(view.Content.Data)
 			if err != nil || prior.Metric != latest.Metric ||
 				prior.Recipe != latest.Recipe || prior.Environment != latest.Environment ||
 				!nonOverlappingConfirmation(prior, latest) {
-				continue
+				return nil
 			}
 			confirming = append(confirming, prior)
 		case finding.MediaType:
-			document, err := finding.Parse(content)
+			document, err := finding.Parse(view.Content.Data)
 			if err != nil || document.Status != finding.StatusOpen {
-				continue
+				return nil
 			}
 			if strings.Contains(document.Title, seriesKey) {
 				openFindingExists = true
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	if len(confirming) == 0 {
 		fmt.Println("honesty: directional advisory only; a later non-overlapping window is required for a finding")
@@ -190,86 +188,55 @@ func nonOverlappingConfirmation(prior, latest runrecord.Advisory) bool {
 	return prior.LatestSequence < latest.WindowStart
 }
 
-// loadObservations pairs run and evaluation documents by evaluation.Run and
-// orders them by TRUE chronology: the store's commit sequence, joined through
-// the gate's batch-key convention ("gate/<codeCommit>") against the Run's own
-// CodeCommit. Query returns artifacts in content-hash order -- uncorrelated
-// with time -- so any arrival-order sequencing would feed the detector a
-// shuffled series (caught before enforcement activated; this join is the
-// zero-store-change fix, and a store-owned introduction sequence is the
-// eventual owner if non-gate series need it).
+// loadObservations joins evaluations to runs in store-owned introduction order.
 func loadObservations(ctx context.Context, store *repodb.Store, metric string) ([]runrecord.Observation, error) {
-	commitsResult, err := store.Query(ctx, repodb.Query{
-		FromSequence: 1, MaxResults: store.QueryExtent(), Projection: repodb.ProjectCommits,
-	})
-	if err != nil {
-		return nil, err
-	}
-	sequenceByCommitKey := map[string]uint64{}
-	for _, view := range commitsResult.Commits {
-		sequenceByCommitKey[view.Key] = view.Sequence
-	}
 	runs := map[artifact.ID]runrecord.Run{}
-	runsResult, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindRun, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, descriptor := range runsResult.Artifacts {
-		content, ok := runsResult.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		parsed, err := runrecord.ParseRun(content)
-		if err != nil {
-			continue // other run schemas are not this series
-		}
+	sequences := map[artifact.ID]uint64{}
+	var order []artifact.ID
+	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{
+			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.LegacyRunSchema},
+			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.RunSchema},
+		}, Order: repodb.DocumentOldestFirst,
+	}, runrecord.ParseRun, func(view repodb.DocumentView, parsed runrecord.Run) error {
 		runs[parsed.ID] = parsed
-	}
-	evaluationsResult, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvaluation, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+		sequences[parsed.ID] = view.Sequence
+		order = append(order, parsed.ID)
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	var observations []runrecord.Observation
-	unmapped := 0
-	for _, descriptor := range evaluationsResult.Artifacts {
-		content, ok := evaluationsResult.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		evaluation, err := runrecord.ParseEvaluation(content)
-		if err != nil {
-			continue
-		}
+	evaluations := map[artifact.ID][]runrecord.Evaluation{}
+	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvaluation, MediaType: runrecord.EvaluationMediaType, Schema: runrecord.EvaluationSchema,
+		}}, Order: repodb.DocumentOldestFirst,
+	}, runrecord.ParseEvaluation, func(_ repodb.DocumentView, evaluation runrecord.Evaluation) error {
 		run, ok := runs[evaluation.Run]
 		if !ok {
-			continue
+			return nil
 		}
 		hasMetric := false
 		for _, m := range evaluation.Metrics {
 			hasMetric = hasMetric || m.Name == metric
 		}
-		if !hasMetric {
-			continue
+		if hasMetric {
+			evaluations[run.ID] = append(evaluations[run.ID], evaluation)
 		}
-		sequence, ok := sequenceByCommitKey["gate/"+run.CodeCommit]
-		if !ok {
-			unmapped++
-			continue
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	observations := make([]runrecord.Observation, 0, len(evaluations))
+	for _, id := range order {
+		for _, evaluation := range evaluations[id] {
+			observations = append(observations, runrecord.Observation{
+				Sequence: sequences[id], Run: runs[id], Evaluation: evaluation,
+			})
 		}
-		observations = append(observations, runrecord.Observation{
-			Sequence: sequence, Run: run, Evaluation: evaluation,
-		})
 	}
-	if unmapped > 0 {
-		fmt.Printf("honesty: %d observation(s) skipped -- no commit-key chronology for their series\n", unmapped)
-	}
-	sort.Slice(observations, func(i, j int) bool { return observations[i].Sequence < observations[j].Sequence })
 	return observations, nil
 }
 

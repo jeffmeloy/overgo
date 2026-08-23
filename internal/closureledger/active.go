@@ -9,21 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"overgo/internal/artifact"
 )
 
-const activeAliasPrefix = "closure/active/"
-
-func IsActiveAlias(name string) bool {
-	if !strings.HasPrefix(name, activeAliasPrefix) {
-		return false
-	}
-	encoded := strings.TrimPrefix(name, activeAliasPrefix)
-	digest, err := hex.DecodeString(encoded)
-	return err == nil && len(digest) == sha256.Size && hex.EncodeToString(digest) == encoded
-}
+// ActiveAliasPrefix scopes current closure bindings.
+const ActiveAliasPrefix = "closure/active/"
 
 // ActiveAlias identifies one source declaration across evidence revisions.
 func ActiveAlias(binding SourceBinding) (string, error) {
@@ -31,12 +22,12 @@ func ActiveAlias(binding SourceBinding) (string, error) {
 		return "", errors.New("closure ledger: invalid active binding")
 	}
 	digest := sha256.Sum256([]byte(bindingDeclarationKey(binding)))
-	return activeAliasPrefix + hex.EncodeToString(digest[:]), nil
+	return ActiveAliasPrefix + hex.EncodeToString(digest[:]), nil
 }
 
 func activeAliasForKey(key string) string {
 	digest := sha256.Sum256([]byte(key))
-	return activeAliasPrefix + hex.EncodeToString(digest[:])
+	return ActiveAliasPrefix + hex.EncodeToString(digest[:])
 }
 
 // ResolveActiveBinding requires exact current source and value evidence.

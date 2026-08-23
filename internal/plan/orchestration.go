@@ -15,10 +15,13 @@ import (
 )
 
 const (
-	workLeaseVersion   uint16 = 1
-	workLeaseMediaType        = "application/vnd.overgo.work-lease+json"
-	workLeaseSchema           = "overgo/work-lease/v1"
-	workLeaseAliasRoot        = "automation/worktree/"
+	workLeaseVersion uint16 = 1
+	// WorkLeaseMediaType identifies work leases.
+	WorkLeaseMediaType = "application/vnd.overgo.work-lease+json"
+	// WorkLeaseSchema identifies the work-lease schema.
+	WorkLeaseSchema = "overgo/work-lease/v1"
+	// WorkLeaseAliasRoot scopes current worktree leases.
+	WorkLeaseAliasRoot = "automation/worktree/"
 )
 
 // Resources is advisory capacity metadata; it never acquires hardware.
@@ -48,7 +51,7 @@ type WorkLease struct {
 	ID              artifact.ID `json:"-"`
 }
 
-var workLeaseCodec = artifact.JSONDocumentCodec("work lease", artifact.KindEvidence, workLeaseMediaType, workLeaseSchema,
+var workLeaseCodec = artifact.JSONDocumentCodec("work lease", artifact.KindEvidence, WorkLeaseMediaType, WorkLeaseSchema,
 	canonicalizeWorkLease, func(value WorkLease) artifact.ID { return value.ID },
 	func(value *WorkLease, id artifact.ID) { value.ID = id }, func(value WorkLease) WorkLease {
 		value.ConflictsWith = slices.Clone(value.ConflictsWith)
@@ -83,6 +86,9 @@ func ReadWorkLease(ctx context.Context, reader artifact.Reader, id artifact.ID) 
 	return readTypedDocument(ctx, reader, id, workLeaseCodec.Contract, workLeaseCodec.Read)
 }
 
+// ParseWorkLease decodes one canonical work lease.
+func ParseWorkLease(content []byte) (WorkLease, error) { return workLeaseCodec.Parse(content) }
+
 func readTypedDocument[T any](ctx context.Context, reader artifact.Reader, id artifact.ID, contract artifact.DocumentContract, read func(context.Context, artifact.Reader, artifact.ID) (T, bool, error)) (T, bool, error) {
 	var zero T
 	descriptor, ok, err := reader.Artifact(ctx, id)
@@ -94,7 +100,7 @@ func readTypedDocument[T any](ctx context.Context, reader artifact.Reader, id ar
 
 func workLeaseAlias(worktree string) string {
 	digest := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(worktree))))
-	return fmt.Sprintf("%s%x", workLeaseAliasRoot, digest)
+	return fmt.Sprintf("%s%x", WorkLeaseAliasRoot, digest)
 }
 
 func canonicalizeWorkLease(value *WorkLease) error {

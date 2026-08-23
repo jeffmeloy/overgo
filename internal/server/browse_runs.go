@@ -92,9 +92,12 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 	if limit > browseRunsMaxLimit {
 		limit = browseRunsMaxLimit
 	}
-	page := repodb.Query{
-		Kind: artifact.KindRun, MaxResults: limit,
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	documents := repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{
+			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.LegacyRunSchema},
+			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.RunSchema},
+		},
+		Order: repodb.DocumentNewestFirst, MaxResults: limit,
 	}
 	if value := query.Get("cursor"); value != "" {
 		cursor, parseErr := repodb.ParseQueryCursor(value)
@@ -102,9 +105,14 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 			writeInvalidRequest(response, parseErr)
 			return
 		}
-		page.Cursor = &cursor
+		documents.Cursor = &cursor
 	}
-	result, err := store.Query(request.Context(), page)
+	runs := make([]browseRunEntry, 0, limit)
+	result, err := repodb.VisitDecodedDocuments(request.Context(), store, documents, runrecord.ParseRun,
+		func(_ repodb.DocumentView, run runrecord.Run) error {
+			runs = append(runs, shapeRun(run))
+			return nil
+		})
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
 		return
@@ -116,18 +124,6 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 		return
 	}
 
-	runs := make([]browseRunEntry, 0, len(result.Artifacts))
-	for _, descriptor := range result.Artifacts {
-		content, found := result.Content(descriptor.ID)
-		if !found {
-			continue
-		}
-		run, parseErr := runrecord.ParseRun(content)
-		if parseErr != nil {
-			continue
-		}
-		runs = append(runs, shapeRun(run))
-	}
 	writeJSON(response, http.StatusOK, browseRunsResponse{
 		Count: result.Matched, Limit: limit, Truncated: result.Truncated, Next: next, Runs: runs,
 	})

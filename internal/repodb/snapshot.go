@@ -23,7 +23,7 @@ const (
 	snapshotDirectory         = "snapshots"
 	snapshotExtension         = ".snapshot"
 	snapshotHeaderBytes       = 92
-	snapshotVersion           = uint16(4)
+	snapshotVersion           = uint16(5)
 	snapshotPayloadMultiplier = 4
 	maxSnapshotPayload        = maxFramePayload * snapshotPayloadMultiplier
 
@@ -66,19 +66,24 @@ type snapshotContent struct {
 	PayloadSize   int64       `json:"payload_size"`
 }
 
+type snapshotArtifact struct {
+	Descriptor artifact.Descriptor `json:"descriptor"`
+	Sequence   uint64              `json:"sequence"`
+}
+
 type snapshotDocument struct {
-	Version   uint16                `json:"version"`
-	Sequence  uint64                `json:"sequence"`
-	Head      artifact.CommitID     `json:"head"`
-	LogOffset int64                 `json:"log_offset"`
-	LogAnchor string                `json:"log_anchor"`
-	Artifacts []artifact.Descriptor `json:"artifacts"`
-	Contents  []snapshotContent     `json:"contents,omitempty"`
-	Manifests []artifact.Manifest   `json:"manifests,omitempty"`
-	Aliases   []snapshotAlias       `json:"aliases,omitempty"`
-	Lineage   []artifact.Lineage    `json:"lineage,omitempty"`
-	Locations []artifact.Location   `json:"locations,omitempty"`
-	Commits   []snapshotCommit      `json:"commits"`
+	Version   uint16              `json:"version"`
+	Sequence  uint64              `json:"sequence"`
+	Head      artifact.CommitID   `json:"head"`
+	LogOffset int64               `json:"log_offset"`
+	LogAnchor string              `json:"log_anchor"`
+	Artifacts []snapshotArtifact  `json:"artifacts"`
+	Contents  []snapshotContent   `json:"contents,omitempty"`
+	Manifests []artifact.Manifest `json:"manifests,omitempty"`
+	Aliases   []snapshotAlias     `json:"aliases,omitempty"`
+	Lineage   []artifact.Lineage  `json:"lineage,omitempty"`
+	Locations []artifact.Location `json:"locations,omitempty"`
+	Commits   []snapshotCommit    `json:"commits"`
 }
 
 // Snapshot writes one immutable, versioned state segment.
@@ -120,8 +125,18 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 	if uint64(len(document.Commits)) != document.Sequence {
 		return catalogState{}, errors.New("repodb: snapshot commit count differs")
 	}
+	descriptors := make([]artifact.Descriptor, len(document.Artifacts))
+	state := newCatalogState()
+	for index, entry := range document.Artifacts {
+		if entry.Sequence == 0 || entry.Sequence > document.Sequence ||
+			index > 0 && entry.Sequence < document.Artifacts[index-1].Sequence {
+			return catalogState{}, errors.New("repodb: invalid snapshot artifact sequence")
+		}
+		descriptors[index] = entry.Descriptor
+		state.addArtifact(entry.Descriptor, entry.Sequence)
+	}
 	batch := artifact.Batch{
-		Key: "snapshot/state", Artifacts: slices.Clone(document.Artifacts),
+		Key: "snapshot/state", Artifacts: descriptors,
 		Manifests: cloneValues(document.Manifests),
 		Lineage:   slices.Clone(document.Lineage),
 	}
@@ -137,11 +152,10 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 	if err != nil {
 		return catalogState{}, err
 	}
-	state := newCatalogState()
 	if err := state.validate(normalized); err != nil {
 		return catalogState{}, err
 	}
-	state.apply(normalized, nil)
+	state.apply(normalized, nil, document.Sequence)
 	for _, content := range document.Contents {
 		slot := state.slots[content.Artifact]
 		if slot == nil || content.Size <= 0 || uint64(content.Size) != slot.descriptor.Size ||
@@ -265,10 +279,11 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 	stream.raw(`,"log_anchor":`)
 	stream.value(anchor)
 
-	artifactIDs := snapshotArtifactIDs(state, func(*artifactSlot) bool { return true })
-	stream.array("artifacts", len(artifactIDs), false, func(index int) {
-		stream.value(state.slots[artifactIDs[index]].descriptor)
+	stream.array("artifacts", len(state.bySequence), false, func(index int) {
+		slot := state.slots[state.bySequence[index]]
+		stream.value(snapshotArtifact{Descriptor: slot.descriptor, Sequence: slot.sequence})
 	})
+	artifactIDs := snapshotArtifactIDs(state, func(*artifactSlot) bool { return true })
 	contentIDs := snapshotArtifactIDs(state, func(slot *artifactSlot) bool { return slot.hasContent })
 	stream.array("contents", len(contentIDs), true, func(index int) {
 		id := contentIDs[index]

@@ -8,9 +8,11 @@ import (
 )
 
 const (
-	leaseOutcomeVersion   uint16 = 1
-	leaseOutcomeMediaType        = "application/vnd.overgo.lease-outcome+json"
-	leaseOutcomeSchema           = "overgo/lease-outcome/v1"
+	leaseOutcomeVersion uint16 = 1
+	// LeaseOutcomeMediaType identifies lease outcomes.
+	LeaseOutcomeMediaType = "application/vnd.overgo.lease-outcome+json"
+	// LeaseOutcomeSchema identifies the lease-outcome schema.
+	LeaseOutcomeSchema = "overgo/lease-outcome/v1"
 )
 
 // LeaseOutcome: predicted and measured lease resources.
@@ -29,7 +31,7 @@ type LeaseOutcome struct {
 	ID                      artifact.ID `json:"-"`
 }
 
-var leaseOutcomeCodec = artifact.JSONDocumentCodec("lease outcome", artifact.KindEvidence, leaseOutcomeMediaType, leaseOutcomeSchema,
+var leaseOutcomeCodec = artifact.JSONDocumentCodec("lease outcome", artifact.KindEvidence, LeaseOutcomeMediaType, LeaseOutcomeSchema,
 	canonicalizeLeaseOutcome, func(value LeaseOutcome) artifact.ID { return value.ID },
 	func(value *LeaseOutcome, id artifact.ID) { value.ID = id }, nil)
 

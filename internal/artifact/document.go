@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"slices"
+	"strings"
 )
 
 const (
@@ -17,6 +18,16 @@ type DocumentContract struct {
 	Kind      Kind
 	MediaType string
 	Schema    string
+}
+
+// Validate checks the exact stored-document contract.
+func (c DocumentContract) Validate() error {
+	if c.Kind == KindInvalid || int(c.Kind) >= len(kindNames) || c.MediaType == "" || c.Schema == "" ||
+		strings.TrimSpace(c.MediaType) != c.MediaType || strings.ContainsAny(c.MediaType, "\r\n") ||
+		strings.TrimSpace(c.Schema) != c.Schema || strings.ContainsAny(c.Schema, "\r\n") {
+		return errors.New("artifact: invalid document contract")
+	}
+	return nil
 }
 
 // ReadContent materializes one bounded content stream.
@@ -158,14 +169,11 @@ func NewDocumentBatch(
 }
 
 func (c DocumentContract) validateData(data []byte) error {
-	if c.Kind == KindInvalid || int(c.Kind) >= len(kindNames) || c.MediaType == "" || c.Schema == "" ||
-		len(data) == 0 || len(data) > MaxContentBytes {
-		return errors.New("artifact: invalid document contract or size")
-	}
-	probe, err := NewID(c.Kind, [digestBytes]byte{})
-	if err != nil {
+	if err := c.Validate(); err != nil {
 		return err
 	}
-	_, err = c.Descriptor(probe, uint64(len(data)))
-	return err
+	if len(data) == 0 || len(data) > MaxContentBytes {
+		return errors.New("artifact: invalid document contract or size")
+	}
+	return nil
 }

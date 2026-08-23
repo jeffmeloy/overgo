@@ -99,33 +99,26 @@ func TrainProposalRankerFromStore(ctx context.Context, store *repodb.Store) (Pro
 	if ctx == nil || store == nil {
 		return ProposalRanker{}, errors.New("composition: proposal ranker store absent")
 	}
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
-	})
-	if err != nil {
-		return ProposalRanker{}, err
-	}
 	history := make([]artifact.ID, 0)
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != recipe.DecisionMediaType {
-			continue
-		}
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		decision, err := recipe.ParseDecision(content)
-		if err != nil || decision.Outcome != recipe.DecisionObserved && decision.Outcome != recipe.DecisionRefused {
-			continue
+	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: recipe.DecisionMediaType, Schema: recipe.DecisionSchema,
+		}}, Order: repodb.DocumentOldestFirst,
+	}, recipe.ParseDecision, func(view repodb.DocumentView, decision recipe.Decision) error {
+		if decision.Outcome != recipe.DecisionObserved && decision.Outcome != recipe.DecisionRefused {
+			return nil
 		}
 		subject, ok, err := artifact.ReadContent(ctx, store, decision.Subject)
 		if err != nil {
-			return ProposalRanker{}, err
+			return err
 		}
 		if ok && subject.Descriptor.MediaType == BridgeProposalMediaType {
-			history = append(history, descriptor.ID)
+			history = append(history, view.Content.Descriptor.ID)
 		}
+		return nil
+	})
+	if err != nil {
+		return ProposalRanker{}, err
 	}
 	return TrainProposalRanker(ctx, store, history)
 }

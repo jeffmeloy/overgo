@@ -8,11 +8,15 @@ import (
 )
 
 const (
-	explorationGrantMediaType  = "application/vnd.overgo.exploration-grant+json"
-	explorationGrantSchema     = "overgo/exploration-grant/v1"
-	explorationChargeMediaType = "application/vnd.overgo.exploration-charge+json"
-	explorationChargeSchema    = "overgo/exploration-charge/v1"
-	explorationVersion         = uint16(1)
+	// ExplorationGrantMediaType identifies exploration grants.
+	ExplorationGrantMediaType = "application/vnd.overgo.exploration-grant+json"
+	// ExplorationGrantSchema identifies the exploration-grant schema.
+	ExplorationGrantSchema = "overgo/exploration-grant/v1"
+	// ExplorationChargeMediaType identifies exploration charges.
+	ExplorationChargeMediaType = "application/vnd.overgo.exploration-charge+json"
+	// ExplorationChargeSchema identifies the exploration-charge schema.
+	ExplorationChargeSchema = "overgo/exploration-charge/v1"
+	explorationVersion      = uint16(1)
 )
 
 // ExplorationGrant is one GPU-time budget token for autonomous proposal work:
@@ -39,14 +43,14 @@ type ExplorationCharge struct {
 }
 
 var explorationGrantCodec = artifact.JSONDocumentCodec(
-	"exploration grant", artifact.KindEvidence, explorationGrantMediaType, explorationGrantSchema,
+	"exploration grant", artifact.KindEvidence, ExplorationGrantMediaType, ExplorationGrantSchema,
 	canonicalizeExplorationGrant,
 	func(value ExplorationGrant) artifact.ID { return value.ID },
 	func(value *ExplorationGrant, id artifact.ID) { value.ID = id }, nil,
 )
 
 var explorationChargeCodec = artifact.JSONDocumentCodec(
-	"exploration charge", artifact.KindEvidence, explorationChargeMediaType, explorationChargeSchema,
+	"exploration charge", artifact.KindEvidence, ExplorationChargeMediaType, ExplorationChargeSchema,
 	canonicalizeExplorationCharge,
 	func(value ExplorationCharge) artifact.ID { return value.ID },
 	func(value *ExplorationCharge, id artifact.ID) { value.ID = id }, nil,

@@ -1329,33 +1329,20 @@ func activeMagicBindings(repo, storePath string) ([]closureledger.Document, erro
 		return nil, err
 	}
 	defer store.Close()
-	result, err := store.Query(context.Background(), repodb.Query{
-		Kind: artifact.KindEvidence, MediaType: closureledger.MediaType,
-		Schema: closureledger.Schema, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectAliases | repodb.ProjectContentData,
+	var documents []closureledger.Document
+	_, err = repodb.VisitDecodedDocuments(context.Background(), store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: closureledger.MediaType, Schema: closureledger.Schema,
+		}}, AliasPrefix: closureledger.ActiveAliasPrefix, Order: repodb.DocumentOldestFirst,
+	}, closureledger.Parse, func(view repodb.DocumentView, document closureledger.Document) error {
+		if document.ID != view.Content.Descriptor.ID {
+			return errors.New("magic scan: active document identity mismatch")
+		}
+		documents = append(documents, document)
+		return nil
 	})
 	if err != nil {
 		return nil, err
-	}
-	if result.Truncated {
-		return nil, errors.New("magic scan: active-ledger query truncated")
-	}
-	seen := map[artifact.ID]bool{}
-	var documents []closureledger.Document
-	for _, alias := range result.Aliases {
-		if !closureledger.IsActiveAlias(alias.Name) || seen[alias.Target] {
-			continue
-		}
-		seen[alias.Target] = true
-		data, found := result.Content(alias.Target)
-		if !found {
-			return nil, errors.New("magic scan: active document unavailable")
-		}
-		document, err := closureledger.Parse(data)
-		if err != nil || document.ID != alias.Target {
-			return nil, errors.New("magic scan: active document identity mismatch")
-		}
-		documents = append(documents, document)
 	}
 	return documents, nil
 }

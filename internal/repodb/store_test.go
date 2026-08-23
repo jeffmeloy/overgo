@@ -35,7 +35,7 @@ func TestCanonicalCatalogOwnership(t *testing.T) {
 func TestLineageIndexesReferenceCanonicalEdges(t *testing.T) {
 	state := newCatalogState()
 	batch := fixtureBatch(t)
-	state.apply(batch, nil)
+	state.apply(batch, nil, 1)
 	edge := batch.Lineage[0]
 	key := relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation}
 	if _, ok := slices.BinarySearchFunc(state.slots[edge.Child].parents, key, compareRelation); !ok {

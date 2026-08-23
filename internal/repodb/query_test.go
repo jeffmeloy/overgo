@@ -220,10 +220,113 @@ func TestQueryProjectionReturnsRequestedFactsOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := store.Query(context.Background(), Query{
-		Artifact: &content.Descriptor.ID, MaxResults: 1, Projection: ProjectContentData,
+		Artifact: &content.Descriptor.ID, MaxResults: 1, Projection: ProjectContentPresence,
 	})
 	if err != nil || len(result.Artifacts) != 0 || len(result.Contents) != 1 ||
-		result.Contents[0].Artifact != content.Descriptor.ID || !slices.Equal(result.Contents[0].Data, content.Data) {
-		t.Fatalf("projected content = (%+v, %v)", result, err)
+		result.Contents[0].Artifact != content.Descriptor.ID {
+		t.Fatalf("projected content presence = (%+v, %v)", result, err)
 	}
+}
+
+func TestTypedDocumentScan(t *testing.T) {
+	store, contract, contents := documentQueryFixture(t)
+	defer store.Close()
+	var got []artifact.ID
+	page, err := store.VisitDocuments(context.Background(), DocumentQuery{
+		Contracts: []artifact.DocumentContract{contract}, Order: DocumentOldestFirst,
+	}, func(view DocumentView) error {
+		got = append(got, view.Content.Descriptor.ID)
+		return nil
+	})
+	if err != nil || !slices.Equal(got, []artifact.ID{contents[0].Descriptor.ID, contents[1].Descriptor.ID}) ||
+		page.Matched != len(contents) || page.Truncated {
+		t.Fatalf("document scan = (%v, %+v, %v)", got, page, err)
+	}
+}
+
+func TestNewestFirstCursor(t *testing.T) {
+	store, contract, contents := documentQueryFixture(t)
+	defer store.Close()
+	query := DocumentQuery{Contracts: []artifact.DocumentContract{contract}, Order: DocumentNewestFirst, MaxResults: 1}
+	var got []artifact.ID
+	first, err := store.VisitDocuments(context.Background(), query, func(view DocumentView) error {
+		got = append(got, view.Content.Descriptor.ID)
+		return nil
+	})
+	if err != nil || first.Next == nil || !first.Truncated || !slices.Equal(got, []artifact.ID{contents[1].Descriptor.ID}) {
+		t.Fatalf("first document page = (%v, %+v, %v)", got, first, err)
+	}
+	query.Cursor = first.Next
+	second, err := store.VisitDocuments(context.Background(), query, func(view DocumentView) error {
+		got = append(got, view.Content.Descriptor.ID)
+		return nil
+	})
+	if err != nil || second.Next != nil || second.Truncated || !slices.Equal(got, []artifact.ID{
+		contents[1].Descriptor.ID, contents[0].Descriptor.ID,
+	}) {
+		t.Fatalf("document pages = (%v, %+v, %v)", got, second, err)
+	}
+	root := store.root
+	if _, err := store.Snapshot(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	query.Cursor, got = nil, nil
+	_, err = store.VisitDocuments(context.Background(), query, func(view DocumentView) error {
+		got = append(got, view.Content.Descriptor.ID)
+		return nil
+	})
+	if err != nil || !slices.Equal(got, []artifact.ID{contents[1].Descriptor.ID}) {
+		t.Fatalf("snapshot document page = (%v, %v)", got, err)
+	}
+}
+
+func TestAliasPrefix(t *testing.T) {
+	store, contract, contents := documentQueryFixture(t)
+	defer store.Close()
+	var got []DocumentView
+	page, err := store.VisitDocuments(context.Background(), DocumentQuery{
+		Contracts: []artifact.DocumentContract{contract}, AliasPrefix: "fixture/active/", Order: DocumentOldestFirst,
+	}, func(view DocumentView) error {
+		got = append(got, view)
+		return nil
+	})
+	if err != nil || len(got) != 1 || got[0].Content.Descriptor.ID != contents[1].Descriptor.ID ||
+		!slices.Equal(got[0].Aliases, []string{"fixture/active/current"}) || page.Matched != 1 {
+		t.Fatalf("aliased documents = (%+v, %+v, %v)", got, page, err)
+	}
+}
+
+func documentQueryFixture(t *testing.T) (*Store, artifact.DocumentContract, []artifact.Content) {
+	t.Helper()
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	contract := artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: "application/vnd.overgo.query-fixture+json", Schema: "overgo/query-fixture/v1",
+	}
+	contents := make([]artifact.Content, 2)
+	keys := []string{"fixture/document-query/first", "fixture/document-query/second"}
+	for index, payload := range []string{`{"value":"first"}`, `{"value":"second"}`} {
+		contents[index], err = contract.ContentBytes([]byte(payload))
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch := artifact.Batch{Key: keys[index], Contents: []artifact.Content{contents[index]}}
+		if index == len(contents)-1 {
+			batch.Aliases = []artifact.AliasBinding{{Name: "fixture/active/current", Target: contents[index].Descriptor.ID}}
+		}
+		if _, err := store.Commit(context.Background(), batch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return store, contract, contents
 }

@@ -205,23 +205,19 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("completion status=%d body=%s", response.Code, response.Body.String())
 	}
-	result, err := store.Query(context.Background(), repodb.Query{
-		MediaType:  runrecord.ServingObservationMediaType,
-		Schema:     runrecord.ServingObservationSchema,
-		MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	var observations []runrecord.ServingObservation
+	_, err = repodb.VisitDecodedDocuments(context.Background(), store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
+		}}, Order: repodb.DocumentOldestFirst,
+	}, runrecord.ParseServingObservation, func(_ repodb.DocumentView, observation runrecord.ServingObservation) error {
+		observations = append(observations, observation)
+		return nil
 	})
-	if err != nil || len(result.Artifacts) != 1 {
-		t.Fatalf("observations=%d err=%v", len(result.Artifacts), err)
+	if err != nil || len(observations) != 1 {
+		t.Fatalf("observations=%d err=%v", len(observations), err)
 	}
-	content, found := result.Content(result.Artifacts[0].ID)
-	if !found {
-		t.Fatal("observation content absent")
-	}
-	observation, err := runrecord.ParseServingObservation(content)
-	if err != nil {
-		t.Fatal(err)
-	}
+	observation := observations[0]
 	wantStages := []runrecord.ServingHardwareStage{
 		runrecord.ServingHardwareStart,
 		runrecord.ServingHardwarePrefill,

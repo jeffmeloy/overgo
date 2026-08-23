@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
@@ -96,26 +95,19 @@ func (h *Handler) runtimeActivitySnapshot(ctx context.Context) (runtimeActivityR
 	if err != nil {
 		return runtimeActivityResponse{}, err
 	}
-	result, err := store.Query(ctx, repodb.Query{
-		Kind:       artifact.KindEvidence,
-		MediaType:  runrecord.ServingObservationMediaType,
-		Schema:     runrecord.ServingObservationSchema,
-		MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectContentData,
+	activity := make([]servingActivity, 0)
+	result, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
+		}},
+		Order: repodb.DocumentNewestFirst,
+	}, runrecord.ParseServingObservation, func(view repodb.DocumentView, observation runrecord.ServingObservation) error {
+		activity = append(activity, servingActivity{ID: view.Content.Descriptor.ID, ServingObservation: observation})
+		return nil
 	})
 	if err != nil {
 		return runtimeActivityResponse{}, err
 	}
-	activity := make([]servingActivity, 0, len(result.Contents))
-	for _, content := range result.Contents {
-		observation, parseErr := runrecord.ParseServingObservation(content.Data)
-		if parseErr == nil {
-			activity = append(activity, servingActivity{ID: content.Artifact, ServingObservation: observation})
-		}
-	}
-	sort.Slice(activity, func(left, right int) bool {
-		return activity[left].StartedUnixNS > activity[right].StartedUnixNS
-	})
 	stages, stagesTruncated, err := projectedDocuments(ctx, store, runrecord.StageReceiptMediaType, runrecord.StageReceiptSchema)
 	if err != nil {
 		return runtimeActivityResponse{}, err
@@ -141,18 +133,15 @@ func projectedDocuments(
 	store *repodb.Store,
 	mediaType, schema string,
 ) ([]json.RawMessage, bool, error) {
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MediaType: mediaType, Schema: schema,
-		MaxResults: store.QueryExtent(), Projection: repodb.ProjectContentData,
+	documents := make([]json.RawMessage, 0)
+	page, err := store.VisitDocuments(ctx, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: mediaType, Schema: schema}},
+		Order:     repodb.DocumentNewestFirst,
+	}, func(view repodb.DocumentView) error {
+		documents = append(documents, json.RawMessage(view.Content.Data))
+		return nil
 	})
-	if err != nil {
-		return nil, false, err
-	}
-	documents := make([]json.RawMessage, len(result.Contents))
-	for index, content := range result.Contents {
-		documents[index] = json.RawMessage(content.Data)
-	}
-	return documents, result.Truncated, nil
+	return documents, page.Truncated, err
 }
 
 func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *http.Request) {

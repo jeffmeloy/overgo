@@ -1584,12 +1584,12 @@
       "id": "repodb-typed-stream-query",
       "title": "Make bounded ordered typed document scans the only history query path",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Add exact DocumentContract, sequence order, cursor, and alias-prefix selectors with streaming decode; migrate every production QueryExtent and descriptor-content loop; delete ProjectContentData, parallel result arrays, and caller-side latest selection",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/artifact ./internal/repodb ./internal/runrecord ./internal/modelrecipe ./internal/evaluation ./internal/server ./cmd/repodb-query -run 'Test(TypedDocumentScan|NewestFirstCursor|AliasPrefix|RuntimeActivityProjectedPage|BrowseRunsReadsRepoDBRecords)' -count=1",
           "rationale": "Thirty-one callers request global QueryExtent bounds and many deserialize broad artifact kinds before filtering. Exact contract indexes and sequence-aware bounded scans remove history-wide allocation and centralize document validation without a second query system.",
           "depends_on": [

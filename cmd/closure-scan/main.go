@@ -12,7 +12,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -527,60 +526,33 @@ func closureFixtureImports(ctx context.Context, source, target *repodb.Store, do
 		} else if found || slices.ContainsFunc(document.Bindings, func(binding closureledger.SourceBinding) bool { return binding.Owner == document.Fixture }) {
 			continue
 		}
-		result, err := source.Query(ctx, repodb.Query{
-			Artifact: &document.Fixture, MaxResults: source.QueryExtent(), Projection: repodb.ProjectArtifacts,
-		})
-		if err != nil || len(result.Artifacts) != 1 {
+		descriptor, found, err := source.Artifact(ctx, document.Fixture)
+		if err != nil || !found {
 			return nil, errors.Join(err, fmt.Errorf("closure fixture is absent: %s", document.Fixture))
 		}
-		descriptors = append(descriptors, result.Artifacts[0])
+		descriptors = append(descriptors, descriptor)
 	}
 	return descriptors, nil
 }
 
 func activeClosureDocuments(ctx context.Context, store *repodb.Store) ([]closureledger.Document, map[string]artifact.ID, error) {
-	result, err := store.Query(ctx, repodb.Query{
-		MediaType: closureledger.MediaType, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectAliases,
-	})
-	if err != nil || result.Truncated {
-		if err == nil {
-			err = errors.New("closure-scan: active-ledger query truncated")
-		}
-		return nil, nil, err
-	}
-	documents := map[artifact.ID]closureledger.Document{}
+	documents := make([]closureledger.Document, 0)
 	aliases := map[string]artifact.ID{}
-	var targets []artifact.ID
-	for _, alias := range result.Aliases {
-		if !closureledger.IsActiveAlias(alias.Name) {
-			continue
+	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: closureledger.MediaType, Schema: closureledger.Schema,
+		}}, AliasPrefix: closureledger.ActiveAliasPrefix, Order: repodb.DocumentOldestFirst,
+	}, closureledger.Parse, func(view repodb.DocumentView, document closureledger.Document) error {
+		documents = append(documents, document)
+		for _, name := range view.Aliases {
+			aliases[name] = document.ID
 		}
-		aliases[alias.Name] = alias.Target
-		targets = append(targets, alias.Target)
-	}
-	err = store.VisitContents(ctx, targets, func(descriptor artifact.Descriptor, reader io.Reader) error {
-		content, err := artifact.ReadContentFrom(descriptor, reader)
-		if err != nil {
-			return err
-		}
-		document, err := closureledger.Parse(content.Data)
-		if err != nil {
-			return err
-		}
-		documents[document.ID] = document
 		return nil
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-	ids := slices.Collect(maps.Keys(documents))
-	slices.SortFunc(ids, func(left, right artifact.ID) int { return cmp.Compare(left.String(), right.String()) })
-	active := make([]closureledger.Document, len(ids))
-	for index, id := range ids {
-		active[index] = documents[id]
-	}
-	return active, aliases, nil
+	return documents, aliases, nil
 }
 
 func writeCensusText(destination io.Writer, census closurescan.Census) error {

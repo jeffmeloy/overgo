@@ -162,6 +162,19 @@ type magicCensusDelta struct {
 	Pressure closurescan.ClosurePressure `json:"closure_pressure"`
 }
 
+func visitDocuments[T any](
+	ctx context.Context,
+	store *repodb.Store,
+	contract artifact.DocumentContract,
+	decode func([]byte) (T, error),
+	visit func(repodb.DocumentView, T) error,
+) error {
+	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{contract}, Order: repodb.DocumentOldestFirst,
+	}, decode, visit)
+	return err
+}
+
 type magicClosureReport struct {
 	Runs []magicClosureRun `json:"runs"`
 }
@@ -173,35 +186,16 @@ func writeMagicClosures(output io.Writer, repository string, limit int, jsonOutp
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{
-		MediaType: closurescan.CensusEvidenceMediaType, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	var report magicClosureReport
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: closurescan.CensusEvidenceMediaType, Schema: closurescan.CensusEvidenceSchema,
+	}, closurescan.ParseCensusEvidence, func(_ repodb.DocumentView, evidence closurescan.CensusEvidence) error {
+		report.Runs = append(report.Runs, magicClosureRun{ID: evidence.ID, Evidence: evidence})
+		return nil
 	})
 	if err != nil {
 		return err
 	}
-	if result.Truncated {
-		return errors.New("repodb-query: magic census history truncated")
-	}
-	var report magicClosureReport
-	for _, descriptor := range result.Artifacts {
-		content, found := result.Content(descriptor.ID)
-		if !found {
-			return errors.New("repodb-query: magic census content absent")
-		}
-		evidence, err := closurescan.ParseCensusEvidence(content)
-		if err != nil {
-			return err
-		}
-		report.Runs = append(report.Runs, magicClosureRun{ID: evidence.ID, Evidence: evidence})
-	}
-	sort.Slice(report.Runs, func(i, j int) bool {
-		left, right := report.Runs[i].Evidence, report.Runs[j].Evidence
-		if left.CatalogSequence != right.CatalogSequence {
-			return left.CatalogSequence < right.CatalogSequence
-		}
-		return report.Runs[i].ID.String() < report.Runs[j].ID.String()
-	})
 	var previous *closurescan.CensusEvidence
 	for index := range report.Runs {
 		current := &report.Runs[index]
@@ -303,27 +297,25 @@ func writeGenerations(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	records := make(map[artifact.ID]runrecord.GenerationRecord)
+	budgets := make(map[artifact.ID]runrecord.Budget)
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: runrecord.GenerationMediaType, Schema: runrecord.GenerationSchema,
+	}, runrecord.ParseGenerationRecord, func(_ repodb.DocumentView, record runrecord.GenerationRecord) error {
+		records[record.Child] = record
+		return nil
 	})
 	if err != nil {
 		return err
 	}
-	records := make(map[artifact.ID]runrecord.GenerationRecord)
-	budgets := make(map[artifact.ID]runrecord.Budget)
-	for _, descriptor := range result.Artifacts {
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		if record, err := runrecord.ParseGenerationRecord(content); err == nil {
-			records[record.Child] = record
-			continue
-		}
-		if budget, err := runrecord.ParseBudget(content); err == nil {
-			budgets[budget.ID] = budget
-		}
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: runrecord.BudgetMediaType, Schema: runrecord.BudgetSchema,
+	}, runrecord.ParseBudget, func(_ repodb.DocumentView, budget runrecord.Budget) error {
+		budgets[budget.ID] = budget
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	var depthOf func(child artifact.ID, visiting map[artifact.ID]bool) int
 	depthOf = func(child artifact.ID, visiting map[artifact.ID]bool) int {
@@ -372,22 +364,12 @@ func writeRefusals(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
-	})
-	if err != nil {
-		return err
-	}
 	count := 0
-	for _, descriptor := range result.Artifacts {
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		decision, err := recipe.ParseDecision(content)
-		if err != nil || decision.Outcome != recipe.DecisionRefused {
-			continue // other evidence document kinds share the store
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: recipe.DecisionMediaType, Schema: recipe.DecisionSchema,
+	}, recipe.ParseDecision, func(_ repodb.DocumentView, decision recipe.Decision) error {
+		if decision.Outcome != recipe.DecisionRefused {
+			return nil
 		}
 		evidence := make([]string, 0, len(decision.Evidence))
 		for _, id := range decision.Evidence {
@@ -396,6 +378,10 @@ func writeRefusals(output io.Writer, repository string, limit int) error {
 		fmt.Fprintf(output, "refusal subject=%s tier=%s reason=%q evidence=%s decider=%s\n",
 			decision.Subject, decision.Tier, decision.Reason, strings.Join(evidence, ","), decision.Decider.CodeCommit)
 		count++
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	fmt.Fprintf(output, "%d refusal(s); honesty: rows derive from committed decision documents only; refusals without measurement evidence cannot be committed\n", count)
 	return nil
@@ -411,29 +397,15 @@ func writeExperiments(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MediaType: runrecord.ExperimentLifecycleMediaType,
-		Schema: runrecord.ExperimentLifecycleSchema, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	chains := map[artifact.ID][]runrecord.ExperimentLifecycle{}
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: runrecord.ExperimentLifecycleMediaType, Schema: runrecord.ExperimentLifecycleSchema,
+	}, runrecord.ParseExperimentLifecycle, func(_ repodb.DocumentView, record runrecord.ExperimentLifecycle) error {
+		chains[record.Experiment] = append(chains[record.Experiment], record)
+		return nil
 	})
 	if err != nil {
 		return err
-	}
-	chains := map[artifact.ID][]runrecord.ExperimentLifecycle{}
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != runrecord.ExperimentLifecycleMediaType ||
-			descriptor.Schema != runrecord.ExperimentLifecycleSchema {
-			continue
-		}
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		record, err := runrecord.ParseExperimentLifecycle(content)
-		if err != nil {
-			return err
-		}
-		chains[record.Experiment] = append(chains[record.Experiment], record)
 	}
 	ids := make([]string, 0, len(chains))
 	byText := map[string]artifact.ID{}
@@ -469,28 +441,10 @@ func writeComponents(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindTensorSet, MediaType: modelartifact.ComponentDecompositionMediaType,
-		Schema: modelartifact.ComponentDecompositionSchema, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
-	})
-	if err != nil {
-		return err
-	}
 	count := 0
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != modelartifact.ComponentDecompositionMediaType ||
-			descriptor.Schema != modelartifact.ComponentDecompositionSchema {
-			continue
-		}
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		decomposition, err := modelartifact.ParseComponentDecomposition(content)
-		if err != nil {
-			return err
-		}
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindTensorSet, MediaType: modelartifact.ComponentDecompositionMediaType, Schema: modelartifact.ComponentDecompositionSchema,
+	}, modelartifact.ParseComponentDecomposition, func(_ repodb.DocumentView, decomposition modelartifact.ComponentDecompositionDocument) error {
 		roles := map[string]int{}
 		for _, component := range decomposition.Components {
 			roles[string(component.Contract.Role)]++
@@ -507,6 +461,10 @@ func writeComponents(output io.Writer, repository string, limit int) error {
 		fmt.Fprintf(output, "decomposition %s model=%s components=%d %s\n",
 			decomposition.ID, decomposition.Model, len(decomposition.Components), strings.Join(summary, " "))
 		count++
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	fmt.Fprintf(output, "%d decomposition(s); honesty: rows derive from committed classification documents only; no retrieval index exists yet\n", count)
 	return nil
@@ -521,32 +479,18 @@ func writeProposals(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MediaType: composition.BridgeProposalMediaType,
-		Schema: composition.BridgeProposalSchema, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
-	})
-	if err != nil {
-		return err
-	}
 	count := 0
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != composition.BridgeProposalMediaType ||
-			descriptor.Schema != composition.BridgeProposalSchema {
-			continue
-		}
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		proposal, err := composition.ParseBridgeProposal(content)
-		if err != nil {
-			return err
-		}
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: composition.BridgeProposalMediaType, Schema: composition.BridgeProposalSchema,
+	}, composition.ParseBridgeProposal, func(_ repodb.DocumentView, proposal composition.BridgeProposal) error {
 		fmt.Fprintf(output, "proposal %s target=%s candidates=%d state=%s verifier=%q blocker=%q\n",
 			proposal.ID, proposal.Target, len(proposal.Candidates), proposal.State,
 			proposal.RequiredVerifier, proposal.Blocker)
 		count++
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	fmt.Fprintf(output, "%d proposal(s); honesty: every row is promotion-blocked by construction; this ledger advises and never authorizes\n", count)
 	return nil
@@ -562,28 +506,10 @@ func writeAdmissions(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MediaType: runrecord.AdmissionBindingMediaType,
-		Schema: runrecord.AdmissionBindingSchema, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
-	})
-	if err != nil {
-		return err
-	}
 	count := 0
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != runrecord.AdmissionBindingMediaType ||
-			descriptor.Schema != runrecord.AdmissionBindingSchema {
-			continue
-		}
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		binding, err := runrecord.ParseAdmissionBinding(content)
-		if err != nil {
-			return err
-		}
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: runrecord.AdmissionBindingMediaType, Schema: runrecord.AdmissionBindingSchema,
+	}, runrecord.ParseAdmissionBinding, func(_ repodb.DocumentView, binding runrecord.AdmissionBinding) error {
 		line := fmt.Sprintf("admission %s generation=%d proposer=%s evaluator=%s decider=%s",
 			binding.ID, binding.Generation, binding.Proposer.Name, binding.Evaluator.Name, binding.Decider.Name)
 		if binding.PriorApproval.Valid() {
@@ -591,6 +517,10 @@ func writeAdmissions(output io.Writer, repository string, limit int) error {
 		}
 		fmt.Fprintln(output, line)
 		count++
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	fmt.Fprintf(output, "%d admission binding(s); honesty: domains must be pairwise distinct by construction; succession requires the cited prior-authority approval\n", count)
 	return nil
@@ -605,32 +535,18 @@ func writeComposed(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindModel, MediaType: composition.ComposedModelMediaType,
-		Schema: composition.ComposedModelSchema, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
-	})
-	if err != nil {
-		return err
-	}
 	count := 0
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != composition.ComposedModelMediaType ||
-			descriptor.Schema != composition.ComposedModelSchema {
-			continue
-		}
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		document, err := composition.ParseComposedModel(content)
-		if err != nil {
-			return err
-		}
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindModel, MediaType: composition.ComposedModelMediaType, Schema: composition.ComposedModelSchema,
+	}, composition.ParseComposedModel, func(_ repodb.DocumentView, document composition.ComposedModelDocument) error {
 		fmt.Fprintf(output, "composed %s architecture=%s recipe=%s parents=%d components=%d adapter=%t checkpoint=%t\n",
 			document.ID, document.Architecture, document.Recipe, len(document.Parents),
 			len(document.Components), document.Adapter.Valid(), document.Checkpoint.Valid())
 		count++
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	fmt.Fprintf(output, "%d composed artifact(s); honesty: rows derive from committed assembly documents; execution and lineage resolve through the store graph\n", count)
 	return nil
@@ -667,27 +583,10 @@ func writeConfigs(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindProfile, MediaType: modelartifact.ModelConfigMediaType,
-		MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
-	})
-	if err != nil {
-		return err
-	}
 	count := 0
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != modelartifact.ModelConfigMediaType {
-			continue
-		}
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		document, err := modelartifact.ParseModelConfigDocument(content)
-		if err != nil {
-			continue
-		}
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindProfile, MediaType: modelartifact.ModelConfigMediaType, Schema: modelartifact.ModelConfigSchema,
+	}, modelartifact.ParseModelConfigDocument, func(_ repodb.DocumentView, document modelartifact.ModelConfigDocument) error {
 		cells := make([]string, 0, 2)
 		if document.Sequence != nil {
 			cells = append(cells, fmt.Sprintf("sequence[k=%d range=[%d,%d) specials=%d auto=%t]",
@@ -706,6 +605,10 @@ func writeConfigs(output io.Writer, repository string, limit int) error {
 		fmt.Fprintf(output, "config model=%s %s sources=%s\n",
 			document.Model, strings.Join(cells, " "), strings.Join(names, ","))
 		count++
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	fmt.Fprintf(output, "%d model-config declaration(s); honesty: components derive from digested source files committed with model lineage; generic code reads these declarations, never literals\n", count)
 	return nil
@@ -722,31 +625,15 @@ func writeVerifications(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	// Scan the full evidence range: verification records accumulate at the
-	// end of the sequence, so a bounded scan would silently drop the newest
-	// claims. The limit bounds output rows, not the scan.
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MediaType: runrecord.ModelVerificationMediaType,
-		MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	records := make([]runrecord.ModelVerification, 0)
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: runrecord.ModelVerificationMediaType, Schema: runrecord.ModelVerificationSchema,
+	}, runrecord.ParseModelVerification, func(_ repodb.DocumentView, record runrecord.ModelVerification) error {
+		records = append(records, record)
+		return nil
 	})
 	if err != nil {
 		return err
-	}
-	records := make([]runrecord.ModelVerification, 0)
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != runrecord.ModelVerificationMediaType {
-			continue
-		}
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		record, err := runrecord.ParseModelVerification(content)
-		if err != nil {
-			continue
-		}
-		records = append(records, record)
 	}
 	matrix := runrecord.VerificationMatrix(records)
 	if limit > 0 && len(matrix) > limit {
@@ -832,34 +719,37 @@ func writeBudgets(output io.Writer, repository string, limit int) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	var grants []runrecord.Budget
+	var partitions []runrecord.SplitPartition
+	charges := make(map[artifact.ID][]runrecord.BudgetCharge)
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: runrecord.SplitPartitionMediaType, Schema: runrecord.SplitPartitionSchema,
+	}, runrecord.ParseSplitPartition, func(_ repodb.DocumentView, partition runrecord.SplitPartition) error {
+		fmt.Fprintf(output, "partition dataset=%s development=%s selection=%s promotion=%s audit=%s proposer=%s\n",
+			partition.Dataset, partition.Development, partition.Selection, partition.Promotion, partition.Audit, partition.Proposer)
+		partitions = append(partitions, partition)
+		return nil
 	})
 	if err != nil {
 		return err
 	}
-	var grants []runrecord.Budget
-	var partitions []runrecord.SplitPartition
-	charges := make(map[artifact.ID][]runrecord.BudgetCharge)
-	for _, descriptor := range result.Artifacts {
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		if partition, err := runrecord.ParseSplitPartition(content); err == nil {
-			fmt.Fprintf(output, "partition dataset=%s development=%s selection=%s promotion=%s audit=%s proposer=%s\n",
-				partition.Dataset, partition.Development, partition.Selection, partition.Promotion, partition.Audit, partition.Proposer)
-			partitions = append(partitions, partition)
-			continue
-		}
-		if budget, err := runrecord.ParseBudget(content); err == nil {
-			grants = append(grants, budget)
-			continue
-		}
-		if charge, err := runrecord.ParseBudgetCharge(content); err == nil {
-			charges[charge.Budget] = append(charges[charge.Budget], charge)
-		}
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: runrecord.BudgetMediaType, Schema: runrecord.BudgetSchema,
+	}, runrecord.ParseBudget, func(_ repodb.DocumentView, budget runrecord.Budget) error {
+		grants = append(grants, budget)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: runrecord.BudgetChargeMediaType, Schema: runrecord.BudgetChargeSchema,
+	}, runrecord.ParseBudgetCharge, func(_ repodb.DocumentView, charge runrecord.BudgetCharge) error {
+		charges[charge.Budget] = append(charges[charge.Budget], charge)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	for _, budget := range grants {
 		remaining, err := runrecord.BudgetBalance(budget, charges[budget.ID])

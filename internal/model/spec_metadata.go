@@ -431,6 +431,16 @@ const (
 	metadataOpRecurrentLayers
 	metadataOpRotaryAlpha
 	metadataOpBlockCountVariant
+	metadataOpSetFloat32
+	metadataOpCopyUint32
+	metadataOpLongRoPE
+	metadataOpYaRNAttentionFactor
+	metadataOpVocabulary
+	metadataOpSharedFeedForwardScaleChecked
+	metadataOpLatentRuntimeDefaults
+	metadataOpIndexerLayers
+	metadataOpCompressRatios
+	metadataOpLayerClampPair
 )
 
 type slidingMetadataPolicy uint8
@@ -443,18 +453,24 @@ const (
 	slidingDefaultMixed
 	slidingOptionalMixed
 	slidingDualExpert
+	slidingRuntimeOptional
+	slidingRuntimeDual
+	slidingRuntimeRotary
+	slidingRuntimeRotaryExperts
 )
 
 // metadataOp: one compiled read/derive/validate/bind operation. field names
 // a Spec destination resolved through the exported field set.
 type metadataOp struct {
-	kind  metadataOpKind
-	key   string
-	field string
-	mode  metadataReadMode
-	value uint32
-	flag  bool
-	slide slidingMetadataPolicy
+	kind       metadataOpKind
+	key        string
+	field      string
+	mode       metadataReadMode
+	value      uint32
+	floatValue float32
+	flag       bool
+	slide      slidingMetadataPolicy
+	absolute   bool
 }
 
 func (s *Spec) fieldDestination(field string) any {
@@ -463,6 +479,10 @@ func (s *Spec) fieldDestination(field string) any {
 
 func setU32(field string, value uint32) metadataOp {
 	return metadataOp{kind: metadataOpSetUint32, field: field, value: value}
+}
+
+func setF32(field string, value float32) metadataOp {
+	return metadataOp{kind: metadataOpSetFloat32, field: field, floatValue: value}
 }
 
 // at: binds a scalar-read template to a metadata key and Spec field.
@@ -725,15 +745,117 @@ var lfm2RuntimeProgram = []metadataOp{
 	opKeepU32.at("attention.sliding_window", "SlidingWindow"),
 }
 
+var runtimeAttentionPrograms = map[AttentionValidationPolicy][]metadataOp{
+	AttentionValidationRequiredSlidingFrequency:     {{kind: metadataOpSlidingSchedule, slide: slidingRuntimeOptional}},
+	AttentionValidationScaledSlidingAttention:       {{kind: metadataOpSlidingSchedule, slide: slidingRuntimeOptional}},
+	AttentionValidationSharedKVAlternatingState:     {{kind: metadataOpSlidingSchedule, slide: slidingRuntimeOptional}},
+	AttentionValidationOptionalSlidingFrequency:     {{kind: metadataOpSlidingSchedule, slide: slidingRuntimeOptional}},
+	AttentionValidationRequiredSlidingRotary:        {{kind: metadataOpSlidingSchedule, slide: slidingRuntimeRotary}},
+	AttentionValidationRequiredSlidingRotaryExperts: {{kind: metadataOpSlidingSchedule, slide: slidingRuntimeRotaryExperts}},
+	AttentionValidationPerLayerDualRotaryAttention: {
+		{kind: metadataOpSlidingSchedule, slide: slidingRuntimeDual},
+		opReqU32.at("rope.dimension_count", "RopeDimensionCount"),
+		opReqU32.at("rope.dimension_count_swa", "RopeDimensionSWA"),
+		opReqU32.at("embedding_length_per_layer_input", "EmbeddingPerLayer"),
+		opZeroU32.at("attention.shared_kv_layers", "SharedKVLayers"),
+		setF32("AttentionScale", tensor.UnitScale),
+	},
+	AttentionValidationTargetHiddenDualRotaryAttention: {
+		{kind: metadataOpSlidingSchedule, slide: slidingRuntimeDual},
+		{kind: metadataOpCopyUint32, key: "KeyLengthSWA", field: "RopeDimensionSWA"},
+		setF32("AttentionScale", tensor.UnitScale),
+	},
+}
+
 // compileRuntimeProgram: ordered runtime metadata operations from a profile.
 func compileRuntimeProgram(profile ArchitectureProfile) []metadataOp {
+	var program []metadataOp
 	switch profile.Validation.Hybrid {
 	case HybridValidationAlternatingShortConvolution, HybridValidationAlternatingShortConvolutionExperts:
-		return lfm2RuntimeProgram
+		program = append(program, lfm2RuntimeProgram...)
 	case HybridValidationSelectedSoftmaxExperts:
-		return []metadataOp{opReqU32.at("attention.sliding_window", "SlidingWindow")}
+		program = append(program, opReqU32.at("attention.sliding_window", "SlidingWindow"))
 	}
-	return nil
+	program = append(program, runtimeAttentionPrograms[profile.Validation.Attention]...)
+	if profile.Attention == AttentionLatent || profile.Attention == AttentionSparseLatent {
+		if profile.Validation.MLA == MLAValidationScaledLatent {
+			program = append(program, opReqU32.at("attention.q_lora_rank", "QLoRARank"))
+		}
+		if profile.Has(ArchitectureLatentKVLayout) {
+			qRank := opReqU32
+			if profile.Validation.QLoRARankOptional {
+				qRank = opZeroU32
+			}
+			program = append(program, qRank.at("attention.q_lora_rank", "QLoRARank"))
+		}
+		program = append(program,
+			opReqU32.at("attention.kv_lora_rank", "KVLoRARank"),
+			ropeDimensionRequired,
+		)
+		if profile.Has(ArchitectureLatentKVLayout) {
+			program = append(program,
+				leadingDenseOptional,
+				opReqU32.at("expert_shared_count", "SharedExpertCount"),
+				metadataOp{kind: metadataOpSharedFeedForwardScaleChecked},
+				metadataOp{kind: metadataOpLatentRuntimeDefaults},
+			)
+		}
+	}
+	if profile.Attention == AttentionSparseLatent {
+		program = append(program,
+			sectionsOptional,
+			opReqU32.at("attention.indexer.head_count", "IndexerHeadCount"),
+			opReqU32.at("attention.indexer.key_length", "IndexerKeyLength"),
+			opReqU32.at("attention.indexer.top_k", "IndexerTopK"),
+			metadataOp{kind: metadataOpIndexerLayers},
+		)
+	}
+	if profile.Validation.MLA == MLAValidationCompressedHyper {
+		program = append(program,
+			opReqU32.at("attention.q_lora_rank", "QLoRARank"),
+			ropeDimensionRequired,
+			opReqU32.at("attention.sliding_window", "SlidingWindow"),
+			opReqU32.at("attention.indexer.head_count", "IndexerHeadCount"),
+			opReqU32.at("attention.indexer.key_length", "IndexerKeyLength"),
+			opReqU32.at("attention.indexer.top_k", "IndexerTopK"),
+			opReqU32.at("attention.output_group_count", "AttentionOutputGroups"),
+			opReqU32.at("attention.output_lora_rank", "AttentionOutputRank"),
+			opReqU32.at("hyper_connection.count", "HyperConnectionCount"),
+			opReqU32.at("hyper_connection.sinkhorn_iterations", "HyperSinkhornIters"),
+			opReqU32.at("hash_layer_count", "HashLayerCount"),
+			opReqU32.at("expert_count", "ExpertCount"),
+			opReqU32.at("expert_used_count", "ExpertUsedCount"),
+			expertFeedForwardRequired,
+			opReqU32.at("expert_shared_count", "SharedExpertCount"),
+			expertGatingRequired,
+			opReqF32.at("attention.compress_rope_freq_base", "CompressRopeBase"),
+			opReqF32.at("hyper_connection.epsilon", "HyperConnectionEps"),
+			opReqF32.at("expert_weights_scale", "ExpertWeightsScale"),
+			opReqBool.at("expert_weights_norm", "ExpertWeightsNorm"),
+			metadataOp{kind: metadataOpCompressRatios},
+			metadataOp{kind: metadataOpLayerClampPair},
+			metadataOp{kind: metadataOpSharedFeedForwardScaleChecked},
+		)
+	}
+	if profile.Has(ArchitectureLongRoPE) {
+		program = append(program, metadataOp{kind: metadataOpLongRoPE})
+	}
+	if profile.Validation.Hybrid == HybridValidationOptionalExperts ||
+		profile.Validation.Hybrid == HybridValidationExtendedRotary && profile.Validation.MLA == MLAValidationNone {
+		program = append(program, metadataOp{kind: metadataOpYaRNAttentionFactor})
+	}
+	if profile.Validation.encoderOneOf(
+		EncoderValidationTokenTypesMatchingHeads,
+		EncoderValidationTokenTypesALiBi,
+		EncoderValidationRotaryOptionalExperts,
+		EncoderValidationRotary,
+		EncoderValidationRotaryPeriodicExperts,
+	) {
+		read := opReqU32.at("tokenizer.ggml.token_type_count", "TokenTypeCount")
+		read.absolute = true
+		program = append(program, read)
+	}
+	return append(program, metadataOp{kind: metadataOpVocabulary})
 }
 
 // compileArchitectureCoreProgram: ordered core metadata operations from a profile.
@@ -943,6 +1065,79 @@ func (m specMetadata) readSlidingSchedule(spec *Spec, state specReadState, polic
 			spec.SlidingWindow = window
 			spec.NoRopeLayerStep = spec.SlidingPattern
 		}
+	case slidingRuntimeOptional, slidingRuntimeDual, slidingRuntimeRotary, slidingRuntimeRotaryExperts:
+		if spec.SlidingWindow == tensor.FirstOffset {
+			return nil
+		}
+		patternKey := m.prefix + "attention.sliding_window_pattern"
+		if policy == slidingRuntimeDual {
+			layers, err := requiredLayerBoolCompatible(m.values, patternKey, spec.BlockCount)
+			if err != nil {
+				return err
+			}
+			spec.SlidingLayers = layers
+		}
+		if value, ok := optional[uint32](m.values, patternKey, gguf.ValueTypeUint32); ok {
+			spec.SlidingPattern = value
+		}
+		if policy == slidingRuntimeRotary || policy == slidingRuntimeRotaryExperts {
+			if value, ok := m.values[patternKey]; ok && value.Type == gguf.ValueTypeArray {
+				layers, err := requiredLayerBoolCompatible(m.values, patternKey, spec.BlockCount)
+				if err != nil {
+					return err
+				}
+				spec.SlidingLayers = layers
+			}
+		}
+		if policy == slidingRuntimeRotary && len(spec.SlidingLayers) == tensor.FirstOffset {
+			spec.NoRopeLayerStep = spec.SlidingPattern
+		}
+	}
+	return nil
+}
+
+func (m specMetadata) readVocabulary(spec *Spec) error {
+	spec.VocabularySize, _ = optional[uint32](m.values, m.prefix+"vocab_size", gguf.ValueTypeUint32)
+	if tokens, ok := m.values["tokenizer.ggml.tokens"]; ok && spec.VocabularySize == tensor.FirstOffset {
+		if tokens.Type != gguf.ValueTypeArray || tokens.ArrayType != gguf.ValueTypeString {
+			return errors.New(`metadata "tokenizer.ggml.tokens" must be a string array`)
+		}
+		if tokens.Count() > int(math.MaxUint32) {
+			return errors.New("tokenizer vocabulary exceeds uint32")
+		}
+		spec.VocabularySize = uint32(tokens.Count())
+	}
+	return nil
+}
+
+func (m specMetadata) readIndexerLayers(spec *Spec) error {
+	spec.IndexerFullLayers = make([]bool, spec.BlockCount)
+	for index := range spec.IndexerFullLayers {
+		spec.IndexerFullLayers[index] = m.profile.Cadence.fullIndexer(spec.ContextLength, uint32(index))
+	}
+	key := m.prefix + "attention.indexer.types"
+	if value, present := m.values[key]; present && value.Type == gguf.ValueTypeUint32 {
+		typeValue, valid := value.Data.(uint32)
+		if !valid || typeValue > tensor.SingletonExtent {
+			return fmt.Errorf("metadata %q must be 0 or 1", key)
+		}
+		for index := range spec.IndexerFullLayers {
+			spec.IndexerFullLayers[index] = typeValue == tensor.SingletonExtent
+		}
+		return nil
+	}
+	types, ok, err := optionalArray[uint32](m.values, key, gguf.ValueTypeUint32)
+	if err != nil || !ok {
+		return err
+	}
+	if len(types) != int(spec.BlockCount) {
+		return fmt.Errorf("metadata %q has %d values, need %d", key, len(types), spec.BlockCount)
+	}
+	for index, typeValue := range types {
+		if typeValue > tensor.SingletonExtent {
+			return fmt.Errorf("metadata %q value %d is not 0 or 1", key, typeValue)
+		}
+		spec.IndexerFullLayers[index] = typeValue == tensor.SingletonExtent
 	}
 	return nil
 }
@@ -988,12 +1183,16 @@ func (m specMetadata) runMetadataProgram(spec Spec, state specReadState, program
 		switch op.kind {
 		case metadataOpUint32:
 			destination := spec.fieldDestination(op.field).(*uint32)
+			key := prefix + op.key
+			if op.absolute {
+				key = op.key
+			}
 			if op.mode == metadataReadKeepNonZero {
-				if value, ok := optional[uint32](values, prefix+op.key, gguf.ValueTypeUint32); ok && value != tensor.FirstOffset {
+				if value, ok := optional[uint32](values, key, gguf.ValueTypeUint32); ok && value != tensor.FirstOffset {
 					*destination = value
 				}
 			} else {
-				err = runMetadataRead(values, prefix+op.key, gguf.ValueTypeUint32, op.mode, destination)
+				err = runMetadataRead(values, key, gguf.ValueTypeUint32, op.mode, destination)
 			}
 		case metadataOpFloat32:
 			err = runMetadataRead(values, prefix+op.key, gguf.ValueTypeFloat32, op.mode, spec.fieldDestination(op.field).(*float32))
@@ -1085,6 +1284,65 @@ func (m specMetadata) runMetadataProgram(spec Spec, state specReadState, program
 					"metadata block count must select profile variant %d or %d",
 					validation.RequiredBlockCount, validation.AlternateBlockCount,
 				)
+			}
+		case metadataOpSetFloat32:
+			*spec.fieldDestination(op.field).(*float32) = op.floatValue
+		case metadataOpCopyUint32:
+			*spec.fieldDestination(op.field).(*uint32) = *spec.fieldDestination(op.key).(*uint32)
+		case metadataOpLongRoPE:
+			if spec.RopeScalingType == ropeScalingLongRoPE {
+				spec.RopeDimensionCount = spec.KeyLength
+				spec.OriginalContextLength = optionalOr(
+					values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32, spec.ContextLength,
+				)
+				spec.RopeAttentionFactor = optionalOr(
+					values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32, tensor.UnitScale,
+				)
+			}
+		case metadataOpYaRNAttentionFactor:
+			if spec.RopeScalingType == ropeScalingYaRN {
+				spec.YaRNAttentionFactor = optionalOr(
+					values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32, tensor.UnitScale,
+				)
+			}
+		case metadataOpVocabulary:
+			err = m.readVocabulary(&spec)
+		case metadataOpSharedFeedForwardScaleChecked:
+			if spec.ExpertFeedForward > tensor.FirstOffset && spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
+				err = errors.New("shared expert feed-forward extent overflows")
+			} else {
+				spec.SharedExpertFF = spec.ExpertFeedForward * spec.SharedExpertCount
+			}
+		case metadataOpLatentRuntimeDefaults:
+			if value, ok := optional[float32](values, prefix+"rope.scaling.yarn_log_multiplier", gguf.ValueTypeFloat32); ok {
+				spec.RopeYaRNLogMultiplier = value / yarnLogFactorStep
+			}
+			if spec.RopeScalingType == ropeScalingYaRN && positiveFinite(spec.RopeScalingFactor) {
+				raw := optionalOr(values, prefix+"rope.scaling.attn_factor", gguf.ValueTypeFloat32, tensor.UnitScale)
+				spec.YaRNAttentionFactor = raw /
+					(tensor.UnitScale + yarnLogFactorStep*float32(math.Log(float64(spec.RopeScalingFactor))))
+			}
+			spec.AttentionTempScale, _ = optional[float32](values, prefix+"attention.temperature_scale", gguf.ValueTypeFloat32)
+			spec.AttentionTempFloor, _ = optional[uint32](values, prefix+"attention.temperature_length", gguf.ValueTypeUint32)
+		case metadataOpIndexerLayers:
+			err = m.readIndexerLayers(&spec)
+		case metadataOpCompressRatios:
+			spec.CompressRatios, err = requiredArray[uint32](values, prefix+"attention.compress_ratios", gguf.ValueTypeUint32)
+			if err == nil && len(spec.CompressRatios) < int(spec.BlockCount) {
+				err = errors.New("compression schedule is shorter than block count")
+			} else if err == nil {
+				spec.CompressRatios = spec.CompressRatios[:spec.BlockCount]
+			}
+		case metadataOpLayerClampPair:
+			spec.LayerSwiGLUClamp, err = optionalLayerFloat32(values, prefix+"swiglu_clamp_exp", spec.BlockCount)
+			if err == nil && len(spec.LayerSwiGLUClamp) == tensor.FirstOffset {
+				err = errors.New("expert SwiGLU clamp is missing")
+			}
+			if err == nil {
+				spec.LayerSharedSwiGLUClamp, err = optionalLayerFloat32(values, prefix+"swiglu_clamp_shexp", spec.BlockCount)
+			}
+			if err == nil && len(spec.LayerSharedSwiGLUClamp) == tensor.FirstOffset {
+				spec.LayerSharedSwiGLUClamp = slices.Clone(spec.LayerSwiGLUClamp)
 			}
 		}
 		if err != nil {

@@ -7,7 +7,7 @@
       "id": "cleanup-model-program-authority",
       "title": "Make compiled metadata and invariant programs the sole model policy authority",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "core-metadata",
@@ -24,7 +24,7 @@
         {
           "id": "runtime-metadata-residual",
           "title": "Compile residual runtime metadata reads and delete displaced policy branches",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/model -run 'Test(ProfileCompiledMetadataLoading|Read.*Spec)' -count=1"
         },
         {

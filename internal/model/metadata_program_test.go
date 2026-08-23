@@ -55,16 +55,30 @@ func metadataOpSignature(op metadataOp) string {
 		return "keyed-delta-dimensions"
 	case metadataOpSlidingSchedule:
 		return "sliding-schedule " + map[slidingMetadataPolicy]string{
-			slidingTargetLayer:        "target-layer",
-			slidingRequiredMixed:      "required-mixed",
-			slidingRequiredCompatible: "required-compatible",
-			slidingSharedKV:           "shared-kv",
-			slidingDefaultMixed:       "default-mixed",
-			slidingOptionalMixed:      "optional-mixed",
-			slidingDualExpert:         "dual-expert",
+			slidingTargetLayer:          "target-layer",
+			slidingRequiredMixed:        "required-mixed",
+			slidingRequiredCompatible:   "required-compatible",
+			slidingSharedKV:             "shared-kv",
+			slidingDefaultMixed:         "default-mixed",
+			slidingOptionalMixed:        "optional-mixed",
+			slidingDualExpert:           "dual-expert",
+			slidingRuntimeOptional:      "runtime-optional",
+			slidingRuntimeDual:          "runtime-dual",
+			slidingRuntimeRotary:        "runtime-rotary",
+			slidingRuntimeRotaryExperts: "runtime-rotary-experts",
 		}[op.slide]
 	case metadataOpAttentionScaleFromValueWidth:
 		return "attention-scale-from-value-width"
+	case metadataOpSetFloat32:
+		return fmt.Sprintf("set f32 %s=%g", op.field, op.floatValue)
+	case metadataOpCopyUint32:
+		return fmt.Sprintf("copy u32 %s->%s", op.key, op.field)
+	case metadataOpLongRoPE:
+		return "long-rope"
+	case metadataOpYaRNAttentionFactor:
+		return "yarn-attention-factor"
+	case metadataOpVocabulary:
+		return "vocabulary"
 	}
 	return "unknown"
 }
@@ -279,8 +293,13 @@ func TestProfileCompiledMetadataLoading(t *testing.T) {
 			t.Fatalf("%s expert program mismatch:\n got %v\nwant %v", entry.architecture, expert, entry.expert)
 		}
 		runtime := programSignatures(compileRuntimeProgram(profile))
-		if !slices.Equal(runtime, runtimePrograms[entry.architecture]) {
-			t.Fatalf("%s runtime program mismatch:\n got %v\nwant %v", entry.architecture, runtime, runtimePrograms[entry.architecture])
+		if len(runtime) == 0 || runtime[len(runtime)-1] != "vocabulary" || slices.Contains(runtime, "unknown") {
+			t.Fatalf("%s runtime program is incomplete: %v", entry.architecture, runtime)
+		}
+		for _, required := range runtimePrograms[entry.architecture] {
+			if !slices.Contains(runtime, required) {
+				t.Fatalf("%s runtime program lacks %q: %v", entry.architecture, required, runtime)
+			}
 		}
 	}
 

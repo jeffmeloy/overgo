@@ -48,7 +48,9 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 	if source == nil {
 		return report, errors.New("repodb retention: nil source store")
 	}
-	everything, err := source.Query(ctx, Query{MaxResults: MaxQueryResults})
+	// The store derives its own inventory bound: the exact current fact-class
+	// extent, so the full catalog is one query with no restated capacity.
+	everything, err := source.Query(ctx, Query{MaxResults: source.QueryExtent(), Projection: ProjectCatalog})
 	if err != nil {
 		return report, err
 	}

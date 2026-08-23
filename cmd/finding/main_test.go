@@ -34,7 +34,9 @@ func TestRecordFindingRequiresVerifierAndUsesTypedStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	result, err := store.Query(context.Background(), repodb.Query{Kind: artifact.KindEvidence, MaxResults: 100})
+	result, err := store.Query(context.Background(), repodb.Query{
+		Kind: artifact.KindEvidence, MaxResults: 100, Projection: repodb.ProjectArtifacts,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

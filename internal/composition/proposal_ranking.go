@@ -99,7 +99,10 @@ func TrainProposalRankerFromStore(ctx context.Context, store *repodb.Store) (Pro
 	if ctx == nil || store == nil {
 		return ProposalRanker{}, errors.New("composition: proposal ranker store absent")
 	}
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
+	result, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	})
 	if err != nil {
 		return ProposalRanker{}, err
 	}
@@ -108,14 +111,11 @@ func TrainProposalRankerFromStore(ctx context.Context, store *repodb.Store) (Pro
 		if descriptor.MediaType != recipe.DecisionMediaType {
 			continue
 		}
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil {
-			return ProposalRanker{}, err
-		}
+		content, ok := result.Content(descriptor.ID)
 		if !ok {
 			continue
 		}
-		decision, err := recipe.ParseDecision(content.Data)
+		decision, err := recipe.ParseDecision(content)
 		if err != nil || decision.Outcome != recipe.DecisionObserved && decision.Outcome != recipe.DecisionRefused {
 			continue
 		}

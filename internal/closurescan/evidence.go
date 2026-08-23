@@ -72,6 +72,11 @@ func ReadCensusEvidence(ctx context.Context, reader artifact.Reader, id artifact
 	return censusEvidenceCodec.Read(ctx, reader, id)
 }
 
+// ParseCensusEvidence validates stored census bytes.
+func ParseCensusEvidence(data []byte) (CensusEvidence, error) {
+	return censusEvidenceCodec.Parse(data)
+}
+
 func (e CensusEvidence) Batch(previous *artifact.ID) (artifact.Batch, error) {
 	alias := artifact.AliasBinding{Name: CensusEvidenceAlias, Target: e.ID, Previous: previous}
 	lineage := make([]artifact.Lineage, len(e.Unresolved))

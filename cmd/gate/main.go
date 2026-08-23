@@ -1331,7 +1331,8 @@ func activeMagicBindings(repo, storePath string) ([]closureledger.Document, erro
 	defer store.Close()
 	result, err := store.Query(context.Background(), repodb.Query{
 		Kind: artifact.KindEvidence, MediaType: closureledger.MediaType,
-		Schema: closureledger.Schema, MaxResults: repodb.MaxQueryResults,
+		Schema: closureledger.Schema, MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectAliases | repodb.ProjectContentData,
 	})
 	if err != nil {
 		return nil, err
@@ -1346,17 +1347,11 @@ func activeMagicBindings(repo, storePath string) ([]closureledger.Document, erro
 			continue
 		}
 		seen[alias.Target] = true
-		content, found, err := store.Content(context.Background(), alias.Target)
-		if err != nil {
-			return nil, err
-		}
+		data, found := result.Content(alias.Target)
 		if !found {
 			return nil, errors.New("magic scan: active document unavailable")
 		}
-		if err := content.Validate(); err != nil {
-			return nil, err
-		}
-		document, err := closureledger.Parse(content.Data)
+		document, err := closureledger.Parse(data)
 		if err != nil || document.ID != alias.Target {
 			return nil, errors.New("magic scan: active document identity mismatch")
 		}

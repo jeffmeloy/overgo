@@ -175,7 +175,11 @@ func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, st
 		defer store.Close()
 	}
 	ctx := request.Context()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorInventory, MaxResults: repodb.MaxQueryResults})
+	result, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindTensorInventory, MediaType: modelartifact.TensorMeasurementMediaType,
+		Schema: modelartifact.TensorMeasurementSchema, MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	})
 	if err != nil {
 		return nil, ""
 	}
@@ -185,11 +189,11 @@ func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, st
 			descriptor.Schema != modelartifact.TensorMeasurementSchema {
 			continue
 		}
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
+		content, ok := result.Content(descriptor.ID)
+		if !ok {
 			continue
 		}
-		document, err := modelartifact.ParseTensorMeasurementDocument(content.Data)
+		document, err := modelartifact.ParseTensorMeasurementDocument(content)
 		if err != nil {
 			continue
 		}

@@ -1,7 +1,7 @@
 {
-  "campaign": "Deletion-led production composability and repository tightening",
-  "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Composition cleanup is first: modelrecipe owns component sessions; inference owns execution; RepoDB owns identities, recipes, policy, evidence, and activation. No private parallel lifetime types, unbounded host caches, target-dependent transformed-source keys, direct constructors, wrappers, or fallback authority. Freeze operator expansion until embedding injection is production-active. Each reduction wave migrates every equivalent caller and deletes displaced objects in the same commit, with numerical and device evidence where applicable. Large catalog, validator, and dispatch routines are reduced only by moving complete recipe-owned policy groups, never by splitting functions cosmetically. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:3b58bf0b512ede7a2bb0fd1db4c44977cc446dcb42c6c209feb5a89f058259d0",
+  "campaign": "Deletion-led production composability, durable agent execution, and RepoDB tightening",
+  "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Modelrecipe owns component sessions; recipe owns topology and policy; workflowruntime owns stage execution; operation owns lifecycle; runrecord and RepoDB own immutable facts; inference owns model math; server owns protocols and GUI. ADK is a behavior inventory and oracle, never a dependency or second runtime. No second workflow graph, plugin callback mesh, mutable property bag, string branch authority, duplicate session or artifact store, wrapper, fallback, or advisory execution plan. Compact RepoDB before adding event volume: remove duplicate indexes and payload copies, stream durable writes, expose bounded projected queries, and retain one refreshable browse owner. Each capability wave migrates every caller and deletes the displaced ephemeral owner in the same commit. Retry, concurrency, context, and retention policy derive from recipes, resource plans, requests, or measured evidence. After every gated commit, merge master and redispatch.",
+  "census_evidence": "evidence:sha256:c97d91b2f5a57118c7a45f36973fce9577f4082d2ee1bec3e152de797c53c8bd",
   "items": [
     {
       "id": "merge-b0d982f0ab2e",
@@ -650,13 +650,13 @@
       "id": "merge-tightening",
       "title": "Merge overgo_tightening into master through the gated merge",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Merge overgo_tightening into master through the gated merge",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor overgo_tightening HEAD"
+          "status": "done",
+          "verify": "git merge-base --is-ancestor overgo_tightening HEAD || git rev-parse -q --verify MERGE_HEAD"
         }
       ]
     },
@@ -1133,6 +1133,367 @@
           "title": "Close Bifrost-inspired control-plane work with bounded memory, parity, and single-authority evidence",
           "status": "done",
           "verify": "go test ./internal/capabilityruntime ./internal/modelrecipe ./internal/operation ./internal/runrecord ./internal/server -run 'Test(SessionAuthority|SessionReplacement|CapabilityEvidenceSelector|ServingAttempt|ServingObservation|OperationRecovery|OperationLifecycle|OperationEvent|RuntimeActivity|SSE)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "adk-repodb-canonical-state",
+      "title": "Reduce RepoDB catalog redundancy before durable interaction volume grows",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep one canonical lineage and payload owner; make directional indexes reference canonical facts; delete the independent parent reachability map and duplicated content descriptors",
+          "status": "done",
+          "verify": "go test ./internal/artifact ./internal/repodb -run 'Test(CanonicalCatalogOwnership|LineageIndexesReferenceCanonicalEdges|ContentUsesDescriptorAuthority|RepositoryContract|SnapshotAnchorsReplay)' -count=1",
+          "rationale": "catalogState stores each lineage edge as values in the canonical, parent, and child maps plus a separate parents graph; content repeats its descriptor beside artifacts. Retain the artifact repository contract while reducing resident bytes and index update work. Incorporate the merged retention implementation rather than adding another collector.",
+          "capabilities": [
+            "repodb",
+            "memory",
+            "lineage"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-repodb-projected-query",
+      "title": "Make bounded projected RepoDB queries the only catalog browsing path",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add stable cursor and typed projection fields to repodb.Query; migrate server and command consumers; delete MaxQueryResults scans, offset materialization, and per-result content and lineage lookups",
+          "status": "done",
+          "verify": "go test ./internal/repodb ./internal/server ./cmd/repodb-query -run 'Test(QueryCursor|QueryProjection|ArtifactGalleryProjectedPage|BrowseRunsReadsRepoDBRecords|RuntimeActivityProjectedPage)' -count=1",
+          "rationale": "Current GUI and command paths request the catalog cap, slice afterward, then issue N+1 HasContent, Content, or Parents calls. Query should return only the requested ordered page and declared fields under one read lock. Cursor identity must bind the catalog head and query contract so refreshes cannot silently reorder a continuation.",
+          "depends_on": [
+            "adk-repodb-canonical-state/do"
+          ],
+          "capabilities": [
+            "repodb",
+            "query",
+            "server"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-repodb-streaming-durability",
+      "title": "Stream RepoDB log and snapshot publication without store-sized temporary documents",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Write log headers, canonical payloads, and checksums incrementally; stream deterministic snapshot sections from ordered keys; delete assembled frame and snapshotDocument payload copies",
+          "status": "open",
+          "verify": "go test ./internal/repodb -run 'Test(LogAppendStreamsFrame|StreamingSnapshotRoundTrip|StreamingSnapshotFaultPreservesStore|SnapshotAnchorsReplay|SyncFaultReplaysCompleteUncertainCommit)' -count=1",
+          "rationale": "Log append currently joins header, payload, and checksum into another frame. Snapshot publication clones the full catalog into a document and marshals another full payload. Preserve commit identities, canonical ordering, fsync, atomic rename, fallback replay, and fault behavior while bounding temporary storage to ordered keys and encoder buffers.",
+          "depends_on": [
+            "adk-repodb-canonical-state/do"
+          ],
+          "capabilities": [
+            "repodb",
+            "persistence",
+            "memory"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-repodb-live-reader",
+      "title": "Retain one incrementally refreshed RepoDB reader per server",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Extend Store with validated tail refresh, make Handler own one browse reader when no writable repository is supplied, and delete per-request OpenReadOnly replay and release plumbing",
+          "status": "open",
+          "verify": "go test ./internal/repodb ./internal/server -run 'Test(ReadOnlyRefreshAppliesCommittedTail|ReadOnlyRefreshRejectsFork|HandlerRetainsBrowseStore|HandlerClosesBrowseStore)' -count=1",
+          "rationale": "Artifact, run, activity, and analysis handlers repeatedly open and replay the same store. One handler-owned reader should refresh only validated log tail records and publish a coherent catalog head to queries. The writable repository remains shared directly when configured.",
+          "depends_on": [
+            "adk-repodb-projected-query/do",
+            "adk-repodb-streaming-durability/do"
+          ],
+          "capabilities": [
+            "repodb",
+            "server",
+            "processing"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-interaction-ledger",
+      "title": "Replace cloned response histories with immutable RepoDB interaction lineage",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add a typed runrecord interaction document bound to recipe, operation, run, parent event, message, tool, and media artifacts; migrate Responses continuation and delete responseHistoryStore",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/repodb ./internal/server -run 'Test(InteractionIdentity|InteractionLineage|ResponsesContinuationDurable|ResponsesContinuationRestart|ResponseHistoryStoreAbsent)' -count=1",
+          "rationale": "Responses continuation currently clones every prior message into a bounded process-local LRU. Store each new event once, reference immutable media content, advance an external response alias by compare-and-set, and materialize only the requested lineage. RepoDB becomes session truth without introducing an ADK-style session database.",
+          "depends_on": [
+            "adk-repodb-live-reader/do"
+          ],
+          "capabilities": [
+            "sessions",
+            "repodb",
+            "memory",
+            "responses"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-context-visibility",
+      "title": "Compile branch-isolated prompt history from recipe activations",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bind interaction visibility to typed recipe node and activation identities; compile ancestor-visible history; reject sibling leakage; keep protocol role formatting in inference",
+          "status": "open",
+          "verify": "go test ./internal/recipe ./internal/runrecord ./internal/inference ./internal/server -run 'Test(InteractionVisibility|SiblingHistoryIsolation|AncestorHistoryVisibility|CurrentTurnProjection|ProtocolHistoryParity)' -count=1",
+          "rationale": "ADK demonstrates the need for sibling isolation but uses dotted branch strings. Overgo should derive visibility from compiled recipe topology and immutable activation lineage. No semantic retrieval is introduced; context selection is literal graph membership plus request or recipe-owned context policy.",
+          "depends_on": [
+            "adk-interaction-ledger/do"
+          ],
+          "capabilities": [
+            "sessions",
+            "recipes",
+            "context"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-recipe-stage-recovery",
+      "title": "Recover recipe execution from durable typed stage receipts",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish admitted, running, waiting, completed, and failed stage receipts from workflowruntime; resume exact completed outputs through operation.Recover; migrate model-build lifecycle and delete its parallel phase reconstruction",
+          "status": "open",
+          "verify": "go test ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/server -run 'Test(StageReceiptIdentity|WorkflowRestartSkipsCompletedStages|WorkflowRecoveryRejectsRecipeDrift|ModelBuildUsesRecipeStageReceipts)' -count=1",
+          "rationale": "ADK pause and re-entry are useful, but recipe.Program must remain the only graph. Stage receipts bind recipe identity, node, attempt, exact input and output artifacts, operation, and run. One scheduler mutates lifecycle state; adapters retain mathematical ownership.",
+          "depends_on": [
+            "adk-interaction-ledger/do"
+          ],
+          "capabilities": [
+            "workflow",
+            "recovery",
+            "recipes",
+            "repodb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-typed-tool-runtime",
+      "title": "Execute recipe-selected tools through typed workflow adapters",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define tool call and result data contracts in recipe; register typed workflowruntime adapters by module identity; route Chat, Responses, and Anthropic calls through one executor; delete protocol-local execution policy branches",
+          "status": "open",
+          "verify": "go test ./internal/recipe ./internal/workflowruntime ./internal/inference ./internal/server -run 'Test(ToolModuleContract|ToolRecipeAdmission|TypedToolExecution|LongRunningToolOperation|ProtocolToolExecutionParity)' -count=1",
+          "rationale": "Overgo already parses and formats function tools. Add execution without ADK reflection, map-shaped state, or a second registry. Active recipes and capability evidence select exposed tools; strict schemas decode boundary JSON into typed adapter values; operation owns long-running execution and cancellation.",
+          "depends_on": [
+            "adk-recipe-stage-recovery/do"
+          ],
+          "capabilities": [
+            "tools",
+            "recipes",
+            "workflow",
+            "protocols"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-durable-human-decision",
+      "title": "Bind human approval to the exact proposed action and recovery identity",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Represent approval requests and decisions as typed operatoraction and runrecord documents; bind tool, arguments, recipe, operation, and prior decision; resume through operation.Recover; delete identifier-only confirmation state",
+          "status": "open",
+          "verify": "go test ./internal/operatoraction ./internal/operation ./internal/runrecord ./internal/server -run 'Test(DecisionBindsExactAction|DecisionRejectsArgumentSubstitution|DecisionRejectsReplay|BlockedOperationResumesAfterDecision|DecisionAPI)' -count=1",
+          "rationale": "ADK's recent confirmation-conflict fix exposes the danger of approving an identifier that does not bind the original arguments. Overgo can fail closed by making the complete proposed action content-addressed and requiring the decision to reference that identity and current operation state.",
+          "depends_on": [
+            "adk-recipe-stage-recovery/do",
+            "adk-typed-tool-runtime/do"
+          ],
+          "capabilities": [
+            "human-in-the-loop",
+            "security",
+            "recovery",
+            "repodb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-parallel-recipe-runtime",
+      "title": "Execute independent recipe stages concurrently under one deterministic lifecycle owner",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile ready sets and joins from recipe.Program; run adapters concurrently within the resource plan; publish results through one state mutator; preserve deterministic output and event order; delete serial-only stage traversal",
+          "status": "open",
+          "verify": "go test ./internal/recipe ./internal/workflowruntime ./internal/operation -run 'Test(ParallelReadySet|JoinInputOrder|SingleLifecycleMutator|ParallelCancellation|ResourceDerivedConcurrency|DeterministicParallelReceipts)' -count=1",
+          "rationale": "Borrow ADK's single-consumer scheduler invariant, not its graph implementation. Recipe topology determines readiness and joins. Resource plans determine concurrency; no fixed worker count. Each adapter receives isolated inputs and publishes immutable outputs before successors become eligible.",
+          "depends_on": [
+            "adk-context-visibility/do",
+            "adk-recipe-stage-recovery/do",
+            "adk-durable-human-decision/do"
+          ],
+          "capabilities": [
+            "workflow",
+            "parallelism",
+            "determinism",
+            "resources"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-interaction-replay-evaluation",
+      "title": "Record and replay exact model and tool interactions through RepoDB evaluation authority",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Capture recipe, model request, ordered output events, tool actions, decisions, and final artifacts as one trace manifest; add a test-only replay adapter and evaluation comparison; delete callback and YAML cassette requirements",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/workflowruntime ./internal/evaluation ./internal/server -run 'Test(InteractionTraceIdentity|InteractionReplayExact|ReplayRejectsRequestDrift|WorkflowEvaluationBindsTrace|ReplayGUI)' -count=1",
+          "rationale": "ADK record and replay is valuable for conformance, but Overgo already owns artifact identity, runs, and evaluations. Trace components should be immutable artifacts with lineage and explicit nondeterministic fields, allowing exact replay, regression comparison, and GUI inspection without lifecycle plugins.",
+          "depends_on": [
+            "adk-parallel-recipe-runtime/do",
+            "adk-typed-tool-runtime/do"
+          ],
+          "capabilities": [
+            "replay",
+            "evaluation",
+            "repodb",
+            "testing"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-capability-bundles",
+      "title": "Expose instruction, resource, and tool bundles through existing artifact manifests and recipes",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Represent capability bundles as typed artifact manifest roles and recipe dependencies; select bundles by capability and evidence; load referenced resources on demand; avoid filesystem scanning and injected free-form authority",
+          "status": "open",
+          "verify": "go test ./internal/artifact ./internal/modelrecipe ./internal/workflowruntime ./internal/server -run 'Test(CapabilityBundleManifest|CapabilityBundleRecipeSelection|CapabilityResourceOnDemand|UnpromotedBundleRefusal)' -count=1",
+          "rationale": "ADK skills package instructions and resources usefully, but Overgo should use content-addressed manifests, active recipes, and promotion evidence. Bundle text remains input data, never executable policy; tools remain typed recipe modules.",
+          "depends_on": [
+            "adk-typed-tool-runtime/do",
+            "adk-interaction-replay-evaluation/do"
+          ],
+          "capabilities": [
+            "capability-bundles",
+            "artifacts",
+            "recipes",
+            "tools"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-remote-operation-adapter",
+      "title": "Add evidence-admitted remote execution as a workflow adapter after local orchestration is authoritative",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define machine-readable peer capability and compatibility records; execute remote stages through workflowruntime Adapter and operation attempt chains; preserve artifact lineage and local fallback refusal; avoid importing ADK or A2A runtime ownership",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/server -run 'Test(RemoteCapabilityAdmission|RemoteStageAttemptLineage|RemoteCancellation|RemoteArtifactIdentity|IncompatiblePeerRefusal)' -count=1",
+          "rationale": "ADK A2A demonstrates a useful interoperability boundary. Overgo should treat a peer as another recipe-selected executor with explicit capability, environment, and artifact contracts. The ModelSessionDirector and serving attempt ledger retain routing authority; remote transport never selects models or recipes.",
+          "depends_on": [
+            "adk-parallel-recipe-runtime/do",
+            "adk-capability-bundles/do"
+          ],
+          "capabilities": [
+            "remote-execution",
+            "recipes",
+            "operations",
+            "artifacts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-agent-gui",
+      "title": "Expose durable sessions, recipe stages, tool actions, decisions, replay, and peers through existing GUI owners",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Extend current Runtime, Activity, Evaluation, and recipe views; use projected RepoDB queries and shared SSE; delete polling and duplicate view-local state where event streams are authoritative",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'Test(SessionLedgerGUI|WorkflowStageGUI|ToolDecisionGUI|InteractionReplayGUI|RemoteAttemptGUI|AgentGUIUsesProjectedQueriesAndSSE)' -count=1",
+          "rationale": "The GUI should expose the new capabilities through existing modules, navigation, operation streams, and evidence views. It must display recipe and artifact authority, waiting actions, stage progress, replay comparisons, and remote attempts without becoming a second state store.",
+          "depends_on": [
+            "adk-interaction-replay-evaluation/do",
+            "adk-capability-bundles/do",
+            "adk-remote-operation-adapter/do"
+          ],
+          "capabilities": [
+            "gui",
+            "sessions",
+            "workflow",
+            "evaluation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adk-overgo-closure",
+      "title": "Close ADK-inspired capability work with one authority per fact and measured RepoDB efficiency",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run host and device gates; compare RepoDB replay, query, snapshot, resident memory, and response-history allocation evidence; require no ADK dependency, second scheduler, callback mesh, compatibility wrapper, or ephemeral session authority",
+          "status": "open",
+          "verify": "go test ./internal/artifact ./internal/repodb ./internal/recipe ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/evaluation ./internal/server -count=1 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
+          "rationale": "Completion requires functional session, tool, human-decision, parallel workflow, replay, capability-bundle, remote, and GUI evidence plus measured storage and processing improvement against the pre-campaign RepoDB benchmark record. Production code must contain no imported ADK runtime and no displaced owner retained for compatibility.",
+          "depends_on": [
+            "adk-agent-gui/do"
+          ],
+          "capabilities": [
+            "closure",
+            "performance",
+            "memory",
+            "single-authority"
+          ]
         }
       ]
     }

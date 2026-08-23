@@ -274,7 +274,10 @@ func authoritativeContextEvidence(worktree, head string) (plan.EvidenceDebt, pla
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
+	result, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	})
 	if err != nil {
 		return unavailable(err.Error())
 	}
@@ -286,14 +289,16 @@ func authoritativeContextEvidence(worktree, head string) (plan.EvidenceDebt, pla
 		if descriptor.MediaType != runrecord.GateLifecycleMediaType || descriptor.Schema != runrecord.GateLifecycleSchema {
 			continue
 		}
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil {
+		data, ok := result.Content(descriptor.ID)
+		if !ok {
+			continue
+		}
+		content := artifact.Content{Descriptor: descriptor, Data: data}
+		if err := content.Validate(); err != nil {
 			debt := plan.EvidenceDebt{State: "unknown", Source: debtSource, Reason: err.Error()}
 			return debt, authoritativeReviewPriority(ctx, store, head, result.Artifacts, workflowSource)
 		}
-		if ok {
-			contents = append(contents, content)
-		}
+		contents = append(contents, content)
 	}
 	debt, err := runrecord.OutstandingGateDebt(contents)
 	debtContext := plan.EvidenceDebt{State: "none_observed", Source: debtSource}

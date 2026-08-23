@@ -73,6 +73,7 @@ func TestServingObservationPublication(t *testing.T) {
 		Artifact: &modelID, Follow: repodb.FollowChildren, MaxDepth: 1,
 		MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
 		MaxResults: 8,
+		Projection: repodb.ProjectArtifacts,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +95,7 @@ func TestServingObservationPublication(t *testing.T) {
 	}
 }
 
-func TestWebUIRuntimeActivityUsesSessionAndRepoDBAPIs(t *testing.T) {
+func TestRuntimeActivityProjectedPageUsesSessionAndRepoDBAPIs(t *testing.T) {
 	store, err := repodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -208,16 +209,17 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 	result, err := store.Query(context.Background(), repodb.Query{
 		MediaType:  runrecord.ServingObservationMediaType,
 		Schema:     runrecord.ServingObservationSchema,
-		MaxResults: repodb.MaxQueryResults,
+		MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
 	})
 	if err != nil || len(result.Artifacts) != 1 {
 		t.Fatalf("observations=%d err=%v", len(result.Artifacts), err)
 	}
-	content, found, err := store.Content(context.Background(), result.Artifacts[0].ID)
-	if err != nil || !found {
-		t.Fatalf("content found=%v err=%v", found, err)
+	content, found := result.Content(result.Artifacts[0].ID)
+	if !found {
+		t.Fatal("observation content absent")
 	}
-	observation, err := runrecord.ParseServingObservation(content.Data)
+	observation, err := runrecord.ParseServingObservation(content)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -94,7 +94,9 @@ func parseRequiredPlans(value string) ([]artifact.ID, error) {
 }
 
 func evidenceByPlan(ctx context.Context, store *repodb.Store) (map[artifact.ID][]evaluation.EvaluationEvidence, error) {
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
+	result, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(), Projection: repodb.ProjectArtifacts,
+	})
 	if err != nil {
 		return nil, err
 	}

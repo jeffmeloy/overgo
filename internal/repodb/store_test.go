@@ -18,9 +18,55 @@ const (
 	fixtureAlias       = "models/current"
 	fixtureBatchKey    = "fixture/import/v1"
 	fixtureMediaType   = "application/octet-stream"
+	fixturePayload     = "canonical-content"
 	fixtureWorkerCount = 12
 	tornTailBytes      = 7
 )
+
+func TestCanonicalCatalogOwnership(t *testing.T) {
+	state := newCatalogState()
+	var _ map[artifact.ID][]byte = state.contents
+	var _ map[artifact.ID]map[relationKey]struct{} = state.parentEdges
+	var _ map[artifact.ID]map[relationKey]struct{} = state.childEdges
+}
+
+func TestLineageIndexesReferenceCanonicalEdges(t *testing.T) {
+	state := newCatalogState()
+	batch := fixtureBatch(t)
+	state.apply(batch)
+	edge := batch.Lineage[0]
+	key := relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation}
+	if state.lineage[key] != edge {
+		t.Fatalf("canonical edge = %+v, want %+v", state.lineage[key], edge)
+	}
+	if _, ok := state.parentEdges[edge.Child][key]; !ok {
+		t.Fatal("parent index lacks canonical edge key")
+	}
+	if _, ok := state.childEdges[edge.Parent][key]; !ok {
+		t.Fatal("child index lacks canonical edge key")
+	}
+}
+
+func TestContentUsesDescriptorAuthority(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	descriptor := fixtureDescriptor(t, artifact.KindOutput, fixturePayload)
+	content := artifact.Content{Descriptor: descriptor, Data: []byte(fixturePayload)}
+	if _, err := store.Commit(context.Background(), artifact.Batch{
+		Key: "fixture/content-authority/v1", Contents: []artifact.Content{content},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	descriptor.Schema = "fixture/canonical/v1"
+	store.state.artifacts[descriptor.ID] = descriptor
+	got, ok, err := store.Content(context.Background(), descriptor.ID)
+	if err != nil || !ok || got.Descriptor != descriptor || !slices.Equal(got.Data, content.Data) {
+		t.Fatalf("content = (%+v, %v, %v)", got, ok, err)
+	}
+}
 
 func fixtureDescriptor(t *testing.T, kind artifact.Kind, payload string) artifact.Descriptor {
 	t.Helper()

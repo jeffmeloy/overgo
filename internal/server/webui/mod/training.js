@@ -138,13 +138,21 @@
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       const limit = 50;
-      let offset = 0;
+      let cursor = "";
+      let nextCursor = "";
+      let start = 0;
+      let prior = [];
       let baseline = null;
 
       clear(panel);
       const status = el("span", { class: "note" });
-      const prev = el("button", { class: "btn alt", onclick: () => { offset = Math.max(0, offset - limit); load(); } }, "prev");
-      const next = el("button", { class: "btn alt", onclick: () => { offset += limit; load(); } }, "next");
+      const prev = el("button", { class: "btn alt", onclick: () => {
+        const page = prior.pop() || { cursor: "", start: 0 };
+        cursor = page.cursor; start = page.start; load();
+      }}, "prev");
+      const next = el("button", { class: "btn alt", onclick: () => {
+        prior.push({ cursor, start }); cursor = nextCursor; start += limit; load();
+      }}, "next");
       panel.append(
         el("div", { class: "section-title", text: "Training runs" }),
         el("div", { class: "row", style: "margin-bottom:10px" }, prev, next, status));
@@ -184,17 +192,20 @@
         host.replaceChildren(el("div", { class: "note", text: "loading /runs" }));
         let data;
         try {
-          data = await overgo.api.get("/runs?offset=" + offset + "&limit=" + limit);
+          const query = new URLSearchParams({ limit: String(limit) });
+          if (cursor) query.set("cursor", cursor);
+          data = await overgo.api.get("/runs?" + query);
         } catch (err) {
           const message = err.status === 501 ? "Run browsing is not configured." : overgo.friendlyError(err);
           host.replaceChildren(overgo.errorBanner(message));
           return;
         }
-        const first = data.count === 0 ? 0 : data.offset + 1;
-        const last = data.offset + data.runs.length;
+        nextCursor = data.next || "";
+        const first = data.count === 0 ? 0 : start + 1;
+        const last = start + data.runs.length;
         status.textContent = first + "-" + last + " of " + fmt.grouped(data.count) + " runs";
-        prev.disabled = data.offset === 0;
-        next.disabled = last >= data.count;
+        prev.disabled = prior.length === 0;
+        next.disabled = !nextCursor;
 
         const table = el("table", { class: "grid" });
         table.appendChild(el("tr", {},

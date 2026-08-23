@@ -108,8 +108,11 @@ func snapshotDocumentFromState(state catalogState, sequence uint64, head artifac
 	for _, descriptor := range state.artifacts {
 		document.Artifacts = append(document.Artifacts, descriptor)
 	}
-	for _, content := range state.contents {
-		document.Contents = append(document.Contents, content.Clone())
+	for id, data := range state.contents {
+		document.Contents = append(document.Contents, artifact.Content{
+			Descriptor: state.artifacts[id],
+			Data:       slices.Clone(data),
+		})
 	}
 	for _, manifest := range state.manifests {
 		document.Manifests = append(document.Manifests, manifest.Clone())

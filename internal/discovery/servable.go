@@ -39,7 +39,9 @@ func Servable(ctx context.Context, store *repodb.Store, limit int) ([]Entry, err
 // ServableWithMemo is Servable with digest reuse for interactive callers: a
 // nil memo hashes every file fresh, exactly as Servable always has.
 func ServableWithMemo(ctx context.Context, store *repodb.Store, limit int, memo *Memo) ([]Entry, error) {
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindModel, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindModel, MaxResults: limit, Projection: repodb.ProjectManifests,
+	})
 	if err != nil {
 		return nil, err
 	}

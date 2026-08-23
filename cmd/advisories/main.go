@@ -119,7 +119,10 @@ func run() error {
 // non-overlapping windows. One open finding per series; repeats add no new
 // document.
 func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisory) error {
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: 100_000})
+	result, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	})
 	if err != nil {
 		return err
 	}
@@ -127,13 +130,13 @@ func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisor
 	openFindingExists := false
 	seriesKey := latest.Recipe.String() + "/" + latest.Environment.String() + "/" + latest.Metric
 	for _, descriptor := range result.Artifacts {
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
+		content, ok := result.Content(descriptor.ID)
+		if !ok {
 			continue
 		}
 		switch descriptor.MediaType {
 		case runrecord.AdvisoryMediaType:
-			prior, err := runrecord.ParseAdvisory(content.Data)
+			prior, err := runrecord.ParseAdvisory(content)
 			if err != nil || prior.Metric != latest.Metric ||
 				prior.Recipe != latest.Recipe || prior.Environment != latest.Environment ||
 				!nonOverlappingConfirmation(prior, latest) {
@@ -141,7 +144,7 @@ func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisor
 			}
 			confirming = append(confirming, prior)
 		case finding.MediaType:
-			document, err := finding.Parse(content.Data)
+			document, err := finding.Parse(content)
 			if err != nil || document.Status != finding.StatusOpen {
 				continue
 			}
@@ -196,7 +199,9 @@ func nonOverlappingConfirmation(prior, latest runrecord.Advisory) bool {
 // zero-store-change fix, and a store-owned introduction sequence is the
 // eventual owner if non-gate series need it).
 func loadObservations(ctx context.Context, store *repodb.Store, metric string) ([]runrecord.Observation, error) {
-	commitsResult, err := store.Query(ctx, repodb.Query{FromSequence: 1, MaxResults: 100_000})
+	commitsResult, err := store.Query(ctx, repodb.Query{
+		FromSequence: 1, MaxResults: store.QueryExtent(), Projection: repodb.ProjectCommits,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -205,33 +210,39 @@ func loadObservations(ctx context.Context, store *repodb.Store, metric string) (
 		sequenceByCommitKey[view.Key] = view.Sequence
 	}
 	runs := map[artifact.ID]runrecord.Run{}
-	runsResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindRun, MaxResults: 100_000})
+	runsResult, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindRun, MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	})
 	if err != nil {
 		return nil, err
 	}
 	for _, descriptor := range runsResult.Artifacts {
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
+		content, ok := runsResult.Content(descriptor.ID)
+		if !ok {
 			continue
 		}
-		parsed, err := runrecord.ParseRun(content.Data)
+		parsed, err := runrecord.ParseRun(content)
 		if err != nil {
 			continue // other run schemas are not this series
 		}
 		runs[parsed.ID] = parsed
 	}
-	evaluationsResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvaluation, MaxResults: 100_000})
+	evaluationsResult, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindEvaluation, MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	})
 	if err != nil {
 		return nil, err
 	}
 	var observations []runrecord.Observation
 	unmapped := 0
 	for _, descriptor := range evaluationsResult.Artifacts {
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
+		content, ok := evaluationsResult.Content(descriptor.ID)
+		if !ok {
 			continue
 		}
-		evaluation, err := runrecord.ParseEvaluation(content.Data)
+		evaluation, err := runrecord.ParseEvaluation(content)
 		if err != nil {
 			continue
 		}

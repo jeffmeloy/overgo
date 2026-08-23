@@ -17,9 +17,10 @@ type artifactSummary struct {
 }
 
 type artifactGalleryResponse struct {
-	Offset    int               `json:"offset"`
+	Count     int               `json:"count"`
 	Limit     int               `json:"limit"`
 	Truncated bool              `json:"truncated"`
+	Next      string            `json:"next,omitempty"`
 	Artifacts []artifactSummary `json:"artifacts"`
 }
 
@@ -32,7 +33,7 @@ func (h *Handler) artifactGallery(response http.ResponseWriter, request *http.Re
 		return
 	}
 	defer release()
-	query, offset, limit, err := h.artifactQuery(request)
+	query, limit, err := h.artifactQuery(request)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return
@@ -42,38 +43,24 @@ func (h *Handler) artifactGallery(response http.ResponseWriter, request *http.Re
 		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
 		return
 	}
-	descriptors := result.Artifacts
-	if offset < len(descriptors) {
-		descriptors = descriptors[offset:]
-	} else {
-		descriptors = nil
+	next, err := encodeNextCursor(result.Next)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
+		return
 	}
-	truncated := result.Truncated || len(descriptors) > limit
-	if len(descriptors) > limit {
-		descriptors = descriptors[:limit]
-	}
-	items := make([]artifactSummary, 0, len(descriptors))
-	for _, descriptor := range descriptors {
-		payload, openErr := store.HasContent(request.Context(), descriptor.ID)
-		if openErr != nil {
-			writeError(response, http.StatusInternalServerError, "repodb_error", openErr.Error())
-			return
-		}
-		parents, parentErr := store.Parents(request.Context(), descriptor.ID)
-		if parentErr != nil {
-			writeError(response, http.StatusInternalServerError, "repodb_error", parentErr.Error())
-			return
-		}
-		producers := make([]artifact.ID, 0, len(parents))
-		for _, edge := range parents {
-			if edge.Relation == artifact.RelationProducedBy {
+	items := make([]artifactSummary, 0, len(result.Artifacts))
+	for _, descriptor := range result.Artifacts {
+		_, payload := result.Content(descriptor.ID)
+		producers := make([]artifact.ID, 0)
+		for _, edge := range result.Lineage {
+			if edge.Child == descriptor.ID && edge.Relation == artifact.RelationProducedBy {
 				producers = append(producers, edge.Parent)
 			}
 		}
 		items = append(items, artifactSummary{Descriptor: descriptor, Producers: producers, Payload: payload})
 	}
 	writeJSON(response, http.StatusOK, artifactGalleryResponse{
-		Offset: offset, Limit: limit, Truncated: truncated, Artifacts: items,
+		Count: result.Matched, Limit: limit, Truncated: result.Truncated, Next: next, Artifacts: items,
 	})
 }
 
@@ -110,34 +97,47 @@ func (h *Handler) artifactContent(response http.ResponseWriter, request *http.Re
 	_, _ = io.Copy(response, reader)
 }
 
-func (h *Handler) artifactQuery(request *http.Request) (repodb.Query, int, int, error) {
+func (h *Handler) artifactQuery(request *http.Request) (repodb.Query, int, error) {
 	values := request.URL.Query()
-	offset := parseIntDefault(values.Get("offset"), 0)
 	limit := parseIntDefault(values.Get("limit"), h.config.MaxStoredResponses)
 	var selected *artifact.ID
 	if value := values.Get("id"); value != "" {
 		id, err := artifact.ParseID(value)
 		if err != nil {
-			return repodb.Query{}, 0, 0, err
+			return repodb.Query{}, 0, err
 		}
-		selected, offset = &id, 0
+		selected = &id
 	}
-	if offset < 0 || limit <= 0 || limit > h.config.MaxStoredResponses || offset > repodb.MaxQueryResults-limit {
-		return repodb.Query{}, 0, 0, errors.New("artifact gallery: invalid offset or limit")
+	if limit <= 0 || limit > h.config.MaxStoredResponses {
+		return repodb.Query{}, 0, errors.New("artifact gallery: invalid limit")
 	}
-	query := repodb.Query{Artifact: selected, MaxResults: offset + limit}
-	if query.MaxResults < repodb.MaxQueryResults {
-		query.MaxResults++
+	query := repodb.Query{
+		Artifact: selected, MaxResults: limit,
+		Projection: repodb.ProjectArtifacts | repodb.ProjectContentPresence | repodb.ProjectParents,
+	}
+	if value := values.Get("cursor"); value != "" {
+		cursor, err := repodb.ParseQueryCursor(value)
+		if err != nil {
+			return repodb.Query{}, 0, err
+		}
+		query.Cursor = &cursor
 	}
 	if selected == nil && values.Get("kind") != "" {
 		value := values.Get("kind")
 		kind, err := artifact.ParseKind(value)
 		if err != nil {
-			return repodb.Query{}, 0, 0, err
+			return repodb.Query{}, 0, err
 		}
 		query.Kind = kind
 	}
-	return query, offset, limit, nil
+	return query, limit, nil
+}
+
+func encodeNextCursor(cursor *repodb.QueryCursor) (string, error) {
+	if cursor == nil {
+		return "", nil
+	}
+	return repodb.EncodeQueryCursor(*cursor)
 }
 
 func (h *Handler) openBrowseStore(response http.ResponseWriter) (*repodb.Store, func(), bool) {

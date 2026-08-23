@@ -136,7 +136,7 @@ func assertFaultedStoreSurfaces(t *testing.T, store *Store, pending artifact.Des
 	if _, _, err := store.Artifact(ctx, pending.ID); !errors.Is(err, ErrStoreFaulted) {
 		t.Fatalf("faulted artifact read error = %v", err)
 	}
-	if _, err := store.Query(ctx, Query{MaxResults: 1}); !errors.Is(err, ErrStoreFaulted) {
+	if _, err := store.Query(ctx, Query{MaxResults: 1, Projection: ProjectArtifacts}); !errors.Is(err, ErrStoreFaulted) {
 		t.Fatalf("faulted query error = %v", err)
 	}
 	if _, err := store.Snapshot(ctx); !errors.Is(err, ErrStoreFaulted) {

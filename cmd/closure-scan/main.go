@@ -437,24 +437,20 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 	var retirements []artifact.AliasBinding
 	retired := map[string]bool{}
 	index := closurescan.CompileRebindIndex(candidates)
-	declarations := make(map[string]bool, len(candidates))
-	for _, candidate := range candidates {
-		declarations[candidate.DeclarationKey()] = true
-	}
 	for _, document := range targetDocuments {
 		if len(document.Bindings) != 1 {
 			continue
 		}
 		binding := document.Bindings[0]
-		key := (closurescan.Candidate{
-			Kind: binding.Kind, Package: binding.Package, File: binding.File, Scope: binding.Scope,
-			Line: binding.Line, Name: binding.Name, StructuralID: binding.StructuralID,
-		}).DeclarationKey()
 		alias, err := closureledger.ActiveAlias(binding)
 		if err != nil {
 			return count, unmatched, first, err
 		}
-		if !declarations[key] && targetAliases[alias] == document.ID && !retired[alias] {
+		_, matched, _, err := index.Rebind(document)
+		if err != nil {
+			return count, unmatched, first, err
+		}
+		if !matched && targetAliases[alias] == document.ID && !retired[alias] {
 			retirements = append(retirements, artifact.AliasBinding{Name: alias, Target: document.ID, Previous: &document.ID, Remove: true})
 			retired[alias] = true
 		}
@@ -558,7 +554,9 @@ func closureFixtureImports(ctx context.Context, source, target *repodb.Store, do
 		} else if found || slices.ContainsFunc(document.Bindings, func(binding closureledger.SourceBinding) bool { return binding.Owner == document.Fixture }) {
 			continue
 		}
-		result, err := source.Query(ctx, repodb.Query{Artifact: &document.Fixture, MaxResults: repodb.MaxQueryResults})
+		result, err := source.Query(ctx, repodb.Query{
+			Artifact: &document.Fixture, MaxResults: source.QueryExtent(), Projection: repodb.ProjectArtifacts,
+		})
 		if err != nil || len(result.Artifacts) != 1 {
 			return nil, errors.Join(err, fmt.Errorf("closure fixture is absent: %s", document.Fixture))
 		}
@@ -568,7 +566,10 @@ func closureFixtureImports(ctx context.Context, source, target *repodb.Store, do
 }
 
 func activeClosureDocuments(ctx context.Context, store *repodb.Store) ([]closureledger.Document, map[string]artifact.ID, repodb.QueryResult, error) {
-	result, err := store.Query(ctx, repodb.Query{MediaType: closureledger.MediaType, MaxResults: repodb.MaxQueryResults})
+	result, err := store.Query(ctx, repodb.Query{
+		MediaType: closureledger.MediaType, MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectAliases | repodb.ProjectContentData,
+	})
 	if err != nil || result.Truncated {
 		if err == nil {
 			err = errors.New("closure-scan: active-ledger query truncated")
@@ -581,14 +582,11 @@ func activeClosureDocuments(ctx context.Context, store *repodb.Store) ([]closure
 		if !closureledger.IsActiveAlias(alias.Name) {
 			continue
 		}
-		content, found, err := store.Content(ctx, alias.Target)
-		if err != nil {
-			return nil, nil, repodb.QueryResult{}, err
-		}
+		data, found := result.Content(alias.Target)
 		if !found {
 			return nil, nil, repodb.QueryResult{}, errors.New("closure-scan: active closure content absent")
 		}
-		document, err := closureledger.Parse(content.Data)
+		document, err := closureledger.Parse(data)
 		if err != nil {
 			return nil, nil, repodb.QueryResult{}, err
 		}

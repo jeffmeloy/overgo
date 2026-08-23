@@ -36,9 +36,9 @@ type browseRunEntry struct {
 
 type browseRunsResponse struct {
 	Count     int              `json:"count"`
-	Offset    int              `json:"offset"`
 	Limit     int              `json:"limit"`
 	Truncated bool             `json:"truncated"`
+	Next      string           `json:"next,omitempty"`
 	Runs      []browseRunEntry `json:"runs"`
 }
 
@@ -87,21 +87,7 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 		writeJSON(response, http.StatusOK, detail)
 		return
 	}
-	// MaxResults must be a positive bound; fetch up to the store's cap so the
-	// full set is pageable here. Truncated is surfaced if the cap is hit.
-	result, err := store.Query(request.Context(), repodb.Query{Kind: artifact.KindRun, MaxResults: repodb.MaxQueryResults})
-	if err != nil {
-		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
-		return
-	}
-
-	descriptors := result.Artifacts
-	total := len(descriptors)
 	query := request.URL.Query()
-	offset := clampNonNegative(parseIntDefault(query.Get("offset"), 0))
-	if offset > total {
-		offset = total
-	}
 	limit := parseIntDefault(query.Get("limit"), browseRunsDefaultLimit)
 	if limit <= 0 {
 		limit = browseRunsDefaultLimit
@@ -109,20 +95,45 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 	if limit > browseRunsMaxLimit {
 		limit = browseRunsMaxLimit
 	}
-	end := offset + limit
-	if end > total {
-		end = total
+	page := repodb.Query{
+		Kind: artifact.KindRun, MaxResults: limit,
+		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	}
+	if value := query.Get("cursor"); value != "" {
+		cursor, parseErr := repodb.ParseQueryCursor(value)
+		if parseErr != nil {
+			writeInvalidRequest(response, parseErr)
+			return
+		}
+		page.Cursor = &cursor
+	}
+	result, err := store.Query(request.Context(), page)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
+		return
 	}
 
-	runs := make([]browseRunEntry, 0, end-offset)
-	for _, descriptor := range descriptors[offset:end] {
-		run, parseErr := runrecord.RequireRun(request.Context(), store, descriptor.ID)
+	next, err := encodeNextCursor(result.Next)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
+		return
+	}
+
+	runs := make([]browseRunEntry, 0, len(result.Artifacts))
+	for _, descriptor := range result.Artifacts {
+		content, found := result.Content(descriptor.ID)
+		if !found {
+			continue
+		}
+		run, parseErr := runrecord.ParseRun(content)
 		if parseErr != nil {
 			continue
 		}
 		runs = append(runs, shapeRun(run))
 	}
-	writeJSON(response, http.StatusOK, browseRunsResponse{Count: total, Offset: offset, Limit: limit, Truncated: result.Truncated, Runs: runs})
+	writeJSON(response, http.StatusOK, browseRunsResponse{
+		Count: result.Matched, Limit: limit, Truncated: result.Truncated, Next: next, Runs: runs,
+	})
 }
 
 func loadRunDetail(ctx context.Context, store *repodb.Store, id artifact.ID) (browseRunDetail, bool, error) {

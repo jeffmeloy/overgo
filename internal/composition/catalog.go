@@ -17,7 +17,10 @@ import (
 // proposal, and ranking training all index the same components.
 func LoadCatalog(ctx context.Context, store *repodb.Store) ([]CatalogComponent, error) {
 	statistics := map[string]tensorstats.Characterization{}
-	measurementResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorInventory, MaxResults: repodb.MaxQueryResults})
+	measurementResult, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindTensorInventory, MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -25,11 +28,11 @@ func LoadCatalog(ctx context.Context, store *repodb.Store) ([]CatalogComponent, 
 		if descriptor.MediaType != modelartifact.TensorMeasurementMediaType {
 			continue
 		}
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
+		content, ok := measurementResult.Content(descriptor.ID)
+		if !ok {
 			continue
 		}
-		document, err := modelartifact.ParseTensorMeasurementDocument(content.Data)
+		document, err := modelartifact.ParseTensorMeasurementDocument(content)
 		if err != nil {
 			continue
 		}
@@ -42,7 +45,10 @@ func LoadCatalog(ctx context.Context, store *repodb.Store) ([]CatalogComponent, 
 		}
 	}
 	components := make([]CatalogComponent, 0)
-	decompositionResult, err := store.Query(ctx, repodb.Query{Kind: artifact.KindTensorSet, MaxResults: repodb.MaxQueryResults})
+	decompositionResult, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindTensorSet, MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -50,11 +56,11 @@ func LoadCatalog(ctx context.Context, store *repodb.Store) ([]CatalogComponent, 
 		if descriptor.MediaType != modelartifact.ComponentDecompositionMediaType {
 			continue
 		}
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
+		content, ok := decompositionResult.Content(descriptor.ID)
+		if !ok {
 			continue
 		}
-		decomposition, err := modelartifact.ParseComponentDecomposition(content.Data)
+		decomposition, err := modelartifact.ParseComponentDecomposition(content)
 		if err != nil {
 			continue
 		}

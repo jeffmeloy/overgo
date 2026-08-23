@@ -101,12 +101,15 @@ func activeChainFailures(repository string) ([]brokenChain, int, error) {
 		return nil, 0, err
 	}
 	defer store.Close()
-	result, err := store.Query(ctx, repodb.Query{MaxResults: repodb.MaxQueryResults})
+	extent := store.QueryExtent()
+	result, err := store.Query(ctx, repodb.Query{
+		MaxResults: extent, Projection: repodb.ProjectAliases,
+	})
 	if err != nil {
 		return nil, 0, err
 	}
 	if result.Truncated {
-		return nil, 0, fmt.Errorf("store-check: alias query truncated at %d results", repodb.MaxQueryResults)
+		return nil, 0, fmt.Errorf("store-check: alias query truncated at %d results", extent)
 	}
 	var failures []brokenChain
 	checked := 0

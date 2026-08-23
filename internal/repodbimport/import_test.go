@@ -125,6 +125,7 @@ func TestImportRequiresRootAndUsesFullDigestIdentity(t *testing.T) {
 	}
 	query, err := store.Query(context.Background(), repodb.Query{
 		MaxResults: 10, FromSequence: 1, ToSequence: 1,
+		Projection: repodb.ProjectCommits,
 	})
 	if err != nil || len(query.Commits) != 1 {
 		t.Fatalf("import commit query = (%+v, %v)", query.Commits, err)

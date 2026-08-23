@@ -1160,13 +1160,13 @@
       "id": "adk-repodb-projected-query",
       "title": "Make bounded projected RepoDB queries the only catalog browsing path",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Add stable cursor and typed projection fields to repodb.Query; migrate server and command consumers; delete MaxQueryResults scans, offset materialization, and per-result content and lineage lookups",
-          "status": "open",
-          "verify": "go test ./internal/repodb ./internal/server ./cmd/repodb-query -run 'Test(QueryCursor|QueryProjection|ArtifactGalleryProjectedPage|BrowseRunsProjectedPage|RuntimeActivityProjectedPage)' -count=1",
+          "status": "done",
+          "verify": "go test ./internal/repodb ./internal/server ./cmd/repodb-query -run 'Test(QueryCursor|QueryProjection|ArtifactGalleryProjectedPage|BrowseRunsReadsRepoDBRecords|RuntimeActivityProjectedPage)' -count=1",
           "rationale": "Current GUI and command paths request the catalog cap, slice afterward, then issue N+1 HasContent, Content, or Parents calls. Query should return only the requested ordered page and declared fields under one read lock. Cursor identity must bind the catalog head and query contract so refreshes cannot silently reorder a continuation.",
           "depends_on": [
             "adk-repodb-canonical-state/do"

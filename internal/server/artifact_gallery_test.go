@@ -12,7 +12,7 @@ import (
 	"overgo/internal/repodb"
 )
 
-func TestArtifactGalleryIsBoundedAndStreamsPayloads(t *testing.T) {
+func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 	root := t.TempDir()
 	store, err := repodb.Open(root)
 	if err != nil {
@@ -66,6 +66,18 @@ func TestArtifactGalleryIsBoundedAndStreamsPayloads(t *testing.T) {
 	}
 	if page.Code != http.StatusOK || len(pageResult.Artifacts) != 1 || !pageResult.Truncated {
 		t.Fatalf("page status=%d result=%+v", page.Code, pageResult)
+	}
+	if pageResult.Next == "" || pageResult.Count != 2 {
+		t.Fatalf("page cursor/count = (%q, %d)", pageResult.Next, pageResult.Count)
+	}
+	nextPage := serveTestRequest(handler, http.MethodGet, "/artifacts?kind=output&limit=1&cursor="+pageResult.Next, "")
+	var nextResult artifactGalleryResponse
+	if err := json.Unmarshal(nextPage.Body.Bytes(), &nextResult); err != nil {
+		t.Fatal(err)
+	}
+	if nextPage.Code != http.StatusOK || len(nextResult.Artifacts) != 1 || nextResult.Next != "" ||
+		nextResult.Artifacts[0].Descriptor.ID == pageResult.Artifacts[0].Descriptor.ID {
+		t.Fatalf("next page status=%d result=%+v", nextPage.Code, nextResult)
 	}
 
 	available := serveTestRequest(handler, http.MethodGet, "/artifacts?id="+payloadID.String(), "")

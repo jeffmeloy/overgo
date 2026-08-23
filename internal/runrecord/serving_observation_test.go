@@ -83,6 +83,7 @@ func TestServingObservationContractAndIndexedQuery(t *testing.T) {
 	result, err := store.Query(context.Background(), repodb.Query{
 		Artifact: &fixture.Model, Follow: repodb.FollowChildren, MaxDepth: 1,
 		MediaType: ServingObservationMediaType, Schema: ServingObservationSchema, MaxResults: 8,
+		Projection: repodb.ProjectArtifacts,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -17,7 +17,8 @@
         el("div", { class: "section-title", text: "Artifacts" }),
         el("div", { class: "row" }, kind, loadButton, previous, next, status),
         gallery);
-      let offset = 0;
+      let cursor = "";
+      let nextCursor = "";
       let prior = [];
 
       function contentURL(id) { return "/artifacts/content?id=" + encodeURIComponent(id); }
@@ -31,11 +32,13 @@
         return el("a", { href: url, text: "Open payload" });
       }
       async function load() {
-        const query = new URLSearchParams({ offset: String(offset) });
+        const query = new URLSearchParams();
+        if (cursor) query.set("cursor", cursor);
         if (kind.value.trim()) query.set("kind", kind.value.trim());
         try {
           const result = await api.get("/artifacts?" + query);
-          status.textContent = result.artifacts.length + " items";
+          nextCursor = result.next || "";
+          status.textContent = result.artifacts.length + " of " + fmt.grouped(result.count) + " items";
           previous.disabled = prior.length === 0;
           next.disabled = !result.truncated;
           gallery.replaceChildren(...result.artifacts.map((item) => el("article", { class: "artifact" },
@@ -47,9 +50,9 @@
           gallery.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
         }
       }
-      loadButton.addEventListener("click", () => { offset = 0; prior = []; load(); });
-      next.addEventListener("click", () => { prior.push(offset); offset += gallery.children.length; load(); });
-      previous.addEventListener("click", () => { offset = prior.pop() || 0; load(); });
+      loadButton.addEventListener("click", () => { cursor = ""; prior = []; load(); });
+      next.addEventListener("click", () => { prior.push(cursor); cursor = nextCursor; load(); });
+      previous.addEventListener("click", () => { cursor = prior.pop() || ""; load(); });
       await load();
     },
   });

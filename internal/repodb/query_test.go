@@ -3,6 +3,7 @@ package repodb
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -45,7 +46,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 	}
 
 	models, err := store.Query(context.Background(), Query{
-		Kind: artifact.KindModel, MaxResults: 10,
+		Kind: artifact.KindModel, MaxResults: 10, Projection: ProjectCatalog,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +57,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 	}
 
 	followed, err := store.Query(context.Background(), Query{
-		Alias: "model/active", Follow: FollowBoth, MaxDepth: 2, MaxResults: 10,
+		Alias: "model/active", Follow: FollowBoth, MaxDepth: 2, MaxResults: 10, Projection: ProjectCatalog,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +68,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 
 	produced, err := store.Query(context.Background(), Query{
 		Artifact: &manifest.ID, Relation: artifact.RelationProducedBy,
-		Follow: FollowChildren, MaxDepth: 1, MaxResults: 10,
+		Follow: FollowChildren, MaxDepth: 1, MaxResults: 10, Projection: ProjectCatalog,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +78,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 	}
 
 	commits, err := store.Query(context.Background(), Query{
-		FromSequence: 2, ToSequence: 2, MaxResults: 10,
+		FromSequence: 2, ToSequence: 2, MaxResults: 10, Projection: ProjectCatalog,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -112,19 +113,19 @@ func TestQueryBoundsAndCycleRejection(t *testing.T) {
 	}); !errors.Is(err, ErrLineageCycle) {
 		t.Fatalf("cycle error = %v", err)
 	}
-	result, err := store.Query(context.Background(), Query{MaxResults: 1})
+	result, err := store.Query(context.Background(), Query{MaxResults: 1, Projection: ProjectArtifacts})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(result.Artifacts) != 1 || !result.Truncated {
 		t.Fatalf("bounded query = %+v", result)
 	}
-	if _, err := store.Query(context.Background(), Query{MaxResults: MaxQueryResults + 1}); err == nil {
-		t.Fatal("unbounded query accepted")
+	if _, err := store.Query(context.Background(), Query{MaxResults: 1}); err == nil {
+		t.Fatal("projection-free query accepted")
 	}
 	cancelled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := store.Query(cancelled, Query{MaxResults: 1}); !errors.Is(err, context.Canceled) {
+	if _, err := store.Query(cancelled, Query{MaxResults: 1, Projection: ProjectArtifacts}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled query error = %v", err)
 	}
 }
@@ -151,6 +152,7 @@ func TestServingObservationDescriptorIndexes(t *testing.T) {
 	}
 	result, err := store.Query(context.Background(), Query{
 		Kind: artifact.KindEvidence, MediaType: servingMedia, Schema: servingSchema, MaxResults: 2,
+		Projection: ProjectArtifacts,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +160,70 @@ func TestServingObservationDescriptorIndexes(t *testing.T) {
 	if len(result.Artifacts) != 1 || result.Artifacts[0] != serving || result.Truncated {
 		t.Fatalf("descriptor query = %+v", result)
 	}
-	if _, err := store.Query(context.Background(), Query{MediaType: " invalid", MaxResults: 1}); err == nil {
+	if _, err := store.Query(context.Background(), Query{MediaType: " invalid", MaxResults: 1, Projection: ProjectArtifacts}); err == nil {
 		t.Fatal("invalid media filter accepted")
+	}
+}
+
+func TestQueryCursorBindsHeadAndContract(t *testing.T) {
+	const pageSize = 2
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	descriptors := []artifact.Descriptor{
+		fixtureDescriptor(t, artifact.KindEvidence, "cursor-a"),
+		fixtureDescriptor(t, artifact.KindEvidence, "cursor-b"),
+		fixtureDescriptor(t, artifact.KindEvidence, "cursor-c"),
+	}
+	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "fixture/query/cursor", Artifacts: descriptors}); err != nil {
+		t.Fatal(err)
+	}
+	query := Query{Kind: artifact.KindEvidence, MaxResults: pageSize, Projection: ProjectArtifacts}
+	first, err := store.Query(context.Background(), query)
+	if err != nil || len(first.Artifacts) != pageSize || first.Next == nil {
+		t.Fatalf("first page = (%+v, %v)", first, err)
+	}
+	query.Cursor = first.Next
+	second, err := store.Query(context.Background(), query)
+	if err != nil || len(second.Artifacts) != len(descriptors)-pageSize || second.Next != nil {
+		t.Fatalf("second page = (%+v, %v)", second, err)
+	}
+	query.Kind = artifact.KindRun
+	if _, err := store.Query(context.Background(), query); err == nil {
+		t.Fatal("cursor accepted for another query contract")
+	}
+	query.Kind = artifact.KindEvidence
+	if _, err := store.Commit(context.Background(), artifact.Batch{
+		Key:       "fixture/query/cursor-tail",
+		Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindEvidence, "cursor-tail")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Query(context.Background(), query); err == nil {
+		t.Fatal("cursor accepted after catalog head changed")
+	}
+}
+
+func TestQueryProjectionReturnsRequestedFactsOnly(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	content := artifact.Content{
+		Descriptor: fixtureDescriptor(t, artifact.KindEvidence, fixturePayload),
+		Data:       []byte(fixturePayload),
+	}
+	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "fixture/query/projection", Contents: []artifact.Content{content}}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := store.Query(context.Background(), Query{
+		Artifact: &content.Descriptor.ID, MaxResults: 1, Projection: ProjectContentData,
+	})
+	if err != nil || len(result.Artifacts) != 0 || len(result.Contents) != 1 ||
+		result.Contents[0].Artifact != content.Descriptor.ID || !slices.Equal(result.Contents[0].Data, content.Data) {
+		t.Fatalf("projected content = (%+v, %v)", result, err)
 	}
 }

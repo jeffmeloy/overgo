@@ -1,6 +1,8 @@
 package artifact
 
 import (
+	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -83,6 +85,14 @@ func ParseKind(value string) (Kind, error) {
 type ID struct {
 	kind   Kind
 	digest [digestBytes]byte
+}
+
+// CompareID orders by kind, then digest.
+func CompareID(left, right ID) int {
+	if order := cmp.Compare(left.kind, right.kind); order != 0 {
+		return order
+	}
+	return bytes.Compare(left.digest[:], right.digest[:])
 }
 
 func NewID(kind Kind, digest [digestBytes]byte) (ID, error) {

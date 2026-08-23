@@ -450,7 +450,9 @@ func TestImportClosureDocumentsCopiesFixture(t *testing.T) {
 	if _, found, err := closureledger.ResolveActiveBinding(t.Context(), target, binding, candidate.ValueJSON()); err != nil || !found {
 		t.Fatalf("imported binding=(%t, %v)", found, err)
 	}
-	result, err := target.Query(t.Context(), repodb.Query{Artifact: &fixtureID, MaxResults: 1})
+	result, err := target.Query(t.Context(), repodb.Query{
+		Artifact: &fixtureID, MaxResults: 1, Projection: repodb.ProjectArtifacts,
+	})
 	if err != nil || len(result.Artifacts) != 1 || result.Artifacts[0] != fixture {
 		t.Fatalf("imported fixture=(%+v, %v)", result.Artifacts, err)
 	}

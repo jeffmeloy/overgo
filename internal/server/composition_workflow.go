@@ -113,7 +113,8 @@ func (h *Handler) compositionInventory(response http.ResponseWriter, request *ht
 	}
 	result, err := h.repository.Query(request.Context(), repodb.Query{
 		MediaType:  composition.CompositionRecipeMediaType,
-		MaxResults: repodb.MaxQueryResults,
+		MaxResults: h.repository.QueryExtent(),
+		Projection: repodb.ProjectArtifacts,
 	})
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "composition_inventory_error", err.Error())

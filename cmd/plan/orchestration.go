@@ -64,17 +64,20 @@ func recordExplorationCharge(root, inputPath string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
+	result, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	})
 	if err != nil {
 		return err
 	}
 	charges := make([]plan.ExplorationCharge, 0)
 	for _, descriptor := range result.Artifacts {
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
+		content, ok := result.Content(descriptor.ID)
+		if !ok {
 			continue
 		}
-		if charge, err := plan.ParseExplorationCharge(content.Data); err == nil && charge.Grant == grant.ID {
+		if charge, err := plan.ParseExplorationCharge(content); err == nil && charge.Grant == grant.ID {
 			charges = append(charges, charge)
 		}
 	}
@@ -196,7 +199,10 @@ func printLeaseReport(root string, capacity plan.Resources, output io.Writer) er
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindEvidence, MaxResults: repodb.MaxQueryResults})
+	result, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectArtifacts | repodb.ProjectAliases | repodb.ProjectContentData,
+	})
 	if err != nil {
 		return err
 	}
@@ -221,18 +227,15 @@ func printLeaseReport(root string, capacity plan.Resources, output io.Writer) er
 	sort.Slice(leases, func(i, j int) bool { return leases[i].Task < leases[j].Task })
 	grants, charges := make([]plan.ExplorationGrant, 0), make([]plan.ExplorationCharge, 0)
 	for _, descriptor := range result.Artifacts {
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil {
-			return err
-		}
+		content, ok := result.Content(descriptor.ID)
 		if !ok {
 			continue
 		}
-		if grant, err := plan.ParseExplorationGrant(content.Data); err == nil {
+		if grant, err := plan.ParseExplorationGrant(content); err == nil {
 			grants = append(grants, grant)
 			continue
 		}
-		if charge, err := plan.ParseExplorationCharge(content.Data); err == nil {
+		if charge, err := plan.ParseExplorationCharge(content); err == nil {
 			charges = append(charges, charge)
 		}
 	}
@@ -257,11 +260,11 @@ func printLeaseReport(root string, capacity plan.Resources, output io.Writer) er
 	sort.Slice(exploration, func(i, j int) bool { return exploration[i].Grant < exploration[j].Grant })
 	outcomes := make([]plan.LeaseOutcome, 0)
 	for _, descriptor := range result.Artifacts {
-		content, ok, err := store.Content(ctx, descriptor.ID)
-		if err != nil || !ok {
+		content, ok := result.Content(descriptor.ID)
+		if !ok {
 			continue
 		}
-		if outcome, err := plan.ParseLeaseOutcome(content.Data); err == nil {
+		if outcome, err := plan.ParseLeaseOutcome(content); err == nil {
 			outcomes = append(outcomes, outcome)
 		}
 	}

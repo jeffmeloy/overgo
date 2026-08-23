@@ -82,21 +82,18 @@ func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Re
 		Kind:       artifact.KindEvidence,
 		MediaType:  runrecord.ServingObservationMediaType,
 		Schema:     runrecord.ServingObservationSchema,
-		MaxResults: repodb.MaxQueryResults,
+		MaxResults: store.QueryExtent(),
+		Projection: repodb.ProjectContentData,
 	})
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
 		return
 	}
-	activity := make([]servingActivity, 0, len(result.Artifacts))
-	for _, descriptor := range result.Artifacts {
-		content, found, readErr := store.Content(request.Context(), descriptor.ID)
-		if readErr != nil || !found {
-			continue
-		}
+	activity := make([]servingActivity, 0, len(result.Contents))
+	for _, content := range result.Contents {
 		observation, parseErr := runrecord.ParseServingObservation(content.Data)
 		if parseErr == nil {
-			activity = append(activity, servingActivity{ID: descriptor.ID, ServingObservation: observation})
+			activity = append(activity, servingActivity{ID: content.Artifact, ServingObservation: observation})
 		}
 	}
 	sort.Slice(activity, func(left, right int) bool {

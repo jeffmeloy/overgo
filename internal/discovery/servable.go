@@ -33,7 +33,9 @@ type Entry struct {
 // recorded locations (manifest first, then components; recorded-but-missing
 // or unrecorded reports Present=false, honestly).
 func Servable(ctx context.Context, store *repodb.Store, limit int) ([]Entry, error) {
-	result, err := store.Query(ctx, repodb.Query{Kind: artifact.KindModel, MaxResults: limit})
+	result, err := store.Query(ctx, repodb.Query{
+		Kind: artifact.KindModel, MaxResults: limit, Projection: repodb.ProjectManifests,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -4,6 +4,118 @@
   "census_evidence": "evidence:sha256:ffddab7c8b8de15a67406bc93380f6d3bc35c4e9e67fe25544bc02b6e2539e6f",
   "items": [
     {
+      "id": "offline-tensor-execution-plan",
+      "title": "Compile exact offline tensor execution, placement, lifetime, and shard policy from RepoDB authorities without merge heuristics or magic defaults",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile exact offline tensor execution, placement, lifetime, and shard policy from RepoDB authorities without merge heuristics or magic defaults",
+          "status": "done",
+          "verify": "go test ./internal/composition ./internal/modelmerge -run '^TestOffline(TensorExecutionPlan|PlanDerivesResourcePolicy|PlanRejectsLiteralPolicy)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "safetensors-stream-writer",
+      "title": "Write deterministic bounded Safetensors shards through temporary artifacts with resume and atomic finalization",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Write deterministic bounded Safetensors shards through temporary artifacts with resume and atomic finalization",
+          "status": "open",
+          "verify": "go test ./internal/safetensors -run '^TestStreamingWriter(DeterministicShards|AtomicFinalize|Resume|DerivedBounds)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "offline-tensor-executor",
+      "title": "Execute exact passthrough and task arithmetic tensor-by-tensor with bounded residency and hard refusal",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Execute exact passthrough and task arithmetic tensor-by-tensor with bounded residency and hard refusal",
+          "status": "open",
+          "verify": "go test ./internal/modelmerge -run '^TestStreaming(Passthrough|TaskArithmetic|BoundedResidency|Refusal)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "offline-artifact-generation",
+      "title": "Gate produced model artifacts on real load, generation, repeat stability, resources, and promotion evidence",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Gate produced model artifacts on real load, generation, repeat stability, resources, and promotion evidence",
+          "status": "open",
+          "verify": "go test ./internal/composition ./internal/evaluation -run '^TestOfflineArtifactGeneration(ExactPassthrough|TaskArithmetic|RepeatedSeeds|PromotionRefusal)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "offline-lora-extraction",
+      "title": "Extract lineage-bound LoRA adapters from exact base deltas with rank derived from reconstruction evidence",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Extract lineage-bound LoRA adapters from exact base deltas with rank derived from reconstruction evidence",
+          "status": "open",
+          "verify": "go test ./internal/modelmerge ./internal/model -run '^TestLoRAExtraction(ExactBase|ResidualBudget|FrozenReconstruction|Lineage)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "vocabulary-artifact-interoperability",
+      "title": "Compile exact vocabulary remapping and embedding provenance with semantic refusal and generated-artifact validation",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile exact vocabulary remapping and embedding provenance with semantic refusal and generated-artifact validation",
+          "status": "open",
+          "verify": "go test ./internal/modelmerge ./internal/tokenizer -run '^TestVocabularyArtifact(ExactMapping|EmbeddingProvenance|SemanticRefusal|Generation)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "dense-to-moe-evidence-screen",
+      "title": "Admit dense-to-MoE artifact construction only through an evidence screen with derived router policy and promotion refusal",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit dense-to-MoE artifact construction only through an evidence screen with derived router policy and promotion refusal",
+          "status": "open",
+          "verify": "go test ./internal/modelmerge ./internal/model -run '^TestDenseToMoE(EvidenceScreen|RouterInitialization|ExpertInventory|PromotionRefusal)$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "offline-artifact-closure",
+      "title": "Close the offline artifact campaign with full tests, vet, magic census, and no heuristic merge operators",
+      "owner": "research",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Close the offline artifact campaign with full tests, vet, magic census, and no heuristic merge operators",
+          "status": "open",
+          "verify": "go run ./cmd/test-lane \u0026\u0026 go vet ./..."
+        }
+      ]
+    },
+    {
       "id": "merge-6dd655ba5061",
       "title": "Merge master at 6dd655ba5061",
       "status": "done",

@@ -147,8 +147,13 @@ type CompositionExecutionPlanAction struct {
 // OfflineArtifactPlanAction selects an artifact-production operator and its
 // exact model-definition inputs.
 type OfflineArtifactPlanAction struct {
-	Operator composition.OfflineArtifactOperator `json:"operator"`
-	Inputs   []composition.OfflineArtifactInput  `json:"inputs"`
+	Operator          composition.OfflineArtifactOperator `json:"operator"`
+	Inputs            []composition.OfflineArtifactInput  `json:"inputs"`
+	Placement         recipe.Placement                    `json:"placement"`
+	MaxResidentBytes  uint64                              `json:"max_resident_bytes"`
+	MaxShardBytes     uint64                              `json:"max_shard_bytes"`
+	ResourceRationale string                              `json:"resource_rationale"`
+	ResourceTrigger   string                              `json:"resource_reopen_trigger"`
 }
 
 // Action is one controller emission: exactly the payload matching Kind is
@@ -371,11 +376,31 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 		if err != nil {
 			return nil, nil, err
 		}
-		content, err := plan.Content()
+		policy, err := composition.NewOfflineTensorResourcePolicy(
+			action.Offline.Placement, action.Offline.MaxResidentBytes, action.Offline.MaxShardBytes,
+			action.Offline.ResourceRationale, action.Offline.ResourceTrigger,
+		)
 		if err != nil {
 			return nil, nil, err
 		}
-		return []artifact.Content{content}, plan.Lineage(), nil
+		execution, err := composition.CompileOfflineTensorExecutionPlan(ctx, reader, plan, policy)
+		if err != nil {
+			return nil, nil, err
+		}
+		planContent, err := plan.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		policyContent, err := policy.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		executionContent, err := execution.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		lineage := append(plan.Lineage(), execution.Lineage()...)
+		return []artifact.Content{planContent, policyContent, executionContent}, lineage, nil
 	default:
 		return nil, nil, fmt.Errorf("controller action: kind %q has no executor", action.Kind)
 	}

@@ -35,12 +35,12 @@
       "id": "safetensors-stream-writer",
       "title": "Write deterministic bounded Safetensors shards through temporary artifacts with resume and atomic finalization",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Write deterministic bounded Safetensors shards through temporary artifacts with resume and atomic finalization",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/safetensors -run '^TestStreamingWriter(DeterministicShards|AtomicFinalize|Resume|DerivedBounds)$' -count=1"
         }
       ]

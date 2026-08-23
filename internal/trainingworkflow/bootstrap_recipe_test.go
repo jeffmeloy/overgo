@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/trainingprogram"
@@ -32,7 +33,7 @@ func TestBootstrapTokenRecipeBindsStoredOptimizerPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, ok, err := store.Content(ctx, definitionID)
+	content, ok, err := artifact.ReadContent(ctx, store, definitionID)
 	if err != nil {
 		t.Fatal(err)
 	}

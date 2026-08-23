@@ -76,7 +76,7 @@ func TestGroupSplitPublishesMembershipSelectors(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, membership := range plan.Memberships {
-		if _, ok, err := store.Content(ctx, membership.ID); err != nil || !ok {
+		if _, ok, err := artifact.ReadContent(ctx, store, membership.ID); err != nil || !ok {
 			t.Fatalf("membership content = (%t, %v)", ok, err)
 		}
 	}

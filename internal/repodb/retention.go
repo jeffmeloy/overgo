@@ -101,7 +101,7 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 				return err
 			}
 		}
-		content, ok, err := source.Content(ctx, id)
+		content, ok, err := artifact.ReadContent(ctx, source, id)
 		if err != nil {
 			return err
 		}
@@ -164,7 +164,7 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 			return report, err
 		}
 		descriptor := descriptors[id]
-		content, ok, err := source.Content(ctx, id)
+		content, ok, err := artifact.ReadContent(ctx, source, id)
 		if err != nil {
 			return report, err
 		}

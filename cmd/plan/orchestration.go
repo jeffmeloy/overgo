@@ -53,7 +53,7 @@ func recordExplorationCharge(root, inputPath string, output io.Writer) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	grantContent, ok, err := store.Content(ctx, specification.Grant)
+	grantContent, ok, err := artifact.ReadContent(ctx, store, specification.Grant)
 	if err != nil {
 		return err
 	}
@@ -305,7 +305,7 @@ func recordExperimentTransition(root, inputPath string, output io.Writer) error 
 	ctx := context.Background()
 	var prior *runrecord.ExperimentLifecycle
 	if specification.Prior != nil {
-		content, ok, err := store.Content(ctx, *specification.Prior)
+		content, ok, err := artifact.ReadContent(ctx, store, *specification.Prior)
 		if err != nil {
 			return err
 		}

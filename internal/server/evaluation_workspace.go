@@ -197,7 +197,7 @@ func (workspace *EvaluationWorkspace) EvaluationReport(ctx context.Context, id a
 	if workspace == nil || workspace.repository == nil || id.Kind() != artifact.KindEvaluation {
 		return EvaluationReport{}, errors.New("evaluation workspace: invalid report")
 	}
-	content, found, err := workspace.repository.Content(ctx, id)
+	content, found, err := artifact.ReadContent(ctx, workspace.repository, id)
 	if err != nil {
 		return EvaluationReport{}, err
 	}

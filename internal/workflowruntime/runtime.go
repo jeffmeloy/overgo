@@ -439,7 +439,7 @@ func (r *Runtime) recoverStage(
 		}
 		value := Value{Kind: stage.Module.Outputs[port].Data, Items: make([]Datum, len(binding.Artifacts))}
 		for index, id := range binding.Artifacts {
-			content, contentFound, loadErr := r.store.Content(ctx, id)
+			content, contentFound, loadErr := artifact.ReadContent(ctx, r.store, id)
 			if loadErr != nil {
 				return nil, false, loadErr
 			}

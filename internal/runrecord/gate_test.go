@@ -101,7 +101,7 @@ func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	content, ok, err := store.Content(ctx, record.Run.ID)
+	content, ok, err := artifact.ReadContent(ctx, store, record.Run.ID)
 	if err != nil || !ok {
 		t.Fatalf("terminal run content = (%t, %v)", ok, err)
 	}

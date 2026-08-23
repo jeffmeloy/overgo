@@ -160,7 +160,7 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 	if checkpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(roots.Checkpoints, "trained")); err != nil || checkpoint.ID() != completion.Outputs[0] {
 		t.Fatalf("checkpoint=%s err=%v", checkpoint.ID(), err)
 	}
-	traceContent, ok, err := store.Content(ctx, completion.Outputs[1])
+	traceContent, ok, err := artifact.ReadContent(ctx, store, completion.Outputs[1])
 	if err != nil || !ok {
 		t.Fatalf("training trace content exists=%v err=%v", ok, err)
 	}
@@ -171,7 +171,7 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 		trace.Objective != trainingprogram.ObjectiveDPO || len(trace.DPO) != len(expectedObservations) {
 		t.Fatalf("trace=%+v err=%v", trace, err)
 	}
-	decisionContent, ok, err := store.Content(ctx, completion.Outputs[2])
+	decisionContent, ok, err := artifact.ReadContent(ctx, store, completion.Outputs[2])
 	if err != nil || !ok {
 		t.Fatalf("training decision content exists=%v err=%v", ok, err)
 	}

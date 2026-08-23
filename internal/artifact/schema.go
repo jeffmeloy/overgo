@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -223,7 +224,7 @@ func (id CommitID) Valid() bool {
 // Reader defines storage-neutral artifact queries.
 type Reader interface {
 	Artifact(context.Context, ID) (Descriptor, bool, error)
-	Content(context.Context, ID) (Content, bool, error)
+	OpenContent(context.Context, ID) (Descriptor, io.Reader, bool, error)
 	Manifest(context.Context, ID) (Manifest, bool, error)
 	ResolveAlias(context.Context, string) (ID, bool, error)
 	Parents(context.Context, ID) ([]Lineage, error)

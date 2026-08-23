@@ -1,7 +1,6 @@
 package repoanalysis
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -17,10 +16,12 @@ import (
 )
 
 type sourceBlob struct {
-	data   []byte
-	once   sync.Once
-	syntax *ast.File
-	err    error
+	data       []byte
+	once       sync.Once
+	lineOnce   sync.Once
+	syntax     *ast.File
+	lineStarts []int
+	err        error
 }
 
 type GoFile struct {
@@ -74,15 +75,23 @@ func (f GoFile) BuildExpression() (string, error) {
 	return strings.Join(legacy, " && "), nil
 }
 
-// Line resolves a syntax position without exposing or recreating the parser's
-// file set. Source blobs may be shared by files with identical content, for
-// which the line mapping is also identical.
+// Line maps syntax positions through the shared source index.
 func (f GoFile) Line(pos token.Pos) int {
 	offset := int(pos) - 1
 	if offset < 0 || offset > len(f.blob.data) {
 		return 0
 	}
-	return bytes.Count(f.blob.data[:offset], []byte{'\n'}) + 1
+	f.blob.lineOnce.Do(func() {
+		f.blob.lineStarts = append(f.blob.lineStarts, len(f.blob.lineStarts))
+		for index, value := range f.blob.data {
+			if value == '\n' {
+				f.blob.lineStarts = append(f.blob.lineStarts, index+1)
+			}
+		}
+	})
+	return sort.Search(len(f.blob.lineStarts), func(index int) bool {
+		return f.blob.lineStarts[index] > offset
+	})
 }
 
 type SourceSnapshot struct{ Files []GoFile }

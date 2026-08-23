@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,15 +50,24 @@ type committedBatch struct {
 }
 
 type persistedTransaction struct {
-	Request [sha256.Size]byte `json:"request"`
-	Delta   artifact.Batch    `json:"delta"`
+	Request [sha256.Size]byte     `json:"request"`
+	Delta   artifact.Batch        `json:"delta"`
+	Content []artifact.Descriptor `json:"content,omitempty"`
+}
+
+type contentLocator struct {
+	offset        int64
+	size          int64
+	frameVersion  uint16
+	payloadOffset int64
+	payloadSize   int64
 }
 
 type catalogState struct {
 	artifacts           map[artifact.ID]artifact.Descriptor
 	artifactsByMedia    map[string]map[artifact.ID]struct{}
 	artifactsBySchema   map[string]map[artifact.ID]struct{}
-	contents            map[artifact.ID][]byte
+	contents            map[artifact.ID]contentLocator
 	manifests           map[artifact.ID]artifact.Manifest
 	aliases             map[string]artifact.ID
 	lineage             map[relationKey]artifact.Lineage
@@ -73,7 +83,7 @@ func newCatalogState() catalogState {
 		artifacts:           map[artifact.ID]artifact.Descriptor{},
 		artifactsByMedia:    map[string]map[artifact.ID]struct{}{},
 		artifactsBySchema:   map[string]map[artifact.ID]struct{}{},
-		contents:            map[artifact.ID][]byte{},
+		contents:            map[artifact.ID]contentLocator{},
 		manifests:           map[artifact.ID]artifact.Manifest{},
 		aliases:             map[string]artifact.ID{},
 		lineage:             map[relationKey]artifact.Lineage{},
@@ -96,11 +106,6 @@ func (s catalogState) validate(batch artifact.Batch) error {
 	for _, manifest := range batch.Manifests {
 		if current, ok := s.manifests[manifest.ID]; ok && !sameManifest(current, manifest) {
 			return fmt.Errorf("%w: manifest %s", ErrArtifactConflict, manifest.ID)
-		}
-	}
-	for _, content := range batch.Contents {
-		if current, ok := s.contents[content.Descriptor.ID]; ok && !bytes.Equal(current, content.Data) {
-			return fmt.Errorf("%w: content %s", ErrArtifactConflict, content.Descriptor.ID)
 		}
 	}
 	for _, binding := range batch.Aliases {
@@ -162,14 +167,14 @@ func (s catalogState) hasArtifact(id artifact.ID, added map[artifact.ID]struct{}
 	return ok
 }
 
-func (s *catalogState) apply(batch artifact.Batch) {
+func (s *catalogState) apply(batch artifact.Batch, locators map[artifact.ID]contentLocator) {
 	for _, descriptor := range batch.Artifacts {
 		s.artifacts[descriptor.ID] = descriptor
 		indexDescriptor(s.artifactsByMedia, descriptor.MediaType, descriptor.ID)
 		indexDescriptor(s.artifactsBySchema, descriptor.Schema, descriptor.ID)
 	}
 	for _, content := range batch.Contents {
-		s.contents[content.Descriptor.ID] = slices.Clone(content.Data)
+		s.contents[content.Descriptor.ID] = locators[content.Descriptor.ID]
 	}
 	for _, manifest := range batch.Manifests {
 		s.manifests[manifest.ID] = manifest.Clone()
@@ -360,7 +365,7 @@ func open(root string, readOnly bool) (*Store, error) {
 }
 
 func (s *Store) applyRecord(record logRecord) error {
-	batch, payloadHash, err := decodeRecord(record)
+	batch, payloadHash, locators, err := decodeRecord(record)
 	if err != nil {
 		return err
 	}
@@ -373,7 +378,7 @@ func (s *Store) applyRecord(record logRecord) error {
 	if err := s.state.validate(batch); err != nil {
 		return err
 	}
-	s.state.apply(batch)
+	s.state.apply(batch, locators)
 	s.state.commits[batch.Key] = committedBatch{
 		id: record.id, payload: payloadHash, sequence: record.sequence,
 	}
@@ -437,20 +442,22 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 	if delta.Empty() {
 		return artifact.CommitID{}, ErrNoChange
 	}
-	payload, err = encodeTransaction(payloadHash, delta)
+	payload, locators, err := encodeTransaction(payloadHash, delta)
 	if err != nil {
 		return artifact.CommitID{}, err
 	}
 	sequence := s.sequence + 1
-	id, err := s.log.append(sequence, s.head, payload)
+	id, payloadOffset, replayEnd, err := s.log.append(sequence, s.head, payload)
 	if err != nil {
 		s.fault = err
 		return id, fmt.Errorf("%w: %w", ErrStoreFaulted, err)
 	}
-	s.state.apply(normalized)
+	bindContentLocators(locators, payloadOffset, int64(len(payload)), frameVersion)
+	s.state.apply(delta, locators)
 	s.state.commits[normalized.Key] = committedBatch{id: id, payload: payloadHash, sequence: sequence}
 	s.sequence = sequence
 	s.head = id
+	s.replayEnd = replayEnd
 	return id, nil
 }
 
@@ -480,22 +487,6 @@ func (s *Store) Manifest(ctx context.Context, id artifact.ID) (artifact.Manifest
 	return value.Clone(), ok, nil
 }
 
-func (s *Store) Content(ctx context.Context, id artifact.ID) (artifact.Content, bool, error) {
-	if err := contextError(ctx); err != nil {
-		return artifact.Content{}, false, err
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if err := s.ready(false); err != nil {
-		return artifact.Content{}, false, err
-	}
-	data, ok := s.state.contents[id]
-	if !ok {
-		return artifact.Content{}, false, nil
-	}
-	return artifact.Content{Descriptor: s.state.artifacts[id], Data: slices.Clone(data)}, true, nil
-}
-
 func (s *Store) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descriptor, io.Reader, bool, error) {
 	if err := contextError(ctx); err != nil {
 		return artifact.Descriptor{}, nil, false, err
@@ -505,11 +496,148 @@ func (s *Store) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descr
 	if err := s.ready(false); err != nil {
 		return artifact.Descriptor{}, nil, false, err
 	}
-	data, ok := s.state.contents[id]
+	locator, ok := s.state.contents[id]
 	if !ok {
 		return artifact.Descriptor{}, nil, false, nil
 	}
-	return s.state.artifacts[id], bytes.NewReader(data), true, nil
+	reader, err := s.log.openContent(locator, id)
+	if err != nil {
+		return artifact.Descriptor{}, nil, false, err
+	}
+	return s.state.artifacts[id], reader, true, nil
+}
+
+// VisitContents streams requested content in storage order.
+func (s *Store) VisitContents(ctx context.Context, ids []artifact.ID, visit func(artifact.Descriptor, io.Reader) error) error {
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if visit == nil {
+		return errors.New("repodb: nil content visitor")
+	}
+	type entry struct {
+		id         artifact.ID
+		descriptor artifact.Descriptor
+		locator    contentLocator
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(false); err != nil {
+		return err
+	}
+	entries := make([]entry, 0, len(ids))
+	seen := make(map[artifact.ID]struct{}, len(ids))
+	for _, id := range ids {
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		locator, found := s.state.contents[id]
+		if !found {
+			return fmt.Errorf("repodb: content is absent: %s", id)
+		}
+		entries = append(entries, entry{id: id, descriptor: s.state.artifacts[id], locator: locator})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		left, right := entries[i].locator, entries[j].locator
+		if left.frameVersion != right.frameVersion {
+			return left.frameVersion < right.frameVersion
+		}
+		if left.payloadOffset != right.payloadOffset {
+			return left.payloadOffset < right.payloadOffset
+		}
+		return left.offset < right.offset
+	})
+	var legacyOffset int64
+	var haveLegacy bool
+	var legacy map[artifact.ID][]byte
+	for _, entry := range entries {
+		if err := contextError(ctx); err != nil {
+			return err
+		}
+		var reader io.Reader
+		if entry.locator.frameVersion < frameVersion {
+			if !haveLegacy || entry.locator.payloadOffset != legacyOffset {
+				var err error
+				legacy, err = s.legacyContents(entry.locator)
+				if err != nil {
+					return err
+				}
+				legacyOffset = entry.locator.payloadOffset
+				haveLegacy = true
+			}
+			data, found := legacy[entry.id]
+			if !found {
+				return errors.New("repodb: legacy content is absent")
+			}
+			reader = bytes.NewReader(data)
+		} else {
+			var err error
+			reader, err = s.log.openContent(entry.locator, entry.id)
+			if err != nil {
+				return err
+			}
+		}
+		if err := visit(entry.descriptor, reader); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) materializeContent(locator contentLocator, id artifact.ID) ([]byte, error) {
+	reader, err := s.log.openContent(locator, id)
+	if err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(io.LimitReader(reader, locator.size+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) != locator.size {
+		return nil, errors.New("repodb: content locator size differs")
+	}
+	return data, nil
+}
+
+func (s *Store) materializeQueryContent(
+	locator contentLocator,
+	id artifact.ID,
+	legacy map[int64]map[artifact.ID][]byte,
+) ([]byte, error) {
+	if locator.frameVersion >= frameVersion {
+		return s.materializeContent(locator, id)
+	}
+	contents := legacy[locator.payloadOffset]
+	if contents == nil {
+		var err error
+		contents, err = s.legacyContents(locator)
+		if err != nil {
+			return nil, err
+		}
+		legacy[locator.payloadOffset] = contents
+	}
+	data, found := contents[id]
+	if !found {
+		return nil, errors.New("repodb: legacy content is absent")
+	}
+	return data, nil
+}
+
+func (s *Store) legacyContents(locator contentLocator) (map[artifact.ID][]byte, error) {
+	payload := make([]byte, locator.payloadSize)
+	if _, err := s.log.file.ReadAt(payload, locator.payloadOffset); err != nil {
+		return nil, fmt.Errorf("repodb: read legacy content frame: %w", err)
+	}
+	batch, _, err := decodeLegacyRecord(logRecord{version: locator.frameVersion, payload: payload})
+	if err != nil {
+		return nil, err
+	}
+	contents := make(map[artifact.ID][]byte, len(batch.Contents))
+	for _, content := range batch.Contents {
+		contents[content.Descriptor.ID] = content.Data
+	}
+	return contents, nil
 }
 
 func (s *Store) HasContent(ctx context.Context, id artifact.ID) (bool, error) {
@@ -665,22 +793,99 @@ func decodeBatch(payload []byte) (artifact.Batch, [sha256.Size]byte, error) {
 	return normalized, sha256.Sum256(payload), nil
 }
 
-func encodeTransaction(request [sha256.Size]byte, delta artifact.Batch) ([]byte, error) {
-	payload, err := json.Marshal(persistedTransaction{Request: request, Delta: delta})
+func encodeTransaction(request [sha256.Size]byte, delta artifact.Batch) ([]byte, map[artifact.ID]contentLocator, error) {
+	contents := delta.Contents
+	delta.Contents = nil
+	descriptors := make([]artifact.Descriptor, len(contents))
+	for index := range contents {
+		descriptors[index] = contents[index].Descriptor
+	}
+	metadata, err := json.Marshal(persistedTransaction{Request: request, Delta: delta, Content: descriptors})
 	if err != nil {
-		return nil, fmt.Errorf("repodb: encode transaction: %w", err)
+		return nil, nil, fmt.Errorf("repodb: encode transaction: %w", err)
+	}
+	payload := binary.LittleEndian.AppendUint32(nil, uint32(len(metadata)))
+	payload = append(payload, metadata...)
+	locators := make(map[artifact.ID]contentLocator, len(contents))
+	for _, content := range contents {
+		locators[content.Descriptor.ID] = contentLocator{offset: int64(len(payload)), size: int64(len(content.Data))}
+		payload = append(payload, content.Data...)
 	}
 	if len(payload) > maxFramePayload {
-		return nil, errors.New("repodb: transaction exceeds payload limit")
+		return nil, nil, errors.New("repodb: transaction exceeds payload limit")
 	}
-	return payload, nil
+	return payload, locators, nil
 }
 
-func decodeRecord(record logRecord) (artifact.Batch, [sha256.Size]byte, error) {
+func decodeRecord(record logRecord) (artifact.Batch, [sha256.Size]byte, map[artifact.ID]contentLocator, error) {
 	if record.version < frameVersion {
+		batch, request, err := decodeLegacyRecord(record)
+		if err != nil {
+			return artifact.Batch{}, [sha256.Size]byte{}, nil, err
+		}
+		locators := make(map[artifact.ID]contentLocator, len(batch.Contents))
+		for _, content := range batch.Contents {
+			locators[content.Descriptor.ID] = contentLocator{
+				size: int64(len(content.Data)), frameVersion: record.version,
+				payloadOffset: record.offset, payloadSize: int64(len(record.payload)),
+			}
+		}
+		return batch, request, locators, nil
+	}
+	if len(record.payload) < binary.Size(uint32(0)) {
+		return artifact.Batch{}, [sha256.Size]byte{}, nil, errors.New("repodb: short transaction metadata")
+	}
+	metadataSize := int(binary.LittleEndian.Uint32(record.payload))
+	metadataOffset := binary.Size(uint32(0))
+	if metadataSize > len(record.payload)-metadataOffset {
+		return artifact.Batch{}, [sha256.Size]byte{}, nil, errors.New("repodb: invalid transaction metadata size")
+	}
+	metadata := record.payload[metadataOffset : metadataOffset+metadataSize]
+	var transaction persistedTransaction
+	if err := strictjson.DecodeBytes(metadata, &transaction); err != nil {
+		return artifact.Batch{}, [sha256.Size]byte{}, nil, fmt.Errorf("repodb: decode transaction: %w", err)
+	}
+	normalized, err := normalizeBatch(transaction.Delta)
+	if err != nil {
+		return artifact.Batch{}, [sha256.Size]byte{}, nil, err
+	}
+	canonical, err := json.Marshal(persistedTransaction{Request: transaction.Request, Delta: normalized, Content: transaction.Content})
+	if err != nil {
+		return artifact.Batch{}, [sha256.Size]byte{}, nil, fmt.Errorf("repodb: canonicalize transaction: %w", err)
+	}
+	if !bytes.Equal(canonical, metadata) {
+		return artifact.Batch{}, [sha256.Size]byte{}, nil, errors.New("repodb: non-canonical transaction metadata")
+	}
+	dataOffset := metadataOffset + metadataSize
+	locators := make(map[artifact.ID]contentLocator, len(transaction.Content))
+	for _, descriptor := range transaction.Content {
+		end := dataOffset + int(descriptor.Size)
+		if end < dataOffset || end > len(record.payload) {
+			return artifact.Batch{}, [sha256.Size]byte{}, nil, errors.New("repodb: invalid transaction content bounds")
+		}
+		content := artifact.Content{Descriptor: descriptor, Data: record.payload[dataOffset:end]}
+		if err := content.Validate(); err != nil {
+			return artifact.Batch{}, [sha256.Size]byte{}, nil, err
+		}
+		normalized.Contents = append(normalized.Contents, content)
+		locators[descriptor.ID] = contentLocator{offset: int64(dataOffset), size: int64(descriptor.Size)}
+		dataOffset = end
+	}
+	if dataOffset != len(record.payload) {
+		return artifact.Batch{}, [sha256.Size]byte{}, nil, errors.New("repodb: trailing transaction content")
+	}
+	bindContentLocators(locators, record.offset, int64(len(record.payload)), record.version)
+	return normalized, transaction.Request, locators, nil
+}
+
+func decodeLegacyRecord(record logRecord) (artifact.Batch, [sha256.Size]byte, error) {
+	if record.version < transactionFrameVersion {
 		return decodeBatch(record.payload)
 	}
-	var transaction persistedTransaction
+	var transaction struct {
+		Request [sha256.Size]byte `json:"request"`
+		Delta   artifact.Batch    `json:"delta"`
+	}
 	if err := strictjson.DecodeBytes(record.payload, &transaction); err != nil {
 		return artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("repodb: decode transaction: %w", err)
 	}
@@ -688,14 +893,21 @@ func decodeRecord(record logRecord) (artifact.Batch, [sha256.Size]byte, error) {
 	if err != nil {
 		return artifact.Batch{}, [sha256.Size]byte{}, err
 	}
-	canonical, err := json.Marshal(persistedTransaction{Request: transaction.Request, Delta: normalized})
-	if err != nil {
-		return artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("repodb: canonicalize transaction: %w", err)
-	}
-	if !bytes.Equal(canonical, record.payload) {
+	canonical, err := json.Marshal(transaction)
+	if err != nil || !bytes.Equal(canonical, record.payload) {
 		return artifact.Batch{}, [sha256.Size]byte{}, errors.New("repodb: non-canonical transaction payload")
 	}
 	return normalized, transaction.Request, nil
+}
+
+func bindContentLocators(locators map[artifact.ID]contentLocator, payloadOffset, payloadSize int64, version uint16) {
+	for id, locator := range locators {
+		locator.offset += payloadOffset
+		locator.frameVersion = version
+		locator.payloadOffset = payloadOffset
+		locator.payloadSize = payloadSize
+		locators[id] = locator
+	}
 }
 
 func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {

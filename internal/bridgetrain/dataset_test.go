@@ -46,7 +46,7 @@ func TestDatasetBridgeTraining(t *testing.T) {
 	if _, err := fixture.store.Commit(context.Background(), result.Batch); err != nil {
 		t.Fatal(err)
 	}
-	if _, found, err := fixture.store.Content(context.Background(), result.Checkpoint); err != nil || !found {
+	if _, found, err := artifact.ReadContent(context.Background(), fixture.store, result.Checkpoint); err != nil || !found {
 		t.Fatalf("checkpoint content found=%t err=%v", found, err)
 	}
 }

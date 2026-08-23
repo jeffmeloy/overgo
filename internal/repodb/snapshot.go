@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -25,7 +24,7 @@ const (
 	snapshotDirectory         = "snapshots"
 	snapshotExtension         = ".snapshot"
 	snapshotHeaderBytes       = 92
-	snapshotVersion           = uint16(1)
+	snapshotVersion           = uint16(4)
 	snapshotPayloadMultiplier = 4
 	maxSnapshotPayload        = maxFramePayload * snapshotPayloadMultiplier
 
@@ -59,12 +58,23 @@ type snapshotCommit struct {
 	Sequence uint64            `json:"sequence"`
 }
 
+type snapshotContent struct {
+	Artifact      artifact.ID `json:"artifact"`
+	Offset        int64       `json:"offset"`
+	Size          int64       `json:"size"`
+	FrameVersion  uint16      `json:"frame_version"`
+	PayloadOffset int64       `json:"payload_offset"`
+	PayloadSize   int64       `json:"payload_size"`
+}
+
 type snapshotDocument struct {
 	Version   uint16                `json:"version"`
 	Sequence  uint64                `json:"sequence"`
 	Head      artifact.CommitID     `json:"head"`
+	LogOffset int64                 `json:"log_offset"`
+	LogAnchor string                `json:"log_anchor"`
 	Artifacts []artifact.Descriptor `json:"artifacts"`
-	Contents  []artifact.Content    `json:"contents,omitempty"`
+	Contents  []snapshotContent     `json:"contents,omitempty"`
 	Manifests []artifact.Manifest   `json:"manifests,omitempty"`
 	Aliases   []snapshotAlias       `json:"aliases,omitempty"`
 	Lineage   []artifact.Lineage    `json:"lineage,omitempty"`
@@ -82,12 +92,17 @@ func (s *Store) Snapshot(ctx context.Context) (SnapshotInfo, error) {
 		s.mu.RUnlock()
 		return SnapshotInfo{}, err
 	}
-	sequence, head, root := s.sequence, s.head, s.root
+	sequence, head, offset, root := s.sequence, s.head, s.replayEnd, s.root
 	if sequence == 0 {
 		s.mu.RUnlock()
 		return SnapshotInfo{}, errors.New("repodb: cannot snapshot empty store")
 	}
-	path, err := writeSnapshot(ctx, root, sequence, head, s.state)
+	anchor, err := s.log.anchorDigest(offset)
+	if err != nil {
+		s.mu.RUnlock()
+		return SnapshotInfo{}, err
+	}
+	path, err := writeSnapshot(ctx, root, sequence, head, offset, hex.EncodeToString(anchor[:]), s.state)
 	s.mu.RUnlock()
 	if err != nil {
 		return SnapshotInfo{}, err
@@ -96,16 +111,20 @@ func (s *Store) Snapshot(ctx context.Context) (SnapshotInfo, error) {
 }
 
 func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
-	if document.Version != snapshotVersion || document.Sequence == 0 || !document.Head.Valid() {
+	if document.Version != snapshotVersion || document.Sequence == 0 || !document.Head.Valid() || document.LogOffset < storeHeaderBytes {
 		return catalogState{}, errors.New("repodb: invalid snapshot identity")
+	}
+	anchor, err := hex.DecodeString(document.LogAnchor)
+	if err != nil || len(anchor) != sha256.Size {
+		return catalogState{}, errors.New("repodb: invalid snapshot log anchor")
 	}
 	if uint64(len(document.Commits)) != document.Sequence {
 		return catalogState{}, errors.New("repodb: snapshot commit count differs")
 	}
 	batch := artifact.Batch{
 		Key: "snapshot/state", Artifacts: slices.Clone(document.Artifacts),
-		Contents: cloneValues(document.Contents), Manifests: cloneValues(document.Manifests),
-		Lineage: slices.Clone(document.Lineage),
+		Manifests: cloneValues(document.Manifests),
+		Lineage:   slices.Clone(document.Lineage),
 	}
 	for _, alias := range document.Aliases {
 		batch.Aliases = append(batch.Aliases, artifact.AliasBinding{Name: alias.Name, Target: alias.Target})
@@ -123,7 +142,19 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 	if err := state.validate(normalized); err != nil {
 		return catalogState{}, err
 	}
-	state.apply(normalized)
+	state.apply(normalized, nil)
+	for _, content := range document.Contents {
+		descriptor, found := state.artifacts[content.Artifact]
+		if !found || content.Size <= 0 || uint64(content.Size) != descriptor.Size ||
+			content.FrameVersion < minimumFrameVersion || content.FrameVersion > frameVersion ||
+			content.PayloadOffset < storeHeaderBytes || content.PayloadSize <= 0 {
+			return catalogState{}, errors.New("repodb: invalid snapshot content locator")
+		}
+		state.contents[content.Artifact] = contentLocator{
+			offset: content.Offset, size: content.Size, frameVersion: content.FrameVersion,
+			payloadOffset: content.PayloadOffset, payloadSize: content.PayloadSize,
+		}
+	}
 	for index, entry := range document.Commits {
 		if entry.Sequence != uint64(index)+1 {
 			return catalogState{}, errors.New("repodb: invalid snapshot commit sequence")
@@ -221,7 +252,7 @@ func (s *snapshotStream) array(name string, count int, omitEmpty bool, emit func
 	s.raw("]")
 }
 
-func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64, head artifact.CommitID) error {
+func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64, head artifact.CommitID, offset int64, anchor string) error {
 	stream := snapshotStream{writer: writer}
 	stream.raw(`{"version":`)
 	stream.value(snapshotVersion)
@@ -229,6 +260,10 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 	stream.value(sequence)
 	stream.raw(`,"head":`)
 	stream.value(head)
+	stream.raw(`,"log_offset":`)
+	stream.value(offset)
+	stream.raw(`,"log_anchor":`)
+	stream.value(anchor)
 
 	idLess := func(left, right artifact.ID) bool { return left.String() < right.String() }
 	artifactIDs := sortedSnapshotKeys(state.artifacts, idLess)
@@ -238,17 +273,11 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 	contentIDs := sortedSnapshotKeys(state.contents, idLess)
 	stream.array("contents", len(contentIDs), true, func(index int) {
 		id := contentIDs[index]
-		stream.raw(`{"descriptor":`)
-		stream.value(state.artifacts[id])
-		stream.raw(`,"data":"`)
-		encoder := base64.NewEncoder(base64.StdEncoding, &stream)
-		if _, err := encoder.Write(state.contents[id]); err != nil && stream.err == nil {
-			stream.err = err
-		}
-		if err := encoder.Close(); err != nil && stream.err == nil {
-			stream.err = err
-		}
-		stream.raw(`"}`)
+		locator := state.contents[id]
+		stream.value(snapshotContent{
+			Artifact: id, Offset: locator.offset, Size: locator.size, FrameVersion: locator.frameVersion,
+			PayloadOffset: locator.payloadOffset, PayloadSize: locator.payloadSize,
+		})
 	})
 	manifestIDs := sortedSnapshotKeys(state.manifests, idLess)
 	stream.array("manifests", len(manifestIDs), true, func(index int) {
@@ -306,12 +335,12 @@ func sortedSnapshotKeys[K comparable, V any](values map[K]V, less func(K, K) boo
 	return keys
 }
 
-func writeSnapshot(ctx context.Context, root string, sequence uint64, head artifact.CommitID, state catalogState) (string, error) {
+func writeSnapshot(ctx context.Context, root string, sequence uint64, head artifact.CommitID, offset int64, anchor string, state catalogState) (string, error) {
 	directory := filepath.Join(root, snapshotDirectory)
 	if err := os.MkdirAll(directory, storeDirectoryMode); err != nil {
 		return "", fmt.Errorf("repodb: create snapshot directory: %w", err)
 	}
-	name := fmt.Sprintf("%020d-%s%s", sequence, head.String(), snapshotExtension)
+	name := fmt.Sprintf("%020d-v%d-%s%s", sequence, snapshotVersion, head.String(), snapshotExtension)
 	path := filepath.Join(directory, name)
 	if _, err := os.Stat(path); err == nil {
 		return path, nil
@@ -330,7 +359,7 @@ func writeSnapshot(ctx context.Context, root string, sequence uint64, head artif
 	if err == nil {
 		digest := sha256.New()
 		sink := snapshotSink{ctx: ctx, writer: temporary, digest: digest}
-		err = writeSnapshotPayload(&sink, state, sequence, head)
+		err = writeSnapshotPayload(&sink, state, sequence, head, offset, anchor)
 		if err == nil {
 			var sum [sha256.Size]byte
 			copy(sum[:], digest.Sum(nil))
@@ -424,7 +453,7 @@ func readSnapshot(path string) (catalogState, replayAnchor, error) {
 	}
 	canonicalHash := sha256.New()
 	sink := snapshotSink{ctx: context.Background(), writer: io.Discard, digest: canonicalHash}
-	if err := writeSnapshotPayload(&sink, state, sequence, head); err != nil {
+	if err := writeSnapshotPayload(&sink, state, sequence, head, document.LogOffset, document.LogAnchor); err != nil {
 		return catalogState{}, replayAnchor{}, err
 	}
 	var canonical [sha256.Size]byte
@@ -432,7 +461,10 @@ func readSnapshot(path string) (catalogState, replayAnchor, error) {
 	if sink.size != size || canonical != digest {
 		return catalogState{}, replayAnchor{}, errors.New("repodb: non-canonical snapshot")
 	}
-	return state, replayAnchor{sequence: sequence, head: head}, nil
+	decoded, _ := hex.DecodeString(document.LogAnchor)
+	var anchor [sha256.Size]byte
+	copy(anchor[:], decoded)
+	return state, replayAnchor{sequence: sequence, head: head, offset: document.LogOffset, digest: anchor}, nil
 }
 
 func decodeSnapshotHeader(header []byte) (uint64, artifact.CommitID, uint64, [sha256.Size]byte, error) {

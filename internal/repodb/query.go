@@ -168,14 +168,18 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	}
 	result.Truncated = truncated
 	result.Matched = matched
+	legacyContent := map[int64]map[artifact.ID][]byte{}
 	for _, id := range ids {
 		if descriptor, ok := s.state.artifacts[id]; ok && query.Projection.includes(ProjectArtifacts) {
 			result.Artifacts = append(result.Artifacts, descriptor)
 		}
-		if data, ok := s.state.contents[id]; ok && query.Projection.includes(ProjectContentPresence|ProjectContentData) {
+		if locator, ok := s.state.contents[id]; ok && query.Projection.includes(ProjectContentPresence|ProjectContentData) {
 			view := ContentView{Artifact: id}
 			if query.Projection.includes(ProjectContentData) {
-				view.Data = slices.Clone(data)
+				view.Data, err = s.materializeQueryContent(locator, id, legacyContent)
+				if err != nil {
+					return QueryResult{}, err
+				}
 			}
 			result.Contents = append(result.Contents, view)
 		}

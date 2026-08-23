@@ -649,7 +649,7 @@ func writeContent(output io.Writer, repository, idText string) error {
 		return err
 	}
 	defer store.Close()
-	content, ok, err := store.Content(context.Background(), id)
+	content, ok, err := artifact.ReadContent(context.Background(), store, id)
 	if err != nil {
 		return err
 	}

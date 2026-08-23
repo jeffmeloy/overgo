@@ -222,7 +222,7 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 		return err
 	}
 	defer store.Close()
-	documents, _, _, err := activeClosureDocuments(context.Background(), store)
+	documents, _, err := activeClosureDocuments(context.Background(), store)
 	if err != nil {
 		return err
 	}
@@ -367,7 +367,7 @@ func scopedPath(path string, prefixes []string) bool {
 }
 
 func publishCensusEvidence(ctx context.Context, store *repodb.Store, snapshot repoanalysis.SourceSnapshot, census closurescan.Census) (closurescan.CensusEvidence, error) {
-	active, _, result, err := activeClosureDocuments(ctx, store)
+	active, _, err := activeClosureDocuments(ctx, store)
 	if err != nil {
 		return closurescan.CensusEvidence{}, err
 	}
@@ -375,7 +375,8 @@ func publishCensusEvidence(ctx context.Context, store *repodb.Store, snapshot re
 	if err != nil {
 		return closurescan.CensusEvidence{}, err
 	}
-	evidence, err := closurescan.NewCensusEvidence(census, result.Head, result.Sequence, active, issues)
+	head, sequence := store.Head()
+	evidence, err := closurescan.NewCensusEvidence(census, head, sequence, active, issues)
 	if err != nil {
 		return closurescan.CensusEvidence{}, err
 	}
@@ -410,28 +411,38 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 		return count, unmatched, first, err
 	}
 	destinationPath := filepath.Join(root, storePath)
-	sameStore := filepath.Clean(destinationPath) == filepath.Clean(sourcePath)
+	sourceInfo, sourceErr := os.Stat(sourcePath)
+	destinationInfo, destinationErr := os.Stat(destinationPath)
+	sameStore := sourceErr == nil && destinationErr == nil && os.SameFile(sourceInfo, destinationInfo)
 	source, err := repodb.OpenReadOnly(sourcePath)
 	if err != nil {
 		return count, unmatched, first, err
 	}
-	documents, sourceAliases, sourceResult, err := activeClosureDocuments(context.Background(), source)
-	if err != nil {
-		return count, unmatched, first, err
-	}
-	target, err := repodb.Open(destinationPath)
-	if err != nil {
-		return count, unmatched, first, err
-	}
-	targetOpen := true
+	var target *repodb.Store
 	defer func() {
-		if targetOpen {
+		if source != nil {
+			finalErr = errors.Join(finalErr, source.Close())
+		}
+		if target != nil && target != source {
 			finalErr = errors.Join(finalErr, target.Close())
 		}
 	}()
-	targetDocuments, targetAliases, _, err := activeClosureDocuments(context.Background(), target)
+	documents, sourceAliases, err := activeClosureDocuments(context.Background(), source)
 	if err != nil {
 		return count, unmatched, first, err
+	}
+	targetDocuments, targetAliases := documents, sourceAliases
+	if sameStore {
+		target = source
+	} else {
+		target, err = repodb.Open(destinationPath)
+		if err != nil {
+			return count, unmatched, first, err
+		}
+		targetDocuments, targetAliases, err = activeClosureDocuments(context.Background(), target)
+		if err != nil {
+			return count, unmatched, first, err
+		}
 	}
 	var rebound []closureledger.Document
 	var retirements []artifact.AliasBinding
@@ -489,51 +500,13 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 		}
 		rebound = append(rebound, current)
 	}
-	if sameStore {
-		activeDocuments := make(map[artifact.ID]bool, len(documents))
-		for _, document := range documents {
-			activeDocuments[document.ID] = true
-		}
-		recovered := map[string]map[artifact.ID]closureledger.Document{}
-		for _, descriptor := range sourceResult.Artifacts {
-			if activeDocuments[descriptor.ID] || descriptor.MediaType != closureledger.MediaType {
-				continue
-			}
-			content, found, err := source.Content(context.Background(), descriptor.ID)
-			if err != nil || !found {
-				return count, unmatched, first, cmp.Or(err, errors.New("closure-scan: historical closure content absent"))
-			}
-			document, err := closureledger.Parse(content.Data)
-			if err != nil || len(document.Bindings) != 1 {
-				continue
-			}
-			current, matched, _, err := index.Rebind(document)
-			if err != nil {
-				return count, unmatched, first, err
-			}
-			if !matched {
-				continue
-			}
-			alias, err := closureledger.ActiveAlias(current.Bindings[0])
-			if err != nil || targetAliases[alias].Valid() {
-				continue
-			}
-			if recovered[alias] == nil {
-				recovered[alias] = map[artifact.ID]closureledger.Document{}
-			}
-			recovered[alias][current.ID] = current
-		}
-		for _, candidates := range recovered {
-			if len(candidates) == 1 {
-				for _, document := range candidates {
-					rebound = append(rebound, document)
-				}
-			}
-		}
-	}
 	fixtures, err := closureFixtureImports(context.Background(), source, target, rebound)
-	closeErr := errors.Join(source.Close(), target.Close())
-	targetOpen = false
+	sameView := target == source
+	closeErr := source.Close()
+	if !sameView {
+		closeErr = errors.Join(closeErr, target.Close())
+	}
+	source, target = nil, nil
 	if err != nil || closeErr != nil {
 		return count, unmatched, first, errors.Join(err, closeErr)
 	}
@@ -565,32 +538,41 @@ func closureFixtureImports(ctx context.Context, source, target *repodb.Store, do
 	return descriptors, nil
 }
 
-func activeClosureDocuments(ctx context.Context, store *repodb.Store) ([]closureledger.Document, map[string]artifact.ID, repodb.QueryResult, error) {
+func activeClosureDocuments(ctx context.Context, store *repodb.Store) ([]closureledger.Document, map[string]artifact.ID, error) {
 	result, err := store.Query(ctx, repodb.Query{
 		MediaType: closureledger.MediaType, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectAliases | repodb.ProjectContentData,
+		Projection: repodb.ProjectAliases,
 	})
 	if err != nil || result.Truncated {
 		if err == nil {
 			err = errors.New("closure-scan: active-ledger query truncated")
 		}
-		return nil, nil, repodb.QueryResult{}, err
+		return nil, nil, err
 	}
 	documents := map[artifact.ID]closureledger.Document{}
 	aliases := map[string]artifact.ID{}
+	var targets []artifact.ID
 	for _, alias := range result.Aliases {
 		if !closureledger.IsActiveAlias(alias.Name) {
 			continue
 		}
-		data, found := result.Content(alias.Target)
-		if !found {
-			return nil, nil, repodb.QueryResult{}, errors.New("closure-scan: active closure content absent")
-		}
-		document, err := closureledger.Parse(data)
+		aliases[alias.Name] = alias.Target
+		targets = append(targets, alias.Target)
+	}
+	err = store.VisitContents(ctx, targets, func(descriptor artifact.Descriptor, reader io.Reader) error {
+		content, err := artifact.ReadContentFrom(descriptor, reader)
 		if err != nil {
-			return nil, nil, repodb.QueryResult{}, err
+			return err
 		}
-		documents[document.ID], aliases[alias.Name] = document, alias.Target
+		document, err := closureledger.Parse(content.Data)
+		if err != nil {
+			return err
+		}
+		documents[document.ID] = document
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
 	}
 	ids := slices.Collect(maps.Keys(documents))
 	slices.SortFunc(ids, func(left, right artifact.ID) int { return cmp.Compare(left.String(), right.String()) })
@@ -598,7 +580,7 @@ func activeClosureDocuments(ctx context.Context, store *repodb.Store) ([]closure
 	for index, id := range ids {
 		active[index] = documents[id]
 	}
-	return active, aliases, result, nil
+	return active, aliases, nil
 }
 
 func writeCensusText(destination io.Writer, census closurescan.Census) error {
@@ -772,7 +754,7 @@ func commitClosureDocuments(root, storePath string, documents []closureledger.Do
 		if err != nil {
 			return 0, artifact.CommitID{}, err
 		}
-		if _, found, err := store.Content(context.Background(), document.ID); err != nil {
+		if found, err := store.HasContent(context.Background(), document.ID); err != nil {
 			return 0, artifact.CommitID{}, err
 		} else if !found {
 			batch.Contents = append(batch.Contents, content)

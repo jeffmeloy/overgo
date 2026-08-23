@@ -45,7 +45,7 @@ func TestRecordFindingRequiresVerifierAndUsesTypedStore(t *testing.T) {
 		if descriptor.MediaType != finding.MediaType {
 			continue
 		}
-		content, ok, err := store.Content(context.Background(), descriptor.ID)
+		content, ok, err := artifact.ReadContent(context.Background(), store, descriptor.ID)
 		if err != nil || !ok {
 			t.Fatalf("finding content: ok=%v err=%v", ok, err)
 		}

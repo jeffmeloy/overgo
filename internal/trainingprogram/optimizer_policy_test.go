@@ -1,7 +1,9 @@
 package trainingprogram
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"math"
 	"testing"
 
@@ -53,7 +55,7 @@ type policyReader struct {
 	contents map[artifact.ID]artifact.Content
 }
 
-func (reader *policyReader) Content(_ context.Context, id artifact.ID) (artifact.Content, bool, error) {
+func (reader *policyReader) OpenContent(_ context.Context, id artifact.ID) (artifact.Descriptor, io.Reader, bool, error) {
 	content, ok := reader.contents[id]
-	return content, ok, nil
+	return content.Descriptor, bytes.NewReader(content.Data), ok, nil
 }

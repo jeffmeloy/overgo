@@ -236,7 +236,7 @@ func runClaim(input claimInput, recordStore string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if _, ok, err := store.Content(ctx, evidence); err != nil {
+	if _, ok, err := artifact.ReadContent(ctx, store, evidence); err != nil {
 		return err
 	} else if !ok {
 		batch.Contents = append(batch.Contents, artifact.Content{
@@ -342,7 +342,7 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
 	for _, superseded := range record.Supersedes {
-		content, ok, err := store.Content(ctx, superseded)
+		content, ok, err := artifact.ReadContent(ctx, store, superseded)
 		if err != nil {
 			return err
 		}
@@ -380,7 +380,7 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 			if !referenced[identity] {
 				return fmt.Errorf("%s file %s identifies as %s, which no claim references", role, path, identity)
 			}
-			if _, ok, err := store.Content(ctx, identity); err != nil {
+			if _, ok, err := artifact.ReadContent(ctx, store, identity); err != nil {
 				return err
 			} else if !ok {
 				batch.Contents = append(batch.Contents, artifact.Content{
@@ -429,7 +429,7 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 	}
 	committed, external := 0, 0
 	for evidence := range claimed {
-		if _, ok, err := store.Content(ctx, evidence); err != nil {
+		if _, ok, err := artifact.ReadContent(ctx, store, evidence); err != nil {
 			return err
 		} else if ok {
 			committed++

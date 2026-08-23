@@ -1588,7 +1588,7 @@ func reconcileGateDebt(repo, storePath string) (artifact.ID, error) {
 		return artifact.ID{}, err
 	}
 	defer store.Close()
-	if _, ok, err := store.Content(context.Background(), debt.Preparation); err != nil {
+	if _, ok, err := artifact.ReadContent(context.Background(), store, debt.Preparation); err != nil {
 		return artifact.ID{}, err
 	} else if !ok {
 		return artifact.ID{}, errors.New("gate: debt preparation is absent from RepoDB")
@@ -1615,7 +1615,7 @@ func recordUnbatchableFailure(repo, storePath string) (artifact.ID, error) {
 		return artifact.ID{}, err
 	}
 	defer store.Close()
-	content, ok, err := store.Content(context.Background(), heartbeat.Preparation)
+	content, ok, err := artifact.ReadContent(context.Background(), store, heartbeat.Preparation)
 	if err != nil {
 		return artifact.ID{}, fmt.Errorf("gate: prepared lifecycle unavailable: %w", err)
 	}

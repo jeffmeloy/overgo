@@ -119,7 +119,7 @@ func TrainProposalRankerFromStore(ctx context.Context, store *repodb.Store) (Pro
 		if err != nil || decision.Outcome != recipe.DecisionObserved && decision.Outcome != recipe.DecisionRefused {
 			continue
 		}
-		subject, ok, err := store.Content(ctx, decision.Subject)
+		subject, ok, err := artifact.ReadContent(ctx, store, decision.Subject)
 		if err != nil {
 			return ProposalRanker{}, err
 		}
@@ -189,7 +189,7 @@ func canonicalizeProposalRanker(value *ProposalRanker) error {
 }
 
 func loadProposalDecision(ctx context.Context, reader artifact.Reader, id artifact.ID) (recipe.Decision, BridgeProposal, error) {
-	content, ok, err := reader.Content(ctx, id)
+	content, ok, err := artifact.ReadContent(ctx, reader, id)
 	if err != nil || !ok || content.Descriptor.MediaType != recipe.DecisionMediaType {
 		return recipe.Decision{}, BridgeProposal{}, errors.Join(err, errors.New("composition: proposal decision absent"))
 	}
@@ -197,7 +197,7 @@ func loadProposalDecision(ctx context.Context, reader artifact.Reader, id artifa
 	if err != nil || len(decision.Evidence) == 0 {
 		return recipe.Decision{}, BridgeProposal{}, errors.Join(err, errors.New("composition: proposal decision lacks measured evidence"))
 	}
-	content, ok, err = reader.Content(ctx, decision.Subject)
+	content, ok, err = artifact.ReadContent(ctx, reader, decision.Subject)
 	if err != nil || !ok || content.Descriptor.MediaType != BridgeProposalMediaType {
 		return recipe.Decision{}, BridgeProposal{}, errors.Join(err, errors.New("composition: decision subject is not a bridge proposal"))
 	}

@@ -40,7 +40,7 @@ func LoadManifestComponent(
 		if component.Role != role || component.Name != name {
 			continue
 		}
-		content, found, err := reader.Content(ctx, component.Artifact)
+		content, found, err := ReadContent(ctx, reader, component.Artifact)
 		if err != nil {
 			return Content{}, err
 		}

@@ -2,6 +2,7 @@ package workflowruntime
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -15,9 +16,9 @@ type countingRepository struct {
 	contentReads map[artifact.ID]int
 }
 
-func (repository *countingRepository) Content(ctx context.Context, id artifact.ID) (artifact.Content, bool, error) {
+func (repository *countingRepository) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descriptor, io.Reader, bool, error) {
 	repository.contentReads[id]++
-	return repository.Repository.Content(ctx, id)
+	return repository.Repository.OpenContent(ctx, id)
 }
 
 func TestCapabilityResourceOnDemand(t *testing.T) {

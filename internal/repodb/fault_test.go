@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"hash/crc32"
 	"io"
 	"os"
 	"path/filepath"
@@ -44,7 +45,7 @@ func TestLogAppendStreamsFrame(t *testing.T) {
 	payload := []byte(`{"streamed":true}`)
 	writer := &partWriter{}
 	log := recordLog{file: file, writer: writer}
-	id, err := log.append(1, artifact.CommitID{}, payload)
+	id, _, _, err := log.append(1, artifact.CommitID{}, payload)
 	if err != nil || !writer.synced {
 		t.Fatalf("append = (%s, %v), synced=%v", id, err, writer.synced)
 	}
@@ -52,7 +53,7 @@ func TestLogAppendStreamsFrame(t *testing.T) {
 	if got := bytes.Join(writer.parts, nil); !bytes.Equal(got, want) {
 		t.Fatalf("streamed frame bytes=%d, want %d", len(got), len(want))
 	}
-	wantParts := [...]int{frameHeaderBytes, len(payload), frameChecksumSize}
+	wantParts := [...]int{frameHeaderBytes, len(payload), crc32.Size}
 	if len(writer.parts) != len(wantParts) {
 		t.Fatalf("writes=%d, want %d", len(writer.parts), len(wantParts))
 	}

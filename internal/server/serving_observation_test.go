@@ -85,7 +85,7 @@ func TestServingObservationPublication(t *testing.T) {
 		t.Fatalf("recipe-bound attempts = %v", status.Attempts)
 	}
 	for _, descriptor := range result.Artifacts {
-		content, found, err := store.Content(context.Background(), descriptor.ID)
+		content, found, err := artifact.ReadContent(context.Background(), store, descriptor.ID)
 		if err != nil || !found {
 			t.Fatalf("observation content=(%v,%v)", found, err)
 		}

@@ -147,7 +147,7 @@ func run() error {
 		}
 	}
 	total := trained.MatrixParamCount() + trained.VectorParamCount()
-	recipeContent, ok, err := store.Content(ctx, recipeID)
+	recipeContent, ok, err := artifact.ReadContent(ctx, store, recipeID)
 	if err != nil {
 		return err
 	}

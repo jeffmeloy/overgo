@@ -1538,12 +1538,12 @@
       "id": "repodb-lazy-content",
       "title": "Keep RepoDB document payloads out of resident catalog state",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Store raw content in checksummed frame sections, retain immutable file locators in catalog state, make streaming reads authoritative, migrate DocumentCodec and all callers, and delete resident payload maps and cloned Content reads",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/artifact ./internal/repodb ./internal/objectstore -run 'Test(LazyContent|OpenContent|DocumentCodecRead|CommitReplay|StreamingSnapshot|AppendFault)' -count=1",
           "rationale": "A one-result query currently reconstructs every inline payload, takes about 6.9 seconds, and peaks near 918 MB. Content identity remains hash-bound while metadata replay and queries retain only offsets and lengths.",
           "depends_on": [

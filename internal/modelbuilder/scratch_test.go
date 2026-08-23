@@ -28,7 +28,7 @@ func TestScratchBuilderPublishesCampaign(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, id := range []artifact.ID{result.Evaluation, result.Evidence, result.Decision} {
-		if _, found, err := store.Content(context.Background(), id); err != nil || !found {
+		if _, found, err := artifact.ReadContent(context.Background(), store, id); err != nil || !found {
 			t.Fatalf("published artifact %s found=%t err=%v", id, found, err)
 		}
 	}

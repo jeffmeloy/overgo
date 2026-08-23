@@ -91,10 +91,10 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 		outcome.Result.SessionPlan.Components[1].Session != recipe.SessionCapacity {
 		t.Fatalf("outcome=%+v", outcome)
 	}
-	if _, found, err := store.Content(context.Background(), outcome.Result.Recipe); err != nil || !found {
+	if _, found, err := artifact.ReadContent(context.Background(), store, outcome.Result.Recipe); err != nil || !found {
 		t.Fatalf("compiled recipe absent: found=%t err=%v", found, err)
 	}
-	if _, found, err := store.Content(context.Background(), outcome.Result.SessionPlan.Identity); err != nil || !found {
+	if _, found, err := artifact.ReadContent(context.Background(), store, outcome.Result.SessionPlan.Identity); err != nil || !found {
 		t.Fatalf("component session evidence absent: found=%t err=%v", found, err)
 	}
 }

@@ -53,7 +53,7 @@ func LoadEvaluationEvidence(
 	reader artifact.Reader,
 	id artifact.ID,
 ) (EvaluationEvidence, bool, error) {
-	content, found, err := reader.Content(ctx, id)
+	content, found, err := artifact.ReadContent(ctx, reader, id)
 	if err != nil || !found || content.Descriptor.MediaType != evaluationEvidenceMedia || content.Descriptor.Schema != evaluationEvidenceSchema {
 		return EvaluationEvidence{}, false, err
 	}
@@ -112,7 +112,7 @@ func ValidateEvaluationEvidence(ctx context.Context, reader artifact.Reader, val
 		!slices.Equal(run.Phases, value.Phases) || !slices.Equal(record.Metrics, value.Metrics) {
 		return errors.New("evaluation: stored run or metrics differ from evidence")
 	}
-	reportContent, found, err := reader.Content(ctx, value.Report)
+	reportContent, found, err := artifact.ReadContent(ctx, reader, value.Report)
 	if err != nil || !found {
 		return errors.Join(err, errors.New("evaluation: stored report is absent"))
 	}
@@ -145,7 +145,7 @@ func PublishEvaluationEvidence(
 		record.Recipe != run.Recipe || record.Run != run.ID || record.Dataset != plan.body.Dataset {
 		return EvaluationEvidence{}, errors.New("evaluation: evidence authorities differ")
 	}
-	content, found, err := repository.Content(ctx, report)
+	content, found, err := artifact.ReadContent(ctx, repository, report)
 	if err != nil || !found {
 		return EvaluationEvidence{}, errors.Join(err, errors.New("evaluation: report content is absent"))
 	}
@@ -221,7 +221,7 @@ func evaluationReportShards(
 }
 
 func loadEvidencePlan(ctx context.Context, reader artifact.Reader, id artifact.ID) (Plan, error) {
-	content, found, err := reader.Content(ctx, id)
+	content, found, err := artifact.ReadContent(ctx, reader, id)
 	if err != nil || !found {
 		return Plan{}, errors.Join(err, errors.New("evaluation: stored plan is absent"))
 	}
@@ -252,7 +252,7 @@ func validateStoredPlanAuthorities(ctx context.Context, reader artifact.Reader, 
 		plan.body.Scorer:      scorerProfileContract,
 		plan.body.Execution:   executionContract,
 	} {
-		content, found, err := reader.Content(ctx, id)
+		content, found, err := artifact.ReadContent(ctx, reader, id)
 		if err != nil || !found {
 			return errors.Join(err, fmt.Errorf("evaluation: plan authority content %s is absent", id))
 		}
@@ -260,7 +260,7 @@ func validateStoredPlanAuthorities(ctx context.Context, reader artifact.Reader, 
 			return err
 		}
 	}
-	execution, found, err := reader.Content(ctx, plan.body.Execution)
+	execution, found, err := artifact.ReadContent(ctx, reader, plan.body.Execution)
 	if err != nil || !found {
 		return errors.Join(err, errors.New("evaluation: execution authority is absent"))
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/crc32"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -25,7 +27,7 @@ const (
 
 func TestCanonicalCatalogOwnership(t *testing.T) {
 	state := newCatalogState()
-	var _ map[artifact.ID][]byte = state.contents
+	var _ map[artifact.ID]contentLocator = state.contents
 	var _ map[artifact.ID]map[relationKey]struct{} = state.parentEdges
 	var _ map[artifact.ID]map[relationKey]struct{} = state.childEdges
 }
@@ -33,7 +35,7 @@ func TestCanonicalCatalogOwnership(t *testing.T) {
 func TestLineageIndexesReferenceCanonicalEdges(t *testing.T) {
 	state := newCatalogState()
 	batch := fixtureBatch(t)
-	state.apply(batch)
+	state.apply(batch, nil)
 	edge := batch.Lineage[0]
 	key := relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation}
 	if state.lineage[key] != edge {
@@ -62,9 +64,47 @@ func TestContentUsesDescriptorAuthority(t *testing.T) {
 	}
 	descriptor.Schema = "fixture/canonical/v1"
 	store.state.artifacts[descriptor.ID] = descriptor
-	got, ok, err := store.Content(context.Background(), descriptor.ID)
+	got, ok, err := artifact.ReadContent(context.Background(), store, descriptor.ID)
 	if err != nil || !ok || got.Descriptor != descriptor || !slices.Equal(got.Data, content.Data) {
 		t.Fatalf("content = (%+v, %v, %v)", got, ok, err)
+	}
+}
+
+func TestLazyContentOpenContentAndSnapshotReplay(t *testing.T) {
+	root := t.TempDir()
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor := fixtureDescriptor(t, artifact.KindEvidence, fixturePayload)
+	content := artifact.Content{Descriptor: descriptor, Data: []byte(fixturePayload)}
+	if _, err := store.Commit(context.Background(), artifact.Batch{
+		Key: "fixture/lazy-content/v1", Contents: []artifact.Content{content},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	locator := store.state.contents[descriptor.ID]
+	if locator.size != int64(len(content.Data)) || locator.frameVersion != frameVersion {
+		t.Fatalf("content locator = %+v", locator)
+	}
+	if _, err := store.Snapshot(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	gotDescriptor, reader, found, err := store.OpenContent(context.Background(), descriptor.ID)
+	if err != nil || !found || gotDescriptor != descriptor {
+		t.Fatalf("open content = (%+v, %v, %v)", gotDescriptor, found, err)
+	}
+	data, err := io.ReadAll(reader)
+	if err != nil || !slices.Equal(data, content.Data) {
+		t.Fatalf("streamed content = (%q, %v)", data, err)
 	}
 }
 
@@ -565,7 +605,7 @@ func TestCompleteCorruptFrameRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	offset := info.Size() - frameChecksumSize - 1
+	offset := info.Size() - crc32.Size - 1
 	value := []byte{0}
 	if _, err := file.ReadAt(value, offset); err != nil {
 		t.Fatal(err)

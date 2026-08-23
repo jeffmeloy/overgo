@@ -81,7 +81,7 @@ func TestPromotionReversibleAndDrillRestoresChampion(t *testing.T) {
 
 	// Immutable champion retention: promotion moved the alias, never the
 	// content -- the prior champion's bytes remain committed and identical.
-	retained, ok, err := store.Content(ctx, champion.Descriptor.ID)
+	retained, ok, err := artifact.ReadContent(ctx, store, champion.Descriptor.ID)
 	if err != nil || !ok || !bytes.Equal(retained.Data, champion.Data) {
 		t.Fatalf("prior champion not retained: (%v, %v)", ok, err)
 	}
@@ -128,11 +128,11 @@ func TestPromotionReversibleAndDrillRestoresChampion(t *testing.T) {
 	if err != nil || !ok || restored != champion.Descriptor.ID {
 		t.Fatalf("rollback alias = (%v, %v, %v), want the prior champion", restored, ok, err)
 	}
-	content, ok, err := store.Content(ctx, restored)
+	content, ok, err := artifact.ReadContent(ctx, store, restored)
 	if err != nil || !ok || !bytes.Equal(content.Data, champion.Data) {
 		t.Fatal("restored champion content differs from the original")
 	}
-	storedDecision, ok, err := store.Content(ctx, rollback.ID)
+	storedDecision, ok, err := artifact.ReadContent(ctx, store, rollback.ID)
 	if err != nil || !ok {
 		t.Fatalf("rollback decision not durable: (%v, %v)", ok, err)
 	}

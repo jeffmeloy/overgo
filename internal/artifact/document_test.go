@@ -2,6 +2,7 @@ package artifact
 
 import (
 	"context"
+	"io"
 	"strings"
 	"testing"
 )
@@ -11,8 +12,8 @@ type documentReader struct {
 	content Content
 }
 
-func (r documentReader) Content(context.Context, ID) (Content, bool, error) {
-	return r.content, true, nil
+func (r documentReader) OpenContent(context.Context, ID) (Descriptor, io.Reader, bool, error) {
+	return r.content.Descriptor, strings.NewReader(string(r.content.Data)), true, nil
 }
 
 type documentRepository struct {

@@ -358,7 +358,7 @@ func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
 	if _, err := store.Commit(context.Background(), batch); err != nil {
 		t.Fatal(err)
 	}
-	content, ok, err := store.Content(context.Background(), definition.ID)
+	content, ok, err := artifact.ReadContent(context.Background(), store, definition.ID)
 	if err != nil || !ok {
 		t.Fatalf("content = (%v, %v)", ok, err)
 	}

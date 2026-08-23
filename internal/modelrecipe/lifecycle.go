@@ -569,7 +569,7 @@ func findDecision(
 			}
 			continue
 		}
-		content, ok, err := store.Content(ctx, id)
+		content, ok, err := artifact.ReadContent(ctx, store, id)
 		if err != nil {
 			return recipe.Decision{}, false, err
 		}
@@ -591,7 +591,7 @@ func findDecision(
 func loadDecisions(ctx context.Context, store artifact.Reader, ids []artifact.ID) ([]recipe.Decision, error) {
 	decisions := make([]recipe.Decision, 0)
 	for _, id := range ids {
-		content, ok, err := store.Content(ctx, id)
+		content, ok, err := artifact.ReadContent(ctx, store, id)
 		if err != nil {
 			return nil, err
 		}
@@ -612,7 +612,7 @@ func loadDecisions(ctx context.Context, store artifact.Reader, ids []artifact.ID
 }
 
 func loadDefinition(ctx context.Context, store artifact.Reader, id artifact.ID) (recipe.Definition, error) {
-	content, ok, err := store.Content(ctx, id)
+	content, ok, err := artifact.ReadContent(ctx, store, id)
 	if err != nil {
 		return recipe.Definition{}, err
 	}

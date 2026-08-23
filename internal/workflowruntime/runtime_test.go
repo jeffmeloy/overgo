@@ -33,7 +33,7 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	if result.Run.Outcome != runrecord.OutcomeSucceeded || !result.Commit.Valid() {
 		t.Fatalf("result = %+v", result)
 	}
-	stored, ok, err := store.Content(ctx, result.Run.ID)
+	stored, ok, err := artifact.ReadContent(ctx, store, result.Run.ID)
 	if err != nil || !ok {
 		t.Fatalf("stored run = (%v, %v)", ok, err)
 	}
@@ -62,7 +62,7 @@ func TestRuntimePublishesFailedRun(t *testing.T) {
 	if err == nil || result.Run.Outcome != runrecord.OutcomeFailed || result.Run.Failure != executionFailureCode {
 		t.Fatalf("failed result = (%+v, %v)", result, err)
 	}
-	if _, ok, loadErr := store.Content(ctx, result.Run.ID); loadErr != nil || !ok {
+	if _, ok, loadErr := artifact.ReadContent(ctx, store, result.Run.ID); loadErr != nil || !ok {
 		t.Fatalf("failed run was not published: %v", loadErr)
 	}
 }
@@ -83,7 +83,7 @@ func TestRuntimePublishesCancelledRun(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || result.Run.Outcome != runrecord.OutcomeCancelled {
 		t.Fatalf("cancelled result = (%+v, %v)", result, err)
 	}
-	if _, ok, loadErr := store.Content(context.Background(), result.Run.ID); loadErr != nil || !ok {
+	if _, ok, loadErr := artifact.ReadContent(context.Background(), store, result.Run.ID); loadErr != nil || !ok {
 		t.Fatalf("cancelled run was not published: %v", loadErr)
 	}
 }

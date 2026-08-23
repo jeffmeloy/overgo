@@ -497,12 +497,12 @@
       "id": "gui-inference-surface",
       "title": "Multimodal inference surface: chat, image, speech, video, series, tabular",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Multimodal inference surface: chat, image, speech, video, series, tabular",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'TestWorkbenchInference|TestWebUI' -count=1"
         }
       ]

@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"os"
 	"path/filepath"
@@ -80,93 +82,17 @@ func (s *Store) Snapshot(ctx context.Context) (SnapshotInfo, error) {
 		s.mu.RUnlock()
 		return SnapshotInfo{}, err
 	}
-	document := snapshotDocumentFromState(s.state, s.sequence, s.head)
-	root := s.root
-	s.mu.RUnlock()
-	if document.Sequence == 0 {
+	sequence, head, root := s.sequence, s.head, s.root
+	if sequence == 0 {
+		s.mu.RUnlock()
 		return SnapshotInfo{}, errors.New("repodb: cannot snapshot empty store")
 	}
-	payload, err := json.Marshal(document)
-	if err != nil {
-		return SnapshotInfo{}, fmt.Errorf("repodb: encode snapshot: %w", err)
-	}
-	if len(payload) > maxSnapshotPayload {
-		return SnapshotInfo{}, errors.New("repodb: snapshot exceeds payload limit")
-	}
-	if err := contextError(ctx); err != nil {
-		return SnapshotInfo{}, err
-	}
-	path, err := writeSnapshot(root, document.Sequence, document.Head, payload)
+	path, err := writeSnapshot(ctx, root, sequence, head, s.state)
+	s.mu.RUnlock()
 	if err != nil {
 		return SnapshotInfo{}, err
 	}
-	return SnapshotInfo{Sequence: document.Sequence, Head: document.Head, Path: path}, nil
-}
-
-func snapshotDocumentFromState(state catalogState, sequence uint64, head artifact.CommitID) snapshotDocument {
-	document := snapshotDocument{Version: snapshotVersion, Sequence: sequence, Head: head}
-	for _, descriptor := range state.artifacts {
-		document.Artifacts = append(document.Artifacts, descriptor)
-	}
-	for id, data := range state.contents {
-		document.Contents = append(document.Contents, artifact.Content{
-			Descriptor: state.artifacts[id],
-			Data:       slices.Clone(data),
-		})
-	}
-	for _, manifest := range state.manifests {
-		document.Manifests = append(document.Manifests, manifest.Clone())
-	}
-	for name, target := range state.aliases {
-		document.Aliases = append(document.Aliases, snapshotAlias{Name: name, Target: target})
-	}
-	for _, edge := range state.lineage {
-		document.Lineage = append(document.Lineage, edge)
-	}
-	for _, location := range state.locations {
-		document.Locations = append(document.Locations, location)
-	}
-	for key, commit := range state.commits {
-		document.Commits = append(document.Commits, snapshotCommit{
-			Key: key, ID: commit.id, Payload: hex.EncodeToString(commit.payload[:]), Sequence: commit.sequence,
-		})
-	}
-	sortSnapshotDocument(&document)
-	return document
-}
-
-func sortSnapshotDocument(document *snapshotDocument) {
-	sort.Slice(document.Artifacts, func(i, j int) bool {
-		return document.Artifacts[i].ID.String() < document.Artifacts[j].ID.String()
-	})
-	sort.Slice(document.Contents, func(i, j int) bool {
-		return document.Contents[i].Descriptor.ID.String() < document.Contents[j].Descriptor.ID.String()
-	})
-	sort.Slice(document.Manifests, func(i, j int) bool {
-		return document.Manifests[i].ID.String() < document.Manifests[j].ID.String()
-	})
-	sort.Slice(document.Aliases, func(i, j int) bool { return document.Aliases[i].Name < document.Aliases[j].Name })
-	sort.Slice(document.Lineage, func(i, j int) bool {
-		left, right := document.Lineage[i], document.Lineage[j]
-		if left.Child != right.Child {
-			return left.Child.String() < right.Child.String()
-		}
-		if left.Parent != right.Parent {
-			return left.Parent.String() < right.Parent.String()
-		}
-		return left.Relation < right.Relation
-	})
-	sort.Slice(document.Locations, func(i, j int) bool {
-		left, right := document.Locations[i], document.Locations[j]
-		if left.Artifact != right.Artifact {
-			return left.Artifact.String() < right.Artifact.String()
-		}
-		if left.Kind != right.Kind {
-			return left.Kind < right.Kind
-		}
-		return left.Value < right.Value
-	})
-	sort.Slice(document.Commits, func(i, j int) bool { return document.Commits[i].Sequence < document.Commits[j].Sequence })
+	return SnapshotInfo{Sequence: sequence, Head: head, Path: path}, nil
 }
 
 func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
@@ -224,7 +150,163 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 	return state, nil
 }
 
-func writeSnapshot(root string, sequence uint64, head artifact.CommitID, payload []byte) (string, error) {
+type snapshotSink struct {
+	ctx    context.Context
+	writer io.Writer
+	digest hash.Hash
+	size   uint64
+}
+
+// Write streams bytes through size and digest accounting.
+func (s *snapshotSink) Write(data []byte) (written int, err error) {
+	if err = contextError(s.ctx); err != nil {
+		return written, err
+	}
+	if uint64(len(data)) > uint64(maxSnapshotPayload)-s.size {
+		return written, errors.New("repodb: snapshot exceeds payload limit")
+	}
+	if err = writeAll(s.writer, data); err != nil {
+		return written, err
+	}
+	_, _ = s.digest.Write(data)
+	s.size += uint64(len(data))
+	return len(data), nil
+}
+
+type snapshotStream struct {
+	writer io.Writer
+	err    error
+}
+
+// Write preserves the stream's first failure.
+func (s *snapshotStream) Write(data []byte) (written int, err error) {
+	if s.err != nil {
+		return written, s.err
+	}
+	if s.err = writeAll(s.writer, data); s.err != nil {
+		return written, s.err
+	}
+	return len(data), nil
+}
+
+func (s *snapshotStream) raw(value string) {
+	if s.err == nil {
+		s.err = writeAll(s.writer, []byte(value))
+	}
+}
+
+func (s *snapshotStream) value(value any) {
+	if s.err != nil {
+		return
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		s.err = err
+		return
+	}
+	s.err = writeAll(s.writer, data)
+}
+
+func (s *snapshotStream) array(name string, count int, omitEmpty bool, emit func(int)) {
+	if omitEmpty && count == 0 {
+		return
+	}
+	s.raw(`,"` + name + `":[`)
+	for index := 0; index < count; index++ {
+		if index > 0 {
+			s.raw(",")
+		}
+		emit(index)
+	}
+	s.raw("]")
+}
+
+func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64, head artifact.CommitID) error {
+	stream := snapshotStream{writer: writer}
+	stream.raw(`{"version":`)
+	stream.value(snapshotVersion)
+	stream.raw(`,"sequence":`)
+	stream.value(sequence)
+	stream.raw(`,"head":`)
+	stream.value(head)
+
+	idLess := func(left, right artifact.ID) bool { return left.String() < right.String() }
+	artifactIDs := sortedSnapshotKeys(state.artifacts, idLess)
+	stream.array("artifacts", len(artifactIDs), false, func(index int) {
+		stream.value(state.artifacts[artifactIDs[index]])
+	})
+	contentIDs := sortedSnapshotKeys(state.contents, idLess)
+	stream.array("contents", len(contentIDs), true, func(index int) {
+		id := contentIDs[index]
+		stream.raw(`{"descriptor":`)
+		stream.value(state.artifacts[id])
+		stream.raw(`,"data":"`)
+		encoder := base64.NewEncoder(base64.StdEncoding, &stream)
+		if _, err := encoder.Write(state.contents[id]); err != nil && stream.err == nil {
+			stream.err = err
+		}
+		if err := encoder.Close(); err != nil && stream.err == nil {
+			stream.err = err
+		}
+		stream.raw(`"}`)
+	})
+	manifestIDs := sortedSnapshotKeys(state.manifests, idLess)
+	stream.array("manifests", len(manifestIDs), true, func(index int) {
+		stream.value(state.manifests[manifestIDs[index]])
+	})
+	aliases := sortedSnapshotKeys(state.aliases, func(left, right string) bool { return left < right })
+	stream.array("aliases", len(aliases), true, func(index int) {
+		name := aliases[index]
+		stream.value(snapshotAlias{Name: name, Target: state.aliases[name]})
+	})
+	lineage := sortedSnapshotKeys(state.lineage, func(left, right relationKey) bool {
+		if left.child != right.child {
+			return left.child.String() < right.child.String()
+		}
+		if left.parent != right.parent {
+			return left.parent.String() < right.parent.String()
+		}
+		return left.relation < right.relation
+	})
+	stream.array("lineage", len(lineage), true, func(index int) {
+		stream.value(state.lineage[lineage[index]])
+	})
+	locations := sortedSnapshotKeys(state.locations, func(left, right locationKey) bool {
+		if left.artifact != right.artifact {
+			return left.artifact.String() < right.artifact.String()
+		}
+		if left.kind != right.kind {
+			return left.kind < right.kind
+		}
+		return left.value < right.value
+	})
+	stream.array("locations", len(locations), true, func(index int) {
+		stream.value(state.locations[locations[index]])
+	})
+	commits := sortedSnapshotKeys(state.commits, func(left, right string) bool {
+		return state.commits[left].sequence < state.commits[right].sequence
+	})
+	stream.array("commits", len(commits), false, func(index int) {
+		key := commits[index]
+		commit := state.commits[key]
+		stream.value(snapshotCommit{
+			Key: key, ID: commit.id, Payload: hex.EncodeToString(commit.payload[:]), Sequence: commit.sequence,
+		})
+	})
+	stream.raw("}")
+	return stream.err
+}
+
+func sortedSnapshotKeys[K comparable, V any](values map[K]V, less func(K, K) bool) []K {
+	keys := make([]K, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(left, right int) bool { return less(keys[left], keys[right]) })
+	return keys
+}
+
+func writeSnapshot(ctx context.Context, root string, sequence uint64, head artifact.CommitID, state catalogState) (string, error) {
 	directory := filepath.Join(root, snapshotDirectory)
 	if err := os.MkdirAll(directory, storeDirectoryMode); err != nil {
 		return "", fmt.Errorf("repodb: create snapshot directory: %w", err)
@@ -236,7 +318,6 @@ func writeSnapshot(root string, sequence uint64, head artifact.CommitID, payload
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("repodb: inspect snapshot: %w", err)
 	}
-	header := encodeSnapshotHeader(sequence, head, payload)
 	temporary, err := os.CreateTemp(directory, ".repodb-snapshot-*.tmp")
 	if err != nil {
 		return "", fmt.Errorf("repodb: create snapshot: %w", err)
@@ -244,10 +325,19 @@ func writeSnapshot(root string, sequence uint64, head artifact.CommitID, payload
 	temporaryPath := temporary.Name()
 	defer os.Remove(temporaryPath)
 	if err = temporary.Chmod(storeFileMode); err == nil {
-		err = writeAll(temporary, header)
+		err = writeAll(temporary, make([]byte, snapshotHeaderBytes))
 	}
 	if err == nil {
-		err = writeAll(temporary, payload)
+		digest := sha256.New()
+		sink := snapshotSink{ctx: ctx, writer: temporary, digest: digest}
+		err = writeSnapshotPayload(&sink, state, sequence, head)
+		if err == nil {
+			var sum [sha256.Size]byte
+			copy(sum[:], digest.Sum(nil))
+			if _, err = temporary.Seek(snapshotMagicOffset, io.SeekStart); err == nil {
+				err = writeAll(temporary, encodeSnapshotHeader(sequence, head, sink.size, sum))
+			}
+		}
 	}
 	if err == nil {
 		err = temporary.Sync()
@@ -268,15 +358,14 @@ func writeSnapshot(root string, sequence uint64, head artifact.CommitID, payload
 	return path, nil
 }
 
-func encodeSnapshotHeader(sequence uint64, head artifact.CommitID, payload []byte) []byte {
+func encodeSnapshotHeader(sequence uint64, head artifact.CommitID, size uint64, digest [sha256.Size]byte) []byte {
 	header := make([]byte, snapshotHeaderBytes)
 	copy(header[snapshotMagicOffset:snapshotVersionOffset], snapshotMagic[:])
 	binary.LittleEndian.PutUint16(header[snapshotVersionOffset:snapshotFlagsOffset], snapshotVersion)
 	binary.LittleEndian.PutUint16(header[snapshotFlagsOffset:snapshotSequenceOffset], 0)
 	binary.LittleEndian.PutUint64(header[snapshotSequenceOffset:snapshotHeadOffset], sequence)
 	copy(header[snapshotHeadOffset:snapshotSizeOffset], head[:])
-	binary.LittleEndian.PutUint64(header[snapshotSizeOffset:snapshotDigestOffset], uint64(len(payload)))
-	digest := sha256.Sum256(payload)
+	binary.LittleEndian.PutUint64(header[snapshotSizeOffset:snapshotDigestOffset], size)
 	copy(header[snapshotDigestOffset:snapshotHeaderBytes], digest[:])
 	return header
 }
@@ -315,16 +404,16 @@ func readSnapshot(path string) (catalogState, replayAnchor, error) {
 	if err != nil || uint64(info.Size()) != uint64(snapshotHeaderBytes)+size {
 		return catalogState{}, replayAnchor{}, errors.New("repodb: snapshot size differs")
 	}
-	payload := make([]byte, int(size))
-	if _, err := io.ReadFull(file, payload); err != nil {
-		return catalogState{}, replayAnchor{}, err
-	}
-	if sha256.Sum256(payload) != digest {
-		return catalogState{}, replayAnchor{}, errors.New("repodb: snapshot digest differs")
-	}
+	limited := &io.LimitedReader{R: file, N: int64(size)}
+	hasher := sha256.New()
 	var document snapshotDocument
-	if err := strictjson.DecodeBytes(payload, &document); err != nil {
+	if err := strictjson.Decode(io.TeeReader(limited, hasher), &document); err != nil {
 		return catalogState{}, replayAnchor{}, err
+	}
+	var actual [sha256.Size]byte
+	copy(actual[:], hasher.Sum(nil))
+	if limited.N != 0 || actual != digest {
+		return catalogState{}, replayAnchor{}, errors.New("repodb: snapshot digest differs")
 	}
 	if document.Sequence != sequence || document.Head != head {
 		return catalogState{}, replayAnchor{}, errors.New("repodb: snapshot header differs from payload")
@@ -333,9 +422,14 @@ func readSnapshot(path string) (catalogState, replayAnchor, error) {
 	if err != nil {
 		return catalogState{}, replayAnchor{}, err
 	}
-	canonical := snapshotDocumentFromState(state, sequence, head)
-	canonicalPayload, err := json.Marshal(canonical)
-	if err != nil || !bytes.Equal(payload, canonicalPayload) {
+	canonicalHash := sha256.New()
+	sink := snapshotSink{ctx: context.Background(), writer: io.Discard, digest: canonicalHash}
+	if err := writeSnapshotPayload(&sink, state, sequence, head); err != nil {
+		return catalogState{}, replayAnchor{}, err
+	}
+	var canonical [sha256.Size]byte
+	copy(canonical[:], canonicalHash.Sum(nil))
+	if sink.size != size || canonical != digest {
 		return catalogState{}, replayAnchor{}, errors.New("repodb: non-canonical snapshot")
 	}
 	return state, replayAnchor{sequence: sequence, head: head}, nil

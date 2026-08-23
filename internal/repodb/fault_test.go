@@ -1,6 +1,7 @@
 package repodb
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -17,6 +18,49 @@ type faultWriter struct {
 	file      *os.File
 	remaining int
 	failSync  bool
+}
+
+type partWriter struct {
+	parts  [][]byte
+	synced bool
+}
+
+func (w *partWriter) Write(data []byte) (int, error) {
+	w.parts = append(w.parts, bytes.Clone(data))
+	return len(data), nil
+}
+
+func (w *partWriter) Sync() error {
+	w.synced = true
+	return nil
+}
+
+func TestLogAppendStreamsFrame(t *testing.T) {
+	file, err := os.CreateTemp(t.TempDir(), "repodb-log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	payload := []byte(`{"streamed":true}`)
+	writer := &partWriter{}
+	log := recordLog{file: file, writer: writer}
+	id, err := log.append(1, artifact.CommitID{}, payload)
+	if err != nil || !writer.synced {
+		t.Fatalf("append = (%s, %v), synced=%v", id, err, writer.synced)
+	}
+	_, want := encodeRecordVersion(frameVersion, 1, artifact.CommitID{}, payload)
+	if got := bytes.Join(writer.parts, nil); !bytes.Equal(got, want) {
+		t.Fatalf("streamed frame bytes=%d, want %d", len(got), len(want))
+	}
+	wantParts := [...]int{frameHeaderBytes, len(payload), frameChecksumSize}
+	if len(writer.parts) != len(wantParts) {
+		t.Fatalf("writes=%d, want %d", len(writer.parts), len(wantParts))
+	}
+	for index, size := range wantParts {
+		if len(writer.parts[index]) != size {
+			t.Fatalf("write[%d]=%d bytes, want %d", index, len(writer.parts[index]), size)
+		}
+	}
 }
 
 func (w *faultWriter) Write(data []byte) (int, error) {
@@ -106,7 +150,7 @@ func TestSyncFaultReplaysCompleteUncertainCommit(t *testing.T) {
 	}
 }
 
-func TestSnapshotFailureLeavesCommitPathHealthy(t *testing.T) {
+func TestStreamingSnapshotFaultPreservesStore(t *testing.T) {
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {

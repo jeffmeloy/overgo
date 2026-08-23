@@ -8,11 +8,8 @@ import (
 	"testing"
 )
 
-// TestStoreSnapshotRoundTrip proves a backup is a verified copy: the published
-// destination replays to the source's exact head commit and sequence, resolves
-// the same aliases, and the operation refuses an existing destination, a stale
-// partial, and an empty store rather than publishing unverifiable bytes.
-func TestStoreSnapshotRoundTrip(t *testing.T) {
+// TestStreamingSnapshotRoundTrip pins replay identity and publication refusal.
+func TestStreamingSnapshotRoundTrip(t *testing.T) {
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {

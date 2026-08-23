@@ -292,12 +292,16 @@ func commitIdentity(version uint16, sequence uint64, previous artifact.CommitID,
 	return id
 }
 
-func encodeRecord(sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, []byte) {
-	return encodeRecordVersion(frameVersion, sequence, previous, payload)
-}
-
 func encodeRecordVersion(version uint16, sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, []byte) {
 	id := commitIdentity(version, sequence, previous, payload)
+	header := encodeFrameHeader(version, sequence, previous, id, len(payload))
+	frame := make([]byte, 0, len(header)+len(payload)+frameChecksumSize)
+	frame = append(frame, header...)
+	frame = append(frame, payload...)
+	return id, binary.LittleEndian.AppendUint32(frame, crc32.Checksum(frame, crcTable))
+}
+
+func encodeFrameHeader(version uint16, sequence uint64, previous, id artifact.CommitID, payloadSize int) []byte {
 	header := make([]byte, frameHeaderBytes)
 	binary.LittleEndian.PutUint32(header[frameMagicOffset:frameVersionOffset], frameMagic)
 	binary.LittleEndian.PutUint16(header[frameVersionOffset:frameKindOffset], version)
@@ -305,13 +309,8 @@ func encodeRecordVersion(version uint16, sequence uint64, previous artifact.Comm
 	binary.LittleEndian.PutUint64(header[frameSequenceOffset:framePreviousOffset], sequence)
 	copy(header[framePreviousOffset:frameIDOffset], previous[:])
 	copy(header[frameIDOffset:framePayloadSizeOffset], id[:])
-	binary.LittleEndian.PutUint32(header[framePayloadSizeOffset:frameHeaderBytes], uint32(len(payload)))
-	frame := make([]byte, 0, len(header)+len(payload)+frameChecksumSize)
-	frame = append(frame, header...)
-	frame = append(frame, payload...)
-	checksum := crc32.Checksum(frame, crcTable)
-	frame = binary.LittleEndian.AppendUint32(frame, checksum)
-	return id, frame
+	binary.LittleEndian.PutUint32(header[framePayloadSizeOffset:frameHeaderBytes], uint32(payloadSize))
+	return header
 }
 
 func (l *recordLog) append(sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, error) {
@@ -321,13 +320,20 @@ func (l *recordLog) append(sequence uint64, previous artifact.CommitID, payload 
 	if len(payload) > maxFramePayload {
 		return artifact.CommitID{}, errors.New("repodb: batch exceeds payload limit")
 	}
-	id, frame := encodeRecord(sequence, previous, payload)
+	id := commitIdentity(frameVersion, sequence, previous, payload)
+	header := encodeFrameHeader(frameVersion, sequence, previous, id, len(payload))
+	checksum := crc32.Checksum(header, crcTable)
+	checksum = crc32.Update(checksum, crcTable, payload)
+	var trailer [frameChecksumSize]byte
+	binary.LittleEndian.PutUint32(trailer[:], checksum)
 	writer := l.writer
 	if writer == nil {
 		writer = l.file
 	}
-	if err := writeAll(writer, frame); err != nil {
-		return id, fmt.Errorf("repodb: append commit: %w", err)
+	for _, part := range [...][]byte{header, payload, trailer[:]} {
+		if err := writeAll(writer, part); err != nil {
+			return id, fmt.Errorf("repodb: append commit: %w", err)
+		}
 	}
 	if err := writer.Sync(); err != nil {
 		return id, fmt.Errorf("repodb: sync commit: %w", err)

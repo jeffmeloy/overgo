@@ -16,18 +16,13 @@ func verdictEvidence(action string) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// TestVerdictClassificationAndRepeatAgreement pins the claim-verdict contract:
-// classification derives from observable command markers (device markers =>
-// tolerance-bounded, seed markers => stochastic-multi-seed, otherwise the
-// strictest bitwise-deterministic class), and a bitwise-deterministic claim's
-// two evidence runs must reach identical per-test verdicts -- a flipped or
-// vanished test is named, not averaged away.
+// TestVerdictClassificationAndRepeatAgreement pins command classification and repeat identity.
 func TestVerdictClassificationAndRepeatAgreement(t *testing.T) {
 	classifications := []struct {
 		command string
 		want    VerdictClass
 	}{
-		{"go test ./internal/repodb -run '^TestStoreSnapshotRoundTrip$' -count=1 -v", VerdictBitwiseDeterministic},
+		{"go test ./internal/repodb -run '^TestStreamingSnapshotRoundTrip$' -count=1 -v", VerdictBitwiseDeterministic},
 		{"grep -q 'modeltest' .github/workflows/test.yml", VerdictBitwiseDeterministic},
 		{"OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestComponentCompositionViability$' -count=1 -v", VerdictToleranceBounded},
 		{"OVERGO_SEALED_AUTHORITY_TEST=1 go test ./internal/protection -count=1", VerdictToleranceBounded},

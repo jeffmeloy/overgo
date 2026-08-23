@@ -333,7 +333,7 @@
         {
           "id": "shared-runtime",
           "title": "Delete duplicated policy across remaining internal runtime owners",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/closure-scan -check-scope internal -require-classified -require-no-stale -require-no-uncatalogued-production"
         },
         {

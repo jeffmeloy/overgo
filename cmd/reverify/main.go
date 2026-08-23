@@ -128,6 +128,13 @@ func normalizeSuite(content []byte) ([]byte, bool) {
 			testCase["prompt_tokens"] = len(promptIDs)
 			testCase["generated_tokens"] = len(generatedIDs)
 			testCase["max_tokens"] = len(generatedIDs)
+			// This dialect's text carries prompt plus generation; the evaluator
+			// compares generation alone, so the prompt prefix is removed. Both
+			// halves come from the same stored case.
+			prompt, _ := testCase["prompt"].(string)
+			if text, ok := testCase["text"].(string); ok && prompt != "" && strings.HasPrefix(text, prompt) {
+				testCase["text"] = strings.TrimPrefix(text, prompt)
+			}
 			delete(testCase, "prompt_ids")
 			delete(testCase, "generated_ids")
 		}

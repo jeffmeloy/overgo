@@ -1042,12 +1042,12 @@
       "id": "offline-artifact-closure",
       "title": "Close the offline artifact campaign with full tests, vet, magic census, and no heuristic merge operators",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Close the offline artifact campaign with full tests, vet, magic census, and no heuristic merge operators",
-          "status": "open",
+          "status": "done",
           "verify": "go run ./cmd/test-lane \u0026\u0026 go vet ./..."
         }
       ]

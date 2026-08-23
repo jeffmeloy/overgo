@@ -314,6 +314,20 @@
       ]
     },
     {
+      "id": "reverify-dialects",
+      "title": "Accept the id-sequence golden dialect in reverify",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Accept the id-sequence golden dialect in reverify",
+          "status": "done",
+          "verify": "go vet ./cmd/reverify \u0026\u0026 go build ./cmd/reverify"
+        }
+      ]
+    },
+    {
       "id": "repodb-remint",
       "title": "Re-mint the model graph so every stored profile loads",
       "owner": "gui",

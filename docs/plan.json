@@ -553,12 +553,12 @@
       "id": "repodb-retention",
       "title": "Set a RepoDB retention policy for superseded evidence",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Set a RepoDB retention policy for superseded evidence",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/repodb ./internal/closureledger -run 'TestRetention|TestSupersededCollection' -count=1"
         }
       ]

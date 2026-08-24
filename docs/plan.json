@@ -1946,13 +1946,13 @@
       "id": "literal-workflow-stages",
       "title": "Make typed recipe modules own workflow stage requirements",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Move model-build stage order, input and output requirements, and postconditions into typed module descriptors consumed by workflowruntime; replace positional stage indexing with compiled iteration; migrate callers and delete model-build-specific validation closures",
-          "status": "open",
-          "verify": "go test ./internal/workflowruntime ./internal/workflowrecipe ./internal/recipe ./internal/modelrecipe -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/workflowruntime,internal/workflowrecipe,internal/recipe,internal/modelrecipe -require-classified -require-no-stale -require-no-uncatalogued-production",
+          "status": "done",
+          "verify": "go run ./cmd/test-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/workflowruntime,internal/workflowrecipe,internal/recipe,internal/modelrecipe -require-classified -require-no-stale -require-no-uncatalogued-production",
           "rationale": "Model-build execution repeats stage order and output validity through positional literals instead of consuming recipe module contracts.",
           "depends_on": [
             "literal-training-policy/do"

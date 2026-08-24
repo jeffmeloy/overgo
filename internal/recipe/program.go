@@ -85,6 +85,57 @@ func CompileProgram(definition Definition, catalog *Catalog) (Program, error) {
 	}, nil
 }
 
+// CompileLinear builds a single-input, single-output stage program.
+func (c *Catalog) CompileLinear(task Task, dependencies []Dependency, stages []Stage) (Program, error) {
+	nodes := make([]Node, 0, len(stages))
+	edges := make([]Edge, 0, len(stages))
+	var firstInput Port
+	var firstNode Node
+	var priorNode Node
+	var priorOutput Port
+	for _, stage := range stages {
+		input, inputOK := onlyPort(stage.Module.Inputs)
+		output, outputOK := onlyPort(stage.Module.Outputs)
+		if !inputOK || !outputOK || stage.Node.Module != stage.Module.ID {
+			return Program{}, errors.New("recipe: linear stage requires one input and output")
+		}
+		nodes = append(nodes, stage.Node)
+		if priorNode.ID == "" {
+			firstNode, firstInput = stage.Node, input
+		} else {
+			edges = append(edges, Edge{
+				From: Endpoint{Node: priorNode.ID, Port: priorOutput.Name},
+				To:   Endpoint{Node: stage.Node.ID, Port: input.Name},
+			})
+		}
+		priorNode, priorOutput = stage.Node, output
+	}
+	if priorNode.ID == "" {
+		return Program{}, errors.New("recipe: linear program is empty")
+	}
+	definition, err := NewDefinitionWithDependencies(
+		task, dependencies, nodes, edges,
+		[]Input{{Name: firstInput.Name, Data: firstInput.Data, Target: Endpoint{Node: firstNode.ID, Port: firstInput.Name}}},
+		[]Output{{Name: priorOutput.Name, Data: priorOutput.Data, Source: Endpoint{Node: priorNode.ID, Port: priorOutput.Name}}},
+	)
+	if err != nil {
+		return Program{}, err
+	}
+	return CompileProgram(definition, c)
+}
+
+func onlyPort(ports []Port) (Port, bool) {
+	var result Port
+	found := false
+	for _, port := range ports {
+		if found {
+			return Port{}, false
+		}
+		result, found = port, true
+	}
+	return result, found
+}
+
 func cloneProgramDefinition(definition Definition) Definition {
 	definition.Dependencies = slices.Clone(definition.Dependencies)
 	definition.Nodes = slices.Clone(definition.Nodes)

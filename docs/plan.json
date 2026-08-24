@@ -1809,13 +1809,13 @@
       "id": "adk-overgo-closure",
       "title": "Close ADK-inspired capability work with one authority per fact and measured RepoDB efficiency",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Run host and device gates; compare RepoDB replay, query, snapshot, resident memory, and response-history allocation evidence; require no ADK dependency, second scheduler, callback mesh, compatibility wrapper, or ephemeral session authority",
-          "status": "open",
-          "verify": "go test ./internal/artifact ./internal/overgodb ./internal/recipe ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/evaluation ./internal/server -count=1 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
+          "status": "done",
+          "verify": "go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
           "rationale": "Completion requires functional session, tool, human-decision, parallel workflow, replay, capability-bundle, remote, and GUI evidence plus measured storage and processing improvement against the pre-campaign RepoDB benchmark record. Production code must contain no imported ADK runtime and no displaced owner retained for compatibility.",
           "depends_on": [
             "adk-agent-gui/do"

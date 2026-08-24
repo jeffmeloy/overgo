@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "acceptance": {
+    "norm": {"absolute": 0.02, "relative": 0.02},
+    "projection": {"absolute": 0.08, "relative": 0.04},
+    "attention": {"absolute": 0.12, "relative": 0.06},
+    "prefill": {"absolute": 0.10, "relative": 0.05},
+    "layer_first": {"absolute": 0.18, "relative": 0.08},
+    "layer": {"absolute": 0.24, "relative": 0.10},
+    "terminal": {"absolute": 0.75, "relative": 0.12},
+    "decode_hidden": {"absolute": 0.45, "relative": 0.16},
+    "decode_logits": {"absolute": 1.75, "relative": 0.20},
+    "pixel_rms": {"absolute": 0.012, "relative": 0},
+    "pixel_max_abs": {"absolute": 0.25, "relative": 0}
+  },
+  "measurement": {
+    "terminal": {"warmup": 3, "samples": 30},
+    "merger": {"warmup": 3, "samples": 30},
+    "vision": {"warmup": 3, "samples": 20},
+    "decode": {"warmup": 5, "samples": 50}
+  },
+  "decode_max_steps": 64
+}

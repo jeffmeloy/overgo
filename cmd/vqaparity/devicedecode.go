@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"time"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -173,9 +172,8 @@ func runDeviceDecode(l *campaignContext) error {
 	hd := cfg.HeadDim
 	kvHeads := cfg.NumKeyValueHeads
 	kvOut := kvHeads * hd
-	vocab := cfg.VocabSize
 	steps := len(h.dg.DecodeSteps)
-	capacity := uint32(h.promptLen + steps + 1)
+	capacity := uint32(h.promptLen+steps) + tensor.SingletonExtent
 	l.Log(fmt.Sprintf("DEVICE decode harness ready prompt_len=%d steps=%d capacity=%d layers=%d", h.promptLen, steps, capacity, cfg.NumHiddenLayers))
 
 	g, err := routedlm.BuildDeviceDecodeGraph(cfg, capacity)
@@ -193,7 +191,7 @@ func runDeviceDecode(l *campaignContext) error {
 		return fmt.Errorf("device decode compile: %w", err)
 	}
 
-	worker, err := device.New(0)
+	worker, err := device.New(device.DefaultOrdinal())
 	if err != nil {
 		return fmt.Errorf("device decode worker: %w", err)
 	}
@@ -266,14 +264,14 @@ func runDeviceDecode(l *campaignContext) error {
 		}
 	}
 	// terminal: final norm (F32) + head (native BF16).
-	if err := bindVec(g.FinalNorm, h.terminal.FinalNorm[0]); err != nil {
+	if err := bindVec(g.FinalNorm, h.terminal.FinalNorm[tensor.FirstOffset]); err != nil {
 		return err
 	}
 	if h.terminal.Head.DType != "BF16" {
 		return fmt.Errorf("device decode: head dtype %s, want BF16", h.terminal.Head.DType)
 	}
-	headBytes := make([]byte, vocab*H*2)
-	if _, err := h.terminal.Head.ReadAt(headBytes, 0); err != nil {
+	headBytes := make([]byte, h.terminal.Head.Size())
+	if _, err := h.terminal.Head.ReadAt(headBytes, tensor.FirstOffset); err != nil {
 		return fmt.Errorf("device decode: head read: %w", err)
 	}
 	if p, e := upload(headBytes); e != nil {
@@ -403,7 +401,7 @@ func runDeviceDecode(l *campaignContext) error {
 		if err != nil {
 			return fmt.Errorf("host oracle step %d: %w", step, err)
 		}
-		hostTop, _, err := routedlm.TerminalTopToken(hostRow, cfg, h.terminal, 0)
+		hostTop, _, err := routedlm.TerminalTopToken(hostRow, cfg, h.terminal, tensor.FirstOffset)
 		if err != nil {
 			return err
 		}
@@ -413,7 +411,7 @@ func runDeviceDecode(l *campaignContext) error {
 			return err
 		}
 		hostFeeds := map[*tensor.Tensor]reference.Value{
-			g.Embedding: {Shape: tensor.MustShape(uint64(H), 1), Data: embedding},
+			g.Embedding: {Shape: tensor.MustShape(uint64(H), tensor.SingletonExtent), Data: embedding},
 		}
 		retained, err := exe.ExecuteRetainedCompiled(ctx, compiled, hostFeeds, deviceInputs, targets, attrs)
 		if err != nil {
@@ -430,7 +428,7 @@ func runDeviceDecode(l *campaignContext) error {
 		// device-vs-host logits at the golden probe + top indices.
 		probeIDs := append([]int{}, golden.Logits.ProbeIndex...)
 		probeIDs = append(probeIDs, golden.Logits.TopIndex...)
-		_, hostProbe, err := routedlm.TerminalProbeValues(hostRow, cfg, h.terminal, 0, nil, probeIDs)
+		_, hostProbe, err := routedlm.TerminalProbeValues(hostRow, cfg, h.terminal, tensor.FirstOffset, nil, probeIDs)
 		if err != nil {
 			return err
 		}
@@ -467,32 +465,26 @@ func runDeviceDecode(l *campaignContext) error {
 		return err
 	}
 	measFeeds := map[*tensor.Tensor]reference.Value{
-		g.Embedding: {Shape: tensor.MustShape(uint64(H), 1), Data: lastEmbed},
+		g.Embedding: {Shape: tensor.MustShape(uint64(H), tensor.SingletonExtent), Data: lastEmbed},
 	}
-	const warm, iters = 5, 50
-	for i := 0; i < warm; i++ {
+	budget := measurement(measureDecode)
+	perTok, err := measure(budget, func() error {
 		r, e := exe.ExecuteRetainedCompiled(ctx, compiled, measFeeds, deviceInputs, targets, attrs)
 		if e != nil {
 			return e
 		}
-		_ = r.Release(ctx)
+		return r.Release(ctx)
+	})
+	if err != nil {
+		return err
 	}
-	start := time.Now()
-	for i := 0; i < iters; i++ {
-		r, e := exe.ExecuteRetainedCompiled(ctx, compiled, measFeeds, deviceInputs, targets, attrs)
-		if e != nil {
-			return e
-		}
-		_ = r.Release(ctx)
-	}
-	perTok := time.Since(start) / iters
 	statsAfter, _ := worker.ExecutionStats(ctx)
 	dInst := statsAfter.GraphInstantiations - statsBefore.GraphInstantiations
 	dUpd := statsAfter.GraphUpdates - statsBefore.GraphUpdates
 	dLaunch := statsAfter.GraphLaunches - statsBefore.GraphLaunches
 	l.Log(fmt.Sprintf("DEVICE decode MEASURE %.3f ms/token (32 layers + KV resident, replayed %d x)",
-		float64(perTok.Microseconds())/1000.0, iters))
-	l.Log(fmt.Sprintf("DEVICE decode REPLAY over %d steps + %d measure iters: graph_launches=%d graph_instantiations=%d graph_updates=%d (single compiled graph, per-step runtime attrs only: rope pos, attn window, cache offset)", steps, iters+warm, dLaunch, dInst, dUpd))
+		float64(perTok.Microseconds())/1000.0, budget.Samples))
+	l.Log(fmt.Sprintf("DEVICE decode REPLAY over %d steps + %d measure iters: graph_launches=%d graph_instantiations=%d graph_updates=%d (single compiled graph, per-step runtime attrs only: rope pos, attn window, cache offset)", steps, budget.Samples+budget.Warmup, dLaunch, dInst, dUpd))
 	l.Log("DEVICE decode LANE GREEN")
 	return nil
 }

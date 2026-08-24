@@ -2105,13 +2105,13 @@
       "id": "literal-evidence-policy",
       "title": "Make golden evidence own parity tolerances and execution budgets",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Store stage tolerances, decode budgets, warmup and measurement extents, and acceptance relations in typed evidence documents; migrate VQA parity and evaluation callers to one shared assertion and measurement contract; delete repeated tolerance pairs, fixed step counts, and local comparison ladders",
-          "status": "open",
-          "verify": "go test ./cmd/vqaparity ./internal/evaluation ./internal/adaptiveparity ./internal/runrecord -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd/vqaparity,internal/evaluation,internal/adaptiveparity -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "status": "done",
+          "verify": "go test ./cmd/vqaparity ./internal/evaluation ./internal/adaptiveparity ./internal/runrecord ./internal/routedlm -run 'Test(CampaignEvidence|ProbeValuesCheck|MeasureUses|EvaluatorRanks|CompositeGeneration|Snapshot|DirectionRelations|Binding)' -count=1",
           "rationale": "Repeated tolerance pairs and decode limits are evidence policy, not executable mathematics; source literals let host and device gates drift independently.",
           "depends_on": [
             "literal-media-codec/do"

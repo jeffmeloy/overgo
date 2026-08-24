@@ -14,8 +14,8 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"time"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -93,7 +93,7 @@ func runDeviceVision(l *campaignContext) error {
 		return fmt.Errorf("device vision compile: %w", err)
 	}
 
-	worker, err := device.New(0)
+	worker, err := device.New(device.DefaultOrdinal())
 	if err != nil {
 		return fmt.Errorf("device vision worker: %w", err)
 	}
@@ -200,10 +200,10 @@ func runDeviceVision(l *campaignContext) error {
 		var iDG int
 		nanDev, nanHost := 0, 0
 		for i := range gl {
-			if math.IsNaN(float64(dev[i])) || math.IsInf(float64(dev[i]), 0) {
+			if !checked.Finite32(dev[i]) {
 				nanDev++
 			}
-			if math.IsNaN(float64(hostHidden[i])) || math.IsInf(float64(hostHidden[i]), 0) {
+			if !checked.Finite32(hostHidden[i]) {
 				nanHost++
 			}
 			if d := math.Abs(float64(dev[i]) - float64(gl[i])); d > wDG {
@@ -220,37 +220,21 @@ func runDeviceVision(l *campaignContext) error {
 
 	// ---- exactness: device vs golden (reference tolerances) -----------------
 	type probe struct {
-		name       string
-		dev        []float32
-		golden     goldenTensor
-		atol, rtol float64
+		name   string
+		dev    []float32
+		golden goldenTensor
+		class  acceptanceClass
 	}
 	probes := []probe{
-		{"block0_norm1", out[g.Block0Norm1].Data, vg.VisionTensors["block0_norm1"], 0.02, 0.02},
-		{"block0_qkv", out[g.Block0QKV].Data, vg.VisionTensors["block0_qkv"], 0.08, 0.04},
-		{"block0_attn", out[g.Block0Attn].Data, vg.VisionTensors["block0_attn"], 0.12, 0.06},
-		{"block0", out[g.Block0Out].Data, vg.VisionTensors["block0"], 0.08, 0.04},
-		{"block_last", out[g.BlockLast].Data, vg.VisionTensors["block_last"], 0.12, 0.06},
+		{"block0_norm1", out[g.Block0Norm1].Data, vg.VisionTensors["block0_norm1"], acceptNorm},
+		{"block0_qkv", out[g.Block0QKV].Data, vg.VisionTensors["block0_qkv"], acceptProjection},
+		{"block0_attn", out[g.Block0Attn].Data, vg.VisionTensors["block0_attn"], acceptAttention},
+		{"block0", out[g.Block0Out].Data, vg.VisionTensors["block0"], acceptProjection},
+		{"block_last", out[g.BlockLast].Data, vg.VisionTensors["block_last"], acceptAttention},
 	}
 	var probeErr error
 	for _, p := range probes {
-		// probe fail census
-		fails, worstD, worstLim := 0, 0.0, 0.0
-		for i, idx := range p.golden.ProbeIndex {
-			g, w := float64(p.dev[idx]), p.golden.ProbeValue[i]
-			d := math.Abs(g - w)
-			lim := p.atol + p.rtol*math.Abs(w)
-			if d > lim {
-				fails++
-				if d-lim > worstD-worstLim {
-					worstD, worstLim = d, lim
-				}
-			}
-		}
-		if fails > 0 {
-			l.Log(fmt.Sprintf("DEVICE vision GOLDEN CENSUS %s: %d/%d probes over tol; worst over by %.3e (|d|=%.3e lim=%.3e)", p.name, fails, len(p.golden.ProbeIndex), worstD-worstLim, worstD, worstLim))
-		}
-		detail, err := probeCheck("device "+p.name, p.dev, p.golden, p.atol, p.rtol)
+		detail, err := probeCheck("device "+p.name, p.dev, p.golden, p.class)
 		if err != nil {
 			l.Log("DEVICE vision GOLDEN FAIL " + err.Error())
 			if probeErr == nil {
@@ -266,26 +250,23 @@ func runDeviceVision(l *campaignContext) error {
 
 	// ---- measurement --------------------------------------------------------
 	statsBefore, _ := worker.ExecutionStats(ctx)
-	const warm, iters = 3, 20
-	for i := 0; i < warm; i++ {
+	budget := measurement(measureVision)
+	perCall, err := measure(budget, func() error {
 		if _, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs); err != nil {
 			return err
 		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	start := time.Now()
-	for i := 0; i < iters; i++ {
-		if _, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs); err != nil {
-			return err
-		}
-	}
-	perCall := time.Since(start) / iters
 	statsAfter, _ := worker.ExecutionStats(ctx)
 	l.Log(fmt.Sprintf("DEVICE vision MEASURE %.3f ms/tower (%d blocks, %d rows, F32 weights resident)",
 		float64(perCall.Microseconds())/1000.0, spec.Depth, nPatch))
 	l.Log(fmt.Sprintf("DEVICE vision REPLAY graph_launches=%d graph_instantiations=%d graph_updates=%d over %d warm+%d measure",
 		statsAfter.GraphLaunches-statsBefore.GraphLaunches,
 		statsAfter.GraphInstantiations-statsBefore.GraphInstantiations,
-		statsAfter.GraphUpdates-statsBefore.GraphUpdates, warm, iters))
+		statsAfter.GraphUpdates-statsBefore.GraphUpdates, budget.Warmup, budget.Samples))
 	l.Log("DEVICE vision LANE GREEN")
 	return nil
 }

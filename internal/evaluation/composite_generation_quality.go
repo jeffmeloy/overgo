@@ -142,11 +142,11 @@ func (CompositeGenerationQualityAuthority) Evaluate(
 	composedByInput := make(map[artifact.ID][]float64)
 	for key, group := range groups {
 		composed := group.quality[composition.CompositeGenerationComposed]
-		gain := policy.advantage(composed, group.quality[composition.CompositeGenerationTargetBaseline])
-		sourceEffect := policy.advantage(composed, group.quality[composition.CompositeGenerationSourceAblated])
-		bridgeEffect := policy.advantage(composed, group.quality[composition.CompositeGenerationBridgeAblated])
+		gain, _ := policy.Direction.Advantage(composed, group.quality[composition.CompositeGenerationTargetBaseline])
+		sourceEffect, _ := policy.Direction.Advantage(composed, group.quality[composition.CompositeGenerationSourceAblated])
+		bridgeEffect, _ := policy.Direction.Advantage(composed, group.quality[composition.CompositeGenerationBridgeAblated])
 		nondegeneracy := group.nondegeneracy[composition.CompositeGenerationComposed]
-		if !policy.admitsQuality(composed) || gain < policy.MinimumHeldOutGain ||
+		if !policy.Direction.Admits(composed, policy.ComposedQualityThreshold) || gain < policy.MinimumHeldOutGain ||
 			sourceEffect < policy.MinimumSourceEffect || bridgeEffect < policy.MinimumBridgeEffect ||
 			nondegeneracy < policy.MinimumNondegeneracy {
 			return CompositeGenerationQuality{}, errors.New("evaluation: composite generation quality envelope was not met")
@@ -156,7 +156,7 @@ func (CompositeGenerationQualityAuthority) Evaluate(
 			result.WorstSourceEffect, result.WorstBridgeEffect = sourceEffect, bridgeEffect
 			result.WorstNondegeneracy, first = nondegeneracy, false
 		} else {
-			result.WorstComposedQuality = policy.worse(result.WorstComposedQuality, composed)
+			result.WorstComposedQuality = policy.Direction.Worse(result.WorstComposedQuality, composed)
 			result.WorstHeldOutGain = min(result.WorstHeldOutGain, gain)
 			result.WorstSourceEffect = min(result.WorstSourceEffect, sourceEffect)
 			result.WorstBridgeEffect = min(result.WorstBridgeEffect, bridgeEffect)
@@ -298,7 +298,7 @@ func canonicalizeCompositeGenerationQuality(value *CompositeGenerationQuality) e
 			return errors.New("evaluation: composite generation quality result is non-finite")
 		}
 	}
-	if !policy.admitsQuality(value.WorstComposedQuality) ||
+	if !policy.Direction.Admits(value.WorstComposedQuality, policy.ComposedQualityThreshold) ||
 		value.WorstHeldOutGain < policy.MinimumHeldOutGain ||
 		value.WorstSourceEffect < policy.MinimumSourceEffect ||
 		value.WorstBridgeEffect < policy.MinimumBridgeEffect ||
@@ -307,25 +307,4 @@ func canonicalizeCompositeGenerationQuality(value *CompositeGenerationQuality) e
 		return errors.New("evaluation: composite generation quality result does not satisfy policy")
 	}
 	return nil
-}
-
-func (policy CompositeGenerationQualityPolicy) admitsQuality(value float64) bool {
-	if policy.Direction == runrecord.DirectionMaximize {
-		return value >= policy.ComposedQualityThreshold
-	}
-	return value <= policy.ComposedQualityThreshold
-}
-
-func (policy CompositeGenerationQualityPolicy) advantage(candidate, baseline float64) float64 {
-	if policy.Direction == runrecord.DirectionMaximize {
-		return candidate - baseline
-	}
-	return baseline - candidate
-}
-
-func (policy CompositeGenerationQualityPolicy) worse(left, right float64) float64 {
-	if policy.Direction == runrecord.DirectionMaximize {
-		return min(left, right)
-	}
-	return max(left, right)
 }

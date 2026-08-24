@@ -1,14 +1,129 @@
 package main
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"math"
 	"path/filepath"
+	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/fixtureasset"
 	"overgo/internal/jsonfile"
 )
+
+type acceptanceClass string
+
+const (
+	acceptNorm         acceptanceClass = "norm"
+	acceptProjection   acceptanceClass = "projection"
+	acceptAttention    acceptanceClass = "attention"
+	acceptPrefill      acceptanceClass = "prefill"
+	acceptFirstLayer   acceptanceClass = "layer_first"
+	acceptLayer        acceptanceClass = "layer"
+	acceptTerminal     acceptanceClass = "terminal"
+	acceptDecodeHidden acceptanceClass = "decode_hidden"
+	acceptDecodeLogits acceptanceClass = "decode_logits"
+	acceptPixelRMS     acceptanceClass = "pixel_rms"
+	acceptPixelMaxAbs  acceptanceClass = "pixel_max_abs"
+)
+
+var acceptanceClasses = [...]acceptanceClass{
+	acceptNorm, acceptProjection, acceptAttention, acceptPrefill, acceptFirstLayer,
+	acceptLayer, acceptTerminal, acceptDecodeHidden, acceptDecodeLogits, acceptPixelRMS, acceptPixelMaxAbs,
+}
+
+type measurementStage string
+
+const (
+	measureTerminal measurementStage = "terminal"
+	measureMerger   measurementStage = "merger"
+	measureVision   measurementStage = "vision"
+	measureDecode   measurementStage = "decode"
+)
+
+var measurementStages = [...]measurementStage{measureTerminal, measureMerger, measureVision, measureDecode}
+
+type numericAcceptance struct {
+	Absolute float64 `json:"absolute"`
+	Relative float64 `json:"relative"`
+}
+
+type measurementBudget struct {
+	Warmup  int `json:"warmup"`
+	Samples int `json:"samples"`
+}
+
+type evidencePolicy struct {
+	Version        uint16                                 `json:"version"`
+	Acceptance     map[acceptanceClass]numericAcceptance  `json:"acceptance"`
+	Measurement    map[measurementStage]measurementBudget `json:"measurement"`
+	DecodeMaxSteps int                                    `json:"decode_max_steps"`
+}
+
+//go:embed evidence_policy.json
+var evidencePolicyJSON []byte
+
+var campaignEvidence = func() evidencePolicy {
+	var policy evidencePolicy
+	if err := json.Unmarshal(evidencePolicyJSON, &policy); err != nil || policy.Version != artifact.InitialDocumentVersion ||
+		len(policy.Acceptance) != len(acceptanceClasses) || len(policy.Measurement) != len(measurementStages) ||
+		!checked.PositiveInts(policy.DecodeMaxSteps) {
+		panic("vqaparity: invalid evidence policy")
+	}
+	for _, class := range acceptanceClasses {
+		acceptance, ok := policy.Acceptance[class]
+		if !ok {
+			panic("vqaparity: acceptance policy absent: " + class)
+		}
+		if !checked.PositiveFinite64(acceptance.Absolute) || !checked.NonNegativeFinite64(acceptance.Relative) {
+			panic("vqaparity: invalid acceptance policy")
+		}
+	}
+	for _, stage := range measurementStages {
+		budget, ok := policy.Measurement[stage]
+		if !ok {
+			panic("vqaparity: measurement policy absent: " + stage)
+		}
+		if !checked.PositiveInts(budget.Warmup, budget.Samples) {
+			panic("vqaparity: invalid measurement policy")
+		}
+	}
+	return policy
+}()
+
+func acceptance(name acceptanceClass) numericAcceptance {
+	value, ok := campaignEvidence.Acceptance[name]
+	if !ok {
+		panic("vqaparity: acceptance policy absent: " + name)
+	}
+	return value
+}
+
+func measurement(name measurementStage) measurementBudget {
+	value, ok := campaignEvidence.Measurement[name]
+	if !ok {
+		panic("vqaparity: measurement policy absent: " + name)
+	}
+	return value
+}
+
+func measure(budget measurementBudget, run func() error) (time.Duration, error) {
+	for range budget.Warmup {
+		if err := run(); err != nil {
+			return 0, err
+		}
+	}
+	start := time.Now()
+	for range budget.Samples {
+		if err := run(); err != nil {
+			return 0, err
+		}
+	}
+	return time.Since(start) / time.Duration(budget.Samples), nil
+}
 
 // Golden fixture schemas (adaptive_new fixtures/rxbrain_vqa_*.json).
 
@@ -118,7 +233,7 @@ func loadTensorAsset(fixturesDir, asset string, tensor goldenTensor) ([]float32,
 
 // probeCheck: worst-probe rule — fail when worst |got-want| exceeds
 // atol + rtol*|want-at-worst| (the reference comparator).
-func probeCheck(name string, values []float32, tensor goldenTensor, atol, rtol float64) (string, error) {
+func probeCheck(name string, values []float32, tensor goldenTensor, policy acceptanceClass) (string, error) {
 	if len(tensor.ProbeIndex) == 0 || len(tensor.ProbeIndex) != len(tensor.ProbeValue) {
 		return "", fmt.Errorf("%s: golden probes %d/%d", name, len(tensor.ProbeIndex), len(tensor.ProbeValue))
 	}
@@ -129,10 +244,10 @@ func probeCheck(name string, values []float32, tensor goldenTensor, atol, rtol f
 		}
 		got[i] = values[index]
 	}
-	return probeValuesCheck(name, got, tensor.ProbeValue, atol, rtol)
+	return probeValuesCheck(name, got, tensor.ProbeValue, policy)
 }
 
-func probeValuesCheck(name string, got []float32, want []float64, atol, rtol float64) (string, error) {
+func probeValuesCheck(name string, got []float32, want []float64, policy acceptanceClass) (string, error) {
 	if len(got) != len(want) {
 		return "", fmt.Errorf("%s: got %d probes, want %d", name, len(got), len(want))
 	}
@@ -143,7 +258,8 @@ func probeValuesCheck(name string, got []float32, want []float64, atol, rtol flo
 			worst, worstGot, worstWant = d, g, w
 		}
 	}
-	limit := atol + rtol*math.Abs(worstWant)
+	contract := acceptance(policy)
+	limit := contract.Absolute + contract.Relative*math.Abs(worstWant)
 	if worst > limit {
 		return "", fmt.Errorf("%s: worst probe got %.6f vs golden %.6f (|d|=%.4e > %.4e)", name, worstGot, worstWant, worst, limit)
 	}

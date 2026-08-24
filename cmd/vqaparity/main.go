@@ -17,6 +17,7 @@ import (
 	"overgo/internal/patchtower"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor"
 )
 
 // binding: RxBrain's `_v` branch naming contract.
@@ -173,7 +174,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 	if len(vg.ImageGridTHW) != 3 {
 		return fmt.Errorf("vision golden grid %v", vg.ImageGridTHW)
 	}
-	gridT, gridH, gridW := vg.ImageGridTHW[0], vg.ImageGridTHW[1], vg.ImageGridTHW[2]
+	gridT, gridH, gridW := vg.ImageGridTHW[tensor.FirstOffset], vg.ImageGridTHW[tensor.SingletonExtent], vg.ImageGridTHW[tensor.PairedExtent]
 
 	spec, err := patchtower.LoadSpec(l.modelDir)
 	if err != nil {
@@ -231,7 +232,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 		if err != nil {
 			return "", err
 		}
-		if gt != pg.ImageGridTHW[0] || gh != pg.ImageGridTHW[1] || gw != pg.ImageGridTHW[2] {
+		if gt != pg.ImageGridTHW[tensor.FirstOffset] || gh != pg.ImageGridTHW[tensor.SingletonExtent] || gw != pg.ImageGridTHW[tensor.PairedExtent] {
 			return "", fmt.Errorf("grid [%d,%d,%d] != golden %v", gt, gh, gw, pg.ImageGridTHW)
 		}
 		ids, err := routedlm.RenderVisionQAPrompt(tok, specials, pg.Request.Question, gh, gw, pre.MergeSize)
@@ -267,11 +268,11 @@ func run(l *campaignContext, fromStage, toStage string) error {
 			sumSq += d * d
 		}
 		rms := math.Sqrt(sumSq / float64(len(pv)))
-		if rms > 0.012 {
-			return "", fmt.Errorf("pixel rms %.4g > 0.012", rms)
+		if limit := acceptance(acceptPixelRMS).Absolute; rms > limit {
+			return "", fmt.Errorf("pixel rms %.4g > %.4g", rms, limit)
 		}
-		if maxAbs > 0.25 {
-			return "", fmt.Errorf("pixel max|diff| %.4g > 0.25", maxAbs)
+		if limit := acceptance(acceptPixelMaxAbs).Absolute; maxAbs > limit {
+			return "", fmt.Errorf("pixel max|diff| %.4g > %.4g", maxAbs, limit)
 		}
 		return fmt.Sprintf("ids=%d grid=[%d,%d,%d] pixel rms=%.4g max=%.4g", len(ids), gt, gh, gw, rms, maxAbs), nil
 	})
@@ -295,7 +296,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 		if err != nil {
 			return "", err
 		}
-		return probeCheck("pre_block0", preBlock0, vg.VisionTensors["pre_block0"], 0.02, 0.02)
+		return probeCheck("pre_block0", preBlock0, vg.VisionTensors["pre_block0"], acceptNorm)
 	})
 
 	preAsset, err := loadTensorAsset(l.fixturesDir, vg.PreBlock0Asset, vg.VisionTensors["pre_block0"])
@@ -305,7 +306,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 	nPatch := gridT * gridH * gridW
 	var block0 patchtower.BlockStageOutputs
 	gate("block0_qkv", func() (string, error) {
-		w, err := patchtower.LoadBlockWeights(src, spec, 0)
+		w, err := patchtower.LoadBlockWeights(src, spec, tensor.FirstOffset)
 		if err != nil {
 			return "", err
 		}
@@ -313,20 +314,20 @@ func run(l *campaignContext, fromStage, toStage string) error {
 		if err != nil {
 			return "", err
 		}
-		if detail, err := probeCheck("block0_norm1", block0.Norm1, vg.VisionTensors["block0_norm1"], 0.02, 0.02); err != nil {
+		if detail, err := probeCheck("block0_norm1", block0.Norm1, vg.VisionTensors["block0_norm1"], acceptNorm); err != nil {
 			return detail, err
 		}
-		return probeCheck("block0_qkv", block0.QKV, vg.VisionTensors["block0_qkv"], 0.08, 0.04)
+		return probeCheck("block0_qkv", block0.QKV, vg.VisionTensors["block0_qkv"], acceptProjection)
 	})
 	gate("block0_attn", func() (string, error) {
-		return probeCheck("block0_attn", block0.AttnProjected, vg.VisionTensors["block0_attn"], 0.12, 0.06)
+		return probeCheck("block0_attn", block0.AttnProjected, vg.VisionTensors["block0_attn"], acceptAttention)
 	})
 	gate("block0", func() (string, error) {
-		return probeCheck("block0", block0.Output, vg.VisionTensors["block0"], 0.08, 0.04)
+		return probeCheck("block0", block0.Output, vg.VisionTensors["block0"], acceptProjection)
 	})
 	gate("block_last", func() (string, error) {
 		hidden := preAsset
-		for layer := 0; layer < spec.Depth; layer++ {
+		for layer := tensor.FirstOffset; layer < spec.Depth; layer++ {
 			w, err := patchtower.LoadBlockWeights(src, spec, layer)
 			if err != nil {
 				return "", err
@@ -337,7 +338,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 			}
 			hidden = stages.Output
 		}
-		return probeCheck("block_last", hidden, vg.VisionTensors["block_last"], 0.12, 0.06)
+		return probeCheck("block_last", hidden, vg.VisionTensors["block_last"], acceptAttention)
 	})
 
 	// ---- merger + prefill (from the golden block_last, the reference
@@ -357,10 +358,10 @@ func run(l *campaignContext, fromStage, toStage string) error {
 	gate("merger", func() (string, error) {
 		values := make([]float32, imageRows*spec.OutHidden)
 		scratch := patchtower.NewMergerScratch(spec)
-		for row := 0; row < imageRows; row++ {
-			patchtower.MergerRowInto(values[row*spec.OutHidden:(row+1)*spec.OutHidden], blockLast, row, gridH, gridW, spec, merger, &scratch)
+		for row := tensor.FirstOffset; row < imageRows; row++ {
+			patchtower.MergerRowInto(values[row*spec.OutHidden:(row+tensor.SingletonExtent)*spec.OutHidden], blockLast, row, gridH, gridW, spec, merger, &scratch)
 		}
-		return probeCheck("merger", values, vg.VisionTensors["merger"], 0.08, 0.04)
+		return probeCheck("merger", values, vg.VisionTensors["merger"], acceptProjection)
 	})
 
 	var prefill []float32
@@ -377,7 +378,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 		if err != nil {
 			return "", err
 		}
-		return probeCheck("prefill_embeds", prefill, fg.PrefillTensors.LanguageInputsEmbeds, 0.10, 0.05)
+		return probeCheck("prefill_embeds", prefill, fg.PrefillTensors.LanguageInputsEmbeds, acceptPrefill)
 	})
 	if prefill == nil {
 		if prefill, err = buildPrefill(); err != nil {
@@ -390,7 +391,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 	// ---- MoT layer 0 sub-stages --------------------------------------
 	var layer0 *routedlm.PromptLayerState
 	gate("mot_layer0_sub_stages", func() (string, error) {
-		w, err := routedlm.LoadLayerWeights(src, cfg, binding, 0)
+		w, err := routedlm.LoadLayerWeights(src, cfg, binding, tensor.FirstOffset)
 		if err != nil {
 			return "", err
 		}
@@ -402,7 +403,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 		if err != nil {
 			return "", err
 		}
-		if _, err := probeCheck("layer0_pre_attn_norm", layer0.NormRows, mg.MoTTensors["layer0_pre_attn_norm"], 0.02, 0.02); err != nil {
+		if _, err := probeCheck("layer0_pre_attn_norm", layer0.NormRows, mg.MoTTensors["layer0_pre_attn_norm"], acceptNorm); err != nil {
 			return "", err
 		}
 		qg, err := loadGoldenJSON[motGolden](l.fixturesDir, "rxbrain_vqa_mot_qkv_golden.json")
@@ -417,7 +418,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 			{"layer0_k_proj", layer0.KProj},
 			{"layer0_v_proj", layer0.VProj},
 		} {
-			if _, err := probeCheck(item.name, item.values, qg.MoTTensors[item.name], 0.02, 0.02); err != nil {
+			if _, err := probeCheck(item.name, item.values, qg.MoTTensors[item.name], acceptNorm); err != nil {
 				return "", err
 			}
 		}
@@ -431,29 +432,29 @@ func run(l *campaignContext, fromStage, toStage string) error {
 			width := heads * hd
 			for token := 0; token < promptLen; token++ {
 				for head := 0; head < heads; head++ {
-					copy(out[(head*promptLen+token)*hd:(head*promptLen+token+1)*hd], flat[token*width+head*hd:token*width+(head+1)*hd])
+					copy(out[(head*promptLen+token)*hd:(head*promptLen+token+tensor.SingletonExtent)*hd], flat[token*width+head*hd:token*width+(head+tensor.SingletonExtent)*hd])
 				}
 			}
 			return out
 		}
-		if _, err := probeCheck("layer0_q_rope_norm", relayout(layer0.QHeads, cfg.NumAttentionHeads), ng.MoTTensors["layer0_q_rope_norm"], 0.08, 0.04); err != nil {
+		if _, err := probeCheck("layer0_q_rope_norm", relayout(layer0.QHeads, cfg.NumAttentionHeads), ng.MoTTensors["layer0_q_rope_norm"], acceptProjection); err != nil {
 			return "", err
 		}
-		if _, err := probeCheck("layer0_k_rope_norm", relayout(layer0.KHeads, cfg.NumKeyValueHeads), ng.MoTTensors["layer0_k_rope_norm"], 0.08, 0.04); err != nil {
+		if _, err := probeCheck("layer0_k_rope_norm", relayout(layer0.KHeads, cfg.NumKeyValueHeads), ng.MoTTensors["layer0_k_rope_norm"], acceptProjection); err != nil {
 			return "", err
 		}
 		ag, err := loadGoldenJSON[motGolden](l.fixturesDir, "rxbrain_vqa_mot_attn_context_golden.json")
 		if err != nil {
 			return "", err
 		}
-		if _, err := probeCheck("layer0_attn_context", layer0.Context, ag.MoTTensors["layer0_attn_context"], 0.12, 0.06); err != nil {
+		if _, err := probeCheck("layer0_attn_context", layer0.Context, ag.MoTTensors["layer0_attn_context"], acceptAttention); err != nil {
 			return "", err
 		}
 		og, err := loadGoldenJSON[motGolden](l.fixturesDir, "rxbrain_vqa_mot_attn_projected_golden.json")
 		if err != nil {
 			return "", err
 		}
-		if _, err := probeCheck("layer0_attn_projected", layer0.AttnProjected, og.MoTTensors["layer0_attn_projected"], 0.12, 0.06); err != nil {
+		if _, err := probeCheck("layer0_attn_projected", layer0.AttnProjected, og.MoTTensors["layer0_attn_projected"], acceptAttention); err != nil {
 			return "", err
 		}
 		return "norm+qkv+rope_norm+context+projected", nil
@@ -463,19 +464,19 @@ func run(l *campaignContext, fromStage, toStage string) error {
 		if err != nil {
 			return "", err
 		}
-		return probeCheck("layer0_output", layer0.Output, lg.MoTTensors["layer0_output"], 0.18, 0.08)
+		return probeCheck("layer0_output", layer0.Output, lg.MoTTensors["layer0_output"], acceptFirstLayer)
 	})
 	layer0 = nil
 
 	// ---- MoT layers 1..31, each from the previous golden boundary -----
-	for layer := 1; layer < cfg.NumHiddenLayers; layer++ {
+	for layer := tensor.SingletonExtent; layer < cfg.NumHiddenLayers; layer++ {
 		layer := layer
 		gate("mot_layer"+strconv.Itoa(layer)+"_output", func() (string, error) {
-			prev, err := loadGoldenJSON[motGolden](l.fixturesDir, "rxbrain_vqa_mot_layer"+strconv.Itoa(layer-1)+"_output_golden.json")
+			prev, err := loadGoldenJSON[motGolden](l.fixturesDir, "rxbrain_vqa_mot_layer"+strconv.Itoa(layer-tensor.SingletonExtent)+"_output_golden.json")
 			if err != nil {
 				return "", err
 			}
-			prevKey := "layer" + strconv.Itoa(layer-1) + "_output"
+			prevKey := "layer" + strconv.Itoa(layer-tensor.SingletonExtent) + "_output"
 			prevHidden, err := loadTensorAsset(l.fixturesDir, prev.LayerOutputAsset, prev.MoTTensors[prevKey])
 			if err != nil {
 				return "", err
@@ -493,7 +494,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 				return "", err
 			}
 			key := "layer" + strconv.Itoa(layer) + "_output"
-			return probeCheck(key, state.Output, golden.MoTTensors[key], 0.24, 0.10)
+			return probeCheck(key, state.Output, golden.MoTTensors[key], acceptLayer)
 		})
 	}
 
@@ -518,32 +519,32 @@ func run(l *campaignContext, fromStage, toStage string) error {
 		finalHidden := tg.TerminalTensors["final_hidden"]
 		logitIDs := append([]int{}, tg.LastLogits.ProbeIndex...)
 		logitIDs = append(logitIDs, tg.LastLogits.TopIndex...)
-		gotHidden, gotLogits, err := routedlm.TerminalProbeValues(layer31, cfg, terminal, 0, finalHidden.ProbeIndex, logitIDs)
+		gotHidden, gotLogits, err := routedlm.TerminalProbeValues(layer31, cfg, terminal, tensor.FirstOffset, finalHidden.ProbeIndex, logitIDs)
 		if err != nil {
 			return "", err
 		}
-		if _, err := probeValuesCheck("final_hidden", gotHidden, finalHidden.ProbeValue, 0.24, 0.10); err != nil {
+		if _, err := probeValuesCheck("final_hidden", gotHidden, finalHidden.ProbeValue, acceptLayer); err != nil {
 			return "", err
 		}
 		probeLogits := gotLogits[:len(tg.LastLogits.ProbeIndex)]
 		topLogits := gotLogits[len(tg.LastLogits.ProbeIndex):]
-		if _, err := probeValuesCheck("last_logits sparse", probeLogits, tg.LastLogits.ProbeValue, 0.75, 0.12); err != nil {
+		if _, err := probeValuesCheck("last_logits sparse", probeLogits, tg.LastLogits.ProbeValue, acceptTerminal); err != nil {
 			return "", err
 		}
-		if _, err := probeValuesCheck("last_logits top", topLogits, tg.LastLogits.TopValue, 0.75, 0.12); err != nil {
+		if _, err := probeValuesCheck("last_logits top", topLogits, tg.LastLogits.TopValue, acceptTerminal); err != nil {
 			return "", err
 		}
 		if len(tg.LastLogits.TopIndex) == 0 {
 			return "", fmt.Errorf("terminal golden missing top logits")
 		}
-		gotTopID, gotTopLogit, err := routedlm.TerminalTopToken(layer31, cfg, terminal, 0)
+		gotTopID, gotTopLogit, err := routedlm.TerminalTopToken(layer31, cfg, terminal, tensor.FirstOffset)
 		if err != nil {
 			return "", err
 		}
 		if gotTopID != tg.LastLogits.TopIndex[0] {
 			return "", fmt.Errorf("terminal top token id=%d, want %d", gotTopID, tg.LastLogits.TopIndex[0])
 		}
-		if _, err := probeValuesCheck("last_logits argmax", []float32{gotTopLogit}, []float64{tg.LastLogits.TopValue[0]}, 0.75, 0.12); err != nil {
+		if _, err := probeValuesCheck("last_logits argmax", []float32{gotTopLogit}, []float64{tg.LastLogits.TopValue[0]}, acceptTerminal); err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("top id=%d logit=%.4f", gotTopID, gotTopLogit), nil
@@ -559,7 +560,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 		if dg.FirstToken != tg.LastLogits.TopIndex[0] {
 			return "", fmt.Errorf("decode first_token=%d, terminal top token=%d", dg.FirstToken, tg.LastLogits.TopIndex[0])
 		}
-		if len(dg.DecodeSteps) != dg.DecodeStepCount || len(dg.GeneratedTokens) != len(dg.DecodeSteps)+1 || dg.GeneratedTokens[0] != dg.FirstToken {
+		if len(dg.DecodeSteps) != dg.DecodeStepCount || len(dg.GeneratedTokens) != len(dg.DecodeSteps)+tensor.SingletonExtent || dg.GeneratedTokens[tensor.FirstOffset] != dg.FirstToken {
 			return "", fmt.Errorf("decode golden shape steps=%d count=%d chain=%d", len(dg.DecodeSteps), dg.DecodeStepCount, len(dg.GeneratedTokens))
 		}
 		// Per-layer resident caches from the golden layer boundaries
@@ -574,11 +575,11 @@ func run(l *campaignContext, fromStage, toStage string) error {
 			weights[layer] = w
 			hidden := prefill
 			if layer > 0 {
-				prev, err := loadGoldenJSON[motGolden](l.fixturesDir, "rxbrain_vqa_mot_layer"+strconv.Itoa(layer-1)+"_output_golden.json")
+				prev, err := loadGoldenJSON[motGolden](l.fixturesDir, "rxbrain_vqa_mot_layer"+strconv.Itoa(layer-tensor.SingletonExtent)+"_output_golden.json")
 				if err != nil {
 					return "", err
 				}
-				prevKey := "layer" + strconv.Itoa(layer-1) + "_output"
+				prevKey := "layer" + strconv.Itoa(layer-tensor.SingletonExtent) + "_output"
 				hidden, err = loadTensorAsset(l.fixturesDir, prev.LayerOutputAsset, prev.MoTTensors[prevKey])
 				if err != nil {
 					return "", err
@@ -590,7 +591,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 			}
 		}
 		segments := routedlm.VisualSegments(mask)
-		decodeMask := make([]int, promptLen+len(dg.DecodeSteps)+1)
+		decodeMask := make([]int, promptLen+len(dg.DecodeSteps)+tensor.SingletonExtent)
 		copy(decodeMask, mask)
 		tokenID := dg.FirstToken
 		generated = append(generated[:0], tokenID)
@@ -609,27 +610,28 @@ func run(l *campaignContext, fromStage, toStage string) error {
 			}
 			logitIDs := append([]int{}, step.Logits.ProbeIndex...)
 			logitIDs = append(logitIDs, step.Logits.TopIndex...)
-			gotHidden, gotLogits, err := routedlm.TerminalProbeValues(row, cfg, terminal, 0, step.FinalHidden.ProbeIndex, logitIDs)
+			gotHidden, gotLogits, err := routedlm.TerminalProbeValues(row, cfg, terminal, tensor.FirstOffset, step.FinalHidden.ProbeIndex, logitIDs)
 			if err != nil {
 				return "", err
 			}
-			if _, err := probeValuesCheck(fmt.Sprintf("step%d final_hidden", stepIndex), gotHidden, step.FinalHidden.ProbeValue, 0.45, 0.16); err != nil {
+			if _, err := probeValuesCheck(fmt.Sprintf("step%d final_hidden", stepIndex), gotHidden, step.FinalHidden.ProbeValue, acceptDecodeHidden); err != nil {
 				return "", err
 			}
 			probeLogits := gotLogits[:len(step.Logits.ProbeIndex)]
 			topLogits := gotLogits[len(step.Logits.ProbeIndex):]
-			if _, err := probeValuesCheck(fmt.Sprintf("step%d logits sparse", stepIndex), probeLogits, step.Logits.ProbeValue, 1.75, 0.2); err != nil {
+			if _, err := probeValuesCheck(fmt.Sprintf("step%d logits sparse", stepIndex), probeLogits, step.Logits.ProbeValue, acceptDecodeLogits); err != nil {
 				return "", err
 			}
-			if _, err := probeValuesCheck(fmt.Sprintf("step%d logits top", stepIndex), topLogits, step.Logits.TopValue, 1.75, 0.2); err != nil {
+			if _, err := probeValuesCheck(fmt.Sprintf("step%d logits top", stepIndex), topLogits, step.Logits.TopValue, acceptDecodeLogits); err != nil {
 				return "", err
 			}
-			nextID, _, err := routedlm.TerminalTopToken(row, cfg, terminal, 0)
+			nextID, _, err := routedlm.TerminalTopToken(row, cfg, terminal, tensor.FirstOffset)
 			if err != nil {
 				return "", err
 			}
-			if nextID != step.NextToken || dg.GeneratedTokens[stepIndex+1] != nextID {
-				return "", fmt.Errorf("decode step %d next token id=%d, want step=%d chain=%d", stepIndex, nextID, step.NextToken, dg.GeneratedTokens[stepIndex+1])
+			chainIndex := stepIndex + tensor.SingletonExtent
+			if nextID != step.NextToken || dg.GeneratedTokens[chainIndex] != nextID {
+				return "", fmt.Errorf("decode step %d next token id=%d, want step=%d chain=%d", stepIndex, nextID, step.NextToken, dg.GeneratedTokens[chainIndex])
 			}
 			generated = append(generated, nextID)
 			tokenID = nextID

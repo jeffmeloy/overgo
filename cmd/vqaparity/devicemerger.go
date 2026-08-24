@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"time"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -77,7 +76,7 @@ func runDeviceMerger(l *campaignContext) error {
 		return fmt.Errorf("device merger compile: %w", err)
 	}
 
-	worker, err := device.New(0)
+	worker, err := device.New(device.DefaultOrdinal())
 	if err != nil {
 		return fmt.Errorf("device merger worker: %w", err)
 	}
@@ -163,8 +162,8 @@ func runDeviceMerger(l *campaignContext) error {
 	}
 	l.Log(fmt.Sprintf("DEVICE merger HOST device-vs-host worst|d|=%.3e", worstDH))
 
-	// device vs golden (reference tolerances 0.08/0.04, the ladder merger gate).
-	detail, err := probeCheck("device merger", devMerged, vg.VisionTensors["merger"], 0.08, 0.04)
+	// Device versus golden ladder gate.
+	detail, err := probeCheck("device merger", devMerged, vg.VisionTensors["merger"], acceptProjection)
 	if err != nil {
 		return err
 	}
@@ -172,25 +171,22 @@ func runDeviceMerger(l *campaignContext) error {
 
 	// measurement.
 	statsBefore, _ := worker.ExecutionStats(ctx)
-	const warm, iters = 3, 30
-	for i := 0; i < warm; i++ {
+	budget := measurement(measureMerger)
+	perCall, err := measure(budget, func() error {
 		if _, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs); err != nil {
 			return err
 		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	start := time.Now()
-	for i := 0; i < iters; i++ {
-		if _, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, deviceInputs); err != nil {
-			return err
-		}
-	}
-	perCall := time.Since(start) / iters
 	statsAfter, _ := worker.ExecutionStats(ctx)
 	l.Log(fmt.Sprintf("DEVICE merger MEASURE %.3f ms/merge (%d rows, F32 weights resident)",
 		float64(perCall.Microseconds())/1000.0, imageRows))
 	l.Log(fmt.Sprintf("DEVICE merger REPLAY graph_launches=%d graph_instantiations=%d graph_updates=%d over %d warm+%d measure",
 		statsAfter.GraphLaunches-statsBefore.GraphLaunches, statsAfter.GraphInstantiations-statsBefore.GraphInstantiations,
-		statsAfter.GraphUpdates-statsBefore.GraphUpdates, warm, iters))
+		statsAfter.GraphUpdates-statsBefore.GraphUpdates, budget.Warmup, budget.Samples))
 	l.Log("DEVICE merger LANE GREEN")
 	return nil
 }

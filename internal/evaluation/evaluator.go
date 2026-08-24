@@ -98,25 +98,17 @@ func validateKnownOutcomeOrder(contract []MetricContract, outcomes []KnownOutcom
 
 func orderedMetricsDominate(better, worse []runrecord.Metric) bool {
 	strict := false
+	var neutral float64
 	for index := range better {
 		left, right := better[index], worse[index]
 		if left.Name != right.Name || left.Unit != right.Unit || left.Direction != right.Direction {
 			return false
 		}
-		switch left.Direction {
-		case runrecord.DirectionMaximize:
-			if left.Value < right.Value {
-				return false
-			}
-			strict = strict || left.Value > right.Value
-		case runrecord.DirectionMinimize:
-			if left.Value > right.Value {
-				return false
-			}
-			strict = strict || left.Value < right.Value
-		default:
+		advantage, ok := left.Direction.Advantage(left.Value, right.Value)
+		if !ok || advantage < neutral {
 			return false
 		}
+		strict = strict || advantage > neutral
 	}
 	return strict
 }

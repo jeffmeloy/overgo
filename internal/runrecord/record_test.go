@@ -14,6 +14,30 @@ import (
 
 const fixtureCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
+func TestDirectionRelations(t *testing.T) {
+	const lower, higher = 1.0, 2.0
+	for _, test := range []struct {
+		name      string
+		direction Direction
+		candidate float64
+		baseline  float64
+	}{
+		{"maximize", DirectionMaximize, higher, lower},
+		{"minimize", DirectionMinimize, lower, higher},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			advantage, ok := test.direction.Advantage(test.candidate, test.baseline)
+			if !ok || advantage <= 0 || !test.direction.Admits(test.candidate, test.baseline) ||
+				test.direction.Worse(test.candidate, test.baseline) != test.baseline {
+				t.Fatalf("direction relation = (%g, %t)", advantage, ok)
+			}
+		})
+	}
+	if _, ok := DirectionNeutral.Advantage(higher, lower); ok || DirectionNeutral.Admits(higher, lower) {
+		t.Fatal("neutral direction defines ordering")
+	}
+}
+
 func TestRunAndEvaluationRoundTrip(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "recipe")
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")

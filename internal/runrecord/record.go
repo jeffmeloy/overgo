@@ -103,6 +103,35 @@ const (
 	DirectionMaximize Direction = "maximize"
 )
 
+// Advantage returns signed candidate improvement.
+func (d Direction) Advantage(candidate, baseline float64) (float64, bool) {
+	switch d {
+	case DirectionMinimize:
+		return baseline - candidate, true
+	case DirectionMaximize:
+		return candidate - baseline, true
+	default:
+		var none float64
+		return none, false
+	}
+}
+
+// Admits reports whether value satisfies threshold.
+func (d Direction) Admits(value, threshold float64) bool {
+	advantage, ok := d.Advantage(value, threshold)
+	var neutral float64
+	return ok && advantage >= neutral
+}
+
+// Worse returns the weaker value under d.
+func (d Direction) Worse(left, right float64) float64 {
+	var neutral float64
+	if advantage, ok := d.Advantage(left, right); ok && advantage > neutral {
+		return right
+	}
+	return left
+}
+
 type Run struct {
 	Version     uint16
 	ID          artifact.ID

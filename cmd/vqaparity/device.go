@@ -13,7 +13,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"time"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -60,7 +59,7 @@ func runDevice(l *campaignContext) error {
 	}
 	rows := len(layer31) / H
 	lastRow := append([]float32(nil), layer31[(rows-1)*H:rows*H]...)
-	normWeight := terminal.FinalNorm[0]
+	normWeight := terminal.FinalNorm[tensor.FirstOffset]
 
 	tg, err := loadGoldenJSON[terminalGolden](l.fixturesDir, "rxbrain_vqa_terminal_golden.json")
 	if err != nil {
@@ -75,8 +74,8 @@ func runDevice(l *campaignContext) error {
 	if terminal.Head.DType != "BF16" {
 		return fmt.Errorf("device terminal: head dtype %s, want BF16", terminal.Head.DType)
 	}
-	headBytes := make([]byte, vocab*H*2)
-	if _, err := terminal.Head.ReadAt(headBytes, 0); err != nil {
+	headBytes := make([]byte, terminal.Head.Size())
+	if _, err := terminal.Head.ReadAt(headBytes, tensor.FirstOffset); err != nil {
 		return fmt.Errorf("device terminal: head read: %w", err)
 	}
 	headF32 := make([]float32, vocab*H)
@@ -85,7 +84,7 @@ func runDevice(l *campaignContext) error {
 	}
 
 	headShape := tensor.MustShape(uint64(H), uint64(vocab)) // ggml [K=hidden, M=vocab]
-	rowShape := tensor.MustShape(uint64(H), 1)
+	rowShape := tensor.MustShape(uint64(H), tensor.SingletonExtent)
 	normShape := tensor.MustShape(uint64(H))
 
 	// ---- host reference graph (F32 head) -----------------------------------
@@ -95,7 +94,7 @@ func runDevice(l *campaignContext) error {
 	rHead := rb.Input("head", dtype.F32, headShape)
 	rFinal := rb.WeightedRMSNorm(rRow, rNorm, eps)
 	rLogits := rb.MulMat(rHead, rFinal)
-	rTop := rb.TopK(rLogits, 1)
+	rTop := rb.TopK(rLogits, tensor.SingletonExtent)
 	refOut, err := reference.Execute([]*tensor.Tensor{rLogits, rTop}, map[*tensor.Tensor]reference.Value{
 		rRow:  {Shape: rowShape, Data: lastRow},
 		rNorm: {Shape: normShape, Data: normWeight},
@@ -108,7 +107,7 @@ func runDevice(l *campaignContext) error {
 	hostTop := int(refOut[rTop].Data[0])
 
 	// ---- device graph (native-BF16 head residency) -------------------------
-	worker, err := device.New(0)
+	worker, err := device.New(device.DefaultOrdinal())
 	if err != nil {
 		return fmt.Errorf("device terminal: worker: %w", err)
 	}
@@ -144,7 +143,7 @@ func runDevice(l *campaignContext) error {
 	dHead := db.Input("head", dtype.BF16, headShape)
 	dFinal := db.WeightedRMSNorm(dRow, dNorm, eps)
 	dLogits := db.MulMat(dHead, dFinal)
-	dTop := db.TopK(dLogits, 1)
+	dTop := db.TopK(dLogits, tensor.SingletonExtent)
 	compiled, err := executor.Compile(dLogits, dTop)
 	if err != nil {
 		return fmt.Errorf("device terminal: compile: %w", err)
@@ -189,28 +188,25 @@ func runDevice(l *campaignContext) error {
 	for i, id := range tg.LastLogits.ProbeIndex {
 		devProbe[i] = devLogits[id]
 	}
-	if _, err := probeValuesCheck("device last_logits sparse", devProbe, tg.LastLogits.ProbeValue, 0.75, 0.12); err != nil {
+	if _, err := probeValuesCheck("device last_logits sparse", devProbe, tg.LastLogits.ProbeValue, acceptTerminal); err != nil {
 		return err
 	}
 	devTopV := []float32{devLogits[tg.LastLogits.TopIndex[0]]}
-	if _, err := probeValuesCheck("device last_logits argmax", devTopV, []float64{tg.LastLogits.TopValue[0]}, 0.75, 0.12); err != nil {
+	if _, err := probeValuesCheck("device last_logits argmax", devTopV, []float64{tg.LastLogits.TopValue[0]}, acceptTerminal); err != nil {
 		return err
 	}
 
 	// ---- measurement -------------------------------------------------------
-	const warm, iters = 3, 30
-	for i := 0; i < warm; i++ {
+	budget := measurement(measureTerminal)
+	perCall, err := measure(budget, func() error {
 		if _, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, devInputs); err != nil {
 			return err
 		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	start := time.Now()
-	for i := 0; i < iters; i++ {
-		if _, err := exe.ExecuteCompiled(ctx, compiled, hostFeeds, devInputs); err != nil {
-			return err
-		}
-	}
-	perCall := time.Since(start) / iters
 	l.Log(fmt.Sprintf("DEVICE terminal EXACT top=%d (golden first=%d) dev-vs-host worst|d|=%.3e",
 		devTop, dg.FirstToken, worstDH))
 	l.Log(fmt.Sprintf("DEVICE terminal MEASURE proj=%.3fms/token head_resident=%.0fMiB",

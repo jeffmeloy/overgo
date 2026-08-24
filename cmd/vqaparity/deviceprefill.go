@@ -222,7 +222,7 @@ func runDevicePrefill(l *campaignContext) error {
 		return fmt.Errorf("device prefill compile: %w", err)
 	}
 
-	worker, err := device.New(0)
+	worker, err := device.New(device.DefaultOrdinal())
 	if err != nil {
 		return fmt.Errorf("device prefill worker: %w", err)
 	}
@@ -234,7 +234,7 @@ func runDevicePrefill(l *campaignContext) error {
 	defer exe.Close()
 
 	rowShape := tensor.MustShape(uint64(H), uint64(pc.promptLen))
-	maskShape := tensor.MustShape(1, uint64(pc.promptLen))
+	maskShape := tensor.MustShape(tensor.SingletonExtent, uint64(pc.promptLen))
 
 	// ---- ladder verification: each layer fed the previous GOLDEN boundary ---
 	allocations := device.NewAllocationSet(worker)
@@ -292,11 +292,11 @@ func runDevicePrefill(l *campaignContext) error {
 			return err
 		}
 		key := "layer" + strconv.Itoa(layer) + "_output"
-		atol, rtol := 0.24, 0.10
+		class := acceptLayer
 		if layer == 0 {
-			atol, rtol = 0.18, 0.08
+			class = acceptFirstLayer
 		}
-		detail, err := probeCheck("layer"+strconv.Itoa(layer), devOut, golden.MoTTensors[key], atol, rtol)
+		detail, err := probeCheck("layer"+strconv.Itoa(layer), devOut, golden.MoTTensors[key], class)
 		if err != nil {
 			l.Log(fmt.Sprintf("DEVICE prefill LADDER layer%d FAIL %v", layer, err))
 			return err
@@ -384,7 +384,7 @@ func runDevicePrefill(l *campaignContext) error {
 
 	// terminal top token from the chained last row.
 	lastRow := row[(pc.promptLen-1)*H : pc.promptLen*H]
-	topID, topLogit, err := routedlm.TerminalTopToken(lastRow, cfg, terminal, 0)
+	topID, topLogit, err := routedlm.TerminalTopToken(lastRow, cfg, terminal, tensor.FirstOffset)
 	if err != nil {
 		return err
 	}

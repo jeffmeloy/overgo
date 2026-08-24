@@ -11,8 +11,8 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 )
 
 func TestActiveRecipeQwen35Open(t *testing.T) {
@@ -21,7 +21,7 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 	if path == "" {
 		t.Skip("OVERGO_QWEN35_MODEL is not set")
 	}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

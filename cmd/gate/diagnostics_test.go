@@ -10,7 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestPermanentMagicGate(t *testing.T) {
@@ -73,7 +73,7 @@ func magicGateFixture(t *testing.T, publish bool) (string, string) {
 			t.Fatal(err)
 		}
 	}
-	store, err := repodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Open(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

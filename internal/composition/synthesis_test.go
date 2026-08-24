@@ -9,8 +9,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/organ"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -50,7 +50,7 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(filepath.Join(root, "repodb"))
+	store, err := overgodb.Open(filepath.Join(root, "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}

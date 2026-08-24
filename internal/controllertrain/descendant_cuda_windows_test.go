@@ -13,8 +13,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/controllertrain"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/workflowrecipe"
@@ -190,7 +190,7 @@ func publishControllerEvidence(
 ) {
 	t.Helper()
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

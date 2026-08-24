@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 
 func TestDatasetCatalogPublishReplayAndLocations(t *testing.T) {
 	legacyRoot, contentRoot := legacyCatalogFixture(t)
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

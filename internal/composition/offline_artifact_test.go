@@ -9,14 +9,14 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/tensor"
 	"overgo/internal/testutil"
 )
 
 func TestOfflineCompositionArtifactCompatibility(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestOfflineCompositionArtifactCompatibility(t *testing.T) {
 		t.Fatalf("inventory drift accepted: %v", err)
 	}
 
-	brokenStore, err := repodb.Open(t.TempDir())
+	brokenStore, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ const (
 
 func publishOfflineModel(
 	t *testing.T,
-	store *repodb.Store,
+	store *overgodb.Store,
 	label string,
 	width uint64,
 	removeDefinitionInventoryLineage bool,

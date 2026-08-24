@@ -191,7 +191,7 @@
      "contains": "func CompileObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:1b5e80b37b8181bfc102f3a66b50cd80cd8c25a1210b48f9e928c8189d69fa3e"
+     "identity": "file:sha256:87bdcc714034f58c1a171861a61781a8ba159484491e3a61d216b1bb0a694f7b"
     },
     {
      "contains": "func AudioProcessor(",
@@ -203,7 +203,7 @@
      "contains": "func TestMultimodalTrainingMatrix(",
      "path": "internal/adaptiveparity/multimodal_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:58671fb79d80ef9ff96bac94b4ebb23e929710aaa0a0165768e9076788edaeea"
+     "identity": "evidence:sha256:c7ec656c0d08b6a633c1dd2d1996351b3506433075555800a776cee685ff900b"
     }
    ],
    "id": "repodb-multimodal-training-objective-matrix",
@@ -211,7 +211,7 @@
    "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestMultimodalTrainingMatrix$' -count=1 -v",
    "artifact_identity": "sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501+185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e+9e9fa1ad55b1c2c95b08e37dd8e653f638fac2c6de904b79e813611eefbc985f+026362ccd74747359902464829a97e1aa1321d745efdee7f2056e226477484c0+ac135a0ddeb91a15cd70eec58949af2e329311b0d9848298ae1d9b1284ffc90f+8749bb8c9e0eaf7e10102315242a35665ad4a583f4eeb3d27f34065013ec140b",
    "status": "implemented",
-   "summary": "RepoDB objective documents approve text-to-text, image-to-text, and audio-to-text only after real corpus processing, E4B tokenizer/projector execution, adapter gradients, device Muon, and token evaluation; the other 33 single-modality pairs are refused."
+   "summary": "OvergoDB objective documents approve text-to-text, image-to-text, and audio-to-text only after real corpus processing, E4B tokenizer/projector execution, adapter gradients, device Muon, and token evaluation; the other 33 single-modality pairs are refused."
   },
   {
    "evidence": [
@@ -219,7 +219,7 @@
      "contains": "func CompileTrainingObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:1b5e80b37b8181bfc102f3a66b50cd80cd8c25a1210b48f9e928c8189d69fa3e"
+     "identity": "file:sha256:87bdcc714034f58c1a171861a61781a8ba159484491e3a61d216b1bb0a694f7b"
     },
     {
      "contains": "func CompileObjectiveProgram(",
@@ -231,14 +231,14 @@
      "contains": "func TestTrainingObjectiveMatrix(",
      "path": "internal/adaptiveparity/training_objective_matrix_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:733d7e3be70c1754f40e953caf716383c17e4f71953b45abbcbf80a850219136"
+     "identity": "evidence:sha256:11c95ff59ed0a298904d34a7f57564f1525de65f6d7b59c16799dafe05664699"
     }
    ],
    "id": "adaptive-training-objective-program-matrix",
    "evidence_tier": "contract-tested",
    "verify": "go test ./internal/adaptiveparity -run '^TestTrainingObjectiveMatrix$' -count=1 -v",
    "status": "implemented",
-   "summary": "RepoDB objective kind and modality facts bind adaptive FNS, latent L2, latent-sequence L2, forecast, OCR token, flow-matching, image-latent, and logit-distillation contracts to the shared forward/backward/Muon program; a missing program is refused."
+   "summary": "OvergoDB objective kind and modality facts bind adaptive FNS, latent L2, latent-sequence L2, forecast, OCR token, flow-matching, image-latent, and logit-distillation contracts to the shared forward/backward/Muon program; a missing program is refused."
   },
   {
    "evidence": [
@@ -252,7 +252,7 @@
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:83660cc81ff1405c4d604e10d5b64122eb6f4aebf2b912c880976c2a4a4d311f"
+     "identity": "evidence:sha256:f0682da7d0d704ef059b35468e61e422e2956d995921a09ffc5d15dc552dc241"
     }
    ],
    "id": "bounded-server-media",
@@ -273,7 +273,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:526cce877d6e3784c7f7b0ec79328994eb79a75e6cbc46a0c844c82767b98200"
+     "identity": "evidence:sha256:c20cbc22279ccbf1c6b0d39aba5c95b086dbb42beb261bc32fca28654410b1ff"
     }
    ],
    "id": "gemma4-multimodal-oracle",
@@ -326,7 +326,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:526cce877d6e3784c7f7b0ec79328994eb79a75e6cbc46a0c844c82767b98200"
+     "identity": "evidence:sha256:c20cbc22279ccbf1c6b0d39aba5c95b086dbb42beb261bc32fca28654410b1ff"
     }
    ],
    "id": "gemma-e4b-image-language-oracle",
@@ -354,7 +354,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:526cce877d6e3784c7f7b0ec79328994eb79a75e6cbc46a0c844c82767b98200"
+     "identity": "evidence:sha256:c20cbc22279ccbf1c6b0d39aba5c95b086dbb42beb261bc32fca28654410b1ff"
     }
    ],
    "id": "qwen35-image-video-language-oracle",
@@ -370,7 +370,7 @@
      "contains": "func executeVQAProgram(",
      "path": "cmd/vqaparity/recipeserve.go",
      "role": "source",
-     "identity": "file:sha256:b0c53fa0fef038021175e0e717f9b52042e63586e59f20665c988c573d7fd871"
+     "identity": "file:sha256:640b70dc653c3e81edb60d38e55930ab9d4fc6e9492c3c2082114cb7e580f436"
     },
     {
      "contains": "func TestRxBrainProductionParity(",
@@ -611,7 +611,7 @@
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:216c8b5b476f70301d9f2ad89ffc85c03987cefef465cb6ac24d70d2ce0c62a0"
+     "identity": "evidence:sha256:dec2dc195552d4bb45d00badc478657c3ce972f18621fc678207d5151842ede2"
     }
    ],
    "id": "media-history",
@@ -632,7 +632,7 @@
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:216c8b5b476f70301d9f2ad89ffc85c03987cefef465cb6ac24d70d2ce0c62a0"
+     "identity": "evidence:sha256:dec2dc195552d4bb45d00badc478657c3ce972f18621fc678207d5151842ede2"
     }
    ],
    "id": "mixed-media-history",
@@ -737,7 +737,7 @@
      "contains": "func TestMultimodalInputTokenCounting(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:216c8b5b476f70301d9f2ad89ffc85c03987cefef465cb6ac24d70d2ce0c62a0"
+     "identity": "evidence:sha256:dec2dc195552d4bb45d00badc478657c3ce972f18621fc678207d5151842ede2"
     }
    ],
    "id": "multimodal-token-counting",
@@ -764,7 +764,7 @@
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:216c8b5b476f70301d9f2ad89ffc85c03987cefef465cb6ac24d70d2ce0c62a0"
+     "identity": "evidence:sha256:dec2dc195552d4bb45d00badc478657c3ce972f18621fc678207d5151842ede2"
     }
    ],
    "id": "unified-prompt-preparation",
@@ -869,14 +869,14 @@
      "contains": "func TestResponsesContinuationRestart(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:216c8b5b476f70301d9f2ad89ffc85c03987cefef465cb6ac24d70d2ce0c62a0"
+     "identity": "evidence:sha256:dec2dc195552d4bb45d00badc478657c3ce972f18621fc678207d5151842ede2"
     }
    ],
    "id": "responses-continuation",
    "evidence_tier": "contract-tested",
    "verify": "go test ./internal/server -run '^TestResponsesContinuationRestart$' -count=1 -v",
    "status": "implemented",
-   "summary": "RepoDB-backed interaction records preserve text, media, tool-call, streaming, and token-count continuations across server restarts."
+   "summary": "OvergoDB-backed interaction records preserve text, media, tool-call, streaming, and token-count continuations across server restarts."
   },
   {
    "evidence": [
@@ -995,13 +995,13 @@
      "contains": "func createArchive(",
      "path": "cmd/release/main.go",
      "role": "source",
-     "identity": "file:sha256:04a46aa19ace1112f9733d8d8e584ad508a2c4fa835adb456c4c4ae51faf62a7"
+     "identity": "file:sha256:be18ad2a2fd0071eefb557703dfaa889b82e02be498ed57427046bf959276e57"
     },
     {
      "contains": "func TestCreateArchiveIsDeterministic(",
      "path": "cmd/release/main_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:77691d94e5e4bcaf0993a6d85c1776acbfd287554a41b2192f7e453de5b396fa"
+     "identity": "evidence:sha256:416c7c63d09c4bc0b21e971fd948505737f8f344e4a4dfa9ea7f7070a001f137"
     }
    ],
    "id": "reproducible-release",
@@ -1071,14 +1071,14 @@
      "contains": "func TestBrowseDatasetsUsesCatalog(",
      "path": "internal/server/browse_datasets_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:5d0f4c19d7b33b905d4a91a997d8be3826bbeea614eb451121292eb6c2e96d2c"
+     "identity": "evidence:sha256:3e92a632de62259d60770c44b3526ec630c5c01981176f9585f4e65587dcb3da"
     }
    ],
    "id": "bounded-dataset-browser",
    "evidence_tier": "contract-tested",
    "verify": "go test ./internal/server -run '^TestBrowseDatasetsUsesCatalog$' -count=1 -v",
    "status": "implemented",
-   "summary": "The authenticated GUI reads the active RepoDB dataset catalog without dataset mutation or payload access."
+   "summary": "The authenticated GUI reads the active OvergoDB dataset catalog without dataset mutation or payload access."
   },
   {
    "evidence": [
@@ -1086,20 +1086,20 @@
      "contains": "func (h *Handler) browseRuns(",
      "path": "internal/server/browse_runs.go",
      "role": "source",
-     "identity": "file:sha256:54014bb67f4675f2ee9fda4fb506b5bbb54f9aa2c1e07f969031789a548bd59c"
+     "identity": "file:sha256:34f02dbccd6fddd6d6d3383a9e93e089e0d55e218268d97a4065e04635e9dd3e"
     },
     {
-     "contains": "func TestBrowseRunsReadsRepoDBRecords(",
+     "contains": "func TestBrowseRunsReadsOvergoDBRecords(",
      "path": "internal/server/browse_runs_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:e7ec29e8a9ebdb006b3c3315d8900515a2f1d4afa891f9b32a2c6890185f2f85"
+     "identity": "evidence:sha256:2b54025ca6159cfc469429dbfb8623f21fd9d24c2402bca32d138f4ed902d164"
     }
    ],
    "id": "repodb-run-browser",
    "evidence_tier": "contract-tested",
-   "verify": "go test ./internal/server -run '^TestBrowseRunsReadsRepoDBRecords$' -count=1 -v",
+   "verify": "go test ./internal/server -run '^TestBrowseRunsReadsOvergoDBRecords$' -count=1 -v",
    "status": "implemented",
-   "summary": "The authenticated GUI pages bounded read-only RepoDB run records through the canonical run decoder."
+   "summary": "The authenticated GUI pages bounded read-only OvergoDB run records through the canonical run decoder."
   },
   {
    "evidence": [
@@ -1119,7 +1119,7 @@
      "contains": "func TestSenseNovaProductionImageGeneration(",
      "path": "internal/sensenovarecipe/runtime_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:a3c97a2dabe6487f13fe4807b03054622df057c5bdbce298fb74227620d5c594"
+     "identity": "evidence:sha256:8023ddce28aa1ccdde759bf370e29c624f3943b65a6cc2cf66b853fdd53b02c9"
     }
    ],
    "id": "sensenova-production-image-oracle",

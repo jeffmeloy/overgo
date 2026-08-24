@@ -1,5 +1,5 @@
 // store-check proves the published side of the source-data contract: every
-// active recipe chain in RepoDB must still load through the production
+// active recipe chain in OvergoDB must still load through the production
 // readers under the current document schemas. The gate runs source-only
 // checks, so an unversioned schema change ships green while every published
 // document becomes unreadable -- this command is the missing half, and the
@@ -21,7 +21,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
 )
 
@@ -39,7 +39,7 @@ func main() {
 }
 
 func run() error {
-	repository := flag.String("repo", "repodb-store", "RepoDB store directory")
+	repository := flag.String("repo", "overgodb-store", "OvergoDB store directory")
 	baselinePath := flag.String("baseline", "docs/published_debt.json", "committed baseline of already-broken chains")
 	printBaseline := flag.Bool("print-baseline", false, "emit the current failures as a baseline document and exit zero")
 	flag.Parse()
@@ -96,14 +96,14 @@ func run() error {
 // readers and returns the failing chains sorted by alias.
 func activeChainFailures(repository string) ([]brokenChain, int, error) {
 	ctx := context.Background()
-	store, err := repodb.OpenReadOnly(repository)
+	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer store.Close()
 	var failures []brokenChain
 	checked := 0
-	err = store.VisitAliases(ctx, "", func(alias repodb.AliasView) error {
+	err = store.VisitAliases(ctx, "", func(alias overgodb.AliasView) error {
 		modelID, task, ok := modelrecipe.ParseActiveAlias(alias.Name)
 		if !ok {
 			return nil

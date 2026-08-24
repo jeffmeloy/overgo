@@ -117,7 +117,7 @@ func testGemma4InputParity(t *testing.T) {
 	imageGoldenPath := filepath.Join(fixtureRoot, "gemma4_mm_golden.json")
 	wavePath := filepath.Join(fixtureRoot, "gemma4_audio_wave.f32")
 	audioGoldenPath := filepath.Join(fixtureRoot, "gemma4_audio_golden.json")
-	assertSHA256(t, projectorPath, "24489a6d072466fb288c43474ab9890e77eebe2503b0d7c514e626ee3a08e930")
+	assertSHA256(t, projectorPath, "3b31ccb971314b5556e8ce3a2611b614a485337d82c5a7207dc630c858bb02c6")
 	assertSHA256(t, modelPath, "64fb17f3c324dcbf9f83861e5d2ea1534a66ea0970223047e788a482b080853c")
 	assertSHA256(t, imagePath, "996fea5cea787f3abb6d1377fc88642ade6bdb8dc9a7b9e6ad909e58687b776e")
 	assertSHA256(t, imageGoldenPath, "f2e50cd5619ce5dfb92b91d8547daa930a5a9d974e01852e6fde81a0b2435d54")

@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowrecipe"
@@ -37,7 +37,7 @@ func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

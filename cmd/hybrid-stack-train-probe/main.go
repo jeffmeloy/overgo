@@ -30,10 +30,10 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/hybridtrain"
 	"overgo/internal/model"
+	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/quant"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -78,7 +78,7 @@ func run() error {
 	steps := flag.Int("steps", 3, "observed training steps")
 	maxWall := flag.Duration("max-wall", 25*time.Minute, "abort when the first step projects the run past this wall")
 	inspect := flag.Bool("inspect", false, "print the artifact census and exit without training")
-	storePath := flag.String("store", "repodb-store", "RepoDB for the session observation and recipe authority")
+	storePath := flag.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
 	lane := flag.String("lane", "full-slab", "training lane: full-slab (masters+gradients+momentum all full host slabs) or layer-streamed (bounded host triplication: gradients never exceed one layer)")
 	roundTrip := flag.Bool("serving-roundtrip", false, "after training, requantize layer 0's mlp gate masters to their declared serving dtype and re-evaluate the objective through the round trip")
 	flag.Parse()
@@ -105,7 +105,7 @@ func run() error {
 	// The whole run executes as a model-session: recipe authority, then lease
 	// admission BEFORE any weight touches memory.
 	ctx := context.Background()
-	store, err := repodb.Open(*storePath)
+	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
 	}

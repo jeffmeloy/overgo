@@ -73,7 +73,7 @@ var offlineArtifactPlanCodec = artifact.JSONDocumentCodec(
 	},
 )
 
-// CompileOfflineArtifactPlan resolves exact RepoDB authorities and refuses any
+// CompileOfflineArtifactPlan resolves exact OvergoDB authorities and refuses any
 // input whose definition, inventory, or lineage is absent or incompatible.
 func CompileOfflineArtifactPlan(
 	ctx context.Context,

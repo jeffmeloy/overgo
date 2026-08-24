@@ -38,7 +38,7 @@ var (
 	gitClean     = regexp.MustCompile("(?i)" + commandBoundary + `git\s+clean\b`)
 	forceDelete  = regexp.MustCompile("(?i)" + commandBoundary + `(?:rm|rmdir|del|rd|remove-item)\b[^\n;|&]*(?:-rf|-fr|-force|--force|-recurse\s+-force|-fdx)`)
 	rmForce      = regexp.MustCompile("(?i)" + commandBoundary + `rm\b[^\n;|&]*\s-[a-z]*f`)
-	protected    = regexp.MustCompile("(?i)" + commandBoundary + `(?:rm|rmdir|del|rd|remove-item|unlink|shred|mv|move-item|move|chmod|attrib|icacls|takeown)\b[^\n;|&]*(?:models[\\/]|datasets[\\/]|checkpoints[\\/]|docs[\\/]repodb|repodb-store)`)
+	protected    = regexp.MustCompile("(?i)" + commandBoundary + `(?:rm|rmdir|del|rd|remove-item|unlink|shred|mv|move-item|move|chmod|attrib|icacls|takeown)\b[^\n;|&]*(?:models[\\/]|datasets[\\/]|checkpoints[\\/]|docs[\\/]repodb|repodb-store|overgodb-store)`)
 	worktreeRm   = regexp.MustCompile("(?i)" + commandBoundary + `git\s+worktree\s+remove\b`)
 	// find's delete verb receives the substituted {} as its target, so the
 	// protected path lives in find's OWN argument and no verb-scoped rule can
@@ -176,7 +176,7 @@ func ruleVerdict(command, root string) string {
 		return "force-delete flags are banned; never override read-only"
 	}
 	if protected.MatchString(executable) {
-		return "delete/move/chmod under a protected data path (models/, datasets/, checkpoints/, docs/repodb/, repodb-store)"
+		return "delete/move/chmod under a protected data path (models/, datasets/, checkpoints/, docs/repodb/, overgodb-store)"
 	}
 	if findDelete.MatchString(executable) {
 		return "find with -delete or -exec <delete-verb> over a protected data path; the delete target is the " +

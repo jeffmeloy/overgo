@@ -13,9 +13,9 @@ import (
 	"overgo/internal/hfbpe"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
@@ -34,7 +34,7 @@ func TestTrainingWorkflowRequiresStoredAuthority(t *testing.T) {
 	if err := os.WriteFile(dataset, []byte("ab"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(filepath.Join(root, "repodb"))
+	store, err := overgodb.Open(filepath.Join(root, "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func testTokenResume(t *testing.T) {
 }
 
 func TestTrainingObservationSharesDirectedLifecycle(t *testing.T) {
-	store, err := repodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,10 +336,10 @@ func writeModel(t *testing.T, directory string, weights map[string][]float32, sh
 	}
 }
 
-func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datasetPath string, objectiveKind trainingprogram.ObjectiveKind) (*repodb.Store, artifact.ID) {
+func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datasetPath string, objectiveKind trainingprogram.ObjectiveKind) (*overgodb.Store, artifact.ID) {
 	t.Helper()
 	ctx := context.Background()
-	store, err := repodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}

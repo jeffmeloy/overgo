@@ -10,7 +10,7 @@ import (
 	"overgo/internal/binaryschema"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/tensorstats"
 )
 
@@ -87,7 +87,7 @@ type tensorSimilarNeighbor struct {
 // analyzeTensorsSimilarResponse returns the tensors whose value distributions
 // are closest in shape to a named tensor, by exact distribution-free
 // nearest-neighbor over scale-free descriptors. Pool names the retrieval
-// source: "store-catalog" spans every measured model in RepoDB;
+// source: "store-catalog" spans every measured model in OvergoDB;
 // "loaded-model" is the single-model fallback when no catalog is committed.
 type analyzeTensorsSimilarResponse struct {
 	Target    analyzeTensor           `json:"target"`
@@ -163,12 +163,12 @@ func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, st
 	}
 	ctx := request.Context()
 	var profiles []analyzeTensor
-	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindTensorInventory, MediaType: modelartifact.TensorMeasurementMediaType,
 			Schema: modelartifact.TensorMeasurementSchema,
-		}}, Order: repodb.DocumentOldestFirst,
-	}, modelartifact.ParseTensorMeasurementDocument, func(_ repodb.DocumentView, document modelartifact.TensorMeasurementDocument) error {
+		}}, Order: overgodb.DocumentOldestFirst,
+	}, modelartifact.ParseTensorMeasurementDocument, func(_ overgodb.DocumentView, document modelartifact.TensorMeasurementDocument) error {
 		inventory, ok, err := modelartifact.ReadTensorInventoryDocument(ctx, store, document.Inventory)
 		if err != nil || !ok {
 			return nil

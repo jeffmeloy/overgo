@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/model"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestArchitectureProfileCatalogRegistryParity(t *testing.T) {
@@ -28,7 +28,7 @@ func TestArchitectureProfileCatalogRegistryParity(t *testing.T) {
 func TestPublishArchitectureProfileCatalogIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
-	store, err := repodb.Open(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestPublishArchitectureProfileCatalogIsIdempotent(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	store, err = repodb.Open(root)
+	store, err = overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestPublishArchitectureProfileCatalogIsIdempotent(t *testing.T) {
 
 func TestPublishArchitectureProfileCatalogSupersedesStaleAlias(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

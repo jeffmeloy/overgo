@@ -12,7 +12,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/modelartifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
 
@@ -36,7 +36,7 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 			t.Skipf("UNAVAILABLE: %s absent; composed artifact NOT verified", directory)
 		}
 	}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

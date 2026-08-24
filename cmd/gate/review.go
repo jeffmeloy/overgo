@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
@@ -15,7 +15,7 @@ func admitStoredReview(repo, storePath, verdictText, targetHead string) error {
 	if err != nil || verdictID.Kind() != artifact.KindEvidence {
 		return fmt.Errorf("gate: invalid review verdict ID %q", verdictText)
 	}
-	store, err := repodb.OpenReadOnly(filepath.Join(repo, storePath))
+	store, err := overgodb.OpenReadOnly(filepath.Join(repo, storePath))
 	if err != nil {
 		return fmt.Errorf("gate: open review store: %w", err)
 	}

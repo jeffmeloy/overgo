@@ -11,11 +11,11 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestBrowseDatasetsUsesCatalog(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestBrowseDatasetsRejectsNonGet(t *testing.T) {
 	}
 }
 
-func publishDatasetFixture(t *testing.T, store *repodb.Store) {
+func publishDatasetFixture(t *testing.T, store *overgodb.Store) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "fixture.txt")
 	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {

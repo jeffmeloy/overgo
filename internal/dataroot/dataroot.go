@@ -1,16 +1,16 @@
 // Package dataroot is the single owner of where the data roots live (floor
-// component 9): the RepoDB store and the three bulk roots — models (vendor
+// component 9): the OvergoDB store and the three bulk roots — models (vendor
 // inputs, irreplaceable), datasets (training data), checkpoints (trained
 // outputs, lineage-bearing). Every command resolves through here so discovery
 // cannot drift per-tool; explicit flags stay authoritative overrides.
 //
 // Resolution order:
-//  1. OVERGO_DATA_ROOT env — one base directory holding repodb-store/,
+//  1. OVERGO_DATA_ROOT env — one base directory holding overgodb-store/,
 //     models/, datasets/, checkpoints/.
 //  2. local-models.json in the working directory — explicit per-root paths,
 //     which is how overgo points at data that lives in another repository's
 //     home without moving a byte (data never moves; code comes to the data).
-//  3. Working-directory defaults (repodb-store, models, datasets,
+//  3. Working-directory defaults (overgodb-store, models, datasets,
 //     checkpoints) — the pre-contract behavior, preserved.
 package dataroot
 
@@ -57,7 +57,7 @@ func Resolve(workingDirectory string) (Roots, error) {
 			return Roots{}, fmt.Errorf("dataroot: %s=%q is not a directory", Env, base)
 		}
 		return Roots{
-			Store:       filepath.Join(base, "repodb-store"),
+			Store:       filepath.Join(base, "overgodb-store"),
 			Models:      filepath.Join(base, "models"),
 			Datasets:    filepath.Join(base, "datasets"),
 			Checkpoints: filepath.Join(base, "checkpoints"),
@@ -106,7 +106,7 @@ func configuredRoot(workingDirectory, root string) string {
 
 func fallback(workingDirectory string) Roots {
 	return Roots{
-		Store:       filepath.Join(workingDirectory, "repodb-store"),
+		Store:       filepath.Join(workingDirectory, "overgodb-store"),
 		Models:      filepath.Join(workingDirectory, "models"),
 		Datasets:    filepath.Join(workingDirectory, "datasets"),
 		Checkpoints: filepath.Join(workingDirectory, "checkpoints"),

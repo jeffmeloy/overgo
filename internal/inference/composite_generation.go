@@ -101,7 +101,7 @@ type CompositeGenerationExecutionRequest struct {
 	MetricEvaluator      CompositeGenerationMetricEvaluator
 }
 
-// CompositeGenerationExecutionResult returns the atomic RepoDB commit and its
+// CompositeGenerationExecutionResult returns the atomic OvergoDB commit and its
 // complete four-arm evidence identity.
 type CompositeGenerationExecutionResult struct {
 	Evidence composition.CompositeGenerationEvidence

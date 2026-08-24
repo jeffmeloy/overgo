@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
-	"overgo/internal/repodb"
 )
 
 func TestPrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs(t *testing.T) {
@@ -106,7 +106,7 @@ func clonePlan(t *testing.T, document plan.Plan) plan.Plan {
 func TestPrepareMergeSnapshotEvidence(t *testing.T) {
 	root, runGit := mergeTestRepository(t)
 	snapshot := runGit("rev-parse", "HEAD")
-	source, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	source, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestPrepareMergeSnapshotEvidence(t *testing.T) {
 	if frozen.head != first || frozen.sequence != 1 || frozen.store == "" {
 		t.Fatalf("snapshot = %+v", frozen)
 	}
-	source, err = repodb.Open(filepath.Join(root, "repodb-store"))
+	source, err = overgodb.Open(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestPrepareMergeSnapshotEvidence(t *testing.T) {
 	if err != nil || closeErr != nil || second == first {
 		t.Fatalf("advance source = %s, %v, close=%v", second, err, closeErr)
 	}
-	copyStore, err := repodb.OpenReadOnly(frozen.store)
+	copyStore, err := overgodb.OpenReadOnly(frozen.store)
 	if err != nil {
 		t.Fatal(err)
 	}

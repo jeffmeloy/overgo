@@ -6,7 +6,7 @@ import (
 )
 
 // TestGateReadsPublishedDocuments requires the pipeline to carry the check
-// that walks published RepoDB documents through the production readers. Every
+// that walks published OvergoDB documents through the production readers. Every
 // other check compares source against source; this declaration is what makes
 // a schema change against already-published documents visible to the gate at
 // all, so its ownership must cover the document-schema owners and its trigger

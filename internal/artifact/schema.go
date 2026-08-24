@@ -10,9 +10,12 @@ import (
 
 const maxRepositoryKeyBytes = 512
 
-// ErrCommitPrecondition is returned when repository state no longer matches
-// the state against which a batch was prepared.
-var ErrCommitPrecondition = errors.New("artifact: commit precondition failed")
+var (
+	// ErrCommitPrecondition reports repository drift after batch preparation.
+	ErrCommitPrecondition = errors.New("artifact: commit precondition failed")
+	// ErrNoChange reports a batch that leaves repository state unchanged.
+	ErrNoChange = errors.New("artifact: batch has no effective change")
+)
 
 // Descriptor defines immutable content fact.
 type Descriptor struct {

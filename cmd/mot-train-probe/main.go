@@ -21,8 +21,8 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/fixtureasset"
 	"overgo/internal/jsonfile"
+	"overgo/internal/overgodb"
 	"overgo/internal/patchtower"
-	"overgo/internal/repodb"
 	"overgo/internal/routedlm"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
@@ -79,7 +79,7 @@ func run() error {
 	bindingName := flag.String("binding", "rxbrain", "branch binding name")
 	steps := flag.Int("steps", 3, "observed training steps")
 	maxWall := flag.Duration("max-wall", 25*time.Minute, "abort when the first step projects past this bound")
-	storePath := flag.String("store", "repodb-store", "RepoDB for the session observation and recipe authority")
+	storePath := flag.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
 	stimulus := flag.String("stimulus", "docs/verification/rxbrain-mot-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
 	flag.Parse()
 	ctx := context.Background()
@@ -88,7 +88,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	store, err := repodb.Open(*storePath)
+	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
 	}

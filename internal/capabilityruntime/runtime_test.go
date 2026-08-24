@@ -9,8 +9,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -111,9 +111,9 @@ func TestModelSessionDirectorConcurrentKeys(t *testing.T) {
 
 const scalarModule recipe.ModuleID = "test.scalar"
 
-func capabilityFixture(t *testing.T, name string) (*repodb.Store, artifact.ID, recipe.Program) {
+func capabilityFixture(t *testing.T, name string) (*overgodb.Store, artifact.ID, recipe.Program) {
 	t.Helper()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -355,7 +355,7 @@ func (m *mappedVideoModel) Close(context.Context) error {
 
 func TestVideoProductionActivation(t *testing.T) {
 	const module recipe.ModuleID = "test.video-compose"
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

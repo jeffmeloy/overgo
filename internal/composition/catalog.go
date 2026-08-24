@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/tensorstats"
 )
 
@@ -15,14 +15,14 @@ import (
 // component decomposition (lexical signal) joined with committed tensor
 // measurements (distributional signal). One owner for the join -- retrieval,
 // proposal, and ranking training all index the same components.
-func LoadCatalog(ctx context.Context, store *repodb.Store) ([]CatalogComponent, error) {
+func LoadCatalog(ctx context.Context, store *overgodb.Store) ([]CatalogComponent, error) {
 	statistics := map[string]tensorstats.Characterization{}
-	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindTensorInventory, MediaType: modelartifact.TensorMeasurementMediaType,
 			Schema: modelartifact.TensorMeasurementSchema,
-		}}, Order: repodb.DocumentOldestFirst,
-	}, modelartifact.ParseTensorMeasurementDocument, func(_ repodb.DocumentView, document modelartifact.TensorMeasurementDocument) error {
+		}}, Order: overgodb.DocumentOldestFirst,
+	}, modelartifact.ParseTensorMeasurementDocument, func(_ overgodb.DocumentView, document modelartifact.TensorMeasurementDocument) error {
 		inventory, ok, err := modelartifact.ReadTensorInventoryDocument(ctx, store, document.Inventory)
 		if err != nil {
 			return err
@@ -39,12 +39,12 @@ func LoadCatalog(ctx context.Context, store *repodb.Store) ([]CatalogComponent, 
 		return nil, err
 	}
 	components := make([]CatalogComponent, 0)
-	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindTensorSet, MediaType: modelartifact.ComponentDecompositionMediaType,
 			Schema: modelartifact.ComponentDecompositionSchema,
-		}}, Order: repodb.DocumentOldestFirst,
-	}, modelartifact.ParseComponentDecomposition, func(_ repodb.DocumentView, decomposition modelartifact.ComponentDecompositionDocument) error {
+		}}, Order: overgodb.DocumentOldestFirst,
+	}, modelartifact.ParseComponentDecomposition, func(_ overgodb.DocumentView, decomposition modelartifact.ComponentDecompositionDocument) error {
 		for _, component := range decomposition.Components {
 			entry := CatalogComponent{
 				Model: decomposition.Model, Name: component.Name, Contract: component.Contract,

@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestLeaseOutcomeMetrics(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

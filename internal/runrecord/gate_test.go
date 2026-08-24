@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
 
@@ -64,7 +64,7 @@ func TestProtectionEvidence(t *testing.T) {
 func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 	ctx := context.Background()
 	repository := t.TempDir()
-	store, err := repodb.Open(repository)
+	store, err := overgodb.Open(repository)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	store, err = repodb.Open(repository)
+	store, err = overgodb.Open(repository)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestGateRecordRejectsOutcomeStepContradictions(t *testing.T) {
 
 func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
 
 func TestVerifyFailedGateRun(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

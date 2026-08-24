@@ -202,7 +202,7 @@ func (r *Runtime) executeProgram(
 	}
 	commit, commitErr := artifact.CommitBatch(commitContext, r.store, batch)
 	result := Result{Outputs: outputs, Run: run, Commit: commit}
-	if commitErr != nil {
+	if commitErr != nil && !errors.Is(commitErr, artifact.ErrNoChange) {
 		return result, errors.Join(executeErr, commitErr)
 	}
 	return result, executeErr
@@ -410,6 +410,9 @@ func (r *Runtime) publishExecutionAuthority(
 	_, err = r.store.Commit(ctx, artifact.Batch{
 		Key: "workflow/authority/recipe/" + definition.ID.String(), Contents: []artifact.Content{content},
 	})
+	if errors.Is(err, artifact.ErrNoChange) {
+		return nil
+	}
 	return err
 }
 

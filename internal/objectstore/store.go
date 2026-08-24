@@ -1,5 +1,5 @@
 // Package objectstore owns streamed, content-addressed object bytes while
-// RepoDB remains authoritative for identity and availability.
+// OvergoDB remains authoritative for identity and availability.
 package objectstore
 
 import (
@@ -49,7 +49,7 @@ func New(root string, repository artifact.Repository) (*Store, error) {
 }
 
 // Publish streams one object to durable content-addressed storage, then
-// records its descriptor and live file location in RepoDB.
+// records its descriptor and live file location in OvergoDB.
 func (store *Store) Publish(ctx context.Context, request PublishRequest) (Publication, error) {
 	if store == nil || store.repository == nil || ctx == nil || request.Reader == nil || request.Kind == artifact.KindInvalid {
 		return Publication{}, errors.New("object store: invalid publication")
@@ -111,7 +111,7 @@ func (store *Store) Publish(ctx context.Context, request PublishRequest) (Public
 }
 
 // Open returns a streaming reader only for an object whose descriptor and
-// availability have already been published to RepoDB.
+// availability have already been published to OvergoDB.
 func (store *Store) Open(ctx context.Context, id artifact.ID) (artifact.Descriptor, io.ReadCloser, error) {
 	if store == nil || store.repository == nil || ctx == nil || !id.Valid() {
 		return artifact.Descriptor{}, nil, errors.New("object store: invalid open")

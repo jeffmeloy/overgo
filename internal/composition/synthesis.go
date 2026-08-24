@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
 
@@ -19,7 +19,7 @@ type SynthesisOutcome struct {
 
 // SynthesizeBridge: blocked proposal to measured terminal decision.
 func SynthesizeBridge(
-	store *repodb.Store,
+	store *overgodb.Store,
 	proposal BridgeProposal,
 	config Config,
 	decider recipe.Decider,

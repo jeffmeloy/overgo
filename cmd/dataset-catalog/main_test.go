@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataset"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestPublishDatasetCatalogCommand(t *testing.T) {
@@ -25,7 +25,7 @@ func TestPublishDatasetCatalogCommand(t *testing.T) {
 	if err := run(args, &output); err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.OpenReadOnly(repository)
+	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

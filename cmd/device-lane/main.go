@@ -27,7 +27,10 @@ const cudaTestEnv = "OVERGO_CUDA_TEST"
 // Revisit when stored device-run history supports a tighter derived bound.
 const devicePackageTimeout = "20m"
 
-var pathsFlag = flag.String("paths", "", "comma-separated changed paths; empty runs the full device set")
+var (
+	pathsFlag     = flag.String("paths", "", "comma-separated changed paths; empty runs the full device set")
+	pathsFileFlag = flag.String("paths-file", "", "file of newline-separated changed paths; overrides -paths (Windows caps the command line)")
+)
 
 func main() {
 	flag.Parse()
@@ -36,7 +39,15 @@ func main() {
 
 func run() error {
 	start := time.Now()
-	paths := splitPaths(*pathsFlag)
+	csv := *pathsFlag
+	if *pathsFileFlag != "" {
+		raw, err := os.ReadFile(*pathsFileFlag)
+		if err != nil {
+			return err
+		}
+		csv = string(raw)
+	}
+	paths := splitPaths(csv)
 	plan, err := automationcheck.DevicePlan(".", paths)
 	if err != nil {
 		return err

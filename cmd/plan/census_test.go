@@ -10,8 +10,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/closurescan"
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
-	"overgo/internal/repodb"
 )
 
 func TestPublishedCensusBaseline(t *testing.T) {
@@ -19,11 +19,11 @@ func TestPublishedCensusBaseline(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	document := plan.Plan{Campaign: "campaign", Doctrine: "Measured baselines live in RepoDB.", Items: []plan.Item{}}
+	document := plan.Plan{Campaign: "campaign", Doctrine: "Measured baselines live in OvergoDB.", Items: []plan.Item{}}
 	if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document); err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}

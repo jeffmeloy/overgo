@@ -20,7 +20,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
@@ -38,7 +38,7 @@ func run() error {
 	// Discovery reads through a read-only open; each record is its own short
 	// writer transaction so serves never contend with the lane's lock.
 	ctx := context.Background()
-	reader, err := repodb.OpenReadOnly(roots.Store)
+	reader, err := overgodb.OpenReadOnly(roots.Store)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func recordSmokeTransaction(
 	failure string,
 	wall time.Duration,
 ) error {
-	store, err := repodb.Open(storePath)
+	store, err := overgodb.Open(storePath)
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func recordSmokeTransaction(
 
 func recordSmoke(
 	ctx context.Context,
-	store *repodb.Store,
+	store *overgodb.Store,
 	entry discovery.Entry,
 	outcome runrecord.Outcome,
 	failure string,

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
 
@@ -64,7 +64,7 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 			t.Fatalf("parsed document = %+v, want %+v", parsed, document)
 		}
 	}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

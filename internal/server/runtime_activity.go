@@ -10,8 +10,8 @@ import (
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
 
@@ -96,13 +96,13 @@ func (h *Handler) runtimeActivitySnapshot(ctx context.Context) (runtimeActivityR
 		return runtimeActivityResponse{}, err
 	}
 	activity := make([]servingActivity, 0, h.config.MaxStoredResponses)
-	page, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	page, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
 		}},
 		AliasPrefixes: []string{runrecord.ServingAttemptAliasRoot},
-		Order:         repodb.DocumentNewestFirst, MaxResults: h.config.MaxStoredResponses,
-	}, runrecord.ParseServingObservation, func(view repodb.DocumentView, observation runrecord.ServingObservation) error {
+		Order:         overgodb.DocumentNewestFirst, MaxResults: h.config.MaxStoredResponses,
+	}, runrecord.ParseServingObservation, func(view overgodb.DocumentView, observation runrecord.ServingObservation) error {
 		activity = append(activity, servingActivity{ID: view.Content.Descriptor.ID, ServingObservation: observation})
 		return nil
 	})
@@ -130,15 +130,15 @@ func (h *Handler) runtimeActivitySnapshot(ctx context.Context) (runtimeActivityR
 
 func projectedDocuments(
 	ctx context.Context,
-	store *repodb.Store,
+	store *overgodb.Store,
 	mediaType, schema, aliasPrefix string,
 	limit int,
 ) ([]json.RawMessage, bool, error) {
 	documents := make([]json.RawMessage, 0, limit)
-	page, err := store.VisitDocuments(ctx, repodb.DocumentQuery{
+	page, err := store.VisitDocuments(ctx, overgodb.DocumentQuery{
 		Contracts:     []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: mediaType, Schema: schema}},
-		AliasPrefixes: []string{aliasPrefix}, Order: repodb.DocumentNewestFirst, MaxResults: limit,
-	}, func(view repodb.DocumentView) error {
+		AliasPrefixes: []string{aliasPrefix}, Order: overgodb.DocumentNewestFirst, MaxResults: limit,
+	}, func(view overgodb.DocumentView) error {
 		documents = append(documents, json.RawMessage(view.Content.Data))
 		return nil
 	})

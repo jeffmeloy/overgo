@@ -14,7 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
@@ -23,7 +23,7 @@ func main() {
 }
 
 func run() error {
-	repository := flag.String("repo", "", "RepoDB root")
+	repository := flag.String("repo", "", "OvergoDB root")
 	requiredText := flag.String("require", "", "comma-separated exact evaluation plan IDs")
 	manifest := flag.String("manifest", "", "pinned evaluation manifest to execute first")
 	flag.Parse()
@@ -42,7 +42,7 @@ func run() error {
 		return nil
 	}
 	if strings.TrimSpace(*repository) == "" {
-		return runrecord.LaneError(runrecord.LaneUnavailable, "RepoDB path is absent")
+		return runrecord.LaneError(runrecord.LaneUnavailable, "OvergoDB path is absent")
 	}
 	if *manifest != "" {
 		command := exec.Command("go", "run", "./cmd/evaluate", "-manifest", *manifest)
@@ -51,7 +51,7 @@ func run() error {
 			return runrecord.LaneError(runrecord.LaneFailed, "pinned evaluation manifest failed")
 		}
 	}
-	store, err := repodb.OpenReadOnly(*repository)
+	store, err := overgodb.OpenReadOnly(*repository)
 	if err != nil {
 		return runrecord.LaneError(runrecord.LaneUnavailable, err.Error())
 	}
@@ -93,13 +93,13 @@ func parseRequiredPlans(value string) ([]artifact.ID, error) {
 	return slices.Compact(result), nil
 }
 
-func evidenceByPlan(ctx context.Context, store *repodb.Store) (map[artifact.ID][]evaluation.EvaluationEvidence, error) {
+func evidenceByPlan(ctx context.Context, store *overgodb.Store) (map[artifact.ID][]evaluation.EvaluationEvidence, error) {
 	byPlan := make(map[artifact.ID][]evaluation.EvaluationEvidence)
-	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: evaluation.EvaluationEvidenceMediaType, Schema: evaluation.EvaluationEvidenceSchema,
-		}}, Order: repodb.DocumentOldestFirst,
-	}, evaluation.ParseEvaluationEvidence, func(_ repodb.DocumentView, value evaluation.EvaluationEvidence) error {
+		}}, Order: overgodb.DocumentOldestFirst,
+	}, evaluation.ParseEvaluationEvidence, func(_ overgodb.DocumentView, value evaluation.EvaluationEvidence) error {
 		byPlan[value.Plan] = append(byPlan[value.Plan], value)
 		return nil
 	})

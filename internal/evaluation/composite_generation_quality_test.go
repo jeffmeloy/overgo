@@ -8,7 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
@@ -98,9 +98,9 @@ func TestCompositeGenerationRefusal(t *testing.T) {
 
 func compositeGenerationQualityFixture(
 	t *testing.T,
-) (*repodb.Store, artifact.ID, CompositeGenerationQualityPolicy) {
+) (*overgodb.Store, artifact.ID, CompositeGenerationQualityPolicy) {
 	t.Helper()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

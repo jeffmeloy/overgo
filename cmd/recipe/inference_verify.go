@@ -12,8 +12,8 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
 
@@ -35,7 +35,7 @@ func verifyInference(
 		return fmt.Errorf("recipe: compile inference suite: %w", err)
 	}
 	ctx := context.Background()
-	store, err := repodb.Open(repository)
+	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err
 	}

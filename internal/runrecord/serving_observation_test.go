@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
@@ -60,7 +60,7 @@ func TestServingObservationContractAndIndexedQuery(t *testing.T) {
 		t.Fatalf("parsed observation differs: %+v", parsed)
 	}
 
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,10 +80,10 @@ func TestServingObservationContractAndIndexedQuery(t *testing.T) {
 	if _, err := store.Commit(context.Background(), batch); err != nil {
 		t.Fatal(err)
 	}
-	result, err := store.Query(context.Background(), repodb.Query{
-		Artifact: &fixture.Model, Follow: repodb.FollowChildren, MaxDepth: 1,
+	result, err := store.Query(context.Background(), overgodb.Query{
+		Artifact: &fixture.Model, Follow: overgodb.FollowChildren, MaxDepth: 1,
 		MediaType: ServingObservationMediaType, Schema: ServingObservationSchema, MaxResults: 8,
-		Projection: repodb.ProjectArtifacts,
+		Projection: overgodb.ProjectArtifacts,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +131,7 @@ func TestServingObservationRefusesInvalidFacts(t *testing.T) {
 
 func TestServingAttemptChainClassifiesRetryReselectionAndSpillover(t *testing.T) {
 	ctx := t.Context()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,7 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
 	"overgo/internal/tokenizer"
@@ -39,7 +39,7 @@ func (*observedRuntime) ScoreContinuations(
 
 func TestRecipeEvaluationRuntimeAndLedger(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

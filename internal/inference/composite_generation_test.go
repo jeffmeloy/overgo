@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -128,7 +128,7 @@ func TestCompositeGenerationResourceEvidence(t *testing.T) {
 
 func compositeGenerationExecutionFixture(
 	t *testing.T,
-) (*ProductionComposition, *repodb.Store, composition.CompositionAuthority, CompositeGenerationExecutionRequest, *bridgeSourceFixture) {
+) (*ProductionComposition, *overgodb.Store, composition.CompositionAuthority, CompositeGenerationExecutionRequest, *bridgeSourceFixture) {
 	t.Helper()
 	store, authority := productionCompositionFixture(t, true)
 	source := &bridgeSourceFixture{

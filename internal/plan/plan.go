@@ -142,7 +142,7 @@ func Validate(d Plan) error {
 
 var doctrineMetricLiteral = regexp.MustCompile(`(?i)\b[0-9][0-9,]*\s+(?:production\s+files?|files?|literals?|assumptions?|policy\s+copies)\b`)
 
-// ValidateCampaignCensusAuthority requires RepoDB census identity.
+// ValidateCampaignCensusAuthority requires OvergoDB census identity.
 func ValidateCampaignCensusAuthority(d Plan) error {
 	if d.Census == nil || !d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence {
 		return errors.New("plan: campaign lacks census evidence authority")

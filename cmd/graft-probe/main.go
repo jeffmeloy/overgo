@@ -14,8 +14,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
 	"overgo/internal/jsonfile"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/trainingprogram"
 )
 
@@ -39,7 +39,7 @@ func run(args []string, output io.Writer) error {
 	learningRate := flags.Float64("lr", 0, "bridge learning rate (<=0 derives n_params^-1/2)")
 	lrScale := flags.Float64("lr-scale", 0, "scale the derived learning rate (retrial protocol; effective only when -lr is unset)")
 	momentum := flags.Float64("mu", trainingprogram.BuiltinOptimizerPolicy().Momentum(), "Muon momentum")
-	recordStore := flags.String("record", "", "RepoDB root: commit the experiment as a generation record with its verdict")
+	recordStore := flags.String("record", "", "OvergoDB root: commit the experiment as a generation record with its verdict")
 	chain := flags.Bool("chain", false, "run the Tier-0 whole-model chain probe instead of the graft probe")
 	propose := flags.String("propose", "", "convert a similarity-retrieval JSON response into a blocked bridge proposal (path to the response)")
 	proposeTarget := flags.String("propose-target", "", "propose: target model artifact ID")
@@ -97,7 +97,7 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	if *recordStore != "" {
-		store, err := repodb.Open(*recordStore)
+		store, err := overgodb.Open(*recordStore)
 		if err != nil {
 			return err
 		}
@@ -158,7 +158,7 @@ func runPropose(retrievalPath, targetModel, verifier, blocker, recordStore strin
 			Donor: donor, Component: neighbor.Name, Distance: neighbor.Distance,
 		})
 	}
-	store, err := repodb.Open(recordStore)
+	store, err := overgodb.Open(recordStore)
 	if err != nil {
 		return err
 	}
@@ -216,7 +216,7 @@ func runSynthesize(
 	if err != nil {
 		return err
 	}
-	store, err := repodb.Open(recordStore)
+	store, err := overgodb.Open(recordStore)
 	if err != nil {
 		return err
 	}
@@ -282,7 +282,7 @@ func runChain(scorerDir, drafterDir, tokensPath, recordStore string, prefix, dra
 	for index := range sliced {
 		sliced[index] = tokens[index*span : (index+1)*span]
 	}
-	store, err := repodb.Open(recordStore)
+	store, err := overgodb.Open(recordStore)
 	if err != nil {
 		return err
 	}

@@ -8,8 +8,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
@@ -47,7 +47,7 @@ func TestInferenceTextAndStructuredEvidenceIdentity(t *testing.T) {
 		t.Skip("set OVERGO_ADAPTIVE_PARITY=1 to verify external evidence identities")
 	}
 	snapshot := textStructuredSnapshot(t)
-	store, err := repodb.Open(filepath.Join(testutil.RepoRoot(t), "repodb-store"))
+	store, err := overgodb.Open(filepath.Join(testutil.RepoRoot(t), "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}

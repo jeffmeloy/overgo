@@ -42,9 +42,9 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/closurescan"
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 )
@@ -61,12 +61,12 @@ func main() {
 	recordLeaseOutcome := flag.String("record-lease-outcome", "", "record measured outcome JSON for an exercised worktree lease")
 	recordExperiment := flag.String("record-experiment", "", "commit one experiment lifecycle transition from a JSON spec (state, experiment, evidence, prior)")
 	leaseReport := flag.Bool("lease-report", false, "emit active worktree leases and resource/conflict advice as JSON")
-	localitySchedule := flag.String("schedule-locality", "", "schedule a JSON worker/artifact request against RepoDB locations")
+	localitySchedule := flag.String("schedule-locality", "", "schedule a JSON worker/artifact request against OvergoDB locations")
 	cpuCapacity := flag.Int("cpu-capacity", 0, "with -lease-report: available CPU threads (0 unknown)")
 	ramCapacity := flag.Int("ram-capacity-gib", 0, "with -lease-report: available host RAM GiB (0 unknown)")
 	vramCapacity := flag.Int("vram-capacity-gib", 0, "with -lease-report: available VRAM GiB (0 unknown)")
 	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
-	bindCensus := flag.Bool("bind-census", false, "bind the campaign baseline to closure/census/latest in RepoDB")
+	bindCensus := flag.Bool("bind-census", false, "bind the campaign baseline to closure/census/latest in OvergoDB")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
@@ -179,7 +179,7 @@ func run(c cli, args []string) error {
 }
 
 func bindCampaignCensus(root string, document plan.Plan, output io.Writer) error {
-	store, err := repodb.OpenReadOnly(filepath.Join(root, "repodb-store"))
+	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func authoritativeContextEvidence(worktree, head string) (plan.EvidenceDebt, pla
 		return plan.EvidenceDebt{State: "unknown", Source: debtSource, Reason: reason},
 			plan.WorkflowContext{Phase: string(runrecord.ReviewPhaseImplementation), Source: workflowSource, Reason: reason}
 	}
-	store, err := repodb.OpenReadOnly(filepath.Join(worktree, "repodb-store"))
+	store, err := overgodb.OpenReadOnly(filepath.Join(worktree, "overgodb-store"))
 	if err != nil {
 		return unavailable(err.Error())
 	}
@@ -277,13 +277,13 @@ func authoritativeContextEvidence(worktree, head string) (plan.EvidenceDebt, pla
 	var lifecycles []runrecord.GateLifecycle
 	var candidates []runrecord.ReviewCandidate
 	var verdicts []runrecord.ReviewVerdict
-	_, err = store.VisitDocuments(ctx, repodb.DocumentQuery{
+	_, err = store.VisitDocuments(ctx, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{
 			{Kind: artifact.KindEvidence, MediaType: runrecord.GateLifecycleMediaType, Schema: runrecord.GateLifecycleSchema},
 			{Kind: artifact.KindEvidence, MediaType: runrecord.ReviewCandidateMediaType, Schema: runrecord.ReviewCandidateSchema},
 			{Kind: artifact.KindEvidence, MediaType: runrecord.ReviewVerdictMediaType, Schema: runrecord.ReviewVerdictSchema},
-		}, Order: repodb.DocumentOldestFirst,
-	}, func(view repodb.DocumentView) error {
+		}, Order: overgodb.DocumentOldestFirst,
+	}, func(view overgodb.DocumentView) error {
 		var parseErr error
 		switch view.Content.Descriptor.MediaType {
 		case runrecord.GateLifecycleMediaType:
@@ -633,7 +633,7 @@ func recordControl(lane, kind, reason, detail string) error {
 	if err != nil {
 		return fmt.Errorf("resolve control-event commit: %w", err)
 	}
-	store, err := repodb.Open("repodb-store")
+	store, err := overgodb.Open("overgodb-store")
 	if err != nil {
 		return err
 	}

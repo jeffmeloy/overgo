@@ -12,8 +12,8 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/servingtest"
 )
@@ -29,7 +29,7 @@ func evaluateExactGGUF(ctx context.Context, path string, suite []byte) (evaluati
 		return evaluation.CampaignResult{}, err
 	}
 	defer os.RemoveAll(root)
-	store, err := repodb.Open(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		return evaluation.CampaignResult{}, err
 	}

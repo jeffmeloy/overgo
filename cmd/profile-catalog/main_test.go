@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/modelrecipe"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestPublishArchitectureProfileCatalogCommand(t *testing.T) {
@@ -16,7 +16,7 @@ func TestPublishArchitectureProfileCatalogCommand(t *testing.T) {
 	if err := run([]string{"-repo", repository}, &output); err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.OpenReadOnly(repository)
+	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
 		t.Fatal(err)
 	}

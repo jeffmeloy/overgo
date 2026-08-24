@@ -7,8 +7,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/bridgegraph"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/representation"
 	"overgo/internal/runrecord"
 	"overgo/internal/tensor/dtype"
@@ -47,9 +47,9 @@ func TestCompositionRecipeRepository(t *testing.T) {
 	}
 }
 
-func compositionAuthorityFixture(t *testing.T) (*repodb.Store, CompositionAuthority) {
+func compositionAuthorityFixture(t *testing.T) (*overgodb.Store, CompositionAuthority) {
 	t.Helper()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

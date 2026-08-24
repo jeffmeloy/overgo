@@ -15,7 +15,7 @@ const (
 
 // GenerationRecord is the experiment/generation aggregate: one descendant
 // construction attempt, bound to the immutable identities needed to replay and
-// attribute it. It stores references, never copies -- RepoDB stays generic
+// attribute it. It stores references, never copies -- OvergoDB stays generic
 // storage, and descendant-generation depth is computed from the child/parent
 // edges of this graph, never maintained in prose. Day-one schema is
 // deliberately minimal; extend from what the first experiments demand.

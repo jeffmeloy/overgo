@@ -13,7 +13,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func main() {
@@ -38,7 +38,7 @@ func run(args []string, output io.Writer) error {
 		}
 		root = roots.Store
 	}
-	store, err := repodb.Open(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		return err
 	}

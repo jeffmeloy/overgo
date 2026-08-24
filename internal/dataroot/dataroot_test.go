@@ -14,7 +14,7 @@ func TestEnvBaseWinsAndNamesAllRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	if roots.Source != Env || roots.Models != filepath.Join(base, "models") ||
-		roots.Store != filepath.Join(base, "repodb-store") ||
+		roots.Store != filepath.Join(base, "overgodb-store") ||
 		roots.Checkpoints != filepath.Join(base, "checkpoints") {
 		t.Fatalf("env resolution wrong: %+v", roots)
 	}
@@ -45,7 +45,7 @@ func TestConfigFileOverridesPerRootWithDefaultsForOmitted(t *testing.T) {
 	if roots.Models != filepath.Join(elsewhere, "weights") {
 		t.Fatalf("models override lost: %q", roots.Models)
 	}
-	if roots.Store != filepath.Join(work, "repodb-store") {
+	if roots.Store != filepath.Join(work, "overgodb-store") {
 		t.Fatalf("omitted store should default to working directory: %q", roots.Store)
 	}
 }
@@ -105,7 +105,7 @@ func TestDefaultsPreservePreContractBehavior(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if roots.Source != "defaults" || roots.Store != filepath.Join(work, "repodb-store") {
+	if roots.Source != "defaults" || roots.Store != filepath.Join(work, "overgodb-store") {
 		t.Fatalf("fallback wrong: %+v", roots)
 	}
 }

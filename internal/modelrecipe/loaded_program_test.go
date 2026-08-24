@@ -10,8 +10,8 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
@@ -135,9 +135,9 @@ func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
 	assertProgramError(t, err, "does not name the loaded inference model")
 }
 
-func openProgramStore(t *testing.T) *repodb.Store {
+func openProgramStore(t *testing.T) *overgodb.Store {
 	t.Helper()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,8 +17,8 @@ import (
 	"os"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
 )
@@ -37,7 +37,7 @@ func run(args []string, output io.Writer) error {
 	succeed := flags.String("succeed", "", "artifact ID of the generation-N binding to validate")
 	prior := flags.String("prior", "", "artifact ID of the generation N-1 binding")
 	approval := flags.String("approval", "", "artifact ID of the prior decider's approval decision")
-	recordStore := flags.String("record", "", "RepoDB root")
+	recordStore := flags.String("record", "", "OvergoDB root")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func runBind(path, recordStore string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	store, err := repodb.Open(recordStore)
+	store, err := overgodb.Open(recordStore)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func runBind(path, recordStore string, output io.Writer) error {
 }
 
 func runSucceed(currentText, priorText, approvalText, recordStore string, output io.Writer) error {
-	store, err := repodb.OpenReadOnly(recordStore)
+	store, err := overgodb.OpenReadOnly(recordStore)
 	if err != nil {
 		return err
 	}

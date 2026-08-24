@@ -10,15 +10,15 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
 	"overgo/internal/testutil"
 )
 
 func TestServingObservationPublication(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,11 +69,11 @@ func TestServingObservationPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := store.Query(context.Background(), repodb.Query{
-		Artifact: &modelID, Follow: repodb.FollowChildren, MaxDepth: 1,
+	result, err := store.Query(context.Background(), overgodb.Query{
+		Artifact: &modelID, Follow: overgodb.FollowChildren, MaxDepth: 1,
 		MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
 		MaxResults: 8,
-		Projection: repodb.ProjectArtifacts,
+		Projection: overgodb.ProjectArtifacts,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestServingObservationPublication(t *testing.T) {
 }
 
 func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestOperationEventSSEUsesSharedEmitter(t *testing.T) {
 }
 
 func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,11 +210,11 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 		t.Fatalf("completion status=%d body=%s", response.Code, response.Body.String())
 	}
 	var observations []runrecord.ServingObservation
-	_, err = repodb.VisitDecodedDocuments(context.Background(), store, repodb.DocumentQuery{
+	_, err = overgodb.VisitDecodedDocuments(context.Background(), store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
-		}}, Order: repodb.DocumentOldestFirst,
-	}, runrecord.ParseServingObservation, func(_ repodb.DocumentView, observation runrecord.ServingObservation) error {
+		}}, Order: overgodb.DocumentOldestFirst,
+	}, runrecord.ParseServingObservation, func(_ overgodb.DocumentView, observation runrecord.ServingObservation) error {
 		observations = append(observations, observation)
 		return nil
 	})

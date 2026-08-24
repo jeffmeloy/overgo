@@ -13,7 +13,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelmerge"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 type extractionRequest struct {
@@ -37,7 +37,7 @@ func run() error {
 	flags := flag.NewFlagSet("lora-extract", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	requestPath := flags.String("request", "", "exact snapshots and extraction policy JSON")
-	repository := flags.String("record", "", "RepoDB root")
+	repository := flags.String("record", "", "OvergoDB root")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	store, err := repodb.Open(*repository)
+	store, err := overgodb.Open(*repository)
 	if err != nil {
 		return err
 	}

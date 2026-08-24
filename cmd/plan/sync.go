@@ -105,7 +105,7 @@ func prepareMerge(root, source string, local plan.Plan, output io.Writer) error 
 		fmt.Fprintf(output, "prepare-merge: closure evidence %s from %s@%d bound to git %s\n",
 			strings.TrimSpace(string(result)), closureSnapshot.head, closureSnapshot.sequence, snapshot)
 	} else {
-		fmt.Fprintln(output, "prepare-merge: closure evidence unavailable (source snapshot has no local RepoDB worktree)")
+		fmt.Fprintln(output, "prepare-merge: closure evidence unavailable (source snapshot has no local OvergoDB worktree)")
 	}
 	keepMerge = true
 	fmt.Fprintf(output, "prepare-merge: %s@%s staged; finalize with cmd/gate -merge -plan %s/do\n", source, snapshot, mergeID)

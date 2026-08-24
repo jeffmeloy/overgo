@@ -12,8 +12,8 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 )
 
 // ResolveActiveGGUFWithPolicy: serving fixture with exact session and residency identity.
@@ -28,7 +28,7 @@ func ResolveActiveGGUFWithPolicy(
 		return modelrecipe.LoadedProgram{}, err
 	}
 	defer os.RemoveAll(root)
-	store, err := repodb.Open(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		return modelrecipe.LoadedProgram{}, err
 	}

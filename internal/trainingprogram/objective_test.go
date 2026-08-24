@@ -7,15 +7,15 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/optimizer"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
 func TestObjectiveMatrixUsesOnlyStoredCorpusBoundObjectives(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	store, err := repodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestObjectiveMatrixUsesOnlyStoredCorpusBoundObjectives(t *testing.T) {
 func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	store, err := repodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestCompileObjectiveProgramDerivesOptimizerParameters(t *testing.T) {
 func TestObjectiveMatrixRefusesUnstoredEvidence(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	store, err := repodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}

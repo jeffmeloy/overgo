@@ -14,8 +14,8 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
 
@@ -64,7 +64,7 @@ type EvaluationWorkspaceAPI interface {
 }
 
 type EvaluationWorkspace struct {
-	repository   *repodb.Store
+	repository   *overgodb.Store
 	campaign     *evaluation.Campaign
 	model        artifact.ID
 	recipe       artifact.ID
@@ -74,7 +74,7 @@ type EvaluationWorkspace struct {
 }
 
 func NewEvaluationWorkspace(
-	repository *repodb.Store,
+	repository *overgodb.Store,
 	runtime evaluation.Runtime,
 	identity modelrecipe.ProgramIdentity,
 	environment runrecord.Environment,

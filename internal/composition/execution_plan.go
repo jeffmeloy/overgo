@@ -83,7 +83,7 @@ var compositionExecutionPlanCodec = artifact.JSONDocumentCodec(
 
 // CompileCompositionExecutionPlan resolves the scoped active alias and
 // compiles its complete authority graph. No caller-supplied recipe or bridge
-// can bypass RepoDB activation and promotion.
+// can bypass OvergoDB activation and promotion.
 func CompileCompositionExecutionPlan(
 	ctx context.Context,
 	reader artifact.Reader,

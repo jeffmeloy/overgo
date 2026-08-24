@@ -19,8 +19,8 @@ import (
 	"overgo/internal/densecausal"
 	"overgo/internal/hfbpe"
 	"overgo/internal/hostmath"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/workflowrecipe"
 	"overgo/internal/workflowruntime"
 )
@@ -64,7 +64,7 @@ type chainModel struct {
 // RunChainViability executes the full Tier-0 experiment. It returns an error
 // only when the experiment could not run; a refusal is a successful experiment
 // whose verdict is Ship=false with the measured reason.
-func RunChainViability(store *repodb.Store, config ChainConfig) (ChainResult, error) {
+func RunChainViability(store *overgodb.Store, config ChainConfig) (ChainResult, error) {
 	if store == nil {
 		return ChainResult{}, fmt.Errorf("composition: chain viability requires a store")
 	}
@@ -98,12 +98,6 @@ func RunChainViability(store *repodb.Store, config ChainConfig) (ChainResult, er
 		models[id] = &chainModel{model: loaded, tokenizer: tokenizer}
 	}
 	ctx := context.Background()
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       "tier0-chain/models",
-		Artifacts: []artifact.Descriptor{{ID: scorerID}, {ID: drafterID}},
-	}); err != nil {
-		return ChainResult{}, err
-	}
 	chainProgram, baseProgram, err := ChainPrograms(scorerID, drafterID)
 	if err != nil {
 		return ChainResult{}, err

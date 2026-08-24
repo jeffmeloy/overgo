@@ -6,7 +6,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
@@ -42,17 +42,17 @@ func (campaign *Campaign) History(ctx context.Context, suites []CompiledSuite, m
 		}
 		datasetByPlan[descriptor.Plan] = descriptor.Dataset
 	}
-	query := repodb.DocumentQuery{
+	query := overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{
 			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.LegacyRunSchema},
 			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.RunSchema},
 		},
-		Order: repodb.DocumentNewestFirst, MaxResults: maxResults,
+		Order: overgodb.DocumentNewestFirst, MaxResults: maxResults,
 	}
 	entries := make([]HistoryEntry, 0, maxResults)
 	for len(entries) < maxResults {
-		page, err := repodb.VisitDecodedDocuments(ctx, campaign.documents, query, runrecord.ParseRun,
-			func(_ repodb.DocumentView, run runrecord.Run) error {
+		page, err := overgodb.VisitDecodedDocuments(ctx, campaign.documents, query, runrecord.ParseRun,
+			func(_ overgodb.DocumentView, run runrecord.Run) error {
 				if len(entries) == maxResults || run.Recipe != campaign.identity.Recipe || len(run.Inputs) == 0 {
 					return nil
 				}

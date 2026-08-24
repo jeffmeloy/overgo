@@ -14,8 +14,8 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/inference"
 	"overgo/internal/model"
+	"overgo/internal/overgodb"
 	"overgo/internal/projector"
-	"overgo/internal/repodb"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
@@ -370,7 +370,7 @@ func run() error {
 		if repositoryErr != nil {
 			return repositoryErr
 		}
-		store, openErr := repodb.OpenReadOnly(repository)
+		store, openErr := overgodb.OpenReadOnly(repository)
 		if openErr != nil {
 			return fmt.Errorf("generate: open model recipe repository: %w", openErr)
 		}

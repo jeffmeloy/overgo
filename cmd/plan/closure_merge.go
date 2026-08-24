@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 type closureEvidenceSnapshot struct {
@@ -19,7 +19,7 @@ type closureEvidenceSnapshot struct {
 }
 
 func captureClosureEvidence(root, gitSnapshot string) (closureEvidenceSnapshot, error) {
-	source, err := sourceRepoDB(root, gitSnapshot)
+	source, err := sourceOvergoDB(root, gitSnapshot)
 	if err != nil || source == "" {
 		return closureEvidenceSnapshot{}, err
 	}
@@ -28,7 +28,7 @@ func captureClosureEvidence(root, gitSnapshot string) (closureEvidenceSnapshot, 
 	} else if err != nil {
 		return closureEvidenceSnapshot{}, err
 	}
-	store, err := repodb.OpenReadOnly(source)
+	store, err := overgodb.OpenReadOnly(source)
 	if err != nil {
 		return closureEvidenceSnapshot{}, err
 	}
@@ -38,7 +38,7 @@ func captureClosureEvidence(root, gitSnapshot string) (closureEvidenceSnapshot, 
 		return closureEvidenceSnapshot{}, err
 	}
 	cleanup := func() { _ = os.RemoveAll(parent) }
-	destination := filepath.Join(parent, "repodb-store")
+	destination := filepath.Join(parent, "overgodb-store")
 	head, sequence, backupErr := store.Backup(destination)
 	closeErr := store.Close()
 	if backupErr != nil || closeErr != nil {
@@ -48,7 +48,7 @@ func captureClosureEvidence(root, gitSnapshot string) (closureEvidenceSnapshot, 
 	return closureEvidenceSnapshot{store: destination, head: head, sequence: sequence, cleanup: cleanup}, nil
 }
 
-func sourceRepoDB(root, snapshot string) (string, error) {
+func sourceOvergoDB(root, snapshot string) (string, error) {
 	raw, err := gitOutput(root, "worktree", "list", "--porcelain")
 	if err != nil {
 		return "", err
@@ -59,9 +59,9 @@ func sourceRepoDB(root, snapshot string) (string, error) {
 		if fields[index] != "worktree" || fields[index+2] != "HEAD" || fields[index+3] != snapshot {
 			continue
 		}
-		candidate := filepath.Join(filepath.FromSlash(fields[index+1]), "repodb-store")
+		candidate := filepath.Join(filepath.FromSlash(fields[index+1]), "overgodb-store")
 		if match != "" {
-			return "", fmt.Errorf("prepare-merge: multiple RepoDB worktrees match %s", snapshot)
+			return "", fmt.Errorf("prepare-merge: multiple OvergoDB worktrees match %s", snapshot)
 		}
 		match = candidate
 	}

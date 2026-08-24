@@ -8,8 +8,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/model"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
@@ -17,7 +17,7 @@ const lifecycleDecisionCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestAtomicEvidenceGatedActivation(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestAtomicEvidenceGatedActivation(t *testing.T) {
 
 func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 
 func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 
 func TestRetireActiveCapabilityRequiresFailedEvidence(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func TestRetireActiveCapabilityRequiresFailedEvidence(t *testing.T) {
 
 func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,7 +358,7 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 
 func TestActiveRecordRejectsLegacyIntentEvidence(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

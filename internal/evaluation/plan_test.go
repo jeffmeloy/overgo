@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 const planTestCommit = "0123456789abcdef0123456789abcdef01234567"
@@ -73,7 +73,7 @@ func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 	if err != nil || parsed.Identity() != plan.Identity() {
 		t.Fatalf("parsed plan = (%s, %v)", parsed.Identity(), err)
 	}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

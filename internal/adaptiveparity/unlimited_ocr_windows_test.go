@@ -73,7 +73,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 	imagePath := filepath.Join(fixtureRoot, "unlimitedocr_image.png")
 	goldenPath := filepath.Join(fixtureRoot, "unlimitedocr_golden.json")
 	assertSHA256(t, modelPath, "d4d2dff7c1988e5eb6900599158f78cf04e836fbf957176d186d2c97edf5c8b9")
-	assertSHA256(t, projectorPath, "4eb0262d27b8631c89c092504525b18ef19cdafe3c4f63a06393f34f30fffbec")
+	assertSHA256(t, projectorPath, "894b6ce68b553a2f176b1d69099b42e369a63402274ccd8c19614466ea85d2ea")
 	assertSHA256(t, imagePath, "98db361580c88252e3942dd3ab197e332348ee0e295e5b22ec734de58c6f46e1")
 	assertSHA256(t, goldenPath, "72339f0f4aece7c793d8c77a0c804ba2b121af3caf96340bf850d89bb744acd5")
 

@@ -14,7 +14,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/dataset"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func main() {
@@ -45,7 +45,7 @@ func run(args []string, output io.Writer) error {
 	if legacyRoot == "." || contentRoot == "." {
 		return errors.New("dataset-catalog: legacy and content roots are required")
 	}
-	store, err := repodb.Open(repositoryRoot)
+	store, err := overgodb.Open(repositoryRoot)
 	if err != nil {
 		return err
 	}

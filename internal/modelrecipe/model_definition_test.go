@@ -10,8 +10,8 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
@@ -81,7 +81,7 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	}
 }
 
-func TestGGUFModelDefinitionRepoDBResolution(t *testing.T) {
+func TestGGUFModelDefinitionOvergoDBResolution(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "definition.gguf")
 	writeDefinitionGGUF(t, path)
 	file, err := gguf.Open(path)
@@ -128,7 +128,7 @@ func TestGGUFModelDefinitionRepoDBResolution(t *testing.T) {
 	if secondDocument.ID != document.ID {
 		t.Fatalf("relocated model definitions differ: %s != %s", secondDocument.ID, document.ID)
 	}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestPublishResolvedModelDefinitionSeparatesProfiles(t *testing.T) {
 	}
 	profiles := []model.ArchitectureProfile{base, base}
 	profiles[1].LayerTopology = model.LayerTopologyCausalPostQKNormSkip
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

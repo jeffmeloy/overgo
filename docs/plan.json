@@ -1,8 +1,21 @@
 {
-  "campaign": "Literal authority and shared operator consolidation",
-  "doctrine": "Follow skill.md. A literal must expose intent or disappear. Recipes, artifact facts, and RepoDB own model, runtime, serving, and training policy. Evidence owns tolerances and performance bounds. Typed operator and wire contracts own stable mathematical, layout, ABI, and format facts. Constants name stable roles, not values. Tables express equivalent operations through explicit parameters. Tests use compact fixtures and independent oracles; they do not copy production policy or hide examples behind value-named constants. Structural zero, one, and local indices may remain inline when idiomatic. Each wave migrates every caller and deletes displaced defaults, branches, wrappers, fallbacks, probes, and duplicated implementations in the same commit. Numerical behavior remains unchanged unless evidence explicitly promotes a change. Production code must be net-negative unless measured memory or processing improvement justifies the delta. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:ca236225b837b7ac6e5a4d43fdbff121f489343eb05eaa7410f0e2df3f2f1e2a",
+  "campaign": "Deletion-led production composability, durable agent execution, and RepoDB tightening",
+  "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Modelrecipe owns component sessions; recipe owns topology and policy; workflowruntime owns stage execution; operation owns lifecycle; runrecord and RepoDB own immutable facts; inference owns model math; server owns protocols and GUI. ADK is a behavior inventory and oracle, never a dependency or second runtime. No second workflow graph, plugin callback mesh, mutable property bag, string branch authority, duplicate session or artifact store, wrapper, fallback, or advisory execution plan. Compact RepoDB before adding event volume: remove duplicate indexes and payload copies, stream durable writes, expose bounded projected queries, and retain one refreshable browse owner. Each capability wave migrates every caller and deletes the displaced ephemeral owner in the same commit. Retry, concurrency, context, and retention policy derive from recipes, resource plans, requests, or measured evidence. After every gated commit, merge master and redispatch.",
+  "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
+    {
+      "id": "merge-703690c4a615",
+      "title": "Merge master at 703690c4a615",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 703690c4a615",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
     {
       "id": "dataset-catalog-compatibility",
       "title": "Publish the dataset catalog compatibility mirror",
@@ -299,12 +312,12 @@
       "id": "overgodb-rename",
       "title": "Rename repoDB to overgoDB across the repository",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Rename repoDB to overgoDB across the repository",
-          "status": "open",
+          "status": "done",
           "verify": "go build ./... \u0026\u0026 go test ./internal/overgodb -count=1"
         }
       ]
@@ -313,12 +326,12 @@
       "id": "gui-overgodb",
       "title": "Optimize the GUI over the streamed store",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Optimize the GUI over the streamed store",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'TestWorkbenchAPI|TestWebUI' -count=1"
         }
       ]
@@ -1827,6 +1840,48 @@
             "memory",
             "single-authority"
           ]
+        }
+      ]
+    },
+    {
+      "id": "tightening-timer",
+      "title": "Hold for the tightening lane: timer expires 2 hours after 2026-08-24 dispatch",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold for the tightening lane: timer expires 2 hours after 2026-08-24 dispatch",
+          "status": "done",
+          "verify": "exit 0"
+        }
+      ]
+    },
+    {
+      "id": "merge-tightening-catalogs",
+      "title": "Merge overgo_tightening into master with the rename mapping",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge overgo_tightening into master with the rename mapping",
+          "status": "done",
+          "verify": "go build ./... \u0026\u0026 go test ./internal/modelrecipe ./internal/dataset ./internal/overgodb ./cmd/overgodb-query -count=1"
+        }
+      ]
+    },
+    {
+      "id": "overgodb-best-of-both",
+      "title": "Fold the best of both catalogs into overgodb: registered denominators and truncation honesty in the capability catalog",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fold the best of both catalogs into overgodb: registered denominators and truncation honesty in the capability catalog",
+          "status": "done",
+          "verify": "go test ./internal/discovery ./internal/server -run 'TestCapabilityCatalog|TestWorkbenchAPI|TestWebUI' -count=1"
         }
       ]
     }

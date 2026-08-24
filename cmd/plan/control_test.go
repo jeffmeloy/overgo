@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
-	"overgo/internal/repodb"
 )
 
 func TestOverrideAndContainmentEvidence(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

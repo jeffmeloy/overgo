@@ -10,8 +10,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/routedlm"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
@@ -46,7 +46,7 @@ const activationReason = "SenseNova compiled text request, retained prefix/body,
 // capability uses (Resolve => ActiveRecord + CompileCapability).
 func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 		t.Fatalf("inventory manifest kind = %q", modelID.Kind())
 	}
 
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 func assertRoundTrip(
 	t *testing.T,
 	ctx context.Context,
-	store *repodb.Store,
+	store *overgodb.Store,
 	modelID artifact.ID,
 	definition recipe.Definition,
 ) {

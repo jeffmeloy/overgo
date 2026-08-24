@@ -12,12 +12,12 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/codeprofile"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
 func TestGateAdvisoryFindingPublication(t *testing.T) {
-	store := mustReview(repodb.Open(filepath.Join(t.TempDir(), "store")))
+	store := mustReview(overgodb.Open(filepath.Join(t.TempDir(), "store")))
 	defer store.Close()
 	batch := artifact.Batch{Key: "gate/fixture"}
 	honesty := []string{"magic backlog: 2 inherited uncatalogued constants"}

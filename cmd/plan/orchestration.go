@@ -12,8 +12,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
 
@@ -47,7 +47,7 @@ func recordExplorationCharge(root, inputPath string, output io.Writer) error {
 	if err := jsonfile.Decode(inputPath, &specification); err != nil {
 		return err
 	}
-	store, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		return err
 	}
@@ -65,11 +65,11 @@ func recordExplorationCharge(root, inputPath string, output io.Writer) error {
 		return err
 	}
 	charges := make([]plan.ExplorationCharge, 0)
-	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: plan.ExplorationChargeMediaType, Schema: plan.ExplorationChargeSchema,
-		}}, Order: repodb.DocumentOldestFirst,
-	}, plan.ParseExplorationCharge, func(_ repodb.DocumentView, charge plan.ExplorationCharge) error {
+		}}, Order: overgodb.DocumentOldestFirst,
+	}, plan.ParseExplorationCharge, func(_ overgodb.DocumentView, charge plan.ExplorationCharge) error {
 		if charge.Grant == grant.ID {
 			charges = append(charges, charge)
 		}
@@ -110,7 +110,7 @@ func commitExplorationContent(root string, content func() (artifact.Content, err
 	if err != nil {
 		return err
 	}
-	store, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func recordWorkLease(root, inputPath string, output io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("read work lease: %w", err)
 	}
-	store, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func recordWorkLeaseOutcome(root, inputPath string, output io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("read lease outcome: %w", err)
 	}
-	store, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func printLocalitySchedule(root, inputPath string, output io.Writer) error {
 	if err := jsonfile.DecodeStrict(inputPath, &request); err != nil {
 		return err
 	}
-	store, err := repodb.OpenReadOnly(filepath.Join(root, "repodb-store"))
+	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		return err
 	}
@@ -190,18 +190,18 @@ func printLocalitySchedule(root, inputPath string, output io.Writer) error {
 }
 
 func printLeaseReport(root string, capacity plan.Resources, output io.Writer) error {
-	store, err := repodb.OpenReadOnly(filepath.Join(root, "repodb-store"))
+	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 	ctx := context.Background()
 	leases := make([]plan.WorkLease, 0)
-	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: plan.WorkLeaseMediaType, Schema: plan.WorkLeaseSchema,
-		}}, AliasPrefixes: []string{plan.WorkLeaseAliasRoot}, Order: repodb.DocumentOldestFirst,
-	}, plan.ParseWorkLease, func(_ repodb.DocumentView, lease plan.WorkLease) error {
+		}}, AliasPrefixes: []string{plan.WorkLeaseAliasRoot}, Order: overgodb.DocumentOldestFirst,
+	}, plan.ParseWorkLease, func(_ overgodb.DocumentView, lease plan.WorkLease) error {
 		leases = append(leases, lease)
 		return nil
 	})
@@ -210,20 +210,20 @@ func printLeaseReport(root string, capacity plan.Resources, output io.Writer) er
 	}
 	sort.Slice(leases, func(i, j int) bool { return leases[i].Task < leases[j].Task })
 	grants, charges := make([]plan.ExplorationGrant, 0), make([]plan.ExplorationCharge, 0)
-	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: plan.ExplorationGrantMediaType, Schema: plan.ExplorationGrantSchema}},
-		Order:     repodb.DocumentOldestFirst,
-	}, plan.ParseExplorationGrant, func(_ repodb.DocumentView, grant plan.ExplorationGrant) error {
+		Order:     overgodb.DocumentOldestFirst,
+	}, plan.ParseExplorationGrant, func(_ overgodb.DocumentView, grant plan.ExplorationGrant) error {
 		grants = append(grants, grant)
 		return nil
 	})
 	if err != nil {
 		return err
 	}
-	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: plan.ExplorationChargeMediaType, Schema: plan.ExplorationChargeSchema}},
-		Order:     repodb.DocumentOldestFirst,
-	}, plan.ParseExplorationCharge, func(_ repodb.DocumentView, charge plan.ExplorationCharge) error {
+		Order:     overgodb.DocumentOldestFirst,
+	}, plan.ParseExplorationCharge, func(_ overgodb.DocumentView, charge plan.ExplorationCharge) error {
 		charges = append(charges, charge)
 		return nil
 	})
@@ -250,10 +250,10 @@ func printLeaseReport(root string, capacity plan.Resources, output io.Writer) er
 	}
 	sort.Slice(exploration, func(i, j int) bool { return exploration[i].Grant < exploration[j].Grant })
 	outcomes := make([]plan.LeaseOutcome, 0)
-	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: plan.LeaseOutcomeMediaType, Schema: plan.LeaseOutcomeSchema}},
-		Order:     repodb.DocumentOldestFirst,
-	}, plan.ParseLeaseOutcome, func(_ repodb.DocumentView, outcome plan.LeaseOutcome) error {
+		Order:     overgodb.DocumentOldestFirst,
+	}, plan.ParseLeaseOutcome, func(_ overgodb.DocumentView, outcome plan.LeaseOutcome) error {
 		outcomes = append(outcomes, outcome)
 		return nil
 	})
@@ -289,7 +289,7 @@ func recordExperimentTransition(root, inputPath string, output io.Writer) error 
 	if err := jsonfile.Decode(inputPath, &specification); err != nil {
 		return err
 	}
-	store, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		return err
 	}

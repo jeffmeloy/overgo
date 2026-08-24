@@ -31,7 +31,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentvideo"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 	"overgo/internal/trainingworkflow"
@@ -189,13 +189,13 @@ func run() error {
 	scheduleIndex := flag.Int("schedule-index", 1, "index into the 4-step shift-5 committed schedule")
 	steps := flag.Int("steps", 3, "observed training steps")
 	maxWall := flag.Duration("max-wall", 90*time.Minute, "abort when the first step projects past this bound")
-	storePath := flag.String("store", "repodb-store", "RepoDB for the session observation and recipe authority")
+	storePath := flag.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
 	stimulus := flag.String("stimulus", "docs/verification/wan-dit-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
 	t5Cache := flag.String("t5-cache", "", "optional cache base path for the streamed raw text rows")
 	flag.Parse()
 	ctx := context.Background()
 
-	store, err := repodb.Open(*storePath)
+	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
 	}

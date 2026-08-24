@@ -9,7 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/finding"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestRecordFindingRequiresVerifierAndUsesTypedStore(t *testing.T) {
@@ -29,13 +29,13 @@ func TestRecordFindingRequiresVerifierAndUsesTypedStore(t *testing.T) {
 	if !strings.Contains(output.String(), "FINDING parked: evidence:sha256:") {
 		t.Fatalf("output = %q", output.String())
 	}
-	store, err := repodb.Open(repository)
+	store, err := overgodb.Open(repository)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	result, err := store.Query(context.Background(), repodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: 100, Projection: repodb.ProjectArtifacts,
+	result, err := store.Query(context.Background(), overgodb.Query{
+		Kind: artifact.KindEvidence, MaxResults: 100, Projection: overgodb.ProjectArtifacts,
 	})
 	if err != nil {
 		t.Fatal(err)

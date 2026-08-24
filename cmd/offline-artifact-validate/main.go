@@ -15,7 +15,7 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/evaluation"
 	"overgo/internal/jsonfile"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 type validationRequest struct {
@@ -39,7 +39,7 @@ func main() {
 func run() error {
 	flags := flag.NewFlagSet("offline-artifact-validate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	repository := flags.String("record", "", "RepoDB root")
+	repository := flags.String("record", "", "OvergoDB root")
 	planText := flags.String("plan", "", "offline tensor execution plan ID")
 	modelText := flags.String("model", "", "produced model ID")
 	directory := flags.String("directory", "", "produced Safetensors directory")
@@ -63,7 +63,7 @@ func run() error {
 		return err
 	}
 	ctx := context.Background()
-	store, err := repodb.Open(*repository)
+	store, err := overgodb.Open(*repository)
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,4 @@
-// finding records an out-of-scope observation in the typed RepoDB finding
+// finding records an out-of-scope observation in the typed OvergoDB finding
 // register so an agent can park it without growing prompt state or drifting.
 package main
 
@@ -14,7 +14,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/finding"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func main() { clioptions.MainNamed("finding", run) }
@@ -24,7 +24,7 @@ func run() error { return runArgs(os.Args[1:], os.Stdout) }
 func runArgs(args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("finding", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	repository := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
+	repository := flags.String("repo", "", "OvergoDB store; empty resolves via the data-root contract")
 	title := flags.String("title", "", "concise observation")
 	severity := flags.String("severity", "", "low, medium, or high")
 	closure := flags.String("closure", "", "bounded implementation path")
@@ -47,7 +47,7 @@ func runArgs(args []string, output io.Writer) error {
 		}
 		root = roots.Store
 	}
-	store, err := repodb.Open(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		return err
 	}

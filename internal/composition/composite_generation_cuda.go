@@ -71,7 +71,7 @@ func (CompositeGenerationCUDAAuthority) Parse(data []byte) (CompositeGenerationC
 	return compositeGenerationCUDAEvidenceCodec.Parse(data)
 }
 
-// Load requires exact CUDA evidence content from RepoDB.
+// Load requires exact CUDA evidence content from OvergoDB.
 func (CompositeGenerationCUDAAuthority) Load(
 	ctx context.Context,
 	reader artifact.Reader,

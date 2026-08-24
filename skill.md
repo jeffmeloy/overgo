@@ -30,7 +30,7 @@ Every turn, run the loop — do not reinvent it, improve it in-flight, or fall
 back to the manual path:
 
 1. `go run ./cmd/plan -prompt` => the ONE dispatched step. Do exactly that step.
-2. Need an existing capability? Inspect the owning package and RepoDB. Do not
+2. Need an existing capability? Inspect the owning package and OvergoDB. Do not
    re-derive.
 3. Commit ONLY via `go run ./cmd/gate -plan <item>/<step> -message-file <f>
    -paths <csv>`; the gate reruns acceptance and advances the plan in that
@@ -61,7 +61,7 @@ your own reasoning.
 
 ## Navigation and Decisiveness
 
-- Reuse before rediscovery. Inspect package ownership and RepoDB before writing
+- Reuse before rediscovery. Inspect package ownership and OvergoDB before writing
   a helper. The recurring failure is reinventing existing code.
 - Ground once, then act. Task within a stated recommendation and its owner
   exists => execute. Do not re-verify a settled direction, invent alternatives,
@@ -73,9 +73,9 @@ your own reasoning.
   (dispatch, commit, doctrine, guard). Invoke them; do not hand-roll the
   disciplined path. Guard-blocked `git commit` is the design, not friction —
   gate is the path.
-- No manufactured blockers. RepoDB catalogs models AND datasets; gate/plan/guard
+- No manufactured blockers. OvergoDB catalogs models AND datasets; gate/plan/guard
   is the sanctioned path, not an obstacle to route around. A path that feels
-  blocked => inspect package ownership and RepoDB before proposing any fork.
+  blocked => inspect package ownership and OvergoDB before proposing any fork.
 
 ## Priority order (imperatives in conflict)
 
@@ -94,7 +94,7 @@ licenses reinventing an existing owner.
   complete name-led sentences. Internal comments stay telegraphic and explain
   rationale, ownership, invariants, sources, or failure behavior.
 - Constants name stable roles, never values. Model and training policy derives
-  from recipes, artifacts, RepoDB, datasets, or measured resource plans.
+  from recipes, artifacts, OvergoDB, datasets, or measured resource plans.
 
 ## Scope and Precedence
 
@@ -119,10 +119,10 @@ natural contract.
   surface. Campaign doctrine cited from here, never re-authored elsewhere.
 - `docs/plan.json` — live open-work surface; `cmd/plan` dispatches. Open work
   only, never a completion ledger; every step has a non-vacuous verify.
-- RepoDB store — artifacts, lineage, profiles, recipes, decision events
+- OvergoDB store — artifacts, lineage, profiles, recipes, decision events
   (promotion/refusal + reason + decider commit), runs (phased, env-bound),
   evaluations, advisories, magic rows, findings, gate outcomes. Query via
-  `cmd/repodb-query`; never grep the binary log.
+  `cmd/overgodb-query`; never grep the binary log.
 - `compatibility.json` — machine-checked claims + evidence pointers + evidence
   tier (`implemented` != `oracle-backed`). No claim => no capability; stale
   evidence fails the gate.

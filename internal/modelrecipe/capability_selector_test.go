@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
 
 type capabilitySelectorFixture struct {
-	store      *repodb.Store
+	store      *overgodb.Store
 	alias      string
 	model      artifact.ID
 	definition recipe.Definition
@@ -23,7 +23,7 @@ type capabilitySelectorFixture struct {
 func newCapabilitySelectorFixture(t *testing.T) capabilitySelectorFixture {
 	t.Helper()
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestRemoteCapabilityAdmission(t *testing.T) {
 }
 
 func TestIncompatiblePeerRefusal(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

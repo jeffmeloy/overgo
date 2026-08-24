@@ -128,7 +128,7 @@ func TestCampaignCensusAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	document := Plan{Campaign: "campaign", Doctrine: "Measured baselines live in RepoDB.", Census: &id}
+	document := Plan{Campaign: "campaign", Doctrine: "Measured baselines live in OvergoDB.", Census: &id}
 	if err := ValidateCampaignCensusAuthority(document); err != nil {
 		t.Fatal(err)
 	}

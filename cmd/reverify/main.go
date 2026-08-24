@@ -43,7 +43,7 @@ func main() {
 }
 
 func run() error {
-	repository := flag.String("repo", "repodb-store", "RepoDB store directory")
+	repository := flag.String("repo", "overgodb-store", "OvergoDB store directory")
 	claimsPath := flag.String("claims", "", "claims manifest naming the exact-golden inference evidence")
 	reason := flag.String("reason", "", "activation reason recorded in the decision event")
 	flag.Parse()

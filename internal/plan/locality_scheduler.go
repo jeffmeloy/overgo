@@ -23,7 +23,7 @@ type ArtifactRequirement struct {
 	Constraint LocalityConstraint `json:"constraint"`
 }
 
-// LocalityWorker declares exact RepoDB locations visible to one worker. The
+// LocalityWorker declares exact OvergoDB locations visible to one worker. The
 // scheduler cross-checks every declaration against current catalog state.
 type LocalityWorker struct {
 	Worker    artifact.ID         `json:"worker"`
@@ -80,7 +80,7 @@ func ScheduleByArtifactLocality(
 			return LocalitySchedule{}, err
 		}
 		if !found {
-			return LocalitySchedule{}, errors.New("plan: required artifact is absent from RepoDB")
+			return LocalitySchedule{}, errors.New("plan: required artifact is absent from OvergoDB")
 		}
 		locations, err := repository.Locations(ctx, requirement.Artifact)
 		if err != nil {

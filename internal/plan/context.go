@@ -37,7 +37,7 @@ type TaskContext struct {
 type DirtyPath = repoanalysis.DirtyPath
 
 // EvidenceDebt is deliberately conservative and derives from authoritative
-// RepoDB prepared/finalized lifecycle records.
+// OvergoDB prepared/finalized lifecycle records.
 type EvidenceDebt struct {
 	State    string `json:"state"`
 	Source   string `json:"source"`

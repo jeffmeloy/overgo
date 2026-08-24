@@ -10,8 +10,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
@@ -22,7 +22,7 @@ import (
 // stale entry is reported, never served.
 func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 // publishVerifiedActivation walks the trusted lifecycle: candidate,
 // validated, verified run evidence, then activation -- the activation
 // ActiveRecord accepts.
-func publishVerifiedActivation(t *testing.T, store *repodb.Store, modelID artifact.ID, suffix string) {
+func publishVerifiedActivation(t *testing.T, store *overgodb.Store, modelID artifact.ID, suffix string) {
 	t.Helper()
 	ctx := context.Background()
 	profile := testutil.ArtifactID(t, artifact.KindProfile, "discovery-profile-"+suffix)
@@ -119,7 +119,7 @@ func publishVerifiedActivation(t *testing.T, store *repodb.Store, modelID artifa
 
 func TestServableSkipsReplacedArtifactActivation(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

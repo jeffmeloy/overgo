@@ -11,7 +11,19 @@ import (
 
 func TestDeviceCheck(t *testing.T) {
 	var calls []string
-	check := DeviceCheck(t.TempDir(), []string{"internal/cuda/kernel/load.go"}, nil, recordingCommand(&calls))
+	var listed string
+	record := recordingCommand(&calls)
+	command := func(dir, name string, args ...string) (string, error) {
+		if index := slices.Index(args, "-paths-file"); index >= 0 && index+1 < len(args) {
+			content, err := os.ReadFile(args[index+1])
+			if err != nil {
+				t.Fatalf("read paths file: %v", err)
+			}
+			listed = string(content)
+		}
+		return record(dir, name, args...)
+	}
+	check := DeviceCheck(t.TempDir(), []string{"internal/cuda/kernel/load.go"}, nil, command)
 	impact := OwnershipImpact([]Check{check}, Surface{Identity: "candidate", Packages: []string{"internal/cuda/kernel"}})
 	planned, err := Plan([]Check{check}, impact)
 	if err != nil || len(planned) != 1 {
@@ -20,8 +32,15 @@ func TestDeviceCheck(t *testing.T) {
 	if _, err := Run(context.Background(), planned[0]); err != nil {
 		t.Fatal(err)
 	}
-	if len(calls) != 1 || !strings.Contains(calls[0], "./cmd/device-lane -paths internal/cuda/kernel/load.go") {
+	if len(calls) != 1 || !strings.Contains(calls[0], "./cmd/device-lane -paths-file ") {
 		t.Fatalf("calls = %v", calls)
+	}
+	if listed != "internal/cuda/kernel/load.go" {
+		t.Fatalf("paths file content = %q", listed)
+	}
+	listPath := calls[0][strings.Index(calls[0], "-paths-file ")+len("-paths-file "):]
+	if content, err := os.ReadFile(listPath); err == nil {
+		t.Fatalf("paths file survived the run: %q", content)
 	}
 }
 

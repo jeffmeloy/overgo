@@ -213,12 +213,12 @@
       "id": "agent-gui",
       "title": "Agent workspace in the GUI, presentation only: tool-event timeline, catalog with effect badges, session picker, exact mutation approval",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Agent workspace in the GUI, presentation only: tool-event timeline, catalog with effect badges, session picker, exact mutation approval",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestWebUI' -count=1",
           "depends_on": [
             "agent-server-api/do"

@@ -178,6 +178,7 @@ table.grid td.mono { font-family:var(--mono); font-variant-numeric:tabular-nums;
 .tag.control { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 40%, transparent); }
 .tag.byte { color:var(--acc); border-color:color-mix(in srgb, var(--acc) 40%, transparent); }
 .tag.user_defined { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
+.tag.tag-danger { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 55%, transparent); }
 input.text, select.text, textarea.text {
   font:13px var(--font); color:var(--ink); background:var(--bg2);
   border:1px solid var(--line); border-radius:var(--radius-s); padding:9px 11px; width:100%;

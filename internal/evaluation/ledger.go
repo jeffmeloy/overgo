@@ -87,7 +87,7 @@ func loadShardReport(
 	if err != nil || !ok {
 		return shardReport{}, ok, err
 	}
-	content, ok, err := repository.Content(ctx, target)
+	content, ok, err := artifact.ReadContent(ctx, repository, target)
 	if err != nil {
 		return shardReport{}, false, err
 	}
@@ -107,7 +107,7 @@ func loadShardReport(
 		return shardReport{}, false, errors.New("evaluation: completed shard report differs from plan")
 	}
 	for _, observation := range report.Observations {
-		outputContent, found, err := repository.Content(ctx, observation.Output)
+		outputContent, found, err := artifact.ReadContent(ctx, repository, observation.Output)
 		if err != nil {
 			return shardReport{}, false, err
 		}
@@ -182,7 +182,7 @@ func publishCampaignReport(
 		if current != report.ID {
 			return errors.New("evaluation: campaign alias differs from compiled report")
 		}
-		content, found, err := repository.Content(ctx, current)
+		content, found, err := artifact.ReadContent(ctx, repository, current)
 		if err != nil {
 			return err
 		}

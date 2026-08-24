@@ -25,6 +25,8 @@ const (
 	RunSchema           = "overgo/run/v2"
 	EvaluationMediaType = "application/vnd.overgo.evaluation+json"
 	EvaluationSchema    = "overgo/evaluation/v1"
+	// EvaluationRunAliasRoot scopes one metric record per run.
+	EvaluationRunAliasRoot = "evaluation/run/"
 )
 
 var (
@@ -288,8 +290,11 @@ func (e Evaluation) Lineage() []artifact.Lineage {
 }
 
 func (e Evaluation) Batch(key string) (artifact.Batch, error) {
-	return evaluationCodec.Batch(key, e, e.Lineage(), nil)
+	return evaluationCodec.Batch(key, e, e.Lineage(), []artifact.AliasBinding{{Name: EvaluationRunAlias(e.Run), Target: e.ID}})
 }
+
+// EvaluationRunAlias identifies a run's metric record.
+func EvaluationRunAlias(run artifact.ID) string { return EvaluationRunAliasRoot + run.String() }
 
 func canonicalizeRun(run *Run) error {
 	if run == nil || run.Version != artifact.InitialDocumentVersion && run.Version != artifact.SecondDocumentVersion || run.Recipe.Kind() != artifact.KindRecipe {

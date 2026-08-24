@@ -53,7 +53,7 @@ func recordExplorationCharge(root, inputPath string, output io.Writer) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	grantContent, ok, err := store.Content(ctx, specification.Grant)
+	grantContent, ok, err := artifact.ReadContent(ctx, store, specification.Grant)
 	if err != nil {
 		return err
 	}
@@ -64,22 +64,19 @@ func recordExplorationCharge(root, inputPath string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	charges := make([]plan.ExplorationCharge, 0)
+	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: plan.ExplorationChargeMediaType, Schema: plan.ExplorationChargeSchema,
+		}}, Order: repodb.DocumentOldestFirst,
+	}, plan.ParseExplorationCharge, func(_ repodb.DocumentView, charge plan.ExplorationCharge) error {
+		if charge.Grant == grant.ID {
+			charges = append(charges, charge)
+		}
+		return nil
 	})
 	if err != nil {
 		return err
-	}
-	charges := make([]plan.ExplorationCharge, 0)
-	for _, descriptor := range result.Artifacts {
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		if charge, err := plan.ParseExplorationCharge(content); err == nil && charge.Grant == grant.ID {
-			charges = append(charges, charge)
-		}
 	}
 	admission, err := plan.AdmitExploration(grant, charges, specification.GPUMinutes, false)
 	if err != nil {
@@ -199,45 +196,39 @@ func printLeaseReport(root string, capacity plan.Resources, output io.Writer) er
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectAliases | repodb.ProjectContentData,
+	leases := make([]plan.WorkLease, 0)
+	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: plan.WorkLeaseMediaType, Schema: plan.WorkLeaseSchema,
+		}}, AliasPrefixes: []string{plan.WorkLeaseAliasRoot}, Order: repodb.DocumentOldestFirst,
+	}, plan.ParseWorkLease, func(_ repodb.DocumentView, lease plan.WorkLease) error {
+		leases = append(leases, lease)
+		return nil
 	})
 	if err != nil {
 		return err
 	}
-	if result.Truncated {
-		return fmt.Errorf("lease report evidence query was truncated")
-	}
-	leases := make([]plan.WorkLease, 0)
-	seen := map[artifact.ID]bool{}
-	for _, alias := range result.Aliases {
-		if seen[alias.Target] {
-			continue
-		}
-		lease, ok, err := plan.ReadWorkLease(ctx, store, alias.Target)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			continue
-		}
-		leases, seen[lease.ID] = append(leases, lease), true
-	}
 	sort.Slice(leases, func(i, j int) bool { return leases[i].Task < leases[j].Task })
 	grants, charges := make([]plan.ExplorationGrant, 0), make([]plan.ExplorationCharge, 0)
-	for _, descriptor := range result.Artifacts {
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		if grant, err := plan.ParseExplorationGrant(content); err == nil {
-			grants = append(grants, grant)
-			continue
-		}
-		if charge, err := plan.ParseExplorationCharge(content); err == nil {
-			charges = append(charges, charge)
-		}
+	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: plan.ExplorationGrantMediaType, Schema: plan.ExplorationGrantSchema}},
+		Order:     repodb.DocumentOldestFirst,
+	}, plan.ParseExplorationGrant, func(_ repodb.DocumentView, grant plan.ExplorationGrant) error {
+		grants = append(grants, grant)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: plan.ExplorationChargeMediaType, Schema: plan.ExplorationChargeSchema}},
+		Order:     repodb.DocumentOldestFirst,
+	}, plan.ParseExplorationCharge, func(_ repodb.DocumentView, charge plan.ExplorationCharge) error {
+		charges = append(charges, charge)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	exploration := make([]explorationBalance, 0, len(grants))
 	for _, grant := range grants {
@@ -259,14 +250,15 @@ func printLeaseReport(root string, capacity plan.Resources, output io.Writer) er
 	}
 	sort.Slice(exploration, func(i, j int) bool { return exploration[i].Grant < exploration[j].Grant })
 	outcomes := make([]plan.LeaseOutcome, 0)
-	for _, descriptor := range result.Artifacts {
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		if outcome, err := plan.ParseLeaseOutcome(content); err == nil {
-			outcomes = append(outcomes, outcome)
-		}
+	_, err = repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: plan.LeaseOutcomeMediaType, Schema: plan.LeaseOutcomeSchema}},
+		Order:     repodb.DocumentOldestFirst,
+	}, plan.ParseLeaseOutcome, func(_ repodb.DocumentView, outcome plan.LeaseOutcome) error {
+		outcomes = append(outcomes, outcome)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	now := time.Now().UTC()
 	payload := leaseReport{
@@ -305,7 +297,7 @@ func recordExperimentTransition(root, inputPath string, output io.Writer) error 
 	ctx := context.Background()
 	var prior *runrecord.ExperimentLifecycle
 	if specification.Prior != nil {
-		content, ok, err := store.Content(ctx, *specification.Prior)
+		content, ok, err := artifact.ReadContent(ctx, store, *specification.Prior)
 		if err != nil {
 			return err
 		}

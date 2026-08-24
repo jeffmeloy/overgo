@@ -1,9 +1,12 @@
 package repodb
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"hash/crc32"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -25,24 +28,21 @@ const (
 
 func TestCanonicalCatalogOwnership(t *testing.T) {
 	state := newCatalogState()
-	var _ map[artifact.ID][]byte = state.contents
-	var _ map[artifact.ID]map[relationKey]struct{} = state.parentEdges
-	var _ map[artifact.ID]map[relationKey]struct{} = state.childEdges
+	if state.slots == nil || state.byMedia == nil || state.bySchema == nil || state.commitByKey == nil {
+		t.Fatal("catalog indexes are not initialized")
+	}
 }
 
 func TestLineageIndexesReferenceCanonicalEdges(t *testing.T) {
 	state := newCatalogState()
 	batch := fixtureBatch(t)
-	state.apply(batch)
+	state.apply(batch, nil, 1)
 	edge := batch.Lineage[0]
 	key := relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation}
-	if state.lineage[key] != edge {
-		t.Fatalf("canonical edge = %+v, want %+v", state.lineage[key], edge)
-	}
-	if _, ok := state.parentEdges[edge.Child][key]; !ok {
+	if _, ok := slices.BinarySearchFunc(state.slots[edge.Child].parents, key, compareRelation); !ok {
 		t.Fatal("parent index lacks canonical edge key")
 	}
-	if _, ok := state.childEdges[edge.Parent][key]; !ok {
+	if _, ok := slices.BinarySearchFunc(state.slots[edge.Parent].children, key, compareRelation); !ok {
 		t.Fatal("child index lacks canonical edge key")
 	}
 }
@@ -61,10 +61,59 @@ func TestContentUsesDescriptorAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	descriptor.Schema = "fixture/canonical/v1"
-	store.state.artifacts[descriptor.ID] = descriptor
-	got, ok, err := store.Content(context.Background(), descriptor.ID)
+	store.state.slots[descriptor.ID].descriptor = descriptor
+	got, ok, err := artifact.ReadContent(context.Background(), store, descriptor.ID)
 	if err != nil || !ok || got.Descriptor != descriptor || !slices.Equal(got.Data, content.Data) {
 		t.Fatalf("content = (%+v, %v, %v)", got, ok, err)
+	}
+}
+
+func TestMetadataSnapshot(t *testing.T) {
+	root := t.TempDir()
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor := fixtureDescriptor(t, artifact.KindEvidence, fixturePayload)
+	content := artifact.Content{Descriptor: descriptor, Data: []byte(fixturePayload)}
+	if _, err := store.Commit(context.Background(), artifact.Batch{
+		Key: "fixture/lazy-content/v1", Contents: []artifact.Content{content},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	locator := store.state.slots[descriptor.ID].content
+	if locator.size != int64(len(content.Data)) {
+		t.Fatalf("content locator = %+v", locator)
+	}
+	snapshot, err := store.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshotData, err := os.ReadFile(snapshot.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(snapshotData, content.Data) {
+		t.Fatal("snapshot retained content payload")
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if status := store.SnapshotReplay(); !status.Loaded || status.Path != snapshot.Path || status.Fallback != "" {
+		t.Fatalf("snapshot replay = %+v", status)
+	}
+	gotDescriptor, reader, found, err := store.OpenContent(context.Background(), descriptor.ID)
+	if err != nil || !found || gotDescriptor != descriptor {
+		t.Fatalf("open content = (%+v, %v, %v)", gotDescriptor, found, err)
+	}
+	data, err := io.ReadAll(reader)
+	if err != nil || !slices.Equal(data, content.Data) {
+		t.Fatalf("streamed content = (%q, %v)", data, err)
 	}
 }
 
@@ -132,6 +181,86 @@ func TestCommitReplayAndReadOnlyQueries(t *testing.T) {
 	}
 }
 
+func TestReadOnlyRefreshAppliesCommittedTail(t *testing.T) {
+	root := t.TempDir()
+	writer, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	if _, err := writer.Commit(context.Background(), fixtureBatch(t)); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+
+	descriptor := fixtureDescriptor(t, artifact.KindOutput, fixturePayload)
+	if _, err := writer.Commit(context.Background(), artifact.Batch{
+		Key: "fixture/refresh/v1", Artifacts: []artifact.Descriptor{descriptor},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := reader.Artifact(context.Background(), descriptor.ID); err != nil || found {
+		t.Fatalf("artifact before refresh = (%v, %v)", found, err)
+	}
+	if err := reader.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got, found, err := reader.Artifact(context.Background(), descriptor.ID); err != nil || !found || got != descriptor {
+		t.Fatalf("artifact after refresh = (%+v, %v, %v)", got, found, err)
+	}
+}
+
+func TestReadOnlyRefreshRejectsFork(t *testing.T) {
+	root := t.TempDir()
+	writer, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.Commit(context.Background(), fixtureBatch(t)); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	head, sequence := reader.Head()
+	descriptor := fixtureDescriptor(t, artifact.KindOutput, fixturePayload)
+	payload, _, _, err := encodeBatch(artifact.Batch{
+		Key: "fixture/fork/v1", Artifacts: []artifact.Descriptor{descriptor},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, header, trailer := encodeFrame(sequence+1, artifact.CommitID{}, payload)
+	frame := append(header, payload...)
+	frame = append(frame, trailer[:]...)
+	file, err := os.OpenFile(filepath.Join(root, storeFilename), os.O_APPEND|os.O_WRONLY, storeFileMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Write(frame); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.Refresh(context.Background()); err == nil {
+		t.Fatal("forked tail accepted")
+	}
+	if got, gotSequence := reader.Head(); got != head || gotSequence != sequence {
+		t.Fatalf("head after fork = (%s, %d), want (%s, %d)", got, gotSequence, head, sequence)
+	}
+}
+
 func TestCommitIsIdempotentByKeyAndContent(t *testing.T) {
 	store, err := Open(t.TempDir())
 	if err != nil {
@@ -162,6 +291,63 @@ func TestCommitIsIdempotentByKeyAndContent(t *testing.T) {
 	_, sequence := store.Head()
 	if sequence != 1 {
 		t.Fatalf("sequence = %d, want 1", sequence)
+	}
+}
+
+func TestCommitDeltaRetainsRequestIdentity(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	base := fixtureBatch(t)
+	if _, err := store.Commit(context.Background(), base); err != nil {
+		t.Fatal(err)
+	}
+	added := fixtureDescriptor(t, artifact.KindOutput, "delta-output")
+	request := artifact.Batch{
+		Key:       "fixture/delta/v1",
+		Artifacts: append(slices.Clone(base.Artifacts), added),
+		Lineage:   slices.Clone(base.Lineage),
+	}
+	_, normalized, requestDigest, err := encodeBatch(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delta := store.state.delta(normalized)
+	if !slices.Equal(delta.Artifacts, []artifact.Descriptor{added}) || len(delta.Lineage) != 0 {
+		t.Fatalf("delta = %+v", delta)
+	}
+	if _, err := store.Commit(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if committed, found := store.state.commit(request.Key); !found || committed.payload != requestDigest {
+		t.Fatalf("request digest = %x, want %x", committed.payload, requestDigest)
+	}
+}
+
+func TestRepeatedFactsDoNotAdvance(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	base := fixtureBatch(t)
+	if _, err := store.Commit(context.Background(), base); err != nil {
+		t.Fatal(err)
+	}
+	head, sequence := store.Head()
+	previous := base.Aliases[0].Target
+	repeated := base
+	repeated.Key = "fixture/repeated/v1"
+	repeated.Aliases = []artifact.AliasBinding{{
+		Name: fixtureAlias, Target: previous, Previous: &previous,
+	}}
+	if _, err := store.Commit(context.Background(), repeated); !errors.Is(err, ErrNoChange) {
+		t.Fatalf("repeated commit error = %v, want ErrNoChange", err)
+	}
+	if current, currentSequence := store.Head(); current != head || currentSequence != sequence {
+		t.Fatalf("head after no-op = (%s, %d), want (%s, %d)", current, currentSequence, head, sequence)
 	}
 }
 
@@ -430,7 +616,7 @@ func TestCompleteCorruptFrameRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	offset := info.Size() - frameChecksumSize - 1
+	offset := info.Size() - crc32.Size - 1
 	value := []byte{0}
 	if _, err := file.ReadAt(value, offset); err != nil {
 		t.Fatal(err)
@@ -443,28 +629,6 @@ func TestCompleteCorruptFrameRejected(t *testing.T) {
 	if reopened, err := Open(root); err == nil {
 		_ = reopened.Close()
 		t.Fatal("corrupt complete frame accepted")
-	}
-}
-
-func TestLegacyArtifactFrameReplays(t *testing.T) {
-	root := t.TempDir()
-	batch := fixtureBatch(t)
-	payload, _, _, err := encodeBatch(batch)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, frame := encodeRecordVersion(minimumFrameVersion, 1, artifact.CommitID{}, payload)
-	data := append(encodeStoreHeader(), frame...)
-	if err := os.WriteFile(filepath.Join(root, storeFilename), data, storeFileMode); err != nil {
-		t.Fatal(err)
-	}
-	store, err := OpenReadOnly(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	if _, ok, err := store.Artifact(context.Background(), batch.Artifacts[0].ID); err != nil || !ok {
-		t.Fatalf("legacy artifact = (%v, %v)", ok, err)
 	}
 }
 

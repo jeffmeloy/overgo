@@ -99,33 +99,26 @@ func TrainProposalRankerFromStore(ctx context.Context, store *repodb.Store) (Pro
 	if ctx == nil || store == nil {
 		return ProposalRanker{}, errors.New("composition: proposal ranker store absent")
 	}
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	history := make([]artifact.ID, 0)
+	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: recipe.DecisionMediaType, Schema: recipe.DecisionSchema,
+		}}, Order: repodb.DocumentOldestFirst,
+	}, recipe.ParseDecision, func(view repodb.DocumentView, decision recipe.Decision) error {
+		if decision.Outcome != recipe.DecisionObserved && decision.Outcome != recipe.DecisionRefused {
+			return nil
+		}
+		subject, ok, err := artifact.ReadContent(ctx, store, decision.Subject)
+		if err != nil {
+			return err
+		}
+		if ok && subject.Descriptor.MediaType == BridgeProposalMediaType {
+			history = append(history, view.Content.Descriptor.ID)
+		}
+		return nil
 	})
 	if err != nil {
 		return ProposalRanker{}, err
-	}
-	history := make([]artifact.ID, 0)
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != recipe.DecisionMediaType {
-			continue
-		}
-		content, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		decision, err := recipe.ParseDecision(content)
-		if err != nil || decision.Outcome != recipe.DecisionObserved && decision.Outcome != recipe.DecisionRefused {
-			continue
-		}
-		subject, ok, err := store.Content(ctx, decision.Subject)
-		if err != nil {
-			return ProposalRanker{}, err
-		}
-		if ok && subject.Descriptor.MediaType == BridgeProposalMediaType {
-			history = append(history, descriptor.ID)
-		}
 	}
 	return TrainProposalRanker(ctx, store, history)
 }
@@ -189,7 +182,7 @@ func canonicalizeProposalRanker(value *ProposalRanker) error {
 }
 
 func loadProposalDecision(ctx context.Context, reader artifact.Reader, id artifact.ID) (recipe.Decision, BridgeProposal, error) {
-	content, ok, err := reader.Content(ctx, id)
+	content, ok, err := artifact.ReadContent(ctx, reader, id)
 	if err != nil || !ok || content.Descriptor.MediaType != recipe.DecisionMediaType {
 		return recipe.Decision{}, BridgeProposal{}, errors.Join(err, errors.New("composition: proposal decision absent"))
 	}
@@ -197,7 +190,7 @@ func loadProposalDecision(ctx context.Context, reader artifact.Reader, id artifa
 	if err != nil || len(decision.Evidence) == 0 {
 		return recipe.Decision{}, BridgeProposal{}, errors.Join(err, errors.New("composition: proposal decision lacks measured evidence"))
 	}
-	content, ok, err = reader.Content(ctx, decision.Subject)
+	content, ok, err = artifact.ReadContent(ctx, reader, decision.Subject)
 	if err != nil || !ok || content.Descriptor.MediaType != BridgeProposalMediaType {
 		return recipe.Decision{}, BridgeProposal{}, errors.Join(err, errors.New("composition: decision subject is not a bridge proposal"))
 	}

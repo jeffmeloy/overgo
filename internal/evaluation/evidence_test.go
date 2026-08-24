@@ -49,12 +49,6 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       "evaluation/evidence-test/authorities",
-		Artifacts: []artifact.Descriptor{{ID: plan.body.RuntimeRecipe}, {ID: plan.body.Environment}, {ID: plan.body.ModelDefinition}},
-	}); err != nil {
-		t.Fatal(err)
-	}
 	for _, publication := range []struct {
 		key      string
 		document evidenceBatchDocument

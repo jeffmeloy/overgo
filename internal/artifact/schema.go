@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -164,11 +165,16 @@ type Batch struct {
 	Locations    []LocationEvent `json:"locations,omitempty"`
 }
 
+// Empty reports whether the batch carries no catalog mutation.
+func (b Batch) Empty() bool {
+	return len(b.Artifacts)+len(b.Contents)+len(b.Manifests)+len(b.Lineage)+len(b.Aliases)+len(b.Locations) == 0
+}
+
 func (b Batch) Validate() error {
 	if b.Key == "" || len(b.Key) > maxRepositoryKeyBytes || strings.TrimSpace(b.Key) != b.Key || strings.ContainsAny(b.Key, "\r\n") {
 		return errors.New("artifact: invalid batch key")
 	}
-	if len(b.Artifacts)+len(b.Contents)+len(b.Manifests)+len(b.Lineage)+len(b.Aliases)+len(b.Locations) == 0 {
+	if b.Empty() {
 		return errors.New("artifact: empty batch")
 	}
 	for _, descriptor := range b.Artifacts {
@@ -218,7 +224,7 @@ func (id CommitID) Valid() bool {
 // Reader defines storage-neutral artifact queries.
 type Reader interface {
 	Artifact(context.Context, ID) (Descriptor, bool, error)
-	Content(context.Context, ID) (Content, bool, error)
+	OpenContent(context.Context, ID) (Descriptor, io.Reader, bool, error)
 	Manifest(context.Context, ID) (Manifest, bool, error)
 	ResolveAlias(context.Context, string) (ID, bool, error)
 	Parents(context.Context, ID) ([]Lineage, error)

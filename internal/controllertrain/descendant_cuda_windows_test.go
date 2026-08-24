@@ -270,7 +270,7 @@ func publishControllerEvidence(
 	if _, err := store.Commit(ctx, decisionBatch); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := store.Content(ctx, decision.ID); err != nil || !ok {
+	if _, ok, err := artifact.ReadContent(ctx, store, decision.ID); err != nil || !ok {
 		t.Fatalf("promotion evidence stored = %v, %v", ok, err)
 	}
 }

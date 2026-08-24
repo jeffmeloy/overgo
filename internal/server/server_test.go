@@ -23,11 +23,15 @@ import (
 
 	"image/png"
 
+	"overgo/internal/artifact"
 	"overgo/internal/cuda/driver"
 
 	"overgo/internal/inference"
+	"overgo/internal/modelrecipe"
 
 	"overgo/internal/projector"
+	"overgo/internal/recipe"
+	"overgo/internal/repodb"
 
 	"overgo/internal/sampling"
 	"overgo/internal/testutil"
@@ -963,6 +967,44 @@ func newTestHandler(t testing.TB, generator Generator) *Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return handler
+}
+
+func newTestHandlerWithRepository(t testing.TB, generator Generator) *Handler {
+	t.Helper()
+	repository, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := newTestHandlerForRepository(t, repository, generator)
+	t.Cleanup(func() { _ = repository.Close() })
+	return handler
+}
+
+func newTestHandlerForRepository(t testing.TB, repository *repodb.Store, generator Generator) *Handler {
+	t.Helper()
+	if inspector, ok := generator.(interface {
+		RecipeRuntimeDescription(recipe.Task) (modelrecipe.RuntimeDescription, error)
+	}); ok {
+		description, err := inspector.RecipeRuntimeDescription(recipe.TaskInference)
+		if err == nil && description.Identity.Recipe.Valid() {
+			if _, err := repository.Commit(context.Background(), artifact.Batch{
+				Key:       "test/serving-recipe/" + description.Identity.Recipe.String(),
+				Artifacts: []artifact.Descriptor{{ID: description.Identity.Recipe}},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	handler, err := New(Config{
+		ModelID: testModelID, MaxTokens: testMaxTokens,
+		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
+		Analysis: testAnalysisPolicy, Repository: repository,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = handler.Close() })
 	return handler
 }
 

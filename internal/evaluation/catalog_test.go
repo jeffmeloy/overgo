@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/repodb"
 )
@@ -50,7 +51,7 @@ func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, ok, err := store.Content(context.Background(), id)
+	content, ok, err := artifact.ReadContent(context.Background(), store, id)
 	if err != nil || !ok {
 		t.Fatalf("catalog content = %v, %v", ok, err)
 	}
@@ -65,7 +66,7 @@ func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
 		if entry.Name != names[index] || entry.Split != "test" {
 			t.Fatalf("catalog entry %d = %+v", index, entry)
 		}
-		importedContent, found, err := store.Content(context.Background(), entry.Dataset)
+		importedContent, found, err := artifact.ReadContent(context.Background(), store, entry.Dataset)
 		if err != nil || !found || importedContent.Descriptor.ID != entry.Dataset {
 			t.Fatalf("dataset %q = %v, %v", entry.Name, found, err)
 		}

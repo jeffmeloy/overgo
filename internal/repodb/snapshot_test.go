@@ -56,7 +56,7 @@ func TestSnapshotAnchorsReplayAndRetainsTail(t *testing.T) {
 	}
 }
 
-func TestCorruptSnapshotFallsBackToLog(t *testing.T) {
+func TestSnapshotFallbackReport(t *testing.T) {
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {
@@ -95,6 +95,10 @@ func TestCorruptSnapshotFallsBackToLog(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
+	status := store.SnapshotReplay()
+	if status.Loaded || status.Path != snapshot.Path || status.Fallback == "" {
+		t.Fatalf("snapshot fallback = %+v", status)
+	}
 	if _, ok, err := store.Artifact(context.Background(), batch.Artifacts[0].ID); err != nil || !ok {
 		t.Fatalf("rebuilt artifact = (%v, %v)", ok, err)
 	}

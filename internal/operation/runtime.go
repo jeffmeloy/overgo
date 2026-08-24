@@ -14,6 +14,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 )
 
 type State string
@@ -99,9 +100,11 @@ type Manager struct {
 }
 
 type entry struct {
-	status Status
-	cancel context.CancelFunc
-	done   chan struct{}
+	status  Status
+	request Request
+	execute Executor
+	cancel  context.CancelFunc
+	done    chan struct{}
 }
 
 type ticket struct {
@@ -174,9 +177,11 @@ func (manager *Manager) start(parent context.Context, id artifact.ID, request Re
 		}
 	}
 	manager.entries[id] = &entry{
-		status: Status{ID: id, Task: request.Task, Recipe: request.Recipe, State: StateAdmitted},
-		cancel: cancel,
-		done:   make(chan struct{}),
+		status:  Status{ID: id, Task: request.Task, Recipe: request.Recipe, State: StateAdmitted},
+		request: request,
+		execute: execute,
+		cancel:  cancel,
+		done:    make(chan struct{}),
 	}
 	if !slices.Contains(manager.order, id) {
 		manager.order = append(manager.order, id)
@@ -194,6 +199,9 @@ func (manager *Manager) run(ctx context.Context, id artifact.ID, execute Executo
 		if current := manager.entries[id]; current != nil {
 			current.cancel()
 			current.cancel = nil
+			if current.status.State != StateBlocked {
+				current.execute = nil
+			}
 			close(current.done)
 			manager.trimLocked()
 		}
@@ -237,6 +245,36 @@ func (manager *Manager) run(ctx context.Context, id artifact.ID, execute Executo
 		current.status.State = StateCompleted
 	}
 	manager.publishLocked(current.status)
+}
+
+// RecoverAfterDecision resumes only the exact action bound by a granted decision.
+func (manager *Manager) RecoverAfterDecision(
+	parent context.Context,
+	decision runrecord.HumanDecision,
+) (artifact.ID, error) {
+	if manager == nil || parent == nil || decision.Answer != operatoraction.AnswerGrant {
+		return artifact.ID{}, errors.New("operation: granted recovery decision required")
+	}
+	manager.mu.RLock()
+	current := manager.entries[decision.Operation]
+	if current == nil || current.status.State != StateBlocked || current.status.Recovery == nil ||
+		current.request.Recipe != decision.Recipe || current.execute == nil {
+		manager.mu.RUnlock()
+		return artifact.ID{}, errors.New("operation: blocked recovery is unavailable")
+	}
+	admitted := false
+	for _, action := range current.status.Recovery.Actions {
+		if action.Code == decision.Tool && slices.Equal(action.Argv, decision.Arguments) {
+			admitted = true
+			break
+		}
+	}
+	request, execute := current.request, current.execute
+	manager.mu.RUnlock()
+	if !admitted {
+		return artifact.ID{}, errors.New("operation: decision action differs from recovery contract")
+	}
+	return manager.Recover(parent, decision.Operation, request, execute)
 }
 
 func validateCompletion(completion Completion) error {

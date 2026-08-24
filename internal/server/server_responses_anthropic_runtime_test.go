@@ -733,7 +733,7 @@ func TestStreamingResponsesFunctionCallLifecycle(t *testing.T) {
 
 func TestStreamingResponsesStoresContinuationHistory(t *testing.T) {
 	generator := &fakeGenerator{pieces: []string{"A"}}
-	handler := newTestHandler(t, generator)
+	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, generator))
 	stream := httptest.NewRecorder()
 	handler.ServeHTTP(
 		stream,

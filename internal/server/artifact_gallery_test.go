@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -11,6 +12,52 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/repodb"
 )
+
+func TestHandlerRetainsBrowseStore(t *testing.T) {
+	root := t.TempDir()
+	store, err := repodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := New(Config{RepoDBPath: root}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer handler.Close()
+	first, err := handler.browseStore(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := handler.browseStore(context.Background())
+	if err != nil || first != second || first != handler.browseRepository {
+		t.Fatalf("browse stores = (%p, %p, %v)", first, second, err)
+	}
+}
+
+func TestHandlerClosesBrowseStore(t *testing.T) {
+	root := t.TempDir()
+	store, err := repodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := New(Config{RepoDBPath: root}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	browse := handler.browseRepository
+	if err := handler.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := browse.Refresh(context.Background()); !errors.Is(err, repodb.ErrClosed) {
+		t.Fatalf("refresh after handler close = %v", err)
+	}
+}
 
 func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 	root := t.TempDir()

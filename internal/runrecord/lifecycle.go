@@ -109,17 +109,12 @@ func canonicalizeGateLifecycle(lifecycle *GateLifecycle) error {
 	return nil
 }
 
-// OutstandingGateDebt derives preparations lacking a finalization from RepoDB
-// lifecycle contents. Ordering is stable for machine and human consumers.
-func OutstandingGateDebt(contents []artifact.Content) ([]GateLifecycle, error) {
+// OutstandingGateDebt derives preparations lacking a finalization.
+func OutstandingGateDebt(records []GateLifecycle) ([]GateLifecycle, error) {
 	prepared := map[artifact.ID]GateLifecycle{}
 	var finalizations []GateLifecycle
-	for _, content := range contents {
-		if content.Descriptor.MediaType != GateLifecycleMediaType || content.Descriptor.Schema != GateLifecycleSchema {
-			continue
-		}
-		lifecycle, err := ParseGateLifecycle(content.Data)
-		if err != nil {
+	for _, lifecycle := range records {
+		if err := lifecycle.ValidateIdentity(); err != nil {
 			return nil, err
 		}
 		if lifecycle.State == GatePrepared {
@@ -148,6 +143,9 @@ func OutstandingGateDebt(contents []artifact.Content) ([]GateLifecycle, error) {
 	sort.Slice(debt, func(i, j int) bool { return debt[i].ID.String() < debt[j].ID.String() })
 	return debt, nil
 }
+
+// ValidateIdentity verifies lifecycle content identity.
+func (l GateLifecycle) ValidateIdentity() error { return gateLifecycleCodec.ValidateIdentity(l) }
 
 type GateHeartbeatState string
 

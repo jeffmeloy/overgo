@@ -111,31 +111,26 @@ func (h *Handler) compositionInventory(response http.ResponseWriter, request *ht
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "composition repository is unavailable")
 		return
 	}
-	result, err := h.repository.Query(request.Context(), repodb.Query{
-		MediaType:  composition.CompositionRecipeMediaType,
-		MaxResults: h.repository.QueryExtent(),
-		Projection: repodb.ProjectArtifacts,
+	views := make([]compositionWorkflowView, 0)
+	_, err := repodb.VisitDecodedDocuments(request.Context(), h.repository, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindRecipe, MediaType: composition.CompositionRecipeMediaType, Schema: composition.CompositionRecipeSchema,
+		}}, Order: repodb.DocumentNewestFirst,
+	}, composition.ParseCompositionRecipe, func(_ repodb.DocumentView, value composition.CompositionRecipe) error {
+		views = append(views, h.compositionWorkflowView(request.Context(), value))
+		return nil
 	})
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "composition_inventory_error", err.Error())
 		return
-	}
-	views := make([]compositionWorkflowView, 0, len(result.Artifacts))
-	for _, descriptor := range result.Artifacts {
-		views = append(views, h.compositionWorkflowView(request.Context(), descriptor.ID))
 	}
 	writeJSON(response, http.StatusOK, compositionInventoryResponse{
 		Compositions: views,
 	})
 }
 
-func (h *Handler) compositionWorkflowView(ctx context.Context, id artifact.ID) compositionWorkflowView {
-	view := compositionWorkflowView{Recipe: id}
-	value, err := composition.LoadCompositionRecipe(ctx, h.repository, id)
-	if err != nil {
-		view.Refusal = err.Error()
-		return view
-	}
+func (h *Handler) compositionWorkflowView(ctx context.Context, value composition.CompositionRecipe) compositionWorkflowView {
+	view := compositionWorkflowView{Recipe: value.ID}
 	view.Source, view.Target, view.Task = value.SourceModel, value.TargetModel, value.Task
 	bridge, err := composition.LoadBridgeDefinition(ctx, h.repository, value.BridgeDefinition)
 	if err != nil {

@@ -94,24 +94,14 @@ func parseRequiredPlans(value string) ([]artifact.ID, error) {
 }
 
 func evidenceByPlan(ctx context.Context, store *repodb.Store) (map[artifact.ID][]evaluation.EvaluationEvidence, error) {
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(), Projection: repodb.ProjectArtifacts,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if result.Truncated {
-		return nil, errors.New("eval-lane: evidence query truncated")
-	}
 	byPlan := make(map[artifact.ID][]evaluation.EvaluationEvidence)
-	for _, descriptor := range result.Artifacts {
-		value, found, err := evaluation.LoadEvaluationEvidence(ctx, store, descriptor.ID)
-		if err != nil {
-			return nil, err
-		}
-		if found {
-			byPlan[value.Plan] = append(byPlan[value.Plan], value)
-		}
-	}
-	return byPlan, nil
+	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: evaluation.EvaluationEvidenceMediaType, Schema: evaluation.EvaluationEvidenceSchema,
+		}}, Order: repodb.DocumentOldestFirst,
+	}, evaluation.ParseEvaluationEvidence, func(_ repodb.DocumentView, value evaluation.EvaluationEvidence) error {
+		byPlan[value.Plan] = append(byPlan[value.Plan], value)
+		return nil
+	})
+	return byPlan, err
 }

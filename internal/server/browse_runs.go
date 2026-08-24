@@ -57,18 +57,15 @@ type browseRunDetail struct {
 	Children    []artifact.Lineage      `json:"children"`
 }
 
-// browseRuns: read-only listing of training/run artifacts from the RepoDB —
-// outcome, recipe, code commit, wall time, and per-phase durations, decoded via
-// runrecord.ParseRun. No job control. Opens the store read-only per request.
+// browseRuns lists run artifacts from the retained RepoDB view.
 func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
-	store, release, ok := h.openBrowseStore(response)
+	store, ok := h.requireBrowseStore(response, request)
 	if !ok {
 		return
 	}
-	defer release()
 	if value := request.URL.Query().Get("id"); value != "" {
 		id, parseErr := artifact.ParseID(value)
 		if parseErr != nil || id.Kind() != artifact.KindRun {
@@ -95,9 +92,12 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 	if limit > browseRunsMaxLimit {
 		limit = browseRunsMaxLimit
 	}
-	page := repodb.Query{
-		Kind: artifact.KindRun, MaxResults: limit,
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	documents := repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{
+			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.LegacyRunSchema},
+			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.RunSchema},
+		},
+		Order: repodb.DocumentNewestFirst, MaxResults: limit,
 	}
 	if value := query.Get("cursor"); value != "" {
 		cursor, parseErr := repodb.ParseQueryCursor(value)
@@ -105,9 +105,14 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 			writeInvalidRequest(response, parseErr)
 			return
 		}
-		page.Cursor = &cursor
+		documents.Cursor = &cursor
 	}
-	result, err := store.Query(request.Context(), page)
+	runs := make([]browseRunEntry, 0, limit)
+	result, err := repodb.VisitDecodedDocuments(request.Context(), store, documents, runrecord.ParseRun,
+		func(_ repodb.DocumentView, run runrecord.Run) error {
+			runs = append(runs, shapeRun(run))
+			return nil
+		})
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
 		return
@@ -119,18 +124,6 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 		return
 	}
 
-	runs := make([]browseRunEntry, 0, len(result.Artifacts))
-	for _, descriptor := range result.Artifacts {
-		content, found := result.Content(descriptor.ID)
-		if !found {
-			continue
-		}
-		run, parseErr := runrecord.ParseRun(content)
-		if parseErr != nil {
-			continue
-		}
-		runs = append(runs, shapeRun(run))
-	}
 	writeJSON(response, http.StatusOK, browseRunsResponse{
 		Count: result.Matched, Limit: limit, Truncated: result.Truncated, Next: next, Runs: runs,
 	})

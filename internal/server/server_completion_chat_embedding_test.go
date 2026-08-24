@@ -23,6 +23,7 @@ import (
 
 	"overgo/internal/inference"
 	"overgo/internal/projector"
+	"overgo/internal/repodb"
 
 	"overgo/internal/sampling"
 
@@ -2183,9 +2184,9 @@ func TestBufferedResponsesAliases(t *testing.T) {
 	}
 }
 
-func TestResponsesPreviousResponseContinuation(t *testing.T) {
+func TestProtocolHistoryParity(t *testing.T) {
 	generator := &fakeGenerator{}
-	handler := newTestHandler(t, generator)
+	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, generator))
 	first := httptest.NewRecorder()
 	handler.ServeHTTP(
 		first,
@@ -2230,8 +2231,57 @@ func TestResponsesPreviousResponseContinuation(t *testing.T) {
 	}
 }
 
+func TestResponsesContinuationRestart(t *testing.T) {
+	root := t.TempDir()
+	repository, err := repodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstHandler := newTestHandlerForRepository(t, repository, responseRecipeGenerator(t, &fakeGenerator{}))
+	first := serveTestRequest(firstHandler, http.MethodPost, "/v1/responses", `{"input":"hello","max_output_tokens":1}`)
+	if first.Code != http.StatusOK {
+		t.Fatalf("first status=%d body=%s", first.Code, first.Body.String())
+	}
+	var initial responsesResponse
+	if err := json.Unmarshal(first.Body.Bytes(), &initial); err != nil {
+		t.Fatal(err)
+	}
+	if err := firstHandler.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := repository.Close(); err != nil {
+		t.Fatal(err)
+	}
+	repository, err = repodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = repository.Close() })
+	secondHandler := newTestHandlerForRepository(t, repository, responseRecipeGenerator(t, &fakeGenerator{}))
+	continuation := serveTestRequest(
+		secondHandler, http.MethodPost, "/v1/responses",
+		`{"input":"next","max_output_tokens":1,"previous_response_id":"`+initial.ID+`"}`,
+	)
+	if continuation.Code != http.StatusOK {
+		t.Fatalf("continuation status=%d body=%s", continuation.Code, continuation.Body.String())
+	}
+	var resumed responsesResponse
+	if err := json.Unmarshal(continuation.Body.Bytes(), &resumed); err != nil {
+		t.Fatal(err)
+	}
+	if resumed.ID == initial.ID {
+		t.Fatalf("restart reused response identity %q", resumed.ID)
+	}
+}
+
+func TestResponseHistoryStoreAbsent(t *testing.T) {
+	if _, found := reflect.TypeFor[Handler]().FieldByName("responseHistory"); found {
+		t.Fatal("handler retains response history cache")
+	}
+}
+
 func TestResponsesStoreFalseDisablesContinuation(t *testing.T) {
-	handler := newTestHandler(t, &fakeGenerator{})
+	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	first := httptest.NewRecorder()
 	handler.ServeHTTP(
 		first,
@@ -2270,7 +2320,7 @@ func TestResponsesContinuationRetainsGeneratedToolCallID(t *testing.T) {
 		`<tool_call><function=weather><parameter=city>`,
 		`Paris</parameter></function></tool_call>`,
 	}}
-	handler := newTestHandler(t, generator)
+	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, generator))
 	first := httptest.NewRecorder()
 	handler.ServeHTTP(
 		first,

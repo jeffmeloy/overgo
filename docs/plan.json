@@ -1,8 +1,50 @@
 {
   "campaign": "Deletion-led production composability, durable agent execution, and RepoDB tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Modelrecipe owns component sessions; recipe owns topology and policy; workflowruntime owns stage execution; operation owns lifecycle; runrecord and RepoDB own immutable facts; inference owns model math; server owns protocols and GUI. ADK is a behavior inventory and oracle, never a dependency or second runtime. No second workflow graph, plugin callback mesh, mutable property bag, string branch authority, duplicate session or artifact store, wrapper, fallback, or advisory execution plan. Compact RepoDB before adding event volume: remove duplicate indexes and payload copies, stream durable writes, expose bounded projected queries, and retain one refreshable browse owner. Each capability wave migrates every caller and deletes the displaced ephemeral owner in the same commit. Retry, concurrency, context, and retention policy derive from recipes, resource plans, requests, or measured evidence. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:0e88a340588bf591df2743a0aa71cbfb8e7898819464f9ce122d2be133ab72bc",
+  "census_evidence": "evidence:sha256:20c7c5e4343844e63ecd0b66b88a97753911cce6631ed07508623440c22957d6",
   "items": [
+    {
+      "id": "merge-tightening-repodb",
+      "title": "Merge the tightening RepoDB rearchitecture into master",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge the tightening RepoDB rearchitecture into master",
+          "status": "done",
+          "verify": "git merge-base --is-ancestor overgo_tightening HEAD || git rev-parse -q --verify MERGE_HEAD"
+        }
+      ]
+    },
+    {
+      "id": "overgodb-rename",
+      "title": "Rename repoDB to overgoDB across the repository",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Rename repoDB to overgoDB across the repository",
+          "status": "open",
+          "verify": "go build ./... \u0026\u0026 go test ./internal/overgodb -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-overgodb",
+      "title": "Optimize the GUI over the streamed store",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Optimize the GUI over the streamed store",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestWorkbenchAPI|TestWebUI' -count=1"
+        }
+      ]
+    },
     {
       "id": "merge-129885a3dd3d",
       "title": "Merge codex/overgo_research at 129885a3dd3d",

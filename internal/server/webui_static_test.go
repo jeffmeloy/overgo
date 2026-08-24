@@ -30,7 +30,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/mod/image.js", "text/javascript; charset=utf-8", "/v1/images/generations"},
 		{"/mod/speech.js", "text/javascript; charset=utf-8", "/v1/audio/speech"},
 		{"/mod/discovery.js", "text/javascript; charset=utf-8", "/hub/search"},
-		{"/mod/runtime.js", "text/javascript; charset=utf-8", "/runtime/activity"},
+		{"/mod/runtime.js", "text/javascript; charset=utf-8", "runtimeEvents"},
 		{"/mod/datasets.js", "text/javascript; charset=utf-8", "/datasets"},
 		{"/mod/training.js", "text/javascript; charset=utf-8", "/runs"},
 		{"/mod/model_builder.js", "text/javascript; charset=utf-8", `scope: "model-builder"`},
@@ -87,9 +87,14 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
 	}
 	runtime := get("/mod/runtime.js")
-	for _, token := range []string{"overgo.poller", "onActivate", "onDeactivate", `api.get("/runtime/sessions"`, `api.get("/runtime/activity"`} {
+	for _, token := range []string{"runtimeEvents.subscribe", "onActivate", "onDeactivate", "runtime.sessions", "runtime.activity"} {
 		if !strings.Contains(runtime, token) {
 			t.Errorf("runtime module missing %q", token)
+		}
+	}
+	for _, polling := range []string{"overgo.poller", `api.get("/runtime/sessions"`, `api.get("/runtime/activity"`} {
+		if strings.Contains(runtime, polling) {
+			t.Errorf("runtime module retains polling path %q", polling)
 		}
 	}
 	if strings.Contains(runtime, "include_text") {
@@ -103,6 +108,56 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 	}
 	if !strings.Contains(get("/app.html"), "/mod/runtime.js") {
 		t.Error("app shell does not load runtime module")
+	}
+}
+
+func TestWorkflowStageGUI(t *testing.T) {
+	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
+	for _, token := range []string{"data.stages", "Workflow stages", "stage.operation", "stage.attempt"} {
+		if !strings.Contains(runtime, token) {
+			t.Errorf("workflow stage GUI missing %q", token)
+		}
+	}
+}
+
+func TestToolDecisionGUI(t *testing.T) {
+	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
+	for _, token := range []string{"/operations/decision", "item.recovery", "Grant ", "decline"} {
+		if !strings.Contains(runtime, token) {
+			t.Errorf("tool decision GUI missing %q", token)
+		}
+	}
+}
+
+func TestInteractionReplayGUI(t *testing.T) {
+	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
+	for _, token := range []string{"data.interactions", "/interactions/replay?response=", "interaction.trace"} {
+		if !strings.Contains(runtime, token) {
+			t.Errorf("interaction replay GUI missing %q", token)
+		}
+	}
+}
+
+func TestRemoteAttemptGUI(t *testing.T) {
+	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
+	if !strings.Contains(runtime, `item.compatibility ? " / peer"`) {
+		t.Fatal("remote attempts are not identified from compatibility evidence")
+	}
+}
+
+func TestAgentGUIUsesProjectedQueriesAndSSE(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	runtime := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String()
+	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
+	for _, token := range []string{"runtimeEvents", "/runtime/activity/stream", "operation.snapshot"} {
+		if !strings.Contains(workflow, token) {
+			t.Errorf("shared runtime stream missing %q", token)
+		}
+	}
+	for _, polling := range []string{"operationPollMilliseconds", `api.get("/operations?id="`, "overgo.poller"} {
+		if strings.Contains(workflow, polling) || strings.Contains(runtime, polling) {
+			t.Errorf("agent GUI retains polling path %q", polling)
+		}
 	}
 }
 
@@ -323,7 +378,7 @@ func TestRLWorkspaceUsesGenericWorkflowEndpoints(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
 	jobs := serveTestRequest(handler, http.MethodGet, "/mod/jobs.js", "").Body.String()
-	for _, token := range []string{`"/" + definition.scope + "/run"`, "/operations?id=", "/operations/cancel"} {
+	for _, token := range []string{`"/" + definition.scope + "/run"`, "overgo.waitOperation", "/operations/cancel"} {
 		if !strings.Contains(workflow, token) {
 			t.Errorf("generic workflow missing %q", token)
 		}

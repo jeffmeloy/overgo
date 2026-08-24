@@ -26,12 +26,13 @@ func ExecuteRemotePeer(
 	output io.Writer,
 ) (err error) {
 	if ctx == nil || selection.Session != modelrecipe.SessionSpillover || !selection.Peer.ID.Valid() ||
+		selection.Peer.Capability.ID != selection.Peer.PeerCapability ||
 		selection.Peer.Model != selection.Activation.Definition.Model ||
 		selection.Peer.Recipe != selection.Activation.Definition.ID ||
 		selection.Peer.Resources != selection.Resources.Identity || input == nil || output == nil {
 		return errors.New("capability runtime: incomplete remote peer execution")
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, selection.Peer.Endpoint, input)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, selection.Peer.Capability.Endpoint, input)
 	if err != nil {
 		return err
 	}

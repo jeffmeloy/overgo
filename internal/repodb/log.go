@@ -14,18 +14,16 @@ import (
 )
 
 const (
-	storeFilename       = "repodb.log"
-	lockFilename        = "repodb.lock"
-	storeHeaderBytes    = 16
-	frameHeaderBytes    = 84
-	frameChecksumSize   = 4
-	storeVersion        = uint16(1)
-	minimumFrameVersion = uint16(1)
-	frameVersion        = uint16(2)
-	frameKindBatch      = uint16(1)
-	maxFramePayload     = artifact.MaxContentBytes
-	storeFileMode       = 0o644
-	storeDirectoryMode  = 0o755
+	storeFilename      = "repodb.log"
+	lockFilename       = "repodb.lock"
+	storeHeaderBytes   = 16
+	frameHeaderBytes   = 84
+	storeVersion       = uint16(1)
+	frameVersion       = uint16(4)
+	frameKindBatch     = uint16(1)
+	maxFramePayload    = artifact.MaxContentBytes
+	storeFileMode      = 0o644
+	storeDirectoryMode = 0o755
 
 	storeMagicOffset    = 0
 	storeVersionOffset  = 8
@@ -57,6 +55,7 @@ type logRecord struct {
 	sequence uint64
 	previous artifact.CommitID
 	id       artifact.CommitID
+	offset   int64
 	payload  []byte
 }
 
@@ -82,6 +81,8 @@ type replayResult struct {
 type replayAnchor struct {
 	sequence uint64
 	head     artifact.CommitID
+	offset   int64
+	digest   [sha256.Size]byte
 }
 
 func openRecordLog(
@@ -200,7 +201,53 @@ func (l *recordLog) replay(anchor replayAnchor, apply func(logRecord) error) (re
 	if err := validateStoreHeader(header); err != nil {
 		return replayResult{}, err
 	}
+	if anchor.sequence != 0 {
+		if anchor.offset < storeHeaderBytes {
+			return replayResult{}, ErrSnapshotAnchor
+		}
+		digest, err := l.anchorDigest(anchor.offset)
+		if err != nil || digest != anchor.digest {
+			return replayResult{}, ErrSnapshotAnchor
+		}
+		if _, err := l.file.Seek(anchor.offset, io.SeekStart); err != nil {
+			return replayResult{}, fmt.Errorf("repodb: seek snapshot tail: %w", err)
+		}
+		return l.replayFrames(replayResult{
+			head: anchor.head, sequence: anchor.sequence, validEnd: anchor.offset,
+		}, anchor, apply)
+	}
 	result := replayResult{validEnd: storeHeaderBytes}
+	return l.replayFrames(result, anchor, apply)
+}
+
+func (l *recordLog) anchorDigest(offset int64) ([sha256.Size]byte, error) {
+	if offset < storeHeaderBytes {
+		return [sha256.Size]byte{}, ErrSnapshotAnchor
+	}
+	start := max(int64(storeHeaderBytes), offset-sha256.Size)
+	data := make([]byte, offset-start)
+	if _, err := l.file.ReadAt(data, start); err != nil {
+		return [sha256.Size]byte{}, err
+	}
+	return sha256.Sum256(data), nil
+}
+
+func (l *recordLog) refresh(anchor replayAnchor, offset int64, apply func(logRecord) error) (replayResult, error) {
+	info, err := l.file.Stat()
+	if err != nil {
+		return replayResult{}, fmt.Errorf("repodb: stat log tail: %w", err)
+	}
+	if info.Size() < offset {
+		return replayResult{}, ErrSnapshotAnchor
+	}
+	if _, err := l.file.Seek(offset, io.SeekStart); err != nil {
+		return replayResult{}, fmt.Errorf("repodb: seek log tail: %w", err)
+	}
+	result := replayResult{head: anchor.head, sequence: anchor.sequence, validEnd: offset}
+	return l.replayFrames(result, anchor, apply)
+}
+
+func (l *recordLog) replayFrames(result replayResult, anchor replayAnchor, apply func(logRecord) error) (replayResult, error) {
 	frameHeader := make([]byte, frameHeaderBytes)
 	var body []byte
 	for {
@@ -220,7 +267,7 @@ func (l *recordLog) replay(anchor replayAnchor, apply func(logRecord) error) (re
 		if payloadSize > maxFramePayload {
 			return replayResult{}, fmt.Errorf("repodb: frame at %d exceeds payload limit", frameStart)
 		}
-		bodyBytes := int(payloadSize) + frameChecksumSize
+		bodyBytes := int(payloadSize) + crc32.Size
 		if cap(body) < bodyBytes {
 			body = make([]byte, bodyBytes)
 		} else {
@@ -231,8 +278,9 @@ func (l *recordLog) replay(anchor replayAnchor, apply func(logRecord) error) (re
 			break
 		}
 		record.payload = body[:payloadSize]
+		record.offset = frameStart + frameHeaderBytes
 		checksum := binary.LittleEndian.Uint32(body[payloadSize:])
-		actual := crc32.Update(0, crcTable, frameHeader)
+		actual := crc32.Checksum(frameHeader, crcTable)
 		actual = crc32.Update(actual, crcTable, record.payload)
 		if checksum != actual {
 			return replayResult{}, fmt.Errorf("repodb: frame at %d has invalid checksum", frameStart)
@@ -253,7 +301,7 @@ func (l *recordLog) replay(anchor replayAnchor, apply func(logRecord) error) (re
 		}
 		result.sequence = record.sequence
 		result.head = record.id
-		result.validEnd += int64(frameHeaderBytes) + int64(payloadSize) + frameChecksumSize
+		result.validEnd += int64(frameHeaderBytes) + int64(payloadSize) + crc32.Size
 	}
 	if result.sequence < anchor.sequence {
 		return replayResult{}, ErrSnapshotAnchor
@@ -266,7 +314,7 @@ func decodeFrameHeader(header []byte) (uint32, logRecord, error) {
 		return 0, logRecord{}, errors.New("invalid frame magic")
 	}
 	version := binary.LittleEndian.Uint16(header[frameVersionOffset:frameKindOffset])
-	if version < minimumFrameVersion || version > frameVersion {
+	if version != frameVersion {
 		return 0, logRecord{}, errors.New("unsupported frame version")
 	}
 	if binary.LittleEndian.Uint16(header[frameKindOffset:frameSequenceOffset]) != frameKindBatch {
@@ -292,12 +340,7 @@ func commitIdentity(version uint16, sequence uint64, previous artifact.CommitID,
 	return id
 }
 
-func encodeRecord(sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, []byte) {
-	return encodeRecordVersion(frameVersion, sequence, previous, payload)
-}
-
-func encodeRecordVersion(version uint16, sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, []byte) {
-	id := commitIdentity(version, sequence, previous, payload)
+func encodeFrameHeader(version uint16, sequence uint64, previous, id artifact.CommitID, payloadSize int) []byte {
 	header := make([]byte, frameHeaderBytes)
 	binary.LittleEndian.PutUint32(header[frameMagicOffset:frameVersionOffset], frameMagic)
 	binary.LittleEndian.PutUint16(header[frameVersionOffset:frameKindOffset], version)
@@ -305,34 +348,51 @@ func encodeRecordVersion(version uint16, sequence uint64, previous artifact.Comm
 	binary.LittleEndian.PutUint64(header[frameSequenceOffset:framePreviousOffset], sequence)
 	copy(header[framePreviousOffset:frameIDOffset], previous[:])
 	copy(header[frameIDOffset:framePayloadSizeOffset], id[:])
-	binary.LittleEndian.PutUint32(header[framePayloadSizeOffset:frameHeaderBytes], uint32(len(payload)))
-	frame := make([]byte, 0, len(header)+len(payload)+frameChecksumSize)
-	frame = append(frame, header...)
-	frame = append(frame, payload...)
-	checksum := crc32.Checksum(frame, crcTable)
-	frame = binary.LittleEndian.AppendUint32(frame, checksum)
-	return id, frame
+	binary.LittleEndian.PutUint32(header[framePayloadSizeOffset:frameHeaderBytes], uint32(payloadSize))
+	return header
 }
 
-func (l *recordLog) append(sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, error) {
+func encodeFrame(sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, []byte, [crc32.Size]byte) {
+	id := commitIdentity(frameVersion, sequence, previous, payload)
+	header := encodeFrameHeader(frameVersion, sequence, previous, id, len(payload))
+	checksum := crc32.Checksum(header, crcTable)
+	checksum = crc32.Update(checksum, crcTable, payload)
+	var trailer [crc32.Size]byte
+	binary.LittleEndian.PutUint32(trailer[:], checksum)
+	return id, header, trailer
+}
+
+func (l *recordLog) append(sequence uint64, previous artifact.CommitID, payload []byte) (artifact.CommitID, int64, int64, error) {
 	if l == nil || l.file == nil || l.readOnly {
-		return artifact.CommitID{}, errors.New("repodb: log is not writable")
+		return artifact.CommitID{}, 0, 0, errors.New("repodb: log is not writable")
 	}
 	if len(payload) > maxFramePayload {
-		return artifact.CommitID{}, errors.New("repodb: batch exceeds payload limit")
+		return artifact.CommitID{}, 0, 0, errors.New("repodb: batch exceeds payload limit")
 	}
-	id, frame := encodeRecord(sequence, previous, payload)
+	info, err := l.file.Stat()
+	if err != nil {
+		return artifact.CommitID{}, 0, 0, fmt.Errorf("repodb: locate append: %w", err)
+	}
+	id, header, trailer := encodeFrame(sequence, previous, payload)
 	writer := l.writer
 	if writer == nil {
 		writer = l.file
 	}
-	if err := writeAll(writer, frame); err != nil {
-		return id, fmt.Errorf("repodb: append commit: %w", err)
+	payloadOffset := info.Size() + int64(len(header))
+	end := payloadOffset + int64(len(payload)+len(trailer))
+	for _, part := range [...][]byte{header, payload, trailer[:]} {
+		if err := writeAll(writer, part); err != nil {
+			return id, payloadOffset, end, fmt.Errorf("repodb: append commit: %w", err)
+		}
 	}
 	if err := writer.Sync(); err != nil {
-		return id, fmt.Errorf("repodb: sync commit: %w", err)
+		return id, payloadOffset, end, fmt.Errorf("repodb: sync commit: %w", err)
 	}
-	return id, nil
+	return id, payloadOffset, end, nil
+}
+
+func (l *recordLog) openContent(locator contentLocator) io.Reader {
+	return io.NewSectionReader(l.file, locator.offset, locator.size)
 }
 
 func writeAll(writer io.Writer, data []byte) error {

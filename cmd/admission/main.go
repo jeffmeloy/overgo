@@ -96,7 +96,7 @@ func runSucceed(currentText, priorText, approvalText, recordStore string, output
 		if err != nil {
 			return nil, err
 		}
-		content, ok, err := store.Content(ctx, id)
+		content, ok, err := artifact.ReadContent(ctx, store, id)
 		if err != nil {
 			return nil, err
 		}

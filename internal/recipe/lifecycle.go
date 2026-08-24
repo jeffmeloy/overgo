@@ -101,6 +101,31 @@ func (e LifecycleEvent) Content() (artifact.Content, error) {
 	return lifecycleCodec.Content(e)
 }
 
+// Lineage returns lifecycle dependencies.
+func (e LifecycleEvent) Lineage() []artifact.Lineage {
+	lineage := make([]artifact.Lineage, 0, len(e.Evidence)+3)
+	seen := make(map[artifact.ID]struct{}, cap(lineage))
+	add := func(parent artifact.ID) {
+		if _, found := seen[parent]; !found {
+			seen[parent] = struct{}{}
+			lineage = append(lineage, artifact.Lineage{
+				Child: e.ID, Parent: parent, Relation: artifact.RelationDependsOn,
+			})
+		}
+	}
+	add(e.Recipe)
+	if e.PreviousEvent != nil {
+		add(*e.PreviousEvent)
+	}
+	if e.Supersedes != nil {
+		add(*e.Supersedes)
+	}
+	for _, evidence := range e.Evidence {
+		add(evidence)
+	}
+	return lineage
+}
+
 func (e LifecycleEvent) Validate() error {
 	return lifecycleCodec.ValidateIdentity(e)
 }

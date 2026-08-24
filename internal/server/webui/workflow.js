@@ -1,16 +1,77 @@
 (function () {
   "use strict";
-  const operationPollMilliseconds = 500;
+  const subscribers = new Set();
+  const latest = new Map();
+  let streamController = null;
+
   function terminal(state) {
     return state === "completed" || state === "cancelled" || state === "failed";
   }
-  window.overgo.waitOperation = async function (id, observe, signal) {
-    for (;;) {
-      const current = await window.overgo.api.get("/operations?id=" + encodeURIComponent(id), { signal });
-      if (observe) observe(current);
-      if (terminal(current.state)) return current;
-      await new Promise((resolve) => window.setTimeout(resolve, operationPollMilliseconds));
+
+  function publish(name, value) {
+    if (name === "operation") {
+      const operations = new Map((latest.get("operation.snapshot") || []).map((item) => [item.id, item]));
+      operations.set(value.status.id, value.status);
+      latest.set("operation.snapshot", [...operations.values()]);
+    } else {
+      latest.set(name, value);
     }
+    for (const subscriber of subscribers) subscriber(name, value);
+  }
+
+  async function connect() {
+    const controller = new AbortController();
+    streamController = controller;
+    try {
+      await window.overgo.api.events("/runtime/activity/stream", publish, { signal: controller.signal });
+    } catch (err) {
+      if (err.name !== "AbortError") publish("stream.error", err);
+    } finally {
+      if (streamController === controller) streamController = null;
+    }
+  }
+
+  function subscribe(handler) {
+    subscribers.add(handler);
+    queueMicrotask(() => {
+      if (subscribers.has(handler)) for (const [name, value] of latest) handler(name, value);
+    });
+    if (!streamController) connect();
+    return function unsubscribe() {
+      subscribers.delete(handler);
+      if (!subscribers.size && streamController) {
+        streamController.abort();
+        streamController = null;
+      }
+    };
+  }
+
+  window.overgo.runtimeEvents = { subscribe };
+  window.overgo.waitOperation = function (id, observe, signal) {
+    return new Promise((resolve, reject) => {
+      let unsubscribe = function () {};
+      function finish(current) {
+        if (observe) observe(current);
+        if (!terminal(current.state)) return;
+        unsubscribe();
+        resolve(current);
+      }
+      unsubscribe = subscribe((name, value) => {
+        if (name === "operation" && value.status.id === id) finish(value.status);
+        if (name === "operation.snapshot") {
+          const current = value.find((item) => item.id === id);
+          if (current) finish(current);
+        }
+        if (name === "stream.error") {
+          unsubscribe();
+          reject(value);
+        }
+      });
+      if (signal) signal.addEventListener("abort", () => {
+        unsubscribe();
+        reject(new DOMException("aborted", "AbortError"));
+      }, { once: true });
+    });
   };
   window.overgo.workflowWorkspace = function (definition) {
     window.overgo.registerTab({

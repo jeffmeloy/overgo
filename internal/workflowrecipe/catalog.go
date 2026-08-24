@@ -31,6 +31,14 @@ const (
 	ModuleSelectComponent recipe.ModuleID = "composition.select-component"
 	ModuleTrainBridge     recipe.ModuleID = "composition.train-bridge"
 	ModuleEvaluateBridge  recipe.ModuleID = "composition.evaluate-bridge"
+	// ModuleFitModel owns model fitting.
+	ModuleFitModel recipe.ModuleID = "model-build.fit"
+	// ModuleEvaluateModel owns fitted-model evaluation.
+	ModuleEvaluateModel recipe.ModuleID = "model-build.evaluate"
+	// ModuleRecordModel owns model evidence publication.
+	ModuleRecordModel recipe.ModuleID = "model-build.record"
+	// ModulePromoteModel owns model promotion decisions.
+	ModulePromoteModel recipe.ModuleID = "model-build.promote"
 )
 
 var catalog = mustCatalog()
@@ -95,11 +103,22 @@ func mustCatalog() *recipe.Catalog {
 	modules = append(modules, preferenceModules()...)
 	modules = append(modules, rolloutModules()...)
 	modules = append(modules, compositionModules()...)
+	modules = append(modules, modelBuildModules()...)
 	catalog, err := recipe.NewCatalog(modules...)
 	if err != nil {
 		panic(err)
 	}
 	return catalog
+}
+
+func modelBuildModules() []recipe.Module {
+	state := ports(port("state", recipe.DataArtifact, recipe.CardinalityOne))
+	return []recipe.Module{
+		module(ModuleFitModel, tasks(recipe.TaskTraining), state, state),
+		module(ModuleEvaluateModel, tasks(recipe.TaskTraining), state, state),
+		module(ModuleRecordModel, tasks(recipe.TaskTraining), state, state),
+		module(ModulePromoteModel, tasks(recipe.TaskTraining), state, state),
+	}
 }
 
 func compositionModules() []recipe.Module {

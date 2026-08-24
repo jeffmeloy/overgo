@@ -538,7 +538,7 @@ func loadCompositionContent(
 	if ctx == nil || reader == nil || id.Kind() != kind {
 		return artifact.Content{}, errors.New("composition: repository query authority is invalid")
 	}
-	content, found, err := reader.Content(ctx, id)
+	content, found, err := artifact.ReadContent(ctx, reader, id)
 	if err != nil {
 		return artifact.Content{}, err
 	}

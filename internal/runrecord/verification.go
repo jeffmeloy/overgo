@@ -68,7 +68,7 @@ func VerifyEvidence(
 ) (Verification, error) {
 	var gates, runs []artifact.ID
 	for _, id := range evidence {
-		content, ok, err := store.Content(ctx, id)
+		content, ok, err := artifact.ReadContent(ctx, store, id)
 		if err != nil {
 			return Verification{}, err
 		}

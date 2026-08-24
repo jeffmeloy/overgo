@@ -14,7 +14,8 @@ import (
 const (
 	ServingObservationMediaType = "application/vnd.overgo.serving-observation+json"
 	ServingObservationSchema    = "overgo/serving-observation/v1"
-	servingAttemptAliasRoot     = "serving/attempt/"
+	// ServingAttemptAliasRoot scopes current serving attempts.
+	ServingAttemptAliasRoot = "serving/attempt/"
 )
 
 var servingObservationCodec = artifact.JSONDocumentCodec(
@@ -131,11 +132,11 @@ func (value ServingObservation) Lineage() []artifact.Lineage {
 }
 
 func (value ServingObservation) Batch(key string) (artifact.Batch, error) {
-	var aliases []artifact.AliasBinding
+	alias := ServingAttemptAliasRoot + value.ID.String()
 	if value.Operation.Valid() {
-		aliases = []artifact.AliasBinding{{Name: servingAttemptAlias(value.Operation, value.Attempt), Target: value.ID}}
+		alias = servingAttemptAlias(value.Operation, value.Attempt)
 	}
-	return servingObservationCodec.Batch(key, value, value.Lineage(), aliases)
+	return servingObservationCodec.Batch(key, value, value.Lineage(), []artifact.AliasBinding{{Name: alias, Target: value.ID}})
 }
 
 // NewServingObservation validates and identifies one immutable serving fact
@@ -206,7 +207,7 @@ func validateServingAttempt(ctx context.Context, reader artifact.Reader, value S
 }
 
 func servingAttemptAlias(operation artifact.ID, attempt uint32) string {
-	return servingAttemptAliasRoot + operation.String() + "/" + fmt.Sprint(attempt)
+	return ServingAttemptAliasRoot + operation.String() + "/" + fmt.Sprint(attempt)
 }
 
 func canonicalizeServingObservation(value *ServingObservation) error {

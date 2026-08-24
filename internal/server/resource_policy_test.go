@@ -20,13 +20,12 @@ func TestRepositoryResponseFilePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if policy.ResponseFiles.Enabled || len(policy.files) != 0 ||
-		policy.ResponseTools.Hosted != "deny" || policy.ResponseTools.Custom != "deny" {
+	if policy.ResponseFiles.Enabled || len(policy.files) != 0 {
 		t.Fatalf("default policy = %+v", policy)
 	}
 }
 
-func TestResponseToolPolicyRejectsUnbackedAllow(t *testing.T) {
+func TestResponseFilePolicyRejectsToolExecutionPolicy(t *testing.T) {
 	root := t.TempDir()
 	policyPath := filepath.Join(root, "policy.json")
 	document := `{"schema":1,"response_files":{"enabled":false,"max_file_bytes":1,` +
@@ -35,7 +34,7 @@ func TestResponseToolPolicyRejectsUnbackedAllow(t *testing.T) {
 	if err := os.WriteFile(policyPath, []byte(document), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadResponseFilePolicy(policyPath); err == nil || !strings.Contains(err.Error(), "external executor") {
+	if _, err := LoadResponseFilePolicy(policyPath); err == nil {
 		t.Fatalf("tool policy error = %v", err)
 	}
 }
@@ -190,8 +189,7 @@ func TestResponsesHostedAndCustomToolsUseExplicitPolicy(t *testing.T) {
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body)))
 			if response.Code != http.StatusBadRequest ||
-				!strings.Contains(response.Body.String(), "external executor") ||
-				!strings.Contains(response.Body.String(), "policy") {
+				!strings.Contains(response.Body.String(), "recipe-admitted function tool") {
 				t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 			}
 		})

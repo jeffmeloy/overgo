@@ -36,11 +36,7 @@ func (workspace *ModelBuilderWorkspace) WorkflowCapabilities(_ context.Context, 
 	}
 	return []WorkflowCapability{{
 		Task: recipe.TaskTraining, Recipe: workspace.recipe,
-		Stages: []recipe.Stage{{
-			Node: recipe.Node{ID: "construct", Module: "corpus-model-builder", Placement: recipe.PlacementHost},
-			Module: recipe.Module{ID: "corpus-model-builder", Tasks: []recipe.Task{recipe.TaskTraining},
-				Placements: []recipe.Placement{recipe.PlacementHost}},
-		}},
+		Stages: workflowruntime.ModelBuildStages(),
 		Outputs: []recipe.Output{
 			{Name: "model", Data: recipe.DataArtifact, Source: recipe.Endpoint{Node: "construct", Port: "model"}},
 			{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "construct", Port: "checkpoint"}},
@@ -75,7 +71,7 @@ func (workspace *ModelBuilderWorkspace) ExecuteWorkflow(ctx context.Context, kin
 	if err != nil {
 		return operation.Completion{}, err
 	}
-	state, err := workflowruntime.ExecuteModelBuild(ctx, session)
+	state, err := workflowruntime.ExecuteModelBuild(ctx, workspace.store, reporter.OperationID(), session)
 	if err != nil {
 		return operation.Completion{}, err
 	}

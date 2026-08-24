@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/modelbuilder"
 	"overgo/internal/repodb"
@@ -51,7 +52,15 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	state, err := workflowruntime.ExecuteModelBuild(context.Background(), session)
+	operation, err := artifact.JSONID(artifact.KindEvidence, struct {
+		Documents []string `json:"documents"`
+		Seed      int64    `json:"seed"`
+		Steps     int      `json:"steps"`
+	}{Documents: documents, Seed: *seed, Steps: *steps})
+	if err != nil {
+		return err
+	}
+	state, err := workflowruntime.ExecuteModelBuild(context.Background(), store, operation, session)
 	if err != nil {
 		return err
 	}

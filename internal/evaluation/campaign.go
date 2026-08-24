@@ -7,11 +7,13 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
 
 type Campaign struct {
 	repository  artifact.Repository
+	documents   repodb.DocumentReader
 	runtime     Runtime
 	identity    modelrecipe.ProgramIdentity
 	environment runrecord.Environment
@@ -36,13 +38,17 @@ func NewCampaign(
 	if repository == nil || runtime == nil {
 		return nil, errors.New("evaluation: campaign dependencies are absent")
 	}
+	documents, ok := repository.(repodb.DocumentReader)
+	if !ok {
+		return nil, errors.New("evaluation: repository lacks typed document projections")
+	}
 	if identity.Model.Kind() != artifact.KindModel || identity.Definition.Kind() != artifact.KindModelDefinition ||
 		identity.Recipe.Kind() != artifact.KindRecipe ||
 		environment.ID.Kind() != artifact.KindEvidence || !validCommit(commit) {
 		return nil, errors.New("evaluation: invalid campaign authorities")
 	}
 	return &Campaign{
-		repository: repository, runtime: runtime, identity: identity,
+		repository: repository, documents: documents, runtime: runtime, identity: identity,
 		environment: environment, commit: commit,
 	}, nil
 }
@@ -161,6 +167,7 @@ func (campaign *Campaign) publish(ctx context.Context, run runrecord.Run, record
 	}
 	contents := []artifact.Content{environmentContent, runContent}
 	lineage := run.Lineage()
+	var aliases []artifact.AliasBinding
 	lineage = append(lineage, artifact.Lineage{
 		Child: run.ID, Parent: campaign.identity.Model, Relation: artifact.RelationDependsOn,
 	})
@@ -174,8 +181,9 @@ func (campaign *Campaign) publish(ctx context.Context, run runrecord.Run, record
 		lineage = append(lineage, artifact.Lineage{
 			Child: record.ID, Parent: campaign.identity.Model, Relation: artifact.RelationDependsOn,
 		})
+		aliases = []artifact.AliasBinding{{Name: runrecord.EvaluationRunAlias(run.ID), Target: record.ID}}
 	}
-	batch, err := artifact.NewDocumentBatch("evaluation/run/"+run.ID.String(), contents, lineage, nil)
+	batch, err := artifact.NewDocumentBatch("evaluation/run/"+run.ID.String(), contents, lineage, aliases)
 	if err != nil {
 		return err
 	}

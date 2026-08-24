@@ -3,6 +3,7 @@ package artifact
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"slices"
 	"testing"
 )
@@ -14,11 +15,11 @@ type codecFixture struct {
 
 type absentDocumentReader struct{ Reader }
 
-func (absentDocumentReader) Content(context.Context, ID) (Content, bool, error) {
-	return Content{}, false, nil
+func (absentDocumentReader) OpenContent(context.Context, ID) (Descriptor, io.Reader, bool, error) {
+	return Descriptor{}, nil, false, nil
 }
 
-func TestDocumentCodecOwnsCanonicalLifecycle(t *testing.T) {
+func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 	const expectedEncodesPerOperation = 1
 	contract := DocumentContract{
 		Kind: KindEvidence, MediaType: "application/vnd.overgo.codec-fixture+json",

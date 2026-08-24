@@ -97,6 +97,7 @@ func TestSimilarComponentsSpanStoreCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = handler.Close() })
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/tensors/similar?name=blk.0.attn_q.weight&k=5", "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())

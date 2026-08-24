@@ -274,33 +274,37 @@ func authoritativeContextEvidence(worktree, head string) (plan.EvidenceDebt, pla
 	}
 	defer store.Close()
 	ctx := context.Background()
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	var lifecycles []runrecord.GateLifecycle
+	var candidates []runrecord.ReviewCandidate
+	var verdicts []runrecord.ReviewVerdict
+	_, err = store.VisitDocuments(ctx, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{
+			{Kind: artifact.KindEvidence, MediaType: runrecord.GateLifecycleMediaType, Schema: runrecord.GateLifecycleSchema},
+			{Kind: artifact.KindEvidence, MediaType: runrecord.ReviewCandidateMediaType, Schema: runrecord.ReviewCandidateSchema},
+			{Kind: artifact.KindEvidence, MediaType: runrecord.ReviewVerdictMediaType, Schema: runrecord.ReviewVerdictSchema},
+		}, Order: repodb.DocumentOldestFirst,
+	}, func(view repodb.DocumentView) error {
+		var parseErr error
+		switch view.Content.Descriptor.MediaType {
+		case runrecord.GateLifecycleMediaType:
+			var value runrecord.GateLifecycle
+			value, parseErr = runrecord.ParseGateLifecycle(view.Content.Data)
+			lifecycles = append(lifecycles, value)
+		case runrecord.ReviewCandidateMediaType:
+			var value runrecord.ReviewCandidate
+			value, parseErr = runrecord.ParseReviewCandidate(view.Content.Data)
+			candidates = append(candidates, value)
+		case runrecord.ReviewVerdictMediaType:
+			var value runrecord.ReviewVerdict
+			value, parseErr = runrecord.ParseReviewVerdict(view.Content.Data)
+			verdicts = append(verdicts, value)
+		}
+		return parseErr
 	})
 	if err != nil {
 		return unavailable(err.Error())
 	}
-	if result.Truncated {
-		return unavailable("RepoDB evidence query was truncated")
-	}
-	contents := make([]artifact.Content, 0)
-	for _, descriptor := range result.Artifacts {
-		if descriptor.MediaType != runrecord.GateLifecycleMediaType || descriptor.Schema != runrecord.GateLifecycleSchema {
-			continue
-		}
-		data, ok := result.Content(descriptor.ID)
-		if !ok {
-			continue
-		}
-		content := artifact.Content{Descriptor: descriptor, Data: data}
-		if err := content.Validate(); err != nil {
-			debt := plan.EvidenceDebt{State: "unknown", Source: debtSource, Reason: err.Error()}
-			return debt, authoritativeReviewPriority(ctx, store, head, result.Artifacts, workflowSource)
-		}
-		contents = append(contents, content)
-	}
-	debt, err := runrecord.OutstandingGateDebt(contents)
+	debt, err := runrecord.OutstandingGateDebt(lifecycles)
 	debtContext := plan.EvidenceDebt{State: "none_observed", Source: debtSource}
 	if err != nil {
 		debtContext = plan.EvidenceDebt{State: "unknown", Source: debtSource, Reason: err.Error()}
@@ -310,11 +314,18 @@ func authoritativeContextEvidence(worktree, head string) (plan.EvidenceDebt, pla
 			Reason: fmt.Sprintf("%d prepared gate lifecycle record(s) lack finalization", len(debt)),
 		}
 	}
-	return debtContext, authoritativeReviewPriority(ctx, store, head, result.Artifacts, workflowSource)
+	return debtContext, authoritativeReviewPriority(ctx, store, head, candidates, verdicts, workflowSource)
 }
 
-func authoritativeReviewPriority(ctx context.Context, reader artifact.Reader, head string, descriptors []artifact.Descriptor, source string) plan.WorkflowContext {
-	priority, err := runrecord.DeriveReviewPriority(ctx, reader, head, descriptors)
+func authoritativeReviewPriority(
+	ctx context.Context,
+	reader artifact.Reader,
+	head string,
+	candidates []runrecord.ReviewCandidate,
+	verdicts []runrecord.ReviewVerdict,
+	source string,
+) plan.WorkflowContext {
+	priority, err := runrecord.DeriveReviewPriority(ctx, reader, head, candidates, verdicts)
 	if err != nil {
 		return plan.WorkflowContext{Phase: string(runrecord.ReviewPhaseImplementation), Source: source, Reason: err.Error()}
 	}

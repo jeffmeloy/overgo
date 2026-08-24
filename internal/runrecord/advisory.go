@@ -1,6 +1,8 @@
 package runrecord
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"math"
 	"slices"
@@ -13,6 +15,8 @@ import (
 const (
 	AdvisoryMediaType = "application/vnd.overgo.regression-advisory+json"
 	AdvisorySchema    = "overgo/regression-advisory/v1"
+	// AdvisoryAliasRoot scopes the latest advisory per series.
+	AdvisoryAliasRoot = "advisory/active/"
 
 	// MinAdvisoryWindow: open small-sample evidence floor.
 	MinAdvisoryWindow = 3
@@ -165,6 +169,12 @@ func (a Advisory) Lineage() []artifact.Lineage {
 
 func (a Advisory) Batch(key string) (artifact.Batch, error) {
 	return advisoryCodec.Batch(key, a, a.Lineage(), nil)
+}
+
+// AdvisoryAlias identifies one recipe, environment, and metric series.
+func AdvisoryAlias(recipe, environment artifact.ID, metric string) string {
+	digest := sha256.Sum256([]byte(recipe.String() + "\x00" + environment.String() + "\x00" + metric))
+	return AdvisoryAliasRoot + hex.EncodeToString(digest[:])
 }
 
 func validateObservation(observation Observation, metricName string) (Metric, error) {

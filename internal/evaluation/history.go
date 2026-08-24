@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"sort"
 
 	"overgo/internal/artifact"
+	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
 
@@ -26,8 +26,9 @@ type HistoryEntry struct {
 }
 
 // History follows this campaign's model index.
-func (campaign *Campaign) History(ctx context.Context, suites []CompiledSuite) ([]HistoryEntry, error) {
-	if campaign == nil || ctx == nil || campaign.repository == nil || len(suites) == 0 {
+func (campaign *Campaign) History(ctx context.Context, suites []CompiledSuite, maxResults int) ([]HistoryEntry, error) {
+	if campaign == nil || ctx == nil || campaign.repository == nil || campaign.documents == nil ||
+		len(suites) == 0 || maxResults <= 0 {
 		return nil, errors.New("evaluation: history authorities are incomplete")
 	}
 	datasetByPlan := make(map[artifact.ID]artifact.ID, len(suites))
@@ -41,75 +42,84 @@ func (campaign *Campaign) History(ctx context.Context, suites []CompiledSuite) (
 		}
 		datasetByPlan[descriptor.Plan] = descriptor.Dataset
 	}
-	repository := campaign.repository
-	model, recipe := campaign.identity.Model, campaign.identity.Recipe
-	edges, err := repository.Children(ctx, model)
-	if err != nil {
-		return nil, err
+	query := repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{
+			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.LegacyRunSchema},
+			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.RunSchema},
+		},
+		Order: repodb.DocumentNewestFirst, MaxResults: maxResults,
 	}
-	runs := make(map[artifact.ID]runrecord.Run)
-	evaluations := make(map[artifact.ID]runrecord.Evaluation)
-	for _, edge := range edges {
-		if edge.Parent != model || edge.Relation != artifact.RelationDependsOn {
-			continue
-		}
-		descriptor, found, err := repository.Artifact(ctx, edge.Child)
+	entries := make([]HistoryEntry, 0, maxResults)
+	for len(entries) < maxResults {
+		page, err := repodb.VisitDecodedDocuments(ctx, campaign.documents, query, runrecord.ParseRun,
+			func(_ repodb.DocumentView, run runrecord.Run) error {
+				if len(entries) == maxResults || run.Recipe != campaign.identity.Recipe || len(run.Inputs) == 0 {
+					return nil
+				}
+				dataset, admitted := datasetByPlan[run.Inputs[0]]
+				if !admitted {
+					return nil
+				}
+				owned, err := campaign.runBelongsToModel(ctx, run.ID)
+				if err != nil || !owned {
+					return err
+				}
+				record, evaluated, err := campaign.evaluationForRun(ctx, run.ID)
+				if err != nil {
+					return err
+				}
+				if run.Outcome == runrecord.OutcomeSucceeded && !evaluated {
+					return errors.New("evaluation: successful indexed run has no metric record")
+				}
+				if evaluated && record.Dataset != dataset {
+					return errors.New("evaluation: indexed run dataset differs from plan")
+				}
+				entry := HistoryEntry{
+					Run: run.ID, Dataset: dataset, Recipe: run.Recipe, Outcome: run.Outcome,
+					Failure: run.Failure, CodeCommit: run.CodeCommit, MeasuredNS: run.MeasuredNS,
+					Inputs: slices.Clone(run.Inputs), Outputs: slices.Clone(run.Outputs),
+				}
+				if evaluated {
+					entry.Evaluation, entry.Metrics = record.ID, slices.Clone(record.Metrics)
+				}
+				if len(run.Outputs) != 0 {
+					entry.Report = run.Outputs[0]
+				}
+				entries = append(entries, entry)
+				return nil
+			})
 		if err != nil {
 			return nil, err
 		}
-		if !found {
-			return nil, errors.New("evaluation: indexed history artifact is absent")
+		if page.Next == nil {
+			break
 		}
-		if descriptor.MediaType != runrecord.RunMediaType && descriptor.MediaType != runrecord.EvaluationMediaType {
-			continue
-		}
-		switch {
-		case descriptor.MediaType == runrecord.RunMediaType:
-			run, err := runrecord.RequireRun(ctx, repository, edge.Child)
-			if err != nil {
-				return nil, errors.Join(err, errors.New("evaluation: indexed run is invalid"))
-			}
-			if run.Recipe == recipe && len(run.Inputs) != 0 {
-				if _, admitted := datasetByPlan[run.Inputs[0]]; admitted {
-					runs[run.ID] = run
-				}
-			}
-		case descriptor.MediaType == runrecord.EvaluationMediaType && descriptor.Schema == runrecord.EvaluationSchema:
-			record, err := runrecord.RequireEvaluation(ctx, repository, edge.Child)
-			if err != nil {
-				return nil, errors.Join(err, errors.New("evaluation: indexed metric record is invalid"))
-			}
-			if record.Recipe == recipe {
-				if previous, duplicate := evaluations[record.Run]; duplicate && previous.ID != record.ID {
-					return nil, errors.New("evaluation: indexed run has multiple metric records")
-				}
-				evaluations[record.Run] = record
-			}
-		}
+		query.Cursor = page.Next
 	}
-	entries := make([]HistoryEntry, 0, len(runs))
-	for _, run := range runs {
-		dataset := datasetByPlan[run.Inputs[0]]
-		record, evaluated := evaluations[run.ID]
-		if run.Outcome == runrecord.OutcomeSucceeded && !evaluated {
-			return nil, errors.New("evaluation: successful indexed run has no metric record")
-		}
-		if evaluated && record.Dataset != dataset {
-			return nil, errors.New("evaluation: indexed run dataset differs from plan")
-		}
-		entry := HistoryEntry{
-			Run: run.ID, Dataset: dataset, Recipe: run.Recipe, Outcome: run.Outcome,
-			Failure: run.Failure, CodeCommit: run.CodeCommit, MeasuredNS: run.MeasuredNS,
-			Inputs: slices.Clone(run.Inputs), Outputs: slices.Clone(run.Outputs),
-		}
-		if evaluated {
-			entry.Evaluation, entry.Metrics = record.ID, slices.Clone(record.Metrics)
-		}
-		if len(run.Outputs) != 0 {
-			entry.Report = run.Outputs[0]
-		}
-		entries = append(entries, entry)
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Run.String() < entries[j].Run.String() })
 	return entries, nil
+}
+
+func (campaign *Campaign) runBelongsToModel(ctx context.Context, run artifact.ID) (bool, error) {
+	parents, err := campaign.repository.Parents(ctx, run)
+	if err != nil {
+		return false, err
+	}
+	return slices.Contains(parents, artifact.Lineage{
+		Child: run, Parent: campaign.identity.Model, Relation: artifact.RelationDependsOn,
+	}), nil
+}
+
+func (campaign *Campaign) evaluationForRun(ctx context.Context, run artifact.ID) (runrecord.Evaluation, bool, error) {
+	id, found, err := artifact.ResolveAlias(ctx, campaign.repository, runrecord.EvaluationRunAlias(run))
+	if err != nil {
+		return runrecord.Evaluation{}, false, err
+	}
+	if !found {
+		return runrecord.Evaluation{}, false, nil
+	}
+	record, err := runrecord.RequireEvaluation(ctx, campaign.repository, id)
+	if err != nil || record.Run != run || record.Recipe != campaign.identity.Recipe {
+		return runrecord.Evaluation{}, false, errors.Join(err, errors.New("evaluation: indexed metric record is invalid"))
+	}
+	return record, true, nil
 }

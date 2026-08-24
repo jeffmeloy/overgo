@@ -10,22 +10,15 @@ import (
 	"overgo/internal/artifact"
 )
 
-// Backup copies the store's committed log into destinationRoot and proves the
-// copy replays to the same head commit and sequence before publishing it. The
-// destination directory must not exist; the copy is written to a sibling
-// ".partial" directory and renamed only after verification, so a crashed or
-// unverified backup is never mistaken for a good one. A stale partial is
-// refused rather than deleted: automation never removes store bytes.
-//
-// The source log is append-only with CRC-framed records, so a backup taken
-// while a writer is mid-append can capture a torn tail; the verification open
-// recovers by truncation and the head comparison then fails closed. Retry
-// between commits.
+// Backup publishes one replay-verified committed log extent.
 func (s *Store) Backup(destinationRoot string) (artifact.CommitID, uint64, error) {
+	s.mu.RLock()
 	if err := s.ready(false); err != nil {
+		s.mu.RUnlock()
 		return artifact.CommitID{}, 0, err
 	}
-	head, sequence := s.Head()
+	head, sequence, extent, sourceRoot := s.head, s.sequence, s.replayEnd, s.root
+	s.mu.RUnlock()
 	if !head.Valid() {
 		return artifact.CommitID{}, 0, errors.New("repodb: refusing to back up a store with no commits")
 	}
@@ -44,7 +37,7 @@ func (s *Store) Backup(destinationRoot string) (artifact.CommitID, uint64, error
 	if err := os.MkdirAll(partial, storeDirectoryMode); err != nil {
 		return artifact.CommitID{}, 0, err
 	}
-	if err := copyFileSync(filepath.Join(s.root, storeFilename), filepath.Join(partial, storeFilename)); err != nil {
+	if err := copyFileSync(filepath.Join(sourceRoot, storeFilename), filepath.Join(partial, storeFilename), extent); err != nil {
 		return artifact.CommitID{}, 0, err
 	}
 	copyHead, copySequence, err := replayedHead(partial)
@@ -53,7 +46,7 @@ func (s *Store) Backup(destinationRoot string) (artifact.CommitID, uint64, error
 	}
 	if copyHead != head || copySequence != sequence {
 		return artifact.CommitID{}, 0, fmt.Errorf(
-			"repodb: backup replay head %s@%d does not match source %s@%d (torn tail or concurrent write); retry between commits",
+			"repodb: backup replay head %s@%d does not match captured %s@%d",
 			copyHead, copySequence, head, sequence)
 	}
 	if err := os.Rename(partial, destinationRoot); err != nil {
@@ -75,7 +68,7 @@ func replayedHead(root string) (artifact.CommitID, uint64, error) {
 	return head, sequence, nil
 }
 
-func copyFileSync(sourcePath, destinationPath string) error {
+func copyFileSync(sourcePath, destinationPath string, extent int64) error {
 	source, err := os.Open(sourcePath)
 	if err != nil {
 		return err
@@ -85,8 +78,11 @@ func copyFileSync(sourcePath, destinationPath string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(destination, source); err != nil {
+	if written, err := io.CopyN(destination, source, extent); err != nil || written != extent {
 		_ = destination.Close()
+		if err == nil {
+			err = io.ErrUnexpectedEOF
+		}
 		return err
 	}
 	if err := destination.Sync(); err != nil {

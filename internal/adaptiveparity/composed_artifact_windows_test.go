@@ -121,7 +121,7 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 			t.Fatalf("lineage does not resolve input %s", input)
 		}
 	}
-	stored, ok, err := store.Content(ctx, composed.ID)
+	stored, ok, err := artifact.ReadContent(ctx, store, composed.ID)
 	if err != nil || !ok {
 		t.Fatalf("composed artifact not durable: (%v, %v)", ok, err)
 	}

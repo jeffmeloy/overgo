@@ -221,7 +221,7 @@ func runSynthesize(
 		return err
 	}
 	defer func() { _ = store.Close() }()
-	content, ok, err := store.Content(context.Background(), proposalID)
+	content, ok, err := artifact.ReadContent(context.Background(), store, proposalID)
 	if err != nil {
 		return err
 	}

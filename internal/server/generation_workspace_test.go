@@ -120,7 +120,7 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 	}
 
 	module := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
-	for _, token := range []string{"capability.controls", "capability.recipe", "/operations?id="} {
+	for _, token := range []string{"capability.controls", "capability.recipe", "overgo.waitOperation"} {
 		if !strings.Contains(module, token) {
 			t.Errorf("generation module missing %q", token)
 		}
@@ -137,7 +137,7 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 	}
 }
 
-func TestOperationRecoveryUsesDurableWorkflowLifecycle(t *testing.T) {
+func TestWorkflowSubmissionDoesNotReplayCompletedOperation(t *testing.T) {
 	store, err := repodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -158,14 +158,10 @@ func TestOperationRecoveryUsesDurableWorkflowLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = handler.Close() })
-	run := func(operationID artifact.ID) workflowResponse {
-		var recovery *artifact.ID
-		if operationID.Valid() {
-			recovery = &operationID
-		}
+	run := func() workflowResponse {
 		body, err := json.Marshal(workflowRequest{
 			Task: recipe.TaskGeneration, Recipe: recipeID,
-			Input: json.RawMessage(`{"text":"recover"}`), Operation: recovery,
+			Input: json.RawMessage(`{"text":"run"}`),
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -184,12 +180,12 @@ func TestOperationRecoveryUsesDurableWorkflowLifecycle(t *testing.T) {
 		}
 		return submission
 	}
-	first := run(artifact.ID{})
-	second := run(first.Operation)
+	first := run()
+	second := run()
 	generator.mu.Lock()
 	executions := generator.executions
 	generator.mu.Unlock()
-	if second.Operation != first.Operation || executions != 1 {
-		t.Fatalf("recovered operation=%s first=%s executions=%d", second.Operation, first.Operation, executions)
+	if second.Operation == first.Operation || executions != 2 {
+		t.Fatalf("second operation=%s first=%s executions=%d", second.Operation, first.Operation, executions)
 	}
 }

@@ -1,19 +1,38 @@
 (function () {
   "use strict";
-  const refreshMilliseconds = 1000;
-  let runtimePolling = null;
-  let activityStream = null;
+  let runtimeView = null;
+  let runtimeUnsubscribe = null;
+  let activityView = null;
+  let activityUnsubscribe = null;
 
   function present(value, format) {
     return value == null ? "unknown" : String(format ? format(value) : value);
+  }
+
+  function activateRuntime() {
+    if (!runtimeUnsubscribe && runtimeView) runtimeUnsubscribe = window.overgo.runtimeEvents.subscribe(runtimeView);
+  }
+
+  function deactivateRuntime() {
+    if (runtimeUnsubscribe) runtimeUnsubscribe();
+    runtimeUnsubscribe = null;
+  }
+
+  function activateActivity() {
+    if (!activityUnsubscribe && activityView) activityUnsubscribe = window.overgo.runtimeEvents.subscribe(activityView);
+  }
+
+  function deactivateActivity() {
+    if (activityUnsubscribe) activityUnsubscribe();
+    activityUnsubscribe = null;
   }
 
   window.overgo.registerTab({
     id: "runtime",
     label: "Runtime",
     section: "inference",
-    onActivate() { if (runtimePolling) runtimePolling.start(); },
-    onDeactivate() { if (runtimePolling) runtimePolling.stop(); },
+    onActivate: activateRuntime,
+    onDeactivate: deactivateRuntime,
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       clear(panel);
@@ -77,10 +96,11 @@
         slots.replaceChildren(table);
       }
 
-      runtimePolling = overgo.poller(async (signal) => {
-        try { render(await overgo.api.get("/runtime/sessions", { signal })); }
-        catch (err) { error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
-      }, refreshMilliseconds);
+      runtimeView = (name, value) => {
+        if (name === "runtime.sessions") render(value);
+        if (name === "stream.error") error.replaceChildren(overgo.errorBanner(overgo.friendlyError(value)));
+      };
+      activateRuntime();
     },
   });
 
@@ -88,8 +108,8 @@
     id: "activity",
     label: "Activity",
     section: "inference",
-    onActivate() { if (activityStream) activityStream.start(); },
-    onDeactivate() { if (activityStream) activityStream.stop(); },
+    onActivate: activateActivity,
+    onDeactivate: deactivateActivity,
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       clear(panel);
@@ -97,17 +117,32 @@
       const error = el("div");
 	  const operations = el("div");
       const rows = el("div");
-	  panel.append(el("div", { class: "section-title", text: "Activity" }), summary, error, operations, rows);
+	  const workflow = el("div");
+	  const replay = el("div");
+	  panel.append(el("div", { class: "section-title", text: "Activity" }), summary, error, operations, rows, workflow, replay);
 	  const current = new Map();
+
+	  async function decide(operation, tool, answer) {
+		try {
+		  await overgo.api.post("/operations/decision", { operation, tool, answer });
+		} catch (err) {
+		  error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
+		}
+	  }
 
 	  function renderOperations() {
 		const table = el("table", { class: "grid" });
 		table.appendChild(el("tr", {},
 		  el("th", { text: "state" }), el("th", { text: "task" }), el("th", { text: "recipe" }),
 		  el("th", { text: "progress" }), el("th", { text: "attempts" }), el("th", { text: "run" }),
-		  el("th", { text: "outputs" }), el("th", { text: "failure" })));
+		  el("th", { text: "outputs" }), el("th", { text: "failure" }), el("th", { text: "decision" })));
 		for (const item of current.values()) {
 		  const progress = item.progress || {};
+		  const actions = item.recovery && item.recovery.actions || [];
+		  const decision = el("div", { class: "row" });
+		  for (const action of actions) decision.append(
+			el("button", { class: "btn", text: "Grant " + action.code, onclick: () => decide(item.id, action.code, "grant") }),
+			el("button", { class: "btn alt", text: "Decline", onclick: () => decide(item.id, action.code, "decline") }));
 		  table.appendChild(el("tr", {},
 			el("td", {}, el("span", { class: "tag " + (item.state === "completed" ? "user_defined" : "control"), text: item.state })),
 			el("td", { text: item.task }), el("td", { class: "mono", text: fmt.shortID(item.recipe) }),
@@ -115,7 +150,7 @@
 			el("td", { class: "mono", text: fmt.grouped((item.attempts || []).length) }),
 			el("td", { class: "mono", text: fmt.shortID(item.run) }),
 			el("td", { class: "mono", text: (item.outputs || []).map(fmt.shortID).join(", ") }),
-			el("td", { text: item.failure || "" })));
+			el("td", { text: item.failure || "" }), el("td", {}, decision)));
 		}
 		operations.replaceChildren(table);
 	  }
@@ -137,7 +172,7 @@
         for (const item of data.activity) {
           table.appendChild(el("tr", {},
             el("td", { class: "mono", text: new Date(Number(item.started_unix_ns) / 1e6).toLocaleString() }),
-            el("td", { text: item.task }),
+			el("td", { text: item.task + (item.compatibility ? " / peer" : "") }),
             el("td", {}, el("span", { class: "tag " + (item.outcome === "succeeded" ? "user_defined" : "control"), text: item.outcome })),
             el("td", { class: "mono", text: fmt.shortID(item.model) }),
             el("td", { class: "mono", text: fmt.shortID(item.recipe) }),
@@ -148,38 +183,55 @@
             el("td", { class: "mono", text: fmt.bytes(item.resources.device_to_host_bytes || 0) })));
         }
         rows.replaceChildren(table);
+
+		const stageTable = el("table", { class: "grid" });
+		stageTable.appendChild(el("tr", {}, el("th", { text: "stage" }), el("th", { text: "state" }),
+		  el("th", { text: "attempt" }), el("th", { text: "operation" }), el("th", { text: "failure" })));
+		for (const stage of data.stages || []) stageTable.appendChild(el("tr", {},
+		  el("td", { class: "mono", text: stage.node }), el("td", { text: stage.state }),
+		  el("td", { class: "mono", text: stage.attempt }), el("td", { class: "mono", text: fmt.shortID(stage.operation) }),
+		  el("td", { text: stage.failure || "" })));
+		const decisionTable = el("table", { class: "grid" });
+		decisionTable.appendChild(el("tr", {}, el("th", { text: "answer" }), el("th", { text: "tool" }),
+		  el("th", { text: "operation" }), el("th", { text: "request" })));
+		for (const decision of data.decisions || []) decisionTable.appendChild(el("tr", {},
+		  el("td", { text: decision.answer }), el("td", { text: decision.tool }),
+		  el("td", { class: "mono", text: fmt.shortID(decision.operation) }),
+		  el("td", { class: "mono", text: fmt.shortID(decision.request) })));
+		const interactionTable = el("table", { class: "grid" });
+		interactionTable.appendChild(el("tr", {}, el("th", { text: "response" }), el("th", { text: "node" }),
+		  el("th", { text: "trace" }), el("th", { text: "action" })));
+		for (const interaction of data.interactions || []) interactionTable.appendChild(el("tr", {},
+		  el("td", { class: "mono", text: interaction.response }), el("td", { class: "mono", text: interaction.node }),
+		  el("td", { class: "mono", text: fmt.shortID(interaction.trace) }), el("td", {},
+			el("button", { class: "btn alt", text: "Replay", onclick: async () => {
+			  try {
+				const value = await overgo.api.get("/interactions/replay?response=" + encodeURIComponent(interaction.response));
+				replay.replaceChildren(el("pre", { class: "mono", text: JSON.stringify(value, null, 2) }));
+			  } catch (err) {
+				replay.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
+			  }
+			} }))));
+		workflow.replaceChildren(
+		  el("div", { class: "section-title", text: "Workflow stages" }), stageTable,
+		  el("div", { class: "section-title", text: "Tool decisions" }), decisionTable,
+		  el("div", { class: "section-title", text: "Interaction replay" }), interactionTable);
       }
 
-	  let active = false;
-	  let controller = null;
-	  async function refresh(signal) { render(await overgo.api.get("/runtime/activity", { signal })); }
-	  async function connect(signal) {
-		await overgo.api.events("/runtime/activity/stream", (name, value) => {
-		  if (name === "operation.snapshot") {
-			current.clear();
-			for (const item of value) current.set(item.id, item);
-		  } else if (name === "operation") {
-			current.set(value.status.id, value.status);
-			if (["completed", "blocked", "cancelled", "failed"].includes(value.status.state)) refresh(signal).catch(() => {});
-		  }
+	  activityView = (name, value) => {
+		if (name === "runtime.activity") render(value);
+		if (name === "operation.snapshot") {
+		  current.clear();
+		  for (const item of value) current.set(item.id, item);
 		  renderOperations();
-		}, { signal });
-	  }
-	  activityStream = {
-		start() {
-		  if (active) return;
-		  active = true;
-		  controller = new AbortController();
-		  refresh(controller.signal).then(() => connect(controller.signal)).catch((err) => {
-			if (err.name !== "AbortError") error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-		  });
-		},
-		stop() {
-		  active = false;
-		  if (controller) controller.abort();
-		  controller = null;
-		},
+		}
+		if (name === "operation") {
+		  current.set(value.status.id, value.status);
+		  renderOperations();
+		}
+		if (name === "stream.error") error.replaceChildren(overgo.errorBanner(overgo.friendlyError(value)));
 	  };
+	  activateActivity();
     },
   });
 })();

@@ -214,7 +214,7 @@ func loadCompositeGenerationTrialScores(
 	policy CompositeGenerationQualityPolicy,
 	trial composition.CompositeGenerationTrial,
 ) (float64, float64, error) {
-	content, found, err := reader.Content(ctx, trial.Output)
+	content, found, err := artifact.ReadContent(ctx, reader, trial.Output)
 	if err != nil || !found || content.Descriptor.ID != trial.Output || content.Validate() != nil {
 		return 0, 0, errors.Join(err, errors.New("evaluation: composite generation output content is absent"))
 	}

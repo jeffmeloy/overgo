@@ -93,7 +93,7 @@ func (c DocumentCodec[T]) Read(ctx context.Context, reader Reader, id ID) (T, bo
 	if err := ctx.Err(); err != nil {
 		return zero, false, err
 	}
-	content, ok, err := reader.Content(ctx, id)
+	content, ok, err := ReadContent(ctx, reader, id)
 	if err != nil || !ok {
 		return zero, ok, err
 	}

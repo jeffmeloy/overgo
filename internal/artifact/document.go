@@ -1,8 +1,11 @@
 package artifact
 
 import (
+	"context"
 	"errors"
+	"io"
 	"slices"
+	"strings"
 )
 
 const (
@@ -15,6 +18,48 @@ type DocumentContract struct {
 	Kind      Kind
 	MediaType string
 	Schema    string
+}
+
+// Validate checks the exact stored-document contract.
+func (c DocumentContract) Validate() error {
+	if c.Kind == KindInvalid || int(c.Kind) >= len(kindNames) || c.MediaType == "" || c.Schema == "" ||
+		strings.TrimSpace(c.MediaType) != c.MediaType || strings.ContainsAny(c.MediaType, "\r\n") ||
+		strings.TrimSpace(c.Schema) != c.Schema || strings.ContainsAny(c.Schema, "\r\n") {
+		return errors.New("artifact: invalid document contract")
+	}
+	return nil
+}
+
+// ReadContent materializes one bounded content stream.
+func ReadContent(ctx context.Context, reader Reader, id ID) (Content, bool, error) {
+	if ctx == nil || reader == nil {
+		return Content{}, false, errors.New("artifact: nil content context or reader")
+	}
+	descriptor, stream, found, err := reader.OpenContent(ctx, id)
+	if err != nil || !found {
+		return Content{}, found, err
+	}
+	content, err := ReadContentFrom(descriptor, stream)
+	return content, err == nil, err
+}
+
+// ReadContentFrom materializes one opened content stream.
+func ReadContentFrom(descriptor Descriptor, stream io.Reader) (Content, error) {
+	if stream == nil {
+		return Content{}, errors.New("artifact: nil content stream")
+	}
+	if descriptor.Size == 0 || descriptor.Size > MaxContentBytes {
+		return Content{}, errors.New("artifact: invalid content descriptor size")
+	}
+	data, err := io.ReadAll(io.LimitReader(stream, int64(descriptor.Size)+1))
+	if err != nil {
+		return Content{}, err
+	}
+	content := Content{Descriptor: descriptor, Data: data}
+	if err := content.Validate(); err != nil {
+		return Content{}, err
+	}
+	return content, nil
 }
 
 func (c DocumentContract) Identify(data []byte) (ID, error) {
@@ -124,14 +169,11 @@ func NewDocumentBatch(
 }
 
 func (c DocumentContract) validateData(data []byte) error {
-	if c.Kind == KindInvalid || int(c.Kind) >= len(kindNames) || c.MediaType == "" || c.Schema == "" ||
-		len(data) == 0 || len(data) > MaxContentBytes {
-		return errors.New("artifact: invalid document contract or size")
-	}
-	probe, err := NewID(c.Kind, [digestBytes]byte{})
-	if err != nil {
+	if err := c.Validate(); err != nil {
 		return err
 	}
-	_, err = c.Descriptor(probe, uint64(len(data)))
-	return err
+	if len(data) == 0 || len(data) > MaxContentBytes {
+		return errors.New("artifact: invalid document contract or size")
+	}
+	return nil
 }

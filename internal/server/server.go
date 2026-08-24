@@ -25,15 +25,21 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/operation"
 	"overgo/internal/projector"
+	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
 	"overgo/internal/tokenizer"
+	"overgo/internal/workflowruntime"
 )
 
 const (
 	counterStep = 1
+	// DefaultStoredResponses bounds retained server records.
+	DefaultStoredResponses = 128
+	// DefaultResponseStoreBytes bounds response payload operations.
+	DefaultResponseStoreBytes = 64 << 20
 
 	errorCodeUnsupportedOperation = "unsupported_operation"
 	defaultModelID                = "overgo"
@@ -200,6 +206,15 @@ type DeviceExecutionAPI interface {
 	DeviceExecutionStats(context.Context) (driver.ExecutionStats, error)
 }
 
+type toolCallExecutor interface {
+	ExecuteTool(context.Context, recipe.ToolCall) (recipe.ToolResult, error)
+}
+
+type capabilityBundleAPI interface {
+	CapabilityBundles() []artifact.ID
+	LoadCapabilityComponent(context.Context, artifact.ID, artifact.ComponentRole, string) (artifact.Content, error)
+}
+
 type Config struct {
 	ModelID            string
 	MaxTokens          int
@@ -217,7 +232,8 @@ type Config struct {
 	AudioProjector     projector.Session
 	RemoteMediaPolicy  *RemoteMediaPolicy
 	ResponseFiles      ResponseFileResolver
-	ResponseToolPolicy ResponseToolPolicy
+	ToolProgram        recipe.Program
+	ToolAdapter        func(context.Context, recipe.ToolCall) (recipe.ToolResult, error)
 	MaxStoredResponses int
 	ResponseStoreBytes int
 	DatasetPreview     DatasetPreviewAPI
@@ -371,11 +387,12 @@ type Handler struct {
 	catalogMemo        *discovery.Memo
 	generatedTokens    atomic.Uint64
 	mediaFetcher       *remoteMediaFetcher
-	responseHistory    *responseHistoryStore
 	responseFiles      ResponseFileResolver
 	thinkingSigner     *anthropicThinkingSigner
 	operations         *operation.Manager
+	tools              toolCallExecutor
 	repository         *repodb.Store
+	browseRepository   *repodb.Store
 	environment        runrecord.Environment
 	modelArtifact      artifact.ID
 	observationErrors  atomic.Uint64
@@ -421,10 +438,6 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if config.RequestTimeout < 0 {
 		return nil, errors.New("server: request timeout must be non-negative")
 	}
-	if (config.ResponseToolPolicy.Hosted != "" && config.ResponseToolPolicy.Hosted != "deny") ||
-		(config.ResponseToolPolicy.Custom != "" && config.ResponseToolPolicy.Custom != "deny") {
-		return nil, errors.New("server: response tool policy requires an external executor for non-deny modes")
-	}
 	if config.MaxStoredResponses == 0 {
 		config.MaxStoredResponses = defaults.MaxStoredResponses
 	}
@@ -469,6 +482,13 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	var browseRepository *repodb.Store
+	if repository == nil && config.RepoDBPath != "" {
+		browseRepository, err = repodb.OpenReadOnly(config.RepoDBPath)
+		if err != nil {
+			return nil, fmt.Errorf("server browse repository: %w", err)
+		}
+	}
 	generation := generator
 	if config.MaxConcurrent > 1 {
 		if factory, ok := generator.(ContinuousGeneratorFactory); ok {
@@ -487,34 +507,48 @@ func New(config Config, generator Generator) (*Handler, error) {
 		"inference", "compiled", config.MaxConcurrent, generation,
 	)
 	if err != nil {
+		if browseRepository != nil {
+			_ = browseRepository.Close()
+		}
 		return nil, err
 	}
 	handler := &Handler{
-		catalogMemo:     discovery.NewMemo(),
-		config:          config,
-		generator:       generator,
-		sessions:        sessions,
-		defaultSampling: defaultSampler.Config(),
-		slotBusy:        make([]atomic.Bool, config.MaxConcurrent),
-		slotTasks:       make([]atomic.Uint64, config.MaxConcurrent),
-		slotStats:       make([]slotRuntimeStats, config.MaxConcurrent),
-		started:         time.Now(),
-		mediaFetcher:    mediaFetcher,
-		responseHistory: newResponseHistoryStore(
-			config.MaxStoredResponses,
-			config.ResponseStoreBytes,
-		),
-		responseFiles:  config.ResponseFiles,
-		thinkingSigner: thinkingSigner,
-		repository:     repository,
-		environment:    environment,
+		catalogMemo:      discovery.NewMemo(),
+		config:           config,
+		generator:        generator,
+		sessions:         sessions,
+		defaultSampling:  defaultSampler.Config(),
+		slotBusy:         make([]atomic.Bool, config.MaxConcurrent),
+		slotTasks:        make([]atomic.Uint64, config.MaxConcurrent),
+		slotStats:        make([]slotRuntimeStats, config.MaxConcurrent),
+		started:          time.Now(),
+		mediaFetcher:     mediaFetcher,
+		responseFiles:    config.ResponseFiles,
+		thinkingSigner:   thinkingSigner,
+		repository:       repository,
+		browseRepository: browseRepository,
+		environment:      environment,
 	}
 	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
 		handler.modelArtifact = identity.ModelID()
 	}
 	handler.operations, err = operation.NewManager(config.MaxStoredResponses)
 	if err != nil {
+		_ = handler.Close()
 		return nil, err
+	}
+	if config.ToolAdapter != nil {
+		if repository == nil {
+			_ = handler.Close()
+			return nil, errors.New("server: tool runtime requires a repository")
+		}
+		handler.tools, err = workflowruntime.NewToolExecutor(
+			repository, config.ToolProgram, config.MaxStoredResponses, config.ToolAdapter,
+		)
+		if err != nil {
+			_ = handler.Close()
+			return nil, fmt.Errorf("server tool runtime: %w", err)
+		}
 	}
 	return handler, nil
 }
@@ -527,13 +561,19 @@ func (h *Handler) Close() error {
 	if h.operations != nil {
 		h.operations.Close()
 	}
-	if h.sessions == nil {
-		return nil
+	if tools, ok := h.tools.(*workflowruntime.ToolExecutor); ok {
+		tools.Close()
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err := h.sessions.Close(ctx)
-	cancel()
-	return err
+	var closeErrors []error
+	if h.sessions != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		closeErrors = append(closeErrors, h.sessions.Close(ctx))
+		cancel()
+	}
+	if h.browseRepository != nil {
+		closeErrors = append(closeErrors, h.browseRepository.Close())
+	}
+	return errors.Join(closeErrors...)
 }
 
 type requestSession = capabilityruntime.SessionLease[Generator]
@@ -610,14 +650,18 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/datasets" ||
 		request.URL.Path == "/datasets/preview" ||
 		request.URL.Path == "/runs" ||
+		request.URL.Path == "/interactions/replay" ||
+		request.URL.Path == "/capabilities/bundles" ||
 		request.URL.Path == "/recipes/active" ||
 		request.URL.Path == "/compositions" ||
 		request.URL.Path == "/compositions/activate" ||
 		request.URL.Path == "/compositions/generate" ||
 		request.URL.Path == "/operations" ||
 		request.URL.Path == "/operations/cancel" ||
+		request.URL.Path == "/operations/decision" ||
 		request.URL.Path == "/operations/wait" ||
 		request.URL.Path == "/runtime/activity/stream" ||
+		request.URL.Path == "/runtime/peers" ||
 		request.URL.Path == "/evaluations/capabilities" ||
 		request.URL.Path == "/evaluations/run" ||
 		request.URL.Path == "/evaluations/history" ||
@@ -724,6 +768,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.previewDataset(response, request)
 	case "/runs":
 		h.browseRuns(response, request)
+	case "/interactions/replay":
+		h.interactionReplay(response, request)
+	case "/capabilities/bundles":
+		h.capabilityBundles(response, request)
 	case "/recipes/active":
 		h.activeRecipe(response, request)
 	case "/compositions":
@@ -736,6 +784,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.operationStatus(response, request)
 	case "/operations/cancel":
 		h.operationCancel(response, request)
+	case "/operations/decision":
+		h.operationDecision(response, request)
 	case "/operations/wait":
 		h.operationWait(response, request)
 	case "/evaluations/capabilities":
@@ -776,6 +826,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.runtimeActivity(response, request)
 	case "/runtime/activity/stream":
 		h.runtimeActivityStream(response, request)
+	case "/runtime/peers":
+		h.remotePeerAuthority(response, request)
 	case "/slots":
 		h.slotStatus(response, request)
 	case "/lora-adapters":

@@ -15,6 +15,8 @@ type Stage struct {
 type Program struct {
 	definition Definition
 	stages     []Stage
+	readySets  [][]Stage
+	visibility InteractionVisibility
 	catalog    *Catalog
 }
 
@@ -23,11 +25,16 @@ func (p Program) Definition() Definition { return cloneProgramDefinition(p.defin
 
 // Stages returns isolated compiled-stage contracts.
 func (p Program) Stages() []Stage {
-	stages := slices.Clone(p.stages)
-	for index := range stages {
-		stages[index].Module = cloneModule(stages[index].Module)
+	return cloneStages(p.stages)
+}
+
+// ReadySets returns deterministic dependency levels eligible for concurrent execution.
+func (p Program) ReadySets() [][]Stage {
+	sets := make([][]Stage, len(p.readySets))
+	for index := range p.readySets {
+		sets[index] = cloneStages(p.readySets[index])
 	}
-	return stages
+	return sets
 }
 
 // UsesCatalog reports the immutable module authority used during compilation.
@@ -36,12 +43,20 @@ func (p Program) UsesCatalog(catalog *Catalog) bool { return catalog != nil && p
 // Catalog returns the immutable module authority used during compilation.
 func (p Program) Catalog() *Catalog { return p.catalog }
 
+// InteractionScope binds one node to compiled graph visibility.
+func (p Program) InteractionScope(node NodeID) (InteractionScope, error) {
+	if !p.visibility.contains(node) {
+		return InteractionScope{}, errors.New("recipe: interaction node is absent")
+	}
+	return InteractionScope{Node: node, Visibility: p.visibility}, nil
+}
+
 // CompileProgram resolves module contracts and orders executable stages.
 func CompileProgram(definition Definition, catalog *Catalog) (Program, error) {
 	if err := definition.Validate(catalog); err != nil {
 		return Program{}, err
 	}
-	ordered, err := executionOrder(definition)
+	ordered, ready, err := executionOrder(definition)
 	if err != nil {
 		return Program{}, err
 	}
@@ -53,7 +68,21 @@ func CompileProgram(definition Definition, catalog *Catalog) (Program, error) {
 		}
 		stages[index] = Stage{Node: node, Module: module}
 	}
-	return Program{definition: cloneProgramDefinition(definition), stages: stages, catalog: catalog}, nil
+	stageByNode := make(map[NodeID]Stage, len(stages))
+	for _, stage := range stages {
+		stageByNode[stage.Node.ID] = stage
+	}
+	readySets := make([][]Stage, len(ready))
+	for setIndex, nodes := range ready {
+		readySets[setIndex] = make([]Stage, len(nodes))
+		for nodeIndex, node := range nodes {
+			readySets[setIndex][nodeIndex] = stageByNode[node.ID]
+		}
+	}
+	return Program{
+		definition: cloneProgramDefinition(definition), stages: stages, readySets: readySets,
+		visibility: compileInteractionVisibility(definition, ordered), catalog: catalog,
+	}, nil
 }
 
 func cloneProgramDefinition(definition Definition) Definition {
@@ -65,7 +94,7 @@ func cloneProgramDefinition(definition Definition) Definition {
 	return definition
 }
 
-func executionOrder(definition Definition) ([]Node, error) {
+func executionOrder(definition Definition) ([]Node, [][]Node, error) {
 	var none int
 	nodes := make(map[NodeID]Node, len(definition.Nodes))
 	indegree := make(map[NodeID]int, len(definition.Nodes))
@@ -86,22 +115,34 @@ func executionOrder(definition Definition) ([]Node, error) {
 	}
 	slices.Sort(ready)
 	steps := make([]Node, none, len(nodes))
+	sets := make([][]Node, none, len(nodes))
 	for len(ready) > none {
-		id := ready[none]
-		next := none
-		next++
-		ready = ready[next:]
-		steps = append(steps, nodes[id])
-		for _, target := range adjacency[id] {
-			indegree[target]--
-			if indegree[target] == none {
-				ready = append(ready, target)
-				slices.Sort(ready)
+		current := slices.Clone(ready)
+		ready = ready[:none]
+		set := make([]Node, len(current))
+		for index, id := range current {
+			set[index] = nodes[id]
+			steps = append(steps, nodes[id])
+			for _, target := range adjacency[id] {
+				indegree[target]--
+				if indegree[target] == none {
+					ready = append(ready, target)
+				}
 			}
 		}
+		sets = append(sets, set)
+		slices.Sort(ready)
 	}
 	if len(steps) != len(nodes) {
-		return nil, errors.New("recipe: execution graph contains cycle")
+		return nil, nil, errors.New("recipe: execution graph contains cycle")
 	}
-	return steps, nil
+	return steps, sets, nil
+}
+
+func cloneStages(stages []Stage) []Stage {
+	stages = slices.Clone(stages)
+	for index := range stages {
+		stages[index].Module = cloneModule(stages[index].Module)
+	}
+	return stages
 }

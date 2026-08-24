@@ -93,7 +93,7 @@ func resolveObjective(ctx context.Context, reader artifact.Reader, id artifact.I
 	if ctx == nil || reader == nil || id.Kind() != artifact.KindProfile {
 		return resolvedObjective{}, errors.New("training objective: invalid repository authority")
 	}
-	content, ok, err := reader.Content(ctx, id)
+	content, ok, err := artifact.ReadContent(ctx, reader, id)
 	if err != nil {
 		return resolvedObjective{}, err
 	}

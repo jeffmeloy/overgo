@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
+	"overgo/internal/testutil"
 )
 
 func TestModelBuilderWorkspaceUsesSharedCampaign(t *testing.T) {
@@ -29,7 +30,7 @@ func TestModelBuilderWorkspaceUsesSharedCampaign(t *testing.T) {
 		t.Fatal(err)
 	}
 	completion, err := workspace.ExecuteWorkflow(context.Background(), WorkflowModelBuild, recipe.TaskTraining,
-		capabilities[0].Recipe, input, testReporter{})
+		capabilities[0].Recipe, input, testReporter{id: testutil.ArtifactID(t, artifact.KindEvidence, "model-builder-operation")})
 	if err != nil {
 		t.Fatal(err)
 	}

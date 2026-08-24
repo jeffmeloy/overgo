@@ -98,7 +98,7 @@ func (d Definition) Validate(catalog *Catalog) error {
 		}
 		outputNodes[output.Source.Node] = struct{}{}
 	}
-	if _, err := executionOrder(d); err != nil {
+	if _, _, err := executionOrder(d); err != nil {
 		return err
 	}
 	if err := validateReachability(d, nodes, adjacency, reverse, outputNodes); err != nil {

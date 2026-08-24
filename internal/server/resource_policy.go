@@ -24,13 +24,7 @@ type ResponseFileResolver interface {
 type ResponseFilePolicy struct {
 	Schema        int                        `json:"schema"`
 	ResponseFiles responseFilePolicySettings `json:"response_files"`
-	ResponseTools ResponseToolPolicy         `json:"response_tools"`
 	files         map[string]ResponseFile
-}
-
-type ResponseToolPolicy struct {
-	Hosted string `json:"hosted"`
-	Custom string `json:"custom"`
 }
 
 type responseFilePolicySettings struct {
@@ -54,15 +48,6 @@ func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
 	}
 	if policy.Schema != policyDocumentSchemaVersion {
 		return nil, fmt.Errorf("response resource policy schema %d is unsupported", policy.Schema)
-	}
-	if policy.ResponseTools.Hosted == "" {
-		policy.ResponseTools.Hosted = "deny"
-	}
-	if policy.ResponseTools.Custom == "" {
-		policy.ResponseTools.Custom = "deny"
-	}
-	if policy.ResponseTools.Hosted != "deny" || policy.ResponseTools.Custom != "deny" {
-		return nil, errors.New("response tool policy supports only explicit deny without an external executor")
 	}
 	if !policy.ResponseFiles.Enabled {
 		if len(policy.ResponseFiles.Files) != 0 || len(policy.ResponseFiles.AllowedRoots) != 0 {

@@ -122,7 +122,7 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 	if outcome.Decision.Subject != proposal.ID || outcome.Decision.Decider != decider {
 		t.Fatalf("decision binding = %+v, want the proposal subject and decider identity", outcome.Decision)
 	}
-	stored, ok, err := store.Content(t.Context(), outcome.Decision.ID)
+	stored, ok, err := artifact.ReadContent(t.Context(), store, outcome.Decision.ID)
 	if err != nil || !ok {
 		t.Fatalf("synthesis decision not durable: (%v, %v)", ok, err)
 	}

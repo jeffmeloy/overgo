@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/repodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
 
@@ -46,7 +48,7 @@ func (fixture *modelBuildFixture) Promote(_ context.Context, state ModelBuildSta
 	return state, nil
 }
 
-func TestModelBuilderRunsConstructionThroughPromotion(t *testing.T) {
+func TestModelBuildUsesRecipeStageReceipts(t *testing.T) {
 	fixture := &modelBuildFixture{state: ModelBuildState{
 		Recipe:       testutil.ArtifactID(t, artifact.KindRecipe, "builder-recipe"),
 		Dataset:      testutil.ArtifactID(t, artifact.KindDataset, "builder-dataset"),
@@ -60,11 +62,29 @@ func TestModelBuilderRunsConstructionThroughPromotion(t *testing.T) {
 		evidence:   testutil.ArtifactID(t, artifact.KindEvidence, "builder-evidence"),
 		decision:   testutil.ArtifactID(t, artifact.KindEvidence, "builder-decision"),
 	}
-	result, err := ExecuteModelBuild(context.Background(), fixture)
+	operation := testutil.ArtifactID(t, artifact.KindEvidence, "builder-operation")
+	store := testRepository(t)
+	result, err := ExecuteModelBuild(context.Background(), store, operation, fixture)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if fixture.phase != 5 || result.Decision.Kind() != artifact.KindEvidence || result.Model == fixture.state.Model {
 		t.Fatalf("builder result=%+v phases=%d", result, fixture.phase)
 	}
+	for _, stage := range ModelBuildStages() {
+		receipt, found, err := runrecord.ResolveStageReceipt(context.Background(), store, operation, stage.Node.ID)
+		if err != nil || !found || receipt.State != runrecord.StageCompleted {
+			t.Fatalf("stage %s receipt = (%+v, %t, %v)", stage.Node.ID, receipt, found, err)
+		}
+	}
+}
+
+func testRepository(t testing.TB) artifact.Repository {
+	t.Helper()
+	store, err := repodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	return store
 }

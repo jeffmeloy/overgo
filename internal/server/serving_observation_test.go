@@ -85,7 +85,7 @@ func TestServingObservationPublication(t *testing.T) {
 		t.Fatalf("recipe-bound attempts = %v", status.Attempts)
 	}
 	for _, descriptor := range result.Artifacts {
-		content, found, err := store.Content(context.Background(), descriptor.ID)
+		content, found, err := artifact.ReadContent(context.Background(), store, descriptor.ID)
 		if err != nil || !found {
 			t.Fatalf("observation content=(%v,%v)", found, err)
 		}
@@ -95,7 +95,7 @@ func TestServingObservationPublication(t *testing.T) {
 	}
 }
 
-func TestRuntimeActivityProjectedPageUsesSessionAndRepoDBAPIs(t *testing.T) {
+func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 	store, err := repodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func TestRuntimeActivityProjectedPageUsesSessionAndRepoDBAPIs(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler, err := New(Config{
-		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store,
+		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store, MaxStoredResponses: 1,
 	}, &recipeInspectorGenerator{
 		fakeGenerator: &fakeGenerator{},
 		description: modelrecipe.RuntimeDescription{
@@ -125,6 +125,10 @@ func TestRuntimeActivityProjectedPageUsesSessionAndRepoDBAPIs(t *testing.T) {
 	completion := serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"runtime","max_tokens":1}`)
 	if completion.Code != http.StatusOK {
 		t.Fatalf("completion status=%d body=%s", completion.Code, completion.Body.String())
+	}
+	completion = serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"runtime-next","max_tokens":1}`)
+	if completion.Code != http.StatusOK {
+		t.Fatalf("second completion status=%d body=%s", completion.Code, completion.Body.String())
 	}
 	var sessions runtimeSessionsResponse
 	response := serveTestRequest(handler, http.MethodGet, "/runtime/sessions", "")
@@ -142,15 +146,14 @@ func TestRuntimeActivityProjectedPageUsesSessionAndRepoDBAPIs(t *testing.T) {
 	if err := strictjson.DecodeBytes(response.Body.Bytes(), &activity); err != nil {
 		t.Fatal(err)
 	}
-	if response.Code != http.StatusOK || activity.Count != 1 || len(activity.Activity) != 1 ||
+	if response.Code != http.StatusOK || activity.Count != 1 || len(activity.Activity) != 1 || !activity.Truncated ||
 		activity.Activity[0].Model != modelID || activity.Activity[0].Recipe != recipeID {
 		t.Fatalf("activity status=%d response=%+v", response.Code, activity)
 	}
 	module := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String()
-	for _, endpoint := range []string{"/runtime/sessions", "/runtime/activity", "/runtime/activity/stream"} {
-		if !strings.Contains(module, endpoint) {
-			t.Fatalf("runtime module lacks %q", endpoint)
-		}
+	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
+	if !strings.Contains(workflow, "/runtime/activity/stream") || !strings.Contains(module, "runtime.sessions") {
+		t.Fatal("runtime GUI lacks shared session stream")
 	}
 	if strings.Contains(module, `api.get("/slots"`) {
 		t.Fatal("runtime module bypasses session authority")
@@ -206,23 +209,19 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("completion status=%d body=%s", response.Code, response.Body.String())
 	}
-	result, err := store.Query(context.Background(), repodb.Query{
-		MediaType:  runrecord.ServingObservationMediaType,
-		Schema:     runrecord.ServingObservationSchema,
-		MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentData,
+	var observations []runrecord.ServingObservation
+	_, err = repodb.VisitDecodedDocuments(context.Background(), store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
+		}}, Order: repodb.DocumentOldestFirst,
+	}, runrecord.ParseServingObservation, func(_ repodb.DocumentView, observation runrecord.ServingObservation) error {
+		observations = append(observations, observation)
+		return nil
 	})
-	if err != nil || len(result.Artifacts) != 1 {
-		t.Fatalf("observations=%d err=%v", len(result.Artifacts), err)
+	if err != nil || len(observations) != 1 {
+		t.Fatalf("observations=%d err=%v", len(observations), err)
 	}
-	content, found := result.Content(result.Artifacts[0].ID)
-	if !found {
-		t.Fatal("observation content absent")
-	}
-	observation, err := runrecord.ParseServingObservation(content)
-	if err != nil {
-		t.Fatal(err)
-	}
+	observation := observations[0]
 	wantStages := []runrecord.ServingHardwareStage{
 		runrecord.ServingHardwareStart,
 		runrecord.ServingHardwarePrefill,

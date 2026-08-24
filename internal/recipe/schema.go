@@ -89,6 +89,10 @@ const (
 	DataSequenceScores     DataKind = "sequence-scores"
 	DataLoss               DataKind = "loss"
 	DataGradients          DataKind = "gradients"
+	// DataToolCall carries one strict tool invocation.
+	DataToolCall DataKind = "tool-call"
+	// DataToolResult carries one typed invocation result.
+	DataToolResult DataKind = "tool-result"
 )
 
 type Cardinality string
@@ -126,6 +130,8 @@ const (
 	DependencyEvaluation       DependencyRole = "training-evaluation"
 	DependencyEvaluator        DependencyRole = "evaluator"
 	DependencyPromotion        DependencyRole = "training-promotion"
+	// DependencyCapabilityBundle binds typed instruction and resource data.
+	DependencyCapabilityBundle DependencyRole = "capability-bundle"
 )
 
 type Dependency struct {
@@ -238,7 +244,7 @@ func validateDependency(dependency Dependency) error {
 	switch dependency.Role {
 	case DependencyModel:
 		want = artifact.KindModel
-	case DependencyProfile, DependencyObjective, DependencyPrecision, DependencyPlacement,
+	case DependencyProfile, DependencyCapabilityBundle, DependencyObjective, DependencyPrecision, DependencyPlacement,
 		DependencyMemory, DependencyOptimizer, DependencyCheckpointPolicy, DependencyEvaluation, DependencyPromotion:
 		want = artifact.KindProfile
 	case DependencyEvaluator:
@@ -287,7 +293,8 @@ func validateDataKind(kind DataKind) error {
 	case DataArtifact, DataText, DataTokens, DataEmbeddings, DataTensor, DataModelPlan, DataSessionPlan,
 		DataCache, DataLogits, DataImage, DataImageTensor, DataPromptConditioning, DataClassConditioning,
 		DataAudio, DataAudioTensor, DataVideo, DataVideoTensor, DataMetrics, DataCheckpoint,
-		DataScores, DataRanking, DataBatch, DataPreferenceBatch, DataSequenceScores, DataLoss, DataGradients:
+		DataScores, DataRanking, DataBatch, DataPreferenceBatch, DataSequenceScores, DataLoss, DataGradients,
+		DataToolCall, DataToolResult:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid data kind %q", kind)

@@ -31,8 +31,6 @@ const (
 	ProjectArtifacts QueryProjection = 1 << iota
 	// ProjectContentPresence returns payload identities.
 	ProjectContentPresence
-	// ProjectContentData returns payload identities and bytes.
-	ProjectContentData
 	// ProjectManifests returns selected manifests.
 	ProjectManifests
 	// ProjectAliases returns selected alias bindings.
@@ -45,7 +43,7 @@ const (
 
 	// ProjectCatalog returns the original catalog query surface.
 	ProjectCatalog = ProjectArtifacts | ProjectManifests | ProjectAliases | projectLineage | ProjectCommits
-	projectAll     = ProjectCatalog | ProjectContentPresence | ProjectContentData | ProjectParents
+	projectAll     = ProjectCatalog | ProjectContentPresence | ProjectParents
 )
 
 func (p QueryProjection) includes(field QueryProjection) bool {
@@ -54,9 +52,10 @@ func (p QueryProjection) includes(field QueryProjection) bool {
 
 // QueryCursor binds continuation to a catalog head and query contract.
 type QueryCursor struct {
-	Head     artifact.CommitID `json:"head"`
-	Contract [sha256.Size]byte `json:"contract"`
-	After    artifact.ID       `json:"after"`
+	Head          artifact.CommitID `json:"head"`
+	Contract      [sha256.Size]byte `json:"contract"`
+	After         artifact.ID       `json:"after"`
+	AfterSequence uint64            `json:"after_sequence,omitempty"`
 }
 
 // EncodeQueryCursor encodes a URL-safe continuation.
@@ -108,10 +107,9 @@ type CommitView struct {
 	Sequence uint64            `json:"sequence"`
 }
 
-// ContentView carries projected payload facts.
+// ContentView carries projected payload identity.
 type ContentView struct {
 	Artifact artifact.ID `json:"artifact"`
-	Data     []byte      `json:"data,omitempty"`
 }
 
 type QueryResult struct {
@@ -128,17 +126,6 @@ type QueryResult struct {
 	Next      *QueryCursor          `json:"next,omitempty"`
 }
 
-// Content returns projected bytes without another store read.
-func (r QueryResult) Content(id artifact.ID) ([]byte, bool) {
-	index, found := slices.BinarySearchFunc(r.Contents, id, func(view ContentView, target artifact.ID) int {
-		return artifact.CompareID(view.Artifact, target)
-	})
-	if !found {
-		return nil, false
-	}
-	return r.Contents[index].Data, true
-}
-
 func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	if err := validateQuery(query); err != nil {
 		return QueryResult{}, err
@@ -151,7 +138,8 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	if err := s.ready(false); err != nil {
 		return QueryResult{}, err
 	}
-	if query.MaxResults == 0 && s.state.queryExtent() != 0 {
+	if query.MaxResults == 0 && (len(s.state.slots) != 0 || len(s.state.aliases) != 0 ||
+		s.state.edgeCount != 0 || len(s.state.commits) != 0) {
 		return QueryResult{}, errors.New("repodb: zero query bound requires an empty catalog")
 	}
 	contract, err := queryContractDigest(query)
@@ -169,25 +157,25 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	result.Truncated = truncated
 	result.Matched = matched
 	for _, id := range ids {
-		if descriptor, ok := s.state.artifacts[id]; ok && query.Projection.includes(ProjectArtifacts) {
-			result.Artifacts = append(result.Artifacts, descriptor)
+		slot := s.state.slots[id]
+		if slot == nil {
+			continue
 		}
-		if data, ok := s.state.contents[id]; ok && query.Projection.includes(ProjectContentPresence|ProjectContentData) {
-			view := ContentView{Artifact: id}
-			if query.Projection.includes(ProjectContentData) {
-				view.Data = slices.Clone(data)
-			}
-			result.Contents = append(result.Contents, view)
+		if query.Projection.includes(ProjectArtifacts) {
+			result.Artifacts = append(result.Artifacts, slot.descriptor)
 		}
-		if manifest, ok := s.state.manifests[id]; ok && query.Projection.includes(ProjectManifests) {
-			result.Manifests = append(result.Manifests, manifest.Clone())
+		if slot.hasContent && query.Projection.includes(ProjectContentPresence) {
+			result.Contents = append(result.Contents, ContentView{Artifact: id})
+		}
+		if slot.hasManifest && query.Projection.includes(ProjectManifests) {
+			result.Manifests = append(result.Manifests, slot.manifest.Clone())
 		}
 	}
 	if query.Projection.includes(ProjectAliases) {
 		result.Aliases = s.state.queryAliases(query, selected, &result.Truncated)
 	}
 	if query.Projection.includes(ProjectParents) {
-		edges = append(edges, s.state.indexedLineage(selected, s.state.parentEdges, query.Relation)...)
+		edges = append(edges, s.state.indexedLineage(selected, true, query.Relation)...)
 	}
 	if query.Projection.includes(projectLineage | ProjectParents) {
 		result.Lineage = sortedQueryLineage(edges, query.MaxResults, &result.Truncated)
@@ -200,17 +188,6 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 		result.Next = &QueryCursor{Head: s.head, Contract: contract, After: ids[len(ids)-1]}
 	}
 	return result, nil
-}
-
-// QueryExtent returns the exact current fact-class bound.
-func (s *Store) QueryExtent() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.state.queryExtent()
-}
-
-func (s catalogState) queryExtent() int {
-	return max(len(s.artifacts), len(s.aliases), len(s.lineage), len(s.commits))
 }
 
 func validateQuery(query Query) error {
@@ -391,37 +368,37 @@ func validDescriptorFilter(value string) bool {
 
 func (s catalogState) visitDescriptorCandidates(query Query, visit func(artifact.ID)) {
 	if query.MediaType != "" {
-		for id := range s.artifactsByMedia[query.MediaType] {
+		for _, id := range s.byMedia[query.MediaType] {
 			visit(id)
 		}
 		return
 	}
 	if query.Schema != "" {
-		for id := range s.artifactsBySchema[query.Schema] {
+		for _, id := range s.bySchema[query.Schema] {
 			visit(id)
 		}
 		return
 	}
-	for id := range s.artifacts {
+	for id := range s.slots {
 		visit(id)
 	}
 }
 
 func (s catalogState) descriptorCandidateCount(query Query) int {
 	if query.MediaType != "" {
-		return len(s.artifactsByMedia[query.MediaType])
+		return len(s.byMedia[query.MediaType])
 	}
 	if query.Schema != "" {
-		return len(s.artifactsBySchema[query.Schema])
+		return len(s.bySchema[query.Schema])
 	}
-	return len(s.artifacts)
+	return len(s.slots)
 }
 
 func (s catalogState) matchesDescriptor(query Query, id artifact.ID) bool {
-	descriptor, ok := s.artifacts[id]
+	slot, ok := s.slots[id]
 	return ok && (query.Kind == artifact.KindInvalid || id.Kind() == query.Kind) &&
-		(query.MediaType == "" || descriptor.MediaType == query.MediaType) &&
-		(query.Schema == "" || descriptor.Schema == query.Schema)
+		(query.MediaType == "" || slot.descriptor.MediaType == query.MediaType) &&
+		(query.Schema == "" || slot.descriptor.Schema == query.Schema)
 }
 
 func (s catalogState) querySeed(query Query) (artifact.ID, bool, error) {
@@ -442,7 +419,7 @@ func (s catalogState) querySeed(query Query) (artifact.ID, bool, error) {
 		seed, seeded = *query.Artifact, true
 	}
 	if seeded {
-		if _, ok := s.artifacts[seed]; !ok {
+		if _, ok := s.slots[seed]; !ok {
 			return artifact.ID{}, false, errors.New("repodb: query artifact is unknown")
 		}
 	}
@@ -451,19 +428,23 @@ func (s catalogState) querySeed(query Query) (artifact.ID, bool, error) {
 
 func (s catalogState) followEdges(id artifact.ID, direction FollowDirection, relation artifact.Relation) []artifact.Lineage {
 	var edges []artifact.Lineage
-	appendIndex := func(index map[artifact.ID]map[relationKey]struct{}) {
-		for key := range index[id] {
-			edge := s.lineage[key]
+	appendIndex := func(index []relationKey) {
+		for _, key := range index {
+			edge := artifact.Lineage{Child: key.child, Parent: key.parent, Relation: key.relation}
 			if relation == artifact.RelationInvalid || edge.Relation == relation {
 				edges = append(edges, edge)
 			}
 		}
 	}
+	slot := s.slots[id]
+	if slot == nil {
+		return nil
+	}
 	if direction == FollowParents || direction == FollowBoth {
-		appendIndex(s.parentEdges)
+		appendIndex(slot.parents)
 	}
 	if direction == FollowChildren || direction == FollowBoth {
-		appendIndex(s.childEdges)
+		appendIndex(slot.children)
 	}
 	sort.Slice(edges, func(i, j int) bool {
 		left, right := edges[i], edges[j]
@@ -480,11 +461,11 @@ func (s catalogState) followEdges(id artifact.ID, direction FollowDirection, rel
 
 func (s catalogState) lineageWithin(selected map[artifact.ID]struct{}, relation artifact.Relation) []artifact.Lineage {
 	edges := make([]artifact.Lineage, 0)
-	for _, edge := range s.lineage {
-		_, child := selected[edge.Child]
-		_, parent := selected[edge.Parent]
-		if child && parent && (relation == artifact.RelationInvalid || edge.Relation == relation) {
-			edges = append(edges, edge)
+	for id := range selected {
+		for _, key := range s.slots[id].parents {
+			if _, parent := selected[key.parent]; parent && (relation == artifact.RelationInvalid || key.relation == relation) {
+				edges = append(edges, artifact.Lineage{Child: key.child, Parent: key.parent, Relation: key.relation})
+			}
 		}
 	}
 	return edges
@@ -492,13 +473,17 @@ func (s catalogState) lineageWithin(selected map[artifact.ID]struct{}, relation 
 
 func (s catalogState) indexedLineage(
 	selected map[artifact.ID]struct{},
-	index map[artifact.ID]map[relationKey]struct{},
+	parents bool,
 	relation artifact.Relation,
 ) []artifact.Lineage {
 	edges := make([]artifact.Lineage, 0)
 	for id := range selected {
-		for key := range index[id] {
-			edge := s.lineage[key]
+		index := s.slots[id].children
+		if parents {
+			index = s.slots[id].parents
+		}
+		for _, key := range index {
+			edge := artifact.Lineage{Child: key.child, Parent: key.parent, Relation: key.relation}
 			if relation == artifact.RelationInvalid || edge.Relation == relation {
 				edges = append(edges, edge)
 			}
@@ -559,12 +544,11 @@ func (s catalogState) queryCommits(query Query, truncated *bool) []CommitView {
 		to = ^uint64(0)
 	}
 	commits := make([]CommitView, 0)
-	for key, commit := range s.commits {
+	for _, commit := range s.commits {
 		if commit.sequence >= query.FromSequence && commit.sequence <= to {
-			commits = append(commits, CommitView{Key: key, ID: commit.id, Sequence: commit.sequence})
+			commits = append(commits, CommitView{Key: commit.key, ID: commit.id, Sequence: commit.sequence})
 		}
 	}
-	sort.Slice(commits, func(i, j int) bool { return commits[i].Sequence < commits[j].Sequence })
 	return truncateQuery(commits, query.MaxResults, truncated)
 }
 

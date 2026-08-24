@@ -81,7 +81,7 @@ func TestRecipeEvaluationRuntimeAndLedger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	history, err := campaign.History(ctx, []CompiledSuite{suite})
+	history, err := campaign.History(ctx, []CompiledSuite{suite}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

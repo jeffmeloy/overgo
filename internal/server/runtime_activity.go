@@ -1,8 +1,10 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
-	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
@@ -36,17 +38,24 @@ type servingActivity struct {
 }
 
 type runtimeActivityResponse struct {
-	Count       int                `json:"count"`
-	Truncated   bool               `json:"truncated"`
-	PublishFail uint64             `json:"publish_failures"`
-	Activity    []servingActivity  `json:"activity"`
-	Operations  []operation.Status `json:"operations"`
+	Count        int                `json:"count"`
+	Truncated    bool               `json:"truncated"`
+	PublishFail  uint64             `json:"publish_failures"`
+	Activity     []servingActivity  `json:"activity"`
+	Operations   []operation.Status `json:"operations"`
+	Stages       []json.RawMessage  `json:"stages,omitempty"`
+	Decisions    []json.RawMessage  `json:"decisions,omitempty"`
+	Interactions []json.RawMessage  `json:"interactions,omitempty"`
 }
 
 func (h *Handler) runtimeSessions(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
+	writeJSON(response, http.StatusOK, h.runtimeSessionsSnapshot())
+}
+
+func (h *Handler) runtimeSessionsSnapshot() runtimeSessionsResponse {
 	var authority *runtimeAuthority
 	if inspector, ok := h.generator.(interface {
 		RecipeRuntimeDescription(recipe.Task) (modelrecipe.RuntimeDescription, error)
@@ -60,49 +69,80 @@ func (h *Handler) runtimeSessions(response http.ResponseWriter, request *http.Re
 			}
 		}
 	}
-	writeJSON(response, http.StatusOK, runtimeSessionsResponse{
+	return runtimeSessionsResponse{
 		Session: h.sessions.Snapshot(), Authority: authority, Slots: h.sessionStatus(false),
-	})
+	}
 }
 
 func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
-	if h.repository == nil && h.config.RepoDBPath == "" {
+	activity, err := h.runtimeActivitySnapshot(request.Context())
+	if errors.Is(err, errBrowseRepositoryUnavailable) {
 		writeJSON(response, http.StatusOK, runtimeActivityResponse{Operations: h.operations.List()})
 		return
 	}
-	store, release, ok := h.openBrowseStore(response)
-	if !ok {
-		return
-	}
-	defer release()
-	result, err := store.Query(request.Context(), repodb.Query{
-		Kind:       artifact.KindEvidence,
-		MediaType:  runrecord.ServingObservationMediaType,
-		Schema:     runrecord.ServingObservationSchema,
-		MaxResults: store.QueryExtent(),
-		Projection: repodb.ProjectContentData,
-	})
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
 		return
 	}
-	activity := make([]servingActivity, 0, len(result.Contents))
-	for _, content := range result.Contents {
-		observation, parseErr := runrecord.ParseServingObservation(content.Data)
-		if parseErr == nil {
-			activity = append(activity, servingActivity{ID: content.Artifact, ServingObservation: observation})
-		}
+	writeJSON(response, http.StatusOK, activity)
+}
+
+func (h *Handler) runtimeActivitySnapshot(ctx context.Context) (runtimeActivityResponse, error) {
+	store, err := h.browseStore(ctx)
+	if err != nil {
+		return runtimeActivityResponse{}, err
 	}
-	sort.Slice(activity, func(left, right int) bool {
-		return activity[left].StartedUnixNS > activity[right].StartedUnixNS
+	activity := make([]servingActivity, 0, h.config.MaxStoredResponses)
+	page, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
+		}},
+		AliasPrefixes: []string{runrecord.ServingAttemptAliasRoot},
+		Order:         repodb.DocumentNewestFirst, MaxResults: h.config.MaxStoredResponses,
+	}, runrecord.ParseServingObservation, func(view repodb.DocumentView, observation runrecord.ServingObservation) error {
+		activity = append(activity, servingActivity{ID: view.Content.Descriptor.ID, ServingObservation: observation})
+		return nil
 	})
-	writeJSON(response, http.StatusOK, runtimeActivityResponse{
-		Count: len(activity), Truncated: result.Truncated,
-		PublishFail: h.observationErrors.Load(), Activity: activity, Operations: h.operations.List(),
+	if err != nil {
+		return runtimeActivityResponse{}, err
+	}
+	stages, stagesTruncated, err := projectedDocuments(ctx, store,
+		runrecord.StageReceiptMediaType, runrecord.StageReceiptSchema, runrecord.StageReceiptAliasRoot, h.config.MaxStoredResponses)
+	if err != nil {
+		return runtimeActivityResponse{}, err
+	}
+	decisions, decisionsTruncated, err := projectedDocuments(ctx, store,
+		runrecord.HumanDecisionMediaType, runrecord.HumanDecisionSchema, runrecord.HumanDecisionAliasRoot, h.config.MaxStoredResponses)
+	if err != nil {
+		return runtimeActivityResponse{}, err
+	}
+	interactions, interactionsTruncated, err := projectedDocuments(ctx, store,
+		runrecord.InteractionMediaType, runrecord.InteractionSchema, runrecord.InteractionResponseAliasRoot, h.config.MaxStoredResponses)
+	return runtimeActivityResponse{
+		Count: len(activity), PublishFail: h.observationErrors.Load(), Activity: activity, Operations: h.operations.List(),
+		Stages: stages, Decisions: decisions, Interactions: interactions,
+		Truncated: page.Truncated || stagesTruncated || decisionsTruncated || interactionsTruncated,
+	}, err
+}
+
+func projectedDocuments(
+	ctx context.Context,
+	store *repodb.Store,
+	mediaType, schema, aliasPrefix string,
+	limit int,
+) ([]json.RawMessage, bool, error) {
+	documents := make([]json.RawMessage, 0, limit)
+	page, err := store.VisitDocuments(ctx, repodb.DocumentQuery{
+		Contracts:     []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: mediaType, Schema: schema}},
+		AliasPrefixes: []string{aliasPrefix}, Order: repodb.DocumentNewestFirst, MaxResults: limit,
+	}, func(view repodb.DocumentView) error {
+		documents = append(documents, json.RawMessage(view.Content.Data))
+		return nil
 	})
+	return documents, page.Truncated, err
 }
 
 func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *http.Request) {
@@ -120,6 +160,20 @@ func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *h
 		return
 	}
 	stream := newSSEEmitter(request.Context(), response, flusher)
+	if stream.named("runtime.sessions", h.runtimeSessionsSnapshot()) != nil {
+		return
+	}
+	if activity, snapshotErr := h.runtimeActivitySnapshot(request.Context()); snapshotErr == nil {
+		if stream.named("runtime.activity", activity) != nil {
+			return
+		}
+	} else if errors.Is(snapshotErr, errBrowseRepositoryUnavailable) {
+		if stream.named("runtime.activity", runtimeActivityResponse{Operations: h.operations.List()}) != nil {
+			return
+		}
+	} else {
+		return
+	}
 	if stream.named("operation.snapshot", h.operations.List()) != nil {
 		return
 	}
@@ -128,7 +182,8 @@ func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *h
 		case <-request.Context().Done():
 			return
 		case event, open := <-events:
-			if !open || stream.named("operation", event) != nil {
+			if !open || stream.named("operation", event) != nil ||
+				stream.named("runtime.sessions", h.runtimeSessionsSnapshot()) != nil {
 				return
 			}
 		}

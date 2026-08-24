@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 
@@ -15,6 +16,8 @@ import (
 	"strings"
 
 	"time"
+
+	"overgo/internal/artifact"
 )
 
 type responsesTokenCountRequest struct {
@@ -108,7 +111,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}
-	previous, ok := h.previousResponseMessages(response, body.PreviousResponseID)
+	previous, parent, ok := h.previousResponseMessages(response, request.Context(), body.PreviousResponseID)
 	if !ok {
 		return
 	}
@@ -121,7 +124,6 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		body.Tools,
 		body.ToolChoice,
 		body.ParallelTools,
-		h.config.ResponseToolPolicy,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -150,7 +152,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	messages := responseRequestMessages(previous, current, body.Instructions)
-	history := append(cloneResponseMessages(previous), current...)
+	turn := cloneResponseMessages(current)
 	multimodal := chatMediaCount(messages) != 0
 	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
 	if len(toolSelection.prompt) != 0 || body.Reasoning != nil {
@@ -164,6 +166,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		formatter,
 		normalizedBody,
 		toolSelection.prompt,
+		true,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -211,7 +214,8 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			responseID,
 			messageID,
 			toolSelection.active,
-			history,
+			turn,
+			parent,
 			body.Store == nil || *body.Store,
 			reasoningSummary,
 			parser,
@@ -244,7 +248,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary)
 	promptTokens := result.promptTokens()
 	if body.Store == nil || *body.Store {
-		h.responseHistory.put(responseID, append(history, message))
+		h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, message))
 	}
 	writeJSON(response, http.StatusOK, responsesResponse{
 		CompletedAt: now,
@@ -269,7 +273,8 @@ func (h *Handler) streamResponses(
 	plan *protocolGenerationPlan,
 	responseID, messageID string,
 	tools []inference.ChatTool,
-	history []inference.ChatMessage,
+	turn []inference.ChatMessage,
+	parent artifact.ID,
 	store bool,
 	reasoningSummary bool,
 	parser ChatOutputParser,
@@ -584,7 +589,7 @@ func (h *Handler) streamResponses(
 		},
 	}
 	if store {
-		h.responseHistory.put(responseID, append(history, parsedMessage))
+		h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, parsedMessage))
 	}
 	_ = writeEvent("response.completed", responsesStreamEvent{
 		Type: "response.completed", Response: final,
@@ -600,7 +605,7 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}
-	previous, ok := h.previousResponseMessages(response, body.PreviousResponseID)
+	previous, _, ok := h.previousResponseMessages(response, request.Context(), body.PreviousResponseID)
 	if !ok {
 		return
 	}
@@ -613,7 +618,6 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 		body.Tools,
 		body.ToolChoice,
 		body.ParallelTools,
-		h.config.ResponseToolPolicy,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -632,7 +636,7 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 	if chatMediaCount(messages) != 0 {
 		normalizedBody.Tools = toolSelection.active
 	}
-	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, normalizedBody, toolSelection.prompt)
+	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, normalizedBody, toolSelection.prompt, false)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return
@@ -642,17 +646,18 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 
 func (h *Handler) previousResponseMessages(
 	response http.ResponseWriter,
+	ctx context.Context,
 	id string,
-) ([]inference.ChatMessage, bool) {
+) ([]inference.ChatMessage, artifact.ID, bool) {
 	if id == "" {
-		return nil, true
+		return nil, artifact.ID{}, true
 	}
-	messages, ok := h.responseHistory.get(id)
+	messages, parent, ok := h.loadResponseInteraction(ctx, id)
 	if !ok {
 		writeError(response, http.StatusNotFound, "not_found_error", "previous response not found")
-		return nil, false
+		return nil, artifact.ID{}, false
 	}
-	return messages, true
+	return messages, parent, true
 }
 
 func responseRequestMessages(

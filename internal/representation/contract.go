@@ -272,7 +272,7 @@ func LoadContract(ctx context.Context, reader artifact.Reader, id artifact.ID) (
 	if ctx == nil || reader == nil || id.Kind() != artifact.KindProfile {
 		return Contract{}, errors.New("representation: contract repository authority is invalid")
 	}
-	content, found, err := reader.Content(ctx, id)
+	content, found, err := artifact.ReadContent(ctx, reader, id)
 	if err != nil {
 		return Contract{}, err
 	}

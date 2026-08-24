@@ -24,7 +24,7 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	}
 	registerGenerationAdapters(t, runtime, false)
 	prompt := fixtureContent(t, artifact.KindFile, "hello")
-	result, err := runtime.ExecuteProgram(ctx, "runtime/success", program, map[recipe.PortName]Value{
+	result, err := runtime.ExecuteProgram(ctx, "runtime/success", runtimeExecutionID(t, program, "runtime/success"), nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "hello"}}},
 	})
 	if err != nil {
@@ -33,7 +33,7 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	if result.Run.Outcome != runrecord.OutcomeSucceeded || !result.Commit.Valid() {
 		t.Fatalf("result = %+v", result)
 	}
-	stored, ok, err := store.Content(ctx, result.Run.ID)
+	stored, ok, err := artifact.ReadContent(ctx, store, result.Run.ID)
 	if err != nil || !ok {
 		t.Fatalf("stored run = (%v, %v)", ok, err)
 	}
@@ -56,13 +56,13 @@ func TestRuntimePublishesFailedRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	registerGenerationAdapters(t, runtime, true)
-	result, err := runtime.ExecuteProgram(ctx, "runtime/failure", program, map[recipe.PortName]Value{
+	result, err := runtime.ExecuteProgram(ctx, "runtime/failure", runtimeExecutionID(t, program, "runtime/failure"), nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "hello"}}},
 	})
 	if err == nil || result.Run.Outcome != runrecord.OutcomeFailed || result.Run.Failure != executionFailureCode {
 		t.Fatalf("failed result = (%+v, %v)", result, err)
 	}
-	if _, ok, loadErr := store.Content(ctx, result.Run.ID); loadErr != nil || !ok {
+	if _, ok, loadErr := artifact.ReadContent(ctx, store, result.Run.ID); loadErr != nil || !ok {
 		t.Fatalf("failed run was not published: %v", loadErr)
 	}
 }
@@ -77,14 +77,101 @@ func TestRuntimePublishesCancelledRun(t *testing.T) {
 	registerGenerationAdapters(t, runtime, false)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	result, err := runtime.ExecuteProgram(ctx, "runtime/cancelled", program, map[recipe.PortName]Value{
+	result, err := runtime.ExecuteProgram(ctx, "runtime/cancelled", runtimeExecutionID(t, program, "runtime/cancelled"), nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "hello"}}},
 	})
 	if !errors.Is(err, context.Canceled) || result.Run.Outcome != runrecord.OutcomeCancelled {
 		t.Fatalf("cancelled result = (%+v, %v)", result, err)
 	}
-	if _, ok, loadErr := store.Content(context.Background(), result.Run.ID); loadErr != nil || !ok {
+	if _, ok, loadErr := artifact.ReadContent(context.Background(), store, result.Run.ID); loadErr != nil || !ok {
 		t.Fatalf("cancelled run was not published: %v", loadErr)
+	}
+}
+
+func TestWorkflowRestartSkipsCompletedStages(t *testing.T) {
+	ctx := context.Background()
+	store, program := runtimeFixture(t)
+	defer store.Close()
+	operation := runtimeExecutionID(t, program, "runtime/restart")
+	first, err := NewForProgram(store, program)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerGenerationAdapters(t, first, true)
+	prompt := fixtureContent(t, artifact.KindFile, "restart")
+	inputs := map[recipe.PortName]Value{
+		"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "restart"}}},
+	}
+	if _, err := first.ExecuteProgram(ctx, "runtime/restart", operation, nil, program, inputs); err == nil {
+		t.Fatal("interrupted workflow succeeded")
+	}
+	second, err := NewForProgram(store, program)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokenizeRuns := 0
+	if err := second.Register(workflowrecipe.ModuleTokenize, AdapterFunc(func(context.Context, StepRequest) (map[recipe.PortName]Value, error) {
+		tokenizeRuns++
+		return nil, errors.New("completed tokenize stage reran")
+	})); err != nil {
+		t.Fatal(err)
+	}
+	copyTokens := AdapterFunc(func(_ context.Context, request StepRequest) (map[recipe.PortName]Value, error) {
+		return map[recipe.PortName]Value{"tokens": {Kind: recipe.DataTokens, Items: request.Inputs["tokens"].Items}}, nil
+	})
+	if err := second.Register(workflowrecipe.ModuleGenerate, copyTokens); err != nil {
+		t.Fatal(err)
+	}
+	if err := second.Register(workflowrecipe.ModuleDetokenize, AdapterFunc(func(_ context.Context, request StepRequest) (map[recipe.PortName]Value, error) {
+		text := request.Inputs["tokens"].Items[0]
+		content := fixtureContent(t, artifact.KindOutput, strings.ToUpper(text.Value.(string)))
+		text.Content, text.Artifact = &content, content.Descriptor
+		return map[recipe.PortName]Value{"text": {Kind: recipe.DataText, Items: []Datum{text}}}, nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	result, err := second.ExecuteProgram(ctx, "runtime/restart", operation, nil, program, inputs)
+	if err != nil || tokenizeRuns != 0 || result.Run.Outcome != runrecord.OutcomeSucceeded {
+		t.Fatalf("recovered workflow = (runs=%d, outcome=%s, err=%v)", tokenizeRuns, result.Run.Outcome, err)
+	}
+}
+
+func TestWorkflowRecoveryRejectsRecipeDrift(t *testing.T) {
+	ctx := context.Background()
+	store, program := runtimeFixture(t)
+	defer store.Close()
+	operation := runtimeExecutionID(t, program, "runtime/drift")
+	runtime, err := NewForProgram(store, program)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerGenerationAdapters(t, runtime, true)
+	if _, err := runtime.ExecuteProgram(ctx, "runtime/drift", operation, nil, program, map[recipe.PortName]Value{
+		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "drift"}}},
+	}); err == nil {
+		t.Fatal("drift fixture did not stop")
+	}
+	definition := program.Definition()
+	definition.Dependencies[0].Artifact = testutil.ArtifactID(t, artifact.KindModel, "replacement-model")
+	drifted, err := recipe.NewDefinitionWithDependencies(
+		definition.Task, definition.Dependencies, definition.Nodes, definition.Edges, definition.Inputs, definition.Outputs,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	driftedProgram, err := recipe.CompileProgram(drifted, workflowrecipe.Catalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	driftedRuntime, err := NewForProgram(store, driftedProgram)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerGenerationAdapters(t, driftedRuntime, false)
+	if _, err := driftedRuntime.ExecuteProgram(ctx, "runtime/drift", operation, nil, driftedProgram, map[recipe.PortName]Value{
+		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "drift"}}},
+	}); err == nil || !strings.Contains(err.Error(), "recovery recipe differs") {
+		t.Fatalf("recipe drift error = %v", err)
 	}
 }
 
@@ -112,7 +199,7 @@ func TestExecuteProgramPreservesOrchestrationBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runtime.ExecuteProgram(context.Background(), "runtime/training", program, nil); err == nil {
+	if _, err := runtime.ExecuteProgram(context.Background(), "runtime/training", runtimeExecutionID(t, program, "runtime/training"), nil, program, nil); err == nil {
 		t.Fatal("orchestration-only program executed")
 	}
 }
@@ -132,9 +219,18 @@ func TestExecuteProgramRejectsAnotherCatalogAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runtime.ExecuteProgram(context.Background(), "runtime/foreign", program, nil); err == nil {
+	if _, err := runtime.ExecuteProgram(context.Background(), "runtime/foreign", runtimeExecutionID(t, program, "runtime/foreign"), nil, program, nil); err == nil {
 		t.Fatal("program compiled by another catalog accepted")
 	}
+}
+
+func runtimeExecutionID(t testing.TB, program recipe.Program, key string) artifact.ID {
+	t.Helper()
+	id, err := ExecutionID(program.Definition().ID, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
 
 func TestRuntimeCollapsesRepeatedArtifactFacts(t *testing.T) {

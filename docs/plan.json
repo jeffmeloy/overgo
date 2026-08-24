@@ -7,7 +7,7 @@
       "id": "orchestration-authority",
       "title": "Establish immutable automation authority and compile it into existing workflow plans",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "definition-contract",
@@ -26,7 +26,7 @@
         {
           "id": "execution-plan",
           "title": "Compile the active automation definition into a deterministic AutomationExecutionPlan over the existing recipe graph, operation policy, resources, triggers, and deliveries",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestCompileAutomationExecutionPlan' internal \u0026\u0026 go test ./internal/recipe ./internal/workflowcontract ./internal/workflowruntime -run 'TestCompileAutomationExecutionPlan|TestAutomationExecutionPlanRefuses' -count=1",
           "rationale": "Runtime must receive one complete, immutable plan and hard-fail missing aliases, incompatible recipes, unsupported triggers, unapproved deliveries, stale artifacts, or incomplete resource authority. Direct construction paths are prohibited.",
           "depends_on": [

@@ -82,12 +82,33 @@ type Result struct {
 	Commit  artifact.CommitID
 }
 
+// maxConcurrentStages bounds simultaneously executing stages: enough
+// to keep independent branches busy on one machine, small enough that
+// a wide ready set cannot fan out goroutines and memory without bound.
+const maxConcurrentStages = 4
+
 // Runtime: registered module adapters plus run repository.
 type Runtime struct {
 	mu       sync.RWMutex
 	store    artifact.Repository
 	catalog  *recipe.Catalog
 	adapters map[recipe.ModuleID]Adapter
+	// entries serializes Execute per adapter: the Adapter contract does
+	// not require concurrency safety, so two stages of one module never
+	// enter their shared adapter at once.
+	entries map[recipe.ModuleID]*sync.Mutex
+	slots   chan struct{}
+}
+
+func (r *Runtime) adapterEntry(module recipe.ModuleID) *sync.Mutex {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	entry, found := r.entries[module]
+	if !found {
+		entry = &sync.Mutex{}
+		r.entries[module] = entry
+	}
+	return entry
 }
 
 // NewForProgram binds execution to a compiled program's module authority.
@@ -101,6 +122,8 @@ func NewForProgram(store artifact.Repository, program recipe.Program) (*Runtime,
 	}
 	return &Runtime{
 		store: store, catalog: catalog, adapters: make(map[recipe.ModuleID]Adapter),
+		entries: make(map[recipe.ModuleID]*sync.Mutex),
+		slots:   make(chan struct{}, maxConcurrentStages),
 	}, nil
 }
 
@@ -308,6 +331,18 @@ func (r *Runtime) executeReadySet(
 			}
 			go func(index int) {
 				stage := stages[index]
+				// Admission before execution: a bounded slot, then the
+				// module's entry lock, then the adapter.
+				select {
+				case r.slots <- struct{}{}:
+				case <-runContext.Done():
+					results <- stageResult{index: index, err: runContext.Err()}
+					return
+				}
+				defer func() { <-r.slots }()
+				entry := r.adapterEntry(stage.stage.Module.ID)
+				entry.Lock()
+				defer entry.Unlock()
 				outputs, err := stage.adapter.Execute(runContext, stage.request)
 				results <- stageResult{index: index, outputs: outputs, err: err}
 			}(index)

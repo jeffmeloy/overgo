@@ -147,12 +147,12 @@
       "id": "finding-workflow-admission",
       "title": "Bound parallel stage execution and serialize adapter entry in the workflow runtime",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Bound parallel stage execution and serialize adapter entry in the workflow runtime",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/workflowruntime -count=1"
         }
       ]

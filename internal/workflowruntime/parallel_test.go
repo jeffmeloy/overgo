@@ -17,6 +17,7 @@ import (
 const (
 	parallelBranchModule recipe.ModuleID = "branch"
 	parallelJoinModule   recipe.ModuleID = "join"
+	parallelSideModule   recipe.ModuleID = "branch-side"
 	parallelLeftPort     recipe.PortName = "left"
 	parallelRightPort    recipe.PortName = "right"
 	parallelOutputPort   recipe.PortName = "output"
@@ -146,6 +147,13 @@ type parallelFixture struct {
 }
 
 func newParallelFixture(t *testing.T) parallelFixture {
+	return newParallelFixtureModules(t, parallelBranchModule, parallelSideModule)
+}
+
+// newParallelFixtureModules builds the two-branch join program with the
+// given module per branch: distinct modules exercise cross-adapter
+// concurrency, one shared module exercises adapter-entry serialization.
+func newParallelFixtureModules(t *testing.T, leftModule, rightModule recipe.ModuleID) parallelFixture {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -156,18 +164,25 @@ func newParallelFixture(t *testing.T) parallelFixture {
 	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "parallel/model", Artifacts: []artifact.Descriptor{{ID: model}}}); err != nil {
 		t.Fatal(err)
 	}
-	branch := recipe.Module{
-		ID: parallelBranchModule, Tasks: []recipe.Task{recipe.TaskInference}, Placements: []recipe.Placement{recipe.PlacementHost},
-		Inputs:  []recipe.Port{{Name: "input", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
-		Outputs: []recipe.Port{{Name: parallelOutputPort, Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
+	branchModule := func(id recipe.ModuleID) recipe.Module {
+		return recipe.Module{
+			ID: id, Tasks: []recipe.Task{recipe.TaskInference}, Placements: []recipe.Placement{recipe.PlacementHost},
+			Inputs:  []recipe.Port{{Name: "input", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
+			Outputs: []recipe.Port{{Name: parallelOutputPort, Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
+		}
+	}
+	modules := []recipe.Module{branchModule(leftModule)}
+	if rightModule != leftModule {
+		modules = append(modules, branchModule(rightModule))
 	}
 	join := recipe.Module{
 		ID: parallelJoinModule, Tasks: []recipe.Task{recipe.TaskInference}, Placements: []recipe.Placement{recipe.PlacementHost},
 		Inputs:  []recipe.Port{{Name: "inputs", Data: recipe.DataText, Cardinality: recipe.CardinalityMany}},
 		Outputs: []recipe.Port{{Name: parallelOutputPort, Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
 	}
-	left := recipe.Node{ID: "left", Module: branch.ID, Placement: recipe.PlacementHost}
-	right := recipe.Node{ID: "right", Module: branch.ID, Placement: recipe.PlacementHost}
+	modules = append(modules, join)
+	left := recipe.Node{ID: "left", Module: leftModule, Placement: recipe.PlacementHost}
+	right := recipe.Node{ID: "right", Module: rightModule, Placement: recipe.PlacementHost}
 	sink := recipe.Node{ID: "sink", Module: join.ID, Placement: recipe.PlacementHost}
 	definition, err := recipe.NewDefinitionWithDependencies(
 		recipe.TaskInference, []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: model}},
@@ -185,7 +200,7 @@ func newParallelFixture(t *testing.T) parallelFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog, err := recipe.NewCatalog(branch, join)
+	catalog, err := recipe.NewCatalog(modules...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,9 +225,16 @@ func registerParallelAdapters(
 	branch func(context.Context, string) (string, error),
 ) {
 	t.Helper()
-	if err := RegisterContextStage(fixture.runtime, parallelBranchModule, fixture.program.Definition().Model,
-		branch, textArtifact); err != nil {
-		t.Fatal(err)
+	registered := map[recipe.ModuleID]bool{parallelJoinModule: true}
+	for _, stage := range fixture.program.Definition().Nodes {
+		if registered[stage.Module] {
+			continue
+		}
+		registered[stage.Module] = true
+		if err := RegisterContextStage(fixture.runtime, stage.Module, fixture.program.Definition().Model,
+			branch, textArtifact); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := fixture.runtime.Register(parallelJoinModule, AdapterFunc(
 		func(_ context.Context, request StepRequest) (map[recipe.PortName]Value, error) {
@@ -245,4 +267,25 @@ func (fixture parallelFixture) execute(ctx context.Context) (Result, error) {
 
 func textArtifact(value string) (artifact.Content, error) {
 	return artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, "overgo.parallel-text.v1"), value)
+}
+
+// TestAdapterEntrySerialized pins the admission contract: two stages
+// sharing one module never enter their adapter concurrently, because
+// the Adapter contract does not require concurrency safety.
+func TestAdapterEntrySerialized(t *testing.T) {
+	fixture := newParallelFixtureModules(t, parallelBranchModule, parallelBranchModule)
+	var active, maximum atomic.Int32
+	registerParallelAdapters(t, fixture, func(_ context.Context, value string) (string, error) {
+		current := active.Add(1)
+		for observed := maximum.Load(); current > observed && !maximum.CompareAndSwap(observed, current); observed = maximum.Load() {
+		}
+		active.Add(-1)
+		return value, nil
+	})
+	if _, err := fixture.execute(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if maximum.Load() != 1 {
+		t.Fatalf("shared adapter entered %d-way concurrently", maximum.Load())
+	}
 }

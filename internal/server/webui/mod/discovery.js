@@ -21,7 +21,15 @@
           const catalog = await overgo.api.get("/catalog/models");
           overgo.clear(catalogBody);
           const models = catalog.models || [];
-          catalogNote.textContent = models.length ? models.length + " activated model(s)" :
+          const coverage = catalog.coverage || {};
+          const parts = [];
+          if (models.length) parts.push(models.length + " activated model(s)");
+          const profiles = coverage.profiles || {};
+          if (profiles.registered) parts.push("profiles " + profiles.published + "/" + profiles.registered);
+          const datasets = coverage.datasets || {};
+          if (datasets.registered) parts.push("datasets " + datasets.available + "/" + datasets.registered + " on disk");
+          if (catalog.truncated) parts.push("listing truncated — not every activation is shown");
+          catalogNote.textContent = parts.length ? parts.join(" · ") :
             "No activated models yet — download one below, then activate it with cmd/reverify.";
           for (const entry of models) {
             const capabilities = el("td");

@@ -11,8 +11,10 @@ import (
 	"sync/atomic"
 
 	"overgo/internal/artifact"
+	"overgo/internal/dataset"
 	"overgo/internal/discovery"
 	"overgo/internal/hfhub"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
 )
@@ -36,7 +38,7 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusServiceUnavailable, "hub_unavailable", "no artifact repository is configured")
 		return
 	}
-	entries, err := discovery.CapabilityCatalog(request.Context(), h.config.Repository, maxCatalogEntries, h.catalogMemo)
+	entries, truncated, err := discovery.CapabilityCatalog(request.Context(), h.config.Repository, maxCatalogEntries, h.catalogMemo)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "catalog_error", err.Error())
 		return
@@ -57,7 +59,35 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		}
 		listed = append(listed, model)
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"models": listed})
+	writeJSON(response, http.StatusOK, map[string]any{
+		"models": listed, "truncated": truncated, "coverage": h.catalogCoverage(request.Context()),
+	})
+}
+
+// catalogCoverage reports the registered denominators beside the
+// activation listing: how many architecture profiles and datasets the
+// store SHOULD hold against how many it publishes. Coverage that cannot
+// be derived reports its defect instead of vanishing.
+func (h *Handler) catalogCoverage(ctx context.Context) map[string]any {
+	coverage := map[string]any{}
+	profiles, err := modelrecipe.InspectArchitectureProfileCatalog(ctx, h.config.Repository)
+	if err != nil {
+		coverage["profiles"] = map[string]any{"error": err.Error()}
+	} else {
+		coverage["profiles"] = map[string]any{
+			"registered": profiles.Registered, "published": profiles.Published, "complete": profiles.Complete,
+		}
+	}
+	datasets, err := dataset.InspectCatalog(ctx, h.config.Repository)
+	if err != nil {
+		coverage["datasets"] = map[string]any{"error": err.Error()}
+	} else {
+		coverage["datasets"] = map[string]any{
+			"registered": datasets.Registered, "published": datasets.Published,
+			"available": datasets.Available, "complete": datasets.Complete,
+		}
+	}
+	return coverage
 }
 
 // catalogModel is the catalog's wire shape. A stale entry can carry invalid

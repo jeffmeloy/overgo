@@ -34,13 +34,15 @@ type CatalogEntry struct {
 // across all tasks -- the full serving surface, where Servable is the
 // inference slice. Aliases drive enumeration so capability-activated
 // models (speech, forecast, tabular, projection) appear beside chat
-// models without any per-model knowledge.
-func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, memo *Memo) ([]CatalogEntry, error) {
+// models without any per-model knowledge. The truncated result reports
+// when the bounded alias listing could not carry every activation: a
+// clipped catalog must say so rather than read as complete.
+func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, memo *Memo) ([]CatalogEntry, bool, error) {
 	result, err := store.Query(ctx, overgodb.Query{
 		Kind: artifact.KindRecipe, MaxResults: limit, Projection: overgodb.ProjectAliases,
 	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	tasksByModel := map[artifact.ID][]recipe.Task{}
 	for _, alias := range result.Aliases {
@@ -61,7 +63,7 @@ func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 		entry := CatalogEntry{Model: model}
 		manifest, found, err := store.Manifest(ctx, model)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if found {
 			entry.Location, entry.Present = presence(ctx, store, manifest, identities, memo)
@@ -86,5 +88,5 @@ func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 		}
 		entries = append(entries, entry)
 	}
-	return entries, nil
+	return entries, result.Truncated, nil
 }

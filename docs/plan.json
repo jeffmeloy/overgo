@@ -35,12 +35,12 @@
       "id": "overgodb-best-of-both",
       "title": "Fold the best of both catalogs into overgodb: registered denominators and truncation honesty in the capability catalog",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Fold the best of both catalogs into overgodb: registered denominators and truncation honesty in the capability catalog",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/discovery ./internal/server -run 'TestCapabilityCatalog|TestWorkbenchAPI|TestWebUI' -count=1"
         }
       ]

@@ -79,9 +79,12 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	if len(servable) != 0 {
 		t.Fatalf("servable = %+v, want the forecast-only model invisible to the inference slice", servable)
 	}
-	entries, err := CapabilityCatalog(ctx, store, 100, nil)
+	entries, truncated, err := CapabilityCatalog(ctx, store, 100, nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if truncated {
+		t.Fatal("catalog reported truncation inside its bound")
 	}
 	if len(entries) != 1 || entries[0].Model != manifest.ID {
 		t.Fatalf("entries = %+v, want exactly the forecast model", entries)

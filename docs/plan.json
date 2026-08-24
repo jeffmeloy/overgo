@@ -178,13 +178,13 @@
       "id": "agent-orchestration",
       "title": "Agent step coordinator over existing authorities: workflowruntime executes, runrecord interactions persist, inspection gates mutation, unregistered tools refuse",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Agent step coordinator over existing authorities: workflowruntime executes, runrecord interactions persist, inspection gates mutation, unregistered tools refuse",
-          "status": "open",
-          "verify": "go test ./internal/agentloop -count=1",
+          "status": "done",
+          "verify": "go test ./internal/agentloop ./cmd/agent-loop -count=1",
           "depends_on": [
             "agent-tool-transports/do",
             "agent-transport-security/do"

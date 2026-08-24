@@ -52,7 +52,7 @@ func BenchmarkLaunchPointerResolution(b *testing.B) {
 	slot := compiled.orderIndexes[node]
 	frame := launchPointerFrame{values: values, slots: []int{slot, slot}}
 	b.Run("map", func(b *testing.B) {
-		pointers := devicePointerTable{indexes: compiled.orderIndexes, values: values}
+		pointers := graphPointerTable{indexes: compiled.orderIndexes, values: values}
 		for range b.N {
 			if pointers.get(node) == 0 {
 				b.Fatal("missing pointer")

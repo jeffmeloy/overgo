@@ -974,48 +974,40 @@ func dynamicAttributeWords(
 	return len(values), nil
 }
 
-// devicePointerTable stores invocation addresses in compiled graph order.
-type devicePointerTable struct {
+// graphPointerTable resolves setup-only tensor addresses.
+type graphPointerTable struct {
 	indexes map[*tensor.Tensor]int
 	values  []driver.DevicePtr
 }
 
-func newDevicePointerTable(
-	compiled *CompiledGraph,
-	scratch *[]driver.DevicePtr,
-) devicePointerTable {
-	if cap(*scratch) < len(compiled.order) {
-		*scratch = make([]driver.DevicePtr, len(compiled.order))
-	}
-	values := (*scratch)[:len(compiled.order)]
-	clear(values)
-	return devicePointerTable{indexes: compiled.orderIndexes, values: values}
+func newGraphPointerTable(compiled *CompiledGraph, scratch *[]driver.DevicePtr) graphPointerTable {
+	values := prepareAttributePointers(scratch, len(compiled.order))
+	return graphPointerTable{indexes: compiled.orderIndexes, values: values}
 }
 
-func (p devicePointerTable) get(node *tensor.Tensor) driver.DevicePtr {
-	index, ok := p.indexes[node]
-	if !ok {
-		return 0
-	}
-	return p.values[index]
+func (p graphPointerTable) get(node *tensor.Tensor) driver.DevicePtr {
+	return p.values[p.indexes[node]]
 }
 
-func (p devicePointerTable) lookup(node *tensor.Tensor) (driver.DevicePtr, bool) {
-	index, ok := p.indexes[node]
-	if !ok || p.values[index] == 0 {
-		return 0, false
-	}
-	return p.values[index], true
-}
-
-func (p devicePointerTable) set(node *tensor.Tensor, pointer driver.DevicePtr) {
+func (p graphPointerTable) set(node *tensor.Tensor, pointer driver.DevicePtr) {
 	p.values[p.indexes[node]] = pointer
+}
+
+// prepareAttributePointers resets graph-indexed invocation addresses.
+func prepareAttributePointers(scratch *[]driver.DevicePtr, count int) []driver.DevicePtr {
+	if cap(*scratch) < count {
+		*scratch = make([]driver.DevicePtr, count)
+	}
+	values := (*scratch)[:count]
+	clear(values)
+	return values
 }
 
 // launchPointerFrame: precompiled output/input slots.
 type launchPointerFrame struct {
-	values []driver.DevicePtr
-	slots  []int
+	values    []driver.DevicePtr
+	slots     []int
+	attribute driver.DevicePtr
 }
 
 func (p launchPointerFrame) output() driver.DevicePtr {
@@ -1112,7 +1104,7 @@ func validateRetainedTargetAlias(
 	node *tensor.Tensor,
 	target DeviceValue,
 	contract tensor.OutputTargetContract,
-	pointers devicePointerTable,
+	pointers graphPointerTable,
 ) error {
 	outputRange, err := newDeviceAddressRange(target.Pointer, contract.Bytes)
 	if err != nil {
@@ -1644,7 +1636,7 @@ func launchCompiledFusion(
 	node *tensor.Tensor,
 	fusion *compiledFusion,
 	pointers launchPointerFrame,
-	attributePointers devicePointerTable,
+	auxiliaryAttributePointer driver.DevicePtr,
 ) (string, error) {
 	if fusion == nil {
 		return "", nil
@@ -1663,13 +1655,18 @@ func launchCompiledFusion(
 	case compiledFusionWeightedRMSGate:
 		return "weighted_rms_gate", launchWeightedRMSGate(state, functions, q8Input, node, fusion.weightedGate, fusion.emitQ8, pointers)
 	case compiledFusionBF16Append:
-		return "bf16_append", launchBF16Append(state, functions, node, fusion.bf16Append, pointers, attributePointers)
+		return "bf16_append", launchBF16Append(
+			state, functions, node, fusion.bf16Append, pointers, pointers.attribute,
+		)
 	case compiledFusionBF16ArgmaxPartials:
 		return "bf16_argmax", launchBF16ArgmaxPartials(state, functions, node, pointers)
 	case compiledFusionBF16ArgmaxReduction:
 		return "bf16_argmax", launchQ8ArgmaxReduction(state, functions, fusion.peer, node, pointers)
 	case compiledFusionRopeAppend:
-		return "rope_append", launchRopeAppend(state, functions, node, fusion.ropeAppend, pointers, attributePointers)
+		return "rope_append", launchRopeAppend(
+			state, functions, node, fusion.ropeAppend, pointers,
+			auxiliaryAttributePointer,
+		)
 	case compiledFusionBF16Gate:
 		return "bf16_gate", launchBF16Gate(state, functions, node, fusion.bf16Gate, pointers)
 	case compiledFusionBF16ProjAdd:
@@ -1719,7 +1716,7 @@ func execute(
 		}
 	}()
 
-	pointers := newDevicePointerTable(compiled, &scratch.pointers)
+	pointers := newGraphPointerTable(compiled, &scratch.pointers)
 	var targetValues []DeviceValue
 	if retainedTargets != nil {
 		if retainedTargets.compiled != compiled || len(retainedTargets.values) != len(outputs) {
@@ -1955,7 +1952,7 @@ func execute(
 		}
 	}
 
-	attributePointers := newDevicePointerTable(compiled, &scratch.attributePointers)
+	attributePointers := prepareAttributePointers(&scratch.attributePointers, len(compiled.order))
 	auxiliaryLeases := make([]deviceBufferLease, 0)
 	defer func() {
 		for _, lease := range auxiliaryLeases {
@@ -1992,7 +1989,7 @@ func execute(
 				return nil, errors.New("CUDA runtime attribute changes compiled slot size")
 			}
 			offset := uint64(slot.offset) * uint64(unsafe.Sizeof(uint32(0)))
-			attributePointers.set(slot.node, lease.pointer+driver.DevicePtr(offset))
+			attributePointers[slot.index] = lease.pointer + driver.DevicePtr(offset)
 		}
 		if copyErr := state.Driver.MemcpyHtoD(lease.pointer, driver.Bytes(words)); copyErr != nil {
 			return nil, copyErr
@@ -2014,8 +2011,9 @@ func execute(
 			frame := compiled.nodes[nodeIndex]
 			node := compiled.order[nodeIndex]
 			operands := launchPointerFrame{
-				values: pointers.values,
-				slots:  compiled.operandSlots[frame.operandOffset : frame.operandOffset+len(node.Inputs)+1],
+				values:    pointers.values,
+				slots:     compiled.operandSlots[frame.operandOffset : frame.operandOffset+len(node.Inputs)+1],
+				attribute: attributePointers[nodeIndex],
 			}
 			if frame.aliases {
 				outputIndex, retainedOutput := compiled.outputIndexes[node]
@@ -2031,8 +2029,13 @@ func execute(
 					slots:  compiled.operandSlots[frame.fusion.operandOffset : frame.fusion.operandOffset+frame.fusion.operandCount],
 				}
 			}
+			var auxiliaryAttributePointer driver.DevicePtr
+			if frame.fusion != nil && frame.fusion.kind == compiledFusionRopeAppend {
+				auxiliaryAttributePointer = attributePointers[frame.fusion.ropeAppend.attributeIndex]
+			}
 			if label, err := launchCompiledFusion(
-				state, functions, blas, q8Input, node, frame.fusion, fusionOperands, attributePointers,
+				state, functions, blas, q8Input, node, frame.fusion, fusionOperands,
+				auxiliaryAttributePointer,
 			); label != "" {
 				if err != nil {
 					return fmt.Errorf("launch tensor %d (%s): %w", node.ID, label, err)
@@ -2049,7 +2052,7 @@ func execute(
 				}
 			}
 			if err := launchNode(
-				state, functions, blas, q8Input, node, attributes, operands, attributePointers,
+				state, functions, blas, q8Input, node, attributes, operands,
 				frame.launchProgram,
 			); err != nil {
 				return fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
@@ -2069,7 +2072,7 @@ func execute(
 		scratch.replayFrame[:0], arena, blasStaging, blasScores, q8Staging,
 	)
 	scratch.replayFrame = append(scratch.replayFrame, pointers.values...)
-	scratch.replayFrame = append(scratch.replayFrame, attributePointers.values...)
+	scratch.replayFrame = append(scratch.replayFrame, attributePointers...)
 	frame := scratch.replayFrame
 	replayed := false
 	if capturing {

@@ -21,7 +21,6 @@ func launchLinearLayout(
 	node *tensor.Tensor,
 	runtimeAttributes tensor.Attributes,
 	pointers launchPointerFrame,
-	attributePointers devicePointerTable,
 ) error {
 	output := pointers.output()
 	switch node.Op {
@@ -463,8 +462,8 @@ func launchLinearLayout(
 			return err
 		}
 		table := pointers.input(0)
-		rows, ok := attributePointers.lookup(node)
-		if !ok {
+		rows := pointers.attribute
+		if rows == 0 {
 			return errors.New("get_rows row storage is unavailable")
 		}
 		if len(attributes.Rows) == 0 {
@@ -871,7 +870,7 @@ func launchBF16Append(
 	node *tensor.Tensor,
 	fusion bf16AppendFusion,
 	pointers launchPointerFrame,
-	attributePointers devicePointerTable,
+	attributePointer driver.DevicePtr,
 ) error {
 	attributes, ok := node.Attrs.(tensor.CacheAppendAttributes)
 	if !ok || attributes.Axis+1 != uint32(node.Shape.Rank) {
@@ -910,8 +909,8 @@ func launchBF16Append(
 	if err != nil {
 		return err
 	}
-	offsetPointer, ok := attributePointers.lookup(node)
-	if !ok {
+	offsetPointer := attributePointer
+	if offsetPointer == 0 {
 		return errors.New("fused cache append offset storage is unavailable")
 	}
 	launchCount, err := bf16MulMatLaunchCount(rows, 1)
@@ -963,7 +962,7 @@ func launchRopeAppend(
 	node *tensor.Tensor,
 	fusion ropeAppendFusion,
 	pointers launchPointerFrame,
-	attributePointers devicePointerTable,
+	positions driver.DevicePtr,
 ) error {
 	appendAttributes, ok := node.Attrs.(tensor.CacheAppendAttributes)
 	if !ok || appendAttributes.Axis+1 != uint32(node.Shape.Rank) {
@@ -1018,12 +1017,10 @@ func launchRopeAppend(
 	if len(fusion.rope.Inputs) == 2 {
 		frequencyFactors = pointers.input(2)
 	}
-	positions, ok := attributePointers.lookup(fusion.rope)
-	if !ok {
+	if positions == 0 {
 		return errors.New("fused RoPE position storage is unavailable")
 	}
-	offsetPointer, ok := attributePointers.lookup(node)
-	if !ok {
+	if pointers.attribute == 0 {
 		return errors.New("fused cache append offset storage is unavailable")
 	}
 	rotary := ropeAttributes.RotaryDimensions
@@ -1040,7 +1037,7 @@ func launchRopeAppend(
 	}
 	return launch1DABI(
 		state, function, count,
-		&input, &positions, &frequencyFactors, &output, &offsetPointer, &inner,
+		&input, &positions, &frequencyFactors, &output, &pointers.attribute, &inner,
 		&width, &heads, &tokens, &rotary,
 		&frequencyBase, &frequencyScale, &originalContext, &extFactor, &attentionFactor,
 		&betaFast, &betaSlow, &count,

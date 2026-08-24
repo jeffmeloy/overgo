@@ -11,9 +11,6 @@
   "use strict";
   window.overgo.registerTab({
     id: "states",
-    label: "Hidden states",
-    section: "workbench",
-    requires: "hidden_states",
     async mount(panel, overgo) {
       const { el, clear, displayToken } = overgo;
       clear(panel);

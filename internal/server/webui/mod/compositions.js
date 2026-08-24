@@ -27,8 +27,6 @@
 
   window.overgo.registerTab({
     id: "compositions",
-    label: "Compositions",
-    section: "workbench",
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       clear(panel);

@@ -3,8 +3,6 @@
   "use strict";
   window.overgo.registerTab({
     id: "datasets",
-    label: "Datasets",
-    section: "datasets",
     async mount(panel, overgo) {
       const { el, clear } = overgo;
       clear(panel);

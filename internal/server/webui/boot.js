@@ -250,21 +250,15 @@
   };
 
   // ---- shell wiring (runs after all deferred module scripts registered) ----
-  // Two-level nav: top-level SECTIONS, each holding one or more tabs. A tab
-  // declares `section`; those without one fall into "workbench".
-  const SECTION_ORDER = [
-    { id: "inference", label: "Inference" },
-    { id: "library", label: "Library" },
-    { id: "datasets", label: "Datasets" },
-    { id: "training", label: "Training" },
-    { id: "workbench", label: "Workbench" },
-  ];
+  // The server manifest owns navigation order, labels, and capability refusal.
+  // Modules register only their implementation under a stable tab id.
+  let workspaceManifest = null;
   let activeSection = null;
   const sectionButtons = [];
 
-  function tabSection(tab) { return tab.section || "workbench"; }
+  function tabSection(tab) { return tab.section; }
   function sectionsPresent() {
-    return SECTION_ORDER.filter((s) => tabs.some((t) => tabSection(t) === s.id));
+    return workspaceManifest.sections.filter((s) => tabs.some((t) => tabSection(t) === s.id));
   }
 
   // Sidebar navigation shows every section's tabs at once; the active section
@@ -328,11 +322,7 @@
   }
 
   // ---- capability gating ----
-  // A tab may declare `requires: "<key>"`; if /analyze/model's analysis block
-  // reports that capability false, the tab is disabled rather than allowed to
-  // fail. Fail-open: if capabilities can't be fetched (offline / key required),
-  // every tab stays enabled and errors surface per-request instead.
-  let capabilities = null;
+  // Refusal is server-owned and travels with the same manifest as navigation.
   let authNoticeEl = null;
 
   // When /analyze/model answers 401 the whole analysis surface is locked behind
@@ -345,8 +335,7 @@
   }
 
   function tabSupported(tab) {
-    if (!tab.requires || !capabilities) return true;
-    return capabilities[tab.requires] !== false;
+    return tab.enabled;
   }
 
   function applyCapabilities() {
@@ -354,7 +343,7 @@
       const ok = tabSupported(tab);
       tab.button.disabled = !ok;
       tab.button.classList.toggle("disabled-tab", !ok);
-      tab.button.title = ok ? "" : "Not available for this model";
+      tab.button.title = ok ? "" : tab.refusal;
     }
     const active = tabs.find((t) => t.button.classList.contains("active"));
     if (active && !tabSupported(active)) {
@@ -363,21 +352,33 @@
     }
   }
 
-  async function refreshCapabilities() {
-    try {
-      const model = await modelInfo();
-      capabilities = model.analysis || {};
-      showAuthNotice(false);
-    } catch (err) {
-      capabilities = null; // fail-open
-      showAuthNotice(err && err.status === 401);
+  function bindWorkspaceManifest(manifest) {
+    if (!manifest || !Array.isArray(manifest.sections) || !Array.isArray(manifest.tabs)) {
+      throw new Error("Workspace manifest is invalid");
     }
-    applyCapabilities();
+    const implementations = new Map(tabs.map((tab) => [tab.id, tab]));
+    for (const id of implementations.keys()) {
+      if (!manifest.tabs.some((tab) => tab.id === id)) throw new Error("Undeclared workspace tab " + id);
+    }
+    const ordered = [];
+    for (const declaration of manifest.tabs) {
+      const implementation = implementations.get(declaration.id);
+      if (!implementation) continue;
+      ordered.push(Object.assign(implementation, declaration));
+    }
+    tabs.splice(0, tabs.length, ...ordered);
   }
 
-  function initShell() {
+  async function initShell() {
     const sectionBar = document.getElementById("sections");
     const panels = document.getElementById("panels");
+    try {
+      workspaceManifest = await api.get("/workspace/manifest");
+      bindWorkspaceManifest(workspaceManifest);
+    } catch (err) {
+      panels.appendChild(errorBanner(friendlyError(err)));
+      return;
+    }
     for (const section of sectionsPresent()) {
       const button = el("button", { class: "section", onclick: () => selectSection(section.id) }, section.label);
       const group = el("div", { class: "nav-group" }, button);
@@ -408,7 +409,6 @@
       const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
       if (current) activate(current);
       refreshStatus();
-      refreshCapabilities();
     });
     window.addEventListener("hashchange", () => {
       const id = location.hash.slice(1);
@@ -417,7 +417,7 @@
     const start = location.hash.slice(1);
     activate(tabs.some((t) => t.id === start) ? start : (tabs[0] && tabs[0].id));
     refreshStatus();
-    refreshCapabilities();
+    applyCapabilities();
     // Re-probe health so a server that drops (or comes back) is reflected in the
     // status pill instead of showing a stale "online" until the next key change.
     setInterval(refreshStatus, 10000);

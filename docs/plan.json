@@ -109,7 +109,7 @@
         {
           "id": "workspace-manifest",
           "title": "Replace duplicated navigation and capability checks with one server-owned workspace manifest consumed by the embedded modular GUI",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestWorkspaceManifest' internal/server \u0026\u0026 go test ./internal/server -run 'TestWorkspaceManifest|TestWorkspaceManifestCapabilityRefusal|TestWebUIWorkspaceRoutes' -count=1",
           "rationale": "Overgo should retain its dependency-light embedded GUI, but list/detail/editor routes, visibility, capability gates, and active navigation need one owner before orchestration expands. This does not authorize a framework migration.",
           "depends_on": [

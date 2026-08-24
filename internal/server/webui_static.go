@@ -56,6 +56,10 @@ var webuiContentTypes = map[string]string{
 // uses hash routing, so no server-side SPA fallback is needed and an unknown
 // path returns the same 404 the router used to emit.
 func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request) {
+	if request.URL.Path == "/workspace/manifest" {
+		h.workspaceManifest(response, request)
+		return
+	}
 	if request.Method != http.MethodGet && request.Method != http.MethodHead {
 		writeError(response, http.StatusNotFound, "not_found", "route not found")
 		return

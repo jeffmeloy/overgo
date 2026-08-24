@@ -4,9 +4,6 @@
   "use strict";
   window.overgo.registerTab({
     id: "vocab",
-    label: "Vocabulary",
-    section: "workbench",
-    requires: "vocabulary",
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       const limit = 128;

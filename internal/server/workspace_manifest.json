@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "sections": [
+    {"id": "inference", "label": "Inference"},
+    {"id": "library", "label": "Library"},
+    {"id": "datasets", "label": "Datasets"},
+    {"id": "training", "label": "Training"},
+    {"id": "workbench", "label": "Workbench"}
+  ],
+  "tabs": [
+    {"id": "chat", "label": "Chat", "section": "inference", "capability": "analysis.logits"},
+    {"id": "agent", "label": "Agent", "section": "inference", "capability": "agent"},
+    {"id": "generation", "label": "Generate", "section": "inference", "capability": "workflow.generation"},
+    {"id": "image-gen", "label": "Images", "section": "inference", "capability": "workflow.image"},
+    {"id": "speech", "label": "Speech", "section": "inference", "capability": "workflow.speech"},
+    {"id": "runtime", "label": "Runtime", "section": "inference", "capability": "operations"},
+    {"id": "activity", "label": "Activity", "section": "inference", "capability": "operations"},
+    {"id": "library", "label": "Library", "section": "library", "capability": "repository"},
+    {"id": "datasets", "label": "Datasets", "section": "datasets", "capability": "repository"},
+    {"id": "training-jobs", "label": "Train", "section": "training", "capability": "workflow.training"},
+    {"id": "model-builder", "label": "Model Builder", "section": "training", "capability": "workflow.model-builder"},
+    {"id": "export-jobs", "label": "Export", "section": "training", "capability": "workflow.export"},
+    {"id": "runs", "label": "Runs", "section": "training", "capability": "repository"},
+    {"id": "recipe", "label": "Recipe", "section": "workbench", "capability": "repository"},
+    {"id": "compositions", "label": "Compositions", "section": "workbench", "capability": "repository"},
+    {"id": "artifacts", "label": "Artifacts", "section": "workbench", "capability": "repository"},
+    {"id": "evaluations", "label": "Evaluations", "section": "workbench", "capability": "evaluation"},
+    {"id": "model", "label": "Model", "section": "workbench", "capability": "model.properties"},
+    {"id": "vocab", "label": "Vocabulary", "section": "workbench", "capability": "analysis.vocabulary"},
+    {"id": "lens", "label": "Logit lens", "section": "workbench", "capability": "analysis.logits"},
+    {"id": "states", "label": "Hidden states", "section": "workbench", "capability": "analysis.hidden-states"},
+    {"id": "attention", "label": "Attention", "section": "workbench", "capability": "analysis.attention"},
+    {"id": "tensors", "label": "Tensors", "section": "workbench", "capability": "analysis.tensors"}
+  ]
+}

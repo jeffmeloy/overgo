@@ -8,8 +8,6 @@
   "use strict";
   window.overgo.registerTab({
     id: "agent",
-    label: "Agent",
-    section: "inference",
     mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       clear(panel);

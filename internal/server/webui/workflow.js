@@ -76,8 +76,6 @@
   window.overgo.workflowWorkspace = function (definition) {
     window.overgo.registerTab({
       id: definition.id,
-      label: definition.label,
-      section: definition.section,
       async mount(panel, overgo) {
         const { api, el, clear, fmt } = overgo;
         clear(panel);

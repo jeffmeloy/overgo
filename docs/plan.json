@@ -4,13 +4,13 @@
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
     {
-      "id": "merge-e03ed8f1974c",
-      "title": "Merge master at e03ed8f1974c",
+      "id": "merge-f1d451df1f88",
+      "title": "Merge master at f1d451df1f88",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Merge master at e03ed8f1974c",
+          "title": "Merge master at f1d451df1f88",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
         }
@@ -2243,19 +2243,6 @@
       ]
     },
     {
-      "id": "merge-1f48778cc813",
-      "title": "Merge master at 1f48778cc813",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge master at 1f48778cc813",
-          "status": "done",
-          "verify": "go run ./cmd/compatibility -check"
-        }
-      ]
-    },
-    {
       "id": "verify-qwen35-training",
       "title": "Verify Qwen3.5 dense training",
       "owner": "gui",
@@ -2490,6 +2477,186 @@
           "title": "Verify Gemma-4 FP8 inference leadership",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_GEMMA4_BASELINE=1 go test ./internal/adaptiveparity -run TestGemma4FP8Leadership -count=1"
+        }
+      ]
+    },
+    {
+      "id": "merge-e03ed8f1974c",
+      "title": "Merge master at e03ed8f1974c",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at e03ed8f1974c",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "merge-1f48778cc813",
+      "title": "Merge master at 1f48778cc813",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 1f48778cc813",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "vidgen-dataset-registration",
+      "title": "Register new directory datasets in the catalog: compile VidGen's clips and captions into store authority",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Register new directory datasets in the catalog: compile VidGen's clips and captions into store authority",
+          "status": "done",
+          "verify": "go test ./internal/dataset ./cmd/dataset-catalog -count=1"
+        }
+      ]
+    },
+    {
+      "id": "wan-training-objective",
+      "title": "Publish the text-to-video training objective: VidGen corpus bound to the flow-matching contract under Muon with derived hyperparameters, no free knobs",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish the text-to-video training objective: VidGen corpus bound to the flow-matching contract under Muon with derived hyperparameters, no free knobs",
+          "status": "done",
+          "verify": "go test ./cmd/training-objective ./internal/trainingprogram -count=1 \u0026\u0026 go test ./internal/adaptiveparity -run TestTrainingObjectiveMatrix -count=1"
+        }
+      ]
+    },
+    {
+      "id": "wan-training-run",
+      "title": "Run Wan full-DiT flow-matching training under the registered text-to-video objective",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run Wan full-DiT flow-matching training under the registered text-to-video objective",
+          "status": "done",
+          "verify": "go test ./internal/trainingworkflow -count=1 \u0026\u0026 go test ./internal/latentvideo -run 'TestDiTTrainerDerivedHyperparameters|TestDiTTrainerStepDescends' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "objective-genuine-approval",
+      "title": "Objective approval requires executable contracts and evaluation evidence, not a hashed note; descriptor-only objectives are adaptive-tier at most",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Objective approval requires executable contracts and evaluation evidence, not a hashed note; descriptor-only objectives are adaptive-tier at most",
+          "status": "open",
+          "verify": "go test ./cmd/training-objective ./internal/trainingprogram -count=1"
+        }
+      ]
+    },
+    {
+      "id": "dataset-content-identity",
+      "title": "Dataset identity hashes file bytes, not path+size+mtime; changed content re-identifies",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Dataset identity hashes file bytes, not path+size+mtime; changed content re-identifies",
+          "status": "open",
+          "verify": "go test ./internal/dataset -run 'TestRegister' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "dataset-modality-set",
+      "title": "Datasets carry a modality set or an explicit typed declaration; drop the byte-volume dominance guess",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Datasets carry a modality set or an explicit typed declaration; drop the byte-volume dominance guess",
+          "status": "open",
+          "verify": "go test ./internal/dataset -run 'TestRegister' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-exact-tool-identity",
+      "title": "Interactions record manual.ID; session restore resolves historical tools by exact identity, not the mutable name alias",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Interactions record manual.ID; session restore resolves historical tools by exact identity, not the mutable name alias",
+          "status": "open",
+          "verify": "go test ./internal/agentloop ./internal/server -run 'TestCoordinator|TestAgentWorkspace' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-receipt-before-execution",
+      "title": "Admit a durable operation receipt before a mutation executes, so a side effect never lacks evidence",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit a durable operation receipt before a mutation executes, so a side effect never lacks evidence",
+          "status": "open",
+          "verify": "go test ./internal/agentloop -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-timeout-bounds-lock",
+      "title": "The invocation deadline bounds the entry wait too: acquire the manual lock under the context, not blocking",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The invocation deadline bounds the entry wait too: acquire the manual lock under the context, not blocking",
+          "status": "open",
+          "verify": "go test ./internal/agenttool -run 'TestTransport' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-durable-argv-allowlist",
+      "title": "Persist the argv allowlist as store policy checked at publication AND invocation, not only the CLI path",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Persist the argv allowlist as store policy checked at publication AND invocation, not only the CLI path",
+          "status": "open",
+          "verify": "go test ./internal/agenttool ./cmd/agent-tool -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-durable-mutation-decision",
+      "title": "Mutation approval is a durable decision bound to exact arguments, not a request boolean",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Mutation approval is a durable decision bound to exact arguments, not a request boolean",
+          "status": "open",
+          "verify": "go test ./internal/agentloop -count=1"
         }
       ]
     }

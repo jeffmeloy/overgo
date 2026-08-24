@@ -10,18 +10,9 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
-	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
-)
-
-const (
-	// invokeTimeout bounds one tool invocation end to end; a tool that
-	// cannot answer within it is a failed call, never a hung agent step.
-	invokeTimeout = 60 * time.Second
-	// maxResultBytes bounds one tool result; larger output is a refusal
-	// so a chatty tool cannot flood the session ledger or the context.
-	maxResultBytes = 1 << 20
 )
 
 // Builtin is one in-process tool implementation: strict JSON in,
@@ -34,9 +25,20 @@ type Executor struct {
 	client   *http.Client
 }
 
-// NewExecutor returns an executor with no builtins registered.
+// NewExecutor returns the serving executor: no builtins registered,
+// redirects refused, and http endpoints that resolve to loopback,
+// private, or link-local addresses refused at dial time. Every
+// network-facing surface uses this constructor.
 func NewExecutor() *Executor {
-	return &Executor{builtins: map[string]Builtin{}, client: &http.Client{Timeout: invokeTimeout}}
+	return &Executor{builtins: map[string]Builtin{}, client: newTransportClient(false)}
+}
+
+// NewOperatorExecutor returns the operator's executor: identical
+// policy except that loopback and private endpoints are reachable,
+// because an operator invoking local tooling from the CLI is not a
+// server fetching on a client's behalf. Redirects stay refused.
+func NewOperatorExecutor() *Executor {
+	return &Executor{builtins: map[string]Builtin{}, client: newTransportClient(true)}
 }
 
 // registerBuiltin binds one in-process implementation to a manual name.
@@ -60,23 +62,21 @@ func (e *Executor) Invoke(ctx context.Context, manual Manual, arguments json.Raw
 	if err := validateArguments(manual, arguments); err != nil {
 		return nil, err
 	}
-	bounded, cancel := context.WithTimeout(ctx, invokeTimeout)
-	defer cancel()
 	switch manual.Transport.Kind {
 	case TransportBuiltin:
 		implementation, registered := e.builtins[manual.Name]
 		if !registered {
 			return nil, fmt.Errorf("agent tool: builtin %q is not registered", manual.Name)
 		}
-		result, err := implementation(bounded, arguments)
+		result, err := implementation(ctx, arguments)
 		if err != nil {
 			return nil, fmt.Errorf("agent tool: %q failed: %w", manual.Name, err)
 		}
 		return boundedResult(manual.Name, result)
 	case TransportHTTP:
-		return e.invokeHTTP(bounded, manual, arguments)
+		return e.invokeHTTP(ctx, manual, arguments)
 	case TransportArgv:
-		return invokeArgv(bounded, manual, arguments)
+		return invokeArgv(ctx, manual, arguments)
 	}
 	return nil, fmt.Errorf("agent tool: manual %q transport kind is not declared", manual.Name)
 }
@@ -92,13 +92,12 @@ func (e *Executor) invokeHTTP(ctx context.Context, manual Manual, arguments json
 		return nil, fmt.Errorf("agent tool: %q endpoint failed: %w", manual.Name, err)
 	}
 	defer response.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(response.Body, maxResultBytes+1))
+	body, err := io.ReadAll(io.LimitReader(response.Body, artifact.MaxContentBytes+1))
 	if err != nil {
 		return nil, err
 	}
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("agent tool: %q endpoint returned status %d: %s",
-			manual.Name, response.StatusCode, strings.TrimSpace(string(truncateForError(body))))
+		return nil, fmt.Errorf("agent tool: %q endpoint returned status %d", manual.Name, response.StatusCode)
 	}
 	if !json.Valid(body) {
 		return nil, fmt.Errorf("agent tool: %q endpoint returned non-JSON", manual.Name)
@@ -109,11 +108,10 @@ func (e *Executor) invokeHTTP(ctx context.Context, manual Manual, arguments json
 func invokeArgv(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
 	command := exec.CommandContext(ctx, manual.Transport.Program, manual.Transport.Args...)
 	command.Stdin = bytes.NewReader(arguments)
-	var stdout, stderr bytes.Buffer
-	command.Stdout, command.Stderr = &stdout, &stderr
+	var stdout bytes.Buffer
+	command.Stdout, command.Stderr = &stdout, io.Discard
 	if err := command.Run(); err != nil {
-		return nil, fmt.Errorf("agent tool: %q exited: %v: %s",
-			manual.Name, err, strings.TrimSpace(string(truncateForError(stderr.Bytes()))))
+		return nil, fmt.Errorf("agent tool: %q exited: %w", manual.Name, err)
 	}
 	// Argv tools speak text; the result is the stdout text as one JSON
 	// string so every transport returns strict JSON to the loop.
@@ -125,20 +123,13 @@ func invokeArgv(ctx context.Context, manual Manual, arguments json.RawMessage) (
 }
 
 func boundedResult(name string, result json.RawMessage) (json.RawMessage, error) {
-	if len(result) > maxResultBytes {
+	if len(result) > artifact.MaxContentBytes {
 		return nil, fmt.Errorf("agent tool: %q result exceeds the size bound", name)
 	}
 	if len(result) == 0 || !json.Valid(result) {
 		return nil, fmt.Errorf("agent tool: %q returned non-JSON", name)
 	}
 	return append(json.RawMessage(nil), result...), nil
-}
-
-func truncateForError(body []byte) []byte {
-	if len(body) > manualTextBytes {
-		return body[:manualTextBytes]
-	}
-	return body
 }
 
 func validateArguments(manual Manual, arguments json.RawMessage) error {

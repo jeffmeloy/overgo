@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
     {
+      "id": "merge-013087af",
+      "title": "Merge master agent coordination and GUI",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master agent coordination and GUI",
+          "status": "done",
+          "verify": "go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./..."
+        }
+      ]
+    },
+    {
       "id": "merge-2d53ed16e951",
       "title": "Merge master at 2d53ed16e951",
       "status": "done",
@@ -160,12 +174,12 @@
       "id": "finding-workflow-admission",
       "title": "Bound parallel stage execution and serialize adapter entry in the workflow runtime",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Bound parallel stage execution and serialize adapter entry in the workflow runtime",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/workflowruntime -count=1"
         }
       ]
@@ -174,12 +188,12 @@
       "id": "agent-transport-security",
       "title": "Transport security before execution: refuse redirects and private-network endpoints for http manuals, allowlist argv programs at publication",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Transport security before execution: refuse redirects and private-network endpoints for http manuals, allowlist argv programs at publication",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/agenttool -run 'TestTransportSecurity|TestManualSecurity' -count=1",
           "depends_on": [
             "agent-tool-transports/do"
@@ -191,13 +205,13 @@
       "id": "agent-orchestration",
       "title": "Agent step coordinator over existing authorities: workflowruntime executes, runrecord interactions persist, inspection gates mutation, unregistered tools refuse",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Agent step coordinator over existing authorities: workflowruntime executes, runrecord interactions persist, inspection gates mutation, unregistered tools refuse",
-          "status": "open",
-          "verify": "go test ./internal/agentloop -count=1",
+          "status": "done",
+          "verify": "go test ./internal/agentloop ./cmd/agent-loop -count=1",
           "depends_on": [
             "agent-tool-transports/do",
             "agent-transport-security/do"
@@ -209,13 +223,13 @@
       "id": "agent-server-api",
       "title": "Agent server API as protocol projection only: registered tool catalog with coverage, interaction-backed sessions, stepped loop; named negative test for non-durable publication",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Agent server API as protocol projection only: registered tool catalog with coverage, interaction-backed sessions, stepped loop; named negative test for non-durable publication",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestAgentAPI' -count=1",
+          "status": "done",
+          "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestWebUI' -count=1",
           "depends_on": [
             "agent-orchestration/do"
           ]
@@ -226,12 +240,12 @@
       "id": "agent-gui",
       "title": "Agent workspace in the GUI, presentation only: tool-event timeline, catalog with effect badges, session picker, exact mutation approval",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Agent workspace in the GUI, presentation only: tool-event timeline, catalog with effect badges, session picker, exact mutation approval",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestWebUI' -count=1",
           "depends_on": [
             "agent-server-api/do"

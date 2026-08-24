@@ -74,7 +74,7 @@ func run(args []string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		executor := agenttool.NewExecutor()
+		executor := agenttool.NewOperatorExecutor()
 		if err := agenttool.RegisterStandardBuiltins(executor, store); err != nil {
 			return err
 		}

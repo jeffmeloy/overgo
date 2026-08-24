@@ -39,7 +39,9 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusServiceUnavailable, "hub_unavailable", "no artifact repository is configured")
 		return
 	}
-	entries, truncated, err := discovery.CapabilityCatalog(request.Context(), h.config.Repository, maxCatalogEntries, h.catalogMemo)
+	entries, truncated, err := discovery.CapabilityCatalog(
+		request.Context(), h.config.Repository, h.config.MaxStoredResponses, h.catalogMemo,
+	)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "catalog_error", err.Error())
 		return
@@ -173,9 +175,6 @@ type DownloadJob struct {
 }
 
 const (
-	// maxCatalogEntries bounds one catalog response; it only has to exceed
-	// any legitimate servable-model count.
-	maxCatalogEntries = 512
 	// defaultHubSearchLimit sizes an uninstructed hub search page; the limit
 	// parameter overrides it per request up to maxHubSearchLimit.
 	defaultHubSearchLimit = 20

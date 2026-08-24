@@ -88,6 +88,22 @@ type Runtime struct {
 	store    artifact.Repository
 	catalog  *recipe.Catalog
 	adapters map[recipe.ModuleID]Adapter
+	// entries serializes Execute per adapter: the Adapter contract does
+	// not require concurrency safety, so two stages of one module never
+	// enter their shared adapter at once.
+	entries map[recipe.ModuleID]*sync.Mutex
+	slots   chan struct{}
+}
+
+func (r *Runtime) adapterEntry(module recipe.ModuleID) *sync.Mutex {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	entry, found := r.entries[module]
+	if !found {
+		entry = &sync.Mutex{}
+		r.entries[module] = entry
+	}
+	return entry
 }
 
 // NewForProgram binds execution to a compiled program's module authority.
@@ -99,8 +115,14 @@ func NewForProgram(store artifact.Repository, program recipe.Program) (*Runtime,
 	if catalog == nil {
 		return nil, errors.New("workflow runtime: nil module catalog")
 	}
+	parallelism := 0
+	for _, ready := range program.ReadySets() {
+		parallelism = max(parallelism, len(ready))
+	}
 	return &Runtime{
 		store: store, catalog: catalog, adapters: make(map[recipe.ModuleID]Adapter),
+		entries: make(map[recipe.ModuleID]*sync.Mutex),
+		slots:   make(chan struct{}, parallelism),
 	}, nil
 }
 
@@ -308,6 +330,18 @@ func (r *Runtime) executeReadySet(
 			}
 			go func(index int) {
 				stage := stages[index]
+				// Admission before execution: a bounded slot, then the
+				// module's entry lock, then the adapter.
+				select {
+				case r.slots <- struct{}{}:
+				case <-runContext.Done():
+					results <- stageResult{index: index, err: runContext.Err()}
+					return
+				}
+				defer func() { <-r.slots }()
+				entry := r.adapterEntry(stage.stage.Module.ID)
+				entry.Lock()
+				defer entry.Unlock()
 				outputs, err := stage.adapter.Execute(runContext, stage.request)
 				results <- stageResult{index: index, outputs: outputs, err: err}
 			}(index)

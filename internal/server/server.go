@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"overgo/internal/agentloop"
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/checked"
@@ -368,6 +369,8 @@ type Handler struct {
 	operations          *operation.Manager
 	tools               toolCallExecutor
 	issuedCalls         *issuedCallRegistry
+	agentCoordinator    *agentloop.Coordinator
+	agentSessions       agentSessions
 	repository          *overgodb.Store
 	browseRepository    *overgodb.Store
 	environment         runrecord.Environment
@@ -529,6 +532,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 		_ = handler.Close()
 		return nil, fmt.Errorf("server response identity seed: %w", err)
 	}
+	handler.buildAgentRuntime()
 	handler.operations, err = operation.NewManager(config.MaxStoredResponses)
 	if err != nil {
 		_ = handler.Close()
@@ -835,6 +839,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.hubSearch(response, request)
 	case "/hub/downloads":
 		h.hubDownloads(response, request)
+	case "/agent/tools":
+		h.agentTools(response, request)
+	case "/agent/step":
+		h.agentStep(response, request)
 	default:
 		h.serveWebUI(response, request)
 	}

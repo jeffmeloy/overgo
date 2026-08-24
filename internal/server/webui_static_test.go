@@ -26,6 +26,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/md.js", "text/javascript; charset=utf-8", "overgo.md"},
 		{"/workflow.js", "text/javascript; charset=utf-8", "workflowWorkspace"},
 		{"/mod/chat.js", "text/javascript; charset=utf-8", "/v1/chat/completions"},
+		{"/mod/agent.js", "text/javascript; charset=utf-8", "/agent/step"},
 		{"/mod/generation.js", "text/javascript; charset=utf-8", `scope: "generation"`},
 		{"/mod/image.js", "text/javascript; charset=utf-8", "/v1/images/generations"},
 		{"/mod/speech.js", "text/javascript; charset=utf-8", "/v1/audio/speech"},

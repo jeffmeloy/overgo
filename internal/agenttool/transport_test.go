@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"overgo/internal/artifact"
 )
 
 func inspectionManual(t *testing.T, name string, transport Transport) Manual {
@@ -81,7 +83,7 @@ func TestTransportArgumentValidation(t *testing.T) {
 
 func TestTransportHTTPBoundedStrictJSON(t *testing.T) {
 	ctx := context.Background()
-	executor := NewExecutor()
+	executor := NewOperatorExecutor()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/ok":
@@ -91,7 +93,7 @@ func TestTransportHTTPBoundedStrictJSON(t *testing.T) {
 		case "/text":
 			w.Write([]byte("not json"))
 		case "/flood":
-			w.Write(make([]byte, maxResultBytes+2))
+			w.Write(make([]byte, artifact.MaxContentBytes+1))
 		}
 	}))
 	defer server.Close()

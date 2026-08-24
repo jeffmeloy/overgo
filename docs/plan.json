@@ -1583,12 +1583,12 @@
       "id": "adk-recipe-stage-recovery",
       "title": "Recover recipe execution from durable typed stage receipts",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Publish admitted, running, waiting, completed, and failed stage receipts from workflowruntime; resume exact completed outputs through operation.Recover; migrate model-build lifecycle and delete its parallel phase reconstruction",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/server -run 'Test(StageReceiptIdentity|WorkflowRestartSkipsCompletedStages|WorkflowRecoveryRejectsRecipeDrift|ModelBuildUsesRecipeStageReceipts)' -count=1",
           "rationale": "ADK pause and re-entry are useful, but recipe.Program must remain the only graph. Stage receipts bind recipe identity, node, attempt, exact input and output artifacts, operation, and run. One scheduler mutates lifecycle state; adapters retain mathematical ownership.",
           "depends_on": [

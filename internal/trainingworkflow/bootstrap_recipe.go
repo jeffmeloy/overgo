@@ -2,6 +2,7 @@ package trainingworkflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -81,6 +82,62 @@ func BootstrapTokenRecipe(ctx context.Context, store *overgodb.Store, modelPath,
 	if err != nil {
 		return artifact.ID{}, err
 	}
+	return bootstrapRecipeForObjective(ctx, store, modelID, objective, profiles, evidenceID)
+}
+
+// BootstrapObjectiveRecipe activates the training recipe for a model
+// under a REGISTERED objective: the objective alias resolves from the
+// store, the objective's own corpus and contracts become the recipe's
+// authority, and the recipe carries the same session-supervised chain
+// as the bootstrap -- one objective schema, whatever the loss.
+func BootstrapObjectiveRecipe(ctx context.Context, store *overgodb.Store, modelPath, objectiveAlias string) (artifact.ID, error) {
+	modelFile, err := os.Open(modelPath)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	modelID, _, err := artifact.Identify(artifact.KindModel, modelFile)
+	modelFile.Close()
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	target, found, err := store.ResolveAlias(ctx, objectiveAlias)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	if !found {
+		return artifact.ID{}, fmt.Errorf("training workflow: objective alias %q is not registered", objectiveAlias)
+	}
+	objective, err := trainingprogram.LoadObjective(ctx, store, target)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	profile := func(name string) (artifact.ID, error) {
+		return artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training-bootstrap/"+name))
+	}
+	profiles := map[string]artifact.ID{}
+	for _, name := range []string{"precision", "placement", "memory", "checkpoint", "promotion"} {
+		id, err := profile(name)
+		if err != nil {
+			return artifact.ID{}, err
+		}
+		profiles[name] = id
+	}
+	if len(objective.Evidence) == 0 {
+		return artifact.ID{}, errors.New("training workflow: registered objective carries no evidence")
+	}
+	return bootstrapRecipeForObjective(ctx, store, modelID, objective, profiles, objective.Evidence[0])
+}
+
+// bootstrapRecipeForObjective assembles, grounds, and activates the
+// four-node training recipe for one model and one approved objective.
+func bootstrapRecipeForObjective(
+	ctx context.Context,
+	store *overgodb.Store,
+	modelID artifact.ID,
+	objective trainingprogram.ObjectiveDocument,
+	profiles map[string]artifact.ID,
+	evidenceID artifact.ID,
+) (artifact.ID, error) {
 	content, err := objective.Content()
 	if err != nil {
 		return artifact.ID{}, err
@@ -98,7 +155,10 @@ func BootstrapTokenRecipe(ctx context.Context, store *overgodb.Store, modelPath,
 		{Role: recipe.DependencyMemory, Artifact: profiles["memory"]},
 		{Role: recipe.DependencyOptimizer, Artifact: optimizerPolicy.ID},
 		{Role: recipe.DependencyCheckpointPolicy, Artifact: profiles["checkpoint"]},
-		{Role: recipe.DependencyEvaluation, Artifact: profiles["evaluation"]},
+		// Evaluation binds the objective's own evaluation profile: for the
+		// token bootstrap this is the same derived identity as before, and a
+		// registered objective brings its own.
+		{Role: recipe.DependencyEvaluation, Artifact: objective.Evaluation},
 		{Role: recipe.DependencyPromotion, Artifact: profiles["promotion"]},
 	}
 	nodes := []recipe.Node{
@@ -139,9 +199,10 @@ func BootstrapTokenRecipe(ctx context.Context, store *overgodb.Store, modelPath,
 	} else if !ok {
 		// Identities already grounded by prior claims keep their stored facts;
 		// only absent identities are declared.
-		candidates := []artifact.ID{modelID, evidenceID, datasetID, splitID, processorID}
-		for _, name := range names {
-			candidates = append(candidates, profiles[name])
+		candidates := []artifact.ID{modelID, evidenceID, objective.Dataset, objective.Split, objective.Loss, objective.Evaluation}
+		candidates = append(candidates, objective.Processors...)
+		for _, id := range profiles {
+			candidates = append(candidates, id)
 		}
 		var descriptors []artifact.Descriptor
 		for _, id := range candidates {

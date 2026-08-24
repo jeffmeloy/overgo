@@ -205,6 +205,7 @@ func run() error {
 	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
 	storePath := flag.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
 	stimulus := flag.String("stimulus", "docs/verification/wan-dit-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
+	objectiveAlias := flag.String("objective-alias", "", "registered objective alias to train under; empty uses the token bootstrap")
 	t5Cache := flag.String("t5-cache", "", "optional cache base path for the streamed raw text rows")
 	flag.Parse()
 	overrides := clioptions.ExplicitOverrides(flag.CommandLine)
@@ -241,7 +242,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, weightsPath, *stimulus)
+	var recipeID artifact.ID
+	if *objectiveAlias != "" {
+		recipeID, err = trainingworkflow.BootstrapObjectiveRecipe(ctx, store, weightsPath, *objectiveAlias)
+	} else {
+		recipeID, err = trainingworkflow.BootstrapTokenRecipe(ctx, store, weightsPath, *stimulus)
+	}
 	if err != nil {
 		return err
 	}

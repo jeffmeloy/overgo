@@ -1,8 +1,22 @@
 {
   "campaign": "Deletion-led production composability, durable agent execution, and RepoDB tightening",
-  "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Modelrecipe owns component sessions; recipe owns topology and policy; workflowruntime owns stage execution; operation owns lifecycle; runrecord and RepoDB own immutable facts; inference owns model math; server owns protocols and GUI. ADK is a behavior inventory and oracle, never a dependency or second runtime. No second workflow graph, plugin callback mesh, mutable property bag, string branch authority, duplicate session or artifact store, wrapper, fallback, or advisory execution plan. Compact RepoDB before adding event volume: remove duplicate indexes and payload copies, stream durable writes, expose bounded projected queries, and retain one refreshable browse owner. Each capability wave migrates every caller and deletes the displaced ephemeral owner in the same commit. Retry, concurrency, context, and retention policy derive from recipes, resource plans, requests, or measured evidence. After every gated commit, merge master and redispatch.",
+  "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Modelrecipe owns component sessions; recipe owns topology and policy; workflowruntime owns stage execution; operation owns lifecycle; runrecord and OvergoDB own immutable facts; inference owns model math; server owns protocols and GUI. ADK is a behavior inventory and oracle, never a dependency or second runtime. No second workflow graph, plugin callback mesh, mutable property bag, string branch authority, duplicate session or artifact store, wrapper, fallback, or advisory execution plan. Compact OvergoDB before adding event volume: remove duplicate indexes and payload copies, stream durable writes, expose bounded projected queries, and retain one refreshable browse owner. Each capability wave migrates every caller and deletes the displaced ephemeral owner in the same commit. Retry, concurrency, context, and retention policy derive from recipes, resource plans, requests, or measured evidence. After every gated commit, merge master and redispatch.",
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
+    {
+      "id": "plan-dependency-enforcement",
+      "title": "Enforce depends_on in the plan tool: dispatch skips blocked rows, validation refuses dangling references and cycles",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Enforce depends_on in the plan tool: dispatch skips blocked rows, validation refuses dangling references and cycles",
+          "status": "done",
+          "verify": "go test ./internal/plan ./cmd/plan -run TestDepend -count=1"
+        }
+      ]
+    },
     {
       "id": "agent-tool-contract",
       "title": "UTCP tool manuals as store authority: typed contract, registry, registered aliases, coverage inspector",
@@ -144,58 +158,71 @@
       ]
     },
     {
-      "id": "agent-orchestration",
-      "title": "Agent orchestration state machine: inspection-before-mutation pools, bounded steps, typed refusal of unregistered tools",
+      "id": "agent-transport-security",
+      "title": "Transport security before execution: refuse redirects and private-network endpoints for http manuals, allowlist argv programs at publication",
       "owner": "gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Agent orchestration state machine: inspection-before-mutation pools, bounded steps, typed refusal of unregistered tools",
+          "title": "Transport security before execution: refuse redirects and private-network endpoints for http manuals, allowlist argv programs at publication",
           "status": "open",
-          "verify": "go test ./internal/agentloop -count=1"
+          "verify": "go test ./internal/agenttool -run 'TestTransportSecurity|TestManualSecurity' -count=1",
+          "depends_on": [
+            "agent-tool-transports/do"
+          ]
         }
       ]
     },
     {
-      "id": "agent-session-ledger",
-      "title": "Durable agent session ledger: session and step documents in OvergoDB with checkpoint and restore",
+      "id": "agent-orchestration",
+      "title": "Agent step coordinator over existing authorities: workflowruntime executes, runrecord interactions persist, inspection gates mutation, unregistered tools refuse",
       "owner": "gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Durable agent session ledger: session and step documents in OvergoDB with checkpoint and restore",
+          "title": "Agent step coordinator over existing authorities: workflowruntime executes, runrecord interactions persist, inspection gates mutation, unregistered tools refuse",
           "status": "open",
-          "verify": "go test ./internal/agentsession -count=1"
+          "verify": "go test ./internal/agentloop -count=1",
+          "depends_on": [
+            "agent-tool-transports/do",
+            "agent-transport-security/do"
+          ]
         }
       ]
     },
     {
       "id": "agent-server-api",
-      "title": "Agent server API: registered tool catalog with coverage, durable sessions, and a stepped agent loop over the served model",
+      "title": "Agent server API as protocol projection only: registered tool catalog with coverage, interaction-backed sessions, stepped loop; named negative test for non-durable publication",
       "owner": "gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Agent server API: registered tool catalog with coverage, durable sessions, and a stepped agent loop over the served model",
+          "title": "Agent server API as protocol projection only: registered tool catalog with coverage, interaction-backed sessions, stepped loop; named negative test for non-durable publication",
           "status": "open",
-          "verify": "go test ./internal/server -run 'TestAgentAPI' -count=1"
+          "verify": "go test ./internal/server -run 'TestAgentAPI' -count=1",
+          "depends_on": [
+            "agent-orchestration/do"
+          ]
         }
       ]
     },
     {
       "id": "agent-gui",
-      "title": "Agent workspace in the GUI: chat with tool-event timeline, catalog with mutation badges, session picker, and mutation approval",
+      "title": "Agent workspace in the GUI, presentation only: tool-event timeline, catalog with effect badges, session picker, exact mutation approval",
       "owner": "gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Agent workspace in the GUI: chat with tool-event timeline, catalog with mutation badges, session picker, and mutation approval",
+          "title": "Agent workspace in the GUI, presentation only: tool-event timeline, catalog with effect badges, session picker, exact mutation approval",
           "status": "open",
-          "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestWebUI' -count=1"
+          "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestWebUI' -count=1",
+          "depends_on": [
+            "agent-server-api/do"
+          ]
         }
       ]
     },
@@ -1474,7 +1501,7 @@
     },
     {
       "id": "adk-repodb-streaming-durability",
-      "title": "Stream RepoDB log and snapshot publication without store-sized temporary documents",
+      "title": "Stream OvergoDB log and snapshot publication without store-sized temporary documents",
       "owner": "tightening",
       "status": "open",
       "steps": [
@@ -1497,7 +1524,7 @@
     },
     {
       "id": "adk-repodb-live-reader",
-      "title": "Retain one incrementally refreshed RepoDB reader per server",
+      "title": "Retain one incrementally refreshed OvergoDB reader per server",
       "owner": "tightening",
       "status": "open",
       "steps": [
@@ -1521,7 +1548,7 @@
     },
     {
       "id": "adk-interaction-ledger",
-      "title": "Replace cloned response histories with immutable RepoDB interaction lineage",
+      "title": "Replace cloned response histories with immutable OvergoDB interaction lineage",
       "owner": "tightening",
       "status": "open",
       "steps": [
@@ -1667,7 +1694,7 @@
     },
     {
       "id": "adk-interaction-replay-evaluation",
-      "title": "Record and replay exact model and tool interactions through RepoDB evaluation authority",
+      "title": "Record and replay exact model and tool interactions through OvergoDB evaluation authority",
       "owner": "tightening",
       "status": "open",
       "steps": [
@@ -1748,7 +1775,7 @@
       "steps": [
         {
           "id": "do",
-          "title": "Extend current Runtime, Activity, Evaluation, and recipe views; use projected RepoDB queries and shared SSE; delete polling and duplicate view-local state where event streams are authoritative",
+          "title": "Extend current Runtime, Activity, Evaluation, and recipe views; use projected OvergoDB queries and shared SSE; delete polling and duplicate view-local state where event streams are authoritative",
           "status": "open",
           "verify": "go test ./internal/server -run 'Test(SessionLedgerGUI|WorkflowStageGUI|ToolDecisionGUI|InteractionReplayGUI|RemoteAttemptGUI|AgentGUIUsesProjectedQueriesAndSSE)' -count=1",
           "rationale": "The GUI should expose the new capabilities through existing modules, navigation, operation streams, and evidence views. It must display recipe and artifact authority, waiting actions, stage progress, replay comparisons, and remote attempts without becoming a second state store.",
@@ -1768,13 +1795,13 @@
     },
     {
       "id": "adk-overgo-closure",
-      "title": "Close ADK-inspired capability work with one authority per fact and measured RepoDB efficiency",
+      "title": "Close ADK-inspired capability work with one authority per fact and measured OvergoDB efficiency",
       "owner": "tightening",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Run host and device gates; compare RepoDB replay, query, snapshot, resident memory, and response-history allocation evidence; require no ADK dependency, second scheduler, callback mesh, compatibility wrapper, or ephemeral session authority",
+          "title": "Run host and device gates; compare OvergoDB replay, query, snapshot, resident memory, and response-history allocation evidence; require no ADK dependency, second scheduler, callback mesh, compatibility wrapper, or ephemeral session authority",
           "status": "open",
           "verify": "go test ./internal/artifact ./internal/overgodb ./internal/recipe ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/evaluation ./internal/server -count=1 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
           "rationale": "Completion requires functional session, tool, human-decision, parallel workflow, replay, capability-bundle, remote, and GUI evidence plus measured storage and processing improvement against the pre-campaign RepoDB benchmark record. Production code must contain no imported ADK runtime and no displaced owner retained for compatibility.",
@@ -2052,11 +2079,18 @@
       "steps": [
         {
           "id": "do",
-          "title": "Run a fresh production and test census, inspect every remaining high-pressure owner, publish exact evidence to RepoDB, confirm no copied policy or model facts, remove obsolete constants and wrappers exposed by the migrations, and run host and device gates",
+          "title": "Run a fresh production and test census, inspect every remaining high-pressure owner, publish exact evidence to OvergoDB, confirm no copied policy or model facts, remove obsolete constants and wrappers exposed by the migrations, and run host and device gates",
           "status": "open",
           "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
           "rationale": "Closure requires lower repeated production pressure with every surviving constant bound to one semantic owner; raw literal count alone is not the objective and legitimate fixtures remain visible.",
           "depends_on": [
+            "literal-runtime-policy/do",
+            "literal-training-policy/do",
+            "literal-workflow-stages/do",
+            "literal-operator-contracts/do",
+            "literal-media-codec/do",
+            "literal-evidence-policy/do",
+            "literal-quant-formats/do",
             "literal-protocol-contracts/do"
           ],
           "capabilities": [

@@ -183,3 +183,45 @@ func testCompiledCatalog(t *testing.T, path string) CompiledCatalog {
 	}
 	return CompiledCatalog{Catalog: catalog, Datasets: []Document{version}, Inventories: []Inventory{inventory}, Locations: []artifact.Location{location}}
 }
+
+// TestDatasetCatalogPublishRecordsLateArrivals closes the
+// catalog-first-download-later finding: a dataset absent at first
+// publication gains its location fact on republication after its
+// bytes appear, and the converged catalog is then idempotent again.
+func TestDatasetCatalogPublishRecordsLateArrivals(t *testing.T) {
+	ctx := context.Background()
+	legacyRoot, contentRoot := legacyCatalogFixture(t)
+	moved := filepath.Join(t.TempDir(), fixtureFileName)
+	if err := os.Rename(filepath.Join(contentRoot, fixtureFileName), moved); err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	first, err := PublishLegacyCatalog(ctx, store, legacyRoot, contentRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.Changed || !first.Coverage.Complete || first.Coverage.Available >= first.Coverage.Registered {
+		t.Fatalf("first publication = %+v, want complete aliases with the moved dataset unavailable", first)
+	}
+	if err := os.Rename(moved, filepath.Join(contentRoot, fixtureFileName)); err != nil {
+		t.Fatal(err)
+	}
+	second, err := PublishLegacyCatalog(ctx, store, legacyRoot, contentRoot)
+	if err != nil {
+		t.Fatalf("republication after arrival failed: %v", err)
+	}
+	if !second.Changed || second.Coverage.Available != first.Coverage.Available+1 {
+		t.Fatalf("second publication = %+v, want the late arrival recorded", second)
+	}
+	third, err := PublishLegacyCatalog(ctx, store, legacyRoot, contentRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third.Changed {
+		t.Fatalf("converged catalog changed again: %+v", third)
+	}
+}

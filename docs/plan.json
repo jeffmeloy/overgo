@@ -63,13 +63,13 @@
       "id": "finding-dataset-locations",
       "title": "Republish dataset locations for datasets that appear after catalog publication",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Republish dataset locations for datasets that appear after catalog publication",
-          "status": "open",
-          "verify": "go test ./internal/dataset -run TestPublish -count=1"
+          "status": "done",
+          "verify": "go test ./internal/dataset -run TestDatasetCatalogPublish -count=1"
         }
       ]
     },

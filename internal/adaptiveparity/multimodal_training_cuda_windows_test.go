@@ -124,7 +124,7 @@ func TestMultimodalTrainingMatrix(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	trained, _, err := adaptertrain.LoadArtifact(ctx, modelPath, 0)
+	trained, _, err := adaptertrain.LoadArtifact(ctx, modelPath, 0, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}

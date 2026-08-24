@@ -94,9 +94,6 @@ func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
 	if err != nil {
 		return nil, err
 	}
-	if config.BaseLearningRate <= 0 {
-		config.BaseLearningRate = trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(pack.ParameterCount())
-	}
 	trainer := &Trainer{
 		model: model, pack: pack, names: names, config: config,
 		invFreq: hostmath.RopeInvFreq(model.Dims.RopeTheta, model.Dims.HeadDim),
@@ -130,6 +127,14 @@ func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
 }
 
 func (t *Trainer) ParameterCount() int { return t.pack.ParameterCount() }
+
+// TrainableParameterCount returns optimizer extent without allocation.
+func (m *Model) TrainableParameterCount() (count int) {
+	for _, name := range m.trainableNames() {
+		count += len(m.Weights[name])
+	}
+	return count
+}
 
 func (t *Trainer) Program() trainingprogram.TrainingProgram { return t.program }
 

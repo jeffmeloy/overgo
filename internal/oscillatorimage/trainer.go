@@ -153,6 +153,17 @@ func NewTrainer(model *Model, config optimizer.Config, seed int64) (*Trainer, er
 // ParameterCount reports the packed trainable parameter total.
 func (t *Trainer) ParameterCount() int { return t.pack.ParameterCount() }
 
+// TrainableParameterCount returns optimizer extent without allocation.
+func (m *Model) TrainableParameterCount() (count int) {
+	if m == nil {
+		return count
+	}
+	for _, tensor := range m.trainableLayout() {
+		count += len(*tensor.field)
+	}
+	return count
+}
+
 // Close releases the stepper's backend.
 func (t *Trainer) Close() error { return t.stepper.Close() }
 

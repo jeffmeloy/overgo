@@ -149,9 +149,13 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	greedy, err := sampling.New(sampling.Config{
-		Temperature: 0, TopK: 1, TopP: 1, NoRepeatNgramSize: 35, NgramWindow: 128,
-	})
+	greedyConfig := language.RuntimePolicy().Interactive.Sampling.Config()
+	greedyConfig.Temperature = 0
+	greedyConfig.TopK = 1
+	greedyConfig.TopP = 1
+	greedyConfig.NoRepeatNgramSize = 35
+	greedyConfig.NgramWindow = 128
+	greedy, err := sampling.New(greedyConfig)
 	if err != nil {
 		t.Fatal(err)
 	}

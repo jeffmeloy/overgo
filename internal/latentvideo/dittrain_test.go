@@ -52,7 +52,7 @@ func ditTestTrainer(t *testing.T) (*DiTTrainer, DiTTrainBatch) {
 		}
 		tensors[spec.name] = values
 	}
-	trainer, err := NewDiTTrainer(cfg, textDim, geometry, tensors)
+	trainer, err := NewDiTTrainer(cfg, textDim, geometry, tensors, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}

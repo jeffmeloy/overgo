@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"encoding/binary"
+	"overgo/internal/checked"
+	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 
 	"overgo/internal/gguf"
@@ -38,11 +40,11 @@ import (
 func main() {
 	model := flag.String("model", "", "model directory (safetensors + config.json)")
 	organ := flag.String("organ", "flow-head", "trainable organ: flow-head (SenseNova fm_head), latent-bridge (RxBrain llm2vae/vae2llm), denoiser-final (Krea-2 MMDiT output head), or video-head (Wan2.1 head)")
-	steps := flag.Int("steps", 3, "observed Muon steps")
-	rows := flag.Int("rows", 8, "stimulus rows")
+	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required observed Muon steps")
+	rows := clioptions.IntOverride(flag.CommandLine, "rows", "required stimulus rows")
 	timestep := flag.Float64("timestep", 0.25, "flow timestep in [0,1)")
 	tensorName := flag.String("tensor", "blk.0.ffn_gate.weight", "ternary-master: the quantized matrix to train")
-	maxWall := flag.Duration("max-wall", 25*time.Minute, "abort when the first measured step projects the run past this bound")
+	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
 	flag.Parse()
 	var err error
 	switch *organ {
@@ -67,6 +69,13 @@ func main() {
 	}
 }
 
+func probeSession(objective trainingprogram.ObjectiveKind, steps, parameters int, maxWall time.Duration) (trainingprogram.TrainingSessionPlan, error) {
+	return trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+		Objective: objective, Updates: steps, MaxProjectedWall: maxWall,
+		Parameters: parameters, Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
+	})
+}
+
 // runDenoiserFinal: the Krea-2-family MMDiT output head trains the velocity
 // MSE objective on a deterministic committed stimulus.
 func runDenoiserFinal(modelDir string, binding latentimage.FinalLayerBinding, steps, rows int, maxWall time.Duration) error {
@@ -87,21 +96,28 @@ func runDenoiserFinal(modelDir string, binding latentimage.FinalLayerBinding, st
 	if err != nil {
 		return err
 	}
-	trainer, err := latentimage.NewFinalLayerTrainer(weights, 1e-6)
+	trainer, err := latentimage.NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		return err
 	}
 	defer trainer.Close()
+	session, err := probeSession(trainingprogram.ObjectiveFlowMatching, steps, trainer.ParameterCount(), maxWall)
+	if err != nil {
+		return err
+	}
 	fmt.Printf("trainable parameters=%d hidden=%d out=%d derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s\n",
 		trainer.ParameterCount(), weights.Hidden, weights.Out,
 		trainer.Config().BaseLearningRate, trainer.Config().Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
 
-	return trainHeadStimulus(trainer, weights.Hidden, weights.Out, steps, rows, maxWall)
+	return trainHeadStimulus(trainer, weights.Hidden, weights.Out, session, rows)
 }
 
 // trainHeadStimulus: the shared bounded observed loop for final-layer heads.
-func trainHeadStimulus(trainer *latentimage.FinalLayerTrainer, hiddenDim, outDim, steps, rows int, maxWall time.Duration) error {
-	xF32, zF32, targetF32 := stimulus(rows, hiddenDim, outDim)
+func trainHeadStimulus(trainer *latentimage.FinalLayerTrainer, hiddenDim, outDim int, session trainingprogram.TrainingSessionPlan, rows int) error {
+	xF32, zF32, targetF32, err := stimulus(session, rows, hiddenDim, outDim)
+	if err != nil {
+		return err
+	}
 	hidden := make([]float64, len(xF32))
 	for i, v := range xF32 {
 		hidden[i] = float64(v)
@@ -117,24 +133,24 @@ func trainHeadStimulus(trainer *latentimage.FinalLayerTrainer, hiddenDim, outDim
 
 	start := time.Now()
 	var first float64
-	for step := 0; step < steps; step++ {
+	for step := 0; step < session.Updates(); step++ {
 		stepStart := time.Now()
 		result, err := trainer.Step(hidden, temb, target)
 		if err != nil {
 			return err
 		}
-		if math.IsNaN(result.Loss) || math.IsInf(result.Loss, 0) {
+		if !checked.Finite64(result.Loss) {
 			return fmt.Errorf("flow-organ-train-probe: step %d loss is non-finite", step+1)
 		}
 		fmt.Printf("step %d/%d: loss=%.6f grad_l2=%.4g lr=%.4g wall=%s\n",
-			step+1, steps, result.Loss, result.GradientL2, result.LearningRate, time.Since(stepStart).Round(time.Millisecond))
+			step+1, session.Updates(), result.Loss, result.GradientL2, result.LearningRate, time.Since(stepStart).Round(time.Millisecond))
 		if step == 0 {
 			first = result.Loss
 			if result.GradientL2 <= 0 {
 				return fmt.Errorf("flow-organ-train-probe: first step carried no gradient")
 			}
-			if projected := time.Duration(steps+1) * time.Since(start); projected > maxWall {
-				return fmt.Errorf("flow-organ-train-probe: first step projects the run to %s, past the %s bound", projected.Round(time.Second), maxWall)
+			if err := session.AdmitStepWall(time.Since(start)); err != nil {
+				return fmt.Errorf("flow-organ-train-probe: %w", err)
 			}
 		}
 	}
@@ -142,11 +158,11 @@ func trainHeadStimulus(trainer *latentimage.FinalLayerTrainer, hiddenDim, outDim
 	if err != nil {
 		return err
 	}
-	if math.IsNaN(after) || math.IsInf(after, 0) || !(after < first) {
+	if !checked.Finite64(after) || !(after < first) {
 		return fmt.Errorf("flow-organ-train-probe: loss did not descend: before=%.6f after=%.6f", first, after)
 	}
 	fmt.Printf("descent: steps=%d loss %.6f -> %.6f total_wall=%s\n",
-		steps, first, after, time.Since(start).Round(time.Millisecond))
+		session.Updates(), first, after, time.Since(start).Round(time.Millisecond))
 	return nil
 }
 
@@ -206,15 +222,19 @@ func runEditHead(modelPath string, steps, rows int, maxWall time.Duration) error
 		Hidden: int(linearShape[1]), Out: int(linearShape[0]),
 		Table: values[0], Linear: values[1], Bias: values[2],
 	}
-	trainer, err := latentimage.NewFinalLayerTrainer(weights, 1e-6)
+	trainer, err := latentimage.NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		return err
 	}
 	defer trainer.Close()
+	session, err := probeSession(trainingprogram.ObjectiveFlowMatching, steps, trainer.ParameterCount(), maxWall)
+	if err != nil {
+		return err
+	}
 	fmt.Printf("trainable parameters=%d hidden=%d out=%d derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s\n",
 		trainer.ParameterCount(), weights.Hidden, weights.Out,
 		trainer.Config().BaseLearningRate, trainer.Config().Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
-	return trainHeadStimulus(trainer, weights.Hidden, weights.Out, steps, rows, maxWall)
+	return trainHeadStimulus(trainer, weights.Hidden, weights.Out, session, rows)
 }
 
 // runTernaryMaster: the master-weight lane for ternary serving artifacts.
@@ -310,11 +330,11 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 		return err
 	}
 	gradients := make([]float32, len(masters))
-	config := optimizer.Config{
-		BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(len(masters)),
-		Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
-		Schedule:         optimizer.ScheduleConstant,
+	session, err := probeSession(trainingprogram.ObjectiveFlowMatching, steps, len(masters), maxWall)
+	if err != nil {
+		return err
 	}
+	config := session.Optimizer()
 	stepper, err := optimizer.NewStepper(masters, gradients, plan, config)
 	if err != nil {
 		return err
@@ -323,7 +343,10 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 	fmt.Printf("trainable parameters=%d matrix=%dx%d dtype=%v derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s"+"\n",
 		len(masters), out, in, info.Type, config.BaseLearningRate, config.Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
 
-	xF32, _, targetF32 := stimulus(rows, in, out)
+	xF32, _, targetF32, err := stimulus(session, rows, in, out)
+	if err != nil {
+		return err
+	}
 	target := targetF32
 	evaluate := func(weights []float32) float64 {
 		y := make([]float32, rows*out)
@@ -366,10 +389,10 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 	}
 	start := time.Now()
 	var first float64
-	for step := 0; step < steps; step++ {
+	for step := 0; step < session.Updates(); step++ {
 		stepStart := time.Now()
 		loss := evaluate(masters)
-		if math.IsNaN(loss) || math.IsInf(loss, 0) {
+		if !checked.Finite64(loss) {
 			return fmt.Errorf("flow-organ-train-probe: step %d loss is non-finite", step+1)
 		}
 		y := make([]float32, rows*out)
@@ -390,14 +413,14 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 			return err
 		}
 		fmt.Printf("step %d/%d: master_loss=%.6f grad_l2=%.4g lr=%.4g wall=%s"+"\n",
-			step+1, steps, loss, math.Sqrt(gradientSquared), config.BaseLearningRate, time.Since(stepStart).Round(time.Millisecond))
+			step+1, session.Updates(), loss, math.Sqrt(gradientSquared), config.BaseLearningRate, time.Since(stepStart).Round(time.Millisecond))
 		if step == 0 {
 			first = loss
 			if gradientSquared == 0 {
 				return fmt.Errorf("flow-organ-train-probe: first step carried no gradient")
 			}
-			if projected := time.Duration(steps+1) * time.Since(start); projected > maxWall {
-				return fmt.Errorf("flow-organ-train-probe: first step projects the run to %s, past the %s bound", projected.Round(time.Second), maxWall)
+			if err := session.AdmitStepWall(time.Since(start)); err != nil {
+				return fmt.Errorf("flow-organ-train-probe: %w", err)
 			}
 		}
 	}
@@ -409,11 +432,11 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 	if !(masterAfter < first) {
 		return fmt.Errorf("flow-organ-train-probe: master loss did not descend: %.6f -> %.6f", first, masterAfter)
 	}
-	if math.IsNaN(servingAfter) || !(servingAfter < servingBefore) {
+	if !checked.Finite64(servingAfter) || !(servingAfter < servingBefore) {
 		return fmt.Errorf("flow-organ-train-probe: serving round-trip loss did not descend: %.6f -> %.6f", servingBefore, servingAfter)
 	}
 	fmt.Printf("descent: steps=%d master %.6f -> %.6f; serving round-trip %.6f -> %.6f total_wall=%s"+"\n",
-		steps, first, masterAfter, servingBefore, servingAfter, time.Since(start).Round(time.Millisecond))
+		session.Updates(), first, masterAfter, servingBefore, servingAfter, time.Since(start).Round(time.Millisecond))
 	return nil
 }
 
@@ -437,36 +460,43 @@ func runLatentBridge(modelDir string, steps, rows int, maxWall time.Duration) er
 	if err != nil {
 		return err
 	}
-	trainer, err := routedlm.NewLatentBridgeTrainer(weights)
+	trainer, err := routedlm.NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		return err
 	}
 	defer trainer.Close()
+	session, err := probeSession(trainingprogram.ObjectiveLatentL2, steps, trainer.ParameterCount(), maxWall)
+	if err != nil {
+		return err
+	}
 	fmt.Printf("trainable parameters=%d hidden=%d latent=%d derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s\n",
 		trainer.ParameterCount(), weights.Hidden, weights.Latent,
 		trainer.Config().BaseLearningRate, trainer.Config().Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
 
-	hidden, _, _ := stimulus(rows, weights.Hidden, 1)
+	hidden, _, _, err := stimulus(session, rows, weights.Hidden, 1)
+	if err != nil {
+		return err
+	}
 	start := time.Now()
 	var first float64
-	for step := 0; step < steps; step++ {
+	for step := 0; step < session.Updates(); step++ {
 		stepStart := time.Now()
 		result, err := trainer.Step(hidden)
 		if err != nil {
 			return err
 		}
-		if math.IsNaN(result.Loss) || math.IsInf(result.Loss, 0) {
+		if !checked.Finite64(result.Loss) {
 			return fmt.Errorf("flow-organ-train-probe: step %d loss is non-finite", step+1)
 		}
 		fmt.Printf("step %d/%d: loss=%.6f grad_l2=%.4g lr=%.4g wall=%s\n",
-			step+1, steps, result.Loss, result.GradientL2, result.LearningRate, time.Since(stepStart).Round(time.Millisecond))
+			step+1, session.Updates(), result.Loss, result.GradientL2, result.LearningRate, time.Since(stepStart).Round(time.Millisecond))
 		if step == 0 {
 			first = result.Loss
 			if result.GradientL2 <= 0 {
 				return fmt.Errorf("flow-organ-train-probe: first step carried no gradient")
 			}
-			if projected := time.Duration(steps+1) * time.Since(start); projected > maxWall {
-				return fmt.Errorf("flow-organ-train-probe: first step projects the run to %s, past the %s bound", projected.Round(time.Second), maxWall)
+			if err := session.AdmitStepWall(time.Since(start)); err != nil {
+				return fmt.Errorf("flow-organ-train-probe: %w", err)
 			}
 		}
 	}
@@ -474,18 +504,22 @@ func runLatentBridge(modelDir string, steps, rows int, maxWall time.Duration) er
 	if err != nil {
 		return err
 	}
-	if math.IsNaN(after) || math.IsInf(after, 0) || !(after < first) {
+	if !checked.Finite64(after) || !(after < first) {
 		return fmt.Errorf("flow-organ-train-probe: loss did not descend: before=%.6f after=%.6f", first, after)
 	}
 	fmt.Printf("descent: steps=%d loss %.6f -> %.6f total_wall=%s\n",
-		steps, first, after, time.Since(start).Round(time.Millisecond))
+		session.Updates(), first, after, time.Since(start).Round(time.Millisecond))
 	return nil
 }
 
 // stimulus: the committed deterministic probe pair — xorshift32 seeded rows,
 // documented in the evidence as probe stimulus rather than pipeline data.
-func stimulus(rows, hidden, flowDim int) (x, z, target []float32) {
-	seed := uint32(88675123)
+func stimulus(session trainingprogram.TrainingSessionPlan, rows, hidden, flowDim int) (x, z, target []float32, err error) {
+	derived, err := session.Seed("stimulus")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	seed := uint32(derived)
 	next := func() float32 {
 		seed ^= seed << 13
 		seed ^= seed >> 17
@@ -502,7 +536,7 @@ func stimulus(rows, hidden, flowDim int) (x, z, target []float32) {
 		z[i] = next() * 0.2
 		target[i] = next()
 	}
-	return x, z, target
+	return x, z, target, nil
 }
 
 func run(modelDir string, steps, rows int, timestep float64, maxWall time.Duration) error {
@@ -538,16 +572,23 @@ func run(modelDir string, steps, rows int, timestep float64, maxWall time.Durati
 	if err != nil {
 		return err
 	}
-	trainer, err := routedlm.NewFlowHeadTrainer(plan, terminal.Head)
+	trainer, err := routedlm.NewFlowHeadTrainer(plan, terminal.Head, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		return err
 	}
 	defer trainer.Close()
+	session, err := probeSession(trainingprogram.ObjectiveFlowMatching, steps, trainer.ParameterCount(), maxWall)
+	if err != nil {
+		return err
+	}
 	fmt.Printf("trainable parameters=%d hidden=%d flow_dim=%d derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s\n",
 		trainer.ParameterCount(), plan.Hidden, plan.FlowDim,
 		trainer.Config().BaseLearningRate, trainer.Config().Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
 
-	x, z, target := stimulus(rows, plan.Hidden, plan.FlowDim)
+	x, z, target, err := stimulus(session, rows, plan.Hidden, plan.FlowDim)
+	if err != nil {
+		return err
+	}
 	evaluate := func() (float64, error) {
 		v, err := trainer.Velocity(x, z, timestep)
 		if err != nil {
@@ -564,24 +605,24 @@ func run(modelDir string, steps, rows int, timestep float64, maxWall time.Durati
 
 	start := time.Now()
 	var first float64
-	for step := 0; step < steps; step++ {
+	for step := 0; step < session.Updates(); step++ {
 		stepStart := time.Now()
 		result, err := trainer.Step(x, z, target, timestep)
 		if err != nil {
 			return err
 		}
-		if math.IsNaN(result.Loss) || math.IsInf(result.Loss, 0) {
+		if !checked.Finite64(result.Loss) {
 			return fmt.Errorf("flow-organ-train-probe: step %d loss is non-finite", step+1)
 		}
 		fmt.Printf("step %d/%d: loss=%.6f grad_l2=%.4g lr=%.4g wall=%s\n",
-			step+1, steps, result.Loss, result.GradientL2, result.LearningRate, time.Since(stepStart).Round(time.Millisecond))
+			step+1, session.Updates(), result.Loss, result.GradientL2, result.LearningRate, time.Since(stepStart).Round(time.Millisecond))
 		if step == 0 {
 			first = result.Loss
 			if result.GradientL2 <= 0 {
 				return fmt.Errorf("flow-organ-train-probe: first step carried no gradient")
 			}
-			if projected := time.Duration(steps+1) * time.Since(start); projected > maxWall {
-				return fmt.Errorf("flow-organ-train-probe: first step projects the run to %s, past the %s bound", projected.Round(time.Second), maxWall)
+			if err := session.AdmitStepWall(time.Since(start)); err != nil {
+				return fmt.Errorf("flow-organ-train-probe: %w", err)
 			}
 		}
 	}
@@ -589,10 +630,10 @@ func run(modelDir string, steps, rows int, timestep float64, maxWall time.Durati
 	if err != nil {
 		return err
 	}
-	if math.IsNaN(after) || math.IsInf(after, 0) || !(after < first) {
+	if !checked.Finite64(after) || !(after < first) {
 		return fmt.Errorf("flow-organ-train-probe: loss did not descend: before=%.6f after=%.6f", first, after)
 	}
 	fmt.Printf("descent: steps=%d loss %.6f -> %.6f total_wall=%s\n",
-		steps, first, after, time.Since(start).Round(time.Millisecond))
+		session.Updates(), first, after, time.Since(start).Round(time.Millisecond))
 	return nil
 }

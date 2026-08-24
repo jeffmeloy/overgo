@@ -26,6 +26,8 @@ import (
 	"overgo/internal/routedlm"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor"
+	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -74,15 +76,18 @@ func loadTensorAsset(fixturesDir, asset string, golden goldenTensor) ([]float32,
 }
 
 func run() error {
-	modelDir := flag.String("model", `C:\Users\jeffm\adaptive_new\models\Hy-Embodied-RxBrain-1.0`, "branch-routed checkpoint dir")
-	fixturesDir := flag.String("fixtures", `C:\Users\jeffm\adaptive_new\fixtures`, "golden fixture dir (real prompt + vision rows)")
-	bindingName := flag.String("binding", "rxbrain", "branch binding name")
-	steps := flag.Int("steps", 3, "observed training steps")
-	maxWall := flag.Duration("max-wall", 25*time.Minute, "abort when the first step projects past this bound")
+	modelDir := flag.String("model", "", "branch-routed checkpoint dir")
+	fixturesDir := flag.String("fixtures", "", "golden fixture dir")
+	bindingName := flag.String("binding", "", "branch binding name")
+	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required observed training steps")
+	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
 	storePath := flag.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
 	stimulus := flag.String("stimulus", "docs/verification/rxbrain-mot-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
 	flag.Parse()
 	ctx := context.Background()
+	if *modelDir == "" || *fixturesDir == "" || *bindingName == "" || *steps <= 0 {
+		return fmt.Errorf("mot train probe: model, fixtures, binding, and positive steps required")
+	}
 
 	binding, err := bindingByName(*bindingName)
 	if err != nil {
@@ -196,23 +201,35 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	headRaw := make([]byte, cfg.VocabSize*cfg.HiddenSize*2)
+	scalarBytes := binary.Size(uint16(0))
+	headRaw := make([]byte, cfg.VocabSize*cfg.HiddenSize*int(scalarBytes))
 	if terminal.Head.DType != "BF16" {
 		return fmt.Errorf("mot train probe: head dtype %s, want BF16", terminal.Head.DType)
 	}
-	if _, err := terminal.Head.ReadAt(headRaw, 0); err != nil {
+	if _, err := terminal.Head.ReadAt(headRaw, int64(tensor.FirstOffset)); err != nil {
 		return err
 	}
 	head := make([]uint16, cfg.VocabSize*cfg.HiddenSize)
 	for i := range head {
-		head[i] = binary.LittleEndian.Uint16(headRaw[i*2:])
+		head[i] = binary.LittleEndian.Uint16(headRaw[i*int(scalarBytes):])
 	}
 	headRaw = nil
-	trainer, err := routedlm.NewModalityTransformerTrainer(cfg, layers, terminal.FinalNorm[0], head)
+	authority, err := trainingworkflow.ResolveSessionAuthority(ctx, store, modelID, recipeID)
+	if err != nil {
+		return err
+	}
+	trainer, err := routedlm.NewModalityTransformerTrainer(cfg, layers, terminal.FinalNorm[0], head, authority.Optimizer)
 	if err != nil {
 		return err
 	}
 	defer trainer.Close()
+	session, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+		Objective: authority.Objective, Updates: *steps, MaximumSequence: fg.PromptLen,
+		MaxProjectedWall: *maxWall, Parameters: trainer.ParameterCount(), Optimizer: authority.Optimizer,
+	})
+	if err != nil {
+		return err
+	}
 	observer.Phase(runrecord.PhaseLoad, time.Since(loadStarted))
 	fmt.Printf("full modality-transformer: layers=%d trainable_parameters=%d prompt_tokens=%d image_rows=%d supervised_positions=%d\n",
 		cfg.NumHiddenLayers, trainer.ParameterCount(), fg.PromptLen, imageRows, len(targets))
@@ -227,7 +244,7 @@ func run() error {
 
 	trainStarted := time.Now()
 	runErr := func() error {
-		for step := 0; step < *steps; step++ {
+		for step := 0; step < session.Updates(); step++ {
 			stepStarted := time.Now()
 			result, err := trainer.Step(hidden, mask, targets)
 			if err != nil {
@@ -236,14 +253,13 @@ func run() error {
 			observer.SampleStep()
 			wall := time.Since(stepStarted)
 			fmt.Printf("step %d/%d loss %.6f grad_l2 %.6f lr %.6g wall %s\n",
-				result.Step, *steps, result.Loss, result.GradientL2, result.LearningRate, wall.Round(time.Millisecond))
+				result.Step, session.Updates(), result.Loss, result.GradientL2, result.LearningRate, wall.Round(time.Millisecond))
 			if result.GradientL2 <= 0 {
 				return fmt.Errorf("mot train probe: step %d gradient norm %g", result.Step, result.GradientL2)
 			}
-			if step == 0 && *maxWall > 0 {
-				projected := wall * time.Duration(*steps+1)
-				if projected > *maxWall {
-					return fmt.Errorf("mot train probe: first step %s projects %d steps to %s, over %s", wall.Round(time.Second), *steps, projected.Round(time.Minute), *maxWall)
+			if step == 0 {
+				if err := session.AdmitStepWall(wall); err != nil {
+					return fmt.Errorf("mot train probe: %w", err)
 				}
 			}
 		}
@@ -258,7 +274,7 @@ func run() error {
 		return nil
 	}()
 	observer.Phase(runrecord.PhaseForwardBackward, time.Since(trainStarted))
-	streamed := uint64(*steps) * uint64(fg.PromptLen)
+	streamed := uint64(session.Updates()) * uint64(fg.PromptLen)
 	observation, observeErr := observer.Finish(ctx, modelID, recipeID, runErr, streamed)
 	if runErr != nil {
 		return runErr

@@ -75,7 +75,7 @@ func TestGemmaE4BRealTraining(t *testing.T) {
 	}
 
 	loaded := time.Now()
-	continuous, topology, err := adaptertrain.LoadArtifact(ctx, modelPath, 0)
+	continuous, topology, err := adaptertrain.LoadArtifact(ctx, modelPath, 0, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestGemmaE4BRealTraining(t *testing.T) {
 	}
 	trainWall := time.Since(started)
 
-	partial, _, err := adaptertrain.LoadArtifact(ctx, modelPath, 0)
+	partial, _, err := adaptertrain.LoadArtifact(ctx, modelPath, 0, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestGemmaE4BRealTraining(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resumed, _, err := adaptertrain.LoadArtifact(ctx, modelPath, 0)
+	resumed, _, err := adaptertrain.LoadArtifact(ctx, modelPath, 0, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}

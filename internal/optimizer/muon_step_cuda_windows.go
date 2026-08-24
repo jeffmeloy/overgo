@@ -168,7 +168,7 @@ func NewResidentMuonPlan(worker *device.Worker, plan Plan, config Config) (*Resi
 	if worker == nil || plan.Identity() == "" || plan.ParameterCount() <= 0 {
 		return nil, errors.New("resident Muon plan: invalid authority")
 	}
-	if err := config.validate(); err != nil {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	session := &ResidentMuonPlan{worker: worker, plan: plan, config: config}
@@ -209,7 +209,7 @@ func newResidentMatrixMuonPlan(worker *device.Worker, matrices []ResidentMatrix,
 	if worker == nil || len(matrices) == 0 {
 		return nil, errors.New("resident matrix Muon plan: invalid authority")
 	}
-	if err := config.validate(); err != nil {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	maxMatrix, maxSquare := 0, 0
@@ -315,7 +315,7 @@ func DeviceMuonPlanResident(
 	if worker == nil || weights == 0 || gradients == 0 || momentum == 0 || plan.Identity() == "" || step <= 0 {
 		return fmt.Errorf("DeviceMuonPlanResident: invalid buffer, plan, or step")
 	}
-	if err := config.validate(); err != nil {
+	if err := config.Validate(); err != nil {
 		return err
 	}
 	session, err := NewResidentMuonPlan(worker, plan, config)
@@ -332,7 +332,7 @@ func DeviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []fl
 		len(weights) != plan.ParameterCount() || len(gradients) != len(weights) || len(momentum) != len(weights) {
 		return errors.New("device Muon step: invalid worker, plan, step, or storage")
 	}
-	if err := config.validate(); err != nil {
+	if err := config.Validate(); err != nil {
 		return err
 	}
 	rate := config.LearningRate(step)

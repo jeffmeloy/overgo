@@ -117,7 +117,7 @@ func (state *stepState) backward() error {
 func (state *stepState) optimize() error { return state.optimizer.Step(state.model) }
 
 // LoadArtifact binds one real artifact adapter without retaining the GGUF file.
-func LoadArtifact(ctx context.Context, path string, layer uint32) (*Model, model.ModelPlan, error) {
+func LoadArtifact(ctx context.Context, path string, layer uint32, policy trainingprogram.OptimizerPolicy) (*Model, model.ModelPlan, error) {
 	file, err := gguf.Open(path)
 	if err != nil {
 		return nil, model.ModelPlan{}, fmt.Errorf("adapter training: open artifact: %w", err)
@@ -209,7 +209,10 @@ func LoadArtifact(ctx context.Context, path string, layer uint32) (*Model, model
 	if err != nil {
 		return nil, model.ModelPlan{}, err
 	}
-	m.config = optimizer.Config{BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(len(m.weights)), Schedule: optimizer.ScheduleConstant}
+	m.config, err = policy.Config(len(m.weights))
+	if err != nil {
+		return nil, model.ModelPlan{}, err
+	}
 	m.program, err = trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
 		Objective: trainingprogram.ObjectiveTokenPrediction,
 		Operators: []trainingprogram.OperatorSpec{

@@ -128,7 +128,7 @@ func ditTensorSpecs(c DenoiserConfig, textDim int) []ditTensorSpec {
 // Muon plan. Base LR derives from the packed parameter count; momentum from
 // the CLT effective-samples rule. The trainer takes ownership of the loaded
 // tensor map, releasing each source slice as it packs (the map is emptied).
-func NewDiTTrainer(cfg DenoiserConfig, textDim int, geometry LatentGeometry, tensors map[string][]float32) (*DiTTrainer, error) {
+func NewDiTTrainer(cfg DenoiserConfig, textDim int, geometry LatentGeometry, tensors map[string][]float32, policy trainingprogram.OptimizerPolicy) (*DiTTrainer, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -209,10 +209,9 @@ func NewDiTTrainer(cfg DenoiserConfig, textDim int, geometry LatentGeometry, ten
 		// Release the loader storage — the masters own it now.
 		delete(tensors, spec.name)
 	}
-	trainer.optCfg = optimizer.Config{
-		BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(total),
-		Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
-		Schedule:         optimizer.ScheduleConstant,
+	trainer.optCfg, err = policy.Config(total)
+	if err != nil {
+		return nil, err
 	}
 	trainer.stepper, err = optimizer.NewStepper(trainer.weights, trainer.gradients, compiled, trainer.optCfg)
 	if err != nil {

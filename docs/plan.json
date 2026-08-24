@@ -108,13 +108,13 @@
       "id": "literal-training-policy",
       "title": "Derive training and probe policy from compiled training plans",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Replace command-local steps, sequence extents, learning rates, momentum, schedules, wall bounds, dimensions, and seeds with dataset, model, resource, optimizer, and evidence-derived TrainingSessionPlan fields; migrate every training and probe caller; delete duplicated flag defaults and private derivations",
-          "status": "open",
-          "verify": "go test ./cmd/train ./internal/trainingprogram ./internal/trainingworkflow ./internal/optimizer ./internal/hybridtrain -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd,internal/trainingprogram,internal/trainingworkflow,internal/optimizer,internal/hybridtrain -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train ./internal/trainingprogram ./internal/trainingworkflow ./internal/optimizer ./internal/hybridtrain -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd,internal/trainingprogram,internal/trainingworkflow,internal/optimizer,internal/hybridtrain -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
           "rationale": "Training commands encode campaign parameters beside shared optimizer and training authorities, preventing equivalent probes from sharing one compiled plan.",
           "depends_on": [
             "literal-runtime-policy/do"

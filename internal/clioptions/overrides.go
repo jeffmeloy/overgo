@@ -50,6 +50,12 @@ func DurationOverride(flags *flag.FlagSet, name, usage string) *time.Duration {
 // Overrides records explicitly supplied command options.
 type Overrides map[string]struct{}
 
+// Has reports whether an option was explicit.
+func (values Overrides) Has(name string) bool {
+	_, found := values[name]
+	return found
+}
+
 // ExplicitOverrides captures parsed options.
 func ExplicitOverrides(flags *flag.FlagSet) Overrides {
 	values := make(Overrides)

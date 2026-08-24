@@ -18,23 +18,23 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"runtime"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
+	"overgo/internal/clioptions"
 	"overgo/internal/cuda/device"
-	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
 	"overgo/internal/hybridtrain"
 	"overgo/internal/model"
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/quant"
-	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/tensor"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
@@ -68,15 +68,11 @@ func promptTokens(path, caseName string) ([]uint32, error) {
 }
 
 func run() error {
-	defaultModel := ""
-	if roots, err := dataroot.ResolveCurrent(); err == nil {
-		defaultModel = filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Qwen3.5-4B-f16.gguf")
-	}
-	modelPath := flag.String("model", defaultModel, "GGUF artifact path (defaults to the dataroot-resolved Qwen3.5-4B checkpoint)")
+	modelPath := flag.String("model", "", "GGUF artifact path")
 	fixturePath := flag.String("fixture", filepath.Join("fixtures", "qwen35_4b_serving_golden.json"), "serving fixture holding the prompt token IDs")
 	caseName := flag.String("case", "capital", "fixture case whose prompt IDs feed the objective")
-	steps := flag.Int("steps", 3, "observed training steps")
-	maxWall := flag.Duration("max-wall", 25*time.Minute, "abort when the first step projects the run past this wall")
+	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required observed training steps")
+	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
 	inspect := flag.Bool("inspect", false, "print the artifact census and exit without training")
 	storePath := flag.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
 	lane := flag.String("lane", "full-slab", "training lane: full-slab (masters+gradients+momentum all full host slabs) or layer-streamed (bounded host triplication: gradients never exceed one layer)")
@@ -86,13 +82,13 @@ func run() error {
 		return fmt.Errorf("-lane must be full-slab or layer-streamed, got %q", *lane)
 	}
 	if *modelPath == "" {
-		return fmt.Errorf("-model is required (dataroot did not resolve)")
+		return fmt.Errorf("-model is required")
 	}
 	if *inspect {
 		return printCensus(*modelPath)
 	}
-	if *steps < 2 {
-		return fmt.Errorf("-steps must be at least 2 to observe a loss decrease")
+	if *steps < tensor.PairedExtent {
+		return fmt.Errorf("-steps must be at least %d to observe a loss decrease", tensor.PairedExtent)
 	}
 
 	tokens, err := promptTokens(*fixturePath, *caseName)
@@ -130,6 +126,10 @@ func run() error {
 	if err := observer.Admit(ctx, modelID, recipeID); err != nil {
 		return err
 	}
+	authority, err := trainingworkflow.ResolveSessionAuthority(ctx, store, modelID, recipeID)
+	if err != nil {
+		return err
+	}
 	fmt.Printf("session admitted: model=%s recipe=%s\n", modelID, recipeID)
 
 	loadStart := time.Now()
@@ -147,25 +147,14 @@ func run() error {
 		}
 	}
 	total := trained.MatrixParamCount() + trained.VectorParamCount()
-	recipeContent, ok, err := artifact.ReadContent(ctx, store, recipeID)
+	session, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+		Objective: authority.Objective, Updates: *steps, MaximumSequence: len(tokens),
+		MaxProjectedWall: *maxWall, Parameters: total, Optimizer: authority.Optimizer,
+	})
 	if err != nil {
 		return err
 	}
-	if !ok {
-		return fmt.Errorf("training recipe content unavailable: %s", recipeID)
-	}
-	definition, err := recipe.ParseDefinition(recipeContent.Data)
-	if err != nil {
-		return err
-	}
-	optimizerPolicy, err := trainingprogram.OptimizerPolicyFromRecipe(ctx, store, definition)
-	if err != nil {
-		return err
-	}
-	config, err := optimizerPolicy.Config(total)
-	if err != nil {
-		return err
-	}
+	config := session.Optimizer()
 	fmt.Printf("stack census: %d layers (%d attention, %d recurrent)\n", len(trained.Cfg.Types), attention, recurrent)
 	fmt.Printf("trainable parameters: %d matrix + %d vector = %d total\n",
 		trained.MatrixParamCount(), trained.VectorParamCount(), total)
@@ -191,7 +180,7 @@ func run() error {
 	}
 	printPeakRSS("after artifact load")
 
-	worker, err := device.New(0)
+	worker, err := device.New(device.DefaultOrdinal())
 	if err != nil {
 		return err
 	}
@@ -203,22 +192,21 @@ func run() error {
 	}
 	trainStart := time.Now()
 	previous := trainStart
-	trajectory, err := train(worker, *steps, config, func(step int, loss float64) error {
+	trajectory, err := train(worker, session.Updates(), config, func(step int, loss float64) error {
 		now := time.Now()
 		wall := now.Sub(previous)
 		previous = now
 		observer.SampleStep()
-		fmt.Printf("step %d/%d  loss=%.6f  wall=%s\n", step+1, *steps, loss, wall.Round(time.Millisecond))
-		if math.IsNaN(loss) || math.IsInf(loss, 0) {
+		fmt.Printf("step %d/%d  loss=%.6f  wall=%s\n", step+1, session.Updates(), loss, wall.Round(time.Millisecond))
+		if !checked.Finite64(loss) {
 			return fmt.Errorf("step %d loss is not finite: %g", step+1, loss)
 		}
-		if step == 0 {
-			projected := time.Duration(*steps) * wall
+		if step == tensor.FirstOffset {
+			projected := time.Duration(session.Updates()) * wall
 			fmt.Printf("projection: %d steps x %s = %s (guard %s)\n",
-				*steps, wall.Round(time.Millisecond), projected.Round(time.Second), *maxWall)
-			if projected > *maxWall {
-				return fmt.Errorf("projected wall %s exceeds -max-wall %s; aborting after the first step",
-					projected.Round(time.Second), *maxWall)
+				session.Updates(), wall.Round(time.Millisecond), projected.Round(time.Second), session.MaxProjectedWall())
+			if err := session.AdmitStepWall(wall); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -228,12 +216,12 @@ func run() error {
 	runErr := err
 	if runErr == nil {
 		for index, loss := range trajectory {
-			if math.IsNaN(loss) || math.IsInf(loss, 0) {
+			if !checked.Finite64(loss) {
 				runErr = fmt.Errorf("trajectory[%d] is not finite: %g", index, loss)
 				break
 			}
-			if index > 0 && loss >= trajectory[index-1] {
-				runErr = fmt.Errorf("loss did not decrease at step %d: %v", index+1, trajectory)
+			if index > tensor.FirstOffset && loss >= trajectory[index-tensor.SingletonExtent] {
+				runErr = fmt.Errorf("loss did not decrease at step %d: %v", index+tensor.SingletonExtent, trajectory)
 				break
 			}
 		}
@@ -242,7 +230,7 @@ func run() error {
 		runErr = servingRoundTrip(*modelPath, trained)
 	}
 	printPeakRSS("after training")
-	streamed := uint64(*steps) * uint64(len(tokens))
+	streamed := uint64(session.Updates()) * uint64(len(tokens))
 	observation, observeErr := observer.Finish(ctx, modelID, recipeID, runErr, streamed)
 	if runErr != nil {
 		return runErr
@@ -304,7 +292,7 @@ func servingRoundTrip(modelPath string, trained *hybridtrain.Model) error {
 	lossRoundTrip := trained.EvaluateLoss()
 	fmt.Printf("serving round trip (%s -> %s -> f32): trained-masters loss %.6f -> requantized %.6f (delta %+.6g)\n",
 		info.Name, info.Type, lossTrained, lossRoundTrip, lossRoundTrip-lossTrained)
-	if math.IsNaN(lossRoundTrip) || math.IsInf(lossRoundTrip, 0) {
+	if !checked.Finite64(lossRoundTrip) {
 		return fmt.Errorf("serving round trip: loss is not finite: %g", lossRoundTrip)
 	}
 	return nil

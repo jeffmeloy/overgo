@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
 
 // tinyTrainableModel builds a complete synthetic forecast model exercising
@@ -59,9 +60,18 @@ func tinyTrainableModel() *Model {
 	return model
 }
 
+func testOptimizerConfig(t *testing.T, model *Model) optimizer.Config {
+	t.Helper()
+	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(model.TrainableParameterCount())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return config
+}
+
 func TestTrainerDecreasesForecastLossTiny(t *testing.T) {
 	model := tinyTrainableModel()
-	trainer, err := NewTrainer(model, optimizer.Config{Momentum: 0.9})
+	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +113,7 @@ func TestTrainerDecreasesForecastLossTiny(t *testing.T) {
 
 func TestTrainerPublishesCompiledParameterAuthority(t *testing.T) {
 	model := tinyTrainableModel()
-	trainer, err := NewTrainer(model, optimizer.Config{Momentum: 0.9})
+	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +131,7 @@ func TestTrainerPublishesCompiledParameterAuthority(t *testing.T) {
 
 func TestTrainerRefusesGradientsOutsidePack(t *testing.T) {
 	model := tinyTrainableModel()
-	trainer, err := NewTrainer(model, optimizer.Config{Momentum: 0.9})
+	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
 	if err != nil {
 		t.Fatal(err)
 	}

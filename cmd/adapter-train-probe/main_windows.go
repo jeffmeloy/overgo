@@ -15,6 +15,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/tokenizer"
 	"overgo/internal/trainingdata"
+	"overgo/internal/trainingprogram"
 )
 
 type output struct {
@@ -31,7 +32,7 @@ func run() (err error) {
 	modelPath := flag.String("model", "", "GGUF model")
 	text := flag.String("text", "", "teacher-forced text")
 	layer := flag.Uint("layer", 0, "adapter layer")
-	steps := flag.Int("steps", 1, "update steps")
+	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required update steps")
 	weights := flag.String("out", "", "optional adapter safetensors")
 	flag.Parse()
 	if *modelPath == "" || *text == "" || *steps <= 0 || uint64(*layer) > uint64(^uint32(0)) {
@@ -55,7 +56,15 @@ func run() (err error) {
 		return err
 	}
 	ctx := context.Background()
-	trained, _, err := adaptertrain.LoadArtifact(ctx, *modelPath, uint32(*layer))
+	policy := trainingprogram.BuiltinOptimizerPolicy()
+	trained, _, err := adaptertrain.LoadArtifact(ctx, *modelPath, uint32(*layer), policy)
+	if err != nil {
+		return err
+	}
+	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+		Objective: trainingprogram.ObjectiveTokenPrediction, Updates: *steps, MaximumSequence: len(ids),
+		Parameters: trained.ParameterCount(), Optimizer: policy,
+	})
 	if err != nil {
 		return err
 	}
@@ -63,12 +72,12 @@ func run() (err error) {
 	if err != nil {
 		return err
 	}
-	worker, err := device.New(0)
+	worker, err := device.New(device.DefaultOrdinal())
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, worker.Close()) }()
-	result := output{Layer: uint32(*layer), Rows: example.Rows, Parameters: trained.ParameterCount(), Losses: make([]float64, *steps), Weights: *weights}
+	result := output{Layer: uint32(*layer), Rows: example.Rows, Parameters: trained.ParameterCount(), Losses: make([]float64, plan.Updates()), Weights: *weights}
 	for index := range result.Losses {
 		result.Losses[index], err = trained.Step(worker, example)
 		if err != nil {

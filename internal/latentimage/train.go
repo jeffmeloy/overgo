@@ -123,7 +123,7 @@ type FinalLayerTrainer struct {
 }
 
 // NewFinalLayerTrainer packs the organ and compiles the derived Muon plan.
-func NewFinalLayerTrainer(w FinalLayerWeights, eps float64) (*FinalLayerTrainer, error) {
+func NewFinalLayerTrainer(w FinalLayerWeights, eps float64, policy trainingprogram.OptimizerPolicy) (*FinalLayerTrainer, error) {
 	if !checked.PositiveInts(w.Hidden, w.Out) || !checked.PositiveFinite64(eps) {
 		return nil, fmt.Errorf("latentimage final layer: geometry %dx%d eps %g", w.Hidden, w.Out, eps)
 	}
@@ -158,10 +158,9 @@ func NewFinalLayerTrainer(w FinalLayerWeights, eps float64) (*FinalLayerTrainer,
 	trainer := trainerShell
 	trainer.weights = make([]float32, total)
 	trainer.gradients = make([]float32, total)
-	trainer.config = optimizer.Config{
-		BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(total),
-		Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
-		Schedule:         optimizer.ScheduleConstant,
+	trainer.config, err = policy.Config(total)
+	if err != nil {
+		return nil, err
 	}
 	for i, s := range sections {
 		s.slot.start, s.slot.end = specs[i].Start, specs[i].End

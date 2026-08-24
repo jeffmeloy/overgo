@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/trainingprogram"
+
 	"overgo/internal/tensor/dtype"
 )
 
@@ -39,7 +41,7 @@ func tinyBridge(hidden, latent int) LatentBridgeWeights {
 }
 
 func TestLatentBridgeTrainerDescends(t *testing.T) {
-	trainer, err := NewLatentBridgeTrainer(tinyBridge(10, 3))
+	trainer, err := NewLatentBridgeTrainer(tinyBridge(10, 3), trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +97,7 @@ func TestLatentBridgeGradientMatchesFiniteDifference(t *testing.T) {
 		seed ^= seed << 5
 		hidden[i] = float32(seed%2000)/1000 - 1
 	}
-	probe, err := NewLatentBridgeTrainer(weights)
+	probe, err := NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +106,7 @@ func TestLatentBridgeGradientMatchesFiniteDifference(t *testing.T) {
 	// Capture analytic gradients by rebuilding a fresh trainer whose Step is
 	// intercepted before the optimizer consumes them: replicate via a fresh
 	// trainer and numerical comparison against the shared Loss.
-	analyticTrainer, err := NewLatentBridgeTrainer(weights)
+	analyticTrainer, err := NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +124,7 @@ func TestLatentBridgeGradientMatchesFiniteDifference(t *testing.T) {
 	}
 
 	for _, index := range []int{0, 5, probe.upW.start + 3, probe.downB.start, len(probe.weights) - 1} {
-		fresh, err := NewLatentBridgeTrainer(weights)
+		fresh, err := NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -140,7 +142,7 @@ func TestLatentBridgeGradientMatchesFiniteDifference(t *testing.T) {
 		fresh.weights[index] = original
 		numeric := (plus - minus) / (2 * epsilon)
 
-		grader, err := NewLatentBridgeTrainer(weights)
+		grader, err := NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy())
 		if err != nil {
 			t.Fatal(err)
 		}

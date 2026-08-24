@@ -67,7 +67,7 @@ type ModalityTransformerTrainer struct {
 // parameter count; momentum from the CLT effective-samples rule. The trainer
 // takes ownership of the layer weights (vision BF16 storage is released
 // after master decode).
-func NewModalityTransformerTrainer(cfg Config, layers []LayerWeights, finalNorm []float32, head []uint16) (*ModalityTransformerTrainer, error) {
+func NewModalityTransformerTrainer(cfg Config, layers []LayerWeights, finalNorm []float32, head []uint16, policy trainingprogram.OptimizerPolicy) (*ModalityTransformerTrainer, error) {
 	if len(layers) != cfg.NumHiddenLayers || cfg.NumHiddenLayers == 0 {
 		return nil, fmt.Errorf("routed lm mot train: %d layers, config wants %d", len(layers), cfg.NumHiddenLayers)
 	}
@@ -111,6 +111,10 @@ func NewModalityTransformerTrainer(cfg Config, layers []LayerWeights, finalNorm 
 	if err != nil {
 		return nil, err
 	}
+	config, err := policy.Config(total)
+	if err != nil {
+		return nil, err
+	}
 	t := &ModalityTransformerTrainer{
 		cfg: cfg, rope: rope,
 		frozen:    make([]motFrozen, len(layers)),
@@ -118,11 +122,7 @@ func NewModalityTransformerTrainer(cfg Config, layers []LayerWeights, finalNorm 
 		finalNorm: finalNorm, head: head,
 		weights:   make([]float32, total),
 		gradients: make([]float32, total),
-		config: optimizer.Config{
-			BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(total),
-			Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
-			Schedule:         optimizer.ScheduleConstant,
-		},
+		config:    config,
 	}
 	for layer := range layers {
 		w := &layers[layer]

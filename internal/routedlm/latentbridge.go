@@ -76,7 +76,7 @@ type LatentBridgeTrainer struct {
 
 // NewLatentBridgeTrainer packs the pair as f32 masters and compiles the
 // Muon plan with derived hyperparameters.
-func NewLatentBridgeTrainer(w LatentBridgeWeights) (*LatentBridgeTrainer, error) {
+func NewLatentBridgeTrainer(w LatentBridgeWeights, policy trainingprogram.OptimizerPolicy) (*LatentBridgeTrainer, error) {
 	if w.Hidden <= 0 || w.Latent <= 0 {
 		return nil, fmt.Errorf("routed lm latent bridge: geometry %dx%d", w.Hidden, w.Latent)
 	}
@@ -103,15 +103,15 @@ func NewLatentBridgeTrainer(w LatentBridgeWeights) (*LatentBridgeTrainer, error)
 	if err != nil {
 		return nil, err
 	}
+	config, err := policy.Config(total)
+	if err != nil {
+		return nil, err
+	}
 	trainer := &LatentBridgeTrainer{
 		hidden: w.Hidden, latent: w.Latent,
 		weights:   make([]float32, total),
 		gradients: make([]float32, total),
-		config: optimizer.Config{
-			BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(total),
-			Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
-			Schedule:         optimizer.ScheduleConstant,
-		},
+		config:    config,
 	}
 	spans := []*span{&trainer.downW, &trainer.downB, &trainer.upW, &trainer.upB}
 	for i, s := range sections {

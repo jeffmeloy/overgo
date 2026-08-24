@@ -170,7 +170,7 @@
         {
           "id": "bounded-projections",
           "title": "Add bounded projected queries and summaries over operations, stage receipts, serving observations, interactions, resources, and decisions",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestOperationEvidenceProjection' internal \u0026\u0026 go test ./internal/runrecord ./internal/operation ./internal/server -run 'TestOperationEvidenceProjection|TestOperationSummary|TestOperationProjectionBounds|TestTracePayloadRedaction' -count=1",
           "rationale": "Overgo already records the authoritative facts. The missing capability is a bounded join and summary projection, not another mutable trace buffer or copied request/response database. Heavy or sensitive payloads remain artifact references and require explicit retrieval.",
           "depends_on": [

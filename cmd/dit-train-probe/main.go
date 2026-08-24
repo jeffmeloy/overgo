@@ -205,6 +205,7 @@ func run() error {
 	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
 	storePath := flag.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
 	stimulus := flag.String("stimulus", "docs/verification/wan-dit-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
+	objectiveAlias := flag.String("objective-alias", "", "registered objective alias to train under; empty uses the token bootstrap")
 	t5Cache := flag.String("t5-cache", "", "optional cache base path for the streamed raw text rows")
 	flag.Parse()
 	overrides := clioptions.ExplicitOverrides(flag.CommandLine)
@@ -241,7 +242,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, weightsPath, *stimulus)
+	var recipeID artifact.ID
+	if *objectiveAlias != "" {
+		recipeID, err = trainingworkflow.BootstrapObjectiveRecipe(ctx, store, weightsPath, *objectiveAlias)
+	} else {
+		recipeID, err = trainingworkflow.BootstrapTokenRecipe(ctx, store, weightsPath, *stimulus)
+	}
 	if err != nil {
 		return err
 	}
@@ -271,7 +277,11 @@ func run() error {
 	// Real raw text rows for the committed g1 prompt (frozen encoder,
 	// outside the trainable surface).
 	var g1 struct {
-		Prompt      string `json:"prompt"`
+		Prompt        string `json:"prompt"`
+		EncoderPolicy struct {
+			RelativeMaxDistance int     `json:"relative_max_distance"`
+			NormEps             float64 `json:"norm_eps"`
+		} `json:"encoder_policy"`
 		Conditional struct {
 			Tensor fixtureTensor `json:"tensor"`
 		} `json:"conditional"`
@@ -279,15 +289,15 @@ func run() error {
 	if err := jsonfile.Decode(filepath.Join(*fixturesDir, "g1_text_conditioning.json"), &g1); err != nil {
 		return err
 	}
-	// RelativeMaxDistance/NormEps: published encoder-config facts the
-	// checkpoint cannot carry (the same policy the g1 capture used).
+	// EncoderPolicy carries the published model facts the checkpoint cannot
+	// encode and binds training to the same policy used by the g1 capture.
 	textSpec := latentvideo.TextConditioningSpec{
 		TokenizerDir:        filepath.Join(*modelDir, "google", "umt5-xxl"),
 		EncoderCheckpoint:   filepath.Join(*modelDir, "models_t5_umt5-xxl-enc-bf16.pth"),
 		ProjectionDir:       *modelDir,
 		SequenceLength:      config.TextLen,
-		RelativeMaxDistance: 128,
-		NormEps:             1e-6,
+		RelativeMaxDistance: g1.EncoderPolicy.RelativeMaxDistance,
+		NormEps:             g1.EncoderPolicy.NormEps,
 	}
 	rawText, textTokens, rawTextDim, err := rawTextRows(textSpec, g1.Prompt, *t5Cache)
 	if err != nil {

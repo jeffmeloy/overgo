@@ -21,6 +21,8 @@ const (
 	InteractionTranscriptSchema = "overgo/interaction-transcript/v1"
 	// InteractionResponseAliasRoot scopes current response interactions.
 	InteractionResponseAliasRoot = "interaction/response/"
+	// InteractionOperationAliasRoot indexes response interactions by operation.
+	InteractionOperationAliasRoot = "operations/interaction/"
 )
 
 var interactionCodec = artifact.JSONDocumentCodec(
@@ -155,6 +157,11 @@ func NewInteraction(value Interaction) (Interaction, error) {
 	return interactionCodec.New(value)
 }
 
+// ParseInteraction decodes and validates one immutable response event.
+func ParseInteraction(content []byte) (Interaction, error) {
+	return interactionCodec.Parse(content)
+}
+
 // RequireInteraction returns one validated response event.
 func RequireInteraction(ctx context.Context, reader artifact.Reader, id artifact.ID) (Interaction, error) {
 	return interactionCodec.Require(ctx, reader, id)
@@ -276,11 +283,17 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 	contents = append(contents, traceContent, interactionContent)
 	lineage := artifact.DependencyLineage(value.ID, parents...)
 	lineage = append(lineage, artifact.DependencyLineage(trace.ID, trace.Request)...)
+	aliases := []artifact.AliasBinding{{Name: InteractionResponseAliasRoot + value.Response, Target: value.ID}}
+	if value.Operation.Valid() {
+		aliases = append(aliases, artifact.AliasBinding{
+			Name: InteractionOperationAliasRoot + value.Operation.String() + "/" + value.ID.String(), Target: value.ID,
+		})
+	}
 	batch, err := artifact.NewDocumentBatch(
 		"interaction/"+value.ID.String(),
 		contents,
 		lineage,
-		[]artifact.AliasBinding{{Name: InteractionResponseAliasRoot + value.Response, Target: value.ID}},
+		aliases,
 	)
 	if err != nil {
 		return Interaction{}, err

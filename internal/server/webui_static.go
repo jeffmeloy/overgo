@@ -64,6 +64,15 @@ func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request
 		h.workspaceSchema(response, request)
 		return
 	}
+	if request.URL.Path == "/operations/evidence" {
+		if !h.authorized(request) {
+			response.Header().Set("WWW-Authenticate", "Bearer")
+			writeError(response, http.StatusUnauthorized, "invalid_api_key", "missing or invalid bearer token")
+			return
+		}
+		h.operationEvidence(response, request)
+		return
+	}
 	if strings.HasPrefix(request.URL.Path, "/automations") {
 		if !h.authorized(request) {
 			response.Header().Set("WWW-Authenticate", "Bearer")

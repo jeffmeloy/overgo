@@ -1631,12 +1631,12 @@
       "id": "adk-durable-human-decision",
       "title": "Bind human approval to the exact proposed action and recovery identity",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Represent approval requests and decisions as typed operatoraction and runrecord documents; bind tool, arguments, recipe, operation, and prior decision; resume through operation.Recover; delete identifier-only confirmation state",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/operatoraction ./internal/operation ./internal/runrecord ./internal/server -run 'Test(DecisionBindsExactAction|DecisionRejectsArgumentSubstitution|DecisionRejectsReplay|BlockedOperationResumesAfterDecision|DecisionAPI)' -count=1",
           "rationale": "ADK's recent confirmation-conflict fix exposes the danger of approving an identifier that does not bind the original arguments. Overgo can fail closed by making the complete proposed action content-addressed and requiring the decision to reference that identity and current operation state.",
           "depends_on": [

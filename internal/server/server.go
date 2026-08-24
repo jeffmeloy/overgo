@@ -59,7 +59,11 @@ const (
 	maxImagePixels                = 16 << 20
 	maxRequestImagePixels         = 32 << 20
 	maxCompletionChoices          = 8
-	defaultProtocolMaxTokens      = 16
+	// maxResponseSeedAliases bounds the startup alias listing that seeds
+	// the response identifier counter; truncation at this bound refuses
+	// startup rather than reopening the collision.
+	maxResponseSeedAliases   = 100_000
+	defaultProtocolMaxTokens = 16
 )
 
 type Generator interface {
@@ -532,6 +536,10 @@ func New(config Config, generator Generator) (*Handler, error) {
 	}
 	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
 		handler.modelArtifact = identity.ModelID()
+	}
+	if err := handler.seedResponseIdentifiers(context.Background()); err != nil {
+		_ = handler.Close()
+		return nil, fmt.Errorf("server response identity seed: %w", err)
 	}
 	handler.operations, err = operation.NewManager(config.MaxStoredResponses)
 	if err != nil {

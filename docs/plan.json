@@ -105,13 +105,13 @@
       "id": "finding-response-id-durability",
       "title": "Seed response identifiers from durable state and surface publication failure",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Seed response identifiers from durable state and surface publication failure",
-          "status": "open",
-          "verify": "go test ./internal/server -run TestResponses -count=1"
+          "status": "done",
+          "verify": "go test ./internal/server -run 'TestResponsesIdentifiersSeedFromDurableState|TestResponsesInputTokensAliasesAndValidation' -count=1"
         }
       ]
     },

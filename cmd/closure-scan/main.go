@@ -720,6 +720,19 @@ func commitClosureDocuments(root, storePath string, documents []closureledger.Do
 				}
 				active.Previous = &previous
 			}
+			// A compacted target flattens supersede history, so one alias can
+			// collide within a single import: several source revisions of one
+			// decision rebind the same name, or a rebind lands on an alias the
+			// retirement pass already scheduled. One batch admits one binding
+			// per name; a live rebind replaces a scheduled retirement outright,
+			// and among rebinds the newest source document wins because
+			// documents iterate in commit order.
+			if index := slices.IndexFunc(batch.Aliases, func(bound artifact.AliasBinding) bool {
+				return bound.Name == alias
+			}); index >= 0 {
+				batch.Aliases[index] = active
+				continue
+			}
 			batch.Aliases = append(batch.Aliases, active)
 		}
 		content, err := document.Content()

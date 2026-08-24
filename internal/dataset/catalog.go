@@ -240,11 +240,19 @@ func PublishCatalog(ctx context.Context, repository artifact.Repository, bundle 
 	if err != nil {
 		return CatalogPublication{}, err
 	}
-	if coverage.Complete && coverage.Catalog != nil && *coverage.Catalog == bundle.Catalog.ID {
+	// A dataset can appear on disk after its documents published: the
+	// aliases are complete but its location fact is still unrecorded.
+	// Idempotence therefore requires no pending locations, not only
+	// complete aliases -- "catalog first, download later" must converge.
+	pending, err := pendingLocations(ctx, repository, bundle.Locations)
+	if err != nil {
+		return CatalogPublication{}, err
+	}
+	if coverage.Complete && coverage.Catalog != nil && *coverage.Catalog == bundle.Catalog.ID && len(pending) == 0 {
 		commit, _ := repository.Head()
 		return CatalogPublication{Commit: commit, Coverage: coverage}, nil
 	}
-	batch, err := catalogBatch(ctx, repository, bundle)
+	batch, err := catalogBatch(ctx, repository, bundle, pending)
 	if err != nil {
 		return CatalogPublication{}, err
 	}
@@ -429,7 +437,23 @@ func errorDetail(err error, fallback string) string {
 	return fallback
 }
 
-func catalogBatch(ctx context.Context, repository artifact.Repository, bundle CompiledCatalog) (artifact.Batch, error) {
+// pendingLocations filters the compiled location facts to those the
+// store has not yet recorded for their artifact.
+func pendingLocations(ctx context.Context, reader artifact.Reader, locations []artifact.Location) ([]artifact.Location, error) {
+	var pending []artifact.Location
+	for _, location := range locations {
+		recorded, err := reader.Locations(ctx, location.Artifact)
+		if err != nil {
+			return nil, err
+		}
+		if !slices.Contains(recorded, location) {
+			pending = append(pending, location)
+		}
+	}
+	return pending, nil
+}
+
+func catalogBatch(ctx context.Context, repository artifact.Repository, bundle CompiledCatalog, pending []artifact.Location) (artifact.Batch, error) {
 	batch := artifact.Batch{}
 	for _, inventory := range bundle.Inventories {
 		content, err := inventoryContent(inventory)
@@ -446,7 +470,7 @@ func catalogBatch(ctx context.Context, repository artifact.Repository, bundle Co
 		batch.Contents = append(batch.Contents, content)
 		batch.Lineage = append(batch.Lineage, document.Lineage()...)
 	}
-	for _, location := range bundle.Locations {
+	for _, location := range pending {
 		batch.Locations = append(batch.Locations, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd})
 	}
 	bindings := make([]struct {
@@ -464,6 +488,12 @@ func catalogBatch(ctx context.Context, repository artifact.Repository, bundle Co
 		}{registeredAlias(entry.Name), entry.Dataset})
 	}
 	digest := sha256.New()
+	// Location facts join the batch identity: a location-only
+	// republication must key differently from the alias publication
+	// that preceded it, or the store refuses the retry as a conflict.
+	for _, location := range pending {
+		fmt.Fprintf(digest, "location\x00%s\x00%d\x00%s\x00", location.Artifact, location.Kind, location.Value)
+	}
 	for _, binding := range bindings {
 		current, found, err := repository.ResolveAlias(ctx, binding.name)
 		if err != nil {

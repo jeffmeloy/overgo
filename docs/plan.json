@@ -4,15 +4,211 @@
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
     {
-      "id": "merge-8b52551473fa",
-      "title": "Merge master at 8b52551473fa",
+      "id": "merge-6f7485a52b81",
+      "title": "Merge master at 6f7485a52b81",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Merge master at 8b52551473fa",
+          "title": "Merge master at 6f7485a52b81",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "agent-tool-contract",
+      "title": "UTCP tool manuals as store authority: typed contract, registry, registered aliases, coverage inspector",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "UTCP tool manuals as store authority: typed contract, registry, registered aliases, coverage inspector",
+          "status": "done",
+          "verify": "go test ./internal/agenttool -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-tool-transports",
+      "title": "Native UTCP transports: builtin, bounded HTTP, and guarded argv executors with timeouts and size caps",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Native UTCP transports: builtin, bounded HTTP, and guarded argv executors with timeouts and size caps",
+          "status": "done",
+          "verify": "go test ./internal/agenttool -run TestTransport -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-store-upgrade-guard",
+      "title": "Refuse silent empty-store creation over legacy data; backup honors the legacy log filename",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse silent empty-store creation over legacy data; backup honors the legacy log filename",
+          "status": "done",
+          "verify": "go test ./internal/overgodb ./internal/dataroot -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-rename-residue",
+      "title": "Fix reverify's deleted repodb-query invocation and sweep rename residue from release material",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fix reverify's deleted repodb-query invocation and sweep rename residue from release material",
+          "status": "done",
+          "verify": "go test ./cmd/reverify -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-dataset-locations",
+      "title": "Republish dataset locations for datasets that appear after catalog publication",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Republish dataset locations for datasets that appear after catalog publication",
+          "status": "done",
+          "verify": "go test ./internal/dataset -run TestDatasetCatalogPublish -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-stage-admitted-retry",
+      "title": "Allow stage retry from the admitted state so a crash between admission and running recovers",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Allow stage retry from the admitted state so a crash between admission and running recovers",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -run TestStage -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-tool-call-provenance",
+      "title": "Execute only model-produced tool calls; client-authored assistant messages never execute tools",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Execute only model-produced tool calls; client-authored assistant messages never execute tools",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestToolExecution -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-response-id-durability",
+      "title": "Seed response identifiers from durable state and surface publication failure",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Seed response identifiers from durable state and surface publication failure",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestResponses -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-hub-download-lifecycle",
+      "title": "Bound hub downloads: no total timeout on transfers, admission and retention limits, cancellation",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound hub downloads: no total timeout on transfers, admission and retention limits, cancellation",
+          "status": "open",
+          "verify": "go test ./internal/hfhub ./internal/server -run 'TestHub|TestWorkbenchAPIDownload' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-workflow-admission",
+      "title": "Bound parallel stage execution and serialize adapter entry in the workflow runtime",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound parallel stage execution and serialize adapter entry in the workflow runtime",
+          "status": "open",
+          "verify": "go test ./internal/workflowruntime -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-orchestration",
+      "title": "Agent orchestration state machine: inspection-before-mutation pools, bounded steps, typed refusal of unregistered tools",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Agent orchestration state machine: inspection-before-mutation pools, bounded steps, typed refusal of unregistered tools",
+          "status": "open",
+          "verify": "go test ./internal/agentloop -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-session-ledger",
+      "title": "Durable agent session ledger: session and step documents in OvergoDB with checkpoint and restore",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Durable agent session ledger: session and step documents in OvergoDB with checkpoint and restore",
+          "status": "open",
+          "verify": "go test ./internal/agentsession -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-server-api",
+      "title": "Agent server API: registered tool catalog with coverage, durable sessions, and a stepped agent loop over the served model",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Agent server API: registered tool catalog with coverage, durable sessions, and a stepped agent loop over the served model",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestAgentAPI' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-gui",
+      "title": "Agent workspace in the GUI: chat with tool-event timeline, catalog with mutation badges, session picker, and mutation approval",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Agent workspace in the GUI: chat with tool-event timeline, catalog with mutation badges, session picker, and mutation approval",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestWebUI' -count=1"
         }
       ]
     },
@@ -1886,6 +2082,19 @@
       ]
     },
     {
+      "id": "merge-8b52551473fa",
+      "title": "Merge master at 8b52551473fa",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 8b52551473fa",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
       "id": "merge-703690c4a615",
       "title": "Merge master at 703690c4a615",
       "status": "done",
@@ -1895,202 +2104,6 @@
           "title": "Merge master at 703690c4a615",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
-        }
-      ]
-    },
-    {
-      "id": "agent-tool-contract",
-      "title": "UTCP tool manuals as store authority: typed contract, registry, registered aliases, coverage inspector",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "UTCP tool manuals as store authority: typed contract, registry, registered aliases, coverage inspector",
-          "status": "done",
-          "verify": "go test ./internal/agenttool -count=1"
-        }
-      ]
-    },
-    {
-      "id": "agent-tool-transports",
-      "title": "Native UTCP transports: builtin, bounded HTTP, and guarded argv executors with timeouts and size caps",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Native UTCP transports: builtin, bounded HTTP, and guarded argv executors with timeouts and size caps",
-          "status": "done",
-          "verify": "go test ./internal/agenttool -run TestTransport -count=1"
-        }
-      ]
-    },
-    {
-      "id": "finding-store-upgrade-guard",
-      "title": "Refuse silent empty-store creation over legacy data; backup honors the legacy log filename",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse silent empty-store creation over legacy data; backup honors the legacy log filename",
-          "status": "done",
-          "verify": "go test ./internal/overgodb ./internal/dataroot -count=1"
-        }
-      ]
-    },
-    {
-      "id": "finding-rename-residue",
-      "title": "Fix reverify's deleted repodb-query invocation and sweep rename residue from release material",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fix reverify's deleted repodb-query invocation and sweep rename residue from release material",
-          "status": "done",
-          "verify": "go test ./cmd/reverify -count=1"
-        }
-      ]
-    },
-    {
-      "id": "finding-dataset-locations",
-      "title": "Republish dataset locations for datasets that appear after catalog publication",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Republish dataset locations for datasets that appear after catalog publication",
-          "status": "open",
-          "verify": "go test ./internal/dataset -run TestPublish -count=1"
-        }
-      ]
-    },
-    {
-      "id": "finding-stage-admitted-retry",
-      "title": "Allow stage retry from the admitted state so a crash between admission and running recovers",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Allow stage retry from the admitted state so a crash between admission and running recovers",
-          "status": "open",
-          "verify": "go test ./internal/runrecord -run TestStage -count=1"
-        }
-      ]
-    },
-    {
-      "id": "finding-tool-call-provenance",
-      "title": "Execute only model-produced tool calls; client-authored assistant messages never execute tools",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Execute only model-produced tool calls; client-authored assistant messages never execute tools",
-          "status": "open",
-          "verify": "go test ./internal/server -run TestToolExecution -count=1"
-        }
-      ]
-    },
-    {
-      "id": "finding-response-id-durability",
-      "title": "Seed response identifiers from durable state and surface publication failure",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Seed response identifiers from durable state and surface publication failure",
-          "status": "open",
-          "verify": "go test ./internal/server -run TestResponses -count=1"
-        }
-      ]
-    },
-    {
-      "id": "finding-hub-download-lifecycle",
-      "title": "Bound hub downloads: no total timeout on transfers, admission and retention limits, cancellation",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bound hub downloads: no total timeout on transfers, admission and retention limits, cancellation",
-          "status": "open",
-          "verify": "go test ./internal/hfhub ./internal/server -run 'TestHub|TestWorkbenchAPIDownload' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "finding-workflow-admission",
-      "title": "Bound parallel stage execution and serialize adapter entry in the workflow runtime",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bound parallel stage execution and serialize adapter entry in the workflow runtime",
-          "status": "open",
-          "verify": "go test ./internal/workflowruntime -count=1"
-        }
-      ]
-    },
-    {
-      "id": "agent-orchestration",
-      "title": "Agent orchestration state machine: inspection-before-mutation pools, bounded steps, typed refusal of unregistered tools",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Agent orchestration state machine: inspection-before-mutation pools, bounded steps, typed refusal of unregistered tools",
-          "status": "open",
-          "verify": "go test ./internal/agentloop -count=1"
-        }
-      ]
-    },
-    {
-      "id": "agent-session-ledger",
-      "title": "Durable agent session ledger: session and step documents in OvergoDB with checkpoint and restore",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Durable agent session ledger: session and step documents in OvergoDB with checkpoint and restore",
-          "status": "open",
-          "verify": "go test ./internal/agentsession -count=1"
-        }
-      ]
-    },
-    {
-      "id": "agent-server-api",
-      "title": "Agent server API: registered tool catalog with coverage, durable sessions, and a stepped agent loop over the served model",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Agent server API: registered tool catalog with coverage, durable sessions, and a stepped agent loop over the served model",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestAgentAPI' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "agent-gui",
-      "title": "Agent workspace in the GUI: chat with tool-event timeline, catalog with mutation badges, session picker, and mutation approval",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Agent workspace in the GUI: chat with tool-event timeline, catalog with mutation badges, session picker, and mutation approval",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestWebUI' -count=1"
         }
       ]
     }

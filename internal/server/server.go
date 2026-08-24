@@ -390,6 +390,7 @@ type Handler struct {
 	thinkingSigner     *anthropicThinkingSigner
 	operations         *operation.Manager
 	tools              toolCallExecutor
+	issuedCalls        *issuedCallRegistry
 	repository         *overgodb.Store
 	browseRepository   *overgodb.Store
 	environment        runrecord.Environment
@@ -513,6 +514,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 	}
 	handler := &Handler{
 		catalogMemo:      discovery.NewMemo(),
+		issuedCalls:      newIssuedCallRegistry(),
 		config:           config,
 		generator:        generator,
 		sessions:         sessions,

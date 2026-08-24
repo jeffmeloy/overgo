@@ -91,12 +91,12 @@
       "id": "finding-tool-call-provenance",
       "title": "Execute only model-produced tool calls; client-authored assistant messages never execute tools",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Execute only model-produced tool calls; client-authored assistant messages never execute tools",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestToolExecution -count=1"
         }
       ]

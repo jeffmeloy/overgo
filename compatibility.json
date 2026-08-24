@@ -689,13 +689,13 @@
      "contains": "func (h *Handler) executePendingTools(",
      "path": "internal/server/tool_execution.go",
      "role": "source",
-     "identity": "file:sha256:8bb9425d98b4cb2653e66a17a69f885d341946430601ab86fc7576a0ca036b6b"
+     "identity": "file:sha256:0508058f3253fcc91ea861be8a32ae8be1f9103942201eeb226ce5daea1a029f"
     },
     {
      "contains": "func TestProtocolToolExecutionParity(",
      "path": "internal/server/tool_execution_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:a0f2f82a973e2d93c52ae93307bfd6f4a82d93c4ac9b9a2bac273e13529e2f07"
+     "identity": "evidence:sha256:136a5f4538e566e73dbfe46e249432b79b61edd58b201ca30de53dc2109d4bb6"
     }
    ],
    "id": "recipe-admitted-tool-runtime",
@@ -731,7 +731,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:6078e9c7b608feb9a6a8f47c11c01251e13ef6e5a9f8a4e61e437278a7a86eb0"
+     "identity": "file:sha256:60784447c47c49e35e691edc860ccef8c167791abecce005e7e23f68ebacb627"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -800,7 +800,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:8b0392e92729f5cbb2f60305a4e78d6bef2c83347c447e10d969e7ba965a00c2"
+     "identity": "file:sha256:9f129caa6b5e70029d3b57b55f26a2e37dec3067b54fa2edf7291513a0951aed"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -884,7 +884,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:6078e9c7b608feb9a6a8f47c11c01251e13ef6e5a9f8a4e61e437278a7a86eb0"
+     "identity": "file:sha256:60784447c47c49e35e691edc860ccef8c167791abecce005e7e23f68ebacb627"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",

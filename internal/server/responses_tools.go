@@ -632,10 +632,11 @@ func responseItems(
 	return items
 }
 
-func assignResponseCallIDs(message *inference.ChatMessage, idSuffix string) {
+func (h *Handler) assignResponseCallIDs(message *inference.ChatMessage, idSuffix string) {
 	for index := range message.ToolCalls {
 		if message.ToolCalls[index].ID == "" {
 			message.ToolCalls[index].ID = fmt.Sprintf("call_%s_%d", idSuffix, index)
 		}
 	}
+	h.issuedCalls.record(message.ToolCalls...)
 }

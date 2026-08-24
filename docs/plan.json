@@ -1316,12 +1316,12 @@
       "id": "adk-repodb-live-reader",
       "title": "Retain one incrementally refreshed RepoDB reader per server",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Extend Store with validated tail refresh, make Handler own one browse reader when no writable repository is supplied, and delete per-request OpenReadOnly replay and release plumbing",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/overgodb ./internal/server -run 'Test(ReadOnlyRefreshAppliesCommittedTail|ReadOnlyRefreshRejectsFork|HandlerRetainsBrowseStore|HandlerClosesBrowseStore)' -count=1",
           "rationale": "Artifact, run, activity, and analysis handlers repeatedly open and replay the same store. One handler-owned reader should refresh only validated log tail records and publish a coherent catalog head to queries. The writable repository remains shared directly when configured.",
           "depends_on": [

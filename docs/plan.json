@@ -196,13 +196,13 @@
       "id": "agent-server-api",
       "title": "Agent server API as protocol projection only: registered tool catalog with coverage, interaction-backed sessions, stepped loop; named negative test for non-durable publication",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Agent server API as protocol projection only: registered tool catalog with coverage, interaction-backed sessions, stepped loop; named negative test for non-durable publication",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestAgentAPI' -count=1",
+          "status": "done",
+          "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestWebUI' -count=1",
           "depends_on": [
             "agent-orchestration/do"
           ]

@@ -173,7 +173,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	maxTokens, err := boundedProtocolTokens(
-		body.MaxOutputTokens, defaultProtocolMaxTokens, h.config.MaxTokens, "max_output_tokens", false,
+		body.MaxOutputTokens, h.defaultOutputTokens, h.config.MaxTokens, "max_output_tokens", false,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)

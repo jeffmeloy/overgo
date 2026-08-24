@@ -252,7 +252,7 @@
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:f0682da7d0d704ef059b35468e61e422e2956d995921a09ffc5d15dc552dc241"
+     "identity": "evidence:sha256:95d6a2194906902226a74d287f6d5dc516de834b11f2ac90fd405e7032ae44ce"
     }
    ],
    "id": "bounded-server-media",
@@ -731,7 +731,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:6078e9c7b608feb9a6a8f47c11c01251e13ef6e5a9f8a4e61e437278a7a86eb0"
+     "identity": "file:sha256:831cdad58de59479fd7be73c697edd9d938e04b6248d7cbd96e3c4018d346f52"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -800,7 +800,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:8b0392e92729f5cbb2f60305a4e78d6bef2c83347c447e10d969e7ba965a00c2"
+     "identity": "file:sha256:aea3b740fc282adb21f3ee5d76629ab7da1c8f72f029e4b8e5f88e8aec3c2929"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -884,7 +884,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:6078e9c7b608feb9a6a8f47c11c01251e13ef6e5a9f8a4e61e437278a7a86eb0"
+     "identity": "file:sha256:831cdad58de59479fd7be73c697edd9d938e04b6248d7cbd96e3c4018d346f52"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",

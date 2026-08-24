@@ -36,14 +36,24 @@ func publishCandidate(
 	}
 	contents := []artifact.Content{definitionContent, eventContent}
 	lineage := event.Lineage()
+	aliases := []artifact.AliasBinding{{Name: statusAlias(definition.ID), Target: event.ID}}
 	for _, dependency := range definition.Dependencies {
 		lineage = append(lineage, artifact.Lineage{
 			Child: definition.ID, Parent: dependency.Artifact, Relation: artifact.RelationDependsOn,
 		})
 	}
-	batch, err := artifact.NewDocumentBatch(key, contents, lineage, []artifact.AliasBinding{{
-		Name: statusAlias(definition.ID), Target: event.ID,
-	}})
+	policyContent, policyAlias, policyFound, err := runtimePolicyBinding(definition)
+	if err != nil {
+		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
+	}
+	if policyFound {
+		contents = append(contents, policyContent)
+		aliases = append(aliases, policyAlias)
+		lineage = append(lineage, artifact.Lineage{
+			Child: definition.ID, Parent: policyContent.Descriptor.ID, Relation: artifact.RelationDependsOn,
+		})
+	}
+	batch, err := artifact.NewDocumentBatch(key, contents, lineage, aliases)
 	if err != nil {
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
@@ -90,6 +100,8 @@ func ActivateCapability(
 			return fmt.Errorf("model recipe: publish candidate: %w", err)
 		}
 		state = recipe.StatusCandidate
+	} else if err := EnsureRuntimePolicy(ctx, store, definition); err != nil {
+		return err
 	}
 	if state == recipe.StatusCandidate {
 		if _, _, err := Transition(

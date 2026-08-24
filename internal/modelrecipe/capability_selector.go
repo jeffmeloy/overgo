@@ -3,6 +3,7 @@ package modelrecipe
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -38,6 +39,7 @@ type CapabilityEvidenceSelection struct {
 	Activation Activation
 	Program    recipe.Program
 	Resources  ComponentSessionPlan
+	Policy     RuntimePolicy
 	Bundles    []CapabilityBundle
 	Peer       RemotePeerCompatibility
 }
@@ -49,6 +51,7 @@ type capabilitySelectionIdentity struct {
 	Model     artifact.ID      `json:"model"`
 	Recipe    artifact.ID      `json:"recipe"`
 	Resources artifact.ID      `json:"resources"`
+	Policy    *artifact.ID     `json:"policy,omitempty"`
 	Bundles   []artifact.ID    `json:"bundles,omitempty"`
 	Evidence  *artifact.ID     `json:"evidence,omitempty"`
 	Peer      *artifact.ID     `json:"peer,omitempty"`
@@ -70,7 +73,11 @@ func CompileCandidateExecution(
 	if err != nil {
 		return CapabilityEvidenceSelection{}, err
 	}
-	return compileCapabilitySelection("", SessionWarm, Activation{Definition: program.Definition()}, program, resources, nil, RemotePeerCompatibility{})
+	policy, err := resolveRuntimePolicyOptional(ctx, store, program.Definition())
+	if err != nil {
+		return CapabilityEvidenceSelection{}, err
+	}
+	return compileCapabilitySelection("", SessionWarm, Activation{Definition: program.Definition()}, program, resources, policy, nil, RemotePeerCompatibility{})
 }
 
 // ResolveActiveExecution resolves one model's active local execution.
@@ -96,7 +103,11 @@ func ResolveActiveExecution(
 	if err != nil {
 		return CapabilityEvidenceSelection{}, err
 	}
-	return compileCapabilitySelection("", session, activation, program, resources, bundles, RemotePeerCompatibility{})
+	policy, err := resolveRuntimePolicyOptional(ctx, store, program.Definition())
+	if err != nil {
+		return CapabilityEvidenceSelection{}, err
+	}
+	return compileCapabilitySelection("", session, activation, program, resources, policy, bundles, RemotePeerCompatibility{})
 }
 
 // ResolveCapabilityEvidenceSelector resolves OvergoDB alias, recipe, evidence, and resources.
@@ -142,7 +153,11 @@ func ResolveCapabilityEvidenceSelector(
 	} else if selector.Compatibility.Valid() {
 		return CapabilityEvidenceSelection{}, errors.New("model recipe: local selection carries remote compatibility")
 	}
-	return compileCapabilitySelection(selector.Alias, selector.Session, activation, program, resources, bundles, peer)
+	policy, err := resolveRuntimePolicyOptional(ctx, store, program.Definition())
+	if err != nil {
+		return CapabilityEvidenceSelection{}, err
+	}
+	return compileCapabilitySelection(selector.Alias, selector.Session, activation, program, resources, policy, bundles, peer)
 }
 
 // RefreshCapabilityExecution returns current authority or rejects incompatible replacement.
@@ -156,7 +171,7 @@ func RefreshCapabilityExecution(
 	}
 	validated, err := compileCapabilitySelection(
 		selection.Alias, selection.Session, selection.Activation,
-		selection.Program, selection.Resources, selection.Bundles, selection.Peer,
+		selection.Program, selection.Resources, selection.Policy, selection.Bundles, selection.Peer,
 	)
 	if err != nil || validated.Identity != selection.Identity {
 		return CapabilityEvidenceSelection{}, errors.Join(errors.New("model recipe: capability execution identity differs"), err)
@@ -217,7 +232,7 @@ func sameCapabilityExecution(left, right CapabilityEvidenceSelection) bool {
 	return left.Program.Definition().Model == right.Program.Definition().Model &&
 		left.Program.Definition().ID == right.Program.Definition().ID &&
 		left.Resources.Identity == right.Resources.Identity && left.Session == right.Session &&
-		sameCapabilityBundles(left.Bundles, right.Bundles) && left.Peer.ID == right.Peer.ID
+		left.Policy.ID == right.Policy.ID && sameCapabilityBundles(left.Bundles, right.Bundles) && left.Peer.ID == right.Peer.ID
 }
 
 func compileCapabilitySelection(
@@ -226,6 +241,7 @@ func compileCapabilitySelection(
 	activation Activation,
 	program recipe.Program,
 	resources ComponentSessionPlan,
+	policy RuntimePolicy,
 	bundles []CapabilityBundle,
 	peer RemotePeerCompatibility,
 ) (CapabilityEvidenceSelection, error) {
@@ -254,6 +270,13 @@ func compileCapabilitySelection(
 	if activation.Event.ID.Valid() {
 		evidenceID = artifact.CloneID(&activation.Event.ID)
 	}
+	var policyID *artifact.ID
+	if policy.ID.Valid() {
+		policyID = artifact.CloneID(&policy.ID)
+		if !slices.Contains(policy.Tasks, definition.Task) {
+			return CapabilityEvidenceSelection{}, errors.New("model recipe: runtime policy task differs")
+		}
+	}
 	scope := definition.ID
 	if activation.Event.ID.Valid() {
 		var err error
@@ -267,13 +290,26 @@ func compileCapabilitySelection(
 	identity, err := artifact.JSONID(artifact.KindProfile, capabilitySelectionIdentity{
 		Scope: scope, Alias: alias, Session: session,
 		Model: definition.Model, Recipe: definition.ID,
-		Resources: resources.Identity, Bundles: bundleIDs, Evidence: evidenceID, Peer: peerID,
+		Resources: resources.Identity, Policy: policyID, Bundles: bundleIDs, Evidence: evidenceID, Peer: peerID,
 	})
 	if err != nil {
 		return CapabilityEvidenceSelection{}, err
 	}
 	return CapabilityEvidenceSelection{
 		Identity: identity, Scope: scope, Alias: alias, Session: session,
-		Activation: activation, Program: program, Resources: resources, Bundles: cloneCapabilityBundles(bundles), Peer: peer,
+		Activation: activation, Program: program, Resources: resources, Policy: policy,
+		Bundles: cloneCapabilityBundles(bundles), Peer: peer,
 	}, nil
+}
+
+func resolveRuntimePolicyOptional(
+	ctx context.Context,
+	store artifact.Reader,
+	definition recipe.Definition,
+) (RuntimePolicy, error) {
+	_, supported, err := CatalogRuntimePolicy(definition.Task)
+	if err != nil || !supported {
+		return RuntimePolicy{}, err
+	}
+	return ResolveRuntimePolicy(ctx, store, definition)
 }

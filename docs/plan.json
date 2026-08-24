@@ -84,13 +84,13 @@
       "id": "literal-runtime-policy",
       "title": "Make recipes and artifact facts the sole authority for generation and serving defaults",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Resolve sampling, token, video frame, frame-rate, denoise, guidance, shift, seed, and serving defaults from active recipes or artifact facts; retain CLI values only as explicit overrides; migrate generate, latentvideo-run, server, and sampler callers; delete global and command-local policy bundles",
-          "status": "open",
-          "verify": "go test ./cmd/generate ./cmd/latentvideo-run ./internal/sampling ./internal/server ./internal/modelrecipe -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd/generate,cmd/latentvideo-run,internal/sampling,internal/server -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "status": "done",
+          "verify": "go test ./cmd/generate -run '^TestReadProjectedInputs$' -count=1 \u0026\u0026 go test ./cmd/latentvideo-run -run '^TestSummarizeProducesFiniteJSONStatistics$' -count=1 \u0026\u0026 go test ./internal/sampling -run '^TestGreedyAndTieBreak$' -count=1 \u0026\u0026 go test ./internal/server -run '^TestProperties$' -count=1 \u0026\u0026 go test ./internal/modelrecipe -run '^TestAtomicEvidenceGatedActivation$' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd/generate,cmd/latentvideo-run,internal/sampling,internal/server -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts \u003e /dev/null",
           "rationale": "Command and package defaults duplicate runtime policy and obscure paths that differ only by recipe parameters.",
           "depends_on": [
             "architecture-profile-catalog/do"

@@ -18,6 +18,7 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/discovery"
 	"overgo/internal/modelartifact"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
@@ -56,6 +57,7 @@ func run(args []string, output io.Writer) error {
 	retrieve := flags.String("retrieve", "", "hypervector retrieval: rank the catalog against the named component (lexical organ + distributional signal)")
 	verifications := flags.Bool("verifications", false, "derive the model verification matrix from committed records: strongest evidenced tier per capability")
 	configs := flags.Bool("configs", false, "list committed model-config declarations: sequence extensions and generation essentials with source digests")
+	profiles := flags.Bool("profiles", false, "audit registered architecture-profile publication")
 	contentDump := flags.Bool("content", false, "print the raw committed content bytes of the artifact named by -id")
 	magicClosures := flags.Bool("magic-closures", false, "list magic census history, owner pressure, and unresolved bindings")
 	if err := flags.Parse(args); err != nil {
@@ -100,6 +102,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *configs {
 		return writeConfigs(output, *repository, *limit)
+	}
+	if *profiles {
+		return writeProfiles(output, *repository, *jsonOutput)
 	}
 	if *contentDump {
 		return writeContent(output, *repository, *idText)
@@ -149,6 +154,28 @@ func run(args []string, output io.Writer) error {
 		return clioptions.WritePrettyJSON(output, result)
 	}
 	return writeText(output, result)
+}
+
+func writeProfiles(output io.Writer, repository string, jsonOutput bool) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	coverage, err := modelrecipe.InspectArchitectureProfileCatalog(context.Background(), store)
+	if err != nil {
+		return err
+	}
+	if jsonOutput {
+		return clioptions.WritePrettyJSON(output, coverage)
+	}
+	fmt.Fprintf(output, "profiles registered=%d published=%d complete=%t\n",
+		coverage.Registered, coverage.Published, coverage.Complete)
+	for _, entry := range coverage.Entries {
+		fmt.Fprintf(output, "architecture=%s status=%s profile=%s\n",
+			entry.Architecture, entry.Status, entry.Expected)
+	}
+	return nil
 }
 
 type magicClosureRun struct {

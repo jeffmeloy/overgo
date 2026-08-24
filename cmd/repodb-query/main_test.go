@@ -12,8 +12,54 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/model"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/repodb"
 )
+
+func TestProfileCatalogQueryReportsExactCoverage(t *testing.T) {
+	repository := t.TempDir()
+	store, err := repodb.Open(repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var emptyOutput bytes.Buffer
+	if err := run([]string{"-repo", repository, "-profiles", "-json"}, &emptyOutput); err != nil {
+		t.Fatal(err)
+	}
+	var empty modelrecipe.ProfileCatalogCoverage
+	if err := json.Unmarshal(emptyOutput.Bytes(), &empty); err != nil {
+		t.Fatal(err)
+	}
+	if empty.Complete || empty.Published != 0 || empty.Registered != len(model.SupportedArchitectures()) {
+		t.Fatalf("empty coverage = %+v", empty)
+	}
+	store, err = repodb.Open(repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := modelrecipe.PublishArchitectureProfileCatalog(context.Background(), store); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := run([]string{"-repo", repository, "-profiles", "-json"}, &output); err != nil {
+		t.Fatal(err)
+	}
+	var coverage modelrecipe.ProfileCatalogCoverage
+	if err := json.Unmarshal(output.Bytes(), &coverage); err != nil {
+		t.Fatal(err)
+	}
+	if !coverage.Complete || coverage.Registered != len(model.SupportedArchitectures()) ||
+		coverage.Published != coverage.Registered || len(coverage.Entries) != coverage.Registered {
+		t.Fatalf("coverage = %+v", coverage)
+	}
+}
 
 func TestMagicClosureQueries(t *testing.T) {
 	root := t.TempDir()

@@ -28,18 +28,9 @@ const unsupportedProfilePolicyValue = ^uint8(0)
 
 func seedProfileDocuments(t *testing.T) []ProfileDocument {
 	t.Helper()
-	names := model.SupportedArchitectures()
-	documents := make([]ProfileDocument, 0, len(names))
-	for _, name := range names {
-		profile, ok := model.LookupArchitecture(name)
-		if !ok {
-			t.Fatalf("registered profile %q is absent", name)
-		}
-		document, err := NewProfileDocument(profile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		documents = append(documents, document)
+	documents, err := CompileArchitectureProfileCatalog()
+	if err != nil {
+		t.Fatal(err)
 	}
 	return documents
 }

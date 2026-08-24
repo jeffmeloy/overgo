@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -24,18 +25,25 @@ type agentSessions struct {
 	sessions map[string]*agentloop.Session
 }
 
-func (s *agentSessions) get(id string) *agentloop.Session {
+// get returns the live session, restoring it from the durable
+// interaction ledger on first sight so a restarted server neither
+// forgets a session's step count and inspection state nor forges them.
+// The session itself serializes its steps; this map only names it.
+func (s *agentSessions) get(ctx context.Context, coordinator *agentloop.Coordinator, id string) (*agentloop.Session, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.sessions == nil {
 		s.sessions = map[string]*agentloop.Session{}
 	}
-	session, found := s.sessions[id]
-	if !found {
-		session = &agentloop.Session{ID: id}
-		s.sessions[id] = session
+	if session, found := s.sessions[id]; found {
+		return session, nil
 	}
-	return session
+	session, err := coordinator.RestoreSession(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	s.sessions[id] = session
+	return session, nil
 }
 
 // agentTools projects the registered tool catalog with its effect
@@ -104,7 +112,11 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 	if len(arguments) == 0 {
 		arguments = json.RawMessage(`{}`)
 	}
-	session := h.agentSessions.get(body.Session)
+	session, err := h.agentSessions.get(request.Context(), h.agentCoordinator, body.Session)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
+		return
+	}
 	result, err := h.agentCoordinator.Propose(request.Context(), session, body.Tool, arguments, body.Approve)
 	if err != nil {
 		writeError(response, http.StatusUnprocessableEntity, "agent_step_refused", err.Error())

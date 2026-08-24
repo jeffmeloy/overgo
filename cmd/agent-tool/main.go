@@ -33,6 +33,7 @@ func run(args []string, output io.Writer) error {
 	flags.SetOutput(io.Discard)
 	repository := flags.String("repo", "", "OvergoDB root")
 	manualsPath := flags.String("manuals", "", "JSON manual declarations ({manuals:[...]})")
+	argvAllow := flags.String("argv-allow", "", "comma-separated programs argv manuals may name; empty refuses every argv manual")
 	inspect := flags.Bool("inspect", false, "audit the declared manuals against the store without publishing")
 	resolve := flags.String("resolve", "", "resolve one registered tool manual by name")
 	invoke := flags.String("invoke", "", "invoke one registered tool manual by name over its declared transport")
@@ -85,7 +86,7 @@ func run(args []string, output io.Writer) error {
 		_, err = fmt.Fprintf(output, "%s\n", result)
 		return err
 	}
-	manuals, err := loadManuals(*manualsPath)
+	manuals, err := loadManuals(*manualsPath, *argvAllow)
 	if err != nil {
 		return err
 	}
@@ -121,7 +122,7 @@ func run(args []string, output io.Writer) error {
 // loadManuals returns the standard store-inspection manuals plus any
 // declared in the optional file; declarations never shadow a standard
 // name, so the inspection ground stays canonical.
-func loadManuals(path string) ([]agenttool.Manual, error) {
+func loadManuals(path, argvAllow string) ([]agenttool.Manual, error) {
 	manuals, err := agenttool.StandardManuals()
 	if err != nil {
 		return nil, err
@@ -141,6 +142,12 @@ func loadManuals(path string) ([]agenttool.Manual, error) {
 	for _, manual := range manuals {
 		standard[manual.Name] = true
 	}
+	allowed := map[string]bool{}
+	for _, program := range strings.Split(argvAllow, ",") {
+		if trimmed := strings.TrimSpace(program); trimmed != "" {
+			allowed[trimmed] = true
+		}
+	}
 	for _, declaration := range declared.Manuals {
 		manual, err := agenttool.NewManual(declaration)
 		if err != nil {
@@ -148,6 +155,12 @@ func loadManuals(path string) ([]agenttool.Manual, error) {
 		}
 		if standard[manual.Name] {
 			return nil, fmt.Errorf("agent-tool: %q shadows a standard manual", manual.Name)
+		}
+		// Publication is the allowlist boundary: an argv manual may only
+		// name a program the operator listed explicitly, so "bare word on
+		// PATH" never silently widens into "any command on PATH".
+		if manual.Transport.Kind == agenttool.TransportArgv && !allowed[manual.Transport.Program] {
+			return nil, fmt.Errorf("agent-tool: argv manual %q names %q outside -argv-allow", manual.Name, manual.Transport.Program)
 		}
 		manuals = append(manuals, manual)
 	}

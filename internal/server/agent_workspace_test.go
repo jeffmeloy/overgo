@@ -112,3 +112,51 @@ func TestAgentWorkspaceRefusesUnregisteredTool(t *testing.T) {
 		t.Fatalf("unregistered tool status=%d body=%s", refused.Code, refused.Body.String())
 	}
 }
+
+// TestAgentWorkspaceRestoresSessionsAcrossRestart pins durable session
+// continuity: a fresh handler over the same store resumes the session
+// with its recorded step count and inspection state, so a restart
+// neither resets the mutation gate nor forks the interaction chain.
+func TestAgentWorkspaceRestoresSessionsAcrossRestart(t *testing.T) {
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	generator := responseRecipeGenerator(t, &fakeGenerator{})
+	if _, err := store.Commit(context.Background(), artifact.Batch{
+		Key:       "agent/restart-identity",
+		Artifacts: []artifact.Descriptor{{ID: generator.description.Identity.Recipe}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	manuals, err := agenttool.StandardManuals()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agenttool.PublishManualCatalog(context.Background(), store, manuals); err != nil {
+		t.Fatal(err)
+	}
+	first, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	step := serveTestRequest(first, http.MethodPost, "/agent/step", `{"session":"restart-1","tool":"store.head"}`)
+	if step.Code != http.StatusOK || !strings.Contains(step.Body.String(), `"steps":1`) {
+		t.Fatalf("first step status=%d body=%s", step.Code, step.Body.String())
+	}
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+	second, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	resumed := serveTestRequest(second, http.MethodPost, "/agent/step", `{"session":"restart-1","tool":"store.head"}`)
+	if resumed.Code != http.StatusOK ||
+		!strings.Contains(resumed.Body.String(), `"steps":2`) ||
+		!strings.Contains(resumed.Body.String(), `"inspected":true`) {
+		t.Fatalf("resumed step status=%d body=%s", resumed.Code, resumed.Body.String())
+	}
+}

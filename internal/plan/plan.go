@@ -153,13 +153,23 @@ func validateDependencies(d Plan) error {
 	for _, item := range d.Items {
 		for _, step := range item.Steps {
 			for _, reference := range step.DependsOn {
-				target, _, _ := strings.Cut(reference, "/")
+				target, targetStep, hasStep := strings.Cut(reference, "/")
 				if err := resolveDependency(itemIndex, reference); err != nil {
 					return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
 				}
 				if target != item.ID {
 					edges[item.ID] = append(edges[item.ID], target)
+					continue
 				}
+				// A same-item reference must name a DIFFERENT step: a step
+				// depending on its own item (or itself) can never satisfy
+				// and would sit permanently undispatchable.
+				if !hasStep || targetStep == step.ID {
+					return fmt.Errorf(
+						"plan step %s/%s: depends_on %q can never satisfy: a step cannot depend on its own item or itself",
+						item.ID, step.ID, reference)
+				}
+				edges[item.ID+"/"+step.ID] = append(edges[item.ID+"/"+step.ID], item.ID+"/"+targetStep)
 			}
 		}
 	}

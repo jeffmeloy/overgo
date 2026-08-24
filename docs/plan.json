@@ -4,15 +4,29 @@
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
     {
-      "id": "merge-1f48778cc813",
-      "title": "Merge master at 1f48778cc813",
+      "id": "merge-e03ed8f1974c",
+      "title": "Merge master at e03ed8f1974c",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Merge master at 1f48778cc813",
+          "title": "Merge master at e03ed8f1974c",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "merge-tightening-adk",
+      "title": "Merge the tightening ADK campaign into master",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge the tightening ADK campaign into master",
+          "status": "done",
+          "verify": "go test ./internal/agentloop ./internal/workflowruntime ./cmd/agent-tool ./cmd/agent-loop -count=1 \u0026\u0026 go test ./internal/server -run 'TestAgentWorkspace|TestWorkbenchAPI|TestWebUI' -count=1"
         }
       ]
     },
@@ -2014,6 +2028,22 @@
           ]
         },
         {
+          "id": "do",
+          "title": "Represent operand roles, ranks, axes, layouts, output rules, runtime attributes, and launch bindings in narrow typed operator schemas; migrate recurrent, attention-layout, and math-vision builders plus reference and CUDA executors together; delete displaced rank checks, slot maps, launch branches, and duplicated shape arithmetic",
+          "status": "done",
+          "verify": "go test ./internal/tensor ./internal/tensor/reference -count=1 \u0026\u0026 go test ./internal/cuda/executor -run '^(TestCompilePinsTopologyAndMemoryPlan|TestCUDAOperationProgramsCoverRegistry|TestCompiledRuntimeAttributesUseNodeIndexes|TestGeneratedKernelArgumentCountValidation)$' -count=1",
+          "rationale": "Builder, CPU reference, and CUDA launch files repeat the largest concentration of shape, axis, and operand-position facts. One compiled schema should drive all three without a property bag.",
+          "depends_on": [
+            "literal-operator-contracts/runtime-word-schema"
+          ],
+          "capabilities": [
+            "tensor",
+            "cuda",
+            "operator-schema",
+            "processing"
+          ]
+        },
+        {
           "id": "runtime-attribute-indexing",
           "title": "Compile runtime attribute addresses into launch frames and delete tensor-keyed launch lookups",
           "status": "done",
@@ -2043,22 +2073,6 @@
             "cuda",
             "operator-schema",
             "surface-reduction"
-          ]
-        },
-        {
-          "id": "do",
-          "title": "Represent operand roles, ranks, axes, layouts, output rules, runtime attributes, and launch bindings in narrow typed operator schemas; migrate recurrent, attention-layout, and math-vision builders plus reference and CUDA executors together; delete displaced rank checks, slot maps, launch branches, and duplicated shape arithmetic",
-          "status": "done",
-          "verify": "go test ./internal/tensor ./internal/tensor/reference -count=1 \u0026\u0026 go test ./internal/cuda/executor -run '^(TestCompilePinsTopologyAndMemoryPlan|TestCUDAOperationProgramsCoverRegistry|TestCompiledRuntimeAttributesUseNodeIndexes|TestGeneratedKernelArgumentCountValidation)$' -count=1",
-          "rationale": "Builder, CPU reference, and CUDA launch files repeat the largest concentration of shape, axis, and operand-position facts. One compiled schema should drive all three without a property bag.",
-          "depends_on": [
-            "literal-operator-contracts/runtime-word-schema"
-          ],
-          "capabilities": [
-            "tensor",
-            "cuda",
-            "operator-schema",
-            "processing"
           ]
         }
       ]
@@ -2229,16 +2243,253 @@
       ]
     },
     {
-      "id": "merge-tightening-adk",
-      "title": "Merge the tightening ADK campaign into master",
+      "id": "merge-1f48778cc813",
+      "title": "Merge master at 1f48778cc813",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 1f48778cc813",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "verify-qwen35-training",
+      "title": "Verify Qwen3.5 dense training",
       "owner": "gui",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Merge the tightening ADK campaign into master",
+          "title": "Verify Qwen3.5 dense training",
           "status": "done",
-          "verify": "go test ./internal/agentloop ./internal/workflowruntime ./cmd/agent-tool ./cmd/agent-loop -count=1 \u0026\u0026 go test ./internal/server -run 'TestAgentWorkspace|TestWorkbenchAPI|TestWebUI' -count=1"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestQwen35RealTraining -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-gemma-e4b-training",
+      "title": "Verify Gemma E4B training",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Gemma E4B training",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestGemmaE4BRealTraining -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-scratch-training",
+      "title": "Verify from-scratch training leadership",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify from-scratch training leadership",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestScratchTrainingLeadership -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-dense-training",
+      "title": "Verify dense training leadership",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify dense training leadership",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestDenseTrainingLeadership -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-multimodal-training",
+      "title": "Verify multimodal training matrix",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify multimodal training matrix",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestMultimodalTrainingMatrix -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-alternating-window-training",
+      "title": "Verify alternating-window training cells",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify alternating-window training cells",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestAlternatingWindowTrainingCells -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-text-structured-inference",
+      "title": "Verify text and structured inference matrix",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify text and structured inference matrix",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestInferenceTextAndStructuredMatrix -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-multimodal-inference",
+      "title": "Verify multimodal input inference matrix",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify multimodal input inference matrix",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestMultimodalInputMatrix -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-video-inference",
+      "title": "Verify Wan2.1 video generation inference",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Wan2.1 video generation inference",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestVideoGenerationLeadership -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-unlimited-ocr-inference",
+      "title": "Verify Unlimited-OCR production inference",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Unlimited-OCR production inference",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestUnlimitedOCRProductionParity -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-pocket-tts-inference",
+      "title": "Verify pocket-tts production inference",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify pocket-tts production inference",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -tags integration -run TestPocketTTSProductionParity -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-needle-inference",
+      "title": "Verify Needle process-peak inference",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Needle process-peak inference",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -tags modeltest -run TestNeedleProcessPeakLeadership -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-simplediffusion-inference",
+      "title": "Verify SimpleDiffusion process inference",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify SimpleDiffusion process inference",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -tags modeltest -run TestSimpleDiffusionProcessLeadership -count=1"
+        }
+      ]
+    },
+    {
+      "id": "fix-agenttool-regressions",
+      "title": "Restore invocation timeouts, enforce a real argv allowlist at publication, serialize per-manual execution",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore invocation timeouts, enforce a real argv allowlist at publication, serialize per-manual execution",
+          "status": "done",
+          "verify": "go test ./internal/agenttool ./cmd/agent-tool ./internal/agentloop -count=1"
+        }
+      ]
+    },
+    {
+      "id": "fix-agent-session-safety",
+      "title": "Make agent sessions concurrency-safe and durably restorable; add the named negative test for non-durable response publication",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make agent sessions concurrency-safe and durably restorable; add the named negative test for non-durable response publication",
+          "status": "done",
+          "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestResponses' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "fix-plan-self-dependencies",
+      "title": "Validate same-item dependency edges: a step cannot depend on its own item or form intra-item cycles",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate same-item dependency edges: a step cannot depend on its own item or form intra-item cycles",
+          "status": "done",
+          "verify": "go test ./internal/plan -run TestDepend -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-gemma4-fp8-inference",
+      "title": "Verify Gemma-4 FP8 inference leadership",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Gemma-4 FP8 inference leadership",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_GEMMA4_BASELINE=1 go test ./internal/adaptiveparity -run TestGemma4FP8Leadership -count=1"
         }
       ]
     }

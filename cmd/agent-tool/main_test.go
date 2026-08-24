@@ -22,14 +22,17 @@ func TestAgentToolPublishInspectResolve(t *testing.T) {
 		t.Fatal(err)
 	}
 	var published bytes.Buffer
-	if err := run([]string{"-repo", repository, "-manuals", manuals}, &published); err != nil {
+	if err := run([]string{"-repo", repository, "-manuals", manuals}, &published); err == nil {
+		t.Fatal("argv manual published without an allowlist entry")
+	}
+	if err := run([]string{"-repo", repository, "-manuals", manuals, "-argv-allow", "go"}, &published); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(published.String(), "registered=4 published=4 changed=true") {
 		t.Fatalf("publish output = %q", published.String())
 	}
 	var inspected bytes.Buffer
-	if err := run([]string{"-repo", repository, "-manuals", manuals, "-inspect"}, &inspected); err != nil {
+	if err := run([]string{"-repo", repository, "-manuals", manuals, "-argv-allow", "go", "-inspect"}, &inspected); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(inspected.String(), "complete=true") {

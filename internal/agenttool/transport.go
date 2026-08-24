@@ -10,18 +10,28 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
+	"sync"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
 )
+
+// invokeTimeout bounds one tool invocation end to end; a tool that
+// cannot answer within it is a failed call, never a hung agent step.
+const invokeTimeout = 60 * time.Second
 
 // Builtin is one in-process tool implementation: strict JSON in,
 // strict JSON out.
 type Builtin func(context.Context, json.RawMessage) (json.RawMessage, error)
 
 // Executor invokes manuals over their declared native transports.
+// Entry is serialized per manual: no transport promises concurrency
+// safety, so two steps naming one tool never enter it at once.
 type Executor struct {
+	mu       sync.Mutex
 	builtins map[string]Builtin
+	entries  map[string]*sync.Mutex
 	client   *http.Client
 }
 
@@ -30,7 +40,7 @@ type Executor struct {
 // private, or link-local addresses refused at dial time. Every
 // network-facing surface uses this constructor.
 func NewExecutor() *Executor {
-	return &Executor{builtins: map[string]Builtin{}, client: newTransportClient(false)}
+	return &Executor{builtins: map[string]Builtin{}, entries: map[string]*sync.Mutex{}, client: newTransportClient(false)}
 }
 
 // NewOperatorExecutor returns the operator's executor: identical
@@ -38,7 +48,18 @@ func NewExecutor() *Executor {
 // because an operator invoking local tooling from the CLI is not a
 // server fetching on a client's behalf. Redirects stay refused.
 func NewOperatorExecutor() *Executor {
-	return &Executor{builtins: map[string]Builtin{}, client: newTransportClient(true)}
+	return &Executor{builtins: map[string]Builtin{}, entries: map[string]*sync.Mutex{}, client: newTransportClient(true)}
+}
+
+func (e *Executor) manualEntry(name string) *sync.Mutex {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	entry, found := e.entries[name]
+	if !found {
+		entry = &sync.Mutex{}
+		e.entries[name] = entry
+	}
+	return entry
 }
 
 // registerBuiltin binds one in-process implementation to a manual name.
@@ -62,21 +83,32 @@ func (e *Executor) Invoke(ctx context.Context, manual Manual, arguments json.Raw
 	if err := validateArguments(manual, arguments); err != nil {
 		return nil, err
 	}
+	// One deadline bounds the whole invocation -- including any wait for
+	// the manual's entry lock -- so a wedged tool fails the call instead
+	// of hanging the step, whatever transport it rides.
+	bounded, cancel := context.WithTimeout(ctx, invokeTimeout)
+	defer cancel()
+	entry := e.manualEntry(manual.Name)
+	entry.Lock()
+	defer entry.Unlock()
+	if err := bounded.Err(); err != nil {
+		return nil, fmt.Errorf("agent tool: %q timed out waiting for entry: %w", manual.Name, err)
+	}
 	switch manual.Transport.Kind {
 	case TransportBuiltin:
 		implementation, registered := e.builtins[manual.Name]
 		if !registered {
 			return nil, fmt.Errorf("agent tool: builtin %q is not registered", manual.Name)
 		}
-		result, err := implementation(ctx, arguments)
+		result, err := implementation(bounded, arguments)
 		if err != nil {
 			return nil, fmt.Errorf("agent tool: %q failed: %w", manual.Name, err)
 		}
 		return boundedResult(manual.Name, result)
 	case TransportHTTP:
-		return e.invokeHTTP(ctx, manual, arguments)
+		return e.invokeHTTP(bounded, manual, arguments)
 	case TransportArgv:
-		return invokeArgv(ctx, manual, arguments)
+		return invokeArgv(bounded, manual, arguments)
 	}
 	return nil, fmt.Errorf("agent tool: manual %q transport kind is not declared", manual.Name)
 }

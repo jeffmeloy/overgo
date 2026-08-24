@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
@@ -28,8 +29,11 @@ type Identity struct {
 }
 
 // Session is one agent conversation's admission state: its durable
-// interaction chain plus the facts the mutation gate stands on.
+// interaction chain plus the facts the mutation gate stands on. A
+// session serializes its own steps -- two concurrent proposals on one
+// session would race the inspection gate and fork the chain.
 type Session struct {
+	mu          sync.Mutex
 	ID          string
 	Interaction artifact.ID
 	Inspected   bool
@@ -71,6 +75,8 @@ func (c *Coordinator) Propose(
 	if ctx == nil || session == nil || session.ID == "" {
 		return nil, errors.New("agent loop: nil context or session")
 	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
 	if session.Steps >= c.maxSteps {
 		return nil, fmt.Errorf("agent loop: session %q reached its step bound", session.ID)
 	}
@@ -100,6 +106,44 @@ func (c *Coordinator) Propose(
 		session.Inspected = true
 	}
 	return result, nil
+}
+
+// RestoreSession rebuilds a session from its durable interaction
+// chain: steps re-resolve in order until the first absent one, the tip
+// becomes the parent for the next step, and the inspection fact
+// recomputes from each recorded tool's registered effect -- so a
+// restarted server neither forgets a session nor forges its state.
+func (c *Coordinator) RestoreSession(ctx context.Context, id string) (*Session, error) {
+	if ctx == nil || id == "" {
+		return nil, errors.New("agent loop: nil context or empty session id")
+	}
+	session := &Session{ID: id}
+	for step := 1; step <= c.maxSteps; step++ {
+		interaction, found, err := runrecord.ResolveInteraction(ctx, c.store, fmt.Sprintf("%s-step-%d", id, step))
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			break
+		}
+		session.Steps, session.Interaction = step, interaction.ID
+		if session.Inspected {
+			continue
+		}
+		transcript, err := runrecord.RequireInteractionTranscript(ctx, c.store, interaction.Message)
+		if err != nil {
+			return nil, err
+		}
+		for _, message := range transcript.Messages {
+			for _, call := range message.ToolCalls {
+				manual, err := agenttool.ResolveRegisteredManual(ctx, c.store, call.Name)
+				if err == nil && manual.Effect == agenttool.EffectInspection {
+					session.Inspected = true
+				}
+			}
+		}
+	}
+	return session, nil
 }
 
 // recordStep chains one durable interaction carrying the call and its

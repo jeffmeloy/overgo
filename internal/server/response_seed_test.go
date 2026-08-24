@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"net/http"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -41,5 +43,33 @@ func TestResponsesIdentifiersSeedFromDurableState(t *testing.T) {
 	defer handler.Close()
 	if next := handler.nextID.Add(1); next <= 7 {
 		t.Fatalf("next identifier = %d, want the counter seeded past the durable resp_7", next)
+	}
+}
+
+// TestResponsesRefuseNonDurablePublication is the named negative test
+// for the durability contract: when the interaction ledger cannot
+// commit, the responses route returns response_not_durable instead of
+// handing out an identifier whose alias never bound.
+func TestResponsesRefuseNonDurablePublication(t *testing.T) {
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	generator := responseRecipeGenerator(t, &fakeGenerator{})
+	handler, err := New(Config{
+		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer handler.Close()
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	response := serveTestRequest(handler, http.MethodPost, "/v1/responses",
+		`{"input":"durability probe","max_output_tokens":1}`)
+	if response.Code != http.StatusInternalServerError ||
+		!strings.Contains(response.Body.String(), "response_not_durable") {
+		t.Fatalf("non-durable publication status=%d body=%s", response.Code, response.Body.String())
 	}
 }

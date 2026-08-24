@@ -126,7 +126,15 @@ func (h *Handler) loadResponseInteraction(ctx context.Context, responseID string
 		return nil, artifact.ID{}, false
 	}
 	h.observeResponseID(responseID)
-	return responseMessages(messages), interaction.ID, true
+	restored := responseMessages(messages)
+	// Durably replayed tool calls were model-produced when recorded;
+	// they re-enter the issued set so a resumed conversation executes.
+	for _, message := range restored {
+		if message.Role == inference.ChatRoleAssistant && len(message.ToolCalls) != 0 {
+			h.issuedCalls.record(message.ToolCalls...)
+		}
+	}
+	return restored, interaction.ID, true
 }
 
 func (h *Handler) interactionDescription() (modelrecipe.RuntimeDescription, bool) {

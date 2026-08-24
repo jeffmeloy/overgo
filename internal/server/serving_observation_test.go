@@ -164,13 +164,17 @@ func TestOperationEventSSEUsesSharedEmitter(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	defer handler.Close()
 	ctx, cancel := context.WithCancel(t.Context())
-	recorder := &signalingRecorder{ResponseRecorder: httptest.NewRecorder(), flushed: make(chan struct{})}
+	recorder := &countingRecorder{ResponseRecorder: httptest.NewRecorder(), flushes: make(chan struct{}, 8)}
 	done := make(chan struct{})
 	go func() {
 		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/runtime/activity/stream", nil).WithContext(ctx))
 		close(done)
 	}()
-	<-recorder.flushed
+	// The stream opens with three flushed snapshot events -- sessions,
+	// activity, operations -- and cancelling earlier races the emitter.
+	for range 3 {
+		<-recorder.flushes
+	}
 	cancel()
 	<-done
 	if recorder.Header().Get("Content-Type") != "text/event-stream" ||
@@ -239,5 +243,18 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 			sample.DevicePeakBytes != expected.PeakBytes || sample.DeviceAllocations != expected.Allocations {
 			t.Fatalf("sample[%d]=%+v", index, sample)
 		}
+	}
+}
+
+type countingRecorder struct {
+	*httptest.ResponseRecorder
+	flushes chan struct{}
+}
+
+func (recorder *countingRecorder) Flush() {
+	recorder.ResponseRecorder.Flush()
+	select {
+	case recorder.flushes <- struct{}{}:
+	default:
 	}
 }

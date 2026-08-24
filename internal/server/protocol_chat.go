@@ -679,6 +679,7 @@ func (h *Handler) completeChat(
 					)
 				}
 			}
+			h.issuedCalls.record(message.ToolCalls...)
 			if len(message.ToolCalls) != 0 {
 				finishReason = "tool_calls"
 			}
@@ -881,6 +882,20 @@ func (h *Handler) streamChatCompletion(
 					return
 				}
 			}
+			// Issue every parsed call under the same identity rule the
+			// stream used, whether it went out incrementally or here.
+			issued := slices.Clone(message.ToolCalls)
+			for callIndex := range issued {
+				if issued[callIndex].ID == "" {
+					issued[callIndex].ID = fmt.Sprintf(
+						"call_%s_%d_%d",
+						strings.TrimPrefix(id, "chatcmpl-"),
+						choiceIndex,
+						callIndex,
+					)
+				}
+			}
+			h.issuedCalls.record(issued...)
 			if len(message.ToolCalls) != 0 {
 				reason = "tool_calls"
 			}

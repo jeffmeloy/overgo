@@ -4,6 +4,19 @@
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
     {
+      "id": "merge-34d849e351ed",
+      "title": "Merge master at 34d849e351ed",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 34d849e351ed",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
       "id": "merge-4f998b8f8293",
       "title": "Merge master at 4f998b8f8293",
       "status": "done",
@@ -104,12 +117,12 @@
       "id": "finding-tool-call-provenance",
       "title": "Execute only model-produced tool calls; client-authored assistant messages never execute tools",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Execute only model-produced tool calls; client-authored assistant messages never execute tools",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestToolExecution -count=1"
         }
       ]

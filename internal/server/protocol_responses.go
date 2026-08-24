@@ -244,7 +244,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		}
 	}
 	idSuffix := strings.TrimPrefix(responseID, "resp_")
-	assignResponseCallIDs(&message, idSuffix)
+	h.assignResponseCallIDs(&message, idSuffix)
 	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary)
 	promptTokens := result.promptTokens()
 	if body.Store == nil || *body.Store {
@@ -514,7 +514,7 @@ func (h *Handler) streamResponses(
 		outputItems = append(outputItems, item)
 	}
 	idSuffix := strings.TrimPrefix(responseID, "resp_")
-	assignResponseCallIDs(&parsedMessage, idSuffix)
+	h.assignResponseCallIDs(&parsedMessage, idSuffix)
 	callItems := responseItems(
 		inference.ChatMessage{
 			Role:      inference.ChatRoleAssistant,

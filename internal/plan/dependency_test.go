@@ -67,3 +67,36 @@ func TestDependencyValidationRefusesDanglingAndCycles(t *testing.T) {
 		t.Fatalf("dependency cycle accepted: %v", err)
 	}
 }
+
+// TestDependencySameItemEdges pins the same-item contract: a step may
+// depend on a sibling step, but never on its own item or itself, and
+// mutually dependent siblings are a cycle.
+func TestDependencySameItemEdges(t *testing.T) {
+	sibling := dependencyFixture()
+	sibling.Items[0].Steps = append(sibling.Items[0].Steps, Step{
+		ID: "verify", Title: "verify root", Status: StatusOpen, Verify: "exit 0",
+		DependsOn: []string{"root/do"},
+	})
+	if err := Validate(sibling); err != nil {
+		t.Fatalf("sibling step dependency refused: %v", err)
+	}
+	self := dependencyFixture()
+	self.Items[0].Steps[0].DependsOn = []string{"root/do"}
+	if err := Validate(self); err == nil || !strings.Contains(err.Error(), "own item") {
+		t.Fatalf("self step dependency accepted: %v", err)
+	}
+	ownItem := dependencyFixture()
+	ownItem.Items[0].Steps[0].DependsOn = []string{"root"}
+	if err := Validate(ownItem); err == nil || !strings.Contains(err.Error(), "own item") {
+		t.Fatalf("own-item dependency accepted: %v", err)
+	}
+	mutual := dependencyFixture()
+	mutual.Items[1].Steps[0].DependsOn = nil
+	mutual.Items[0].Steps = []Step{
+		{ID: "a", Title: "a", Status: StatusOpen, Verify: "exit 0", DependsOn: []string{"root/b"}},
+		{ID: "b", Title: "b", Status: StatusOpen, Verify: "exit 0", DependsOn: []string{"root/a"}},
+	}
+	if err := Validate(mutual); err == nil || !strings.Contains(err.Error(), "cycle") {
+		t.Fatalf("mutually dependent siblings accepted: %v", err)
+	}
+}

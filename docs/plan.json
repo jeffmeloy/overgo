@@ -2411,12 +2411,12 @@
       "id": "fix-plan-self-dependencies",
       "title": "Validate same-item dependency edges: a step cannot depend on its own item or form intra-item cycles",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Validate same-item dependency edges: a step cannot depend on its own item or form intra-item cycles",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/plan -run TestDepend -count=1"
         }
       ]

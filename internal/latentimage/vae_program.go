@@ -139,31 +139,31 @@ func CompileVAEProgram(d *VAEDecoder, h, w int, matmulType dtype.Type) (*VAEProg
 
 // buildOp emits the graph nodes for one derived op and returns the new
 // activation + geometry. x is always [c, ch*cw] HWC columns.
-func (g *vaeGraphBuilder) buildOp(op media.CodecOperation[[][]float32], x *tensor.Tensor, c, ch, cw int) (*tensor.Tensor, int, int, int, error) {
+func (g *vaeGraphBuilder) buildOp(op media.CodecOperation[[]float32], x *tensor.Tensor, c, ch, cw int) (*tensor.Tensor, int, int, int, error) {
 	b := g.b
 	plane := ch * cw
 	switch op.Operator {
 	case media.CodecPointwise:
-		out := g.pointwise(x, op.Bindings[0], op.Bindings[1], c, op.OutputChannels, plane)
+		out := g.pointwise(x, op.Bindings.WeightInput, op.Bindings.BiasInput, c, op.OutputChannels, plane)
 		return out, op.OutputChannels, ch, cw, nil
 	case media.CodecConvolution:
-		out := g.conv3x3(x, op.Bindings[0], op.Bindings[1], c, op.OutputChannels, ch, cw)
+		out := g.convolution(x, op.Bindings.WeightInput, op.Bindings.BiasInput, c, op.OutputChannels, ch, cw, op.Convolution)
 		return out, op.OutputChannels, ch, cw, nil
 	case media.CodecResidual:
-		gamma0, w0, b0 := op.Bindings[0], op.Bindings[1], op.Bindings[2]
-		gamma1, w1, b1 := op.Bindings[3], op.Bindings[4], op.Bindings[5]
+		gamma0, w0, b0 := op.Bindings.NormInput, op.Bindings.WeightInput, op.Bindings.BiasInput
+		gamma1, w1, b1 := op.Bindings.NormOutput, op.Bindings.WeightOutput, op.Bindings.BiasOutput
 		n0 := b.SiLU(g.channelNorm(x, gamma0, c))
-		h0 := g.conv3x3(n0, w0, b0, c, op.OutputChannels, ch, cw)
+		h0 := g.convolution(n0, w0, b0, c, op.OutputChannels, ch, cw, op.Convolution)
 		n1 := b.SiLU(g.channelNorm(h0, gamma1, op.OutputChannels))
-		out := g.conv3x3(n1, w1, b1, op.OutputChannels, op.OutputChannels, ch, cw)
+		out := g.convolution(n1, w1, b1, op.OutputChannels, op.OutputChannels, ch, cw, op.Convolution)
 		if !op.RequiresProjection() {
 			return b.Add(out, x), op.OutputChannels, ch, cw, nil
 		}
-		shortcut := g.pointwise(x, op.Bindings[6], op.Bindings[7], c, op.OutputChannels, plane)
+		shortcut := g.pointwise(x, op.Bindings.WeightProjection, op.Bindings.BiasProjection, c, op.OutputChannels, plane)
 		return b.Add(out, shortcut), op.OutputChannels, ch, cw, nil
 	case media.CodecAttention:
-		gamma, qkvW, qkvB := op.Bindings[0], op.Bindings[1], op.Bindings[2]
-		projW, projB := op.Bindings[3], op.Bindings[4]
+		gamma, qkvW, qkvB := op.Bindings.NormInput, op.Bindings.WeightInput, op.Bindings.BiasInput
+		projW, projB := op.Bindings.WeightOutput, op.Bindings.BiasOutput
 		norm := g.channelNorm(x, gamma, c)
 		qkvChannels, ok := checked.MulInt(tensor.TripleExtent, c)
 		if !ok {
@@ -182,13 +182,13 @@ func (g *vaeGraphBuilder) buildOp(op media.CodecOperation[[][]float32], x *tenso
 		out := b.Add(b.MulMat(g.weight(projW, cu, cu), attn), g.weight(projB, cu))
 		return b.Add(out, x), c, ch, cw, nil
 	case media.CodecUpsampleSpatial:
-		out := g.upsample(x, op.Bindings[0], op.Bindings[1], c, op.OutputChannels, ch, cw)
+		out := g.upsample(x, op.Bindings.WeightSpatial, op.Bindings.BiasSpatial, c, op.OutputChannels, ch, cw, op.Convolution)
 		scale := op.Operator.SpatialScale()
 		return out, op.OutputChannels, scale * ch, scale * cw, nil
 	case media.CodecHead:
-		gamma, weight, bias := op.Bindings[0], op.Bindings[1], op.Bindings[2]
+		gamma, weight, bias := op.Bindings.NormInput, op.Bindings.WeightInput, op.Bindings.BiasInput
 		norm := b.SiLU(g.channelNorm(x, gamma, c))
-		out := g.conv3x3(norm, weight, bias, c, op.OutputChannels, ch, cw)
+		out := g.convolution(norm, weight, bias, c, op.OutputChannels, ch, cw, op.Convolution)
 		return out, op.OutputChannels, ch, cw, nil
 	}
 	return nil, 0, 0, 0, fmt.Errorf("unsupported op kind %d", op.Operator)
@@ -205,18 +205,15 @@ func (g *vaeGraphBuilder) pointwise(x *tensor.Tensor, weight, bias []float32, cI
 	return out
 }
 
-// conv3x3: single-frame causal 3x3 conv. The causal InT=1 kernel collapses to
-// the last temporal tap (kt=2), which is pre-sliced from the [cOut,cIn,3,3,3]
-// torch weight into a [cOut,cIn,3,3] tap fed as the Conv2D weight [kw,kh,cIn,cOut].
-func (g *vaeGraphBuilder) conv3x3(x *tensor.Tensor, weight5d, bias []float32, cIn, cOut, ch, cw int) *tensor.Tensor {
+func (g *vaeGraphBuilder) convolution(x *tensor.Tensor, weight, bias []float32, cIn, cOut, ch, cw int, extents media.CodecConvolutionExtents) *tensor.Tensor {
 	b := g.b
-	tap, kernel := sliceLastTemporalTap(weight5d, cOut, cIn)
+	kernel := extents.Kernel
+	tap := sliceLastTemporalTap(weight, cOut, cIn, kernel)
 	img := b.Reshape(x, uint64(cIn), uint64(cw), uint64(ch)) // [c,width,height]
-	wNode := g.weight(tap, uint64(kernel), uint64(kernel), uint64(cIn), uint64(cOut))
+	wNode := g.weight(tap, uint64(kernel[2]), uint64(kernel[1]), uint64(cIn), uint64(cOut))
 	bNode := g.weight(bias, uint64(cOut))
-	pad := uint32((kernel - tensor.SingletonExtent) / tensor.PairedExtent)
-	stride := uint32(tensor.SingletonExtent)
-	conv := b.Conv2D(img, wNode, bNode, stride, stride, pad, pad, pad, pad, false)
+	padH, padW := uint32(kernel[1]/tensor.PairedExtent), uint32(kernel[2]/tensor.PairedExtent)
+	conv := b.Conv2D(img, wNode, bNode, uint32(extents.Stride[2]), uint32(extents.Stride[1]), padW, padW, padH, padH, false)
 	return b.Reshape(conv, uint64(cOut), uint64(ch*cw))
 }
 
@@ -234,7 +231,7 @@ func (g *vaeGraphBuilder) channelNorm(x *tensor.Tensor, gamma []float32, c int) 
 // + tiled_fp32 in adaptive). In HWC [c,plane] the width axis is the inner
 // spatial run and the height axis the outer, so RepeatHeads(2) on [c,1,plane]
 // doubles width in place, and RepeatHeads(2) on [c*2w,1,h] doubles height.
-func (g *vaeGraphBuilder) upsample(x *tensor.Tensor, resampleW, resampleB []float32, cIn, cOut, ch, cw int) *tensor.Tensor {
+func (g *vaeGraphBuilder) upsample(x *tensor.Tensor, resampleW, resampleB []float32, cIn, cOut, ch, cw int, extents media.CodecConvolutionExtents) *tensor.Tensor {
 	b := g.b
 	cu := uint64(cIn)
 	scale := media.CodecUpsampleSpatial.SpatialScale()
@@ -245,34 +242,29 @@ func (g *vaeGraphBuilder) upsample(x *tensor.Tensor, resampleW, resampleB []floa
 	xw := b.Reshape(b.RepeatHeads(b.Reshape(x, cu, one, uint64(ch*cw)), uint32(scale)), cu, uint64(scaledWidth), uint64(ch))
 	// double height: [c,2w,h] -> [c*2w,1,h] -> [c*2w,2,h] -> [c,2w,2h]
 	up := b.Reshape(b.RepeatHeads(b.Reshape(xw, cu*uint64(scaledWidth), one, uint64(ch)), uint32(scale)), cu, uint64(scaledWidth), uint64(scaledHeight))
-	// 3x3 same conv on the [c,2w,2h] nearest-upsampled volume.
-	tap := resampleW // resample.1.weight is a plain 2-D conv [cOut,cIn,3,3]
-	kernelArea := len(tap) / (cIn * cOut)
-	kernel := int(math.Round(math.Sqrt(float64(kernelArea))))
-	wNode := g.weight(tap, uint64(kernel), uint64(kernel), cu, uint64(cOut))
+	kernel := extents.Kernel
+	wNode := g.weight(resampleW, uint64(kernel[2]), uint64(kernel[1]), cu, uint64(cOut))
 	bNode := g.weight(resampleB, uint64(cOut))
-	padding := uint32((kernel - tensor.SingletonExtent) / tensor.PairedExtent)
+	padH, padW := uint32(kernel[1]/tensor.PairedExtent), uint32(kernel[2]/tensor.PairedExtent)
 	stride := uint32(tensor.SingletonExtent)
-	conv := b.Conv2D(up, wNode, bNode, stride, stride, padding, padding, padding, padding, false)
+	conv := b.Conv2D(up, wNode, bNode, stride, stride, padW, padW, padH, padH, false)
 	return b.Reshape(conv, uint64(cOut), uint64(scaledHeight*scaledWidth))
 }
 
 // sliceLastTemporalTap extracts w[:, :, 2, :, :] from a [cOut,cIn,3,3,3] torch
 // weight into a [cOut,cIn,3,3] tap (kw fastest), matching the Conv2D weight
 // memory order [kw,kh,cIn,cOut].
-func sliceLastTemporalTap(weight5d []float32, cOut, cIn int) ([]float32, int) {
-	kernelVolume := len(weight5d) / (cOut * cIn)
-	kernel := int(math.Round(math.Cbrt(float64(kernelVolume))))
-	spatialKernel := kernel * kernel
+func sliceLastTemporalTap(weight5d []float32, cOut, cIn int, kernel [3]int) []float32 {
+	spatialKernel := kernel[1] * kernel[2]
 	out := make([]float32, cOut*cIn*spatialKernel)
 	for co := 0; co < cOut; co++ {
 		for ci := 0; ci < cIn; ci++ {
-			srcBase := ((co*cIn+ci)*kernel + (kernel - 1)) * spatialKernel
+			srcBase := ((co*cIn+ci)*kernel[0] + (kernel[0] - tensor.SingletonExtent)) * spatialKernel
 			dstBase := (co*cIn + ci) * spatialKernel
 			copy(out[dstBase:dstBase+spatialKernel], weight5d[srcBase:srcBase+spatialKernel])
 		}
 	}
-	return out, kernel
+	return out
 }
 
 // DecodeGraph runs the compiled decode through run (reference.Execute for the

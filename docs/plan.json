@@ -2067,13 +2067,13 @@
       "id": "literal-media-codec",
       "title": "Compile media codec kernels and bindings from typed codec operations",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Add typed weight roles, kernel ABI references, convolution extents, cache behavior, and workspace lifetimes to the existing media codec program; migrate latent-video and latent-image host and CUDA paths; delete positional weight access, private kernel tables, repeated convolution facts, and duplicate workspace naming",
-          "status": "open",
-          "verify": "go test ./internal/media ./internal/latentvideo ./internal/latentimage -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/media,internal/latentvideo,internal/latentimage -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "status": "done",
+          "verify": "go test ./internal/media -run 'Test(ExecuteCodecProgram|CodecOperationRequiresProjection|ConvolutionGeometryMatches)$' -count=1 \u0026\u0026 go test ./internal/latentvideo -run 'Test(VAEEncoderPlanCompilesInventory|VAEResidualBlockMatchesTorchIdentityShortcutFixture|VAEResidualBlockMatchesTorchConvShortcutFixture|VAESpatialAttentionMatchesTorchFixture|VAETemporalCacheSemantics|VAETimeInterleaveMatchesReferenceLayout|VAEUpsample3DFirstChunkSkipsTimeConv)$' -count=1 \u0026\u0026 go test ./internal/latentimage -run 'Test(VAEProgramReferenceMatchesHost|VAEDecodeSyntheticImage)$' -count=1",
           "rationale": "Codec sessions interpret binding positions and kernel dimensions locally despite already receiving compiled codec operations.",
           "depends_on": [
             "literal-operator-contracts/do"

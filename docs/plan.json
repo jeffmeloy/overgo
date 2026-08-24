@@ -2397,12 +2397,12 @@
       "id": "fix-agent-session-safety",
       "title": "Make agent sessions concurrency-safe and durably restorable; add the named negative test for non-durable response publication",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Make agent sessions concurrency-safe and durably restorable; add the named negative test for non-durable response publication",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestResponses' -count=1"
         }
       ]

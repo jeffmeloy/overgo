@@ -88,21 +88,27 @@ type replayAnchor struct {
 	digest   [sha256.Size]byte
 }
 
+// storeLogPath resolves the record log inside root. Stores written
+// before the OvergoDB rename carry the legacy filename; every reader
+// accepts both so no store needs a file rename to stay readable. New
+// writes go to the current name.
+func storeLogPath(root string) string {
+	path := filepath.Join(root, storeFilename)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if _, legacyErr := os.Stat(filepath.Join(root, legacyStoreFilename)); legacyErr == nil {
+			return filepath.Join(root, legacyStoreFilename)
+		}
+	}
+	return path
+}
+
 func openRecordLog(
 	root string,
 	readOnly bool,
 	anchor replayAnchor,
 	apply func(logRecord) error,
 ) (*recordLog, replayResult, error) {
-	path := filepath.Join(root, storeFilename)
-	// Stores written before the OvergoDB rename carry the legacy filenames;
-	// the reader accepts both so no store needs a file rename to stay
-	// readable. New writes go to the current name.
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if _, legacyErr := os.Stat(filepath.Join(root, legacyStoreFilename)); legacyErr == nil {
-			path = filepath.Join(root, legacyStoreFilename)
-		}
-	}
+	path := storeLogPath(root)
 	if readOnly {
 		file, err := os.Open(path)
 		if err != nil {
@@ -326,7 +332,9 @@ func decodeFrameHeader(header []byte) (uint32, logRecord, error) {
 	}
 	version := binary.LittleEndian.Uint16(header[frameVersionOffset:frameKindOffset])
 	if version != frameVersion {
-		return 0, logRecord{}, errors.New("unsupported frame version")
+		return 0, logRecord{}, fmt.Errorf(
+			"unsupported frame version %d (this reader speaks %d); a pre-rearchitecture store must be migrated, not opened in place (docs/OVERGODB_IMPORT.md)",
+			version, frameVersion)
 	}
 	if binary.LittleEndian.Uint16(header[frameKindOffset:frameSequenceOffset]) != frameKindBatch {
 		return 0, logRecord{}, errors.New("unsupported frame kind")

@@ -86,7 +86,7 @@ func goldenSuite(repository, claimsPath string) ([]byte, string, error) {
 			continue
 		}
 		for _, evidence := range claim.Evidence {
-			content, err := command("go", "run", "./cmd/repodb-query", "-repo", repository, "-id", evidence, "-content")
+			content, err := command("go", "run", "./cmd/overgodb-query", "-repo", repository, "-id", evidence, "-content")
 			if err != nil {
 				lastErr = err
 				continue

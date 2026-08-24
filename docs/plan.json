@@ -4,293 +4,57 @@
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
     {
-      "id": "merge-703690c4a615",
-      "title": "Merge master at 703690c4a615",
+      "id": "merge-8b52551473fa",
+      "title": "Merge master at 8b52551473fa",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Merge master at 703690c4a615",
+          "title": "Merge master at 8b52551473fa",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
         }
       ]
     },
     {
-      "id": "dataset-catalog-compatibility",
-      "title": "Publish the dataset catalog compatibility mirror",
-      "owner": "tightening",
+      "id": "tightening-timer",
+      "title": "Hold for the tightening lane: timer expires 2 hours after 2026-08-24 dispatch",
+      "owner": "gui",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Publish the dataset catalog compatibility mirror",
+          "title": "Hold for the tightening lane: timer expires 2 hours after 2026-08-24 dispatch",
           "status": "done",
-          "verify": "go run ./cmd/compatibility -check"
+          "verify": "exit 0"
         }
       ]
     },
     {
-      "id": "dataset-catalog",
-      "title": "Publish the legacy dataset inventory as RepoDB authority",
-      "owner": "tightening",
+      "id": "merge-tightening-catalogs",
+      "title": "Merge overgo_tightening into master with the rename mapping",
+      "owner": "gui",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Publish the legacy dataset inventory as RepoDB authority",
+          "title": "Merge overgo_tightening into master with the rename mapping",
           "status": "done",
-          "verify": "go test ./internal/dataset ./internal/repodb ./cmd/dataset-catalog ./cmd/repodb-query ./internal/server ./internal/evaluation -run 'Test(DatasetCatalog|PublishDatasetCatalog|DatasetCatalogCompaction|DatasetCatalogQuery|BrowseDatasetsUsesCatalog)' -count=1"
+          "verify": "go build ./... \u0026\u0026 go test ./internal/modelrecipe ./internal/dataset ./internal/overgodb ./cmd/overgodb-query -count=1"
         }
       ]
     },
     {
-      "id": "merge-47134365e861",
-      "title": "Merge master at 47134365e861",
-      "owner": "tightening",
+      "id": "overgodb-best-of-both",
+      "title": "Fold the best of both catalogs into overgodb: registered denominators and truncation honesty in the capability catalog",
+      "owner": "gui",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Merge master at 47134365e861",
+          "title": "Fold the best of both catalogs into overgodb: registered denominators and truncation honesty in the capability catalog",
           "status": "done",
-          "verify": "go run ./cmd/compatibility -check"
-        }
-      ]
-    },
-    {
-      "id": "architecture-profile-catalog",
-      "title": "Publish every registered architecture profile as durable RepoDB authority",
-      "owner": "tightening",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compile every registered architecture into one immutable profile document with pinned catalog derivation, publish stable architecture aliases atomically, expose exact RepoDB coverage queries, root the catalog through retention, migrate catalog consumers, and test registry parity, replay, idempotence, supersession, and compaction",
-          "status": "done",
-          "verify": "go test ./internal/modelrecipe ./internal/repodb ./cmd/profile-catalog ./cmd/repodb-query ./cmd/recipe -run 'Test(ArchitectureProfileCatalog|PublishArchitectureProfileCatalog|ProfileCatalogCompaction|ProfileCatalogQuery)' -count=1",
-          "rationale": "The architecture registry remains complete in code, but cleanup removed its production RepoDB publisher and stable aliases. Model-bound recipes need a durable architecture authority independent of whether a concrete model has been verified.",
-          "capabilities": [
-            "profiles",
-            "repodb",
-            "recipes",
-            "llama-cpp",
-            "retention"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "literal-runtime-policy",
-      "title": "Make recipes and artifact facts the sole authority for generation and serving defaults",
-      "owner": "tightening",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resolve sampling, token, video frame, frame-rate, denoise, guidance, shift, seed, and serving defaults from active recipes or artifact facts; retain CLI values only as explicit overrides; migrate generate, latentvideo-run, server, and sampler callers; delete global and command-local policy bundles",
-          "status": "done",
-          "verify": "go test ./cmd/generate -run '^TestReadProjectedInputs$' -count=1 \u0026\u0026 go test ./cmd/latentvideo-run -run '^TestSummarizeProducesFiniteJSONStatistics$' -count=1 \u0026\u0026 go test ./internal/sampling -run '^TestGreedyAndTieBreak$' -count=1 \u0026\u0026 go test ./internal/server -run '^TestProperties$' -count=1 \u0026\u0026 go test ./internal/modelrecipe -run '^TestAtomicEvidenceGatedActivation$' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd/generate,cmd/latentvideo-run,internal/sampling,internal/server -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts \u003e /dev/null",
-          "rationale": "Command and package defaults duplicate runtime policy and obscure paths that differ only by recipe parameters.",
-          "depends_on": [
-            "architecture-profile-catalog/do"
-          ],
-          "capabilities": [
-            "recipes",
-            "generation",
-            "serving",
-            "magic-authority"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "literal-training-policy",
-      "title": "Derive training and probe policy from compiled training plans",
-      "owner": "tightening",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Replace command-local steps, sequence extents, learning rates, momentum, schedules, wall bounds, dimensions, and seeds with dataset, model, resource, optimizer, and evidence-derived TrainingSessionPlan fields; migrate every training and probe caller; delete duplicated flag defaults and private derivations",
-          "status": "done",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train ./internal/trainingprogram ./internal/trainingworkflow ./internal/optimizer ./internal/hybridtrain -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd,internal/trainingprogram,internal/trainingworkflow,internal/optimizer,internal/hybridtrain -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
-          "rationale": "Training commands encode campaign parameters beside shared optimizer and training authorities, preventing equivalent probes from sharing one compiled plan.",
-          "depends_on": [
-            "literal-runtime-policy/do"
-          ],
-          "capabilities": [
-            "training",
-            "optimizer",
-            "resource-planning",
-            "magic-authority"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "literal-workflow-stages",
-      "title": "Make typed recipe modules own workflow stage requirements",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move model-build stage order, input and output requirements, and postconditions into typed module descriptors consumed by workflowruntime; replace positional stage indexing with compiled iteration; migrate callers and delete model-build-specific validation closures",
-          "status": "open",
-          "verify": "go test ./internal/workflowruntime ./internal/workflowrecipe ./internal/recipe ./internal/modelrecipe -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/workflowruntime,internal/workflowrecipe,internal/recipe,internal/modelrecipe -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "rationale": "Model-build execution repeats stage order and output validity through positional literals instead of consuming recipe module contracts.",
-          "depends_on": [
-            "literal-training-policy/do"
-          ],
-          "capabilities": [
-            "workflow",
-            "recipes",
-            "modularity"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "literal-operator-contracts",
-      "title": "Compile tensor, reference, and CUDA execution from one typed operator schema",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Represent operand roles, ranks, axes, layouts, output rules, runtime attributes, and launch bindings in narrow typed operator schemas; migrate recurrent, attention-layout, and math-vision builders plus reference and CUDA executors together; delete displaced rank checks, slot maps, launch branches, and duplicated shape arithmetic",
-          "status": "open",
-          "verify": "go test ./internal/tensor ./internal/tensor/reference ./internal/cuda/executor -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/tensor,internal/cuda/executor -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
-          "rationale": "Builder, CPU reference, and CUDA launch files repeat the largest concentration of shape, axis, and operand-position facts. One compiled schema should drive all three without a property bag.",
-          "depends_on": [
-            "literal-workflow-stages/do"
-          ],
-          "capabilities": [
-            "tensor",
-            "cuda",
-            "operator-schema",
-            "processing"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "literal-media-codec",
-      "title": "Compile media codec kernels and bindings from typed codec operations",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add typed weight roles, kernel ABI references, convolution extents, cache behavior, and workspace lifetimes to the existing media codec program; migrate latent-video and latent-image host and CUDA paths; delete positional weight access, private kernel tables, repeated convolution facts, and duplicate workspace naming",
-          "status": "open",
-          "verify": "go test ./internal/media ./internal/latentvideo ./internal/latentimage -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/media,internal/latentvideo,internal/latentimage -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
-          "rationale": "Codec sessions interpret binding positions and kernel dimensions locally despite already receiving compiled codec operations.",
-          "depends_on": [
-            "literal-operator-contracts/do"
-          ],
-          "capabilities": [
-            "media",
-            "codec",
-            "cuda",
-            "memory"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "literal-evidence-policy",
-      "title": "Make golden evidence own parity tolerances and execution budgets",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Store stage tolerances, decode budgets, warmup and measurement extents, and acceptance relations in typed evidence documents; migrate VQA parity and evaluation callers to one shared assertion and measurement contract; delete repeated tolerance pairs, fixed step counts, and local comparison ladders",
-          "status": "open",
-          "verify": "go test ./cmd/vqaparity ./internal/evaluation ./internal/adaptiveparity ./internal/runrecord -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd/vqaparity,internal/evaluation,internal/adaptiveparity -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
-          "rationale": "Repeated tolerance pairs and decode limits are evidence policy, not executable mathematics; source literals let host and device gates drift independently.",
-          "depends_on": [
-            "literal-media-codec/do"
-          ],
-          "capabilities": [
-            "evaluation",
-            "parity",
-            "evidence"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "literal-quant-formats",
-      "title": "Make typed quantization format descriptors authoritative",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define narrow descriptors for normative block sizes, packed lanes, masks, scales, offsets, and storage bytes; make quantize, dequantize, tensor dtype, GGUF, and CUDA bindings consume them; preserve distinct bit transforms; delete duplicated format facts and parallel size switches",
-          "status": "open",
-          "verify": "go test ./internal/quant ./internal/tensor/dtype ./internal/gguf ./internal/cuda/executor -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/quant,internal/tensor/dtype,internal/gguf,internal/cuda/executor -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "rationale": "Quantization has the largest literal count, but most values are normative wire facts. Shared descriptors can remove duplicated metadata while leaving numerical transforms explicit and oracle-verifiable.",
-          "depends_on": [
-            "literal-evidence-policy/do"
-          ],
-          "capabilities": [
-            "quantization",
-            "gguf",
-            "wire-format",
-            "cuda"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "literal-protocol-contracts",
-      "title": "Consolidate repeated protocol and projector literals through existing typed owners",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Use standard HTTP constants, shared protocol field types, common projector input validation, and typed tensor-role catalogs; migrate server and projector callers; delete repeated status values, field strings, nil-image guards, QKV name assembly, and pass-through helpers",
-          "status": "open",
-          "verify": "go test ./internal/server ./internal/projector ./internal/model ./internal/media -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/server,internal/projector,internal/model,internal/media -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
-          "rationale": "Protocol and projector packages repeat stable vocabulary and validation across files; standard-library and typed catalog owners can replace those copies without changing model mathematics.",
-          "depends_on": [
-            "literal-quant-formats/do"
-          ],
-          "capabilities": [
-            "server",
-            "projector",
-            "protocols",
-            "modularity"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "literal-authority-closure",
-      "title": "Close literal consolidation with exact census and parity evidence",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run a fresh production and test census, inspect every remaining high-pressure owner, publish exact evidence to RepoDB, confirm no copied policy or model facts, remove obsolete constants and wrappers exposed by the migrations, and run host and device gates",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
-          "rationale": "Closure requires lower repeated production pressure with every surviving constant bound to one semantic owner; raw literal count alone is not the objective and legitimate fixtures remain visible.",
-          "depends_on": [
-            "literal-protocol-contracts/do"
-          ],
-          "capabilities": [
-            "magic-authority",
-            "evidence",
-            "closure",
-            "verification"
-          ]
+          "verify": "go test ./internal/discovery ./internal/server -run 'TestCapabilityCatalog|TestWorkbenchAPI|TestWebUI' -count=1"
         }
       ]
     },
@@ -399,7 +163,7 @@
           "id": "do",
           "title": "Migrate stored profile documents to v3 so models load",
           "status": "done",
-          "verify": "go test ./internal/modelrecipe ./internal/repodbimport -run 'TestProfileRenameUpgrade|TestProfileRenameUpgradeRefusesUnknownShape|TestProfileSchemaVersion|TestRegisteredProfileSemanticDigest' -count=1"
+          "verify": "go test ./internal/modelrecipe ./internal/overgodbimport -run 'TestProfileRenameUpgrade|TestProfileRenameUpgradeRefusesUnknownShape|TestProfileSchemaVersion|TestRegisteredProfileSemanticDigest' -count=1"
         }
       ]
     },
@@ -413,7 +177,7 @@
           "id": "do",
           "title": "Restore qwen35 model loading after the profile field rename",
           "status": "done",
-          "verify": "go test ./internal/repodbimport -run 'TestProfileUpgradeBackfillsFieldsAddedAfterPublication|TestProfileUpgradeRefusesUnregisteredArchitecture|TestProfileRenameUpgrade' -count=1"
+          "verify": "go test ./internal/overgodbimport -run 'TestProfileUpgradeBackfillsFieldsAddedAfterPublication|TestProfileUpgradeRefusesUnregisteredArchitecture|TestProfileRenameUpgrade' -count=1"
         }
       ]
     },
@@ -667,7 +431,7 @@
           "id": "do",
           "title": "Export the model graph as canonical repodb-import JSONL",
           "status": "done",
-          "verify": "go test ./cmd/repodb-export ./internal/repodbimport -run 'TestExport' -count=1"
+          "verify": "go test ./internal/overgodbimport -count=1"
         }
       ]
     },
@@ -709,7 +473,7 @@
           "id": "do",
           "title": "Re-mint the model graph so every stored profile loads",
           "status": "done",
-          "verify": "go run ./cmd/repodb-query -repo repodb-store -servable"
+          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -servable"
         }
       ]
     },
@@ -905,7 +669,7 @@
           "id": "do",
           "title": "Set a RepoDB retention policy for superseded evidence",
           "status": "done",
-          "verify": "go test ./internal/repodb ./internal/closureledger -run 'TestRetention|TestSupersededCollection' -count=1"
+          "verify": "go test ./internal/overgodb ./internal/closureledger -run 'TestRetention|TestSupersededCollection' -count=1"
         }
       ]
     },
@@ -1492,7 +1256,7 @@
           "id": "do",
           "title": "Keep one canonical lineage and payload owner; make directional indexes reference canonical facts; delete the independent parent reachability map and duplicated content descriptors",
           "status": "done",
-          "verify": "go test ./internal/artifact ./internal/repodb -run 'Test(CanonicalCatalogOwnership|LineageIndexesReferenceCanonicalEdges|ContentUsesDescriptorAuthority|RepositoryContract|SnapshotAnchorsReplay)' -count=1",
+          "verify": "go test ./internal/artifact ./internal/overgodb -run 'Test(CanonicalCatalogOwnership|LineageIndexesReferenceCanonicalEdges|ContentUsesDescriptorAuthority|RepositoryContract|SnapshotAnchorsReplay)' -count=1",
           "rationale": "catalogState stores each lineage edge as values in the canonical, parent, and child maps plus a separate parents graph; content repeats its descriptor beside artifacts. Retain the artifact repository contract while reducing resident bytes and index update work. Incorporate the merged retention implementation rather than adding another collector.",
           "capabilities": [
             "repodb",
@@ -1512,7 +1276,7 @@
           "id": "do",
           "title": "Add stable cursor and typed projection fields to repodb.Query; migrate server and command consumers; delete MaxQueryResults scans, offset materialization, and per-result content and lineage lookups",
           "status": "done",
-          "verify": "go test ./internal/repodb ./internal/server ./cmd/repodb-query -run 'Test(QueryCursor|QueryProjection|ArtifactGalleryProjectedPage|BrowseRunsReadsRepoDBRecords|RuntimeActivityProjectedPage)' -count=1",
+          "verify": "go test ./internal/overgodb ./internal/server ./cmd/overgodb-query -run 'Test(QueryCursor|QueryProjection|ArtifactGalleryProjectedPage|BrowseRunsReadsRepoDBRecords|RuntimeActivityProjectedPage)' -count=1",
           "rationale": "Current GUI and command paths request the catalog cap, slice afterward, then issue N+1 HasContent, Content, or Parents calls. Query should return only the requested ordered page and declared fields under one read lock. Cursor identity must bind the catalog head and query contract so refreshes cannot silently reorder a continuation.",
           "depends_on": [
             "adk-repodb-canonical-state/do"
@@ -1535,7 +1299,7 @@
           "id": "do",
           "title": "Write log headers, canonical payloads, and checksums incrementally; stream deterministic snapshot sections from ordered keys; delete assembled frame and snapshotDocument payload copies",
           "status": "open",
-          "verify": "go test ./internal/repodb -run 'Test(LogAppendStreamsFrame|StreamingSnapshotRoundTrip|StreamingSnapshotFaultPreservesStore|SnapshotAnchorsReplay|SyncFaultReplaysCompleteUncertainCommit)' -count=1",
+          "verify": "go test ./internal/overgodb -run 'Test(LogAppendStreamsFrame|StreamingSnapshotRoundTrip|StreamingSnapshotFaultPreservesStore|SnapshotAnchorsReplay|SyncFaultReplaysCompleteUncertainCommit)' -count=1",
           "rationale": "Log append currently joins header, payload, and checksum into another frame. Snapshot publication clones the full catalog into a document and marshals another full payload. Preserve commit identities, canonical ordering, fsync, atomic rename, fallback replay, and fault behavior while bounding temporary storage to ordered keys and encoder buffers.",
           "depends_on": [
             "adk-repodb-canonical-state/do"
@@ -1558,7 +1322,7 @@
           "id": "do",
           "title": "Extend Store with validated tail refresh, make Handler own one browse reader when no writable repository is supplied, and delete per-request OpenReadOnly replay and release plumbing",
           "status": "open",
-          "verify": "go test ./internal/repodb ./internal/server -run 'Test(ReadOnlyRefreshAppliesCommittedTail|ReadOnlyRefreshRejectsFork|HandlerRetainsBrowseStore|HandlerClosesBrowseStore)' -count=1",
+          "verify": "go test ./internal/overgodb ./internal/server -run 'Test(ReadOnlyRefreshAppliesCommittedTail|ReadOnlyRefreshRejectsFork|HandlerRetainsBrowseStore|HandlerClosesBrowseStore)' -count=1",
           "rationale": "Artifact, run, activity, and analysis handlers repeatedly open and replay the same store. One handler-owned reader should refresh only validated log tail records and publish a coherent catalog head to queries. The writable repository remains shared directly when configured.",
           "depends_on": [
             "adk-repodb-projected-query/do",
@@ -1582,7 +1346,7 @@
           "id": "do",
           "title": "Add a typed runrecord interaction document bound to recipe, operation, run, parent event, message, tool, and media artifacts; migrate Responses continuation and delete responseHistoryStore",
           "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/repodb ./internal/server -run 'Test(InteractionIdentity|InteractionLineage|ResponsesContinuationDurable|ResponsesContinuationRestart|ResponseHistoryStoreAbsent)' -count=1",
+          "verify": "go test ./internal/runrecord ./internal/overgodb ./internal/server -run 'Test(InteractionIdentity|InteractionLineage|ResponsesContinuationDurable|ResponsesContinuationRestart|ResponseHistoryStoreAbsent)' -count=1",
           "rationale": "Responses continuation currently clones every prior message into a bounded process-local LRU. Store each new event once, reference immutable media content, advance an external response alias by compare-and-set, and materialize only the requested lineage. RepoDB becomes session truth without introducing an ADK-style session database.",
           "depends_on": [
             "adk-repodb-live-reader/do"
@@ -1829,7 +1593,7 @@
           "id": "do",
           "title": "Run host and device gates; compare RepoDB replay, query, snapshot, resident memory, and response-history allocation evidence; require no ADK dependency, second scheduler, callback mesh, compatibility wrapper, or ephemeral session authority",
           "status": "open",
-          "verify": "go test ./internal/artifact ./internal/repodb ./internal/recipe ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/evaluation ./internal/server -count=1 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
+          "verify": "go test ./internal/artifact ./internal/overgodb ./internal/recipe ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/evaluation ./internal/server -count=1 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
           "rationale": "Completion requires functional session, tool, human-decision, parallel workflow, replay, capability-bundle, remote, and GUI evidence plus measured storage and processing improvement against the pre-campaign RepoDB benchmark record. Production code must contain no imported ADK runtime and no displaced owner retained for compatibility.",
           "depends_on": [
             "adk-agent-gui/do"
@@ -1844,44 +1608,489 @@
       ]
     },
     {
-      "id": "tightening-timer",
-      "title": "Hold for the tightening lane: timer expires 2 hours after 2026-08-24 dispatch",
-      "owner": "gui",
+      "id": "dataset-catalog-compatibility",
+      "title": "Publish the dataset catalog compatibility mirror",
+      "owner": "tightening",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Hold for the tightening lane: timer expires 2 hours after 2026-08-24 dispatch",
+          "title": "Publish the dataset catalog compatibility mirror",
           "status": "done",
-          "verify": "exit 0"
+          "verify": "go run ./cmd/compatibility -check"
         }
       ]
     },
     {
-      "id": "merge-tightening-catalogs",
-      "title": "Merge overgo_tightening into master with the rename mapping",
-      "owner": "gui",
+      "id": "dataset-catalog",
+      "title": "Publish the legacy dataset inventory as RepoDB authority",
+      "owner": "tightening",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Merge overgo_tightening into master with the rename mapping",
+          "title": "Publish the legacy dataset inventory as RepoDB authority",
           "status": "done",
-          "verify": "go build ./... \u0026\u0026 go test ./internal/modelrecipe ./internal/dataset ./internal/overgodb ./cmd/overgodb-query -count=1"
+          "verify": "go test ./internal/dataset ./internal/overgodb ./cmd/dataset-catalog ./cmd/overgodb-query ./internal/server ./internal/evaluation -run 'Test(DatasetCatalog|PublishDatasetCatalog|DatasetCatalogCompaction|DatasetCatalogQuery|BrowseDatasetsUsesCatalog)' -count=1"
         }
       ]
     },
     {
-      "id": "overgodb-best-of-both",
-      "title": "Fold the best of both catalogs into overgodb: registered denominators and truncation honesty in the capability catalog",
+      "id": "merge-47134365e861",
+      "title": "Merge master at 47134365e861",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 47134365e861",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "architecture-profile-catalog",
+      "title": "Publish every registered architecture profile as durable RepoDB authority",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile every registered architecture into one immutable profile document with pinned catalog derivation, publish stable architecture aliases atomically, expose exact RepoDB coverage queries, root the catalog through retention, migrate catalog consumers, and test registry parity, replay, idempotence, supersession, and compaction",
+          "status": "done",
+          "verify": "go test ./internal/modelrecipe ./internal/overgodb ./cmd/profile-catalog ./cmd/overgodb-query ./cmd/recipe -run 'Test(ArchitectureProfileCatalog|PublishArchitectureProfileCatalog|ProfileCatalogCompaction|ProfileCatalogQuery)' -count=1",
+          "rationale": "The architecture registry remains complete in code, but cleanup removed its production RepoDB publisher and stable aliases. Model-bound recipes need a durable architecture authority independent of whether a concrete model has been verified.",
+          "capabilities": [
+            "profiles",
+            "repodb",
+            "recipes",
+            "llama-cpp",
+            "retention"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "literal-runtime-policy",
+      "title": "Make recipes and artifact facts the sole authority for generation and serving defaults",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Resolve sampling, token, video frame, frame-rate, denoise, guidance, shift, seed, and serving defaults from active recipes or artifact facts; retain CLI values only as explicit overrides; migrate generate, latentvideo-run, server, and sampler callers; delete global and command-local policy bundles",
+          "status": "done",
+          "verify": "go test ./cmd/generate -run '^TestReadProjectedInputs$' -count=1 \u0026\u0026 go test ./cmd/latentvideo-run -run '^TestSummarizeProducesFiniteJSONStatistics$' -count=1 \u0026\u0026 go test ./internal/sampling -run '^TestGreedyAndTieBreak$' -count=1 \u0026\u0026 go test ./internal/server -run '^TestProperties$' -count=1 \u0026\u0026 go test ./internal/modelrecipe -run '^TestAtomicEvidenceGatedActivation$' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd/generate,cmd/latentvideo-run,internal/sampling,internal/server -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts \u003e /dev/null",
+          "rationale": "Command and package defaults duplicate runtime policy and obscure paths that differ only by recipe parameters.",
+          "depends_on": [
+            "architecture-profile-catalog/do"
+          ],
+          "capabilities": [
+            "recipes",
+            "generation",
+            "serving",
+            "magic-authority"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "literal-training-policy",
+      "title": "Derive training and probe policy from compiled training plans",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace command-local steps, sequence extents, learning rates, momentum, schedules, wall bounds, dimensions, and seeds with dataset, model, resource, optimizer, and evidence-derived TrainingSessionPlan fields; migrate every training and probe caller; delete duplicated flag defaults and private derivations",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train ./internal/trainingprogram ./internal/trainingworkflow ./internal/optimizer ./internal/hybridtrain -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd,internal/trainingprogram,internal/trainingworkflow,internal/optimizer,internal/hybridtrain -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "rationale": "Training commands encode campaign parameters beside shared optimizer and training authorities, preventing equivalent probes from sharing one compiled plan.",
+          "depends_on": [
+            "literal-runtime-policy/do"
+          ],
+          "capabilities": [
+            "training",
+            "optimizer",
+            "resource-planning",
+            "magic-authority"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "literal-workflow-stages",
+      "title": "Make typed recipe modules own workflow stage requirements",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move model-build stage order, input and output requirements, and postconditions into typed module descriptors consumed by workflowruntime; replace positional stage indexing with compiled iteration; migrate callers and delete model-build-specific validation closures",
+          "status": "open",
+          "verify": "go test ./internal/workflowruntime ./internal/workflowrecipe ./internal/recipe ./internal/modelrecipe -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/workflowruntime,internal/workflowrecipe,internal/recipe,internal/modelrecipe -require-classified -require-no-stale -require-no-uncatalogued-production",
+          "rationale": "Model-build execution repeats stage order and output validity through positional literals instead of consuming recipe module contracts.",
+          "depends_on": [
+            "literal-training-policy/do"
+          ],
+          "capabilities": [
+            "workflow",
+            "recipes",
+            "modularity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "literal-operator-contracts",
+      "title": "Compile tensor, reference, and CUDA execution from one typed operator schema",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Represent operand roles, ranks, axes, layouts, output rules, runtime attributes, and launch bindings in narrow typed operator schemas; migrate recurrent, attention-layout, and math-vision builders plus reference and CUDA executors together; delete displaced rank checks, slot maps, launch branches, and duplicated shape arithmetic",
+          "status": "open",
+          "verify": "go test ./internal/tensor ./internal/tensor/reference ./internal/cuda/executor -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/tensor,internal/cuda/executor -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "rationale": "Builder, CPU reference, and CUDA launch files repeat the largest concentration of shape, axis, and operand-position facts. One compiled schema should drive all three without a property bag.",
+          "depends_on": [
+            "literal-workflow-stages/do"
+          ],
+          "capabilities": [
+            "tensor",
+            "cuda",
+            "operator-schema",
+            "processing"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "literal-media-codec",
+      "title": "Compile media codec kernels and bindings from typed codec operations",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add typed weight roles, kernel ABI references, convolution extents, cache behavior, and workspace lifetimes to the existing media codec program; migrate latent-video and latent-image host and CUDA paths; delete positional weight access, private kernel tables, repeated convolution facts, and duplicate workspace naming",
+          "status": "open",
+          "verify": "go test ./internal/media ./internal/latentvideo ./internal/latentimage -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/media,internal/latentvideo,internal/latentimage -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "rationale": "Codec sessions interpret binding positions and kernel dimensions locally despite already receiving compiled codec operations.",
+          "depends_on": [
+            "literal-operator-contracts/do"
+          ],
+          "capabilities": [
+            "media",
+            "codec",
+            "cuda",
+            "memory"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "literal-evidence-policy",
+      "title": "Make golden evidence own parity tolerances and execution budgets",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Store stage tolerances, decode budgets, warmup and measurement extents, and acceptance relations in typed evidence documents; migrate VQA parity and evaluation callers to one shared assertion and measurement contract; delete repeated tolerance pairs, fixed step counts, and local comparison ladders",
+          "status": "open",
+          "verify": "go test ./cmd/vqaparity ./internal/evaluation ./internal/adaptiveparity ./internal/runrecord -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd/vqaparity,internal/evaluation,internal/adaptiveparity -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "rationale": "Repeated tolerance pairs and decode limits are evidence policy, not executable mathematics; source literals let host and device gates drift independently.",
+          "depends_on": [
+            "literal-media-codec/do"
+          ],
+          "capabilities": [
+            "evaluation",
+            "parity",
+            "evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "literal-quant-formats",
+      "title": "Make typed quantization format descriptors authoritative",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define narrow descriptors for normative block sizes, packed lanes, masks, scales, offsets, and storage bytes; make quantize, dequantize, tensor dtype, GGUF, and CUDA bindings consume them; preserve distinct bit transforms; delete duplicated format facts and parallel size switches",
+          "status": "open",
+          "verify": "go test ./internal/quant ./internal/tensor/dtype ./internal/gguf ./internal/cuda/executor -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/quant,internal/tensor/dtype,internal/gguf,internal/cuda/executor -require-classified -require-no-stale -require-no-uncatalogued-production",
+          "rationale": "Quantization has the largest literal count, but most values are normative wire facts. Shared descriptors can remove duplicated metadata while leaving numerical transforms explicit and oracle-verifiable.",
+          "depends_on": [
+            "literal-evidence-policy/do"
+          ],
+          "capabilities": [
+            "quantization",
+            "gguf",
+            "wire-format",
+            "cuda"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "literal-protocol-contracts",
+      "title": "Consolidate repeated protocol and projector literals through existing typed owners",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Use standard HTTP constants, shared protocol field types, common projector input validation, and typed tensor-role catalogs; migrate server and projector callers; delete repeated status values, field strings, nil-image guards, QKV name assembly, and pass-through helpers",
+          "status": "open",
+          "verify": "go test ./internal/server ./internal/projector ./internal/model ./internal/media -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/server,internal/projector,internal/model,internal/media -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "rationale": "Protocol and projector packages repeat stable vocabulary and validation across files; standard-library and typed catalog owners can replace those copies without changing model mathematics.",
+          "depends_on": [
+            "literal-quant-formats/do"
+          ],
+          "capabilities": [
+            "server",
+            "projector",
+            "protocols",
+            "modularity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "literal-authority-closure",
+      "title": "Close literal consolidation with exact census and parity evidence",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run a fresh production and test census, inspect every remaining high-pressure owner, publish exact evidence to RepoDB, confirm no copied policy or model facts, remove obsolete constants and wrappers exposed by the migrations, and run host and device gates",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
+          "rationale": "Closure requires lower repeated production pressure with every surviving constant bound to one semantic owner; raw literal count alone is not the objective and legitimate fixtures remain visible.",
+          "depends_on": [
+            "literal-protocol-contracts/do"
+          ],
+          "capabilities": [
+            "magic-authority",
+            "evidence",
+            "closure",
+            "verification"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "merge-703690c4a615",
+      "title": "Merge master at 703690c4a615",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 703690c4a615",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "agent-tool-contract",
+      "title": "UTCP tool manuals as store authority: typed contract, registry, registered aliases, coverage inspector",
       "owner": "gui",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Fold the best of both catalogs into overgodb: registered denominators and truncation honesty in the capability catalog",
+          "title": "UTCP tool manuals as store authority: typed contract, registry, registered aliases, coverage inspector",
           "status": "done",
-          "verify": "go test ./internal/discovery ./internal/server -run 'TestCapabilityCatalog|TestWorkbenchAPI|TestWebUI' -count=1"
+          "verify": "go test ./internal/agenttool -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-tool-transports",
+      "title": "Native UTCP transports: builtin, bounded HTTP, and guarded argv executors with timeouts and size caps",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Native UTCP transports: builtin, bounded HTTP, and guarded argv executors with timeouts and size caps",
+          "status": "done",
+          "verify": "go test ./internal/agenttool -run TestTransport -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-store-upgrade-guard",
+      "title": "Refuse silent empty-store creation over legacy data; backup honors the legacy log filename",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse silent empty-store creation over legacy data; backup honors the legacy log filename",
+          "status": "done",
+          "verify": "go test ./internal/overgodb ./internal/dataroot -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-rename-residue",
+      "title": "Fix reverify's deleted repodb-query invocation and sweep rename residue from release material",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fix reverify's deleted repodb-query invocation and sweep rename residue from release material",
+          "status": "done",
+          "verify": "go test ./cmd/reverify -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-dataset-locations",
+      "title": "Republish dataset locations for datasets that appear after catalog publication",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Republish dataset locations for datasets that appear after catalog publication",
+          "status": "open",
+          "verify": "go test ./internal/dataset -run TestPublish -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-stage-admitted-retry",
+      "title": "Allow stage retry from the admitted state so a crash between admission and running recovers",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Allow stage retry from the admitted state so a crash between admission and running recovers",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -run TestStage -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-tool-call-provenance",
+      "title": "Execute only model-produced tool calls; client-authored assistant messages never execute tools",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Execute only model-produced tool calls; client-authored assistant messages never execute tools",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestToolExecution -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-response-id-durability",
+      "title": "Seed response identifiers from durable state and surface publication failure",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Seed response identifiers from durable state and surface publication failure",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestResponses -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-hub-download-lifecycle",
+      "title": "Bound hub downloads: no total timeout on transfers, admission and retention limits, cancellation",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound hub downloads: no total timeout on transfers, admission and retention limits, cancellation",
+          "status": "open",
+          "verify": "go test ./internal/hfhub ./internal/server -run 'TestHub|TestWorkbenchAPIDownload' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-workflow-admission",
+      "title": "Bound parallel stage execution and serialize adapter entry in the workflow runtime",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound parallel stage execution and serialize adapter entry in the workflow runtime",
+          "status": "open",
+          "verify": "go test ./internal/workflowruntime -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-orchestration",
+      "title": "Agent orchestration state machine: inspection-before-mutation pools, bounded steps, typed refusal of unregistered tools",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Agent orchestration state machine: inspection-before-mutation pools, bounded steps, typed refusal of unregistered tools",
+          "status": "open",
+          "verify": "go test ./internal/agentloop -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-session-ledger",
+      "title": "Durable agent session ledger: session and step documents in OvergoDB with checkpoint and restore",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Durable agent session ledger: session and step documents in OvergoDB with checkpoint and restore",
+          "status": "open",
+          "verify": "go test ./internal/agentsession -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-server-api",
+      "title": "Agent server API: registered tool catalog with coverage, durable sessions, and a stepped agent loop over the served model",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Agent server API: registered tool catalog with coverage, durable sessions, and a stepped agent loop over the served model",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestAgentAPI' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-gui",
+      "title": "Agent workspace in the GUI: chat with tool-event timeline, catalog with mutation badges, session picker, and mutation approval",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Agent workspace in the GUI: chat with tool-event timeline, catalog with mutation badges, session picker, and mutation approval",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestWebUI' -count=1"
         }
       ]
     }

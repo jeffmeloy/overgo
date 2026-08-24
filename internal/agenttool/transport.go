@@ -1,0 +1,203 @@
+package agenttool
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os/exec"
+	"strings"
+	"time"
+
+	"overgo/internal/strictjson"
+)
+
+const (
+	// invokeTimeout bounds one tool invocation end to end; a tool that
+	// cannot answer within it is a failed call, never a hung agent step.
+	invokeTimeout = 60 * time.Second
+	// maxResultBytes bounds one tool result; larger output is a refusal
+	// so a chatty tool cannot flood the session ledger or the context.
+	maxResultBytes = 1 << 20
+)
+
+// Builtin is one in-process tool implementation: strict JSON in,
+// strict JSON out.
+type Builtin func(context.Context, json.RawMessage) (json.RawMessage, error)
+
+// Executor invokes manuals over their declared native transports.
+type Executor struct {
+	builtins map[string]Builtin
+	client   *http.Client
+}
+
+// NewExecutor returns an executor with no builtins registered.
+func NewExecutor() *Executor {
+	return &Executor{builtins: map[string]Builtin{}, client: &http.Client{Timeout: invokeTimeout}}
+}
+
+// registerBuiltin binds one in-process implementation to a manual name.
+func (e *Executor) registerBuiltin(name string, implementation Builtin) error {
+	if !manualNamePattern.MatchString(name) || implementation == nil {
+		return fmt.Errorf("agent tool: invalid builtin registration %q", name)
+	}
+	if _, exists := e.builtins[name]; exists {
+		return fmt.Errorf("agent tool: builtin %q is already registered", name)
+	}
+	e.builtins[name] = implementation
+	return nil
+}
+
+// Invoke validates arguments against the manual and executes it over
+// its declared transport, returning strict JSON or a typed error.
+func (e *Executor) Invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
+	if ctx == nil {
+		return nil, errors.New("agent tool: nil invoke context")
+	}
+	if err := validateArguments(manual, arguments); err != nil {
+		return nil, err
+	}
+	bounded, cancel := context.WithTimeout(ctx, invokeTimeout)
+	defer cancel()
+	switch manual.Transport.Kind {
+	case TransportBuiltin:
+		implementation, registered := e.builtins[manual.Name]
+		if !registered {
+			return nil, fmt.Errorf("agent tool: builtin %q is not registered", manual.Name)
+		}
+		result, err := implementation(bounded, arguments)
+		if err != nil {
+			return nil, fmt.Errorf("agent tool: %q failed: %w", manual.Name, err)
+		}
+		return boundedResult(manual.Name, result)
+	case TransportHTTP:
+		return e.invokeHTTP(bounded, manual, arguments)
+	case TransportArgv:
+		return invokeArgv(bounded, manual, arguments)
+	}
+	return nil, fmt.Errorf("agent tool: manual %q transport kind is not declared", manual.Name)
+}
+
+func (e *Executor) invokeHTTP(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, manual.Transport.URL, bytes.NewReader(arguments))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Content-Type", ManualMediaType)
+	response, err := e.client.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("agent tool: %q endpoint failed: %w", manual.Name, err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(response.Body, maxResultBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("agent tool: %q endpoint returned status %d: %s",
+			manual.Name, response.StatusCode, strings.TrimSpace(string(truncateForError(body))))
+	}
+	if !json.Valid(body) {
+		return nil, fmt.Errorf("agent tool: %q endpoint returned non-JSON", manual.Name)
+	}
+	return boundedResult(manual.Name, body)
+}
+
+func invokeArgv(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
+	command := exec.CommandContext(ctx, manual.Transport.Program, manual.Transport.Args...)
+	command.Stdin = bytes.NewReader(arguments)
+	var stdout, stderr bytes.Buffer
+	command.Stdout, command.Stderr = &stdout, &stderr
+	if err := command.Run(); err != nil {
+		return nil, fmt.Errorf("agent tool: %q exited: %v: %s",
+			manual.Name, err, strings.TrimSpace(string(truncateForError(stderr.Bytes()))))
+	}
+	// Argv tools speak text; the result is the stdout text as one JSON
+	// string so every transport returns strict JSON to the loop.
+	encoded, err := json.Marshal(strings.TrimRight(stdout.String(), "\r\n"))
+	if err != nil {
+		return nil, err
+	}
+	return boundedResult(manual.Name, encoded)
+}
+
+func boundedResult(name string, result json.RawMessage) (json.RawMessage, error) {
+	if len(result) > maxResultBytes {
+		return nil, fmt.Errorf("agent tool: %q result exceeds the size bound", name)
+	}
+	if len(result) == 0 || !json.Valid(result) {
+		return nil, fmt.Errorf("agent tool: %q returned non-JSON", name)
+	}
+	return append(json.RawMessage(nil), result...), nil
+}
+
+func truncateForError(body []byte) []byte {
+	if len(body) > manualTextBytes {
+		return body[:manualTextBytes]
+	}
+	return body
+}
+
+func validateArguments(manual Manual, arguments json.RawMessage) error {
+	var supplied map[string]json.RawMessage
+	if err := strictjson.DecodeBytes(arguments, &supplied); err != nil || supplied == nil {
+		return fmt.Errorf("agent tool: %q arguments must be a strict JSON object", manual.Name)
+	}
+	declared := map[string]Field{}
+	for _, field := range manual.Arguments {
+		declared[field.Name] = field
+		if _, present := supplied[field.Name]; field.Required && !present {
+			return fmt.Errorf("agent tool: %q requires argument %q", manual.Name, field.Name)
+		}
+	}
+	for name, value := range supplied {
+		field, ok := declared[name]
+		if !ok {
+			return fmt.Errorf("agent tool: %q does not declare argument %q", manual.Name, name)
+		}
+		if err := checkFieldKind(field, value); err != nil {
+			return fmt.Errorf("agent tool: %q argument %q: %w", manual.Name, name, err)
+		}
+	}
+	return nil
+}
+
+func checkFieldKind(field Field, value json.RawMessage) error {
+	trimmed := bytes.TrimSpace(value)
+	if len(trimmed) == 0 {
+		return errors.New("empty value")
+	}
+	switch field.Kind {
+	case FieldString:
+		var text string
+		if err := json.Unmarshal(trimmed, &text); err != nil {
+			return errors.New("expected a JSON string")
+		}
+	case FieldBoolean:
+		var flag bool
+		if err := json.Unmarshal(trimmed, &flag); err != nil {
+			return errors.New("expected a JSON boolean")
+		}
+	case FieldNumber:
+		var number float64
+		if err := json.Unmarshal(trimmed, &number); err != nil {
+			return errors.New("expected a JSON number")
+		}
+	case FieldInteger:
+		var integer int64
+		if err := json.Unmarshal(trimmed, &integer); err != nil {
+			return errors.New("expected a JSON integer")
+		}
+	case FieldObject:
+		var object map[string]json.RawMessage
+		if err := strictjson.DecodeBytes(trimmed, &object); err != nil || object == nil {
+			return errors.New("expected a strict JSON object")
+		}
+	default:
+		return errors.New("undeclared field kind")
+	}
+	return nil
+}

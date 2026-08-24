@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:ca236225b837b7ac6e5a4d43fdbff121f489343eb05eaa7410f0e2df3f2f1e2a",
   "items": [
     {
+      "id": "dataset-catalog-compatibility",
+      "title": "Publish the dataset catalog compatibility mirror",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish the dataset catalog compatibility mirror",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
       "id": "dataset-catalog",
       "title": "Publish the legacy dataset inventory as RepoDB authority",
       "owner": "tightening",

@@ -35,12 +35,12 @@
       "id": "gui-overgodb",
       "title": "Optimize the GUI over the streamed store",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Optimize the GUI over the streamed store",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'TestWorkbenchAPI|TestWebUI' -count=1"
         }
       ]

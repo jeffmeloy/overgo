@@ -13,6 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/hfhub"
+	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
 )
 
@@ -21,8 +22,11 @@ import (
 // download jobs that fill the data root. Every route is JSON over the same
 // mux as the rest of the workbench.
 
-// catalogModels lists the store's servable models exactly as the discovery
-// query proves them: hashed on disk, active recipe, verified evidence.
+// catalogModels lists every model the store activates for any task, as
+// the discovery capability catalog proves them: activation aliases drive
+// enumeration, presence is a stat of recorded bytes, and each task
+// carries its own tier or defect. The inference activation also fills
+// the flat recipe/tier fields so existing consumers keep their shape.
 func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodGet {
 		methodNotAllowed(response)
@@ -32,17 +36,26 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusServiceUnavailable, "hub_unavailable", "no artifact repository is configured")
 		return
 	}
-	entries, err := discovery.ServableWithMemo(request.Context(), h.config.Repository, maxCatalogEntries, h.catalogMemo)
+	entries, err := discovery.CapabilityCatalog(request.Context(), h.config.Repository, maxCatalogEntries, h.catalogMemo)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "catalog_error", err.Error())
 		return
 	}
 	listed := make([]catalogModel, 0, len(entries))
 	for _, entry := range entries {
-		listed = append(listed, catalogModel{
-			Model: idText(entry.Model), Recipe: idText(entry.Recipe), Tier: string(entry.Tier),
-			Location: entry.Location, Present: entry.Present, Stale: entry.Stale,
-		})
+		model := catalogModel{
+			Model: idText(entry.Model), Location: entry.Location, Present: entry.Present,
+		}
+		for _, capability := range entry.Capabilities {
+			model.Capabilities = append(model.Capabilities, catalogCapability{
+				Task: string(capability.Task), Recipe: idText(capability.Recipe),
+				Tier: string(capability.Tier), Stale: capability.Stale,
+			})
+			if capability.Task == recipe.TaskInference {
+				model.Recipe, model.Tier, model.Stale = idText(capability.Recipe), string(capability.Tier), capability.Stale
+			}
+		}
+		listed = append(listed, model)
 	}
 	writeJSON(response, http.StatusOK, map[string]any{"models": listed})
 }
@@ -50,14 +63,24 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 // catalogModel is the catalog's wire shape. A stale entry can carry invalid
 // artifact identities; the codec refuses to marshal those, and one broken
 // activation must not blank the whole catalog, so identities render as text
-// with absence rendered empty.
+// with absence rendered empty. The flat recipe/tier/stale fields mirror the
+// inference capability for consumers of the original inference-only shape.
 type catalogModel struct {
-	Model    string `json:"model"`
-	Recipe   string `json:"recipe"`
-	Tier     string `json:"tier,omitempty"`
-	Location string `json:"location"`
-	Present  bool   `json:"present"`
-	Stale    string `json:"stale,omitempty"`
+	Model        string              `json:"model"`
+	Recipe       string              `json:"recipe"`
+	Tier         string              `json:"tier,omitempty"`
+	Location     string              `json:"location"`
+	Present      bool                `json:"present"`
+	Stale        string              `json:"stale,omitempty"`
+	Capabilities []catalogCapability `json:"capabilities,omitempty"`
+}
+
+// catalogCapability is one task activation on a catalogued model.
+type catalogCapability struct {
+	Task   string `json:"task"`
+	Recipe string `json:"recipe"`
+	Tier   string `json:"tier,omitempty"`
+	Stale  string `json:"stale,omitempty"`
 }
 
 func idText(id artifact.ID) string {

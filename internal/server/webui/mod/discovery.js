@@ -21,14 +21,23 @@
           const catalog = await overgo.api.get("/catalog/models");
           overgo.clear(catalogBody);
           const models = catalog.models || [];
-          catalogNote.textContent = models.length ? models.length + " servable model(s)" :
-            "No servable models yet — download one below, then activate it with cmd/reverify.";
+          catalogNote.textContent = models.length ? models.length + " activated model(s)" :
+            "No activated models yet — download one below, then activate it with cmd/reverify.";
           for (const entry of models) {
+            const capabilities = el("td");
+            for (const capability of entry.capabilities || []) {
+              const label = capability.stale ? capability.task + " · stale" :
+                capability.task + (capability.tier ? " · " + capability.tier : "");
+              capabilities.appendChild(el("span", {
+                class: "tag", style: "margin-right:4px",
+                title: capability.stale || capability.recipe, text: label,
+              }));
+            }
             catalogBody.appendChild(el("tr", null,
               el("td", { class: "mono", text: fmt.shortID(entry.model) }),
               el("td", { text: (entry.location || "").split(/[\\/]/).pop() }),
-              el("td", null, el("span", { class: "tag", text: entry.stale ? "stale" : (entry.tier || "") })),
-              el("td", { class: "mono", text: fmt.shortID(entry.recipe) })));
+              capabilities,
+              el("td", null, entry.present ? "" : el("span", { class: "tag", text: "missing bytes" }))));
           }
         } catch (err) {
           catalogNote.textContent = overgo.friendlyError(err);
@@ -101,7 +110,7 @@
         catalogNote,
         el("table", { class: "grid" },
           el("thead", null, el("tr", null,
-            el("th", { text: "model" }), el("th", { text: "file" }), el("th", { text: "tier" }), el("th", { text: "recipe" }))),
+            el("th", { text: "model" }), el("th", { text: "file" }), el("th", { text: "capabilities" }), el("th", { text: "" }))),
           catalogBody),
         el("div", { class: "section-title", text: "Hugging Face" }),
         el("div", { class: "row" }, kind, query, searchButton, searchCancel, searchNote),

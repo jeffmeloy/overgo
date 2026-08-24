@@ -1293,12 +1293,12 @@
       "id": "adk-repodb-streaming-durability",
       "title": "Stream RepoDB log and snapshot publication without store-sized temporary documents",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Write log headers, canonical payloads, and checksums incrementally; stream deterministic snapshot sections from ordered keys; delete assembled frame and snapshotDocument payload copies",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/overgodb -run 'Test(LogAppendStreamsFrame|StreamingSnapshotRoundTrip|StreamingSnapshotFaultPreservesStore|SnapshotAnchorsReplay|SyncFaultReplaysCompleteUncertainCommit)' -count=1",
           "rationale": "Log append currently joins header, payload, and checksum into another frame. Snapshot publication clones the full catalog into a document and marshals another full payload. Preserve commit identities, canonical ordering, fsync, atomic rename, fallback replay, and fault behavior while bounding temporary storage to ordered keys and encoder buffers.",
           "depends_on": [

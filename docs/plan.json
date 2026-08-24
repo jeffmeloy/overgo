@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:ca236225b837b7ac6e5a4d43fdbff121f489343eb05eaa7410f0e2df3f2f1e2a",
   "items": [
     {
+      "id": "dataset-catalog",
+      "title": "Publish the legacy dataset inventory as RepoDB authority",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish the legacy dataset inventory as RepoDB authority",
+          "status": "done",
+          "verify": "go test ./internal/dataset ./internal/repodb ./cmd/dataset-catalog ./cmd/repodb-query ./internal/server ./internal/evaluation -run 'Test(DatasetCatalog|PublishDatasetCatalog|DatasetCatalogCompaction|DatasetCatalogQuery|BrowseDatasetsUsesCatalog)' -count=1"
+        }
+      ]
+    },
+    {
       "id": "merge-47134365e861",
       "title": "Merge master at 47134365e861",
       "owner": "tightening",

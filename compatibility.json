@@ -1065,20 +1065,20 @@
      "contains": "func (h *Handler) browseDatasets(",
      "path": "internal/server/browse_datasets.go",
      "role": "source",
-     "identity": "file:sha256:05ed7aa70f6c96ba15080c775f081b0b28386af9f92038dc15b36907ffa3b4fa"
+     "identity": "file:sha256:1648bf718f728141fb630499080724340bbe0334721be4d434fc2fdaff36de95"
     },
     {
-     "contains": "func TestBrowseDatasetsReadsManifest(",
+     "contains": "func TestBrowseDatasetsUsesCatalog(",
      "path": "internal/server/browse_datasets_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:d221dd41d790f8435b033f1cac533ed33fe8fb476bdac92ba4f87561fcb4b196"
+     "identity": "evidence:sha256:5d0f4c19d7b33b905d4a91a997d8be3826bbeea614eb451121292eb6c2e96d2c"
     }
    ],
    "id": "bounded-dataset-browser",
    "evidence_tier": "contract-tested",
-   "verify": "go test ./internal/server -run '^TestBrowseDatasetsReadsManifest$' -count=1 -v",
+   "verify": "go test ./internal/server -run '^TestBrowseDatasetsUsesCatalog$' -count=1 -v",
    "status": "implemented",
-   "summary": "The authenticated GUI reads a bounded dataset registry manifest without dataset mutation or payload access."
+   "summary": "The authenticated GUI reads the active RepoDB dataset catalog without dataset mutation or payload access."
   },
   {
    "evidence": [

@@ -16,6 +16,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/closurescan"
 	"overgo/internal/composition"
+	"overgo/internal/dataset"
 	"overgo/internal/discovery"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
@@ -58,6 +59,7 @@ func run(args []string, output io.Writer) error {
 	verifications := flags.Bool("verifications", false, "derive the model verification matrix from committed records: strongest evidenced tier per capability")
 	configs := flags.Bool("configs", false, "list committed model-config declarations: sequence extensions and generation essentials with source digests")
 	profiles := flags.Bool("profiles", false, "audit registered architecture-profile publication")
+	datasets := flags.Bool("datasets", false, "audit active dataset catalog publication")
 	contentDump := flags.Bool("content", false, "print the raw committed content bytes of the artifact named by -id")
 	magicClosures := flags.Bool("magic-closures", false, "list magic census history, owner pressure, and unresolved bindings")
 	if err := flags.Parse(args); err != nil {
@@ -105,6 +107,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *profiles {
 		return writeProfiles(output, *repository, *jsonOutput)
+	}
+	if *datasets {
+		return writeDatasets(output, *repository, *jsonOutput)
 	}
 	if *contentDump {
 		return writeContent(output, *repository, *idText)
@@ -154,6 +159,28 @@ func run(args []string, output io.Writer) error {
 		return clioptions.WritePrettyJSON(output, result)
 	}
 	return writeText(output, result)
+}
+
+func writeDatasets(output io.Writer, repository string, jsonOutput bool) error {
+	store, err := repodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	coverage, err := dataset.InspectCatalog(context.Background(), store)
+	if err != nil {
+		return err
+	}
+	if jsonOutput {
+		return clioptions.WritePrettyJSON(output, coverage)
+	}
+	fmt.Fprintf(output, "datasets registered=%d published=%d available=%d complete=%t\n",
+		coverage.Registered, coverage.Published, coverage.Available, coverage.Complete)
+	for _, entry := range coverage.Entries {
+		fmt.Fprintf(output, "dataset=%s status=%s available=%t artifact=%s location=%s\n",
+			entry.Entry.Name, entry.Status, entry.Available, entry.Entry.Dataset, entry.Location)
+	}
+	return nil
 }
 
 func writeProfiles(output io.Writer, repository string, jsonOutput bool) error {

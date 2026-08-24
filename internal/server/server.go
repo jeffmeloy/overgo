@@ -240,12 +240,9 @@ type Config struct {
 	FFmpegPath         string
 	VideoFPS           float64
 	VideoMaxFrames     int
-	// Browse surfaces (read-only): the datasets root (holding manifest.json) and
-	// the RepoDB store path (for run/artifact browsing). Empty disables the
-	// corresponding /datasets or /runs endpoint.
-	DatasetsRoot string
-	RepoDBPath   string
-	Repository   *repodb.Store
+	// RepoDBPath enables read-only catalog browsing when Repository is absent.
+	RepoDBPath string
+	Repository *repodb.Store
 	// HubEndpoint and HubToken configure Hugging Face intake; an empty
 	// endpoint means the public hub. HubDownloadRoot is the only directory
 	// download jobs may write under; empty disables downloads.

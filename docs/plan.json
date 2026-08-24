@@ -2196,6 +2196,244 @@
           "verify": "go run ./cmd/compatibility -check"
         }
       ]
+    },
+    {
+      "id": "verify-qwen35-training",
+      "title": "Verify Qwen3.5 dense training",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Qwen3.5 dense training",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestQwen35RealTraining -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-gemma-e4b-training",
+      "title": "Verify Gemma E4B training",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Gemma E4B training",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestGemmaE4BRealTraining -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-scratch-training",
+      "title": "Verify from-scratch training leadership",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify from-scratch training leadership",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestScratchTrainingLeadership -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-dense-training",
+      "title": "Verify dense training leadership",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify dense training leadership",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestDenseTrainingLeadership -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-multimodal-training",
+      "title": "Verify multimodal training matrix",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify multimodal training matrix",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestMultimodalTrainingMatrix -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-alternating-window-training",
+      "title": "Verify alternating-window training cells",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify alternating-window training cells",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestAlternatingWindowTrainingCells -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-text-structured-inference",
+      "title": "Verify text and structured inference matrix",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify text and structured inference matrix",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestInferenceTextAndStructuredMatrix -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-multimodal-inference",
+      "title": "Verify multimodal input inference matrix",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify multimodal input inference matrix",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestMultimodalInputMatrix -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-video-inference",
+      "title": "Verify Wan2.1 video generation inference",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Wan2.1 video generation inference",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestVideoGenerationLeadership -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-unlimited-ocr-inference",
+      "title": "Verify Unlimited-OCR production inference",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Unlimited-OCR production inference",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run TestUnlimitedOCRProductionParity -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-pocket-tts-inference",
+      "title": "Verify pocket-tts production inference",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify pocket-tts production inference",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -tags integration -run TestPocketTTSProductionParity -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-needle-inference",
+      "title": "Verify Needle process-peak inference",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Needle process-peak inference",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -tags modeltest -run TestNeedleProcessPeakLeadership -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-simplediffusion-inference",
+      "title": "Verify SimpleDiffusion process inference",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify SimpleDiffusion process inference",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -tags modeltest -run TestSimpleDiffusionProcessLeadership -count=1"
+        }
+      ]
+    },
+    {
+      "id": "fix-agenttool-regressions",
+      "title": "Restore invocation timeouts, enforce a real argv allowlist at publication, serialize per-manual execution",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore invocation timeouts, enforce a real argv allowlist at publication, serialize per-manual execution",
+          "status": "done",
+          "verify": "go test ./internal/agenttool ./cmd/agent-tool ./internal/agentloop -count=1"
+        }
+      ]
+    },
+    {
+      "id": "fix-agent-session-safety",
+      "title": "Make agent sessions concurrency-safe and durably restorable; add the named negative test for non-durable response publication",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make agent sessions concurrency-safe and durably restorable; add the named negative test for non-durable response publication",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestResponses' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "fix-plan-self-dependencies",
+      "title": "Validate same-item dependency edges: a step cannot depend on its own item or form intra-item cycles",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate same-item dependency edges: a step cannot depend on its own item or form intra-item cycles",
+          "status": "open",
+          "verify": "go test ./internal/plan -run TestDepend -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-gemma4-fp8-inference",
+      "title": "Verify Gemma-4 FP8 inference leadership",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Gemma-4 FP8 inference leadership",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_GEMMA4_BASELINE=1 go test ./internal/adaptiveparity -run TestGemma4FP8Leadership -count=1"
+        }
+      ]
     }
   ]
 }

@@ -244,3 +244,27 @@ func fixtureMetric(modality recipecontract.Modality) EvaluationMetric {
 		return ""
 	}
 }
+
+// TestObjectiveAuthorityLadder pins the graduated validation levels:
+// declared < adaptive-evidence < approved, an AtLeast floor check, and
+// rejection of an undeclared level.
+func TestObjectiveAuthorityLadder(t *testing.T) {
+	ascending := []ObjectiveAuthority{ObjectiveDeclared, ObjectiveAdaptive, ObjectiveApproved}
+	for lower := range ascending {
+		for higher := range ascending {
+			meets := ascending[higher].AtLeast(ascending[lower])
+			if want := higher >= lower; meets != want {
+				t.Fatalf("%s.AtLeast(%s) = %t, want %t", ascending[higher], ascending[lower], meets, want)
+			}
+		}
+	}
+	if ObjectiveDeclared.AtLeast(ObjectiveApproved) {
+		t.Fatal("declared must not satisfy an approved floor")
+	}
+	if !ValidObjectiveAuthority(ObjectiveDeclared) || ValidObjectiveAuthority(ObjectiveAuthority("mystery")) {
+		t.Fatal("validity check wrong")
+	}
+	if ObjectiveAuthority("mystery").AtLeast(ObjectiveDeclared) {
+		t.Fatal("an undeclared level must not meet any floor")
+	}
+}

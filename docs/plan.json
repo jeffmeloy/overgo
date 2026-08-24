@@ -2467,13 +2467,13 @@
       "id": "objective-genuine-approval",
       "title": "Objective approval requires executable contracts and evaluation evidence, not a hashed note; descriptor-only objectives are adaptive-tier at most",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Objective approval requires executable contracts and evaluation evidence, not a hashed note; descriptor-only objectives are adaptive-tier at most",
-          "status": "open",
-          "verify": "go test ./cmd/training-objective ./internal/trainingprogram -count=1"
+          "status": "done",
+          "verify": "go test ./cmd/training-objective -count=1 \u0026\u0026 go test ./internal/trainingprogram -run 'TestObjectiveAuthorityLadder|TestObjectiveMatrixUsesOnlyStoredCorpusBoundObjectives|TestRepositoryObjectiveBindsTrainingRun' -count=1"
         }
       ]
     },

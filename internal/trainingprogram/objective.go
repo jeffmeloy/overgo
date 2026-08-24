@@ -52,12 +52,47 @@ var objectiveKinds = []ObjectiveKind{
 	ObjectiveGRPO,
 }
 
+// ObjectiveAuthority is the objective's validation level -- a ladder,
+// not a binary. Each rung states how much has actually been proven
+// about the objective, so a consumer can require a minimum level
+// rather than only asking "approved or not". Approval is the top of
+// the ladder, earned by evidence, never asserted at publication.
 type ObjectiveAuthority string
 
 const (
+	// ObjectiveDeclared records contract identities and an evidence note
+	// with nothing executable or measured behind them; a directory
+	// corpus bound to a loss kind starts here.
+	ObjectiveDeclared ObjectiveAuthority = "declared"
+	// ObjectiveAdaptive carries measured adaptive evidence -- a real
+	// training signal on real artifacts -- without a full approved
+	// evaluation run.
 	ObjectiveAdaptive ObjectiveAuthority = "adaptive-evidence"
+	// ObjectiveApproved stands on executable loss and evaluation
+	// definitions with a committed successful evaluation run.
 	ObjectiveApproved ObjectiveAuthority = "approved"
 )
+
+// objectiveAuthorityLevel orders the validation ladder; a higher rank
+// has strictly more proven about it.
+var objectiveAuthorityLevel = map[ObjectiveAuthority]int{
+	ObjectiveDeclared: 1, ObjectiveAdaptive: 2, ObjectiveApproved: 3,
+}
+
+// AtLeast reports whether this validation level meets or exceeds the
+// floor a consumer requires. An undeclared floor is never satisfiable.
+func (authority ObjectiveAuthority) AtLeast(floor ObjectiveAuthority) bool {
+	if !ValidObjectiveAuthority(floor) {
+		return false
+	}
+	return objectiveAuthorityLevel[authority] >= objectiveAuthorityLevel[floor]
+}
+
+// ValidObjectiveAuthority reports whether the level is a declared rung.
+func ValidObjectiveAuthority(authority ObjectiveAuthority) bool {
+	_, declared := objectiveAuthorityLevel[authority]
+	return declared
+}
 
 type EvaluationMetric string
 
@@ -172,7 +207,7 @@ func canonicalizeObjective(value *ObjectiveDocument) error {
 	if value.Version != artifact.SecondDocumentVersion || strings.TrimSpace(value.Name) == "" || value.Name != strings.TrimSpace(value.Name) ||
 		value.Dataset.Kind() != artifact.KindDataset || value.Split.Kind() != artifact.KindDatasetShard ||
 		value.Loss.Kind() != artifact.KindProfile || value.Evaluation.Kind() != artifact.KindProfile ||
-		!validObjectiveKind(value.Kind) || (value.Authority != ObjectiveAdaptive && value.Authority != ObjectiveApproved) {
+		!validObjectiveKind(value.Kind) || !ValidObjectiveAuthority(value.Authority) {
 		return errors.New("training objective: invalid authority")
 	}
 	if err := value.Signature.Validate(); err != nil || len(value.Signature.Inputs) != 1 || len(value.Signature.Outputs) != 1 {

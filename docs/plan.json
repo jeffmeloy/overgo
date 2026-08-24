@@ -125,7 +125,7 @@
         {
           "id": "schema-form",
           "title": "Publish typed field metadata and implement one reusable form renderer with identities, enums, units, constraints, applicability, validation, and unsaved-change protection",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestWorkspaceSchema' internal/server \u0026\u0026 go test ./internal/server -run 'TestWorkspaceSchema|TestWorkspaceFormRenderer|TestWorkspaceUnsavedChanges' -count=1",
           "rationale": "The automation editor is the proving consumer. Metadata is projected from Go contracts; the browser must not duplicate defaults, limits, enum lists, model facts, or policy constants. A second consumer is forbidden until this vertical is working.",
           "depends_on": [

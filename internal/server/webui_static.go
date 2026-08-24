@@ -60,6 +60,10 @@ func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request
 		h.workspaceManifest(response, request)
 		return
 	}
+	if request.URL.Path == "/workspace/schema" {
+		h.workspaceSchema(response, request)
+		return
+	}
 	if request.Method != http.MethodGet && request.Method != http.MethodHead {
 		writeError(response, http.StatusNotFound, "not_found", "route not found")
 		return

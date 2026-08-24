@@ -1,6 +1,9 @@
 package workflowrecipe
 
-import "overgo/internal/recipe"
+import (
+	"overgo/internal/artifact"
+	"overgo/internal/recipe"
+)
 
 const (
 	ModuleTokenize        recipe.ModuleID = "text.tokenize"
@@ -39,6 +42,27 @@ const (
 	ModuleRecordModel recipe.ModuleID = "model-build.record"
 	// ModulePromoteModel owns model promotion decisions.
 	ModulePromoteModel recipe.ModuleID = "model-build.promote"
+
+	// ModelBuildStatePort carries durable construction state.
+	ModelBuildStatePort recipe.PortName = "state"
+	// BuildRecipeFact identifies recipe authority.
+	BuildRecipeFact recipe.PortName = "recipe"
+	// BuildDatasetFact identifies dataset authority.
+	BuildDatasetFact recipe.PortName = "dataset"
+	// BuildConstructionFact identifies construction authority.
+	BuildConstructionFact recipe.PortName = "construction"
+	// BuildModelFact identifies the current model.
+	BuildModelFact recipe.PortName = "model"
+	// BuildCheckpointFact identifies the fitted checkpoint.
+	BuildCheckpointFact recipe.PortName = "checkpoint"
+	// BuildRunFact identifies the evaluation run.
+	BuildRunFact recipe.PortName = "run"
+	// BuildEvaluationFact identifies evaluation output.
+	BuildEvaluationFact recipe.PortName = "evaluation"
+	// BuildEvidenceFact identifies published evidence.
+	BuildEvidenceFact recipe.PortName = "evidence"
+	// BuildDecisionFact identifies the promotion decision.
+	BuildDecisionFact recipe.PortName = "decision"
 )
 
 var catalog = mustCatalog()
@@ -112,12 +136,30 @@ func mustCatalog() *recipe.Catalog {
 }
 
 func modelBuildModules() []recipe.Module {
-	state := ports(port("state", recipe.DataArtifact, recipe.CardinalityOne))
+	state := ports(port(ModelBuildStatePort, recipe.DataArtifact, recipe.CardinalityOne))
+	required := []recipe.ArtifactRequirement{
+		{Name: BuildRecipeFact, Kind: artifact.KindRecipe, Preserve: true},
+		{Name: BuildDatasetFact, Kind: artifact.KindDataset, Preserve: true},
+		{Name: BuildConstructionFact, Kind: artifact.KindRecipe, Preserve: true},
+	}
+	stage := func(node recipe.NodeID, id, next recipe.ModuleID, produced ...recipe.ArtifactRequirement) recipe.Module {
+		required = append(required, produced...)
+		contract := module(id, tasks(recipe.TaskTraining), state, state)
+		contract.Postconditions = append([]recipe.ArtifactRequirement(nil), required...)
+		contract.StageNode, contract.Next = node, next
+		return contract
+	}
 	return []recipe.Module{
-		module(ModuleFitModel, tasks(recipe.TaskTraining), state, state),
-		module(ModuleEvaluateModel, tasks(recipe.TaskTraining), state, state),
-		module(ModuleRecordModel, tasks(recipe.TaskTraining), state, state),
-		module(ModulePromoteModel, tasks(recipe.TaskTraining), state, state),
+		stage("fit", ModuleFitModel, ModuleEvaluateModel,
+			recipe.ArtifactRequirement{Name: BuildModelFact, Kind: artifact.KindModel},
+			recipe.ArtifactRequirement{Name: BuildCheckpointFact, Kind: artifact.KindCheckpoint}),
+		stage("evaluate", ModuleEvaluateModel, ModuleRecordModel,
+			recipe.ArtifactRequirement{Name: BuildRunFact, Kind: artifact.KindRun},
+			recipe.ArtifactRequirement{Name: BuildEvaluationFact, Kind: artifact.KindEvaluation}),
+		stage("record", ModuleRecordModel, ModulePromoteModel,
+			recipe.ArtifactRequirement{Name: BuildEvidenceFact, Kind: artifact.KindEvidence}),
+		stage("promote", ModulePromoteModel, "",
+			recipe.ArtifactRequirement{Name: BuildDecisionFact, Kind: artifact.KindEvidence}),
 	}
 }
 

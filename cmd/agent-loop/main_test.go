@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -13,6 +14,8 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
+
+const cliSessionSteps = 1
 
 func TestAgentLoopProposesGatedStep(t *testing.T) {
 	repository := t.TempDir()
@@ -49,6 +52,7 @@ func TestAgentLoopProposesGatedStep(t *testing.T) {
 	if err := run([]string{
 		"-repo", repository, "-session", "cli-1", "-tool", "probe.read",
 		"-recipe", recipeID.String(), "-model", modelID.String(),
+		"-max-steps", strconv.Itoa(cliSessionSteps),
 	}, &out); err != nil {
 		t.Fatal(err)
 	}

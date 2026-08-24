@@ -17,6 +17,7 @@ import (
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 	"overgo/internal/trainingdata"
+	"overgo/internal/trainingprogram"
 )
 
 func TestAlternatingWindowTrainingCells(t *testing.T) {
@@ -32,7 +33,7 @@ func TestAlternatingWindowTrainingCells(t *testing.T) {
 	defer worker.Close()
 	e4bPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-bf16.gguf")
 	input, target := adjacentTokenRows(t, e4bPath)
-	trained, topology, err := adaptertrain.LoadArtifact(context.Background(), e4bPath, 0)
+	trained, topology, err := adaptertrain.LoadArtifact(context.Background(), e4bPath, 0, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +52,7 @@ func TestAlternatingWindowTrainingCells(t *testing.T) {
 	t.Logf("E4B adapter cell: rows=%d parameters=%d loss=%.6f", example.Rows, trained.ParameterCount(), loss)
 
 	gemma12Path := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-12B-it-fp8-native.gguf")
-	if _, _, err := adaptertrain.LoadArtifact(context.Background(), gemma12Path, 0); err == nil ||
+	if _, _, err := adaptertrain.LoadArtifact(context.Background(), gemma12Path, 0, trainingprogram.BuiltinOptimizerPolicy()); err == nil ||
 		!strings.Contains(err.Error(), "no per-layer input program") {
 		t.Fatalf("12B adapter admission error=%v", err)
 	}

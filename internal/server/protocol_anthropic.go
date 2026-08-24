@@ -147,7 +147,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		return
 	}
 	defer plan.release()
-	messageID := "msg_" + strconv.FormatUint(h.nextID.Add(1), 10)
+	messageID := "msg_" + strconv.FormatUint(h.nextID.Add(1), identifierRadix)
 	if body.Stream {
 		h.streamAnthropicMessages(
 			response,
@@ -205,9 +205,8 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		StopReason:   stopReason,
 		StopSequence: stopSequence,
 		Usage: anthropicUsage{
-			CacheReadInputTokens: 0,
-			InputTokens:          len(plan.prompt.TokenIDs),
-			OutputTokens:         pump.generated,
+			InputTokens:  len(plan.prompt.TokenIDs),
+			OutputTokens: pump.generated,
 		},
 	})
 }
@@ -233,9 +232,7 @@ func (h *Handler) streamAnthropicMessages(
 			ID: messageID, Type: "message", Role: inference.ChatRoleAssistant, Content: []any{},
 			Model: h.config.ModelID, StopReason: nil, StopSequence: nil,
 			Usage: anthropicUsage{
-				CacheReadInputTokens: 0,
-				InputTokens:          len(plan.prompt.TokenIDs),
-				OutputTokens:         0,
+				InputTokens: len(plan.prompt.TokenIDs),
 			},
 		},
 	}); err != nil {
@@ -255,7 +252,7 @@ func (h *Handler) streamAnthropicMessages(
 		}
 		if !textStarted {
 			if err := writeEvent("content_block_start", anthropicStreamEvent{
-				Type: "content_block_start", Index: eventIndex(0),
+				Type: "content_block_start", Index: eventIndex(firstEventIndex),
 				ContentBlock: anthropicContentBlockStart{Type: "text", Text: eventString("")},
 			}); err != nil {
 				return err
@@ -263,7 +260,7 @@ func (h *Handler) streamAnthropicMessages(
 			textStarted = true
 		}
 		return writeEvent("content_block_delta", anthropicStreamEvent{
-			Type: "content_block_delta", Index: eventIndex(0),
+			Type: "content_block_delta", Index: eventIndex(firstEventIndex),
 			Delta: anthropicContentDelta{Type: "text_delta", Text: eventString(piece)},
 		})
 	}
@@ -274,7 +271,7 @@ func (h *Handler) streamAnthropicMessages(
 			Tool: func(delta inference.ChatToolCallDelta) error {
 				if delta.Started && textStarted && !textStopped {
 					if err := writeEvent("content_block_stop", anthropicStreamEvent{
-						Type: "content_block_stop", Index: eventIndex(0),
+						Type: "content_block_stop", Index: eventIndex(firstEventIndex),
 					}); err != nil {
 						return err
 					}
@@ -466,7 +463,7 @@ func (h *Handler) streamAnthropicMessages(
 		}
 	} else if textStarted && !textStopped {
 		if err := writeEvent("content_block_stop", anthropicStreamEvent{
-			Type: "content_block_stop", Index: eventIndex(0),
+			Type: "content_block_stop", Index: eventIndex(firstEventIndex),
 		}); err != nil {
 			return
 		}

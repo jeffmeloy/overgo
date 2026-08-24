@@ -3,6 +3,8 @@ package optimizer
 import (
 	"errors"
 	"math"
+
+	"overgo/internal/checked"
 )
 
 // Schedule: learning-rate policy.
@@ -21,11 +23,12 @@ type Config struct {
 	Schedule         Schedule `json:"schedule"`
 }
 
-func (c Config) validate() error {
-	if math.IsNaN(c.BaseLearningRate) || math.IsInf(c.BaseLearningRate, 0) || c.BaseLearningRate < 0 {
+// Validate checks optimizer policy bounds.
+func (c Config) Validate() error {
+	if !checked.NonNegativeFinite64(c.BaseLearningRate) {
 		return errors.New("optimizer config: learning rate must be finite and non-negative")
 	}
-	if math.IsNaN(c.Momentum) || math.IsInf(c.Momentum, 0) || c.Momentum < 0 || c.Momentum >= 1 {
+	if !checked.NonNegativeFinite64(c.Momentum) || c.Momentum >= 1 {
 		return errors.New("optimizer config: momentum must be finite and in [0,1)")
 	}
 	if c.Steps < 0 {

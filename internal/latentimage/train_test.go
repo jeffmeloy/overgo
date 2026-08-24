@@ -3,6 +3,8 @@ package latentimage
 import (
 	"math"
 	"testing"
+
+	"overgo/internal/trainingprogram"
 )
 
 func tinyFinalLayer(hidden, out int) FinalLayerWeights {
@@ -50,7 +52,7 @@ func finalStimulus(rows, hidden, out int) (x, temb, target []float64) {
 }
 
 func TestFinalLayerTrainerDescends(t *testing.T) {
-	trainer, err := NewFinalLayerTrainer(tinyFinalLayer(8, 4), 1e-6)
+	trainer, err := NewFinalLayerTrainer(tinyFinalLayer(8, 4), 1e-6, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +93,7 @@ func TestFinalLayerTrainerDescends(t *testing.T) {
 func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing.T) {
 	weights := tinyFinalLayer(7, 3)
 	weights.Norm = nil // the Wan2.1 head: non-parametric LayerNorm
-	trainer, err := NewFinalLayerTrainer(weights, 1e-6)
+	trainer, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +112,7 @@ func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing
 	}
 	const epsilonFD, limitFD = 1e-4, 2e-2
 	for _, index := range []int{trainer.table.start + 2, trainer.table.start + 7 + 2, trainer.linear.start + 4, trainer.bias.start} {
-		fresh, err := NewFinalLayerTrainer(weights, 1e-6)
+		fresh, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -152,7 +154,7 @@ func TestFinalLayerGradientMatchesFiniteDifference(t *testing.T) {
 	weights := tinyFinalLayer(7, 3)
 	x, temb, target := finalStimulus(3, 7, 3)
 
-	grader, err := NewFinalLayerTrainer(weights, 1e-6)
+	grader, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +181,7 @@ func TestFinalLayerGradientMatchesFiniteDifference(t *testing.T) {
 		grader.bias.start + 1,
 	}
 	for _, index := range indices {
-		fresh, err := NewFinalLayerTrainer(weights, 1e-6)
+		fresh, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -45,21 +45,23 @@ func TestWorkbenchAPIDownloadAdmissionAndCancellation(t *testing.T) {
 			strings.NewReader(`{"kind":"models","repository":"acme/tiny","revision":"","directory":"`+directory+`"}`)))
 		return recorder
 	}
-	first := start("one")
-	second := start("two")
-	if first.Code != http.StatusAccepted || second.Code != http.StatusAccepted {
-		t.Fatalf("admission status = %d, %d", first.Code, second.Code)
+	accepted := make([]*httptest.ResponseRecorder, handler.config.MaxConcurrent)
+	for index := range accepted {
+		accepted[index] = start(strconv.Itoa(index))
+		if accepted[index].Code != http.StatusAccepted {
+			t.Fatalf("admission %d status = %d", index, accepted[index].Code)
+		}
 	}
-	if refused := start("three"); refused.Code != http.StatusTooManyRequests {
+	if refused := start(strconv.Itoa(len(accepted))); refused.Code != http.StatusTooManyRequests {
 		t.Fatalf("backlog status = %d body=%s", refused.Code, refused.Body.String())
 	}
 	var job DownloadJob
-	if err := json.Unmarshal(first.Body.Bytes(), &job); err != nil {
+	if err := json.Unmarshal(accepted[0].Body.Bytes(), &job); err != nil {
 		t.Fatal(err)
 	}
 	cancel := httptest.NewRecorder()
 	handler.ServeHTTP(cancel, httptest.NewRequest(http.MethodDelete,
-		"/hub/downloads?id="+strconv.FormatUint(job.ID, 10), nil))
+		"/hub/downloads?id="+strconv.FormatUint(job.ID, identifierRadix), nil))
 	if cancel.Code != http.StatusOK || !strings.Contains(cancel.Body.String(), downloadStateCancelled) {
 		t.Fatalf("cancel status=%d body=%s", cancel.Code, cancel.Body.String())
 	}
@@ -75,7 +77,7 @@ func TestWorkbenchAPIDownloadAdmissionAndCancellation(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if admitted := start("four"); admitted.Code != http.StatusAccepted {
+	if admitted := start(strconv.Itoa(len(accepted) + 1)); admitted.Code != http.StatusAccepted {
 		t.Fatalf("post-cancel admission status = %d body=%s", admitted.Code, admitted.Body.String())
 	}
 }

@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/trainingprogram"
 )
 
 // TestDiTTrainerGoldenParityG3: the trainer's f32 host mirror forward vs the
@@ -40,7 +42,7 @@ func TestDiTTrainerGoldenParityG3(t *testing.T) {
 		geometry.Seq != shape.SeqLen {
 		t.Fatalf("latent geometry %+v differs from golden %+v", geometry, shape)
 	}
-	trainer, err := NewDiTTrainer(config, textDim, geometry, tensors)
+	trainer, err := NewDiTTrainer(config, textDim, geometry, tensors, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}

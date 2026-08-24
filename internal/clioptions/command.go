@@ -12,6 +12,8 @@ import (
 	"runtime"
 )
 
+const outputFileMode = 0o644
+
 // Main: common command error exit.
 func Main(run func() error) {
 	if err := run(); err != nil {
@@ -103,8 +105,13 @@ func OutputGenerated(data []byte, path string, check, update bool, stale string,
 		return nil
 	}
 	if update {
-		return os.WriteFile(path, data, 0o644)
+		return WriteOutputFile(path, data)
 	}
 	_, err := writer.Write(data)
 	return err
+}
+
+// WriteOutputFile writes a command-owned public artifact.
+func WriteOutputFile(path string, data []byte) error {
+	return os.WriteFile(path, data, outputFileMode)
 }

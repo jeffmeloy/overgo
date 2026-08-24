@@ -13,7 +13,6 @@ import (
 const (
 	modelBuildStateMediaType = "application/vnd.overgo.model-build-state+json"
 	modelBuildStateSchema    = "overgo/model-build-state/v1"
-	modelBuildStatePort      = recipe.PortName("state")
 )
 
 var modelBuildStateContract = artifact.DocumentContract{
@@ -42,21 +41,47 @@ type ModelBuildSession interface {
 	Promote(context.Context, ModelBuildState) (ModelBuildState, error)
 }
 
-type modelBuildStage struct {
-	node    recipe.Node
-	execute func(context.Context, ModelBuildState) (ModelBuildState, error)
-	valid   func(ModelBuildState) bool
+// ModelBuildStages returns module-linked construction contracts.
+func ModelBuildStages() []recipe.Stage {
+	var stages []recipe.Stage
+	seen := map[recipe.ModuleID]bool{}
+	for id := workflowrecipe.ModuleFitModel; id != ""; {
+		module, found := workflowrecipe.Module(id)
+		if !found || module.StageNode == "" || seen[id] {
+			panic("model builder: invalid stage module chain")
+		}
+		seen[id] = true
+		stages = append(stages, recipe.Stage{
+			Node: recipe.Node{ID: module.StageNode, Module: id, Placement: recipe.PlacementHost}, Module: module,
+		})
+		id = module.Next
+	}
+	return stages
 }
 
-// ModelBuildStages returns the neutral compiled stage contracts.
-func ModelBuildStages() []recipe.Stage {
-	stages := modelBuildStageDefinitions(nil)
-	result := make([]recipe.Stage, len(stages))
-	for index, stage := range stages {
-		module, _ := workflowrecipe.Module(stage.node.Module)
-		result[index] = recipe.Stage{Node: stage.node, Module: module}
+func (state ModelBuildState) artifact(name recipe.PortName) (artifact.ID, bool) {
+	switch name {
+	case workflowrecipe.BuildRecipeFact:
+		return state.Recipe, true
+	case workflowrecipe.BuildDatasetFact:
+		return state.Dataset, true
+	case workflowrecipe.BuildConstructionFact:
+		return state.Construction, true
+	case workflowrecipe.BuildModelFact:
+		return state.Model, true
+	case workflowrecipe.BuildCheckpointFact:
+		return state.Checkpoint, true
+	case workflowrecipe.BuildRunFact:
+		return state.Run, true
+	case workflowrecipe.BuildEvaluationFact:
+		return state.Evaluation, true
+	case workflowrecipe.BuildEvidenceFact:
+		return state.Evidence, true
+	case workflowrecipe.BuildDecisionFact:
+		return state.Decision, true
+	default:
+		return artifact.ID{}, false
 	}
-	return result
 }
 
 // ExecuteModelBuild runs construction through the shared receipt runtime.
@@ -73,7 +98,14 @@ func ExecuteModelBuild(
 	if err != nil || validateBuildState(initial) != nil {
 		return ModelBuildState{}, errors.Join(err, validateBuildState(initial))
 	}
-	program, err := compileModelBuildProgram(initial)
+	program, err := workflowrecipe.Catalog().CompileLinear(
+		recipe.TaskTraining,
+		[]recipe.Dependency{
+			{Role: recipe.DependencyModel, Artifact: initial.Model},
+			{Role: recipe.DependencyDataset, Artifact: initial.Dataset},
+		},
+		ModelBuildStages(),
+	)
 	if err != nil {
 		return ModelBuildState{}, err
 	}
@@ -81,16 +113,26 @@ func ExecuteModelBuild(
 	if err != nil {
 		return ModelBuildState{}, err
 	}
-	for _, stage := range modelBuildStageDefinitions(session) {
-		execute, valid := stage.execute, stage.valid
-		if err := RegisterContextStage(runtime, stage.node.Module, initial.Model,
+	executors := map[recipe.ModuleID]func(context.Context, ModelBuildState) (ModelBuildState, error){
+		workflowrecipe.ModuleFitModel:      session.Train,
+		workflowrecipe.ModuleEvaluateModel: session.Evaluate,
+		workflowrecipe.ModuleRecordModel:   session.Record,
+		workflowrecipe.ModulePromoteModel:  session.Promote,
+	}
+	for _, stage := range program.Stages() {
+		execute, found := executors[stage.Module.ID]
+		if !found {
+			return ModelBuildState{}, errors.New("model builder: compiled stage has no executor")
+		}
+		module := stage.Module
+		if err := RegisterContextStage(runtime, module.ID, initial.Model,
 			func(ctx context.Context, state ModelBuildState) (ModelBuildState, error) {
 				next, executeErr := execute(ctx, state)
 				if executeErr != nil {
 					return state, executeErr
 				}
-				if next.Recipe != state.Recipe || next.Dataset != state.Dataset || next.Construction != state.Construction || !valid(next) {
-					return state, errors.New("model builder: stage changed authority or omitted output")
+				if err := validateArtifactRequirements(module.Postconditions, state, next); err != nil {
+					return state, err
 				}
 				return next, nil
 			}, func(state ModelBuildState) (artifact.Content, error) {
@@ -105,12 +147,12 @@ func ExecuteModelBuild(
 	}
 	result, err := runtime.ExecuteProgram(
 		ctx, "model-build/"+operation.String(), operation, nil, program,
-		map[recipe.PortName]Value{modelBuildStatePort: ArtifactValue(recipe.DataArtifact, initial, content)},
+		map[recipe.PortName]Value{workflowrecipe.ModelBuildStatePort: ArtifactValue(recipe.DataArtifact, initial, content)},
 	)
 	if err != nil {
 		return ModelBuildState{}, err
 	}
-	datum, one := result.Outputs[modelBuildStatePort].Single()
+	datum, one := result.Outputs[workflowrecipe.ModelBuildStatePort].Single()
 	if !one {
 		return ModelBuildState{}, errors.New("model builder: final state is not scalar")
 	}
@@ -124,63 +166,23 @@ func ExecuteModelBuild(
 	return state, nil
 }
 
-func compileModelBuildProgram(state ModelBuildState) (recipe.Program, error) {
-	stages := modelBuildStageDefinitions(nil)
-	nodes := make([]recipe.Node, len(stages))
-	edges := make([]recipe.Edge, 0, len(stages)-1)
-	for index, stage := range stages {
-		nodes[index] = stage.node
-		if index != 0 {
-			edges = append(edges, recipe.Edge{
-				From: recipe.Endpoint{Node: nodes[index-1].ID, Port: modelBuildStatePort},
-				To:   recipe.Endpoint{Node: stage.node.ID, Port: modelBuildStatePort},
-			})
+func validateArtifactRequirements(
+	requirements []recipe.ArtifactRequirement,
+	before, after ModelBuildState,
+) error {
+	for _, requirement := range requirements {
+		got, found := after.artifact(requirement.Name)
+		if !found || got.Kind() != requirement.Kind {
+			return errors.New("model builder: stage omitted required artifact")
+		}
+		if requirement.Preserve {
+			prior, found := before.artifact(requirement.Name)
+			if !found || got != prior {
+				return errors.New("model builder: stage changed authority")
+			}
 		}
 	}
-	definition, err := recipe.NewDefinitionWithDependencies(
-		recipe.TaskTraining,
-		[]recipe.Dependency{
-			{Role: recipe.DependencyModel, Artifact: state.Model},
-			{Role: recipe.DependencyDataset, Artifact: state.Dataset},
-		}, nodes, edges,
-		[]recipe.Input{{Name: modelBuildStatePort, Data: recipe.DataArtifact, Target: recipe.Endpoint{Node: nodes[0].ID, Port: modelBuildStatePort}}},
-		[]recipe.Output{{Name: modelBuildStatePort, Data: recipe.DataArtifact, Source: recipe.Endpoint{Node: nodes[len(nodes)-1].ID, Port: modelBuildStatePort}}},
-	)
-	if err != nil {
-		return recipe.Program{}, err
-	}
-	return recipe.CompileProgram(definition, workflowrecipe.Catalog())
-}
-
-func modelBuildStageDefinitions(session ModelBuildSession) []modelBuildStage {
-	stage := func(id recipe.NodeID, module recipe.ModuleID) modelBuildStage {
-		return modelBuildStage{node: recipe.Node{ID: id, Module: module, Placement: recipe.PlacementHost}}
-	}
-	stages := []modelBuildStage{
-		stage("fit", workflowrecipe.ModuleFitModel),
-		stage("evaluate", workflowrecipe.ModuleEvaluateModel),
-		stage("record", workflowrecipe.ModuleRecordModel),
-		stage("promote", workflowrecipe.ModulePromoteModel),
-	}
-	stages[0].valid = func(state ModelBuildState) bool {
-		return state.Model.Kind() == artifact.KindModel && state.Checkpoint.Kind() == artifact.KindCheckpoint
-	}
-	stages[1].valid = func(state ModelBuildState) bool {
-		return stages[0].valid(state) && state.Run.Kind() == artifact.KindRun && state.Evaluation.Kind() == artifact.KindEvaluation
-	}
-	stages[2].valid = func(state ModelBuildState) bool {
-		return stages[1].valid(state) && state.Evidence.Kind() == artifact.KindEvidence
-	}
-	stages[3].valid = func(state ModelBuildState) bool {
-		return stages[2].valid(state) && state.Decision.Kind() == artifact.KindEvidence
-	}
-	if session != nil {
-		stages[0].execute = session.Train
-		stages[1].execute = session.Evaluate
-		stages[2].execute = session.Record
-		stages[3].execute = session.Promote
-	}
-	return stages
+	return nil
 }
 
 func validateBuildState(state ModelBuildState) error {

@@ -38,11 +38,13 @@ func run(args []string, output io.Writer) error {
 	recipeText := flags.String("recipe", "", "serving recipe artifact id the step records against")
 	modelText := flags.String("model", "", "serving model artifact id the step records against")
 	node := flags.String("node", "respond", "interaction node the step records against")
+	var maxSteps int
+	flags.IntVar(&maxSteps, "max-steps", maxSteps, "maximum admitted steps in this session")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || strings.TrimSpace(*sessionID) == "" || strings.TrimSpace(*tool) == "" {
-		return errors.New("usage: agent-loop [-repo <path>] -session <id> -tool <name> -recipe <id> -model <id> [-node <id>] [-arguments <json>] [-approve]")
+	if flags.NArg() != 0 || strings.TrimSpace(*sessionID) == "" || strings.TrimSpace(*tool) == "" || maxSteps <= 0 {
+		return errors.New("usage: agent-loop [-repo <path>] -session <id> -tool <name> -recipe <id> -model <id> -max-steps <n> [-node <id>] [-arguments <json>] [-approve]")
 	}
 	recipeID, err := artifact.ParseID(strings.TrimSpace(*recipeText))
 	if err != nil {
@@ -72,7 +74,7 @@ func run(args []string, output io.Writer) error {
 	}
 	coordinator, err := agentloop.New(store, executor, agentloop.Identity{
 		Recipe: recipeID, Model: modelID, Node: recipe.NodeID(strings.TrimSpace(*node)),
-	})
+	}, maxSteps)
 	if err != nil {
 		return err
 	}

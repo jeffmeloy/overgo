@@ -19,6 +19,8 @@ import (
 	"sort"
 	"time"
 
+	"overgo/internal/checked"
+	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/densecausal"
 	"overgo/internal/hfbpe"
@@ -29,9 +31,9 @@ import (
 func main() {
 	model := flag.String("model", "", "model directory (safetensors + config.json + tokenizer.json)")
 	dataset := flag.String("dataset", "", "UTF-8 training dataset")
-	steps := flag.Int("steps", 3, "observed Muon steps")
-	seq := flag.Int("seq", 96, "training token window (bounded by a declared attention window)")
-	maxWall := flag.Duration("max-wall", 25*time.Minute, "abort when the first measured step projects the run past this bound")
+	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required observed Muon steps")
+	seq := clioptions.IntOverride(flag.CommandLine, "seq", "token window; omitted derives from model and dataset extents")
+	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
 	flag.Parse()
 	if err := run(*model, *dataset, *steps, *seq, *maxWall); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -40,8 +42,8 @@ func main() {
 }
 
 func run(modelDir, datasetPath string, steps, seq int, maxWall time.Duration) error {
-	if modelDir == "" || datasetPath == "" || steps <= 0 || seq < 2 {
-		return fmt.Errorf("mixture-train-probe: -model and -dataset are required; -steps positive, -seq >= 2")
+	if modelDir == "" || datasetPath == "" || steps <= 0 || seq < 0 {
+		return fmt.Errorf("mixture-train-probe: model, dataset, positive steps, and nonnegative sequence override required")
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -65,6 +67,17 @@ func run(modelDir, datasetPath string, steps, seq int, maxWall time.Duration) er
 	if err != nil {
 		return err
 	}
+	if seq == 0 {
+		seq = len(tokens)
+		for _, bound := range []int{model.Dims.ContextLength, model.Dims.AttentionWindow} {
+			if bound > 0 {
+				seq = min(seq, bound)
+			}
+		}
+	}
+	if seq < 2 {
+		return fmt.Errorf("mixture-train-probe: derived token window %d cannot train next-token objective", seq)
+	}
 	if len(tokens) < seq {
 		return fmt.Errorf("mixture-train-probe: dataset yields %d tokens, need %d", len(tokens), seq)
 	}
@@ -74,9 +87,14 @@ func run(modelDir, datasetPath string, steps, seq int, maxWall time.Duration) er
 	if err != nil {
 		return err
 	}
-	policy := trainingprogram.BuiltinOptimizerPolicy()
-	baseLR := policy.BaseLearningRate(plan.ParameterCount())
-	momentum := policy.Momentum()
+	session, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+		Objective: trainingprogram.ObjectiveTokenPrediction, Updates: steps, MaximumSequence: seq,
+		MaxProjectedWall: maxWall, Parameters: plan.ParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
+	})
+	if err != nil {
+		return err
+	}
+	config := session.Optimizer()
 	weights := make([]float32, plan.ParameterCount())
 	gradients := make([]float32, plan.ParameterCount())
 	// The flat buffers are optimizer storage only: the model's compiled layer
@@ -93,25 +111,23 @@ func run(modelDir, datasetPath string, steps, seq int, maxWall time.Duration) er
 			copy(model.Weights[name], weights[group.Start:group.End])
 		}
 	}
-	stepper, err := optimizer.NewStepper(weights, gradients, plan, optimizer.Config{
-		BaseLearningRate: baseLR, Momentum: momentum, Schedule: optimizer.ScheduleConstant,
-	})
+	stepper, err := optimizer.NewStepper(weights, gradients, plan, config)
 	if err != nil {
 		return err
 	}
 	defer stepper.Close()
 	fmt.Printf("trainable parameters=%d groups=%d derived_lr=%.4g derived_momentum=%.4f mixture_top_k=%d window=%d load_wall=%s\n",
-		plan.ParameterCount(), plan.GroupCount(), baseLR, momentum, model.Dims.MoE.TopK, seq, time.Since(loadStart).Round(time.Millisecond))
+		plan.ParameterCount(), plan.GroupCount(), config.BaseLearningRate, config.Momentum, model.Dims.MoE.TopK, seq, time.Since(loadStart).Round(time.Millisecond))
 
 	start := time.Now()
 	var first float64
-	for step := 0; step < steps; step++ {
+	for step := 0; step < session.Updates(); step++ {
 		stepStart := time.Now()
 		loss, _, grads, err := model.LossAndGrads(window)
 		if err != nil {
 			return err
 		}
-		if math.IsNaN(loss) || math.IsInf(loss, 0) {
+		if !checked.Finite64(loss) {
 			return fmt.Errorf("mixture-train-probe: step %d loss is non-finite", step+1)
 		}
 		clear(gradients)
@@ -137,14 +153,14 @@ func run(modelDir, datasetPath string, steps, seq int, maxWall time.Duration) er
 		}
 		scatter()
 		fmt.Printf("step %d/%d: loss=%.6f grad_l2=%.4g wall=%s\n",
-			step+1, steps, loss, math.Sqrt(gradientSquared), time.Since(stepStart).Round(time.Millisecond))
+			step+1, session.Updates(), loss, math.Sqrt(gradientSquared), time.Since(stepStart).Round(time.Millisecond))
 		if step == 0 {
 			first = loss
 			if gradientSquared == 0 {
 				return fmt.Errorf("mixture-train-probe: first step carried no gradient")
 			}
-			if projected := time.Duration(steps+1) * time.Since(start); projected > maxWall {
-				return fmt.Errorf("mixture-train-probe: first step projects the run to %s, past the %s bound", projected.Round(time.Second), maxWall)
+			if err := session.AdmitStepWall(time.Since(start)); err != nil {
+				return fmt.Errorf("mixture-train-probe: %w", err)
 			}
 		}
 	}
@@ -152,10 +168,10 @@ func run(modelDir, datasetPath string, steps, seq int, maxWall time.Duration) er
 	if err != nil {
 		return err
 	}
-	if math.IsNaN(after) || math.IsInf(after, 0) || !(after < first) {
+	if !checked.Finite64(after) || !(after < first) {
 		return fmt.Errorf("mixture-train-probe: loss did not descend: before=%.6f after=%.6f", first, after)
 	}
 	fmt.Printf("descent: steps=%d span_tokens=%d loss %.6f -> %.6f total_wall=%s\n",
-		steps, steps*seq, first, after, time.Since(start).Round(time.Millisecond))
+		session.Updates(), session.Updates()*seq, first, after, time.Since(start).Round(time.Millisecond))
 	return nil
 }

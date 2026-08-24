@@ -39,7 +39,9 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusServiceUnavailable, "hub_unavailable", "no artifact repository is configured")
 		return
 	}
-	entries, truncated, err := discovery.CapabilityCatalog(request.Context(), h.config.Repository, maxCatalogEntries, h.catalogMemo)
+	entries, truncated, err := discovery.CapabilityCatalog(
+		request.Context(), h.config.Repository, h.config.MaxStoredResponses, h.catalogMemo,
+	)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "catalog_error", err.Error())
 		return
@@ -173,9 +175,6 @@ type DownloadJob struct {
 }
 
 const (
-	// maxCatalogEntries bounds one catalog response; it only has to exceed
-	// any legitimate servable-model count.
-	maxCatalogEntries = 512
 	// defaultHubSearchLimit sizes an uninstructed hub search page; the limit
 	// parameter overrides it per request up to maxHubSearchLimit.
 	defaultHubSearchLimit = 20
@@ -186,21 +185,18 @@ const (
 	downloadStateSucceeded = "succeeded"
 	downloadStateFailed    = "failed"
 	downloadStateCancelled = "cancelled"
-
-	// maxConcurrentHubDownloads bounds simultaneously running transfers:
-	// hub bandwidth and disk are shared with serving, and a queue refusal
-	// is honest where an unbounded fan-out silently degrades everything.
-	maxConcurrentHubDownloads = 2
-	// maxRetainedDownloadJobs bounds finished-job history; oldest
-	// completed jobs evict first so the registry cannot grow forever.
-	maxRetainedDownloadJobs = 64
 )
 
 type downloadRegistry struct {
-	mu      sync.Mutex
-	next    atomic.Uint64
-	jobs    map[uint64]*DownloadJob
-	cancels map[uint64]context.CancelFunc
+	mu                      sync.Mutex
+	next                    atomic.Uint64
+	jobs                    map[uint64]*DownloadJob
+	cancels                 map[uint64]context.CancelFunc
+	maxRunning, maxRetained int
+}
+
+func newDownloadRegistry(maxRunning, maxRetained int) downloadRegistry {
+	return downloadRegistry{maxRunning: maxRunning, maxRetained: maxRetained}
 }
 
 // admit registers a new job under the concurrency and retention
@@ -215,13 +211,13 @@ func (r *downloadRegistry) admit(job *DownloadJob, cancel context.CancelFunc) er
 			running++
 		}
 	}
-	if running >= maxConcurrentHubDownloads {
+	if running >= r.maxRunning {
 		return fmt.Errorf("download backlog is full: %d transfer(s) already running", running)
 	}
 	if r.jobs == nil {
 		r.jobs, r.cancels = map[uint64]*DownloadJob{}, map[uint64]context.CancelFunc{}
 	}
-	for len(r.jobs) >= maxRetainedDownloadJobs {
+	for len(r.jobs) >= r.maxRetained {
 		oldest := uint64(0)
 		for id, existing := range r.jobs {
 			if existing.State != downloadStateRunning && (oldest == 0 || id < oldest) {
@@ -340,7 +336,7 @@ func (h *Handler) startHubDownload(response http.ResponseWriter, request *http.R
 }
 
 func (h *Handler) cancelHubDownload(response http.ResponseWriter, request *http.Request) {
-	id, err := strconv.ParseUint(request.URL.Query().Get("id"), 10, 64)
+	id, err := strconv.ParseUint(request.URL.Query().Get("id"), identifierRadix, identifierBits)
 	if err != nil || id == 0 {
 		writeError(response, http.StatusBadRequest, "invalid_request", "cancel requires a numeric job id")
 		return

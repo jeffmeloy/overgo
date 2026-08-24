@@ -48,7 +48,10 @@ func TestIsRawGreedyRejectsLogitTransforms(t *testing.T) {
 }
 
 func TestTopKOneIsGreedy(t *testing.T) {
-	sampler, err := New(Config{Temperature: 1, TopK: 1, TopP: 1, Seed: 7})
+	sampler, err := New(Config{
+		Temperature: 1, TopK: 1, TopP: 1, Seed: 7,
+		Samplers: []SamplerStage{SamplerTopK, SamplerTopP, SamplerTemperature},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,6 +69,7 @@ func TestTopKOneIsGreedy(t *testing.T) {
 func TestBoundedTopKMatchesFullPipeline(t *testing.T) {
 	config := Config{
 		Temperature: 0.8, TopK: 3, TopP: 0.9, MinP: 0.05, Seed: 42,
+		Samplers: DefaultSamplerOrder(), RepeatPenalty: 1,
 	}
 	full, err := New(config)
 	if err != nil {
@@ -201,6 +205,7 @@ func TestMinPRestrictsRelativeTail(t *testing.T) {
 		TopP:        1,
 		MinP:        0.5,
 		Seed:        9,
+		Samplers:    []SamplerStage{SamplerMinP, SamplerTemperature},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -222,6 +227,7 @@ func TestTypicalPRestrictsAtypicalTail(t *testing.T) {
 		TopP:        1,
 		TypicalP:    0.5,
 		Seed:        3,
+		Samplers:    []SamplerStage{SamplerTypicalP, SamplerTemperature},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -238,7 +244,10 @@ func TestTypicalPRestrictsAtypicalTail(t *testing.T) {
 }
 
 func TestRepeatPenaltyChangesGreedyChoice(t *testing.T) {
-	sampler, err := New(Config{RepeatLastN: -1, RepeatPenalty: 2})
+	sampler, err := New(Config{
+		RepeatLastN: -1, RepeatPenalty: 2,
+		Samplers: []SamplerStage{SamplerPenalties, SamplerTemperature},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,8 +263,10 @@ func TestRepeatPenaltyChangesGreedyChoice(t *testing.T) {
 func TestPresenceAndFrequencyPenalties(t *testing.T) {
 	sampler, err := New(Config{
 		RepeatLastN:      -1,
+		RepeatPenalty:    1,
 		PresencePenalty:  1,
 		FrequencyPenalty: 2,
+		Samplers:         []SamplerStage{SamplerPenalties, SamplerTemperature},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -270,7 +281,10 @@ func TestPresenceAndFrequencyPenalties(t *testing.T) {
 }
 
 func TestRepeatWindowUsesOnlySuffix(t *testing.T) {
-	sampler, err := New(Config{RepeatLastN: 1, RepeatPenalty: 2})
+	sampler, err := New(Config{
+		RepeatLastN: 1, RepeatPenalty: 2,
+		Samplers: []SamplerStage{SamplerPenalties, SamplerTemperature},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -628,7 +642,7 @@ func TestSamplerRejectsInvalidExtendedConfig(t *testing.T) {
 		{RepeatLastN: -2},
 		{RepeatPenalty: -1},
 		{DryMultiplier: -1},
-		{DryBase: 0.5},
+		{DryMultiplier: 1, DryBase: 0.5},
 		{DryAllowedLength: -1},
 		{DryPenaltyLastN: -2},
 		{DryBreakers: [][]int{{}}},
@@ -645,7 +659,10 @@ func TestSamplerRejectsInvalidExtendedConfig(t *testing.T) {
 }
 
 func TestSamplerBlocksSlidingWindowNgram(t *testing.T) {
-	base := Config{Temperature: 0, NoRepeatNgramSize: 3, NgramWindow: 6}
+	base := Config{
+		Temperature: 0, NoRepeatNgramSize: 3, NgramWindow: 6,
+		Samplers: []SamplerStage{SamplerTemperature},
+	}
 	sampler, err := New(base)
 	if err != nil {
 		t.Fatal(err)
@@ -822,6 +839,7 @@ func TestDRYSingleTokenBreakerMatchesPinnedUpstreamBehavior(t *testing.T) {
 		DryBase:          1.1,
 		DryAllowedLength: 2,
 		DryPenaltyLastN:  6,
+		Samplers:         []SamplerStage{SamplerDry, SamplerTemperature},
 	}
 	withoutBreaker, err := New(base)
 	if err != nil {
@@ -1018,6 +1036,7 @@ func TestPostSamplingProbabilitiesReflectFilteredCandidates(t *testing.T) {
 		TopK:        2,
 		TopP:        1,
 		Seed:        7,
+		Samplers:    []SamplerStage{SamplerTopK, SamplerTopP, SamplerTemperature},
 	})
 	if err != nil {
 		t.Fatal(err)

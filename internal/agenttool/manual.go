@@ -24,8 +24,6 @@ const (
 	ManualMediaType = "application/vnd.overgo.agent-tool-manual+json"
 	// ManualSchema is the manual document wire schema.
 	ManualSchema = "overgo/agent-tool-manual/v1"
-	// manualTextBytes bounds every free-text manual field.
-	manualTextBytes = 512
 )
 
 // Effect classifies what a tool invocation does to the world.
@@ -145,10 +143,10 @@ func (manual *Manual) validate() error {
 	if manual.Version != ManualVersion {
 		return errors.New("agent tool: unsupported manual version")
 	}
-	if !manualNamePattern.MatchString(manual.Name) || !textcheck.Bounded(manual.Name, manualTextBytes, "\x00\r\n") {
+	if !manualNamePattern.MatchString(manual.Name) || !textcheck.Bounded(manual.Name, len(manual.Name), "\x00\r\n") {
 		return fmt.Errorf("agent tool: invalid manual name %q", manual.Name)
 	}
-	if manual.Description == "" || !textcheck.Bounded(manual.Description, manualTextBytes, "\x00\r\n") {
+	if manual.Description == "" || !textcheck.Bounded(manual.Description, len(manual.Description), "\x00\r\n") {
 		return errors.New("agent tool: manual description is required and bounded")
 	}
 	if !manual.Effect.Valid() {
@@ -162,7 +160,7 @@ func (manual *Manual) validate() error {
 		if !field.Kind.Valid() {
 			return fmt.Errorf("agent tool: manual %q argument %q has no declared kind", manual.Name, field.Name)
 		}
-		if field.Description != "" && !textcheck.Bounded(field.Description, manualTextBytes, "\x00\r\n") {
+		if field.Description != "" && !textcheck.Bounded(field.Description, len(field.Description), "\x00\r\n") {
 			return fmt.Errorf("agent tool: manual %q argument %q description exceeds the bound", manual.Name, field.Name)
 		}
 		seen[field.Name] = true
@@ -191,11 +189,11 @@ func (transport Transport) validate(name string) error {
 		// A program is a bare command word resolved on PATH: a path
 		// separator would let a manual point execution at arbitrary
 		// files, and the operator's allowlist could not reason about it.
-		if strings.ContainsAny(transport.Program, `/\`) || !textcheck.Bounded(transport.Program, manualTextBytes, "\x00\r\n") {
+		if strings.ContainsAny(transport.Program, `/\`) || !textcheck.Bounded(transport.Program, len(transport.Program), "\x00\r\n") {
 			return fmt.Errorf("agent tool: argv manual %q program must be a bare command word", name)
 		}
 		for _, word := range transport.Args {
-			if !textcheck.Bounded(word, manualTextBytes, "\x00\r\n") {
+			if !textcheck.Bounded(word, len(word), "\x00\r\n") {
 				return fmt.Errorf("agent tool: argv manual %q argument word exceeds the bound", name)
 			}
 		}

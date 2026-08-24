@@ -82,11 +82,6 @@ type Result struct {
 	Commit  artifact.CommitID
 }
 
-// maxConcurrentStages bounds simultaneously executing stages: enough
-// to keep independent branches busy on one machine, small enough that
-// a wide ready set cannot fan out goroutines and memory without bound.
-const maxConcurrentStages = 4
-
 // Runtime: registered module adapters plus run repository.
 type Runtime struct {
 	mu       sync.RWMutex
@@ -120,10 +115,14 @@ func NewForProgram(store artifact.Repository, program recipe.Program) (*Runtime,
 	if catalog == nil {
 		return nil, errors.New("workflow runtime: nil module catalog")
 	}
+	parallelism := 0
+	for _, ready := range program.ReadySets() {
+		parallelism = max(parallelism, len(ready))
+	}
 	return &Runtime{
 		store: store, catalog: catalog, adapters: make(map[recipe.ModuleID]Adapter),
 		entries: make(map[recipe.ModuleID]*sync.Mutex),
-		slots:   make(chan struct{}, maxConcurrentStages),
+		slots:   make(chan struct{}, parallelism),
 	}, nil
 }
 
@@ -225,7 +224,7 @@ func (r *Runtime) executeProgram(
 	}
 	commit, commitErr := artifact.CommitBatch(commitContext, r.store, batch)
 	result := Result{Outputs: outputs, Run: run, Commit: commit}
-	if commitErr != nil {
+	if commitErr != nil && !errors.Is(commitErr, artifact.ErrNoChange) {
 		return result, errors.Join(executeErr, commitErr)
 	}
 	return result, executeErr
@@ -445,6 +444,9 @@ func (r *Runtime) publishExecutionAuthority(
 	_, err = r.store.Commit(ctx, artifact.Batch{
 		Key: "workflow/authority/recipe/" + definition.ID.String(), Contents: []artifact.Content{content},
 	})
+	if errors.Is(err, artifact.ErrNoChange) {
+		return nil
+	}
 	return err
 }
 

@@ -150,7 +150,7 @@ func TestTimesFMRealSupernovaTrainingSmoke(t *testing.T) {
 	}
 	t.Logf("training record ordinal=%d input_spread=%.6g", ordinal, inputSpread(input))
 
-	trainer, err := NewTrainer(model, optimizer.Config{Momentum: 0.9})
+	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
 	if err != nil {
 		t.Fatal(err)
 	}

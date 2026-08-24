@@ -4,6 +4,47 @@
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
     {
+      "id": "merge-tightening-adk",
+      "title": "Merge the tightening ADK campaign into master",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge the tightening ADK campaign into master",
+          "status": "done",
+          "verify": "go test ./internal/agentloop ./internal/workflowruntime ./cmd/agent-tool ./cmd/agent-loop -count=1 \u0026\u0026 go test ./internal/server -run 'TestAgentWorkspace|TestWorkbenchAPI|TestWebUI' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "merge-013087af",
+      "title": "Merge master agent coordination and GUI",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master agent coordination and GUI",
+          "status": "done",
+          "verify": "go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./..."
+        }
+      ]
+    },
+    {
+      "id": "merge-2d53ed16e951",
+      "title": "Merge master at 2d53ed16e951",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 2d53ed16e951",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
       "id": "plan-dependency-enforcement",
       "title": "Enforce depends_on in the plan tool: dispatch skips blocked rows, validation refuses dangling references and cycles",
       "owner": "gui",
@@ -1503,12 +1544,12 @@
       "id": "adk-repodb-streaming-durability",
       "title": "Stream OvergoDB log and snapshot publication without store-sized temporary documents",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Write log headers, canonical payloads, and checksums incrementally; stream deterministic snapshot sections from ordered keys; delete assembled frame and snapshotDocument payload copies",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/overgodb -run 'Test(LogAppendStreamsFrame|StreamingSnapshotRoundTrip|StreamingSnapshotFaultPreservesStore|SnapshotAnchorsReplay|SyncFaultReplaysCompleteUncertainCommit)' -count=1",
           "rationale": "Log append currently joins header, payload, and checksum into another frame. Snapshot publication clones the full catalog into a document and marshals another full payload. Preserve commit identities, canonical ordering, fsync, atomic rename, fallback replay, and fault behavior while bounding temporary storage to ordered keys and encoder buffers.",
           "depends_on": [
@@ -1526,12 +1567,12 @@
       "id": "adk-repodb-live-reader",
       "title": "Retain one incrementally refreshed OvergoDB reader per server",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Extend Store with validated tail refresh, make Handler own one browse reader when no writable repository is supplied, and delete per-request OpenReadOnly replay and release plumbing",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/overgodb ./internal/server -run 'Test(ReadOnlyRefreshAppliesCommittedTail|ReadOnlyRefreshRejectsFork|HandlerRetainsBrowseStore|HandlerClosesBrowseStore)' -count=1",
           "rationale": "Artifact, run, activity, and analysis handlers repeatedly open and replay the same store. One handler-owned reader should refresh only validated log tail records and publish a coherent catalog head to queries. The writable repository remains shared directly when configured.",
           "depends_on": [
@@ -1550,12 +1591,12 @@
       "id": "adk-interaction-ledger",
       "title": "Replace cloned response histories with immutable OvergoDB interaction lineage",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Add a typed runrecord interaction document bound to recipe, operation, run, parent event, message, tool, and media artifacts; migrate Responses continuation and delete responseHistoryStore",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/runrecord ./internal/overgodb ./internal/server -run 'Test(InteractionIdentity|InteractionLineage|ResponsesContinuationDurable|ResponsesContinuationRestart|ResponseHistoryStoreAbsent)' -count=1",
           "rationale": "Responses continuation currently clones every prior message into a bounded process-local LRU. Store each new event once, reference immutable media content, advance an external response alias by compare-and-set, and materialize only the requested lineage. RepoDB becomes session truth without introducing an ADK-style session database.",
           "depends_on": [
@@ -1574,12 +1615,12 @@
       "id": "adk-context-visibility",
       "title": "Compile branch-isolated prompt history from recipe activations",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Bind interaction visibility to typed recipe node and activation identities; compile ancestor-visible history; reject sibling leakage; keep protocol role formatting in inference",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/recipe ./internal/runrecord ./internal/inference ./internal/server -run 'Test(InteractionVisibility|SiblingHistoryIsolation|AncestorHistoryVisibility|CurrentTurnProjection|ProtocolHistoryParity)' -count=1",
           "rationale": "ADK demonstrates the need for sibling isolation but uses dotted branch strings. Overgo should derive visibility from compiled recipe topology and immutable activation lineage. No semantic retrieval is introduced; context selection is literal graph membership plus request or recipe-owned context policy.",
           "depends_on": [
@@ -1597,12 +1638,12 @@
       "id": "adk-recipe-stage-recovery",
       "title": "Recover recipe execution from durable typed stage receipts",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Publish admitted, running, waiting, completed, and failed stage receipts from workflowruntime; resume exact completed outputs through operation.Recover; migrate model-build lifecycle and delete its parallel phase reconstruction",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/server -run 'Test(StageReceiptIdentity|WorkflowRestartSkipsCompletedStages|WorkflowRecoveryRejectsRecipeDrift|ModelBuildUsesRecipeStageReceipts)' -count=1",
           "rationale": "ADK pause and re-entry are useful, but recipe.Program must remain the only graph. Stage receipts bind recipe identity, node, attempt, exact input and output artifacts, operation, and run. One scheduler mutates lifecycle state; adapters retain mathematical ownership.",
           "depends_on": [
@@ -1621,12 +1662,12 @@
       "id": "adk-typed-tool-runtime",
       "title": "Execute recipe-selected tools through typed workflow adapters",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Define tool call and result data contracts in recipe; register typed workflowruntime adapters by module identity; route Chat, Responses, and Anthropic calls through one executor; delete protocol-local execution policy branches",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/recipe ./internal/workflowruntime ./internal/inference ./internal/server -run 'Test(ToolModuleContract|ToolRecipeAdmission|TypedToolExecution|LongRunningToolOperation|ProtocolToolExecutionParity)' -count=1",
           "rationale": "Overgo already parses and formats function tools. Add execution without ADK reflection, map-shaped state, or a second registry. Active recipes and capability evidence select exposed tools; strict schemas decode boundary JSON into typed adapter values; operation owns long-running execution and cancellation.",
           "depends_on": [
@@ -1645,12 +1686,12 @@
       "id": "adk-durable-human-decision",
       "title": "Bind human approval to the exact proposed action and recovery identity",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Represent approval requests and decisions as typed operatoraction and runrecord documents; bind tool, arguments, recipe, operation, and prior decision; resume through operation.Recover; delete identifier-only confirmation state",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/operatoraction ./internal/operation ./internal/runrecord ./internal/server -run 'Test(DecisionBindsExactAction|DecisionRejectsArgumentSubstitution|DecisionRejectsReplay|BlockedOperationResumesAfterDecision|DecisionAPI)' -count=1",
           "rationale": "ADK's recent confirmation-conflict fix exposes the danger of approving an identifier that does not bind the original arguments. Overgo can fail closed by making the complete proposed action content-addressed and requiring the decision to reference that identity and current operation state.",
           "depends_on": [
@@ -1670,12 +1711,12 @@
       "id": "adk-parallel-recipe-runtime",
       "title": "Execute independent recipe stages concurrently under one deterministic lifecycle owner",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Compile ready sets and joins from recipe.Program; run adapters concurrently within the resource plan; publish results through one state mutator; preserve deterministic output and event order; delete serial-only stage traversal",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/recipe ./internal/workflowruntime ./internal/operation -run 'Test(ParallelReadySet|JoinInputOrder|SingleLifecycleMutator|ParallelCancellation|ResourceDerivedConcurrency|DeterministicParallelReceipts)' -count=1",
           "rationale": "Borrow ADK's single-consumer scheduler invariant, not its graph implementation. Recipe topology determines readiness and joins. Resource plans determine concurrency; no fixed worker count. Each adapter receives isolated inputs and publishes immutable outputs before successors become eligible.",
           "depends_on": [
@@ -1696,12 +1737,12 @@
       "id": "adk-interaction-replay-evaluation",
       "title": "Record and replay exact model and tool interactions through OvergoDB evaluation authority",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Capture recipe, model request, ordered output events, tool actions, decisions, and final artifacts as one trace manifest; add a test-only replay adapter and evaluation comparison; delete callback and YAML cassette requirements",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/runrecord ./internal/workflowruntime ./internal/evaluation ./internal/server -run 'Test(InteractionTraceIdentity|InteractionReplayExact|ReplayRejectsRequestDrift|WorkflowEvaluationBindsTrace|ReplayGUI)' -count=1",
           "rationale": "ADK record and replay is valuable for conformance, but Overgo already owns artifact identity, runs, and evaluations. Trace components should be immutable artifacts with lineage and explicit nondeterministic fields, allowing exact replay, regression comparison, and GUI inspection without lifecycle plugins.",
           "depends_on": [
@@ -1721,12 +1762,12 @@
       "id": "adk-capability-bundles",
       "title": "Expose instruction, resource, and tool bundles through existing artifact manifests and recipes",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Represent capability bundles as typed artifact manifest roles and recipe dependencies; select bundles by capability and evidence; load referenced resources on demand; avoid filesystem scanning and injected free-form authority",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/artifact ./internal/modelrecipe ./internal/workflowruntime ./internal/server -run 'Test(CapabilityBundleManifest|CapabilityBundleRecipeSelection|CapabilityResourceOnDemand|UnpromotedBundleRefusal)' -count=1",
           "rationale": "ADK skills package instructions and resources usefully, but Overgo should use content-addressed manifests, active recipes, and promotion evidence. Bundle text remains input data, never executable policy; tools remain typed recipe modules.",
           "depends_on": [
@@ -1746,12 +1787,12 @@
       "id": "adk-remote-operation-adapter",
       "title": "Add evidence-admitted remote execution as a workflow adapter after local orchestration is authoritative",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Define machine-readable peer capability and compatibility records; execute remote stages through workflowruntime Adapter and operation attempt chains; preserve artifact lineage and local fallback refusal; avoid importing ADK or A2A runtime ownership",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/modelrecipe ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/server -run 'Test(RemoteCapabilityAdmission|RemoteStageAttemptLineage|RemoteCancellation|RemoteArtifactIdentity|IncompatiblePeerRefusal)' -count=1",
           "rationale": "ADK A2A demonstrates a useful interoperability boundary. Overgo should treat a peer as another recipe-selected executor with explicit capability, environment, and artifact contracts. The ModelSessionDirector and serving attempt ledger retain routing authority; remote transport never selects models or recipes.",
           "depends_on": [
@@ -1771,12 +1812,12 @@
       "id": "adk-agent-gui",
       "title": "Expose durable sessions, recipe stages, tool actions, decisions, replay, and peers through existing GUI owners",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Extend current Runtime, Activity, Evaluation, and recipe views; use projected OvergoDB queries and shared SSE; delete polling and duplicate view-local state where event streams are authoritative",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'Test(SessionLedgerGUI|WorkflowStageGUI|ToolDecisionGUI|InteractionReplayGUI|RemoteAttemptGUI|AgentGUIUsesProjectedQueriesAndSSE)' -count=1",
           "rationale": "The GUI should expose the new capabilities through existing modules, navigation, operation streams, and evidence views. It must display recipe and artifact authority, waiting actions, stage progress, replay comparisons, and remote attempts without becoming a second state store.",
           "depends_on": [
@@ -1797,13 +1838,13 @@
       "id": "adk-overgo-closure",
       "title": "Close ADK-inspired capability work with one authority per fact and measured OvergoDB efficiency",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Run host and device gates; compare OvergoDB replay, query, snapshot, resident memory, and response-history allocation evidence; require no ADK dependency, second scheduler, callback mesh, compatibility wrapper, or ephemeral session authority",
-          "status": "open",
-          "verify": "go test ./internal/artifact ./internal/overgodb ./internal/recipe ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/evaluation ./internal/server -count=1 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
+          "status": "done",
+          "verify": "go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
           "rationale": "Completion requires functional session, tool, human-decision, parallel workflow, replay, capability-bundle, remote, and GUI evidence plus measured storage and processing improvement against the pre-campaign RepoDB benchmark record. Production code must contain no imported ADK runtime and no displaced owner retained for compatibility.",
           "depends_on": [
             "adk-agent-gui/do"
@@ -1885,13 +1926,13 @@
       "id": "literal-runtime-policy",
       "title": "Make recipes and artifact facts the sole authority for generation and serving defaults",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Resolve sampling, token, video frame, frame-rate, denoise, guidance, shift, seed, and serving defaults from active recipes or artifact facts; retain CLI values only as explicit overrides; migrate generate, latentvideo-run, server, and sampler callers; delete global and command-local policy bundles",
-          "status": "open",
-          "verify": "go test ./cmd/generate ./cmd/latentvideo-run ./internal/sampling ./internal/server ./internal/modelrecipe -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd/generate,cmd/latentvideo-run,internal/sampling,internal/server -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "status": "done",
+          "verify": "go test ./cmd/generate -run '^TestReadProjectedInputs$' -count=1 \u0026\u0026 go test ./cmd/latentvideo-run -run '^TestSummarizeProducesFiniteJSONStatistics$' -count=1 \u0026\u0026 go test ./internal/sampling -run '^TestGreedyAndTieBreak$' -count=1 \u0026\u0026 go test ./internal/server -run '^TestProperties$' -count=1 \u0026\u0026 go test ./internal/modelrecipe -run '^TestAtomicEvidenceGatedActivation$' -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd/generate,cmd/latentvideo-run,internal/sampling,internal/server -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts \u003e /dev/null",
           "rationale": "Command and package defaults duplicate runtime policy and obscure paths that differ only by recipe parameters.",
           "depends_on": [
             "architecture-profile-catalog/do"
@@ -1909,13 +1950,13 @@
       "id": "literal-training-policy",
       "title": "Derive training and probe policy from compiled training plans",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Replace command-local steps, sequence extents, learning rates, momentum, schedules, wall bounds, dimensions, and seeds with dataset, model, resource, optimizer, and evidence-derived TrainingSessionPlan fields; migrate every training and probe caller; delete duplicated flag defaults and private derivations",
-          "status": "open",
-          "verify": "go test ./cmd/train ./internal/trainingprogram ./internal/trainingworkflow ./internal/optimizer ./internal/hybridtrain -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd,internal/trainingprogram,internal/trainingworkflow,internal/optimizer,internal/hybridtrain -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train ./internal/trainingprogram ./internal/trainingworkflow ./internal/optimizer ./internal/hybridtrain -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope cmd,internal/trainingprogram,internal/trainingworkflow,internal/optimizer,internal/hybridtrain -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
           "rationale": "Training commands encode campaign parameters beside shared optimizer and training authorities, preventing equivalent probes from sharing one compiled plan.",
           "depends_on": [
             "literal-runtime-policy/do"
@@ -1933,13 +1974,13 @@
       "id": "literal-workflow-stages",
       "title": "Make typed recipe modules own workflow stage requirements",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Move model-build stage order, input and output requirements, and postconditions into typed module descriptors consumed by workflowruntime; replace positional stage indexing with compiled iteration; migrate callers and delete model-build-specific validation closures",
-          "status": "open",
-          "verify": "go test ./internal/workflowruntime ./internal/workflowrecipe ./internal/recipe ./internal/modelrecipe -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/workflowruntime,internal/workflowrecipe,internal/recipe,internal/modelrecipe -require-classified -require-no-stale -require-no-uncatalogued-production",
+          "status": "done",
+          "verify": "go run ./cmd/test-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/workflowruntime,internal/workflowrecipe,internal/recipe,internal/modelrecipe -require-classified -require-no-stale -require-no-uncatalogued-production",
           "rationale": "Model-build execution repeats stage order and output validity through positional literals instead of consuming recipe module contracts.",
           "depends_on": [
             "literal-training-policy/do"
@@ -1959,13 +2000,28 @@
       "status": "open",
       "steps": [
         {
+          "id": "attribute-admission",
+          "title": "Make typed attributes own operation admission and delete the parallel kind registry",
+          "status": "done",
+          "verify": "go test ./internal/tensor ./internal/tensor/reference -count=1 \u0026\u0026 go test ./internal/cuda/executor -run '^(TestCompilePinsTopologyAndMemoryPlan|TestCUDAOperationProgramsCoverRegistry|TestCompiledRuntimeAttributesUseNodeIndexes)$' -count=1",
+          "rationale": "Attribute types already encode their contracts; a second enum, operation table, and type switch duplicate the same authority.",
+          "depends_on": [
+            "literal-workflow-stages/do"
+          ],
+          "capabilities": [
+            "tensor",
+            "operator-schema",
+            "surface-reduction"
+          ]
+        },
+        {
           "id": "do",
           "title": "Represent operand roles, ranks, axes, layouts, output rules, runtime attributes, and launch bindings in narrow typed operator schemas; migrate recurrent, attention-layout, and math-vision builders plus reference and CUDA executors together; delete displaced rank checks, slot maps, launch branches, and duplicated shape arithmetic",
           "status": "open",
           "verify": "go test ./internal/tensor ./internal/tensor/reference ./internal/cuda/executor -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/tensor,internal/cuda/executor -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
           "rationale": "Builder, CPU reference, and CUDA launch files repeat the largest concentration of shape, axis, and operand-position facts. One compiled schema should drive all three without a property bag.",
           "depends_on": [
-            "literal-workflow-stages/do"
+            "literal-operator-contracts/attribute-admission"
           ],
           "capabilities": [
             "tensor",
@@ -2099,6 +2155,45 @@
             "closure",
             "verification"
           ]
+        }
+      ]
+    },
+    {
+      "id": "merge-6f7485a52b81",
+      "title": "Merge master at 6f7485a52b81",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 6f7485a52b81",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "merge-8b52551473fa",
+      "title": "Merge master at 8b52551473fa",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 8b52551473fa",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "merge-703690c4a615",
+      "title": "Merge master at 703690c4a615",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 703690c4a615",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
         }
       ]
     }

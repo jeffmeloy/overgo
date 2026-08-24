@@ -34,6 +34,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
+	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -123,6 +124,19 @@ type rawTextCache struct {
 	SHA256  string `json:"sha256"`
 }
 
+type ditProbeFixture struct {
+	Request struct {
+		Frames, Width, Height int
+	} `json:"request"`
+	NoisePlan struct {
+		Seed        uint64 `json:"seed"`
+		Grid, Block int
+		Unroll      int
+	} `json:"noise_plan"`
+	Timesteps []int64   `json:"timesteps"`
+	Sigmas    []float32 `json:"sigmas"`
+}
+
 // rawTextRows: real streamed-encoder rows for the prompt, with an optional
 // deterministic on-disk cache (content-addressed; recomputed on mismatch).
 func rawTextRows(spec latentvideo.TextConditioningSpec, prompt, cacheBase string) ([]float32, int, int, error) {
@@ -180,20 +194,31 @@ func contextDiff(got, want []float32) (maxDiff, meanDiff float64) {
 }
 
 func run() error {
-	modelDir := flag.String("model-dir", `C:\Users\jeffm\adaptive_new\models\Wan2.1-T2V-1.3B`, "Wan checkpoint dir (config, safetensors, tokenizer, text encoder)")
+	modelDir := flag.String("model-dir", "", "video checkpoint dir")
 	checkpoint := flag.String("checkpoint", "", "reference-edit .pt checkpoint (empty: train the safetensors DiT)")
 	fixturesDir := flag.String("fixtures", "fixtures/wan", "committed golden fixture dir (real conditioning and latent seeds)")
-	frames := flag.Int("frames", 1, "requested video frames")
-	width := flag.Int("width", 256, "requested video width")
-	height := flag.Int("height", 256, "requested video height")
-	scheduleIndex := flag.Int("schedule-index", 1, "index into the 4-step shift-5 committed schedule")
-	steps := flag.Int("steps", 3, "observed training steps")
-	maxWall := flag.Duration("max-wall", 90*time.Minute, "abort when the first step projects past this bound")
+	frames := clioptions.IntOverride(flag.CommandLine, "frames", "video frames; omitted uses fixture request")
+	width := clioptions.IntOverride(flag.CommandLine, "width", "video width; omitted uses fixture request")
+	height := clioptions.IntOverride(flag.CommandLine, "height", "video height; omitted uses fixture request")
+	scheduleIndex := clioptions.IntOverride(flag.CommandLine, "schedule-index", "required committed schedule index")
+	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required observed training steps")
+	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
 	storePath := flag.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
 	stimulus := flag.String("stimulus", "docs/verification/wan-dit-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
 	t5Cache := flag.String("t5-cache", "", "optional cache base path for the streamed raw text rows")
 	flag.Parse()
+	overrides := clioptions.ExplicitOverrides(flag.CommandLine)
 	ctx := context.Background()
+	if *modelDir == "" || *steps <= 0 || !overrides.Has("schedule-index") {
+		return fmt.Errorf("dit train probe: model, positive steps, and schedule index required")
+	}
+	var fixture ditProbeFixture
+	if err := jsonfile.Decode(filepath.Join(*fixturesDir, "g3_denoise.json"), &fixture); err != nil {
+		return err
+	}
+	clioptions.ApplyDefault(overrides, "frames", frames, fixture.Request.Frames)
+	clioptions.ApplyDefault(overrides, "width", width, fixture.Request.Width)
+	clioptions.ApplyDefault(overrides, "height", height, fixture.Request.Height)
 
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
@@ -225,6 +250,10 @@ func run() error {
 		return err
 	}
 	if err := observer.Admit(ctx, modelID, recipeID); err != nil {
+		return err
+	}
+	authority, err := trainingworkflow.ResolveSessionAuthority(ctx, store, modelID, recipeID)
+	if err != nil {
 		return err
 	}
 	fmt.Printf("session admitted: model=%s recipe=%s\n", modelID, recipeID)
@@ -294,11 +323,18 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	trainer, err := latentvideo.NewDiTTrainer(cfg, textDim, geometry, tensors)
+	trainer, err := latentvideo.NewDiTTrainer(cfg, textDim, geometry, tensors, authority.Optimizer)
 	if err != nil {
 		return err
 	}
 	defer trainer.Close()
+	session, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+		Objective: authority.Objective, Updates: *steps, MaximumSequence: geometry.Seq,
+		MaxProjectedWall: *maxWall, Parameters: trainer.ParameterCount(), Optimizer: authority.Optimizer,
+	})
+	if err != nil {
+		return err
+	}
 	observer.Phase(runrecord.PhaseLoad, time.Since(loadStarted))
 	fmt.Printf("full DiT: layers=%d trainable_parameters=%d seq=%d latent=%dx%dx%dx%d text_tokens=%d\n",
 		cfg.NumLayers, trainer.ParameterCount(), geometry.Seq,
@@ -317,10 +353,7 @@ func run() error {
 
 	// Real flow-matching batch: x0 from committed sha-pinned real latents,
 	// golden Philox noise, the committed shifted schedule.
-	timesteps, sigmas, err := sampling.UniPCSchedule(cfg.Policy.NumTrainTimesteps, 4, 5)
-	if err != nil {
-		return err
-	}
+	timesteps, sigmas := fixture.Timesteps, fixture.Sigmas
 	if *scheduleIndex < 0 || *scheduleIndex >= len(timesteps) {
 		return fmt.Errorf("dit train probe: schedule index %d outside %d timesteps", *scheduleIndex, len(timesteps))
 	}
@@ -349,7 +382,10 @@ func run() error {
 	}
 	noise := make([]float32, noiseElements)
 	// The golden capture engine's noise plan (g3 seed 31 geometry).
-	if err := sampling.FillCounterNormalNoise(noise, sampling.CounterNoisePlan{Seed: 31, Grid: 1, Block: 256, Unroll: 4}); err != nil {
+	if err := sampling.FillCounterNormalNoise(noise, sampling.CounterNoisePlan{
+		Seed: fixture.NoisePlan.Seed, Grid: fixture.NoisePlan.Grid,
+		Block: fixture.NoisePlan.Block, Unroll: fixture.NoisePlan.Unroll,
+	}); err != nil {
 		return err
 	}
 	latent := make([]float32, geometry.Elements())
@@ -375,7 +411,7 @@ func run() error {
 
 	trainStarted := time.Now()
 	runErr := func() error {
-		for step := 0; step < *steps; step++ {
+		for step := 0; step < session.Updates(); step++ {
 			stepStarted := time.Now()
 			result, err := trainer.Step(batch)
 			if err != nil {
@@ -384,14 +420,13 @@ func run() error {
 			observer.SampleStep()
 			wall := time.Since(stepStarted)
 			fmt.Printf("step %d/%d loss %.6f grad_l2 %.6f lr %.6g wall %s\n",
-				result.Step, *steps, result.Loss, result.GradientL2, result.LearningRate, wall.Round(time.Millisecond))
+				result.Step, session.Updates(), result.Loss, result.GradientL2, result.LearningRate, wall.Round(time.Millisecond))
 			if result.GradientL2 <= 0 {
 				return fmt.Errorf("dit train probe: step %d gradient norm %g", result.Step, result.GradientL2)
 			}
-			if step == 0 && *maxWall > 0 {
-				projected := wall * time.Duration(*steps+1)
-				if projected > *maxWall {
-					return fmt.Errorf("dit train probe: first step %s projects %d steps to %s, over %s", wall.Round(time.Second), *steps, projected.Round(time.Minute), *maxWall)
+			if step == 0 {
+				if err := session.AdmitStepWall(wall); err != nil {
+					return fmt.Errorf("dit train probe: %w", err)
 				}
 			}
 		}
@@ -406,7 +441,7 @@ func run() error {
 		return nil
 	}()
 	observer.Phase(runrecord.PhaseForwardBackward, time.Since(trainStarted))
-	streamed := uint64(*steps) * uint64(geometry.Seq)
+	streamed := uint64(session.Updates()) * uint64(geometry.Seq)
 	observation, observeErr := observer.Finish(ctx, modelID, recipeID, runErr, streamed)
 	if runErr != nil {
 		return runErr

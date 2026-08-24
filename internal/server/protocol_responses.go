@@ -173,7 +173,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	maxTokens, err := boundedProtocolTokens(
-		body.MaxOutputTokens, defaultProtocolMaxTokens, h.config.MaxTokens, "max_output_tokens", false,
+		body.MaxOutputTokens, h.defaultOutputTokens, h.config.MaxTokens, "max_output_tokens", false,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -204,8 +204,8 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	}
 	defer plan.release()
 	idNumber := h.nextID.Add(1)
-	responseID := "resp_" + strconv.FormatUint(idNumber, 10)
-	messageID := "msg_" + strconv.FormatUint(idNumber, 10)
+	responseID := "resp_" + strconv.FormatUint(idNumber, identifierRadix)
+	messageID := "msg_" + strconv.FormatUint(idNumber, identifierRadix)
 	if body.Stream {
 		h.streamResponses(
 			response,
@@ -265,7 +265,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			InputTokens:       promptTokens,
 			OutputTokens:      result.pump.generated,
 			TotalTokens:       promptTokens + result.pump.generated,
-			InputTokenDetails: responseInputTokenDetails{CachedTokens: 0},
+			InputTokenDetails: responseInputTokenDetails{},
 		},
 	})
 }
@@ -390,32 +390,32 @@ func (h *Handler) streamResponses(
 		added := responseOutputItem{ID: itemID, Status: "in_progress", Type: "reasoning"}
 		if err := writeEvent("response.output_item.added", responsesStreamEvent{
 			Type: "response.output_item.added", ResponseID: responseID,
-			OutputIndex: eventIndex(0), Item: added,
+			OutputIndex: eventIndex(firstEventIndex), Item: added,
 		}); err != nil {
 			return err
 		}
 		if err := writeEvent("response.reasoning_summary_part.added", responsesStreamEvent{
 			Type: "response.reasoning_summary_part.added", ItemID: itemID,
-			OutputIndex: eventIndex(0), SummaryIndex: eventIndex(0),
+			OutputIndex: eventIndex(firstEventIndex), SummaryIndex: eventIndex(firstEventIndex),
 			Part: responseReasoningSummary{Type: "summary_text", Text: ""},
 		}); err != nil {
 			return err
 		}
 		if err := writeEvent("response.reasoning_summary_text.delta", responsesStreamEvent{
 			Type: "response.reasoning_summary_text.delta", ItemID: itemID,
-			OutputIndex: eventIndex(0), SummaryIndex: eventIndex(0), Delta: text,
+			OutputIndex: eventIndex(firstEventIndex), SummaryIndex: eventIndex(firstEventIndex), Delta: text,
 		}); err != nil {
 			return err
 		}
 		if err := writeEvent("response.reasoning_summary_text.done", responsesStreamEvent{
 			Type: "response.reasoning_summary_text.done", ItemID: itemID,
-			OutputIndex: eventIndex(0), SummaryIndex: eventIndex(0), Text: eventString(text),
+			OutputIndex: eventIndex(firstEventIndex), SummaryIndex: eventIndex(firstEventIndex), Text: eventString(text),
 		}); err != nil {
 			return err
 		}
 		if err := writeEvent("response.reasoning_summary_part.done", responsesStreamEvent{
 			Type: "response.reasoning_summary_part.done", ItemID: itemID,
-			OutputIndex: eventIndex(0), SummaryIndex: eventIndex(0), Part: part,
+			OutputIndex: eventIndex(firstEventIndex), SummaryIndex: eventIndex(firstEventIndex), Part: part,
 		}); err != nil {
 			return err
 		}
@@ -424,7 +424,7 @@ func (h *Handler) streamResponses(
 		}
 		if err := writeEvent("response.output_item.done", responsesStreamEvent{
 			Type: "response.output_item.done", ResponseID: responseID,
-			OutputIndex: eventIndex(0), Item: completed,
+			OutputIndex: eventIndex(firstEventIndex), Item: completed,
 		}); err != nil {
 			return err
 		}
@@ -588,7 +588,7 @@ func (h *Handler) streamResponses(
 			InputTokens:       promptTokens,
 			OutputTokens:      result.pump.generated,
 			TotalTokens:       promptTokens + result.pump.generated,
-			InputTokenDetails: responseInputTokenDetails{CachedTokens: 0},
+			InputTokenDetails: responseInputTokenDetails{},
 		},
 	}
 	if store {

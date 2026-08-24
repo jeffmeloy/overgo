@@ -42,7 +42,7 @@ func New(weights, gradients []float32, plan Plan, config Config) (*Optimizer, er
 	if len(weights) != plan.ParameterCount() || len(gradients) != plan.ParameterCount() {
 		return nil, fmt.Errorf("optimizer: weights and gradients must contain %d parameters", plan.ParameterCount())
 	}
-	if err := config.validate(); err != nil {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	optimizer := &Optimizer{
@@ -138,7 +138,7 @@ func ValidateState(state State, planIdentity string, parameterCount int) error {
 	if err != nil || len(identity) != sha256.Size {
 		return errors.New("optimizer state: invalid plan identity")
 	}
-	if err := state.Config.validate(); err != nil {
+	if err := state.Config.Validate(); err != nil {
 		return err
 	}
 	if state.Step < 0 {

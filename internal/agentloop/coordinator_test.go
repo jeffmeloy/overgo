@@ -17,6 +17,8 @@ import (
 	"overgo/internal/testutil"
 )
 
+const fixtureSessionSteps = 2
+
 func coordinatorFixture(t *testing.T) (*Coordinator, *overgodb.Store) {
 	t.Helper()
 	ctx := context.Background()
@@ -60,7 +62,7 @@ func coordinatorFixture(t *testing.T) (*Coordinator, *overgodb.Store) {
 	executor := agenttool.NewOperatorExecutor()
 	coordinator, err := New(store, executor, Identity{
 		Recipe: recipeID, Model: modelID, Node: recipe.NodeID("respond"),
-	})
+	}, fixtureSessionSteps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +114,7 @@ func TestCoordinatorBoundsSessionSteps(t *testing.T) {
 	ctx := context.Background()
 	coordinator, _ := coordinatorFixture(t)
 	session := &Session{ID: "agent-session-bound"}
-	for step := 0; step < maxSessionSteps; step++ {
+	for step := 0; step < coordinator.maxSteps; step++ {
 		if _, err := coordinator.Propose(ctx, session, "probe.read", json.RawMessage(fmt.Sprintf(`{"step":%d}`, step)), false); err != nil {
 			t.Fatalf("step %d: %v", step, err)
 		}

@@ -63,12 +63,28 @@ var (
 
 // Profile owns Wan execution facts absent from checkpoint metadata.
 type Profile struct {
-	ID          artifact.ID    `json:"-"`
-	Version     uint16         `json:"version"`
-	Policy      DenoiserPolicy `json:"denoiser"`
-	LatentStats VAELatentStats `json:"vae_latent_stats"`
-	SampleFPS   int            `json:"sample_fps"`
-	Precision   string         `json:"precision"`
+	ID          artifact.ID      `json:"-"`
+	Version     uint16           `json:"version"`
+	Policy      DenoiserPolicy   `json:"denoiser"`
+	LatentStats VAELatentStats   `json:"vae_latent_stats"`
+	SampleFPS   int              `json:"sample_fps"`
+	Precision   precisionPolicy  `json:"precision"`
+	Generation  generationPolicy `json:"generation"`
+}
+
+type precisionPolicy struct {
+	MatmulWeights         string `json:"matmul_weights"`
+	RoundAttentionStorage bool   `json:"round_attention_storage"`
+}
+
+type generationPolicy struct {
+	Frames     int     `json:"frames"`
+	Width      int     `json:"width"`
+	Height     int     `json:"height"`
+	Steps      int     `json:"steps"`
+	Shift      float64 `json:"shift"`
+	GuideScale float64 `json:"guide_scale"`
+	Seed       uint64  `json:"seed"`
 }
 
 // ResolveProfile validates the artifact against the supported Wan profile.
@@ -105,8 +121,14 @@ func ReadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (Pr
 func (p Profile) Content() (artifact.Content, error) { return videoProfileCodec.Content(p) }
 
 func (p Profile) validate() error {
-	if !checked.Equal(p.Version, videoProfileVersion) || !checked.PositiveInts(p.SampleFPS, p.Policy.NumTrainTimesteps, p.Policy.SinusoidalPeriod) ||
-		!checked.Equal(p.Precision, dtype.BF16.String()) || !checked.PositiveFinite64(p.Policy.RotaryFrequencyBase) {
+	if !checked.Equal(p.Version, videoProfileVersion) ||
+		!checked.PositiveInts(
+			p.SampleFPS, p.Policy.NumTrainTimesteps, p.Policy.SinusoidalPeriod,
+			p.Generation.Frames, p.Generation.Width, p.Generation.Height, p.Generation.Steps,
+		) || !checked.Equal(p.Precision.MatmulWeights, dtype.BF16.String()) ||
+		!checked.PositiveFinite64(p.Policy.RotaryFrequencyBase) ||
+		!checked.PositiveFinite64(p.Generation.Shift) ||
+		!checked.PositiveFinite64(p.Generation.GuideScale) {
 		return errors.New("latent video: incomplete profile")
 	}
 	if err := media.ValidateChannelMoments(p.LatentStats.Mean, p.LatentStats.Std, len(p.LatentStats.Mean)); err != nil {

@@ -26,6 +26,7 @@ type loadedProgramState struct {
 	Inventory    modelartifact.Inventory
 	EvidenceTier recipe.EvidenceTier
 	Program      Plan
+	Policy       RuntimePolicy
 }
 
 // ResolveActiveGGUF verifies and compiles the active recipe before execution.
@@ -50,6 +51,10 @@ func ResolveActiveGGUF(
 	}
 	definition := activation.Definition
 	loaded.state.EvidenceTier = activation.Tier
+	loaded.state.Policy, err = ResolveRuntimePolicy(ctx, store, definition)
+	if err != nil {
+		return fail(err)
+	}
 	definitionID, ok := definition.PrimaryDependency(recipe.DependencyDefinition)
 	if !ok {
 		return fail(errors.New("model recipe: active recipe has no model definition"))
@@ -94,6 +99,14 @@ func ResolveCandidateGGUF(
 		return fail(errors.New("model recipe: loaded GGUF differs from candidate model definition"))
 	}
 	loaded.state.EvidenceTier = recipe.EvidenceExperimental
+	policy, found, err := CatalogRuntimePolicy(definition.Task)
+	if err != nil {
+		return fail(err)
+	}
+	if !found {
+		return fail(errors.New("model recipe: candidate runtime policy is absent"))
+	}
+	loaded.state.Policy = policy
 	if err := loaded.bindResolved(definition, resolved); err != nil {
 		return fail(err)
 	}
@@ -106,6 +119,14 @@ func (l *LoadedProgram) Identity() (ProgramIdentity, error) {
 		return ProgramIdentity{}, errors.New("model recipe: loaded program is unavailable or consumed")
 	}
 	return l.state.Program.Identity, nil
+}
+
+// RuntimePolicy returns the resolved request policy before transfer.
+func (l *LoadedProgram) RuntimePolicy() (RuntimePolicy, error) {
+	if l == nil || l.state == nil || l.state.File == nil {
+		return RuntimePolicy{}, errors.New("model recipe: loaded program is unavailable or consumed")
+	}
+	return l.state.Policy, nil
 }
 
 func loadGGUFFacts(path string) (LoadedProgram, error) {

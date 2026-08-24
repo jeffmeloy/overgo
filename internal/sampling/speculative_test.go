@@ -67,6 +67,7 @@ func TestSpeculativeSampleMatchesCommittedSamplerState(t *testing.T) {
 func TestSpeculativeSampleUsesResidualCorrection(t *testing.T) {
 	sampler, err := New(Config{
 		Temperature: 1, TopK: 1, TopP: 1, Seed: 7,
+		Samplers: []SamplerStage{SamplerTopK, SamplerTopP, SamplerTemperature},
 	})
 	if err != nil {
 		t.Fatal(err)

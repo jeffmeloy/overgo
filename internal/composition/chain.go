@@ -98,12 +98,6 @@ func RunChainViability(store *overgodb.Store, config ChainConfig) (ChainResult, 
 		models[id] = &chainModel{model: loaded, tokenizer: tokenizer}
 	}
 	ctx := context.Background()
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       "tier0-chain/models",
-		Artifacts: []artifact.Descriptor{{ID: scorerID}, {ID: drafterID}},
-	}); err != nil {
-		return ChainResult{}, err
-	}
 	chainProgram, baseProgram, err := ChainPrograms(scorerID, drafterID)
 	if err != nil {
 		return ChainResult{}, err

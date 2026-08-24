@@ -59,9 +59,6 @@ func NewTrainer(head *Head, config optimizer.Config) (*Trainer, error) {
 	if err != nil {
 		return nil, err
 	}
-	if config.BaseLearningRate <= 0 {
-		config.BaseLearningRate = trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(pack.ParameterCount())
-	}
 	gradients := pack.BindMapViews(tensors)
 	head.decL0W, head.decL0B = tensors[decoderInputWeight], tensors[decoderInputBias]
 	head.decL1W, head.decL1B = tensors[decoderOutputWeight], tensors[decoderOutputBias]
@@ -94,6 +91,14 @@ func NewTrainer(head *Head, config optimizer.Config) (*Trainer, error) {
 func (trainer *Trainer) Close() error { return trainer.stepper.Close() }
 
 func (trainer *Trainer) ParameterCount() int { return trainer.pack.ParameterCount() }
+
+// TrainableParameterCount returns decoder optimizer extent without allocation.
+func (h *Head) TrainableParameterCount() (count int) {
+	if h == nil {
+		return count
+	}
+	return len(h.decL0W) + len(h.decL0B) + len(h.decL1W) + len(h.decL1B)
+}
 
 type decoderTrainingStep struct {
 	request                Request

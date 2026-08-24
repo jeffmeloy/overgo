@@ -5,17 +5,19 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/inference"
 	"overgo/internal/model"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
+	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
@@ -63,56 +65,55 @@ func topLogitIndices(logits []float32, n int) []int {
 }
 
 func run() error {
-	samplingDefaults := sampling.DefaultConfig()
-	maxNewTokens := flag.Int("n", 1, "maximum number of new tokens")
+	maxNewTokens := clioptions.IntOverride(flag.CommandLine, "n", "maximum number of new tokens; unset uses recipe policy")
 	contextShift := flag.Bool(
 		"context-shift",
 		false,
 		"discard oldest attention KV entries to continue beyond model context",
 	)
-	keepTokens := flag.Int(
+	keepTokens := clioptions.IntOverride(
+		flag.CommandLine,
 		"keep",
-		0,
 		"initial prompt tokens preserved by context shift; -1 keeps as many as possible",
 	)
-	discardTokens := flag.Int(
+	discardTokens := clioptions.IntOverride(
+		flag.CommandLine,
 		"discard",
-		0,
 		"tokens removed per context shift; zero removes half of the discardable cache",
 	)
 	modelFlags := clioptions.AddModelFlags(flag.CommandLine, "load GGUF LoRA adapter at scale 1; repeatable")
-	temperature := flag.Float64("temp", float64(samplingDefaults.Temperature), "sampling temperature; zero is greedy")
-	dynatempRange := flag.Float64("dynatemp-range", float64(samplingDefaults.DynatempRange), "dynamic temperature range; zero disables")
-	dynatempExponent := flag.Float64("dynatemp-exp", float64(samplingDefaults.DynatempExponent), "entropy-to-temperature exponent")
+	temperature := clioptions.Float64Override(flag.CommandLine, "temp", "sampling temperature; zero is greedy")
+	dynatempRange := clioptions.Float64Override(flag.CommandLine, "dynatemp-range", "dynamic temperature range; zero disables")
+	dynatempExponent := clioptions.Float64Override(flag.CommandLine, "dynatemp-exp", "entropy-to-temperature exponent")
 	samplerNames := flag.String(
 		"samplers",
-		sampling.FormatSamplerOrder(samplingDefaults.Samplers),
+		"",
 		"ordered sampler names separated by semicolons; use none for an empty chain",
 	)
-	topK := flag.Int("top-k", samplingDefaults.TopK, "top-k candidates; zero disables")
-	topP := flag.Float64("top-p", float64(samplingDefaults.TopP), "nucleus sampling probability")
-	minP := flag.Float64("min-p", float64(samplingDefaults.MinP), "minimum probability relative to the most likely token; zero disables")
-	typicalP := flag.Float64("typical-p", float64(samplingDefaults.TypicalP), "locally typical cumulative probability")
-	topNSigma := flag.Float64("top-n-sigma", float64(samplingDefaults.TopNSigma), "keep logits within N standard deviations of the maximum; non-positive disables")
-	xtcProbability := flag.Float64("xtc-probability", float64(samplingDefaults.XTCProbability), "chance of removing leading high-probability tokens")
-	xtcThreshold := flag.Float64("xtc-threshold", float64(samplingDefaults.XTCThreshold), "XTC high-probability threshold; above 0.5 disables")
-	minKeep := flag.Int("min-keep", samplingDefaults.MinKeep, "minimum candidates retained by probability filters")
-	adaptiveTarget := flag.Float64("adaptive-target", float64(samplingDefaults.AdaptiveTarget), "adaptive-p target probability; negative disables")
-	adaptiveDecay := flag.Float64("adaptive-decay", float64(samplingDefaults.AdaptiveDecay), "adaptive-p EMA decay")
+	topK := clioptions.IntOverride(flag.CommandLine, "top-k", "top-k candidates; zero disables")
+	topP := clioptions.Float64Override(flag.CommandLine, "top-p", "nucleus sampling probability")
+	minP := clioptions.Float64Override(flag.CommandLine, "min-p", "minimum probability relative to the most likely token; zero disables")
+	typicalP := clioptions.Float64Override(flag.CommandLine, "typical-p", "locally typical cumulative probability")
+	topNSigma := clioptions.Float64Override(flag.CommandLine, "top-n-sigma", "keep logits within N standard deviations of the maximum; non-positive disables")
+	xtcProbability := clioptions.Float64Override(flag.CommandLine, "xtc-probability", "chance of removing leading high-probability tokens")
+	xtcThreshold := clioptions.Float64Override(flag.CommandLine, "xtc-threshold", "XTC high-probability threshold; above 0.5 disables")
+	minKeep := clioptions.IntOverride(flag.CommandLine, "min-keep", "minimum candidates retained by probability filters")
+	adaptiveTarget := clioptions.Float64Override(flag.CommandLine, "adaptive-target", "adaptive-p target probability; negative disables")
+	adaptiveDecay := clioptions.Float64Override(flag.CommandLine, "adaptive-decay", "adaptive-p EMA decay")
 	logitBiasValues := stringListFlag{}
 	flag.Var(&logitBiasValues, "logit-bias", "TOKEN=BIAS logit adjustment; use -inf to ban, repeatable")
 	ignoreEOS := flag.Bool("ignore-eos", false, "ban all recognized end-of-generation tokens")
-	repeatLastN := flag.Int("repeat-last-n", samplingDefaults.RepeatLastN, "history tokens subject to penalties; -1 uses all, zero disables")
-	repeatPenalty := flag.Float64("repeat-penalty", float64(samplingDefaults.RepeatPenalty), "multiplicative repetition penalty")
-	presencePenalty := flag.Float64("presence-penalty", float64(samplingDefaults.PresencePenalty), "penalty applied once to tokens in history")
-	frequencyPenalty := flag.Float64("frequency-penalty", float64(samplingDefaults.FrequencyPenalty), "penalty applied per token occurrence in history")
-	noRepeatNgramSize := flag.Int("no-repeat-ngram-size", samplingDefaults.NoRepeatNgramSize, "block repeated n-grams; zero disables")
-	ngramWindow := flag.Int("ngram-window", samplingDefaults.NgramWindow, "history window for no-repeat n-grams; zero uses all")
-	dryMultiplier := flag.Float64("dry-multiplier", float64(samplingDefaults.DryMultiplier), "DRY repetition penalty multiplier; zero disables")
-	dryBase := flag.Float64("dry-base", float64(samplingDefaults.DryBase), "DRY exponential penalty base")
-	dryAllowedLength := flag.Int("dry-allowed-length", samplingDefaults.DryAllowedLength, "repetition length allowed before DRY penalties")
-	dryPenaltyLastN := flag.Int("dry-penalty-last-n", samplingDefaults.DryPenaltyLastN, "history tokens scanned by DRY; -1 uses all")
-	dryBreakers := stringListFlag{"\n", ":", "\"", "*"}
+	repeatLastN := clioptions.IntOverride(flag.CommandLine, "repeat-last-n", "history tokens subject to penalties; -1 uses all, zero disables")
+	repeatPenalty := clioptions.Float64Override(flag.CommandLine, "repeat-penalty", "multiplicative repetition penalty")
+	presencePenalty := clioptions.Float64Override(flag.CommandLine, "presence-penalty", "penalty applied once to tokens in history")
+	frequencyPenalty := clioptions.Float64Override(flag.CommandLine, "frequency-penalty", "penalty applied per token occurrence in history")
+	noRepeatNgramSize := clioptions.IntOverride(flag.CommandLine, "no-repeat-ngram-size", "block repeated n-grams; zero disables")
+	ngramWindow := clioptions.IntOverride(flag.CommandLine, "ngram-window", "history window for no-repeat n-grams; zero uses all")
+	dryMultiplier := clioptions.Float64Override(flag.CommandLine, "dry-multiplier", "DRY repetition penalty multiplier; zero disables")
+	dryBase := clioptions.Float64Override(flag.CommandLine, "dry-base", "DRY exponential penalty base")
+	dryAllowedLength := clioptions.IntOverride(flag.CommandLine, "dry-allowed-length", "repetition length allowed before DRY penalties")
+	dryPenaltyLastN := clioptions.IntOverride(flag.CommandLine, "dry-penalty-last-n", "history tokens scanned by DRY; -1 uses all")
+	dryBreakers := stringListFlag{}
 	flag.Var(&dryBreakers, "dry-sequence-breaker", "DRY restart string; repeat to add, or use 'none' first to clear defaults")
 	grammarChoices := stringListFlag{}
 	flag.Var(&grammarChoices, "grammar-choice", "exact allowed completion; repeat to add alternatives")
@@ -124,10 +125,10 @@ func run() error {
 	flag.Var(&grammarTriggerPatterns, "grammar-trigger-pattern", "lazy GBNF trigger regex; repeat to add")
 	grammarTriggerTokenValues := stringListFlag{}
 	flag.Var(&grammarTriggerTokenValues, "grammar-trigger-token", "lazy GBNF trigger token ID; repeat to add")
-	mirostat := flag.Int("mirostat", samplingDefaults.Mirostat, "Mirostat version; zero disables, 1 or 2 enables that version")
-	mirostatTau := flag.Float64("mirostat-tau", float64(samplingDefaults.MirostatTau), "Mirostat target surprise")
-	mirostatEta := flag.Float64("mirostat-eta", float64(samplingDefaults.MirostatEta), "Mirostat learning rate")
-	seed := flag.Int64("seed", samplingDefaults.Seed, "sampling RNG seed")
+	mirostat := clioptions.IntOverride(flag.CommandLine, "mirostat", "Mirostat version; zero disables, 1 or 2 enables that version")
+	mirostatTau := clioptions.Float64Override(flag.CommandLine, "mirostat-tau", "Mirostat target surprise")
+	mirostatEta := clioptions.Float64Override(flag.CommandLine, "mirostat-eta", "Mirostat learning rate")
+	seed := clioptions.Int64Override(flag.CommandLine, "seed", "sampling RNG seed")
 	projectedInputsFile := flag.String("projected-inputs", "", "projected multimodal input JSON")
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
 	projectorCUDA := flag.Bool("mmproj-cuda", false, "offload supported multimodal projector operations to CUDA")
@@ -137,13 +138,14 @@ func run() error {
 	videoFrames := stringListFlag{}
 	flag.Var(&videoFrames, "video-frame", "ordered multimodal video frame; repeatable")
 	videoPath := flag.String("video", "", "encoded multimodal video; GIF native, other formats through FFmpeg")
-	videoMaxFrames := flag.Int("video-max-frames", 32, "maximum decoded video frames")
-	videoFPS := flag.Float64("video-fps", 24, "source FPS for multimodal video timestamps")
+	videoMaxFrames := clioptions.IntOverride(flag.CommandLine, "video-max-frames", "maximum decoded video frames; unset uses recipe policy")
+	videoFPS := clioptions.Float64Override(flag.CommandLine, "video-fps", "source FPS for multimodal video timestamps; unset uses recipe policy")
 	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for non-GIF video input")
 	imageThinking := flag.Bool("image-thinking", true, "retain Qwen3.5 thinking preamble for image prompts")
 	promptIDsFlag := flag.String("prompt-ids", "", "comma-separated prompt token IDs; bypasses tokenization (prompt argument optional)")
-	debugTopLogits := flag.Int("debug-top-logits", 0, "print top-N (id, logit) pairs per generated step to stderr; zero disables")
+	debugTopLogits := clioptions.IntOverride(flag.CommandLine, "debug-top-logits", "print top-N (id, logit) pairs per generated step to stderr; zero disables")
 	flag.Parse()
+	explicit := clioptions.ExplicitOverrides(flag.CommandLine)
 	if flag.NArg() != 2 && !(*promptIDsFlag != "" && flag.NArg() == 1) {
 		return errors.New("usage: generate [options] <model.gguf> <prompt>  (prompt optional with -prompt-ids)")
 	}
@@ -157,6 +159,58 @@ func run() error {
 		return err
 	}
 	defer runner.Close()
+	repository, err := modelFlags.RepositoryPath()
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.OpenReadOnly(repository)
+	if err != nil {
+		return fmt.Errorf("generate: open model recipe repository: %w", err)
+	}
+	defer store.Close()
+	execution, err := modelrecipe.ResolveActiveExecution(
+		context.Background(), store, runner.ModelID(), recipe.TaskInference, modelrecipe.SessionWarm,
+	)
+	if err != nil {
+		return fmt.Errorf("generate: resolve runtime policy: %w", err)
+	}
+	policy := execution.Policy.Interactive
+	clioptions.ApplyDefault(explicit, "n", maxNewTokens, policy.OutputTokens)
+	clioptions.ApplyDefault(explicit, "temp", temperature, float64(policy.Sampling.Temperature))
+	clioptions.ApplyDefault(explicit, "dynatemp-range", dynatempRange, float64(policy.Sampling.DynatempRange))
+	clioptions.ApplyDefault(explicit, "dynatemp-exp", dynatempExponent, float64(policy.Sampling.DynatempExponent))
+	clioptions.ApplyDefault(explicit, "top-k", topK, policy.Sampling.TopK)
+	clioptions.ApplyDefault(explicit, "top-p", topP, float64(policy.Sampling.TopP))
+	clioptions.ApplyDefault(explicit, "min-p", minP, float64(policy.Sampling.MinP))
+	clioptions.ApplyDefault(explicit, "typical-p", typicalP, float64(policy.Sampling.TypicalP))
+	clioptions.ApplyDefault(explicit, "top-n-sigma", topNSigma, float64(policy.Sampling.TopNSigma))
+	clioptions.ApplyDefault(explicit, "xtc-probability", xtcProbability, float64(policy.Sampling.XTCProbability))
+	clioptions.ApplyDefault(explicit, "xtc-threshold", xtcThreshold, float64(policy.Sampling.XTCThreshold))
+	clioptions.ApplyDefault(explicit, "min-keep", minKeep, policy.Sampling.MinKeep)
+	clioptions.ApplyDefault(explicit, "adaptive-target", adaptiveTarget, float64(policy.Sampling.AdaptiveTarget))
+	clioptions.ApplyDefault(explicit, "adaptive-decay", adaptiveDecay, float64(policy.Sampling.AdaptiveDecay))
+	clioptions.ApplyDefault(explicit, "repeat-last-n", repeatLastN, policy.Sampling.RepeatLastN)
+	clioptions.ApplyDefault(explicit, "repeat-penalty", repeatPenalty, float64(policy.Sampling.RepeatPenalty))
+	clioptions.ApplyDefault(explicit, "presence-penalty", presencePenalty, float64(policy.Sampling.PresencePenalty))
+	clioptions.ApplyDefault(explicit, "frequency-penalty", frequencyPenalty, float64(policy.Sampling.FrequencyPenalty))
+	clioptions.ApplyDefault(explicit, "no-repeat-ngram-size", noRepeatNgramSize, policy.Sampling.NoRepeatNgramSize)
+	clioptions.ApplyDefault(explicit, "ngram-window", ngramWindow, policy.Sampling.NgramWindow)
+	clioptions.ApplyDefault(explicit, "dry-multiplier", dryMultiplier, float64(policy.Sampling.DryMultiplier))
+	clioptions.ApplyDefault(explicit, "dry-base", dryBase, float64(policy.Sampling.DryBase))
+	clioptions.ApplyDefault(explicit, "dry-allowed-length", dryAllowedLength, policy.Sampling.DryAllowedLength)
+	clioptions.ApplyDefault(explicit, "dry-penalty-last-n", dryPenaltyLastN, policy.Sampling.DryPenaltyLastN)
+	clioptions.ApplyDefault(explicit, "mirostat", mirostat, policy.Sampling.Mirostat)
+	clioptions.ApplyDefault(explicit, "mirostat-tau", mirostatTau, float64(policy.Sampling.MirostatTau))
+	clioptions.ApplyDefault(explicit, "mirostat-eta", mirostatEta, float64(policy.Sampling.MirostatEta))
+	clioptions.ApplyDefault(explicit, "seed", seed, policy.Sampling.Seed)
+	clioptions.ApplyDefault(explicit, "video-max-frames", videoMaxFrames, policy.Video.MaxFrames)
+	clioptions.ApplyDefault(explicit, "video-fps", videoFPS, policy.Video.FPS)
+	if _, set := explicit["samplers"]; !set {
+		*samplerNames = sampling.FormatSamplerOrder(policy.Sampling.Samplers)
+	}
+	if _, set := explicit["dry-sequence-breaker"]; !set {
+		dryBreakers = append(dryBreakers, policy.Sampling.DryBreakers...)
+	}
 	var tokenBreakers [][]int
 	if *dryMultiplier != 0 && *dryPenaltyLastN != 0 {
 		tokenBreakers, err = runner.TokenizeDryBreakers(dryBreakers)
@@ -176,7 +230,7 @@ func run() error {
 		}
 		var bias float64
 		if strings.EqualFold(biasText, "-inf") {
-			bias = math.Inf(-1)
+			bias = float64(sampling.BannedLogit())
 		} else {
 			bias, parseErr = strconv.ParseFloat(biasText, 32)
 			if parseErr != nil {
@@ -192,7 +246,7 @@ func run() error {
 		for _, token := range runner.SamplingEOGTokens() {
 			logitBiases = append(logitBiases, sampling.LogitBias{
 				Token: int(token),
-				Bias:  float32(math.Inf(-1)),
+				Bias:  sampling.BannedLogit(),
 			})
 		}
 	}
@@ -342,7 +396,7 @@ func run() error {
 	if *videoPath != "" && *videoMaxFrames <= 0 {
 		return errors.New("generate: -video-max-frames must be positive")
 	}
-	if (*videoPath != "" || len(videoFrames) > 0) && (*videoFPS <= 0 || math.IsNaN(*videoFPS) || math.IsInf(*videoFPS, 0)) {
+	if (*videoPath != "" || len(videoFrames) > 0) && !checked.PositiveFinite64(*videoFPS) {
 		return errors.New("generate: -video-fps must be finite and positive")
 	}
 	if *projectedInputsFile != "" && *projectorPath != "" {
@@ -366,15 +420,6 @@ func run() error {
 			CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
 			DisableDynamicTiles: !*imageDynamicTiles,
 		}
-		repository, repositoryErr := modelFlags.RepositoryPath()
-		if repositoryErr != nil {
-			return repositoryErr
-		}
-		store, openErr := overgodb.OpenReadOnly(repository)
-		if openErr != nil {
-			return fmt.Errorf("generate: open model recipe repository: %w", openErr)
-		}
-		defer store.Close()
 		if *imagePath != "" {
 			promptIDs, projected, projectedErr = imageProjectedPrompt(
 				context.Background(), store, runner, *projectorPath, *imagePath, prompt, *imageThinking,

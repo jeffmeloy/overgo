@@ -76,7 +76,7 @@ func motTestTrainer(t *testing.T) (*ModalityTransformerTrainer, []float32, []int
 	for i := range headValues {
 		headValues[i] = float32(rng.NormFloat64()) * 0.3
 	}
-	trainer, err := NewModalityTransformerTrainer(cfg, layers, finalNorm, bf16Encode(headValues))
+	trainer, err := NewModalityTransformerTrainer(cfg, layers, finalNorm, bf16Encode(headValues), trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}

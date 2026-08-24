@@ -53,7 +53,7 @@ func (t *FlowHeadTrainer) gradView(s span) []float32 { return t.gradients[s.star
 // NewFlowHeadTrainer packs the head organ (W0, B0, W2, B2) from the loaded
 // terminal weights and compiles the Muon plan. Base LR derives from the
 // organ's parameter count; momentum from the CLT effective-samples rule.
-func NewFlowHeadTrainer(plan FlowPlan, head FlowMLPWeights) (*FlowHeadTrainer, error) {
+func NewFlowHeadTrainer(plan FlowPlan, head FlowMLPWeights, policy trainingprogram.OptimizerPolicy) (*FlowHeadTrainer, error) {
 	if head.W0.In != plan.Hidden || head.W0.Out != plan.Hidden || head.W2.In != plan.Hidden || head.W2.Out != plan.FlowDim {
 		return nil, fmt.Errorf("routed lm flow train: head weights are not [%d->%d->%d]", plan.Hidden, plan.Hidden, plan.FlowDim)
 	}
@@ -83,15 +83,15 @@ func NewFlowHeadTrainer(plan FlowPlan, head FlowMLPWeights) (*FlowHeadTrainer, e
 	if err != nil {
 		return nil, err
 	}
+	config, err := policy.Config(total)
+	if err != nil {
+		return nil, err
+	}
 	trainer := &FlowHeadTrainer{
 		plan:      plan,
 		weights:   make([]float32, total),
 		gradients: make([]float32, total),
-		config: optimizer.Config{
-			BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(total),
-			Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
-			Schedule:         optimizer.ScheduleConstant,
-		},
+		config:    config,
 	}
 	spans := []*span{&trainer.w0, &trainer.b0, &trainer.w2, &trainer.b2}
 	for i, s := range sections {

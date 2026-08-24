@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
@@ -20,6 +21,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	llamaserver "overgo/internal/server"
+	"overgo/internal/tensor"
 )
 
 const (
@@ -41,50 +43,49 @@ func main() {
 }
 
 func run() error {
-	defaults := llamaserver.DefaultConfig()
 	analysisDefaults := llamaserver.AnalysisPolicy{
 		TensorSamples: defaultAnalysisTensorSamples, TensorReadBytes: defaultAnalysisTensorBytes,
 		StatePositions: defaultAnalysisPositions, MDSIterations: defaultAnalysisMDSIterations,
 		MDSTolerance: defaultAnalysisMDSTolerance,
 	}
 	address := flag.String("listen", "127.0.0.1:8080", "HTTP listen address")
-	modelID := flag.String("model-id", defaults.ModelID, "API model identifier")
+	modelID := flag.String("model-id", "", "API model identifier; unset uses recipe policy")
 	modelFlags := clioptions.AddModelFlags(flag.CommandLine, "load GGUF LoRA adapter at global scale 1; repeatable")
 	loraDisabled := flag.Bool("lora-init-without-apply", false, "load adapters with global scale 0")
-	maxTokens := flag.Int("max-tokens", defaults.MaxTokens, "maximum max_tokens accepted per request")
+	maxTokens := clioptions.IntOverride(flag.CommandLine, "max-tokens", "maximum max_tokens accepted per request; unset uses recipe policy")
 	contextShift := flag.Bool(
 		"context-shift",
 		false,
 		"discard oldest attention KV entries when generation reaches model context",
 	)
-	maxConcurrent := flag.Int("max-concurrent", defaults.MaxConcurrent, "maximum admitted generation requests")
+	maxConcurrent := clioptions.IntOverride(flag.CommandLine, "max-concurrent", "maximum admitted generation requests; unset uses recipe policy")
 	spmInfill := flag.Bool(
 		"spm-infill",
 		false,
 		"use suffix/prefix/middle instead of prefix/suffix/middle for FIM",
 	)
-	promptCacheEntries := flag.Int(
+	promptCacheEntries := clioptions.IntOverride(
+		flag.CommandLine,
 		"prompt-cache-entries",
-		1,
-		"maximum independently reusable prompt states retained by the Runner",
+		"maximum independently reusable prompt states retained by the Runner; unset uses recipe policy",
 	)
-	maxEmbeddingInputs := flag.Int(
-		"max-embedding-inputs", defaults.MaxEmbeddingInputs, "maximum strings accepted by one embedding request",
+	maxEmbeddingInputs := clioptions.IntOverride(
+		flag.CommandLine, "max-embedding-inputs", "maximum strings accepted by one embedding request; unset uses recipe policy",
 	)
-	requestTimeout := flag.Duration(
+	requestTimeout := clioptions.DurationOverride(
+		flag.CommandLine,
 		"request-timeout",
-		0,
 		"maximum end-to-end request duration; zero disables",
 	)
-	responseStoreEntries := flag.Int(
+	responseStoreEntries := clioptions.IntOverride(
+		flag.CommandLine,
 		"response-store-entries",
-		defaults.MaxStoredResponses,
-		"maximum Responses continuation histories retained in memory",
+		"maximum Responses continuation histories retained in memory; unset uses recipe policy",
 	)
-	responseStoreBytes := flag.Int(
+	responseStoreBytes := clioptions.IntOverride(
+		flag.CommandLine,
 		"response-store-bytes",
-		defaults.ResponseStoreBytes,
-		"maximum aggregate bytes retained for Responses continuation",
+		"maximum aggregate bytes retained for Responses continuation; unset uses recipe policy",
 	)
 	apiKeyFile := flag.String(
 		"api-key-file",
@@ -96,8 +97,8 @@ func run() error {
 	mediaPolicyPath := flag.String("media-policy", "media_policy.json", "remote-media JSON policy; empty disables URLs")
 	resourcePolicyPath := flag.String("resource-policy", "resource_policy.json", "Responses file-ID JSON policy; empty disables file IDs")
 	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for encoded video")
-	videoFPS := flag.Float64("video-fps", defaults.VideoFPS, "video frame sampling rate")
-	videoMaxFrames := flag.Int("video-max-frames", defaults.VideoMaxFrames, "maximum decoded video frames")
+	videoFPS := clioptions.Float64Override(flag.CommandLine, "video-fps", "video frame sampling rate; unset uses recipe policy")
+	videoMaxFrames := clioptions.IntOverride(flag.CommandLine, "video-max-frames", "maximum decoded video frames; unset uses recipe policy")
 	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
 	modelBuilderEnabled := flag.Bool("model-builder", false, "enable corpus-derived model builder workspace")
 	var evaluationSuites []string
@@ -116,22 +117,36 @@ func run() error {
 	analysisMDSIterations := flag.Int("analysis-mds-iterations", analysisDefaults.MDSIterations, "state-layout convergence iteration bound")
 	analysisMDSTolerance := flag.Float64("analysis-mds-tolerance", analysisDefaults.MDSTolerance, "state-layout relative convergence tolerance")
 	flag.Parse()
+	explicit := clioptions.ExplicitOverrides(flag.CommandLine)
 	if flag.NArg() != 1 {
 		return errors.New("usage: server [options] <model.gguf>")
 	}
-	loraScale := float32(1)
-	if *loraDisabled {
-		loraScale = 0
+	var loraScale float32
+	if !*loraDisabled {
+		loraScale = tensor.UnitScale
 	}
 	openOptions := modelFlags.OpenOptions(loraScale)
-	openOptions.PromptCacheEntries = *promptCacheEntries
+	if _, set := explicit["prompt-cache-entries"]; set {
+		openOptions.PromptCacheEntries = *promptCacheEntries
+	}
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	runner, err := modelFlags.OpenRunnerWithOptions(shutdownContext, flag.Arg(0), openOptions)
+	modelReference, _ := checked.First(flag.Args())
+	runner, err := modelFlags.OpenRunnerWithOptions(shutdownContext, modelReference, openOptions)
 	if err != nil {
 		return err
 	}
 	defer runner.Close()
+	policy := runner.RuntimePolicy()
+	serving := policy.Serving
+	clioptions.ApplyDefault(explicit, "model-id", modelID, serving.ModelID)
+	clioptions.ApplyDefault(explicit, "max-tokens", maxTokens, serving.MaxTokens)
+	clioptions.ApplyDefault(explicit, "max-concurrent", maxConcurrent, serving.MaxConcurrent)
+	clioptions.ApplyDefault(explicit, "max-embedding-inputs", maxEmbeddingInputs, serving.MaxEmbeddingInputs)
+	clioptions.ApplyDefault(explicit, "response-store-entries", responseStoreEntries, serving.StoredResponses)
+	clioptions.ApplyDefault(explicit, "response-store-bytes", responseStoreBytes, serving.ResponseStoreBytes)
+	clioptions.ApplyDefault(explicit, "video-fps", videoFPS, serving.Video.FPS)
+	clioptions.ApplyDefault(explicit, "video-max-frames", videoMaxFrames, serving.Video.MaxFrames)
 	// Browse roots remain optional unless training is enabled.
 	roots, rootsErr := dataroot.ResolveCurrent()
 	repoPath, hubRoot := strings.TrimSpace(*modelFlags.Repository), ""
@@ -237,13 +252,11 @@ func run() error {
 		}
 	}
 	handler, err := llamaserver.New(llamaserver.Config{
+		RuntimePolicy:      policy,
 		ModelID:            *modelID,
 		MaxTokens:          *maxTokens,
 		MaxConcurrent:      *maxConcurrent,
 		MaxEmbeddingInputs: *maxEmbeddingInputs,
-		DefaultTemperature: defaults.DefaultTemperature,
-		DefaultTopP:        defaults.DefaultTopP,
-		DefaultTopK:        defaults.DefaultTopK,
 		APIKey:             apiKey,
 		ContextShift:       *contextShift,
 		RequestTimeout:     *requestTimeout,
@@ -277,7 +290,6 @@ func run() error {
 		Handler:           handler,
 		ReadHeaderTimeout: serverReadHeaderTimeout,
 		ReadTimeout:       serverReadTimeout,
-		WriteTimeout:      0,
 		IdleTimeout:       serverIdleTimeout,
 		MaxHeaderBytes:    serverMaxHeaderBytes,
 	}

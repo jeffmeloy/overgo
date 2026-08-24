@@ -51,7 +51,7 @@ func (h *Handler) agentTools(response http.ResponseWriter, request *http.Request
 		return
 	}
 	result, err := h.repository.Query(request.Context(), overgodb.Query{
-		Kind: artifact.KindRecipe, MaxResults: maxCatalogEntries, Projection: overgodb.ProjectAliases,
+		Kind: artifact.KindRecipe, MaxResults: h.config.MaxStoredResponses, Projection: overgodb.ProjectAliases,
 	})
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
@@ -148,7 +148,7 @@ func (h *Handler) buildAgentRuntime() {
 	coordinator, err := agentloop.New(h.repository, executor, agentloop.Identity{
 		Recipe: description.Identity.Recipe, Model: description.Identity.Model,
 		Node: description.Interaction.Node,
-	})
+	}, h.config.MaxStoredResponses)
 	if err != nil {
 		return
 	}

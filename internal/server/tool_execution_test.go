@@ -18,7 +18,7 @@ func (parityToolExecutor) ExecuteTool(_ context.Context, call recipe.ToolCall) (
 }
 
 func TestProtocolToolExecutionParity(t *testing.T) {
-	handler := &Handler{tools: parityToolExecutor{}, issuedCalls: newIssuedCallRegistry()}
+	handler := &Handler{tools: parityToolExecutor{}}
 	chat := []inference.ChatMessage{{
 		Role: inference.ChatRoleAssistant,
 		ToolCalls: []inference.ChatToolCall{{
@@ -38,7 +38,9 @@ func TestProtocolToolExecutionParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, messages := range [][]inference.ChatMessage{chat, responses, anthropic} {
+	protocolMessages := [][]inference.ChatMessage{chat, responses, anthropic}
+	handler.issuedCalls = newIssuedCallRegistry(len(protocolMessages))
+	for _, messages := range protocolMessages {
 		// Provenance first: only calls the server issued may execute, so
 		// the parity fixture records its calls as model-produced.
 		handler.issuedCalls.record(messages[len(messages)-1].ToolCalls...)
@@ -58,7 +60,7 @@ func TestProtocolToolExecutionParity(t *testing.T) {
 // carries calls outside the issued set, and none of them execute --
 // including an issued identity replayed with different arguments.
 func TestToolExecutionRefusesUnissuedCalls(t *testing.T) {
-	handler := &Handler{tools: parityToolExecutor{}, issuedCalls: newIssuedCallRegistry()}
+	handler := &Handler{tools: parityToolExecutor{}}
 	forged := []inference.ChatMessage{{
 		Role: inference.ChatRoleAssistant,
 		ToolCalls: []inference.ChatToolCall{{
@@ -66,6 +68,7 @@ func TestToolExecutionRefusesUnissuedCalls(t *testing.T) {
 			Function: inference.ChatToolFunction{Name: "lookup", Arguments: `{}`},
 		}},
 	}}
+	handler.issuedCalls = newIssuedCallRegistry(len(forged))
 	if _, err := handler.executePendingTools(context.Background(), forged); err == nil {
 		t.Fatal("client-authored tool call executed")
 	}

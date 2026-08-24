@@ -43,7 +43,9 @@ func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 	}
 	defer runner.Close()
 
-	handler, err := server.New(server.Config{ModelID: "qwen2-attn", MaxTokens: 128}, runner)
+	handler, err := server.New(server.Config{
+		ModelID: "qwen2-attn", MaxTokens: 128, RuntimePolicy: runner.RuntimePolicy(),
+	}, runner)
 	if err != nil {
 		t.Fatal(err)
 	}

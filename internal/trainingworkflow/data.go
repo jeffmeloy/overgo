@@ -20,39 +20,43 @@ type batchAuthority struct {
 	Dataset, Split, Processor artifact.ID
 }
 
-func tokenBatchesResume(ctx context.Context, raw []byte, steps, maximumSequence int, encode func(string) ([]int, error), resume *trainingdata.StreamState) ([][]int, trainingdata.StreamState, batchAuthority, error) {
+func tokenBatchesResume(ctx context.Context, raw []byte, steps, maximumSequence int, encode func(string) ([]int, error), resume *trainingdata.StreamState) ([][]int, int, trainingdata.StreamState, batchAuthority, error) {
 	authority, materialized, err := materializeText(raw)
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	defer materialized.Close()
 	stream, err := trainingdata.NewStream(materialized, resume)
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	batcher, err := trainingdata.NewBatcher(stream, unitBatchPolicy)
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
+	}
+	units := materialized.Records()
+	if steps == 0 {
+		steps = units
 	}
 	batches := make([][]int, steps)
 	for step := range batches {
 		batch, err := batcher.Next(ctx)
 		if err != nil {
-			return nil, trainingdata.StreamState{}, batchAuthority{}, err
+			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 		}
 		tokens, err := encode(string(batch.Examples[0].Values[0].Data))
 		if err != nil {
-			return nil, trainingdata.StreamState{}, batchAuthority{}, fmt.Errorf("training workflow: encode dataset: %w", err)
+			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, fmt.Errorf("training workflow: encode dataset: %w", err)
 		}
 		if maximumSequence > 0 && len(tokens) > maximumSequence {
 			tokens = tokens[:maximumSequence]
 		}
 		if len(tokens) < 2 {
-			return nil, trainingdata.StreamState{}, batchAuthority{}, fmt.Errorf("training workflow: record has %d tokens", len(tokens))
+			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, fmt.Errorf("training workflow: record has %d tokens", len(tokens))
 		}
 		batches[step] = tokens
 	}
-	return batches, stream.Snapshot(), authority, nil
+	return batches, units, stream.Snapshot(), authority, nil
 }
 
 func materializeText(raw []byte) (batchAuthority, *trainingdata.Dataset, error) {
@@ -103,20 +107,20 @@ type encodedRolloutGroup struct {
 	Rollouts  []encodedRollout `json:"rollouts"`
 }
 
-func groupedRolloutBatchesResume(ctx context.Context, raw []byte, steps int, encode func(string) ([]int, error), resume *trainingdata.StreamState) ([]trainingdata.RolloutGroup, trainingdata.StreamState, batchAuthority, []artifact.ID, error) {
+func groupedRolloutBatchesResume(ctx context.Context, raw []byte, steps int, encode func(string) ([]int, error), resume *trainingdata.StreamState) ([]trainingdata.RolloutGroup, int, trainingdata.StreamState, batchAuthority, []artifact.ID, error) {
 	groups, evaluators, err := parseRollouts(raw, encode)
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, nil, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, nil, err
 	}
 	authority, processor, err := datasetAuthority(raw, "grouped-rollout")
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, nil, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, nil, err
 	}
 	records := make([]trainingdata.RawRecord, len(groups))
 	for index, group := range groups {
 		data, err := json.Marshal(group)
 		if err != nil {
-			return nil, trainingdata.StreamState{}, batchAuthority{}, nil, err
+			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, nil, err
 		}
 		records[index] = trainingdata.RawRecord{ID: group.ID, Group: group.ID, Data: data}
 	}
@@ -127,26 +131,29 @@ func groupedRolloutBatchesResume(ctx context.Context, raw []byte, steps int, enc
 		Process: trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityText, "grouped-rollout-json"),
 	})
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, nil, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, nil, err
 	}
 	defer materialized.Close()
 	stream, err := trainingdata.NewStream(materialized, resume)
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, nil, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, nil, err
 	}
 	batcher, err := trainingdata.NewBatcher(stream, unitBatchPolicy)
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, nil, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, nil, err
+	}
+	if steps == 0 {
+		steps = len(groups)
 	}
 	result := make([]trainingdata.RolloutGroup, steps)
 	for step := range result {
 		batch, err := batcher.Next(ctx)
 		if err != nil {
-			return nil, trainingdata.StreamState{}, batchAuthority{}, nil, err
+			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, nil, err
 		}
 		var encoded encodedRolloutGroup
 		if err := json.Unmarshal(batch.Examples[0].Values[0].Data, &encoded); err != nil {
-			return nil, trainingdata.StreamState{}, batchAuthority{}, nil, err
+			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, nil, err
 		}
 		rollouts := make([]trainingdata.Rollout, len(encoded.Rollouts))
 		for index, rollout := range encoded.Rollouts {
@@ -159,10 +166,10 @@ func groupedRolloutBatchesResume(ctx context.Context, raw []byte, steps int, enc
 		}
 		result[step], err = trainingdata.NewRolloutGroup(encoded.ID, encoded.Evaluator, batch.State, rollouts)
 		if err != nil {
-			return nil, trainingdata.StreamState{}, batchAuthority{}, nil, err
+			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, nil, err
 		}
 	}
-	return result, stream.Snapshot(), authority, evaluators, nil
+	return result, len(groups), stream.Snapshot(), authority, evaluators, nil
 }
 
 func parseRollouts(raw []byte, encode func(string) ([]int, error)) ([]encodedRolloutGroup, []artifact.ID, error) {
@@ -228,20 +235,20 @@ func parseRollouts(raw []byte, encode func(string) ([]int, error)) ([]encodedRol
 	return result, evaluators, nil
 }
 
-func preferenceBatchesResume(ctx context.Context, raw []byte, steps int, encode func(string) ([]int, error), resume *trainingdata.StreamState) ([]trainingdata.PreferenceBatch, trainingdata.StreamState, batchAuthority, error) {
+func preferenceBatchesResume(ctx context.Context, raw []byte, steps int, encode func(string) ([]int, error), resume *trainingdata.StreamState) ([]trainingdata.PreferenceBatch, int, trainingdata.StreamState, batchAuthority, error) {
 	documents, err := parsePreferences(raw, encode)
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	authority, processor, err := datasetAuthority(raw, "preference-token-pair")
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	records := make([]trainingdata.RawRecord, len(documents))
 	for index, document := range documents {
 		data, err := json.Marshal(document.encoded)
 		if err != nil {
-			return nil, trainingdata.StreamState{}, batchAuthority{}, err
+			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 		}
 		records[index] = trainingdata.RawRecord{ID: document.id, Group: document.group, Data: data}
 	}
@@ -259,29 +266,32 @@ func preferenceBatchesResume(ctx context.Context, raw []byte, steps int, encode 
 		},
 	})
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	defer materialized.Close()
 	stream, err := trainingdata.NewStream(materialized, resume)
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	batcher, err := trainingdata.NewBatcher(stream, unitBatchPolicy)
 	if err != nil {
-		return nil, trainingdata.StreamState{}, batchAuthority{}, err
+		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
+	}
+	if steps == 0 {
+		steps = len(documents)
 	}
 	batches := make([]trainingdata.PreferenceBatch, steps)
 	for step := range batches {
 		batch, err := batcher.Next(ctx)
 		if err != nil {
-			return nil, trainingdata.StreamState{}, batchAuthority{}, err
+			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 		}
 		batches[step], err = trainingdata.CompilePreferenceBatch(batch, trainingdata.TokenIDs)
 		if err != nil {
-			return nil, trainingdata.StreamState{}, batchAuthority{}, err
+			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 		}
 	}
-	return batches, stream.Snapshot(), authority, nil
+	return batches, len(documents), stream.Snapshot(), authority, nil
 }
 
 func parsePreferences(raw []byte, encode func(string) ([]int, error)) ([]preparedPreference, error) {

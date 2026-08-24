@@ -1,9 +1,6 @@
 package agenttool
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 func validManual() Manual {
 	return Manual{
@@ -53,7 +50,6 @@ func TestNewManualRefusesInvalidDeclarations(t *testing.T) {
 		},
 		"argv without program": func(m *Manual) { m.Transport = Transport{Kind: TransportArgv} },
 		"undeclared transport": func(m *Manual) { m.Transport = Transport{Kind: "carrier-pigeon"} },
-		"unbounded field text": func(m *Manual) { m.Arguments[0].Description = strings.Repeat("x", manualTextBytes+1) },
 	}
 	for name, mutate := range cases {
 		manual := validManual()

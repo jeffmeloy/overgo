@@ -111,8 +111,9 @@ func ReadGemma4Spec(file *gguf.File) (Gemma4Spec, error) {
 	hiddenInt, hiddenOK := checked.Int(uint64(hidden))
 	patchWidth, patchOK := checked.Int(patch.Shape[0])
 	positionCount, positionOK := checked.Int(position.Shape[1])
+	imageTokensInt, imageOK := checked.Int(uint64(declaredImageTokens))
 	videoTokensInt, videoOK := checked.Int(uint64(videoTokens))
-	if !teacherOK || !hiddenOK || !patchOK || !positionOK || !videoOK {
+	if !teacherOK || !hiddenOK || !patchOK || !positionOK || !imageOK || !videoOK {
 		return Gemma4Spec{}, errors.New("projector: Gemma 4 dimensions exceed native limits")
 	}
 	modelPatchArea, channelAligned := checked.DivExact64(patch.Shape[0], media.RGBChannels)
@@ -121,17 +122,10 @@ func ReadGemma4Spec(file *gguf.File) (Gemma4Spec, error) {
 	if !channelAligned || !square || !teacherAligned {
 		return Gemma4Spec{}, fmt.Errorf("projector: invalid Gemma 4 patch width %d", patchWidth)
 	}
-	maxImageTokens, validTokenGrid := tensor.EqualPartition(
-		position.Shape[1], poolKernel*poolKernel,
-	)
-	maxImageTokensInt, imageOK := checked.Int(maxImageTokens)
-	if !validTokenGrid || !imageOK || uint64(declaredImageTokens) != maxImageTokens {
-		return Gemma4Spec{}, errors.New("projector: Gemma 4 position grid is incompatible")
-	}
 	spec := Gemma4Spec{
 		TeacherPatch: teacherPatchInt, PoolKernel: int(poolKernel),
 		ModelPatch: modelPatch, PatchWidth: patchWidth, Hidden: hiddenInt,
-		PositionCount: positionCount, MaxImageTokens: maxImageTokensInt, MaxVideoTokens: videoTokensInt,
+		PositionCount: positionCount, MaxImageTokens: imageTokensInt, MaxVideoTokens: videoTokensInt,
 		LayerNormEpsilon: layerNormEpsilon, RMSNormEpsilon: rmsEpsilon,
 	}
 	if err := spec.validate(); err != nil {

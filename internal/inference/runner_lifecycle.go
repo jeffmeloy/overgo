@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -32,13 +32,17 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	runtimePolicy, err := loaded.RuntimePolicy()
+	if err != nil {
+		return nil, err
+	}
 	file, path, spec, weights, program, evidenceTier, err := loaded.Take()
 	if err != nil {
 		return nil, fmt.Errorf("inference: take model program: %w", err)
 	}
 	promptCacheCapacity := options.PromptCacheEntries
 	if promptCacheCapacity == 0 {
-		promptCacheCapacity = 1
+		promptCacheCapacity = runtimePolicy.Serving.PromptCacheEntries
 	}
 	// Residency is compiled into recipe identity; runtime flags may only confirm it.
 	residency, err := bindResidency(program.Residency)
@@ -63,7 +67,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	}
 	loraAdapters := make([]loadedLoRA, len(options.LoRAAdapters))
 	for index, configured := range options.LoRAAdapters {
-		if math.IsNaN(float64(configured.Scale)) || math.IsInf(float64(configured.Scale), 0) {
+		if !checked.Finite32(configured.Scale) {
 			return fail(fmt.Errorf("inference: LoRA adapter %d scale is invalid", index))
 		}
 		adapter, loadErr := model.LoadLoRA(ctx, configured.Path, file, spec)
@@ -126,7 +130,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		}
 	}
 	return &Runner{preparedModel: preparedModel{
-		file: file, path: path, spec: spec, program: program, evidenceTier: evidenceTier,
+		file: file, path: path, spec: spec, program: program, runtimePolicy: runtimePolicy, evidenceTier: evidenceTier,
 		weights: weights, vocab: vocab,
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,
 		hostWeights:         hostWeights,

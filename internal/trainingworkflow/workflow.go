@@ -15,7 +15,6 @@ import (
 	"overgo/internal/densecausal"
 	artifactexport "overgo/internal/export"
 	"overgo/internal/hfbpe"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/optimizer"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
@@ -71,6 +70,7 @@ type Result struct {
 	Backend        string
 	Objective      trainingprogram.ObjectiveKind
 	Optimizer      optimizer.Config
+	Plan           trainingprogram.TrainingSessionPlan
 	Losses         []float64
 	DPO            []trainingprogram.DPOObservation
 	GRPO           []trainingprogram.GRPOObservation
@@ -83,8 +83,8 @@ type Result struct {
 func Execute(ctx context.Context, request Request) (Result, error) {
 	if ctx == nil || request.Repository == nil || request.Recipe.Kind() != artifact.KindRecipe ||
 		request.ModelDirectory == "" && request.ResumeDirectory == "" ||
-		request.DatasetPath == "" || request.OutputDirectory == "" || request.Steps <= 0 {
-		return Result{}, errors.New("training workflow: repository, recipe, model or resume, dataset, output, and positive steps required")
+		request.DatasetPath == "" || request.OutputDirectory == "" || request.Steps < 0 {
+		return Result{}, errors.New("training workflow: repository, recipe, model or resume, dataset, output, and nonnegative requested steps required")
 	}
 	if request.Host && request.FreezeLexical {
 		return Result{}, errors.New("training workflow: host and frozen lexical execution are incompatible")
@@ -120,21 +120,11 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if err := observer.Admit(ctx, modelID, request.Recipe); err != nil {
 		return Result{}, err
 	}
-	_, runtime, err := modelrecipe.ResolveActiveCapability(ctx, request.Repository, modelID, recipe.TaskTraining)
-	if err != nil {
-		return Result{}, fmt.Errorf("training workflow: resolve active recipe: %w", err)
-	}
-	if runtime.Definition().ID != request.Recipe {
-		return Result{}, errors.New("training workflow: active recipe differs")
-	}
-	objective, err := ProgramObjective(runtime)
+	authority, err := ResolveSessionAuthority(ctx, request.Repository, modelID, request.Recipe)
 	if err != nil {
 		return Result{}, err
 	}
-	optimizerPolicy, err := trainingprogram.OptimizerPolicyFromRecipe(ctx, request.Repository, runtime.Definition())
-	if err != nil {
-		return Result{}, err
-	}
+	runtime, objective, optimizerPolicy := authority.Program, authority.Objective, authority.Optimizer
 	switch objective {
 	case trainingprogram.ObjectiveDPO:
 		if request.ReferenceDirectory == "" || request.ObjectiveScale <= 0 || request.FreezeLexical {
@@ -209,6 +199,7 @@ type denseSession struct {
 }
 
 type densePrepared struct {
+	units      int
 	data       batchAuthority
 	stream     trainingdata.StreamState
 	preference *trainingprogram.PreferencePolicy
@@ -224,6 +215,16 @@ func (session denseSession) run() (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	plan, err := trainingprogram.CompileTrainingSessionPlan(trainingprogram.SessionSpec{
+		Objective: session.objective, DatasetUnits: prepared.units, RequestedUpdates: session.request.Steps,
+		MaximumSequence: session.request.MaximumSequence, ObjectiveScale: session.request.ObjectiveScale,
+		MaxProjectedWall: session.request.MaxProjectedWall, Optimizer: session.optimizerConfig,
+	})
+	if err != nil {
+		return Result{}, err
+	}
+	session.request.Steps = plan.Updates()
+	session.optimizerConfig = plan.Optimizer()
 	authority, err := compileAuthority(
 		session.ctx, session.request.Repository, session.runtime, session.optimizerPlan, session.inputDirectory,
 		prepared.data, prepared.stream, session.resumed,
@@ -236,7 +237,8 @@ func (session denseSession) run() (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	result.Optimizer = session.optimizerConfig
+	result.Optimizer = plan.Optimizer()
+	result.Plan = plan
 	result.Checkpoint, err = publishCheckpoint(
 		session.inputDirectory, session.request.OutputDirectory, session.model, authority, state,
 	)
@@ -245,23 +247,23 @@ func (session denseSession) run() (Result, error) {
 
 func (session denseSession) prepare() (densePrepared, error) {
 	if session.objective == trainingprogram.ObjectiveTokenPrediction {
-		batches, stream, data, err := tokenBatchesResume(
+		batches, units, stream, data, err := tokenBatchesResume(
 			session.ctx, session.raw, session.request.Steps, session.request.MaximumSequence,
 			session.encode, session.resumeStream,
 		)
-		return densePrepared{data: data, stream: stream, tokens: batches}, err
+		return densePrepared{units: units, data: data, stream: stream, tokens: batches}, err
 	}
 	if session.objective == trainingprogram.ObjectiveGRPO {
-		groups, stream, data, evaluators, err := groupedRolloutBatchesResume(
+		groups, units, stream, data, evaluators, err := groupedRolloutBatchesResume(
 			session.ctx, session.raw, session.request.Steps, session.encode, session.resumeStream,
 		)
-		return densePrepared{data: data, stream: stream, groups: groups, evaluators: evaluators}, err
+		return densePrepared{units: units, data: data, stream: stream, groups: groups, evaluators: evaluators}, err
 	}
 	reference, err := densecausal.Load(session.request.ReferenceDirectory)
 	if err != nil {
 		return densePrepared{}, fmt.Errorf("training workflow: load reference: %w", err)
 	}
-	batches, stream, data, err := preferenceBatchesResume(
+	batches, units, stream, data, err := preferenceBatchesResume(
 		session.ctx, session.raw, session.request.Steps, session.encode, session.resumeStream,
 	)
 	if err != nil {
@@ -272,7 +274,7 @@ func (session denseSession) prepare() (densePrepared, error) {
 		return densePrepared{}, fmt.Errorf("training workflow: identify reference: %w", err)
 	}
 	return densePrepared{
-		data: data, stream: stream, reference: reference, pairs: batches,
+		units: units, data: data, stream: stream, reference: reference, pairs: batches,
 		preference: &trainingprogram.PreferencePolicy{Reference: referenceID, Scale: session.request.ObjectiveScale},
 	}, nil
 }

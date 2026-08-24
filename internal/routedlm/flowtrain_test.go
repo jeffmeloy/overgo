@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/trainingprogram"
+
 	"overgo/internal/tensor/dtype"
 )
 
@@ -63,7 +65,7 @@ func flowStimulus(rows, hidden, flowDim int) (x, z, target []float32) {
 
 func TestFlowHeadTrainerDescendsAndDerivesHyperparameters(t *testing.T) {
 	plan, head := tinyFlowHead(6, 4)
-	trainer, err := NewFlowHeadTrainer(plan, head)
+	trainer, err := NewFlowHeadTrainer(plan, head, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +120,7 @@ func TestFlowHeadStepGradientMatchesFiniteDifference(t *testing.T) {
 	}
 
 	// Analytic gradients captured before any optimizer step consumes them.
-	probe, err := NewFlowHeadTrainer(plan, head)
+	probe, err := NewFlowHeadTrainer(plan, head, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +136,7 @@ func TestFlowHeadStepGradientMatchesFiniteDifference(t *testing.T) {
 	analytic := append([]float32(nil), probe.gradients...)
 
 	for _, index := range []int{0, 7, len(analytic)/2 + 1, len(analytic) - 2, len(analytic) - 1} {
-		fresh, err := NewFlowHeadTrainer(plan, head)
+		fresh, err := NewFlowHeadTrainer(plan, head, trainingprogram.BuiltinOptimizerPolicy())
 		if err != nil {
 			t.Fatal(err)
 		}

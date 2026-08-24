@@ -180,7 +180,7 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 		return
 	}
 	maxTokens, err := boundedProtocolTokens(
-		body.MaxTokens, defaultProtocolMaxTokens, h.config.MaxTokens, "max_tokens", false,
+		body.MaxTokens, h.defaultOutputTokens, h.config.MaxTokens, "max_tokens", false,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -206,7 +206,7 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 		return
 	}
 	defer plan.release()
-	id := "cmpl-" + strconv.FormatUint(h.nextID.Add(1), 10)
+	id := "cmpl-" + strconv.FormatUint(h.nextID.Add(1), identifierRadix)
 	if body.Stream {
 		h.streamCompletion(response, request, plan, id, body.N)
 		return

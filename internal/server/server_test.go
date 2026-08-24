@@ -129,6 +129,16 @@ type fakeGenerator struct {
 	projectedInputs *inference.ProjectedInputs
 }
 
+func (*fakeGenerator) RuntimePolicy() modelrecipe.RuntimePolicy { return testRuntimePolicy() }
+
+func testRuntimePolicy() modelrecipe.RuntimePolicy {
+	policy, found, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
+	if err != nil || !found {
+		panic("inference runtime policy fixture is unavailable")
+	}
+	return policy
+}
+
 // fakeSessionStub: embeddable projector.Session base; every prompt surface
 // errors until a fake overrides it.
 type fakeSessionStub struct{}
@@ -1238,7 +1248,7 @@ func TestProperties(t *testing.T) {
 		result.ModelPath != "fixture.gguf" ||
 		result.ModelMetadata.Architecture != "qwen3" ||
 		result.DefaultGenerationSettings.NCtx != 32768 ||
-		result.DefaultGenerationSettings.Params.NPredict != defaultProtocolMaxTokens ||
+		result.DefaultGenerationSettings.Params.NPredict != testRuntimePolicy().Serving.OutputTokens ||
 		result.DefaultGenerationSettings.Params.TopP != 1 ||
 		result.BOSToken != "<bos>" ||
 		result.EOSToken != "<eos>" ||

@@ -24,9 +24,12 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	}
 	registerGenerationAdapters(t, runtime, false)
 	prompt := fixtureContent(t, artifact.KindFile, "hello")
-	result, err := runtime.ExecuteProgram(ctx, "runtime/success", runtimeExecutionID(t, program, "runtime/success"), nil, program, map[recipe.PortName]Value{
+	const key = "runtime/success"
+	operation := runtimeExecutionID(t, program, key)
+	inputs := map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "hello"}}},
-	})
+	}
+	result, err := runtime.ExecuteProgram(ctx, key, operation, nil, program, inputs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,6 +43,10 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	parsed, err := runrecord.ParseRun(stored.Data)
 	if err != nil || parsed.ID != result.Run.ID || len(parsed.Outputs) != 1 {
 		t.Fatalf("parsed run = (%+v, %v)", parsed, err)
+	}
+	replayed, err := runtime.ExecuteProgram(ctx, key, operation, nil, program, inputs)
+	if err != nil || replayed.Run.ID != result.Run.ID {
+		t.Fatalf("replayed run = (%s, %v), want %s", replayed.Run.ID, err, result.Run.ID)
 	}
 	parents, err := store.Parents(ctx, result.Run.ID)
 	if err != nil || len(parents) != 2 {

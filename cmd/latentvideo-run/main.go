@@ -13,29 +13,15 @@ import (
 	"path/filepath"
 	"time"
 
+	"overgo/internal/checked"
 	"overgo/internal/clioptions"
+	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
-	"overgo/internal/jsonfile"
 	"overgo/internal/latentvideo"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
 )
-
-type g0Config struct {
-	Config struct {
-		NumTrainTimesteps   int     `json:"num_train_timesteps"`
-		SinusoidalPeriod    int     `json:"sinusoidal_period"`
-		RotaryFrequencyBase float64 `json:"rotary_frequency_base"`
-		VAEStride           [3]int  `json:"vae_stride"`
-		TextLen             int     `json:"text_len"`
-		Dim                 int     `json:"dim"`
-	} `json:"config"`
-	VAELatentStats struct {
-		Mean []float32 `json:"mean"`
-		Std  []float32 `json:"std"`
-	} `json:"vae_latent_stats"`
-}
 
 type tensorSummary struct {
 	Elements int     `json:"elements"`
@@ -109,20 +95,21 @@ func loadContext(path string, elements int) ([]float32, error) {
 	return values, nil
 }
 
-func noiseGrid(elements, ordinal int) (int, error) {
+func noisePlan(seed, offset uint64, elements, ordinal int) (sampling.CounterNoisePlan, error) {
 	library, err := driver.Open()
 	if err != nil {
-		return 0, err
+		return sampling.CounterNoisePlan{}, err
 	}
 	defer library.Close()
 	if err := library.Init(); err != nil {
-		return 0, err
+		return sampling.CounterNoisePlan{}, err
 	}
-	info, err := library.DeviceInfo(ordinal)
+	smCount, threadsPerSM, err := library.DeviceProfile(driver.Device(ordinal))
 	if err != nil {
-		return 0, err
+		return sampling.CounterNoisePlan{}, err
 	}
-	return max(1, min((elements+1023)/1024, info.MultiprocessorCount*6)), nil
+	plan, _, err := sampling.CompileCounterNoisePlan(seed, offset, elements, smCount, threadsPerSM)
+	return plan, err
 }
 
 func agreement(got, want []float32) (cosine, normalizedRMS, maxDelta float64) {
@@ -140,48 +127,56 @@ func agreement(got, want []float32) (cosine, normalizedRMS, maxDelta float64) {
 }
 
 func run() error {
-	frames := flag.Int("frames", 81, "output frames")
-	width := flag.Int("width", 832, "output width")
-	height := flag.Int("height", 480, "output height")
-	steps := flag.Int("steps", 50, "denoise steps")
-	shift := flag.Float64("shift", 5, "flow shift")
-	guide := flag.Float64("guide", 6, "guidance scale")
-	seed := flag.Uint64("seed", 31, "noise seed")
-	weightType := flag.String("weight-type", "bf16", "matmul weights: f32 or bf16")
-	bf16Attention := flag.Bool("bf16-attention", true, "BF16 attention storage")
-	deviceOrdinal := flag.Int("device", 0, "CUDA device ordinal")
+	frames := clioptions.IntOverride(flag.CommandLine, "frames", "output frames; unset uses model profile")
+	width := clioptions.IntOverride(flag.CommandLine, "width", "output width; unset uses model profile")
+	height := clioptions.IntOverride(flag.CommandLine, "height", "output height; unset uses model profile")
+	steps := clioptions.IntOverride(flag.CommandLine, "steps", "denoise steps; unset uses model profile")
+	shift := clioptions.Float64Override(flag.CommandLine, "shift", "flow shift; unset uses model profile")
+	guide := clioptions.Float64Override(flag.CommandLine, "guide", "guidance scale; unset uses model profile")
+	seed := clioptions.Uint64Override(flag.CommandLine, "seed", "noise seed; unset uses model profile")
+	weightType := flag.String("weight-type", "", "matmul weights: f32 or bf16; unset uses model profile")
+	bf16Attention := clioptions.BoolOverride(flag.CommandLine, "bf16-attention", "enable BF16 attention storage; unset uses model profile")
+	deviceOrdinal := flag.Int("device", device.DefaultOrdinal(), "CUDA device ordinal")
 	outDirectory := flag.String("out", filepath.Join("build", "latentvideo"), "output directory")
-	fixtureDirectory := flag.String("fixtures", filepath.Join("fixtures", "wan"), "Wan fixtures")
-	condPath := flag.String("cond-context", "", "conditional context")
-	uncondPath := flag.String("uncond-context", "", "unconditional context")
-	noiseOffset := flag.Uint64("noise-offset", 0, "Philox counter offset")
+	condPath := flag.String("cond-context", "", "conditional context; required")
+	uncondPath := flag.String("uncond-context", "", "unconditional context; required")
+	noiseOffset := clioptions.Uint64Override(flag.CommandLine, "noise-offset", "Philox counter offset")
 	referencePath := flag.String("reference-latent", "", "reference final latent")
 	flag.Parse()
+	explicit := clioptions.ExplicitOverrides(flag.CommandLine)
+	if flag.NArg() != 1 || *condPath == "" || *uncondPath == "" {
+		return fmt.Errorf("usage: latentvideo-run [options] -cond-context FILE -uncond-context FILE <model-directory>")
+	}
 
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return err
 	}
-	modelDirectory := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B")
-	var captured g0Config
-	if err := jsonfile.Decode(filepath.Join(*fixtureDirectory, "g0_config.json"), &captured); err != nil {
+	modelReference, _ := checked.First(flag.Args())
+	modelDirectory := roots.ResolveModelPath(modelReference)
+	profile, err := latentvideo.ResolveProfile(modelDirectory)
+	if err != nil {
 		return err
 	}
+	clioptions.ApplyDefault(explicit, "frames", frames, profile.Generation.Frames)
+	clioptions.ApplyDefault(explicit, "width", width, profile.Generation.Width)
+	clioptions.ApplyDefault(explicit, "height", height, profile.Generation.Height)
+	clioptions.ApplyDefault(explicit, "steps", steps, profile.Generation.Steps)
+	clioptions.ApplyDefault(explicit, "shift", shift, profile.Generation.Shift)
+	clioptions.ApplyDefault(explicit, "guide", guide, profile.Generation.GuideScale)
+	clioptions.ApplyDefault(explicit, "seed", seed, profile.Generation.Seed)
+	clioptions.ApplyDefault(explicit, "weight-type", weightType, profile.Precision.MatmulWeights)
+	clioptions.ApplyDefault(explicit, "bf16-attention", bf16Attention, profile.Precision.RoundAttentionStorage)
 	storage := dtype.BF16
 	if *weightType == "f32" {
 		storage = dtype.F32
 	} else if *weightType != "bf16" {
 		return fmt.Errorf("weight-type %q is not f32 or bf16", *weightType)
 	}
-	policy := latentvideo.DenoiserPolicy{
-		NumTrainTimesteps: captured.Config.NumTrainTimesteps, SinusoidalPeriod: captured.Config.SinusoidalPeriod,
-		RotaryFrequencyBase: captured.Config.RotaryFrequencyBase, VAEStride: captured.Config.VAEStride,
-	}
 	started := time.Now()
 	generator, err := latentvideo.NewGenerator(latentvideo.GeneratorConfig{
-		ModelDirectory: modelDirectory, Policy: policy,
-		LatentStats: latentvideo.VAELatentStats{Mean: captured.VAELatentStats.Mean, Std: captured.VAELatentStats.Std},
-		Frames:      *frames, Width: *width, Height: *height,
+		ModelDirectory: modelDirectory, Policy: profile.Policy, LatentStats: profile.LatentStats,
+		Frames: *frames, Width: *width, Height: *height,
 		Precision:     latentvideo.DenoiserPrecision{MatmulWeights: storage, RoundAttentionStorage: *bf16Attention},
 		DeviceOrdinal: *deviceOrdinal,
 	})
@@ -190,24 +185,16 @@ func run() error {
 	}
 	defer generator.Close()
 	geometry := generator.Geometry()
-	contextElements := captured.Config.TextLen * captured.Config.Dim
-	condFile := filepath.Join(*fixtureDirectory, "raw", "g1_cond_context.f32le")
-	uncondFile := filepath.Join(*fixtureDirectory, "raw", "g1_uncond_context.f32le")
-	if *condPath != "" {
-		condFile = *condPath
-	}
-	if *uncondPath != "" {
-		uncondFile = *uncondPath
-	}
-	cond, err := loadContext(condFile, contextElements)
+	contextElements := generator.ContextElements()
+	cond, err := loadContext(*condPath, contextElements)
 	if err != nil {
 		return err
 	}
-	uncond, err := loadContext(uncondFile, contextElements)
+	uncond, err := loadContext(*uncondPath, contextElements)
 	if err != nil {
 		return err
 	}
-	grid, err := noiseGrid(geometry.Elements(), *deviceOrdinal)
+	noise, err := noisePlan(*seed, *noiseOffset, geometry.Elements(), *deviceOrdinal)
 	if err != nil {
 		return err
 	}
@@ -221,7 +208,7 @@ func run() error {
 	var prior, firstFrame []float32
 	result, err := generator.Generate(context.Background(), latentvideo.GenerateRequest{
 		Steps: *steps, Shift: *shift, GuideScale: *guide, CondContext: cond, UncondContext: uncond,
-		Noise: sampling.CounterNoisePlan{Seed: *seed, Offset: *noiseOffset, Grid: grid, Block: 256, Unroll: 4},
+		Noise: noise,
 		StepHook: func(step int, timestep int64) {
 			fmt.Printf("step %02d/%02d t=%d wall=%.1fs\n", step+1, *steps, timestep, time.Since(started).Seconds())
 		},
@@ -263,17 +250,17 @@ func run() error {
 		cosine, normalizedRMS, maxDelta := agreement(result.Denoise.Latent, reference)
 		report.Reference = map[string]any{"path": *referencePath, "cosine": cosine, "normalized_rms": normalizedRMS, "max_abs_delta": maxDelta}
 	}
-	if err := os.WriteFile(filepath.Join(*outDirectory, "final_latent.f32le"), driver.Bytes(result.Denoise.Latent), 0o644); err != nil {
+	if err := clioptions.WriteOutputFile(filepath.Join(*outDirectory, "final_latent.f32le"), driver.Bytes(result.Denoise.Latent)); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(*outDirectory, "frame_00.f32le"), driver.Bytes(firstFrame), 0o644); err != nil {
+	if err := clioptions.WriteOutputFile(filepath.Join(*outDirectory, "frame_00.f32le"), driver.Bytes(firstFrame)); err != nil {
 		return err
 	}
 	raw, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(*outDirectory, "run_report.json"), raw, 0o644); err != nil {
+	if err := clioptions.WriteOutputFile(filepath.Join(*outDirectory, "run_report.json"), raw); err != nil {
 		return err
 	}
 	fmt.Printf("clip frames=%d wall=%.1fs peak=%.2fGiB latent=%s\n", len(report.FrameSummaries), report.WallSeconds, float64(report.PeakBytes)/(1<<30), report.FinalLatent.SHA256)

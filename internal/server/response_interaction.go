@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	responseIdentityRadix = 10
-	responseIdentityBits  = 64
+	identifierRadix = 10
+	identifierBits  = 64
 )
 
 func cloneResponseMessages(messages []inference.ChatMessage) []inference.ChatMessage {
@@ -166,22 +166,25 @@ func (h *Handler) seedResponseIdentifiers(ctx context.Context) error {
 	if h.repository == nil {
 		return nil
 	}
-	result, err := h.repository.Query(ctx, overgodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: maxResponseSeedAliases,
+	query := overgodb.Query{
+		Kind: artifact.KindEvidence, MaxResults: h.config.MaxStoredResponses,
 		Projection: overgodb.ProjectAliases,
-	})
-	if err != nil {
-		return err
 	}
-	if result.Truncated {
-		return errors.New("server: response identity seed listing truncated; raise the seed bound")
-	}
-	for _, alias := range result.Aliases {
-		if response, found := strings.CutPrefix(alias.Name, runrecord.InteractionResponseAliasRoot); found {
-			h.observeResponseID(response)
+	for {
+		result, err := h.repository.Query(ctx, query)
+		if err != nil {
+			return err
 		}
+		for _, alias := range result.Aliases {
+			if response, found := strings.CutPrefix(alias.Name, runrecord.InteractionResponseAliasRoot); found {
+				h.observeResponseID(response)
+			}
+		}
+		if result.Next == nil {
+			return nil
+		}
+		query.Cursor = result.Next
 	}
-	return nil
 }
 
 func (h *Handler) observeResponseID(responseID string) {
@@ -189,7 +192,7 @@ func (h *Handler) observeResponseID(responseID string) {
 	if !found {
 		return
 	}
-	value, err := strconv.ParseUint(suffix, responseIdentityRadix, responseIdentityBits)
+	value, err := strconv.ParseUint(suffix, identifierRadix, identifierBits)
 	if err != nil {
 		return
 	}

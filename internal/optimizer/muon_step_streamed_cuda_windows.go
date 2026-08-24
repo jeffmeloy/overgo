@@ -23,7 +23,7 @@ func DeviceMuonStepPlanStreamed(worker *device.Worker, weights, gradients, momen
 		len(weights) != plan.ParameterCount() || len(gradients) != len(weights) || len(momentum) != len(weights) {
 		return errors.New("device Muon streamed step: invalid worker, plan, step, or storage")
 	}
-	if err := config.validate(); err != nil {
+	if err := config.Validate(); err != nil {
 		return err
 	}
 	if plan.maxMatrix == 0 {

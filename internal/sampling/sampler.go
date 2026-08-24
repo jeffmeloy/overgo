@@ -7,15 +7,12 @@ import (
 	"math/rand"
 	"slices"
 	"strings"
+
+	"overgo/internal/checked"
 )
 
 const (
-	DefaultXTCThreshold = float32(0.1)
-	MaxAdaptiveDecay    = float32(0.99)
-	DefaultDryBase      = float32(1.75)
-	DefaultDryLength    = 2
-	DefaultMirostatTau  = float32(5)
-	DefaultMirostatEta  = float32(0.1)
+	maxAdaptiveDecay    = float32(0.99)
 	xtcDisableThreshold = float32(0.5)
 	adaptiveTailCutoff  = 0.2
 	dynamicRangeWidth   = 0.3
@@ -34,6 +31,9 @@ type LogitBias struct {
 	Token int
 	Bias  float32
 }
+
+// BannedLogit returns the exact excluded-token value.
+func BannedLogit() float32 { return float32(math.Inf(-1)) }
 
 type InfillVocabulary struct {
 	Pieces    []string
@@ -77,27 +77,6 @@ type Config struct {
 	Samplers          []SamplerStage
 	LogitBiases       []LogitBias
 	Infill            *InfillVocabulary
-}
-
-// DefaultConfig returns the shared command-line sampling policy.
-func DefaultConfig() Config {
-	return Config{
-		DynatempExponent: 1,
-		TopK:             40,
-		TopP:             0.95,
-		TypicalP:         1,
-		TopNSigma:        -1,
-		XTCThreshold:     DefaultXTCThreshold,
-		AdaptiveTarget:   -1,
-		AdaptiveDecay:    0.9,
-		RepeatPenalty:    1,
-		DryBase:          DefaultDryBase,
-		DryAllowedLength: DefaultDryLength,
-		DryPenaltyLastN:  -1,
-		MirostatTau:      DefaultMirostatTau,
-		MirostatEta:      DefaultMirostatEta,
-		Samplers:         DefaultSamplerOrder(),
-	}
 }
 
 type Sampler struct {
@@ -159,9 +138,6 @@ func New(config Config) (*Sampler, error) {
 	config.Samplers = cloneSamplerOrder(config.Samplers)
 	config.LogitBiases = slices.Clone(config.LogitBiases)
 	config.Infill = cloneInfillVocabulary(config.Infill)
-	if config.Samplers == nil {
-		config.Samplers = DefaultSamplerOrder()
-	}
 	for index, stage := range config.Samplers {
 		if err := validateSamplerStage(stage); err != nil {
 			return nil, fmt.Errorf("sampling sampler stage %d: %w", index, err)
@@ -177,109 +153,77 @@ func New(config Config) (*Sampler, error) {
 		if bias.Token < 0 {
 			return nil, fmt.Errorf("sampling logit bias %d has negative token", index)
 		}
-		if math.IsNaN(float64(bias.Bias)) || math.IsInf(float64(bias.Bias), 1) {
+		if bias.Bias != BannedLogit() && !checked.Finite32(bias.Bias) {
 			return nil, fmt.Errorf("sampling logit bias %d must be finite or negative infinity", index)
 		}
 	}
-	if config.Temperature < 0 || math.IsNaN(float64(config.Temperature)) {
+	if !checked.NonNegativeFinite32(config.Temperature) {
 		return nil, errors.New("sampling temperature must be non-negative")
 	}
-	if config.DynatempRange < 0 ||
-		math.IsNaN(float64(config.DynatempRange)) ||
-		math.IsInf(float64(config.DynatempRange), 0) {
+	if !checked.NonNegativeFinite32(config.DynatempRange) {
 		return nil, errors.New("sampling dynamic-temperature range must be finite and non-negative")
 	}
-	if config.DynatempExponent == 0 {
-		config.DynatempExponent = 1
-	}
-	if math.IsNaN(float64(config.DynatempExponent)) ||
-		math.IsInf(float64(config.DynatempExponent), 0) {
+	if !checked.Finite32(config.DynatempExponent) {
 		return nil, errors.New("sampling dynamic-temperature exponent must be finite")
 	}
 	if config.TopK < 0 {
 		return nil, errors.New("sampling top-k must be non-negative")
 	}
-	if config.TopP == 0 {
-		config.TopP = 1
+	if config.TopP < 0 || config.TopP > 1 || !checked.Finite32(config.TopP) {
+		return nil, errors.New("sampling top-p must be in [0,1]")
 	}
-	if config.TopP <= 0 || config.TopP > 1 || math.IsNaN(float64(config.TopP)) {
-		return nil, errors.New("sampling top-p must be in (0,1]")
-	}
-	if config.MinP < 0 || config.MinP > 1 || math.IsNaN(float64(config.MinP)) {
+	if config.MinP < 0 || config.MinP > 1 || !checked.Finite32(config.MinP) {
 		return nil, errors.New("sampling min-p must be in [0,1]")
 	}
-	if config.TypicalP == 0 {
-		config.TypicalP = 1
+	if config.TypicalP < 0 || config.TypicalP > 1 || !checked.Finite32(config.TypicalP) {
+		return nil, errors.New("sampling typical-p must be in [0,1]")
 	}
-	if config.TypicalP <= 0 || config.TypicalP > 1 || math.IsNaN(float64(config.TypicalP)) {
-		return nil, errors.New("sampling typical-p must be in (0,1]")
-	}
-	if math.IsNaN(float64(config.TopNSigma)) ||
-		math.IsInf(float64(config.TopNSigma), 0) {
+	if !checked.Finite32(config.TopNSigma) {
 		return nil, errors.New("sampling top-n-sigma must be finite")
 	}
 	if config.XTCProbability < 0 || config.XTCProbability > 1 ||
-		math.IsNaN(float64(config.XTCProbability)) {
+		!checked.Finite32(config.XTCProbability) {
 		return nil, errors.New("sampling XTC probability must be in [0,1]")
 	}
-	if config.XTCThreshold == 0 {
-		config.XTCThreshold = DefaultXTCThreshold
-	}
 	if config.XTCThreshold < 0 || config.XTCThreshold > 1 ||
-		math.IsNaN(float64(config.XTCThreshold)) {
+		!checked.Finite32(config.XTCThreshold) {
 		return nil, errors.New("sampling XTC threshold must be in [0,1]")
 	}
 	if config.MinKeep < 0 {
 		return nil, errors.New("sampling min-keep must be non-negative")
 	}
-	if math.IsNaN(float64(config.AdaptiveTarget)) ||
-		math.IsInf(float64(config.AdaptiveTarget), 0) ||
-		config.AdaptiveTarget > 1 {
+	if !checked.Finite32(config.AdaptiveTarget) || config.AdaptiveTarget > 1 {
 		return nil, errors.New("sampling adaptive-p target must be finite and at most 1")
 	}
-	if config.AdaptiveDecay < 0 || config.AdaptiveDecay > MaxAdaptiveDecay ||
-		math.IsNaN(float64(config.AdaptiveDecay)) {
+	if config.AdaptiveDecay < 0 || config.AdaptiveDecay > maxAdaptiveDecay ||
+		!checked.Finite32(config.AdaptiveDecay) {
 		return nil, errors.New("sampling adaptive-p decay must be in [0,0.99]")
 	}
 	if config.RepeatLastN < -1 {
 		return nil, errors.New("sampling repeat-last-n must be at least -1")
 	}
-	if config.RepeatPenalty == 0 {
-		config.RepeatPenalty = 1
-	}
-	if config.RepeatPenalty <= 0 || math.IsNaN(float64(config.RepeatPenalty)) {
+	if config.RepeatPenalty < 0 || !checked.Finite32(config.RepeatPenalty) ||
+		((config.RepeatLastN != 0 || config.PresencePenalty != 0 || config.FrequencyPenalty != 0) &&
+			config.RepeatPenalty == 0) {
 		return nil, errors.New("sampling repeat penalty must be positive")
 	}
-	if math.IsNaN(float64(config.PresencePenalty)) ||
-		math.IsInf(float64(config.PresencePenalty), 0) {
+	if !checked.Finite32(config.PresencePenalty) {
 		return nil, errors.New("sampling presence penalty must be finite")
 	}
-	if math.IsNaN(float64(config.FrequencyPenalty)) ||
-		math.IsInf(float64(config.FrequencyPenalty), 0) {
+	if !checked.Finite32(config.FrequencyPenalty) {
 		return nil, errors.New("sampling frequency penalty must be finite")
 	}
 	if config.NoRepeatNgramSize < 0 || config.NgramWindow < 0 {
 		return nil, errors.New("sampling no-repeat n-gram size and window must be non-negative")
 	}
-	if config.DryMultiplier < 0 || math.IsNaN(float64(config.DryMultiplier)) ||
-		math.IsInf(float64(config.DryMultiplier), 0) {
+	if !checked.NonNegativeFinite32(config.DryMultiplier) {
 		return nil, errors.New("sampling DRY multiplier must be finite and non-negative")
 	}
-	if config.DryBase == 0 {
-		config.DryBase = DefaultDryBase
-	}
-	if config.DryBase < 1 || math.IsNaN(float64(config.DryBase)) ||
-		math.IsInf(float64(config.DryBase), 0) {
+	if config.DryMultiplier > 0 && (config.DryBase < 1 || !checked.Finite32(config.DryBase)) {
 		return nil, errors.New("sampling DRY base must be finite and at least 1")
-	}
-	if config.DryAllowedLength == 0 {
-		config.DryAllowedLength = DefaultDryLength
 	}
 	if config.DryAllowedLength < 0 {
 		return nil, errors.New("sampling DRY allowed length must be non-negative")
-	}
-	if config.DryPenaltyLastN == 0 && config.DryMultiplier > 0 {
-		config.DryPenaltyLastN = -1
 	}
 	if config.DryPenaltyLastN < -1 {
 		return nil, errors.New("sampling DRY penalty-last-n must be at least -1")
@@ -301,18 +245,10 @@ func New(config Config) (*Sampler, error) {
 	if config.Mirostat < mirostatDisabled || config.Mirostat > mirostatV2 {
 		return nil, errors.New("sampling Mirostat version must be 0, 1, or 2")
 	}
-	if config.MirostatTau == 0 {
-		config.MirostatTau = DefaultMirostatTau
-	}
-	if config.MirostatTau <= 0 || math.IsNaN(float64(config.MirostatTau)) ||
-		math.IsInf(float64(config.MirostatTau), 0) {
+	if config.Mirostat != mirostatDisabled && !checked.PositiveFinite32(config.MirostatTau) {
 		return nil, errors.New("sampling Mirostat tau must be finite and positive")
 	}
-	if config.MirostatEta == 0 {
-		config.MirostatEta = DefaultMirostatEta
-	}
-	if config.MirostatEta <= 0 || math.IsNaN(float64(config.MirostatEta)) ||
-		math.IsInf(float64(config.MirostatEta), 0) {
+	if config.Mirostat != mirostatDisabled && !checked.PositiveFinite32(config.MirostatEta) {
 		return nil, errors.New("sampling Mirostat eta must be finite and positive")
 	}
 	source := &splitMixSource{}
@@ -366,11 +302,11 @@ func (s *Sampler) IsRawGreedy() bool {
 	}
 	config := s.config
 	return config.Temperature == 0 && config.DynatempRange == 0 && config.Mirostat == mirostatDisabled &&
-		config.RepeatPenalty == 1 && config.PresencePenalty == 0 &&
+		(config.RepeatPenalty == 0 || config.RepeatPenalty == 1) && config.PresencePenalty == 0 &&
 		config.FrequencyPenalty == 0 && config.NoRepeatNgramSize == 0 && config.DryMultiplier == 0 &&
 		config.XTCProbability == 0 && config.Grammar == nil && config.GBNF == nil &&
 		len(config.LogitBiases) == 0 && config.Infill == nil &&
-		slices.Contains(config.Samplers, SamplerTemperature) &&
+		(len(config.Samplers) == 0 || slices.Contains(config.Samplers, SamplerTemperature)) &&
 		!slices.Contains(config.Samplers, SamplerAdaptiveP) &&
 		!slices.Contains(config.Samplers, SamplerInfill)
 }
@@ -459,7 +395,7 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 			)
 		}
 		if math.IsInf(float64(bias.Bias), -1) {
-			adjusted[bias.Token] = float32(math.Inf(-1))
+			adjusted[bias.Token] = BannedLogit()
 		} else {
 			adjusted[bias.Token] += bias.Bias
 		}
@@ -534,7 +470,7 @@ func applyNoRepeatNgram(logits []float32, history []int, size, window int) error
 		if token < 0 || token >= len(logits) {
 			return fmt.Errorf("sampling no-repeat token %d exceeds vocabulary size %d", token, len(logits))
 		}
-		logits[token] = float32(math.Inf(-1))
+		logits[token] = BannedLogit()
 	}
 	return nil
 }

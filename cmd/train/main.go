@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
@@ -24,12 +23,12 @@ func run() error {
 	output := flag.String("out", "", "output directory for the trained checkpoint")
 	resume := flag.String("resume", "", "resume checkpoint directory")
 	reference := flag.String("reference", "", "frozen reference model directory for DPO")
-	scale := flag.Float64("objective-scale", 0, "RL objective scale")
-	steps := flag.Int("steps", 1, "number of Muon update steps")
-	maximumSequence := flag.Int("seq", 0, "maximum token sequence; nonpositive derives from model context")
+	scale := clioptions.Float64Override(flag.CommandLine, "objective-scale", "RL objective scale")
+	steps := clioptions.IntOverride(flag.CommandLine, "steps", "Muon update steps; omitted derives from dataset units")
+	maximumSequence := clioptions.IntOverride(flag.CommandLine, "seq", "maximum token sequence; omitted derives from model context")
 	host := flag.Bool("host", false, "force host execution")
 	freezeLexical := flag.Bool("freeze-lexical", false, "freeze tied embedding/head; requires CUDA resident training")
-	maxWall := flag.Duration("max-wall", 30*time.Minute, "abort at a step boundary when the first measured step projects the run past this bound (0 disables)")
+	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
 	storePath := flag.String("store", "overgodb-store", "OvergoDB containing the active training recipe and policies")
 	recipeID := flag.String("recipe", "", "active training recipe artifact ID")
 	bootstrapRecipe := flag.String("bootstrap-recipe", "", "publish, verify, and activate a token-training recipe for the model weights file at this path, then exit")
@@ -63,7 +62,7 @@ func run() error {
 	}
 	count := len(result.Losses) + len(result.DPO) + len(result.GRPO)
 	fmt.Printf("backend=%s objective=%s batches=%d stream_position=%d steps=%d recipe_lr=%g recipe_momentum=%g\n",
-		result.Backend, result.Objective, count, result.StreamPosition, *steps,
+		result.Backend, result.Objective, count, result.StreamPosition, result.Plan.Updates(),
 		result.Optimizer.BaseLearningRate, result.Optimizer.Momentum)
 	for index, loss := range result.Losses {
 		fmt.Printf("step %d: loss %.6f\n", index, loss)

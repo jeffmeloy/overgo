@@ -20,12 +20,6 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// maxSessionSteps bounds one agent session's tool steps: enough for a
-// long investigation, small enough that a looping agent halts at a
-// typed refusal instead of consuming the store and the operator's
-// budget without end.
-const maxSessionSteps = 64
-
 // Identity names the serving authorities every recorded step binds to.
 type Identity struct {
 	Recipe artifact.ID
@@ -47,18 +41,19 @@ type Coordinator struct {
 	store    artifact.Repository
 	executor *agenttool.Executor
 	identity Identity
+	maxSteps int
 }
 
 // New binds a coordinator to the store, the transport executor, and
 // the serving identity its interactions record.
-func New(store artifact.Repository, executor *agenttool.Executor, identity Identity) (*Coordinator, error) {
-	if store == nil || executor == nil {
-		return nil, errors.New("agent loop: nil store or executor")
+func New(store artifact.Repository, executor *agenttool.Executor, identity Identity, maxSteps int) (*Coordinator, error) {
+	if store == nil || executor == nil || maxSteps <= 0 {
+		return nil, errors.New("agent loop: store, executor, and positive step bound required")
 	}
 	if identity.Recipe.Kind() != artifact.KindRecipe || identity.Model.Kind() != artifact.KindModel || identity.Node == "" {
 		return nil, errors.New("agent loop: incomplete serving identity")
 	}
-	return &Coordinator{store: store, executor: executor, identity: identity}, nil
+	return &Coordinator{store: store, executor: executor, identity: identity, maxSteps: maxSteps}, nil
 }
 
 // Propose admits one tool step: the tool must be store-registered, a
@@ -76,7 +71,7 @@ func (c *Coordinator) Propose(
 	if ctx == nil || session == nil || session.ID == "" {
 		return nil, errors.New("agent loop: nil context or session")
 	}
-	if session.Steps >= maxSessionSteps {
+	if session.Steps >= c.maxSteps {
 		return nil, fmt.Errorf("agent loop: session %q reached its step bound", session.ID)
 	}
 	manual, err := agenttool.ResolveRegisteredManual(ctx, c.store, name)

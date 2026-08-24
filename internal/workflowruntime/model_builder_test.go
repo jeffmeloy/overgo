@@ -15,6 +15,7 @@ type modelBuildFixture struct {
 	checkpoint, model, run, evaluation, evidence artifact.ID
 	decision                                     artifact.ID
 	phase                                        int
+	changeAuthority                              bool
 }
 
 func (fixture *modelBuildFixture) Initialize(context.Context) (ModelBuildState, error) {
@@ -26,6 +27,9 @@ func (fixture *modelBuildFixture) Train(_ context.Context, state ModelBuildState
 	fixture.phase++
 	state.Checkpoint = fixture.checkpoint
 	state.Model = fixture.model
+	if fixture.changeAuthority {
+		state.Recipe = fixture.state.Construction
+	}
 	return state, nil
 }
 
@@ -76,6 +80,11 @@ func TestModelBuildUsesRecipeStageReceipts(t *testing.T) {
 		if err != nil || !found || receipt.State != runrecord.StageCompleted {
 			t.Fatalf("stage %s receipt = (%+v, %t, %v)", stage.Node.ID, receipt, found, err)
 		}
+	}
+	fixture.changeAuthority = true
+	operation = testutil.ArtifactID(t, artifact.KindEvidence, "builder-invalid-operation")
+	if _, err := ExecuteModelBuild(context.Background(), testRepository(t), operation, fixture); err == nil {
+		t.Fatal("builder accepted stage authority mutation")
 	}
 }
 

@@ -6,13 +6,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
+	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
-	"overgo/internal/optimizer"
 	"overgo/internal/recipecontract"
 	"overgo/internal/seriesforecast"
 	"overgo/internal/trainingdata"
@@ -22,9 +22,9 @@ import (
 func main() {
 	model := flag.String("model", "", "forecast model directory (safetensors + config.json)")
 	dataset := flag.String("dataset", "", "light-curve JSONL shard")
-	steps := flag.Int("steps", 3, "observed Muon steps")
-	records := flag.Int("records", 32, "leading records scanned for a trainable pair")
-	maxWall := flag.Duration("max-wall", 25*time.Minute, "abort when the first measured step projects the run past this bound")
+	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required observed Muon steps")
+	records := clioptions.IntOverride(flag.CommandLine, "records", "leading record scan bound; omitted scans the shard")
+	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
 	flag.Parse()
 	if err := run(*model, *dataset, *steps, *records, *maxWall); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -33,8 +33,8 @@ func main() {
 }
 
 func run(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Duration) error {
-	if modelDir == "" || datasetPath == "" || steps <= 0 || recordLimit <= 0 {
-		return fmt.Errorf("seriesforecast-train-probe: -model and -dataset are required; -steps and -records must be positive")
+	if modelDir == "" || datasetPath == "" || steps <= 0 || recordLimit < 0 {
+		return fmt.Errorf("seriesforecast-train-probe: model, dataset, positive steps, and nonnegative record bound required")
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -56,7 +56,14 @@ func run(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Dura
 	if err != nil {
 		return err
 	}
-	trainer, err := seriesforecast.NewTrainer(model, optimizer.Config{Momentum: trainingprogram.BuiltinOptimizerPolicy().Momentum()})
+	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+		Objective: trainingprogram.ObjectiveForecast, Updates: steps, MaxProjectedWall: maxWall,
+		Parameters: model.TrainableParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
+	})
+	if err != nil {
+		return err
+	}
+	trainer, err := seriesforecast.NewTrainer(model, plan.Optimizer())
 	if err != nil {
 		return err
 	}
@@ -66,25 +73,25 @@ func run(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Dura
 
 	start := time.Now()
 	var before float64
-	for step := 0; step < steps; step++ {
+	for step := 0; step < plan.Updates(); step++ {
 		stepStart := time.Now()
 		result, err := trainer.Step(input, target)
 		if err != nil {
 			return err
 		}
-		if math.IsNaN(result.Total) || math.IsInf(result.Total, 0) {
+		if !checked.Finite64(result.Total) {
 			return fmt.Errorf("seriesforecast-train-probe: step %d loss is non-finite", step+1)
 		}
 		fmt.Printf("step %d/%d: total=%.6f mse=%.6f quantile=%.6f lr=%.4g grad_l2=%.4g wall=%s\n",
-			step+1, steps, result.Total, result.MSE, result.Quantile,
+			step+1, plan.Updates(), result.Total, result.MSE, result.Quantile,
 			result.LearningRate, result.GradientL2, time.Since(stepStart).Round(time.Millisecond))
 		if step == 0 {
 			before = result.Total
 			if result.GradientL2 <= 0 {
 				return fmt.Errorf("seriesforecast-train-probe: first step carried no gradient")
 			}
-			if projected := time.Duration(steps) * time.Since(start); projected > maxWall {
-				return fmt.Errorf("seriesforecast-train-probe: first step projects the run to %s, past the %s bound", projected.Round(time.Second), maxWall)
+			if err := plan.AdmitStepWall(time.Since(start)); err != nil {
+				return fmt.Errorf("seriesforecast-train-probe: %w", err)
 			}
 		}
 	}
@@ -92,11 +99,11 @@ func run(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Dura
 	if err != nil {
 		return err
 	}
-	if math.IsNaN(after) || math.IsInf(after, 0) || !(after < before) {
+	if !checked.Finite64(after) || !(after < before) {
 		return fmt.Errorf("seriesforecast-train-probe: loss did not descend: before=%.6f after=%.6f", before, after)
 	}
 	fmt.Printf("descent: steps=%d span_tokens=%d loss %.6f -> %.6f total_wall=%s\n",
-		steps, steps*len(input), before, after, time.Since(start).Round(time.Millisecond))
+		plan.Updates(), plan.Updates()*len(input), before, after, time.Since(start).Round(time.Millisecond))
 	return nil
 }
 
@@ -182,7 +189,7 @@ func leadingRecords(path string, limit int) ([]string, error) {
 	var records []string
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 0, 1<<20), 1<<24)
-	for len(records) < limit && scanner.Scan() {
+	for (limit == 0 || len(records) < limit) && scanner.Scan() {
 		records = append(records, scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {

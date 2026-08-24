@@ -52,11 +52,12 @@ type GenerationResult struct {
 type Generator struct {
 	mu sync.Mutex
 
-	geometry LatentGeometry
-	stats    VAELatentStats
-	denoiser *DenoiserCUDASession
-	decoder  *VAEDecoderCUDASession
-	branches map[[sha256.Size]byte]any
+	geometry        LatentGeometry
+	contextElements int
+	stats           VAELatentStats
+	denoiser        *DenoiserCUDASession
+	decoder         *VAEDecoderCUDASession
+	branches        map[[sha256.Size]byte]any
 }
 
 // NewGenerator: compile and upload both production stages once.
@@ -85,7 +86,8 @@ func NewGenerator(config GeneratorConfig) (generator *Generator, err error) {
 		return nil, err
 	}
 	generator = &Generator{
-		geometry: geometry, stats: config.LatentStats, denoiser: denoiser,
+		geometry: geometry, contextElements: denoiserConfig.TextLen * denoiserConfig.Dim,
+		stats: config.LatentStats, denoiser: denoiser,
 		branches: make(map[[sha256.Size]byte]any, tensor.PairedExtent),
 	}
 	defer func() {
@@ -110,6 +112,9 @@ func NewGenerator(config GeneratorConfig) (generator *Generator, err error) {
 
 // Geometry: immutable compiled latent geometry.
 func (g *Generator) Geometry() LatentGeometry { return g.geometry }
+
+// ContextElements returns the compiled conditioning extent.
+func (g *Generator) ContextElements() int { return g.contextElements }
 
 // Generate: denoise then stream decoded frames; sessions remain resident.
 func (g *Generator) Generate(ctx context.Context, request GenerateRequest) (result GenerationResult, err error) {

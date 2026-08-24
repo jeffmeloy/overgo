@@ -158,6 +158,9 @@ func TestContinuousGeneratorRejectsUncompiledRequestPolicy(t *testing.T) {
 
 func TestContinuousStatesUseDeviceTopKRequiresUniformSafePrefix(t *testing.T) {
 	makeState := func(config sampling.Config) *continuousGenerateState {
+		if config.Samplers == nil {
+			config.Samplers = []sampling.SamplerStage{sampling.SamplerTopK, sampling.SamplerTemperature}
+		}
 		sampler, err := sampling.New(config)
 		if err != nil {
 			t.Fatal(err)
@@ -177,7 +180,12 @@ func TestContinuousStatesUseDeviceTopKRequiresUniformSafePrefix(t *testing.T) {
 	if _, ok := continuousStatesUseDeviceTopK(states, 5); ok {
 		t.Fatal("mixed top-K limits were accepted")
 	}
-	states[1] = makeState(sampling.Config{Temperature: 0.8, TopK: 3, RepeatPenalty: 1.1})
+	states[1] = makeState(sampling.Config{
+		Temperature: 0.8, TopK: 3, RepeatLastN: -1, RepeatPenalty: 1.1,
+		Samplers: []sampling.SamplerStage{
+			sampling.SamplerPenalties, sampling.SamplerTopK, sampling.SamplerTemperature,
+		},
+	})
 	if _, ok := continuousStatesUseDeviceTopK(states, 5); ok {
 		t.Fatal("penalized sampler was accepted")
 	}

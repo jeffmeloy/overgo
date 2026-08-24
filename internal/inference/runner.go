@@ -153,6 +153,7 @@ type preparedModel struct {
 	path                string
 	spec                model.Spec
 	program             modelrecipe.Plan
+	runtimePolicy       modelrecipe.RuntimePolicy
 	evidenceTier        recipe.EvidenceTier
 	weights             model.Weights
 	vocab               *tokenizer.Vocab
@@ -240,6 +241,14 @@ func (r *Runner) RecipeRuntimeDescription(task recipe.Task) (modelrecipe.Runtime
 		return modelrecipe.RuntimeDescription{}, fmt.Errorf("inference: active %s recipe is unavailable", task)
 	}
 	return modelrecipe.Describe(r.program)
+}
+
+// RuntimePolicy returns the recipe-bound request policy.
+func (r *Runner) RuntimePolicy() modelrecipe.RuntimePolicy {
+	if r == nil {
+		return modelrecipe.RuntimePolicy{}
+	}
+	return r.runtimePolicy
 }
 
 // DeviceResident: all execution weights have device residency.

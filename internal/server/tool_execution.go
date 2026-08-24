@@ -12,11 +12,6 @@ import (
 	"overgo/internal/recipe"
 )
 
-// maxIssuedToolCalls bounds the issued-call registry; older issuances
-// evict first-in, so the window covers every live conversation while a
-// flood of tool turns cannot grow the registry without bound.
-const maxIssuedToolCalls = 4096
-
 // issuedCallRegistry remembers the tool calls this server produced --
 // minted from model output or replayed from the durable interaction
 // ledger -- as digests over identity, tool name, and exact arguments.
@@ -26,10 +21,11 @@ type issuedCallRegistry struct {
 	mu     sync.Mutex
 	issued map[[sha256.Size]byte]struct{}
 	order  [][sha256.Size]byte
+	limit  int
 }
 
-func newIssuedCallRegistry() *issuedCallRegistry {
-	return &issuedCallRegistry{issued: map[[sha256.Size]byte]struct{}{}}
+func newIssuedCallRegistry(limit int) *issuedCallRegistry {
+	return &issuedCallRegistry{issued: map[[sha256.Size]byte]struct{}{}, limit: limit}
 }
 
 func issuedCallDigest(call inference.ChatToolCall) [sha256.Size]byte {
@@ -53,7 +49,7 @@ func (r *issuedCallRegistry) record(calls ...inference.ChatToolCall) {
 		}
 		r.issued[key] = struct{}{}
 		r.order = append(r.order, key)
-		if len(r.order) > maxIssuedToolCalls {
+		if len(r.order) > r.limit {
 			delete(r.issued, r.order[0])
 			r.order = r.order[1:]
 		}

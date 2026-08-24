@@ -41,8 +41,8 @@ var (
 	// ErrSnapshotAnchor reports a snapshot whose anchor commit is absent from the chain.
 	ErrSnapshotAnchor = errors.New("overgodb: snapshot anchor is absent from commit chain")
 	errPayloadLimit   = errors.New("overgodb: payload limit exceeded")
-	// ErrNoChange reports a batch with no effective catalog mutation.
-	ErrNoChange = errors.New("overgodb: batch has no effective catalog change")
+	// ErrNoChange reports a batch that leaves catalog state unchanged.
+	ErrNoChange = artifact.ErrNoChange
 )
 
 type relationKey struct {

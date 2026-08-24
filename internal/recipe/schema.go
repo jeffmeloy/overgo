@@ -146,12 +146,22 @@ type Port struct {
 	Cardinality Cardinality `json:"cardinality"`
 }
 
+// ArtifactRequirement defines a typed stage-state postcondition.
+type ArtifactRequirement struct {
+	Name     PortName      `json:"name"`
+	Kind     artifact.Kind `json:"kind"`
+	Preserve bool          `json:"preserve,omitempty"`
+}
+
 type Module struct {
-	ID         ModuleID    `json:"id"`
-	Tasks      []Task      `json:"tasks"`
-	Placements []Placement `json:"placements"`
-	Inputs     []Port      `json:"inputs,omitempty"`
-	Outputs    []Port      `json:"outputs,omitempty"`
+	ID             ModuleID              `json:"id"`
+	Tasks          []Task                `json:"tasks"`
+	Placements     []Placement           `json:"placements"`
+	Inputs         []Port                `json:"inputs,omitempty"`
+	Outputs        []Port                `json:"outputs,omitempty"`
+	Postconditions []ArtifactRequirement `json:"postconditions,omitempty"`
+	StageNode      NodeID                `json:"stage_node,omitempty"`
+	Next           ModuleID              `json:"next,omitempty"`
 }
 
 // SessionPolicy defines decode cache/graph lifetime.

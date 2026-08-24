@@ -98,14 +98,15 @@ func TestSamplerStateRejectsMalformedOrMismatchedData(t *testing.T) {
 }
 
 func TestSamplerOrderParticipatesInStateSignature(t *testing.T) {
-	implicit, err := New(Config{Temperature: 1, Seed: 7})
+	implicit, err := New(Config{Temperature: 1, Seed: 7, Samplers: DefaultSamplerOrder(), RepeatPenalty: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	explicitDefault, err := New(Config{
-		Temperature: 1,
-		Seed:        7,
-		Samplers:    DefaultSamplerOrder(),
+		Temperature:   1,
+		Seed:          7,
+		Samplers:      DefaultSamplerOrder(),
+		RepeatPenalty: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -380,7 +381,10 @@ func TestSamplerGBNFStateResumesExactly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := Config{GBNF: grammar}
+	config := Config{
+		GBNF: grammar, Temperature: 0, TopP: 1, TypicalP: 1, RepeatPenalty: 1,
+		Samplers: DefaultSamplerOrder(),
+	}
 	original, err := New(config)
 	if err != nil {
 		t.Fatal(err)
@@ -434,7 +438,10 @@ func TestSamplerLazyGBNFStateRestoresBufferedTriggerHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := Config{GBNF: grammar}
+	config := Config{
+		GBNF: grammar, Temperature: 0, TopP: 1, TypicalP: 1, RepeatPenalty: 1,
+		Samplers: DefaultSamplerOrder(),
+	}
 	source, err := New(config)
 	if err != nil {
 		t.Fatal(err)

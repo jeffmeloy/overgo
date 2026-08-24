@@ -21,9 +21,11 @@ import (
 	"overgo/internal/agentloop"
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/checked"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/discovery"
 	"overgo/internal/inference"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
@@ -37,21 +39,8 @@ import (
 
 const (
 	counterStep = 1
-	// DefaultStoredResponses bounds retained server records.
-	DefaultStoredResponses = 128
-	// DefaultResponseStoreBytes bounds response payload operations.
-	DefaultResponseStoreBytes = 64 << 20
 
 	errorCodeUnsupportedOperation = "unsupported_operation"
-	defaultModelID                = "overgo"
-	defaultMaxTokens              = 4096
-	defaultMaxConcurrent          = 1
-	defaultSamplingTemperature    = float32(1)
-	defaultSamplingTopP           = float32(1)
-	defaultSamplingTopK           = 40
-	defaultMaxEmbeddingInputs     = 16
-	defaultVideoFPS               = 2
-	defaultVideoFrameLimit        = 32
 	maxRequestBytes               = 1 << 20
 	maxMultimodalRequestBytes     = 32 << 20
 	maxImageBytes                 = 16 << 20
@@ -60,11 +49,6 @@ const (
 	maxImagePixels                = 16 << 20
 	maxRequestImagePixels         = 32 << 20
 	maxCompletionChoices          = 8
-	// maxResponseSeedAliases bounds the startup alias listing that seeds
-	// the response identifier counter; truncation at this bound refuses
-	// startup rather than reopening the collision.
-	maxResponseSeedAliases   = 100_000
-	defaultProtocolMaxTokens = 16
 )
 
 type Generator interface {
@@ -73,6 +57,10 @@ type Generator interface {
 		string,
 		inference.GenerateOptions,
 	) ([]tokenizer.TokenID, string, error)
+}
+
+type runtimePolicyProvider interface {
+	RuntimePolicy() modelrecipe.RuntimePolicy
 }
 
 type ContinuousGeneratorFactory interface {
@@ -221,6 +209,7 @@ type capabilityBundleAPI interface {
 }
 
 type Config struct {
+	RuntimePolicy      modelrecipe.RuntimePolicy
 	ModelID            string
 	MaxTokens          int
 	MaxConcurrent      int
@@ -259,23 +248,6 @@ type Config struct {
 	Environment     runrecord.Environment
 	Evaluation      EvaluationWorkspaceAPI
 	Analysis        AnalysisPolicy
-}
-
-// DefaultConfig returns the shared serving policy.
-func DefaultConfig() Config {
-	return Config{
-		ModelID:            defaultModelID,
-		MaxTokens:          defaultMaxTokens,
-		MaxConcurrent:      defaultMaxConcurrent,
-		DefaultTemperature: defaultSamplingTemperature,
-		DefaultTopP:        defaultSamplingTopP,
-		DefaultTopK:        defaultSamplingTopK,
-		MaxEmbeddingInputs: defaultMaxEmbeddingInputs,
-		MaxStoredResponses: DefaultStoredResponses,
-		ResponseStoreBytes: DefaultResponseStoreBytes,
-		VideoFPS:           defaultVideoFPS,
-		VideoMaxFrames:     defaultVideoFrameLimit,
-	}
 }
 
 type slotRuntimeStats struct {
@@ -373,43 +345,55 @@ func (stats *slotRuntimeStats) snapshot(includeText bool) (string, string, slotS
 }
 
 type Handler struct {
-	config             Config
-	generator          Generator
-	sessions           *capabilityruntime.ModelSessionDirector[struct{}, Generator, struct{}]
-	defaultSampling    sampling.Config
-	slotBusy           []atomic.Bool
-	slotTasks          []atomic.Uint64
-	slotStats          []slotRuntimeStats
-	nextTask           atomic.Uint64
-	nextID             atomic.Uint64
-	started            time.Time
-	requestsTotal      atomic.Uint64
-	requestsActive     atomic.Int64
-	generationRequests atomic.Uint64
-	generationErrors   atomic.Uint64
-	downloads          downloadRegistry
-	catalogMemo        *discovery.Memo
-	generatedTokens    atomic.Uint64
-	mediaFetcher       *remoteMediaFetcher
-	responseFiles      ResponseFileResolver
-	thinkingSigner     *anthropicThinkingSigner
-	operations         *operation.Manager
-	tools              toolCallExecutor
-	issuedCalls        *issuedCallRegistry
-	agentCoordinator   *agentloop.Coordinator
-	agentSessions      agentSessions
-	repository         *overgodb.Store
-	browseRepository   *overgodb.Store
-	environment        runrecord.Environment
-	modelArtifact      artifact.ID
-	observationErrors  atomic.Uint64
+	config              Config
+	generator           Generator
+	sessions            *capabilityruntime.ModelSessionDirector[struct{}, Generator, struct{}]
+	defaultSampling     sampling.Config
+	defaultOutputTokens int
+	slotBusy            []atomic.Bool
+	slotTasks           []atomic.Uint64
+	slotStats           []slotRuntimeStats
+	nextTask            atomic.Uint64
+	nextID              atomic.Uint64
+	started             time.Time
+	requestsTotal       atomic.Uint64
+	requestsActive      atomic.Int64
+	generationRequests  atomic.Uint64
+	generationErrors    atomic.Uint64
+	downloads           downloadRegistry
+	catalogMemo         *discovery.Memo
+	generatedTokens     atomic.Uint64
+	mediaFetcher        *remoteMediaFetcher
+	responseFiles       ResponseFileResolver
+	thinkingSigner      *anthropicThinkingSigner
+	operations          *operation.Manager
+	tools               toolCallExecutor
+	issuedCalls         *issuedCallRegistry
+	agentCoordinator    *agentloop.Coordinator
+	agentSessions       agentSessions
+	repository          *overgodb.Store
+	browseRepository    *overgodb.Store
+	environment         runrecord.Environment
+	modelArtifact       artifact.ID
+	observationErrors   atomic.Uint64
 }
 
 func New(config Config, generator Generator) (*Handler, error) {
-	defaults := DefaultConfig()
 	if generator == nil {
 		return nil, errors.New("server: generator is nil")
 	}
+	policy := config.RuntimePolicy
+	if policy.ID == (artifact.ID{}) {
+		provider, ok := generator.(runtimePolicyProvider)
+		if !ok {
+			return nil, errors.New("server: recipe runtime policy is required")
+		}
+		policy = provider.RuntimePolicy()
+	}
+	if err := policy.ValidateIdentity(); err != nil {
+		return nil, fmt.Errorf("server: runtime policy: %w", err)
+	}
+	defaults := policy.Serving
 	if config.Analysis != (AnalysisPolicy{}) {
 		if err := config.Analysis.validate(); err != nil {
 			return nil, err
@@ -437,16 +421,16 @@ func New(config Config, generator Generator) (*Handler, error) {
 		return nil, errors.New("server: max embedding inputs must be positive")
 	}
 	if config.DefaultTemperature == 0 {
-		config.DefaultTemperature = defaults.DefaultTemperature
+		config.DefaultTemperature = defaults.Sampling.Temperature
 	}
 	if config.DefaultTopP == 0 {
-		config.DefaultTopP = defaults.DefaultTopP
+		config.DefaultTopP = defaults.Sampling.TopP
 	}
 	if config.RequestTimeout < 0 {
 		return nil, errors.New("server: request timeout must be non-negative")
 	}
 	if config.MaxStoredResponses == 0 {
-		config.MaxStoredResponses = defaults.MaxStoredResponses
+		config.MaxStoredResponses = defaults.StoredResponses
 	}
 	if config.MaxStoredResponses <= 0 {
 		return nil, errors.New("server: stored response count must be positive")
@@ -458,13 +442,13 @@ func New(config Config, generator Generator) (*Handler, error) {
 		return nil, errors.New("server: response store bytes must be positive")
 	}
 	if config.VideoFPS == 0 {
-		config.VideoFPS = defaults.VideoFPS
+		config.VideoFPS = defaults.Video.FPS
 	}
 	if config.VideoFPS <= 0 || math.IsNaN(config.VideoFPS) || math.IsInf(config.VideoFPS, 0) {
 		return nil, errors.New("server: video FPS must be finite and positive")
 	}
 	if config.VideoMaxFrames == 0 {
-		config.VideoMaxFrames = defaults.VideoMaxFrames
+		config.VideoMaxFrames = defaults.Video.MaxFrames
 	}
 	if config.VideoMaxFrames <= 0 {
 		return nil, errors.New("server: video frame limit must be positive")
@@ -477,9 +461,11 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	defaultSampling := sampling.DefaultConfig()
+	defaultSampling := defaults.Sampling.Config()
 	defaultSampling.Temperature = config.DefaultTemperature
-	defaultSampling.TopK = config.DefaultTopK
+	if config.DefaultTopK != 0 {
+		defaultSampling.TopK = config.DefaultTopK
+	}
 	defaultSampling.TopP = config.DefaultTopP
 	defaultSampler, err := sampling.New(defaultSampling)
 	if err != nil {
@@ -520,22 +506,24 @@ func New(config Config, generator Generator) (*Handler, error) {
 		return nil, err
 	}
 	handler := &Handler{
-		catalogMemo:      discovery.NewMemo(),
-		issuedCalls:      newIssuedCallRegistry(),
-		config:           config,
-		generator:        generator,
-		sessions:         sessions,
-		defaultSampling:  defaultSampler.Config(),
-		slotBusy:         make([]atomic.Bool, config.MaxConcurrent),
-		slotTasks:        make([]atomic.Uint64, config.MaxConcurrent),
-		slotStats:        make([]slotRuntimeStats, config.MaxConcurrent),
-		started:          time.Now(),
-		mediaFetcher:     mediaFetcher,
-		responseFiles:    config.ResponseFiles,
-		thinkingSigner:   thinkingSigner,
-		repository:       repository,
-		browseRepository: browseRepository,
-		environment:      environment,
+		catalogMemo:         discovery.NewMemo(),
+		issuedCalls:         newIssuedCallRegistry(config.MaxTokens),
+		config:              config,
+		generator:           generator,
+		sessions:            sessions,
+		defaultSampling:     defaultSampler.Config(),
+		defaultOutputTokens: defaults.OutputTokens,
+		slotBusy:            make([]atomic.Bool, config.MaxConcurrent),
+		slotTasks:           make([]atomic.Uint64, config.MaxConcurrent),
+		slotStats:           make([]slotRuntimeStats, config.MaxConcurrent),
+		started:             time.Now(),
+		downloads:           newDownloadRegistry(config.MaxConcurrent, config.MaxStoredResponses),
+		mediaFetcher:        mediaFetcher,
+		responseFiles:       config.ResponseFiles,
+		thinkingSigner:      thinkingSigner,
+		repository:          repository,
+		browseRepository:    browseRepository,
+		environment:         environment,
 	}
 	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
 		handler.modelArtifact = identity.ModelID()
@@ -981,7 +969,7 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 		for _, token := range vocabulary.SamplingEOGTokens() {
 			logitBiases = append(logitBiases, sampling.LogitBias{
 				Token: int(token),
-				Bias:  float32(math.Inf(-1)),
+				Bias:  sampling.BannedLogit(),
 			})
 		}
 	}
@@ -1116,12 +1104,10 @@ func parseBiasValue(raw json.RawMessage) (float32, error) {
 		if enabled {
 			return 0, errors.New("server: true is not a valid logit bias")
 		}
-		return float32(math.Inf(-1)), nil
+		return sampling.BannedLogit(), nil
 	}
 	var value float32
-	if err := json.Unmarshal(raw, &value); err != nil ||
-		math.IsNaN(float64(value)) ||
-		math.IsInf(float64(value), 0) {
+	if err := json.Unmarshal(raw, &value); err != nil || !checked.Finite32(value) {
 		return 0, errors.New("server: logit bias must be a finite number or false")
 	}
 	return value, nil

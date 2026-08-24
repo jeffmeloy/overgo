@@ -29,13 +29,15 @@ func LoadWanRuntime(ctx context.Context, store artifact.Reader, path string, pro
 		return nil, err
 	}
 	storage := dtype.BF16
-	if !checked.Equal(profile.Precision, dtype.BF16.String()) {
+	if !checked.Equal(profile.Precision.MatmulWeights, dtype.BF16.String()) {
 		return nil, errors.New("latent video: unsupported production precision")
 	}
 	generator, err := NewGenerator(GeneratorConfig{
 		ModelDirectory: path, Policy: profile.Policy, LatentStats: profile.LatentStats,
 		Frames: request.Frames, Width: request.Width, Height: request.Height,
-		Precision: DenoiserPrecision{MatmulWeights: storage, RoundAttentionStorage: true}, DeviceOrdinal: device.DefaultOrdinal(),
+		Precision: DenoiserPrecision{
+			MatmulWeights: storage, RoundAttentionStorage: profile.Precision.RoundAttentionStorage,
+		}, DeviceOrdinal: device.DefaultOrdinal(),
 	})
 	if err != nil {
 		return nil, err

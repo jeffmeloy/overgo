@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+
+	"overgo/internal/artifact"
 )
 
 type Catalog struct {
@@ -63,6 +65,10 @@ func canonicalModule(module Module) (Module, error) {
 	if !validName(string(module.ID)) || len(module.Tasks) == 0 || len(module.Placements) == 0 {
 		return Module{}, errors.New("recipe: invalid module identity or policy")
 	}
+	if module.StageNode != "" && !validName(string(module.StageNode)) ||
+		module.Next != "" && !validName(string(module.Next)) {
+		return Module{}, errors.New("recipe: invalid module stage link")
+	}
 	result := cloneModule(module)
 	for _, task := range result.Tasks {
 		if err := validateTask(task); err != nil {
@@ -86,7 +92,25 @@ func canonicalModule(module Module) (Module, error) {
 	if err != nil {
 		return Module{}, fmt.Errorf("recipe: module %q outputs: %w", module.ID, err)
 	}
-	result.Inputs, result.Outputs = inputs, outputs
+	postconditions, err := canonicalArtifactRequirements(result.Postconditions)
+	if err != nil {
+		return Module{}, fmt.Errorf("recipe: module %q postconditions: %w", module.ID, err)
+	}
+	result.Inputs, result.Outputs, result.Postconditions = inputs, outputs, postconditions
+	return result, nil
+}
+
+func canonicalArtifactRequirements(values []ArtifactRequirement) ([]ArtifactRequirement, error) {
+	result := slices.Clone(values)
+	for _, value := range result {
+		if !validName(string(value.Name)) || value.Kind == artifact.KindInvalid {
+			return nil, errors.New("recipe: invalid artifact requirement")
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	if hasDuplicateKey(result, func(value ArtifactRequirement) PortName { return value.Name }) {
+		return nil, errors.New("recipe: duplicate artifact requirement")
+	}
 	return result, nil
 }
 
@@ -109,5 +133,6 @@ func cloneModule(module Module) Module {
 	module.Placements = slices.Clone(module.Placements)
 	module.Inputs = slices.Clone(module.Inputs)
 	module.Outputs = slices.Clone(module.Outputs)
+	module.Postconditions = slices.Clone(module.Postconditions)
 	return module
 }

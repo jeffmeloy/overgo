@@ -439,7 +439,7 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		}
 	}
 	maxTokens, err := boundedProtocolTokens(
-		body.MaxTokens, defaultProtocolMaxTokens, h.config.MaxTokens, "max_tokens", false,
+		body.MaxTokens, h.defaultOutputTokens, h.config.MaxTokens, "max_tokens", false,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -483,7 +483,7 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		return
 	}
 	defer plan.release()
-	id := "chatcmpl-" + strconv.FormatUint(h.nextID.Add(1), 10)
+	id := "chatcmpl-" + strconv.FormatUint(h.nextID.Add(1), identifierRadix)
 	if body.Stream {
 		h.streamChatCompletion(
 			response,

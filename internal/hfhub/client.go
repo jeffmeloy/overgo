@@ -31,11 +31,15 @@ const (
 	requestTimeout  = 60 * time.Second
 )
 
-// Client is one configured hub connection.
+// Client is one configured hub connection. Listing calls carry a total
+// deadline; transfers must not -- a multi-gigabyte file outlives any
+// fixed request timeout, so the transfer client bounds only the wait
+// for response headers and leaves body time to context cancellation.
 type Client struct {
 	endpoint string
 	token    string
 	http     *http.Client
+	transfer *http.Client
 }
 
 // New returns a client for the endpoint; an empty endpoint means the public
@@ -53,6 +57,10 @@ func New(endpoint, token string) (*Client, error) {
 		endpoint: strings.TrimRight(endpoint, "/"),
 		token:    strings.TrimSpace(token),
 		http:     &http.Client{Timeout: requestTimeout},
+		transfer: &http.Client{Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			ResponseHeaderTimeout: requestTimeout,
+		}},
 	}, nil
 }
 

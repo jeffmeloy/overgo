@@ -119,12 +119,12 @@
       "id": "finding-hub-download-lifecycle",
       "title": "Bound hub downloads: no total timeout on transfers, admission and retention limits, cancellation",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Bound hub downloads: no total timeout on transfers, admission and retention limits, cancellation",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/hfhub ./internal/server -run 'TestHub|TestWorkbenchAPIDownload' -count=1"
         }
       ]

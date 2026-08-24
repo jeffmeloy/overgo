@@ -82,7 +82,7 @@ func (c *Client) downloadFile(ctx context.Context, request DownloadRequest, revi
 		return err
 	}
 	c.authorize(httpRequest)
-	response, err := c.http.Do(httpRequest)
+	response, err := c.transfer.Do(httpRequest)
 	if err != nil {
 		return err
 	}

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -184,12 +185,75 @@ const (
 	downloadStateRunning   = "running"
 	downloadStateSucceeded = "succeeded"
 	downloadStateFailed    = "failed"
+	downloadStateCancelled = "cancelled"
+
+	// maxConcurrentHubDownloads bounds simultaneously running transfers:
+	// hub bandwidth and disk are shared with serving, and a queue refusal
+	// is honest where an unbounded fan-out silently degrades everything.
+	maxConcurrentHubDownloads = 2
+	// maxRetainedDownloadJobs bounds finished-job history; oldest
+	// completed jobs evict first so the registry cannot grow forever.
+	maxRetainedDownloadJobs = 64
 )
 
 type downloadRegistry struct {
-	mu   sync.Mutex
-	next atomic.Uint64
-	jobs map[uint64]*DownloadJob
+	mu      sync.Mutex
+	next    atomic.Uint64
+	jobs    map[uint64]*DownloadJob
+	cancels map[uint64]context.CancelFunc
+}
+
+// admit registers a new job under the concurrency and retention
+// bounds; a full running set is a refusal, and the oldest finished
+// jobs make room for history.
+func (r *downloadRegistry) admit(job *DownloadJob, cancel context.CancelFunc) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	running := 0
+	for _, existing := range r.jobs {
+		if existing.State == downloadStateRunning {
+			running++
+		}
+	}
+	if running >= maxConcurrentHubDownloads {
+		return fmt.Errorf("download backlog is full: %d transfer(s) already running", running)
+	}
+	if r.jobs == nil {
+		r.jobs, r.cancels = map[uint64]*DownloadJob{}, map[uint64]context.CancelFunc{}
+	}
+	for len(r.jobs) >= maxRetainedDownloadJobs {
+		oldest := uint64(0)
+		for id, existing := range r.jobs {
+			if existing.State != downloadStateRunning && (oldest == 0 || id < oldest) {
+				oldest = id
+			}
+		}
+		if oldest == 0 {
+			break
+		}
+		delete(r.jobs, oldest)
+		delete(r.cancels, oldest)
+	}
+	r.jobs[job.ID] = job
+	r.cancels[job.ID] = cancel
+	return nil
+}
+
+// cancel stops one running job; finished jobs report their state.
+func (r *downloadRegistry) cancel(id uint64) (string, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	job, found := r.jobs[id]
+	if !found {
+		return "", false
+	}
+	if job.State == downloadStateRunning {
+		if stop := r.cancels[id]; stop != nil {
+			stop()
+		}
+		job.State = downloadStateCancelled
+	}
+	return job.State, true
 }
 
 func (r *downloadRegistry) snapshot() []DownloadJob {
@@ -212,15 +276,17 @@ type downloadRequestBody struct {
 	Directory string `json:"directory"`
 }
 
-// hubDownloads starts a download job (POST) or lists jobs (GET). Jobs write
-// only under the configured download root, through the client's verified
-// download path.
+// hubDownloads starts a download job (POST), lists jobs (GET), or
+// cancels one (DELETE with ?id=). Jobs write only under the configured
+// download root, through the client's verified download path.
 func (h *Handler) hubDownloads(response http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case http.MethodGet:
 		writeJSON(response, http.StatusOK, map[string]any{"downloads": h.downloads.snapshot()})
 	case http.MethodPost:
 		h.startHubDownload(response, request)
+	case http.MethodDelete:
+		h.cancelHubDownload(response, request)
 	default:
 		methodNotAllowed(response)
 	}
@@ -260,18 +326,35 @@ func (h *Handler) startHubDownload(response http.ResponseWriter, request *http.R
 		ID: h.downloads.next.Add(1), Kind: string(kind), Repository: body.Repository,
 		Revision: body.Revision, Destination: destination, State: downloadStateRunning,
 	}
-	h.downloads.mu.Lock()
-	if h.downloads.jobs == nil {
-		h.downloads.jobs = map[uint64]*DownloadJob{}
+	// The transfer detaches from the request context deliberately --
+	// closing the browser tab must not abort a multi-gigabyte pull --
+	// but every job carries its own cancel, reachable over DELETE.
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := h.downloads.admit(job, cancel); err != nil {
+		cancel()
+		writeError(response, http.StatusTooManyRequests, "download_backlog", err.Error())
+		return
 	}
-	h.downloads.jobs[job.ID] = job
-	h.downloads.mu.Unlock()
-	go h.runHubDownload(client, kind, body, destination, job)
+	go h.runHubDownload(ctx, client, kind, body, destination, job)
 	writeJSON(response, http.StatusAccepted, *job)
 }
 
-func (h *Handler) runHubDownload(client *hfhub.Client, kind hfhub.RepoKind, body downloadRequestBody, destination string, job *DownloadJob) {
-	resolved, err := client.Download(context.Background(), hfhub.DownloadRequest{
+func (h *Handler) cancelHubDownload(response http.ResponseWriter, request *http.Request) {
+	id, err := strconv.ParseUint(request.URL.Query().Get("id"), 10, 64)
+	if err != nil || id == 0 {
+		writeError(response, http.StatusBadRequest, "invalid_request", "cancel requires a numeric job id")
+		return
+	}
+	state, found := h.downloads.cancel(id)
+	if !found {
+		writeError(response, http.StatusNotFound, "unknown_download", "no such download job")
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"id": id, "state": state})
+}
+
+func (h *Handler) runHubDownload(ctx context.Context, client *hfhub.Client, kind hfhub.RepoKind, body downloadRequestBody, destination string, job *DownloadJob) {
+	resolved, err := client.Download(ctx, hfhub.DownloadRequest{
 		Kind: kind, Repository: body.Repository, Revision: body.Revision, Destination: destination,
 		Observe: func(progress hfhub.Progress) {
 			h.downloads.mu.Lock()
@@ -281,6 +364,9 @@ func (h *Handler) runHubDownload(client *hfhub.Client, kind hfhub.RepoKind, body
 	})
 	h.downloads.mu.Lock()
 	defer h.downloads.mu.Unlock()
+	if job.State == downloadStateCancelled {
+		return
+	}
 	if err != nil {
 		job.State, job.Error = downloadStateFailed, err.Error()
 		return

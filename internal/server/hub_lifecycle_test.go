@@ -1,0 +1,81 @@
+package server
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+)
+
+// TestWorkbenchAPIDownloadAdmissionAndCancellation pins the transfer
+// lifecycle bounds: a full running set refuses admission, DELETE
+// cancels a running job, and a cancelled job stays cancelled when its
+// transfer unwinds.
+func TestWorkbenchAPIDownloadAdmissionAndCancellation(t *testing.T) {
+	release := make(chan struct{})
+	digest := sha256.Sum256([]byte("w"))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/models/acme/tiny", func(response http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(response).Encode(map[string]any{
+			"id": "acme/tiny", "sha": "rev0",
+			"siblings": []map[string]any{{"rfilename": "weights.bin", "lfs": map[string]any{
+				"sha256": hex.EncodeToString(digest[:]), "size": 1,
+			}}},
+		})
+	})
+	mux.HandleFunc("/acme/tiny/resolve/rev0/weights.bin", func(response http.ResponseWriter, request *http.Request) {
+		select {
+		case <-release:
+		case <-request.Context().Done():
+		}
+		_, _ = response.Write([]byte("w"))
+	})
+	hub := httptest.NewServer(mux)
+	defer hub.Close()
+	defer close(release)
+	handler := hubTestHandler(t, hub.URL, t.TempDir())
+	start := func(directory string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/hub/downloads",
+			strings.NewReader(`{"kind":"models","repository":"acme/tiny","revision":"","directory":"`+directory+`"}`)))
+		return recorder
+	}
+	first := start("one")
+	second := start("two")
+	if first.Code != http.StatusAccepted || second.Code != http.StatusAccepted {
+		t.Fatalf("admission status = %d, %d", first.Code, second.Code)
+	}
+	if refused := start("three"); refused.Code != http.StatusTooManyRequests {
+		t.Fatalf("backlog status = %d body=%s", refused.Code, refused.Body.String())
+	}
+	var job DownloadJob
+	if err := json.Unmarshal(first.Body.Bytes(), &job); err != nil {
+		t.Fatal(err)
+	}
+	cancel := httptest.NewRecorder()
+	handler.ServeHTTP(cancel, httptest.NewRequest(http.MethodDelete,
+		"/hub/downloads?id="+strconv.FormatUint(job.ID, 10), nil))
+	if cancel.Code != http.StatusOK || !strings.Contains(cancel.Body.String(), downloadStateCancelled) {
+		t.Fatalf("cancel status=%d body=%s", cancel.Code, cancel.Body.String())
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		listed := httptest.NewRecorder()
+		handler.ServeHTTP(listed, httptest.NewRequest(http.MethodGet, "/hub/downloads", nil))
+		if strings.Count(listed.Body.String(), downloadStateCancelled) == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("cancelled job did not settle: %s", listed.Body.String())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if admitted := start("four"); admitted.Code != http.StatusAccepted {
+		t.Fatalf("post-cancel admission status = %d body=%s", admitted.Code, admitted.Body.String())
+	}
+}

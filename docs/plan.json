@@ -49,12 +49,12 @@
       "id": "finding-rename-residue",
       "title": "Fix reverify's deleted repodb-query invocation and sweep rename residue from release material",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Fix reverify's deleted repodb-query invocation and sweep rename residue from release material",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./cmd/reverify -count=1"
         }
       ]
@@ -346,7 +346,7 @@
           "id": "do",
           "title": "Migrate stored profile documents to v3 so models load",
           "status": "done",
-          "verify": "go test ./internal/modelrecipe ./internal/repodbimport -run 'TestProfileRenameUpgrade|TestProfileRenameUpgradeRefusesUnknownShape|TestProfileSchemaVersion|TestRegisteredProfileSemanticDigest' -count=1"
+          "verify": "go test ./internal/modelrecipe ./internal/overgodbimport -run 'TestProfileRenameUpgrade|TestProfileRenameUpgradeRefusesUnknownShape|TestProfileSchemaVersion|TestRegisteredProfileSemanticDigest' -count=1"
         }
       ]
     },
@@ -360,7 +360,7 @@
           "id": "do",
           "title": "Restore qwen35 model loading after the profile field rename",
           "status": "done",
-          "verify": "go test ./internal/repodbimport -run 'TestProfileUpgradeBackfillsFieldsAddedAfterPublication|TestProfileUpgradeRefusesUnregisteredArchitecture|TestProfileRenameUpgrade' -count=1"
+          "verify": "go test ./internal/overgodbimport -run 'TestProfileUpgradeBackfillsFieldsAddedAfterPublication|TestProfileUpgradeRefusesUnregisteredArchitecture|TestProfileRenameUpgrade' -count=1"
         }
       ]
     },
@@ -614,7 +614,7 @@
           "id": "do",
           "title": "Export the model graph as canonical repodb-import JSONL",
           "status": "done",
-          "verify": "go test ./cmd/repodb-export ./internal/repodbimport -run 'TestExport' -count=1"
+          "verify": "go test ./internal/overgodbimport -count=1"
         }
       ]
     },
@@ -656,7 +656,7 @@
           "id": "do",
           "title": "Re-mint the model graph so every stored profile loads",
           "status": "done",
-          "verify": "go run ./cmd/repodb-query -repo repodb-store -servable"
+          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -servable"
         }
       ]
     },
@@ -852,7 +852,7 @@
           "id": "do",
           "title": "Set a RepoDB retention policy for superseded evidence",
           "status": "done",
-          "verify": "go test ./internal/repodb ./internal/closureledger -run 'TestRetention|TestSupersededCollection' -count=1"
+          "verify": "go test ./internal/overgodb ./internal/closureledger -run 'TestRetention|TestSupersededCollection' -count=1"
         }
       ]
     },
@@ -1439,7 +1439,7 @@
           "id": "do",
           "title": "Keep one canonical lineage and payload owner; make directional indexes reference canonical facts; delete the independent parent reachability map and duplicated content descriptors",
           "status": "done",
-          "verify": "go test ./internal/artifact ./internal/repodb -run 'Test(CanonicalCatalogOwnership|LineageIndexesReferenceCanonicalEdges|ContentUsesDescriptorAuthority|RepositoryContract|SnapshotAnchorsReplay)' -count=1",
+          "verify": "go test ./internal/artifact ./internal/overgodb -run 'Test(CanonicalCatalogOwnership|LineageIndexesReferenceCanonicalEdges|ContentUsesDescriptorAuthority|RepositoryContract|SnapshotAnchorsReplay)' -count=1",
           "rationale": "catalogState stores each lineage edge as values in the canonical, parent, and child maps plus a separate parents graph; content repeats its descriptor beside artifacts. Retain the artifact repository contract while reducing resident bytes and index update work. Incorporate the merged retention implementation rather than adding another collector.",
           "capabilities": [
             "repodb",
@@ -1459,7 +1459,7 @@
           "id": "do",
           "title": "Add stable cursor and typed projection fields to repodb.Query; migrate server and command consumers; delete MaxQueryResults scans, offset materialization, and per-result content and lineage lookups",
           "status": "done",
-          "verify": "go test ./internal/repodb ./internal/server ./cmd/repodb-query -run 'Test(QueryCursor|QueryProjection|ArtifactGalleryProjectedPage|BrowseRunsReadsRepoDBRecords|RuntimeActivityProjectedPage)' -count=1",
+          "verify": "go test ./internal/overgodb ./internal/server ./cmd/overgodb-query -run 'Test(QueryCursor|QueryProjection|ArtifactGalleryProjectedPage|BrowseRunsReadsRepoDBRecords|RuntimeActivityProjectedPage)' -count=1",
           "rationale": "Current GUI and command paths request the catalog cap, slice afterward, then issue N+1 HasContent, Content, or Parents calls. Query should return only the requested ordered page and declared fields under one read lock. Cursor identity must bind the catalog head and query contract so refreshes cannot silently reorder a continuation.",
           "depends_on": [
             "adk-repodb-canonical-state/do"
@@ -1482,7 +1482,7 @@
           "id": "do",
           "title": "Write log headers, canonical payloads, and checksums incrementally; stream deterministic snapshot sections from ordered keys; delete assembled frame and snapshotDocument payload copies",
           "status": "open",
-          "verify": "go test ./internal/repodb -run 'Test(LogAppendStreamsFrame|StreamingSnapshotRoundTrip|StreamingSnapshotFaultPreservesStore|SnapshotAnchorsReplay|SyncFaultReplaysCompleteUncertainCommit)' -count=1",
+          "verify": "go test ./internal/overgodb -run 'Test(LogAppendStreamsFrame|StreamingSnapshotRoundTrip|StreamingSnapshotFaultPreservesStore|SnapshotAnchorsReplay|SyncFaultReplaysCompleteUncertainCommit)' -count=1",
           "rationale": "Log append currently joins header, payload, and checksum into another frame. Snapshot publication clones the full catalog into a document and marshals another full payload. Preserve commit identities, canonical ordering, fsync, atomic rename, fallback replay, and fault behavior while bounding temporary storage to ordered keys and encoder buffers.",
           "depends_on": [
             "adk-repodb-canonical-state/do"
@@ -1505,7 +1505,7 @@
           "id": "do",
           "title": "Extend Store with validated tail refresh, make Handler own one browse reader when no writable repository is supplied, and delete per-request OpenReadOnly replay and release plumbing",
           "status": "open",
-          "verify": "go test ./internal/repodb ./internal/server -run 'Test(ReadOnlyRefreshAppliesCommittedTail|ReadOnlyRefreshRejectsFork|HandlerRetainsBrowseStore|HandlerClosesBrowseStore)' -count=1",
+          "verify": "go test ./internal/overgodb ./internal/server -run 'Test(ReadOnlyRefreshAppliesCommittedTail|ReadOnlyRefreshRejectsFork|HandlerRetainsBrowseStore|HandlerClosesBrowseStore)' -count=1",
           "rationale": "Artifact, run, activity, and analysis handlers repeatedly open and replay the same store. One handler-owned reader should refresh only validated log tail records and publish a coherent catalog head to queries. The writable repository remains shared directly when configured.",
           "depends_on": [
             "adk-repodb-projected-query/do",
@@ -1529,7 +1529,7 @@
           "id": "do",
           "title": "Add a typed runrecord interaction document bound to recipe, operation, run, parent event, message, tool, and media artifacts; migrate Responses continuation and delete responseHistoryStore",
           "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/repodb ./internal/server -run 'Test(InteractionIdentity|InteractionLineage|ResponsesContinuationDurable|ResponsesContinuationRestart|ResponseHistoryStoreAbsent)' -count=1",
+          "verify": "go test ./internal/runrecord ./internal/overgodb ./internal/server -run 'Test(InteractionIdentity|InteractionLineage|ResponsesContinuationDurable|ResponsesContinuationRestart|ResponseHistoryStoreAbsent)' -count=1",
           "rationale": "Responses continuation currently clones every prior message into a bounded process-local LRU. Store each new event once, reference immutable media content, advance an external response alias by compare-and-set, and materialize only the requested lineage. RepoDB becomes session truth without introducing an ADK-style session database.",
           "depends_on": [
             "adk-repodb-live-reader/do"
@@ -1776,7 +1776,7 @@
           "id": "do",
           "title": "Run host and device gates; compare RepoDB replay, query, snapshot, resident memory, and response-history allocation evidence; require no ADK dependency, second scheduler, callback mesh, compatibility wrapper, or ephemeral session authority",
           "status": "open",
-          "verify": "go test ./internal/artifact ./internal/repodb ./internal/recipe ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/evaluation ./internal/server -count=1 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
+          "verify": "go test ./internal/artifact ./internal/overgodb ./internal/recipe ./internal/workflowruntime ./internal/operation ./internal/runrecord ./internal/evaluation ./internal/server -count=1 \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
           "rationale": "Completion requires functional session, tool, human-decision, parallel workflow, replay, capability-bundle, remote, and GUI evidence plus measured storage and processing improvement against the pre-campaign RepoDB benchmark record. Production code must contain no imported ADK runtime and no displaced owner retained for compatibility.",
           "depends_on": [
             "adk-agent-gui/do"
@@ -1814,7 +1814,7 @@
           "id": "do",
           "title": "Publish the legacy dataset inventory as RepoDB authority",
           "status": "done",
-          "verify": "go test ./internal/dataset ./internal/repodb ./cmd/dataset-catalog ./cmd/repodb-query ./internal/server ./internal/evaluation -run 'Test(DatasetCatalog|PublishDatasetCatalog|DatasetCatalogCompaction|DatasetCatalogQuery|BrowseDatasetsUsesCatalog)' -count=1"
+          "verify": "go test ./internal/dataset ./internal/overgodb ./cmd/dataset-catalog ./cmd/overgodb-query ./internal/server ./internal/evaluation -run 'Test(DatasetCatalog|PublishDatasetCatalog|DatasetCatalogCompaction|DatasetCatalogQuery|BrowseDatasetsUsesCatalog)' -count=1"
         }
       ]
     },
@@ -1842,7 +1842,7 @@
           "id": "do",
           "title": "Compile every registered architecture into one immutable profile document with pinned catalog derivation, publish stable architecture aliases atomically, expose exact RepoDB coverage queries, root the catalog through retention, migrate catalog consumers, and test registry parity, replay, idempotence, supersession, and compaction",
           "status": "done",
-          "verify": "go test ./internal/modelrecipe ./internal/repodb ./cmd/profile-catalog ./cmd/repodb-query ./cmd/recipe -run 'Test(ArchitectureProfileCatalog|PublishArchitectureProfileCatalog|ProfileCatalogCompaction|ProfileCatalogQuery)' -count=1",
+          "verify": "go test ./internal/modelrecipe ./internal/overgodb ./cmd/profile-catalog ./cmd/overgodb-query ./cmd/recipe -run 'Test(ArchitectureProfileCatalog|PublishArchitectureProfileCatalog|ProfileCatalogCompaction|ProfileCatalogQuery)' -count=1",
           "rationale": "The architecture registry remains complete in code, but cleanup removed its production RepoDB publisher and stable aliases. Model-bound recipes need a durable architecture authority independent of whether a concrete model has been verified.",
           "capabilities": [
             "profiles",

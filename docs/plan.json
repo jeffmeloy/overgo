@@ -2439,13 +2439,13 @@
       "id": "wan-training-objective",
       "title": "Publish the text-to-video training objective: VidGen corpus bound to the flow-matching contract under Muon with derived hyperparameters, no free knobs",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Publish the text-to-video training objective: VidGen corpus bound to the flow-matching contract under Muon with derived hyperparameters, no free knobs",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram ./internal/adaptiveparity -run 'TestTrainingObjectiveMatrix|TestObjective' -count=1"
+          "status": "done",
+          "verify": "go test ./cmd/training-objective ./internal/trainingprogram -count=1 \u0026\u0026 go test ./internal/adaptiveparity -run TestTrainingObjectiveMatrix -count=1"
         }
       ]
     },

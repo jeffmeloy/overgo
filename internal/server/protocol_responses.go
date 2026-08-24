@@ -248,7 +248,10 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary)
 	promptTokens := result.promptTokens()
 	if body.Store == nil || *body.Store {
-		h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, message))
+		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, message)); err != nil {
+			writeError(response, http.StatusInternalServerError, "response_not_durable", err.Error())
+			return
+		}
 	}
 	writeJSON(response, http.StatusOK, responsesResponse{
 		CompletedAt: now,
@@ -589,7 +592,10 @@ func (h *Handler) streamResponses(
 		},
 	}
 	if store {
-		h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, parsedMessage))
+		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, parsedMessage)); err != nil {
+			_ = emitNamedGenerationError(writeEvent, "response.failed", err)
+			return
+		}
 	}
 	_ = writeEvent("response.completed", responsesStreamEvent{
 		Type: "response.completed", Response: final,

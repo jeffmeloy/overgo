@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -9,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -86,19 +89,23 @@ func responseMessages(messages []runrecord.InteractionMessage) []inference.ChatM
 	return result
 }
 
+// publishResponseInteraction commits the durable record behind a
+// response identifier. Failure surfaces to the caller: an identifier
+// whose alias still names an older conversation must not be handed to
+// a client as if it were durable.
 func (h *Handler) publishResponseInteraction(
 	ctx context.Context,
 	responseID string,
 	parent artifact.ID,
 	messages []inference.ChatMessage,
-) {
+) error {
 	if h.repository == nil {
-		return
+		return nil
 	}
 	description, ok := h.interactionDescription()
 	if !ok {
 		h.observationErrors.Add(counterStep)
-		return
+		return errors.New("server: interaction authority is unavailable; the response cannot be stored")
 	}
 	_, err := runrecord.PublishInteraction(ctx, h.repository, runrecord.Interaction{
 		Response: responseID, Recipe: description.Identity.Recipe, Model: description.Identity.Model,
@@ -106,7 +113,9 @@ func (h *Handler) publishResponseInteraction(
 	}, interactionMessages(messages))
 	if err != nil {
 		h.observationErrors.Add(counterStep)
+		return fmt.Errorf("server: response interaction publication failed: %w", err)
 	}
+	return nil
 }
 
 func (h *Handler) loadResponseInteraction(ctx context.Context, responseID string) ([]inference.ChatMessage, artifact.ID, bool) {
@@ -146,6 +155,36 @@ func (h *Handler) interactionDescription() (modelrecipe.RuntimeDescription, bool
 	}
 	description, err := inspector.RecipeRuntimeDescription(recipe.TaskInference)
 	return description, err == nil && description.Interaction.Valid()
+}
+
+// seedResponseIdentifiers advances the identifier counter past every
+// durably recorded response, so a restarted server never reissues an
+// identifier whose interaction alias already names an older
+// conversation. Truncation of the alias listing is refused: a partial
+// seed would silently reopen the collision.
+func (h *Handler) seedResponseIdentifiers(ctx context.Context) error {
+	if h.repository == nil {
+		return nil
+	}
+	query := overgodb.Query{
+		Kind: artifact.KindEvidence, MaxResults: h.config.MaxStoredResponses,
+		Projection: overgodb.ProjectAliases,
+	}
+	for {
+		result, err := h.repository.Query(ctx, query)
+		if err != nil {
+			return err
+		}
+		for _, alias := range result.Aliases {
+			if response, found := strings.CutPrefix(alias.Name, runrecord.InteractionResponseAliasRoot); found {
+				h.observeResponseID(response)
+			}
+		}
+		if result.Next == nil {
+			return nil
+		}
+		query.Cursor = result.Next
+	}
 }
 
 func (h *Handler) observeResponseID(responseID string) {

@@ -524,6 +524,10 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
 		handler.modelArtifact = identity.ModelID()
 	}
+	if err := handler.seedResponseIdentifiers(context.Background()); err != nil {
+		_ = handler.Close()
+		return nil, fmt.Errorf("server response identity seed: %w", err)
+	}
 	handler.operations, err = operation.NewManager(config.MaxStoredResponses)
 	if err != nil {
 		_ = handler.Close()

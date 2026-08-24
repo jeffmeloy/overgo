@@ -4,6 +4,19 @@
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
     {
+      "id": "merge-6962fd98814d",
+      "title": "Merge master at 6962fd98814d",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 6962fd98814d",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
       "id": "merge-34d849e351ed",
       "title": "Merge master at 34d849e351ed",
       "status": "done",
@@ -131,13 +144,13 @@
       "id": "finding-response-id-durability",
       "title": "Seed response identifiers from durable state and surface publication failure",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Seed response identifiers from durable state and surface publication failure",
-          "status": "open",
-          "verify": "go test ./internal/server -run TestResponses -count=1"
+          "status": "done",
+          "verify": "go test ./internal/server -run 'TestResponsesIdentifiersSeedFromDurableState|TestResponsesInputTokensAliasesAndValidation' -count=1"
         }
       ]
     },

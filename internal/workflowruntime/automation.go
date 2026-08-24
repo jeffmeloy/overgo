@@ -28,9 +28,9 @@ type AutomationRuntime struct {
 
 // AutomationExecution identifies one admitted operation and its exact plan.
 type AutomationExecution struct {
-	Operation artifact.ID
-	Plan      workflowcontract.AutomationExecutionPlan
-	Claim     artifact.ID
+	Operation artifact.ID                              `json:"operation"`
+	Plan      workflowcontract.AutomationExecutionPlan `json:"plan"`
+	Claim     artifact.ID                              `json:"claim,omitzero"`
 }
 
 // AutomationClock supplies scheduler time and is injectable in tests and hosts.

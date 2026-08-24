@@ -41,6 +41,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/mod/compositions.js", "text/javascript; charset=utf-8", "/compositions/activate"},
 		{"/mod/artifacts.js", "text/javascript; charset=utf-8", "/artifacts"},
 		{"/mod/evaluations.js", "text/javascript; charset=utf-8", "/evaluations/capabilities"},
+		{"/mod/automations.js", "text/javascript; charset=utf-8", "/automations/stream"},
 		{"/mod/analyze_model.js", "text/javascript; charset=utf-8", "/analyze/model"},
 		{"/mod/analyze_vocab.js", "text/javascript; charset=utf-8", "/analyze/vocab"},
 		{"/mod/analyze_logits.js", "text/javascript; charset=utf-8", "completion_probabilities"},

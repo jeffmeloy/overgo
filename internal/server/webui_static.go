@@ -64,6 +64,15 @@ func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request
 		h.workspaceSchema(response, request)
 		return
 	}
+	if strings.HasPrefix(request.URL.Path, "/automations") {
+		if !h.authorized(request) {
+			response.Header().Set("WWW-Authenticate", "Bearer")
+			writeError(response, http.StatusUnauthorized, "invalid_api_key", "missing or invalid bearer token")
+			return
+		}
+		h.automationWorkspace(response, request)
+		return
+	}
 	if request.Method != http.MethodGet && request.Method != http.MethodHead {
 		writeError(response, http.StatusNotFound, "not_found", "route not found")
 		return

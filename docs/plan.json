@@ -104,7 +104,7 @@
       "id": "orchestration-workspace",
       "title": "Prove common route, schema-form, and lifecycle components with the automation workspace",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "workspace-manifest",
@@ -142,7 +142,7 @@
         {
           "id": "automation-api-gui",
           "title": "Expose automation inventory, definition editing, activation, manual execution, schedules, deliveries, run history, cancellation, decisions, outputs, and refusal reasons through API and GUI",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestAutomationWorkspaceVertical' internal/server \u0026\u0026 go test ./internal/server -run 'TestAutomationWorkspaceVertical|TestAutomationWorkspaceSSE|TestAutomationWorkspaceRefusal|TestAutomationWorkspaceNoDirectExecutor' -count=1",
           "rationale": "The UI is a projection and control surface over authoritative contracts and existing runtime operations. It must deep-link definitions, recipes, operations, attempts, decisions, stage receipts, artifacts, and deliveries without owning hidden state.",
           "depends_on": [

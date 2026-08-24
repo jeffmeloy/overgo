@@ -21,13 +21,125 @@
       "id": "agent-tool-transports",
       "title": "Native UTCP transports: builtin, bounded HTTP, and guarded argv executors with timeouts and size caps",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Native UTCP transports: builtin, bounded HTTP, and guarded argv executors with timeouts and size caps",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/agenttool -run TestTransport -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-store-upgrade-guard",
+      "title": "Refuse silent empty-store creation over legacy data; backup honors the legacy log filename",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse silent empty-store creation over legacy data; backup honors the legacy log filename",
+          "status": "open",
+          "verify": "go test ./internal/overgodb ./internal/dataroot -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-rename-residue",
+      "title": "Fix reverify's deleted repodb-query invocation and sweep rename residue from release material",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fix reverify's deleted repodb-query invocation and sweep rename residue from release material",
+          "status": "open",
+          "verify": "go test ./cmd/reverify -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-dataset-locations",
+      "title": "Republish dataset locations for datasets that appear after catalog publication",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Republish dataset locations for datasets that appear after catalog publication",
+          "status": "open",
+          "verify": "go test ./internal/dataset -run TestPublish -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-stage-admitted-retry",
+      "title": "Allow stage retry from the admitted state so a crash between admission and running recovers",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Allow stage retry from the admitted state so a crash between admission and running recovers",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -run TestStage -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-tool-call-provenance",
+      "title": "Execute only model-produced tool calls; client-authored assistant messages never execute tools",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Execute only model-produced tool calls; client-authored assistant messages never execute tools",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestToolExecution -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-response-id-durability",
+      "title": "Seed response identifiers from durable state and surface publication failure",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Seed response identifiers from durable state and surface publication failure",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestResponses -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-hub-download-lifecycle",
+      "title": "Bound hub downloads: no total timeout on transfers, admission and retention limits, cancellation",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound hub downloads: no total timeout on transfers, admission and retention limits, cancellation",
+          "status": "open",
+          "verify": "go test ./internal/hfhub ./internal/server -run 'TestHub|TestWorkbenchAPIDownload' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "finding-workflow-admission",
+      "title": "Bound parallel stage execution and serialize adapter entry in the workflow runtime",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound parallel stage execution and serialize adapter entry in the workflow runtime",
+          "status": "open",
+          "verify": "go test ./internal/workflowruntime -count=1"
         }
       ]
     },

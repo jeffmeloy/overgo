@@ -35,12 +35,12 @@
       "id": "finding-store-upgrade-guard",
       "title": "Refuse silent empty-store creation over legacy data; backup honors the legacy log filename",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Refuse silent empty-store creation over legacy data; backup honors the legacy log filename",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/overgodb ./internal/dataroot -count=1"
         }
       ]

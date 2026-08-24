@@ -56,18 +56,18 @@ func Resolve(workingDirectory string) (Roots, error) {
 		if err != nil || !info.IsDir() {
 			return Roots{}, fmt.Errorf("dataroot: %s=%q is not a directory", Env, base)
 		}
-		return Roots{
+		return guardLegacyStore(Roots{
 			Store:       filepath.Join(base, "overgodb-store"),
 			Models:      filepath.Join(base, "models"),
 			Datasets:    filepath.Join(base, "datasets"),
 			Checkpoints: filepath.Join(base, "checkpoints"),
 			Source:      Env,
-		}, nil
+		})
 	}
 	configPath := filepath.Join(workingDirectory, ConfigFile)
 	raw, err := os.ReadFile(configPath)
 	if os.IsNotExist(err) {
-		return fallback(workingDirectory), nil
+		return guardLegacyStore(fallback(workingDirectory))
 	}
 	if err != nil {
 		return Roots{}, fmt.Errorf("dataroot: read %s: %w", ConfigFile, err)
@@ -93,6 +93,27 @@ func Resolve(workingDirectory string) (Roots, error) {
 		*root = configuredRoot(workingDirectory, *root)
 	}
 	roots.Source = ConfigFile
+	return guardLegacyStore(roots)
+}
+
+// guardLegacyStore refuses to steer callers at a store root that would
+// be created empty beside an unmigrated pre-rename store: opening the
+// resolved root would silently mint a new authority while the real
+// catalog sits in the legacy directory. Migration is explicit, never a
+// side effect of resolution.
+func guardLegacyStore(roots Roots) (Roots, error) {
+	if _, err := os.Stat(filepath.Join(roots.Store, "overgodb.log")); err == nil {
+		return roots, nil
+	}
+	if _, err := os.Stat(filepath.Join(roots.Store, "repodb.log")); err == nil {
+		return roots, nil
+	}
+	legacy := filepath.Join(filepath.Dir(roots.Store), "repodb-store")
+	if _, err := os.Stat(filepath.Join(legacy, "repodb.log")); err == nil {
+		return Roots{}, fmt.Errorf(
+			"dataroot: store root %q is empty while legacy store %q holds a catalog; migrate it (docs/OVERGODB_IMPORT.md) or point %s at it explicitly",
+			roots.Store, legacy, Env)
+	}
 	return roots, nil
 }
 

@@ -909,71 +909,6 @@ type dynamicAttributeSlot struct {
 	words  int
 }
 
-func dynamicAttributeWords(
-	node *tensor.Tensor,
-	attributes tensor.Attributes,
-	destination []uint32,
-) (int, error) {
-	var values []uint32
-	var scalar [1]uint32
-	switch node.Op {
-	case tensor.OpGetRows:
-		value, ok := attributes.(tensor.GetRowsAttributes)
-		if !ok {
-			return 0, errors.New("invalid get_rows attributes")
-		}
-		values = value.Rows
-	case tensor.OpRoPENeoX, tensor.OpRoPENormal:
-		value, ok := attributes.(tensor.RoPEAttributes)
-		if !ok {
-			return 0, errors.New("invalid RoPE attributes")
-		}
-		values = value.Positions
-	case tensor.OpRoPEMulti:
-		value, ok := attributes.(tensor.RoPEMultiAttributes)
-		if !ok {
-			return 0, errors.New("invalid multi-RoPE attributes")
-		}
-		words := 0
-		for axis := range value.Positions {
-			if destination != nil {
-				words += copy(destination[words:], value.Positions[axis])
-			} else {
-				words += len(value.Positions[axis])
-			}
-		}
-		return words, nil
-	case tensor.OpAttention:
-		value, ok := attributes.(tensor.AttentionAttributes)
-		if !ok {
-			return 0, errors.New("invalid attention attributes")
-		}
-		tokens := value.KeyValueTokens
-		if tokens == 0 {
-			var err error
-			tokens, err = uint32Checked(node.Inputs[1].Shape.Dims[2], "attention KV capacity")
-			if err != nil {
-				return 0, err
-			}
-		}
-		scalar[0] = tokens
-		values = scalar[:]
-	case tensor.OpCacheAppend:
-		value, ok := attributes.(tensor.CacheAppendAttributes)
-		if !ok {
-			return 0, errors.New("invalid cache append attributes")
-		}
-		scalar[0] = value.Offset
-		values = scalar[:]
-	default:
-		return 0, nil
-	}
-	if destination != nil {
-		copy(destination, values)
-	}
-	return len(values), nil
-}
-
 // graphPointerTable resolves setup-only tensor addresses.
 type graphPointerTable struct {
 	indexes map[*tensor.Tensor]int
@@ -1206,7 +1141,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 	}
 	for index, node := range order {
 		compiled.orderIndexes[node] = index
-		words, slotErr := dynamicAttributeWords(node, node.Attrs, nil)
+		words, slotErr := tensor.RuntimeAttributeWords(node, node.Attrs, nil)
 		if slotErr != nil {
 			return nil, slotErr
 		}
@@ -1981,7 +1916,7 @@ func execute(
 				}
 			}
 			destination := words[slot.offset : slot.offset+slot.words]
-			written, writeErr := dynamicAttributeWords(slot.node, attributes, destination)
+			written, writeErr := tensor.RuntimeAttributeWords(slot.node, attributes, destination)
 			if writeErr != nil {
 				return nil, writeErr
 			}

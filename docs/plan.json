@@ -2030,13 +2030,29 @@
           ]
         },
         {
+          "id": "runtime-word-schema",
+          "title": "Make typed attributes compile device runtime words and delete the CUDA operation switch",
+          "status": "done",
+          "verify": "go test ./internal/tensor ./internal/cuda/executor -run '^(TestCompilePinsTopologyAndMemoryPlan|TestCompiledRuntimeAttributesUseNodeIndexes|TestGeneratedKernelArgumentCountValidation)$' -count=1",
+          "rationale": "The CUDA compiler repeated typed attribute interpretation for GetRows, RoPE, attention, and cache append.",
+          "depends_on": [
+            "literal-operator-contracts/runtime-attribute-indexing"
+          ],
+          "capabilities": [
+            "tensor",
+            "cuda",
+            "operator-schema",
+            "surface-reduction"
+          ]
+        },
+        {
           "id": "do",
           "title": "Represent operand roles, ranks, axes, layouts, output rules, runtime attributes, and launch bindings in narrow typed operator schemas; migrate recurrent, attention-layout, and math-vision builders plus reference and CUDA executors together; delete displaced rank checks, slot maps, launch branches, and duplicated shape arithmetic",
           "status": "open",
           "verify": "go test ./internal/tensor ./internal/tensor/reference ./internal/cuda/executor -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/tensor,internal/cuda/executor -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
           "rationale": "Builder, CPU reference, and CUDA launch files repeat the largest concentration of shape, axis, and operand-position facts. One compiled schema should drive all three without a property bag.",
           "depends_on": [
-            "literal-operator-contracts/runtime-attribute-indexing"
+            "literal-operator-contracts/runtime-word-schema"
           ],
           "capabilities": [
             "tensor",

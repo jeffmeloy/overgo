@@ -1,6 +1,10 @@
 package tensor
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"math"
+)
 
 // Attributes: closed operation-attribute contract.
 type Attributes interface {
@@ -73,6 +77,64 @@ func (HyperConnectionAttributes) validFor(op Op) bool {
 
 func (TopKAttributes) validFor(op Op) bool {
 	return sameOp(op, OpTopK) || sameOp(op, OpTopKPairs) || sameOp(op, OpTopKPartials)
+}
+
+type runtimeWordAttributes interface {
+	runtimeWords(*Tensor, []uint32) (int, error)
+}
+
+func copyRuntimeWords(destination, values []uint32) int {
+	if destination != nil {
+		copy(destination, values)
+	}
+	return len(values)
+}
+
+func (attributes GetRowsAttributes) runtimeWords(_ *Tensor, destination []uint32) (int, error) {
+	return copyRuntimeWords(destination, attributes.Rows), nil
+}
+
+func (attributes RoPEAttributes) runtimeWords(_ *Tensor, destination []uint32) (int, error) {
+	return copyRuntimeWords(destination, attributes.Positions), nil
+}
+
+func (attributes RoPEMultiAttributes) runtimeWords(_ *Tensor, destination []uint32) (int, error) {
+	written := FirstOffset
+	for axis := range attributes.Positions {
+		var target []uint32
+		if destination != nil {
+			target = destination[written:]
+		}
+		written += copyRuntimeWords(target, attributes.Positions[axis])
+	}
+	return written, nil
+}
+
+func (attributes AttentionAttributes) runtimeWords(node *Tensor, destination []uint32) (int, error) {
+	tokens := attributes.KeyValueTokens
+	if tokens == FirstOffset {
+		if node == nil || len(node.Inputs) <= SingletonExtent {
+			return FirstOffset, errors.New("attention KV input is unavailable")
+		}
+		extent := node.Inputs[SingletonExtent].Shape.Dims[PairedExtent]
+		if extent > math.MaxUint32 {
+			return FirstOffset, errors.New("attention KV capacity exceeds uint32")
+		}
+		tokens = uint32(extent)
+	}
+	return copyRuntimeWords(destination, []uint32{tokens}), nil
+}
+
+func (attributes CacheAppendAttributes) runtimeWords(_ *Tensor, destination []uint32) (int, error) {
+	return copyRuntimeWords(destination, []uint32{attributes.Offset}), nil
+}
+
+// RuntimeAttributeWords compiles device-visible typed attributes.
+func RuntimeAttributeWords(node *Tensor, attributes Attributes, destination []uint32) (int, error) {
+	if dynamic, ok := attributes.(runtimeWordAttributes); ok {
+		return dynamic.runtimeWords(node, destination)
+	}
+	return FirstOffset, nil
 }
 
 // ValidateOperationAttributes checks one operation/descriptor pair.

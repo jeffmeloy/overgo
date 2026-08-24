@@ -50,7 +50,7 @@
         {
           "id": "manual-execution",
           "title": "Run one active automation end to end through operation admission, workflowruntime stages, stage receipts, durable outputs, cancellation, and restart recovery",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestAutomationManualExecution' internal \u0026\u0026 go test ./internal/operation ./internal/workflowruntime ./internal/runrecord -run 'TestAutomationManualExecution|TestAutomationCancellation|TestAutomationRecovery' -count=1",
           "rationale": "This is the first production vertical and proves the common authority without a second job runner. Every run reuses the existing operation identity, stage receipts, human decisions, attempts, and artifact lineage.",
           "depends_on": [

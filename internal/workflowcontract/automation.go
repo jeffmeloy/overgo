@@ -132,6 +132,43 @@ func (compiler AutomationCompiler) Compile(ctx context.Context, name string) (Au
 	return automationExecutionPlanCodec.New(plan)
 }
 
+// Require loads one previously compiled plan for restart recovery and verifies
+// that every exact authority it names remains available and compatible.
+func (compiler AutomationCompiler) Require(ctx context.Context, id artifact.ID) (AutomationExecutionPlan, error) {
+	if ctx == nil || compiler.Repository == nil || compiler.Catalog == nil {
+		return AutomationExecutionPlan{}, errors.New("workflow contract: automation compiler authority is absent")
+	}
+	plan, err := automationExecutionPlanCodec.Require(ctx, compiler.Repository, id)
+	if err != nil {
+		return AutomationExecutionPlan{}, err
+	}
+	definition, err := recipe.RequireDefinition(ctx, compiler.Repository, plan.Recipe)
+	if err != nil || definition.Task != plan.Task {
+		return AutomationExecutionPlan{}, errors.Join(errors.New("workflow contract: automation recovery recipe differs"), err)
+	}
+	program, err := recipe.CompileProgram(definition, compiler.Catalog)
+	if err != nil {
+		return AutomationExecutionPlan{}, err
+	}
+	resources, err := modelrecipe.CompileComponentSessionPlan(ctx, compiler.Repository, program)
+	if err != nil || resources.Identity != plan.Resources.Identity {
+		return AutomationExecutionPlan{}, errors.Join(errors.New("workflow contract: automation recovery resources differ"), err)
+	}
+	policy, err := modelrecipe.ResolveRuntimePolicy(ctx, compiler.Repository, definition)
+	if err != nil || policy.ID != plan.OperationPolicy {
+		return AutomationExecutionPlan{}, errors.Join(errors.New("workflow contract: automation recovery policy differs"), err)
+	}
+	trigger, err := recipe.RequireAutomationTriggerPolicy(ctx, compiler.Repository, plan.Trigger.ID)
+	if err != nil || trigger.ID != plan.Trigger.ID {
+		return AutomationExecutionPlan{}, errors.Join(errors.New("workflow contract: automation recovery trigger differs"), err)
+	}
+	delivery, err := recipe.RequireAutomationDeliveryPolicy(ctx, compiler.Repository, plan.Delivery.ID)
+	if err != nil || delivery.ID != plan.Delivery.ID {
+		return AutomationExecutionPlan{}, errors.Join(errors.New("workflow contract: automation recovery delivery differs"), err)
+	}
+	return plan, nil
+}
+
 // Content returns exact repository content for the compiled plan.
 func (value AutomationExecutionPlan) Content() (artifact.Content, error) {
 	return automationExecutionPlanCodec.Content(value)
@@ -153,7 +190,29 @@ func (value AutomationExecutionPlan) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, parents...)
 }
 
+// ExecutionID derives the stable operation identity for one plan and caller
+// idempotency key. Policy changes therefore cannot resume an older operation.
+func (value AutomationExecutionPlan) ExecutionID(key string) (artifact.ID, error) {
+	if automationExecutionPlanCodec.ValidateIdentity(value) != nil || key == "" {
+		return artifact.ID{}, errors.New("workflow contract: invalid automation execution identity input")
+	}
+	return artifact.JSONID(artifact.KindEvidence, struct {
+		Plan artifact.ID `json:"plan"`
+		Key  string      `json:"key"`
+	}{Plan: value.ID, Key: key})
+}
+
 func canonicalizeAutomationExecutionPlan(value *AutomationExecutionPlan) error {
+	if value == nil || value.Trigger.Version != recipe.AutomationTriggerPolicyVersion ||
+		value.Delivery.Version != recipe.AutomationDeliveryPolicyVersion {
+		return errors.New("workflow contract: invalid automation execution plan")
+	}
+	trigger, triggerErr := value.Trigger.Identify()
+	delivery, deliveryErr := value.Delivery.Identify()
+	if triggerErr != nil || deliveryErr != nil {
+		return errors.Join(errors.New("workflow contract: invalid automation policy"), triggerErr, deliveryErr)
+	}
+	value.Trigger, value.Delivery = trigger, delivery
 	if value == nil || value.Version != AutomationExecutionPlanVersion || value.Name == "" ||
 		value.Definition.Kind() != artifact.KindRecipe || value.Activation.Kind() != artifact.KindEvidence ||
 		value.Recipe.Kind() != artifact.KindRecipe || !value.Task.Valid() ||

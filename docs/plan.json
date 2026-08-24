@@ -77,12 +77,12 @@
       "id": "finding-stage-admitted-retry",
       "title": "Allow stage retry from the admitted state so a crash between admission and running recovers",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Allow stage retry from the admitted state so a crash between admission and running recovers",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/runrecord -run TestStage -count=1"
         }
       ]

@@ -137,7 +137,101 @@ func Validate(d Plan) error {
 			return fmt.Errorf("plan item %s is done with unfinished steps", item.ID)
 		}
 	}
+	return validateDependencies(d)
+}
+
+// validateDependencies refuses dangling depends_on references and
+// dependency cycles: a reference that names nothing can never satisfy,
+// and a cycle deadlocks dispatch silently. References name an item or
+// an item/step pair.
+func validateDependencies(d Plan) error {
+	itemIndex := map[string]Item{}
+	for _, item := range d.Items {
+		itemIndex[item.ID] = item
+	}
+	edges := map[string][]string{}
+	for _, item := range d.Items {
+		for _, step := range item.Steps {
+			for _, reference := range step.DependsOn {
+				target, _, _ := strings.Cut(reference, "/")
+				if err := resolveDependency(itemIndex, reference); err != nil {
+					return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
+				}
+				if target != item.ID {
+					edges[item.ID] = append(edges[item.ID], target)
+				}
+			}
+		}
+	}
+	visiting, settled := map[string]bool{}, map[string]bool{}
+	var walk func(string) error
+	walk = func(id string) error {
+		if visiting[id] {
+			return fmt.Errorf("plan dependency cycle through item %s", id)
+		}
+		if settled[id] {
+			return nil
+		}
+		visiting[id] = true
+		for _, next := range edges[id] {
+			if err := walk(next); err != nil {
+				return err
+			}
+		}
+		visiting[id], settled[id] = false, true
+		return nil
+	}
+	for id := range edges {
+		if err := walk(id); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func resolveDependency(items map[string]Item, reference string) error {
+	itemID, stepID, hasStep := strings.Cut(reference, "/")
+	item, found := items[itemID]
+	if !found {
+		return fmt.Errorf("depends_on names unknown item %q", reference)
+	}
+	if !hasStep {
+		return nil
+	}
+	if !slices.ContainsFunc(item.Steps, func(step Step) bool { return step.ID == stepID }) {
+		return fmt.Errorf("depends_on names unknown step %q", reference)
+	}
+	return nil
+}
+
+// dependenciesSatisfied reports whether every depends_on reference is
+// done: a bare item reference requires the item done, an item/step
+// reference requires that step done.
+func dependenciesSatisfied(d Plan, step Step) bool {
+	for _, reference := range step.DependsOn {
+		itemID, stepID, hasStep := strings.Cut(reference, "/")
+		satisfied := false
+		for _, item := range d.Items {
+			if item.ID != itemID {
+				continue
+			}
+			if !hasStep {
+				satisfied = item.Status == StatusDone
+				break
+			}
+			for _, candidate := range item.Steps {
+				if candidate.ID == stepID {
+					satisfied = candidate.Status == StatusDone
+					break
+				}
+			}
+			break
+		}
+		if !satisfied {
+			return false
+		}
+	}
+	return true
 }
 
 var doctrineMetricLiteral = regexp.MustCompile(`(?i)\b[0-9][0-9,]*\s+(?:production\s+files?|files?|literals?|assumptions?|policy\s+copies)\b`)
@@ -175,10 +269,21 @@ func currentOwned(d Plan, owner string) (Item, Step, bool) {
 		if it.Status != StatusOpen || it.Owner != owner {
 			continue
 		}
+		blocked := false
 		for _, s := range it.Steps {
-			if s.Status == StatusOpen {
+			if s.Status != StatusOpen {
+				continue
+			}
+			// depends_on is enforced, not descriptive: a step whose
+			// dependencies are not done cannot dispatch, whatever the
+			// file order says.
+			if dependenciesSatisfied(d, s) {
 				return it, s, true
 			}
+			blocked = true
+		}
+		if blocked {
+			continue
 		}
 		return it, Step{ID: ".", Title: "open the rung (define its steps)"}, true
 	}

@@ -483,7 +483,7 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		return
 	}
 	defer plan.release()
-	id := "chatcmpl-" + strconv.FormatUint(h.nextID.Add(1), 10)
+	id := "chatcmpl-" + strconv.FormatUint(h.nextID.Add(1), identifierRadix)
 	if body.Stream {
 		h.streamChatCompletion(
 			response,

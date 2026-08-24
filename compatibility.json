@@ -731,7 +731,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:a08e0eda298da914bf7d8ad3c663a03bcc2a850f1ac7ac46b224e1603a3eccca"
+     "identity": "file:sha256:92597cd748fc5ac2e15661283115549916238ef194ece5fef9ba31b7d63b3978"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -800,7 +800,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:db177828292769ffc729531b6ab0b38b5c4faa3e14156d6b9d4116e1f375950f"
+     "identity": "file:sha256:efb3aa768a203293078c9bddf393f44501fafbebce6755bdc395d745f3f929f6"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -884,7 +884,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:a08e0eda298da914bf7d8ad3c663a03bcc2a850f1ac7ac46b224e1603a3eccca"
+     "identity": "file:sha256:92597cd748fc5ac2e15661283115549916238ef194ece5fef9ba31b7d63b3978"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",

@@ -2,6 +2,8 @@ package server
 
 import "overgo/internal/inference"
 
+const firstEventIndex = 0
+
 type responsesStreamEvent struct {
 	Arguments    *string `json:"arguments,omitempty"`
 	Delta        any     `json:"delta,omitempty"`

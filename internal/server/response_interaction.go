@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	responseIdentityRadix = 10
-	responseIdentityBits  = 64
+	identifierRadix = 10
+	identifierBits  = 64
 )
 
 func cloneResponseMessages(messages []inference.ChatMessage) []inference.ChatMessage {
@@ -192,7 +192,7 @@ func (h *Handler) observeResponseID(responseID string) {
 	if !found {
 		return
 	}
-	value, err := strconv.ParseUint(suffix, responseIdentityRadix, responseIdentityBits)
+	value, err := strconv.ParseUint(suffix, identifierRadix, identifierBits)
 	if err != nil {
 		return
 	}

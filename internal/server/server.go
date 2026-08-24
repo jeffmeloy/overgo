@@ -514,6 +514,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 		slotTasks:           make([]atomic.Uint64, config.MaxConcurrent),
 		slotStats:           make([]slotRuntimeStats, config.MaxConcurrent),
 		started:             time.Now(),
+		downloads:           newDownloadRegistry(config.MaxConcurrent, config.MaxStoredResponses),
 		mediaFetcher:        mediaFetcher,
 		responseFiles:       config.ResponseFiles,
 		thinkingSigner:      thinkingSigner,

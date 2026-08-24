@@ -206,7 +206,7 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 		return
 	}
 	defer plan.release()
-	id := "cmpl-" + strconv.FormatUint(h.nextID.Add(1), 10)
+	id := "cmpl-" + strconv.FormatUint(h.nextID.Add(1), identifierRadix)
 	if body.Stream {
 		h.streamCompletion(response, request, plan, id, body.N)
 		return

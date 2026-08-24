@@ -16,7 +16,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/sampling"
 	"overgo/internal/testutil"
 )
@@ -55,7 +55,7 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	if storePath == "" {
 		t.Skip("child process probe requires OVERGO_CARBON_REPODB")
 	}
-	store, err := repodb.Open(storePath)
+	store, err := overgodb.Open(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

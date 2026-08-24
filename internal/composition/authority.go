@@ -14,14 +14,14 @@ import (
 const (
 	// BridgeDefinitionVersion is the immutable bridge-definition document version.
 	BridgeDefinitionVersion = artifact.InitialDocumentVersion
-	// BridgeDefinitionMediaType identifies bridge-definition content in RepoDB.
+	// BridgeDefinitionMediaType identifies bridge-definition content in OvergoDB.
 	BridgeDefinitionMediaType = "application/vnd.overgo.representation-bridge-definition+json"
 	// BridgeDefinitionSchema identifies the bridge-definition wire schema.
 	BridgeDefinitionSchema = "overgo/representation-bridge-definition/v1"
 
 	// CompositionRecipeVersion is the immutable composition-recipe document version.
 	CompositionRecipeVersion = artifact.InitialDocumentVersion
-	// CompositionRecipeMediaType identifies composition-recipe content in RepoDB.
+	// CompositionRecipeMediaType identifies composition-recipe content in OvergoDB.
 	CompositionRecipeMediaType = "application/vnd.overgo.composition-recipe+json"
 	// CompositionRecipeSchema identifies the composition-recipe wire schema.
 	CompositionRecipeSchema = "overgo/composition-recipe/v1"
@@ -306,7 +306,7 @@ func LoadCompositionRecipe(ctx context.Context, reader artifact.Reader, id artif
 }
 
 // ActivationBatch prepares one compare-and-set activation after resolving
-// every immutable authority named by the recipe. RepoDB remains the sole
+// every immutable authority named by the recipe. OvergoDB remains the sole
 // mutation boundary.
 func (value CompositionRecipe) ActivationBatch(
 	ctx context.Context,

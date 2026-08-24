@@ -366,7 +366,7 @@ func LoadReviewAdmission(ctx context.Context, reader artifact.Reader, verdictID 
 	return loadReviewAdmission(ctx, reader, candidate, verdict)
 }
 
-// DeriveReviewPriority maps Git HEAD plus admitted RepoDB review evidence to
+// DeriveReviewPriority maps Git HEAD plus admitted OvergoDB review evidence to
 // implementation -> SQA -> priority. Invalid or rejected verdicts do not
 // advance the phase; incomplete evidence for the current candidate is loud.
 func DeriveReviewPriority(

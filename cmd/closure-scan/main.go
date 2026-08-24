@@ -21,8 +21,8 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/overgodb"
 	"overgo/internal/repoanalysis"
-	"overgo/internal/repodb"
 	"overgo/internal/strictjson"
 )
 
@@ -53,15 +53,15 @@ type testRequirements struct {
 
 func main() {
 	triagePath := flag.String("triage", "", "triage JSON ({rows:[{kind,name,file,scope,line,tier,status,understanding,closure_path,rerank_trigger}]})")
-	storePath := flag.String("store", "repodb-store", "RepoDB store directory (emit mode)")
+	storePath := flag.String("store", "overgodb-store", "OvergoDB store directory (emit mode)")
 	limit := flag.Int("limit", 40, "report mode: top-N candidates to print")
 	literals := flag.Bool("literals", false, "report classified production literals instead of declared constants")
 	testLiterals := flag.Bool("test-literals", false, "report classified test literals and production overlaps")
 	assumptions := flag.Bool("assumptions", false, "report syntax-derived distribution, geometry, and shape hints")
 	census := flag.Bool("census", false, "report complete source denominators and consolidation pressure")
 	format := flag.String("format", "text", "census format: text or json")
-	publish := flag.Bool("publish", false, "publish census evidence to RepoDB")
-	importStore := flag.String("import-store", "", "import and rebind matching active decisions from another RepoDB store")
+	publish := flag.Bool("publish", false, "publish census evidence to OvergoDB")
+	importStore := flag.String("import-store", "", "import and rebind matching active decisions from another OvergoDB store")
 	checkScope := flag.String("check-scope", "", "comma-separated production package prefixes to validate")
 	checkAll := flag.Bool("check-all", false, "validate every production package")
 	checkTests := flag.Bool("check-tests", false, "validate test literal ownership")
@@ -133,7 +133,7 @@ func main() {
 			fatal(err)
 		}
 		if *publish {
-			store, err := repodb.Open(filepath.Join(root, *storePath))
+			store, err := overgodb.Open(filepath.Join(root, *storePath))
 			if err != nil {
 				fatal(err)
 			}
@@ -216,7 +216,7 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 	if err != nil {
 		return err
 	}
-	store, err := repodb.OpenReadOnly(filepath.Join(root, storePath))
+	store, err := overgodb.OpenReadOnly(filepath.Join(root, storePath))
 	if err != nil {
 		return err
 	}
@@ -365,7 +365,7 @@ func scopedPath(path string, prefixes []string) bool {
 	})
 }
 
-func publishCensusEvidence(ctx context.Context, store *repodb.Store, snapshot repoanalysis.SourceSnapshot, census closurescan.Census) (closurescan.CensusEvidence, error) {
+func publishCensusEvidence(ctx context.Context, store *overgodb.Store, snapshot repoanalysis.SourceSnapshot, census closurescan.Census) (closurescan.CensusEvidence, error) {
 	active, _, err := activeClosureDocuments(ctx, store)
 	if err != nil {
 		return closurescan.CensusEvidence{}, err
@@ -413,11 +413,11 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 	sourceInfo, sourceErr := os.Stat(sourcePath)
 	destinationInfo, destinationErr := os.Stat(destinationPath)
 	sameStore := sourceErr == nil && destinationErr == nil && os.SameFile(sourceInfo, destinationInfo)
-	source, err := repodb.OpenReadOnly(sourcePath)
+	source, err := overgodb.OpenReadOnly(sourcePath)
 	if err != nil {
 		return count, unmatched, first, err
 	}
-	var target *repodb.Store
+	var target *overgodb.Store
 	defer func() {
 		if source != nil {
 			finalErr = errors.Join(finalErr, source.Close())
@@ -434,7 +434,7 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 	if sameStore {
 		target = source
 	} else {
-		target, err = repodb.Open(destinationPath)
+		target, err = overgodb.Open(destinationPath)
 		if err != nil {
 			return count, unmatched, first, err
 		}
@@ -518,7 +518,7 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 	return len(rebound), unmatched, first, nil
 }
 
-func closureFixtureImports(ctx context.Context, source, target *repodb.Store, documents []closureledger.Document) ([]artifact.Descriptor, error) {
+func closureFixtureImports(ctx context.Context, source, target *overgodb.Store, documents []closureledger.Document) ([]artifact.Descriptor, error) {
 	var descriptors []artifact.Descriptor
 	for _, document := range documents {
 		if _, found, err := target.Artifact(ctx, document.Fixture); err != nil {
@@ -535,14 +535,14 @@ func closureFixtureImports(ctx context.Context, source, target *repodb.Store, do
 	return descriptors, nil
 }
 
-func activeClosureDocuments(ctx context.Context, store *repodb.Store) ([]closureledger.Document, map[string]artifact.ID, error) {
+func activeClosureDocuments(ctx context.Context, store *overgodb.Store) ([]closureledger.Document, map[string]artifact.ID, error) {
 	documents := make([]closureledger.Document, 0)
 	aliases := map[string]artifact.ID{}
-	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: closureledger.MediaType, Schema: closureledger.Schema,
-		}}, AliasPrefixes: []string{closureledger.ActiveAliasPrefix}, Order: repodb.DocumentOldestFirst,
-	}, closureledger.Parse, func(view repodb.DocumentView, document closureledger.Document) error {
+		}}, AliasPrefixes: []string{closureledger.ActiveAliasPrefix}, Order: overgodb.DocumentOldestFirst,
+	}, closureledger.Parse, func(view overgodb.DocumentView, document closureledger.Document) error {
 		documents = append(documents, document)
 		for _, name := range view.Aliases {
 			aliases[name] = document.ID
@@ -672,7 +672,7 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 }
 
 func commitClosureDocuments(root, storePath string, documents []closureledger.Document, retirements []artifact.AliasBinding, fixtures []artifact.Descriptor) (int, artifact.CommitID, error) {
-	store, err := repodb.Open(storePath)
+	store, err := overgodb.Open(storePath)
 	if err != nil {
 		return 0, artifact.CommitID{}, err
 	}

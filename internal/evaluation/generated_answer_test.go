@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
@@ -43,7 +43,7 @@ func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
 	if plan.Identity() == otherPlan.Identity() {
 		t.Fatal("normalization profile did not change evaluation identity")
 	}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

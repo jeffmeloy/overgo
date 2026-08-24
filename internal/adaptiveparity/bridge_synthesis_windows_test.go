@@ -12,8 +12,8 @@ import (
 	"overgo/internal/composition"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -53,7 +53,7 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 	if len(tokens) < 3*synthesisWindow {
 		t.Fatalf("recorded profile stream too short: %d tokens", len(tokens))
 	}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

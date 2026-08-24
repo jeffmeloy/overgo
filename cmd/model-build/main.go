@@ -13,7 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/modelbuilder"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
 	"overgo/internal/workflowruntime"
 )
@@ -23,7 +23,7 @@ func main() { clioptions.Main(func() error { return run(os.Args[1:], os.Stdout) 
 func run(args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("model-build", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	repository := flags.String("repo", "repodb-store", "RepoDB store")
+	repository := flags.String("repo", "overgodb-store", "OvergoDB store")
 	dataset := flags.String("dataset", "", "JSON string-array corpus")
 	seed := flags.Int64("seed", 1, "construction seed")
 	steps := flags.Int("steps", 1, "training steps")
@@ -41,7 +41,7 @@ func run(args []string, output io.Writer) error {
 	if err = strictjson.Decode(bytes.NewReader(raw), &documents); err != nil {
 		return fmt.Errorf("decode corpus: %w", err)
 	}
-	store, err := repodb.Open(*repository)
+	store, err := overgodb.Open(*repository)
 	if err != nil {
 		return err
 	}

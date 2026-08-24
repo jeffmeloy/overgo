@@ -10,8 +10,8 @@ import (
 	"overgo/internal/bridgegraph"
 	"overgo/internal/composition"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/representation"
 	"overgo/internal/runrecord"
 	"overgo/internal/tensor"
@@ -246,9 +246,9 @@ func transformedRepresentationCacheFixture(t *testing.T) (*ProductionComposition
 	return runtime, source
 }
 
-func productionCompositionFixture(t *testing.T, activate bool) (*repodb.Store, composition.CompositionAuthority) {
+func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store, composition.CompositionAuthority) {
 	t.Helper()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,7 +14,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
 )
 
@@ -141,7 +141,7 @@ func compileManifest(value manifest) (manifest, error) {
 }
 
 func catalogBenchmarks(ctx context.Context, value manifest) error {
-	store, err := repodb.Open(value.Repository)
+	store, err := overgodb.Open(value.Repository)
 	if err != nil {
 		return err
 	}

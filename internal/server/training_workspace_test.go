@@ -12,9 +12,9 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/operation"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
@@ -26,7 +26,7 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
 	roots := dataroot.Roots{Models: filepath.Join(root, "models"), Datasets: filepath.Join(root, "datasets"), Checkpoints: filepath.Join(root, "checkpoints")}
-	store, err := repodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Open(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
 			root := t.TempDir()
-			store, err := repodb.Open(filepath.Join(root, "store"))
+			store, err := overgodb.Open(filepath.Join(root, "store"))
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
@@ -35,7 +35,7 @@ func TestGateDebtReconciliation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(filepath.Join(repo, storePath))
+	store, err := overgodb.Open(filepath.Join(repo, storePath))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestGateDebtReconciliation(t *testing.T) {
 		Contents: []artifact.Content{finalizedContent}, Lineage: finalized.Lineage(),
 	}
 	g := gateContext{repo: repo, preparation: prepared}
-	if err := g.oweRecord(batch, errors.New("injected RepoDB outage")); err == nil {
+	if err := g.oweRecord(batch, errors.New("injected OvergoDB outage")); err == nil {
 		t.Fatal("oweRecord hid the triggering failure")
 	}
 	if got, err := reconcileGateDebt(repo, storePath); err != nil || got != prepared.ID {

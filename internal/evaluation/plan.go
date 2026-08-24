@@ -186,7 +186,7 @@ func (p Plan) Lineage() []artifact.Lineage {
 	)
 }
 
-// Content returns the native RepoDB document for external adapter publication.
+// Content returns the native OvergoDB document for external adapter publication.
 func (p Plan) Content() (artifact.Content, error) {
 	if err := p.ValidateIdentity(); err != nil {
 		return artifact.Content{}, err

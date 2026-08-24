@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/trainingprogram"
 )
 
@@ -22,7 +22,7 @@ func TestBootstrapTokenRecipeBindsStoredOptimizerPolicy(t *testing.T) {
 	if err := os.WriteFile(datasetPath, []byte("training data"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(filepath.Join(root, "repodb"))
+	store, err := overgodb.Open(filepath.Join(root, "repodb"))
 	if err != nil {
 		t.Fatal(err)
 	}

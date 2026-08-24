@@ -14,9 +14,9 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/dataroot"
 	"overgo/internal/hfbpe"
+	"overgo/internal/overgodb"
 	"overgo/internal/patchtower"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/routedlm"
 )
 
@@ -56,7 +56,7 @@ func readEOSTokenIDs(modelDir string) ([]int, error) {
 }
 
 // openRecipeStore: writable workflow lineage store.
-func openRecipeStore(repo string) (*repodb.Store, error) {
+func openRecipeStore(repo string) (*overgodb.Store, error) {
 	repository := repo
 	if repository == "" {
 		roots, err := dataroot.ResolveCurrent()
@@ -65,7 +65,7 @@ func openRecipeStore(repo string) (*repodb.Store, error) {
 		}
 		repository = roots.Store
 	}
-	return repodb.Open(repository)
+	return overgodb.Open(repository)
 }
 
 type preparedVQA struct {

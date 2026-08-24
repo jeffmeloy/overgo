@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
@@ -139,7 +139,7 @@ func TestDeterministicParallelReceipts(t *testing.T) {
 }
 
 type parallelFixture struct {
-	store     *repodb.Store
+	store     *overgodb.Store
 	program   recipe.Program
 	runtime   *Runtime
 	operation artifact.ID
@@ -147,7 +147,7 @@ type parallelFixture struct {
 
 func newParallelFixture(t *testing.T) parallelFixture {
 	t.Helper()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

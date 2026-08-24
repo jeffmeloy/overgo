@@ -24,9 +24,9 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/inference"
 	"overgo/internal/operation"
+	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
@@ -241,11 +241,11 @@ type Config struct {
 	VideoFPS           float64
 	VideoMaxFrames     int
 	// Browse surfaces (read-only): the datasets root (holding manifest.json) and
-	// the RepoDB store path (for run/artifact browsing). Empty disables the
+	// the OvergoDB store path (for run/artifact browsing). Empty disables the
 	// corresponding /datasets or /runs endpoint.
 	DatasetsRoot string
-	RepoDBPath   string
-	Repository   *repodb.Store
+	OvergoDBPath string
+	Repository   *overgodb.Store
 	// HubEndpoint and HubToken configure Hugging Face intake; an empty
 	// endpoint means the public hub. HubDownloadRoot is the only directory
 	// download jobs may write under; empty disables downloads.
@@ -391,8 +391,8 @@ type Handler struct {
 	thinkingSigner     *anthropicThinkingSigner
 	operations         *operation.Manager
 	tools              toolCallExecutor
-	repository         *repodb.Store
-	browseRepository   *repodb.Store
+	repository         *overgodb.Store
+	browseRepository   *overgodb.Store
 	environment        runrecord.Environment
 	modelArtifact      artifact.ID
 	observationErrors  atomic.Uint64
@@ -482,9 +482,9 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	var browseRepository *repodb.Store
-	if repository == nil && config.RepoDBPath != "" {
-		browseRepository, err = repodb.OpenReadOnly(config.RepoDBPath)
+	var browseRepository *overgodb.Store
+	if repository == nil && config.OvergoDBPath != "" {
+		browseRepository, err = overgodb.OpenReadOnly(config.OvergoDBPath)
 		if err != nil {
 			return nil, fmt.Errorf("server browse repository: %w", err)
 		}

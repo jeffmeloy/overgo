@@ -29,9 +29,9 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 
+	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 
 	"overgo/internal/sampling"
 	"overgo/internal/testutil"
@@ -972,7 +972,7 @@ func newTestHandler(t testing.TB, generator Generator) *Handler {
 
 func newTestHandlerWithRepository(t testing.TB, generator Generator) *Handler {
 	t.Helper()
-	repository, err := repodb.Open(t.TempDir())
+	repository, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -981,7 +981,7 @@ func newTestHandlerWithRepository(t testing.TB, generator Generator) *Handler {
 	return handler
 }
 
-func newTestHandlerForRepository(t testing.TB, repository *repodb.Store, generator Generator) *Handler {
+func newTestHandlerForRepository(t testing.TB, repository *overgodb.Store, generator Generator) *Handler {
 	t.Helper()
 	if inspector, ok := generator.(interface {
 		RecipeRuntimeDescription(recipe.Task) (modelrecipe.RuntimeDescription, error)

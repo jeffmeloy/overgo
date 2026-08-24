@@ -157,7 +157,7 @@ const (
 	HeartbeatAbsent     GateHeartbeatState = "absent"
 )
 
-// GateHeartbeat is an advisory liveness mirror. RepoDB lifecycle documents,
+// GateHeartbeat is an advisory liveness mirror. OvergoDB lifecycle documents,
 // not this mutable file, determine whether record debt exists.
 type GateHeartbeat struct {
 	Version     uint16             `json:"version"`

@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
@@ -34,7 +34,7 @@ func TestInteractionIdentity(t *testing.T) {
 }
 
 func TestInteractionLineage(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestInteractionLineage(t *testing.T) {
 }
 
 func TestCurrentTurnProjection(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

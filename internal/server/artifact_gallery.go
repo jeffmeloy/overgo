@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 var errBrowseRepositoryUnavailable = errors.New("artifact browsing is not configured")
@@ -53,7 +53,7 @@ func (h *Handler) artifactGallery(response http.ResponseWriter, request *http.Re
 	}
 	items := make([]artifactSummary, 0, len(result.Artifacts))
 	for _, descriptor := range result.Artifacts {
-		_, payload := slices.BinarySearchFunc(result.Contents, descriptor.ID, func(content repodb.ContentView, id artifact.ID) int {
+		_, payload := slices.BinarySearchFunc(result.Contents, descriptor.ID, func(content overgodb.ContentView, id artifact.ID) int {
 			return artifact.CompareID(content.Artifact, id)
 		})
 		producers := make([]artifact.ID, 0)
@@ -101,28 +101,28 @@ func (h *Handler) artifactContent(response http.ResponseWriter, request *http.Re
 	_, _ = io.Copy(response, reader)
 }
 
-func (h *Handler) artifactQuery(request *http.Request) (repodb.Query, int, error) {
+func (h *Handler) artifactQuery(request *http.Request) (overgodb.Query, int, error) {
 	values := request.URL.Query()
 	limit := parseIntDefault(values.Get("limit"), h.config.MaxStoredResponses)
 	var selected *artifact.ID
 	if value := values.Get("id"); value != "" {
 		id, err := artifact.ParseID(value)
 		if err != nil {
-			return repodb.Query{}, 0, err
+			return overgodb.Query{}, 0, err
 		}
 		selected = &id
 	}
 	if limit <= 0 || limit > h.config.MaxStoredResponses {
-		return repodb.Query{}, 0, errors.New("artifact gallery: invalid limit")
+		return overgodb.Query{}, 0, errors.New("artifact gallery: invalid limit")
 	}
-	query := repodb.Query{
+	query := overgodb.Query{
 		Artifact: selected, MaxResults: limit,
-		Projection: repodb.ProjectArtifacts | repodb.ProjectContentPresence | repodb.ProjectParents,
+		Projection: overgodb.ProjectArtifacts | overgodb.ProjectContentPresence | overgodb.ProjectParents,
 	}
 	if value := values.Get("cursor"); value != "" {
-		cursor, err := repodb.ParseQueryCursor(value)
+		cursor, err := overgodb.ParseQueryCursor(value)
 		if err != nil {
-			return repodb.Query{}, 0, err
+			return overgodb.Query{}, 0, err
 		}
 		query.Cursor = &cursor
 	}
@@ -130,21 +130,21 @@ func (h *Handler) artifactQuery(request *http.Request) (repodb.Query, int, error
 		value := values.Get("kind")
 		kind, err := artifact.ParseKind(value)
 		if err != nil {
-			return repodb.Query{}, 0, err
+			return overgodb.Query{}, 0, err
 		}
 		query.Kind = kind
 	}
 	return query, limit, nil
 }
 
-func encodeNextCursor(cursor *repodb.QueryCursor) (string, error) {
+func encodeNextCursor(cursor *overgodb.QueryCursor) (string, error) {
 	if cursor == nil {
 		return "", nil
 	}
-	return repodb.EncodeQueryCursor(*cursor)
+	return overgodb.EncodeQueryCursor(*cursor)
 }
 
-func (h *Handler) browseStore(ctx context.Context) (*repodb.Store, error) {
+func (h *Handler) browseStore(ctx context.Context) (*overgodb.Store, error) {
 	if h.repository != nil {
 		return h.repository, nil
 	}
@@ -157,7 +157,7 @@ func (h *Handler) browseStore(ctx context.Context) (*repodb.Store, error) {
 	return h.browseRepository, nil
 }
 
-func (h *Handler) requireBrowseStore(response http.ResponseWriter, request *http.Request) (*repodb.Store, bool) {
+func (h *Handler) requireBrowseStore(response http.ResponseWriter, request *http.Request) (*overgodb.Store, bool) {
 	store, err := h.browseStore(request.Context())
 	if errors.Is(err, errBrowseRepositoryUnavailable) {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "artifact browsing is not configured")

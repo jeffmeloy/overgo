@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
@@ -81,7 +81,7 @@ func TestModelBuildUsesRecipeStageReceipts(t *testing.T) {
 
 func testRepository(t testing.TB) artifact.Repository {
 	t.Helper()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

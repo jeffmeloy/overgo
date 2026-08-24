@@ -8,9 +8,9 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
-	"overgo/internal/repodb"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
 )
@@ -22,7 +22,7 @@ import (
 // grounds by content, the split and policy profiles identify by declared
 // names, and the activation reason records that this is the bootstrap.
 // The activated recipe definition identity returns for the caller's run.
-func BootstrapTokenRecipe(ctx context.Context, store *repodb.Store, modelPath, datasetPath string) (artifact.ID, error) {
+func BootstrapTokenRecipe(ctx context.Context, store *overgodb.Store, modelPath, datasetPath string) (artifact.ID, error) {
 	modelFile, err := os.Open(modelPath)
 	if err != nil {
 		return artifact.ID{}, err

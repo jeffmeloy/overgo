@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
 
@@ -76,7 +76,7 @@ func TestGenerationRecordBindsFullProvenance(t *testing.T) {
 		}
 	}
 
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

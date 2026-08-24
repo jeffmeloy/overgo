@@ -20,7 +20,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/controlleraction"
 	"overgo/internal/modelmerge"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func main() {
@@ -34,7 +34,7 @@ func run(args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("controller-action", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	actionPath := flags.String("action", "", "path to the typed action document (JSON)")
-	recordStore := flags.String("record", "", "RepoDB root: commit the compiled artifacts")
+	recordStore := flags.String("record", "", "OvergoDB root: commit the compiled artifacts")
 	outputPath := flags.String("output", "", "offline artifact output directory")
 	var sources streamingSourceFlags
 	flags.Var(&sources, "source", "offline source as MODEL_ID=SAFETENSORS_DIRECTORY; repeat for every input")
@@ -52,7 +52,7 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	store, err := repodb.Open(*recordStore)
+	store, err := overgodb.Open(*recordStore)
 	if err != nil {
 		return err
 	}

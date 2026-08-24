@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/strictjson"
 	"overgo/internal/testutil"
 )
@@ -76,7 +76,7 @@ func toolExecutorFixture(
 	execute func(context.Context, recipe.ToolCall) (recipe.ToolResult, error),
 ) *ToolExecutor {
 	t.Helper()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

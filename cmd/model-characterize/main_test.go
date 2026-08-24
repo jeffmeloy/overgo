@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/modelartifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 // TestCharacterizeCatalogEmptyStore exercises the catalog wiring end to end over
@@ -20,7 +20,7 @@ func TestCharacterizeCatalogEmptyStore(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(dir)
+	store, err := overgodb.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

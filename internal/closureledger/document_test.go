@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
 
@@ -80,7 +80,7 @@ func TestPermanentMagicGateRejectsIncompleteClosureEvidence(t *testing.T) {
 
 func TestPublicationRequiresStoredOwnerAndFixture(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestPublicationRequiresStoredOwnerAndFixture(t *testing.T) {
 
 func TestActiveBindingsResolveExactOwnerAndValue(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,10 +176,10 @@ func TestActiveBindingsRejectAmbiguousOrStaleRows(t *testing.T) {
 	})
 }
 
-func activeFixture(t *testing.T) (context.Context, *repodb.Store, SourceBinding, artifact.ID) {
+func activeFixture(t *testing.T) (context.Context, *overgodb.Store, SourceBinding, artifact.ID) {
 	t.Helper()
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func activeFixture(t *testing.T) (context.Context, *repodb.Store, SourceBinding,
 func publishActiveDocument(
 	t *testing.T,
 	ctx context.Context,
-	store *repodb.Store,
+	store *overgodb.Store,
 	binding SourceBinding,
 	fixture artifact.ID,
 	value json.RawMessage,

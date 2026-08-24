@@ -7,8 +7,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/model"
 	"overgo/internal/modeltest"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowrecipe"
 )
@@ -350,7 +350,7 @@ func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

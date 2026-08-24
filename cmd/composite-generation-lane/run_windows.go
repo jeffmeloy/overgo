@@ -27,8 +27,8 @@ import (
 	"overgo/internal/latentvideo"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/representation"
 	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
@@ -99,7 +99,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	store, err := repodb.Open(roots.Store)
+	store, err := overgodb.Open(roots.Store)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func run() error {
 
 func resolveLaneCatalog(
 	ctx context.Context,
-	store *repodb.Store,
+	store *overgodb.Store,
 	roots dataroot.Roots,
 	config laneConfig,
 ) (laneCatalog, error) {
@@ -234,7 +234,7 @@ func resolveLaneCatalog(
 
 func ensureLaneComposition(
 	ctx context.Context,
-	store *repodb.Store,
+	store *overgodb.Store,
 	catalog laneCatalog,
 	config laneConfig,
 	textLength, channels int,
@@ -641,7 +641,7 @@ func executeWanGeneration(
 
 func publishLaneEvidence(
 	ctx context.Context,
-	store *repodb.Store,
+	store *overgodb.Store,
 	config laneConfig,
 	catalog laneCatalog,
 	authority laneAuthority,

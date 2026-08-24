@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowrecipe"
@@ -261,9 +261,9 @@ func TestValidateOutputsAllowsAbsentOptionalPort(t *testing.T) {
 	}
 }
 
-func runtimeFixture(t *testing.T) (*repodb.Store, recipe.Program) {
+func runtimeFixture(t *testing.T) (*overgodb.Store, recipe.Program) {
 	t.Helper()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

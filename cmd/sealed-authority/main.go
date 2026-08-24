@@ -13,13 +13,13 @@ import (
 	"time"
 
 	"overgo/internal/jsonfile"
+	"overgo/internal/overgodb"
 	"overgo/internal/protection"
-	"overgo/internal/repodb"
 )
 
 func main() {
 	listen := flag.String("listen", "127.0.0.1:8099", "service address")
-	storePath := flag.String("store", "sealed-repodb", "service-owned RepoDB")
+	storePath := flag.String("store", "sealed-repodb", "service-owned OvergoDB")
 	publicText := flag.String("public-key", "", "base64 Ed25519 authority public key")
 	maxRequestBytes := flag.Int64("max-request-bytes", 0, "required signed-request byte bound")
 	readHeaderTimeout := flag.Duration("read-header-timeout", 0, "required HTTP header timeout")
@@ -74,7 +74,7 @@ func run(listen, storePath, publicText, tlsCertificate, tlsKey string, maxReques
 	if err != nil || len(public) != ed25519.PublicKeySize || tlsCertificate == "" || tlsKey == "" || maxRequestBytes <= 0 || readHeaderTimeout <= 0 {
 		return errors.New("valid public key, TLS identity, and positive request/time bounds required")
 	}
-	store, err := repodb.Open(storePath)
+	store, err := overgodb.Open(storePath)
 	if err != nil {
 		return err
 	}

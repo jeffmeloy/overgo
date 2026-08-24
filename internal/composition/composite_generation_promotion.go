@@ -72,7 +72,7 @@ func (CompositeGenerationPromotionAuthority) Parse(data []byte) (CompositeGenera
 	return compositeGenerationPromotionCodec.Parse(data)
 }
 
-// Load requires exact surface-promotion content from RepoDB.
+// Load requires exact surface-promotion content from OvergoDB.
 func (CompositeGenerationPromotionAuthority) Load(
 	ctx context.Context,
 	reader artifact.Reader,

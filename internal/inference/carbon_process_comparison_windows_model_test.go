@@ -14,9 +14,9 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/servingtest"
 	"overgo/internal/testutil"
 )
@@ -35,7 +35,7 @@ func TestCarbonColdLifecyclePhases(t *testing.T) {
 		t.Fatal(err)
 	}
 	storePath := filepath.Join(t.TempDir(), "repodb")
-	store, err := repodb.Open(storePath)
+	store, err := overgodb.Open(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

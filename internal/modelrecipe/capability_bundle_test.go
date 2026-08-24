@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
@@ -35,10 +35,10 @@ func TestUnpromotedBundleRefusal(t *testing.T) {
 	}
 }
 
-func capabilityBundleFixture(t *testing.T) (*repodb.Store, artifact.ID, recipe.Definition, artifact.Manifest) {
+func capabilityBundleFixture(t *testing.T) (*overgodb.Store, artifact.ID, recipe.Definition, artifact.Manifest) {
 	t.Helper()
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

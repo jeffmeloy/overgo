@@ -20,9 +20,9 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
+	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/recipecontract"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 	"overgo/internal/trainingdata"
@@ -176,7 +176,7 @@ func TestMultimodalTrainingMatrix(t *testing.T) {
 	}
 	trainWall := time.Since(started)
 
-	store, err := repodb.Open(filepath.Join(t.TempDir(), "objective-store"))
+	store, err := overgodb.Open(filepath.Join(t.TempDir(), "objective-store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ type matrixObjectiveEvidence struct {
 
 type matrixMeasurement struct{ loss, accuracy float64 }
 
-func publishMatrixObjectives(t *testing.T, store *repodb.Store, evidence []matrixObjectiveEvidence) []artifact.ID {
+func publishMatrixObjectives(t *testing.T, store *overgodb.Store, evidence []matrixObjectiveEvidence) []artifact.ID {
 	t.Helper()
 	ids := func(kind artifact.Kind, value string) artifact.ID {
 		id, err := artifact.IdentifyBytes(kind, []byte(value))

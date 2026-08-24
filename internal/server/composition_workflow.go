@@ -11,8 +11,8 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/strictjson"
 )
 
@@ -112,11 +112,11 @@ func (h *Handler) compositionInventory(response http.ResponseWriter, request *ht
 		return
 	}
 	views := make([]compositionWorkflowView, 0)
-	_, err := repodb.VisitDecodedDocuments(request.Context(), h.repository, repodb.DocumentQuery{
+	_, err := overgodb.VisitDecodedDocuments(request.Context(), h.repository, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindRecipe, MediaType: composition.CompositionRecipeMediaType, Schema: composition.CompositionRecipeSchema,
-		}}, Order: repodb.DocumentNewestFirst,
-	}, composition.ParseCompositionRecipe, func(_ repodb.DocumentView, value composition.CompositionRecipe) error {
+		}}, Order: overgodb.DocumentNewestFirst,
+	}, composition.ParseCompositionRecipe, func(_ overgodb.DocumentView, value composition.CompositionRecipe) error {
 		views = append(views, h.compositionWorkflowView(request.Context(), value))
 		return nil
 	})

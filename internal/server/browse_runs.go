@@ -8,7 +8,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
@@ -57,7 +57,7 @@ type browseRunDetail struct {
 	Children    []artifact.Lineage      `json:"children"`
 }
 
-// browseRuns lists run artifacts from the retained RepoDB view.
+// browseRuns lists run artifacts from the retained OvergoDB view.
 func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return
@@ -92,15 +92,15 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 	if limit > browseRunsMaxLimit {
 		limit = browseRunsMaxLimit
 	}
-	documents := repodb.DocumentQuery{
+	documents := overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{
 			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.LegacyRunSchema},
 			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.RunSchema},
 		},
-		Order: repodb.DocumentNewestFirst, MaxResults: limit,
+		Order: overgodb.DocumentNewestFirst, MaxResults: limit,
 	}
 	if value := query.Get("cursor"); value != "" {
-		cursor, parseErr := repodb.ParseQueryCursor(value)
+		cursor, parseErr := overgodb.ParseQueryCursor(value)
 		if parseErr != nil {
 			writeInvalidRequest(response, parseErr)
 			return
@@ -108,8 +108,8 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 		documents.Cursor = &cursor
 	}
 	runs := make([]browseRunEntry, 0, limit)
-	result, err := repodb.VisitDecodedDocuments(request.Context(), store, documents, runrecord.ParseRun,
-		func(_ repodb.DocumentView, run runrecord.Run) error {
+	result, err := overgodb.VisitDecodedDocuments(request.Context(), store, documents, runrecord.ParseRun,
+		func(_ overgodb.DocumentView, run runrecord.Run) error {
 			runs = append(runs, shapeRun(run))
 			return nil
 		})
@@ -129,7 +129,7 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 	})
 }
 
-func loadRunDetail(ctx context.Context, store *repodb.Store, id artifact.ID) (browseRunDetail, bool, error) {
+func loadRunDetail(ctx context.Context, store *overgodb.Store, id artifact.ID) (browseRunDetail, bool, error) {
 	descriptor, reader, found, err := store.OpenContent(ctx, id)
 	if err != nil || !found {
 		return browseRunDetail{}, found, err

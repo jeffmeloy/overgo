@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/composition"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 // TestProbeCommitsGenerationRecord pins the lifecycle wiring: the probe's
@@ -13,7 +13,7 @@ import (
 // graph is queryable -- child lineage present, verdict outcome preserved,
 // refusals recorded as loudly as ships.
 func TestProbeRejectsUncompiledGenerationRecord(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

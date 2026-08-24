@@ -9,8 +9,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
@@ -24,7 +24,7 @@ func (execute remoteTransportFunc) ExecuteRemote(ctx context.Context, request Re
 }
 
 type remoteAdapterFixture struct {
-	store     *repodb.Store
+	store     *overgodb.Store
 	selection modelrecipe.CapabilityEvidenceSelection
 	output    artifact.Content
 }
@@ -131,7 +131,7 @@ func TestRemoteArtifactIdentity(t *testing.T) {
 func newRemoteAdapterFixture(t *testing.T) remoteAdapterFixture {
 	t.Helper()
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

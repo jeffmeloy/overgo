@@ -24,7 +24,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/model"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
@@ -115,7 +115,7 @@ func run() error {
 	updateTraining := flag.Bool("update-training", false, "write generated training matrix")
 	refresh := flag.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
 	recordVerification := flag.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims)")
-	recordStore := flag.String("record", "", "RepoDB root for -record-verification/-claim")
+	recordStore := flag.String("record", "", "OvergoDB root for -record-verification/-claim")
 	claimFlag := flag.Bool("claim", false, "build and commit one verification claim from flags: -claim -model-file <weights> -name <n> -capability <c> -tier <t> -evidence-file <doc> [-wall <dur>] [-context <tokens>] [-peak <bytes>] -record <repodb>")
 	claimModelFile := flag.String("model-file", "", "claim: weights file; its digest is the model identity")
 	claimName := flag.String("name", "", "claim: human model name")
@@ -226,7 +226,7 @@ func runClaim(input claimInput, recordStore string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	store, err := repodb.Open(recordStore)
+	store, err := overgodb.Open(recordStore)
 	if err != nil {
 		return err
 	}
@@ -335,7 +335,7 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 			claimed[evidence] = true
 		}
 	}
-	store, err := repodb.Open(recordStore)
+	store, err := overgodb.Open(recordStore)
 	if err != nil {
 		return err
 	}

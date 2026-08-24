@@ -12,8 +12,8 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/overgodb"
 	"overgo/internal/repoanalysis"
-	"overgo/internal/repodb"
 )
 
 func TestConfigurationClosureGates(t *testing.T) {
@@ -35,7 +35,7 @@ func TestConfigurationClosureGates(t *testing.T) {
 		},
 	}
 	for _, check := range checks {
-		if err := checkProductionClosures(root, "repodb-store", check.scope, false, check.requirements); err != nil {
+		if err := checkProductionClosures(root, "overgodb-store", check.scope, false, check.requirements); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -49,7 +49,7 @@ func TestPermanentMagicGateRepositoryZeroDebt(t *testing.T) {
 	requirements := closureRequirements{
 		classified: true, noStale: true, noUncatalogued: true, noModelFacts: true, zeroOpen: true,
 	}
-	if err := checkProductionClosures(root, "repodb-store", "", true, requirements); err != nil {
+	if err := checkProductionClosures(root, "overgodb-store", "", true, requirements); err != nil {
 		t.Fatal(err)
 	}
 	if err := checkTestAuthority(mustSnapshot(root), testRequirements{noPolicyCopies: true}); err != nil {
@@ -197,9 +197,9 @@ func TestCensusEvidenceBindsCatalogAndSourceFingerprint(t *testing.T) {
 	}
 }
 
-func censusEvidenceFixture(t *testing.T) (*repodb.Store, repoanalysis.SourceSnapshot, artifact.CommitID) {
+func censusEvidenceFixture(t *testing.T) (*overgodb.Store, repoanalysis.SourceSnapshot, artifact.CommitID) {
 	t.Helper()
-	store, err := repodb.Open(filepath.Join(t.TempDir(), "store"))
+	store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +292,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if err := emit(root, "store", triagePath, candidates); err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.OpenReadOnly(filepath.Join(root, "store"))
+	store, err := overgodb.OpenReadOnly(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,7 +339,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if err != nil || binding == previous {
 		t.Fatalf("rebound binding = (%+v, %v)", binding, err)
 	}
-	store, err = repodb.OpenReadOnly(filepath.Join(root, "store"))
+	store, err = overgodb.OpenReadOnly(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +392,7 @@ func TestTriagePublishesAndRetiresExactBindings(t *testing.T) {
 	if _, _, _, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot); err != nil {
 		t.Fatalf("retire orphan bindings: %v", err)
 	}
-	store, err = repodb.OpenReadOnly(filepath.Join(root, "store"))
+	store, err = overgodb.OpenReadOnly(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -437,7 +437,7 @@ func TestClosurePublicationDeltaCopiesFixtureAndSkipsRepeat(t *testing.T) {
 	if _, _, err := commitClosureDocuments(root, filepath.Join(root, "source"), []closureledger.Document{document}, nil, []artifact.Descriptor{fixture}); err != nil {
 		t.Fatal(err)
 	}
-	source, err := repodb.OpenReadOnly(filepath.Join(root, "source"))
+	source, err := overgodb.OpenReadOnly(filepath.Join(root, "source"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -455,7 +455,7 @@ func TestClosurePublicationDeltaCopiesFixtureAndSkipsRepeat(t *testing.T) {
 	if err != nil || count != 1 || unmatched != 0 || first != "" {
 		t.Fatalf("import=(%d, unmatched=%d first=%s, %v)", count, unmatched, first, err)
 	}
-	target, err := repodb.OpenReadOnly(filepath.Join(root, "target"))
+	target, err := overgodb.OpenReadOnly(filepath.Join(root, "target"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -463,8 +463,8 @@ func TestClosurePublicationDeltaCopiesFixtureAndSkipsRepeat(t *testing.T) {
 	if _, found, err := closureledger.ResolveActiveBinding(t.Context(), target, binding, candidate.ValueJSON()); err != nil || !found {
 		t.Fatalf("imported binding=(%t, %v)", found, err)
 	}
-	result, err := target.Query(t.Context(), repodb.Query{
-		Artifact: &fixtureID, MaxResults: 1, Projection: repodb.ProjectArtifacts,
+	result, err := target.Query(t.Context(), overgodb.Query{
+		Artifact: &fixtureID, MaxResults: 1, Projection: overgodb.ProjectArtifacts,
 	})
 	if err != nil || len(result.Artifacts) != 1 || result.Artifacts[0] != fixture {
 		t.Fatalf("imported fixture=(%+v, %v)", result.Artifacts, err)
@@ -488,7 +488,7 @@ func TestScopedClosureCheckRequiresExactActiveEvidence(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module fixture\n\ngo 1.24\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Open(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -541,7 +541,7 @@ func TestPermanentMagicGateAuthorityEnforcement(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module fixture\n\ngo 1.24\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Open(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -88,7 +88,7 @@ type ObjectiveSpec struct {
 	Authority  ObjectiveAuthority
 }
 
-// ObjectiveDocument binds one trainable modality pair to RepoDB evidence.
+// ObjectiveDocument binds one trainable modality pair to OvergoDB evidence.
 type ObjectiveDocument struct {
 	ID      artifact.ID
 	Version uint16
@@ -163,7 +163,7 @@ func LoadObjective(ctx context.Context, reader artifact.Reader, id artifact.ID) 
 		return ObjectiveDocument{}, err
 	}
 	if !ok {
-		return ObjectiveDocument{}, errors.New("training objective: RepoDB content absent")
+		return ObjectiveDocument{}, errors.New("training objective: OvergoDB content absent")
 	}
 	return document, nil
 }
@@ -304,7 +304,7 @@ func CompileObjectiveMatrix(ctx context.Context, reader artifact.Reader, objecti
 	for _, input := range objectiveModalities {
 		for _, output := range objectiveModalities {
 			signature := recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{input}, Outputs: []recipecontract.Modality{output}}
-			row := ObjectiveRow{Signature: signature, Disposition: ObjectiveRefused, Reason: "no RepoDB objective with corpus and evidence"}
+			row := ObjectiveRow{Signature: signature, Disposition: ObjectiveRefused, Reason: "no OvergoDB objective with corpus and evidence"}
 			if objective, ok := approved[objectivePairKey(signature)]; ok {
 				row.Objective, row.Disposition, row.Reason = objective.ID, ObjectiveTrainable, ""
 			}
@@ -395,7 +395,7 @@ func CompileTrainingRunPlanFromRepository(ctx context.Context, reader artifact.R
 		!slices.Equal(objective.spec.Processors, plan.processors) ||
 		!slices.Equal(objective.spec.Projectors, plan.projectors) ||
 		!slices.Equal(objective.spec.Codecs, plan.codecs) || objective.spec.Evaluation != plan.policies.Evaluation {
-		return TrainingRunPlan{}, errors.New("training objective: run authority differs from RepoDB objective")
+		return TrainingRunPlan{}, errors.New("training objective: run authority differs from OvergoDB objective")
 	}
 	return plan, nil
 }

@@ -13,8 +13,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 )
 
 type Entry struct {
@@ -32,15 +32,15 @@ type Entry struct {
 // Servable lists models with active inference recipes; presence is a stat of
 // recorded locations (manifest first, then components; recorded-but-missing
 // or unrecorded reports Present=false, honestly).
-func Servable(ctx context.Context, store *repodb.Store, limit int) ([]Entry, error) {
+func Servable(ctx context.Context, store *overgodb.Store, limit int) ([]Entry, error) {
 	return ServableWithMemo(ctx, store, limit, nil)
 }
 
 // ServableWithMemo is Servable with digest reuse for interactive callers: a
 // nil memo hashes every file fresh, exactly as Servable always has.
-func ServableWithMemo(ctx context.Context, store *repodb.Store, limit int, memo *Memo) ([]Entry, error) {
-	result, err := store.Query(ctx, repodb.Query{
-		Kind: artifact.KindModel, MaxResults: limit, Projection: repodb.ProjectManifests,
+func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, memo *Memo) ([]Entry, error) {
+	result, err := store.Query(ctx, overgodb.Query{
+		Kind: artifact.KindModel, MaxResults: limit, Projection: overgodb.ProjectManifests,
 	})
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ type fileIdentity struct {
 // presence requires recorded bytes, not a path that now names replacement bytes.
 func presence(
 	ctx context.Context,
-	store *repodb.Store,
+	store *overgodb.Store,
 	manifest artifact.Manifest,
 	identities map[string]fileIdentity,
 	memo *Memo,

@@ -12,7 +12,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/tensor"
 )
 
@@ -41,7 +41,7 @@ func (values *stringList) Set(value string) error {
 func AddModelFlags(flags *flag.FlagSet, loraHelp string) *ModelFlags {
 	result := &ModelFlags{}
 	result.DeviceOrdinal = flags.Int("device", 0, "CUDA device ordinal")
-	result.Repository = flags.String("repo", "", "RepoDB containing the active model recipe; empty resolves via the data-root contract (OVERGO_DATA_ROOT, local-models.json, or ./repodb-store)")
+	result.Repository = flags.String("repo", "", "OvergoDB containing the active model recipe; empty resolves via the data-root contract (OVERGO_DATA_ROOT, local-models.json, or ./overgodb-store)")
 	flags.Var(&result.loraPaths, "lora", loraHelp)
 	return result
 }
@@ -74,7 +74,7 @@ func (flags *ModelFlags) OpenRunnerWithOptions(
 	return OpenRunner(ctx, repository, roots.ResolveModelPath(path), options)
 }
 
-// RepositoryPath: exact RepoDB selected by model-loading flags.
+// RepositoryPath: exact OvergoDB selected by model-loading flags.
 func (flags *ModelFlags) RepositoryPath() (string, error) {
 	if flags == nil || flags.Repository == nil {
 		return "", errors.New("model recipe repository is required")
@@ -109,7 +109,7 @@ func OpenRunner(
 	// Serving only READS the store (recipe resolution); a writer open here
 	// starved concurrent serves and self-deadlocked the smoke lane against
 	// its own child process.
-	store, err := repodb.OpenReadOnly(repository)
+	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
 		return nil, fmt.Errorf("open model recipe repository: %w", err)
 	}

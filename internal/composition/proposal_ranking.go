@@ -12,8 +12,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/organ"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 )
 
 const (
@@ -95,16 +95,16 @@ func TrainProposalRanker(ctx context.Context, reader artifact.Reader, decisions 
 	return proposalRankerCodec.New(ProposalRanker{Version: ProposalRankerVersion, Decisions: ids, Rows: compiled})
 }
 
-func TrainProposalRankerFromStore(ctx context.Context, store *repodb.Store) (ProposalRanker, error) {
+func TrainProposalRankerFromStore(ctx context.Context, store *overgodb.Store) (ProposalRanker, error) {
 	if ctx == nil || store == nil {
 		return ProposalRanker{}, errors.New("composition: proposal ranker store absent")
 	}
 	history := make([]artifact.ID, 0)
-	_, err := repodb.VisitDecodedDocuments(ctx, store, repodb.DocumentQuery{
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: recipe.DecisionMediaType, Schema: recipe.DecisionSchema,
-		}}, Order: repodb.DocumentOldestFirst,
-	}, recipe.ParseDecision, func(view repodb.DocumentView, decision recipe.Decision) error {
+		}}, Order: overgodb.DocumentOldestFirst,
+	}, recipe.ParseDecision, func(view overgodb.DocumentView, decision recipe.Decision) error {
 		if decision.Outcome != recipe.DecisionObserved && decision.Outcome != recipe.DecisionRefused {
 			return nil
 		}

@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestLaneOutcomeContract(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(dataroot.Env, root)
-	store, err := repodb.Open(filepath.Join(root, "repodb-store"))
+	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
@@ -27,7 +27,7 @@ func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
 		Format: BenchmarkFormatJSONL, Conversion: conversion,
 		Fields: []FieldBinding{{Target: "answer", Source: "label"}, {Target: "prompt", Source: "query"}},
 	}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

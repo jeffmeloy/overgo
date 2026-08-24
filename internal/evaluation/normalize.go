@@ -3,7 +3,7 @@ package evaluation
 import "encoding/json"
 
 // NormalizeEvaluationPlan admits field-order variants at an external boundary
-// and returns the exact native RepoDB identity bytes.
+// and returns the exact native OvergoDB identity bytes.
 func NormalizeEvaluationPlan(data []byte) (Plan, []byte, error) {
 	plan, err := ParsePlan(data)
 	if err != nil {

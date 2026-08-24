@@ -12,8 +12,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
-	"overgo/internal/repodb"
 )
 
 func TestMaterializeIndexesMembershipAndDeduplicates(t *testing.T) {
@@ -56,7 +56,7 @@ func TestMaterializeIndexesMembershipAndDeduplicates(t *testing.T) {
 	if !membership.ID.Valid() {
 		t.Fatal("nonempty membership absent")
 	}
-	store, err := repodb.Open(filepath.Join(root, "store"))
+	store, err := overgodb.Open(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}

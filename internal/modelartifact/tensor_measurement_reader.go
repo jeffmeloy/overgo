@@ -20,7 +20,7 @@ import (
 )
 
 // MeasureAtLocation characterizes a model at a recorded location, dispatching on
-// the inventory's format. Callers address a model by its RepoDB identity (the
+// the inventory's format. Callers address a model by its OvergoDB identity (the
 // inventory) and location, never by file type: GGUF opens the file, safetensors
 // opens its directory. The opened source is closed before returning.
 func MeasureAtLocation(

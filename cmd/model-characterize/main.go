@@ -1,7 +1,7 @@
-// model-characterize characterizes every servable model that RepoDB references
+// model-characterize characterizes every servable model that OvergoDB references
 // -- any format -- and persists a distribution-free tensor characterization per
-// model to the store. It is driven by the RepoDB catalog (discovery.Servable),
-// not the filesystem: a model is fodder when RepoDB references it with an active
+// model to the store. It is driven by the OvergoDB catalog (discovery.Servable),
+// not the filesystem: a model is fodder when OvergoDB references it with an active
 // inference recipe and present bytes. The measurement is lineage-bound to the
 // model's existing tensor inventory, so profiles are durable and queryable by
 // model.
@@ -20,12 +20,12 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 )
 
 func main() {
-	store := flag.String("store", "", "RepoDB store directory (default: the dataroot store)")
+	store := flag.String("store", "", "OvergoDB store directory (default: the dataroot store)")
 	limit := flag.Int("limit", 4096, "max models to consider")
 	samples := flag.Uint64("samples", 4096, "max sampled values per tensor")
 	maxRead := flag.Uint64("max-read", 64<<20, "max bytes read across all tensors")
@@ -50,7 +50,7 @@ func run(storePath string, limit int, policy modelartifact.MeasurementPolicy) er
 		}
 		storePath = roots.Store
 	}
-	store, err := repodb.Open(storePath)
+	store, err := overgodb.Open(storePath)
 	if err != nil {
 		return fmt.Errorf("open store: %w", err)
 	}
@@ -63,11 +63,11 @@ func run(storePath string, limit int, policy modelartifact.MeasurementPolicy) er
 	return nil
 }
 
-// characterizeCatalog characterizes every present servable model RepoDB
+// characterizeCatalog characterizes every present servable model OvergoDB
 // references and stores the measurement, returning the count. Per-model failures
 // are reported and skipped; the catalog pass is best-effort.
 func characterizeCatalog(
-	ctx context.Context, store *repodb.Store, limit int, policy modelartifact.MeasurementPolicy,
+	ctx context.Context, store *overgodb.Store, limit int, policy modelartifact.MeasurementPolicy,
 ) (int, error) {
 	entries, err := discovery.Servable(ctx, store, limit)
 	if err != nil {
@@ -99,7 +99,7 @@ func characterizeCatalog(
 // commits the measurement lineage-bound to that existing inventory. No
 // re-registration: the model and inventory are already in the store.
 func characterizeServable(
-	ctx context.Context, store *repodb.Store, entry discovery.Entry, policy modelartifact.MeasurementPolicy,
+	ctx context.Context, store *overgodb.Store, entry discovery.Entry, policy modelartifact.MeasurementPolicy,
 ) (artifact.ID, error) {
 	activation, active, err := modelrecipe.ActiveRecord(ctx, store, entry.Model, recipe.TaskInference)
 	if err != nil {

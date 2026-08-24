@@ -10,8 +10,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
@@ -63,7 +63,7 @@ func (generator *generationWorkspaceGenerator) ExecuteWorkflow(
 }
 
 func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 }
 
 func TestWorkflowSubmissionDoesNotReplayCompletedOperation(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

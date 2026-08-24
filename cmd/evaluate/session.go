@@ -9,7 +9,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
@@ -37,13 +37,13 @@ func executeModel(ctx context.Context, value manifest, request modelRequest, ope
 }
 
 type nativeSession struct {
-	store    *repodb.Store
+	store    *overgodb.Store
 	runner   *inference.Runner
 	campaign *evaluation.Campaign
 }
 
 func openEvaluationSession(ctx context.Context, value manifest, request modelRequest) (evaluationSession, error) {
-	store, err := repodb.Open(value.Repository)
+	store, err := overgodb.Open(value.Repository)
 	if err != nil {
 		return nil, err
 	}

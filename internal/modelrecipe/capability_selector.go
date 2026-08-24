@@ -99,7 +99,7 @@ func ResolveActiveExecution(
 	return compileCapabilitySelection("", session, activation, program, resources, bundles, RemotePeerCompatibility{})
 }
 
-// ResolveCapabilityEvidenceSelector resolves RepoDB alias, recipe, evidence, and resources.
+// ResolveCapabilityEvidenceSelector resolves OvergoDB alias, recipe, evidence, and resources.
 func ResolveCapabilityEvidenceSelector(
 	ctx context.Context,
 	store artifact.Reader,

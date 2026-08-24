@@ -11,7 +11,7 @@ placement, memory lifetime, and evidence. The runtime compiles those records
 into host and CUDA programs.
 
 That runtime also backs the command line, the workbench, native training and
-evaluation, and OpenAI-, Anthropic-, and llama.cpp-compatible APIs. RepoDB
+evaluation, and OpenAI-, Anthropic-, and llama.cpp-compatible APIs. OvergoDB
 records artifact identity, lineage, runs, verification, promotion, and
 rollback. The repository therefore keeps four different facts separate: a
 model can be listed in the catalog, supported by the code, verified with a
@@ -47,7 +47,7 @@ Overgo puts these jobs behind one runtime:
 | Evaluation | Compile suites, run campaigns, inspect failures, compare metrics, and bind results to model, recipe, data, code, and environment identities |
 | Serving | Expose native llama.cpp-style, OpenAI-compatible, and Anthropic-compatible HTTP APIs with streaming, tools, structured output, media, batching, and caches |
 | Workbench | Use one embedded GUI for chat, generation, runtime telemetry, datasets, training, model building, export, evaluations, artifacts, and model analysis |
-| Evidence | Record artifact identities, lineage, runs, recipes, gates, evaluations, promotion, rollback, and release checks in RepoDB and generated compatibility records |
+| Evidence | Record artifact identities, lineage, runs, recipes, gates, evaluations, promotion, rollback, and release checks in OvergoDB and generated compatibility records |
 
 A new model name does not require a new top-level executor. If the model's
 tensor layout and behavior fit existing profiles, operators, processors, and
@@ -62,7 +62,7 @@ Overgo tracks code support and artifact verification as different claims:
 - **Verified** means exact model bytes passed a named check with a fixed recipe,
   inputs, environment, and expected result.
 
-Generic component tests establish the first claim. RepoDB records the second
+Generic component tests establish the first claim. OvergoDB records the second
 claim for each artifact.
 
 ![Overgo platform architecture and evidence-bound model lifecycle](docs/assets/overgo-platform-architecture-v2.png)
@@ -84,7 +84,7 @@ Model behavior is split among reusable packages:
 - Training programs specify objectives, backward traversal, parameter groups,
   and optimizer order.
 - Runtime adapters connect compiled recipe modules to their implementations.
-- RepoDB stores identity, lineage, evidence, and activation decisions.
+- OvergoDB stores identity, lineage, evidence, and activation decisions.
 
 Execution consumes a compiled plan. It does not enter a model-family switch to
 reconstruct model behavior at run time.
@@ -142,12 +142,12 @@ mode or model-family path. Activation requires successful evidence for the
 exact model and recipe identities. A change to model bytes, tensor facts,
 profiles, or recipe content creates a new identity and needs new evidence.
 
-RepoDB can retain several candidates for the same model and task. Production
+OvergoDB can retain several candidates for the same model and task. Production
 entry points use only the promoted active recipe. Missing evidence is an error,
 not permission to fall back to another execution path.
 
 Composition follows the same rule. Runtime entry points resolve an active
-source-model, target-model, and task binding from RepoDB, then compile the
+source-model, target-model, and task binding from OvergoDB, then compile the
 bridge, boundaries, component sessions, placement, lifetimes, cache identity,
 training policy, and promotion evidence into one immutable execution plan.
 
@@ -192,9 +192,9 @@ Capacity-bound sessions may be reused. Request-bound components are retired
 after their lease. Separate session locks let independent models or tasks run
 at the same time.
 
-### Artifacts and RepoDB
+### Artifacts and OvergoDB
 
-RepoDB is a hash-chained artifact catalog and evidence ledger. It stores:
+OvergoDB is a hash-chained artifact catalog and evidence ledger. It stores:
 
 - content-addressed descriptors and optional payloads;
 - model, tokenizer, projector, dataset, checkpoint, output, report, and
@@ -204,7 +204,7 @@ RepoDB is a hash-chained artifact catalog and evidence ledger. It stores:
 - artifact locations without copying large model or dataset bytes into Git;
 - run, gate, evaluation, finding, decision, promotion, and rollback records.
 
-RepoDB rejects conflicting artifact facts, reused batch keys with different
+OvergoDB rejects conflicting artifact facts, reused batch keys with different
 content, invalid aliases, unknown lineage endpoints, and lineage cycles. A
 cancelled or failed operation still writes an execution record. Missing output
 cannot erase the attempted run.
@@ -381,7 +381,7 @@ Checkpoints bind:
 - dataset identity and stream position;
 - processor, projector, and codec identities;
 - compiled training program and run-plan identities;
-- model, parent, and RepoDB lineage;
+- model, parent, and OvergoDB lineage;
 - evaluation and promotion policy where applicable.
 
 Checkpoint publication is atomic and refuses an existing target. A resumed run
@@ -542,7 +542,7 @@ baseline.
 
 ### Evidence-bound lifecycle
 
-RepoDB separates several lifecycle states:
+OvergoDB separates several lifecycle states:
 
 ```text
 candidate recipe
@@ -575,7 +575,7 @@ The repository's Go automation connects code changes to the current campaign
 plan and affected tests. The gate derives package ownership from imports and
 `go:embed` files. It also checks formatting and vetting, builds commands,
 verifies generated compatibility and SBOM data, inspects kernel manifests, and
-records results in RepoDB.
+records results in OvergoDB.
 
 CI, release, and local automation use the same short hermetic test owner. Tests
 excluded from short mode are listed and do not count as passes. Model, GPU,
@@ -651,7 +651,7 @@ go run ./cmd/release -out dist -verify-reproducible
 
 Model and workflow commands resolve data in this order:
 
-1. `OVERGO_DATA_ROOT`, containing `repodb-store/`, `models/`, `datasets/`, and
+1. `OVERGO_DATA_ROOT`, containing `overgodb-store/`, `models/`, `datasets/`, and
    `checkpoints/`;
 2. machine-local `local-models.json` in the working directory;
 3. those four directories directly under the working directory.
@@ -660,48 +660,48 @@ Example `local-models.json`:
 
 ```json
 {
-  "store": "D:/overgo-data/repodb-store",
+  "store": "D:/overgo-data/overgodb-store",
   "models": "D:/overgo-data/models",
   "datasets": "D:/overgo-data/datasets",
   "checkpoints": "D:/overgo-data/checkpoints"
 }
 ```
 
-Large model, dataset, and checkpoint bytes stay outside Git. RepoDB records
+Large model, dataset, and checkpoint bytes stay outside Git. OvergoDB records
 their identities and locations.
 
-RepoDB stores also stay outside Git and release archives. A store contains
+OvergoDB stores also stay outside Git and release archives. A store contains
 machine-local locations and append-only run, gate, evaluation, and decision
 history; committing its log would make the source repository machine-specific
 and exceed normal GitHub file limits. Preserve or transfer a store with a
 replay-verified backup instead:
 
 ```bash
-go run ./cmd/repodb-backup \
-  -repo D:/overgo-data/repodb-store \
+go run ./cmd/overgodb-backup \
+  -repo D:/overgo-data/overgodb-store \
   -dest E:/overgo-backups/repodb-2026-08-22
 ```
 
 Configuring these roots does not scan or register every file. Intake commands
 hash artifact bytes and commit a descriptor plus a file or directory location
-to RepoDB. External model and dataset manifests can be imported atomically:
+to OvergoDB. External model and dataset manifests can be imported atomically:
 
 ```bash
-go run ./cmd/repodb-import \
-  -repo D:/overgo-data/repodb-store \
+go run ./cmd/overgodb-import \
+  -repo D:/overgo-data/overgodb-store \
   -root D:/artifact-export \
   < export.jsonl
 ```
 
 The import stream can declare files, inline documents, model manifests,
 lineage, and aliases. Relative file paths are resolved under `-root`, hashed,
-and recorded without copying their bytes into RepoDB. Training also requires a
+and recorded without copying their bytes into OvergoDB. Training also requires a
 dataset identity, split, processors, objective, and active recipe; a path alone
 does not grant training authority.
 
 The GUI dataset browser reads `datasets/manifest.json` from the configured
 dataset root. That browse manifest supplies names and metadata only. Training
-still resolves the selected dataset through its RepoDB identity and recorded
+still resolves the selected dataset through its OvergoDB identity and recorded
 location.
 
 ### Verify the checkout
@@ -870,9 +870,9 @@ subcommand, for example `go run ./cmd/recipe status -h`.
 | `cmd/benchmark` | Record elapsed time, throughput, memory, launches, synchronization, and transfers |
 | `cmd/perf-sweep` | Execute bounded performance sweeps |
 | `cmd/compatibility` | Check claims and training specifications or regenerate their compatibility matrices |
-| `cmd/repodb-query` | Query artifacts, recipes, runs, evaluations, findings, and decisions |
-| `cmd/repodb-import` | Import validated external records into RepoDB |
-| `cmd/repodb-backup` | Create and verify RepoDB backups |
+| `cmd/overgodb-query` | Query artifacts, recipes, runs, evaluations, findings, and decisions |
+| `cmd/overgodb-import` | Import validated external records into OvergoDB |
+| `cmd/overgodb-backup` | Create and verify OvergoDB backups |
 | `cmd/finding` | Create and inspect structured review findings |
 | `cmd/advisories` | Inspect repository and dependency advisories |
 | `cmd/sbom` | Generate or verify the CycloneDX software bill of materials |
@@ -910,7 +910,7 @@ subcommand, for example `go run ./cmd/recipe status -h`.
 
 The gate associates staged paths with the current plan step, derives affected
 tests, checks structural and generated records, and writes preparation and
-result evidence to RepoDB. These commands repair result recording after a Git
+result evidence to OvergoDB. These commands repair result recording after a Git
 commit:
 
 ```bash
@@ -931,7 +931,7 @@ go run ./cmd/release -out dist -verify-reproducible
 
 The server embeds an HTML, CSS, and JavaScript workbench at
 `http://127.0.0.1:8080/`. The browser stores presentation state only. The Go
-server and RepoDB own models, recipes, datasets, operations, sessions, runs,
+server and OvergoDB own models, recipes, datasets, operations, sessions, runs,
 and artifacts.
 
 The workbench has four sections and nineteen tabs:
@@ -983,7 +983,7 @@ text, image, audio, or video artifacts when those tasks are configured.
 
 Runtime shows active model sessions, slot state, task, device, context use,
 prompt and cached tokens, generated tokens, throughput, and elapsed time.
-Activity reads bounded serving observations from RepoDB, including model and
+Activity reads bounded serving observations from OvergoDB, including model and
 recipe identity, outcome, duration, token counts, and host/device transfer
 measurements. Raw request and response bodies are not displayed.
 
@@ -1000,7 +1000,7 @@ runs corpus-derived construction through the same operation and evidence
 contracts. Export publishes supported durable forms without putting
 model-family rules in the UI.
 
-Compositions reads published recipes from RepoDB. Each card shows source and
+Compositions reads published recipes from OvergoDB. Each card shows source and
 target contracts, bridge weights and operator, training policy, held-out and
 regression evidence, seed spread, latency and device-memory change, compiled
 session residency, cache identity, and completion state. Activation is an
@@ -1043,11 +1043,11 @@ ledger stays outside the README.
   verifying commits from the typed specifications under `docs/verification`.
 - [Machine-readable compatibility data](compatibility.json) contains checked
   claims, evidence tiers, source identities, and verification commands.
-- RepoDB run and evaluation records contain exact artifact, recipe, input,
+- OvergoDB run and evaluation records contain exact artifact, recipe, input,
   environment, output, timing, memory, transfer, and decision provenance.
 - [Current plan](docs/plan.json) contains unfinished campaign work and its
   verification commands.
-- [RepoDB import contract](docs/REPODB_IMPORT.md) describes validated store
+- [OvergoDB import contract](docs/OVERGODB_IMPORT.md) describes validated store
   import behavior.
 - [Iteration doctrine](skill.md) describes architecture, porting,
   verification, and development workflow rules.

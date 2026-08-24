@@ -138,7 +138,7 @@ type CandidateSchedulingAction struct {
 }
 
 // CompositionExecutionPlanAction selects one active composition by its exact
-// source, target, and task scope; the recipe itself remains RepoDB-authoritative.
+// source, target, and task scope; the recipe itself remains OvergoDB-authoritative.
 type CompositionExecutionPlanAction struct {
 	Source artifact.ID `json:"source"`
 	Target artifact.ID `json:"target"`

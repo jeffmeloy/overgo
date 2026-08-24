@@ -15,8 +15,8 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -61,7 +61,7 @@ func runProductionImageGeneration(t testing.TB, request GenerationRequest) produ
 		}
 	}()
 
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

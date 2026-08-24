@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
@@ -67,7 +67,7 @@ func TestGateDebtAutomationContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(filepath.Join(worktree, "repodb-store"))
+	store, err := overgodb.Open(filepath.Join(worktree, "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestReviewPriority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(filepath.Join(worktree, "repodb-store"))
+	store, err := overgodb.Open(filepath.Join(worktree, "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}

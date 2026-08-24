@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 var errStreamFixture = errors.New("stream fixture failed")
@@ -50,7 +50,7 @@ func TestStreamPublicationContract(t *testing.T) {
 	t.Run("large stream is installed before catalog publication", func(t *testing.T) {
 		ctx := context.Background()
 		root := t.TempDir()
-		repository, err := repodb.Open(filepath.Join(root, "repodb"))
+		repository, err := overgodb.Open(filepath.Join(root, "repodb"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -98,7 +98,7 @@ func TestStreamPublicationContract(t *testing.T) {
 	t.Run("retry is content idempotent", func(t *testing.T) {
 		ctx := context.Background()
 		root := t.TempDir()
-		repository, err := repodb.Open(filepath.Join(root, "repodb"))
+		repository, err := overgodb.Open(filepath.Join(root, "repodb"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,7 +123,7 @@ func TestStreamPublicationContract(t *testing.T) {
 	t.Run("failed and mismatched streams stay unpublished", func(t *testing.T) {
 		ctx := context.Background()
 		root := t.TempDir()
-		repository, err := repodb.Open(filepath.Join(root, "repodb"))
+		repository, err := overgodb.Open(filepath.Join(root, "repodb"))
 		if err != nil {
 			t.Fatal(err)
 		}

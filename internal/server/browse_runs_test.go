@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
@@ -40,16 +40,16 @@ func TestShapeRunProjectsRecord(t *testing.T) {
 }
 
 func TestBrowseRunsUnconfigured(t *testing.T) {
-	handler := newTestHandler(t, &fakeGenerator{}) // no RepoDBPath
+	handler := newTestHandler(t, &fakeGenerator{}) // no OvergoDBPath
 	response := serveTestRequest(handler, http.MethodGet, "/runs", "")
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("status=%d, want 501", response.Code)
 	}
 }
 
-func TestBrowseRunsReadsRepoDBRecords(t *testing.T) {
+func TestBrowseRunsReadsOvergoDBRecords(t *testing.T) {
 	root := t.TempDir()
-	store, err := repodb.Open(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestBrowseRunsReadsRepoDBRecords(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, RepoDBPath: root}, &fakeGenerator{})
+	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, OvergoDBPath: root}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestBrowseRunsReadsRepoDBRecords(t *testing.T) {
 
 func TestRunDetailReconstructsImmutableEvidence(t *testing.T) {
 	root := t.TempDir()
-	store, err := repodb.Open(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestRunDetailReconstructsImmutableEvidence(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := New(Config{RepoDBPath: root}, &fakeGenerator{})
+	handler, err := New(Config{OvergoDBPath: root}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
 	}

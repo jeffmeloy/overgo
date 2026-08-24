@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/operatoraction"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
 
@@ -28,9 +28,9 @@ func TestDecisionRejectsReplay(t *testing.T) {
 	}
 }
 
-func humanDecisionFixture(t *testing.T) (*repodb.Store, operatoraction.ApprovalRequest, HumanDecision) {
+func humanDecisionFixture(t *testing.T) (*overgodb.Store, operatoraction.ApprovalRequest, HumanDecision) {
 	t.Helper()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

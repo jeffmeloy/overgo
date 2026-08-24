@@ -16,7 +16,7 @@ const (
 // AuthoritySubject is the canonical identity of every immutable artifact an
 // authorization decision governs. It deliberately says nothing about tensor
 // layout, model family, dataset partitioning, or execution topology: those
-// facts remain in the referenced artifacts and their RepoDB lineage.
+// facts remain in the referenced artifacts and their OvergoDB lineage.
 type AuthoritySubject struct {
 	Version uint16        `json:"version"`
 	Members []artifact.ID `json:"members"`

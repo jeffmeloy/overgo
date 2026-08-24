@@ -11,7 +11,7 @@ import (
 	"overgo/internal/composition"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
@@ -61,7 +61,7 @@ func TestTier0ChainViability(t *testing.T) {
 		tokens[span : 2*span],
 		tokens[2*span : 3*span],
 	}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

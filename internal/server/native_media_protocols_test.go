@@ -10,8 +10,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
@@ -44,7 +44,7 @@ func (workspace *nativeMediaWorkspace) ExecuteWorkflow(
 
 func nativeMediaProtocolFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byte, []byte) {
 	t.Helper()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

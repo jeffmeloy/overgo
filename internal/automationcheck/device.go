@@ -56,7 +56,21 @@ func DeviceCheck(root string, paths, packages []string, command Command) Check {
 			},
 		},
 		Run: func(context.Context, Invocation) (bool, string, error) {
-			_, err := command(root, "go", "run", "./cmd/device-lane", "-paths", strings.Join(paths, ","))
+			// The changed-path list rides in a file: a repo-wide commit can
+			// carry more paths than the Windows command line admits.
+			list, err := os.CreateTemp("", "device-paths-*.txt")
+			if err != nil {
+				return false, "", err
+			}
+			defer os.Remove(list.Name())
+			if _, err := list.WriteString(strings.Join(paths, "\n")); err != nil {
+				list.Close()
+				return false, "", err
+			}
+			if err := list.Close(); err != nil {
+				return false, "", err
+			}
+			_, err = command(root, "go", "run", "./cmd/device-lane", "-paths-file", list.Name())
 			return false, "", err
 		},
 	}

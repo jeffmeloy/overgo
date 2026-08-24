@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestCompositionAPIWorkflow(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestCompositionGUIWorkflow(t *testing.T) {
 }
 
 func TestCompositeGenerationUnpromotedRefusal(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

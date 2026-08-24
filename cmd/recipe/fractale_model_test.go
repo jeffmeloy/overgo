@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/thoughtbank"
 )
 
@@ -25,7 +25,7 @@ func TestFractaleRecipeActivation(t *testing.T) {
 		t.Skipf("Fractale checkpoint unavailable: %v", err)
 	}
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

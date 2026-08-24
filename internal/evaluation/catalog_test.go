@@ -11,7 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
@@ -42,7 +42,7 @@ func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
 	if err := os.WriteFile(manifestPath, encoded, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

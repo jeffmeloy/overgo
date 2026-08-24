@@ -15,9 +15,9 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
+	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	llamaserver "overgo/internal/server"
 )
@@ -143,9 +143,9 @@ func run() error {
 		}
 	}
 	var generator llamaserver.Generator = runner
-	var workspaceStore *repodb.Store
+	var workspaceStore *overgodb.Store
 	if repoPath != "" {
-		workspaceStore, err = repodb.Open(repoPath)
+		workspaceStore, err = overgodb.Open(repoPath)
 		if err != nil {
 			return fmt.Errorf("open workspace repository: %w", err)
 		}
@@ -196,7 +196,7 @@ func run() error {
 		if repositoryErr != nil {
 			return repositoryErr
 		}
-		store, openErr := repodb.OpenReadOnly(repository)
+		store, openErr := overgodb.OpenReadOnly(repository)
 		if openErr != nil {
 			return fmt.Errorf("open model recipe repository: %w", openErr)
 		}
@@ -259,7 +259,7 @@ func run() error {
 		VideoFPS:           *videoFPS,
 		VideoMaxFrames:     *videoMaxFrames,
 		DatasetsRoot:       datasetsRoot,
-		RepoDBPath:         repoPath,
+		OvergoDBPath:       repoPath,
 		Repository:         workspaceStore,
 		HubToken:           os.Getenv("OVERGO_HF_TOKEN"),
 		HubDownloadRoot:    hubRoot,

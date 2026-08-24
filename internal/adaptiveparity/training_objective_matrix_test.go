@@ -8,8 +8,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/optimizer"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -18,7 +18,7 @@ const adaptiveObjectiveSource = "214950b3b0316bcdcab38a3b95127a927c0ab5be"
 
 func TestTrainingObjectiveMatrix(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(filepath.Join(t.TempDir(), "objective-breadth"))
+	store, err := overgodb.Open(filepath.Join(t.TempDir(), "objective-breadth"))
 	if err != nil {
 		t.Fatal(err)
 	}

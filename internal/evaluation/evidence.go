@@ -53,7 +53,7 @@ func ParseEvaluationEvidence(content []byte) (EvaluationEvidence, error) {
 	return evaluationEvidenceCodec.Parse(content)
 }
 
-// Content returns the native RepoDB evidence document.
+// Content returns the native OvergoDB evidence document.
 func (value EvaluationEvidence) Content() (artifact.Content, error) {
 	return evaluationEvidenceCodec.Content(value)
 }

@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/tensor"
 	"overgo/internal/testutil"
 )
 
 func TestOfflineComposedModelLineageCompatibility(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

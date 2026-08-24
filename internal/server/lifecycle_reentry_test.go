@@ -9,8 +9,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
@@ -51,7 +51,7 @@ func TestTrainingAndEvaluationLifecycleReentry(t *testing.T) {
 				}
 			}
 
-			store, err := repodb.Open(root)
+			store, err := overgodb.Open(root)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -63,7 +63,7 @@ func TestTrainingAndEvaluationLifecycleReentry(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			store, err = repodb.Open(root)
+			store, err = overgodb.Open(root)
 			if err != nil {
 				t.Fatal(err)
 			}

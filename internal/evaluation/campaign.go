@@ -7,13 +7,13 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
 type Campaign struct {
 	repository  artifact.Repository
-	documents   repodb.DocumentReader
+	documents   overgodb.DocumentReader
 	runtime     Runtime
 	identity    modelrecipe.ProgramIdentity
 	environment runrecord.Environment
@@ -38,7 +38,7 @@ func NewCampaign(
 	if repository == nil || runtime == nil {
 		return nil, errors.New("evaluation: campaign dependencies are absent")
 	}
-	documents, ok := repository.(repodb.DocumentReader)
+	documents, ok := repository.(overgodb.DocumentReader)
 	if !ok {
 		return nil, errors.New("evaluation: repository lacks typed document projections")
 	}

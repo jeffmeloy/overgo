@@ -22,8 +22,8 @@ import (
 	"image/png"
 
 	"overgo/internal/inference"
+	"overgo/internal/overgodb"
 	"overgo/internal/projector"
-	"overgo/internal/repodb"
 
 	"overgo/internal/sampling"
 
@@ -2233,7 +2233,7 @@ func TestProtocolHistoryParity(t *testing.T) {
 
 func TestResponsesContinuationRestart(t *testing.T) {
 	root := t.TempDir()
-	repository, err := repodb.Open(root)
+	repository, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2252,7 +2252,7 @@ func TestResponsesContinuationRestart(t *testing.T) {
 	if err := repository.Close(); err != nil {
 		t.Fatal(err)
 	}
-	repository, err = repodb.Open(root)
+	repository, err = overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}

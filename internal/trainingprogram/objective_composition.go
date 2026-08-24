@@ -98,7 +98,7 @@ func resolveObjective(ctx context.Context, reader artifact.Reader, id artifact.I
 		return resolvedObjective{}, err
 	}
 	if !ok {
-		return resolvedObjective{}, errors.New("training objective: RepoDB content absent")
+		return resolvedObjective{}, errors.New("training objective: OvergoDB content absent")
 	}
 	switch content.Descriptor.MediaType {
 	case ObjectiveMediaType:
@@ -113,7 +113,7 @@ func resolveObjective(ctx context.Context, reader artifact.Reader, id artifact.I
 	case ObjectiveCompositionMediaType:
 		composition, ok, err := objectiveCompositionCodec.Read(ctx, reader, id)
 		if err != nil || !ok {
-			return resolvedObjective{}, errors.Join(err, errors.New("objective composition: RepoDB content absent"))
+			return resolvedObjective{}, errors.Join(err, errors.New("objective composition: OvergoDB content absent"))
 		}
 		return resolveObjectiveComposition(ctx, reader, composition)
 	default:

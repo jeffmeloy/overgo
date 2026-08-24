@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -30,11 +30,11 @@ func run() error {
 	host := flag.Bool("host", false, "force host execution")
 	freezeLexical := flag.Bool("freeze-lexical", false, "freeze tied embedding/head; requires CUDA resident training")
 	maxWall := flag.Duration("max-wall", 30*time.Minute, "abort at a step boundary when the first measured step projects the run past this bound (0 disables)")
-	storePath := flag.String("store", "repodb-store", "RepoDB containing the active training recipe and policies")
+	storePath := flag.String("store", "overgodb-store", "OvergoDB containing the active training recipe and policies")
 	recipeID := flag.String("recipe", "", "active training recipe artifact ID")
 	bootstrapRecipe := flag.String("bootstrap-recipe", "", "publish, verify, and activate a token-training recipe for the model weights file at this path, then exit")
 	flag.Parse()
-	store, err := repodb.Open(*storePath)
+	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
 	}

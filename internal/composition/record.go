@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
@@ -43,7 +43,7 @@ type viabilityVerdict struct {
 // recipe as the training plan (no components, no bridge -- a whole-model
 // child), and a decision identity carrying the SHIP or REFUSE reason. The
 // probe records refusals exactly as loudly as ships.
-func RecordChainViability(store *repodb.Store, config ChainConfig, result ChainResult) (runrecord.GenerationRecord, error) {
+func RecordChainViability(store *overgodb.Store, config ChainConfig, result ChainResult) (runrecord.GenerationRecord, error) {
 	must := func(kind artifact.Kind, payload string) artifact.ID {
 		id, err := artifact.IdentifyBytes(kind, []byte("tier0-chain/v1:"+payload))
 		if err != nil {
@@ -113,7 +113,7 @@ func RecordChainViability(store *repodb.Store, config ChainConfig, result ChainR
 // forward-looking leases.
 func recordChainLifecycle(
 	ctx context.Context,
-	store *repodb.Store,
+	store *overgodb.Store,
 	record runrecord.GenerationRecord,
 	result ChainResult,
 ) error {
@@ -173,7 +173,7 @@ func recordChainLifecycle(
 }
 
 // RecordViability: atomic recipe, run, evaluation, verdict, and lineage.
-func RecordViability(store *repodb.Store, config Config, result Result) (runrecord.GenerationRecord, error) {
+func RecordViability(store *overgodb.Store, config Config, result Result) (runrecord.GenerationRecord, error) {
 	if result.Target.Kind() != artifact.KindModel || result.Donor.Kind() != artifact.KindModel ||
 		result.Component.Kind() != artifact.KindTensorSet || result.Recipe.Kind() != artifact.KindRecipe ||
 		result.SessionPlan.Identity.Kind() != artifact.KindProfile ||

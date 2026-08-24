@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/optimizer"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
 
@@ -17,7 +17,7 @@ func TestBridgeOnlyTrainingPreservesFrozenModels(t *testing.T) {
 	targetID := testutil.ArtifactID(t, artifact.KindModel, "frozen-target")
 	source := artifact.Descriptor{ID: sourceID, Size: uint64(len("frozen-source"))}
 	target := artifact.Descriptor{ID: targetID, Size: uint64(len("frozen-target"))}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

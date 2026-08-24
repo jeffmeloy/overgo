@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/tokenizer"
 )
 
@@ -28,7 +28,7 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 	exact, plan := ledgerFixture(t, "environment")
 
 	t.Run("resume", func(t *testing.T) {
-		store, err := repodb.Open(t.TempDir())
+		store, err := overgodb.Open(t.TempDir())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -57,7 +57,7 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 	})
 
 	t.Run("partial", func(t *testing.T) {
-		store, err := repodb.Open(t.TempDir())
+		store, err := overgodb.Open(t.TempDir())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -81,7 +81,7 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 	})
 
 	t.Run("foreign", func(t *testing.T) {
-		store, err := repodb.Open(t.TempDir())
+		store, err := overgodb.Open(t.TempDir())
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/sequencescore"
 )
 
@@ -37,7 +37,7 @@ func TestMMLUProPinnedOracleParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

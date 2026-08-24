@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
 
 func TestScheduleByArtifactLocality(t *testing.T) {
 	ctx := context.Background()
-	repository, err := repodb.Open(t.TempDir())
+	repository, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

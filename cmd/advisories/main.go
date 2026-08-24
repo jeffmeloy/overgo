@@ -27,7 +27,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/finding"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
@@ -37,7 +37,7 @@ func main() {
 
 func run() error {
 	flags := flag.NewFlagSet("advisories", flag.ContinueOnError)
-	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
+	repoFlag := flags.String("repo", "", "OvergoDB store; empty resolves via the data-root contract")
 	metric := flags.String("metric", "gate_wall_ns", "evaluation metric to watch")
 	budget := flags.Float64("alarm-budget", 0, "target alarm budget in (0,1); required decision input, not a guaranteed false-alarm rate")
 	reason := flags.String("reason", "", "why this alarm budget; recorded with the decision")
@@ -58,7 +58,7 @@ func run() error {
 	if repository == "" {
 		repository = roots.Store
 	}
-	store, err := repodb.Open(repository)
+	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func run() error {
 // escalate opens a finding only after the same series raises on two
 // non-overlapping windows. One open finding per series; repeats add no new
 // document.
-func escalate(ctx context.Context, store *repodb.Store, latest runrecord.Advisory, previous *artifact.ID) error {
+func escalate(ctx context.Context, store *overgodb.Store, latest runrecord.Advisory, previous *artifact.ID) error {
 	seriesKey := latest.Recipe.String() + "/" + latest.Environment.String() + "/" + latest.Metric
 	if previous == nil {
 		fmt.Println("honesty: directional advisory only; a later non-overlapping window is required for a finding")
@@ -192,16 +192,16 @@ func nonOverlappingConfirmation(prior, latest runrecord.Advisory) bool {
 }
 
 // loadObservations joins evaluations to runs in store-owned introduction order.
-func loadObservations(ctx context.Context, store *repodb.Store, metric string, maxResults int) ([]runrecord.Observation, error) {
-	query := repodb.DocumentQuery{
+func loadObservations(ctx context.Context, store *overgodb.Store, metric string, maxResults int) ([]runrecord.Observation, error) {
+	query := overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvaluation, MediaType: runrecord.EvaluationMediaType, Schema: runrecord.EvaluationSchema,
-		}}, Order: repodb.DocumentNewestFirst, MaxResults: maxResults,
+		}}, Order: overgodb.DocumentNewestFirst, MaxResults: maxResults,
 	}
 	observations := make([]runrecord.Observation, 0, maxResults)
 	for len(observations) < maxResults {
-		page, err := repodb.VisitDecodedDocuments(ctx, store, query, runrecord.ParseEvaluation,
-			func(view repodb.DocumentView, evaluation runrecord.Evaluation) error {
+		page, err := overgodb.VisitDecodedDocuments(ctx, store, query, runrecord.ParseEvaluation,
+			func(view overgodb.DocumentView, evaluation runrecord.Evaluation) error {
 				if len(observations) == maxResults || !slices.ContainsFunc(evaluation.Metrics, func(value runrecord.Metric) bool {
 					return value.Name == metric
 				}) {
@@ -307,7 +307,7 @@ func empiricalQuantile(values []float64, q float64) float64 {
 
 // recordBudgetDecision commits the alarm budget as a content-addressed
 // decision document; identical budget+reason recommits idempotently.
-func recordBudgetDecision(ctx context.Context, store *repodb.Store, metric string, budget float64, reason string) error {
+func recordBudgetDecision(ctx context.Context, store *overgodb.Store, metric string, budget float64, reason string) error {
 	decider := "unknown"
 	if out, err := exec.Command("git", "rev-parse", "HEAD").Output(); err == nil {
 		decider = strings.TrimSpace(string(out))

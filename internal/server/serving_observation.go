@@ -8,12 +8,12 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
 
-func openServingRepository(config Config) (*repodb.Store, runrecord.Environment, error) {
+func openServingRepository(config Config) (*overgodb.Store, runrecord.Environment, error) {
 	repository := config.Repository
 	if repository == nil {
 		return nil, runrecord.Environment{}, nil

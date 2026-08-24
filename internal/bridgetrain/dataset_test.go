@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/optimizer"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
 
@@ -24,7 +24,7 @@ func (forward *frozenForwardFixture) Forward(_ context.Context, input []float32)
 }
 
 type datasetTrainingFixture struct {
-	store   *repodb.Store
+	store   *overgodb.Store
 	request Request
 	source  *frozenForwardFixture
 	target  *frozenForwardFixture
@@ -98,7 +98,7 @@ func TestBridgeTrainingFreezesModels(t *testing.T) {
 func newDatasetTrainingFixture(t *testing.T) datasetTrainingFixture {
 	t.Helper()
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/tensor"
 	"overgo/internal/testutil"
 )
@@ -62,7 +62,7 @@ func compositionRuntimeResourcesFixture(t *testing.T, authority composition.Comp
 
 func publishCompositeGenerationPromotion(
 	t *testing.T,
-	store *repodb.Store,
+	store *overgodb.Store,
 	plan composition.CompositionExecutionPlan,
 ) {
 	t.Helper()

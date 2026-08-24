@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
@@ -34,7 +34,7 @@ func TestReviewAdmissionStore(t *testing.T) {
 	contents := mustReview(runrecord.ReviewContents(developer, reviewer, developerTree, reviewTree, evaluator, candidate, finding, verdict))
 	batch := mustReview(artifact.NewDocumentBatch("test/review-admission", contents, nil, nil))
 	root := t.TempDir()
-	store := mustReview(repodb.Open(filepath.Join(root, "store")))
+	store := mustReview(overgodb.Open(filepath.Join(root, "store")))
 	if _, err := store.Commit(context.Background(), batch); err != nil {
 		t.Fatal(err)
 	}

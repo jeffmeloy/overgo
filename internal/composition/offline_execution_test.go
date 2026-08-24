@@ -6,15 +6,15 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/tensor"
 	"overgo/internal/testutil"
 )
 
 func TestOfflineTensorExecutionPlan(t *testing.T) {
 	ctx := context.Background()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestOfflineTensorExecutionPlan(t *testing.T) {
 }
 
 func TestOfflinePlanDerivesResourcePolicy(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestOfflinePlanRejectsLiteralPolicy(t *testing.T) {
 		t.Fatal("accepted an unsupported placement")
 	}
 
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestOfflinePlanRejectsLiteralPolicy(t *testing.T) {
 
 func publishOfflineArtifactPlan(
 	t *testing.T,
-	store *repodb.Store,
+	store *overgodb.Store,
 	operator OfflineArtifactOperator,
 	inputs []OfflineArtifactInput,
 ) OfflineArtifactPlan {
@@ -133,7 +133,7 @@ func publishOfflineArtifactPlan(
 
 func publishOfflineTensorPolicy(
 	t *testing.T,
-	store *repodb.Store,
+	store *overgodb.Store,
 	maxResidentBytes, maxShardBytes uint64,
 ) OfflineTensorResourcePolicy {
 	t.Helper()

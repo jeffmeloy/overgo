@@ -22,8 +22,8 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 )
 
@@ -37,7 +37,7 @@ func run() error {
 	}
 	verb := os.Args[1]
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
-	repoFlag := flags.String("repo", "", "RepoDB store; empty resolves via the data-root contract")
+	repoFlag := flags.String("repo", "", "OvergoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
 	gate := flags.String("gate", "", "successful verifier gate artifact ID (activate)")
 	runID := flags.String("run-id", "", "bound verifier run artifact ID (activate)")
@@ -47,7 +47,7 @@ func run() error {
 	residencyFlag := flags.String("residency", string(recipe.ResidencyHybridNative),
 		"weight residency: stream | host-cache | device-f32 | device-native | device-native-bf16 | hybrid-native | host-reference")
 	input := flags.String("input", "", "task input as JSON; - reads standard input (verify, run)")
-	alias := flags.String("alias", "", "RepoDB model alias (run)")
+	alias := flags.String("alias", "", "OvergoDB model alias (run)")
 	selection := flags.String("selection", string(modelrecipe.SessionWarm), "alias session selection: pin | warm | spillover (run)")
 	compatibility := flags.String("compatibility", "", "remote peer compatibility evidence ID (spillover run)")
 	if err := flags.Parse(os.Args[2:]); err != nil {
@@ -217,7 +217,7 @@ func activateCapability(
 	verification modelrecipe.Verification,
 ) error {
 	ctx := context.Background()
-	store, err := repodb.Open(repository)
+	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err
 	}
@@ -284,7 +284,7 @@ func verifyCapability(repository, path string, task recipe.Task, capability capa
 	if err != nil {
 		return err
 	}
-	store, err := repodb.Open(repository)
+	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err
 	}
@@ -428,7 +428,7 @@ func executeCapability(
 	input string,
 ) error {
 	ctx := context.Background()
-	store, err := repodb.Open(repository)
+	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err
 	}
@@ -573,7 +573,7 @@ func activate(
 	if err != nil {
 		return err
 	}
-	store, err := repodb.Open(repository)
+	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err
 	}
@@ -605,7 +605,7 @@ func retire(
 		return err
 	}
 	ctx := context.Background()
-	store, err := repodb.Open(repository)
+	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err
 	}
@@ -648,7 +648,7 @@ func status(repository, path string, task recipe.Task) error {
 			return err
 		}
 	}
-	store, err := repodb.OpenReadOnly(repository)
+	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
 		return err
 	}

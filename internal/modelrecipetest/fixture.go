@@ -8,8 +8,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
@@ -64,7 +64,7 @@ func PublishVerification(
 
 func NewCapability(t testing.TB, name string, task recipe.Task) Capability {
 	t.Helper()
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	check(t, err)
 	t.Cleanup(func() { check(t, store.Close()) })
 	modelID := testutil.ArtifactID(t, artifact.KindModel, name)

@@ -9,7 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/hfconvert"
 	"overgo/internal/modelartifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func main() {
@@ -17,7 +17,7 @@ func main() {
 	output := flag.String("output", "", "GGUF output path")
 	projector := flag.String("mmproj", "", "multimodal-projector GGUF output")
 	name := flag.String("name", "", "GGUF model name; defaults to the source basename")
-	record := flag.String("record", "", "RepoDB root: commit the extracted model-config declaration bound to the converted artifact")
+	record := flag.String("record", "", "OvergoDB root: commit the extracted model-config declaration bound to the converted artifact")
 	flag.Parse()
 	if *source == "" || (*output == "" && *projector == "") || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: hf-gguf-convert -source checkpoint-directory [-output model.gguf] [-mmproj mmproj.gguf] [-name name] [-record repodb]")
@@ -70,7 +70,7 @@ func recordModelConfig(source, output, recordStore string) error {
 	if err != nil {
 		return err
 	}
-	store, err := repodb.Open(recordStore)
+	store, err := overgodb.Open(recordStore)
 	if err != nil {
 		return err
 	}

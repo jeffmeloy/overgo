@@ -10,13 +10,13 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/operatoraction"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/repodb"
 	"overgo/internal/testutil"
 )
 
 func TestDecisionAPI(t *testing.T) {
-	store, err := repodb.Open(t.TempDir())
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

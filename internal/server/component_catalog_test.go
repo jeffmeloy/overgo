@@ -12,7 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
 )
@@ -24,7 +24,7 @@ import (
 // distribution-free descriptors).
 func TestSimilarComponentsSpanStoreCatalog(t *testing.T) {
 	root := t.TempDir()
-	store, err := repodb.Open(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestSimilarComponentsSpanStoreCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, RepoDBPath: root}, &fakeGenerator{})
+	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, OvergoDBPath: root}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
 	}

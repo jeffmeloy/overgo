@@ -10,19 +10,19 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repodb"
+	"overgo/internal/overgodb"
 )
 
 func TestHandlerRetainsBrowseStore(t *testing.T) {
 	root := t.TempDir()
-	store, err := repodb.Open(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := New(Config{RepoDBPath: root}, &fakeGenerator{})
+	handler, err := New(Config{OvergoDBPath: root}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,14 +39,14 @@ func TestHandlerRetainsBrowseStore(t *testing.T) {
 
 func TestHandlerClosesBrowseStore(t *testing.T) {
 	root := t.TempDir()
-	store, err := repodb.Open(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := New(Config{RepoDBPath: root}, &fakeGenerator{})
+	handler, err := New(Config{OvergoDBPath: root}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,14 +54,14 @@ func TestHandlerClosesBrowseStore(t *testing.T) {
 	if err := handler.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := browse.Refresh(context.Background()); !errors.Is(err, repodb.ErrClosed) {
+	if err := browse.Refresh(context.Background()); !errors.Is(err, overgodb.ErrClosed) {
 		t.Fatalf("refresh after handler close = %v", err)
 	}
 }
 
 func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 	root := t.TempDir()
-	store, err := repodb.Open(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := New(Config{RepoDBPath: root, MaxStoredResponses: 1}, &fakeGenerator{})
+	handler, err := New(Config{OvergoDBPath: root, MaxStoredResponses: 1}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
 	}

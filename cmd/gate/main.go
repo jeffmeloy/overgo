@@ -4,7 +4,7 @@
 // that; this binary is the sanctioned path and marks its own commit
 // subprocess with guard.GateEnv=1 (the guard owns that env-var name).
 //
-// Message files preserve shell-sensitive prose, scope is exact, and RepoDB is
+// Message files preserve shell-sensitive prose, scope is exact, and OvergoDB is
 // authoritative; green output names what did not run.
 package main
 
@@ -39,10 +39,10 @@ import (
 	"overgo/internal/finding"
 	"overgo/internal/guard"
 	"overgo/internal/jsonfile"
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/protection"
 	"overgo/internal/repoanalysis"
-	"overgo/internal/repodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 	"overgo/internal/testscope"
@@ -88,12 +88,12 @@ func main() {
 func run() error {
 	messageFile := flag.String("message-file", "", "commit message file (required; never -m: the shell eats backticks)")
 	pathsCSV := flag.String("paths", "", "comma-separated repo-relative paths this commit ships (required unless -merge)")
-	storePath := flag.String("store", "repodb-store", "RepoDB store directory (relative to repo root)")
+	storePath := flag.String("store", "overgodb-store", "OvergoDB store directory (relative to repo root)")
 	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with `git merge --no-ff --no-commit <branch>`)")
 	planRef := flag.String("plan", "", "item/step this commit serves; MUST equal the current open step, including for -merge. Off-plan commits are refused.")
-	reconcile := flag.Bool("reconcile", false, "finalize the deterministic RepoDB batch in bin/gate_debt.json")
+	reconcile := flag.Bool("reconcile", false, "finalize the deterministic OvergoDB batch in bin/gate_debt.json")
 	recordFailure := flag.Bool("record-failure", false, "recover an unbatchable post-commit record as a typed failed finalization")
-	admitReview := flag.String("admit-review", "", "read-only: admit a RepoDB review-verdict ID against the current HEAD")
+	admitReview := flag.String("admit-review", "", "read-only: admit a OvergoDB review-verdict ID against the current HEAD")
 	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from bin/gate_lifecycle.json")
 	staleAfter := flag.Duration("stale-after", runrecord.DefaultHeartbeatStaleAfter, "heartbeat age classified stale by -watchdog")
 	flag.Parse()
@@ -108,7 +108,7 @@ func run() error {
 	if *reconcile {
 		preparation, err := reconcileGateDebt(repo, cleanStore)
 		if err == nil {
-			fmt.Printf("gate: reconciled RepoDB record debt for %s\n", preparation)
+			fmt.Printf("gate: reconciled OvergoDB record debt for %s\n", preparation)
 		}
 		return err
 	}
@@ -216,7 +216,7 @@ func run() error {
 		return pipelineErr
 	}
 	if recordErr != nil {
-		return fmt.Errorf("commit landed but RepoDB record debt remains: %w", recordErr)
+		return fmt.Errorf("commit landed but OvergoDB record debt remains: %w", recordErr)
 	}
 	return nil
 }
@@ -476,7 +476,7 @@ func (g *gateContext) stepDocumentation() (bool, error) {
 	if err := plan.ValidateCampaignCensusAuthority(document); err != nil {
 		return false, err
 	}
-	store, err := repodb.OpenReadOnly(filepath.Join(g.repo, g.storePath))
+	store, err := overgodb.OpenReadOnly(filepath.Join(g.repo, g.storePath))
 	if err != nil {
 		return false, err
 	}
@@ -486,7 +486,7 @@ func (g *gateContext) stepDocumentation() (bool, error) {
 		return false, errors.Join(readErr, closeErr)
 	}
 	if !found {
-		return false, errors.New("gate: campaign census evidence is absent from RepoDB")
+		return false, errors.New("gate: campaign census evidence is absent from OvergoDB")
 	}
 	return false, documentationFreshness(g.repo)
 }
@@ -1059,18 +1059,46 @@ func (g *gateContext) plannedGoFiles() []string {
 	return out
 }
 
+// argBudget bounds the cumulative path-argument bytes per spawned
+// process: Windows caps the CreateProcess command line at 32767
+// characters, and a repo-wide commit can plan more paths than one
+// invocation carries; 28000 leaves headroom for the executable path
+// and the leading flags.
+const argBudget = 28_000
+
+// chunkByArgBudget splits files into runs whose joined length fits one
+// command line under argBudget; every run is non-empty.
+func chunkByArgBudget(files []string) [][]string {
+	var chunks [][]string
+	for start := 0; start < len(files); {
+		end, used := start, 0
+		for end < len(files) && (end == start || used+len(files[end])+1 <= argBudget) {
+			used += len(files[end]) + 1
+			end++
+		}
+		chunks = append(chunks, files[start:end])
+		start = end
+	}
+	return chunks
+}
+
 func (g *gateContext) stepFmt() (bool, error) {
 	files := g.changedGoFiles()
 	if len(files) == 0 {
 		return true, nil
 	}
-	args := append([]string{"-l"}, files...)
-	out, err := command(g.repo, "gofmt", args...)
-	if err != nil {
-		return false, err
+	var unformatted []string
+	for _, chunk := range chunkByArgBudget(files) {
+		out, err := command(g.repo, "gofmt", append([]string{"-l"}, chunk...)...)
+		if err != nil {
+			return false, err
+		}
+		if s := strings.TrimSpace(out); s != "" {
+			unformatted = append(unformatted, s)
+		}
 	}
-	if s := strings.TrimSpace(out); s != "" {
-		return false, fmt.Errorf("unformatted: %s", s)
+	if len(unformatted) > 0 {
+		return false, fmt.Errorf("unformatted: %s", strings.Join(unformatted, "\n"))
 	}
 	return false, nil
 }
@@ -1324,17 +1352,17 @@ func (g *gateContext) stepMagics() (bool, error) {
 }
 
 func activeMagicBindings(repo, storePath string) ([]closureledger.Document, error) {
-	store, err := repodb.OpenReadOnly(filepath.Join(repo, storePath))
+	store, err := overgodb.OpenReadOnly(filepath.Join(repo, storePath))
 	if err != nil {
 		return nil, err
 	}
 	defer store.Close()
 	var documents []closureledger.Document
-	_, err = repodb.VisitDecodedDocuments(context.Background(), store, repodb.DocumentQuery{
+	_, err = overgodb.VisitDecodedDocuments(context.Background(), store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: closureledger.MediaType, Schema: closureledger.Schema,
-		}}, AliasPrefixes: []string{closureledger.ActiveAliasPrefix}, Order: repodb.DocumentOldestFirst,
-	}, closureledger.Parse, func(view repodb.DocumentView, document closureledger.Document) error {
+		}}, AliasPrefixes: []string{closureledger.ActiveAliasPrefix}, Order: overgodb.DocumentOldestFirst,
+	}, closureledger.Parse, func(view overgodb.DocumentView, document closureledger.Document) error {
 		if document.ID != view.Content.Descriptor.ID {
 			return errors.New("magic scan: active document identity mismatch")
 		}
@@ -1407,17 +1435,19 @@ func (g *gateContext) stepCommit() (bool, error) {
 	// the .ps1 retirement commit, under both plain and -A forms). Fully
 	// staged entries need no add; the scope step already proved staged
 	// content stays inside -paths.
-	dirty, err := gitLines(g.repo, append([]string{"status", "--porcelain", "--"}, g.paths...)...)
-	if err != nil {
-		return false, err
-	}
 	needAdd := map[string]bool{}
-	for _, line := range dirty {
-		if len(line) < 4 {
-			continue
+	for _, chunk := range chunkByArgBudget(g.paths) {
+		dirty, err := gitLines(g.repo, append([]string{"status", "--porcelain", "--"}, chunk...)...)
+		if err != nil {
+			return false, err
 		}
-		if line[1] != ' ' || strings.HasPrefix(line, "??") {
-			needAdd[filepath.ToSlash(strings.TrimSpace(line[3:]))] = true
+		for _, line := range dirty {
+			if len(line) < 4 {
+				continue
+			}
+			if line[1] != ' ' || strings.HasPrefix(line, "??") {
+				needAdd[filepath.ToSlash(strings.TrimSpace(line[3:]))] = true
+			}
 		}
 	}
 	var addList []string
@@ -1426,9 +1456,8 @@ func (g *gateContext) stepCommit() (bool, error) {
 			addList = append(addList, p)
 		}
 	}
-	if len(addList) > 0 {
-		addArgs := append([]string{"add", "-A", "--"}, addList...)
-		if _, err := command(g.repo, "git", addArgs...); err != nil {
+	for _, chunk := range chunkByArgBudget(addList) {
+		if _, err := command(g.repo, "git", append([]string{"add", "-A", "--"}, chunk...)...); err != nil {
 			return false, err
 		}
 	}
@@ -1497,7 +1526,7 @@ func (g *gateContext) prepare() error {
 	if err != nil {
 		return err
 	}
-	store, err := repodb.Open(filepath.Join(g.repo, g.storePath))
+	store, err := overgodb.Open(filepath.Join(g.repo, g.storePath))
 	if err != nil {
 		return fmt.Errorf("prepare gate lifecycle before Git commit: %w", err)
 	}
@@ -1570,7 +1599,7 @@ func reconcileGateDebt(repo, storePath string) (artifact.ID, error) {
 	if err := validateGateDebt(debt); err != nil {
 		return artifact.ID{}, err
 	}
-	store, err := repodb.Open(filepath.Join(repo, storePath))
+	store, err := overgodb.Open(filepath.Join(repo, storePath))
 	if err != nil {
 		return artifact.ID{}, err
 	}
@@ -1578,7 +1607,7 @@ func reconcileGateDebt(repo, storePath string) (artifact.ID, error) {
 	if _, ok, err := artifact.ReadContent(context.Background(), store, debt.Preparation); err != nil {
 		return artifact.ID{}, err
 	} else if !ok {
-		return artifact.ID{}, errors.New("gate: debt preparation is absent from RepoDB")
+		return artifact.ID{}, errors.New("gate: debt preparation is absent from OvergoDB")
 	}
 	if _, err := store.Commit(context.Background(), debt.Batch); err != nil {
 		return artifact.ID{}, err
@@ -1597,7 +1626,7 @@ func recordUnbatchableFailure(repo, storePath string) (artifact.ID, error) {
 	if err := heartbeat.Validate(); err != nil || heartbeat.State != runrecord.HeartbeatRecordDebt {
 		return artifact.ID{}, errors.New("gate: no valid record-debt heartbeat to finalize")
 	}
-	store, err := repodb.Open(filepath.Join(repo, storePath))
+	store, err := overgodb.Open(filepath.Join(repo, storePath))
 	if err != nil {
 		return artifact.ID{}, err
 	}
@@ -1772,7 +1801,7 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 		batch.Lineage = append(batch.Lineage, evaluation.Lineage()...)
 	}
 
-	store, err := repodb.Open(filepath.Join(g.repo, g.storePath))
+	store, err := overgodb.Open(filepath.Join(g.repo, g.storePath))
 	if err != nil {
 		return g.oweRecord(batch, err)
 	}
@@ -1829,7 +1858,7 @@ func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, 
 	}
 }
 
-func appendGateAdvisoryFinding(ctx context.Context, store *repodb.Store, batch *artifact.Batch, owners, honesty []string) error {
+func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch *artifact.Batch, owners, honesty []string) error {
 	evidence := slices.DeleteFunc(compactHonesty(honesty), func(line string) bool {
 		return !strings.HasPrefix(line, "advisory: review:") && !strings.HasPrefix(line, "advisory: warning:") &&
 			(!strings.HasPrefix(line, "advisory: consumer:") || strings.Contains(line, "candidates=;"))

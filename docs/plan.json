@@ -2422,6 +2422,34 @@
       ]
     },
     {
+      "id": "vidgen-dataset-registration",
+      "title": "Register new directory datasets in the catalog: compile VidGen's clips and captions into store authority",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Register new directory datasets in the catalog: compile VidGen's clips and captions into store authority",
+          "status": "done",
+          "verify": "go test ./internal/dataset ./cmd/dataset-catalog -count=1"
+        }
+      ]
+    },
+    {
+      "id": "wan-training-objective",
+      "title": "Publish the text-to-video training objective: VidGen corpus bound to the flow-matching contract under Muon with derived hyperparameters, no free knobs",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish the text-to-video training objective: VidGen corpus bound to the flow-matching contract under Muon with derived hyperparameters, no free knobs",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram ./internal/adaptiveparity -run 'TestTrainingObjectiveMatrix|TestObjective' -count=1"
+        }
+      ]
+    },
+    {
       "id": "verify-gemma4-fp8-inference",
       "title": "Verify Gemma-4 FP8 inference leadership",
       "owner": "gui",

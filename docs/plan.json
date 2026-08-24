@@ -4,6 +4,19 @@
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
     {
+      "id": "merge-1f48778cc813",
+      "title": "Merge master at 1f48778cc813",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 1f48778cc813",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
       "id": "merge-013087af",
       "title": "Merge master agent coordination and GUI",
       "owner": "tightening",
@@ -2180,6 +2193,20 @@
           "title": "Merge master at 703690c4a615",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "merge-tightening-adk",
+      "title": "Merge the tightening ADK campaign into master",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge the tightening ADK campaign into master",
+          "status": "done",
+          "verify": "go test ./internal/agentloop ./internal/workflowruntime ./cmd/agent-tool ./cmd/agent-loop -count=1 \u0026\u0026 go test ./internal/server -run 'TestAgentWorkspace|TestWorkbenchAPI|TestWebUI' -count=1"
         }
       ]
     }

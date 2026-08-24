@@ -4,13 +4,13 @@
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
     {
-      "id": "merge-6f7485a52b81",
-      "title": "Merge master at 6f7485a52b81",
+      "id": "merge-4f998b8f8293",
+      "title": "Merge master at 4f998b8f8293",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Merge master at 6f7485a52b81",
+          "title": "Merge master at 4f998b8f8293",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
         }
@@ -90,12 +90,12 @@
       "id": "finding-stage-admitted-retry",
       "title": "Allow stage retry from the admitted state so a crash between admission and running recovers",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Allow stage retry from the admitted state so a crash between admission and running recovers",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/runrecord -run TestStage -count=1"
         }
       ]
@@ -2078,6 +2078,19 @@
             "closure",
             "verification"
           ]
+        }
+      ]
+    },
+    {
+      "id": "merge-6f7485a52b81",
+      "title": "Merge master at 6f7485a52b81",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 6f7485a52b81",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
         }
       ]
     },

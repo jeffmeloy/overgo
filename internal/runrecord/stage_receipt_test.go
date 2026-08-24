@@ -32,3 +32,34 @@ func TestStageReceiptIdentity(t *testing.T) {
 		t.Fatalf("failed stage identity = (%s, %v)", failed.ID, err)
 	}
 }
+
+// TestStageAdmittedCrashRecovers closes the admitted-crash finding: a
+// stage persisted as admitted whose runner died before persisting
+// running must accept a next-attempt admission, exactly as running,
+// waiting, and failed stages do.
+func TestStageAdmittedCrashRecovers(t *testing.T) {
+	base := StageReceipt{
+		Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "stage-admitted-recipe"),
+		Node:   "execute", Operation: testutil.ArtifactID(t, artifact.KindEvidence, "stage-admitted-operation"),
+		Attempt: 1, State: StageAdmitted,
+	}
+	previous, err := NewStageReceipt(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retry := base
+	retry.Attempt, retry.State = 2, StageAdmitted
+	if !stageTransition(previous, retry) {
+		t.Fatal("admitted stage refused a recovery admission")
+	}
+	same := base
+	same.State = StageCompleted
+	if stageTransition(previous, same) {
+		t.Fatal("admitted stage completed without running")
+	}
+	skipped := base
+	skipped.Attempt, skipped.State = 3, StageAdmitted
+	if stageTransition(previous, skipped) {
+		t.Fatal("recovery skipped an attempt number")
+	}
+}

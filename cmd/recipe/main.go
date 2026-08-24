@@ -492,6 +492,8 @@ type inferenceCandidate struct {
 }
 
 func prepareInferenceCandidate(
+	ctx context.Context,
+	store artifact.Reader,
 	path string,
 	override sessionOverride,
 	residency recipe.ResidencyPolicy,
@@ -509,7 +511,7 @@ func prepareInferenceCandidate(
 	if err != nil {
 		return inferenceCandidate{}, err
 	}
-	profileDocument, err := modelrecipe.NewProfileDocument(spec.Profile())
+	profileDocument, err := modelrecipe.ResolveRegisteredArchitectureProfile(ctx, store, spec.Architecture)
 	if err != nil {
 		return inferenceCandidate{}, err
 	}
@@ -569,15 +571,15 @@ func activate(
 	verification modelrecipe.Verification,
 ) error {
 	ctx := context.Background()
-	candidate, err := prepareInferenceCandidate(path, override, residency)
-	if err != nil {
-		return err
-	}
 	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
+	candidate, err := prepareInferenceCandidate(ctx, store, path, override, residency)
+	if err != nil {
+		return err
+	}
 	modelID := candidate.inventory.Manifest.ID
 	if _, err := modelrecipe.PublishResolvedModelDefinition(
 		ctx, store, candidate.inventory, candidate.resolved,
@@ -600,16 +602,16 @@ func retire(
 	residency recipe.ResidencyPolicy,
 	verification modelrecipe.Verification,
 ) error {
-	candidate, err := prepareInferenceCandidate(path, override, residency)
-	if err != nil {
-		return err
-	}
 	ctx := context.Background()
 	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
+	candidate, err := prepareInferenceCandidate(ctx, store, path, override, residency)
+	if err != nil {
+		return err
+	}
 	if err := modelrecipe.RetireActiveCapability(
 		ctx, store, candidate.definition, verification, reason,
 	); err != nil {

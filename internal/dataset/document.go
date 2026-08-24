@@ -11,12 +11,8 @@ import (
 )
 
 const (
-	Version   uint16 = 1
-	MediaType        = "application/vnd.overgo.dataset+json"
-	Schema           = "overgo/dataset/v1"
-
-	maxEntries   = 1 << 20
-	maxNameBytes = 1024
+	MediaType = "application/vnd.overgo.dataset+json"
+	Schema    = "overgo/dataset/v1"
 )
 
 var documentContract = artifact.DocumentContract{
@@ -37,6 +33,8 @@ const (
 	TypeView    Type = "view"
 	TypeSplit   Type = "split"
 	TypeMixture Type = "mixture"
+	// TypeCatalog indexes registered dataset versions.
+	TypeCatalog Type = "catalog"
 )
 
 // Asset defines version-owned external data component.
@@ -58,40 +56,59 @@ type Member struct {
 	Weight  uint64      `json:"weight"`
 }
 
+// CatalogEntry binds a stable name and inventory summary to one dataset.
+type CatalogEntry struct {
+	Name        string      `json:"name"`
+	Dataset     artifact.ID `json:"dataset"`
+	Inventory   artifact.ID `json:"inventory"`
+	StorageKind string      `json:"storage_kind"`
+	Source      string      `json:"source"`
+	Modality    string      `json:"modality"`
+	Formats     []string    `json:"formats,omitempty"`
+	Files       uint64      `json:"files"`
+	Bytes       uint64      `json:"bytes"`
+}
+
 // Document defines immutable dataset composition fact.
 type Document struct {
-	Version    uint16       `json:"version"`
-	Type       Type         `json:"type"`
-	Assets     []Asset      `json:"assets,omitempty"`
-	Source     *artifact.ID `json:"source,omitempty"`
-	Selector   *artifact.ID `json:"selector,omitempty"`
-	Fields     []string     `json:"fields,omitempty"`
-	Partitions []Partition  `json:"partitions,omitempty"`
-	Members    []Member     `json:"members,omitempty"`
-	ID         artifact.ID  `json:"-"`
+	Version    uint16         `json:"version"`
+	Type       Type           `json:"type"`
+	Assets     []Asset        `json:"assets,omitempty"`
+	Source     *artifact.ID   `json:"source,omitempty"`
+	Selector   *artifact.ID   `json:"selector,omitempty"`
+	Fields     []string       `json:"fields,omitempty"`
+	Partitions []Partition    `json:"partitions,omitempty"`
+	Members    []Member       `json:"members,omitempty"`
+	Catalog    []CatalogEntry `json:"catalog,omitempty"`
+	ID         artifact.ID    `json:"-"`
 }
 
 func NewVersion(assets []Asset) (Document, error) {
-	return newDocument(Document{Version: Version, Type: TypeVersion, Assets: slices.Clone(assets)})
+	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeVersion, Assets: slices.Clone(assets)})
 }
 
 func NewView(source artifact.ID, selector *artifact.ID, fields []string) (Document, error) {
 	return newDocument(Document{
-		Version: Version, Type: TypeView, Source: artifact.IDPointer(source),
+		Version: artifact.InitialDocumentVersion, Type: TypeView, Source: artifact.IDPointer(source),
 		Selector: artifact.CloneID(selector), Fields: slices.Clone(fields),
 	})
 }
 
 func NewSplit(source artifact.ID, partitions []Partition) (Document, error) {
 	return newDocument(Document{
-		Version: Version, Type: TypeSplit, Source: artifact.IDPointer(source),
+		Version: artifact.InitialDocumentVersion, Type: TypeSplit, Source: artifact.IDPointer(source),
 		Partitions: slices.Clone(partitions),
 	})
 }
 
 // NewMixture returns a normalized weighted dataset composition.
 func NewMixture(members []Member) (Document, error) {
-	return newDocument(Document{Version: Version, Type: TypeMixture, Members: slices.Clone(members)})
+	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeMixture, Members: slices.Clone(members)})
+}
+
+// NewCatalog returns a named dataset inventory index.
+func NewCatalog(entries []CatalogEntry) (Document, error) {
+	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeCatalog, Catalog: cloneCatalog(entries)})
 }
 
 // Parse decodes and validates a dataset document.
@@ -108,7 +125,7 @@ func (d Document) Content() (artifact.Content, error) {
 }
 
 func (d Document) Lineage() []artifact.Lineage {
-	edges := make([]artifact.Lineage, 0, len(d.Assets)+len(d.Partitions)+len(d.Members)+2)
+	edges := make([]artifact.Lineage, 0, len(d.Assets)+len(d.Partitions)+len(d.Members)+len(d.Catalog)+2)
 	appendEdge := func(parent artifact.ID, relation artifact.Relation) {
 		edges = append(edges, artifact.Lineage{Child: d.ID, Parent: parent, Relation: relation})
 	}
@@ -127,6 +144,9 @@ func (d Document) Lineage() []artifact.Lineage {
 	for _, member := range d.Members {
 		appendEdge(member.Dataset, artifact.RelationDependsOn)
 	}
+	for _, entry := range d.Catalog {
+		appendEdge(entry.Dataset, artifact.RelationContains)
+	}
 	return edges
 }
 
@@ -135,19 +155,19 @@ func newDocument(document Document) (Document, error) {
 }
 
 func canonicalize(document *Document) error {
-	if document == nil || document.Version != Version {
+	if document == nil || document.Version != artifact.InitialDocumentVersion {
 		return errors.New("dataset: invalid document version")
 	}
 	document.Source = artifact.CloneID(document.Source)
 	document.Selector = artifact.CloneID(document.Selector)
 	switch document.Type {
 	case TypeVersion:
-		if document.Source != nil || document.Selector != nil || len(document.Fields)+len(document.Partitions)+len(document.Members) != 0 {
+		if document.Source != nil || document.Selector != nil || len(document.Fields)+len(document.Partitions)+len(document.Members)+len(document.Catalog) != 0 {
 			return errors.New("dataset: version has incompatible fields")
 		}
 		return canonicalizeAssets(&document.Assets)
 	case TypeView:
-		if len(document.Assets)+len(document.Partitions)+len(document.Members) != 0 || !datasetID(document.Source) ||
+		if len(document.Assets)+len(document.Partitions)+len(document.Members)+len(document.Catalog) != 0 || !datasetID(document.Source) ||
 			document.Selector == nil && len(document.Fields) == 0 {
 			return errors.New("dataset: invalid view")
 		}
@@ -156,22 +176,50 @@ func canonicalize(document *Document) error {
 		}
 		return canonicalizeNames(&document.Fields)
 	case TypeSplit:
-		if len(document.Assets)+len(document.Fields)+len(document.Members) != 0 || document.Selector != nil || !datasetID(document.Source) {
+		if len(document.Assets)+len(document.Fields)+len(document.Members)+len(document.Catalog) != 0 || document.Selector != nil || !datasetID(document.Source) {
 			return errors.New("dataset: invalid split")
 		}
 		return canonicalizePartitions(&document.Partitions)
 	case TypeMixture:
-		if len(document.Assets)+len(document.Fields)+len(document.Partitions) != 0 || document.Source != nil || document.Selector != nil {
+		if len(document.Assets)+len(document.Fields)+len(document.Partitions)+len(document.Catalog) != 0 || document.Source != nil || document.Selector != nil {
 			return errors.New("dataset: mixture has incompatible fields")
 		}
 		return canonicalizeMembers(&document.Members)
+	case TypeCatalog:
+		if len(document.Assets)+len(document.Fields)+len(document.Partitions)+len(document.Members) != 0 || document.Source != nil || document.Selector != nil {
+			return errors.New("dataset: catalog has incompatible fields")
+		}
+		return canonicalizeCatalog(&document.Catalog)
 	default:
 		return errors.New("dataset: invalid document type")
 	}
 }
 
+func canonicalizeCatalog(entries *[]CatalogEntry) error {
+	if len(*entries) == 0 {
+		return errors.New("dataset: invalid catalog entry count")
+	}
+	sort.Slice(*entries, func(i, j int) bool { return (*entries)[i].Name < (*entries)[j].Name })
+	for index := range *entries {
+		entry := &(*entries)[index]
+		slices.Sort(entry.Formats)
+		entry.Formats = slices.Compact(entry.Formats)
+		if !validName(entry.Name) || entry.Dataset.Kind() != artifact.KindDataset || entry.Inventory.Kind() != artifact.KindDatasetShard ||
+			!validName(entry.StorageKind) || !validName(entry.Source) || !validName(entry.Modality) ||
+			index > 0 && (*entries)[index-1].Name == entry.Name {
+			return errors.New("dataset: invalid catalog entry")
+		}
+		for _, format := range entry.Formats {
+			if !validName(format) {
+				return errors.New("dataset: invalid catalog format")
+			}
+		}
+	}
+	return nil
+}
+
 func canonicalizeAssets(assets *[]Asset) error {
-	if len(*assets) == 0 || len(*assets) > maxEntries {
+	if len(*assets) == 0 {
 		return errors.New("dataset: invalid asset count")
 	}
 	sort.Slice(*assets, func(i, j int) bool { return (*assets)[i].Name < (*assets)[j].Name })
@@ -188,9 +236,6 @@ func canonicalizeAssets(assets *[]Asset) error {
 }
 
 func canonicalizeNames(names *[]string) error {
-	if len(*names) > maxEntries {
-		return errors.New("dataset: too many fields")
-	}
 	slices.Sort(*names)
 	for index, name := range *names {
 		if !validName(name) {
@@ -204,7 +249,7 @@ func canonicalizeNames(names *[]string) error {
 }
 
 func canonicalizePartitions(partitions *[]Partition) error {
-	if len(*partitions) < 2 || len(*partitions) > maxEntries {
+	if len(*partitions) < 2 {
 		return errors.New("dataset: invalid partition count")
 	}
 	sort.Slice(*partitions, func(i, j int) bool { return (*partitions)[i].Name < (*partitions)[j].Name })
@@ -225,7 +270,7 @@ func canonicalizePartitions(partitions *[]Partition) error {
 }
 
 func canonicalizeMembers(members *[]Member) error {
-	if len(*members) < 2 || len(*members) > maxEntries {
+	if len(*members) < 2 {
 		return errors.New("dataset: invalid mixture member count")
 	}
 	sort.Slice(*members, func(i, j int) bool {
@@ -258,11 +303,20 @@ func cloneDocument(document Document) Document {
 	document.Fields = slices.Clone(document.Fields)
 	document.Partitions = slices.Clone(document.Partitions)
 	document.Members = slices.Clone(document.Members)
+	document.Catalog = cloneCatalog(document.Catalog)
 	return document
 }
 
+func cloneCatalog(entries []CatalogEntry) []CatalogEntry {
+	result := slices.Clone(entries)
+	for index := range result {
+		result[index].Formats = slices.Clone(result[index].Formats)
+	}
+	return result
+}
+
 func validName(value string) bool {
-	return textcheck.Bounded(value, maxNameBytes, "\r\n\\")
+	return textcheck.Bounded(value, artifact.MaxContentBytes, "\r\n\\")
 }
 
 func gcd(left, right uint64) uint64 {

@@ -240,10 +240,9 @@ type Config struct {
 	FFmpegPath         string
 	VideoFPS           float64
 	VideoMaxFrames     int
-	// Browse surfaces (read-only): the datasets root (holding manifest.json) and
-	// the OvergoDB store path (for run/artifact browsing). Empty disables the
-	// corresponding /datasets or /runs endpoint.
-	DatasetsRoot string
+	// OvergoDBPath enables read-only catalog browsing (runs, artifacts,
+	// datasets) when Repository is absent; the dataset catalog itself is
+	// read from the store, never from a filesystem manifest.
 	OvergoDBPath string
 	Repository   *overgodb.Store
 	// HubEndpoint and HubToken configure Hugging Face intake; an empty

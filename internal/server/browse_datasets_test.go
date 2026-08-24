@@ -1,31 +1,27 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/artifact"
+	"overgo/internal/dataset"
+	"overgo/internal/overgodb"
 )
 
-func writeManifest(t *testing.T, body string) string {
-	t.Helper()
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return dir
-}
-
-func TestBrowseDatasetsReadsManifest(t *testing.T) {
-	dir := writeManifest(t, `{"datasets":[
-		{"name":"alpha_ngrams","family":"synthetic","modality":"text","provenance":"synth"},
-		{"name":"wikitext","family":"raw-text","modality":"text"}]}`)
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, DatasetsRoot: dir}, &fakeGenerator{})
+func TestBrowseDatasetsUsesCatalog(t *testing.T) {
+	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = store.Close() })
+	publishDatasetFixture(t, store)
+	handler := newTestHandlerForRepository(t, store, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/datasets", "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
@@ -34,28 +30,30 @@ func TestBrowseDatasetsReadsManifest(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Count != 2 || len(result.Datasets) != 2 {
-		t.Fatalf("count=%d datasets=%d", result.Count, len(result.Datasets))
-	}
-	if result.Datasets[0].Name != "alpha_ngrams" || result.Datasets[0].Family != "synthetic" {
-		t.Fatalf("dataset[0]=%+v", result.Datasets[0])
+	if result.Count != 1 || len(result.Datasets) != result.Count || result.Datasets[0].Name != "fixture" ||
+		result.Datasets[0].Source != "test" || !result.Datasets[0].Available || result.Catalog == "" {
+		t.Fatalf("result = %+v", result)
 	}
 }
 
 func TestBrowseDatasetsUnconfigured(t *testing.T) {
-	handler := newTestHandler(t, &fakeGenerator{}) // no DatasetsRoot
+	handler := newTestHandler(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/datasets", "")
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("status=%d, want 501", response.Code)
 	}
 }
 
-func TestBrowseDatasetsRejectsNonGet(t *testing.T) {
-	dir := writeManifest(t, `{"datasets":[]}`)
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, DatasetsRoot: dir}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
+func TestBrowseDatasetsRequiresActiveCatalog(t *testing.T) {
+	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
+	response := serveTestRequest(handler, http.MethodGet, "/datasets", "")
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("status=%d, want 404", response.Code)
 	}
+}
+
+func TestBrowseDatasetsRejectsNonGet(t *testing.T) {
+	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/datasets", nil))
 	if response.Code != http.StatusMethodNotAllowed {
@@ -63,26 +61,38 @@ func TestBrowseDatasetsRejectsNonGet(t *testing.T) {
 	}
 }
 
-func TestBrowseDatasetsRejectsOversizedManifest(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "manifest.json")
-	file, err := os.Create(path)
+func publishDatasetFixture(t *testing.T, store *overgodb.Store) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "fixture.txt")
+	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	inventory, err := dataset.NewInventory([]dataset.InventoryFile{{
+		Path: filepath.Base(path), OriginalName: filepath.Base(path), Modality: "text", Format: "txt", Bytes: 1,
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := file.Truncate(browseDatasetManifestMaxBytes + 1); err != nil {
-		file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, DatasetsRoot: dir}, &fakeGenerator{})
+	version, err := dataset.NewVersion([]dataset.Asset{{Name: "inventory", Artifact: inventory.ID, Records: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	response := serveTestRequest(handler, http.MethodGet, "/datasets", "")
-	if response.Code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("status=%d, want 413", response.Code)
+	catalog, err := dataset.NewCatalog([]dataset.CatalogEntry{{
+		Name: "fixture", Dataset: version.ID, Inventory: inventory.ID, StorageKind: "file",
+		Source: "test", Modality: "text", Formats: []string{"txt"}, Files: 1, Bytes: 1,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	location, err := artifact.CanonicalLocalLocation(version.ID, artifact.LocationFile, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = dataset.PublishCatalog(context.Background(), store, dataset.CompiledCatalog{
+		Catalog: catalog, Datasets: []dataset.Document{version}, Inventories: []dataset.Inventory{inventory},
+		Locations: []artifact.Location{location},
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

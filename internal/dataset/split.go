@@ -225,7 +225,7 @@ func canonicalizeMembership(membership *Membership) error {
 }
 
 func canonicalizeRecords(records *[]Record, allowEmpty bool) error {
-	if !allowEmpty && len(*records) == 0 || len(*records) > maxEntries {
+	if !allowEmpty && len(*records) == 0 {
 		return errors.New("dataset: invalid split record count")
 	}
 	sort.Slice(*records, func(i, j int) bool { return (*records)[i].ID < (*records)[j].ID })
@@ -238,7 +238,7 @@ func canonicalizeRecords(records *[]Record, allowEmpty bool) error {
 }
 
 func canonicalizeSplitPartitions(partitions *[]SplitPartition) error {
-	if len(*partitions) < 2 || len(*partitions) > maxEntries {
+	if len(*partitions) < 2 {
 		return errors.New("dataset: invalid split partition count")
 	}
 	sort.Slice(*partitions, func(i, j int) bool { return (*partitions)[i].Name < (*partitions)[j].Name })

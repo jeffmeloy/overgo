@@ -2,34 +2,25 @@ package server
 
 import (
 	"context"
-	"encoding/json"
-	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 
+	"overgo/internal/dataset"
 	"overgo/internal/trainingdata"
 )
 
-const browseDatasetManifestMaxBytes = 8 << 20
-
-// datasetsManifest: the subset of datasets/manifest.json the browse surface
-// reads. Unknown fields are ignored, so the manifest can carry more than this.
-type datasetsManifest struct {
-	Datasets []datasetEntry `json:"datasets"`
-}
-
 type datasetEntry struct {
-	Name       string `json:"name"`
-	Family     string `json:"family"`
-	Modality   string `json:"modality"`
-	Loader     string `json:"loader"`
-	Provenance string `json:"provenance"`
-	Language   string `json:"language"`
+	Name        string   `json:"name"`
+	StorageKind string   `json:"storage_kind"`
+	Source      string   `json:"source"`
+	Modality    string   `json:"modality"`
+	Formats     []string `json:"formats,omitempty"`
+	Files       uint64   `json:"files"`
+	Bytes       uint64   `json:"bytes"`
+	Available   bool     `json:"available"`
 }
 
 type browseDatasetsResponse struct {
-	Root     string         `json:"root"`
+	Catalog  string         `json:"catalog"`
 	Count    int            `json:"count"`
 	Datasets []datasetEntry `json:"datasets"`
 }
@@ -60,14 +51,14 @@ func (h *Handler) previewDataset(response http.ResponseWriter, request *http.Req
 		writeInvalidRequestMessage(response, "invalid dataset preview request")
 		return
 	}
-	dataset, err := h.config.DatasetPreview.OpenDataset(request.Context(), body.Name)
+	value, err := h.config.DatasetPreview.OpenDataset(request.Context(), body.Name)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return
 	}
-	defer dataset.Close()
+	defer value.Close()
 	preview, err := trainingdata.Preview(
-		request.Context(), dataset, body.Position, body.Limit, uint64(h.config.ResponseStoreBytes),
+		request.Context(), value, body.Position, body.Limit, uint64(h.config.ResponseStoreBytes),
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -76,41 +67,33 @@ func (h *Handler) previewDataset(response http.ResponseWriter, request *http.Req
 	writeJSON(response, http.StatusOK, preview)
 }
 
-// browseDatasets: read-only dataset registry from <DatasetsRoot>/manifest.json —
-// name, family, modality, loader, provenance, language per dataset. No file
-// access beyond the manifest; sampling is a separate, bounded endpoint.
+// browseDatasets serves the active RepoDB dataset catalog.
 func (h *Handler) browseDatasets(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
-	if h.config.DatasetsRoot == "" {
-		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "dataset browsing is not configured")
+	store, ok := h.requireBrowseStore(response, request)
+	if !ok {
 		return
 	}
-	file, err := os.Open(filepath.Join(h.config.DatasetsRoot, "manifest.json"))
+	coverage, err := dataset.InspectCatalog(request.Context(), store)
 	if err != nil {
-		writeError(response, http.StatusNotFound, "not_found", "dataset manifest is unavailable")
+		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
 		return
 	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil || info.Size() > browseDatasetManifestMaxBytes {
-		writeError(response, http.StatusRequestEntityTooLarge, "manifest_too_large", "dataset manifest exceeds the browse limit")
+	if coverage.Catalog == nil {
+		writeError(response, http.StatusNotFound, "not_found", "dataset catalog is unavailable")
 		return
 	}
-	var manifest datasetsManifest
-	decoder := json.NewDecoder(io.LimitReader(file, browseDatasetManifestMaxBytes+1))
-	if err := decoder.Decode(&manifest); err != nil {
-		writeError(response, http.StatusInternalServerError, "invalid_manifest", "dataset manifest is not valid JSON")
-		return
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		writeError(response, http.StatusInternalServerError, "invalid_manifest", "dataset manifest has trailing content")
-		return
+	entries := make([]datasetEntry, len(coverage.Entries))
+	for index, row := range coverage.Entries {
+		entry := row.Entry
+		entries[index] = datasetEntry{
+			Name: entry.Name, StorageKind: entry.StorageKind, Source: entry.Source, Modality: entry.Modality,
+			Formats: entry.Formats, Files: entry.Files, Bytes: entry.Bytes, Available: row.Available,
+		}
 	}
 	writeJSON(response, http.StatusOK, browseDatasetsResponse{
-		Root:     h.config.DatasetsRoot,
-		Count:    len(manifest.Datasets),
-		Datasets: manifest.Datasets,
+		Catalog: coverage.Catalog.String(), Count: len(entries), Datasets: entries,
 	})
 }

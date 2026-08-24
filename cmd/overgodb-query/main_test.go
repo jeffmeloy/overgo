@@ -6,14 +6,115 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/dataset"
+	"overgo/internal/model"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 )
+
+func TestProfileCatalogQueryReportsExactCoverage(t *testing.T) {
+	repository := t.TempDir()
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var emptyOutput bytes.Buffer
+	if err := run([]string{"-repo", repository, "-profiles", "-json"}, &emptyOutput); err != nil {
+		t.Fatal(err)
+	}
+	var empty modelrecipe.ProfileCatalogCoverage
+	if err := json.Unmarshal(emptyOutput.Bytes(), &empty); err != nil {
+		t.Fatal(err)
+	}
+	if empty.Complete || empty.Published != 0 || empty.Registered != len(model.SupportedArchitectures()) {
+		t.Fatalf("empty coverage = %+v", empty)
+	}
+	store, err = overgodb.Open(repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := modelrecipe.PublishArchitectureProfileCatalog(context.Background(), store); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := run([]string{"-repo", repository, "-profiles", "-json"}, &output); err != nil {
+		t.Fatal(err)
+	}
+	var coverage modelrecipe.ProfileCatalogCoverage
+	if err := json.Unmarshal(output.Bytes(), &coverage); err != nil {
+		t.Fatal(err)
+	}
+	if !coverage.Complete || coverage.Registered != len(model.SupportedArchitectures()) ||
+		coverage.Published != coverage.Registered || len(coverage.Entries) != coverage.Registered {
+		t.Fatalf("coverage = %+v", coverage)
+	}
+}
+
+func TestDatasetCatalogQueryReportsExactCoverage(t *testing.T) {
+	root, path := t.TempDir(), filepath.Join(t.TempDir(), "fixture.txt")
+	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inventory, err := dataset.NewInventory([]dataset.InventoryFile{{
+		Path: filepath.Base(path), OriginalName: filepath.Base(path), Modality: "text", Format: "txt", Bytes: 1,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	version, err := dataset.NewVersion([]dataset.Asset{{Name: "inventory", Artifact: inventory.ID, Records: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := dataset.NewCatalog([]dataset.CatalogEntry{{
+		Name: "fixture", Dataset: version.ID, Inventory: inventory.ID, StorageKind: "file", Source: "test",
+		Modality: "text", Formats: []string{"txt"}, Files: 1, Bytes: 1,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	location, err := artifact.CanonicalLocalLocation(version.ID, artifact.LocationFile, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dataset.PublishCatalog(context.Background(), store, dataset.CompiledCatalog{
+		Catalog: catalog, Datasets: []dataset.Document{version}, Inventories: []dataset.Inventory{inventory},
+		Locations: []artifact.Location{location},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := run([]string{"-repo", root, "-datasets", "-json"}, &output); err != nil {
+		t.Fatal(err)
+	}
+	var coverage dataset.CatalogCoverage
+	if err := json.Unmarshal(output.Bytes(), &coverage); err != nil {
+		t.Fatal(err)
+	}
+	if !coverage.Complete || coverage.Published != coverage.Registered || coverage.Available != coverage.Registered {
+		t.Fatalf("coverage = %+v", coverage)
+	}
+}
 
 func TestMagicClosureQueries(t *testing.T) {
 	root := t.TempDir()

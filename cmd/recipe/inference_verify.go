@@ -34,7 +34,13 @@ func verifyInference(
 	if err != nil {
 		return fmt.Errorf("recipe: compile inference suite: %w", err)
 	}
-	candidate, err := prepareInferenceCandidate(path, override, residency)
+	ctx := context.Background()
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	candidate, err := prepareInferenceCandidate(ctx, store, path, override, residency)
 	if err != nil {
 		return err
 	}
@@ -52,12 +58,6 @@ func verifyInference(
 	if err != nil {
 		return fmt.Errorf("recipe: bind inference evaluation: %w", err)
 	}
-	ctx := context.Background()
-	store, err := overgodb.Open(repository)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
 	if _, err := modelrecipe.PublishResolvedModelDefinition(
 		ctx, store, candidate.inventory, candidate.resolved,
 	); err != nil {

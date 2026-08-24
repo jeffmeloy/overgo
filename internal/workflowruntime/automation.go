@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/workflowcontract"
 )
 
@@ -24,6 +26,12 @@ type AutomationRuntime struct {
 type AutomationExecution struct {
 	Operation artifact.ID
 	Plan      workflowcontract.AutomationExecutionPlan
+	Claim     artifact.ID
+}
+
+// AutomationClock supplies scheduler time and is injectable in tests and hosts.
+type AutomationClock interface {
+	Now() time.Time
 }
 
 // SubmitManual compiles active authority and admits a manual run.
@@ -59,6 +67,73 @@ func (runtime AutomationRuntime) RecoverAutomation(
 		return AutomationExecution{}, err
 	}
 	return runtime.admit(ctx, key, plan, inputs)
+}
+
+// ScheduleAutomation claims and admits the due slot for one active schedule.
+// Fired is false when no slot is due or another caller already owns it.
+func (runtime AutomationRuntime) ScheduleAutomation(
+	ctx context.Context,
+	name string,
+	clock AutomationClock,
+	inputs map[recipe.PortName]Value,
+) (execution AutomationExecution, fired bool, err error) {
+	if clock == nil {
+		return execution, false, errors.New("workflow runtime: automation clock is absent")
+	}
+	compiler := workflowcontract.AutomationCompiler{Repository: runtime.Store, Catalog: runtime.Catalog}
+	plan, err := compiler.Compile(ctx, name)
+	if err != nil {
+		return execution, false, err
+	}
+	if plan.Trigger.Kind != recipe.AutomationTriggerSchedule {
+		return execution, false, errors.New("workflow runtime: automation is not scheduled")
+	}
+	if err := runtime.publishAutomationPlan(ctx, plan); err != nil {
+		return execution, false, err
+	}
+	authority := runrecord.AutomationScheduleAuthority{Repository: runtime.Store}
+	current, found, err := authority.Current(ctx, name)
+	if err != nil {
+		return execution, false, err
+	}
+	var previous *time.Time
+	if found {
+		due := current.Due()
+		previous = &due
+	}
+	due, ready, err := plan.Trigger.Due(clock.Now(), previous)
+	if err != nil || !ready {
+		return execution, false, err
+	}
+	claim, won, err := authority.Claim(ctx, name, plan.ID, due)
+	if err != nil || !won {
+		return execution, false, err
+	}
+	execution, err = runtime.admit(ctx, claim.ID.String(), plan, inputs)
+	execution.Claim = claim.ID
+	return execution, err == nil, err
+}
+
+// RecoverScheduledAutomation resumes an exact claimed schedule slot after a
+// process interruption without consulting a newer active alias.
+func (runtime AutomationRuntime) RecoverScheduledAutomation(
+	ctx context.Context,
+	claimID artifact.ID,
+	inputs map[recipe.PortName]Value,
+) (AutomationExecution, error) {
+	authority := runrecord.AutomationScheduleAuthority{Repository: runtime.Store}
+	claim, err := authority.Require(ctx, claimID)
+	if err != nil {
+		return AutomationExecution{}, err
+	}
+	compiler := workflowcontract.AutomationCompiler{Repository: runtime.Store, Catalog: runtime.Catalog}
+	plan, err := compiler.Require(ctx, claim.Plan)
+	if err != nil || plan.Name != claim.Name || plan.Trigger.Kind != recipe.AutomationTriggerSchedule {
+		return AutomationExecution{}, errors.Join(errors.New("workflow runtime: scheduled recovery authority differs"), err)
+	}
+	execution, err := runtime.admit(ctx, claim.ID.String(), plan, inputs)
+	execution.Claim = claim.ID
+	return execution, err
 }
 
 func (runtime AutomationRuntime) admit(

@@ -67,7 +67,7 @@
         {
           "id": "scheduled-execution",
           "title": "Add recipe-owned schedule triggers with a single durable claim, injectable clock, missed-run policy, and duplicate-fire refusal",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestAutomationSchedule' internal \u0026\u0026 go test ./internal/operation ./internal/workflowruntime ./internal/runrecord -run 'TestAutomationSchedule|TestAutomationScheduleClaim|TestAutomationScheduleRecovery' -count=1",
           "rationale": "Scheduling is orchestration, not a parallel runtime. Schedule parsing and due-time calculation belong to the typed trigger contract; claims and outcomes belong to OvergoDB; execution remains an ordinary operation. Timing and catch-up behavior come from policy identities, not literals.",
           "depends_on": [

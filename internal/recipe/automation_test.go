@@ -2,10 +2,36 @@ package recipe
 
 import (
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/testutil"
 )
+
+func TestAutomationSchedulePolicy(t *testing.T) {
+	anchor := time.Date(2026, time.August, 24, 8, 0, 0, 0, time.UTC)
+	policy, err := (AutomationTriggerPolicy{
+		Kind: AutomationTriggerSchedule, Schedule: time.Hour.String(),
+		AnchorUnixNano: anchor.UnixNano(), Missed: AutomationMissedLatest,
+	}).Identify()
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := anchor.Add(time.Hour)
+	due, ready, err := policy.Due(anchor.Add(4*time.Hour+time.Minute), &previous)
+	if err != nil || !ready || !due.Equal(anchor.Add(4*time.Hour)) {
+		t.Fatalf("latest missed run = (%s, %v, %v)", due, ready, err)
+	}
+	policy.Missed = AutomationMissedCatchUpOne
+	policy, err = policy.Identify()
+	if err != nil {
+		t.Fatal(err)
+	}
+	due, ready, err = policy.Due(anchor.Add(4*time.Hour+time.Minute), &previous)
+	if err != nil || !ready || !due.Equal(anchor.Add(2*time.Hour)) {
+		t.Fatalf("catch-up missed run = (%s, %v, %v)", due, ready, err)
+	}
+}
 
 func TestAutomationDefinition(t *testing.T) {
 	id := func(kind artifact.Kind, name string) artifact.ID {

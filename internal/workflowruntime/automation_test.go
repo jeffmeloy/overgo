@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
@@ -120,7 +121,85 @@ func TestAutomationRecovery(t *testing.T) {
 	}
 }
 
+type fixedAutomationClock struct{ now time.Time }
+
+func (clock fixedAutomationClock) Now() time.Time { return clock.now }
+
+func TestAutomationSchedule(t *testing.T) {
+	anchor := time.Date(2026, time.August, 24, 8, 0, 0, 0, time.UTC)
+	fixture := newScheduledAutomationRuntimeFixture(t, anchor)
+	defer fixture.store.Close()
+	manager, err := operation.NewManager(len(fixture.definition.Nodes) + 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	runtime := fixture.runtime(t, manager, generationAutomationAdapters(t, false, nil))
+	clock := fixedAutomationClock{now: anchor.Add(2*time.Hour + 5*time.Minute)}
+	execution, fired, err := runtime.ScheduleAutomation(context.Background(), fixture.name, clock, fixture.inputs)
+	if err != nil || !fired || !execution.Claim.Valid() {
+		t.Fatalf("scheduled automation admission = (%+v, %v, %v)", execution, fired, err)
+	}
+	status, err := manager.Wait(context.Background(), execution.Operation)
+	if err != nil || status.State != operation.StateCompleted {
+		t.Fatalf("scheduled automation status = (%+v, %v)", status, err)
+	}
+	if _, fired, err := runtime.ScheduleAutomation(context.Background(), fixture.name, clock, fixture.inputs); err != nil || fired {
+		t.Fatalf("duplicate schedule fire = (%v, %v)", fired, err)
+	}
+}
+
+func TestAutomationScheduleRecovery(t *testing.T) {
+	anchor := time.Date(2026, time.August, 24, 8, 0, 0, 0, time.UTC)
+	fixture := newScheduledAutomationRuntimeFixture(t, anchor)
+	defer fixture.store.Close()
+	firstManager, err := operation.NewManager(len(fixture.definition.Nodes) + 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := fixture.runtime(t, firstManager, generationAutomationAdapters(t, true, nil))
+	execution, fired, err := first.ScheduleAutomation(
+		context.Background(), fixture.name, fixedAutomationClock{now: anchor.Add(time.Hour)}, fixture.inputs,
+	)
+	if err != nil || !fired {
+		t.Fatalf("failed schedule admission = (%v, %v)", fired, err)
+	}
+	status, err := firstManager.Wait(context.Background(), execution.Operation)
+	firstManager.Close()
+	if err != nil || status.State != operation.StateFailed {
+		t.Fatalf("failed schedule status = (%+v, %v)", status, err)
+	}
+	secondManager, err := operation.NewManager(len(fixture.definition.Nodes) + 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer secondManager.Close()
+	second := fixture.runtime(t, secondManager, generationAutomationAdapters(t, false, nil))
+	recovered, err := second.RecoverScheduledAutomation(context.Background(), execution.Claim, fixture.inputs)
+	if err != nil || recovered.Operation != execution.Operation || recovered.Claim != execution.Claim {
+		t.Fatalf("scheduled recovery = (%+v, %v)", recovered, err)
+	}
+	status, err = secondManager.Wait(context.Background(), recovered.Operation)
+	if err != nil || status.State != operation.StateCompleted {
+		t.Fatalf("recovered schedule status = (%+v, %v)", status, err)
+	}
+}
+
 func newAutomationRuntimeFixture(t *testing.T) automationRuntimeFixture {
+	return newAutomationRuntimeFixtureWithTrigger(t, recipe.AutomationTriggerPolicy{Kind: recipe.AutomationTriggerManual})
+}
+
+func newScheduledAutomationRuntimeFixture(t *testing.T, anchor time.Time) automationRuntimeFixture {
+	return newAutomationRuntimeFixtureWithTrigger(t, recipe.AutomationTriggerPolicy{
+		Kind: recipe.AutomationTriggerSchedule, Schedule: time.Hour.String(),
+		AnchorUnixNano: anchor.UnixNano(), Missed: recipe.AutomationMissedLatest,
+	})
+}
+
+func newAutomationRuntimeFixtureWithTrigger(
+	t *testing.T,
+	triggerDeclaration recipe.AutomationTriggerPolicy,
+) automationRuntimeFixture {
 	t.Helper()
 	ctx := context.Background()
 	store, err := overgodb.Open(t.TempDir())
@@ -146,7 +225,7 @@ func newAutomationRuntimeFixture(t *testing.T) automationRuntimeFixture {
 		store.Close()
 		t.Fatal(err)
 	}
-	trigger, err := (recipe.AutomationTriggerPolicy{Kind: recipe.AutomationTriggerManual}).Identify()
+	trigger, err := triggerDeclaration.Identify()
 	if err != nil {
 		store.Close()
 		t.Fatal(err)

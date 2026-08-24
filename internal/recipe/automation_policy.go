@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"overgo/internal/artifact"
 )
@@ -36,11 +37,23 @@ const (
 // AutomationTriggerPolicy is immutable trigger authority. Schedule retains
 // the user-authored expression; the scheduler owns parsing and due-time logic.
 type AutomationTriggerPolicy struct {
-	Version  uint16                `json:"version"`
-	Kind     AutomationTriggerKind `json:"kind"`
-	Schedule string                `json:"schedule,omitempty"`
-	ID       artifact.ID           `json:"-"`
+	Version        uint16                    `json:"version"`
+	Kind           AutomationTriggerKind     `json:"kind"`
+	Schedule       string                    `json:"schedule,omitempty"`
+	AnchorUnixNano int64                     `json:"anchor_unix_nano,omitempty"`
+	Missed         AutomationMissedRunPolicy `json:"missed,omitempty"`
+	ID             artifact.ID               `json:"-"`
 }
+
+// AutomationMissedRunPolicy selects which overdue schedule slot may run.
+type AutomationMissedRunPolicy string
+
+const (
+	// AutomationMissedLatest skips older overdue slots and claims the latest.
+	AutomationMissedLatest AutomationMissedRunPolicy = "latest"
+	// AutomationMissedCatchUpOne claims the oldest outstanding slot per scan.
+	AutomationMissedCatchUpOne AutomationMissedRunPolicy = "catch-up-one"
+)
 
 // AutomationDeliveryKind selects a repository artifact or approved tool path.
 type AutomationDeliveryKind string
@@ -72,12 +85,17 @@ var automationTriggerPolicyCodec = artifact.JSONDocumentCodec(
 		value.Schedule = strings.TrimSpace(value.Schedule)
 		switch value.Kind {
 		case AutomationTriggerManual:
-			if value.Schedule != "" {
+			if value.Schedule != "" || value.AnchorUnixNano != 0 || value.Missed != "" {
 				return errors.New("recipe: manual trigger carries a schedule")
 			}
 		case AutomationTriggerSchedule:
 			if value.Schedule == "" || strings.ContainsAny(value.Schedule, "\x00\r\n") {
 				return errors.New("recipe: scheduled trigger requires one bounded expression")
+			}
+			period, err := time.ParseDuration(value.Schedule)
+			if err != nil || period <= 0 || value.AnchorUnixNano < 0 ||
+				value.Missed != AutomationMissedLatest && value.Missed != AutomationMissedCatchUpOne {
+				return errors.New("recipe: scheduled trigger has invalid cadence authority")
 			}
 		default:
 			return errors.New("recipe: unsupported automation trigger")
@@ -129,6 +147,37 @@ func (value AutomationTriggerPolicy) ArtifactContent() (artifact.Content, error)
 // ValidateIdentity verifies trigger policy identity.
 func (value AutomationTriggerPolicy) ValidateIdentity() error {
 	return automationTriggerPolicyCodec.ValidateIdentity(value)
+}
+
+// Due returns the deterministic schedule slot due at now. Previous is the
+// last durable claim; nil means this schedule has never claimed a slot.
+func (value AutomationTriggerPolicy) Due(now time.Time, previous *time.Time) (time.Time, bool, error) {
+	if value.ValidateIdentity() != nil || value.Kind != AutomationTriggerSchedule {
+		return time.Time{}, false, errors.New("recipe: schedule policy is invalid")
+	}
+	period, err := time.ParseDuration(value.Schedule)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	anchor := time.UnixMicro(value.AnchorUnixNano / int64(time.Microsecond)).
+		Add(time.Duration(value.AnchorUnixNano % int64(time.Microsecond))).UTC()
+	now = now.UTC()
+	if now.Before(anchor) {
+		return time.Time{}, false, nil
+	}
+	latest := anchor.Add(time.Duration(now.Sub(anchor)/period) * period)
+	if previous == nil {
+		return latest, true, nil
+	}
+	prior := previous.UTC()
+	next := prior.Add(period)
+	if next.After(now) {
+		return time.Time{}, false, nil
+	}
+	if value.Missed == AutomationMissedCatchUpOne {
+		return next, true, nil
+	}
+	return latest, latest.After(prior), nil
 }
 
 // Identify canonicalizes and identifies a delivery policy.

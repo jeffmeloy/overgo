@@ -81,7 +81,7 @@ func TestTransportArgumentValidation(t *testing.T) {
 
 func TestTransportHTTPBoundedStrictJSON(t *testing.T) {
 	ctx := context.Background()
-	executor := NewExecutor()
+	executor := NewOperatorExecutor()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/ok":

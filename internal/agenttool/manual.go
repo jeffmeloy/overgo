@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/textcheck"
@@ -186,6 +187,12 @@ func (transport Transport) validate(name string) error {
 	case TransportArgv:
 		if transport.Program == "" || transport.URL != "" {
 			return fmt.Errorf("agent tool: argv manual %q requires a program and no endpoint", name)
+		}
+		// A program is a bare command word resolved on PATH: a path
+		// separator would let a manual point execution at arbitrary
+		// files, and the operator's allowlist could not reason about it.
+		if strings.ContainsAny(transport.Program, `/\`) || !textcheck.Bounded(transport.Program, manualTextBytes, "\x00\r\n") {
+			return fmt.Errorf("agent tool: argv manual %q program must be a bare command word", name)
 		}
 		for _, word := range transport.Args {
 			if !textcheck.Bounded(word, manualTextBytes, "\x00\r\n") {

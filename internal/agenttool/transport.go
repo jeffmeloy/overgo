@@ -34,9 +34,20 @@ type Executor struct {
 	client   *http.Client
 }
 
-// NewExecutor returns an executor with no builtins registered.
+// NewExecutor returns the serving executor: no builtins registered,
+// redirects refused, and http endpoints that resolve to loopback,
+// private, or link-local addresses refused at dial time. Every
+// network-facing surface uses this constructor.
 func NewExecutor() *Executor {
-	return &Executor{builtins: map[string]Builtin{}, client: &http.Client{Timeout: invokeTimeout}}
+	return &Executor{builtins: map[string]Builtin{}, client: newTransportClient(false)}
+}
+
+// NewOperatorExecutor returns the operator's executor: identical
+// policy except that loopback and private endpoints are reachable,
+// because an operator invoking local tooling from the CLI is not a
+// server fetching on a client's behalf. Redirects stay refused.
+func NewOperatorExecutor() *Executor {
+	return &Executor{builtins: map[string]Builtin{}, client: newTransportClient(true)}
 }
 
 // registerBuiltin binds one in-process implementation to a manual name.

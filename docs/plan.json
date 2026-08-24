@@ -161,12 +161,12 @@
       "id": "agent-transport-security",
       "title": "Transport security before execution: refuse redirects and private-network endpoints for http manuals, allowlist argv programs at publication",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Transport security before execution: refuse redirects and private-network endpoints for http manuals, allowlist argv programs at publication",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/agenttool -run 'TestTransportSecurity|TestManualSecurity' -count=1",
           "depends_on": [
             "agent-tool-transports/do"

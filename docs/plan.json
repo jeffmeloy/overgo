@@ -1757,12 +1757,12 @@
       "id": "adk-agent-gui",
       "title": "Expose durable sessions, recipe stages, tool actions, decisions, replay, and peers through existing GUI owners",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Extend current Runtime, Activity, Evaluation, and recipe views; use projected RepoDB queries and shared SSE; delete polling and duplicate view-local state where event streams are authoritative",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run 'Test(SessionLedgerGUI|WorkflowStageGUI|ToolDecisionGUI|InteractionReplayGUI|RemoteAttemptGUI|AgentGUIUsesProjectedQueriesAndSSE)' -count=1",
           "rationale": "The GUI should expose the new capabilities through existing modules, navigation, operation streams, and evidence views. It must display recipe and artifact authority, waiting actions, stage progress, replay comparisons, and remote attempts without becoming a second state store.",
           "depends_on": [

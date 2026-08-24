@@ -1,128 +1,78 @@
 package tensor
 
-import (
-	"errors"
-	"fmt"
-)
+import "fmt"
 
-// Attributes: closed graph-attribute descriptor set.
+// Attributes: closed operation-attribute contract.
 type Attributes interface {
-	tensorAttributes()
+	validFor(Op) bool
 }
 
-func (ScaleAttributes) tensorAttributes()                {}
-func (ClampAttributes) tensorAttributes()                {}
-func (RMSNormAttributes) tensorAttributes()              {}
-func (MADNormAttributes) tensorAttributes()              {}
-func (LayerNormAttributes) tensorAttributes()            {}
-func (L2NormAttributes) tensorAttributes()               {}
-func (XIELUAttributes) tensorAttributes()                {}
-func (MulMatAttributes) tensorAttributes()               {}
-func (GetRowsAttributes) tensorAttributes()              {}
-func (RoPEAttributes) tensorAttributes()                 {}
-func (RoPEMultiAttributes) tensorAttributes()            {}
-func (AttentionAttributes) tensorAttributes()            {}
-func (Conv1DAttributes) tensorAttributes()               {}
-func (Conv2DAttributes) tensorAttributes()               {}
-func (Window2DAttributes) tensorAttributes()             {}
-func (PixelShuffle2DAttributes) tensorAttributes()       {}
-func (SAMAttentionAttributes) tensorAttributes()         {}
-func (GroupNormAttributes) tensorAttributes()            {}
-func (MoEAttributes) tensorAttributes()                  {}
-func (HyperConnectionAttributes) tensorAttributes()      {}
-func (CompressedAttentionAttributes) tensorAttributes()  {}
-func (GatedDeltaNetAttributes) tensorAttributes()        {}
-func (GatedLinearAttentionAttributes) tensorAttributes() {}
-func (RepeatHeadsAttributes) tensorAttributes()          {}
-func (ConcatAttributes) tensorAttributes()               {}
-func (GroupSliceAttributes) tensorAttributes()           {}
-func (FlatSliceAttributes) tensorAttributes()            {}
-func (CacheAppendAttributes) tensorAttributes()          {}
-func (TopKAttributes) tensorAttributes()                 {}
-func (SparseAttentionAttributes) tensorAttributes()      {}
-func (IndexerScoreAttributes) tensorAttributes()         {}
-func (EmbeddedInputAttributes) tensorAttributes()        {}
-func (LoRAMergeAttributes) tensorAttributes()            {}
+type emptyAttributes struct{}
 
-type attributeKind uint8
+func sameOp(got, want Op) bool { return got == want }
 
-const (
-	attributeNone attributeKind = iota
-	attributeScale
-	attributeClamp
-	attributeRMSNorm
-	attributeLayerNorm
-	attributeL2Norm
-	attributeXIELU
-	attributeMulMat
-	attributeGetRows
-	attributeRoPE
-	attributeRoPEMulti
-	attributeAttention
-	attributeConv1D
-	attributeConv2D
-	attributeWindow2D
-	attributeSAMAttention
-	attributeGroupNorm
-	attributeMoE
-	attributeHyperConnection
-	attributeCompressedAttention
-	attributeGatedDeltaNet
-	attributeGatedLinearAttention
-	attributeRepeatHeads
-	attributeConcat
-	attributeGroupSlice
-	attributeFlatSlice
-	attributeTopK
-	attributeSparseAttention
-	attributeIndexerScore
-	attributeEmbeddedInput
-	attributeLoRAMerge
-	attributeCacheAppend
-	attributeMADNorm
-	attributePixelShuffle2D
-)
+func (emptyAttributes) validFor(op Op) bool {
+	switch op {
+	case OpInput, OpAdd, OpMultiply, OpSoftmax, OpSiLU, OpMulMat, OpReshape,
+		OpSigmoid, OpSoftplus, OpSSMConv, OpSSMScan, OpTranspose2D, OpGELU,
+		OpReLUSquared, OpGroupedMulMat, OpTanh, OpExp, OpWKV6, OpSumRows,
+		OpWKV7, OpFWHT, OpGatherLast, OpReLU, OpDivide, OpBF16Round, OpGELUErf,
+		OpAtan:
+		return true
+	default:
+		return false
+	}
+}
 
-var operationAttributeKinds = [...]attributeKind{
-	OpScale:                attributeScale,
-	OpClamp:                attributeClamp,
-	OpRMSNorm:              attributeRMSNorm,
-	OpLayerNorm:            attributeLayerNorm,
-	OpL2Norm:               attributeL2Norm,
-	OpXIELU:                attributeXIELU,
-	OpMulMat:               attributeMulMat,
-	OpGetRows:              attributeGetRows,
-	OpRoPENeoX:             attributeRoPE,
-	OpRoPENormal:           attributeRoPE,
-	OpRoPEMulti:            attributeRoPEMulti,
-	OpAttention:            attributeAttention,
-	OpConv1DSame:           attributeConv1D,
-	OpConv2D:               attributeConv2D,
-	OpWindowPartition2D:    attributeWindow2D,
-	OpWindowUnpartition2D:  attributeWindow2D,
-	OpSAMAttention:         attributeSAMAttention,
-	OpGroupNorm:            attributeGroupNorm,
-	OpMoE:                  attributeMoE,
-	OpHyperConnectionInit:  attributeHyperConnection,
-	OpHyperConnectionPre:   attributeHyperConnection,
-	OpHyperConnectionPost:  attributeHyperConnection,
-	OpHyperConnectionHead:  attributeHyperConnection,
-	OpCompressedAttention:  attributeCompressedAttention,
-	OpGatedDeltaNet:        attributeGatedDeltaNet,
-	OpGatedLinearAttention: attributeGatedLinearAttention,
-	OpRepeatHeads:          attributeRepeatHeads,
-	OpConcat:               attributeConcat,
-	OpGroupSlice:           attributeGroupSlice,
-	OpFlatSlice:            attributeFlatSlice,
-	OpTopK:                 attributeTopK,
-	OpTopKPairs:            attributeTopK,
-	OpTopKPartials:         attributeTopK,
-	OpSparseAttention:      attributeSparseAttention,
-	OpIndexerScore:         attributeIndexerScore,
-	OpLoRAMerge:            attributeLoRAMerge,
-	OpCacheAppend:          attributeCacheAppend,
-	OpMADNorm:              attributeMADNorm,
-	OpPixelShuffle2D:       attributePixelShuffle2D,
+func (ScaleAttributes) validFor(op Op) bool     { return sameOp(op, OpScale) }
+func (ClampAttributes) validFor(op Op) bool     { return sameOp(op, OpClamp) }
+func (RMSNormAttributes) validFor(op Op) bool   { return sameOp(op, OpRMSNorm) }
+func (MADNormAttributes) validFor(op Op) bool   { return sameOp(op, OpMADNorm) }
+func (LayerNormAttributes) validFor(op Op) bool { return sameOp(op, OpLayerNorm) }
+func (L2NormAttributes) validFor(op Op) bool    { return sameOp(op, OpL2Norm) }
+func (XIELUAttributes) validFor(op Op) bool     { return sameOp(op, OpXIELU) }
+func (MulMatAttributes) validFor(op Op) bool    { return sameOp(op, OpMulMat) }
+func (GetRowsAttributes) validFor(op Op) bool   { return sameOp(op, OpGetRows) }
+func (RoPEAttributes) validFor(op Op) bool {
+	return sameOp(op, OpRoPENeoX) || sameOp(op, OpRoPENormal)
+}
+func (RoPEMultiAttributes) validFor(op Op) bool { return sameOp(op, OpRoPEMulti) }
+func (AttentionAttributes) validFor(op Op) bool { return sameOp(op, OpAttention) }
+func (Conv1DAttributes) validFor(op Op) bool    { return sameOp(op, OpConv1DSame) }
+func (Conv2DAttributes) validFor(op Op) bool    { return sameOp(op, OpConv2D) }
+func (Window2DAttributes) validFor(op Op) bool {
+	return sameOp(op, OpWindowPartition2D) || sameOp(op, OpWindowUnpartition2D)
+}
+func (PixelShuffle2DAttributes) validFor(op Op) bool { return sameOp(op, OpPixelShuffle2D) }
+func (SAMAttentionAttributes) validFor(op Op) bool   { return sameOp(op, OpSAMAttention) }
+func (GroupNormAttributes) validFor(op Op) bool      { return sameOp(op, OpGroupNorm) }
+func (MoEAttributes) validFor(op Op) bool            { return sameOp(op, OpMoE) }
+func (CompressedAttentionAttributes) validFor(op Op) bool {
+	return sameOp(op, OpCompressedAttention)
+}
+func (GatedDeltaNetAttributes) validFor(op Op) bool { return sameOp(op, OpGatedDeltaNet) }
+func (GatedLinearAttentionAttributes) validFor(op Op) bool {
+	return sameOp(op, OpGatedLinearAttention)
+}
+func (RepeatHeadsAttributes) validFor(op Op) bool { return sameOp(op, OpRepeatHeads) }
+func (ConcatAttributes) validFor(op Op) bool      { return sameOp(op, OpConcat) }
+func (GroupSliceAttributes) validFor(op Op) bool  { return sameOp(op, OpGroupSlice) }
+func (FlatSliceAttributes) validFor(op Op) bool   { return sameOp(op, OpFlatSlice) }
+func (CacheAppendAttributes) validFor(op Op) bool { return sameOp(op, OpCacheAppend) }
+func (SparseAttentionAttributes) validFor(op Op) bool {
+	return sameOp(op, OpSparseAttention)
+}
+func (IndexerScoreAttributes) validFor(op Op) bool  { return sameOp(op, OpIndexerScore) }
+func (EmbeddedInputAttributes) validFor(op Op) bool { return sameOp(op, OpInput) }
+func (LoRAMergeAttributes) validFor(op Op) bool     { return sameOp(op, OpLoRAMerge) }
+
+func (HyperConnectionAttributes) validFor(op Op) bool {
+	return sameOp(op, OpHyperConnectionInit) || sameOp(op, OpHyperConnectionPre) ||
+		sameOp(op, OpHyperConnectionPost) || sameOp(op, OpHyperConnectionHead)
+}
+
+func (TopKAttributes) validFor(op Op) bool {
+	return sameOp(op, OpTopK) || sameOp(op, OpTopKPairs) || sameOp(op, OpTopKPartials)
 }
 
 // ValidateOperationAttributes checks one operation/descriptor pair.
@@ -130,100 +80,11 @@ func ValidateOperationAttributes(op Op, attributes Attributes) error {
 	if _, ok := DescribeOperation(op); !ok {
 		return fmt.Errorf("operation %d is invalid", op)
 	}
-	if op == OpInput {
-		if attributes == nil {
-			return nil
-		}
-		if _, ok := attributes.(EmbeddedInputAttributes); ok {
-			return nil
-		}
-		return errors.New("input attributes are invalid")
+	if attributes == nil {
+		attributes = emptyAttributes{}
 	}
-	if op == OpMulMat && attributes == nil {
+	if attributes.validFor(op) {
 		return nil
 	}
-	expected := attributeNone
-	if int(op) < len(operationAttributeKinds) {
-		expected = operationAttributeKinds[op]
-	}
-	actual := attributeKindOf(attributes)
-	if actual != expected {
-		return fmt.Errorf("%s attributes are invalid", op)
-	}
-	return nil
-}
-
-func attributeKindOf(attributes Attributes) attributeKind {
-	switch attributes.(type) {
-	case nil:
-		return attributeNone
-	case ScaleAttributes:
-		return attributeScale
-	case ClampAttributes:
-		return attributeClamp
-	case RMSNormAttributes:
-		return attributeRMSNorm
-	case MADNormAttributes:
-		return attributeMADNorm
-	case PixelShuffle2DAttributes:
-		return attributePixelShuffle2D
-	case LayerNormAttributes:
-		return attributeLayerNorm
-	case L2NormAttributes:
-		return attributeL2Norm
-	case XIELUAttributes:
-		return attributeXIELU
-	case MulMatAttributes:
-		return attributeMulMat
-	case GetRowsAttributes:
-		return attributeGetRows
-	case RoPEAttributes:
-		return attributeRoPE
-	case RoPEMultiAttributes:
-		return attributeRoPEMulti
-	case AttentionAttributes:
-		return attributeAttention
-	case Conv1DAttributes:
-		return attributeConv1D
-	case Conv2DAttributes:
-		return attributeConv2D
-	case Window2DAttributes:
-		return attributeWindow2D
-	case SAMAttentionAttributes:
-		return attributeSAMAttention
-	case GroupNormAttributes:
-		return attributeGroupNorm
-	case MoEAttributes:
-		return attributeMoE
-	case HyperConnectionAttributes:
-		return attributeHyperConnection
-	case CompressedAttentionAttributes:
-		return attributeCompressedAttention
-	case GatedDeltaNetAttributes:
-		return attributeGatedDeltaNet
-	case GatedLinearAttentionAttributes:
-		return attributeGatedLinearAttention
-	case RepeatHeadsAttributes:
-		return attributeRepeatHeads
-	case ConcatAttributes:
-		return attributeConcat
-	case GroupSliceAttributes:
-		return attributeGroupSlice
-	case FlatSliceAttributes:
-		return attributeFlatSlice
-	case TopKAttributes:
-		return attributeTopK
-	case SparseAttentionAttributes:
-		return attributeSparseAttention
-	case IndexerScoreAttributes:
-		return attributeIndexerScore
-	case EmbeddedInputAttributes:
-		return attributeEmbeddedInput
-	case LoRAMergeAttributes:
-		return attributeLoRAMerge
-	case CacheAppendAttributes:
-		return attributeCacheAppend
-	default:
-		return attributeNone
-	}
+	return fmt.Errorf("%s attributes are invalid", op)
 }

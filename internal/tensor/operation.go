@@ -90,11 +90,6 @@ type OutputTargetContract struct {
 	Alias     *OutputAliasContract
 }
 
-var operationStorage = [...]OperationStorage{
-	OpReshape:   StorageViewWhole,
-	OpFlatSlice: StorageViewFlat,
-}
-
 const allExecutionBackends = BackendReference | BackendCUDA
 
 var operationDescriptors = [...]OperationDescriptor{
@@ -176,10 +171,14 @@ func DescribeOperation(op Op) (OperationDescriptor, bool) {
 
 // DescribeOperationStorage: authoritative output-storage contract.
 func DescribeOperationStorage(op Op) OperationStorage {
-	if int(op) >= len(operationStorage) {
+	switch op {
+	case OpReshape:
+		return StorageViewWhole
+	case OpFlatSlice:
+		return StorageViewFlat
+	default:
 		return StorageDistinct
 	}
-	return operationStorage[op]
 }
 
 // ResolveStorageView: validates and resolves an operation's input-backed range.

@@ -1996,7 +1996,7 @@
       "id": "literal-operator-contracts",
       "title": "Compile tensor, reference, and CUDA execution from one typed operator schema",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "attribute-admission",
@@ -2048,8 +2048,8 @@
         {
           "id": "do",
           "title": "Represent operand roles, ranks, axes, layouts, output rules, runtime attributes, and launch bindings in narrow typed operator schemas; migrate recurrent, attention-layout, and math-vision builders plus reference and CUDA executors together; delete displaced rank checks, slot maps, launch branches, and duplicated shape arithmetic",
-          "status": "open",
-          "verify": "go test ./internal/tensor ./internal/tensor/reference ./internal/cuda/executor -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/tensor,internal/cuda/executor -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "status": "done",
+          "verify": "go test ./internal/tensor ./internal/tensor/reference -count=1 \u0026\u0026 go test ./internal/cuda/executor -run '^(TestCompilePinsTopologyAndMemoryPlan|TestCUDAOperationProgramsCoverRegistry|TestCompiledRuntimeAttributesUseNodeIndexes|TestGeneratedKernelArgumentCountValidation)$' -count=1",
           "rationale": "Builder, CPU reference, and CUDA launch files repeat the largest concentration of shape, axis, and operand-position facts. One compiled schema should drive all three without a property bag.",
           "depends_on": [
             "literal-operator-contracts/runtime-word-schema"

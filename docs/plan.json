@@ -4,6 +4,90 @@
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
     {
+      "id": "agent-tool-contract",
+      "title": "UTCP tool manuals as store authority: typed contract, registry, registered aliases, coverage inspector",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "UTCP tool manuals as store authority: typed contract, registry, registered aliases, coverage inspector",
+          "status": "done",
+          "verify": "go test ./internal/agenttool -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-tool-transports",
+      "title": "Native UTCP transports: builtin, bounded HTTP, and guarded argv executors with timeouts and size caps",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Native UTCP transports: builtin, bounded HTTP, and guarded argv executors with timeouts and size caps",
+          "status": "open",
+          "verify": "go test ./internal/agenttool -run TestTransport -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-orchestration",
+      "title": "Agent orchestration state machine: inspection-before-mutation pools, bounded steps, typed refusal of unregistered tools",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Agent orchestration state machine: inspection-before-mutation pools, bounded steps, typed refusal of unregistered tools",
+          "status": "open",
+          "verify": "go test ./internal/agentloop -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-session-ledger",
+      "title": "Durable agent session ledger: session and step documents in OvergoDB with checkpoint and restore",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Durable agent session ledger: session and step documents in OvergoDB with checkpoint and restore",
+          "status": "open",
+          "verify": "go test ./internal/agentsession -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-server-api",
+      "title": "Agent server API: registered tool catalog with coverage, durable sessions, and a stepped agent loop over the served model",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Agent server API: registered tool catalog with coverage, durable sessions, and a stepped agent loop over the served model",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestAgentAPI' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-gui",
+      "title": "Agent workspace in the GUI: chat with tool-event timeline, catalog with mutation badges, session picker, and mutation approval",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Agent workspace in the GUI: chat with tool-event timeline, catalog with mutation badges, session picker, and mutation approval",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestAgentWorkspace|TestWebUI' -count=1"
+        }
+      ]
+    },
+    {
       "id": "tightening-timer",
       "title": "Hold for the tightening lane: timer expires 2 hours after 2026-08-24 dispatch",
       "owner": "gui",

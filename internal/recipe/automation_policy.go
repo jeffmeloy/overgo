@@ -3,6 +3,8 @@ package recipe
 import (
 	"context"
 	"errors"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -68,11 +70,15 @@ const (
 // AutomationDeliveryPolicy is immutable effect authority. Tool delivery binds
 // an exact manual plus approval evidence; artifact delivery has no external effect.
 type AutomationDeliveryPolicy struct {
-	Version       uint16                 `json:"version"`
-	Kind          AutomationDeliveryKind `json:"kind"`
-	Tool          artifact.ID            `json:"tool,omitzero"`
-	Authorization artifact.ID            `json:"authorization,omitzero"`
-	ID            artifact.ID            `json:"-"`
+	Version             uint16                 `json:"version"`
+	Kind                AutomationDeliveryKind `json:"kind"`
+	Tool                artifact.ID            `json:"tool,omitzero"`
+	Authorization       artifact.ID            `json:"authorization,omitzero"`
+	Destinations        []string               `json:"destinations,omitempty"`
+	DestinationArgument string                 `json:"destination_argument,omitempty"`
+	PayloadArgument     string                 `json:"payload_argument,omitempty"`
+	IdempotencyArgument string                 `json:"idempotency_argument,omitempty"`
+	ID                  artifact.ID            `json:"-"`
 }
 
 var automationTriggerPolicyCodec = artifact.JSONDocumentCodec(
@@ -116,12 +122,29 @@ var automationDeliveryPolicyCodec = artifact.JSONDocumentCodec(
 		}
 		switch value.Kind {
 		case AutomationDeliveryArtifact:
-			if value.Tool.Valid() || value.Authorization.Valid() {
+			if value.Tool.Valid() || value.Authorization.Valid() || len(value.Destinations) != 0 ||
+				value.DestinationArgument != "" || value.PayloadArgument != "" || value.IdempotencyArgument != "" {
 				return errors.New("recipe: artifact delivery carries external effect authority")
 			}
 		case AutomationDeliveryTool:
 			if value.Tool.Kind() != artifact.KindRecipe || value.Authorization.Kind() != artifact.KindEvidence {
 				return errors.New("recipe: tool delivery lacks manual or authorization authority")
+			}
+			if len(value.Destinations) == 0 || value.DestinationArgument == "" ||
+				value.PayloadArgument == "" || value.IdempotencyArgument == "" ||
+				value.DestinationArgument == value.PayloadArgument ||
+				value.DestinationArgument == value.IdempotencyArgument ||
+				value.PayloadArgument == value.IdempotencyArgument {
+				return errors.New("recipe: tool delivery argument authority is incomplete")
+			}
+			for _, destination := range value.Destinations {
+				if strings.TrimSpace(destination) != destination || destination == "" || strings.ContainsAny(destination, "\x00\r\n") {
+					return errors.New("recipe: invalid automation delivery destination")
+				}
+			}
+			sort.Strings(value.Destinations)
+			if compact := slices.Compact(value.Destinations); len(compact) != len(value.Destinations) {
+				return errors.New("recipe: duplicate automation delivery destination")
 			}
 		default:
 			return errors.New("recipe: unsupported automation delivery")
@@ -130,7 +153,10 @@ var automationDeliveryPolicyCodec = artifact.JSONDocumentCodec(
 	},
 	func(value AutomationDeliveryPolicy) artifact.ID { return value.ID },
 	func(value *AutomationDeliveryPolicy, id artifact.ID) { value.ID = id },
-	func(value AutomationDeliveryPolicy) AutomationDeliveryPolicy { return value },
+	func(value AutomationDeliveryPolicy) AutomationDeliveryPolicy {
+		value.Destinations = slices.Clone(value.Destinations)
+		return value
+	},
 )
 
 // Identify canonicalizes and identifies a trigger policy.

@@ -6,6 +6,7 @@
 package agenttool
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -137,6 +138,11 @@ func NewManual(manual Manual) (Manual, error) {
 // Content returns the canonical committed bytes of the manual.
 func (manual Manual) Content() ([]byte, error) {
 	return manualCodec.ContentBytes(manual)
+}
+
+// RequireManual loads one exact manual by immutable identity.
+func RequireManual(ctx context.Context, reader artifact.Reader, id artifact.ID) (Manual, error) {
+	return manualCodec.Require(ctx, reader, id)
 }
 
 func (manual *Manual) validate() error {

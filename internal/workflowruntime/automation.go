@@ -2,12 +2,15 @@ package workflowruntime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"time"
 
+	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
+	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/workflowcontract"
@@ -20,6 +23,7 @@ type AutomationRuntime struct {
 	Operations *operation.Manager
 	Catalog    *recipe.Catalog
 	Adapters   map[recipe.ModuleID]Adapter
+	Tools      *agenttool.Executor
 }
 
 // AutomationExecution identifies one admitted operation and its exact plan.
@@ -51,7 +55,27 @@ func (runtime AutomationRuntime) SubmitManual(
 	if err := runtime.publishAutomationPlan(ctx, plan); err != nil {
 		return AutomationExecution{}, err
 	}
-	return runtime.admit(ctx, key, plan, inputs)
+	return runtime.admit(ctx, key, plan, "", inputs)
+}
+
+// SubmitManualTo admits a manual run with one policy-allowlisted destination.
+func (runtime AutomationRuntime) SubmitManualTo(
+	ctx context.Context,
+	name, key, destination string,
+	inputs map[recipe.PortName]Value,
+) (AutomationExecution, error) {
+	compiler := workflowcontract.AutomationCompiler{Repository: runtime.Store, Catalog: runtime.Catalog}
+	plan, err := compiler.Compile(ctx, name)
+	if err != nil {
+		return AutomationExecution{}, err
+	}
+	if plan.Trigger.Kind != recipe.AutomationTriggerManual {
+		return AutomationExecution{}, errors.New("workflow runtime: automation is not manually triggerable")
+	}
+	if err := runtime.publishAutomationPlan(ctx, plan); err != nil {
+		return AutomationExecution{}, err
+	}
+	return runtime.admit(ctx, key, plan, destination, inputs)
 }
 
 // RecoverAutomation resumes one exact persisted plan and operation identity.
@@ -66,7 +90,7 @@ func (runtime AutomationRuntime) RecoverAutomation(
 	if err != nil {
 		return AutomationExecution{}, err
 	}
-	return runtime.admit(ctx, key, plan, inputs)
+	return runtime.admit(ctx, key, plan, "", inputs)
 }
 
 // ScheduleAutomation claims and admits the due slot for one active schedule.
@@ -109,7 +133,7 @@ func (runtime AutomationRuntime) ScheduleAutomation(
 	if err != nil || !won {
 		return execution, false, err
 	}
-	execution, err = runtime.admit(ctx, claim.ID.String(), plan, inputs)
+	execution, err = runtime.admit(ctx, claim.ID.String(), plan, "", inputs)
 	execution.Claim = claim.ID
 	return execution, err == nil, err
 }
@@ -131,7 +155,7 @@ func (runtime AutomationRuntime) RecoverScheduledAutomation(
 	if err != nil || plan.Name != claim.Name || plan.Trigger.Kind != recipe.AutomationTriggerSchedule {
 		return AutomationExecution{}, errors.Join(errors.New("workflow runtime: scheduled recovery authority differs"), err)
 	}
-	execution, err := runtime.admit(ctx, claim.ID.String(), plan, inputs)
+	execution, err := runtime.admit(ctx, claim.ID.String(), plan, "", inputs)
 	execution.Claim = claim.ID
 	return execution, err
 }
@@ -140,6 +164,7 @@ func (runtime AutomationRuntime) admit(
 	ctx context.Context,
 	key string,
 	plan workflowcontract.AutomationExecutionPlan,
+	destination string,
 	inputs map[recipe.PortName]Value,
 ) (AutomationExecution, error) {
 	if ctx == nil || runtime.Store == nil || runtime.Operations == nil || runtime.Catalog == nil {
@@ -153,7 +178,15 @@ func (runtime AutomationRuntime) admit(
 	if err != nil {
 		return AutomationExecution{}, err
 	}
-	executionID, err := plan.ExecutionID(key)
+	destination, err = automationDeliveryDestination(plan.Delivery, destination)
+	if err != nil {
+		return AutomationExecution{}, err
+	}
+	admissionKey, err := automationAdmissionKey(key, destination)
+	if err != nil {
+		return AutomationExecution{}, err
+	}
+	executionID, err := plan.ExecutionID(admissionKey)
 	if err != nil {
 		return AutomationExecution{}, err
 	}
@@ -180,6 +213,11 @@ func (runtime AutomationRuntime) admit(
 		result, executeErr := engine.ExecuteProgram(
 			runContext, "automation/run/"+executionID.String(), reporter.OperationID(), reporter, program, inputs,
 		)
+		if executeErr == nil && plan.Delivery.Kind == recipe.AutomationDeliveryTool {
+			executeErr = runtime.deliverAutomation(
+				runContext, reporter.OperationID(), plan, destination, result.Run.Outputs,
+			)
+		}
 		reporter.Publishing()
 		return operation.Completion{Run: result.Run.ID, Outputs: slices.Clone(result.Run.Outputs)}, executeErr
 	}
@@ -190,6 +228,120 @@ func (runtime AutomationRuntime) admit(
 		return AutomationExecution{}, err
 	}
 	return AutomationExecution{Operation: operationID, Plan: plan}, nil
+}
+
+func (runtime AutomationRuntime) deliverAutomation(
+	ctx context.Context,
+	operationID artifact.ID,
+	plan workflowcontract.AutomationExecutionPlan,
+	destination string,
+	outputs []artifact.ID,
+) error {
+	if runtime.Tools == nil {
+		return errors.New("workflow runtime: automation delivery executor is absent")
+	}
+	manual, err := agenttool.RequireManual(ctx, runtime.Store, plan.Delivery.Tool)
+	if err != nil {
+		return err
+	}
+	idempotency, err := artifact.JSONID(artifact.KindEvidence, struct {
+		Plan        artifact.ID   `json:"plan"`
+		Operation   artifact.ID   `json:"operation"`
+		Tool        artifact.ID   `json:"tool"`
+		Destination string        `json:"destination"`
+		Outputs     []artifact.ID `json:"outputs"`
+	}{Plan: plan.ID, Operation: operationID, Tool: manual.ID, Destination: destination, Outputs: outputs})
+	if err != nil {
+		return err
+	}
+	action := operatoraction.Action{
+		Code: manual.Name, Summary: "Deliver automation outputs",
+		Argv: []string{manual.Name, destination, idempotency.String()},
+	}
+	decision, found, err := runrecord.ResolveHumanDecision(ctx, runtime.Store, operationID)
+	if err != nil {
+		return err
+	}
+	prior := artifact.ID{}
+	if found {
+		prior = decision.Prior
+	}
+	request, err := operatoraction.NewApprovalRequest(operationID, plan.Recipe, action, prior)
+	if err != nil {
+		return err
+	}
+	if !found || decision.Answer != operatoraction.AnswerGrant || !decision.Binds(request) {
+		return operatoraction.Recoverable(errors.New("workflow runtime: automation delivery approval required"), operatoraction.Block{
+			Subject: plan.Recipe, Reason: "External automation delivery requires exact approval",
+			Evidence: []artifact.ID{plan.ID, plan.Delivery.Authorization}, Actions: []operatoraction.Action{action},
+		})
+	}
+	authority := runrecord.AutomationDeliveryAuthority{Repository: runtime.Store}
+	attempt, won, err := authority.Begin(ctx, runrecord.AutomationDeliveryAttempt{
+		Plan: plan.ID, Operation: operationID, Tool: manual.ID, Destination: destination,
+		Outputs: slices.Clone(outputs), Idempotency: idempotency, State: runrecord.AutomationDeliveryAdmitted,
+	})
+	if err != nil {
+		return err
+	}
+	if !won {
+		if attempt.State == runrecord.AutomationDeliverySucceeded {
+			return nil
+		}
+		return errors.New("workflow runtime: automation delivery has an unresolved prior attempt")
+	}
+	payload := make([]string, len(outputs))
+	for index, output := range outputs {
+		payload[index] = output.String()
+	}
+	arguments, err := json.Marshal(map[string]any{
+		plan.Delivery.DestinationArgument: destination,
+		plan.Delivery.PayloadArgument:     map[string]any{"artifacts": payload},
+		plan.Delivery.IdempotencyArgument: idempotency.String(),
+	})
+	if err != nil {
+		return err
+	}
+	response, invokeErr := runtime.Tools.Invoke(ctx, manual, arguments)
+	if invokeErr != nil {
+		_, finishErr := authority.Finish(context.WithoutCancel(ctx), attempt, nil, invokeErr.Error())
+		return errors.Join(invokeErr, finishErr)
+	}
+	result, err := (recipe.ToolResult{
+		CallID: idempotency.String(), Module: recipe.ModuleID(manual.Name), Output: response,
+	}).ArtifactContent()
+	if err != nil {
+		return err
+	}
+	_, err = authority.Finish(context.WithoutCancel(ctx), attempt, &result, "")
+	return err
+}
+
+func automationDeliveryDestination(policy recipe.AutomationDeliveryPolicy, requested string) (string, error) {
+	if policy.Kind == recipe.AutomationDeliveryArtifact {
+		if requested != "" {
+			return "", errors.New("workflow runtime: artifact delivery does not admit a destination")
+		}
+		return "", nil
+	}
+	if requested == "" && len(policy.Destinations) == 1 {
+		requested = policy.Destinations[0]
+	}
+	if !slices.Contains(policy.Destinations, requested) {
+		return "", errors.New("workflow runtime: automation delivery destination is not allowlisted")
+	}
+	return requested, nil
+}
+
+func automationAdmissionKey(key, destination string) (string, error) {
+	if key == "" {
+		return "", errors.New("workflow runtime: automation admission key is absent")
+	}
+	id, err := artifact.JSONID(artifact.KindProfile, struct {
+		Key         string `json:"key"`
+		Destination string `json:"destination,omitempty"`
+	}{Key: key, Destination: destination})
+	return id.String(), err
 }
 
 func (runtime AutomationRuntime) publishAutomationPlan(

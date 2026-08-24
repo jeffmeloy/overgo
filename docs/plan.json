@@ -45,7 +45,7 @@
       "id": "orchestration-runtime",
       "title": "Execute manual and scheduled automation through common operation and workflow owners",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "manual-execution",
@@ -84,7 +84,7 @@
         {
           "id": "effect-delivery",
           "title": "Deliver automation outputs only through effect-classified tools with allowlisted destinations, approval recovery, attempt evidence, and idempotency identity",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestAutomationDelivery' internal \u0026\u0026 go test ./internal/agenttool ./internal/workflowruntime ./internal/runrecord -run 'TestAutomationDelivery|TestAutomationDeliveryApproval|TestAutomationDeliveryRefusesDestination|TestAutomationDeliveryIdempotency' -count=1",
           "rationale": "Webhook-style delivery is useful but must not become an unrestricted HTTP side door. Existing tool manuals, effect classes, decisions, operations, and serving observations provide the reusable safety and evidence path.",
           "depends_on": [

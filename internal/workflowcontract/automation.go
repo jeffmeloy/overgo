@@ -6,6 +6,7 @@ import (
 	"errors"
 	"slices"
 
+	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
@@ -62,6 +63,7 @@ var automationExecutionPlanCodec = artifact.JSONDocumentCodec(
 	func(value AutomationExecutionPlan) AutomationExecutionPlan {
 		value.Datasets = slices.Clone(value.Datasets)
 		value.CapabilityBundles = slices.Clone(value.CapabilityBundles)
+		value.Delivery.Destinations = slices.Clone(value.Delivery.Destinations)
 		value.Resources.Components = slices.Clone(value.Resources.Components)
 		return value
 	},
@@ -107,6 +109,9 @@ func (compiler AutomationCompiler) Compile(ctx context.Context, name string) (Au
 		dependencies = append(dependencies, delivery.Tool, delivery.Authorization)
 	}
 	if err := requireAutomationArtifacts(ctx, compiler.Repository, dependencies); err != nil {
+		return AutomationExecutionPlan{}, err
+	}
+	if err := requireAutomationDeliveryManual(ctx, compiler.Repository, delivery); err != nil {
 		return AutomationExecutionPlan{}, err
 	}
 	policy, err := modelrecipe.ResolveRuntimePolicy(ctx, compiler.Repository, definition)
@@ -165,6 +170,9 @@ func (compiler AutomationCompiler) Require(ctx context.Context, id artifact.ID) 
 	delivery, err := recipe.RequireAutomationDeliveryPolicy(ctx, compiler.Repository, plan.Delivery.ID)
 	if err != nil || delivery.ID != plan.Delivery.ID {
 		return AutomationExecutionPlan{}, errors.Join(errors.New("workflow contract: automation recovery delivery differs"), err)
+	}
+	if err := requireAutomationDeliveryManual(ctx, compiler.Repository, delivery); err != nil {
+		return AutomationExecutionPlan{}, err
 	}
 	return plan, nil
 }
@@ -267,6 +275,37 @@ func requireAutomationArtifacts(ctx context.Context, reader artifact.Reader, ids
 		if err != nil || !found || descriptor.ID != id || descriptor.Size == 0 {
 			return errors.Join(errors.New("workflow contract: automation dependency artifact is absent"), err)
 		}
+	}
+	return nil
+}
+
+func requireAutomationDeliveryManual(
+	ctx context.Context,
+	reader artifact.Reader,
+	delivery recipe.AutomationDeliveryPolicy,
+) error {
+	if delivery.Kind != recipe.AutomationDeliveryTool {
+		return nil
+	}
+	manual, err := agenttool.RequireManual(ctx, reader, delivery.Tool)
+	if err != nil || manual.Effect != agenttool.EffectMutation {
+		return errors.Join(errors.New("workflow contract: delivery requires an effect-classified mutation tool"), err)
+	}
+	registered, found, err := artifact.ResolveAlias(ctx, reader, agenttool.RegisteredAlias(manual.Name))
+	if err != nil || !found || registered != manual.ID {
+		return errors.Join(errors.New("workflow contract: delivery tool is not registered exactly"), err)
+	}
+	fields := make(map[string]agenttool.Field, len(manual.Arguments))
+	for _, field := range manual.Arguments {
+		fields[field.Name] = field
+	}
+	destination := fields[delivery.DestinationArgument]
+	payload := fields[delivery.PayloadArgument]
+	idempotency := fields[delivery.IdempotencyArgument]
+	if !destination.Required || destination.Kind != agenttool.FieldString ||
+		!payload.Required || payload.Kind != agenttool.FieldObject ||
+		!idempotency.Required || idempotency.Kind != agenttool.FieldString {
+		return errors.New("workflow contract: delivery tool arguments differ from policy")
 	}
 	return nil
 }

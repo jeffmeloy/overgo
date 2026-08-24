@@ -1607,12 +1607,12 @@
       "id": "adk-typed-tool-runtime",
       "title": "Execute recipe-selected tools through typed workflow adapters",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Define tool call and result data contracts in recipe; register typed workflowruntime adapters by module identity; route Chat, Responses, and Anthropic calls through one executor; delete protocol-local execution policy branches",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/recipe ./internal/workflowruntime ./internal/inference ./internal/server -run 'Test(ToolModuleContract|ToolRecipeAdmission|TypedToolExecution|LongRunningToolOperation|ProtocolToolExecutionParity)' -count=1",
           "rationale": "Overgo already parses and formats function tools. Add execution without ADK reflection, map-shaped state, or a second registry. Active recipes and capability evidence select exposed tools; strict schemas decode boundary JSON into typed adapter values; operation owns long-running execution and cancellation.",
           "depends_on": [

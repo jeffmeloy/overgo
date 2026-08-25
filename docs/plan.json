@@ -2721,12 +2721,12 @@
       "id": "wan-objective-adaptive",
       "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./cmd/training-objective ./internal/trainingprogram -run 'TestObjective' -count=1",
           "depends_on": [
             "wan-vidgen-batches/do"

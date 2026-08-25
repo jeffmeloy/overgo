@@ -5,6 +5,7 @@ package driver
 import (
 	"errors"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -26,6 +27,8 @@ type Library struct {
 
 	allocationMu        sync.Mutex
 	allocations         map[DevicePtr]uint64
+	liveSizes           map[uint64]uint64
+	peakSizes           map[uint64]uint64
 	currentBytes        uint64
 	peakBytes           uint64
 	peakAllocationBytes uint64
@@ -449,29 +452,43 @@ func (l *Library) MemFree(pointer DevicePtr) error {
 }
 
 // accountFree removes one allocation from the ledger, lowering the live
-// total; the peak and its crossing size are high-water marks and stay.
+// total; the peak, its crossing size, and its ledger snapshot are
+// high-water marks and stay.
 func (l *Library) accountFree(pointer DevicePtr) {
 	l.allocationMu.Lock()
 	if bytes, ok := l.allocations[pointer]; ok {
 		delete(l.allocations, pointer)
 		l.currentBytes -= bytes
+		if l.liveSizes[bytes] <= 1 {
+			delete(l.liveSizes, bytes)
+		} else {
+			l.liveSizes[bytes]--
+		}
 	}
 	l.allocationMu.Unlock()
 }
 
 // accountAllocation records one allocation in the ledger and raises the
 // peak, capturing the size of the allocation that set a new high-water
-// so a peak-over-budget finding names the crossing buffer.
+// and a snapshot of the live size histogram at that crossing, so a
+// peak-over-budget finding is diagnosed from evidence: one oversized
+// class names a buffer; many small classes are genuinely diffuse.
 func (l *Library) accountAllocation(pointer DevicePtr, bytes uint64) {
 	l.allocationMu.Lock()
 	if l.allocations == nil {
 		l.allocations = make(map[DevicePtr]uint64)
+		l.liveSizes = make(map[uint64]uint64)
 	}
 	l.allocations[pointer] = bytes
 	l.currentBytes += bytes
+	l.liveSizes[bytes]++
 	if l.currentBytes > l.peakBytes {
 		l.peakBytes = l.currentBytes
 		l.peakAllocationBytes = bytes
+		l.peakSizes = make(map[uint64]uint64, len(l.liveSizes))
+		for size, count := range l.liveSizes {
+			l.peakSizes[size] = count
+		}
 	}
 	l.allocationMu.Unlock()
 }
@@ -486,6 +503,7 @@ func (l *Library) ResetPeakBytes() {
 	l.allocationMu.Lock()
 	l.peakBytes = l.currentBytes
 	l.peakAllocationBytes = 0
+	l.peakSizes = nil
 	l.allocationMu.Unlock()
 }
 
@@ -501,12 +519,24 @@ func (l *Library) MemoryStats() MemoryStats {
 			largest = bytes
 		}
 	}
+	ledger := make([]AllocationSizeClass, 0, len(l.peakSizes))
+	for size, count := range l.peakSizes {
+		ledger = append(ledger, AllocationSizeClass{Bytes: size, Count: count})
+	}
+	sort.Slice(ledger, func(left, right int) bool {
+		leftTotal, rightTotal := ledger[left].Bytes*ledger[left].Count, ledger[right].Bytes*ledger[right].Count
+		if leftTotal != rightTotal {
+			return leftTotal > rightTotal
+		}
+		return ledger[left].Bytes > ledger[right].Bytes
+	})
 	return MemoryStats{
 		CurrentBytes:        l.currentBytes,
 		PeakBytes:           l.peakBytes,
 		Allocations:         uint64(len(l.allocations)),
 		PeakAllocationBytes: l.peakAllocationBytes,
 		LargestLiveBytes:    largest,
+		PeakLedger:          ledger,
 	}
 }
 

@@ -1,6 +1,6 @@
 # OvergoDB import contract
 
-`repodb-import` consumes canonical JSONL from standard input. The producer may
+`overgodb-import` consumes canonical legacy RepoDB JSONL from standard input. The producer may
 live in another repository; overgo imports no producer packages and requires no
 permanent source dependency.
 
@@ -56,7 +56,7 @@ imported artifact to that evidence.
 Example:
 
 ```bash
-repodb-import -repo /data/overgo-repodb -root /data/adaptive-export < export.jsonl
+overgodb-import -repo /data/overgodb-store -root /data/adaptive-export < export.jsonl
 ```
 
 Repeated exports are separate evidence-bearing batches. The source store may

@@ -6,11 +6,12 @@
 // optimizer policy owns those facts. Datasets are named by their
 // registered catalog alias, so the corpus is store authority too.
 //
-// The published tier is adaptive-evidence, never approved: this
-// command binds declared contract identities and an evidence note, not
-// executable loss/evaluation definitions with a successful evaluation
-// run. Approved authority is earned by that evidence, not asserted at
-// publication -- so a descriptor-only objective is honestly adaptive.
+// Publication enters the validation ladder at declared: this command
+// binds contract identities and an evidence note, measuring nothing.
+// The -promote mode climbs one rung to adaptive-evidence, and only
+// against committed proof -- succeeded training session observations
+// whose recipes ground this exact objective -- never caller assertion.
+// Approved remains above both, earned by executable evaluation.
 package main
 
 import (
@@ -28,6 +29,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/trainingprogram"
+	"overgo/internal/trainingworkflow"
 )
 
 func main() {
@@ -45,8 +47,18 @@ func run(args []string, output io.Writer) error {
 	metricText := flags.String("metric", "", "evaluation metric")
 	datasetName := flags.String("dataset", "", "registered dataset catalog name the objective trains on")
 	evidenceNote := flags.String("evidence", "", "evidence note identifying why this objective is approved")
+	promote := flags.String("promote", "", "registered objective alias to promote from declared to adaptive-evidence (with -observations)")
+	observationsText := flags.String("observations", "", "comma-separated succeeded training session observation IDs grounding the promotion")
+	approve := flags.String("approve", "", "registered objective alias to promote from adaptive-evidence to approved (with -evaluations)")
+	evaluationsText := flags.String("evaluations", "", "comma-separated committed passed evaluation report IDs grounding the approval")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*promote) != "" {
+		return promoteObjective(*repository, *promote, *observationsText, trainingworkflow.PromoteObjectiveAdaptive, output)
+	}
+	if strings.TrimSpace(*approve) != "" {
+		return promoteObjective(*repository, *approve, *evaluationsText, trainingworkflow.PromoteObjectiveApproved, output)
 	}
 	for flagName, value := range map[string]string{
 		"name": *name, "kind": *kindText, "input": *inputText, "output": *outputText,
@@ -89,6 +101,48 @@ func run(args []string, output io.Writer) error {
 	}
 	_, err = fmt.Fprintf(output, "objective %s pair %s->%s dataset %s\n",
 		objective.ID, input, outputModality, *datasetName)
+	return err
+}
+
+// promoteObjective climbs one registered objective one ladder rung via
+// the given evidence-gated promotion, parsing the comma-separated
+// evidence identities the gate will verify against the store.
+func promoteObjective(
+	repository, aliasName, evidenceText string,
+	climb func(context.Context, artifact.Repository, string, []artifact.ID) (trainingprogram.ObjectiveDocument, error),
+	output io.Writer,
+) error {
+	var evidence []artifact.ID
+	for _, field := range strings.Split(evidenceText, ",") {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		id, err := artifact.ParseID(field)
+		if err != nil {
+			return fmt.Errorf("training-objective: evidence %q: %w", field, err)
+		}
+		evidence = append(evidence, id)
+	}
+	root := strings.TrimSpace(repository)
+	if root == "" {
+		roots, err := dataroot.ResolveCurrent()
+		if err != nil {
+			return err
+		}
+		root = roots.Store
+	}
+	store, err := overgodb.Open(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	promoted, err := climb(context.Background(), store, aliasName, evidence)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "objective %s promoted to %s with %d evidence document(s)\n",
+		promoted.ID, promoted.Authority, len(evidence))
 	return err
 }
 

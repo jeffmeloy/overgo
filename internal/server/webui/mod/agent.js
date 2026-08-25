@@ -1,106 +1,229 @@
-/* Agent: drive one tool-using session over the served model. Presentation
-   only -- every rule (unregistered refusal, inspection before mutation,
-   exact mutation approval, the step bound) lives in the server's
-   coordinator. This panel names a session, lists the registered tools with
-   their effect badges, proposes a step, and appends the durable result to a
-   running timeline. A mutation tool arms an explicit approval checkbox. */
 (function () {
   "use strict";
+
   window.overgo.registerTab({
     id: "agent",
-    label: "Agent",
-    section: "inference",
-    mount(panel, overgo) {
-      const { el, clear, fmt } = overgo;
-      clear(panel);
+    async mount(panel, overgo) {
+      const { api, el, fmt } = overgo;
+      const status = el("div", { class: "note" });
+      const inventoryHost = el("div");
+      const editorHost = el("div");
+      const conversationHost = el("div");
+      const toolsHost = el("div");
+      const retrievalHost = el("div");
+      const automationHost = el("div");
+      const evidenceHost = el("div");
+      panel.replaceChildren(
+        el("div", { class: "section-title", text: "Agents" }), status,
+        el("div", { class: "section-title", text: "Inventory and lifecycle" }), inventoryHost,
+        el("div", { class: "section-title", text: "Definition editor" }), editorHost,
+        el("div", { class: "section-title", text: "Chat" }), conversationHost,
+        el("div", { class: "section-title", text: "Tools and decisions" }), toolsHost,
+        el("div", { class: "section-title", text: "Retrieval evidence" }), retrievalHost,
+        el("div", { class: "section-title", text: "Attached automations" }), automationHost,
+        el("div", { class: "section-title", text: "Structured observables" }), evidenceHost);
 
-      const session = el("input", { class: "text", value: "session-1", style: "width:180px" });
-      const toolSelect = el("select", { class: "text", style: "width:220px" });
-      const effectBadge = el("span", { class: "tag" });
-      const args = el("textarea", { class: "text", rows: "3", placeholder: '{"arguments":"as strict JSON object"}' });
-      const approve = el("input", { type: "checkbox" });
-      const approveLabel = el("label", { class: "note", style: "display:none" }, approve, " approve this mutation");
-      const propose = el("button", { class: "btn" }, "propose step");
-      const note = el("div", { class: "note", text: "loading tools…" });
-      const timeline = el("tbody");
-      const manuals = {};
+      const schema = await api.get("/workspace/schema?id=agent-definition");
+      const definitionForm = overgo.schemaForm(schema, {});
+      const publish = el("button", { class: "btn", text: "Publish and activate" });
+      editorHost.append(definitionForm.element, publish);
 
-      function syncEffect() {
-        const effect = manuals[toolSelect.value] || "";
-        effectBadge.textContent = effect;
-        effectBadge.className = "tag" + (effect === "mutation" ? " tag-danger" : "");
-        const mutation = effect === "mutation";
-        approveLabel.style.display = mutation ? "inline-flex" : "none";
-        if (!mutation) approve.checked = false;
+      let inventory = [];
+      let selected = "";
+      let tools = [];
+      const sessions = new Map();
+
+      function activeAgent() {
+        return inventory.find((item) => item.name === selected);
       }
-      toolSelect.addEventListener("change", syncEffect);
 
-      async function refreshTools() {
+      function showError(err) {
+        status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
+      }
+
+      function artifactLink(id) {
+        return el("a", {
+          class: "mono", href: "/artifacts/content?id=" + encodeURIComponent(id), text: fmt.shortID(id),
+        });
+      }
+
+      function openOperation(id) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("operation", id);
+        history.pushState({}, "", url);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      }
+
+      async function transition(state) {
+        if (!selected) return;
         try {
-          const catalog = await overgo.api.get("/agent/tools");
-          const tools = catalog.tools || [];
-          clear(toolSelect);
-          for (const tool of tools) {
-            manuals[tool.name] = tool.effect || (tool.stale ? "stale" : "");
-            toolSelect.appendChild(el("option", { value: tool.name, text: tool.name + (tool.stale ? " · stale" : "") }));
-          }
-          const coverage = catalog.coverage || {};
-          note.textContent = tools.length
-            ? "tools " + (coverage.published || tools.length) + "/" + (coverage.registered || tools.length)
-            : "No registered tools — publish manuals with cmd/agent-tool.";
-          syncEffect();
-        } catch (err) {
-          note.textContent = overgo.friendlyError(err);
-        }
+          const active = await api.post("/agents/state", { name: selected, state });
+          status.textContent = state + " / " + fmt.shortID(active.activation && active.activation.authority);
+          inventory = await api.get("/agents");
+          renderAll();
+        } catch (err) { showError(err); }
       }
 
-      function appendStep(tool, effect, state, detail) {
-        timeline.insertBefore(el("tr", null,
-          el("td", { class: "mono", text: tool }),
-          el("td", null, el("span", { class: "tag" + (effect === "mutation" ? " tag-danger" : ""), text: effect || "" })),
-          el("td", null, el("span", { class: "tag" + (state === "refused" ? " tag-danger" : ""), text: state })),
-          el("td", { class: "mono", text: (detail || "").slice(0, 400) })), timeline.firstChild);
+      function renderInventory() {
+        if (!selected && inventory.length) selected = inventory[0].name;
+        if (selected && !inventory.some((item) => item.name === selected)) selected = "";
+        const table = el("table", { class: "grid" });
+        table.append(el("tr", {}, el("th", { text: "name" }), el("th", { text: "definition" }),
+          el("th", { text: "state" }), el("th", { text: "authority" }), el("th", { text: "select" })));
+        for (const item of inventory) {
+          const choose = el("button", { class: "btn alt", text: item.name === selected ? "Selected" : "Open" });
+          choose.addEventListener("click", () => { selected = item.name; renderAll(); });
+          table.append(el("tr", {}, el("td", { text: item.name }), el("td", {}, artifactLink(item.definition)),
+            el("td", { text: item.refusal || item.state }), el("td", {}, artifactLink(item.activation)),
+            el("td", {}, choose)));
+        }
+        const pause = el("button", { class: "btn alt", text: "Pause", disabled: !selected });
+        const resume = el("button", { class: "btn", text: "Resume", disabled: !selected });
+        pause.addEventListener("click", () => transition("paused"));
+        resume.addEventListener("click", () => transition("active"));
+        inventoryHost.replaceChildren(table, el("div", { class: "row" }, pause, resume));
       }
 
-      propose.addEventListener("click", async () => {
-        const tool = toolSelect.value;
-        if (!tool) return;
-        const effect = manuals[tool] || "";
-        let parsed = {};
-        const raw = args.value.trim();
-        if (raw) {
-          try { parsed = JSON.parse(raw); }
-          catch (err) { note.textContent = "arguments must be valid JSON: " + err.message; return; }
+      publish.addEventListener("click", async () => {
+        if (!definitionForm.validate()) {
+          status.textContent = "Complete every required definition field";
+          return;
         }
-        propose.disabled = true;
         try {
-          const body = await overgo.api.post("/agent/step", {
-            session: session.value.trim(), tool, arguments: parsed, approve: approve.checked,
-          });
-          appendStep(tool, effect, "ok", JSON.stringify(body.result));
-          note.textContent = "session " + body.session + " · step " + body.steps +
-            (body.inspected ? " · inspected" : "");
-        } catch (err) {
-          appendStep(tool, effect, "refused", overgo.friendlyError(err));
-          note.textContent = overgo.friendlyError(err);
-        } finally {
-          propose.disabled = false;
-        }
+          const created = await api.post("/agents/definitions", definitionForm.value());
+          await api.post("/agents/activate", { definition: created.id });
+          definitionForm.markSaved();
+          selected = created.definition.name;
+          status.textContent = "activated / " + fmt.shortID(created.id);
+          inventory = await api.get("/agents");
+          renderAll();
+        } catch (err) { showError(err); }
       });
 
-      panel.append(
-        el("div", { class: "section-title", text: "Session" }),
-        el("div", { class: "row" }, el("span", { class: "note", text: "session" }), session,
-          toolSelect, effectBadge, approveLabel, propose),
-        note,
-        el("div", { class: "row" }, args),
-        el("div", { class: "section-title", text: "Timeline" }),
-        el("table", { class: "grid" },
-          el("thead", null, el("tr", null,
-            el("th", { text: "tool" }), el("th", { text: "effect" }), el("th", { text: "state" }), el("th", { text: "detail" }))),
-          timeline));
+      function renderChat() {
+        const agent = activeAgent();
+        const messages = sessions.get(selected) || [];
+        const transcript = el("div", { class: "card" });
+        transcript.replaceChildren(...messages.map((message) =>
+          el("div", {}, el("span", { class: "tag", text: message.role }), " " + message.content)));
+        const input = el("textarea", { class: "text", rows: "3", placeholder: "Message the selected agent" });
+        const send = el("button", { class: "btn", text: "Send", disabled: !agent || agent.state !== "active" });
+        send.addEventListener("click", async () => {
+          const content = input.value.trim();
+          if (!content) return;
+          messages.push({ role: "user", content });
+          send.disabled = true;
+          try {
+            const result = await api.post("/agents/chat", { agent: selected, messages });
+            const answer = result.choices && result.choices[0] && result.choices[0].message;
+            if (!answer || typeof answer.content !== "string") throw new Error("Agent response omitted visible content");
+            messages.push({ role: "assistant", content: answer.content });
+            sessions.set(selected, messages);
+            renderChat();
+          } catch (err) { showError(err); send.disabled = false; }
+        });
+        conversationHost.replaceChildren(transcript, input, send);
+      }
 
-      refreshTools();
+      function renderTools() {
+        const agent = activeAgent();
+        const allowed = new Set((agent && agent.tools) || []);
+        const select = el("select", { class: "text" });
+        for (const tool of tools.filter((item) => allowed.has(item.manual))) {
+          select.append(el("option", { value: tool.name, text: tool.name + " / " + tool.effect }));
+        }
+        const session = el("input", { class: "text", placeholder: "session identity" });
+        const args = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON arguments" });
+        const approval = el("input", { type: "checkbox" });
+        const run = el("button", { class: "btn", text: "Execute selected tool", disabled: !agent });
+        run.addEventListener("click", async () => {
+          try {
+            const result = await api.post("/agents/step", {
+              agent: selected, session: session.value.trim(), tool: select.value,
+              arguments: JSON.parse(args.value || "{}"), approve: approval.checked,
+            });
+            status.textContent = "tool step " + result.steps + " / " + fmt.shortID(result.interaction);
+            await renderEvidence(session.value.trim());
+          } catch (err) { showError(err); }
+        });
+        toolsHost.replaceChildren(el("div", { class: "row" }, session, select,
+          el("label", { class: "note" }, approval, " approve mutation"), run));
+      }
+
+      function renderRetrieval() {
+        const projection = el("input", { class: "text", placeholder: "retrieval projection identity" });
+        const policy = el("input", { class: "text", placeholder: "rerank policy identity" });
+        const query = el("input", { class: "text", placeholder: "retrieval query" });
+        const limit = el("input", { class: "text", type: "number", min: "1", placeholder: "result limit" });
+        const results = el("div");
+        const search = el("button", { class: "btn", text: "Search", disabled: !selected });
+        search.addEventListener("click", async () => {
+          try {
+            const found = await api.post("/agents/retrieval", {
+              agent: selected, projection: projection.value.trim(), rerank_policy: policy.value.trim(),
+              query: query.value, limit: Number(limit.value),
+            });
+            results.replaceChildren(...found.map((item) => el("div", { class: "card" },
+              artifactLink(item.citation.source), " / ", artifactLink(item.citation.chunk),
+              el("div", { text: item.citation.text }))));
+          } catch (err) { showError(err); }
+        });
+        retrievalHost.replaceChildren(el("div", { class: "row" }, projection, policy, query, limit, search), results);
+      }
+
+      function renderAutomations() {
+        const agent = activeAgent();
+        const select = el("select", { class: "text" });
+        for (const item of (agent && agent.automations) || []) {
+          select.append(el("option", { value: item.id, text: item.name }));
+        }
+        const key = el("input", { class: "text", placeholder: "idempotency key" });
+        const destination = el("input", { class: "text", placeholder: "approved destination" });
+        const inputs = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON inputs" });
+        const run = el("button", { class: "btn", text: "Run attachment", disabled: !select.value });
+        run.addEventListener("click", async () => {
+          try {
+            const execution = await api.post("/agents/automation", {
+              agent: selected, automation: select.value, key: key.value.trim(),
+              destination: destination.value.trim(), inputs: JSON.parse(inputs.value || "{}"),
+            });
+            status.textContent = "automation admitted / " + fmt.shortID(execution.operation);
+            openOperation(execution.operation);
+          } catch (err) { showError(err); }
+        });
+        automationHost.replaceChildren(el("div", { class: "row" }, select, key, destination, run), inputs);
+      }
+
+      async function renderEvidence(session) {
+        if (!selected || !session) {
+          evidenceHost.replaceChildren(el("div", { class: "note", text: "Run a tool step to load its durable observables." }));
+          return;
+        }
+        try {
+          const rows = await api.get("/agents/evidence?session=" + encodeURIComponent(selected + ":" + session));
+          evidenceHost.replaceChildren(...rows.map((item) => el("div", { class: "card" },
+            "step " + item.step + " / ", artifactLink(item.interaction), " / transcript ", artifactLink(item.transcript),
+            ...((item.calls || []).map((call) => el("div", { text: "call " + call.name + " / " + fmt.shortID(call.manual) }))),
+            ...((item.results || []).map((result) => el("div", { text: "result " + result.tool_call_id + (result.error ? " / error" : " / complete") })))));
+        } catch (err) { showError(err); }
+      }
+
+      function renderAll() {
+        renderInventory(); renderChat(); renderTools(); renderRetrieval(); renderAutomations();
+      }
+
+      tools = (await api.get("/agent/tools")).tools || [];
+      inventory = await api.get("/agents");
+      renderAll();
+      const stream = new AbortController();
+      api.events("/agents/stream", (event, data) => {
+        if (event === "agent.inventory") { inventory = data; renderAll(); }
+        if (event === "operation" && data.status && data.status.id) status.textContent =
+          "operation " + fmt.shortID(data.status.id) + " / " + data.status.state;
+      }, { signal: stream.signal }).catch((err) => {
+        if (err.name !== "AbortError") showError(err);
+      });
+      return () => { stream.abort(); definitionForm.dispose(); };
     },
   });
 })();

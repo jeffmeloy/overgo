@@ -27,8 +27,6 @@
 
   window.overgo.registerTab({
     id: "compositions",
-    label: "Compositions",
-    section: "workbench",
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       clear(panel);
@@ -37,7 +35,7 @@
       const refresh = el("button", { class: "btn alt", text: "Refresh" });
       panel.append(
         el("div", { class: "section-title", text: "Composition authority" }),
-        el("div", { class: "note", text: "Inventory, compatibility refusals, training controls, evaluation evidence, promotion history, active selection, and runtime evidence come from RepoDB." }),
+        el("div", { class: "note", text: "Inventory, compatibility refusals, training controls, evaluation evidence, promotion history, active selection, and runtime evidence come from OvergoDB." }),
         el("div", { class: "row", style: "margin:12px 0" }, refresh, status), host);
 
       async function activate(recipe) {

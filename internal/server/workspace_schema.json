@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "schemas": [
+    {
+      "id": "automation-definition",
+      "label": "Automation definition",
+      "fields": [
+        {"name": "name", "label": "Name", "type": "text", "required": true, "pattern": "^[a-z][a-z0-9-]*$"},
+        {"name": "recipe", "label": "Recipe", "type": "identity", "required": true, "identity_kind": "recipe"},
+        {"name": "trigger_policy", "label": "Trigger policy", "type": "identity", "required": true, "identity_kind": "profile"},
+        {"name": "delivery_policy", "label": "Delivery policy", "type": "identity", "required": true, "identity_kind": "profile"}
+      ]
+    },
+    {
+      "id": "automation-trigger",
+      "label": "Automation trigger",
+      "fields": [
+        {"name": "kind", "label": "Trigger", "type": "enum", "required": true, "options": [
+          {"value": "manual", "label": "Manual"},
+          {"value": "schedule", "label": "Schedule"}
+        ]},
+        {"name": "schedule", "label": "Cadence", "type": "duration", "required": true, "unit": "Go duration", "when": {"field": "kind", "equals": "schedule"}},
+        {"name": "anchor_unix_nano", "label": "Anchor", "type": "integer", "required": true, "unit": "ns since Unix epoch", "minimum": 0, "when": {"field": "kind", "equals": "schedule"}},
+        {"name": "missed", "label": "Missed run", "type": "enum", "required": true, "when": {"field": "kind", "equals": "schedule"}, "options": [
+          {"value": "latest", "label": "Latest due slot"},
+          {"value": "catch-up-one", "label": "One oldest slot per scan"}
+        ]}
+      ]
+    },
+    {
+      "id": "automation-delivery",
+      "label": "Automation delivery",
+      "fields": [
+        {"name": "kind", "label": "Delivery", "type": "enum", "required": true, "options": [
+          {"value": "artifact", "label": "Repository artifact"},
+          {"value": "tool", "label": "Approved tool effect"}
+        ]},
+        {"name": "tool", "label": "Tool manual", "type": "identity", "required": true, "identity_kind": "recipe", "when": {"field": "kind", "equals": "tool"}},
+        {"name": "authorization", "label": "Authorization evidence", "type": "identity", "required": true, "identity_kind": "evidence", "when": {"field": "kind", "equals": "tool"}},
+        {"name": "destinations", "label": "Allowed destinations", "type": "string-list", "required": true, "minimum_items": 1, "when": {"field": "kind", "equals": "tool"}},
+        {"name": "destination_argument", "label": "Destination argument", "type": "text", "required": true, "pattern": "^[a-z][a-z0-9_]*$", "when": {"field": "kind", "equals": "tool"}},
+        {"name": "payload_argument", "label": "Payload argument", "type": "text", "required": true, "pattern": "^[a-z][a-z0-9_]*$", "when": {"field": "kind", "equals": "tool"}},
+        {"name": "idempotency_argument", "label": "Idempotency argument", "type": "text", "required": true, "pattern": "^[a-z][a-z0-9_]*$", "when": {"field": "kind", "equals": "tool"}}
+      ]
+    },
+    {
+      "id": "agent-definition",
+      "label": "Agent definition",
+      "fields": [
+        {"name": "name", "label": "Name", "type": "text", "required": true, "pattern": "^[a-z][a-z0-9-]*$"},
+        {"name": "prompt", "label": "Prompt file", "type": "identity", "required": true, "identity_kind": "file"},
+        {"name": "model_recipe", "label": "Model recipe", "type": "identity", "required": true, "identity_kind": "recipe"},
+        {"name": "tool_manuals", "label": "Tool manual identities", "type": "string-list"},
+        {"name": "capability_bundles", "label": "Capability bundle identities", "type": "string-list"},
+        {"name": "datasets", "label": "Dataset identities", "type": "string-list"},
+        {"name": "automations", "label": "Automation definition identities", "type": "string-list"},
+        {"name": "policies", "label": "Policy identities", "type": "string-list", "required": true, "minimum_items": 1}
+      ]
+    },
+    {
+      "id": "peer-enrollment",
+      "label": "Peer enrollment",
+      "fields": [
+        {"name": "name", "label": "Peer label", "type": "text", "required": true, "pattern": "^[A-Za-z0-9._-]+$"},
+        {"name": "environment", "label": "Environment", "type": "identity", "required": true, "identity_kind": "evidence"},
+        {"name": "public_key", "label": "Ed25519 public key", "type": "text", "required": true, "unit": "base64"},
+        {"name": "approved_by", "label": "Approved by", "type": "text", "required": true, "pattern": "^[A-Za-z0-9._-]+$"},
+        {"name": "approved_unix_ns", "label": "Approval time", "type": "integer", "unit": "ns since Unix epoch; server clock when omitted", "minimum": 1}
+      ]
+    },
+    {
+      "id": "peer-placement",
+      "label": "Peer placement policy",
+      "fields": [
+        {"name": "model", "label": "Model", "type": "identity", "required": true, "identity_kind": "model"},
+        {"name": "task", "label": "Task", "type": "enum", "required": true, "options": [
+          {"value": "generation", "label": "Generation"},
+          {"value": "inference", "label": "Inference"}
+        ]},
+        {"name": "local_observation", "label": "Local observation", "type": "identity", "identity_kind": "evidence"},
+        {"name": "peer_candidates", "label": "Peer and compatibility pairs", "type": "string-list", "unit": "peer identity + space + compatibility identity"},
+        {"name": "minimum_replicas", "label": "Minimum replicas", "type": "integer", "required": true, "minimum": 1},
+        {"name": "maximum_replicas", "label": "Maximum replicas", "type": "integer", "required": true, "minimum": 1},
+        {"name": "target_concurrency", "label": "Target concurrency", "type": "integer", "required": true, "minimum": 1},
+        {"name": "concurrency_per_replica", "label": "Concurrency per replica", "type": "integer", "required": true, "minimum": 1},
+        {"name": "maximum_measured_ns", "label": "Maximum measured latency", "type": "integer", "unit": "ns", "minimum": 0},
+        {"name": "maximum_device_bytes", "label": "Maximum device memory", "type": "integer", "unit": "bytes", "minimum": 0},
+        {"name": "allow_local", "label": "Allow local placement", "type": "boolean", "required": true},
+        {"name": "allow_peers", "label": "Allow peer placement", "type": "boolean", "required": true},
+        {"name": "maximum_attempts", "label": "Reconciliation attempts", "type": "integer", "required": true, "minimum": 1}
+      ]
+    }
+  ]
+}

@@ -4,8 +4,8 @@
 // proposer, evaluator or decider authority is never expressible in the
 // controller's language and always flows through this explicit tool.
 //
-//	go run ./cmd/admission -bind <binding.json> -record <repodb>
-//	go run ./cmd/admission -succeed <current-id> -prior <prior-id> -approval <decision-id> -record <repodb>
+//	go run ./cmd/admission -bind <binding.json> -record <overgodb>
+//	go run ./cmd/admission -succeed <current-id> -prior <prior-id> -approval <decision-id> -record <overgodb>
 package main
 
 import (
@@ -42,7 +42,7 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	if flags.NArg() != 0 || *recordStore == "" || (*bind == "") == (*succeed == "") {
-		return errors.New("usage: admission -bind <binding.json> -record <repodb> | admission -succeed <id> -prior <id> -approval <id> -record <repodb>")
+		return errors.New("usage: admission -bind <binding.json> -record <overgodb> | admission -succeed <id> -prior <id> -approval <id> -record <overgodb>")
 	}
 	if *bind != "" {
 		return runBind(*bind, *recordStore, output)

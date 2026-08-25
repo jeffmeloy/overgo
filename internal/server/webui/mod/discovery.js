@@ -7,8 +7,6 @@
   "use strict";
   window.overgo.registerTab({
     id: "library",
-    label: "Library",
-    section: "library",
     mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       clear(panel);

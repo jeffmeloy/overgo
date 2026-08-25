@@ -6,8 +6,6 @@
   "use strict";
   window.overgo.registerTab({
     id: "image-gen",
-    label: "Images",
-    section: "inference",
     mount(panel, overgo) {
       const { el, clear } = overgo;
       clear(panel);

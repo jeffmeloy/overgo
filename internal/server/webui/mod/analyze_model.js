@@ -4,8 +4,6 @@
   "use strict";
   window.overgo.registerTab({
     id: "model",
-    label: "Model",
-    section: "workbench",
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       clear(panel);

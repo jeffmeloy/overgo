@@ -37,9 +37,6 @@
 
   window.overgo.registerTab({
     id: "tensors",
-    label: "Tensors",
-    section: "workbench",
-    requires: "tensors",
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       clear(panel);

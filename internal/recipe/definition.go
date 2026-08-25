@@ -1,6 +1,7 @@
 package recipe
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -39,6 +40,12 @@ var definitionCodec = artifact.DocumentCodec[Definition]{
 
 func ParseDefinition(content []byte) (Definition, error) {
 	return definitionCodec.Parse(content)
+}
+
+// RequireDefinition loads one exact recipe definition and verifies its
+// document contract and content-derived identity.
+func RequireDefinition(ctx context.Context, reader artifact.Reader, id artifact.ID) (Definition, error) {
+	return definitionCodec.Require(ctx, reader, id)
 }
 
 func decodeDefinition(content []byte, definition *Definition) error {

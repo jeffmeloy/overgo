@@ -351,7 +351,7 @@ func writeSnapshot(ctx context.Context, root string, sequence uint64, head artif
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("overgodb: inspect snapshot: %w", err)
 	}
-	temporary, err := os.CreateTemp(directory, ".repodb-snapshot-*.tmp")
+	temporary, err := os.CreateTemp(directory, ".overgodb-snapshot-*.tmp")
 	if err != nil {
 		return "", fmt.Errorf("overgodb: create snapshot: %w", err)
 	}

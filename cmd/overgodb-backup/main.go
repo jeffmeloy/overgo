@@ -1,4 +1,4 @@
-// Command repodb-backup publishes a verified copy of a OvergoDB store: the
+// Command overgodb-backup publishes a verified copy of an OvergoDB store: the
 // destination is written to a partial directory, replayed read-only, and
 // renamed into place only when its head commit and sequence match the source.
 // The store is the system of record for gate, run, and evaluation evidence;
@@ -24,7 +24,7 @@ func main() {
 }
 
 func run(args []string, output io.Writer) error {
-	flags := flag.NewFlagSet("repodb-backup", flag.ContinueOnError)
+	flags := flag.NewFlagSet("overgodb-backup", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	repository := flags.String("repo", "", "OvergoDB root to back up")
 	destination := flags.String("dest", "", "destination directory (must not exist)")
@@ -32,7 +32,7 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	if flags.NArg() != 0 || strings.TrimSpace(*repository) == "" || strings.TrimSpace(*destination) == "" {
-		return errors.New("usage: repodb-backup -repo <path> -dest <path>")
+		return errors.New("usage: overgodb-backup -repo <path> -dest <path>")
 	}
 	store, err := overgodb.OpenReadOnly(*repository)
 	if err != nil {

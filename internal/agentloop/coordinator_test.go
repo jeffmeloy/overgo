@@ -92,6 +92,23 @@ func TestCoordinatorGatesMutationBehindInspectionAndApproval(t *testing.T) {
 		!strings.Contains(err.Error(), "approval") {
 		t.Fatalf("mutation admitted without approval: %v", err)
 	}
+	// The approve FLAG alone is not authority: without a committed
+	// decision the mutation refuses; a decision bound to DIFFERENT
+	// argument bytes refuses too; only the exact-bound grant admits.
+	if _, err := coordinator.Propose(ctx, session, "probe.write", json.RawMessage(`{}`), true); err == nil ||
+		!strings.Contains(err.Error(), "no committed approval decision") {
+		t.Fatalf("mutation admitted on the flag without a committed decision: %v", err)
+	}
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{"other":1}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := coordinator.Propose(ctx, session, "probe.write", json.RawMessage(`{}`), true); err == nil ||
+		!strings.Contains(err.Error(), "different tool or arguments") {
+		t.Fatalf("mutation admitted under a decision for different arguments: %v", err)
+	}
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{}`)); err != nil {
+		t.Fatal(err)
+	}
 	result, err := coordinator.Propose(ctx, session, "probe.write", json.RawMessage(`{}`), true)
 	if err != nil || string(result) != `{"changed":true}` {
 		t.Fatalf("approved mutation = %s, %v", result, err)
@@ -160,4 +177,105 @@ func TestRestoreResolvesToolByExactIdentity(t *testing.T) {
 	if restored.Steps != 1 || !restored.Inspected {
 		t.Fatalf("restored = %+v, want the step-one inspection preserved despite the alias effect change", restored)
 	}
+}
+
+// TestMutationReceiptPrecedesExecution pins the reopened finding: a
+// mutation persists a durable receipt chain BEFORE it executes and
+// closes it after. A succeeding mutation leaves admitted -> running ->
+// completed with the manual, arguments, and result bound; a FAILING
+// mutation still leaves its chain, terminally failed with the error
+// preserved -- the side effect attempt never lacks evidence. An
+// inspection carries no receipt.
+func TestMutationReceiptPrecedesExecution(t *testing.T) {
+	ctx := context.Background()
+	coordinator, store := coordinatorFixture(t)
+	session := &Session{ID: "receipt-session"}
+	if _, err := coordinator.Propose(ctx, session, "probe.read", json.RawMessage(`{}`), false); err != nil {
+		t.Fatal(err)
+	}
+	inspectOperation, err := MutationReceiptOperation("receipt-session-step-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := runrecord.ResolveStageReceipt(ctx, store, inspectOperation, coordinator.identity.Node); err != nil || found {
+		t.Fatalf("inspection carried a receipt: found=%t err=%v", found, err)
+	}
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := coordinator.Propose(ctx, session, "probe.write", json.RawMessage(`{}`), true); err != nil {
+		t.Fatal(err)
+	}
+	operation, err := MutationReceiptOperation("receipt-session-step-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tip, found, err := runrecord.ResolveStageReceipt(ctx, store, operation, coordinator.identity.Node)
+	if err != nil || !found {
+		t.Fatalf("mutation receipt chain absent: found=%t err=%v", found, err)
+	}
+	if tip.State != runrecord.StageCompleted || len(tip.Outputs) != 1 || tip.Outputs[0].Port != "result" {
+		t.Fatalf("receipt tip = %+v, want completed with a bound result", tip)
+	}
+	states := []runrecord.StageState{tip.State}
+	for previous := tip.Previous; previous.Valid(); {
+		parsed, err := readStageReceipt(t, ctx, store, previous)
+		if err != nil {
+			t.Fatal(err)
+		}
+		states = append(states, parsed.State)
+		previous = parsed.Previous
+	}
+	if len(states) != 3 || states[2] != runrecord.StageAdmitted || states[1] != runrecord.StageRunning {
+		t.Fatalf("receipt states = %v, want completed <- running <- admitted", states)
+	}
+}
+
+// TestFailingMutationStillLeavesReceipt pins the failure half: the
+// transport errors, the proposal errors, and the receipt chain still
+// exists with a terminal failed state carrying the error.
+func TestFailingMutationStillLeavesReceipt(t *testing.T) {
+	ctx := context.Background()
+	coordinator, store := coordinatorFixture(t)
+	broken, err := agenttool.NewManual(agenttool.Manual{
+		Name: "probe.break", Description: "Fail for the receipt fixture.",
+		Effect:    agenttool.EffectMutation,
+		Transport: agenttool.Transport{Kind: agenttool.TransportHTTP, URL: "http://127.0.0.1:9/never"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agenttool.PublishManualCatalog(ctx, store, []agenttool.Manual{broken}); err != nil {
+		t.Fatal(err)
+	}
+	session := &Session{ID: "failing-session"}
+	if _, err := coordinator.Propose(ctx, session, "probe.read", json.RawMessage(`{}`), false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.break", json.RawMessage(`{}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := coordinator.Propose(ctx, session, "probe.break", json.RawMessage(`{}`), true); err == nil {
+		t.Fatal("broken mutation transport succeeded")
+	}
+	operation, err := MutationReceiptOperation("failing-session-step-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tip, found, err := runrecord.ResolveStageReceipt(ctx, store, operation, coordinator.identity.Node)
+	if err != nil || !found {
+		t.Fatalf("failed mutation left no receipt: found=%t err=%v", found, err)
+	}
+	if tip.State != runrecord.StageFailed || tip.Failure == "" {
+		t.Fatalf("receipt tip = %+v, want terminal failed with the error preserved", tip)
+	}
+}
+
+func readStageReceipt(t *testing.T, ctx context.Context, store *overgodb.Store, id artifact.ID) (runrecord.StageReceipt, error) {
+	t.Helper()
+	content, found, err := artifact.ReadContent(ctx, store, id)
+	if err != nil || !found {
+		t.Fatalf("receipt %s content: found=%t err=%v", id, found, err)
+	}
+	return runrecord.ParseStageReceipt(content.Data)
 }

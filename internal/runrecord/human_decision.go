@@ -52,6 +52,11 @@ func NewHumanDecision(request operatoraction.ApprovalRequest, answer operatoract
 	})
 }
 
+// RequireHumanDecision returns one validated decision by immutable identity.
+func RequireHumanDecision(ctx context.Context, reader artifact.Reader, id artifact.ID) (HumanDecision, error) {
+	return humanDecisionCodec.Require(ctx, reader, id)
+}
+
 // ResolveHumanDecision returns the latest decision for one operation.
 func ResolveHumanDecision(ctx context.Context, reader artifact.Reader, operation artifact.ID) (HumanDecision, bool, error) {
 	id, found, err := artifact.ResolveAlias(ctx, reader, HumanDecisionAliasRoot+operation.String())

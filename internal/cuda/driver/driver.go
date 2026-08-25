@@ -59,6 +59,19 @@ type MemoryStats struct {
 	// LargestLiveBytes is the largest single live allocation, a second
 	// coordinate for locating an outlier buffer.
 	LargestLiveBytes uint64 `json:"largestLiveBytes"`
+	// PeakLedger is the live-allocation size histogram captured at the
+	// moment the peak was last raised, largest total first. It is the
+	// evidence a peak-over-budget diagnosis needs: a single oversized
+	// class names one buffer, while an excess spread across many small
+	// classes is genuinely diffuse.
+	PeakLedger []AllocationSizeClass `json:"peakLedger,omitempty"`
+}
+
+// AllocationSizeClass counts the live allocations of one exact size at
+// the peak crossing.
+type AllocationSizeClass struct {
+	Bytes uint64 `json:"bytes"`
+	Count uint64 `json:"count"`
 }
 
 // ExecutionStats: reports successful CUDA Driver API work submitted through

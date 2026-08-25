@@ -154,7 +154,7 @@ func walkDirectoryInventory(root string) ([]InventoryFile, []string, uint64, err
 		files = append(files, InventoryFile{
 			Path: filepath.ToSlash(relative), OriginalName: entry.Name(), Extension: extension,
 			Modality: modality, Format: format, Bytes: uint64(info.Size()),
-			ModifiedUnix: info.ModTime().Unix(), Digest: digest, Structured: modality == "structured",
+			Digest: digest, Structured: modality == "structured",
 		})
 		return nil
 	})

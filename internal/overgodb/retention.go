@@ -24,7 +24,7 @@ type RetentionReport struct {
 func Compact(ctx context.Context, source *Store, destinationRoot string) (RetentionReport, error) {
 	report := RetentionReport{}
 	if source == nil {
-		return report, errors.New("repodb retention: nil source store")
+		return report, errors.New("overgodb retention: nil source store")
 	}
 	descriptors := map[artifact.ID]artifact.Descriptor{}
 	manifests := map[artifact.ID]artifact.Manifest{}
@@ -84,7 +84,7 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 	}
 	defer destination.Close()
 	if _, sequence := destination.Head(); sequence != 0 {
-		return report, fmt.Errorf("repodb retention: destination %s already holds %d commit(s)", destinationRoot, sequence)
+		return report, fmt.Errorf("overgodb retention: destination %s already holds %d commit(s)", destinationRoot, sequence)
 	}
 	writer := compactionWriter{ctx: ctx, destination: destination}
 	contentIDs := make([]artifact.ID, 0, len(contents))
@@ -204,7 +204,7 @@ func (writer *compactionWriter) add(item artifact.Batch) error {
 		content += len(value.Data)
 	}
 	if content > maxFramePayload {
-		return errors.New("repodb retention: one compacted fact exceeds the frame limit")
+		return errors.New("overgodb retention: one compacted fact exceeds the frame limit")
 	}
 	if writer.content > maxFramePayload-content {
 		if err := writer.flush(); err != nil {
@@ -244,7 +244,7 @@ func (writer *compactionWriter) commit(items []artifact.Batch) error {
 		return nil
 	}
 	if len(items) == 1 {
-		return errors.New("repodb retention: one compacted fact exceeds the frame limit")
+		return errors.New("overgodb retention: one compacted fact exceeds the frame limit")
 	}
 	middle := len(items) / 2
 	if err := writer.commit(items[:middle]); err != nil {

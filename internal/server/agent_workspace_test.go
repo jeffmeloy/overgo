@@ -61,6 +61,11 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// The argv manual publishes only under a committed policy naming
+		// its program -- the durable allowlist, not a CLI convenience.
+		if _, err := agenttool.PublishArgvPolicy(ctx, store, []string{"git"}); err != nil {
+			t.Fatal(err)
+		}
 		if _, err := agenttool.PublishManualCatalog(ctx, store, append(manuals, write)); err != nil {
 			t.Fatal(err)
 		}

@@ -31,7 +31,9 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentvideo"
+	"overgo/internal/media"
 	"overgo/internal/overgodb"
+	"overgo/internal/pytorchzip"
 	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 	"overgo/internal/trainingprogram"
@@ -207,6 +209,8 @@ func run() error {
 	stimulus := flag.String("stimulus", "docs/verification/wan-dit-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
 	objectiveAlias := flag.String("objective-alias", "", "registered objective alias to train under; empty uses the token bootstrap")
 	t5Cache := flag.String("t5-cache", "", "optional cache base path for the streamed raw text rows")
+	vidgenRoot := flag.String("vidgen-root", "", "VidGen corpus directory; set to train on real VAE-encoded captioned clips instead of fixture latents")
+	clipCount := flag.Int("clips", 4, "captioned clips to train over when -vidgen-root is set")
 	flag.Parse()
 	overrides := clioptions.ExplicitOverrides(flag.CommandLine)
 	ctx := context.Background()
@@ -277,7 +281,11 @@ func run() error {
 	// Real raw text rows for the committed g1 prompt (frozen encoder,
 	// outside the trainable surface).
 	var g1 struct {
-		Prompt      string `json:"prompt"`
+		Prompt        string `json:"prompt"`
+		EncoderPolicy struct {
+			RelativeMaxDistance int     `json:"relative_max_distance"`
+			NormEps             float64 `json:"norm_eps"`
+		} `json:"encoder_policy"`
 		Conditional struct {
 			Tensor fixtureTensor `json:"tensor"`
 		} `json:"conditional"`
@@ -285,15 +293,15 @@ func run() error {
 	if err := jsonfile.Decode(filepath.Join(*fixturesDir, "g1_text_conditioning.json"), &g1); err != nil {
 		return err
 	}
-	// RelativeMaxDistance/NormEps: published encoder-config facts the
-	// checkpoint cannot carry (the same policy the g1 capture used).
+	// EncoderPolicy carries the published model facts the checkpoint cannot
+	// encode and binds training to the same policy used by the g1 capture.
 	textSpec := latentvideo.TextConditioningSpec{
 		TokenizerDir:        filepath.Join(*modelDir, "google", "umt5-xxl"),
 		EncoderCheckpoint:   filepath.Join(*modelDir, "models_t5_umt5-xxl-enc-bf16.pth"),
 		ProjectionDir:       *modelDir,
 		SequenceLength:      config.TextLen,
-		RelativeMaxDistance: 128,
-		NormEps:             1e-6,
+		RelativeMaxDistance: g1.EncoderPolicy.RelativeMaxDistance,
+		NormEps:             g1.EncoderPolicy.NormEps,
 	}
 	rawText, textTokens, rawTextDim, err := rawTextRows(textSpec, g1.Prompt, *t5Cache)
 	if err != nil {
@@ -363,63 +371,159 @@ func run() error {
 	if *scheduleIndex < 0 || *scheduleIndex >= len(timesteps) {
 		return fmt.Errorf("dit train probe: schedule index %d outside %d timesteps", *scheduleIndex, len(timesteps))
 	}
-	timestep := timesteps[*scheduleIndex]
-	sigma := float64(sigmas[*scheduleIndex])
 
-	g3Latent, g3Shape, err := finalLatentFixture(*fixturesDir, "g3_denoise.json")
-	if err != nil {
-		return err
+	noiseChannels := cfg.OutDim
+	noiseElements := noiseChannels * geometry.LatentFrames * geometry.LatentHeight * geometry.LatentWidth
+	// mixBatch assembles one flow-matching batch: x_t = (1-sigma) x0 +
+	// sigma noise, velocity target v = noise - x0, on the committed
+	// shifted schedule.
+	mixBatch := func(x0, source, text []float32, tokens, index int, seed uint64) (latentvideo.DiTTrainBatch, error) {
+		if len(x0) != noiseElements {
+			return latentvideo.DiTTrainBatch{}, fmt.Errorf("dit train probe: x0 has %d elements, need %d", len(x0), noiseElements)
+		}
+		step := timesteps[index]
+		mix := float64(sigmas[index])
+		noise := make([]float32, noiseElements)
+		if err := sampling.FillCounterNormalNoise(noise, sampling.CounterNoisePlan{
+			Seed: seed, Grid: fixture.NoisePlan.Grid,
+			Block: fixture.NoisePlan.Block, Unroll: fixture.NoisePlan.Unroll,
+		}); err != nil {
+			return latentvideo.DiTTrainBatch{}, err
+		}
+		mixed := make([]float32, geometry.Elements())
+		target := make([]float32, noiseElements)
+		for i := range x0 {
+			mixed[i] = float32((1-mix)*float64(x0[i]) + mix*float64(noise[i]))
+			target[i] = noise[i] - x0[i]
+		}
+		if source != nil {
+			copy(mixed[noiseElements:], source)
+		}
+		fmt.Printf("flow matching: timestep=%d sigma=%.8f (shift-5 schedule index %d)\n", step, mix, index)
+		return latentvideo.DiTTrainBatch{
+			Latent: mixed, RawText: text, TextTokens: tokens,
+			Timestep: float64(step), Target: target,
+		}, nil
 	}
-	x0Seed, x0Shape := g3Latent, g3Shape
-	var source []float32
-	if *checkpoint != "" {
-		g4Latent, g4Shape, err := finalLatentFixture(*fixturesDir, "g4_denoise.json")
+
+	var batches []latentvideo.DiTTrainBatch
+	if *vidgenRoot != "" {
+		// Real corpus batches: each clip is decoded, VAE-encoded into the
+		// normalized latent space, and conditioned on its own recorded
+		// caption. The schedule index and noise seed are derived per clip
+		// from the declared index and the golden plan seed -- deterministic,
+		// no free knobs.
+		if *checkpoint != "" {
+			return fmt.Errorf("dit train probe: -vidgen-root trains the text-to-video surface; it does not compose with -checkpoint source editing")
+		}
+		clips, err := latentvideo.ListCaptionedClips(*vidgenRoot, *clipCount)
 		if err != nil {
 			return err
 		}
-		x0Seed, x0Shape = latentFrameZero(g4Latent, g4Shape)
-		source = tileLatent(g3Latent, g3Shape, geometry.LatentFrames, geometry.LatentHeight, geometry.LatentWidth)
+		ffmpeg, err := media.ResolveFFmpeg("")
+		if err != nil {
+			return err
+		}
+		vaeCheckpoint := filepath.Join(*modelDir, "Wan2.1_VAE.pth")
+		vaeCatalog, err := pytorchzip.ReadCatalog(vaeCheckpoint)
+		if err != nil {
+			return err
+		}
+		encoderGraph, err := latentvideo.CompileVAEEncoderPlan(vaeCatalog.Tensors)
+		if err != nil {
+			return err
+		}
+		sourceShape := latentvideo.SourceVideoShape{Channels: 3, Frames: *frames, Height: *height, Width: *width}
+		sourcePlan, err := latentvideo.CompileSourceCodecBoundary(latentvideo.SourceCodecProfile{
+			InputChannels: encoderGraph.InputChannels, LatentChannels: encoderGraph.LatentChannels,
+			Stride: encoderGraph.Stride, LatentStats: profile.LatentStats,
+		}, sourceShape)
+		if err != nil {
+			return err
+		}
+		if sourcePlan.Latent.Frames != geometry.LatentFrames ||
+			sourcePlan.Latent.Height != geometry.LatentHeight || sourcePlan.Latent.Width != geometry.LatentWidth {
+			return fmt.Errorf("dit train probe: encoder latent %dx%dx%d differs from trainer geometry %dx%dx%d",
+				sourcePlan.Latent.Frames, sourcePlan.Latent.Height, sourcePlan.Latent.Width,
+				geometry.LatentFrames, geometry.LatentHeight, geometry.LatentWidth)
+		}
+		for clipIndex, clip := range clips {
+			clipStarted := time.Now()
+			sourcePixels, err := latentvideo.DecodeClipSource(ctx, ffmpeg, clip.Path, sourceShape)
+			if err != nil {
+				return err
+			}
+			x0, err := latentvideo.EncodeClipLatent(vaeCheckpoint, encoderGraph, sourcePlan, sourcePixels)
+			if err != nil {
+				return err
+			}
+			clipCache := ""
+			if *t5Cache != "" {
+				clipCache = *t5Cache + "-" + clip.Name
+			}
+			text, tokens, clipTextDim, err := rawTextRows(textSpec, clip.Caption, clipCache)
+			if err != nil {
+				return err
+			}
+			if clipTextDim != textDim {
+				return fmt.Errorf("dit train probe: clip %q text width %d != projection width %d", clip.Name, clipTextDim, textDim)
+			}
+			batch, err := mixBatch(x0, nil, text, tokens,
+				(*scheduleIndex+clipIndex)%len(timesteps), fixture.NoisePlan.Seed+uint64(clipIndex))
+			if err != nil {
+				return err
+			}
+			batches = append(batches, batch)
+			fmt.Printf("clip %d/%d %s: encoded and conditioned in %s (%q)\n",
+				clipIndex+1, len(clips), clip.Name, time.Since(clipStarted).Round(time.Second), clip.Caption[:min(len(clip.Caption), 60)])
+		}
+	} else {
+		g3Latent, g3Shape, err := finalLatentFixture(*fixturesDir, "g3_denoise.json")
+		if err != nil {
+			return err
+		}
+		x0Seed, x0Shape := g3Latent, g3Shape
+		var source []float32
+		if *checkpoint != "" {
+			g4Latent, g4Shape, err := finalLatentFixture(*fixturesDir, "g4_denoise.json")
+			if err != nil {
+				return err
+			}
+			x0Seed, x0Shape = latentFrameZero(g4Latent, g4Shape)
+			source = tileLatent(g3Latent, g3Shape, geometry.LatentFrames, geometry.LatentHeight, geometry.LatentWidth)
+		}
+		x0 := tileLatent(x0Seed, x0Shape, geometry.LatentFrames, geometry.LatentHeight, geometry.LatentWidth)
+		batch, err := mixBatch(x0, source, rawText, textTokens, *scheduleIndex, fixture.NoisePlan.Seed)
+		if err != nil {
+			return err
+		}
+		batches = append(batches, batch)
 	}
-	x0 := tileLatent(x0Seed, x0Shape, geometry.LatentFrames, geometry.LatentHeight, geometry.LatentWidth)
-	noiseChannels := cfg.OutDim
-	noiseElements := noiseChannels * geometry.LatentFrames * geometry.LatentHeight * geometry.LatentWidth
-	if len(x0) != noiseElements {
-		return fmt.Errorf("dit train probe: x0 has %d elements, need %d", len(x0), noiseElements)
-	}
-	noise := make([]float32, noiseElements)
-	// The golden capture engine's noise plan (g3 seed 31 geometry).
-	if err := sampling.FillCounterNormalNoise(noise, sampling.CounterNoisePlan{
-		Seed: fixture.NoisePlan.Seed, Grid: fixture.NoisePlan.Grid,
-		Block: fixture.NoisePlan.Block, Unroll: fixture.NoisePlan.Unroll,
-	}); err != nil {
-		return err
-	}
-	latent := make([]float32, geometry.Elements())
-	target := make([]float32, noiseElements)
-	for i := range x0 {
-		latent[i] = float32((1-sigma)*float64(x0[i]) + sigma*float64(noise[i]))
-		target[i] = noise[i] - x0[i]
-	}
-	if source != nil {
-		copy(latent[noiseElements:], source)
-	}
-	batch := latentvideo.DiTTrainBatch{
-		Latent: latent, RawText: rawText, TextTokens: textTokens,
-		Timestep: float64(timestep), Target: target,
-	}
-	fmt.Printf("flow matching: timestep=%d sigma=%.8f (shift-5 schedule index %d)\n", timestep, sigma, *scheduleIndex)
 
-	initial, err := trainer.Loss(batch)
+	// meanLoss reports the mean flow-matching MSE across every batch, so
+	// descent is judged on the whole conditioning set, not one clip.
+	meanLoss := func() (float64, error) {
+		var sum float64
+		for _, batch := range batches {
+			loss, err := trainer.Loss(batch)
+			if err != nil {
+				return 0, err
+			}
+			sum += loss
+		}
+		return sum / float64(len(batches)), nil
+	}
+	initial, err := meanLoss()
 	if err != nil {
 		return err
 	}
-	fmt.Printf("initial loss %.6f (flow-matching MSE over %d latent elements)\n", initial, noiseElements)
+	fmt.Printf("initial loss %.6f (flow-matching MSE over %d latent elements, %d batches)\n", initial, noiseElements, len(batches))
 
 	trainStarted := time.Now()
 	runErr := func() error {
 		for step := 0; step < session.Updates(); step++ {
 			stepStarted := time.Now()
-			result, err := trainer.Step(batch)
+			result, err := trainer.Step(batches[step%len(batches)])
 			if err != nil {
 				return err
 			}
@@ -436,7 +540,7 @@ func run() error {
 				}
 			}
 		}
-		final, err := trainer.Loss(batch)
+		final, err := meanLoss()
 		if err != nil {
 			return err
 		}

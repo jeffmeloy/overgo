@@ -116,7 +116,7 @@ func run() error {
 	refresh := flag.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
 	recordVerification := flag.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims)")
 	recordStore := flag.String("record", "", "OvergoDB root for -record-verification/-claim")
-	claimFlag := flag.Bool("claim", false, "build and commit one verification claim from flags: -claim -model-file <weights> -name <n> -capability <c> -tier <t> -evidence-file <doc> [-wall <dur>] [-context <tokens>] [-peak <bytes>] -record <repodb>")
+	claimFlag := flag.Bool("claim", false, "build and commit one verification claim from flags: -claim -model-file <weights> -name <n> -capability <c> -tier <t> -evidence-file <doc> [-wall <dur>] [-context <tokens>] [-peak <bytes>] -record <overgodb>")
 	claimModelFile := flag.String("model-file", "", "claim: weights file; its digest is the model identity")
 	claimName := flag.String("name", "", "claim: human model name")
 	claimCapability := flag.String("capability", "inference", "claim: capability (lowercase kebab)")
@@ -142,7 +142,7 @@ func run() error {
 	}
 	if *claimFlag {
 		if flag.NArg() != 0 || *claimModelFile == "" || *claimName == "" || *claimEvidenceFile == "" || *recordStore == "" {
-			return errors.New("usage: compatibility -claim -model-file <weights> -name <n> -evidence-file <doc> -record <repodb> [-capability c] [-tier t] [-wall d] [-context n] [-peak b]")
+			return errors.New("usage: compatibility -claim -model-file <weights> -name <n> -evidence-file <doc> -record <overgodb> [-capability c] [-tier t] [-wall d] [-context n] [-peak b]")
 		}
 		return runClaim(claimInput{
 			modelFile: *claimModelFile, name: *claimName, capability: *claimCapability,
@@ -152,7 +152,7 @@ func run() error {
 	}
 	if *recordVerification != "" {
 		if flag.NArg() != 0 || *check || *update || *refresh || *recordStore == "" {
-			return errors.New("usage: compatibility -record-verification <spec.json> -record <repodb>")
+			return errors.New("usage: compatibility -record-verification <spec.json> -record <overgodb>")
 		}
 		return runRecordVerification(*recordVerification, *recordStore, os.Stdout)
 	}

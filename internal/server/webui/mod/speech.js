@@ -6,8 +6,6 @@
   "use strict";
   window.overgo.registerTab({
     id: "speech",
-    label: "Speech",
-    section: "inference",
     mount(panel, overgo) {
       const { el, clear } = overgo;
       clear(panel);

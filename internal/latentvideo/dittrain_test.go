@@ -3,6 +3,7 @@ package latentvideo
 import (
 	"math"
 	"math/rand"
+	"slices"
 	"strings"
 	"testing"
 
@@ -174,5 +175,54 @@ func TestDiTTrainerStepDescends(t *testing.T) {
 	}
 	if !(final < first) {
 		t.Fatalf("loss did not descend: %g -> %g (last step loss %g)", first, final, last.Loss)
+	}
+}
+
+// TestDiTTrainerCheckpointedForwardMatchesRetained pins gradient
+// checkpointing: the training forward keeps only the per-block hidden
+// chain, and the backward recomputes each block from its entry hidden.
+// Because blockForward is deterministic, the checkpointed pass must be
+// BITWISE identical to the fully retained pass -- same hidden chain,
+// same block outputs, same predicted velocity.
+func TestDiTTrainerCheckpointedForwardMatchesRetained(t *testing.T) {
+	trainer, batch := ditTestTrainer(t)
+	text, err := trainer.projectText(batch.RawText, batch.TextTokens)
+	if err != nil {
+		t.Fatal(err)
+	}
+	timeActs, err := trainer.timestepConditioning(batch.Timestep)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retained, err := trainer.forwardConditionedRetained(batch.Latent, text.context, timeActs.blockE, timeActs.headE, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpointed, err := trainer.forwardConditionedRetained(batch.Latent, text.context, timeActs.blockE, timeActs.headE, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkpointed.blocks != nil {
+		t.Fatal("checkpointed forward retained full block activations")
+	}
+	if len(checkpointed.hiddens) != trainer.cfg.NumLayers+1 {
+		t.Fatalf("hidden chain length %d, want %d", len(checkpointed.hiddens), trainer.cfg.NumLayers+1)
+	}
+	for layer := 0; layer < trainer.cfg.NumLayers; layer++ {
+		if !slices.Equal(checkpointed.hiddens[layer+1], retained.blocks[layer].output) {
+			t.Fatalf("layer %d hidden differs from the retained block output", layer)
+		}
+	}
+	if !slices.Equal(checkpointed.vLatent, retained.vLatent) {
+		t.Fatal("checkpointed velocity differs from the retained pass")
+	}
+	// The recomputing backward must produce the exact gradients the
+	// finite-difference test already validates on this same path.
+	loss, gradientL2, err := trainer.lossAndGradients(batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(loss > 0) || !(gradientL2 > 0) {
+		t.Fatalf("checkpointed backward loss=%g grad_l2=%g", loss, gradientL2)
 	}
 }

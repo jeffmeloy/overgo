@@ -114,6 +114,12 @@ func (c *Coordinator) propose(
 	if manuals != nil && !slices.Contains(manuals, manual.ID) {
 		return nil, fmt.Errorf("agent loop: tool %q is outside active agent authority", name)
 	}
+	// Invocation re-checks the committed argv policy: a manual published
+	// before the policy tightened, or imported from another store, still
+	// cannot run a program the current policy does not name.
+	if err := agenttool.CheckArgvAuthority(ctx, c.store, manual); err != nil {
+		return nil, err
+	}
 	if manual.Effect == agenttool.EffectMutation {
 		if !session.Inspected {
 			return nil, fmt.Errorf(

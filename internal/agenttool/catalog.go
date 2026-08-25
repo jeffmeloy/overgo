@@ -105,6 +105,11 @@ func PublishManualCatalog(ctx context.Context, repository artifact.Repository, m
 	if err := validateManualSet(manuals); err != nil {
 		return CatalogPublication{}, err
 	}
+	for _, manual := range manuals {
+		if err := CheckArgvAuthority(ctx, repository, manual); err != nil {
+			return CatalogPublication{}, err
+		}
+	}
 	coverage, err := InspectManualCatalog(ctx, repository, manuals)
 	if err != nil {
 		return CatalogPublication{}, err

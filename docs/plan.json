@@ -2815,12 +2815,12 @@
       "id": "agent-durable-argv-allowlist",
       "title": "Persist the argv allowlist as store policy checked at publication AND invocation, not only the CLI path",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Persist the argv allowlist as store policy checked at publication AND invocation, not only the CLI path",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/agenttool ./cmd/agent-tool -count=1",
           "depends_on": [
             "research-merge-reconcile/do"

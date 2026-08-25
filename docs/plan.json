@@ -3290,12 +3290,12 @@
       "id": "gui-pending-inbox",
       "title": "One operator inbox over waiting workflow stages and pending mutation approvals, with grant/decline wired to the durable decision chain",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Pending-work inbox view",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestAgentWorkspace -count=1 \u0026\u0026 go test ./internal/workflowruntime -count=1"
         }
       ]

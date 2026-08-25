@@ -46,7 +46,13 @@
     };
   }
 
-  window.overgo.runtimeEvents = { subscribe };
+  function restart() {
+    if (streamController) streamController.abort();
+    streamController = null;
+    if (subscribers.size) connect();
+  }
+
+  window.overgo.runtimeEvents = { subscribe, restart };
   window.overgo.waitOperation = function (id, observe, signal) {
     return new Promise((resolve, reject) => {
       let unsubscribe = function () {};

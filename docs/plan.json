@@ -165,7 +165,7 @@
       "id": "operations-observability",
       "title": "Make operation and serving evidence globally visible without a second trace authority",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "bounded-projections",
@@ -187,7 +187,7 @@
         {
           "id": "global-operation-shell",
           "title": "Add a persistent global operation strip and route-addressable detail view for progress, blocked decisions, cancellation, recovery, failures, attempts, resources, outputs, and trace links",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestGlobalOperationShell' internal/server \u0026\u0026 go test ./internal/server -run 'TestGlobalOperationShell|TestGlobalOperationShellSSE|TestGlobalOperationDecisionRecovery|TestGlobalOperationTerminalState' -count=1",
           "rationale": "Long-running work must remain visible across navigation. The shell consumes the existing SSE stream and durable operation state; it never polls, infers cancellation client-side, or maintains a browser-only terminal history.",
           "depends_on": [

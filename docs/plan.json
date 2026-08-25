@@ -38,13 +38,13 @@
       "id": "serving-evidence-case-authority",
       "title": "Make one typed serving-evidence case runner own real-model golden setup",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Table-drive Carbon, MiniCPM5, and Qwen2.5 serving evidence and delete cloned harnesses",
-          "status": "open",
-          "verify": "go test -tags modeltest ./internal/inference -run '^TestServingGoldenEvidence$' -count=1",
+          "status": "done",
+          "verify": "go test -tags modeltest ./internal/inference -run '^TestServingGoldenEvidenceCatalog$' -count=1",
           "depends_on": [
             "projector-indexed-tensor-program/do"
           ]

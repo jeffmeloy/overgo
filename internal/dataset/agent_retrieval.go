@@ -110,11 +110,12 @@ type AgentRetrievalBuilder struct {
 
 // AgentRetrievalQuery requests bounded cited results.
 type AgentRetrievalQuery struct {
-	Projection artifact.ID
-	Text       string
-	Limit      uint64
-	Embedder   AgentEmbeddingProvider
-	Reranker   AgentRerankProvider
+	Projection      artifact.ID
+	Text            string
+	Limit           uint64
+	AllowedDatasets []artifact.ID
+	Embedder        AgentEmbeddingProvider
+	Reranker        AgentRerankProvider
 }
 
 // AgentRetrievalCitation preserves exact source and span identity.
@@ -273,6 +274,9 @@ func (builder AgentRetrievalBuilder) Search(ctx context.Context, query AgentRetr
 	projection, err := agentRetrievalProjectionCodec.Require(ctx, builder.Repository, query.Projection)
 	if err != nil || projection.EmbeddingModel != query.Embedder.ModelIdentity() || projection.RerankPolicy != query.Reranker.PolicyIdentity() {
 		return nil, errors.Join(errors.New("dataset: agent retrieval provider identity differs"), err)
+	}
+	if len(query.AllowedDatasets) != 0 && !slices.Contains(query.AllowedDatasets, projection.Dataset) {
+		return nil, errors.New("dataset: retrieval projection is outside active agent authority")
 	}
 	queryVector, err := query.Embedder.Embed(ctx, query.Text)
 	if err != nil {

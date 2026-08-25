@@ -311,7 +311,7 @@
       "id": "agent-workspace",
       "title": "Build durable agent configuration and retrieval on automation, dataset, capability-bundle, and interaction owners",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "agent-authority",
@@ -349,7 +349,7 @@
         {
           "id": "agent-api-gui",
           "title": "Expose agent inventory, typed editing, activation, pause and resume, chat, automation attachment, retrieval evidence, tools, decisions, and structured observables through API and GUI",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestAgentWorkspaceVertical' internal/server \u0026\u0026 go test ./internal/server ./internal/agentloop -run 'TestAgentWorkspaceVertical|TestAgentWorkspaceSSE|TestAgentWorkspaceRetrievalEvidence|TestAgentWorkspaceAutomationAttachment|TestAgentWorkspaceNoHiddenReasoning' -count=1",
           "rationale": "The UI shows structured lifecycle, tool, retrieval, decision, and artifact events—not hidden model reasoning. It reuses the workspace manifest, schema form, operation shell, interaction ledger, and automation runtime.",
           "depends_on": [

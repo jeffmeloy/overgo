@@ -44,6 +44,20 @@
       ]
     },
     {
+      "id": "agent-definition",
+      "label": "Agent definition",
+      "fields": [
+        {"name": "name", "label": "Name", "type": "text", "required": true, "pattern": "^[a-z][a-z0-9-]*$"},
+        {"name": "prompt", "label": "Prompt file", "type": "identity", "required": true, "identity_kind": "file"},
+        {"name": "model_recipe", "label": "Model recipe", "type": "identity", "required": true, "identity_kind": "recipe"},
+        {"name": "tool_manuals", "label": "Tool manual identities", "type": "string-list"},
+        {"name": "capability_bundles", "label": "Capability bundle identities", "type": "string-list"},
+        {"name": "datasets", "label": "Dataset identities", "type": "string-list"},
+        {"name": "automations", "label": "Automation definition identities", "type": "string-list"},
+        {"name": "policies", "label": "Policy identities", "type": "string-list", "required": true, "minimum_items": 1}
+      ]
+    },
+    {
       "id": "peer-enrollment",
       "label": "Peer enrollment",
       "fields": [

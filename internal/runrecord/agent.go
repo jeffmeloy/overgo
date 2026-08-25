@@ -59,6 +59,28 @@ var agentActivationCodec = artifact.JSONDocumentCodec(
 	func(value *AgentActivation, id artifact.ID) { value.ID = id }, nil,
 )
 
+// PublishDefinition commits one inactive definition and its exact dependency lineage.
+func (authority AgentAuthority) PublishDefinition(ctx context.Context, key string, definition recipe.AgentDefinition) error {
+	identified, identifyErr := recipe.NewAgentDefinition(definition)
+	if ctx == nil || authority.Repository == nil || key == "" || definition.ValidateIdentity() != nil ||
+		identifyErr != nil || identified.ID != definition.ID {
+		return errors.New("run record: invalid agent definition publication")
+	}
+	content, err := definition.ArtifactContent()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch(key, []artifact.Content{content}, definition.Lineage(), nil)
+	if err != nil {
+		return err
+	}
+	_, err = artifact.CommitBatch(ctx, authority.Repository, batch)
+	if errors.Is(err, artifact.ErrNoChange) {
+		return nil
+	}
+	return err
+}
+
 // Resolve returns current agent authority, including a paused state.
 func (authority AgentAuthority) Resolve(ctx context.Context, name string) (ActiveAgent, bool, error) {
 	if ctx == nil || authority.Repository == nil || !textcheck.LowerIdentifier(name, len(name)) {

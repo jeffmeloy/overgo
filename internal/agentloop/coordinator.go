@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"overgo/internal/agenttool"
@@ -72,6 +73,32 @@ func (c *Coordinator) Propose(
 	arguments json.RawMessage,
 	approved bool,
 ) (json.RawMessage, error) {
+	return c.propose(ctx, session, name, arguments, approved, nil)
+}
+
+// ProposeWithManuals admits a step only when the active agent binds the exact manual.
+func (c *Coordinator) ProposeWithManuals(
+	ctx context.Context,
+	session *Session,
+	name string,
+	arguments json.RawMessage,
+	approved bool,
+	manuals []artifact.ID,
+) (json.RawMessage, error) {
+	if len(manuals) == 0 {
+		return nil, errors.New("agent loop: active agent has no tool authority")
+	}
+	return c.propose(ctx, session, name, arguments, approved, manuals)
+}
+
+func (c *Coordinator) propose(
+	ctx context.Context,
+	session *Session,
+	name string,
+	arguments json.RawMessage,
+	approved bool,
+	manuals []artifact.ID,
+) (json.RawMessage, error) {
 	if ctx == nil || session == nil || session.ID == "" {
 		return nil, errors.New("agent loop: nil context or session")
 	}
@@ -83,6 +110,9 @@ func (c *Coordinator) Propose(
 	manual, err := agenttool.ResolveRegisteredManual(ctx, c.store, name)
 	if err != nil {
 		return nil, fmt.Errorf("agent loop: refusing unregistered tool: %w", err)
+	}
+	if manuals != nil && !slices.Contains(manuals, manual.ID) {
+		return nil, fmt.Errorf("agent loop: tool %q is outside active agent authority", name)
 	}
 	if manual.Effect == agenttool.EffectMutation {
 		if !session.Inspected {

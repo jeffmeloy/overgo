@@ -23,6 +23,7 @@ import (
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/checked"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/dataset"
 	"overgo/internal/discovery"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
@@ -248,6 +249,8 @@ type Config struct {
 	Environment     runrecord.Environment
 	Evaluation      EvaluationWorkspaceAPI
 	Analysis        AnalysisPolicy
+	AgentEmbedder   dataset.AgentEmbeddingProvider
+	AgentReranker   dataset.AgentRerankProvider
 }
 
 type slotRuntimeStats struct {

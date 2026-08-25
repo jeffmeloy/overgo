@@ -395,7 +395,7 @@
         {
           "id": "webui-lane",
           "title": "Add and run an Overgo-owned browser acceptance lane for routing, narrow and desktop layouts, schema forms, unsaved changes, SSE progress, decisions, cancellation, recovery, and accessibility semantics",
-          "status": "open",
+          "status": "done",
           "verify": "test -d cmd/webui-lane \u0026\u0026 go run ./cmd/webui-lane",
           "rationale": "Static asset tests do not prove browser interaction. The lane is an Overgo test tool, not LocalAI frontend code or a production runtime dependency, and it must fail rather than silently skip when a changed GUI surface lacks its browser prerequisite.",
           "depends_on": [

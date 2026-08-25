@@ -54,8 +54,9 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "sensenova-u1-8b-mot-infographic-v3")
 	testutil.PublishArtifact(t, store, modelID)
+	flowProfile := publishFlowProfileFixture(t, ctx, store)
 
-	definition, err := modelrecipe.RoutedImageDefinition(modelID)
+	definition, err := modelrecipe.RoutedImageDefinition(modelID, flowProfile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +71,7 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, err = Activate(ctx, store, modelID, verification, activationReason)
+	definition, err = Activate(ctx, store, modelID, flowProfile.ID, verification, activationReason)
 	if err != nil {
 		t.Fatalf("activate: %v", err)
 	}
@@ -85,7 +86,7 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 
 	// Re-activation is an idempotent resume (already active => no-op), so the
 	// status round-trip is stable across repeated activations.
-	if _, err := Activate(ctx, store, modelID, verification, activationReason); err != nil {
+	if _, err := Activate(ctx, store, modelID, flowProfile.ID, verification, activationReason); err != nil {
 		t.Fatalf("re-activate (idempotent resume): %v", err)
 	}
 	assertRoundTrip(t, ctx, store, modelID, definition)
@@ -126,8 +127,16 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
+	flowProfile, err := routedlm.InspectFlowProfile(modelDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flowContent, err := flowProfile.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	definition, err := modelrecipe.RoutedImageDefinition(modelID)
+	definition, err := modelrecipe.RoutedImageDefinition(modelID, flowProfile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,6 +144,7 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	batch.Contents = append(batch.Contents, flowContent)
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +159,7 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, err = Activate(ctx, store, modelID, verification, activationReason)
+	definition, err = Activate(ctx, store, modelID, flowProfile.ID, verification, activationReason)
 	if err != nil {
 		t.Fatalf("register + activate: %v", err)
 	}
@@ -165,6 +175,29 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	}
 	t.Logf("SenseNova image-gen ACTIVE tier=%s recipe=%s model=%s present=%q layers=%d flow_dim=%d",
 		EvidenceTier, definition.ID, modelID, location, facts.Layers, facts.FlowDim)
+}
+
+func publishFlowProfileFixture(t *testing.T, ctx context.Context, store *overgodb.Store) routedlm.FlowProfile {
+	t.Helper()
+	directory := t.TempDir()
+	const metadata = `{"architectures":["NEOChatModel"],"model_type":"neo_chat"}`
+	if err := os.WriteFile(filepath.Join(directory, "config.json"), []byte(metadata), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	profile, err := routedlm.InspectFlowProfile(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := profile.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "fixture/sensenova/flow-profile", Contents: []artifact.Content{content},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return profile
 }
 
 // assertRoundTrip resolves the activated recipe through the shared predicate and

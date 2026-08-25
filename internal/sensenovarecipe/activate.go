@@ -75,7 +75,10 @@ type DerivedFacts struct {
 // so it is cheap enough to run inside activation and verification.
 func Derive(modelDir string) (DerivedFacts, error) {
 	binding := routedlm.SenseNovaBinding()
-	flowBind := routedlm.SenseNovaFlowBinding()
+	flowProfile, err := routedlm.InspectFlowProfile(modelDir)
+	if err != nil {
+		return DerivedFacts{}, fmt.Errorf("sensenova recipe: inspect flow profile: %w", err)
+	}
 	cfg, err := routedlm.LoadConfig(modelDir, binding)
 	if err != nil {
 		return DerivedFacts{}, fmt.Errorf("sensenova recipe: load llm config: %w", err)
@@ -93,7 +96,7 @@ func Derive(modelDir string) (DerivedFacts, error) {
 	if err != nil {
 		return DerivedFacts{}, fmt.Errorf("sensenova recipe: rope plan: %w", err)
 	}
-	flow, err := routedlm.CompileFlowPlan(src, cfg, flowCfg, flowBind)
+	flow, err := routedlm.CompileFlowPlan(src, cfg, flowCfg, flowProfile)
 	if err != nil {
 		return DerivedFacts{}, fmt.Errorf("sensenova recipe: flow plan: %w", err)
 	}
@@ -147,10 +150,11 @@ func Activate(
 	ctx context.Context,
 	store artifact.Repository,
 	modelID artifact.ID,
+	flowProfileID artifact.ID,
 	verification modelrecipe.Verification,
 	reason string,
 ) (recipe.Definition, error) {
-	definition, err := modelrecipe.RoutedImageDefinition(modelID)
+	definition, err := modelrecipe.RoutedImageDefinition(modelID, flowProfileID)
 	if err != nil {
 		return recipe.Definition{}, err
 	}

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/routedlm"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -51,7 +52,35 @@ func runProductionImageGeneration(t testing.TB, request GenerationRequest) produ
 	t.Helper()
 	ctx := context.Background()
 	started := time.Now()
-	generator, err := LoadGenerator(senseNovaModelDir)
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "sensenova-production")
+	testutil.PublishArtifact(t, store, modelID)
+	flowProfile, err := routedlm.InspectFlowProfile(senseNovaModelDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flowContent, err := flowProfile.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "fixture/sensenova/runtime-flow-profile", Contents: []artifact.Content{flowContent},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	definition, err := modelrecipe.RoutedImageDefinition(modelID, flowProfile.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := modelrecipe.CompileCapability(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generator, err := LoadGenerator(ctx, store, senseNovaModelDir, definition)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,22 +89,6 @@ func runProductionImageGeneration(t testing.TB, request GenerationRequest) produ
 			t.Errorf("close: %v", err)
 		}
 	}()
-
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "sensenova-production")
-	testutil.PublishArtifact(t, store, modelID)
-	definition, err := modelrecipe.RoutedImageDefinition(modelID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	program, err := modelrecipe.CompileCapability(definition)
-	if err != nil {
-		t.Fatal(err)
-	}
 	runtime, err := workflowruntime.NewForProgram(store, program)
 	if err != nil {
 		t.Fatal(err)

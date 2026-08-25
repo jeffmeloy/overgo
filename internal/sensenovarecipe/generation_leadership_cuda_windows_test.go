@@ -112,7 +112,11 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 	if err := jsonfile.Decode(filepath.Join("..", "..", "fixtures", "sensenova", "prefix_oracle.json"), &prefixGold); err != nil {
 		t.Fatal(err)
 	}
-	binding, flowBinding := routedlm.SenseNovaBinding(), routedlm.SenseNovaFlowBinding()
+	binding := routedlm.SenseNovaBinding()
+	flowBinding, err := routedlm.InspectFlowProfile(senseNovaModelDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg, err := routedlm.LoadConfig(senseNovaModelDir, binding)
 	if err != nil {
 		t.Fatal(err)

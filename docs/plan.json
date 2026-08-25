@@ -1,26 +1,8 @@
 {
   "campaign": "Model facts as typed OvergoDB runtime authority",
   "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
-  "census_evidence": "evidence:sha256:c8fc78689f4eac40a61f7513529a0df4c2969d430ab724a44ff9c23d7695a711",
+  "census_evidence": "evidence:sha256:1b9b8ed47cb718828a9310026ae867d5ea87b86a50bd02bd4a3ca8ad6ea7da01",
   "items": [
-    {
-      "id": "flow-profile-fact-authority",
-      "title": "Make active flow profiles own binding and embedding facts",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resolve tensor prefixes and sinusoidal period from the active profile and delete SenseNovaFlowBinding",
-          "status": "open",
-          "verify": "go test ./internal/routedlm ./internal/sensenovarecipe -run '^Test.*Flow.*Profile' -count=1",
-          "rationale": "The period 10000 is external model evidence, not universal math. Recipe-bound profile data must reach host and CUDA flow plans identically.",
-          "depends_on": [
-            "projector-preprocess-fact-authority/do"
-          ]
-        }
-      ]
-    },
     {
       "id": "derivation-profile-runtime-authority",
       "title": "Make OvergoDB own scratch construction policy",

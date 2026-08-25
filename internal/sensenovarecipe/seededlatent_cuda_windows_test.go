@@ -64,7 +64,11 @@ func TestSenseNovaSeededLatentMatchesOracle(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer source.Close()
-	plan, err := routedlm.CompileFlowPlan(source, cfg, flowCfg, routedlm.SenseNovaFlowBinding())
+	flowProfile, err := routedlm.InspectFlowProfile(senseNovaModelDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := routedlm.CompileFlowPlan(source, cfg, flowCfg, flowProfile)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -389,8 +389,10 @@ func OscillatorVideoDefinition(modelID artifact.ID) (recipe.Definition, error) {
 }
 
 // RoutedImageDefinition returns a prompt-conditioned routed-transformer image graph.
-func RoutedImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	return routedImageCapability.definition(recipe.TaskImageGen, modelID)
+func RoutedImageDefinition(modelID, flowProfileID artifact.ID) (recipe.Definition, error) {
+	return routedImageCapability.definition(recipe.TaskImageGen, modelID, recipe.Dependency{
+		Role: recipe.DependencyFlowProfile, Artifact: flowProfileID,
+	})
 }
 
 // LatentVideoDefinition returns a prompt-conditioned latent-video graph.

@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/oscillatorimage"
 	"overgo/internal/recipe"
+	"overgo/internal/routedlm"
 	"overgo/internal/sensenovarecipe"
 )
 
@@ -30,8 +31,8 @@ func imageCapability() capability {
 	routedDirector, routedErr := capabilityruntime.NewModelSessionDirector[sensenovarecipe.GenerationRequest, *sensenovarecipe.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
 		sensenovarecipe.ValidateGenerationRequest,
-		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ sensenovarecipe.GenerationRequest) (*sensenovarecipe.Generator, error) {
-			return sensenovarecipe.LoadGenerator(path)
+		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, _ sensenovarecipe.GenerationRequest) (*sensenovarecipe.Generator, error) {
+			return sensenovarecipe.LoadGenerator(ctx, store, path, program.Definition())
 		},
 		func(ctx context.Context, generator *sensenovarecipe.Generator, request sensenovarecipe.GenerationRequest) error {
 			return generator.Reset(ctx, request)
@@ -93,7 +94,21 @@ func resolveImageSource(path string) (capabilitySource, error) {
 	}
 	if routed {
 		inventory, err := sensenovarecipe.Inventory(path)
-		return definitionSource(inventory, err, modelrecipe.RoutedImageDefinition)
+		if err != nil {
+			return capabilitySource{}, err
+		}
+		profile, err := routedlm.InspectFlowProfile(path)
+		if err != nil {
+			return capabilitySource{}, err
+		}
+		return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+			content, err := profile.Content()
+			if err != nil {
+				return recipe.Definition{}, nil, err
+			}
+			definition, err := modelrecipe.RoutedImageDefinition(modelID, profile.ID)
+			return definition, []artifact.Content{content}, err
+		}}, nil
 	}
 	latent, err := latentimage.IsPipeline(path)
 	if err != nil {

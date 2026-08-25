@@ -15,41 +15,31 @@ import (
 	"math"
 	"path/filepath"
 
+	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/hostmath"
 	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
 )
 
-// FlowBinding: checkpoint naming contract for the flow terminal modules.
-// SinusoidalPeriod is model evidence, not config: the reference
-// TimestepEmbedder.timestep_embedding max_period default (repodb fact
-// sinusoidal_period, external-evidence modeling_neo_chat.py).
-type FlowBinding struct {
-	TimestepEmbedderPrefix   string // + "0.weight"/"0.bias"/"2.weight"/"2.bias"
-	NoiseScaleEmbedderPrefix string
-	FlowHeadPrefix           string
-	SourceVisionPrefix       string // understanding-lane conv embedder
-	GenerationVisionPrefix   string // generation-lane conv embedder
-	SinusoidalPeriod         float64
+// FlowProfile binds checkpoint names and embedding policy.
+type FlowProfile struct {
+	ID                       artifact.ID `json:"-"`
+	Version                  uint16      `json:"version"`
+	TimestepEmbedderPrefix   string      `json:"timestep_embedder_prefix"`
+	NoiseScaleEmbedderPrefix string      `json:"noise_scale_embedder_prefix"`
+	FlowHeadPrefix           string      `json:"flow_head_prefix"`
+	SourceVisionPrefix       string      `json:"source_vision_prefix"`
+	GenerationVisionPrefix   string      `json:"generation_vision_prefix"`
+	SinusoidalPeriod         float64     `json:"sinusoidal_period"`
 }
 
-// SenseNovaFlowBinding: SenseNova-U1 MoT fm_modules naming.
-func SenseNovaFlowBinding() FlowBinding {
-	return FlowBinding{
-		TimestepEmbedderPrefix:   "fm_modules.timestep_embedder.mlp.",
-		NoiseScaleEmbedderPrefix: "fm_modules.noise_scale_embedder.mlp.",
-		FlowHeadPrefix:           "fm_modules.fm_head.",
-		SourceVisionPrefix:       "vision_model.embeddings.",
-		GenerationVisionPrefix:   "fm_modules.vision_model_mot_gen.embeddings.",
-		SinusoidalPeriod:         10000,
-	}
-}
-
-func (b FlowBinding) validate() error {
-	if b.TimestepEmbedderPrefix == "" || b.NoiseScaleEmbedderPrefix == "" || b.FlowHeadPrefix == "" ||
-		b.SourceVisionPrefix == "" || b.GenerationVisionPrefix == "" || b.SinusoidalPeriod <= 0 {
-		return fmt.Errorf("routed lm flow binding: missing prefixes or period")
+func (profile FlowProfile) validate() error {
+	if profile.Version != artifact.InitialDocumentVersion || profile.TimestepEmbedderPrefix == "" ||
+		profile.NoiseScaleEmbedderPrefix == "" || profile.FlowHeadPrefix == "" || profile.SourceVisionPrefix == "" ||
+		profile.GenerationVisionPrefix == "" || !checked.PositiveFinite64(profile.SinusoidalPeriod) {
+		return fmt.Errorf("routed lm flow profile: invalid contract")
 	}
 	return nil
 }
@@ -136,8 +126,8 @@ func tensorShape(src *safetensors.Source, name string) ([]int64, error) {
 // half. merge comes from the generation dense_embedding kernel shape and must
 // agree with 1/downsample_ratio; FrequencyDim from the timestep mlp.0 width;
 // FlowDim from fm_head.2 and cross-checked against channels*(patch*merge)^2.
-func CompileFlowPlan(src *safetensors.Source, cfg Config, flow FlowConfig, b FlowBinding) (FlowPlan, error) {
-	if err := b.validate(); err != nil {
+func CompileFlowPlan(src *safetensors.Source, cfg Config, flow FlowConfig, profile FlowProfile) (FlowPlan, error) {
+	if err := profile.validate(); err != nil {
 		return FlowPlan{}, err
 	}
 	if err := flow.validate(); err != nil {
@@ -150,21 +140,21 @@ func CompileFlowPlan(src *safetensors.Source, cfg Config, flow FlowConfig, b Flo
 	if merge <= 0 || float64(merge)*flow.DownsampleRatio != 1 {
 		return FlowPlan{}, fmt.Errorf("routed lm flow plan: invalid config-derived merge from ratio %g", flow.DownsampleRatio)
 	}
-	dense, err := tensorShape(src, b.GenerationVisionPrefix+"dense_embedding.weight")
+	dense, err := tensorShape(src, profile.GenerationVisionPrefix+"dense_embedding.weight")
 	if err != nil {
 		return FlowPlan{}, err
 	}
 	if len(dense) != 4 || dense[2] <= 0 || dense[2] != dense[3] || int(dense[2]) != merge {
 		return FlowPlan{}, fmt.Errorf("routed lm flow plan: dense_embedding kernel %v disagrees with merge %d", dense, merge)
 	}
-	first, err := tensorShape(src, b.TimestepEmbedderPrefix+"0.weight")
+	first, err := tensorShape(src, profile.TimestepEmbedderPrefix+"0.weight")
 	if err != nil {
 		return FlowPlan{}, err
 	}
 	if len(first) != 2 || int(first[0]) != cfg.HiddenSize || first[1] <= 0 {
 		return FlowPlan{}, fmt.Errorf("routed lm flow plan: timestep mlp.0 shape %v, want [%d,*]", first, cfg.HiddenSize)
 	}
-	head, err := tensorShape(src, b.FlowHeadPrefix+"2.weight")
+	head, err := tensorShape(src, profile.FlowHeadPrefix+"2.weight")
 	if err != nil {
 		return FlowPlan{}, err
 	}
@@ -176,7 +166,7 @@ func CompileFlowPlan(src *safetensors.Source, cfg Config, flow FlowConfig, b Flo
 		Hidden: cfg.HiddenSize, VisionHidden: flow.Vision.HiddenSize,
 		VisionChannels: flow.Vision.NumChannels, VisionPatch: flow.PatchSize,
 		ImageMerge: merge, FrequencyDim: int(first[1]), FlowDim: flowDim,
-		VisionRopeTheta: flow.Vision.RopeTheta, SinusoidalPeriod: b.SinusoidalPeriod,
+		VisionRopeTheta: flow.Vision.RopeTheta, SinusoidalPeriod: profile.SinusoidalPeriod,
 		NoiseScaleMode: flow.NoiseScaleMode, NoiseScaleBase: flow.NoiseScaleBaseImageSeqLen,
 		NoiseScale: flow.NoiseScale, NoiseScaleMax: flow.NoiseScaleMaxValue, TEps: flow.TEps,
 	}, nil
@@ -305,19 +295,19 @@ func loadFlowMLP(src *safetensors.Source, prefix string, in, mid, out int) (Flow
 
 // LoadFlowTerminalWeights: fm_modules embedders + head, shape-validated
 // against the plan's derived dims.
-func LoadFlowTerminalWeights(src *safetensors.Source, plan FlowPlan, b FlowBinding) (FlowTerminalWeights, error) {
-	if err := b.validate(); err != nil {
+func LoadFlowTerminalWeights(src *safetensors.Source, plan FlowPlan, profile FlowProfile) (FlowTerminalWeights, error) {
+	if err := profile.validate(); err != nil {
 		return FlowTerminalWeights{}, err
 	}
 	var out FlowTerminalWeights
 	var err error
-	if out.Timestep, err = loadFlowMLP(src, b.TimestepEmbedderPrefix, plan.FrequencyDim, plan.Hidden, plan.Hidden); err != nil {
+	if out.Timestep, err = loadFlowMLP(src, profile.TimestepEmbedderPrefix, plan.FrequencyDim, plan.Hidden, plan.Hidden); err != nil {
 		return FlowTerminalWeights{}, err
 	}
-	if out.NoiseScale, err = loadFlowMLP(src, b.NoiseScaleEmbedderPrefix, plan.FrequencyDim, plan.Hidden, plan.Hidden); err != nil {
+	if out.NoiseScale, err = loadFlowMLP(src, profile.NoiseScaleEmbedderPrefix, plan.FrequencyDim, plan.Hidden, plan.Hidden); err != nil {
 		return FlowTerminalWeights{}, err
 	}
-	if out.Head, err = loadFlowMLP(src, b.FlowHeadPrefix, plan.Hidden, plan.Hidden, plan.FlowDim); err != nil {
+	if out.Head, err = loadFlowMLP(src, profile.FlowHeadPrefix, plan.Hidden, plan.Hidden, plan.FlowDim); err != nil {
 		return FlowTerminalWeights{}, err
 	}
 	return out, nil

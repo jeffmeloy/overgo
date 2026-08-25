@@ -3374,12 +3374,12 @@
       "id": "gui-multimodal-output",
       "title": "Generated media renders inline: images, video, and audio from responses and interaction replay, not as opaque artifact ids",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Inline media rendering",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestMultimodalOutputProjection -count=1"
         }
       ]

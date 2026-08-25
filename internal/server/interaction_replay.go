@@ -11,7 +11,17 @@ import (
 type interactionReplayResponse struct {
 	ID         artifact.ID                            `json:"id"`
 	Trace      runrecord.InteractionTrace             `json:"trace"`
+	Media      []interactionMediaRef                  `json:"media,omitempty"`
 	Comparison *evaluation.InteractionTraceComparison `json:"comparison,omitempty"`
+}
+
+// interactionMediaRef names one media artifact an interaction carries
+// with the declared media type the GUI needs to render it inline --
+// an image, video, or audio element over /artifacts/content instead
+// of an opaque identity.
+type interactionMediaRef struct {
+	ID        artifact.ID `json:"id"`
+	MediaType string      `json:"media_type,omitempty"`
 }
 
 func (h *Handler) interactionReplay(response http.ResponseWriter, request *http.Request) {
@@ -33,6 +43,13 @@ func (h *Handler) interactionReplay(response http.ResponseWriter, request *http.
 		return
 	}
 	result := interactionReplayResponse{ID: trace.ID, Trace: trace}
+	for _, mediaID := range interaction.Media {
+		reference := interactionMediaRef{ID: mediaID}
+		if descriptor, present, err := h.repository.Artifact(request.Context(), mediaID); err == nil && present {
+			reference.MediaType = descriptor.MediaType
+		}
+		result.Media = append(result.Media, reference)
+	}
 	if value := request.URL.Query().Get("baseline"); value != "" {
 		baselineID, parseErr := artifact.ParseID(value)
 		if parseErr != nil {

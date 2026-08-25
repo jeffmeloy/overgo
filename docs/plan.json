@@ -2,23 +2,5 @@
   "campaign": "Literal authority and duplicate runtime tightening",
   "doctrine": "Counts route inspection; semantics decide consolidation. Recipes, artifact metadata, typed plans, and neutral operators own runtime policy. Constants name stable implementation contracts only. Test fixtures may carry local data but must not copy production policy or reconstruct production logic. Each wave migrates every targeted caller and deletes displaced loops, wrappers, and duplicate harnesses immediately. Preserve numerical behavior and wire contracts. Merge master after every gated commit.",
   "census_evidence": "evidence:sha256:84da019c5f63b742cf71e4f0a0b057e0c4c3328963b78de3cf4b4da83fbd7057",
-  "items": [
-    {
-      "id": "modelswap-swap-fairness",
-      "title": "A pending swap admits no new same-model acquires: queue arrivals behind the drain so continuous traffic cannot starve a swap",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A pending swap admits no new same-model acquires: queue arrivals behind the drain so continuous traffic cannot starve a swap",
-          "status": "open",
-          "verify": "go test ./internal/modelswap -run TestModelSwapSupervisor -count=1",
-          "depends_on": [
-            "gui-live-model-switch/do"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

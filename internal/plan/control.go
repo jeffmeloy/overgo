@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"overgo/internal/artifact"
-	"overgo/internal/textcheck"
 )
 
 const (
@@ -57,8 +56,8 @@ func ReadControlEvent(ctx context.Context, reader artifact.Reader, id artifact.I
 }
 
 func canonicalizeControl(event *ControlEvent) error {
-	if event == nil || event.Version != controlVersion || !textcheck.Bounded(event.Lane, 2048, "\x00\r\n") ||
-		!textcheck.Bounded(event.ReasonCode, 2048, "\x00\r\n") || !textcheck.Bounded(event.Detail, 4096, "\x00\r\n") ||
+	if event == nil || event.Version != controlVersion || !validAutomationText(event.Lane) ||
+		!validAutomationText(event.ReasonCode) || !validAutomationDetail(event.Detail) ||
 		!validCommit(event.CodeCommit) {
 		return errors.New("plan: invalid automation control event")
 	}

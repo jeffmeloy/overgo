@@ -2752,12 +2752,12 @@
       "id": "gemma4-peak-ledger-snapshot",
       "title": "Capture the full allocation ledger at the peak crossing so the diffuse-footprint conclusion is evidenced, not asserted",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Snapshot per-size allocation ledger at high-water; diff against the adaptive reference profile",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/cuda/driver -run TestMemory -count=1"
         }
       ]

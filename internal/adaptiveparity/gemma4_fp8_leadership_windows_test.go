@@ -145,6 +145,16 @@ func TestGemma4FP8Leadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("Gemma4 FP8 leadership load=%s generation=%s wall=%s load_current=%d load_peak=%d current=%d peak=%d peak_allocation=%d largest_live=%d reference_generation=%s reference_peak=%d over=%d output=%v", loadWall, generationWall, wall, loadMemory.CurrentBytes, loadMemory.PeakBytes, memory.CurrentBytes, memory.PeakBytes, memory.PeakAllocationBytes, memory.LargestLiveBytes, time.Duration(referenceWall), referencePeak, int64(memory.PeakBytes)-int64(referencePeak), generated)
+	// The peak-time ledger is the evidence for WHERE the bytes live: the
+	// top classes by total, then every class small enough that it could
+	// hide inside the budget excess.
+	excess := int64(memory.PeakBytes) - int64(referencePeak)
+	for index, class := range memory.PeakLedger {
+		if index < 12 || int64(class.Bytes) <= excess {
+			t.Logf("peak ledger[%d]: bytes=%d count=%d total=%d", index, class.Bytes, class.Count, class.Bytes*class.Count)
+		}
+	}
+	t.Logf("peak ledger classes=%d", len(memory.PeakLedger))
 	if uint64(generationWall) > referenceWall {
 		t.Fatalf("Gemma4 generation %s exceeds adaptive %s", generationWall, time.Duration(referenceWall))
 	}

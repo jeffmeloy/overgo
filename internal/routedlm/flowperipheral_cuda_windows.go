@@ -35,8 +35,7 @@ type DeviceFlowPeripheralSession struct {
 }
 
 type flowDeviceProgram struct {
-	compiled *executor.CompiledGraph
-	inputs   *executor.DeviceInputs
+	*executor.IndexedGraph
 	output   *tensor.Tensor
 	dynamic  []*tensor.Tensor
 	pointers []driver.DevicePtr
@@ -129,7 +128,7 @@ func buildFlowConditionProgram(plan FlowPlan) (flowDeviceProgram, []flowStaticIn
 	if err := b.Err(); err != nil {
 		return flowDeviceProgram{}, nil, err
 	}
-	compiled, err := executor.Compile(output)
+	indexed, err := executor.CompileIndexed(output)
 	statics := make([]flowStaticInput, 0, 8)
 	for _, nodes := range [][]*tensor.Tensor{timestepInputs[:4], noiseInputs[:4]} {
 		for _, node := range nodes {
@@ -137,7 +136,7 @@ func buildFlowConditionProgram(plan FlowPlan) (flowDeviceProgram, []flowStaticIn
 		}
 	}
 	return flowDeviceProgram{
-		compiled: compiled, output: output, dynamic: []*tensor.Tensor{timestepInputs[4], noiseInputs[4]},
+		IndexedGraph: indexed, output: output, dynamic: []*tensor.Tensor{timestepInputs[4], noiseInputs[4]},
 	}, statics, err
 }
 
@@ -159,8 +158,8 @@ func buildFlowVisionPatchProgram(plan FlowPlan, image FlowImagePlan) (flowDevice
 	if err := b.Err(); err != nil {
 		return flowDeviceProgram{}, nil, err
 	}
-	compiled, err := executor.Compile(output)
-	return flowDeviceProgram{compiled: compiled, output: output, dynamic: []*tensor.Tensor{input}},
+	indexed, err := executor.CompileIndexed(output)
+	return flowDeviceProgram{IndexedGraph: indexed, output: output, dynamic: []*tensor.Tensor{input}},
 		[]flowStaticInput{{weight}, {bias}}, err
 }
 
@@ -175,8 +174,8 @@ func buildFlowVisionDenseProgram(plan FlowPlan, image FlowImagePlan) (flowDevice
 	if err := b.Err(); err != nil {
 		return flowDeviceProgram{}, nil, err
 	}
-	compiled, err := executor.Compile(output)
-	return flowDeviceProgram{compiled: compiled, output: output, dynamic: []*tensor.Tensor{input}},
+	indexed, err := executor.CompileIndexed(output)
+	return flowDeviceProgram{IndexedGraph: indexed, output: output, dynamic: []*tensor.Tensor{input}},
 		[]flowStaticInput{{weight}, {bias}}, err
 }
 
@@ -200,8 +199,8 @@ func buildFlowHeadProgram(plan FlowPlan, image FlowImagePlan, normEpsilon float6
 	if err := b.Err(); err != nil {
 		return flowDeviceProgram{}, nil, err
 	}
-	compiled, err := executor.Compile(output)
-	return flowDeviceProgram{compiled: compiled, output: output, dynamic: []*tensor.Tensor{hidden, z, denominator}},
+	indexed, err := executor.CompileIndexed(output)
+	return flowDeviceProgram{IndexedGraph: indexed, output: output, dynamic: []*tensor.Tensor{hidden, z, denominator}},
 		[]flowStaticInput{{norm}, {w0}, {b0}, {w2}, {b2}}, err
 }
 
@@ -211,18 +210,17 @@ func (s *DeviceFlowPeripheralSession) prepare(
 	statics []flowStaticInput,
 	values []flowStaticValue,
 ) error {
-	if program.compiled == nil || len(statics) != len(values) {
+	if program.IndexedGraph == nil || len(statics) != len(values) {
 		return errors.New("routed lm flow peripheral: invalid program")
 	}
-	if err := s.cuda.PrepareCompiled(ctx, program.compiled); err != nil {
+	if err := s.cuda.PrepareCompiled(ctx, program.Graph); err != nil {
 		return err
 	}
-	program.inputs = program.compiled.NewDeviceInputs()
 	for index := range statics {
 		if statics[index].node != values[index].node {
 			return errors.New("routed lm flow peripheral: static binding order differs")
 		}
-		slot, err := compiledInputSlot(program.compiled, statics[index].node)
+		slot, err := compiledInputSlot(program.Graph, statics[index].node)
 		if err != nil {
 			return err
 		}
@@ -230,11 +228,11 @@ func (s *DeviceFlowPeripheralSession) prepare(
 		if err != nil {
 			return err
 		}
-		program.inputs.Pointers[slot] = pointer
+		program.Inputs.Pointers[slot] = pointer
 	}
 	program.pointers = make([]driver.DevicePtr, len(program.dynamic))
 	for index, node := range program.dynamic {
-		slot, err := compiledInputSlot(program.compiled, node)
+		slot, err := compiledInputSlot(program.Graph, node)
 		if err != nil {
 			return err
 		}
@@ -246,7 +244,7 @@ func (s *DeviceFlowPeripheralSession) prepare(
 		if err != nil {
 			return err
 		}
-		program.inputs.Pointers[slot] = program.pointers[index]
+		program.Inputs.Pointers[slot] = program.pointers[index]
 	}
 	return nil
 }
@@ -271,7 +269,7 @@ func (s *DeviceFlowPeripheralSession) run(ctx context.Context, program flowDevic
 	}); err != nil {
 		return nil, err
 	}
-	result, err := s.cuda.ExecuteCompiled(ctx, program.compiled, nil, program.inputs)
+	result, err := s.cuda.ExecuteCompiled(ctx, program.Graph, nil, program.Inputs)
 	if err != nil {
 		return nil, err
 	}

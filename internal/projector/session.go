@@ -42,26 +42,6 @@ type promptDispatch struct {
 	media           mediaHistoryPromptFunc
 }
 
-func compilePromptDispatch(source Projector) promptDispatch {
-	dispatch := promptDispatch{}
-	if provider, ok := source.(interface {
-		imagePromptProgram() compiledImagePromptProgram
-	}); ok {
-		program := provider.imagePromptProgram()
-		dispatch.images = program.execute
-	}
-	if provider, ok := source.(interface {
-		mediaPromptProgram() compiledMediaPromptProgram
-	}); ok {
-		program := provider.mediaPromptProgram()
-		dispatch.video = program.Video
-		dispatch.audio = program.Audio
-		dispatch.audioSampleRate = program.AudioSampleRate
-		dispatch.media = program.History
-	}
-	return dispatch
-}
-
 type compiledSession struct {
 	source Projector
 	prompt promptDispatch
@@ -72,7 +52,7 @@ func NewSession(source Projector) (Session, error) {
 	if source == nil {
 		return nil, errors.New("projector: session source is nil")
 	}
-	return &compiledSession{source: source, prompt: compilePromptDispatch(source)}, nil
+	return &compiledSession{source: source, prompt: source.compiledPrompt()}, nil
 }
 
 // OpenSession: open a projector artifact and compile its prompt session.

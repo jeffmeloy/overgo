@@ -34,7 +34,7 @@ func TestEncoderProgramCUDAMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileEncoderProgram: %v", err)
 	}
-	want, err := prog.RunHostFeed(GraphRunner(reference.Execute), weightAt, embed)
+	want, err := prog.RunHostFeed(reference.Execute, weightAt, embed)
 	if err != nil {
 		t.Fatalf("reference RunHostFeed: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestEncoderProgramCUDAMatchesReference(t *testing.T) {
 	cudaRun := func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
 		return exec.Execute(context.Background(), outputs, feeds)
 	}
-	got, err := prog.RunHostFeed(GraphRunner(cudaRun), weightAt, embed)
+	got, err := prog.RunHostFeed(cudaRun, weightAt, embed)
 	if err != nil {
 		t.Fatalf("CUDA RunHostFeed: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 	}
 	ctx := context.Background()
 	re := newResidentFixture(t, ctx, "test encoder", filepath.Join(dir, "text_encoder"), prog.weightInputs, prog.Selected...)
-	t.Logf("resident encoder weights: %.3f GiB (%d tapped layers, seq=%d)", float64(re.graph.bytes)/(1<<30), prog.CaptureAfter[len(prog.CaptureAfter)-1]+1, len(ids))
+	t.Logf("resident encoder weights: %.3f GiB (%d tapped layers, seq=%d)", float64(re.graph.ProgramBytes())/(1<<30), prog.CaptureAfter[len(prog.CaptureAfter)-1]+1, len(ids))
 	dev := residentEncode(t, ctx, re, prog, embed)
 	if dev.Seq != host.Seq || dev.LayerCount != host.LayerCount || dev.Hidden != host.Hidden {
 		t.Fatalf("device geometry [%d,%d,%d] != host [%d,%d,%d]", dev.Seq, dev.LayerCount, dev.Hidden, host.Seq, host.LayerCount, host.Hidden)
@@ -175,5 +175,5 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 		t.Fatal("templated device selected-hidden not finite")
 	}
 	t.Logf("dtc-tokenizer templated: %d rows (%d attended, %d pad), device encoder [%d,%d,%d] finite; peak device weights %.3f GiB. Pad-key masking is the documented residual (telemetry oracle stays until full e2e SHA).",
-		len(in.IDs), attended, len(in.IDs)-attended, tdev.Seq, tdev.LayerCount, tdev.Hidden, float64(tre.graph.bytes)/(1<<30))
+		len(in.IDs), attended, len(in.IDs)-attended, tdev.Seq, tdev.LayerCount, tdev.Hidden, float64(tre.graph.ProgramBytes())/(1<<30))
 }

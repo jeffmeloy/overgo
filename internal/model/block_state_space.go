@@ -23,24 +23,24 @@ func buildSelectiveScanMixCached(
 		return DenseBlockResult{}, errors.New("selective-scan input shape is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("SSM input", weights.SSMInput),
-		requireGraphWeight("SSM convolution", weights.SSMConv1D),
-		requireGraphWeight("SSM convolution bias", weights.SSMConv1DBias),
-		requireGraphWeight("SSM X", weights.SSMX),
-		requireGraphWeight("SSM time-step weight", weights.SSMTimeStepWeight),
-		requireGraphWeight("SSM time-step bias", weights.SSMTimeStep),
-		requireGraphWeight("SSM A", weights.SSMA),
-		requireGraphWeight("SSM D", weights.SSMD),
-		requireGraphWeight("SSM output", weights.SSMOutput),
+		weights.SSMInput,
+		weights.SSMConv1D,
+		weights.SSMConv1DBias,
+		weights.SSMX,
+		weights.SSMTimeStepWeight,
+		weights.SSMTimeStep,
+		weights.SSMA,
+		weights.SSMD,
+		weights.SSMOutput,
 	}
 	if err := required.validate("selective-scan mixer"); err != nil {
 		return DenseBlockResult{}, err
 	}
 	if useWeightedStateNorm {
 		if err := (graphWeights{
-			requireGraphWeight("SSM time-step norm", weights.SSMTimeStepNorm),
-			requireGraphWeight("SSM B norm", weights.SSMBNorm),
-			requireGraphWeight("SSM C norm", weights.SSMCNorm),
+			weights.SSMTimeStepNorm,
+			weights.SSMBNorm,
+			weights.SSMCNorm,
 		}).validate("weighted selective-scan mixer"); err != nil {
 			return DenseBlockResult{}, err
 		}
@@ -124,15 +124,15 @@ func buildGroupedSelectiveScanMixCached(
 		return DenseBlockResult{}, errors.New("grouped selective-scan input shape is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("SSM input", weights.SSMInput),
-		requireGraphWeight("SSM convolution", weights.SSMConv1D),
-		requireGraphWeight("SSM time-step bias", weights.SSMTimeStep),
-		requireGraphWeight("SSM A", weights.SSMA),
-		requireGraphWeight("SSM D", weights.SSMD),
-		requireGraphWeight("SSM output", weights.SSMOutput),
+		weights.SSMInput,
+		weights.SSMConv1D,
+		weights.SSMTimeStep,
+		weights.SSMA,
+		weights.SSMD,
+		weights.SSMOutput,
 	}
 	if mixer != recurrentMixerAttentionGroupedSelectiveScan {
-		required.add("SSM norm", weights.SSMNorm)
+		required = append(required, weights.SSMNorm)
 	}
 	if err := required.validate("grouped selective-scan mixer"); err != nil {
 		return DenseBlockResult{}, err
@@ -229,7 +229,7 @@ func buildAttentionSSMHybridMixCached(
 		return DenseBlockResult{}, err
 	}
 	if err := (graphWeights{
-		requireGraphWeight("attention output", weights.AttentionOutput),
+		weights.AttentionOutput,
 	}).validate("hybrid attention-scan"); err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -306,17 +306,17 @@ func buildNormalizedSelectiveScanMixCached(
 		return DenseBlockResult{}, errors.New("normalized selective-scan input is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("SSM input", weights.SSMInput),
-		requireGraphWeight("SSM convolution", weights.SSMConv1D),
-		requireGraphWeight("SSM X", weights.SSMX),
-		requireGraphWeight("SSM time-step weight", weights.SSMTimeStepWeight),
-		requireGraphWeight("SSM time-step bias", weights.SSMTimeStep),
-		requireGraphWeight("SSM time-step norm", weights.SSMTimeStepNorm),
-		requireGraphWeight("SSM A", weights.SSMA),
-		requireGraphWeight("SSM D", weights.SSMD),
-		requireGraphWeight("SSM B norm", weights.SSMBNorm),
-		requireGraphWeight("SSM C norm", weights.SSMCNorm),
-		requireGraphWeight("SSM output", weights.SSMOutput),
+		weights.SSMInput,
+		weights.SSMConv1D,
+		weights.SSMX,
+		weights.SSMTimeStepWeight,
+		weights.SSMTimeStep,
+		weights.SSMTimeStepNorm,
+		weights.SSMA,
+		weights.SSMD,
+		weights.SSMBNorm,
+		weights.SSMCNorm,
+		weights.SSMOutput,
 	}
 	if err := required.validate("normalized selective-scan mixer"); err != nil {
 		return DenseBlockResult{}, err
@@ -405,10 +405,10 @@ func buildCausalProjectionMixCached(
 		return DenseBlockResult{}, err
 	}
 	if err := (graphWeights{
-		requireGraphWeight("attention Q", weights.AttentionQ),
-		requireGraphWeight("attention K", weights.AttentionK),
-		requireGraphWeight("attention V", weights.AttentionV),
-		requireGraphWeight("attention output", weights.AttentionOutput),
+		weights.AttentionQ,
+		weights.AttentionK,
+		weights.AttentionV,
+		weights.AttentionOutput,
 	}).validate("sparse grouped attention"); err != nil {
 		return DenseBlockResult{}, err
 	}
@@ -466,12 +466,12 @@ func buildRoutedSquaredReLUFeedForwardMix(
 	var feedForward *tensor.Tensor
 	if weights.FeedForwardRouter != nil {
 		if err := (graphWeights{
-			requireGraphWeight("router", weights.FeedForwardRouter),
-			requireGraphWeight("expert bias", weights.FeedForwardExpertBias),
-			requireGraphWeight("expert up", weights.FeedForwardUpExperts),
-			requireGraphWeight("expert down", weights.FeedForwardDownExperts),
-			requireGraphWeight("shared up", weights.FeedForwardSharedUp),
-			requireGraphWeight("shared down", weights.FeedForwardSharedDown),
+			weights.FeedForwardRouter,
+			weights.FeedForwardExpertBias,
+			weights.FeedForwardUpExperts,
+			weights.FeedForwardDownExperts,
+			weights.FeedForwardSharedUp,
+			weights.FeedForwardSharedDown,
 		}).validate("sparse grouped MoE"); err != nil {
 			return nil, err
 		}

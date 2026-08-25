@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
-	"overgo/internal/textcheck"
 )
 
 // AutonomyEvidence is a bounded admission packet for one scheduling class.
@@ -33,7 +32,7 @@ type AutonomyAdmission struct {
 // The result is eligibility advice; owner promotion remains external.
 func AssessAutonomy(evidence AutonomyEvidence) AutonomyAdmission {
 	decision := AutonomyAdmission{Class: evidence.Class, Missing: []string{}}
-	if !textcheck.Bounded(evidence.Class, 2048, "\x00\r\n") {
+	if !validAutomationText(evidence.Class) {
 		decision.Missing = append(decision.Missing, "class")
 	}
 	if evidence.Evaluation.Samples == 0 || evidence.Evaluation.RecommendationWins != evidence.Evaluation.Samples ||

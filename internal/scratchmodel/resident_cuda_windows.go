@@ -63,10 +63,9 @@ func (s *residentTrainingState) release() {
 }
 
 type residentForwardProgram struct {
+	*executor.IndexedGraph
 	graph     ForwardGraph
-	compiled  *executor.CompiledGraph
 	hostFeeds map[*tensor.Tensor]reference.Value
-	inputs    *executor.DeviceInputs
 }
 
 func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTrainer, error) {
@@ -145,7 +144,7 @@ func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTra
 		return fail(err)
 	}
 	for index := range trainer.programs {
-		if err := trainer.executor.PrepareCompiled(context.Background(), trainer.programs[index].compiled); err != nil {
+		if err := trainer.executor.PrepareCompiled(context.Background(), trainer.programs[index].Graph); err != nil {
 			return fail(err)
 		}
 	}
@@ -262,12 +261,12 @@ func (t *ResidentTrainer) forward(tokens []int, positions int) (ForwardGraph, *e
 	for index, token := range tokens[:program.graph.positions] {
 		rows[index] = uint32(token)
 	}
-	attributes := program.compiled.NewRuntimeAttributes()
+	attributes := program.Graph.NewRuntimeAttributes()
 	if err := attributes.Set(program.graph.tokenRows, tensor.GetRowsAttributes{Rows: rows}); err != nil {
 		return ForwardGraph{}, nil, err
 	}
 	retained, err := t.executor.ExecuteRetainedCompiled(
-		context.Background(), program.compiled, program.hostFeeds, program.inputs, nil, attributes,
+		context.Background(), program.Graph, program.hostFeeds, program.Inputs, nil, attributes,
 	)
 	return program.graph, retained, err
 }
@@ -319,47 +318,45 @@ func (t *ResidentTrainer) forwardProgram(tokens []int) (*residentForwardProgram,
 	if err != nil {
 		return nil, err
 	}
-	compiled, err := executor.Compile(graph.cacheOutputs()...)
+	indexed, err := executor.CompileIndexed(graph.cacheOutputs()...)
 	if err != nil {
 		return nil, err
 	}
-	hostFeeds, inputs, err := graph.residentInputs(compiled, t.construction, t.weights)
+	hostFeeds, err := graph.residentInputs(indexed, t.construction, t.weights)
 	if err != nil {
 		return nil, err
 	}
 	t.programs = append(t.programs, residentForwardProgram{
-		graph: graph, compiled: compiled,
-		hostFeeds: hostFeeds, inputs: inputs,
+		IndexedGraph: indexed, graph: graph, hostFeeds: hostFeeds,
 	})
 	return &t.programs[len(t.programs)-1], nil
 }
 
 func (g ForwardGraph) residentInputs(
-	compiled *executor.CompiledGraph,
+	indexed *executor.IndexedGraph,
 	c Construction,
 	weightSlab driver.DevicePtr,
-) (map[*tensor.Tensor]reference.Value, *executor.DeviceInputs, error) {
-	if compiled == nil || weightSlab == 0 || g.Mask == nil || len(g.Parameters) != len(c.parameters) {
-		return nil, nil, errors.New("scratch model: resident graph or slab differs")
+) (map[*tensor.Tensor]reference.Value, error) {
+	if indexed == nil || weightSlab == 0 || g.Mask == nil || len(g.Parameters) != len(c.parameters) {
+		return nil, errors.New("scratch model: resident graph or slab differs")
 	}
 	mask, err := reference.NewValue(g.Mask.Shape, g.mask)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	hostFeeds := map[*tensor.Tensor]reference.Value{g.Mask: mask}
-	inputs := compiled.NewDeviceInputs()
 	for name, input := range g.Parameters {
 		binding, ok := c.bindings[name]
 		if !ok {
-			return nil, nil, fmt.Errorf("scratch model: resident parameter %q absent", name)
+			return nil, fmt.Errorf("scratch model: resident parameter %q absent", name)
 		}
-		slot, ok := compiled.InputSlot(input)
+		slot, ok := indexed.Graph.InputSlot(input)
 		if !ok {
-			return nil, nil, fmt.Errorf("scratch model: resident parameter %q is not compiled", name)
+			return nil, fmt.Errorf("scratch model: resident parameter %q is not compiled", name)
 		}
-		inputs.Pointers[slot] = devicemath.ResidentPtr(weightSlab, binding.start)
+		indexed.Inputs.Pointers[slot] = devicemath.ResidentPtr(weightSlab, binding.start)
 	}
-	return hostFeeds, inputs, nil
+	return hostFeeds, nil
 }
 
 func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.RetainedOutputs, tokens []int) (float64, error) {

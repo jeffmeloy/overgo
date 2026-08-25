@@ -87,7 +87,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	}
 
 	hidden, err := encoder.RunHostFeed(
-		GraphRunner(reference.Execute), func(name string) ([]float32, error) { return encoderWeights[name], nil }, embed,
+		reference.Execute, func(name string) ([]float32, error) { return encoderWeights[name], nil }, embed,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +97,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 		t.Fatal(err)
 	}
 	velocity, err := denoiser.Forward(
-		GraphRunner(reference.Execute), host, f64of(initial), hidden.Data, fixtureSigma,
+		reference.Execute, host, f64of(initial), hidden.Data, fixtureSigma,
 	)
 	if err != nil {
 		t.Fatal(err)

@@ -1,44 +1,6 @@
-// Qwen3-VL selected-layer text encoder routed through the shared tensor graph.
-// The SAME graph definition executes on both the reference backend (host golden)
-// and the CUDA generic executor, so THIS file is the device port of the encoder
-// -- the block arithmetic is defined once, from cataloged ops, and mirrors the
-// host reference encodeSelected/encLayerForward (textencoder.go) op-for-op. This
-// is the device-text-conditioning brick 2/3: textencoder.go is a HOST f64
-// telemetry oracle; the golden serve runs the encoder device bf16, and this
-// program is that device path.
-//
-// Layout convention (matches the denoiser + MulMat: left[in,out] row-major torch
-// [out,in], right[in,tokens] token-major): every activation is [feature, tokens]
-// with token-major data, so WeightedRMSNorm over Dims[0] is per-token, and a q/k
-// tensor reshaped to [head_dim, heads, tokens] gets per-head normalization for
-// free.
-//
-// Op mapping (host encLayerForward -> cataloged op), all verified against the
-// reference backend:
-//   - STANDARD RMSNorm x/sqrt(mean(x^2)+eps)*w  -> WeightedRMSNorm (NOT the DiT's
-//     zero-centered (1+w) form).
-//   - per-head q/k RMSNorm over head_dim       -> reshape [head_dim,heads,tok] +
-//     WeightedRMSNorm over Dims[0].
-//   - rotate-half (split-half) RoPE, theta 5e6 -> RoPENeoX over the full head_dim
-//     with sequential token positions (Qwen3-VL mrope collapses to standard rope
-//     for a pure-text sequence).
-//   - causal GQA, scale 1/sqrt(head_dim)       -> Attention(causal=true) (GQA-
-//     native: heads q, kvHeads kv).
-//   - SwiGLU down(silu(gate)*up)               -> SwiGLU + MulMat.
-//
-// The giant embed_tokens table is NOT a graph weight: the caller gathers the
-// per-token embedding rows host-side (readEmbedRows) and feeds them as the small
-// [Hidden, seq] Embed input, exactly the split the denoiser uses for its latent
-// patches. Only the tapped layers run (layers 0..max(SelectLayers)-1).
-//
-// ATTENTION MASK residual: the dtc-tokenizer (textinput.go) renders a padded
-// [prefix][prompt][pad][suffix] sequence whose pad rows are unattended KEYS. The
-// cataloged Attention op has causal masking but no arbitrary per-key pad mask, so
-// this graph runs plain causal over the fed token rows -- IDENTICAL to the host
-// textencoder.go reference, which also runs maskless causal. That makes the
-// device==host bf16-band parity below exact and clean, and leaves pad-key
-// exclusion (needed only for element-exact match to the adaptive golden) as the
-// documented residual for the full e2e SHA; the telemetry oracle stays until then.
+// Selected-layer text encoder graph. Reference and CUDA share topology.
+// Activations: [feature,tokens]. Embedding rows remain caller-owned.
+// Optional key bias excludes padded keys.
 
 package latentimage
 
@@ -48,6 +10,7 @@ import (
 	"slices"
 
 	"overgo/internal/checked"
+	"overgo/internal/graphruntime"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -72,7 +35,7 @@ type EncoderProgram struct {
 	keyBias     *tensor.Tensor
 	keyBiasData []float32
 
-	weightInputs map[string]*tensor.Tensor
+	weightInputs tensor.WeightBindings
 
 	// Selected[i] is the residual stream captured after decoder layer
 	// SelectLayers[i]-1 ([Hidden, seq], token-major). CaptureAfter[i] is that
@@ -146,11 +109,10 @@ func compileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType d
 
 	p := &EncoderProgram{
 		E: e, Eps: eps, Seq: seq, MatmulType: matmulType,
-		weightInputs: make(map[string]*tensor.Tensor),
 	}
 	b := tensor.NewBuilder()
 	setBuilderMatmulCompute(b, matmulType)
-	bind := tensor.WeightInputs{Builder: b, Inputs: p.weightInputs, MatrixType: matmulType}
+	bind := tensor.WeightInputs{Builder: b, Bindings: &p.weightInputs, MatrixType: matmulType}
 
 	p.Embed = b.Input("encoder_embed", dtype.F32, tensor.MustShape(h, uint64(seq)))
 	hidden := p.Embed
@@ -231,7 +193,7 @@ type EncoderFeed func(name string) ([]float32, error)
 // host golden, the CUDA generic executor gives the device match. Returns the
 // tapped hidden states in the [Seq, LayerCount, Hidden] layout Denoiser.
 // textConditioning consumes.
-func (p *EncoderProgram) RunHostFeed(run GraphRunner, weightAt EncoderFeed, embedRows []float32) (*SelectedHiddenStates, error) {
+func (p *EncoderProgram) RunHostFeed(run graphruntime.Runner, weightAt EncoderFeed, embedRows []float32) (*SelectedHiddenStates, error) {
 	if p.MatmulType != dtype.F32 {
 		return nil, fmt.Errorf("encoder RunHostFeed: needs F32 weights, program compiled %s", p.MatmulType)
 	}
@@ -240,16 +202,8 @@ func (p *EncoderProgram) RunHostFeed(run GraphRunner, weightAt EncoderFeed, embe
 		return nil, fmt.Errorf("encoder RunHostFeed: embed rows: %w", err)
 	}
 	feeds := make(map[*tensor.Tensor]reference.Value, len(p.weightInputs)+1)
-	for name, node := range p.weightInputs {
-		data, err := weightAt(name)
-		if err != nil {
-			return nil, fmt.Errorf("encoder RunHostFeed: weight %s: %w", name, err)
-		}
-		elements, _ := node.Shape.Elements()
-		if uint64(len(data)) != elements {
-			return nil, fmt.Errorf("encoder RunHostFeed: weight %s len=%d want %d", name, len(data), elements)
-		}
-		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
+	if err := graphruntime.AddHostWeights(feeds, p.weightInputs, weightAt); err != nil {
+		return nil, fmt.Errorf("encoder RunHostFeed: %w", err)
 	}
 	feeds[p.Embed] = embedValue
 	if p.keyBias != nil {

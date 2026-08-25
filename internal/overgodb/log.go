@@ -14,19 +14,16 @@ import (
 )
 
 const (
-	storeFilename = "overgodb.log"
-	lockFilename  = "overgodb.lock"
-	// legacyStoreFilename is the pre-rename log name still carried by
-	// stores written before OvergoDB; the opener reads it as a fallback.
-	legacyStoreFilename = "repodb.log"
-	storeHeaderBytes    = 16
-	frameHeaderBytes    = 84
-	storeVersion        = uint16(1)
-	frameVersion        = uint16(4)
-	frameKindBatch      = uint16(1)
-	maxFramePayload     = artifact.MaxContentBytes
-	storeFileMode       = 0o644
-	storeDirectoryMode  = 0o755
+	storeFilename      = "overgodb.log"
+	lockFilename       = "overgodb.lock"
+	storeHeaderBytes   = 16
+	frameHeaderBytes   = 84
+	storeVersion       = uint16(1)
+	frameVersion       = uint16(4)
+	frameKindBatch     = uint16(1)
+	maxFramePayload    = artifact.MaxContentBytes
+	storeFileMode      = 0o644
+	storeDirectoryMode = 0o755
 
 	storeMagicOffset    = 0
 	storeVersionOffset  = 8
@@ -88,27 +85,13 @@ type replayAnchor struct {
 	digest   [sha256.Size]byte
 }
 
-// storeLogPath resolves the record log inside root. Stores written
-// before the OvergoDB rename carry the legacy filename; every reader
-// accepts both so no store needs a file rename to stay readable. New
-// writes go to the current name.
-func storeLogPath(root string) string {
-	path := filepath.Join(root, storeFilename)
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if _, legacyErr := os.Stat(filepath.Join(root, legacyStoreFilename)); legacyErr == nil {
-			return filepath.Join(root, legacyStoreFilename)
-		}
-	}
-	return path
-}
-
 func openRecordLog(
 	root string,
 	readOnly bool,
 	anchor replayAnchor,
 	apply func(logRecord) error,
 ) (*recordLog, replayResult, error) {
-	path := storeLogPath(root)
+	path := filepath.Join(root, storeFilename)
 	if readOnly {
 		file, err := os.Open(path)
 		if err != nil {

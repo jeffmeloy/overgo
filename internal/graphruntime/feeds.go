@@ -3,6 +3,7 @@ package graphruntime
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -10,6 +11,32 @@ import (
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
+
+// Runner executes one tensor graph.
+type Runner func([]*tensor.Tensor, map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error)
+
+// AddHostWeights resolves ordered F32 bindings into host feeds.
+func AddHostWeights(
+	feeds map[*tensor.Tensor]reference.Value,
+	bindings tensor.WeightBindings,
+	load func(string) ([]float32, error),
+) error {
+	for _, node := range bindings {
+		if node.Type != dtype.F32 {
+			return fmt.Errorf("weight %s: host feed requires F32 storage, compiled %s", node.Name, node.Type)
+		}
+		data, err := load(node.Name)
+		if err != nil {
+			return err
+		}
+		elements, err := node.Shape.Elements()
+		if err != nil || uint64(len(data)) != elements {
+			return fmt.Errorf("weight %s: have %d elements, need %d", node.Name, len(data), elements)
+		}
+		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
+	}
+	return nil
+}
 
 type Feeds struct {
 	Host   map[*tensor.Tensor]reference.Value
@@ -52,15 +79,14 @@ func (f *Feeds) Execute(
 	if device == nil {
 		return reference.Execute(outputs, f.Host)
 	}
-	compiled, err := executor.Compile(outputs...)
+	indexed, err := executor.CompileIndexed(outputs...)
 	if err != nil {
 		return nil, err
 	}
-	inputs := compiled.NewDeviceInputs()
 	for node, pointer := range f.Device {
-		if err := inputs.Set(node, pointer); err != nil {
+		if err := indexed.Inputs.Set(node, pointer); err != nil {
 			return nil, err
 		}
 	}
-	return device.ExecuteCompiled(ctx, compiled, f.Host, inputs)
+	return device.ExecuteCompiled(ctx, indexed.Graph, f.Host, indexed.Inputs)
 }

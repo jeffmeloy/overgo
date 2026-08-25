@@ -433,7 +433,7 @@ func (r *Gemma3nVisionRunner) buildAttentionGraph(
 	return attention
 }
 
-func (r *Gemma3nVisionRunner) imagePromptProgram() compiledImagePromptProgram {
+func compileGemma3nVisionImagePrompt(r *Gemma3nVisionRunner) compiledImagePromptProgram {
 	compile := func(history bool) imagePromptPlan {
 		return delimitedImagePromptPlan(
 			"Gemma 3n", Gemma3nImagePad, "Gemma 3n image placeholder", history, r.spec.OutputHidden,

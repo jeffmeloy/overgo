@@ -72,14 +72,14 @@ func (p SequenceOutputProgram) Build(
 		return nil, errors.New("sequence-output graph layer count is incompatible")
 	}
 	if err := (graphWeights{
-		requireGraphWeight("input convolution", weights.InputConv),
-		requireGraphWeight("input convolution bias", weights.InputConvBias),
-		requireGraphWeight("token norm", weights.TokenNorm),
-		requireGraphWeight("token norm bias", weights.TokenNormBias),
-		requireGraphWeight("output norm", weights.OutputNorm),
-		requireGraphWeight("output norm bias", weights.OutputNormBias),
-		requireGraphWeight("output", weights.Output),
-		requireGraphWeight("output bias", weights.OutputBias),
+		weights.InputConv,
+		weights.InputConvBias,
+		weights.TokenNorm,
+		weights.TokenNormBias,
+		weights.OutputNorm,
+		weights.OutputNormBias,
+		weights.Output,
+		weights.OutputBias,
 	}).validate("sequence-output decoder"); err != nil {
 		return nil, err
 	}
@@ -91,14 +91,14 @@ func (p SequenceOutputProgram) Build(
 		switch p.residuals[block] {
 		case sequenceResidualConvolution:
 			if err := (graphWeights{
-				requireGraphWeight("norm-1", layer.Norm1),
-				requireGraphWeight("norm-1 bias", layer.Norm1Bias),
-				requireGraphWeight("convolution-1", layer.Conv1),
-				requireGraphWeight("convolution-1 bias", layer.Conv1Bias),
-				requireGraphWeight("norm-2", layer.Norm2),
-				requireGraphWeight("norm-2 bias", layer.Norm2Bias),
-				requireGraphWeight("convolution-2", layer.Conv2),
-				requireGraphWeight("convolution-2 bias", layer.Conv2Bias),
+				layer.Norm1,
+				layer.Norm1Bias,
+				layer.Conv1,
+				layer.Conv1Bias,
+				layer.Norm2,
+				layer.Norm2Bias,
+				layer.Conv2,
+				layer.Conv2Bias,
 			}).validate("sequence-output " + scope); err != nil {
 				return nil, err
 			}
@@ -111,16 +111,16 @@ func (p SequenceOutputProgram) Build(
 			current = builder.Add(current, residual)
 		case sequenceResidualAttention:
 			if err := (graphWeights{
-				requireGraphWeight("attention norm", layer.AttentionNorm),
-				requireGraphWeight("attention norm bias", layer.AttentionNormBias),
-				requireGraphWeight("attention Q", layer.AttentionQ),
-				requireGraphWeight("attention Q bias", layer.AttentionQBias),
-				requireGraphWeight("attention K", layer.AttentionK),
-				requireGraphWeight("attention K bias", layer.AttentionKBias),
-				requireGraphWeight("attention V", layer.AttentionV),
-				requireGraphWeight("attention V bias", layer.AttentionVBias),
-				requireGraphWeight("attention output", layer.AttentionOutput),
-				requireGraphWeight("attention output bias", layer.AttentionOutBias),
+				layer.AttentionNorm,
+				layer.AttentionNormBias,
+				layer.AttentionQ,
+				layer.AttentionQBias,
+				layer.AttentionK,
+				layer.AttentionKBias,
+				layer.AttentionV,
+				layer.AttentionVBias,
+				layer.AttentionOutput,
+				layer.AttentionOutBias,
 			}).validate("sequence-output " + scope); err != nil {
 				return nil, err
 			}
@@ -141,8 +141,8 @@ func (p SequenceOutputProgram) Build(
 			current = builder.Add(current, residual)
 		case sequenceResidualNormalization:
 			if err := (graphWeights{
-				requireGraphWeight("norm", layer.AttentionNorm),
-				requireGraphWeight("norm bias", layer.AttentionNormBias),
+				layer.AttentionNorm,
+				layer.AttentionNormBias,
 			}).validate("sequence-output " + scope); err != nil {
 				return nil, err
 			}
@@ -156,15 +156,15 @@ func (p SequenceOutputProgram) Build(
 	for block, layer := range weights.Convolution {
 		scope := fmt.Sprintf("convolution block %d", block)
 		if err := (graphWeights{
-			requireGraphWeight("depthwise convolution", layer.Depthwise),
-			requireGraphWeight("depthwise convolution bias", layer.DepthwiseBias),
-			requireGraphWeight("norm", layer.Norm),
-			requireGraphWeight("norm bias", layer.NormBias),
-			requireGraphWeight("pointwise-1", layer.Pointwise1),
-			requireGraphWeight("pointwise-1 bias", layer.Pointwise1Bias),
-			requireGraphWeight("pointwise-2", layer.Pointwise2),
-			requireGraphWeight("pointwise-2 bias", layer.Pointwise2Bias),
-			requireGraphWeight("gamma", layer.Gamma),
+			layer.Depthwise,
+			layer.DepthwiseBias,
+			layer.Norm,
+			layer.NormBias,
+			layer.Pointwise1,
+			layer.Pointwise1Bias,
+			layer.Pointwise2,
+			layer.Pointwise2Bias,
+			layer.Gamma,
 		}).validate("sequence-output " + scope); err != nil {
 			return nil, err
 		}

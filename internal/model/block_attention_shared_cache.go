@@ -24,9 +24,9 @@ func buildSharedCacheQKNormMix(
 		return DenseBlockResult{}, errors.New("shared-cache query attention shape is incompatible")
 	}
 	if err := (graphWeights{
-		requireGraphWeight("attention query", weights.AttentionQ),
-		requireGraphWeight("attention query norm", weights.AttentionQNorm),
-		requireGraphWeight("attention output", weights.AttentionOutput),
+		weights.AttentionQ,
+		weights.AttentionQNorm,
+		weights.AttentionOutput,
 	}).validate("shared-cache query attention"); err != nil {
 		return DenseBlockResult{}, err
 	}

@@ -104,65 +104,65 @@ func (p DenseWeightPlan) Validate(
 	usesExperts bool,
 	feedForward FeedForwardPolicy,
 ) error {
-	required := graphWeights{requireGraphWeight("attention output", weights.AttentionOutput)}
+	required := graphWeights{weights.AttentionOutput}
 	if usesExperts {
 		if !p.supportsExperts {
 			return errors.New("dense block expert weights require a supported MoE architecture")
 		}
-		required.add("feed-forward router", weights.FeedForwardRouter)
-		required.add("feed-forward expert down", weights.FeedForwardDownExperts)
+		required = append(required, weights.FeedForwardRouter)
+		required = append(required, weights.FeedForwardDownExperts)
 		if weights.FeedForwardGateUpExperts != nil {
-			required.add("feed-forward fused expert gate/up", weights.FeedForwardGateUpExperts)
+			required = append(required, weights.FeedForwardGateUpExperts)
 		} else {
-			required.add("feed-forward expert up", weights.FeedForwardUpExperts)
+			required = append(required, weights.FeedForwardUpExperts)
 			if !p.allowUngatedExperts || weights.FeedForwardGateExperts != nil {
-				required.add("feed-forward expert gate", weights.FeedForwardGateExperts)
+				required = append(required, weights.FeedForwardGateExperts)
 			}
 		}
 		if p.requireExpertBias {
-			required.add("feed-forward expert correction bias", weights.FeedForwardExpertBias)
+			required = append(required, weights.FeedForwardExpertBias)
 		}
 		if p.requireShared {
-			required.add("feed-forward shared gate", weights.FeedForwardSharedGate)
-			required.add("feed-forward shared up", weights.FeedForwardSharedUp)
-			required.add("feed-forward shared down", weights.FeedForwardSharedDown)
+			required = append(required, weights.FeedForwardSharedGate)
+			required = append(required, weights.FeedForwardSharedUp)
+			required = append(required, weights.FeedForwardSharedDown)
 		}
 		if p.requireSharedRouter {
-			required.add("feed-forward shared router", weights.FeedForwardSharedRouter)
+			required = append(required, weights.FeedForwardSharedRouter)
 		}
 		if p.requireChunkExperts {
-			required.add("feed-forward chunk expert gate", weights.FeedForwardGateChunkExperts)
-			required.add("feed-forward chunk expert up", weights.FeedForwardUpChunkExperts)
-			required.add("feed-forward chunk expert down", weights.FeedForwardDownChunkExperts)
+			required = append(required, weights.FeedForwardGateChunkExperts)
+			required = append(required, weights.FeedForwardUpChunkExperts)
+			required = append(required, weights.FeedForwardDownChunkExperts)
 		}
 		if p.requireExpertProjectionBiases {
-			required.add("feed-forward router bias", weights.FeedForwardRouterBias)
-			required.add("feed-forward expert gate bias", weights.FeedForwardGateBias)
-			required.add("feed-forward expert up bias", weights.FeedForwardUpBias)
-			required.add("feed-forward expert down bias", weights.FeedForwardDownBias)
+			required = append(required, weights.FeedForwardRouterBias)
+			required = append(required, weights.FeedForwardGateBias)
+			required = append(required, weights.FeedForwardUpBias)
+			required = append(required, weights.FeedForwardDownBias)
 		}
 		if p.requireSeparateDenseBranch {
-			required.add("feed-forward expert norm", weights.FeedForwardExpertNorm)
-			required.add("feed-forward gate", weights.FeedForwardGate)
-			required.add("feed-forward up", weights.FeedForwardUp)
-			required.add("feed-forward down", weights.FeedForwardDown)
+			required = append(required, weights.FeedForwardExpertNorm)
+			required = append(required, weights.FeedForwardGate)
+			required = append(required, weights.FeedForwardUp)
+			required = append(required, weights.FeedForwardDown)
 		}
 	} else {
-		required.add("feed-forward up", weights.FeedForwardUp)
-		required.add("feed-forward down", weights.FeedForwardDown)
+		required = append(required, weights.FeedForwardUp)
+		required = append(required, weights.FeedForwardDown)
 		if feedForward == FeedForwardSwiGLU || feedForward == FeedForwardGEGLU {
-			required.add("feed-forward gate", weights.FeedForwardGate)
+			required = append(required, weights.FeedForwardGate)
 		}
 	}
 	if weights.AttentionQKV != nil {
-		required.add("attention QKV", weights.AttentionQKV)
+		required = append(required, weights.AttentionQKV)
 		if weights.AttentionQBias != nil || weights.AttentionKBias != nil || weights.AttentionVBias != nil {
 			return errors.New("dense fused QKV cannot use separate projection biases")
 		}
 	} else {
-		required.add("attention Q", weights.AttentionQ)
-		required.add("attention K", weights.AttentionK)
-		required.add("attention V", weights.AttentionV)
+		required = append(required, weights.AttentionQ)
+		required = append(required, weights.AttentionK)
+		required = append(required, weights.AttentionV)
 		if weights.AttentionQKVBias != nil {
 			return errors.New("dense fused QKV bias has no fused projection")
 		}
@@ -171,45 +171,45 @@ func (p DenseWeightPlan) Validate(
 		return errors.New("secondary attention norm bias has no weight")
 	}
 	if p.requireSubNorm {
-		required.add("attention sub norm", weights.AttentionSubNorm)
-		required.add("feed-forward sub norm", weights.FeedForwardSubNorm)
+		required = append(required, weights.AttentionSubNorm)
+		required = append(required, weights.FeedForwardSubNorm)
 	}
 	if feedForward == FeedForwardSequentialGELU {
-		required.add("feed-forward up bias", weights.FeedForwardUpBias)
-		required.add("feed-forward down bias", weights.FeedForwardDownBias)
+		required = append(required, weights.FeedForwardUpBias)
+		required = append(required, weights.FeedForwardDownBias)
 	}
 	if p.requireQKNorm {
-		required.add("attention Q norm", weights.AttentionQNorm)
-		required.add("attention K norm", weights.AttentionKNorm)
+		required = append(required, weights.AttentionQNorm)
+		required = append(required, weights.AttentionKNorm)
 	}
 	if p.requirePostNorm {
-		required.add("attention post norm", weights.AttentionPostNorm)
-		required.add("feed-forward post norm", weights.FeedForwardPostNorm)
+		required = append(required, weights.AttentionPostNorm)
+		required = append(required, weights.FeedForwardPostNorm)
 	}
 	if p.requireBaseNorm {
-		required.add("attention norm", weights.AttentionNorm)
+		required = append(required, weights.AttentionNorm)
 		if p.requireFeedForwardNorm {
-			required.add("feed-forward norm", weights.FeedForwardNorm)
+			required = append(required, weights.FeedForwardNorm)
 		}
 		if p.requireNormBias {
-			required.add("attention norm bias", weights.AttentionNormBias)
+			required = append(required, weights.AttentionNormBias)
 			if p.requireFeedForwardNorm {
-				required.add("feed-forward norm bias", weights.FeedForwardNormBias)
+				required = append(required, weights.FeedForwardNormBias)
 			}
 		}
 	}
 	if p.requireAttentionOutputBias {
-		required.add("attention output bias", weights.AttentionOutputBias)
+		required = append(required, weights.AttentionOutputBias)
 	}
 	if p.requireAttentionSinks {
-		required.add("attention sinks", weights.AttentionSinks)
-		required.add("attention post norm", weights.AttentionPostNorm)
+		required = append(required, weights.AttentionSinks)
+		required = append(required, weights.AttentionPostNorm)
 	}
 	if p.requireAttentionGate {
-		required.add("attention output gate", weights.AttentionOutputGate)
+		required = append(required, weights.AttentionOutputGate)
 	}
 	if p.requireTemperature {
-		required.add("attention temperature scale", weights.AttentionTemperatureScale)
+		required = append(required, weights.AttentionTemperatureScale)
 	}
 	if p.validateOptionalQKNorm &&
 		(weights.AttentionQNorm == nil) != (weights.AttentionKNorm == nil) {

@@ -37,7 +37,7 @@ func TestFusionProgramCUDAMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileFusionProgram: %v", err)
 	}
-	want, err := prog.RunHostFeed(GraphRunner(reference.Execute), weightAt, enc)
+	want, err := prog.RunHostFeed(reference.Execute, weightAt, enc)
 	if err != nil {
 		t.Fatalf("reference RunHostFeed: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestFusionProgramCUDAMatchesReference(t *testing.T) {
 	cudaRun := func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
 		return exec.Execute(context.Background(), outputs, feeds)
 	}
-	got, err := prog.RunHostFeed(GraphRunner(cudaRun), weightAt, enc)
+	got, err := prog.RunHostFeed(cudaRun, weightAt, enc)
 	if err != nil {
 		t.Fatalf("CUDA RunHostFeed: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestFusionResidentRealCheckpoint(t *testing.T) {
 	ctx := context.Background()
 	rf := newResidentFixture(t, ctx, "test fusion", filepath.Join(dir, "transformer"), prog.weightInputs, prog.Fused)
 	t.Logf("resident fusion weights: %.3f GiB (%d layerwise + %d refiner blocks, textSeq=%d)",
-		float64(rf.graph.bytes)/(1<<30), tspec.LayerwiseTextBlocks, tspec.RefinerTextBlocks, selected.Seq)
+		float64(rf.graph.ProgramBytes())/(1<<30), tspec.LayerwiseTextBlocks, tspec.RefinerTextBlocks, selected.Seq)
 
 	encF32 := make([]float32, len(selected.Data))
 	for i, v := range selected.Data {
@@ -194,7 +194,7 @@ func TestFusionResidentRealCheckpoint(t *testing.T) {
 	}
 	rel := sumAbs / (sa + 1e-9)
 	t.Logf("device vs host fused conditioning: max_abs=%.3e mean|h-d|/mean|h|=%.3e (bf16 band); peak device weights %.3f GiB",
-		maxAbs, rel, float64(rf.graph.bytes)/(1<<30))
+		maxAbs, rel, float64(rf.graph.ProgramBytes())/(1<<30))
 	if rel > 2e-1 {
 		t.Fatalf("device/host fused mean-relative=%.3e exceeds bf16 band 2e-1", rel)
 	}

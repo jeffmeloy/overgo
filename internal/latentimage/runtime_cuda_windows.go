@@ -200,7 +200,7 @@ func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, e
 		}
 	}
 	var latent []float32
-	err := g.pipeline.runtime.worker.Do(ctx, func(state *device.State) error {
+	err := g.pipeline.runtime.Do(ctx, func(state *device.State) error {
 		var seedErr error
 		latent, seedErr = SeededInitLatent(
 			torchrng.NewStream(g.request.Seed), state, g.shape, InitNoiseMix,

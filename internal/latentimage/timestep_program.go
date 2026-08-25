@@ -13,7 +13,7 @@ type timestepProgram struct {
 	Input        *tensor.Tensor
 	Embedding    *tensor.Tensor
 	Modulation   *tensor.Tensor
-	weightInputs map[string]*tensor.Tensor
+	weightInputs tensor.WeightBindings
 	encoding     media.SinusoidalProgram
 }
 
@@ -38,10 +38,8 @@ func compileTimestepProgram(spec TransformerSpec, storage dtype.Type, sinusoid m
 	}
 	builder := tensor.NewBuilder()
 	setBuilderMatmulCompute(builder, storage)
-	program := &timestepProgram{
-		weightInputs: make(map[string]*tensor.Tensor), encoding: sinusoid,
-	}
-	binder := tensor.WeightInputs{Builder: builder, Inputs: program.weightInputs, MatrixType: storage}
+	program := &timestepProgram{encoding: sinusoid}
+	binder := tensor.WeightInputs{Builder: builder, Bindings: &program.weightInputs, MatrixType: storage}
 	hidden := uint64(spec.Hidden)
 	fields := uint64(fieldsCount)
 	program.Input = builder.Input(

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/tensor"
 	"overgo/internal/trainingprogram"
 )
 
@@ -32,6 +33,20 @@ func ditTestConfig() (DenoiserConfig, LatentGeometry, int) {
 		Grid: [3]int{2, 1, 2}, Seq: 4,
 	}
 	return cfg, geometry, 6
+}
+
+func TestIndexedMediaProgramBindings(t *testing.T) {
+	config, geometry, _ := ditTestConfig()
+	program, err := CompileDenoiserProgram(config, &DenoiserWeights{}, geometry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, bindings := range []tensor.WeightBindings{program.contextWeightInputs, program.stepWeightInputs} {
+		first := bindings[0]
+		if bindings.Node(first.Name) != first {
+			t.Fatal("indexed binding does not resolve its compiled node")
+		}
+	}
 }
 
 func ditTestTrainer(t *testing.T) (*DiTTrainer, DiTTrainBatch) {

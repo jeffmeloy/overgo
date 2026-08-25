@@ -77,7 +77,7 @@ func benchmarkKrea2048(b *testing.B, request Request) {
 	encoded, minimum, maximum := generated.Data, generated.Minimum, generated.Maximum
 	encodeWall := time.Since(encodeStart)
 	var memory driver.MemoryStats
-	if err := generator.pipeline.runtime.worker.Do(ctx, func(state *device.State) error {
+	if err := generator.pipeline.runtime.Do(ctx, func(state *device.State) error {
 		memory = state.Driver.MemoryStats()
 		return nil
 	}); err != nil {

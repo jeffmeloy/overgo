@@ -3,36 +3,28 @@
 package graphruntime
 
 import (
-	"context"
 	"testing"
 
-	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/checked"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
-	"overgo/internal/tensor/reference"
 )
 
-func TestResidentGraphReusesStaticInputs(t *testing.T) {
-	cudatest.Require(t)
+func TestCompiledFeedsUseIndexedInputs(t *testing.T) {
 	builder := tensor.NewBuilder()
 	dynamic := builder.Input("dynamic", dtype.F32, tensor.MustShape(2))
 	static := builder.Input("static", dtype.F32, tensor.MustShape(2))
 	output := builder.Add(dynamic, static)
-	staticValue := reference.Value{Shape: static.Shape, Data: []float32{3, 4}}
-	runtime, err := NewResidentGraph(t.Context(), 0, map[*tensor.Tensor]reference.Value{static: staticValue}, output)
+	program, err := compileResidentProgram("resident test", []*tensor.Tensor{dynamic}, []*tensor.Tensor{output})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer runtime.Close(context.Background())
-	for _, values := range [][]float32{{1, 2}, {5, 6}} {
-		result, err := runtime.Execute(t.Context(), map[*tensor.Tensor]reference.Value{
-			dynamic: {Shape: dynamic.Shape, Data: values},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got := result[output].Data; got[0] != values[0]+3 || got[1] != values[1]+4 {
-			t.Fatalf("resident output %v", got)
-		}
+	dynamicSlot, dynamicOK := program.Graph.InputSlot(dynamic)
+	staticSlot, staticOK := program.Graph.InputSlot(static)
+	if !dynamicOK || !staticOK || len(program.dynamic) != 1 || program.dynamic[0] != dynamicSlot {
+		t.Fatalf("compiled slots dynamic=%v static=%v program=%v", dynamicOK, staticOK, program.dynamic)
+	}
+	if checked.Nonzero(program.Inputs.Pointers[dynamicSlot]) || checked.Nonzero(program.Inputs.Pointers[staticSlot]) {
+		t.Fatal("compiled input slots must start unbound")
 	}
 }

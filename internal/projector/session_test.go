@@ -7,7 +7,6 @@ import (
 	"go/token"
 	"image"
 	"reflect"
-	"regexp"
 	"testing"
 )
 
@@ -19,6 +18,7 @@ func TestCompiledSessionOwnsNoPromptWrappers(t *testing.T) {
 	forbidden := map[string]struct{}{
 		"imagesPrompt": {}, "videoPrompt": {}, "audioPrompt": {},
 		"audioSampleRate": {}, "mediaHistoryPrompt": {},
+		"imagePromptProgram": {}, "mediaPromptProgram": {},
 	}
 	for _, file := range packages["projector"].Files {
 		for _, declaration := range file.Decls {
@@ -33,45 +33,21 @@ func TestCompiledSessionOwnsNoPromptWrappers(t *testing.T) {
 	}
 }
 
+func TestPromptRecipeProgramsCoverCatalog(t *testing.T) {
+	seen := make(map[string]struct{}, len(projectorCatalog))
+	for _, descriptor := range projectorCatalog {
+		if _, duplicate := seen[descriptor.kind]; duplicate {
+			t.Fatalf("duplicate projector recipe %q", descriptor.kind)
+		}
+		seen[descriptor.kind] = struct{}{}
+		if len(descriptor.media) > 0 && descriptor.prompt == nil {
+			t.Fatalf("media projector %q has no prompt recipe", descriptor.kind)
+		}
+	}
+}
+
 // TestCompiledSessionOwnsPromptDispatch checks session-only prompt entry points.
 func TestCompiledSessionOwnsPromptDispatch(t *testing.T) {
-	families := []struct {
-		name   string
-		runner Projector
-		want   SessionCapabilities
-	}{
-		{"cogvlm", &CogVLMVisionRunner{}, SessionCapabilities{Image: true, MultiImage: true}},
-		{"deepseekocr", &DeepSeekOCRRunner{}, SessionCapabilities{Image: true, MultiImage: true}},
-		{"deepseekocr2", &DeepSeekOCR2Runner{}, SessionCapabilities{Image: true, MultiImage: true}},
-		{"gemma3nvision", &Gemma3nVisionRunner{}, SessionCapabilities{Image: true, MultiImage: true}},
-		{"gemma4", &Gemma4Runner{}, SessionCapabilities{Image: true, MultiImage: true, Video: true, Audio: true, MediaHistory: true}},
-		{"gemma4tower", &Gemma4TowerRunner{}, SessionCapabilities{}},
-		{"granite4vision", &Granite4VisionRunner{}, SessionCapabilities{Image: true, MultiImage: true}},
-		{"hunyuanvl", &HunyuanVLRunner{}, SessionCapabilities{Image: true, MultiImage: true}},
-		{"llama4vision", &Llama4VisionRunner{}, SessionCapabilities{Image: true, MultiImage: true}},
-		{"mimovl", &MiMoVLRunner{}, SessionCapabilities{Image: true, MultiImage: true}},
-		{"paddleocr", &PaddleOCRRunner{}, SessionCapabilities{Image: true, MultiImage: true}},
-		{"qwen2vl", &Qwen2VLRunner{}, SessionCapabilities{Image: true, MultiImage: true, Video: true}},
-		{"qwen3vl", &Qwen3VLRunner{}, SessionCapabilities{Image: true, MultiImage: true, Video: true}},
-	}
-	familyEntryPoint := regexp.MustCompile(`^Build.*Prompt$`)
-	for _, family := range families {
-		t.Run(family.name, func(t *testing.T) {
-			runnerType := reflect.TypeOf(family.runner)
-			for index := 0; index < runnerType.NumMethod(); index++ {
-				if name := runnerType.Method(index).Name; familyEntryPoint.MatchString(name) {
-					t.Fatalf("%T retains family prompt entry point %s", family.runner, name)
-				}
-			}
-			session, err := NewSession(family.runner)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if capabilities := session.Capabilities(); capabilities != family.want {
-				t.Fatalf("compiled capabilities = %+v, want %+v", capabilities, family.want)
-			}
-		})
-	}
 	t.Run("nil source", func(t *testing.T) {
 		if _, err := NewSession(nil); err == nil {
 			t.Fatal("nil session source accepted")

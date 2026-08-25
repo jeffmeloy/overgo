@@ -267,7 +267,7 @@
      "contains": "func OpenAs[T Projector](",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:399661b7b4c8a16ffbd5fd19d4c601892fb05ad43c2585b84df328900c76261f"
+     "identity": "file:sha256:6ab9b24693e3f7338c8cde542d3f4f96ac8a6421416732f13fbc41e40327d2e3"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -499,18 +499,18 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:3467630488bb2f794ae498f74d590e09d0bdb81bc8c8629eefbb12fb2eb3135b"
+     "identity": "file:sha256:1e1017e15f7e9e79bbc15f8f61aa7b6be4a8acc12c42d7992729c4a48b66a261"
     },
     {
-     "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
+     "contains": "func TestIndexedGraphOwnsCompilation(",
      "path": "internal/cuda/executor/compile_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:c3a945a4d34311f4dce80b18286b97f85d278a0ba394a3afb14a70ca44141eaa"
+     "identity": "evidence:sha256:046593b2d2b404d0e7cc67830e0802f4c387198c2d38b5bba4659e1d97ae067b"
     }
    ],
    "id": "compiled-cuda-graph",
    "evidence_tier": "contract-tested",
-   "verify": "go test ./internal/cuda/executor -run '^TestCompilePinsTopologyAndMemoryPlan$' -count=1 -v",
+   "verify": "go test ./internal/cuda/executor -run '^TestIndexedGraphOwnsCompilation$' -count=1 -v",
    "status": "implemented",
    "summary": "Repeated CUDA graph execution can reuse validated topology, BLAS selection, and arena planning."
   },
@@ -581,10 +581,10 @@
   {
    "evidence": [
     {
-     "contains": "func (r *Qwen3VLRunner) imagePromptProgram(",
+     "contains": "func compileQwen3VLImagePrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:399661b7b4c8a16ffbd5fd19d4c601892fb05ad43c2585b84df328900c76261f"
+     "identity": "file:sha256:6ab9b24693e3f7338c8cde542d3f4f96ac8a6421416732f13fbc41e40327d2e3"
     },
     {
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -602,10 +602,10 @@
   {
    "evidence": [
     {
-     "contains": "func (r *Gemma4Runner) mediaPromptProgram(",
+     "contains": "func compileGemma4MediaPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:399661b7b4c8a16ffbd5fd19d4c601892fb05ad43c2585b84df328900c76261f"
+     "identity": "file:sha256:6ab9b24693e3f7338c8cde542d3f4f96ac8a6421416732f13fbc41e40327d2e3"
     },
     {
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -623,10 +623,10 @@
   {
    "evidence": [
     {
-     "contains": "func (r *Gemma4Runner) mediaPromptProgram(",
+     "contains": "func compileGemma4MediaPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:399661b7b4c8a16ffbd5fd19d4c601892fb05ad43c2585b84df328900c76261f"
+     "identity": "file:sha256:6ab9b24693e3f7338c8cde542d3f4f96ac8a6421416732f13fbc41e40327d2e3"
     },
     {
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",

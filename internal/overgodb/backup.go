@@ -37,7 +37,7 @@ func (s *Store) Backup(destinationRoot string) (artifact.CommitID, uint64, error
 	if err := os.MkdirAll(partial, storeDirectoryMode); err != nil {
 		return artifact.CommitID{}, 0, err
 	}
-	if err := copyFileSync(storeLogPath(sourceRoot), filepath.Join(partial, storeFilename), extent); err != nil {
+	if err := copyFileSync(filepath.Join(sourceRoot, storeFilename), filepath.Join(partial, storeFilename), extent); err != nil {
 		return artifact.CommitID{}, 0, err
 	}
 	copyHead, copySequence, err := replayedHead(partial)

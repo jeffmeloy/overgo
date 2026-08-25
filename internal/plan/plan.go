@@ -114,7 +114,7 @@ func Validate(d Plan) error {
 			return fmt.Errorf("plan item id %q is empty or duplicated", item.ID)
 		}
 		items[item.ID] = true
-		if item.Owner != "" && !textcheck.Bounded(item.Owner, automationRoleMaxBytes, "\x00\r\n") {
+		if item.Owner != "" && !validAutomationText(item.Owner) {
 			return fmt.Errorf("plan item %s has invalid owner", item.ID)
 		}
 		if !validStatus(item.Status) {
@@ -308,10 +308,18 @@ func AutomationRole(explicit string) (string, error) {
 		role = strings.TrimSpace(os.Getenv(AutomationRoleEnvironment))
 	}
 	role = normalizedRole(role)
-	if !textcheck.Bounded(role, automationRoleMaxBytes, "\x00\r\n") {
+	if !validAutomationText(role) {
 		return "", errors.New("plan: invalid automation role")
 	}
 	return role, nil
+}
+
+func validAutomationText(value string) bool {
+	return textcheck.Bounded(value, automationRoleMaxBytes, "\x00\r\n")
+}
+
+func validAutomationDetail(value string) bool {
+	return textcheck.Bounded(value, 2*automationRoleMaxBytes, "\x00\r\n")
 }
 
 func normalizedRole(role string) string {

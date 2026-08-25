@@ -13,7 +13,6 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
-	"overgo/internal/tensorcatalog"
 )
 
 const (
@@ -95,42 +94,20 @@ func deepSeekOCR2TensorNames(file *gguf.File, spec DeepSeekOCR2Spec) []string {
 	names := append(deepSeekOCRSAMTensorNames(spec.DeepSeekOCRSpec),
 		"v.resample_query_768.weight", "v.resample_query_1024.weight",
 		multimodalProjectionWeight, multimodalProjectionBias, visionViewSeparatorTensor)
-	for _, name := range []string{visionPreNormWeightTensor, visionPreNormBiasTensor, visionPostNormWeightTensor, visionPostNormBiasTensor} {
-		if hasTensor(file, name) {
-			names = append(names, name)
-		}
-	}
-	for layer := range spec.Layers {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		for _, suffix := range []string{
-			"ln1.weight", "ln2.weight", "attn_q.weight", "attn_k.weight", "attn_v.weight",
-			"attn_out.weight", "ffn_up.weight", "ffn_gate.weight", "ffn_down.weight",
-		} {
-			names = append(names, prefix+suffix)
-		}
-		for _, suffix := range []string{
-			"ln1.bias", "ln2.bias", "attn_q.bias", "attn_k.bias", "attn_v.bias",
-			"attn_out.bias", "ffn_up.bias", "ffn_gate.bias", "ffn_down.bias",
-		} {
-			if hasTensor(file, prefix+suffix) {
-				names = append(names, prefix+suffix)
-			}
-		}
-	}
-	return names
+	names = appendPresentTensorNames(names, file,
+		visionPreNormWeightTensor, visionPreNormBiasTensor, visionPostNormWeightTensor, visionPostNormBiasTensor)
+	return appendIndexedTensorNames(names, file, "v.blk", spec.Layers, []string{
+		"ln1.weight", "ln2.weight", "attn_q.weight", "attn_k.weight", "attn_v.weight",
+		"attn_out.weight", "ffn_up.weight", "ffn_gate.weight", "ffn_down.weight",
+	}, []string{
+		"ln1.bias", "ln2.bias", "attn_q.bias", "attn_k.bias", "attn_v.bias",
+		"attn_out.bias", "ffn_up.bias", "ffn_gate.bias", "ffn_down.bias",
+	})
 }
 
 func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
-	for _, name := range spec.TensorNames {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fmt.Errorf("projector: missing tensor %q", name)
-		}
-		if err := tensorcatalog.ValidateInfo(info, tensorcatalog.Requirement{
-			Ranks: []uint32{tensor.SingletonExtent, tensor.PairedExtent, tensor.TripleExtent, tensor.MaxDimensions},
-		}); err != nil {
-			return fmt.Errorf("projector: tensor %q rank %d is invalid", name, info.Dimensions)
-		}
+	if err := validateProjectorTensorNames(file, spec.TensorNames); err != nil {
+		return err
 	}
 	grid := uint64(spec.ImageSize / spec.PatchSize)
 	position, _ := file.Tensor("v.sam.pos_embd.weight")
@@ -325,13 +302,4 @@ func (r *DeepSeekOCR2Runner) validateGraphs() error {
 		}
 	}
 	return nil
-}
-
-func (r *DeepSeekOCR2Runner) imagePromptProgram() compiledImagePromptProgram {
-	return compiledImagePromptProgram{
-		Default: delimitedImagePromptPlan(
-			"DeepSeek-OCR-2", DeepSeekOCRImagePad, "DeepSeek-OCR-2 placeholder", true, r.spec.OutputHidden, "", "",
-		),
-		Encode: referenceImageEncoder(r.EncodeImage),
-	}
 }

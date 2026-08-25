@@ -33,6 +33,31 @@ func TestCanonicalCatalogOwnership(t *testing.T) {
 	}
 }
 
+func TestOvergoDBRuntimeAuthority(t *testing.T) {
+	root := t.TempDir()
+	legacy := filepath.Join(root, "repodb.log")
+	if err := os.WriteFile(legacy, []byte("external legacy input"), storeFileMode); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, storeFilename)); err != nil {
+		t.Fatalf("current store log is absent: %v", err)
+	}
+	data, err := os.ReadFile(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "external legacy input" {
+		t.Fatalf("legacy import source was modified: %q", data)
+	}
+}
+
 func TestLineageIndexesReferenceCanonicalEdges(t *testing.T) {
 	state := newCatalogState()
 	batch := fixtureBatch(t)

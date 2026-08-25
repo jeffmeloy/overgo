@@ -10,15 +10,16 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/graphruntime"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
 
-// cudaVAERunner binds a fresh worker+executor and returns a GraphRunner plus a
+// cudaVAERunner binds a fresh worker+executor and returns a graph runner plus a
 // peak-device-bytes reader. The worker is caller-owned so MemoryStats reports
 // the decode's high-water mark.
-func cudaVAERunner(t *testing.T) (GraphRunner, func() uint64, func()) {
+func cudaVAERunner(t *testing.T) (graphruntime.Runner, func() uint64, func()) {
 	t.Helper()
 	worker, err := device.New(0)
 	if err != nil {
@@ -37,7 +38,7 @@ func cudaVAERunner(t *testing.T) (GraphRunner, func() uint64, func()) {
 		stats, _ := worker.MemoryStats(context.Background())
 		return stats.PeakBytes
 	}
-	return GraphRunner(run), peak, func() { exec.Close(); worker.Close() }
+	return run, peak, func() { exec.Close(); worker.Close() }
 }
 
 // TestVAEProgramCUDAMatchesReference proves the QwenImage spatial decode graph
@@ -59,7 +60,7 @@ func TestVAEProgramCUDAMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileVAEProgram: %v", err)
 	}
-	want, _, _, err := prog.DecodeGraph(GraphRunner(reference.Execute), d.LatentsMean, d.LatentsStd, z)
+	want, _, _, err := prog.DecodeGraph(reference.Execute, d.LatentsMean, d.LatentsStd, z)
 	if err != nil {
 		t.Fatalf("reference DecodeGraph: %v", err)
 	}

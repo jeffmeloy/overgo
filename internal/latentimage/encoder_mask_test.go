@@ -151,7 +151,7 @@ func TestEncoderProgramMaskedMatchesHostReference(t *testing.T) {
 		t.Fatalf("CompileEncoderProgramMasked: %v", err)
 	}
 	weightAt := func(name string) ([]float32, error) { return store[name], nil }
-	got, err := prog.RunHostFeed(GraphRunner(reference.Execute), weightAt, f32slice(embed))
+	got, err := prog.RunHostFeed(reference.Execute, weightAt, f32slice(embed))
 	if err != nil {
 		t.Fatalf("masked program RunHostFeed: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestEncoderProgramMaskedMatchesHostReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileEncoderProgram: %v", err)
 	}
-	plain, err := maskless.RunHostFeed(GraphRunner(reference.Execute), weightAt, f32slice(embed))
+	plain, err := maskless.RunHostFeed(reference.Execute, weightAt, f32slice(embed))
 	if err != nil {
 		t.Fatalf("maskless RunHostFeed: %v", err)
 	}

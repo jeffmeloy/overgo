@@ -138,7 +138,7 @@ func (r *CogVLMVisionRunner) EncodeImage(ctx context.Context, source image.Image
 	return r.encodeGraph(ctx, pixels)
 }
 
-func (r *CogVLMVisionRunner) imagePromptProgram() compiledImagePromptProgram {
+func compileCogVLMImagePrompt(r *CogVLMVisionRunner) compiledImagePromptProgram {
 	return compiledImagePromptProgram{Custom: func(
 		ctx context.Context,
 		tokenizerAPI ImageTokenizer,

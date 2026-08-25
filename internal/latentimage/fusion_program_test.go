@@ -62,7 +62,7 @@ func TestFusionProgramMatchesHostReference(t *testing.T) {
 		t.Fatalf("CompileFusionProgram: %v", err)
 	}
 	weightAt := func(name string) ([]float32, error) { return store[name], nil }
-	got, err := prog.RunHostFeed(GraphRunner(reference.Execute), weightAt, f32slice(enc))
+	got, err := prog.RunHostFeed(reference.Execute, weightAt, f32slice(enc))
 	if err != nil {
 		t.Fatalf("program RunHostFeed: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestFusionProgramMatchesHostReference(t *testing.T) {
 	}
 
 	// determinism: identical replay.
-	got2, err := prog.RunHostFeed(GraphRunner(reference.Execute), weightAt, f32slice(enc))
+	got2, err := prog.RunHostFeed(reference.Execute, weightAt, f32slice(enc))
 	if err != nil {
 		t.Fatalf("program RunHostFeed(2): %v", err)
 	}

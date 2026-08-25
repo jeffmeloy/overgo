@@ -18,27 +18,27 @@ func TestGenerationRetainedPrefixDirectBinding(t *testing.T) {
 	prefixKey := b.Input("prefix-key", dtype.F32, tensor.MustShape(1))
 	prefixValue := b.Input("prefix-value", dtype.F32, tensor.MustShape(1))
 	output := b.Add(b.Add(row, prefixKey), prefixValue)
-	compiled, err := executor.Compile(output)
+	indexed, err := executor.CompileIndexed(output)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rowSlot, _ := compiled.InputSlot(row)
-	keySlot, _ := compiled.InputSlot(prefixKey)
-	valueSlot, _ := compiled.InputSlot(prefixValue)
+	rowSlot, _ := indexed.Graph.InputSlot(row)
+	keySlot, _ := indexed.Graph.InputSlot(prefixKey)
+	valueSlot, _ := indexed.Graph.InputSlot(prefixValue)
 	graph := &DeviceGenerationLayerGraph{
 		Row: row, PrefixKey: prefixKey, PrefixValue: prefixValue,
 		Vision: DevicePrefillBranch{},
 	}
 	branch := &generationStackBranch{
-		graph: graph, inputs: branchInputProgram{inputs: compiled.NewDeviceInputs()},
+		IndexedGraph: indexed, graph: graph,
 		prefixKey: keySlot, prefixValue: valueSlot,
 		prefixKeys: []driver.DevicePtr{11, 12}, prefixValues: []driver.DevicePtr{21, 22},
 		row: 31,
 	}
-	branch.inputs.inputs.Pointers[rowSlot] = branch.row
+	branch.Inputs.Pointers[rowSlot] = branch.row
 	branch.bindPrefix(1)
-	if branch.inputs.inputs.Pointers[keySlot] != 12 || branch.inputs.inputs.Pointers[valueSlot] != 22 || branch.inputs.inputs.Pointers[rowSlot] != 31 {
-		t.Fatalf("generation inputs=%v", branch.inputs.inputs.Pointers)
+	if branch.Inputs.Pointers[keySlot] != 12 || branch.Inputs.Pointers[valueSlot] != 22 || branch.Inputs.Pointers[rowSlot] != 31 {
+		t.Fatalf("generation inputs=%v", branch.Inputs.Pointers)
 	}
 }
 

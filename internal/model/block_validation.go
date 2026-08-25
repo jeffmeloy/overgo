@@ -7,25 +7,12 @@ import (
 	"overgo/internal/tensor"
 )
 
-type graphWeight struct {
-	name  string
-	value *tensor.Tensor
-}
-
-type graphWeights []graphWeight
-
-func requireGraphWeight(name string, value *tensor.Tensor) graphWeight {
-	return graphWeight{name: name, value: value}
-}
-
-func (w *graphWeights) add(name string, value *tensor.Tensor) {
-	*w = append(*w, requireGraphWeight(name, value))
-}
+type graphWeights []*tensor.Tensor
 
 func (w graphWeights) validate(scope string) error {
-	for _, weight := range w {
-		if weight.value == nil {
-			return fmt.Errorf("%s %s weight is nil", scope, weight.name)
+	for slot, weight := range w {
+		if weight == nil {
+			return fmt.Errorf("%s weight slot %d is nil", scope, slot)
 		}
 	}
 	return nil

@@ -35,7 +35,7 @@ func TestSenseNovaGenerationLayerGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	compiled, err := executor.Compile(graph.Output)
+	indexed, err := executor.CompileIndexed(graph.Output)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,13 +95,12 @@ func TestSenseNovaGenerationLayerGraph(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	inputs := compiled.NewDeviceInputs()
 	for node, pointer := range feeds {
-		if err := inputs.Set(node, pointer); err != nil {
+		if err := indexed.Inputs.Set(node, pointer); err != nil {
 			t.Fatal(err)
 		}
 	}
-	result, err := cuda.ExecuteCompiled(context.Background(), compiled, nil, inputs)
+	result, err := cuda.ExecuteCompiled(context.Background(), indexed.Graph, nil, indexed.Inputs)
 	if err != nil {
 		t.Fatal(err)
 	}

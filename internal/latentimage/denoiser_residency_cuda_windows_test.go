@@ -56,7 +56,7 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 	ctx := context.Background()
 	outputs := append(append([]*tensor.Tensor(nil), prog.BlockOutputs...), prog.Velocity)
 	rd := newResidentFixture(t, ctx, "test denoiser", filepath.Join(dir, "transformer"), prog.weightInputs, outputs...)
-	t.Logf("resident weights uploaded: %.2f GiB", float64(rd.graph.bytes)/(1<<30))
+	t.Logf("resident weights uploaded: %.2f GiB", float64(rd.graph.ProgramBytes())/(1<<30))
 
 	src, err := safetensors.OpenSource(dir + `\transformer`)
 	if err != nil {

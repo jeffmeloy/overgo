@@ -25,10 +25,8 @@ type DenoiserCUDASession struct {
 	weightAllocs device.AllocationSet
 	WeightBytes  uint64
 
-	contextCompiled *executor.CompiledGraph
-	stepCompiled    *executor.CompiledGraph
-	contextInputs   *executor.DeviceInputs
-	stepInputs      *executor.DeviceInputs
+	contextCompiled *executor.IndexedGraph
+	stepCompiled    *executor.IndexedGraph
 	stepCrossSlots  []crossInputSlots
 
 	headBuffer  *executor.DeviceBuffer
@@ -76,23 +74,21 @@ func NewDenoiserCUDASession(program *DenoiserProgram, ordinal int) (session *Den
 			session = nil
 		}
 	}()
-	session.contextCompiled, err = executor.Compile(contextGraphOutputs(program)...)
+	session.contextCompiled, err = executor.CompileIndexed(contextGraphOutputs(program)...)
 	if err != nil {
 		return session, fmt.Errorf("denoiser session context graph: %w", err)
 	}
-	session.stepCompiled, err = executor.Compile(program.Head)
+	session.stepCompiled, err = executor.CompileIndexed(program.Head)
 	if err != nil {
 		return session, fmt.Errorf("denoiser session step graph: %w", err)
 	}
-	session.contextInputs = session.contextCompiled.NewDeviceInputs()
-	session.stepInputs = session.stepCompiled.NewDeviceInputs()
 	if err = session.uploadWeights(); err != nil {
 		return session, err
 	}
 	session.stepCrossSlots = make([]crossInputSlots, len(program.stepCrossKeys))
 	for layer := range program.stepCrossKeys {
-		key, keyOK := session.stepCompiled.InputSlot(program.stepCrossKeys[layer])
-		value, valueOK := session.stepCompiled.InputSlot(program.stepCrossValues[layer])
+		key, keyOK := session.stepCompiled.Graph.InputSlot(program.stepCrossKeys[layer])
+		value, valueOK := session.stepCompiled.Graph.InputSlot(program.stepCrossValues[layer])
 		if !keyOK || !valueOK {
 			return session, fmt.Errorf("denoiser session cross input layer %d is not compiled", layer)
 		}
@@ -110,7 +106,7 @@ func NewDenoiserCUDASession(program *DenoiserProgram, ordinal int) (session *Den
 	if err != nil {
 		return session, err
 	}
-	session.headTargets = session.stepCompiled.NewRetainedTargets()
+	session.headTargets = session.stepCompiled.Graph.NewRetainedTargets()
 	if err = session.headTargets.Set(program.Head, headValue); err != nil {
 		return session, err
 	}
@@ -127,58 +123,61 @@ func contextGraphOutputs(program *DenoiserProgram) []*tensor.Tensor {
 	return outputs
 }
 
-// uploadWeights: unique names; declared storage type.
+// uploadWeights binds each loaded tensor once across both programs.
 func (s *DenoiserCUDASession) uploadWeights() error {
-	type upload struct {
-		name string
-		node *tensor.Tensor
-	}
-	var uploads []upload
-	seen := make(map[string]*tensor.Tensor)
-	for _, inputs := range []map[string]*tensor.Tensor{s.Program.stepWeightInputs, s.Program.contextWeightInputs} {
-		for name, node := range inputs {
-			if prior, ok := seen[name]; ok {
-				if prior.Type != node.Type || !prior.Shape.Equal(node.Shape) {
-					return fmt.Errorf("denoiser session weight %s: graphs disagree on storage", name)
-				}
-				continue
-			}
-			seen[name] = node
-			uploads = append(uploads, upload{name: name, node: node})
+	want := len(s.Program.stepWeightInputs)
+	for _, node := range s.Program.contextWeightInputs {
+		if s.Program.stepWeightInputs.Node(node.Name) == nil {
+			want++
 		}
 	}
-	for _, item := range uploads {
-		data := s.Program.weights.tensor(item.name)
-		elements, err := item.node.Shape.Elements()
+	bound := 0
+	for name, data := range s.Program.weights.values {
+		contextNode := s.Program.contextWeightInputs.Node(name)
+		stepNode := s.Program.stepWeightInputs.Node(name)
+		node := stepNode
+		if node == nil {
+			node = contextNode
+		}
+		if node == nil {
+			continue
+		}
+		bound++
+		if contextNode != nil && !tensor.Compatible(contextNode, node) {
+			return fmt.Errorf("denoiser session weight %s: graphs disagree on storage", name)
+		}
+		elements, err := node.Shape.Elements()
 		if err != nil || uint64(len(data)) != elements {
-			return fmt.Errorf("denoiser session weight %s: have %d elements, need %d", item.name, len(data), elements)
+			return fmt.Errorf("denoiser session weight %s: have %d elements, need %d", name, len(data), elements)
 		}
-		payload, err := encodeWeightPayload(data, item.node.Type)
+		payload, err := encodeWeightPayload(data, node.Type)
 		if err != nil {
-			return fmt.Errorf("denoiser session weight %s: %w", item.name, err)
+			return fmt.Errorf("denoiser session weight %s: %w", name, err)
 		}
 		pointer, err := s.weightAllocs.Upload(s.ctx, payload)
 		if err != nil {
-			return fmt.Errorf("denoiser session upload %s: %w", item.name, err)
+			return fmt.Errorf("denoiser session upload %s: %w", name, err)
 		}
 		s.WeightBytes += uint64(len(payload))
 		for _, binding := range [...]struct {
-			compiled *executor.CompiledGraph
-			inputs   *executor.DeviceInputs
-			node     *tensor.Tensor
+			program *executor.IndexedGraph
+			node    *tensor.Tensor
 		}{
-			{s.contextCompiled, s.contextInputs, s.Program.contextWeightInputs[item.name]},
-			{s.stepCompiled, s.stepInputs, s.Program.stepWeightInputs[item.name]},
+			{s.contextCompiled, contextNode},
+			{s.stepCompiled, stepNode},
 		} {
 			if binding.node == nil {
 				continue
 			}
-			slot, ok := binding.compiled.InputSlot(binding.node)
+			slot, ok := binding.program.Graph.InputSlot(binding.node)
 			if !ok {
-				return fmt.Errorf("denoiser session weight %s is not compiled", item.name)
+				return fmt.Errorf("denoiser session weight %s is not compiled", name)
 			}
-			binding.inputs.Pointers[slot] = pointer
+			binding.program.Inputs.Pointers[slot] = pointer
 		}
+	}
+	if bound != want {
+		return fmt.Errorf("denoiser session bound %d weights, need %d", bound, want)
 	}
 	return nil
 }
@@ -205,15 +204,15 @@ func (s *DenoiserCUDASession) ProjectBranchContext(context []float32) (any, erro
 		return nil, err
 	}
 	hostFeeds := map[*tensor.Tensor]reference.Value{s.Program.contextInput: value}
-	retained, err := s.cuda.ExecuteRetainedCompiled(s.ctx, s.contextCompiled, hostFeeds, s.contextInputs, nil, nil)
+	retained, err := s.cuda.ExecuteRetainedCompiled(s.ctx, s.contextCompiled.Graph, hostFeeds, s.contextCompiled.Inputs, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("denoiser session context projection: %w", err)
 	}
 	branch := &sessionBranchContext{
 		retained: retained,
-		inputs:   s.stepCompiled.NewDeviceInputs(),
+		inputs:   s.stepCompiled.Graph.NewDeviceInputs(),
 	}
-	copy(branch.inputs.Pointers, s.stepInputs.Pointers)
+	copy(branch.inputs.Pointers, s.stepCompiled.Inputs.Pointers)
 	for layer := range s.Program.stepCrossKeys {
 		key, keyOK := retained.Value(s.Program.contextKeys[layer])
 		val, valueOK := retained.Value(s.Program.contextValues[layer])
@@ -252,7 +251,7 @@ func (s *DenoiserCUDASession) ForwardHead(patchTokens, blockE, headE []float32, 
 		hostFeeds[feed.node] = value
 	}
 	retained, err := s.cuda.ExecuteRetainedCompiled(
-		s.ctx, s.stepCompiled, hostFeeds, branch.inputs, s.headTargets, nil,
+		s.ctx, s.stepCompiled.Graph, hostFeeds, branch.inputs, s.headTargets, nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("denoiser session step execution: %w", err)
@@ -306,8 +305,8 @@ func (s *DenoiserCUDASession) ReleaseDenoiseResources() error {
 		s.headBuffer = nil
 	}
 	errs = append(errs, s.weightAllocs.Close(s.ctx))
-	s.contextInputs = nil
-	s.stepInputs = nil
+	s.contextCompiled.Inputs = nil
+	s.stepCompiled.Inputs = nil
 	s.stepCrossSlots = nil
 	return errors.Join(errs...)
 }

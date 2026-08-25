@@ -141,7 +141,7 @@ func TestResolveModelPathPrefersExistingThenRoots(t *testing.T) {
 	}
 }
 
-func TestLegacyStoreGuardRefusesSilentNewAuthority(t *testing.T) {
+func TestOvergoDBRuntimeAuthority(t *testing.T) {
 	base := t.TempDir()
 	t.Setenv(Env, base)
 	legacy := filepath.Join(base, "repodb-store")
@@ -151,32 +151,12 @@ func TestLegacyStoreGuardRefusesSilentNewAuthority(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(legacy, "repodb.log"), []byte("legacy"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Resolve(t.TempDir()); err == nil {
-		t.Fatal("resolution minted a new empty authority beside an unmigrated legacy store")
-	}
-	current := filepath.Join(base, "overgodb-store")
-	if err := os.MkdirAll(current, 0o700); err != nil {
+	roots, err := Resolve(t.TempDir())
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(current, "overgodb.log"), []byte("current"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Resolve(t.TempDir()); err != nil {
-		t.Fatalf("migrated store refused: %v", err)
-	}
-}
-
-func TestLegacyStoreGuardAcceptsLegacyNamedCurrentStore(t *testing.T) {
-	base := t.TempDir()
-	t.Setenv(Env, base)
-	current := filepath.Join(base, "overgodb-store")
-	if err := os.MkdirAll(current, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(current, "repodb.log"), []byte("renamed-dir legacy-file"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Resolve(t.TempDir()); err != nil {
-		t.Fatalf("legacy-named log inside the current root refused: %v", err)
+	want := filepath.Join(base, "overgodb-store")
+	if roots.Store != want {
+		t.Fatalf("store = %q, want %q", roots.Store, want)
 	}
 }

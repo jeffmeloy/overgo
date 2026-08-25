@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/textcheck"
 )
 
 const (
@@ -104,9 +103,9 @@ func workLeaseAlias(worktree string) string {
 }
 
 func canonicalizeWorkLease(value *WorkLease) error {
-	if value == nil || value.Version != workLeaseVersion || !textcheck.Bounded(value.Task, 2048, "\x00\r\n") ||
-		!textcheck.Bounded(value.Worktree, 2048, "\x00\r\n") || strings.Contains(value.Worktree, "\\") ||
-		!textcheck.Bounded(value.Branch, 2048, "\x00\r\n") || !textcheck.Bounded(value.Role, 2048, "\x00\r\n") || !validCommit(value.TargetHead) ||
+	if value == nil || value.Version != workLeaseVersion || !validAutomationText(value.Task) ||
+		!validAutomationText(value.Worktree) || strings.Contains(value.Worktree, "\\") ||
+		!validAutomationText(value.Branch) || !validAutomationText(value.Role) || !validCommit(value.TargetHead) ||
 		value.Resources.CPUThreads <= 0 || value.Resources.HostRAMGiB <= 0 || value.Resources.VRAMGiB < 0 ||
 		value.Resources.GPUExclusive && value.Resources.VRAMGiB == 0 {
 		return errors.New("plan: invalid work lease")
@@ -122,7 +121,7 @@ func canonicalizeWorkLease(value *WorkLease) error {
 	sort.Strings(value.ConflictsWith)
 	value.ConflictsWith = slices.Compact(value.ConflictsWith)
 	for _, item := range value.ConflictsWith {
-		if !textcheck.Bounded(item, 2048, "\x00\r\n") {
+		if !validAutomationText(item) {
 			return errors.New("plan: invalid work lease conflict")
 		}
 	}

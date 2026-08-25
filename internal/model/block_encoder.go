@@ -31,7 +31,7 @@ func buildBidirectionalEncoderAttentionMix(
 		return DenseBlockResult{}, errors.New("bidirectional projection does not support a KV cache")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention output", weights.AttentionOutput),
+		weights.AttentionOutput,
 	}
 	if err := required.validate("bidirectional encoder attention"); err != nil {
 		return DenseBlockResult{}, err
@@ -101,12 +101,12 @@ func buildEncoderFeedForwardMix(
 	required := graphWeights{}
 	usesExperts := encoder.usesExperts() && weights.FeedForwardRouter != nil
 	if usesExperts {
-		required.add("feed-forward router", weights.FeedForwardRouter)
-		required.add("feed-forward expert up", weights.FeedForwardUpExperts)
-		required.add("feed-forward expert down", weights.FeedForwardDownExperts)
+		required = append(required, weights.FeedForwardRouter)
+		required = append(required, weights.FeedForwardUpExperts)
+		required = append(required, weights.FeedForwardDownExperts)
 	} else {
-		required.add("feed-forward up", weights.FeedForwardUp)
-		required.add("feed-forward down", weights.FeedForwardDown)
+		required = append(required, weights.FeedForwardUp)
+		required = append(required, weights.FeedForwardDown)
 	}
 	if err := required.validate("encoder feed-forward"); err != nil {
 		return nil, err
@@ -182,11 +182,11 @@ func buildBidirectionalFusedQKVMix(
 		return DenseBlockResult{}, errors.New("fused-QKV sliding attention does not support a KV cache")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention QKV", weights.AttentionQKV),
-		requireGraphWeight("attention output", weights.AttentionOutput),
+		weights.AttentionQKV,
+		weights.AttentionOutput,
 	}
 	if layerIndex > tensor.FirstOffset {
-		required.add("attention norm", weights.AttentionNorm)
+		required = append(required, weights.AttentionNorm)
 	}
 	if err := required.validate("fused-QKV sliding attention"); err != nil {
 		return DenseBlockResult{}, err
@@ -265,16 +265,16 @@ func buildBidirectionalQKNormMix(
 		return DenseBlockResult{}, errors.New("fused QKV bias has no fused projection")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("attention Q norm", weights.AttentionQNorm),
-		requireGraphWeight("attention K norm", weights.AttentionKNorm),
+		weights.AttentionOutput,
+		weights.AttentionQNorm,
+		weights.AttentionKNorm,
 	}
 	if weights.AttentionQKV != nil {
-		required.add("attention QKV", weights.AttentionQKV)
+		required = append(required, weights.AttentionQKV)
 	} else {
-		required.add("attention Q", weights.AttentionQ)
-		required.add("attention K", weights.AttentionK)
-		required.add("attention V", weights.AttentionV)
+		required = append(required, weights.AttentionQ)
+		required = append(required, weights.AttentionK)
+		required = append(required, weights.AttentionV)
 	}
 	if err := required.validate("bidirectional Q/K-normalized attention"); err != nil {
 		return DenseBlockResult{}, err
@@ -342,15 +342,15 @@ func buildCausalPostQKNormMixCached(
 		return DenseBlockResult{}, errors.New("Talkie fused QKV bias has no fused projection")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("attention Q norm", weights.AttentionQNorm),
+		weights.AttentionOutput,
+		weights.AttentionQNorm,
 	}
 	if weights.AttentionQKV != nil {
-		required.add("attention QKV", weights.AttentionQKV)
+		required = append(required, weights.AttentionQKV)
 	} else {
-		required.add("attention Q", weights.AttentionQ)
-		required.add("attention K", weights.AttentionK)
-		required.add("attention V", weights.AttentionV)
+		required = append(required, weights.AttentionQ)
+		required = append(required, weights.AttentionK)
+		required = append(required, weights.AttentionV)
 	}
 	if err := required.validate("causal post-Q/K-normalized attention"); err != nil {
 		return DenseBlockResult{}, err
@@ -415,9 +415,9 @@ func buildRelativeFeedForwardMix(
 	weights LayerGraphWeights,
 ) (*tensor.Tensor, error) {
 	required := graphWeights{
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
+		weights.FeedForwardNorm,
+		weights.FeedForwardUp,
+		weights.FeedForwardDown,
 	}
 	if err := required.validate("relative feed-forward"); err != nil {
 		return nil, err
@@ -453,11 +453,11 @@ func buildRelativeSelfAttentionMix(
 		return DenseBlockResult{}, errors.New("bidirectional relative attention does not support a cache")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention Q", weights.AttentionQ),
-		requireGraphWeight("attention K", weights.AttentionK),
-		requireGraphWeight("attention V", weights.AttentionV),
-		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("attention relative bias", weights.AttentionRelativeBias),
+		weights.AttentionQ,
+		weights.AttentionK,
+		weights.AttentionV,
+		weights.AttentionOutput,
+		weights.AttentionRelativeBias,
 	}
 	if err := required.validate("relative self-attention"); err != nil {
 		return DenseBlockResult{}, err
@@ -518,10 +518,10 @@ func buildCrossAttentionMix(
 		return DenseBlockResult{}, errors.New("cross-attention encoder state is nil")
 	}
 	required := graphWeights{
-		requireGraphWeight("cross-attention Q", weights.CrossAttentionQ),
-		requireGraphWeight("cross-attention K", weights.CrossAttentionK),
-		requireGraphWeight("cross-attention V", weights.CrossAttentionV),
-		requireGraphWeight("cross-attention output", weights.CrossAttentionOutput),
+		weights.CrossAttentionQ,
+		weights.CrossAttentionK,
+		weights.CrossAttentionV,
+		weights.CrossAttentionOutput,
 	}
 	if err := required.validate("cross-attention"); err != nil {
 		return DenseBlockResult{}, err

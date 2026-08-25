@@ -857,6 +857,12 @@ type CompiledGraph struct {
 	attentionScoreBytes uint64
 }
 
+// IndexedGraph owns compiled topology and indexed device inputs.
+type IndexedGraph struct {
+	Graph  *CompiledGraph
+	Inputs *DeviceInputs
+}
+
 type compiledNode struct {
 	operandOffset int
 	fusion        *compiledFusion
@@ -1115,6 +1121,23 @@ func CompileExternal(outputs ...*tensor.Tensor) (*CompiledGraph, error) {
 		return nil, err
 	}
 	return CompileExternalProgram(program)
+}
+
+// CompileIndexed compiles managed outputs and allocates indexed inputs.
+func CompileIndexed(outputs ...*tensor.Tensor) (*IndexedGraph, error) {
+	return indexedGraph(Compile(outputs...))
+}
+
+// CompileExternalIndexed compiles caller-owned outputs and indexed inputs.
+func CompileExternalIndexed(outputs ...*tensor.Tensor) (*IndexedGraph, error) {
+	return indexedGraph(CompileExternal(outputs...))
+}
+
+func indexedGraph(graph *CompiledGraph, err error) (*IndexedGraph, error) {
+	if err != nil {
+		return nil, err
+	}
+	return &IndexedGraph{Graph: graph, Inputs: graph.NewDeviceInputs()}, nil
 }
 
 // CompileProgram plans one validated neutral tensor program for CUDA.

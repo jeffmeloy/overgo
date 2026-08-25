@@ -57,7 +57,7 @@ func TestEncoderProgramMatchesHostReference(t *testing.T) {
 		}
 	}
 	weightAt := func(name string) ([]float32, error) { return store[name], nil }
-	got, err := prog.RunHostFeed(GraphRunner(reference.Execute), weightAt, f32slice(embed))
+	got, err := prog.RunHostFeed(reference.Execute, weightAt, f32slice(embed))
 	if err != nil {
 		t.Fatalf("program RunHostFeed: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestEncoderProgramMatchesHostReference(t *testing.T) {
 	}
 
 	// determinism: identical replay.
-	got2, err := prog.RunHostFeed(GraphRunner(reference.Execute), weightAt, f32slice(embed))
+	got2, err := prog.RunHostFeed(reference.Execute, weightAt, f32slice(embed))
 	if err != nil {
 		t.Fatalf("program RunHostFeed(2): %v", err)
 	}

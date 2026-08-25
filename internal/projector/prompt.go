@@ -63,6 +63,8 @@ type AttentionBlock struct {
 
 type Projector interface {
 	Close() error
+	setPrompt(promptDispatch)
+	compiledPrompt() promptDispatch
 }
 
 type PromptOptions struct {
@@ -216,15 +218,29 @@ func embeddingTokenIndices(starts, counts []int, offset int) []uint32 {
 }
 
 type projectorDescriptor struct {
-	kind  string
-	media []recipe.DataKind
-	open  func(context.Context, *gguf.File, OpenOptions) (Projector, error)
+	kind   string
+	media  []recipe.DataKind
+	open   func(context.Context, *gguf.File, OpenOptions) (Projector, error)
+	prompt func(Projector) promptDispatch
 }
 
-func describeProjector[T Projector](kind string, open func(context.Context, *gguf.File, OpenOptions) (T, error), media ...recipe.DataKind) projectorDescriptor {
-	return projectorDescriptor{kind: kind, media: slices.Clone(media), open: func(ctx context.Context, file *gguf.File, options OpenOptions) (Projector, error) {
-		return open(ctx, file, options)
+func describeProjector[T Projector](
+	kind string,
+	open func(context.Context, *gguf.File, OpenOptions) (T, error),
+	prompt func(T) promptDispatch,
+	media ...recipe.DataKind,
+) projectorDescriptor {
+	descriptor := projectorDescriptor{kind: kind, media: slices.Clone(media), open: func(ctx context.Context, file *gguf.File, options OpenOptions) (Projector, error) {
+		opened, err := open(ctx, file, options)
+		if err == nil && prompt != nil {
+			opened.setPrompt(prompt(opened))
+		}
+		return opened, err
 	}}
+	if prompt != nil {
+		descriptor.prompt = func(source Projector) promptDispatch { return prompt(source.(T)) }
+	}
+	return descriptor
 }
 
 func describeCatalogProjector[S any, T Projector](
@@ -233,33 +249,58 @@ func describeCatalogProjector[S any, T Projector](
 	read func(*gguf.File) (S, error),
 	validate func(*gguf.File, S) ([]string, error),
 	build func(*gguf.File, S, *projectorCUDA) T,
+	prompt func(T) promptDispatch,
 	media ...recipe.DataKind,
 ) projectorDescriptor {
 	return describeProjector(kind, func(ctx context.Context, file *gguf.File, options OpenOptions) (T, error) {
 		return buildCatalogProjector(ctx, file, options, label, excluded, read, validate, build)
-	}, media...)
+	}, prompt, media...)
+}
+
+func promptPrograms[T Projector](
+	imageProgram func(T) compiledImagePromptProgram,
+	mediaProgram func(T) compiledMediaPromptProgram,
+) func(T) promptDispatch {
+	return func(source T) promptDispatch {
+		dispatch := promptDispatch{}
+		if imageProgram != nil {
+			dispatch.images = imageProgram(source).execute
+		}
+		if mediaProgram != nil {
+			program := mediaProgram(source)
+			dispatch.video = program.Video
+			dispatch.audio = program.Audio
+			dispatch.audioSampleRate = program.AudioSampleRate
+			dispatch.media = program.History
+		}
+		return dispatch
+	}
 }
 
 var projectorCatalog = []projectorDescriptor{
-	describeProjector(deepSeekOCR2ProjectorType, openDeepSeekOCR2, recipe.DataImage),
-	describeProjector(deepSeekOCRProjectorType, openDeepSeekOCR, recipe.DataImage),
+	describeProjector(deepSeekOCR2ProjectorType, openDeepSeekOCR2, promptPrograms(func(r *DeepSeekOCR2Runner) compiledImagePromptProgram {
+		return compileDelimitedImagePromptProgram("DeepSeek-OCR-2", DeepSeekOCRImagePad, r.spec.OutputHidden, referenceImageEncoder(r.EncodeImage))
+	}, nil), recipe.DataImage),
+	describeProjector(deepSeekOCRProjectorType, openDeepSeekOCR, promptPrograms(func(r *DeepSeekOCRRunner) compiledImagePromptProgram {
+		return compileDelimitedImagePromptProgram("DeepSeek-OCR", DeepSeekOCRImagePad, r.spec.OutputHidden, referenceImageEncoder(r.EncodeImage))
+	}, nil), recipe.DataImage),
 	describeCatalogProjector(cogVLMProjectorType, "CogVLM", nil, ReadCogVLMVisionSpec, validateCogVLMVisionCatalog,
 		func(file *gguf.File, spec CogVLMVisionSpec, cuda *projectorCUDA) *CogVLMVisionRunner {
 			return &CogVLMVisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
-		}, recipe.DataImage),
-	describeProjector(gemma3nVisionProjectorType, openGemma3nVision, recipe.DataImage),
+		}, promptPrograms(compileCogVLMImagePrompt, nil), recipe.DataImage),
+	describeProjector(gemma3nVisionProjectorType, openGemma3nVision, promptPrograms(compileGemma3nVisionImagePrompt, nil), recipe.DataImage),
 	describeCatalogProjector(mimoVLProjectorType, "MiMo-VL", nil, ReadMiMoVLSpec, validateMiMoVLCatalog,
 		func(file *gguf.File, spec MiMoVLSpec, cuda *projectorCUDA) *MiMoVLRunner {
 			return &MiMoVLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		}, recipe.DataImage),
+		}, promptPrograms(compileMiMoVLImagePrompt, nil), recipe.DataImage),
 	describeCatalogProjector(granite4VisionProjectorType, "Granite 4 Vision", nil, ReadGranite4VisionSpec, validateGranite4VisionCatalog,
 		func(file *gguf.File, spec Granite4VisionSpec, cuda *projectorCUDA) *Granite4VisionRunner {
 			return &Granite4VisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
-		}, recipe.DataImage),
+		}, promptPrograms(compileGranite4VisionImagePrompt, nil), recipe.DataImage),
 	describeCatalogProjector(llama4ProjectorType, "Llama-4", nil, ReadLlama4VisionSpec, validateLlama4VisionCatalog,
 		func(file *gguf.File, spec Llama4VisionSpec, cuda *projectorCUDA) *Llama4VisionRunner {
 			return &Llama4VisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
-		}, recipe.DataImage),
+		}, promptPrograms(compileLlama4VisionImagePrompt, nil), recipe.DataImage),
 	describeCatalogProjector(hunyuanVLProjectorType, "Hunyuan-VL", nil, ReadHunyuanVLSpec, validateHunyuanVLCatalog,
 		func(file *gguf.File, spec HunyuanVLSpec, cuda *projectorCUDA) *HunyuanVLRunner {
 			runner := &HunyuanVLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
@@ -269,7 +310,7 @@ var projectorCatalog = []projectorDescriptor{
 				execute:   runner.encodeGraph,
 			}
 			return runner
-		}, recipe.DataImage),
+		}, promptPrograms(compileHunyuanVLImagePrompt, nil), recipe.DataImage),
 	describeCatalogProjector(paddleOCRProjectorType, "PaddleOCR", nil, ReadPaddleOCRSpec, validatePaddleOCRCatalog,
 		func(file *gguf.File, spec PaddleOCRSpec, cuda *projectorCUDA) *PaddleOCRRunner {
 			runner := &PaddleOCRRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}
@@ -279,27 +320,27 @@ var projectorCatalog = []projectorDescriptor{
 				execute:   runner.encodeGraph,
 			}
 			return runner
-		}, recipe.DataImage),
+		}, promptPrograms(compilePaddleOCRImagePrompt, nil), recipe.DataImage),
 	describeCatalogProjector(qwen2VLProjectorType, "Qwen2-VL", nil, ReadQwen2VLSpec, validateQwen2VLCatalog,
 		func(file *gguf.File, spec Qwen2VLSpec, cuda *projectorCUDA) *Qwen2VLRunner {
 			return &Qwen2VLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		}, recipe.DataImage, recipe.DataVideo),
+		}, promptPrograms(compileQwen2VLImagePrompt, compileQwen2VLMediaPrompt), recipe.DataImage, recipe.DataVideo),
 	describeCatalogProjector(qwen3VLProjectorType, "Qwen3-VL", nil, ReadQwen3VLSpec, validateQwen3VLCatalog,
 		func(file *gguf.File, spec Qwen3VLSpec, cuda *projectorCUDA) *Qwen3VLRunner {
 			return &Qwen3VLRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		}, recipe.DataImage, recipe.DataVideo),
+		}, promptPrograms(compileQwen3VLImagePrompt, compileQwen3VLMediaPrompt), recipe.DataImage, recipe.DataVideo),
 	describeCatalogProjector(gemma4UVProjectorType, "Gemma 4", []string{"mm.a.input_projection.weight"}, ReadGemma4Spec, validateGemma4Catalog,
 		func(file *gguf.File, spec Gemma4Spec, cuda *projectorCUDA) *Gemma4Runner {
 			return &Gemma4Runner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		}, recipe.DataImage, recipe.DataAudio, recipe.DataVideo),
+		}, promptPrograms(compileGemma4ImagePrompt, compileGemma4MediaPrompt), recipe.DataImage, recipe.DataAudio, recipe.DataVideo),
 	describeCatalogProjector(gemma4UAProjectorType, "Gemma 4", []string{"mm.a.input_projection.weight"}, ReadGemma4Spec, validateGemma4Catalog,
 		func(file *gguf.File, spec Gemma4Spec, cuda *projectorCUDA) *Gemma4Runner {
 			return &Gemma4Runner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec}
-		}, recipe.DataImage, recipe.DataAudio, recipe.DataVideo),
+		}, promptPrograms(compileGemma4ImagePrompt, compileGemma4MediaPrompt), recipe.DataImage, recipe.DataAudio, recipe.DataVideo),
 	describeCatalogProjector(gemma4VisionTowerProjectorType, "Gemma 4 tower", nil, ReadGemma4TowerSpec, validateGemma4TowerCatalog,
 		func(file *gguf.File, spec Gemma4TowerSpec, cuda *projectorCUDA) *Gemma4TowerRunner {
 			return &Gemma4TowerRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, audioPlan: newAudioFrontendPlan(spec.Audio)}
-		}),
+		}, nil),
 }
 
 func OpenAs[T Projector](ctx context.Context, path string, options OpenOptions) (T, error) {
@@ -406,7 +447,7 @@ func resolveProjectorDescriptor(file *gguf.File) (projectorDescriptor, error) {
 	return projectorDescriptor{}, fmt.Errorf("projector: artifact projector type %q is unsupported", projectorType)
 }
 
-func (r *Granite4VisionRunner) imagePromptProgram() compiledImagePromptProgram {
+func compileGranite4VisionImagePrompt(r *Granite4VisionRunner) compiledImagePromptProgram {
 	encode := func(ctx context.Context, source image.Image) (imagePromptItem, error) {
 		output, err := r.EncodeImage(ctx, source)
 		if err != nil {
@@ -431,7 +472,7 @@ func (r *Granite4VisionRunner) imagePromptProgram() compiledImagePromptProgram {
 	}, promptDelimiters{}, encode)
 }
 
-func (r *Llama4VisionRunner) imagePromptProgram() compiledImagePromptProgram {
+func compileLlama4VisionImagePrompt(r *Llama4VisionRunner) compiledImagePromptProgram {
 	encode := func(ctx context.Context, source image.Image) (imagePromptItem, error) {
 		output, err := r.EncodeImage(ctx, source)
 		if err != nil {
@@ -448,7 +489,7 @@ func (r *Llama4VisionRunner) imagePromptProgram() compiledImagePromptProgram {
 	}, promptDelimiters{Prefix: Llama4ImageStart, Suffix: Llama4ImageEnd}, encode)
 }
 
-func (r *HunyuanVLRunner) imagePromptProgram() compiledImagePromptProgram {
+func compileHunyuanVLImagePrompt(r *HunyuanVLRunner) compiledImagePromptProgram {
 	return compileFramedImagePromptProgram(imagePromptPlan{
 		Family: "Hunyuan-VL", Placeholder: HunyuanVLImagePad, PlaceholderLabel: "Hunyuan-VL placeholder",
 		EmbeddingWidth: r.spec.OutputHidden, Positions: hunyuanImagePromptPositions,
@@ -457,7 +498,7 @@ func (r *HunyuanVLRunner) imagePromptProgram() compiledImagePromptProgram {
 	}, promptDelimiters{Prefix: HunyuanVLImageStart, Suffix: HunyuanVLImageEnd}, gridImagePromptEncoder(r.EncodeImage))
 }
 
-func (r *PaddleOCRRunner) imagePromptProgram() compiledImagePromptProgram {
+func compilePaddleOCRImagePrompt(r *PaddleOCRRunner) compiledImagePromptProgram {
 	compile := func(history bool) imagePromptPlan {
 		return imagePromptPlan{
 			Family: "PaddleOCR", Placeholder: PaddleOCRImagePad, PlaceholderLabel: "PaddleOCR placeholder",
@@ -494,7 +535,7 @@ func (r *PaddleOCRRunner) imagePromptProgram() compiledImagePromptProgram {
 	}
 }
 
-func (r *MiMoVLRunner) imagePromptProgram() compiledImagePromptProgram {
+func compileMiMoVLImagePrompt(r *MiMoVLRunner) compiledImagePromptProgram {
 	encode := func(ctx context.Context, source image.Image) (imagePromptItem, error) {
 		output, err := r.EncodeImage(ctx, source)
 		if err != nil {
@@ -511,14 +552,14 @@ func (r *MiMoVLRunner) imagePromptProgram() compiledImagePromptProgram {
 	}, promptDelimiters{Prefix: "<|vision_start|>", Suffix: "<|vision_end|>"}, encode)
 }
 
-func (r *Qwen2VLRunner) imagePromptProgram() compiledImagePromptProgram {
+func compileQwen2VLImagePrompt(r *Qwen2VLRunner) compiledImagePromptProgram {
 	return compileSpatialChatImagePromptProgram(
 		"Qwen2-VL", r.spec.OutputHidden, "<|im_end|>\n<|im_start|>assistant\n", "",
 		spatialGridImagePromptEncoder(r.EncodeImage),
 	)
 }
 
-func (r *Qwen2VLRunner) mediaPromptProgram() compiledMediaPromptProgram {
+func compileQwen2VLMediaPrompt(r *Qwen2VLRunner) compiledMediaPromptProgram {
 	return compiledMediaPromptProgram{Video: func(
 		ctx context.Context,
 		tokenizer ImageTokenizer,
@@ -554,7 +595,7 @@ func (r *Qwen2VLRunner) mediaPromptProgram() compiledMediaPromptProgram {
 	}}
 }
 
-func (r *Gemma4Runner) imagePromptProgram() compiledImagePromptProgram {
+func compileGemma4ImagePrompt(r *Gemma4Runner) compiledImagePromptProgram {
 	compile := func(history bool) imagePromptPlan {
 		return imagePromptPlan{
 			Family: "Gemma 4", Placeholder: "<|image|>", PlaceholderLabel: "Gemma 4 image placeholder",
@@ -611,7 +652,7 @@ func (r *Gemma4Runner) imagePromptProgram() compiledImagePromptProgram {
 	}
 }
 
-func (r *Gemma4Runner) mediaPromptProgram() compiledMediaPromptProgram {
+func compileGemma4MediaPrompt(r *Gemma4Runner) compiledMediaPromptProgram {
 	history := mixedMediaPromptPlan{
 		Family: "Gemma 4", AddSpecial: true, EmbeddingWidth: r.spec.Hidden, PromptLabel: "Gemma 4 media history",
 		Render: renderMixedMediaHistory,
@@ -733,7 +774,7 @@ func Gemma4VideoPromptText(question string, frames, tokensPerFrame int, fps floa
 	return prompt.String()
 }
 
-func (r *Qwen3VLRunner) imagePromptProgram() compiledImagePromptProgram {
+func compileQwen3VLImagePrompt(r *Qwen3VLRunner) compiledImagePromptProgram {
 	baseSuffix := "<|im_end|>\n<|im_start|>assistant\n<think>\n"
 	return compileSpatialChatImagePromptProgram(
 		"Qwen3-VL", r.spec.OutputHidden, baseSuffix+"\n</think>\n\n", baseSuffix,
@@ -741,7 +782,7 @@ func (r *Qwen3VLRunner) imagePromptProgram() compiledImagePromptProgram {
 	)
 }
 
-func (r *Qwen3VLRunner) mediaPromptProgram() compiledMediaPromptProgram {
+func compileQwen3VLMediaPrompt(r *Qwen3VLRunner) compiledMediaPromptProgram {
 	return compiledMediaPromptProgram{Video: func(
 		ctx context.Context,
 		tokenizer ImageTokenizer,

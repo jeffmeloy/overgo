@@ -7,35 +7,36 @@ import (
 	"fmt"
 	"testing"
 
+	"overgo/internal/graphruntime"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 )
 
 type residentFixture struct {
-	runtime *residentRuntime
-	graph   *residentGraph
+	runtime *graphruntime.ResidentSession
+	graph   *graphruntime.ResidentProgram
 }
 
 func newResidentFixture(
 	t *testing.T,
 	ctx context.Context,
 	label, source string,
-	inputs map[string]*tensor.Tensor,
+	inputs tensor.WeightBindings,
 	outputs ...*tensor.Tensor,
 ) *residentFixture {
 	t.Helper()
-	runtime, err := newResidentRuntime(0)
+	runtime, err := graphruntime.NewResidentSession(0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	graph, err := runtime.compile(ctx, label, source, inputs, nil, outputs...)
+	graph, err := compileResidentWeights(ctx, runtime, label, source, inputs, nil, outputs...)
 	if err != nil {
-		_ = runtime.close(ctx)
+		_ = runtime.Close(ctx)
 		t.Fatal(err)
 	}
 	fixture := &residentFixture{runtime: runtime, graph: graph}
 	t.Cleanup(func() {
-		if err := fixture.runtime.close(ctx); err != nil {
+		if err := fixture.runtime.Close(ctx); err != nil {
 			t.Errorf("close resident fixture: %v", err)
 		}
 	})
@@ -48,7 +49,7 @@ func (f *residentFixture) execute(
 	feeds map[*tensor.Tensor]reference.Value,
 ) map[*tensor.Tensor]reference.Value {
 	t.Helper()
-	results, err := f.runtime.execute(ctx, f.graph, feeds)
+	results, err := f.runtime.Execute(ctx, f.graph, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}

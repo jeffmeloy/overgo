@@ -11,6 +11,8 @@ import (
 	"overgo/internal/media"
 )
 
+const syntheticEpsilon = 1e-5
+
 // syntheticSpec builds a tiny but structurally faithful TransformerSpec that
 // satisfies every Krea2 constraint (hidden=heads*head_dim, sum(rope axes)=
 // head_dim, text_hidden=text_heads*head_dim, GQA divisibility) so the exact

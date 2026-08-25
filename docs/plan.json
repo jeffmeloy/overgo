@@ -3303,12 +3303,12 @@
       "id": "indexed-graph-runtime",
       "title": "Make indexed bindings the sole graph runtime feed contract",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Make indexed bindings the sole graph runtime feed contract",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/graphruntime -run '^TestCompiledFeedsUseIndexedInputs$' -count=1"
         }
       ]

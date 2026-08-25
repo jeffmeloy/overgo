@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -13,109 +14,353 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-// ResidentGraph: compiled topology plus device-owned static F32 inputs.
-type ResidentGraph struct {
+type residentBinding struct {
+	source string
+	name   string
+	type_  dtype.Type
+	shape  tensor.Shape
+}
+
+type residentAllocation struct {
+	key     residentBinding
+	pointer driver.DevicePtr
+	bytes   uint64
+	refs    int
+}
+
+// ResidentSession owns one device context and shared immutable inputs.
+type ResidentSession struct {
 	worker      *device.Worker
 	executor    *executor.Executor
-	allocations device.AllocationSet
-	compiled    *executor.CompiledGraph
-	inputs      *executor.DeviceInputs
+	byBinding   map[residentBinding]int
+	allocations []residentAllocation
 	staticBytes uint64
 }
 
-func NewResidentGraph(
-	ctx context.Context,
-	ordinal int,
-	static map[*tensor.Tensor]reference.Value,
-	outputs ...*tensor.Tensor,
-) (*ResidentGraph, error) {
-	compiled, err := executor.Compile(outputs...)
-	if err != nil {
-		return nil, fmt.Errorf("resident graph: compile: %w", err)
-	}
-	worker, err := device.New(ordinal)
-	if err != nil {
-		return nil, err
-	}
-	runtime := &ResidentGraph{
-		worker: worker, compiled: compiled, inputs: compiled.NewDeviceInputs(),
-	}
-	runtime.allocations = device.NewAllocationSet(worker)
-	runtime.executor, err = executor.NewWithWorker(worker)
-	if err != nil {
-		_ = worker.Close()
-		return nil, err
-	}
-	for node, value := range static {
-		if node == nil || node.Type != dtype.F32 || node.Shape != value.Shape {
-			err = errors.New("resident graph: static F32 input shape differs")
-			break
-		}
-		slot, ok := compiled.InputSlot(node)
-		if !ok || runtime.inputs.Pointers[slot] != 0 {
-			err = fmt.Errorf("resident graph: static input %q is invalid", node.Name)
-			break
-		}
-		var pointer driver.DevicePtr
-		pointer, err = runtime.allocations.Upload(ctx, driver.Bytes(value.Data))
-		if err != nil {
-			break
-		}
-		runtime.inputs.Pointers[slot] = pointer
-		runtime.staticBytes += uint64(len(value.Data)) * 4
-	}
-	if err == nil {
-		err = runtime.executor.PrepareCompiled(ctx, compiled)
-	}
-	if err != nil {
-		return nil, errors.Join(err, runtime.Close(context.Background()))
-	}
-	return runtime, nil
+// ResidentProgram owns compiled topology and indexed input slots.
+type ResidentProgram struct {
+	compiled *executor.CompiledGraph
+	inputs   *executor.DeviceInputs
+	dynamic  []executor.InputSlot
+	weights  []int
+	bytes    uint64
 }
 
+// ResidentStats reports session-owned device storage and execution.
 type ResidentStats struct {
 	StaticBytes uint64
 	Device      driver.MemoryStats
 	Execution   driver.ExecutionStats
 }
 
-func (runtime *ResidentGraph) Stats(ctx context.Context) (ResidentStats, error) {
-	if runtime == nil || runtime.worker == nil {
-		return ResidentStats{}, errors.New("resident graph: runtime is unavailable")
+// NewResidentSession opens one shared resident device session.
+func NewResidentSession(ordinal int) (*ResidentSession, error) {
+	worker, err := device.New(ordinal)
+	if err != nil {
+		return nil, err
 	}
-	stats, err := runtime.worker.MemoryStats(ctx)
+	runtime, err := executor.NewWithWorker(worker)
+	if err != nil {
+		_ = worker.Close()
+		return nil, err
+	}
+	return &ResidentSession{
+		worker: worker, executor: runtime, byBinding: make(map[residentBinding]int),
+	}, nil
+}
+
+// Compile fixes one graph and its dynamic input order.
+func (s *ResidentSession) Compile(
+	ctx context.Context,
+	label string,
+	dynamic []*tensor.Tensor,
+	outputs ...*tensor.Tensor,
+) (*ResidentProgram, error) {
+	if s == nil || s.worker == nil || s.executor == nil {
+		return nil, errors.New("resident session is unavailable")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	program, err := compileResidentProgram(label, dynamic, outputs)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.executor.PrepareCompiled(ctx, program.compiled); err != nil {
+		return nil, fmt.Errorf("%s: prepare: %w", label, err)
+	}
+	return program, nil
+}
+
+func compileResidentProgram(label string, dynamic, outputs []*tensor.Tensor) (*ResidentProgram, error) {
+	compiled, err := executor.Compile(outputs...)
+	if err != nil {
+		return nil, fmt.Errorf("%s: compile: %w", label, err)
+	}
+	program := &ResidentProgram{
+		compiled: compiled, inputs: compiled.NewDeviceInputs(),
+		dynamic: make([]executor.InputSlot, len(dynamic)),
+	}
+	for index, input := range dynamic {
+		slot, ok := compiled.InputSlot(input)
+		if !ok {
+			return nil, fmt.Errorf("%s: dynamic input is not compiled", label)
+		}
+		program.dynamic[index] = slot
+	}
+	return program, nil
+}
+
+// Bind uploads or reuses one immutable program input.
+func (s *ResidentSession) Bind(
+	ctx context.Context,
+	program *ResidentProgram,
+	source string,
+	name string,
+	node *tensor.Tensor,
+	payload func() ([]byte, error),
+) error {
+	if s == nil || s.byBinding == nil || program == nil || program.compiled == nil || node == nil {
+		return errors.New("resident binding is unavailable")
+	}
+	slot, ok := program.compiled.InputSlot(node)
+	if !ok || checked.Nonzero(program.inputs.Pointers[slot]) {
+		return errors.New("resident static input is invalid")
+	}
+	bytes, err := node.Shape.Bytes(node.Type)
+	if err != nil {
+		return err
+	}
+	key := residentBinding{source: source, name: name, type_: node.Type, shape: node.Shape}
+	allocationIndex, found := s.byBinding[key]
+	var pointer driver.DevicePtr
+	if found {
+		pointer = s.allocations[allocationIndex].pointer
+	} else {
+		data, loadErr := payload()
+		if loadErr != nil {
+			return loadErr
+		}
+		if uint64(len(data)) != bytes {
+			return fmt.Errorf("resident payload = %d bytes, want %d", len(data), bytes)
+		}
+		if err := s.worker.Do(ctx, func(state *device.State) error {
+			allocated, allocErr := state.Driver.MemAlloc(bytes)
+			if allocErr != nil {
+				return allocErr
+			}
+			if copyErr := state.Driver.MemcpyHtoD(allocated, data); copyErr != nil {
+				return errors.Join(copyErr, state.Driver.MemFree(allocated))
+			}
+			pointer = allocated
+			return nil
+		}); err != nil {
+			return err
+		}
+		allocationIndex = len(s.allocations)
+		s.byBinding[key] = allocationIndex
+		s.allocations = append(s.allocations, residentAllocation{key: key, pointer: pointer, bytes: bytes})
+		s.staticBytes += bytes
+	}
+	program.inputs.Pointers[slot] = pointer
+	program.weights = append(program.weights, allocationIndex)
+	s.allocations[allocationIndex].refs++
+	program.bytes += bytes
+	return nil
+}
+
+// BindF32 binds one immutable F32 input.
+func (s *ResidentSession) BindF32(
+	ctx context.Context,
+	program *ResidentProgram,
+	source string,
+	node *tensor.Tensor,
+	values []float32,
+) error {
+	if node == nil || node.Type != dtype.F32 {
+		return errors.New("resident static input must be F32")
+	}
+	return s.Bind(ctx, program, source, node.Name, node, func() ([]byte, error) {
+		return driver.Bytes(values), nil
+	})
+}
+
+// Execute runs with indexed static inputs and host dynamic inputs.
+func (s *ResidentSession) Execute(
+	ctx context.Context,
+	program *ResidentProgram,
+	host map[*tensor.Tensor]reference.Value,
+) (map[*tensor.Tensor]reference.Value, error) {
+	if s == nil || s.executor == nil || program == nil || program.compiled == nil {
+		return nil, errors.New("resident execution is unavailable")
+	}
+	return s.executor.ExecuteCompiled(ctx, program.compiled, host, program.inputs)
+}
+
+// ExecuteDevice runs with temporary indexed device inputs.
+func (s *ResidentSession) ExecuteDevice(
+	ctx context.Context,
+	program *ResidentProgram,
+	host map[*tensor.Tensor]reference.Value,
+	pointers []driver.DevicePtr,
+) (map[*tensor.Tensor]reference.Value, error) {
+	if err := program.bindDynamic(pointers); err != nil {
+		return nil, err
+	}
+	defer program.clearDynamic(len(pointers))
+	return s.Execute(ctx, program, host)
+}
+
+// Retain runs with temporary device inputs and retains outputs.
+func (s *ResidentSession) Retain(
+	ctx context.Context,
+	program *ResidentProgram,
+	host map[*tensor.Tensor]reference.Value,
+	pointers []driver.DevicePtr,
+) (*executor.RetainedOutputs, error) {
+	if s == nil || s.executor == nil || program == nil || program.compiled == nil {
+		return nil, errors.New("resident execution is unavailable")
+	}
+	if err := program.bindDynamic(pointers); err != nil {
+		return nil, err
+	}
+	defer program.clearDynamic(len(pointers))
+	return s.executor.ExecuteRetainedCompiled(ctx, program.compiled, host, program.inputs, nil, nil)
+}
+
+// Release drops program references and frees unshared inputs.
+func (s *ResidentSession) Release(ctx context.Context, programs ...*ResidentProgram) error {
+	if s == nil || s.worker == nil {
+		return errors.New("resident session is unavailable")
+	}
+	return s.worker.Do(ctx, func(state *device.State) error {
+		var errs []error
+		for _, program := range programs {
+			if program == nil {
+				continue
+			}
+			for _, allocationIndex := range program.weights {
+				allocation := &s.allocations[allocationIndex]
+				allocation.refs--
+				if allocation.refs > 0 {
+					continue
+				}
+				if checked.Nonzero(allocation.pointer) {
+					errs = append(errs, state.Driver.MemFree(allocation.pointer))
+				}
+				if allocation.bytes <= s.staticBytes {
+					s.staticBytes -= allocation.bytes
+				}
+				delete(s.byBinding, allocation.key)
+				*allocation = residentAllocation{}
+			}
+			program.compiled = nil
+			program.inputs = nil
+			program.dynamic = nil
+			program.weights = nil
+			program.bytes = uint64(tensor.FirstOffset)
+		}
+		return errors.Join(errs...)
+	})
+}
+
+// Seal drops deduplication metadata after all programs bind.
+func (s *ResidentSession) Seal() {
+	if s == nil {
+		return
+	}
+	s.byBinding = nil
+	for index := range s.allocations {
+		s.allocations[index].key = residentBinding{}
+	}
+}
+
+// ProgramBytes returns static bytes referenced by one program.
+func (p *ResidentProgram) ProgramBytes() uint64 {
+	if p == nil {
+		return uint64(tensor.FirstOffset)
+	}
+	return p.bytes
+}
+
+// StaticBytes returns unique immutable device storage.
+func (s *ResidentSession) StaticBytes() uint64 {
+	if s == nil {
+		return uint64(tensor.FirstOffset)
+	}
+	return s.staticBytes
+}
+
+// Do runs one operation in the session device context.
+func (s *ResidentSession) Do(ctx context.Context, operation func(*device.State) error) error {
+	if s == nil || s.worker == nil || operation == nil {
+		return errors.New("resident device operation is unavailable")
+	}
+	return s.worker.Do(ctx, operation)
+}
+
+func (p *ResidentProgram) bindDynamic(pointers []driver.DevicePtr) error {
+	if p == nil || p.inputs == nil || len(pointers) != len(p.dynamic) {
+		return errors.New("resident dynamic inputs do not match compiled slots")
+	}
+	for index, pointer := range pointers {
+		slot := p.dynamic[index]
+		if !checked.Nonzero(pointer) || checked.Nonzero(p.inputs.Pointers[slot]) {
+			p.clearDynamic(index)
+			return errors.New("resident dynamic input is invalid")
+		}
+		p.inputs.Pointers[slot] = pointer
+	}
+	return nil
+}
+
+func (p *ResidentProgram) clearDynamic(count int) {
+	for index := range min(count, len(p.dynamic)) {
+		p.inputs.Pointers[p.dynamic[index]] = driver.DevicePtr(tensor.FirstOffset)
+	}
+}
+
+// Stats returns session allocation and execution evidence.
+func (s *ResidentSession) Stats(ctx context.Context) (ResidentStats, error) {
+	if s == nil || s.worker == nil {
+		return ResidentStats{}, errors.New("resident session is unavailable")
+	}
+	deviceStats, err := s.worker.MemoryStats(ctx)
 	if err != nil {
 		return ResidentStats{}, err
 	}
-	execution, err := runtime.worker.ExecutionStats(ctx)
-	return ResidentStats{StaticBytes: runtime.staticBytes, Device: stats, Execution: execution}, err
+	executionStats, err := s.worker.ExecutionStats(ctx)
+	return ResidentStats{StaticBytes: s.staticBytes, Device: deviceStats, Execution: executionStats}, err
 }
 
-func (runtime *ResidentGraph) Execute(
-	ctx context.Context,
-	dynamic map[*tensor.Tensor]reference.Value,
-) (map[*tensor.Tensor]reference.Value, error) {
-	if runtime == nil || runtime.executor == nil || runtime.compiled == nil {
-		return nil, errors.New("resident graph: runtime is unavailable")
-	}
-	return runtime.executor.ExecuteCompiled(ctx, runtime.compiled, dynamic, runtime.inputs)
-}
-
-func (runtime *ResidentGraph) Close(ctx context.Context) error {
-	if runtime == nil {
+// Close releases all resident resources.
+func (s *ResidentSession) Close(ctx context.Context) error {
+	if s == nil {
 		return nil
 	}
-	var result error
-	if runtime.executor != nil {
-		result = errors.Join(result, runtime.executor.Close())
-		runtime.executor = nil
+	var errs []error
+	if s.executor != nil {
+		errs = append(errs, s.executor.Close())
+		s.executor = nil
 	}
-	if runtime.worker != nil {
-		result = errors.Join(result, runtime.allocations.Close(ctx), runtime.worker.Close())
-		runtime.worker = nil
+	if s.worker != nil && len(s.allocations) != 0 {
+		errs = append(errs, s.worker.Do(ctx, func(state *device.State) error {
+			var freeErrors []error
+			for index := range s.allocations {
+				if pointer := s.allocations[index].pointer; checked.Nonzero(pointer) {
+					freeErrors = append(freeErrors, state.Driver.MemFree(pointer))
+				}
+				s.allocations[index] = residentAllocation{}
+			}
+			return errors.Join(freeErrors...)
+		}))
 	}
-	runtime.compiled = nil
-	runtime.inputs = nil
-	runtime.staticBytes = 0
-	return result
+	if s.worker != nil {
+		errs = append(errs, s.worker.Close())
+		s.worker = nil
+	}
+	s.allocations = nil
+	s.byBinding = nil
+	s.staticBytes = uint64(tensor.FirstOffset)
+	return errors.Join(errs...)
 }

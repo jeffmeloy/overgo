@@ -13,7 +13,8 @@ import (
 )
 
 type ResidentForward struct {
-	runtime *graphruntime.ResidentGraph
+	session *graphruntime.ResidentSession
+	program *graphruntime.ResidentProgram
 	input   *tensor.Tensor
 	output  *tensor.Tensor
 	image   imageGeometry
@@ -78,18 +79,31 @@ func CompileResidentForward(ctx context.Context, model *Model, ordinal, imageHei
 	if err := graph.err("resident forward"); err != nil {
 		return nil, err
 	}
-	runtime, err := graphruntime.NewResidentGraph(ctx, ordinal, graph.static, output)
+	session, err := graphruntime.NewResidentSession(ordinal)
 	if err != nil {
 		return nil, err
 	}
+	program, err := session.Compile(ctx, "diffusion image resident forward", []*tensor.Tensor{input}, output)
+	if err == nil {
+		for node, value := range graph.static {
+			err = session.BindF32(ctx, program, "diffusionimage:"+node.Name, node, value.Data)
+			if err != nil {
+				break
+			}
+		}
+	}
+	if err != nil {
+		return nil, errors.Join(err, session.Close(context.Background()))
+	}
+	session.Seal()
 	return &ResidentForward{
-		runtime: runtime, input: input, output: output,
+		session: session, program: program, input: input, output: output,
 		image: imageGeometry{channels: model.Cfg.InChannels, height: imageHeight, width: imageWidth},
 	}, nil
 }
 
 func (forward *ResidentForward) Execute(ctx context.Context, input []float32) ([]float32, error) {
-	if forward == nil || forward.runtime == nil || len(input) != forward.image.channels*forward.image.height*forward.image.width {
+	if forward == nil || forward.session == nil || len(input) != forward.image.channels*forward.image.height*forward.image.width {
 		return nil, errors.New("diffusionimage: resident forward input mismatch")
 	}
 	graphInput := nchwToGraphImage(input, forward.image.channels, forward.image.height, forward.image.width)
@@ -97,7 +111,7 @@ func (forward *ResidentForward) Execute(ctx context.Context, input []float32) ([
 	if err != nil {
 		return nil, err
 	}
-	result, err := forward.runtime.Execute(ctx, map[*tensor.Tensor]reference.Value{forward.input: value})
+	result, err := forward.session.Execute(ctx, forward.program, map[*tensor.Tensor]reference.Value{forward.input: value})
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +119,7 @@ func (forward *ResidentForward) Execute(ctx context.Context, input []float32) ([
 }
 
 func (forward *ResidentForward) Sample(ctx context.Context, steps int, seed int64) ([]float32, error) {
-	if forward == nil || forward.runtime == nil || steps <= 0 {
+	if forward == nil || forward.session == nil || steps <= 0 {
 		return nil, errors.New("diffusionimage: resident sample request is invalid")
 	}
 	rng := rand.New(rand.NewSource(seed))
@@ -127,17 +141,18 @@ func (forward *ResidentForward) Sample(ctx context.Context, steps int, seed int6
 }
 
 func (forward *ResidentForward) Stats(ctx context.Context) (graphruntime.ResidentStats, error) {
-	if forward == nil || forward.runtime == nil {
+	if forward == nil || forward.session == nil {
 		return graphruntime.ResidentStats{}, errors.New("diffusionimage: resident forward is unavailable")
 	}
-	return forward.runtime.Stats(ctx)
+	return forward.session.Stats(ctx)
 }
 
 func (forward *ResidentForward) Close(ctx context.Context) error {
-	if forward == nil || forward.runtime == nil {
+	if forward == nil || forward.session == nil {
 		return nil
 	}
-	err := forward.runtime.Close(ctx)
-	forward.runtime = nil
+	err := forward.session.Close(ctx)
+	forward.session = nil
+	forward.program = nil
 	return err
 }

@@ -3332,12 +3332,12 @@
       "id": "gui-workflow-dag",
       "title": "Live workflow DAG from stage receipts: node states colored, waiting nodes linked into the inbox",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "DAG projection and view",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestWorkflowDAG -count=1"
         }
       ]

@@ -662,6 +662,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		request.URL.Path == "/compositions/generate" ||
 		request.URL.Path == "/operations" ||
 		request.URL.Path == "/operations/inbox" ||
+		request.URL.Path == "/operations/dag" ||
 		request.URL.Path == "/operations/cancel" ||
 		request.URL.Path == "/operations/decision" ||
 		request.URL.Path == "/operations/wait" ||
@@ -789,6 +790,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.operationStatus(response, request)
 	case "/operations/inbox":
 		h.operationInbox(response, request)
+	case "/operations/dag":
+		h.operationDAG(response, request)
 	case "/operations/cancel":
 		h.operationCancel(response, request)
 	case "/operations/decision":

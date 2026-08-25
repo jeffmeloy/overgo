@@ -126,12 +126,38 @@
 		}
 	  }
 
+	  const dagHost = el("div");
+	  // The DAG view is the recipe graph joined with durable stage
+	  // receipts: each node badged by its lifecycle state, waiting nodes
+	  // pointing at the Inbox where their decision lives.
+	  async function renderDAG(operation) {
+		try {
+		  const dag = await overgo.api.get("/operations/dag?id=" + encodeURIComponent(operation));
+		  const nodes = el("div", { class: "row" });
+		  for (const node of dag.nodes || []) {
+			const stateClass = node.state === "failed" ? "tag tag-danger"
+			  : node.state === "completed" ? "tag user_defined" : "tag control";
+			nodes.append(el("div", { class: "card" },
+			  el("div", { class: "mono", text: node.id }),
+			  el("div", { class: "note", text: node.module }),
+			  el("span", { class: stateClass, text: node.state + (node.failure ? " / " + node.failure : "") }),
+			  node.state === "waiting" ? el("div", { class: "note", text: "decision waits in the Inbox" }) : ""));
+		  }
+		  const edges = el("div", { class: "note" },
+			(dag.edges || []).map((edge) => edge.from + " → " + edge.to).join("   "));
+		  dagHost.replaceChildren(
+			el("div", { class: "section-title", text: "Workflow " + fmt.shortID(operation) }), nodes, edges);
+		} catch (err) {
+		  error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
+		}
+	  }
+
 	  function renderOperations() {
 		const table = el("table", { class: "grid" });
 		table.appendChild(el("tr", {},
 		  el("th", { text: "state" }), el("th", { text: "task" }), el("th", { text: "recipe" }),
 		  el("th", { text: "progress" }), el("th", { text: "attempts" }), el("th", { text: "run" }),
-		  el("th", { text: "outputs" }), el("th", { text: "failure" }), el("th", { text: "decision" })));
+		  el("th", { text: "outputs" }), el("th", { text: "failure" }), el("th", { text: "decision" }), el("th", { text: "dag" })));
 		for (const item of current.values()) {
 		  const progress = item.progress || {};
 		  const actions = item.recovery && item.recovery.actions || [];
@@ -146,9 +172,10 @@
 			el("td", { class: "mono", text: fmt.grouped((item.attempts || []).length) }),
 			el("td", { class: "mono", text: fmt.shortID(item.run) }),
 			el("td", { class: "mono", text: (item.outputs || []).map(fmt.shortID).join(", ") }),
-			el("td", { text: item.failure || "" }), el("td", {}, decision)));
+			el("td", { text: item.failure || "" }), el("td", {}, decision),
+			el("td", {}, el("button", { class: "btn alt", text: "DAG", onclick: () => renderDAG(item.id) }))));
 		}
-		operations.replaceChildren(table);
+		operations.replaceChildren(table, dagHost);
 	  }
 
       function render(data) {

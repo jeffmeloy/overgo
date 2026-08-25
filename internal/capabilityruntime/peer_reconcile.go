@@ -95,6 +95,19 @@ func validatePeerReconcileRequest(
 		return errors.New("capability runtime: invalid peer reconcile request")
 	}
 	seen := make(map[artifact.ID]struct{}, len(request.Previous))
+	for _, replica := range request.Plan.Replicas {
+		if !replica.Peer.Valid() {
+			continue
+		}
+		authority, err := modelrecipe.ResolvePeerServingAuthority(ctx, reconciler.repository, replica.Peer, request.ChangedUnixNS)
+		if err != nil {
+			return errors.Join(errors.New("capability runtime: remote replica authority is unavailable"), err)
+		}
+		if replica.Environment != authority.Enrollment.Environment || replica.Endpoint != authority.Capability.Endpoint ||
+			replica.Publication != authority.Publication.ID || replica.Heartbeat != authority.Heartbeat.ID {
+			return errors.New("capability runtime: remote replica differs from current peer authority")
+		}
+	}
 	for _, replica := range request.Previous {
 		target, err := peerReplicaTarget(replica)
 		if err != nil {

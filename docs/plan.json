@@ -377,7 +377,7 @@
         {
           "id": "production-verticals",
           "title": "Run real manual and scheduled automation plus remote whole-model placement through active authority, API, GUI projections, operations, restart recovery, and evidence publication",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestOrchestrationProductionVerticals' internal \u0026\u0026 go test ./internal/server ./internal/workflowruntime ./internal/capabilityruntime -run 'TestOrchestrationProductionVerticals|TestOrchestrationRestartRecovery|TestOrchestrationAuthorityRefusals' -count=1",
           "rationale": "Mocks can prove contracts but cannot close the capability campaign. The final verticals must use active definitions and aliases, actual RepoDB persistence, existing operation/workflow owners, one enrolled remote peer, and exact lineage from request to output.",
           "depends_on": [

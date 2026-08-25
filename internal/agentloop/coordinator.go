@@ -62,6 +62,9 @@ func New(store artifact.Repository, executor *agenttool.Executor, identity Ident
 	return &Coordinator{store: store, executor: executor, identity: identity, maxSteps: maxSteps}, nil
 }
 
+// ServingIdentity reports the authorities every recorded step binds.
+func (c *Coordinator) ServingIdentity() Identity { return c.identity }
+
 // Propose admits one tool step: the tool must be store-registered, a
 // mutation must follow at least one completed inspection and carry an
 // exact approval, and the session must have steps left. An admitted

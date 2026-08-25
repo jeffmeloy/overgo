@@ -1,100 +1,16 @@
 {
   "campaign": "Deletion-led production composability, durable agent execution, and OvergoDB tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Modelrecipe owns component sessions; recipe owns topology and policy; workflowruntime owns stage execution; operation owns lifecycle; runrecord and OvergoDB own immutable facts; inference owns model math; server owns protocols and GUI. ADK is a behavior inventory and oracle, never a dependency or second runtime. No second workflow graph, plugin callback mesh, mutable property bag, string branch authority, duplicate session or artifact store, wrapper, fallback, or advisory execution plan. Compact OvergoDB before adding event volume: remove duplicate indexes and payload copies, stream durable writes, expose bounded projected queries, and retain one refreshable browse owner. Each capability wave migrates every caller and deletes the displaced ephemeral owner in the same commit. Retry, concurrency, context, and retention policy derive from recipes, resource plans, requests, or measured evidence. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:dda9e99384fcbc1a5a93e71fa668b571e34f8fd9a50568d03d539d5ebd329ea3",
+  "census_evidence": "evidence:sha256:ea2876c719ad7b5195805ac010c4ea4fc5aaf23a08da444e0b936f65094ceed9",
   "items": [
     {
-      "id": "overgodb-runtime-authority",
-      "title": "Make master OvergoDB the sole runtime store authority",
-      "owner": "tightening",
+      "id": "merge-56ace59f26e1",
+      "title": "Merge master at 56ace59f26e1",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Make master OvergoDB the sole runtime store authority",
-          "status": "done",
-          "verify": "go test ./internal/overgodb ./internal/dataroot -run '^TestOvergoDBRuntimeAuthority$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "indexed-graph-runtime",
-      "title": "Make indexed bindings the sole graph runtime feed contract",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make indexed bindings the sole graph runtime feed contract",
-          "status": "open",
-          "verify": "go test ./internal/graphruntime -run '^TestCompiledFeedsUseIndexedInputs$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "media-indexed-runtime",
-      "title": "Move latent media programs onto indexed graph runtime",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move latent media programs onto indexed graph runtime",
-          "status": "open",
-          "verify": "go test ./internal/latentimage ./internal/latentvideo -run '^TestIndexedMediaProgramBindings$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "projector-prompt-recipe-authority",
-      "title": "Move projector prompt policy into typed recipe programs",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move projector prompt policy into typed recipe programs",
-          "status": "open",
-          "verify": "go test ./internal/projector -run '^TestPromptRecipeProgramsCoverCatalog$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "model-weight-slot-authority",
-      "title": "Make compiled tensor slots own graph weight validation",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make compiled tensor slots own graph weight validation",
-          "status": "open",
-          "verify": "go test ./internal/model -run '^TestCompiledWeightSlotsOwnValidation$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "tightening-authority-closure",
-      "title": "Close indexed runtime and recipe authority tightening",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Close indexed runtime and recipe authority tightening",
-          "status": "open",
-          "verify": "go test ./internal/graphruntime ./internal/latentimage ./internal/latentvideo ./internal/projector ./internal/model -run '^TestTighteningAuthorityClosure$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "merge-f4224b70ae96",
-      "title": "Merge master at f4224b70ae96",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge master at f4224b70ae96",
+          "title": "Merge master at 56ace59f26e1",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
         }
@@ -184,64 +100,16 @@
       ]
     },
     {
-      "id": "wan-vidgen-batches",
-      "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
+      "id": "merge-tightening-closure",
+      "title": "Merge the overgo_tightening literal-authority-closure campaign into master",
       "owner": "gui",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
+          "title": "Merge overgo_tightening (b41a02d4) with imported closure bindings",
           "status": "done",
-          "verify": "go test ./internal/latentvideo -run 'TestEncodeSource|TestDiTTrainer' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "wan-gradient-checkpointing",
-      "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
-          "status": "done",
-          "verify": "go test ./internal/latentvideo -run TestDiTTrainer -count=1",
-          "depends_on": [
-            "wan-vidgen-batches/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "wan-objective-adaptive",
-      "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
-          "status": "done",
-          "verify": "go test ./cmd/training-objective ./internal/trainingprogram -run 'TestObjective' -count=1",
-          "depends_on": [
-            "wan-vidgen-batches/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "research-merge-reconcile",
-      "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
-          "status": "done",
-          "verify": "go build ./... \u0026\u0026 go test ./internal/agentloop ./internal/agenttool ./internal/workflowruntime -count=1"
+          "verify": "go run ./cmd/closure-scan -check-all -require-no-uncatalogued-production -require-no-stale"
         }
       ]
     },
@@ -2752,75 +2620,6 @@
       ]
     },
     {
-      "id": "agent-receipt-before-execution",
-      "title": "Admit a durable operation receipt before a mutation executes, so a side effect never lacks evidence",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Admit a durable operation receipt before a mutation executes, so a side effect never lacks evidence",
-          "status": "done",
-          "verify": "go test ./internal/agentloop -count=1",
-          "depends_on": [
-            "research-merge-reconcile/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "agent-durable-argv-allowlist",
-      "title": "Persist the argv allowlist as store policy checked at publication AND invocation, not only the CLI path",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Persist the argv allowlist as store policy checked at publication AND invocation, not only the CLI path",
-          "status": "done",
-          "verify": "go test ./internal/agenttool ./cmd/agent-tool -count=1",
-          "depends_on": [
-            "research-merge-reconcile/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "agent-durable-mutation-decision",
-      "title": "Mutation approval is a durable decision bound to exact arguments, not a request boolean",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Mutation approval is a durable decision bound to exact arguments, not a request boolean",
-          "status": "done",
-          "verify": "go test ./internal/agentloop -count=1",
-          "depends_on": [
-            "research-merge-reconcile/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "verify-gemma4-fp8-inference",
-      "title": "Verify Gemma-4 FP8 inference leadership",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Verify Gemma-4 FP8 inference leadership",
-          "status": "done",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_GEMMA4_BASELINE=1 go test ./internal/adaptiveparity -run TestGemma4FP8Leadership -count=1",
-          "depends_on": [
-            "gemma4-memory-diagnostic/do",
-            "gemma4-peak-ledger-snapshot/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "merge-06cdd76fa955",
       "title": "Merge master at 06cdd76fa955",
       "status": "done",
@@ -2873,20 +2672,6 @@
       ]
     },
     {
-      "id": "merge-tightening-closure",
-      "title": "Merge the overgo_tightening literal-authority-closure campaign into master",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge overgo_tightening (b41a02d4) with imported closure bindings",
-          "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-all -require-no-uncatalogued-production -require-no-stale"
-        }
-      ]
-    },
-    {
       "id": "update-readme",
       "title": "Refresh README for the merged state: agent workspace, dataset catalog, objective ladder, literal authority closure",
       "owner": "gui",
@@ -2915,6 +2700,54 @@
       ]
     },
     {
+      "id": "wan-vidgen-batches",
+      "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
+          "status": "done",
+          "verify": "go test ./internal/latentvideo -run 'TestEncodeSource|TestDiTTrainer' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "wan-gradient-checkpointing",
+      "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
+          "status": "done",
+          "verify": "go test ./internal/latentvideo -run TestDiTTrainer -count=1",
+          "depends_on": [
+            "wan-vidgen-batches/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wan-objective-adaptive",
+      "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
+          "status": "done",
+          "verify": "go test ./cmd/training-objective ./internal/trainingprogram -run 'TestObjective' -count=1",
+          "depends_on": [
+            "wan-vidgen-batches/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "objective-authority-enforcement",
       "title": "Objective authority fails closed and approved requires committed evidence, not caller assertion",
       "owner": "gui",
@@ -2939,6 +2772,89 @@
           "title": "Snapshot per-size allocation ledger at high-water; diff against the adaptive reference profile",
           "status": "done",
           "verify": "go test ./internal/cuda/driver -run TestMemory -count=1"
+        }
+      ]
+    },
+    {
+      "id": "verify-gemma4-fp8-inference",
+      "title": "Verify Gemma-4 FP8 inference leadership",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Gemma-4 FP8 inference leadership",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_GEMMA4_BASELINE=1 go test ./internal/adaptiveparity -run TestGemma4FP8Leadership -count=1",
+          "depends_on": [
+            "gemma4-memory-diagnostic/do",
+            "gemma4-peak-ledger-snapshot/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "research-merge-reconcile",
+      "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
+          "status": "done",
+          "verify": "go build ./... \u0026\u0026 go test ./internal/agentloop ./internal/agenttool ./internal/workflowruntime -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-receipt-before-execution",
+      "title": "Admit a durable operation receipt before a mutation executes, so a side effect never lacks evidence",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit a durable operation receipt before a mutation executes, so a side effect never lacks evidence",
+          "status": "done",
+          "verify": "go test ./internal/agentloop -count=1",
+          "depends_on": [
+            "research-merge-reconcile/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "agent-durable-argv-allowlist",
+      "title": "Persist the argv allowlist as store policy checked at publication AND invocation, not only the CLI path",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Persist the argv allowlist as store policy checked at publication AND invocation, not only the CLI path",
+          "status": "done",
+          "verify": "go test ./internal/agenttool ./cmd/agent-tool -count=1",
+          "depends_on": [
+            "research-merge-reconcile/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "agent-durable-mutation-decision",
+      "title": "Mutation approval is a durable decision bound to exact arguments, not a request boolean",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Mutation approval is a durable decision bound to exact arguments, not a request boolean",
+          "status": "done",
+          "verify": "go test ./internal/agentloop -count=1",
+          "depends_on": [
+            "research-merge-reconcile/do"
+          ]
         }
       ]
     },
@@ -3366,6 +3282,201 @@
             "no-localai-dependency",
             "magic-closure"
           ]
+        }
+      ]
+    },
+    {
+      "id": "overgodb-runtime-authority",
+      "title": "Make master OvergoDB the sole runtime store authority",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make master OvergoDB the sole runtime store authority",
+          "status": "done",
+          "verify": "go test ./internal/overgodb ./internal/dataroot -run '^TestOvergoDBRuntimeAuthority$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "indexed-graph-runtime",
+      "title": "Make indexed bindings the sole graph runtime feed contract",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make indexed bindings the sole graph runtime feed contract",
+          "status": "open",
+          "verify": "go test ./internal/graphruntime -run '^TestCompiledFeedsUseIndexedInputs$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "media-indexed-runtime",
+      "title": "Move latent media programs onto indexed graph runtime",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move latent media programs onto indexed graph runtime",
+          "status": "open",
+          "verify": "go test ./internal/latentimage ./internal/latentvideo -run '^TestIndexedMediaProgramBindings$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "projector-prompt-recipe-authority",
+      "title": "Move projector prompt policy into typed recipe programs",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move projector prompt policy into typed recipe programs",
+          "status": "open",
+          "verify": "go test ./internal/projector -run '^TestPromptRecipeProgramsCoverCatalog$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "model-weight-slot-authority",
+      "title": "Make compiled tensor slots own graph weight validation",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make compiled tensor slots own graph weight validation",
+          "status": "open",
+          "verify": "go test ./internal/model -run '^TestCompiledWeightSlotsOwnValidation$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tightening-authority-closure",
+      "title": "Close indexed runtime and recipe authority tightening",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Close indexed runtime and recipe authority tightening",
+          "status": "open",
+          "verify": "go test ./internal/graphruntime ./internal/latentimage ./internal/latentvideo ./internal/projector ./internal/model -run '^TestTighteningAuthorityClosure$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "merge-f4224b70ae96",
+      "title": "Merge master at f4224b70ae96",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at f4224b70ae96",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "gui-approval-surface",
+      "title": "Render mutation approval as a decision surface: effect class, exact argument bytes, the committed decision, and the approved-vs-proposed diff on refusal",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Approval decision surface in the agent tab",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-pending-inbox",
+      "title": "One operator inbox over waiting workflow stages and pending mutation approvals, with grant/decline wired to the durable decision chain",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Pending-work inbox view",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1 \u0026\u0026 go test ./internal/workflowruntime -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-step-provenance",
+      "title": "Per-step provenance click-through: interaction, receipt chain, decision, exact manual identity, result artifact",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Provenance walk API and view",
+          "status": "open",
+          "verify": "go test ./internal/server -run \"TestAgentWorkspace|TestAgentProvenance\" -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-workflow-dag",
+      "title": "Live workflow DAG from stage receipts: node states colored, waiting nodes linked into the inbox",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "DAG projection and view",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-session-list",
+      "title": "Durable agent session list: steps used against bound, inspected state, restore and resume",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Session list API and view",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-multimodal-input",
+      "title": "Chat and agent steps accept image, audio, and video attachments through the served protocol content parts under the media policy",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Multimodal attachment input",
+          "status": "open",
+          "verify": "go test ./internal/server -run \"TestChat|TestMultimodal|TestMedia\" -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-multimodal-output",
+      "title": "Generated media renders inline: images, video, and audio from responses and interaction replay, not as opaque artifact ids",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Inline media rendering",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1"
         }
       ]
     }

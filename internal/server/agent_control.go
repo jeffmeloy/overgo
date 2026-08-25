@@ -143,6 +143,8 @@ func (h *Handler) agentControl(response http.ResponseWriter, request *http.Reque
 		writeAgentResult(response, http.StatusOK, active, err)
 	case "/agents/step":
 		h.agentStep(response, request)
+	case "/agents/approval":
+		h.agentApprovalPreview(response, request)
 	case "/agents/chat":
 		h.agentChat(response, request)
 	case "/agents/retrieval":

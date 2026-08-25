@@ -254,7 +254,7 @@ func (c *Coordinator) ApproveMutation(
 	}
 	request, err := operatoraction.NewApprovalRequest(operation, c.identity.Recipe, operatoraction.Action{
 		Code: manual.Name, Summary: "agent mutation " + manual.Name,
-		Argv: []string{manual.ID.String(), string(arguments)},
+		Argv: decisionArguments(manual, arguments),
 	}, prior)
 	if err != nil {
 		return artifact.ID{}, err
@@ -267,6 +267,12 @@ func (c *Coordinator) ApproveMutation(
 		return artifact.ID{}, err
 	}
 	return decision.ID, nil
+}
+
+// decisionArguments is the exact fact set a mutation decision binds:
+// the immutable manual identity and the raw argument bytes.
+func decisionArguments(manual agenttool.Manual, arguments json.RawMessage) []string {
+	return []string{manual.ID.String(), string(arguments)}
 }
 
 // verifyMutationDecision requires the committed grant for this exact
@@ -293,11 +299,65 @@ func (c *Coordinator) verifyMutationDecision(
 	if decision.Answer != operatoraction.AnswerGrant {
 		return fmt.Errorf("agent loop: mutation %q approval decision is %q", manual.Name, decision.Answer)
 	}
-	if decision.Tool != manual.Name ||
-		!slices.Equal(decision.Arguments, []string{manual.ID.String(), string(arguments)}) {
+	if decision.Tool != manual.Name || !slices.Equal(decision.Arguments, decisionArguments(manual, arguments)) {
 		return fmt.Errorf("agent loop: committed decision binds a different tool or arguments for %q", manual.Name)
 	}
 	return nil
+}
+
+// DecisionPreview reports what the mutation gate would see for the
+// session's next step, so an operator decides on the exact facts: the
+// step's derived operation, the manual's identity and effect, the
+// argument bytes a grant would bind, any committed decision, and
+// whether that decision binds these facts.
+type DecisionPreview struct {
+	CallID    string
+	Operation artifact.ID
+	Manual    artifact.ID
+	Tool      string
+	Effect    agenttool.Effect
+	Arguments []string
+	Decision  *runrecord.HumanDecision
+	Binds     bool
+}
+
+// PreviewMutationDecision resolves the committed decision state for
+// the session's next step without publishing or executing anything.
+func (c *Coordinator) PreviewMutationDecision(
+	ctx context.Context,
+	session *Session,
+	name string,
+	arguments json.RawMessage,
+) (DecisionPreview, error) {
+	if ctx == nil || session == nil || session.ID == "" {
+		return DecisionPreview{}, errors.New("agent loop: nil context or session")
+	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	manual, err := agenttool.ResolveRegisteredManual(ctx, c.store, name)
+	if err != nil {
+		return DecisionPreview{}, fmt.Errorf("agent loop: refusing preview of unregistered tool: %w", err)
+	}
+	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
+	operation, err := MutationReceiptOperation(callID)
+	if err != nil {
+		return DecisionPreview{}, err
+	}
+	preview := DecisionPreview{
+		CallID: callID, Operation: operation, Manual: manual.ID,
+		Tool: manual.Name, Effect: manual.Effect,
+		Arguments: decisionArguments(manual, arguments),
+	}
+	decision, found, err := runrecord.ResolveHumanDecision(ctx, c.store, operation)
+	if err != nil {
+		return DecisionPreview{}, err
+	}
+	if found {
+		preview.Decision = &decision
+		preview.Binds = decision.Answer == operatoraction.AnswerGrant &&
+			decision.Tool == manual.Name && slices.Equal(decision.Arguments, preview.Arguments)
+	}
+	return preview, nil
 }
 
 // MutationReceiptOperation derives the durable operation identity one

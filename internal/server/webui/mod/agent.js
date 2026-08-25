@@ -134,20 +134,75 @@
         }
         const session = el("input", { class: "text", placeholder: "session identity" });
         const args = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON arguments" });
-        const approval = el("input", { type: "checkbox" });
-        const run = el("button", { class: "btn", text: "Execute selected tool", disabled: !agent });
-        run.addEventListener("click", async () => {
+        const decisionHost = el("div");
+        const review = el("button", { class: "btn alt", text: "Review decision", disabled: !agent });
+        const execute = el("button", { class: "btn alt", text: "Execute inspection", disabled: !agent });
+        const approve = el("button", { class: "btn", text: "Approve and execute", disabled: true });
+
+        // The decision surface: what a grant would BIND -- the manual's
+        // immutable identity and the exact argument bytes -- beside any
+        // committed decision, with the approved-vs-proposed diff when the
+        // committed decision binds different facts.
+        function renderDecision(preview) {
+          const effectTag = el("span", {
+            class: preview.effect === "mutation" ? "tag tag-danger" : "tag", text: preview.effect,
+          });
+          const rows = [
+            el("div", {}, effectTag, " ", preview.tool, " / manual ", artifactLink(preview.manual)),
+            el("div", { class: "mono", text: "grant binds: " + preview.arguments.join(" ") }),
+          ];
+          if (!preview.decision) {
+            rows.push(el("div", { class: "note", text: preview.effect === "mutation"
+              ? "No committed decision yet: approving records a durable grant for exactly these bytes."
+              : "Inspections are effect-free and need no decision." }));
+          } else if (preview.binds) {
+            rows.push(el("div", {}, el("span", { class: "tag", text: preview.decision.answer }),
+              " committed decision ", artifactLink(preview.decision.id), " binds these exact facts"));
+          } else {
+            rows.push(el("div", {}, el("span", { class: "tag tag-danger", text: "does not bind" }),
+              " committed decision ", artifactLink(preview.decision.id), " (" + preview.decision.answer + ")"),
+              el("div", { class: "mono", text: "approved: " + preview.decision.arguments.join(" ") }),
+              el("div", { class: "mono", text: "proposed: " + preview.arguments.join(" ") }));
+          }
+          decisionHost.replaceChildren(el("div", { class: "card" }, ...rows));
+          approve.disabled = preview.effect !== "mutation";
+          execute.disabled = preview.effect === "mutation";
+        }
+
+        async function preview() {
+          const body = {
+            agent: selected, session: session.value.trim(), tool: select.value,
+            arguments: JSON.parse(args.value || "{}"),
+          };
+          return api.post("/agents/approval", body);
+        }
+
+        review.addEventListener("click", async () => {
+          try { renderDecision(await preview()); } catch (err) { showError(err); }
+        });
+
+        async function step(approveFlag) {
           try {
             const result = await api.post("/agents/step", {
               agent: selected, session: session.value.trim(), tool: select.value,
-              arguments: JSON.parse(args.value || "{}"), approve: approval.checked,
+              arguments: JSON.parse(args.value || "{}"), approve: approveFlag,
             });
             status.textContent = "tool step " + result.steps + " / " + fmt.shortID(result.interaction);
+            decisionHost.replaceChildren();
             await renderEvidence(session.value.trim());
-          } catch (err) { showError(err); }
-        });
-        toolsHost.replaceChildren(el("div", { class: "row" }, session, select,
-          el("label", { class: "note" }, approval, " approve mutation"), run));
+          } catch (err) {
+            showError(err);
+            // A binding refusal re-renders the diff so the operator sees
+            // what the committed decision actually covers.
+            try { renderDecision(await preview()); } catch (previewErr) { void previewErr; }
+          }
+        }
+        execute.addEventListener("click", () => step(false));
+        approve.addEventListener("click", () => step(true));
+
+        toolsHost.replaceChildren(
+          el("div", { class: "row" }, session, select, review, execute, approve),
+          args, decisionHost);
       }
 
       function renderRetrieval() {

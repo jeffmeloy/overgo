@@ -3402,13 +3402,27 @@
       "id": "gui-video-editing",
       "title": "Video editing in the workbench: source video plus prompt through the reference-edit runtime, edited MP4 rendered inline",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Video editing tab and projection",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestVideoEditingWorkspace -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-collapsible-sections",
+      "title": "Collapsible sections throughout the workbench: free-entry forms optional and folded to headers with expand controls, dense pages fit their content",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Shared fold helper applied across dense pages",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestCollapsibleSections -count=1"
         }
       ]
     }

@@ -249,9 +249,9 @@
 			  }
 			} }))));
 		workflow.replaceChildren(
-		  el("div", { class: "section-title", text: "Workflow stages" }), stageTable,
-		  el("div", { class: "section-title", text: "Tool decisions" }), decisionTable,
-		  el("div", { class: "section-title", text: "Interaction replay" }), interactionTable);
+		  overgo.fold("Workflow stages", false, stageTable),
+		  overgo.fold("Tool decisions", false, decisionTable),
+		  overgo.fold("Interaction replay", true, interactionTable));
       }
 
 	  activityView = (name, value) => {

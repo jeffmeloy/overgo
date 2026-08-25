@@ -286,3 +286,10 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .lens-token .chosen { font:600 13px var(--mono); color:var(--ink);
   background:var(--bg2); border:1px solid var(--line); border-radius:6px; padding:2px 8px; }
 .lens-summary { display:flex; gap:22px; flex-wrap:wrap; align-items:center; margin:6px 0 2px; }
+
+/* Collapsible sections: the summary is the section header with the
+   native disclosure control; folded panels keep dense pages short. */
+.fold { margin: 8px 0; }
+.fold > summary { cursor: pointer; list-style: none; }
+.fold > summary::before { content: "\25B8"; display: inline-block; margin-right: 6px; transition: transform 0.12s; }
+.fold[open] > summary::before { transform: rotate(90deg); }

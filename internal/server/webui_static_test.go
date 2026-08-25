@@ -28,6 +28,8 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/schema_form.js", "text/javascript; charset=utf-8", "schemaForm"},
 		{"/mod/chat.js", "text/javascript; charset=utf-8", "/v1/chat/completions"},
 		{"/mod/agent.js", "text/javascript; charset=utf-8", "/agents/step"},
+		{"/mod/inbox.js", "text/javascript; charset=utf-8", "/operations/inbox"},
+		{"/mod/video.js", "text/javascript; charset=utf-8", "/v1/videos/generations"},
 		{"/mod/generation.js", "text/javascript; charset=utf-8", `scope: "generation"`},
 		{"/mod/image.js", "text/javascript; charset=utf-8", "/v1/images/generations"},
 		{"/mod/speech.js", "text/javascript; charset=utf-8", "/v1/audio/speech"},
@@ -523,5 +525,27 @@ func TestWebUIRejectsNonGet(t *testing.T) {
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/", nil))
 	if response.Code != http.StatusNotFound {
 		t.Fatalf("POST / status = %d, want 404", response.Code)
+	}
+}
+
+// TestCollapsibleSections pins the fold contract: the shell serves the
+// shared fold helper, the dense pages consume it instead of stacking
+// section headers, and the stylesheet carries the disclosure control
+// styling -- so optional free-entry panels collapse to their headers.
+func TestCollapsibleSections(t *testing.T) {
+	handler := newTestHandler(t, &fakeGenerator{})
+	assertions := []struct {
+		path, needle string
+	}{
+		{"/boot.js", "function fold("},
+		{"/mod/agent.js", "overgo.fold("},
+		{"/mod/runtime.js", "overgo.fold("},
+		{"/style.css", ".fold[open] > summary::before"},
+	}
+	for _, assertion := range assertions {
+		response := serveTestRequest(handler, http.MethodGet, assertion.path, "")
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), assertion.needle) {
+			t.Fatalf("%s status=%d missing %q", assertion.path, response.Code, assertion.needle)
+		}
 	}
 }

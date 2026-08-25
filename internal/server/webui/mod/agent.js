@@ -13,15 +13,19 @@
       const retrievalHost = el("div");
       const automationHost = el("div");
       const evidenceHost = el("div");
+      // Optional free-entry sections fold to their headers: the page
+      // leads with the working flow (inventory, chat, tools) and the
+      // editor, retrieval, automation, and observable panels expand on
+      // demand instead of stacking their forms.
       panel.replaceChildren(
         el("div", { class: "section-title", text: "Agents" }), status,
-        el("div", { class: "section-title", text: "Inventory and lifecycle" }), inventoryHost,
-        el("div", { class: "section-title", text: "Definition editor" }), editorHost,
-        el("div", { class: "section-title", text: "Chat" }), conversationHost,
-        el("div", { class: "section-title", text: "Tools and decisions" }), toolsHost,
-        el("div", { class: "section-title", text: "Retrieval evidence" }), retrievalHost,
-        el("div", { class: "section-title", text: "Attached automations" }), automationHost,
-        el("div", { class: "section-title", text: "Structured observables" }), evidenceHost);
+        overgo.fold("Inventory and lifecycle", true, inventoryHost),
+        overgo.fold("Definition editor", false, editorHost),
+        overgo.fold("Chat", true, conversationHost),
+        overgo.fold("Tools and decisions", true, toolsHost),
+        overgo.fold("Retrieval evidence", false, retrievalHost),
+        overgo.fold("Attached automations", false, automationHost),
+        overgo.fold("Structured observables", false, evidenceHost));
 
       const schema = await api.get("/workspace/schema?id=agent-definition");
       const definitionForm = overgo.schemaForm(schema, {});

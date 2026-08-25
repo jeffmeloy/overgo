@@ -42,6 +42,39 @@
         {"name": "payload_argument", "label": "Payload argument", "type": "text", "required": true, "pattern": "^[a-z][a-z0-9_]*$", "when": {"field": "kind", "equals": "tool"}},
         {"name": "idempotency_argument", "label": "Idempotency argument", "type": "text", "required": true, "pattern": "^[a-z][a-z0-9_]*$", "when": {"field": "kind", "equals": "tool"}}
       ]
+    },
+    {
+      "id": "peer-enrollment",
+      "label": "Peer enrollment",
+      "fields": [
+        {"name": "name", "label": "Peer label", "type": "text", "required": true, "pattern": "^[A-Za-z0-9._-]+$"},
+        {"name": "environment", "label": "Environment", "type": "identity", "required": true, "identity_kind": "evidence"},
+        {"name": "public_key", "label": "Ed25519 public key", "type": "text", "required": true, "unit": "base64"},
+        {"name": "approved_by", "label": "Approved by", "type": "text", "required": true, "pattern": "^[A-Za-z0-9._-]+$"},
+        {"name": "approved_unix_ns", "label": "Approval time", "type": "integer", "unit": "ns since Unix epoch; server clock when omitted", "minimum": 1}
+      ]
+    },
+    {
+      "id": "peer-placement",
+      "label": "Peer placement policy",
+      "fields": [
+        {"name": "model", "label": "Model", "type": "identity", "required": true, "identity_kind": "model"},
+        {"name": "task", "label": "Task", "type": "enum", "required": true, "options": [
+          {"value": "generation", "label": "Generation"},
+          {"value": "inference", "label": "Inference"}
+        ]},
+        {"name": "local_observation", "label": "Local observation", "type": "identity", "identity_kind": "evidence"},
+        {"name": "peer_candidates", "label": "Peer and compatibility pairs", "type": "string-list", "unit": "peer identity + space + compatibility identity"},
+        {"name": "minimum_replicas", "label": "Minimum replicas", "type": "integer", "required": true, "minimum": 1},
+        {"name": "maximum_replicas", "label": "Maximum replicas", "type": "integer", "required": true, "minimum": 1},
+        {"name": "target_concurrency", "label": "Target concurrency", "type": "integer", "required": true, "minimum": 1},
+        {"name": "concurrency_per_replica", "label": "Concurrency per replica", "type": "integer", "required": true, "minimum": 1},
+        {"name": "maximum_measured_ns", "label": "Maximum measured latency", "type": "integer", "unit": "ns", "minimum": 0},
+        {"name": "maximum_device_bytes", "label": "Maximum device memory", "type": "integer", "unit": "bytes", "minimum": 0},
+        {"name": "allow_local", "label": "Allow local placement", "type": "boolean", "required": true},
+        {"name": "allow_peers", "label": "Allow peer placement", "type": "boolean", "required": true},
+        {"name": "maximum_attempts", "label": "Reconciliation attempts", "type": "integer", "required": true, "minimum": 1}
+      ]
     }
   ]
 }

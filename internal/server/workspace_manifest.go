@@ -125,6 +125,8 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 		_, supported = h.generator.(EvaluationWorkspaceAPI)
 	case "automation":
 		_, supported = h.generator.(AutomationWorkspaceAPI)
+	case "peer":
+		_, supported = h.generator.(PeerWorkspaceAPI)
 	case "workflow.generation":
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, "")
 	case "workflow.training":

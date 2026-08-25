@@ -107,8 +107,43 @@ func (h *Handler) peerWorkspace(response http.ResponseWriter, request *http.Requ
 		limit := boundedPeerProjectionLimit(request, h.config.MaxStoredResponses)
 		value, evidenceErr := workspace.PeerEvidence(request.Context(), h.operations, id, limit)
 		writePeerResult(response, http.StatusOK, value, evidenceErr)
+	case "/peers/stream":
+		h.peerStream(response, request, workspace)
 	default:
 		writeError(response, http.StatusNotFound, "not_found", "peer route is absent")
+	}
+}
+
+func (h *Handler) peerStream(response http.ResponseWriter, request *http.Request, workspace PeerWorkspaceAPI) {
+	if !requireMethod(response, request, http.MethodGet) {
+		return
+	}
+	events, unsubscribe, err := h.operations.Subscribe()
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	defer unsubscribe()
+	flusher, ok := beginSSE(response)
+	if !ok {
+		return
+	}
+	stream := newSSEEmitter(request.Context(), response, flusher)
+	limit := boundedPeerProjectionLimit(request, h.config.MaxStoredResponses)
+	inventory, err := workspace.PeerInventory(request.Context(), limit)
+	if err != nil || stream.named("peer.inventory", inventory) != nil ||
+		stream.named("operation.snapshot", h.operations.List()) != nil {
+		return
+	}
+	for {
+		select {
+		case <-request.Context().Done():
+			return
+		case event, open := <-events:
+			if !open || stream.named("operation", event) != nil {
+				return
+			}
+		}
 	}
 }
 

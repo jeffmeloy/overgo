@@ -164,6 +164,9 @@ func (workspace *PeerWorkspace) peerInventoryEntry(ctx context.Context, enrollme
 
 // EnrollPeer commits approval through the common lifecycle owner.
 func (workspace *PeerWorkspace) EnrollPeer(ctx context.Context, value runrecord.PeerEnrollment) (runrecord.PeerEnrollment, runrecord.PeerState, error) {
+	if value.ApprovedUnixNS == 0 {
+		value.ApprovedUnixNS = workspace.clock().UTC().UnixNano()
+	}
 	return (capabilityruntime.PeerLifecycleAuthority{Repository: workspace.store}).Enroll(ctx, value)
 }
 
@@ -179,16 +182,25 @@ func (workspace *PeerWorkspace) HeartbeatPeer(ctx context.Context, value runreco
 
 // TransitionPeer advances active, draining, and retired authority.
 func (workspace *PeerWorkspace) TransitionPeer(ctx context.Context, peer artifact.ID, state runrecord.PeerAdministrativeState, changedUnixNS int64) (runrecord.PeerState, error) {
+	if changedUnixNS == 0 {
+		changedUnixNS = workspace.clock().UTC().UnixNano()
+	}
 	return (capabilityruntime.PeerLifecycleAuthority{Repository: workspace.store}).Transition(ctx, peer, state, changedUnixNS)
 }
 
 // CompilePeerPlacement resolves current placement and refusal truth.
 func (workspace *PeerWorkspace) CompilePeerPlacement(ctx context.Context, request modelrecipe.PeerPlacementRequest) (modelrecipe.PeerPlacementPlan, error) {
+	if request.NowUnixNS == 0 {
+		request.NowUnixNS = workspace.clock().UTC().UnixNano()
+	}
 	return (capabilityruntime.PeerPlacementAuthority{Repository: workspace.store}).Compile(ctx, request)
 }
 
 // ReconcilePeer admits reconciliation through the common operation owner.
 func (workspace *PeerWorkspace) ReconcilePeer(ctx context.Context, manager *operation.Manager, request capabilityruntime.PeerReconcileRequest) (artifact.ID, error) {
+	if request.ChangedUnixNS == 0 {
+		request.ChangedUnixNS = workspace.clock().UTC().UnixNano()
+	}
 	reconciler, err := (capabilityruntime.PeerReplicaReconcilerConfig{
 		Repository: workspace.store, Operations: manager, Backend: workspace.backend,
 	}).Open()

@@ -267,7 +267,7 @@
       "id": "peer-workspace",
       "title": "Expose peer lifecycle, placement, capacity, and evidence through the common operator workbench",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "peer-api",
@@ -288,7 +288,7 @@
         {
           "id": "peer-gui",
           "title": "Add peer inventory, detail, capacity, labels, placement rules, staging progress, drain controls, attempts, refusal explanations, and logs using the common manifest, forms, operation shell, and SSE stream",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestPeerWorkspaceVertical' internal/server \u0026\u0026 go test ./internal/server -run 'TestPeerWorkspaceVertical|TestPeerWorkspaceUsesCommonForm|TestPeerWorkspaceUsesGlobalOperations|TestPeerWorkspaceSSE' -count=1",
           "rationale": "This is the second consumer that validates the common workspace components. It must reuse schema forms and operation views rather than cloning LocalAI's node UI, adding a peer-specific poller, or embedding placement constants.",
           "depends_on": [

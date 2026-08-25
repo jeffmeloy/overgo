@@ -174,6 +174,61 @@ type agentStepRequest struct {
 	Approve   bool            `json:"approve,omitempty"`
 }
 
+// agentApprovalPreview projects the decision facts an operator grants
+// on: the next step's operation, the manual's identity and effect, the
+// exact argument bytes a grant would bind, any committed decision, and
+// whether it binds these facts. It publishes and executes nothing.
+func (h *Handler) agentApprovalPreview(response http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		methodNotAllowed(response)
+		return
+	}
+	if h.agentCoordinator == nil {
+		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
+		return
+	}
+	var body agentStepRequest
+	if err := strictjson.Decode(request.Body, &body); err != nil {
+		writeError(response, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	if body.Session == "" || body.Tool == "" {
+		writeError(response, http.StatusBadRequest, "invalid_request", "session and tool are required")
+		return
+	}
+	arguments := body.Arguments
+	if len(arguments) == 0 {
+		arguments = json.RawMessage(`{}`)
+	}
+	sessionID := body.Session
+	if body.Agent != "" {
+		sessionID = body.Agent + ":" + body.Session
+	}
+	session, err := h.agentSessions.get(request.Context(), h.agentCoordinator, sessionID)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
+		return
+	}
+	preview, err := h.agentCoordinator.PreviewMutationDecision(request.Context(), session, body.Tool, arguments)
+	if err != nil {
+		writeError(response, http.StatusUnprocessableEntity, "agent_preview_refused", err.Error())
+		return
+	}
+	payload := map[string]any{
+		"call_id": preview.CallID, "operation": idText(preview.Operation),
+		"manual": idText(preview.Manual), "tool": preview.Tool,
+		"effect": string(preview.Effect), "arguments": preview.Arguments,
+		"binds": preview.Binds,
+	}
+	if preview.Decision != nil {
+		payload["decision"] = map[string]any{
+			"id": idText(preview.Decision.ID), "answer": string(preview.Decision.Answer),
+			"tool": preview.Decision.Tool, "arguments": preview.Decision.Arguments,
+		}
+	}
+	writeJSON(response, http.StatusOK, payload)
+}
+
 // buildAgentRuntime binds a coordinator over the served store when a
 // serving identity is available; without one the agent routes report
 // unavailability rather than serve a runtime with no durable identity.

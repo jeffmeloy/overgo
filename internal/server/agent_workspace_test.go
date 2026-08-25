@@ -104,6 +104,39 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 	if refused.Code != http.StatusUnprocessableEntity || !strings.Contains(refused.Body.String(), "approval") {
 		t.Fatalf("unapproved mutation status=%d body=%s", refused.Code, refused.Body.String())
 	}
+
+	// The approval preview projects the decision facts without
+	// publishing or executing: no decision yet, the mutation effect, and
+	// the exact bytes a grant would bind.
+	preview := serveTestRequest(handler, http.MethodPost, "/agent/approval",
+		`{"session":"s1","tool":"store.commit","arguments":{}}`)
+	if preview.Code != http.StatusOK ||
+		!strings.Contains(preview.Body.String(), `"effect":"mutation"`) ||
+		!strings.Contains(preview.Body.String(), `"binds":false`) ||
+		strings.Contains(preview.Body.String(), `"decision"`) {
+		t.Fatalf("approval preview status=%d body=%s", preview.Code, preview.Body.String())
+	}
+	if !strings.Contains(preview.Body.String(), `"call_id":"s1-step-2"`) {
+		t.Fatalf("preview call identity = %s", preview.Body.String())
+	}
+	// An approved step records the grant durably and executes; the
+	// session advances, so the next preview names the NEXT step with no
+	// decision yet -- each step's decision is its own, never inherited.
+	// (The binds-versus-diverged diff itself is pinned at the coordinator
+	// level, where approval and proposal are separate calls.)
+	approved := serveTestRequest(handler, http.MethodPost, "/agent/step",
+		`{"session":"s1","tool":"store.commit","arguments":{},"approve":true}`)
+	if approved.Code != http.StatusOK || !strings.Contains(approved.Body.String(), `"steps":2`) {
+		t.Fatalf("approved mutation status=%d body=%s", approved.Code, approved.Body.String())
+	}
+	next := serveTestRequest(handler, http.MethodPost, "/agent/approval",
+		`{"session":"s1","tool":"store.commit","arguments":{}}`)
+	if next.Code != http.StatusOK ||
+		!strings.Contains(next.Body.String(), `"call_id":"s1-step-3"`) ||
+		!strings.Contains(next.Body.String(), `"binds":false`) ||
+		strings.Contains(next.Body.String(), `"decision"`) {
+		t.Fatalf("next-step preview status=%d body=%s", next.Code, next.Body.String())
+	}
 }
 
 // TestAgentWorkspaceRefusesUnregisteredTool is the named negative test:

@@ -3271,6 +3271,104 @@
           ]
         }
       ]
+    },
+    {
+      "id": "gui-approval-surface",
+      "title": "Render mutation approval as a decision surface: effect class, exact argument bytes, the committed decision, and the approved-vs-proposed diff on refusal",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Approval decision surface in the agent tab",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-pending-inbox",
+      "title": "One operator inbox over waiting workflow stages and pending mutation approvals, with grant/decline wired to the durable decision chain",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Pending-work inbox view",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1 \u0026\u0026 go test ./internal/workflowruntime -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-step-provenance",
+      "title": "Per-step provenance click-through: interaction, receipt chain, decision, exact manual identity, result artifact",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Provenance walk API and view",
+          "status": "open",
+          "verify": "go test ./internal/server -run \"TestAgentWorkspace|TestAgentProvenance\" -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-workflow-dag",
+      "title": "Live workflow DAG from stage receipts: node states colored, waiting nodes linked into the inbox",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "DAG projection and view",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-session-list",
+      "title": "Durable agent session list: steps used against bound, inspected state, restore and resume",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Session list API and view",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-multimodal-input",
+      "title": "Chat and agent steps accept image, audio, and video attachments through the served protocol content parts under the media policy",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Multimodal attachment input",
+          "status": "open",
+          "verify": "go test ./internal/server -run \"TestChat|TestMultimodal|TestMedia\" -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-multimodal-output",
+      "title": "Generated media renders inline: images, video, and audio from responses and interaction replay, not as opaque artifact ids",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Inline media rendering",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1"
+        }
+      ]
     }
   ]
 }

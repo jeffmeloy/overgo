@@ -79,7 +79,8 @@ type bf16GateFusion struct {
 
 // ropeAppendFusion: rope_normal rotated directly into its cache-append slot.
 type ropeAppendFusion struct {
-	rope *tensor.Tensor
+	rope           *tensor.Tensor
+	attributeIndex int
 }
 
 // bf16AppendFusion: one-token BF16 matvec written directly into its
@@ -699,7 +700,10 @@ func applyRopeAppendRewrite(context *rewriteContext) {
 		// launch-only elision: the retained cache output's alias validation
 		// still addresses the rope buffer
 		operands := append([]*tensor.Tensor{node.Inputs[0]}, rope.Inputs...)
-		compiled.setFusion(node, &compiledFusion{kind: compiledFusionRopeAppend, operands: operands, ropeAppend: ropeAppendFusion{rope: rope}})
+		compiled.setFusion(node, &compiledFusion{
+			kind: compiledFusionRopeAppend, operands: operands,
+			ropeAppend: ropeAppendFusion{rope: rope, attributeIndex: compiled.orderIndexes[rope]},
+		})
 		compiled.elided[rope] = struct{}{}
 	}
 }

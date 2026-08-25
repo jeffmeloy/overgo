@@ -66,14 +66,14 @@ func (r *Gemma4Runner) Spec() Gemma4Spec {
 }
 
 func ReadGemma4Spec(file *gguf.File) (Gemma4Spec, error) {
-	if err := validateVisionProjector(file, "clip.vision.projector_type", gemma4UVProjectorType); err != nil {
+	if err := validateVisionProjector(file, visionTowerTypeKey, gemma4UVProjectorType); err != nil {
 		return Gemma4Spec{}, err
 	}
-	teacherPatch, err := metadataUint32(file, "clip.vision.patch_size")
+	teacherPatch, err := metadataUint32(file, visionPatchSizeKey)
 	if err != nil {
 		return Gemma4Spec{}, err
 	}
-	hidden, err := metadataUint32(file, "clip.vision.projection_dim")
+	hidden, err := metadataUint32(file, visionProjectionKey)
 	if err != nil {
 		return Gemma4Spec{}, err
 	}

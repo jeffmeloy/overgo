@@ -17,7 +17,6 @@ func launchMoE(
 	blas *blasState,
 	node *tensor.Tensor,
 	pointers launchPointerFrame,
-	attributePointers devicePointerTable,
 ) error {
 	output := pointers.output()
 	switch node.Op {

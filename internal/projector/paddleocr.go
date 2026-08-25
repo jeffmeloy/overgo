@@ -69,11 +69,11 @@ func ReadPaddleOCRSpec(file *gguf.File) (PaddleOCRSpec, error) {
 }
 
 func readVisionActivationFlags(file *gguf.File) (visionActivation, error) {
-	useGELU, err := optionalMetadataBool(file, "clip.use_gelu")
+	useGELU, err := optionalMetadataBool(file, visionUseGELUKey)
 	if err != nil {
 		return visionQuickGELU, err
 	}
-	useSiLU, err := optionalMetadataBool(file, "clip.use_silu")
+	useSiLU, err := optionalMetadataBool(file, visionUseSiLUKey)
 	if err != nil {
 		return visionQuickGELU, err
 	}
@@ -126,10 +126,10 @@ func (s PaddleOCRSpec) validate() error {
 func validatePaddleOCRCatalog(file *gguf.File, spec PaddleOCRSpec) ([]string, error) {
 	required := map[string][]uint64{
 		"mm.input_norm.weight": {uint64(spec.Hidden)}, "mm.input_norm.bias": {uint64(spec.Hidden)},
-		"mm.1.weight": {uint64(spec.Hidden * spec.MergeSize * spec.MergeSize), uint64(spec.ProjectorIntermediate)},
-		"mm.1.bias":   {uint64(spec.ProjectorIntermediate)},
-		"mm.2.weight": {uint64(spec.ProjectorIntermediate), uint64(spec.OutputHidden)},
-		"mm.2.bias":   {uint64(spec.OutputHidden)},
+		"mm.1.weight":                {uint64(spec.Hidden * spec.MergeSize * spec.MergeSize), uint64(spec.ProjectorIntermediate)},
+		"mm.1.bias":                  {uint64(spec.ProjectorIntermediate)},
+		projectionSecondWeightTensor: {uint64(spec.ProjectorIntermediate), uint64(spec.OutputHidden)},
+		projectionSecondBiasTensor:   {uint64(spec.OutputHidden)},
 	}
 	positionSide := spec.ImageSize / spec.PatchSize
 	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, positionSide*positionSide, tensorOptional)

@@ -130,8 +130,6 @@ func executeVQAProgram(
 	if err != nil {
 		return vqaExecution{}, err
 	}
-	const maxSteps = 64
-
 	var execution vqaExecution
 	var pipelineErr error
 	answer, err := executeVQA(
@@ -157,7 +155,7 @@ func executeVQAProgram(
 				return "", openErr
 			}
 			defer pc.src.Close()
-			worker, openErr := device.New(0)
+			worker, openErr := device.New(device.DefaultOrdinal())
 			if openErr != nil {
 				return "", fmt.Errorf("recipe serve worker: %w", openErr)
 			}
@@ -169,7 +167,7 @@ func executeVQAProgram(
 			defer exe.Close()
 			execution.result, pipelineErr = runFullPipeline(
 				l, executeContext, worker, exe, pc, prepared.pixels,
-				fullOpts{maxSteps: maxSteps, eosIDs: prepared.eosIDs},
+				fullOpts{maxSteps: campaignEvidence.DecodeMaxSteps, eosIDs: prepared.eosIDs},
 			)
 			if pipelineErr != nil {
 				return "", pipelineErr

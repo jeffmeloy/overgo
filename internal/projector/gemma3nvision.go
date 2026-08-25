@@ -80,23 +80,23 @@ func (r *Gemma3nVisionRunner) Spec() Gemma3nVisionSpec {
 }
 
 func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
-	if err := validateVisionProjector(file, "clip.projector_type", gemma3nVisionProjectorType); err != nil {
+	if err := validateVisionProjector(file, visionProjectorTypeKey, gemma3nVisionProjectorType); err != nil {
 		return Gemma3nVisionSpec{}, err
 	}
 	spec := Gemma3nVisionSpec{}
 	if err := readMetadataIntFields(file,
-		metadataIntField{"clip.vision.image_size", &spec.ImageSize},
-		metadataIntField{"clip.vision.patch_size", &spec.PatchSize},
-		metadataIntField{"clip.vision.embedding_length", &spec.VisionHidden},
-		metadataIntField{"clip.vision.projection_dim", &spec.OutputHidden},
+		metadataIntField{visionImageSizeKey, &spec.ImageSize},
+		metadataIntField{visionPatchSizeKey, &spec.PatchSize},
+		metadataIntField{visionHiddenKey, &spec.VisionHidden},
+		metadataIntField{visionProjectionKey, &spec.OutputHidden},
 	); err != nil {
 		return Gemma3nVisionSpec{}, err
 	}
-	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", media.RGBChannels)
+	mean, err := metadataFloat32Array(file, visionImageMeanKey, media.RGBChannels)
 	if err != nil {
 		return Gemma3nVisionSpec{}, err
 	}
-	std, err := metadataFloat32Array(file, "clip.vision.image_std", media.RGBChannels)
+	std, err := metadataFloat32Array(file, visionImageStandardKey, media.RGBChannels)
 	if err != nil {
 		return Gemma3nVisionSpec{}, err
 	}
@@ -204,12 +204,8 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 }
 
 func PreprocessGemma3nVisionImage(source image.Image, spec Gemma3nVisionSpec) ([]float32, error) {
-	if source == nil {
-		return nil, errors.New("projector: image is nil")
-	}
-	bounds := source.Bounds()
-	if bounds.Empty() {
-		return nil, errors.New("projector: image bounds are empty")
+	if _, err := imageBounds(source); err != nil {
+		return nil, err
 	}
 	resized := media.ResizeBicubic(source, spec.ImageSize, spec.ImageSize)
 	pixels := make([]float32, 3*spec.ImageSize*spec.ImageSize)

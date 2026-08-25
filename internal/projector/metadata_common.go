@@ -8,7 +8,7 @@ import (
 )
 
 func validateVisionProjector(file *gguf.File, typeKey, expectedType string) error {
-	return validateProjector(file, typeKey, "clip.has_vision_encoder", expectedType, "vision")
+	return validateProjector(file, typeKey, visionEncoderEnabledKey, expectedType, "vision")
 }
 
 func validateProjector(file *gguf.File, typeKey, enabledKey, expectedType, modality string) error {

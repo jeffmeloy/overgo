@@ -12,8 +12,9 @@ into host and CUDA programs.
 
 That runtime also backs the command line, the workbench, native training and
 evaluation, and OpenAI-, Anthropic-, and llama.cpp-compatible APIs. OvergoDB
-records artifact identity, lineage, runs, verification, promotion, and
-rollback. The repository therefore keeps four different facts separate: a
+records artifact identity, lineage, typed plans, durable stage receipts,
+interaction traces, verification, promotion, and rollback. The repository
+therefore keeps four different facts separate: a
 model can be listed in the catalog, supported by the code, verified with a
 specific artifact, or approved for production.
 
@@ -45,9 +46,10 @@ Overgo puts these jobs behind one runtime:
 | Preference optimization | Run DPO and GRPO with shared scoring, VJPs, Muon updates, checkpoints, evaluation, and GUI reporting |
 | Model composition | Compile promoted cross-model representation bridges, external cross-attention, device-resident component sessions, immutable transformed-representation caches, and exact-lineage offline artifacts |
 | Evaluation | Compile suites, run campaigns, inspect failures, compare metrics, and bind results to model, recipe, data, code, and environment identities |
+| Workflow orchestration | Execute typed DAG ready sets, recover from durable stage receipts, admit capability bundles and tools, record human decisions, and dispatch evidence-bound remote stages |
 | Serving | Expose native llama.cpp-style, OpenAI-compatible, and Anthropic-compatible HTTP APIs with streaming, tools, structured output, media, batching, and caches |
-| Workbench | Use one embedded GUI for chat, generation, runtime telemetry, datasets, training, model building, export, evaluations, artifacts, and model analysis |
-| Evidence | Record artifact identities, lineage, runs, recipes, gates, evaluations, promotion, rollback, and release checks in OvergoDB and generated compatibility records |
+| Workbench | Use one embedded GUI for model and dataset discovery, verified Hub downloads, chat, generation, runtime activity, interaction replay, datasets, training, compositions, evaluations, artifacts, and model analysis |
+| Evidence | Record artifact identities, locations, lineage, stage receipts, interactions, runs, recipes, gates, evaluations, decisions, promotion, rollback, and release checks in OvergoDB |
 
 A new model name does not require a new top-level executor. If the model's
 tensor layout and behavior fit existing profiles, operators, processors, and
@@ -65,7 +67,7 @@ Overgo tracks code support and artifact verification as different claims:
 Generic component tests establish the first claim. OvergoDB records the second
 claim for each artifact.
 
-![Overgo platform architecture and evidence-bound model lifecycle](docs/assets/overgo-platform-architecture-v2.png)
+![Overgo platform architecture, OvergoDB authority, and model-engineering workbench](docs/assets/overgo-platform-architecture.png)
 
 ## 2. How Overgo works
 
@@ -84,7 +86,9 @@ Model behavior is split among reusable packages:
 - Training programs specify objectives, backward traversal, parameter groups,
   and optimizer order.
 - Runtime adapters connect compiled recipe modules to their implementations.
-- OvergoDB stores identity, lineage, evidence, and activation decisions.
+- OvergoDB stores immutable identity, physical locations, typed documents,
+  lineage, execution evidence, interaction traces, and mutable activation
+  aliases as separate facts.
 
 Execution consumes a compiled plan. It does not enter a model-family switch to
 reconstruct model behavior at run time.
@@ -102,8 +106,10 @@ A runnable task is assembled from immutable records:
    inputs, outputs, ordering, placement, session lifetime, and residency.
 5. **Compiled program:** validated stages and indexed bindings consumed by the
    runtime.
-6. **Run and evaluation records:** exact inputs, outputs, environment, outcome,
-   and evidence associated with execution.
+6. **Execution records:** exact inputs, outputs, environment, stage attempts,
+   human decisions, interaction events, outcome, and evidence.
+7. **Activation catalog:** registered profiles, datasets, and promoted
+   model-task recipes with explicit coverage and truncation state.
 
 The compiler rejects unknown modules, bad ordering, incompatible data kinds,
 unbound ports, wrong cardinality, graph cycles, unreachable nodes, missing
@@ -192,17 +198,48 @@ Capacity-bound sessions may be reused. Request-bound components are retired
 after their lease. Separate session locks let independent models or tasks run
 at the same time.
 
+### Durable workflows, tools, and remote execution
+
+The workflow runtime executes compiled recipe DAGs in dependency-ready sets.
+Each stage binds its recipe, model, operation, node, typed inputs, attempt, and
+outputs to a durable receipt. Completed outputs can be recovered without
+repeating the stage, while waiting work resumes only through a recorded human
+decision.
+
+Tools are compiled from typed recipe programs and admitted capability bundles
+rather than discovered through an untyped callback registry. Remote stages use
+the same recipe and artifact contracts: peer capability, compatibility
+evidence, environment, request, result, and serving observation remain linked
+by exact identity.
+
+Protocol-neutral interaction records retain message, tool, media, decision,
+and parent identities. The Activity view can replay these traces alongside
+workflow stages and serving observations through the shared event stream.
+
+The agent workspace drives tools through the same authority. Every tool is a
+typed, store-published manual with a declared effect class -- inspection or
+mutation -- and a native transport. The coordinator refuses unregistered
+tools, requires an inspection before any mutation, requires exact operator
+approval for each mutation, and chains every step into durable interaction
+records that name the exact manual identity executed, so a restored session
+replays what actually ran rather than what a name alias points at now.
+
 ### Artifacts and OvergoDB
 
 OvergoDB is a hash-chained artifact catalog and evidence ledger. It stores:
 
-- content-addressed descriptors and optional payloads;
+- canonical artifact slots, content-addressed descriptors, payload locators,
+  and optional inline content;
 - model, tokenizer, projector, dataset, checkpoint, output, report, and
   evidence artifacts;
 - construction, derivation, evaluation, and production lineage;
 - aliases with compare-and-set activation semantics;
 - artifact locations without copying large model or dataset bytes into Git;
-- run, gate, evaluation, finding, decision, promotion, and rollback records.
+- typed architecture-profile and dataset catalogs;
+- run, stage, interaction, gate, evaluation, finding, decision, promotion, and
+  rollback records;
+- bounded projections, metadata snapshots, read-only refresh, replay-verified
+  backup, and alias-rooted compaction.
 
 OvergoDB rejects conflicting artifact facts, reused batch keys with different
 content, invalid aliases, unknown lineage endpoints, and lineage cycles. A
@@ -226,9 +263,17 @@ duplicates, and builds a deterministic stream. Dataset identity, mixture order,
 shuffle order, epoch, seed, and stream position are part of the resume
 contract.
 
+Registered directory datasets bind identity to content: each inventory file
+carries the sha256 of its bytes, so changed content re-identifies even when
+size and metadata are unchanged. A catalog entry carries the honest modality
+set of every class present, with a primary that is an explicit declaration,
+the sole class, or `mixed` -- never a byte-volume guess.
+
 A training objective binds its objective type, input and output data types,
 dataset and split, processors, optional projectors or codecs, loss, evaluation,
-and evidence. A compiled `TrainingProgram` defines ordered forward, backward,
+and evidence. Objective authority is a ladder -- `declared`, then
+`adaptive-evidence`, then `approved` -- and a freshly registered objective
+enters at `declared` rather than asserting approval. A compiled `TrainingProgram` defines ordered forward, backward,
 and Muon operations plus the exact trainable parameter plan. A
 `TrainingRunPlan` adds model construction, checkpoints, the data stream,
 precision, placement, memory, evaluation, and promotion rules.
@@ -254,7 +299,7 @@ projector, codec, or other authority differs from the checkpoint.
 | `internal/trainingprogram`, `internal/trainingworkflow` | Compiled objectives, run plans, DPO/GRPO, checkpointing, and resume |
 | `internal/scratchmodel`, `internal/modelbuilder`, `internal/composition` | Model construction, component synthesis, and derived lineage |
 | `internal/evaluation` | Compiled evaluation suites, records, reports, and comparisons |
-| `internal/artifact`, `internal/repodb`, `internal/runrecord` | Identity, storage, lineage, runs, observations, and decisions |
+| `internal/artifact`, `internal/overgodb`, `internal/runrecord` | Identity, storage, lineage, typed documents, runs, interactions, observations, and decisions |
 | `internal/server`, `internal/server/webui` | HTTP protocols and the embedded model engineering workbench |
 | `compatibility.json` | Machine-checked feature and model claims |
 | `docs/plan.json` | Current unfinished campaign work and verification commands |
@@ -679,7 +724,7 @@ replay-verified backup instead:
 ```bash
 go run ./cmd/overgodb-backup \
   -repo D:/overgo-data/overgodb-store \
-  -dest E:/overgo-backups/repodb-2026-08-22
+  -dest E:/overgo-backups/overgodb-2026-08-24
 ```
 
 Configuring these roots does not scan or register every file. Intake commands
@@ -699,9 +744,22 @@ and recorded without copying their bytes into OvergoDB. Training also requires a
 dataset identity, split, processors, objective, and active recipe; a path alone
 does not grant training authority.
 
-The GUI dataset browser reads `datasets/manifest.json` from the configured
-dataset root. That browse manifest supplies names and metadata only. Training
-still resolves the selected dataset through its OvergoDB identity and recorded
+Publish the registered architecture profiles and the configured dataset
+inventory as OvergoDB catalog authority:
+
+```bash
+go run ./cmd/profile-catalog -repo D:/overgo-data/overgodb-store
+go run ./cmd/dataset-catalog \
+  -repo D:/overgo-data/overgodb-store \
+  -legacy D:/overgo-data/dataset-registry \
+  -root D:/overgo-data/datasets
+```
+
+The Library and Datasets tabs read those active catalogs. The Library reports
+published profile and dataset coverage, lists every model-task activation up to
+the explicit catalog bound, searches models and datasets on Hugging Face, and
+shows verified download progress. Training still resolves a selected dataset
+through its immutable OvergoDB identity, split, processors, and recorded
 location.
 
 ### Verify the checkout
@@ -829,6 +887,7 @@ subcommand, for example `go run ./cmd/recipe status -h`.
 | `cmd/gguf-merge` | Merge validated split GGUF artifacts |
 | `cmd/gguf-split` | Split GGUF artifacts while preserving validated structure |
 | `cmd/gguf-quantize` | Quantize GGUF tensors through manifested encoders |
+| `cmd/hf-hub` | Search, resolve, and download model or dataset repositories from the configured Hugging Face Hub endpoint |
 | `cmd/tokenize` | Inspect tokenizer encoding and decoding |
 | `cmd/json-schema-grammar` | Compile JSON Schema into constrained-generation grammar |
 | `cmd/gen-iq-tables` | Generate checked integer-quantization tables |
@@ -870,9 +929,12 @@ subcommand, for example `go run ./cmd/recipe status -h`.
 | `cmd/benchmark` | Record elapsed time, throughput, memory, launches, synchronization, and transfers |
 | `cmd/perf-sweep` | Execute bounded performance sweeps |
 | `cmd/compatibility` | Check claims and training specifications or regenerate their compatibility matrices |
+| `cmd/profile-catalog` | Publish every registered architecture profile as OvergoDB authority |
+| `cmd/dataset-catalog` | Compile legacy and on-disk dataset inventory into the active OvergoDB catalog |
 | `cmd/overgodb-query` | Query artifacts, recipes, runs, evaluations, findings, and decisions |
 | `cmd/overgodb-import` | Import validated external records into OvergoDB |
 | `cmd/overgodb-backup` | Create and verify OvergoDB backups |
+| `cmd/overgodb-compact` | Compact alias-rooted authority into a new OvergoDB store |
 | `cmd/finding` | Create and inspect structured review findings |
 | `cmd/advisories` | Inspect repository and dependency advisories |
 | `cmd/sbom` | Generate or verify the CycloneDX software bill of materials |
@@ -934,13 +996,14 @@ The server embeds an HTML, CSS, and JavaScript workbench at
 server and OvergoDB own models, recipes, datasets, operations, sessions, runs,
 and artifacts.
 
-The workbench has four sections and nineteen tabs:
+The workbench has five sections and twenty-two tabs:
 
 | Section | Tabs | Primary use |
 | --- | --- | --- |
-| Inference | Chat, Generate, Runtime, Activity | Run streaming conversations and recipe-driven generation; inspect sessions, throughput, transfers, and serving evidence |
+| Inference | Chat, Generate, Images, Speech, Runtime, Activity | Run streaming conversations and multimodal generation; inspect sessions, throughput, transfers, workflow stages, serving evidence, and interaction replay |
+| Library | Library | Inspect local multi-task activations and profile/dataset coverage; search the Hugging Face Hub and monitor verified downloads |
 | Datasets | Datasets | Filter registered datasets and inspect bounded typed previews |
-| Training | Train, Model Builder, Export, Runs | Train or construct models, export artifacts, control operations, inspect checkpoints, and compare run evidence |
+| Training | Train, Model Builder, Export, Runs | Train or construct models, export artifacts, resolve waiting work through durable decisions, inspect checkpoints, and compare run evidence |
 | Workbench | Recipe, Compositions, Artifacts, Evaluations, Model, Vocabulary, Logit lens, Hidden states, Attention, Tensors | Inspect compiled authority, composition graphs and promotion, outputs, evaluation campaigns, model structure, tokens, activations, attention, and tensor statistics |
 
 ### Capability-driven forms
@@ -952,6 +1015,11 @@ workspaces. The browser does not keep a separate model catalog.
 When a capability is unavailable, the tab names the missing recipe, dataset,
 projector, model-builder, training, evaluation, or export record. It does not
 choose a fallback model or execution policy.
+
+The Library is the catalog and intake surface. It joins promoted model-task
+activations with recorded artifact locations, reports missing or stale
+authority, displays architecture-profile and dataset denominators, searches
+the configured Hub endpoint, and follows digest-verified downloads.
 
 ### Common operation lifecycle
 
@@ -983,9 +1051,10 @@ text, image, audio, or video artifacts when those tasks are configured.
 
 Runtime shows active model sessions, slot state, task, device, context use,
 prompt and cached tokens, generated tokens, throughput, and elapsed time.
-Activity reads bounded serving observations from OvergoDB, including model and
-recipe identity, outcome, duration, token counts, and host/device transfer
-measurements. Raw request and response bodies are not displayed.
+Activity consumes the shared server event stream and combines live operations,
+workflow stage receipts, durable human decisions, serving observations, and
+interaction records. A stored interaction can be expanded into its exact replay
+trace. Raw request and response bodies are not displayed in the summary.
 
 ### Datasets, training, and model building
 

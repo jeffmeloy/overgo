@@ -71,7 +71,7 @@ func (r *Qwen3VLRunner) Spec() Qwen3VLSpec {
 }
 
 func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
-	if useGELU, geluErr := metadataBool(file, "clip.use_gelu"); geluErr != nil {
+	if useGELU, geluErr := metadataBool(file, visionUseGELUKey); geluErr != nil {
 		return Qwen3VLSpec{}, geluErr
 	} else if !useGELU {
 		return Qwen3VLSpec{}, errors.New("projector: Qwen3VL GELU is disabled")
@@ -170,9 +170,6 @@ func validateQwen3VLCatalog(file *gguf.File, spec Qwen3VLSpec) ([]string, error)
 }
 
 func PreprocessQwen3VLImage(source image.Image, spec Qwen3VLSpec, options Qwen3VLPreprocessOptions) (Qwen3VLImage, error) {
-	if source == nil {
-		return Qwen3VLImage{}, errors.New("projector: image is nil")
-	}
 	return preprocessQwen3VLFrames([]image.Image{source, source}, spec, options)
 }
 

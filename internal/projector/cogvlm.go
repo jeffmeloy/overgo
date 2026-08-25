@@ -113,15 +113,11 @@ func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) ([]stri
 }
 
 func PreprocessCogVLMImage(source image.Image, spec CogVLMVisionSpec) ([]float32, error) {
-	if source == nil {
-		return nil, errors.New("projector: image is nil")
-	}
 	if err := spec.validate(); err != nil {
 		return nil, err
 	}
-	bounds := source.Bounds()
-	if bounds.Empty() {
-		return nil, errors.New("projector: image bounds are empty")
+	if _, err := imageBounds(source); err != nil {
+		return nil, err
 	}
 	resized := media.ResizeBicubic(source, spec.ImageSize, spec.ImageSize)
 	patches, err := patchRasterImage(resized, spec.PatchSize, spec.ImageMean, spec.ImageStd)
@@ -150,7 +146,7 @@ func (r *CogVLMVisionRunner) imagePromptProgram() compiledImagePromptProgram {
 		text []string,
 		options PromptOptions,
 	) (MultimodalPrompt, error) {
-		if err := validateImagePromptInputs(tokenizerAPI, sources, text, "CogVLM"); err != nil {
+		if err := validatePromptSequence(tokenizerAPI, len(sources), text, "CogVLM image/text"); err != nil {
 			return MultimodalPrompt{}, err
 		}
 		prompt := strings.Join(text, "")

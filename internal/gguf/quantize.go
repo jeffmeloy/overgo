@@ -232,92 +232,60 @@ func quantizedMetadata(metadata []Metadata, target DType, options QuantizeOption
 	return result, nil
 }
 
+type fileTypeBinding struct {
+	fileType FileType
+	valid    bool
+}
+
+var quantizedFileTypes = [dtype.Count]fileTypeBinding{
+	dtype.F32:    {fileTypeAllF32, true},
+	dtype.F16:    {fileTypeMostlyF16, true},
+	dtype.Q4_0:   {fileTypeMostlyQ4_0, true},
+	dtype.Q4_1:   {fileTypeMostlyQ4_1, true},
+	dtype.Q5_0:   {fileTypeMostlyQ5_0, true},
+	dtype.Q5_1:   {fileTypeMostlyQ5_1, true},
+	dtype.Q8_0:   {fileTypeMostlyQ8_0, true},
+	dtype.Q2K:    {fileTypeMostlyQ2K, true},
+	dtype.Q3K:    {fileTypeMostlyQ3K, true},
+	dtype.Q4K:    {fileTypeMostlyQ4K, true},
+	dtype.Q5K:    {fileTypeMostlyQ5K, true},
+	dtype.Q6K:    {fileTypeMostlyQ6K, true},
+	dtype.IQ2XXS: {fileTypeMostlyIQ2XXS, true},
+	dtype.IQ2XS:  {fileTypeMostlyIQ2XS, true},
+	dtype.IQ3XXS: {fileTypeMostlyIQ3XXS, true},
+	dtype.IQ1S:   {fileTypeMostlyIQ1S, true},
+	dtype.IQ4NL:  {fileTypeMostlyIQ4NL, true},
+	dtype.IQ3S:   {fileTypeMostlyIQ3S, true},
+	dtype.IQ2S:   {fileTypeMostlyIQ2S, true},
+	dtype.IQ4XS:  {fileTypeMostlyIQ4XS, true},
+	dtype.IQ1M:   {fileTypeMostlyIQ1M, true},
+	dtype.BF16:   {fileTypeMostlyBF16, true},
+	dtype.TQ1_0:  {fileTypeMostlyTQ1_0, true},
+	dtype.TQ2_0:  {fileTypeMostlyTQ2_0, true},
+	dtype.MXFP4:  {fileTypeMostlyMXFP4, true},
+	dtype.NVFP4:  {fileTypeMostlyNVFP4, true},
+	dtype.Q1_0:   {fileTypeMostlyQ1_0, true},
+	dtype.Q2_0:   {fileTypeMostlyQ2_0, true},
+}
+
 func quantizedFileType(target DType) (FileType, bool) {
-	switch target {
-	case dtype.F32:
-		return fileTypeAllF32, true
-	case dtype.F16:
-		return fileTypeMostlyF16, true
-	case dtype.Q4_0:
-		return fileTypeMostlyQ4_0, true
-	case dtype.Q4_1:
-		return fileTypeMostlyQ4_1, true
-	case dtype.Q8_0:
-		return fileTypeMostlyQ8_0, true
-	case dtype.Q5_0:
-		return fileTypeMostlyQ5_0, true
-	case dtype.Q5_1:
-		return fileTypeMostlyQ5_1, true
-	case dtype.Q2K:
-		return fileTypeMostlyQ2K, true
-	case dtype.Q3K:
-		return fileTypeMostlyQ3K, true
-	case dtype.Q4K:
-		return fileTypeMostlyQ4K, true
-	case dtype.Q5K:
-		return fileTypeMostlyQ5K, true
-	case dtype.Q6K:
-		return fileTypeMostlyQ6K, true
-	case dtype.BF16:
-		return fileTypeMostlyBF16, true
-	case dtype.IQ4NL:
-		return fileTypeMostlyIQ4NL, true
-	case dtype.IQ2S:
-		return fileTypeMostlyIQ2S, true
-	case dtype.IQ2XXS:
-		return fileTypeMostlyIQ2XXS, true
-	case dtype.IQ2XS:
-		return fileTypeMostlyIQ2XS, true
-	case dtype.IQ1S:
-		return fileTypeMostlyIQ1S, true
-	case dtype.IQ1M:
-		return fileTypeMostlyIQ1M, true
-	case dtype.IQ3XXS:
-		return fileTypeMostlyIQ3XXS, true
-	case dtype.IQ3S:
-		return fileTypeMostlyIQ3S, true
-	case dtype.IQ4XS:
-		return fileTypeMostlyIQ4XS, true
-	case dtype.TQ1_0:
-		return fileTypeMostlyTQ1_0, true
-	case dtype.TQ2_0:
-		return fileTypeMostlyTQ2_0, true
-	case dtype.MXFP4:
-		return fileTypeMostlyMXFP4, true
-	case dtype.NVFP4:
-		return fileTypeMostlyNVFP4, true
-	case dtype.Q1_0:
-		return fileTypeMostlyQ1_0, true
-	case dtype.Q2_0:
-		return fileTypeMostlyQ2_0, true
-	default:
+	if target >= dtype.Count {
 		return 0, false
 	}
+	binding := quantizedFileTypes[target]
+	return binding.fileType, binding.valid
 }
 
 func tensorStorageSize(tensor TensorInfo, dataType DType) (uint64, error) {
-	traits, ok := dataType.Traits()
-	if !ok {
-		return 0, fmt.Errorf("tensor %q has unknown type %d", tensor.Name, dataType)
-	}
 	elements, err := tensor.ElementCount()
 	if err != nil {
 		return 0, err
 	}
-	blocks, aligned := traits.BlockCount(elements)
-	if !aligned {
-		return 0, fmt.Errorf(
-			"tensor %q element count %d is not divisible by %s block size %d",
-			tensor.Name,
-			elements,
-			traits.Name,
-			traits.BlockSize,
-		)
+	bytes, err := dataType.StorageBytes(elements, tensor.Shape[0])
+	if err != nil {
+		return 0, fmt.Errorf("tensor %q: %w", tensor.Name, err)
 	}
-	if blocks > math.MaxUint64/traits.TypeSize {
-		return 0, fmt.Errorf("tensor %q byte size overflows uint64", tensor.Name)
-	}
-	return blocks * traits.TypeSize, nil
+	return bytes, nil
 }
 
 type quantizingReader struct {

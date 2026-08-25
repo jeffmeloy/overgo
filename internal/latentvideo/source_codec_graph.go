@@ -215,13 +215,13 @@ head:
 	}
 	plan.MomentChannels, plan.LatentChannels = pointOut, latentChannels
 	plan.CodecProgram.Operations = compiler.ops
-	if err := plan.CodecProgram.Validate("vae encoder"); err != nil {
-		return plan, err
-	}
 	stats, err := compiler.finish(func(name string) bool {
 		return strings.HasPrefix(name, "encoder.") || strings.HasPrefix(name, "conv1.")
 	})
 	if err != nil {
+		return plan, err
+	}
+	if err := plan.CodecProgram.Validate("vae encoder"); err != nil {
 		return plan, err
 	}
 	plan.UsedTensorCount = stats.tensors

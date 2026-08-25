@@ -1,11 +1,10 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "document_type": "infographic_upgrade_specification",
   "asset": {
     "project": "Overgo",
     "title": "One platform for the whole model lifecycle",
-    "source_image": "docs/assets/overgo-platform-architecture.png",
-    "target_image": "docs/assets/overgo-platform-architecture-v2.png",
+    "target_image": "docs/assets/overgo-platform-architecture.png",
     "canvas": {
       "width": 1536,
       "height": 1024,
@@ -15,7 +14,7 @@
     "purpose": "Explain how immutable model and data identities become compiled, evidence-gated programs that run across training, evaluation, composition, and serving in one shared runtime."
   },
   "source_analysis": {
-    "visual_metaphor": "A Go-powered factory converts model artifacts into verified multimodal capabilities while RepoDB acts as the content-addressed authority beneath the production line.",
+    "visual_metaphor": "A Go-powered factory converts model artifacts into verified multimodal capabilities while OvergoDB acts as the content-addressed authority beneath the production line.",
     "style": {
       "illustration": "friendly hand-drawn technical cutaway",
       "setting": "outdoor factory in a bright mountain landscape",
@@ -29,7 +28,7 @@
       "OVERGO title and lifecycle promise",
       "left-to-right intake, compilation, runtime, and output pipeline",
       "middle lifecycle workstations",
-      "RepoDB authority and lifecycle records",
+      "OvergoDB authority and lifecycle records",
       "shared infrastructure foundations",
       "bottom evidence loop and right-side lifecycle legend"
     ],
@@ -154,25 +153,25 @@
           },
           {
             "heading": "WORKBENCH (GUI)",
-            "copy": ["Chat", "Generation", "Telemetry", "Datasets", "Training", "Artifacts", "Analysis"]
+            "copy": ["Chat & generation", "Runtime & activity", "Model discovery", "Datasets", "Training / builder", "Compositions", "Evaluations", "Artifacts", "Model analysis"]
           }
         ],
         "visual": "six adjacent factory bays, each staffed by a gopher performing the named lifecycle task"
       },
       {
-        "id": "repodb_authority",
+        "id": "overgodb_authority",
         "status": "existing",
         "region": "lower_middle",
         "bounds_normalized": { "x": 0.12, "y": 0.62, "width": 0.69, "height": 0.14 },
-        "heading": "REPODB",
+        "heading": "OVERGODB",
         "copy": ["Content-Addressed Authority"],
         "record_groups": {
-          "artifacts": ["Identity", "Bytes", "Manifests"],
+          "artifacts": ["Identity", "Locations", "Manifests"],
           "lineage": ["Parentage", "Derivation", "Provenance"],
-          "runs": ["Executions", "Training", "Evaluations", "Serving"],
-          "recipes": ["Graphs", "Modules", "Components"],
-          "evaluations": ["Results", "Metrics", "Evidence"],
-          "releases": ["Promotion", "Rollback", "Compatibility"]
+          "runs": ["Execution", "Stage receipts", "Serving"],
+          "recipes": ["Graphs", "Modules", "Capability bundles"],
+          "evaluations": ["Plans", "Results", "Interaction traces"],
+          "releases": ["Decisions", "Promotion", "Rollback"]
         },
         "visual": "locked central database tank connected by pipes to six record cabinets"
       },
@@ -242,11 +241,11 @@
   },
   "upgrade": {
     "message": "Immutable authority, compiled plans, bounded execution, and exact evidence connect every model lifecycle capability.",
-    "design_strategy": "Keep the factory and RepoDB foundation, reduce repeated small text, and spend the recovered space on composition, exact plan identity, admission, and activation.",
+    "design_strategy": "Keep the simpler factory and OvergoDB foundation, preserve readable panel labels, and add only the durable workflow, interaction, catalog, and GUI capabilities that materially clarify the current system.",
     "preserve": [
       "Go-gopher factory metaphor",
       "left-to-right execution flow",
-      "RepoDB as the central foundation",
+      "OvergoDB as the central foundation",
       "multimodal output board",
       "four-state lifecycle legend",
       "gold evidence loop",
@@ -268,18 +267,18 @@
         "status": "enhanced",
         "replaces": "runtime_execution",
         "heading": "SHARED RESIDENT RUNTIME",
-        "primary_copy": ["One engine, many models", "Host + CUDA", "Bounded sessions", "Exact lifetimes"],
-        "secondary_copy": ["Dense / MoE / Recurrent / Hybrid", "Decoder / Encoder / Diffusion", "Multimodal / Multitask / Composition"],
+        "primary_copy": ["One engine, many models", "DAG workflows / Typed tools", "Remote stages / Interaction replay"],
+        "secondary_copy": ["Dense / MoE / Recurrent / Hybrid", "Decoder / Encoder / Diffusion", "Multimodal / Multitask"],
         "visual": "existing terminal plus a visible capacity gauge, waiting queue, device-residency lights, and idle-eviction clock",
         "reason": "The runtime now has explicit admission, capacity, waiting, component lifetime, residency, and eviction behavior."
       },
       {
-        "id": "repodb_authority_v2",
+        "id": "overgodb_authority_v3",
         "status": "enhanced",
-        "replaces": "repodb_authority",
-        "heading": "REPODB",
-        "primary_copy": ["Immutable identities", "Mutable active aliases", "Exact lineage", "Evidence & decisions"],
-        "record_groups": ["Artifacts & locations", "Datasets & splits", "Compiled plans", "Runs & evaluations", "Gates & decisions", "Promotion & rollback"],
+        "replaces": "overgodb_authority",
+        "heading": "OVERGODB",
+        "primary_copy": ["Immutable identities", "Physical locations", "Typed documents", "Mutable active aliases", "Exact lineage", "Evidence & decisions"],
+        "record_groups": ["Artifacts & locations", "Lineage", "Runs & stage receipts", "Recipes & capability bundles", "Evaluations & interaction traces", "Decisions, promotion & rollback"],
         "visual": "central locked database with immutable records entering on the left and compare-and-set alias pointers moving on the right",
         "reason": "Identity, physical location, composition, evidence, and active names are separate authorities."
       },
@@ -311,16 +310,25 @@
         "reason": "Resume authority includes the entire executable and data state, not only checkpoint bytes."
       },
       {
-        "id": "workbench_station_v2",
+        "id": "workbench_station_v3",
         "status": "enhanced",
         "replaces_station": "WORKBENCH (GUI)",
         "heading": "WORKBENCH",
-        "copy": ["Chat & generation", "Runtime", "Datasets", "Training", "Compositions", "Evaluations", "Artifacts", "Analysis"],
-        "visual": "laptop shows a composition graph beside promotion metrics and a live resident-session panel",
-        "reason": "The GUI now exposes composition inventory, activation, evidence, residency, cache identity, and comparison."
+        "copy": ["Chat & generation", "Runtime & activity", "Library discovery", "Datasets", "Training / builder", "Compositions", "Evaluations", "Artifacts", "Model analysis"],
+        "visual": "laptop shows catalog coverage and download progress beside shared live operations, stage receipts, decisions, interaction replay, and resident-session activity",
+        "reason": "The GUI now exposes multi-task model discovery, architecture-profile and dataset coverage, verified Hub downloads, shared SSE runtime state, durable workflow evidence, interaction replay, composition, evaluation, and model analysis."
       }
     ],
     "new_elements": [
+      {
+        "id": "catalog_coverage_callout",
+        "status": "new",
+        "region": "right_of_workbench",
+        "heading": null,
+        "copy": ["Profiles", "Datasets", "Multi-task activations"],
+        "visual": "a concise callout beside the Workbench names the three catalog denominators exposed by the Library surface",
+        "reason": "Catalog output now distinguishes registered architecture profiles, registered datasets, and promoted capabilities across every task."
+      },
       {
         "id": "composition_station",
         "status": "new",
@@ -354,8 +362,8 @@
         "region": "lower_foundation_data_area",
         "heading": "STREAMING OBJECTS",
         "copy": ["Content identity", "Physical location", "Bounded reads", "Verified transfer"],
-        "visual": "artifact blocks move through a bounded pipe from external storage while only identities and locations enter RepoDB",
-        "reason": "Large model and dataset bytes remain external while RepoDB binds their immutable identities and locations."
+        "visual": "artifact blocks move through a bounded pipe from external storage while only identities and locations enter OvergoDB",
+        "reason": "Large model and dataset bytes remain external while OvergoDB binds their immutable identities and locations."
       },
       {
         "id": "structural_verification",
@@ -369,7 +377,7 @@
       {
         "id": "activation_switch",
         "status": "new",
-        "region": "right_of_repodb_before_serving",
+        "region": "right_of_overgodb_before_serving",
         "heading": "ACTIVE ALIAS",
         "copy": ["Expected current", "Exact evidence", "Atomic transition"],
         "visual": "a guarded railway switch moves one illuminated alias pointer from the prior recipe to the promoted recipe",
@@ -394,7 +402,7 @@
         "WORKBENCH"
       ],
       "authority_layer": [
-        "repodb_authority_v2",
+        "overgodb_authority_v3",
         "activation_switch",
         "four_state_lifecycle"
       ],
@@ -489,7 +497,7 @@
       "model-family-specific claims in the shared runtime",
       "unqualified words such as automatic, universal, or unlimited",
       "suggesting that implemented means verified or promoted",
-      "suggesting that RepoDB stores all model and dataset bytes",
+      "suggesting that OvergoDB stores all model and dataset bytes",
       "suggesting that a passing metric activates a recipe without a decision"
     ]
   },
@@ -498,7 +506,7 @@
     "Use arrows only for actual dependency or lifecycle direction.",
     "Show refusal paths and rollback paths, not only the happy path.",
     "Keep source and target representation colors distinct through the composition bridge.",
-    "Keep external object bytes visually outside RepoDB; show RepoDB retaining identities and locations.",
+    "Keep external object bytes visually outside OvergoDB; show OvergoDB retaining identities and locations.",
     "Separate transformed-source cache from target KV cache.",
     "Depict bounded queues with visible capacity rather than an open-ended line.",
     "Do not increase total small-print density over the source image; replace detail with icons or grouped labels."
@@ -506,7 +514,7 @@
   "acceptance_checks": [
     "The graphic reads as intake -> compile -> admit -> execute -> output at first glance.",
     "Composition is visible as a peer of training and evaluation.",
-    "RepoDB clearly separates immutable identities from mutable active aliases.",
+    "OvergoDB clearly separates immutable identities from mutable active aliases.",
     "Evaluation visibly binds model, recipe, dataset split, scorer, code, environment, and lifecycle before execution.",
     "Training resume visibly binds weights, optimizer plan, RNG, processors, codecs or projectors, and stream position.",
     "Admission shows bounded capacity, bounded waiting, data locality, and eviction.",

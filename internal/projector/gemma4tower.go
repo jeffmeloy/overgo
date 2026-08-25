@@ -85,29 +85,29 @@ func (r *Gemma4TowerRunner) Spec() Gemma4TowerSpec {
 
 func ReadGemma4TowerSpec(file *gguf.File) (Gemma4TowerSpec, error) {
 	var spec Gemma4TowerSpec
-	if err := validateVisionProjector(file, "clip.vision.projector_type", gemma4VisionTowerProjectorType); err != nil {
+	if err := validateVisionProjector(file, visionTowerTypeKey, gemma4VisionTowerProjectorType); err != nil {
 		return spec, err
 	}
 	if err := validateProjector(
-		file, "clip.audio.projector_type", "clip.has_audio_encoder", gemma4AudioTowerProjectorType, "audio",
+		file, audioProjectorTypeKey, audioEncoderEnabledKey, gemma4AudioTowerProjectorType, "audio",
 	); err != nil {
 		return spec, err
 	}
 	vision := &spec.Vision
 	audio := &spec.Audio
 	if err := readMetadataIntFields(file,
-		metadataIntField{"clip.vision.block_count", &vision.Layers},
-		metadataIntField{"clip.vision.embedding_length", &vision.Hidden},
-		metadataIntField{"clip.vision.feed_forward_length", &vision.Intermediate},
-		metadataIntField{"clip.vision.attention.head_count", &vision.Heads},
-		metadataIntField{"clip.vision.attention.head_count_kv", &vision.KVHeads},
+		metadataIntField{visionLayerCountKey, &vision.Layers},
+		metadataIntField{visionHiddenKey, &vision.Hidden},
+		metadataIntField{visionIntermediateKey, &vision.Intermediate},
+		metadataIntField{visionHeadCountKey, &vision.Heads},
+		metadataIntField{visionKVHeadCountKey, &vision.KVHeads},
 		metadataIntField{"clip.vision.attention.key_length", &vision.HeadDim},
-		metadataIntField{"clip.vision.patch_size", &vision.PatchSize},
+		metadataIntField{visionPatchSizeKey, &vision.PatchSize},
 		metadataIntField{"clip.vision.projector_scale_factor", &vision.PoolKernel},
 		metadataIntField{"clip.vision.position_embedding_size", &vision.PositionCount},
-		metadataIntField{"clip.vision.projection_dim", &vision.ProjectionDim},
-		metadataIntField{"clip.vision.max_soft_tokens", &vision.MaxImageTokens},
-		metadataIntField{"clip.vision.video_max_soft_tokens", &vision.MaxVideoTokens},
+		metadataIntField{visionProjectionKey, &vision.ProjectionDim},
+		metadataIntField{visionMaxSoftTokensKey, &vision.MaxImageTokens},
+		metadataIntField{visionVideoSoftTokensKey, &vision.MaxVideoTokens},
 		metadataIntField{"clip.audio.block_count", &audio.Layers},
 		metadataIntField{"clip.audio.embedding_length", &audio.Hidden},
 		metadataIntField{"clip.audio.feed_forward_length", &audio.Intermediate},
@@ -130,8 +130,8 @@ func ReadGemma4TowerSpec(file *gguf.File) (Gemma4TowerSpec, error) {
 		key    string
 		target *float32
 	}{
-		{"clip.vision.attention.layer_norm_epsilon", &vision.RMSNormEpsilon},
-		{"clip.vision.rope.freq_base", &vision.RopeFreqBase},
+		{visionNormEpsilonKey, &vision.RMSNormEpsilon},
+		{visionRopeFrequencyKey, &vision.RopeFreqBase},
 		{"clip.audio.attention.layer_norm_epsilon", &audio.RMSNormEpsilon},
 		{"clip.audio.attention.logit_softcapping", &audio.LogitSoftcap},
 		{"clip.audio.residual_weight", &audio.ResidualWeight},

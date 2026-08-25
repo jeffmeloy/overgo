@@ -6,10 +6,19 @@ import (
 )
 
 func TestExecuteCodecProgram(t *testing.T) {
-	program := CodecProgram[struct{}]{Operations: []CodecOperation[struct{}]{
-		{Operator: CodecPointwise, Name: "project", InputChannels: 2, OutputChannels: 3, BindingCount: 1},
-		{Operator: CodecHead, Name: "head", InputChannels: 3, OutputChannels: 1, BindingCount: 1},
-	}}
+	project, err := BindCodecWeights(CodecPointwise, false, []struct{}{{}, {}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, err := BindCodecWeights(CodecHead, false, []struct{}{{}, {}, {}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectOp := NewCodecOperation[struct{}](CodecPointwise, "project", 2, 3)
+	projectOp.Bindings = project
+	headOp := NewCodecOperation[struct{}](CodecHead, "head", 3, 1)
+	headOp.Bindings = head
+	program := CodecProgram[struct{}]{Operations: []CodecOperation[struct{}]{projectOp, headOp}}
 	var visited []string
 	output, err := ExecuteCodecProgram("test", program, make([]int, len(program.Operations)), CodecVolume[string]{
 		Storage: "storage", Channels: 2, Frames: 1, Height: 4, Width: 4,

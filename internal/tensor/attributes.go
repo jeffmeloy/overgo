@@ -1,6 +1,10 @@
 package tensor
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"math"
+)
 
 // Attributes: closed operation-attribute contract.
 type Attributes interface {
@@ -73,6 +77,50 @@ func (HyperConnectionAttributes) validFor(op Op) bool {
 
 func (TopKAttributes) validFor(op Op) bool {
 	return sameOp(op, OpTopK) || sameOp(op, OpTopKPairs) || sameOp(op, OpTopKPartials)
+}
+
+func copyRuntimeWords(destination, values []uint32) int {
+	if destination != nil {
+		copy(destination, values)
+	}
+	return len(values)
+}
+
+// RuntimeAttributeWords compiles device-visible typed attributes.
+func RuntimeAttributeWords(node *Tensor, attributes Attributes, destination []uint32) (int, error) {
+	var values []uint32
+	switch value := attributes.(type) {
+	case GetRowsAttributes:
+		values = value.Rows
+	case RoPEAttributes:
+		values = value.Positions
+	case RoPEMultiAttributes:
+		written := FirstOffset
+		for axis := range value.Positions {
+			var target []uint32
+			if destination != nil {
+				target = destination[written:]
+			}
+			written += copyRuntimeWords(target, value.Positions[axis])
+		}
+		return written, nil
+	case AttentionAttributes:
+		tokens := value.KeyValueTokens
+		if tokens == FirstOffset {
+			if node == nil || len(node.Inputs) <= SingletonExtent {
+				return FirstOffset, errors.New("attention KV input is unavailable")
+			}
+			extent := node.Inputs[SingletonExtent].Shape.Dims[PairedExtent]
+			if extent > math.MaxUint32 {
+				return FirstOffset, errors.New("attention KV capacity exceeds uint32")
+			}
+			tokens = uint32(extent)
+		}
+		values = []uint32{tokens}
+	case CacheAppendAttributes:
+		values = []uint32{value.Offset}
+	}
+	return copyRuntimeWords(destination, values), nil
 }
 
 // ValidateOperationAttributes checks one operation/descriptor pair.

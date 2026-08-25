@@ -13,7 +13,6 @@ func launchReferenceFamily(
 	blas *blasState,
 	node *tensor.Tensor,
 	pointers launchPointerFrame,
-	attributePointers devicePointerTable,
 ) error {
 	switch node.Op {
 	case tensor.OpHyperConnectionInit, tensor.OpHyperConnectionPre, tensor.OpHyperConnectionPost,

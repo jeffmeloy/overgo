@@ -119,6 +119,39 @@ func TestRegisterContentIdentity(t *testing.T) {
 	}
 }
 
+// TestRegisterTouchDoesNotReidentify pins the other half of content
+// identity: bumping an unchanged file's modification time must leave
+// the dataset identity untouched -- re-registration after a touch is
+// an idempotent no-op, because identity follows bytes alone.
+func TestRegisterTouchDoesNotReidentify(t *testing.T) {
+	ctx := context.Background()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	root := t.TempDir()
+	path := filepath.Join(root, "clip.mp4")
+	if err := os.WriteFile(path, bytes.Repeat([]byte{0xCC}, 4096), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	first, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	touched := time.Unix(1800000000, 0)
+	if err := os.Chtimes(path, touched, touched); err != nil {
+		t.Fatal(err)
+	}
+	second, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Changed || second.Dataset != first.Dataset {
+		t.Fatalf("touch re-identified: first=%s second=%s changed=%t", first.Dataset, second.Dataset, second.Changed)
+	}
+}
+
 // TestRegisterModalitySetAndDeclaration pins the modality-set contract:
 // a single-modality corpus reports that modality, a declaration selects
 // the primary when present and is refused when absent, and the primary

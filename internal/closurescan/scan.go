@@ -180,6 +180,26 @@ const (
 	LiteralOther      LiteralContext = "other"
 )
 
+// LiteralClass identifies numeric source ownership.
+type LiteralClass string
+
+const (
+	// LiteralStructural marks control and identity syntax.
+	LiteralStructural LiteralClass = "structural"
+	// LiteralMathematical marks operator mathematics.
+	LiteralMathematical LiteralClass = "mathematical"
+	// LiteralFormat marks encoded representation syntax.
+	LiteralFormat LiteralClass = "format"
+	// LiteralCapacity marks allocation extents.
+	LiteralCapacity LiteralClass = "capacity"
+	// LiteralPolicy marks implementation policy.
+	LiteralPolicy LiteralClass = "policy"
+	// LiteralModelFact marks artifact-dependent values.
+	LiteralModelFact LiteralClass = "model_fact"
+	// LiteralUnknown marks unresolved ownership.
+	LiteralUnknown LiteralClass = "unknown"
+)
+
 type LiteralSite struct {
 	Name       string         `json:"name,omitempty"`
 	File       string         `json:"file"`
@@ -191,6 +211,7 @@ type LiteralSite struct {
 	Expression string         `json:"expression"`
 	Value      string         `json:"value"`
 	Context    LiteralContext `json:"context"`
+	Class      LiteralClass   `json:"class"`
 	SourceID   string         `json:"source_id"`
 	Policy     bool           `json:"policy"`
 }
@@ -408,14 +429,83 @@ func collectLiteralSites(file *ast.File, source repoanalysis.GoFile, out *[]Lite
 			return
 		}
 		context := literalContext(parent, parents)
+		class := classifyLiteral(literal, expression, parent, parents)
 		*out = append(*out, LiteralSite{
 			File: source.Path, Package: filepath.ToSlash(filepath.Dir(source.Path)),
 			Scope: literalScope(node, parents), Line: source.Line(expression.Pos()), Offset: int(expression.Pos()) - 1,
 			Kind: literal.Kind.String(), Expression: formatExpression(expression), Value: value.ExactString(),
-			Context: context, SourceID: source.ContentID,
-			Policy: runtimeLiteralContext(context) && !structuralIdentity(literal, parent, parents),
+			Context: context, Class: class, SourceID: source.ContentID,
+			Policy: runtimeLiteralContext(context) && class != LiteralStructural,
 		})
 	})
+}
+
+func classifyLiteral(literal *ast.BasicLit, expression ast.Expr, parent ast.Node, parents map[ast.Node]ast.Node) LiteralClass {
+	if structuralIdentity(literal, parent, parents) {
+		return LiteralStructural
+	}
+	if call, ok := parent.(*ast.CallExpr); ok {
+		if name, ok := call.Fun.(*ast.Ident); ok && name.Name == "make" {
+			return LiteralCapacity
+		}
+		if selector, ok := call.Fun.(*ast.SelectorExpr); ok {
+			if owner, ok := selector.X.(*ast.Ident); ok && (owner.Name == "math" || owner.Name == "cmplx") {
+				return LiteralMathematical
+			}
+		}
+	}
+	if binary, ok := parent.(*ast.BinaryExpr); ok && (binary.X == expression || binary.Y == expression) {
+		switch binary.Op {
+		case token.SHL, token.SHR, token.AND, token.OR, token.XOR, token.AND_NOT:
+			return LiteralFormat
+		}
+	}
+	return LiteralUnknown
+}
+
+// ClassifyLiteralAuthorities applies exact active-ledger dispositions.
+func ClassifyLiteralAuthorities(sites []LiteralSite, documents []closureledger.Document) []LiteralSite {
+	out := slices.Clone(sites)
+	tiers := map[string]closureledger.Tier{}
+	conflicts := map[string]bool{}
+	for _, document := range documents {
+		if document.ValidateIdentity() != nil {
+			continue
+		}
+		for _, binding := range document.Bindings {
+			if binding.Kind != closureledger.BindingLiteral {
+				continue
+			}
+			key := literalAuthorityKey(binding.File, binding.Scope, binding.Expression, binding.SourceID)
+			if prior, ok := tiers[key]; ok && prior != document.Tier {
+				conflicts[key] = true
+			}
+			tiers[key] = document.Tier
+		}
+	}
+	for index := range out {
+		if out[index].Class != LiteralUnknown {
+			continue
+		}
+		key := literalAuthorityKey(out[index].File, out[index].Scope, out[index].Expression, out[index].SourceID)
+		if conflicts[key] {
+			continue
+		}
+		switch tiers[key] {
+		case closureledger.TierMathematicalFact:
+			out[index].Class = LiteralMathematical
+		case closureledger.TierImplementation:
+			out[index].Class = LiteralPolicy
+		case closureledger.TierDerivationBlocked, closureledger.TierPhenomenology,
+			closureledger.TierMeasuredNull, closureledger.TierAdaptationShipped:
+			out[index].Class = LiteralModelFact
+		}
+	}
+	return out
+}
+
+func literalAuthorityKey(file, scope, expression, sourceID string) string {
+	return file + "\x00" + scope + "\x00" + expression + "\x00" + sourceID
 }
 
 func structuralIdentity(literal *ast.BasicLit, parent ast.Node, parents map[ast.Node]ast.Node) bool {

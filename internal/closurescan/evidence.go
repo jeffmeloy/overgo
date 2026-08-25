@@ -13,7 +13,7 @@ import (
 
 const (
 	CensusEvidenceMediaType = "application/vnd.overgo.magic-census+json"
-	CensusEvidenceSchema    = "overgo/magic-census-evidence/v2"
+	CensusEvidenceSchema    = "overgo/magic-census-evidence/v3"
 	CensusEvidenceAlias     = "closure/census/latest"
 )
 
@@ -109,6 +109,9 @@ func validateCensusEvidence(value *CensusEvidence) error {
 		len(value.Unresolved) != value.Pressure.OpenDocuments || len(value.Stale) != value.Pressure.StaleBindings {
 		return errors.New("closure scan: inconsistent census evidence")
 	}
+	if literalClassTotal(value.Counts) != value.Counts.InlineLiterals {
+		return errors.New("closure scan: inconsistent literal classes")
+	}
 	if err := validateFilePressure(value.Files, value.Counts); err != nil {
 		return err
 	}
@@ -123,6 +126,11 @@ func validateCensusEvidence(value *CensusEvidence) error {
 		}
 	}
 	return nil
+}
+
+func literalClassTotal(counts CensusCounts) int {
+	return counts.Structural + counts.Mathematical + counts.Format + counts.Capacity +
+		counts.Policy + counts.ModelFact + counts.Unknown
 }
 
 func digest(value string) bool {

@@ -1,6 +1,7 @@
 package closurescan
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -226,6 +227,51 @@ func admitted(n int) bool { return n > 3 || n > 4096 }
 	}
 	if sites[0].Value != "3" || sites[1].Value != "4096" {
 		t.Fatalf("values = %q, %q", sites[0].Value, sites[1].Value)
+	}
+}
+
+func TestLiteralClassUsesContextAndExactAuthority(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{"internal/policy.go": `package policy
+import "math"
+func classify(n int, value float64) {
+	_ = make([]byte, 8)
+	_ = n >> 3
+	_ = math.Pow(value, 2)
+	if n == 0 || n > 512 {}
+}
+`})
+	sites, err := CensusLiterals(snapshot, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]LiteralClass{
+		"8": LiteralCapacity, "3": LiteralFormat, "2": LiteralMathematical,
+		"0": LiteralStructural, "512": LiteralUnknown,
+	}
+	for _, site := range sites {
+		if site.Class != want[site.Value] {
+			t.Fatalf("literal %s class = %s, want %s", site.Value, site.Class, want[site.Value])
+		}
+		if site.Value != "512" {
+			continue
+		}
+		candidate := site.Candidate()
+		binding, err := candidate.Binding()
+		if err != nil {
+			t.Fatal(err)
+		}
+		document, err := closureledger.New(
+			candidate.Name, json.RawMessage(candidate.ValueJSON()), closureledger.TierImplementation,
+			closureledger.StatusClosed, "Fixed admission policy.", []closureledger.SourceBinding{binding},
+			"Replace policy owner.", "Policy owner change.", binding.Owner,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		classified := ClassifyLiteralAuthorities([]LiteralSite{site}, []closureledger.Document{document})
+		if classified[0].Class != LiteralPolicy || site.Class != LiteralUnknown {
+			t.Fatalf("authority class = %s, source class = %s", classified[0].Class, site.Class)
+		}
 	}
 }
 

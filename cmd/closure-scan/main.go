@@ -560,10 +560,12 @@ func writeCensusText(destination io.Writer, census closurescan.Census) error {
 	_, err := fmt.Fprintf(destination,
 		"closure-scan census %s\nsource %s\nfiles production=%d test=%d\n"+
 			"surfaces named=%d inline=%d assumptions=%d test_policy=%d\n"+
+			"literal_classes structural=%d mathematical=%d format=%d capacity=%d policy=%d model_fact=%d unknown=%d\n"+
 			"tests total=%d fixture=%d assertion=%d policy_copy=%d\n"+
 			"repeated groups=%d sites=%d\ndetail: rerun with -format json\n",
 		census.Schema, census.Source, counts.ProductionFiles, counts.TestFiles,
 		counts.NamedConstants, counts.InlineLiterals, counts.AssumptionHints, counts.TestPolicyCopies,
+		counts.Structural, counts.Mathematical, counts.Format, counts.Capacity, counts.Policy, counts.ModelFact, counts.Unknown,
 		counts.TestLiterals, counts.TestFixtures, counts.TestAssertions, counts.TestPolicyCopies,
 		counts.RepeatedGroups, counts.RepeatedSites)
 	return err
@@ -571,9 +573,9 @@ func writeCensusText(destination io.Writer, census closurescan.Census) error {
 
 func reportLiterals(sites []closurescan.LiteralSite, limit int) {
 	fmt.Printf("closure-scan: %d classified production numeric literals (named constants excluded)\n", len(sites))
-	fmt.Printf("%-18s %-16s %-24s %s\n", "context", "value", "scope", "source")
+	fmt.Printf("%-14s %-18s %-16s %-24s %s\n", "class", "context", "value", "scope", "source")
 	for _, site := range sites[:min(len(sites), limit)] {
-		fmt.Printf("%-18s %-16s %-24s %s:%d\n", site.Context, site.Value, site.Scope, site.File, site.Line)
+		fmt.Printf("%-14s %-18s %-16s %-24s %s:%d\n", site.Class, site.Context, site.Value, site.Scope, site.File, site.Line)
 	}
 }
 

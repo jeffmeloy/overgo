@@ -1,7 +1,7 @@
 {
   "campaign": "Model facts as typed OvergoDB runtime authority",
   "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
-  "census_evidence": "evidence:sha256:820a98b8033941ccee57556097ec199a975752827510df2ed0dcb34bdf690919",
+  "census_evidence": "evidence:sha256:88afee47039e257358a8155bb2f2e9800addce26d03446826b796b1b57df9ea5",
   "items": [
     {
       "id": "merge-00111a352daa",
@@ -215,12 +215,12 @@
       "id": "semantic-literal-census",
       "title": "Separate structural, mathematical, format, capacity, policy, model-fact, fixture, assertion, and unknown literals",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Make closure-scan classify from AST context and exact authority bindings without value thresholds",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/closurescan ./cmd/closure-scan -run '^Test.*Literal.*Class' -count=1",
           "rationale": "Report structural zero/unit operations separately. Unknown remains explicit. Only policy, model-fact, and unknown classes drive runtime cleanup gates.",
           "depends_on": [

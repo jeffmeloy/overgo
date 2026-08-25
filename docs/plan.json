@@ -21,12 +21,12 @@
       "id": "agent-exact-tool-identity",
       "title": "Interactions record manual.ID; session restore resolves historical tools by exact identity, not the mutable name alias",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Interactions record manual.ID; session restore resolves historical tools by exact identity, not the mutable name alias",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/agentloop ./internal/server -run 'TestCoordinator|TestAgentWorkspace' -count=1"
         }
       ]

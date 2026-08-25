@@ -136,7 +136,17 @@ func (c *Coordinator) RestoreSession(ctx context.Context, id string) (*Session, 
 		}
 		for _, message := range transcript.Messages {
 			for _, call := range message.ToolCalls {
-				manual, err := agenttool.ResolveRegisteredManual(ctx, c.store, call.Name)
+				// Resolve the EXACT tool the step ran by its recorded
+				// manual identity, so a later effect-class change on the
+				// name alias cannot rewrite whether this step inspected.
+				// Records written before manual.ID existed fall back to the
+				// name alias, the best identity they carry.
+				var manual agenttool.Manual
+				if call.Manual.Valid() {
+					manual, err = agenttool.LoadManual(ctx, c.store, call.Manual)
+				} else {
+					manual, err = agenttool.ResolveRegisteredManual(ctx, c.store, call.Name)
+				}
 				if err == nil && manual.Effect == agenttool.EffectInspection {
 					session.Inspected = true
 				}
@@ -165,7 +175,7 @@ func (c *Coordinator) recordStep(
 			Role: string(inference.ChatRoleAssistant),
 			ToolCalls: []runrecord.InteractionToolCall{{
 				ID: callID, Type: string(inference.ChatToolTypeFunction),
-				Name: manual.Name, Arguments: string(arguments),
+				Name: manual.Name, Manual: manual.ID, Arguments: string(arguments),
 			}},
 		},
 		{Role: string(inference.ChatRoleTool), ToolCallID: callID, Content: string(result)},

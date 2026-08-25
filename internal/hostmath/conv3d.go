@@ -8,8 +8,6 @@ package hostmath
 import (
 	"fmt"
 	"math"
-
-	"overgo/internal/checked"
 )
 
 // Conv3DShape: one convolution call's geometry. PadT is the symmetric-pad
@@ -20,36 +18,6 @@ type Conv3DShape struct {
 	KT, KH, KW                int
 	PadT, PadH, PadW          int
 	StrideT, StrideH, StrideW int
-}
-
-// CausalConv3DSameSingleFrameInto derives an odd cubic kernel from the weight
-// storage and applies a stride-one, same-spatial convolution to one frame.
-func CausalConv3DSameSingleFrameInto(out, input, weight, bias []float32, inputChannels, outputChannels, height, width int) error {
-	channelPairs, ok := checked.MulInt(inputChannels, outputChannels)
-	if !ok {
-		return fmt.Errorf("conv3d: channel geometry overflows")
-	}
-	kernelVolume, ok := checked.DivExactInt(len(weight), channelPairs)
-	if !ok {
-		return fmt.Errorf("conv3d: weight storage is not channel-aligned")
-	}
-	kernel := int(math.Round(math.Cbrt(float64(kernelVolume))))
-	wantVolume, ok := checked.ProductInt(kernel, kernel, kernel)
-	if !ok || !checked.Equal(wantVolume, kernelVolume) {
-		return fmt.Errorf("conv3d: weight storage does not encode a cubic kernel")
-	}
-	padding, ok := checked.DivExactInt(kernel-1, 2)
-	if !ok {
-		return fmt.Errorf("conv3d: same convolution requires an odd kernel")
-	}
-	shape := Conv3DShape{
-		CIn: inputChannels, COut: outputChannels,
-		InT: 1, InH: height, InW: width,
-		KT: kernel, KH: kernel, KW: kernel,
-		PadT: padding, PadH: padding, PadW: padding,
-		StrideT: 1, StrideH: 1, StrideW: 1,
-	}
-	return CausalConv3DInto(out, input, nil, weight, bias, 0, shape)
 }
 
 // OutputDims: standard conv output extents; temporal uses the full 2*PadT.

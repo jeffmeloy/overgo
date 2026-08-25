@@ -65,7 +65,7 @@ func openDeepSeekOCR(ctx context.Context, file *gguf.File, options OpenOptions) 
 		return nil, err
 	}
 	runner.newline, runner.separator, err = loadProjectorHostTensorPair(
-		ctx, file, visionImageNewlineTensor, "v.view_seperator",
+		ctx, file, visionImageNewlineTensor, visionViewSeparatorTensor,
 	)
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ func ReadDeepSeekOCRSpec(file *gguf.File) (DeepSeekOCRSpec, error) {
 }
 
 func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string) (DeepSeekOCRSpec, error) {
-	if err := validateVisionProjector(file, "clip.projector_type", expectedType); err != nil {
+	if err := validateVisionProjector(file, visionProjectorTypeKey, expectedType); err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
 	var err error
@@ -112,9 +112,9 @@ func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string) (DeepSeekOCRS
 	}
 	var spec DeepSeekOCRSpec
 	for key, target := range map[string]*int{
-		"clip.vision.embedding_length":     &spec.Hidden,
-		"clip.vision.block_count":          &spec.Layers,
-		"clip.vision.attention.head_count": &spec.Heads,
+		visionHiddenKey:                    &spec.Hidden,
+		visionLayerCountKey:                &spec.Layers,
+		visionHeadCountKey:                 &spec.Heads,
 		"clip.vision.sam.embedding_length": &spec.SAMHidden,
 		"clip.vision.sam.block_count":      &spec.SAMLayers,
 		"clip.vision.sam.head_count":       &spec.SAMHeads,
@@ -131,15 +131,15 @@ func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string) (DeepSeekOCRS
 	if err := deriveDeepSeekOCRDimensions(file, &spec); err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
-	spec.LayerNormEpsilon, err = metadataFloat32(file, "clip.vision.attention.layer_norm_epsilon")
+	spec.LayerNormEpsilon, err = metadataFloat32(file, visionNormEpsilonKey)
 	if err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
-	mean, err := metadataFloat32Array(file, "clip.vision.image_mean", media.RGBChannels)
+	mean, err := metadataFloat32Array(file, visionImageMeanKey, media.RGBChannels)
 	if err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
-	std, err := metadataFloat32Array(file, "clip.vision.image_std", media.RGBChannels)
+	std, err := metadataFloat32Array(file, visionImageStandardKey, media.RGBChannels)
 	if err != nil {
 		return DeepSeekOCRSpec{}, err
 	}
@@ -229,7 +229,7 @@ func deepSeekOCRTensorNames(file *gguf.File, spec DeepSeekOCRSpec) []string {
 	names := deepSeekOCRSAMTensorNames(spec)
 	names = append(names,
 		visionClassEmbeddingTensor, visionPositionWeightTensor,
-		multimodalProjectionWeight, multimodalProjectionBias, visionImageNewlineTensor, "v.view_seperator",
+		multimodalProjectionWeight, multimodalProjectionBias, visionImageNewlineTensor, visionViewSeparatorTensor,
 	)
 	for layer := 0; layer < spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
@@ -297,10 +297,10 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 		multimodalProjectionWeight: {uint64(tensor.PairedExtent * spec.Hidden), uint64(spec.OutputHidden)},
 		multimodalProjectionBias:   {uint64(spec.OutputHidden)},
 	}
-	if err := validateProjectorTensorShapes(file, requiredShapes); err != nil {
+	if _, err := validateProjectorTensorCatalog(file, requiredShapes); err != nil {
 		return err
 	}
-	for _, name := range []string{visionImageNewlineTensor, "v.view_seperator"} {
+	for _, name := range []string{visionImageNewlineTensor, visionViewSeparatorTensor} {
 		info, _ := file.Tensor(name)
 		elements, err := info.ElementCount()
 		if err != nil {
@@ -321,15 +321,12 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 }
 
 func preprocessDeepSeekOCRImage(source image.Image, spec DeepSeekOCRSpec, dynamicTiles bool) (DeepSeekOCRInput, error) {
-	if source == nil {
-		return DeepSeekOCRInput{}, errors.New("projector: image is nil")
-	}
 	if err := spec.validate(); err != nil {
 		return DeepSeekOCRInput{}, err
 	}
-	bounds := source.Bounds()
-	if bounds.Empty() {
-		return DeepSeekOCRInput{}, errors.New("projector: image bounds are empty")
+	bounds, err := imageBounds(source)
+	if err != nil {
+		return DeepSeekOCRInput{}, err
 	}
 	input := DeepSeekOCRInput{}
 	if dynamicTiles && (bounds.Dx() > spec.TileSize || bounds.Dy() > spec.TileSize) {

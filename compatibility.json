@@ -267,7 +267,7 @@
      "contains": "func OpenAs[T Projector](",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:b9171d2d80aadd755fce051b5e4d77bce2b53423fbf5dfc42046ec7f67a19eca"
+     "identity": "file:sha256:399661b7b4c8a16ffbd5fd19d4c601892fb05ad43c2585b84df328900c76261f"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -370,7 +370,7 @@
      "contains": "func executeVQAProgram(",
      "path": "cmd/vqaparity/recipeserve.go",
      "role": "source",
-     "identity": "file:sha256:640b70dc653c3e81edb60d38e55930ab9d4fc6e9492c3c2082114cb7e580f436"
+     "identity": "file:sha256:6634257bf69ee31937992670e89fe626c48c8256193008fb2467b529d2ee310e"
     },
     {
      "contains": "func TestRxBrainProductionParity(",
@@ -434,7 +434,7 @@
      "contains": "func Quantize(",
      "path": "internal/quant/quantize.go",
      "role": "source",
-     "identity": "file:sha256:d716e9b44651f447dd85a6219d9e52bcfdf6311b67171881a332d1334880a41e"
+     "identity": "file:sha256:27c568654680318ee570ca3ebfa2d591893da0f73112ae3119aabcd14958e8d6"
     },
     {
      "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
@@ -499,7 +499,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:b119d807bcff239ea7c7ff7fca1d3bf4587a656805770a89fa12f81a3cd8a503"
+     "identity": "file:sha256:34ebe8ab91b5cffc14fbba6fec59ac1ef10d629321a9c384d7a5772f89847a2e"
     },
     {
      "contains": "func TestCompilePinsTopologyAndMemoryPlan(",
@@ -520,7 +520,7 @@
      "contains": "func DescribeOperation(",
      "path": "internal/tensor/operation.go",
      "role": "source",
-     "identity": "file:sha256:82523014a894cf50759b68e087dd80ac485734e903d12363bd364ef55aba1411"
+     "identity": "file:sha256:288d246c463dd034af80ab2634eac7d8ea651b044bec91bb7b0331c47bfc4122"
     },
     {
      "contains": "func TestOperationCatalogIsDenseAndUnique(",
@@ -584,7 +584,7 @@
      "contains": "func (r *Qwen3VLRunner) imagePromptProgram(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:b9171d2d80aadd755fce051b5e4d77bce2b53423fbf5dfc42046ec7f67a19eca"
+     "identity": "file:sha256:399661b7b4c8a16ffbd5fd19d4c601892fb05ad43c2585b84df328900c76261f"
     },
     {
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -605,7 +605,7 @@
      "contains": "func (r *Gemma4Runner) mediaPromptProgram(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:b9171d2d80aadd755fce051b5e4d77bce2b53423fbf5dfc42046ec7f67a19eca"
+     "identity": "file:sha256:399661b7b4c8a16ffbd5fd19d4c601892fb05ad43c2585b84df328900c76261f"
     },
     {
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -626,7 +626,7 @@
      "contains": "func (r *Gemma4Runner) mediaPromptProgram(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:b9171d2d80aadd755fce051b5e4d77bce2b53423fbf5dfc42046ec7f67a19eca"
+     "identity": "file:sha256:399661b7b4c8a16ffbd5fd19d4c601892fb05ad43c2585b84df328900c76261f"
     },
     {
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",

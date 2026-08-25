@@ -15,28 +15,23 @@ func launchNode(
 	node *tensor.Tensor,
 	attributes tensor.Attributes,
 	pointers launchPointerFrame,
-	attributePointers devicePointerTable,
 	program tensor.CUDAProgram,
 ) error {
 	switch program {
 	case tensor.CUDAProgramReference:
-		return launchReferenceFamily(state, functions, blas, node, pointers, attributePointers)
+		return launchReferenceFamily(state, functions, blas, node, pointers)
 	case tensor.CUDAProgramMathVision:
-		return launchMathVision(state, functions, blas, node, pointers, attributePointers)
+		return launchMathVision(state, functions, blas, node, pointers)
 	case tensor.CUDAProgramRecurrentSelection:
-		return launchRecurrentSelection(state, functions, blas, node, pointers, attributePointers)
+		return launchRecurrentSelection(state, functions, blas, node, pointers)
 	case tensor.CUDAProgramMoE:
-		return launchMoE(state, functions, blas, node, pointers, attributePointers)
+		return launchMoE(state, functions, blas, node, pointers)
 	case tensor.CUDAProgramLinearLayout:
-		return launchLinearLayout(
-			state, functions, blas, q8Input, node, attributes, pointers, attributePointers,
-		)
+		return launchLinearLayout(state, functions, blas, q8Input, node, attributes, pointers)
 	case tensor.CUDAProgramRoPE:
-		return launchRoPE(state, functions, blas, node, attributes, pointers, attributePointers)
+		return launchRoPE(state, functions, blas, node, attributes, pointers)
 	case tensor.CUDAProgramAttentionLayout:
-		return launchAttentionLayout(
-			state, functions, blas, node, attributes, pointers, attributePointers,
-		)
+		return launchAttentionLayout(state, functions, blas, node, attributes, pointers)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}

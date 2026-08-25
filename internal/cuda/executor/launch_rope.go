@@ -16,7 +16,6 @@ func launchRoPE(
 	node *tensor.Tensor,
 	runtimeAttributes tensor.Attributes,
 	pointers launchPointerFrame,
-	attributePointers devicePointerTable,
 ) error {
 	output := pointers.output()
 	switch node.Op {
@@ -46,8 +45,8 @@ func launchRoPE(
 		if len(node.Inputs) == 2 {
 			frequencyFactors = pointers.input(1)
 		}
-		positions, ok := attributePointers.lookup(node)
-		if !ok {
+		positions := pointers.attribute
+		if positions == 0 {
 			return errors.New("RoPE position storage is unavailable")
 		}
 		rotary := attributes.RotaryDimensions
@@ -90,8 +89,8 @@ func launchRoPE(
 			return err
 		}
 		input := pointers.input(0)
-		positions, ok := attributePointers.lookup(node)
-		if !ok {
+		positions := pointers.attribute
+		if positions == 0 {
 			return errors.New("RoPE multi position storage is unavailable")
 		}
 		rotary := attributes.RotaryDimensions

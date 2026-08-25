@@ -198,15 +198,11 @@ func validateObservation(observation Observation, metricName string) (Metric, er
 }
 
 func regressionDistance(latest, baseline float64, direction Direction) float64 {
-	var noRegression float64
-	switch direction {
-	case DirectionMinimize:
-		return math.Max(noRegression, latest-baseline)
-	case DirectionMaximize:
-		return math.Max(noRegression, baseline-latest)
-	default:
-		return math.Abs(latest - baseline)
+	if advantage, ok := direction.Advantage(latest, baseline); ok {
+		var noRegression float64
+		return max(noRegression, -advantage)
 	}
+	return math.Abs(latest - baseline)
 }
 
 func phaseDeltas(baseline []Observation, latest Observation) []PhaseDelta {

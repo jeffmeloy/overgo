@@ -9,7 +9,17 @@ import (
 type codecPolicy struct {
 	dataType   dtype.Type
 	importance bool
+	supported  bool
 }
+
+var codecsByType = func() [dtype.Count]codecPolicy {
+	var result [dtype.Count]codecPolicy
+	for _, value := range codecCatalog {
+		value.supported = true
+		result[value.dataType] = value
+	}
+	return result
+}()
 
 var codecCatalog = []codecPolicy{
 	{dataType: dtype.F32},
@@ -44,22 +54,6 @@ var codecCatalog = []codecPolicy{
 	{dataType: dtype.IQ3S},
 }
 
-var codecByType = func() map[dtype.Type]codecPolicy {
-	result := make(map[dtype.Type]codecPolicy, len(codecCatalog))
-	for _, codec := range codecCatalog {
-		result[codec.dataType] = codec
-	}
-	return result
-}()
-
-var codecByName = func() map[string]dtype.Type {
-	result := make(map[string]dtype.Type, len(codecCatalog))
-	for _, codec := range codecCatalog {
-		result[strings.ToLower(codec.dataType.String())] = codec.dataType
-	}
-	return result
-}()
-
 // Types: supported quantization destinations.
 func Types() []dtype.Type {
 	result := make([]dtype.Type, len(codecCatalog))
@@ -82,17 +76,20 @@ func TypeNames() []string {
 func ParseType(value string) (dtype.Type, bool) {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	normalized = strings.ReplaceAll(normalized, "-", "_")
-	dataType, ok := codecByName[normalized]
-	return dataType, ok
+	for _, codec := range codecCatalog {
+		if normalized == strings.ToLower(codec.dataType.String()) {
+			return codec.dataType, true
+		}
+	}
+	return 0, false
 }
 
 // CanQuantize: supported destination check.
 func CanQuantize(dataType dtype.Type) bool {
-	_, ok := codecByType[dataType]
-	return ok
+	return dataType < dtype.Count && codecsByType[dataType].supported
 }
 
 // RequiresImportance: destination requires explicit element weights.
 func RequiresImportance(dataType dtype.Type) bool {
-	return codecByType[dataType].importance
+	return dataType < dtype.Count && codecsByType[dataType].importance
 }

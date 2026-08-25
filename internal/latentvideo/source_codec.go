@@ -130,7 +130,7 @@ func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodec
 		}
 		volume, err := media.ExecuteCodecProgram("source codec", graph.CodecProgram, states, media.CodecVolume[[]float32]{
 			Storage: current, Channels: plan.Source.Channels, Frames: frames, Height: plan.Source.Height, Width: plan.Source.Width,
-		}, func(index int, operation media.CodecOperation[[]pytorchzip.TensorBinding], state *vaeOpState, input media.CodecVolume[[]float32]) (media.CodecVolume[[]float32], error) {
+		}, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], state *vaeOpState, input media.CodecVolume[[]float32]) (media.CodecVolume[[]float32], error) {
 			next, nextFrames, height, width, runErr := runVAEOp(operation, weights[index], state, chunkIndex, input.Storage, input.Frames, input.Height, input.Width)
 			return media.CodecVolume[[]float32]{Storage: next, Channels: operation.OutputChannels, Frames: nextFrames, Height: height, Width: width}, runErr
 		})

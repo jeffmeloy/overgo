@@ -153,6 +153,166 @@ const (
 	CodecHead
 )
 
+// CodecCacheBehavior defines temporal state.
+type CodecCacheBehavior uint8
+
+const (
+	// CodecCacheCausal retains causal prefix.
+	CodecCacheCausal CodecCacheBehavior = iota + 1
+	// CodecCacheReplicatedPrefix arms replicated-prefix transition.
+	CodecCacheReplicatedPrefix
+)
+
+// CodecKernelABI identifies a bundled codec entry point.
+type CodecKernelABI uint8
+
+const (
+	// CodecKernelConvolution runs causal convolution.
+	CodecKernelConvolution CodecKernelABI = iota
+	// CodecKernelRMSNorm runs channel RMS normalization.
+	CodecKernelRMSNorm
+	// CodecKernelAttention runs spatial attention.
+	CodecKernelAttention
+	// CodecKernelUpsample runs spatial upsample.
+	CodecKernelUpsample
+	// CodecKernelDownsample runs spatial downsample.
+	CodecKernelDownsample
+	// CodecKernelTemporalDownsample runs temporal downsample.
+	CodecKernelTemporalDownsample
+	// CodecKernelInterleave runs temporal interleave.
+	CodecKernelInterleave
+	// CodecKernelCacheUpdate runs temporal cache update.
+	CodecKernelCacheUpdate
+	// CodecKernelAdd runs residual addition.
+	CodecKernelAdd
+	// CodecKernelClamp clamps normalized output.
+	CodecKernelClamp
+	// CodecKernelABICount is the dense ABI extent.
+	CodecKernelABICount
+)
+
+// CodecKernelFirstABI is the first dense ABI slot.
+const CodecKernelFirstABI = CodecKernelConvolution
+
+// CodecKernelSet records required ABIs.
+type CodecKernelSet uint16
+
+// Has reports ABI membership.
+func (s CodecKernelSet) Has(kernel CodecKernelABI) bool { return s&(1<<kernel) != 0 }
+
+// EntryPoint returns the bundled symbol.
+func (k CodecKernelABI) EntryPoint() string {
+	return [...]string{
+		"vae_causal_conv3d_f32",
+		"vae_channel_rms_norm_f32",
+		"vae_spatial_attention_f32",
+		"vae_upsample2d_f32",
+		"vae_downsample2d_f32",
+		"vae_temporal_downsample_f32",
+		"vae_time_interleave_f32",
+		"vae_temporal_cache_update_f32",
+		"add_f32",
+		"clamp_f32",
+	}[k]
+}
+
+// CodecConvolutionExtents records compiled kernel and stride.
+type CodecConvolutionExtents struct {
+	Kernel [3]int
+	Stride [3]int
+}
+
+// CodecWorkspaceLifetime identifies device allocation lifetime.
+type CodecWorkspaceLifetime uint8
+
+const (
+	// CodecWorkspaceProgram spans operations.
+	CodecWorkspaceProgram CodecWorkspaceLifetime = iota
+	// CodecWorkspaceOperation belongs to one operation.
+	CodecWorkspaceOperation
+)
+
+// CodecWorkspaceRole identifies allocation purpose.
+type CodecWorkspaceRole uint8
+
+const (
+	// CodecWorkspaceActivation stores ping-pong activations.
+	CodecWorkspaceActivation CodecWorkspaceRole = iota
+	// CodecWorkspaceScratch stores reusable scratch.
+	CodecWorkspaceScratch
+	// CodecWorkspaceAttention stores attention scratch.
+	CodecWorkspaceAttention
+	// CodecWorkspaceCacheInput stores the first temporal cache.
+	CodecWorkspaceCacheInput
+	// CodecWorkspaceCacheOutput stores the second temporal cache.
+	CodecWorkspaceCacheOutput
+)
+
+// CodecWorkspaceKey identifies a typed allocation.
+type CodecWorkspaceKey struct {
+	Lifetime  CodecWorkspaceLifetime
+	Role      CodecWorkspaceRole
+	Operation int
+	Slot      int
+}
+
+// ProgramCodecWorkspace returns a program-lifetime key.
+func ProgramCodecWorkspace(role CodecWorkspaceRole, slot int) CodecWorkspaceKey {
+	return CodecWorkspaceKey{Lifetime: CodecWorkspaceProgram, Role: role, Slot: slot}
+}
+
+// OperationCodecWorkspace returns an operation-lifetime key.
+func OperationCodecWorkspace(role CodecWorkspaceRole, operation, slot int) CodecWorkspaceKey {
+	return CodecWorkspaceKey{Lifetime: CodecWorkspaceOperation, Role: role, Operation: operation, Slot: slot}
+}
+
+// CodecBindings stores operator parameters by role.
+type CodecBindings[Binding any] struct {
+	NormInput, WeightInput, BiasInput    Binding
+	NormOutput, WeightOutput, BiasOutput Binding
+	WeightProjection, BiasProjection     Binding
+	WeightTemporal, BiasTemporal         Binding
+	WeightSpatial, BiasSpatial           Binding
+	bound                                bool
+}
+
+// BindCodecWeights validates and assigns ordered parameters.
+func BindCodecWeights[Binding any](operator CodecOperator, projection bool, values []Binding) (CodecBindings[Binding], error) {
+	want := len(CodecBindingValues(operator, projection, CodecBindings[Binding]{}))
+	if len(values) != want {
+		return CodecBindings[Binding]{}, fmt.Errorf("media: codec operator %d bindings=%d want=%d", operator, len(values), want)
+	}
+	b := CodecBindings[Binding]{bound: true}
+	next := tensor.FirstOffset
+	take := func() Binding {
+		value := values[next]
+		next++
+		return value
+	}
+	switch operator {
+	case CodecPointwise, CodecConvolution:
+		b.WeightInput, b.BiasInput = take(), take()
+	case CodecResidual:
+		b.NormInput, b.WeightInput, b.BiasInput = take(), take(), take()
+		b.NormOutput, b.WeightOutput, b.BiasOutput = take(), take(), take()
+		if projection {
+			b.WeightProjection, b.BiasProjection = take(), take()
+		}
+	case CodecAttention:
+		b.NormInput, b.WeightInput, b.BiasInput = take(), take(), take()
+		b.WeightOutput, b.BiasOutput = take(), take()
+	case CodecDownsampleSpatial, CodecUpsampleSpatial:
+		b.WeightSpatial, b.BiasSpatial = take(), take()
+	case CodecDownsampleSpatiotemporal:
+		b.WeightSpatial, b.BiasSpatial, b.WeightTemporal, b.BiasTemporal = take(), take(), take(), take()
+	case CodecUpsampleSpatiotemporal:
+		b.WeightTemporal, b.BiasTemporal, b.WeightSpatial, b.BiasSpatial = take(), take(), take(), take()
+	case CodecHead:
+		b.NormInput, b.WeightInput, b.BiasInput = take(), take(), take()
+	}
+	return b, nil
+}
+
 // SpatialScale returns the neutral spatial resampling factor encoded by the
 // operator. Operators without spatial resampling preserve extent.
 func (o CodecOperator) SpatialScale() int {
@@ -212,14 +372,93 @@ type CodecOperation[Bindings any] struct {
 	Operator                      CodecOperator
 	Name                          string
 	InputChannels, OutputChannels int
-	BindingCount                  int
-	Bindings                      Bindings
+	Bindings                      CodecBindings[Bindings]
+	Convolution                   CodecConvolutionExtents
+	Cache                         CodecCacheBehavior
+	Kernels                       CodecKernelSet
+}
+
+// NewCodecOperation compiles invariant execution facts.
+func NewCodecOperation[Binding any](operator CodecOperator, name string, inputChannels, outputChannels int) CodecOperation[Binding] {
+	unit := [3]int{tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent}
+	triple := [3]int{tensor.TripleExtent, tensor.TripleExtent, tensor.TripleExtent}
+	op := CodecOperation[Binding]{Operator: operator, Name: name, InputChannels: inputChannels, OutputChannels: outputChannels, Convolution: CodecConvolutionExtents{Stride: unit}}
+	set := func(kernels ...CodecKernelABI) {
+		for _, kernel := range kernels {
+			op.Kernels |= 1 << kernel
+		}
+	}
+	switch operator {
+	case CodecPointwise:
+		op.Convolution.Kernel = unit
+		set(CodecKernelConvolution)
+	case CodecConvolution:
+		op.Convolution.Kernel, op.Cache = triple, CodecCacheCausal
+		set(CodecKernelConvolution, CodecKernelCacheUpdate)
+	case CodecResidual:
+		op.Convolution.Kernel, op.Cache = triple, CodecCacheCausal
+		set(CodecKernelConvolution, CodecKernelRMSNorm, CodecKernelCacheUpdate, CodecKernelAdd)
+	case CodecAttention:
+		set(CodecKernelRMSNorm, CodecKernelAttention)
+	case CodecDownsampleSpatial:
+		op.Convolution.Kernel = [3]int{tensor.SingletonExtent, tensor.TripleExtent, tensor.TripleExtent}
+		op.Convolution.Stride = [3]int{tensor.SingletonExtent, tensor.PairedExtent, tensor.PairedExtent}
+		set(CodecKernelDownsample)
+	case CodecDownsampleSpatiotemporal:
+		op.Convolution.Kernel = triple
+		op.Convolution.Stride = [3]int{tensor.PairedExtent, tensor.PairedExtent, tensor.PairedExtent}
+		op.Cache = CodecCacheCausal
+		set(CodecKernelDownsample, CodecKernelTemporalDownsample, CodecKernelCacheUpdate)
+	case CodecUpsampleSpatial:
+		op.Convolution.Kernel = [3]int{tensor.SingletonExtent, tensor.TripleExtent, tensor.TripleExtent}
+		op.Convolution.Stride = [3]int{tensor.SingletonExtent, tensor.PairedExtent, tensor.PairedExtent}
+		set(CodecKernelUpsample)
+	case CodecUpsampleSpatiotemporal:
+		op.Convolution.Kernel = triple
+		op.Convolution.Stride = [3]int{tensor.PairedExtent, tensor.PairedExtent, tensor.PairedExtent}
+		op.Cache = CodecCacheReplicatedPrefix
+		set(CodecKernelConvolution, CodecKernelUpsample, CodecKernelInterleave, CodecKernelCacheUpdate)
+	case CodecHead:
+		op.Convolution.Kernel, op.Cache = triple, CodecCacheCausal
+		set(CodecKernelRMSNorm, CodecKernelConvolution, CodecKernelCacheUpdate)
+	}
+	return op
 }
 
 // RequiresProjection reports whether a residual stage must project its input
 // before addition.
 func (o CodecOperation[Bindings]) RequiresProjection() bool {
 	return o.Operator == CodecResidual && o.InputChannels != o.OutputChannels
+}
+
+// BindingValues returns artifact order.
+func (o CodecOperation[Bindings]) BindingValues() []Bindings {
+	return CodecBindingValues(o.Operator, o.RequiresProjection(), o.Bindings)
+}
+
+// CodecBindingValues returns artifact order for mapped storage.
+func CodecBindingValues[Binding any](operator CodecOperator, projection bool, b CodecBindings[Binding]) []Binding {
+	switch operator {
+	case CodecPointwise, CodecConvolution:
+		return []Binding{b.WeightInput, b.BiasInput}
+	case CodecResidual:
+		values := []Binding{b.NormInput, b.WeightInput, b.BiasInput, b.NormOutput, b.WeightOutput, b.BiasOutput}
+		if projection {
+			values = append(values, b.WeightProjection, b.BiasProjection)
+		}
+		return values
+	case CodecAttention:
+		return []Binding{b.NormInput, b.WeightInput, b.BiasInput, b.WeightOutput, b.BiasOutput}
+	case CodecDownsampleSpatial, CodecUpsampleSpatial:
+		return []Binding{b.WeightSpatial, b.BiasSpatial}
+	case CodecDownsampleSpatiotemporal:
+		return []Binding{b.WeightSpatial, b.BiasSpatial, b.WeightTemporal, b.BiasTemporal}
+	case CodecUpsampleSpatiotemporal:
+		return []Binding{b.WeightTemporal, b.BiasTemporal, b.WeightSpatial, b.BiasSpatial}
+	case CodecHead:
+		return []Binding{b.NormInput, b.WeightInput, b.BiasInput}
+	}
+	return nil
 }
 
 // CodecProgram: ordered validated codec topology.
@@ -246,7 +485,8 @@ func (p CodecProgram[Bindings]) Validate(scope string) error {
 		return fmt.Errorf("%s: operations absent", scope)
 	}
 	for index, operation := range p.Operations {
-		if operation.Operator == CodecOperatorNone || operation.Operator > CodecHead || operation.BindingCount <= 0 || operation.InputChannels <= 0 || operation.OutputChannels <= 0 {
+		expected := NewCodecOperation[Bindings](operation.Operator, operation.Name, operation.InputChannels, operation.OutputChannels)
+		if operation.Operator == CodecOperatorNone || operation.Operator > CodecHead || operation.InputChannels <= 0 || operation.OutputChannels <= 0 || !operation.Bindings.bound || operation.Convolution != expected.Convolution || operation.Cache != expected.Cache || operation.Kernels != expected.Kernels {
 			return fmt.Errorf("%s: operation %d (%s) is invalid", scope, index, operation.Name)
 		}
 		if index > 0 && operation.InputChannels != p.Operations[index-1].OutputChannels {
@@ -255,6 +495,15 @@ func (p CodecProgram[Bindings]) Validate(scope string) error {
 		}
 	}
 	return nil
+}
+
+// KernelABIs returns the program ABI union.
+func (p CodecProgram[Bindings]) KernelABIs() CodecKernelSet {
+	set := CodecKernelSet(1 << CodecKernelClamp)
+	for _, operation := range p.Operations {
+		set |= operation.Kernels
+	}
+	return set
 }
 
 // ExecuteCodecProgram owns stage order and geometry validation.

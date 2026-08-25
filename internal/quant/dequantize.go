@@ -75,43 +75,17 @@ func DequantizeInto(dataType dtype.Type, source []byte, output []float32) error 
 			value := math.Float64frombits(binary.LittleEndian.Uint64(source[index*binaryschema.Uint64Bytes:]))
 			output[index] = float32(value)
 		}
-	case dtype.Q8_0:
-		for block := uint64(0); block < blocks; block++ {
-			sourceOffset := block * traits.TypeSize
-			outputOffset := block * traits.BlockSize
-			scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
-			for index := uint64(0); index < traits.BlockSize; index++ {
-				quantized := int8(source[sourceOffset+2+index])
-				output[outputOffset+index] = scale * float32(quantized)
-			}
-		}
-	case dtype.Q8_1:
-		for block := uint64(0); block < blocks; block++ {
-			sourceOffset := block * traits.TypeSize
-			outputOffset := block * traits.BlockSize
-			scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
-			for index := uint64(0); index < traits.BlockSize; index++ {
-				quantized := int8(source[sourceOffset+4+index])
-				output[outputOffset+index] = scale * float32(quantized)
-			}
-		}
-	case dtype.Q8K:
-		for block := uint64(0); block < blocks; block++ {
-			sourceOffset := block * traits.TypeSize
-			outputOffset := block * traits.BlockSize
-			scale := math.Float32frombits(binary.LittleEndian.Uint32(source[sourceOffset:]))
-			for index := uint64(0); index < traits.BlockSize; index++ {
-				quantized := int8(source[sourceOffset+4+index])
-				output[outputOffset+index] = scale * float32(quantized)
-			}
-		}
+	case dtype.Q8_0, dtype.Q8_1, dtype.Q8K:
+		dequantizeQ8(dataType, source, output, blocks, traits)
 	case dtype.Q1_0:
+		layout := scalarCodecs[dataType]
 		for block := uint64(0); block < blocks; block++ {
-			sourceOffset := block * traits.TypeSize
 			outputOffset := block * traits.BlockSize
-			scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
+			storage := layout.block.storage64(source, block)
+			scale := scalarScale(storage, layout.scale)
+			packed := layout.packed.bytes(storage)
 			for index := uint64(0); index < traits.BlockSize; index++ {
-				bit := (source[sourceOffset+2+index/8] >> (index % 8)) & 1
+				bit := (packed[index/8] >> (index % 8)) & 1
 				value := -scale
 				if bit != 0 {
 					value = scale
@@ -120,20 +94,22 @@ func DequantizeInto(dataType dtype.Type, source []byte, output []float32) error 
 			}
 		}
 	case dtype.Q2_0:
+		layout := scalarCodecs[dataType]
 		for block := uint64(0); block < blocks; block++ {
-			sourceOffset := block * traits.TypeSize
 			outputOffset := block * traits.BlockSize
-			scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
+			storage := layout.block.storage64(source, block)
+			scale := scalarScale(storage, layout.scale)
+			packed := layout.packed.bytes(storage)
 			for index := uint64(0); index < traits.BlockSize; index++ {
-				packed := source[sourceOffset+2+index/4]
-				quantized := int((packed >> ((index % 4) * 2)) & 0x03)
+				lane := packed[index/4]
+				quantized := int((lane >> ((index % 4) * 2)) & 0x03)
 				output[outputOffset+index] = float32(quantized-1) * scale
 			}
 		}
 	case dtype.Q4_0, dtype.Q4_1:
-		dequantizeQ4(dataType, source, output, blocks, traits)
+		dequantizeQ4Or5(dataType, source, output, blocks, traits)
 	case dtype.Q5_0, dtype.Q5_1:
-		dequantizeQ5(dataType, source, output, blocks, traits)
+		dequantizeQ4Or5(dataType, source, output, blocks, traits)
 	case dtype.Q6K:
 		dequantizeQ6K(source, output, blocks, traits)
 	case dtype.Q2K:
@@ -800,68 +776,62 @@ func dequantizeQ6K(
 	}
 }
 
-func dequantizeQ4(
+func dequantizeQ4Or5(
 	dataType dtype.Type,
 	source []byte,
 	output []float32,
 	blocks uint64,
 	traits dtype.Traits,
 ) {
+	layout := scalarCodecs[dataType]
 	for block := uint64(0); block < blocks; block++ {
-		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
-		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
+		storage := layout.block.storage64(source, block)
+		scale := scalarScale(storage, layout.scale)
 		minimum := float32(0)
-		quantOffset := sourceOffset + 2
-		if dataType == dtype.Q4_1 {
-			minimum = Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+2:]))
-			quantOffset += 2
+		if layout.minimum.size != 0 {
+			minimum = scalarScale(storage, layout.minimum)
 		}
+		var highBits uint32
+		if layout.high.size != 0 {
+			highBits = binary.LittleEndian.Uint32(layout.high.bytes(storage))
+		}
+		packedValues := layout.packed.bytes(storage)
+		mask := byte(1<<layout.packedBits - 1)
+		half := traits.BlockSize / 2
 		for index := uint64(0); index < traits.BlockSize/2; index++ {
-			packed := source[quantOffset+index]
-			low := int(packed & 0x0f)
-			high := int(packed >> 4)
-			if dataType == dtype.Q4_0 {
-				low -= 8
-				high -= 8
+			packed := packedValues[index]
+			low := int(packed & mask)
+			high := int(packed >> layout.packedBits)
+			if layout.high.size != 0 {
+				low |= int((highBits>>index)&1) << layout.packedBits
+				high |= int((highBits>>(index+half))&1) << layout.packedBits
 			}
+			low -= layout.zeroPoint
+			high -= layout.zeroPoint
 			output[outputOffset+index] = float32(low)*scale + minimum
-			output[outputOffset+index+traits.BlockSize/2] = float32(high)*scale + minimum
+			output[outputOffset+index+half] = float32(high)*scale + minimum
 		}
 	}
 }
 
-func dequantizeQ5(
-	dataType dtype.Type,
-	source []byte,
-	output []float32,
-	blocks uint64,
-	traits dtype.Traits,
-) {
+func dequantizeQ8(dataType dtype.Type, source []byte, output []float32, blocks uint64, traits dtype.Traits) {
+	layout := scalarCodecs[dataType]
 	for block := uint64(0); block < blocks; block++ {
-		sourceOffset := block * traits.TypeSize
 		outputOffset := block * traits.BlockSize
-		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
-		minimum := float32(0)
-		highOffset := sourceOffset + 2
-		if dataType == dtype.Q5_1 {
-			minimum = Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset+2:]))
-			highOffset += 2
-		}
-		highBits := binary.LittleEndian.Uint32(source[highOffset:])
-		quantOffset := highOffset + 4
-		for index := uint64(0); index < traits.BlockSize/2; index++ {
-			packed := source[quantOffset+index]
-			low := int(packed&0x0f) | int((highBits>>index)&1)<<4
-			high := int(packed>>4) | int((highBits>>(index+16))&1)<<4
-			if dataType == dtype.Q5_0 {
-				low -= 16
-				high -= 16
-			}
-			output[outputOffset+index] = float32(low)*scale + minimum
-			output[outputOffset+index+traits.BlockSize/2] = float32(high)*scale + minimum
+		storage := layout.block.storage64(source, block)
+		scale := scalarScale(storage, layout.scale)
+		for index, quantized := range layout.packed.bytes(storage) {
+			output[outputOffset+uint64(index)] = scale * float32(int8(quantized))
 		}
 	}
+}
+
+func scalarScale(block []byte, field codecField) float32 {
+	if field.size == binaryschema.Uint16Bytes {
+		return Float16ToFloat32(binary.LittleEndian.Uint16(field.bytes(block)))
+	}
+	return math.Float32frombits(binary.LittleEndian.Uint32(field.bytes(block)))
 }
 
 // Float16ToFloat32: converts IEEE 754 binary16 bit pattern

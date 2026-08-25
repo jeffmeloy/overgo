@@ -40,7 +40,7 @@ func (r *Qwen2VLRunner) Spec() Qwen2VLSpec {
 }
 
 func ReadQwen2VLSpec(file *gguf.File) (Qwen2VLSpec, error) {
-	if useGELU, geluErr := metadataBool(file, "clip.use_gelu"); geluErr != nil {
+	if useGELU, geluErr := metadataBool(file, visionUseGELUKey); geluErr != nil {
 		return Qwen2VLSpec{}, geluErr
 	} else if !useGELU {
 		return Qwen2VLSpec{}, errors.New("projector: Qwen2-VL GELU is disabled")

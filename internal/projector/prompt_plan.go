@@ -314,7 +314,7 @@ func executeImagePromptPlan(
 	plan imagePromptPlan,
 	encode imagePromptEncoder,
 ) (MultimodalPrompt, error) {
-	if err := validateImagePromptInputs(tokenizerAPI, sources, text, plan.Family); err != nil {
+	if err := validatePromptSequence(tokenizerAPI, len(sources), text, plan.Family+" image/text"); err != nil {
 		return MultimodalPrompt{}, err
 	}
 	if encode == nil || plan.Placeholder == "" || !checked.PositiveInts(plan.EmbeddingWidth) {

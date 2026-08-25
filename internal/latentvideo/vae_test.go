@@ -83,7 +83,7 @@ func TestVAESiLUMatchesTorchFixture(t *testing.T) {
 }
 
 // residualFixtureOp: the deterministic ramp weights the torch fixture used.
-func residualFixtureOp(cIn, cOut int) (media.CodecOperation[[]pytorchzip.TensorBinding], vaeLoadedWeights, *vaeOpState) {
+func residualFixtureOp(cIn, cOut int) (media.CodecOperation[pytorchzip.TensorBinding], vaeLoadedWeights, *vaeOpState) {
 	next := 1
 	take := vaeFixtureTake(&next, 50, 0.2)
 	values := [][]float32{
@@ -97,13 +97,22 @@ func residualFixtureOp(cIn, cOut int) (media.CodecOperation[[]pytorchzip.TensorB
 	if cIn != cOut {
 		values = append(values, take(cOut*cIn), take(cOut))
 	}
-	return fixtureCodecOperation(media.CodecResidual, cIn, cOut), values, &vaeOpState{}
+	op := fixtureCodecOperation(media.CodecResidual, cIn, cOut)
+	return op, fixtureCodecWeights(op, values), &vaeOpState{}
 }
 
-func fixtureCodecOperation(kind media.CodecOperator, cIn, cOut int) media.CodecOperation[[]pytorchzip.TensorBinding] {
-	return media.CodecOperation[[]pytorchzip.TensorBinding]{
-		Operator: kind, Name: "fixture", InputChannels: cIn, OutputChannels: cOut, BindingCount: 1,
+func fixtureCodecOperation(kind media.CodecOperator, cIn, cOut int) media.CodecOperation[pytorchzip.TensorBinding] {
+	op := media.NewCodecOperation[pytorchzip.TensorBinding](kind, "fixture", cIn, cOut)
+	op.Bindings, _ = media.BindCodecWeights(kind, op.RequiresProjection(), make([]pytorchzip.TensorBinding, len(op.BindingValues())))
+	return op
+}
+
+func fixtureCodecWeights[Binding any](op media.CodecOperation[pytorchzip.TensorBinding], values []Binding) media.CodecBindings[Binding] {
+	bindings, err := media.BindCodecWeights(op.Operator, op.RequiresProjection(), values)
+	if err != nil {
+		panic(err)
 	}
+	return bindings
 }
 
 func TestVAEResidualBlockMatchesTorchIdentityShortcutFixture(t *testing.T) {
@@ -150,13 +159,13 @@ func TestVAESpatialAttentionMatchesTorchFixture(t *testing.T) {
 	next := 1
 	take := vaeFixtureTake(&next, 40, 0.3)
 	op := fixtureCodecOperation(media.CodecAttention, 3, 3)
-	values := vaeLoadedWeights{
+	values := fixtureCodecWeights(op, [][]float32{
 		take(3),         // norm gamma
 		take(3 * 3 * 3), // to_qkv w
 		take(3 * 3),     // to_qkv b
 		take(3 * 3),     // proj w
 		take(3),         // proj b
-	}
+	})
 	got, _, _, _, err := runVAEOp(op, values, &vaeOpState{}, 0, x, 2, 2, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -220,7 +229,7 @@ func TestVAEUpsample3DFirstChunkSkipsTimeConv(t *testing.T) {
 	resampleW := make([]float32, c*c*3*3)
 	resampleW[4] = 1 // identity tap: pure nearest upsample
 	op := fixtureCodecOperation(media.CodecUpsampleSpatiotemporal, c, c)
-	values := vaeLoadedWeights{timeW, make([]float32, 2*c), resampleW, make([]float32, c)}
+	values := fixtureCodecWeights(op, [][]float32{timeW, make([]float32, 2*c), resampleW, make([]float32, c)})
 	state := &vaeOpState{}
 	out, frames, h, w, err := runVAEOp(op, values, state, 0, []float32{3}, 1, 1, 1)
 	if err != nil {
@@ -244,8 +253,8 @@ func TestVAEUpsample3DFirstChunkSkipsTimeConv(t *testing.T) {
 func TestVAEDecodeRejectsInvalidInputs(t *testing.T) {
 	plan := VAEDecoderPlan{vaePlanCore: vaePlanCore{
 		Stride: [3]int{4, 8, 8},
-		CodecProgram: media.CodecProgram[[]pytorchzip.TensorBinding]{
-			Operations: []media.CodecOperation[[]pytorchzip.TensorBinding]{fixtureCodecOperation(media.CodecPointwise, 2, 2)},
+		CodecProgram: media.CodecProgram[pytorchzip.TensorBinding]{
+			Operations: []media.CodecOperation[pytorchzip.TensorBinding]{fixtureCodecOperation(media.CodecPointwise, 2, 2)},
 		},
 	}, ZDim: 2, OutputChannels: 3}
 	stats := VAELatentStats{Mean: []float32{0, 0}, Std: []float32{1, 1}}

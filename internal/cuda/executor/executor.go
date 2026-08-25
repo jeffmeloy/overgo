@@ -80,7 +80,11 @@ type executionScratch struct {
 	replayFrame       []driver.DevicePtr
 }
 
-const graphExecCacheCapacity = 4
+const (
+	gemmProductScale       = float32(1)
+	gemmAccumulatorScale   = float32(0)
+	graphExecCacheCapacity = 4
+)
 const nativeWeightStagingLimitBytes = uint64(32 << 20)
 
 type graphExecEntry struct {
@@ -909,113 +913,40 @@ type dynamicAttributeSlot struct {
 	words  int
 }
 
-func dynamicAttributeWords(
-	node *tensor.Tensor,
-	attributes tensor.Attributes,
-	destination []uint32,
-) (int, error) {
-	var values []uint32
-	var scalar [1]uint32
-	switch node.Op {
-	case tensor.OpGetRows:
-		value, ok := attributes.(tensor.GetRowsAttributes)
-		if !ok {
-			return 0, errors.New("invalid get_rows attributes")
-		}
-		values = value.Rows
-	case tensor.OpRoPENeoX, tensor.OpRoPENormal:
-		value, ok := attributes.(tensor.RoPEAttributes)
-		if !ok {
-			return 0, errors.New("invalid RoPE attributes")
-		}
-		values = value.Positions
-	case tensor.OpRoPEMulti:
-		value, ok := attributes.(tensor.RoPEMultiAttributes)
-		if !ok {
-			return 0, errors.New("invalid multi-RoPE attributes")
-		}
-		words := 0
-		for axis := range value.Positions {
-			if destination != nil {
-				words += copy(destination[words:], value.Positions[axis])
-			} else {
-				words += len(value.Positions[axis])
-			}
-		}
-		return words, nil
-	case tensor.OpAttention:
-		value, ok := attributes.(tensor.AttentionAttributes)
-		if !ok {
-			return 0, errors.New("invalid attention attributes")
-		}
-		tokens := value.KeyValueTokens
-		if tokens == 0 {
-			var err error
-			tokens, err = uint32Checked(node.Inputs[1].Shape.Dims[2], "attention KV capacity")
-			if err != nil {
-				return 0, err
-			}
-		}
-		scalar[0] = tokens
-		values = scalar[:]
-	case tensor.OpCacheAppend:
-		value, ok := attributes.(tensor.CacheAppendAttributes)
-		if !ok {
-			return 0, errors.New("invalid cache append attributes")
-		}
-		scalar[0] = value.Offset
-		values = scalar[:]
-	default:
-		return 0, nil
-	}
-	if destination != nil {
-		copy(destination, values)
-	}
-	return len(values), nil
-}
-
-// devicePointerTable stores invocation addresses in compiled graph order.
-type devicePointerTable struct {
+// graphPointerTable resolves setup-only tensor addresses.
+type graphPointerTable struct {
 	indexes map[*tensor.Tensor]int
 	values  []driver.DevicePtr
 }
 
-func newDevicePointerTable(
-	compiled *CompiledGraph,
-	scratch *[]driver.DevicePtr,
-) devicePointerTable {
-	if cap(*scratch) < len(compiled.order) {
-		*scratch = make([]driver.DevicePtr, len(compiled.order))
-	}
-	values := (*scratch)[:len(compiled.order)]
-	clear(values)
-	return devicePointerTable{indexes: compiled.orderIndexes, values: values}
+func newGraphPointerTable(compiled *CompiledGraph, scratch *[]driver.DevicePtr) graphPointerTable {
+	values := prepareAttributePointers(scratch, len(compiled.order))
+	return graphPointerTable{indexes: compiled.orderIndexes, values: values}
 }
 
-func (p devicePointerTable) get(node *tensor.Tensor) driver.DevicePtr {
-	index, ok := p.indexes[node]
-	if !ok {
-		return 0
-	}
-	return p.values[index]
+func (p graphPointerTable) get(node *tensor.Tensor) driver.DevicePtr {
+	return p.values[p.indexes[node]]
 }
 
-func (p devicePointerTable) lookup(node *tensor.Tensor) (driver.DevicePtr, bool) {
-	index, ok := p.indexes[node]
-	if !ok || p.values[index] == 0 {
-		return 0, false
-	}
-	return p.values[index], true
-}
-
-func (p devicePointerTable) set(node *tensor.Tensor, pointer driver.DevicePtr) {
+func (p graphPointerTable) set(node *tensor.Tensor, pointer driver.DevicePtr) {
 	p.values[p.indexes[node]] = pointer
+}
+
+// prepareAttributePointers resets graph-indexed invocation addresses.
+func prepareAttributePointers(scratch *[]driver.DevicePtr, count int) []driver.DevicePtr {
+	if cap(*scratch) < count {
+		*scratch = make([]driver.DevicePtr, count)
+	}
+	values := (*scratch)[:count]
+	clear(values)
+	return values
 }
 
 // launchPointerFrame: precompiled output/input slots.
 type launchPointerFrame struct {
-	values []driver.DevicePtr
-	slots  []int
+	values    []driver.DevicePtr
+	slots     []int
+	attribute driver.DevicePtr
 }
 
 func (p launchPointerFrame) output() driver.DevicePtr {
@@ -1112,7 +1043,7 @@ func validateRetainedTargetAlias(
 	node *tensor.Tensor,
 	target DeviceValue,
 	contract tensor.OutputTargetContract,
-	pointers devicePointerTable,
+	pointers graphPointerTable,
 ) error {
 	outputRange, err := newDeviceAddressRange(target.Pointer, contract.Bytes)
 	if err != nil {
@@ -1214,7 +1145,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 	}
 	for index, node := range order {
 		compiled.orderIndexes[node] = index
-		words, slotErr := dynamicAttributeWords(node, node.Attrs, nil)
+		words, slotErr := tensor.RuntimeAttributeWords(node, node.Attrs, nil)
 		if slotErr != nil {
 			return nil, slotErr
 		}
@@ -1270,10 +1201,10 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			rightRows := node.Inputs[1].Shape.Dims[1]
 			if rightRows != 1 {
 				compiled.needBlas = true
-				stagingRows, stagingWidth := leftRows, uint64(4)
+				stagingRows, stagingWidth := leftRows, f32ScalarBytes
 				if attributes, ok := node.Attrs.(tensor.MulMatAttributes); ok &&
 					attributes.Compute == tensor.MulMatComputeBF16TensorCore {
-					stagingRows, stagingWidth = rightRows, 2
+					stagingRows, stagingWidth = rightRows, bf16ScalarBytes
 				}
 				if inner > math.MaxUint64/stagingRows {
 					return nil, errors.New("half-precision mul_mat staging size overflows")
@@ -1283,7 +1214,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 					return nil, errors.New("half-precision mul_mat staging size overflows")
 				}
 				stagingBytes := stagingElements * stagingWidth
-				if stagingWidth == 4 {
+				if stagingWidth == f32ScalarBytes {
 					stagingBytes = nativeWeightStagingBytes(inner, stagingRows)
 				}
 				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, stagingBytes)
@@ -1300,13 +1231,13 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		if node.Op == tensor.OpMulMat && node.Inputs[0].Type == dtype.Q8_0 &&
 			node.Inputs[1].Shape.Rank == 2 && node.Inputs[1].Shape.Dims[1] == 1 {
 			elements, elementErr := node.Inputs[1].Shape.Elements()
-			if elementErr != nil || elements%q8InputBlockWidth != 0 ||
-				elements/q8InputBlockWidth > math.MaxUint64/q8InputBlockBytes {
+			if elementErr != nil || elements%q8InputTraits.BlockSize != 0 ||
+				elements/q8InputTraits.BlockSize > math.MaxUint64/q8InputTraits.TypeSize {
 				return nil, errors.New("Q8_0 mul_mat input storage overflows")
 			}
 			compiled.q8InputBytes = max(
 				compiled.q8InputBytes,
-				elements/q8InputBlockWidth*q8InputBlockBytes,
+				elements/q8InputTraits.BlockSize*q8InputTraits.TypeSize,
 			)
 		}
 	}
@@ -1644,7 +1575,7 @@ func launchCompiledFusion(
 	node *tensor.Tensor,
 	fusion *compiledFusion,
 	pointers launchPointerFrame,
-	attributePointers devicePointerTable,
+	auxiliaryAttributePointer driver.DevicePtr,
 ) (string, error) {
 	if fusion == nil {
 		return "", nil
@@ -1663,13 +1594,18 @@ func launchCompiledFusion(
 	case compiledFusionWeightedRMSGate:
 		return "weighted_rms_gate", launchWeightedRMSGate(state, functions, q8Input, node, fusion.weightedGate, fusion.emitQ8, pointers)
 	case compiledFusionBF16Append:
-		return "bf16_append", launchBF16Append(state, functions, node, fusion.bf16Append, pointers, attributePointers)
+		return "bf16_append", launchBF16Append(
+			state, functions, node, fusion.bf16Append, pointers, pointers.attribute,
+		)
 	case compiledFusionBF16ArgmaxPartials:
 		return "bf16_argmax", launchBF16ArgmaxPartials(state, functions, node, pointers)
 	case compiledFusionBF16ArgmaxReduction:
 		return "bf16_argmax", launchQ8ArgmaxReduction(state, functions, fusion.peer, node, pointers)
 	case compiledFusionRopeAppend:
-		return "rope_append", launchRopeAppend(state, functions, node, fusion.ropeAppend, pointers, attributePointers)
+		return "rope_append", launchRopeAppend(
+			state, functions, node, fusion.ropeAppend, pointers,
+			auxiliaryAttributePointer,
+		)
 	case compiledFusionBF16Gate:
 		return "bf16_gate", launchBF16Gate(state, functions, node, fusion.bf16Gate, pointers)
 	case compiledFusionBF16ProjAdd:
@@ -1719,7 +1655,7 @@ func execute(
 		}
 	}()
 
-	pointers := newDevicePointerTable(compiled, &scratch.pointers)
+	pointers := newGraphPointerTable(compiled, &scratch.pointers)
 	var targetValues []DeviceValue
 	if retainedTargets != nil {
 		if retainedTargets.compiled != compiled || len(retainedTargets.values) != len(outputs) {
@@ -1955,7 +1891,7 @@ func execute(
 		}
 	}
 
-	attributePointers := newDevicePointerTable(compiled, &scratch.attributePointers)
+	attributePointers := prepareAttributePointers(&scratch.attributePointers, len(compiled.order))
 	auxiliaryLeases := make([]deviceBufferLease, 0)
 	defer func() {
 		for _, lease := range auxiliaryLeases {
@@ -1984,7 +1920,7 @@ func execute(
 				}
 			}
 			destination := words[slot.offset : slot.offset+slot.words]
-			written, writeErr := dynamicAttributeWords(slot.node, attributes, destination)
+			written, writeErr := tensor.RuntimeAttributeWords(slot.node, attributes, destination)
 			if writeErr != nil {
 				return nil, writeErr
 			}
@@ -1992,7 +1928,7 @@ func execute(
 				return nil, errors.New("CUDA runtime attribute changes compiled slot size")
 			}
 			offset := uint64(slot.offset) * uint64(unsafe.Sizeof(uint32(0)))
-			attributePointers.set(slot.node, lease.pointer+driver.DevicePtr(offset))
+			attributePointers[slot.index] = lease.pointer + driver.DevicePtr(offset)
 		}
 		if copyErr := state.Driver.MemcpyHtoD(lease.pointer, driver.Bytes(words)); copyErr != nil {
 			return nil, copyErr
@@ -2014,8 +1950,9 @@ func execute(
 			frame := compiled.nodes[nodeIndex]
 			node := compiled.order[nodeIndex]
 			operands := launchPointerFrame{
-				values: pointers.values,
-				slots:  compiled.operandSlots[frame.operandOffset : frame.operandOffset+len(node.Inputs)+1],
+				values:    pointers.values,
+				slots:     compiled.operandSlots[frame.operandOffset : frame.operandOffset+len(node.Inputs)+1],
+				attribute: attributePointers[nodeIndex],
 			}
 			if frame.aliases {
 				outputIndex, retainedOutput := compiled.outputIndexes[node]
@@ -2031,8 +1968,13 @@ func execute(
 					slots:  compiled.operandSlots[frame.fusion.operandOffset : frame.fusion.operandOffset+frame.fusion.operandCount],
 				}
 			}
+			var auxiliaryAttributePointer driver.DevicePtr
+			if frame.fusion != nil && frame.fusion.kind == compiledFusionRopeAppend {
+				auxiliaryAttributePointer = attributePointers[frame.fusion.ropeAppend.attributeIndex]
+			}
 			if label, err := launchCompiledFusion(
-				state, functions, blas, q8Input, node, frame.fusion, fusionOperands, attributePointers,
+				state, functions, blas, q8Input, node, frame.fusion, fusionOperands,
+				auxiliaryAttributePointer,
 			); label != "" {
 				if err != nil {
 					return fmt.Errorf("launch tensor %d (%s): %w", node.ID, label, err)
@@ -2049,7 +1991,7 @@ func execute(
 				}
 			}
 			if err := launchNode(
-				state, functions, blas, q8Input, node, attributes, operands, attributePointers,
+				state, functions, blas, q8Input, node, attributes, operands,
 				frame.launchProgram,
 			); err != nil {
 				return fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
@@ -2069,7 +2011,7 @@ func execute(
 		scratch.replayFrame[:0], arena, blasStaging, blasScores, q8Staging,
 	)
 	scratch.replayFrame = append(scratch.replayFrame, pointers.values...)
-	scratch.replayFrame = append(scratch.replayFrame, attributePointers.values...)
+	scratch.replayFrame = append(scratch.replayFrame, attributePointers...)
 	frame := scratch.replayFrame
 	replayed := false
 	if capturing {
@@ -2146,7 +2088,7 @@ type quantKernelDescriptor struct {
 	mulMat  kernelFunctionID
 }
 
-var quantKernels = map[dtype.Type]quantKernelDescriptor{
+var quantKernels = [dtype.Count]quantKernelDescriptor{
 	dtype.Q8_0:   {"Q8_0", kernelGetRowsQ80F32, kernelMulMatQ80F32},
 	dtype.Q8_1:   {"Q8_1", kernelGetRowsQ81F32, kernelMulMatQ81F32},
 	dtype.Q8K:    {"Q8_K", kernelGetRowsQ8KF32, kernelMulMatQ8KF32},
@@ -2176,6 +2118,14 @@ var quantKernels = map[dtype.Type]quantKernelDescriptor{
 	dtype.Q6K:    {"Q6_K", kernelGetRowsQ6KF32, kernelMulMatQ6KF32},
 }
 
+func quantKernel(dataType dtype.Type) (quantKernelDescriptor, bool) {
+	if dataType >= dtype.Count {
+		return quantKernelDescriptor{}, false
+	}
+	descriptor := quantKernels[dataType]
+	return descriptor, descriptor.label != ""
+}
+
 type blasState struct {
 	library      *cublas.Library
 	handle       cublas.Handle
@@ -2187,9 +2137,10 @@ type blasState struct {
 	scoreBytes uint64
 }
 
-const (
-	q8InputBlockWidth = uint64(32)
-	q8InputBlockBytes = uint64(36)
+var (
+	q8InputTraits, _   = dtype.Q8_1.Traits()
+	f32ScalarBytes, _  = dtype.F32.ScalarBytes()
+	bf16ScalarBytes, _ = dtype.BF16.ScalarBytes()
 )
 
 type q8InputState struct {

@@ -34,7 +34,7 @@ import (
 
 // VAEDecoder: a compiled + weight-resident QwenImage spatial decoder.
 type VAEDecoder struct {
-	media.CodecProgram[[][]float32]
+	media.CodecProgram[[]float32]
 	ZDim         int
 	OutChannels  int
 	SpatialScale int // derived 2^(upsampler count); 8 for dim_mult [1,2,4,4]
@@ -134,16 +134,20 @@ func (d *VAEDecoder) build(w map[string][]float32, cfg vaeConfigJSON) error {
 		return v, nil
 	}
 	add := func(kind media.CodecOperator, prefix string, cIn, cOut int, names ...string) error {
-		op := media.CodecOperation[[][]float32]{
-			Operator: kind, Name: prefix, InputChannels: cIn, OutputChannels: cOut, BindingCount: len(names),
-		}
+		op := media.NewCodecOperation[[]float32](kind, prefix, cIn, cOut)
+		values := make([][]float32, 0, len(names))
 		for _, n := range names {
 			v, err := need(n)
 			if err != nil {
 				return err
 			}
-			op.Bindings = append(op.Bindings, v)
+			values = append(values, v)
 			d.WeightBytes += int64(len(v)) * 4
+		}
+		var err error
+		op.Bindings, err = media.BindCodecWeights(kind, op.RequiresProjection(), values)
+		if err != nil {
+			return fmt.Errorf("latentimage vae: %s: %w", prefix, err)
 		}
 		d.Operations = append(d.Operations, op)
 		return nil
@@ -220,12 +224,13 @@ func (d *VAEDecoder) build(w map[string][]float32, cfg vaeConfigJSON) error {
 		if _, ok := w[up+".resample.1.weight"]; ok {
 			// cOut derived from the resample bias length (== weight[0]).
 			cOut := len(w[up+".resample.1.bias"])
-			// time_conv is unused for single-frame image decode (the reference
-			// first-chunk "Rep" convention skips it) but must be marked consumed
-			// for the capability-retention check.
 			names := []string{up + ".resample.1.weight", up + ".resample.1.bias"}
 			if _, hasTime := w[up+".time_conv.weight"]; hasTime {
-				names = append(names, up+".time_conv.weight", up+".time_conv.bias")
+				for _, name := range []string{up + ".time_conv.weight", up + ".time_conv.bias"} {
+					if _, err := need(name); err != nil {
+						return err
+					}
+				}
 			}
 			if err := add(media.CodecUpsampleSpatial, up, channels, cOut, names...); err != nil {
 				return err
@@ -300,31 +305,31 @@ func (d *VAEDecoder) DecodeImage(z []float32, h, w int) (pixels []float32, outH,
 }
 
 // runOp executes one op on a single-frame volume [c][h][w].
-func (d *VAEDecoder) runOp(op media.CodecOperation[[][]float32], x []float32, c, h, w int) ([]float32, int, int, int, error) {
+func (d *VAEDecoder) runOp(op media.CodecOperation[[]float32], x []float32, c, h, w int) ([]float32, int, int, int, error) {
 	plane := h * w
 	switch op.Operator {
 	case media.CodecPointwise:
 		out := make([]float32, op.OutputChannels*plane)
-		if err := hostmath.ChannelMixF64Into(out, x, op.Bindings[0], op.Bindings[1], c, op.OutputChannels, plane); err != nil {
+		if err := hostmath.ChannelMixF64Into(out, x, op.Bindings.WeightInput, op.Bindings.BiasInput, c, op.OutputChannels, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, op.OutputChannels, h, w, nil
 	case media.CodecConvolution:
 		out := make([]float32, op.OutputChannels*plane)
-		if err := vaeCausalConv(out, x, op.Bindings[0], op.Bindings[1], c, op.OutputChannels, h, w); err != nil {
+		if err := codecSingleFrameConv(out, x, op.Bindings.WeightInput, op.Bindings.BiasInput, c, op.OutputChannels, h, w, op.Convolution); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, op.OutputChannels, h, w, nil
 	case media.CodecResidual:
-		gamma0, w0, b0 := op.Bindings[0], op.Bindings[1], op.Bindings[2]
-		gamma1, w1, b1 := op.Bindings[3], op.Bindings[4], op.Bindings[5]
+		gamma0, w0, b0 := op.Bindings.NormInput, op.Bindings.WeightInput, op.Bindings.BiasInput
+		gamma1, w1, b1 := op.Bindings.NormOutput, op.Bindings.WeightOutput, op.Bindings.BiasOutput
 		n0 := make([]float32, len(x))
 		if err := hostmath.ChannelRMSNormF64Into(n0, x, gamma0, c, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(n0)
 		h0 := make([]float32, op.OutputChannels*plane)
-		if err := vaeCausalConv(h0, n0, w0, b0, c, op.OutputChannels, h, w); err != nil {
+		if err := codecSingleFrameConv(h0, n0, w0, b0, c, op.OutputChannels, h, w, op.Convolution); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		n1 := make([]float32, len(h0))
@@ -333,33 +338,17 @@ func (d *VAEDecoder) runOp(op media.CodecOperation[[][]float32], x []float32, c,
 		}
 		hostmath.SiLUInPlace(n1)
 		out := make([]float32, len(h0))
-		if err := vaeCausalConv(out, n1, w1, b1, op.OutputChannels, op.OutputChannels, h, w); err != nil {
+		if err := codecSingleFrameConv(out, n1, w1, b1, op.OutputChannels, op.OutputChannels, h, w, op.Convolution); err != nil {
 			return nil, 0, 0, 0, err
 		}
-		var projection, projectionBias []float32
-		if op.RequiresProjection() {
-			projectionBindings, ok := checked.Suffix(op.Bindings, tensor.PairedExtent)
-			if !ok {
-				return nil, 0, 0, 0, fmt.Errorf("residual projection bindings are absent")
-			}
-			projection = projectionBindings[tensor.FirstOffset]
-			projectionBias = projectionBindings[tensor.SingletonExtent]
-		}
+		projection, projectionBias := op.Bindings.WeightProjection, op.Bindings.BiasProjection
 		if err := hostmath.AddResidualF64Into(out, x, projection, projectionBias, c, op.OutputChannels, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, op.OutputChannels, h, w, nil
 	case media.CodecAttention:
-		qkvBindings, qkvOK := checked.Prefix(op.Bindings, tensor.TripleExtent)
-		projectionBindings, projectionOK := checked.Suffix(op.Bindings, tensor.PairedExtent)
-		if !qkvOK || !projectionOK {
-			return nil, 0, 0, 0, fmt.Errorf("attention bindings are incomplete")
-		}
-		gamma := qkvBindings[tensor.FirstOffset]
-		qkvW := qkvBindings[tensor.SingletonExtent]
-		qkvB := qkvBindings[tensor.PairedExtent]
-		projW := projectionBindings[tensor.FirstOffset]
-		projB := projectionBindings[tensor.SingletonExtent]
+		gamma, qkvW, qkvB := op.Bindings.NormInput, op.Bindings.WeightInput, op.Bindings.BiasInput
+		projW, projB := op.Bindings.WeightOutput, op.Bindings.BiasOutput
 		norm := make([]float32, len(x))
 		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, plane); err != nil {
 			return nil, 0, 0, 0, err
@@ -386,12 +375,7 @@ func (d *VAEDecoder) runOp(op media.CodecOperation[[][]float32], x []float32, c,
 		return out, c, h, w, nil
 	case media.CodecUpsampleSpatial:
 		// Single-frame: spatial 2x resample-conv only (time conv skipped).
-		resampleBindings, ok := checked.Prefix(op.Bindings, tensor.PairedExtent)
-		if !ok {
-			return nil, 0, 0, 0, fmt.Errorf("spatial upsample bindings are incomplete")
-		}
-		rw := resampleBindings[tensor.FirstOffset]
-		rb := resampleBindings[tensor.SingletonExtent]
+		rw, rb := op.Bindings.WeightSpatial, op.Bindings.BiasSpatial
 		scale := op.Operator.SpatialScale()
 		outputElements, ok := checked.ProductInt(op.OutputChannels, scale, scale, plane)
 		if !ok {
@@ -403,14 +387,14 @@ func (d *VAEDecoder) runOp(op media.CodecOperation[[][]float32], x []float32, c,
 		}
 		return out, op.OutputChannels, scale * h, scale * w, nil
 	case media.CodecHead:
-		gamma, weight, bias := op.Bindings[0], op.Bindings[1], op.Bindings[2]
+		gamma, weight, bias := op.Bindings.NormInput, op.Bindings.WeightInput, op.Bindings.BiasInput
 		norm := make([]float32, len(x))
 		if err := hostmath.ChannelRMSNormF64Into(norm, x, gamma, c, plane); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		hostmath.SiLUInPlace(norm)
 		out := make([]float32, op.OutputChannels*plane)
-		if err := vaeCausalConv(out, norm, weight, bias, c, op.OutputChannels, h, w); err != nil {
+		if err := codecSingleFrameConv(out, norm, weight, bias, c, op.OutputChannels, h, w, op.Convolution); err != nil {
 			return nil, 0, 0, 0, err
 		}
 		return out, op.OutputChannels, h, w, nil
@@ -418,10 +402,14 @@ func (d *VAEDecoder) runOp(op media.CodecOperation[[][]float32], x []float32, c,
 	return nil, 0, 0, 0, fmt.Errorf("unsupported op kind %d", op.Operator)
 }
 
-// vaeCausalConv: kt=kh=kw=3 causal 3-D conv on a single frame (InT=1, cold
-// cache), delegating to the golden-verified hostmath primitive.
-func vaeCausalConv(out, x, weight, bias []float32, cIn, cOut, h, w int) error {
-	return hostmath.CausalConv3DSameSingleFrameInto(out, x, weight, bias, cIn, cOut, h, w)
+func codecSingleFrameConv(out, input, weight, bias []float32, inputChannels, outputChannels, height, width int, extents media.CodecConvolutionExtents) error {
+	kernel := extents.Kernel
+	return hostmath.CausalConv3DInto(out, input, nil, weight, bias, tensor.FirstOffset, hostmath.Conv3DShape{
+		CIn: inputChannels, COut: outputChannels, InT: tensor.SingletonExtent, InH: height, InW: width,
+		KT: kernel[0], KH: kernel[1], KW: kernel[2],
+		PadT: kernel[0] / tensor.PairedExtent, PadH: kernel[1] / tensor.PairedExtent, PadW: kernel[2] / tensor.PairedExtent,
+		StrideT: extents.Stride[0], StrideH: extents.Stride[1], StrideW: extents.Stride[2],
+	})
 }
 
 // PixelsToU8 converts a planar [C][H][W] tensor in [-1,1] to the g3 8-bit

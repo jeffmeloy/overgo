@@ -29,7 +29,7 @@ type Gemma4AudioOutput struct {
 
 func ReadGemma4AudioSpec(file *gguf.File) (Gemma4AudioSpec, error) {
 	if err := validateProjector(
-		file, "clip.audio.projector_type", "clip.has_audio_encoder", gemma4UAProjectorType, "audio",
+		file, audioProjectorTypeKey, audioEncoderEnabledKey, gemma4UAProjectorType, "audio",
 	); err != nil {
 		return Gemma4AudioSpec{}, err
 	}

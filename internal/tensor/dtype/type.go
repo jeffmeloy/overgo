@@ -3,7 +3,8 @@ package dtype
 import (
 	"errors"
 	"fmt"
-	"math"
+
+	"overgo/internal/checked"
 )
 
 // Type: ggml-compatible tensor storage type
@@ -73,7 +74,7 @@ func BlockCount(elements, blockSize uint64) (uint64, bool) {
 	return elements / blockSize, true
 }
 
-var traits = map[Type]Traits{
+var traits = [Count]Traits{
 	F32:    {"f32", 1, 4, false},
 	F16:    {"f16", 1, 2, false},
 	Q4_0:   {"q4_0", 32, 18, true},
@@ -112,16 +113,21 @@ var traits = map[Type]Traits{
 	F8E4M3: {"f8_e4m3", 1, 1, false},
 }
 
+var auxiliaryRowBytes = [Count]uint64{F8E4M3: traits[F32].TypeSize}
+
 func (t Type) String() string {
-	if value, ok := traits[t]; ok {
+	if value, ok := t.Traits(); ok {
 		return value.Name
 	}
 	return fmt.Sprintf("dtype_%d", t)
 }
 
 func (t Type) Traits() (Traits, bool) {
-	value, ok := traits[t]
-	return value, ok
+	if t >= Count {
+		return Traits{}, false
+	}
+	value := traits[t]
+	return value, value.Name != ""
 }
 
 // ScalarBytes returns fixed-width scalar storage.
@@ -132,20 +138,21 @@ func (t Type) ScalarBytes() (uint64, bool) {
 
 // IsQuantized reports the physical block-layout class.
 func (t Type) IsQuantized() bool {
-	value, ok := traits[t]
+	value, ok := t.Traits()
 	return ok && value.Quantized
 }
 
-// StorageBytes: physical byte size of a tensor of this type whose logical shape
-// has `elements` elements laid out as rows of width `rowWidth` (dims[0]). This
-// is the single owner of tensor storage-byte accounting shared by Shape.Bytes,
-// the GGUF reader, and the GGUF writer. Block types occupy
-// (elements/BlockSize)*TypeSize. F8E4M3 native residency additionally carries a
-// per-output-row F32 scale after the packed e4m3 payload (elements*1 + rows*4),
-// matching the resident matmul buffer layout [rows*inner e4m3 | rows*4 scale]
-// the fp8 kernel expects. rowWidth must divide into whole blocks.
+// AuxiliaryRowBytes returns storage appended per logical row.
+func (t Type) AuxiliaryRowBytes() uint64 {
+	if t >= Count {
+		return 0
+	}
+	return auxiliaryRowBytes[t]
+}
+
+// StorageBytes returns physical bytes for a row-major logical tensor.
 func (t Type) StorageBytes(elements, rowWidth uint64) (uint64, error) {
-	traitsValue, ok := traits[t]
+	traitsValue, ok := t.Traits()
 	if !ok || traitsValue.BlockSize == 0 || traitsValue.TypeSize == 0 {
 		return 0, fmt.Errorf("unsupported type %d", uint32(t))
 	}
@@ -155,20 +162,22 @@ func (t Type) StorageBytes(elements, rowWidth uint64) (uint64, error) {
 			rowWidth, traitsValue.Name, traitsValue.BlockSize,
 		)
 	}
-	if t == F8E4M3 {
-		// packed e4m3 (1 byte/element) followed by one F32 scale per output row
-		rows := elements / rowWidth
-		if rows > (math.MaxUint64-elements)/4 {
-			return 0, errors.New("fp8 tensor byte size overflows uint64")
-		}
-		return elements + rows*4, nil
-	}
 	blocks, aligned := traitsValue.BlockCount(elements)
 	if !aligned {
 		return 0, fmt.Errorf("element count %d is not divisible by %s block size %d", elements, traitsValue.Name, traitsValue.BlockSize)
 	}
-	if blocks > math.MaxUint64/traitsValue.TypeSize {
+	storage, ok := checked.Mul64(blocks, traitsValue.TypeSize)
+	if !ok {
 		return 0, errors.New("tensor byte size overflows uint64")
 	}
-	return blocks * traitsValue.TypeSize, nil
+	rows := elements / rowWidth
+	auxiliary, ok := checked.Mul64(rows, t.AuxiliaryRowBytes())
+	if !ok {
+		return 0, errors.New("tensor auxiliary byte size overflows uint64")
+	}
+	total, ok := checked.Add64(storage, auxiliary)
+	if !ok {
+		return 0, errors.New("tensor auxiliary byte size overflows uint64")
+	}
+	return total, nil
 }

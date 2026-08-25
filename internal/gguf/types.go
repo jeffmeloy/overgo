@@ -219,16 +219,14 @@ func (tensor TensorInfo) RowLayout() (TensorRowLayout, error) {
 	if tensor.Dimensions != 2 {
 		return TensorRowLayout{}, fmt.Errorf("tensor %q must have rank 2", tensor.Name)
 	}
-	traits, ok := tensor.Type.Traits()
 	width, count := tensor.Shape[0], tensor.Shape[1]
-	if !ok || width == 0 || count == 0 || width%traits.BlockSize != 0 {
+	if width == 0 || count == 0 {
 		return TensorRowLayout{}, fmt.Errorf("tensor %q has unsupported row layout", tensor.Name)
 	}
-	blocks := width / traits.BlockSize
-	if blocks > math.MaxUint64/traits.TypeSize {
-		return TensorRowLayout{}, fmt.Errorf("tensor %q row storage overflows", tensor.Name)
+	bytes, err := tensor.Type.StorageBytes(width, width)
+	if err != nil {
+		return TensorRowLayout{}, fmt.Errorf("tensor %q has unsupported row layout: %w", tensor.Name, err)
 	}
-	bytes := blocks * traits.TypeSize
 	if count > math.MaxUint64/bytes || count*bytes != tensor.Size {
 		return TensorRowLayout{}, fmt.Errorf("tensor %q storage is inconsistent with its shape", tensor.Name)
 	}

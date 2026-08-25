@@ -12,6 +12,17 @@ import (
 	"overgo/internal/tensor"
 )
 
+func imageBounds(source image.Image) (image.Rectangle, error) {
+	if source == nil {
+		return image.Rectangle{}, errors.New("projector: image is nil")
+	}
+	bounds := source.Bounds()
+	if bounds.Empty() {
+		return image.Rectangle{}, errors.New("projector: image bounds are empty")
+	}
+	return bounds, nil
+}
+
 type rasterInterpolation uint8
 
 const (

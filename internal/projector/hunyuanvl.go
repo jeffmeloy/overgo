@@ -43,12 +43,12 @@ func ReadHunyuanVLSpec(file *gguf.File) (HunyuanVLSpec, error) {
 	); err != nil {
 		return HunyuanVLSpec{}, err
 	}
-	conv0, ok := file.Tensor("mm.0.weight")
+	conv0, ok := file.Tensor(projectionFirstWeightTensor)
 	convIntermediate, conv0OK := checked.Int(conv0.Shape[tensor.TripleExtent])
 	if !ok || conv0.Dimensions != tensor.MaxDimensions || !conv0OK {
 		return HunyuanVLSpec{}, errors.New("projector: Hunyuan-VL first convolution is unavailable or invalid")
 	}
-	conv2, ok := file.Tensor("mm.2.weight")
+	conv2, ok := file.Tensor(projectionSecondWeightTensor)
 	projectorInput, conv2OK := checked.Int(conv2.Shape[tensor.TripleExtent])
 	if !ok || conv2.Dimensions != tensor.MaxDimensions || !conv2OK {
 		return HunyuanVLSpec{}, errors.New("projector: Hunyuan-VL second convolution is unavailable or invalid")
@@ -81,15 +81,15 @@ func (s HunyuanVLSpec) validate() error {
 func validateHunyuanVLCatalog(file *gguf.File, spec HunyuanVLSpec) ([]string, error) {
 	positionSide := spec.ImageSize / spec.PatchSize
 	required := map[string][]uint64{
-		"mm.pre_norm.weight":       {uint64(spec.Hidden)},
-		"mm.0.weight":              {uint64(spec.MergeSize), uint64(spec.MergeSize), uint64(spec.Hidden), uint64(spec.ConvIntermediate)},
-		"mm.0.bias":                {uint64(spec.ConvIntermediate)},
-		"mm.2.weight":              {tensor.SingletonExtent, tensor.SingletonExtent, uint64(spec.ConvIntermediate), uint64(spec.ProjectorInput)},
-		"mm.2.bias":                {uint64(spec.ProjectorInput)},
-		visionImageNewlineTensor:   {uint64(spec.ProjectorInput)},
-		multimodalProjectionWeight: {uint64(spec.ProjectorInput), uint64(spec.OutputHidden)},
-		multimodalProjectionBias:   {uint64(spec.OutputHidden)},
-		"mm.image_begin":           {uint64(spec.OutputHidden)}, "mm.image_end": {uint64(spec.OutputHidden)},
+		"mm.pre_norm.weight":         {uint64(spec.Hidden)},
+		projectionFirstWeightTensor:  {uint64(spec.MergeSize), uint64(spec.MergeSize), uint64(spec.Hidden), uint64(spec.ConvIntermediate)},
+		projectionFirstBiasTensor:    {uint64(spec.ConvIntermediate)},
+		projectionSecondWeightTensor: {tensor.SingletonExtent, tensor.SingletonExtent, uint64(spec.ConvIntermediate), uint64(spec.ProjectorInput)},
+		projectionSecondBiasTensor:   {uint64(spec.ProjectorInput)},
+		visionImageNewlineTensor:     {uint64(spec.ProjectorInput)},
+		multimodalProjectionWeight:   {uint64(spec.ProjectorInput), uint64(spec.OutputHidden)},
+		multimodalProjectionBias:     {uint64(spec.OutputHidden)},
+		"mm.image_begin":             {uint64(spec.OutputHidden)}, "mm.image_end": {uint64(spec.OutputHidden)},
 		"mm.post_norm.weight": {uint64(spec.OutputHidden)},
 	}
 	addSpatialVisionEmbeddingCatalog(file, required, spec.visionBackboneSpec, positionSide*positionSide, tensorOptional)
@@ -97,5 +97,5 @@ func validateHunyuanVLCatalog(file *gguf.File, spec HunyuanVLSpec) ([]string, er
 		return nil, err
 	}
 	addStandardVisionLayerCatalog(file, required, spec.Layers, spec.Hidden, spec.Intermediate, spec.FusedQKV, false, tensorOptional)
-	return validateProjectorTensorCatalog(file, required, "mm.0.weight")
+	return validateProjectorTensorCatalog(file, required, projectionFirstWeightTensor)
 }

@@ -75,7 +75,7 @@ func runDeviceFull(l *campaignContext) error {
 		return err
 	}
 
-	worker, err := device.New(0)
+	worker, err := device.New(device.DefaultOrdinal())
 	if err != nil {
 		return fmt.Errorf("device full worker: %w", err)
 	}
@@ -131,7 +131,6 @@ func runFullPipeline(
 	H := cfg.HiddenSize
 	hd := cfg.HeadDim
 	kvHeads := cfg.NumKeyValueHeads
-	vocab := cfg.VocabSize
 	O := pc.spec.OutHidden
 
 	terminal, err := routedlm.LoadTerminalWeights(pc.src, cfg, binding)
@@ -172,7 +171,7 @@ func runFullPipeline(
 	if err != nil {
 		return res, err
 	}
-	firstToken, firstLogit, err := routedlm.TerminalTopToken(lastRow, cfg, terminal, 0)
+	firstToken, firstLogit, err := routedlm.TerminalTopToken(lastRow, cfg, terminal, tensor.FirstOffset)
 	if err != nil {
 		return res, err
 	}
@@ -241,14 +240,14 @@ func runFullPipeline(
 			return res, fmt.Errorf("device full decode weight upload layer %d: %w", layer, err)
 		}
 	}
-	if err := bindVec(dgraph.FinalNorm, terminal.FinalNorm[0]); err != nil {
+	if err := bindVec(dgraph.FinalNorm, terminal.FinalNorm[tensor.FirstOffset]); err != nil {
 		return res, err
 	}
 	if terminal.Head.DType != "BF16" {
 		return res, fmt.Errorf("device full: head dtype %s, want BF16", terminal.Head.DType)
 	}
-	headBytes := make([]byte, vocab*H*2)
-	if _, err := terminal.Head.ReadAt(headBytes, 0); err != nil {
+	headBytes := make([]byte, terminal.Head.Size())
+	if _, err := terminal.Head.ReadAt(headBytes, tensor.FirstOffset); err != nil {
 		return res, fmt.Errorf("device full: head read: %w", err)
 	}
 	if p, e := decodeAllocations.Upload(ctx, headBytes); e != nil {
@@ -365,7 +364,7 @@ func runFullPipeline(
 			return res, err
 		}
 		hostFeeds := map[*tensor.Tensor]reference.Value{
-			dgraph.Embedding: {Shape: tensor.MustShape(uint64(H), 1), Data: embedding},
+			dgraph.Embedding: {Shape: tensor.MustShape(uint64(H), tensor.SingletonExtent), Data: embedding},
 		}
 		retained, err := exe.ExecuteRetainedCompiled(ctx, dCompiled, hostFeeds, deviceInputs, targets, attrs)
 		if err != nil {
@@ -465,7 +464,7 @@ func runFullPrefill(
 		return nil, nil, nil, fmt.Errorf("device full prefill compile: %w", err)
 	}
 	rowShape := tensor.MustShape(uint64(H), uint64(pc.promptLen))
-	maskShape := tensor.MustShape(1, uint64(pc.promptLen))
+	maskShape := tensor.MustShape(tensor.SingletonExtent, uint64(pc.promptLen))
 	seedKeys = make([][]float32, cfg.NumHiddenLayers)
 	seedValues = make([][]float32, cfg.NumHiddenLayers)
 	row := append([]float32(nil), prefillEmbeds...)

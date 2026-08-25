@@ -318,7 +318,6 @@ func launchAttentionLayout(
 	node *tensor.Tensor,
 	runtimeAttributes tensor.Attributes,
 	pointers launchPointerFrame,
-	attributePointers devicePointerTable,
 ) error {
 	output := pointers.output()
 	switch node.Op {
@@ -434,7 +433,8 @@ func launchAttentionLayout(
 			f32Bytes                     = uint64(4)
 		)
 		// shared memory sized to capacity; logical KV count is device-resident
-		tokenCountPointer, hasTokenCount := attributePointers.lookup(node)
+		tokenCountPointer := pointers.attribute
+		hasTokenCount := tokenCountPointer != 0
 		sharedBytes := (uint64(keyCapacityTokens) + attentionDecodePartialFloats) * f32Bytes
 		if queryTokens == 1 && causal != 0 && queryStart+1 == keyValueTokens &&
 			relativeBias == 0 && sinks == 0 && blockIDs == 0 && keyBias == 0 && softcap == 0 &&
@@ -610,8 +610,8 @@ func launchAttentionLayout(
 		}
 		// destination base stays fixed; the row offset is device-resident so
 		// decode launches stay byte-identical across steps
-		offsetPointer, ok := attributePointers.lookup(node)
-		if !ok {
+		offsetPointer := pointers.attribute
+		if offsetPointer == 0 {
 			return errors.New("cache append offset storage is unavailable")
 		}
 		innerCount, err := uint32Checked(inner, "cache append inner size")

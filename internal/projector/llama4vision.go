@@ -91,11 +91,11 @@ func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
 	for layer := range spec.FusedQKV {
 		spec.FusedQKV[layer] = hasTensor(file, fmt.Sprintf("v.blk.%d.attn_qkv.weight", layer))
 	}
-	useGELU, err := optionalMetadataBool(file, "clip.use_gelu")
+	useGELU, err := optionalMetadataBool(file, visionUseGELUKey)
 	if err != nil {
 		return Llama4VisionSpec{}, err
 	}
-	useSiLU, err := optionalMetadataBool(file, "clip.use_silu")
+	useSiLU, err := optionalMetadataBool(file, visionUseSiLUKey)
 	if err != nil {
 		return Llama4VisionSpec{}, err
 	}
@@ -148,15 +148,12 @@ func validateLlama4VisionCatalog(file *gguf.File, spec Llama4VisionSpec) ([]stri
 }
 
 func PreprocessLlama4VisionImage(source image.Image, spec Llama4VisionSpec) (Llama4VisionInput, error) {
-	if source == nil {
-		return Llama4VisionInput{}, errors.New("projector: image is nil")
-	}
 	if err := spec.validate(); err != nil {
 		return Llama4VisionInput{}, err
 	}
-	bounds := source.Bounds()
-	if bounds.Empty() {
-		return Llama4VisionInput{}, errors.New("projector: image bounds are empty")
+	bounds, err := imageBounds(source)
+	if err != nil {
+		return Llama4VisionInput{}, err
 	}
 	gridTiles, _ := checked.MulInt(spec.MaxGridSide, spec.MaxGridSide)
 	images := make([]image.Image, tensor.FirstOffset, gridTiles+tensor.SingletonExtent)

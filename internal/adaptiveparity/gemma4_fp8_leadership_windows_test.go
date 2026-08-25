@@ -144,7 +144,7 @@ func TestGemma4FP8Leadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("Gemma4 FP8 leadership load=%s generation=%s wall=%s load_current=%d load_peak=%d current=%d peak=%d reference_generation=%s reference_peak=%d output=%v", loadWall, generationWall, wall, loadMemory.CurrentBytes, loadMemory.PeakBytes, memory.CurrentBytes, memory.PeakBytes, time.Duration(referenceWall), referencePeak, generated)
+	t.Logf("Gemma4 FP8 leadership load=%s generation=%s wall=%s load_current=%d load_peak=%d current=%d peak=%d peak_allocation=%d largest_live=%d reference_generation=%s reference_peak=%d over=%d output=%v", loadWall, generationWall, wall, loadMemory.CurrentBytes, loadMemory.PeakBytes, memory.CurrentBytes, memory.PeakBytes, memory.PeakAllocationBytes, memory.LargestLiveBytes, time.Duration(referenceWall), referencePeak, int64(memory.PeakBytes)-int64(referencePeak), generated)
 	if uint64(generationWall) > referenceWall {
 		t.Fatalf("Gemma4 generation %s exceeds adaptive %s", generationWall, time.Duration(referenceWall))
 	}

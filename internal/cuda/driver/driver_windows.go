@@ -24,10 +24,11 @@ var (
 type Library struct {
 	dll *syscall.DLL
 
-	allocationMu sync.Mutex
-	allocations  map[DevicePtr]uint64
-	currentBytes uint64
-	peakBytes    uint64
+	allocationMu        sync.Mutex
+	allocations         map[DevicePtr]uint64
+	currentBytes        uint64
+	peakBytes           uint64
+	peakAllocationBytes uint64
 
 	kernelLaunches          atomic.Uint64
 	streamSynchronizations  atomic.Uint64
@@ -411,16 +412,7 @@ func (l *Library) MemAlloc(bytes uint64) (DevicePtr, error) {
 	if err := l.result("cuMemAlloc_v2", result); err != nil {
 		return 0, err
 	}
-	l.allocationMu.Lock()
-	if l.allocations == nil {
-		l.allocations = make(map[DevicePtr]uint64)
-	}
-	l.allocations[pointer] = bytes
-	l.currentBytes += bytes
-	if l.currentBytes > l.peakBytes {
-		l.peakBytes = l.currentBytes
-	}
-	l.allocationMu.Unlock()
+	l.accountAllocation(pointer, bytes)
 	return pointer, nil
 }
 
@@ -452,13 +444,36 @@ func (l *Library) MemFree(pointer DevicePtr) error {
 	if err := l.result("cuMemFree_v2", result); err != nil {
 		return err
 	}
+	l.accountFree(pointer)
+	return nil
+}
+
+// accountFree removes one allocation from the ledger, lowering the live
+// total; the peak and its crossing size are high-water marks and stay.
+func (l *Library) accountFree(pointer DevicePtr) {
 	l.allocationMu.Lock()
 	if bytes, ok := l.allocations[pointer]; ok {
 		delete(l.allocations, pointer)
 		l.currentBytes -= bytes
 	}
 	l.allocationMu.Unlock()
-	return nil
+}
+
+// accountAllocation records one allocation in the ledger and raises the
+// peak, capturing the size of the allocation that set a new high-water
+// so a peak-over-budget finding names the crossing buffer.
+func (l *Library) accountAllocation(pointer DevicePtr, bytes uint64) {
+	l.allocationMu.Lock()
+	if l.allocations == nil {
+		l.allocations = make(map[DevicePtr]uint64)
+	}
+	l.allocations[pointer] = bytes
+	l.currentBytes += bytes
+	if l.currentBytes > l.peakBytes {
+		l.peakBytes = l.currentBytes
+		l.peakAllocationBytes = bytes
+	}
+	l.allocationMu.Unlock()
 }
 
 // ResetPeakBytes lowers the tracked allocation high-water to the current live
@@ -470,6 +485,7 @@ func (l *Library) ResetPeakBytes() {
 	}
 	l.allocationMu.Lock()
 	l.peakBytes = l.currentBytes
+	l.peakAllocationBytes = 0
 	l.allocationMu.Unlock()
 }
 
@@ -479,10 +495,18 @@ func (l *Library) MemoryStats() MemoryStats {
 	}
 	l.allocationMu.Lock()
 	defer l.allocationMu.Unlock()
+	var largest uint64
+	for _, bytes := range l.allocations {
+		if bytes > largest {
+			largest = bytes
+		}
+	}
 	return MemoryStats{
-		CurrentBytes: l.currentBytes,
-		PeakBytes:    l.peakBytes,
-		Allocations:  uint64(len(l.allocations)),
+		CurrentBytes:        l.currentBytes,
+		PeakBytes:           l.peakBytes,
+		Allocations:         uint64(len(l.allocations)),
+		PeakAllocationBytes: l.peakAllocationBytes,
+		LargestLiveBytes:    largest,
 	}
 }
 

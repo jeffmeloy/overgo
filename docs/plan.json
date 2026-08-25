@@ -63,12 +63,12 @@
       "id": "gemma4-memory-diagnostic",
       "title": "Name the allocation that pushes Gemma-4 FP8 peak 2.2MB past the adaptive reference, using the allocator ledger at the crossing",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Name the allocation that pushes Gemma-4 FP8 peak 2.2MB past the adaptive reference, using the allocator ledger at the crossing",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/cuda/driver -run TestMemory -count=1"
         }
       ]

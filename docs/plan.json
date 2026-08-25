@@ -1,7 +1,7 @@
 {
   "campaign": "Model facts as typed OvergoDB runtime authority",
   "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
-  "census_evidence": "evidence:sha256:740ce28a036658472e7cb74319e96f8555d3e2df7b85e5a7c464032838676efd",
+  "census_evidence": "evidence:sha256:d402c69b8a12a3ad4547659d2827e73c94e34b1dac778230224433d35fe44e20",
   "items": [
     {
       "id": "modelswap-proxy",
@@ -28,24 +28,6 @@
           "title": "The workbench switches models live through the swap proxy: the picker swaps instead of handing out relaunch commands",
           "status": "open",
           "verify": "go test ./internal/modelswap ./internal/server -run 'TestModelSwap|TestServedModelHeader' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "dense-model-fact-authority",
-      "title": "Remove dense loader family defaults",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resolve rope base and normalization epsilon before dense construction and delete the unlimited-ocr switch",
-          "status": "open",
-          "verify": "go test ./internal/densecausal ./internal/modelrecipe -run '^Test.*(Rope|Norm|Resolved).*Fact' -count=1",
-          "rationale": "Values currently assigned as 10000 and 1e-6 are model facts. Config, published profile, or artifact evidence must supply them; absence refuses construction.",
-          "depends_on": [
-            "typed-component-fact-authority/do"
-          ]
         }
       ]
     },

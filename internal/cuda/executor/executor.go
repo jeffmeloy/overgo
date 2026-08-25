@@ -2003,9 +2003,13 @@ func execute(
 			}
 			var fusionOperands launchPointerFrame
 			if frame.fusion != nil {
+				// The fusion frame carries the HOST node's own attribute
+				// pointer (a cache append's offset word); dropping it left
+				// every fused append reading a zero offset address.
 				fusionOperands = launchPointerFrame{
-					values: pointers.values,
-					slots:  compiled.operandSlots[frame.fusion.operandOffset : frame.fusion.operandOffset+frame.fusion.operandCount],
+					values:    pointers.values,
+					slots:     compiled.operandSlots[frame.fusion.operandOffset : frame.fusion.operandOffset+frame.fusion.operandCount],
+					attribute: attributePointers[nodeIndex],
 				}
 			}
 			var auxiliaryAttributePointer driver.DevicePtr

@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/inference"
@@ -117,6 +118,8 @@ func (h *Handler) agentControl(response http.ResponseWriter, request *http.Reque
 		}
 		inventory, err := h.agentInventory(request.Context())
 		writeAgentResult(response, http.StatusOK, inventory, err)
+	case "/agents/create":
+		h.agentSimpleCreate(response, request)
 	case "/agents/definitions":
 		var body AgentDefinitionInput
 		if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
@@ -253,6 +256,91 @@ func (h *Handler) agentInventory(ctx context.Context) ([]AgentInventoryEntry, er
 	}
 	slices.SortFunc(entries, func(left, right AgentInventoryEntry) int { return strings.Compare(left.Name, right.Name) })
 	return entries, nil
+}
+
+// agentSimpleCreateRequest is everything a person supplies to create
+// an agent: a name, plain instructions, and tool NAMES. Every artifact
+// identity -- the committed prompt, the served model recipe, the exact
+// tool manuals, the default policy -- is derived server-side; nobody
+// types a hash into a form.
+type agentSimpleCreateRequest struct {
+	Name         string   `json:"name"`
+	Instructions string   `json:"instructions"`
+	Tools        []string `json:"tools,omitempty"`
+}
+
+// agentSimpleCreate publishes and activates an agent from the simple
+// request: the instructions commit as the prompt artifact, the model
+// recipe is the one this server is serving (the only recipe a step
+// would admit anyway), tool names resolve to their exact registered
+// manuals, and the default agent policy profile grounds the required
+// policy set.
+func (h *Handler) agentSimpleCreate(response http.ResponseWriter, request *http.Request) {
+	if !requireMethod(response, request, http.MethodPost) {
+		return
+	}
+	if h.repository == nil {
+		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
+		return
+	}
+	var body agentSimpleCreateRequest
+	if !h.decodeBoundedJSON(response, request, &body) {
+		return
+	}
+	if strings.TrimSpace(body.Name) == "" || strings.TrimSpace(body.Instructions) == "" {
+		writeError(response, http.StatusBadRequest, "invalid_request", "a name and instructions are required")
+		return
+	}
+	description, described := h.interactionDescription()
+	if !described {
+		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "the served runtime has no interaction identity")
+		return
+	}
+	ctx := request.Context()
+	promptBytes := []byte(body.Instructions)
+	promptID, err := artifact.IdentifyBytes(artifact.KindFile, promptBytes)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	policyID, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/agent/default-policy"))
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	manuals := make([]artifact.ID, 0, len(body.Tools))
+	for _, name := range body.Tools {
+		manual, err := agenttool.ResolveRegisteredManual(ctx, h.repository, name)
+		if err != nil {
+			writeError(response, http.StatusUnprocessableEntity, "agent_create_refused", err.Error())
+			return
+		}
+		manuals = append(manuals, manual.ID)
+	}
+	if _, err := artifact.CommitBatch(ctx, h.repository, artifact.Batch{
+		Key: "agent/simple-create/" + promptID.String(),
+		Contents: []artifact.Content{{
+			Descriptor: artifact.Descriptor{
+				ID: promptID, MediaType: "text/plain; charset=utf-8",
+				Schema: "overgo/agent-prompt/v1", Size: uint64(len(promptBytes)),
+			},
+			Data: promptBytes,
+		}},
+		Artifacts: []artifact.Descriptor{{ID: policyID}},
+	}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		writeGenerationError(response, err)
+		return
+	}
+	definition, err := h.publishAgentDefinition(ctx, AgentDefinitionInput{
+		Name: body.Name, Prompt: promptID, ModelRecipe: description.Identity.Recipe,
+		ToolManuals: manuals, Policies: []artifact.ID{policyID},
+	})
+	if err != nil {
+		writeError(response, http.StatusUnprocessableEntity, "agent_create_refused", err.Error())
+		return
+	}
+	active, err := h.activateAgent(ctx, definition.ID)
+	writeAgentResult(response, http.StatusOK, active, err)
 }
 
 func (h *Handler) publishAgentDefinition(ctx context.Context, input AgentDefinitionInput) (recipe.AgentDefinition, error) {

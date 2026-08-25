@@ -1,8 +1,21 @@
 {
   "campaign": "Literal authority and duplicate runtime tightening",
   "doctrine": "Counts route inspection; semantics decide consolidation. Recipes, artifact metadata, typed plans, and neutral operators own runtime policy. Constants name stable implementation contracts only. Test fixtures may carry local data but must not copy production policy or reconstruct production logic. Each wave migrates every targeted caller and deletes displaced loops, wrappers, and duplicate harnesses immediately. Preserve numerical behavior and wire contracts. Merge master after every gated commit.",
-  "census_evidence": "evidence:sha256:e5d2d74889224ed70ffd270e28f1b4968c055496d390b04f03dce8e58bc99271",
+  "census_evidence": "evidence:sha256:b165a36998445e94af6fdd7cb15611fed2869941bb8dd7a01063abc419d1dc5a",
   "items": [
+    {
+      "id": "merge-8742a92cf96a",
+      "title": "Merge master at 8742a92cf96a",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 8742a92cf96a",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
     {
       "id": "plan-text-bound-authority",
       "title": "Make plan text contracts own shared bounds and excluded bytes",
@@ -65,6 +78,90 @@
           "depends_on": [
             "serving-evidence-case-authority/do"
           ]
+        }
+      ]
+    },
+    {
+      "id": "fix-fused-attribute-frame",
+      "title": "Restore fused cache-append launches: the fusion frame lost its host attribute pointer",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore fused cache-append launches: the fusion frame lost its host attribute pointer",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run TestHermetic -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-model-picker",
+      "title": "Every page shows the served model, with a servable-model picker that hands the relaunch command",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every page shows the served model, with a servable-model picker that hands the relaunch command",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestServedModelHeader -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-simple-create",
+      "title": "One-step agent creation: name, instructions, tool checkboxes; every identity derived server-side",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One-step agent creation: name, instructions, tool checkboxes; every identity derived server-side",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestAgentSimpleCreate -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-task-first-page",
+      "title": "The agent page leads with the task: pick an agent, chat; sessions auto-named; operator panels fold behind Advanced",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The agent page leads with the task: pick an agent, chat; sessions auto-named; operator panels fold behind Advanced",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestAgentSimpleCreate -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-defaults-sweep",
+      "title": "Options and configuration fields default or fold across the workbench; nothing optional leads a page",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Options and configuration fields default or fold across the workbench; nothing optional leads a page",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestCollapsibleSections -count=1"
+        }
+      ]
+    },
+    {
+      "id": "merge-tightening-2",
+      "title": "Merge overgo_tightening (80571e24) and verify the new workbench tabs live",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge overgo_tightening (80571e24) and verify the new workbench tabs live",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-all -require-no-uncatalogued-production -require-no-stale"
         }
       ]
     }

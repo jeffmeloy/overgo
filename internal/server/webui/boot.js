@@ -332,6 +332,43 @@
     }
   }
 
+  // The served model shows on every page as the banner pill; clicking
+  // it lists the store's servable models. One process serves one model,
+  // so choosing another hands you the relaunch command for
+  // overgo_gui.bat instead of pretending to hot-swap.
+  function wireModelPicker() {
+    const modelPill = document.getElementById("model-pill");
+    if (!modelPill) return;
+    let panel = null;
+    modelPill.style.cursor = "pointer";
+    modelPill.title = "click to list servable models";
+    modelPill.addEventListener("click", async () => {
+      if (panel) { panel.remove(); panel = null; return; }
+      panel = el("div", { class: "card", style: "position:absolute;right:12px;top:44px;z-index:40;max-width:560px" });
+      modelPill.parentElement.appendChild(panel);
+      panel.textContent = "loading servable models…";
+      try {
+        const catalog = await api.get("/catalog/models");
+        const servable = (catalog.models || []).filter((item) => item.present && item.recipe && !item.stale);
+        if (!servable.length) {
+          panel.textContent = "no other servable models in the store";
+          return;
+        }
+        panel.replaceChildren(el("div", { class: "note", text: "serve a different model: copy its launch command and run it" }),
+          ...servable.map((item) => {
+            const command = 'overgo_gui.bat "' + item.location + '"';
+            const copy = el("button", { class: "btn alt", text: "copy launch" });
+            copy.addEventListener("click", () => navigator.clipboard.writeText(command));
+            const name = item.location ? item.location.split(/[\\/]/).pop() : item.model;
+            return el("div", { class: "row" }, el("span", { class: "mono", text: name }), copy);
+          }));
+      } catch (err) {
+        panel.textContent = friendlyError(err);
+      }
+    });
+  }
+  wireModelPicker();
+
   // ---- capability gating ----
   // Refusal is server-owned and travels with the same manifest as navigation.
   let authNoticeEl = null;
@@ -352,8 +389,11 @@
   function applyCapabilities() {
     for (const tab of tabs) {
       const ok = tabSupported(tab);
+      // A capability this model does not serve HIDES its tab instead of
+      // greying it out: the nav shows what works here, and the manifest
+      // still carries every refusal for API clients that ask.
+      tab.button.style.display = ok ? "" : "none";
       tab.button.disabled = !ok;
-      tab.button.classList.toggle("disabled-tab", !ok);
       tab.button.title = ok ? "" : tab.refusal;
     }
     const active = tabs.find((t) => t.button.classList.contains("active"));

@@ -31,35 +31,35 @@ func TestDependencyDispatchSkipsBlocked(t *testing.T) {
 	if !ok || item.ID != "root" {
 		t.Fatalf("dispatch = (%s, %t), want the unblocked root despite file order", item.ID, ok)
 	}
-	document.Items[1].Status = StatusDone
-	document.Items[1].Steps[0].Status = StatusDone
+	// Completion removes the root row entirely; a reference to the
+	// absent row is a COMPLETED dependency, so the dependent dispatches.
+	document.Items = document.Items[:1]
 	item, _, ok = Current(document, "gui")
 	if !ok || item.ID != "dependent" {
-		t.Fatalf("dispatch = (%s, %t), want the dependent once its root is done", item.ID, ok)
+		t.Fatalf("dispatch = (%s, %t), want the dependent once its root completed and left", item.ID, ok)
 	}
-	document.Items[0].Steps[0].DependsOn = []string{"missing-item/do"}
-	if _, _, ok := Current(document, "gui"); ok {
-		t.Fatal("a step with an unsatisfiable dependency dispatched")
+	// A reference to a PRESENT but unfinished sibling step still blocks.
+	document.Items[0].Steps = append(document.Items[0].Steps,
+		Step{ID: "later", Status: StatusOpen, Verify: "go test ./..."})
+	document.Items[0].Steps[0].DependsOn = []string{"dependent/later"}
+	if item, step, ok := Current(document, "gui"); !ok || step.ID != "later" {
+		t.Fatalf("dispatch = (%s/%s, %t), want the unblocked sibling", item.ID, step.ID, ok)
 	}
 }
 
-// TestDependencyValidationRefusesDanglingAndCycles pins the load-time
-// contract: references must resolve and the dependency graph must be
-// acyclic.
-func TestDependencyValidationRefusesDanglingAndCycles(t *testing.T) {
+// TestDependencyValidationRefusesCycles pins the load-time contract:
+// the dependency graph must be acyclic among PRESENT rows; a reference
+// to an absent row is a completed dependency, never an error, because
+// completion removes rows.
+func TestDependencyValidationRefusesCycles(t *testing.T) {
 	valid := dependencyFixture()
 	if err := Validate(valid); err != nil {
 		t.Fatalf("valid dependency graph refused: %v", err)
 	}
-	dangling := dependencyFixture()
-	dangling.Items[1].Steps[0].DependsOn = []string{"ghost/do"}
-	if err := Validate(dangling); err == nil || !strings.Contains(err.Error(), "unknown item") {
-		t.Fatalf("dangling item reference accepted: %v", err)
-	}
-	wrongStep := dependencyFixture()
-	wrongStep.Items[1].Steps[0].DependsOn = []string{"root/undo"}
-	if err := Validate(wrongStep); err == nil || !strings.Contains(err.Error(), "unknown step") {
-		t.Fatalf("dangling step reference accepted: %v", err)
+	completed := dependencyFixture()
+	completed.Items[1].Steps[0].DependsOn = []string{"ghost/do"}
+	if err := Validate(completed); err != nil {
+		t.Fatalf("reference to a completed-and-removed row refused: %v", err)
 	}
 	cyclic := dependencyFixture()
 	cyclic.Items[0].Steps[0].DependsOn = []string{"dependent/do"}

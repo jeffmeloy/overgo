@@ -22,7 +22,10 @@ func TestEnforceAdvanceGate(t *testing.T) {
 	}
 }
 
-func TestAdvanceRetainsCompletedWork(t *testing.T) {
+// TestAdvanceRemovesCompletedStep pins the plan contract at the CLI:
+// an advanced step leaves the saved plan, which then holds only the
+// remaining open work.
+func TestAdvanceRemovesCompletedStep(t *testing.T) {
 	old, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -51,8 +54,8 @@ func TestAdvanceRetainsCompletedWork(t *testing.T) {
 	if err := plan.Validate(saved); err != nil {
 		t.Fatal(err)
 	}
-	if len(saved.Items) != 1 || len(saved.Items[0].Steps) != 2 ||
-		saved.Items[0].Steps[0].Status != plan.StatusDone || saved.Items[0].Steps[1].ID != "second" {
+	if len(saved.Items) != 1 || len(saved.Items[0].Steps) != 1 ||
+		saved.Items[0].Steps[0].ID != "second" {
 		t.Fatalf("advanced plan = %+v", saved)
 	}
 }

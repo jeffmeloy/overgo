@@ -1418,6 +1418,14 @@ func (g *gateContext) stepCommit() (bool, error) {
 	); err != nil {
 		return false, fmt.Errorf("pre-commit record validation: %w", err)
 	}
+	// Structured completion trailers make Git the completion record:
+	// the row leaves the plan in this same commit, and the trailers
+	// carry what completed and how it was verified. The gate record
+	// published after commit binds the evidence by commit SHA.
+	messageFile, err := g.completionMessageFile()
+	if err != nil {
+		return false, err
+	}
 	rollbackPlan, err := advancePlanFile(g.repo, g.planRef)
 	if err != nil {
 		return false, err
@@ -1461,7 +1469,7 @@ func (g *gateContext) stepCommit() (bool, error) {
 			return false, err
 		}
 	}
-	cmd := exec.Command("git", "commit", "-F", g.messageFile)
+	cmd := exec.Command("git", "commit", "-F", messageFile)
 	cmd.Dir = g.repo
 	cmd.Env = append(os.Environ(), guard.GateEnv+"=1")
 	out, err := cmd.CombinedOutput()
@@ -1470,6 +1478,45 @@ func (g *gateContext) stepCommit() (bool, error) {
 	}
 	committed = true
 	return false, nil
+}
+
+// completionMessageFile writes the operator's message plus the
+// structured completion trailers to a temporary file: the plan item
+// and step this commit completes, and the verify command that gated
+// it. Git carries completion history; the plan keeps only open work.
+func (g *gateContext) completionMessageFile() (string, error) {
+	message, err := os.ReadFile(g.messageFile)
+	if err != nil {
+		return "", err
+	}
+	itemID, stepID, _ := strings.Cut(g.planRef, "/")
+	trailers := "\nOvergo-Plan-Item: " + itemID + "\nOvergo-Plan-Step: " + stepID + "\n"
+	document, err := plan.Load(filepath.Join(g.repo, filepath.FromSlash(plan.Path)))
+	if err == nil {
+		for _, item := range document.Items {
+			if item.ID != itemID {
+				continue
+			}
+			for _, step := range item.Steps {
+				if step.ID == stepID && step.Verify != "" {
+					trailers += "Overgo-Verify: " + step.Verify + "\n"
+				}
+			}
+		}
+	}
+	augmented := strings.TrimRight(string(message), "\n") + "\n" + trailers
+	file, err := os.CreateTemp("", "gate-message-*.txt")
+	if err != nil {
+		return "", err
+	}
+	if _, err := file.WriteString(augmented); err != nil {
+		file.Close()
+		return "", err
+	}
+	if err := file.Close(); err != nil {
+		return "", err
+	}
+	return file.Name(), nil
 }
 
 func advancePlanFile(repo, ref string) (func() error, error) {

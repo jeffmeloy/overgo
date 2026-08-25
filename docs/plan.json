@@ -4,165 +4,44 @@
   "census_evidence": "evidence:sha256:84da019c5f63b742cf71e4f0a0b057e0c4c3328963b78de3cf4b4da83fbd7057",
   "items": [
     {
-      "id": "record-sweep-closure",
-      "title": "Record the defaults-sweep plan closure",
+      "id": "modelswap-core",
+      "title": "Model-swap supervisor: exclusive child-server lifecycle with readiness, in-flight draining, and idle timeout -- llama-swap as reference, overgo authorities as config",
       "owner": "gui",
-      "status": "done",
+      "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Record the defaults-sweep plan closure",
-          "status": "done",
-          "verify": "go test ./internal/server -run TestCollapsibleSections -count=1"
+          "title": "Model-swap supervisor: exclusive child-server lifecycle with readiness, in-flight draining, and idle timeout -- llama-swap as reference, overgo authorities as config",
+          "status": "open",
+          "verify": "go test ./internal/modelswap -run TestModelSwapSupervisor -count=1"
         }
       ]
     },
     {
-      "id": "fix-fused-attribute-frame",
-      "title": "Restore fused cache-append launches: the fusion frame lost its host attribute pointer",
+      "id": "modelswap-proxy",
+      "title": "Swap proxy over the servable catalog: model-routed requests launch the right server, cmd/swap serves it",
       "owner": "gui",
-      "status": "done",
+      "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Restore fused cache-append launches: the fusion frame lost its host attribute pointer",
-          "status": "done",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run TestHermetic -count=1"
+          "title": "Swap proxy over the servable catalog: model-routed requests launch the right server, cmd/swap serves it",
+          "status": "open",
+          "verify": "go test ./internal/modelswap -run TestModelSwapProxy -count=1"
         }
       ]
     },
     {
-      "id": "gui-model-picker",
-      "title": "Every page shows the served model, with a servable-model picker that hands the relaunch command",
+      "id": "gui-live-model-switch",
+      "title": "The workbench switches models live through the swap proxy: the picker swaps instead of handing out relaunch commands",
       "owner": "gui",
-      "status": "done",
+      "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Every page shows the served model, with a servable-model picker that hands the relaunch command",
-          "status": "done",
-          "verify": "go test ./internal/server -run TestServedModelHeader -count=1"
-        }
-      ]
-    },
-    {
-      "id": "agent-simple-create",
-      "title": "One-step agent creation: name, instructions, tool checkboxes; every identity derived server-side",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "One-step agent creation: name, instructions, tool checkboxes; every identity derived server-side",
-          "status": "done",
-          "verify": "go test ./internal/server -run TestAgentSimpleCreate -count=1"
-        }
-      ]
-    },
-    {
-      "id": "agent-task-first-page",
-      "title": "The agent page leads with the task: pick an agent, chat; sessions auto-named; operator panels fold behind Advanced",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The agent page leads with the task: pick an agent, chat; sessions auto-named; operator panels fold behind Advanced",
-          "status": "done",
-          "verify": "go test ./internal/server -run TestAgentSimpleCreate -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-defaults-sweep",
-      "title": "Options and configuration fields default or fold across the workbench; nothing optional leads a page",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Options and configuration fields default or fold across the workbench; nothing optional leads a page",
-          "status": "done",
-          "verify": "go test ./internal/server -run TestCollapsibleSections -count=1"
-        }
-      ]
-    },
-    {
-      "id": "merge-tightening-2",
-      "title": "Merge overgo_tightening (80571e24) and verify the new workbench tabs live",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge overgo_tightening (80571e24) and verify the new workbench tabs live",
-          "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-all -require-no-uncatalogued-production -require-no-stale"
-        }
-      ]
-    },
-    {
-      "id": "plan-text-bound-authority",
-      "title": "Make plan text contracts own shared bounds and excluded bytes",
-      "owner": "tightening",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Replace repeated plan bounds with one existing-package validator and delete literal copies",
-          "status": "done",
-          "verify": "go test ./internal/plan -run '^Test.*(WorkLease|Control|Autonomy|Role)' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "projector-indexed-tensor-program",
-      "title": "Compile repeated projector tensor names from typed indexed declarations",
-      "owner": "tightening",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move DeepSeek OCR tensor suffix expansion to one neutral indexed program and delete local loops",
-          "status": "done",
-          "verify": "go test ./internal/projector -run '^TestDeepSeekOCR(2)?TinyFixture$' -count=1",
-          "depends_on": [
-            "plan-text-bound-authority/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "serving-evidence-case-authority",
-      "title": "Make one typed serving-evidence case runner own real-model golden setup",
-      "owner": "tightening",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Table-drive Carbon, MiniCPM5, and Qwen2.5 serving evidence and delete cloned harnesses",
-          "status": "done",
-          "verify": "go test -tags modeltest ./internal/inference -run '^TestServingGoldenEvidenceCatalog$' -count=1",
-          "depends_on": [
-            "projector-indexed-tensor-program/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "literal-authority-closure",
-      "title": "Close literal authority and duplicate harness tightening",
-      "owner": "tightening",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Publish the reduced census and verify host, CUDA admission, and closure authority",
-          "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "depends_on": [
-            "serving-evidence-case-authority/do"
-          ]
+          "title": "The workbench switches models live through the swap proxy: the picker swaps instead of handing out relaunch commands",
+          "status": "open",
+          "verify": "go test ./internal/modelswap ./internal/server -run 'TestModelSwap|TestServedModelHeader' -count=1"
         }
       ]
     }

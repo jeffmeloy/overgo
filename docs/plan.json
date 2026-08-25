@@ -1,167 +1,164 @@
 {
-  "campaign": "Literal authority and duplicate runtime tightening",
-  "doctrine": "Counts route inspection; semantics decide consolidation. Recipes, artifact metadata, typed plans, and neutral operators own runtime policy. Constants name stable implementation contracts only. Test fixtures may carry local data but must not copy production policy or reconstruct production logic. Each wave migrates every targeted caller and deletes displaced loops, wrappers, and duplicate harnesses immediately. Preserve numerical behavior and wire contracts. Merge master after every gated commit.",
+  "campaign": "Model facts as typed OvergoDB runtime authority",
+  "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
   "census_evidence": "evidence:sha256:b165a36998445e94af6fdd7cb15611fed2869941bb8dd7a01063abc419d1dc5a",
   "items": [
     {
-      "id": "merge-8742a92cf96a",
-      "title": "Merge master at 8742a92cf96a",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge master at 8742a92cf96a",
-          "status": "done",
-          "verify": "go run ./cmd/compatibility -check"
-        }
-      ]
-    },
-    {
-      "id": "plan-text-bound-authority",
-      "title": "Make plan text contracts own shared bounds and excluded bytes",
+      "id": "model-fact-literal-audit",
+      "title": "Establish the model-fact literal campaign from the merged census",
       "owner": "tightening",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Replace repeated plan bounds with one existing-package validator and delete literal copies",
+          "title": "Record semantic ownership and prioritize confirmed runtime bypasses",
           "status": "done",
-          "verify": "go test ./internal/plan -run '^Test.*(WorkLease|Control|Autonomy|Role)' -count=1"
+          "verify": "go run ./cmd/closure-scan -check-all -require-no-stale -require-no-uncatalogued-production",
+          "rationale": "Confirmed bypasses: dense unlimited-ocr rope/norm defaults; Qwen3VL image/video pixel budgets; SenseNova sinusoidal period and binding data; built-in scratch derivation policy. Diffusion graph capacity is implementation ownership; tensor decode bit offsets and attention-mask sentinels are format or mathematical ownership."
         }
       ]
     },
     {
-      "id": "projector-indexed-tensor-program",
-      "title": "Compile repeated projector tensor names from typed indexed declarations",
+      "id": "semantic-literal-census",
+      "title": "Separate structural, mathematical, format, capacity, policy, model-fact, fixture, assertion, and unknown literals",
       "owner": "tightening",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move DeepSeek OCR tensor suffix expansion to one neutral indexed program and delete local loops",
-          "status": "done",
-          "verify": "go test ./internal/projector -run '^TestDeepSeekOCR(2)?TinyFixture$' -count=1",
-          "depends_on": [
-            "plan-text-bound-authority/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "serving-evidence-case-authority",
-      "title": "Make one typed serving-evidence case runner own real-model golden setup",
-      "owner": "tightening",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Table-drive Carbon, MiniCPM5, and Qwen2.5 serving evidence and delete cloned harnesses",
-          "status": "done",
-          "verify": "go test -tags modeltest ./internal/inference -run '^TestServingGoldenEvidenceCatalog$' -count=1",
-          "depends_on": [
-            "projector-indexed-tensor-program/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "literal-authority-closure",
-      "title": "Close literal authority and duplicate harness tightening",
-      "owner": "tightening",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Publish the reduced census and verify host, CUDA admission, and closure authority",
-          "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-uncatalogued-production",
-          "depends_on": [
-            "serving-evidence-case-authority/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "fix-fused-attribute-frame",
-      "title": "Restore fused cache-append launches: the fusion frame lost its host attribute pointer",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore fused cache-append launches: the fusion frame lost its host attribute pointer",
-          "status": "done",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run TestHermetic -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-model-picker",
-      "title": "Every page shows the served model, with a servable-model picker that hands the relaunch command",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Every page shows the served model, with a servable-model picker that hands the relaunch command",
-          "status": "done",
-          "verify": "go test ./internal/server -run TestServedModelHeader -count=1"
-        }
-      ]
-    },
-    {
-      "id": "agent-simple-create",
-      "title": "One-step agent creation: name, instructions, tool checkboxes; every identity derived server-side",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "One-step agent creation: name, instructions, tool checkboxes; every identity derived server-side",
-          "status": "done",
-          "verify": "go test ./internal/server -run TestAgentSimpleCreate -count=1"
-        }
-      ]
-    },
-    {
-      "id": "agent-task-first-page",
-      "title": "The agent page leads with the task: pick an agent, chat; sessions auto-named; operator panels fold behind Advanced",
-      "owner": "gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "The agent page leads with the task: pick an agent, chat; sessions auto-named; operator panels fold behind Advanced",
+          "title": "Make closure-scan classify from AST context and exact authority bindings without value thresholds",
           "status": "open",
-          "verify": "go test ./internal/server -run TestAgentSimpleCreate -count=1"
+          "verify": "go test ./internal/closurescan ./cmd/closure-scan -run '^Test.*Literal.*Class' -count=1",
+          "rationale": "Report structural zero/unit operations separately. Unknown remains explicit. Only policy, model-fact, and unknown classes drive runtime cleanup gates.",
+          "depends_on": [
+            "model-fact-literal-audit/do"
+          ]
         }
       ]
     },
     {
-      "id": "gui-defaults-sweep",
-      "title": "Options and configuration fields default or fold across the workbench; nothing optional leads a page",
-      "owner": "gui",
+      "id": "typed-component-fact-authority",
+      "title": "Compile typed component-profile dependencies with resolved model definitions",
+      "owner": "tightening",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Options and configuration fields default or fold across the workbench; nothing optional leads a page",
+          "title": "Resolve processor, flow, and derivation profiles from ordered active-recipe dependencies",
           "status": "open",
-          "verify": "go test ./internal/server -run TestCollapsibleSections -count=1"
+          "verify": "go test ./internal/modelrecipe -run '^TestResolved.*Profile|^TestLoadedProgram.*Profile' -count=1",
+          "rationale": "Reuse artifact document contracts and recipe dependency slots. Add narrow typed profiles, not map[string]any or a universal model property bag.",
+          "depends_on": [
+            "semantic-literal-census/do"
+          ]
         }
       ]
     },
     {
-      "id": "merge-tightening-2",
-      "title": "Merge overgo_tightening (80571e24) and verify the new workbench tabs live",
-      "owner": "gui",
-      "status": "done",
+      "id": "dense-model-fact-authority",
+      "title": "Remove dense loader family defaults",
+      "owner": "tightening",
+      "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Merge overgo_tightening (80571e24) and verify the new workbench tabs live",
-          "status": "done",
-          "verify": "go run ./cmd/closure-scan -check-all -require-no-uncatalogued-production -require-no-stale"
+          "title": "Resolve rope base and normalization epsilon before dense construction and delete the unlimited-ocr switch",
+          "status": "open",
+          "verify": "go test ./internal/densecausal ./internal/modelrecipe -run '^Test.*(Rope|Norm|Resolved).*Fact' -count=1",
+          "rationale": "Values currently assigned as 10000 and 1e-6 are model facts. Config, published profile, or artifact evidence must supply them; absence refuses construction.",
+          "depends_on": [
+            "typed-component-fact-authority/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "projector-preprocess-fact-authority",
+      "title": "Make processor profiles own media preprocessing bounds",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Resolve image and video pixel budgets from processor artifacts and delete Qwen3VL default functions",
+          "status": "open",
+          "verify": "go test ./internal/projector ./internal/modelrecipe -run '^Test.*Preprocess.*Profile' -count=1",
+          "rationale": "The current 256/4096 and 56/3584 sides are processor policy. Publish exact config provenance, bind it to the active projector recipe, and migrate prompt and parity callers.",
+          "depends_on": [
+            "dense-model-fact-authority/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flow-profile-fact-authority",
+      "title": "Make active flow profiles own binding and embedding facts",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Resolve tensor prefixes and sinusoidal period from the active profile and delete SenseNovaFlowBinding",
+          "status": "open",
+          "verify": "go test ./internal/routedlm ./internal/sensenovarecipe -run '^Test.*Flow.*Profile' -count=1",
+          "rationale": "The period 10000 is external model evidence, not universal math. Recipe-bound profile data must reach host and CUDA flow plans identically.",
+          "depends_on": [
+            "projector-preprocess-fact-authority/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "derivation-profile-runtime-authority",
+      "title": "Make OvergoDB own scratch construction policy",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Resolve the active derivation profile and delete direct AdaptiveDerivationProfile runtime callers",
+          "status": "open",
+          "verify": "go test ./internal/scratchmodel ./internal/modelbuilder ./internal/controllertrain -run '^Test.*Derivation.*Profile' -count=1",
+          "rationale": "Corpus split, topology minima, MLP budget, epsilon, and optimizer policy are versioned construction policy. Retain bootstrap data only as publication input, then remove runtime default access.",
+          "depends_on": [
+            "flow-profile-fact-authority/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "compiled-structure-literal-authority",
+      "title": "Derive implementation capacities and positional bindings from compiled programs",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace diffusion graph capacity and positional tensor indices with compiled counts and typed bindings",
+          "status": "open",
+          "verify": "go test ./internal/diffusionimage -run '^Test.*(Compile|Program|Inventory)' -count=1",
+          "rationale": "The map capacity 256 is an implementation hint, not a model fact. Positional indices 5 through 17 encode unnamed structure. Compile both from validated inventory declarations without moving them into OvergoDB model facts.",
+          "depends_on": [
+            "derivation-profile-runtime-authority/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "model-fact-authority-closure",
+      "title": "Close model-fact literal migration",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish semantic census evidence and reject uncatalogued model facts or stale bindings",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-all -require-no-model-facts -require-no-stale -require-no-uncatalogued-production",
+          "rationale": "Acceptance requires active typed profiles for each migrated runtime, no family fallback path, zero test policy copies, and host/CUDA parity through the same compiled facts.",
+          "depends_on": [
+            "compiled-structure-literal-authority/do"
+          ]
         }
       ]
     }

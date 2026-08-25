@@ -3,8 +3,10 @@ package dataset
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -127,12 +129,16 @@ func walkDirectoryInventory(root string) ([]InventoryFile, []string, uint64, err
 		if format == "" {
 			format = legacyUnknownFact
 		}
+		digest, err := fileDigest(path)
+		if err != nil {
+			return err
+		}
 		formats[format] = true
 		total += uint64(info.Size())
 		files = append(files, InventoryFile{
 			Path: filepath.ToSlash(relative), OriginalName: entry.Name(), Extension: extension,
 			Modality: modality, Format: format, Bytes: uint64(info.Size()),
-			ModifiedUnix: info.ModTime().Unix(), Structured: modality == "structured",
+			ModifiedUnix: info.ModTime().Unix(), Digest: digest, Structured: modality == "structured",
 		})
 		return nil
 	})
@@ -146,6 +152,22 @@ func walkDirectoryInventory(root string) ([]InventoryFile, []string, uint64, err
 	}
 	slices.Sort(names)
 	return files, names, total, nil
+}
+
+// fileDigest streams the file's bytes through sha256 so dataset
+// identity binds to content, bounded by the file, never the whole
+// directory in memory.
+func fileDigest(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 // dominantModality reports the modality carrying the most bytes: the

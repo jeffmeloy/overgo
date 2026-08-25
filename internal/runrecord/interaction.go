@@ -92,10 +92,14 @@ type InteractionMedia struct {
 
 // InteractionToolCall stores one function invocation.
 type InteractionToolCall struct {
-	ID        string `json:"id,omitempty"`
-	Type      string `json:"type"`
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
+	ID   string `json:"id,omitempty"`
+	Type string `json:"type"`
+	Name string `json:"name"`
+	// Manual pins the exact tool document the call executed under, so a
+	// replay resolves the tool by immutable identity rather than the
+	// mutable name alias; absent on records written before it existed.
+	Manual    artifact.ID `json:"manual,omitzero"`
+	Arguments string      `json:"arguments"`
 }
 
 func canonicalizeInteraction(value *Interaction) error {

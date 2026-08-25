@@ -131,7 +131,20 @@ func PublishManualCatalog(ctx context.Context, repository artifact.Repository, m
 	return CatalogPublication{Commit: commit, Changed: true, Coverage: coverage}, nil
 }
 
-// ResolveRegisteredManual requires the store-published manual for name.
+// LoadManual reads one committed manual by its exact immutable
+// identity -- the replay path, where the mutable name alias must
+// LoadManual reads one manual document by its exact identity, so a
+// caller replaying a recorded step resolves the tool it actually ran
+// rather than whatever the name alias points at now.
+func LoadManual(ctx context.Context, reader artifact.Reader, id artifact.ID) (Manual, error) {
+	if ctx == nil || reader == nil {
+		return Manual{}, errors.New("agent tool: nil load context or reader")
+	}
+	return manualCodec.Require(ctx, reader, id)
+}
+
+// ResolveRegisteredManual requires the store-published manual currently
+// bound to name, refusing an absent or mistargeted alias.
 func ResolveRegisteredManual(ctx context.Context, reader artifact.Reader, name string) (Manual, error) {
 	if ctx == nil || reader == nil {
 		return Manual{}, errors.New("agent tool: nil resolve context or reader")

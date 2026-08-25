@@ -3388,12 +3388,12 @@
       "id": "gui-video-generation",
       "title": "Video generation in the workbench: prompt to Wan text-to-video through the workflow runtime, with progress and inline MP4 playback",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Video generation tab and projection",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestVideoGenerationWorkspace -count=1"
         }
       ]

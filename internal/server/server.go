@@ -742,6 +742,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.embeddings(response, request)
 	case "/v1/images/generations":
 		h.nativeImageGeneration(response, request)
+	case "/v1/videos/generations":
+		h.nativeVideoGeneration(response, request)
+	case "/v1/videos/edits":
+		h.nativeVideoEdit(response, request)
 	case "/v1/audio/speech":
 		h.nativeAudioSpeech(response, request)
 	case "/embedding", "/embeddings":

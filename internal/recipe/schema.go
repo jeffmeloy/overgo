@@ -43,6 +43,10 @@ const (
 	// in, decoded video frames out). Distinct from TaskImageGen: the
 	// contract carries a text-conditioning stage and temporal decode.
 	TaskVideoGen Task = "video-gen"
+	// TaskVideoEdit performs reference-guided video editing over the
+	// reference-edit runtime: source video plus prompt in, edited
+	// video out.
+	TaskVideoEdit Task = "video-edit"
 	// TaskVQA: vision question-answering (ladder rung 14; image + question
 	// text in, answer text out). The multimodal serving contract — a vision
 	// tower + modality-routed (MoT) decoder — distinct from token inference
@@ -282,7 +286,7 @@ func validateDependency(dependency Dependency) error {
 
 func validateTask(task Task) error {
 	switch task {
-	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech, TaskImageGen, TaskVideoGen, TaskVQA:
+	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech, TaskImageGen, TaskVideoGen, TaskVideoEdit, TaskVQA:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid task %q", task)

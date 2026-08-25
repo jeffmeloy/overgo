@@ -13,6 +13,8 @@
     {"id": "generation", "label": "Generate", "section": "inference", "capability": "workflow.generation"},
     {"id": "image-gen", "label": "Images", "section": "inference", "capability": "workflow.image"},
     {"id": "speech", "label": "Speech", "section": "inference", "capability": "workflow.speech"},
+    {"id": "video-gen", "label": "Video", "section": "inference", "capability": "workflow.video"},
+    {"id": "video-edit", "label": "Video Edit", "section": "inference", "capability": "workflow.video-edit"},
     {"id": "runtime", "label": "Runtime", "section": "inference", "capability": "operations"},
     {"id": "activity", "label": "Activity", "section": "inference", "capability": "operations"},
     {"id": "library", "label": "Library", "section": "library", "capability": "repository"},

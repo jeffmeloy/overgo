@@ -59,6 +59,77 @@ func (h *Handler) nativeImageGeneration(response http.ResponseWriter, request *h
 	writeJSON(response, http.StatusOK, nativeImageResponse{Created: started.Unix(), Data: data})
 }
 
+// nativeVideoGeneration runs the registered text-to-video capability
+// through the same native workflow the image route uses: the prompt
+// and controls become one workflow operation, the outputs must be
+// committed video artifacts, and the response carries their content
+// URLs so the workbench plays them straight from the store.
+func (h *Handler) nativeVideoGeneration(response http.ResponseWriter, request *http.Request) {
+	started := time.Now()
+	workspace, capability, fields, ok := h.nativeWorkflowRequest(response, request, recipe.TaskVideoGen)
+	if !ok {
+		return
+	}
+	input, err := marshalWorkflowInput(capability.Controls, fields)
+	if err != nil {
+		writeInvalidRequest(response, err)
+		return
+	}
+	status, ok := h.runNativeWorkflow(response, request, workspace, capability, input)
+	if !ok {
+		return
+	}
+	store, ok := h.requireBrowseStore(response, request)
+	if !ok {
+		return
+	}
+	data := make([]nativeImageData, len(status.Outputs))
+	for index, id := range status.Outputs {
+		descriptor, found, err := store.Artifact(request.Context(), id)
+		if err != nil || !found || !strings.HasPrefix(descriptor.MediaType, "video/") {
+			writeError(response, http.StatusInternalServerError, "invalid_output", "generation output is not a video artifact")
+			return
+		}
+		data[index].URL = "/artifacts/content?id=" + url.QueryEscape(id.String())
+	}
+	writeJSON(response, http.StatusOK, nativeImageResponse{Created: started.Unix(), Data: data})
+}
+
+// nativeVideoEdit runs the registered reference-guided video-editing
+// capability: a source video and a prompt become one workflow
+// operation over the reference-edit runtime, and the edited output
+// must be a committed video artifact served by its content URL.
+func (h *Handler) nativeVideoEdit(response http.ResponseWriter, request *http.Request) {
+	started := time.Now()
+	workspace, capability, fields, ok := h.nativeWorkflowRequest(response, request, recipe.TaskVideoEdit)
+	if !ok {
+		return
+	}
+	input, err := marshalWorkflowInput(capability.Controls, fields)
+	if err != nil {
+		writeInvalidRequest(response, err)
+		return
+	}
+	status, ok := h.runNativeWorkflow(response, request, workspace, capability, input)
+	if !ok {
+		return
+	}
+	store, ok := h.requireBrowseStore(response, request)
+	if !ok {
+		return
+	}
+	data := make([]nativeImageData, len(status.Outputs))
+	for index, id := range status.Outputs {
+		descriptor, found, err := store.Artifact(request.Context(), id)
+		if err != nil || !found || !strings.HasPrefix(descriptor.MediaType, "video/") {
+			writeError(response, http.StatusInternalServerError, "invalid_output", "edit output is not a video artifact")
+			return
+		}
+		data[index].URL = "/artifacts/content?id=" + url.QueryEscape(id.String())
+	}
+	writeJSON(response, http.StatusOK, nativeImageResponse{Created: started.Unix(), Data: data})
+}
+
 func (h *Handler) nativeAudioSpeech(response http.ResponseWriter, request *http.Request) {
 	workspace, capability, fields, ok := h.nativeWorkflowRequest(response, request, recipe.TaskSpeech)
 	if !ok {

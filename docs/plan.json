@@ -2676,12 +2676,12 @@
       "id": "dataset-mtime-free-identity",
       "title": "Drop modification time from newly compiled dataset inventory identity so touching an unchanged file cannot re-identify it",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Stop populating ModifiedUnix; identity follows digest and bytes only",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/dataset -run TestRegister -count=1"
         }
       ]

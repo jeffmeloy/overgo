@@ -38,7 +38,10 @@ type InventoryFile struct {
 	Modality     string `json:"modality"`
 	Format       string `json:"format"`
 	Bytes        uint64 `json:"bytes"`
-	ModifiedUnix int64  `json:"modified_unix"`
+	// ModifiedUnix is carried only by legacy-compiled inventories, whose
+	// identity predates content digests; content-identity registration
+	// leaves it zero so touching an unchanged file cannot re-identify it.
+	ModifiedUnix int64 `json:"modified_unix,omitempty"`
 	// Digest is the hex sha256 of the file's bytes. Directory
 	// registration records it so dataset identity follows content, not
 	// path and metadata: changed bytes re-identify even when size and

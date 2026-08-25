@@ -52,28 +52,28 @@ func buildLatentAttentionMixCached(
 	expandQuery := usesNeoXResidualScale ||
 		((usesYaRNQuery || usesSparseIndexer || omitsRoPE) && spec.QLoRARank > tensor.FirstOffset)
 	required := graphWeights{
-		requireGraphWeight("attention Q", weights.AttentionQ),
-		requireGraphWeight("attention KV-A", weights.AttentionKVAMQA),
-		requireGraphWeight("attention KV-A norm", weights.AttentionKVANorm),
-		requireGraphWeight("attention output", weights.AttentionOutput),
+		weights.AttentionQ,
+		weights.AttentionKVAMQA,
+		weights.AttentionKVANorm,
+		weights.AttentionOutput,
 	}
 	if weights.AttentionKVB != nil {
-		required.add("attention KV-B", weights.AttentionKVB)
+		required = append(required, weights.AttentionKVB)
 	} else {
-		required.add("attention K-B", weights.AttentionKB)
-		required.add("attention V-B", weights.AttentionVB)
+		required = append(required, weights.AttentionKB)
+		required = append(required, weights.AttentionVB)
 	}
 	if expandQuery {
-		required.add("attention Q-B", weights.AttentionQB)
-		required.add("attention Q-A norm", weights.AttentionQNorm)
+		required = append(required, weights.AttentionQB)
+		required = append(required, weights.AttentionQNorm)
 	}
 	if usesSparseIndexer && spec.LayerHasFullIndexer(layerIndex) {
 		if err := (graphWeights{
-			requireGraphWeight("indexer K norm", weights.IndexerKNorm),
-			requireGraphWeight("indexer K norm bias", weights.IndexerKNormBias),
-			requireGraphWeight("indexer projection", weights.IndexerProjection),
-			requireGraphWeight("indexer K", weights.IndexerAttentionK),
-			requireGraphWeight("indexer Q-B", weights.IndexerAttentionQB),
+			weights.IndexerKNorm,
+			weights.IndexerKNormBias,
+			weights.IndexerProjection,
+			weights.IndexerAttentionK,
+			weights.IndexerAttentionQB,
 		}).validate("sparse latent indexer"); err != nil {
 			return DenseBlockResult{}, err
 		}

@@ -18,9 +18,7 @@ const (
 	conditionedFFNGate
 )
 
-// ConditionedDiffusionAttentionWeights: one biased attention projection
-// bundle; QueryNorm/KeyNorm are full model-width RMS norms applied before
-// the head split.
+// ConditionedDiffusionAttentionWeights: biased attention projections.
 type ConditionedDiffusionAttentionWeights struct {
 	Query, QueryBias   *tensor.Tensor
 	Key, KeyBias       *tensor.Tensor
@@ -29,24 +27,13 @@ type ConditionedDiffusionAttentionWeights struct {
 	QueryNorm, KeyNorm *tensor.Tensor
 }
 
-// requireQueryOutput: the projections a block consumes directly; K/V (and
-// the key norm) belong to the cross-context stage when attention keys come
-// precomputed.
-func (w ConditionedDiffusionAttentionWeights) requireQueryOutput(scope string, required *graphWeights) {
-	required.add(scope+" query", w.Query)
-	required.add(scope+" query bias", w.QueryBias)
-	required.add(scope+" output", w.Output)
-	required.add(scope+" output bias", w.OutputBias)
-	required.add(scope+" query norm", w.QueryNorm)
+func (w ConditionedDiffusionAttentionWeights) requireQueryOutput(required *graphWeights) {
+	*required = append(*required, w.Query, w.QueryBias, w.Output, w.OutputBias, w.QueryNorm)
 }
 
-func (w ConditionedDiffusionAttentionWeights) require(scope string, required *graphWeights) {
-	w.requireQueryOutput(scope, required)
-	required.add(scope+" key", w.Key)
-	required.add(scope+" key bias", w.KeyBias)
-	required.add(scope+" value", w.Value)
-	required.add(scope+" value bias", w.ValueBias)
-	required.add(scope+" key norm", w.KeyNorm)
+func (w ConditionedDiffusionAttentionWeights) require(required *graphWeights) {
+	w.requireQueryOutput(required)
+	*required = append(*required, w.Key, w.KeyBias, w.Value, w.ValueBias, w.KeyNorm)
 }
 
 // ConditionedDiffusionBlockWeights: one block. CrossNormWeight/Bias may both
@@ -220,11 +207,11 @@ func buildConditionedDiffusionCrossContext(
 		return nil, nil, errors.New("conditioned diffusion cross context input is nil or misshaped")
 	}
 	required := graphWeights{
-		requireGraphWeight("cross key", weights.Key),
-		requireGraphWeight("cross key bias", weights.KeyBias),
-		requireGraphWeight("cross value", weights.Value),
-		requireGraphWeight("cross value bias", weights.ValueBias),
-		requireGraphWeight("cross key norm", weights.KeyNorm),
+		weights.Key,
+		weights.KeyBias,
+		weights.Value,
+		weights.ValueBias,
+		weights.KeyNorm,
 	}
 	if err := required.validate("conditioned diffusion cross context"); err != nil {
 		return nil, nil, err
@@ -262,14 +249,14 @@ func buildConditionedDiffusionBlock(
 		return result, errors.New("conditioned diffusion block input is nil")
 	}
 	required := graphWeights{
-		requireGraphWeight("modulation", weights.Modulation),
-		requireGraphWeight("feed-forward expand", weights.FFNExpand),
-		requireGraphWeight("feed-forward expand bias", weights.FFNExpandBias),
-		requireGraphWeight("feed-forward contract", weights.FFNContract),
-		requireGraphWeight("feed-forward contract bias", weights.FFNContractBias),
+		weights.Modulation,
+		weights.FFNExpand,
+		weights.FFNExpandBias,
+		weights.FFNContract,
+		weights.FFNContractBias,
 	}
-	weights.SelfAttention.require("self-attention", &required)
-	weights.CrossAttention.requireQueryOutput("cross-attention", &required)
+	weights.SelfAttention.require(&required)
+	weights.CrossAttention.requireQueryOutput(&required)
 	if err := required.validate("conditioned diffusion block"); err != nil {
 		return result, err
 	}
@@ -389,9 +376,9 @@ func buildConditionedDiffusionHead(
 		return nil, errors.New("conditioned diffusion head input is nil")
 	}
 	required := graphWeights{
-		requireGraphWeight("head modulation", modulation),
-		requireGraphWeight("head weight", weight),
-		requireGraphWeight("head bias", bias),
+		modulation,
+		weight,
+		bias,
 	}
 	if err := required.validate("conditioned diffusion head"); err != nil {
 		return nil, err

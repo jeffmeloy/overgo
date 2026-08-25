@@ -3507,6 +3507,20 @@
       ]
     },
     {
+      "id": "model-weight-slot-authority",
+      "title": "Make compiled tensor slots own graph weight validation",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make compiled tensor slots own graph weight validation",
+          "status": "done",
+          "verify": "go test ./internal/model -run '^TestCompiledWeightSlotsOwnValidation$' -count=1"
+        }
+      ]
+    },
+    {
       "id": "projector-prompt-recipe-authority",
       "title": "Move projector prompt policy into typed recipe programs",
       "owner": "tightening",
@@ -3521,16 +3535,16 @@
       ]
     },
     {
-      "id": "model-weight-slot-authority",
-      "title": "Make compiled tensor slots own graph weight validation",
+      "id": "runtime-program-compile-authority",
+      "title": "Make shared indexed sessions own retained graph compilation",
       "owner": "tightening",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Make compiled tensor slots own graph weight validation",
+          "title": "Make shared indexed sessions own retained graph compilation",
           "status": "open",
-          "verify": "go test ./internal/model -run '^TestCompiledWeightSlotsOwnValidation$' -count=1"
+          "verify": "go test ./internal/graphruntime ./internal/latentvideo ./internal/inference -run '^TestSharedIndexedSessionOwnsCompilation$' -count=1"
         }
       ]
     },

@@ -23,10 +23,10 @@ func buildPairedCausalProjectionMixCached(
 		return DenseBlockResult{}, err
 	}
 	if err := (graphWeights{
-		requireGraphWeight("attention query", weights.AttentionQ),
-		requireGraphWeight("attention key", weights.AttentionK),
-		requireGraphWeight("attention value", weights.AttentionV),
-		requireGraphWeight("attention output", weights.AttentionOutput),
+		weights.AttentionQ,
+		weights.AttentionK,
+		weights.AttentionV,
+		weights.AttentionOutput,
 	}).validate("paired causal projection"); err != nil {
 		return DenseBlockResult{}, err
 	}

@@ -384,13 +384,13 @@ func buildSharedKVQKNormMixCached(
 		return DenseBlockResult{}, err
 	}
 	required := graphWeights{
-		requireGraphWeight("attention query", weights.AttentionQ),
-		requireGraphWeight("attention query norm", weights.AttentionQNorm),
-		requireGraphWeight("attention output", weights.AttentionOutput),
+		weights.AttentionQ,
+		weights.AttentionQNorm,
+		weights.AttentionOutput,
 	}
 	if layerPlan.HasKV {
-		required.add("attention key", weights.AttentionK)
-		required.add("attention key norm", weights.AttentionKNorm)
+		required = append(required, weights.AttentionK)
+		required = append(required, weights.AttentionKNorm)
 	} else if pastKey == nil {
 		return DenseBlockResult{}, errors.New("shared-KV attention has no source cache")
 	}
@@ -460,23 +460,23 @@ func buildParallelGatedGELUFeedForwardMix(
 	layerPlan LayerPlan,
 ) (*tensor.Tensor, error) {
 	required := graphWeights{
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("feed-forward down", weights.FeedForwardDown),
-		requireGraphWeight("feed-forward post norm", weights.FeedForwardPostNorm),
+		weights.FeedForwardNorm,
+		weights.FeedForwardGate,
+		weights.FeedForwardUp,
+		weights.FeedForwardDown,
+		weights.FeedForwardPostNorm,
 	}
 	usesExperts := weights.FeedForwardRouter != nil
 	if usesExperts {
-		required.add("expert router", weights.FeedForwardRouter)
-		required.add("expert router scale", weights.FeedForwardRouterScale)
-		required.add("expert down", weights.FeedForwardDownExperts)
-		required.add("expert pre norm", weights.FeedForwardPreNorm2)
-		required.add("dense expert post norm", weights.FeedForwardPostNorm1)
-		required.add("routed expert post norm", weights.FeedForwardPostNorm2)
+		required = append(required, weights.FeedForwardRouter)
+		required = append(required, weights.FeedForwardRouterScale)
+		required = append(required, weights.FeedForwardDownExperts)
+		required = append(required, weights.FeedForwardPreNorm2)
+		required = append(required, weights.FeedForwardPostNorm1)
+		required = append(required, weights.FeedForwardPostNorm2)
 		if weights.FeedForwardGateUpExperts == nil {
-			required.add("expert gate", weights.FeedForwardGateExperts)
-			required.add("expert up", weights.FeedForwardUpExperts)
+			required = append(required, weights.FeedForwardGateExperts)
+			required = append(required, weights.FeedForwardUpExperts)
 		}
 	}
 	if err := required.validate("parallel gated feed-forward"); err != nil {
@@ -515,10 +515,10 @@ func buildOutputAdapter(
 	output := input
 	if layerPlan.PerLayerInput {
 		required := graphWeights{
-			requireGraphWeight("per-layer input", weights.PerLayerInput),
-			requireGraphWeight("per-layer input gate", weights.PerLayerInputGate),
-			requireGraphWeight("per-layer projection", weights.PerLayerProjection),
-			requireGraphWeight("per-layer post norm", weights.PerLayerPostNorm),
+			weights.PerLayerInput,
+			weights.PerLayerInputGate,
+			weights.PerLayerProjection,
+			weights.PerLayerPostNorm,
 		}
 		if err := required.validate("output adapter"); err != nil {
 			return nil, err
@@ -567,22 +567,22 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 		return ActivationProjectionResult{}, err
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
-		requireGraphWeight("attention query", weights.AttentionQ),
-		requireGraphWeight("attention query norm", weights.AttentionQNorm),
-		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("attention post norm", weights.AttentionPostNorm),
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward gate", weights.FeedForwardGate),
-		requireGraphWeight("feed-forward up", weights.FeedForwardUp),
-		requireGraphWeight("Laurel left projection", weights.LaurelLeft),
-		requireGraphWeight("Laurel right projection", weights.LaurelRight),
-		requireGraphWeight("Laurel post norm", weights.LaurelPostNorm),
+		weights.AttentionNorm,
+		weights.AttentionQ,
+		weights.AttentionQNorm,
+		weights.AttentionOutput,
+		weights.AttentionPostNorm,
+		weights.FeedForwardNorm,
+		weights.FeedForwardGate,
+		weights.FeedForwardUp,
+		weights.LaurelLeft,
+		weights.LaurelRight,
+		weights.LaurelPostNorm,
 	}
 	if p.plan.HasKV {
-		required.add("attention key", weights.AttentionK)
-		required.add("attention value", weights.AttentionV)
-		required.add("attention key norm", weights.AttentionKNorm)
+		required = append(required, weights.AttentionK)
+		required = append(required, weights.AttentionV)
+		required = append(required, weights.AttentionKNorm)
 	} else if pastKey == nil {
 		return ActivationProjectionResult{}, errors.New("split-projection shared-KV layer has no source cache")
 	}
@@ -763,12 +763,12 @@ func buildGatedProjectionMixCached(
 		return DenseBlockResult{}, errors.New("gated-delta attention mix input is nil")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention Q/gate", weights.AttentionQ),
-		requireGraphWeight("attention K", weights.AttentionK),
-		requireGraphWeight("attention V", weights.AttentionV),
-		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("attention Q norm", weights.AttentionQNorm),
-		requireGraphWeight("attention K norm", weights.AttentionKNorm),
+		weights.AttentionQ,
+		weights.AttentionK,
+		weights.AttentionV,
+		weights.AttentionOutput,
+		weights.AttentionQNorm,
+		weights.AttentionKNorm,
 	}
 	if err := required.validate("gated-delta attention mix"); err != nil {
 		return DenseBlockResult{}, err
@@ -883,22 +883,22 @@ func buildGatedDeltaMixCached(
 		return DenseBlockResult{}, errors.New("gated-delta recurrent mix input/state is nil")
 	}
 	required := graphWeights{
-		requireGraphWeight("QKV", weights.AttentionQKV),
-		requireGraphWeight("SSM convolution", weights.SSMConv1D),
-		requireGraphWeight("SSM time-step bias", weights.SSMTimeStep),
-		requireGraphWeight("SSM A", weights.SSMA),
-		requireGraphWeight("SSM norm", weights.SSMNorm),
-		requireGraphWeight("SSM output", weights.SSMOutput),
+		weights.AttentionQKV,
+		weights.SSMConv1D,
+		weights.SSMTimeStep,
+		weights.SSMA,
+		weights.SSMNorm,
+		weights.SSMOutput,
 	}
 	if deltaPolicy == gatedDeltaInterleavedProjections {
-		required.add("SSM beta/alpha", weights.SSMBetaAlpha)
+		required = append(required, weights.SSMBetaAlpha)
 		if weights.AttentionGate != nil {
-			required.add("attention gate", weights.AttentionGate)
+			required = append(required, weights.AttentionGate)
 		}
 	} else {
-		required.add("attention gate", weights.AttentionGate)
-		required.add("SSM beta", weights.SSMBeta)
-		required.add("SSM alpha", weights.SSMAlpha)
+		required = append(required, weights.AttentionGate)
+		required = append(required, weights.SSMBeta)
+		required = append(required, weights.SSMAlpha)
 	}
 	if err := required.validate("gated-delta recurrent mix"); err != nil {
 		return DenseBlockResult{}, err
@@ -1093,21 +1093,21 @@ func addGatedDeltaFeedForwardRequirements(
 	weights LayerGraphWeights,
 ) {
 	if composition.kind == expertSharedGated {
-		required.add("feed-forward router", weights.FeedForwardRouter)
-		required.add("feed-forward expert down", weights.FeedForwardDownExperts)
+		*required = append(*required, weights.FeedForwardRouter)
+		*required = append(*required, weights.FeedForwardDownExperts)
 		if weights.FeedForwardGateUpExperts != nil {
-			required.add("feed-forward fused expert gate/up", weights.FeedForwardGateUpExperts)
+			*required = append(*required, weights.FeedForwardGateUpExperts)
 		} else {
-			required.add("feed-forward expert gate", weights.FeedForwardGateExperts)
-			required.add("feed-forward expert up", weights.FeedForwardUpExperts)
+			*required = append(*required, weights.FeedForwardGateExperts)
+			*required = append(*required, weights.FeedForwardUpExperts)
 		}
-		required.add("feed-forward shared router", weights.FeedForwardSharedRouter)
-		required.add("feed-forward shared gate", weights.FeedForwardSharedGate)
-		required.add("feed-forward shared up", weights.FeedForwardSharedUp)
-		required.add("feed-forward shared down", weights.FeedForwardSharedDown)
+		*required = append(*required, weights.FeedForwardSharedRouter)
+		*required = append(*required, weights.FeedForwardSharedGate)
+		*required = append(*required, weights.FeedForwardSharedUp)
+		*required = append(*required, weights.FeedForwardSharedDown)
 		return
 	}
-	required.add("feed-forward gate", weights.FeedForwardGate)
-	required.add("feed-forward up", weights.FeedForwardUp)
-	required.add("feed-forward down", weights.FeedForwardDown)
+	*required = append(*required, weights.FeedForwardGate)
+	*required = append(*required, weights.FeedForwardUp)
+	*required = append(*required, weights.FeedForwardDown)
 }

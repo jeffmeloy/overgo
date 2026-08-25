@@ -8,6 +8,21 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+func TestCompiledWeightSlotsOwnValidation(t *testing.T) {
+	const scope = "compiled graph"
+
+	builder := tensor.NewBuilder()
+	weight := builder.Input(scope, dtype.F32, tensor.MustShape(tensor.SingletonExtent))
+	weights := graphWeights{weight, weight}
+	if err := weights.validate(scope); err != nil {
+		t.Fatal(err)
+	}
+	weights[len(weights)-1] = nil
+	if err := weights.validate(scope); err == nil {
+		t.Fatal("nil compiled weight slot accepted")
+	}
+}
+
 func TestBindSequenceOutputGraphWeights(t *testing.T) {
 	info := &AudioDecoderWeights{
 		InputConv: gguf.TensorInfo{Name: "input"},

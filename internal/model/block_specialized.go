@@ -63,33 +63,33 @@ func buildHyperAttentionStage(
 		return DenseBlockResult{}, errors.New("hyper-attention positions shape is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention norm", weights.AttentionNorm),
-		requireGraphWeight("attention Q-A", weights.AttentionQ),
-		requireGraphWeight("attention Q-A norm", weights.AttentionQNorm),
-		requireGraphWeight("attention Q-B", weights.AttentionQB),
-		requireGraphWeight("attention KV", weights.AttentionK),
-		requireGraphWeight("attention KV norm", weights.AttentionKNorm),
-		requireGraphWeight("attention sinks", weights.AttentionSinks),
-		requireGraphWeight("attention output A", weights.AttentionOutputA),
-		requireGraphWeight("attention output B", weights.AttentionOutput),
-		requireGraphWeight("attention HC function", weights.HyperAttentionFN),
-		requireGraphWeight("attention HC base", weights.HyperAttentionBase),
-		requireGraphWeight("attention HC scale", weights.HyperAttentionScale),
+		weights.AttentionNorm,
+		weights.AttentionQ,
+		weights.AttentionQNorm,
+		weights.AttentionQB,
+		weights.AttentionK,
+		weights.AttentionKNorm,
+		weights.AttentionSinks,
+		weights.AttentionOutputA,
+		weights.AttentionOutput,
+		weights.HyperAttentionFN,
+		weights.HyperAttentionBase,
+		weights.HyperAttentionScale,
 	}
 	ratio := tensor.CompressionRatio(spec.CompressRatios[layerIndex])
 	if ratio.Enabled() {
-		required.add("compressor KV", weights.AttentionCompressorKV)
-		required.add("compressor gate", weights.AttentionCompressorGate)
-		required.add("compressor APE", weights.AttentionCompressorAPE)
-		required.add("compressor norm", weights.AttentionCompressorNorm)
+		required = append(required, weights.AttentionCompressorKV)
+		required = append(required, weights.AttentionCompressorGate)
+		required = append(required, weights.AttentionCompressorAPE)
+		required = append(required, weights.AttentionCompressorNorm)
 	}
 	if ratio.UsesIndexer() {
-		required.add("indexer projection", weights.IndexerProjection)
-		required.add("indexer Q-B", weights.IndexerAttentionQB)
-		required.add("indexer compressor KV", weights.IndexerCompressorKV)
-		required.add("indexer compressor gate", weights.IndexerCompressorGate)
-		required.add("indexer compressor APE", weights.IndexerCompressorAPE)
-		required.add("indexer compressor norm", weights.IndexerCompressorNorm)
+		required = append(required, weights.IndexerProjection)
+		required = append(required, weights.IndexerAttentionQB)
+		required = append(required, weights.IndexerCompressorKV)
+		required = append(required, weights.IndexerCompressorGate)
+		required = append(required, weights.IndexerCompressorAPE)
+		required = append(required, weights.IndexerCompressorNorm)
 	}
 	if err := required.validate("compressed attention"); err != nil {
 		return DenseBlockResult{}, err
@@ -227,30 +227,30 @@ func buildHyperFeedForwardStage(
 		return nil, errors.New("hyper feed-forward input is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("feed-forward norm", weights.FeedForwardNorm),
-		requireGraphWeight("feed-forward router", weights.FeedForwardRouter),
-		requireGraphWeight("expert gate", weights.FeedForwardGateExperts),
-		requireGraphWeight("expert up", weights.FeedForwardUpExperts),
-		requireGraphWeight("expert down", weights.FeedForwardDownExperts),
-		requireGraphWeight("shared gate", weights.FeedForwardSharedGate),
-		requireGraphWeight("shared up", weights.FeedForwardSharedUp),
-		requireGraphWeight("shared down", weights.FeedForwardSharedDown),
-		requireGraphWeight("feed-forward HC function", weights.HyperFeedForwardFN),
-		requireGraphWeight("feed-forward HC base", weights.HyperFeedForwardBase),
-		requireGraphWeight("feed-forward HC scale", weights.HyperFeedForwardScale),
+		weights.FeedForwardNorm,
+		weights.FeedForwardRouter,
+		weights.FeedForwardGateExperts,
+		weights.FeedForwardUpExperts,
+		weights.FeedForwardDownExperts,
+		weights.FeedForwardSharedGate,
+		weights.FeedForwardSharedUp,
+		weights.FeedForwardSharedDown,
+		weights.HyperFeedForwardFN,
+		weights.HyperFeedForwardBase,
+		weights.HyperFeedForwardScale,
 	}
 	if layerIndex < spec.HashLayerCount {
-		required.add("hash routing table", weights.FeedForwardHashExperts)
+		required = append(required, weights.FeedForwardHashExperts)
 		if uint64(len(tokenRows)) != tokens {
 			return nil, errors.New("compressed-hyper hash routing rows are missing")
 		}
 	} else {
-		required.add("router bias", weights.FeedForwardRouterBias)
+		required = append(required, weights.FeedForwardRouterBias)
 	}
 	if layerIndex+1 == spec.BlockCount {
-		required.add("output HC function", weights.HyperHeadFN)
-		required.add("output HC base", weights.HyperHeadBase)
-		required.add("output HC scale", weights.HyperHeadScale)
+		required = append(required, weights.HyperHeadFN)
+		required = append(required, weights.HyperHeadBase)
+		required = append(required, weights.HyperHeadScale)
 	}
 	if err := required.validate("compressed-hyper feed-forward"); err != nil {
 		return nil, err
@@ -302,18 +302,18 @@ func buildDynamicWKV6MixCached(
 		return DenseBlockResult{}, errors.New("dynamic WKV6 input/state is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("time-mix W1", weights.TimeMixW1),
-		requireGraphWeight("time-mix W2", weights.TimeMixW2),
-		requireGraphWeight("time-mix lerp X", weights.TimeMixLerpX),
-		requireGraphWeight("time-mix fused lerp", weights.TimeMixLerpFused),
-		requireGraphWeight("time decay", weights.TimeMixDecay),
-		requireGraphWeight("time decay W1", weights.TimeMixDecayW1),
-		requireGraphWeight("time decay W2", weights.TimeMixDecayW2),
-		requireGraphWeight("time key", weights.TimeMixKey),
-		requireGraphWeight("time value", weights.TimeMixValue),
-		requireGraphWeight("time receptance", weights.TimeMixReceptance),
-		requireGraphWeight("time gate", weights.TimeMixGate),
-		requireGraphWeight("time output", weights.TimeMixOutput),
+		weights.TimeMixW1,
+		weights.TimeMixW2,
+		weights.TimeMixLerpX,
+		weights.TimeMixLerpFused,
+		weights.TimeMixDecay,
+		weights.TimeMixDecayW1,
+		weights.TimeMixDecayW2,
+		weights.TimeMixKey,
+		weights.TimeMixValue,
+		weights.TimeMixReceptance,
+		weights.TimeMixGate,
+		weights.TimeMixOutput,
 	}
 	if err := required.validate("dynamic WKV6"); err != nil {
 		return DenseBlockResult{}, err
@@ -383,20 +383,20 @@ func buildAffineWKV6MixCached(
 		return DenseBlockResult{}, errors.New("affine WKV6 input/state is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("time-mix W1", weights.TimeMixW1),
-		requireGraphWeight("time-mix W2", weights.TimeMixW2),
-		requireGraphWeight("time-mix lerp X", weights.TimeMixLerpX),
-		requireGraphWeight("time first", weights.TimeMixFirst),
-		requireGraphWeight("time decay", weights.TimeMixDecay),
-		requireGraphWeight("time decay W1", weights.TimeMixDecayW1),
-		requireGraphWeight("time decay W2", weights.TimeMixDecayW2),
-		requireGraphWeight("time key", weights.TimeMixKey),
-		requireGraphWeight("time value", weights.TimeMixValue),
-		requireGraphWeight("time receptance", weights.TimeMixReceptance),
-		requireGraphWeight("time gate", weights.TimeMixGate),
-		requireGraphWeight("time-mix norm", weights.TimeMixLN),
-		requireGraphWeight("time-mix norm bias", weights.TimeMixLNBias),
-		requireGraphWeight("time output", weights.TimeMixOutput),
+		weights.TimeMixW1,
+		weights.TimeMixW2,
+		weights.TimeMixLerpX,
+		weights.TimeMixFirst,
+		weights.TimeMixDecay,
+		weights.TimeMixDecayW1,
+		weights.TimeMixDecayW2,
+		weights.TimeMixKey,
+		weights.TimeMixValue,
+		weights.TimeMixReceptance,
+		weights.TimeMixGate,
+		weights.TimeMixLN,
+		weights.TimeMixLNBias,
+		weights.TimeMixOutput,
 	}
 	if err := required.validate("affine WKV6"); err != nil {
 		return DenseBlockResult{}, err
@@ -509,31 +509,31 @@ func buildDynamicWKV7MixCached(
 		return DenseBlockResult{}, errors.New("dynamic WKV7 input/state is invalid")
 	}
 	required := graphWeights{
-		requireGraphWeight("time W0", weights.TimeMixW0),
-		requireGraphWeight("time W1", weights.TimeMixW1),
-		requireGraphWeight("time W2", weights.TimeMixW2),
-		requireGraphWeight("time A0", weights.TimeMixA0),
-		requireGraphWeight("time A1", weights.TimeMixA1),
-		requireGraphWeight("time A2", weights.TimeMixA2),
-		requireGraphWeight("time V0", weights.TimeMixV0),
-		requireGraphWeight("time V1", weights.TimeMixV1),
-		requireGraphWeight("time V2", weights.TimeMixV2),
-		requireGraphWeight("time lerp", weights.TimeMixLerpFused),
-		requireGraphWeight("time KK", weights.TimeMixKK),
-		requireGraphWeight("time KA", weights.TimeMixKA),
-		requireGraphWeight("time RK", weights.TimeMixRK),
-		requireGraphWeight("time key", weights.TimeMixKey),
-		requireGraphWeight("time value", weights.TimeMixValue),
-		requireGraphWeight("time receptance", weights.TimeMixReceptance),
-		requireGraphWeight("time output", weights.TimeMixOutput),
+		weights.TimeMixW0,
+		weights.TimeMixW1,
+		weights.TimeMixW2,
+		weights.TimeMixA0,
+		weights.TimeMixA1,
+		weights.TimeMixA2,
+		weights.TimeMixV0,
+		weights.TimeMixV1,
+		weights.TimeMixV2,
+		weights.TimeMixLerpFused,
+		weights.TimeMixKK,
+		weights.TimeMixKA,
+		weights.TimeMixRK,
+		weights.TimeMixKey,
+		weights.TimeMixValue,
+		weights.TimeMixReceptance,
+		weights.TimeMixOutput,
 	}
 	if layerPlan.Normalization.Operation == NormalizationLayer {
-		required.add("time norm", weights.TimeMixLN)
-		required.add("time norm bias", weights.TimeMixLNBias)
+		required = append(required, weights.TimeMixLN)
+		required = append(required, weights.TimeMixLNBias)
 	}
 	if spec.GateLoRARank > tensor.FirstOffset {
-		required.add("time G1", weights.TimeMixG1)
-		required.add("time G2", weights.TimeMixG2)
+		required = append(required, weights.TimeMixG1)
+		required = append(required, weights.TimeMixG2)
 	}
 	if err := required.validate("dynamic WKV7"); err != nil {
 		return DenseBlockResult{}, err
@@ -659,15 +659,15 @@ func buildTokenShiftFeedForwardMix(
 	tokenShiftCount uint32,
 ) (DenseBlockResult, error) {
 	required := graphWeights{
-		requireGraphWeight("channel norm", weights.AttentionNorm2),
-		requireGraphWeight("channel norm bias", weights.AttentionNorm2Bias),
-		requireGraphWeight("channel lerp K", weights.ChannelMixLerpK),
-		requireGraphWeight("channel key", weights.ChannelMixKey),
-		requireGraphWeight("channel value", weights.ChannelMixValue),
+		weights.AttentionNorm2,
+		weights.AttentionNorm2Bias,
+		weights.ChannelMixLerpK,
+		weights.ChannelMixKey,
+		weights.ChannelMixValue,
 	}
 	if operator == LayerOperatorGatedTokenShiftSquaredReLU {
-		required.add("channel lerp R", weights.ChannelMixLerpR)
-		required.add("channel receptance", weights.ChannelMixReceptance)
+		required = append(required, weights.ChannelMixLerpR)
+		required = append(required, weights.ChannelMixReceptance)
 	} else if operator != LayerOperatorTokenShiftSquaredReLU {
 		return DenseBlockResult{}, errors.New("token-shift feed-forward policy is invalid")
 	}
@@ -733,21 +733,21 @@ func buildKeyedDeltaAttentionMixCached(
 		return DenseBlockResult{}, errors.New("keyed-delta attention input/state is nil")
 	}
 	required := graphWeights{
-		requireGraphWeight("attention Q", weights.AttentionQ),
-		requireGraphWeight("attention K", weights.AttentionK),
-		requireGraphWeight("attention V", weights.AttentionV),
-		requireGraphWeight("attention output", weights.AttentionOutput),
-		requireGraphWeight("Q convolution", weights.SSMQueryConv),
-		requireGraphWeight("K convolution", weights.SSMKeyConv),
-		requireGraphWeight("V convolution", weights.SSMValueConv),
-		requireGraphWeight("forget A", weights.SSMForgetA),
-		requireGraphWeight("forget B", weights.SSMForgetB),
-		requireGraphWeight("beta", weights.SSMBeta),
-		requireGraphWeight("SSM A", weights.SSMA),
-		requireGraphWeight("time-step bias", weights.SSMTimeStep),
-		requireGraphWeight("output gate A", weights.SSMOutputGateA),
-		requireGraphWeight("output gate B", weights.SSMOutputGateB),
-		requireGraphWeight("SSM norm", weights.SSMNorm),
+		weights.AttentionQ,
+		weights.AttentionK,
+		weights.AttentionV,
+		weights.AttentionOutput,
+		weights.SSMQueryConv,
+		weights.SSMKeyConv,
+		weights.SSMValueConv,
+		weights.SSMForgetA,
+		weights.SSMForgetB,
+		weights.SSMBeta,
+		weights.SSMA,
+		weights.SSMTimeStep,
+		weights.SSMOutputGateA,
+		weights.SSMOutputGateB,
+		weights.SSMNorm,
 	}
 	if err := required.validate("keyed-delta attention"); err != nil {
 		return DenseBlockResult{}, err
@@ -824,9 +824,9 @@ func buildShortConvolutionMixCached(
 		return DenseBlockResult{}, errors.New("short-convolution input/state is nil")
 	}
 	required := graphWeights{
-		requireGraphWeight("short-convolution input", weights.ShortConvInput),
-		requireGraphWeight("short-convolution kernel", weights.ShortConvKernel),
-		requireGraphWeight("short-convolution output", weights.ShortConvOutput),
+		weights.ShortConvInput,
+		weights.ShortConvKernel,
+		weights.ShortConvOutput,
 	}
 	if err := required.validate("short-convolution recurrent mixer"); err != nil {
 		return DenseBlockResult{}, err

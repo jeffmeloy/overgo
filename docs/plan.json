@@ -3537,12 +3537,12 @@
       "id": "projector-prompt-recipe-authority",
       "title": "Move projector prompt policy into typed recipe programs",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Move projector prompt policy into typed recipe programs",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/projector -run '^TestPromptRecipeProgramsCoverCatalog$' -count=1"
         }
       ]

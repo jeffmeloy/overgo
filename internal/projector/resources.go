@@ -16,9 +16,14 @@ type projectorResource interface {
 }
 
 type projectorResources struct {
-	file *gguf.File
-	cuda *projectorCUDA
+	file   *gguf.File
+	cuda   *projectorCUDA
+	prompt promptDispatch
 }
+
+func (r *projectorResources) setPrompt(dispatch promptDispatch) { r.prompt = dispatch }
+
+func (r *projectorResources) compiledPrompt() promptDispatch { return r.prompt }
 
 type rasterPatchEncoder struct {
 	resources *projectorResources

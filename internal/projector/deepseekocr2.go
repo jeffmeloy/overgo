@@ -327,7 +327,7 @@ func (r *DeepSeekOCR2Runner) validateGraphs() error {
 	return nil
 }
 
-func (r *DeepSeekOCR2Runner) imagePromptProgram() compiledImagePromptProgram {
+func compileDeepSeekOCR2ImagePrompt(r *DeepSeekOCR2Runner) compiledImagePromptProgram {
 	return compiledImagePromptProgram{
 		Default: delimitedImagePromptPlan(
 			"DeepSeek-OCR-2", DeepSeekOCRImagePad, "DeepSeek-OCR-2 placeholder", true, r.spec.OutputHidden, "", "",

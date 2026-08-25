@@ -609,7 +609,7 @@ func (r *DeepSeekOCRRunner) validateGraph() error {
 	return nil
 }
 
-func (r *DeepSeekOCRRunner) imagePromptProgram() compiledImagePromptProgram {
+func compileDeepSeekOCRImagePrompt(r *DeepSeekOCRRunner) compiledImagePromptProgram {
 	return compiledImagePromptProgram{
 		Default: delimitedImagePromptPlan(
 			"DeepSeek-OCR", DeepSeekOCRImagePad, "DeepSeek-OCR placeholder", true, r.spec.OutputHidden, "", "",

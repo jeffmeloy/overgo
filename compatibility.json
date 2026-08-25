@@ -267,7 +267,7 @@
      "contains": "func OpenAs[T Projector](",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:399661b7b4c8a16ffbd5fd19d4c601892fb05ad43c2585b84df328900c76261f"
+     "identity": "file:sha256:2f3289e5249d7137f8f4bf6af08e8c5e4eb30f652f789f59f0addfb2810e9815"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -581,10 +581,10 @@
   {
    "evidence": [
     {
-     "contains": "func (r *Qwen3VLRunner) imagePromptProgram(",
+     "contains": "func compileQwen3VLImagePrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:399661b7b4c8a16ffbd5fd19d4c601892fb05ad43c2585b84df328900c76261f"
+     "identity": "file:sha256:2f3289e5249d7137f8f4bf6af08e8c5e4eb30f652f789f59f0addfb2810e9815"
     },
     {
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -602,10 +602,10 @@
   {
    "evidence": [
     {
-     "contains": "func (r *Gemma4Runner) mediaPromptProgram(",
+     "contains": "func compileGemma4MediaPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:399661b7b4c8a16ffbd5fd19d4c601892fb05ad43c2585b84df328900c76261f"
+     "identity": "file:sha256:2f3289e5249d7137f8f4bf6af08e8c5e4eb30f652f789f59f0addfb2810e9815"
     },
     {
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -623,10 +623,10 @@
   {
    "evidence": [
     {
-     "contains": "func (r *Gemma4Runner) mediaPromptProgram(",
+     "contains": "func compileGemma4MediaPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:399661b7b4c8a16ffbd5fd19d4c601892fb05ad43c2585b84df328900c76261f"
+     "identity": "file:sha256:2f3289e5249d7137f8f4bf6af08e8c5e4eb30f652f789f59f0addfb2810e9815"
     },
     {
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",

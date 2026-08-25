@@ -27,12 +27,12 @@ type DevicePrefixStackStats struct {
 }
 
 type devicePrefixBranch struct {
-	graph    *DevicePrefixLayerGraph
-	compiled *executor.CompiledGraph
-	inputs   branchInputProgram
-	host     map[*tensor.Tensor]reference.Value
-	state    *PrefixState
-	hidden   []float32
+	*executor.IndexedGraph
+	graph  *DevicePrefixLayerGraph
+	inputs branchInputProgram
+	host   map[*tensor.Tensor]reference.Value
+	state  *PrefixState
+	hidden []float32
 }
 
 // RunDevicePrefixStacks streams text weights once across conditioning branches.
@@ -65,14 +65,14 @@ func RunDevicePrefixStacks(
 		if err != nil {
 			return nil, stats, err
 		}
-		compiled, err := executor.Compile(graph.Output, graph.KeyKV, graph.ValueKV)
+		indexed, err := executor.CompileIndexed(graph.Output, graph.KeyKV, graph.ValueKV)
 		if err != nil {
 			return nil, stats, err
 		}
 		// The SenseNova prefix oracles were recorded against single-call
 		// weight-staging SGEMM numerics; bounded tiling drifts the stack
 		// past its committed floors.
-		if err := compiled.ReserveExactWeightStaging(); err != nil {
+		if err := indexed.Graph.ReserveExactWeightStaging(); err != nil {
 			return nil, stats, err
 		}
 		hidden, err := EmbeddingRows(source, cfg, binding, input.TokenIDs)
@@ -83,12 +83,12 @@ func RunDevicePrefixStacks(
 		if err != nil {
 			return nil, stats, err
 		}
-		inputProgram, err := compileBranchInputProgram(compiled, graph.Weights)
+		inputProgram, err := compileBranchInputProgram(indexed.Graph, graph.Weights)
 		if err != nil {
 			return nil, stats, err
 		}
 		branches[index] = devicePrefixBranch{
-			graph: graph, compiled: compiled, inputs: inputProgram,
+			IndexedGraph: indexed, graph: graph, inputs: inputProgram,
 			host: make(map[*tensor.Tensor]reference.Value, 1), state: state, hidden: hidden,
 		}
 	}
@@ -105,10 +105,10 @@ func RunDevicePrefixStacks(
 		}
 		for branchIndex := range branches {
 			branch := &branches[branchIndex]
-			branch.inputs.bindWeights(shared)
+			branch.inputs.bindWeights(branch.Inputs, shared)
 			branch.host[branch.graph.Row] = reference.Value{Shape: branch.graph.Row.Shape, Data: branch.hidden}
 			retained, err := cuda.ExecuteRetainedCompiled(
-				ctx, branch.compiled, branch.host, branch.inputs.inputs, nil, nil,
+				ctx, branch.Graph, branch.host, branch.Inputs, nil, nil,
 			)
 			if err != nil {
 				return nil, stats, fmt.Errorf("routed lm prefix stacks: branch=%d layer=%d: %w", branchIndex, layer, err)

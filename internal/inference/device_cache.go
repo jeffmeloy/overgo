@@ -459,12 +459,11 @@ type deviceCacheTargetPlan struct {
 }
 
 type deviceDecodeSession struct {
-	compiled  *executor.CompiledGraph
+	execution *executor.IndexedGraph
 	graphs    []deviceBatchGraph
 	program   decodeSessionPlan
 	owners    []*deviceDecodeSession
 	hostFeeds map[*tensor.Tensor]reference.Value
-	inputs    *executor.DeviceInputs
 	rebuilds  uint64
 	replays   uint64
 }
@@ -591,7 +590,7 @@ func (r *Runner) executeParameterizedDecodeSession(
 	session *deviceDecodeSession,
 	appends []deviceBatchAppend,
 ) ([]*deviceKVCache, error) {
-	if session == nil || session.compiled == nil || len(appends) != len(session.graphs) ||
+	if session == nil || session.execution.Graph == nil || len(appends) != len(session.graphs) ||
 		!session.program.identity.matches(
 			session.program.identity.capacity,
 			session.program.identity.output,
@@ -619,7 +618,7 @@ func (r *Runner) executeParameterizedDecodeSession(
 	}
 	plans := session.program.targets
 	targets, storages, err := r.prepareDeviceCacheTargets(
-		ctx, session.compiled, graphs, appends, plans,
+		ctx, session.execution.Graph, graphs, appends, plans,
 	)
 	if err != nil {
 		return nil, err
@@ -632,7 +631,7 @@ func (r *Runner) executeParameterizedDecodeSession(
 		return errors.Join(errs...)
 	}
 	retained, err := r.cuda.ExecuteRetainedCompiled(
-		ctx, session.compiled, session.hostFeeds, session.inputs, targets, session.program.attributes,
+		ctx, session.execution.Graph, session.hostFeeds, session.execution.Inputs, targets, session.program.attributes,
 	)
 	if err != nil {
 		return nil, errors.Join(err, releaseStorages())
@@ -665,14 +664,14 @@ func bindParameterizedDecodeInputs(session *deviceDecodeSession, appends []devic
 			return errors.New("inference: parameterized cache binding count differs")
 		}
 		if branchPlan.feedback.present {
-			session.inputs.Pointers[branchPlan.feedback.slot] = past.Selection.Pointer
+			session.execution.Inputs.Pointers[branchPlan.feedback.slot] = past.Selection.Pointer
 		}
 		for layer, inputs := range branchPlan.cacheInputs {
 			if inputs.key.present {
-				session.inputs.Pointers[inputs.key.slot] = past.Keys[layer].Pointer
+				session.execution.Inputs.Pointers[inputs.key.slot] = past.Keys[layer].Pointer
 			}
 			if inputs.value.present {
-				session.inputs.Pointers[inputs.value.slot] = past.Values[layer].Pointer
+				session.execution.Inputs.Pointers[inputs.value.slot] = past.Values[layer].Pointer
 			}
 			if len(inputs.states) != 0 && layer >= len(past.States) {
 				return errors.New("inference: parameterized cache state layer is missing")
@@ -683,7 +682,7 @@ func bindParameterizedDecodeInputs(session *deviceDecodeSession, appends []devic
 				if !ok || state.Value.Pointer == 0 {
 					return fmt.Errorf("inference: parameterized cache state %q layer %d is missing", name, layer)
 				}
-				session.inputs.Pointers[input.slot] = state.Value.Pointer
+				session.execution.Inputs.Pointers[input.slot] = state.Value.Pointer
 			}
 		}
 	}
@@ -750,17 +749,16 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if err := builder.Err(); err != nil {
 		return nil, err
 	}
-	compiled, err := executor.Compile(outputs...)
+	execution, err := executor.CompileIndexed(outputs...)
 	if err != nil {
 		return nil, err
 	}
-	inputs := compiled.NewDeviceInputs()
 	for node, pointer := range deviceFeeds {
-		if err := inputs.Set(node, pointer); err != nil {
+		if err := execution.Inputs.Set(node, pointer); err != nil {
 			return nil, err
 		}
 	}
-	targetPlans, err := r.compileDeviceCacheTargetPlans(compiled, graphs, appends)
+	targetPlans, err := r.compileDeviceCacheTargetPlans(execution.Graph, graphs, appends)
 	if err != nil {
 		return nil, err
 	}
@@ -777,7 +775,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			replays = prior.replays
 		}
 		program, programErr := compileDecodeSessionPlan(
-			compiled, graphs, targetPlans, decodeSessionIdentity{
+			execution.Graph, graphs, targetPlans, decodeSessionIdentity{
 				capacity: capacity,
 				branches: uint32(len(graphs)), tokenCount: 1, output: plan,
 				lora: r.currentLoRASignature(),
@@ -787,15 +785,15 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			return nil, programErr
 		}
 		session := &deviceDecodeSession{
-			compiled: compiled, graphs: append([]deviceBatchGraph(nil), graphs...), program: program,
-			hostFeeds: hostFeeds, inputs: inputs,
-			rebuilds: rebuilds, replays: replays,
+			execution: execution, graphs: append([]deviceBatchGraph(nil), graphs...), program: program,
+			hostFeeds: hostFeeds,
+			rebuilds:  rebuilds, replays: replays,
 		}
 		session.owners = repeatDecodeSession(session, len(graphs))
 		r.decodeSession = session
 		sessions = session.owners
 	}
-	targets, storages, err := r.prepareDeviceCacheTargets(ctx, compiled, graphs, appends, targetPlans)
+	targets, storages, err := r.prepareDeviceCacheTargets(ctx, execution.Graph, graphs, appends, targetPlans)
 	if err != nil {
 		return nil, err
 	}
@@ -810,7 +808,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if retainable {
 		execute = r.cuda.ExecuteRetainedCompiled
 	}
-	retained, err := execute(ctx, compiled, hostFeeds, inputs, targets, nil)
+	retained, err := execute(ctx, execution.Graph, hostFeeds, execution.Inputs, targets, nil)
 	if err != nil {
 		return nil, errors.Join(err, releaseStorages())
 	}

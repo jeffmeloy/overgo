@@ -79,15 +79,14 @@ func (f *Feeds) Execute(
 	if device == nil {
 		return reference.Execute(outputs, f.Host)
 	}
-	compiled, err := executor.Compile(outputs...)
+	indexed, err := executor.CompileIndexed(outputs...)
 	if err != nil {
 		return nil, err
 	}
-	inputs := compiled.NewDeviceInputs()
 	for node, pointer := range f.Device {
-		if err := inputs.Set(node, pointer); err != nil {
+		if err := indexed.Inputs.Set(node, pointer); err != nil {
 			return nil, err
 		}
 	}
-	return device.ExecuteCompiled(ctx, compiled, f.Host, inputs)
+	return device.ExecuteCompiled(ctx, indexed.Graph, f.Host, indexed.Inputs)
 }

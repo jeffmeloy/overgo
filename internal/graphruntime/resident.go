@@ -39,11 +39,10 @@ type ResidentSession struct {
 
 // ResidentProgram owns compiled topology and indexed input slots.
 type ResidentProgram struct {
-	compiled *executor.CompiledGraph
-	inputs   *executor.DeviceInputs
-	dynamic  []executor.InputSlot
-	weights  []int
-	bytes    uint64
+	*executor.IndexedGraph
+	dynamic []executor.InputSlot
+	weights []int
+	bytes   uint64
 }
 
 // ResidentStats reports session-owned device storage and execution.
@@ -86,23 +85,23 @@ func (s *ResidentSession) Compile(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.executor.PrepareCompiled(ctx, program.compiled); err != nil {
+	if err := s.executor.PrepareCompiled(ctx, program.Graph); err != nil {
 		return nil, fmt.Errorf("%s: prepare: %w", label, err)
 	}
 	return program, nil
 }
 
 func compileResidentProgram(label string, dynamic, outputs []*tensor.Tensor) (*ResidentProgram, error) {
-	compiled, err := executor.Compile(outputs...)
+	indexed, err := executor.CompileIndexed(outputs...)
 	if err != nil {
 		return nil, fmt.Errorf("%s: compile: %w", label, err)
 	}
 	program := &ResidentProgram{
-		compiled: compiled, inputs: compiled.NewDeviceInputs(),
-		dynamic: make([]executor.InputSlot, len(dynamic)),
+		IndexedGraph: indexed,
+		dynamic:      make([]executor.InputSlot, len(dynamic)),
 	}
 	for index, input := range dynamic {
-		slot, ok := compiled.InputSlot(input)
+		slot, ok := indexed.Graph.InputSlot(input)
 		if !ok {
 			return nil, fmt.Errorf("%s: dynamic input is not compiled", label)
 		}
@@ -120,11 +119,11 @@ func (s *ResidentSession) Bind(
 	node *tensor.Tensor,
 	payload func() ([]byte, error),
 ) error {
-	if s == nil || s.byBinding == nil || program == nil || program.compiled == nil || node == nil {
+	if s == nil || s.byBinding == nil || program == nil || program.Graph == nil || node == nil {
 		return errors.New("resident binding is unavailable")
 	}
-	slot, ok := program.compiled.InputSlot(node)
-	if !ok || checked.Nonzero(program.inputs.Pointers[slot]) {
+	slot, ok := program.Graph.InputSlot(node)
+	if !ok || checked.Nonzero(program.Inputs.Pointers[slot]) {
 		return errors.New("resident static input is invalid")
 	}
 	bytes, err := node.Shape.Bytes(node.Type)
@@ -162,7 +161,7 @@ func (s *ResidentSession) Bind(
 		s.allocations = append(s.allocations, residentAllocation{key: key, pointer: pointer, bytes: bytes})
 		s.staticBytes += bytes
 	}
-	program.inputs.Pointers[slot] = pointer
+	program.Inputs.Pointers[slot] = pointer
 	program.weights = append(program.weights, allocationIndex)
 	s.allocations[allocationIndex].refs++
 	program.bytes += bytes
@@ -191,10 +190,10 @@ func (s *ResidentSession) Execute(
 	program *ResidentProgram,
 	host map[*tensor.Tensor]reference.Value,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	if s == nil || s.executor == nil || program == nil || program.compiled == nil {
+	if s == nil || s.executor == nil || program == nil || program.Graph == nil {
 		return nil, errors.New("resident execution is unavailable")
 	}
-	return s.executor.ExecuteCompiled(ctx, program.compiled, host, program.inputs)
+	return s.executor.ExecuteCompiled(ctx, program.Graph, host, program.Inputs)
 }
 
 // ExecuteDevice runs with temporary indexed device inputs.
@@ -218,14 +217,14 @@ func (s *ResidentSession) Retain(
 	host map[*tensor.Tensor]reference.Value,
 	pointers []driver.DevicePtr,
 ) (*executor.RetainedOutputs, error) {
-	if s == nil || s.executor == nil || program == nil || program.compiled == nil {
+	if s == nil || s.executor == nil || program == nil || program.Graph == nil {
 		return nil, errors.New("resident execution is unavailable")
 	}
 	if err := program.bindDynamic(pointers); err != nil {
 		return nil, err
 	}
 	defer program.clearDynamic(len(pointers))
-	return s.executor.ExecuteRetainedCompiled(ctx, program.compiled, host, program.inputs, nil, nil)
+	return s.executor.ExecuteRetainedCompiled(ctx, program.Graph, host, program.Inputs, nil, nil)
 }
 
 // Release drops program references and frees unshared inputs.
@@ -254,8 +253,8 @@ func (s *ResidentSession) Release(ctx context.Context, programs ...*ResidentProg
 				delete(s.byBinding, allocation.key)
 				*allocation = residentAllocation{}
 			}
-			program.compiled = nil
-			program.inputs = nil
+			program.Graph = nil
+			program.Inputs = nil
 			program.dynamic = nil
 			program.weights = nil
 			program.bytes = uint64(tensor.FirstOffset)
@@ -300,23 +299,23 @@ func (s *ResidentSession) Do(ctx context.Context, operation func(*device.State) 
 }
 
 func (p *ResidentProgram) bindDynamic(pointers []driver.DevicePtr) error {
-	if p == nil || p.inputs == nil || len(pointers) != len(p.dynamic) {
+	if p == nil || p.Inputs == nil || len(pointers) != len(p.dynamic) {
 		return errors.New("resident dynamic inputs do not match compiled slots")
 	}
 	for index, pointer := range pointers {
 		slot := p.dynamic[index]
-		if !checked.Nonzero(pointer) || checked.Nonzero(p.inputs.Pointers[slot]) {
+		if !checked.Nonzero(pointer) || checked.Nonzero(p.Inputs.Pointers[slot]) {
 			p.clearDynamic(index)
 			return errors.New("resident dynamic input is invalid")
 		}
-		p.inputs.Pointers[slot] = pointer
+		p.Inputs.Pointers[slot] = pointer
 	}
 	return nil
 }
 
 func (p *ResidentProgram) clearDynamic(count int) {
 	for index := range min(count, len(p.dynamic)) {
-		p.inputs.Pointers[p.dynamic[index]] = driver.DevicePtr(tensor.FirstOffset)
+		p.Inputs.Pointers[p.dynamic[index]] = driver.DevicePtr(tensor.FirstOffset)
 	}
 }
 

@@ -24,8 +24,8 @@ type DeviceGenerationStackStats struct {
 }
 
 type generationStackBranch struct {
+	*executor.IndexedGraph
 	graph        *DeviceGenerationLayerGraph
-	compiled     *executor.CompiledGraph
 	inputs       branchInputProgram
 	prefixKey    executor.InputSlot
 	prefixValue  executor.InputSlot
@@ -97,30 +97,30 @@ func NewDeviceGenerationSession(
 		if err != nil {
 			return fail(err)
 		}
-		compiled, err := executor.Compile(graph.Output)
+		indexed, err := executor.CompileIndexed(graph.Output)
 		if err != nil {
 			return fail(err)
 		}
-		if err := cuda.PrepareCompiled(ctx, compiled); err != nil {
+		if err := cuda.PrepareCompiled(ctx, indexed.Graph); err != nil {
 			return fail(fmt.Errorf("prepare branch %d: %w", index, err))
 		}
 		branch := generationStackBranch{
-			graph: graph, compiled: compiled,
+			IndexedGraph: indexed, graph: graph,
 			prefixKeys: make([]driver.DevicePtr, cfg.NumHiddenLayers), prefixValues: make([]driver.DevicePtr, cfg.NumHiddenLayers),
 		}
-		branch.inputs, err = compileBranchInputProgram(compiled, graph.Vision)
+		branch.inputs, err = compileBranchInputProgram(indexed.Graph, graph.Vision)
 		if err != nil {
 			return fail(err)
 		}
-		branch.prefixKey, err = compiledInputSlot(compiled, graph.PrefixKey)
+		branch.prefixKey, err = compiledInputSlot(indexed.Graph, graph.PrefixKey)
 		if err != nil {
 			return fail(err)
 		}
-		branch.prefixValue, err = compiledInputSlot(compiled, graph.PrefixValue)
+		branch.prefixValue, err = compiledInputSlot(indexed.Graph, graph.PrefixValue)
 		if err != nil {
 			return fail(err)
 		}
-		rowSlot, err := compiledInputSlot(compiled, graph.Row)
+		rowSlot, err := compiledInputSlot(indexed.Graph, graph.Row)
 		if err != nil {
 			return fail(err)
 		}
@@ -128,13 +128,13 @@ func NewDeviceGenerationSession(
 		if err != nil {
 			return fail(err)
 		}
-		branch.inputs.inputs.Pointers[rowSlot] = branch.row
+		branch.Inputs.Pointers[rowSlot] = branch.row
 		branch.output, err = session.resources.Allocate(ctx, inputBytes)
 		if err != nil {
 			return fail(err)
 		}
 		prefixBytes := uint64(len(prefix.Layers[0].Key)) * 4
-		branch.target = compiled.NewRetainedTargets()
+		branch.target = indexed.Graph.NewRetainedTargets()
 		if err := branch.target.Set(graph.Output, executor.DeviceValue{
 			Pointer: branch.output, Shape: graph.Output.Shape, CapacityBytes: inputBytes,
 		}); err != nil {
@@ -223,10 +223,10 @@ func (s *DeviceGenerationSession) Run(
 	for layer := 0; layer < s.cfg.NumHiddenLayers; layer++ {
 		for index := range s.branches {
 			branch := &s.branches[index]
-			branch.inputs.bindWeights(s.weights[layer])
+			branch.inputs.bindWeights(branch.Inputs, s.weights[layer])
 			branch.bindPrefix(layer)
 			retained, err := s.cuda.ExecuteRetainedCompiled(
-				ctx, branch.compiled, nil, branch.inputs.inputs, branch.target, nil,
+				ctx, branch.Graph, nil, branch.Inputs, branch.target, nil,
 			)
 			if err != nil {
 				return nil, stats, fmt.Errorf("routed lm generation stack: branch=%d layer=%d: %w", index, layer, err)
@@ -252,11 +252,11 @@ func (s *DeviceGenerationSession) Run(
 			for index := range s.branches {
 				branch := &s.branches[index]
 				branch.row, branch.output = branch.output, branch.row
-				rowSlot, err := compiledInputSlot(branch.compiled, branch.graph.Row)
+				rowSlot, err := compiledInputSlot(branch.Graph, branch.graph.Row)
 				if err != nil {
 					return nil, stats, err
 				}
-				branch.inputs.inputs.Pointers[rowSlot] = branch.row
+				branch.Inputs.Pointers[rowSlot] = branch.row
 				if err := branch.target.Set(branch.graph.Output, executor.DeviceValue{
 					Pointer: branch.output, Shape: branch.graph.Output.Shape, CapacityBytes: uint64(len(hidden)) * 4,
 				}); err != nil {
@@ -270,8 +270,8 @@ func (s *DeviceGenerationSession) Run(
 }
 
 func (b *generationStackBranch) bindPrefix(layer int) {
-	b.inputs.inputs.Pointers[b.prefixKey] = b.prefixKeys[layer]
-	b.inputs.inputs.Pointers[b.prefixValue] = b.prefixValues[layer]
+	b.Inputs.Pointers[b.prefixKey] = b.prefixKeys[layer]
+	b.Inputs.Pointers[b.prefixValue] = b.prefixValues[layer]
 }
 
 // Close releases retained prefix KV and input storage.
@@ -319,12 +319,11 @@ func bf16MatrixBytes(matrix BF16Matrix) []byte {
 }
 
 type branchInputProgram struct {
-	inputs  *executor.DeviceInputs
 	weights [11]executor.InputSlot
 }
 
 func compileBranchInputProgram(compiled *executor.CompiledGraph, nodes DevicePrefillBranch) (branchInputProgram, error) {
-	program := branchInputProgram{inputs: compiled.NewDeviceInputs()}
+	program := branchInputProgram{}
 	weightNodes := [...]*tensor.Tensor{
 		nodes.InputNorm, nodes.Q, nodes.K, nodes.V, nodes.O, nodes.QNorm,
 		nodes.KNorm, nodes.PostNorm, nodes.Gate, nodes.Up, nodes.Down,
@@ -347,8 +346,8 @@ func compiledInputSlot(compiled *executor.CompiledGraph, node *tensor.Tensor) (e
 	return slot, nil
 }
 
-func (p *branchInputProgram) bindWeights(weights branchDeviceWeights) {
+func (p *branchInputProgram) bindWeights(inputs *executor.DeviceInputs, weights branchDeviceWeights) {
 	for index, slot := range p.weights {
-		p.inputs.Pointers[slot] = weights.pointers[index]
+		inputs.Pointers[slot] = weights.pointers[index]
 	}
 }

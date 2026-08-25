@@ -3576,15 +3576,15 @@
     },
     {
       "id": "runtime-program-compile-authority",
-      "title": "Make shared indexed sessions own retained graph compilation",
+      "title": "Make indexed graph programs the sole CUDA compile result",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Make shared indexed sessions own retained graph compilation",
-          "status": "open",
-          "verify": "go test ./internal/graphruntime ./internal/latentvideo ./internal/inference -run '^TestSharedIndexedSessionOwnsCompilation$' -count=1"
+          "title": "Make indexed graph programs the sole CUDA compile result",
+          "status": "done",
+          "verify": "go test ./internal/cuda/executor -run '^TestIndexedGraphOwnsCompilation$' -count=1"
         }
       ]
     },

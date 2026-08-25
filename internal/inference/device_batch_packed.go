@@ -149,17 +149,16 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	if err := builder.Err(); err != nil {
 		return nil, err
 	}
-	compiled, err := executor.Compile(outputs...)
+	execution, err := executor.CompileIndexed(outputs...)
 	if err != nil {
 		return nil, err
 	}
-	inputs := compiled.NewDeviceInputs()
 	for node, pointer := range deviceFeeds {
-		if err := inputs.Set(node, pointer); err != nil {
+		if err := execution.Inputs.Set(node, pointer); err != nil {
 			return nil, err
 		}
 	}
-	retained, err := r.cuda.ExecuteRetainedCompiled(ctx, compiled, hostFeeds, inputs, nil, nil)
+	retained, err := r.cuda.ExecuteRetainedCompiled(ctx, execution.Graph, hostFeeds, execution.Inputs, nil, nil)
 	if err != nil {
 		return nil, err
 	}

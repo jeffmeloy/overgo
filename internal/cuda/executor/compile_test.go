@@ -9,16 +9,17 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-func TestCompilePinsTopologyAndMemoryPlan(t *testing.T) {
+func TestIndexedGraphOwnsCompilation(t *testing.T) {
 	builder := tensor.NewBuilder()
 	shape := tensor.MustShape(4, 2)
 	left := builder.Input("left", dtype.F32, shape)
 	right := builder.Input("right", dtype.F32, shape)
 	output := builder.Add(left, right)
-	compiled, err := Compile(output)
+	indexed, err := CompileIndexed(output)
 	if err != nil {
 		t.Fatal(err)
 	}
+	compiled := indexed.Graph
 	if len(compiled.order) != 3 || len(compiled.outputs) != 1 || compiled.outputs[0] != output {
 		t.Fatalf("compiled graph = %+v", compiled)
 	}
@@ -28,10 +29,9 @@ func TestCompilePinsTopologyAndMemoryPlan(t *testing.T) {
 	if compiled.nodes[2].launchProgram != tensor.CUDAProgramMathVision {
 		t.Fatalf("compiled add launch program = %d", compiled.nodes[2].launchProgram)
 	}
-	inputs := compiled.NewDeviceInputs()
 	inputNodes := [...]*tensor.Tensor{left, right}
-	if len(inputs.Pointers) != len(inputNodes) {
-		t.Fatalf("input pointers = %d, want %d", len(inputs.Pointers), len(inputNodes))
+	if len(indexed.Inputs.Pointers) != len(inputNodes) {
+		t.Fatalf("input pointers = %d, want %d", len(indexed.Inputs.Pointers), len(inputNodes))
 	}
 	for _, input := range inputNodes {
 		if _, ok := compiled.InputSlot(input); !ok {

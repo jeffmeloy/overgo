@@ -60,15 +60,14 @@ func TestDeviceConvertedWeightsFeedExecutor(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cuda.Close()
-	compiled, err := executor.Compile(output)
+	indexed, err := executor.CompileIndexed(output)
 	if err != nil {
 		t.Fatal(err)
 	}
-	inputs := compiled.NewDeviceInputs()
-	if err := inputs.Set(input, pointer); err != nil {
+	if err := indexed.Inputs.Set(input, pointer); err != nil {
 		t.Fatal(err)
 	}
-	results, err := cuda.ExecuteCompiled(context.Background(), compiled, nil, inputs)
+	results, err := cuda.ExecuteCompiled(context.Background(), indexed.Graph, nil, indexed.Inputs)
 	if err != nil {
 		t.Fatal(err)
 	}

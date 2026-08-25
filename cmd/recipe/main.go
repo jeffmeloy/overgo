@@ -33,7 +33,7 @@ func main() {
 
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: recipe <verify|activate|retire|run|status> [options] <model>")
+		return errors.New("usage: recipe <verify|activate|retire|run|status|policy> [options] <model>")
 	}
 	verb := os.Args[1]
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
@@ -173,6 +173,8 @@ func run() error {
 		)
 	case "status":
 		return status(repository, path, selectedTask)
+	case "policy":
+		return ensurePolicy(repository, path, selectedTask)
 	default:
 		return fmt.Errorf("unknown verb %q", verb)
 	}
@@ -618,6 +620,46 @@ func retire(
 		return err
 	}
 	fmt.Printf("retired %s\n  model  %s\n  reason %s\n", path, candidate.inventory.Manifest.ID, reason)
+	return nil
+}
+
+// ensurePolicy republishes the catalog runtime policy for a model's
+// ACTIVE recipe -- the migration repair for activations that predate
+// the runtime-policy schema, whose golden suites may no longer be
+// local for a full reverify. It touches nothing but the policy alias:
+// the recipe, its evidence, and its activation stay exactly as
+// committed.
+func ensurePolicy(repository, path string, task recipe.Task) error {
+	ctx := context.Background()
+	file, err := gguf.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	activation, active, err := modelrecipe.ActiveRecord(ctx, store, inventory.Manifest.ID, task)
+	if err != nil {
+		return err
+	}
+	if !active {
+		return fmt.Errorf("recipe: %s has no active %s recipe to bind a policy to", path, task)
+	}
+	if err := modelrecipe.EnsureRuntimePolicy(ctx, store, activation.Definition); err != nil {
+		return err
+	}
+	policy, err := modelrecipe.ResolveRuntimePolicy(ctx, store, activation.Definition)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("runtime policy %s bound to recipe %s\n", policy.ID, activation.Definition.ID)
 	return nil
 }
 

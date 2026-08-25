@@ -1,16 +1,16 @@
 {
   "campaign": "Deletion-led production composability, durable agent execution, and OvergoDB tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Modelrecipe owns component sessions; recipe owns topology and policy; workflowruntime owns stage execution; operation owns lifecycle; runrecord and OvergoDB own immutable facts; inference owns model math; server owns protocols and GUI. ADK is a behavior inventory and oracle, never a dependency or second runtime. No second workflow graph, plugin callback mesh, mutable property bag, string branch authority, duplicate session or artifact store, wrapper, fallback, or advisory execution plan. Compact OvergoDB before adding event volume: remove duplicate indexes and payload copies, stream durable writes, expose bounded projected queries, and retain one refreshable browse owner. Each capability wave migrates every caller and deletes the displaced ephemeral owner in the same commit. Retry, concurrency, context, and retention policy derive from recipes, resource plans, requests, or measured evidence. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:ea2876c719ad7b5195805ac010c4ea4fc5aaf23a08da444e0b936f65094ceed9",
+  "census_evidence": "evidence:sha256:7d634ebb9fb4013e2ad90a678565dbc032b778eb6ff90075502faf2ee698492a",
   "items": [
     {
-      "id": "merge-56ace59f26e1",
-      "title": "Merge master at 56ace59f26e1",
+      "id": "merge-eeef03d93a6f",
+      "title": "Merge master at eeef03d93a6f",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Merge master at 56ace59f26e1",
+          "title": "Merge master at eeef03d93a6f",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
         }
@@ -3286,6 +3286,117 @@
       ]
     },
     {
+      "id": "gui-approval-surface",
+      "title": "Render mutation approval as a decision surface: effect class, exact argument bytes, the committed decision, and the approved-vs-proposed diff on refusal",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Approval decision surface in the agent tab",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-pending-inbox",
+      "title": "One operator inbox over waiting workflow stages and pending mutation approvals, with grant/decline wired to the durable decision chain",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Pending-work inbox view",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1 \u0026\u0026 go test ./internal/workflowruntime -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-step-provenance",
+      "title": "Per-step provenance click-through: interaction, receipt chain, decision, exact manual identity, result artifact",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Provenance walk API and view",
+          "status": "open",
+          "verify": "go test ./internal/server -run \"TestAgentWorkspace|TestAgentProvenance\" -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-workflow-dag",
+      "title": "Live workflow DAG from stage receipts: node states colored, waiting nodes linked into the inbox",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "DAG projection and view",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-session-list",
+      "title": "Durable agent session list: steps used against bound, inspected state, restore and resume",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Session list API and view",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-multimodal-input",
+      "title": "Chat and agent steps accept image, audio, and video attachments through the served protocol content parts under the media policy",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Multimodal attachment input",
+          "status": "open",
+          "verify": "go test ./internal/server -run \"TestChat|TestMultimodal|TestMedia\" -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-multimodal-output",
+      "title": "Generated media renders inline: images, video, and audio from responses and interaction replay, not as opaque artifact ids",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Inline media rendering",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1"
+        }
+      ]
+    },
+    {
+      "id": "merge-56ace59f26e1",
+      "title": "Merge master at 56ace59f26e1",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 56ace59f26e1",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
       "id": "overgodb-runtime-authority",
       "title": "Make master OvergoDB the sole runtime store authority",
       "owner": "tightening",
@@ -3379,104 +3490,6 @@
           "title": "Merge master at f4224b70ae96",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
-        }
-      ]
-    },
-    {
-      "id": "gui-approval-surface",
-      "title": "Render mutation approval as a decision surface: effect class, exact argument bytes, the committed decision, and the approved-vs-proposed diff on refusal",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Approval decision surface in the agent tab",
-          "status": "done",
-          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-pending-inbox",
-      "title": "One operator inbox over waiting workflow stages and pending mutation approvals, with grant/decline wired to the durable decision chain",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Pending-work inbox view",
-          "status": "open",
-          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1 \u0026\u0026 go test ./internal/workflowruntime -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-step-provenance",
-      "title": "Per-step provenance click-through: interaction, receipt chain, decision, exact manual identity, result artifact",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Provenance walk API and view",
-          "status": "open",
-          "verify": "go test ./internal/server -run \"TestAgentWorkspace|TestAgentProvenance\" -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-workflow-dag",
-      "title": "Live workflow DAG from stage receipts: node states colored, waiting nodes linked into the inbox",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "DAG projection and view",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-session-list",
-      "title": "Durable agent session list: steps used against bound, inspected state, restore and resume",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Session list API and view",
-          "status": "open",
-          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-multimodal-input",
-      "title": "Chat and agent steps accept image, audio, and video attachments through the served protocol content parts under the media policy",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Multimodal attachment input",
-          "status": "open",
-          "verify": "go test ./internal/server -run \"TestChat|TestMultimodal|TestMedia\" -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-multimodal-output",
-      "title": "Generated media renders inline: images, video, and audio from responses and interaction replay, not as opaque artifact ids",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Inline media rendering",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1"
         }
       ]
     }

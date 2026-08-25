@@ -259,7 +259,7 @@
           evidenceHost.replaceChildren(...rows.map((item) => el("div", { class: "card" },
             "step " + item.step + " / ", artifactLink(item.interaction), " / transcript ", artifactLink(item.transcript),
             ...((item.calls || []).map((call) => el("div", { text: "call " + call.name + " / " + fmt.shortID(call.manual) }))),
-            ...((item.results || []).map((result) => el("div", { text: "result " + result.tool_call_id + (result.error ? " / error" : " / complete") })))));
+            ...((item.results || []).map((result) => el("div", { text: "result " + result.tool_call_id + (result.error ? " / error" : " / complete") }))))));
         } catch (err) { showError(err); }
       }
 

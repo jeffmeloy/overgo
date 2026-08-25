@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:84da019c5f63b742cf71e4f0a0b057e0c4c3328963b78de3cf4b4da83fbd7057",
   "items": [
     {
-      "id": "modelswap-core",
-      "title": "Model-swap supervisor: exclusive child-server lifecycle with readiness, in-flight draining, and idle timeout -- llama-swap as reference, overgo authorities as config",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Model-swap supervisor: exclusive child-server lifecycle with readiness, in-flight draining, and idle timeout -- llama-swap as reference, overgo authorities as config",
-          "status": "open",
-          "verify": "go test ./internal/modelswap -run TestModelSwapSupervisor -count=1"
-        }
-      ]
-    },
-    {
       "id": "modelswap-proxy",
       "title": "Swap proxy over the servable catalog: model-routed requests launch the right server, cmd/swap serves it",
       "owner": "gui",

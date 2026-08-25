@@ -2704,12 +2704,12 @@
       "id": "wan-gradient-checkpointing",
       "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/latentvideo -run TestDiTTrainer -count=1",
           "depends_on": [
             "wan-vidgen-batches/do"

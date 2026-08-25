@@ -684,13 +684,19 @@ type ditForward struct {
 	text        *ditTextActs
 	time        *ditTimeActs
 	blocks      []ditBlockActs
-	hidden0     []float32 // patch embedding output
-	lnHead      []float32
-	headShift   []float32
-	headScale   []float32
-	modulated   []float32
-	patches     []float32 // [seq, patchOut]
-	vLatent     []float32 // [OutDim, F, H, W] predicted velocity
+	// hiddens holds each block's entry hidden state plus the final
+	// output ([NumLayers+1][seq, d]). It is the whole per-block memory
+	// the checkpointed backward needs: every other block activation is
+	// recomputed from its entry hidden, bitwise identically, because
+	// blockForward is a deterministic function of weights and inputs.
+	hiddens   [][]float32
+	hidden0   []float32 // patch embedding output
+	lnHead    []float32
+	headShift []float32
+	headScale []float32
+	modulated []float32
+	patches   []float32 // [seq, patchOut]
+	vLatent   []float32 // [OutDim, F, H, W] predicted velocity
 }
 
 // currentContext: the context rows the running backward consumes (set by the
@@ -712,6 +718,16 @@ func (t *DiTTrainer) patchify(latent []float32) ([]float32, error) {
 // unpatchified velocity, from an already-projected context and computed
 // conditioning (the seam the parity gate drives with committed goldens).
 func (t *DiTTrainer) forwardConditioned(latent, context, blockE, headE []float32) (*ditForward, error) {
+	return t.forwardConditionedRetained(latent, context, blockE, headE, true)
+}
+
+// forwardConditionedRetained runs the conditioned forward pass. With
+// retain, every block's full activation set is kept -- the golden
+// parity surface probes them. Without retain, only each block's entry
+// hidden survives (gradient checkpointing): the backward recomputes
+// one block's activations at a time, so peak activation memory is one
+// block plus the hidden chain instead of every block at once.
+func (t *DiTTrainer) forwardConditionedRetained(latent, context, blockE, headE []float32, retain bool) (*ditForward, error) {
 	cfg, g := t.cfg, t.geometry
 	d := cfg.Dim
 	seq := g.Seq
@@ -727,11 +743,19 @@ func (t *DiTTrainer) forwardConditioned(latent, context, blockE, headE []float32
 	state.hidden0 = make([]float32, seq*d)
 	hostmath.LinearF64(state.hidden0, patchTokens, t.view("patch_embedding.weight"), t.view("patch_embedding.bias"), seq, cfg.patchIn(), d)
 	hidden := state.hidden0
-	state.blocks = make([]ditBlockActs, cfg.NumLayers)
+	state.hiddens = make([][]float32, cfg.NumLayers+1)
+	state.hiddens[0] = hidden
+	if retain {
+		state.blocks = make([]ditBlockActs, cfg.NumLayers)
+	}
 	for layer := 0; layer < cfg.NumLayers; layer++ {
 		cross := t.crossContext(denoiserBlockPrefix(layer)+"cross_attn.", context)
-		state.blocks[layer] = t.blockForward(layer, hidden, blockE, cross)
-		hidden = state.blocks[layer].output
+		acts := t.blockForward(layer, hidden, blockE, cross)
+		hidden = acts.output
+		state.hiddens[layer+1] = hidden
+		if retain {
+			state.blocks[layer] = acts
+		}
 	}
 	state.lnHead = make([]float32, seq*d)
 	hostmath.LayerNormInto(state.lnHead, hidden, nil, nil, seq, d, cfg.Eps)
@@ -762,7 +786,7 @@ func (t *DiTTrainer) forward(batch DiTTrainBatch) (*ditForward, error) {
 	if err != nil {
 		return nil, err
 	}
-	state, err := t.forwardConditioned(batch.Latent, text.context, timeActs.blockE, timeActs.headE)
+	state, err := t.forwardConditionedRetained(batch.Latent, text.context, timeActs.blockE, timeActs.headE, false)
 	if err != nil {
 		return nil, err
 	}
@@ -824,20 +848,25 @@ func (t *DiTTrainer) lossAndGradients(batch DiTTrainBatch) (float64, float64, er
 		gradHeadModulation[d+i] += dScale[i]
 		dHeadE[i] = dShift[i] + dScale[i]
 	}
-	lastBlock, ok := checked.Last(state.blocks)
+	lastOutput, ok := checked.Last(state.hiddens)
 	if !ok {
 		return 0, 0, fmt.Errorf("dit train: transformer block activations are absent")
 	}
-	lastOutput := lastBlock.output
 	dHidden := make([]float32, seq*d)
 	hostmath.LayerNormBackward(dHidden, nil, nil, lastOutput, nil, dLNHead, seq, d, cfg.Eps, false)
 
 	// Blocks in reverse; shared conditioning/context gradients accumulate.
+	// Each block's activations are recomputed from its stored entry
+	// hidden (gradient checkpointing): blockForward is deterministic, so
+	// the recomputation is bitwise identical to the forward pass, and
+	// only one block's full activation set is live at a time.
 	dBlockE := make([]float32, media.PairedShiftScaleGateWidth(d))
 	dContext := make([]float32, cfg.TextLen*d)
 	for reverse := range cfg.NumLayers {
 		layer := checked.ReverseIndex(reverse, cfg.NumLayers)
-		dHidden = t.blockBackward(layer, &state.blocks[layer], dHidden, dBlockE, dContext)
+		cross := t.crossContext(denoiserBlockPrefix(layer)+"cross_attn.", t.currentContext)
+		acts := t.blockForward(layer, state.hiddens[layer], state.time.blockE, cross)
+		dHidden = t.blockBackward(layer, &acts, dHidden, dBlockE, dContext)
 	}
 
 	// Patch embedding (the latent input is data; no input gradient needed).

@@ -21,6 +21,7 @@
     {"id": "model-builder", "label": "Model Builder", "section": "training", "capability": "workflow.model-builder"},
     {"id": "export-jobs", "label": "Export", "section": "training", "capability": "workflow.export"},
     {"id": "runs", "label": "Runs", "section": "training", "capability": "repository"},
+    {"id": "inbox", "label": "Inbox", "section": "workbench", "capability": "operations"},
     {"id": "automations", "label": "Automations", "section": "workbench", "capability": "automation"},
     {"id": "peers", "label": "Peers", "section": "workbench", "capability": "peer"},
     {"id": "recipe", "label": "Recipe", "section": "workbench", "capability": "repository"},

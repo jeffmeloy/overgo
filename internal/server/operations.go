@@ -48,6 +48,37 @@ func (h *Handler) operationStatus(response http.ResponseWriter, request *http.Re
 	writeJSON(response, http.StatusOK, status)
 }
 
+// operationInbox projects every operation waiting on an operator: the
+// blocked state, the advertised recovery actions grant/decline resolve,
+// and any prior committed decision on the same operation chain. One
+// list answers "what is waiting on me" instead of the operator polling
+// individual operations.
+func (h *Handler) operationInbox(response http.ResponseWriter, request *http.Request) {
+	if !requireMethod(response, request, http.MethodGet) {
+		return
+	}
+	items := []map[string]any{}
+	for _, status := range h.operations.List() {
+		if status.State != operation.StateBlocked || status.Recovery == nil {
+			continue
+		}
+		item := map[string]any{
+			"operation": status.ID, "task": status.Task, "recipe": status.Recipe,
+			"reason": status.Recovery.Reason, "subject": status.Recovery.Subject,
+			"actions": status.Recovery.Actions, "evidence": status.Recovery.Evidence,
+		}
+		if h.repository != nil {
+			if prior, found, err := runrecord.ResolveHumanDecision(request.Context(), h.repository, status.ID); err == nil && found {
+				item["prior_decision"] = map[string]any{
+					"id": prior.ID, "answer": prior.Answer, "tool": prior.Tool,
+				}
+			}
+		}
+		items = append(items, item)
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"waiting": items})
+}
+
 func (h *Handler) operationCancel(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodPost) {
 		return

@@ -3301,6 +3301,20 @@
       ]
     },
     {
+      "id": "gui-operator-inbox",
+      "title": "One operator inbox over waiting workflow stages and pending mutation approvals, with grant/decline wired to the durable decision chain",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Pending-work inbox API and view",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestOperatorInbox -count=1"
+        }
+      ]
+    },
+    {
       "id": "gui-step-provenance",
       "title": "Per-step provenance click-through: interaction, receipt chain, decision, exact manual identity, result artifact",
       "owner": "gui",
@@ -3324,7 +3338,7 @@
           "id": "do",
           "title": "DAG projection and view",
           "status": "open",
-          "verify": "go test ./internal/server -count=1"
+          "verify": "go test ./internal/server -run TestWorkflowDAG -count=1"
         }
       ]
     },
@@ -3338,7 +3352,7 @@
           "id": "do",
           "title": "Session list API and view",
           "status": "open",
-          "verify": "go test ./internal/server -run TestAgentWorkspace -count=1"
+          "verify": "go test ./internal/server -run TestAgentSessionList -count=1"
         }
       ]
     },
@@ -3352,7 +3366,7 @@
           "id": "do",
           "title": "Multimodal attachment input",
           "status": "open",
-          "verify": "go test ./internal/server -run \"TestChat|TestMultimodal|TestMedia\" -count=1"
+          "verify": "go test ./internal/server -run TestChatMultimodalAttachments -count=1"
         }
       ]
     },
@@ -3366,7 +3380,35 @@
           "id": "do",
           "title": "Inline media rendering",
           "status": "open",
-          "verify": "go test ./internal/server -count=1"
+          "verify": "go test ./internal/server -run TestMultimodalOutputProjection -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-video-generation",
+      "title": "Video generation in the workbench: prompt to Wan text-to-video through the workflow runtime, with progress and inline MP4 playback",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Video generation tab and projection",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestVideoGenerationWorkspace -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-video-editing",
+      "title": "Video editing in the workbench: source video plus prompt through the reference-edit runtime, edited MP4 rendered inline",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Video editing tab and projection",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestVideoEditingWorkspace -count=1"
         }
       ]
     }

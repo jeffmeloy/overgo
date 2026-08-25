@@ -35,12 +35,12 @@
       "id": "dataset-content-identity",
       "title": "Dataset identity hashes file bytes, not path+size+mtime; changed content re-identifies",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Dataset identity hashes file bytes, not path+size+mtime; changed content re-identifies",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/dataset -run 'TestRegister' -count=1"
         }
       ]

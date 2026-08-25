@@ -1,11 +1,14 @@
 package dataset
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 )
 
@@ -77,5 +80,39 @@ func TestRegisterDirectoryDataset(t *testing.T) {
 	}
 	if repeat.Changed {
 		t.Fatalf("idempotent re-registration changed the store: %+v", repeat)
+	}
+}
+
+// TestRegisterContentIdentity pins the reopened finding: two files
+// with identical size and modification time but different bytes must
+// produce different dataset identities, because identity follows a
+// content digest, not path plus metadata.
+func TestRegisterContentIdentity(t *testing.T) {
+	ctx := context.Background()
+	build := func(payload []byte) artifact.ID {
+		store, err := overgodb.Open(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer store.Close()
+		root := t.TempDir()
+		path := filepath.Join(root, "clip.mp4")
+		if err := os.WriteFile(path, payload, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		fixed := time.Unix(1700000000, 0)
+		if err := os.Chtimes(path, fixed, fixed); err != nil {
+			t.Fatal(err)
+		}
+		registered, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return registered.Dataset
+	}
+	first := build(bytes.Repeat([]byte{0xAA}, 4096))
+	second := build(bytes.Repeat([]byte{0xBB}, 4096))
+	if first == second {
+		t.Fatal("changed content with identical metadata kept the same dataset identity")
 	}
 }

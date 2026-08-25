@@ -130,6 +130,16 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
 		return
 	}
+	// An approved step first RECORDS the operator's grant as a durable
+	// decision bound to the exact tool identity and argument bytes; the
+	// proposal gate then verifies that committed decision -- the request
+	// flag alone authorizes nothing.
+	if body.Approve {
+		if _, err := h.agentCoordinator.ApproveMutation(request.Context(), session, body.Tool, arguments); err != nil {
+			writeError(response, http.StatusUnprocessableEntity, "agent_step_refused", err.Error())
+			return
+		}
+	}
 	var result json.RawMessage
 	if body.Agent == "" {
 		result, err = h.agentCoordinator.Propose(request.Context(), session, body.Tool, arguments, body.Approve)

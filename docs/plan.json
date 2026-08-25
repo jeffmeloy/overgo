@@ -2832,12 +2832,12 @@
       "id": "agent-durable-mutation-decision",
       "title": "Mutation approval is a durable decision bound to exact arguments, not a request boolean",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Mutation approval is a durable decision bound to exact arguments, not a request boolean",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/agentloop -count=1",
           "depends_on": [
             "research-merge-reconcile/do"

@@ -18,6 +18,7 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
+	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -135,9 +136,15 @@ func (c *Coordinator) propose(
 	// it after: if the receipt cannot persist the side effect never
 	// happens, and if the process dies mid-execution the running receipt
 	// is the evidence that it started -- a side effect never lacks a
-	// record. Inspections are effect-free and carry no receipt.
+	// record. Inspections are effect-free and carry no receipt. The
+	// request's approval flag is intent, not authority: the gate
+	// verifies the COMMITTED decision bound to this exact step, manual
+	// identity, and argument bytes.
 	var receiptOperation artifact.ID
 	if manual.Effect == agenttool.EffectMutation {
+		if err := c.verifyMutationDecision(ctx, callID, manual, arguments); err != nil {
+			return nil, err
+		}
 		if receiptOperation, err = c.admitMutationReceipt(ctx, callID, manual, arguments); err != nil {
 			return nil, fmt.Errorf("agent loop: mutation %q refused without a durable receipt: %w", name, err)
 		}
@@ -209,6 +216,88 @@ func (c *Coordinator) RestoreSession(ctx context.Context, id string) (*Session, 
 		}
 	}
 	return session, nil
+}
+
+// ApproveMutation durably records the operator's grant for the
+// session's NEXT step: an approval request naming the exact manual and
+// the exact argument bytes, answered granted, chained under the same
+// per-step operation identity the mutation's receipt will use. The
+// proposal gate verifies THIS committed decision -- a request boolean
+// asserts nothing on its own.
+func (c *Coordinator) ApproveMutation(
+	ctx context.Context,
+	session *Session,
+	name string,
+	arguments json.RawMessage,
+) (artifact.ID, error) {
+	if ctx == nil || session == nil || session.ID == "" {
+		return artifact.ID{}, errors.New("agent loop: nil context or session")
+	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	manual, err := agenttool.ResolveRegisteredManual(ctx, c.store, name)
+	if err != nil {
+		return artifact.ID{}, fmt.Errorf("agent loop: refusing approval of unregistered tool: %w", err)
+	}
+	if manual.Effect != agenttool.EffectMutation {
+		return artifact.ID{}, fmt.Errorf("agent loop: %q is not a mutation; inspections need no approval", name)
+	}
+	operation, err := MutationReceiptOperation(fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1))
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	var prior artifact.ID
+	if existing, found, err := runrecord.ResolveHumanDecision(ctx, c.store, operation); err != nil {
+		return artifact.ID{}, err
+	} else if found {
+		prior = existing.ID
+	}
+	request, err := operatoraction.NewApprovalRequest(operation, c.identity.Recipe, operatoraction.Action{
+		Code: manual.Name, Summary: "agent mutation " + manual.Name,
+		Argv: []string{manual.ID.String(), string(arguments)},
+	}, prior)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	decision, err := runrecord.NewHumanDecision(request, operatoraction.AnswerGrant)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	if err := runrecord.PublishHumanDecision(ctx, c.store, request, decision); err != nil {
+		return artifact.ID{}, err
+	}
+	return decision.ID, nil
+}
+
+// verifyMutationDecision requires the committed grant for this exact
+// step: same operation, same manual identity, same argument bytes. A
+// missing decision, a decline, or a decision recorded for different
+// arguments refuses the mutation.
+func (c *Coordinator) verifyMutationDecision(
+	ctx context.Context,
+	callID string,
+	manual agenttool.Manual,
+	arguments json.RawMessage,
+) error {
+	operation, err := MutationReceiptOperation(callID)
+	if err != nil {
+		return err
+	}
+	decision, found, err := runrecord.ResolveHumanDecision(ctx, c.store, operation)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("agent loop: mutation %q has no committed approval decision", manual.Name)
+	}
+	if decision.Answer != operatoraction.AnswerGrant {
+		return fmt.Errorf("agent loop: mutation %q approval decision is %q", manual.Name, decision.Answer)
+	}
+	if decision.Tool != manual.Name ||
+		!slices.Equal(decision.Arguments, []string{manual.ID.String(), string(arguments)}) {
+		return fmt.Errorf("agent loop: committed decision binds a different tool or arguments for %q", manual.Name)
+	}
+	return nil
 }
 
 // MutationReceiptOperation derives the durable operation identity one

@@ -92,6 +92,23 @@ func TestCoordinatorGatesMutationBehindInspectionAndApproval(t *testing.T) {
 		!strings.Contains(err.Error(), "approval") {
 		t.Fatalf("mutation admitted without approval: %v", err)
 	}
+	// The approve FLAG alone is not authority: without a committed
+	// decision the mutation refuses; a decision bound to DIFFERENT
+	// argument bytes refuses too; only the exact-bound grant admits.
+	if _, err := coordinator.Propose(ctx, session, "probe.write", json.RawMessage(`{}`), true); err == nil ||
+		!strings.Contains(err.Error(), "no committed approval decision") {
+		t.Fatalf("mutation admitted on the flag without a committed decision: %v", err)
+	}
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{"other":1}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := coordinator.Propose(ctx, session, "probe.write", json.RawMessage(`{}`), true); err == nil ||
+		!strings.Contains(err.Error(), "different tool or arguments") {
+		t.Fatalf("mutation admitted under a decision for different arguments: %v", err)
+	}
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{}`)); err != nil {
+		t.Fatal(err)
+	}
 	result, err := coordinator.Propose(ctx, session, "probe.write", json.RawMessage(`{}`), true)
 	if err != nil || string(result) != `{"changed":true}` {
 		t.Fatalf("approved mutation = %s, %v", result, err)
@@ -183,6 +200,9 @@ func TestMutationReceiptPrecedesExecution(t *testing.T) {
 	if _, found, err := runrecord.ResolveStageReceipt(ctx, store, inspectOperation, coordinator.identity.Node); err != nil || found {
 		t.Fatalf("inspection carried a receipt: found=%t err=%v", found, err)
 	}
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{}`)); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := coordinator.Propose(ctx, session, "probe.write", json.RawMessage(`{}`), true); err != nil {
 		t.Fatal(err)
 	}
@@ -230,6 +250,9 @@ func TestFailingMutationStillLeavesReceipt(t *testing.T) {
 	}
 	session := &Session{ID: "failing-session"}
 	if _, err := coordinator.Propose(ctx, session, "probe.read", json.RawMessage(`{}`), false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.break", json.RawMessage(`{}`)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := coordinator.Propose(ctx, session, "probe.break", json.RawMessage(`{}`), true); err == nil {

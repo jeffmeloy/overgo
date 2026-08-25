@@ -1,4 +1,4 @@
-// repodb-compact is retention's operator entry: it writes the live set of a
+// overgodb-compact is retention's operator entry: it writes the live set of an
 // store -- everything reachable from any alias through lineage and through
 // identities embedded in retained document content -- into a fresh store,
 // and reports exactly what it kept and what stayed behind. The source is
@@ -18,7 +18,7 @@ import (
 )
 
 func main() {
-	clioptions.MainNamed("repodb-compact", run)
+	clioptions.MainNamed("overgodb-compact", run)
 }
 
 func run() error {
@@ -26,7 +26,7 @@ func run() error {
 	destination := flag.String("dest", "", "destination store root; must be empty or absent")
 	flag.Parse()
 	if strings.TrimSpace(*destination) == "" || flag.NArg() != 0 {
-		return errors.New("usage: repodb-compact -dest <new-store> [-repo <path>]")
+		return errors.New("usage: overgodb-compact -dest <new-store> [-repo <path>]")
 	}
 	source, err := overgodb.OpenReadOnly(*repository)
 	if err != nil {

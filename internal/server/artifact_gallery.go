@@ -43,12 +43,12 @@ func (h *Handler) artifactGallery(response http.ResponseWriter, request *http.Re
 	}
 	result, err := store.Query(request.Context(), query)
 	if err != nil {
-		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return
 	}
 	next, err := encodeNextCursor(result.Next)
 	if err != nil {
-		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return
 	}
 	items := make([]artifactSummary, 0, len(result.Artifacts))
@@ -84,7 +84,7 @@ func (h *Handler) artifactContent(response http.ResponseWriter, request *http.Re
 	}
 	descriptor, reader, found, err := store.OpenContent(request.Context(), id)
 	if err != nil {
-		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return
 	}
 	if !found {
@@ -164,7 +164,7 @@ func (h *Handler) requireBrowseStore(response http.ResponseWriter, request *http
 		return nil, false
 	}
 	if err != nil {
-		writeError(response, http.StatusInternalServerError, "repodb_error", "cannot refresh the artifact store")
+		writeError(response, http.StatusInternalServerError, "overgodb_error", "cannot refresh the artifact store")
 		return nil, false
 	}
 	return store, true

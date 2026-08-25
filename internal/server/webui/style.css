@@ -119,6 +119,29 @@ a { color:var(--acc); }
   position:sticky; top:0; z-index:5;
 }
 .topbar .grow { flex:1 1 auto; }
+.operation-shell {
+  position:sticky; top:57px; z-index:4; background:var(--bg1); border-bottom:1px solid var(--line);
+  box-shadow:var(--shadow-1);
+}
+.operation-strip { display:flex; align-items:center; gap:8px; min-height:42px; padding:6px var(--pad); overflow-x:auto; }
+.operation-strip-label { flex:none; color:var(--faint); font:600 10px var(--font); letter-spacing:1.2px; text-transform:uppercase; }
+.operation-chip {
+  flex:none; appearance:none; cursor:pointer; color:var(--dim); background:var(--bg2); border:1px solid var(--line);
+  border-radius:999px; padding:4px 9px; font:11px var(--mono);
+}
+.operation-chip:hover, .operation-chip.active { color:var(--ink); border-color:var(--acc); }
+.operation-chip.blocked, .operation-chip.failed { color:var(--amber); }
+.operation-chip.running, .operation-chip.preparing, .operation-chip.publishing { color:var(--acc); }
+.operation-chip.completed { color:var(--ok); }
+.operation-detail { padding:10px var(--pad) 16px; max-height:58vh; overflow:auto; border-top:1px solid var(--line-soft); }
+.operation-detail[hidden] { display:none; }
+.operation-detail-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.operation-detail-head .grow { flex:1 1 auto; }
+.operation-detail-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin:8px 0; }
+.operation-detail-grid .stat { padding:9px 11px; }
+.operation-detail-grid .stat .v { font-size:14px; }
+.operation-evidence-columns { display:grid; grid-template-columns:repeat(auto-fit,minmax(310px,1fr)); gap:14px; }
+.operation-evidence-columns .section-title { margin-top:12px; }
 .keyfield {
   font:12px var(--mono); color:var(--ink); background:var(--bg2);
   border:1px solid var(--line); border-radius:var(--radius-s); padding:7px 10px; width:210px; max-width:40vw;
@@ -152,6 +175,7 @@ a { color:var(--acc); }
   .nav-group > .section { width:auto; }
   .tab { width:auto; }
   .sidebar .foot { display:none; }
+  .operation-shell { top:0; }
 }
 
 /* ---- components ---- */

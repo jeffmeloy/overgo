@@ -133,8 +133,6 @@
 
   window.overgo.registerTab({
     id: "runs",
-    label: "Runs",
-    section: "training",
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       const limit = 50;

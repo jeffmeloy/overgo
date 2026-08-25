@@ -74,7 +74,7 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 		}
 		detail, found, detailErr := loadRunDetail(request.Context(), store, id)
 		if detailErr != nil {
-			writeError(response, http.StatusInternalServerError, "repodb_error", detailErr.Error())
+			writeError(response, http.StatusInternalServerError, "overgodb_error", detailErr.Error())
 			return
 		}
 		if !found {
@@ -114,13 +114,13 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 			return nil
 		})
 	if err != nil {
-		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return
 	}
 
 	next, err := encodeNextCursor(result.Next)
 	if err != nil {
-		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return
 	}
 

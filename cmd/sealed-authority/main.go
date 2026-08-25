@@ -19,7 +19,7 @@ import (
 
 func main() {
 	listen := flag.String("listen", "127.0.0.1:8099", "service address")
-	storePath := flag.String("store", "sealed-repodb", "service-owned OvergoDB")
+	storePath := flag.String("store", "sealed-overgodb", "service-owned OvergoDB")
 	publicText := flag.String("public-key", "", "base64 Ed25519 authority public key")
 	maxRequestBytes := flag.Int64("max-request-bytes", 0, "required signed-request byte bound")
 	readHeaderTimeout := flag.Duration("read-header-timeout", 0, "required HTTP header timeout")

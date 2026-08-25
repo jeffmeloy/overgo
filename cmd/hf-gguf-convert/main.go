@@ -20,7 +20,7 @@ func main() {
 	record := flag.String("record", "", "OvergoDB root: commit the extracted model-config declaration bound to the converted artifact")
 	flag.Parse()
 	if *source == "" || (*output == "" && *projector == "") || flag.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "usage: hf-gguf-convert -source checkpoint-directory [-output model.gguf] [-mmproj mmproj.gguf] [-name name] [-record repodb]")
+		fmt.Fprintln(os.Stderr, "usage: hf-gguf-convert -source checkpoint-directory [-output model.gguf] [-mmproj mmproj.gguf] [-name name] [-record overgodb]")
 		os.Exit(2)
 	}
 	if *record != "" && *output == "" {

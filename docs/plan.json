@@ -1,7 +1,7 @@
 {
   "campaign": "Deletion-led production composability, durable agent execution, and RepoDB tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Modelrecipe owns component sessions; recipe owns topology and policy; workflowruntime owns stage execution; operation owns lifecycle; runrecord and OvergoDB own immutable facts; inference owns model math; server owns protocols and GUI. ADK is a behavior inventory and oracle, never a dependency or second runtime. No second workflow graph, plugin callback mesh, mutable property bag, string branch authority, duplicate session or artifact store, wrapper, fallback, or advisory execution plan. Compact OvergoDB before adding event volume: remove duplicate indexes and payload copies, stream durable writes, expose bounded projected queries, and retain one refreshable browse owner. Each capability wave migrates every caller and deletes the displaced ephemeral owner in the same commit. Retry, concurrency, context, and retention policy derive from recipes, resource plans, requests, or measured evidence. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:8396c6795c1a2a14d55c24cde5bb65e2961c60c697115201f04ac485a37d3a19",
+  "census_evidence": "evidence:sha256:05b39f608c2f5b6c440a0894b2b0394c1687534a0aea3ab8c33fbbf4197c432a",
   "items": [
     {
       "id": "merge-222ed4ea7548",
@@ -2784,12 +2784,12 @@
       "id": "research-merge-reconcile",
       "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
-          "status": "open",
+          "status": "done",
           "verify": "go build ./... \u0026\u0026 go test ./internal/agentloop ./internal/agenttool ./internal/workflowruntime -count=1"
         }
       ]
@@ -2841,6 +2841,433 @@
           "verify": "go test ./internal/agentloop -count=1",
           "depends_on": [
             "research-merge-reconcile/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "orchestration-authority",
+      "title": "Establish immutable automation authority and compile it into existing workflow plans",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "definition-contract",
+          "title": "Define and publish automation definitions, trigger and delivery policy identities, active aliases, and bounded OvergoDB queries through existing recipe and run-record owners",
+          "status": "done",
+          "verify": "rg -q 'func TestAutomationDefinition' internal \u0026\u0026 rg -q 'func TestAutomationActivation' internal \u0026\u0026 go test ./internal/recipe ./internal/workflowcontract ./internal/runrecord -run 'TestAutomationDefinition|TestAutomationActivation' -count=1",
+          "rationale": "Automation needs one immutable source of truth before runtime or GUI work. Definitions reference existing recipe, model, dataset, capability-bundle, trigger-policy, and delivery-policy artifacts instead of embedding mutable configuration or creating another store.",
+          "capabilities": [
+            "overgodb-authority",
+            "immutable-automation-definition",
+            "active-alias",
+            "strict-validation",
+            "bounded-projection"
+          ]
+        },
+        {
+          "id": "execution-plan",
+          "title": "Compile the active automation definition into a deterministic AutomationExecutionPlan over the existing recipe graph, operation policy, resources, triggers, and deliveries",
+          "status": "done",
+          "verify": "rg -q 'func TestCompileAutomationExecutionPlan' internal \u0026\u0026 go test ./internal/recipe ./internal/workflowcontract ./internal/workflowruntime -run 'TestCompileAutomationExecutionPlan|TestAutomationExecutionPlanRefuses' -count=1",
+          "rationale": "Runtime must receive one complete, immutable plan and hard-fail missing aliases, incompatible recipes, unsupported triggers, unapproved deliveries, stale artifacts, or incomplete resource authority. Direct construction paths are prohibited.",
+          "depends_on": [
+            "orchestration-authority/definition-contract"
+          ],
+          "capabilities": [
+            "typed-execution-plan",
+            "deterministic-cache-identity",
+            "hard-refusal",
+            "policy-derivation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "orchestration-runtime",
+      "title": "Execute manual and scheduled automation through common operation and workflow owners",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "manual-execution",
+          "title": "Run one active automation end to end through operation admission, workflowruntime stages, stage receipts, durable outputs, cancellation, and restart recovery",
+          "status": "done",
+          "verify": "rg -q 'func TestAutomationManualExecution' internal \u0026\u0026 go test ./internal/operation ./internal/workflowruntime ./internal/runrecord -run 'TestAutomationManualExecution|TestAutomationCancellation|TestAutomationRecovery' -count=1",
+          "rationale": "This is the first production vertical and proves the common authority without a second job runner. Every run reuses the existing operation identity, stage receipts, human decisions, attempts, and artifact lineage.",
+          "depends_on": [
+            "orchestration-authority/execution-plan"
+          ],
+          "capabilities": [
+            "manual-trigger",
+            "durable-operation",
+            "cancellation",
+            "restart-recovery",
+            "stage-lineage"
+          ]
+        },
+        {
+          "id": "scheduled-execution",
+          "title": "Add recipe-owned schedule triggers with a single durable claim, injectable clock, missed-run policy, and duplicate-fire refusal",
+          "status": "done",
+          "verify": "rg -q 'func TestAutomationSchedule' internal \u0026\u0026 go test ./internal/operation ./internal/workflowruntime ./internal/runrecord -run 'TestAutomationSchedule|TestAutomationScheduleClaim|TestAutomationScheduleRecovery' -count=1",
+          "rationale": "Scheduling is orchestration, not a parallel runtime. Schedule parsing and due-time calculation belong to the typed trigger contract; claims and outcomes belong to OvergoDB; execution remains an ordinary operation. Timing and catch-up behavior come from policy identities, not literals.",
+          "depends_on": [
+            "orchestration-runtime/manual-execution"
+          ],
+          "capabilities": [
+            "scheduled-trigger",
+            "durable-claim",
+            "duplicate-suppression",
+            "missed-run-policy",
+            "deterministic-clock-testing"
+          ]
+        },
+        {
+          "id": "effect-delivery",
+          "title": "Deliver automation outputs only through effect-classified tools with allowlisted destinations, approval recovery, attempt evidence, and idempotency identity",
+          "status": "done",
+          "verify": "rg -q 'func TestAutomationDelivery' internal \u0026\u0026 go test ./internal/agenttool ./internal/workflowruntime ./internal/runrecord -run 'TestAutomationDelivery|TestAutomationDeliveryApproval|TestAutomationDeliveryRefusesDestination|TestAutomationDeliveryIdempotency' -count=1",
+          "rationale": "Webhook-style delivery is useful but must not become an unrestricted HTTP side door. Existing tool manuals, effect classes, decisions, operations, and serving observations provide the reusable safety and evidence path.",
+          "depends_on": [
+            "orchestration-runtime/manual-execution"
+          ],
+          "capabilities": [
+            "effect-authorized-delivery",
+            "destination-policy",
+            "human-approval",
+            "idempotent-attempt",
+            "delivery-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "orchestration-workspace",
+      "title": "Prove common route, schema-form, and lifecycle components with the automation workspace",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "workspace-manifest",
+          "title": "Replace duplicated navigation and capability checks with one server-owned workspace manifest consumed by the embedded modular GUI",
+          "status": "done",
+          "verify": "rg -q 'func TestWorkspaceManifest' internal/server \u0026\u0026 go test ./internal/server -run 'TestWorkspaceManifest|TestWorkspaceManifestCapabilityRefusal|TestWebUIWorkspaceRoutes' -count=1",
+          "rationale": "Overgo should retain its dependency-light embedded GUI, but list/detail/editor routes, visibility, capability gates, and active navigation need one owner before orchestration expands. This does not authorize a framework migration.",
+          "depends_on": [
+            "orchestration-runtime/manual-execution"
+          ],
+          "capabilities": [
+            "route-addressable-workspaces",
+            "single-navigation-authority",
+            "capability-gating",
+            "embedded-gui"
+          ]
+        },
+        {
+          "id": "schema-form",
+          "title": "Publish typed field metadata and implement one reusable form renderer with identities, enums, units, constraints, applicability, validation, and unsaved-change protection",
+          "status": "done",
+          "verify": "rg -q 'func TestWorkspaceSchema' internal/server \u0026\u0026 go test ./internal/server -run 'TestWorkspaceSchema|TestWorkspaceFormRenderer|TestWorkspaceUnsavedChanges' -count=1",
+          "rationale": "The automation editor is the proving consumer. Metadata is projected from Go contracts; the browser must not duplicate defaults, limits, enum lists, model facts, or policy constants. A second consumer is forbidden until this vertical is working.",
+          "depends_on": [
+            "orchestration-workspace/workspace-manifest",
+            "orchestration-authority/definition-contract"
+          ],
+          "capabilities": [
+            "server-published-schema",
+            "common-form-renderer",
+            "no-frontend-policy-literals",
+            "unsaved-change-guard"
+          ]
+        },
+        {
+          "id": "automation-api-gui",
+          "title": "Expose automation inventory, definition editing, activation, manual execution, schedules, deliveries, run history, cancellation, decisions, outputs, and refusal reasons through API and GUI",
+          "status": "done",
+          "verify": "rg -q 'func TestAutomationWorkspaceVertical' internal/server \u0026\u0026 go test ./internal/server -run 'TestAutomationWorkspaceVertical|TestAutomationWorkspaceSSE|TestAutomationWorkspaceRefusal|TestAutomationWorkspaceNoDirectExecutor' -count=1",
+          "rationale": "The UI is a projection and control surface over authoritative contracts and existing runtime operations. It must deep-link definitions, recipes, operations, attempts, decisions, stage receipts, artifacts, and deliveries without owning hidden state.",
+          "depends_on": [
+            "orchestration-workspace/schema-form",
+            "orchestration-runtime/scheduled-execution",
+            "orchestration-runtime/effect-delivery"
+          ],
+          "capabilities": [
+            "automation-inventory",
+            "automation-editor",
+            "run-control",
+            "history-and-evidence",
+            "api-gui-parity",
+            "sse-lifecycle"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "operations-observability",
+      "title": "Make operation and serving evidence globally visible without a second trace authority",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "bounded-projections",
+          "title": "Add bounded projected queries and summaries over operations, stage receipts, serving observations, interactions, resources, and decisions",
+          "status": "done",
+          "verify": "rg -q 'func TestOperationEvidenceProjection' internal \u0026\u0026 go test ./internal/runrecord ./internal/operation ./internal/server -run 'TestOperationEvidenceProjection|TestOperationSummary|TestOperationProjectionBounds|TestTracePayloadRedaction' -count=1",
+          "rationale": "Overgo already records the authoritative facts. The missing capability is a bounded join and summary projection, not another mutable trace buffer or copied request/response database. Heavy or sensitive payloads remain artifact references and require explicit retrieval.",
+          "depends_on": [
+            "orchestration-runtime/manual-execution"
+          ],
+          "capabilities": [
+            "bounded-operation-query",
+            "latency-and-error-summary",
+            "trace-linkage",
+            "payload-redaction",
+            "evidence-projection"
+          ]
+        },
+        {
+          "id": "global-operation-shell",
+          "title": "Add a persistent global operation strip and route-addressable detail view for progress, blocked decisions, cancellation, recovery, failures, attempts, resources, outputs, and trace links",
+          "status": "done",
+          "verify": "rg -q 'func TestGlobalOperationShell' internal/server \u0026\u0026 go test ./internal/server -run 'TestGlobalOperationShell|TestGlobalOperationShellSSE|TestGlobalOperationDecisionRecovery|TestGlobalOperationTerminalState' -count=1",
+          "rationale": "Long-running work must remain visible across navigation. The shell consumes the existing SSE stream and durable operation state; it never polls, infers cancellation client-side, or maintains a browser-only terminal history.",
+          "depends_on": [
+            "operations-observability/bounded-projections",
+            "orchestration-workspace/workspace-manifest"
+          ],
+          "capabilities": [
+            "global-progress",
+            "blocked-decision-control",
+            "deep-linked-operation-detail",
+            "sse-only-lifecycle",
+            "durable-terminal-state"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "peer-control-plane",
+      "title": "Turn remote peer capability facts into an identity-bound whole-model serving control plane",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "peer-lifecycle-authority",
+          "title": "Add per-peer enrollment identity, approval, capability publication, heartbeat leases, administrative states, drain and retirement authority to OvergoDB",
+          "status": "done",
+          "verify": "rg -q 'func TestPeerLifecycleAuthority' internal \u0026\u0026 go test ./internal/modelrecipe ./internal/capabilityruntime ./internal/runrecord -run 'TestPeerLifecycleAuthority|TestPeerIdentityBinding|TestPeerLeaseExpiry|TestPeerDrainRefusal' -count=1",
+          "rationale": "The existing remote peer authority proves compatibility for one request but does not own node lifecycle. Steady-state mutations must authenticate the enrolled peer identity and bind every capability update and heartbeat to it; a shared enrollment credential is insufficient.",
+          "depends_on": [
+            "operations-observability/bounded-projections"
+          ],
+          "capabilities": [
+            "peer-enrollment",
+            "per-peer-identity",
+            "heartbeat-lease",
+            "approval-and-drain",
+            "immutable-peer-evidence"
+          ]
+        },
+        {
+          "id": "placement-plan",
+          "title": "Compile deterministic whole-model placement and replica plans from active recipes, peer compatibility, artifact locality, residency, observed resources, and requested service policy",
+          "status": "done",
+          "verify": "rg -q 'func TestCompilePeerPlacementPlan' internal \u0026\u0026 go test ./internal/modelrecipe ./internal/capabilityruntime -run 'TestCompilePeerPlacementPlan|TestPeerPlacementRefusalReasons|TestPeerPlacementArtifactLocality|TestPeerReplicaPolicyDerivation' -count=1",
+          "rationale": "Eligibility precedes ranking. The compiler must explain admission and refusal, preserve exact artifact and recipe identities, and derive replica and resource decisions without endpoint-order fallback or hard-coded VRAM thresholds.",
+          "depends_on": [
+            "peer-control-plane/peer-lifecycle-authority"
+          ],
+          "capabilities": [
+            "whole-model-placement",
+            "replica-plan",
+            "artifact-locality",
+            "resource-derived-selection",
+            "refusal-explanation"
+          ]
+        },
+        {
+          "id": "replica-reconciliation",
+          "title": "Reconcile placement plans through existing operations with artifact staging, load, zero-active-lease unload, drain completion, retry evidence, and restart recovery",
+          "status": "done",
+          "verify": "rg -q 'func TestPeerReplicaReconciliation' internal \u0026\u0026 go test ./internal/capabilityruntime ./internal/workflowruntime ./internal/operation -run 'TestPeerReplicaReconciliation|TestPeerArtifactStaging|TestPeerZeroLeaseUnload|TestPeerDrainCompletion|TestPeerReconcileRecovery' -count=1",
+          "rationale": "The first distributed target is horizontal whole-model serving, not layer sharding. Reconciliation uses the existing operation manager and session director; it must not introduce a second job queue or evict active sessions.",
+          "depends_on": [
+            "peer-control-plane/placement-plan"
+          ],
+          "capabilities": [
+            "replica-reconciliation",
+            "artifact-staging",
+            "safe-unload",
+            "drain-completion",
+            "remote-recovery"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "peer-workspace",
+      "title": "Expose peer lifecycle, placement, capacity, and evidence through the common operator workbench",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "peer-api",
+          "title": "Add typed peer inventory, enrollment, approval, heartbeat, drain, placement, reconciliation, capacity, artifact, attempt, and log projections",
+          "status": "done",
+          "verify": "rg -q 'func TestPeerControlAPI' internal/server \u0026\u0026 go test ./internal/server -run 'TestPeerControlAPI|TestPeerControlAuthorization|TestPeerControlProjectionBounds|TestPeerControlRefusalReasons' -count=1",
+          "rationale": "Endpoints project existing peer, placement, operation, session, and serving evidence. They do not become a mutable registry and must enforce administrative versus peer-scoped capabilities explicitly.",
+          "depends_on": [
+            "peer-control-plane/replica-reconciliation"
+          ],
+          "capabilities": [
+            "peer-control-api",
+            "scoped-authorization",
+            "bounded-peer-projection",
+            "placement-explanation"
+          ]
+        },
+        {
+          "id": "peer-gui",
+          "title": "Add peer inventory, detail, capacity, labels, placement rules, staging progress, drain controls, attempts, refusal explanations, and logs using the common manifest, forms, operation shell, and SSE stream",
+          "status": "done",
+          "verify": "rg -q 'func TestPeerWorkspaceVertical' internal/server \u0026\u0026 go test ./internal/server -run 'TestPeerWorkspaceVertical|TestPeerWorkspaceUsesCommonForm|TestPeerWorkspaceUsesGlobalOperations|TestPeerWorkspaceSSE' -count=1",
+          "rationale": "This is the second consumer that validates the common workspace components. It must reuse schema forms and operation views rather than cloning LocalAI's node UI, adding a peer-specific poller, or embedding placement constants.",
+          "depends_on": [
+            "peer-workspace/peer-api",
+            "operations-observability/global-operation-shell",
+            "orchestration-workspace/schema-form"
+          ],
+          "capabilities": [
+            "peer-inventory",
+            "placement-editor",
+            "capacity-and-artifact-view",
+            "drain-control",
+            "remote-attempt-evidence",
+            "common-component-reuse"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "agent-workspace",
+      "title": "Build durable agent configuration and retrieval on automation, dataset, capability-bundle, and interaction owners",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "agent-authority",
+          "title": "Add immutable agent definitions and active aliases referencing prompt, model recipe, tool manuals, capability bundles, datasets, automation definitions, and policy identities",
+          "status": "done",
+          "verify": "rg -q 'func TestAgentDefinitionAuthority' internal \u0026\u0026 go test ./internal/agentloop ./internal/agenttool ./internal/runrecord -run 'TestAgentDefinitionAuthority|TestAgentActivation|TestAgentCapabilityRefusal|TestAgentPauseResumeAuthority' -count=1",
+          "rationale": "The current agent endpoint coordinates a session and registered tools but does not own durable agent configuration. Definitions compose existing authorities; they do not create a filesystem skill store, arbitrary plugin loader, or mutable personality object.",
+          "depends_on": [
+            "orchestration-runtime/manual-execution"
+          ],
+          "capabilities": [
+            "durable-agent-definition",
+            "active-agent-alias",
+            "tool-and-capability-binding",
+            "pause-resume-authority"
+          ]
+        },
+        {
+          "id": "retrieval-projection",
+          "title": "Add dataset-derived chunk and embedding identities plus a rebuildable retrieval index projection with citations, reranking, and exact lineage",
+          "status": "done",
+          "verify": "rg -q 'func TestAgentRetrievalProjection' internal \u0026\u0026 go test ./internal/dataset ./internal/agentloop ./internal/runrecord -run 'TestAgentRetrievalProjection|TestAgentRetrievalCitation|TestAgentRetrievalRebuild|TestAgentRetrievalIdentityMismatch' -count=1",
+          "rationale": "OvergoDB remains authority for datasets, chunks, embedding recipes, and lineage; the similarity index is a derived cache that can be rebuilt. Existing embedding and reranking capabilities are reused instead of adding a second vector database or RAG store.",
+          "depends_on": [
+            "agent-workspace/agent-authority"
+          ],
+          "capabilities": [
+            "dataset-backed-retrieval",
+            "rebuildable-vector-index",
+            "citation-lineage",
+            "reranking",
+            "identity-safe-cache"
+          ]
+        },
+        {
+          "id": "agent-api-gui",
+          "title": "Expose agent inventory, typed editing, activation, pause and resume, chat, automation attachment, retrieval evidence, tools, decisions, and structured observables through API and GUI",
+          "status": "done",
+          "verify": "rg -q 'func TestAgentWorkspaceVertical' internal/server \u0026\u0026 go test ./internal/server ./internal/agentloop -run 'TestAgentWorkspaceVertical|TestAgentWorkspaceSSE|TestAgentWorkspaceRetrievalEvidence|TestAgentWorkspaceAutomationAttachment|TestAgentWorkspaceNoHiddenReasoning' -count=1",
+          "rationale": "The UI shows structured lifecycle, tool, retrieval, decision, and artifact eventsâ€”not hidden model reasoning. It reuses the workspace manifest, schema form, operation shell, interaction ledger, and automation runtime.",
+          "depends_on": [
+            "agent-workspace/retrieval-projection",
+            "orchestration-workspace/automation-api-gui",
+            "operations-observability/global-operation-shell"
+          ],
+          "capabilities": [
+            "agent-inventory-and-editor",
+            "agent-chat",
+            "structured-observables",
+            "retrieval-evidence",
+            "automation-attachment",
+            "api-gui-parity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "orchestration-validation",
+      "title": "Validate production orchestration, browser behavior, recovery, concurrency, and ownership closure",
+      "owner": "research",
+      "status": "done",
+      "steps": [
+        {
+          "id": "production-verticals",
+          "title": "Run real manual and scheduled automation plus remote whole-model placement through active authority, API, GUI projections, operations, restart recovery, and evidence publication",
+          "status": "done",
+          "verify": "rg -q 'func TestOrchestrationProductionVerticals' internal \u0026\u0026 go test ./internal/server ./internal/workflowruntime ./internal/capabilityruntime -run 'TestOrchestrationProductionVerticals|TestOrchestrationRestartRecovery|TestOrchestrationAuthorityRefusals' -count=1",
+          "rationale": "Mocks can prove contracts but cannot close the capability campaign. The final verticals must use active definitions and aliases, actual OvergoDB persistence, existing operation/workflow owners, one enrolled remote peer, and exact lineage from request to output.",
+          "depends_on": [
+            "peer-workspace/peer-gui",
+            "agent-workspace/agent-api-gui"
+          ],
+          "capabilities": [
+            "production-automation",
+            "production-remote-placement",
+            "restart-recovery",
+            "authority-refusal",
+            "end-to-end-lineage"
+          ]
+        },
+        {
+          "id": "webui-lane",
+          "title": "Add and run an Overgo-owned browser acceptance lane for routing, narrow and desktop layouts, schema forms, unsaved changes, SSE progress, decisions, cancellation, recovery, and accessibility semantics",
+          "status": "done",
+          "verify": "test -d cmd/webui-lane \u0026\u0026 go run ./cmd/webui-lane",
+          "rationale": "Static asset tests do not prove browser interaction. The lane is an Overgo test tool, not LocalAI frontend code or a production runtime dependency, and it must fail rather than silently skip when a changed GUI surface lacks its browser prerequisite.",
+          "depends_on": [
+            "orchestration-validation/production-verticals"
+          ],
+          "capabilities": [
+            "browser-acceptance",
+            "responsive-layout",
+            "streaming-interaction",
+            "form-safety",
+            "accessibility-semantics"
+          ]
+        },
+        {
+          "id": "ownership-closure",
+          "title": "Prove concurrency and restart safety, remove displaced constructors and local state, enforce OvergoDB-only repository authority, verify common-component reuse, and close LocalAI and magic dependency surfaces",
+          "status": "done",
+          "verify": "go run ./cmd/test-lane ./... \u0026\u0026 go vet ./... \u0026\u0026 go run ./cmd/race-lane \u0026\u0026 go run ./cmd/closure-scan -check-all -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts \u0026\u0026 ! rg -n -i 'localai|github.com/mudler/localai' -- go.mod go.sum internal cmd scripts \u0026\u0026 ! rg -n 'RepoDB (owner|authority|catalog|persistence|root|mutations)' -- internal cmd",
+          "rationale": "Completion is behavioral and structural: OvergoDB is the sole repository authority, with one authority per fact, one lifecycle owner, one scheduler path, one route/schema/form system, one operation stream, no browser-only truth, no direct automation or peer executor, no copied LocalAI implementation, and no new unexplained policy literals.",
+          "depends_on": [
+            "orchestration-validation/webui-lane"
+          ],
+          "capabilities": [
+            "race-safety",
+            "restart-safety",
+            "single-authority",
+            "overgodb-only-authority",
+            "common-component-closure",
+            "no-localai-dependency",
+            "magic-closure"
           ]
         }
       ]

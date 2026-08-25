@@ -1,4 +1,4 @@
-// dataset-catalog publishes the legacy dataset inventory into RepoDB.
+// dataset-catalog publishes the legacy dataset inventory into OvergoDB.
 package main
 
 import (

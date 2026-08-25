@@ -25,7 +25,7 @@ var binding = routedlm.RxBrainBinding()
 
 // Role literals of this checkpoint's prompt specials; sourced from its
 // tokenizer_config.json added_tokens_decoder role assignments (the reference
-// repodb profile facts, derivation tokenizer-special-token-role/v1).
+// OvergoDB profile facts, derivation tokenizer-special-token-role/v1).
 var promptRoles = routedlm.PromptRoleLiterals{
 	BOS:        "<\uFF5Chy_begin\u2581of\u2581sentence\uFF5C>",
 	EOS:        "<\uFF5Chy_end\u2581of\u2581sentence\uFF5C>",

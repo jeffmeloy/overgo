@@ -69,6 +69,11 @@ func NewStageReceipt(value StageReceipt) (StageReceipt, error) {
 	return stageReceiptCodec.New(value)
 }
 
+// ParseStageReceipt decodes and validates one immutable stage transition.
+func ParseStageReceipt(content []byte) (StageReceipt, error) {
+	return stageReceiptCodec.Parse(content)
+}
+
 // ResolveStageReceipt returns the latest receipt for one operation node.
 func ResolveStageReceipt(
 	ctx context.Context,

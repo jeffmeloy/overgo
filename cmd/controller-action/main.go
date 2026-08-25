@@ -4,8 +4,8 @@
 // unrepresentable, and the executor is deterministic Go -- no code, no shell,
 // no runtime orchestration.
 //
-//	go run ./cmd/controller-action -action <action.json> -record <repodb>
-//	go run ./cmd/controller-action -action <action.json> -record <repodb> -source <model-id>=<directory> -output <directory>
+//	go run ./cmd/controller-action -action <action.json> -record <overgodb>
+//	go run ./cmd/controller-action -action <action.json> -record <overgodb> -source <model-id>=<directory> -output <directory>
 package main
 
 import (
@@ -42,7 +42,7 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	if flags.NArg() != 0 || *actionPath == "" || *recordStore == "" || (*outputPath == "") != (len(sources) == 0) {
-		return errors.New("usage: controller-action -action <action.json> -record <repodb> [-source MODEL_ID=DIRECTORY ... -output DIRECTORY]")
+		return errors.New("usage: controller-action -action <action.json> -record <overgodb> [-source MODEL_ID=DIRECTORY ... -output DIRECTORY]")
 	}
 	data, err := os.ReadFile(*actionPath)
 	if err != nil {

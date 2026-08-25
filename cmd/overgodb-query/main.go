@@ -35,7 +35,7 @@ func main() {
 }
 
 func run(args []string, output io.Writer) error {
-	flags := flag.NewFlagSet("repodb-query", flag.ContinueOnError)
+	flags := flag.NewFlagSet("overgodb-query", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	repository := flags.String("repo", "", "OvergoDB root")
 	kindText := flags.String("kind", "", "artifact kind")
@@ -69,7 +69,7 @@ func run(args []string, output io.Writer) error {
 	}
 	var emptyResultBound int
 	if flags.NArg() != emptyResultBound || strings.TrimSpace(*repository) == "" || *limit <= emptyResultBound {
-		return errors.New("usage: repodb-query -repo <path> [filters]")
+		return errors.New("usage: overgodb-query -repo <path> [filters]")
 	}
 	if *servable {
 		return writeServable(output, *repository, *limit)
@@ -626,7 +626,7 @@ func writeContent(output io.Writer, repository, idText string) error {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("repodb-query: no committed content for %s", id)
+		return fmt.Errorf("overgodb-query: no committed content for %s", id)
 	}
 	_, err = output.Write(content.Data)
 	return err
@@ -837,7 +837,7 @@ func parseFollow(value string) (overgodb.FollowDirection, error) {
 	case "both":
 		return overgodb.FollowBoth, nil
 	default:
-		return overgodb.FollowNone, fmt.Errorf("repodb-query: invalid follow direction %q", value)
+		return overgodb.FollowNone, fmt.Errorf("overgodb-query: invalid follow direction %q", value)
 	}
 }
 

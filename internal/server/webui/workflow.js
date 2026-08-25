@@ -46,7 +46,13 @@
     };
   }
 
-  window.overgo.runtimeEvents = { subscribe };
+  function restart() {
+    if (streamController) streamController.abort();
+    streamController = null;
+    if (subscribers.size) connect();
+  }
+
+  window.overgo.runtimeEvents = { subscribe, restart };
   window.overgo.waitOperation = function (id, observe, signal) {
     return new Promise((resolve, reject) => {
       let unsubscribe = function () {};
@@ -76,8 +82,6 @@
   window.overgo.workflowWorkspace = function (definition) {
     window.overgo.registerTab({
       id: definition.id,
-      label: definition.label,
-      section: definition.section,
       async mount(panel, overgo) {
         const { api, el, clear, fmt } = overgo;
         clear(panel);

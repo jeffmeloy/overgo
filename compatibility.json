@@ -863,7 +863,7 @@
      "contains": "func PublishInteraction(",
      "path": "internal/runrecord/interaction.go",
      "role": "source",
-     "identity": "file:sha256:95ba30fe40c5fb2d13a34f687ef806a59032679b1a37772d1685627a865390a9"
+     "identity": "file:sha256:697ee0d754f49fe7eac105638197adff90cdc0d40879d81f90dbc1defcaee8bc"
     },
     {
      "contains": "func TestResponsesContinuationRestart(",
@@ -995,13 +995,13 @@
      "contains": "func createArchive(",
      "path": "cmd/release/main.go",
      "role": "source",
-     "identity": "file:sha256:be18ad2a2fd0071eefb557703dfaa889b82e02be498ed57427046bf959276e57"
+     "identity": "file:sha256:08c7cf2ab1690d1c3be0d7177ebe6862cae22758df71f0a79f519465cdd97b1c"
     },
     {
      "contains": "func TestCreateArchiveIsDeterministic(",
      "path": "cmd/release/main_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:416c7c63d09c4bc0b21e971fd948505737f8f344e4a4dfa9ea7f7070a001f137"
+     "identity": "evidence:sha256:bae811c5dd9359ad5bb94ca447aa5110c7e30700fefe539a0724776dc4e1c8a9"
     }
    ],
    "id": "reproducible-release",
@@ -1065,7 +1065,7 @@
      "contains": "func (h *Handler) browseDatasets(",
      "path": "internal/server/browse_datasets.go",
      "role": "source",
-     "identity": "file:sha256:4dd52db58b27668de0fca9607ecc2e313ae566fc38588b718f514093227b5a5f"
+     "identity": "file:sha256:411ed76fc013d6d0ddecdb32c9efe6c6891b05e04849d049270aaff26808c2d6"
     },
     {
      "contains": "func TestBrowseDatasetsUsesCatalog(",
@@ -1086,7 +1086,7 @@
      "contains": "func (h *Handler) browseRuns(",
      "path": "internal/server/browse_runs.go",
      "role": "source",
-     "identity": "file:sha256:34f02dbccd6fddd6d6d3383a9e93e089e0d55e218268d97a4065e04635e9dd3e"
+     "identity": "file:sha256:f0a69ef2dc4142e56da2a3c60cf99132d1c50200324d9cf9562c97085cc22832"
     },
     {
      "contains": "func TestBrowseRunsReadsOvergoDBRecords(",

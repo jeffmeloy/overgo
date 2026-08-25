@@ -25,6 +25,11 @@ const (
 	hostRacePattern   = "./internal/..."
 	sanitizerTool     = "compute-sanitizer"
 	deviceRacePackage = "./internal/cuda/executor"
+	localRaceCompiler = ".tools/llvm-mingw/bin/x86_64-w64-mingw32-clang.exe"
+	// Race instrumentation makes the real synthetic VAE workload exceed Go's
+	// default package timeout on the reference Windows host. Keep the full
+	// workload and give every package a bounded, evidence-derived allowance.
+	hostRaceTimeout = 30 * time.Minute
 )
 
 var deviceRaceTools = []string{"racecheck", "synccheck"}
@@ -66,13 +71,13 @@ func sanitizerCmd(tool, bin string, args ...string) []string {
 }
 
 func hostRace() error {
-	cc := cCompiler()
-	if _, err := exec.LookPath(cc); err != nil {
-		return unavailable("host", fmt.Sprintf("C compiler %q not found; the race detector needs cgo", cc))
+	cc, err := cCompiler()
+	if err != nil {
+		return unavailable("host", err.Error())
 	}
-	cmd := []string{"go", "test", "-race", "-count=1", hostRacePattern}
+	cmd := []string{"go", "test", "-race", "-count=1", "-timeout", hostRaceTimeout.String(), hostRacePattern}
 	began := time.Now()
-	out, err := clioptions.CombinedOutput(append(os.Environ(), "CGO_ENABLED=1"), cmd[0], cmd[1:]...)
+	out, err := clioptions.CombinedOutput(append(os.Environ(), "CGO_ENABLED=1", "CC="+cc), cmd[0], cmd[1:]...)
 	report("host", hostRacePattern, began, err)
 	if err != nil {
 		fmt.Print(out)
@@ -116,14 +121,34 @@ func deviceRace() error {
 	return nil
 }
 
-func cCompiler() string {
+func cCompiler() (string, error) {
 	out, err := clioptions.CombinedOutput(os.Environ(), "go", "env", "CC")
+	configured := "gcc"
 	if err == nil {
 		if cc := strings.TrimSpace(out); cc != "" {
-			return cc
+			configured = cc
 		}
 	}
-	return "gcc"
+	moduleRoot := ""
+	if out, err = clioptions.CombinedOutput(os.Environ(), "go", "env", "GOMOD"); err == nil {
+		if module := strings.TrimSpace(out); module != "" && module != os.DevNull {
+			moduleRoot = filepath.Dir(module)
+		}
+	}
+	return selectCompiler(configured, moduleRoot, exec.LookPath)
+}
+
+func selectCompiler(configured, moduleRoot string, lookPath func(string) (string, error)) (string, error) {
+	candidates := []string{configured}
+	if moduleRoot != "" {
+		candidates = append(candidates, filepath.Join(moduleRoot, filepath.FromSlash(localRaceCompiler)))
+	}
+	for _, candidate := range candidates {
+		if resolved, findErr := lookPath(candidate); findErr == nil {
+			return resolved, nil
+		}
+	}
+	return "", fmt.Errorf("c compiler unavailable (checked configured %q and worktree-local %q); the race detector needs cgo", configured, localRaceCompiler)
 }
 
 func unavailable(lane, why string) error {

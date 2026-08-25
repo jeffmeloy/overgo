@@ -68,7 +68,7 @@ func (h *Handler) previewDataset(response http.ResponseWriter, request *http.Req
 	writeJSON(response, http.StatusOK, preview)
 }
 
-// browseDatasets serves the active RepoDB dataset catalog.
+// browseDatasets serves the active OvergoDB dataset catalog.
 func (h *Handler) browseDatasets(response http.ResponseWriter, request *http.Request) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return
@@ -79,7 +79,7 @@ func (h *Handler) browseDatasets(response http.ResponseWriter, request *http.Req
 	}
 	coverage, err := dataset.InspectCatalog(request.Context(), store)
 	if err != nil {
-		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return
 	}
 	if coverage.Catalog == nil {

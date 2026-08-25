@@ -23,7 +23,7 @@ func main() {
 func run(args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("profile-catalog", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	repository := flags.String("repo", "", "RepoDB root")
+	repository := flags.String("repo", "", "OvergoDB root")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}

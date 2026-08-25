@@ -262,8 +262,8 @@ func collectContextFacts(role string) (plan.ContextFacts, error) {
 }
 
 func authoritativeContextEvidence(worktree, head string) (plan.EvidenceDebt, plan.WorkflowContext) {
-	const debtSource = "repodb:repodb-store"
-	const workflowSource = "git:HEAD+repodb:repodb-store"
+	const debtSource = "overgodb:overgodb-store"
+	const workflowSource = "git:HEAD+overgodb:overgodb-store"
 	unavailable := func(reason string) (plan.EvidenceDebt, plan.WorkflowContext) {
 		return plan.EvidenceDebt{State: "unknown", Source: debtSource, Reason: reason},
 			plan.WorkflowContext{Phase: string(runrecord.ReviewPhaseImplementation), Source: workflowSource, Reason: reason}

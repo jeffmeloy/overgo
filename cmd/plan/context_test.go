@@ -24,7 +24,7 @@ func TestAutomationContextSnapshotEncoding(t *testing.T) {
 		Head: "0123456789abcdef0123456789abcdef01234567", Branch: "codex/automation",
 		Worktree: "C:/repo", Role: "sqa",
 		EvidenceDebt: plan.EvidenceDebt{State: "possible", Source: "bin/gate_status.json", Reason: "fixture"},
-		Workflow:     plan.WorkflowContext{Phase: "sqa", Source: "git:HEAD+repodb:repodb-store"},
+		Workflow:     plan.WorkflowContext{Phase: "sqa", Source: "git:HEAD+overgodb:overgodb-store"},
 	}
 	context, err := plan.BuildAutomationContext(document, facts)
 	if err != nil {
@@ -78,7 +78,7 @@ func TestGateDebtAutomationContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	debt, _ := authoritativeContextEvidence(worktree, "0123456789abcdef0123456789abcdef01234567")
-	if debt.State != "present" || debt.Source != "repodb:repodb-store" || debt.ResultID != prepared.ID.String() {
+	if debt.State != "present" || debt.Source != "overgodb:overgodb-store" || debt.ResultID != prepared.ID.String() {
 		t.Fatalf("authoritative debt = %+v", debt)
 	}
 }

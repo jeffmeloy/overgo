@@ -11,6 +11,7 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
 )
 
@@ -79,7 +80,7 @@ func (h *Handler) agentTools(response http.ResponseWriter, request *http.Request
 			continue
 		}
 		tools = append(tools, agentToolView{
-			Name: manual.Name, Description: manual.Description, Effect: string(manual.Effect),
+			Name: manual.Name, Description: manual.Description, Effect: string(manual.Effect), Manual: manual.ID,
 		})
 	}
 	writeJSON(response, http.StatusOK, map[string]any{
@@ -104,7 +105,7 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
-	if body.Session == "" || body.Tool == "" {
+	if body.Session == "" || body.Tool == "" || request.URL.Path == "/agents/step" && body.Agent == "" {
 		writeError(response, http.StatusBadRequest, "invalid_request", "session and tool are required")
 		return
 	}
@@ -112,12 +113,31 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 	if len(arguments) == 0 {
 		arguments = json.RawMessage(`{}`)
 	}
-	session, err := h.agentSessions.get(request.Context(), h.agentCoordinator, body.Session)
+	sessionID := body.Session
+	var active runrecord.ActiveAgent
+	var err error
+	if body.Agent != "" {
+		active, err = (runrecord.AgentAuthority{Repository: h.repository}).RequireActive(request.Context(), body.Agent)
+		description, described := h.interactionDescription()
+		if err != nil || !described || active.Definition.ModelRecipe != description.Identity.Recipe {
+			writeError(response, http.StatusUnprocessableEntity, "agent_step_refused", "active agent model recipe differs from served runtime")
+			return
+		}
+		sessionID = body.Agent + ":" + body.Session
+	}
+	session, err := h.agentSessions.get(request.Context(), h.agentCoordinator, sessionID)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
 		return
 	}
-	result, err := h.agentCoordinator.Propose(request.Context(), session, body.Tool, arguments, body.Approve)
+	var result json.RawMessage
+	if body.Agent == "" {
+		result, err = h.agentCoordinator.Propose(request.Context(), session, body.Tool, arguments, body.Approve)
+	} else {
+		result, err = h.agentCoordinator.ProposeWithManuals(
+			request.Context(), session, body.Tool, arguments, body.Approve, active.Definition.ToolManuals,
+		)
+	}
 	if err != nil {
 		writeError(response, http.StatusUnprocessableEntity, "agent_step_refused", err.Error())
 		return
@@ -129,13 +149,15 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 }
 
 type agentToolView struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	Effect      string `json:"effect,omitempty"`
-	Stale       string `json:"stale,omitempty"`
+	Name        string      `json:"name"`
+	Description string      `json:"description,omitempty"`
+	Effect      string      `json:"effect,omitempty"`
+	Stale       string      `json:"stale,omitempty"`
+	Manual      artifact.ID `json:"manual,omitzero"`
 }
 
 type agentStepRequest struct {
+	Agent     string          `json:"agent,omitempty"`
 	Session   string          `json:"session"`
 	Tool      string          `json:"tool"`
 	Arguments json.RawMessage `json:"arguments,omitempty"`

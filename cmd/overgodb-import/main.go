@@ -24,7 +24,7 @@ func main() {
 }
 
 func run(args []string, input io.Reader, output io.Writer) error {
-	flags := flag.NewFlagSet("repodb-import", flag.ContinueOnError)
+	flags := flag.NewFlagSet("overgodb-import", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	repositoryPath := flags.String("repo", "", "OvergoDB root")
 	artifactRoot := flags.String("root", "", "root for relative artifact paths")
@@ -32,7 +32,7 @@ func run(args []string, input io.Reader, output io.Writer) error {
 		return err
 	}
 	if flags.NArg() != 0 || *repositoryPath == "" || *artifactRoot == "" {
-		return errors.New("usage: repodb-import -repo <path> -root <path> < export.jsonl")
+		return errors.New("usage: overgodb-import -repo <path> -root <path> < export.jsonl")
 	}
 	store, err := overgodb.Open(*repositoryPath)
 	if err != nil {

@@ -29,8 +29,6 @@
 
   window.overgo.registerTab({
     id: "runtime",
-    label: "Runtime",
-    section: "inference",
     onActivate: activateRuntime,
     onDeactivate: deactivateRuntime,
     async mount(panel, overgo) {
@@ -106,8 +104,6 @@
 
   window.overgo.registerTab({
     id: "activity",
-    label: "Activity",
-    section: "inference",
     onActivate: activateActivity,
     onDeactivate: deactivateActivity,
     async mount(panel, overgo) {

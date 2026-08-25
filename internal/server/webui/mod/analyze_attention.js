@@ -11,9 +11,6 @@
   "use strict";
   window.overgo.registerTab({
     id: "attention",
-    label: "Attention",
-    section: "workbench",
-    requires: "attention",
     async mount(panel, overgo) {
       const { el, clear, displayToken } = overgo;
       clear(panel);

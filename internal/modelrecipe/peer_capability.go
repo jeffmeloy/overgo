@@ -1,6 +1,7 @@
 package modelrecipe
 
 import (
+	"context"
 	"errors"
 	"net/url"
 	"slices"
@@ -30,6 +31,21 @@ type RemotePeerCapability struct {
 	Tasks       []recipe.Task `json:"tasks"`
 	Endpoint    string        `json:"endpoint"`
 	ID          artifact.ID   `json:"-"`
+}
+
+// NewRemotePeerCapability identifies one immutable declared task transport.
+func NewRemotePeerCapability(value RemotePeerCapability) (RemotePeerCapability, error) {
+	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
+	return remotePeerCapabilityCodec.New(value)
+}
+
+// RequireRemotePeerCapability returns one validated immutable declaration.
+func RequireRemotePeerCapability(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (RemotePeerCapability, error) {
+	return remotePeerCapabilityCodec.Require(ctx, reader, id)
 }
 
 func canonicalizeRemotePeerCapability(value *RemotePeerCapability) error {

@@ -213,7 +213,7 @@
         {
           "id": "peer-lifecycle-authority",
           "title": "Add per-peer enrollment identity, approval, capability publication, heartbeat leases, administrative states, drain and retirement authority to RepoDB",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestPeerLifecycleAuthority' internal \u0026\u0026 go test ./internal/modelrecipe ./internal/capabilityruntime ./internal/runrecord -run 'TestPeerLifecycleAuthority|TestPeerIdentityBinding|TestPeerLeaseExpiry|TestPeerDrainRefusal' -count=1",
           "rationale": "The existing remote peer authority proves compatibility for one request but does not own node lifecycle. Steady-state mutations must authenticate the enrolled peer identity and bind every capability update and heartbeat to it; a shared enrollment credential is insufficient.",
           "depends_on": [

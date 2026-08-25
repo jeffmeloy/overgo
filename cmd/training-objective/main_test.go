@@ -76,7 +76,7 @@ func TestObjectivePublishesTextToVideoPair(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if document.Kind != trainingprogram.ObjectiveFlowMatching || document.Authority != trainingprogram.ObjectiveApproved {
+	if document.Kind != trainingprogram.ObjectiveFlowMatching || document.Authority != trainingprogram.ObjectiveDeclared {
 		t.Fatalf("objective = %+v", document.ObjectiveSpec)
 	}
 	plan, err := optimizer.CompilePlan(4, []optimizer.GroupSpec{{Name: "weight", Start: 0, End: 4, Rows: 2, Cols: 2}})

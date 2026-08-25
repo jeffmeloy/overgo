@@ -1,36 +1,8 @@
 {
   "campaign": "Model facts as typed OvergoDB runtime authority",
   "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
-  "census_evidence": "evidence:sha256:2b5a059a7450a9b20a315364feec2c6a7fee08598f9f08e5874ce273e6f238ce",
+  "census_evidence": "evidence:sha256:e99ff7ad18ea2d355314d8d2a6e55f27f43344058a0947e80eb6d95408996e7e",
   "items": [
-    {
-      "id": "modelswap-proxy",
-      "title": "Swap proxy over the servable catalog: model-routed requests launch the right server, cmd/swap serves it",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Swap proxy over the servable catalog: model-routed requests launch the right server, cmd/swap serves it",
-          "status": "open",
-          "verify": "go test ./internal/modelswap -run TestModelSwapProxy -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-live-model-switch",
-      "title": "The workbench switches models live through the swap proxy: the picker swaps instead of handing out relaunch commands",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The workbench switches models live through the swap proxy: the picker swaps instead of handing out relaunch commands",
-          "status": "open",
-          "verify": "go test ./internal/modelswap ./internal/server -run 'TestModelSwap|TestServedModelHeader' -count=1"
-        }
-      ]
-    },
     {
       "id": "flow-profile-fact-authority",
       "title": "Make active flow profiles own binding and embedding facts",

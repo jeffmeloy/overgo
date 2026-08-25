@@ -1,7 +1,7 @@
 {
   "campaign": "Model facts as typed OvergoDB runtime authority",
   "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
-  "census_evidence": "evidence:sha256:7629c371503eb39183ba63efb9d74db067156509e9078fd3a267b8a4fc006db9",
+  "census_evidence": "evidence:sha256:e6e7fdb14fb6e06f2e236c0d18b98ebf689af41b4ea04aa1acb4c5adec522193",
   "items": [
     {
       "id": "modelswap-proxy",
@@ -28,24 +28,6 @@
           "title": "The workbench switches models live through the swap proxy: the picker swaps instead of handing out relaunch commands",
           "status": "open",
           "verify": "go test ./internal/modelswap ./internal/server -run 'TestModelSwap|TestServedModelHeader' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "typed-component-fact-authority",
-      "title": "Compile typed component-profile dependencies with resolved model definitions",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resolve processor, flow, and derivation profiles from ordered active-recipe dependencies",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -run '^TestResolved.*Profile|^TestLoadedProgram.*Profile' -count=1",
-          "rationale": "Reuse artifact document contracts and recipe dependency slots. Add narrow typed profiles, not map[string]any or a universal model property bag.",
-          "depends_on": [
-            "semantic-literal-census/do"
-          ]
         }
       ]
     },

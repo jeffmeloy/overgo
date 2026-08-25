@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -28,9 +29,9 @@ func registerFixture(t *testing.T) string {
 }
 
 // TestRegisterDirectoryDataset pins the new-dataset path: a directory
-// registers with a byte-dominant modality, the active catalog carries
-// the entry beside existing ones, re-registration is idempotent, and
-// coverage reports the dataset available on disk.
+// registers with its honest modality set (mixed here), the active
+// catalog carries the entry beside existing ones, re-registration is
+// idempotent, and coverage reports the dataset available on disk.
 func TestRegisterDirectoryDataset(t *testing.T) {
 	ctx := context.Background()
 	store, err := overgodb.Open(t.TempDir())
@@ -71,8 +72,9 @@ func TestRegisterDirectoryDataset(t *testing.T) {
 	if entry == nil || entry.Status != CatalogEntryPublished || !entry.Available {
 		t.Fatalf("entry = %+v, want the corpus published and available", entry)
 	}
-	if entry.Entry.Modality != "video" {
-		t.Fatalf("modality = %q, want video to outweigh the caption sidecar", entry.Entry.Modality)
+	if entry.Entry.Modality != MixedModality || !slices.Equal(entry.Entry.Modalities, []string{"structured", "video"}) {
+		t.Fatalf("modality = %q set = %v, want a mixed corpus with the honest set, not a byte-volume winner",
+			entry.Entry.Modality, entry.Entry.Modalities)
 	}
 	repeat, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)
 	if err != nil {
@@ -114,5 +116,75 @@ func TestRegisterContentIdentity(t *testing.T) {
 	second := build(bytes.Repeat([]byte{0xBB}, 4096))
 	if first == second {
 		t.Fatal("changed content with identical metadata kept the same dataset identity")
+	}
+}
+
+// TestRegisterModalitySetAndDeclaration pins the modality-set contract:
+// a single-modality corpus reports that modality, a declaration selects
+// the primary when present and is refused when absent, and the primary
+// of an undeclared mixed corpus is "mixed", never a byte-volume winner.
+func TestRegisterModalitySetAndDeclaration(t *testing.T) {
+	ctx := context.Background()
+	mixedCorpus := func() string {
+		root := t.TempDir()
+		if err := os.WriteFile(filepath.Join(root, "a.mp4"), make([]byte, 2048), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "b.json"), []byte("[]"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return root
+	}
+	primaryOf := func(store *overgodb.Store, name string) CatalogEntry {
+		catalog, found, err := ResolveCatalog(ctx, store)
+		if err != nil || !found {
+			t.Fatalf("catalog = (%t, %v)", found, err)
+		}
+		for _, entry := range catalog.Catalog {
+			if entry.Name == name {
+				return entry
+			}
+		}
+		t.Fatalf("entry %q absent", name)
+		return CatalogEntry{}
+	}
+
+	declaredStore, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer declaredStore.Close()
+	if _, err := RegisterDirectoryDatasetAs(ctx, declaredStore, "corpus", mixedCorpus(), "video"); err != nil {
+		t.Fatal(err)
+	}
+	if entry := primaryOf(declaredStore, "corpus"); entry.Modality != "video" ||
+		!slices.Equal(entry.Modalities, []string{"structured", "video"}) {
+		t.Fatalf("declared entry = %+v, want video primary over the full set", entry)
+	}
+	if _, err := RegisterDirectoryDatasetAs(ctx, declaredStore, "corpus", mixedCorpus(), "audio"); err == nil {
+		t.Fatal("declared modality absent from the corpus was accepted")
+	}
+
+	undeclaredStore, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer undeclaredStore.Close()
+	if _, err := RegisterDirectoryDataset(ctx, undeclaredStore, "corpus", mixedCorpus()); err != nil {
+		t.Fatal(err)
+	}
+	if entry := primaryOf(undeclaredStore, "corpus"); entry.Modality != MixedModality {
+		t.Fatalf("undeclared mixed primary = %q, want %q", entry.Modality, MixedModality)
+	}
+	single := t.TempDir()
+	if err := os.WriteFile(filepath.Join(single, "only.mp4"), make([]byte, 1024), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RegisterDirectoryDataset(ctx, undeclaredStore, "single", single); err != nil {
+		t.Fatal(err)
+	}
+	if entry := primaryOf(undeclaredStore, "single"); entry.Modality != "video" ||
+		!slices.Equal(entry.Modalities, []string{"video"}) {
+		t.Fatalf("single-modality entry = %+v, want video primary and set", entry)
 	}
 }

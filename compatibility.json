@@ -1065,7 +1065,7 @@
      "contains": "func (h *Handler) browseDatasets(",
      "path": "internal/server/browse_datasets.go",
      "role": "source",
-     "identity": "file:sha256:1648bf718f728141fb630499080724340bbe0334721be4d434fc2fdaff36de95"
+     "identity": "file:sha256:4dd52db58b27668de0fca9607ecc2e313ae566fc38588b718f514093227b5a5f"
     },
     {
      "contains": "func TestBrowseDatasetsUsesCatalog(",

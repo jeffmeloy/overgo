@@ -49,6 +49,17 @@ func RegisterDirectoryDataset(
 	repository artifact.Repository,
 	name, root string,
 ) (RegisteredDataset, error) {
+	return RegisterDirectoryDatasetAs(ctx, repository, name, root, "")
+}
+
+// RegisterDirectoryDatasetAs registers a directory with an explicit
+// primary modality declaration. An empty declaration derives the
+// primary from the modality set: the sole class, or "mixed".
+func RegisterDirectoryDatasetAs(
+	ctx context.Context,
+	repository artifact.Repository,
+	name, root, declaredModality string,
+) (RegisteredDataset, error) {
 	if ctx == nil || repository == nil {
 		return RegisteredDataset{}, errors.New("dataset: nil register context or repository")
 	}
@@ -74,10 +85,15 @@ func RegisterDirectoryDataset(
 	if err != nil {
 		return RegisteredDataset{}, err
 	}
+	modalities := modalitySet(files)
+	primary, err := primaryModality(strings.TrimSpace(declaredModality), modalities)
+	if err != nil {
+		return RegisteredDataset{}, err
+	}
 	entry := CatalogEntry{
 		Name: name, Dataset: version.ID, Inventory: inventory.ID,
 		StorageKind: "directory", Source: "local",
-		Modality: dominantModality(files), Formats: formats,
+		Modality: primary, Modalities: modalities, Formats: formats,
 		Files: uint64(len(files)), Bytes: totalBytes,
 	}
 	catalog, err := replacedCatalog(ctx, repository, entry)
@@ -170,20 +186,41 @@ func fileDigest(path string) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-// dominantModality reports the modality carrying the most bytes: the
-// class the dataset is FOR, with sidecar metadata never outvoting it.
-func dominantModality(files []InventoryFile) string {
-	weights := map[string]uint64{}
+// modalitySet returns the distinct modalities present in the corpus,
+// sorted. It is the honest description of a mixed dataset -- every
+// class that appears, none discarded by a volume heuristic.
+func modalitySet(files []InventoryFile) []string {
+	present := map[string]bool{}
 	for _, file := range files {
-		weights[file.Modality] += file.Bytes
+		present[file.Modality] = true
 	}
-	dominant, best := legacyUnknownFact, uint64(0)
-	for modality, weight := range weights {
-		if weight > best || (weight == best && modality < dominant) {
-			dominant, best = modality, weight
+	set := make([]string, 0, len(present))
+	for modality := range present {
+		set = append(set, modality)
+	}
+	slices.Sort(set)
+	return set
+}
+
+// primaryModality resolves the entry's single primary class: an
+// explicit declaration when one is given (and actually present), the
+// sole modality when the set has one, or "mixed" -- never a guess at
+// which of several a dataset is "really" for.
+func primaryModality(declared string, set []string) (string, error) {
+	if declared != "" {
+		if !slices.Contains(set, declared) {
+			return "", fmt.Errorf("dataset: declared modality %q is absent from the corpus %v", declared, set)
 		}
+		return declared, nil
 	}
-	return dominant
+	switch len(set) {
+	case 0:
+		return legacyUnknownFact, nil
+	case 1:
+		return set[0], nil
+	default:
+		return MixedModality, nil
+	}
 }
 
 // replacedCatalog returns the active catalog with the entry replacing

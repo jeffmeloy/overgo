@@ -1,8 +1,171 @@
 {
   "campaign": "Model facts as typed OvergoDB runtime authority",
   "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
-  "census_evidence": "evidence:sha256:b165a36998445e94af6fdd7cb15611fed2869941bb8dd7a01063abc419d1dc5a",
+  "census_evidence": "evidence:sha256:a444d2e4d4ede5d0ec807b138bbbf21864a327ee71a3ace0c3b185dcee208622",
   "items": [
+    {
+      "id": "record-sweep-closure",
+      "title": "Record the defaults-sweep plan closure",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record the defaults-sweep plan closure",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestCollapsibleSections -count=1"
+        }
+      ]
+    },
+    {
+      "id": "fix-fused-attribute-frame",
+      "title": "Restore fused cache-append launches: the fusion frame lost its host attribute pointer",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore fused cache-append launches: the fusion frame lost its host attribute pointer",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run TestHermetic -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-model-picker",
+      "title": "Every page shows the served model, with a servable-model picker that hands the relaunch command",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every page shows the served model, with a servable-model picker that hands the relaunch command",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestServedModelHeader -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-simple-create",
+      "title": "One-step agent creation: name, instructions, tool checkboxes; every identity derived server-side",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One-step agent creation: name, instructions, tool checkboxes; every identity derived server-side",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestAgentSimpleCreate -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-task-first-page",
+      "title": "The agent page leads with the task: pick an agent, chat; sessions auto-named; operator panels fold behind Advanced",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The agent page leads with the task: pick an agent, chat; sessions auto-named; operator panels fold behind Advanced",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestAgentSimpleCreate -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-defaults-sweep",
+      "title": "Options and configuration fields default or fold across the workbench; nothing optional leads a page",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Options and configuration fields default or fold across the workbench; nothing optional leads a page",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestCollapsibleSections -count=1"
+        }
+      ]
+    },
+    {
+      "id": "merge-tightening-2",
+      "title": "Merge overgo_tightening (80571e24) and verify the new workbench tabs live",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge overgo_tightening (80571e24) and verify the new workbench tabs live",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-all -require-no-uncatalogued-production -require-no-stale"
+        }
+      ]
+    },
+    {
+      "id": "plan-text-bound-authority",
+      "title": "Make plan text contracts own shared bounds and excluded bytes",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace repeated plan bounds with one existing-package validator and delete literal copies",
+          "status": "done",
+          "verify": "go test ./internal/plan -run '^Test.*(WorkLease|Control|Autonomy|Role)' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "projector-indexed-tensor-program",
+      "title": "Compile repeated projector tensor names from typed indexed declarations",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move DeepSeek OCR tensor suffix expansion to one neutral indexed program and delete local loops",
+          "status": "done",
+          "verify": "go test ./internal/projector -run '^TestDeepSeekOCR(2)?TinyFixture$' -count=1",
+          "depends_on": [
+            "plan-text-bound-authority/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "serving-evidence-case-authority",
+      "title": "Make one typed serving-evidence case runner own real-model golden setup",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Table-drive Carbon, MiniCPM5, and Qwen2.5 serving evidence and delete cloned harnesses",
+          "status": "done",
+          "verify": "go test -tags modeltest ./internal/inference -run '^TestServingGoldenEvidenceCatalog$' -count=1",
+          "depends_on": [
+            "projector-indexed-tensor-program/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "literal-authority-closure",
+      "title": "Close literal authority and duplicate harness tightening",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish the reduced census and verify host, CUDA admission, and closure authority",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-uncatalogued-production",
+          "depends_on": [
+            "serving-evidence-case-authority/do"
+          ]
+        }
+      ]
+    },
     {
       "id": "model-fact-literal-audit",
       "title": "Establish the model-fact literal campaign from the merged census",
@@ -19,6 +182,23 @@
       ]
     },
     {
+      "id": "reconcile-master-plan-retention",
+      "title": "Retain completed master rows before semantic merge",
+      "owner": "tightening",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore exact completed rows without changing active model-fact dispatch",
+          "status": "done",
+          "verify": "go run ./cmd/closure-scan -check-all -require-no-stale -require-no-uncatalogued-production",
+          "depends_on": [
+            "model-fact-literal-audit/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "semantic-literal-census",
       "title": "Separate structural, mathematical, format, capacity, policy, model-fact, fixture, assertion, and unknown literals",
       "owner": "tightening",
@@ -31,7 +211,7 @@
           "verify": "go test ./internal/closurescan ./cmd/closure-scan -run '^Test.*Literal.*Class' -count=1",
           "rationale": "Report structural zero/unit operations separately. Unknown remains explicit. Only policy, model-fact, and unknown classes drive runtime cleanup gates.",
           "depends_on": [
-            "model-fact-literal-audit/do"
+            "reconcile-master-plan-retention/do"
           ]
         }
       ]

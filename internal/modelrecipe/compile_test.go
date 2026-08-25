@@ -173,8 +173,9 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 func TestProjectionDefinitionCompilesAllSelectedModalities(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "projection-model")
 	projectorID := testutil.ArtifactID(t, artifact.KindProjector, "projection-projector")
+	processorID := testutil.ArtifactID(t, artifact.KindProfile, "projection-processor")
 	definition, err := ProjectionDefinition(
-		modelID, projectorID, recipe.DataVideo, recipe.DataImage, recipe.DataAudio, recipe.DataImage,
+		modelID, projectorID, processorID, recipe.DataVideo, recipe.DataImage, recipe.DataAudio, recipe.DataImage,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -182,6 +183,9 @@ func TestProjectionDefinitionCompilesAllSelectedModalities(t *testing.T) {
 	bound, ok := definition.PrimaryDependency(recipe.DependencyProjector)
 	if !ok || bound != projectorID || len(definition.Inputs) != len(projectionStages) {
 		t.Fatalf("projection definition = %+v", definition)
+	}
+	if bound, ok := definition.PrimaryDependency(recipe.DependencyProcessorProfile); !ok || bound != processorID {
+		t.Fatalf("processor profile = (%s, %t)", bound, ok)
 	}
 	program, err := CompileCapability(definition)
 	if err != nil {
@@ -208,7 +212,7 @@ func TestProjectionDefinitionCompilesAllSelectedModalities(t *testing.T) {
 			}
 		}
 	}
-	if _, err := ProjectionDefinition(modelID, projectorID); err == nil {
+	if _, err := ProjectionDefinition(modelID, projectorID, artifact.ID{}); err == nil {
 		t.Fatal("empty projection bundle accepted")
 	}
 }

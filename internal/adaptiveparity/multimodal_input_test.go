@@ -309,7 +309,13 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	if decodeErr != nil || closeErr != nil {
 		t.Fatal(errors.Join(decodeErr, closeErr))
 	}
-	vision, err := projector.OpenAs[*projector.Qwen3VLRunner](context.Background(), projectorPath, projector.OpenOptions{CUDA: true})
+	_, _, processor, err := projector.InspectProjection(context.Background(), projectorPath)
+	if err != nil || processor == nil {
+		t.Fatalf("UNAVAILABLE: processor profile absent; parity NOT verified: %v", err)
+	}
+	vision, err := projector.OpenAs[*projector.Qwen3VLRunner](context.Background(), projectorPath, projector.OpenOptions{
+		CUDA: true, MediaPreprocess: processor,
+	})
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: Qwen3.5 projector or CUDA absent; parity NOT verified: %v", err)
 	}
@@ -325,7 +331,7 @@ func testQwen35ImageVideoParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer language.Close()
-	processedImage, err := projector.PreprocessQwen3VLImage(imageSource, vision.Spec(), projector.DefaultQwen3VLPreprocessOptions())
+	processedImage, err := projector.PreprocessQwen3VLImage(imageSource, vision.Spec(), processor.Image)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +347,7 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	assertQwen35FirstToken(t, language, imagePrompt, imageGolden.GeneratedTokenID)
 
 	frames := qwen35GoldenFrames()
-	processedVideo, err := projector.PreprocessQwen3VLFrames(frames, vision.Spec(), projector.DefaultQwen3VLVideoPreprocessOptions())
+	processedVideo, err := projector.PreprocessQwen3VLFrames(frames, vision.Spec(), processor.Video)
 	if err != nil {
 		t.Fatal(err)
 	}

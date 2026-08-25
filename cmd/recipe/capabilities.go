@@ -105,7 +105,7 @@ func projectionCapability(projectorPath string) capability {
 		if inventoryErr != nil {
 			return capabilitySource{}, inventoryErr
 		}
-		projectorInventory, media, err := projector.InspectProjection(context.Background(), projectorPath)
+		projectorInventory, media, processor, err := projector.InspectProjection(context.Background(), projectorPath)
 		if err != nil {
 			return capabilitySource{}, err
 		}
@@ -113,8 +113,20 @@ func projectionCapability(projectorPath string) capability {
 			inventory: modelInventory,
 			related:   []modelartifact.Inventory{projectorInventory},
 			define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
-				definition, err := modelrecipe.ProjectionDefinition(modelID, projectorInventory.Manifest.ID, media...)
-				return definition, nil, err
+				var processorID artifact.ID
+				var contents []artifact.Content
+				if processor != nil {
+					processorID = processor.ID
+					content, err := processor.Content()
+					if err != nil {
+						return recipe.Definition{}, nil, err
+					}
+					contents = append(contents, content)
+				}
+				definition, err := modelrecipe.ProjectionDefinition(
+					modelID, projectorInventory.Manifest.ID, processorID, media...,
+				)
+				return definition, contents, err
 			},
 		}, nil
 	}}

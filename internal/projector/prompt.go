@@ -121,6 +121,7 @@ type OpenOptions struct {
 	CUDA                bool
 	DeviceOrdinal       int
 	DisableDynamicTiles bool
+	MediaPreprocess     *MediaPreprocessProfile
 }
 
 func validatePromptSequence(
@@ -232,6 +233,11 @@ func describeProjector[T Projector](
 ) projectorDescriptor {
 	descriptor := projectorDescriptor{kind: kind, media: slices.Clone(media), open: func(ctx context.Context, file *gguf.File, options OpenOptions) (Projector, error) {
 		opened, err := open(ctx, file, options)
+		if err == nil && options.MediaPreprocess != nil {
+			if target, ok := any(opened).(interface{ setMediaPreprocess(MediaPreprocessProfile) }); ok {
+				target.setMediaPreprocess(*options.MediaPreprocess)
+			}
+		}
 		if err == nil && prompt != nil {
 			opened.setPrompt(prompt(opened))
 		}
@@ -355,55 +361,79 @@ func OpenActiveAs[T Projector](
 	path string,
 	options OpenOptions,
 ) (T, error) {
-	return openAs[T](ctx, path, options, func(file *gguf.File, descriptor projectorDescriptor) error {
+	return openAs[T](ctx, path, options, func(file *gguf.File, descriptor projectorDescriptor) (*MediaPreprocessProfile, error) {
 		inventory, err := modelartifact.FromGGUF(file, artifact.KindProjector)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, recipe.TaskProjection)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		definition := program.Definition()
 		bound, ok := definition.PrimaryDependency(recipe.DependencyProjector)
 		if !ok || bound != inventory.Manifest.ID {
-			return errors.New("projector: loaded artifact differs from active projection recipe")
+			return nil, errors.New("projector: loaded artifact differs from active projection recipe")
+		}
+		declared, hasDeclared, err := catalogMediaPreprocessProfile(descriptor.kind)
+		if err != nil {
+			return nil, err
+		}
+		var processorID artifact.ID
+		var resolved *MediaPreprocessProfile
+		if hasDeclared {
+			profile, err := modelrecipe.ResolveProfileDependency(
+				ctx, store, definition, recipe.DependencyProcessorProfile, mediaPreprocessProfileCodec,
+			)
+			if err != nil {
+				return nil, err
+			}
+			if profile.ID != declared.ID {
+				return nil, errors.New("projector: active processor profile differs from artifact declaration")
+			}
+			processorID, resolved = profile.ID, &profile
+		} else if _, bound := definition.PrimaryDependency(recipe.DependencyProcessorProfile); bound {
+			return nil, errors.New("projector: processor profile bound to unsupported artifact")
 		}
 		expected, err := modelrecipe.ProjectionDefinition(
-			modelID, inventory.Manifest.ID, descriptor.media...,
+			modelID, inventory.Manifest.ID, processorID, descriptor.media...,
 		)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if definition.ID != expected.ID {
-			return errors.New("projector: active projection recipe differs from artifact capabilities")
+			return nil, errors.New("projector: active projection recipe differs from artifact capabilities")
 		}
-		return nil
+		return resolved, nil
 	})
 }
 
 // InspectProjection: validated inventory and media contract.
-func InspectProjection(ctx context.Context, path string) (modelartifact.Inventory, []recipe.DataKind, error) {
+func InspectProjection(ctx context.Context, path string) (modelartifact.Inventory, []recipe.DataKind, *MediaPreprocessProfile, error) {
 	if err := ctx.Err(); err != nil {
-		return modelartifact.Inventory{}, nil, err
+		return modelartifact.Inventory{}, nil, nil, err
 	}
 	file, err := gguf.Open(path)
 	if err != nil {
-		return modelartifact.Inventory{}, nil, err
+		return modelartifact.Inventory{}, nil, nil, err
 	}
 	descriptor, descriptorErr := resolveProjectorDescriptor(file)
 	inventory, inventoryErr := modelartifact.FromGGUF(file, artifact.KindProjector)
-	if err := errors.Join(descriptorErr, inventoryErr, file.Close()); err != nil {
-		return modelartifact.Inventory{}, nil, err
+	profile, found, profileErr := catalogMediaPreprocessProfile(descriptor.kind)
+	if err := errors.Join(descriptorErr, inventoryErr, profileErr, file.Close()); err != nil {
+		return modelartifact.Inventory{}, nil, nil, err
 	}
-	return inventory, slices.Clone(descriptor.media), nil
+	if !found {
+		return inventory, slices.Clone(descriptor.media), nil, nil
+	}
+	return inventory, slices.Clone(descriptor.media), &profile, nil
 }
 
 func openAs[T Projector](
 	ctx context.Context,
 	path string,
 	options OpenOptions,
-	admit func(*gguf.File, projectorDescriptor) error,
+	admit func(*gguf.File, projectorDescriptor) (*MediaPreprocessProfile, error),
 ) (T, error) {
 	var zero T
 	selected, err := openProjectorResource(ctx, path, func(file *gguf.File) (Projector, error) {
@@ -412,9 +442,11 @@ func openAs[T Projector](
 			return nil, err
 		}
 		if admit != nil {
-			if err := admit(file, descriptor); err != nil {
+			profile, err := admit(file, descriptor)
+			if err != nil {
 				return nil, err
 			}
+			options.MediaPreprocess = profile
 		}
 		return descriptor.open(ctx, file, options)
 	})
@@ -555,7 +587,7 @@ func compileMiMoVLImagePrompt(r *MiMoVLRunner) compiledImagePromptProgram {
 func compileQwen2VLImagePrompt(r *Qwen2VLRunner) compiledImagePromptProgram {
 	return compileSpatialChatImagePromptProgram(
 		"Qwen2-VL", r.spec.OutputHidden, "<|im_end|>\n<|im_start|>assistant\n", "",
-		spatialGridImagePromptEncoder(r.EncodeImage),
+		spatialGridImagePromptEncoder(r.EncodeImage, r.preprocess.Image),
 	)
 }
 
@@ -571,7 +603,7 @@ func compileQwen2VLMediaPrompt(r *Qwen2VLRunner) compiledMediaPromptProgram {
 		if tokenizer == nil {
 			return MultimodalPrompt{}, errors.New("projector: tokenizer is nil")
 		}
-		output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
+		output, err := r.EncodeFrames(ctx, frames, r.preprocess.Video)
 		if err != nil {
 			return MultimodalPrompt{}, err
 		}
@@ -778,7 +810,7 @@ func compileQwen3VLImagePrompt(r *Qwen3VLRunner) compiledImagePromptProgram {
 	baseSuffix := "<|im_end|>\n<|im_start|>assistant\n<think>\n"
 	return compileSpatialChatImagePromptProgram(
 		"Qwen3-VL", r.spec.OutputHidden, baseSuffix+"\n</think>\n\n", baseSuffix,
-		spatialGridImagePromptEncoder(r.EncodeImage),
+		spatialGridImagePromptEncoder(r.EncodeImage, r.preprocess.Image),
 	)
 }
 
@@ -797,7 +829,7 @@ func compileQwen3VLMediaPrompt(r *Qwen3VLRunner) compiledMediaPromptProgram {
 		if !checked.PositiveFinite64(fps) {
 			return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
 		}
-		output, err := r.EncodeFrames(ctx, frames, DefaultQwen3VLVideoPreprocessOptions())
+		output, err := r.EncodeFrames(ctx, frames, r.preprocess.Video)
 		if err != nil {
 			return MultimodalPrompt{}, err
 		}

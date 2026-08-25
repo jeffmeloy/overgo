@@ -178,14 +178,14 @@ func (p normalizationPlan) graph(
 	return output
 }
 
-func (p pixelBudget) validate() error {
+func (p MediaPixelBudget) validate() error {
 	if !checked.PositiveInts(p.MinPixels) || p.MaxPixels < p.MinPixels {
 		return errors.New("projector: invalid pixel budget")
 	}
 	return nil
 }
 
-func (p pixelBudget) resize(height, width, factor int) (int, int, error) {
+func (p MediaPixelBudget) resize(height, width, factor int) (int, int, error) {
 	if err := p.validate(); err != nil {
 		return tensor.FirstOffset, tensor.FirstOffset, err
 	}

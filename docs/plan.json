@@ -1,7 +1,7 @@
 {
   "campaign": "Model facts as typed OvergoDB runtime authority",
   "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
-  "census_evidence": "evidence:sha256:d402c69b8a12a3ad4547659d2827e73c94e34b1dac778230224433d35fe44e20",
+  "census_evidence": "evidence:sha256:2b5a059a7450a9b20a315364feec2c6a7fee08598f9f08e5874ce273e6f238ce",
   "items": [
     {
       "id": "modelswap-proxy",
@@ -28,24 +28,6 @@
           "title": "The workbench switches models live through the swap proxy: the picker swaps instead of handing out relaunch commands",
           "status": "open",
           "verify": "go test ./internal/modelswap ./internal/server -run 'TestModelSwap|TestServedModelHeader' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "projector-preprocess-fact-authority",
-      "title": "Make processor profiles own media preprocessing bounds",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resolve image and video pixel budgets from processor artifacts and delete Qwen3VL default functions",
-          "status": "open",
-          "verify": "go test ./internal/projector ./internal/modelrecipe -run '^Test.*Preprocess.*Profile' -count=1",
-          "rationale": "The current 256/4096 and 56/3584 sides are processor policy. Publish exact config provenance, bind it to the active projector recipe, and migrate prompt and parity callers.",
-          "depends_on": [
-            "dense-model-fact-authority/do"
-          ]
         }
       ]
     },

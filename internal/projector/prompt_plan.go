@@ -147,9 +147,10 @@ func gridImagePromptEncoder(
 
 func spatialGridImagePromptEncoder(
 	encode func(context.Context, image.Image, Qwen3VLPreprocessOptions) (Qwen3VLOutput, error),
+	options Qwen3VLPreprocessOptions,
 ) imagePromptEncoder {
 	return func(ctx context.Context, source image.Image) (imagePromptItem, error) {
-		output, err := encode(ctx, source, DefaultQwen3VLPreprocessOptions())
+		output, err := encode(ctx, source, options)
 		if err != nil {
 			return imagePromptItem{}, err
 		}

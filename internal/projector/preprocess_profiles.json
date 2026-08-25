@@ -1,0 +1,10 @@
+[
+  {
+    "projectors": ["qwen2vl_merger", "qwen3vl_merger"],
+    "profile": {
+      "version": 1,
+      "image": {"min_pixels": 65536, "max_pixels": 16777216},
+      "video": {"min_pixels": 3136, "max_pixels": 12845056}
+    }
+  }
+]

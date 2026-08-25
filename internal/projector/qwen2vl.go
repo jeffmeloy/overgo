@@ -25,6 +25,7 @@ type Qwen2VLSpec struct {
 
 type Qwen2VLRunner struct {
 	projectorResources
+	mediaPreprocessOwner
 	spec Qwen2VLSpec
 }
 

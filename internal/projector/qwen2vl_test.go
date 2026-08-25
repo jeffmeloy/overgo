@@ -43,7 +43,7 @@ func (t *qwen2VLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokeniz
 
 func TestQwen2VLRunnerTinyFixture(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen2VLMetadata(), tinyQwen2VLTensors())
-	runner, err := openImageProjectorAs[*Qwen2VLRunner](path, OpenOptions{})
+	runner, err := openImageProjectorAs[*Qwen2VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestQwen2VLMissingMergeMetadata(t *testing.T) {
 		}
 	}
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tinyQwen2VLTensors())
-	if _, err := openImageProjectorAs[*Qwen2VLRunner](path, OpenOptions{}); err == nil {
+	if _, err := openImageProjectorAs[*Qwen2VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{})); err == nil {
 		t.Fatal("expected missing merge metadata rejection")
 	}
 }
@@ -115,7 +115,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	tensors[0] = f32Tensor("v.patch_embd.weight", []uint64{128, 128, 3, 4}, nil)
 	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
-	opened, err := OpenAs[Projector](context.Background(), path, OpenOptions{})
+	opened, err := OpenAs[Projector](context.Background(), path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,12 +167,12 @@ func TestSpatialPositionsGrid3D(t *testing.T) {
 func TestQwen2VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen2VLMetadata(), nonzeroTinyQwen2VLTensors())
-	cpu, err := openImageProjectorAs[*Qwen2VLRunner](path, OpenOptions{})
+	cpu, err := openImageProjectorAs[*Qwen2VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*Qwen2VLRunner](path, OpenOptions{CUDA: true})
+	cuda, err := openImageProjectorAs[*Qwen2VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{CUDA: true}))
 	if err != nil {
 		t.Fatal(err)
 	}

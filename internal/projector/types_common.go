@@ -22,12 +22,21 @@ type gridImage struct {
 	GridW       int
 }
 
-type pixelBudget struct {
-	MinPixels int
-	MaxPixels int
+// MediaPixelBudget defines validated raster area bounds.
+type MediaPixelBudget struct {
+	MinPixels int `json:"min_pixels"`
+	MaxPixels int `json:"max_pixels"`
 }
 
-type RasterPatchOptions = pixelBudget
+type pixelBudget = MediaPixelBudget
+type RasterPatchOptions = MediaPixelBudget
+
+type mediaPreprocessOwner struct{ preprocess MediaPreprocessProfile }
+
+func (owner *mediaPreprocessOwner) setMediaPreprocess(profile MediaPreprocessProfile) {
+	owner.preprocess = profile
+}
+
 type RasterPatchImage = gridImage
 
 type gridOutput struct {

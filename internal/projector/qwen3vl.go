@@ -26,7 +26,7 @@ type Qwen3VLSpec struct {
 	DeepstackLayers    []bool
 }
 
-type Qwen3VLPreprocessOptions pixelBudget
+type Qwen3VLPreprocessOptions = MediaPixelBudget
 
 type Qwen3VLImage struct {
 	PixelValues []float32
@@ -46,21 +46,8 @@ type Qwen3VLOutput struct {
 
 type Qwen3VLRunner struct {
 	projectorResources
+	mediaPreprocessOwner
 	spec Qwen3VLSpec
-}
-
-func DefaultQwen3VLPreprocessOptions() Qwen3VLPreprocessOptions {
-	return Qwen3VLPreprocessOptions{
-		MinPixels: 256 * 256,
-		MaxPixels: 4096 * 4096,
-	}
-}
-
-func DefaultQwen3VLVideoPreprocessOptions() Qwen3VLPreprocessOptions {
-	return Qwen3VLPreprocessOptions{
-		MinPixels: 56 * 56,
-		MaxPixels: 3584 * 3584,
-	}
 }
 
 func (r *Qwen3VLRunner) Spec() Qwen3VLSpec {
@@ -176,9 +163,6 @@ func PreprocessQwen3VLImage(source image.Image, spec Qwen3VLSpec, options Qwen3V
 func PreprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwen3VLPreprocessOptions) (Qwen3VLImage, error) {
 	if len(frames) == tensor.FirstOffset {
 		return Qwen3VLImage{}, errors.New("projector: video has no frames")
-	}
-	if options == (Qwen3VLPreprocessOptions{}) {
-		options = DefaultQwen3VLVideoPreprocessOptions()
 	}
 	padded := slices.Clone(frames)
 	if len(padded)%tensor.PairedExtent != tensor.FirstOffset {

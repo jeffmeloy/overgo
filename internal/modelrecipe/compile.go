@@ -213,7 +213,7 @@ var projectionStages = map[recipe.DataKind]projectionStage{
 
 // ProjectionDefinition returns one exact projector bundle with one branch per supported modality.
 func ProjectionDefinition(
-	modelID, projectorID artifact.ID,
+	modelID, projectorID, processorProfile artifact.ID,
 	media ...recipe.DataKind,
 ) (recipe.Definition, error) {
 	if len(media) == 0 {
@@ -250,12 +250,18 @@ func ProjectionDefinition(
 			Source: recipe.Endpoint{Node: projectID, Port: "embeddings"},
 		})
 	}
+	dependencies := []recipe.Dependency{
+		{Role: recipe.DependencyModel, Artifact: modelID},
+		{Role: recipe.DependencyProjector, Artifact: projectorID},
+	}
+	if processorProfile.Valid() {
+		dependencies = append(dependencies, recipe.Dependency{
+			Role: recipe.DependencyProcessorProfile, Artifact: processorProfile,
+		})
+	}
 	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskProjection,
-		[]recipe.Dependency{
-			{Role: recipe.DependencyModel, Artifact: modelID},
-			{Role: recipe.DependencyProjector, Artifact: projectorID},
-		},
+		dependencies,
 		nodes, edges, inputs, outputs,
 	)
 }

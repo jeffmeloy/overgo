@@ -51,6 +51,14 @@ type MemoryStats struct {
 	CurrentBytes uint64 `json:"currentBytes"`
 	PeakBytes    uint64 `json:"peakBytes"`
 	Allocations  uint64 `json:"allocations"`
+	// PeakAllocationBytes is the size of the single allocation that last
+	// raised PeakBytes -- the allocation "at the crossing." It turns a
+	// peak-over-budget finding from a diffuse total into one nameable
+	// buffer: the size class points at which allocation to chase.
+	PeakAllocationBytes uint64 `json:"peakAllocationBytes"`
+	// LargestLiveBytes is the largest single live allocation, a second
+	// coordinate for locating an outlier buffer.
+	LargestLiveBytes uint64 `json:"largestLiveBytes"`
 }
 
 // ExecutionStats: reports successful CUDA Driver API work submitted through

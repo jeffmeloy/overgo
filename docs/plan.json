@@ -4,15 +4,147 @@
   "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
   "items": [
     {
-      "id": "merge-06cdd76fa955",
-      "title": "Merge master at 06cdd76fa955",
+      "id": "merge-222ed4ea7548",
+      "title": "Merge master at 222ed4ea7548",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Merge master at 06cdd76fa955",
+          "title": "Merge master at 222ed4ea7548",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "agent-timeout-bounds-lock",
+      "title": "The invocation deadline bounds the entry wait too: acquire the manual lock under the context, not blocking",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The invocation deadline bounds the entry wait too: acquire the manual lock under the context, not blocking",
+          "status": "done",
+          "verify": "go test ./internal/agenttool -run 'TestTransport' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-exact-tool-identity",
+      "title": "Interactions record manual.ID; session restore resolves historical tools by exact identity, not the mutable name alias",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Interactions record manual.ID; session restore resolves historical tools by exact identity, not the mutable name alias",
+          "status": "done",
+          "verify": "go test ./internal/agentloop ./internal/server -run 'TestCoordinator|TestAgentWorkspace' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "dataset-content-identity",
+      "title": "Dataset identity hashes file bytes, not path+size+mtime; changed content re-identifies",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Dataset identity hashes file bytes, not path+size+mtime; changed content re-identifies",
+          "status": "done",
+          "verify": "go test ./internal/dataset -run 'TestRegister' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "dataset-modality-set",
+      "title": "Datasets carry a modality set or an explicit typed declaration; drop the byte-volume dominance guess",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Datasets carry a modality set or an explicit typed declaration; drop the byte-volume dominance guess",
+          "status": "done",
+          "verify": "go test ./internal/dataset -run 'TestRegister' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gemma4-memory-diagnostic",
+      "title": "Name the allocation that pushes Gemma-4 FP8 peak 2.2MB past the adaptive reference, using the allocator ledger at the crossing",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Name the allocation that pushes Gemma-4 FP8 peak 2.2MB past the adaptive reference, using the allocator ledger at the crossing",
+          "status": "done",
+          "verify": "go test ./internal/cuda/driver -run TestMemory -count=1"
+        }
+      ]
+    },
+    {
+      "id": "wan-vidgen-batches",
+      "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -run 'TestEncodeSource|TestDiTTrainer' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "wan-gradient-checkpointing",
+      "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -run TestDiTTrainer -count=1",
+          "depends_on": [
+            "wan-vidgen-batches/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wan-objective-adaptive",
+      "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
+          "status": "open",
+          "verify": "go test ./cmd/training-objective ./internal/trainingprogram -run 'TestObjective' -count=1",
+          "depends_on": [
+            "wan-vidgen-batches/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "research-merge-reconcile",
+      "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
+          "status": "open",
+          "verify": "go build ./... \u0026\u0026 go test ./internal/agentloop ./internal/agenttool ./internal/workflowruntime -count=1"
         }
       ]
     },
@@ -2523,48 +2655,6 @@
       ]
     },
     {
-      "id": "dataset-content-identity",
-      "title": "Dataset identity hashes file bytes, not path+size+mtime; changed content re-identifies",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Dataset identity hashes file bytes, not path+size+mtime; changed content re-identifies",
-          "status": "done",
-          "verify": "go test ./internal/dataset -run 'TestRegister' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "dataset-modality-set",
-      "title": "Datasets carry a modality set or an explicit typed declaration; drop the byte-volume dominance guess",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Datasets carry a modality set or an explicit typed declaration; drop the byte-volume dominance guess",
-          "status": "done",
-          "verify": "go test ./internal/dataset -run 'TestRegister' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "agent-exact-tool-identity",
-      "title": "Interactions record manual.ID; session restore resolves historical tools by exact identity, not the mutable name alias",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Interactions record manual.ID; session restore resolves historical tools by exact identity, not the mutable name alias",
-          "status": "done",
-          "verify": "go test ./internal/agentloop ./internal/server -run 'TestCoordinator|TestAgentWorkspace' -count=1"
-        }
-      ]
-    },
-    {
       "id": "agent-receipt-before-execution",
       "title": "Admit a durable operation receipt before a mutation executes, so a side effect never lacks evidence",
       "owner": "gui",
@@ -2578,20 +2668,6 @@
           "depends_on": [
             "research-merge-reconcile/do"
           ]
-        }
-      ]
-    },
-    {
-      "id": "agent-timeout-bounds-lock",
-      "title": "The invocation deadline bounds the entry wait too: acquire the manual lock under the context, not blocking",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The invocation deadline bounds the entry wait too: acquire the manual lock under the context, not blocking",
-          "status": "done",
-          "verify": "go test ./internal/agenttool -run 'TestTransport' -count=1"
         }
       ]
     },
@@ -2647,6 +2723,19 @@
       ]
     },
     {
+      "id": "merge-06cdd76fa955",
+      "title": "Merge master at 06cdd76fa955",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 06cdd76fa955",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
       "id": "merge-f1d451df1f88",
       "title": "Merge master at f1d451df1f88",
       "status": "done",
@@ -2682,82 +2771,6 @@
           "title": "Merge master at 1f48778cc813",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
-        }
-      ]
-    },
-    {
-      "id": "gemma4-memory-diagnostic",
-      "title": "Name the allocation that pushes Gemma-4 FP8 peak 2.2MB past the adaptive reference, using the allocator ledger at the crossing",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Name the allocation that pushes Gemma-4 FP8 peak 2.2MB past the adaptive reference, using the allocator ledger at the crossing",
-          "status": "open",
-          "verify": "go test ./internal/cuda/driver -run TestMemory -count=1"
-        }
-      ]
-    },
-    {
-      "id": "wan-vidgen-batches",
-      "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -run 'TestEncodeSource|TestDiTTrainer' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "wan-gradient-checkpointing",
-      "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -run TestDiTTrainer -count=1",
-          "depends_on": [
-            "wan-vidgen-batches/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "wan-objective-adaptive",
-      "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
-          "status": "open",
-          "verify": "go test ./cmd/training-objective ./internal/trainingprogram -run 'TestObjective' -count=1",
-          "depends_on": [
-            "wan-vidgen-batches/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "research-merge-reconcile",
-      "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
-          "status": "open",
-          "verify": "go build ./... \u0026\u0026 go test ./internal/agentloop ./internal/agenttool ./internal/workflowruntime -count=1"
         }
       ]
     }

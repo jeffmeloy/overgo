@@ -82,11 +82,11 @@ func quantize(dataType dtype.Type, values, weights []float32) ([]byte, error) {
 			return nil, err
 		}
 	case dtype.Q4_0, dtype.Q4_1:
-		if err := quantizeQ4(dataType, values, output); err != nil {
+		if err := quantizeQ4Or5(dataType, values, output); err != nil {
 			return nil, err
 		}
 	case dtype.Q5_0, dtype.Q5_1:
-		if err := quantizeQ5(dataType, values, output); err != nil {
+		if err := quantizeQ4Or5(dataType, values, output); err != nil {
 			return nil, err
 		}
 	case dtype.Q8_0, dtype.Q8_1:
@@ -1703,10 +1703,10 @@ func nearestIntGGML(value float32) int {
 }
 
 func quantizeQ8K(values []float32, output []byte) error {
-	layout := q8KBlockLayout
-	for block := 0; block < len(values)/layout.elements; block++ {
-		input := layout.input(values, block)
-		destination := layout.storage(output, block)
+	codec := scalarCodecs[dtype.Q8K]
+	for block := 0; block < len(values)/codec.block.elements; block++ {
+		input := codec.block.input(values, block)
+		destination := codec.block.storage(output, block)
 		maximum, err := signedAbsoluteMaximum(input, "Q8_K")
 		if err != nil {
 			return err
@@ -1716,18 +1716,20 @@ func quantizeQ8K(values []float32, output []byte) error {
 		}
 		inverse := -127 / maximum
 		scale := 1 / inverse
-		binary.LittleEndian.PutUint32(destination, math.Float32bits(scale))
+		binary.LittleEndian.PutUint32(codec.scale.bytes(destination), math.Float32bits(scale))
+		packed := codec.packed.bytes(destination)
 		for index, value := range input {
 			quantized := min(127, int(roundFloat32(inverse*value)))
-			destination[4+index] = byte(int8(quantized))
+			packed[index] = byte(int8(quantized))
 		}
-		for group := 0; group < layout.elements/16; group++ {
+		sums := codec.tail.bytes(destination)
+		for group := 0; group < codec.block.elements/codec.tailGroup; group++ {
 			sum := int16(0)
-			for index := 0; index < 16; index++ {
-				sum += int16(int8(destination[4+group*16+index]))
+			for index := 0; index < codec.tailGroup; index++ {
+				sum += int16(int8(packed[group*codec.tailGroup+index]))
 			}
 			binary.LittleEndian.PutUint16(
-				destination[260+group*2:],
+				sums[group*binaryschema.Uint16Bytes:],
 				uint16(sum),
 			)
 		}
@@ -1736,10 +1738,10 @@ func quantizeQ8K(values []float32, output []byte) error {
 }
 
 func quantizeQ1_0(values []float32, output []byte) error {
-	layout := q1BlockLayout
-	for block := 0; block < len(values)/layout.elements; block++ {
-		input := layout.input(values, block)
-		destination := layout.storage(output, block)
+	codec := scalarCodecs[dtype.Q1_0]
+	for block := 0; block < len(values)/codec.block.elements; block++ {
+		input := codec.block.input(values, block)
+		destination := codec.block.storage(output, block)
 		var sumAbsolute float32
 		for _, value := range input {
 			if !finiteFloat32(value) {
@@ -1747,11 +1749,12 @@ func quantizeQ1_0(values []float32, output []byte) error {
 			}
 			sumAbsolute += absoluteFloat32(value)
 		}
-		scale := sumAbsolute / float32(layout.elements)
-		binary.LittleEndian.PutUint16(destination, Float32ToFloat16(scale))
+		scale := sumAbsolute / float32(codec.block.elements)
+		binary.LittleEndian.PutUint16(codec.scale.bytes(destination), Float32ToFloat16(scale))
+		packed := codec.packed.bytes(destination)
 		for index, value := range input {
 			if value >= 0 {
-				destination[2+index/8] |= 1 << uint(index%8)
+				packed[index/8] |= 1 << uint(index%8)
 			}
 		}
 	}
@@ -1759,10 +1762,10 @@ func quantizeQ1_0(values []float32, output []byte) error {
 }
 
 func quantizeQ2_0(values []float32, output []byte) error {
-	layout := q2BlockLayout
-	for block := 0; block < len(values)/layout.elements; block++ {
-		input := layout.input(values, block)
-		destination := layout.storage(output, block)
+	codec := scalarCodecs[dtype.Q2_0]
+	for block := 0; block < len(values)/codec.block.elements; block++ {
+		input := codec.block.input(values, block)
+		destination := codec.block.storage(output, block)
 		maximum, err := maximumAbsolute(input, "Q2_0")
 		if err != nil {
 			return err
@@ -1771,134 +1774,82 @@ func quantizeQ2_0(values []float32, output []byte) error {
 		if maximum > 0 {
 			inverse = 1 / maximum
 		}
-		binary.LittleEndian.PutUint16(destination, Float32ToFloat16(maximum))
+		binary.LittleEndian.PutUint16(codec.scale.bytes(destination), Float32ToFloat16(maximum))
+		packed := codec.packed.bytes(destination)
 		for index, value := range input {
 			quantized := int(roundFloat32(value*inverse)) + 1
 			quantized = max(0, min(3, quantized))
-			destination[2+index/4] |= byte(quantized << uint((index%4)*2))
+			packed[index/4] |= byte(quantized << uint((index%4)*2))
 		}
 	}
 	return nil
 }
 
-func quantizeQ4(dataType dtype.Type, values []float32, output []byte) error {
-	layout := q4BlockLayout
-	if dataType == dtype.Q4_1 {
-		layout = blockLayout(dtype.Q4_1)
-	}
-	for block := 0; block < len(values)/layout.elements; block++ {
-		input := layout.input(values, block)
-		destination := layout.storage(output, block)
-		quantizedOffset := 2
+func quantizeQ4Or5(dataType dtype.Type, values []float32, output []byte) error {
+	codec := scalarCodecs[dataType]
+	for block := 0; block < len(values)/codec.block.elements; block++ {
+		input := codec.block.input(values, block)
+		destination := codec.block.storage(output, block)
 		var scale, minimum, inverse float32
-		if dataType == dtype.Q4_0 {
-			maximum, err := signedAbsoluteMaximum(input, "Q4_0")
+		zeroPoint := codec.zeroPoint
+		if zeroPoint != 0 {
+			maximum, err := signedAbsoluteMaximum(input, dataType.String())
 			if err != nil {
 				return err
 			}
-			scale = maximum / -8
+			scale = maximum / -float32(zeroPoint)
 			if scale != 0 {
 				inverse = 1 / scale
 			}
 		} else {
 			var maximum float32
 			var err error
-			minimum, maximum, err = minimumMaximum(input, "Q4_1")
+			minimum, maximum, err = minimumMaximum(input, dataType.String())
 			if err != nil {
 				return err
 			}
-			scale = (maximum - minimum) / 15
+			scale = (maximum - minimum) / float32(codec.levels)
 			if scale != 0 {
 				inverse = 1 / scale
 			}
-			binary.LittleEndian.PutUint16(
-				destination[2:],
-				Float32ToFloat16(minimum),
-			)
-			quantizedOffset = 4
+			binary.LittleEndian.PutUint16(codec.minimum.bytes(destination), Float32ToFloat16(minimum))
 		}
-		binary.LittleEndian.PutUint16(destination, Float32ToFloat16(scale))
-		for lane := 0; lane < layout.elements/2; lane++ {
-			var low, high int
-			if dataType == dtype.Q4_0 {
-				low = min(15, int(input[lane]*inverse+8.5))
-				high = min(15, int(input[lane+16]*inverse+8.5))
-			} else {
-				low = min(15, int((input[lane]-minimum)*inverse+0.5))
-				high = min(15, int((input[lane+16]-minimum)*inverse+0.5))
-			}
-			destination[quantizedOffset+lane] = byte(low | high<<4)
-		}
-	}
-	return nil
-}
-
-func quantizeQ5(dataType dtype.Type, values []float32, output []byte) error {
-	layout := q5BlockLayout
-	if dataType == dtype.Q5_1 {
-		layout = blockLayout(dtype.Q5_1)
-	}
-	for block := 0; block < len(values)/layout.elements; block++ {
-		input := layout.input(values, block)
-		destination := layout.storage(output, block)
-		highOffset := 2
-		var scale, minimum, inverse float32
-		if dataType == dtype.Q5_0 {
-			maximum, err := signedAbsoluteMaximum(input, "Q5_0")
-			if err != nil {
-				return err
-			}
-			scale = maximum / -16
-			if scale != 0 {
-				inverse = 1 / scale
-			}
-		} else {
-			var maximum float32
-			var err error
-			minimum, maximum, err = minimumMaximum(input, "Q5_1")
-			if err != nil {
-				return err
-			}
-			scale = (maximum - minimum) / 31
-			if scale != 0 {
-				inverse = 1 / scale
-			}
-			binary.LittleEndian.PutUint16(
-				destination[2:],
-				Float32ToFloat16(minimum),
-			)
-			highOffset = 4
-		}
-		binary.LittleEndian.PutUint16(destination, Float32ToFloat16(scale))
+		binary.LittleEndian.PutUint16(codec.scale.bytes(destination), Float32ToFloat16(scale))
+		packed := codec.packed.bytes(destination)
+		packedMask := 1<<codec.packedBits - 1
+		rounding := float32(zeroPoint) + 0.5
+		half := codec.block.elements / 2
 		var highBits uint32
-		quantizedOffset := highOffset + 4
-		for lane := 0; lane < layout.elements/2; lane++ {
+		for lane := 0; lane < half; lane++ {
 			var low, high int
-			if dataType == dtype.Q5_0 {
-				low = min(31, int(input[lane]*inverse+16.5))
-				high = min(31, int(input[lane+16]*inverse+16.5))
+			if zeroPoint != 0 {
+				low = min(codec.levels, int(input[lane]*inverse+rounding))
+				high = min(codec.levels, int(input[lane+half]*inverse+rounding))
 			} else {
-				low = int((input[lane]-minimum)*inverse + 0.5)
-				high = int((input[lane+16]-minimum)*inverse + 0.5)
+				low = int((input[lane]-minimum)*inverse + rounding)
+				high = int((input[lane+half]-minimum)*inverse + rounding)
+				if codec.high.size == 0 {
+					low, high = min(codec.levels, low), min(codec.levels, high)
+				}
 			}
-			destination[quantizedOffset+lane] =
-				byte(low&0x0f | (high&0x0f)<<4)
-			highBits |= uint32((low>>4)&1) << uint(lane)
-			highBits |= uint32((high>>4)&1) << uint(lane+16)
+			packed[lane] = byte(low&packedMask | (high&packedMask)<<codec.packedBits)
+			if codec.high.size != 0 {
+				highBits |= uint32((low>>codec.packedBits)&1) << uint(lane)
+				highBits |= uint32((high>>codec.packedBits)&1) << uint(lane+half)
+			}
 		}
-		binary.LittleEndian.PutUint32(destination[highOffset:], highBits)
+		if codec.high.size != 0 {
+			binary.LittleEndian.PutUint32(codec.high.bytes(destination), highBits)
+		}
 	}
 	return nil
 }
 
 func quantizeQ8(dataType dtype.Type, values []float32, output []byte) error {
-	layout := q8BlockLayout
-	if dataType == dtype.Q8_1 {
-		layout = blockLayout(dtype.Q8_1)
-	}
-	for block := 0; block < len(values)/layout.elements; block++ {
-		input := layout.input(values, block)
-		destination := layout.storage(output, block)
+	codec := scalarCodecs[dataType]
+	for block := 0; block < len(values)/codec.block.elements; block++ {
+		input := codec.block.input(values, block)
+		destination := codec.block.storage(output, block)
 		maximum, err := maximumAbsolute(input, dataType.String())
 		if err != nil {
 			return err
@@ -1908,22 +1859,16 @@ func quantizeQ8(dataType dtype.Type, values []float32, output []byte) error {
 		if scale != 0 {
 			inverse = 1 / scale
 		}
-		binary.LittleEndian.PutUint16(destination, Float32ToFloat16(scale))
-		quantizedOffset := 2
-		if dataType == dtype.Q8_1 {
-			quantizedOffset = 4
-		}
+		binary.LittleEndian.PutUint16(codec.scale.bytes(destination), Float32ToFloat16(scale))
+		packed := codec.packed.bytes(destination)
 		sum := 0
 		for index, value := range input {
 			quantized := int(roundFloat32(value * inverse))
-			destination[quantizedOffset+index] = byte(int8(quantized))
+			packed[index] = byte(int8(quantized))
 			sum += quantized
 		}
 		if dataType == dtype.Q8_1 {
-			binary.LittleEndian.PutUint16(
-				destination[2:],
-				Float32ToFloat16(float32(sum)*scale),
-			)
+			binary.LittleEndian.PutUint16(codec.minimum.bytes(destination), Float32ToFloat16(float32(sum)*scale))
 		}
 	}
 	return nil

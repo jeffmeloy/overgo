@@ -9,9 +9,12 @@ import (
 	"overgo/internal/cuda/cublas"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/kernel"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
+
+const fp8KernelLaneWidth = uint32(4)
 
 func launchLinearLayout(
 	state *device.State,
@@ -182,7 +185,7 @@ func launchLinearLayout(
 					return errors.New("BF16 tensor-core mul_mat workspace is unavailable")
 				}
 				elements := uint64(inner) * uint64(rightRows)
-				if elements > math.MaxUint32 || elements*2 > blas.stagingBytes {
+				if elements > math.MaxUint32 || elements*bf16ScalarBytes > blas.stagingBytes {
 					return errors.New("BF16 tensor-core mul_mat input exceeds workspace")
 				}
 				if blas.stagedNode != rightNode {
@@ -204,9 +207,9 @@ func launchLinearLayout(
 				}
 				return blas.library.GEMMEx(
 					blas.handle, cublas.OperationTranspose, cublas.OperationNone,
-					int32(leftRows), int32(rightRows), int32(inner), 1,
+					int32(leftRows), int32(rightRows), int32(inner), gemmProductScale,
 					left, cublas.DataBF16, int32(inner),
-					blas.staging, cublas.DataBF16, int32(inner), 0,
+					blas.staging, cublas.DataBF16, int32(inner), gemmAccumulatorScale,
 					output, cublas.DataF32, int32(leftRows), cublas.ComputeF32, cublas.GemmDefault,
 				)
 			}
@@ -219,6 +222,7 @@ func launchLinearLayout(
 			// dequant bit-for-bit, so the SGEMM operands and result are bit-exact.
 			decodeKernel := kernelMulMatF16F32
 			upconvertKernel := kernelF16ToF32
+			weightScalarBytes, _ := leftNode.Type.ScalarBytes()
 			if leftNode.Type == dtype.BF16 {
 				decodeKernel = kernelMulMatBf16F32
 				upconvertKernel = kernelBf16ToF32
@@ -244,7 +248,7 @@ func launchLinearLayout(
 				state, blas, inner, leftRows, rightRows, right, output,
 				func(start, rows, count uint32) error {
 					elementOffset := uint64(start) * uint64(inner)
-					source := left + driver.DevicePtr(elementOffset*2)
+					source := left + driver.DevicePtr(elementOffset*weightScalarBytes)
 					return launch1DABI(
 						state, functions[upconvertKernel], count,
 						&source, &blas.staging, &count,
@@ -262,10 +266,11 @@ func launchLinearLayout(
 			if rightNode.Type != dtype.F32 {
 				return fmt.Errorf("fp8 mul_mat right input has type %s", rightNode.Type)
 			}
-			if inner%4 != 0 {
-				return errors.New("fp8 mul_mat inner dimension is not a multiple of 4")
+			if inner%fp8KernelLaneWidth != 0 {
+				return fmt.Errorf("fp8 mul_mat inner dimension is not a multiple of %d", fp8KernelLaneWidth)
 			}
-			scaleOffset := uint64(inner) * uint64(leftRows)
+			traits, _ := leftNode.Type.Traits()
+			scaleOffset := uint64(inner) * uint64(leftRows) * traits.TypeSize
 			scale := left + driver.DevicePtr(scaleOffset)
 			if rightRows == 1 {
 				launchCount, err := bf16MulMatLaunchCount(leftRows, rightRows)
@@ -286,11 +291,10 @@ func launchLinearLayout(
 				func(start, rows, _ uint32) error {
 					elementOffset := uint64(start) * uint64(inner)
 					source := left + driver.DevicePtr(elementOffset)
-					sourceScale := scale + driver.DevicePtr(uint64(start)*4)
+					sourceScale := scale + driver.DevicePtr(uint64(start)*leftNode.Type.AuxiliaryRowBytes())
 					return launchGridABI(
 						state, functions[kernelFp8ToF32],
-						driver.Dim3{X: rows, Y: 1, Z: 1},
-						driver.Dim3{X: 256, Y: 1, Z: 1},
+						kernel.Grid1D(int(rows)), kernel.DefaultBlock1D(),
 						&source, &sourceScale, &blas.staging, &inner, &rows,
 					)
 				},
@@ -314,7 +318,7 @@ func launchLinearLayout(
 					return errors.New("Q8_0 mul_mat input workspace is unavailable")
 				}
 				if q8Input.stagedNode != rightNode {
-					blocks := uint64(inner) * uint64(rightRows) / q8InputBlockWidth
+					blocks := uint64(inner) * uint64(rightRows) / q8InputTraits.BlockSize
 					if blocks > math.MaxUint32 {
 						return errors.New("Q8_0 mul_mat input block count exceeds uint32")
 					}
@@ -361,12 +365,12 @@ func launchLinearLayout(
 			int32(leftRows),
 			int32(rightRows),
 			int32(inner),
-			1,
+			gemmProductScale,
 			left,
 			int32(inner),
 			right,
 			int32(inner),
-			0,
+			gemmAccumulatorScale,
 			output,
 			int32(leftRows),
 		)
@@ -393,13 +397,12 @@ func launchLinearLayout(
 		if err != nil {
 			return err
 		}
-		traits, ok := leftNode.Type.Traits()
-		if !ok || uint64(inner)%traits.BlockSize != 0 {
-			return fmt.Errorf("%s grouped_mul_mat inner dimension is not block aligned", leftNode.Type)
+		leftMatrixBytes, err := leftNode.Type.StorageBytes(uint64(inner)*uint64(leftRows), uint64(inner))
+		if err != nil {
+			return fmt.Errorf("%s grouped_mul_mat storage: %w", leftNode.Type, err)
 		}
-		leftMatrixBytes := uint64(inner) * uint64(leftRows) / traits.BlockSize * traits.TypeSize
-		rightVectorBytes := uint64(inner) * 4
-		outputVectorBytes := uint64(leftRows) * 4
+		rightVectorBytes := uint64(inner) * f32ScalarBytes
+		outputVectorBytes := uint64(leftRows) * f32ScalarBytes
 		leftBase := pointers.input(0)
 		rightBase := pointers.input(1)
 		for token := uint32(0); token < tokens; token++ {
@@ -420,8 +423,8 @@ func launchLinearLayout(
 					}
 					if err = blas.library.SGEMM(
 						blas.handle, cublas.OperationTranspose, cublas.OperationNone,
-						int32(leftRows), 1, int32(inner), 1, left, int32(inner),
-						right, int32(inner), 0, groupOutput, int32(leftRows),
+						int32(leftRows), 1, int32(inner), gemmProductScale, left, int32(inner),
+						right, int32(inner), gemmAccumulatorScale, groupOutput, int32(leftRows),
 					); err != nil {
 						return err
 					}
@@ -472,9 +475,9 @@ func launchLinearLayout(
 		function := functions[kernelGetRowsF32]
 		if node.Inputs[0].Type == dtype.BF16 {
 			function = functions[kernelGetRowsBf16F32]
-		} else if descriptor, ok := quantKernels[node.Inputs[0].Type]; ok {
+		} else if descriptor, ok := quantKernel(node.Inputs[0].Type); ok {
 			traits, _ := node.Inputs[0].Type.Traits()
-			if uint64(width)%traits.BlockSize != 0 {
+			if _, aligned := traits.BlockCount(uint64(width)); !aligned {
 				return fmt.Errorf("%s get_rows width is not block aligned", descriptor.label)
 			}
 			function = functions[descriptor.getRows]
@@ -498,7 +501,7 @@ func launchStagedNativeMatMul(
 	if inner > math.MaxInt32 || leftRows > math.MaxInt32 || rightRows > math.MaxInt32 {
 		return errors.New("native mul_mat geometry exceeds cuBLAS")
 	}
-	rowBytes := uint64(inner) * 4
+	rowBytes := uint64(inner) * f32ScalarBytes
 	capacity := blas.stagingBytes / rowBytes
 	if capacity == 0 {
 		return errors.New("native mul_mat staging is smaller than one row")
@@ -512,7 +515,7 @@ func launchStagedNativeMatMul(
 		if err := stage(start, rows, uint32(count64)); err != nil {
 			return err
 		}
-		chunkOutput := output + driver.DevicePtr(uint64(start)*4)
+		chunkOutput := output + driver.DevicePtr(uint64(start)*f32ScalarBytes)
 		if !traceExternalCall(
 			state, traceTagSGEMM,
 			uint64(blas.staging), uint64(right), uint64(chunkOutput),
@@ -520,8 +523,8 @@ func launchStagedNativeMatMul(
 		) {
 			if err := blas.library.SGEMM(
 				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
-				int32(rows), int32(rightRows), int32(inner), 1,
-				blas.staging, int32(inner), right, int32(inner), 0,
+				int32(rows), int32(rightRows), int32(inner), gemmProductScale,
+				blas.staging, int32(inner), right, int32(inner), gemmAccumulatorScale,
 				chunkOutput, int32(leftRows),
 			); err != nil {
 				return err
@@ -542,7 +545,7 @@ func bf16MulMatLaunchCount(leftRows, rightRows uint32) (uint32, error) {
 }
 
 func q8InputMulMatLaunchCount(leftRows, rightRows uint32) (uint32, error) {
-	const warpThreads = uint64(q8InputBlockWidth)
+	warpThreads := q8InputTraits.BlockSize
 	warps := uint64(leftRows) * uint64(rightRows)
 	if warps > math.MaxUint32/warpThreads {
 		return 0, errors.New("Q8_0 input mul_mat launch size exceeds uint32")
@@ -556,11 +559,10 @@ func launchQ8InputQuantization(
 	input, output driver.DevicePtr,
 	blocks uint32,
 ) error {
-	const threads = uint32(q8InputBlockWidth)
+	threads := uint32(q8InputTraits.BlockSize)
 	return launchGridABI(
 		state, function,
-		driver.Dim3{X: blocks, Y: 1, Z: 1},
-		driver.Dim3{X: threads, Y: 1, Z: 1},
+		kernel.Grid1D(int(blocks)), kernel.Grid1D(int(threads)),
 		&input, &output, &blocks,
 	)
 }
@@ -736,15 +738,14 @@ func launchActivatedGate(
 			&gate, &up, &result, &kind, &count,
 		)
 	}
-	if q8Input == nil || q8Input.staging == 0 || uint64(count)%q8InputBlockWidth != 0 {
+	if q8Input == nil || q8Input.staging == 0 || uint64(count)%q8InputTraits.BlockSize != 0 {
 		return errors.New("activated-gate Q8 workspace is unavailable")
 	}
-	blocks := count / uint32(q8InputBlockWidth)
-	const threads = uint32(q8InputBlockWidth)
+	blocks := count / uint32(q8InputTraits.BlockSize)
+	threads := uint32(q8InputTraits.BlockSize)
 	if err := launchGridABI(
 		state, functions[kernelActivatedGateQ80F32],
-		driver.Dim3{X: blocks, Y: 1, Z: 1},
-		driver.Dim3{X: threads, Y: 1, Z: 1},
+		kernel.Grid1D(int(blocks)), kernel.Grid1D(int(threads)),
 		&gate, &up, &result, &q8Input.staging, &kind, &count,
 	); err != nil {
 		return err
@@ -789,7 +790,7 @@ func launchWeightedRMSGate(
 			&kind, &useAdd, &width, &rows, &epsilon,
 		)
 	}
-	if q8Input == nil || q8Input.staging == 0 || width%uint32(q8InputBlockWidth) != 0 {
+	if q8Input == nil || q8Input.staging == 0 || width%uint32(q8InputTraits.BlockSize) != 0 {
 		return errors.New("weighted RMS gate Q8 workspace is unavailable")
 	}
 	if err := launchNormalizationABI(
@@ -950,8 +951,7 @@ func launchBF16ArgmaxPartials(
 	const threads = uint32(q8ArgmaxWarpsPerBlock * 32)
 	return launchGridABI(
 		state, functions[kernelMulMatBf16ArgmaxPartialsF32],
-		driver.Dim3{X: partialCount, Y: 1, Z: 1},
-		driver.Dim3{X: threads, Y: 1, Z: 1},
+		kernel.Grid1D(int(partialCount)), kernel.Grid1D(int(threads)),
 		&left, &right, &partials, &inner, &rows,
 	)
 }
@@ -1075,7 +1075,7 @@ func launchQ8ArgmaxPartials(
 	}
 	right := pointers.input(1)
 	if q8Input.stagedNode != rightNode {
-		blocks := uint64(inner) / q8InputBlockWidth
+		blocks := uint64(inner) / q8InputTraits.BlockSize
 		if blocks > math.MaxUint32 {
 			return errors.New("Q8 argmax input block count exceeds uint32")
 		}
@@ -1091,11 +1091,10 @@ func launchQ8ArgmaxPartials(
 	if !ok {
 		return errors.New("Q8 argmax partial count exceeds uint32")
 	}
-	const threads = uint32(q8ArgmaxWarpsPerBlock * q8InputBlockWidth)
+	threads := uint32(q8ArgmaxWarpsPerBlock * q8InputTraits.BlockSize)
 	return launchGridABI(
 		state, functions[kernelMulMatQ80InputArgmaxPartialsF32],
-		driver.Dim3{X: partialCount, Y: 1, Z: 1},
-		driver.Dim3{X: threads, Y: 1, Z: 1},
+		kernel.Grid1D(int(partialCount)), kernel.Grid1D(int(threads)),
 		&left, &q8Input.staging, &partials, &inner, &rows,
 	)
 }
@@ -1117,8 +1116,7 @@ func launchQ8ArgmaxReduction(
 	partials, output := pointers.input(0), pointers.output()
 	return launchGridABI(
 		state, functions[kernelArgmaxQ80InputPartialsF32],
-		driver.Dim3{X: 1, Y: 1, Z: 1},
-		driver.Dim3{X: 256, Y: 1, Z: 1},
+		kernel.Grid1D(1), kernel.DefaultBlock1D(),
 		&partials, &output, &partialCount,
 	)
 }
@@ -1158,8 +1156,7 @@ func launchNormalizationABI(
 	const threads = uint32(256)
 	return launchGridABI(
 		state, function,
-		driver.Dim3{X: rows, Y: 1, Z: 1},
-		driver.Dim3{X: threads, Y: 1, Z: 1},
+		kernel.Grid1D(int(rows)), kernel.Grid1D(int(threads)),
 		arguments...,
 	)
 }

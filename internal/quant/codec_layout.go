@@ -62,6 +62,55 @@ type affineKCodecLayout struct {
 	packed  codecField
 }
 
+type scalarCodecLayout struct {
+	block      blockCodecLayout
+	levels     int
+	zeroPoint  int
+	packedBits uint
+	scale      codecField
+	minimum    codecField
+	high       codecField
+	packed     codecField
+	tail       codecField
+	tailGroup  int
+}
+
+type scalarCodecFields struct {
+	scale   int
+	minimum int
+	high    int
+}
+
+func q8KScalarCodec() scalarCodecLayout {
+	layout := scalarCodec(dtype.Q8K, 8, scalarCodecFields{scale: binaryschema.Uint32Bytes})
+	layout.tailGroup = kLaneWidth / 2
+	tailBytes := layout.block.elements / layout.tailGroup * binaryschema.Uint16Bytes
+	layout.packed.size -= tailBytes
+	layout.tail = field(layout.packed.end(), tailBytes)
+	return layout
+}
+
+func scalarCodec(dataType dtype.Type, bits uint, fields scalarCodecFields) scalarCodecLayout {
+	block := blockLayout(dataType)
+	minimumStart := fields.scale
+	highStart := minimumStart + fields.minimum
+	packedStart := highStart + fields.high
+	levels := 1<<bits - 1
+	zeroPoint := 0
+	if fields.minimum == 0 {
+		zeroPoint = (levels + 1) / 2
+	}
+	packedBits := bits
+	if fields.high != 0 {
+		packedBits--
+	}
+	return scalarCodecLayout{
+		block: block, levels: levels, zeroPoint: zeroPoint, packedBits: packedBits,
+		scale: codecField{size: fields.scale}, minimum: field(minimumStart, fields.minimum),
+		high: field(highStart, fields.high), packed: field(packedStart, block.size-packedStart),
+	}
+}
+
 // GGML IQ block layout facts. Offsets derive from preceding fields.
 const (
 	iqScaleBytes      = binaryschema.Uint16Bytes
@@ -151,8 +200,6 @@ const (
 
 	q6KScaleMagnitude = 128
 	q6KLevelMagnitude = 32
-
-	q1PackedBytes = 16
 )
 
 var (
@@ -169,13 +216,18 @@ var (
 	tq2BlockLayout    = blockLayout(dtype.TQ2_0)
 	mxfp4BlockLayout  = blockLayout(dtype.MXFP4)
 	nvfp4BlockLayout  = blockLayout(dtype.NVFP4)
-	q1BlockLayout     = blockLayout(dtype.Q1_0)
-	q2BlockLayout     = blockLayout(dtype.Q2_0)
-	q4BlockLayout     = blockLayout(dtype.Q4_0)
-	q5BlockLayout     = blockLayout(dtype.Q5_0)
-	q8BlockLayout     = blockLayout(dtype.Q8_0)
-	q8KBlockLayout    = blockLayout(dtype.Q8K)
-	q2KCodec          = affineKCodecLayout{
+	scalarCodecs      = [dtype.Count]scalarCodecLayout{
+		dtype.Q1_0: scalarCodec(dtype.Q1_0, 1, scalarCodecFields{scale: binaryschema.Uint16Bytes}),
+		dtype.Q2_0: scalarCodec(dtype.Q2_0, 2, scalarCodecFields{scale: binaryschema.Uint16Bytes}),
+		dtype.Q4_0: scalarCodec(dtype.Q4_0, 4, scalarCodecFields{scale: binaryschema.Uint16Bytes}),
+		dtype.Q4_1: scalarCodec(dtype.Q4_1, 4, scalarCodecFields{scale: binaryschema.Uint16Bytes, minimum: binaryschema.Uint16Bytes}),
+		dtype.Q5_0: scalarCodec(dtype.Q5_0, 5, scalarCodecFields{scale: binaryschema.Uint16Bytes, high: binaryschema.Uint32Bytes}),
+		dtype.Q5_1: scalarCodec(dtype.Q5_1, 5, scalarCodecFields{scale: binaryschema.Uint16Bytes, minimum: binaryschema.Uint16Bytes, high: binaryschema.Uint32Bytes}),
+		dtype.Q8_0: scalarCodec(dtype.Q8_0, 8, scalarCodecFields{scale: binaryschema.Uint16Bytes}),
+		dtype.Q8_1: scalarCodec(dtype.Q8_1, 8, scalarCodecFields{scale: binaryschema.Uint16Bytes, minimum: binaryschema.Uint16Bytes}),
+		dtype.Q8K:  q8KScalarCodec(),
+	}
+	q2KCodec = affineKCodecLayout{
 		block: blockLayout(dtype.Q2K),
 		delta: field(q2KScaleStart, iqScaleBytes), minimum: field(q2KMinimumStart, iqScaleBytes),
 		scales: field(q2KScaleMinStart, q2KScaleMinBytes), packed: field(q2KPackedStart, q2KPackedBytes),

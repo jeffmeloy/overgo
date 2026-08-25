@@ -80,7 +80,11 @@ type executionScratch struct {
 	replayFrame       []driver.DevicePtr
 }
 
-const graphExecCacheCapacity = 4
+const (
+	gemmProductScale       = float32(1)
+	gemmAccumulatorScale   = float32(0)
+	graphExecCacheCapacity = 4
+)
 const nativeWeightStagingLimitBytes = uint64(32 << 20)
 
 type graphExecEntry struct {
@@ -1197,10 +1201,10 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			rightRows := node.Inputs[1].Shape.Dims[1]
 			if rightRows != 1 {
 				compiled.needBlas = true
-				stagingRows, stagingWidth := leftRows, uint64(4)
+				stagingRows, stagingWidth := leftRows, f32ScalarBytes
 				if attributes, ok := node.Attrs.(tensor.MulMatAttributes); ok &&
 					attributes.Compute == tensor.MulMatComputeBF16TensorCore {
-					stagingRows, stagingWidth = rightRows, 2
+					stagingRows, stagingWidth = rightRows, bf16ScalarBytes
 				}
 				if inner > math.MaxUint64/stagingRows {
 					return nil, errors.New("half-precision mul_mat staging size overflows")
@@ -1210,7 +1214,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 					return nil, errors.New("half-precision mul_mat staging size overflows")
 				}
 				stagingBytes := stagingElements * stagingWidth
-				if stagingWidth == 4 {
+				if stagingWidth == f32ScalarBytes {
 					stagingBytes = nativeWeightStagingBytes(inner, stagingRows)
 				}
 				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, stagingBytes)
@@ -1227,13 +1231,13 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		if node.Op == tensor.OpMulMat && node.Inputs[0].Type == dtype.Q8_0 &&
 			node.Inputs[1].Shape.Rank == 2 && node.Inputs[1].Shape.Dims[1] == 1 {
 			elements, elementErr := node.Inputs[1].Shape.Elements()
-			if elementErr != nil || elements%q8InputBlockWidth != 0 ||
-				elements/q8InputBlockWidth > math.MaxUint64/q8InputBlockBytes {
+			if elementErr != nil || elements%q8InputTraits.BlockSize != 0 ||
+				elements/q8InputTraits.BlockSize > math.MaxUint64/q8InputTraits.TypeSize {
 				return nil, errors.New("Q8_0 mul_mat input storage overflows")
 			}
 			compiled.q8InputBytes = max(
 				compiled.q8InputBytes,
-				elements/q8InputBlockWidth*q8InputBlockBytes,
+				elements/q8InputTraits.BlockSize*q8InputTraits.TypeSize,
 			)
 		}
 	}
@@ -2084,7 +2088,7 @@ type quantKernelDescriptor struct {
 	mulMat  kernelFunctionID
 }
 
-var quantKernels = map[dtype.Type]quantKernelDescriptor{
+var quantKernels = [dtype.Count]quantKernelDescriptor{
 	dtype.Q8_0:   {"Q8_0", kernelGetRowsQ80F32, kernelMulMatQ80F32},
 	dtype.Q8_1:   {"Q8_1", kernelGetRowsQ81F32, kernelMulMatQ81F32},
 	dtype.Q8K:    {"Q8_K", kernelGetRowsQ8KF32, kernelMulMatQ8KF32},
@@ -2114,6 +2118,14 @@ var quantKernels = map[dtype.Type]quantKernelDescriptor{
 	dtype.Q6K:    {"Q6_K", kernelGetRowsQ6KF32, kernelMulMatQ6KF32},
 }
 
+func quantKernel(dataType dtype.Type) (quantKernelDescriptor, bool) {
+	if dataType >= dtype.Count {
+		return quantKernelDescriptor{}, false
+	}
+	descriptor := quantKernels[dataType]
+	return descriptor, descriptor.label != ""
+}
+
 type blasState struct {
 	library      *cublas.Library
 	handle       cublas.Handle
@@ -2125,9 +2137,10 @@ type blasState struct {
 	scoreBytes uint64
 }
 
-const (
-	q8InputBlockWidth = uint64(32)
-	q8InputBlockBytes = uint64(36)
+var (
+	q8InputTraits, _   = dtype.Q8_1.Traits()
+	f32ScalarBytes, _  = dtype.F32.ScalarBytes()
+	bf16ScalarBytes, _ = dtype.BF16.ScalarBytes()
 )
 
 type q8InputState struct {

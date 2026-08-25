@@ -372,8 +372,8 @@ func launchBlasConv2D(
 		) {
 			if err := blas.library.SGEMM(
 				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
-				int32(channelsOut), int32(columns), int32(inner), 1,
-				weight, int32(inner), blas.staging, int32(inner), 0,
+				int32(channelsOut), int32(columns), int32(inner), gemmProductScale,
+				weight, int32(inner), blas.staging, int32(inner), gemmAccumulatorScale,
 				tileOutput, int32(channelsOut),
 			); err != nil {
 				return err

@@ -50,7 +50,7 @@ func launchReferenceNode(
 }
 
 func nativeQuantizedType(value dtype.Type) bool {
-	_, ok := quantKernels[value]
+	_, ok := quantKernel(value)
 	return ok
 }
 

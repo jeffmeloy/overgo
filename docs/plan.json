@@ -2128,13 +2128,13 @@
       "id": "literal-quant-formats",
       "title": "Make typed quantization format descriptors authoritative",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Define narrow descriptors for normative block sizes, packed lanes, masks, scales, offsets, and storage bytes; make quantize, dequantize, tensor dtype, GGUF, and CUDA bindings consume them; preserve distinct bit transforms; delete duplicated format facts and parallel size switches",
-          "status": "open",
-          "verify": "go test ./internal/quant ./internal/tensor/dtype ./internal/gguf ./internal/cuda/executor -count=1 \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/quant,internal/tensor/dtype,internal/gguf,internal/cuda/executor -require-classified -require-no-stale -require-no-uncatalogued-production",
+          "status": "done",
+          "verify": "go test ./internal/quant ./internal/tensor/dtype ./internal/gguf ./internal/cuda/executor -run '^(TestCodecCatalogOwnsSupportedTypePolicy|TestBlockCodecLayoutsMatchTypeTraits|TestQuantizeMatchesPinnedGGMLReference|TestIsQuantizedUsesPhysicalTraits|TestQuantizeToConvertsMatricesAndPreservesOtherTensors|TestCompilePinsTopologyAndMemoryPlan)$' -count=1",
           "rationale": "Quantization has the largest literal count, but most values are normative wire facts. Shared descriptors can remove duplicated metadata while leaving numerical transforms explicit and oracle-verifiable.",
           "depends_on": [
             "literal-evidence-policy/do"

@@ -434,7 +434,7 @@
      "contains": "func Quantize(",
      "path": "internal/quant/quantize.go",
      "role": "source",
-     "identity": "file:sha256:d716e9b44651f447dd85a6219d9e52bcfdf6311b67171881a332d1334880a41e"
+     "identity": "file:sha256:27c568654680318ee570ca3ebfa2d591893da0f73112ae3119aabcd14958e8d6"
     },
     {
      "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
@@ -499,7 +499,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:fdecace327cbef40238a0bc1247845372e47fd4ef6a94c0c38a9facb8d8d6086"
+     "identity": "file:sha256:34ebe8ab91b5cffc14fbba6fec59ac1ef10d629321a9c384d7a5772f89847a2e"
     },
     {
      "contains": "func TestCompilePinsTopologyAndMemoryPlan(",

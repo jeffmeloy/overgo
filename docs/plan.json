@@ -3360,12 +3360,12 @@
       "id": "gui-multimodal-input",
       "title": "Chat and agent steps accept image, audio, and video attachments through the served protocol content parts under the media policy",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Multimodal attachment input",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestChatMultimodalAttachments -count=1"
         }
       ]

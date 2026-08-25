@@ -316,7 +316,7 @@
         {
           "id": "agent-authority",
           "title": "Add immutable agent definitions and active aliases referencing prompt, model recipe, tool manuals, capability bundles, datasets, automation definitions, and policy identities",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestAgentDefinitionAuthority' internal \u0026\u0026 go test ./internal/agentloop ./internal/agenttool ./internal/runrecord -run 'TestAgentDefinitionAuthority|TestAgentActivation|TestAgentCapabilityRefusal|TestAgentPauseResumeAuthority' -count=1",
           "rationale": "The current agent endpoint coordinates a session and registered tools but does not own durable agent configuration. Definitions compose existing authorities; they do not create a filesystem skill store, arbitrary plugin loader, or mutable personality object.",
           "depends_on": [

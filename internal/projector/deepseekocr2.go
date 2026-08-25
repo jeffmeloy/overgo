@@ -44,7 +44,7 @@ func openDeepSeekOCR2(ctx context.Context, file *gguf.File, options OpenOptions)
 	if err != nil {
 		return nil, err
 	}
-	runner.separator, err = loadProjectorHostTensor(ctx, file, "v.view_seperator")
+	runner.separator, err = loadProjectorHostTensor(ctx, file, visionViewSeparatorTensor)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func ReadDeepSeekOCR2Spec(file *gguf.File) (DeepSeekOCR2Spec, error) {
 func deepSeekOCR2TensorNames(file *gguf.File, spec DeepSeekOCR2Spec) []string {
 	names := append(deepSeekOCRSAMTensorNames(spec.DeepSeekOCRSpec),
 		"v.resample_query_768.weight", "v.resample_query_1024.weight",
-		multimodalProjectionWeight, multimodalProjectionBias, "v.view_seperator")
+		multimodalProjectionWeight, multimodalProjectionBias, visionViewSeparatorTensor)
 	for _, name := range []string{visionPreNormWeightTensor, visionPreNormBiasTensor, visionPostNormWeightTensor, visionPostNormBiasTensor} {
 		if hasTensor(file, name) {
 			names = append(names, name)
@@ -156,13 +156,13 @@ func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
 	if _, err := validateProjectorTensorCatalog(file, requiredShapes); err != nil {
 		return err
 	}
-	separator, _ := file.Tensor("v.view_seperator")
+	separator, _ := file.Tensor(visionViewSeparatorTensor)
 	elements, err := separator.ElementCount()
 	if err != nil {
 		return err
 	}
 	if elements != uint64(spec.OutputHidden) {
-		return fmt.Errorf("projector: tensor %q has %d elements, want %d", "v.view_seperator", elements, spec.OutputHidden)
+		return fmt.Errorf("projector: tensor %q has %d elements, want %d", visionViewSeparatorTensor, elements, spec.OutputHidden)
 	}
 	for _, prefix := range []string{"v.pre_ln", "v.post_ln"} {
 		_, weight := file.Tensor(prefix + ".weight")

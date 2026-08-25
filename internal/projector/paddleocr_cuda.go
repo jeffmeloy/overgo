@@ -81,7 +81,7 @@ func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	merged := mergePlan.graph(builder, hidden)
 	fc1 := builder.Add(builder.MulMat(weight("mm.1.weight"), merged), weight("mm.1.bias"))
 	fc1 = visionActivationNode(builder, fc1, r.spec.Activation)
-	output := builder.Add(builder.MulMat(weight("mm.2.weight"), fc1), weight("mm.2.bias"))
+	output := builder.Add(builder.MulMat(weight(projectionSecondWeightTensor), fc1), weight(projectionSecondBiasTensor))
 	results, err := graph.execute(output)
 	if err != nil {
 		return gridOutput{}, fmt.Errorf("projector: execute PaddleOCR graph: %w", err)

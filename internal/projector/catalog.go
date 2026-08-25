@@ -29,6 +29,7 @@ const (
 	visionInputTensor            = "pixel_values"
 	visionClassEmbeddingTensor   = "v.class_embd"
 	visionImageNewlineTensor     = "v.image_newline"
+	visionViewSeparatorTensor    = "v.view_seperator"
 )
 
 type tensorPresence uint8

@@ -65,7 +65,7 @@ func openDeepSeekOCR(ctx context.Context, file *gguf.File, options OpenOptions) 
 		return nil, err
 	}
 	runner.newline, runner.separator, err = loadProjectorHostTensorPair(
-		ctx, file, visionImageNewlineTensor, "v.view_seperator",
+		ctx, file, visionImageNewlineTensor, visionViewSeparatorTensor,
 	)
 	if err != nil {
 		return nil, err
@@ -229,7 +229,7 @@ func deepSeekOCRTensorNames(file *gguf.File, spec DeepSeekOCRSpec) []string {
 	names := deepSeekOCRSAMTensorNames(spec)
 	names = append(names,
 		visionClassEmbeddingTensor, visionPositionWeightTensor,
-		multimodalProjectionWeight, multimodalProjectionBias, visionImageNewlineTensor, "v.view_seperator",
+		multimodalProjectionWeight, multimodalProjectionBias, visionImageNewlineTensor, visionViewSeparatorTensor,
 	)
 	for layer := 0; layer < spec.Layers; layer++ {
 		prefix := fmt.Sprintf("v.blk.%d.", layer)
@@ -300,7 +300,7 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 	if _, err := validateProjectorTensorCatalog(file, requiredShapes); err != nil {
 		return err
 	}
-	for _, name := range []string{visionImageNewlineTensor, "v.view_seperator"} {
+	for _, name := range []string{visionImageNewlineTensor, visionViewSeparatorTensor} {
 		info, _ := file.Tensor(name)
 		elements, err := info.ElementCount()
 		if err != nil {

@@ -24,7 +24,7 @@ func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	if err != nil {
 		return gridOutput{}, err
 	}
-	conv0, err := loadProjectorHostTensor(ctx, r.file, "mm.0.weight")
+	conv0, err := loadProjectorHostTensor(ctx, r.file, projectionFirstWeightTensor)
 	if err != nil {
 		return gridOutput{}, err
 	}
@@ -42,7 +42,7 @@ func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	}
 	builder := tensor.NewBuilder()
 	pixels := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(uint64(patchWidth), uint64(rows)))
-	conv0Input := builder.Input("mm.0.weight.reordered", dtype.F32, tensor.MustShape(uint64(convWidth), uint64(r.spec.ConvIntermediate)))
+	conv0Input := builder.Input(projectionFirstWeightTensor+".reordered", dtype.F32, tensor.MustShape(uint64(convWidth), uint64(r.spec.ConvIntermediate)))
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	hostFeeds := graph.hostFeeds
 	hostFeeds[pixels] = pixelsValue(pixels, input.PixelValues)
@@ -89,10 +89,10 @@ func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImag
 	hidden = builder.WeightedRMSNorm(hidden, weight("mm.pre_norm.weight"), r.spec.LayerNormEpsilon)
 	mergedH, mergedW := input.GridH/r.spec.MergeSize, input.GridW/r.spec.MergeSize
 	merged := mergePlan.graph(builder, hidden)
-	projected := builder.Add(builder.MulMat(conv0Input, merged), weight("mm.0.bias"))
+	projected := builder.Add(builder.MulMat(conv0Input, merged), weight(projectionFirstBiasTensor))
 	projected = builder.GELUTanhExact(projected)
-	conv2 := builder.Reshape(weight("mm.2.weight"), uint64(r.spec.ConvIntermediate), uint64(r.spec.ProjectorInput))
-	projected = builder.Add(builder.MulMat(conv2, projected), weight("mm.2.bias"))
+	conv2 := builder.Reshape(weight(projectionSecondWeightTensor), uint64(r.spec.ConvIntermediate), uint64(r.spec.ProjectorInput))
+	projected = builder.Add(builder.MulMat(conv2, projected), weight(projectionSecondBiasTensor))
 	newline := builder.Reshape(weight(visionImageNewlineTensor), uint64(r.spec.ProjectorInput), tensor.SingletonExtent)
 	var content *tensor.Tensor
 	for y := range mergedH {

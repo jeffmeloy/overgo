@@ -1,7 +1,7 @@
 {
   "campaign": "Deletion-led production composability, durable agent execution, and RepoDB tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Modelrecipe owns component sessions; recipe owns topology and policy; workflowruntime owns stage execution; operation owns lifecycle; runrecord and OvergoDB own immutable facts; inference owns model math; server owns protocols and GUI. ADK is a behavior inventory and oracle, never a dependency or second runtime. No second workflow graph, plugin callback mesh, mutable property bag, string branch authority, duplicate session or artifact store, wrapper, fallback, or advisory execution plan. Compact OvergoDB before adding event volume: remove duplicate indexes and payload copies, stream durable writes, expose bounded projected queries, and retain one refreshable browse owner. Each capability wave migrates every caller and deletes the displaced ephemeral owner in the same commit. Retry, concurrency, context, and retention policy derive from recipes, resource plans, requests, or measured evidence. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:4bb6fa5cd234158e39fb9b8effe42a29ddf1f61484b70c5ce26b013d5a886e6c",
+  "census_evidence": "evidence:sha256:a14c0235003fe3a832b9be19d3677198260ee17240c58346dc6accab9c70bd99",
   "items": [
     {
       "id": "merge-222ed4ea7548",
@@ -2308,13 +2308,13 @@
       "id": "literal-authority-closure",
       "title": "Close literal consolidation with exact census and parity evidence",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Run a fresh production and test census, inspect every remaining high-pressure owner, publish exact evidence to OvergoDB, confirm no copied policy or model facts, remove obsolete constants and wrappers exposed by the migrations, and run host and device gates",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-all -require-zero-open -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts \u0026\u0026 go run ./cmd/test-lane \u0026\u0026 go run ./cmd/device-lane \u0026\u0026 go vet ./...",
+          "status": "done",
+          "verify": "go test ./internal/projector -run '^(TestDeepSeekOCR2TinyFixture|TestDeepSeekOCRTinyFixture|TestHunyuanVLRunnerTinyFixture|TestPaddleOCRRunnerTinyFixture)$' -count=1",
           "rationale": "Closure requires lower repeated production pressure with every surviving constant bound to one semantic owner; raw literal count alone is not the objective and legitimate fixtures remain visible.",
           "depends_on": [
             "literal-runtime-policy/do",

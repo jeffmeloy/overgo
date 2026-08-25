@@ -229,6 +229,95 @@ func (h *Handler) agentApprovalPreview(response http.ResponseWriter, request *ht
 	writeJSON(response, http.StatusOK, payload)
 }
 
+// agentProvenance walks one recorded step's full evidence: the
+// interaction and its transcript facts (tool name, exact manual
+// identity, arguments, result), the mutation receipt chain from tip
+// back to admission, and the committed decision -- every link an
+// artifact identity the operator can open. The walk reads what the
+// step durably wrote; it derives nothing.
+func (h *Handler) agentProvenance(response http.ResponseWriter, request *http.Request) {
+	if !requireMethod(response, request, http.MethodGet) {
+		return
+	}
+	if h.repository == nil || h.agentCoordinator == nil {
+		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no evidence repository is configured")
+		return
+	}
+	session := request.URL.Query().Get("session")
+	step := request.URL.Query().Get("step")
+	if session == "" || step == "" {
+		writeError(response, http.StatusBadRequest, "invalid_request", "session and step are required")
+		return
+	}
+	callID := session + "-step-" + step
+	interaction, found, err := runrecord.ResolveInteraction(request.Context(), h.repository, callID)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	if !found {
+		writeError(response, http.StatusNotFound, "not_found", "no interaction is recorded for this step")
+		return
+	}
+	payload := map[string]any{
+		"call_id": callID, "interaction": idText(interaction.ID),
+		"transcript": idText(interaction.Message), "trace": idText(interaction.Trace),
+	}
+	if interaction.Parent.Valid() {
+		payload["parent"] = idText(interaction.Parent)
+	}
+	transcript, err := runrecord.RequireInteractionTranscript(request.Context(), h.repository, interaction.Message)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	for _, message := range transcript.Messages {
+		for _, call := range message.ToolCalls {
+			payload["tool"] = call.Name
+			payload["arguments"] = call.Arguments
+			if call.Manual.Valid() {
+				payload["manual"] = idText(call.Manual)
+			}
+		}
+		if message.ToolCallID != "" {
+			payload["result"] = map[string]any{"content": message.Content, "error": message.ToolResultError}
+		}
+	}
+	operation, err := agentloop.MutationReceiptOperation(callID)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	if tip, found, err := runrecord.ResolveStageReceipt(request.Context(), h.repository, operation, h.agentCoordinator.ServingIdentity().Node); err == nil && found {
+		receipts := []map[string]any{}
+		for current, ok := tip, true; ok; {
+			entry := map[string]any{"id": idText(current.ID), "state": string(current.State)}
+			if current.Failure != "" {
+				entry["failure"] = current.Failure
+			}
+			receipts = append(receipts, entry)
+			if !current.Previous.Valid() {
+				break
+			}
+			content, present, err := artifact.ReadContent(request.Context(), h.repository, current.Previous)
+			if err != nil || !present {
+				break
+			}
+			current, err = runrecord.ParseStageReceipt(content.Data)
+			ok = err == nil
+		}
+		payload["operation"] = idText(operation)
+		payload["receipts"] = receipts
+	}
+	if decision, found, err := runrecord.ResolveHumanDecision(request.Context(), h.repository, operation); err == nil && found {
+		payload["decision"] = map[string]any{
+			"id": idText(decision.ID), "answer": string(decision.Answer),
+			"tool": decision.Tool, "arguments": decision.Arguments,
+		}
+	}
+	writeJSON(response, http.StatusOK, payload)
+}
+
 // buildAgentRuntime binds a coordinator over the served store when a
 // serving identity is available; without one the agent routes report
 // unavailability rather than serve a runtime with no durable identity.

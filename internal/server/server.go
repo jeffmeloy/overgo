@@ -851,6 +851,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		h.agentStep(response, request)
 	case "/agent/approval":
 		h.agentApprovalPreview(response, request)
+	case "/agent/provenance":
+		h.agentProvenance(response, request)
 	default:
 		h.serveWebUI(response, request)
 	}

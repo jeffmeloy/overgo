@@ -249,6 +249,35 @@
         automationHost.replaceChildren(el("div", { class: "row" }, select, key, destination, run), inputs);
       }
 
+      // renderProvenance expands one step's full evidence walk: the
+      // interaction, the exact manual identity, the receipt chain from
+      // completed back to admitted, the committed decision, and the
+      // result -- every link an artifact the operator can open.
+      async function renderProvenance(host, session, step) {
+        try {
+          const walk = await api.get("/agent/provenance?session=" + encodeURIComponent(selected + ":" + session) + "&step=" + step);
+          const parts = [
+            el("div", {}, "interaction ", artifactLink(walk.interaction), " / transcript ", artifactLink(walk.transcript)),
+            el("div", {}, "tool " + walk.tool + " / manual ", walk.manual ? artifactLink(walk.manual) : el("span", { text: "by name" })),
+            el("div", { class: "mono", text: "arguments " + (walk.arguments || "{}") }),
+          ];
+          if (walk.receipts) {
+            parts.push(el("div", {}, "receipts ", ...walk.receipts.flatMap((receipt) => [
+              el("span", { class: receipt.state === "failed" ? "tag tag-danger" : "tag", text: receipt.state }), " ",
+              artifactLink(receipt.id), " ",
+            ])));
+          }
+          if (walk.decision) {
+            parts.push(el("div", {}, "decision ", artifactLink(walk.decision.id),
+              " / " + walk.decision.answer + " for " + walk.decision.tool));
+          }
+          if (walk.result) {
+            parts.push(el("div", { class: "mono", text: "result " + (walk.result.error ? "ERROR " : "") + walk.result.content }));
+          }
+          host.replaceChildren(el("div", { class: "card" }, ...parts));
+        } catch (err) { showError(err); }
+      }
+
       async function renderEvidence(session) {
         if (!selected || !session) {
           evidenceHost.replaceChildren(el("div", { class: "note", text: "Run a tool step to load its durable observables." }));
@@ -256,10 +285,16 @@
         }
         try {
           const rows = await api.get("/agents/evidence?session=" + encodeURIComponent(selected + ":" + session));
-          evidenceHost.replaceChildren(...rows.map((item) => el("div", { class: "card" },
-            "step " + item.step + " / ", artifactLink(item.interaction), " / transcript ", artifactLink(item.transcript),
-            ...((item.calls || []).map((call) => el("div", { text: "call " + call.name + " / " + fmt.shortID(call.manual) }))),
-            ...((item.results || []).map((result) => el("div", { text: "result " + result.tool_call_id + (result.error ? " / error" : " / complete") }))))));
+          evidenceHost.replaceChildren(...rows.map((item) => {
+            const provenanceHost = el("div");
+            const open = el("button", { class: "btn alt", text: "Provenance" });
+            open.addEventListener("click", () => renderProvenance(provenanceHost, session, item.step));
+            return el("div", { class: "card" },
+              "step " + item.step + " / ", artifactLink(item.interaction), " / transcript ", artifactLink(item.transcript), " ", open,
+              ...((item.calls || []).map((call) => el("div", { text: "call " + call.name + " / " + fmt.shortID(call.manual) }))),
+              ...((item.results || []).map((result) => el("div", { text: "result " + result.tool_call_id + (result.error ? " / error" : " / complete") }))),
+              provenanceHost);
+          }));
         } catch (err) { showError(err); }
       }
 

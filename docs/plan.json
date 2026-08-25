@@ -3318,12 +3318,12 @@
       "id": "gui-step-provenance",
       "title": "Per-step provenance click-through: interaction, receipt chain, decision, exact manual identity, result artifact",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Provenance walk API and view",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run \"TestAgentWorkspace|TestAgentProvenance\" -count=1"
         }
       ]

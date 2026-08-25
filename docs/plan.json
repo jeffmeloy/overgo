@@ -101,68 +101,6 @@
       ]
     },
     {
-      "id": "wan-vidgen-batches",
-      "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -run 'TestEncodeSource|TestDiTTrainer' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "wan-gradient-checkpointing",
-      "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
-          "status": "open",
-          "verify": "go test ./internal/latentvideo -run TestDiTTrainer -count=1",
-          "depends_on": [
-            "wan-vidgen-batches/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "wan-objective-adaptive",
-      "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
-          "status": "open",
-          "verify": "go test ./cmd/training-objective ./internal/trainingprogram -run 'TestObjective' -count=1",
-          "depends_on": [
-            "wan-vidgen-batches/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "research-merge-reconcile",
-      "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
-          "status": "open",
-          "verify": "go build ./... \u0026\u0026 go test ./internal/agentloop ./internal/agenttool ./internal/workflowruntime -count=1"
-        }
-      ]
-    },
-    {
       "id": "merge-tightening-adk",
       "title": "Merge the tightening ADK campaign into master",
       "owner": "gui",
@@ -2669,6 +2607,176 @@
       ]
     },
     {
+      "id": "merge-06cdd76fa955",
+      "title": "Merge master at 06cdd76fa955",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 06cdd76fa955",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "merge-f1d451df1f88",
+      "title": "Merge master at f1d451df1f88",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at f1d451df1f88",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "merge-e03ed8f1974c",
+      "title": "Merge master at e03ed8f1974c",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at e03ed8f1974c",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "merge-1f48778cc813",
+      "title": "Merge master at 1f48778cc813",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 1f48778cc813",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
+        }
+      ]
+    },
+    {
+      "id": "update-readme",
+      "title": "Refresh README for the merged state: agent workspace, dataset catalog, objective ladder, literal authority closure",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Update README.md and commit",
+          "status": "done",
+          "verify": "go build ./cmd/gate"
+        }
+      ]
+    },
+    {
+      "id": "dataset-mtime-free-identity",
+      "title": "Drop modification time from newly compiled dataset inventory identity so touching an unchanged file cannot re-identify it",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop populating ModifiedUnix; identity follows digest and bytes only",
+          "status": "open",
+          "verify": "go test ./internal/dataset -run TestRegister -count=1"
+        }
+      ]
+    },
+    {
+      "id": "wan-vidgen-batches",
+      "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -run 'TestEncodeSource|TestDiTTrainer' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "wan-gradient-checkpointing",
+      "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Per-block gradient checkpointing so Wan training reaches full 81-frame 480p geometry past the memory cliff",
+          "status": "open",
+          "verify": "go test ./internal/latentvideo -run TestDiTTrainer -count=1",
+          "depends_on": [
+            "wan-vidgen-batches/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wan-objective-adaptive",
+      "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Climb the objective ladder: executable loss and evaluation behind the text-to-video objective, republished at adaptive-evidence",
+          "status": "open",
+          "verify": "go test ./cmd/training-objective ./internal/trainingprogram -run 'TestObjective' -count=1",
+          "depends_on": [
+            "wan-vidgen-batches/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "objective-authority-enforcement",
+      "title": "Objective authority fails closed and approved requires committed evidence, not caller assertion",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Loading an objective with invalid authority refuses; promotion to approved verifies evidence documents",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram ./internal/trainingworkflow -run \"TestObjective|TestSession\" -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gemma4-peak-ledger-snapshot",
+      "title": "Capture the full allocation ledger at the peak crossing so the diffuse-footprint conclusion is evidenced, not asserted",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Snapshot per-size allocation ledger at high-water; diff against the adaptive reference profile",
+          "status": "open",
+          "verify": "go test ./internal/cuda/driver -run TestMemory -count=1"
+        }
+      ]
+    },
+    {
+      "id": "research-merge-reconcile",
+      "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
+          "status": "open",
+          "verify": "go build ./... \u0026\u0026 go test ./internal/agentloop ./internal/agenttool ./internal/workflowruntime -count=1"
+        }
+      ]
+    },
+    {
       "id": "agent-receipt-before-execution",
       "title": "Admit a durable operation receipt before a mutation executes, so a side effect never lacks evidence",
       "owner": "gui",
@@ -2731,60 +2839,9 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 OVERGO_GEMMA4_BASELINE=1 go test ./internal/adaptiveparity -run TestGemma4FP8Leadership -count=1",
           "depends_on": [
-            "gemma4-memory-diagnostic/do"
+            "gemma4-memory-diagnostic/do",
+            "gemma4-peak-ledger-snapshot/do"
           ]
-        }
-      ]
-    },
-    {
-      "id": "merge-06cdd76fa955",
-      "title": "Merge master at 06cdd76fa955",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge master at 06cdd76fa955",
-          "status": "done",
-          "verify": "go run ./cmd/compatibility -check"
-        }
-      ]
-    },
-    {
-      "id": "merge-f1d451df1f88",
-      "title": "Merge master at f1d451df1f88",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge master at f1d451df1f88",
-          "status": "done",
-          "verify": "go run ./cmd/compatibility -check"
-        }
-      ]
-    },
-    {
-      "id": "merge-e03ed8f1974c",
-      "title": "Merge master at e03ed8f1974c",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge master at e03ed8f1974c",
-          "status": "done",
-          "verify": "go run ./cmd/compatibility -check"
-        }
-      ]
-    },
-    {
-      "id": "merge-1f48778cc813",
-      "title": "Merge master at 1f48778cc813",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge master at 1f48778cc813",
-          "status": "done",
-          "verify": "go run ./cmd/compatibility -check"
         }
       ]
     }

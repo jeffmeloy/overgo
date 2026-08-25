@@ -27,6 +27,15 @@ type PeerCapabilityPublication struct {
 	ID              artifact.ID `json:"-"`
 }
 
+// PeerServingAuthority is the exact enrolled, active, capability-bound lease admitted for serving.
+type PeerServingAuthority struct {
+	Enrollment  runrecord.PeerEnrollment  `json:"enrollment"`
+	State       runrecord.PeerState       `json:"state"`
+	Publication PeerCapabilityPublication `json:"publication"`
+	Capability  RemotePeerCapability      `json:"capability"`
+	Heartbeat   runrecord.PeerHeartbeat   `json:"heartbeat"`
+}
+
 var peerCapabilityPublicationCodec = artifact.JSONDocumentCodec(
 	"peer capability publication", artifact.KindEvidence,
 	PeerCapabilityPublicationMediaType, PeerCapabilityPublicationSchema,
@@ -51,6 +60,39 @@ func ResolvePeerCapabilityPublication(
 	}
 	capability, err := RequireRemotePeerCapability(ctx, reader, publication.Capability)
 	return publication, capability, err == nil, err
+}
+
+// ResolvePeerServingAuthority requires an active peer and unexpired current capability lease.
+func ResolvePeerServingAuthority(
+	ctx context.Context,
+	repository artifact.Repository,
+	peer artifact.ID,
+	nowUnixNS int64,
+) (PeerServingAuthority, error) {
+	if ctx == nil || repository == nil || nowUnixNS <= 0 {
+		return PeerServingAuthority{}, errors.New("model recipe: invalid peer serving authority request")
+	}
+	enrollment, err := runrecord.RequirePeerEnrollment(ctx, repository, peer)
+	if err != nil {
+		return PeerServingAuthority{}, err
+	}
+	state, found, err := runrecord.ResolvePeerState(ctx, repository, peer)
+	if err != nil || !found || state.State != runrecord.PeerActive {
+		return PeerServingAuthority{}, errors.Join(errors.New("model recipe: peer is not active"), err)
+	}
+	publication, capability, found, err := ResolvePeerCapabilityPublication(ctx, repository, peer)
+	if err != nil || !found || capability.Environment != enrollment.Environment {
+		return PeerServingAuthority{}, errors.Join(errors.New("model recipe: peer capability is unavailable"), err)
+	}
+	heartbeat, found, err := runrecord.ResolvePeerHeartbeat(ctx, repository, peer)
+	if err != nil || !found || heartbeat.Peer != peer || heartbeat.Capability != publication.ID ||
+		heartbeat.ObservedUnixNS > nowUnixNS || nowUnixNS >= heartbeat.ExpiresUnixNS {
+		return PeerServingAuthority{}, errors.Join(errors.New("model recipe: peer lease is absent, mismatched, or expired"), err)
+	}
+	return PeerServingAuthority{
+		Enrollment: enrollment, State: state, Publication: publication,
+		Capability: capability, Heartbeat: heartbeat,
+	}, nil
 }
 
 // PublishPeerCapability atomically advances one active peer's declaration.

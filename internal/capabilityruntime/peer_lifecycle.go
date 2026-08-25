@@ -10,17 +10,24 @@ import (
 )
 
 // PeerServingLease is the exact enrolled, active, capability-bound lease admitted for serving.
-type PeerServingLease struct {
-	Enrollment  runrecord.PeerEnrollment              `json:"enrollment"`
-	State       runrecord.PeerState                   `json:"state"`
-	Publication modelrecipe.PeerCapabilityPublication `json:"publication"`
-	Capability  modelrecipe.RemotePeerCapability      `json:"capability"`
-	Heartbeat   runrecord.PeerHeartbeat               `json:"heartbeat"`
-}
+type PeerServingLease = modelrecipe.PeerServingAuthority
 
 // PeerLifecycleAuthority owns RepoDB mutations and serving admission for enrolled peers.
 type PeerLifecycleAuthority struct {
 	Repository artifact.Repository
+}
+
+// PeerPlacementAuthority compiles deterministic whole-model replica placement.
+type PeerPlacementAuthority struct {
+	Repository artifact.Repository
+}
+
+// Compile resolves current recipe, locality, compatibility, resources, and peer leases.
+func (authority PeerPlacementAuthority) Compile(
+	ctx context.Context,
+	request modelrecipe.PeerPlacementRequest,
+) (modelrecipe.PeerPlacementPlan, error) {
+	return modelrecipe.CompilePeerPlacementPlan(ctx, authority.Repository, request)
 }
 
 // Enroll commits an approved public identity and its initial active state.
@@ -69,28 +76,5 @@ func (authority PeerLifecycleAuthority) Resolve(
 	peer artifact.ID,
 	nowUnixNS int64,
 ) (PeerServingLease, error) {
-	if ctx == nil || authority.Repository == nil || nowUnixNS <= 0 {
-		return PeerServingLease{}, errors.New("capability runtime: invalid peer lease request")
-	}
-	enrollment, err := runrecord.RequirePeerEnrollment(ctx, authority.Repository, peer)
-	if err != nil {
-		return PeerServingLease{}, err
-	}
-	state, found, err := runrecord.ResolvePeerState(ctx, authority.Repository, peer)
-	if err != nil || !found || state.State != runrecord.PeerActive {
-		return PeerServingLease{}, errors.Join(errors.New("capability runtime: peer is not active"), err)
-	}
-	publication, capability, found, err := modelrecipe.ResolvePeerCapabilityPublication(ctx, authority.Repository, peer)
-	if err != nil || !found || capability.Environment != enrollment.Environment {
-		return PeerServingLease{}, errors.Join(errors.New("capability runtime: peer capability is unavailable"), err)
-	}
-	heartbeat, found, err := runrecord.ResolvePeerHeartbeat(ctx, authority.Repository, peer)
-	if err != nil || !found || heartbeat.Peer != peer || heartbeat.Capability != publication.ID ||
-		heartbeat.ObservedUnixNS > nowUnixNS || nowUnixNS >= heartbeat.ExpiresUnixNS {
-		return PeerServingLease{}, errors.Join(errors.New("capability runtime: peer lease is absent, mismatched, or expired"), err)
-	}
-	return PeerServingLease{
-		Enrollment: enrollment, State: state, Publication: publication,
-		Capability: capability, Heartbeat: heartbeat,
-	}, nil
+	return modelrecipe.ResolvePeerServingAuthority(ctx, authority.Repository, peer, nowUnixNS)
 }

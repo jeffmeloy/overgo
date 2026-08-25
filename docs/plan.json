@@ -230,7 +230,7 @@
         {
           "id": "placement-plan",
           "title": "Compile deterministic whole-model placement and replica plans from active recipes, peer compatibility, artifact locality, residency, observed resources, and requested service policy",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestCompilePeerPlacementPlan' internal \u0026\u0026 go test ./internal/modelrecipe ./internal/capabilityruntime -run 'TestCompilePeerPlacementPlan|TestPeerPlacementRefusalReasons|TestPeerPlacementArtifactLocality|TestPeerReplicaPolicyDerivation' -count=1",
           "rationale": "Eligibility precedes ranking. The compiler must explain admission and refusal, preserve exact artifact and recipe identities, and derive replica and resource decisions without endpoint-order fallback or hard-coded VRAM thresholds.",
           "depends_on": [

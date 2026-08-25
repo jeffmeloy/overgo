@@ -2690,12 +2690,12 @@
       "id": "wan-vidgen-batches",
       "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Train Wan on real VidGen batches: VAE-encode clips via EncodeSourceVideo and condition on their captions, replacing fixture latents",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/latentvideo -run 'TestEncodeSource|TestDiTTrainer' -count=1"
         }
       ]

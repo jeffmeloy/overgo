@@ -35,12 +35,12 @@
       "id": "agent-simple-create",
       "title": "One-step agent creation: name, instructions, tool checkboxes; every identity derived server-side",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "One-step agent creation: name, instructions, tool checkboxes; every identity derived server-side",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestAgentSimpleCreate -count=1"
         }
       ]

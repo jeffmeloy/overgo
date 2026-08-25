@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:84da019c5f63b742cf71e4f0a0b057e0c4c3328963b78de3cf4b4da83fbd7057",
   "items": [
     {
-      "id": "catalog-servability-truth",
-      "title": "The servable catalog answers only what serving will actually admit: a catalog entry without a bound runtime policy is not servable and must not be listed as such",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The servable catalog answers only what serving will actually admit: a catalog entry without a bound runtime policy is not servable and must not be listed as such",
-          "status": "open",
-          "verify": "go test ./internal/discovery ./internal/server -run 'TestCapabilityCatalog|TestServedModelHeader' -count=1",
-          "depends_on": [
-            "gui-live-model-switch/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "modelswap-swap-fairness",
       "title": "A pending swap admits no new same-model acquires: queue arrivals behind the drain so continuous traffic cannot starve a swap",
       "owner": "gui",

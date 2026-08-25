@@ -80,6 +80,19 @@ func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 				continue
 			default:
 				capability.Recipe, capability.Tier = activation.Definition.ID, activation.Tier
+				// Servability is the serving stack's own gate: for tasks the
+				// policy catalog supports, loading refuses a recipe without a
+				// bound runtime policy, so the catalog must report it stale
+				// rather than list it as launchable. Tasks outside the policy
+				// catalog carry no policy requirement -- the same optional
+				// resolution the capability selector performs, no policy copy.
+				if _, supported, err := modelrecipe.CatalogRuntimePolicy(task); err != nil {
+					capability.Stale = fmt.Sprintf("runtime policy catalog cannot be read: %v", err)
+				} else if supported {
+					if _, err := modelrecipe.ResolveRuntimePolicy(ctx, store, activation.Definition); err != nil {
+						capability.Stale = fmt.Sprintf("not servable: %v (recipe policy <model> binds it)", err)
+					}
+				}
 			}
 			entry.Capabilities = append(entry.Capabilities, capability)
 		}

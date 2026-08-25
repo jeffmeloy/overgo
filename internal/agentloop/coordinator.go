@@ -124,11 +124,30 @@ func (c *Coordinator) propose(
 				"agent loop: mutation %q requires an exact approval", name)
 		}
 	}
-	result, err := c.executor.Invoke(ctx, manual, arguments)
-	if err != nil {
-		return nil, err
+	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
+	// A mutation admits a durable receipt BEFORE it executes and closes
+	// it after: if the receipt cannot persist the side effect never
+	// happens, and if the process dies mid-execution the running receipt
+	// is the evidence that it started -- a side effect never lacks a
+	// record. Inspections are effect-free and carry no receipt.
+	var receiptOperation artifact.ID
+	if manual.Effect == agenttool.EffectMutation {
+		if receiptOperation, err = c.admitMutationReceipt(ctx, callID, manual, arguments); err != nil {
+			return nil, fmt.Errorf("agent loop: mutation %q refused without a durable receipt: %w", name, err)
+		}
 	}
-	if err := c.recordStep(ctx, session, manual, arguments, result); err != nil {
+	result, invokeErr := c.executor.Invoke(ctx, manual, arguments)
+	var receipt artifact.ID
+	if receiptOperation.Valid() {
+		receipt, err = c.closeMutationReceipt(ctx, receiptOperation, result, invokeErr)
+		if err != nil {
+			return nil, errors.Join(invokeErr, fmt.Errorf("agent loop: mutation receipt did not close: %w", err))
+		}
+	}
+	if invokeErr != nil {
+		return nil, invokeErr
+	}
+	if err := c.recordStep(ctx, session, manual, arguments, result, receipt); err != nil {
 		return nil, fmt.Errorf("agent loop: step executed but did not persist: %w", err)
 	}
 	session.Steps++
@@ -186,6 +205,80 @@ func (c *Coordinator) RestoreSession(ctx context.Context, id string) (*Session, 
 	return session, nil
 }
 
+// MutationReceiptOperation derives the durable operation identity one
+// mutation step's receipt chain lives under, so a reader can resolve
+// the chain from the same call identity the interaction records.
+func MutationReceiptOperation(callID string) (artifact.ID, error) {
+	return artifact.IdentifyBytes(artifact.KindEvidence, []byte("overgo/agent-mutation/"+callID))
+}
+
+// admitMutationReceipt persists the admitted and running receipts for
+// one mutation step before anything executes, binding the exact manual
+// identity and the committed argument bytes as the receipt's inputs.
+func (c *Coordinator) admitMutationReceipt(
+	ctx context.Context,
+	callID string,
+	manual agenttool.Manual,
+	arguments json.RawMessage,
+) (artifact.ID, error) {
+	operation, err := MutationReceiptOperation(callID)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	argumentsID, err := artifact.IdentifyBytes(artifact.KindEvidence, arguments)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	base := runrecord.StageReceipt{
+		Recipe: c.identity.Recipe, Node: c.identity.Node, Operation: operation,
+		Attempt: 1, State: runrecord.StageAdmitted,
+		Inputs: []runrecord.StageBinding{
+			{Port: "tool", Artifacts: []artifact.ID{manual.ID}},
+			{Port: "arguments", Artifacts: []artifact.ID{argumentsID}},
+		},
+	}
+	descriptors := []artifact.Descriptor{{ID: operation}, {ID: argumentsID}}
+	if _, err := runrecord.PublishStageReceipt(ctx, c.store, base, nil, descriptors); err != nil {
+		return artifact.ID{}, err
+	}
+	base.State = runrecord.StageRunning
+	if _, err := runrecord.PublishStageReceipt(ctx, c.store, base, nil, nil); err != nil {
+		return artifact.ID{}, err
+	}
+	return operation, nil
+}
+
+// closeMutationReceipt records the terminal state of one mutation
+// step: completed with the committed result bytes as its output, or
+// failed with the execution error preserved as the failure fact.
+func (c *Coordinator) closeMutationReceipt(
+	ctx context.Context,
+	operation artifact.ID,
+	result json.RawMessage,
+	invokeErr error,
+) (artifact.ID, error) {
+	base := runrecord.StageReceipt{
+		Recipe: c.identity.Recipe, Node: c.identity.Node, Operation: operation, Attempt: 1,
+	}
+	var descriptors []artifact.Descriptor
+	if invokeErr != nil {
+		base.State, base.Failure = runrecord.StageFailed, invokeErr.Error()
+	} else {
+		resultID, err := artifact.IdentifyBytes(artifact.KindEvidence, result)
+		if err != nil {
+			return artifact.ID{}, err
+		}
+		base.State = runrecord.StageCompleted
+		base.Outputs = []runrecord.StageBinding{{Port: "result", Artifacts: []artifact.ID{resultID}}}
+		descriptors = []artifact.Descriptor{{ID: resultID}}
+	}
+	published, err := runrecord.PublishStageReceipt(ctx, c.store, base, nil, descriptors)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	return published.ID, nil
+}
+
 // recordStep chains one durable interaction carrying the call and its
 // result; the session advances to the new interaction so the chain
 // stays walkable from the latest step back to the first.
@@ -194,12 +287,13 @@ func (c *Coordinator) recordStep(
 	session *Session,
 	manual agenttool.Manual,
 	arguments, result json.RawMessage,
+	receipt artifact.ID,
 ) error {
 	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
 	published, err := runrecord.PublishInteraction(ctx, c.store, runrecord.Interaction{
 		Response: callID,
 		Recipe:   c.identity.Recipe, Model: c.identity.Model, Node: c.identity.Node,
-		Parent: session.Interaction,
+		Parent: session.Interaction, Run: receipt,
 	}, []runrecord.InteractionMessage{
 		{
 			Role: string(inference.ChatRoleAssistant),

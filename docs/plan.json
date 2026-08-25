@@ -2798,12 +2798,12 @@
       "id": "agent-receipt-before-execution",
       "title": "Admit a durable operation receipt before a mutation executes, so a side effect never lacks evidence",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Admit a durable operation receipt before a mutation executes, so a side effect never lacks evidence",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/agentloop -count=1",
           "depends_on": [
             "research-merge-reconcile/do"

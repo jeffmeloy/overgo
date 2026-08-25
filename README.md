@@ -3,18 +3,25 @@
 Overgo is an experimental systems platform for reliable recursive
 self-improvement (RSI) of model-driven software agents.
 
+It has two permanent uses:
+
+- provide the deterministic framework needed to build and study RSI;
+- expose the same model, agent, training, evaluation, and automation framework
+  to people for useful work through the operator workbench, APIs, and command
+  line.
+
 The central design rule is that model cognition proposes work while
 deterministic code controls state, authority, execution, verification, and
 recovery. A model may interpret a problem or generate a candidate patch, but
 acceptance still depends on measured evidence and executable policy.
 
-At present, an operator supplies much of the steering: goals, constraints,
+An operator can steer the framework by supplying goals, constraints,
 priorities, and decisions about what to investigate next. The graphical
-workbench is an external interface for that steering and for observing the
-system; it is not the RSI controller. The target is to let a model propose the
-next steering action from durable measurements and state while the same
-deterministic control plane continues to admit, evaluate, activate, or reject
-it.
+workbench is an external interface for steering and observation; it is not the
+RSI controller. The RSI path adds model-directed steering from durable
+measurements and state alongside human-directed work. Both paths use the same
+deterministic control plane to admit, evaluate, activate, reject, or recover
+work.
 
 Overgo is not a complete RSI system. It currently provides much of the model,
 agent, automation, and evidence infrastructure required to build and study one.
@@ -23,14 +30,15 @@ agent, automation, and evidence infrastructure required to build and study one.
 
 [Structured figure definition](docs/assets/overgo_graphic.json)
 
-## Objective
+## Objectives
 
 Reliable RSI requires more than repeatedly asking a model to modify its own
 code. The surrounding system must make each attempt reproducible, bounded, and
-falsifiable.
+falsifiable. Human-directed use needs the same properties so useful work can be
+inspected, resumed, compared, and trusted.
 
 ```text
-steering: operator now, model target
+steering: operator or model
       -> typed task and bounded context
       -> deterministic admission and execution
       -> independent tests and evaluations
@@ -59,7 +67,8 @@ Overgo already combines the following components in one codebase:
 | Mutation safety | Exact tool identity, persistent executable policy, inspection before mutation, argument-bound approval, and a durable receipt before a side effect |
 | Reproducibility | Content identities, provenance, run records, stage receipts, checkpoints, exact resume checks, and versioned activation |
 | Verification | Plan-driven gates, structural source analysis, host/device comparisons, model-specific evidence, and compatibility records |
-| Operator steering | External workbench for goals, measurement review, intervention, exceptional approvals, and rollback |
+| Human-directed work | External workbench for goals, chat and media, agent sessions, model and data operations, measurement review, intervention, and rollback |
+| RSI steering | Bounded steering interface shared with human-directed work; model-directed selection from accumulated evidence remains incomplete |
 | Interfaces | Command line, HTTP APIs, scheduled jobs, and an external operator workbench over shared backend state |
 
 The workbench exposes chat and media, agent sessions, workflow graphs,
@@ -129,23 +138,23 @@ Planning, retrieval, repair, verification, and stopping policies need a staged
 lifecycle: declared, experimentally useful, repeatedly verified, and active.
 Promotion must reference measured evidence and retain a rollback target.
 
-### 5. Transfer steering, then close the recursive loop
+### 5. Add autonomous steering and close the recursive loop
 
-The operator currently interprets results and chooses the next goal. A model
-can take over that steering only when the measurement history can support
+Human steering remains a supported operating mode. Autonomous RSI adds a model
+as another steering source only when the measurement history can support
 comparable retrieval, predicted benefit and cost, explicit uncertainty, and a
-falsifiable next experiment. The model then proposes goals and constraints
-through the same bounded steering interface; deterministic policy retains
+falsifiable next experiment. Human and model steering submit goals and
+constraints through the same bounded interface; deterministic policy retains
 admission, evaluation, activation, rollback, resource budgets, saturation
 detection, and stop conditions.
 
 ## Scope
 
 Overgo includes a broad model-engineering runtime because an RSI harness must
-be able to execute and evaluate the systems it changes. Inference, training,
-evaluation, multimodal processing, agents, automation, and distributed
-execution are supporting experimental infrastructure rather than separate
-product claims.
+be able to execute and evaluate the systems it changes. The same inference,
+training, evaluation, multimodal processing, agent, automation, and distributed
+execution capabilities are also exposed for direct human use. These are two
+consumers of one control and evidence system, not separate platforms.
 
 The current host target is Windows amd64 with Go 1.26 and an NVIDIA CUDA
 driver. The runtime uses the Windows ABI without cgo. Public interfaces may

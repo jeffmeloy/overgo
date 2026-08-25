@@ -332,7 +332,7 @@
         {
           "id": "retrieval-projection",
           "title": "Add dataset-derived chunk and embedding identities plus a rebuildable retrieval index projection with citations, reranking, and exact lineage",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestAgentRetrievalProjection' internal \u0026\u0026 go test ./internal/dataset ./internal/agentloop ./internal/runrecord -run 'TestAgentRetrievalProjection|TestAgentRetrievalCitation|TestAgentRetrievalRebuild|TestAgentRetrievalIdentityMismatch' -count=1",
           "rationale": "RepoDB remains authority for datasets, chunks, embedding recipes, and lineage; the similarity index is a derived cache that can be rebuilt. Existing embedding and reranking capabilities are reused instead of adding a second vector database or RAG store.",
           "depends_on": [

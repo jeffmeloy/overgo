@@ -1,19 +1,18 @@
 {
   "campaign": "Model facts as typed OvergoDB runtime authority",
   "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
-  "census_evidence": "evidence:sha256:a444d2e4d4ede5d0ec807b138bbbf21864a327ee71a3ace0c3b185dcee208622",
+  "census_evidence": "evidence:sha256:820a98b8033941ccee57556097ec199a975752827510df2ed0dcb34bdf690919",
   "items": [
     {
-      "id": "record-sweep-closure",
-      "title": "Record the defaults-sweep plan closure",
-      "owner": "gui",
+      "id": "merge-00111a352daa",
+      "title": "Merge master at 00111a352daa",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Record the defaults-sweep plan closure",
+          "title": "Merge master at 00111a352daa",
           "status": "done",
-          "verify": "go test ./internal/server -run TestCollapsibleSections -count=1"
+          "verify": "go run ./cmd/compatibility -check"
         }
       ]
     },
@@ -163,6 +162,20 @@
           "depends_on": [
             "serving-evidence-case-authority/do"
           ]
+        }
+      ]
+    },
+    {
+      "id": "record-sweep-closure",
+      "title": "Record the defaults-sweep plan closure",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record the defaults-sweep plan closure",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestCollapsibleSections -count=1"
         }
       ]
     },

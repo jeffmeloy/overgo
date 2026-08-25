@@ -49,12 +49,12 @@
       "id": "agent-task-first-page",
       "title": "The agent page leads with the task: pick an agent, chat; sessions auto-named; operator panels fold behind Advanced",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "The agent page leads with the task: pick an agent, chat; sessions auto-named; operator panels fold behind Advanced",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestAgentSimpleCreate -count=1"
         }
       ]

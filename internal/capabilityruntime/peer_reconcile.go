@@ -33,7 +33,7 @@ type PeerReplicaBackend interface {
 	Unload(context.Context, modelrecipe.PeerReplicaPlacement) error
 }
 
-// PeerReplicaReconcilerConfig binds reconciliation to existing operation and RepoDB owners.
+// PeerReplicaReconcilerConfig binds reconciliation to existing operation and OvergoDB owners.
 type PeerReplicaReconcilerConfig struct {
 	Repository artifact.Repository
 	Operations *operation.Manager

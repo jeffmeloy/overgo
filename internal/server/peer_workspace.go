@@ -81,7 +81,7 @@ type PeerWorkspace struct {
 	clock   func() time.Time
 }
 
-// PeerWorkspaceConfig binds peer controls to RepoDB and the peer transport seam.
+// PeerWorkspaceConfig binds peer controls to OvergoDB and the peer transport seam.
 type PeerWorkspaceConfig struct {
 	Store   *overgodb.Store
 	Backend capabilityruntime.PeerReplicaBackend

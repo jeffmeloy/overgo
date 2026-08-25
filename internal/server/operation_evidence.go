@@ -79,7 +79,7 @@ func (h *Handler) operationEvidence(response http.ResponseWriter, request *http.
 		return
 	}
 	if err != nil {
-		writeError(response, http.StatusInternalServerError, "repodb_error", err.Error())
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return
 	}
 	writeJSON(response, http.StatusOK, projection)

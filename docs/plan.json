@@ -11,7 +11,7 @@
       "steps": [
         {
           "id": "definition-contract",
-          "title": "Define and publish automation definitions, trigger and delivery policy identities, active aliases, and bounded RepoDB queries through existing recipe and run-record owners",
+          "title": "Define and publish automation definitions, trigger and delivery policy identities, active aliases, and bounded OvergoDB queries through existing recipe and run-record owners",
           "status": "done",
           "verify": "rg -q 'func TestAutomationDefinition' internal \u0026\u0026 rg -q 'func TestAutomationActivation' internal \u0026\u0026 go test ./internal/recipe ./internal/workflowcontract ./internal/runrecord -run 'TestAutomationDefinition|TestAutomationActivation' -count=1",
           "rationale": "Automation needs one immutable source of truth before runtime or GUI work. Definitions reference existing recipe, model, dataset, capability-bundle, trigger-policy, and delivery-policy artifacts instead of embedding mutable configuration or creating another store.",
@@ -212,7 +212,7 @@
       "steps": [
         {
           "id": "peer-lifecycle-authority",
-          "title": "Add per-peer enrollment identity, approval, capability publication, heartbeat leases, administrative states, drain and retirement authority to RepoDB",
+          "title": "Add per-peer enrollment identity, approval, capability publication, heartbeat leases, administrative states, drain and retirement authority to OvergoDB",
           "status": "done",
           "verify": "rg -q 'func TestPeerLifecycleAuthority' internal \u0026\u0026 go test ./internal/modelrecipe ./internal/capabilityruntime ./internal/runrecord -run 'TestPeerLifecycleAuthority|TestPeerIdentityBinding|TestPeerLeaseExpiry|TestPeerDrainRefusal' -count=1",
           "rationale": "The existing remote peer authority proves compatibility for one request but does not own node lifecycle. Steady-state mutations must authenticate the enrolled peer identity and bind every capability update and heartbeat to it; a shared enrollment credential is insufficient.",
@@ -334,7 +334,7 @@
           "title": "Add dataset-derived chunk and embedding identities plus a rebuildable retrieval index projection with citations, reranking, and exact lineage",
           "status": "done",
           "verify": "rg -q 'func TestAgentRetrievalProjection' internal \u0026\u0026 go test ./internal/dataset ./internal/agentloop ./internal/runrecord -run 'TestAgentRetrievalProjection|TestAgentRetrievalCitation|TestAgentRetrievalRebuild|TestAgentRetrievalIdentityMismatch' -count=1",
-          "rationale": "RepoDB remains authority for datasets, chunks, embedding recipes, and lineage; the similarity index is a derived cache that can be rebuilt. Existing embedding and reranking capabilities are reused instead of adding a second vector database or RAG store.",
+          "rationale": "OvergoDB remains authority for datasets, chunks, embedding recipes, and lineage; the similarity index is a derived cache that can be rebuilt. Existing embedding and reranking capabilities are reused instead of adding a second vector database or RAG store.",
           "depends_on": [
             "agent-workspace/agent-authority"
           ],
@@ -372,14 +372,14 @@
       "id": "orchestration-validation",
       "title": "Validate production orchestration, browser behavior, recovery, concurrency, and ownership closure",
       "owner": "research",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "production-verticals",
           "title": "Run real manual and scheduled automation plus remote whole-model placement through active authority, API, GUI projections, operations, restart recovery, and evidence publication",
           "status": "done",
           "verify": "rg -q 'func TestOrchestrationProductionVerticals' internal \u0026\u0026 go test ./internal/server ./internal/workflowruntime ./internal/capabilityruntime -run 'TestOrchestrationProductionVerticals|TestOrchestrationRestartRecovery|TestOrchestrationAuthorityRefusals' -count=1",
-          "rationale": "Mocks can prove contracts but cannot close the capability campaign. The final verticals must use active definitions and aliases, actual RepoDB persistence, existing operation/workflow owners, one enrolled remote peer, and exact lineage from request to output.",
+          "rationale": "Mocks can prove contracts but cannot close the capability campaign. The final verticals must use active definitions and aliases, actual OvergoDB persistence, existing operation/workflow owners, one enrolled remote peer, and exact lineage from request to output.",
           "depends_on": [
             "peer-workspace/peer-gui",
             "agent-workspace/agent-api-gui"
@@ -411,10 +411,10 @@
         },
         {
           "id": "ownership-closure",
-          "title": "Prove concurrency and restart safety, remove displaced constructors and local state, verify common-component reuse, and close LocalAI and magic dependency surfaces",
-          "status": "open",
-          "verify": "go test ./... -count=1 \u0026\u0026 go vet ./... \u0026\u0026 go run ./cmd/race-lane \u0026\u0026 go run ./cmd/closure-scan -check-all -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts \u0026\u0026 ! rg -n -i 'localai|github.com/mudler/localai' -- go.mod go.sum internal cmd scripts",
-          "rationale": "Completion is behavioral and structural: one authority per fact, one lifecycle owner, one scheduler path, one route/schema/form system, one operation stream, no browser-only truth, no direct automation or peer executor, no copied LocalAI implementation, and no new unexplained policy literals.",
+          "title": "Prove concurrency and restart safety, remove displaced constructors and local state, enforce OvergoDB-only repository authority, verify common-component reuse, and close LocalAI and magic dependency surfaces",
+          "status": "done",
+          "verify": "go run ./cmd/test-lane ./... \u0026\u0026 go vet ./... \u0026\u0026 go run ./cmd/race-lane \u0026\u0026 go run ./cmd/closure-scan -check-all -require-no-stale -require-no-uncatalogued-production -require-no-policy-copies -require-no-model-facts \u0026\u0026 ! rg -n -i 'localai|github.com/mudler/localai' -- go.mod go.sum internal cmd scripts \u0026\u0026 ! rg -n 'RepoDB (owner|authority|catalog|persistence|root|mutations)' -- internal cmd",
+          "rationale": "Completion is behavioral and structural: OvergoDB is the sole repository authority, with one authority per fact, one lifecycle owner, one scheduler path, one route/schema/form system, one operation stream, no browser-only truth, no direct automation or peer executor, no copied LocalAI implementation, and no new unexplained policy literals.",
           "depends_on": [
             "orchestration-validation/webui-lane"
           ],
@@ -422,6 +422,7 @@
             "race-safety",
             "restart-safety",
             "single-authority",
+            "overgodb-only-authority",
             "common-component-closure",
             "no-localai-dependency",
             "magic-closure"

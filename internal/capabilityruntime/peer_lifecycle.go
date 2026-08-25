@@ -12,7 +12,7 @@ import (
 // PeerServingLease is the exact enrolled, active, capability-bound lease admitted for serving.
 type PeerServingLease = modelrecipe.PeerServingAuthority
 
-// PeerLifecycleAuthority owns RepoDB mutations and serving admission for enrolled peers.
+// PeerLifecycleAuthority owns OvergoDB mutations and serving admission for enrolled peers.
 type PeerLifecycleAuthority struct {
 	Repository artifact.Repository
 }

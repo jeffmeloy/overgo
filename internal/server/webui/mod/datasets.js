@@ -1,4 +1,4 @@
-/* Datasets · active RepoDB catalog. */
+/* Datasets · active OvergoDB catalog. */
 (function () {
   "use strict";
   window.overgo.registerTab({

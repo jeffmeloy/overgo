@@ -38,7 +38,7 @@ type ProfileCatalogEntry struct {
 	Detail       string               `json:"detail,omitempty"`
 }
 
-// ProfileCatalogCoverage reports registry-to-RepoDB parity.
+// ProfileCatalogCoverage reports registry-to-OvergoDB parity.
 type ProfileCatalogCoverage struct {
 	Registered int                   `json:"registered"`
 	Published  int                   `json:"published"`
@@ -71,7 +71,7 @@ func CompileArchitectureProfileCatalog() ([]ProfileDocument, error) {
 	return documents, nil
 }
 
-// InspectArchitectureProfileCatalog compares RepoDB with the registry.
+// InspectArchitectureProfileCatalog compares OvergoDB with the registry.
 func InspectArchitectureProfileCatalog(ctx context.Context, reader artifact.Reader) (ProfileCatalogCoverage, error) {
 	if ctx == nil || reader == nil {
 		return ProfileCatalogCoverage{}, errors.New("model recipe: nil profile catalog context or reader")

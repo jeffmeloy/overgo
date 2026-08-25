@@ -14,8 +14,8 @@ func TestAutomationContextHasOneCurrentTask(t *testing.T) {
 		Head: "0123456789abcdef0123456789abcdef01234567", Branch: "codex/automation",
 		Worktree: `C:\repo`, Role: "developer",
 		Dirty:        []DirtyPath{{Path: `z\file.go`, WorktreeStatus: "M"}, {Path: "a/file.go", IndexStatus: "A"}},
-		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "repodb:repodb-store"},
-		Workflow:     WorkflowContext{Phase: "implementation", Source: "git:HEAD+repodb:repodb-store"},
+		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "overgodb:overgodb-store"},
+		Workflow:     WorkflowContext{Phase: "implementation", Source: "git:HEAD+overgodb:overgodb-store"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -35,8 +35,8 @@ func TestReviewPriority(t *testing.T) {
 	document := Plan{Items: []Item{{ID: "one", Title: "One", Status: "open", Steps: []Step{{ID: "do", Title: "Do", Status: "open", Verify: "go test ./..."}}}}}
 	facts := ContextFacts{
 		Head: "0123456789abcdef0123456789abcdef01234567", Branch: "codex/automation", Worktree: "C:/repo",
-		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "repodb:repodb-store"},
-		Workflow:     WorkflowContext{Phase: "sqa", Source: "git:HEAD+repodb:repodb-store", CandidateID: "evidence:fixture"},
+		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "overgodb:overgodb-store"},
+		Workflow:     WorkflowContext{Phase: "sqa", Source: "git:HEAD+overgodb:overgodb-store", CandidateID: "evidence:fixture"},
 	}
 	ctx, err := BuildAutomationContext(document, facts)
 	if err != nil {

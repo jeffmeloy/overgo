@@ -68,6 +68,7 @@ type PeerPlacementPlan struct {
 	Identity   artifact.ID            `json:"identity"`
 	Selection  artifact.ID            `json:"selection"`
 	Model      artifact.ID            `json:"model"`
+	Task       recipe.Task            `json:"task"`
 	Recipe     artifact.ID            `json:"recipe"`
 	Resources  artifact.ID            `json:"resources"`
 	Policy     artifact.ID            `json:"policy"`
@@ -77,9 +78,14 @@ type PeerPlacementPlan struct {
 }
 
 type peerPlacementPlanIdentity struct {
-	Selection artifact.ID            `json:"selection"`
-	Policy    artifact.ID            `json:"policy"`
-	Replicas  []PeerReplicaPlacement `json:"replicas"`
+	Selection  artifact.ID            `json:"selection"`
+	Model      artifact.ID            `json:"model"`
+	Task       recipe.Task            `json:"task"`
+	Recipe     artifact.ID            `json:"recipe"`
+	Resources  artifact.ID            `json:"resources"`
+	Policy     artifact.ID            `json:"policy"`
+	Components []ComponentSession     `json:"components"`
+	Replicas   []PeerReplicaPlacement `json:"replicas"`
 }
 
 // CompilePeerPlacementPlan resolves active authority and selects distinct whole-model replicas.
@@ -150,17 +156,35 @@ func CompilePeerPlacementPlan(
 	for index := range replicas {
 		replicas[index].Index = index
 	}
-	identity, err := artifact.JSONID(artifact.KindProfile, peerPlacementPlanIdentity{
-		Selection: selection.Identity, Policy: policyID, Replicas: replicas,
+	components := slices.Clone(selection.Resources.Components)
+	identity, err := peerPlacementIdentity(peerPlacementPlanIdentity{
+		Selection: selection.Identity, Model: request.Model, Task: request.Task, Recipe: selection.Activation.Definition.ID,
+		Resources: selection.Resources.Identity, Policy: policyID, Components: components, Replicas: replicas,
 	})
 	if err != nil {
 		return PeerPlacementPlan{}, err
 	}
 	return PeerPlacementPlan{
 		Identity: identity, Selection: selection.Identity, Model: request.Model,
-		Recipe: selection.Activation.Definition.ID, Resources: selection.Resources.Identity, Policy: policyID,
-		Components: slices.Clone(selection.Resources.Components), Replicas: replicas, Refusals: refusals,
+		Task: request.Task, Recipe: selection.Activation.Definition.ID, Resources: selection.Resources.Identity, Policy: policyID,
+		Components: components, Replicas: replicas, Refusals: refusals,
 	}, nil
+}
+
+// ValidateIdentity proves that no execution-bearing placement field changed after compilation.
+func (plan PeerPlacementPlan) ValidateIdentity() error {
+	id, err := peerPlacementIdentity(peerPlacementPlanIdentity{
+		Selection: plan.Selection, Model: plan.Model, Task: plan.Task, Recipe: plan.Recipe, Resources: plan.Resources,
+		Policy: plan.Policy, Components: plan.Components, Replicas: plan.Replicas,
+	})
+	if err != nil || id != plan.Identity {
+		return errors.Join(errors.New("model recipe: peer placement plan identity differs"), err)
+	}
+	return nil
+}
+
+func peerPlacementIdentity(value peerPlacementPlanIdentity) (artifact.ID, error) {
+	return artifact.JSONID(artifact.KindProfile, value)
 }
 
 func compilePeerReplicaPolicy(policy PeerReplicaPolicy) (int, artifact.ID, error) {

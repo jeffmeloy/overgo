@@ -2763,6 +2763,24 @@
       ]
     },
     {
+      "id": "verify-gemma4-fp8-inference",
+      "title": "Verify Gemma-4 FP8 inference leadership",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify Gemma-4 FP8 inference leadership",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_GEMMA4_BASELINE=1 go test ./internal/adaptiveparity -run TestGemma4FP8Leadership -count=1",
+          "depends_on": [
+            "gemma4-memory-diagnostic/do",
+            "gemma4-peak-ledger-snapshot/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "research-merge-reconcile",
       "title": "Reconcile the research lane merge: unify agent and automation approval/receipt mechanisms, merge plan ledgers, full verification",
       "owner": "gui",
@@ -2823,24 +2841,6 @@
           "verify": "go test ./internal/agentloop -count=1",
           "depends_on": [
             "research-merge-reconcile/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "verify-gemma4-fp8-inference",
-      "title": "Verify Gemma-4 FP8 inference leadership",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Verify Gemma-4 FP8 inference leadership",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_GEMMA4_BASELINE=1 go test ./internal/adaptiveparity -run TestGemma4FP8Leadership -count=1",
-          "depends_on": [
-            "gemma4-memory-diagnostic/do",
-            "gemma4-peak-ledger-snapshot/do"
           ]
         }
       ]

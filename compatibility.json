@@ -499,7 +499,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:34ebe8ab91b5cffc14fbba6fec59ac1ef10d629321a9c384d7a5772f89847a2e"
+     "identity": "file:sha256:3467630488bb2f794ae498f74d590e09d0bdb81bc8c8629eefbb12fb2eb3135b"
     },
     {
      "contains": "func TestCompilePinsTopologyAndMemoryPlan(",

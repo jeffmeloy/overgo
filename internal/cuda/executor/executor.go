@@ -1561,6 +1561,23 @@ func (e *Executor) runCompiled(
 			graphExecs,
 			retain,
 		)
+		if executeErr == nil && !cacheGraph && compiled.matmulStagingBytes > 0 &&
+			resources.blas != nil && resources.blas.staging != 0 {
+			// A one-shot staged run (no replay-cache ownership -- prefill,
+			// not steady-state decode) releases the multi-token weight
+			// staging reservation at completion instead of riding the
+			// whole session: nothing decode-resident coexists with prefill
+			// scratch, and the next staged run re-reserves. Replay-cached
+			// graphs keep their reservation because their captured frames
+			// key on the staging pointer. The free follows the grow path's
+			// established free-after-submission contract on this stream.
+			if freeErr := state.Driver.MemFree(resources.blas.staging); freeErr != nil {
+				return freeErr
+			}
+			resources.blas.staging = 0
+			resources.blas.stagingBytes = 0
+			resources.blas.stagedNode = nil
+		}
 		dumpResourceMemory(resources)
 		return executeErr
 	})

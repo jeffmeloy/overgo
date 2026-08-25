@@ -137,6 +137,10 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 		supported = h.hasWorkspaceCapability(ctx, WorkflowExport, "")
 	case "workflow.image":
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskImageGen)
+	case "workflow.video":
+		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskVideoGen)
+	case "workflow.video-edit":
+		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskVideoEdit)
 	case "workflow.speech":
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskSpeech)
 	}

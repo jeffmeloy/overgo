@@ -239,13 +239,24 @@
       el("div", { class: "v" }, String(value), unit ? el("small", { text: " " + unit }) : null));
   }
 
+  // fold wraps content in a collapsible section: a header the user
+  // expands with the disclosure control, closed by default unless open
+  // is passed. Dense pages fold optional sections to their headers so
+  // the primary flow fits without scrolling past unused forms.
+  function fold(title, open, ...children) {
+    const details = el("details", { class: "fold" },
+      el("summary", { class: "section-title", text: title }), ...children);
+    if (open) details.setAttribute("open", "");
+    return details;
+  }
+
   const tabs = [];
   function registerTab(tab) { tabs.push(tab); }
 
   window.overgo = {
     api, el, clear, errorBanner, friendlyError, registerTab,
     getKey, setKey, modelInfo, invalidateModel,
-    displayToken, runner, poller, stat,
+    displayToken, runner, poller, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
   };
 

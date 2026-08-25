@@ -230,15 +230,28 @@
 			el("button", { class: "btn alt", text: "Replay", onclick: async () => {
 			  try {
 				const value = await overgo.api.get("/interactions/replay?response=" + encodeURIComponent(interaction.response));
-				replay.replaceChildren(el("pre", { class: "mono", text: JSON.stringify(value, null, 2) }));
+				// Media artifacts render as what they are -- images, video,
+				// audio over the artifact content route -- never as opaque
+				// identities; everything else stays in the raw trace view.
+				const inline = (value.media || []).map((item) => {
+				  const src = "/artifacts/content?id=" + encodeURIComponent(item.id);
+				  const type = item.media_type || "";
+				  if (type.startsWith("image/")) return el("img", { src, style: "max-width:320px;max-height:240px" });
+				  if (type.startsWith("video/")) return el("video", { src, controls: "", style: "max-width:420px" });
+				  if (type.startsWith("audio/")) return el("audio", { src, controls: "" });
+				  return el("a", { class: "mono", href: src, text: fmt.shortID(item.id) });
+				});
+				replay.replaceChildren(
+				  ...(inline.length ? [el("div", { class: "row" }, ...inline)] : []),
+				  el("pre", { class: "mono", text: JSON.stringify(value, null, 2) }));
 			  } catch (err) {
 				replay.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
 			  }
 			} }))));
 		workflow.replaceChildren(
-		  el("div", { class: "section-title", text: "Workflow stages" }), stageTable,
-		  el("div", { class: "section-title", text: "Tool decisions" }), decisionTable,
-		  el("div", { class: "section-title", text: "Interaction replay" }), interactionTable);
+		  overgo.fold("Workflow stages", false, stageTable),
+		  overgo.fold("Tool decisions", false, decisionTable),
+		  overgo.fold("Interaction replay", true, interactionTable));
       }
 
 	  activityView = (name, value) => {

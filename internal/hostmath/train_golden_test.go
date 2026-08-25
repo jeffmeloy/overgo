@@ -6,8 +6,8 @@ import (
 )
 
 // Component goldens for the llama-architecture training primitives
-// (scripts/gen_llama_train_golden.py): GQA causal attention, interleaved
-// rope, SiLU-gated MLP, mean softmax cross-entropy.
+// (committed torch-oracle captures in fixtures/): GQA causal attention,
+// interleaved rope, SiLU-gated MLP, mean softmax cross-entropy.
 
 func TestCausalAttentionGQAMatchesGolden(t *testing.T) {
 	var g struct {

@@ -21,12 +21,12 @@
       "id": "gui-model-picker",
       "title": "Every page shows the served model, with a servable-model picker that hands the relaunch command",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Every page shows the served model, with a servable-model picker that hands the relaunch command",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestServedModelHeader -count=1"
         }
       ]

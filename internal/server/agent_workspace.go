@@ -390,6 +390,14 @@ func (h *Handler) buildAgentRuntime() {
 	if err := agenttool.RegisterStandardBuiltins(executor, h.repository); err != nil {
 		return
 	}
+	// The standard manuals publish idempotently at boot: a fresh store
+	// serves a working agent workspace out of the box instead of
+	// refusing every tool until an operator runs the CLI.
+	if manuals, err := agenttool.StandardManuals(); err == nil {
+		if _, err := agenttool.PublishManualCatalog(context.Background(), h.repository, manuals); err != nil {
+			return
+		}
+	}
 	coordinator, err := agentloop.New(h.repository, executor, agentloop.Identity{
 		Recipe: description.Identity.Recipe, Model: description.Identity.Model,
 		Node: description.Interaction.Node,

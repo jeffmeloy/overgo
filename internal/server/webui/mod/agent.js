@@ -6,6 +6,7 @@
     async mount(panel, overgo) {
       const { api, el, fmt } = overgo;
       const status = el("div", { class: "note" });
+      const createHost = el("div");
       const inventoryHost = el("div");
       const editorHost = el("div");
       const conversationHost = el("div");
@@ -13,19 +14,20 @@
       const retrievalHost = el("div");
       const automationHost = el("div");
       const evidenceHost = el("div");
-      // Optional free-entry sections fold to their headers: the page
-      // leads with the working flow (inventory, chat, tools) and the
-      // editor, retrieval, automation, and observable panels expand on
-      // demand instead of stacking their forms.
+      // The page leads with the task: pick an agent and chat. Creating
+      // one is a fold with three plain fields; every operator panel --
+      // manual tool steps, the full definition editor, retrieval,
+      // automations, observables -- lives behind Advanced folds.
       panel.replaceChildren(
         el("div", { class: "section-title", text: "Agents" }), status,
-        overgo.fold("Inventory and lifecycle", true, inventoryHost),
-        overgo.fold("Definition editor", false, editorHost),
+        overgo.fold("Your agents", true, inventoryHost),
+        overgo.fold("New agent", false, createHost),
         overgo.fold("Chat", true, conversationHost),
-        overgo.fold("Tools and decisions", true, toolsHost),
-        overgo.fold("Retrieval evidence", false, retrievalHost),
-        overgo.fold("Attached automations", false, automationHost),
-        overgo.fold("Structured observables", false, evidenceHost));
+        overgo.fold("Advanced: manual tool steps and approvals", false, toolsHost),
+        overgo.fold("Advanced: full definition editor", false, editorHost),
+        overgo.fold("Advanced: retrieval evidence", false, retrievalHost),
+        overgo.fold("Advanced: attached automations", false, automationHost),
+        overgo.fold("Advanced: structured observables", false, evidenceHost));
 
       const schema = await api.get("/workspace/schema?id=agent-definition");
       const definitionForm = overgo.schemaForm(schema, {});
@@ -36,6 +38,40 @@
       let selected = "";
       let tools = [];
       const sessions = new Map();
+      // One session per page visit, named automatically: nobody types a
+      // session identity to talk to an agent. The Advanced panel can
+      // still override it.
+      const autoSession = "chat-" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+
+      // The creation surface is everything a person needs: a name,
+      // plain instructions, and tool checkboxes. Every identity -- the
+      // prompt artifact, the served recipe, the exact manuals, the
+      // default policy -- derives server-side at /agents/create.
+      function renderCreate() {
+        const name = el("input", { class: "text", placeholder: "agent name (lowercase)" });
+        const instructions = el("textarea", { class: "text", rows: "3", placeholder: "what should this agent do?" });
+        const boxes = tools.map((tool) => {
+          const box = el("input", { type: "checkbox" });
+          return { tool, box, row: el("label", { class: "note" }, box, " " + tool.name + " / " + tool.effect) };
+        });
+        const create = el("button", { class: "btn", text: "Create agent" });
+        const note = el("span", { class: "note" });
+        create.addEventListener("click", async () => {
+          try {
+            const chosen = boxes.filter((item) => item.box.checked).map((item) => item.tool.name);
+            await api.post("/agents/create", {
+              name: name.value.trim(), instructions: instructions.value.trim(), tools: chosen,
+            });
+            selected = name.value.trim();
+            inventory = await api.get("/agents");
+            note.textContent = "created and activated";
+            renderAll();
+          } catch (err) { showError(err); }
+        });
+        createHost.replaceChildren(name, instructions,
+          el("div", { class: "row" }, ...boxes.map((item) => item.row)),
+          el("div", { class: "row" }, create, note));
+      }
 
       function activeAgent() {
         return inventory.find((item) => item.name === selected);
@@ -136,7 +172,7 @@
         for (const tool of tools.filter((item) => allowed.has(item.manual))) {
           select.append(el("option", { value: tool.name, text: tool.name + " / " + tool.effect }));
         }
-        const session = el("input", { class: "text", placeholder: "session identity" });
+        const session = el("input", { class: "text", placeholder: "session identity", value: autoSession });
         const args = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON arguments" });
         const decisionHost = el("div");
         const review = el("button", { class: "btn alt", text: "Review decision", disabled: !agent });
@@ -324,7 +360,7 @@
       }
 
       function renderAll() {
-        renderInventory(); renderChat(); renderTools(); renderRetrieval(); renderAutomations();
+        renderInventory(); renderCreate(); renderChat(); renderTools(); renderRetrieval(); renderAutomations();
       }
 
       tools = (await api.get("/agent/tools")).tools || [];

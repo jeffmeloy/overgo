@@ -541,6 +541,12 @@ func TestCollapsibleSections(t *testing.T) {
 		{"/mod/agent.js", "overgo.fold("},
 		{"/mod/runtime.js", "overgo.fold("},
 		{"/style.css", ".fold[open] > summary::before"},
+		// The agent page leads with the task: simple creation posts to
+		// the derive-everything endpoint, the session names itself, and
+		// every operator panel folds behind an Advanced header.
+		{"/mod/agent.js", "/agents/create"},
+		{"/mod/agent.js", "Advanced: manual tool steps"},
+		{"/mod/agent.js", "autoSession"},
 	}
 	for _, assertion := range assertions {
 		response := serveTestRequest(handler, http.MethodGet, assertion.path, "")

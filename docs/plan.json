@@ -1,16 +1,16 @@
 {
   "campaign": "Deletion-led production composability, durable agent execution, and OvergoDB tightening",
   "doctrine": "Follow skill.md. Counts route inspection; semantics decide consolidation. Preserve wire enums, ordinal sentinels, mathematical operators, and build boundaries even when the host consumer census reports zero. Delete only after callers move to an existing neutral owner. Modelrecipe owns component sessions; recipe owns topology and policy; workflowruntime owns stage execution; operation owns lifecycle; runrecord and OvergoDB own immutable facts; inference owns model math; server owns protocols and GUI. ADK is a behavior inventory and oracle, never a dependency or second runtime. No second workflow graph, plugin callback mesh, mutable property bag, string branch authority, duplicate session or artifact store, wrapper, fallback, or advisory execution plan. Compact OvergoDB before adding event volume: remove duplicate indexes and payload copies, stream durable writes, expose bounded projected queries, and retain one refreshable browse owner. Each capability wave migrates every caller and deletes the displaced ephemeral owner in the same commit. Retry, concurrency, context, and retention policy derive from recipes, resource plans, requests, or measured evidence. After every gated commit, merge master and redispatch.",
-  "census_evidence": "evidence:sha256:b6600aadb993f6514c3830c8e3ca977357149d009dc6576d76da5829e0b6f542",
+  "census_evidence": "evidence:sha256:9b6c199bbf9414ad7cc03da5b07591b9617a4dc7dfa0a6294080e5ea7d84b6b5",
   "items": [
     {
-      "id": "merge-0483a12ffcd4",
-      "title": "Merge master at 0483a12ffcd4",
+      "id": "merge-08693083b0aa",
+      "title": "Merge master at 08693083b0aa",
       "status": "done",
       "steps": [
         {
           "id": "do",
-          "title": "Merge master at 0483a12ffcd4",
+          "title": "Merge master at 08693083b0aa",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
         }
@@ -3314,6 +3314,20 @@
       ]
     },
     {
+      "id": "gui-operator-inbox",
+      "title": "One operator inbox over waiting workflow stages and pending mutation approvals, with grant/decline wired to the durable decision chain",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Pending-work inbox API and view",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestOperatorInbox -count=1"
+        }
+      ]
+    },
+    {
       "id": "gui-step-provenance",
       "title": "Per-step provenance click-through: interaction, receipt chain, decision, exact manual identity, result artifact",
       "owner": "gui",
@@ -3359,12 +3373,12 @@
       "id": "gui-multimodal-input",
       "title": "Chat and agent steps accept image, audio, and video attachments through the served protocol content parts under the media policy",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Multimodal attachment input",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestChatMultimodalAttachments -count=1"
         }
       ]
@@ -3380,6 +3394,47 @@
           "title": "Inline media rendering",
           "status": "open",
           "verify": "go test ./internal/server -run TestMultimodalOutputProjection -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-video-generation",
+      "title": "Video generation in the workbench: prompt to Wan text-to-video through the workflow runtime, with progress and inline MP4 playback",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Video generation tab and projection",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestVideoGenerationWorkspace -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-video-editing",
+      "title": "Video editing in the workbench: source video plus prompt through the reference-edit runtime, edited MP4 rendered inline",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Video editing tab and projection",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestVideoEditingWorkspace -count=1"
+        }
+      ]
+    },
+    {
+      "id": "merge-0483a12ffcd4",
+      "title": "Merge master at 0483a12ffcd4",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge master at 0483a12ffcd4",
+          "status": "done",
+          "verify": "go run ./cmd/compatibility -check"
         }
       ]
     },
@@ -3503,48 +3558,6 @@
           "title": "Merge master at f4224b70ae96",
           "status": "done",
           "verify": "go run ./cmd/compatibility -check"
-        }
-      ]
-    },
-    {
-      "id": "gui-operator-inbox",
-      "title": "One operator inbox over waiting workflow stages and pending mutation approvals, with grant/decline wired to the durable decision chain",
-      "owner": "gui",
-      "status": "done",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Pending-work inbox API and view",
-          "status": "done",
-          "verify": "go test ./internal/server -run TestOperatorInbox -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-video-generation",
-      "title": "Video generation in the workbench: prompt to Wan text-to-video through the workflow runtime, with progress and inline MP4 playback",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Video generation tab and projection",
-          "status": "open",
-          "verify": "go test ./internal/server -run TestVideoGenerationWorkspace -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gui-video-editing",
-      "title": "Video editing in the workbench: source video plus prompt through the reference-edit runtime, edited MP4 rendered inline",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Video editing tab and projection",
-          "status": "open",
-          "verify": "go test ./internal/server -run TestVideoEditingWorkspace -count=1"
         }
       ]
     }

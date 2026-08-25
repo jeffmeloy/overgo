@@ -31,13 +31,61 @@
       const stop = el("button", { class: "btn alt", onclick: abort, style: "display:none" }, "stop");
       const reset = el("button", { class: "btn alt", onclick: clearChat }, "clear");
 
+      // Attachments ride the served protocol's own content parts:
+      // image_url data URLs, input_audio base64 WAV, input_video data
+      // URLs -- the same parts any API client sends, no side channel.
+      const attachments = [];
+      const attachmentHost = el("div", { class: "row" });
+      const picker = el("input", {
+        type: "file", style: "display:none", multiple: true,
+        accept: "image/png,image/jpeg,image/gif,audio/wav,video/mp4",
+      });
+      const attach = el("button", { class: "btn alt", onclick: () => picker.click() }, "attach");
+      picker.addEventListener("change", () => {
+        for (const file of picker.files) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const kind = file.type.startsWith("image/") ? "image"
+              : file.type.startsWith("audio/") ? "audio" : "video";
+            attachments.push({ kind, name: file.name, dataURL: reader.result });
+            renderAttachments();
+          };
+          reader.readAsDataURL(file);
+        }
+        picker.value = "";
+      });
+
+      function renderAttachments() {
+        attachmentHost.replaceChildren(...attachments.map((item, index) => {
+          const remove = el("button", { class: "btn alt", text: "×" });
+          remove.addEventListener("click", () => { attachments.splice(index, 1); renderAttachments(); });
+          const preview = item.kind === "image"
+            ? el("img", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
+            : el("span", { class: "tag", text: item.kind });
+          return el("span", { class: "card" }, preview, " " + item.name + " ", remove);
+        }));
+      }
+
+      function attachmentParts() {
+        return attachments.map((item) => {
+          if (item.kind === "image") {
+            return { type: "image_url", image_url: { url: item.dataURL } };
+          }
+          if (item.kind === "audio") {
+            return { type: "input_audio", input_audio: { data: item.dataURL.split(",").pop(), format: "wav" } };
+          }
+          return { type: "input_video", input_video: { data: item.dataURL } };
+        });
+      }
+
       panel.append(
         el("details", { style: "margin-bottom:10px" }, el("summary", { class: "note" }, "system prompt"), system),
         facts,
         log,
         input,
+        attachmentHost,
         el("div", { class: "chat-controls" },
-          send, stop, reset,
+          send, stop, reset, attach, picker,
           el("span", { class: "note", text: "temp" }), temperature,
           el("span", { class: "note", text: "max tokens" }), maxTokens));
 
@@ -108,7 +156,11 @@
       function requestMessages(text) {
         const payload = [];
         if (system.value.trim()) payload.push({ role: "system", content: system.value.trim() });
-        payload.push(...messages, { role: "user", content: text });
+        const parts = attachmentParts();
+        const user = parts.length
+          ? { role: "user", content: [{ type: "text", text }, ...parts] }
+          : { role: "user", content: text };
+        payload.push(...messages, user);
         return payload;
       }
 
@@ -117,7 +169,12 @@
         if (!text || controller) return;
         const payload = requestMessages(text);
         input.value = "";
-        messages.push({ role: "user", content: text });
+        const attachedNote = attachments.length
+          ? text + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]"
+          : text;
+        messages.push({ role: "user", content: attachedNote });
+        attachments.length = 0;
+        renderAttachments();
         const assistant = { role: "assistant", content: "" };
         messages.push(assistant);
         renderLog(true);

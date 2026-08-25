@@ -196,15 +196,12 @@ func validateGranite4VisionCatalog(file *gguf.File, spec Granite4VisionSpec) ([]
 }
 
 func PreprocessGranite4VisionImage(source image.Image, spec Granite4VisionSpec) (Granite4VisionInput, error) {
-	if source == nil {
-		return Granite4VisionInput{}, errors.New("projector: image is nil")
-	}
 	if err := spec.validate(); err != nil {
 		return Granite4VisionInput{}, err
 	}
-	bounds := source.Bounds()
-	if bounds.Empty() {
-		return Granite4VisionInput{}, errors.New("projector: image bounds are empty")
+	bounds, err := imageBounds(source)
+	if err != nil {
+		return Granite4VisionInput{}, err
 	}
 	images := []image.Image{resizeFitBicubic(source, spec.ImageSize, spec.ImageSize, nil)}
 	gridW, gridH := tensor.FirstOffset, tensor.FirstOffset

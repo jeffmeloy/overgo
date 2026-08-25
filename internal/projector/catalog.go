@@ -33,6 +33,17 @@ const (
 
 type tensorPresence uint8
 
+type tensorPair struct {
+	weight string
+	bias   string
+}
+
+var splitAttentionTensors = [...]tensorPair{
+	{weight: "attn_q.weight", bias: "attn_q.bias"},
+	{weight: "attn_k.weight", bias: "attn_k.bias"},
+	{weight: "attn_v.weight", bias: "attn_v.bias"},
+}
+
 const (
 	tensorOptional tensorPresence = iota
 	tensorRequired
@@ -71,11 +82,6 @@ func validateProjectorTensorCatalog(
 	return slices.DeleteFunc(names, func(name string) bool {
 		return slices.Contains(hostOnly, name)
 	}), nil
-}
-
-func validateProjectorTensorShapes(file *gguf.File, required map[string][]uint64) error {
-	_, err := validateProjectorTensorCatalog(file, required)
-	return err
 }
 
 func addOptionalProjectorTensor(
@@ -165,9 +171,9 @@ func addStandardVisionLayerCatalog(
 			required[prefix+"attn_qkv.weight"] = []uint64{uint64(hidden), uint64(3 * hidden)}
 			addProjectorTensor(file, required, prefix+"attn_qkv.bias", []uint64{uint64(3 * hidden)}, bias)
 		} else {
-			for _, part := range []string{"q", "k", "v"} {
-				required[prefix+"attn_"+part+".weight"] = []uint64{uint64(hidden), uint64(hidden)}
-				addProjectorTensor(file, required, prefix+"attn_"+part+".bias", hiddenShape, bias)
+			for _, names := range splitAttentionTensors {
+				required[prefix+names.weight] = []uint64{uint64(hidden), uint64(hidden)}
+				addProjectorTensor(file, required, prefix+names.bias, hiddenShape, bias)
 			}
 		}
 		addProjectorTensor(file, required, prefix+"attn_out.bias", hiddenShape, bias)

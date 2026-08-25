@@ -51,7 +51,7 @@ func (r *MiMoVLRunner) Spec() MiMoVLSpec {
 }
 
 func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
-	useSiLU, err := metadataBool(file, "clip.use_silu")
+	useSiLU, err := metadataBool(file, visionUseSiLUKey)
 	if err != nil {
 		return MiMoVLSpec{}, err
 	}
@@ -66,9 +66,9 @@ func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
 		return MiMoVLSpec{}, err
 	}
 	if err := readMetadataIntFields(file,
-		metadataIntField{"clip.vision.attention.head_count_kv", &spec.KVHeads},
+		metadataIntField{visionKVHeadCountKey, &spec.KVHeads},
 		metadataIntField{visionSpatialMergeKey, &spec.MergeSize},
-		metadataIntField{"clip.vision.window_size", &spec.WindowSize},
+		metadataIntField{visionWindowSizeKey, &spec.WindowSize},
 		metadataIntField{visionMinPixelsKey, &spec.MinPixels},
 		metadataIntField{visionMaxPixelsKey, &spec.MaxPixels},
 	); err != nil {
@@ -168,9 +168,6 @@ func validateMiMoVLCatalog(file *gguf.File, spec MiMoVLSpec) ([]string, error) {
 }
 
 func PreprocessMiMoVLImage(source image.Image, spec MiMoVLSpec) (MiMoVLInput, error) {
-	if source == nil {
-		return MiMoVLInput{}, errors.New("projector: image is nil")
-	}
 	if err := spec.validate(); err != nil {
 		return MiMoVLInput{}, err
 	}

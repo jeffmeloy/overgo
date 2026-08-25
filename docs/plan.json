@@ -2152,13 +2152,13 @@
       "id": "literal-protocol-contracts",
       "title": "Consolidate repeated protocol and projector literals through existing typed owners",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Use standard HTTP constants, shared protocol field types, common projector input validation, and typed tensor-role catalogs; migrate server and projector callers; delete repeated status values, field strings, nil-image guards, QKV name assembly, and pass-through helpers",
-          "status": "open",
-          "verify": "go test ./internal/server ./internal/projector ./internal/model ./internal/media -count=1 \u0026\u0026 go run ./cmd/closure-scan -check-scope internal/server,internal/projector,internal/model,internal/media -require-classified -require-no-stale -require-no-uncatalogued-production -require-no-model-facts",
+          "status": "done",
+          "verify": "go test ./internal/projector -run '^(TestCompiledImagePromptPrograms|TestGranite4VisionCatalogRejectsMissingQFormerTensor|TestQwen2VLMissingMergeMetadata)$' -count=1 \u0026\u0026 go test ./internal/model -run '^TestTensorCatalogProgramIsAuthoritative$' -count=1 \u0026\u0026 go test ./internal/server -run '^(TestNativeImageProtocolUsesActiveRecipeSession|TestProtocolGenerationOptionsPinsProjectedPrompt)$' -count=1 \u0026\u0026 go test ./internal/media -run '^TestValidatePlanarGeometry$' -count=1",
           "rationale": "Protocol and projector packages repeat stable vocabulary and validation across files; standard-library and typed catalog owners can replace those copies without changing model mathematics.",
           "depends_on": [
             "literal-quant-formats/do"

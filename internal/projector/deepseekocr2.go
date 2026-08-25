@@ -72,7 +72,7 @@ func ReadDeepSeekOCR2Spec(file *gguf.File) (DeepSeekOCR2Spec, error) {
 	if err != nil {
 		return DeepSeekOCR2Spec{}, err
 	}
-	kvHeads, err := metadataUint32(file, "clip.vision.attention.head_count_kv")
+	kvHeads, err := metadataUint32(file, visionKVHeadCountKey)
 	if err != nil {
 		return DeepSeekOCR2Spec{}, err
 	}
@@ -153,7 +153,7 @@ func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
 		multimodalProjectionWeight: {uint64(spec.Hidden), uint64(spec.OutputHidden)},
 		multimodalProjectionBias:   {uint64(spec.OutputHidden)},
 	}
-	if err := validateProjectorTensorShapes(file, requiredShapes); err != nil {
+	if _, err := validateProjectorTensorCatalog(file, requiredShapes); err != nil {
 		return err
 	}
 	separator, _ := file.Tensor("v.view_seperator")

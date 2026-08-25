@@ -69,11 +69,11 @@ func ReadPaddleOCRSpec(file *gguf.File) (PaddleOCRSpec, error) {
 }
 
 func readVisionActivationFlags(file *gguf.File) (visionActivation, error) {
-	useGELU, err := optionalMetadataBool(file, "clip.use_gelu")
+	useGELU, err := optionalMetadataBool(file, visionUseGELUKey)
 	if err != nil {
 		return visionQuickGELU, err
 	}
-	useSiLU, err := optionalMetadataBool(file, "clip.use_silu")
+	useSiLU, err := optionalMetadataBool(file, visionUseSiLUKey)
 	if err != nil {
 		return visionQuickGELU, err
 	}

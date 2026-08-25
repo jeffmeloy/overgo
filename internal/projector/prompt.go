@@ -121,15 +121,6 @@ type OpenOptions struct {
 	DisableDynamicTiles bool
 }
 
-func validateImagePromptInputs(
-	tokenizer ImageTokenizer,
-	sources []image.Image,
-	text []string,
-	family string,
-) error {
-	return validatePromptSequence(tokenizer, len(sources), text, family+" image/text")
-}
-
 func validatePromptSequence(
 	tokenizer ImageTokenizer,
 	itemCount int,
@@ -399,7 +390,7 @@ func openAs[T Projector](
 
 func resolveProjectorDescriptor(file *gguf.File) (projectorDescriptor, error) {
 	projectorType := ""
-	for _, key := range []string{"clip.projector_type", "clip.vision.projector_type", "clip.audio.projector_type"} {
+	for _, key := range []string{visionProjectorTypeKey, visionTowerTypeKey, audioProjectorTypeKey} {
 		if value, ok := file.MetadataValue(key); ok && value.Type == gguf.ValueTypeString {
 			projectorType, _ = value.Data.(string)
 			if projectorType != "" {

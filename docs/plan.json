@@ -4,6 +4,76 @@
   "census_evidence": "evidence:sha256:84da019c5f63b742cf71e4f0a0b057e0c4c3328963b78de3cf4b4da83fbd7057",
   "items": [
     {
+      "id": "fix-fused-attribute-frame",
+      "title": "Restore fused cache-append launches: the fusion frame lost its host attribute pointer",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore fused cache-append launches: the fusion frame lost its host attribute pointer",
+          "status": "done",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run TestHermetic -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-model-picker",
+      "title": "Every page shows the served model, with a servable-model picker that hands the relaunch command",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every page shows the served model, with a servable-model picker that hands the relaunch command",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestServedModelHeader -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-simple-create",
+      "title": "One-step agent creation: name, instructions, tool checkboxes; every identity derived server-side",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One-step agent creation: name, instructions, tool checkboxes; every identity derived server-side",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestAgentSimpleCreate -count=1"
+        }
+      ]
+    },
+    {
+      "id": "agent-task-first-page",
+      "title": "The agent page leads with the task: pick an agent, chat; sessions auto-named; operator panels fold behind Advanced",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The agent page leads with the task: pick an agent, chat; sessions auto-named; operator panels fold behind Advanced",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestAgentSimpleCreate -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-defaults-sweep",
+      "title": "Options and configuration fields default or fold across the workbench; nothing optional leads a page",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Options and configuration fields default or fold across the workbench; nothing optional leads a page",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestCollapsibleSections -count=1"
+        }
+      ]
+    },
+    {
       "id": "merge-tightening-2",
       "title": "Merge overgo_tightening (80571e24) and verify the new workbench tabs live",
       "owner": "gui",

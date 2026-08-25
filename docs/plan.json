@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:05b39f608c2f5b6c440a0894b2b0394c1687534a0aea3ab8c33fbbf4197c432a",
   "items": [
     {
+      "id": "zero-python-files",
+      "title": "Zero Python files in overgo: remove the torch-oracle golden generators, their committed fixtures stay the authority",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Zero Python files in overgo: remove the torch-oracle golden generators, their committed fixtures stay the authority",
+          "status": "done",
+          "verify": "go test ./internal/hostmath ./internal/densecausal -run 'TestTrainGolden|TestQwen2' -count=1"
+        }
+      ]
+    },
+    {
       "id": "merge-222ed4ea7548",
       "title": "Merge master at 222ed4ea7548",
       "status": "done",

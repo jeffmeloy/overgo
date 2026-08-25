@@ -54,7 +54,7 @@ func TestHybridDecoderLayerGradParity(t *testing.T) {
 	path := testutil.FixturePath(t, "qwen35_hybrid_grad_golden.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		t.Skipf("UNAVAILABLE: %s absent; grad parity NOT verified (run py -3.12 scripts/gen_qwen35_hybrid_grad_golden.py)", path)
+		t.Skipf("UNAVAILABLE: %s absent; grad parity NOT verified (the committed torch-oracle capture is the fixture authority)", path)
 	}
 	var g hybridGolden
 	if err := json.Unmarshal(raw, &g); err != nil {

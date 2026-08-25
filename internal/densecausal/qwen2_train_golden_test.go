@@ -3,8 +3,9 @@ package densecausal
 import "testing"
 
 // qwen2 differs from llama only by q/k/v projection biases; same code path
-// with bias slices non-nil. Golden: fixtures/qwen2_train_golden.json
-// (scripts/gen_llama_train_golden.py gen_qwen2_full_model).
+// with bias slices non-nil. Golden: fixtures/qwen2_train_golden.json, a
+// committed torch-oracle capture (tiny seeded dims, f64 values); the
+// fixture is the authority and is not regenerated in-repo.
 
 func readQwen2Golden(t *testing.T) *tinyGolden {
 	t.Helper()

@@ -63,11 +63,23 @@ type CatalogEntry struct {
 	Inventory   artifact.ID `json:"inventory"`
 	StorageKind string      `json:"storage_kind"`
 	Source      string      `json:"source"`
-	Modality    string      `json:"modality"`
-	Formats     []string    `json:"formats,omitempty"`
-	Files       uint64      `json:"files"`
-	Bytes       uint64      `json:"bytes"`
+	// Modality is the dataset's primary declared class: an explicit
+	// declaration when one is given, "mixed" when the corpus spans more
+	// than one modality, or the single modality present. It is never a
+	// byte-volume guess -- Modalities carries the honest set.
+	Modality string `json:"modality"`
+	// Modalities is the set of distinct modalities the corpus contains,
+	// so a mixed dataset is described faithfully rather than reduced to
+	// one winner.
+	Modalities []string `json:"modalities,omitempty"`
+	Formats    []string `json:"formats,omitempty"`
+	Files      uint64   `json:"files"`
+	Bytes      uint64   `json:"bytes"`
 }
+
+// MixedModality is the primary class of a corpus that spans more than
+// one modality with no explicit declaration.
+const MixedModality = "mixed"
 
 // Document defines immutable dataset composition fact.
 type Document struct {
@@ -204,10 +216,17 @@ func canonicalizeCatalog(entries *[]CatalogEntry) error {
 		entry := &(*entries)[index]
 		slices.Sort(entry.Formats)
 		entry.Formats = slices.Compact(entry.Formats)
+		slices.Sort(entry.Modalities)
+		entry.Modalities = slices.Compact(entry.Modalities)
 		if !validName(entry.Name) || entry.Dataset.Kind() != artifact.KindDataset || entry.Inventory.Kind() != artifact.KindDatasetShard ||
 			!validName(entry.StorageKind) || !validName(entry.Source) || !validName(entry.Modality) ||
 			index > 0 && (*entries)[index-1].Name == entry.Name {
 			return errors.New("dataset: invalid catalog entry")
+		}
+		for _, modality := range entry.Modalities {
+			if !validName(modality) {
+				return errors.New("dataset: invalid catalog entry modality")
+			}
 		}
 		for _, format := range entry.Formats {
 			if !validName(format) {

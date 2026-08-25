@@ -39,8 +39,14 @@ type InventoryFile struct {
 	Format       string `json:"format"`
 	Bytes        uint64 `json:"bytes"`
 	ModifiedUnix int64  `json:"modified_unix"`
-	Structured   bool   `json:"structured,omitempty"`
-	Attributes   string `json:"attributes,omitempty"`
+	// Digest is the hex sha256 of the file's bytes. Directory
+	// registration records it so dataset identity follows content, not
+	// path and metadata: changed bytes re-identify even when size and
+	// modification time are unchanged. Legacy-compiled inventories omit
+	// it and keep their metadata-derived identity.
+	Digest     string `json:"digest,omitempty"`
+	Structured bool   `json:"structured,omitempty"`
+	Attributes string `json:"attributes,omitempty"`
 }
 
 // Inventory defines immutable file-level dataset facts.

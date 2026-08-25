@@ -1,10 +1,16 @@
 // Command training-objective publishes one training objective as store
 // authority: a modality pair, an objective kind, and a registered
-// dataset become an approved objective document whose compiled program
-// carries the shared forward/backward/Muon phases with derived
-// hyperparameters -- there is no learning-rate or momentum flag here,
-// because the optimizer policy owns those facts. Datasets are named by
-// their registered catalog alias, so the corpus is store authority too.
+// dataset become an objective document whose compiled program carries
+// the shared forward/backward/Muon phases with derived hyperparameters
+// -- there is no learning-rate or momentum flag here, because the
+// optimizer policy owns those facts. Datasets are named by their
+// registered catalog alias, so the corpus is store authority too.
+//
+// The published tier is adaptive-evidence, never approved: this
+// command binds declared contract identities and an evidence note, not
+// executable loss/evaluation definitions with a successful evaluation
+// run. Approved authority is earned by that evidence, not asserted at
+// publication -- so a descriptor-only objective is honestly adaptive.
 package main
 
 import (
@@ -145,7 +151,12 @@ func publishObjective(
 		Dataset: datasetID, Split: splitID, Processors: []artifact.ID{processorID},
 		Loss: lossID, Evaluation: evaluationID,
 		Metric: request.Metric, Evidence: []artifact.ID{evidenceID},
-		Authority: trainingprogram.ObjectiveApproved,
+		// Declared: this command records contract identities and an
+		// evidence note. It measures nothing and runs no evaluation, so
+		// it publishes at the bottom of the validation ladder; adaptive
+		// and approved levels are earned by the evidence that produces
+		// them, not asserted here.
+		Authority: trainingprogram.ObjectiveDeclared,
 	})
 	if err != nil {
 		return trainingprogram.ObjectiveDocument{}, err

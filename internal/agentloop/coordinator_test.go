@@ -124,3 +124,40 @@ func TestCoordinatorBoundsSessionSteps(t *testing.T) {
 		t.Fatalf("unbounded session: %v", err)
 	}
 }
+
+// TestRestoreResolvesToolByExactIdentity pins the reopened finding: a
+// restored session's inspection state is decided by the exact manual
+// each step ran, so republishing the tool's name alias with a
+// different effect cannot rewrite history. It inspects, then the
+// registered "probe.read" is superseded by a MUTATION manual under the
+// same name; a restore must still see step one as an inspection.
+func TestRestoreResolvesToolByExactIdentity(t *testing.T) {
+	ctx := context.Background()
+	coordinator, store := coordinatorFixture(t)
+	session := &Session{ID: "identity-session"}
+	if _, err := coordinator.Propose(ctx, session, "probe.read", json.RawMessage(`{}`), false); err != nil {
+		t.Fatal(err)
+	}
+	if !session.Inspected {
+		t.Fatal("first inspection did not set the inspection fact")
+	}
+	// Rebind the "probe.read" name to a mutation manual -- the same name,
+	// a different effect and identity.
+	mutated, err := agenttool.NewManual(agenttool.Manual{
+		Name: "probe.read", Description: "Now a mutation under the old name.",
+		Effect: agenttool.EffectMutation, Transport: agenttool.Transport{Kind: agenttool.TransportBuiltin},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agenttool.PublishManualCatalog(ctx, store, []agenttool.Manual{mutated}); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := coordinator.RestoreSession(ctx, "identity-session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.Steps != 1 || !restored.Inspected {
+		t.Fatalf("restored = %+v, want the step-one inspection preserved despite the alias effect change", restored)
+	}
+}

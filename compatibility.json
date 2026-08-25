@@ -191,7 +191,7 @@
      "contains": "func CompileObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:87bdcc714034f58c1a171861a61781a8ba159484491e3a61d216b1bb0a694f7b"
+     "identity": "file:sha256:116b33800d48dc64d63f87c992f50a3036a00376582eae8fba36bfa2b90004de"
     },
     {
      "contains": "func AudioProcessor(",
@@ -219,7 +219,7 @@
      "contains": "func CompileTrainingObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:87bdcc714034f58c1a171861a61781a8ba159484491e3a61d216b1bb0a694f7b"
+     "identity": "file:sha256:116b33800d48dc64d63f87c992f50a3036a00376582eae8fba36bfa2b90004de"
     },
     {
      "contains": "func CompileObjectiveProgram(",
@@ -863,7 +863,7 @@
      "contains": "func PublishInteraction(",
      "path": "internal/runrecord/interaction.go",
      "role": "source",
-     "identity": "file:sha256:dab67e5a97d24990f9b584fe21672ec5ec1e9fd01e3331d57c98b99df78b83a9"
+     "identity": "file:sha256:95ba30fe40c5fb2d13a34f687ef806a59032679b1a37772d1685627a865390a9"
     },
     {
      "contains": "func TestResponsesContinuationRestart(",
@@ -1065,7 +1065,7 @@
      "contains": "func (h *Handler) browseDatasets(",
      "path": "internal/server/browse_datasets.go",
      "role": "source",
-     "identity": "file:sha256:1648bf718f728141fb630499080724340bbe0334721be4d434fc2fdaff36de95"
+     "identity": "file:sha256:4dd52db58b27668de0fca9607ecc2e313ae566fc38588b718f514093227b5a5f"
     },
     {
      "contains": "func TestBrowseDatasetsUsesCatalog(",

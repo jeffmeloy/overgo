@@ -2738,12 +2738,12 @@
       "id": "objective-authority-enforcement",
       "title": "Objective authority fails closed and approved requires committed evidence, not caller assertion",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Loading an objective with invalid authority refuses; promotion to approved verifies evidence documents",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/trainingprogram ./internal/trainingworkflow -run \"TestObjective|TestSession\" -count=1"
         }
       ]

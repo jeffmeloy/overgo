@@ -28,15 +28,19 @@ func ResolveSessionAuthority(ctx context.Context, repository artifact.Reader, mo
 		return SessionAuthority{}, errors.New("training workflow: active recipe differs")
 	}
 	objective, err := ProgramObjective(program)
-	// The recipe's objective DOCUMENT is the authority on loss semantics
-	// when it resolves: the module chain names the phase shape, but the
-	// store-committed objective names the kind, and a registered
-	// flow-matching objective rides the same four-node chain the token
-	// bootstrap does.
+	// The recipe's objective DOCUMENT is the authority on loss semantics:
+	// the module chain names the phase shape, but the store-committed
+	// objective names the kind, and a registered flow-matching objective
+	// rides the same four-node chain the token bootstrap does. A bound
+	// objective dependency FAILS CLOSED -- a recipe that declares an
+	// objective it cannot produce is refused, never silently downgraded
+	// to module-chain inference.
 	if objectiveID, bound := program.Definition().PrimaryDependency(recipe.DependencyObjective); bound {
-		if document, loadErr := trainingprogram.LoadObjective(ctx, repository, objectiveID); loadErr == nil {
-			objective, err = document.Kind, nil
+		document, loadErr := trainingprogram.LoadObjective(ctx, repository, objectiveID)
+		if loadErr != nil {
+			return SessionAuthority{}, fmt.Errorf("training workflow: recipe objective %s: %w", objectiveID, loadErr)
 		}
+		objective, err = document.Kind, nil
 	}
 	if err != nil {
 		return SessionAuthority{}, err

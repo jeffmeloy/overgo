@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/trainingprogram"
@@ -83,6 +84,78 @@ func PromoteObjectiveAdaptive(
 	}
 	batch := artifact.Batch{
 		Key:      "training-objective-promotion/" + promoted.ID.String(),
+		Contents: []artifact.Content{content},
+		Aliases: []artifact.AliasBinding{{
+			Name: aliasName, Target: promoted.ID, Previous: artifact.IDPointer(current.ID),
+		}},
+	}
+	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		return trainingprogram.ObjectiveDocument{}, err
+	}
+	return promoted, nil
+}
+
+// PromoteObjectiveApproved republishes an adaptive-evidence objective
+// at approved, the top of the validation ladder, gated on committed
+// PASSED evaluation reports: every named report must resolve to a
+// typed evaluation report artifact in the store whose verdict is
+// passed. An arbitrary evidence identity, a failed report, or an
+// objective below adaptive is refused -- approved is earned by
+// executable evaluation, never asserted.
+func PromoteObjectiveApproved(
+	ctx context.Context,
+	repository artifact.Repository,
+	aliasName string,
+	reports []artifact.ID,
+) (trainingprogram.ObjectiveDocument, error) {
+	if ctx == nil || repository == nil {
+		return trainingprogram.ObjectiveDocument{}, errors.New("training workflow: nil promotion context or repository")
+	}
+	if len(reports) == 0 {
+		return trainingprogram.ObjectiveDocument{}, errors.New("training workflow: approval requires at least one passed evaluation report")
+	}
+	currentID, bound, err := repository.ResolveAlias(ctx, aliasName)
+	if err != nil {
+		return trainingprogram.ObjectiveDocument{}, err
+	}
+	if !bound {
+		return trainingprogram.ObjectiveDocument{}, fmt.Errorf("training workflow: objective alias %q is absent", aliasName)
+	}
+	current, err := trainingprogram.LoadObjective(ctx, repository, currentID)
+	if err != nil {
+		return trainingprogram.ObjectiveDocument{}, err
+	}
+	if current.Authority != trainingprogram.ObjectiveAdaptive {
+		return trainingprogram.ObjectiveDocument{}, fmt.Errorf(
+			"training workflow: objective %q holds %q; only adaptive-evidence climbs to approved", aliasName, current.Authority)
+	}
+	for _, reportID := range reports {
+		passed, err := evaluation.CommittedReportPassed(ctx, repository, reportID)
+		if err != nil {
+			return trainingprogram.ObjectiveDocument{}, fmt.Errorf("training workflow: approval evidence %s: %w", reportID, err)
+		}
+		if !passed {
+			return trainingprogram.ObjectiveDocument{}, fmt.Errorf("training workflow: approval evidence %s did not pass", reportID)
+		}
+	}
+	spec := current.ObjectiveSpec
+	spec.Authority = trainingprogram.ObjectiveApproved
+	spec.Evidence = slices.Clone(spec.Evidence)
+	for _, reportID := range reports {
+		if !slices.Contains(spec.Evidence, reportID) {
+			spec.Evidence = append(spec.Evidence, reportID)
+		}
+	}
+	promoted, err := trainingprogram.NewObjective(spec)
+	if err != nil {
+		return trainingprogram.ObjectiveDocument{}, err
+	}
+	content, err := promoted.Content()
+	if err != nil {
+		return trainingprogram.ObjectiveDocument{}, err
+	}
+	batch := artifact.Batch{
+		Key:      "training-objective-approval/" + promoted.ID.String(),
 		Contents: []artifact.Content{content},
 		Aliases: []artifact.AliasBinding{{
 			Name: aliasName, Target: promoted.ID, Previous: artifact.IDPointer(current.ID),

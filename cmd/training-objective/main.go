@@ -49,11 +49,16 @@ func run(args []string, output io.Writer) error {
 	evidenceNote := flags.String("evidence", "", "evidence note identifying why this objective is approved")
 	promote := flags.String("promote", "", "registered objective alias to promote from declared to adaptive-evidence (with -observations)")
 	observationsText := flags.String("observations", "", "comma-separated succeeded training session observation IDs grounding the promotion")
+	approve := flags.String("approve", "", "registered objective alias to promote from adaptive-evidence to approved (with -evaluations)")
+	evaluationsText := flags.String("evaluations", "", "comma-separated committed passed evaluation report IDs grounding the approval")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if strings.TrimSpace(*promote) != "" {
-		return promoteObjective(*repository, *promote, *observationsText, output)
+		return promoteObjective(*repository, *promote, *observationsText, trainingworkflow.PromoteObjectiveAdaptive, output)
+	}
+	if strings.TrimSpace(*approve) != "" {
+		return promoteObjective(*repository, *approve, *evaluationsText, trainingworkflow.PromoteObjectiveApproved, output)
 	}
 	for flagName, value := range map[string]string{
 		"name": *name, "kind": *kindText, "input": *inputText, "output": *outputText,
@@ -99,21 +104,25 @@ func run(args []string, output io.Writer) error {
 	return err
 }
 
-// promoteObjective climbs one registered objective from declared to
-// adaptive-evidence, gated on committed succeeded training observations
-// whose recipes ground this exact objective.
-func promoteObjective(repository, aliasName, observationsText string, output io.Writer) error {
-	var observations []artifact.ID
-	for _, field := range strings.Split(observationsText, ",") {
+// promoteObjective climbs one registered objective one ladder rung via
+// the given evidence-gated promotion, parsing the comma-separated
+// evidence identities the gate will verify against the store.
+func promoteObjective(
+	repository, aliasName, evidenceText string,
+	climb func(context.Context, artifact.Repository, string, []artifact.ID) (trainingprogram.ObjectiveDocument, error),
+	output io.Writer,
+) error {
+	var evidence []artifact.ID
+	for _, field := range strings.Split(evidenceText, ",") {
 		field = strings.TrimSpace(field)
 		if field == "" {
 			continue
 		}
 		id, err := artifact.ParseID(field)
 		if err != nil {
-			return fmt.Errorf("training-objective: observation %q: %w", field, err)
+			return fmt.Errorf("training-objective: evidence %q: %w", field, err)
 		}
-		observations = append(observations, id)
+		evidence = append(evidence, id)
 	}
 	root := strings.TrimSpace(repository)
 	if root == "" {
@@ -128,12 +137,12 @@ func promoteObjective(repository, aliasName, observationsText string, output io.
 		return err
 	}
 	defer store.Close()
-	promoted, err := trainingworkflow.PromoteObjectiveAdaptive(context.Background(), store, aliasName, observations)
+	promoted, err := climb(context.Background(), store, aliasName, evidence)
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(output, "objective %s promoted to %s with %d observation(s)\n",
-		promoted.ID, promoted.Authority, len(observations))
+	_, err = fmt.Fprintf(output, "objective %s promoted to %s with %d evidence document(s)\n",
+		promoted.ID, promoted.Authority, len(evidence))
 	return err
 }
 

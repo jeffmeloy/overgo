@@ -2,6 +2,7 @@ package trainingworkflow
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -130,6 +131,58 @@ func TestPromoteObjectiveAdaptive(t *testing.T) {
 	if _, err := PromoteObjectiveAdaptive(ctx, store, alias, []artifact.ID{observation}); err == nil {
 		t.Fatal("an adaptive objective was promoted a second time from declared")
 	}
+
+	// Approved: refused on a training observation (not an evaluation
+	// report), refused on a fabricated identity, granted only on a
+	// committed PASSED evaluation report.
+	if _, err := PromoteObjectiveApproved(ctx, store, alias, []artifact.ID{observation}); err == nil {
+		t.Fatal("a training observation was accepted as approval evidence")
+	}
+	if _, err := PromoteObjectiveApproved(ctx, store, alias, []artifact.ID{fabricated}); err == nil {
+		t.Fatal("a fabricated report was accepted as approval evidence")
+	}
+	failedReport := commitEvaluationReport(t, ctx, store, "failed", false)
+	if _, err := PromoteObjectiveApproved(ctx, store, alias, []artifact.ID{failedReport}); err == nil {
+		t.Fatal("a FAILED evaluation report was accepted as approval evidence")
+	}
+	passedReport := commitEvaluationReport(t, ctx, store, "passed", true)
+	approved, err := PromoteObjectiveApproved(ctx, store, alias, []artifact.ID{passedReport})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if approved.Authority != trainingprogram.ObjectiveApproved || !containsID(approved.Evidence, passedReport) {
+		t.Fatalf("approved = %q evidence carries report %t", approved.Authority, containsID(approved.Evidence, passedReport))
+	}
+	if _, err := PromoteObjectiveApproved(ctx, store, alias, []artifact.ID{passedReport}); err == nil {
+		t.Fatal("an approved objective was approved a second time from adaptive")
+	}
+}
+
+// commitEvaluationReport commits one minimal typed campaign report so
+// the approval gate has a real evaluation artifact to verify.
+func commitEvaluationReport(t *testing.T, ctx context.Context, store *overgodb.Store, name string, passed bool) artifact.ID {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"passed": passed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := artifact.IdentifyBytes(artifact.KindEvidence, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
+		Key: "test-evaluation-report-" + name,
+		Contents: []artifact.Content{{
+			Descriptor: artifact.Descriptor{
+				ID: id, MediaType: "application/vnd.overgo.evaluation-campaign+json",
+				Schema: "overgo/evaluation-campaign/v1", Size: uint64(len(body)),
+			},
+			Data: body,
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
 
 func containsID(ids []artifact.ID, id artifact.ID) bool {

@@ -27,11 +27,14 @@ type Builtin func(context.Context, json.RawMessage) (json.RawMessage, error)
 
 // Executor invokes manuals over their declared native transports.
 // Entry is serialized per manual: no transport promises concurrency
-// safety, so two steps naming one tool never enter it at once.
+// safety, so two steps naming one tool never enter it at once. The
+// entry slot is a one-place channel, not a mutex, so waiting for it
+// honors the invocation deadline -- a wedged first call cannot make a
+// second call wait past its own bound.
 type Executor struct {
 	mu       sync.Mutex
 	builtins map[string]Builtin
-	entries  map[string]*sync.Mutex
+	entries  map[string]chan struct{}
 	client   *http.Client
 }
 
@@ -40,7 +43,7 @@ type Executor struct {
 // private, or link-local addresses refused at dial time. Every
 // network-facing surface uses this constructor.
 func NewExecutor() *Executor {
-	return &Executor{builtins: map[string]Builtin{}, entries: map[string]*sync.Mutex{}, client: newTransportClient(false)}
+	return &Executor{builtins: map[string]Builtin{}, entries: map[string]chan struct{}{}, client: newTransportClient(false)}
 }
 
 // NewOperatorExecutor returns the operator's executor: identical
@@ -48,15 +51,15 @@ func NewExecutor() *Executor {
 // because an operator invoking local tooling from the CLI is not a
 // server fetching on a client's behalf. Redirects stay refused.
 func NewOperatorExecutor() *Executor {
-	return &Executor{builtins: map[string]Builtin{}, entries: map[string]*sync.Mutex{}, client: newTransportClient(true)}
+	return &Executor{builtins: map[string]Builtin{}, entries: map[string]chan struct{}{}, client: newTransportClient(true)}
 }
 
-func (e *Executor) manualEntry(name string) *sync.Mutex {
+func (e *Executor) manualEntry(name string) chan struct{} {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	entry, found := e.entries[name]
 	if !found {
-		entry = &sync.Mutex{}
+		entry = make(chan struct{}, 1)
 		e.entries[name] = entry
 	}
 	return entry
@@ -89,10 +92,11 @@ func (e *Executor) Invoke(ctx context.Context, manual Manual, arguments json.Raw
 	bounded, cancel := context.WithTimeout(ctx, invokeTimeout)
 	defer cancel()
 	entry := e.manualEntry(manual.Name)
-	entry.Lock()
-	defer entry.Unlock()
-	if err := bounded.Err(); err != nil {
-		return nil, fmt.Errorf("agent tool: %q timed out waiting for entry: %w", manual.Name, err)
+	select {
+	case entry <- struct{}{}:
+		defer func() { <-entry }()
+	case <-bounded.Done():
+		return nil, fmt.Errorf("agent tool: %q timed out waiting for entry: %w", manual.Name, bounded.Err())
 	}
 	switch manual.Transport.Kind {
 	case TransportBuiltin:

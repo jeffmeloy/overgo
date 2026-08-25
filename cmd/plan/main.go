@@ -67,6 +67,7 @@ func main() {
 	vramCapacity := flag.Int("vram-capacity-gib", 0, "with -lease-report: available VRAM GiB (0 unknown)")
 	advance := flag.Bool("advance", false, "mark <item> <step> done (gated on that step's verify)")
 	bindCensus := flag.Bool("bind-census", false, "bind the campaign baseline to closure/census/latest in OvergoDB")
+	pruneDone := flag.Bool("prune-done", false, "remove retained done rows: the plan holds only open work; completion history lives in Git")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
@@ -79,7 +80,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, prepareMerge: *prepareMergeFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -87,12 +88,34 @@ func main() {
 
 type cli struct {
 	next, prompt, verify, status, context, advance, add, setverify, bindCensus, stop      bool
+	pruneDone                                                                             bool
 	force, title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane string
 	prepareMerge                                                                          string
 	grantExploration, chargeExploration, recordExperiment                                 string
 	localitySchedule                                                                      string
 	leaseReport                                                                           bool
 	capacity                                                                              plan.Resources
+}
+
+// pruneDoneRows removes every retained done row and saves the plan:
+// the one-time migration to the contract where the plan holds only
+// open work and completion history lives in Git.
+func pruneDoneRows(document plan.Plan, output io.Writer) error {
+	kept := document.Items[:0]
+	removed := 0
+	for _, item := range document.Items {
+		if item.Status == plan.StatusDone {
+			removed++
+			continue
+		}
+		kept = append(kept, item)
+	}
+	document.Items = kept
+	if err := plan.Save("", document); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintf(output, "pruned %d done row(s); %d open row(s) remain\n", removed, len(document.Items))
+	return err
 }
 
 func run(c cli, args []string) error {
@@ -131,6 +154,8 @@ func run(c cli, args []string) error {
 		return printLocalitySchedule(".", c.localitySchedule, os.Stdout)
 	case c.bindCensus:
 		return bindCampaignCensus(".", document, os.Stdout)
+	case c.pruneDone:
+		return pruneDoneRows(document, os.Stdout)
 	case c.add:
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")

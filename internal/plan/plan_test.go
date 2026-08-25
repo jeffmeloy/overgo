@@ -94,7 +94,11 @@ func TestOpenStepRequiresVerifier(t *testing.T) {
 	}
 }
 
-func TestAdvanceMarksRowsDone(t *testing.T) {
+// TestAdvanceRemovesCompletedRows pins the plan contract: the plan
+// holds only future, blocked, and in-progress work. Advancing a step
+// REMOVES it, the item leaves with its last step, and completion
+// history lives in Git through the gate's structured trailers.
+func TestAdvanceRemovesCompletedRows(t *testing.T) {
 	document := Plan{Items: []Item{{
 		ID: "item", Status: StatusOpen, Steps: []Step{
 			{ID: "first", Status: StatusOpen, Verify: "go test ./..."},
@@ -105,8 +109,8 @@ func TestAdvanceMarksRowsDone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(advanced.Items[0].Steps) != len(document.Items[0].Steps) || advanced.Items[0].Steps[0].Status != StatusDone {
-		t.Fatalf("first advance removed history: %+v", advanced.Items[0])
+	if len(advanced.Items[0].Steps) != 1 || advanced.Items[0].Steps[0].ID != "second" {
+		t.Fatalf("first advance retained the completed step: %+v", advanced.Items[0])
 	}
 	if _, step, ok := Current(advanced, UnassignedRole); !ok || step.ID != "second" {
 		t.Fatalf("current after first advance = %s, open=%v", step.ID, ok)
@@ -115,8 +119,8 @@ func TestAdvanceMarksRowsDone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if advanced.Items[0].Status != StatusDone || advanced.Items[0].Steps[1].Status != StatusDone {
-		t.Fatalf("final advance = %+v", advanced.Items[0])
+	if len(advanced.Items) != 0 {
+		t.Fatalf("final advance retained the completed item: %+v", advanced.Items)
 	}
 	if _, _, ok := Current(advanced, UnassignedRole); ok {
 		t.Fatal("completed plan remained dispatchable")

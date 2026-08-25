@@ -154,8 +154,11 @@ func validateDependencies(d Plan) error {
 		for _, step := range item.Steps {
 			for _, reference := range step.DependsOn {
 				target, targetStep, hasStep := strings.Cut(reference, "/")
-				if err := resolveDependency(itemIndex, reference); err != nil {
-					return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
+				// A reference to an ABSENT item is a completed dependency
+				// (completion removes rows), so only present targets join
+				// the cycle graph.
+				if _, present := itemIndex[target]; !present {
+					continue
 				}
 				if target != item.ID {
 					edges[item.ID] = append(edges[item.ID], target)
@@ -199,28 +202,15 @@ func validateDependencies(d Plan) error {
 	return nil
 }
 
-func resolveDependency(items map[string]Item, reference string) error {
-	itemID, stepID, hasStep := strings.Cut(reference, "/")
-	item, found := items[itemID]
-	if !found {
-		return fmt.Errorf("depends_on names unknown item %q", reference)
-	}
-	if !hasStep {
-		return nil
-	}
-	if !slices.ContainsFunc(item.Steps, func(step Step) bool { return step.ID == stepID }) {
-		return fmt.Errorf("depends_on names unknown step %q", reference)
-	}
-	return nil
-}
-
 // dependenciesSatisfied reports whether every depends_on reference is
-// done: a bare item reference requires the item done, an item/step
-// reference requires that step done.
+// complete. Completion REMOVES rows, so a reference naming an item or
+// step absent from the plan is satisfied: it was completed and left
+// with its implementing commit. Only a reference to a still-present
+// open row blocks.
 func dependenciesSatisfied(d Plan, step Step) bool {
 	for _, reference := range step.DependsOn {
 		itemID, stepID, hasStep := strings.Cut(reference, "/")
-		satisfied := false
+		satisfied := true
 		for _, item := range d.Items {
 			if item.ID != itemID {
 				continue
@@ -229,12 +219,9 @@ func dependenciesSatisfied(d Plan, step Step) bool {
 				satisfied = item.Status == StatusDone
 				break
 			}
-			for _, candidate := range item.Steps {
-				if candidate.ID == stepID {
-					satisfied = candidate.Status == StatusDone
-					break
-				}
-			}
+			satisfied = !slices.ContainsFunc(item.Steps, func(candidate Step) bool {
+				return candidate.ID == stepID && candidate.Status != StatusDone
+			})
 			break
 		}
 		if !satisfied {
@@ -330,6 +317,10 @@ func normalizedRole(role string) string {
 }
 
 // Advance retains and completes one open row.
+// Advance completes one step by REMOVING it: the plan holds only
+// future, blocked, and in-progress work, and completion history lives
+// in Git through the gate's structured trailers, not as retained rows.
+// An item whose last step completes leaves the plan with it.
 func Advance(d Plan, itemID, stepID string) (Plan, error) {
 	d.Items = slices.Clone(d.Items)
 	for itemIndex := range d.Items {
@@ -340,7 +331,7 @@ func Advance(d Plan, itemID, stepID string) (Plan, error) {
 			if len(d.Items[itemIndex].Steps) != 0 {
 				return Plan{}, fmt.Errorf("item %q has steps", itemID)
 			}
-			d.Items[itemIndex].Status = StatusDone
+			d.Items = slices.Delete(d.Items, itemIndex, itemIndex+1)
 			return d, Validate(d)
 		}
 		d.Items[itemIndex].Steps = slices.Clone(d.Items[itemIndex].Steps)
@@ -351,9 +342,9 @@ func Advance(d Plan, itemID, stepID string) (Plan, error) {
 			if d.Items[itemIndex].Steps[stepIndex].Status != StatusOpen {
 				return Plan{}, fmt.Errorf("step %q in %q is not open", stepID, itemID)
 			}
-			d.Items[itemIndex].Steps[stepIndex].Status = StatusDone
-			if !slices.ContainsFunc(d.Items[itemIndex].Steps, func(step Step) bool { return step.Status != StatusDone }) {
-				d.Items[itemIndex].Status = StatusDone
+			d.Items[itemIndex].Steps = slices.Delete(d.Items[itemIndex].Steps, stepIndex, stepIndex+1)
+			if len(d.Items[itemIndex].Steps) == 0 {
+				d.Items = slices.Delete(d.Items, itemIndex, itemIndex+1)
 			}
 			return d, Validate(d)
 		}

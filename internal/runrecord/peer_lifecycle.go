@@ -102,6 +102,11 @@ var peerHeartbeatCodec = artifact.JSONDocumentCodec(
 	func(value *PeerHeartbeat, id artifact.ID) { value.ID = id }, nil,
 )
 
+// ParsePeerEnrollment decodes one exact enrollment document.
+func ParsePeerEnrollment(content []byte) (PeerEnrollment, error) {
+	return peerEnrollmentCodec.Parse(content)
+}
+
 // PublishPeerEnrollment atomically admits an approved identity in active state.
 func PublishPeerEnrollment(
 	ctx context.Context,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -48,6 +49,7 @@ type PeerReplicaReceipt struct {
 	Plan      artifact.ID        `json:"plan"`
 	Operation artifact.ID        `json:"operation"`
 	Target    artifact.ID        `json:"target"`
+	Artifacts []artifact.ID      `json:"artifacts,omitempty"`
 	Phase     PeerReplicaPhase   `json:"phase"`
 	Attempt   uint32             `json:"attempt"`
 	Outcome   PeerReplicaOutcome `json:"outcome"`
@@ -60,8 +62,17 @@ var peerReplicaReceiptCodec = artifact.JSONDocumentCodec(
 	"peer replica receipt", artifact.KindEvidence, PeerReplicaReceiptMediaType, PeerReplicaReceiptSchema,
 	canonicalizePeerReplicaReceipt,
 	func(value PeerReplicaReceipt) artifact.ID { return value.ID },
-	func(value *PeerReplicaReceipt, id artifact.ID) { value.ID = id }, nil,
+	func(value *PeerReplicaReceipt, id artifact.ID) { value.ID = id },
+	func(value PeerReplicaReceipt) PeerReplicaReceipt {
+		value.Artifacts = slices.Clone(value.Artifacts)
+		return value
+	},
 )
+
+// ParsePeerReplicaReceipt decodes one exact reconciliation attempt.
+func ParsePeerReplicaReceipt(content []byte) (PeerReplicaReceipt, error) {
+	return peerReplicaReceiptCodec.Parse(content)
+}
 
 // ResolvePeerReplicaReceipt returns current evidence for one operation action.
 func ResolvePeerReplicaReceipt(
@@ -116,7 +127,7 @@ func PublishPeerReplicaReceipt(
 	if found {
 		alias.Previous = artifact.IDPointer(previous.ID)
 	}
-	parents := []artifact.ID{value.Plan, value.Operation, value.Target}
+	parents := append([]artifact.ID{value.Plan, value.Operation, value.Target}, value.Artifacts...)
 	if value.Previous.Valid() {
 		parents = append(parents, value.Previous)
 	}
@@ -130,6 +141,9 @@ func PublishPeerReplicaReceipt(
 	batch.Artifacts = append(batch.Artifacts,
 		artifact.Descriptor{ID: value.Plan}, artifact.Descriptor{ID: value.Operation}, artifact.Descriptor{ID: value.Target},
 	)
+	for _, id := range value.Artifacts {
+		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id})
+	}
 	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
 		return PeerReplicaReceipt{}, err
 	}
@@ -146,6 +160,12 @@ func canonicalizePeerReplicaReceipt(value *PeerReplicaReceipt) error {
 		value.Previous.Valid() && value.Previous.Kind() != artifact.KindEvidence {
 		return errors.New("run record: invalid peer replica receipt")
 	}
+	for index, id := range value.Artifacts {
+		if !id.Valid() || slices.Contains(value.Artifacts[:index], id) {
+			return errors.New("run record: invalid peer replica receipt artifacts")
+		}
+	}
+	slices.SortFunc(value.Artifacts, artifact.CompareID)
 	return nil
 }
 

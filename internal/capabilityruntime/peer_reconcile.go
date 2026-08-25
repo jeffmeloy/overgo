@@ -148,7 +148,7 @@ func (reconciler *PeerReplicaReconciler) executor(request PeerReconcileRequest) 
 			if leases != 0 {
 				receipt, publishErr := reconciler.publishAttempt(
 					ctx, reporter, request.Plan.Identity, target, runrecord.PeerReplicaUnload,
-					runrecord.PeerReplicaWaiting, "active_leases",
+					runrecord.PeerReplicaWaiting, "active_leases", peerReplicaArtifacts(replica),
 				)
 				if publishErr != nil {
 					return completion, publishErr
@@ -162,6 +162,7 @@ func (reconciler *PeerReplicaReconciler) executor(request PeerReconcileRequest) 
 			}
 			receipt, err := reconciler.runAction(
 				ctx, reporter, request, target, runrecord.PeerReplicaUnload,
+				peerReplicaArtifacts(replica),
 				func(ctx context.Context) error { return reconciler.backend.Unload(ctx, replica) },
 			)
 			if err != nil {
@@ -200,6 +201,7 @@ func (reconciler *PeerReplicaReconciler) executor(request PeerReconcileRequest) 
 			}
 			stage, err := reconciler.runAction(
 				ctx, reporter, request, target, runrecord.PeerReplicaStage,
+				peerReplicaArtifacts(replica),
 				func(ctx context.Context) error { return reconciler.backend.Stage(ctx, replica) },
 			)
 			if err != nil {
@@ -208,6 +210,7 @@ func (reconciler *PeerReplicaReconciler) executor(request PeerReconcileRequest) 
 			evidence = appendEvidence(evidence, stage.ID)
 			loaded, err := reconciler.runAction(
 				ctx, reporter, request, target, runrecord.PeerReplicaLoad,
+				peerReplicaArtifacts(replica),
 				func(ctx context.Context) error { return reconciler.backend.Load(ctx, replica) },
 			)
 			if err != nil {
@@ -226,6 +229,7 @@ func (reconciler *PeerReplicaReconciler) runAction(
 	request PeerReconcileRequest,
 	target artifact.ID,
 	phase runrecord.PeerReplicaPhase,
+	artifacts []artifact.ID,
 	action func(context.Context) error,
 ) (runrecord.PeerReplicaReceipt, error) {
 	current, found, err := runrecord.ResolvePeerReplicaReceipt(ctx, reconciler.repository, reporter.OperationID(), target, phase)
@@ -251,7 +255,7 @@ func (reconciler *PeerReplicaReconciler) runAction(
 		}
 		receipt, publishErr := runrecord.PublishPeerReplicaReceipt(ctx, reconciler.repository, runrecord.PeerReplicaReceipt{
 			Plan: request.Plan.Identity, Operation: reporter.OperationID(), Target: target,
-			Phase: phase, Attempt: attempt, Outcome: outcome, Failure: failure,
+			Artifacts: artifacts, Phase: phase, Attempt: attempt, Outcome: outcome, Failure: failure,
 		})
 		if publishErr != nil {
 			return runrecord.PeerReplicaReceipt{}, publishErr
@@ -272,6 +276,7 @@ func (reconciler *PeerReplicaReconciler) publishAttempt(
 	phase runrecord.PeerReplicaPhase,
 	outcome runrecord.PeerReplicaOutcome,
 	failure string,
+	artifacts []artifact.ID,
 ) (runrecord.PeerReplicaReceipt, error) {
 	current, found, err := runrecord.ResolvePeerReplicaReceipt(ctx, reconciler.repository, reporter.OperationID(), target, phase)
 	if err != nil {
@@ -284,12 +289,23 @@ func (reconciler *PeerReplicaReconciler) publishAttempt(
 	}
 	receipt, err := runrecord.PublishPeerReplicaReceipt(ctx, reconciler.repository, runrecord.PeerReplicaReceipt{
 		Plan: plan, Operation: reporter.OperationID(), Target: target,
-		Phase: phase, Attempt: attempt, Outcome: outcome, Failure: failure,
+		Artifacts: artifacts, Phase: phase, Attempt: attempt, Outcome: outcome, Failure: failure,
 	})
 	if err == nil {
 		reporter.Attempt(receipt.ID)
 	}
 	return receipt, err
+}
+
+func peerReplicaArtifacts(replica modelrecipe.PeerReplicaPlacement) []artifact.ID {
+	result := make([]artifact.ID, 0, len(replica.Locality))
+	for _, location := range replica.Locality {
+		if location.Artifact.Valid() && !slices.Contains(result, location.Artifact) {
+			result = append(result, location.Artifact)
+		}
+	}
+	slices.SortFunc(result, artifact.CompareID)
+	return result
 }
 
 func peerReplicaTarget(replica modelrecipe.PeerReplicaPlacement) (artifact.ID, error) {

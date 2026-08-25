@@ -272,7 +272,7 @@
         {
           "id": "peer-api",
           "title": "Add typed peer inventory, enrollment, approval, heartbeat, drain, placement, reconciliation, capacity, artifact, attempt, and log projections",
-          "status": "open",
+          "status": "done",
           "verify": "rg -q 'func TestPeerControlAPI' internal/server \u0026\u0026 go test ./internal/server -run 'TestPeerControlAPI|TestPeerControlAuthorization|TestPeerControlProjectionBounds|TestPeerControlRefusalReasons' -count=1",
           "rationale": "Endpoints project existing peer, placement, operation, session, and serving evidence. They do not become a mutable registry and must enforce administrative versus peer-scoped capabilities explicitly.",
           "depends_on": [

@@ -231,20 +231,12 @@ func deepSeekOCRTensorNames(file *gguf.File, spec DeepSeekOCRSpec) []string {
 		visionClassEmbeddingTensor, visionPositionWeightTensor,
 		multimodalProjectionWeight, multimodalProjectionBias, visionImageNewlineTensor, visionViewSeparatorTensor,
 	)
-	for layer := 0; layer < spec.Layers; layer++ {
-		prefix := fmt.Sprintf("v.blk.%d.", layer)
-		for _, suffix := range []string{
-			"ln1.weight", "ln1.bias", "ln2.weight", "ln2.bias", "attn_qkv.weight", "attn_qkv.bias",
-			"attn_out.weight", "attn_out.bias", "ffn_up.weight", "ffn_up.bias", "ffn_down.weight", "ffn_down.bias",
-		} {
-			names = append(names, prefix+suffix)
-		}
-	}
-	for _, name := range []string{visionPreNormWeightTensor, visionPreNormBiasTensor, visionPostNormWeightTensor, visionPostNormBiasTensor} {
-		if hasTensor(file, name) {
-			names = append(names, name)
-		}
-	}
+	names = appendIndexedTensorNames(names, file, "v.blk", spec.Layers, []string{
+		"ln1.weight", "ln1.bias", "ln2.weight", "ln2.bias", "attn_qkv.weight", "attn_qkv.bias",
+		"attn_out.weight", "attn_out.bias", "ffn_up.weight", "ffn_up.bias", "ffn_down.weight", "ffn_down.bias",
+	}, nil)
+	names = appendPresentTensorNames(names, file,
+		visionPreNormWeightTensor, visionPreNormBiasTensor, visionPostNormWeightTensor, visionPostNormBiasTensor)
 	return names
 }
 
@@ -255,31 +247,17 @@ func deepSeekOCRSAMTensorNames(spec DeepSeekOCRSpec) []string {
 		"v.sam.neck.2.weight", "v.sam.neck.3.weight", "v.sam.neck.3.bias",
 		"v.sam.net_2.weight", "v.sam.net_3.weight",
 	}
-	for layer := 0; layer < spec.SAMLayers; layer++ {
-		prefix := fmt.Sprintf("v.sam.blk.%d.", layer)
-		for _, suffix := range []string{
-			"pre_ln.weight", "pre_ln.bias", "post_ln.weight", "post_ln.bias",
-			"attn.pos_h.weight", "attn.pos_w.weight", "attn.qkv.weight", "attn.qkv.bias",
-			"attn.out.weight", "attn.out.bias", "mlp.lin1.weight", "mlp.lin1.bias",
-			"mlp.lin2.weight", "mlp.lin2.bias",
-		} {
-			names = append(names, prefix+suffix)
-		}
-	}
-	return names
+	return appendIndexedTensorNames(names, nil, "v.sam.blk", spec.SAMLayers, []string{
+		"pre_ln.weight", "pre_ln.bias", "post_ln.weight", "post_ln.bias",
+		"attn.pos_h.weight", "attn.pos_w.weight", "attn.qkv.weight", "attn.qkv.bias",
+		"attn.out.weight", "attn.out.bias", "mlp.lin1.weight", "mlp.lin1.bias",
+		"mlp.lin2.weight", "mlp.lin2.bias",
+	}, nil)
 }
 
 func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
-	for _, name := range spec.TensorNames {
-		info, ok := file.Tensor(name)
-		if !ok {
-			return fmt.Errorf("projector: missing tensor %q", name)
-		}
-		if err := tensorcatalog.ValidateInfo(info, tensorcatalog.Requirement{
-			Ranks: []uint32{tensor.SingletonExtent, tensor.PairedExtent, tensor.TripleExtent, tensor.MaxDimensions},
-		}); err != nil {
-			return fmt.Errorf("projector: tensor %q rank %d is invalid", name, info.Dimensions)
-		}
+	if err := validateProjectorTensorNames(file, spec.TensorNames); err != nil {
+		return err
 	}
 	position, _ := file.Tensor("v.sam.pos_embd.weight")
 	positionShape := []uint64{uint64(spec.SAMHidden), uint64(spec.ImageSize / spec.PatchSize), uint64(spec.ImageSize / spec.PatchSize)}
@@ -607,13 +585,4 @@ func (r *DeepSeekOCRRunner) validateGraph() error {
 		return fmt.Errorf("projector: validate DeepSeek-OCR graph: %w", err)
 	}
 	return nil
-}
-
-func compileDeepSeekOCRImagePrompt(r *DeepSeekOCRRunner) compiledImagePromptProgram {
-	return compiledImagePromptProgram{
-		Default: delimitedImagePromptPlan(
-			"DeepSeek-OCR", DeepSeekOCRImagePad, "DeepSeek-OCR placeholder", true, r.spec.OutputHidden, "", "",
-		),
-		Encode: referenceImageEncoder(r.EncodeImage),
-	}
 }

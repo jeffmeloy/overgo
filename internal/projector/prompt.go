@@ -278,8 +278,12 @@ func promptPrograms[T Projector](
 }
 
 var projectorCatalog = []projectorDescriptor{
-	describeProjector(deepSeekOCR2ProjectorType, openDeepSeekOCR2, promptPrograms(compileDeepSeekOCR2ImagePrompt, nil), recipe.DataImage),
-	describeProjector(deepSeekOCRProjectorType, openDeepSeekOCR, promptPrograms(compileDeepSeekOCRImagePrompt, nil), recipe.DataImage),
+	describeProjector(deepSeekOCR2ProjectorType, openDeepSeekOCR2, promptPrograms(func(r *DeepSeekOCR2Runner) compiledImagePromptProgram {
+		return compileDelimitedImagePromptProgram("DeepSeek-OCR-2", DeepSeekOCRImagePad, r.spec.OutputHidden, referenceImageEncoder(r.EncodeImage))
+	}, nil), recipe.DataImage),
+	describeProjector(deepSeekOCRProjectorType, openDeepSeekOCR, promptPrograms(func(r *DeepSeekOCRRunner) compiledImagePromptProgram {
+		return compileDelimitedImagePromptProgram("DeepSeek-OCR", DeepSeekOCRImagePad, r.spec.OutputHidden, referenceImageEncoder(r.EncodeImage))
+	}, nil), recipe.DataImage),
 	describeCatalogProjector(cogVLMProjectorType, "CogVLM", nil, ReadCogVLMVisionSpec, validateCogVLMVisionCatalog,
 		func(file *gguf.File, spec CogVLMVisionSpec, cuda *projectorCUDA) *CogVLMVisionRunner {
 			return &CogVLMVisionRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, attention: compileVisionAttention(spec.Hidden, spec.Heads)}

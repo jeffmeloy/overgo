@@ -50,6 +50,13 @@ type compiledImagePromptProgram struct {
 	Custom   imagesPromptFunc
 }
 
+func compileDelimitedImagePromptProgram(family, placeholder string, width int, encode imagePromptEncoder) compiledImagePromptProgram {
+	return compiledImagePromptProgram{
+		Default: delimitedImagePromptPlan(family, placeholder, family+" placeholder", true, width, "", ""),
+		Encode:  encode,
+	}
+}
+
 func compileFramedImagePromptProgram(
 	base imagePromptPlan,
 	prompt, image promptDelimiters,

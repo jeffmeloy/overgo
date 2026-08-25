@@ -21,13 +21,13 @@
       "id": "projector-indexed-tensor-program",
       "title": "Compile repeated projector tensor names from typed indexed declarations",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Move DeepSeek OCR tensor suffix expansion to one neutral indexed program and delete local loops",
-          "status": "open",
-          "verify": "go test ./internal/projector -run '^TestDeepSeekOCR' -count=1",
+          "status": "done",
+          "verify": "go test ./internal/projector -run '^TestDeepSeekOCR(2)?TinyFixture$' -count=1",
           "depends_on": [
             "plan-text-bound-authority/do"
           ]

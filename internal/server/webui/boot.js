@@ -333,15 +333,47 @@
   }
 
   // The served model shows on every page as the banner pill; clicking
-  // it lists the store's servable models. One process serves one model,
-  // so choosing another hands you the relaunch command for
-  // overgo_gui.bat instead of pretending to hot-swap.
+  // it lists the store's servable models. Behind the swap proxy
+  // (overgo_gui.bat launches it) choosing one swaps the serving child
+  // live: in-flight requests drain, the chosen model launches, and
+  // every page keeps working through the same address.
   function wireModelPicker() {
     const modelPill = document.getElementById("model-pill");
     if (!modelPill) return;
     let panel = null;
     modelPill.style.cursor = "pointer";
-    modelPill.title = "click to list servable models";
+    modelPill.title = "click to switch the served model";
+
+    // swapModel routes one health probe through the swap proxy with the
+    // swap query parameter; the proxy swaps the child to answer it.
+    // Served directly (no proxy) the parameter is ignored and the
+    // unchanged pill says so.
+    async function swapModel(item, name, button) {
+      const before = modelPill.textContent;
+      button.disabled = true;
+      button.textContent = "loading…";
+      try {
+        await api.get("/health?swap=" + encodeURIComponent(name));
+        invalidateModel();
+        await refreshStatus();
+        if (modelPill.textContent !== before) {
+          panel.replaceChildren(el("div", { class: "note", text: "now serving " + modelPill.textContent }));
+          return;
+        }
+        const command = 'overgo_gui.bat "' + (item.location || name) + '"';
+        const copy = el("button", { class: "btn alt", text: "copy launch" });
+        copy.addEventListener("click", () => navigator.clipboard.writeText(command));
+        panel.replaceChildren(
+          el("div", { class: "note", text: "this server runs without the swap proxy; relaunch it on the model instead" }),
+          el("div", { class: "row" }, el("span", { class: "mono", text: command }), copy));
+      } catch (err) {
+        panel.replaceChildren(errorBanner(friendlyError(err)));
+      } finally {
+        button.disabled = false;
+        button.textContent = "serve";
+      }
+    }
+
     modelPill.addEventListener("click", async () => {
       if (panel) { panel.remove(); panel = null; return; }
       panel = el("div", { class: "card", style: "position:absolute;right:12px;top:44px;z-index:40;max-width:560px" });
@@ -354,13 +386,12 @@
           panel.textContent = "no other servable models in the store";
           return;
         }
-        panel.replaceChildren(el("div", { class: "note", text: "serve a different model: copy its launch command and run it" }),
+        panel.replaceChildren(el("div", { class: "note", text: "switch the served model; the load can take a minute" }),
           ...servable.map((item) => {
-            const command = 'overgo_gui.bat "' + item.location + '"';
-            const copy = el("button", { class: "btn alt", text: "copy launch" });
-            copy.addEventListener("click", () => navigator.clipboard.writeText(command));
             const name = item.location ? item.location.split(/[\\/]/).pop() : item.model;
-            return el("div", { class: "row" }, el("span", { class: "mono", text: name }), copy);
+            const swap = el("button", { class: "btn alt", text: "serve" });
+            swap.addEventListener("click", () => swapModel(item, name, swap));
+            return el("div", { class: "row" }, el("span", { class: "mono", text: name }), swap);
           }));
       } catch (err) {
         panel.textContent = friendlyError(err);

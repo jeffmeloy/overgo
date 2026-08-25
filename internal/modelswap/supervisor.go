@@ -43,16 +43,25 @@ type upstream struct {
 	idleStop *time.Timer
 }
 
+// drainGrace bounds how long a swap waits for the old child's
+// in-flight requests: the workbench holds endless streams (the
+// activity stream stays open for the life of the page), and an
+// endless stream must not veto the model the user asked for. Past the
+// grace the old child stops and lingering streams sever.
+const drainGrace = 15 * time.Second
+
 // Supervisor owns the exclusive child lifecycle: Acquire hands out the
 // running child's address for the requested model, swapping when a
 // different model is asked for -- in-flight requests on the old child
-// drain before it stops, callers for the new model queue on the swap,
-// and an idle child past the timeout stops so the device frees.
+// drain (bounded by the grace) before it stops, callers for the new
+// model queue on the swap, and an idle child past the timeout stops so
+// the device frees.
 type Supervisor struct {
 	mu       sync.Mutex
 	drained  *sync.Cond
 	launcher Launcher
 	idle     time.Duration
+	grace    time.Duration
 	current  *upstream
 	closed   bool
 }
@@ -63,7 +72,7 @@ func New(launcher Launcher, idle time.Duration) (*Supervisor, error) {
 	if launcher == nil {
 		return nil, errors.New("model swap: a launcher is required")
 	}
-	supervisor := &Supervisor{launcher: launcher, idle: idle}
+	supervisor := &Supervisor{launcher: launcher, idle: idle, grace: drainGrace}
 	supervisor.drained = sync.NewCond(&supervisor.mu)
 	return supervisor, nil
 }
@@ -78,6 +87,13 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (string, fu
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var deadline *time.Timer
+	graceOver := false
+	defer func() {
+		if deadline != nil {
+			deadline.Stop()
+		}
+	}()
 	for {
 		if s.closed {
 			return "", nil, errors.New("model swap: supervisor is closed")
@@ -89,8 +105,19 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (string, fu
 			break
 		}
 		// A different model is running: wait for its in-flight requests
-		// to drain, then stop it and fall through to launch.
-		if s.current.refs > 0 {
+		// to drain, then stop it and fall through to launch. The drain is
+		// bounded -- endless streams held open on the old child (the
+		// workbench's activity stream never closes) must not veto the
+		// swap, so past the grace the old child stops anyway.
+		if s.current.refs > 0 && !graceOver {
+			if deadline == nil {
+				deadline = time.AfterFunc(s.grace, func() {
+					s.mu.Lock()
+					graceOver = true
+					s.mu.Unlock()
+					s.drained.Broadcast()
+				})
+			}
 			s.drained.Wait()
 			continue
 		}

@@ -127,4 +127,26 @@ func TestModelSwapSupervisor(t *testing.T) {
 	if _, running := supervisor.Status(); running {
 		t.Fatal("failed launch left a child registered")
 	}
+
+	// A never-released acquire (an endless stream through the proxy)
+	// cannot veto a swap: past the drain grace the old child stops
+	// anyway and the requested model launches.
+	supervisor.mu.Lock()
+	supervisor.grace = 50 * time.Millisecond
+	supervisor.mu.Unlock()
+	if _, _, err := supervisor.Acquire(ctx, Servable{Name: "gamma"}); err != nil {
+		t.Fatal(err)
+	}
+	// The gamma acquire above is deliberately never released.
+	if _, releaseDelta, err := supervisor.Acquire(ctx, Servable{Name: "delta"}); err != nil {
+		t.Fatalf("bounded drain did not admit the swap: %v", err)
+	} else {
+		releaseDelta()
+	}
+	if !launcher.processes["gamma"].stopped.Load() {
+		t.Fatal("grace expiry left the streamed-on child running")
+	}
+	if running, ok := supervisor.Status(); !ok || running.Name != "delta" {
+		t.Fatalf("running after bounded drain = (%+v, %t)", running, ok)
+	}
 }

@@ -44,19 +44,27 @@ func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process,
 		return nil, err
 	}
 	address := "127.0.0.1:" + strconv.Itoa(port)
-	command := exec.Command(l.Binary, "-listen", address, "-repo", l.Store, servable.Location)
+	// The child self-reports the servable's name so the GUI's model pill
+	// (and the proxy's self-identity short-circuit) track the swap.
+	command := exec.Command(l.Binary,
+		"-listen", address, "-repo", l.Store, "-model-id", servable.Name, servable.Location)
 	command.Stdout = os.Stderr
 	command.Stderr = os.Stderr
 	if err := command.Start(); err != nil {
 		return nil, err
 	}
 	_ = ctx
-	return &serverProcess{command: command, url: "http://" + address}, nil
+	exited := make(chan error, 1)
+	go func() { exited <- command.Wait(); close(exited) }()
+	return &serverProcess{command: command, exited: exited, url: "http://" + address}, nil
 }
 
 type serverProcess struct {
 	command *exec.Cmd
-	url     string
+	// exited delivers the child's Wait result; a child that dies during
+	// startup fails Ready immediately instead of polling forever.
+	exited chan error
+	url    string
 }
 
 // URL is the child's loopback base address.
@@ -67,9 +75,6 @@ func (p *serverProcess) URL() string { return p.url }
 func (p *serverProcess) Ready(ctx context.Context) error {
 	client := &http.Client{Timeout: healthPollInterval}
 	for {
-		if p.command.ProcessState != nil {
-			return errors.New("child server exited before becoming ready")
-		}
 		response, err := client.Get(p.url + "/health")
 		if err == nil {
 			response.Body.Close()
@@ -78,6 +83,8 @@ func (p *serverProcess) Ready(ctx context.Context) error {
 			}
 		}
 		select {
+		case exit := <-p.exited:
+			return fmt.Errorf("child server exited before becoming ready: %v", exit)
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(healthPollInterval):
@@ -93,6 +100,6 @@ func (p *serverProcess) Stop() error {
 	if err := p.command.Process.Kill(); err != nil {
 		return err
 	}
-	_ = p.command.Wait()
+	<-p.exited
 	return nil
 }

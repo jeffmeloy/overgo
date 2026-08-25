@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
@@ -14,24 +15,53 @@ import (
 // file. Names match the artifact's on-disk basename with or without
 // its extension, or the model identity itself.
 type CatalogResolver struct {
-	// Store is the OvergoDB root, opened read-only per resolve so the
-	// serving child keeps the writer lock.
+	// Store is the OvergoDB root, opened read-only so the serving child
+	// keeps the writer lock.
 	Store string
 	// Limit bounds the catalog listing.
 	Limit int
+
+	// The replayed handle and catalog memo persist across resolves --
+	// replaying the log and scanning the catalog cost more than the
+	// model load they route. A miss reopens once to see new artifacts.
+	mu     sync.Mutex
+	opened *overgodb.Store
+	memo   *discovery.Memo
 }
 
-// Resolve maps one requested name to a launchable servable.
-func (r CatalogResolver) Resolve(ctx context.Context, name string) (Servable, bool, error) {
-	store, err := overgodb.OpenReadOnly(r.Store)
-	if err != nil {
-		return Servable{}, false, err
+// Resolve maps one requested name to a launchable servable. A name the
+// cached catalog does not know triggers one reopen, so artifacts
+// committed after the cache was built stay servable.
+func (r *CatalogResolver) Resolve(ctx context.Context, name string) (Servable, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, reopen := range []bool{false, true} {
+		if reopen {
+			if r.opened != nil {
+				_ = r.opened.Close()
+				r.opened = nil
+			}
+		}
+		if r.opened == nil {
+			store, err := overgodb.OpenReadOnly(r.Store)
+			if err != nil {
+				return Servable{}, false, err
+			}
+			r.opened = store
+			r.memo = discovery.NewMemo()
+		}
+		entries, _, err := discovery.CapabilityCatalog(ctx, r.opened, r.Limit, r.memo)
+		if err != nil {
+			return Servable{}, false, err
+		}
+		if servable, found := matchServable(entries, name); found {
+			return servable, true, nil
+		}
 	}
-	defer store.Close()
-	entries, _, err := discovery.CapabilityCatalog(ctx, store, r.Limit, nil)
-	if err != nil {
-		return Servable{}, false, err
-	}
+	return Servable{}, false, nil
+}
+
+func matchServable(entries []discovery.CatalogEntry, name string) (Servable, bool) {
 	wanted := strings.ToLower(name)
 	for _, entry := range entries {
 		if !entry.Present || entry.Location == "" {
@@ -43,8 +73,8 @@ func (r CatalogResolver) Resolve(ctx context.Context, name string) (Servable, bo
 			strings.ToLower(entry.Model.String()) == wanted {
 			return Servable{
 				Name: base, Location: entry.Location, Model: entry.Model.String(),
-			}, true, nil
+			}, true
 		}
 	}
-	return Servable{}, false, nil
+	return Servable{}, false
 }

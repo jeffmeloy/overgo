@@ -11,6 +11,8 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"overgo/internal/clioptions"
@@ -29,7 +31,7 @@ func run() error {
 	catalogLimit := flag.Int("catalog-limit", 256, "servable catalog listing bound")
 	defaultModel := flag.String("default", "", "model served for model-less requests before any child runs")
 	flag.Parse()
-	resolver := modelswap.CatalogResolver{Store: *store, Limit: *catalogLimit}
+	resolver := &modelswap.CatalogResolver{Store: *store, Limit: *catalogLimit}
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: *binary, Store: *store}, *idle)
 	if err != nil {
 		return err
@@ -37,13 +39,24 @@ func run() error {
 	defer supervisor.Close()
 	proxy := &modelswap.Proxy{Supervisor: supervisor, Resolver: resolver}
 	if *defaultModel != "" {
-		servable, found, err := resolver.Resolve(context.Background(), *defaultModel)
-		if err != nil || !found {
-			return fmt.Errorf("swap: default model %q is not servable: %v", *defaultModel, err)
+		if fileExists(*defaultModel) {
+			// An on-disk model file is launchable directly -- no store
+			// replay needed to start serving it.
+			proxy.Default = modelswap.Servable{Name: filepath.Base(*defaultModel), Location: *defaultModel}
+		} else {
+			servable, found, err := resolver.Resolve(context.Background(), *defaultModel)
+			if err != nil || !found {
+				return fmt.Errorf("swap: default model %q is neither an on-disk file nor servable: %v", *defaultModel, err)
+			}
+			proxy.Default = servable
 		}
-		proxy.Default = servable
 	}
 	server := &http.Server{Addr: *listen, Handler: proxy, ReadHeaderTimeout: 30 * time.Second}
 	fmt.Printf("swap proxy on http://%s over %s\n", *listen, *store)
 	return server.ListenAndServe()
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }

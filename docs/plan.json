@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:84da019c5f63b742cf71e4f0a0b057e0c4c3328963b78de3cf4b4da83fbd7057",
   "items": [
     {
+      "id": "record-sweep-closure",
+      "title": "Record the defaults-sweep plan closure",
+      "owner": "gui",
+      "status": "done",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record the defaults-sweep plan closure",
+          "status": "done",
+          "verify": "go test ./internal/server -run TestCollapsibleSections -count=1"
+        }
+      ]
+    },
+    {
       "id": "fix-fused-attribute-frame",
       "title": "Restore fused cache-append launches: the fusion frame lost its host attribute pointer",
       "owner": "gui",
@@ -63,12 +77,12 @@
       "id": "gui-defaults-sweep",
       "title": "Options and configuration fields default or fold across the workbench; nothing optional leads a page",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Options and configuration fields default or fold across the workbench; nothing optional leads a page",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestCollapsibleSections -count=1"
         }
       ]

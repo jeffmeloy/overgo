@@ -21,7 +21,7 @@ func newResidentFixture(
 	t *testing.T,
 	ctx context.Context,
 	label, source string,
-	inputs map[string]*tensor.Tensor,
+	inputs tensor.WeightBindings,
 	outputs ...*tensor.Tensor,
 ) *residentFixture {
 	t.Helper()

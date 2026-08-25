@@ -12,11 +12,11 @@ func TestWeightInputsSelectsCompiledMatrixStorage(t *testing.T) {
 		outputWidth = 5
 	)
 	builder := NewBuilder()
-	inputs := make(map[string]*Tensor)
-	weights := WeightInputs{Builder: builder, Inputs: inputs, MatrixType: dtype.BF16}
+	var bindings WeightBindings
+	weights := WeightInputs{Builder: builder, Bindings: &bindings, MatrixType: dtype.BF16}
 	vector := weights.Input("vector", inputWidth)
 	matrix := weights.Input("matrix", inputWidth, outputWidth)
-	if vector.Type != dtype.F32 || matrix.Type != dtype.BF16 || inputs[vector.Name] != vector || inputs[matrix.Name] != matrix {
-		t.Fatalf("weight inputs = vector %s matrix %s catalog %d", vector.Type, matrix.Type, len(inputs))
+	if vector.Type != dtype.F32 || matrix.Type != dtype.BF16 || bindings.Node(vector.Name) != vector || bindings.Node(matrix.Name) != matrix {
+		t.Fatalf("weight inputs = vector %s matrix %s catalog %d", vector.Type, matrix.Type, len(bindings))
 	}
 }

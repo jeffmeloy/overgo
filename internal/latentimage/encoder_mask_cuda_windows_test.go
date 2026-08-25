@@ -38,7 +38,7 @@ func TestEncoderProgramMaskedCUDAMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileEncoderProgramMasked: %v", err)
 	}
-	want, err := prog.RunHostFeed(GraphRunner(reference.Execute), weightAt, embed)
+	want, err := prog.RunHostFeed(reference.Execute, weightAt, embed)
 	if err != nil {
 		t.Fatalf("reference RunHostFeed: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestEncoderProgramMaskedCUDAMatchesReference(t *testing.T) {
 	cudaRun := func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
 		return exec.Execute(context.Background(), outputs, feeds)
 	}
-	got, err := prog.RunHostFeed(GraphRunner(cudaRun), weightAt, embed)
+	got, err := prog.RunHostFeed(cudaRun, weightAt, embed)
 	if err != nil {
 		t.Fatalf("CUDA RunHostFeed: %v", err)
 	}

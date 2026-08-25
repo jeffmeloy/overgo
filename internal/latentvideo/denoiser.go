@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 
 	"overgo/internal/checked"
+	"overgo/internal/graphruntime"
 	"overgo/internal/hostmath"
 	"overgo/internal/media"
 	"overgo/internal/model"
@@ -277,11 +278,6 @@ func (w *DenoiserWeights) TimestepWeights(c DenoiserConfig) TimestepConditioning
 	}
 }
 
-// GraphRunner: one backend executing a tensor graph. reference.Execute
-// satisfies it directly; the CUDA executor satisfies it through a context
-// closure.
-type GraphRunner func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error)
-
 // DenoiserProgram: both compiled graphs plus their weight bindings.
 type DenoiserProgram struct {
 	Config   DenoiserConfig
@@ -295,7 +291,7 @@ type DenoiserProgram struct {
 	timestepWeights TimestepConditioningWeights
 
 	contextInput        *tensor.Tensor
-	contextWeightInputs map[string]*tensor.Tensor
+	contextWeightInputs tensor.WeightBindings
 	contextKeys         []*tensor.Tensor
 	contextValues       []*tensor.Tensor
 
@@ -308,7 +304,7 @@ type DenoiserProgram struct {
 	stepHistoryVals  []*tensor.Tensor
 	currentSelfKeys  []*tensor.Tensor
 	currentSelfVals  []*tensor.Tensor
-	stepWeightInputs map[string]*tensor.Tensor
+	stepWeightInputs tensor.WeightBindings
 
 	// Blocks expose every intra-block seam for parity probes; Head is the
 	// [patchOut, seq] pre-unpatchify output.
@@ -418,8 +414,7 @@ func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 	// Context graph: per-block cross-attention K/V from the text context.
 	contextBuilder := tensor.NewBuilder()
 	contextBuilder.SetMulMatCompute(matmulCompute)
-	program.contextWeightInputs = make(map[string]*tensor.Tensor)
-	contextBind := tensor.WeightInputs{Builder: contextBuilder, Inputs: program.contextWeightInputs, MatrixType: matmulWeightType}
+	contextBind := tensor.WeightInputs{Builder: contextBuilder, Bindings: &program.contextWeightInputs, MatrixType: matmulWeightType}
 	program.contextInput = contextBuilder.Input("context", dtype.F32, tensor.MustShape(d, textLen))
 	for layer := 0; layer < c.NumLayers; layer++ {
 		prefix := denoiserBlockPrefix(layer) + "cross_attn."
@@ -443,8 +438,7 @@ func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 	// Step graph: patch embedding -> blocks -> head.
 	builder := tensor.NewBuilder()
 	builder.SetMulMatCompute(matmulCompute)
-	program.stepWeightInputs = make(map[string]*tensor.Tensor)
-	bind := tensor.WeightInputs{Builder: builder, Inputs: program.stepWeightInputs, MatrixType: matmulWeightType}
+	bind := tensor.WeightInputs{Builder: builder, Bindings: &program.stepWeightInputs, MatrixType: matmulWeightType}
 	program.stepPatch = builder.Input("patch_tokens", dtype.F32, tensor.MustShape(uint64(c.patchIn()), seq))
 	program.stepBlockE = builder.Input("conditioning_block", dtype.F32, tensor.MustShape(uint64(media.PairedShiftScaleGateWidth(c.Dim))))
 	program.stepHeadE = builder.Input("conditioning_head", dtype.F32, tensor.MustShape(d))
@@ -507,22 +501,13 @@ func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry
 	return program, nil
 }
 
-func (p *DenoiserProgram) weightFeeds(inputs map[string]*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) error {
+func (p *DenoiserProgram) weightFeeds(inputs tensor.WeightBindings, feeds map[*tensor.Tensor]reference.Value) error {
 	if p.weights == nil {
 		return fmt.Errorf("denoiser host weights released to resident session")
 	}
-	for name, node := range inputs {
-		if node.Type != dtype.F32 {
-			return fmt.Errorf("denoiser weight feed %s: host feeds require F32 storage, program compiled %s", name, node.Type)
-		}
-		data := p.weights.tensor(name)
-		elements, err := node.Shape.Elements()
-		if err != nil || uint64(len(data)) != elements {
-			return fmt.Errorf("denoiser weight feed %s: have %d elements, need %d", name, len(data), elements)
-		}
-		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
-	}
-	return nil
+	return graphruntime.AddHostWeights(feeds, inputs, func(name string) ([]float32, error) {
+		return p.weights.tensor(name), nil
+	})
 }
 
 func feedValue(node *tensor.Tensor, data []float32, what string) (reference.Value, error) {
@@ -539,7 +524,7 @@ type ContextProjection struct {
 }
 
 // ProjectContext: runs the context graph once for one text context.
-func (p *DenoiserProgram) ProjectContext(run GraphRunner, context []float32) (ContextProjection, error) {
+func (p *DenoiserProgram) ProjectContext(run graphruntime.Runner, context []float32) (ContextProjection, error) {
 	feeds := make(map[*tensor.Tensor]reference.Value, len(p.contextWeightInputs)+1)
 	if err := p.weightFeeds(p.contextWeightInputs, feeds); err != nil {
 		return ContextProjection{}, err
@@ -567,7 +552,7 @@ func (p *DenoiserProgram) ProjectContext(run GraphRunner, context []float32) (Co
 // Forward: one step-graph execution over embedded patch tokens; outputs
 // selects which graph tensors to materialize (Head plus any seams).
 func (p *DenoiserProgram) Forward(
-	run GraphRunner,
+	run graphruntime.Runner,
 	patchTokens, blockE, headE []float32,
 	context ContextProjection,
 	outputs []*tensor.Tensor,
@@ -676,10 +661,10 @@ type DenoiseBackend interface {
 }
 
 // graphRunnerBackend: the host-feed adapter; reference.Execute or any
-// GraphRunner closure satisfies the loop through it.
+// graphruntime.Runner satisfies the loop through it.
 type graphRunnerBackend struct {
 	program *DenoiserProgram
-	run     GraphRunner
+	run     graphruntime.Runner
 }
 
 func (b graphRunnerBackend) ProjectBranchContext(context []float32) (any, error) {
@@ -699,7 +684,7 @@ func (b graphRunnerBackend) ForwardHead(patchTokens, blockE, headE []float32, br
 }
 
 // Denoise: the full guided UniPC trajectory through the step graph.
-func (p *DenoiserProgram) Denoise(run GraphRunner, request DenoiseRequest) (DenoiseResult, error) {
+func (p *DenoiserProgram) Denoise(run graphruntime.Runner, request DenoiseRequest) (DenoiseResult, error) {
 	return p.DenoiseWithBackend(graphRunnerBackend{program: p, run: run}, request)
 }
 

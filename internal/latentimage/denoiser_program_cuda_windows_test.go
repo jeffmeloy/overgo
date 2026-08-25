@@ -36,7 +36,7 @@ func TestDenoiserProgramCUDAMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileDenoiserProgram: %v", err)
 	}
-	want, err := prog.Forward(GraphRunner(reference.Execute), d, latent, enc, sigma)
+	want, err := prog.Forward(reference.Execute, d, latent, enc, sigma)
 	if err != nil {
 		t.Fatalf("reference Forward: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestDenoiserProgramCUDAMatchesReference(t *testing.T) {
 	cudaRun := func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
 		return exec.Execute(context.Background(), outputs, feeds)
 	}
-	got, err := prog.Forward(GraphRunner(cudaRun), d, latent, enc, sigma)
+	got, err := prog.Forward(cudaRun, d, latent, enc, sigma)
 	if err != nil {
 		t.Fatalf("CUDA Forward: %v", err)
 	}

@@ -43,7 +43,7 @@ func compileResidentWeights(
 	ctx context.Context,
 	session *graphruntime.ResidentSession,
 	label, sourcePath string,
-	inputs map[string]*tensor.Tensor,
+	inputs tensor.WeightBindings,
 	dynamic []*tensor.Tensor,
 	outputs ...*tensor.Tensor,
 ) (*graphruntime.ResidentProgram, error) {
@@ -56,7 +56,8 @@ func compileResidentWeights(
 		return nil, fmt.Errorf("%s: open weights: %w", label, err)
 	}
 	defer source.Close()
-	for name, node := range inputs {
+	for _, node := range inputs {
+		name := node.Name
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

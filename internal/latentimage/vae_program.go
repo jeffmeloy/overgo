@@ -1,33 +1,5 @@
-// AutoencoderKLQwenImage spatial VAE decode routed through the shared tensor
-// graph. The SAME graph definition executes on both the reference backend (host
-// golden) and the CUDA generic executor, so THIS file is the device port of the
-// VAE decode -- mirroring the host reference VAEDecoder.DecodeImage (vae.go)
-// op-for-op, from cataloged ops, with no bespoke CUDA family file. It is the
-// direct analogue of denoiser_program.go / encoder_program.go for the media
-// codec spine.
-//
-// Layout: the graph runs channel-INNERMOST (HWC physical) -- the convention the
-// cataloged Conv2D and MulMat already use (input [channelsIn, width, height]
-// with channels the fastest axis; a torch Linear weight [out,in] declared as
-// shape (in,out)). vae.go is channel-OUTERMOST (CHW), so DecodeGraph transposes
-// the latent CHW->HWC on the way in and the pixels HWC->CHW on the way out; the
-// interior is pure graph.
-//
-// Op mapping (host vae.go op -> cataloged op), all f64 on the reference backend
-// exactly like vae.go, f32 on the CUDA executor (fp32-fma, matching adaptive's
-// spatial_vae_*_f32 golden path):
-//   - post_quant / qkv / proj / shortcut 1x1  -> MulMat + broadcast Add(bias).
-//   - kt=kh=kw=3 single-frame causal conv      -> Conv2D 3x3 pad1: the causal
-//     time pad places all 2*PadT padding left, so for InT=1 ONLY the last
-//     temporal tap (kt=2) contributes; the graph feeds that pre-sliced 3x3 tap.
-//   - channel RMS norm x/max(|x|_2,1e-12)*sqrt(C)*gamma -> L2Norm(eps=1e-12) over
-//     Dims[0] (== vaeChannelRMSNorm's exact max-guard form) * sqrt(C) * gamma.
-//   - SiLU                                       -> SiLU.
-//   - spatial self-attention (single head)       -> GroupSlice qkv + Attention
-//     (heads=1, headDim=C, scale=1/sqrt(C), non-causal).
-//   - nearest-2x upsample + 3x3 same conv        -> RepeatHeads x2 (a pure
-//     data-preserving gather, bit-exact on every backend) + Conv2D 3x3 pad1.
-//   - final clamp [-1,1]                          -> Clamp.
+// Spatial VAE decode graph. Reference and CUDA share topology.
+// Graph storage is channel-innermost; boundaries convert planar layout.
 
 package latentimage
 
@@ -36,6 +8,7 @@ import (
 
 	"math"
 	"overgo/internal/checked"
+	"overgo/internal/graphruntime"
 
 	"overgo/internal/hostmath"
 	"overgo/internal/media"
@@ -272,7 +245,7 @@ func sliceLastTemporalTap(weight5d []float32, cOut, cIn int, kernel [3]int) []fl
 // [ZDim][h][w] vae.go consumes; the returned pixels are planar CHW
 // [OutChannels][OutH][OutW] in [-1,1], identical in shape to
 // VAEDecoder.DecodeImage. mean/std are the per-channel denorm stats.
-func (p *VAEProgram) DecodeGraph(run GraphRunner, mean, std []float32, z []float32) (pixels []float32, outH, outW int, err error) {
+func (p *VAEProgram) DecodeGraph(run graphruntime.Runner, mean, std []float32, z []float32) (pixels []float32, outH, outW int, err error) {
 	plane := p.H * p.W
 	if err := checked.Length(z, p.ZDim, plane); err != nil {
 		return nil, 0, 0, fmt.Errorf("vae program: latent: %w", err)

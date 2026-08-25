@@ -23,6 +23,18 @@ func syntheticForwardInputs(t TransformerSpec, textSeq, imgSeq int) (latent, enc
 	return latent, enc
 }
 
+func TestIndexedMediaProgramBindings(t *testing.T) {
+	spec := syntheticSpec()
+	program, err := CompileDenoiserProgram(spec, syntheticEpsilon, []bool{true}, tensor.SingletonExtent, tensor.SingletonExtent, dtype.F32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := program.weightInputs[0]
+	if program.weightInputs.Node(first.Name) != first {
+		t.Fatal("indexed binding does not resolve its compiled node")
+	}
+}
+
 func attendedTextMask(rows int) []bool {
 	mask := make([]bool, rows)
 	for index := range mask {
@@ -76,7 +88,7 @@ func TestDenoiserProgramMatchesHostReference(t *testing.T) {
 	if len(prog.BlockOutputs) != spec.Layers {
 		t.Fatalf("block taps=%d want %d", len(prog.BlockOutputs), spec.Layers)
 	}
-	res, err := prog.Forward(GraphRunner(reference.Execute), d, goldenPatches, enc, sigma)
+	res, err := prog.Forward(reference.Execute, d, goldenPatches, enc, sigma)
 	if err != nil {
 		t.Fatalf("program Forward: %v", err)
 	}
@@ -122,7 +134,7 @@ func TestDenoiserProgramMatchesHostReference(t *testing.T) {
 	}
 
 	// determinism: identical replay.
-	res2, err := prog.Forward(GraphRunner(reference.Execute), d, goldenPatches, enc, sigma)
+	res2, err := prog.Forward(reference.Execute, d, goldenPatches, enc, sigma)
 	if err != nil {
 		t.Fatalf("program Forward(2): %v", err)
 	}

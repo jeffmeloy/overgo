@@ -3428,12 +3428,12 @@
       "id": "media-indexed-runtime",
       "title": "Move latent media programs onto indexed graph runtime",
       "owner": "tightening",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Move latent media programs onto indexed graph runtime",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/latentimage ./internal/latentvideo -run '^TestIndexedMediaProgramBindings$' -count=1"
         }
       ]

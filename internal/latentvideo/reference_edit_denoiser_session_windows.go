@@ -267,9 +267,9 @@ func (s *ReferenceEditDenoiserCUDASession) uploadWeights(weights *DenoiserWeight
 		var binds []binding
 		var prototype *tensor.Tensor
 		for _, item := range graphs {
-			node := item.program.stepWeightInputs[name]
+			node := item.program.stepWeightInputs.Node(name)
 			if item.context {
-				node = item.program.contextWeightInputs[name]
+				node = item.program.contextWeightInputs.Node(name)
 			}
 			if node == nil {
 				continue

@@ -130,7 +130,7 @@ func TestVAEProgramReferenceMatchesHost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileVAEProgram: %v", err)
 	}
-	gotPix, goh, gow, err := prog.DecodeGraph(GraphRunner(reference.Execute), d.LatentsMean, d.LatentsStd, z)
+	gotPix, goh, gow, err := prog.DecodeGraph(reference.Execute, d.LatentsMean, d.LatentsStd, z)
 	if err != nil {
 		t.Fatalf("DecodeGraph: %v", err)
 	}

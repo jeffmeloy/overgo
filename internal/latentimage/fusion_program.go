@@ -1,32 +1,6 @@
-// Krea2 text-fusion stream (text_fusion + txt_in) routed through the shared
-// tensor graph. The SAME graph definition executes on both the reference backend
-// (host golden) and the CUDA generic executor, so THIS file is the device port of
-// the fusion -- the block arithmetic is defined once, from cataloged ops, and
-// mirrors the host reference Denoiser.textConditioning (denoiser.go) op-for-op.
-// This is the device-text-conditioning brick 3/3: the encoder (encoder_program.go)
-// produces the selected hidden states [textSeq, TextLayers, TextHidden]; this
-// program fuses them into the [textSeq, Hidden] conditioning that feeds the
-// denoiser text stream (txt_in boundary in denoiser_program.go).
-//
-// Layout convention (matches the denoiser + encoder: every activation is
-// [feature, tokens] with feature contiguous). The encoder output is fed as
-// InEncoder shape (TextHidden, TextLayers*textSeq), layer-minor within each
-// token (column c = tok*TextLayers + l), exactly the storage
-// SelectedHiddenStates.Data already carries.
-//
-// Op mapping (host textConditioning -> cataloged op):
-//   - layerwise blocks attend ACROSS the tapped-layer axis, batched over tokens:
-//     a rank-4 attention [head_dim, heads, TextLayers, textSeq] (Dims[3] is the
-//     per-token batch). No RoPE, no AdaLN modulation, sigmoid output gate.
-//   - projector collapses the layer axis with Linear(TextLayers->1) weight [1,L]:
-//     view [th, L*textSeq] as [L*th, textSeq], GroupSlice each layer's [th,textSeq]
-//     and accumulate scaled by the layer weight -- transpose-free, all cataloged.
-//   - refiner blocks attend ACROSS the token sequence (rank-3, batch collapses).
-//   - txt_in: zero-centered RMSNorm -> linear_1 -> gelu(tanh) -> linear_2.
-//
-// Every norm is the DiT ZERO-CENTERED (1+w) RMSNorm (zeroCenteredRMSNorm, shared
-// with the denoiser), NOT the encoder's standard WeightedRMSNorm. Geometry is
-// DERIVED from TransformerSpec (config-cross-checked in verify.go); no magics.
+// Text-fusion graph. Reference and CUDA share topology.
+// Input: [text_hidden,text_layers*text_tokens], layer-minor per token.
+// Output: [hidden,text_tokens]. Geometry comes from TransformerSpec.
 
 package latentimage
 
@@ -36,6 +10,7 @@ import (
 	"slices"
 
 	"overgo/internal/checked"
+	"overgo/internal/graphruntime"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -57,7 +32,7 @@ type FusionProgram struct {
 	keyBias   *tensor.Tensor
 	keyData   []float32
 
-	weightInputs map[string]*tensor.Tensor
+	weightInputs tensor.WeightBindings
 
 	// Fused (Hidden, TextSeq): the text conditioning feeding the denoiser text
 	// stream (image-token co-attention).
@@ -125,11 +100,10 @@ func CompileFusionProgram(t TransformerSpec, eps float32, textMask []bool, matmu
 
 	p := &FusionProgram{
 		T: t, Eps: eps, TextSeq: textSeq, MatmulType: matmulType,
-		weightInputs: make(map[string]*tensor.Tensor),
 	}
 	b := tensor.NewBuilder()
 	setBuilderMatmulCompute(b, matmulType)
-	bind := tensor.WeightInputs{Builder: b, Inputs: p.weightInputs, MatrixType: matmulType}
+	bind := tensor.WeightInputs{Builder: b, Bindings: &p.weightInputs, MatrixType: matmulType}
 
 	p.InEncoder = b.Input("encoder_hidden", dtype.F32, tensor.MustShape(th, L*ts))
 	for _, attended := range textMask {
@@ -252,7 +226,7 @@ type FusionFeed func(name string) ([]float32, error)
 // is the exact-parity path (F32 weights): reference.Execute gives the host golden,
 // the CUDA generic executor gives the device match. Returns the fused conditioning
 // [textSeq*Hidden] (token-major), the layout the denoiser text stream consumes.
-func (p *FusionProgram) RunHostFeed(run GraphRunner, weightAt FusionFeed, encoderHidden []float32) ([]float32, error) {
+func (p *FusionProgram) RunHostFeed(run graphruntime.Runner, weightAt FusionFeed, encoderHidden []float32) ([]float32, error) {
 	if p.MatmulType != dtype.F32 {
 		return nil, fmt.Errorf("fusion RunHostFeed: needs F32 weights, program compiled %s", p.MatmulType)
 	}
@@ -260,16 +234,8 @@ func (p *FusionProgram) RunHostFeed(run GraphRunner, weightAt FusionFeed, encode
 		return nil, fmt.Errorf("fusion RunHostFeed: encoder hidden len=%d want %d", len(encoderHidden), want)
 	}
 	feeds := make(map[*tensor.Tensor]reference.Value, len(p.weightInputs)+2)
-	for name, node := range p.weightInputs {
-		data, err := weightAt(name)
-		if err != nil {
-			return nil, fmt.Errorf("fusion RunHostFeed: weight %s: %w", name, err)
-		}
-		elements, _ := node.Shape.Elements()
-		if uint64(len(data)) != elements {
-			return nil, fmt.Errorf("fusion RunHostFeed: weight %s len=%d want %d", name, len(data), elements)
-		}
-		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
+	if err := graphruntime.AddHostWeights(feeds, p.weightInputs, weightAt); err != nil {
+		return nil, fmt.Errorf("fusion RunHostFeed: %w", err)
 	}
 	feeds[p.InEncoder] = reference.Value{Shape: p.InEncoder.Shape, Data: encoderHidden}
 	if p.keyBias != nil {

@@ -27,8 +27,8 @@ func TestTimestepProgramMatchesHostReference(t *testing.T) {
 	}
 	feeds := make(map[*tensor.Tensor]reference.Value, len(program.weightInputs)+1)
 	feeds[program.Input] = reference.Value{Shape: program.Input.Shape, Data: sinusoid}
-	for name, node := range program.weightInputs {
-		feeds[node] = reference.Value{Shape: node.Shape, Data: denoiser.w(name)}
+	for _, node := range program.weightInputs {
+		feeds[node] = reference.Value{Shape: node.Shape, Data: denoiser.w(node.Name)}
 	}
 	results, err := reference.Execute(
 		[]*tensor.Tensor{program.Embedding, program.Modulation}, feeds,

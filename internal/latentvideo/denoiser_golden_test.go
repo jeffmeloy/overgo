@@ -347,7 +347,7 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 	}
 	manifest, dir := loadDenoiseManifest(t, "g3_denoise.json")
 	program := newGoldenDenoiserProgram(t, manifest)
-	run := GraphRunner(reference.Execute)
+	run := reference.Execute
 	config := program.Config
 	contextElements := config.TextLen * config.Dim
 	condContext := loadRawContext(t, dir, manifest.Request.CondContext, contextElements)
@@ -462,7 +462,7 @@ func TestDenoiserGoldenDenoiseG4(t *testing.T) {
 	}
 	manifest, dir := loadDenoiseManifest(t, "g4_denoise.json")
 	program := newGoldenDenoiserProgram(t, manifest)
-	run := GraphRunner(reference.Execute)
+	run := reference.Execute
 	config := program.Config
 	contextElements := config.TextLen * config.Dim
 	condContext := loadRawContext(t, dir, manifest.Request.CondContext, contextElements)

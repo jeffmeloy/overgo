@@ -37,7 +37,7 @@ func TestFusionProgramCUDAMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileFusionProgram: %v", err)
 	}
-	want, err := prog.RunHostFeed(GraphRunner(reference.Execute), weightAt, enc)
+	want, err := prog.RunHostFeed(reference.Execute, weightAt, enc)
 	if err != nil {
 		t.Fatalf("reference RunHostFeed: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestFusionProgramCUDAMatchesReference(t *testing.T) {
 	cudaRun := func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
 		return exec.Execute(context.Background(), outputs, feeds)
 	}
-	got, err := prog.RunHostFeed(GraphRunner(cudaRun), weightAt, enc)
+	got, err := prog.RunHostFeed(cudaRun, weightAt, enc)
 	if err != nil {
 		t.Fatalf("CUDA RunHostFeed: %v", err)
 	}

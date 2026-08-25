@@ -1,20 +1,5 @@
-// Krea2 dual-stream MMDiT denoiser routed through the shared tensor graph. The
-// SAME graph definition executes on both the reference backend (host golden)
-// and the CUDA generic executor, so this file IS the device port -- the block
-// arithmetic is defined once, from cataloged ops, and mirrors the host
-// reference Denoiser.Forward (denoiser.go) exactly.
-//
-// Layout convention (matches MulMat: left[in,out] row-major torch [out,in],
-// right[in,tokens] token-major): every activation is [feature, tokens] with
-// token-major data, so RMSNorm over Dims[0] is per-token, and a q/k tensor
-// reshaped to [head_dim, heads, tokens] gets per-head normalization for free.
-//
-// The heavy compute -- the 28-block [text,image] co-attention plus the final
-// modulated projection, i.e. the 12.82B-param forward -- lives in the STEP
-// graph here. The text-fusion stream (text_fusion + txt_in) and the timestep
-// sinusoid/MLP are small once-per-prompt / once-per-step boundaries computed on
-// the host (Denoiser.textConditioning / timestepConditioning) and fed in, the
-// same split latentvideo uses for its context projection and timestep math.
+// Dual-stream denoiser graph. Reference and CUDA share topology.
+// Activations: [feature,tokens]. Host feeds text and timestep boundaries.
 
 package latentimage
 
@@ -24,16 +9,13 @@ import (
 	"slices"
 
 	"overgo/internal/checked"
+	"overgo/internal/graphruntime"
 	"overgo/internal/media"
 	"overgo/internal/representation"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
-
-// GraphRunner: one backend executing a tensor graph. reference.Execute
-// satisfies it directly; the CUDA executor satisfies it through a closure.
-type GraphRunner func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error)
 
 // DenoiserProgram: the compiled step graph for one image geometry. Weight
 // inputs are named exactly as DenoiserTensorShapes; rank-2 projection weights
@@ -56,7 +38,7 @@ type DenoiserProgram struct {
 	keyBias   *tensor.Tensor
 	keyData   []float32
 
-	weightInputs map[string]*tensor.Tensor
+	weightInputs tensor.WeightBindings
 
 	// BlockOutputs[layer] is the co-attention hidden state after block layer
 	// ([Hidden, seq]); the g2 distribution oracle taps these. Velocity is the
@@ -94,12 +76,11 @@ func CompileDenoiserProgram(t TransformerSpec, eps float32, textMask []bool, gh,
 
 	p := &DenoiserProgram{
 		T: t, Eps: eps, TextSeq: textSeq, GH: gh, GW: gw, ImgSeq: imgSeq, Seq: seq,
-		MatmulType:   matmulType,
-		weightInputs: make(map[string]*tensor.Tensor),
+		MatmulType: matmulType,
 	}
 	b := tensor.NewBuilder()
 	setBuilderMatmulCompute(b, matmulType)
-	bind := tensor.WeightInputs{Builder: b, Inputs: p.weightInputs, MatrixType: matmulType}
+	bind := tensor.WeightInputs{Builder: b, Bindings: &p.weightInputs, MatrixType: matmulType}
 
 	p.InLatent = b.Input("latent_patches", dtype.F32, tensor.MustShape(inCh, uint64(imgSeq)))
 	p.InText = b.Input("text_conditioning", dtype.F32, tensor.MustShape(h, uint64(textSeq)))
@@ -224,7 +205,7 @@ type ForwardResult struct {
 // encoderHidden is [textSeq*TextLayers*TextHidden] (both token-major, host
 // f64). This host-feed path requires F32 weight storage (BF16 weights ride
 // resident device feeds, not host values).
-func (p *DenoiserProgram) Forward(run GraphRunner, d *Denoiser, latentPatches, encoderHidden []float64, sigma float64) (ForwardResult, error) {
+func (p *DenoiserProgram) Forward(run graphruntime.Runner, d *Denoiser, latentPatches, encoderHidden []float64, sigma float64) (ForwardResult, error) {
 	feeds, err := p.hostFeeds(d, latentPatches, encoderHidden, sigma)
 	if err != nil {
 		return ForwardResult{}, err
@@ -271,13 +252,10 @@ func (p *DenoiserProgram) hostFeeds(
 		return nil, err
 	}
 	feeds := make(map[*tensor.Tensor]reference.Value, len(p.weightInputs)+6)
-	for name, node := range p.weightInputs {
-		data := d.w(name)
-		elements, _ := node.Shape.Elements()
-		if uint64(len(data)) != elements {
-			return nil, fmt.Errorf("denoiser forward: weight %s len=%d want %d", name, len(data), elements)
-		}
-		feeds[node] = reference.Value{Shape: node.Shape, Data: data}
+	if err := graphruntime.AddHostWeights(feeds, p.weightInputs, func(name string) ([]float32, error) {
+		return d.w(name), nil
+	}); err != nil {
+		return nil, fmt.Errorf("denoiser forward: %w", err)
 	}
 	feeds[p.InLatent] = reference.Value{Shape: p.InLatent.Shape, Data: dtype.Float64SliceToFloat32(latentPatches)}
 	feeds[p.InText] = reference.Value{Shape: p.InText.Shape, Data: dtype.Float64SliceToFloat32(txt)}

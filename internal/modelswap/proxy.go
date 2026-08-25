@@ -65,13 +65,15 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	proxy.ServeHTTP(response, request)
 }
 
-// routeServable picks the servable a request names: the model query
-// parameter, then the JSON body's model field, then whatever child is
-// already running, then the default. The body is buffered and handed
-// back for replay to the child.
+// routeServable picks the servable a request names: the swap query
+// parameter (dedicated to the proxy -- the server's own endpoints
+// already use ?model= to name analysis targets, which must never
+// trigger a swap), then the JSON body's model field, then whatever
+// child is already running, then the default. The body is buffered
+// and handed back for replay to the child.
 func (p *Proxy) routeServable(request *http.Request) (Servable, []byte, error) {
 	var body []byte
-	name := request.URL.Query().Get("model")
+	name := request.URL.Query().Get("swap")
 	if name == "" && request.Body != nil && request.ContentLength != 0 &&
 		strings.Contains(request.Header.Get("Content-Type"), "json") {
 		buffered, err := io.ReadAll(io.LimitReader(request.Body, maxRoutedBodyBytes))
@@ -86,6 +88,14 @@ func (p *Proxy) routeServable(request *http.Request) (Servable, []byte, error) {
 		name = envelope.Model
 	}
 	if name != "" {
+		// A request naming the running child's own identity is already
+		// served -- chat requests echo the served model id, and resolving
+		// it against the catalog could alias to a different artifact and
+		// swap spuriously mid-conversation.
+		if running, ok := p.Supervisor.Status(); ok &&
+			(strings.EqualFold(name, running.Name) || strings.EqualFold(name, running.Model)) {
+			return running, body, nil
+		}
 		servable, found, err := p.Resolver.Resolve(request.Context(), name)
 		if err != nil {
 			return Servable{}, nil, err

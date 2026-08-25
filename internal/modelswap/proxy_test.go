@@ -109,4 +109,47 @@ func TestModelSwapProxy(t *testing.T) {
 	if running, ok := supervisor.Status(); !ok || running.Name != "beta" {
 		t.Fatalf("running after swap = (%+v, %t)", running, ok)
 	}
+
+	// The swap query parameter swaps too -- the GUI's picker rides a
+	// health probe with ?swap= through the proxy to switch models.
+	query, err := http.Get(front.URL + "/health?swap=alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	queryBody, _ := io.ReadAll(query.Body)
+	query.Body.Close()
+	if !strings.Contains(string(queryBody), "served-by:alpha") {
+		t.Fatalf("query-param swap response = %s", queryBody)
+	}
+	if running, ok := supervisor.Status(); !ok || running.Name != "alpha" {
+		t.Fatalf("running after query-param swap = (%+v, %t)", running, ok)
+	}
+
+	// A model query parameter is the server's own vocabulary (analysis
+	// targets); it rides the running child and never swaps.
+	analyze, err := http.Get(front.URL + "/analyze/tensors?model=beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	analyzeBody, _ := io.ReadAll(analyze.Body)
+	analyze.Body.Close()
+	if !strings.Contains(string(analyzeBody), "served-by:alpha") {
+		t.Fatalf("analyze response = %s", analyzeBody)
+	}
+	if running, ok := supervisor.Status(); !ok || running.Name != "alpha" {
+		t.Fatalf("?model= must not swap; running = (%+v, %t)", running, ok)
+	}
+
+	// A chat body echoing the running child's own name never re-resolves
+	// against the catalog -- alias collisions must not swap mid-chat.
+	echo, err := http.Post(front.URL+"/v1/chat/completions", "application/json",
+		strings.NewReader(`{"model":"ALPHA"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	echoBody, _ := io.ReadAll(echo.Body)
+	echo.Body.Close()
+	if !strings.Contains(string(echoBody), "served-by:alpha") {
+		t.Fatalf("self-echo response = %s", echoBody)
+	}
 }

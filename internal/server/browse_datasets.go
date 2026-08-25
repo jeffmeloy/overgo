@@ -13,6 +13,7 @@ type datasetEntry struct {
 	StorageKind string   `json:"storage_kind"`
 	Source      string   `json:"source"`
 	Modality    string   `json:"modality"`
+	Modalities  []string `json:"modalities,omitempty"`
 	Formats     []string `json:"formats,omitempty"`
 	Files       uint64   `json:"files"`
 	Bytes       uint64   `json:"bytes"`
@@ -90,7 +91,8 @@ func (h *Handler) browseDatasets(response http.ResponseWriter, request *http.Req
 		entry := row.Entry
 		entries[index] = datasetEntry{
 			Name: entry.Name, StorageKind: entry.StorageKind, Source: entry.Source, Modality: entry.Modality,
-			Formats: entry.Formats, Files: entry.Files, Bytes: entry.Bytes, Available: row.Available,
+			Modalities: entry.Modalities,
+			Formats:    entry.Formats, Files: entry.Files, Bytes: entry.Bytes, Available: row.Available,
 		}
 	}
 	writeJSON(response, http.StatusOK, browseDatasetsResponse{

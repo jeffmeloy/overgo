@@ -28,6 +28,7 @@ func run(args []string, output io.Writer) error {
 	legacyPath := flags.String("legacy", "", "legacy OvergoDB root")
 	contentPath := flags.String("root", "", "dataset content root")
 	register := flags.String("register", "", "register one directory dataset under this name (with -root)")
+	modality := flags.String("modality", "", "explicit primary modality for -register; empty derives it from the corpus")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -52,7 +53,7 @@ func run(args []string, output io.Writer) error {
 			return err
 		}
 		defer store.Close()
-		registered, err := dataset.RegisterDirectoryDataset(context.Background(), store, name, contentRoot)
+		registered, err := dataset.RegisterDirectoryDatasetAs(context.Background(), store, name, contentRoot, *modality)
 		if err != nil {
 			return err
 		}

@@ -49,12 +49,12 @@
       "id": "dataset-modality-set",
       "title": "Datasets carry a modality set or an explicit typed declaration; drop the byte-volume dominance guess",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Datasets carry a modality set or an explicit typed declaration; drop the byte-volume dominance guess",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/dataset -run 'TestRegister' -count=1"
         }
       ]

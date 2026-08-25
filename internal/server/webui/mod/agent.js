@@ -200,9 +200,30 @@
         execute.addEventListener("click", () => step(false));
         approve.addEventListener("click", () => step(true));
 
+        const sessionListHost = el("div");
+        const listSessions = el("button", { class: "btn alt", text: "Sessions" });
+        // The session list is the ledger's memory: every durable session
+        // with its recorded steps against the bound and its inspection
+        // state, resumable by one click into the session box.
+        listSessions.addEventListener("click", async () => {
+          try {
+            const listing = await api.get("/agent/sessions");
+            sessionListHost.replaceChildren(...(listing.sessions || []).map((item) => {
+              const resume = el("button", { class: "btn alt", text: "Resume" });
+              resume.addEventListener("click", () => {
+                session.value = item.id.includes(":") ? item.id.split(":").pop() : item.id;
+                renderEvidence(session.value);
+              });
+              return el("div", { class: "card" },
+                el("span", { class: "mono", text: item.id }),
+                " steps " + item.steps + (item.inspected ? " / inspected " : " / uninspected "),
+                artifactLink(item.interaction), " ", resume);
+            }));
+          } catch (err) { showError(err); }
+        });
         toolsHost.replaceChildren(
-          el("div", { class: "row" }, session, select, review, execute, approve),
-          args, decisionHost);
+          el("div", { class: "row" }, session, select, review, execute, approve, listSessions),
+          args, decisionHost, sessionListHost);
       }
 
       function renderRetrieval() {

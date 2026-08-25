@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -227,6 +229,61 @@ func (h *Handler) agentApprovalPreview(response http.ResponseWriter, request *ht
 		}
 	}
 	writeJSON(response, http.StatusOK, payload)
+}
+
+// agentSessionList projects every durable agent session from the
+// interaction alias namespace: the session identity, its recorded
+// step count, the interaction tip, and -- restored through the same
+// path a restart uses -- its inspection state against the step bound.
+// A restarted server lists exactly what the ledger remembers.
+func (h *Handler) agentSessionList(response http.ResponseWriter, request *http.Request) {
+	if !requireMethod(response, request, http.MethodGet) {
+		return
+	}
+	if h.repository == nil || h.agentCoordinator == nil {
+		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
+		return
+	}
+	result, err := h.repository.Query(request.Context(), overgodb.Query{
+		Kind: artifact.KindEvidence, MaxResults: h.config.MaxStoredResponses, Projection: overgodb.ProjectAliases,
+	})
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
+		return
+	}
+	steps := map[string]int{}
+	for _, alias := range result.Aliases {
+		name, ok := strings.CutPrefix(alias.Name, runrecord.InteractionResponseAliasRoot)
+		if !ok {
+			continue
+		}
+		base, stepText, ok := strings.Cut(name, "-step-")
+		if !ok {
+			continue
+		}
+		step, err := strconv.Atoi(stepText)
+		if err != nil {
+			continue
+		}
+		if step > steps[base] {
+			steps[base] = step
+		}
+	}
+	sessions := make([]map[string]any, 0, len(steps))
+	for id := range steps {
+		session, err := h.agentSessions.get(request.Context(), h.agentCoordinator, id)
+		if err != nil {
+			continue
+		}
+		sessions = append(sessions, map[string]any{
+			"id": id, "steps": session.Steps, "inspected": session.Inspected,
+			"interaction": idText(session.Interaction),
+		})
+	}
+	slices.SortFunc(sessions, func(left, right map[string]any) int {
+		return strings.Compare(left["id"].(string), right["id"].(string))
+	})
+	writeJSON(response, http.StatusOK, map[string]any{"sessions": sessions})
 }
 
 // agentProvenance walks one recorded step's full evidence: the

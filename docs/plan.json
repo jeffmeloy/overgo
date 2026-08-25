@@ -3346,12 +3346,12 @@
       "id": "gui-session-list",
       "title": "Durable agent session list: steps used against bound, inspected state, restore and resume",
       "owner": "gui",
-      "status": "open",
+      "status": "done",
       "steps": [
         {
           "id": "do",
           "title": "Session list API and view",
-          "status": "open",
+          "status": "done",
           "verify": "go test ./internal/server -run TestAgentSessionList -count=1"
         }
       ]

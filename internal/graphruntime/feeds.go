@@ -40,28 +40,36 @@ func AddHostWeights(
 }
 
 type Feeds struct {
-	Host   map[*tensor.Tensor]reference.Value
-	device tensor.InputBindings[driver.DevicePtr]
-	graph  *executor.IndexedGraph
-	output []*tensor.Tensor
+	host               tensor.InputBindings[reference.Value]
+	device             tensor.InputBindings[driver.DevicePtr]
+	graph              *executor.IndexedGraph
+	reference          *reference.Program
+	referenceInputs    *reference.Inputs
+	referenceWorkspace *reference.Workspace
+	deviceOutput       []*tensor.Tensor
+	referenceOutput    []*tensor.Tensor
 }
 
 func NewFeeds() *Feeds {
-	return &Feeds{
-		Host: make(map[*tensor.Tensor]reference.Value),
-	}
+	return &Feeds{}
 }
 
 func (f *Feeds) Input(builder *tensor.Builder, name string, value reference.Value) *tensor.Tensor {
 	node := builder.Input(name, dtype.F32, value.Shape)
-	f.Host[node] = value
+	f.host.Add(node, value)
 	return node
 }
 
 func (f *Feeds) AddHost(values tensor.InputBindings[reference.Value]) {
-	for _, binding := range values {
-		f.Host[binding.Node] = binding.Value
-	}
+	f.host = append(f.host, values...)
+}
+
+func (f *Feeds) SetHost(node *tensor.Tensor, value reference.Value) {
+	f.host.Add(node, value)
+}
+
+func (f *Feeds) HostBindings() *tensor.InputBindings[reference.Value] {
+	return &f.host
 }
 
 func (f *Feeds) AddDevice(values tensor.InputBindings[driver.DevicePtr]) {
@@ -81,17 +89,46 @@ func (f *Feeds) Execute(
 		return nil, errors.New("graph runtime feeds are nil")
 	}
 	if device == nil {
-		return reference.Execute(outputs, f.Host)
+		program, err := f.compileReference(outputs)
+		if err != nil {
+			return nil, err
+		}
+		return program.Execute(f.referenceInputs, f.referenceWorkspace)
 	}
 	indexed, err := f.compile(outputs)
 	if err != nil {
 		return nil, err
 	}
-	return device.ExecuteCompiled(ctx, indexed.Graph, f.Host, indexed.Inputs)
+	host := make(map[*tensor.Tensor]reference.Value, len(f.host))
+	for _, binding := range f.host {
+		host[binding.Node] = binding.Value
+	}
+	return device.ExecuteCompiled(ctx, indexed.Graph, host, indexed.Inputs)
+}
+
+func (f *Feeds) compileReference(outputs []*tensor.Tensor) (*reference.Program, error) {
+	if f.reference != nil && slices.Equal(f.referenceOutput, outputs) {
+		return f.reference, nil
+	}
+	program, err := reference.Compile(outputs...)
+	if err != nil {
+		return nil, err
+	}
+	inputs := program.NewInputs()
+	for _, binding := range f.host {
+		if program.HasInput(binding.Node) {
+			if err := inputs.Set(binding.Node, binding.Value); err != nil {
+				return nil, err
+			}
+		}
+	}
+	f.reference, f.referenceInputs = program, inputs
+	f.referenceWorkspace, f.referenceOutput = program.NewWorkspace(), slices.Clone(outputs)
+	return program, nil
 }
 
 func (f *Feeds) compile(outputs []*tensor.Tensor) (*executor.IndexedGraph, error) {
-	if f.graph != nil && slices.Equal(f.output, outputs) {
+	if f.graph != nil && slices.Equal(f.deviceOutput, outputs) {
 		return f.graph, nil
 	}
 	indexed, err := executor.CompileIndexed(outputs...)
@@ -101,6 +138,6 @@ func (f *Feeds) compile(outputs []*tensor.Tensor) (*executor.IndexedGraph, error
 	if err := indexed.Inputs.Bind(f.device); err != nil {
 		return nil, err
 	}
-	f.graph, f.output = indexed, slices.Clone(outputs)
+	f.graph, f.deviceOutput = indexed, slices.Clone(outputs)
 	return indexed, nil
 }

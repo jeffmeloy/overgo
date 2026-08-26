@@ -17,11 +17,13 @@ type inferenceGraphRuntime struct {
 	ctx     context.Context
 	builder *tensor.Builder
 	feeds   *graphruntime.Feeds
+	host    map[*tensor.Tensor]reference.Value
 }
 
 func (r *Runner) newInferenceGraphRuntime(ctx context.Context) *inferenceGraphRuntime {
 	return &inferenceGraphRuntime{
 		runner: r, ctx: ctx, builder: r.newGraphBuilder(), feeds: graphruntime.NewFeeds(),
+		host: make(map[*tensor.Tensor]reference.Value),
 	}
 }
 
@@ -43,7 +45,7 @@ func (runtime *inferenceGraphRuntime) weight(info gguf.TensorInfo) (*tensor.Tens
 		return nil, err
 	}
 	node := runtime.builder.Input(info.Name, dtype.F32, value.Shape)
-	runtime.feeds.Host[node] = value
+	runtime.feeds.SetHost(node, value)
 	return node, nil
 }
 
@@ -97,6 +99,9 @@ func (r *Runner) hostLayer(ctx context.Context, key string, info model.LayerWeig
 }
 
 func (runtime *inferenceGraphRuntime) execute(outputs ...*tensor.Tensor) (map[*tensor.Tensor]reference.Value, error) {
+	for node, value := range runtime.host {
+		runtime.feeds.SetHost(node, value)
+	}
 	if runtime.runner.cuda == nil {
 		return runtime.feeds.Execute(runtime.ctx, outputs, nil)
 	}

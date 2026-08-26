@@ -91,8 +91,10 @@ func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*ten
 	}
 	inputs := program.NewInputs()
 	for node, value := range feeds {
-		if err := inputs.Set(node, value); err != nil {
-			return nil, err
+		if program.HasInput(node) {
+			if err := inputs.Set(node, value); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return program.Execute(inputs, program.NewWorkspace())

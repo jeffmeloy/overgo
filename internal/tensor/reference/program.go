@@ -95,6 +95,12 @@ func (p *Program) NewInputs() *Inputs {
 	return &Inputs{program: p, values: make([]Value, p.inputs), bound: make([]bool, p.inputs)}
 }
 
+// HasInput reports graph membership.
+func (p *Program) HasInput(node *tensor.Tensor) bool {
+	_, ok := p.inputSlots[node]
+	return ok
+}
+
 // Set binds one compiled input.
 func (i *Inputs) Set(node *tensor.Tensor, value Value) error {
 	if i == nil || i.program == nil {

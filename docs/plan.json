@@ -4,27 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "ordered-host-feeds",
-      "title": "Make ordered host bindings the sole graph-feed contract",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Migrate graph-runtime callers to indexed host bindings and delete Feeds.Host, AddHost, and map-returning layer inputs",
-          "status": "open",
-          "verify": "go test ./internal/graphruntime ./internal/inference ./internal/projector ./internal/latentimage ./internal/latentvideo -count=1",
-          "depends_on": [
-            "indexed-reference-runtime"
-          ],
-          "capabilities": [
-            "host-device-convergence",
-            "map-removal",
-            "binding-authority"
-          ]
-        }
-      ]
-    },
-    {
       "id": "graph-runtime-ownership",
       "title": "Consolidate inference and projector graph execution ownership",
       "status": "open",

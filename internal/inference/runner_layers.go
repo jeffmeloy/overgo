@@ -31,7 +31,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	builder := runtime.builder
 	input := runtime.input("model.input", activation)
 	current := input
-	hostFeeds := runtime.feeds.Host
+	hostFeeds := runtime.host
 	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	var attentionBlockInput *tensor.Tensor
 	if len(attentionBlockIDs) > 0 {
@@ -182,7 +182,7 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 	builder := runtime.builder
 	input := runtime.input("model.input", activation)
 	current := input
-	hostFeeds := runtime.feeds.Host
+	hostFeeds := runtime.host
 	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	for layerIndex, info := range r.weights.Layers {
 		program := r.layerProgram(layerIndex)
@@ -236,7 +236,7 @@ func (r *Runner) runLayerCached(
 	runtime := r.newInferenceGraphRuntime(ctx)
 	builder := runtime.builder
 	input := runtime.input("input", activation)
-	hostFeeds := runtime.feeds.Host
+	hostFeeds := runtime.host
 	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 	if err != nil {
@@ -342,7 +342,7 @@ func (r *Runner) runLFM2LayerNonCausal(
 	runtime := r.newInferenceGraphRuntime(ctx)
 	builder := runtime.builder
 	input := runtime.input("input", activation)
-	hostFeeds := runtime.feeds.Host
+	hostFeeds := runtime.host
 	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 	if err != nil {
 		return reference.Value{}, err
@@ -399,7 +399,7 @@ func (r *Runner) runDenseLayerNoCache(
 	runtime := r.newInferenceGraphRuntime(ctx)
 	builder := runtime.builder
 	input := runtime.input("input", activation)
-	hostFeeds := runtime.feeds.Host
+	hostFeeds := runtime.host
 	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 	if err != nil {
 		return reference.Value{}, err

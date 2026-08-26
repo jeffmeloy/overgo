@@ -142,6 +142,8 @@ const (
 	DependencyPromotion         DependencyRole = "training-promotion"
 	// DependencyCapabilityBundle binds typed instruction and resource data.
 	DependencyCapabilityBundle DependencyRole = "capability-bundle"
+	// DependencyToolManual binds a compiled workflow to one exact callable manual.
+	DependencyToolManual DependencyRole = "tool-manual"
 )
 
 type Dependency struct {
@@ -282,6 +284,8 @@ func validateDependency(dependency Dependency) error {
 		want = artifact.KindCheckpoint
 	case DependencyDefinition:
 		want = artifact.KindModelDefinition
+	case DependencyToolManual:
+		want = artifact.KindRecipe
 	default:
 		return fmt.Errorf("recipe: invalid dependency role %q", dependency.Role)
 	}

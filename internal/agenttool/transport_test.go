@@ -3,12 +3,15 @@ package agenttool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/strictjson"
 )
 
 func inspectionManual(t *testing.T, name string, transport Transport) Manual {
@@ -109,6 +112,60 @@ func TestTransportHTTPBoundedStrictJSON(t *testing.T) {
 		if _, err := invoke(path); err == nil {
 			t.Fatalf("%s: invocation accepted", path)
 		}
+	}
+}
+
+func TestTransportMCPHTTPBindsProtocolToolAndResponse(t *testing.T) {
+	var methods []string
+	var received mcpRequestParams
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("MCP-Protocol-Version") != "2025-06-18" {
+			t.Errorf("protocol header = %q", request.Header.Get("MCP-Protocol-Version"))
+		}
+		var rpc mcpRequest
+		if err := strictjson.Decode(request.Body, &rpc); err != nil {
+			t.Errorf("request decode: %v", err)
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		methods = append(methods, rpc.Method)
+		switch rpc.Method {
+		case mcpInitializeMethod:
+			response.Header().Set(mcpSessionHeader, "session-1")
+			response.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(response, `{"jsonrpc":"2.0","id":%q,"result":{"protocolVersion":"2025-06-18","capabilities":{},"serverInfo":{"name":"fixture","version":"1"}}}`, rpc.ID)
+		case mcpInitializedMethod:
+			if request.Header.Get(mcpSessionHeader) != "session-1" {
+				t.Errorf("initialized session = %q", request.Header.Get(mcpSessionHeader))
+			}
+			response.WriteHeader(http.StatusAccepted)
+		case mcpToolsCallMethod:
+			if request.Header.Get(mcpSessionHeader) != "session-1" {
+				t.Errorf("call session = %q", request.Header.Get(mcpSessionHeader))
+			}
+			if err := strictjson.DecodeBytes(rpc.Params, &received); err != nil {
+				t.Errorf("call params: %v", err)
+			}
+			response.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(response, `{"jsonrpc":"2.0","id":%q,"result":{"content":[{"type":"text","text":"sunny"}]}}`, rpc.ID)
+		default:
+			response.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	defer server.Close()
+	manual := inspectionManual(t, "weather.remote", Transport{
+		Kind: TransportMCPHTTP, URL: server.URL, Target: "weather.lookup", Protocol: "2025-06-18",
+	})
+	result, err := NewOperatorExecutor().Invoke(
+		context.Background(), manual, json.RawMessage(`{"pattern":"Boston"}`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(methods, []string{mcpInitializeMethod, mcpInitializedMethod, mcpToolsCallMethod}) ||
+		received.Name != "weather.lookup" || string(received.Arguments) != `{"pattern":"Boston"}` ||
+		string(result) != `{"content":[{"type":"text","text":"sunny"}]}` {
+		t.Fatalf("methods=%v request=%+v result=%s", methods, received, result)
 	}
 }
 

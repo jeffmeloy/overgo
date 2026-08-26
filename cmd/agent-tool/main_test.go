@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,6 +65,66 @@ func TestAgentToolInvokesStandardBuiltin(t *testing.T) {
 		t.Fatalf("invoke output = %q", invoked.String())
 	}
 	if err := run([]string{"-repo", repository, "-invoke", "store.alias", "-arguments", `{"name":"tool.registered.store.head"}`}, &invoked); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAgentToolCompilesOpenAPICandidatesWithoutRepository(t *testing.T) {
+	document := filepath.Join(t.TempDir(), "openapi.json")
+	source := `{"openapi":"3.1.0","info":{"title":"Probe","version":"1"},"paths":{"/probe":{"post":{"operationId":"remote.probe","summary":"Probe remote state.","x-overgo-effect":"inspection","responses":{"200":{"description":"ok"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}}}}}}}`
+	if err := os.WriteFile(document, []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := run([]string{"-openapi", document, "-base-url", "https://api.example.test/v1"}, &output); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), `"source": "file:sha256:`) ||
+		!strings.Contains(output.String(), `"name": "remote.probe"`) {
+		t.Fatalf("candidate output = %q", output.String())
+	}
+}
+
+func TestAgentToolStagesVerifiesAndActivatesOpenAPI(t *testing.T) {
+	repository := t.TempDir()
+	document := filepath.Join(t.TempDir(), "openapi.json")
+	source := `{"openapi":"3.1.0","info":{"title":"Probe","version":"1"},"paths":{"/probe":{"post":{"operationId":"remote.probe","summary":"Probe remote state.","x-overgo-effect":"inspection","responses":{"200":{"description":"ok"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}}}}}}}`
+	if err := os.WriteFile(document, []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var staged bytes.Buffer
+	if err := run([]string{
+		"-repo", repository, "-openapi", document, "-base-url", "https://api.example.test/v1", "-stage",
+	}, &staged); err != nil {
+		t.Fatal(err)
+	}
+	var staging struct {
+		CandidateID string `json:"candidate_id"`
+	}
+	if err := json.Unmarshal(staged.Bytes(), &staging); err != nil || staging.CandidateID == "" {
+		t.Fatalf("staging = %q, %v", staged.String(), err)
+	}
+	var verified bytes.Buffer
+	if err := run([]string{"-repo", repository, "-verify-candidate", staging.CandidateID}, &verified); err != nil {
+		t.Fatal(err)
+	}
+	var verification struct {
+		EvidenceID string `json:"evidence_id"`
+	}
+	if err := json.Unmarshal(verified.Bytes(), &verification); err != nil || verification.EvidenceID == "" {
+		t.Fatalf("verification = %q, %v", verified.String(), err)
+	}
+	var activated bytes.Buffer
+	if err := run([]string{
+		"-repo", repository, "-activate-candidate", staging.CandidateID, "-verification", verification.EvidenceID,
+	}, &activated); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(activated.String(), `"complete": true`) {
+		t.Fatalf("activation = %q", activated.String())
+	}
+	var resolved bytes.Buffer
+	if err := run([]string{"-repo", repository, "-resolve", "remote.probe"}, &resolved); err != nil {
 		t.Fatal(err)
 	}
 }

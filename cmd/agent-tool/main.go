@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"overgo/internal/agenttool"
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
@@ -33,6 +34,12 @@ func run(args []string, output io.Writer) error {
 	flags.SetOutput(io.Discard)
 	repository := flags.String("repo", "", "OvergoDB root")
 	manualsPath := flags.String("manuals", "", "JSON manual declarations ({manuals:[...]})")
+	openAPIPath := flags.String("openapi", "", "compile one bounded OpenAPI JSON document into inactive candidate manuals")
+	baseURL := flags.String("base-url", "", "exact endpoint base used with -openapi")
+	stage := flags.Bool("stage", false, "with -openapi, commit an inactive candidate catalog")
+	verifyCandidate := flags.String("verify-candidate", "", "publish compatibility evidence for one staged candidate ID")
+	activateCandidate := flags.String("activate-candidate", "", "atomically activate one staged candidate ID")
+	verification := flags.String("verification", "", "exact verification evidence ID required by -activate-candidate")
 	argvAllow := flags.String("argv-allow", "", "comma-separated programs to publish as the durable argv policy before the manuals; the committed policy is what publication and invocation enforce")
 	inspect := flags.Bool("inspect", false, "audit the declared manuals against the store without publishing")
 	resolve := flags.String("resolve", "", "resolve one registered tool manual by name")
@@ -44,13 +51,88 @@ func run(args []string, output io.Writer) error {
 	if flags.NArg() != 0 {
 		return errors.New("usage: agent-tool [-repo <path>] -manuals <file> [-inspect] | -resolve <name>")
 	}
-	root := strings.TrimSpace(*repository)
-	if root == "" {
-		roots, err := dataroot.ResolveCurrent()
+	if path := strings.TrimSpace(*openAPIPath); path != "" {
+		file, err := os.Open(path)
 		if err != nil {
 			return err
 		}
-		root = roots.Store
+		defer file.Close()
+		compilation, err := agenttool.CompileOpenAPI(file, strings.TrimSpace(*baseURL))
+		if err != nil {
+			return err
+		}
+		if *stage {
+			root, err := repositoryRoot(*repository)
+			if err != nil {
+				return err
+			}
+			store, err := overgodb.Open(root)
+			if err != nil {
+				return err
+			}
+			defer store.Close()
+			source, err := compilation.SourceContent()
+			if err != nil {
+				return err
+			}
+			staging, err := agenttool.StageManualCandidates(context.Background(), store, source, compilation.Manuals)
+			if err != nil {
+				return err
+			}
+			return clioptions.WritePrettyJSON(output, staging)
+		}
+		return clioptions.WritePrettyJSON(output, compilation)
+	}
+	if *stage {
+		return errors.New("agent-tool: -stage requires -openapi")
+	}
+	root, err := repositoryRoot(*repository)
+	if err != nil {
+		return err
+	}
+	if text := strings.TrimSpace(*verifyCandidate); text != "" {
+		candidateID, err := artifact.ParseID(text)
+		if err != nil {
+			return err
+		}
+		store, err := overgodb.Open(root)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		evidence, commit, err := agenttool.PublishCandidateVerification(
+			context.Background(), store, candidateID, agenttool.NewOperatorExecutor(),
+		)
+		if err != nil {
+			return err
+		}
+		return clioptions.WritePrettyJSON(output, struct {
+			Commit     artifact.CommitID               `json:"commit"`
+			EvidenceID artifact.ID                     `json:"evidence_id"`
+			Evidence   agenttool.CandidateVerification `json:"evidence"`
+		}{Commit: commit, EvidenceID: evidence.ID, Evidence: evidence})
+	}
+	if text := strings.TrimSpace(*activateCandidate); text != "" {
+		candidateID, err := artifact.ParseID(text)
+		if err != nil {
+			return err
+		}
+		verificationID, err := artifact.ParseID(strings.TrimSpace(*verification))
+		if err != nil {
+			return err
+		}
+		store, err := overgodb.Open(root)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		activation, err := agenttool.ActivateCandidateCatalog(
+			context.Background(), store, candidateID, verificationID,
+		)
+		if err != nil {
+			return err
+		}
+		return clioptions.WritePrettyJSON(output, activation)
 	}
 	if name := strings.TrimSpace(*resolve); name != "" {
 		store, err := overgodb.OpenReadOnly(root)
@@ -73,6 +155,9 @@ func run(args []string, output io.Writer) error {
 		ctx := context.Background()
 		manual, err := agenttool.ResolveRegisteredManual(ctx, store, name)
 		if err != nil {
+			return err
+		}
+		if err := agenttool.CheckArgvAuthority(ctx, store, manual); err != nil {
 			return err
 		}
 		executor := agenttool.NewOperatorExecutor()
@@ -130,6 +215,17 @@ func run(args []string, output io.Writer) error {
 		publication.Coverage.Registered, publication.Coverage.Published,
 		publication.Changed, publication.Commit)
 	return err
+}
+
+func repositoryRoot(value string) (string, error) {
+	if root := strings.TrimSpace(value); root != "" {
+		return root, nil
+	}
+	roots, err := dataroot.ResolveCurrent()
+	if err != nil {
+		return "", err
+	}
+	return roots.Store, nil
 }
 
 // loadManuals returns the standard store-inspection manuals plus any

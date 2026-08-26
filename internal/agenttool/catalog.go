@@ -169,6 +169,26 @@ func ResolveRegisteredManual(ctx context.Context, reader artifact.Reader, name s
 	if manual.Name != name {
 		return Manual{}, fmt.Errorf("agent tool: registered alias %q binds a different tool", alias)
 	}
+	active, activeFound, err := reader.ResolveAlias(ctx, ActiveCatalogAlias)
+	if err != nil {
+		return Manual{}, err
+	}
+	if activeFound {
+		snapshot, err := RequireCatalogSnapshot(ctx, reader, active)
+		if err != nil {
+			return Manual{}, err
+		}
+		admitted := false
+		for _, entry := range snapshot.Entries {
+			if entry.Name == name && entry.Manual == manual.ID {
+				admitted = true
+				break
+			}
+		}
+		if !admitted {
+			return Manual{}, fmt.Errorf("agent tool: registered alias %q is outside the active catalog", alias)
+		}
+	}
 	return manual, nil
 }
 

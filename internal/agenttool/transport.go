@@ -3,6 +3,7 @@ package agenttool
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,22 @@ const invokeTimeout = 60 * time.Second
 // strict JSON out.
 type Builtin func(context.Context, json.RawMessage) (json.RawMessage, error)
 
+// transportAdapter is the one native invocation boundary. The executor owns
+// an immutable catalog of these adapters; protocols never branch through the
+// orchestration path and cannot change manual identity or admission policy.
+type transportAdapter interface {
+	invoke(context.Context, Manual, json.RawMessage) (json.RawMessage, error)
+}
+
+type builtinAdapter struct {
+	mu              sync.RWMutex
+	implementations map[string]Builtin
+}
+type httpAdapter struct{ client *http.Client }
+type argvAdapter struct{}
+type mcpHTTPAdapter struct{ client *http.Client }
+type httpJSONStreamAdapter struct{ client *http.Client }
+
 // Executor invokes manuals over their declared native transports.
 // Entry is serialized per manual: no transport promises concurrency
 // safety, so two steps naming one tool never enter it at once. The
@@ -33,9 +50,8 @@ type Builtin func(context.Context, json.RawMessage) (json.RawMessage, error)
 // second call wait past its own bound.
 type Executor struct {
 	mu       sync.Mutex
-	builtins map[string]Builtin
 	entries  map[string]chan struct{}
-	client   *http.Client
+	adapters map[TransportKind]transportAdapter
 }
 
 // NewExecutor returns the serving executor: no builtins registered,
@@ -43,7 +59,7 @@ type Executor struct {
 // private, or link-local addresses refused at dial time. Every
 // network-facing surface uses this constructor.
 func NewExecutor() *Executor {
-	return &Executor{builtins: map[string]Builtin{}, entries: map[string]chan struct{}{}, client: newTransportClient(false)}
+	return newExecutor(newTransportClient(false))
 }
 
 // NewOperatorExecutor returns the operator's executor: identical
@@ -51,7 +67,25 @@ func NewExecutor() *Executor {
 // because an operator invoking local tooling from the CLI is not a
 // server fetching on a client's behalf. Redirects stay refused.
 func NewOperatorExecutor() *Executor {
-	return &Executor{builtins: map[string]Builtin{}, entries: map[string]chan struct{}{}, client: newTransportClient(true)}
+	return newExecutor(newTransportClient(true))
+}
+
+func newExecutor(client *http.Client) *Executor {
+	builtins := &builtinAdapter{implementations: map[string]Builtin{}}
+	return &Executor{
+		entries: map[string]chan struct{}{},
+		adapters: map[TransportKind]transportAdapter{
+			TransportBuiltin:        builtins,
+			TransportHTTP:           &httpAdapter{client: client},
+			TransportArgv:           argvAdapter{},
+			TransportMCPHTTP:        &mcpHTTPAdapter{client: client},
+			TransportHTTPJSONStream: &httpJSONStreamAdapter{client: client},
+		},
+	}
+}
+
+func (adapter *httpJSONStreamAdapter) invoke(context.Context, Manual, json.RawMessage) (json.RawMessage, error) {
+	return nil, errors.New("stream transport requires OpenStream")
 }
 
 func (e *Executor) manualEntry(name string) chan struct{} {
@@ -70,10 +104,16 @@ func (e *Executor) registerBuiltin(name string, implementation Builtin) error {
 	if !manualNamePattern.MatchString(name) || implementation == nil {
 		return fmt.Errorf("agent tool: invalid builtin registration %q", name)
 	}
-	if _, exists := e.builtins[name]; exists {
+	builtins, ok := e.adapters[TransportBuiltin].(*builtinAdapter)
+	if !ok {
+		return errors.New("agent tool: builtin adapter is absent")
+	}
+	builtins.mu.Lock()
+	defer builtins.mu.Unlock()
+	if _, exists := builtins.implementations[name]; exists {
 		return fmt.Errorf("agent tool: builtin %q is already registered", name)
 	}
-	e.builtins[name] = implementation
+	builtins.implementations[name] = implementation
 	return nil
 }
 
@@ -98,32 +138,34 @@ func (e *Executor) Invoke(ctx context.Context, manual Manual, arguments json.Raw
 	case <-bounded.Done():
 		return nil, fmt.Errorf("agent tool: %q timed out waiting for entry: %w", manual.Name, bounded.Err())
 	}
-	switch manual.Transport.Kind {
-	case TransportBuiltin:
-		implementation, registered := e.builtins[manual.Name]
-		if !registered {
-			return nil, fmt.Errorf("agent tool: builtin %q is not registered", manual.Name)
-		}
-		result, err := implementation(bounded, arguments)
-		if err != nil {
-			return nil, fmt.Errorf("agent tool: %q failed: %w", manual.Name, err)
-		}
-		return boundedResult(manual.Name, result)
-	case TransportHTTP:
-		return e.invokeHTTP(bounded, manual, arguments)
-	case TransportArgv:
-		return invokeArgv(bounded, manual, arguments)
+	adapter, registered := e.adapters[manual.Transport.Kind]
+	if !registered {
+		return nil, fmt.Errorf("agent tool: transport %q has no registered adapter", manual.Transport.Kind)
 	}
-	return nil, fmt.Errorf("agent tool: manual %q transport kind is not declared", manual.Name)
+	result, err := adapter.invoke(bounded, manual, arguments)
+	if err != nil {
+		return nil, fmt.Errorf("agent tool: %q failed: %w", manual.Name, err)
+	}
+	return boundedResult(manual.Name, result)
 }
 
-func (e *Executor) invokeHTTP(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
+func (adapter *builtinAdapter) invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
+	adapter.mu.RLock()
+	implementation, registered := adapter.implementations[manual.Name]
+	adapter.mu.RUnlock()
+	if !registered {
+		return nil, fmt.Errorf("builtin %q is not registered", manual.Name)
+	}
+	return implementation(ctx, arguments)
+}
+
+func (adapter *httpAdapter) invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, manual.Transport.URL, bytes.NewReader(arguments))
 	if err != nil {
 		return nil, err
 	}
 	request.Header.Set("Content-Type", ManualMediaType)
-	response, err := e.client.Do(request)
+	response, err := adapter.client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("agent tool: %q endpoint failed: %w", manual.Name, err)
 	}
@@ -138,10 +180,10 @@ func (e *Executor) invokeHTTP(ctx context.Context, manual Manual, arguments json
 	if !json.Valid(body) {
 		return nil, fmt.Errorf("agent tool: %q endpoint returned non-JSON", manual.Name)
 	}
-	return boundedResult(manual.Name, body)
+	return body, nil
 }
 
-func invokeArgv(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
+func (argvAdapter) invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
 	command := exec.CommandContext(ctx, manual.Transport.Program, manual.Transport.Args...)
 	command.Stdin = bytes.NewReader(arguments)
 	var stdout bytes.Buffer
@@ -155,7 +197,168 @@ func invokeArgv(ctx context.Context, manual Manual, arguments json.RawMessage) (
 	if err != nil {
 		return nil, err
 	}
-	return boundedResult(manual.Name, encoded)
+	return encoded, nil
+}
+
+const (
+	mcpInitializeMethod  = "initialize"
+	mcpInitializedMethod = "notifications/initialized"
+	mcpToolsCallMethod   = "tools/call"
+	mcpSessionHeader     = "Mcp-Session-Id"
+	mcpClientName        = "overgo"
+	mcpClientVersion     = "0.1.1"
+)
+
+type mcpRequest struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      string          `json:"id,omitempty"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
+}
+
+type mcpRequestParams struct {
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+
+type mcpInitializeParams struct {
+	ProtocolVersion string                `json:"protocolVersion"`
+	Capabilities    mcpClientCapabilities `json:"capabilities"`
+	ClientInfo      mcpClientInfo         `json:"clientInfo"`
+}
+
+type mcpClientCapabilities struct{}
+
+type mcpClientInfo struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+type mcpInitializeResult struct {
+	ProtocolVersion string          `json:"protocolVersion"`
+	Capabilities    json.RawMessage `json:"capabilities"`
+	ServerInfo      json.RawMessage `json:"serverInfo"`
+	Instructions    string          `json:"instructions,omitempty"`
+}
+
+type mcpResponse struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      string          `json:"id"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   *mcpError       `json:"error,omitempty"`
+}
+
+type mcpError struct {
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data,omitempty"`
+}
+
+func (adapter *mcpHTTPAdapter) invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
+	digest := sha256.Sum256(append([]byte(manual.ID.String()+"\x00"), arguments...))
+	requestIdentity := fmt.Sprintf("%x", digest[:])
+	initializeParams, err := json.Marshal(mcpInitializeParams{
+		ProtocolVersion: manual.Transport.Protocol,
+		Capabilities:    mcpClientCapabilities{},
+		ClientInfo:      mcpClientInfo{Name: mcpClientName, Version: mcpClientVersion},
+	})
+	if err != nil {
+		return nil, err
+	}
+	initializeID := requestIdentity + ".initialize"
+	initializePayload, err := json.Marshal(mcpRequest{
+		JSONRPC: "2.0", ID: initializeID, Method: mcpInitializeMethod, Params: initializeParams,
+	})
+	if err != nil {
+		return nil, err
+	}
+	initializeBody, headers, err := adapter.post(ctx, manual, "", initializePayload, http.StatusOK)
+	if err != nil {
+		return nil, err
+	}
+	initialize, err := decodeMCPResponse(initializeBody, initializeID)
+	if err != nil {
+		return nil, err
+	}
+	var negotiated mcpInitializeResult
+	if err := strictjson.DecodeBytes(initialize, &negotiated); err != nil ||
+		negotiated.ProtocolVersion != manual.Transport.Protocol ||
+		!strictjson.HasValue(negotiated.Capabilities) || !strictjson.HasValue(negotiated.ServerInfo) {
+		return nil, errors.Join(errors.New("mcp initialization authority differs"), err)
+	}
+	session := headers.Get(mcpSessionHeader)
+	initializedPayload, err := json.Marshal(mcpRequest{JSONRPC: "2.0", Method: mcpInitializedMethod})
+	if err != nil {
+		return nil, err
+	}
+	if _, _, err := adapter.post(ctx, manual, session, initializedPayload, http.StatusAccepted); err != nil {
+		return nil, err
+	}
+	callParams, err := json.Marshal(mcpRequestParams{Name: manual.Transport.Target, Arguments: arguments})
+	if err != nil {
+		return nil, err
+	}
+	callID := requestIdentity + ".call"
+	callPayload, err := json.Marshal(mcpRequest{
+		JSONRPC: "2.0", ID: callID, Method: mcpToolsCallMethod, Params: callParams,
+	})
+	if err != nil {
+		return nil, err
+	}
+	body, _, err := adapter.post(ctx, manual, session, callPayload, http.StatusOK)
+	if err != nil {
+		return nil, err
+	}
+	return decodeMCPResponse(body, callID)
+}
+
+func (adapter *mcpHTTPAdapter) post(
+	ctx context.Context,
+	manual Manual,
+	session string,
+	payload []byte,
+	wantStatus int,
+) ([]byte, http.Header, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, manual.Transport.URL, bytes.NewReader(payload))
+	if err != nil {
+		return nil, nil, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("MCP-Protocol-Version", manual.Transport.Protocol)
+	if session != "" {
+		request.Header.Set(mcpSessionHeader, session)
+	}
+	response, err := adapter.client.Do(request)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(response.Body, artifact.MaxContentBytes+1))
+	if err != nil {
+		return nil, nil, err
+	}
+	if response.StatusCode != wantStatus {
+		return nil, nil, fmt.Errorf("mcp endpoint returned status %d, want %d", response.StatusCode, wantStatus)
+	}
+	return body, response.Header.Clone(), nil
+}
+
+func decodeMCPResponse(body []byte, requestID string) (json.RawMessage, error) {
+	var envelope mcpResponse
+	if err := strictjson.DecodeBytes(body, &envelope); err != nil {
+		return nil, fmt.Errorf("decode mcp response: %w", err)
+	}
+	if envelope.JSONRPC != "2.0" || envelope.ID != requestID {
+		return nil, errors.New("mcp response identity differs")
+	}
+	if envelope.Error != nil {
+		return nil, fmt.Errorf("mcp error %d: %s", envelope.Error.Code, envelope.Error.Message)
+	}
+	if !strictjson.HasValue(envelope.Result) {
+		return nil, errors.New("mcp response result is absent")
+	}
+	return envelope.Result, nil
 }
 
 func boundedResult(name string, result json.RawMessage) (json.RawMessage, error) {

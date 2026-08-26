@@ -4,27 +4,6 @@
   "census_evidence": "evidence:sha256:85b34f4312757f85de94c4c6e62147931f32923d1a8be1dcd5094ebd1526f158",
   "items": [
     {
-      "id": "quant-codec-numerics",
-      "title": "Make quantization descriptors own subgroup geometry",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move repeated subgroup widths, level bounds, masks, and scratch extents into existing typed codec layouts and delete local copies",
-          "status": "open",
-          "verify": "go test ./internal/quant ./internal/tensor/dtype -count=1",
-          "depends_on": [
-            "kernel-abi-numerics"
-          ],
-          "capabilities": [
-            "codec-authority",
-            "format-contract",
-            "scratch-reuse"
-          ]
-        }
-      ]
-    },
-    {
       "id": "capacity-format-numerics",
       "title": "Derive capacities and centralize protocol format values",
       "status": "open",

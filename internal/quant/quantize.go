@@ -1035,23 +1035,21 @@ func quantizeQ4Or5K(
 	output []byte,
 ) error {
 	layout := q4KCodec
-	maxLevel := 15
 	if dataType == dtype.Q5K {
 		layout = q5KCodec
-		maxLevel = 31
 	}
 	levels := make([]byte, layout.block.elements)
-	auxiliary := make([]byte, 32)
-	weights := make([]float32, 32)
-	minima := make([]float32, layout.block.elements/32)
-	scales := make([]float32, layout.block.elements/32)
+	auxiliary := make([]byte, layout.group.width)
+	weights := make([]float32, layout.group.width)
+	minima := make([]float32, layout.groupCount())
+	scales := make([]float32, layout.groupCount())
 	for block := 0; block < len(values)/layout.block.elements; block++ {
 		input := layout.block.input(values, block)
 		destination := layout.block.storage(output, block)
 		var maxScale, maxMinimum float32
-		for group := 0; group < layout.block.elements/32; group++ {
+		for group := 0; group < layout.groupCount(); group++ {
 			clear(auxiliary)
-			groupInput := input[group*32 : (group+1)*32]
+			groupInput := layout.groupInput(input, group)
 			sumSquares := float32(0)
 			for _, value := range groupInput {
 				if !finiteFloat32(value) {
@@ -1062,7 +1060,7 @@ func quantizeQ4Or5K(
 				}
 				sumSquares += value * value
 			}
-			average := float32(math.Sqrt(float64(sumSquares / 32)))
+			average := float32(math.Sqrt(float64(sumSquares / float32(layout.group.width))))
 			for index, value := range groupInput {
 				weights[index] = average + absoluteFloat32(value)
 			}
@@ -1074,9 +1072,9 @@ func quantizeQ4Or5K(
 			}
 			scale, minimum, err := makeQKX2Quants(
 				groupInput,
-				maxLevel,
+				layout.group.levelMax,
 				weights,
-				levels[group*32:(group+1)*32],
+				layout.groupLevels(levels, group),
 				auxiliary,
 				rangeMinimum,
 				0.1,
@@ -1097,54 +1095,56 @@ func quantizeQ4Or5K(
 		}
 		inverseScale := float32(0)
 		if maxScale > 0 {
-			inverseScale = 63 / maxScale
+			inverseScale = float32(layout.group.scaleMax) / maxScale
 		}
 		inverseMinimum := float32(0)
 		if maxMinimum > 0 {
-			inverseMinimum = 63 / maxMinimum
+			inverseMinimum = float32(layout.group.scaleMax) / maxMinimum
 		}
-		for group := 0; group < layout.block.elements/32; group++ {
-			scale := min(63, nearestIntGGML(inverseScale*scales[group]))
+		for group := 0; group < layout.groupCount(); group++ {
+			scale := min(layout.group.scaleMax, nearestIntGGML(inverseScale*scales[group]))
 			minimum := min(
-				63,
+				layout.group.scaleMax,
 				nearestIntGGML(inverseMinimum*minima[group]),
 			)
-			setKScaleMinimum(
+			layout.setScaleMinimum(
 				layout.scales.bytes(destination),
 				group,
 				scale,
 				minimum,
 			)
 		}
-		scaleBits := Float32ToFloat16(maxScale / 63)
-		minimumBits := Float32ToFloat16(maxMinimum / 63)
+		scaleBits := Float32ToFloat16(maxScale / float32(layout.group.scaleMax))
+		minimumBits := Float32ToFloat16(maxMinimum / float32(layout.group.scaleMax))
 		binary.LittleEndian.PutUint16(layout.delta.bytes(destination), scaleBits)
 		binary.LittleEndian.PutUint16(layout.minimum.bytes(destination), minimumBits)
 		blockScale := Float16ToFloat32(scaleBits)
 		blockMinimum := Float16ToFloat32(minimumBits)
-		for group := 0; group < layout.block.elements/32; group++ {
+		for group := 0; group < layout.groupCount(); group++ {
 			quantizedScale, quantizedMinimum :=
-				getKScaleMinimum(layout.scales.bytes(destination), group)
+				layout.scaleMinimum(layout.scales.bytes(destination), group)
 			scale := blockScale * float32(quantizedScale)
 			if scale == 0 {
 				continue
 			}
 			minimum := blockMinimum * float32(quantizedMinimum)
-			for index := 0; index < 32; index++ {
+			groupLevels := layout.groupLevels(levels, group)
+			groupInput := layout.groupInput(input, group)
+			for index := range groupLevels {
 				level := nearestIntGGML(
-					(input[group*32+index] + minimum) / scale,
+					(groupInput[index] + minimum) / scale,
 				)
-				levels[group*32+index] =
-					byte(max(0, min(maxLevel, level)))
+				groupLevels[index] = byte(max(0, min(layout.group.levelMax, level)))
 			}
 		}
 		if dataType == dtype.Q4K {
 			quantized := layout.packed.bytes(destination)
-			for section := 0; section < layout.block.elements; section += 64 {
-				for lane := 0; lane < 32; lane++ {
+			sectionWidth := 2 * layout.group.width
+			for section := 0; section < layout.block.elements; section += sectionWidth {
+				for lane := 0; lane < layout.group.width; lane++ {
 					quantized[section/2+lane] =
 						levels[section+lane] |
-							levels[section+lane+32]<<4
+							levels[section+lane+layout.group.width]<<layout.group.packedBits
 				}
 			}
 			continue
@@ -1154,74 +1154,54 @@ func quantizeQ4Or5K(
 		lowOffset := 0
 		lowMask := byte(1)
 		highMask := byte(2)
-		for section := 0; section < layout.block.elements; section += 64 {
-			for lane := 0; lane < 32; lane++ {
+		lowLevelCount := byte(1 << layout.group.packedBits)
+		sectionWidth := 2 * layout.group.width
+		for section := 0; section < layout.block.elements; section += sectionWidth {
+			for lane := 0; lane < layout.group.width; lane++ {
 				low := levels[section+lane]
-				if low > 15 {
-					low -= 16
+				if low >= lowLevelCount {
+					low -= lowLevelCount
 					highBits[lane] |= lowMask
 				}
-				high := levels[section+lane+32]
-				if high > 15 {
-					high -= 16
+				high := levels[section+lane+layout.group.width]
+				if high >= lowLevelCount {
+					high -= lowLevelCount
 					highBits[lane] |= highMask
 				}
-				quantized[lowOffset+lane] = low | high<<4
+				quantized[lowOffset+lane] = low | high<<layout.group.packedBits
 			}
 			lowMask <<= 2
 			highMask <<= 2
-			lowOffset += 32
+			lowOffset += layout.group.width
 		}
 	}
 	return nil
 }
 
-func setKScaleMinimum(data []byte, group, scale, minimum int) {
-	if group < 4 {
-		data[group] = byte(scale)
-		data[group+4] = byte(minimum)
-		return
-	}
-	data[group+4] = byte(scale&0x0f | (minimum&0x0f)<<4)
-	data[group-4] |= byte((scale >> 4) << 6)
-	data[group] |= byte((minimum >> 4) << 6)
-}
-
-func getKScaleMinimum(data []byte, group int) (int, int) {
-	if group < 4 {
-		return int(data[group] & 63), int(data[group+4] & 63)
-	}
-	scale := int(data[group+4]&0x0f) |
-		int(data[group-4]>>6)<<4
-	minimum := int(data[group+4]>>4) |
-		int(data[group]>>6)<<4
-	return scale, minimum
-}
-
 func quantizeQ2K(values []float32, output []byte) error {
 	layout := q2KCodec
 	levels := make([]byte, layout.block.elements)
-	auxiliary := make([]byte, 16)
-	weights := make([]float32, 16)
-	minima := make([]float32, layout.block.elements/16)
-	scales := make([]float32, layout.block.elements/16)
+	auxiliary := make([]byte, layout.group.width)
+	weights := make([]float32, layout.group.width)
+	minima := make([]float32, layout.groupCount())
+	scales := make([]float32, layout.groupCount())
 	for block := 0; block < len(values)/layout.block.elements; block++ {
 		input := layout.block.input(values, block)
 		destination := layout.block.storage(output, block)
 		scaleMin := layout.scales.bytes(destination)
 		packed := layout.packed.bytes(destination)
 		var maxScale, maxMinimum float32
-		for group := 0; group < layout.block.elements/16; group++ {
+		for group := 0; group < layout.groupCount(); group++ {
 			clear(auxiliary)
-			groupInput := input[group*16 : (group+1)*16]
+			groupInput := layout.groupInput(input, group)
 			for index, value := range groupInput {
 				weights[index] = absoluteFloat32(value)
 			}
 			scale, minimum, err := makeQKX2Quants(
 				groupInput,
-				3,
+				layout.group.levelMax,
 				weights,
-				levels[group*16:(group+1)*16],
+				layout.groupLevels(levels, group),
 				auxiliary,
 				-0.5,
 				0.1,
@@ -1242,45 +1222,47 @@ func quantizeQ2K(values []float32, output []byte) error {
 		}
 		var blockScale float32
 		if maxScale > 0 {
-			inverse := 15 / maxScale
+			inverse := float32(layout.group.scaleMax) / maxScale
 			for group, scale := range scales {
 				scaleMin[group] = byte(nearestIntGGML(inverse * scale))
 			}
-			bits := Float32ToFloat16(maxScale / 15)
+			bits := Float32ToFloat16(maxScale / float32(layout.group.scaleMax))
 			binary.LittleEndian.PutUint16(layout.delta.bytes(destination), bits)
 			blockScale = Float16ToFloat32(bits)
 		}
 		var blockMinimum float32
 		if maxMinimum > 0 {
-			inverse := 15 / maxMinimum
+			inverse := float32(layout.group.scaleMax) / maxMinimum
 			for group, minimum := range minima {
 				scaleMin[group] |=
-					byte(nearestIntGGML(inverse*minimum) << 4)
+					byte(nearestIntGGML(inverse*minimum) << layout.group.scaleBits)
 			}
-			bits := Float32ToFloat16(maxMinimum / 15)
+			bits := Float32ToFloat16(maxMinimum / float32(layout.group.scaleMax))
 			binary.LittleEndian.PutUint16(layout.minimum.bytes(destination), bits)
 			blockMinimum = Float16ToFloat32(bits)
 		}
-		for group := 0; group < layout.block.elements/16; group++ {
-			scale := blockScale * float32(scaleMin[group]&0x0f)
+		for group := 0; group < layout.groupCount(); group++ {
+			scale := blockScale * float32(scaleMin[group]&layout.group.scaleMask())
 			if scale == 0 {
 				continue
 			}
-			minimum := blockMinimum * float32(scaleMin[group]>>4)
-			for index := 0; index < 16; index++ {
+			minimum := blockMinimum * float32(scaleMin[group]>>layout.group.scaleBits)
+			groupInput := layout.groupInput(input, group)
+			groupLevels := layout.groupLevels(levels, group)
+			for index := range groupLevels {
 				level := nearestIntGGML(
-					(input[group*16+index] + minimum) / scale,
+					(groupInput[index] + minimum) / scale,
 				)
-				levels[group*16+index] = byte(max(0, min(3, level)))
+				groupLevels[index] = byte(max(0, min(layout.group.levelMax, level)))
 			}
 		}
 		for section := 0; section < layout.block.elements; section += layout.block.elements / 2 {
 			for lane := 0; lane < kLaneWidth; lane++ {
 				packed[section/4+lane] =
 					levels[section+lane] |
-						levels[section+lane+kLaneWidth]<<2 |
-						levels[section+lane+2*kLaneWidth]<<4 |
-						levels[section+lane+3*kLaneWidth]<<6
+						levels[section+lane+kLaneWidth]<<layout.group.packedBits |
+						levels[section+lane+2*kLaneWidth]<<(2*layout.group.packedBits) |
+						levels[section+lane+3*kLaneWidth]<<(3*layout.group.packedBits)
 			}
 		}
 	}
@@ -1395,7 +1377,7 @@ func makeQKX2Quants(
 func quantizeQ3K(values []float32, output []byte) error {
 	layout := q3KCodec
 	levels := make([]int8, layout.block.elements)
-	scales := make([]float32, layout.block.elements/16)
+	scales := make([]float32, layout.groupCount())
 	for block := 0; block < len(values)/layout.block.elements; block++ {
 		input := layout.block.input(values, block)
 		destination := layout.block.storage(output, block)
@@ -1403,10 +1385,10 @@ func quantizeQ3K(values []float32, output []byte) error {
 		highMasks := layout.high.bytes(destination)
 		packed := layout.packed.bytes(destination)
 		var maxScale, maxAbsoluteScale float32
-		for group := 0; group < layout.block.elements/16; group++ {
+		for group := 0; group < layout.groupCount(); group++ {
 			scale, err := makeQ3Quants(
-				input[group*16:(group+1)*16],
-				levels[group*16:(group+1)*16],
+				layout.groupInput(input, group),
+				layout.groupLevels8(levels, group),
 			)
 			if err != nil {
 				return fmt.Errorf("Q3_K: %w", err)
@@ -1420,10 +1402,11 @@ func quantizeQ3K(values []float32, output []byte) error {
 		}
 		var scale float32
 		if maxScale != 0 {
-			inverse := -32 / maxScale
-			for group := 0; group < layout.block.elements/16; group++ {
+			inverse := -float32(layout.group.scaleZero) / maxScale
+			for group := 0; group < layout.groupCount(); group++ {
 				quantized := nearestIntGGML(inverse * scales[group])
-				quantized = max(-32, min(31, quantized)) + 32
+				quantized = max(-layout.group.scaleZero, min(layout.group.scaleMax, quantized)) +
+					layout.group.scaleZero
 				if group < 8 {
 					scaleData[group] = byte(quantized & 0x0f)
 				} else {
@@ -1436,7 +1419,7 @@ func quantizeQ3K(values []float32, output []byte) error {
 			binary.LittleEndian.PutUint16(layout.delta.bytes(destination), scaleBits)
 			scale = Float16ToFloat32(scaleBits)
 		}
-		for group := 0; group < layout.block.elements/16; group++ {
+		for group := 0; group < layout.groupCount(); group++ {
 			quantizedScale := int(scaleData[group%8])
 			if group < 8 {
 				quantizedScale &= 0x0f
@@ -1446,17 +1429,19 @@ func quantizeQ3K(values []float32, output []byte) error {
 			quantizedScale |= int(
 				(scaleData[8+group%4]>>uint(2*(group/4)))&3,
 			) << 4
-			quantizedScale -= 32
+			quantizedScale -= layout.group.scaleZero
 			groupScale := scale * float32(quantizedScale)
 			if groupScale == 0 {
 				continue
 			}
-			for index := 0; index < 16; index++ {
+			groupInput := layout.groupInput(input, group)
+			groupLevels := layout.groupLevels8(levels, group)
+			for index := range groupLevels {
 				level := nearestIntGGML(
-					input[group*16+index] / groupScale,
+					groupInput[index] / groupScale,
 				)
-				level = max(-4, min(3, level))
-				levels[group*16+index] = int8(level + 4)
+				level = max(-layout.group.levelZero, min(layout.group.levelZero-1, level))
+				groupLevels[index] = int8(level + layout.group.levelZero)
 			}
 		}
 		maskIndex := 0
@@ -1560,7 +1545,7 @@ func makeQ3Quants(input []float32, levels []int8) (float32, error) {
 func quantizeQ6K(values []float32, output []byte) error {
 	layout := q6KCodec
 	levels := make([]int8, layout.block.elements)
-	scales := make([]float32, layout.block.elements/16)
+	scales := make([]float32, layout.groupCount())
 	for block := 0; block < len(values)/layout.block.elements; block++ {
 		input := layout.block.input(values, block)
 		destination := layout.block.storage(output, block)
@@ -1568,11 +1553,11 @@ func quantizeQ6K(values []float32, output []byte) error {
 		high := layout.high.bytes(destination)
 		scaleData := layout.scales.bytes(destination)
 		var maxScale, maxAbsoluteScale float32
-		for group := 0; group < layout.block.elements/16; group++ {
+		for group := 0; group < layout.groupCount(); group++ {
 			scale, err := makeQXQuants(
-				input[group*16:(group+1)*16],
-				q6KLevelMagnitude,
-				levels[group*16:(group+1)*16],
+				layout.groupInput(input, group),
+				layout.group.levelZero,
+				layout.groupLevels8(levels, group),
 			)
 			if err != nil {
 				return fmt.Errorf("Q6_K: %w", err)
@@ -1587,13 +1572,13 @@ func quantizeQ6K(values []float32, output []byte) error {
 		if maxAbsoluteScale < negligibleQuantizationMagnitude {
 			continue
 		}
-		inverse := -q6KScaleMagnitude / maxScale
+		inverse := -float32(layout.group.scaleZero) / maxScale
 		scaleBits := Float32ToFloat16(1 / inverse)
 		binary.LittleEndian.PutUint16(layout.delta.bytes(destination), scaleBits)
 		scale := Float16ToFloat32(scaleBits)
-		for group := 0; group < layout.block.elements/16; group++ {
+		for group := 0; group < layout.groupCount(); group++ {
 			quantizedScale := min(
-				q6KScaleMagnitude-1,
+				layout.group.scaleMax,
 				nearestIntGGML(inverse*scales[group]),
 			)
 			scaleData[group] = byte(int8(quantizedScale))
@@ -1601,12 +1586,14 @@ func quantizeQ6K(values []float32, output []byte) error {
 			if groupScale == 0 {
 				continue
 			}
-			for index := 0; index < 16; index++ {
+			groupInput := layout.groupInput(input, group)
+			groupLevels := layout.groupLevels8(levels, group)
+			for index := range groupLevels {
 				level := nearestIntGGML(
-					input[group*16+index] / groupScale,
+					groupInput[index] / groupScale,
 				)
-				level = max(-q6KLevelMagnitude, min(q6KLevelMagnitude-1, level))
-				levels[group*16+index] = int8(level + q6KLevelMagnitude)
+				level = max(-layout.group.levelZero, min(layout.group.levelZero-1, level))
+				groupLevels[index] = int8(level + layout.group.levelZero)
 			}
 		}
 		for section := 0; section < layout.block.elements; section += layout.block.elements / 2 {

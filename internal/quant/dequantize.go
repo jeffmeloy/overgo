@@ -116,10 +116,12 @@ func DequantizeInto(dataType dtype.Type, source []byte, output []float32) error 
 		dequantizeQ2K(source, output, blocks, traits)
 	case dtype.Q3K:
 		dequantizeQ3K(source, output, blocks, traits)
-	case dtype.Q4K:
-		dequantizeQ4K(source, output, blocks, traits)
-	case dtype.Q5K:
-		dequantizeQ5K(source, output, blocks, traits)
+	case dtype.Q4K, dtype.Q5K:
+		layout := q4KCodec
+		if dataType == dtype.Q5K {
+			layout = q5KCodec
+		}
+		dequantizeAffineK(layout, source, output, blocks, traits)
 	case dtype.IQ2XXS:
 		dequantizeIQ2XXS(source, output, blocks, traits)
 	case dtype.IQ2XS:
@@ -184,7 +186,7 @@ func dequantizeIQ2XXS(source []byte, output []float32, blocks uint64, traits dty
 		outputOffset := block * traits.BlockSize
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(source[sourceOffset:]))
 		quantized := source[sourceOffset+iqPackedGridStart : sourceOffset+iqAuxiliaryStart]
-		for group := 0; group < 8; group++ {
+		for group := 0; group < q4KCodec.groupCount(); group++ {
 			first := binary.LittleEndian.Uint32(quantized[group*8:])
 			second := binary.LittleEndian.Uint32(quantized[group*8+4:])
 			groupScale := scale * (0.5 + float32(second>>28)) * 0.25
@@ -609,17 +611,18 @@ func dequantizeQ2K(source []byte, output []float32, blocks uint64, traits dtype.
 		quantized := q2KCodec.packed.bytes(storage)
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(q2KCodec.delta.bytes(storage)))
 		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(q2KCodec.minimum.bytes(storage)))
-		for group := 0; group < 16; group++ {
+		for group := 0; group < q2KCodec.groupCount(); group++ {
 			scaleAndMin := scales[group]
-			delta := scale * float32(scaleAndMin&0x0f)
-			minimumValue := minimum * float32(scaleAndMin>>4)
-			half := group / 8
-			groupInHalf := group % 8
-			shift := uint((groupInHalf / 2) * 2)
-			quantBase := half*32 + (groupInHalf%2)*16
-			destination := outputOffset + uint64(group*16)
-			for lane := 0; lane < 16; lane++ {
-				value := (quantized[quantBase+lane] >> shift) & 0x03
+			delta := scale * float32(scaleAndMin&q2KCodec.group.scaleMask())
+			minimumValue := minimum * float32(scaleAndMin>>q2KCodec.group.scaleBits)
+			groupsPerHalf := q2KCodec.groupCount() / 2
+			half := group / groupsPerHalf
+			groupInHalf := group % groupsPerHalf
+			shift := uint(groupInHalf/2) * q2KCodec.group.packedBits
+			quantBase := half*kLaneWidth + (groupInHalf%2)*q2KCodec.group.width
+			destination := outputOffset + uint64(group*q2KCodec.group.width)
+			for lane := 0; lane < q2KCodec.group.width; lane++ {
+				value := (quantized[quantBase+lane] >> shift) & byte(q2KCodec.group.packedLevelMax())
 				output[destination+uint64(lane)] =
 					delta*float32(value) - minimumValue
 			}
@@ -635,7 +638,7 @@ func dequantizeQ3K(source []byte, output []float32, blocks uint64, traits dtype.
 		quantized := q3KCodec.packed.bytes(storage)
 		scales := q3KCodec.scales.bytes(storage)
 		scale := Float16ToFloat32(binary.LittleEndian.Uint16(q3KCodec.delta.bytes(storage)))
-		for group := 0; group < 16; group++ {
+		for group := 0; group < q3KCodec.groupCount(); group++ {
 			lowScale := scales[group%8]
 			if group >= 8 {
 				lowScale >>= 4
@@ -643,18 +646,20 @@ func dequantizeQ3K(source []byte, output []float32, blocks uint64, traits dtype.
 				lowScale &= 0x0f
 			}
 			highScale := (scales[8+group%4] >> uint(2*(group/4))) & 0x03
-			groupScale := int(lowScale|highScale<<4) - 32
-			half := group / 8
-			groupInHalf := group % 8
+			groupScale := int(lowScale|highScale<<q3KCodec.group.scalePackedBits) -
+				q3KCodec.group.scaleZero
+			groupsPerHalf := q3KCodec.groupCount() / 2
+			half := group / groupsPerHalf
+			groupInHalf := group % groupsPerHalf
 			shift := uint((groupInHalf / 2) * 2)
 			mask := byte(1 << uint(group/2))
-			quantBase := half*32 + (groupInHalf%2)*16
-			maskBase := (groupInHalf % 2) * 16
-			destination := outputOffset + uint64(group*16)
-			for lane := 0; lane < 16; lane++ {
+			quantBase := half*kLaneWidth + (groupInHalf%2)*q3KCodec.group.width
+			maskBase := (groupInHalf % 2) * q3KCodec.group.width
+			destination := outputOffset + uint64(group*q3KCodec.group.width)
+			for lane := 0; lane < q3KCodec.group.width; lane++ {
 				value := int((quantized[quantBase+lane] >> shift) & 0x03)
 				if highMasks[maskBase+lane]&mask == 0 {
-					value -= 4
+					value -= q3KCodec.group.levelZero
 				}
 				output[destination+uint64(lane)] =
 					scale * float32(groupScale) * float32(value)
@@ -663,68 +668,37 @@ func dequantizeQ3K(source []byte, output []float32, blocks uint64, traits dtype.
 	}
 }
 
-func scaleMinK4(index int, packed []byte) (scale, minimum byte) {
-	if index < 4 {
-		return packed[index] & 0x3f, packed[index+4] & 0x3f
-	}
-	scale = (packed[index+4] & 0x0f) | (packed[index-4]>>6)<<4
-	minimum = (packed[index+4] >> 4) | (packed[index]>>6)<<4
-	return scale, minimum
-}
-
-func dequantizeQ4K(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
+func dequantizeAffineK(
+	layout affineKCodecLayout,
+	source []byte,
+	output []float32,
+	blocks uint64,
+	traits dtype.Traits,
+) {
 	for block := uint64(0); block < blocks; block++ {
-		storage := q4KCodec.block.storage64(source, block)
+		storage := layout.block.storage64(source, block)
 		outputOffset := block * traits.BlockSize
-		scale := Float16ToFloat32(binary.LittleEndian.Uint16(q4KCodec.delta.bytes(storage)))
-		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(q4KCodec.minimum.bytes(storage)))
-		scales := q4KCodec.scales.bytes(storage)
-		quantized := q4KCodec.packed.bytes(storage)
-		for group := 0; group < 8; group++ {
-			groupScale, groupMinimum := scaleMinK4(group, scales)
+		scale := Float16ToFloat32(binary.LittleEndian.Uint16(layout.delta.bytes(storage)))
+		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(layout.minimum.bytes(storage)))
+		scales := layout.scales.bytes(storage)
+		highBits := layout.high.bytes(storage)
+		quantized := layout.packed.bytes(storage)
+		for group := 0; group < layout.groupCount(); group++ {
+			groupScale, groupMinimum := layout.scaleMinimum(scales, group)
 			delta := scale * float32(groupScale)
 			minimumValue := minimum * float32(groupMinimum)
-			packedBase := (group / 2) * 32
-			destination := outputOffset + uint64(group*32)
-			for lane := 0; lane < 32; lane++ {
-				value := quantized[packedBase+lane]
-				if group%2 == 0 {
-					value &= 0x0f
-				} else {
-					value >>= 4
-				}
-				output[destination+uint64(lane)] =
-					delta*float32(value) - minimumValue
-			}
-		}
-	}
-}
-
-func dequantizeQ5K(source []byte, output []float32, blocks uint64, traits dtype.Traits) {
-	for block := uint64(0); block < blocks; block++ {
-		storage := q5KCodec.block.storage64(source, block)
-		outputOffset := block * traits.BlockSize
-		scale := Float16ToFloat32(binary.LittleEndian.Uint16(q5KCodec.delta.bytes(storage)))
-		minimum := Float16ToFloat32(binary.LittleEndian.Uint16(q5KCodec.minimum.bytes(storage)))
-		scales := q5KCodec.scales.bytes(storage)
-		highBits := q5KCodec.high.bytes(storage)
-		quantized := q5KCodec.packed.bytes(storage)
-		for group := 0; group < 8; group++ {
-			groupScale, groupMinimum := scaleMinK4(group, scales)
-			delta := scale * float32(groupScale)
-			minimumValue := minimum * float32(groupMinimum)
-			packedBase := (group / 2) * 32
+			packedBase := (group / 2) * layout.group.width
 			highMask := byte(1 << uint(group))
-			destination := outputOffset + uint64(group*32)
-			for lane := 0; lane < 32; lane++ {
+			destination := outputOffset + uint64(group*layout.group.width)
+			for lane := 0; lane < layout.group.width; lane++ {
 				value := quantized[packedBase+lane]
 				if group%2 == 0 {
-					value &= 0x0f
+					value &= byte(layout.group.packedLevelMax())
 				} else {
-					value >>= 4
+					value >>= layout.group.packedBits
 				}
-				if highBits[lane]&highMask != 0 {
-					value += 16
+				if len(highBits) != 0 && highBits[lane]&highMask != 0 {
+					value += byte(layout.group.packedLevelMax() + 1)
 				}
 				output[destination+uint64(lane)] =
 					delta*float32(value) - minimumValue
@@ -764,13 +738,13 @@ func dequantizeQ6K(
 				q4 := int(lower[lowerBase+column+kLaneWidth]>>4) |
 					int((high[highBase+column]>>6)&0x03)<<4
 				output[destination+uint64(column)] =
-					scale * float32(int8(scales[scaleBase+scaleIndex])) * float32(q1-q6KLevelMagnitude)
+					scale * float32(int8(scales[scaleBase+scaleIndex])) * float32(q1-q6KCodec.group.levelZero)
 				output[destination+uint64(column+kLaneWidth)] =
-					scale * float32(int8(scales[scaleBase+scaleIndex+2])) * float32(q2-q6KLevelMagnitude)
+					scale * float32(int8(scales[scaleBase+scaleIndex+2])) * float32(q2-q6KCodec.group.levelZero)
 				output[destination+uint64(column+2*kLaneWidth)] =
-					scale * float32(int8(scales[scaleBase+scaleIndex+4])) * float32(q3-q6KLevelMagnitude)
+					scale * float32(int8(scales[scaleBase+scaleIndex+4])) * float32(q3-q6KCodec.group.levelZero)
 				output[destination+uint64(column+3*kLaneWidth)] =
-					scale * float32(int8(scales[scaleBase+scaleIndex+6])) * float32(q4-q6KLevelMagnitude)
+					scale * float32(int8(scales[scaleBase+scaleIndex+6])) * float32(q4-q6KCodec.group.levelZero)
 			}
 		}
 	}

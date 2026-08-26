@@ -55,11 +55,79 @@ func (l blockCodecLayout) storage64(data []byte, block uint64) []byte {
 
 type affineKCodecLayout struct {
 	block   blockCodecLayout
+	group   affineGroupLayout
 	delta   codecField
 	minimum codecField
 	scales  codecField
 	high    codecField
 	packed  codecField
+}
+
+type affineGroupLayout struct {
+	width           int
+	levelMax        int
+	levelZero       int
+	packedBits      uint
+	scaleMax        int
+	scaleBits       uint
+	scalePackedBits uint
+	scaleZero       int
+}
+
+func (l affineGroupLayout) packedLevelMax() int {
+	return 1<<l.packedBits - 1
+}
+
+func (l affineGroupLayout) scaleMask() byte {
+	return byte(1<<l.scaleBits - 1)
+}
+
+func (l affineKCodecLayout) groupCount() int {
+	return l.block.elements / l.group.width
+}
+
+func (l affineKCodecLayout) groupInput(values []float32, group int) []float32 {
+	start := group * l.group.width
+	return values[start : start+l.group.width]
+}
+
+func (l affineKCodecLayout) groupLevels(values []byte, group int) []byte {
+	start := group * l.group.width
+	return values[start : start+l.group.width]
+}
+
+func (l affineKCodecLayout) groupLevels8(values []int8, group int) []int8 {
+	start := group * l.group.width
+	return values[start : start+l.group.width]
+}
+
+func (l affineKCodecLayout) setScaleMinimum(data []byte, group, scale, minimum int) {
+	split := l.groupCount() / 2
+	if group < split {
+		data[group] = byte(scale)
+		data[group+split] = byte(minimum)
+		return
+	}
+	lowMask := 1<<l.group.scalePackedBits - 1
+	highShift := binaryschema.BitsPerByte - (l.group.scaleBits - l.group.scalePackedBits)
+	data[group+split] = byte(scale&lowMask | (minimum&lowMask)<<l.group.scalePackedBits)
+	data[group-split] |= byte((scale >> l.group.scalePackedBits) << highShift)
+	data[group] |= byte((minimum >> l.group.scalePackedBits) << highShift)
+}
+
+func (l affineKCodecLayout) scaleMinimum(data []byte, group int) (int, int) {
+	split := l.groupCount() / 2
+	if group < split {
+		mask := int(l.group.scaleMask())
+		return int(data[group]) & mask, int(data[group+split]) & mask
+	}
+	lowMask := 1<<l.group.scalePackedBits - 1
+	highShift := binaryschema.BitsPerByte - (l.group.scaleBits - l.group.scalePackedBits)
+	scale := int(data[group+split])&lowMask |
+		int(data[group-split]>>highShift)<<l.group.scalePackedBits
+	minimum := int(data[group+split]>>l.group.scalePackedBits) |
+		int(data[group]>>highShift)<<l.group.scalePackedBits
+	return scale, minimum
 }
 
 type scalarCodecLayout struct {
@@ -197,9 +265,6 @@ const (
 	q6KScaleBytes = 16
 	q6KScaleStart = q6KHighStart + q6KHighBytes
 	q6KDeltaStart = q6KScaleStart + q6KScaleBytes
-
-	q6KScaleMagnitude = 128
-	q6KLevelMagnitude = 32
 )
 
 var (
@@ -229,27 +294,32 @@ var (
 	}
 	q2KCodec = affineKCodecLayout{
 		block: blockLayout(dtype.Q2K),
+		group: affineGroupLayout{width: 16, levelMax: 3, packedBits: 2, scaleMax: 15, scaleBits: 4, scalePackedBits: 4},
 		delta: field(q2KScaleStart, iqScaleBytes), minimum: field(q2KMinimumStart, iqScaleBytes),
 		scales: field(q2KScaleMinStart, q2KScaleMinBytes), packed: field(q2KPackedStart, q2KPackedBytes),
 	}
 	q3KCodec = affineKCodecLayout{
 		block: blockLayout(dtype.Q3K),
+		group: affineGroupLayout{width: 16, levelMax: 7, levelZero: 4, packedBits: 2, scaleMax: 63, scaleBits: 6, scalePackedBits: 4, scaleZero: 32},
 		delta: field(q3KDeltaStart, iqScaleBytes), scales: field(q3KScaleStart, q3KScaleBytes),
 		high: field(q3KHighMaskStart, q3KHighMaskBytes), packed: field(q3KPackedStart, q3KPackedBytes),
 	}
 	q4KCodec = affineKCodecLayout{
 		block: blockLayout(dtype.Q4K),
+		group: affineGroupLayout{width: kLaneWidth, levelMax: 15, packedBits: 4, scaleMax: 63, scaleBits: 6, scalePackedBits: 4},
 		delta: field(q45KDeltaStart, iqScaleBytes), minimum: field(q45KMinimumStart, iqScaleBytes),
 		scales: field(q45KScaleMinStart, q45KScaleMinBytes), packed: field(q45KPayloadStart, q45KPackedBytes),
 	}
 	q5KCodec = affineKCodecLayout{
 		block: blockLayout(dtype.Q5K),
+		group: affineGroupLayout{width: kLaneWidth, levelMax: 31, packedBits: 4, scaleMax: 63, scaleBits: 6, scalePackedBits: 4},
 		delta: field(q45KDeltaStart, iqScaleBytes), minimum: field(q45KMinimumStart, iqScaleBytes),
 		scales: field(q45KScaleMinStart, q45KScaleMinBytes), high: field(q45KPayloadStart, q5KHighMaskBytes),
 		packed: field(q5KPackedStart, q45KPackedBytes),
 	}
 	q6KCodec = affineKCodecLayout{
 		block: blockLayout(dtype.Q6K),
+		group: affineGroupLayout{width: 16, levelMax: 63, levelZero: 32, packedBits: 4, scaleMax: 127, scaleBits: 8, scalePackedBits: 8, scaleZero: 128},
 		delta: field(q6KDeltaStart, iqScaleBytes), scales: field(q6KScaleStart, q6KScaleBytes),
 		high: field(q6KHighStart, q6KHighBytes), packed: field(q6KLowerStart, q6KLowerBytes),
 	}

@@ -244,6 +244,10 @@ An unavailable model or device is not counted as a successful verification.
 
 ## References
 
+- [Model prototypes with verified models, nested](docs/model_compatibility.json) —
+  structured JSON: each specific model's inference and training verification
+  summaries inside the prototype it belongs to; regenerate with
+  `go run ./cmd/compatibility -update-models`
 - [Compatibility and verified capabilities](docs/COMPATIBILITY.md)
 - [Training compatibility](docs/TRAINING_COMPATIBILITY.md)
 - [Machine-readable compatibility data](compatibility.json)

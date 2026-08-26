@@ -16,7 +16,7 @@
   {
    "capability": "inference",
    "tier": "exact-golden",
-   "commit": "HEAD-at-activation",
+   "commit": "b9b725bf5f0d646a5864fc7e60b15b632d1c9097",
    "evidence": [
     "evidence:sha256:8bb5e45c3746f4cd9a207207d9fa31a339410ecb3d77ab69b62845aca469794f",
     "run:sha256:4a71eeff328601b30edcae84fb3a1bb17d93950758a643e5f6fe477345ee40a2"

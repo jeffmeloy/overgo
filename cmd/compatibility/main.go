@@ -112,6 +112,8 @@ func run() error {
 	checkTraining := flag.Bool("check-training", false, "verify training specifications and generated matrix")
 	updateTraining := flag.Bool("update-training", false, "write generated training matrix")
 	refresh := flag.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
+	updateModels := flag.Bool("update-models", false, "write the nested model compatibility report joined against the store")
+	modelsRepo := flag.String("models-repo", "overgodb-store", "OvergoDB store for -update-models prototype resolution")
 	recordVerification := flag.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims)")
 	recordStore := flag.String("record", "", "OvergoDB root for -record-verification/-claim")
 	claimFlag := flag.Bool("claim", false, "build and commit one verification claim from flags: -claim -model-file <weights> -name <n> -capability <c> -tier <t> -evidence-file <doc> [-wall <dur>] [-context <tokens>] [-peak <bytes>] -record <overgodb>")
@@ -137,6 +139,20 @@ func run() error {
 			"docs/TRAINING_COMPATIBILITY.md is stale; regenerate with: go run ./cmd/compatibility -update-training",
 			os.Stdout,
 		)
+	}
+	if *updateModels {
+		if flag.NArg() != 0 || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
+			return errors.New("usage: compatibility -update-models [-models-repo <overgodb>]")
+		}
+		data, err := generateModelsReport(".", *modelsRepo)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.FromSlash(modelsReportPath), data, 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("wrote %s\n", modelsReportPath)
+		return nil
 	}
 	if *claimFlag {
 		if flag.NArg() != 0 || *claimModelFile == "" || *claimName == "" || *claimEvidenceFile == "" || *recordStore == "" {

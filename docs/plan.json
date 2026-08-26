@@ -1,28 +1,6 @@
 {
   "campaign": "Typed numeric authority and literal reduction",
   "doctrine": "Inline numbers remain only for local structural operations or mathematical identities. Model facts come from artifact or OvergoDB profiles. Generation defaults and request limits come from recipe runtime policy. Kernel geometry comes from typed ABI contracts. Codec widths, levels, offsets, and scratch extents come from codec descriptors. Capacity hints derive from owned inputs or measured policy. Each wave migrates all callers and deletes displaced literal copies immediately.",
-  "census_evidence": "evidence:sha256:85b34f4312757f85de94c4c6e62147931f32923d1a8be1dcd5094ebd1526f158",
-  "items": [
-    {
-      "id": "literal-authority-gate",
-      "title": "Rebaseline and enforce typed literal authority",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Publish the post-migration census, verify zero model-fact and policy-copy debt, and bind the campaign to current evidence",
-          "status": "open",
-          "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production",
-          "depends_on": [
-            "capacity-format-numerics"
-          ],
-          "capabilities": [
-            "literal-census",
-            "evidence-gate",
-            "regression-prevention"
-          ]
-        }
-      ]
-    }
-  ]
+  "census_evidence": "evidence:sha256:668f707ffb166c1ddc9ad74b549cb9271f9189e62e93479d562fb01637f981ba",
+  "items": []
 }

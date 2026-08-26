@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"overgo/internal/binaryschema"
 )
 
 // EncodeOptions: controls special-token handling
@@ -322,13 +324,11 @@ func decodeBytes(text string) ([]byte, error) {
 	return output, nil
 }
 
-const byteValueCount = int(^byte(0)) + 1
-
 var byteEncoder, byteDecoder = makeByteCodec()
 
-func makeByteCodec() ([byteValueCount]rune, map[rune]byte) {
-	var encoder [byteValueCount]rune
-	used := make(map[int]bool, byteValueCount)
+func makeByteCodec() ([binaryschema.ByteValueCount]rune, map[rune]byte) {
+	var encoder [binaryschema.ByteValueCount]rune
+	used := make(map[int]bool, binaryschema.ByteValueCount)
 	for value := 0x21; value <= 0x7e; value++ {
 		encoder[value] = rune(value)
 		used[value] = true
@@ -342,13 +342,13 @@ func makeByteCodec() ([byteValueCount]rune, map[rune]byte) {
 		used[value] = true
 	}
 	next := 0
-	for value := 0; value < byteValueCount; value++ {
+	for value := 0; value < binaryschema.ByteValueCount; value++ {
 		if !used[value] {
-			encoder[value] = rune(byteValueCount + next)
+			encoder[value] = rune(binaryschema.ByteValueCount + next)
 			next++
 		}
 	}
-	decoder := make(map[rune]byte, byteValueCount)
+	decoder := make(map[rune]byte, binaryschema.ByteValueCount)
 	for value, encoded := range encoder {
 		decoder[encoded] = byte(value)
 	}

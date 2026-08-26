@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	maxGBNFSourceBytes = 1 << 20
-	maxGBNFWorkUnits   = 1 << 20
+	maxGBNFSourceBytes   = 1 << 20
+	maxGBNFWorkUnits     = 1 << 20
+	gbnfSingleOccurrence = 1
 )
 
 type gbnfSymbolKind uint8
@@ -333,7 +334,7 @@ func (p *gbnfParser) parseSequence(nested bool) ([]gbnfTerm, error) {
 					err = p.errorf("expected )")
 				} else {
 					p.offset++
-					term = gbnfTerm{kind: gbnfGroupTerm, group: &group, min: 1, max: 1}
+					term = gbnfTerm{kind: gbnfGroupTerm, group: &group, min: gbnfSingleOccurrence, max: gbnfSingleOccurrence}
 				}
 			}
 		case '.':
@@ -341,8 +342,8 @@ func (p *gbnfParser) parseSequence(nested bool) ([]gbnfTerm, error) {
 			term = gbnfTerm{
 				kind:  gbnfClassTerm,
 				class: gbnfTerminal{ranges: []gbnfRange{{low: 0, high: utf8.MaxRune}}},
-				min:   1,
-				max:   1,
+				min:   gbnfSingleOccurrence,
+				max:   gbnfSingleOccurrence,
 			}
 		case '<', '!':
 			term, err = p.parseTokenTerminal()
@@ -353,8 +354,8 @@ func (p *gbnfParser) parseSequence(nested bool) ([]gbnfTerm, error) {
 				term = gbnfTerm{
 					kind: gbnfReferenceTerm,
 					name: name,
-					min:  1,
-					max:  1,
+					min:  gbnfSingleOccurrence,
+					max:  gbnfSingleOccurrence,
 				}
 			} else {
 				return nil, p.errorf("unexpected character %q", value)
@@ -395,7 +396,7 @@ func (p *gbnfParser) parseTokenTerminal() (gbnfTerm, error) {
 		if digits == "" {
 			return gbnfTerm{}, p.errorf("empty numeric token terminal")
 		}
-		value, err := strconv.ParseUint(digits, 10, 31)
+		value, err := strconv.ParseUint(digits, binaryschema.DecimalRadix, 31)
 		if err != nil {
 			return gbnfTerm{}, p.errorf("invalid numeric token terminal %q", raw)
 		}
@@ -418,8 +419,8 @@ func (p *gbnfParser) parseTokenTerminal() (gbnfTerm, error) {
 		kind:     gbnfTokenTerm,
 		token:    token,
 		tokenNot: inverse,
-		min:      1,
-		max:      1,
+		min:      gbnfSingleOccurrence,
+		max:      gbnfSingleOccurrence,
 	}, nil
 }
 
@@ -435,8 +436,8 @@ func (p *gbnfParser) parseLiteral() (gbnfTerm, error) {
 			return gbnfTerm{
 				kind:    gbnfLiteralTerm,
 				literal: literal,
-				min:     1,
-				max:     1,
+				min:     gbnfSingleOccurrence,
+				max:     gbnfSingleOccurrence,
 			}, nil
 		}
 		value, err := p.parseCharacter()
@@ -467,8 +468,8 @@ func (p *gbnfParser) parseClass() (gbnfTerm, error) {
 			return gbnfTerm{
 				kind:  gbnfClassTerm,
 				class: terminal,
-				min:   1,
-				max:   1,
+				min:   gbnfSingleOccurrence,
+				max:   gbnfSingleOccurrence,
 			}, nil
 		}
 		first, err := p.parseCharacter()
@@ -539,7 +540,7 @@ func (p *gbnfParser) parseHexRune(digits int) (rune, error) {
 		return 0, p.errorf("hex escape needs %d digits", digits)
 	}
 	raw := p.source[p.offset : p.offset+digits]
-	value, err := strconv.ParseUint(raw, 16, binaryschema.Width32Bits)
+	value, err := strconv.ParseUint(raw, binaryschema.HexRadix, binaryschema.Width32Bits)
 	if err != nil {
 		return 0, p.errorf("invalid hex escape %q", raw)
 	}
@@ -616,7 +617,7 @@ func (p *gbnfParser) parseInteger() (int, error) {
 	if start == p.offset {
 		return 0, p.errorf("expected repetition integer")
 	}
-	value, err := strconv.ParseUint(p.source[start:p.offset], 10, 31)
+	value, err := strconv.ParseUint(p.source[start:p.offset], binaryschema.DecimalRadix, 31)
 	if err != nil {
 		return 0, p.errorf("invalid repetition integer")
 	}

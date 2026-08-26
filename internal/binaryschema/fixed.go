@@ -9,12 +9,19 @@ const (
 	// BitsPerByte is the bit width of Go's byte and supported wire bytes.
 	BitsPerByte = 8
 	// Uint8Bytes is the storage width of an unsigned 8-bit scalar.
-	Uint8Bytes  = 1
-	Uint16Bytes = 2
-	Uint32Bytes = 4
-	Uint64Bytes = 8
-	Width32Bits = Uint32Bytes * BitsPerByte
-	Width64Bits = Uint64Bytes * BitsPerByte
+	Uint8Bytes     = 1
+	Uint16Bytes    = 2
+	Uint32Bytes    = 4
+	Uint64Bytes    = 8
+	Width32Bits    = Uint32Bytes * BitsPerByte
+	Width64Bits    = Uint64Bytes * BitsPerByte
+	ByteValueCount = 1 << BitsPerByte
+	BinaryRadix    = 2
+	OctalRadix     = 8
+	DecimalRadix   = 10
+	HexRadix       = 16
+	NibbleBits     = BitsPerByte / 2
+	NibbleMask     = 1<<NibbleBits - 1
 )
 
 // Fixed: byte order for fixed-width scalar storage.

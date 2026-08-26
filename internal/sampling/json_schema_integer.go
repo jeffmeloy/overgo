@@ -197,7 +197,7 @@ func buildSchemaIntegerMinimumDepth(
 				schemaVariableDigitCount(len(text), lessDigits),
 		)
 	}
-	tail, err := strconv.ParseInt(text[1:], 10, binaryschema.Width64Bits)
+	tail, err := strconv.ParseInt(text[1:], binaryschema.DecimalRadix, binaryschema.Width64Bits)
 	if err != nil {
 		return "", err
 	}

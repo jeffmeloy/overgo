@@ -22,6 +22,10 @@ func (f codecField) end() int {
 	return f.start + f.size
 }
 
+func (f codecField) present() bool {
+	return f.size != 0
+}
+
 type blockCodecLayout struct {
 	dataType dtype.Type
 	elements int
@@ -324,3 +328,45 @@ var (
 		high: field(q6KHighStart, q6KHighBytes), packed: field(q6KLowerStart, q6KLowerBytes),
 	}
 )
+
+const (
+	iqSignPayloadBits = 7
+	iqSignPayloadMask = 1<<iqSignPayloadBits - 1
+)
+
+func (l affineGroupLayout) scalePackedMask() int {
+	return 1<<l.scalePackedBits - 1
+}
+
+func (l affineKCodecLayout) scaleLevel(data []byte, group int) int {
+	lowCount := l.groupCount() / 2
+	highCount := lowCount / 2
+	highBits := l.group.scaleBits - l.group.scalePackedBits
+	low := data[group%lowCount]
+	if group >= lowCount {
+		low >>= l.group.scalePackedBits
+	} else {
+		low &= byte(l.group.scalePackedMask())
+	}
+	high := (data[lowCount+group%highCount] >> uint(highBits*uint(group/highCount))) &
+		byte(1<<highBits-1)
+	return int(low|high<<l.group.scalePackedBits) - l.group.scaleZero
+}
+
+func (l affineKCodecLayout) setScaleLevel(data []byte, group, level int) {
+	lowCount := l.groupCount() / 2
+	highCount := lowCount / 2
+	highBits := l.group.scaleBits - l.group.scalePackedBits
+	low := byte(level & l.group.scalePackedMask())
+	if group < lowCount {
+		data[group] = low
+	} else {
+		data[group-lowCount] |= low << l.group.scalePackedBits
+	}
+	data[lowCount+group%highCount] |= byte(level>>l.group.scalePackedBits) <<
+		uint(highBits*uint(group/highCount))
+}
+
+func (l affineGroupLayout) centeredLevelBounds() (int, int) {
+	return -l.levelZero, l.levelZero - 1
+}

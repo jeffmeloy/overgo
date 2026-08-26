@@ -122,7 +122,7 @@ func parseSize(value string) (uint64, error) {
 		value = value[:len(value)-1]
 	}
 	value = strings.TrimSpace(value)
-	number, err := strconv.ParseUint(value, 10, binaryschema.Width64Bits)
+	number, err := strconv.ParseUint(value, binaryschema.DecimalRadix, binaryschema.Width64Bits)
 	if err != nil || number == 0 {
 		return 0, fmt.Errorf("gguf-split: invalid max size %q", original)
 	}

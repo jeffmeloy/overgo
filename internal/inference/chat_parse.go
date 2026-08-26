@@ -413,7 +413,7 @@ func coerceToolParameter(
 		kind, _ := property["type"].(string)
 		switch kind {
 		case "integer":
-			if parsed, err := strconv.ParseInt(value, 10, binaryschema.Width64Bits); err == nil {
+			if parsed, err := strconv.ParseInt(value, binaryschema.DecimalRadix, binaryschema.Width64Bits); err == nil {
 				return parsed
 			}
 		case "number":

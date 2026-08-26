@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/inference"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
@@ -31,8 +32,7 @@ func (h *Handler) validateNativeCompletionOptions(body nativeCompletionRequest) 
 	case body.TMaxPredictMS < -1:
 		return errors.New("t_max_predict_ms must be at least -1")
 	case body.SSEPingInterval != nil &&
-		(math.IsNaN(*body.SSEPingInterval) ||
-			math.IsInf(*body.SSEPingInterval, 0) ||
+		(!checked.Finite64(*body.SSEPingInterval) ||
 			*body.SSEPingInterval < -1 ||
 			*body.SSEPingInterval > math.MaxInt32 ||
 			math.Trunc(*body.SSEPingInterval) != *body.SSEPingInterval):

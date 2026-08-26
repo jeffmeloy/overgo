@@ -916,16 +916,16 @@ func parseIntLit(s string) (int, error) {
 	if len(s) > 2 && s[0] == '0' {
 		switch s[1] {
 		case 'x', 'X':
-			v, err := strconv.ParseInt(s[2:], 16, binaryschema.Width64Bits)
+			v, err := strconv.ParseInt(s[2:], binaryschema.HexRadix, binaryschema.Width64Bits)
 			return int(v), err
 		case 'b', 'B':
-			v, err := strconv.ParseInt(s[2:], 2, binaryschema.Width64Bits)
+			v, err := strconv.ParseInt(s[2:], binaryschema.BinaryRadix, binaryschema.Width64Bits)
 			return int(v), err
 		case 'o', 'O':
-			v, err := strconv.ParseInt(s[2:], 8, binaryschema.Width64Bits)
+			v, err := strconv.ParseInt(s[2:], binaryschema.OctalRadix, binaryschema.Width64Bits)
 			return int(v), err
 		}
 	}
-	v, err := strconv.ParseInt(s, 10, binaryschema.Width64Bits)
+	v, err := strconv.ParseInt(s, binaryschema.DecimalRadix, binaryschema.Width64Bits)
 	return int(v), err
 }

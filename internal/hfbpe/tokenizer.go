@@ -14,18 +14,17 @@ import (
 	"strings"
 	"unicode"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/jsonfile"
 )
-
-const byteValueCount = 256
 
 type Tokenizer struct {
 	vocab        map[string]int
 	mergeRank    map[string]int
 	special      map[string]int
 	specials     []string // longest-first
-	b2u          [byteValueCount]rune
-	u2bDense     [2 * byteValueCount]int16
+	b2u          [binaryschema.ByteValueCount]rune
+	u2bDense     [2 * binaryschema.ByteValueCount]int16
 	id2tok       map[int]string
 	spaceMarker  string
 	byteFallback bool
@@ -112,19 +111,19 @@ func (t *Tokenizer) buildByteAlphabet() {
 		inSet[b] = true
 	}
 	n := 0
-	cs := make([]rune, byteValueCount)
-	for b := 0; b < byteValueCount; b++ {
+	cs := make([]rune, binaryschema.ByteValueCount)
+	for b := 0; b < binaryschema.ByteValueCount; b++ {
 		if inSet[b] {
 			cs[b] = rune(b)
 		} else {
-			cs[b] = rune(byteValueCount + n)
+			cs[b] = rune(binaryschema.ByteValueCount + n)
 			n++
 		}
 	}
 	for i := range t.u2bDense {
 		t.u2bDense[i] = -1
 	}
-	for b := 0; b < byteValueCount; b++ {
+	for b := 0; b < binaryschema.ByteValueCount; b++ {
 		t.b2u[b] = cs[b]
 		t.u2bDense[cs[b]] = int16(b)
 	}

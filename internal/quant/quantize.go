@@ -12,13 +12,24 @@ import (
 )
 
 const (
-	negligibleQuantizationMagnitude = 1e-15
-	iq2MinimumMagnitude             = 1e-8
-	iq1MinimumMagnitude             = 1e-12
-	iqCodebookLaneWidth             = 8
-	iq3GroupWidth                   = 32
-	iq3CodebookWidth                = 4
-	iq2SGroupWidth                  = 16
+	negligibleQuantizationMagnitude         = 1e-15
+	iq2MinimumMagnitude                     = 1e-8
+	iq1MinimumMagnitude                     = 1e-12
+	iqCodebookLaneWidth                     = 8
+	iqNarrowGroupWidth                      = 2 * iqCodebookLaneWidth
+	iqWideGroupWidth                        = 4 * iqCodebookLaneWidth
+	iqWidePairWidth                         = 2 * iqWideGroupWidth
+	iqWideSubgroupCount                     = iqWideGroupWidth / iqCodebookLaneWidth
+	iq2CodebookLevelBits                    = 2
+	iq2CodebookLevelMax                     = 2
+	iq2CodebookStorageLevels                = 1 << iq2CodebookLevelBits
+	iq2CodebookLevelMask                    = iq2CodebookStorageLevels - 1
+	iq3CodebookWidth                        = 4
+	iq3CodebookLevelBits                    = 3
+	iq3CodebookLevelMax                     = 1<<iq3CodebookLevelBits - 1
+	minimumQuantizedLevel                   = 0
+	maximumAffineMinimum            float32 = 0
+	nearestDistanceTierCount                = 1
 )
 
 // Quantize: deterministic pinned GGML storage conversion.
@@ -227,7 +238,7 @@ func quantizeIQ3(
 		refineAll = true
 		scaleFudge = 1.033
 	}
-	scales := make([]float32, layout.elements/iq3GroupWidth)
+	scales := make([]float32, layout.elements/iqWideGroupWidth)
 	for block := 0; block < len(values)/layout.elements; block++ {
 		input := layout.input(values, block)
 		destination := layout.storage(output, block)
@@ -237,9 +248,9 @@ func quantizeIQ3(
 			}
 		}
 		var maxScale float32
-		for group := 0; group < layout.elements/iq3GroupWidth; group++ {
+		for group := 0; group < layout.elements/iqWideGroupWidth; group++ {
 			indices, signs, scale, err := quantizeIQ3Group(
-				input[group*iq3GroupWidth:(group+1)*iq3GroupWidth],
+				input[group*iqWideGroupWidth:(group+1)*iqWideGroupWidth],
 				codebook,
 				distanceTiers,
 				attempts,
@@ -284,7 +295,7 @@ func quantizeIQ3(
 		inverse := 1 / scale
 		for group, groupScale := range scales {
 			quantized := nearestIntGGML(0.5 * (inverse*groupScale - 1))
-			quantized = max(0, min(15, quantized))
+			quantized = max(minimumQuantizedLevel, min(binaryschema.NibbleMask, quantized))
 			if dataType == dtype.IQ3XXS {
 				offset := iq3XXSScaleSignStart + group*4
 				packed := binary.LittleEndian.Uint32(destination[offset:])
@@ -306,16 +317,16 @@ func quantizeIQ3Group(
 	distanceTiers, attempts int,
 	attemptStep float32,
 	paritySigns, refineAll bool,
-) ([iq3GroupWidth / iq3CodebookWidth]int, [iq3GroupWidth / iqCodebookLaneWidth]byte, float32, error) {
-	var indices [iq3GroupWidth / iq3CodebookWidth]int
-	var signs [iq3GroupWidth / iqCodebookLaneWidth]byte
-	weight := make([]float32, iq3GroupWidth)
-	neighborWeight := make([]float32, iq3GroupWidth)
-	absoluteValues := make([]float32, iq3GroupWidth)
-	levels := make([]int8, iq3GroupWidth)
-	auxiliary := make([]int8, iq3GroupWidth)
-	onGrid := [iq3GroupWidth / iq3CodebookWidth]bool{}
-	auxiliaryOnGrid := [iq3GroupWidth / iq3CodebookWidth]bool{}
+) ([iqWideGroupWidth / iq3CodebookWidth]int, [iqWideGroupWidth / iqCodebookLaneWidth]byte, float32, error) {
+	var indices [iqWideGroupWidth / iq3CodebookWidth]int
+	var signs [iqWideGroupWidth / iqCodebookLaneWidth]byte
+	weight := make([]float32, iqWideGroupWidth)
+	neighborWeight := make([]float32, iqWideGroupWidth)
+	absoluteValues := make([]float32, iqWideGroupWidth)
+	levels := make([]int8, iqWideGroupWidth)
+	auxiliary := make([]int8, iqWideGroupWidth)
+	onGrid := [iqWideGroupWidth / iq3CodebookWidth]bool{}
+	auxiliaryOnGrid := [iqWideGroupWidth / iq3CodebookWidth]bool{}
 	for index, value := range input {
 		weight[index] = value * value
 		neighborWeight[index] = absoluteFloat32(value)
@@ -344,7 +355,7 @@ func quantizeIQ3Group(
 				absoluteValues[index] = -absoluteValues[index]
 				signs[signGroup] ^= 1 << uint(minimumIndex)
 			}
-			signs[signGroup] &= 0x7f
+			signs[signGroup] &= iqSignPayloadMask
 		}
 	}
 	maximum := absoluteValues[0]
@@ -359,9 +370,9 @@ func quantizeIQ3Group(
 		return indices, signs, 0, nil
 	}
 	best := float32(0)
-	scale := maximum / 15
+	scale := maximum / binaryschema.NibbleMask
 	for attempt := -attempts; attempt <= attempts; attempt++ {
-		inverse := (15 + float32(attempt)*attemptStep) / maximum
+		inverse := (binaryschema.NibbleMask + float32(attempt)*attemptStep) / maximum
 		candidateScale := 1 / inverse
 		for subGroup := range indices {
 			var encoded uint16
@@ -369,9 +380,9 @@ func quantizeIQ3Group(
 				index := subGroup*iq3CodebookWidth + lane
 				level := nearestIntGGML(0.5 *
 					(inverse*absoluteValues[index] - 1))
-				level = max(0, min(7, level))
+				level = max(minimumQuantizedLevel, min(iq3CodebookLevelMax, level))
 				auxiliary[index] = int8(level)
-				encoded |= uint16(level) << uint(3*lane)
+				encoded |= uint16(level) << uint(iq3CodebookLevelBits*lane)
 			}
 			_, direct := codebook.index[encoded]
 			auxiliaryOnGrid[subGroup] = direct
@@ -388,7 +399,7 @@ func quantizeIQ3Group(
 			}
 		}
 		var sumValue, sumQuantized float32
-		for index := 0; index < iq3GroupWidth; index++ {
+		for index := 0; index < iqWideGroupWidth; index++ {
 			quantized := float32(2*auxiliary[index] + 1)
 			sumValue += weight[index] * absoluteValues[index] * quantized
 			sumQuantized += weight[index] * quantized * quantized
@@ -412,8 +423,8 @@ func quantizeIQ3Group(
 				index := subGroup*iq3CodebookWidth + lane
 				level := nearestIntGGML(0.5 *
 					(inverse*absoluteValues[index] - 1))
-				level = max(0, min(7, level))
-				encoded |= uint16(level) << uint(3*lane)
+				level = max(minimumQuantizedLevel, min(iq3CodebookLevelMax, level))
+				encoded |= uint16(level) << uint(iq3CodebookLevelBits*lane)
 			}
 			if gridIndex, direct := codebook.index[encoded]; direct {
 				for lane, value := range codebook.lane(gridIndex) {
@@ -432,7 +443,7 @@ func quantizeIQ3Group(
 			}
 		}
 		var sumValue, sumQuantized float32
-		for index := 0; index < iq3GroupWidth; index++ {
+		for index := 0; index < iqWideGroupWidth; index++ {
 			quantized := float32(2*levels[index] + 1)
 			sumValue += weight[index] * absoluteValues[index] * quantized
 			sumQuantized += weight[index] * quantized * quantized
@@ -446,14 +457,14 @@ func quantizeIQ3Group(
 		for index := range signs {
 			signs[index] = ^signs[index]
 			if paritySigns {
-				signs[index] &= 0x7f
+				signs[index] &= iqSignPayloadMask
 			}
 		}
 	}
 	for subGroup := range indices {
 		var encoded uint16
 		for lane := 0; lane < iq3CodebookWidth; lane++ {
-			encoded |= uint16(levels[subGroup*iq3CodebookWidth+lane]) << uint(3*lane)
+			encoded |= uint16(levels[subGroup*iq3CodebookWidth+lane]) << uint(iq3CodebookLevelBits*lane)
 		}
 		gridIndex, ok := codebook.index[encoded]
 		if !ok {
@@ -537,16 +548,16 @@ func iqFindBest(
 	return bestIndex
 }
 
-var iq2SQuantCodebook = buildIQQuantCodebook(iq2SGrid[:], iqCodebookLaneWidth, 2)
+var iq2SQuantCodebook = buildIQQuantCodebook(iq2SGrid[:], iqCodebookLaneWidth, iq2CodebookLevelBits)
 
 func quantizeIQ2S(values []float32, output []byte) error {
 	layout := iq2SBlockLayout
-	scales := make([]float32, layout.elements/iq2SGroupWidth)
-	weight := make([]float32, iq2SGroupWidth)
-	neighborWeight := make([]float32, iq2SGroupWidth)
-	absoluteValues := make([]float32, iq2SGroupWidth)
-	levels := make([]int8, iq2SGroupWidth)
-	auxiliary := make([]int8, iq2SGroupWidth)
+	scales := make([]float32, layout.elements/iqNarrowGroupWidth)
+	weight := make([]float32, iqNarrowGroupWidth)
+	neighborWeight := make([]float32, iqNarrowGroupWidth)
+	absoluteValues := make([]float32, iqNarrowGroupWidth)
+	levels := make([]int8, iqNarrowGroupWidth)
+	auxiliary := make([]int8, iqNarrowGroupWidth)
 	for block := 0; block < len(values)/layout.elements; block++ {
 		input := layout.input(values, block)
 		destination := layout.storage(output, block)
@@ -559,13 +570,13 @@ func quantizeIQ2S(values []float32, output []byte) error {
 		}
 		variance := 2 * sumSquares / float32(layout.elements)
 		var maxScale float32
-		for group := 0; group < layout.elements/iq2SGroupWidth; group++ {
-			groupInput := input[group*iq2SGroupWidth : (group+1)*iq2SGroupWidth]
+		for group := 0; group < layout.elements/iqNarrowGroupWidth; group++ {
+			groupInput := input[group*iqNarrowGroupWidth : (group+1)*iqNarrowGroupWidth]
 			clear(levels)
 			clear(auxiliary)
-			onGrid := [iq2SGroupWidth / iqCodebookLaneWidth]bool{true, true}
-			auxiliaryOnGrid := [iq2SGroupWidth / iqCodebookLaneWidth]bool{}
-			signs := [iq2SGroupWidth / iqCodebookLaneWidth]byte{}
+			onGrid := [iqNarrowGroupWidth / iqCodebookLaneWidth]bool{true, true}
+			auxiliaryOnGrid := [iqNarrowGroupWidth / iqCodebookLaneWidth]bool{}
+			signs := [iqNarrowGroupWidth / iqCodebookLaneWidth]byte{}
 			maximum := float32(0)
 			for index, value := range groupInput {
 				weight[index] = 0.25*variance + value*value
@@ -593,9 +604,9 @@ func quantizeIQ2S(values []float32, output []byte) error {
 					for lane := 0; lane < iqCodebookLaneWidth; lane++ {
 						level := nearestIntGGML(0.5 *
 							(inverse*absoluteValues[subGroup*iqCodebookLaneWidth+lane] - 1))
-						level = max(0, min(2, level))
+						level = max(minimumQuantizedLevel, min(iq2CodebookLevelMax, level))
 						auxiliary[subGroup*iqCodebookLaneWidth+lane] = int8(level)
-						encoded |= uint16(level) << uint(2*lane)
+						encoded |= uint16(level) << uint(iq2CodebookLevelBits*lane)
 					}
 					_, direct := iq2SQuantCodebook.index[encoded]
 					auxiliaryOnGrid[subGroup] = direct
@@ -607,12 +618,12 @@ func quantizeIQ2S(values []float32, output []byte) error {
 							neighborWeight[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
 							candidateScale,
 							auxiliary[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
-							1,
+							nearestDistanceTierCount,
 						)
 					}
 				}
 				var sumValue, sumQuantized float32
-				for index := 0; index < iq2SGroupWidth; index++ {
+				for index := 0; index < iqNarrowGroupWidth; index++ {
 					quantized := float32(2*auxiliary[index] + 1)
 					sumValue += weight[index] *
 						absoluteValues[index] * quantized
@@ -637,9 +648,9 @@ func quantizeIQ2S(values []float32, output []byte) error {
 					for lane := 0; lane < iqCodebookLaneWidth; lane++ {
 						level := nearestIntGGML(0.5 *
 							(inverse*absoluteValues[subGroup*iqCodebookLaneWidth+lane] - 1))
-						level = max(0, min(2, level))
+						level = max(minimumQuantizedLevel, min(iq2CodebookLevelMax, level))
 						levels[subGroup*iqCodebookLaneWidth+lane] = int8(level)
-						encoded |= uint16(level) << uint(2*lane)
+						encoded |= uint16(level) << uint(iq2CodebookLevelBits*lane)
 					}
 					if _, direct := iq2SQuantCodebook.index[encoded]; !direct {
 						iqFindBest(
@@ -649,12 +660,12 @@ func quantizeIQ2S(values []float32, output []byte) error {
 							neighborWeight[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
 							scale,
 							levels[subGroup*iqCodebookLaneWidth:(subGroup+1)*iqCodebookLaneWidth],
-							1,
+							nearestDistanceTierCount,
 						)
 					}
 				}
 				var sumValue, sumQuantized float32
-				for index := 0; index < iq2SGroupWidth; index++ {
+				for index := 0; index < iqNarrowGroupWidth; index++ {
 					quantized := float32(2*levels[index] + 1)
 					sumValue += weight[index] *
 						absoluteValues[index] * quantized
@@ -696,7 +707,7 @@ func quantizeIQ2S(values []float32, output []byte) error {
 		inverse := 1 / scale
 		for group, groupScale := range scales {
 			quantized := nearestIntGGML(0.5 * (inverse*groupScale - 1))
-			quantized = max(0, min(15, quantized))
+			quantized = max(minimumQuantizedLevel, min(binaryschema.NibbleMask, quantized))
 			if group%2 == 0 {
 				destination[iq2SScaleStart+group/2] = byte(quantized)
 			} else {
@@ -710,7 +721,7 @@ func quantizeIQ2S(values []float32, output []byte) error {
 func encodeIQ2Levels(levels []int8) uint16 {
 	var encoded uint16
 	for lane, level := range levels {
-		encoded |= uint16(level) << uint(2*lane)
+		encoded |= uint16(level) << uint(iq2CodebookLevelBits*lane)
 	}
 	return encoded
 }
@@ -777,10 +788,10 @@ func quantizeIQ4(
 				}
 				encodedScale := quantizedScale + 32
 				if group%2 == 0 {
-					destination[4+group/2] = byte(encodedScale & 0x0f)
+					destination[4+group/2] = byte(encodedScale & binaryschema.NibbleMask)
 				} else {
 					destination[4+group/2] |= byte(
-						(encodedScale & 0x0f) << 4,
+						(encodedScale & binaryschema.NibbleMask) << binaryschema.NibbleBits,
 					)
 				}
 				highScales |= uint16(encodedScale>>4) << uint(2*group)
@@ -1134,7 +1145,7 @@ func quantizeQ4Or5K(
 				level := nearestIntGGML(
 					(groupInput[index] + minimum) / scale,
 				)
-				groupLevels[index] = byte(max(0, min(layout.group.levelMax, level)))
+				groupLevels[index] = byte(max(minimumQuantizedLevel, min(layout.group.levelMax, level)))
 			}
 		}
 		if dataType == dtype.Q4K {
@@ -1152,10 +1163,11 @@ func quantizeQ4Or5K(
 		quantized := layout.packed.bytes(destination)
 		highBits := layout.high.bytes(destination)
 		lowOffset := 0
+		groupsPerSection := binaryschema.BitsPerByte / int(layout.group.packedBits)
+		sectionWidth := groupsPerSection * layout.group.width
 		lowMask := byte(1)
-		highMask := byte(2)
+		highMask := lowMask << (groupsPerSection - 1)
 		lowLevelCount := byte(1 << layout.group.packedBits)
-		sectionWidth := 2 * layout.group.width
 		for section := 0; section < layout.block.elements; section += sectionWidth {
 			for lane := 0; lane < layout.group.width; lane++ {
 				low := levels[section+lane]
@@ -1170,8 +1182,8 @@ func quantizeQ4Or5K(
 				}
 				quantized[lowOffset+lane] = low | high<<layout.group.packedBits
 			}
-			lowMask <<= 2
-			highMask <<= 2
+			lowMask <<= groupsPerSection
+			highMask <<= groupsPerSection
 			lowOffset += layout.group.width
 		}
 	}
@@ -1253,7 +1265,7 @@ func quantizeQ2K(values []float32, output []byte) error {
 				level := nearestIntGGML(
 					(groupInput[index] + minimum) / scale,
 				)
-				groupLevels[index] = byte(max(0, min(layout.group.levelMax, level)))
+				groupLevels[index] = byte(max(minimumQuantizedLevel, min(layout.group.levelMax, level)))
 			}
 		}
 		for section := 0; section < layout.block.elements; section += layout.block.elements / 2 {
@@ -1300,8 +1312,8 @@ func makeQKX2Quants(
 		sumWeight += weights[index]
 		sumValue += weights[index] * input[index]
 	}
-	if minimum > 0 {
-		minimum = 0
+	if minimum > maximumAffineMinimum {
+		minimum = maximumAffineMinimum
 	}
 	if maximum == minimum {
 		clear(levels)
@@ -1312,7 +1324,7 @@ func makeQKX2Quants(
 	bestError := float32(0)
 	for index, value := range input {
 		level := nearestIntGGML(inverse * (value - minimum))
-		level = max(0, min(maxLevel, level))
+		level = max(minimumQuantizedLevel, min(maxLevel, level))
 		levels[index] = byte(level)
 		difference := scale*float32(level) + minimum - value
 		if useAbsoluteError {
@@ -1332,7 +1344,7 @@ func makeQKX2Quants(
 		var sumLevel, sumLevelSquared, sumLevelValue float32
 		for index, value := range input {
 			level := nearestIntGGML(inverse * (value - minimum))
-			level = max(0, min(maxLevel, level))
+			level = max(minimumQuantizedLevel, min(maxLevel, level))
 			auxiliary[index] = byte(level)
 			weight := weights[index]
 			sumLevel += weight * float32(level)
@@ -1348,8 +1360,8 @@ func makeQKX2Quants(
 		candidateMinimum :=
 			(sumLevelSquared*sumValue - sumLevel*sumLevelValue) /
 				determinant
-		if candidateMinimum > 0 {
-			candidateMinimum = 0
+		if candidateMinimum > maximumAffineMinimum {
+			candidateMinimum = maximumAffineMinimum
 			candidateScale = sumLevelValue / sumLevelSquared
 		}
 		currentError := float32(0)
@@ -1407,52 +1419,38 @@ func quantizeQ3K(values []float32, output []byte) error {
 				quantized := nearestIntGGML(inverse * scales[group])
 				quantized = max(-layout.group.scaleZero, min(layout.group.scaleMax, quantized)) +
 					layout.group.scaleZero
-				if group < 8 {
-					scaleData[group] = byte(quantized & 0x0f)
-				} else {
-					scaleData[group-8] |= byte((quantized & 0x0f) << 4)
-				}
-				scaleData[8+group%4] |=
-					byte((quantized >> 4) << (2 * (group / 4)))
+				layout.setScaleLevel(scaleData, group, quantized)
 			}
 			scaleBits := Float32ToFloat16(1 / inverse)
 			binary.LittleEndian.PutUint16(layout.delta.bytes(destination), scaleBits)
 			scale = Float16ToFloat32(scaleBits)
 		}
 		for group := 0; group < layout.groupCount(); group++ {
-			quantizedScale := int(scaleData[group%8])
-			if group < 8 {
-				quantizedScale &= 0x0f
-			} else {
-				quantizedScale >>= 4
-			}
-			quantizedScale |= int(
-				(scaleData[8+group%4]>>uint(2*(group/4)))&3,
-			) << 4
-			quantizedScale -= layout.group.scaleZero
+			quantizedScale := layout.scaleLevel(scaleData, group)
 			groupScale := scale * float32(quantizedScale)
 			if groupScale == 0 {
 				continue
 			}
 			groupInput := layout.groupInput(input, group)
 			groupLevels := layout.groupLevels8(levels, group)
+			minimumLevel, maximumLevel := layout.group.centeredLevelBounds()
 			for index := range groupLevels {
 				level := nearestIntGGML(
 					groupInput[index] / groupScale,
 				)
-				level = max(-layout.group.levelZero, min(layout.group.levelZero-1, level))
+				level = max(minimumLevel, min(maximumLevel, level))
 				groupLevels[index] = int8(level + layout.group.levelZero)
 			}
 		}
 		maskIndex := 0
 		mask := byte(1)
 		for index := 0; index < layout.block.elements; index++ {
-			if levels[index] > 3 {
+			if int(levels[index]) > layout.group.packedLevelMax() {
 				highMasks[maskIndex] |= mask
-				levels[index] -= 4
+				levels[index] -= 1 << layout.group.packedBits
 			}
 			maskIndex++
-			if maskIndex == layout.block.elements/8 {
+			if maskIndex == layout.block.elements/binaryschema.BitsPerByte {
 				maskIndex = 0
 				mask <<= 1
 			}
@@ -1588,11 +1586,12 @@ func quantizeQ6K(values []float32, output []byte) error {
 			}
 			groupInput := layout.groupInput(input, group)
 			groupLevels := layout.groupLevels8(levels, group)
+			minimumLevel, maximumLevel := layout.group.centeredLevelBounds()
 			for index := range groupLevels {
 				level := nearestIntGGML(
 					groupInput[index] / groupScale,
 				)
-				level = max(-layout.group.levelZero, min(layout.group.levelZero-1, level))
+				level = max(minimumLevel, min(maximumLevel, level))
 				groupLevels[index] = int8(level + layout.group.levelZero)
 			}
 		}
@@ -1600,10 +1599,10 @@ func quantizeQ6K(values []float32, output []byte) error {
 			lowOffset := section / 2
 			highOffset := section / 4
 			for lane := 0; lane < kLaneWidth; lane++ {
-				q1 := byte(levels[section+lane]) & 0x0f
-				q2 := byte(levels[section+lane+kLaneWidth]) & 0x0f
-				q3 := byte(levels[section+lane+2*kLaneWidth]) & 0x0f
-				q4 := byte(levels[section+lane+3*kLaneWidth]) & 0x0f
+				q1 := byte(levels[section+lane]) & binaryschema.NibbleMask
+				q2 := byte(levels[section+lane+kLaneWidth]) & binaryschema.NibbleMask
+				q3 := byte(levels[section+lane+2*kLaneWidth]) & binaryschema.NibbleMask
+				q4 := byte(levels[section+lane+3*kLaneWidth]) & binaryschema.NibbleMask
 				lower[lowOffset+lane] = q1 | q3<<4
 				lower[lowOffset+kLaneWidth+lane] = q2 | q4<<4
 				high[highOffset+lane] =
@@ -1765,7 +1764,7 @@ func quantizeQ2_0(values []float32, output []byte) error {
 		packed := codec.packed.bytes(destination)
 		for index, value := range input {
 			quantized := int(roundFloat32(value*inverse)) + 1
-			quantized = max(0, min(3, quantized))
+			quantized = max(minimumQuantizedLevel, min(3, quantized))
 			packed[index/4] |= byte(quantized << uint((index%4)*2))
 		}
 	}
@@ -1815,17 +1814,17 @@ func quantizeQ4Or5(dataType dtype.Type, values []float32, output []byte) error {
 			} else {
 				low = int((input[lane]-minimum)*inverse + rounding)
 				high = int((input[lane+half]-minimum)*inverse + rounding)
-				if codec.high.size == 0 {
+				if !codec.high.present() {
 					low, high = min(codec.levels, low), min(codec.levels, high)
 				}
 			}
 			packed[lane] = byte(low&packedMask | (high&packedMask)<<codec.packedBits)
-			if codec.high.size != 0 {
+			if codec.high.present() {
 				highBits |= uint32((low>>codec.packedBits)&1) << uint(lane)
 				highBits |= uint32((high>>codec.packedBits)&1) << uint(lane+half)
 			}
 		}
-		if codec.high.size != 0 {
+		if codec.high.present() {
 			binary.LittleEndian.PutUint32(codec.high.bytes(destination), highBits)
 		}
 	}

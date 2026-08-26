@@ -382,7 +382,7 @@ func newDiffusionSampler(options DiffusionOptions) (*sampling.Sampler, error) {
 	}
 	topP := options.TopP
 	if topP == 0 {
-		topP = 1
+		topP = sampling.FullProbability
 	}
 	return sampling.New(sampling.Config{
 		Temperature: options.Temperature,

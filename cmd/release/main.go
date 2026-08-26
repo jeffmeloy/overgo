@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/runrecord"
 )
 
@@ -59,7 +60,6 @@ var releaseDocuments = []string{
 const (
 	versionFile          = "VERSION"
 	releaseDirectoryMode = os.FileMode(0o755)
-	releaseFileMode      = os.FileMode(0o644)
 )
 
 var versionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
@@ -146,12 +146,12 @@ func buildRelease(root, output string, verify bool) error {
 	}
 	archive := releaseArchiveName(version)
 	archivePath := filepath.Join(output, archive)
-	if err := os.WriteFile(archivePath, first, releaseFileMode); err != nil {
+	if err := os.WriteFile(archivePath, first, clioptions.OutputFileMode); err != nil {
 		return err
 	}
 	sum := sha256.Sum256(first)
 	checksum := hex.EncodeToString(sum[:]) + "  " + archive + "\n"
-	return os.WriteFile(archivePath+".sha256", []byte(checksum), releaseFileMode)
+	return os.WriteFile(archivePath+".sha256", []byte(checksum), clioptions.OutputFileMode)
 }
 
 func releaseManifestAuditCommand(root string) *exec.Cmd {

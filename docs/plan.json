@@ -1,6 +1,96 @@
 {
-  "campaign": "Model facts as typed OvergoDB runtime authority",
-  "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
+  "campaign": "Indexed graph runtime and typed model authority",
+  "doctrine": "One compiled graph contract owns node order, operand slots, input bindings, output bindings, and backend execution. Host and device paths consume ordered typed bindings. Shared schema traversal replaces backend-specific traversal. Runtime metadata uses typed destinations, never reflective field strings. Artifact loading materializes only inventory selected by the compiled model contract. Each wave migrates every caller and deletes displaced maps, wrappers, reflection, fallbacks, and subset copies in the same commit.",
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
-  "items": []
+  "items": [
+    {
+      "id": "layer-schema-bindings",
+      "title": "Use one layer-schema traversal for host and device graph bindings",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Return ordered host and device bindings from one neutral layer graph binder and delete backend-specific traversals",
+          "status": "open",
+          "verify": "go test ./internal/model ./internal/inference -count=1",
+          "capabilities": ["shared-schema", "ordered-bindings", "surface-reduction"]
+        }
+      ]
+    },
+    {
+      "id": "indexed-reference-runtime",
+      "title": "Compile reference graph operands and values into indexed storage",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Execute reference programs through compiled node, input, operand, and output slots with reusable flat value storage",
+          "status": "open",
+          "verify": "go test ./internal/tensor ./internal/tensor/reference ./internal/graphruntime -count=1",
+          "depends_on": ["layer-schema-bindings"],
+          "capabilities": ["indexed-execution", "allocation-reduction", "compiled-program"]
+        }
+      ]
+    },
+    {
+      "id": "ordered-host-feeds",
+      "title": "Make ordered host bindings the sole graph-feed contract",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Migrate graph-runtime callers to indexed host bindings and delete Feeds.Host, AddHost, and map-returning layer inputs",
+          "status": "open",
+          "verify": "go test ./internal/graphruntime ./internal/inference ./internal/projector ./internal/latentimage ./internal/latentvideo -count=1",
+          "depends_on": ["indexed-reference-runtime"],
+          "capabilities": ["host-device-convergence", "map-removal", "binding-authority"]
+        }
+      ]
+    },
+    {
+      "id": "graph-runtime-ownership",
+      "title": "Consolidate inference and projector graph execution ownership",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move shared build, bind, compile, and execute lifecycle into graphruntime and delete displaced runtime wrappers",
+          "status": "open",
+          "verify": "go test ./internal/graphruntime ./internal/inference ./internal/projector -count=1",
+          "depends_on": ["ordered-host-feeds"],
+          "capabilities": ["runtime-ownership", "wrapper-removal", "shared-lifecycle"]
+        }
+      ]
+    },
+    {
+      "id": "typed-metadata-destinations",
+      "title": "Replace reflective Spec destinations with typed bindings",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile metadata operations with typed Spec destinations and delete field-name reflection",
+          "status": "open",
+          "verify": "go test ./internal/model -count=1",
+          "depends_on": ["graph-runtime-ownership"],
+          "capabilities": ["typed-metadata", "reflection-removal", "compile-time-authority"]
+        }
+      ]
+    },
+    {
+      "id": "selective-dense-loading",
+      "title": "Load only compiled dense decoder inventory",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Select decoder tensors before materialization, validate through typed artifact policy, and delete subset maps and architecture switches",
+          "status": "open",
+          "verify": "go test ./internal/safetensors ./internal/densecausal ./internal/composition ./internal/trainingworkflow -count=1",
+          "depends_on": ["typed-metadata-destinations"],
+          "capabilities": ["selective-loading", "peak-memory-reduction", "typed-artifact-policy"]
+        }
+      ]
+    }
+  ]
 }

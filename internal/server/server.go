@@ -508,8 +508,14 @@ func New(config Config, generator Generator) (*Handler, error) {
 		}
 		return nil, err
 	}
+	catalogMemo := discovery.NewMemo()
+	if config.Repository != nil {
+		// Seed from persisted identity evidence so the first catalog view
+		// of this process answers from stat checks, not re-hashing.
+		catalogMemo = discovery.LoadMemo(context.Background(), config.Repository)
+	}
 	handler := &Handler{
-		catalogMemo:         discovery.NewMemo(),
+		catalogMemo:         catalogMemo,
 		issuedCalls:         newIssuedCallRegistry(config.MaxTokens),
 		config:              config,
 		generator:           generator,

@@ -2,5 +2,75 @@
   "campaign": "Literal authority and duplicate runtime tightening",
   "doctrine": "Counts route inspection; semantics decide consolidation. Recipes, artifact metadata, typed plans, and neutral operators own runtime policy. Constants name stable implementation contracts only. Test fixtures may carry local data but must not copy production policy or reconstruct production logic. Each wave migrates every targeted caller and deletes displaced loops, wrappers, and duplicate harnesses immediately. Preserve numerical behavior and wire contracts. Merge master after every gated commit.",
   "census_evidence": "evidence:sha256:84da019c5f63b742cf71e4f0a0b057e0c4c3328963b78de3cf4b4da83fbd7057",
-  "items": []
+  "items": [
+    {
+      "id": "benchmark-evidence-published",
+      "title": "Benchmark runs publish evidence: per-model perf evidence artifacts (prompt/generation tokens-per-second, device, commit) committed with lineage instead of printed and lost",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Benchmark runs publish evidence: per-model perf evidence artifacts (prompt/generation tokens-per-second, device, commit) committed with lineage instead of printed and lost",
+          "status": "open",
+          "verify": "go test ./cmd/benchmark ./internal/evaluation -count=1",
+          "depends_on": [
+            "catalog-persistent-identity/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evals-all-local-models",
+      "title": "Evals cover every local model we hold benchmarks for, with lm_eval-convention suites (mmlu_pro, truthfulqa, bbh, musr, ifeval, math...) ported natively: the evaluation manifest derives from the store (servable models x locally available benchmark suites), no hand-written model lists, no python harness",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Evals cover every local model we hold benchmarks for, with lm_eval-convention suites (mmlu_pro, truthfulqa, bbh, musr, ifeval, math...) ported natively: the evaluation manifest derives from the store (servable models x locally available benchmark suites), no hand-written model lists, no python harness",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1",
+          "depends_on": [
+            "catalog-persistent-identity/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-eval-any-model",
+      "title": "The GUI evaluates any servable local model, not just the served one: evals page targets a picked model, history/compare spans models, benchmark+eval evidence shows beside catalog entries",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The GUI evaluates any servable local model, not just the served one: evals page targets a picked model, history/compare spans models, benchmark+eval evidence shows beside catalog entries",
+          "status": "open",
+          "verify": "go test ./internal/server -run TestEvaluation -count=1",
+          "depends_on": [
+            "evals-all-local-models/do",
+            "benchmark-evidence-published/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "training-benchmark-gates",
+      "title": "Training runs bracket themselves with benchmark evidence: pre/post perf and eval evidence published per session so improvement is machine-checked, not narrated",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Training runs bracket themselves with benchmark evidence: pre/post perf and eval evidence published per session so improvement is machine-checked, not narrated",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run TestCampaign -count=1",
+          "depends_on": [
+            "benchmark-evidence-published/do"
+          ]
+        }
+      ]
+    }
+  ]
 }

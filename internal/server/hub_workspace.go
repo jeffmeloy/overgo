@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -45,6 +46,11 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "catalog_error", err.Error())
 		return
+	}
+	// Identities hashed during this pass persist so the next process
+	// answers from stat checks instead of re-hashing the model bytes.
+	if err := discovery.PublishMemo(request.Context(), h.config.Repository, h.catalogMemo); err != nil {
+		log.Printf("catalog: persist identity memo: %v", err)
 	}
 	listed := make([]catalogModel, 0, len(entries))
 	for _, entry := range entries {

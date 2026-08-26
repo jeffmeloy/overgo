@@ -16,6 +16,11 @@ import (
 type Memo struct {
 	mu      sync.Mutex
 	entries map[string]memoEntry
+	// loaded counts the entries seeded from persisted evidence; dirty
+	// reports hashing added identities since, so publishing is a no-op
+	// for a memo that answered purely from what it loaded.
+	loaded int
+	dirty  bool
 }
 
 type memoEntry struct {
@@ -50,4 +55,5 @@ func (m *Memo) record(key string, info os.FileInfo, identity fileIdentity) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.entries[key] = memoEntry{identity: identity, size: info.Size(), modified: info.ModTime()}
+	m.dirty = true
 }

@@ -48,7 +48,9 @@ func (r *CatalogResolver) Resolve(ctx context.Context, name string) (Servable, b
 				return Servable{}, false, err
 			}
 			r.opened = store
-			r.memo = discovery.NewMemo()
+			// Persisted identity evidence spares the resolver re-hashing
+			// the model bytes the serving child already identified.
+			r.memo = discovery.LoadMemo(ctx, store)
 		}
 		entries, _, err := discovery.CapabilityCatalog(ctx, r.opened, r.Limit, r.memo)
 		if err != nil {

@@ -29,6 +29,13 @@ func (r *Runner) ScoreContinuations(
 	if err != nil {
 		return nil, err
 	}
+	bosContext := false
+	if len(promptIDs) == 0 && prompt == "" {
+		// A tokenizer that does not auto-prepend BOS encodes the empty
+		// prompt to nothing; the BOS token itself is the empty context,
+		// and each candidate's own encoding is its continuation.
+		promptIDs, bosContext = []tokenizer.TokenID{r.vocab.BOS}, true
+	}
 	if len(promptIDs) == 0 {
 		return nil, errors.New("inference: continuation prompt produced no tokens")
 	}
@@ -40,6 +47,13 @@ func (r *Runner) ScoreContinuations(
 		full, err := r.vocab.Encode(prompt+candidate, tokenizer.EncodeOptions{AddSpecial: true})
 		if err != nil {
 			return nil, err
+		}
+		if bosContext {
+			if len(full) == 0 {
+				return nil, errors.New("inference: continuation candidate produced no tokens")
+			}
+			continuations[index] = full
+			continue
 		}
 		if len(full) <= len(promptIDs) || !slices.Equal(full[:len(promptIDs)], promptIDs) {
 			return nil, fmt.Errorf("inference: candidate %d changes the compiled prompt token prefix", index)

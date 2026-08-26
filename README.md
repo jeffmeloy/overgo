@@ -66,7 +66,8 @@ Overgo already combines the following components in one codebase:
 | Workflow control | Typed dependency graphs, bounded admission, resource placement, scheduled execution, restart recovery, and remote peers |
 | Mutation safety | Exact tool identity, persistent executable policy, inspection before mutation, argument-bound approval, and a durable receipt before a side effect |
 | Reproducibility | Content identities, provenance, run records, stage receipts, checkpoints, exact resume checks, and versioned activation |
-| Verification | Plan-driven gates, structural source analysis, host/device comparisons, model-specific evidence, and compatibility records |
+| Verification | Plan-driven gates with manifest-derived check selection, structural source analysis, host/device comparisons, model-specific evidence, and compatibility records |
+| Benchmarks and evaluation | Store-derived benchmark catalogs, native lm_eval-family suites, per-model prompt templates, domain-routed evaluation, and measured capability claims |
 | Human-directed work | External workbench for goals, chat and media, agent sessions, model and data operations, measurement review, intervention, and rollback |
 | RSI steering | Bounded steering interface shared with human-directed work; model-directed selection from accumulated evidence remains incomplete |
 | Interfaces | Command line, HTTP APIs, scheduled jobs, and an external operator workbench over shared backend state |
@@ -123,6 +124,7 @@ varies by capability.
 | Bounded and recoverable workflow execution | Implemented |
 | Durable authorization and mutation receipts | Implemented |
 | Independent host, CUDA, integration, and model verification lanes | Implemented; artifact coverage varies |
+| Verification derived from exact code manifests, fail-closed on unproven independence | Implemented |
 | Exact training checkpoints and fail-closed resume | Implemented for supported training paths |
 | Agent and automation lifecycle management | Implemented |
 | Measurement of automation effectiveness | Partial |
@@ -144,12 +146,15 @@ configuration, environment, and verification command behind each claim.
 - Keep one deterministic authority for planning, execution, policy decisions,
   evidence, and recovery.
 - Bound retrieval construction and search as well as request execution.
-- Derive verification from changed symbols and interfaces, with run-by-default
-  behavior when independence cannot be proven.
-- Maintain false-negative corpora for gate selection and mutation tests for the
-  automation itself.
+- Maintain mutation tests for the automation itself.
 - Finish race, restart, browser, device, and release verification across the
   integrated agent and automation paths.
+
+Verification is now derived from exact code manifests: the gate selects checks
+from the symbol-level delta of the candidate snapshot, proves each exclusion
+against declared ownership, and runs by default when independence cannot be
+proven. A false-negative corpus pins the selector's boundaries, and the same
+manifest authority projects bounded planning context to agents.
 
 ### 2. Measure the automation
 

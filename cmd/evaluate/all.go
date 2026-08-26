@@ -144,6 +144,19 @@ func declareEvalDomain(ctx context.Context, repository, modelPath, domainsCSV st
 // authorities and campaigns each one, optionally restricted to a
 // single family source suffix for bounded smoke runs.
 func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) error {
+	// The model's input-shaping declaration lands in the store: the
+	// runner derives it from the model's own metadata, and the store
+	// records it as the authority every consumer reads.
+	if prefix := s.runner.ScoringPrefix(); prefix != "" {
+		if _, declared, _ := evaluation.LoadPromptTemplate(ctx, s.store, s.model); !declared {
+			if _, err := evaluation.PublishPromptTemplate(ctx, s.store, evaluation.PromptTemplate{
+				Model: s.model, Source: "tokenizer-metadata", ScoringPrefix: prefix,
+			}); err != nil {
+				return err
+			}
+			fmt.Printf("published prompt template: scoring prefix %q\n", prefix)
+		}
+	}
 	suites, skipped, err := evaluation.DeriveStoreSuites(ctx, s.store, s.campaign.Authorities())
 	if err != nil {
 		return err

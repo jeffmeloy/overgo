@@ -149,9 +149,14 @@ func EvaluateSequenceScoring(
 	report := SequenceScoringReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
 	}
+	// The model's declared scoring prefix shapes pure-sequence input --
+	// a hybrid DNA tokenizer scores inside its declared region, exactly
+	// the trained format; models without a declaration score from the
+	// empty context.
+	prefix := runtimeScoringPrefix(scorer)
 	var totalNLL float64
 	for _, testCase := range compiled.suite.Cases {
-		scores, err := scorer.ScoreContinuations(ctx, "", []string{testCase.Text})
+		scores, err := scorer.ScoreContinuations(ctx, prefix, []string{testCase.Text})
 		if err != nil {
 			return SequenceScoringReport{}, err
 		}

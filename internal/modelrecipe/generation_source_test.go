@@ -35,7 +35,7 @@ func TestResolveGenerationSource(t *testing.T) {
 		if profile.Profile == "" {
 			profileID = artifact.ID{}
 		}
-		definition, err := profile.Definition(modelID, profileID)
+		definition, err := GenerationDefinition(profile.Prepare, modelID, profileID)
 		if err != nil {
 			t.Fatal(err)
 		}

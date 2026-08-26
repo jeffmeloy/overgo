@@ -21,7 +21,7 @@ func resolveDeclaredVideoSource(path string) (capabilitySource, error) {
 		return capabilitySource{}, err
 	}
 	return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
-		definition, err := source.Definition(modelID, artifact.ID{})
+		definition, err := modelrecipe.GenerationDefinition(source.Prepare, modelID, artifact.ID{})
 		return definition, nil, err
 	}}, nil
 }

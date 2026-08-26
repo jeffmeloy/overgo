@@ -72,7 +72,7 @@ func resolveImageSource(path string) (capabilitySource, error) {
 	}
 
 	return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
-		definition, err := source.Definition(modelID, profileID)
+		definition, err := modelrecipe.GenerationDefinition(source.Prepare, modelID, profileID)
 		return definition, contents, err
 	}}, nil
 }

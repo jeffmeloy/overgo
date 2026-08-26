@@ -28,7 +28,7 @@ const unsupportedProfilePolicyValue = ^uint8(0)
 
 func seedProfileDocuments(t *testing.T) []ProfileDocument {
 	t.Helper()
-	documents, err := CompileArchitectureProfileCatalog()
+	documents, err := compileArchitectureProfileCatalog()
 	if err != nil {
 		t.Fatal(err)
 	}

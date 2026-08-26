@@ -64,11 +64,6 @@ func ResolveGenerationSource(task recipe.Task, identity hfrepo.Identity) (Genera
 	return *found, nil
 }
 
-// Definition compiles the profile-selected topology.
-func (p GenerationSourceProfile) Definition(modelID, profileID artifact.ID) (recipe.Definition, error) {
-	return GenerationDefinition(p.Prepare, modelID, profileID)
-}
-
 // GenerationDefinition compiles one declared linear generation topology.
 func GenerationDefinition(prepare recipe.ModuleID, modelID, profileID artifact.ID) (recipe.Definition, error) {
 	capability, ok := generationCapabilities[prepare]

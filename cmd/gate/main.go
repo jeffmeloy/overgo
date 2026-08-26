@@ -35,6 +35,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/codemanifest"
 	"overgo/internal/codeprofile"
 	"overgo/internal/finding"
 	"overgo/internal/guard"
@@ -79,6 +80,7 @@ type gateContext struct {
 	packageGraph *packageInputGraph
 	selection    automationcheck.SelectionMetrics
 	selectionID  string
+	manifestPlan *automationcheck.ManifestPlan
 }
 
 func main() {
@@ -297,12 +299,17 @@ func (g *gateContext) pipeline() error {
 		devicePackages, graphErr = graph.dependentDirectories("internal/cuda")
 	}
 	definitions := g.pipelineChecks(devicePackages...)
-	structural, structuralErr := g.deriveStructuralImpact()
+	structural, baseManifest, candidateManifest, structuralErr := g.deriveManifestImpact()
 	surface := automationcheck.Surface{}
 	if structuralErr == nil {
-		surface = ownershipSurface(structural)
+		surface = automationcheck.ManifestSurface(structural)
 	} else {
-		g.honesty = append(g.honesty, "structural impact unavailable; owned checks defaulted to run: "+structuralErr.Error())
+		legacy, legacyErr := g.deriveStructuralImpact()
+		if legacyErr == nil {
+			surface = ownershipSurface(legacy)
+		}
+		surface.Unknown = append(surface.Unknown, "code manifest unavailable: "+structuralErr.Error())
+		g.honesty = append(g.honesty, "code manifest unavailable; owned checks defaulted to run: "+structuralErr.Error())
 	}
 	if graphErr != nil {
 		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
@@ -324,6 +331,15 @@ func (g *gateContext) pipeline() error {
 	checks, err := automationcheck.Plan(definitions, impact)
 	if err != nil {
 		return err
+	}
+	if structuralErr == nil {
+		bound, err := automationcheck.BindManifestPlan(baseManifest.ID, candidateManifest.ID, surface, impact, checks)
+		if err != nil {
+			return err
+		}
+		g.manifestPlan = &bound
+		g.selectionID = bound.ID.String()
+		g.honesty = append(g.honesty, "manifest plan: "+bound.ID.String())
 	}
 	cache := g.loadRetryCache()
 	cache.Compact()
@@ -426,6 +442,105 @@ func (g *gateContext) deriveStructuralImpact() (codeprofile.FunctionImpact, erro
 		g.structural, g.baseSource = &impact, &base
 	}
 	return impact, err
+}
+
+func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.Manifest, codemanifest.Manifest, error) {
+	candidate, err := g.sourceSnapshot()
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	base, err := sourceAtHEAD(g.repo, candidate)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	baseInputs, err := g.manifestExternalInputs(false)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	candidateInputs, err := g.manifestExternalInputs(true)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	baseManifest, err := codemanifest.Generate(base, []repoanalysis.BuildSelection{selection}, baseInputs)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	candidateManifest, err := codemanifest.Generate(candidate, []repoanalysis.BuildSelection{selection}, candidateInputs)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	delta, err := codemanifest.Diff(baseManifest, candidateManifest)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	impact, err := codemanifest.Close(baseManifest, candidateManifest, delta)
+	return impact, baseManifest, candidateManifest, err
+}
+
+func (g *gateContext) manifestExternalInputs(candidate bool) ([]codemanifest.ExternalInput, error) {
+	var inputs []codemanifest.ExternalInput
+	for _, name := range g.paths {
+		if strings.HasSuffix(name, ".go") {
+			continue
+		}
+		var digest string
+		var found bool
+		var err error
+		if candidate {
+			digest, found, err = worktreeFileDigest(g.repo, name)
+		} else {
+			digest, found, err = revisionFileDigest(g.repo, "HEAD", name)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			inputs = append(inputs, codemanifest.ExternalInput{
+				Path: name, ContentID: digest, Kind: "repository-file", Owner: path.Dir(name),
+			})
+		}
+	}
+	return inputs, nil
+}
+
+func worktreeFileDigest(root, relative string) (string, bool, error) {
+	file, err := os.Open(filepath.Join(root, filepath.FromSlash(relative)))
+	if errors.Is(err, os.ErrNotExist) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	defer file.Close()
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		return "", false, err
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), true, nil
+}
+
+func revisionFileDigest(root, revision, relative string) (string, bool, error) {
+	object := revision + ":" + filepath.ToSlash(relative)
+	probe := exec.Command("git", "cat-file", "-e", object)
+	probe.Dir = root
+	if err := probe.Run(); err != nil {
+		if _, missing := err.(*exec.ExitError); missing {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	hasher := sha256.New()
+	show := exec.Command("git", "show", object)
+	show.Dir = root
+	show.Stdout = hasher
+	if err := show.Run(); err != nil {
+		return "", false, err
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), true, nil
 }
 
 func ownershipSurface(impact codeprofile.FunctionImpact) automationcheck.Surface {

@@ -10,21 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "plan",
-          "title": "Build an immutable gate plan from candidate identity, manifest delta, impact closure, dependencies, resources, triggers, and affirmative exclusions",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck ./cmd/gate -run 'TestManifestPlan|TestUnknownRunsChecks|TestExclusionRequiresProof' -count=1",
-          "rationale": "Manifest analysis is a prerequisite to gate selection, not a selectable gate that can exclude itself.",
-          "depends_on": [
-            "code-manifest-ownership"
-          ],
-          "capabilities": [
-            "deterministic-gate-plan",
-            "affirmative-exclusion",
-            "dependency-order"
-          ]
-        },
-        {
           "id": "inspect",
           "title": "Expose a read-only planning command that prints selected, excluded, unresolved, and dependency-added checks with exact reasons",
           "status": "open",

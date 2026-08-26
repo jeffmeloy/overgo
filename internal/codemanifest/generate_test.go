@@ -21,7 +21,7 @@ func TestGenerateSymbolIdentityAndReferenceGraph(t *testing.T) {
 		Files:    map[string]bool{"internal/example/apply.go": true, "internal/example/run.go": true},
 		Packages: map[string]string{"internal/example/apply.go": "overgo/internal/example", "internal/example/run.go": "overgo/internal/example"},
 	}
-	manifest, err := Generate(snapshot, selection)
+	manifest, err := Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,9 +58,9 @@ func generateSingleFile(t *testing.T, root, name string) Manifest {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := Generate(snapshot, repoanalysis.BuildSelection{
+	manifest, err := Generate(snapshot, []repoanalysis.BuildSelection{{
 		Context: "linux/amd64", Root: root, Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"},
-	})
+	}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

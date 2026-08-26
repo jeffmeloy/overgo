@@ -30,7 +30,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	manifest, err := codemanifest.Generate(snapshot, selection)
+	manifest, err := codemanifest.Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil)
 	if err != nil {
 		return err
 	}

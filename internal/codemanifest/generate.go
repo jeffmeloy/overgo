@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 
 	"overgo/internal/codeprofile"
@@ -15,29 +16,55 @@ const (
 	analyzerVersion = "consumer-graph-v1"
 )
 
+type contextGraph struct {
+	context      BuildContext
+	selection    repoanalysis.BuildSelection
+	declarations []codeprofile.ConsumerDeclaration
+	references   []codeprofile.ConsumerReference
+}
+
 // Generate composes a canonical manifest from the repository's existing
-// source snapshot, function profile, build selection, and consumer graph.
-func Generate(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.BuildSelection) (Manifest, error) {
-	context, err := buildContext(selection)
-	if err != nil {
-		return Manifest{}, err
+// source snapshot, function profile, build selections, consumer graphs, and
+// caller-declared content-identified external inputs.
+func Generate(snapshot repoanalysis.SourceSnapshot, selections []repoanalysis.BuildSelection, external []ExternalInput) (Manifest, error) {
+	if len(selections) == 0 || len(selections) > maxBuildContexts {
+		return Manifest{}, errors.New("code manifest: invalid build selection count")
 	}
 	profile, err := codeprofile.Build(snapshot)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("code manifest: profile: %w", err)
 	}
-	declarations, edges, _, err := codeprofile.ProductionConsumerGraph(snapshot, selection)
-	if err != nil {
-		return Manifest{}, fmt.Errorf("code manifest: consumer graph: %w", err)
+	graphs := make([]contextGraph, 0, len(selections))
+	seenContexts := map[string]bool{}
+	for _, selection := range selections {
+		context, err := buildContext(selection)
+		if err != nil {
+			return Manifest{}, err
+		}
+		if seenContexts[context.ID] {
+			return Manifest{}, fmt.Errorf("code manifest: duplicate build context %q", context.ID)
+		}
+		seenContexts[context.ID] = true
+		declarations, references, _, err := codeprofile.ProductionConsumerGraph(snapshot, selection)
+		if err != nil {
+			return Manifest{}, fmt.Errorf("code manifest: consumer graph for %s: %w", context.ID, err)
+		}
+		graphs = append(graphs, contextGraph{context: context, selection: selection, declarations: declarations, references: references})
 	}
 	manifest := Manifest{
 		Version: Version, SourceIdentity: snapshot.Identity(),
-		Analyzer:      Analyzer{Name: analyzerName, Version: analyzerVersion},
-		BuildContexts: []BuildContext{context},
+		Analyzer:       Analyzer{Name: analyzerName, Version: analyzerVersion},
+		ExternalInputs: slices.Clone(external),
 	}
-	packages := declarationPackages(declarations)
+	for _, graph := range graphs {
+		manifest.BuildContexts = append(manifest.BuildContexts, graph.context)
+	}
+	packages, err := filePackages(graphs)
+	if err != nil {
+		return Manifest{}, err
+	}
 	for _, source := range snapshot.Files {
-		file, boundaries, err := manifestFile(source, selection, context.ID, packages[source.Path])
+		file, boundaries, err := manifestFile(source, graphs, packages[source.Path])
 		if err != nil {
 			return Manifest{}, err
 		}
@@ -45,41 +72,46 @@ func Generate(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.Build
 		manifest.Uncertainty = append(manifest.Uncertainty, boundaries...)
 	}
 	fingerprints := profileFingerprints(profile)
-	known := map[string]SymbolID{}
-	for _, declaration := range declarations {
-		if !selection.Files[declaration.File] {
-			continue
-		}
-		kind, ok := functionKind(declaration.Kind)
-		if !ok {
-			continue
-		}
-		key := declaration.File + "\x00" + declaration.Receiver + "\x00" + declaration.Name
-		facts, found := fingerprints[key]
-		id := SymbolID{Package: declaration.Package, Receiver: declaration.Receiver, Name: declaration.Name, Kind: kind}
-		if !found {
-			manifest.Uncertainty = append(manifest.Uncertainty, Uncertainty{
-				Kind: UncertaintyAnalysis, Path: declaration.File, Symbol: &id,
-				Reason: "function declaration has no profiled body and signature",
+	for _, graph := range graphs {
+		known := map[string]SymbolID{}
+		for _, declaration := range graph.declarations {
+			if !graph.selection.Files[declaration.File] {
+				continue
+			}
+			kind, ok := functionKind(declaration.Kind)
+			if !ok {
+				continue
+			}
+			key := declaration.File + "\x00" + declaration.Receiver + "\x00" + declaration.Name
+			facts, found := fingerprints[key]
+			id := SymbolID{
+				Package: declaration.Package, Context: graph.context.ID,
+				Receiver: declaration.Receiver, Name: declaration.Name, Kind: kind,
+			}
+			if !found {
+				manifest.Uncertainty = append(manifest.Uncertainty, Uncertainty{
+					Kind: UncertaintyAnalysis, Path: declaration.File, Context: graph.context.ID, Symbol: &id,
+					Reason: "function declaration has no profiled body and signature",
+				})
+				continue
+			}
+			manifest.Symbols = append(manifest.Symbols, Symbol{
+				ID: id, File: declaration.File, SignatureSHA256: facts.signature,
+				BodySHA256: facts.body, Exported: declaration.Exported,
 			})
-			continue
+			known[declarationKey(declaration)] = id
+			if boundary, ok := declarationUncertainty(declaration, graph.context.ID, id); ok {
+				manifest.Uncertainty = append(manifest.Uncertainty, boundary)
+			}
 		}
-		manifest.Symbols = append(manifest.Symbols, Symbol{
-			ID: id, File: declaration.File, SignatureSHA256: facts.signature,
-			BodySHA256: facts.body, Exported: declaration.Exported,
-		})
-		known[declarationKey(declaration)] = id
-		if boundary, ok := declarationUncertainty(declaration, id); ok {
-			manifest.Uncertainty = append(manifest.Uncertainty, boundary)
+		for _, edge := range graph.references {
+			from, fromKnown := known[declarationKey(edge.From)]
+			to, toKnown := known[declarationKey(edge.To)]
+			if !fromKnown || !toKnown {
+				continue
+			}
+			manifest.References = append(manifest.References, Reference{From: from, To: to, Kind: referenceKind(to.Kind)})
 		}
-	}
-	for _, edge := range edges {
-		from, fromKnown := known[declarationKey(edge.From)]
-		to, toKnown := known[declarationKey(edge.To)]
-		if !fromKnown || !toKnown {
-			continue
-		}
-		manifest.References = append(manifest.References, Reference{From: from, To: to, Kind: referenceKind(to.Kind)})
 	}
 	return codec.New(manifest)
 }
@@ -109,17 +141,34 @@ func buildContext(selection repoanalysis.BuildSelection) (BuildContext, error) {
 	return BuildContext{ID: selection.Context, GOOS: goos, GOARCH: goarch}, nil
 }
 
-func declarationPackages(declarations []codeprofile.ConsumerDeclaration) map[string]string {
+func filePackages(graphs []contextGraph) (map[string]string, error) {
 	packages := map[string]string{}
-	for _, declaration := range declarations {
-		if packages[declaration.File] == "" {
-			packages[declaration.File] = declaration.Package
+	bind := func(file, packagePath string) error {
+		if packagePath == "" {
+			return nil
+		}
+		if prior := packages[file]; prior != "" && prior != packagePath {
+			return fmt.Errorf("code manifest: file %s has conflicting packages %s and %s", file, prior, packagePath)
+		}
+		packages[file] = packagePath
+		return nil
+	}
+	for _, graph := range graphs {
+		for file, packagePath := range graph.selection.Packages {
+			if err := bind(file, packagePath); err != nil {
+				return nil, err
+			}
+		}
+		for _, declaration := range graph.declarations {
+			if err := bind(declaration.File, declaration.Package); err != nil {
+				return nil, err
+			}
 		}
 	}
-	return packages
+	return packages, nil
 }
 
-func manifestFile(source repoanalysis.GoFile, selection repoanalysis.BuildSelection, contextID, declaredPackage string) (File, []Uncertainty, error) {
+func manifestFile(source repoanalysis.GoFile, graphs []contextGraph, declaredPackage string) (File, []Uncertainty, error) {
 	generated, err := source.Generated()
 	if err != nil {
 		return File{}, nil, fmt.Errorf("code manifest: generated status for %s: %w", source.Path, err)
@@ -128,32 +177,36 @@ func manifestFile(source repoanalysis.GoFile, selection repoanalysis.BuildSelect
 	if err != nil {
 		return File{}, nil, fmt.Errorf("code manifest: build expression for %s: %w", source.Path, err)
 	}
-	packagePath := selection.Packages[source.Path]
-	if packagePath == "" {
-		packagePath = declaredPackage
-	}
+	packagePath := declaredPackage
 	var uncertainty []Uncertainty
 	if packagePath == "" {
 		packagePath = path.Dir(source.Path)
 		uncertainty = append(uncertainty, Uncertainty{
 			Kind: UncertaintyBuildSelection, Path: source.Path,
-			Reason: "build selection and declaration census do not identify the package",
+			Reason: "build selections and declaration censuses do not identify the package",
 		})
 	}
 	file := File{
 		Path: source.Path, ContentID: source.ContentID, Package: packagePath,
 		BuildExpression: expression, Generated: generated, Test: source.Test,
 	}
-	selected, known := selection.Files[source.Path]
-	if selected {
-		file.SelectedContexts = []string{contextID}
-	}
-	if !known || !selected {
-		reason := "build context excludes the source file"
-		if !known {
-			reason = "build context has no selection decision for the source file"
+	for _, graph := range graphs {
+		selected, known := graph.selection.Files[source.Path]
+		if selected {
+			file.SelectedContexts = append(file.SelectedContexts, graph.context.ID)
 		}
-		uncertainty = append(uncertainty, Uncertainty{Kind: UncertaintyBuildSelection, Path: source.Path, Reason: reason})
+		if !known {
+			uncertainty = append(uncertainty, Uncertainty{
+				Kind: UncertaintyBuildSelection, Path: source.Path, Context: graph.context.ID,
+				Reason: "build context has no selection decision for the source file",
+			})
+		}
+	}
+	if len(file.SelectedContexts) == 0 {
+		uncertainty = append(uncertainty, Uncertainty{
+			Kind: UncertaintyBuildSelection, Path: source.Path,
+			Reason: "no declared build context selects the source file",
+		})
 	}
 	if generated {
 		uncertainty = append(uncertainty, Uncertainty{Kind: UncertaintyGenerated, Path: source.Path, Reason: "generated source requires generator authority"})
@@ -183,7 +236,7 @@ func declarationKey(value codeprofile.ConsumerDeclaration) string {
 	return value.Package + "\x00" + value.File + "\x00" + value.Kind + "\x00" + value.Receiver + "\x00" + value.Name
 }
 
-func declarationUncertainty(declaration codeprofile.ConsumerDeclaration, symbol SymbolID) (Uncertainty, bool) {
+func declarationUncertainty(declaration codeprofile.ConsumerDeclaration, context string, symbol SymbolID) (Uncertainty, bool) {
 	kind := UncertaintyKind("")
 	switch declaration.Boundary {
 	case "reflection":
@@ -201,5 +254,8 @@ func declarationUncertainty(declaration codeprofile.ConsumerDeclaration, symbol 
 	default:
 		return Uncertainty{}, false
 	}
-	return Uncertainty{Kind: kind, Path: declaration.File, Symbol: &symbol, Reason: "consumer census boundary: " + declaration.Boundary}, true
+	return Uncertainty{
+		Kind: kind, Path: declaration.File, Context: context, Symbol: &symbol,
+		Reason: "consumer census boundary: " + declaration.Boundary,
+	}, true
 }

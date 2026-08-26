@@ -79,8 +79,8 @@ func TestSchemaRejectsInvalidRelations(t *testing.T) {
 }
 
 func fixtureManifest() Manifest {
-	caller := SymbolID{Package: "overgo/internal/example", Name: "Run", Kind: SymbolFunction}
-	callee := SymbolID{Package: "overgo/internal/example", Receiver: "Worker", Name: "Apply", Kind: SymbolMethod}
+	caller := SymbolID{Package: "overgo/internal/example", Context: "windows/amd64+cgo+cuda", Name: "Run", Kind: SymbolFunction}
+	callee := SymbolID{Package: "overgo/internal/example", Context: "windows/amd64+cgo+cuda", Receiver: "Worker", Name: "Apply", Kind: SymbolMethod}
 	return Manifest{
 		Version: Version, SourceIdentity: fixtureDigest,
 		Analyzer:      Analyzer{Name: "overgo-code-profile", Version: "fixture-v1"},

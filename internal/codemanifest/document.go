@@ -81,6 +81,7 @@ const (
 // SymbolID is the stable declaration key used by edges and ownership joins.
 type SymbolID struct {
 	Package  string     `json:"package"`
+	Context  string     `json:"context"`
 	Receiver string     `json:"receiver,omitempty"`
 	Name     string     `json:"name"`
 	Kind     SymbolKind `json:"kind"`
@@ -155,10 +156,11 @@ const (
 // Uncertainty records a boundary that cannot prove verification independence.
 // Its presence is affirmative evidence to broaden, never narrow, selection.
 type Uncertainty struct {
-	Kind   UncertaintyKind `json:"kind"`
-	Path   string          `json:"path,omitempty"`
-	Symbol *SymbolID       `json:"symbol,omitempty"`
-	Reason string          `json:"reason"`
+	Kind    UncertaintyKind `json:"kind"`
+	Path    string          `json:"path,omitempty"`
+	Context string          `json:"context,omitempty"`
+	Symbol  *SymbolID       `json:"symbol,omitempty"`
+	Reason  string          `json:"reason"`
 }
 
 // Manifest is the complete canonical structural view of one source snapshot.
@@ -250,7 +252,7 @@ func canonicalize(value *Manifest) error {
 		return cmp.Or(cmp.Compare(left.Path, right.Path), cmp.Compare(left.Kind, right.Kind), cmp.Compare(left.Owner, right.Owner))
 	})
 	slices.SortFunc(value.Uncertainty, func(left, right Uncertainty) int {
-		return cmp.Or(cmp.Compare(left.Kind, right.Kind), cmp.Compare(left.Path, right.Path), cmp.Compare(optionalSymbolKey(left.Symbol), optionalSymbolKey(right.Symbol)), cmp.Compare(left.Reason, right.Reason))
+		return cmp.Or(cmp.Compare(left.Kind, right.Kind), cmp.Compare(left.Path, right.Path), cmp.Compare(left.Context, right.Context), cmp.Compare(optionalSymbolKey(left.Symbol), optionalSymbolKey(right.Symbol)), cmp.Compare(left.Reason, right.Reason))
 	})
 	return validate(*value)
 }
@@ -315,8 +317,8 @@ func validate(value Manifest) error {
 	}
 	uncertainty := map[string]bool{}
 	for _, item := range value.Uncertainty {
-		key := string(item.Kind) + "\x00" + item.Path + "\x00" + optionalSymbolKey(item.Symbol) + "\x00" + item.Reason
-		if !validUncertaintyKind(item.Kind) || item.Path != "" && !validPath(item.Path) || !validText(item.Reason, maxPathBytes) || uncertainty[key] {
+		key := string(item.Kind) + "\x00" + item.Path + "\x00" + item.Context + "\x00" + optionalSymbolKey(item.Symbol) + "\x00" + item.Reason
+		if !validUncertaintyKind(item.Kind) || item.Path != "" && !validPath(item.Path) || item.Context != "" && !contexts[item.Context] || !validText(item.Reason, maxPathBytes) || uncertainty[key] {
 			return errors.New("code manifest: invalid or duplicate uncertainty")
 		}
 		if item.Symbol != nil {
@@ -330,7 +332,7 @@ func validate(value Manifest) error {
 }
 
 func validateSymbolID(id SymbolID) error {
-	if !validText(id.Package, maxPathBytes) || !validText(id.Name, maxTextBytes) || id.Receiver != "" && !validText(id.Receiver, maxTextBytes) {
+	if !validText(id.Package, maxPathBytes) || !validText(id.Context, maxTextBytes) || !validText(id.Name, maxTextBytes) || id.Receiver != "" && !validText(id.Receiver, maxTextBytes) {
 		return errors.New("invalid symbol text")
 	}
 	switch id.Kind {
@@ -362,7 +364,7 @@ func validUncertaintyKind(kind UncertaintyKind) bool {
 }
 
 func symbolKey(id SymbolID) string {
-	return id.Package + "\x00" + id.Receiver + "\x00" + id.Name + "\x00" + string(id.Kind)
+	return id.Package + "\x00" + id.Context + "\x00" + id.Receiver + "\x00" + id.Name + "\x00" + string(id.Kind)
 }
 
 func optionalSymbolKey(id *SymbolID) string {

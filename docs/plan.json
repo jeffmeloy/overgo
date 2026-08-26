@@ -10,21 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "symbols",
-          "title": "Adapt SourceSnapshot, Profile.Build, and ProductionConsumerCensus into stable declaration, body, signature, field, and reference records without a second parser",
-          "status": "open",
-          "verify": "go test ./internal/codemanifest ./internal/codeprofile -run 'TestGenerate|TestSymbolIdentity|TestReferenceGraph' -count=1",
-          "rationale": "The manifest must compose facts the repository already computes instead of creating a divergent analyzer.",
-          "depends_on": [
-            "code-manifest-contract"
-          ],
-          "capabilities": [
-            "function-fingerprints",
-            "consumer-census",
-            "reference-graph"
-          ]
-        },
-        {
           "id": "variants",
           "title": "Include declared build contexts, generated sources, cgo exports, device sources, manifests, profiles, fixtures, and other owned non-Go inputs",
           "status": "open",

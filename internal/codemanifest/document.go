@@ -107,6 +107,9 @@ const (
 	ReferenceField ReferenceKind = "field"
 	// ReferenceInterface identifies conservative interface method reach.
 	ReferenceInterface ReferenceKind = "interface"
+	// ReferenceUse identifies a resolved declaration use whose syntax does not
+	// prove a narrower relationship.
+	ReferenceUse ReferenceKind = "use"
 )
 
 // Reference is one resolved directed edge between declarations.
@@ -145,6 +148,8 @@ const (
 	UncertaintyOutsideSnapshot UncertaintyKind = "outside-snapshot"
 	// UncertaintyAnalysis marks an analyzer failure or incomplete result.
 	UncertaintyAnalysis UncertaintyKind = "analysis"
+	// UncertaintyExternal marks a declaration observable outside the snapshot.
+	UncertaintyExternal UncertaintyKind = "external"
 )
 
 // Uncertainty records a boundary that cannot prove verification independence.
@@ -338,7 +343,7 @@ func validateSymbolID(id SymbolID) error {
 
 func validReferenceKind(kind ReferenceKind) bool {
 	switch kind {
-	case ReferenceCall, ReferenceType, ReferenceField, ReferenceInterface:
+	case ReferenceCall, ReferenceType, ReferenceField, ReferenceInterface, ReferenceUse:
 		return true
 	default:
 		return false
@@ -348,7 +353,8 @@ func validReferenceKind(kind ReferenceKind) bool {
 func validUncertaintyKind(kind UncertaintyKind) bool {
 	switch kind {
 	case UncertaintyReflection, UncertaintyCgo, UncertaintyInterface, UncertaintyGenerated,
-		UncertaintyBuildSelection, UncertaintyNonGo, UncertaintyOutsideSnapshot, UncertaintyAnalysis:
+		UncertaintyBuildSelection, UncertaintyNonGo, UncertaintyOutsideSnapshot, UncertaintyAnalysis,
+		UncertaintyExternal:
 		return true
 	default:
 		return false

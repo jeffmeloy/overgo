@@ -22,14 +22,23 @@ type Partition struct {
 }
 
 type Function struct {
-	File          string `json:"file"`
-	Name          string `json:"name"`
-	Nodes         int    `json:"nodes"`
-	Branches      int    `json:"branches"`
-	AdvisoryClass string `json:"advisory_class,omitempty"`
-	packagePath   string
-	receiver      string
-	fingerprint   string
+	File                 string `json:"file"`
+	Name                 string `json:"name"`
+	Nodes                int    `json:"nodes"`
+	Branches             int    `json:"branches"`
+	AdvisoryClass        string `json:"advisory_class,omitempty"`
+	packagePath          string
+	receiver             string
+	fingerprint          string
+	signatureFingerprint string
+	bodyFingerprint      string
+}
+
+// StructuralFingerprints returns the package-directory identity, receiver,
+// normalized signature digest, and exact body digest already derived while
+// building the profile. Digests are lowercase SHA-256 hex.
+func (f Function) StructuralFingerprints() (packagePath, receiver, signatureSHA256, bodySHA256 string) {
+	return f.packagePath, f.receiver, hex.EncodeToString([]byte(f.signatureFingerprint)), hex.EncodeToString([]byte(f.bodyFingerprint))
 }
 
 type Clone struct {
@@ -119,6 +128,14 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 				if err != nil {
 					return Profile{}, err
 				}
+				signature, err := functionSignatureFingerprint(value)
+				if err != nil {
+					return Profile{}, err
+				}
+				bodyFingerprint, err := exactNodeFingerprint(value.Body)
+				if err != nil {
+					return Profile{}, err
+				}
 				clone, err := cloneFingerprint(value.Body)
 				if err != nil {
 					return Profile{}, err
@@ -126,6 +143,7 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 				profile.Functions = append(profile.Functions, Function{
 					File: source.Path, Name: value.Name.Name, Nodes: size, Branches: branches, AdvisoryClass: class,
 					packagePath: packagePath, receiver: receiverName(value), fingerprint: fingerprint,
+					signatureFingerprint: signature, bodyFingerprint: bodyFingerprint,
 				})
 				key := class + "\x00" + clone
 				if bodies[key] == nil {
@@ -228,12 +246,23 @@ func branchCount(root ast.Node) int {
 }
 
 func functionFingerprint(function *ast.FuncDecl) (string, error) {
+	return exactNodeFingerprint(function)
+}
+
+func exactNodeFingerprint(node ast.Node) (string, error) {
 	var rendered bytes.Buffer
-	if err := printer.Fprint(&rendered, token.NewFileSet(), function); err != nil {
+	if err := printer.Fprint(&rendered, token.NewFileSet(), node); err != nil {
 		return "", err
 	}
 	digest := sha256.Sum256(rendered.Bytes())
 	return string(digest[:]), nil
+}
+
+func functionSignatureFingerprint(function *ast.FuncDecl) (string, error) {
+	signature := *function
+	signature.Doc = nil
+	signature.Body = nil
+	return exactNodeFingerprint(&signature)
 }
 
 func cloneFingerprint(body *ast.BlockStmt) (string, error) {

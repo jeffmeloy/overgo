@@ -84,34 +84,73 @@ reads the same store the command line and the automation read, so a result
 shown in the workbench is the same durable record a gate or a script would
 see.
 
-Its surfaces map onto the platform capabilities:
+### Surfaces
 
-- **Chat and media.** Multimodal conversation against the served model, with
-  attachments and dedicated image, video, and speech generation workspaces.
-- **Agent sessions.** Agent definitions with native tool calling, layered
-  authority maps that bound what each session may touch, an approvals inbox
-  for exceptional mutations, and replayable interaction history.
-- **Models and data.** A model catalog derived from the store: every locally
-  present model with its active recipe, verified capability tier, and measured
-  evidence — benchmark throughput and evaluation scores appear beside each
-  entry in the picker. Dataset browsing and preview, model construction, and
-  a recipe inspector sit alongside.
+- **Chat and media.** Multimodal conversation against the served model:
+  text, image, and audio attachments flow through the same bounded media
+  policy the APIs enforce, projected media and token counts survive in
+  earlier turns of the formatted history, and conversations continue across
+  server restarts because the interaction record — not the browser — owns
+  the state. Dedicated image, video, and speech generation workspaces drive
+  the corresponding model recipes.
+- **Agent sessions.** Agent definitions bind a prompt, model configuration,
+  tools, and policies immutably; sessions execute with native tool calling
+  against the typed tool catalog. Layered authority maps bound what each
+  session may touch, and every past interaction replays from its durable
+  record for inspection.
+- **Approvals inbox.** Exceptional mutations — actions outside a session's
+  standing authority — queue as argument-bound approval requests. The
+  operator sees the exact tool identity and arguments that will run; a
+  durable receipt precedes the side effect, and nothing executes on a stale
+  approval.
+- **Models and data.** The model catalog is derived from the store: every
+  locally present model with its active recipe, verified capability tier,
+  and measured evidence — benchmark throughput and evaluation scores appear
+  beside each entry in the picker, so choosing a model is choosing from
+  evidence rather than filenames. Dataset browsing reads the active catalog
+  without payload access, and the model builder and recipe inspector expose
+  construction and activation records.
 - **Analysis.** Structure, tensor, attention, logit, hidden-state, and
-  vocabulary inspectors over the loaded model artifact.
-- **Training.** Session-supervised training runs with observation records and
-  pre/post evaluation brackets that attribute measured deltas to each session.
-- **Evaluation.** Suites derived from the benchmark catalog in the store,
-  routed by each model's declared evaluation domains, with results published
-  back as evidence.
-- **Workflows and runtime.** Typed workflow graphs, scheduled jobs, run
-  browsing, compositions, live runtime activity, and remote peers.
+  vocabulary inspectors over the loaded artifact. The attention view replays
+  bounded plain-causal attention on the host and refuses compiled score
+  policies it cannot reproduce exactly — the displayed weights are recomputed
+  evidence, not a screenshot of runtime state.
+- **Training.** Session-supervised training: a session is leased, observed,
+  and recorded; the observer captures a pre-training evaluation bracket on
+  admission and publishes the post-training deltas on finish, so every
+  session's measured effect is attributed to it in the store.
+- **Evaluation.** Suites derive from the benchmark catalog in the store —
+  no suite files — and route by each model's declared evaluation domains,
+  so a DNA model never meets English multiple choice. Results publish back
+  through the campaign ledger and reappear as the evidence beside the model
+  in the picker.
+- **Workflows and runtime.** Typed workflow graphs with bounded admission,
+  scheduled jobs, run browsing over the store's phased run records, media
+  compositions, live runtime activity, and remote peers for distributed
+  execution.
 - **Artifacts and provenance.** The artifact gallery and the provenance
-  records behind every displayed result.
+  records behind every displayed result, down to the content identities a
+  claim cites.
 
-Steering from the workbench — goals, priorities, interventions, approvals,
-rollback — enters through the same bounded interface the RSI path uses.
-Nothing is reachable from the browser that is not equally reachable, and
-equally checked, from the deterministic control plane.
+### Usage
+
+Launch the server with a model (see Quick start) and open the listen
+address; the workbench is the default page. A typical serving session:
+pick a model in the catalog — the evidence line under each entry shows its
+measured throughput and evaluation scores — then chat, attach media, or
+open a generation workspace. A typical measurement session: open the
+evaluation workspace, run the store-derived suites for the served model,
+and watch the results land in the picker as published evidence. A typical
+training session: start a supervised session from the training workspace
+and read its bracket when it finishes — the pre/post deltas are the
+session's measured effect, not an impression.
+
+Interventions follow the same shape everywhere: inspect the record first,
+act through a bounded control, and find the durable receipt in the store
+afterward. Steering from the workbench — goals, priorities, interventions,
+approvals, rollback — enters through the same bounded interface the RSI
+path uses. Nothing is reachable from the browser that is not equally
+reachable, and equally checked, from the deterministic control plane.
 
 ## Current state
 

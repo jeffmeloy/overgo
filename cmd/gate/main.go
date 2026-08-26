@@ -51,11 +51,13 @@ import (
 )
 
 const (
-	gateRecipeSeed    = "overgo-gate/v1"
-	gateWorkloadSeed  = "overgo-gate-workload/v1"
-	gateDebtFile      = "bin/gate_debt.json"
-	gateHeartbeatFile = "bin/gate_lifecycle.json"
-	gateRetryFile     = "bin/gate_cache.json"
+	gateRecipeSeed   = "overgo-gate/v1"
+	gateWorkloadSeed = "overgo-gate-workload/v1"
+	// Gate state lives in tmp/, the sanctioned scrap home: bin/ holds
+	// executables only and the release refuses anything else in it.
+	gateDebtFile      = "tmp/gate_debt.json"
+	gateHeartbeatFile = "tmp/gate_lifecycle.json"
+	gateRetryFile     = "tmp/gate_cache.json"
 	gateProgressLine  = "gate: phase=%s heartbeat=%s\n"
 )
 
@@ -100,10 +102,10 @@ func run() error {
 	storePath := flag.String("store", "overgodb-store", "OvergoDB store directory (relative to repo root)")
 	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with `git merge --no-ff --no-commit <branch>`)")
 	planRef := flag.String("plan", "", "item/step this commit serves; MUST equal the current open step, including for -merge. Off-plan commits are refused.")
-	reconcile := flag.Bool("reconcile", false, "finalize the deterministic OvergoDB batch in bin/gate_debt.json")
+	reconcile := flag.Bool("reconcile", false, "finalize the deterministic OvergoDB batch in tmp/gate_debt.json")
 	recordFailure := flag.Bool("record-failure", false, "recover an unbatchable post-commit record as a typed failed finalization")
 	admitReview := flag.String("admit-review", "", "read-only: admit a OvergoDB review-verdict ID against the current HEAD")
-	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from bin/gate_lifecycle.json")
+	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from tmp/gate_lifecycle.json")
 	inspectPlan := flag.Bool("inspect-plan", false, "read-only: print the exact manifest-bound verification plan without executing checks")
 	staleAfter := flag.Duration("stale-after", runrecord.DefaultHeartbeatStaleAfter, "heartbeat age classified stale by -watchdog")
 	flag.Parse()
@@ -1930,7 +1932,7 @@ func advancePlanFile(repo, ref string) (func() error, error) {
 
 func (g *gateContext) prepare() error {
 	if _, err := os.Stat(filepath.Join(g.repo, filepath.FromSlash(gateDebtFile))); err == nil {
-		return errors.New("gate: unresolved bin/gate_debt.json; run `go run ./cmd/gate -reconcile` before another gate")
+		return errors.New("gate: unresolved tmp/gate_debt.json; run `go run ./cmd/gate -reconcile` before another gate")
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}

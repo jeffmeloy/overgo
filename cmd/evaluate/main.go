@@ -54,7 +54,25 @@ func run() error {
 	family := flag.String("family", "", "restrict -all to one derived suite source suffix (e.g. mmlu)")
 	catalogLimit := flag.Int("catalog-limit", 256, "servable model listing bound for -all")
 	declareDomains := flag.String("declare-domain", "", "comma-separated eval domains to declare for the positional model path (e.g. dna)")
+	importDNA := flag.String("import-dna-corpus", "", "import a bounded slice of every parquet subset under this corpus root and merge the entries into the active benchmark catalog")
+	dnaLimit := flag.Int("dna-limit", 16, "sequences imported per corpus subset for -import-dna-corpus")
 	flag.Parse()
+	if root := strings.TrimSpace(*importDNA); root != "" {
+		if flag.NArg() != 0 {
+			return errors.New("usage: evaluate -import-dna-corpus <root> [-dna-limit N] [-repo <store>]")
+		}
+		store, err := overgodb.Open(*repository)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		catalog, count, err := evaluation.CatalogDNACorpus(context.Background(), store, root, *dnaLimit)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("benchmark catalog %s merged %d DNA corpus slice(s)\n", catalog, count)
+		return nil
+	}
 	if csv := strings.TrimSpace(*declareDomains); csv != "" {
 		if flag.NArg() != 1 {
 			return errors.New("usage: evaluate -declare-domain <domains-csv> [-repo <store>] <model-path>")

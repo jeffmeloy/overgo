@@ -92,6 +92,7 @@ func DeriveStoreSuites(
 			return assembleChoiceGroups("bbh", "lm-eval/leaderboard-bbh/v1.0", cases)
 		},
 		"musr":   assembleMuSRSuite,
+		"dna":    assembleDNASuite,
 		"math":   assembleMATHSuite,
 		"ifeval": assembleIFEvalSuite,
 	}

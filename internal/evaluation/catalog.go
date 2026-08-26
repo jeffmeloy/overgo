@@ -81,6 +81,27 @@ func catalogBenchmarkDeclarations(
 	declarations []benchmarkDeclaration,
 ) (artifact.ID, error) {
 	catalog := benchmarkCatalog{Version: artifact.InitialDocumentVersion, Entries: make([]benchmarkEntry, 0, len(declarations))}
+	// Publishing merges onto the standing catalog: a DNA corpus import
+	// must not evict the lm_eval entries, and re-imports overwrite their
+	// own names. Entries whose name a new declaration carries drop here
+	// and re-enter from the fresh import below.
+	if currentID, bound, err := artifact.ResolveAlias(ctx, repository, benchmarkCatalogAlias); err != nil {
+		return artifact.ID{}, err
+	} else if bound {
+		current, found, err := benchmarkCatalogCodec.Read(ctx, repository, currentID)
+		if err != nil || !found {
+			return artifact.ID{}, errors.Join(err, errors.New("evaluation: standing benchmark catalog is unreadable"))
+		}
+		replaced := make(map[string]bool, len(declarations))
+		for _, declaration := range declarations {
+			replaced[strings.TrimSpace(declaration.Name)] = true
+		}
+		for _, entry := range current.Entries {
+			if !replaced[entry.Name] {
+				catalog.Entries = append(catalog.Entries, entry)
+			}
+		}
+	}
 	for _, declaration := range declarations {
 		name := strings.TrimSpace(declaration.Name)
 		path := declaration.Path

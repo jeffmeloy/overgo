@@ -1,7 +1,7 @@
 {
   "campaign": "Recipe and compiled-runtime authority tightening",
   "doctrine": "Recipes and typed artifact facts are sole policy and topology authorities. Compiled ordered bindings own repeated execution. Each wave migrates every caller and deletes displaced selectors, synthetic identities, copied policy, wrappers, and test-only production runtime code. No compatibility path or parallel API remains. Preserve numerical behavior and hard-fail on absent authority. Production code must be net-negative unless an unavoidable schema migration provides greater immediate deletion.",
-  "census_evidence": "evidence:sha256:5bd025fd8654d50b21d405994972d1640ebf8e0e49155c14cbfdeb6ed205fae8",
+  "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
       "id": "recipe-discovery-authority",
@@ -29,7 +29,7 @@
           "title": "Migrate repeated CUDA graph execution from pointer maps and per-call compilation to indexed programs",
           "status": "open",
           "verify": "go test ./internal/graphruntime ./internal/diffusionimage ./internal/inference ./internal/projector -count=1",
-          "rationale": "Ordered diffusion bindings are converted back to maps and Feeds.Execute recompiles output graphs. Retain compiled slots for repeated execution; keep maps only at the reference-executor boundary.",
+          "rationale": "Repeated graph execution recompiles output graphs and passes immutable bindings through pointer maps. Retain compiled slots; keep maps only at the reference-executor boundary.",
           "depends_on": ["recipe-discovery-authority/do"]
         }
       ]
@@ -42,10 +42,10 @@
       "steps": [
         {
           "id": "do",
-          "title": "Delete test-only diffusion programs, redundant recipe wrappers, and duplicate profile bootstrap plumbing",
+          "title": "Delete redundant recipe wrappers and duplicate profile bootstrap plumbing",
           "status": "open",
-          "verify": "go test ./internal/diffusionimage ./internal/modelrecipe ./cmd/model-build ./cmd/server -count=1",
-          "rationale": "Production files still contain test-only graph executors, one-line capability wrappers, and command-local profile publication. Migrate consumers to the authorities established by prior waves and delete the old objects.",
+          "verify": "go test ./internal/modelrecipe ./cmd/model-build ./cmd/server -count=1",
+          "rationale": "One-line capability wrappers and command-local profile publication remain after their shared authorities landed. Migrate consumers and delete the old objects.",
           "depends_on": ["indexed-graph-authority/do"]
         }
       ]

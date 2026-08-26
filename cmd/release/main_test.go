@@ -63,6 +63,34 @@ func TestReleaseVersionAndArchiveLayout(t *testing.T) {
 	}
 }
 
+// TestBinHygiene pins the bin/ ownership contract: executables are the
+// only admitted residents, and any other working file fails the
+// release before an archive exists.
+func TestBinHygiene(t *testing.T) {
+	root := t.TempDir()
+	foreign, err := foreignFileInBin(root)
+	if err != nil || foreign != "" {
+		t.Fatalf("absent bin = (%q, %v)", foreign, err)
+	}
+	if err := os.Mkdir(filepath.Join(root, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "bin", "server.exe"), []byte("binary"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	foreign, err = foreignFileInBin(root)
+	if err != nil || foreign != "" {
+		t.Fatalf("executable-only bin = (%q, %v)", foreign, err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "bin", "triage.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	foreign, err = foreignFileInBin(root)
+	if err != nil || foreign != "bin/triage.json" {
+		t.Fatalf("foreign file = (%q, %v)", foreign, err)
+	}
+}
+
 func TestReleaseIntegrityContract(t *testing.T) {
 	for _, historical := range []string{
 		"docs/IMPLEMENTATION_LOG.md", "docs/adaptive_new_parity_report.md", "docs/training_plan.md",

@@ -98,6 +98,13 @@ func buildRelease(root, output string, verify bool) error {
 	if outside != "" {
 		return fmt.Errorf("release: executable outside bin: %s", outside)
 	}
+	foreign, err := foreignFileInBin(root)
+	if err != nil {
+		return err
+	}
+	if foreign != "" {
+		return fmt.Errorf("release: non-executable file in bin: %s", foreign)
+	}
 	kernelCheck := exec.Command("go", "run", "./cmd/kernel-manifest")
 	kernelCheck.Dir = root
 	kernelCheck.Env = releaseEnvironment()
@@ -244,6 +251,26 @@ func executableOutsideBin(root string) (string, error) {
 		return filepath.SkipAll
 	})
 	return result, err
+}
+
+// foreignFileInBin reports the first non-executable file under bin/.
+// The directory is the sole executable destination, so anything else
+// in it is stray working state a release must not silently absorb.
+func foreignFileInBin(root string) (string, error) {
+	binRoot := filepath.Join(root, "bin")
+	entries, err := os.ReadDir(binRoot)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".exe") {
+			return path.Join("bin", entry.Name()), nil
+		}
+	}
+	return "", nil
 }
 
 func createArchive(entries []archiveEntry) ([]byte, error) {

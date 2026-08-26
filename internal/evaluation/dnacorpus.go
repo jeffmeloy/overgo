@@ -18,6 +18,14 @@ import (
 // sequence-scoring suites.
 const dnaCorpusConversion = "carbon/dna-corpus/v1"
 
+// dnaScoringWindowChars bounds every assembled sequence: corpus rows
+// run to whole-genome length, far past any model context, so the suite
+// scores each sequence's leading window. The bound is a multiple of the
+// hybrid tokenizer's 6-base k-mer stride, keeping k-mer alignment from
+// the sequence start intact, and every model scores the identical
+// window, so cross-model perplexity stays comparable.
+const dnaScoringWindowChars = 6 * 4096
+
 // CatalogDNACorpus imports a bounded slice of every corpus subset and
 // merges the entries into the active benchmark catalog: each subset's
 // lexically first parquet file contributes its first limit sequences,
@@ -125,6 +133,9 @@ func assembleDNASuite(cases []storeCase) (any, int, error) {
 		text, err := caseString(entry.fields, "text")
 		if err != nil {
 			return nil, 0, err
+		}
+		if len(text) > dnaScoringWindowChars {
+			text = text[:dnaScoringWindowChars]
 		}
 		suite.Cases = append(suite.Cases, SequenceScoringCase{
 			Name:  fmt.Sprintf("%s/%d", entry.entry, entry.ordinal),

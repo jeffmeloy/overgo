@@ -31,7 +31,11 @@ type catalogEvalSummary struct {
 // model in the workbench is a committed record, never a cached
 // impression.
 type catalogEvidenceIndex struct {
-	benchmarks  map[artifact.ID]catalogBenchmarkSummary
+	// benchmarks key by the claim model's registered on-disk location:
+	// a benchmark claim identifies the weights-file digest, the catalog
+	// identifies the model manifest, and the location both register is
+	// the identity they share.
+	benchmarks  map[string]catalogBenchmarkSummary
 	evaluations map[artifact.ID][]catalogEvalSummary
 }
 
@@ -47,7 +51,7 @@ type benchmarkEvidenceSummary struct {
 
 func (h *Handler) catalogEvidence(ctx context.Context, suiteNames map[artifact.ID]string) catalogEvidenceIndex {
 	index := catalogEvidenceIndex{
-		benchmarks:  map[artifact.ID]catalogBenchmarkSummary{},
+		benchmarks:  map[string]catalogBenchmarkSummary{},
 		evaluations: map[artifact.ID][]catalogEvalSummary{},
 	}
 	documents, ok := any(h.config.Repository).(overgodb.DocumentReader)
@@ -62,7 +66,8 @@ func (h *Handler) catalogEvidence(ctx context.Context, suiteNames map[artifact.I
 		}},
 		Order: overgodb.DocumentNewestFirst, MaxResults: h.config.MaxStoredResponses,
 	}, runrecord.ParseModelVerification, func(_ overgodb.DocumentView, record runrecord.ModelVerification) error {
-		if _, seen := index.benchmarks[record.Model]; seen {
+		locations, err := h.config.Repository.Locations(ctx, record.Model)
+		if err != nil || len(locations) == 0 {
 			return nil
 		}
 		for _, claim := range record.Claims {
@@ -80,7 +85,14 @@ func (h *Handler) catalogEvidence(ctx context.Context, suiteNames map[artifact.I
 					}
 				}
 			}
-			index.benchmarks[record.Model] = summary
+			for _, location := range locations {
+				if location.Kind != artifact.LocationFile {
+					continue
+				}
+				if _, seen := index.benchmarks[location.Value]; !seen {
+					index.benchmarks[location.Value] = summary
+				}
+			}
 			break
 		}
 		return nil

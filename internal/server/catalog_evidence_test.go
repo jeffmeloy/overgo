@@ -71,10 +71,17 @@ func TestCatalogEvidenceIndex(t *testing.T) {
 	}
 
 	index := handler.catalogEvidence(ctx, map[artifact.ID]string{datasetID: "store/mmlu"})
-	benchmark, measured := index.benchmarks[model]
+	// The join key is the registered weights location: the claim's model
+	// is the weights digest, the catalog's is the manifest, and the
+	// on-disk file is the identity both register.
+	registered, err := filepath.Abs(weightsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	benchmark, measured := index.benchmarks[registered]
 	if !measured || benchmark.Tier != string(runrecord.TierCapabilityMeasured) ||
 		benchmark.DecodeTokensPerSecond != 491.35 || benchmark.WallNS != 220_000_000 {
-		t.Fatalf("benchmark summary = (%+v, %t)", benchmark, measured)
+		t.Fatalf("benchmark summary = (%+v, %t) keys=%v", benchmark, measured, index.benchmarks)
 	}
 	evals := index.evaluations[recipeID]
 	if len(evals) != 1 || evals[0].Suite != "store/mmlu" || evals[0].Metrics["accuracy"] != 0.42 {

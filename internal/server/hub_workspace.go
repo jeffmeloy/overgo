@@ -58,7 +58,7 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		model := catalogModel{
 			Model: idText(entry.Model), Location: entry.Location, Present: entry.Present,
 		}
-		if summary, measured := evidence.benchmarks[entry.Model]; measured {
+		if summary, measured := evidence.benchmarks[entry.Location]; measured {
 			model.Benchmark = &summary
 		}
 		for _, capability := range entry.Capabilities {

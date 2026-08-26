@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/kernel"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -227,7 +228,7 @@ func launchRecurrentSelection(
 			return launchGridABI(
 				state, functions[kernelArgmaxF32],
 				driver.Dim3{X: rows, Y: 1, Z: 1},
-				driver.Dim3{X: 256, Y: 1, Z: 1},
+				kernel.DefaultBlock1D(),
 				&input, &output, &width, &rows,
 			)
 		}
@@ -251,7 +252,7 @@ func launchRecurrentSelection(
 		candidates := k * chunks
 		return launchGridABI(
 			state, functions[kernelTopKPairsF32],
-			driver.Dim3{X: rows, Y: 1, Z: 1}, driver.Dim3{X: 256, Y: 1, Z: 1},
+			driver.Dim3{X: rows, Y: 1, Z: 1}, kernel.DefaultBlock1D(),
 			&input, &output, &candidates, &k, &rows,
 		)
 	case tensor.OpTopKPartials:
@@ -272,7 +273,7 @@ func launchRecurrentSelection(
 		return launchGridABI(
 			state, functions[kernelTopKPartialsF32],
 			driver.Dim3{X: chunks * rows, Y: 1, Z: 1},
-			driver.Dim3{X: 32, Y: 1, Z: 1},
+			kernel.WarpBlock1D(),
 			&input, &output, &width, &k, &chunk, &chunks, &rows,
 		)
 	case tensor.OpGatherLast:

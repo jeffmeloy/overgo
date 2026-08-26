@@ -735,7 +735,7 @@ func applyBF16AttentionRewrite(context *rewriteContext) {
 		fusable := true
 		for _, round := range [...]*tensor.Tensor{query, key, value} {
 			if round.Op != tensor.OpBF16Round || context.uses[round] != 1 ||
-				round.Shape.Rank < 3 || round.Shape.Dims[0] != 128 {
+				round.Shape.Rank < attentionMinimumRank || round.Shape.Dims[0] != uint64(attentionBF16Width) {
 				fusable = false
 				break
 			}

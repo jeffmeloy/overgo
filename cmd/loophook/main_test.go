@@ -7,31 +7,31 @@ import (
 )
 
 // TestStopDecision pins the pure Stop verdict: any valve allows; otherwise
-// orphaned turn-created work blocks first, and a no-progress turn under an
-// open plan row blocks with the continue verdict (owner rule 2026-08-20: a
-// prompt never pauses the loop; the sanctioned pause is a recorded user stop,
-// which arms the freshStop valve).
+// orphaned turn-created work blocks first, and ANY turn under an open plan
+// row blocks with the continue verdict -- committed progress is necessary,
+// never sufficient (owner rule: the loop runs until the plan is empty; the
+// sanctioned pause is a recorded user stop, which arms the freshStop valve).
 func TestStopDecision(t *testing.T) {
 	cases := []struct {
-		name                                                                      string
-		stopHookActive, freshStop, gateRunning, planComplete, dirtyGo, progressed bool
-		want                                                                      string
+		name                                                          string
+		stopHookActive, freshStop, gateRunning, planComplete, dirtyGo bool
+		want                                                          string
 	}{
-		{"retry valve", true, false, false, false, true, false, stopAllow},
-		{"fresh recorded stop", false, true, false, false, true, false, stopAllow},
-		{"gate in flight", false, false, true, false, true, false, stopAllow},
+		{"retry valve", true, false, false, false, true, stopAllow},
+		{"fresh recorded stop", false, true, false, false, true, stopAllow},
+		{"gate in flight", false, false, true, false, true, stopAllow},
 		// loop-hardening-7 accepted residual: during the gate's go-run COMPILE
 		// phase gateRunning is momentarily false, so a wait-turn BLOCKS on dirty
 		// .go (safe direction); the next attempt's retry valve allows.
-		{"gate compile-window (pre-retry)", false, false, false, false, true, false, stopOrphan},
-		{"plan complete", false, false, false, true, true, false, stopAllow},
-		{"uncommitted go", false, false, false, false, true, true, stopOrphan},
-		{"committed progress, clean tree", false, false, false, false, false, true, stopAllow},
-		{"answered prompt, no progress", false, false, false, false, false, false, stopContinue},
-		{"open row, idle turn", false, false, false, false, false, false, stopContinue},
+		{"gate compile-window (pre-retry)", false, false, false, false, true, stopOrphan},
+		{"plan complete", false, false, false, true, true, stopAllow},
+		{"uncommitted go", false, false, false, false, true, stopOrphan},
+		{"committed progress, open rows remain", false, false, false, false, false, stopContinue},
+		{"answered prompt, no progress", false, false, false, false, false, stopContinue},
+		{"open row, idle turn", false, false, false, false, false, stopContinue},
 	}
 	for _, c := range cases {
-		got := stopDecision(c.stopHookActive, c.freshStop, c.gateRunning, c.planComplete, c.dirtyGo, c.progressed)
+		got := stopDecision(c.stopHookActive, c.freshStop, c.gateRunning, c.planComplete, c.dirtyGo)
 		if got != c.want {
 			t.Errorf("%s: stopDecision=%q want %q", c.name, got, c.want)
 		}
@@ -50,10 +50,10 @@ func TestBoundedRequestScopesAnswerNotTurn(t *testing.T) {
 	if !consumeBoundedRequest(marker) || fileExists(marker) {
 		t.Fatal("bounded request marker was not consumed")
 	}
-	if got := stopDecision(false, false, false, false, false, false); got != stopContinue {
+	if got := stopDecision(false, false, false, false, false); got != stopContinue {
 		t.Fatalf("bounded no-progress turn = %q, want the continue block", got)
 	}
-	if got := stopDecision(false, true, false, false, false, false); got != stopAllow {
+	if got := stopDecision(false, true, false, false, false); got != stopAllow {
 		t.Fatalf("recorded user stop = %q, want allow", got)
 	}
 	if !boundedRequestText("automation plan completed?") || !boundedRequestText("summarize work completed") || !boundedRequestText("should we add a doc check?") {
@@ -91,7 +91,7 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 	if created := turnCreatedDirt(parked, parked); len(created) != 0 {
 		t.Fatalf("pre-existing dirt reported as turn-created: %v", created)
 	}
-	if got := stopDecision(false, false, false, false, len(turnCreatedDirt(parked, parked)) > 0, true); got != stopAllow {
+	if got := stopDecision(false, false, true, false, len(turnCreatedDirt(parked, parked)) > 0); got != stopAllow {
 		t.Fatalf("progressed turn with only parked parallel-lane dirt = %q, want allow", got)
 	}
 
@@ -100,7 +100,7 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 	if len(created) != 1 || created[0].Path != "cmd/loophook/main.go" {
 		t.Fatalf("turn-created dirt = %v, want the new path only", created)
 	}
-	if got := stopDecision(false, false, false, false, len(created) > 0, true); got != stopOrphan {
+	if got := stopDecision(false, false, false, false, len(created) > 0); got != stopOrphan {
 		t.Fatalf("turn that created dirt = %q, want the orphan block", got)
 	}
 

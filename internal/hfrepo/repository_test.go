@@ -42,6 +42,18 @@ func TestOpenRejectsTrailingConfig(t *testing.T) {
 	}
 }
 
+func TestInspectIdentityAllowsPipelineOnlyArtifact(t *testing.T) {
+	directory := t.TempDir()
+	writeFile(t, filepath.Join(directory, "model_index.json"), `{"_class_name":"ImagePipeline","scheduler":["module","Scheduler"]}`)
+	identity, err := InspectIdentity(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if identity.Pipeline != "ImagePipeline" || identity.ModelType != "" || len(identity.Architectures) != 0 {
+		t.Fatalf("identity = %+v", identity)
+	}
+}
+
 func writeSingleTensor(t *testing.T, path string) {
 	t.Helper()
 	header := `{"weight":{"dtype":"U8","shape":[1],"data_offsets":[0,1]}}`

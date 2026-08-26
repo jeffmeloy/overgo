@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
@@ -21,17 +20,7 @@ func videoCapability() capability {
 		}, oscillatorimage.RegisterRuntime,
 	)
 	return capability{
-		resolve: func(path string) (capabilitySource, error) {
-			recognized, err := oscillatorimage.Recognize(path)
-			if err != nil {
-				return capabilitySource{}, err
-			}
-			if !recognized {
-				return capabilitySource{}, fmt.Errorf("video-gen: artifact has no registered video recipe")
-			}
-			inventory, err := imageGenInventory(path)
-			return definitionSource(inventory, err, modelrecipe.OscillatorVideoDefinition)
-		},
+		resolve: resolveDeclaredVideoSource,
 		execute: capabilityruntime.ExecutorCatalog{
 			modelrecipe.ModuleOscillatorVideoPrepare: execute,
 		}.Execute,

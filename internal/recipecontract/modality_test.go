@@ -15,19 +15,16 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-image-modality")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "typed-image-profile")
 	tests := []struct {
-		define func(artifact.ID) (recipe.Definition, error)
-		want   []recipecontract.Modality
+		prepare recipe.ModuleID
+		profile artifact.ID
+		want    []recipecontract.Modality
 	}{
-		{func(model artifact.ID) (recipe.Definition, error) {
-			return modelrecipe.LatentImageDefinition(model, profileID)
-		}, []recipecontract.Modality{recipecontract.ModalityText}},
-		{modelrecipe.OscillatorImageDefinition, []recipecontract.Modality{recipecontract.ModalityTable}},
-		{func(model artifact.ID) (recipe.Definition, error) {
-			return modelrecipe.RoutedImageDefinition(model, profileID)
-		}, []recipecontract.Modality{recipecontract.ModalityText}},
+		{modelrecipe.ModuleLatentImagePrepare, profileID, []recipecontract.Modality{recipecontract.ModalityText}},
+		{modelrecipe.ModuleOscillatorImagePrepare, artifact.ID{}, []recipecontract.Modality{recipecontract.ModalityTable}},
+		{modelrecipe.ModuleRoutedImagePrepare, profileID, []recipecontract.Modality{recipecontract.ModalityText}},
 	}
 	for _, test := range tests {
-		definition, err := test.define(modelID)
+		definition, err := modelrecipe.GenerationDefinition(test.prepare, modelID, test.profile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -55,7 +52,9 @@ func TestTypedVideoRecipeSelectsSemanticsWithoutPlacement(t *testing.T) {
 		define func(artifact.ID, artifact.ID) (recipe.Definition, error)
 		want   []recipecontract.Modality
 	}{
-		{modelrecipe.LatentVideoDefinition, []recipecontract.Modality{recipecontract.ModalityText}},
+		{func(model, profile artifact.ID) (recipe.Definition, error) {
+			return modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, model, profile)
+		}, []recipecontract.Modality{recipecontract.ModalityText}},
 		{modelrecipe.ReferenceVideoEditDefinition, []recipecontract.Modality{recipecontract.ModalityText, recipecontract.ModalityVideo}},
 	}
 	for _, test := range tests {

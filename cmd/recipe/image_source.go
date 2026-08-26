@@ -8,71 +8,73 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/diffusionimage"
+	"overgo/internal/hfrepo"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/oscillatorimage"
 	"overgo/internal/recipe"
 	"overgo/internal/routedlm"
-	"overgo/internal/sensenovarecipe"
 )
 
 func resolveImageSource(path string) (capabilitySource, error) {
-	routed, err := sensenovarecipe.Recognize(path)
+	identity, err := hfrepo.InspectIdentity(path)
 	if err != nil {
 		return capabilitySource{}, err
 	}
-	if routed {
-		inventory, err := sensenovarecipe.Inventory(path)
-		if err != nil {
-			return capabilitySource{}, err
-		}
+	source, err := modelrecipe.ResolveGenerationSource(recipe.TaskImageGen, identity)
+	if err != nil {
+		return capabilitySource{}, err
+	}
+
+	var inventory modelartifact.Inventory
+	switch source.Inventory {
+	case modelrecipe.SourceInventoryHF:
+		inventory, err = modelartifact.FromHFPath(path)
+	case modelrecipe.SourceInventoryLatentImage:
+		inventory, err = latentImageInventory(path)
+	case modelrecipe.SourceInventoryRootSafetensors:
+		inventory, err = imageGenInventory(path)
+	default:
+		return capabilitySource{}, fmt.Errorf("image-gen: unsupported inventory strategy %q", source.Inventory)
+	}
+	if err != nil {
+		return capabilitySource{}, err
+	}
+
+	var profileID artifact.ID
+	var contents []artifact.Content
+	switch source.Profile {
+	case recipe.DependencyFlowProfile:
 		profile, err := routedlm.InspectFlowProfile(path)
 		if err != nil {
 			return capabilitySource{}, err
 		}
-		return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
-			content, err := profile.Content()
-			if err != nil {
-				return recipe.Definition{}, nil, err
-			}
-			definition, err := modelrecipe.RoutedImageDefinition(modelID, profile.ID)
-			return definition, []artifact.Content{content}, err
-		}}, nil
+		profileID = profile.ID
+		content, err := profile.Content()
+		if err != nil {
+			return capabilitySource{}, err
+		}
+		contents = []artifact.Content{content}
+	case recipe.DependencyProfile:
+		profile, err := latentimage.ResolveProfile(path)
+		if err != nil {
+			return capabilitySource{}, err
+		}
+		profileID = profile.ID
+		content, err := profile.Content()
+		if err != nil {
+			return capabilitySource{}, err
+		}
+		contents = []artifact.Content{content}
+	case "":
+	default:
+		return capabilitySource{}, fmt.Errorf("image-gen: unsupported profile strategy %q", source.Profile)
 	}
-	latent, err := latentimage.IsPipeline(path)
-	if err != nil {
-		return capabilitySource{}, err
-	}
-	if latent {
-		inventory, err := latentImageInventory(path)
-		return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
-			profile, err := latentimage.ResolveProfile(path)
-			if err != nil {
-				return recipe.Definition{}, nil, err
-			}
-			content, err := profile.Content()
-			if err != nil {
-				return recipe.Definition{}, nil, err
-			}
-			definition, err := modelrecipe.LatentImageDefinition(modelID, profile.ID)
-			return definition, []artifact.Content{content}, err
-		}}, err
-	}
-	if recognized, err := diffusionimage.Recognize(path); err != nil {
-		return capabilitySource{}, err
-	} else if recognized {
-		inventory, err := imageGenInventory(path)
-		return definitionSource(inventory, err, modelrecipe.DiffusionImageDefinition)
-	}
-	if recognized, err := oscillatorimage.Recognize(path); err != nil {
-		return capabilitySource{}, err
-	} else if !recognized {
-		return capabilitySource{}, fmt.Errorf("image-gen: artifact has no registered image recipe")
-	}
-	inventory, err := imageGenInventory(path)
-	return definitionSource(inventory, err, modelrecipe.OscillatorImageDefinition)
+
+	return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+		definition, err := source.Definition(modelID, profileID)
+		return definition, contents, err
+	}}, nil
 }
 
 func latentImageInventory(path string) (modelartifact.Inventory, error) {

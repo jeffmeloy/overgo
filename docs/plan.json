@@ -10,20 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "delta",
-          "title": "Diff added, removed, signature-changed, body-changed, and external-input records between exact base and candidate manifests",
-          "status": "open",
-          "verify": "go test ./internal/codemanifest -run 'TestDelta|TestSignatureAndBodyChanges|TestExternalInputDelta' -count=1",
-          "rationale": "Verification planning must begin with semantic source changes rather than file-name prefixes.",
-          "depends_on": [
-            "code-manifest-generator"
-          ],
-          "capabilities": [
-            "manifest-delta",
-            "candidate-overlay"
-          ]
-        },
-        {
           "id": "closure",
           "title": "Compute deterministic reverse reachability with safe interface-name over-approximation and explicit unresolved boundaries",
           "status": "open",

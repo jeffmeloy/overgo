@@ -185,6 +185,11 @@ var codec = artifact.JSONDocumentCodec(
 	clone,
 )
 
+// Parse strictly decodes canonical code-manifest bytes.
+func Parse(data []byte) (Manifest, error) {
+	return codec.Parse(data)
+}
+
 // Validate verifies canonical ordering and content identity.
 func (m Manifest) Validate() error {
 	return codec.ValidateIdentity(m)

@@ -70,6 +70,12 @@ func TestManualTransportsDeclareCompletely(t *testing.T) {
 	if _, err := NewManual(http); err != nil {
 		t.Fatalf("http manual refused: %v", err)
 	}
+	stream := validManual()
+	stream.Name = "tokens.stream"
+	stream.Transport = Transport{Kind: TransportHTTPJSONStream, URL: "https://example.test/stream"}
+	if _, err := NewManual(stream); err != nil {
+		t.Fatalf("stream manual refused: %v", err)
+	}
 	argv := validManual()
 	argv.Name = "git.status"
 	argv.Effect = EffectInspection

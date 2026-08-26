@@ -87,11 +87,14 @@ const (
 	TransportArgv TransportKind = "argv"
 	// TransportMCPHTTP invokes one exact MCP tool over bounded HTTP JSON-RPC.
 	TransportMCPHTTP TransportKind = "mcp-http"
+	// TransportHTTPJSONStream receives sequenced JSON values over one HTTP response.
+	TransportHTTPJSONStream TransportKind = "http-json-stream"
 )
 
 // Valid reports whether the transport kind is a declared path.
 func (kind TransportKind) Valid() bool {
-	return kind == TransportBuiltin || kind == TransportHTTP || kind == TransportArgv || kind == TransportMCPHTTP
+	return kind == TransportBuiltin || kind == TransportHTTP || kind == TransportArgv ||
+		kind == TransportMCPHTTP || kind == TransportHTTPJSONStream
 }
 
 // Transport binds a manual to its native invocation path.
@@ -186,7 +189,7 @@ func (transport Transport) validate(name string) error {
 		if transport.URL != "" || transport.Program != "" || len(transport.Args) != 0 || transport.Target != "" || transport.Protocol != "" {
 			return fmt.Errorf("agent tool: builtin manual %q must not bind an endpoint or program", name)
 		}
-	case TransportHTTP:
+	case TransportHTTP, TransportHTTPJSONStream:
 		parsed, err := url.Parse(transport.URL)
 		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
 			return fmt.Errorf("agent tool: http manual %q requires an absolute http(s) endpoint", name)

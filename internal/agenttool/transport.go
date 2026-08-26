@@ -40,6 +40,7 @@ type builtinAdapter struct {
 type httpAdapter struct{ client *http.Client }
 type argvAdapter struct{}
 type mcpHTTPAdapter struct{ client *http.Client }
+type httpJSONStreamAdapter struct{ client *http.Client }
 
 // Executor invokes manuals over their declared native transports.
 // Entry is serialized per manual: no transport promises concurrency
@@ -74,12 +75,17 @@ func newExecutor(client *http.Client) *Executor {
 	return &Executor{
 		entries: map[string]chan struct{}{},
 		adapters: map[TransportKind]transportAdapter{
-			TransportBuiltin: builtins,
-			TransportHTTP:    &httpAdapter{client: client},
-			TransportArgv:    argvAdapter{},
-			TransportMCPHTTP: &mcpHTTPAdapter{client: client},
+			TransportBuiltin:        builtins,
+			TransportHTTP:           &httpAdapter{client: client},
+			TransportArgv:           argvAdapter{},
+			TransportMCPHTTP:        &mcpHTTPAdapter{client: client},
+			TransportHTTPJSONStream: &httpJSONStreamAdapter{client: client},
 		},
 	}
+}
+
+func (adapter *httpJSONStreamAdapter) invoke(context.Context, Manual, json.RawMessage) (json.RawMessage, error) {
+	return nil, errors.New("stream transport requires OpenStream")
 }
 
 func (e *Executor) manualEntry(name string) chan struct{} {

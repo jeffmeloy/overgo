@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "tool-stream-lifecycle",
-      "title": "Make remote tool streams bounded typed operation lifecycles",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add context-aware sequenced JSON streaming with byte and event admission, cancellation, and one exact terminal record",
-          "status": "open",
-          "verify": "go test ./internal/agenttool -run 'Stream' -count=1",
-          "depends_on": [
-            "tool-transport-adapters"
-          ],
-          "capabilities": [
-            "streaming-http",
-            "bounded-admission",
-            "sequence-authority",
-            "cancellation"
-          ]
-        }
-      ]
-    },
-    {
       "id": "compiled-tool-workflows",
       "title": "Compile model-authored tool workflows without generated source",
       "status": "open",

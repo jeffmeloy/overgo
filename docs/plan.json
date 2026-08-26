@@ -1,6 +1,81 @@
 {
-  "campaign": "Indexed graph runtime and typed model authority",
-  "doctrine": "One compiled graph contract owns node order, operand slots, input bindings, output bindings, and backend execution. Host and device paths consume ordered typed bindings. Shared schema traversal replaces backend-specific traversal. Runtime metadata uses typed destinations, never reflective field strings. Artifact loading materializes only inventory selected by the compiled model contract. Each wave migrates every caller and deletes displaced maps, wrappers, reflection, fallbacks, and subset copies in the same commit.",
-  "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
-  "items": []
+  "campaign": "Typed numeric authority and literal reduction",
+  "doctrine": "Inline numbers remain only for local structural operations or mathematical identities. Model facts come from artifact or OvergoDB profiles. Generation defaults and request limits come from recipe runtime policy. Kernel geometry comes from typed ABI contracts. Codec widths, levels, offsets, and scratch extents come from codec descriptors. Capacity hints derive from owned inputs or measured policy. Each wave migrates all callers and deletes displaced literal copies immediately.",
+  "census_evidence": "evidence:sha256:85b34f4312757f85de94c4c6e62147931f32923d1a8be1dcd5094ebd1526f158",
+  "items": [
+    {
+      "id": "recipe-runtime-numerics",
+      "title": "Make recipe runtime policy own generation defaults and request limits",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile diffusion defaults and bounded request limits from runtime policy, migrate CLI, server, and inference consumers, and delete duplicated literals",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/inference ./internal/server ./cmd/diffusion -count=1",
+          "capabilities": ["recipe-authority", "request-limits", "literal-reduction"]
+        }
+      ]
+    },
+    {
+      "id": "kernel-abi-numerics",
+      "title": "Move CUDA launch and fusion geometry into typed kernel contracts",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace repeated fusion ranks, head widths, launch blocks, and selection tiles with typed ABI data consumed by compile and launch paths",
+          "status": "open",
+          "verify": "go test ./internal/cuda/executor ./internal/tensor -count=1",
+          "depends_on": ["recipe-runtime-numerics"],
+          "capabilities": ["kernel-abi", "launch-authority", "cuda-parity"]
+        }
+      ]
+    },
+    {
+      "id": "quant-codec-numerics",
+      "title": "Make quantization descriptors own subgroup geometry",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move repeated subgroup widths, level bounds, masks, and scratch extents into existing typed codec layouts and delete local copies",
+          "status": "open",
+          "verify": "go test ./internal/quant ./internal/tensor/dtype -count=1",
+          "depends_on": ["kernel-abi-numerics"],
+          "capabilities": ["codec-authority", "format-contract", "scratch-reuse"]
+        }
+      ]
+    },
+    {
+      "id": "capacity-format-numerics",
+      "title": "Derive capacities and centralize protocol format values",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Remove unjustified capacity hints, derive retained capacities from owned inputs, and replace repeated file-mode and bit-width literals with existing format contracts",
+          "status": "open",
+          "verify": "go test ./cmd/... ./internal/server ./internal/tokenizer ./internal/dataset ./internal/safetensors -count=1",
+          "depends_on": ["quant-codec-numerics"],
+          "capabilities": ["capacity-derivation", "protocol-contract", "memory-discipline"]
+        }
+      ]
+    },
+    {
+      "id": "literal-authority-gate",
+      "title": "Rebaseline and enforce typed literal authority",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish the post-migration census, verify zero model-fact and policy-copy debt, and bind the campaign to current evidence",
+          "status": "open",
+          "verify": "go run ./cmd/closure-scan -check-all -require-classified -require-no-stale -require-no-model-facts -require-no-uncatalogued-production",
+          "depends_on": ["capacity-format-numerics"],
+          "capabilities": ["literal-census", "evidence-gate", "regression-prevention"]
+        }
+      ]
+    }
+  ]
 }

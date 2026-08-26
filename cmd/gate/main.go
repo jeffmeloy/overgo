@@ -308,6 +308,16 @@ func (g *gateContext) pipeline() error {
 		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
 		g.honesty = append(g.honesty, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
 	}
+	definitions, surface, coverage, completenessErr := automationcheck.CompleteOwnership(definitions, surface, nil)
+	if completenessErr != nil {
+		return completenessErr
+	}
+	if len(coverage.UncoveredPackages)+len(coverage.UncoveredSymbols) != 0 {
+		g.honesty = append(g.honesty, fmt.Sprintf(
+			"ownership incomplete; owned checks defaulted to run: packages=%d symbols=%d",
+			len(coverage.UncoveredPackages), len(coverage.UncoveredSymbols),
+		))
+	}
 	impact := automationcheck.OwnershipImpact(definitions, surface)
 	g.selection = automationcheck.MeasureSelection(definitions, impact)
 	g.selectionID = surface.Identity

@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "code-manifest-ownership",
-      "title": "Join the impact closure to verification ownership",
-      "owner": "manifest",
-      "status": "open",
-      "steps": [
-        {
-          "id": "completeness",
-          "title": "Reject contradictory ownership and report uncovered production symbols, unknown boundaries, and reviewed exception overlays",
-          "status": "open",
-          "verify": "go test ./internal/codemanifest ./cmd/gate -run 'TestOwnershipCompleteness|TestContradictoryOwnership|TestReviewedOverlay' -count=1",
-          "rationale": "A precise selector is trustworthy only when missing and conflicting ownership are visible and cannot become implicit skips.",
-          "depends_on": [
-            "code-manifest-ownership/join"
-          ],
-          "capabilities": [
-            "ownership-coverage",
-            "reviewed-exceptions"
-          ]
-        }
-      ]
-    },
-    {
       "id": "code-manifest-gate-planner",
       "title": "Plan required gates before verification executes",
       "owner": "manifest",

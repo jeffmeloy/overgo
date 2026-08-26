@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"overgo/internal/cuda/driver"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -30,7 +31,8 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	builder := runtime.builder
 	input := runtime.input("model.input", activation)
 	current := input
-	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
+	hostFeeds := runtime.host
+	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	var attentionBlockInput *tensor.Tensor
 	if len(attentionBlockIDs) > 0 {
 		shape := tensor.MustShape(uint64(len(attentionBlockIDs)))
@@ -60,7 +62,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		}
 		if visualMode {
 			if err := r.applyCogVLMVisualWeights(
-				ctx, builder, info, &graphWeights, nil, deviceFeeds,
+				ctx, builder, info, &graphWeights, nil, &deviceFeeds,
 			); err != nil {
 				return reference.Value{}, nil, err
 			}
@@ -129,7 +131,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		}
 	}
 	if applyOutputNorm {
-		normalized, normErr := r.applyDeviceOutputNorm(builder, current, deviceFeeds)
+		normalized, normErr := r.applyDeviceOutputNorm(builder, current, &deviceFeeds)
 		if normErr != nil {
 			return reference.Value{}, nil, normErr
 		}
@@ -150,6 +152,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	if attnQueryNode != nil {
 		outputs = appendUniqueGraphOutputs(outputs, seenOutputs, attnQueryNode)
 	}
+	runtime.feeds.AddDevice(deviceFeeds)
 	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -179,7 +182,8 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 	builder := runtime.builder
 	input := runtime.input("model.input", activation)
 	current := input
-	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
+	hostFeeds := runtime.host
+	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	for layerIndex, info := range r.weights.Layers {
 		program := r.layerProgram(layerIndex)
 		plan := program.Layer()
@@ -201,10 +205,11 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 		current = result.Output
 	}
 	var err error
-	current, err = r.applyDeviceOutputNorm(builder, current, deviceFeeds)
+	current, err = r.applyDeviceOutputNorm(builder, current, &deviceFeeds)
 	if err != nil {
 		return reference.Value{}, err
 	}
+	runtime.feeds.AddDevice(deviceFeeds)
 	results, err := runtime.execute(current)
 	if err != nil {
 		return reference.Value{}, err
@@ -231,14 +236,15 @@ func (r *Runner) runLayerCached(
 	runtime := r.newInferenceGraphRuntime(ctx)
 	builder := runtime.builder
 	input := runtime.input("input", activation)
-	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
+	hostFeeds := runtime.host
+	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
 	if visualMode {
 		if err := r.applyCogVLMVisualWeights(
-			ctx, builder, info, &graphWeights, hostFeeds, deviceFeeds,
+			ctx, builder, info, &graphWeights, hostFeeds, &deviceFeeds,
 		); err != nil {
 			return reference.Value{}, LayerCache{}, err
 		}
@@ -295,7 +301,7 @@ func (r *Runner) runLayerCached(
 	}
 	outputTensor := result.Output
 	if r.hasPreloadedWeights() && layerIndex == len(r.weights.Layers)-1 {
-		outputTensor, err = r.applyDeviceOutputNorm(builder, result.Output, deviceFeeds)
+		outputTensor, err = r.applyDeviceOutputNorm(builder, result.Output, &deviceFeeds)
 		if err != nil {
 			return reference.Value{}, LayerCache{}, err
 		}
@@ -305,6 +311,7 @@ func (r *Runner) runLayerCached(
 		outputs = append(outputs, result.Auxiliary)
 	}
 	outputs = result.States.AppendValues(outputs)
+	runtime.feeds.AddDevice(deviceFeeds)
 	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
@@ -335,7 +342,7 @@ func (r *Runner) runLFM2LayerNonCausal(
 	runtime := r.newInferenceGraphRuntime(ctx)
 	builder := runtime.builder
 	input := runtime.input("input", activation)
-	hostFeeds := runtime.feeds.Host
+	hostFeeds := runtime.host
 	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 	if err != nil {
 		return reference.Value{}, err
@@ -392,7 +399,7 @@ func (r *Runner) runDenseLayerNoCache(
 	runtime := r.newInferenceGraphRuntime(ctx)
 	builder := runtime.builder
 	input := runtime.input("input", activation)
-	hostFeeds := runtime.feeds.Host
+	hostFeeds := runtime.host
 	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 	if err != nil {
 		return reference.Value{}, err

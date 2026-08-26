@@ -35,6 +35,31 @@ type Identity struct {
 	ModelType     string
 	TextModelType string
 	Architectures []string
+	Pipeline      string
+}
+
+// InspectIdentity reads available root selectors without opening tensors.
+func InspectIdentity(directory string) (Identity, error) {
+	_, identity, err := readConfig(filepath.Join(directory, "config.json"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return Identity{}, err
+	}
+	file, err := os.Open(filepath.Join(directory, "model_index.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return identity, nil
+	}
+	if err != nil {
+		return Identity{}, err
+	}
+	defer file.Close()
+	var index map[string]json.RawMessage
+	if err := strictjson.DecodeBounded(file, maxConfigBytes, &index); err != nil {
+		return Identity{}, fmt.Errorf("model repository: parse model index: %w", err)
+	}
+	if err := decodeOptional(index, "_class_name", &identity.Pipeline); err != nil {
+		return Identity{}, err
+	}
+	return identity, nil
 }
 
 // Repository: config, companions, and lazy tensor catalog.

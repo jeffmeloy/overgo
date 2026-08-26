@@ -39,7 +39,7 @@ func TestFlowProfileResolvesFromRecipe(t *testing.T) {
 		t.Fatal(err)
 	}
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "flow-profile-model")
-	definition, err := modelrecipe.RoutedImageDefinition(modelID, profile.ID)
+	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleRoutedImagePrepare, modelID, profile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

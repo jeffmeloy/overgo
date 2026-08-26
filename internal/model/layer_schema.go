@@ -9,7 +9,6 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
-	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
 
@@ -306,26 +305,25 @@ func loadHostLayerGraphFieldsWith(
 	return nil
 }
 
-func bindHostLayerGraphFields(
-	builder *tensor.Builder,
-	prefix string,
-	layer *HostLayer,
+func bindLayerGraphFields[T any](
+	source *layerTensorSchema[T],
 	result *LayerGraphWeights,
-	feeds map[*tensor.Tensor]reference.Value,
-) {
-	hostValue := reflect.ValueOf(layer).Elem()
+	bind func(layerBindingSlot, *T) (*tensor.Tensor, error),
+) error {
+	sourceValue := reflect.ValueOf(source).Elem()
 	graphValue := reflect.ValueOf(result).Elem()
 	for _, slot := range layerBindingSchema {
-		host := hostValue.Field(slot.index).Interface().(*reference.Value)
-		if host == nil {
+		value := sourceValue.Field(slot.index).Interface().(*T)
+		if value == nil {
 			continue
 		}
-		node := builder.Input(prefix+slot.inputName, dtype.F32, host.Shape)
-		if node != nil {
-			feeds[node] = *host
+		node, err := bind(slot, value)
+		if err != nil {
+			return err
 		}
 		graphValue.Field(slot.index).Set(reflect.ValueOf(node))
 	}
+	return nil
 }
 
 // DeviceTensorBinder: metadata-to-device graph binding.
@@ -339,21 +337,14 @@ func bindDeviceLayerGraphFields(
 	builder *tensor.Builder,
 	info *LayerWeights,
 	result *LayerGraphWeights,
-	feeds map[*tensor.Tensor]driver.DevicePtr,
+	feeds *tensor.InputBindings[driver.DevicePtr],
 ) error {
-	infoValue := reflect.ValueOf(info).Elem()
-	graphValue := reflect.ValueOf(result).Elem()
-	for _, slot := range layerBindingSchema {
-		tensorInfo := infoValue.Field(slot.index).Interface().(*gguf.TensorInfo)
-		if tensorInfo == nil {
-			continue
-		}
+	return bindLayerGraphFields(info, result, func(_ layerBindingSlot, tensorInfo *gguf.TensorInfo) (*tensor.Tensor, error) {
 		node, pointer, err := bind(builder, *tensorInfo)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		feeds[node] = pointer
-		graphValue.Field(slot.index).Set(reflect.ValueOf(node))
-	}
-	return nil
+		feeds.Add(node, pointer)
+		return node, nil
+	})
 }

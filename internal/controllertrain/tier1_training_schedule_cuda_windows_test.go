@@ -47,7 +47,7 @@ func TestTier1TrainingSchedule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := scratchmodel.NewResidentTrainer(construction, 800)
+	trainer, err := scratchmodel.NewResidentTrainer(construction, 800, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}

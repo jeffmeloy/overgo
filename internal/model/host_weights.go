@@ -9,6 +9,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/quant"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
 
@@ -170,16 +171,23 @@ func LoadHostLayer(
 func (layer *HostLayer) GraphInputs(
 	builder *tensor.Builder,
 	prefix string,
-) (LayerGraphWeights, map[*tensor.Tensor]reference.Value, error) {
+) (LayerGraphWeights, tensor.InputBindings[reference.Value], error) {
 	if layer == nil {
 		return LayerGraphWeights{}, nil, errors.New("host layer is nil")
 	}
 	if builder == nil {
 		return LayerGraphWeights{}, nil, errors.New("host layer graph builder is nil")
 	}
-	feeds := make(map[*tensor.Tensor]reference.Value)
+	var feeds tensor.InputBindings[reference.Value]
 	result := LayerGraphWeights{}
-	bindHostLayerGraphFields(builder, prefix, layer, &result, feeds)
+	err := bindLayerGraphFields((*layerTensorSchema[reference.Value])(layer), &result, func(slot layerBindingSlot, host *reference.Value) (*tensor.Tensor, error) {
+		node := builder.Input(prefix+slot.inputName, dtype.F32, host.Shape)
+		feeds.Add(node, *host)
+		return node, nil
+	})
+	if err != nil {
+		return LayerGraphWeights{}, nil, err
+	}
 	if err := builder.Err(); err != nil {
 		return LayerGraphWeights{}, nil, err
 	}

@@ -60,15 +60,11 @@ func Load(directory string) (*Model, error) {
 	}
 	defer source.Close()
 
-	shapes, err := source.IntShapes()
-	if err != nil {
-		return nil, fmt.Errorf("seriesforecast: inventory: %w", err)
-	}
-	weights, err := source.ReadAllF32()
+	catalog, err := source.MaterializeF32(safetensors.F32Selection{RetainShapes: true})
 	if err != nil {
 		return nil, fmt.Errorf("seriesforecast: materialize: %w", err)
 	}
-	weights, shapes, err = canonicalize(weights, shapes)
+	weights, shapes, err := canonicalize(catalog.Values, catalog.Shapes)
 	if err != nil {
 		return nil, err
 	}

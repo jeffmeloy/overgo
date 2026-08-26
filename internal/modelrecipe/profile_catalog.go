@@ -53,8 +53,7 @@ type ProfileCatalogPublication struct {
 	Coverage ProfileCatalogCoverage `json:"coverage"`
 }
 
-// CompileArchitectureProfileCatalog compiles every registered profile.
-func CompileArchitectureProfileCatalog() ([]ProfileDocument, error) {
+func compileArchitectureProfileCatalog() ([]ProfileDocument, error) {
 	names := model.SupportedArchitectures()
 	documents := make([]ProfileDocument, len(names))
 	for index, name := range names {
@@ -76,7 +75,7 @@ func InspectArchitectureProfileCatalog(ctx context.Context, reader artifact.Read
 	if ctx == nil || reader == nil {
 		return ProfileCatalogCoverage{}, errors.New("model recipe: nil profile catalog context or reader")
 	}
-	documents, err := CompileArchitectureProfileCatalog()
+	documents, err := compileArchitectureProfileCatalog()
 	if err != nil {
 		return ProfileCatalogCoverage{}, err
 	}
@@ -126,7 +125,7 @@ func PublishArchitectureProfileCatalog(ctx context.Context, repository artifact.
 	if ctx == nil || repository == nil {
 		return ProfileCatalogPublication{}, errors.New("model recipe: nil profile catalog context or repository")
 	}
-	documents, err := CompileArchitectureProfileCatalog()
+	documents, err := compileArchitectureProfileCatalog()
 	if err != nil {
 		return ProfileCatalogPublication{}, err
 	}

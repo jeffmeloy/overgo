@@ -149,7 +149,8 @@ func TestScratchConstructionAuthority(t *testing.T) {
 		config.Embedding != wantConfig.Embedding || config.HeadDim != wantConfig.HeadDim ||
 		config.HeadCount != wantConfig.Heads || config.LayerCount != wantConfig.Layers ||
 		config.MLPWidth != wantConfig.MLPWidth || config.AttentionWindow != wantConfig.AttentionWindow ||
-		config.BaseLR != wantConfig.BaseLearningRate || config.InitStd != wantConfig.Initialization ||
+		trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(config.EstimatedParams) != wantConfig.BaseLearningRate ||
+		config.InitStd != wantConfig.Initialization ||
 		config.Epsilon != wantConfig.Epsilon || config.BOS != wantConfig.BOS ||
 		config.EstimatedParams != wantConfig.EstimatedParams ||
 		!reflect.DeepEqual(config.Characters, wantConfig.Characters) ||
@@ -201,7 +202,7 @@ func TestActiveDerivationProfileAuthority(t *testing.T) {
 	if construction.Authority().DerivationProfile() != wantProfile {
 		t.Fatal("construction derivation profile differs")
 	}
-	if construction.config.Epsilon != profile.Epsilon || construction.config.MuonMomentum != profile.MuonMomentum {
+	if construction.config.Epsilon != profile.Epsilon {
 		t.Fatal("construction ignored profile numerical policy")
 	}
 	changed := profile

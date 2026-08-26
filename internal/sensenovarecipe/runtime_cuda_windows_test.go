@@ -72,7 +72,7 @@ func runProductionImageGeneration(t testing.TB, request GenerationRequest) produ
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.RoutedImageDefinition(modelID, flowProfile.ID)
+	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleRoutedImagePrepare, modelID, flowProfile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

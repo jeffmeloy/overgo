@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -39,54 +40,105 @@ func AddHostWeights(
 }
 
 type Feeds struct {
-	Host   map[*tensor.Tensor]reference.Value
-	Device map[*tensor.Tensor]driver.DevicePtr
+	ctx                context.Context
+	device             *executor.Executor
+	host               tensor.InputBindings[reference.Value]
+	deviceBindings     tensor.InputBindings[driver.DevicePtr]
+	graph              *executor.IndexedGraph
+	reference          *reference.Program
+	referenceInputs    *reference.Inputs
+	referenceWorkspace *reference.Workspace
+	deviceOutput       []*tensor.Tensor
+	referenceOutput    []*tensor.Tensor
 }
 
-func NewFeeds() *Feeds {
-	return &Feeds{
-		Host:   make(map[*tensor.Tensor]reference.Value),
-		Device: make(map[*tensor.Tensor]driver.DevicePtr),
-	}
+func NewFeeds(ctx context.Context, device *executor.Executor) *Feeds {
+	return &Feeds{ctx: ctx, device: device}
 }
 
 func (f *Feeds) Input(builder *tensor.Builder, name string, value reference.Value) *tensor.Tensor {
 	node := builder.Input(name, dtype.F32, value.Shape)
-	f.Host[node] = value
+	f.host.Add(node, value)
 	return node
 }
 
-func (f *Feeds) AddHost(values map[*tensor.Tensor]reference.Value) {
-	for node, value := range values {
-		f.Host[node] = value
-	}
+func (f *Feeds) AddHost(values tensor.InputBindings[reference.Value]) {
+	f.host = append(f.host, values...)
 }
 
-func (f *Feeds) AddDevice(values map[*tensor.Tensor]driver.DevicePtr) {
-	for node, value := range values {
-		f.Device[node] = value
-	}
+// SetHost binds one graph feed to a host value.
+func (f *Feeds) SetHost(node *tensor.Tensor, value reference.Value) {
+	f.host.Add(node, value)
 }
 
-func (f *Feeds) Execute(
-	ctx context.Context,
-	outputs []*tensor.Tensor,
-	device *executor.Executor,
-) (map[*tensor.Tensor]reference.Value, error) {
+// HostBindings exposes the ordered host feed bindings.
+func (f *Feeds) HostBindings() *tensor.InputBindings[reference.Value] {
+	return &f.host
+}
+
+func (f *Feeds) AddDevice(values tensor.InputBindings[driver.DevicePtr]) {
+	f.deviceBindings = append(f.deviceBindings, values...)
+}
+
+// SetDevice binds one graph feed to a resident device pointer.
+func (f *Feeds) SetDevice(node *tensor.Tensor, pointer driver.DevicePtr) {
+	f.deviceBindings.Add(node, pointer)
+}
+
+func (f *Feeds) Execute(outputs ...*tensor.Tensor) (map[*tensor.Tensor]reference.Value, error) {
 	if f == nil {
 		return nil, errors.New("graph runtime feeds are nil")
 	}
-	if device == nil {
-		return reference.Execute(outputs, f.Host)
+	if f.device == nil {
+		program, err := f.compileReference(outputs)
+		if err != nil {
+			return nil, err
+		}
+		return program.Execute(f.referenceInputs, f.referenceWorkspace)
+	}
+	indexed, err := f.compile(outputs)
+	if err != nil {
+		return nil, err
+	}
+	host := make(map[*tensor.Tensor]reference.Value, len(f.host))
+	for _, binding := range f.host {
+		host[binding.Node] = binding.Value
+	}
+	return f.device.ExecuteCompiled(f.ctx, indexed.Graph, host, indexed.Inputs)
+}
+
+func (f *Feeds) compileReference(outputs []*tensor.Tensor) (*reference.Program, error) {
+	if f.reference != nil && slices.Equal(f.referenceOutput, outputs) {
+		return f.reference, nil
+	}
+	program, err := reference.Compile(outputs...)
+	if err != nil {
+		return nil, err
+	}
+	inputs := program.NewInputs()
+	for _, binding := range f.host {
+		if program.HasInput(binding.Node) {
+			if err := inputs.Set(binding.Node, binding.Value); err != nil {
+				return nil, err
+			}
+		}
+	}
+	f.reference, f.referenceInputs = program, inputs
+	f.referenceWorkspace, f.referenceOutput = program.NewWorkspace(), slices.Clone(outputs)
+	return program, nil
+}
+
+func (f *Feeds) compile(outputs []*tensor.Tensor) (*executor.IndexedGraph, error) {
+	if f.graph != nil && slices.Equal(f.deviceOutput, outputs) {
+		return f.graph, nil
 	}
 	indexed, err := executor.CompileIndexed(outputs...)
 	if err != nil {
 		return nil, err
 	}
-	for node, pointer := range f.Device {
-		if err := indexed.Inputs.Set(node, pointer); err != nil {
-			return nil, err
-		}
+	if err := indexed.Inputs.Bind(f.deviceBindings); err != nil {
+		return nil, err
 	}
-	return device.ExecuteCompiled(ctx, indexed.Graph, f.Host, indexed.Inputs)
+	f.graph, f.deviceOutput = indexed, slices.Clone(outputs)
+	return indexed, nil
 }

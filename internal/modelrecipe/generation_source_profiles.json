@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "task": "image-gen",
+      "selector": {"model_type": "neo_chat", "architecture": "NEOChatModel"},
+      "inventory": "hf",
+      "profile": "flow-profile",
+      "prepare": "model.routed-image-prepare"
+    },
+    {
+      "task": "image-gen",
+      "selector": {"pipeline": "Krea2Pipeline"},
+      "inventory": "latent-image",
+      "profile": "profile",
+      "prepare": "model.latent-image-prepare"
+    },
+    {
+      "task": "image-gen",
+      "selector": {"model_type": "uvit"},
+      "inventory": "root-safetensors",
+      "profile": "",
+      "prepare": "model.diffusion-image-prepare"
+    },
+    {
+      "task": "image-gen",
+      "selector": {"model_type": "un0"},
+      "inventory": "root-safetensors",
+      "profile": "",
+      "prepare": "model.oscillator-image-prepare"
+    },
+    {
+      "task": "video-gen",
+      "selector": {"model_type": "un0"},
+      "inventory": "root-safetensors",
+      "profile": "",
+      "prepare": "model.oscillator-video-prepare"
+    }
+  ]
+}

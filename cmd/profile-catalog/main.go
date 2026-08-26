@@ -14,6 +14,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/scratchmodel"
 )
 
 func main() {
@@ -47,8 +48,12 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(output, "profiles registered=%d published=%d changed=%t commit=%s\n",
+	derivation, err := scratchmodel.PublishDerivationProfileCatalog(context.Background(), store)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "profiles registered=%d published=%d changed=%t commit=%s derivation=%s\n",
 		publication.Coverage.Registered, publication.Coverage.Published,
-		publication.Changed, publication.Commit)
+		publication.Changed, publication.Commit, derivation.ID)
 	return err
 }

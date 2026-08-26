@@ -28,7 +28,7 @@ func NewModelBuilderWorkspace(ctx context.Context, store artifact.Repository) (*
 	if err != nil {
 		return nil, err
 	}
-	recipeID, err := modelbuilder.ScratchRecipeID(profile.ID)
+	recipeID, err := modelbuilder.ScratchWorkflowSelection(profile.ID)
 	if err != nil {
 		return nil, err
 	}

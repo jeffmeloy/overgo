@@ -122,12 +122,12 @@ func TestInferenceModalityMatrixDerivedFromRecipes(t *testing.T) {
 		}
 		definitions = append(definitions, definition)
 	}
-	oscillatorImage, err := modelrecipe.OscillatorImageDefinition(model)
+	oscillatorImage, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, model, artifact.ID{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	definitions = append(definitions, oscillatorImage)
-	latentImage, err := modelrecipe.LatentImageDefinition(model, profile)
+	latentImage, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentImagePrepare, model, profile)
 	if err != nil {
 		t.Fatal(err)
 	}

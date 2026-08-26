@@ -89,20 +89,16 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-image-runtime")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "typed-image-profile")
 	tests := []struct {
-		define func(artifact.ID) (recipe.Definition, error)
-		want   recipe.ModuleID
+		prepare recipe.ModuleID
+		profile artifact.ID
 	}{
-		{func(model artifact.ID) (recipe.Definition, error) {
-			return modelrecipe.LatentImageDefinition(model, profileID)
-		}, modelrecipe.ModuleLatentImagePrepare},
-		{modelrecipe.OscillatorImageDefinition, modelrecipe.ModuleOscillatorImagePrepare},
-		{func(model artifact.ID) (recipe.Definition, error) {
-			return modelrecipe.RoutedImageDefinition(model, profileID)
-		}, modelrecipe.ModuleRoutedImagePrepare},
-		{modelrecipe.DiffusionImageDefinition, modelrecipe.ModuleDiffusionImagePrepare},
+		{modelrecipe.ModuleLatentImagePrepare, profileID},
+		{modelrecipe.ModuleOscillatorImagePrepare, artifact.ID{}},
+		{modelrecipe.ModuleRoutedImagePrepare, profileID},
+		{modelrecipe.ModuleDiffusionImagePrepare, artifact.ID{}},
 	}
 	for _, test := range tests {
-		definition, err := test.define(modelID)
+		definition, err := modelrecipe.GenerationDefinition(test.prepare, modelID, test.profile)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -110,8 +106,8 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := program.Stages()[0].Module.ID; got != test.want {
-			t.Fatalf("operator module=%q, want %q", got, test.want)
+		if got := program.Stages()[0].Module.ID; got != test.prepare {
+			t.Fatalf("operator module=%q, want %q", got, test.prepare)
 		}
 	}
 }
@@ -170,7 +166,7 @@ func TestImageCapabilityBindsSenseNovaByArchitecture(t *testing.T) {
 func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "encoded-image-runtime")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "encoded-image-profile")
-	definition, err := modelrecipe.LatentImageDefinition(modelID, profileID)
+	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentImagePrepare, modelID, profileID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -64,7 +64,7 @@ func FromGGUF(file *gguf.File, kind artifact.Kind) (Inventory, error) {
 	if file == nil {
 		return Inventory{}, errors.New("model artifact: nil GGUF")
 	}
-	if kind != artifact.KindModel && kind != artifact.KindProjector {
+	if !tensorBearingKind(kind) {
 		return Inventory{}, errors.New("model artifact: GGUF logical kind must be model or projector")
 	}
 	paths := file.SourcePaths()
@@ -114,6 +114,10 @@ func FromGGUF(file *gguf.File, kind artifact.Kind) (Inventory, error) {
 		return Inventory{}, err
 	}
 	return Inventory{Manifest: manifest, TensorInventory: tensors, Components: descriptors, Locations: locations}, nil
+}
+
+func tensorBearingKind(kind artifact.Kind) bool {
+	return kind == artifact.KindModel || kind == artifact.KindProjector
 }
 
 // FromHFRepository: inventory from an already-validated Safetensors repository

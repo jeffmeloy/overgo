@@ -19,32 +19,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/hfrepo"
-	"overgo/internal/jsonfile"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 )
-
-func Recognize(modelDir string) (bool, error) {
-	var config struct {
-		Architectures []string `json:"architectures"`
-		ModelType     string   `json:"model_type"`
-	}
-	if err := jsonfile.Decode(filepath.Join(modelDir, "config.json"), &config); err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return config.ModelType == "neo_chat" && slices.Contains(config.Architectures, "NEOChatModel"), nil
-}
 
 // Task: SenseNova serves a generation-only image-gen recipe (not inference,
 // not VQA). The linear image-gen topology is the recipe.CapabilityDefinition
@@ -154,7 +137,7 @@ func Activate(
 	verification modelrecipe.Verification,
 	reason string,
 ) (recipe.Definition, error) {
-	definition, err := modelrecipe.RoutedImageDefinition(modelID, flowProfileID)
+	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleRoutedImagePrepare, modelID, flowProfileID)
 	if err != nil {
 		return recipe.Definition{}, err
 	}

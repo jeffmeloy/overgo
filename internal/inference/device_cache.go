@@ -728,7 +728,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		})
 	}
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	graphs := make([]deviceBatchGraph, len(appends))
 	cacheWrite := tensor.CacheWriteConcat
 	if parameterized {
@@ -738,7 +738,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	for index, appendInput := range appends {
 		graph, err := r.buildDeviceCachedBatchBranch(
 			builder, index, appendInput.Tokens, appendInput.Past, 1, plan,
-			cacheWrite, hostFeeds, deviceFeeds,
+			cacheWrite, hostFeeds, &deviceFeeds,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("inference: device batch branch %d: %w", index, err)
@@ -753,10 +753,8 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	if err != nil {
 		return nil, err
 	}
-	for node, pointer := range deviceFeeds {
-		if err := execution.Inputs.Set(node, pointer); err != nil {
-			return nil, err
-		}
+	if err := execution.Inputs.Bind(deviceFeeds); err != nil {
+		return nil, err
 	}
 	targetPlans, err := r.compileDeviceCacheTargetPlans(execution.Graph, graphs, appends)
 	if err != nil {
@@ -1073,7 +1071,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	plan deviceOutputPlan,
 	cacheWrite tensor.CacheWriteMode,
 	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+	deviceFeeds *tensor.InputBindings[driver.DevicePtr],
 ) (deviceBatchGraph, error) {
 	fail := func(err error) (deviceBatchGraph, error) {
 		return deviceBatchGraph{}, err
@@ -1113,12 +1111,12 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	}
 	tokenRowInput := builder.GetRows(embeddingTable, tokenIndices)
 	current := tokenRowInput
-	deviceFeeds[embeddingTable] = embeddingPointer
+	deviceFeeds.Add(embeddingTable, embeddingPointer)
 	dynamicEmbedding := embeddingTable.Type == dtype.F32 || embeddingTable.Type == dtype.Q8_0
 	var feedback *tensor.Tensor
 	if plan.retainsSelection() && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
 		selection := builder.Input(prefix+"selected_token", dtype.F32, tensor.MustShape(sequences))
-		deviceFeeds[selection] = past.Selection.Pointer
+		deviceFeeds.Add(selection, past.Selection.Pointer)
 		current = builder.GatherLast(embeddingTable, selection)
 		feedback = selection
 		tokenRowInput = nil
@@ -1135,7 +1133,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if positionErr != nil {
 			return fail(positionErr)
 		}
-		deviceFeeds[positionTable] = pointer
+		deviceFeeds.Add(positionTable, pointer)
 		positionInput := builder.GetRows(positionTable, repeatedPositions)
 		positionRows = append(positionRows, positionInput)
 		current = builder.Add(current, positionInput)
@@ -1148,14 +1146,14 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if normErr != nil {
 			return fail(normErr)
 		}
-		deviceFeeds[normWeight] = pointer
+		deviceFeeds.Add(normWeight, pointer)
 		var normBias *tensor.Tensor
 		if r.weights.TokenEmbeddingNormBias != nil {
 			normBias, pointer, normErr = r.deviceInput(builder, *r.weights.TokenEmbeddingNormBias)
 			if normErr != nil {
 				return fail(normErr)
 			}
-			deviceFeeds[normBias] = pointer
+			deviceFeeds.Add(normBias, pointer)
 		}
 		current = r.program.Model.Normalization().Apply(builder, current, normWeight, normBias)
 	}
@@ -1174,17 +1172,17 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if inputErr != nil {
 			return fail(inputErr)
 		}
-		deviceFeeds[perLayerTable] = pointer
+		deviceFeeds.Add(perLayerTable, pointer)
 		projection, pointer, inputErr := r.deviceInput(builder, *r.weights.PerLayerModelProjection)
 		if inputErr != nil {
 			return fail(inputErr)
 		}
-		deviceFeeds[projection] = pointer
+		deviceFeeds.Add(projection, pointer)
 		norm, pointer, inputErr := r.deviceInput(builder, *r.weights.PerLayerProjectionNorm)
 		if inputErr != nil {
 			return fail(inputErr)
 		}
-		deviceFeeds[norm] = pointer
+		deviceFeeds.Add(norm, pointer)
 		perLayerInputs, inputErr = r.program.Model.BuildPerLayerInputs(
 			builder, current, builder.GetRows(perLayerTable, tokenIndices), projection, norm,
 		)
@@ -1210,9 +1208,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if layerErr != nil {
 			return fail(layerErr)
 		}
-		for node, pointer := range layerFeeds {
-			deviceFeeds[node] = pointer
-		}
+		*deviceFeeds = append(*deviceFeeds, layerFeeds...)
 		sideInputs := layerSideInputs{embeddingSkip: embeddingSkip}
 		if len(perLayerInputs) > 0 {
 			sideInputs.perLayerInput = perLayerInputs[layerIndex]
@@ -1266,7 +1262,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	if err != nil {
 		return fail(err)
 	}
-	deviceFeeds[outputTable] = outputPointer
+	deviceFeeds.Add(outputTable, outputPointer)
 	width := uint64(r.spec.EmbeddingLength)
 	hiddenElements, err := current.Shape.Elements()
 	if err != nil {
@@ -1284,7 +1280,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		if biasErr != nil {
 			return fail(biasErr)
 		}
-		deviceFeeds[bias] = pointer
+		deviceFeeds.Add(bias, pointer)
 		logits = builder.Add(logits, bias)
 	}
 	if scale := r.spec.OutputLogitMultiplier(); scale != 1 {
@@ -1306,14 +1302,14 @@ func (r *Runner) deviceBatchLayerCacheInputs(
 	layerIndex int,
 	past *deviceKVCache,
 	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+	deviceFeeds *tensor.InputBindings[driver.DevicePtr],
 ) (layerGraphCacheInputs, error) {
 	name := func(suffix string) string {
 		return prefix + fmt.Sprintf("blk.%d.%s", layerIndex, suffix)
 	}
 	inputDevice := func(suffix string, value executor.DeviceValue) *tensor.Tensor {
 		input := builder.Input(name(suffix), dtype.F32, value.Shape)
-		deviceFeeds[input] = value.Pointer
+		deviceFeeds.Add(input, value.Pointer)
 		return input
 	}
 	inputZero := func(suffix string, shape tensor.Shape) *tensor.Tensor {

@@ -366,42 +366,6 @@ func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definit
 	return capability.definition(task, modelID)
 }
 
-// LatentImageDefinition returns a prompt-conditioned diffusion image graph.
-func LatentImageDefinition(modelID, profileID artifact.ID) (recipe.Definition, error) {
-	return latentImageCapability.definition(recipe.TaskImageGen, modelID, recipe.Dependency{
-		Role: recipe.DependencyProfile, Artifact: profileID,
-	})
-}
-
-// OscillatorImageDefinition returns a class-conditioned oscillator image graph.
-func OscillatorImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	return oscillatorImageCapability.definition(recipe.TaskImageGen, modelID)
-}
-
-// DiffusionImageDefinition returns a seeded image-tensor flow graph.
-func DiffusionImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	return diffusionImageCapability.definition(recipe.TaskImageGen, modelID)
-}
-
-// OscillatorVideoDefinition returns a class-conditioned oscillator video graph.
-func OscillatorVideoDefinition(modelID artifact.ID) (recipe.Definition, error) {
-	return oscillatorVideoCapability.definition(recipe.TaskVideoGen, modelID)
-}
-
-// RoutedImageDefinition returns a prompt-conditioned routed-transformer image graph.
-func RoutedImageDefinition(modelID, flowProfileID artifact.ID) (recipe.Definition, error) {
-	return routedImageCapability.definition(recipe.TaskImageGen, modelID, recipe.Dependency{
-		Role: recipe.DependencyFlowProfile, Artifact: flowProfileID,
-	})
-}
-
-// LatentVideoDefinition returns a prompt-conditioned latent-video graph.
-func LatentVideoDefinition(modelID, profileID artifact.ID) (recipe.Definition, error) {
-	return latentVideoCapability.definition(recipe.TaskVideoGen, modelID, recipe.Dependency{
-		Role: recipe.DependencyProfile, Artifact: profileID,
-	})
-}
-
 // ReferenceVideoEditDefinition returns a prompt and source-video conditioned graph.
 func ReferenceVideoEditDefinition(modelID, profileID artifact.ID) (recipe.Definition, error) {
 	prepare := recipe.Node{ID: "prepare", Module: ModuleReferenceVideoPrepare, Placement: recipe.PlacementHybrid, Session: recipe.SessionCapacity}

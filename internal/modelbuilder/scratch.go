@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
+	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowruntime"
 )
 
@@ -31,7 +32,9 @@ type ScratchRequest struct {
 	Steps      int
 }
 
-func ScratchRecipeID(profile artifact.ID) (artifact.ID, error) {
+// ScratchWorkflowSelection derives the scratch workflow identity from
+// its derivation profile.
+func ScratchWorkflowSelection(profile artifact.ID) (artifact.ID, error) {
 	if profile.Kind() != artifact.KindProfile {
 		return artifact.ID{}, errors.New("model builder: derivation profile required")
 	}
@@ -44,6 +47,7 @@ func ScratchRecipeID(profile artifact.ID) (artifact.ID, error) {
 type ScratchSession struct {
 	request      ScratchRequest
 	profile      scratchmodel.DerivationProfile
+	optimizer    trainingprogram.OptimizerPolicy
 	construction scratchmodel.Construction
 	training     scratchmodel.TrainingResult
 	run          runrecord.Run
@@ -77,14 +81,14 @@ func NewScratchSession(ctx context.Context, request ScratchRequest) (*ScratchSes
 	if err != nil {
 		return nil, err
 	}
-	return &ScratchSession{request: request, profile: profile}, nil
+	optimizer, err := trainingprogram.RequireOptimizerPolicy(ctx, request.Repository, profile.Optimizer)
+	if err != nil {
+		return nil, err
+	}
+	return &ScratchSession{request: request, profile: profile, optimizer: optimizer}, nil
 }
 
 func (session *ScratchSession) Initialize(context.Context) (workflowruntime.ModelBuildState, error) {
-	recipeID, err := ScratchRecipeID(session.profile.ID)
-	if err != nil {
-		return workflowruntime.ModelBuildState{}, err
-	}
 	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{
 		Documents: session.request.Documents, Seed: session.request.Seed, Steps: session.request.Steps,
 	}, session.profile)
@@ -93,13 +97,13 @@ func (session *ScratchSession) Initialize(context.Context) (workflowruntime.Mode
 	}
 	session.construction = construction
 	return workflowruntime.ModelBuildState{
-		Recipe: recipeID, Dataset: construction.Dataset(), DerivationProfile: session.profile.ID,
+		Dataset: construction.Dataset(), DerivationProfile: session.profile.ID, Optimizer: session.optimizer.ID,
 		Construction: construction.Authority().ID(), Model: construction.ID(),
 	}, nil
 }
 
 func (session *ScratchSession) Train(_ context.Context, state workflowruntime.ModelBuildState) (workflowruntime.ModelBuildState, error) {
-	training, err := session.construction.TrainShared(session.request.Steps)
+	training, err := session.construction.TrainShared(session.request.Steps, session.optimizer)
 	if err != nil {
 		return state, err
 	}
@@ -157,7 +161,7 @@ func (session *ScratchSession) Record(ctx context.Context, state workflowruntime
 	}
 	batch.Contents = append(batch.Contents, evaluation, evidence)
 	batch.Artifacts = append(batch.Artifacts,
-		artifact.Descriptor{ID: state.Recipe}, artifact.Descriptor{ID: state.Dataset},
+		artifact.Descriptor{ID: state.Dataset},
 		artifact.Descriptor{ID: state.Construction}, artifact.Descriptor{ID: session.construction.ID()},
 		artifact.Descriptor{ID: state.Model}, artifact.Descriptor{ID: state.Checkpoint})
 	batch.Lineage = append(batch.Lineage, session.evaluation.Lineage()...)

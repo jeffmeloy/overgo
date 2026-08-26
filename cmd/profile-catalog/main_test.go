@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/scratchmodel"
 )
 
 func TestPublishArchitectureProfileCatalogCommand(t *testing.T) {
@@ -27,6 +28,9 @@ func TestPublishArchitectureProfileCatalogCommand(t *testing.T) {
 	}
 	if !coverage.Complete || coverage.Registered == 0 || coverage.Published != coverage.Registered {
 		t.Fatalf("coverage = %+v", coverage)
+	}
+	if _, err := scratchmodel.ResolveActiveDerivationProfile(context.Background(), store); err != nil {
+		t.Fatal(err)
 	}
 	if !strings.Contains(output.String(), "changed=true") {
 		t.Fatalf("output = %q", output.String())

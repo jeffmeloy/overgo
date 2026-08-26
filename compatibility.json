@@ -63,7 +63,7 @@
      "contains": "func OpenSourceWithLimits(",
      "path": "internal/safetensors/source.go",
      "role": "source",
-     "identity": "file:sha256:20d082db54f374f866593286a9e06015208e10d8e5adaf36731fd16fc9758b98"
+     "identity": "file:sha256:6ef47736d5c85c8be49d05e0e1f7e5be823bb686892d160c62ef2acd44383a84"
     },
     {
      "contains": "func TestOpenSourceRejectsInvalidRepositories(",
@@ -320,7 +320,7 @@
      "contains": "func (r *Runner) forwardDenseLayersPreloaded(",
      "path": "internal/inference/runner_layers.go",
      "role": "source",
-     "identity": "file:sha256:2d019997e2cbd88a231a4afad5803d660c9c91d4cf70aee345c98f684acfb93a"
+     "identity": "file:sha256:ab1569fae37383e453988fe49d469f09ed92cf37fbfe9b00bf341a7dbdcd66ad"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -499,7 +499,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:be706fc4a5462744a4e1b0a8a3fc6984bd124d99be4b2dbc2b23aabe84ecbce1"
+     "identity": "file:sha256:4dc051668e610dcb17f1e9ba18bde975bbd8e9dabf156397d03dc2d471bedff0"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
@@ -1113,13 +1113,13 @@
      "contains": "modelrecipe.ModuleRoutedImagePrepare:     routed,",
      "path": "cmd/recipe/image_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:71ab7bc66d77c7929319f00413feebe4240615ac5c5a539bd90ddd55d36ce997"
+     "identity": "file:sha256:b69c0ca28741b3f1e27e86219148cbeb9107b4a24f13b32a1783bcf027c41cb3"
     },
     {
      "contains": "func TestSenseNovaProductionImageGeneration(",
      "path": "internal/sensenovarecipe/runtime_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:78c6804da01373cff563a0d91e0f99ea48065a3a1fab07e3d6c74841ca7bfa63"
+     "identity": "evidence:sha256:3dc1fdc10a302d90d35141232cb64b9d3c1ec70519c7d914cd1096fe01f806a7"
     }
    ],
    "id": "sensenova-production-image-oracle",

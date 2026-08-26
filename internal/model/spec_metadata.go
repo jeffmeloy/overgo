@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"reflect"
 	"slices"
 
 	"overgo/internal/gguf"
@@ -464,7 +463,11 @@ const (
 type metadataOp struct {
 	kind       metadataOpKind
 	key        string
-	field      string
+	u32        func(*Spec) *uint32
+	f32        func(*Spec) *float32
+	boolean    func(*Spec) *bool
+	f32s       func(*Spec) *[]float32
+	sourceU32  func(*Spec) *uint32
 	mode       metadataReadMode
 	value      uint32
 	floatValue float32
@@ -473,78 +476,90 @@ type metadataOp struct {
 	absolute   bool
 }
 
-func (s *Spec) fieldDestination(field string) any {
-	return reflect.ValueOf(s).Elem().FieldByName(field).Addr().Interface()
+func setU32(destination func(*Spec) *uint32, value uint32) metadataOp {
+	return metadataOp{kind: metadataOpSetUint32, u32: destination, value: value}
 }
 
-func setU32(field string, value uint32) metadataOp {
-	return metadataOp{kind: metadataOpSetUint32, field: field, value: value}
+func setF32(destination func(*Spec) *float32, value float32) metadataOp {
+	return metadataOp{kind: metadataOpSetFloat32, f32: destination, floatValue: value}
 }
 
-func setF32(field string, value float32) metadataOp {
-	return metadataOp{kind: metadataOpSetFloat32, field: field, floatValue: value}
+type u32MetadataOp metadataOp
+type f32MetadataOp metadataOp
+type boolMetadataOp metadataOp
+
+func (o u32MetadataOp) at(key string, destination func(*Spec) *uint32) metadataOp {
+	result := metadataOp(o)
+	result.key, result.u32 = key, destination
+	return result
 }
 
-// at: binds a scalar-read template to a metadata key and Spec field.
-func (o metadataOp) at(key, field string) metadataOp {
-	o.key, o.field = key, field
-	return o
+func (o f32MetadataOp) at(key string, destination func(*Spec) *float32) metadataOp {
+	result := metadataOp(o)
+	result.key, result.f32 = key, destination
+	return result
+}
+
+func (o boolMetadataOp) at(key string, destination func(*Spec) *bool) metadataOp {
+	result := metadataOp(o)
+	result.key, result.boolean = key, destination
+	return result
 }
 
 // scalar-read templates: kind and missing-key mode without a binding.
 var (
-	opReqU32     = metadataOp{kind: metadataOpUint32}
-	opZeroU32    = metadataOp{kind: metadataOpUint32, mode: metadataReadAssignZero}
-	opKeepU32    = metadataOp{kind: metadataOpUint32, mode: metadataReadKeepCurrent}
-	opNonzeroU32 = metadataOp{kind: metadataOpUint32, mode: metadataReadKeepNonZero}
-	opReqF32     = metadataOp{kind: metadataOpFloat32}
-	opZeroF32    = metadataOp{kind: metadataOpFloat32, mode: metadataReadAssignZero}
-	opKeepF32    = metadataOp{kind: metadataOpFloat32, mode: metadataReadKeepCurrent}
-	opReqBool    = metadataOp{kind: metadataOpBool}
-	opZeroBool   = metadataOp{kind: metadataOpBool, mode: metadataReadAssignZero}
+	opReqU32     = u32MetadataOp{kind: metadataOpUint32}
+	opZeroU32    = u32MetadataOp{kind: metadataOpUint32, mode: metadataReadAssignZero}
+	opKeepU32    = u32MetadataOp{kind: metadataOpUint32, mode: metadataReadKeepCurrent}
+	opNonzeroU32 = u32MetadataOp{kind: metadataOpUint32, mode: metadataReadKeepNonZero}
+	opReqF32     = f32MetadataOp{kind: metadataOpFloat32}
+	opZeroF32    = f32MetadataOp{kind: metadataOpFloat32, mode: metadataReadAssignZero}
+	opKeepF32    = f32MetadataOp{kind: metadataOpFloat32, mode: metadataReadKeepCurrent}
+	opReqBool    = boolMetadataOp{kind: metadataOpBool}
+	opZeroBool   = boolMetadataOp{kind: metadataOpBool, mode: metadataReadAssignZero}
 )
 
 var (
-	ropeDimensionRequired     = opReqU32.at("rope.dimension_count", "RopeDimensionCount")
-	ropeDimensionAssigned     = opZeroU32.at("rope.dimension_count", "RopeDimensionCount")
-	expertFeedForwardRequired = opReqU32.at("expert_feed_forward_length", "ExpertFeedForward")
-	expertGatingRequired      = opReqU32.at("expert_gating_func", "ExpertGatingFunc")
-	sharedWidthOptional       = opKeepU32.at("expert_shared_feed_forward_length", "SharedExpertFF")
-	leadingDenseOptional      = opZeroU32.at("leading_dense_block_count", "LeadingDenseBlocks")
-	expertNormAlways          = metadataOp{kind: metadataOpSetBool, field: "ExpertWeightsNorm", flag: true}
-	expertNormOptional        = opZeroBool.at("expert_weights_norm", "ExpertWeightsNorm")
+	ropeDimensionRequired     = opReqU32.at("rope.dimension_count", func(spec *Spec) *uint32 { return &spec.RopeDimensionCount })
+	ropeDimensionAssigned     = opZeroU32.at("rope.dimension_count", func(spec *Spec) *uint32 { return &spec.RopeDimensionCount })
+	expertFeedForwardRequired = opReqU32.at("expert_feed_forward_length", func(spec *Spec) *uint32 { return &spec.ExpertFeedForward })
+	expertGatingRequired      = opReqU32.at("expert_gating_func", func(spec *Spec) *uint32 { return &spec.ExpertGatingFunc })
+	sharedWidthOptional       = opKeepU32.at("expert_shared_feed_forward_length", func(spec *Spec) *uint32 { return &spec.SharedExpertFF })
+	leadingDenseOptional      = opZeroU32.at("leading_dense_block_count", func(spec *Spec) *uint32 { return &spec.LeadingDenseBlocks })
+	expertNormAlways          = metadataOp{kind: metadataOpSetBool, boolean: func(spec *Spec) *bool { return &spec.ExpertWeightsNorm }, flag: true}
+	expertNormOptional        = opZeroBool.at("expert_weights_norm", func(spec *Spec) *bool { return &spec.ExpertWeightsNorm })
 	sectionsRequired          = metadataOp{kind: metadataOpRopeSections, key: "rope.dimension_sections"}
 	sectionsOptional          = metadataOp{kind: metadataOpRopeSections, key: "rope.dimension_sections", mode: metadataReadKeepCurrent}
 )
 
 // cohere2CoreProgram: shared Cohere2 and Cohere2-MoE core reads.
 var cohere2CoreProgram = []metadataOp{
-	opReqF32.at("logit_scale", "LogitScale"),
+	opReqF32.at("logit_scale", func(spec *Spec) *float32 { return &spec.LogitScale }),
 	ropeDimensionRequired,
 	{kind: metadataOpSlidingPatternType, key: "attention.sliding_window_pattern"},
 }
 
 // coreAttentionPrograms: architecture-core reads keyed by attention contract.
 var coreAttentionPrograms = map[AttentionValidationPolicy][]metadataOp{
-	AttentionValidationFullRotary:                   {opReqF32.at("logit_scale", "LogitScale")},
+	AttentionValidationFullRotary:                   {opReqF32.at("logit_scale", func(spec *Spec) *float32 { return &spec.LogitScale })},
 	AttentionValidationRequiredSlidingRotary:        cohere2CoreProgram,
 	AttentionValidationRequiredSlidingRotaryExperts: cohere2CoreProgram,
 	AttentionValidationPartialRotaryRequired:        {ropeDimensionRequired},
 	AttentionValidationPartialRotaryFixed:           {ropeDimensionRequired},
 	AttentionValidationScaledPartialRotary: {
 		ropeDimensionRequired,
-		opReqU32.at("rope.scaling.original_context_length", "OriginalContextLength"),
+		opReqU32.at("rope.scaling.original_context_length", func(spec *Spec) *uint32 { return &spec.OriginalContextLength }),
 	},
 	AttentionValidationSlidingRotaryEmbeddingProjection: {
-		opReqU32.at("attention.sliding_window", "SlidingWindow"),
-		opZeroU32.at("dense_2_feat_in", "Dense2FeatureIn"),
-		opZeroU32.at("dense_2_feat_out", "Dense2FeatureOut"),
-		opZeroU32.at("dense_3_feat_in", "Dense3FeatureIn"),
-		opZeroU32.at("dense_3_feat_out", "Dense3FeatureOut"),
+		opReqU32.at("attention.sliding_window", func(spec *Spec) *uint32 { return &spec.SlidingWindow }),
+		opZeroU32.at("dense_2_feat_in", func(spec *Spec) *uint32 { return &spec.Dense2FeatureIn }),
+		opZeroU32.at("dense_2_feat_out", func(spec *Spec) *uint32 { return &spec.Dense2FeatureOut }),
+		opZeroU32.at("dense_3_feat_in", func(spec *Spec) *uint32 { return &spec.Dense3FeatureIn }),
+		opZeroU32.at("dense_3_feat_out", func(spec *Spec) *uint32 { return &spec.Dense3FeatureOut }),
 	},
 	AttentionValidationOptionalRotaryBase: {
 		ropeDimensionAssigned,
-		opReqBool.at("use_parallel_residual", "ParallelResidual"),
+		opReqBool.at("use_parallel_residual", func(spec *Spec) *bool { return &spec.ParallelResidual }),
 	},
 	AttentionValidationHalvedFeedForward:           {{kind: metadataOpHalveFeedForward}},
 	AttentionValidationOptionalRopeSections:        {sectionsOptional},
@@ -552,14 +567,14 @@ var coreAttentionPrograms = map[AttentionValidationPolicy][]metadataOp{
 	AttentionValidationOptionalRotaryBaseGQA:       {ropeDimensionAssigned},
 	AttentionValidationSharedKVAttention:           {{kind: metadataOpSlidingSchedule, slide: slidingSharedKV}},
 	AttentionValidationFullHeadSlidingRotary: {
-		opKeepU32.at("attention.sliding_window", "SlidingWindow"),
+		opKeepU32.at("attention.sliding_window", func(spec *Spec) *uint32 { return &spec.SlidingWindow }),
 		{kind: metadataOpHiddenActivation},
 	},
 	AttentionValidationFullScaledRotaryXIELU: {
-		{kind: metadataOpLayerFloat32, key: "xielu.alpha_n", field: "XIELUAlphaN"},
-		{kind: metadataOpLayerFloat32, key: "xielu.alpha_p", field: "XIELUAlphaP"},
-		{kind: metadataOpLayerFloat32, key: "xielu.beta", field: "XIELUBeta"},
-		{kind: metadataOpLayerFloat32, key: "xielu.eps", field: "XIELUEpsilon"},
+		{kind: metadataOpLayerFloat32, key: "xielu.alpha_n", f32s: func(spec *Spec) *[]float32 { return &spec.XIELUAlphaN }},
+		{kind: metadataOpLayerFloat32, key: "xielu.alpha_p", f32s: func(spec *Spec) *[]float32 { return &spec.XIELUAlphaP }},
+		{kind: metadataOpLayerFloat32, key: "xielu.beta", f32s: func(spec *Spec) *[]float32 { return &spec.XIELUBeta }},
+		{kind: metadataOpLayerFloat32, key: "xielu.eps", f32s: func(spec *Spec) *[]float32 { return &spec.XIELUEpsilon }},
 	},
 	AttentionValidationLayerwiseQKNorm: {
 		sectionsOptional,
@@ -573,16 +588,16 @@ var coreFlagPrograms = []struct {
 	program []metadataOp
 }{
 	{MetadataReadGPTJRotary, []metadataOp{ropeDimensionRequired}},
-	{MetadataReadCommandRLogits, []metadataOp{opZeroF32.at("logit_scale", "LogitScale")}},
+	{MetadataReadCommandRLogits, []metadataOp{opZeroF32.at("logit_scale", func(spec *Spec) *float32 { return &spec.LogitScale })}},
 	{MetadataReadVisualSections, []metadataOp{sectionsRequired}},
-	{MetadataReadQwen3VLDeepstack, []metadataOp{opKeepU32.at("n_deepstack_layers", "DeepstackLayerCount")}},
-	{MetadataReadOLMoClamp, []metadataOp{opKeepF32.at("attention.clamp_kqv", "AttentionClamp")}},
+	{MetadataReadQwen3VLDeepstack, []metadataOp{opKeepU32.at("n_deepstack_layers", func(spec *Spec) *uint32 { return &spec.DeepstackLayerCount })}},
+	{MetadataReadOLMoClamp, []metadataOp{opKeepF32.at("attention.clamp_kqv", func(spec *Spec) *float32 { return &spec.AttentionClamp })}},
 }
 
 // expertProductProgram: shared-product MoE width reads with optional gating
 // and weights-norm overrides.
 func expertProductProgram(gating, norm bool) []metadataOp {
-	program := []metadataOp{expertFeedForwardRequired, opReqU32.at("expert_shared_count", "SharedExpertCount")}
+	program := []metadataOp{expertFeedForwardRequired, opReqU32.at("expert_shared_count", func(spec *Spec) *uint32 { return &spec.SharedExpertCount })}
 	if gating {
 		program = append(program, expertGatingRequired)
 	}
@@ -595,7 +610,7 @@ func expertProductProgram(gating, norm bool) []metadataOp {
 
 // expertHybridPrograms: expert-stage reads keyed by hybrid contract.
 var expertHybridPrograms = map[HybridValidationPolicy][]metadataOp{
-	HybridValidationSigmoidExperts:            {setU32("ExpertGatingFunc", expertGatingSigmoid), expertNormAlways},
+	HybridValidationSigmoidExperts:            {setU32(func(spec *Spec) *uint32 { return &spec.ExpertGatingFunc }, expertGatingSigmoid), expertNormAlways},
 	HybridValidationRequiredExpertFeedForward: {expertFeedForwardRequired, expertNormAlways},
 	HybridValidationSharedExpertProduct: {
 		expertFeedForwardRequired,
@@ -614,7 +629,7 @@ var expertHybridPrograms = map[HybridValidationPolicy][]metadataOp{
 	HybridValidationAlternatingShortConvolutionExperts: {expertFeedForwardRequired, expertGatingRequired, leadingDenseOptional},
 	HybridValidationScaledSharedExperts: {
 		expertFeedForwardRequired,
-		opReqU32.at("expert_shared_count", "SharedExpertCount"),
+		opReqU32.at("expert_shared_count", func(spec *Spec) *uint32 { return &spec.SharedExpertCount }),
 		{kind: metadataOpSharedFeedForwardFromExpert},
 		sharedWidthOptional,
 		{kind: metadataOpSharedFeedForwardScale},
@@ -624,7 +639,7 @@ var expertHybridPrograms = map[HybridValidationPolicy][]metadataOp{
 	},
 	HybridValidationNormalizedSharedExperts: {
 		{kind: metadataOpExpertFeedForwardFromModel, flag: true},
-		setU32("SharedExpertCount", tensor.SingletonExtent),
+		setU32(func(spec *Spec) *uint32 { return &spec.SharedExpertCount }, tensor.SingletonExtent),
 		{kind: metadataOpSharedFeedForwardFromModel},
 		sharedWidthOptional,
 	},
@@ -635,15 +650,15 @@ var expertHybridPrograms = map[HybridValidationPolicy][]metadataOp{
 	HybridValidationMultiHeadDraft: {
 		expertFeedForwardRequired,
 		{kind: metadataOpSharedFeedForwardPolicy},
-		setU32("ExpertGatingFunc", expertGatingSigmoid),
-		opNonzeroU32.at("expert_gating_func", "ExpertGatingFunc"),
+		setU32(func(spec *Spec) *uint32 { return &spec.ExpertGatingFunc }, expertGatingSigmoid),
+		opNonzeroU32.at("expert_gating_func", func(spec *Spec) *uint32 { return &spec.ExpertGatingFunc }),
 		expertNormOptional,
 	},
 	HybridValidationSlidingSharedExperts: {
 		expertFeedForwardRequired,
 		{kind: metadataOpSharedFeedForwardFromExpert},
 		sharedWidthOptional,
-		opZeroU32.at("expert_shared_count", "SharedExpertCount"),
+		opZeroU32.at("expert_shared_count", func(spec *Spec) *uint32 { return &spec.SharedExpertCount }),
 		leadingDenseOptional,
 		expertGatingRequired,
 		expertNormOptional,
@@ -654,44 +669,44 @@ var expertHybridPrograms = map[HybridValidationPolicy][]metadataOp{
 var expertAttentionPrograms = map[AttentionValidationPolicy][]metadataOp{
 	AttentionValidationPeriodicExperts: {
 		expertFeedForwardRequired,
-		opReqU32.at("interleave_moe_layer_step", "MoELayerStep"),
+		opReqU32.at("interleave_moe_layer_step", func(spec *Spec) *uint32 { return &spec.MoELayerStep }),
 		leadingDenseOptional,
-		opZeroU32.at("expert_shared_feed_forward_length", "SharedExpertFF"),
+		opZeroU32.at("expert_shared_feed_forward_length", func(spec *Spec) *uint32 { return &spec.SharedExpertFF }),
 		expertNormAlways,
 	},
 }
 
 var rwkv6Reads = []metadataOp{
-	opReqU32.at("time_mix_extra_dim", "TimeMixExtraDim"),
-	opReqU32.at("time_decay_extra_dim", "TimeDecayExtraDim"),
-	opZeroU32.at("rescale_every_n_layers", "RescaleEvery"),
+	opReqU32.at("time_mix_extra_dim", func(spec *Spec) *uint32 { return &spec.TimeMixExtraDim }),
+	opReqU32.at("time_decay_extra_dim", func(spec *Spec) *uint32 { return &spec.TimeDecayExtraDim }),
+	opZeroU32.at("rescale_every_n_layers", func(spec *Spec) *uint32 { return &spec.RescaleEvery }),
 }
 
 var rwkv7Reads = []metadataOp{
-	opReqU32.at("attention.decay_lora_rank", "DecayLoRARank"),
-	opReqU32.at("attention.iclr_lora_rank", "ICLRLoRARank"),
-	opReqU32.at("attention.value_residual_mix_lora_rank", "ValueMixLoRARank"),
-	opZeroU32.at("attention.gate_lora_rank", "GateLoRARank"),
+	opReqU32.at("attention.decay_lora_rank", func(spec *Spec) *uint32 { return &spec.DecayLoRARank }),
+	opReqU32.at("attention.iclr_lora_rank", func(spec *Spec) *uint32 { return &spec.ICLRLoRARank }),
+	opReqU32.at("attention.value_residual_mix_lora_rank", func(spec *Spec) *uint32 { return &spec.ValueMixLoRARank }),
+	opZeroU32.at("attention.gate_lora_rank", func(spec *Spec) *uint32 { return &spec.GateLoRARank }),
 }
 
 // tokenShiftProgram: WKV reads plus token-shift default.
 func tokenShiftProgram(reads []metadataOp, shift uint32) []metadataOp {
-	program := append([]metadataOp{opReqU32.at("wkv.head_size", "WKVHeadSize")}, reads...)
-	return append(program, setU32("TokenShiftCount", shift), opKeepU32.at("token_shift_count", "TokenShiftCount"))
+	program := append([]metadataOp{opReqU32.at("wkv.head_size", func(spec *Spec) *uint32 { return &spec.WKVHeadSize })}, reads...)
+	return append(program, setU32(func(spec *Spec) *uint32 { return &spec.TokenShiftCount }, shift), opKeepU32.at("token_shift_count", func(spec *Spec) *uint32 { return &spec.TokenShiftCount }))
 }
 
 // ssmProgram: state-space reads; grouped layouts include group count.
 func ssmProgram(grouped bool) []metadataOp {
 	program := []metadataOp{
-		opReqU32.at("ssm.conv_kernel", "SSMConvKernel"),
-		opReqU32.at("ssm.inner_size", "SSMInnerSize"),
-		opReqU32.at("ssm.state_size", "SSMStateSize"),
-		opReqU32.at("ssm.time_step_rank", "SSMTimeStepRank"),
+		opReqU32.at("ssm.conv_kernel", func(spec *Spec) *uint32 { return &spec.SSMConvKernel }),
+		opReqU32.at("ssm.inner_size", func(spec *Spec) *uint32 { return &spec.SSMInnerSize }),
+		opReqU32.at("ssm.state_size", func(spec *Spec) *uint32 { return &spec.SSMStateSize }),
+		opReqU32.at("ssm.time_step_rank", func(spec *Spec) *uint32 { return &spec.SSMTimeStepRank }),
 	}
 	if grouped {
-		return append(program, opReqU32.at("ssm.group_count", "SSMGroupCount"))
+		return append(program, opReqU32.at("ssm.group_count", func(spec *Spec) *uint32 { return &spec.SSMGroupCount }))
 	}
-	return append(program, setU32("SSMGroupCount", tensor.SingletonExtent), opZeroBool.at("ssm.dt_b_c_rms", "SSMDtBCNorm"))
+	return append(program, setU32(func(spec *Spec) *uint32 { return &spec.SSMGroupCount }, tensor.SingletonExtent), opZeroBool.at("ssm.dt_b_c_rms", func(spec *Spec) *bool { return &spec.SSMDtBCNorm }))
 }
 
 // coreRecurrentPrograms: architecture-core reads keyed by recurrent contract.
@@ -730,19 +745,19 @@ var coreHybridPrograms = map[HybridValidationPolicy][]metadataOp{
 
 var coreMLAPrograms = map[MLAValidationPolicy][]metadataOp{
 	MLAValidationHybridLinearAttention: {
-		opZeroU32.at("attention.q_lora_rank", "QLoRARank"),
-		opReqU32.at("attention.kv_lora_rank", "KVLoRARank"),
+		opZeroU32.at("attention.q_lora_rank", func(spec *Spec) *uint32 { return &spec.QLoRARank }),
+		opReqU32.at("attention.kv_lora_rank", func(spec *Spec) *uint32 { return &spec.KVLoRARank }),
 		ropeDimensionRequired,
-		opReqU32.at("ssm.conv_kernel", "SSMConvKernel"),
-		opReqU32.at("kda.head_dim", "KDAHeadDim"),
+		opReqU32.at("ssm.conv_kernel", func(spec *Spec) *uint32 { return &spec.SSMConvKernel }),
+		opReqU32.at("kda.head_dim", func(spec *Spec) *uint32 { return &spec.KDAHeadDim }),
 		{kind: metadataOpKeyedDeltaDimensions},
 	},
 }
 
 // lfm2RuntimeProgram: short-convolution cache and sliding-window reads.
 var lfm2RuntimeProgram = []metadataOp{
-	opReqU32.at("shortconv.l_cache", "ShortConvCacheLength"),
-	opKeepU32.at("attention.sliding_window", "SlidingWindow"),
+	opReqU32.at("shortconv.l_cache", func(spec *Spec) *uint32 { return &spec.ShortConvCacheLength }),
+	opKeepU32.at("attention.sliding_window", func(spec *Spec) *uint32 { return &spec.SlidingWindow }),
 }
 
 var runtimeAttentionPrograms = map[AttentionValidationPolicy][]metadataOp{
@@ -754,16 +769,16 @@ var runtimeAttentionPrograms = map[AttentionValidationPolicy][]metadataOp{
 	AttentionValidationRequiredSlidingRotaryExperts: {{kind: metadataOpSlidingSchedule, slide: slidingRuntimeRotaryExperts}},
 	AttentionValidationPerLayerDualRotaryAttention: {
 		{kind: metadataOpSlidingSchedule, slide: slidingRuntimeDual},
-		opReqU32.at("rope.dimension_count", "RopeDimensionCount"),
-		opReqU32.at("rope.dimension_count_swa", "RopeDimensionSWA"),
-		opReqU32.at("embedding_length_per_layer_input", "EmbeddingPerLayer"),
-		opZeroU32.at("attention.shared_kv_layers", "SharedKVLayers"),
-		setF32("AttentionScale", tensor.UnitScale),
+		opReqU32.at("rope.dimension_count", func(spec *Spec) *uint32 { return &spec.RopeDimensionCount }),
+		opReqU32.at("rope.dimension_count_swa", func(spec *Spec) *uint32 { return &spec.RopeDimensionSWA }),
+		opReqU32.at("embedding_length_per_layer_input", func(spec *Spec) *uint32 { return &spec.EmbeddingPerLayer }),
+		opZeroU32.at("attention.shared_kv_layers", func(spec *Spec) *uint32 { return &spec.SharedKVLayers }),
+		setF32(func(spec *Spec) *float32 { return &spec.AttentionScale }, tensor.UnitScale),
 	},
 	AttentionValidationTargetHiddenDualRotaryAttention: {
 		{kind: metadataOpSlidingSchedule, slide: slidingRuntimeDual},
-		{kind: metadataOpCopyUint32, key: "KeyLengthSWA", field: "RopeDimensionSWA"},
-		setF32("AttentionScale", tensor.UnitScale),
+		{kind: metadataOpCopyUint32, sourceU32: func(spec *Spec) *uint32 { return &spec.KeyLengthSWA }, u32: func(spec *Spec) *uint32 { return &spec.RopeDimensionSWA }},
+		setF32(func(spec *Spec) *float32 { return &spec.AttentionScale }, tensor.UnitScale),
 	},
 }
 
@@ -774,28 +789,28 @@ func compileRuntimeProgram(profile ArchitectureProfile) []metadataOp {
 	case HybridValidationAlternatingShortConvolution, HybridValidationAlternatingShortConvolutionExperts:
 		program = append(program, lfm2RuntimeProgram...)
 	case HybridValidationSelectedSoftmaxExperts:
-		program = append(program, opReqU32.at("attention.sliding_window", "SlidingWindow"))
+		program = append(program, opReqU32.at("attention.sliding_window", func(spec *Spec) *uint32 { return &spec.SlidingWindow }))
 	}
 	program = append(program, runtimeAttentionPrograms[profile.Validation.Attention]...)
 	if profile.Attention == AttentionLatent || profile.Attention == AttentionSparseLatent {
 		if profile.Validation.MLA == MLAValidationScaledLatent {
-			program = append(program, opReqU32.at("attention.q_lora_rank", "QLoRARank"))
+			program = append(program, opReqU32.at("attention.q_lora_rank", func(spec *Spec) *uint32 { return &spec.QLoRARank }))
 		}
 		if profile.Has(ArchitectureLatentKVLayout) {
 			qRank := opReqU32
 			if profile.Validation.QLoRARankOptional {
 				qRank = opZeroU32
 			}
-			program = append(program, qRank.at("attention.q_lora_rank", "QLoRARank"))
+			program = append(program, qRank.at("attention.q_lora_rank", func(spec *Spec) *uint32 { return &spec.QLoRARank }))
 		}
 		program = append(program,
-			opReqU32.at("attention.kv_lora_rank", "KVLoRARank"),
+			opReqU32.at("attention.kv_lora_rank", func(spec *Spec) *uint32 { return &spec.KVLoRARank }),
 			ropeDimensionRequired,
 		)
 		if profile.Has(ArchitectureLatentKVLayout) {
 			program = append(program,
 				leadingDenseOptional,
-				opReqU32.at("expert_shared_count", "SharedExpertCount"),
+				opReqU32.at("expert_shared_count", func(spec *Spec) *uint32 { return &spec.SharedExpertCount }),
 				metadataOp{kind: metadataOpSharedFeedForwardScaleChecked},
 				metadataOp{kind: metadataOpLatentRuntimeDefaults},
 			)
@@ -804,34 +819,34 @@ func compileRuntimeProgram(profile ArchitectureProfile) []metadataOp {
 	if profile.Attention == AttentionSparseLatent {
 		program = append(program,
 			sectionsOptional,
-			opReqU32.at("attention.indexer.head_count", "IndexerHeadCount"),
-			opReqU32.at("attention.indexer.key_length", "IndexerKeyLength"),
-			opReqU32.at("attention.indexer.top_k", "IndexerTopK"),
+			opReqU32.at("attention.indexer.head_count", func(spec *Spec) *uint32 { return &spec.IndexerHeadCount }),
+			opReqU32.at("attention.indexer.key_length", func(spec *Spec) *uint32 { return &spec.IndexerKeyLength }),
+			opReqU32.at("attention.indexer.top_k", func(spec *Spec) *uint32 { return &spec.IndexerTopK }),
 			metadataOp{kind: metadataOpIndexerLayers},
 		)
 	}
 	if profile.Validation.MLA == MLAValidationCompressedHyper {
 		program = append(program,
-			opReqU32.at("attention.q_lora_rank", "QLoRARank"),
+			opReqU32.at("attention.q_lora_rank", func(spec *Spec) *uint32 { return &spec.QLoRARank }),
 			ropeDimensionRequired,
-			opReqU32.at("attention.sliding_window", "SlidingWindow"),
-			opReqU32.at("attention.indexer.head_count", "IndexerHeadCount"),
-			opReqU32.at("attention.indexer.key_length", "IndexerKeyLength"),
-			opReqU32.at("attention.indexer.top_k", "IndexerTopK"),
-			opReqU32.at("attention.output_group_count", "AttentionOutputGroups"),
-			opReqU32.at("attention.output_lora_rank", "AttentionOutputRank"),
-			opReqU32.at("hyper_connection.count", "HyperConnectionCount"),
-			opReqU32.at("hyper_connection.sinkhorn_iterations", "HyperSinkhornIters"),
-			opReqU32.at("hash_layer_count", "HashLayerCount"),
-			opReqU32.at("expert_count", "ExpertCount"),
-			opReqU32.at("expert_used_count", "ExpertUsedCount"),
+			opReqU32.at("attention.sliding_window", func(spec *Spec) *uint32 { return &spec.SlidingWindow }),
+			opReqU32.at("attention.indexer.head_count", func(spec *Spec) *uint32 { return &spec.IndexerHeadCount }),
+			opReqU32.at("attention.indexer.key_length", func(spec *Spec) *uint32 { return &spec.IndexerKeyLength }),
+			opReqU32.at("attention.indexer.top_k", func(spec *Spec) *uint32 { return &spec.IndexerTopK }),
+			opReqU32.at("attention.output_group_count", func(spec *Spec) *uint32 { return &spec.AttentionOutputGroups }),
+			opReqU32.at("attention.output_lora_rank", func(spec *Spec) *uint32 { return &spec.AttentionOutputRank }),
+			opReqU32.at("hyper_connection.count", func(spec *Spec) *uint32 { return &spec.HyperConnectionCount }),
+			opReqU32.at("hyper_connection.sinkhorn_iterations", func(spec *Spec) *uint32 { return &spec.HyperSinkhornIters }),
+			opReqU32.at("hash_layer_count", func(spec *Spec) *uint32 { return &spec.HashLayerCount }),
+			opReqU32.at("expert_count", func(spec *Spec) *uint32 { return &spec.ExpertCount }),
+			opReqU32.at("expert_used_count", func(spec *Spec) *uint32 { return &spec.ExpertUsedCount }),
 			expertFeedForwardRequired,
-			opReqU32.at("expert_shared_count", "SharedExpertCount"),
+			opReqU32.at("expert_shared_count", func(spec *Spec) *uint32 { return &spec.SharedExpertCount }),
 			expertGatingRequired,
-			opReqF32.at("attention.compress_rope_freq_base", "CompressRopeBase"),
-			opReqF32.at("hyper_connection.epsilon", "HyperConnectionEps"),
-			opReqF32.at("expert_weights_scale", "ExpertWeightsScale"),
-			opReqBool.at("expert_weights_norm", "ExpertWeightsNorm"),
+			opReqF32.at("attention.compress_rope_freq_base", func(spec *Spec) *float32 { return &spec.CompressRopeBase }),
+			opReqF32.at("hyper_connection.epsilon", func(spec *Spec) *float32 { return &spec.HyperConnectionEps }),
+			opReqF32.at("expert_weights_scale", func(spec *Spec) *float32 { return &spec.ExpertWeightsScale }),
+			opReqBool.at("expert_weights_norm", func(spec *Spec) *bool { return &spec.ExpertWeightsNorm }),
 			metadataOp{kind: metadataOpCompressRatios},
 			metadataOp{kind: metadataOpLayerClampPair},
 			metadataOp{kind: metadataOpSharedFeedForwardScaleChecked},
@@ -851,7 +866,7 @@ func compileRuntimeProgram(profile ArchitectureProfile) []metadataOp {
 		EncoderValidationRotary,
 		EncoderValidationRotaryPeriodicExperts,
 	) {
-		read := opReqU32.at("tokenizer.ggml.token_type_count", "TokenTypeCount")
+		read := opReqU32.at("tokenizer.ggml.token_type_count", func(spec *Spec) *uint32 { return &spec.TokenTypeCount })
 		read.absolute = true
 		program = append(program, read)
 	}
@@ -868,18 +883,18 @@ func compileArchitectureCoreProgram(profile ArchitectureProfile) []metadataOp {
 	case profile.Normalization == NormalizationLayer,
 		profile.Normalization == NormalizationUnweightedLayer,
 		profile.Normalization == NormalizationWeightOnlyLayer:
-		program = append(program, opReqF32.at("attention.layer_norm_epsilon", "LayerNormEpsilon"))
+		program = append(program, opReqF32.at("attention.layer_norm_epsilon", func(spec *Spec) *float32 { return &spec.LayerNormEpsilon }))
 	default:
-		program = append(program, opReqF32.at("attention.layer_norm_rms_epsilon", "RMSNormEpsilon"))
+		program = append(program, opReqF32.at("attention.layer_norm_rms_epsilon", func(spec *Spec) *float32 { return &spec.RMSNormEpsilon }))
 	}
 	program = append(program,
-		opZeroF32.at("final_logit_softcapping", "FinalLogitSoftcap"),
-		opZeroF32.at("attn_logit_softcapping", "AttentionSoftcap"),
+		opZeroF32.at("final_logit_softcapping", func(spec *Spec) *float32 { return &spec.FinalLogitSoftcap }),
+		opZeroF32.at("attn_logit_softcapping", func(spec *Spec) *float32 { return &spec.AttentionSoftcap }),
 	)
 	if profile.readsMetadata(MetadataReadJaisScale) {
 		program = append(program, metadataOp{kind: metadataOpInverseKeyScale})
 	}
-	program = append(program, opKeepF32.at("attention.scale", "AttentionScale"), metadataOp{kind: metadataOpDefaults})
+	program = append(program, opKeepF32.at("attention.scale", func(spec *Spec) *float32 { return &spec.AttentionScale }), metadataOp{kind: metadataOpDefaults})
 	program = append(program, coreAttentionPrograms[validation.Attention]...)
 	for _, entry := range coreFlagPrograms {
 		if profile.readsMetadata(entry.flag) {
@@ -890,13 +905,13 @@ func compileArchitectureCoreProgram(profile ArchitectureProfile) []metadataOp {
 		program = append(program, metadataOp{kind: metadataOpBlockCountVariant})
 	}
 	if profile.Forward.Session == ForwardSessionEncoderDecoder || profile.Forward.Operation == ForwardOperationEncoder {
-		program = append(program, opReqU32.at("attention.relative_buckets_count", "RelativeBuckets"))
+		program = append(program, opReqU32.at("attention.relative_buckets_count", func(spec *Spec) *uint32 { return &spec.RelativeBuckets }))
 		if profile.Forward.Session == ForwardSessionEncoderDecoder {
 			program = append(program, metadataOp{kind: metadataOpDecoderMetadata})
 		}
 	}
 	if profile.MetadataDefaults.NoRopeLayerStep > tensor.FirstOffset {
-		program = append(program, setU32("NoRopeLayerStep", profile.MetadataDefaults.NoRopeLayerStep))
+		program = append(program, setU32(func(spec *Spec) *uint32 { return &spec.NoRopeLayerStep }, profile.MetadataDefaults.NoRopeLayerStep))
 	}
 	program = append(program, coreRecurrentPrograms[validation.Recurrent]...)
 	program = append(program, coreHybridPrograms[validation.Hybrid]...)
@@ -920,17 +935,17 @@ func compileExpertProgram(profile ArchitectureProfile) []metadataOp {
 	program := append([]metadataOp(nil), expertHybridPrograms[validation.Hybrid]...)
 	program = append(program, expertAttentionPrograms[validation.Attention]...)
 	if validation.Encoder == EncoderValidationRotaryPeriodicExperts {
-		program = append(program, opReqU32.at("moe_every_n_layers", "MoELayerStep"))
+		program = append(program, opReqU32.at("moe_every_n_layers", func(spec *Spec) *uint32 { return &spec.MoELayerStep }))
 	}
 	if validation.Hybrid == HybridValidationCompressedHyperDraft {
 		program = append(program,
 			expertFeedForwardRequired,
 			sharedWidthOptional,
 			leadingDenseOptional,
-			setU32("MoELayerStep", profile.MetadataDefaults.MoELayerStep),
-			opKeepU32.at("moe_every_n_layers", "MoELayerStep"),
-			setU32("ExpertGatingFunc", expertGatingSigmoid),
-			opNonzeroU32.at("expert_gating_func", "ExpertGatingFunc"),
+			setU32(func(spec *Spec) *uint32 { return &spec.MoELayerStep }, profile.MetadataDefaults.MoELayerStep),
+			opKeepU32.at("moe_every_n_layers", func(spec *Spec) *uint32 { return &spec.MoELayerStep }),
+			setU32(func(spec *Spec) *uint32 { return &spec.ExpertGatingFunc }, expertGatingSigmoid),
+			opNonzeroU32.at("expert_gating_func", func(spec *Spec) *uint32 { return &spec.ExpertGatingFunc }),
 			expertNormOptional,
 		)
 	}
@@ -1182,7 +1197,7 @@ func (m specMetadata) runMetadataProgram(spec Spec, state specReadState, program
 		var err error
 		switch op.kind {
 		case metadataOpUint32:
-			destination := spec.fieldDestination(op.field).(*uint32)
+			destination := op.u32(&spec)
 			key := prefix + op.key
 			if op.absolute {
 				key = op.key
@@ -1195,13 +1210,13 @@ func (m specMetadata) runMetadataProgram(spec Spec, state specReadState, program
 				err = runMetadataRead(values, key, gguf.ValueTypeUint32, op.mode, destination)
 			}
 		case metadataOpFloat32:
-			err = runMetadataRead(values, prefix+op.key, gguf.ValueTypeFloat32, op.mode, spec.fieldDestination(op.field).(*float32))
+			err = runMetadataRead(values, prefix+op.key, gguf.ValueTypeFloat32, op.mode, op.f32(&spec))
 		case metadataOpBool:
-			err = runMetadataRead(values, prefix+op.key, gguf.ValueTypeBool, op.mode, spec.fieldDestination(op.field).(*bool))
+			err = runMetadataRead(values, prefix+op.key, gguf.ValueTypeBool, op.mode, op.boolean(&spec))
 		case metadataOpSetUint32:
-			*spec.fieldDestination(op.field).(*uint32) = op.value
+			*op.u32(&spec) = op.value
 		case metadataOpSetBool:
-			*spec.fieldDestination(op.field).(*bool) = op.flag
+			*op.boolean(&spec) = op.flag
 		case metadataOpDefaults:
 			m.profile.MetadataDefaults.read(values, prefix, &spec)
 		case metadataOpInverseKeyScale:
@@ -1258,7 +1273,7 @@ func (m specMetadata) runMetadataProgram(spec Spec, state specReadState, program
 		case metadataOpHiddenActivation:
 			err = m.readHiddenActivation(&spec)
 		case metadataOpLayerFloat32:
-			*spec.fieldDestination(op.field).(*[]float32), err = requiredLayerFloat32(
+			*op.f32s(&spec), err = requiredLayerFloat32(
 				values, prefix+op.key, spec.BlockCount,
 			)
 		case metadataOpDecoderMetadata:
@@ -1286,9 +1301,9 @@ func (m specMetadata) runMetadataProgram(spec Spec, state specReadState, program
 				)
 			}
 		case metadataOpSetFloat32:
-			*spec.fieldDestination(op.field).(*float32) = op.floatValue
+			*op.f32(&spec) = op.floatValue
 		case metadataOpCopyUint32:
-			*spec.fieldDestination(op.field).(*uint32) = *spec.fieldDestination(op.key).(*uint32)
+			*op.u32(&spec) = *op.sourceU32(&spec)
 		case metadataOpLongRoPE:
 			if spec.RopeScalingType == ropeScalingLongRoPE {
 				spec.RopeDimensionCount = spec.KeyLength

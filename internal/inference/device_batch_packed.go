@@ -137,10 +137,10 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	}
 	builder := r.newGraphBuilder()
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	graph, err := r.buildDeviceCachedBatchBranch(
 		builder, 0, tokens, packedPast, uint64(len(appends)), plan,
-		tensor.CacheWriteConcat, hostFeeds, deviceFeeds,
+		tensor.CacheWriteConcat, hostFeeds, &deviceFeeds,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("inference: packed device batch: %w", err)
@@ -153,10 +153,8 @@ func (r *Runner) forwardPackedDeviceBatchLocked(
 	if err != nil {
 		return nil, err
 	}
-	for node, pointer := range deviceFeeds {
-		if err := execution.Inputs.Set(node, pointer); err != nil {
-			return nil, err
-		}
+	if err := execution.Inputs.Bind(deviceFeeds); err != nil {
+		return nil, err
 	}
 	retained, err := r.cuda.ExecuteRetainedCompiled(ctx, execution.Graph, hostFeeds, execution.Inputs, nil, nil)
 	if err != nil {

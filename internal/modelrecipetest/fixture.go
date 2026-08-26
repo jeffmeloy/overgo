@@ -71,9 +71,9 @@ func NewCapability(t testing.TB, name string, task recipe.Task) Capability {
 	testutil.PublishArtifact(t, store, modelID)
 	var compiled recipe.Definition
 	if task == recipe.TaskImageGen {
-		compiled, err = modelrecipe.OscillatorImageDefinition(modelID)
+		compiled, err = modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, modelID, artifact.ID{})
 	} else if task == recipe.TaskVideoGen {
-		compiled, err = modelrecipe.OscillatorVideoDefinition(modelID)
+		compiled, err = modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorVideoPrepare, modelID, artifact.ID{})
 	} else {
 		compiled, err = modelrecipe.CapabilityDefinition(task, modelID)
 	}

@@ -12,13 +12,12 @@ import (
 
 type modelGraph struct {
 	builder *tensor.Builder
-	static  []graphBinding
+	static  tensor.InputBindings[reference.Value]
 	bindErr error
 }
 
-type graphBinding struct {
-	node  *tensor.Tensor
-	value reference.Value
+type imageGeometry struct {
+	channels, height, width int
 }
 
 func newModelGraph() *modelGraph {
@@ -31,17 +30,9 @@ func (graph *modelGraph) bind(prefix, suffix string, data []float32, dimensions 
 	if err != nil {
 		graph.bindErr = errors.Join(graph.bindErr, err)
 	} else {
-		graph.static = append(graph.static, graphBinding{node: node, value: value})
+		graph.static.Add(node, value)
 	}
 	return node
-}
-
-func (graph *modelGraph) hostValues() map[*tensor.Tensor]reference.Value {
-	values := make(map[*tensor.Tensor]reference.Value, len(graph.static))
-	for _, binding := range graph.static {
-		values[binding.node] = binding.value
-	}
-	return values
 }
 
 func (graph *modelGraph) err(scope string) error {
@@ -228,4 +219,26 @@ func finalProjectionCheckpointGradient(linear []float32, inputChannels, outputCh
 		}
 	}
 	return gradient
+}
+
+func nchwToGraphImage(input []float32, channels, height, width int) []float32 {
+	plane := height * width
+	output := make([]float32, len(input))
+	for position := range plane {
+		for channel := range channels {
+			output[position*channels+channel] = input[channel*plane+position]
+		}
+	}
+	return output
+}
+
+func graphImageToNCHW(input []float32, channels, height, width int) []float32 {
+	plane := height * width
+	output := make([]float32, len(input))
+	for position := range plane {
+		for channel := range channels {
+			output[channel*plane+position] = input[position*channels+channel]
+		}
+	}
+	return output
 }

@@ -130,10 +130,12 @@ func (program graphProgram) execute(ctx context.Context, device *executor.Execut
 	if err != nil {
 		return nil, err
 	}
-	feeds := graphruntime.NewFeeds()
-	feeds.AddHost(program.static)
-	feeds.Host[program.input] = value
-	result, err := feeds.Execute(ctx, []*tensor.Tensor{program.output}, device)
+	feeds := graphruntime.NewFeeds(ctx, device)
+	for node, value := range program.static {
+		feeds.SetHost(node, value)
+	}
+	feeds.SetHost(program.input, value)
+	result, err := feeds.Execute(program.output)
 	if err != nil {
 		return nil, err
 	}

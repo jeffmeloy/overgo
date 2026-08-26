@@ -40,8 +40,10 @@ func AddHostWeights(
 }
 
 type Feeds struct {
+	ctx                context.Context
+	device             *executor.Executor
 	host               tensor.InputBindings[reference.Value]
-	device             tensor.InputBindings[driver.DevicePtr]
+	deviceBindings     tensor.InputBindings[driver.DevicePtr]
 	graph              *executor.IndexedGraph
 	reference          *reference.Program
 	referenceInputs    *reference.Inputs
@@ -50,8 +52,8 @@ type Feeds struct {
 	referenceOutput    []*tensor.Tensor
 }
 
-func NewFeeds() *Feeds {
-	return &Feeds{}
+func NewFeeds(ctx context.Context, device *executor.Executor) *Feeds {
+	return &Feeds{ctx: ctx, device: device}
 }
 
 func (f *Feeds) Input(builder *tensor.Builder, name string, value reference.Value) *tensor.Tensor {
@@ -73,22 +75,18 @@ func (f *Feeds) HostBindings() *tensor.InputBindings[reference.Value] {
 }
 
 func (f *Feeds) AddDevice(values tensor.InputBindings[driver.DevicePtr]) {
-	f.device = append(f.device, values...)
+	f.deviceBindings = append(f.deviceBindings, values...)
 }
 
 func (f *Feeds) SetDevice(node *tensor.Tensor, pointer driver.DevicePtr) {
-	f.device.Add(node, pointer)
+	f.deviceBindings.Add(node, pointer)
 }
 
-func (f *Feeds) Execute(
-	ctx context.Context,
-	outputs []*tensor.Tensor,
-	device *executor.Executor,
-) (map[*tensor.Tensor]reference.Value, error) {
+func (f *Feeds) Execute(outputs ...*tensor.Tensor) (map[*tensor.Tensor]reference.Value, error) {
 	if f == nil {
 		return nil, errors.New("graph runtime feeds are nil")
 	}
-	if device == nil {
+	if f.device == nil {
 		program, err := f.compileReference(outputs)
 		if err != nil {
 			return nil, err
@@ -103,7 +101,7 @@ func (f *Feeds) Execute(
 	for _, binding := range f.host {
 		host[binding.Node] = binding.Value
 	}
-	return device.ExecuteCompiled(ctx, indexed.Graph, host, indexed.Inputs)
+	return f.device.ExecuteCompiled(f.ctx, indexed.Graph, host, indexed.Inputs)
 }
 
 func (f *Feeds) compileReference(outputs []*tensor.Tensor) (*reference.Program, error) {
@@ -135,7 +133,7 @@ func (f *Feeds) compile(outputs []*tensor.Tensor) (*executor.IndexedGraph, error
 	if err != nil {
 		return nil, err
 	}
-	if err := indexed.Inputs.Bind(f.device); err != nil {
+	if err := indexed.Inputs.Bind(f.deviceBindings); err != nil {
 		return nil, err
 	}
 	f.graph, f.deviceOutput = indexed, slices.Clone(outputs)

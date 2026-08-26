@@ -122,7 +122,6 @@ func (b *projectorCUDAWeights) weight(name string) *tensor.Tensor {
 type projectorGraphRuntime struct {
 	ctx     context.Context
 	file    *gguf.File
-	cuda    *projectorCUDA
 	builder *tensor.Builder
 	feeds   *graphruntime.Feeds
 	// hostFeeds: graph-local inputs
@@ -137,9 +136,13 @@ func newProjectorGraphRuntime(
 	cuda *projectorCUDA,
 	builder *tensor.Builder,
 ) *projectorGraphRuntime {
-	feeds := graphruntime.NewFeeds()
+	var device *executor.Executor
+	if cuda != nil {
+		device = cuda.executor
+	}
+	feeds := graphruntime.NewFeeds(ctx, device)
 	runtime := &projectorGraphRuntime{
-		ctx: ctx, file: file, cuda: cuda, builder: builder, feeds: feeds,
+		ctx: ctx, file: file, builder: builder, feeds: feeds,
 		hostFeeds: make(map[*tensor.Tensor]reference.Value),
 	}
 	if cuda != nil {
@@ -237,8 +240,5 @@ func (runtime *projectorGraphRuntime) execute(outputs ...*tensor.Tensor) (map[*t
 	for node, value := range runtime.hostFeeds {
 		runtime.feeds.SetHost(node, value)
 	}
-	if runtime.cuda == nil {
-		return runtime.feeds.Execute(runtime.ctx, outputs, nil)
-	}
-	return runtime.feeds.Execute(runtime.ctx, outputs, runtime.cuda.executor)
+	return runtime.feeds.Execute(outputs...)
 }

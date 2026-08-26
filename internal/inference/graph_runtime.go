@@ -22,7 +22,7 @@ type inferenceGraphRuntime struct {
 
 func (r *Runner) newInferenceGraphRuntime(ctx context.Context) *inferenceGraphRuntime {
 	return &inferenceGraphRuntime{
-		runner: r, ctx: ctx, builder: r.newGraphBuilder(), feeds: graphruntime.NewFeeds(),
+		runner: r, ctx: ctx, builder: r.newGraphBuilder(), feeds: graphruntime.NewFeeds(ctx, r.cuda),
 		host: make(map[*tensor.Tensor]reference.Value),
 	}
 }
@@ -102,8 +102,5 @@ func (runtime *inferenceGraphRuntime) execute(outputs ...*tensor.Tensor) (map[*t
 	for node, value := range runtime.host {
 		runtime.feeds.SetHost(node, value)
 	}
-	if runtime.runner.cuda == nil {
-		return runtime.feeds.Execute(runtime.ctx, outputs, nil)
-	}
-	return runtime.feeds.Execute(runtime.ctx, outputs, runtime.runner.cuda)
+	return runtime.feeds.Execute(outputs...)
 }

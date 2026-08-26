@@ -187,7 +187,21 @@ func run() error {
 		generator = &serverRuntime{Runner: runner, WorkflowWorkspaceAPI: workflowWorkspaces}
 	}
 	var evaluationWorkspace llamaserver.EvaluationWorkspaceAPI
-	if len(evaluationSuites) > 0 {
+	// The workspace opens whenever a trustworthy commit identity exists:
+	// suite files bind explicitly, and with none named the suites derive
+	// from the store's benchmark catalog, so the workbench evaluates out
+	// of the box. Without -evaluation-commit the clean worktree HEAD
+	// stands in; a dirty tree leaves evaluation off rather than binding
+	// evidence to a commit that differs from executed source.
+	workspaceCommit := strings.TrimSpace(*evaluationCommit)
+	if workspaceCommit == "" {
+		if head, headErr := runrecord.VerifyingCommit("."); headErr == nil {
+			workspaceCommit = head
+		} else if len(evaluationSuites) > 0 {
+			return fmt.Errorf("open evaluation workspace: %w", headErr)
+		}
+	}
+	if workspaceCommit != "" {
 		description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
 		if err != nil {
 			return err
@@ -198,10 +212,14 @@ func run() error {
 		}
 		evaluationWorkspace, err = llamaserver.NewEvaluationWorkspace(
 			workspaceStore, runner, description.Identity, environment,
-			strings.TrimSpace(*evaluationCommit), *responseStoreEntries, evaluationSuites,
+			workspaceCommit, *responseStoreEntries, evaluationSuites,
 		)
-		if err != nil {
+		if err != nil && len(evaluationSuites) > 0 {
 			return fmt.Errorf("open evaluation workspace: %w", err)
+		}
+		if err != nil {
+			log.Printf("evaluation workspace unavailable: %v", err)
+			evaluationWorkspace = nil
 		}
 	}
 	var vision, audio projector.Session

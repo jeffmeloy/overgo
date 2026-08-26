@@ -52,10 +52,14 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 	if err := discovery.PublishMemo(request.Context(), h.config.Repository, h.catalogMemo); err != nil {
 		log.Printf("catalog: persist identity memo: %v", err)
 	}
+	evidence := h.catalogEvidence(request.Context(), h.workspaceSuiteNames(request.Context()))
 	listed := make([]catalogModel, 0, len(entries))
 	for _, entry := range entries {
 		model := catalogModel{
 			Model: idText(entry.Model), Location: entry.Location, Present: entry.Present,
+		}
+		if summary, measured := evidence.benchmarks[entry.Model]; measured {
+			model.Benchmark = &summary
 		}
 		for _, capability := range entry.Capabilities {
 			model.Capabilities = append(model.Capabilities, catalogCapability{
@@ -64,6 +68,7 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 			})
 			if capability.Task == recipe.TaskInference {
 				model.Recipe, model.Tier, model.Stale = idText(capability.Recipe), string(capability.Tier), capability.Stale
+				model.Evals = evidence.evaluations[capability.Recipe]
 			}
 		}
 		listed = append(listed, model)
@@ -112,6 +117,11 @@ type catalogModel struct {
 	Present      bool                `json:"present"`
 	Stale        string              `json:"stale,omitempty"`
 	Capabilities []catalogCapability `json:"capabilities,omitempty"`
+	// Benchmark and Evals surface the model's committed evidence beside
+	// its entry: perf from the latest benchmark claim, quality from the
+	// latest evaluation per derived suite.
+	Benchmark *catalogBenchmarkSummary `json:"benchmark,omitempty"`
+	Evals     []catalogEvalSummary     `json:"evals,omitempty"`
 }
 
 // catalogCapability is one task activation on a catalogued model.

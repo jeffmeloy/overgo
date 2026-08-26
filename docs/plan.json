@@ -4,24 +4,6 @@
   "census_evidence": "evidence:sha256:84da019c5f63b742cf71e4f0a0b057e0c4c3328963b78de3cf4b4da83fbd7057",
   "items": [
     {
-      "id": "gui-eval-any-model",
-      "title": "The GUI evaluates any servable local model, not just the served one: evals page targets a picked model, history/compare spans models, benchmark+eval evidence shows beside catalog entries",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The GUI evaluates any servable local model, not just the served one: evals page targets a picked model, history/compare spans models, benchmark+eval evidence shows beside catalog entries",
-          "status": "open",
-          "verify": "go test ./internal/server -run TestEvaluation -count=1",
-          "depends_on": [
-            "evals-all-local-models/do",
-            "benchmark-evidence-published/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "training-benchmark-gates",
       "title": "Training runs bracket themselves with benchmark evidence: pre/post perf and eval evidence published per session so improvement is machine-checked, not narrated",
       "owner": "gui",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -41,6 +42,8 @@ func AddHostWeights(
 type Feeds struct {
 	Host   map[*tensor.Tensor]reference.Value
 	Device map[*tensor.Tensor]driver.DevicePtr
+	graph  *executor.IndexedGraph
+	output []*tensor.Tensor
 }
 
 func NewFeeds() *Feeds {
@@ -79,7 +82,7 @@ func (f *Feeds) Execute(
 	if device == nil {
 		return reference.Execute(outputs, f.Host)
 	}
-	indexed, err := executor.CompileIndexed(outputs...)
+	indexed, err := f.compile(outputs)
 	if err != nil {
 		return nil, err
 	}
@@ -89,4 +92,16 @@ func (f *Feeds) Execute(
 		}
 	}
 	return device.ExecuteCompiled(ctx, indexed.Graph, f.Host, indexed.Inputs)
+}
+
+func (f *Feeds) compile(outputs []*tensor.Tensor) (*executor.IndexedGraph, error) {
+	if f.graph != nil && slices.Equal(f.output, outputs) {
+		return f.graph, nil
+	}
+	indexed, err := executor.CompileIndexed(outputs...)
+	if err != nil {
+		return nil, err
+	}
+	f.graph, f.output = indexed, slices.Clone(outputs)
+	return indexed, nil
 }

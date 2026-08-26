@@ -49,6 +49,7 @@ type options struct {
 	TopK           int
 	DeviceTopK     bool
 	LoRA           []string
+	Publish        bool
 }
 
 type runMetrics struct {
@@ -130,6 +131,7 @@ func parseOptions(args []string) (options, error) {
 	flags.BoolVar(&result.DeviceTopK, "device-top-k", false, "transfer bounded top-K candidates")
 	flags.BoolVar(&result.CachePrompt, "cache-prompt", false, "reuse retained prompt state between runs")
 	flags.IntVar(&result.BatchSequences, "batch-sequences", 0, "continuous-batch sequence count; zero uses Generate")
+	flags.BoolVar(&result.Publish, "publish", false, "commit the result as benchmark evidence with a verification claim (requires -repo and a clean worktree)")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
@@ -163,6 +165,9 @@ func parseOptions(args []string) (options, error) {
 	}
 	if result.DeviceTopK && (result.BatchSequences == 0 || result.Temperature == 0 || result.TopK == 0) {
 		return options{}, errors.New("benchmark: -device-top-k requires continuous sampling with positive temperature and top-K")
+	}
+	if result.Publish && result.Repository == "" {
+		return options{}, errors.New("benchmark: -publish requires -repo so the evidence has a store to land in")
 	}
 	return result, nil
 }
@@ -337,7 +342,13 @@ func run(args []string) error {
 		Runs:                   runs,
 		Summary:                summarizeRuns(runs),
 	}
-	return clioptions.WritePrettyJSON(os.Stdout, result)
+	if err := clioptions.WritePrettyJSON(os.Stdout, result); err != nil {
+		return err
+	}
+	if !options.Publish {
+		return nil
+	}
+	return publishBenchmarkEvidence(context.Background(), options, result)
 }
 
 func subtractExecutionStats(after, before driver.ExecutionStats) driver.ExecutionStats {

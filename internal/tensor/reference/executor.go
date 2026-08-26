@@ -100,19 +100,6 @@ func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*ten
 	return program.Execute(inputs, program.NewWorkspace())
 }
 
-// ExecuteBindings evaluates one graph from ordered feeds.
-func ExecuteBindings(outputs []*tensor.Tensor, feeds tensor.InputBindings[Value]) (map[*tensor.Tensor]Value, error) {
-	program, err := Compile(outputs...)
-	if err != nil {
-		return nil, err
-	}
-	inputs := program.NewInputs()
-	if err := inputs.Bind(feeds); err != nil {
-		return nil, err
-	}
-	return program.Execute(inputs, program.NewWorkspace())
-}
-
 // ExecuteOperation: single-node correctness bridge.
 func ExecuteOperation(node *tensor.Tensor, inputs []Value) (Value, error) {
 	if node == nil {

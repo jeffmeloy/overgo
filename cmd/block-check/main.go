@@ -12,6 +12,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
+	"overgo/internal/graphruntime"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -105,10 +106,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	feeds[input] = inputValue
+	feeds.Add(input, inputValue)
 
+	hostRuntime := graphruntime.NewFeeds(ctx, nil)
+	hostRuntime.AddHost(feeds)
 	referenceStart := time.Now()
-	want, err := reference.Execute([]*tensor.Tensor{output}, feeds)
+	want, err := hostRuntime.Execute(output)
 	if err != nil {
 		return err
 	}
@@ -119,8 +122,10 @@ func run() error {
 		return err
 	}
 	defer cuda.Close()
+	deviceRuntime := graphruntime.NewFeeds(ctx, cuda)
+	deviceRuntime.AddHost(feeds)
 	cudaStart := time.Now()
-	got, err := cuda.Execute(ctx, []*tensor.Tensor{output}, feeds)
+	got, err := deviceRuntime.Execute(output)
 	if err != nil {
 		return err
 	}

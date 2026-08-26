@@ -55,7 +55,7 @@ func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 	text := output.String()
 	if len(text) > 1000 || !strings.Contains(text, "phase=test heartbeat=running") ||
 		!strings.Contains(text, "GATE FAILED") || !strings.Contains(text, "blocker: test: exit status 1") ||
-		!strings.Contains(text, "ran=build | reused=test | skipped=claims") ||
+		!strings.Contains(text, "ran=build | reused=test | skipped=claims | inapplicable=") ||
 		!strings.Contains(text, "advisory: delta:") || !strings.Contains(text, "advisory: warning:") {
 		t.Fatalf("gate output is not compact and decision-complete (%d bytes):\n%s", len(text), text)
 	}

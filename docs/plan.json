@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "code-manifest-execution-binding",
-      "title": "Bind execution and commit admission to the exact planned candidate",
-      "owner": "manifest",
-      "status": "open",
-      "steps": [
-        {
-          "id": "admit",
-          "title": "Require a successful unchanged-candidate plan before commit admission and preserve skipped, reused, failed, and inapplicable outcomes distinctly",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/runrecord -run 'TestCommitAdmissionUsesManifestPlan|TestOutcomeDistinctions' -count=1",
-          "rationale": "The preflight plan becomes authoritative only when commit admission verifies its identity and complete terminal evidence.",
-          "depends_on": [
-            "code-manifest-execution-binding/bind"
-          ],
-          "capabilities": [
-            "commit-admission",
-            "typed-outcomes"
-          ]
-        }
-      ]
-    },
-    {
       "id": "code-manifest-storage-cache",
       "title": "Persist manifests and reuse analysis without weakening identity",
       "owner": "manifest",

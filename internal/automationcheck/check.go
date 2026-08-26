@@ -112,7 +112,7 @@ type Evidence struct {
 	Phase        runrecord.Phase       `json:"phase"`
 	Outcome      runrecord.LaneOutcome `json:"outcome"`
 	DurationNS   uint64                `json:"duration_ns"`
-	Skipped      bool                  `json:"skipped,omitempty"`
+	Inapplicable bool                  `json:"inapplicable,omitempty"`
 	Reused       bool                  `json:"reused,omitempty"`
 	Detail       string                `json:"detail,omitempty"`
 }
@@ -216,21 +216,21 @@ func Run(ctx context.Context, invocation Invocation) (Evidence, error) {
 		return Evidence{}, errors.New("automation check: invalid invocation")
 	}
 	begin := time.Now()
-	skipped, detail, runErr := invocation.runner(ctx, invocation)
+	inapplicable, detail, runErr := invocation.runner(ctx, invocation)
 	evidence := Evidence{
 		InvocationID: invocation.ID, Authority: cloneExecutionAuthority(invocation.Authority),
 		Name: invocation.Check.Name, Phase: invocation.Check.Phase,
 		Outcome: runrecord.LaneOutcomeOf(runErr), DurationNS: max(uint64(time.Since(begin).Nanoseconds()), uint64(time.Nanosecond)),
-		Skipped: skipped, Detail: strings.TrimSpace(detail),
+		Inapplicable: inapplicable, Detail: strings.TrimSpace(detail),
 	}
 	id, err := artifact.JSONID(artifact.KindEvidence, struct {
 		InvocationID artifact.ID           `json:"invocation_id"`
 		Authority    *ExecutionAuthority   `json:"authority,omitempty"`
 		Outcome      runrecord.LaneOutcome `json:"outcome"`
-		Skipped      bool                  `json:"skipped,omitempty"`
+		Inapplicable bool                  `json:"inapplicable,omitempty"`
 		Reused       bool                  `json:"reused,omitempty"`
 		Detail       string                `json:"detail,omitempty"`
-	}{evidence.InvocationID, evidence.Authority, evidence.Outcome, evidence.Skipped, evidence.Reused, evidence.Detail})
+	}{evidence.InvocationID, evidence.Authority, evidence.Outcome, evidence.Inapplicable, evidence.Reused, evidence.Detail})
 	if err != nil {
 		return Evidence{}, fmt.Errorf("automation check %q: identify evidence: %w", evidence.Name, err)
 	}

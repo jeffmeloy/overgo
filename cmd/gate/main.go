@@ -81,6 +81,7 @@ type gateContext struct {
 	selection    automationcheck.SelectionMetrics
 	selectionID  string
 	manifestPlan *automationcheck.ManifestPlan
+	terminal     map[string]automationcheck.Evidence
 }
 
 func main() {
@@ -152,7 +153,7 @@ func run() error {
 	}
 	g := &gateContext{
 		repo: repo, planRef: *planRef, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
-		stepEvidence: map[string]string{},
+		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
 	}
 	if *merge {
 		// Merge mode: the staged merge IS the plan. Deriving -paths from the
@@ -311,6 +312,9 @@ func (g *gateContext) pipeline() error {
 		return err
 	}
 	definitions, checks, impact := planned.definitions, planned.invocations, planned.impact
+	if g.terminal == nil {
+		g.terminal = map[string]automationcheck.Evidence{}
+	}
 	cache := g.loadRetryCache()
 	cache.Compact()
 	g.retryCache = &cache
@@ -336,6 +340,7 @@ func (g *gateContext) pipeline() error {
 		satisfied[exclusion.Check] = true
 	}
 	var cacheMutex sync.Mutex
+	var terminalMutex sync.Mutex
 	results, err := automationcheck.ExecuteDAG(context.Background(), checks, satisfied, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {
 		fmt.Fprintf(os.Stderr, gateProgressLine, check.Check.Name, runrecord.HeartbeatRunning)
 		if planned.manifest != nil {
@@ -350,6 +355,9 @@ func (g *gateContext) pipeline() error {
 			evidence, reused := cache.Lookup(check, input)
 			cacheMutex.Unlock()
 			if reused {
+				terminalMutex.Lock()
+				g.terminal[check.Check.Name] = evidence
+				terminalMutex.Unlock()
 				return evidence, nil
 			}
 		}
@@ -358,6 +366,11 @@ func (g *gateContext) pipeline() error {
 			cacheMutex.Lock()
 			cache.Record(check, input, evidence)
 			cacheMutex.Unlock()
+		}
+		if evidence.ID.Valid() {
+			terminalMutex.Lock()
+			g.terminal[check.Check.Name] = evidence
+			terminalMutex.Unlock()
 		}
 		return evidence, runErr
 	})
@@ -385,6 +398,7 @@ func (g *gateContext) pipeline() error {
 			!slices.Contains(automationcheck.EvidenceLineage(result.Evidence), planned.manifest.ID) {
 			return fmt.Errorf("%s: terminal evidence omits manifest plan %s", name, planned.manifest.ID)
 		}
+		g.terminal[name] = result.Evidence
 		g.steps = append(g.steps, gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name]))
 		if result.Evidence.Reused {
 			g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
@@ -741,8 +755,8 @@ func gateEvidenceRecord(name string, phase runrecord.Phase, evidence automationc
 	switch {
 	case runErr != nil:
 		record.Outcome = runrecord.StepFailed
-	case evidence.Skipped:
-		record.Outcome = runrecord.StepSkipped
+	case evidence.Inapplicable:
+		record.Outcome = runrecord.StepInapplicable
 	case evidence.Reused:
 		record.Outcome = runrecord.StepReused
 	}
@@ -1704,6 +1718,15 @@ func acceptanceVerdictClass(repo string) testevidence.VerdictClass {
 }
 
 func (g *gateContext) stepCommit() (bool, error) {
+	if g.manifestPlan == nil {
+		return false, errors.New("commit admission: manifest plan is absent")
+	}
+	if err := g.requireCandidateTree(g.manifestPlan.CandidateTree); err != nil {
+		return false, err
+	}
+	if err := validateManifestCommitAdmission(*g.manifestPlan, g.terminal); err != nil {
+		return false, err
+	}
 	// Validate the immutable result shape before Git advances. A schema error
 	// discovered after commit cannot be represented by the normal debt batch.
 	recipeID, err := g.gateRecipeID()
@@ -1778,6 +1801,29 @@ func (g *gateContext) stepCommit() (bool, error) {
 	}
 	committed = true
 	return false, nil
+}
+
+func validateManifestCommitAdmission(manifest automationcheck.ManifestPlan, terminal map[string]automationcheck.Evidence) error {
+	if err := manifest.Validate(); err != nil {
+		return fmt.Errorf("commit admission: %w", err)
+	}
+	if len(manifest.Invocations) == 0 || manifest.Invocations[len(manifest.Invocations)-1].Check.Name != "commit" {
+		return errors.New("commit admission: commit is not the final planned invocation")
+	}
+	for _, invocation := range manifest.Invocations[:len(manifest.Invocations)-1] {
+		evidence, found := terminal[invocation.Check.Name]
+		if !found || !evidence.ID.Valid() {
+			return fmt.Errorf("commit admission: %s lacks terminal evidence", invocation.Check.Name)
+		}
+		if evidence.Outcome != runrecord.LanePassed || evidence.Authority == nil || evidence.Authority.Plan != manifest.ID ||
+			evidence.Authority.Definition != invocation.ID {
+			return fmt.Errorf("commit admission: %s evidence has wrong outcome or authority", invocation.Check.Name)
+		}
+		if evidence.Inapplicable && evidence.Reused {
+			return fmt.Errorf("commit admission: %s evidence has contradictory outcomes", invocation.Check.Name)
+		}
+	}
+	return nil
 }
 
 // completionMessageFile writes the operator's message plus the
@@ -2195,18 +2241,20 @@ func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit st
 }
 
 func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, failure string) {
-	var run, reused, skipped []string
+	var run, reused, skipped, inapplicable []string
 	for _, step := range g.steps {
 		switch step.Outcome {
 		case runrecord.StepSkipped:
 			skipped = append(skipped, step.Name)
 		case runrecord.StepReused:
 			reused = append(reused, step.Name)
+		case runrecord.StepInapplicable:
+			inapplicable = append(inapplicable, step.Name)
 		default:
 			run = append(run, step.Name)
 		}
 	}
-	fmt.Fprintf(output, "GATE %s %.1fs | ran=%s | reused=%s | skipped=%s\n", strings.ToUpper(string(outcome)), time.Since(g.start).Seconds(), strings.Join(run, ","), strings.Join(reused, ","), strings.Join(skipped, ","))
+	fmt.Fprintf(output, "GATE %s %.1fs | ran=%s | reused=%s | skipped=%s | inapplicable=%s\n", strings.ToUpper(string(outcome)), time.Since(g.start).Seconds(), strings.Join(run, ","), strings.Join(reused, ","), strings.Join(skipped, ","), strings.Join(inapplicable, ","))
 	if failure != "" {
 		fmt.Fprintf(output, "blocker: %s\n", failure)
 	}

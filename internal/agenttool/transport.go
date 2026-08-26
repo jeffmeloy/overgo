@@ -200,18 +200,45 @@ func (argvAdapter) invoke(ctx context.Context, manual Manual, arguments json.Raw
 	return encoded, nil
 }
 
-const mcpToolsCallMethod = "tools/call"
+const (
+	mcpInitializeMethod  = "initialize"
+	mcpInitializedMethod = "notifications/initialized"
+	mcpToolsCallMethod   = "tools/call"
+	mcpSessionHeader     = "Mcp-Session-Id"
+	mcpClientName        = "overgo"
+	mcpClientVersion     = "0.1.1"
+)
 
 type mcpRequest struct {
-	JSONRPC string           `json:"jsonrpc"`
-	ID      string           `json:"id"`
-	Method  string           `json:"method"`
-	Params  mcpRequestParams `json:"params"`
+	JSONRPC string          `json:"jsonrpc"`
+	ID      string          `json:"id,omitempty"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
 }
 
 type mcpRequestParams struct {
 	Name      string          `json:"name"`
 	Arguments json.RawMessage `json:"arguments"`
+}
+
+type mcpInitializeParams struct {
+	ProtocolVersion string                `json:"protocolVersion"`
+	Capabilities    mcpClientCapabilities `json:"capabilities"`
+	ClientInfo      mcpClientInfo         `json:"clientInfo"`
+}
+
+type mcpClientCapabilities struct{}
+
+type mcpClientInfo struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+type mcpInitializeResult struct {
+	ProtocolVersion string          `json:"protocolVersion"`
+	Capabilities    json.RawMessage `json:"capabilities"`
+	ServerInfo      json.RawMessage `json:"serverInfo"`
+	Instructions    string          `json:"instructions,omitempty"`
 }
 
 type mcpResponse struct {
@@ -229,33 +256,95 @@ type mcpError struct {
 
 func (adapter *mcpHTTPAdapter) invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
 	digest := sha256.Sum256(append([]byte(manual.ID.String()+"\x00"), arguments...))
-	requestID := fmt.Sprintf("%x", digest[:])
-	payload, err := json.Marshal(mcpRequest{
-		JSONRPC: "2.0", ID: requestID, Method: mcpToolsCallMethod,
-		Params: mcpRequestParams{Name: manual.Transport.Target, Arguments: arguments},
+	requestIdentity := fmt.Sprintf("%x", digest[:])
+	initializeParams, err := json.Marshal(mcpInitializeParams{
+		ProtocolVersion: manual.Transport.Protocol,
+		Capabilities:    mcpClientCapabilities{},
+		ClientInfo:      mcpClientInfo{Name: mcpClientName, Version: mcpClientVersion},
 	})
 	if err != nil {
 		return nil, err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, manual.Transport.URL, bytes.NewReader(payload))
+	initializeID := requestIdentity + ".initialize"
+	initializePayload, err := json.Marshal(mcpRequest{
+		JSONRPC: "2.0", ID: initializeID, Method: mcpInitializeMethod, Params: initializeParams,
+	})
 	if err != nil {
 		return nil, err
+	}
+	initializeBody, headers, err := adapter.post(ctx, manual, "", initializePayload, http.StatusOK)
+	if err != nil {
+		return nil, err
+	}
+	initialize, err := decodeMCPResponse(initializeBody, initializeID)
+	if err != nil {
+		return nil, err
+	}
+	var negotiated mcpInitializeResult
+	if err := strictjson.DecodeBytes(initialize, &negotiated); err != nil ||
+		negotiated.ProtocolVersion != manual.Transport.Protocol ||
+		!strictjson.HasValue(negotiated.Capabilities) || !strictjson.HasValue(negotiated.ServerInfo) {
+		return nil, errors.Join(errors.New("mcp initialization authority differs"), err)
+	}
+	session := headers.Get(mcpSessionHeader)
+	initializedPayload, err := json.Marshal(mcpRequest{JSONRPC: "2.0", Method: mcpInitializedMethod})
+	if err != nil {
+		return nil, err
+	}
+	if _, _, err := adapter.post(ctx, manual, session, initializedPayload, http.StatusAccepted); err != nil {
+		return nil, err
+	}
+	callParams, err := json.Marshal(mcpRequestParams{Name: manual.Transport.Target, Arguments: arguments})
+	if err != nil {
+		return nil, err
+	}
+	callID := requestIdentity + ".call"
+	callPayload, err := json.Marshal(mcpRequest{
+		JSONRPC: "2.0", ID: callID, Method: mcpToolsCallMethod, Params: callParams,
+	})
+	if err != nil {
+		return nil, err
+	}
+	body, _, err := adapter.post(ctx, manual, session, callPayload, http.StatusOK)
+	if err != nil {
+		return nil, err
+	}
+	return decodeMCPResponse(body, callID)
+}
+
+func (adapter *mcpHTTPAdapter) post(
+	ctx context.Context,
+	manual Manual,
+	session string,
+	payload []byte,
+	wantStatus int,
+) ([]byte, http.Header, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, manual.Transport.URL, bytes.NewReader(payload))
+	if err != nil {
+		return nil, nil, err
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("MCP-Protocol-Version", manual.Transport.Protocol)
+	if session != "" {
+		request.Header.Set(mcpSessionHeader, session)
+	}
 	response, err := adapter.client.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer response.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(response.Body, artifact.MaxContentBytes+1))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("mcp endpoint returned status %d", response.StatusCode)
+	if response.StatusCode != wantStatus {
+		return nil, nil, fmt.Errorf("mcp endpoint returned status %d, want %d", response.StatusCode, wantStatus)
 	}
+	return body, response.Header.Clone(), nil
+}
+
+func decodeMCPResponse(body []byte, requestID string) (json.RawMessage, error) {
 	var envelope mcpResponse
 	if err := strictjson.DecodeBytes(body, &envelope); err != nil {
 		return nil, fmt.Errorf("decode mcp response: %w", err)

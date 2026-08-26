@@ -145,6 +145,16 @@ func ImportBenchmark(ctx context.Context, repository artifact.Repository, path s
 	return result, nil
 }
 
+// ReadBenchmarkImport loads one committed benchmark import document.
+func ReadBenchmarkImport(ctx context.Context, reader artifact.Reader, id artifact.ID) (BenchmarkImport, bool, error) {
+	return benchmarkImportCodec.Read(ctx, reader, id)
+}
+
+// ReadBenchmarkRecord loads one committed benchmark case record.
+func ReadBenchmarkRecord(ctx context.Context, reader artifact.Reader, id artifact.ID) (BenchmarkRecord, bool, error) {
+	return benchmarkRecordCodec.Read(ctx, reader, id)
+}
+
 func compileBenchmarkImport(spec BenchmarkImportSpec) (BenchmarkImportSpec, artifact.ID, error) {
 	spec.Source = strings.TrimSpace(spec.Source)
 	spec.Revision = strings.TrimSpace(spec.Revision)

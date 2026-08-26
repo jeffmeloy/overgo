@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
@@ -42,8 +43,33 @@ func run() error {
 	worker := flag.Bool("worker", false, "run one model worker")
 	modelIndex := flag.Int("model-index", -1, "worker model index")
 	importCache := flag.String("import-hf-cache", "", "scan a HuggingFace dataset cache root, import every recognized benchmark, and publish the active catalog")
-	repository := flag.String("repo", "overgodb-store", "OvergoDB root for -import-hf-cache")
+	listSuites := flag.Bool("list-derived-suites", false, "compile the store's benchmark catalog into suites and list their descriptors")
+	repository := flag.String("repo", "overgodb-store", "OvergoDB root for -import-hf-cache and -list-derived-suites")
 	flag.Parse()
+	if *listSuites {
+		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" {
+			return errors.New("usage: evaluate -list-derived-suites [-repo <store>]")
+		}
+		store, err := overgodb.OpenReadOnly(*repository)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		// Placeholder authorities admit compilation for listing; running a
+		// suite still binds the real model, recipe, and environment.
+		suites, skipped, err := evaluation.DeriveStoreSuites(context.Background(), store, listingAuthorities())
+		if err != nil {
+			return err
+		}
+		for _, suite := range suites {
+			descriptor := suite.Descriptor()
+			fmt.Printf("%s cases=%d source=%s\n", descriptor.Kind, descriptor.Cases, descriptor.Source)
+		}
+		for family, dropped := range skipped {
+			fmt.Printf("skipped %d %s case(s) outside the exact vocabulary\n", dropped, family)
+		}
+		return nil
+	}
 	if cache := strings.TrimSpace(*importCache); cache != "" {
 		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" {
 			return errors.New("usage: evaluate -import-hf-cache <root> [-repo <store>]")
@@ -91,6 +117,26 @@ func run() error {
 		command.Stdout, command.Stderr = os.Stdout, os.Stderr
 		return command.Run()
 	})
+}
+
+// listingAuthorities admit suite compilation for the descriptor
+// listing alone; running a suite binds the real model, recipe, and
+// environment through the session opener.
+func listingAuthorities() evaluation.ExactAuthorities {
+	id := func(kind artifact.Kind, name string) artifact.ID {
+		value, err := artifact.JSONID(kind, name)
+		if err != nil {
+			panic(err)
+		}
+		return value
+	}
+	return evaluation.ExactAuthorities{
+		ModelDefinition: id(artifact.KindModelDefinition, "evaluate/listing"),
+		RuntimeRecipe:   id(artifact.KindRecipe, "evaluate/listing"),
+		CodeCommit:      "0123456789abcdef0123456789abcdef01234567",
+		Environment:     id(artifact.KindEvidence, "evaluate/listing"),
+		Execution:       evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
+	}
 }
 
 func readManifest(path string) (manifest, error) {

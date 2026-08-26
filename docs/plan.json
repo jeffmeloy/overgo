@@ -4,27 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "tool-catalog-snapshot-search",
-      "title": "Index exact tool catalogs for deterministic bounded discovery",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Build a content-identified canonical catalog snapshot and deterministic top-k search over names, descriptions, and fields",
-          "status": "open",
-          "verify": "go test ./internal/agenttool -run 'Catalog|Search' -count=1",
-          "depends_on": [
-            "openapi-manual-compiler"
-          ],
-          "capabilities": [
-            "catalog-identity",
-            "deterministic-search",
-            "bounded-context"
-          ]
-        }
-      ]
-    },
-    {
       "id": "tool-stream-lifecycle",
       "title": "Make remote tool streams bounded typed operation lifecycles",
       "status": "open",

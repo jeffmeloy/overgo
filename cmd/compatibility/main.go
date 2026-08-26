@@ -13,7 +13,6 @@ import (
 	"go/token"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -197,7 +196,7 @@ type claimInput struct {
 // commits by content, and the record lands with lineage -- no external
 // scripting anywhere in the path.
 func runClaim(input claimInput, recordStore string, output io.Writer) error {
-	commit, err := verifyingCommit(".")
+	commit, err := runrecord.VerifyingCommit(".")
 	if err != nil {
 		return err
 	}
@@ -231,76 +230,15 @@ func runClaim(input claimInput, recordStore string, output io.Writer) error {
 		return err
 	}
 	defer func() { _ = store.Close() }()
-	ctx := context.Background()
-	batch, err := record.Batch("verification/" + record.ID.String())
-	if err != nil {
-		return err
-	}
-	if _, ok, err := artifact.ReadContent(ctx, store, evidence); err != nil {
-		return err
-	} else if !ok {
-		batch.Contents = append(batch.Contents, artifact.Content{
-			Descriptor: artifact.Descriptor{ID: evidence, Size: uint64(len(evidenceData))}, Data: evidenceData,
-		})
-	}
-	if _, ok, err := store.Artifact(ctx, model); err != nil {
-		return err
-	} else if !ok {
-		absolute, err := filepath.Abs(input.modelFile)
-		if err != nil {
-			return err
-		}
-		info, err := os.Stat(input.modelFile)
-		if err != nil {
-			return err
-		}
-		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: model, Size: uint64(info.Size())})
-		batch.Locations = append(batch.Locations, artifact.LocationEvent{
-			Location: artifact.Location{Artifact: model, Kind: artifact.LocationFile, Value: absolute},
-			Action:   artifact.LocationAdd,
-		})
-	}
-	if _, err := store.Commit(ctx, batch); err != nil {
+	if err := runrecord.CommitVerificationClaim(
+		context.Background(), store, record, evidenceData, evidence, input.modelFile,
+	); err != nil {
 		return err
 	}
 	fmt.Fprintf(output, "claim committed: %s model=%s name=%s %s=%s commit=%.12s\n",
 		record.ID, model, input.name, input.capability, input.tier, commit)
 	fmt.Fprintln(output, "honesty: verifier source matched a clean HEAD; the model identity is the weights digest; the claim is grounded in the committed evidence document")
 	return nil
-}
-
-// verifyingCommit returns HEAD only when tracked and untracked worktree state
-// is empty, so a claim cannot identify a commit that differs from executed
-// source or fixture bytes.
-func verifyingCommit(root string) (string, error) {
-	status, err := exec.Command("git", "-C", root, "status", "--porcelain=v1", "--untracked-files=all").Output()
-	if err != nil {
-		return "", fmt.Errorf("inspect verifying worktree: %w", err)
-	}
-	if len(status) != 0 {
-		return "", errors.New("verifying worktree is dirty; commit or remove every change before recording a claim")
-	}
-	head, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output()
-	if err != nil {
-		return "", fmt.Errorf("resolve verifying commit: %w", err)
-	}
-	commit := strings.TrimSpace(string(head))
-	if !validGitCommit(commit) {
-		return "", errors.New("verifying HEAD is not a full Git commit identity")
-	}
-	return commit, nil
-}
-
-func validGitCommit(value string) bool {
-	if len(value) != 40 && len(value) != 64 {
-		return false
-	}
-	for _, char := range value {
-		if char < '0' || char > '9' && char < 'a' || char > 'f' {
-			return false
-		}
-	}
-	return true
 }
 
 // runRecordVerification commits one typed model-verification record: the

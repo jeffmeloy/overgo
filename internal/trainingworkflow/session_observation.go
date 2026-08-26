@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -25,6 +26,11 @@ type Observer struct {
 	stepUsed    uint64
 	stepElapsed uint64
 	stepSampled bool
+	// pre holds the evidence standing when the session was admitted, so
+	// Finish can publish the bracket: improvement as the delta between
+	// committed records, never a narrated claim.
+	pre        BracketSlice
+	bracketing bool
 }
 
 // NewObserver starts session measurement.
@@ -64,6 +70,11 @@ func (o *Observer) Admit(ctx context.Context, model, recipeID artifact.ID) error
 		return fmt.Errorf("training observation: admission refused: %w", err)
 	}
 	o.director, o.lease = director, lease
+	// Capture the evidence standing before training so the session's
+	// bracket can state its deltas against committed records.
+	if store, typed := o.store.(*overgodb.Store); typed {
+		o.pre, o.bracketing = captureBracketSlice(ctx, store, model, recipeID), true
+	}
 	o.sampleHardware(runrecord.ServingHardwareStart)
 	return nil
 }
@@ -156,6 +167,15 @@ func (o *Observer) Finish(
 	published, err := runrecord.PublishServingObservation(ctx, o.store, observation)
 	if err != nil {
 		return artifact.ID{}, fmt.Errorf("training observation: publish: %w", err)
+	}
+	// The bracket binds this session to the evidence before and after
+	// it. A bracket that cannot publish must not fail the session whose
+	// observation already committed -- it reports and stands aside.
+	if store, typed := o.store.(*overgodb.Store); typed && o.bracketing {
+		post := captureBracketSlice(ctx, store, model, recipeID)
+		if _, err := publishTrainingBracket(ctx, o.store, published.ID, model, recipeID, o.pre, post); err != nil {
+			fmt.Printf("training observation: bracket: %v\n", err)
+		}
 	}
 	return published.ID, nil
 }

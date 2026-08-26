@@ -94,6 +94,15 @@ func NewEvaluationWorkspace(
 		suites: make([]evaluation.CompiledSuite, 0, len(suitePaths)), byPlan: make(map[artifact.ID]int, len(suitePaths)),
 		historyLimit: historyLimit,
 	}
+	admit := func(compiled evaluation.CompiledSuite) error {
+		plan := compiled.Descriptor().Plan
+		if _, duplicate := workspace.byPlan[plan]; duplicate {
+			return errors.New("evaluation workspace: duplicate compiled plan")
+		}
+		workspace.byPlan[plan] = len(workspace.suites)
+		workspace.suites = append(workspace.suites, compiled)
+		return nil
+	}
 	for _, path := range suitePaths {
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -103,12 +112,24 @@ func NewEvaluationWorkspace(
 		if err != nil {
 			return nil, fmt.Errorf("evaluation workspace: compile %q: %w", path, err)
 		}
-		plan := compiled.Descriptor().Plan
-		if _, duplicate := workspace.byPlan[plan]; duplicate {
-			return nil, errors.New("evaluation workspace: duplicate compiled plan")
+		if err := admit(compiled); err != nil {
+			return nil, err
 		}
-		workspace.byPlan[plan] = len(workspace.suites)
-		workspace.suites = append(workspace.suites, compiled)
+	}
+	if len(suitePaths) == 0 {
+		// No suite files named: the store is the configuration. The active
+		// benchmark catalog compiles into this model's suites, so the
+		// workbench evaluates out of the box against whatever benchmarks
+		// the store holds.
+		derived, _, err := evaluation.DeriveStoreSuites(context.Background(), repository, campaign.Authorities())
+		if err != nil {
+			return nil, fmt.Errorf("evaluation workspace: derive store suites: %w", err)
+		}
+		for _, compiled := range derived {
+			if err := admit(compiled); err != nil {
+				return nil, err
+			}
+		}
 	}
 	if len(workspace.suites) == 0 {
 		return nil, errors.New("evaluation workspace: suites are absent")

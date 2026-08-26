@@ -1,3 +1,8 @@
+// Command evaluate runs benchmark suites against local models: a
+// hand-written manifest names models and suite files, or -all derives
+// both sides from the store -- the servable model listing and the
+// suites compiled from the active benchmark catalog -- and campaigns
+// each model in its own worker process.
 package main
 
 import (
@@ -41,7 +46,63 @@ func run() error {
 	manifestPath := flag.String("manifest", "", "evaluation manifest")
 	worker := flag.Bool("worker", false, "run one model worker")
 	modelIndex := flag.Int("model-index", -1, "worker model index")
+	importCache := flag.String("import-hf-cache", "", "scan a HuggingFace dataset cache root, import every recognized benchmark, and publish the active catalog")
+	listSuites := flag.Bool("list-derived-suites", false, "compile the store's benchmark catalog into suites and list their descriptors")
+	repository := flag.String("repo", "overgodb-store", "OvergoDB root for -import-hf-cache, -list-derived-suites, and -all")
+	allModels := flag.Bool("all", false, "evaluate every servable local model against the store's derived suites")
+	device := flag.Int("device", 0, "CUDA device ordinal for -all")
+	family := flag.String("family", "", "restrict -all to one derived suite source suffix (e.g. mmlu)")
+	catalogLimit := flag.Int("catalog-limit", 256, "servable model listing bound for -all")
 	flag.Parse()
+	if *allModels {
+		if strings.TrimSpace(*manifestPath) != "" {
+			return errors.New("usage: evaluate -all [-repo <store>] [-device N] [-family name]")
+		}
+		if *worker {
+			return runAllWorker(context.Background(), *repository, *device, *family, *catalogLimit, *modelIndex)
+		}
+		return runAllParent(context.Background(), *repository, *device, *family, *catalogLimit)
+	}
+	if *listSuites {
+		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" {
+			return errors.New("usage: evaluate -list-derived-suites [-repo <store>]")
+		}
+		store, err := overgodb.OpenReadOnly(*repository)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		// Placeholder authorities admit compilation for listing; running a
+		// suite still binds the real model, recipe, and environment.
+		suites, skipped, err := evaluation.DeriveStoreSuites(context.Background(), store, evaluation.ListingAuthorities())
+		if err != nil {
+			return err
+		}
+		for _, suite := range suites {
+			descriptor := suite.Descriptor()
+			fmt.Printf("%s cases=%d source=%s\n", descriptor.Kind, descriptor.Cases, descriptor.Source)
+		}
+		for family, dropped := range skipped {
+			fmt.Printf("skipped %d %s case(s) outside the exact vocabulary\n", dropped, family)
+		}
+		return nil
+	}
+	if cache := strings.TrimSpace(*importCache); cache != "" {
+		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" {
+			return errors.New("usage: evaluate -import-hf-cache <root> [-repo <store>]")
+		}
+		store, err := overgodb.Open(*repository)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		catalog, count, err := evaluation.CatalogHFCacheBenchmarks(context.Background(), store, cache)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("benchmark catalog %s published from %d imported dataset(s)\n", catalog, count)
+		return nil
+	}
 	if strings.TrimSpace(*manifestPath) == "" || flag.NArg() != 0 {
 		return errors.New("usage: evaluate -manifest manifest.json")
 	}

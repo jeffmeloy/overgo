@@ -391,7 +391,22 @@
             const name = item.location ? item.location.split(/[\\/]/).pop() : item.model;
             const swap = el("button", { class: "btn alt", text: "serve" });
             swap.addEventListener("click", () => swapModel(item, name, swap));
-            return el("div", { class: "row" }, el("span", { class: "mono", text: name }), swap);
+            const row = el("div", { class: "row" }, el("span", { class: "mono", text: name }));
+            // Committed evidence beside the entry: perf from the latest
+            // benchmark claim, quality from the latest eval per suite.
+            const facts = [];
+            if (item.benchmark && item.benchmark.decode_tokens_per_second_p50) {
+              facts.push(Math.round(item.benchmark.decode_tokens_per_second_p50) + " tok/s");
+            }
+            (item.evals || []).forEach((entry) => {
+              const suite = (entry.suite || "").replace(/^store\//, "");
+              if (entry.metrics && typeof entry.metrics.accuracy === "number") {
+                facts.push(suite + " " + entry.metrics.accuracy.toFixed(2));
+              }
+            });
+            if (facts.length) row.appendChild(el("span", { class: "note", text: facts.join(" · ") }));
+            row.appendChild(swap);
+            return row;
           }));
       } catch (err) {
         panel.textContent = friendlyError(err);

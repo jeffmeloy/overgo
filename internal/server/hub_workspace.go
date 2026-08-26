@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/discovery"
+	"overgo/internal/evaluation"
 	"overgo/internal/hfhub"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
@@ -46,10 +48,19 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusInternalServerError, "catalog_error", err.Error())
 		return
 	}
+	// Identities hashed during this pass persist so the next process
+	// answers from stat checks instead of re-hashing the model bytes.
+	if err := discovery.PublishMemo(request.Context(), h.config.Repository, h.catalogMemo); err != nil {
+		log.Printf("catalog: persist identity memo: %v", err)
+	}
+	evidence := h.catalogEvidence(request.Context(), h.workspaceSuiteNames(request.Context()))
 	listed := make([]catalogModel, 0, len(entries))
 	for _, entry := range entries {
 		model := catalogModel{
 			Model: idText(entry.Model), Location: entry.Location, Present: entry.Present,
+		}
+		if summary, measured := evidence.BenchmarksByLocation[entry.Location]; measured {
+			model.Benchmark = &summary
 		}
 		for _, capability := range entry.Capabilities {
 			model.Capabilities = append(model.Capabilities, catalogCapability{
@@ -58,6 +69,7 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 			})
 			if capability.Task == recipe.TaskInference {
 				model.Recipe, model.Tier, model.Stale = idText(capability.Recipe), string(capability.Tier), capability.Stale
+				model.Evals = evidence.EvaluationsByRecipe[capability.Recipe]
 			}
 		}
 		listed = append(listed, model)
@@ -106,6 +118,11 @@ type catalogModel struct {
 	Present      bool                `json:"present"`
 	Stale        string              `json:"stale,omitempty"`
 	Capabilities []catalogCapability `json:"capabilities,omitempty"`
+	// Benchmark and Evals surface the model's committed evidence beside
+	// its entry: perf from the latest benchmark claim, quality from the
+	// latest evaluation per derived suite.
+	Benchmark *evaluation.BenchmarkSummary `json:"benchmark,omitempty"`
+	Evals     []evaluation.EvalSummary     `json:"evals,omitempty"`
 }
 
 // catalogCapability is one task activation on a catalogued model.

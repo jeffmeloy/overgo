@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -90,6 +91,7 @@ type gateContext struct {
 	manifestDelta     *codemanifest.Delta
 	manifestImpact    *codemanifest.Impact
 	manifestMetrics   automationcheck.ManifestMeasurements
+	diff              runrecord.AttemptDiff
 }
 
 func main() {
@@ -216,6 +218,9 @@ func run() error {
 	}
 	defer stopHeartbeat()
 
+	// The candidate's change size is observed before the pipeline can
+	// commit it; after a successful commit the worktree diff is gone.
+	g.diff = observeDiff(repo)
 	outcome := runrecord.OutcomeSucceeded
 	failureCode := ""
 	var pipelineErr error
@@ -2246,6 +2251,9 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 			return err
 		}
 	}
+	if err := g.appendAttemptRecord(&batch, codeCommit, recipeID, record.Result.ID, outcome, failure); err != nil {
+		return err
+	}
 	// A wall-time evaluation rides every successful run: evaluations are the
 	// advisory layer's observation unit, so the gate's own history becomes
 	// the calibration corpus (first run calibrates, second enforces).
@@ -2322,6 +2330,77 @@ func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit st
 	batch.Contents = append(batch.Contents, content)
 	batch.Lineage = append(batch.Lineage, evidence.Lineage()...)
 	return nil
+}
+
+// appendAttemptRecord rides the gate's own record batch with the
+// typed attempt document: the plan step this run served, the manifest
+// selection it observed, and the diff it carried, on success and
+// failure alike -- the measurement unit for automation effectiveness.
+func (g *gateContext) appendAttemptRecord(
+	batch *artifact.Batch,
+	codeCommit string,
+	recipeID, resultID artifact.ID,
+	outcome runrecord.Outcome,
+	failure string,
+) error {
+	item, step, bound := strings.Cut(g.planRef, "/")
+	if !bound {
+		return fmt.Errorf("gate: attempt record requires an item/step plan reference, got %q", g.planRef)
+	}
+	attempt := runrecord.AttemptRecord{
+		PlanItem: item, PlanStep: step, Result: resultID, Recipe: recipeID,
+		CodeCommit: codeCommit, Outcome: outcome, Failure: failure,
+		WallNS: uint64(time.Since(g.start).Nanoseconds()),
+		Selection: runrecord.AttemptSelection{
+			Defined: g.manifestMetrics.Defined, Selected: g.manifestMetrics.Selected,
+			Excluded: g.manifestMetrics.Excluded, Uncertainty: g.manifestMetrics.Uncertainty,
+			CacheEligible: g.manifestMetrics.CacheEligible, CacheHits: g.manifestMetrics.CacheHits,
+			PlanningNS: g.manifestMetrics.PlanningNS,
+		},
+		Diff: g.diff,
+	}
+	if g.baseManifest != nil {
+		attempt.BaseManifest = g.baseManifest.ID
+	}
+	if g.candidateManifest != nil {
+		attempt.CandidateManifest = g.candidateManifest.ID
+	}
+	published, err := runrecord.NewAttemptRecord(attempt)
+	if err != nil {
+		return err
+	}
+	content, err := published.Content()
+	if err != nil {
+		return err
+	}
+	batch.Contents = append(batch.Contents, content)
+	batch.Lineage = append(batch.Lineage, published.Lineage()...)
+	return nil
+}
+
+// observeDiff reads the worktree's change size against HEAD; binary
+// rows count as files with no line observation, and a failed read
+// reports zero counts rather than inventing any.
+func observeDiff(repo string) runrecord.AttemptDiff {
+	output, err := command(repo, "git", "diff", "--numstat", "HEAD")
+	if err != nil {
+		return runrecord.AttemptDiff{}
+	}
+	var diff runrecord.AttemptDiff
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		diff.Files++
+		if insertions, err := strconv.Atoi(fields[0]); err == nil {
+			diff.Insertions += insertions
+		}
+		if deletions, err := strconv.Atoi(fields[1]); err == nil {
+			diff.Deletions += deletions
+		}
+	}
+	return diff
 }
 
 func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, failure string) {

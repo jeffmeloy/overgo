@@ -544,6 +544,10 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	surface := automationcheck.Surface{}
 	if structuralErr == nil {
 		surface = automationcheck.ManifestSurface(structural)
+		if requiresManifestBootstrap(g.paths) {
+			surface.Unknown = append(surface.Unknown, "manifest analyzer or planner implementation changed")
+			g.honesty = append(g.honesty, "manifest bootstrap: analyzer-owned change forced the complete selectable plan")
+		}
 	} else {
 		legacy, legacyErr := g.deriveStructuralImpact()
 		if legacyErr == nil {
@@ -593,6 +597,21 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		g.honesty = append(g.honesty, "manifest plan: "+bound.ID.String())
 	}
 	return plannedPipeline{definitions: definitions, invocations: checks, impact: impact, surface: surface, manifest: boundPlan}, nil
+}
+
+func requiresManifestBootstrap(paths []string) bool {
+	for _, name := range paths {
+		name = filepath.ToSlash(name)
+		for _, owner := range []string{
+			"internal/codemanifest/", "internal/codeprofile/", "internal/repoanalysis/",
+			"internal/automationcheck/", "cmd/code-manifest/", "cmd/gate/",
+		} {
+			if strings.HasPrefix(name, owner) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (g *gateContext) inputGraph() (packageInputGraph, error) {

@@ -4,7 +4,7 @@ import "testing"
 
 func TestCacheIdentity(t *testing.T) {
 	manifest := cacheManifestFixture(t, "package example\nfunc Value() int { return 1 }\n")
-	key := CacheKey{manifest.SourceIdentity, manifest.Analyzer, manifest.BuildContexts, manifest.ExternalInputs}
+	key := CacheKey{manifest.SourceIdentity, manifest.Analyzer, Schema, manifest.BuildContexts, manifest.ExternalInputs}
 	cache, _ := NewCache(2)
 	if err := cache.put(key, manifest); err != nil {
 		t.Fatal(err)
@@ -17,7 +17,7 @@ func TestCacheIdentity(t *testing.T) {
 
 func TestCacheInvalidation(t *testing.T) {
 	manifest := cacheManifestFixture(t, "package example\nfunc Value() int { return 1 }\n")
-	key := CacheKey{manifest.SourceIdentity, manifest.Analyzer, manifest.BuildContexts, manifest.ExternalInputs}
+	key := CacheKey{manifest.SourceIdentity, manifest.Analyzer, Schema, manifest.BuildContexts, manifest.ExternalInputs}
 	cache, _ := NewCache(2)
 	if err := cache.put(key, manifest); err != nil {
 		t.Fatal(err)
@@ -28,12 +28,25 @@ func TestCacheInvalidation(t *testing.T) {
 	}
 }
 
+func TestSchemaChangeInvalidatesCache(t *testing.T) {
+	manifest := cacheManifestFixture(t, "package example\nfunc Value() int { return 1 }\n")
+	key := CacheKey{manifest.SourceIdentity, manifest.Analyzer, Schema, manifest.BuildContexts, manifest.ExternalInputs}
+	cache, _ := NewCache(2)
+	if err := cache.put(key, manifest); err != nil {
+		t.Fatal(err)
+	}
+	key.Schema += "-next"
+	if _, found := cache.get(key); found {
+		t.Fatal("changed schema reused a manifest")
+	}
+}
+
 func TestBoundedEviction(t *testing.T) {
 	cache, _ := NewCache(1)
 	first := cacheManifestFixture(t, "package example\nfunc Value() int { return 1 }\n")
 	second := cacheManifestFixture(t, "package example\nfunc Value() int { return 2 }\n")
-	firstKey := CacheKey{first.SourceIdentity, first.Analyzer, first.BuildContexts, first.ExternalInputs}
-	secondKey := CacheKey{second.SourceIdentity, second.Analyzer, second.BuildContexts, second.ExternalInputs}
+	firstKey := CacheKey{first.SourceIdentity, first.Analyzer, Schema, first.BuildContexts, first.ExternalInputs}
+	secondKey := CacheKey{second.SourceIdentity, second.Analyzer, Schema, second.BuildContexts, second.ExternalInputs}
 	if err := cache.put(firstKey, first); err != nil {
 		t.Fatal(err)
 	}

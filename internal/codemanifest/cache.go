@@ -14,6 +14,7 @@ import (
 type CacheKey struct {
 	SourceIdentity string          `json:"source_identity"`
 	Analyzer       Analyzer        `json:"analyzer"`
+	Schema         string          `json:"schema"`
 	BuildContexts  []BuildContext  `json:"build_contexts"`
 	ExternalInputs []ExternalInput `json:"external_inputs,omitempty"`
 }
@@ -47,7 +48,7 @@ func (key CacheKey) id() (artifact.ID, error) {
 	canonical.ExternalInputs = slices.Clone(key.ExternalInputs)
 	slices.SortFunc(canonical.BuildContexts, func(left, right BuildContext) int { return strings.Compare(left.ID, right.ID) })
 	slices.SortFunc(canonical.ExternalInputs, func(left, right ExternalInput) int { return strings.Compare(left.Path, right.Path) })
-	if !validDigest(canonical.SourceIdentity) || canonical.Analyzer.Name == "" || canonical.Analyzer.Version == "" || len(canonical.BuildContexts) == 0 {
+	if !validDigest(canonical.SourceIdentity) || canonical.Analyzer.Name == "" || canonical.Analyzer.Version == "" || canonical.Schema == "" || len(canonical.BuildContexts) == 0 {
 		return artifact.ID{}, errors.New("code manifest cache: incomplete authority key")
 	}
 	return artifact.JSONID(artifact.KindRecipe, canonical)
@@ -82,7 +83,7 @@ func (cache *Cache) put(key CacheKey, manifest Manifest) error {
 	if err := manifest.Validate(); err != nil {
 		return err
 	}
-	if manifest.SourceIdentity != key.SourceIdentity || manifest.Analyzer != key.Analyzer ||
+	if manifest.SourceIdentity != key.SourceIdentity || manifest.Analyzer != key.Analyzer || key.Schema != Schema ||
 		!reflect.DeepEqual(manifest.BuildContexts, key.BuildContexts) || !slices.Equal(manifest.ExternalInputs, key.ExternalInputs) {
 		return errors.New("code manifest cache: manifest differs from authority key")
 	}
@@ -117,7 +118,7 @@ func (cache *Cache) Generate(snapshot repoanalysis.SourceSnapshot, selections []
 	slices.SortFunc(inputs, func(left, right ExternalInput) int { return strings.Compare(left.Path, right.Path) })
 	key := CacheKey{
 		SourceIdentity: snapshot.Identity(), Analyzer: Analyzer{Name: analyzerName, Version: analyzerVersion},
-		BuildContexts: contexts, ExternalInputs: inputs,
+		Schema: Schema, BuildContexts: contexts, ExternalInputs: inputs,
 	}
 	if manifest, found := cache.get(key); found {
 		return manifest, true, nil

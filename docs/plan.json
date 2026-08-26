@@ -10,20 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "bootstrap",
-          "title": "Run fixed bootstrap checks for analyzer changes and fall back to the complete gate set whenever manifest planning cannot establish authority",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/codemanifest -run 'TestGeneratorBootstrap|TestAnalyzerFailureRunsFullPlan|TestSchemaChangeInvalidatesCache' -count=1",
-          "rationale": "Manifest-selected checks cannot be the only protection for the analyzer that selects them.",
-          "depends_on": [
-            "code-manifest-storage-cache"
-          ],
-          "capabilities": [
-            "bootstrap-trust",
-            "full-plan-fallback"
-          ]
-        },
-        {
           "id": "false-negative-corpus",
           "title": "Add fixed change-to-required-check cases for interfaces, reflection, cgo, generated files, build tags, device code, schemas, fixtures, and non-Go authority",
           "status": "open",

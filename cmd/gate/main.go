@@ -650,13 +650,20 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
-	baseManifest, err := codemanifest.Generate(base, []repoanalysis.BuildSelection{selection}, baseInputs)
+	manifestCache, err := codemanifest.NewCache(len([]repoanalysis.SourceSnapshot{base, candidate}))
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
-	candidateManifest, err := codemanifest.Generate(candidate, []repoanalysis.BuildSelection{selection}, candidateInputs)
+	baseManifest, _, err := manifestCache.Generate(base, []repoanalysis.BuildSelection{selection}, baseInputs)
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	candidateManifest, reused, err := manifestCache.Generate(candidate, []repoanalysis.BuildSelection{selection}, candidateInputs)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	if reused {
+		g.honesty = append(g.honesty, "candidate code manifest reused by exact analysis authority")
 	}
 	delta, err := codemanifest.Diff(baseManifest, candidateManifest)
 	if err != nil {

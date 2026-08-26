@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "code-manifest-storage-cache",
-      "title": "Persist manifests and reuse analysis without weakening identity",
-      "owner": "manifest",
-      "status": "open",
-      "steps": [
-        {
-          "id": "cache",
-          "title": "Reuse package and manifest results by exact snapshot, analyzer, build-context, generator, and external-input identities with owned bounded eviction",
-          "status": "open",
-          "verify": "go test ./internal/codemanifest ./internal/automationcheck -run 'TestCacheIdentity|TestCacheInvalidation|TestBoundedEviction' -count=1",
-          "rationale": "Incremental analysis must reduce gate latency without accepting stale structural facts or creating an unbounded cache.",
-          "depends_on": [
-            "code-manifest-storage-cache/publish"
-          ],
-          "capabilities": [
-            "content-addressed-cache",
-            "bounded-eviction"
-          ]
-        }
-      ]
-    },
-    {
       "id": "code-manifest-trust",
       "title": "Make the manifest selector falsifiable and adopt it across the repository",
       "owner": "manifest",

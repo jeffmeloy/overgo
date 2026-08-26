@@ -213,16 +213,16 @@ func BindDeviceLayerGraphInputs(
 	builder *tensor.Builder,
 	info LayerWeights,
 	bind DeviceTensorBinder,
-) (LayerGraphWeights, map[*tensor.Tensor]driver.DevicePtr, error) {
+) (LayerGraphWeights, tensor.InputBindings[driver.DevicePtr], error) {
 	if builder == nil {
 		return LayerGraphWeights{}, nil, errors.New("device layer graph builder is nil")
 	}
 	if bind == nil {
 		return LayerGraphWeights{}, nil, errors.New("device layer graph binder is nil")
 	}
-	feeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	var feeds tensor.InputBindings[driver.DevicePtr]
 	result := LayerGraphWeights{}
-	if err := bindDeviceLayerGraphFields(bind, builder, &info, &result, feeds); err != nil {
+	if err := bindDeviceLayerGraphFields(bind, builder, &info, &result, &feeds); err != nil {
 		return LayerGraphWeights{}, nil, err
 	}
 	if err := builder.Err(); err != nil {

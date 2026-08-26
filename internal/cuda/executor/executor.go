@@ -658,6 +658,16 @@ func (i *DeviceInputs) Set(node *tensor.Tensor, pointer driver.DevicePtr) error 
 	return nil
 }
 
+// Bind resolves ordered graph bindings into compiled input slots.
+func (i *DeviceInputs) Bind(bindings tensor.InputBindings[driver.DevicePtr]) error {
+	for _, binding := range bindings {
+		if err := i.Set(binding.Node, binding.Value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // RuntimeAttributes: graph-indexed per-execution attribute overrides.
 type RuntimeAttributes struct {
 	compiled *CompiledGraph

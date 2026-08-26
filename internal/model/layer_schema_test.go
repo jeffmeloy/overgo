@@ -232,7 +232,9 @@ func TestBindDeviceLayerGraphInputsPreservesStorageTypes(t *testing.T) {
 	if graph.AttentionNorm.Type != dtype.F32 || graph.FeedForwardGate.Type != dtype.Q8_0 {
 		t.Fatalf("storage types = %s/%s, want F32/Q8_0", graph.AttentionNorm.Type, graph.FeedForwardGate.Type)
 	}
-	if feeds[graph.AttentionNorm] != normPointer || feeds[graph.FeedForwardGate] != gatePointer {
+	if len(feeds) != 2 ||
+		feeds[0].Node != graph.AttentionNorm || feeds[0].Value != normPointer ||
+		feeds[1].Node != graph.FeedForwardGate || feeds[1].Value != gatePointer {
 		t.Fatalf("device feeds = %v", feeds)
 	}
 }

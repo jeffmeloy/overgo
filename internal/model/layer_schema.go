@@ -339,7 +339,7 @@ func bindDeviceLayerGraphFields(
 	builder *tensor.Builder,
 	info *LayerWeights,
 	result *LayerGraphWeights,
-	feeds map[*tensor.Tensor]driver.DevicePtr,
+	feeds *tensor.InputBindings[driver.DevicePtr],
 ) error {
 	infoValue := reflect.ValueOf(info).Elem()
 	graphValue := reflect.ValueOf(result).Elem()
@@ -352,7 +352,7 @@ func bindDeviceLayerGraphFields(
 		if err != nil {
 			return err
 		}
-		feeds[node] = pointer
+		feeds.Add(node, pointer)
 		graphValue.Field(slot.index).Set(reflect.ValueOf(node))
 	}
 	return nil

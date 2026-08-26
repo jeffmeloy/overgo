@@ -32,7 +32,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	input := runtime.input("model.input", activation)
 	current := input
 	hostFeeds := runtime.feeds.Host
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	var attentionBlockInput *tensor.Tensor
 	if len(attentionBlockIDs) > 0 {
 		shape := tensor.MustShape(uint64(len(attentionBlockIDs)))
@@ -62,7 +62,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		}
 		if visualMode {
 			if err := r.applyCogVLMVisualWeights(
-				ctx, builder, info, &graphWeights, nil, deviceFeeds,
+				ctx, builder, info, &graphWeights, nil, &deviceFeeds,
 			); err != nil {
 				return reference.Value{}, nil, err
 			}
@@ -131,7 +131,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 		}
 	}
 	if applyOutputNorm {
-		normalized, normErr := r.applyDeviceOutputNorm(builder, current, deviceFeeds)
+		normalized, normErr := r.applyDeviceOutputNorm(builder, current, &deviceFeeds)
 		if normErr != nil {
 			return reference.Value{}, nil, normErr
 		}
@@ -183,7 +183,7 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 	input := runtime.input("model.input", activation)
 	current := input
 	hostFeeds := runtime.feeds.Host
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	for layerIndex, info := range r.weights.Layers {
 		program := r.layerProgram(layerIndex)
 		plan := program.Layer()
@@ -205,7 +205,7 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 		current = result.Output
 	}
 	var err error
-	current, err = r.applyDeviceOutputNorm(builder, current, deviceFeeds)
+	current, err = r.applyDeviceOutputNorm(builder, current, &deviceFeeds)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -237,14 +237,14 @@ func (r *Runner) runLayerCached(
 	builder := runtime.builder
 	input := runtime.input("input", activation)
 	hostFeeds := runtime.feeds.Host
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
 	}
 	if visualMode {
 		if err := r.applyCogVLMVisualWeights(
-			ctx, builder, info, &graphWeights, hostFeeds, deviceFeeds,
+			ctx, builder, info, &graphWeights, hostFeeds, &deviceFeeds,
 		); err != nil {
 			return reference.Value{}, LayerCache{}, err
 		}
@@ -301,7 +301,7 @@ func (r *Runner) runLayerCached(
 	}
 	outputTensor := result.Output
 	if r.hasPreloadedWeights() && layerIndex == len(r.weights.Layers)-1 {
-		outputTensor, err = r.applyDeviceOutputNorm(builder, result.Output, deviceFeeds)
+		outputTensor, err = r.applyDeviceOutputNorm(builder, result.Output, &deviceFeeds)
 		if err != nil {
 			return reference.Value{}, LayerCache{}, err
 		}

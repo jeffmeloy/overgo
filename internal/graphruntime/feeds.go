@@ -41,14 +41,9 @@ func AddHostWeights(
 
 type Feeds struct {
 	Host   map[*tensor.Tensor]reference.Value
-	device []deviceBinding
+	device tensor.InputBindings[driver.DevicePtr]
 	graph  *executor.IndexedGraph
 	output []*tensor.Tensor
-}
-
-type deviceBinding struct {
-	node    *tensor.Tensor
-	pointer driver.DevicePtr
 }
 
 func NewFeeds() *Feeds {
@@ -69,14 +64,12 @@ func (f *Feeds) AddHost(values map[*tensor.Tensor]reference.Value) {
 	}
 }
 
-func (f *Feeds) AddDevice(values map[*tensor.Tensor]driver.DevicePtr) {
-	for node, value := range values {
-		f.SetDevice(node, value)
-	}
+func (f *Feeds) AddDevice(values tensor.InputBindings[driver.DevicePtr]) {
+	f.device = append(f.device, values...)
 }
 
 func (f *Feeds) SetDevice(node *tensor.Tensor, pointer driver.DevicePtr) {
-	f.device = append(f.device, deviceBinding{node: node, pointer: pointer})
+	f.device.Add(node, pointer)
 }
 
 func (f *Feeds) Execute(
@@ -105,10 +98,8 @@ func (f *Feeds) compile(outputs []*tensor.Tensor) (*executor.IndexedGraph, error
 	if err != nil {
 		return nil, err
 	}
-	for _, binding := range f.device {
-		if err := indexed.Inputs.Set(binding.node, binding.pointer); err != nil {
-			return nil, err
-		}
+	if err := indexed.Inputs.Bind(f.device); err != nil {
+		return nil, err
 	}
 	f.graph, f.output = indexed, slices.Clone(outputs)
 	return indexed, nil

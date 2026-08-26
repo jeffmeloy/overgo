@@ -42,14 +42,22 @@ func NewCache(capacity int) (*Cache, error) {
 }
 
 // Key returns the canonical identity for one complete manifest authority.
-func (key CacheKey) id() (artifact.ID, error) {
+func (key CacheKey) canonical() (CacheKey, error) {
 	canonical := key
 	canonical.BuildContexts = slices.Clone(key.BuildContexts)
 	canonical.ExternalInputs = slices.Clone(key.ExternalInputs)
 	slices.SortFunc(canonical.BuildContexts, func(left, right BuildContext) int { return strings.Compare(left.ID, right.ID) })
 	slices.SortFunc(canonical.ExternalInputs, func(left, right ExternalInput) int { return strings.Compare(left.Path, right.Path) })
 	if !validDigest(canonical.SourceIdentity) || canonical.Analyzer.Name == "" || canonical.Analyzer.Version == "" || canonical.Schema == "" || len(canonical.BuildContexts) == 0 {
-		return artifact.ID{}, errors.New("code manifest cache: incomplete authority key")
+		return CacheKey{}, errors.New("code manifest cache: incomplete authority key")
+	}
+	return canonical, nil
+}
+
+func (key CacheKey) id() (artifact.ID, error) {
+	canonical, err := key.canonical()
+	if err != nil {
+		return artifact.ID{}, err
 	}
 	return artifact.JSONID(artifact.KindRecipe, canonical)
 }
@@ -76,15 +84,19 @@ func (cache *Cache) put(key CacheKey, manifest Manifest) error {
 	if cache == nil || cache.capacity <= 0 {
 		return errors.New("code manifest cache: uninitialized")
 	}
-	id, err := key.id()
+	canonical, err := key.canonical()
+	if err != nil {
+		return err
+	}
+	id, err := canonical.id()
 	if err != nil {
 		return err
 	}
 	if err := manifest.Validate(); err != nil {
 		return err
 	}
-	if manifest.SourceIdentity != key.SourceIdentity || manifest.Analyzer != key.Analyzer || key.Schema != Schema ||
-		!reflect.DeepEqual(manifest.BuildContexts, key.BuildContexts) || !slices.Equal(manifest.ExternalInputs, key.ExternalInputs) {
+	if manifest.SourceIdentity != canonical.SourceIdentity || manifest.Analyzer != canonical.Analyzer || canonical.Schema != Schema ||
+		!reflect.DeepEqual(manifest.BuildContexts, canonical.BuildContexts) || !slices.Equal(manifest.ExternalInputs, canonical.ExternalInputs) {
 		return errors.New("code manifest cache: manifest differs from authority key")
 	}
 	cache.clock++

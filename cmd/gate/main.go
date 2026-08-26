@@ -473,7 +473,9 @@ func buildGatePlanReport(planned plannedPipeline) gatePlanReport {
 		report.CandidateManifest = planned.manifest.CandidateManifest.String()
 		report.CandidateSource = planned.manifest.CandidateSource
 		report.CandidateTree = planned.manifest.CandidateTree
-		if context, err := agentworkflow.NewManifestContext(planned.structural, *planned.manifest, nil); err == nil {
+		if context, err := agentworkflow.NewManifestContext(
+			planned.structural, *planned.manifest, nil, agentworkflow.DefaultManifestContextLimits(),
+		); err == nil {
 			report.AgentContext = &context
 		}
 	}

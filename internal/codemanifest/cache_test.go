@@ -1,6 +1,9 @@
 package codemanifest
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestCacheIdentity(t *testing.T) {
 	manifest := cacheManifestFixture(t, "package example\nfunc Value() int { return 1 }\n")
@@ -12,6 +15,29 @@ func TestCacheIdentity(t *testing.T) {
 	loaded, found := cache.get(key)
 	if !found || loaded.ID != manifest.ID {
 		t.Fatalf("cache load = %s, %t", loaded.ID, found)
+	}
+}
+
+func TestCacheCanonicalizesAuthorityBeforeComparison(t *testing.T) {
+	value := fixtureManifest()
+	value.ExternalInputs = append(value.ExternalInputs, ExternalInput{
+		Path: "architecture_profiles.json", ContentID: fixtureDigest,
+		Kind: "architecture-profiles", Owner: "internal/modelrecipe",
+	})
+	manifest, err := codec.New(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := CacheKey{manifest.SourceIdentity, manifest.Analyzer, Schema,
+		slices.Clone(manifest.BuildContexts), slices.Clone(manifest.ExternalInputs)}
+	slices.Reverse(key.BuildContexts)
+	slices.Reverse(key.ExternalInputs)
+	cache, _ := NewCache(2)
+	if err := cache.put(key, manifest); err != nil {
+		t.Fatalf("canonical authority rejected: %v", err)
+	}
+	if loaded, found := cache.get(key); !found || loaded.ID != manifest.ID {
+		t.Fatalf("canonical cache load = %s, %t", loaded.ID, found)
 	}
 }
 

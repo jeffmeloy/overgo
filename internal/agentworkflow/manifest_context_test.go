@@ -15,7 +15,7 @@ import (
 func TestAgentManifestContext(t *testing.T) {
 	impact, plan := agentManifestFixture(t)
 	prior, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("prior"))
-	context, err := NewManifestContext(impact, plan, []artifact.ID{prior})
+	context, err := NewManifestContext(impact, plan, []artifact.ID{prior}, DefaultManifestContextLimits())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func TestAgentManifestContext(t *testing.T) {
 
 func TestAgentCannotAuthorizeExclusion(t *testing.T) {
 	impact, plan := agentManifestFixture(t)
-	context, err := NewManifestContext(impact, plan, nil)
+	context, err := NewManifestContext(impact, plan, nil, DefaultManifestContextLimits())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,8 +35,29 @@ func TestAgentCannotAuthorizeExclusion(t *testing.T) {
 		t.Fatal("agent context changed selector exclusions")
 	}
 	plan.Exclusions = append(plan.Exclusions, automationcheck.Exclusion{Check: "verify", Reason: "agent says safe"})
-	if _, err := NewManifestContext(impact, plan, nil); err == nil {
+	if _, err := NewManifestContext(impact, plan, nil, DefaultManifestContextLimits()); err == nil {
 		t.Fatal("agent-authored exclusion survived manifest-plan identity validation")
+	}
+}
+
+func TestAgentManifestContextIsBoundedAndReportsTotals(t *testing.T) {
+	impact, plan := agentManifestFixture(t)
+	impact.Reachable = append(impact.Reachable, impact.Reachable...)
+	impact.Uncertainty = append(impact.Uncertainty, impact.Uncertainty...)
+	context, err := NewManifestContext(impact, plan, nil, ManifestContextLimits{Symbols: 1, Risks: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if context.AffectedTotal != 2 || context.RiskTotal != 2 || len(context.AffectedSymbols) != 1 || len(context.RiskBoundaries) != 1 {
+		t.Fatalf("bounded agent manifest context = %+v", context)
+	}
+}
+
+func TestAgentManifestContextRejectsNonEvidencePrior(t *testing.T) {
+	impact, plan := agentManifestFixture(t)
+	notEvidence, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("prior"))
+	if _, err := NewManifestContext(impact, plan, []artifact.ID{notEvidence}, DefaultManifestContextLimits()); err == nil {
+		t.Fatal("non-evidence prior accepted")
 	}
 }
 

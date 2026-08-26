@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/strictjson"
 )
 
@@ -412,11 +413,11 @@ func coerceToolParameter(
 		kind, _ := property["type"].(string)
 		switch kind {
 		case "integer":
-			if parsed, err := strconv.ParseInt(value, 10, 64); err == nil {
+			if parsed, err := strconv.ParseInt(value, 10, binaryschema.Width64Bits); err == nil {
 				return parsed
 			}
 		case "number":
-			if parsed, err := strconv.ParseFloat(value, 64); err == nil {
+			if parsed, err := strconv.ParseFloat(value, binaryschema.Width64Bits); err == nil {
 				return parsed
 			}
 		case "boolean":

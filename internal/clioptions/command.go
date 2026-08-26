@@ -12,7 +12,10 @@ import (
 	"runtime"
 )
 
-const outputFileMode = 0o644
+const (
+	OutputFileMode      = os.FileMode(0o644)
+	OutputDirectoryMode = os.FileMode(0o755)
+)
 
 // Main: common command error exit.
 func Main(run func() error) {
@@ -113,5 +116,10 @@ func OutputGenerated(data []byte, path string, check, update bool, stale string,
 
 // WriteOutputFile writes a command-owned public artifact.
 func WriteOutputFile(path string, data []byte) error {
-	return os.WriteFile(path, data, outputFileMode)
+	return os.WriteFile(path, data, OutputFileMode)
+}
+
+// EnsureOutputDirectory creates a command-owned output path.
+func EnsureOutputDirectory(path string) error {
+	return os.MkdirAll(path, OutputDirectoryMode)
 }

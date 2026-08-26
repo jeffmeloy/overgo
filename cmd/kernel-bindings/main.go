@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"overgo/internal/clioptions"
 )
 
 type kernelManifest struct {
@@ -82,16 +84,16 @@ func run(manifestPath, outputPath, kernelOutputPath string, check bool) error {
 		}
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+	if err := clioptions.EnsureOutputDirectory(filepath.Dir(outputPath)); err != nil {
 		return err
 	}
-	if err := os.WriteFile(outputPath, generated, 0o644); err != nil {
+	if err := clioptions.WriteOutputFile(outputPath, generated); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(kernelOutputPath), 0o755); err != nil {
+	if err := clioptions.EnsureOutputDirectory(filepath.Dir(kernelOutputPath)); err != nil {
 		return err
 	}
-	return os.WriteFile(kernelOutputPath, kernelGenerated, 0o644)
+	return clioptions.WriteOutputFile(kernelOutputPath, kernelGenerated)
 }
 
 func generateKernelManifest(document []byte) ([]byte, error) {

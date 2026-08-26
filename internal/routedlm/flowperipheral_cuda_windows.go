@@ -129,14 +129,16 @@ func buildFlowConditionProgram(plan FlowPlan) (flowDeviceProgram, []flowStaticIn
 		return flowDeviceProgram{}, nil, err
 	}
 	indexed, err := executor.CompileIndexed(output)
-	statics := make([]flowStaticInput, 0, 8)
-	for _, nodes := range [][]*tensor.Tensor{timestepInputs[:4], noiseInputs[:4]} {
+	staticCount := len(timestepInputs) - 1
+	statics := make([]flowStaticInput, 0, 2*staticCount)
+	for _, nodes := range [...][]*tensor.Tensor{timestepInputs[:staticCount], noiseInputs[:staticCount]} {
 		for _, node := range nodes {
 			statics = append(statics, flowStaticInput{node})
 		}
 	}
 	return flowDeviceProgram{
-		IndexedGraph: indexed, output: output, dynamic: []*tensor.Tensor{timestepInputs[4], noiseInputs[4]},
+		IndexedGraph: indexed, output: output,
+		dynamic: []*tensor.Tensor{timestepInputs[staticCount], noiseInputs[staticCount]},
 	}, statics, err
 }
 

@@ -675,7 +675,7 @@ func writeConfigs(output io.Writer, repository string, limit int) error {
 	err = visitDocuments(ctx, store, artifact.DocumentContract{
 		Kind: artifact.KindProfile, MediaType: modelartifact.ModelConfigMediaType, Schema: modelartifact.ModelConfigSchema,
 	}, modelartifact.ParseModelConfigDocument, func(_ overgodb.DocumentView, document modelartifact.ModelConfigDocument) error {
-		cells := make([]string, 0, 2)
+		var cells []string
 		if document.Sequence != nil {
 			cells = append(cells, fmt.Sprintf("sequence[k=%d range=[%d,%d) specials=%d auto=%t]",
 				document.Sequence.K, document.Sequence.StartID,

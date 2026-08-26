@@ -132,7 +132,7 @@ func (h *Handler) parseResponsesMessages(
 	if len(raw) == 0 {
 		return nil, errors.New("input is required")
 	}
-	messages := make([]inference.ChatMessage, 0, 4)
+	var messages []inference.ChatMessage
 	if instructions != "" {
 		messages = append(messages, inference.ChatMessage{
 			Role:    inference.ChatRoleSystem,

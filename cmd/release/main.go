@@ -59,6 +59,7 @@ var releaseDocuments = []string{
 const (
 	versionFile          = "VERSION"
 	releaseDirectoryMode = os.FileMode(0o755)
+	releaseFileMode      = os.FileMode(0o644)
 )
 
 var versionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
@@ -140,17 +141,17 @@ func buildRelease(root, output string, verify bool) error {
 			return errors.New("release: repeated builds are not byte-identical")
 		}
 	}
-	if err := os.MkdirAll(output, 0o755); err != nil {
+	if err := os.MkdirAll(output, releaseDirectoryMode); err != nil {
 		return err
 	}
 	archive := releaseArchiveName(version)
 	archivePath := filepath.Join(output, archive)
-	if err := os.WriteFile(archivePath, first, 0o644); err != nil {
+	if err := os.WriteFile(archivePath, first, releaseFileMode); err != nil {
 		return err
 	}
 	sum := sha256.Sum256(first)
 	checksum := hex.EncodeToString(sum[:]) + "  " + archive + "\n"
-	return os.WriteFile(archivePath+".sha256", []byte(checksum), 0o644)
+	return os.WriteFile(archivePath+".sha256", []byte(checksum), releaseFileMode)
 }
 
 func releaseManifestAuditCommand(root string) *exec.Cmd {

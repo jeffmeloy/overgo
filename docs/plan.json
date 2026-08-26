@@ -4,27 +4,6 @@
   "census_evidence": "evidence:sha256:85b34f4312757f85de94c4c6e62147931f32923d1a8be1dcd5094ebd1526f158",
   "items": [
     {
-      "id": "capacity-format-numerics",
-      "title": "Derive capacities and centralize protocol format values",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Remove unjustified capacity hints, derive retained capacities from owned inputs, and replace repeated file-mode and bit-width literals with existing format contracts",
-          "status": "open",
-          "verify": "go test ./cmd/... ./internal/server ./internal/tokenizer ./internal/dataset ./internal/safetensors -count=1",
-          "depends_on": [
-            "quant-codec-numerics"
-          ],
-          "capabilities": [
-            "capacity-derivation",
-            "protocol-contract",
-            "memory-discipline"
-          ]
-        }
-      ]
-    },
-    {
       "id": "literal-authority-gate",
       "title": "Rebaseline and enforce typed literal authority",
       "status": "open",

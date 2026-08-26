@@ -31,7 +31,7 @@ type dnaRegion struct {
 // the region that began at the cursor; an unclosed begin tag runs to the
 // end of the text.
 func splitDNARegions(text, beginTag, endTag string) []dnaRegion {
-	regions := make([]dnaRegion, 0, 2)
+	var regions []dnaRegion
 	i := 0
 	for i < len(text) {
 		start := strings.Index(text[i:], beginTag)

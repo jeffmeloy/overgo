@@ -1,8 +1,4 @@
-// build-kernels: nvcc PTX build + runtime pin refresh (floor component 8;
-// replaces build-kernels.ps1). The ABI manifest owns kernel provenance; this
-// command owns only the invocation: compile each .cu to PTX for the pinned
-// device class, refresh the SHA-256 runtime pins in the validation source,
-// then regenerate and verify the manifest so provenance and bytes agree.
+// build-kernels: compile PTX, refresh pins, verify manifest.
 package main
 
 import (
@@ -19,9 +15,7 @@ import (
 	"overgo/internal/clioptions"
 )
 
-// deviceArch is the pinned primary device class (compute capability 8.9, per
-// the compatibility baseline). Changing device class is a baseline decision,
-// not a flag.
+// deviceArch: pinned compatibility target.
 const deviceArch = "compute_89"
 
 type kernel struct {
@@ -119,7 +113,7 @@ func refreshPins(validationPath string) error {
 			return err
 		}
 		payload = bytes.ReplaceAll(payload, []byte("\r\n"), []byte("\n"))
-		if err := os.WriteFile(filepath.FromSlash(asset), payload, 0o644); err != nil {
+		if err := clioptions.WriteOutputFile(filepath.FromSlash(asset), payload); err != nil {
 			return err
 		}
 		digest := sha256.Sum256(payload)
@@ -129,5 +123,5 @@ func refreshPins(validationPath string) error {
 		}
 		text = pattern.ReplaceAllString(text, "${1}"+hex.EncodeToString(digest[:])+"${2}")
 	}
-	return os.WriteFile(filepath.FromSlash(validationPath), []byte(text), 0o644)
+	return clioptions.WriteOutputFile(filepath.FromSlash(validationPath), []byte(text))
 }

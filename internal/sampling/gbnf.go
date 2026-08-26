@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"overgo/internal/binaryschema"
 )
 
 const (
@@ -537,7 +539,7 @@ func (p *gbnfParser) parseHexRune(digits int) (rune, error) {
 		return 0, p.errorf("hex escape needs %d digits", digits)
 	}
 	raw := p.source[p.offset : p.offset+digits]
-	value, err := strconv.ParseUint(raw, 16, 32)
+	value, err := strconv.ParseUint(raw, 16, binaryschema.Width32Bits)
 	if err != nil {
 		return 0, p.errorf("invalid hex escape %q", raw)
 	}

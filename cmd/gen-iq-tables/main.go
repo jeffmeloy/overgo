@@ -10,6 +10,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"overgo/internal/binaryschema"
+	"overgo/internal/clioptions"
 )
 
 type tableSpec struct {
@@ -94,10 +97,10 @@ func main() {
 	if err != nil {
 		fatal(fmt.Errorf("format generated source: %w", err))
 	}
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+	if err := clioptions.EnsureOutputDirectory(filepath.Dir(outputPath)); err != nil {
 		fatal(err)
 	}
-	if err := os.WriteFile(outputPath, formatted, 0o644); err != nil {
+	if err := clioptions.WriteOutputFile(outputPath, formatted); err != nil {
 		fatal(err)
 	}
 	if cudaOutputPath != "" {
@@ -155,10 +158,10 @@ func writeCUDAHeader(
 		}
 		fmt.Fprintln(&generated, "};")
 	}
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+	if err := clioptions.EnsureOutputDirectory(filepath.Dir(outputPath)); err != nil {
 		return err
 	}
-	return os.WriteFile(outputPath, []byte(generated.String()), 0o644)
+	return clioptions.WriteOutputFile(outputPath, []byte(generated.String()))
 }
 
 func extractTable(source string, spec tableSpec) ([]string, error) {
@@ -183,7 +186,7 @@ func extractTable(source string, spec tableSpec) ([]string, error) {
 	}
 	values := make([]string, len(rawValues))
 	for index, raw := range rawValues {
-		value, err := strconv.ParseUint(raw, 0, 64)
+		value, err := strconv.ParseUint(raw, 0, binaryschema.Width64Bits)
 		if err != nil {
 			return nil, fmt.Errorf("%s value %q: %w", spec.cName, raw, err)
 		}

@@ -529,7 +529,7 @@ func (h *Handler) parseAnthropicMessages(
 	ctx context.Context,
 	rawSystem, rawMessages json.RawMessage,
 ) ([]inference.ChatMessage, error) {
-	messages := make([]inference.ChatMessage, 0, 4)
+	var messages []inference.ChatMessage
 	if strictjson.HasValue(rawSystem) {
 		system, err := parseAnthropicContent(rawSystem, "system")
 		if err != nil {

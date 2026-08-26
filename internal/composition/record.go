@@ -158,8 +158,9 @@ func recordChainLifecycle(
 	if err != nil {
 		return err
 	}
-	contents := make([]artifact.Content, 0, 6)
-	for _, lifecycle := range []runrecord.ExperimentLifecycle{proposed, admitted, leased, running, evaluated, terminal} {
+	lifecycles := [...]runrecord.ExperimentLifecycle{proposed, admitted, leased, running, evaluated, terminal}
+	contents := make([]artifact.Content, 0, len(lifecycles))
+	for _, lifecycle := range lifecycles {
 		content, err := lifecycle.Content()
 		if err != nil {
 			return err

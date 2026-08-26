@@ -359,7 +359,7 @@ func iq1FindBest(encoded uint16, values, weights []float32, scale float32, allow
 		target[lane] = int8((encoded >> uint(2*lane)) & 3)
 	}
 	distances := make([]int, len(iq1Codebook.lanes))
-	unique := make([]int, 0, 32)
+	var unique []int
 	for index, grid := range iq1Codebook.lanes {
 		distance := 0
 		for lane, value := range grid {

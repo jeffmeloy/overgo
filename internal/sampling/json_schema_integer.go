@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"overgo/internal/binaryschema"
 )
 
 func buildSchemaIntegerRange(minimum, maximum int64) (string, error) {
@@ -195,7 +197,7 @@ func buildSchemaIntegerMinimumDepth(
 				schemaVariableDigitCount(len(text), lessDigits),
 		)
 	}
-	tail, err := strconv.ParseInt(text[1:], 10, 64)
+	tail, err := strconv.ParseInt(text[1:], 10, binaryschema.Width64Bits)
 	if err != nil {
 		return "", err
 	}

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+
+	"overgo/internal/binaryschema"
 )
 
 const (
@@ -179,7 +181,7 @@ func appendOrderedJSON(output *bytes.Buffer, value any, depth int) error {
 		encoded, _ := json.Marshal(typed)
 		output.Write(encoded)
 	case json.Number:
-		if _, err := strconv.ParseFloat(string(typed), 64); err != nil {
+		if _, err := strconv.ParseFloat(string(typed), binaryschema.Width64Bits); err != nil {
 			return fmt.Errorf("invalid JSON number %q", typed)
 		}
 		output.WriteString(string(typed))

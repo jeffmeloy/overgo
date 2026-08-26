@@ -138,7 +138,7 @@ func splitGemma4Newlines(text string) []string {
 	if text == "" {
 		return nil
 	}
-	result := make([]string, 0, 4)
+	var result []string
 	for start := 0; start < len(text); {
 		newline := text[start] == '\n'
 		end := start + 1
@@ -196,7 +196,7 @@ func (v *Vocab) partitionSpecial(text string, parseSpecial bool) []segment {
 		return []segment{{text: text, tokenID: NullToken}}
 	}
 
-	result := make([]segment, 0, 4)
+	var result []segment
 	for offset := 0; offset < len(text); {
 		matchAt := -1
 		matchID := NullToken
@@ -322,11 +322,13 @@ func decodeBytes(text string) ([]byte, error) {
 	return output, nil
 }
 
+const byteValueCount = int(^byte(0)) + 1
+
 var byteEncoder, byteDecoder = makeByteCodec()
 
-func makeByteCodec() ([256]rune, map[rune]byte) {
-	var encoder [256]rune
-	used := make(map[int]bool, 256)
+func makeByteCodec() ([byteValueCount]rune, map[rune]byte) {
+	var encoder [byteValueCount]rune
+	used := make(map[int]bool, byteValueCount)
 	for value := 0x21; value <= 0x7e; value++ {
 		encoder[value] = rune(value)
 		used[value] = true
@@ -340,13 +342,13 @@ func makeByteCodec() ([256]rune, map[rune]byte) {
 		used[value] = true
 	}
 	next := 0
-	for value := 0; value < 256; value++ {
+	for value := 0; value < byteValueCount; value++ {
 		if !used[value] {
-			encoder[value] = rune(256 + next)
+			encoder[value] = rune(byteValueCount + next)
 			next++
 		}
 	}
-	decoder := make(map[rune]byte, 256)
+	decoder := make(map[rune]byte, byteValueCount)
 	for value, encoded := range encoder {
 		decoder[encoded] = byte(value)
 	}

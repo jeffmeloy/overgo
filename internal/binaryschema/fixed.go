@@ -13,6 +13,8 @@ const (
 	Uint16Bytes = 2
 	Uint32Bytes = 4
 	Uint64Bytes = 8
+	Width32Bits = Uint32Bytes * BitsPerByte
+	Width64Bits = Uint64Bytes * BitsPerByte
 )
 
 // Fixed: byte order for fixed-width scalar storage.

@@ -370,7 +370,7 @@ func validateDiffusion(
 }
 
 func newDiffusionSampler(options DiffusionOptions) (*sampling.Sampler, error) {
-	stages := make([]sampling.SamplerStage, 0, 3)
+	var stages []sampling.SamplerStage
 	if options.TopK > 0 {
 		stages = append(stages, sampling.SamplerTopK)
 	}

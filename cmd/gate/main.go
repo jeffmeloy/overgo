@@ -97,6 +97,7 @@ func run() error {
 	recordFailure := flag.Bool("record-failure", false, "recover an unbatchable post-commit record as a typed failed finalization")
 	admitReview := flag.String("admit-review", "", "read-only: admit a OvergoDB review-verdict ID against the current HEAD")
 	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from bin/gate_lifecycle.json")
+	inspectPlan := flag.Bool("inspect-plan", false, "read-only: print the exact manifest-bound verification plan without executing checks")
 	staleAfter := flag.Duration("stale-after", runrecord.DefaultHeartbeatStaleAfter, "heartbeat age classified stale by -watchdog")
 	flag.Parse()
 	repo, err := os.Getwd()
@@ -135,14 +136,19 @@ func run() error {
 	if *watchdog {
 		return printGateWatchdog(repo, *staleAfter)
 	}
-	if *messageFile == "" || (*pathsCSV == "" && !*merge) {
+	if *inspectPlan && *merge {
+		return errors.New("gate: -inspect-plan requires explicit -paths and cannot inspect an in-progress merge")
+	}
+	if (*pathsCSV == "" && !*merge) || (!*inspectPlan && *messageFile == "") {
 		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
 	}
 	// Every commit -- including a merge finalize -- is bound to the plan's current
 	// open step. Merges are no longer exempt: a sync/merge is a first-class plan
 	// task (inject it with `plan -add`, then finalize with -plan <item>/do).
-	if err := checkPlanBinding(repo, *planRef); err != nil {
-		return err
+	if !*inspectPlan {
+		if err := checkPlanBinding(repo, *planRef); err != nil {
+			return err
+		}
 	}
 	g := &gateContext{
 		repo: repo, planRef: *planRef, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
@@ -180,6 +186,13 @@ func run() error {
 	}
 	if !slices.Contains(g.paths, plan.Path) {
 		g.paths = append(g.paths, plan.Path)
+	}
+	if *inspectPlan {
+		planned, err := g.planPipeline()
+		if err != nil {
+			return err
+		}
+		return writeGatePlanReport(os.Stdout, planned)
 	}
 	g.environment, err = discoverEnvironment(repo)
 	if err != nil {
@@ -293,54 +306,11 @@ func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) aut
 }
 
 func (g *gateContext) pipeline() error {
-	graph, graphErr := g.inputGraph()
-	var devicePackages []string
-	if graphErr == nil {
-		devicePackages, graphErr = graph.dependentDirectories("internal/cuda")
-	}
-	definitions := g.pipelineChecks(devicePackages...)
-	structural, baseManifest, candidateManifest, structuralErr := g.deriveManifestImpact()
-	surface := automationcheck.Surface{}
-	if structuralErr == nil {
-		surface = automationcheck.ManifestSurface(structural)
-	} else {
-		legacy, legacyErr := g.deriveStructuralImpact()
-		if legacyErr == nil {
-			surface = ownershipSurface(legacy)
-		}
-		surface.Unknown = append(surface.Unknown, "code manifest unavailable: "+structuralErr.Error())
-		g.honesty = append(g.honesty, "code manifest unavailable; owned checks defaulted to run: "+structuralErr.Error())
-	}
-	if graphErr != nil {
-		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
-		g.honesty = append(g.honesty, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
-	}
-	definitions, surface, coverage, completenessErr := automationcheck.CompleteOwnership(definitions, surface, nil)
-	if completenessErr != nil {
-		return completenessErr
-	}
-	if len(coverage.UncoveredPackages)+len(coverage.UncoveredSymbols) != 0 {
-		g.honesty = append(g.honesty, fmt.Sprintf(
-			"ownership incomplete; owned checks defaulted to run: packages=%d symbols=%d",
-			len(coverage.UncoveredPackages), len(coverage.UncoveredSymbols),
-		))
-	}
-	impact := automationcheck.OwnershipImpact(definitions, surface)
-	g.selection = automationcheck.MeasureSelection(definitions, impact)
-	g.selectionID = surface.Identity
-	checks, err := automationcheck.Plan(definitions, impact)
+	planned, err := g.planPipeline()
 	if err != nil {
 		return err
 	}
-	if structuralErr == nil {
-		bound, err := automationcheck.BindManifestPlan(baseManifest.ID, candidateManifest.ID, surface, impact, checks)
-		if err != nil {
-			return err
-		}
-		g.manifestPlan = &bound
-		g.selectionID = bound.ID.String()
-		g.honesty = append(g.honesty, "manifest plan: "+bound.ID.String())
-	}
+	definitions, checks, impact := planned.definitions, planned.invocations, planned.impact
 	cache := g.loadRetryCache()
 	cache.Compact()
 	g.retryCache = &cache
@@ -408,6 +378,173 @@ func (g *gateContext) pipeline() error {
 		}
 	}
 	return nil
+}
+
+type plannedPipeline struct {
+	definitions []automationcheck.Check
+	invocations []automationcheck.Invocation
+	impact      automationcheck.Impact
+	surface     automationcheck.Surface
+	manifest    *automationcheck.ManifestPlan
+}
+
+type planDisposition struct {
+	Name    string                 `json:"name"`
+	Phase   runrecord.Phase        `json:"phase"`
+	Reason  string                 `json:"reason"`
+	Matched []automationcheck.Fact `json:"matched,omitempty"`
+}
+
+type gatePlanReport struct {
+	Kind              string            `json:"kind"`
+	Schema            int               `json:"schema"`
+	PlanID            string            `json:"plan_id,omitempty"`
+	BaseManifest      string            `json:"base_manifest,omitempty"`
+	CandidateManifest string            `json:"candidate_manifest,omitempty"`
+	Selected          []planDisposition `json:"selected"`
+	Excluded          []planDisposition `json:"excluded"`
+	Unresolved        []planDisposition `json:"unresolved"`
+	DependencyAdded   []planDisposition `json:"dependency_added"`
+}
+
+func buildGatePlanReport(planned plannedPipeline) gatePlanReport {
+	report := gatePlanReport{
+		Kind: "overgo.gate-plan-inspection", Schema: 1,
+		Selected: []planDisposition{}, Excluded: []planDisposition{},
+		Unresolved: []planDisposition{}, DependencyAdded: []planDisposition{},
+	}
+	if planned.manifest != nil {
+		report.PlanID = planned.manifest.ID.String()
+		report.BaseManifest = planned.manifest.BaseManifest.String()
+		report.CandidateManifest = planned.manifest.CandidateManifest.String()
+	}
+	definitions := make(map[string]automationcheck.Descriptor, len(planned.definitions))
+	for _, check := range planned.definitions {
+		definitions[check.Descriptor.Name] = check.Descriptor
+	}
+	excluded := make(map[string]string, len(planned.impact.Exclusions))
+	for _, exclusion := range planned.impact.Exclusions {
+		excluded[exclusion.Check] = exclusion.Reason
+		descriptor := definitions[exclusion.Check]
+		report.Excluded = append(report.Excluded, planDisposition{
+			Name: exclusion.Check, Phase: descriptor.Phase, Reason: exclusion.Reason,
+		})
+	}
+	unknownReason := "no impact producer proved this check independent"
+	if len(planned.surface.Unknown) != 0 {
+		unknownReason = "impact analysis unresolved: " + strings.Join(planned.surface.Unknown, "; ")
+	}
+	selected := make(map[string]bool, len(planned.invocations))
+	for _, invocation := range planned.invocations {
+		selected[invocation.Check.Name] = true
+		disposition := planDisposition{
+			Name: invocation.Check.Name, Phase: invocation.Check.Phase,
+			Matched: slices.Clone(invocation.Matched),
+		}
+		switch {
+		case invocation.Check.Always:
+			disposition.Reason = "always required by check definition"
+		case len(invocation.Matched) != 0:
+			disposition.Reason = "matched derived impact facts"
+		default:
+			disposition.Reason = unknownReason
+			report.Unresolved = append(report.Unresolved, disposition)
+		}
+		report.Selected = append(report.Selected, disposition)
+	}
+	for _, invocation := range planned.invocations {
+		for _, dependency := range invocation.Check.Dependencies {
+			descriptor := definitions[dependency]
+			if !selected[dependency] || descriptor.Always || len(matchingFacts(descriptor.Triggers, planned.impact.Facts)) != 0 {
+				continue
+			}
+			if _, wasExcluded := excluded[dependency]; !wasExcluded {
+				continue
+			}
+			report.DependencyAdded = append(report.DependencyAdded, planDisposition{
+				Name: dependency, Phase: descriptor.Phase,
+				Reason: "required by selected check " + invocation.Check.Name,
+			})
+		}
+	}
+	slices.SortFunc(report.Excluded, func(left, right planDisposition) int { return strings.Compare(left.Name, right.Name) })
+	slices.SortFunc(report.Unresolved, func(left, right planDisposition) int { return strings.Compare(left.Name, right.Name) })
+	slices.SortFunc(report.DependencyAdded, func(left, right planDisposition) int { return strings.Compare(left.Name, right.Name) })
+	return report
+}
+
+func matchingFacts(triggers, facts []automationcheck.Fact) []automationcheck.Fact {
+	wanted := make(map[automationcheck.Fact]bool, len(triggers))
+	for _, fact := range triggers {
+		wanted[fact] = true
+	}
+	var matched []automationcheck.Fact
+	for _, fact := range facts {
+		if wanted[fact] {
+			matched = append(matched, fact)
+		}
+	}
+	return matched
+}
+
+func writeGatePlanReport(output io.Writer, planned plannedPipeline) error {
+	encoder := json.NewEncoder(output)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(buildGatePlanReport(planned))
+}
+
+func (g *gateContext) planPipeline() (plannedPipeline, error) {
+	graph, graphErr := g.inputGraph()
+	var devicePackages []string
+	if graphErr == nil {
+		devicePackages, graphErr = graph.dependentDirectories("internal/cuda")
+	}
+	definitions := g.pipelineChecks(devicePackages...)
+	structural, baseManifest, candidateManifest, structuralErr := g.deriveManifestImpact()
+	surface := automationcheck.Surface{}
+	if structuralErr == nil {
+		surface = automationcheck.ManifestSurface(structural)
+	} else {
+		legacy, legacyErr := g.deriveStructuralImpact()
+		if legacyErr == nil {
+			surface = ownershipSurface(legacy)
+		}
+		surface.Unknown = append(surface.Unknown, "code manifest unavailable: "+structuralErr.Error())
+		g.honesty = append(g.honesty, "code manifest unavailable; owned checks defaulted to run: "+structuralErr.Error())
+	}
+	if graphErr != nil {
+		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
+		g.honesty = append(g.honesty, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
+	}
+	definitions, surface, coverage, completenessErr := automationcheck.CompleteOwnership(definitions, surface, nil)
+	if completenessErr != nil {
+		return plannedPipeline{}, completenessErr
+	}
+	if len(coverage.UncoveredPackages)+len(coverage.UncoveredSymbols) != 0 {
+		g.honesty = append(g.honesty, fmt.Sprintf(
+			"ownership incomplete; owned checks defaulted to run: packages=%d symbols=%d",
+			len(coverage.UncoveredPackages), len(coverage.UncoveredSymbols),
+		))
+	}
+	impact := automationcheck.OwnershipImpact(definitions, surface)
+	g.selection = automationcheck.MeasureSelection(definitions, impact)
+	g.selectionID = surface.Identity
+	checks, err := automationcheck.Plan(definitions, impact)
+	if err != nil {
+		return plannedPipeline{}, err
+	}
+	var boundPlan *automationcheck.ManifestPlan
+	if structuralErr == nil {
+		bound, err := automationcheck.BindManifestPlan(baseManifest.ID, candidateManifest.ID, surface, impact, checks)
+		if err != nil {
+			return plannedPipeline{}, err
+		}
+		g.manifestPlan = &bound
+		boundPlan = &bound
+		g.selectionID = bound.ID.String()
+		g.honesty = append(g.honesty, "manifest plan: "+bound.ID.String())
+	}
+	return plannedPipeline{definitions: definitions, invocations: checks, impact: impact, surface: surface, manifest: boundPlan}, nil
 }
 
 func (g *gateContext) inputGraph() (packageInputGraph, error) {

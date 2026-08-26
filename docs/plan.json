@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "code-manifest-gate-planner",
-      "title": "Plan required gates before verification executes",
-      "owner": "manifest",
-      "status": "open",
-      "steps": [
-        {
-          "id": "inspect",
-          "title": "Expose a read-only planning command that prints selected, excluded, unresolved, and dependency-added checks with exact reasons",
-          "status": "open",
-          "verify": "go test ./cmd/gate -run 'TestPlanOutput|TestPlanReasons|TestPlanDoesNotExecute' -count=1",
-          "rationale": "Gate selection must be inspectable before expensive work begins and reproducible from recorded inputs.",
-          "depends_on": [
-            "code-manifest-gate-planner/plan"
-          ],
-          "capabilities": [
-            "plan-inspection",
-            "selection-explanation"
-          ]
-        }
-      ]
-    },
-    {
       "id": "code-manifest-execution-binding",
       "title": "Bind execution and commit admission to the exact planned candidate",
       "owner": "manifest",

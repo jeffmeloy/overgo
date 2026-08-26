@@ -10,20 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "false-negative-corpus",
-          "title": "Add fixed change-to-required-check cases for interfaces, reflection, cgo, generated files, build tags, device code, schemas, fixtures, and non-Go authority",
-          "status": "open",
-          "verify": "go test ./internal/codemanifest ./cmd/gate -run 'TestFalseNegativeCorpus' -count=1",
-          "rationale": "The selector must be tested primarily against silent under-selection; safe over-selection remains measurable rather than forbidden.",
-          "depends_on": [
-            "code-manifest-trust/bootstrap"
-          ],
-          "capabilities": [
-            "false-negative-corpus",
-            "boundary-fixtures"
-          ]
-        },
-        {
           "id": "adopt-and-measure",
           "title": "Migrate path-based selectors, publish exclusion, uncertainty, cache, latency, duration, and full-plan parity metrics, and require an uncached audit for releases",
           "status": "open",

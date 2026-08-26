@@ -26,6 +26,19 @@ const (
 type OpenAPICompilation struct {
 	Source  artifact.ID `json:"source"`
 	Manuals []Manual    `json:"manuals"`
+	source  []byte
+}
+
+// SourceContent returns the exact bounded provider description as a durable file.
+func (compilation OpenAPICompilation) SourceContent() (artifact.Content, error) {
+	contract := artifact.DocumentContract{
+		Kind: artifact.KindFile, MediaType: artifact.JSONMediaType, Schema: "overgo/openapi-source/v1",
+	}
+	content, err := contract.ContentBytes(compilation.source)
+	if err != nil || content.Descriptor.ID != compilation.Source {
+		return artifact.Content{}, errors.Join(errors.New("agent tool: openapi source identity differs"), err)
+	}
+	return content, nil
 }
 
 type openAPIDocument struct {
@@ -171,7 +184,7 @@ func CompileOpenAPI(reader io.Reader, baseURL string) (OpenAPICompilation, error
 	if err != nil {
 		return OpenAPICompilation{}, err
 	}
-	return OpenAPICompilation{Source: sourceID, Manuals: manuals}, nil
+	return OpenAPICompilation{Source: sourceID, Manuals: manuals, source: bytes.Clone(source.Bytes())}, nil
 }
 
 func compileOpenAPIOperation(base *url.URL, path string, operation openAPIOperation) (Manual, error) {

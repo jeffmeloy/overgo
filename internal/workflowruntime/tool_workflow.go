@@ -36,7 +36,7 @@ func ExecuteToolWorkflow(
 		if !found {
 			return Result{}, errors.New("workflow runtime: compiled tool manual is absent")
 		}
-		if err := runtime.Register(module, toolWorkflowAdapter(tools, manual, module)); err != nil {
+		if err := runtime.Register(module, toolWorkflowAdapter(store, tools, manual, module)); err != nil {
 			return Result{}, err
 		}
 	}
@@ -61,6 +61,7 @@ func ExecuteToolWorkflow(
 }
 
 func toolWorkflowAdapter(
+	store artifact.Reader,
 	tools *agenttool.Executor,
 	manual agenttool.Manual,
 	module recipe.ModuleID,
@@ -80,6 +81,9 @@ func toolWorkflowAdapter(
 		}
 		if !ok || call.Module != module {
 			return nil, fmt.Errorf("workflow runtime: tool call differs from module %q", module)
+		}
+		if err := agenttool.CheckArgvAuthority(ctx, store, manual); err != nil {
+			return nil, err
 		}
 		output, err := tools.Invoke(ctx, manual, call.Arguments)
 		if err != nil {

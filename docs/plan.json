@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "compiled-tool-workflows",
-      "title": "Compile model-authored tool workflows without generated source",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compile a closed set of exact manuals and dependency edges into the existing typed recipe program with deterministic ordering and fail-closed validation",
-          "status": "open",
-          "verify": "go test ./internal/recipe ./internal/workflowruntime -run 'ToolWorkflow|Tool' -count=1",
-          "depends_on": [
-            "tool-catalog-snapshot-search",
-            "tool-stream-lifecycle"
-          ],
-          "capabilities": [
-            "workflow-synthesis",
-            "closed-world-tools",
-            "compiled-program",
-            "no-interpreter"
-          ]
-        }
-      ]
-    },
-    {
       "id": "provider-staging-activation",
       "title": "Separate provider discovery from evidence-gated activation",
       "status": "open",

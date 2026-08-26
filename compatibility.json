@@ -995,13 +995,13 @@
      "contains": "func createArchive(",
      "path": "cmd/release/main.go",
      "role": "source",
-     "identity": "file:sha256:08c7cf2ab1690d1c3be0d7177ebe6862cae22758df71f0a79f519465cdd97b1c"
+     "identity": "file:sha256:c94586069b6f4a6ec0d960561b7bce64c1b605d2cc8bd836eba10321f9a51a77"
     },
     {
      "contains": "func TestCreateArchiveIsDeterministic(",
      "path": "cmd/release/main_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:bae811c5dd9359ad5bb94ca447aa5110c7e30700fefe539a0724776dc4e1c8a9"
+     "identity": "evidence:sha256:7fbf57ec6229187cae09a3015b4ef1b1aaf929fa20e41dbac46ee88bd2dbf3df"
     }
    ],
    "id": "reproducible-release",

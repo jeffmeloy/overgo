@@ -17,6 +17,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/closurescan"
+	"overgo/internal/codemanifest"
 	"overgo/internal/composition"
 	"overgo/internal/dataset"
 	"overgo/internal/discovery"
@@ -64,6 +65,7 @@ func run(args []string, output io.Writer) error {
 	datasets := flags.Bool("datasets", false, "audit active dataset catalog publication")
 	contentDump := flags.Bool("content", false, "print the raw committed content bytes of the artifact named by -id")
 	magicClosures := flags.Bool("magic-closures", false, "list magic census history, owner pressure, and unresolved bindings")
+	manifestSummary := flags.String("manifest-summary", "", "print a bounded summary for one code-manifest ID")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -119,6 +121,9 @@ func run(args []string, output io.Writer) error {
 	if *magicClosures {
 		return writeMagicClosures(output, *repository, *limit, *jsonOutput)
 	}
+	if *manifestSummary != "" {
+		return writeManifestSummary(output, *repository, *manifestSummary, *jsonOutput)
+	}
 	query := overgodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
 		FromSequence: *from, ToSequence: *to,
@@ -161,6 +166,33 @@ func run(args []string, output io.Writer) error {
 		return clioptions.WritePrettyJSON(output, result)
 	}
 	return writeText(output, result)
+}
+
+func writeManifestSummary(output io.Writer, repository, idText string, jsonOutput bool) error {
+	id, err := artifact.ParseID(strings.TrimSpace(idText))
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	manifest, err := codemanifest.Load(context.Background(), store, id)
+	if err != nil {
+		return err
+	}
+	summary, err := codemanifest.Summarize(manifest)
+	if err != nil {
+		return err
+	}
+	if jsonOutput {
+		return clioptions.WritePrettyJSON(output, summary)
+	}
+	fmt.Fprintf(output, "manifest=%s source=%s analyzer=%s/%s contexts=%d files=%d symbols=%d references=%d external_inputs=%d uncertainty=%d\n",
+		summary.ID, summary.SourceIdentity, summary.Analyzer.Name, summary.Analyzer.Version,
+		summary.BuildContexts, summary.Files, summary.Symbols, summary.References, summary.ExternalInputs, summary.Uncertainty)
+	return nil
 }
 
 func writeDatasets(output io.Writer, repository string, jsonOutput bool) error {

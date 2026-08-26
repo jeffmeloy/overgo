@@ -1,9 +1,11 @@
 package codeprofile
 
 import (
+	"errors"
 	"go/ast"
 	"go/token"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -28,6 +30,14 @@ type ConsumerSummary struct {
 	TestOnly   int `json:"test_only"`
 	Boundary   int `json:"boundary"`
 	Zero       int `json:"zero"`
+}
+
+// ConsumerReference is one resolved syntactic edge from a declaration that
+// observes another declaration. The same conservative index used for impact
+// closure owns these edges.
+type ConsumerReference struct {
+	From ConsumerDeclaration `json:"from"`
+	To   ConsumerDeclaration `json:"to"`
 }
 
 // NewUnconsumedSurface returns candidate declarations that did not exist in
@@ -82,6 +92,32 @@ func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection re
 		return nil, ConsumerSummary{}, err
 	}
 	return index.declarations, summarizeConsumers(index.declarations), nil
+}
+
+// ProductionConsumerGraph returns the complete declarations and resolved
+// edges from the existing production consumer index.
+func ProductionConsumerGraph(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.BuildSelection) ([]ConsumerDeclaration, []ConsumerReference, ConsumerSummary, error) {
+	index, err := productionConsumerIndex(snapshot, selection, nil)
+	if err != nil {
+		return nil, nil, ConsumerSummary{}, err
+	}
+	var references []ConsumerReference
+	for target, callers := range index.reverse {
+		if target < 0 || target >= len(index.declarations) {
+			return nil, nil, ConsumerSummary{}, errors.New("code profile: consumer graph target is invalid")
+		}
+		for caller := range callers {
+			if caller < 0 || caller >= len(index.declarations) {
+				return nil, nil, ConsumerSummary{}, errors.New("code profile: consumer graph caller is invalid")
+			}
+			references = append(references, ConsumerReference{From: index.declarations[caller], To: index.declarations[target]})
+		}
+	}
+	sort.Slice(references, func(i, j int) bool {
+		left, right := references[i], references[j]
+		return declarationIdentity(left.From)+"\x00"+declarationIdentity(left.To) < declarationIdentity(right.From)+"\x00"+declarationIdentity(right.To)
+	})
+	return index.declarations, references, summarizeConsumers(index.declarations), nil
 }
 
 func productionConsumerIndex(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.BuildSelection, changed map[string]bool) (consumerIndex, error) {

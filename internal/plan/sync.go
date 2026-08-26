@@ -10,11 +10,7 @@ import (
 
 // MergeDocuments merges retained plan rows by identity.
 func MergeDocuments(base, local, upstream Plan) (Plan, error) {
-	campaign, err := mergeText("campaign", base.Campaign, local.Campaign, upstream.Campaign)
-	if err != nil {
-		return Plan{}, err
-	}
-	doctrine, err := mergeText("doctrine", base.Doctrine, local.Doctrine, upstream.Doctrine)
+	campaign, doctrine, err := mergeProjectionHeaders(base, local, upstream)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -50,6 +46,24 @@ func MergeDocuments(base, local, upstream Plan) (Plan, error) {
 		merged.Items = append(merged.Items, item)
 	}
 	return merged, Validate(merged)
+}
+
+func mergeProjectionHeaders(base, local, upstream Plan) (string, string, error) {
+	campaign, campaignErr := mergeText("campaign", base.Campaign, local.Campaign, upstream.Campaign)
+	doctrine, doctrineErr := mergeText("doctrine", base.Doctrine, local.Doctrine, upstream.Doctrine)
+	if campaignErr == nil && doctrineErr == nil {
+		return campaign, doctrine, nil
+	}
+	switch {
+	case len(local.Items) != 0 && len(upstream.Items) == 0:
+		return local.Campaign, local.Doctrine, nil
+	case len(upstream.Items) != 0 && len(local.Items) == 0, len(local.Items) == 0 && len(upstream.Items) == 0:
+		return upstream.Campaign, upstream.Doctrine, nil
+	case campaignErr != nil:
+		return "", "", campaignErr
+	default:
+		return "", "", doctrineErr
+	}
 }
 
 func mergeCensusAuthority(base, local, upstream *artifact.ID) (*artifact.ID, error) {

@@ -116,6 +116,10 @@ func buildRelease(root, output string, verify bool) error {
 	if output, err := compatibilityCheck.CombinedOutput(); err != nil {
 		return fmt.Errorf("release: compatibility verification failed: %w\n%s", err, output)
 	}
+	manifestAudit := releaseManifestAuditCommand(root)
+	if output, err := manifestAudit.CombinedOutput(); err != nil {
+		return fmt.Errorf("release: uncached manifest audit failed: %w\n%s", err, output)
+	}
 	first, err := buildArchive(root)
 	if err != nil {
 		return err
@@ -140,6 +144,13 @@ func buildRelease(root, output string, verify bool) error {
 	sum := sha256.Sum256(first)
 	checksum := hex.EncodeToString(sum[:]) + "  " + archive + "\n"
 	return os.WriteFile(archivePath+".sha256", []byte(checksum), 0o644)
+}
+
+func releaseManifestAuditCommand(root string) *exec.Cmd {
+	command := exec.Command("go", "run", "./cmd/gate", "-inspect-plan", "-paths", "cmd,internal")
+	command.Dir = root
+	command.Env = releaseEnvironment()
+	return command
 }
 
 func buildArchive(root string) ([]byte, error) {

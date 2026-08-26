@@ -30,11 +30,13 @@ import (
 	"sync"
 	"time"
 
+	"overgo/internal/agentworkflow"
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/codemanifest"
 	"overgo/internal/codeprofile"
 	"overgo/internal/finding"
 	"overgo/internal/guard"
@@ -58,27 +60,34 @@ const (
 )
 
 type gateContext struct {
-	repo         string
-	paths        []string
-	planRef      string
-	messageFile  string
-	storePath    string
-	steps        []runrecord.GateStep
-	honesty      []string
-	start        time.Time
-	environment  runrecord.Environment
-	preparation  runrecord.GateLifecycle
-	source       *repoanalysis.SourceSnapshot
-	baseSource   *repoanalysis.SourceSnapshot
-	profile      *codeprofile.Profile
-	profileDirty bool
-	stepEvidence map[string]string
-	cachePaths   []string
-	retryCache   *automationcheck.EvidenceCache
-	structural   *codeprofile.FunctionImpact
-	packageGraph *packageInputGraph
-	selection    automationcheck.SelectionMetrics
-	selectionID  string
+	repo              string
+	paths             []string
+	planRef           string
+	messageFile       string
+	storePath         string
+	steps             []runrecord.GateStep
+	honesty           []string
+	start             time.Time
+	environment       runrecord.Environment
+	preparation       runrecord.GateLifecycle
+	source            *repoanalysis.SourceSnapshot
+	baseSource        *repoanalysis.SourceSnapshot
+	profile           *codeprofile.Profile
+	profileDirty      bool
+	stepEvidence      map[string]string
+	cachePaths        []string
+	retryCache        *automationcheck.EvidenceCache
+	structural        *codeprofile.FunctionImpact
+	packageGraph      *packageInputGraph
+	selection         automationcheck.SelectionMetrics
+	selectionID       string
+	manifestPlan      *automationcheck.ManifestPlan
+	terminal          map[string]automationcheck.Evidence
+	baseManifest      *codemanifest.Manifest
+	candidateManifest *codemanifest.Manifest
+	manifestDelta     *codemanifest.Delta
+	manifestImpact    *codemanifest.Impact
+	manifestMetrics   automationcheck.ManifestMeasurements
 }
 
 func main() {
@@ -95,6 +104,7 @@ func run() error {
 	recordFailure := flag.Bool("record-failure", false, "recover an unbatchable post-commit record as a typed failed finalization")
 	admitReview := flag.String("admit-review", "", "read-only: admit a OvergoDB review-verdict ID against the current HEAD")
 	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from bin/gate_lifecycle.json")
+	inspectPlan := flag.Bool("inspect-plan", false, "read-only: print the exact manifest-bound verification plan without executing checks")
 	staleAfter := flag.Duration("stale-after", runrecord.DefaultHeartbeatStaleAfter, "heartbeat age classified stale by -watchdog")
 	flag.Parse()
 	repo, err := os.Getwd()
@@ -133,18 +143,23 @@ func run() error {
 	if *watchdog {
 		return printGateWatchdog(repo, *staleAfter)
 	}
-	if *messageFile == "" || (*pathsCSV == "" && !*merge) {
+	if *inspectPlan && *merge {
+		return errors.New("gate: -inspect-plan requires explicit -paths and cannot inspect an in-progress merge")
+	}
+	if (*pathsCSV == "" && !*merge) || (!*inspectPlan && *messageFile == "") {
 		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
 	}
 	// Every commit -- including a merge finalize -- is bound to the plan's current
 	// open step. Merges are no longer exempt: a sync/merge is a first-class plan
 	// task (inject it with `plan -add`, then finalize with -plan <item>/do).
-	if err := checkPlanBinding(repo, *planRef); err != nil {
-		return err
+	if !*inspectPlan {
+		if err := checkPlanBinding(repo, *planRef); err != nil {
+			return err
+		}
 	}
 	g := &gateContext{
 		repo: repo, planRef: *planRef, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
-		stepEvidence: map[string]string{},
+		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
 	}
 	if *merge {
 		// Merge mode: the staged merge IS the plan. Deriving -paths from the
@@ -178,6 +193,13 @@ func run() error {
 	}
 	if !slices.Contains(g.paths, plan.Path) {
 		g.paths = append(g.paths, plan.Path)
+	}
+	if *inspectPlan {
+		planned, err := g.planPipeline()
+		if err != nil {
+			return err
+		}
+		return writeGatePlanReport(os.Stdout, planned)
 	}
 	g.environment, err = discoverEnvironment(repo)
 	if err != nil {
@@ -291,57 +313,59 @@ func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) aut
 }
 
 func (g *gateContext) pipeline() error {
-	graph, graphErr := g.inputGraph()
-	var devicePackages []string
-	if graphErr == nil {
-		devicePackages, graphErr = graph.dependentDirectories("internal/cuda")
-	}
-	definitions := g.pipelineChecks(devicePackages...)
-	structural, structuralErr := g.deriveStructuralImpact()
-	surface := automationcheck.Surface{}
-	if structuralErr == nil {
-		surface = ownershipSurface(structural)
-	} else {
-		g.honesty = append(g.honesty, "structural impact unavailable; owned checks defaulted to run: "+structuralErr.Error())
-	}
-	if graphErr != nil {
-		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
-		g.honesty = append(g.honesty, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
-	}
-	impact := automationcheck.OwnershipImpact(definitions, surface)
-	g.selection = automationcheck.MeasureSelection(definitions, impact)
-	g.selectionID = surface.Identity
-	checks, err := automationcheck.Plan(definitions, impact)
+	planningStarted := time.Now()
+	planned, err := g.planPipeline()
 	if err != nil {
 		return err
+	}
+	definitions, checks, impact := planned.definitions, planned.invocations, planned.impact
+	planningDuration := time.Since(planningStarted)
+	if g.terminal == nil {
+		g.terminal = map[string]automationcheck.Evidence{}
 	}
 	cache := g.loadRetryCache()
 	cache.Compact()
 	g.retryCache = &cache
 	cacheable := map[string]bool{"vet": true, "build": true}
-	inputs := make(map[artifact.ID]artifact.ID, len(cacheable))
-	for _, check := range checks {
-		if cacheable[check.Check.Name] {
-			input, inputErr := g.phaseInputFingerprint(check.Check.Name)
-			if inputErr != nil {
-				return inputErr
-			}
-			inputs[check.ID] = input
+	inputs := make(map[artifact.ID]artifact.ID, len(checks))
+	for index, check := range checks {
+		input, inputErr := g.phaseInputFingerprint(check.Check.Name)
+		if inputErr != nil {
+			return inputErr
 		}
+		if planned.manifest != nil {
+			bound, bindErr := automationcheck.BindManifestExecution(*planned.manifest, check, []artifact.ID{input})
+			if bindErr != nil {
+				return bindErr
+			}
+			checks[index] = bound
+			check = bound
+		}
+		inputs[check.ID] = input
 	}
 	satisfied := make(map[string]bool, len(impact.Exclusions))
 	for _, exclusion := range impact.Exclusions {
 		satisfied[exclusion.Check] = true
 	}
 	var cacheMutex sync.Mutex
+	var terminalMutex sync.Mutex
 	results, err := automationcheck.ExecuteDAG(context.Background(), checks, satisfied, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {
 		fmt.Fprintf(os.Stderr, gateProgressLine, check.Check.Name, runrecord.HeartbeatRunning)
-		input, cacheCheck := inputs[check.ID]
+		if planned.manifest != nil {
+			if driftErr := g.requireCandidateTree(planned.manifest.CandidateTree); driftErr != nil {
+				return automationcheck.Evidence{}, driftErr
+			}
+		}
+		input, hasInput := inputs[check.ID]
+		cacheCheck := cacheable[check.Check.Name] && hasInput
 		if cacheCheck {
 			cacheMutex.Lock()
 			evidence, reused := cache.Lookup(check, input)
 			cacheMutex.Unlock()
 			if reused {
+				terminalMutex.Lock()
+				g.terminal[check.Check.Name] = evidence
+				terminalMutex.Unlock()
 				return evidence, nil
 			}
 		}
@@ -350,6 +374,11 @@ func (g *gateContext) pipeline() error {
 			cacheMutex.Lock()
 			cache.Record(check, input, evidence)
 			cacheMutex.Unlock()
+		}
+		if evidence.ID.Valid() {
+			terminalMutex.Lock()
+			g.terminal[check.Check.Name] = evidence
+			terminalMutex.Unlock()
 		}
 		return evidence, runErr
 	})
@@ -363,6 +392,20 @@ func (g *gateContext) pipeline() error {
 			byName[result.Invocation.Check.Name] = result
 		}
 	}
+	cacheHits := 0
+	cacheEligible := 0
+	for _, result := range results {
+		if cacheable[result.Invocation.Check.Name] {
+			cacheEligible++
+		}
+		if result.Evidence.Reused {
+			cacheHits++
+		}
+	}
+	g.manifestMetrics = automationcheck.MeasureManifest(
+		len(definitions), len(checks), len(impact.Exclusions), len(planned.surface.Unknown),
+		cacheEligible, cacheHits, planningDuration, time.Since(g.start),
+	)
 	for _, definition := range definitions {
 		name := definition.Descriptor.Name
 		result, ran := byName[name]
@@ -373,6 +416,11 @@ func (g *gateContext) pipeline() error {
 			}
 			continue
 		}
+		if planned.manifest != nil && result.Evidence.ID.Valid() &&
+			!slices.Contains(automationcheck.EvidenceLineage(result.Evidence), planned.manifest.ID) {
+			return fmt.Errorf("%s: terminal evidence omits manifest plan %s", name, planned.manifest.ID)
+		}
+		g.terminal[name] = result.Evidence
 		g.steps = append(g.steps, gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name]))
 		if result.Evidence.Reused {
 			g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
@@ -382,6 +430,185 @@ func (g *gateContext) pipeline() error {
 		}
 	}
 	return nil
+}
+
+type plannedPipeline struct {
+	definitions []automationcheck.Check
+	invocations []automationcheck.Invocation
+	impact      automationcheck.Impact
+	surface     automationcheck.Surface
+	manifest    *automationcheck.ManifestPlan
+	structural  codemanifest.Impact
+}
+
+type planDisposition struct {
+	Name       string                 `json:"name"`
+	Phase      runrecord.Phase        `json:"phase"`
+	Reason     string                 `json:"reason"`
+	Matched    []automationcheck.Fact `json:"matched,omitempty"`
+	RequiredBy []string               `json:"required_by,omitempty"`
+}
+
+type gatePlanReport struct {
+	Kind              string                         `json:"kind"`
+	Schema            int                            `json:"schema"`
+	PlanID            string                         `json:"plan_id,omitempty"`
+	BaseManifest      string                         `json:"base_manifest,omitempty"`
+	CandidateManifest string                         `json:"candidate_manifest,omitempty"`
+	CandidateSource   string                         `json:"candidate_source,omitempty"`
+	CandidateTree     string                         `json:"candidate_tree,omitempty"`
+	Selected          []planDisposition              `json:"selected"`
+	Excluded          []planDisposition              `json:"excluded"`
+	Unresolved        []planDisposition              `json:"unresolved"`
+	AgentContext      *agentworkflow.ManifestContext `json:"agent_context,omitempty"`
+}
+
+func buildGatePlanReport(planned plannedPipeline) gatePlanReport {
+	report := gatePlanReport{
+		Kind: "overgo.gate-plan-inspection", Schema: 2,
+		Selected: []planDisposition{}, Excluded: []planDisposition{},
+		Unresolved: []planDisposition{},
+	}
+	if planned.manifest != nil {
+		report.PlanID = planned.manifest.ID.String()
+		report.BaseManifest = planned.manifest.BaseManifest.String()
+		report.CandidateManifest = planned.manifest.CandidateManifest.String()
+		report.CandidateSource = planned.manifest.CandidateSource
+		report.CandidateTree = planned.manifest.CandidateTree
+		if context, err := agentworkflow.NewManifestContext(
+			planned.structural, *planned.manifest, nil, agentworkflow.DefaultManifestContextLimits(),
+		); err == nil {
+			report.AgentContext = &context
+		}
+	}
+	definitions := make(map[string]automationcheck.Descriptor, len(planned.definitions))
+	for _, check := range planned.definitions {
+		definitions[check.Descriptor.Name] = check.Descriptor
+	}
+	excluded := make(map[string]string, len(planned.impact.Exclusions))
+	for _, exclusion := range planned.impact.Exclusions {
+		excluded[exclusion.Check] = exclusion.Reason
+		descriptor := definitions[exclusion.Check]
+		report.Excluded = append(report.Excluded, planDisposition{
+			Name: exclusion.Check, Phase: descriptor.Phase, Reason: exclusion.Reason,
+		})
+	}
+	unknownReason := "no impact producer proved this check independent"
+	if len(planned.surface.Unknown) != 0 {
+		unknownReason = "impact analysis unresolved: " + strings.Join(planned.surface.Unknown, "; ")
+	}
+	requiredBy := make(map[string][]string, len(planned.invocations))
+	for _, invocation := range planned.invocations {
+		for _, dependency := range invocation.Check.Dependencies {
+			requiredBy[dependency] = append(requiredBy[dependency], invocation.Check.Name)
+		}
+	}
+	for _, invocation := range planned.invocations {
+		disposition := planDisposition{
+			Name: invocation.Check.Name, Phase: invocation.Check.Phase,
+			Matched: slices.Clone(invocation.Matched), RequiredBy: slices.Clone(requiredBy[invocation.Check.Name]),
+		}
+		switch {
+		case invocation.Check.Always:
+			disposition.Reason = "always required by check definition"
+		case len(invocation.Matched) != 0:
+			disposition.Reason = "matched derived impact facts"
+		default:
+			disposition.Reason = unknownReason
+			report.Unresolved = append(report.Unresolved, disposition)
+		}
+		report.Selected = append(report.Selected, disposition)
+	}
+	slices.SortFunc(report.Excluded, func(left, right planDisposition) int { return strings.Compare(left.Name, right.Name) })
+	slices.SortFunc(report.Unresolved, func(left, right planDisposition) int { return strings.Compare(left.Name, right.Name) })
+	return report
+}
+
+func writeGatePlanReport(output io.Writer, planned plannedPipeline) error {
+	encoder := json.NewEncoder(output)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(buildGatePlanReport(planned))
+}
+
+func (g *gateContext) planPipeline() (plannedPipeline, error) {
+	graph, graphErr := g.inputGraph()
+	var devicePackages []string
+	if graphErr == nil {
+		devicePackages, graphErr = graph.dependentDirectories("internal/cuda")
+	}
+	definitions := g.pipelineChecks(devicePackages...)
+	structural, baseManifest, candidateManifest, structuralErr := g.deriveManifestImpact()
+	surface := automationcheck.Surface{}
+	if structuralErr == nil {
+		surface = automationcheck.ManifestSurface(structural)
+		if requiresManifestBootstrap(g.paths) {
+			surface.Unknown = append(surface.Unknown, "manifest analyzer or planner implementation changed")
+			g.honesty = append(g.honesty, "manifest bootstrap: analyzer-owned change forced the complete selectable plan")
+		}
+	} else {
+		legacy, legacyErr := g.deriveStructuralImpact()
+		if legacyErr == nil {
+			surface = ownershipSurface(legacy)
+		}
+		surface.Unknown = append(surface.Unknown, "code manifest unavailable: "+structuralErr.Error())
+		g.honesty = append(g.honesty, "code manifest unavailable; owned checks defaulted to run: "+structuralErr.Error())
+	}
+	if graphErr != nil {
+		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
+		g.honesty = append(g.honesty, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
+	}
+	definitions, surface, coverage, completenessErr := automationcheck.CompleteOwnership(definitions, surface, nil)
+	if completenessErr != nil {
+		return plannedPipeline{}, completenessErr
+	}
+	if len(coverage.UncoveredPackages)+len(coverage.UncoveredSymbols) != 0 {
+		g.honesty = append(g.honesty, fmt.Sprintf(
+			"ownership incomplete; owned checks defaulted to run: packages=%d symbols=%d",
+			len(coverage.UncoveredPackages), len(coverage.UncoveredSymbols),
+		))
+	}
+	impact := automationcheck.OwnershipImpact(definitions, surface)
+	g.selection = automationcheck.MeasureSelection(definitions, impact)
+	g.selectionID = surface.Identity
+	checks, err := automationcheck.Plan(definitions, impact)
+	if err != nil {
+		return plannedPipeline{}, err
+	}
+	var boundPlan *automationcheck.ManifestPlan
+	if structuralErr == nil {
+		candidateTree, treeErr := g.treeStateKey()
+		if treeErr != nil {
+			return plannedPipeline{}, treeErr
+		}
+		bound, err := automationcheck.BindManifestPlan(
+			baseManifest.ID, candidateManifest.ID, candidateManifest.SourceIdentity, candidateTree,
+			surface, impact, checks,
+		)
+		if err != nil {
+			return plannedPipeline{}, err
+		}
+		g.manifestPlan = &bound
+		g.baseManifest, g.candidateManifest = &baseManifest, &candidateManifest
+		boundPlan = &bound
+		g.selectionID = bound.ID.String()
+		g.honesty = append(g.honesty, "manifest plan: "+bound.ID.String())
+	}
+	return plannedPipeline{definitions: definitions, invocations: checks, impact: impact, surface: surface, manifest: boundPlan, structural: structural}, nil
+}
+
+func requiresManifestBootstrap(paths []string) bool {
+	for _, name := range paths {
+		name = filepath.ToSlash(name)
+		for _, owner := range []string{
+			"internal/codemanifest/", "internal/codeprofile/", "internal/repoanalysis/",
+			"internal/automationcheck/", "cmd/code-manifest/", "cmd/gate/",
+		} {
+			if strings.HasPrefix(name, owner) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (g *gateContext) inputGraph() (packageInputGraph, error) {
@@ -418,6 +645,115 @@ func (g *gateContext) deriveStructuralImpact() (codeprofile.FunctionImpact, erro
 	return impact, err
 }
 
+func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.Manifest, codemanifest.Manifest, error) {
+	candidate, err := g.sourceSnapshot()
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	base, err := sourceAtHEAD(g.repo, candidate)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	baseInputs, err := g.manifestExternalInputs(false)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	candidateInputs, err := g.manifestExternalInputs(true)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	manifestCache, err := codemanifest.NewCache(len([]repoanalysis.SourceSnapshot{base, candidate}))
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	baseManifest, _, err := manifestCache.Generate(base, []repoanalysis.BuildSelection{selection}, baseInputs)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	candidateManifest, reused, err := manifestCache.Generate(candidate, []repoanalysis.BuildSelection{selection}, candidateInputs)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	if reused {
+		g.honesty = append(g.honesty, "candidate code manifest reused by exact analysis authority")
+	}
+	delta, err := codemanifest.Diff(baseManifest, candidateManifest)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	impact, err := codemanifest.Close(baseManifest, candidateManifest, delta)
+	if err == nil {
+		g.manifestDelta, g.manifestImpact = &delta, &impact
+	}
+	return impact, baseManifest, candidateManifest, err
+}
+
+func (g *gateContext) manifestExternalInputs(candidate bool) ([]codemanifest.ExternalInput, error) {
+	var inputs []codemanifest.ExternalInput
+	for _, name := range g.paths {
+		if strings.HasSuffix(name, ".go") {
+			continue
+		}
+		var digest string
+		var found bool
+		var err error
+		if candidate {
+			digest, found, err = worktreeFileDigest(g.repo, name)
+		} else {
+			digest, found, err = revisionFileDigest(g.repo, "HEAD", name)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			inputs = append(inputs, codemanifest.ExternalInput{
+				Path: name, ContentID: digest, Kind: "repository-file", Owner: path.Dir(name),
+			})
+		}
+	}
+	return inputs, nil
+}
+
+func worktreeFileDigest(root, relative string) (string, bool, error) {
+	file, err := os.Open(filepath.Join(root, filepath.FromSlash(relative)))
+	if errors.Is(err, os.ErrNotExist) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	defer file.Close()
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		return "", false, err
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), true, nil
+}
+
+func revisionFileDigest(root, revision, relative string) (string, bool, error) {
+	object := revision + ":" + filepath.ToSlash(relative)
+	probe := exec.Command("git", "cat-file", "-e", object)
+	probe.Dir = root
+	if err := probe.Run(); err != nil {
+		if _, missing := err.(*exec.ExitError); missing {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	hasher := sha256.New()
+	show := exec.Command("git", "show", object)
+	show.Dir = root
+	show.Stdout = hasher
+	if err := show.Run(); err != nil {
+		return "", false, err
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), true, nil
+}
+
 func ownershipSurface(impact codeprofile.FunctionImpact) automationcheck.Surface {
 	packages := map[string]bool{}
 	for _, packagePath := range impact.Packages {
@@ -452,8 +788,8 @@ func gateEvidenceRecord(name string, phase runrecord.Phase, evidence automationc
 	switch {
 	case runErr != nil:
 		record.Outcome = runrecord.StepFailed
-	case evidence.Skipped:
-		record.Outcome = runrecord.StepSkipped
+	case evidence.Inapplicable:
+		record.Outcome = runrecord.StepInapplicable
 	case evidence.Reused:
 		record.Outcome = runrecord.StepReused
 	}
@@ -848,6 +1184,17 @@ func (g *gateContext) treeStateKey() (string, error) {
 		hasher.Write(raw)
 	}
 	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+func (g *gateContext) requireCandidateTree(expected string) error {
+	current, err := g.treeStateKey()
+	if err != nil {
+		return err
+	}
+	if current != expected {
+		return fmt.Errorf("gate: candidate drifted after manifest planning: planned=%s current=%s", expected, current)
+	}
+	return nil
 }
 
 func (g *gateContext) loadRetryCache() automationcheck.EvidenceCache {
@@ -1404,9 +1751,18 @@ func acceptanceVerdictClass(repo string) testevidence.VerdictClass {
 }
 
 func (g *gateContext) stepCommit() (bool, error) {
+	if g.manifestPlan == nil {
+		return false, errors.New("commit admission: manifest plan is absent")
+	}
+	if err := g.requireCandidateTree(g.manifestPlan.CandidateTree); err != nil {
+		return false, err
+	}
+	if err := validateManifestCommitAdmission(*g.manifestPlan, g.terminal); err != nil {
+		return false, err
+	}
 	// Validate the immutable result shape before Git advances. A schema error
 	// discovered after commit cannot be represented by the normal debt batch.
-	recipeID, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte(gateRecipeSeed))
+	recipeID, err := g.gateRecipeID()
 	if err != nil {
 		return false, err
 	}
@@ -1480,6 +1836,29 @@ func (g *gateContext) stepCommit() (bool, error) {
 	return false, nil
 }
 
+func validateManifestCommitAdmission(manifest automationcheck.ManifestPlan, terminal map[string]automationcheck.Evidence) error {
+	if err := manifest.Validate(); err != nil {
+		return fmt.Errorf("commit admission: %w", err)
+	}
+	if len(manifest.Invocations) == 0 || manifest.Invocations[len(manifest.Invocations)-1].Check.Name != "commit" {
+		return errors.New("commit admission: commit is not the final planned invocation")
+	}
+	for _, invocation := range manifest.Invocations[:len(manifest.Invocations)-1] {
+		evidence, found := terminal[invocation.Check.Name]
+		if !found || !evidence.ID.Valid() {
+			return fmt.Errorf("commit admission: %s lacks terminal evidence", invocation.Check.Name)
+		}
+		if evidence.Outcome != runrecord.LanePassed || evidence.Authority == nil || evidence.Authority.Plan != manifest.ID ||
+			evidence.Authority.Definition != invocation.ID {
+			return fmt.Errorf("commit admission: %s evidence has wrong outcome or authority", invocation.Check.Name)
+		}
+		if evidence.Inapplicable && evidence.Reused {
+			return fmt.Errorf("commit admission: %s evidence has contradictory outcomes", invocation.Check.Name)
+		}
+	}
+	return nil
+}
+
 // completionMessageFile writes the operator's message plus the
 // structured completion trailers to a temporary file: the plan item
 // and step this commit completes, and the verify command that gated
@@ -1491,6 +1870,12 @@ func (g *gateContext) completionMessageFile() (string, error) {
 	}
 	itemID, stepID, _ := strings.Cut(g.planRef, "/")
 	trailers := "\nOvergo-Plan-Item: " + itemID + "\nOvergo-Plan-Step: " + stepID + "\n"
+	if g.manifestPlan != nil {
+		trailers += "Overgo-Manifest-Plan: " + g.manifestPlan.ID.String() + "\n"
+	}
+	if g.candidateManifest != nil {
+		trailers += "Overgo-Code-Manifest: " + g.candidateManifest.ID.String() + "\n"
+	}
 	document, err := plan.Load(filepath.Join(g.repo, filepath.FromSlash(plan.Path)))
 	if err == nil {
 		for _, item := range document.Items {
@@ -1730,6 +2115,19 @@ func recordUnbatchableFailure(repo, storePath string) (artifact.ID, error) {
 	return preparation.ID, nil
 }
 
+func (g *gateContext) manifestAnalysisContent() (artifact.Content, error) {
+	if g.manifestPlan == nil || g.manifestDelta == nil || g.manifestImpact == nil {
+		return artifact.Content{}, nil
+	}
+	analysis, err := automationcheck.NewManifestAnalysis(
+		*g.manifestDelta, *g.manifestImpact, *g.manifestPlan, g.selection, g.manifestMetrics,
+	)
+	if err != nil {
+		return artifact.Content{}, err
+	}
+	return analysis.Content()
+}
+
 func validateGateDebt(debt gateDebtEnvelope) error {
 	if debt.Version != artifact.InitialDocumentVersion || debt.Preparation.Kind() != artifact.KindEvidence {
 		return errors.New("gate: invalid record debt envelope")
@@ -1742,6 +2140,12 @@ func validateGateDebt(debt gateDebtEnvelope) error {
 	}
 	matching := 0
 	for _, content := range debt.Batch.Contents {
+		if content.Descriptor.MediaType == automationcheck.ManifestAnalysisMediaType &&
+			content.Descriptor.Schema == automationcheck.ManifestAnalysisSchema {
+			if _, err := automationcheck.ParseManifestAnalysis(content.Data); err != nil {
+				return err
+			}
+		}
 		if content.Descriptor.MediaType != runrecord.GateLifecycleMediaType || content.Descriptor.Schema != runrecord.GateLifecycleSchema {
 			continue
 		}
@@ -1789,7 +2193,7 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	}
 	codeCommit = strings.TrimSpace(codeCommit)
 
-	recipeID, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte(gateRecipeSeed))
+	recipeID, err := g.gateRecipeID()
 	if err != nil {
 		return err
 	}
@@ -1819,6 +2223,22 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipeID})
 	batch.Contents = append(batch.Contents, environmentContent, finalizedContent)
 	batch.Lineage = append(batch.Lineage, finalized.Lineage()...)
+	for _, manifest := range []*codemanifest.Manifest{g.baseManifest, g.candidateManifest} {
+		if manifest == nil {
+			continue
+		}
+		batch.Lineage = append(batch.Lineage, artifact.Lineage{
+			Child: record.Result.ID, Parent: manifest.ID, Relation: artifact.RelationDependsOn,
+		})
+	}
+	if analysis, analysisErr := g.manifestAnalysisContent(); analysisErr != nil {
+		return g.oweRecord(batch, analysisErr)
+	} else if analysis.Descriptor.ID.Valid() {
+		batch.Contents = append(batch.Contents, analysis)
+		batch.Lineage = append(batch.Lineage, artifact.Lineage{
+			Child: record.Result.ID, Parent: analysis.Descriptor.ID, Relation: artifact.RelationDependsOn,
+		})
+	}
 	if outcome == runrecord.OutcomeSucceeded {
 		if err := g.appendProfileEvidence(&batch, codeCommit, record.Result.ID); err != nil {
 			return err
@@ -1853,6 +2273,14 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 		return g.oweRecord(batch, err)
 	}
 	defer store.Close()
+	for _, manifest := range []*codemanifest.Manifest{g.baseManifest, g.candidateManifest} {
+		if manifest == nil {
+			continue
+		}
+		if _, err := codemanifest.Publish(context.Background(), store, *manifest); err != nil {
+			return g.oweRecord(batch, err)
+		}
+	}
 	if err := appendGateAdvisoryFinding(context.Background(), store, &batch, g.paths, g.honesty); err != nil {
 		return g.oweRecord(batch, err)
 	}
@@ -1861,6 +2289,16 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	}
 	_ = os.Remove(filepath.Join(g.repo, filepath.FromSlash(gateDebtFile)))
 	return nil
+}
+
+func (g *gateContext) gateRecipeID() (artifact.ID, error) {
+	if g.manifestPlan != nil {
+		if err := g.manifestPlan.Validate(); err != nil {
+			return artifact.ID{}, err
+		}
+		return g.manifestPlan.ID, nil
+	}
+	return artifact.IdentifyBytes(artifact.KindRecipe, []byte(gateRecipeSeed))
 }
 
 func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit string, gateResult artifact.ID) error {
@@ -1885,18 +2323,20 @@ func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit st
 }
 
 func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, failure string) {
-	var run, reused, skipped []string
+	var run, reused, skipped, inapplicable []string
 	for _, step := range g.steps {
 		switch step.Outcome {
 		case runrecord.StepSkipped:
 			skipped = append(skipped, step.Name)
 		case runrecord.StepReused:
 			reused = append(reused, step.Name)
+		case runrecord.StepInapplicable:
+			inapplicable = append(inapplicable, step.Name)
 		default:
 			run = append(run, step.Name)
 		}
 	}
-	fmt.Fprintf(output, "GATE %s %.1fs | ran=%s | reused=%s | skipped=%s\n", strings.ToUpper(string(outcome)), time.Since(g.start).Seconds(), strings.Join(run, ","), strings.Join(reused, ","), strings.Join(skipped, ","))
+	fmt.Fprintf(output, "GATE %s %.1fs | ran=%s | reused=%s | skipped=%s | inapplicable=%s\n", strings.ToUpper(string(outcome)), time.Since(g.start).Seconds(), strings.Join(run, ","), strings.Join(reused, ","), strings.Join(skipped, ","), strings.Join(inapplicable, ","))
 	if failure != "" {
 		fmt.Fprintf(output, "blocker: %s\n", failure)
 	}

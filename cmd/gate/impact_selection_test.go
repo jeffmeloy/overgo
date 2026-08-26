@@ -50,7 +50,7 @@ func TestImpactExclusionRateEvidence(t *testing.T) {
 	}
 }
 
-func TestNoPathPrefixImpactSelection(t *testing.T) {
+func TestNoPathOnlySelection(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)

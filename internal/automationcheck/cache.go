@@ -51,7 +51,7 @@ func (cache *EvidenceCache) RunCached(ctx context.Context, invocation Invocation
 		return evidence, true, nil
 	}
 	evidence, err := Run(ctx, invocation)
-	if err == nil && !evidence.Skipped {
+	if err == nil && !evidence.Inapplicable {
 		cache.Record(invocation, input, evidence)
 	}
 	return evidence, false, err
@@ -64,14 +64,14 @@ func (cache *EvidenceCache) Lookup(invocation Invocation, input artifact.ID) (Ev
 		return Evidence{}, false
 	}
 	return Evidence{
-		ID: entry.Evidence, InvocationID: entry.Invocation, Name: invocation.Check.Name,
+		ID: entry.Evidence, InvocationID: entry.Invocation, Authority: cloneExecutionAuthority(invocation.Authority), Name: invocation.Check.Name,
 		Phase: invocation.Check.Phase, Outcome: entry.Outcome, Reused: true,
 	}, true
 }
 
 // Record replaces the stable invocation slot with one successful result.
 func (cache *EvidenceCache) Record(invocation Invocation, input artifact.ID, evidence Evidence) {
-	if evidence.Outcome == runrecord.LanePassed && !evidence.Skipped {
+	if evidence.Outcome == runrecord.LanePassed && !evidence.Inapplicable {
 		cache.Entries[cacheKey(invocation.ID)] = CacheEntry{
 			Invocation: invocation.ID, Input: input, Evidence: evidence.ID, Outcome: evidence.Outcome,
 		}

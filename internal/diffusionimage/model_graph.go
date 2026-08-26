@@ -12,13 +12,8 @@ import (
 
 type modelGraph struct {
 	builder *tensor.Builder
-	static  []graphBinding
+	static  tensor.InputBindings[reference.Value]
 	bindErr error
-}
-
-type graphBinding struct {
-	node  *tensor.Tensor
-	value reference.Value
 }
 
 type imageGeometry struct {
@@ -35,7 +30,7 @@ func (graph *modelGraph) bind(prefix, suffix string, data []float32, dimensions 
 	if err != nil {
 		graph.bindErr = errors.Join(graph.bindErr, err)
 	} else {
-		graph.static = append(graph.static, graphBinding{node: node, value: value})
+		graph.static.Add(node, value)
 	}
 	return node
 }

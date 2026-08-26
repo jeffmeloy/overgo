@@ -25,7 +25,7 @@ func finishTestProgram(graph *modelGraph, input, output *tensor.Tensor, scope st
 	}
 	static := make(map[*tensor.Tensor]reference.Value, len(graph.static))
 	for _, binding := range graph.static {
-		static[binding.node] = binding.value
+		static[binding.Node] = binding.Value
 	}
 	return graphProgram{input: input, output: output, static: static}, nil
 }

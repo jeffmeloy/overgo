@@ -4,27 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "typed-metadata-destinations",
-      "title": "Replace reflective Spec destinations with typed bindings",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compile metadata operations with typed Spec destinations and delete field-name reflection",
-          "status": "open",
-          "verify": "go test ./internal/model -count=1",
-          "depends_on": [
-            "graph-runtime-ownership"
-          ],
-          "capabilities": [
-            "typed-metadata",
-            "reflection-removal",
-            "compile-time-authority"
-          ]
-        }
-      ]
-    },
-    {
       "id": "selective-dense-loading",
       "title": "Load only compiled dense decoder inventory",
       "status": "open",

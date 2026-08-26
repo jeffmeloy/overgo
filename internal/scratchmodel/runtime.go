@@ -29,7 +29,7 @@ type sharedTrainingState struct {
 }
 
 // TrainShared executes the compiled scratch program through hostmath and Muon.
-func (c Construction) TrainShared(totalSteps int) (TrainingResult, error) {
+func (c Construction) TrainShared(totalSteps int, policy trainingprogram.OptimizerPolicy) (TrainingResult, error) {
 	if totalSteps <= 0 || len(c.split.Train) == 0 || len(c.split.Validation) == 0 {
 		return TrainingResult{}, errors.New("scratch model: invalid shared training run")
 	}
@@ -48,12 +48,11 @@ func (c Construction) TrainShared(totalSteps int) (TrainingResult, error) {
 	if err != nil {
 		return TrainingResult{}, err
 	}
-	muon, err := optimizer.New(weights, gradients, c.optimizer, optimizer.Config{
-		BaseLearningRate: c.config.BaseLR,
-		Momentum:         c.config.MuonMomentum,
-		Steps:            totalSteps,
-		Schedule:         optimizer.ScheduleLinearDecay,
-	})
+	config, err := c.optimizerConfig(policy, totalSteps)
+	if err != nil {
+		return TrainingResult{}, err
+	}
+	muon, err := optimizer.New(weights, gradients, c.optimizer, config)
 	if err != nil {
 		return TrainingResult{}, err
 	}

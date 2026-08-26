@@ -113,7 +113,7 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	meanOver := func(corpus controllertrain.Corpus) (meanFinal, error) {
 		var total meanFinal
 		for _, seed := range seeds {
-			run, err := controllertrain.TrainSeed(corpus, profile, seed, trainingSteps)
+			run, err := controllertrain.TrainSeed(corpus, profile, trainingprogram.BuiltinOptimizerPolicy(), seed, trainingSteps)
 			if err != nil {
 				return meanFinal{}, err
 			}

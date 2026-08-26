@@ -4,9 +4,9 @@ import (
 	"errors"
 	"math"
 	"slices"
-)
 
-const hostMuonMomentum = 29.0 / 31.0
+	"overgo/internal/trainingprogram"
+)
 
 type HostTrainingResult struct {
 	Losses         []float64
@@ -33,13 +33,14 @@ func (c Construction) MuonProbe(documents []string) ([]HostGroup, error) {
 	if err != nil {
 		return nil, err
 	}
+	policy := trainingprogram.BuiltinOptimizerPolicy()
 	momentum := make(map[string][]float64, len(probe.Groups))
 	groups := make([]HostGroup, len(probe.Groups))
 	for index, group := range probe.Groups {
 		groups[index] = group
 		momentum[group.Name] = make([]float64, len(group.Weights))
 		before := slices.Clone(group.Weights)
-		muonUpdate(group.Weights, group.Gradients, momentum[group.Name], group.Rows, group.Cols, 1, hostMuonMomentum, 8)
+		muonUpdate(group.Weights, group.Gradients, momentum[group.Name], group.Rows, group.Cols, 1, policy.Momentum(), 8)
 		for offset := range group.Weights {
 			groups[index].Gradients[offset] = before[offset] - group.Weights[offset]
 		}
@@ -87,6 +88,8 @@ func (c Construction) TrainHost(totalSteps, steps int, resume *HostCheckpoint) (
 		}
 	}
 	model := hostModel{config: c.config, state: state}
+	policy := trainingprogram.BuiltinOptimizerPolicy()
+	baseRate := policy.BaseLearningRate(c.config.EstimatedParams)
 	losses := make([]float64, steps)
 	for localStep := range steps {
 		document := c.split.Train[documentCursor%len(c.split.Train)]
@@ -97,14 +100,14 @@ func (c Construction) TrainHost(totalSteps, steps int, resume *HostCheckpoint) (
 		}
 		losses[localStep], _ = model.document(tokens, 1)
 		step := startStep + localStep + 1
-		rate := c.config.BaseLR * max(0, 1-float64(step)/float64(totalSteps))
+		rate := baseRate * max(0, 1-float64(step)/float64(totalSteps))
 		for _, parameter := range c.parameters {
 			matrix := state[parameter.Name]
 			weights := flattenValueData(matrix)
 			gradients := flattenValueGrad(matrix)
 			stages[parameter.Name] = muonUpdate(
 				weights, gradients, momentum[parameter.Name], parameter.Rows, parameter.Cols,
-				rate, hostMuonMomentum, stages[parameter.Name],
+				rate, policy.Momentum(), stages[parameter.Name],
 			)
 			writeHostValues(matrix, weights, true)
 		}

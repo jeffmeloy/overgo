@@ -17,7 +17,7 @@ func TestProfilePromotedByDescendantQuality(t *testing.T) {
 	oracle := loadOracle(t)
 	candidate := testDerivationProfile(t)
 	incumbent := candidate
-	incumbent.MuonMomentum = candidate.MuonMomentum / 2
+	incumbent.Epsilon = candidate.Epsilon * 2
 	var err error
 	incumbent, err = NewDerivationProfile(incumbent)
 	if err != nil {
@@ -85,7 +85,7 @@ func trainProfile(facts CorpusFacts, profile DerivationProfile) (float64, artifa
 	if err != nil {
 		return 0, artifact.ID{}, Construction{}, err
 	}
-	trainer, err := NewResidentTrainer(construction, facts.Steps)
+	trainer, err := NewResidentTrainer(construction, facts.Steps, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		return 0, artifact.ID{}, Construction{}, err
 	}

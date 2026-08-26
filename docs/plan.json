@@ -1,6 +1,70 @@
 {
-  "campaign": "Model facts as typed OvergoDB runtime authority",
-  "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
+  "campaign": "Recipe and compiled-runtime authority tightening",
+  "doctrine": "Recipes and typed artifact facts are sole policy and topology authorities. Compiled ordered bindings own repeated execution. Each wave migrates every caller and deletes displaced selectors, synthetic identities, copied policy, wrappers, and test-only production runtime code. No compatibility path or parallel API remains. Preserve numerical behavior and hard-fail on absent authority. Production code must be net-negative unless an unavoidable schema migration provides greater immediate deletion.",
   "census_evidence": "evidence:sha256:5bd025fd8654d50b21d405994972d1640ebf8e0e49155c14cbfdeb6ed205fae8",
-  "items": []
+  "items": [
+    {
+      "id": "recipe-discovery-authority",
+      "title": "Make typed artifact profiles select generation recipes",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace image family probe chains and platform duplicates with one profile-driven capability compiler",
+          "status": "open",
+          "verify": "go test ./cmd/recipe ./internal/modelrecipe ./internal/modelartifact -count=1",
+          "rationale": "Runtime recipes cannot be authoritative while command discovery still selects them through family-specific Recognize and IsPipeline branches. Compile inventory once, resolve typed declarations, migrate all callers, and delete the branch chains."
+        }
+      ]
+    },
+    {
+      "id": "tensor-inventory-owner",
+      "title": "Make tensor inventory artifact-owned",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace model-only inventory ownership and queries with a tensor-bearing artifact contract",
+          "status": "open",
+          "verify": "go test ./internal/modelartifact ./internal/composition ./internal/projector ./internal/server -count=1",
+          "rationale": "Tensor inventory validation accepts projectors while the schema and lookup API still claim model-only ownership. Publish one owner contract and delete kind-specific handling.",
+          "depends_on": ["recipe-discovery-authority/do"]
+        }
+      ]
+    },
+    {
+      "id": "indexed-graph-authority",
+      "title": "Retain compiled graph and indexed input ownership",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Migrate repeated CUDA graph execution from pointer maps and per-call compilation to indexed programs",
+          "status": "open",
+          "verify": "go test ./internal/graphruntime ./internal/diffusionimage ./internal/inference ./internal/projector -count=1",
+          "rationale": "Ordered diffusion bindings are converted back to maps and Feeds.Execute recompiles output graphs. Retain compiled slots for repeated execution; keep maps only at the reference-executor boundary.",
+          "depends_on": ["tensor-inventory-owner/do"]
+        }
+      ]
+    },
+    {
+      "id": "runtime-surface-closure",
+      "title": "Delete displaced runtime and wrapper surface",
+      "owner": "tightening",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Delete test-only diffusion programs, redundant recipe wrappers, and duplicate profile bootstrap plumbing",
+          "status": "open",
+          "verify": "go test ./internal/diffusionimage ./internal/modelrecipe ./cmd/model-build ./cmd/server -count=1",
+          "rationale": "Production files still contain test-only graph executors, one-line capability wrappers, and command-local profile publication. Migrate consumers to the authorities established by prior waves and delete the old objects.",
+          "depends_on": ["indexed-graph-authority/do"]
+        }
+      ]
+    }
+  ]
 }

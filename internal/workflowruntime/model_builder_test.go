@@ -57,6 +57,7 @@ func TestModelBuildUsesRecipeStageReceipts(t *testing.T) {
 		Recipe:            testutil.ArtifactID(t, artifact.KindRecipe, "builder-recipe"),
 		Dataset:           testutil.ArtifactID(t, artifact.KindDataset, "builder-dataset"),
 		DerivationProfile: testutil.ArtifactID(t, artifact.KindProfile, "builder-derivation-profile"),
+		Optimizer:         testutil.ArtifactID(t, artifact.KindProfile, "builder-optimizer"),
 		Construction:      testutil.ArtifactID(t, artifact.KindRecipe, "builder-construction"),
 		Model:             testutil.ArtifactID(t, artifact.KindModel, "builder-initial-model"),
 	},
@@ -73,7 +74,8 @@ func TestModelBuildUsesRecipeStageReceipts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fixture.phase != 5 || result.Decision.Kind() != artifact.KindEvidence || result.Model == fixture.state.Model {
+	if fixture.phase != 5 || result.Decision.Kind() != artifact.KindEvidence || result.Model == fixture.state.Model ||
+		result.Recipe == fixture.state.Recipe {
 		t.Fatalf("builder result=%+v phases=%d", result, fixture.phase)
 	}
 	for _, stage := range ModelBuildStages() {

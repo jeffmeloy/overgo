@@ -70,10 +70,18 @@ func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, mem
 		if !active {
 			continue
 		}
-		entries = append(entries, Entry{
+		entry := Entry{
 			Model: manifest.ID, Recipe: activation.Definition.ID, Tier: activation.Tier,
 			Location: location, Present: present,
-		})
+		}
+		// The loader refuses an inference recipe without its runtime
+		// policy, so the servable listing must report it stale exactly as
+		// the capability catalog does -- eval and swap targets derived
+		// from this listing never include a model the loader refuses.
+		if _, err := modelrecipe.ResolveRuntimePolicy(ctx, store, activation.Definition); err != nil {
+			entry.Stale = fmt.Sprintf("not servable: %v (recipe policy <model> binds it)", err)
+		}
+		entries = append(entries, entry)
 	}
 	return entries, nil
 }

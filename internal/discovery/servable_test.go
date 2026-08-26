@@ -72,6 +72,33 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 	if served.Stale != "" || !served.Present || !served.Recipe.Valid() {
 		t.Fatalf("healthy entry = %+v, want a served model unaffected by the stale neighbor", served)
 	}
+
+	// Drifting the healthy recipe's runtime-policy alias makes the
+	// loader refuse it, so the servable listing must report the entry
+	// stale exactly as the capability catalog does.
+	truePolicy, supported, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
+	if err != nil || !supported {
+		t.Fatalf("inference runtime policy = (%t, %v)", supported, err)
+	}
+	bogus := testutil.ArtifactID(t, artifact.KindProfile, "servable-bogus-policy")
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key:       "fixture/discovery/servable/policy-drift",
+		Artifacts: []artifact.Descriptor{{ID: bogus}},
+		Aliases: []artifact.AliasBinding{{
+			Name: "runtime-policy/v1/" + served.Recipe.String(), Target: bogus, Previous: &truePolicy.ID,
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	drifted, err := Servable(ctx, store, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range drifted {
+		if entry.Model == healthy && !strings.Contains(entry.Stale, "not servable") {
+			t.Fatalf("drifted entry = %+v, want the loader's refusal reported stale", entry)
+		}
+	}
 }
 
 // publishVerifiedActivation walks the trusted lifecycle: candidate,

@@ -20,6 +20,9 @@ import (
 const (
 	BenchmarkFormatJSONL     = "jsonl"
 	BenchmarkFormatJSONArray = "json-array"
+	// BenchmarkFormatArrow decodes an Arrow IPC stream, the layout the
+	// HuggingFace dataset cache holds lm_eval benchmarks in.
+	BenchmarkFormatArrow     = "arrow"
 	benchmarkRecordMediaType = "application/vnd.overgo.benchmark-record+json"
 	benchmarkRecordSchema    = "overgo/benchmark-record/v1"
 	benchmarkImportMediaType = "application/vnd.overgo.benchmark-import+json"
@@ -83,7 +86,7 @@ func ImportBenchmark(ctx context.Context, repository artifact.Repository, path s
 	if err != nil {
 		return BenchmarkImport{}, err
 	}
-	observed, err := hashFile(path)
+	observed, err := HashFile(path)
 	if err != nil {
 		return BenchmarkImport{}, err
 	}
@@ -149,7 +152,7 @@ func compileBenchmarkImport(spec BenchmarkImportSpec) (BenchmarkImportSpec, arti
 	spec.Split = strings.TrimSpace(spec.Split)
 	spec.Conversion = strings.TrimSpace(spec.Conversion)
 	if spec.Source == "" || spec.Revision == "" || spec.Split == "" || spec.Conversion == "" || len(spec.Fields) == 0 ||
-		(spec.Format != BenchmarkFormatJSONL && spec.Format != BenchmarkFormatJSONArray) {
+		(spec.Format != BenchmarkFormatJSONL && spec.Format != BenchmarkFormatJSONArray && spec.Format != BenchmarkFormatArrow) {
 		return BenchmarkImportSpec{}, artifact.ID{}, errors.New("dataset: incomplete benchmark import")
 	}
 	digest, err := hex.DecodeString(spec.SHA256)
@@ -214,7 +217,10 @@ func cloneBenchmarkImport(value BenchmarkImport) BenchmarkImport {
 	return value
 }
 
-func hashFile(path string) (string, error) {
+// HashFile digests one file with the same claim the import records:
+// the SHA-256 of these bytes as read. Cache scanners derive their
+// import specs from it so a moved or edited file refuses to import.
+func HashFile(path string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return "", err
@@ -228,6 +234,9 @@ func hashFile(path string) (string, error) {
 }
 
 func decodeBenchmark(reader io.Reader, format string, observe func(uint64, map[string]json.RawMessage) error) error {
+	if format == BenchmarkFormatArrow {
+		return DecodeArrowStream(reader, observe)
+	}
 	decoder := json.NewDecoder(reader)
 	if format == BenchmarkFormatJSONL {
 		return decodeBenchmarkValues(decoder, observe)

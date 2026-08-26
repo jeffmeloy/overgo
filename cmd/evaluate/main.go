@@ -41,7 +41,25 @@ func run() error {
 	manifestPath := flag.String("manifest", "", "evaluation manifest")
 	worker := flag.Bool("worker", false, "run one model worker")
 	modelIndex := flag.Int("model-index", -1, "worker model index")
+	importCache := flag.String("import-hf-cache", "", "scan a HuggingFace dataset cache root, import every recognized benchmark, and publish the active catalog")
+	repository := flag.String("repo", "overgodb-store", "OvergoDB root for -import-hf-cache")
 	flag.Parse()
+	if cache := strings.TrimSpace(*importCache); cache != "" {
+		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" {
+			return errors.New("usage: evaluate -import-hf-cache <root> [-repo <store>]")
+		}
+		store, err := overgodb.Open(*repository)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		catalog, count, err := evaluation.CatalogHFCacheBenchmarks(context.Background(), store, cache)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("benchmark catalog %s published from %d imported dataset(s)\n", catalog, count)
+		return nil
+	}
 	if strings.TrimSpace(*manifestPath) == "" || flag.NArg() != 0 {
 		return errors.New("usage: evaluate -manifest manifest.json")
 	}

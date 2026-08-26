@@ -68,12 +68,31 @@ func CatalogLocalBenchmarks(ctx context.Context, repository artifact.Repository,
 	if len(manifest.Datasets) == 0 {
 		return artifact.ID{}, errors.New("evaluation: benchmark catalog is empty")
 	}
-	base := filepath.Dir(manifestPath)
-	catalog := benchmarkCatalog{Version: artifact.InitialDocumentVersion, Entries: make([]benchmarkEntry, 0, len(manifest.Datasets))}
-	for _, declaration := range manifest.Datasets {
+	return catalogBenchmarkDeclarations(ctx, repository, filepath.Dir(manifestPath), manifest.Datasets)
+}
+
+// catalogBenchmarkDeclarations imports every declaration and publishes
+// the active catalog; an empty base requires absolute paths (the cache
+// scan derives them), a manifest base anchors relative ones.
+func catalogBenchmarkDeclarations(
+	ctx context.Context,
+	repository artifact.Repository,
+	base string,
+	declarations []benchmarkDeclaration,
+) (artifact.ID, error) {
+	catalog := benchmarkCatalog{Version: artifact.InitialDocumentVersion, Entries: make([]benchmarkEntry, 0, len(declarations))}
+	for _, declaration := range declarations {
 		name := strings.TrimSpace(declaration.Name)
-		path, err := localBenchmarkPath(base, declaration.Path)
-		if err != nil || name == "" {
+		path := declaration.Path
+		if base != "" {
+			var err error
+			if path, err = localBenchmarkPath(base, declaration.Path); err != nil {
+				return artifact.ID{}, errors.New("evaluation: invalid benchmark declaration")
+			}
+		} else if !filepath.IsAbs(path) {
+			return artifact.ID{}, errors.New("evaluation: derived benchmark path must be absolute")
+		}
+		if name == "" {
 			return artifact.ID{}, errors.New("evaluation: invalid benchmark declaration")
 		}
 		imported, err := dataset.ImportBenchmark(ctx, repository, path, declaration.Spec)
@@ -84,7 +103,7 @@ func CatalogLocalBenchmarks(ctx context.Context, repository artifact.Repository,
 			Name: name, Split: imported.Spec.Split, Dataset: imported.ID, Profile: imported.Profile,
 		})
 	}
-	catalog, err = benchmarkCatalogCodec.New(catalog)
+	catalog, err := benchmarkCatalogCodec.New(catalog)
 	if err != nil {
 		return artifact.ID{}, err
 	}

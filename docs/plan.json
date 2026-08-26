@@ -45,7 +45,9 @@
           "title": "Add sequence-scoring evaluation over held-out carbon-pretraining-corpus slices and publish evidence beside the suite catalog entry",
           "status": "open",
           "verify": "go test ./internal/evaluation -run TestSequenceScoring -count=1",
-          "depends_on": ["eval-domain-targeting/do"]
+          "depends_on": [
+            "dna-sequence-scoring-suite/do"
+          ]
         }
       ]
     }

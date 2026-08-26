@@ -68,6 +68,25 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 				report, err := EvaluateMultipleChoice(ctx, repository, runtime, compiled, plan)
 				return SuiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
 			})
+	case SequenceScoringKind:
+		var source SequenceScoringSuite
+		if err := strictjson.DecodeBytes(data, &source); err != nil {
+			return CompiledSuite{}, err
+		}
+		compiled, err := CompileSequenceScoring(source)
+		if err != nil {
+			return CompiledSuite{}, err
+		}
+		plan, err := BindSequenceScoring(compiled, authorities)
+		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err,
+			sequenceScoringMetrics(0, 1),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
+				report, err := EvaluateSequenceScoring(ctx, repository, runtime, compiled, plan)
+				return SuiteResult{
+					Report:  report.ID,
+					Metrics: sequenceScoringMetrics(report.MeanNLLPerToken, report.Perplexity),
+				}, err
+			})
 	case GeneratedAnswerKind:
 		var source GeneratedAnswerSuite
 		if err := strictjson.DecodeBytes(data, &source); err != nil {

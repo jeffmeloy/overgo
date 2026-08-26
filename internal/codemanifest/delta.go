@@ -68,7 +68,7 @@ func Diff(base, candidate Manifest) (Delta, error) {
 	delta.Files = diffFiles(base.Files, candidate.Files)
 	delta.Symbols = diffSymbols(base.Symbols, candidate.Symbols)
 	delta.ExternalInputs = diffExternalInputs(base.ExternalInputs, candidate.ExternalInputs)
-	delta.Uncertainty = append(slices.Clone(base.Uncertainty), candidate.Uncertainty...)
+	delta.Uncertainty = relevantUncertainty(delta, base.Uncertainty, candidate.Uncertainty)
 	if base.Analyzer != candidate.Analyzer {
 		delta.Uncertainty = append(delta.Uncertainty, Uncertainty{
 			Kind:   UncertaintyAnalysis,
@@ -80,6 +80,26 @@ func Diff(base, candidate Manifest) (Delta, error) {
 		return compareUncertainty(left, right) == 0
 	})
 	return delta, nil
+}
+
+func relevantUncertainty(delta Delta, groups ...[]Uncertainty) []Uncertainty {
+	paths := make(map[string]bool, len(delta.Files))
+	symbols := make(map[string]bool, len(delta.Symbols))
+	for _, change := range delta.Files {
+		paths[change.Path] = true
+	}
+	for _, change := range delta.Symbols {
+		symbols[symbolKey(change.ID)] = true
+	}
+	var result []Uncertainty
+	for _, group := range groups {
+		for _, item := range group {
+			if item.Path == "" || paths[item.Path] || item.Symbol != nil && symbols[symbolKey(*item.Symbol)] {
+				result = append(result, item)
+			}
+		}
+	}
+	return result
 }
 
 func diffFiles(base, candidate []File) []FileChange {

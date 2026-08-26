@@ -21,6 +21,7 @@ func main() {
 func run() error {
 	root := flag.String("root", ".", "repository root")
 	basePath := flag.String("base", "", "canonical base manifest to compare")
+	closure := flag.Bool("closure", false, "with -base: emit reverse-reachable impact instead of the raw delta")
 	flag.Parse()
 	resolved, err := filepath.Abs(*root)
 	if err != nil {
@@ -51,7 +52,14 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		return json.NewEncoder(os.Stdout).Encode(delta)
+		if !*closure {
+			return json.NewEncoder(os.Stdout).Encode(delta)
+		}
+		impact, err := codemanifest.Close(base, manifest, delta)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(impact)
 	}
 	content, err := manifest.Content()
 	if err != nil {

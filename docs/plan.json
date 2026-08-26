@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "code-manifest-contract",
-      "title": "Define the canonical code-manifest contract and uncertainty model",
-      "owner": "manifest",
-      "status": "open",
-      "steps": [
-        {
-          "id": "uncertainty",
-          "title": "Represent reflection, cgo, interfaces, generated code, build exclusions, non-Go inputs, and analysis failures as typed uncertainty that cannot authorize exclusions",
-          "status": "open",
-          "verify": "go test ./internal/codemanifest -run 'TestUncertainty|TestUnknownCannotExclude' -count=1",
-          "rationale": "Conservatism must follow from the data model rather than individual producer discipline.",
-          "depends_on": [
-            "code-manifest-contract/schema"
-          ],
-          "capabilities": [
-            "fail-closed-analysis",
-            "boundary-provenance"
-          ]
-        }
-      ]
-    },
-    {
       "id": "code-manifest-generator",
       "title": "Generate one manifest from the existing source-analysis authorities",
       "owner": "manifest",

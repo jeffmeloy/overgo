@@ -95,6 +95,6 @@ func fixtureManifest() Manifest {
 		},
 		References:     []Reference{{From: caller, To: callee, Kind: ReferenceCall}},
 		ExternalInputs: []ExternalInput{{Path: "kernels/manifest.json", ContentID: fixtureDigest, Kind: "kernel-manifest", Owner: "internal/cuda/kernel"}},
-		Uncertainty:    []Uncertainty{{Kind: "reflection", Path: "internal/example/run.go", Symbol: &caller, Reason: "reflective target cannot be resolved syntactically"}},
+		Uncertainty:    []Uncertainty{{Kind: UncertaintyReflection, Path: "internal/example/run.go", Symbol: &caller, Reason: "reflective target cannot be resolved syntactically"}},
 	}
 }

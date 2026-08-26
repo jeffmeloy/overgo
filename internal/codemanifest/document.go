@@ -124,13 +124,36 @@ type ExternalInput struct {
 	Owner     string `json:"owner"`
 }
 
+// UncertaintyKind identifies an analysis boundary that prevents proof of
+// verification independence.
+type UncertaintyKind string
+
+const (
+	// UncertaintyReflection marks dynamically resolved references.
+	UncertaintyReflection UncertaintyKind = "reflection"
+	// UncertaintyCgo marks declarations exported across the cgo boundary.
+	UncertaintyCgo UncertaintyKind = "cgo"
+	// UncertaintyInterface marks unresolved dynamic receiver dispatch.
+	UncertaintyInterface UncertaintyKind = "interface"
+	// UncertaintyGenerated marks generated source or an unavailable generator.
+	UncertaintyGenerated UncertaintyKind = "generated"
+	// UncertaintyBuildSelection marks source omitted by an analyzed build context.
+	UncertaintyBuildSelection UncertaintyKind = "build-selection"
+	// UncertaintyNonGo marks an owned non-Go input without a structural adapter.
+	UncertaintyNonGo UncertaintyKind = "non-go"
+	// UncertaintyOutsideSnapshot marks a changed path absent from both snapshots.
+	UncertaintyOutsideSnapshot UncertaintyKind = "outside-snapshot"
+	// UncertaintyAnalysis marks an analyzer failure or incomplete result.
+	UncertaintyAnalysis UncertaintyKind = "analysis"
+)
+
 // Uncertainty records a boundary that cannot prove verification independence.
 // Its presence is affirmative evidence to broaden, never narrow, selection.
 type Uncertainty struct {
-	Kind   string    `json:"kind"`
-	Path   string    `json:"path,omitempty"`
-	Symbol *SymbolID `json:"symbol,omitempty"`
-	Reason string    `json:"reason"`
+	Kind   UncertaintyKind `json:"kind"`
+	Path   string          `json:"path,omitempty"`
+	Symbol *SymbolID       `json:"symbol,omitempty"`
+	Reason string          `json:"reason"`
 }
 
 // Manifest is the complete canonical structural view of one source snapshot.
@@ -158,6 +181,19 @@ var codec = artifact.JSONDocumentCodec(
 // Validate verifies canonical ordering and content identity.
 func (m Manifest) Validate() error {
 	return codec.ValidateIdentity(m)
+}
+
+// ExclusionAuthority succeeds only for a valid canonical manifest whose
+// analysis contains no unresolved boundary. Planners must obtain this verdict
+// before converting absence of impact into an exclusion.
+func (m Manifest) ExclusionAuthority() error {
+	if err := m.Validate(); err != nil {
+		return fmt.Errorf("code manifest: exclusion authority: %w", err)
+	}
+	if len(m.Uncertainty) != 0 {
+		return fmt.Errorf("code manifest: exclusion authority: %d unresolved boundaries", len(m.Uncertainty))
+	}
+	return nil
 }
 
 // Content returns the canonical stored representation.
@@ -274,8 +310,8 @@ func validate(value Manifest) error {
 	}
 	uncertainty := map[string]bool{}
 	for _, item := range value.Uncertainty {
-		key := item.Kind + "\x00" + item.Path + "\x00" + optionalSymbolKey(item.Symbol) + "\x00" + item.Reason
-		if !validText(item.Kind, maxTextBytes) || item.Path != "" && !validPath(item.Path) || !validText(item.Reason, maxPathBytes) || uncertainty[key] {
+		key := string(item.Kind) + "\x00" + item.Path + "\x00" + optionalSymbolKey(item.Symbol) + "\x00" + item.Reason
+		if !validUncertaintyKind(item.Kind) || item.Path != "" && !validPath(item.Path) || !validText(item.Reason, maxPathBytes) || uncertainty[key] {
 			return errors.New("code manifest: invalid or duplicate uncertainty")
 		}
 		if item.Symbol != nil {
@@ -303,6 +339,16 @@ func validateSymbolID(id SymbolID) error {
 func validReferenceKind(kind ReferenceKind) bool {
 	switch kind {
 	case ReferenceCall, ReferenceType, ReferenceField, ReferenceInterface:
+		return true
+	default:
+		return false
+	}
+}
+
+func validUncertaintyKind(kind UncertaintyKind) bool {
+	switch kind {
+	case UncertaintyReflection, UncertaintyCgo, UncertaintyInterface, UncertaintyGenerated,
+		UncertaintyBuildSelection, UncertaintyNonGo, UncertaintyOutsideSnapshot, UncertaintyAnalysis:
 		return true
 	default:
 		return false

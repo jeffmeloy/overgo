@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
 
@@ -66,5 +67,40 @@ func TestPyTorchTensorInventoryDocument(t *testing.T) {
 	}
 	if document.Format != TensorFormatPyTorch {
 		t.Fatalf("format = %s", document.Format)
+	}
+}
+
+func TestTensorInventoryAcceptsProjectorOwner(t *testing.T) {
+	owner := testutil.ArtifactID(t, artifact.KindProjector, "tensor-inventory-projector")
+	document, err := NewTensorInventoryDocument(owner, TensorFormatGGUF, []TensorFact{{
+		Name: "projection.weight", Shape: []uint64{2, 2}, Storage: "f32", Bytes: 16,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Owner != owner || document.Version != TensorInventoryVersion {
+		t.Fatalf("inventory owner/version = %s/%d", document.Owner, document.Version)
+	}
+	content, err := document.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	_, err = store.Commit(t.Context(), artifact.Batch{
+		Key: "test/projector-inventory", Artifacts: []artifact.Descriptor{{ID: owner}},
+		Contents: []artifact.Content{content}, Lineage: []artifact.Lineage{{
+			Child: document.ID, Parent: owner, Relation: artifact.RelationDerivedFrom,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, found, err := LoadTensorInventory(t.Context(), store, owner)
+	if err != nil || !found || loaded.ID != document.ID {
+		t.Fatalf("loaded projector inventory = (%s, %t, %v)", loaded.ID, found, err)
 	}
 }

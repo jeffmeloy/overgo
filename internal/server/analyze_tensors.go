@@ -173,7 +173,7 @@ func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, st
 		if err != nil || !ok {
 			return nil
 		}
-		model := inventory.Model.String()
+		model := inventory.Owner.String()
 		for _, measurement := range document.Measurements {
 			entry := analyzeTensor{Model: model, TensorMeasurement: measurement}
 			if fact, ok := inventory.Tensor(measurement.Name); ok {

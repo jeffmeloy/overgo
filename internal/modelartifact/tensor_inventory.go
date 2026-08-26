@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	TensorInventoryVersion   uint16 = 1
+	TensorInventoryVersion   uint16 = 2
 	TensorInventoryMediaType        = "application/vnd.overgo.tensor-inventory+json"
-	TensorInventorySchema           = "overgo/tensor-inventory/v1"
+	TensorInventorySchema           = "overgo/tensor-inventory/v2"
 )
 
 var tensorInventoryContract = artifact.DocumentContract{
@@ -28,14 +28,14 @@ var tensorInventoryContract = artifact.DocumentContract{
 }
 
 var tensorInventoryCodec = artifact.DocumentCodec[TensorInventoryDocument]{
-	Name: "model artifact tensor inventory", Contract: tensorInventoryContract,
+	Name: "tensor inventory", Contract: tensorInventoryContract,
 	Decode: func(data []byte, value *TensorInventoryDocument) error {
 		var body tensorInventoryBody
 		if err := strictjson.DecodeBytes(data, &body); err != nil {
 			return err
 		}
 		*value = TensorInventoryDocument{
-			Version: body.Version, Model: body.Model, Format: body.Format, Tensors: body.Tensors,
+			Version: body.Version, Owner: body.Owner, Format: body.Format, Tensors: body.Tensors,
 		}
 		return nil
 	},
@@ -71,28 +71,28 @@ type TensorFact struct {
 
 type tensorInventoryBody struct {
 	Version uint16       `json:"version"`
-	Model   artifact.ID  `json:"model"`
+	Owner   artifact.ID  `json:"owner"`
 	Format  TensorFormat `json:"format"`
 	Tensors []TensorFact `json:"tensors"`
 }
 
-// TensorInventoryDocument: immutable model tensor facts.
+// TensorInventoryDocument: immutable artifact tensor facts.
 type TensorInventoryDocument struct {
 	ID      artifact.ID
 	Version uint16
-	Model   artifact.ID
+	Owner   artifact.ID
 	Format  TensorFormat
 	Tensors []TensorFact
 }
 
 func NewTensorInventoryDocument(
-	model artifact.ID,
+	owner artifact.ID,
 	format TensorFormat,
 	tensors []TensorFact,
 ) (TensorInventoryDocument, error) {
 	document := TensorInventoryDocument{
 		Version: TensorInventoryVersion,
-		Model:   model,
+		Owner:   owner,
 		Format:  format,
 		Tensors: cloneTensorFacts(tensors),
 	}
@@ -123,16 +123,16 @@ func (d TensorInventoryDocument) Tensor(name string) (TensorFact, bool) {
 	return fact, true
 }
 
-// LoadTensorInventory resolves the unique inventory derived from a model.
+// LoadTensorInventory resolves the unique inventory derived from its owner.
 func LoadTensorInventory(
 	ctx context.Context,
 	store artifact.Reader,
-	model artifact.ID,
+	owner artifact.ID,
 ) (TensorInventoryDocument, bool, error) {
-	if store == nil || model.Kind() != artifact.KindModel {
-		return TensorInventoryDocument{}, false, errors.New("model artifact: invalid tensor inventory lookup")
+	if store == nil || !tensorBearingKind(owner.Kind()) {
+		return TensorInventoryDocument{}, false, errors.New("tensor inventory: invalid owner lookup")
 	}
-	edges, err := store.Children(ctx, model)
+	edges, err := store.Children(ctx, owner)
 	if err != nil {
 		return TensorInventoryDocument{}, false, err
 	}
@@ -143,18 +143,18 @@ func LoadTensorInventory(
 			continue
 		}
 		if matched {
-			return TensorInventoryDocument{}, false, errors.New("model artifact: multiple tensor inventories")
+			return TensorInventoryDocument{}, false, errors.New("tensor inventory: multiple owner inventories")
 		}
 		document, ok, contentErr := tensorInventoryCodec.Read(ctx, store, edge.Child)
 		if contentErr != nil {
 			return TensorInventoryDocument{}, false, contentErr
 		}
 		if !ok {
-			return TensorInventoryDocument{}, false, errors.New("model artifact: tensor inventory content is absent or incompatible")
+			return TensorInventoryDocument{}, false, errors.New("tensor inventory: content is absent or incompatible")
 		}
 		found = document
-		if found.Model != model || found.ID != edge.Child {
-			return TensorInventoryDocument{}, false, errors.New("model artifact: tensor inventory lineage mismatch")
+		if found.Owner != owner || found.ID != edge.Child {
+			return TensorInventoryDocument{}, false, errors.New("tensor inventory: owner lineage mismatch")
 		}
 		matched = true
 	}
@@ -162,36 +162,35 @@ func LoadTensorInventory(
 }
 
 func (d TensorInventoryDocument) validate() error {
-	if d.Version != TensorInventoryVersion ||
-		(d.Model.Kind() != artifact.KindModel && d.Model.Kind() != artifact.KindProjector) {
-		return errors.New("model artifact: invalid tensor inventory envelope")
+	if d.Version != TensorInventoryVersion || !tensorBearingKind(d.Owner.Kind()) {
+		return errors.New("tensor inventory: invalid envelope")
 	}
 	if d.Format != TensorFormatGGUF && d.Format != TensorFormatSafetensors &&
 		d.Format != TensorFormatPyTorch && d.Format != TensorFormatMixed {
-		return errors.New("model artifact: invalid tensor inventory format")
+		return errors.New("tensor inventory: invalid format")
 	}
 	if len(d.Tensors) == 0 {
-		return errors.New("model artifact: invalid tensor inventory count")
+		return errors.New("tensor inventory: empty")
 	}
 	previous := ""
 	for _, tensor := range d.Tensors {
 		if tensor.Name <= previous ||
 			strings.TrimSpace(tensor.Name) != tensor.Name || strings.ContainsAny(tensor.Name, "\r\n") {
-			return errors.New("model artifact: invalid or unordered tensor name")
+			return errors.New("tensor inventory: invalid or unordered tensor name")
 		}
 		if tensor.Storage == "" ||
 			tensor.Storage != strings.ToLower(tensor.Storage) || strings.TrimSpace(tensor.Storage) != tensor.Storage {
-			return fmt.Errorf("model artifact: tensor %q has invalid storage", tensor.Name)
+			return fmt.Errorf("tensor inventory: tensor %q has invalid storage", tensor.Name)
 		}
 		if tensor.Shape == nil || !checked.Nonzero(tensor.Bytes) {
-			return fmt.Errorf("model artifact: tensor %q has invalid shape or byte extent", tensor.Name)
+			return fmt.Errorf("tensor inventory: tensor %q has invalid shape or byte extent", tensor.Name)
 		}
 		elements := uint64(tensorgraph.SingletonExtent)
 		for _, dimension := range tensor.Shape {
 			var ok bool
 			elements, ok = checked.Mul64(elements, dimension)
 			if !ok || !checked.Nonzero(elements) {
-				return fmt.Errorf("model artifact: tensor %q shape extent is invalid", tensor.Name)
+				return fmt.Errorf("tensor inventory: tensor %q shape extent is invalid", tensor.Name)
 			}
 		}
 		previous = tensor.Name
@@ -201,19 +200,19 @@ func (d TensorInventoryDocument) validate() error {
 
 func tensorInventoryContent(document TensorInventoryDocument) ([]byte, error) {
 	content, err := json.Marshal(tensorInventoryBody{
-		Version: document.Version, Model: document.Model, Format: document.Format,
+		Version: document.Version, Owner: document.Owner, Format: document.Format,
 		Tensors: document.Tensors,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("model artifact: encode tensor inventory: %w", err)
+		return nil, fmt.Errorf("tensor inventory: encode: %w", err)
 	}
 	return content, nil
 }
 
 // NewGGUFTensorInventory captures logical facts from a validated GGUF.
-func NewGGUFTensorInventory(model artifact.ID, file *gguf.File) (TensorInventoryDocument, error) {
+func NewGGUFTensorInventory(owner artifact.ID, file *gguf.File) (TensorInventoryDocument, error) {
 	if file == nil {
-		return TensorInventoryDocument{}, errors.New("model artifact: nil GGUF tensor inventory source")
+		return TensorInventoryDocument{}, errors.New("tensor inventory: nil GGUF source")
 	}
 	facts := make([]TensorFact, len(file.Tensors))
 	for index, tensor := range file.Tensors {
@@ -223,13 +222,13 @@ func NewGGUFTensorInventory(model artifact.ID, file *gguf.File) (TensorInventory
 		}
 	}
 	sort.Slice(facts, func(left, right int) bool { return facts[left].Name < facts[right].Name })
-	return NewTensorInventoryDocument(model, TensorFormatGGUF, facts)
+	return NewTensorInventoryDocument(owner, TensorFormatGGUF, facts)
 }
 
 // NewSafetensorsTensorInventory captures logical facts from a validated source.
-func NewSafetensorsTensorInventory(model artifact.ID, source *safetensors.Source) (TensorInventoryDocument, error) {
+func NewSafetensorsTensorInventory(owner artifact.ID, source *safetensors.Source) (TensorInventoryDocument, error) {
 	if source == nil {
-		return TensorInventoryDocument{}, errors.New("model artifact: nil Safetensors tensor inventory source")
+		return TensorInventoryDocument{}, errors.New("tensor inventory: nil Safetensors source")
 	}
 	names := source.Names()
 	facts := make([]TensorFact, len(names))
@@ -240,7 +239,7 @@ func NewSafetensorsTensorInventory(model artifact.ID, source *safetensors.Source
 			Storage: strings.ToLower(tensor.DType), Bytes: uint64(tensor.Size()),
 		}
 	}
-	return NewTensorInventoryDocument(model, TensorFormatSafetensors, facts)
+	return NewTensorInventoryDocument(owner, TensorFormatSafetensors, facts)
 }
 
 func cloneTensorFacts(facts []TensorFact) []TensorFact {

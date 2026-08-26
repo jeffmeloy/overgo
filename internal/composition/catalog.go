@@ -31,7 +31,7 @@ func LoadCatalog(ctx context.Context, store *overgodb.Store) ([]CatalogComponent
 			return nil
 		}
 		for _, measurement := range document.Measurements {
-			statistics[inventory.Model.String()+"\x00"+measurement.Name] = measurement.Characterization
+			statistics[inventory.Owner.String()+"\x00"+measurement.Name] = measurement.Characterization
 		}
 		return nil
 	})

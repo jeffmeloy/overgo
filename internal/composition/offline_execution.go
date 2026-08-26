@@ -150,7 +150,7 @@ func CompileOfflineTensorExecutionPlan(
 	inventories := make([]modelartifact.TensorInventoryDocument, len(artifactPlan.Inputs))
 	for index, input := range artifactPlan.Inputs {
 		inventory, found, loadErr := modelartifact.ReadTensorInventoryDocument(ctx, reader, input.Inventory)
-		if loadErr != nil || !found || inventory.Model != input.Model || inventory.ID != input.Inventory {
+		if loadErr != nil || !found || inventory.Owner != input.Model || inventory.ID != input.Inventory {
 			return OfflineTensorExecutionPlan{}, errors.Join(
 				fmt.Errorf("composition: offline tensor input %d inventory is absent", index), loadErr,
 			)

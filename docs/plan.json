@@ -19,22 +19,6 @@
       ]
     },
     {
-      "id": "tensor-inventory-owner",
-      "title": "Make tensor inventory artifact-owned",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Replace model-only inventory ownership and queries with a tensor-bearing artifact contract",
-          "status": "open",
-          "verify": "go test ./internal/modelartifact ./internal/composition ./internal/projector ./internal/server -count=1",
-          "rationale": "Tensor inventory validation accepts projectors while the schema and lookup API still claim model-only ownership. Publish one owner contract and delete kind-specific handling.",
-          "depends_on": ["recipe-discovery-authority/do"]
-        }
-      ]
-    },
-    {
       "id": "indexed-graph-authority",
       "title": "Retain compiled graph and indexed input ownership",
       "owner": "tightening",
@@ -46,7 +30,7 @@
           "status": "open",
           "verify": "go test ./internal/graphruntime ./internal/diffusionimage ./internal/inference ./internal/projector -count=1",
           "rationale": "Ordered diffusion bindings are converted back to maps and Feeds.Execute recompiles output graphs. Retain compiled slots for repeated execution; keep maps only at the reference-executor boundary.",
-          "depends_on": ["tensor-inventory-owner/do"]
+          "depends_on": ["recipe-discovery-authority/do"]
         }
       ]
     },

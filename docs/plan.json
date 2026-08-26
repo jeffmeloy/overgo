@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "tool-transport-adapters",
-      "title": "Route native tool invocation through one typed adapter catalog",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Replace the executor transport switch with immutable adapter ownership and add bounded MCP-over-HTTP invocation",
-          "status": "open",
-          "verify": "go test ./internal/agenttool ./cmd/agent-tool -count=1",
-          "capabilities": ["adapter-boundary", "mcp-interop", "bounded-invocation", "surface-reduction"]
-        }
-      ]
-    },
-    {
       "id": "openapi-manual-compiler",
       "title": "Compile bounded OpenAPI operations into exact candidate manuals",
       "status": "open",
@@ -27,8 +13,15 @@
           "title": "Parse strict bounded OpenAPI JSON, require explicit effect authority, and compile supported JSON operations without activating aliases",
           "status": "open",
           "verify": "go test ./internal/agenttool ./cmd/agent-tool -run 'OpenAPI|Manual' -count=1",
-          "depends_on": ["tool-transport-adapters"],
-          "capabilities": ["openapi-discovery", "bounded-parser", "explicit-effects", "candidate-authority"]
+          "depends_on": [
+            "tool-transport-adapters"
+          ],
+          "capabilities": [
+            "openapi-discovery",
+            "bounded-parser",
+            "explicit-effects",
+            "candidate-authority"
+          ]
         }
       ]
     },
@@ -42,8 +35,14 @@
           "title": "Build a content-identified canonical catalog snapshot and deterministic top-k search over names, descriptions, and fields",
           "status": "open",
           "verify": "go test ./internal/agenttool -run 'Catalog|Search' -count=1",
-          "depends_on": ["openapi-manual-compiler"],
-          "capabilities": ["catalog-identity", "deterministic-search", "bounded-context"]
+          "depends_on": [
+            "openapi-manual-compiler"
+          ],
+          "capabilities": [
+            "catalog-identity",
+            "deterministic-search",
+            "bounded-context"
+          ]
         }
       ]
     },
@@ -57,8 +56,15 @@
           "title": "Add context-aware sequenced JSON streaming with byte and event admission, cancellation, and one exact terminal record",
           "status": "open",
           "verify": "go test ./internal/agenttool -run 'Stream' -count=1",
-          "depends_on": ["tool-transport-adapters"],
-          "capabilities": ["streaming-http", "bounded-admission", "sequence-authority", "cancellation"]
+          "depends_on": [
+            "tool-transport-adapters"
+          ],
+          "capabilities": [
+            "streaming-http",
+            "bounded-admission",
+            "sequence-authority",
+            "cancellation"
+          ]
         }
       ]
     },
@@ -72,8 +78,16 @@
           "title": "Compile a closed set of exact manuals and dependency edges into the existing typed recipe program with deterministic ordering and fail-closed validation",
           "status": "open",
           "verify": "go test ./internal/recipe ./internal/workflowruntime -run 'ToolWorkflow|Tool' -count=1",
-          "depends_on": ["tool-catalog-snapshot-search", "tool-stream-lifecycle"],
-          "capabilities": ["workflow-synthesis", "closed-world-tools", "compiled-program", "no-interpreter"]
+          "depends_on": [
+            "tool-catalog-snapshot-search",
+            "tool-stream-lifecycle"
+          ],
+          "capabilities": [
+            "workflow-synthesis",
+            "closed-world-tools",
+            "compiled-program",
+            "no-interpreter"
+          ]
         }
       ]
     },
@@ -87,8 +101,15 @@
           "title": "Publish candidate catalogs with source lineage, verify complete compatibility, and activate exact aliases atomically without partial registration",
           "status": "open",
           "verify": "go test ./internal/agenttool ./cmd/agent-tool -run 'Candidate|Activation|Catalog' -count=1",
-          "depends_on": ["compiled-tool-workflows"],
-          "capabilities": ["staged-discovery", "evidence-gate", "atomic-activation", "fail-closed-registration"]
+          "depends_on": [
+            "compiled-tool-workflows"
+          ],
+          "capabilities": [
+            "staged-discovery",
+            "evidence-gate",
+            "atomic-activation",
+            "fail-closed-registration"
+          ]
         }
       ]
     }

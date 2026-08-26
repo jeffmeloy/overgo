@@ -49,6 +49,9 @@ func TestNewManualRefusesInvalidDeclarations(t *testing.T) {
 			m.Transport = Transport{Kind: TransportHTTP, URL: "https://example.test/run", Program: "sh"}
 		},
 		"argv without program": func(m *Manual) { m.Transport = Transport{Kind: TransportArgv} },
+		"mcp without target": func(m *Manual) {
+			m.Transport = Transport{Kind: TransportMCPHTTP, URL: "https://example.test/mcp", Protocol: "2025-06-18"}
+		},
 		"undeclared transport": func(m *Manual) { m.Transport = Transport{Kind: "carrier-pigeon"} },
 	}
 	for name, mutate := range cases {
@@ -73,5 +76,14 @@ func TestManualTransportsDeclareCompletely(t *testing.T) {
 	argv.Transport = Transport{Kind: TransportArgv, Program: "git", Args: []string{"status", "--porcelain"}}
 	if _, err := NewManual(argv); err != nil {
 		t.Fatalf("argv manual refused: %v", err)
+	}
+	mcp := validManual()
+	mcp.Name = "weather.remote"
+	mcp.Transport = Transport{
+		Kind: TransportMCPHTTP, URL: "https://example.test/mcp",
+		Target: "weather.lookup", Protocol: "2025-06-18",
+	}
+	if _, err := NewManual(mcp); err != nil {
+		t.Fatalf("mcp manual refused: %v", err)
 	}
 }

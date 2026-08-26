@@ -3,12 +3,14 @@ package agenttool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/strictjson"
 )
 
 func inspectionManual(t *testing.T, name string, transport Transport) Manual {
@@ -109,6 +111,37 @@ func TestTransportHTTPBoundedStrictJSON(t *testing.T) {
 		if _, err := invoke(path); err == nil {
 			t.Fatalf("%s: invocation accepted", path)
 		}
+	}
+}
+
+func TestTransportMCPHTTPBindsProtocolToolAndResponse(t *testing.T) {
+	var received mcpRequest
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("MCP-Protocol-Version") != "2025-06-18" {
+			t.Errorf("protocol header = %q", request.Header.Get("MCP-Protocol-Version"))
+		}
+		if err := strictjson.Decode(request.Body, &received); err != nil {
+			t.Errorf("request decode: %v", err)
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		response.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(response, `{"jsonrpc":"2.0","id":%q,"result":{"content":[{"type":"text","text":"sunny"}]}}`, received.ID)
+	}))
+	defer server.Close()
+	manual := inspectionManual(t, "weather.remote", Transport{
+		Kind: TransportMCPHTTP, URL: server.URL, Target: "weather.lookup", Protocol: "2025-06-18",
+	})
+	result, err := NewOperatorExecutor().Invoke(
+		context.Background(), manual, json.RawMessage(`{"pattern":"Boston"}`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if received.Method != mcpToolsCallMethod || received.Params.Name != "weather.lookup" ||
+		string(received.Params.Arguments) != `{"pattern":"Boston"}` ||
+		string(result) != `{"content":[{"type":"text","text":"sunny"}]}` {
+		t.Fatalf("request=%+v result=%s", received, result)
 	}
 }
 

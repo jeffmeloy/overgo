@@ -85,11 +85,13 @@ const (
 	TransportHTTP TransportKind = "http"
 	// TransportArgv executes a fixed program with argument words, no shell.
 	TransportArgv TransportKind = "argv"
+	// TransportMCPHTTP invokes one exact MCP tool over bounded HTTP JSON-RPC.
+	TransportMCPHTTP TransportKind = "mcp-http"
 )
 
 // Valid reports whether the transport kind is a declared path.
 func (kind TransportKind) Valid() bool {
-	return kind == TransportBuiltin || kind == TransportHTTP || kind == TransportArgv
+	return kind == TransportBuiltin || kind == TransportHTTP || kind == TransportArgv || kind == TransportMCPHTTP
 }
 
 // Transport binds a manual to its native invocation path.
@@ -101,6 +103,10 @@ type Transport struct {
 	// words for the argv transport; the call payload rides on stdin.
 	Program string   `json:"program,omitempty"`
 	Args    []string `json:"args,omitempty"`
+	// Target and Protocol bind an MCP manual to one remote tool and one
+	// protocol revision. They are authority, not values inferred at runtime.
+	Target   string `json:"target,omitempty"`
+	Protocol string `json:"protocol,omitempty"`
 }
 
 // Manual is one durable tool description: what the tool is, what it
@@ -177,7 +183,7 @@ func (manual *Manual) validate() error {
 func (transport Transport) validate(name string) error {
 	switch transport.Kind {
 	case TransportBuiltin:
-		if transport.URL != "" || transport.Program != "" || len(transport.Args) != 0 {
+		if transport.URL != "" || transport.Program != "" || len(transport.Args) != 0 || transport.Target != "" || transport.Protocol != "" {
 			return fmt.Errorf("agent tool: builtin manual %q must not bind an endpoint or program", name)
 		}
 	case TransportHTTP:
@@ -185,11 +191,11 @@ func (transport Transport) validate(name string) error {
 		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
 			return fmt.Errorf("agent tool: http manual %q requires an absolute http(s) endpoint", name)
 		}
-		if transport.Program != "" || len(transport.Args) != 0 {
+		if transport.Program != "" || len(transport.Args) != 0 || transport.Target != "" || transport.Protocol != "" {
 			return fmt.Errorf("agent tool: http manual %q must not bind a program", name)
 		}
 	case TransportArgv:
-		if transport.Program == "" || transport.URL != "" {
+		if transport.Program == "" || transport.URL != "" || transport.Target != "" || transport.Protocol != "" {
 			return fmt.Errorf("agent tool: argv manual %q requires a program and no endpoint", name)
 		}
 		// A program is a bare command word resolved on PATH: a path
@@ -202,6 +208,16 @@ func (transport Transport) validate(name string) error {
 			if !textcheck.Bounded(word, len(word), "\x00\r\n") {
 				return fmt.Errorf("agent tool: argv manual %q argument word exceeds the bound", name)
 			}
+		}
+	case TransportMCPHTTP:
+		parsed, err := url.Parse(transport.URL)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			return fmt.Errorf("agent tool: mcp manual %q requires an absolute http(s) endpoint", name)
+		}
+		if transport.Program != "" || len(transport.Args) != 0 ||
+			!manualNamePattern.MatchString(transport.Target) ||
+			!textcheck.Bounded(transport.Protocol, len(transport.Protocol), "\x00\r\n") || transport.Protocol == "" {
+			return fmt.Errorf("agent tool: mcp manual %q requires an exact target and protocol", name)
 		}
 	default:
 		return fmt.Errorf("agent tool: manual %q transport kind is not declared", name)

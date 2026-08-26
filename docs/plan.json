@@ -15,7 +15,7 @@
           "status": "open",
           "verify": "go test ./internal/evaluation -run TestSequenceScoring -count=1",
           "depends_on": [
-            "eval-domain-targeting/do"
+            "dna-sequence-scoring-suite/do"
           ]
         }
       ]

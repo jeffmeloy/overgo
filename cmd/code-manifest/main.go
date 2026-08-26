@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"overgo/internal/artifact"
+	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
 	"overgo/internal/codemanifest"
 	"overgo/internal/repoanalysis"
@@ -22,6 +23,7 @@ func run() error {
 	root := flag.String("root", ".", "repository root")
 	basePath := flag.String("base", "", "canonical base manifest to compare")
 	closure := flag.Bool("closure", false, "with -base: emit reverse-reachable impact instead of the raw delta")
+	ownershipSurface := flag.Bool("ownership-surface", false, "with -base and -closure: emit the automation ownership surface")
 	flag.Parse()
 	resolved, err := filepath.Abs(*root)
 	if err != nil {
@@ -58,6 +60,9 @@ func run() error {
 		impact, err := codemanifest.Close(base, manifest, delta)
 		if err != nil {
 			return err
+		}
+		if *ownershipSurface {
+			return json.NewEncoder(os.Stdout).Encode(automationcheck.ManifestSurface(impact))
 		}
 		return json.NewEncoder(os.Stdout).Encode(impact)
 	}

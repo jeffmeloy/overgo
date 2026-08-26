@@ -10,20 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "join",
-          "title": "Compile automation descriptors and their package, prefix, and symbol ownership into the manifest planning view",
-          "status": "open",
-          "verify": "go test ./internal/codemanifest ./internal/automationcheck -run 'TestOwnershipJoin|TestOwnershipImpact' -count=1",
-          "rationale": "Checks must declare what they verify once and use the same declaration for triggering, exclusion, and coverage measurement.",
-          "depends_on": [
-            "code-manifest-impact"
-          ],
-          "capabilities": [
-            "check-ownership",
-            "surface-intersection"
-          ]
-        },
-        {
           "id": "completeness",
           "title": "Reject contradictory ownership and report uncovered production symbols, unknown boundaries, and reviewed exception overlays",
           "status": "open",

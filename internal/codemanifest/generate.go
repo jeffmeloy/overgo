@@ -59,12 +59,8 @@ func Generate(snapshot repoanalysis.SourceSnapshot, selections []repoanalysis.Bu
 	for _, graph := range graphs {
 		manifest.BuildContexts = append(manifest.BuildContexts, graph.context)
 	}
-	packages, err := filePackages(graphs)
-	if err != nil {
-		return Manifest{}, err
-	}
 	for _, source := range snapshot.Files {
-		file, boundaries, err := manifestFile(source, graphs, packages[source.Path])
+		file, boundaries, err := manifestFile(source, graphs)
 		if err != nil {
 			return Manifest{}, err
 		}
@@ -85,7 +81,7 @@ func Generate(snapshot repoanalysis.SourceSnapshot, selections []repoanalysis.Bu
 			key := declaration.File + "\x00" + declaration.Receiver + "\x00" + declaration.Name
 			facts, found := fingerprints[key]
 			id := SymbolID{
-				Package: declaration.Package, Context: graph.context.ID,
+				Package: path.Dir(declaration.File), Context: graph.context.ID,
 				Receiver: declaration.Receiver, Name: declaration.Name, Kind: kind,
 			}
 			if !found {
@@ -141,34 +137,7 @@ func buildContext(selection repoanalysis.BuildSelection) (BuildContext, error) {
 	return BuildContext{ID: selection.Context, GOOS: goos, GOARCH: goarch}, nil
 }
 
-func filePackages(graphs []contextGraph) (map[string]string, error) {
-	packages := map[string]string{}
-	bind := func(file, packagePath string) error {
-		if packagePath == "" {
-			return nil
-		}
-		if prior := packages[file]; prior != "" && prior != packagePath {
-			return fmt.Errorf("code manifest: file %s has conflicting packages %s and %s", file, prior, packagePath)
-		}
-		packages[file] = packagePath
-		return nil
-	}
-	for _, graph := range graphs {
-		for file, packagePath := range graph.selection.Packages {
-			if err := bind(file, packagePath); err != nil {
-				return nil, err
-			}
-		}
-		for _, declaration := range graph.declarations {
-			if err := bind(declaration.File, declaration.Package); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return packages, nil
-}
-
-func manifestFile(source repoanalysis.GoFile, graphs []contextGraph, declaredPackage string) (File, []Uncertainty, error) {
+func manifestFile(source repoanalysis.GoFile, graphs []contextGraph) (File, []Uncertainty, error) {
 	generated, err := source.Generated()
 	if err != nil {
 		return File{}, nil, fmt.Errorf("code manifest: generated status for %s: %w", source.Path, err)
@@ -177,17 +146,9 @@ func manifestFile(source repoanalysis.GoFile, graphs []contextGraph, declaredPac
 	if err != nil {
 		return File{}, nil, fmt.Errorf("code manifest: build expression for %s: %w", source.Path, err)
 	}
-	packagePath := declaredPackage
 	var uncertainty []Uncertainty
-	if packagePath == "" {
-		packagePath = path.Dir(source.Path)
-		uncertainty = append(uncertainty, Uncertainty{
-			Kind: UncertaintyBuildSelection, Path: source.Path,
-			Reason: "build selections and declaration censuses do not identify the package",
-		})
-	}
 	file := File{
-		Path: source.Path, ContentID: source.ContentID, Package: packagePath,
+		Path: source.Path, ContentID: source.ContentID, Package: path.Dir(source.Path),
 		BuildExpression: expression, Generated: generated, Test: source.Test,
 	}
 	for _, graph := range graphs {

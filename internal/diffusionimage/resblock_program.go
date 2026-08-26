@@ -28,7 +28,7 @@ func compileResBlockProgram(block *resBlock, config Config, channels, height, wi
 		return resBlockProgram{}, err
 	}
 	return resBlockProgram{
-		input: input, output: output, static: graph.static,
+		input: input, output: output, static: graph.hostValues(),
 		channels: channels, height: height, width: width,
 	}, nil
 }

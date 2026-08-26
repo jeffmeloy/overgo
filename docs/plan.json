@@ -1,26 +1,8 @@
 {
   "campaign": "Model facts as typed OvergoDB runtime authority",
   "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
-  "census_evidence": "evidence:sha256:f3785044ae9ff31c2a3685df8f7fd2e9cb94b8c9b8005f7b15e5b54ea57de925",
+  "census_evidence": "evidence:sha256:2dfb5b4e4d692428a8a05ba5b3a3410633f4cf8dae88f13b7eac57d611f386a1",
   "items": [
-    {
-      "id": "compiled-structure-literal-authority",
-      "title": "Derive implementation capacities and positional bindings from compiled programs",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Replace diffusion graph capacity and positional tensor indices with compiled counts and typed bindings",
-          "status": "open",
-          "verify": "go test ./internal/diffusionimage -run '^Test.*(Compile|Program|Inventory)' -count=1",
-          "rationale": "The map capacity 256 is an implementation hint, not a model fact. Positional indices 5 through 17 encode unnamed structure. Compile both from validated inventory declarations without moving them into OvergoDB model facts.",
-          "depends_on": [
-            "derivation-profile-runtime-authority/do"
-          ]
-        }
-      ]
-    },
     {
       "id": "model-fact-authority-closure",
       "title": "Close model-fact literal migration",

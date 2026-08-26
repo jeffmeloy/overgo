@@ -14,11 +14,13 @@
 package diffusionimage
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"path/filepath"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
 )
@@ -274,75 +276,66 @@ func Compile(tensors map[string][]float32) (*Model, error) {
 	}
 	scalar := func(name string) (float32, error) {
 		v, err := bind(name)
-		if err != nil || len(v) == 0 {
+		value, found := checked.First(v)
+		if err != nil || !found {
 			return 0, fmt.Errorf("diffusionimage: scalar %s missing or empty", name)
 		}
-		return v[0], nil
-	}
-	bindMany := func(prefix string, suffixes ...string) ([][]float32, error) {
-		bound := make([][]float32, len(suffixes))
-		for i, suffix := range suffixes {
-			v, err := bind(prefix + suffix)
-			if err != nil {
-				return nil, err
-			}
-			bound[i] = v
-		}
-		return bound, nil
+		return value, nil
 	}
 	compileAttn := func(prefix string) (*attnBlock, error) {
-		v, err := bindMany(prefix,
-			".norm1.weight", ".norm1.bias", ".norm2.weight", ".norm2.bias",
-			".attn.c_qkv.W_A_q.weight", ".attn.c_qkv.W_A_k.weight", ".attn.c_qkv.W_A_v.weight",
-			".attn.c_qkv.W_B_q.weight", ".attn.c_qkv.W_B_k.weight", ".attn.c_qkv.W_B_v.weight",
-			".attn.o_proj.proj.weight", ".attn.o_proj.proj.bias", ".attn.o_proj.alpha",
-			".mlp.0.proj.weight", ".mlp.0.alpha", ".mlp.1.weight",
-			".learned_residual_scale_attn", ".learned_residual_scale_mlp")
-		if err != nil {
-			return nil, err
+		var compileErr error
+		field := func(suffix string) []float32 {
+			value, err := bind(prefix + suffix)
+			compileErr = errors.Join(compileErr, err)
+			return value
 		}
-		for _, scalarIndex := range []int{12, 14, 16, 17} {
-			if len(v[scalarIndex]) == 0 {
-				return nil, fmt.Errorf("diffusionimage: %s scalar tensor %d empty", prefix, scalarIndex)
-			}
+		number := func(suffix string) float32 {
+			value, err := scalar(prefix + suffix)
+			compileErr = errors.Join(compileErr, err)
+			return value
 		}
-		hidden := len(v[0])
-		if hidden == 0 || len(v[13])%hidden != 0 || len(v[15])%hidden != 0 {
+		compiled := &attnBlock{
+			name:        prefix,
+			norm1Weight: field(".norm1.weight"), norm1Bias: field(".norm1.bias"),
+			norm2Weight: field(".norm2.weight"), norm2Bias: field(".norm2.bias"),
+			attention: tpaWeights{
+				WAq: field(".attn.c_qkv.W_A_q.weight"), WAk: field(".attn.c_qkv.W_A_k.weight"), WAv: field(".attn.c_qkv.W_A_v.weight"),
+				WBq: field(".attn.c_qkv.W_B_q.weight"), WBk: field(".attn.c_qkv.W_B_k.weight"), WBv: field(".attn.c_qkv.W_B_v.weight"),
+				Woproj: field(".attn.o_proj.proj.weight"), Boproj: field(".attn.o_proj.proj.bias"), AlphaO: float64(number(".attn.o_proj.alpha")),
+			},
+			mlpProjection: field(".mlp.0.proj.weight"), mlpAlpha: number(".mlp.0.alpha"), mlpOutput: field(".mlp.1.weight"),
+			attentionScale: number(".learned_residual_scale_attn"), mlpScale: number(".learned_residual_scale_mlp"),
+		}
+		if compileErr != nil {
+			return nil, compileErr
+		}
+		hidden := len(compiled.norm1Weight)
+		if hidden == 0 || len(compiled.mlpProjection)%hidden != 0 || len(compiled.mlpOutput)%hidden != 0 {
 			return nil, fmt.Errorf("diffusionimage: %s MLP tensor lengths incompatible with width %d", prefix, hidden)
 		}
-		projected, gated := len(v[13])/hidden, len(v[15])/hidden
+		projected, gated := len(compiled.mlpProjection)/hidden, len(compiled.mlpOutput)/hidden
 		if projected != 2*gated {
 			return nil, fmt.Errorf("diffusionimage: %s MLP projection %d != 2*gated %d", prefix, projected, gated)
 		}
-		return &attnBlock{
-			name:        prefix,
-			norm1Weight: v[0], norm1Bias: v[1], norm2Weight: v[2], norm2Bias: v[3],
-			attention: tpaWeights{
-				WAq: v[4], WAk: v[5], WAv: v[6], WBq: v[7], WBk: v[8], WBv: v[9],
-				Woproj: v[10], Boproj: v[11], AlphaO: float64(v[12][0]),
-			},
-			mlpProjection: v[13], mlpAlpha: v[14][0], mlpOutput: v[15],
-			mlpProjected: projected, mlpHidden: gated,
-			attentionScale: v[16][0], mlpScale: v[17][0],
-		}, nil
+		compiled.mlpProjected, compiled.mlpHidden = projected, gated
+		return compiled, nil
 	}
 	compileRes := func(prefix string) (*resBlock, error) {
-		v, err := bindMany(prefix,
-			".norm1.weight", ".norm1.bias", ".conv1.weight", ".conv1.bias",
-			".norm2.weight", ".norm2.bias", ".conv2.weight", ".conv2.bias",
-			".learned_residual_scale")
-		if err != nil {
-			return nil, err
+		var compileErr error
+		field := func(suffix string) []float32 {
+			value, err := bind(prefix + suffix)
+			compileErr = errors.Join(compileErr, err)
+			return value
 		}
-		if len(v[8]) == 0 {
-			return nil, fmt.Errorf("diffusionimage: %s residual scale empty", prefix)
-		}
-		return &resBlock{
+		compiled := &resBlock{
 			name:        prefix,
-			norm1Weight: v[0], norm1Bias: v[1], conv1Weight: v[2], conv1Bias: v[3],
-			norm2Weight: v[4], norm2Bias: v[5], conv2Weight: v[6], conv2Bias: v[7],
-			residualScale: v[8][0],
-		}, nil
+			norm1Weight: field(".norm1.weight"), norm1Bias: field(".norm1.bias"),
+			conv1Weight: field(".conv1.weight"), conv1Bias: field(".conv1.bias"),
+			norm2Weight: field(".norm2.weight"), norm2Bias: field(".norm2.bias"),
+			conv2Weight: field(".conv2.weight"), conv2Bias: field(".conv2.bias"),
+		}
+		compiled.residualScale, err = scalar(prefix + ".learned_residual_scale")
+		return compiled, errors.Join(compileErr, err)
 	}
 	compileLevels := func(family string) ([]level, error) {
 		levels := make([]level, cfg.NumLevels)

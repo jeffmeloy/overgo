@@ -12,12 +12,17 @@ import (
 
 type modelGraph struct {
 	builder *tensor.Builder
-	static  map[*tensor.Tensor]reference.Value
+	static  []graphBinding
 	bindErr error
 }
 
+type graphBinding struct {
+	node  *tensor.Tensor
+	value reference.Value
+}
+
 func newModelGraph() *modelGraph {
-	return &modelGraph{builder: tensor.NewBuilder(), static: make(map[*tensor.Tensor]reference.Value, 256)}
+	return &modelGraph{builder: tensor.NewBuilder()}
 }
 
 func (graph *modelGraph) bind(prefix, suffix string, data []float32, dimensions ...uint64) *tensor.Tensor {
@@ -26,9 +31,17 @@ func (graph *modelGraph) bind(prefix, suffix string, data []float32, dimensions 
 	if err != nil {
 		graph.bindErr = errors.Join(graph.bindErr, err)
 	} else {
-		graph.static[node] = value
+		graph.static = append(graph.static, graphBinding{node: node, value: value})
 	}
 	return node
+}
+
+func (graph *modelGraph) hostValues() map[*tensor.Tensor]reference.Value {
+	values := make(map[*tensor.Tensor]reference.Value, len(graph.static))
+	for _, binding := range graph.static {
+		values[binding.node] = binding.value
+	}
+	return values
 }
 
 func (graph *modelGraph) err(scope string) error {

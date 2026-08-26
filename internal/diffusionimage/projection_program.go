@@ -26,7 +26,7 @@ func finishProjectionProgram(
 		return projectionProgram{}, err
 	}
 	return projectionProgram{
-		input: input, output: output, static: graph.static,
+		input: input, output: output, static: graph.hostValues(),
 		inputGeometry: inputGeometry, outputGeometry: outputGeometry,
 	}, nil
 }

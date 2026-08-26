@@ -315,7 +315,10 @@ func TestSenseNovaFlowTerminalRealArtifact(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer src.Close()
-	flow := SenseNovaFlowBinding()
+	flow, err := InspectFlowProfile(senseNovaDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	plan, err := CompileFlowPlan(src, cfg, flowCfg, flow)
 	if err != nil {
 		t.Fatal(err)

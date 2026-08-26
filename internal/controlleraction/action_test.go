@@ -11,7 +11,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
-	"overgo/internal/scratchmodel"
+	"overgo/internal/scratchmodeltest"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
@@ -94,7 +94,7 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 	if err != nil || len(batch.Contents) != 2 || len(batch.Lineage) == 0 {
 		t.Fatalf("improvement compile = (%+v, %v)", batch, err)
 	}
-	profile := scratchmodel.AdaptiveDerivationProfile()
+	profile := scratchmodeltest.Profile(t)
 	profileAction := improvement
 	profileAction.Improvement = &ImprovementAction{
 		Proposal:       improvement.Improvement.Proposal,

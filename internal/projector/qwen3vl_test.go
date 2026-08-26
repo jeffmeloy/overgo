@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -22,6 +23,22 @@ import (
 )
 
 type qwen3VLPromptTokenizer struct{}
+
+func fixtureMediaPreprocessProfile(t *testing.T) MediaPreprocessProfile {
+	t.Helper()
+	profile, found, err := catalogMediaPreprocessProfile(qwen3VLProjectorType)
+	if err != nil || !found {
+		t.Fatalf("media preprocess profile = (%+v, %t, %v)", profile, found, err)
+	}
+	return profile
+}
+
+func fixtureMediaPreprocessOptions(t *testing.T, options OpenOptions) OpenOptions {
+	t.Helper()
+	profile := fixtureMediaPreprocessProfile(t)
+	options.MediaPreprocess = &profile
+	return options
+}
 
 func (qwen3VLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
 	ids := make([]tokenizer.TokenID, 0, len(text))
@@ -74,7 +91,7 @@ func TestQwen3VLRealFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	processed, err := PreprocessQwen3VLImage(input, runner.Spec(), DefaultQwen3VLPreprocessOptions())
+	processed, err := PreprocessQwen3VLImage(input, runner.Spec(), fixtureMediaPreprocessProfile(t).Image)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +106,7 @@ func TestQwen3VLRealFixture(t *testing.T) {
 	if os.Getenv("OVERGO_QWEN35_PROJECTOR_FULL") == "" {
 		return
 	}
-	output, err := runner.EncodeImage(context.Background(), input, DefaultQwen3VLPreprocessOptions())
+	output, err := runner.EncodeImage(context.Background(), input, fixtureMediaPreprocessProfile(t).Image)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +148,7 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 	metadata := tinyQwen3VLMetadata()
 	tensors := tinyQwen3VLTensors()
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
-	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{})
+	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +184,7 @@ func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
 		return item.Key == "clip.vision.is_deepstack_layers"
 	})
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tinyQwen3VLDeepstackTensors())
-	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{})
+	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,12 +211,12 @@ func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
 func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen3VLDeepstackMetadata(), tinyQwen3VLDeepstackTensors())
-	cpu, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{})
+	cpu, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{CUDA: true})
+	cuda, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{CUDA: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +249,7 @@ func (c *capturingQwen3VLTokenizer) TokenizeText(text string, addSpecial, specia
 
 func TestQwen3VLSessionRendersImagePrompt(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen3VLDeepstackMetadata(), tinyQwen3VLDeepstackTensors())
-	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{})
+	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +288,7 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 	tensors[0] = f32Tensor("v.patch_embd.weight", []uint64{128, 128, 3, 4}, nil)
 	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
-	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{})
+	runner, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,12 +317,12 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 func TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen3VLMetadata(), nonzeroTinyQwen3VLTensors())
-	cpu, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{})
+	cpu, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{CUDA: true})
+	cuda, err := openImageProjectorAs[*Qwen3VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{CUDA: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -456,7 +473,7 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	processed, err := PreprocessQwen3VLFrames(frames, runner.Spec(), DefaultQwen3VLVideoPreprocessOptions())
+	processed, err := PreprocessQwen3VLFrames(frames, runner.Spec(), fixtureMediaPreprocessProfile(t).Video)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -472,7 +489,7 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 	if os.Getenv("OVERGO_QWEN35_VIDEO_FULL") == "" {
 		return
 	}
-	output, err := runner.EncodeFrames(context.Background(), frames, DefaultQwen3VLVideoPreprocessOptions())
+	output, err := runner.EncodeFrames(context.Background(), frames, fixtureMediaPreprocessProfile(t).Video)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -512,8 +529,13 @@ func tinyQwen3VLMetadata() []gguf.Metadata {
 }
 
 func openQwen3VLFixture(path string) (*Qwen3VLRunner, error) {
+	profile, found, err := catalogMediaPreprocessProfile(qwen3VLProjectorType)
+	if err != nil || !found {
+		return nil, errors.Join(errors.New("projector: media preprocess profile is absent"), err)
+	}
 	return openImageProjectorAs[*Qwen3VLRunner](path, OpenOptions{
-		CUDA: os.Getenv("OVERGO_QWEN35_PROJECTOR_CUDA") != "",
+		CUDA:            os.Getenv("OVERGO_QWEN35_PROJECTOR_CUDA") != "",
+		MediaPreprocess: &profile,
 	})
 
 }

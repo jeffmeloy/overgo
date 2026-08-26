@@ -54,10 +54,11 @@ func (fixture *modelBuildFixture) Promote(_ context.Context, state ModelBuildSta
 
 func TestModelBuildUsesRecipeStageReceipts(t *testing.T) {
 	fixture := &modelBuildFixture{state: ModelBuildState{
-		Recipe:       testutil.ArtifactID(t, artifact.KindRecipe, "builder-recipe"),
-		Dataset:      testutil.ArtifactID(t, artifact.KindDataset, "builder-dataset"),
-		Construction: testutil.ArtifactID(t, artifact.KindRecipe, "builder-construction"),
-		Model:        testutil.ArtifactID(t, artifact.KindModel, "builder-initial-model"),
+		Recipe:            testutil.ArtifactID(t, artifact.KindRecipe, "builder-recipe"),
+		Dataset:           testutil.ArtifactID(t, artifact.KindDataset, "builder-dataset"),
+		DerivationProfile: testutil.ArtifactID(t, artifact.KindProfile, "builder-derivation-profile"),
+		Construction:      testutil.ArtifactID(t, artifact.KindRecipe, "builder-construction"),
+		Model:             testutil.ArtifactID(t, artifact.KindModel, "builder-initial-model"),
 	},
 		checkpoint: testutil.ArtifactID(t, artifact.KindCheckpoint, "builder-checkpoint"),
 		model:      testutil.ArtifactID(t, artifact.KindModel, "builder-trained-model"),

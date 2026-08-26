@@ -91,7 +91,10 @@ func runDevice(l *parity.Campaign, modelDir, fixturesDir string) error {
 	}
 
 	binding := routedlm.SenseNovaBinding()
-	flowBind := routedlm.SenseNovaFlowBinding()
+	flowBind, err := routedlm.InspectFlowProfile(modelDir)
+	if err != nil {
+		return err
+	}
 	cfg, err := routedlm.LoadConfig(modelDir, binding)
 	if err != nil {
 		return err

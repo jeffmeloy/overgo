@@ -20,6 +20,7 @@ import (
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/scratchmodel"
 	llamaserver "overgo/internal/server"
 	"overgo/internal/tensor"
 )
@@ -177,7 +178,10 @@ func run() error {
 		workflowWorkspaces = append(workflowWorkspaces, workspace)
 	}
 	if *modelBuilderEnabled {
-		workspace, err := llamaserver.NewModelBuilderWorkspace(workspaceStore)
+		if _, err := scratchmodel.PublishDerivationProfileCatalog(shutdownContext, workspaceStore); err != nil {
+			return fmt.Errorf("publish model builder profile: %w", err)
+		}
+		workspace, err := llamaserver.NewModelBuilderWorkspace(shutdownContext, workspaceStore)
 		if err != nil {
 			return fmt.Errorf("open model builder workspace: %w", err)
 		}

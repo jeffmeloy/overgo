@@ -29,7 +29,7 @@ func compileTransformerBlockProgram(block *attnBlock, config Config, channels, t
 	if err := graph.err("transformer block"); err != nil {
 		return transformerBlockProgram{}, err
 	}
-	return transformerBlockProgram{input: input, output: output, static: graph.static, channels: channels, tokens: tokens}, nil
+	return transformerBlockProgram{input: input, output: output, static: graph.hostValues(), channels: channels, tokens: tokens}, nil
 }
 
 func (program transformerBlockProgram) execute(ctx context.Context, device *executor.Executor, input []float32) ([]float32, error) {

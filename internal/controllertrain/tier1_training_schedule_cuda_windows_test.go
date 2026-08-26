@@ -13,6 +13,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/devicemath"
 	"overgo/internal/scratchmodel"
+	"overgo/internal/scratchmodeltest"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
@@ -28,7 +29,7 @@ func TestTier1TrainingSchedule(t *testing.T) {
 	}
 	construction, err := scratchmodel.Compile(
 		scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: 17, Steps: 800},
-		scratchmodel.AdaptiveDerivationProfile(),
+		scratchmodeltest.Profile(t),
 	)
 	if err != nil {
 		t.Fatal(err)

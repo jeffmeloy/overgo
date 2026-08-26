@@ -96,7 +96,9 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 			return modelrecipe.LatentImageDefinition(model, profileID)
 		}, modelrecipe.ModuleLatentImagePrepare},
 		{modelrecipe.OscillatorImageDefinition, modelrecipe.ModuleOscillatorImagePrepare},
-		{modelrecipe.RoutedImageDefinition, modelrecipe.ModuleRoutedImagePrepare},
+		{func(model artifact.ID) (recipe.Definition, error) {
+			return modelrecipe.RoutedImageDefinition(model, profileID)
+		}, modelrecipe.ModuleRoutedImagePrepare},
 		{modelrecipe.DiffusionImageDefinition, modelrecipe.ModuleDiffusionImagePrepare},
 	}
 	for _, test := range tests {
@@ -152,7 +154,8 @@ func TestImageCapabilityBindsSenseNovaByArchitecture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(facts) != 0 || definition.Model != modelID {
+	profileID, bound := definition.PrimaryDependency(recipe.DependencyFlowProfile)
+	if len(facts) != 1 || !bound || facts[0].Descriptor.ID != profileID || definition.Model != modelID {
 		t.Fatalf("SenseNova binding model=%s facts=%d", definition.Model, len(facts))
 	}
 	program, err := modelrecipe.CompileCapability(definition)

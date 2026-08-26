@@ -1,6 +1,7 @@
 package scratchmodel
 
 import (
+	"context"
 	"go/ast"
 	"go/build"
 	"go/parser"
@@ -13,8 +14,23 @@ import (
 
 	"overgo/internal/adaptiveparity"
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/trainingprogram"
 )
+
+func testDerivationProfile(t testing.TB) DerivationProfile {
+	t.Helper()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	profile, err := PublishDerivationProfileCatalog(context.Background(), store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return profile
+}
 
 func loadOracle(t *testing.T) adaptiveparity.ScratchOracle {
 	t.Helper()
@@ -31,7 +47,7 @@ func loadOracle(t *testing.T) adaptiveparity.ScratchOracle {
 
 func TestScratchProgramOwnsResidentExecution(t *testing.T) {
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, AdaptiveDerivationProfile())
+	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +121,7 @@ func TestScratchProgramOwnsResidentExecution(t *testing.T) {
 
 func TestScratchConstructionAuthority(t *testing.T) {
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, AdaptiveDerivationProfile())
+	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,10 +189,10 @@ func TestScratchConstructionAuthority(t *testing.T) {
 	}
 }
 
-func TestAdaptiveDerivationProfileAuthority(t *testing.T) {
+func TestActiveDerivationProfileAuthority(t *testing.T) {
 	oracle := loadOracle(t)
 	facts := CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}
-	profile := AdaptiveDerivationProfile()
+	profile := testDerivationProfile(t)
 	construction, err := Compile(facts, profile)
 	if err != nil {
 		t.Fatal(err)
@@ -208,7 +224,7 @@ func TestAdaptiveDerivationProfileAuthority(t *testing.T) {
 
 func TestScratchConstructionRejectsEmptyCorpus(t *testing.T) {
 	for _, documents := range [][]string{{"", "", ""}, {"abc", "", "cab"}} {
-		if _, err := Compile(CorpusFacts{Documents: documents, Seed: 7, Steps: 3}, AdaptiveDerivationProfile()); err == nil {
+		if _, err := Compile(CorpusFacts{Documents: documents, Seed: 7, Steps: 3}, testDerivationProfile(t)); err == nil {
 			t.Fatalf("empty corpus document accepted: %q", documents)
 		}
 	}
@@ -229,11 +245,12 @@ func TestScratchOracleRuntimeExcludedFromProduction(t *testing.T) {
 func TestScratchInitializedArtifactIdentity(t *testing.T) {
 	oracle := loadOracle(t)
 	facts := CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}
-	first, err := Compile(facts, AdaptiveDerivationProfile())
+	profile := testDerivationProfile(t)
+	first, err := Compile(facts, profile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := Compile(facts, AdaptiveDerivationProfile())
+	second, err := Compile(facts, profile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +275,7 @@ func TestScratchInitializedArtifactIdentity(t *testing.T) {
 	changed := facts
 	changed.Documents = append([]string(nil), facts.Documents...)
 	changed.Documents[0] += "a"
-	third, err := Compile(changed, AdaptiveDerivationProfile())
+	third, err := Compile(changed, profile)
 	if err != nil {
 		t.Fatal(err)
 	}

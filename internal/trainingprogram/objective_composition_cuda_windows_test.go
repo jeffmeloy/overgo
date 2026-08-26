@@ -16,7 +16,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
-	"overgo/internal/scratchmodel"
+	"overgo/internal/scratchmodeltest"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
@@ -108,7 +108,7 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	// independent seeds instead.
 	const trainingSteps = 400
 	seeds := []int64{17, 18, 19}
-	profile := scratchmodel.AdaptiveDerivationProfile()
+	profile := scratchmodeltest.Profile(t)
 	type meanFinal struct{ loss, action, modality float64 }
 	meanOver := func(corpus controllertrain.Corpus) (meanFinal, error) {
 		var total meanFinal

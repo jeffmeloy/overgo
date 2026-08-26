@@ -22,7 +22,9 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 			return modelrecipe.LatentImageDefinition(model, profileID)
 		}, []recipecontract.Modality{recipecontract.ModalityText}},
 		{modelrecipe.OscillatorImageDefinition, []recipecontract.Modality{recipecontract.ModalityTable}},
-		{modelrecipe.RoutedImageDefinition, []recipecontract.Modality{recipecontract.ModalityText}},
+		{func(model artifact.ID) (recipe.Definition, error) {
+			return modelrecipe.RoutedImageDefinition(model, profileID)
+		}, []recipecontract.Modality{recipecontract.ModalityText}},
 	}
 	for _, test := range tests {
 		definition, err := test.define(modelID)

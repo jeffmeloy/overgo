@@ -550,7 +550,10 @@ func run(modelDir string, steps, rows int, timestep float64, maxWall time.Durati
 	directory := roots.ResolveModelPath(modelDir)
 	loadStart := time.Now()
 	binding := routedlm.SenseNovaBinding()
-	flowBinding := routedlm.SenseNovaFlowBinding()
+	flowProfile, err := routedlm.InspectFlowProfile(directory)
+	if err != nil {
+		return err
+	}
 	cfg, err := routedlm.LoadConfig(directory, binding)
 	if err != nil {
 		return err
@@ -564,11 +567,11 @@ func run(modelDir string, steps, rows int, timestep float64, maxWall time.Durati
 		return err
 	}
 	defer src.Close()
-	plan, err := routedlm.CompileFlowPlan(src, cfg, flowCfg, flowBinding)
+	plan, err := routedlm.CompileFlowPlan(src, cfg, flowCfg, flowProfile)
 	if err != nil {
 		return err
 	}
-	terminal, err := routedlm.LoadFlowTerminalWeights(src, plan, flowBinding)
+	terminal, err := routedlm.LoadFlowTerminalWeights(src, plan, flowProfile)
 	if err != nil {
 		return err
 	}

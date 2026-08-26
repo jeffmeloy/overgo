@@ -16,7 +16,7 @@ import (
 func TestScratchTensorDeviceVJPParity(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, AdaptiveDerivationProfile())
+	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,6 +14,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/modelbuilder"
 	"overgo/internal/overgodb"
+	"overgo/internal/scratchmodel"
 	"overgo/internal/strictjson"
 	"overgo/internal/workflowruntime"
 )
@@ -46,7 +47,11 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	defer store.Close()
-	session, err := modelbuilder.NewScratchSession(modelbuilder.ScratchRequest{
+	ctx := context.Background()
+	if _, err := scratchmodel.PublishDerivationProfileCatalog(ctx, store); err != nil {
+		return err
+	}
+	session, err := modelbuilder.NewScratchSession(ctx, modelbuilder.ScratchRequest{
 		Repository: store, Documents: documents, Seed: *seed, Steps: *steps,
 	})
 	if err != nil {
@@ -60,7 +65,7 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	state, err := workflowruntime.ExecuteModelBuild(context.Background(), store, operation, session)
+	state, err := workflowruntime.ExecuteModelBuild(ctx, store, operation, session)
 	if err != nil {
 		return err
 	}

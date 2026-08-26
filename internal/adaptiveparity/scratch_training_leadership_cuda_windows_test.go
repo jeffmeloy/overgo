@@ -20,6 +20,7 @@ import (
 	"overgo/internal/adaptiveparity"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/scratchmodel"
+	"overgo/internal/scratchmodeltest"
 	"overgo/internal/strictjson"
 )
 
@@ -122,7 +123,7 @@ func TestScratchTrainingLeadership(t *testing.T) {
 	compileStarted := time.Now()
 	construction, err := scratchmodel.Compile(
 		scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps},
-		scratchmodel.AdaptiveDerivationProfile(),
+		scratchmodeltest.Profile(t),
 	)
 	if err != nil {
 		t.Fatal(err)

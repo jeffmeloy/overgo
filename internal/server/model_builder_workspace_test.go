@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/scratchmodel"
 	"overgo/internal/testutil"
 )
 
@@ -17,11 +18,15 @@ func TestModelBuilderWorkspaceUsesSharedCampaign(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	workspace, err := NewModelBuilderWorkspace(store)
+	ctx := context.Background()
+	if _, err := scratchmodel.PublishDerivationProfileCatalog(ctx, store); err != nil {
+		t.Fatal(err)
+	}
+	workspace, err := NewModelBuilderWorkspace(ctx, store)
 	if err != nil {
 		t.Fatal(err)
 	}
-	capabilities, err := workspace.WorkflowCapabilities(context.Background(), WorkflowModelBuild)
+	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowModelBuild)
 	if err != nil || len(capabilities) != 1 {
 		t.Fatalf("capabilities=%+v err=%v", capabilities, err)
 	}
@@ -29,7 +34,7 @@ func TestModelBuilderWorkspaceUsesSharedCampaign(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	completion, err := workspace.ExecuteWorkflow(context.Background(), WorkflowModelBuild, recipe.TaskTraining,
+	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowModelBuild, recipe.TaskTraining,
 		capabilities[0].Recipe, input, testReporter{id: testutil.ArtifactID(t, artifact.KindEvidence, "model-builder-operation")})
 	if err != nil {
 		t.Fatal(err)

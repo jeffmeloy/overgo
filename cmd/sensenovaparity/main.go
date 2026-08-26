@@ -76,7 +76,10 @@ func run(l *parity.Campaign, modelDir, fixturesDir string) error {
 	}
 
 	binding := routedlm.SenseNovaBinding()
-	flowBind := routedlm.SenseNovaFlowBinding()
+	flowBind, err := routedlm.InspectFlowProfile(modelDir)
+	if err != nil {
+		return fmt.Errorf("inspect flow profile: %w", err)
+	}
 	cfg, err := routedlm.LoadConfig(modelDir, binding)
 	if err != nil {
 		return fmt.Errorf("load llm config: %w", err)

@@ -4,16 +4,24 @@ import (
 	"path/filepath"
 	"sort"
 
+	"overgo/internal/closureledger"
 	"overgo/internal/repoanalysis"
 )
 
-const CensusSchema = "overgo/magic-census/v2"
+const CensusSchema = "overgo/magic-census/v3"
 
 type CensusCounts struct {
 	ProductionFiles  int `json:"production_files"`
 	TestFiles        int `json:"test_files"`
 	NamedConstants   int `json:"named_constants"`
 	InlineLiterals   int `json:"inline_literals"`
+	Structural       int `json:"structural_literals"`
+	Mathematical     int `json:"mathematical_literals"`
+	Format           int `json:"format_literals"`
+	Capacity         int `json:"capacity_literals"`
+	Policy           int `json:"policy_literals"`
+	ModelFact        int `json:"model_fact_literals"`
+	Unknown          int `json:"unknown_literals"`
 	AssumptionHints  int `json:"assumption_hints"`
 	TestLiterals     int `json:"test_literals"`
 	TestFixtures     int `json:"test_fixtures"`
@@ -59,7 +67,7 @@ type Census struct {
 }
 
 // BuildCensus measures source pressure; findings grant no disposition.
-func BuildCensus(snapshot repoanalysis.SourceSnapshot) (Census, error) {
+func BuildCensus(snapshot repoanalysis.SourceSnapshot, authorities ...closureledger.Document) (Census, error) {
 	named, err := ScanSnapshot(snapshot, nil, CandidateConstants)
 	if err != nil {
 		return Census{}, err
@@ -68,6 +76,7 @@ func BuildCensus(snapshot repoanalysis.SourceSnapshot) (Census, error) {
 	if err != nil {
 		return Census{}, err
 	}
+	inline = ClassifyLiteralAuthorities(inline, authorities)
 	assumptions, err := CensusAssumptions(snapshot, nil)
 	if err != nil {
 		return Census{}, err
@@ -85,6 +94,24 @@ func BuildCensus(snapshot repoanalysis.SourceSnapshot) (Census, error) {
 		Schema: CensusSchema, Source: snapshot.Identity(), Repeated: repeated,
 		Counts: CensusCounts{NamedConstants: len(named), InlineLiterals: len(inline),
 			AssumptionHints: len(assumptions), RepeatedGroups: len(repeated)},
+	}
+	for _, site := range inline {
+		switch site.Class {
+		case LiteralStructural:
+			result.Counts.Structural++
+		case LiteralMathematical:
+			result.Counts.Mathematical++
+		case LiteralFormat:
+			result.Counts.Format++
+		case LiteralCapacity:
+			result.Counts.Capacity++
+		case LiteralPolicy:
+			result.Counts.Policy++
+		case LiteralModelFact:
+			result.Counts.ModelFact++
+		case LiteralUnknown:
+			result.Counts.Unknown++
+		}
 	}
 	owners := map[string]*OwnerPressure{}
 	files := map[string]*FilePressure{}

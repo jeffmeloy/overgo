@@ -15,12 +15,15 @@
 package densecausal
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/jsonfile"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor"
 	"overgo/internal/tensorcatalog"
 )
 
@@ -112,11 +115,29 @@ func (c artifactConfig) moePolicy() MoERouterPolicy {
 	return policy
 }
 
+func (c artifactConfig) resolvedDecoder() (artifactConfig, bool, error) {
+	decoder, nested := c, c.LanguageConfig != nil
+	if nested {
+		decoder = *c.LanguageConfig
+	}
+	if !checked.PositiveFinite64(decoder.RopeTheta) || !checked.PositiveFinite64(decoder.RMSNormEps) {
+		return artifactConfig{}, false, errors.New("densecausal: rope_theta and rms_norm_eps must be declared positive finite facts")
+	}
+	if decoder.MaxPositionEmbeddings < 0 {
+		return artifactConfig{}, false, errors.New("densecausal: negative context length")
+	}
+	return decoder, nested, nil
+}
+
 // Load opens the safetensors artifact and materializes every tensor as f32.
 func Load(directory string) (*Model, error) {
 	var config artifactConfig
 	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &config); err != nil {
 		return nil, fmt.Errorf("densecausal: parse config.json: %w", err)
+	}
+	decoder, nested, err := config.resolvedDecoder()
+	if err != nil {
+		return nil, err
 	}
 	source, err := safetensors.OpenSource(directory)
 	if err != nil {
@@ -135,31 +156,13 @@ func Load(directory string) (*Model, error) {
 	// Multimodal wrappers nest the decoder declarations; the decoder tensor
 	// subset (embedding, layers, final norm, head) is the trainable text
 	// model — vision towers stay out of the pack and the bias-layout scan.
-	decoder := config
-	if config.LanguageConfig != nil {
-		nested := *config.LanguageConfig
-		if nested.ModelType == "" {
-			nested.ModelType = config.ModelType
-		}
-		decoder = nested
+	if nested {
 		weights, shapes = decoderTensorSubset(weights, shapes)
-	}
-	if decoder.ModelType == "unlimited-ocr" {
-		// Declared DeepSeek-V2 family defaults for config-absent facts.
-		if decoder.RopeTheta == 0 {
-			decoder.RopeTheta = 10000
-		}
-		if decoder.RMSNormEps == 0 {
-			decoder.RMSNormEps = 1e-6
-		}
 	}
 	m, err := NewMixtureModel(weights, shapes, decoder.NumAttentionHeads, decoder.HeadDim,
 		decoder.RopeTheta, decoder.RMSNormEps, decoder.moePolicy(), decoder.SlidingWindowSize)
 	if err != nil {
 		return nil, err
-	}
-	if decoder.MaxPositionEmbeddings < 0 {
-		return nil, fmt.Errorf("densecausal: negative context length")
 	}
 	m.Dims.ContextLength = decoder.MaxPositionEmbeddings
 	// model_type vs derived cross-checks: qwen2 REQUIRES qkv biases, llama
@@ -227,14 +230,14 @@ func NewMixtureModel(weights map[string][]float32, shapes map[string][]int, head
 		untiedHeadName = "lm_head.weight"
 	)
 	var d Dims
-	embed, err := tensorcatalog.Shape(shapes, embeddingName, 2)
+	embed, err := tensorcatalog.Shape(shapes, embeddingName, tensor.PairedExtent)
 	if err != nil {
 		return nil, err
 	}
 	d.Vocab, d.Hidden = embed[0], embed[1]
 	headName := embeddingName
 	if _, untied := shapes[untiedHeadName]; untied {
-		head, err := tensorcatalog.Shape(shapes, untiedHeadName, 2)
+		head, err := tensorcatalog.Shape(shapes, untiedHeadName, tensor.PairedExtent)
 		if err != nil {
 			return nil, err
 		}
@@ -253,7 +256,7 @@ func NewMixtureModel(weights map[string][]float32, shapes map[string][]int, head
 		return nil, fmt.Errorf("densecausal: head dim %d", headDim)
 	}
 	d.HeadDim = headDim
-	if ropeTheta <= 0 || rmsEps <= 0 {
+	if !checked.PositiveFinite64(ropeTheta) || !checked.PositiveFinite64(rmsEps) {
 		return nil, fmt.Errorf("densecausal: rope_theta %g rms_norm_eps %g must be positive", ropeTheta, rmsEps)
 	}
 	d.RopeTheta, d.RMSEps = ropeTheta, rmsEps
@@ -266,11 +269,11 @@ func NewMixtureModel(weights map[string][]float32, shapes map[string][]int, head
 			d.Layers = layer
 			break
 		}
-		q, err := tensorcatalog.Shape(shapes, names.q, 2)
+		q, err := tensorcatalog.Shape(shapes, names.q, tensor.PairedExtent)
 		if err != nil {
 			return nil, err
 		}
-		k, err := tensorcatalog.Shape(shapes, names.k, 2)
+		k, err := tensorcatalog.Shape(shapes, names.k, tensor.PairedExtent)
 		if err != nil {
 			return nil, err
 		}
@@ -293,7 +296,7 @@ func NewMixtureModel(weights map[string][]float32, shapes map[string][]int, head
 		// layer and every dense layer must agree; routed layers validate
 		// against the declared policy in compileMoELayer instead.
 		if _, dense := shapes[names.gate]; dense {
-			gate, err := tensorcatalog.Shape(shapes, names.gate, 2)
+			gate, err := tensorcatalog.Shape(shapes, names.gate, tensor.PairedExtent)
 			if err != nil {
 				return nil, err
 			}
@@ -316,7 +319,7 @@ func NewMixtureModel(weights map[string][]float32, shapes map[string][]int, head
 			return nil, fmt.Errorf("densecausal: layer %d bias presence differs from layer 0", layer)
 		}
 	}
-	if _, err := tensorcatalog.Shape(shapes, finalNormName, 1); err != nil {
+	if _, err := tensorcatalog.Shape(shapes, finalNormName, tensor.SingletonExtent); err != nil {
 		return nil, err
 	}
 	// Any bias outside the q/k/v attention triple is an unverified layout.

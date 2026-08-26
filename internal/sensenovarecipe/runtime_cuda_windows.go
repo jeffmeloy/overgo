@@ -17,6 +17,7 @@ import (
 	"overgo/internal/latentimage"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 	"overgo/internal/torchrng"
@@ -87,8 +88,17 @@ type Generator struct {
 	stats        GenerationStats
 }
 
-func LoadGenerator(modelDir string) (_ *Generator, result error) {
-	binding, flowBinding := routedlm.SenseNovaBinding(), routedlm.SenseNovaFlowBinding()
+func LoadGenerator(
+	ctx context.Context,
+	store artifact.Reader,
+	modelDir string,
+	definition recipe.Definition,
+) (_ *Generator, result error) {
+	flowProfile, err := routedlm.ResolveFlowProfile(ctx, store, definition)
+	if err != nil {
+		return nil, err
+	}
+	binding := routedlm.SenseNovaBinding()
 	config, err := routedlm.LoadConfig(modelDir, binding)
 	if err != nil {
 		return nil, err
@@ -110,13 +120,13 @@ func LoadGenerator(modelDir string) (_ *Generator, result error) {
 	if generator.rope, err = routedlm.CompileRopePlan(source, config, binding); err != nil {
 		return nil, err
 	}
-	if generator.flow, err = routedlm.CompileFlowPlan(source, config, flowConfig, flowBinding); err != nil {
+	if generator.flow, err = routedlm.CompileFlowPlan(source, config, flowConfig, flowProfile); err != nil {
 		return nil, err
 	}
-	if generator.vision, err = routedlm.LoadVisionEmbedderWeights(source, flowBinding.GenerationVisionPrefix, generator.flow); err != nil {
+	if generator.vision, err = routedlm.LoadVisionEmbedderWeights(source, flowProfile.GenerationVisionPrefix, generator.flow); err != nil {
 		return nil, err
 	}
-	if generator.flowTerminal, err = routedlm.LoadFlowTerminalWeights(source, generator.flow, flowBinding); err != nil {
+	if generator.flowTerminal, err = routedlm.LoadFlowTerminalWeights(source, generator.flow, flowProfile); err != nil {
 		return nil, err
 	}
 	if generator.terminal, err = routedlm.LoadTerminalWeights(source, config, binding); err != nil {

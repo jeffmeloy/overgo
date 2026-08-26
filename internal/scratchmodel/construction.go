@@ -11,7 +11,6 @@ import (
 	"math/rand"
 	"slices"
 	"sort"
-	"strings"
 	"unicode/utf8"
 
 	"overgo/internal/artifact"
@@ -25,72 +24,10 @@ import (
 // components are named, validated and policy-driven through the same registry.
 const ScratchArchitecture = "adaptive-causal"
 
-const (
-	DerivationProfileMediaType = "application/vnd.overgo.derivation-profile+json"
-	DerivationProfileSchema    = "overgo/derivation-profile/v1"
-)
-
 type CorpusFacts struct {
 	Documents []string
 	Seed      int64
 	Steps     int
-}
-
-// DerivationProfile owns corpus-to-topology policy.
-type DerivationProfile struct {
-	Version            string      `json:"version"`
-	SplitDenominator   int         `json:"split_denominator"`
-	StableSplitMinimum int         `json:"stable_split_minimum"`
-	MinimumLayers      int         `json:"minimum_layers"`
-	MinimumMLPFactor   int         `json:"minimum_mlp_factor"`
-	MLPBudget          int         `json:"mlp_budget"`
-	Epsilon            float64     `json:"epsilon"`
-	MuonMomentum       float64     `json:"muon_momentum"`
-	ID                 artifact.ID `json:"-"`
-}
-
-var derivationProfileCodec = artifact.JSONDocumentCodec(
-	"derivation profile", artifact.KindProfile, DerivationProfileMediaType, DerivationProfileSchema,
-	func(profile *DerivationProfile) error { return profile.validate() },
-	func(profile DerivationProfile) artifact.ID { return profile.ID },
-	func(profile *DerivationProfile, id artifact.ID) { profile.ID = id }, nil,
-)
-
-func AdaptiveDerivationProfile() DerivationProfile {
-	profile, err := NewDerivationProfile(DerivationProfile{
-		Version:          "adaptive-corpus-derivation-v1",
-		SplitDenominator: 10, StableSplitMinimum: 30,
-		MinimumLayers: 2, MinimumMLPFactor: 2, MLPBudget: 256,
-		Epsilon: 1e-8, MuonMomentum: trainingprogram.BuiltinOptimizerPolicy().Momentum(),
-	})
-	if err != nil {
-		panic(err)
-	}
-	return profile
-}
-
-func NewDerivationProfile(profile DerivationProfile) (DerivationProfile, error) {
-	profile.ID = artifact.ID{}
-	return derivationProfileCodec.New(profile)
-}
-
-func (p DerivationProfile) ValidateIdentity() error {
-	return derivationProfileCodec.ValidateIdentity(p)
-}
-
-func (p DerivationProfile) Content() (artifact.Content, error) {
-	return derivationProfileCodec.Content(p)
-}
-
-func (p DerivationProfile) validate() error {
-	if strings.TrimSpace(p.Version) == "" || strings.ContainsAny(p.Version, "\x00\r\n") ||
-		p.SplitDenominator <= 0 || p.StableSplitMinimum <= 0 ||
-		p.MinimumLayers <= 0 || p.MinimumMLPFactor <= 0 || p.MLPBudget <= 0 ||
-		p.Epsilon <= 0 || math.IsNaN(p.Epsilon) || math.IsInf(p.Epsilon, 0) ||
-		p.MuonMomentum <= 0 || p.MuonMomentum >= 1 || math.IsNaN(p.MuonMomentum) || math.IsInf(p.MuonMomentum, 0) {
-		return errors.New("scratch model: invalid derivation profile")
-	}
-	return nil
 }
 
 type Split struct {

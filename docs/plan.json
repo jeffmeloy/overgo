@@ -1,6 +1,6 @@
 {
-  "campaign": "Literal authority and duplicate runtime tightening",
-  "doctrine": "Counts route inspection; semantics decide consolidation. Recipes, artifact metadata, typed plans, and neutral operators own runtime policy. Constants name stable implementation contracts only. Test fixtures may carry local data but must not copy production policy or reconstruct production logic. Each wave migrates every targeted caller and deletes displaced loops, wrappers, and duplicate harnesses immediately. Preserve numerical behavior and wire contracts. Merge master after every gated commit.",
-  "census_evidence": "evidence:sha256:84da019c5f63b742cf71e4f0a0b057e0c4c3328963b78de3cf4b4da83fbd7057",
+  "campaign": "Model facts as typed OvergoDB runtime authority",
+  "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
+  "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": []
 }

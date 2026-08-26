@@ -126,9 +126,10 @@ func TestCensusCountsReconcile(t *testing.T) {
 		sites += owner.RepeatedSites
 	}
 	want := report.Counts
+	classes := want.Structural + want.Mathematical + want.Format + want.Capacity + want.Policy + want.ModelFact + want.Unknown
 	if named != want.NamedConstants || inline != want.InlineLiterals || assumptions != want.AssumptionHints ||
 		policy != want.TestPolicyCopies || groups != want.RepeatedGroups || sites != want.RepeatedSites ||
-		want.TestLiterals != want.TestFixtures+want.TestAssertions+want.TestPolicyCopies {
+		classes != want.InlineLiterals || want.TestLiterals != want.TestFixtures+want.TestAssertions+want.TestPolicyCopies {
 		t.Fatalf("owner totals=(%d,%d,%d,%d,%d,%d), counts=%+v", named, inline, assumptions, policy, groups, sites, want)
 	}
 }

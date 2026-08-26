@@ -191,13 +191,30 @@ func ResolveModelDefinition(
 	store artifact.Reader,
 	id artifact.ID,
 ) (ResolvedModelDefinition, error) {
+	return resolveModelDefinition(ctx, store, id, nil)
+}
+
+func resolveModelDefinition(
+	ctx context.Context,
+	store artifact.Reader,
+	id artifact.ID,
+	boundProfile *ProfileDocument,
+) (ResolvedModelDefinition, error) {
 	document, err := modelDefinitionCodec.Require(ctx, store, id)
 	if err != nil {
 		return ResolvedModelDefinition{}, err
 	}
-	profile, err := loadProfile(ctx, store, document.Profile)
-	if err != nil {
-		return ResolvedModelDefinition{}, err
+	var profile ProfileDocument
+	if boundProfile == nil {
+		profile, err = loadProfile(ctx, store, document.Profile)
+		if err != nil {
+			return ResolvedModelDefinition{}, err
+		}
+	} else {
+		profile = *boundProfile
+		if profile.ID != document.Profile {
+			return ResolvedModelDefinition{}, errors.New("model recipe: bound profile differs from model definition")
+		}
 	}
 	tensors, ok, err := modelartifact.ReadTensorInventoryDocument(ctx, store, document.TensorInventory)
 	if err != nil {

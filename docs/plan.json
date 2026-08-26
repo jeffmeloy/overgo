@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "attempt-records",
-      "title": "Record every gate attempt as a typed store document",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Record every gate attempt as a typed store document -- One typed store document per gate run, success or failure: plan item/step, base and candidate manifests, selected/excluded/inapplicable checks with ManifestMeasurements, wall, diff stats, outcome. The gate emits it; nothing is asserted that the gate did not observe. Closes: measurement of automation effectiveness.",
-          "status": "open",
-          "verify": "go test ./internal/runrecord -run TestAttemptRecord -count=1",
-          "depends_on": [
-            "rsi-plan-declared/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "attempt-history",
       "title": "Make attempt history queryable across runs and strategies",
       "status": "open",

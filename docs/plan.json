@@ -10,21 +10,18 @@
       "status": "open",
       "steps": [
         {
-          "id": "schema",
-          "title": "Add strict typed documents for manifest identity, analyzer provenance, build contexts, files, symbols, signatures, fingerprints, reference edges, and external inputs",
-          "status": "open",
-          "verify": "go test ./internal/codemanifest -run 'TestSchema|TestCanonicalIdentity|TestStrictDecode' -count=1",
-          "rationale": "Every consumer needs one canonical structural vocabulary whose identity changes whenever source bytes or analysis semantics change.",
-          "capabilities": ["canonical-identity", "strict-schema", "snapshot-binding"]
-        },
-        {
           "id": "uncertainty",
           "title": "Represent reflection, cgo, interfaces, generated code, build exclusions, non-Go inputs, and analysis failures as typed uncertainty that cannot authorize exclusions",
           "status": "open",
           "verify": "go test ./internal/codemanifest -run 'TestUncertainty|TestUnknownCannotExclude' -count=1",
-          "depends_on": ["code-manifest-contract/schema"],
           "rationale": "Conservatism must follow from the data model rather than individual producer discipline.",
-          "capabilities": ["fail-closed-analysis", "boundary-provenance"]
+          "depends_on": [
+            "code-manifest-contract/schema"
+          ],
+          "capabilities": [
+            "fail-closed-analysis",
+            "boundary-provenance"
+          ]
         }
       ]
     },
@@ -39,18 +36,30 @@
           "title": "Adapt SourceSnapshot, Profile.Build, and ProductionConsumerCensus into stable declaration, body, signature, field, and reference records without a second parser",
           "status": "open",
           "verify": "go test ./internal/codemanifest ./internal/codeprofile -run 'TestGenerate|TestSymbolIdentity|TestReferenceGraph' -count=1",
-          "depends_on": ["code-manifest-contract"],
           "rationale": "The manifest must compose facts the repository already computes instead of creating a divergent analyzer.",
-          "capabilities": ["function-fingerprints", "consumer-census", "reference-graph"]
+          "depends_on": [
+            "code-manifest-contract"
+          ],
+          "capabilities": [
+            "function-fingerprints",
+            "consumer-census",
+            "reference-graph"
+          ]
         },
         {
           "id": "variants",
           "title": "Include declared build contexts, generated sources, cgo exports, device sources, manifests, profiles, fixtures, and other owned non-Go inputs",
           "status": "open",
           "verify": "go test ./internal/codemanifest -run 'TestBuildContexts|TestGeneratedAndCgo|TestExternalInputs' -count=1",
-          "depends_on": ["code-manifest-generator/symbols"],
           "rationale": "Host-only parsing cannot prove independence for platform, device, generated, or format authority surfaces.",
-          "capabilities": ["build-selection", "generated-inputs", "device-boundaries"]
+          "depends_on": [
+            "code-manifest-generator/symbols"
+          ],
+          "capabilities": [
+            "build-selection",
+            "generated-inputs",
+            "device-boundaries"
+          ]
         }
       ]
     },
@@ -65,18 +74,28 @@
           "title": "Diff added, removed, signature-changed, body-changed, and external-input records between exact base and candidate manifests",
           "status": "open",
           "verify": "go test ./internal/codemanifest -run 'TestDelta|TestSignatureAndBodyChanges|TestExternalInputDelta' -count=1",
-          "depends_on": ["code-manifest-generator"],
           "rationale": "Verification planning must begin with semantic source changes rather than file-name prefixes.",
-          "capabilities": ["manifest-delta", "candidate-overlay"]
+          "depends_on": [
+            "code-manifest-generator"
+          ],
+          "capabilities": [
+            "manifest-delta",
+            "candidate-overlay"
+          ]
         },
         {
           "id": "closure",
           "title": "Compute deterministic reverse reachability with safe interface-name over-approximation and explicit unresolved boundaries",
           "status": "open",
           "verify": "go test ./internal/codemanifest -run 'TestReverseClosure|TestInterfaceOverApproximation|TestUnknownClosure' -count=1",
-          "depends_on": ["code-manifest-impact/delta"],
           "rationale": "The affected surface is the transitive set capable of observing a change, with false positives preferred over silent false negatives.",
-          "capabilities": ["reverse-reachability", "interface-conservatism"]
+          "depends_on": [
+            "code-manifest-impact/delta"
+          ],
+          "capabilities": [
+            "reverse-reachability",
+            "interface-conservatism"
+          ]
         }
       ]
     },
@@ -91,18 +110,28 @@
           "title": "Compile automation descriptors and their package, prefix, and symbol ownership into the manifest planning view",
           "status": "open",
           "verify": "go test ./internal/codemanifest ./internal/automationcheck -run 'TestOwnershipJoin|TestOwnershipImpact' -count=1",
-          "depends_on": ["code-manifest-impact"],
           "rationale": "Checks must declare what they verify once and use the same declaration for triggering, exclusion, and coverage measurement.",
-          "capabilities": ["check-ownership", "surface-intersection"]
+          "depends_on": [
+            "code-manifest-impact"
+          ],
+          "capabilities": [
+            "check-ownership",
+            "surface-intersection"
+          ]
         },
         {
           "id": "completeness",
           "title": "Reject contradictory ownership and report uncovered production symbols, unknown boundaries, and reviewed exception overlays",
           "status": "open",
           "verify": "go test ./internal/codemanifest ./cmd/gate -run 'TestOwnershipCompleteness|TestContradictoryOwnership|TestReviewedOverlay' -count=1",
-          "depends_on": ["code-manifest-ownership/join"],
           "rationale": "A precise selector is trustworthy only when missing and conflicting ownership are visible and cannot become implicit skips.",
-          "capabilities": ["ownership-coverage", "reviewed-exceptions"]
+          "depends_on": [
+            "code-manifest-ownership/join"
+          ],
+          "capabilities": [
+            "ownership-coverage",
+            "reviewed-exceptions"
+          ]
         }
       ]
     },
@@ -117,18 +146,29 @@
           "title": "Build an immutable gate plan from candidate identity, manifest delta, impact closure, dependencies, resources, triggers, and affirmative exclusions",
           "status": "open",
           "verify": "go test ./internal/automationcheck ./cmd/gate -run 'TestManifestPlan|TestUnknownRunsChecks|TestExclusionRequiresProof' -count=1",
-          "depends_on": ["code-manifest-ownership"],
           "rationale": "Manifest analysis is a prerequisite to gate selection, not a selectable gate that can exclude itself.",
-          "capabilities": ["deterministic-gate-plan", "affirmative-exclusion", "dependency-order"]
+          "depends_on": [
+            "code-manifest-ownership"
+          ],
+          "capabilities": [
+            "deterministic-gate-plan",
+            "affirmative-exclusion",
+            "dependency-order"
+          ]
         },
         {
           "id": "inspect",
           "title": "Expose a read-only planning command that prints selected, excluded, unresolved, and dependency-added checks with exact reasons",
           "status": "open",
           "verify": "go test ./cmd/gate -run 'TestPlanOutput|TestPlanReasons|TestPlanDoesNotExecute' -count=1",
-          "depends_on": ["code-manifest-gate-planner/plan"],
           "rationale": "Gate selection must be inspectable before expensive work begins and reproducible from recorded inputs.",
-          "capabilities": ["plan-inspection", "selection-explanation"]
+          "depends_on": [
+            "code-manifest-gate-planner/plan"
+          ],
+          "capabilities": [
+            "plan-inspection",
+            "selection-explanation"
+          ]
         }
       ]
     },
@@ -143,18 +183,29 @@
           "title": "Bind every gate result to the candidate snapshot, manifest, impact closure, gate plan, check definition, and relevant input identities",
           "status": "open",
           "verify": "go test ./internal/automationcheck ./internal/runrecord ./cmd/gate -run 'TestManifestExecutionBinding|TestCandidateDriftRefused|TestPlanEvidenceLineage' -count=1",
-          "depends_on": ["code-manifest-gate-planner"],
           "rationale": "A valid plan cannot authorize different bytes or changed check definitions after analysis.",
-          "capabilities": ["execution-binding", "candidate-drift-refusal", "evidence-lineage"]
+          "depends_on": [
+            "code-manifest-gate-planner"
+          ],
+          "capabilities": [
+            "execution-binding",
+            "candidate-drift-refusal",
+            "evidence-lineage"
+          ]
         },
         {
           "id": "admit",
           "title": "Require a successful unchanged-candidate plan before commit admission and preserve skipped, reused, failed, and inapplicable outcomes distinctly",
           "status": "open",
           "verify": "go test ./cmd/gate ./internal/runrecord -run 'TestCommitAdmissionUsesManifestPlan|TestOutcomeDistinctions' -count=1",
-          "depends_on": ["code-manifest-execution-binding/bind"],
           "rationale": "The preflight plan becomes authoritative only when commit admission verifies its identity and complete terminal evidence.",
-          "capabilities": ["commit-admission", "typed-outcomes"]
+          "depends_on": [
+            "code-manifest-execution-binding/bind"
+          ],
+          "capabilities": [
+            "commit-admission",
+            "typed-outcomes"
+          ]
         }
       ]
     },
@@ -169,18 +220,28 @@
           "title": "Publish canonical manifest, delta, impact, plan, and selection evidence to the durable artifact store and provide bounded inspection summaries",
           "status": "open",
           "verify": "go test ./internal/codemanifest ./cmd/overgodb-query -run 'TestPublishAndLoad|TestManifestSummary' -count=1",
-          "depends_on": ["code-manifest-execution-binding"],
           "rationale": "Bulk generated state belongs in content-addressed storage; commits reference identities instead of duplicating large JSON documents.",
-          "capabilities": ["durable-manifest", "manifest-query"]
+          "depends_on": [
+            "code-manifest-execution-binding"
+          ],
+          "capabilities": [
+            "durable-manifest",
+            "manifest-query"
+          ]
         },
         {
           "id": "cache",
           "title": "Reuse package and manifest results by exact snapshot, analyzer, build-context, generator, and external-input identities with owned bounded eviction",
           "status": "open",
           "verify": "go test ./internal/codemanifest ./internal/automationcheck -run 'TestCacheIdentity|TestCacheInvalidation|TestBoundedEviction' -count=1",
-          "depends_on": ["code-manifest-storage-cache/publish"],
           "rationale": "Incremental analysis must reduce gate latency without accepting stale structural facts or creating an unbounded cache.",
-          "capabilities": ["content-addressed-cache", "bounded-eviction"]
+          "depends_on": [
+            "code-manifest-storage-cache/publish"
+          ],
+          "capabilities": [
+            "content-addressed-cache",
+            "bounded-eviction"
+          ]
         }
       ]
     },
@@ -195,36 +256,57 @@
           "title": "Run fixed bootstrap checks for analyzer changes and fall back to the complete gate set whenever manifest planning cannot establish authority",
           "status": "open",
           "verify": "go test ./cmd/gate ./internal/codemanifest -run 'TestGeneratorBootstrap|TestAnalyzerFailureRunsFullPlan|TestSchemaChangeInvalidatesCache' -count=1",
-          "depends_on": ["code-manifest-storage-cache"],
           "rationale": "Manifest-selected checks cannot be the only protection for the analyzer that selects them.",
-          "capabilities": ["bootstrap-trust", "full-plan-fallback"]
+          "depends_on": [
+            "code-manifest-storage-cache"
+          ],
+          "capabilities": [
+            "bootstrap-trust",
+            "full-plan-fallback"
+          ]
         },
         {
           "id": "false-negative-corpus",
           "title": "Add fixed change-to-required-check cases for interfaces, reflection, cgo, generated files, build tags, device code, schemas, fixtures, and non-Go authority",
           "status": "open",
           "verify": "go test ./internal/codemanifest ./cmd/gate -run 'TestFalseNegativeCorpus' -count=1",
-          "depends_on": ["code-manifest-trust/bootstrap"],
           "rationale": "The selector must be tested primarily against silent under-selection; safe over-selection remains measurable rather than forbidden.",
-          "capabilities": ["false-negative-corpus", "boundary-fixtures"]
+          "depends_on": [
+            "code-manifest-trust/bootstrap"
+          ],
+          "capabilities": [
+            "false-negative-corpus",
+            "boundary-fixtures"
+          ]
         },
         {
           "id": "adopt-and-measure",
           "title": "Migrate path-based selectors, publish exclusion, uncertainty, cache, latency, duration, and full-plan parity metrics, and require an uncached audit for releases",
           "status": "open",
           "verify": "go test ./cmd/gate ./cmd/release ./internal/automationcheck -run 'TestNoPathOnlySelection|TestSelectionMeasurements|TestReleaseManifestAudit' -count=1",
-          "depends_on": ["code-manifest-trust/false-negative-corpus"],
           "rationale": "Efficiency and conservatism must remain observable during rollout and release verification.",
-          "capabilities": ["gate-migration", "selection-metrics", "release-attestation"]
+          "depends_on": [
+            "code-manifest-trust/false-negative-corpus"
+          ],
+          "capabilities": [
+            "gate-migration",
+            "selection-metrics",
+            "release-attestation"
+          ]
         },
         {
           "id": "agent-context",
           "title": "Expose affected symbols, risk boundaries, ownership, required checks, exclusions, and prior evidence to agent change planning without allowing agents to self-declare safety",
           "status": "open",
           "verify": "go test ./internal/agentworkflow ./cmd/gate -run 'TestAgentManifestContext|TestAgentCannotAuthorizeExclusion' -count=1",
-          "depends_on": ["code-manifest-trust/adopt-and-measure"],
           "rationale": "Agent decisions and commit admission should consume the same measured structural authority.",
-          "capabilities": ["agent-change-context", "deterministic-verification-authority"]
+          "depends_on": [
+            "code-manifest-trust/adopt-and-measure"
+          ],
+          "capabilities": [
+            "agent-change-context",
+            "deterministic-verification-authority"
+          ]
         }
       ]
     }

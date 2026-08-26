@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 
-	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
@@ -75,7 +74,7 @@ func run() error {
 		defer store.Close()
 		// Placeholder authorities admit compilation for listing; running a
 		// suite still binds the real model, recipe, and environment.
-		suites, skipped, err := evaluation.DeriveStoreSuites(context.Background(), store, listingAuthorities())
+		suites, skipped, err := evaluation.DeriveStoreSuites(context.Background(), store, evaluation.ListingAuthorities())
 		if err != nil {
 			return err
 		}
@@ -135,26 +134,6 @@ func run() error {
 		command.Stdout, command.Stderr = os.Stdout, os.Stderr
 		return command.Run()
 	})
-}
-
-// listingAuthorities admit suite compilation for the descriptor
-// listing alone; running a suite binds the real model, recipe, and
-// environment through the session opener.
-func listingAuthorities() evaluation.ExactAuthorities {
-	id := func(kind artifact.Kind, name string) artifact.ID {
-		value, err := artifact.JSONID(kind, name)
-		if err != nil {
-			panic(err)
-		}
-		return value
-	}
-	return evaluation.ExactAuthorities{
-		ModelDefinition: id(artifact.KindModelDefinition, "evaluate/listing"),
-		RuntimeRecipe:   id(artifact.KindRecipe, "evaluate/listing"),
-		CodeCommit:      "0123456789abcdef0123456789abcdef01234567",
-		Environment:     id(artifact.KindEvidence, "evaluate/listing"),
-		Execution:       evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
-	}
 }
 
 func readManifest(path string) (manifest, error) {

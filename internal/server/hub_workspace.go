@@ -15,6 +15,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/discovery"
+	"overgo/internal/evaluation"
 	"overgo/internal/hfhub"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
@@ -58,7 +59,7 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		model := catalogModel{
 			Model: idText(entry.Model), Location: entry.Location, Present: entry.Present,
 		}
-		if summary, measured := evidence.benchmarks[entry.Location]; measured {
+		if summary, measured := evidence.BenchmarksByLocation[entry.Location]; measured {
 			model.Benchmark = &summary
 		}
 		for _, capability := range entry.Capabilities {
@@ -68,7 +69,7 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 			})
 			if capability.Task == recipe.TaskInference {
 				model.Recipe, model.Tier, model.Stale = idText(capability.Recipe), string(capability.Tier), capability.Stale
-				model.Evals = evidence.evaluations[capability.Recipe]
+				model.Evals = evidence.EvaluationsByRecipe[capability.Recipe]
 			}
 		}
 		listed = append(listed, model)
@@ -120,8 +121,8 @@ type catalogModel struct {
 	// Benchmark and Evals surface the model's committed evidence beside
 	// its entry: perf from the latest benchmark claim, quality from the
 	// latest evaluation per derived suite.
-	Benchmark *catalogBenchmarkSummary `json:"benchmark,omitempty"`
-	Evals     []catalogEvalSummary     `json:"evals,omitempty"`
+	Benchmark *evaluation.BenchmarkSummary `json:"benchmark,omitempty"`
+	Evals     []evaluation.EvalSummary     `json:"evals,omitempty"`
 }
 
 // catalogCapability is one task activation on a catalogued model.

@@ -78,12 +78,12 @@ func TestCatalogEvidenceIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	benchmark, measured := index.benchmarks[registered]
+	benchmark, measured := index.BenchmarksByLocation[registered]
 	if !measured || benchmark.Tier != string(runrecord.TierCapabilityMeasured) ||
 		benchmark.DecodeTokensPerSecond != 491.35 || benchmark.WallNS != 220_000_000 {
-		t.Fatalf("benchmark summary = (%+v, %t) keys=%v", benchmark, measured, index.benchmarks)
+		t.Fatalf("benchmark summary = (%+v, %t) keys=%v", benchmark, measured, index.BenchmarksByLocation)
 	}
-	evals := index.evaluations[recipeID]
+	evals := index.EvaluationsByRecipe[recipeID]
 	if len(evals) != 1 || evals[0].Suite != "store/mmlu" || evals[0].Metrics["accuracy"] != 0.42 {
 		t.Fatalf("eval summaries = %+v", evals)
 	}

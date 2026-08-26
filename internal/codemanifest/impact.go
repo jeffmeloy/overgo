@@ -62,6 +62,12 @@ func Close(base, candidate Manifest, delta Delta) (Impact, error) {
 		ExternalInputs: slices.Clone(delta.ExternalInputs),
 		Uncertainty:    slices.Clone(delta.Uncertainty),
 	}
+	for _, change := range delta.ExternalInputs {
+		impact.Uncertainty = append(impact.Uncertainty, Uncertainty{
+			Kind: UncertaintyNonGo, Path: change.Path,
+			Reason: "changed non-Go input has no structural dependency adapter",
+		})
+	}
 	packages := map[string]bool{}
 	for _, symbol := range impact.Reachable {
 		packages[symbol.Package] = true

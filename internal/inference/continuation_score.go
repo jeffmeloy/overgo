@@ -10,6 +10,18 @@ import (
 	"overgo/internal/tokenizer"
 )
 
+// ScoringPrefix reports the model-declared sequence-scoring prefix:
+// the DNA begin tag for hybrid DNA tokenizers, empty otherwise. The
+// evaluation layer shapes pure-sequence input through it so scores
+// measure the trained format.
+func (r *Runner) ScoringPrefix() string {
+	if r == nil || r.vocab == nil {
+		return ""
+	}
+	prefix, _ := r.vocab.ScoringPrefix()
+	return prefix
+}
+
 func (r *Runner) ScoreContinuations(
 	ctx context.Context,
 	prompt string,
@@ -18,15 +30,30 @@ func (r *Runner) ScoreContinuations(
 	if r == nil || r.vocab == nil {
 		return nil, errRunnerNil
 	}
-	if ctx == nil || prompt == "" || len(candidates) < 2 {
+	// A choice suite scores two or more candidates against a prompt; a
+	// sequence-scoring suite scores one candidate against the empty
+	// prompt, whose encoding is the tokenizer's BOS context -- the
+	// full-sequence likelihood. Both ride the same path below.
+	if ctx == nil || len(candidates) < 1 {
 		return nil, errors.New("inference: incomplete continuation scoring request")
 	}
 	promptIDs, err := r.vocab.Encode(prompt, tokenizer.EncodeOptions{AddSpecial: true})
 	if err != nil {
 		return nil, err
 	}
-	if len(promptIDs) == 0 {
-		return nil, errors.New("inference: continuation prompt produced no tokens")
+	bosContext := false
+	if len(promptIDs) == 0 && prompt == "" {
+		// A tokenizer without auto-BOS encodes the empty prompt to
+		// nothing. The BOS token stands in as the empty context; a
+		// vocabulary without BOS at all conditions the single candidate
+		// on its own first token instead -- the conditional likelihood a
+		// sequence-scoring suite measures.
+		bosContext = true
+		if r.vocab.BOS >= 0 {
+			promptIDs = []tokenizer.TokenID{r.vocab.BOS}
+		} else if len(candidates) != 1 {
+			return nil, errors.New("inference: a vocabulary without BOS scores one sequence at a time")
+		}
 	}
 	continuations := make([][]tokenizer.TokenID, len(candidates))
 	for index, candidate := range candidates {
@@ -37,10 +64,27 @@ func (r *Runner) ScoreContinuations(
 		if err != nil {
 			return nil, err
 		}
+		if bosContext {
+			if len(promptIDs) == 0 {
+				if len(full) < 2 {
+					return nil, errors.New("inference: sequence is too short to score")
+				}
+				promptIDs, continuations[index] = full[:1], full[1:]
+				continue
+			}
+			if len(full) == 0 {
+				return nil, errors.New("inference: continuation candidate produced no tokens")
+			}
+			continuations[index] = full
+			continue
+		}
 		if len(full) <= len(promptIDs) || !slices.Equal(full[:len(promptIDs)], promptIDs) {
 			return nil, fmt.Errorf("inference: candidate %d changes the compiled prompt token prefix", index)
 		}
 		continuations[index] = full[len(promptIDs):]
+	}
+	if len(promptIDs) == 0 {
+		return nil, errors.New("inference: continuation prompt produced no tokens")
 	}
 	if err := r.lockOpen(); err != nil {
 		return nil, err

@@ -49,6 +49,8 @@ const (
 	BuildRecipeFact recipe.PortName = "recipe"
 	// BuildDatasetFact identifies dataset authority.
 	BuildDatasetFact recipe.PortName = "dataset"
+	// BuildOptimizerFact identifies optimizer authority.
+	BuildOptimizerFact recipe.PortName = "optimizer"
 	// BuildConstructionFact identifies construction authority.
 	BuildConstructionFact recipe.PortName = "construction"
 	// BuildModelFact identifies the current model.
@@ -140,6 +142,7 @@ func modelBuildModules() []recipe.Module {
 	required := []recipe.ArtifactRequirement{
 		{Name: BuildRecipeFact, Kind: artifact.KindRecipe, Preserve: true},
 		{Name: BuildDatasetFact, Kind: artifact.KindDataset, Preserve: true},
+		{Name: BuildOptimizerFact, Kind: artifact.KindProfile, Preserve: true},
 		{Name: BuildConstructionFact, Kind: artifact.KindRecipe, Preserve: true},
 	}
 	stage := func(node recipe.NodeID, id, next recipe.ModuleID, produced ...recipe.ArtifactRequirement) recipe.Module {

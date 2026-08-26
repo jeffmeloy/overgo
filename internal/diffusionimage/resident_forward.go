@@ -86,7 +86,7 @@ func CompileResidentForward(ctx context.Context, model *Model, ordinal, imageHei
 	program, err := session.Compile(ctx, "diffusion image resident forward", []*tensor.Tensor{input}, output)
 	if err == nil {
 		for _, binding := range graph.static {
-			err = session.BindF32(ctx, program, "diffusionimage:"+binding.node.Name, binding.node, binding.value.Data)
+			err = session.BindF32(ctx, program, "diffusionimage:"+binding.Node.Name, binding.Node, binding.Value.Data)
 			if err != nil {
 				break
 			}

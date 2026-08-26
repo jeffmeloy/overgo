@@ -10,7 +10,7 @@ import (
 )
 
 func TestArchitectureProfileCatalogRegistryParity(t *testing.T) {
-	documents, err := CompileArchitectureProfileCatalog()
+	documents, err := compileArchitectureProfileCatalog()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestPublishArchitectureProfileCatalogSupersedesStaleAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	documents, err := CompileArchitectureProfileCatalog()
+	documents, err := compileArchitectureProfileCatalog()
 	if err != nil {
 		t.Fatal(err)
 	}

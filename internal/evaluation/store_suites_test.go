@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -161,5 +162,34 @@ func TestDeriveStoreSuites(t *testing.T) {
 	descriptor := suites[0].Descriptor()
 	if descriptor.Kind != MultipleChoiceKind || descriptor.Cases != 5 {
 		t.Fatalf("descriptor = %+v, want the 5-case multiple-choice suite", descriptor)
+	}
+}
+
+// TestAssembleDNASuite pins the corpus-slice window: whole-genome rows
+// truncate to the fixed scoring window every model scores identically,
+// and rows inside the window pass through whole.
+func TestAssembleDNASuite(t *testing.T) {
+	long := strings.Repeat("ACGTCA", dnaScoringWindowChars/6+7)
+	assembled, dropped, err := assembleDNASuite([]storeCase{
+		{
+			entry: "dna/mrna_evo2/corpus-slice", subset: "mrna_evo2", ordinal: 0,
+			fields: rawFields(t, map[string]any{"text": long}),
+		},
+		{
+			entry: "dna/mrna_evo2/corpus-slice", subset: "mrna_evo2", ordinal: 1,
+			fields: rawFields(t, map[string]any{"text": "ACGT"}),
+		},
+	})
+	if err != nil || dropped != 0 {
+		t.Fatalf("assemble = (%v, %d)", err, dropped)
+	}
+	suite := assembled.(SequenceScoringSuite)
+	if len(suite.Cases) != 2 || len(suite.Cases[0].Text) != dnaScoringWindowChars ||
+		suite.Cases[0].Text != long[:dnaScoringWindowChars] || suite.Cases[1].Text != "ACGT" {
+		t.Fatalf("window = %d and %d chars, want %d and 4",
+			len(suite.Cases[0].Text), len(suite.Cases[1].Text), dnaScoringWindowChars)
+	}
+	if suite.Cases[0].Name != "dna/mrna_evo2/corpus-slice/0" || suite.Cases[0].Group != "mrna_evo2" {
+		t.Fatalf("case identity = %+v", suite.Cases[0])
 	}
 }

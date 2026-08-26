@@ -138,7 +138,7 @@ func (r *Runner) applyCogVLMVisualWeights(
 	info model.LayerWeights,
 	weights *model.LayerGraphWeights,
 	hostFeeds map[*tensor.Tensor]reference.Value,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+	deviceFeeds *tensor.InputBindings[driver.DevicePtr],
 ) error {
 	if r.program.Model.ProjectedInput().Overrides != model.EmbeddingOverrideVisualSpan {
 		return errors.New("inference: visual expert weights require CogVLM architecture")
@@ -164,7 +164,7 @@ func (r *Runner) applyCogVLMVisualWeights(
 				return err
 			}
 			nodes[index] = node
-			deviceFeeds[node] = pointer
+			deviceFeeds.Add(node, pointer)
 			continue
 		}
 		value, err := r.hostTensor(ctx, *tensorInfo)

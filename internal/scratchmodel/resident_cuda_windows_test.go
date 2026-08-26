@@ -22,12 +22,13 @@ func TestScratchResidentTrajectoryParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	const steps = 3
-	host, err := construction.TrainShared(steps)
+	policy := trainingprogram.BuiltinOptimizerPolicy()
+	host, err := construction.TrainShared(steps, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
 	initializedAt := time.Now()
-	trainer, err := NewResidentTrainer(construction, steps)
+	trainer, err := NewResidentTrainer(construction, steps, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,16 +94,15 @@ func TestScratchResidentStateParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hostMuon, err := optimizer.New(hostWeights, hostGradients, construction.optimizer, optimizer.Config{
-		BaseLearningRate: construction.config.BaseLR,
-		Momentum:         construction.config.MuonMomentum,
-		Steps:            steps,
-		Schedule:         optimizer.ScheduleLinearDecay,
-	})
+	config, err := construction.optimizerConfig(trainingprogram.BuiltinOptimizerPolicy(), steps)
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewResidentTrainer(construction, steps)
+	hostMuon, err := optimizer.New(hostWeights, hostGradients, construction.optimizer, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewResidentTrainer(construction, steps, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}

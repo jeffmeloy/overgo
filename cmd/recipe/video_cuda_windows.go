@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 
 	"overgo/internal/artifact"
@@ -106,17 +105,9 @@ func resolveVideoSource(path string) (capabilitySource, error) {
 			if err != nil {
 				return recipe.Definition{}, nil, err
 			}
-			definition, err := modelrecipe.LatentVideoDefinition(modelID, profile.ID)
+			definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleLatentVideoPrepare, modelID, profile.ID)
 			return definition, []artifact.Content{content}, err
 		}}, err
 	}
-	recognized, err := oscillatorimage.Recognize(path)
-	if err != nil {
-		return capabilitySource{}, err
-	}
-	if !recognized {
-		return capabilitySource{}, fmt.Errorf("video-gen: artifact has no registered video recipe")
-	}
-	inventory, err := imageGenInventory(path)
-	return definitionSource(inventory, err, modelrecipe.OscillatorVideoDefinition)
+	return resolveDeclaredVideoSource(path)
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/trainingprogram"
 )
 
 func TestScratchSharedHostRuntimeParity(t *testing.T) {
@@ -13,7 +14,7 @@ func TestScratchSharedHostRuntimeParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := construction.TrainShared(oracle.Steps)
+	result, err := construction.TrainShared(oracle.Steps, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}

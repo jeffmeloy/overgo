@@ -226,7 +226,9 @@ func TestTypedVideoRecipesSelectRuntimeWithoutPlacement(t *testing.T) {
 		inputs  []recipe.DataKind
 		modules []recipe.ModuleID
 	}{
-		{"generate", LatentVideoDefinition, []recipe.DataKind{recipe.DataPromptConditioning}, []recipe.ModuleID{ModuleLatentVideoPrepare, ModuleLatentVideoIntegrate, ModuleLatentVideoDecode}},
+		{"generate", func(model, profile artifact.ID) (recipe.Definition, error) {
+			return GenerationDefinition(ModuleLatentVideoPrepare, model, profile)
+		}, []recipe.DataKind{recipe.DataPromptConditioning}, []recipe.ModuleID{ModuleLatentVideoPrepare, ModuleLatentVideoIntegrate, ModuleLatentVideoDecode}},
 		{"edit", ReferenceVideoEditDefinition, []recipe.DataKind{recipe.DataPromptConditioning, recipe.DataVideo}, []recipe.ModuleID{ModuleReferenceVideoPrepare, ModuleReferenceVideoIntegrate, ModuleReferenceVideoDecode}},
 	}
 	for _, test := range tests {
@@ -258,7 +260,7 @@ func TestTypedVideoRecipesSelectRuntimeWithoutPlacement(t *testing.T) {
 
 func TestTypedOscillatorVideoRecipeSelectsHostRuntime(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "typed-oscillator-video-model")
-	definition, err := OscillatorVideoDefinition(modelID)
+	definition, err := GenerationDefinition(ModuleOscillatorVideoPrepare, modelID, artifact.ID{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,19 +284,20 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "typed-image-profile")
 	tests := []struct {
 		name      string
-		define    func(artifact.ID) (recipe.Definition, error)
+		prepare   recipe.ModuleID
+		profile   artifact.ID
 		input     recipe.DataKind
 		placement recipe.Placement
 		modules   []recipe.ModuleID
 	}{
-		{"latent", func(model artifact.ID) (recipe.Definition, error) { return LatentImageDefinition(model, profileID) }, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleLatentImagePrepare, ModuleLatentImageIntegrate, ModuleLatentImageDecode}},
-		{"oscillator", OscillatorImageDefinition, recipe.DataClassConditioning, recipe.PlacementHost, []recipe.ModuleID{ModuleOscillatorImagePrepare, ModuleOscillatorImageIntegrate, ModuleOscillatorImageDecode}},
-		{"diffusion", DiffusionImageDefinition, recipe.DataImageTensor, recipe.PlacementHost, []recipe.ModuleID{ModuleDiffusionImagePrepare, ModuleDiffusionImageIntegrate, ModuleDiffusionImageDecode}},
-		{"routed", func(model artifact.ID) (recipe.Definition, error) { return RoutedImageDefinition(model, profileID) }, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleRoutedImagePrepare, ModuleRoutedImageIntegrate, ModuleRoutedImageDecode}},
+		{"latent", ModuleLatentImagePrepare, profileID, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleLatentImagePrepare, ModuleLatentImageIntegrate, ModuleLatentImageDecode}},
+		{"oscillator", ModuleOscillatorImagePrepare, artifact.ID{}, recipe.DataClassConditioning, recipe.PlacementHost, []recipe.ModuleID{ModuleOscillatorImagePrepare, ModuleOscillatorImageIntegrate, ModuleOscillatorImageDecode}},
+		{"diffusion", ModuleDiffusionImagePrepare, artifact.ID{}, recipe.DataImageTensor, recipe.PlacementHost, []recipe.ModuleID{ModuleDiffusionImagePrepare, ModuleDiffusionImageIntegrate, ModuleDiffusionImageDecode}},
+		{"routed", ModuleRoutedImagePrepare, profileID, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleRoutedImagePrepare, ModuleRoutedImageIntegrate, ModuleRoutedImageDecode}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			definition, err := test.define(modelID)
+			definition, err := GenerationDefinition(test.prepare, modelID, test.profile)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -320,7 +323,7 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "profiled-image-model")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "profiled-image-policy")
-	definition, err := LatentImageDefinition(modelID, profileID)
+	definition, err := GenerationDefinition(ModuleLatentImagePrepare, modelID, profileID)
 	if err != nil {
 		t.Fatal(err)
 	}

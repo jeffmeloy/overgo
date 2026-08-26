@@ -428,7 +428,7 @@ func checkCUDAGraph(
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := reference.ExecuteProgram(program, feeds)
+	want, err := reference.Execute(program.Outputs(), feeds)
 	if err != nil {
 		t.Fatal(err)
 	}

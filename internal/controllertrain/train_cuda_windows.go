@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
+	"overgo/internal/trainingprogram"
 )
 
 // SeedRun: one shared-runtime controller training result.
@@ -26,7 +27,7 @@ type SeedRun struct {
 	ScratchSplit      artifact.ID
 }
 
-func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, seed int64, steps int) (SeedRun, error) {
+func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, policy trainingprogram.OptimizerPolicy, seed int64, steps int) (SeedRun, error) {
 	started := time.Now()
 	if steps <= 0 {
 		return SeedRun{}, errors.New("controller training: steps must be positive")
@@ -38,7 +39,7 @@ func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, seed int64
 	if err != nil {
 		return SeedRun{}, err
 	}
-	trainer, err := scratchmodel.NewResidentTrainer(construction, steps)
+	trainer, err := scratchmodel.NewResidentTrainer(construction, steps, policy)
 	if err != nil {
 		return SeedRun{}, err
 	}

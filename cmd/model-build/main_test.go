@@ -2,9 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"overgo/internal/overgodb"
+	"overgo/internal/scratchmodel"
 )
 
 func TestCommandRunsSharedModelBuilder(t *testing.T) {
@@ -13,8 +18,23 @@ func TestCommandRunsSharedModelBuilder(t *testing.T) {
 	if err := os.WriteFile(dataset, []byte(`["abcd","bcda","cdab","dabc"]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	repository := filepath.Join(directory, "repo")
+	arguments := []string{"-repo", repository, "-dataset", dataset, "-steps", "1"}
+	if err := run(arguments, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "active derivation profile absent") {
+		t.Fatalf("unseeded model build error = %v", err)
+	}
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := scratchmodel.PublishDerivationProfileCatalog(context.Background(), store); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
 	var output bytes.Buffer
-	if err := run([]string{"-repo", filepath.Join(directory, "repo"), "-dataset", dataset, "-steps", "1"}, &output); err != nil {
+	if err := run(arguments, &output); err != nil {
 		t.Fatal(err)
 	}
 	for _, field := range []string{`"model":`, `"checkpoint":`, `"run":`, `"evaluation":`, `"decision":`} {

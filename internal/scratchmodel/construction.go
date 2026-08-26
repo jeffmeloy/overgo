@@ -45,10 +45,8 @@ type Config struct {
 	LayerCount      int            `json:"n_layer"`
 	MLPWidth        int            `json:"mlp_width"`
 	AttentionWindow int            `json:"attn_window"`
-	BaseLR          float64        `json:"base_lr"`
 	InitStd         float64        `json:"init_std"`
 	Epsilon         float64        `json:"eps"`
-	MuonMomentum    float64        `json:"muon_momentum"`
 	Characters      []string       `json:"uchars"`
 	BOS             int            `json:"BOS"`
 	CharacterIndex  map[string]int `json:"char_to_idx"`
@@ -341,8 +339,8 @@ func deriveConfig(documents []string, steps int, profile DerivationProfile) Conf
 		VocabSize: vocabSize, BlockSize: blockSize, Embedding: embedding,
 		HeadDim: headDim, HeadCount: headCount, LayerCount: layerCount,
 		MLPWidth: embedding * mlpFactor, AttentionWindow: min(blockSize, embedding),
-		BaseLR: 1 / math.Sqrt(float64(estimated)), InitStd: 1 / math.Sqrt(float64(embedding)),
-		Epsilon: profile.Epsilon, MuonMomentum: profile.MuonMomentum, Characters: characters, BOS: len(characters),
+		InitStd: 1 / math.Sqrt(float64(embedding)), Epsilon: profile.Epsilon,
+		Characters: characters, BOS: len(characters),
 		CharacterIndex: index, EstimatedParams: estimated,
 	}
 }
@@ -355,6 +353,15 @@ func deriveLayerCount(steps, blockSize, embedding, tokenCount, minimumLayers int
 		scale *= 2
 	}
 	return min(max(minimumLayers, minimumLayers*scale), max(minimumLayers, embedding/2))
+}
+
+func (c Construction) optimizerConfig(policy trainingprogram.OptimizerPolicy, totalSteps int) (optimizer.Config, error) {
+	config, err := policy.Config(c.config.EstimatedParams)
+	if err != nil {
+		return optimizer.Config{}, err
+	}
+	config.Steps, config.Schedule = totalSteps, optimizer.ScheduleLinearDecay
+	return config, nil
 }
 
 func effectiveVocabulary(counts map[rune]int, total int) float64 {

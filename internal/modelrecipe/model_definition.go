@@ -139,7 +139,7 @@ func NewModelDefinitionDocument(
 		return ModelDefinitionDocument{}, err
 	}
 	document := ModelDefinitionDocument{
-		Version: ModelDefinitionVersion, Model: tensors.Model,
+		Version: ModelDefinitionVersion, Model: tensors.Owner,
 		Profile: profile.ID, TensorInventory: tensors.ID,
 		Architecture: profile.Architecture, Spec: bound,
 	}
@@ -175,7 +175,7 @@ func (d ModelDefinitionDocument) Resolve(
 	if err := tensors.ValidateIdentity(); err != nil {
 		return ResolvedModelDefinition{}, err
 	}
-	if d.Model != tensors.Model || d.Profile != profile.ID || d.TensorInventory != tensors.ID ||
+	if d.Model != tensors.Owner || d.Profile != profile.ID || d.TensorInventory != tensors.ID ||
 		d.Architecture != profile.Architecture || d.Spec.Architecture != d.Architecture {
 		return ResolvedModelDefinition{}, errors.New("model recipe: model definition binding mismatch")
 	}

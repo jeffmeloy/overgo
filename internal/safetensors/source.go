@@ -194,17 +194,25 @@ func (s *Source) IntShapes() (map[string][]int, error) {
 	}
 	shapes := make(map[string][]int, len(s.Tensors))
 	for name, tensor := range s.Tensors {
-		shape := make([]int, len(tensor.Shape))
-		for index, dimension := range tensor.Shape {
-			converted := int(dimension)
-			if dimension == 0 || uint64(converted) != dimension {
-				return nil, fmt.Errorf("safetensors: tensor %q dimension %d is not host-representable", name, dimension)
-			}
-			shape[index] = converted
+		shape, err := hostShape(name, tensor.Shape)
+		if err != nil {
+			return nil, err
 		}
 		shapes[name] = shape
 	}
 	return shapes, nil
+}
+
+func hostShape(name string, dimensions []uint64) ([]int, error) {
+	shape := make([]int, len(dimensions))
+	for index, dimension := range dimensions {
+		converted := int(dimension)
+		if dimension == 0 || uint64(converted) != dimension {
+			return nil, fmt.Errorf("safetensors: tensor %q dimension %d is not host-representable", name, dimension)
+		}
+		shape[index] = converted
+	}
+	return shape, nil
 }
 
 // Shards: sorted repository-relative shard names.

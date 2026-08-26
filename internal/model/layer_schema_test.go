@@ -9,6 +9,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/reference"
 )
 
 // legacyLayerCatalogSlots is the exact slot set the deleted reflection
@@ -142,7 +143,14 @@ func TestUnifiedLayerBindingSchema(t *testing.T) {
 			t.Errorf("%s graph node was not bound", name)
 			continue
 		}
-		feed, ok := feeds[pair.node]
+		var feed reference.Value
+		ok := false
+		for _, binding := range feeds {
+			if binding.Node == pair.node {
+				feed, ok = binding.Value, true
+				break
+			}
+		}
 		if !ok {
 			t.Errorf("%s graph node has no feed", name)
 			continue
@@ -232,7 +240,9 @@ func TestBindDeviceLayerGraphInputsPreservesStorageTypes(t *testing.T) {
 	if graph.AttentionNorm.Type != dtype.F32 || graph.FeedForwardGate.Type != dtype.Q8_0 {
 		t.Fatalf("storage types = %s/%s, want F32/Q8_0", graph.AttentionNorm.Type, graph.FeedForwardGate.Type)
 	}
-	if feeds[graph.AttentionNorm] != normPointer || feeds[graph.FeedForwardGate] != gatePointer {
+	if len(feeds) != 2 ||
+		feeds[0].Node != graph.AttentionNorm || feeds[0].Value != normPointer ||
+		feeds[1].Node != graph.FeedForwardGate || feeds[1].Value != gatePointer {
 		t.Fatalf("device feeds = %v", feeds)
 	}
 }

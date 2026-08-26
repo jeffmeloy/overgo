@@ -43,12 +43,12 @@ func (r *Runner) decodeDeviceInput(
 func (r *Runner) applyDeviceOutputNorm(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
-	deviceFeeds map[*tensor.Tensor]driver.DevicePtr,
+	deviceFeeds *tensor.InputBindings[driver.DevicePtr],
 ) (*tensor.Tensor, error) {
 	return r.buildOutputNorm(builder, input, func(info gguf.TensorInfo) (*tensor.Tensor, error) {
 		node, pointer, err := r.deviceInput(builder, info)
 		if err == nil {
-			deviceFeeds[node] = pointer
+			deviceFeeds.Add(node, pointer)
 		}
 		return node, err
 	})

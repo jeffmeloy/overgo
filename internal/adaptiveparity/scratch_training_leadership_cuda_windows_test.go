@@ -22,6 +22,7 @@ import (
 	"overgo/internal/scratchmodel"
 	"overgo/internal/scratchmodeltest"
 	"overgo/internal/strictjson"
+	"overgo/internal/trainingprogram"
 )
 
 type scratchPerformanceEvidence struct {
@@ -129,12 +130,13 @@ func TestScratchTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	compileWall := time.Since(compileStarted)
-	host, err := construction.TrainShared(oracle.Steps)
+	policy := trainingprogram.BuiltinOptimizerPolicy()
+	host, err := construction.TrainShared(oracle.Steps, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
 	initStarted := time.Now()
-	trainer, err := scratchmodel.NewResidentTrainer(construction, oracle.Steps)
+	trainer, err := scratchmodel.NewResidentTrainer(construction, oracle.Steps, policy)
 	if err != nil {
 		t.Fatal(err)
 	}

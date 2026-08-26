@@ -83,67 +83,21 @@ func (v Value) materialized() (Value, error) {
 	return Value{Shape: v.Shape, Data: make([]float32, int(elements))}, nil
 }
 
-// Execute: evaluates outputs using feeds for input nodes
+// Execute evaluates one graph from fixture feeds.
 func Execute(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]Value) (map[*tensor.Tensor]Value, error) {
-	program, err := tensor.CompileProgram(outputs...)
+	program, err := Compile(outputs...)
 	if err != nil {
 		return nil, err
 	}
-	return ExecuteProgram(program, feeds)
-}
-
-// ExecuteProgram evaluates one validated neutral tensor program.
-func ExecuteProgram(program tensor.Program, feeds map[*tensor.Tensor]Value) (map[*tensor.Tensor]Value, error) {
-	if err := program.RequireBackend(tensor.BackendReference); err != nil {
-		return nil, err
+	inputs := program.NewInputs()
+	for node, value := range feeds {
+		if program.HasInput(node) {
+			if err := inputs.Set(node, value); err != nil {
+				return nil, err
+			}
+		}
 	}
-	order := program.Order()
-	values := make(map[*tensor.Tensor]Value, len(order))
-	for _, node := range order {
-		if node.Type != dtype.F32 {
-			return nil, fmt.Errorf("reference executor does not support %s for tensor %d", node.Type, node.ID)
-		}
-		if node.Op == tensor.OpInput {
-			value, ok := feeds[node]
-			if !ok {
-				if embedded, embeddedOK := node.Attrs.(tensor.EmbeddedInputAttributes); embeddedOK {
-					value = Value{Shape: node.Shape, Data: embedded.Data}
-					ok = true
-				}
-			}
-			if !ok {
-				return nil, fmt.Errorf("missing feed for input %q", node.Name)
-			}
-			if !value.Shape.Equal(node.Shape) {
-				return nil, fmt.Errorf("feed shape for %q does not match graph", node.Name)
-			}
-			materialized, err := value.materialized()
-			if err != nil {
-				return nil, fmt.Errorf("feed storage for %q: %w", node.Name, err)
-			}
-			values[node] = materialized
-			continue
-		}
-		inputs := make([]Value, len(node.Inputs))
-		for index, input := range node.Inputs {
-			value, ok := values[input]
-			if !ok {
-				return nil, fmt.Errorf("value for tensor %d is unavailable", input.ID)
-			}
-			inputs[index] = value
-		}
-		value, err := executeNode(node, inputs)
-		if err != nil {
-			return nil, fmt.Errorf("execute tensor %d (%s): %w", node.ID, node.Op, err)
-		}
-		values[node] = value
-	}
-	outputs := program.Outputs()
-	results := make(map[*tensor.Tensor]Value, len(outputs))
-	for _, output := range outputs {
-		results[output] = values[output]
-	}
-	return results, nil
+	return program.Execute(inputs, program.NewWorkspace())
 }
 
 // ExecuteOperation: single-node correctness bridge.

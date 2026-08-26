@@ -180,15 +180,16 @@ func TestDeepSeek32NamedStateGraphBinding(t *testing.T) {
 			},
 		}},
 	}
-	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
+	var deviceFeeds tensor.InputBindings[driver.DevicePtr]
 	device, err := runner.deviceBatchLayerCacheInputs(
-		builder, "fixture.", 0, deviceCache, hostFeeds, deviceFeeds,
+		builder, "fixture.", 0, deviceCache, hostFeeds, &deviceFeeds,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	deviceIndexer := device.states[model.CacheStateIndexerKey]
-	if deviceIndexer.Mode != model.CacheStateToken || deviceFeeds[deviceIndexer.Value] != indexerPointer {
+	if deviceIndexer.Mode != model.CacheStateToken || len(deviceFeeds) != 3 ||
+		deviceFeeds[2].Node != deviceIndexer.Value || deviceFeeds[2].Value != indexerPointer {
 		t.Fatalf("device indexer binding = %+v", deviceIndexer)
 	}
 }

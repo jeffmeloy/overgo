@@ -9,6 +9,20 @@ import (
 // WeightBindings preserve graph compilation order.
 type WeightBindings []*Tensor
 
+// InputBinding pairs one graph input with its external value.
+type InputBinding[T any] struct {
+	Node  *Tensor
+	Value T
+}
+
+// InputBindings preserve graph construction order.
+type InputBindings[T any] []InputBinding[T]
+
+// Add appends one binding in graph construction order.
+func (b *InputBindings[T]) Add(node *Tensor, value T) {
+	*b = append(*b, InputBinding[T]{Node: node, Value: value})
+}
+
 // Node resolves one compiled binding.
 func (b WeightBindings) Node(name string) *Tensor {
 	for _, node := range b {

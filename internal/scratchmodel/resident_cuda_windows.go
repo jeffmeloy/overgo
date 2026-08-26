@@ -68,7 +68,7 @@ type residentForwardProgram struct {
 	hostFeeds map[*tensor.Tensor]reference.Value
 }
 
-func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTrainer, error) {
+func NewResidentTrainer(construction Construction, totalSteps int, policy trainingprogram.OptimizerPolicy) (*ResidentTrainer, error) {
 	if totalSteps <= 0 || construction.optimizer.Identity() == "" || len(construction.weights) == 0 {
 		return nil, errors.New("scratch model: invalid resident trainer")
 	}
@@ -77,15 +77,15 @@ func NewResidentTrainer(construction Construction, totalSteps int) (*ResidentTra
 	if err != nil {
 		return nil, err
 	}
+	config, err := construction.optimizerConfig(policy, totalSteps)
+	if err != nil {
+		_ = worker.Close()
+		return nil, err
+	}
 	trainer := &ResidentTrainer{
 		construction: construction, worker: worker,
 		lifecycle: ResidentLifecycle{DriverPreparation: time.Since(driverStarted)},
-		config: optimizer.Config{
-			BaseLearningRate: construction.config.BaseLR,
-			Momentum:         construction.config.MuonMomentum,
-			Steps:            totalSteps,
-			Schedule:         optimizer.ScheduleLinearDecay,
-		},
+		config:    config,
 	}
 	fail := func(cause error) (*ResidentTrainer, error) {
 		return nil, errors.Join(cause, trainer.Close())
@@ -755,11 +755,11 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 	return loss, nil
 }
 
-func (c Construction) TrainResident(totalSteps int) (TrainingResult, error) {
+func (c Construction) TrainResident(totalSteps int, policy trainingprogram.OptimizerPolicy) (TrainingResult, error) {
 	if totalSteps <= 0 || len(c.split.Train) == 0 || len(c.split.Validation) == 0 {
 		return TrainingResult{}, errors.New("scratch model: invalid resident training run")
 	}
-	trainer, err := NewResidentTrainer(c, totalSteps)
+	trainer, err := NewResidentTrainer(c, totalSteps, policy)
 	if err != nil {
 		return TrainingResult{}, err
 	}

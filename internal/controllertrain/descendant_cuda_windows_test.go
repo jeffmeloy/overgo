@@ -17,6 +17,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodeltest"
+	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
 )
 
@@ -32,7 +33,7 @@ func TestDescendantBeatsParent(t *testing.T) {
 	}
 	runs := make([]controllertrain.SeedRun, 3)
 	for index, seed := range []int64{17, 29, 43} {
-		runs[index], err = controllertrain.TrainSeed(corpus, scratchmodeltest.Profile(t), seed, 800)
+		runs[index], err = controllertrain.TrainSeed(corpus, scratchmodeltest.Profile(t), trainingprogram.BuiltinOptimizerPolicy(), seed, 800)
 		if err != nil {
 			t.Fatal(err)
 		}

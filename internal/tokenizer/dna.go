@@ -15,6 +15,17 @@ const (
 
 const dnaAlphabet = "ATCG"
 
+// ScoringPrefix reports the declared DNA begin tag when the vocabulary
+// carries the k-mer extension: pure-sequence input to a hybrid DNA
+// tokenizer scores inside its declared region, the same convention the
+// reference tokenizer documents for pure-DNA prompts.
+func (v *Vocab) ScoringPrefix() (string, bool) {
+	if v == nil || v.dna == nil || len(v.dna.specialTokens) <= dnaSpecialBegin {
+		return "", false
+	}
+	return v.dna.specialTokens[dnaSpecialBegin], true
+}
+
 type dnaExtension struct {
 	k             uint32
 	start         uint32

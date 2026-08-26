@@ -111,7 +111,7 @@ func TestExecutorReplayMatchesReference(t *testing.T) {
 	feeds := map[*tensor.Tensor]reference.Value{
 		input: {Shape: shape, Data: []float32{-4, -3, -2, -1, 1, 2, 3, 4}},
 	}
-	want, err := reference.ExecuteProgram(program, feeds)
+	want, err := reference.Execute(program.Outputs(), feeds)
 	if err != nil {
 		t.Fatal(err)
 	}

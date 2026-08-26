@@ -128,20 +128,16 @@ func LoadHead(headDir string) (*Head, error) {
 		return nil, err
 	}
 	defer source.Close()
-	shapes, err := source.IntShapes()
-	if err != nil {
-		return nil, fmt.Errorf("tabularicl: inventory: %w", err)
-	}
 	for name, tensor := range source.Tensors {
 		if tensor.DType != "F32" {
 			return nil, fmt.Errorf("tabularicl: tensor %q dtype %s violates the all-F32 contract", name, tensor.DType)
 		}
 	}
-	weights, err := source.ReadAllF32()
+	catalog, err := source.MaterializeF32(safetensors.F32Selection{RetainShapes: true})
 	if err != nil {
 		return nil, fmt.Errorf("tabularicl: materialize: %w", err)
 	}
-	loader := &headLoader{weights: weights, shapes: shapes}
+	loader := &headLoader{weights: catalog.Values, shapes: catalog.Shapes}
 	head, err := loader.compile()
 	if err != nil {
 		return nil, fmt.Errorf("tabularicl %s: %w", headDir, err)

@@ -17,15 +17,15 @@ func metadataOpSignature(op metadataOp) string {
 	}
 	switch op.kind {
 	case metadataOpUint32:
-		return fmt.Sprintf("%s u32 %s->%s", modes[op.mode], op.key, op.field)
+		return fmt.Sprintf("%s u32 %s", modes[op.mode], op.key)
 	case metadataOpFloat32:
-		return fmt.Sprintf("%s f32 %s->%s", modes[op.mode], op.key, op.field)
+		return fmt.Sprintf("%s f32 %s", modes[op.mode], op.key)
 	case metadataOpBool:
-		return fmt.Sprintf("%s bool %s->%s", modes[op.mode], op.key, op.field)
+		return fmt.Sprintf("%s bool %s", modes[op.mode], op.key)
 	case metadataOpSetUint32:
-		return fmt.Sprintf("set u32 %s=%d", op.field, op.value)
+		return fmt.Sprintf("set u32=%d", op.value)
 	case metadataOpSetBool:
-		return fmt.Sprintf("set bool %s=%t", op.field, op.flag)
+		return fmt.Sprintf("set bool=%t", op.flag)
 	case metadataOpDefaults:
 		return "defaults"
 	case metadataOpInverseKeyScale:
@@ -70,9 +70,9 @@ func metadataOpSignature(op metadataOp) string {
 	case metadataOpAttentionScaleFromValueWidth:
 		return "attention-scale-from-value-width"
 	case metadataOpSetFloat32:
-		return fmt.Sprintf("set f32 %s=%g", op.field, op.floatValue)
+		return fmt.Sprintf("set f32=%g", op.floatValue)
 	case metadataOpCopyUint32:
-		return fmt.Sprintf("copy u32 %s->%s", op.key, op.field)
+		return "copy u32"
 	case metadataOpLongRoPE:
 		return "long-rope"
 	case metadataOpYaRNAttentionFactor:
@@ -92,52 +92,52 @@ func programSignatures(program []metadataOp) []string {
 }
 
 const (
-	rmsEpsilonOp   = "req f32 attention.layer_norm_rms_epsilon->RMSNormEpsilon"
-	layerEpsilonOp = "req f32 attention.layer_norm_epsilon->LayerNormEpsilon"
+	rmsEpsilonOp   = "req f32 attention.layer_norm_rms_epsilon"
+	layerEpsilonOp = "req f32 attention.layer_norm_epsilon"
 )
 
 var rwkv6ReadOps = []string{
-	"req u32 time_mix_extra_dim->TimeMixExtraDim",
-	"req u32 time_decay_extra_dim->TimeDecayExtraDim",
-	"zero u32 rescale_every_n_layers->RescaleEvery",
+	"req u32 time_mix_extra_dim",
+	"req u32 time_decay_extra_dim",
+	"zero u32 rescale_every_n_layers",
 }
 
 var rwkv7ReadOps = []string{
-	"req u32 attention.decay_lora_rank->DecayLoRARank",
-	"req u32 attention.iclr_lora_rank->ICLRLoRARank",
-	"req u32 attention.value_residual_mix_lora_rank->ValueMixLoRARank",
-	"zero u32 attention.gate_lora_rank->GateLoRARank",
+	"req u32 attention.decay_lora_rank",
+	"req u32 attention.iclr_lora_rank",
+	"req u32 attention.value_residual_mix_lora_rank",
+	"zero u32 attention.gate_lora_rank",
 }
 
 func rwkvSuffix(reads []string, shift int) []string {
-	suffix := append([]string{"req u32 wkv.head_size->WKVHeadSize"}, reads...)
+	suffix := append([]string{"req u32 wkv.head_size"}, reads...)
 	return append(suffix,
-		fmt.Sprintf("set u32 TokenShiftCount=%d", shift),
-		"keep u32 token_shift_count->TokenShiftCount",
+		fmt.Sprintf("set u32=%d", shift),
+		"keep u32 token_shift_count",
 	)
 }
 
 func ssmSuffix(grouped bool) []string {
 	suffix := []string{
-		"req u32 ssm.conv_kernel->SSMConvKernel",
-		"req u32 ssm.inner_size->SSMInnerSize",
-		"req u32 ssm.state_size->SSMStateSize",
-		"req u32 ssm.time_step_rank->SSMTimeStepRank",
+		"req u32 ssm.conv_kernel",
+		"req u32 ssm.inner_size",
+		"req u32 ssm.state_size",
+		"req u32 ssm.time_step_rank",
 	}
 	if grouped {
-		return append(suffix, "req u32 ssm.group_count->SSMGroupCount")
+		return append(suffix, "req u32 ssm.group_count")
 	}
-	return append(suffix, "set u32 SSMGroupCount=1", "zero bool ssm.dt_b_c_rms->SSMDtBCNorm")
+	return append(suffix, "set u32=1", "zero bool ssm.dt_b_c_rms")
 }
 
 func commonCoreOps(epsilon string, derives ...string) []string {
 	ops := []string{
 		epsilon,
-		"zero f32 final_logit_softcapping->FinalLogitSoftcap",
-		"zero f32 attn_logit_softcapping->AttentionSoftcap",
+		"zero f32 final_logit_softcapping",
+		"zero f32 attn_logit_softcapping",
 	}
 	ops = append(ops, derives...)
-	return append(ops, "keep f32 attention.scale->AttentionScale", "defaults")
+	return append(ops, "keep f32 attention.scale", "defaults")
 }
 
 // TestProfileCompiledMetadataLoading proves the profile-compiled metadata
@@ -145,14 +145,14 @@ func commonCoreOps(epsilon string, derives ...string) []string {
 // per-family branches did, and that unmigrated families keep branch loading.
 func TestProfileCompiledMetadataLoading(t *testing.T) {
 	cohere2Suffix := []string{
-		"req f32 logit_scale->LogitScale",
-		"req u32 rope.dimension_count->RopeDimensionCount",
+		"req f32 logit_scale",
+		"req u32 rope.dimension_count",
 		"sliding-pattern-type attention.sliding_window_pattern",
 	}
-	ropeDimensionRequired := []string{"req u32 rope.dimension_count->RopeDimensionCount"}
+	ropeDimensionRequired := []string{"req u32 rope.dimension_count"}
 	phi3Suffix := []string{
-		"req u32 rope.dimension_count->RopeDimensionCount",
-		"req u32 rope.scaling.original_context_length->OriginalContextLength",
+		"req u32 rope.dimension_count",
+		"req u32 rope.scaling.original_context_length",
 	}
 	visualSections := []string{"sections req rope.dimension_sections"}
 	programs := []struct {
@@ -163,7 +163,7 @@ func TestProfileCompiledMetadataLoading(t *testing.T) {
 		{"llama", commonCoreOps(rmsEpsilonOp), nil},
 		{"qwen2", commonCoreOps(rmsEpsilonOp), nil},
 		{"granite", commonCoreOps(rmsEpsilonOp), nil},
-		{"talkie", append(commonCoreOps(rmsEpsilonOp), "req f32 logit_scale->LogitScale"), nil},
+		{"talkie", append(commonCoreOps(rmsEpsilonOp), "req f32 logit_scale"), nil},
 		{"cohere2", append(commonCoreOps(layerEpsilonOp), cohere2Suffix...), nil},
 		{"cohere2moe", append(commonCoreOps("epsilon-either"), cohere2Suffix...), nil},
 		{"stablelm", append(commonCoreOps(layerEpsilonOp), ropeDimensionRequired...), nil},
@@ -171,88 +171,88 @@ func TestProfileCompiledMetadataLoading(t *testing.T) {
 		{"phi3", append(commonCoreOps(rmsEpsilonOp), phi3Suffix...), nil},
 		{"phimoe", append(commonCoreOps(rmsEpsilonOp), phi3Suffix...), nil},
 		{"gemma-embedding", append(commonCoreOps(rmsEpsilonOp),
-			"req u32 attention.sliding_window->SlidingWindow",
-			"zero u32 dense_2_feat_in->Dense2FeatureIn",
-			"zero u32 dense_2_feat_out->Dense2FeatureOut",
-			"zero u32 dense_3_feat_in->Dense3FeatureIn",
-			"zero u32 dense_3_feat_out->Dense3FeatureOut"), nil},
+			"req u32 attention.sliding_window",
+			"zero u32 dense_2_feat_in",
+			"zero u32 dense_2_feat_out",
+			"zero u32 dense_3_feat_in",
+			"zero u32 dense_3_feat_out"), nil},
 		{"gptneox", append(commonCoreOps(layerEpsilonOp),
-			"zero u32 rope.dimension_count->RopeDimensionCount",
-			"req bool use_parallel_residual->ParallelResidual"), nil},
+			"zero u32 rope.dimension_count",
+			"req bool use_parallel_residual"), nil},
 		{"qwen", append(commonCoreOps(rmsEpsilonOp), "halve-feed-forward"), nil},
 		{"glm4", append(commonCoreOps(rmsEpsilonOp), "sections keep rope.dimension_sections"), nil},
 		{"glm4moe", append(commonCoreOps(rmsEpsilonOp), "sections keep rope.dimension_sections"), nil},
-		{"falcon", append(commonCoreOps(layerEpsilonOp), "zero u32 rope.dimension_count->RopeDimensionCount"), nil},
+		{"falcon", append(commonCoreOps(layerEpsilonOp), "zero u32 rope.dimension_count"), nil},
 		{"gptj", append(commonCoreOps(layerEpsilonOp), ropeDimensionRequired...), nil},
-		{"command-r", append(commonCoreOps(layerEpsilonOp), "zero f32 logit_scale->LogitScale"), nil},
+		{"command-r", append(commonCoreOps(layerEpsilonOp), "zero f32 logit_scale"), nil},
 		{"jais", commonCoreOps(layerEpsilonOp, "inverse-key-scale"), nil},
-		{"smollm3", append(commonCoreOps(rmsEpsilonOp), "set u32 NoRopeLayerStep=4"), nil},
-		{"olmo", append(commonCoreOps(layerEpsilonOp), "keep f32 attention.clamp_kqv->AttentionClamp"), nil},
+		{"smollm3", append(commonCoreOps(rmsEpsilonOp), "set u32=4"), nil},
+		{"olmo", append(commonCoreOps(layerEpsilonOp), "keep f32 attention.clamp_kqv"), nil},
 		{"qwen2vl", append(commonCoreOps(rmsEpsilonOp), visualSections...), nil},
 		{"paddleocr", append(commonCoreOps(rmsEpsilonOp), visualSections...), nil},
 		{"qwen3vl", append(commonCoreOps(rmsEpsilonOp),
 			"sections req rope.dimension_sections",
-			"keep u32 n_deepstack_layers->DeepstackLayerCount"), nil},
+			"keep u32 n_deepstack_layers"), nil},
 		{"qwen3vlmoe", append(commonCoreOps(rmsEpsilonOp),
 			"sections req rope.dimension_sections",
-			"keep u32 n_deepstack_layers->DeepstackLayerCount"), nil},
-		{"afmoe", append(commonCoreOps(rmsEpsilonOp), "set u32 NoRopeLayerStep=4"), nil},
+			"keep u32 n_deepstack_layers"), nil},
+		{"afmoe", append(commonCoreOps(rmsEpsilonOp), "set u32=4"), nil},
 		{"mimo2", append(commonCoreOps(rmsEpsilonOp), "sliding-schedule required-mixed"), []string{
-			"set u32 ExpertGatingFunc=2", "set bool ExpertWeightsNorm=true"}},
+			"set u32=2", "set bool=true"}},
 		{"mellum", append(commonCoreOps(rmsEpsilonOp), "sliding-schedule optional-mixed"), []string{
-			"req u32 expert_feed_forward_length->ExpertFeedForward", "set bool ExpertWeightsNorm=true"}},
+			"req u32 expert_feed_forward_length", "set bool=true"}},
 		{"hunyuan-moe", commonCoreOps(rmsEpsilonOp), []string{
-			"req u32 expert_feed_forward_length->ExpertFeedForward",
-			"shared-width-policy", "set bool ExpertWeightsNorm=true"}},
+			"req u32 expert_feed_forward_length",
+			"shared-width-policy", "set bool=true"}},
 		{"dbrx", commonCoreOps(layerEpsilonOp), []string{
-			"expert-width-from-model", "set bool ExpertWeightsNorm=true"}},
+			"expert-width-from-model", "set bool=true"}},
 		{"smallthinker", append(commonCoreOps(rmsEpsilonOp), "sliding-schedule dual-expert"), []string{
-			"expert-width-from-model", "set bool ExpertWeightsNorm=true",
-			"req u32 expert_gating_func->ExpertGatingFunc"}},
+			"expert-width-from-model", "set bool=true",
+			"req u32 expert_gating_func"}},
 		{"dots1", commonCoreOps(rmsEpsilonOp), []string{
-			"req u32 expert_feed_forward_length->ExpertFeedForward",
-			"req u32 expert_shared_count->SharedExpertCount",
-			"req u32 expert_gating_func->ExpertGatingFunc",
+			"req u32 expert_feed_forward_length",
+			"req u32 expert_shared_count",
+			"req u32 expert_gating_func",
 			"shared-width-from-expert", "shared-width-scale",
-			"zero bool expert_weights_norm->ExpertWeightsNorm",
-			"zero u32 leading_dense_block_count->LeadingDenseBlocks"}},
+			"zero bool expert_weights_norm",
+			"zero u32 leading_dense_block_count"}},
 		{"bailingmoe", commonCoreOps(rmsEpsilonOp), []string{
-			"req u32 expert_feed_forward_length->ExpertFeedForward",
-			"req u32 expert_shared_count->SharedExpertCount",
+			"req u32 expert_feed_forward_length",
+			"req u32 expert_shared_count",
 			"shared-width-from-expert", "shared-width-scale",
-			"zero bool expert_weights_norm->ExpertWeightsNorm",
-			"zero u32 leading_dense_block_count->LeadingDenseBlocks"}},
+			"zero bool expert_weights_norm",
+			"zero u32 leading_dense_block_count"}},
 		{"deepseek", commonCoreOps(rmsEpsilonOp), []string{
-			"req u32 expert_feed_forward_length->ExpertFeedForward",
-			"req u32 expert_shared_count->SharedExpertCount",
+			"req u32 expert_feed_forward_length",
+			"req u32 expert_shared_count",
 			"shared-width-from-expert", "shared-width-scale",
-			"zero u32 leading_dense_block_count->LeadingDenseBlocks"}},
+			"zero u32 leading_dense_block_count"}},
 		{"lfm2moe", commonCoreOps(rmsEpsilonOp), []string{
-			"req u32 expert_feed_forward_length->ExpertFeedForward",
-			"req u32 expert_gating_func->ExpertGatingFunc",
-			"zero u32 leading_dense_block_count->LeadingDenseBlocks"}},
+			"req u32 expert_feed_forward_length",
+			"req u32 expert_gating_func",
+			"zero u32 leading_dense_block_count"}},
 		{"bailingmoe2", commonCoreOps(rmsEpsilonOp), []string{
-			"req u32 expert_feed_forward_length->ExpertFeedForward",
-			"req u32 expert_shared_count->SharedExpertCount",
+			"req u32 expert_feed_forward_length",
+			"req u32 expert_shared_count",
 			"shared-width-from-expert",
-			"keep u32 expert_shared_feed_forward_length->SharedExpertFF",
+			"keep u32 expert_shared_feed_forward_length",
 			"shared-width-scale",
-			"req u32 expert_gating_func->ExpertGatingFunc",
-			"zero bool expert_weights_norm->ExpertWeightsNorm",
-			"zero u32 leading_dense_block_count->LeadingDenseBlocks"}},
+			"req u32 expert_gating_func",
+			"zero bool expert_weights_norm",
+			"zero u32 leading_dense_block_count"}},
 		{"qwen2moe", commonCoreOps(rmsEpsilonOp), []string{
 			"expert-width-from-model if-zero",
-			"set u32 SharedExpertCount=1",
+			"set u32=1",
 			"shared-width-from-model",
-			"keep u32 expert_shared_feed_forward_length->SharedExpertFF"}},
+			"keep u32 expert_shared_feed_forward_length"}},
 		{"ernie4_5-moe", commonCoreOps(rmsEpsilonOp), []string{
-			"req u32 expert_feed_forward_length->ExpertFeedForward",
-			"req u32 interleave_moe_layer_step->MoELayerStep",
-			"zero u32 leading_dense_block_count->LeadingDenseBlocks",
-			"zero u32 expert_shared_feed_forward_length->SharedExpertFF",
-			"set bool ExpertWeightsNorm=true"}},
+			"req u32 expert_feed_forward_length",
+			"req u32 interleave_moe_layer_step",
+			"zero u32 leading_dense_block_count",
+			"zero u32 expert_shared_feed_forward_length",
+			"set bool=true"}},
 		{"nomic-bert-moe", commonCoreOps(layerEpsilonOp), []string{
-			"req u32 moe_every_n_layers->MoELayerStep"}},
+			"req u32 moe_every_n_layers"}},
 		{"rwkv6", append(commonCoreOps(layerEpsilonOp), rwkvSuffix(rwkv6ReadOps, 2)...), nil},
 		{"rwkv6qwen2", append(commonCoreOps(rmsEpsilonOp), rwkvSuffix(rwkv6ReadOps, 1)...), nil},
 		{"rwkv7", append(commonCoreOps(layerEpsilonOp), rwkvSuffix(rwkv7ReadOps, 2)...), nil},
@@ -270,14 +270,14 @@ func TestProfileCompiledMetadataLoading(t *testing.T) {
 	}
 	runtimePrograms := map[string][]string{
 		"lfm2": {
-			"req u32 shortconv.l_cache->ShortConvCacheLength",
-			"keep u32 attention.sliding_window->SlidingWindow",
+			"req u32 shortconv.l_cache",
+			"keep u32 attention.sliding_window",
 		},
 		"lfm2moe": {
-			"req u32 shortconv.l_cache->ShortConvCacheLength",
-			"keep u32 attention.sliding_window->SlidingWindow",
+			"req u32 shortconv.l_cache",
+			"keep u32 attention.sliding_window",
 		},
-		"gpt-oss": {"req u32 attention.sliding_window->SlidingWindow"},
+		"gpt-oss": {"req u32 attention.sliding_window"},
 	}
 	for _, entry := range programs {
 		profile, supported := LookupArchitecture(entry.architecture)

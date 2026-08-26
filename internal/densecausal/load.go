@@ -72,7 +72,6 @@ type modelTensorBindings struct {
 }
 
 type artifactConfig struct {
-	ModelType         string  `json:"model_type"`
 	NumAttentionHeads int     `json:"num_attention_heads"`
 	HeadDim           int     `json:"head_dim"`
 	RopeTheta         float64 `json:"rope_theta"`
@@ -129,7 +128,7 @@ func (c artifactConfig) resolvedDecoder() (artifactConfig, bool, error) {
 	return decoder, nested, nil
 }
 
-// Load opens the safetensors artifact and materializes every tensor as f32.
+// Load opens the decoder artifact and materializes its selected F32 inventory.
 func Load(directory string) (*Model, error) {
 	var config artifactConfig
 	if err := jsonfile.Decode(filepath.Join(directory, "config.json"), &config); err != nil {
@@ -145,48 +144,20 @@ func Load(directory string) (*Model, error) {
 	}
 	defer source.Close()
 
-	shapes, err := source.IntShapes()
-	if err != nil {
-		return nil, fmt.Errorf("densecausal: inventory: %w", err)
+	selection := safetensors.F32Selection{RetainShapes: true}
+	if nested {
+		selection.Keep = decoderTensor
 	}
-	weights, err := source.ReadAllF32()
+	catalog, err := source.MaterializeF32(selection)
 	if err != nil {
 		return nil, fmt.Errorf("densecausal: materialize: %w", err)
 	}
-	// Multimodal wrappers nest the decoder declarations; the decoder tensor
-	// subset (embedding, layers, final norm, head) is the trainable text
-	// model — vision towers stay out of the pack and the bias-layout scan.
-	if nested {
-		weights, shapes = decoderTensorSubset(weights, shapes)
-	}
-	m, err := NewMixtureModel(weights, shapes, decoder.NumAttentionHeads, decoder.HeadDim,
+	m, err := NewMixtureModel(catalog.Values, catalog.Shapes, decoder.NumAttentionHeads, decoder.HeadDim,
 		decoder.RopeTheta, decoder.RMSNormEps, decoder.moePolicy(), decoder.SlidingWindowSize)
 	if err != nil {
 		return nil, err
 	}
 	m.Dims.ContextLength = decoder.MaxPositionEmbeddings
-	// model_type vs derived cross-checks: qwen2 REQUIRES qkv biases, llama
-	// forbids them, unlimited-ocr declares a routed mixture; anything else
-	// is unverified.
-	switch decoder.ModelType {
-	case "llama":
-		if m.Dims.AttnBias {
-			return nil, fmt.Errorf("densecausal: model_type llama but attention biases present")
-		}
-	case "qwen2":
-		if !m.Dims.AttnBias {
-			return nil, fmt.Errorf("densecausal: model_type qwen2 but attention biases absent")
-		}
-	case "unlimited-ocr":
-		if m.Dims.AttnBias {
-			return nil, fmt.Errorf("densecausal: model_type unlimited-ocr but attention biases present")
-		}
-		if m.Dims.MoE.TopK <= 0 {
-			return nil, fmt.Errorf("densecausal: model_type unlimited-ocr but no mixture declared")
-		}
-	default:
-		return nil, fmt.Errorf("densecausal: unsupported model_type %q (llama, qwen2, unlimited-ocr)", decoder.ModelType)
-	}
 	config.TieWordEmbeddings = decoder.TieWordEmbeddings || config.TieWordEmbeddings
 	// tie_word_embeddings cross-check: tied forbids lm_head.weight, untied requires it.
 	if untied := m.tensors.head.name != m.tensors.embedding.name; untied == config.TieWordEmbeddings {
@@ -195,23 +166,9 @@ func Load(directory string) (*Model, error) {
 	return m, nil
 }
 
-// decoderTensorSubset keeps the causal-decoder tensors of a multimodal
-// artifact: embedding, model.layers.*, final norm, and the head. Everything
-// else (vision towers, projectors) stays out of the model and the pack.
-func decoderTensorSubset(weights map[string][]float32, shapes map[string][]int) (map[string][]float32, map[string][]int) {
-	keep := func(name string) bool {
-		return name == "model.embed_tokens.weight" || name == "model.norm.weight" ||
-			name == "lm_head.weight" || strings.HasPrefix(name, "model.layers.")
-	}
-	outWeights := make(map[string][]float32)
-	outShapes := make(map[string][]int)
-	for name, values := range weights {
-		if keep(name) {
-			outWeights[name] = values
-			outShapes[name] = shapes[name]
-		}
-	}
-	return outWeights, outShapes
+func decoderTensor(name string) bool {
+	return name == "model.embed_tokens.weight" || name == "model.norm.weight" ||
+		name == "lm_head.weight" || strings.HasPrefix(name, "model.layers.")
 }
 
 // NewModel derives dims from shapes and validates the geometry; weights map

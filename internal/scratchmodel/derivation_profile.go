@@ -30,7 +30,7 @@ type DerivationProfile struct {
 	MinimumMLPFactor   int         `json:"minimum_mlp_factor"`
 	MLPBudget          int         `json:"mlp_budget"`
 	Epsilon            float64     `json:"epsilon"`
-	MuonMomentum       float64     `json:"muon_momentum"`
+	Optimizer          artifact.ID `json:"optimizer"`
 	ID                 artifact.ID `json:"-"`
 }
 
@@ -74,7 +74,8 @@ func PublishDerivationProfileCatalog(
 	if err := strictjson.DecodeBytes(derivationProfileCatalogJSON, &declaration); err != nil {
 		return DerivationProfile{}, err
 	}
-	declaration.MuonMomentum = trainingprogram.BuiltinOptimizerPolicy().Momentum()
+	optimizer := trainingprogram.BuiltinOptimizerPolicy()
+	declaration.Optimizer = optimizer.ID
 	profile, err := NewDerivationProfile(declaration)
 	if err != nil {
 		return DerivationProfile{}, err
@@ -83,9 +84,13 @@ func PublishDerivationProfileCatalog(
 	if err != nil {
 		return DerivationProfile{}, err
 	}
+	optimizerContent, err := optimizer.Content()
+	if err != nil {
+		return DerivationProfile{}, err
+	}
 	_, err = repository.Commit(ctx, artifact.Batch{
 		Key:      "catalog/scratch-derivation-profile/" + profile.ID.String(),
-		Contents: []artifact.Content{content},
+		Contents: []artifact.Content{content, optimizerContent},
 		Aliases:  []artifact.AliasBinding{{Name: activeDerivationProfile, Target: profile.ID}},
 	})
 	return profile, err
@@ -107,8 +112,7 @@ func (profile DerivationProfile) validate() error {
 	if strings.TrimSpace(profile.Version) == "" || strings.ContainsAny(profile.Version, "\x00\r\n") ||
 		profile.SplitDenominator <= 0 || profile.StableSplitMinimum <= 0 ||
 		profile.MinimumLayers <= 0 || profile.MinimumMLPFactor <= 0 || profile.MLPBudget <= 0 ||
-		!checked.PositiveFinite64(profile.Epsilon) || !checked.PositiveFinite64(profile.MuonMomentum) ||
-		profile.MuonMomentum >= 1 {
+		!checked.PositiveFinite64(profile.Epsilon) || profile.Optimizer.Kind() != artifact.KindProfile {
 		return errors.New("scratch model: invalid derivation profile")
 	}
 	return nil

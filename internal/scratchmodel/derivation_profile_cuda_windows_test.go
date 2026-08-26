@@ -17,7 +17,12 @@ func TestProfilePromotedByDescendantQuality(t *testing.T) {
 	oracle := loadOracle(t)
 	candidate := testDerivationProfile(t)
 	incumbent := candidate
-	incumbent.MuonMomentum = candidate.MuonMomentum / 2
+	// The incumbent's normalization epsilon is degraded decisively: a
+	// 2x nudge left the two 100-step losses inside floating-point
+	// scheduling noise and the comparison flipped run to run. Promotion
+	// is about quality differences that are real, so the fixture makes
+	// one.
+	incumbent.Epsilon = candidate.Epsilon * 1e6
 	var err error
 	incumbent, err = NewDerivationProfile(incumbent)
 	if err != nil {
@@ -85,7 +90,7 @@ func trainProfile(facts CorpusFacts, profile DerivationProfile) (float64, artifa
 	if err != nil {
 		return 0, artifact.ID{}, Construction{}, err
 	}
-	trainer, err := NewResidentTrainer(construction, facts.Steps)
+	trainer, err := NewResidentTrainer(construction, facts.Steps, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		return 0, artifact.ID{}, Construction{}, err
 	}

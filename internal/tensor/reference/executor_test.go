@@ -38,10 +38,18 @@ func TestExecuteElementwiseNormSoftmax(t *testing.T) {
 	}
 	leftValue, _ := NewValue(shape, []float32{1, 2, 3, 4, -1, -2, -3, -4})
 	rightValue, _ := NewValue(shape, []float32{1, 1, 1, 1, 1, 1, 1, 1})
-	results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{
-		left:  leftValue,
-		right: rightValue,
-	})
+	program, err := Compile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inputs := program.NewInputs()
+	if err := inputs.Bind(tensor.InputBindings[Value]{
+		{Node: left, Value: leftValue},
+		{Node: right, Value: rightValue},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	results, err := program.Execute(inputs, program.NewWorkspace())
 	if err != nil {
 		t.Fatal(err)
 	}

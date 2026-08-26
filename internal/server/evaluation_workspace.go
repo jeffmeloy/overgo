@@ -118,14 +118,18 @@ func NewEvaluationWorkspace(
 	}
 	if len(suitePaths) == 0 {
 		// No suite files named: the store is the configuration. The active
-		// benchmark catalog compiles into this model's suites, so the
-		// workbench evaluates out of the box against whatever benchmarks
-		// the store holds.
+		// benchmark catalog compiles into this model's suites, filtered by
+		// the model's declared eval domain, so the workbench evaluates out
+		// of the box against benchmarks its scores mean something on.
 		derived, _, err := evaluation.DeriveStoreSuites(context.Background(), repository, campaign.Authorities())
 		if err != nil {
 			return nil, fmt.Errorf("evaluation workspace: derive store suites: %w", err)
 		}
-		for _, compiled := range derived {
+		domains, declared, err := evaluation.EvalDomains(context.Background(), repository, identity.Model)
+		if err != nil {
+			return nil, err
+		}
+		for _, compiled := range evaluation.FilterSuitesForDomains(derived, domains, declared) {
 			if err := admit(compiled); err != nil {
 				return nil, err
 			}

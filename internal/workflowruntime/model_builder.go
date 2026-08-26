@@ -24,6 +24,7 @@ type ModelBuildState struct {
 	Recipe            artifact.ID `json:"recipe"`
 	Dataset           artifact.ID `json:"dataset"`
 	DerivationProfile artifact.ID `json:"derivation_profile"`
+	Optimizer         artifact.ID `json:"optimizer"`
 	Construction      artifact.ID `json:"construction"`
 	Model             artifact.ID `json:"model"`
 	Checkpoint        artifact.ID `json:"checkpoint,omitzero"`
@@ -66,6 +67,8 @@ func (state ModelBuildState) artifact(name recipe.PortName) (artifact.ID, bool) 
 		return state.Recipe, true
 	case workflowrecipe.BuildDatasetFact:
 		return state.Dataset, true
+	case workflowrecipe.BuildOptimizerFact:
+		return state.Optimizer, true
 	case workflowrecipe.BuildConstructionFact:
 		return state.Construction, true
 	case workflowrecipe.BuildModelFact:
@@ -96,8 +99,8 @@ func ExecuteModelBuild(
 		return ModelBuildState{}, errors.New("model builder: context, repository, operation, and session required")
 	}
 	initial, err := session.Initialize(ctx)
-	if err != nil || validateBuildState(initial) != nil {
-		return ModelBuildState{}, errors.Join(err, validateBuildState(initial))
+	if err != nil || validateBuildInputs(initial) != nil {
+		return ModelBuildState{}, errors.Join(err, validateBuildInputs(initial))
 	}
 	program, err := workflowrecipe.Catalog().CompileLinear(
 		recipe.TaskTraining,
@@ -105,10 +108,15 @@ func ExecuteModelBuild(
 			{Role: recipe.DependencyModel, Artifact: initial.Model},
 			{Role: recipe.DependencyDataset, Artifact: initial.Dataset},
 			{Role: recipe.DependencyDerivationProfile, Artifact: initial.DerivationProfile},
+			{Role: recipe.DependencyOptimizer, Artifact: initial.Optimizer},
 		},
 		ModelBuildStages(),
 	)
 	if err != nil {
+		return ModelBuildState{}, err
+	}
+	initial.Recipe = program.Definition().ID
+	if err := validateBuildState(initial); err != nil {
 		return ModelBuildState{}, err
 	}
 	runtime, err := NewForProgram(store, program)
@@ -188,8 +196,15 @@ func validateArtifactRequirements(
 }
 
 func validateBuildState(state ModelBuildState) error {
-	if state.Recipe.Kind() != artifact.KindRecipe || state.Dataset.Kind() != artifact.KindDataset ||
-		state.DerivationProfile.Kind() != artifact.KindProfile || state.Construction.Kind() != artifact.KindRecipe ||
+	if state.Recipe.Kind() != artifact.KindRecipe || validateBuildInputs(state) != nil {
+		return errors.New("model builder: incomplete initial state")
+	}
+	return nil
+}
+
+func validateBuildInputs(state ModelBuildState) error {
+	if state.Dataset.Kind() != artifact.KindDataset || state.DerivationProfile.Kind() != artifact.KindProfile ||
+		state.Optimizer.Kind() != artifact.KindProfile || state.Construction.Kind() != artifact.KindRecipe ||
 		state.Model.Kind() != artifact.KindModel {
 		return errors.New("model builder: incomplete initial state")
 	}

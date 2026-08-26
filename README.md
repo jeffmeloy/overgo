@@ -71,11 +71,46 @@ Overgo already combines the following components in one codebase:
 | RSI steering | Bounded steering interface shared with human-directed work; model-directed selection from accumulated evidence remains incomplete |
 | Interfaces | Command line, HTTP APIs, scheduled jobs, and an external operator workbench over shared backend state |
 
-The workbench exposes chat and media, agent sessions, workflow graphs,
-provenance, models and datasets, training, evaluation, artifacts, runtime
-activity, and exceptional approvals. It projects backend records and submits
-bounded actions; the browser does not own execution state or participate in
-the autonomous decision loop.
+## Operator workbench
+
+The graphical workbench is the human interface to the same control plane the
+automation uses. It is a self-contained browser client embedded in the server
+binary: `cmd/server` serves it at the listen address under a same-origin
+content-security policy, with no external assets or build step. The browser
+projects backend records and submits bounded actions; it does not own
+execution state or participate in the autonomous decision loop. Every panel
+reads the same store the command line and the automation read, so a result
+shown in the workbench is the same durable record a gate or a script would
+see.
+
+Its surfaces map onto the platform capabilities:
+
+- **Chat and media.** Multimodal conversation against the served model, with
+  attachments and dedicated image, video, and speech generation workspaces.
+- **Agent sessions.** Agent definitions with native tool calling, layered
+  authority maps that bound what each session may touch, an approvals inbox
+  for exceptional mutations, and replayable interaction history.
+- **Models and data.** A model catalog derived from the store: every locally
+  present model with its active recipe, verified capability tier, and measured
+  evidence — benchmark throughput and evaluation scores appear beside each
+  entry in the picker. Dataset browsing and preview, model construction, and
+  a recipe inspector sit alongside.
+- **Analysis.** Structure, tensor, attention, logit, hidden-state, and
+  vocabulary inspectors over the loaded model artifact.
+- **Training.** Session-supervised training runs with observation records and
+  pre/post evaluation brackets that attribute measured deltas to each session.
+- **Evaluation.** Suites derived from the benchmark catalog in the store,
+  routed by each model's declared evaluation domains, with results published
+  back as evidence.
+- **Workflows and runtime.** Typed workflow graphs, scheduled jobs, run
+  browsing, compositions, live runtime activity, and remote peers.
+- **Artifacts and provenance.** The artifact gallery and the provenance
+  records behind every displayed result.
+
+Steering from the workbench — goals, priorities, interventions, approvals,
+rollback — enters through the same bounded interface the RSI path uses.
+Nothing is reachable from the browser that is not equally reachable, and
+equally checked, from the deterministic control plane.
 
 ## Current state
 

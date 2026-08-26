@@ -10,20 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "publish",
-          "title": "Publish canonical manifest, delta, impact, plan, and selection evidence to the durable artifact store and provide bounded inspection summaries",
-          "status": "open",
-          "verify": "go test ./internal/codemanifest ./cmd/overgodb-query -run 'TestPublishAndLoad|TestManifestSummary' -count=1",
-          "rationale": "Bulk generated state belongs in content-addressed storage; commits reference identities instead of duplicating large JSON documents.",
-          "depends_on": [
-            "code-manifest-execution-binding"
-          ],
-          "capabilities": [
-            "durable-manifest",
-            "manifest-query"
-          ]
-        },
-        {
           "id": "cache",
           "title": "Reuse package and manifest results by exact snapshot, analyzer, build-context, generator, and external-input identities with owned bounded eviction",
           "status": "open",

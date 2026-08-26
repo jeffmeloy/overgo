@@ -50,38 +50,44 @@ import (
 )
 
 const (
-	gateRecipeSeed    = "overgo-gate/v1"
-	gateWorkloadSeed  = "overgo-gate-workload/v1"
-	gateDebtFile      = "bin/gate_debt.json"
-	gateHeartbeatFile = "bin/gate_lifecycle.json"
-	gateRetryFile     = "bin/gate_cache.json"
-	gateProgressLine  = "gate: phase=%s heartbeat=%s\n"
+	gateRecipeSeed            = "overgo-gate/v1"
+	gateWorkloadSeed          = "overgo-gate-workload/v1"
+	gateDebtFile              = "bin/gate_debt.json"
+	gateHeartbeatFile         = "bin/gate_lifecycle.json"
+	gateRetryFile             = "bin/gate_cache.json"
+	gateProgressLine          = "gate: phase=%s heartbeat=%s\n"
+	manifestAnalysisMediaType = "application/vnd.overgo.code-manifest-analysis+json"
+	manifestAnalysisSchema    = "overgo/code-manifest-analysis/v1"
 )
 
 type gateContext struct {
-	repo         string
-	paths        []string
-	planRef      string
-	messageFile  string
-	storePath    string
-	steps        []runrecord.GateStep
-	honesty      []string
-	start        time.Time
-	environment  runrecord.Environment
-	preparation  runrecord.GateLifecycle
-	source       *repoanalysis.SourceSnapshot
-	baseSource   *repoanalysis.SourceSnapshot
-	profile      *codeprofile.Profile
-	profileDirty bool
-	stepEvidence map[string]string
-	cachePaths   []string
-	retryCache   *automationcheck.EvidenceCache
-	structural   *codeprofile.FunctionImpact
-	packageGraph *packageInputGraph
-	selection    automationcheck.SelectionMetrics
-	selectionID  string
-	manifestPlan *automationcheck.ManifestPlan
-	terminal     map[string]automationcheck.Evidence
+	repo              string
+	paths             []string
+	planRef           string
+	messageFile       string
+	storePath         string
+	steps             []runrecord.GateStep
+	honesty           []string
+	start             time.Time
+	environment       runrecord.Environment
+	preparation       runrecord.GateLifecycle
+	source            *repoanalysis.SourceSnapshot
+	baseSource        *repoanalysis.SourceSnapshot
+	profile           *codeprofile.Profile
+	profileDirty      bool
+	stepEvidence      map[string]string
+	cachePaths        []string
+	retryCache        *automationcheck.EvidenceCache
+	structural        *codeprofile.FunctionImpact
+	packageGraph      *packageInputGraph
+	selection         automationcheck.SelectionMetrics
+	selectionID       string
+	manifestPlan      *automationcheck.ManifestPlan
+	terminal          map[string]automationcheck.Evidence
+	baseManifest      *codemanifest.Manifest
+	candidateManifest *codemanifest.Manifest
+	manifestDelta     *codemanifest.Delta
+	manifestImpact    *codemanifest.Impact
 }
 
 func main() {
@@ -581,6 +587,7 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 			return plannedPipeline{}, err
 		}
 		g.manifestPlan = &bound
+		g.baseManifest, g.candidateManifest = &baseManifest, &candidateManifest
 		boundPlan = &bound
 		g.selectionID = bound.ID.String()
 		g.honesty = append(g.honesty, "manifest plan: "+bound.ID.String())
@@ -656,6 +663,9 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
 	impact, err := codemanifest.Close(baseManifest, candidateManifest, delta)
+	if err == nil {
+		g.manifestDelta, g.manifestImpact = &delta, &impact
+	}
 	return impact, baseManifest, candidateManifest, err
 }
 
@@ -2076,6 +2086,30 @@ func recordUnbatchableFailure(repo, storePath string) (artifact.ID, error) {
 	return preparation.ID, nil
 }
 
+func (g *gateContext) manifestAnalysisContent() (artifact.Content, error) {
+	if g.manifestPlan == nil || g.manifestDelta == nil || g.manifestImpact == nil {
+		return artifact.Content{}, nil
+	}
+	data, err := json.Marshal(struct {
+		Version   uint16                           `json:"version"`
+		Delta     codemanifest.Delta               `json:"delta"`
+		Impact    codemanifest.Impact              `json:"impact"`
+		Plan      automationcheck.ManifestPlan     `json:"plan"`
+		Selection automationcheck.SelectionMetrics `json:"selection"`
+	}{artifact.InitialDocumentVersion, *g.manifestDelta, *g.manifestImpact, *g.manifestPlan, g.selection})
+	if err != nil {
+		return artifact.Content{}, err
+	}
+	id, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
+	if err != nil {
+		return artifact.Content{}, err
+	}
+	content := artifact.Content{Descriptor: artifact.Descriptor{
+		ID: id, Size: uint64(len(data)), MediaType: manifestAnalysisMediaType, Schema: manifestAnalysisSchema,
+	}, Data: data}
+	return content, content.Validate()
+}
+
 func validateGateDebt(debt gateDebtEnvelope) error {
 	if debt.Version != artifact.InitialDocumentVersion || debt.Preparation.Kind() != artifact.KindEvidence {
 		return errors.New("gate: invalid record debt envelope")
@@ -2165,6 +2199,22 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipeID})
 	batch.Contents = append(batch.Contents, environmentContent, finalizedContent)
 	batch.Lineage = append(batch.Lineage, finalized.Lineage()...)
+	for _, manifest := range []*codemanifest.Manifest{g.baseManifest, g.candidateManifest} {
+		if manifest == nil {
+			continue
+		}
+		batch.Lineage = append(batch.Lineage, artifact.Lineage{
+			Child: record.Result.ID, Parent: manifest.ID, Relation: artifact.RelationDependsOn,
+		})
+	}
+	if analysis, analysisErr := g.manifestAnalysisContent(); analysisErr != nil {
+		return g.oweRecord(batch, analysisErr)
+	} else if analysis.Descriptor.ID.Valid() {
+		batch.Contents = append(batch.Contents, analysis)
+		batch.Lineage = append(batch.Lineage, artifact.Lineage{
+			Child: record.Result.ID, Parent: analysis.Descriptor.ID, Relation: artifact.RelationDependsOn,
+		})
+	}
 	if outcome == runrecord.OutcomeSucceeded {
 		if err := g.appendProfileEvidence(&batch, codeCommit, record.Result.ID); err != nil {
 			return err
@@ -2199,6 +2249,14 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 		return g.oweRecord(batch, err)
 	}
 	defer store.Close()
+	for _, manifest := range []*codemanifest.Manifest{g.baseManifest, g.candidateManifest} {
+		if manifest == nil {
+			continue
+		}
+		if _, err := codemanifest.Publish(context.Background(), store, *manifest); err != nil {
+			return g.oweRecord(batch, err)
+		}
+	}
 	if err := appendGateAdvisoryFinding(context.Background(), store, &batch, g.paths, g.honesty); err != nil {
 		return g.oweRecord(batch, err)
 	}

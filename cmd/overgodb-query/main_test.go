@@ -14,11 +14,53 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/codemanifest"
 	"overgo/internal/dataset"
 	"overgo/internal/model"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/repoanalysis"
 )
+
+func TestManifestSummary(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "internal", "example", "example.go")
+	if err := os.MkdirAll(filepath.Dir(source), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(source, []byte("package example\nfunc Value() int { return 1 }\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := "internal/example/example.go"
+	manifest, err := codemanifest.Generate(snapshot, []repoanalysis.BuildSelection{{
+		Context: "linux/amd64", Root: root, Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"},
+	}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repository := t.TempDir()
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := codemanifest.Publish(context.Background(), store, manifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := run([]string{"-repo", repository, "-manifest-summary", manifest.ID.String(), "-json"}, &output); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), `"symbols": 1`) || strings.Contains(output.String(), "signature_sha256") {
+		t.Fatalf("manifest summary is missing or unbounded: %s", output.String())
+	}
+}
 
 func TestProfileCatalogQueryReportsExactCoverage(t *testing.T) {
 	repository := t.TempDir()

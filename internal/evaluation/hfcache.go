@@ -27,6 +27,12 @@ type hfCacheFamily struct {
 }
 
 var hfCacheFamilies = map[string]hfCacheFamily{
+	// The DNA corpus is not an lm_eval cache family -- its entries come
+	// from CatalogDNACorpus -- but the conversion-to-family mapping that
+	// routes suite assembly lives in this table for every family.
+	"carbon-pretraining-corpus": {
+		family: "dna", domain: "dna", conversion: dnaCorpusConversion,
+	},
 	"cais___mmlu": {
 		family: "mmlu", domain: DomainText, splitBase: "mmlu", splits: []string{"test"},
 		conversion: "lm-eval/mmlu/v1",

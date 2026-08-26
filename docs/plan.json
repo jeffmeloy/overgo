@@ -2,23 +2,5 @@
   "campaign": "Model facts as typed OvergoDB runtime authority",
   "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
-  "items": [
-    {
-      "id": "dna-eval-benchmark",
-      "title": "A held-out DNA benchmark scores Carbon in-domain: sequence-scoring suite kind (per-token log-likelihood over held-out carbon-pretraining-corpus slices), corpus ingestion decided in-row (parquet subset reader or converted slices), evidence beside the catalog entry like every other suite",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A held-out DNA benchmark scores Carbon in-domain: sequence-scoring suite kind (per-token log-likelihood over held-out carbon-pretraining-corpus slices), corpus ingestion decided in-row (parquet subset reader or converted slices), evidence beside the catalog entry like every other suite",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run TestSequenceScoring -count=1",
-          "depends_on": [
-            "dna-sequence-scoring-suite/do"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

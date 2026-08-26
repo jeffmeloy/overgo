@@ -22,7 +22,14 @@ const (
 	BenchmarkFormatJSONArray = "json-array"
 	// BenchmarkFormatArrow decodes an Arrow IPC stream, the layout the
 	// HuggingFace dataset cache holds lm_eval benchmarks in.
-	BenchmarkFormatArrow     = "arrow"
+	BenchmarkFormatArrow = "arrow"
+	// BenchmarkFormatParquetText streams one string column of a parquet
+	// corpus file, bounded by the spec's limit -- the shape corpus-slice
+	// evaluations import. The single field binding names the column.
+	BenchmarkFormatParquetText = "parquet-text"
+	// BenchmarkColumnAutoText asks the parquet reader to pick the corpus
+	// text column by its conventional names (sequence, then text).
+	BenchmarkColumnAutoText  = "auto-text"
 	benchmarkRecordMediaType = "application/vnd.overgo.benchmark-record+json"
 	benchmarkRecordSchema    = "overgo/benchmark-record/v1"
 	benchmarkImportMediaType = "application/vnd.overgo.benchmark-import+json"
@@ -55,6 +62,10 @@ type BenchmarkImportSpec struct {
 	Format     string         `json:"format"`
 	Conversion string         `json:"conversion"`
 	Fields     []FieldBinding `json:"fields"`
+	// Limit bounds a corpus-slice import (parquet-text only): the spec
+	// declares exactly how many rows the slice holds, so the import is
+	// reproducible against the same bytes.
+	Limit uint64 `json:"limit,omitempty"`
 }
 
 type BenchmarkField struct {
@@ -93,13 +104,8 @@ func ImportBenchmark(ctx context.Context, repository artifact.Repository, path s
 	if observed != canonical.SHA256 {
 		return BenchmarkImport{}, errors.New("dataset: benchmark source hash differs")
 	}
-	file, err := os.Open(path)
-	if err != nil {
-		return BenchmarkImport{}, err
-	}
-	defer file.Close()
 	result := BenchmarkImport{Version: benchmarkImportVersion, Spec: canonical, Profile: profile}
-	err = decodeBenchmark(file, canonical.Format, func(ordinal uint64, source map[string]json.RawMessage) error {
+	observe := func(ordinal uint64, source map[string]json.RawMessage) error {
 		fields := make([]BenchmarkField, len(canonical.Fields))
 		for index, binding := range canonical.Fields {
 			value, ok := source[binding.Source]
@@ -123,7 +129,27 @@ func ImportBenchmark(ctx context.Context, repository artifact.Repository, path s
 		}
 		result.Records = append(result.Records, record.ID)
 		return nil
-	})
+	}
+	if canonical.Format == BenchmarkFormatParquetText {
+		column := canonical.Fields[0].Source
+		if column == BenchmarkColumnAutoText {
+			column = ""
+		}
+		err = ReadParquetTextRows(path, column, int(canonical.Limit), func(ordinal uint64, text string) error {
+			encoded, err := json.Marshal(text)
+			if err != nil {
+				return err
+			}
+			return observe(ordinal, map[string]json.RawMessage{canonical.Fields[0].Source: encoded})
+		})
+	} else {
+		file, openErr := os.Open(path)
+		if openErr != nil {
+			return BenchmarkImport{}, openErr
+		}
+		defer file.Close()
+		err = decodeBenchmark(file, canonical.Format, observe)
+	}
 	if err != nil {
 		return BenchmarkImport{}, err
 	}
@@ -162,8 +188,15 @@ func compileBenchmarkImport(spec BenchmarkImportSpec) (BenchmarkImportSpec, arti
 	spec.Split = strings.TrimSpace(spec.Split)
 	spec.Conversion = strings.TrimSpace(spec.Conversion)
 	if spec.Source == "" || spec.Revision == "" || spec.Split == "" || spec.Conversion == "" || len(spec.Fields) == 0 ||
-		(spec.Format != BenchmarkFormatJSONL && spec.Format != BenchmarkFormatJSONArray && spec.Format != BenchmarkFormatArrow) {
+		(spec.Format != BenchmarkFormatJSONL && spec.Format != BenchmarkFormatJSONArray &&
+			spec.Format != BenchmarkFormatArrow && spec.Format != BenchmarkFormatParquetText) {
 		return BenchmarkImportSpec{}, artifact.ID{}, errors.New("dataset: incomplete benchmark import")
+	}
+	if (spec.Format == BenchmarkFormatParquetText) != (spec.Limit > 0) {
+		return BenchmarkImportSpec{}, artifact.ID{}, errors.New("dataset: the slice limit belongs to parquet-text imports exactly")
+	}
+	if spec.Format == BenchmarkFormatParquetText && len(spec.Fields) != 1 {
+		return BenchmarkImportSpec{}, artifact.ID{}, errors.New("dataset: parquet-text imports bind exactly one column")
 	}
 	digest, err := hex.DecodeString(spec.SHA256)
 	if err != nil || len(digest) != sha256.Size {

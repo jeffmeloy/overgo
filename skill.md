@@ -130,6 +130,10 @@ natural contract.
   Kernels enter/change only through it.
 - `docs/` — durable design/contract records only. Chronology lives in Git; the
   commit body is the ledger (Why / Evidence / Next).
+- `./tmp/` — the only sanctioned home for development scrap (triage inputs,
+  one-shot probes, intermediate files). Ignored wholesale, never released,
+  deletable at any time. `./bin/` holds executables only and the release
+  refuses anything else; scrap never lands in `bin/` or the repository root.
 
 ## Automation Doctrine
 

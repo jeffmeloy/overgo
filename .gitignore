@@ -1,6 +1,7 @@
 /bin/
 /build/
 /dist/
+/tmp/
 /*.exe
 /repodb-store-v3-archive/
 **/overgodb-store/

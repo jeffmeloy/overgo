@@ -33,6 +33,8 @@ func run(args []string, output io.Writer) error {
 	flags.SetOutput(io.Discard)
 	repository := flags.String("repo", "", "OvergoDB root")
 	manualsPath := flags.String("manuals", "", "JSON manual declarations ({manuals:[...]})")
+	openAPIPath := flags.String("openapi", "", "compile one bounded OpenAPI JSON document into inactive candidate manuals")
+	baseURL := flags.String("base-url", "", "exact endpoint base used with -openapi")
 	argvAllow := flags.String("argv-allow", "", "comma-separated programs to publish as the durable argv policy before the manuals; the committed policy is what publication and invocation enforce")
 	inspect := flags.Bool("inspect", false, "audit the declared manuals against the store without publishing")
 	resolve := flags.String("resolve", "", "resolve one registered tool manual by name")
@@ -43,6 +45,18 @@ func run(args []string, output io.Writer) error {
 	}
 	if flags.NArg() != 0 {
 		return errors.New("usage: agent-tool [-repo <path>] -manuals <file> [-inspect] | -resolve <name>")
+	}
+	if path := strings.TrimSpace(*openAPIPath); path != "" {
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		compilation, err := agenttool.CompileOpenAPI(file, strings.TrimSpace(*baseURL))
+		if err != nil {
+			return err
+		}
+		return clioptions.WritePrettyJSON(output, compilation)
 	}
 	root := strings.TrimSpace(*repository)
 	if root == "" {

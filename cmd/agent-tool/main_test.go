@@ -67,3 +67,19 @@ func TestAgentToolInvokesStandardBuiltin(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestAgentToolCompilesOpenAPICandidatesWithoutRepository(t *testing.T) {
+	document := filepath.Join(t.TempDir(), "openapi.json")
+	source := `{"openapi":"3.1.0","info":{"title":"Probe","version":"1"},"paths":{"/probe":{"post":{"operationId":"remote.probe","summary":"Probe remote state.","x-overgo-effect":"inspection","responses":{"200":{"description":"ok"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}}}}}}}`
+	if err := os.WriteFile(document, []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := run([]string{"-openapi", document, "-base-url", "https://api.example.test/v1"}, &output); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), `"source": "file:sha256:`) ||
+		!strings.Contains(output.String(), `"name": "remote.probe"`) {
+		t.Fatalf("candidate output = %q", output.String())
+	}
+}

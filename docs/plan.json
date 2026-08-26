@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "openapi-manual-compiler",
-      "title": "Compile bounded OpenAPI operations into exact candidate manuals",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Parse strict bounded OpenAPI JSON, require explicit effect authority, and compile supported JSON operations without activating aliases",
-          "status": "open",
-          "verify": "go test ./internal/agenttool ./cmd/agent-tool -run 'OpenAPI|Manual' -count=1",
-          "depends_on": [
-            "tool-transport-adapters"
-          ],
-          "capabilities": [
-            "openapi-discovery",
-            "bounded-parser",
-            "explicit-effects",
-            "candidate-authority"
-          ]
-        }
-      ]
-    },
-    {
       "id": "tool-catalog-snapshot-search",
       "title": "Index exact tool catalogs for deterministic bounded discovery",
       "status": "open",

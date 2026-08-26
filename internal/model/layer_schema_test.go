@@ -9,6 +9,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/reference"
 )
 
 // legacyLayerCatalogSlots is the exact slot set the deleted reflection
@@ -142,7 +143,14 @@ func TestUnifiedLayerBindingSchema(t *testing.T) {
 			t.Errorf("%s graph node was not bound", name)
 			continue
 		}
-		feed, ok := feeds[pair.node]
+		var feed reference.Value
+		ok := false
+		for _, binding := range feeds {
+			if binding.Node == pair.node {
+				feed, ok = binding.Value, true
+				break
+			}
+		}
 		if !ok {
 			t.Errorf("%s graph node has no feed", name)
 			continue

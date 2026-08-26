@@ -58,9 +58,9 @@ func (f *Feeds) Input(builder *tensor.Builder, name string, value reference.Valu
 	return node
 }
 
-func (f *Feeds) AddHost(values map[*tensor.Tensor]reference.Value) {
-	for node, value := range values {
-		f.Host[node] = value
+func (f *Feeds) AddHost(values tensor.InputBindings[reference.Value]) {
+	for _, binding := range values {
+		f.Host[binding.Node] = binding.Value
 	}
 }
 

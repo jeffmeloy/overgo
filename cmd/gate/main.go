@@ -315,15 +315,21 @@ func (g *gateContext) pipeline() error {
 	cache.Compact()
 	g.retryCache = &cache
 	cacheable := map[string]bool{"vet": true, "build": true}
-	inputs := make(map[artifact.ID]artifact.ID, len(cacheable))
-	for _, check := range checks {
-		if cacheable[check.Check.Name] {
-			input, inputErr := g.phaseInputFingerprint(check.Check.Name)
-			if inputErr != nil {
-				return inputErr
-			}
-			inputs[check.ID] = input
+	inputs := make(map[artifact.ID]artifact.ID, len(checks))
+	for index, check := range checks {
+		input, inputErr := g.phaseInputFingerprint(check.Check.Name)
+		if inputErr != nil {
+			return inputErr
 		}
+		if planned.manifest != nil {
+			bound, bindErr := automationcheck.BindManifestExecution(*planned.manifest, check, []artifact.ID{input})
+			if bindErr != nil {
+				return bindErr
+			}
+			checks[index] = bound
+			check = bound
+		}
+		inputs[check.ID] = input
 	}
 	satisfied := make(map[string]bool, len(impact.Exclusions))
 	for _, exclusion := range impact.Exclusions {
@@ -332,7 +338,13 @@ func (g *gateContext) pipeline() error {
 	var cacheMutex sync.Mutex
 	results, err := automationcheck.ExecuteDAG(context.Background(), checks, satisfied, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {
 		fmt.Fprintf(os.Stderr, gateProgressLine, check.Check.Name, runrecord.HeartbeatRunning)
-		input, cacheCheck := inputs[check.ID]
+		if planned.manifest != nil {
+			if driftErr := g.requireCandidateTree(planned.manifest.CandidateTree); driftErr != nil {
+				return automationcheck.Evidence{}, driftErr
+			}
+		}
+		input, hasInput := inputs[check.ID]
+		cacheCheck := cacheable[check.Check.Name] && hasInput
 		if cacheCheck {
 			cacheMutex.Lock()
 			evidence, reused := cache.Lookup(check, input)
@@ -369,6 +381,10 @@ func (g *gateContext) pipeline() error {
 			}
 			continue
 		}
+		if planned.manifest != nil && result.Evidence.ID.Valid() &&
+			!slices.Contains(automationcheck.EvidenceLineage(result.Evidence), planned.manifest.ID) {
+			return fmt.Errorf("%s: terminal evidence omits manifest plan %s", name, planned.manifest.ID)
+		}
 		g.steps = append(g.steps, gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name]))
 		if result.Evidence.Reused {
 			g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
@@ -401,6 +417,8 @@ type gatePlanReport struct {
 	PlanID            string            `json:"plan_id,omitempty"`
 	BaseManifest      string            `json:"base_manifest,omitempty"`
 	CandidateManifest string            `json:"candidate_manifest,omitempty"`
+	CandidateSource   string            `json:"candidate_source,omitempty"`
+	CandidateTree     string            `json:"candidate_tree,omitempty"`
 	Selected          []planDisposition `json:"selected"`
 	Excluded          []planDisposition `json:"excluded"`
 	Unresolved        []planDisposition `json:"unresolved"`
@@ -417,6 +435,8 @@ func buildGatePlanReport(planned plannedPipeline) gatePlanReport {
 		report.PlanID = planned.manifest.ID.String()
 		report.BaseManifest = planned.manifest.BaseManifest.String()
 		report.CandidateManifest = planned.manifest.CandidateManifest.String()
+		report.CandidateSource = planned.manifest.CandidateSource
+		report.CandidateTree = planned.manifest.CandidateTree
 	}
 	definitions := make(map[string]automationcheck.Descriptor, len(planned.definitions))
 	for _, check := range planned.definitions {
@@ -535,7 +555,14 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	}
 	var boundPlan *automationcheck.ManifestPlan
 	if structuralErr == nil {
-		bound, err := automationcheck.BindManifestPlan(baseManifest.ID, candidateManifest.ID, surface, impact, checks)
+		candidateTree, treeErr := g.treeStateKey()
+		if treeErr != nil {
+			return plannedPipeline{}, treeErr
+		}
+		bound, err := automationcheck.BindManifestPlan(
+			baseManifest.ID, candidateManifest.ID, candidateManifest.SourceIdentity, candidateTree,
+			surface, impact, checks,
+		)
 		if err != nil {
 			return plannedPipeline{}, err
 		}
@@ -1112,6 +1139,17 @@ func (g *gateContext) treeStateKey() (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
+func (g *gateContext) requireCandidateTree(expected string) error {
+	current, err := g.treeStateKey()
+	if err != nil {
+		return err
+	}
+	if current != expected {
+		return fmt.Errorf("gate: candidate drifted after manifest planning: planned=%s current=%s", expected, current)
+	}
+	return nil
+}
+
 func (g *gateContext) loadRetryCache() automationcheck.EvidenceCache {
 	empty := automationcheck.NewEvidenceCache(g.environment.ID)
 	var cache automationcheck.EvidenceCache
@@ -1668,7 +1706,7 @@ func acceptanceVerdictClass(repo string) testevidence.VerdictClass {
 func (g *gateContext) stepCommit() (bool, error) {
 	// Validate the immutable result shape before Git advances. A schema error
 	// discovered after commit cannot be represented by the normal debt batch.
-	recipeID, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte(gateRecipeSeed))
+	recipeID, err := g.gateRecipeID()
 	if err != nil {
 		return false, err
 	}
@@ -2051,7 +2089,7 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	}
 	codeCommit = strings.TrimSpace(codeCommit)
 
-	recipeID, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte(gateRecipeSeed))
+	recipeID, err := g.gateRecipeID()
 	if err != nil {
 		return err
 	}
@@ -2123,6 +2161,16 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	}
 	_ = os.Remove(filepath.Join(g.repo, filepath.FromSlash(gateDebtFile)))
 	return nil
+}
+
+func (g *gateContext) gateRecipeID() (artifact.ID, error) {
+	if g.manifestPlan != nil {
+		if err := g.manifestPlan.Validate(); err != nil {
+			return artifact.ID{}, err
+		}
+		return g.manifestPlan.ID, nil
+	}
+	return artifact.IdentifyBytes(artifact.KindRecipe, []byte(gateRecipeSeed))
 }
 
 func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit string, gateResult artifact.ID) error {

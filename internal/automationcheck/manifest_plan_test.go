@@ -1,6 +1,7 @@
 package automationcheck
 
 import (
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -16,19 +17,19 @@ func TestManifestPlanBindsCandidateAndDefinitions(t *testing.T) {
 	}
 	base, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("base"))
 	candidate, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("candidate"))
-	bound, err := BindManifestPlan(base, candidate, surface, impact, invocations)
+	bound, err := BindManifestPlan(base, candidate, strings.Repeat("a", 64), strings.Repeat("b", 64), surface, impact, invocations)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := bound.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	again, err := BindManifestPlan(base, candidate, surface, impact, invocations)
+	again, err := BindManifestPlan(base, candidate, strings.Repeat("a", 64), strings.Repeat("b", 64), surface, impact, invocations)
 	if err != nil || again.ID != bound.ID {
 		t.Fatalf("plan identity is unstable: %s %s %v", bound.ID, again.ID, err)
 	}
 	other, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("other candidate"))
-	changed, err := BindManifestPlan(base, other, surface, impact, invocations)
+	changed, err := BindManifestPlan(base, other, strings.Repeat("a", 64), strings.Repeat("b", 64), surface, impact, invocations)
 	if err != nil || changed.ID == bound.ID {
 		t.Fatal("candidate identity did not bind the manifest plan")
 	}

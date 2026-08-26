@@ -10,21 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "bind",
-          "title": "Bind every gate result to the candidate snapshot, manifest, impact closure, gate plan, check definition, and relevant input identities",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck ./internal/runrecord ./cmd/gate -run 'TestManifestExecutionBinding|TestCandidateDriftRefused|TestPlanEvidenceLineage' -count=1",
-          "rationale": "A valid plan cannot authorize different bytes or changed check definitions after analysis.",
-          "depends_on": [
-            "code-manifest-gate-planner"
-          ],
-          "capabilities": [
-            "execution-binding",
-            "candidate-drift-refusal",
-            "evidence-lineage"
-          ]
-        },
-        {
           "id": "admit",
           "title": "Require a successful unchanged-candidate plan before commit admission and preserve skipped, reused, failed, and inapplicable outcomes distinctly",
           "status": "open",

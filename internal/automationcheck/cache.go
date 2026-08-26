@@ -64,7 +64,7 @@ func (cache *EvidenceCache) Lookup(invocation Invocation, input artifact.ID) (Ev
 		return Evidence{}, false
 	}
 	return Evidence{
-		ID: entry.Evidence, InvocationID: entry.Invocation, Name: invocation.Check.Name,
+		ID: entry.Evidence, InvocationID: entry.Invocation, Authority: cloneExecutionAuthority(invocation.Authority), Name: invocation.Check.Name,
 		Phase: invocation.Check.Phase, Outcome: entry.Outcome, Reused: true,
 	}, true
 }

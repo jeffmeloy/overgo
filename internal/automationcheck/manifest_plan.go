@@ -1,6 +1,8 @@
 package automationcheck
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"reflect"
@@ -21,6 +23,8 @@ type PlannedInvocation struct {
 type ManifestPlan struct {
 	BaseManifest      artifact.ID         `json:"base_manifest"`
 	CandidateManifest artifact.ID         `json:"candidate_manifest"`
+	CandidateSource   string              `json:"candidate_source"`
+	CandidateTree     string              `json:"candidate_tree"`
 	SurfaceIdentity   string              `json:"surface_identity"`
 	Facts             []Fact              `json:"facts,omitempty"`
 	Exclusions        []Exclusion         `json:"exclusions,omitempty"`
@@ -30,9 +34,10 @@ type ManifestPlan struct {
 }
 
 // BindManifestPlan creates an immutable plan from already-selected checks.
-func BindManifestPlan(base, candidate artifact.ID, surface Surface, impact Impact, invocations []Invocation) (ManifestPlan, error) {
+func BindManifestPlan(base, candidate artifact.ID, candidateSource, candidateTree string, surface Surface, impact Impact, invocations []Invocation) (ManifestPlan, error) {
 	plan := ManifestPlan{
-		BaseManifest: base, CandidateManifest: candidate, SurfaceIdentity: surface.Identity,
+		BaseManifest: base, CandidateManifest: candidate, CandidateSource: candidateSource,
+		CandidateTree: candidateTree, SurfaceIdentity: surface.Identity,
 		Facts: slices.Clone(impact.Facts), Exclusions: slices.Clone(impact.Exclusions),
 		Unknown: slices.Clone(surface.Unknown), Invocations: make([]PlannedInvocation, len(invocations)),
 	}
@@ -104,7 +109,9 @@ func canonicalizeManifestPlan(plan *ManifestPlan) {
 }
 
 func validateManifestPlan(plan ManifestPlan) error {
-	if plan.BaseManifest.Kind() != artifact.KindProfile || plan.CandidateManifest.Kind() != artifact.KindProfile || strings.TrimSpace(plan.SurfaceIdentity) == "" || len(plan.Invocations) == 0 {
+	if plan.BaseManifest.Kind() != artifact.KindProfile || plan.CandidateManifest.Kind() != artifact.KindProfile ||
+		!validManifestDigest(plan.CandidateSource) || !validManifestDigest(plan.CandidateTree) ||
+		strings.TrimSpace(plan.SurfaceIdentity) == "" || len(plan.Invocations) == 0 {
 		return errors.New("automation manifest plan: invalid authority or empty invocation set")
 	}
 	excluded := map[string]bool{}
@@ -134,6 +141,14 @@ func validateManifestPlan(plan ManifestPlan) error {
 		done[invocation.Check.Name] = true
 	}
 	return nil
+}
+
+func validManifestDigest(value string) bool {
+	if len(value) != 2*sha256.Size {
+		return false
+	}
+	decoded, err := hex.DecodeString(value)
+	return err == nil && len(decoded) == sha256.Size
 }
 
 func manifestPlanID(plan ManifestPlan) (artifact.ID, error) {

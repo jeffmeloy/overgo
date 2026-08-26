@@ -102,7 +102,7 @@ func planInspectionFixture(t *testing.T) (plannedPipeline, *int) {
 		t.Fatal(err)
 	}
 	surface := automationcheck.Surface{Identity: "surface", Unknown: []string{"reflection boundary"}}
-	manifest, err := automationcheck.BindManifestPlan(base, candidate, surface, impact, invocations)
+	manifest, err := automationcheck.BindManifestPlan(base, candidate, strings.Repeat("a", 64), strings.Repeat("b", 64), surface, impact, invocations)
 	if err != nil {
 		t.Fatal(err)
 	}

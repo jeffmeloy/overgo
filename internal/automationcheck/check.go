@@ -96,16 +96,18 @@ type Check struct {
 
 // Invocation is a content-addressed unit of verification work.
 type Invocation struct {
-	ID      artifact.ID `json:"id"`
-	Check   Descriptor  `json:"check"`
-	Matched []Fact      `json:"matched,omitempty"`
-	runner  Runner
+	ID        artifact.ID         `json:"id"`
+	Authority *ExecutionAuthority `json:"authority,omitempty"`
+	Check     Descriptor          `json:"check"`
+	Matched   []Fact              `json:"matched,omitempty"`
+	runner    Runner
 }
 
 // Evidence is the typed terminal result of one invocation.
 type Evidence struct {
 	ID           artifact.ID           `json:"id"`
 	InvocationID artifact.ID           `json:"invocation_id"`
+	Authority    *ExecutionAuthority   `json:"authority,omitempty"`
 	Name         string                `json:"name"`
 	Phase        runrecord.Phase       `json:"phase"`
 	Outcome      runrecord.LaneOutcome `json:"outcome"`
@@ -216,17 +218,19 @@ func Run(ctx context.Context, invocation Invocation) (Evidence, error) {
 	begin := time.Now()
 	skipped, detail, runErr := invocation.runner(ctx, invocation)
 	evidence := Evidence{
-		InvocationID: invocation.ID, Name: invocation.Check.Name, Phase: invocation.Check.Phase,
+		InvocationID: invocation.ID, Authority: cloneExecutionAuthority(invocation.Authority),
+		Name: invocation.Check.Name, Phase: invocation.Check.Phase,
 		Outcome: runrecord.LaneOutcomeOf(runErr), DurationNS: max(uint64(time.Since(begin).Nanoseconds()), uint64(time.Nanosecond)),
 		Skipped: skipped, Detail: strings.TrimSpace(detail),
 	}
 	id, err := artifact.JSONID(artifact.KindEvidence, struct {
 		InvocationID artifact.ID           `json:"invocation_id"`
+		Authority    *ExecutionAuthority   `json:"authority,omitempty"`
 		Outcome      runrecord.LaneOutcome `json:"outcome"`
 		Skipped      bool                  `json:"skipped,omitempty"`
 		Reused       bool                  `json:"reused,omitempty"`
 		Detail       string                `json:"detail,omitempty"`
-	}{evidence.InvocationID, evidence.Outcome, evidence.Skipped, evidence.Reused, evidence.Detail})
+	}{evidence.InvocationID, evidence.Authority, evidence.Outcome, evidence.Skipped, evidence.Reused, evidence.Detail})
 	if err != nil {
 		return Evidence{}, fmt.Errorf("automation check %q: identify evidence: %w", evidence.Name, err)
 	}

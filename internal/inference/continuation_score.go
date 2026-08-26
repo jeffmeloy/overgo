@@ -18,7 +18,11 @@ func (r *Runner) ScoreContinuations(
 	if r == nil || r.vocab == nil {
 		return nil, errRunnerNil
 	}
-	if ctx == nil || prompt == "" || len(candidates) < 2 {
+	// A choice suite scores two or more candidates against a prompt; a
+	// sequence-scoring suite scores one candidate against the empty
+	// prompt, whose encoding is the tokenizer's BOS context -- the
+	// full-sequence likelihood. Both ride the same path below.
+	if ctx == nil || len(candidates) < 1 {
 		return nil, errors.New("inference: incomplete continuation scoring request")
 	}
 	promptIDs, err := r.vocab.Encode(prompt, tokenizer.EncodeOptions{AddSpecial: true})

@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:84da019c5f63b742cf71e4f0a0b057e0c4c3328963b78de3cf4b4da83fbd7057",
   "items": [
     {
-      "id": "evals-all-local-models",
-      "title": "Evals cover every local model we hold benchmarks for, with lm_eval-convention suites (mmlu_pro, truthfulqa, bbh, musr, ifeval, math...) ported natively: the evaluation manifest derives from the store (servable models x locally available benchmark suites), no hand-written model lists, no python harness",
-      "owner": "gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Evals cover every local model we hold benchmarks for, with lm_eval-convention suites (mmlu_pro, truthfulqa, bbh, musr, ifeval, math...) ported natively: the evaluation manifest derives from the store (servable models x locally available benchmark suites), no hand-written model lists, no python harness",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./cmd/evaluate -count=1",
-          "depends_on": [
-            "suites-from-store/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-eval-any-model",
       "title": "The GUI evaluates any servable local model, not just the served one: evals page targets a picked model, history/compare spans models, benchmark+eval evidence shows beside catalog entries",
       "owner": "gui",

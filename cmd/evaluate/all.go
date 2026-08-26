@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -106,6 +107,39 @@ func runAllWorker(ctx context.Context, repository string, device int, family str
 	return session.Close()
 }
 
+// declareEvalDomain binds a model's evaluation domains in the store,
+// resolving the model identity through the servable listing so the
+// declaration keys the same manifest every eval consumer reads.
+func declareEvalDomain(ctx context.Context, repository, modelPath, domainsCSV string, limit int) error {
+	domains := strings.Split(domainsCSV, ",")
+	for index := range domains {
+		domains[index] = strings.TrimSpace(domains[index])
+	}
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	memo := discovery.LoadMemo(ctx, store)
+	entries, err := discovery.ServableWithMemo(ctx, store, limit, memo)
+	if err != nil {
+		return err
+	}
+	wanted := filepath.Clean(modelPath)
+	for _, entry := range entries {
+		if !strings.EqualFold(filepath.Clean(entry.Location), wanted) {
+			continue
+		}
+		declaration, err := evaluation.DeclareEvalDomains(ctx, store, entry.Model, domains)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("declared %s domains=%v declaration=%s\n", entry.Model, domains, declaration)
+		return nil
+	}
+	return fmt.Errorf("evaluate: %q is not a servable model location", modelPath)
+}
+
 // EvaluateDerived compiles the store's suites under this session's
 // authorities and campaigns each one, optionally restricted to a
 // single family source suffix for bounded smoke runs.
@@ -113,6 +147,17 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 	suites, skipped, err := evaluation.DeriveStoreSuites(ctx, s.store, s.campaign.Authorities())
 	if err != nil {
 		return err
+	}
+	// A declared eval domain routes suites: a DNA model never meets
+	// English multiple choice. Undeclared models keep full coverage.
+	domains, declared, err := evaluation.EvalDomains(ctx, s.store, s.model)
+	if err != nil {
+		return err
+	}
+	suites = evaluation.FilterSuitesForDomains(suites, domains, declared)
+	if len(suites) == 0 {
+		fmt.Printf("model domains %v admit no derived suite; nothing to evaluate\n", domains)
+		return nil
 	}
 	for name, dropped := range skipped {
 		fmt.Printf("suite %s: %d case(s) outside the exact vocabulary skipped\n", name, dropped)

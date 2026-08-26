@@ -53,7 +53,14 @@ func run() error {
 	device := flag.Int("device", 0, "CUDA device ordinal for -all")
 	family := flag.String("family", "", "restrict -all to one derived suite source suffix (e.g. mmlu)")
 	catalogLimit := flag.Int("catalog-limit", 256, "servable model listing bound for -all")
+	declareDomains := flag.String("declare-domain", "", "comma-separated eval domains to declare for the positional model path (e.g. dna)")
 	flag.Parse()
+	if csv := strings.TrimSpace(*declareDomains); csv != "" {
+		if flag.NArg() != 1 {
+			return errors.New("usage: evaluate -declare-domain <domains-csv> [-repo <store>] <model-path>")
+		}
+		return declareEvalDomain(context.Background(), *repository, flag.Arg(0), csv, *catalogLimit)
+	}
 	if *allModels {
 		if strings.TrimSpace(*manifestPath) != "" {
 			return errors.New("usage: evaluate -all [-repo <store>] [-device N] [-family name]")

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
+	"slices"
 	"testing"
 )
 
@@ -65,10 +66,10 @@ func TestReadF32PromotesIntoFinalSlab(t *testing.T) {
 	}
 }
 
-func TestSourceReadAllF32UsesTypedTensorConversion(t *testing.T) {
-	f32 := []byte{0x00, 0x00, 0x80, 0x3f}
+func TestSourceMaterializeF32SelectsValuesAndShapes(t *testing.T) {
+	ignored := make([]byte, binary.Size(uint64(0)))
 	bf16 := []byte{0x00, 0xc0}
-	first, err := NewTensor("first", "F32", []uint64{1}, bytes.NewReader(f32), 0, int64(len(f32)))
+	first, err := NewTensor("first", "I64", []uint64{1}, bytes.NewReader(ignored), 0, int64(len(ignored)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,12 +77,18 @@ func TestSourceReadAllF32UsesTypedTensorConversion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	values, err := (&Source{Tensors: map[string]Tensor{"first": first, "second": second}}).ReadAllF32()
+	catalog, err := (&Source{Tensors: map[string]Tensor{"first": first, "second": second}}).MaterializeF32(F32Selection{
+		Keep:         func(name string) bool { return name == "second" },
+		RetainShapes: true,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if values["first"][0] != 1 || values["second"][0] != -2 {
-		t.Fatalf("values = %v", values)
+	if len(catalog.Values) != 1 || catalog.Values["second"][0] != -2 {
+		t.Fatalf("values = %v", catalog.Values)
+	}
+	if len(catalog.Shapes) != 1 || !slices.Equal(catalog.Shapes["second"], []int{1}) {
+		t.Fatalf("shapes = %v", catalog.Shapes)
 	}
 }
 

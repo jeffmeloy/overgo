@@ -83,20 +83,52 @@ func ReadF32(tensor Tensor) ([]float32, error) {
 	return values, nil
 }
 
-// ReadAllF32 materializes the source directly into final F32 slices.
-func (s *Source) ReadAllF32() (map[string][]float32, error) {
+// F32Selection controls materialization and retained shape inventory.
+type F32Selection struct {
+	Keep         func(string) bool
+	RetainShapes bool
+}
+
+// F32Catalog owns selected F32 values and optional host shapes.
+type F32Catalog struct {
+	Values map[string][]float32
+	Shapes map[string][]int
+}
+
+// MaterializeF32 decodes selected tensors once.
+func (s *Source) MaterializeF32(selection F32Selection) (F32Catalog, error) {
 	if s == nil {
-		return nil, errors.New("safetensors: nil source")
+		return F32Catalog{}, errors.New("safetensors: nil source")
 	}
-	values := make(map[string][]float32, len(s.Tensors))
-	for name, tensor := range s.Tensors {
+	catalog := F32Catalog{Values: make(map[string][]float32)}
+	if selection.Keep == nil {
+		catalog.Values = make(map[string][]float32, len(s.Tensors))
+	}
+	if selection.RetainShapes {
+		catalog.Shapes = make(map[string][]int)
+		if selection.Keep == nil {
+			catalog.Shapes = make(map[string][]int, len(s.Tensors))
+		}
+	}
+	for _, name := range s.Names() {
+		if selection.Keep != nil && !selection.Keep(name) {
+			continue
+		}
+		tensor := s.Tensors[name]
+		if selection.RetainShapes {
+			shape, err := hostShape(name, tensor.Shape)
+			if err != nil {
+				return F32Catalog{}, err
+			}
+			catalog.Shapes[name] = shape
+		}
 		decoded, err := ReadF32(tensor)
 		if err != nil {
-			return nil, fmt.Errorf("safetensors: tensor %q: %w", name, err)
+			return F32Catalog{}, fmt.Errorf("safetensors: tensor %q: %w", name, err)
 		}
-		values[name] = decoded
+		catalog.Values[name] = decoded
 	}
-	return values, nil
+	return catalog, nil
 }
 
 func nativeLittleEndian() bool {

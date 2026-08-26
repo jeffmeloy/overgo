@@ -104,11 +104,11 @@ func loadTensors(directory string) (map[string][]float32, error) {
 		return nil, err
 	}
 	defer source.Close()
-	tensors, err := source.ReadAllF32()
+	catalog, err := source.MaterializeF32(safetensors.F32Selection{})
 	if err != nil {
 		return nil, fmt.Errorf("oscillatorimage: materialize: %w", err)
 	}
-	return tensors, nil
+	return catalog.Values, nil
 }
 
 // namespaceOf: the artifact family namespace, derived from the unique

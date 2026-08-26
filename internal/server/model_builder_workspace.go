@@ -10,6 +10,7 @@ import (
 	"overgo/internal/modelbuilder"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/scratchmodel"
 	"overgo/internal/strictjson"
 	"overgo/internal/workflowruntime"
 )
@@ -19,11 +20,15 @@ type ModelBuilderWorkspace struct {
 	recipe artifact.ID
 }
 
-func NewModelBuilderWorkspace(store artifact.Repository) (*ModelBuilderWorkspace, error) {
+func NewModelBuilderWorkspace(ctx context.Context, store artifact.Repository) (*ModelBuilderWorkspace, error) {
 	if store == nil {
 		return nil, errors.New("model builder workspace: repository required")
 	}
-	recipeID, err := modelbuilder.ScratchRecipeID()
+	profile, err := scratchmodel.ResolveActiveDerivationProfile(ctx, store)
+	if err != nil {
+		return nil, err
+	}
+	recipeID, err := modelbuilder.ScratchRecipeID(profile.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +70,7 @@ func (workspace *ModelBuilderWorkspace) ExecuteWorkflow(ctx context.Context, kin
 		return operation.Completion{}, err
 	}
 	documents := nonemptyLines(input.Corpus)
-	session, err := modelbuilder.NewScratchSession(modelbuilder.ScratchRequest{
+	session, err := modelbuilder.NewScratchSession(ctx, modelbuilder.ScratchRequest{
 		Repository: workspace.store, Documents: documents, Seed: input.Seed, Steps: input.Steps,
 	})
 	if err != nil {

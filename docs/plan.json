@@ -1,26 +1,8 @@
 {
   "campaign": "Model facts as typed OvergoDB runtime authority",
   "doctrine": "Classify literals by semantics and provenance, never numeric magnitude. Structural identities such as zero checks and unit indexing remain local. Mathematical and storage-format constants stay with neutral operators. Capacity hints derive from compiled ownership when available. Any value that changes with model, processor, tokenizer, checkpoint, or training profile must come from artifact metadata or a typed profile published in OvergoDB and bound by the active recipe. Derived values are formulas over resolved facts, not redundant stored fields. Runtime entry points hard-fail on missing facts. No family fallback, default constructor, compatibility wrapper, property bag, or advisory plan may remain after callers migrate. Each wave moves every caller and deletes displaced code in the same commit.",
-  "census_evidence": "evidence:sha256:1b9b8ed47cb718828a9310026ae867d5ea87b86a50bd02bd4a3ca8ad6ea7da01",
+  "census_evidence": "evidence:sha256:f3785044ae9ff31c2a3685df8f7fd2e9cb94b8c9b8005f7b15e5b54ea57de925",
   "items": [
-    {
-      "id": "derivation-profile-runtime-authority",
-      "title": "Make OvergoDB own scratch construction policy",
-      "owner": "tightening",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resolve the active derivation profile and delete direct AdaptiveDerivationProfile runtime callers",
-          "status": "open",
-          "verify": "go test ./internal/scratchmodel ./internal/modelbuilder ./internal/controllertrain -run '^Test.*Derivation.*Profile' -count=1",
-          "rationale": "Corpus split, topology minima, MLP budget, epsilon, and optimizer policy are versioned construction policy. Retain bootstrap data only as publication input, then remove runtime default access.",
-          "depends_on": [
-            "flow-profile-fact-authority/do"
-          ]
-        }
-      ]
-    },
     {
       "id": "compiled-structure-literal-authority",
       "title": "Derive implementation capacities and positional bindings from compiled programs",

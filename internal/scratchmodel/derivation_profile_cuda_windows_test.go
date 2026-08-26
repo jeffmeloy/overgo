@@ -12,10 +12,10 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
-func TestDerivationProfilePromotedByDescendantQuality(t *testing.T) {
+func TestProfilePromotedByDescendantQuality(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
-	candidate := AdaptiveDerivationProfile()
+	candidate := testDerivationProfile(t)
 	incumbent := candidate
 	incumbent.MuonMomentum = candidate.MuonMomentum / 2
 	var err error

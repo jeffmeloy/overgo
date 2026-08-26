@@ -11,7 +11,7 @@ import (
 func TestConstructionEmitsExecutableProfile(t *testing.T) {
 	construction, err := Compile(
 		CorpusFacts{Documents: bridgeCorpus(), Seed: 7, Steps: 2},
-		AdaptiveDerivationProfile(),
+		testDerivationProfile(t),
 	)
 	if err != nil {
 		t.Fatal(err)

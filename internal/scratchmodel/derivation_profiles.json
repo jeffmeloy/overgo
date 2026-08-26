@@ -1,0 +1,9 @@
+{
+  "version": "adaptive-corpus-derivation-v1",
+  "split_denominator": 10,
+  "stable_split_minimum": 30,
+  "minimum_layers": 2,
+  "minimum_mlp_factor": 2,
+  "mlp_budget": 256,
+  "epsilon": 1e-8
+}

@@ -31,16 +31,19 @@ type ScratchRequest struct {
 	Steps      int
 }
 
-func ScratchRecipeID() (artifact.ID, error) {
-	profile := scratchmodel.AdaptiveDerivationProfile()
+func ScratchRecipeID(profile artifact.ID) (artifact.ID, error) {
+	if profile.Kind() != artifact.KindProfile {
+		return artifact.ID{}, errors.New("model builder: derivation profile required")
+	}
 	return artifact.JSONID(artifact.KindRecipe, struct {
 		Runtime string      `json:"runtime"`
 		Profile artifact.ID `json:"profile"`
-	}{Runtime: "scratch-model-builder/v1", Profile: profile.ID})
+	}{Runtime: "scratch-model-builder/v1", Profile: profile})
 }
 
 type ScratchSession struct {
 	request      ScratchRequest
+	profile      scratchmodel.DerivationProfile
 	construction scratchmodel.Construction
 	training     scratchmodel.TrainingResult
 	run          runrecord.Run
@@ -66,27 +69,31 @@ type buildDecision struct {
 	Rollback   artifact.ID `json:"rollback"`
 }
 
-func NewScratchSession(request ScratchRequest) (*ScratchSession, error) {
+func NewScratchSession(ctx context.Context, request ScratchRequest) (*ScratchSession, error) {
 	if request.Repository == nil || len(request.Documents) < 3 || request.Steps <= 0 {
 		return nil, errors.New("model builder: repository, corpus, and positive steps required")
 	}
-	return &ScratchSession{request: request}, nil
+	profile, err := scratchmodel.ResolveActiveDerivationProfile(ctx, request.Repository)
+	if err != nil {
+		return nil, err
+	}
+	return &ScratchSession{request: request, profile: profile}, nil
 }
 
 func (session *ScratchSession) Initialize(context.Context) (workflowruntime.ModelBuildState, error) {
-	recipeID, err := ScratchRecipeID()
+	recipeID, err := ScratchRecipeID(session.profile.ID)
 	if err != nil {
 		return workflowruntime.ModelBuildState{}, err
 	}
 	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{
 		Documents: session.request.Documents, Seed: session.request.Seed, Steps: session.request.Steps,
-	}, scratchmodel.AdaptiveDerivationProfile())
+	}, session.profile)
 	if err != nil {
 		return workflowruntime.ModelBuildState{}, err
 	}
 	session.construction = construction
 	return workflowruntime.ModelBuildState{
-		Recipe: recipeID, Dataset: construction.Dataset(),
+		Recipe: recipeID, Dataset: construction.Dataset(), DerivationProfile: session.profile.ID,
 		Construction: construction.Authority().ID(), Model: construction.ID(),
 	}, nil
 }

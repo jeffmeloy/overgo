@@ -21,15 +21,16 @@ var modelBuildStateContract = artifact.DocumentContract{
 
 // ModelBuildState contains durable construction outputs.
 type ModelBuildState struct {
-	Recipe       artifact.ID `json:"recipe"`
-	Dataset      artifact.ID `json:"dataset"`
-	Construction artifact.ID `json:"construction"`
-	Model        artifact.ID `json:"model"`
-	Checkpoint   artifact.ID `json:"checkpoint,omitzero"`
-	Run          artifact.ID `json:"run,omitzero"`
-	Evaluation   artifact.ID `json:"evaluation,omitzero"`
-	Evidence     artifact.ID `json:"evidence,omitzero"`
-	Decision     artifact.ID `json:"decision,omitzero"`
+	Recipe            artifact.ID `json:"recipe"`
+	Dataset           artifact.ID `json:"dataset"`
+	DerivationProfile artifact.ID `json:"derivation_profile"`
+	Construction      artifact.ID `json:"construction"`
+	Model             artifact.ID `json:"model"`
+	Checkpoint        artifact.ID `json:"checkpoint,omitzero"`
+	Run               artifact.ID `json:"run,omitzero"`
+	Evaluation        artifact.ID `json:"evaluation,omitzero"`
+	Evidence          artifact.ID `json:"evidence,omitzero"`
+	Decision          artifact.ID `json:"decision,omitzero"`
 }
 
 // ModelBuildSession binds mathematical stages to the shared recipe runtime.
@@ -103,6 +104,7 @@ func ExecuteModelBuild(
 		[]recipe.Dependency{
 			{Role: recipe.DependencyModel, Artifact: initial.Model},
 			{Role: recipe.DependencyDataset, Artifact: initial.Dataset},
+			{Role: recipe.DependencyDerivationProfile, Artifact: initial.DerivationProfile},
 		},
 		ModelBuildStages(),
 	)
@@ -187,7 +189,8 @@ func validateArtifactRequirements(
 
 func validateBuildState(state ModelBuildState) error {
 	if state.Recipe.Kind() != artifact.KindRecipe || state.Dataset.Kind() != artifact.KindDataset ||
-		state.Construction.Kind() != artifact.KindRecipe || state.Model.Kind() != artifact.KindModel {
+		state.DerivationProfile.Kind() != artifact.KindProfile || state.Construction.Kind() != artifact.KindRecipe ||
+		state.Model.Kind() != artifact.KindModel {
 		return errors.New("model builder: incomplete initial state")
 	}
 	return nil

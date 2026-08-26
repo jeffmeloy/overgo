@@ -162,7 +162,8 @@ func LoadTensorInventory(
 }
 
 func (d TensorInventoryDocument) validate() error {
-	if d.Version != TensorInventoryVersion || d.Model.Kind() != artifact.KindModel {
+	if d.Version != TensorInventoryVersion ||
+		(d.Model.Kind() != artifact.KindModel && d.Model.Kind() != artifact.KindProjector) {
 		return errors.New("model artifact: invalid tensor inventory envelope")
 	}
 	if d.Format != TensorFormatGGUF && d.Format != TensorFormatSafetensors &&

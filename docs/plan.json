@@ -2,28 +2,5 @@
   "campaign": "Snapshot-addressed code manifest and deterministic verification planning",
   "doctrine": "The code manifest is a generated structural authority, not a hand-maintained description. It must reuse the source snapshot, build selection, function profiling, reference census, and automation ownership already present in the repository. Generated facts and reviewed exceptions remain separate. Every manifest is canonical and bound to exact source bytes, analyzer version, build contexts, generated and non-Go inputs, and explicit uncertainty. Gate exclusion requires affirmative structural proof; missing analysis, reflection, cgo, unresolved interfaces, excluded build variants, generated inputs, or producer failure may broaden verification but may never silently narrow it. The manifest planner runs before selectable verification, emits an immutable plan for unchanged candidate bytes, and records why every check ran or was excluded. No duplicate parser, package inventory, call graph, ownership table, arbitrary fallback, or checked-in bulk manifest is introduced.",
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
-  "items": [
-    {
-      "id": "code-manifest-trust",
-      "title": "Make the manifest selector falsifiable and adopt it across the repository",
-      "owner": "manifest",
-      "status": "open",
-      "steps": [
-        {
-          "id": "agent-context",
-          "title": "Expose affected symbols, risk boundaries, ownership, required checks, exclusions, and prior evidence to agent change planning without allowing agents to self-declare safety",
-          "status": "open",
-          "verify": "go test ./internal/agentworkflow ./cmd/gate -run 'TestAgentManifestContext|TestAgentCannotAuthorizeExclusion' -count=1",
-          "rationale": "Agent decisions and commit admission should consume the same measured structural authority.",
-          "depends_on": [
-            "code-manifest-trust/adopt-and-measure"
-          ],
-          "capabilities": [
-            "agent-change-context",
-            "deterministic-verification-authority"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

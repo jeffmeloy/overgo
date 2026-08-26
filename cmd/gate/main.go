@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+	"overgo/internal/agentworkflow"
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
@@ -435,6 +436,7 @@ type plannedPipeline struct {
 	impact      automationcheck.Impact
 	surface     automationcheck.Surface
 	manifest    *automationcheck.ManifestPlan
+	structural  codemanifest.Impact
 }
 
 type planDisposition struct {
@@ -445,17 +447,18 @@ type planDisposition struct {
 }
 
 type gatePlanReport struct {
-	Kind              string            `json:"kind"`
-	Schema            int               `json:"schema"`
-	PlanID            string            `json:"plan_id,omitempty"`
-	BaseManifest      string            `json:"base_manifest,omitempty"`
-	CandidateManifest string            `json:"candidate_manifest,omitempty"`
-	CandidateSource   string            `json:"candidate_source,omitempty"`
-	CandidateTree     string            `json:"candidate_tree,omitempty"`
-	Selected          []planDisposition `json:"selected"`
-	Excluded          []planDisposition `json:"excluded"`
-	Unresolved        []planDisposition `json:"unresolved"`
-	DependencyAdded   []planDisposition `json:"dependency_added"`
+	Kind              string                         `json:"kind"`
+	Schema            int                            `json:"schema"`
+	PlanID            string                         `json:"plan_id,omitempty"`
+	BaseManifest      string                         `json:"base_manifest,omitempty"`
+	CandidateManifest string                         `json:"candidate_manifest,omitempty"`
+	CandidateSource   string                         `json:"candidate_source,omitempty"`
+	CandidateTree     string                         `json:"candidate_tree,omitempty"`
+	Selected          []planDisposition              `json:"selected"`
+	Excluded          []planDisposition              `json:"excluded"`
+	Unresolved        []planDisposition              `json:"unresolved"`
+	DependencyAdded   []planDisposition              `json:"dependency_added"`
+	AgentContext      *agentworkflow.ManifestContext `json:"agent_context,omitempty"`
 }
 
 func buildGatePlanReport(planned plannedPipeline) gatePlanReport {
@@ -470,6 +473,9 @@ func buildGatePlanReport(planned plannedPipeline) gatePlanReport {
 		report.CandidateManifest = planned.manifest.CandidateManifest.String()
 		report.CandidateSource = planned.manifest.CandidateSource
 		report.CandidateTree = planned.manifest.CandidateTree
+		if context, err := agentworkflow.NewManifestContext(planned.structural, *planned.manifest, nil); err == nil {
+			report.AgentContext = &context
+		}
 	}
 	definitions := make(map[string]automationcheck.Descriptor, len(planned.definitions))
 	for _, check := range planned.definitions {
@@ -609,7 +615,7 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		g.selectionID = bound.ID.String()
 		g.honesty = append(g.honesty, "manifest plan: "+bound.ID.String())
 	}
-	return plannedPipeline{definitions: definitions, invocations: checks, impact: impact, surface: surface, manifest: boundPlan}, nil
+	return plannedPipeline{definitions: definitions, invocations: checks, impact: impact, surface: surface, manifest: boundPlan, structural: structural}, nil
 }
 
 func requiresManifestBootstrap(paths []string) bool {

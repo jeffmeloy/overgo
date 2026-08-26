@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"overgo/internal/binaryschema"
 )
 
 // Getter is implemented by caller-supplied objects (chat tool adapters) to
@@ -126,7 +128,7 @@ func toInt(v any) int {
 	case float64:
 		return int(n)
 	case string:
-		f, err := strconv.ParseFloat(n, 64)
+		f, err := strconv.ParseFloat(n, binaryschema.Width64Bits)
 		if err != nil {
 			return 0
 		}
@@ -160,7 +162,7 @@ func toFloat(v any) float64 {
 	case float64:
 		return n
 	case string:
-		f, err := strconv.ParseFloat(n, 64)
+		f, err := strconv.ParseFloat(n, binaryschema.Width64Bits)
 		if err != nil {
 			return 0
 		}
@@ -286,7 +288,7 @@ func mapPairRepr(key string, val any) string {
 // formatFloat mirrors gonja's formatFloatString (compact 'g', with a trailing
 // .0 for integral values). Chat templates rarely emit floats.
 func formatFloat(f float64) string {
-	s := strconv.FormatFloat(f, 'g', -1, 64)
+	s := strconv.FormatFloat(f, 'g', -1, binaryschema.Width64Bits)
 	if s == "NaN" || strings.HasSuffix(s, "Inf") {
 		return s
 	}

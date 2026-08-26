@@ -12,13 +12,16 @@ import (
 )
 
 const (
-	maxAdaptiveDecay    = float32(0.99)
-	xtcDisableThreshold = float32(0.5)
-	adaptiveTailCutoff  = 0.2
-	dynamicRangeWidth   = 0.3
-	adaptiveSharpness   = 10.0
-	adaptivePeakLogit   = adaptiveSharpness / 2
-	dryBaseTolerance    = 1.000001
+	// FullProbability is the whole probability mass, the unit every
+	// sampling cutoff and decay is expressed against.
+	FullProbability     float32 = 1
+	maxAdaptiveDecay            = float32(0.99)
+	xtcDisableThreshold         = float32(0.5)
+	adaptiveTailCutoff          = 0.2
+	dynamicRangeWidth           = 0.3
+	adaptiveSharpness           = 10.0
+	adaptivePeakLogit           = adaptiveSharpness / 2
+	dryBaseTolerance            = 1.000001
 )
 
 const (

@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 
+	"overgo/internal/clioptions"
 	cudaKernel "overgo/internal/cuda/kernel"
 	"overgo/internal/strictjson"
 )
@@ -181,7 +182,7 @@ func run(root string, update bool) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(output, '\n'), 0o644)
+	return clioptions.WriteOutputFile(path, append(output, '\n'))
 }
 
 func verifyArgumentLayouts(item *module, got map[string][]string) error {

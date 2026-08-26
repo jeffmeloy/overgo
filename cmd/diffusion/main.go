@@ -12,6 +12,8 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/inference"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
 )
 
 type cliConfig struct {
@@ -59,39 +61,46 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 }
 
 func parseCLI(arguments []string) (cliConfig, error) {
+	policy, found, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
+	if err != nil {
+		return cliConfig{}, err
+	}
+	if !found {
+		return cliConfig{}, errors.New("diffusion: inference runtime policy is unavailable")
+	}
+	defaults := policy.Interactive.Diffusion
 	flags := flag.NewFlagSet("diffusion", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	modelFlags := clioptions.AddModelFlags(flags, "GGUF LoRA adapter at scale 1; repeatable")
-	length := flags.Int("length", 512, "total prompt-plus-output sequence length")
-	steps := flags.Int("steps", 128, "diffusion step count")
-	algorithm := flags.Int("algorithm", 4, "ranking: 0 origin, 1 entropy, 2 margin, 3 random, 4 confidence")
-	epsilon := flags.Float64("eps", 0, "timestep schedule epsilon")
-	blockLength := flags.Int("block-length", 0, "block schedule length")
-	cfgScale := flags.Float64("cfg-scale", 0, "classifier-free guidance scale")
-	algorithmTemperature := flags.Float64("alg-temp", 0, "probabilistic ranking temperature")
-	gumbel := flags.Bool("gumbel", false, "apply pinned logit-space Gumbel transform")
-	temperature := flags.Float64("temp", 0.8, "token sampling temperature")
-	topK := flags.Int("top-k", 40, "top-k candidate count; zero disables")
-	topP := flags.Float64("top-p", 0.95, "nucleus sampling probability")
-	seed := flags.Int64("seed", 0, "sampling seed")
+	length := flags.Int("length", defaults.Length, "total prompt-plus-output sequence length")
+	steps := flags.Int("steps", defaults.Steps, "diffusion step count")
+	algorithm := flags.Int("algorithm", defaults.Algorithm, "ranking: 0 origin, 1 entropy, 2 margin, 3 random, 4 confidence")
+	epsilon := clioptions.Float64Override(flags, "eps", "timestep schedule epsilon")
+	blockLength := clioptions.IntOverride(flags, "block-length", "block schedule length")
+	cfgScale := clioptions.Float64Override(flags, "cfg-scale", "classifier-free guidance scale")
+	algorithmTemperature := clioptions.Float64Override(flags, "alg-temp", "probabilistic ranking temperature")
+	gumbel := clioptions.BoolOverride(flags, "gumbel", "apply pinned logit-space Gumbel transform")
+	temperature := flags.Float64("temp", float64(defaults.Temperature), "token sampling temperature")
+	topK := flags.Int("top-k", defaults.TopK, "top-k candidate count; zero disables")
+	topP := flags.Float64("top-p", float64(defaults.TopP), "nucleus sampling probability")
+	seed := clioptions.Int64Override(flags, "seed", "sampling seed")
 	shiftLogits := flags.String("shift-logits", "auto", "logit alignment: auto, true, or false")
-	visual := flags.Bool("visual", false, "show progressive step count")
+	visual := clioptions.BoolOverride(flags, "visual", "show progressive step count")
 	if err := flags.Parse(arguments); err != nil {
 		return cliConfig{}, err
 	}
 	if flags.NArg() != 2 {
 		return cliConfig{}, errors.New("usage: diffusion [options] <model.gguf> <prompt>")
 	}
+	positionals := flags.Args()
 	if (*epsilon == 0) == (*blockLength == 0) {
 		return cliConfig{}, errors.New("diffusion: set exactly one of -eps or -block-length")
 	}
-	if *length < 1 || *steps < 1 || *algorithm < 0 || *algorithm > 4 ||
+	if *length < 1 || *steps < 1 || *algorithm < 0 || *algorithm > int(inference.DiffusionConfidence) ||
 		*topK < 0 || *topP <= 0 || *topP > 1 || *epsilon < 0 || *epsilon > 1 || *blockLength < 0 ||
 		*temperature < 0 || *cfgScale < 0 || *algorithmTemperature < 0 ||
-		math.IsNaN(*temperature) || math.IsInf(*temperature, 0) ||
-		math.IsNaN(*topP) || math.IsInf(*topP, 0) || math.IsNaN(*epsilon) || math.IsInf(*epsilon, 0) ||
-		math.IsNaN(*cfgScale) || math.IsInf(*cfgScale, 0) ||
-		math.IsNaN(*algorithmTemperature) || math.IsInf(*algorithmTemperature, 0) {
+		!finite(*temperature) || !finite(*topP) || !finite(*epsilon) ||
+		!finite(*cfgScale) || !finite(*algorithmTemperature) {
 		return cliConfig{}, errors.New("diffusion: numeric option is out of range")
 	}
 	if *blockLength > 0 {
@@ -117,8 +126,8 @@ func parseCLI(arguments []string) (cliConfig, error) {
 		schedule = inference.DiffusionBlock
 	}
 	return cliConfig{
-		model: flags.Arg(0), repository: *modelFlags.Repository,
-		prompt: flags.Arg(1), device: *modelFlags.DeviceOrdinal,
+		model: positionals[0], repository: *modelFlags.Repository,
+		prompt: positionals[1], device: *modelFlags.DeviceOrdinal,
 		lora: modelFlags.LoRAPaths(), visual: *visual,
 		diffusion: inference.DiffusionOptions{
 			MaxLength: *length, Steps: *steps,
@@ -129,4 +138,8 @@ func parseCLI(arguments []string) (cliConfig, error) {
 			ShiftLogits: shift,
 		},
 	}, nil
+}
+
+func finite(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }

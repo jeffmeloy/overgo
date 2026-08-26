@@ -109,7 +109,7 @@ func executionOutcome(err error) (runrecord.Outcome, string) {
 }
 
 func servingPhases(prompt, total time.Duration) []runrecord.PhaseMetric {
-	metrics := make([]runrecord.PhaseMetric, 0, 2)
+	var metrics []runrecord.PhaseMetric
 	if prompt > 0 {
 		metrics = append(metrics, runrecord.PhaseMetric{Phase: runrecord.PhasePrefill, DurationNS: uint64(prompt)})
 	}

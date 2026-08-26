@@ -166,7 +166,7 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	// Point the recipe's policy alias at an artifact the store does not
 	// hold -- the loader would refuse this recipe, so the catalog must
 	// report it instead of listing the model as launchable.
-	policyAlias := "runtime-policy/v1/" + inference.ID.String()
+	policyAlias := "runtime-policy/v2/" + inference.ID.String()
 	truePolicy, supported, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
 	if err != nil || !supported {
 		t.Fatalf("inference runtime policy = (%+v, %t, %v)", truePolicy, supported, err)

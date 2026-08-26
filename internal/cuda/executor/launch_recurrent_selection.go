@@ -6,9 +6,12 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/kernel"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
+
+const topKPairWidth = 2
 
 func launchRecurrentSelection(
 	state *device.State,
@@ -226,8 +229,8 @@ func launchRecurrentSelection(
 		if k == 1 {
 			return launchGridABI(
 				state, functions[kernelArgmaxF32],
-				driver.Dim3{X: rows, Y: 1, Z: 1},
-				driver.Dim3{X: 256, Y: 1, Z: 1},
+				kernel.Grid1D(int(rows)),
+				kernel.DefaultBlock1D(),
 				&input, &output, &width, &rows,
 			)
 		}
@@ -242,16 +245,16 @@ func launchRecurrentSelection(
 			return err
 		}
 		outputElements, err := node.Shape.Elements()
-		if err != nil || outputElements%(uint64(attributes.K)*2) != 0 {
+		if err != nil || outputElements%(uint64(attributes.K)*topKPairWidth) != 0 {
 			return errors.New("TopKPairs output dimensions are invalid")
 		}
-		rows := uint32(outputElements / (uint64(attributes.K) * 2))
+		rows := uint32(outputElements / (uint64(attributes.K) * topKPairWidth))
 		input := pointers.input(0)
 		k := attributes.K
 		candidates := k * chunks
 		return launchGridABI(
 			state, functions[kernelTopKPairsF32],
-			driver.Dim3{X: rows, Y: 1, Z: 1}, driver.Dim3{X: 256, Y: 1, Z: 1},
+			kernel.Grid1D(int(rows)), kernel.DefaultBlock1D(),
 			&input, &output, &candidates, &k, &rows,
 		)
 	case tensor.OpTopKPartials:
@@ -271,8 +274,8 @@ func launchRecurrentSelection(
 		k, chunk := attributes.K, attributes.Chunk
 		return launchGridABI(
 			state, functions[kernelTopKPartialsF32],
-			driver.Dim3{X: chunks * rows, Y: 1, Z: 1},
-			driver.Dim3{X: 32, Y: 1, Z: 1},
+			kernel.Grid1D(int(chunks*rows)),
+			kernel.WarpBlock1D(),
 			&input, &output, &width, &k, &chunk, &chunks, &rows,
 		)
 	case tensor.OpGatherLast:

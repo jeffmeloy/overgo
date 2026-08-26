@@ -370,7 +370,7 @@ func validateDiffusion(
 }
 
 func newDiffusionSampler(options DiffusionOptions) (*sampling.Sampler, error) {
-	stages := make([]sampling.SamplerStage, 0, 3)
+	var stages []sampling.SamplerStage
 	if options.TopK > 0 {
 		stages = append(stages, sampling.SamplerTopK)
 	}
@@ -382,7 +382,7 @@ func newDiffusionSampler(options DiffusionOptions) (*sampling.Sampler, error) {
 	}
 	topP := options.TopP
 	if topP == 0 {
-		topP = 1
+		topP = sampling.FullProbability
 	}
 	return sampling.New(sampling.Config{
 		Temperature: options.Temperature,

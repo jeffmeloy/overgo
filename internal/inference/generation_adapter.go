@@ -8,7 +8,7 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-func normalizeGenerateOptions(options *GenerateOptions) error {
+func normalizeGenerateOptions(options *GenerateOptions, maxStopSequences int) error {
 	if options.MaxNewTokens < 0 {
 		return errors.New("inference: max new tokens is negative")
 	}
@@ -24,7 +24,7 @@ func normalizeGenerateOptions(options *GenerateOptions) error {
 	if options.PostSamplingProbabilities < 0 {
 		return errors.New("inference: post-sampling probability count is negative")
 	}
-	if err := validateStopSequences(options.StopSequences); err != nil {
+	if err := validateStopSequences(options.StopSequences, maxStopSequences); err != nil {
 		return err
 	}
 	if options.Sampler != nil {

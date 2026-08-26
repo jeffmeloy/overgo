@@ -63,3 +63,18 @@ func TestQuantCodecFieldsFillTypedStorage(t *testing.T) {
 		}
 	}
 }
+
+func TestAffineCodecGeometryCoversBlocks(t *testing.T) {
+	for _, layout := range [...]affineKCodecLayout{
+		q2KCodec, q3KCodec, q4KCodec, q5KCodec, q6KCodec,
+	} {
+		if layout.group.width <= 0 || layout.block.elements%layout.group.width != 0 {
+			t.Errorf("%s group width %d does not cover %d elements",
+				layout.block.dataType, layout.group.width, layout.block.elements)
+		}
+		if layout.group.levelMax < layout.group.packedLevelMax() {
+			t.Errorf("%s level max %d is below packed max %d",
+				layout.block.dataType, layout.group.levelMax, layout.group.packedLevelMax())
+		}
+	}
+}

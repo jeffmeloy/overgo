@@ -84,7 +84,7 @@
      "contains": "func ValidateDenseRepository(",
      "path": "internal/hfgguf/catalog.go",
      "role": "source",
-     "identity": "file:sha256:78eb78f727b5c9507b6e4af72fb37daa78f50c2e255511fd29e3185189ea7dcd"
+     "identity": "file:sha256:f9bc040b5f4274e9ab6ba8d464952b6b7527b63a34ae34ff61c1e20a30a5adbd"
     },
     {
      "contains": "func TestValidateDenseRepositoryUsesRuntimeCatalog(",
@@ -434,7 +434,7 @@
      "contains": "func Quantize(",
      "path": "internal/quant/quantize.go",
      "role": "source",
-     "identity": "file:sha256:27c568654680318ee570ca3ebfa2d591893da0f73112ae3119aabcd14958e8d6"
+     "identity": "file:sha256:4d89b7fba5c06501d9aea0a2ea17e2af60d3a60c2a0ddcbc7b161f5e658332e1"
     },
     {
      "contains": "func TestQuantizeMatchesPinnedGGMLReference(",
@@ -562,7 +562,7 @@
      "contains": "func NewGBNFGrammar(",
      "path": "internal/sampling/gbnf.go",
      "role": "source",
-     "identity": "file:sha256:9dbc9ca9e0ace9e63a8e5ace338acbe7db1400db80313d18dddfa1bfe7271051"
+     "identity": "file:sha256:234fea8eb02ef0bf8e3c8c334022c793f602200574b047849d5b7dac5eb0e3c8"
     },
     {
      "contains": "func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(",
@@ -731,7 +731,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:92597cd748fc5ac2e15661283115549916238ef194ece5fef9ba31b7d63b3978"
+     "identity": "file:sha256:39961029aa0920dc62d5a8d1eac4f867ab91fd9d8eb599d1833fc314864f32e4"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -800,7 +800,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:efb3aa768a203293078c9bddf393f44501fafbebce6755bdc395d745f3f929f6"
+     "identity": "file:sha256:763bc1917af55a937307705abdb2f0e872bd0319ede958ab81f6c33ca9656edc"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -884,7 +884,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:92597cd748fc5ac2e15661283115549916238ef194ece5fef9ba31b7d63b3978"
+     "identity": "file:sha256:39961029aa0920dc62d5a8d1eac4f867ab91fd9d8eb599d1833fc314864f32e4"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
@@ -995,7 +995,7 @@
      "contains": "func createArchive(",
      "path": "cmd/release/main.go",
      "role": "source",
-     "identity": "file:sha256:a29e1b917ca1a6535d70e19ec04c7dbf62b88e8b44e0bdfb2b5dd3656b294d3e"
+     "identity": "file:sha256:dc7d8dace00318ad7de6e6c54dfda9607998861a7a0988c15a9fdea385b41f65"
     },
     {
      "contains": "func TestCreateArchiveIsDeterministic(",

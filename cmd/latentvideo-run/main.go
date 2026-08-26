@@ -198,7 +198,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(*outDirectory, 0o755); err != nil {
+	if err := clioptions.EnsureOutputDirectory(*outDirectory); err != nil {
 		return err
 	}
 	report := runReport{Request: map[string]any{

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	runtimePolicyVersion uint16 = 1
+	runtimePolicyVersion uint16 = 2
 )
 
 //go:embed runtime_policies.json
@@ -30,19 +30,37 @@ type interactiveRuntimePolicy struct {
 	OutputTokens int              `json:"output_tokens"`
 	Sampling     sampling.Policy  `json:"sampling"`
 	Video        videoInputPolicy `json:"video"`
+	Diffusion    diffusionPolicy  `json:"diffusion"`
+}
+
+type diffusionPolicy struct {
+	Length      int     `json:"length"`
+	Steps       int     `json:"steps"`
+	Algorithm   int     `json:"algorithm"`
+	Temperature float32 `json:"temperature"`
+	TopK        int     `json:"top_k"`
+	TopP        float32 `json:"top_p"`
+}
+
+type requestLimitPolicy struct {
+	StopSequences           int `json:"stop_sequences"`
+	ResponseFields          int `json:"response_fields"`
+	ResponseFieldBytes      int `json:"response_field_bytes"`
+	ResponseFieldComponents int `json:"response_field_components"`
 }
 
 type servingRuntimePolicy struct {
-	ModelID            string           `json:"model_id"`
-	OutputTokens       int              `json:"output_tokens"`
-	MaxTokens          int              `json:"max_tokens"`
-	MaxConcurrent      int              `json:"max_concurrent"`
-	PromptCacheEntries int              `json:"prompt_cache_entries"`
-	MaxEmbeddingInputs int              `json:"max_embedding_inputs"`
-	StoredResponses    int              `json:"stored_responses"`
-	ResponseStoreBytes int              `json:"response_store_bytes"`
-	Sampling           sampling.Policy  `json:"sampling"`
-	Video              videoInputPolicy `json:"video"`
+	ModelID            string             `json:"model_id"`
+	OutputTokens       int                `json:"output_tokens"`
+	MaxTokens          int                `json:"max_tokens"`
+	MaxConcurrent      int                `json:"max_concurrent"`
+	PromptCacheEntries int                `json:"prompt_cache_entries"`
+	MaxEmbeddingInputs int                `json:"max_embedding_inputs"`
+	StoredResponses    int                `json:"stored_responses"`
+	ResponseStoreBytes int                `json:"response_store_bytes"`
+	Sampling           sampling.Policy    `json:"sampling"`
+	Video              videoInputPolicy   `json:"video"`
+	Limits             requestLimitPolicy `json:"limits"`
 }
 
 // RuntimePolicy binds request defaults to supported recipe tasks.
@@ -58,7 +76,7 @@ var runtimePolicyCodec = artifact.DocumentCodec[RuntimePolicy]{
 	Name: "runtime policy",
 	Contract: artifact.DocumentContract{
 		Kind:      artifact.KindProfile,
-		MediaType: "application/vnd.overgo.runtime-policy+json", Schema: "overgo/runtime-policy/v1",
+		MediaType: "application/vnd.overgo.runtime-policy+json", Schema: "overgo/runtime-policy/v2",
 	},
 	Decode:       func(data []byte, value *RuntimePolicy) error { return strictjson.DecodeBytes(data, value) },
 	Encode:       func(value RuntimePolicy) ([]byte, error) { return json.Marshal(value) },
@@ -86,7 +104,7 @@ func CatalogRuntimePolicy(task recipe.Task) (RuntimePolicy, bool, error) {
 }
 
 func runtimePolicyAlias(definition artifact.ID) string {
-	return "runtime-policy/v1/" + definition.String()
+	return "runtime-policy/v2/" + definition.String()
 }
 
 func runtimePolicyBinding(definition recipe.Definition) (artifact.Content, artifact.AliasBinding, bool, error) {
@@ -164,10 +182,15 @@ func canonicalizeRuntimePolicy(policy *RuntimePolicy) error {
 	}
 	interactive, serving := policy.Interactive, policy.Serving
 	if interactive.OutputTokens <= 0 || interactive.Video.FPS <= 0 || interactive.Video.MaxFrames <= 0 ||
+		interactive.Diffusion.Length <= 0 || interactive.Diffusion.Steps <= 0 || interactive.Diffusion.Algorithm < 0 ||
+		interactive.Diffusion.Temperature < 0 || interactive.Diffusion.TopK < 0 ||
+		interactive.Diffusion.TopP <= 0 || interactive.Diffusion.TopP > 1 ||
 		serving.ModelID == "" || serving.OutputTokens <= 0 || serving.MaxTokens < serving.OutputTokens || serving.MaxConcurrent <= 0 ||
 		serving.PromptCacheEntries <= 0 || serving.MaxEmbeddingInputs <= 0 ||
 		serving.StoredResponses <= 0 || serving.ResponseStoreBytes <= 0 ||
-		serving.Video.FPS <= 0 || serving.Video.MaxFrames <= 0 {
+		serving.Video.FPS <= 0 || serving.Video.MaxFrames <= 0 ||
+		serving.Limits.StopSequences <= 0 || serving.Limits.ResponseFields <= 0 ||
+		serving.Limits.ResponseFieldBytes <= 0 || serving.Limits.ResponseFieldComponents <= 0 {
 		return errors.New("model recipe: incomplete runtime policy")
 	}
 	if err := interactive.Sampling.Validate(); err != nil {

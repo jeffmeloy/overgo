@@ -741,7 +741,7 @@ func modelValidation(item modelClaim) string {
 		item.AdditionalValidatedFixture,
 	}
 	modelFixtures = slices.DeleteFunc(modelFixtures, func(value string) bool { return value == "" })
-	parts := make([]string, 0, 4)
+	var parts []string
 	if len(modelFixtures) != 0 {
 		parts = append(parts, "validated: "+strings.Join(modelFixtures, ", "))
 	}

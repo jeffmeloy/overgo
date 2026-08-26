@@ -25,7 +25,7 @@ func (r *Runner) GenerateEncoderDecoder(
 	if r.forwardProgram().Session != model.ForwardSessionEncoderDecoder {
 		return nil, "", nil, errors.New("inference: generation requires a compiled encoder-decoder program")
 	}
-	if err := normalizeGenerateOptions(&options); err != nil {
+	if err := normalizeGenerateOptions(&options, r.runtimePolicy.Serving.Limits.StopSequences); err != nil {
 		return nil, "", nil, err
 	}
 	if options.ProjectedInputs != nil {

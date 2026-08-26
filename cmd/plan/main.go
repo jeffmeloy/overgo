@@ -515,7 +515,7 @@ func recordStop(reason string) error {
 		head = strings.TrimSpace(string(out))
 	}
 	payload := fmt.Sprintf("{\"reason\":%q,\"head\":%q}\n", strings.TrimSpace(reason), head)
-	if err := os.WriteFile("docs/plan_stop.json", []byte(payload), 0o644); err != nil {
+	if err := clioptions.WriteOutputFile("docs/plan_stop.json", []byte(payload)); err != nil {
 		return err
 	}
 	fmt.Printf("recorded stop: %s\n", strings.TrimSpace(reason))

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/gguf"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelartifact"
@@ -431,7 +432,7 @@ func modelTensors(source *safetensors.Source, config modelConfig, fp8Native bool
 		if include && config.Text.SharedKVLayers > 0 &&
 			(strings.HasSuffix(destinationName, ".attn_k.weight") || strings.HasSuffix(destinationName, ".attn_v.weight")) {
 			match := layerNamePattern.FindStringSubmatch(sourceName)
-			if index, parseErr := strconv.ParseUint(match[1], 10, 32); parseErr == nil && uint32(index) >= sharedKVStart {
+			if index, parseErr := strconv.ParseUint(match[1], binaryschema.DecimalRadix, binaryschema.Width32Bits); parseErr == nil && uint32(index) >= sharedKVStart {
 				// shared-KV blocks never read k/v projections (spec.LayerHasKV)
 				continue
 			}

@@ -1,6 +1,6 @@
 [
   {
-    "version": 1,
+    "version": 2,
     "tasks": ["generation", "inference", "seq2seq", "vqa"],
     "interactive": {
       "output_tokens": 1,
@@ -35,7 +35,15 @@
         "seed": 0,
         "samplers": ["penalties", "dry", "top_n_sigma", "top_k", "typ_p", "top_p", "min_p", "xtc", "temperature"]
       },
-      "video": {"fps": 24, "max_frames": 32}
+      "video": {"fps": 24, "max_frames": 32},
+      "diffusion": {
+        "length": 512,
+        "steps": 128,
+        "algorithm": 4,
+        "temperature": 0.8,
+        "top_k": 40,
+        "top_p": 0.95
+      }
     },
       "serving": {
         "model_id": "overgo",
@@ -77,7 +85,13 @@
         "seed": 0,
         "samplers": ["penalties", "dry", "top_n_sigma", "top_k", "typ_p", "top_p", "min_p", "xtc", "temperature"]
       },
-      "video": {"fps": 2, "max_frames": 32}
+      "video": {"fps": 2, "max_frames": 32},
+      "limits": {
+        "stop_sequences": 256,
+        "response_fields": 64,
+        "response_field_bytes": 256,
+        "response_field_components": 16
+      }
     }
   }
 ]

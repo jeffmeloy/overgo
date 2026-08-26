@@ -62,6 +62,7 @@ func main() {
 	format := flag.String("format", "text", "census format: text or json")
 	publish := flag.Bool("publish", false, "publish census evidence to OvergoDB")
 	importStore := flag.String("import-store", "", "import and rebind matching active decisions from another OvergoDB store")
+	reviewCallsites := flag.Bool("review-callsites", false, "with -import-store: accept reviewed callsite drift")
 	checkScope := flag.String("check-scope", "", "comma-separated production package prefixes to validate")
 	checkAll := flag.Bool("check-all", false, "validate every production package")
 	checkTests := flag.Bool("check-tests", false, "validate test literal ownership")
@@ -73,6 +74,9 @@ func main() {
 	requireClassifiedFixtures := flag.Bool("require-classified-fixtures", false, "require an exact test-literal class")
 	requireZeroOpen := flag.Bool("require-zero-open", false, "reject active derivation-blocked closure rows")
 	flag.Parse()
+	if *reviewCallsites && *importStore == "" {
+		fatal(errors.New("-review-callsites requires -import-store"))
+	}
 	root, err := os.Getwd()
 	if err != nil {
 		fatal(err)
@@ -150,7 +154,9 @@ func main() {
 		return
 	}
 	if *importStore != "" {
-		count, unmatched, first, err := importClosureDocuments(root, *storePath, *importStore, mustSnapshot(root))
+		count, unmatched, first, err := importClosureDocuments(
+			root, *storePath, *importStore, mustSnapshot(root), *reviewCallsites,
+		)
 		if err != nil {
 			fatal(err)
 		}
@@ -404,7 +410,11 @@ func publishCensusEvidence(ctx context.Context, store *overgodb.Store, snapshot 
 	return stored, nil
 }
 
-func importClosureDocuments(root, storePath, sourcePath string, snapshot repoanalysis.SourceSnapshot) (count, unmatched int, first string, finalErr error) {
+func importClosureDocuments(
+	root, storePath, sourcePath string,
+	snapshot repoanalysis.SourceSnapshot,
+	reviewCallsites bool,
+) (count, unmatched int, first string, finalErr error) {
 	candidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
 	if err != nil {
 		return count, unmatched, first, err
@@ -456,11 +466,22 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 		if err != nil {
 			return count, unmatched, first, err
 		}
-		_, matched, _, err := index.Rebind(document)
+		current, matched, _, err := rebindClosure(index, document, reviewCallsites)
 		if err != nil {
 			return count, unmatched, first, err
 		}
-		if !matched && targetAliases[alias] == document.ID && !retired[alias] {
+		if targetAliases[alias] != document.ID || retired[alias] {
+			continue
+		}
+		moved := false
+		if matched {
+			currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
+			if err != nil {
+				return count, unmatched, first, err
+			}
+			moved = currentAlias != alias
+		}
+		if !matched || moved {
 			retirements = append(retirements, artifact.AliasBinding{Name: alias, Target: document.ID, Previous: &document.ID, Remove: true})
 			retired[alias] = true
 		}
@@ -477,7 +498,7 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 			first = cmp.Or(first, document.Name+":source-alias")
 			continue
 		}
-		current, matched, reason, err := index.Rebind(document)
+		current, matched, reason, err := rebindClosure(index, document, reviewCallsites)
 		if err != nil {
 			return count, unmatched, first, err
 		}
@@ -516,6 +537,17 @@ func importClosureDocuments(root, storePath, sourcePath string, snapshot repoana
 		return count, unmatched, first, err
 	}
 	return len(rebound), unmatched, first, nil
+}
+
+func rebindClosure(
+	index closurescan.RebindIndex,
+	document closureledger.Document,
+	reviewCallsites bool,
+) (closureledger.Document, bool, string, error) {
+	if reviewCallsites {
+		return index.RebindReviewed(document)
+	}
+	return index.Rebind(document)
 }
 
 func closureFixtureImports(ctx context.Context, source, target *overgodb.Store, documents []closureledger.Document) ([]artifact.Descriptor, error) {

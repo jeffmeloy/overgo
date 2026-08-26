@@ -21,6 +21,15 @@ func CompileRebindIndex(candidates []Candidate) RebindIndex {
 
 // Rebind matches policy and callsites, moving source identity when needed.
 func (current RebindIndex) Rebind(document closureledger.Document) (closureledger.Document, bool, string, error) {
+	return current.rebind(document, false)
+}
+
+// RebindReviewed accepts reviewed callsite drift for unchanged declarations.
+func (current RebindIndex) RebindReviewed(document closureledger.Document) (closureledger.Document, bool, string, error) {
+	return current.rebind(document, true)
+}
+
+func (current RebindIndex) rebind(document closureledger.Document, reviewed bool) (closureledger.Document, bool, string, error) {
 	bindings := make([]closureledger.SourceBinding, len(document.Bindings))
 	fixture := document.Fixture
 	changed := false
@@ -52,7 +61,7 @@ func (current RebindIndex) Rebind(document closureledger.Document) (closureledge
 		var match Candidate
 		matches, callsites := 0, false
 		for _, candidate := range candidates {
-			if !migration && candidate.CallsiteID != previous.CallsiteID {
+			if !migration && !reviewed && candidate.CallsiteID != previous.CallsiteID {
 				continue
 			}
 			callsites = true
@@ -60,7 +69,7 @@ func (current RebindIndex) Rebind(document closureledger.Document) (closureledge
 				match, matches = candidate, matches+1
 			}
 		}
-		if !migration && previous.Kind == closureledger.BindingLiteral && matches == 0 {
+		if !migration && matches == 0 && (reviewed || previous.Kind == closureledger.BindingLiteral) {
 			key = "m\x00" + rebindKey(previous.Kind, previous.Package, previous.File, previous.Scope, previous.Name, previous.Expression)
 			candidates = current[key]
 			migration, callsites = true, false

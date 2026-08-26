@@ -171,12 +171,12 @@ func rawTextRows(spec latentvideo.TextConditioningSpec, prompt, cacheBase string
 			binary.LittleEndian.PutUint32(raw[i*4:], math.Float32bits(v))
 		}
 		sum := sha256.Sum256(raw)
-		if err := os.WriteFile(cacheBase+".f32le", raw, 0o644); err != nil {
+		if err := clioptions.WriteOutputFile(cacheBase+".f32le", raw); err != nil {
 			return nil, 0, 0, err
 		}
 		if err := jsonfile.Write(cacheBase+".json", rawTextCache{
 			Prompt: prompt, Tokens: tokens, TextDim: textDim, SHA256: hex.EncodeToString(sum[:]),
-		}, 0o644); err != nil {
+		}, clioptions.OutputFileMode); err != nil {
 			return nil, 0, 0, err
 		}
 	}

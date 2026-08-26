@@ -318,7 +318,7 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 	if !h.requireModel(response, body.Model) {
 		return
 	}
-	if err := validateNativeCompletionOptions(body); err != nil {
+	if err := h.validateNativeCompletionOptions(body); err != nil {
 		writeInvalidRequest(response, err)
 		return
 	}
@@ -384,7 +384,7 @@ func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.
 		writeInvalidRequestMessage(response, "multimodal prompt cannot use cache_prompt")
 		return
 	}
-	stops, err := parseStopSequences(body.Stop)
+	stops, err := h.parseStopSequences(body.Stop)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return

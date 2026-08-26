@@ -179,7 +179,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		writeInvalidRequest(response, err)
 		return
 	}
-	stops, err := parseStopSequences(body.Stop)
+	stops, err := h.parseStopSequences(body.Stop)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return

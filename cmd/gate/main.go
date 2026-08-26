@@ -1921,6 +1921,10 @@ func advancePlanFile(repo, ref string) (func() error, error) {
 	if err != nil {
 		return nil, err
 	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
 	document, err := plan.Load(path)
 	if err != nil {
 		return nil, err
@@ -1932,7 +1936,7 @@ func advancePlanFile(repo, ref string) (func() error, error) {
 	if err := plan.Save(path, updated); err != nil {
 		return nil, err
 	}
-	return func() error { return os.WriteFile(path, original, 0o644) }, nil
+	return func() error { return os.WriteFile(path, original, info.Mode().Perm()) }, nil
 }
 
 func (g *gateContext) prepare() error {

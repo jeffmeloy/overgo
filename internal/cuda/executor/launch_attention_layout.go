@@ -18,6 +18,7 @@ import (
 // cp.async pipeline; the O spill scratch aliases the dead Q+S region).
 // Shared bytes mirror the kernel's layout exactly.
 const (
+	attentionMinimumRank     = 3
 	attentionBF16Width       = uint32(128)
 	attentionBF16RowTile     = uint32(64)
 	attentionBF16KVTile      = uint32(64)

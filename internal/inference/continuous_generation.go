@@ -323,7 +323,7 @@ func (g *ContinuousGenerator) admit(
 		return
 	}
 	options := request.options
-	if err := normalizeGenerateOptions(&options); err != nil {
+	if err := normalizeGenerateOptions(&options, g.runner.runtimePolicy.Serving.Limits.StopSequences); err != nil {
 		request.response <- continuousGenerateResult{err: err}
 		return
 	}

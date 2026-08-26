@@ -59,145 +59,145 @@ State describes implementation completeness; tier describes evidence strength. `
 | `unified-prompt-preparation` | implemented | contract-tested | Native generation and the Chat, Responses, and Anthropic protocols share prepared prompts with token counting. | source: [`func (h *Handler) preparePrompt(`](../internal/server/server_native_prompt.go) `file:sha256:8d974c5897b56a6910b629aee9c643baa539024637aafa94c7fa3c061d147980`<br>source: [`func (h *Handler) prepareProtocolGenerationPlan(`](../internal/server/protocol_common.go) `file:sha256:499cff53718366686327c3a834c89d301cfa927d8b9e72ff2a8d35e140b9846d`<br>artifact: [`func TestPreparedPromptGenerationAndTokenCountParity(`](../internal/server/server_completion_chat_embedding_test.go) `evidence:sha256:dec2dc195552d4bb45d00badc478657c3ce972f18621fc678207d5151842ede2`<br>verify: `go test ./internal/server -run '^TestPreparedPromptGenerationAndTokenCountParity$' -count=1 -v` |
 | `validated-split-gguf` | implemented | contract-tested | Split GGUF models load, validate, write, merge, and round-trip. | source: [`func splitPathPrefix(`](../internal/gguf/reader.go) `file:sha256:91eecff189e9797a0913ba83b5a55330658880f948be68cf11d87aae40d1e411`<br>artifact: [`func TestOpenLoadsAndReadsSplitGGUF(`](../internal/gguf/split_test.go) `evidence:sha256:0506567d0c91c9e6d7b32340d8f89b26fef5547f4c3dbeb7ad2e10172c88fb60`<br>verify: `go test ./internal/gguf -run '^TestOpenLoadsAndReadsSplitGGUF$' -count=1 -v` |
 
-## Model families
+## Model prototypes
 
-`experimental` means the implementation is guarded by strict metadata/catalog validation but may still lack a local real-model oracle.
+A prototype is structural architecture support guarded by strict metadata/catalog validation. Validation is a property of specific models, never of the prototype: the real-model validation column names the exact model artifacts whose oracle or fixture evidence stands, and the typed specifications under `docs/verification` carry each specific model's inference and training verification.
 
-| Model | State | Execution | Real-model validation | Limitations |
-| --- | --- | --- | --- | --- |
-| `adaptive-causal` | experimental | host-reference, device-resident-training | constructed-not-loaded: topology is corpus-derived at Compile time, validated by scratch oracle goldens rather than a fixture model | - |
-| `afmoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `apertus` | experimental | model-dependent | pending-fixture | - |
-| `arcee` | experimental | model-dependent | pending-fixture | - |
-| `arctic` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `arwkv7` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `baichuan` | experimental | model-dependent | pending-fixture | - |
-| `bailingmoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `bailingmoe2` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `bert` | experimental | bounded-host, f32-preload | pending-fixture | classifier-and-pooler-outside-hidden-state-boundary, real-model-fixture-pending |
-| `bitnet` | experimental | model-dependent | pending-fixture | - |
-| `bloom` | experimental | model-dependent | pending-fixture | - |
-| `chameleon` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | vision-projector-absent-from-pinned-upstream, image-token-generation-absent-from-pinned-upstream, real-model-fixture-pending |
-| `chatglm` | experimental | bounded-host, f32-preload | pending-fixture | - |
-| `codeshell` | experimental | model-dependent | pending-fixture | - |
-| `cogvlm` | experimental | bounded-host, f32-preload | pending-fixture | - |
-| `cohere2` | experimental | model-dependent | pending-fixture | - |
-| `cohere2moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `command-r` | experimental | model-dependent | pending-fixture | - |
-| `dbrx` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `deci` | experimental | bounded-host, f32-preload | pending-fixture | - |
-| `deepseek` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | real-model-fixture-pending |
-| `deepseek2` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `deepseek2-ocr` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | real-model-validation-pending-fixture |
-| `deepseek32` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `deepseek4` | experimental | bounded-host-hyper-connections-and-compressed-attention, f32-preload, native-quantized-experts | pending-fixture | - |
-| `dflash` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | explicit-prefix-sync-recomputes-target-prefix, real-model-pair-pending |
-| `dots1` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `dream` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
-| `eagle3` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | real-model-pair-pending |
-| `ernie4_5` | experimental | bounded-host, f32-preload | pending-fixture | - |
-| `ernie4_5-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `eurobert` | experimental | bounded-host, f32-preload | pending-fixture | real-model-fixture-pending |
-| `exaone` | experimental | model-dependent | pending-fixture | - |
-| `exaone-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `exaone4` | experimental | model-dependent | pending-fixture | - |
-| `falcon` | experimental | model-dependent | pending-fixture | - |
-| `falcon-h1` | experimental | bounded-host, f32-preload, native-quantized-linear-weights, retained-device-cache | pending-fixture | real-model-fixture-pending |
-| `gemma` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
-| `gemma-embedding` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
-| `gemma2` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
-| `gemma3` | experimental | model-dependent | validated: gemma-3-12b-it-IQ4_XS.gguf | - |
-| `gemma3n` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | audio-encoder-absent-from-pinned-mtmd-execution, real-model-validation-pending-fixture |
-| `gemma4` | experimental | bounded-host, f32-preload, native-quantized-experts | multimodal: gemma-4-12b-it-mmproj-bf16.gguf + gemma4_mm_image.png + gemma4_mm_golden.json; pending-language-model-oracle | - |
-| `gemma4-assistant` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | real-model-pair-pending |
-| `glm-dsa` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `glm4` | experimental | model-dependent | pending-fixture | - |
-| `glm4moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `gpt-oss` | experimental | bounded-host, f32-preload, native-quantized-experts, retained-device-cache | pending-fixture | - |
-| `gpt2` | experimental | model-dependent | pending-fixture | - |
-| `gptj` | experimental | bounded-host, f32-preload, native-quantized-weights, retained-device-cache | pending-fixture | - |
-| `gptneox` | experimental | model-dependent | pending-fixture | - |
-| `granite` | experimental | model-dependent | pending-fixture | - |
-| `granitehybrid` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `granitemoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | real-model-fixture-pending |
-| `grok` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `grovemoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `hunyuan-dense` | experimental | bounded-host, f32-preload | pending-fixture | - |
-| `hunyuan-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `hunyuan_vl` | experimental | bounded-host, f32-preload | pending-fixture | - |
-| `hy_v3` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `internlm2` | experimental | model-dependent | pending-fixture | - |
-| `jais` | experimental | model-dependent | pending-fixture | - |
-| `jais2` | experimental | model-dependent | pending-fixture | - |
-| `jamba` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `jina-bert-v2` | experimental | bounded-host, f32-preload | pending-fixture | real-model-fixture-pending |
-| `jina-bert-v3` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | real-model-fixture-pending |
-| `kimi-linear` | experimental | bounded-host, f32-preload, native-quantized-linear-weights, retained-device-cache | pending-fixture | real-model-fixture-pending |
-| `laguna` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `lfm2` | experimental | bounded-host, f32-preload, native-quantized-projections | pending-fixture | - |
-| `lfm2moe` | experimental | bounded-host, f32-preload, native-quantized-projections, native-quantized-experts | pending-fixture | - |
-| `llada` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
-| `llada-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `llama` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `llama-embed` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | real-model-fixture-pending |
-| `llama4` | experimental | bounded-host, f32-preload, native-quantized-experts, retained-device-cache | pending-fixture | - |
-| `maincoder` | experimental | model-dependent | pending-fixture | - |
-| `mamba` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `mamba2` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `mellum` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `mimo2` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `minicpm` | experimental | model-dependent | pending-fixture | - |
-| `minicpm3` | experimental | bounded-host, f32-preload | pending-fixture | - |
-| `minimax-m2` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `mistral3` | experimental | model-dependent | pending-fixture | - |
-| `mistral4` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `modern-bert` | experimental | bounded-host, f32-preload | pending-fixture | real-model-fixture-pending |
-| `mpt` | experimental | model-dependent | pending-fixture | - |
-| `nemotron` | experimental | model-dependent | pending-fixture | - |
-| `nemotron_h` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `nemotron_h_moe` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `neo-bert` | experimental | bounded-host, f32-preload | pending-fixture | classifier-outside-hidden-state-boundary, real-model-fixture-pending |
-| `nomic-bert` | experimental | bounded-host, f32-preload | pending-fixture | real-model-fixture-pending |
-| `nomic-bert-moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | real-model-fixture-pending |
-| `olmo` | experimental | model-dependent | pending-fixture | - |
-| `olmo2` | experimental | model-dependent | pending-fixture | - |
-| `olmoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `openelm` | experimental | model-dependent | pending-fixture | - |
-| `orion` | experimental | model-dependent | pending-fixture | - |
-| `paddleocr` | experimental | bounded-host, f32-preload | pending-fixture | - |
-| `pangu-embedded` | experimental | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | real-model-fixture-pending |
-| `phi2` | experimental | model-dependent | pending-fixture | - |
-| `phi3` | experimental | model-dependent | pending-fixture | - |
-| `phimoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `plamo` | experimental | model-dependent | pending-fixture | - |
-| `plamo2` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `plamo3` | experimental | bounded-host, f32-preload | pending-fixture | - |
-| `plm` | experimental | bounded-host, f32-preload | pending-fixture | - |
-| `qwen` | experimental | bounded-host, f32-preload | pending-fixture | - |
-| `qwen2` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
-| `qwen2moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `qwen2vl` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
-| `qwen3` | experimental | bounded-host, f32-preload, native-q8, native-k-quant, native-iq4-xs | validated: Qwen3-4B-UD-Q8_K_XL.gguf | - |
-| `qwen35` | experimental | native-q8 | validated: Qwen3.5-9B-Q8_0.gguf, Bonsai-27B-Q1_0.gguf; multimodal: Qwen3.5-4B-F16.gguf; video: qwen35_video_golden.json | - |
-| `qwen35moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `qwen3moe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `qwen3next` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `qwen3vl` | experimental | bounded-host, f32-preload, native-quant | pending-fixture | - |
-| `qwen3vlmoe` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | classification-rerank-head-absent-from-pinned-graph |
-| `refact` | experimental | model-dependent | pending-fixture | - |
-| `rnd1` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `rwkv6` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `rwkv6qwen2` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `rwkv7` | experimental | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
-| `seed_oss` | experimental | model-dependent | pending-fixture | - |
-| `smallthinker` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `smollm3` | experimental | model-dependent | pending-fixture | - |
-| `stablelm` | experimental | model-dependent | pending-fixture | - |
-| `starcoder` | experimental | model-dependent | pending-fixture | - |
-| `starcoder2` | experimental | model-dependent | pending-fixture | - |
-| `step35` | experimental | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
-| `t5` | experimental | bounded-host, f32-preload, native-k-quant | pending-fixture | real-decoder-fixture-pending |
-| `t5encoder` | experimental | bounded-host, f32-preload, native-k-quant | validated: umt5-xxl-encoder-Q5_K_S.gguf | encoder-only, no-cross-attention |
-| `talkie` | experimental | bounded-host, f32-preload, native-quant, retained-device-cache | pending-fixture | - |
-| `wavtokenizer-dec` | experimental | host-f32-staging, f32-preload | pending-fixture | real-model-fixture-pending |
-| `xverse` | experimental | model-dependent | pending-fixture | - |
+| Model | Execution | Real-model validation | Limitations |
+| --- | --- | --- | --- |
+| `adaptive-causal` | host-reference, device-resident-training | constructed-not-loaded: topology is corpus-derived at Compile time, validated by scratch oracle goldens rather than a fixture model | - |
+| `afmoe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `apertus` | model-dependent | pending-fixture | - |
+| `arcee` | model-dependent | pending-fixture | - |
+| `arctic` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `arwkv7` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `baichuan` | model-dependent | pending-fixture | - |
+| `bailingmoe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `bailingmoe2` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `bert` | bounded-host, f32-preload | pending-fixture | classifier-and-pooler-outside-hidden-state-boundary, real-model-fixture-pending |
+| `bitnet` | model-dependent | pending-fixture | - |
+| `bloom` | model-dependent | pending-fixture | - |
+| `chameleon` | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | vision-projector-absent-from-pinned-upstream, image-token-generation-absent-from-pinned-upstream, real-model-fixture-pending |
+| `chatglm` | bounded-host, f32-preload | pending-fixture | - |
+| `codeshell` | model-dependent | pending-fixture | - |
+| `cogvlm` | bounded-host, f32-preload | pending-fixture | - |
+| `cohere2` | model-dependent | pending-fixture | - |
+| `cohere2moe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `command-r` | model-dependent | pending-fixture | - |
+| `dbrx` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `deci` | bounded-host, f32-preload | pending-fixture | - |
+| `deepseek` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | real-model-fixture-pending |
+| `deepseek2` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `deepseek2-ocr` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | real-model-validation-pending-fixture |
+| `deepseek32` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `deepseek4` | bounded-host-hyper-connections-and-compressed-attention, f32-preload, native-quantized-experts | pending-fixture | - |
+| `dflash` | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | explicit-prefix-sync-recomputes-target-prefix, real-model-pair-pending |
+| `dots1` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `dream` | bounded-host, f32-preload, native-quant | pending-fixture | - |
+| `eagle3` | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | real-model-pair-pending |
+| `ernie4_5` | bounded-host, f32-preload | pending-fixture | - |
+| `ernie4_5-moe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `eurobert` | bounded-host, f32-preload | pending-fixture | real-model-fixture-pending |
+| `exaone` | model-dependent | pending-fixture | - |
+| `exaone-moe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `exaone4` | model-dependent | pending-fixture | - |
+| `falcon` | model-dependent | pending-fixture | - |
+| `falcon-h1` | bounded-host, f32-preload, native-quantized-linear-weights, retained-device-cache | pending-fixture | real-model-fixture-pending |
+| `gemma` | bounded-host, f32-preload, native-quant | pending-fixture | - |
+| `gemma-embedding` | bounded-host, f32-preload, native-quant | pending-fixture | - |
+| `gemma2` | bounded-host, f32-preload, native-quant | pending-fixture | - |
+| `gemma3` | model-dependent | validated: gemma-3-12b-it-IQ4_XS.gguf | - |
+| `gemma3n` | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | audio-encoder-absent-from-pinned-mtmd-execution, real-model-validation-pending-fixture |
+| `gemma4` | bounded-host, f32-preload, native-quantized-experts | multimodal: gemma-4-12b-it-mmproj-bf16.gguf + gemma4_mm_image.png + gemma4_mm_golden.json; pending-language-model-oracle | - |
+| `gemma4-assistant` | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | real-model-pair-pending |
+| `glm-dsa` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `glm4` | model-dependent | pending-fixture | - |
+| `glm4moe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `gpt-oss` | bounded-host, f32-preload, native-quantized-experts, retained-device-cache | pending-fixture | - |
+| `gpt2` | model-dependent | pending-fixture | - |
+| `gptj` | bounded-host, f32-preload, native-quantized-weights, retained-device-cache | pending-fixture | - |
+| `gptneox` | model-dependent | pending-fixture | - |
+| `granite` | model-dependent | pending-fixture | - |
+| `granitehybrid` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `granitemoe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | real-model-fixture-pending |
+| `grok` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `grovemoe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `hunyuan-dense` | bounded-host, f32-preload | pending-fixture | - |
+| `hunyuan-moe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `hunyuan_vl` | bounded-host, f32-preload | pending-fixture | - |
+| `hy_v3` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `internlm2` | model-dependent | pending-fixture | - |
+| `jais` | model-dependent | pending-fixture | - |
+| `jais2` | model-dependent | pending-fixture | - |
+| `jamba` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `jina-bert-v2` | bounded-host, f32-preload | pending-fixture | real-model-fixture-pending |
+| `jina-bert-v3` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | real-model-fixture-pending |
+| `kimi-linear` | bounded-host, f32-preload, native-quantized-linear-weights, retained-device-cache | pending-fixture | real-model-fixture-pending |
+| `laguna` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `lfm2` | bounded-host, f32-preload, native-quantized-projections | pending-fixture | - |
+| `lfm2moe` | bounded-host, f32-preload, native-quantized-projections, native-quantized-experts | pending-fixture | - |
+| `llada` | bounded-host, f32-preload, native-quant | pending-fixture | - |
+| `llada-moe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `llama` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `llama-embed` | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | real-model-fixture-pending |
+| `llama4` | bounded-host, f32-preload, native-quantized-experts, retained-device-cache | pending-fixture | - |
+| `maincoder` | model-dependent | pending-fixture | - |
+| `mamba` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `mamba2` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `mellum` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `mimo2` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `minicpm` | model-dependent | pending-fixture | - |
+| `minicpm3` | bounded-host, f32-preload | pending-fixture | - |
+| `minimax-m2` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `mistral3` | model-dependent | pending-fixture | - |
+| `mistral4` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `modern-bert` | bounded-host, f32-preload | pending-fixture | real-model-fixture-pending |
+| `mpt` | model-dependent | pending-fixture | - |
+| `nemotron` | model-dependent | pending-fixture | - |
+| `nemotron_h` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `nemotron_h_moe` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `neo-bert` | bounded-host, f32-preload | pending-fixture | classifier-outside-hidden-state-boundary, real-model-fixture-pending |
+| `nomic-bert` | bounded-host, f32-preload | pending-fixture | real-model-fixture-pending |
+| `nomic-bert-moe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | real-model-fixture-pending |
+| `olmo` | model-dependent | pending-fixture | - |
+| `olmo2` | model-dependent | pending-fixture | - |
+| `olmoe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `openelm` | model-dependent | pending-fixture | - |
+| `orion` | model-dependent | pending-fixture | - |
+| `paddleocr` | bounded-host, f32-preload | pending-fixture | - |
+| `pangu-embedded` | bounded-host, f32-preload, native-quantized-linear-weights | pending-fixture | real-model-fixture-pending |
+| `phi2` | model-dependent | pending-fixture | - |
+| `phi3` | model-dependent | pending-fixture | - |
+| `phimoe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `plamo` | model-dependent | pending-fixture | - |
+| `plamo2` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `plamo3` | bounded-host, f32-preload | pending-fixture | - |
+| `plm` | bounded-host, f32-preload | pending-fixture | - |
+| `qwen` | bounded-host, f32-preload | pending-fixture | - |
+| `qwen2` | bounded-host, f32-preload, native-quant | pending-fixture | - |
+| `qwen2moe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `qwen2vl` | bounded-host, f32-preload, native-quant | pending-fixture | - |
+| `qwen3` | bounded-host, f32-preload, native-q8, native-k-quant, native-iq4-xs | validated: Qwen3-4B-UD-Q8_K_XL.gguf | - |
+| `qwen35` | native-q8 | validated: Qwen3.5-9B-Q8_0.gguf, Bonsai-27B-Q1_0.gguf; multimodal: Qwen3.5-4B-F16.gguf; video: qwen35_video_golden.json | - |
+| `qwen35moe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `qwen3moe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `qwen3next` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `qwen3vl` | bounded-host, f32-preload, native-quant | pending-fixture | - |
+| `qwen3vlmoe` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | classification-rerank-head-absent-from-pinned-graph |
+| `refact` | model-dependent | pending-fixture | - |
+| `rnd1` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `rwkv6` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `rwkv6qwen2` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `rwkv7` | bounded-host, f32-preload, native-quantized-weights | pending-fixture | - |
+| `seed_oss` | model-dependent | pending-fixture | - |
+| `smallthinker` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `smollm3` | model-dependent | pending-fixture | - |
+| `stablelm` | model-dependent | pending-fixture | - |
+| `starcoder` | model-dependent | pending-fixture | - |
+| `starcoder2` | model-dependent | pending-fixture | - |
+| `step35` | bounded-host, f32-preload, native-quantized-experts | pending-fixture | - |
+| `t5` | bounded-host, f32-preload, native-k-quant | pending-fixture | real-decoder-fixture-pending |
+| `t5encoder` | bounded-host, f32-preload, native-k-quant | validated: umt5-xxl-encoder-Q5_K_S.gguf | encoder-only, no-cross-attention |
+| `talkie` | bounded-host, f32-preload, native-quant, retained-device-cache | pending-fixture | - |
+| `wavtokenizer-dec` | host-f32-staging, f32-preload | pending-fixture | real-model-fixture-pending |
+| `xverse` | model-dependent | pending-fixture | - |

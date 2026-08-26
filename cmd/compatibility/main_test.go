@@ -18,15 +18,18 @@ func TestGenerateValidatesEvidenceAndSortsOutput(t *testing.T) {
 		Verify: "go test ./internal -run '^TestFeature$' -count=1 -v", Summary: "Feature works.",
 		Evidence: []evidence{source, proof},
 	}}, map[string]modelClaim{
-		"zeta":       {Status: "experimental", Features: []string{"z"}, RealModelValidation: "pending-fixture"},
-		"alpha":      {Status: "experimental", Features: []string{"a"}, ValidatedFixture: "alpha.gguf"},
-		"multimodal": {Status: "experimental", Features: []string{"image"}, RealModelValidation: "pending-language-model-oracle", MultimodalValidatedFixture: "projector.gguf + image.png + golden.json"},
+		"zeta":       {Features: []string{"z"}, RealModelValidation: "pending-fixture"},
+		"alpha":      {Features: []string{"a"}, ValidatedFixture: "alpha.gguf"},
+		"multimodal": {Features: []string{"image"}, RealModelValidation: "pending-language-model-oracle", MultimodalValidatedFixture: "projector.gguf + image.png + golden.json"},
 	})
 	output, err := generate(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(output)
+	if strings.Contains(text, "experimental") || strings.Contains(text, "| Status |") {
+		t.Fatalf("prototype rows must carry no status vocabulary:\n%s", text)
+	}
 	if strings.Index(text, "`alpha`") > strings.Index(text, "`zeta`") ||
 		!strings.Contains(text, "validated: alpha.gguf") ||
 		!strings.Contains(text, "multimodal: projector.gguf + image.png + golden.json; pending-language-model-oracle") ||
@@ -152,8 +155,8 @@ func TestClaimsRequireLiveEvidenceTier(t *testing.T) {
 
 func TestValidateModelCoverageRejectsMissingAndExtra(t *testing.T) {
 	models := map[string]modelClaim{
-		"alpha": {Status: "experimental", Features: []string{"a"}},
-		"extra": {Status: "experimental", Features: []string{"x"}},
+		"alpha": {Features: []string{"a"}},
+		"extra": {Features: []string{"x"}},
 	}
 	err := validateModelCoverage(models, []string{"alpha", "beta"})
 	if err == nil || !strings.Contains(err.Error(), "missing=[beta]") ||
@@ -217,5 +220,5 @@ func writeTestManifest(t *testing.T, root string, claims []claim, models map[str
 }
 
 func testModels() map[string]modelClaim {
-	return map[string]modelClaim{"model": {Status: "experimental", Features: []string{"feature"}}}
+	return map[string]modelClaim{"model": {Features: []string{"feature"}}}
 }

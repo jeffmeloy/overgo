@@ -1414,8 +1414,7 @@
     "per-layer-learned-attention-temperature",
     "causal-window-attention"
    ],
-   "real_model_validation": "constructed-not-loaded: topology is corpus-derived at Compile time, validated by scratch oracle goldens rather than a fixture model",
-   "status": "experimental"
+   "real_model_validation": "constructed-not-loaded: topology is corpus-derived at Compile time, validated by scratch oracle goldens rather than a fixture model"
   },
   "afmoe": {
    "execution": [
@@ -1436,8 +1435,7 @@
     "optional-shared-experts",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "apertus": {
    "features": [
@@ -1452,8 +1450,7 @@
     "ungated-xielu-ffn",
     "untied-output-projection"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "arcee": {
    "features": [
@@ -1464,8 +1461,7 @@
     "sequential-squared-relu",
     "optional-tied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "arctic": {
    "execution": [
@@ -1484,8 +1480,7 @@
     "optional-tied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "arwkv7": {
    "execution": [
@@ -1505,8 +1500,7 @@
     "sequential-swiglu",
     "serializable-recurrent-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "baichuan": {
    "features": [
@@ -1516,7 +1510,6 @@
     "untied-output-projection"
    ],
    "real_model_validation": "pending-fixture",
-   "status": "experimental",
    "variants": [
     "7b-32-layer",
     "13b-40-layer"
@@ -1540,7 +1533,6 @@
     "required-untied-output"
    ],
    "real_model_validation": "pending-fixture",
-   "status": "experimental",
    "tokenizers": [
     "bailingmoe-bpe"
    ]
@@ -1569,7 +1561,6 @@
     "required-untied-output"
    ],
    "real_model_validation": "pending-fixture",
-   "status": "experimental",
    "tokenizers": [
     "bailingmoe-bpe"
    ]
@@ -1592,7 +1583,6 @@
     "classifier-and-pooler-outside-hidden-state-boundary",
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-cuda-block-differential"
@@ -1608,8 +1598,7 @@
     "tied-output",
     "ternary-weight-decoding"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "bloom": {
    "features": [
@@ -1621,8 +1610,7 @@
     "required-projection-biases",
     "tied-or-untied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "chameleon": {
    "execution": [
@@ -1643,7 +1631,6 @@
     "image-token-generation-absent-from-pinned-upstream",
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-cuda-block-differential",
@@ -1663,8 +1650,7 @@
     "optional-tied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "codeshell": {
    "features": [
@@ -1675,8 +1661,7 @@
     "output-as-embedding-fallback",
     "untied-output-projection"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "cogvlm": {
    "execution": [
@@ -1700,8 +1685,7 @@
     "optional-tied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "cohere2": {
    "constraints": [
@@ -1716,8 +1700,7 @@
     "swiglu",
     "tied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "cohere2moe": {
    "constraints": [
@@ -1748,8 +1731,7 @@
     "serializable-model-bound-mtp-state",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "command-r": {
    "features": [
@@ -1761,8 +1743,7 @@
     "swiglu",
     "tied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "dbrx": {
    "execution": [
@@ -1781,7 +1762,6 @@
     "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture",
-   "status": "experimental",
    "tokenizers": [
     "dbrx-bpe"
    ]
@@ -1805,8 +1785,7 @@
     "compact-serializable-sentinel-cache-for-non-kv-layers",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "deepseek": {
    "execution": [
@@ -1825,7 +1804,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "tokenizers": [
     "deepseek-llm-bpe"
    ],
@@ -1858,8 +1836,7 @@
     "shared-swiglu-expert",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "deepseek2-ocr": {
    "execution": [
@@ -1892,8 +1869,7 @@
    "limitations": [
     "real-model-validation-pending-fixture"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "deepseek32": {
    "execution": [
@@ -1924,8 +1900,7 @@
     "stateful-greedy-nextn-draft-and-verification",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "deepseek4": {
    "execution": [
@@ -1949,8 +1924,7 @@
     "serializable-compressor-and-kv-cache",
     "explicit-gapped-cache-positions"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "dflash": {
    "execution": [
@@ -1978,7 +1952,6 @@
     "explicit-prefix-sync-recomputes-target-prefix",
     "real-model-pair-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-feature-injection-noise-pipeline",
@@ -2008,8 +1981,7 @@
     "required-untied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "dream": {
    "execution": [
@@ -2034,8 +2006,7 @@
     "optional-gumbel-transform",
     "diffusion-cli"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "eagle3": {
    "execution": [
@@ -2065,7 +2036,6 @@
    "limitations": [
     "real-model-pair-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-feature-and-decoder-pipeline",
@@ -2088,8 +2058,7 @@
     "optional-tied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "ernie4_5-moe": {
    "execution": [
@@ -2111,8 +2080,7 @@
     "optional-tied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "eurobert": {
    "execution": [
@@ -2130,7 +2098,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-cuda-block-differential"
@@ -2143,8 +2110,7 @@
     "optional-per-pair-rope-factors",
     "swiglu"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "exaone-moe": {
    "execution": [
@@ -2168,8 +2134,7 @@
     "stateful-nextn-greedy-draft-and-verification",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "exaone4": {
    "features": [
@@ -2186,8 +2151,7 @@
     "executable-nextn-mtp-decoder",
     "stateful-nextn-greedy-draft-and-verification"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "falcon": {
    "features": [
@@ -2198,8 +2162,7 @@
     "optional-second-attention-layernorm",
     "tied-or-untied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "falcon-h1": {
    "execution": [
@@ -2220,7 +2183,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "cache-topology-and-editing",
@@ -2239,8 +2201,7 @@
     "neox-rope",
     "geglu"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "gemma-embedding": {
    "execution": [
@@ -2260,8 +2221,7 @@
     "parallel-geglu",
     "optional-post-pooling-dense-2-dense-3"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "gemma2": {
    "execution": [
@@ -2277,8 +2237,7 @@
     "geglu",
     "post-attention-and-ffn-norms"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "gemma3": {
    "features": [
@@ -2288,7 +2247,6 @@
     "geglu",
     "post-attention-and-ffn-norms"
    ],
-   "status": "experimental",
    "types": [
     "IQ4_XS",
     "Q6_K"
@@ -2327,7 +2285,6 @@
     "audio-encoder-absent-from-pinned-mtmd-execution",
     "real-model-validation-pending-fixture"
    ],
-   "status": "experimental",
    "tokenizers": [
     "gemma4-raw-bpe"
    ],
@@ -2370,7 +2327,6 @@
    ],
    "multimodal_validated_fixture": "gemma-4-12b-it-mmproj-bf16.gguf + gemma4_mm_image.png + gemma4_mm_golden.json",
    "real_model_validation": "pending-language-model-oracle",
-   "status": "experimental",
    "tokenizers": [
     "gemma4-raw-bpe"
    ]
@@ -2402,7 +2358,6 @@
    "limitations": [
     "real-model-pair-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-full-pipeline",
@@ -2437,8 +2392,7 @@
     "stateful-greedy-nextn-draft-and-verification",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "glm4": {
    "features": [
@@ -2453,8 +2407,7 @@
     "executable-nextn-mtp-decoder",
     "stateful-nextn-greedy-draft-and-verification"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "glm4moe": {
    "execution": [
@@ -2479,8 +2432,7 @@
     "stateful-greedy-nextn-draft-and-verification",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "gpt-oss": {
    "execution": [
@@ -2503,7 +2455,6 @@
     "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture",
-   "status": "experimental",
    "tokenizers": [
     "gpt4o-bpe"
    ]
@@ -2517,8 +2468,7 @@
     "required-projection-biases",
     "tied-or-untied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "gptj": {
    "execution": [
@@ -2538,7 +2488,6 @@
     "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture",
-   "status": "experimental",
    "tokenizers": [
     "gpt2-bpe"
    ]
@@ -2553,8 +2502,7 @@
     "gelu-ffn",
     "untied-output-projection"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "granite": {
    "features": [
@@ -2585,7 +2533,6 @@
     "optional-cuda-projector-execution"
    ],
    "real_model_validation": "pending-fixture",
-   "status": "experimental",
    "variants": [
     "dense-text-only",
     "same-architecture-moe-text-only",
@@ -2610,8 +2557,7 @@
     "inverse-logit-scale",
     "serializable-hybrid-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "granitemoe": {
    "execution": [
@@ -2630,7 +2576,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-cuda-block-differential"
@@ -2654,8 +2599,7 @@
     "optional-tied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "grovemoe": {
    "execution": [
@@ -2674,8 +2618,7 @@
     "chunk-expert-scaling",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "hunyuan-dense": {
    "execution": [
@@ -2693,8 +2636,7 @@
     "optional-tied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "hunyuan-moe": {
    "execution": [
@@ -2710,8 +2652,7 @@
     "optional-tied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "hunyuan_vl": {
    "execution": [
@@ -2738,8 +2679,7 @@
     "per-image-four-axis-grid",
     "optional-cuda-projector-execution"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "hy_v3": {
    "execution": [
@@ -2768,8 +2708,7 @@
     "model-bound-multi-head-mtp-session-state",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "internlm2": {
    "features": [
@@ -2777,8 +2716,7 @@
     "normal-rope",
     "swiglu"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "jais": {
    "features": [
@@ -2790,8 +2728,7 @@
     "required-untied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "jais2": {
    "constraints": [
@@ -2804,8 +2741,7 @@
     "required-projection-biases",
     "optional-tied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "jamba": {
    "execution": [
@@ -2822,8 +2758,7 @@
     "non-renormalized-selected-expert-weights",
     "serializable-hybrid-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "jina-bert-v2": {
    "execution": [
@@ -2841,7 +2776,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-cuda-block-differential"
@@ -2864,7 +2798,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-dense-and-moe-catalogs",
     "reference-cuda-block-differential"
@@ -2889,7 +2822,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "cache-topology-and-editing",
@@ -2914,8 +2846,7 @@
     "always-on-shared-expert",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "lfm2": {
    "execution": [
@@ -2934,8 +2865,7 @@
     "serializable-hybrid-cache",
     "swiglu"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "lfm2moe": {
    "execution": [
@@ -2960,8 +2890,7 @@
     "packed-swiglu-experts",
     "serializable-hybrid-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "llada": {
    "execution": [
@@ -2985,8 +2914,7 @@
     "optional-gumbel-transform",
     "diffusion-cli"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "llada-moe": {
    "execution": [
@@ -3010,8 +2938,7 @@
     "optional-gumbel-transform",
     "diffusion-cli"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "llama": {
    "constraints": [
@@ -3031,7 +2958,6 @@
     "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture",
-   "status": "experimental",
    "tokenizers": [
     "llama-spm",
     "llama3-bpe"
@@ -3063,7 +2989,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-dense-and-moe-catalogs",
     "reference-cuda-block-differential"
@@ -3099,7 +3024,6 @@
     "optional-cuda-projector-execution"
    ],
    "real_model_validation": "pending-fixture",
-   "status": "experimental",
    "tokenizers": [
     "gpt4o-bpe",
     "llama4-pre-tokenizer"
@@ -3112,8 +3036,7 @@
     "swiglu",
     "tied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "mamba": {
    "execution": [
@@ -3132,8 +3055,7 @@
     "silu-z-gate",
     "serializable-recurrent-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "mamba2": {
    "execution": [
@@ -3152,8 +3074,7 @@
     "grouped-learned-output-rmsnorm",
     "serializable-recurrent-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "mellum": {
    "execution": [
@@ -3173,8 +3094,7 @@
     "required-untied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "mimo2": {
    "execution": [
@@ -3209,8 +3129,7 @@
     "ordered-multi-image-soft-token-merge",
     "optional-cuda-projector-execution"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "minicpm": {
    "features": [
@@ -3224,8 +3143,7 @@
     "tied-output",
     "optional-projection-biases"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "minicpm3": {
    "execution": [
@@ -3245,8 +3163,7 @@
     "optional-tied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "minimax-m2": {
    "execution": [
@@ -3267,8 +3184,7 @@
     "required-untied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "mistral3": {
    "features": [
@@ -3286,7 +3202,6 @@
     "optional-projection-biases"
    ],
    "real_model_validation": "pending-fixture",
-   "status": "experimental",
    "variants": [
     "dense-standard-rope",
     "dense-linear-rope",
@@ -3323,7 +3238,6 @@
     "serializable-prefix-editable-kv-cache"
    ],
    "real_model_validation": "pending-fixture",
-   "status": "experimental",
    "upstream_graph": "deepseek2-inherited"
   },
   "modern-bert": {
@@ -3342,7 +3256,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-cuda-block-differential"
@@ -3361,8 +3274,7 @@
     "optional-awq-post-gelu-activation-scaling",
     "tied-or-untied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "nemotron": {
    "features": [
@@ -3372,8 +3284,7 @@
     "optional-projection-biases",
     "untied-output-projection"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "nemotron_h": {
    "execution": [
@@ -3389,8 +3300,7 @@
     "sequential-squared-relu-ffn",
     "serializable-hybrid-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "nemotron_h_moe": {
    "execution": [
@@ -3408,8 +3318,7 @@
     "shared-squared-relu-expert",
     "serializable-hybrid-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "neo-bert": {
    "execution": [
@@ -3427,7 +3336,6 @@
     "classifier-outside-hidden-state-boundary",
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-cuda-block-differential"
@@ -3448,7 +3356,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-cuda-block-differential"
@@ -3471,7 +3378,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-cuda-block-differential"
@@ -3485,8 +3391,7 @@
     "swiglu",
     "optional-tied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "olmo2": {
    "features": [
@@ -3496,8 +3401,7 @@
     "neox-rope",
     "swiglu"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "olmoe": {
    "constraints": [
@@ -3515,8 +3419,7 @@
     "packed-swiglu-experts",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "openelm": {
    "features": [
@@ -3529,8 +3432,7 @@
     "tied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "orion": {
    "features": [
@@ -3539,8 +3441,7 @@
     "swiglu",
     "untied-output-projection"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "paddleocr": {
    "execution": [
@@ -3565,8 +3466,7 @@
     "compressed-four-axis-image-grid",
     "optional-cuda-projector-execution"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "pangu-embedded": {
    "execution": [
@@ -3586,7 +3486,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "validation": [
     "synthetic-metadata-and-catalog",
     "reference-cuda-block-differential"
@@ -3603,8 +3502,7 @@
     "required-output-bias",
     "untied-output-projection"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "phi3": {
    "constraints": [
@@ -3619,8 +3517,7 @@
     "longrope-short-long-factor-selection",
     "tied-or-untied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "phimoe": {
    "execution": [
@@ -3640,8 +3537,7 @@
     "required-untied-output-and-bias",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "plamo": {
    "features": [
@@ -3652,8 +3548,7 @@
     "swiglu",
     "untied-output-projection"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "plamo2": {
    "execution": [
@@ -3672,8 +3567,7 @@
     "fused-gate-up-swiglu",
     "serializable-hybrid-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "plamo3": {
    "execution": [
@@ -3692,8 +3586,7 @@
     "optional-tied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "plm": {
    "execution": [
@@ -3709,8 +3602,7 @@
     "squared-relu",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "qwen": {
    "execution": [
@@ -3725,8 +3617,7 @@
     "required-untied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "qwen2": {
    "execution": [
@@ -3740,8 +3631,7 @@
     "neox-rope",
     "swiglu"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "qwen2moe": {
    "execution": [
@@ -3756,8 +3646,7 @@
     "sigmoid-gated-shared-expert",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "qwen2vl": {
    "execution": [
@@ -3784,8 +3673,7 @@
     "standard-and-legacy-ffn-catalogs",
     "optional-cuda-projector-execution"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "qwen3": {
    "execution": [
@@ -3799,7 +3687,6 @@
     "last-token-classification-rerank-softmax",
     "named-rerank-template-or-eos-sep-pair-format"
    ],
-   "status": "experimental",
    "types": [
     "Q1_0",
     "Q2_0",
@@ -3852,7 +3739,6 @@
     "draft-and-target-bound-mtp-session-state"
    ],
    "multimodal_validated_fixture": "Qwen3.5-4B-F16.gguf",
-   "status": "experimental",
    "tokenizers": [
     "qwen35-bpe"
    ],
@@ -3892,8 +3778,7 @@
     "transactional-draft-target-sampler-state",
     "draft-and-target-bound-mtp-session-state"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "qwen3moe": {
    "execution": [
@@ -3909,8 +3794,7 @@
     "routed-weight-scaling",
     "packed-swiglu-experts"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "qwen3next": {
    "execution": [
@@ -3932,8 +3816,7 @@
     "sigmoid-gated-shared-expert",
     "serializable-hybrid-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "qwen3vl": {
    "execution": [
@@ -3961,8 +3844,7 @@
     "vision-layer-deepstack-projection",
     "prompt-aligned-deepstack-injection"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "qwen3vlmoe": {
    "execution": [
@@ -3994,8 +3876,7 @@
    "limitations": [
     "classification-rerank-head-absent-from-pinned-graph"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "refact": {
    "features": [
@@ -4007,8 +3888,7 @@
     "gated-or-ungated-expert-silu",
     "tied-or-untied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "rnd1": {
    "execution": [
@@ -4031,8 +3911,7 @@
     "optional-gumbel-transform",
     "diffusion-cli"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "rwkv6": {
    "execution": [
@@ -4052,8 +3931,7 @@
     "optional-periodic-residual-rescale",
     "serializable-recurrent-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "rwkv6qwen2": {
    "execution": [
@@ -4072,8 +3950,7 @@
     "optional-periodic-residual-rescale",
     "serializable-recurrent-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "rwkv7": {
    "execution": [
@@ -4093,8 +3970,7 @@
     "squared-relu-channel-mix",
     "serializable-recurrent-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "seed_oss": {
    "features": [
@@ -4105,8 +3981,7 @@
     "post-attention-named-pre-ffn-norm",
     "optional-tied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "smallthinker": {
    "execution": [
@@ -4129,8 +4004,7 @@
     "optional-tied-output",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "smollm3": {
    "features": [
@@ -4139,8 +4013,7 @@
     "normal-rope",
     "swiglu"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "stablelm": {
    "features": [
@@ -4151,8 +4024,7 @@
     "swiglu",
     "untied-output-projection"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "starcoder": {
    "features": [
@@ -4163,8 +4035,7 @@
     "required-projection-biases",
     "tied-or-untied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "starcoder2": {
    "features": [
@@ -4174,8 +4045,7 @@
     "projection-biases",
     "optional-tied-output"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "step35": {
    "execution": [
@@ -4209,8 +4079,7 @@
     "model-bound-multi-head-mtp-session-state",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "t5": {
    "execution": [
@@ -4234,7 +4103,6 @@
    "limitations": [
     "real-decoder-fixture-pending"
    ],
-   "status": "experimental",
    "tokenizers": [
     "sentencepiece-ugm"
    ],
@@ -4266,7 +4134,6 @@
     "encoder-only",
     "no-cross-attention"
    ],
-   "status": "experimental",
    "tokenizers": [
     "sentencepiece-ugm"
    ],
@@ -4301,8 +4168,7 @@
     "direct-logit-scaling",
     "serializable-prefix-editable-kv-cache"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   },
   "wavtokenizer-dec": {
    "execution": [
@@ -4324,7 +4190,6 @@
    "limitations": [
     "real-model-fixture-pending"
    ],
-   "status": "experimental",
    "types": [
     "F32",
     "F16",
@@ -4344,8 +4209,7 @@
     "normal-rope",
     "swiglu"
    ],
-   "real_model_validation": "pending-fixture",
-   "status": "experimental"
+   "real_model_validation": "pending-fixture"
   }
  },
  "release": {

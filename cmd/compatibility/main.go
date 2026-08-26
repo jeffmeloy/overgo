@@ -92,7 +92,6 @@ const (
 )
 
 type modelClaim struct {
-	Status                     string   `json:"status"`
 	Execution                  []string `json:"execution"`
 	Features                   []string `json:"features"`
 	Limitations                []string `json:"limitations"`
@@ -473,9 +472,9 @@ func generate(root string) ([]byte, error) {
 		fmt.Fprintf(&output, "| `%s` | %s | %s | %s | %s |\n",
 			item.ID, item.Status, item.EvidenceTier, escapeCell(item.Summary), strings.Join(append(links, "verify: `"+item.Verify+"`"), "<br>"))
 	}
-	output.WriteString("\n## Model families\n\n")
-	output.WriteString("`experimental` means the implementation is guarded by strict metadata/catalog validation but may still lack a local real-model oracle.\n\n")
-	output.WriteString("| Model | State | Execution | Real-model validation | Limitations |\n| --- | --- | --- | --- | --- |\n")
+	output.WriteString("\n## Model prototypes\n\n")
+	output.WriteString("A prototype is structural architecture support guarded by strict metadata/catalog validation. Validation is a property of specific models, never of the prototype: the real-model validation column names the exact model artifacts whose oracle or fixture evidence stands, and the typed specifications under `docs/verification` carry each specific model's inference and training verification.\n\n")
+	output.WriteString("| Model | Execution | Real-model validation | Limitations |\n| --- | --- | --- | --- |\n")
 	names := make([]string, 0, len(document.Models))
 	for name := range document.Models {
 		names = append(names, name)
@@ -492,8 +491,8 @@ func generate(root string) ([]byte, error) {
 		if limitations == "" {
 			limitations = "-"
 		}
-		fmt.Fprintf(&output, "| `%s` | %s | %s | %s | %s |\n",
-			name, item.Status, escapeCell(execution), escapeCell(validation), escapeCell(limitations))
+		fmt.Fprintf(&output, "| `%s` | %s | %s | %s |\n",
+			name, escapeCell(execution), escapeCell(validation), escapeCell(limitations))
 	}
 	return []byte(output.String()), nil
 }
@@ -550,15 +549,8 @@ func validateManifest(root string, document manifest) error {
 		}
 	}
 	for name, item := range document.Models {
-		if name == "" || item.Status == "" || len(item.Features) == 0 {
+		if name == "" || len(item.Features) == 0 {
 			return fmt.Errorf("compatibility manifest: model %q is incomplete", name)
-		}
-		// Evidence tier: "implemented" claims oracle-backed behavior, not
-		// structural coverage. A model without real-model validation or a
-		// pinned fixture is honestly "experimental" -- breadth must not
-		// inherit evidence it does not carry.
-		if item.Status == "implemented" && !modelHasValidation(item) {
-			return fmt.Errorf("compatibility manifest: model %q claims implemented without real_model_validation or a validated fixture; use experimental until oracle evidence exists", name)
 		}
 	}
 	if _, err := os.Stat(filepath.Join(root, "internal", "model", "architecture.go")); err == nil {
@@ -569,23 +561,6 @@ func validateManifest(root string, document manifest) error {
 		return fmt.Errorf("compatibility manifest: inspect architecture registry: %w", err)
 	}
 	return nil
-}
-
-func modelHasValidation(item modelClaim) bool {
-	if item.ValidatedFixture != "" || item.AdditionalValidatedFixture != "" ||
-		item.MultimodalValidatedFixture != "" || item.VideoValidatedFixture != "" {
-		return true
-	}
-	switch v := item.RealModelValidation.(type) {
-	case nil:
-		return false
-	case string:
-		return strings.TrimSpace(v) != "" && !strings.EqualFold(strings.TrimSpace(v), "none")
-	case bool:
-		return v
-	default:
-		return true
-	}
 }
 
 func validateModelCoverage(models map[string]modelClaim, supported []string) error {

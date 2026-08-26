@@ -88,6 +88,7 @@ type gateContext struct {
 	candidateManifest *codemanifest.Manifest
 	manifestDelta     *codemanifest.Delta
 	manifestImpact    *codemanifest.Impact
+	manifestMetrics   automationcheck.ManifestMeasurements
 }
 
 func main() {
@@ -313,11 +314,13 @@ func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) aut
 }
 
 func (g *gateContext) pipeline() error {
+	planningStarted := time.Now()
 	planned, err := g.planPipeline()
 	if err != nil {
 		return err
 	}
 	definitions, checks, impact := planned.definitions, planned.invocations, planned.impact
+	planningDuration := time.Since(planningStarted)
 	if g.terminal == nil {
 		g.terminal = map[string]automationcheck.Evidence{}
 	}
@@ -390,6 +393,16 @@ func (g *gateContext) pipeline() error {
 			byName[result.Invocation.Check.Name] = result
 		}
 	}
+	cacheHits := 0
+	for _, result := range results {
+		if result.Evidence.Reused {
+			cacheHits++
+		}
+	}
+	g.manifestMetrics = automationcheck.MeasureManifest(
+		len(definitions), len(checks), len(impact.Exclusions), len(planned.surface.Unknown),
+		cacheHits, len(checks)-cacheHits, planningDuration, time.Since(g.start),
+	)
 	for _, definition := range definitions {
 		name := definition.Descriptor.Name
 		result, ran := byName[name]
@@ -1873,6 +1886,12 @@ func (g *gateContext) completionMessageFile() (string, error) {
 	}
 	itemID, stepID, _ := strings.Cut(g.planRef, "/")
 	trailers := "\nOvergo-Plan-Item: " + itemID + "\nOvergo-Plan-Step: " + stepID + "\n"
+	if g.manifestPlan != nil {
+		trailers += "Overgo-Manifest-Plan: " + g.manifestPlan.ID.String() + "\n"
+	}
+	if g.candidateManifest != nil {
+		trailers += "Overgo-Code-Manifest: " + g.candidateManifest.ID.String() + "\n"
+	}
 	document, err := plan.Load(filepath.Join(g.repo, filepath.FromSlash(plan.Path)))
 	if err == nil {
 		for _, item := range document.Items {
@@ -2117,12 +2136,13 @@ func (g *gateContext) manifestAnalysisContent() (artifact.Content, error) {
 		return artifact.Content{}, nil
 	}
 	data, err := json.Marshal(struct {
-		Version   uint16                           `json:"version"`
-		Delta     codemanifest.Delta               `json:"delta"`
-		Impact    codemanifest.Impact              `json:"impact"`
-		Plan      automationcheck.ManifestPlan     `json:"plan"`
-		Selection automationcheck.SelectionMetrics `json:"selection"`
-	}{artifact.InitialDocumentVersion, *g.manifestDelta, *g.manifestImpact, *g.manifestPlan, g.selection})
+		Version      uint16                               `json:"version"`
+		Delta        codemanifest.Delta                   `json:"delta"`
+		Impact       codemanifest.Impact                  `json:"impact"`
+		Plan         automationcheck.ManifestPlan         `json:"plan"`
+		Selection    automationcheck.SelectionMetrics     `json:"selection"`
+		Measurements automationcheck.ManifestMeasurements `json:"measurements"`
+	}{artifact.InitialDocumentVersion, *g.manifestDelta, *g.manifestImpact, *g.manifestPlan, g.selection, g.manifestMetrics})
 	if err != nil {
 		return artifact.Content{}, err
 	}

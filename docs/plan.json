@@ -10,21 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "adopt-and-measure",
-          "title": "Migrate path-based selectors, publish exclusion, uncertainty, cache, latency, duration, and full-plan parity metrics, and require an uncached audit for releases",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./cmd/release ./internal/automationcheck -run 'TestNoPathOnlySelection|TestSelectionMeasurements|TestReleaseManifestAudit' -count=1",
-          "rationale": "Efficiency and conservatism must remain observable during rollout and release verification.",
-          "depends_on": [
-            "code-manifest-trust/false-negative-corpus"
-          ],
-          "capabilities": [
-            "gate-migration",
-            "selection-metrics",
-            "release-attestation"
-          ]
-        },
-        {
           "id": "agent-context",
           "title": "Expose affected symbols, risk boundaries, ownership, required checks, exclusions, and prior evidence to agent change planning without allowing agents to self-declare safety",
           "status": "open",

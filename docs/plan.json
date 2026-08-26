@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "manifest-analysis-document",
-      "title": "Give manifest analysis evidence a strict typed document contract",
-      "owner": "manifest",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give manifest analysis evidence a strict typed document contract",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck ./cmd/gate -run 'Test.*ManifestAnalysis' -count=1"
-        }
-      ]
-    },
-    {
       "id": "manifest-selection-accounting",
       "title": "Make manifest selection reasons and cache measurements exact",
       "owner": "manifest",

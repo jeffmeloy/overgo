@@ -51,14 +51,12 @@ import (
 )
 
 const (
-	gateRecipeSeed            = "overgo-gate/v1"
-	gateWorkloadSeed          = "overgo-gate-workload/v1"
-	gateDebtFile              = "bin/gate_debt.json"
-	gateHeartbeatFile         = "bin/gate_lifecycle.json"
-	gateRetryFile             = "bin/gate_cache.json"
-	gateProgressLine          = "gate: phase=%s heartbeat=%s\n"
-	manifestAnalysisMediaType = "application/vnd.overgo.code-manifest-analysis+json"
-	manifestAnalysisSchema    = "overgo/code-manifest-analysis/v1"
+	gateRecipeSeed    = "overgo-gate/v1"
+	gateWorkloadSeed  = "overgo-gate-workload/v1"
+	gateDebtFile      = "bin/gate_debt.json"
+	gateHeartbeatFile = "bin/gate_lifecycle.json"
+	gateRetryFile     = "bin/gate_cache.json"
+	gateProgressLine  = "gate: phase=%s heartbeat=%s\n"
 )
 
 type gateContext struct {
@@ -2143,25 +2141,13 @@ func (g *gateContext) manifestAnalysisContent() (artifact.Content, error) {
 	if g.manifestPlan == nil || g.manifestDelta == nil || g.manifestImpact == nil {
 		return artifact.Content{}, nil
 	}
-	data, err := json.Marshal(struct {
-		Version      uint16                               `json:"version"`
-		Delta        codemanifest.Delta                   `json:"delta"`
-		Impact       codemanifest.Impact                  `json:"impact"`
-		Plan         automationcheck.ManifestPlan         `json:"plan"`
-		Selection    automationcheck.SelectionMetrics     `json:"selection"`
-		Measurements automationcheck.ManifestMeasurements `json:"measurements"`
-	}{artifact.InitialDocumentVersion, *g.manifestDelta, *g.manifestImpact, *g.manifestPlan, g.selection, g.manifestMetrics})
+	analysis, err := automationcheck.NewManifestAnalysis(
+		*g.manifestDelta, *g.manifestImpact, *g.manifestPlan, g.selection, g.manifestMetrics,
+	)
 	if err != nil {
 		return artifact.Content{}, err
 	}
-	id, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	content := artifact.Content{Descriptor: artifact.Descriptor{
-		ID: id, Size: uint64(len(data)), MediaType: manifestAnalysisMediaType, Schema: manifestAnalysisSchema,
-	}, Data: data}
-	return content, content.Validate()
+	return analysis.Content()
 }
 
 func validateGateDebt(debt gateDebtEnvelope) error {
@@ -2176,6 +2162,12 @@ func validateGateDebt(debt gateDebtEnvelope) error {
 	}
 	matching := 0
 	for _, content := range debt.Batch.Contents {
+		if content.Descriptor.MediaType == automationcheck.ManifestAnalysisMediaType &&
+			content.Descriptor.Schema == automationcheck.ManifestAnalysisSchema {
+			if _, err := automationcheck.ParseManifestAnalysis(content.Data); err != nil {
+				return err
+			}
+		}
 		if content.Descriptor.MediaType != runrecord.GateLifecycleMediaType || content.Descriptor.Schema != runrecord.GateLifecycleSchema {
 			continue
 		}

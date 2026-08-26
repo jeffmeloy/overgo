@@ -111,13 +111,13 @@ type streamTransportAdapter interface {
 }
 
 // OpenStream admits one stream and starts a bounded backpressure pump.
-func (executor *Executor) OpenStream(
+func (e *Executor) OpenStream(
 	ctx context.Context,
 	manual Manual,
 	arguments json.RawMessage,
 	policy StreamPolicy,
 ) (*InvocationStream, error) {
-	if executor == nil || ctx == nil {
+	if e == nil || ctx == nil {
 		return nil, errors.New("agent tool: stream executor or context is absent")
 	}
 	if err := validateArguments(manual, arguments); err != nil {
@@ -126,7 +126,7 @@ func (executor *Executor) OpenStream(
 	if err := policy.validate(); err != nil {
 		return nil, err
 	}
-	adapter, found := executor.adapters[manual.Transport.Kind]
+	adapter, found := e.adapters[manual.Transport.Kind]
 	streamAdapter, supported := adapter.(streamTransportAdapter)
 	if !found || !supported {
 		return nil, fmt.Errorf("agent tool: transport %q is not streamable", manual.Transport.Kind)
@@ -140,7 +140,7 @@ func (executor *Executor) OpenStream(
 		return nil, err
 	}
 	bounded, cancel := context.WithTimeout(ctx, invokeTimeout)
-	entry := executor.manualEntry(manual.Name)
+	entry := e.manualEntry(manual.Name)
 	select {
 	case entry <- struct{}{}:
 	case <-bounded.Done():

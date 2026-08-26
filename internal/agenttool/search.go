@@ -151,10 +151,12 @@ func canonicalizeCatalogSnapshot(snapshot *CatalogSnapshot) error {
 	sort.Slice(snapshot.Entries, func(left, right int) bool {
 		return snapshot.Entries[left].Name < snapshot.Entries[right].Name
 	})
-	for index := 1; index < len(snapshot.Entries); index++ {
-		if snapshot.Entries[index-1].Name == snapshot.Entries[index].Name {
+	seenEntries := make(map[string]bool, len(snapshot.Entries))
+	for _, entry := range snapshot.Entries {
+		if seenEntries[entry.Name] {
 			return errors.New("agent tool: duplicate catalog entry")
 		}
+		seenEntries[entry.Name] = true
 	}
 	return nil
 }
@@ -168,10 +170,12 @@ func cloneCatalogSnapshot(snapshot CatalogSnapshot) CatalogSnapshot {
 }
 
 func duplicateCatalogFields(fields []Field) bool {
-	for index := 1; index < len(fields); index++ {
-		if fields[index-1].Name == fields[index].Name {
+	seen := make(map[string]bool, len(fields))
+	for _, field := range fields {
+		if seen[field.Name] {
 			return true
 		}
+		seen[field.Name] = true
 	}
 	return false
 }

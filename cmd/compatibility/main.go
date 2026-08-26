@@ -148,7 +148,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.FromSlash(modelsReportPath), data, 0o644); err != nil {
+		if err := clioptions.WriteOutputFile(filepath.FromSlash(modelsReportPath), data); err != nil {
 			return err
 		}
 		fmt.Printf("wrote %s\n", modelsReportPath)
@@ -454,7 +454,7 @@ func refreshEvidenceIdentities(root string) error {
 			}
 		}
 	}
-	return os.WriteFile(manifestFile, raw, 0o644)
+	return clioptions.WriteOutputFile(manifestFile, raw)
 }
 
 func generate(root string) ([]byte, error) {

@@ -79,12 +79,12 @@ func generateModelsReport(root, repository string) ([]byte, error) {
 			Execution: item.Execution, Features: item.Features, Models: map[string]modelRecord{},
 		}
 	}
-	rows, files, err := verificationRows(root)
+	verifications, err := loadVerificationInventory(root)
 	if err != nil {
 		return nil, err
 	}
 	resolve := prototypeResolver(repository, document.Models)
-	for _, row := range rows {
+	for _, row := range verifications.Rows {
 		record := modelRecord{Model: row.Model.String()}
 		for _, claim := range row.Capabilities {
 			summary := claimRecord{
@@ -101,7 +101,7 @@ func generateModelsReport(root, repository string) ([]byte, error) {
 		}
 		sortClaimRecords(record.Inference)
 		sortClaimRecords(record.Training)
-		prototype := resolve(row.Model, files[row.Model])
+		prototype := resolve(row.Model, verifications.Files[row.Model])
 		entry, declared := report.Prototypes[prototype]
 		if !declared {
 			entry = prototypeModels{Models: map[string]modelRecord{}}
@@ -119,13 +119,18 @@ func generateModelsReport(root, repository string) ([]byte, error) {
 	return append(encoded, '\n'), nil
 }
 
-// verificationRows loads every typed specification and reduces it to
-// the strongest claim per model exactly as the training matrix does,
-// returning the model-file locations for the prototype fallback.
-func verificationRows(root string) ([]runrecord.MatrixRow, map[artifact.ID]string, error) {
+// verificationInventory keeps the matrix and prototype fallback locations
+// under one typed return contract.
+type verificationInventory struct {
+	Rows  []runrecord.MatrixRow
+	Files map[artifact.ID]string
+}
+
+// loadVerificationInventory reduces every typed specification to its strongest claims.
+func loadVerificationInventory(root string) (verificationInventory, error) {
 	paths, err := filepath.Glob(filepath.Join(root, filepath.FromSlash(verificationGlob)))
 	if err != nil {
-		return nil, nil, err
+		return verificationInventory{}, err
 	}
 	sort.Strings(paths)
 	var records []runrecord.ModelVerification
@@ -139,7 +144,7 @@ func verificationRows(root string) ([]runrecord.MatrixRow, map[artifact.ID]strin
 			Claims json.RawMessage `json:"claims"`
 		}
 		if err := jsonfile.Decode(path, &probe); err != nil {
-			return nil, nil, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
+			return verificationInventory{}, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
 		}
 		var modelID string
 		if len(probe.Claims) == 0 || json.Unmarshal(probe.Model, &modelID) != nil {
@@ -147,21 +152,21 @@ func verificationRows(root string) ([]runrecord.MatrixRow, map[artifact.ID]strin
 		}
 		var specification trainingSpecification
 		if err := jsonfile.Decode(path, &specification); err != nil {
-			return nil, nil, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
+			return verificationInventory{}, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
 		}
 		record, err := runrecord.NewModelVerificationCorrection(
 			specification.Model, specification.Name,
 			strongestClaims(specification.Claims), specification.Supersedes,
 		)
 		if err != nil {
-			return nil, nil, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
+			return verificationInventory{}, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
 		}
 		records = append(records, record)
 		if specification.ModelFile != "" {
 			files[specification.Model] = specification.ModelFile
 		}
 	}
-	return runrecord.VerificationMatrix(records), files, nil
+	return verificationInventory{Rows: runrecord.VerificationMatrix(records), Files: files}, nil
 }
 
 // prototypeResolver answers which prototype a specific model belongs

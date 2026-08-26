@@ -24,8 +24,12 @@ func TestCatalogSnapshotSearchIsCanonicalAndBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 1 || results[0].Manual != weather.ID || results[0].Score == 0 {
+	if len(results) != 1 || results[0].Manual != weather.ID || results[0].Score != catalogNameTermWeight+catalogFieldTermWeight {
 		t.Fatalf("results = %+v", results)
+	}
+	exact, err := first.Search("weather.forecast", 1)
+	if err != nil || len(exact) != 1 || exact[0].Score != catalogExactNameWeight {
+		t.Fatalf("exact results = %+v, %v", exact, err)
 	}
 	if _, err := first.Search("weather", 0); err == nil {
 		t.Fatal("zero result bound accepted")
@@ -45,6 +49,13 @@ func TestCatalogSnapshotSearchTieOrderIsStable(t *testing.T) {
 	}
 	if len(results) != 2 || results[0].Name != "alpha.probe" || results[1].Name != "beta.probe" {
 		t.Fatalf("tie order = %+v", results)
+	}
+	if results[0].Score != catalogFieldTermWeight {
+		t.Fatalf("field score = %d", results[0].Score)
+	}
+	description, err := snapshot.Search("inspect", 2)
+	if err != nil || len(description) != 2 || description[0].Score != catalogDescriptionWeight {
+		t.Fatalf("description results = %+v, %v", description, err)
 	}
 	content, err := snapshot.ArtifactContent()
 	if err != nil || content.Descriptor.ID.Kind() != artifact.KindProfile {

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/recipe"
 )
 
 func TestParseCLI(t *testing.T) {
@@ -25,6 +27,23 @@ func TestParseCLI(t *testing.T) {
 		options.Temperature != 0.4 || options.TopK != 12 || options.TopP != 0.8 || options.Seed != 7 ||
 		!options.AddGumbelNoise || options.ShiftLogits == nil || *options.ShiftLogits {
 		t.Fatalf("config = %+v", config)
+	}
+}
+
+func TestParseCLIUsesRecipeDefaults(t *testing.T) {
+	policy, found, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
+	if err != nil || !found {
+		t.Fatalf("runtime policy: found=%t err=%v", found, err)
+	}
+	config, err := parseCLI([]string{"-eps", "0.001", "model.gguf", "prompt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := policy.Interactive.Diffusion
+	got := config.diffusion
+	if got.MaxLength != want.Length || got.Steps != want.Steps || int(got.Algorithm) != want.Algorithm ||
+		got.Temperature != want.Temperature || got.TopK != want.TopK || got.TopP != want.TopP {
+		t.Fatalf("diffusion defaults = %+v, want %+v", got, want)
 	}
 }
 

@@ -58,7 +58,7 @@ func (r *Runner) Generate(
 	if r.spec.NonCausalAttention {
 		return nil, "", errors.New("inference: non-causal models require diffusion generation")
 	}
-	if err := normalizeGenerateOptions(&options); err != nil {
+	if err := normalizeGenerateOptions(&options, r.runtimePolicy.Serving.Limits.StopSequences); err != nil {
 		return nil, "", err
 	}
 	if err := r.lockOpen(); err != nil {
@@ -448,9 +448,12 @@ func (r *Runner) promptTokenIDs(prompt string, options GenerateOptions) ([]token
 	return ids, nil
 }
 
-func validateStopSequences(stops []string) error {
-	if len(stops) > 256 {
-		return errors.New("inference: stop sequence count exceeds 256")
+func validateStopSequences(stops []string, limit int) error {
+	if limit <= 0 {
+		return errors.New("inference: stop sequence limit is unavailable")
+	}
+	if len(stops) > limit {
+		return fmt.Errorf("inference: stop sequence count exceeds %d", limit)
 	}
 	for _, stop := range stops {
 		if stop == "" {

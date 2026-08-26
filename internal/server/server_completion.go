@@ -12,7 +12,7 @@ import (
 	"overgo/internal/strictjson"
 )
 
-func parseStopSequences(raw json.RawMessage) ([]string, error) {
+func (h *Handler) parseStopSequences(raw json.RawMessage) ([]string, error) {
 	if !strictjson.HasValue(raw) {
 		return nil, nil
 	}
@@ -27,8 +27,9 @@ func parseStopSequences(raw json.RawMessage) ([]string, error) {
 	if err := json.Unmarshal(raw, &multiple); err != nil {
 		return nil, errors.New("stop must be a string or string array")
 	}
-	if len(multiple) > 256 {
-		return nil, errors.New("stop sequence count exceeds 256")
+	limit := h.config.RuntimePolicy.Serving.Limits.StopSequences
+	if len(multiple) > limit {
+		return nil, fmt.Errorf("stop sequence count exceeds %d", limit)
 	}
 	for _, stop := range multiple {
 		if stop == "" {
@@ -186,7 +187,7 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 		writeInvalidRequest(response, err)
 		return
 	}
-	stops, err := parseStopSequences(body.Stop)
+	stops, err := h.parseStopSequences(body.Stop)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return

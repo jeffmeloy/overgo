@@ -445,7 +445,7 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		writeInvalidRequest(response, err)
 		return
 	}
-	stops, err := parseStopSequences(body.Stop)
+	stops, err := h.parseStopSequences(body.Stop)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return

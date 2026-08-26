@@ -25,7 +25,7 @@ func (r *Runner) StartSession(
 	if options.MaxNewTokens <= 0 {
 		return nil, "", errors.New("inference: resumable generation needs at least one new token")
 	}
-	if err := normalizeGenerateOptions(&options); err != nil {
+	if err := normalizeGenerateOptions(&options, r.runtimePolicy.Serving.Limits.StopSequences); err != nil {
 		return nil, "", err
 	}
 	if err := r.lockOpen(); err != nil {
@@ -69,7 +69,7 @@ func (r *Runner) ContinueSession(
 	if options.MaxNewTokens < 0 {
 		return nil, "", errors.New("inference: max new tokens is negative")
 	}
-	if err := normalizeGenerateOptions(&options); err != nil {
+	if err := normalizeGenerateOptions(&options, r.runtimePolicy.Serving.Limits.StopSequences); err != nil {
 		return nil, "", err
 	}
 	if err := r.lockOpen(); err != nil {

@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "attempt-history",
-      "title": "Make attempt history queryable across runs and strategies",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make attempt history queryable across runs and strategies -- Query surface over attempt records: by plan item, by strategy, by code revision; aggregates attempts-per-step, success rate, measured cost. Queryable store reads, never log scraping. Closes: durable cross-run measurement history for steering.",
-          "status": "open",
-          "verify": "go test ./internal/runrecord -run TestAttemptHistory -count=1",
-          "depends_on": [
-            "attempt-records/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "strategy-identity",
       "title": "Stamp worker strategy identity into every attempt",
       "status": "open",

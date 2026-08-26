@@ -22,14 +22,14 @@ func TestPlanOutput(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &report); err != nil {
 		t.Fatal(err)
 	}
-	if report.Kind != "overgo.gate-plan-inspection" || report.Schema != 1 || report.PlanID != planned.manifest.ID.String() {
+	if report.Kind != "overgo.gate-plan-inspection" || report.Schema != 2 || report.PlanID != planned.manifest.ID.String() {
 		t.Fatalf("report authority = %+v", report)
 	}
 	if report.BaseManifest == "" || report.CandidateManifest == "" || len(report.Selected) != 3 || len(report.Excluded) != 1 {
 		t.Fatalf("report dispositions = %+v", report)
 	}
-	if !strings.Contains(output.String(), `"dependency_added": []`) {
-		t.Fatalf("empty disposition omitted from output: %s", output.String())
+	if !strings.Contains(output.String(), `"required_by": [`) || strings.Contains(output.String(), `"dependency_added"`) {
+		t.Fatalf("dependency relationship output is not exact: %s", output.String())
 	}
 }
 

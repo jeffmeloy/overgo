@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "manifest-selection-accounting",
-      "title": "Make manifest selection reasons and cache measurements exact",
-      "owner": "manifest",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make manifest selection reasons and cache measurements exact",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck ./cmd/gate -run 'Test.*(ManifestMeasurements|GatePlanReport|Dependency)' -count=1"
-        }
-      ]
-    },
-    {
       "id": "manifest-negative-corpus",
       "title": "Exercise conservative manifest selection through real boundary detectors",
       "owner": "manifest",

@@ -14,7 +14,7 @@ func TestManifestAnalysisStrictAuthorityRoundTrip(t *testing.T) {
 	plan := manifestAnalysisPlanFixture(t)
 	delta := codemanifest.Delta{Base: plan.BaseManifest, Candidate: plan.CandidateManifest}
 	impact := codemanifest.Impact{Base: plan.BaseManifest.String(), Candidate: plan.CandidateManifest.String()}
-	measurements := MeasureManifest(1, 1, 0, 0, 0, 1, 0, 0)
+	measurements := MeasureManifest(1, 1, 0, 0, 1, 0, 0, 0)
 	analysis, err := NewManifestAnalysis(delta, impact, plan, SelectionMetrics{}, measurements)
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +34,7 @@ func TestManifestAnalysisRejectsMixedAuthority(t *testing.T) {
 	other, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("other"))
 	delta := codemanifest.Delta{Base: other, Candidate: plan.CandidateManifest}
 	impact := codemanifest.Impact{Base: plan.BaseManifest.String(), Candidate: plan.CandidateManifest.String()}
-	measurements := MeasureManifest(1, 1, 0, 0, 0, 1, 0, 0)
+	measurements := MeasureManifest(1, 1, 0, 0, 1, 0, 0, 0)
 	if _, err := NewManifestAnalysis(delta, impact, plan, SelectionMetrics{}, measurements); err == nil {
 		t.Fatal("mixed structural authority accepted")
 	}

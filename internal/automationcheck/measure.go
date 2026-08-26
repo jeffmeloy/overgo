@@ -8,19 +8,21 @@ type ManifestMeasurements struct {
 	Selected       int   `json:"selected"`
 	Excluded       int   `json:"excluded"`
 	Uncertainty    int   `json:"uncertainty"`
+	CacheEligible  int   `json:"cache_eligible"`
 	CacheHits      int   `json:"cache_hits"`
 	CacheMisses    int   `json:"cache_misses"`
 	PlanningNS     int64 `json:"planning_ns"`
-	GateElapsedNS  int64 `json:"gate_elapsed_ns"`
+	AnalysisAgeNS  int64 `json:"analysis_age_ns"`
 	FullPlanParity bool  `json:"full_plan_parity"`
 }
 
 // MeasureManifest records complete disposition and timing without treating
 // exclusion rate as correctness evidence.
-func MeasureManifest(defined, selected, excluded, uncertainty, hits, misses int, planning, elapsed time.Duration) ManifestMeasurements {
+func MeasureManifest(defined, selected, excluded, uncertainty, eligible, hits int, planning, analysisAge time.Duration) ManifestMeasurements {
 	return ManifestMeasurements{
 		Defined: defined, Selected: selected, Excluded: excluded, Uncertainty: uncertainty,
-		CacheHits: hits, CacheMisses: misses, PlanningNS: planning.Nanoseconds(), GateElapsedNS: elapsed.Nanoseconds(),
+		CacheEligible: eligible, CacheHits: hits, CacheMisses: eligible - hits,
+		PlanningNS: planning.Nanoseconds(), AnalysisAgeNS: analysisAge.Nanoseconds(),
 		FullPlanParity: selected+excluded == defined,
 	}
 }

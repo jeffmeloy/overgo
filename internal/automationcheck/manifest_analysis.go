@@ -90,8 +90,9 @@ func validateManifestAnalysis(analysis *ManifestAnalysis) error {
 	}
 	measurements := analysis.Measurements
 	if measurements.Defined < 0 || measurements.Selected < 0 || measurements.Excluded < 0 ||
-		measurements.Uncertainty < 0 || measurements.CacheHits < 0 || measurements.CacheMisses < 0 ||
-		measurements.PlanningNS < 0 || measurements.GateElapsedNS < 0 ||
+		measurements.Uncertainty < 0 || measurements.CacheEligible < 0 || measurements.CacheHits < 0 || measurements.CacheMisses < 0 ||
+		measurements.CacheHits+measurements.CacheMisses != measurements.CacheEligible ||
+		measurements.PlanningNS < 0 || measurements.AnalysisAgeNS < 0 ||
 		measurements.Selected != len(analysis.Plan.Invocations) ||
 		measurements.FullPlanParity != (measurements.Selected+measurements.Excluded == measurements.Defined) {
 		return errors.New("automation manifest analysis: invalid measurements")

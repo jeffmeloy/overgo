@@ -393,14 +393,18 @@ func (g *gateContext) pipeline() error {
 		}
 	}
 	cacheHits := 0
+	cacheEligible := 0
 	for _, result := range results {
+		if cacheable[result.Invocation.Check.Name] {
+			cacheEligible++
+		}
 		if result.Evidence.Reused {
 			cacheHits++
 		}
 	}
 	g.manifestMetrics = automationcheck.MeasureManifest(
 		len(definitions), len(checks), len(impact.Exclusions), len(planned.surface.Unknown),
-		cacheHits, len(checks)-cacheHits, planningDuration, time.Since(g.start),
+		cacheEligible, cacheHits, planningDuration, time.Since(g.start),
 	)
 	for _, definition := range definitions {
 		name := definition.Descriptor.Name
@@ -438,10 +442,11 @@ type plannedPipeline struct {
 }
 
 type planDisposition struct {
-	Name    string                 `json:"name"`
-	Phase   runrecord.Phase        `json:"phase"`
-	Reason  string                 `json:"reason"`
-	Matched []automationcheck.Fact `json:"matched,omitempty"`
+	Name       string                 `json:"name"`
+	Phase      runrecord.Phase        `json:"phase"`
+	Reason     string                 `json:"reason"`
+	Matched    []automationcheck.Fact `json:"matched,omitempty"`
+	RequiredBy []string               `json:"required_by,omitempty"`
 }
 
 type gatePlanReport struct {
@@ -455,15 +460,14 @@ type gatePlanReport struct {
 	Selected          []planDisposition              `json:"selected"`
 	Excluded          []planDisposition              `json:"excluded"`
 	Unresolved        []planDisposition              `json:"unresolved"`
-	DependencyAdded   []planDisposition              `json:"dependency_added"`
 	AgentContext      *agentworkflow.ManifestContext `json:"agent_context,omitempty"`
 }
 
 func buildGatePlanReport(planned plannedPipeline) gatePlanReport {
 	report := gatePlanReport{
-		Kind: "overgo.gate-plan-inspection", Schema: 1,
+		Kind: "overgo.gate-plan-inspection", Schema: 2,
 		Selected: []planDisposition{}, Excluded: []planDisposition{},
-		Unresolved: []planDisposition{}, DependencyAdded: []planDisposition{},
+		Unresolved: []planDisposition{},
 	}
 	if planned.manifest != nil {
 		report.PlanID = planned.manifest.ID.String()
@@ -493,12 +497,16 @@ func buildGatePlanReport(planned plannedPipeline) gatePlanReport {
 	if len(planned.surface.Unknown) != 0 {
 		unknownReason = "impact analysis unresolved: " + strings.Join(planned.surface.Unknown, "; ")
 	}
-	selected := make(map[string]bool, len(planned.invocations))
+	requiredBy := make(map[string][]string, len(planned.invocations))
 	for _, invocation := range planned.invocations {
-		selected[invocation.Check.Name] = true
+		for _, dependency := range invocation.Check.Dependencies {
+			requiredBy[dependency] = append(requiredBy[dependency], invocation.Check.Name)
+		}
+	}
+	for _, invocation := range planned.invocations {
 		disposition := planDisposition{
 			Name: invocation.Check.Name, Phase: invocation.Check.Phase,
-			Matched: slices.Clone(invocation.Matched),
+			Matched: slices.Clone(invocation.Matched), RequiredBy: slices.Clone(requiredBy[invocation.Check.Name]),
 		}
 		switch {
 		case invocation.Check.Always:
@@ -511,39 +519,9 @@ func buildGatePlanReport(planned plannedPipeline) gatePlanReport {
 		}
 		report.Selected = append(report.Selected, disposition)
 	}
-	for _, invocation := range planned.invocations {
-		for _, dependency := range invocation.Check.Dependencies {
-			descriptor := definitions[dependency]
-			if !selected[dependency] || descriptor.Always || len(matchingFacts(descriptor.Triggers, planned.impact.Facts)) != 0 {
-				continue
-			}
-			if _, wasExcluded := excluded[dependency]; !wasExcluded {
-				continue
-			}
-			report.DependencyAdded = append(report.DependencyAdded, planDisposition{
-				Name: dependency, Phase: descriptor.Phase,
-				Reason: "required by selected check " + invocation.Check.Name,
-			})
-		}
-	}
 	slices.SortFunc(report.Excluded, func(left, right planDisposition) int { return strings.Compare(left.Name, right.Name) })
 	slices.SortFunc(report.Unresolved, func(left, right planDisposition) int { return strings.Compare(left.Name, right.Name) })
-	slices.SortFunc(report.DependencyAdded, func(left, right planDisposition) int { return strings.Compare(left.Name, right.Name) })
 	return report
-}
-
-func matchingFacts(triggers, facts []automationcheck.Fact) []automationcheck.Fact {
-	wanted := make(map[automationcheck.Fact]bool, len(triggers))
-	for _, fact := range triggers {
-		wanted[fact] = true
-	}
-	var matched []automationcheck.Fact
-	for _, fact := range facts {
-		if wanted[fact] {
-			matched = append(matched, fact)
-		}
-	}
-	return matched
 }
 
 func writeGatePlanReport(output io.Writer, planned plannedPipeline) error {

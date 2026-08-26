@@ -19,6 +19,7 @@ import (
 // table is data about public benchmark layouts, not about any model.
 type hfCacheFamily struct {
 	family     string
+	domain     string
 	splitBase  string
 	splits     []string
 	conversion string
@@ -27,7 +28,7 @@ type hfCacheFamily struct {
 
 var hfCacheFamilies = map[string]hfCacheFamily{
 	"cais___mmlu": {
-		family: "mmlu", splitBase: "mmlu", splits: []string{"test"},
+		family: "mmlu", domain: DomainText, splitBase: "mmlu", splits: []string{"test"},
 		conversion: "lm-eval/mmlu/v1",
 		fields: []dataset.FieldBinding{
 			{Target: "question", Source: "question"},
@@ -36,7 +37,7 @@ var hfCacheFamilies = map[string]hfCacheFamily{
 		},
 	},
 	"TIGER-Lab___mmlu-pro": {
-		family: "mmlu-pro", splitBase: "mmlu-pro", splits: []string{"test"},
+		family: "mmlu-pro", domain: DomainText, splitBase: "mmlu-pro", splits: []string{"test"},
 		conversion: "lm-eval/mmlu-pro/v1",
 		fields: []dataset.FieldBinding{
 			{Target: "question", Source: "question"},
@@ -46,7 +47,7 @@ var hfCacheFamilies = map[string]hfCacheFamily{
 		},
 	},
 	"SaylorTwift___bbh": {
-		family: "bbh", splitBase: "bbh", splits: []string{"test"},
+		family: "bbh", domain: DomainText, splitBase: "bbh", splits: []string{"test"},
 		conversion: "lm-eval/bbh/v1",
 		fields: []dataset.FieldBinding{
 			{Target: "input", Source: "input"},
@@ -54,7 +55,7 @@ var hfCacheFamilies = map[string]hfCacheFamily{
 		},
 	},
 	"TAUR-Lab___mu_sr": {
-		family: "musr", splitBase: "mu_sr",
+		family: "musr", domain: DomainText, splitBase: "mu_sr",
 		splits:     []string{"murder_mysteries", "object_placements", "team_allocation"},
 		conversion: "lm-eval/musr/v1",
 		fields: []dataset.FieldBinding{
@@ -65,7 +66,7 @@ var hfCacheFamilies = map[string]hfCacheFamily{
 		},
 	},
 	"wis-k___instruction-following-eval": {
-		family: "ifeval", splitBase: "instruction-following-eval", splits: []string{"train"},
+		family: "ifeval", domain: DomainText, splitBase: "instruction-following-eval", splits: []string{"train"},
 		conversion: "lm-eval/ifeval/v1",
 		fields: []dataset.FieldBinding{
 			{Target: "key", Source: "key"},
@@ -75,7 +76,7 @@ var hfCacheFamilies = map[string]hfCacheFamily{
 		},
 	},
 	"DigitalLearningGmbH___math-lighteval": {
-		family: "math", splitBase: "math-lighteval", splits: []string{"test"},
+		family: "math", domain: DomainText, splitBase: "math-lighteval", splits: []string{"test"},
 		conversion: "lm-eval/math/v1",
 		fields: []dataset.FieldBinding{
 			{Target: "problem", Source: "problem"},

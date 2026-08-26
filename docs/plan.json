@@ -1,6 +1,6 @@
 {
-  "campaign": "Recipe and compiled-runtime authority tightening",
-  "doctrine": "Recipes and typed artifact facts are sole policy and topology authorities. Compiled ordered bindings own repeated execution. Each wave migrates every caller and deletes displaced selectors, synthetic identities, copied policy, wrappers, and test-only production runtime code. No compatibility path or parallel API remains. Preserve numerical behavior and hard-fail on absent authority. Production code must be net-negative unless an unavoidable schema migration provides greater immediate deletion.",
+  "campaign": "Recipe authority and domain evaluation",
+  "doctrine": "Owner-scoped rows preserve deterministic lane steering. Recipes and typed artifact facts are sole policy and topology authorities. Compiled ordered bindings own repeated execution. Each tightening wave migrates every caller and deletes displaced selectors, copied policy, wrappers, and compatibility paths. Preserve numerical behavior and hard-fail on absent authority.",
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
@@ -47,6 +47,21 @@
           "verify": "go test ./internal/modelrecipe ./cmd/model-build ./cmd/server -count=1",
           "rationale": "One-line capability wrappers and command-local profile publication remain after their shared authorities landed. Migrate consumers and delete the old objects.",
           "depends_on": ["indexed-graph-authority/do"]
+        }
+      ]
+    },
+    {
+      "id": "dna-eval-benchmark",
+      "title": "Score Carbon on held-out DNA sequences",
+      "owner": "gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add sequence-scoring evaluation over held-out carbon-pretraining-corpus slices and publish evidence beside the suite catalog entry",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run TestSequenceScoring -count=1",
+          "depends_on": ["eval-domain-targeting/do"]
         }
       ]
     }

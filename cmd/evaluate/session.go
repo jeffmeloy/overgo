@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
@@ -40,6 +41,7 @@ type nativeSession struct {
 	store    *overgodb.Store
 	runner   *inference.Runner
 	campaign *evaluation.Campaign
+	model    artifact.ID
 }
 
 func openEvaluationSession(ctx context.Context, value manifest, request modelRequest) (evaluationSession, error) {
@@ -74,7 +76,7 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		_ = runner.Close()
 		return fail(err)
 	}
-	return &nativeSession{store: store, runner: runner, campaign: campaign}, nil
+	return &nativeSession{store: store, runner: runner, campaign: campaign, model: identity.Model}, nil
 }
 
 func (s *nativeSession) Evaluate(ctx context.Context, path string) error {

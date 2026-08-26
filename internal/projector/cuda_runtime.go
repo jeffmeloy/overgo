@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
 	"overgo/internal/graphruntime"
@@ -99,16 +98,12 @@ func (c *projectorCUDA) Close() error {
 type projectorCUDAWeights struct {
 	runtime *projectorCUDA
 	builder *tensor.Builder
-	feeds   map[*tensor.Tensor]driver.DevicePtr
+	feeds   *graphruntime.Feeds
 	err     error
 }
 
-func (c *projectorCUDA) bindWeights(builder *tensor.Builder) *projectorCUDAWeights {
-	return &projectorCUDAWeights{
-		runtime: c,
-		builder: builder,
-		feeds:   make(map[*tensor.Tensor]driver.DevicePtr),
-	}
+func (c *projectorCUDA) bindWeights(builder *tensor.Builder, feeds *graphruntime.Feeds) *projectorCUDAWeights {
+	return &projectorCUDAWeights{runtime: c, builder: builder, feeds: feeds}
 }
 
 func (b *projectorCUDAWeights) weight(name string) *tensor.Tensor {
@@ -120,12 +115,8 @@ func (b *projectorCUDAWeights) weight(name string) *tensor.Tensor {
 		b.err = err
 		return nil
 	}
-	b.feeds[node] = pointer
+	b.feeds.SetDevice(node, pointer)
 	return node
-}
-
-func (b *projectorCUDAWeights) result() (map[*tensor.Tensor]driver.DevicePtr, error) {
-	return b.feeds, b.err
 }
 
 type projectorGraphRuntime struct {
@@ -151,7 +142,7 @@ func newProjectorGraphRuntime(
 		ctx: ctx, file: file, cuda: cuda, builder: builder, feeds: feeds, hostFeeds: feeds.Host,
 	}
 	if cuda != nil {
-		runtime.binding = cuda.bindWeights(builder)
+		runtime.binding = cuda.bindWeights(builder, feeds)
 	}
 	return runtime
 }
@@ -239,12 +230,8 @@ func (runtime *projectorGraphRuntime) execute(outputs ...*tensor.Tensor) (map[*t
 	if err := runtime.builder.Err(); err != nil {
 		return nil, err
 	}
-	if runtime.binding != nil {
-		deviceFeeds, err := runtime.binding.result()
-		if err != nil {
-			return nil, err
-		}
-		runtime.feeds.AddDevice(deviceFeeds)
+	if runtime.binding != nil && runtime.binding.err != nil {
+		return nil, runtime.binding.err
 	}
 	if runtime.cuda == nil {
 		return runtime.feeds.Execute(runtime.ctx, outputs, nil)

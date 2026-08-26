@@ -3,6 +3,7 @@ package graphruntime
 import (
 	"testing"
 
+	"overgo/internal/cuda/driver"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -24,9 +25,14 @@ func TestFeedsReuseCompiledOutputGraph(t *testing.T) {
 	input := builder.Input("input", dtype.F32, tensor.MustShape(1))
 	first, second := builder.Scale(input, 2), builder.Scale(input, 3)
 	feeds := NewFeeds()
+	feeds.SetDevice(input, driver.DevicePtr(1))
 	compiled, err := feeds.compile([]*tensor.Tensor{first})
 	if err != nil {
 		t.Fatal(err)
+	}
+	slot, ok := compiled.Graph.InputSlot(input)
+	if !ok || compiled.Inputs.Pointers[slot] != driver.DevicePtr(1) {
+		t.Fatalf("device binding slot=%d found=%t", slot, ok)
 	}
 	reused, err := feeds.compile([]*tensor.Tensor{first})
 	if err != nil || reused != compiled {

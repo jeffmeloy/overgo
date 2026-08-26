@@ -35,7 +35,7 @@ func (runtime *inferenceGraphRuntime) weight(info gguf.TensorInfo) (*tensor.Tens
 		if err != nil {
 			return nil, err
 		}
-		runtime.feeds.Device[node] = pointer
+		runtime.feeds.SetDevice(node, pointer)
 		return node, nil
 	}
 	value, err := runtime.runner.hostTensor(runtime.ctx, info)

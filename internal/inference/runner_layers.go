@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"overgo/internal/cuda/driver"
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -30,7 +31,8 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	builder := runtime.builder
 	input := runtime.input("model.input", activation)
 	current := input
-	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
+	hostFeeds := runtime.feeds.Host
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
 	var attentionBlockInput *tensor.Tensor
 	if len(attentionBlockIDs) > 0 {
 		shape := tensor.MustShape(uint64(len(attentionBlockIDs)))
@@ -150,6 +152,7 @@ func (r *Runner) forwardDenseLayersPreloaded(
 	if attnQueryNode != nil {
 		outputs = appendUniqueGraphOutputs(outputs, seenOutputs, attnQueryNode)
 	}
+	runtime.feeds.AddDevice(deviceFeeds)
 	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, nil, err
@@ -179,7 +182,8 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 	builder := runtime.builder
 	input := runtime.input("model.input", activation)
 	current := input
-	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
+	hostFeeds := runtime.feeds.Host
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
 	for layerIndex, info := range r.weights.Layers {
 		program := r.layerProgram(layerIndex)
 		plan := program.Layer()
@@ -205,6 +209,7 @@ func (r *Runner) forwardDenseLayersNoCachePreloaded(
 	if err != nil {
 		return reference.Value{}, err
 	}
+	runtime.feeds.AddDevice(deviceFeeds)
 	results, err := runtime.execute(current)
 	if err != nil {
 		return reference.Value{}, err
@@ -231,7 +236,8 @@ func (r *Runner) runLayerCached(
 	runtime := r.newInferenceGraphRuntime(ctx)
 	builder := runtime.builder
 	input := runtime.input("input", activation)
-	hostFeeds, deviceFeeds := runtime.feeds.Host, runtime.feeds.Device
+	hostFeeds := runtime.feeds.Host
+	deviceFeeds := make(map[*tensor.Tensor]driver.DevicePtr)
 	graphWeights, err := runtime.layer(info, fmt.Sprintf("blk.%d.", layerIndex))
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err
@@ -305,6 +311,7 @@ func (r *Runner) runLayerCached(
 		outputs = append(outputs, result.Auxiliary)
 	}
 	outputs = result.States.AppendValues(outputs)
+	runtime.feeds.AddDevice(deviceFeeds)
 	results, err := runtime.execute(outputs...)
 	if err != nil {
 		return reference.Value{}, LayerCache{}, err

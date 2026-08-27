@@ -121,7 +121,7 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	}
 	if _, _, err := ActivateVerified(
 		ctx, store, "fixture/lifecycle/first/active", first, firstVerification,
-		recipe.EvidenceExperimental, "first fixture activation", nil, nil,
+		recipe.EvidenceVerified, "first fixture activation", nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -143,14 +143,14 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 	}
 	if _, _, err := ActivateVerified(
 		ctx, store, "fixture/lifecycle/second/mismatched", second, firstVerification,
-		recipe.EvidenceExperimental, "mismatched fixture activation", nil, &first.ID,
+		recipe.EvidenceVerified, "mismatched fixture activation", nil, &first.ID,
 	); err == nil {
 		t.Fatal("activation accepted verifier output for another recipe")
 	}
 	secondVerification := publishVerification(t, store, second.ID, "fixture/lifecycle/second/verification")
 	if _, _, err := ActivateVerified(
 		ctx, store, "fixture/lifecycle/second/active", second, secondVerification,
-		recipe.EvidenceExperimental, "second fixture activation", nil, &first.ID,
+		recipe.EvidenceVerified, "second fixture activation", nil, &first.ID,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := ActivateCapability(
-		ctx, store, definition, Verification{}, recipe.EvidenceExperimental, "verified fixture",
+		ctx, store, definition, Verification{}, recipe.EvidenceVerified, "verified fixture",
 	); err == nil {
 		t.Fatal("activation accepted missing verification")
 	}
@@ -195,7 +195,7 @@ func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 	}
 	verification := publishVerification(t, store, definition.ID, "fixture/activation/verification")
 	if err := ActivateCapability(
-		ctx, store, definition, verification, recipe.EvidenceExperimental, "verified fixture",
+		ctx, store, definition, verification, recipe.EvidenceVerified, "verified fixture",
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestRetireActiveCapabilityRequiresFailedEvidence(t *testing.T) {
 	}
 	activeVerification := publishVerification(t, store, active.ID, "fixture/retirement/active-verification")
 	if err := ActivateCapability(
-		ctx, store, active, activeVerification, recipe.EvidenceExperimental, "legacy activation",
+		ctx, store, active, activeVerification, recipe.EvidenceVerified, "legacy activation",
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -328,7 +328,7 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 		t.Fatal("refusal without typed decision accepted")
 	}
 	refusal, err := recipe.NewDecision(
-		refused.ID, recipe.DecisionRefused, recipe.EvidenceExperimental, "kernel parity failed",
+		refused.ID, recipe.DecisionRefused, recipe.EvidenceVerified, "kernel parity failed",
 		recipe.Decider{CodeCommit: lifecycleDecisionCommit, Derivation: derivationID},
 		[]artifact.ID{testutil.ArtifactID(t, artifact.KindRun, "kernel-parity-failed-run")},
 	)

@@ -17,7 +17,7 @@ import (
 )
 
 // BootstrapTokenRecipe publishes, verifies, and activates a token-training
-// recipe for one model at the experimental evidence tier — the recipe
+// recipe for one model at the verified evidence tier — the recipe
 // authority a session-supervised training run resolves before touching
 // weights. Every dependency is a real committed artifact: the dataset
 // grounds by content, the split and policy profiles identify by declared
@@ -237,7 +237,7 @@ func bootstrapRecipeForObjective(
 		return artifact.ID{}, err
 	}
 	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification,
-		recipe.EvidenceExperimental, "session-supervised training substrate bootstrap"); err != nil {
+		recipe.EvidenceVerified, "session-supervised training substrate bootstrap"); err != nil {
 		return artifact.ID{}, err
 	}
 	fmt.Printf("training recipe activated: %s (model %s, experimental evidence tier)\n", definition.ID, modelID)

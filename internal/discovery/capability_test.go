@@ -69,7 +69,7 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	}
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, "fixture/discovery/capability/active", definition, verification,
-		recipe.EvidenceExperimental, "capability catalog fixture activation", nil, nil,
+		recipe.EvidenceVerified, "capability catalog fixture activation", nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	}
 	capability := entry.Capabilities[0]
 	if capability.Task != recipe.TaskForecast || capability.Recipe != definition.ID ||
-		capability.Tier != recipe.EvidenceExperimental || capability.Stale != "" {
+		capability.Tier != recipe.EvidenceVerified || capability.Stale != "" {
 		t.Fatalf("capability = %+v, want a trusted forecast activation at its activated tier", capability)
 	}
 
@@ -140,7 +140,7 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	}
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, "fixture/discovery/capability/inference-active", inference, inferenceVerification,
-		recipe.EvidenceExperimental, "capability catalog inference fixture activation", nil, nil,
+		recipe.EvidenceVerified, "capability catalog inference fixture activation", nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

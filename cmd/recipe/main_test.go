@@ -75,7 +75,7 @@ func TestCapabilityVerificationActivatesCandidate(t *testing.T) {
 		t.Fatalf("verification subject = %s/%s, want %s", verified.Gate.Recipe, verified.Run.Recipe, definition.ID)
 	}
 	if err := modelrecipe.ActivateCapability(
-		ctx, store, definition, verification, recipe.EvidenceExperimental, "fixture candidate execution",
+		ctx, store, definition, verification, recipe.EvidenceVerified, "fixture candidate execution",
 	); err != nil {
 		t.Fatal(err)
 	}

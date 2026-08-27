@@ -102,7 +102,7 @@ func ResolveCandidateGGUF(
 		resolved.Tensors.ID != loaded.state.Inventory.TensorInventory.ID {
 		return fail(errors.New("model recipe: loaded GGUF differs from candidate model definition"))
 	}
-	loaded.state.EvidenceTier = recipe.EvidenceExperimental
+	loaded.state.EvidenceTier = recipe.EvidenceVerified
 	policy, found, err := CatalogRuntimePolicy(definition.Task)
 	if err != nil {
 		return fail(err)

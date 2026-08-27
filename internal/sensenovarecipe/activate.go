@@ -34,9 +34,9 @@ import (
 // contract; production binding remains separate from activation truth.
 const Task = recipe.TaskImageGen
 
-// EvidenceTier: the honest activation tier -- the sensenovaparity ladder is a
-// legitimate experimental verification, not a ship-bar oracle.
-const EvidenceTier = recipe.EvidenceExperimental
+// EvidenceTier: the honest activation tier -- the sensenovaparity ladder
+// establishes that verification evidence stands, not a ship-bar oracle.
+const EvidenceTier = recipe.EvidenceVerified
 
 // DerivedFacts: recipe-relevant model facts derived from the checkpoint via
 // routedlm. Every field is tensor- or config-owned (cited in sensenovaparity's

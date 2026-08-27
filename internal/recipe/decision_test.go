@@ -141,3 +141,36 @@ func TestDecisionReasonHasNoIndependentLengthPolicy(t *testing.T) {
 		t.Fatalf("canonical evidence reason was rejected by an independent length policy: %v", err)
 	}
 }
+
+// TestEvidenceTierIsVerificationVocabulary pins the owner ruling: a
+// model is verified or it is not. The recorded tiers are verified,
+// parity, and production; the legacy experimental spelling stays
+// parseable for content-addressed stored decisions and ranks with
+// verified, and nothing records it anew.
+func TestEvidenceTierIsVerificationVocabulary(t *testing.T) {
+	for _, tier := range []EvidenceTier{EvidenceVerified, EvidenceParity, EvidenceProduction, EvidenceExperimental} {
+		if !tier.Valid() {
+			t.Fatalf("tier %q invalid", tier)
+		}
+	}
+	if EvidenceTier("smoke").Valid() || EvidenceTier("candidate").Valid() {
+		t.Fatal("unknown tier accepted")
+	}
+	if !EvidenceParity.StrongerThan(EvidenceVerified) || !EvidenceParity.StrongerThan(EvidenceExperimental) ||
+		!EvidenceProduction.StrongerThan(EvidenceParity) || EvidenceVerified.StrongerThan(EvidenceExperimental) ||
+		EvidenceExperimental.StrongerThan(EvidenceVerified) {
+		t.Fatal("tier precedence: production > parity > verified == legacy experimental")
+	}
+	subject := testutil.ArtifactID(t, artifact.KindRecipe, "tier-subject")
+	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "tier-derivation")
+	decision, err := NewDecision(
+		subject, DecisionAccepted, EvidenceVerified, "verification evidence stands",
+		Decider{CodeCommit: decisionTestCommit, Derivation: derivation}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.Tier != EvidenceVerified {
+		t.Fatalf("tier = %q", decision.Tier)
+	}
+}

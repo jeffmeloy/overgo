@@ -46,23 +46,43 @@ const (
 	DecisionRefused      DecisionOutcome = "refused"
 )
 
+// EvidenceTier grades the strength of the evidence an activation or
+// authority decision stands on. It is a property of the evidence, not
+// of the model: verified means a candidate execution ran and produced a
+// valid typed artifact, parity means output matched a reference
+// implementation exactly, production means production-shaped workloads
+// stand behind it.
 type EvidenceTier string
 
 const (
+	// EvidenceVerified states that verification evidence stands: a
+	// candidate execution ran and produced a valid typed artifact. A
+	// model is verified or it is not; absence of an activation is the
+	// only unverified state.
+	EvidenceVerified EvidenceTier = "verified"
+	// EvidenceParity states verification against a reference
+	// implementation with exact output match.
+	EvidenceParity EvidenceTier = "parity"
+	// EvidenceProduction states verification under production-shaped
+	// workloads.
+	EvidenceProduction EvidenceTier = "production"
+	// EvidenceExperimental is a legacy stored spelling of the verified
+	// tier. Stored decisions are content-addressed and keep their
+	// recorded bytes, so the value stays parseable; nothing records or
+	// renders it anew.
 	EvidenceExperimental EvidenceTier = "experimental"
-	EvidenceParity       EvidenceTier = "parity"
-	EvidenceProduction   EvidenceTier = "production"
 )
 
 func (t EvidenceTier) Valid() bool { return validEvidenceTier(t) }
 
-// StrongerThan reports strict evidence precedence.
+// StrongerThan reports strict evidence precedence; the legacy
+// experimental spelling ranks with verified.
 func (t EvidenceTier) StrongerThan(other EvidenceTier) bool {
 	switch t {
 	case EvidenceProduction:
-		return other == EvidenceParity || other == EvidenceExperimental
+		return other == EvidenceParity || other == EvidenceVerified || other == EvidenceExperimental
 	case EvidenceParity:
-		return other == EvidenceExperimental
+		return other == EvidenceVerified || other == EvidenceExperimental
 	default:
 		return false
 	}
@@ -170,7 +190,7 @@ func validDecisionOutcome(outcome DecisionOutcome) bool {
 }
 
 func validEvidenceTier(tier EvidenceTier) bool {
-	return tier == EvidenceExperimental || tier == EvidenceParity || tier == EvidenceProduction
+	return tier == EvidenceVerified || tier == EvidenceParity || tier == EvidenceProduction || tier == EvidenceExperimental
 }
 
 func validGitCommit(value string) bool {

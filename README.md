@@ -1,6 +1,6 @@
 # Overgo
 
-Overgo is an experimental systems platform for reliable recursive
+Overgo is a systems platform for reliable recursive
 self-improvement (RSI) of model-driven software agents.
 
 It has two permanent uses:

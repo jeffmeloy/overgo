@@ -138,7 +138,7 @@ func publishVerifiedActivation(t *testing.T, store *overgodb.Store, modelID arti
 	}
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, "fixture/discovery/verified-active/"+suffix, definition, verification,
-		recipe.EvidenceExperimental, "discovery fixture activation", nil, nil,
+		recipe.EvidenceVerified, "discovery fixture activation", nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

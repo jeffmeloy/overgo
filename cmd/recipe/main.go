@@ -233,7 +233,7 @@ func activateCapability(
 	if err != nil {
 		return err
 	}
-	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceExperimental, reason); err != nil {
+	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, reason); err != nil {
 		return err
 	}
 	fmt.Printf("activated %s\n  task       %s\n  model      %s\n  recipe     %s\n  reason     %s\n",
@@ -660,7 +660,7 @@ func activate(
 		return fmt.Errorf("publish model facts: %w", err)
 	}
 	if err := modelrecipe.ActivateCapability(
-		ctx, store, candidate.definition, verification, recipe.EvidenceExperimental, reason,
+		ctx, store, candidate.definition, verification, recipe.EvidenceVerified, reason,
 	); err != nil {
 		return err
 	}

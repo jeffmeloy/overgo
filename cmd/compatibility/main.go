@@ -114,6 +114,7 @@ func run() error {
 	refresh := flag.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
 	updateModels := flag.Bool("update-models", false, "write the nested model compatibility report joined against the store")
 	updateMedia := flag.Bool("update-media", false, "write the media capability report from store activations and verification claims")
+	exportSamples := flag.Bool("export-samples", false, "export healthy media activations' verifier-run outputs as decodable files under docs/media_samples")
 	modelsRepo := flag.String("models-repo", "overgodb-store", "OvergoDB store for -update-models prototype resolution")
 	recordVerification := flag.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims)")
 	recordStore := flag.String("record", "", "OvergoDB root for -record-verification/-claim")
@@ -140,6 +141,12 @@ func run() error {
 			"docs/TRAINING_COMPATIBILITY.md is stale; regenerate with: go run ./cmd/compatibility -update-training",
 			os.Stdout,
 		)
+	}
+	if *exportSamples {
+		if flag.NArg() != 0 || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
+			return errors.New("usage: compatibility -export-samples [-models-repo <overgodb>]")
+		}
+		return exportMediaSamples(".", *modelsRepo)
 	}
 	if *updateMedia {
 		if flag.NArg() != 0 || *check || *update || *refresh || *claimFlag || *recordVerification != "" {

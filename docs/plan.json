@@ -21,23 +21,6 @@
       ]
     },
     {
-      "id": "media-sample-export",
-      "title": "Export decoded media samples with content hashes",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Export decoded media samples with content hashes",
-          "status": "open",
-          "verify": "node -e \"const fs=require('fs'); const d=fs.readdirSync('docs/media_samples'); if(d.length\u003c3) process.exit(1)\"",
-          "rationale": "Export each healthy activation verifier-run output as a decodable file under docs/media_samples (PNG/GIF/WAV) named by content SHA-256, via a compatibility flag or small command; the report embeds them.",
-          "depends_on": [
-            "media-run-phase-peak/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "media-report-parity",
       "title": "Reach content parity with the adaptive_new image generation report",
       "status": "open",

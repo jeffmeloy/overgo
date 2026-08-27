@@ -1,118 +1,460 @@
 {
-  "campaign": "Governed external tool interoperability",
-  "doctrine": "External protocol breadth enters through narrow adapters behind the immutable agent-tool manual. Discovery compiles bounded untrusted descriptions into typed candidate manuals; it never mutates the active catalog. Catalog search is deterministic and bound to exact manual identities. Streaming is a bounded, cancellable, sequenced lifecycle with an explicit terminal record. Model-authored tool workflows compile as closed-world recipe programs and execute without source generation or an embedded interpreter. Every row reuses artifact, recipe, operation, policy, and evidence owners already in the tree and deletes displaced switches, wrappers, caches, and temporary shapes in the same commit.",
-  "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
+  "campaign": "Evidence-governed agent harness convergence",
+  "doctrine": "The agent harness grows by strengthening existing Overgo owners, not by grafting on a second framework. Recipe owns immutable intent and delegation contracts; agenttool owns manuals, invocation effects, catalog discovery, and dispatch; runrecord owns obligations, trajectories, checkpoints, attempts, and lifecycle evidence; plan owns campaign steering and work claims; operation and workflowruntime own bounded execution; agentloop composes those authorities. No row may add a parallel metadata store, mutable tool registry, scheduler, JSONL authority, checkpoint blob store, interpreter, model-authored execution authority, or transport-specific workflow path. Model cognition may propose actions, but deterministic code derives effects, admission, invalidation, recovery, evaluation, and promotion. Every step must reuse common codecs and lifecycle machinery, fail closed on uncertainty, test the assembled boundary, remove displaced code in the same commit, and justify any net increase in package or policy surface with measured coverage or capability gain.",
+  "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "attempt-history",
-      "title": "Make attempt history queryable across runs and strategies",
+      "id": "harness-surface-discipline",
+      "title": "Constrain agent-harness growth before adding capability",
       "status": "open",
       "steps": [
         {
-          "id": "do",
-          "title": "Make attempt history queryable across runs and strategies -- Query surface over attempt records: by plan item, by strategy, by code revision; aggregates attempts-per-step, success rate, measured cost. Queryable store reads, never log scraping. Closes: durable cross-run measurement history for steering.",
+          "id": "boundary-tests",
+          "title": "Extend the existing manifest ownership and gate selector so changes to shared agent contracts require an effect test at the assembled agentloop, workflowruntime, or operation boundary. Component tests remain necessary but cannot alone verify that a capability reaches the model, policy gate, durable evidence, and runtime.",
           "status": "open",
-          "verify": "go test ./internal/runrecord -run TestAttemptHistory -count=1",
+          "verify": "rg -q \"func TestAgentHarnessBoundaryOwnership\" internal/automationcheck -g \"*_test.go\" \u0026\u0026 go test ./internal/automationcheck -run '^TestAgentHarnessBoundaryOwnership$' -count=1",
+          "rationale": "The strongest Reasonix testing doctrine verifies final effects through real assembly. Overgo can derive that obligation from the code manifest instead of maintaining another handwritten test map.",
           "depends_on": [
-            "attempt-records/do"
+            "harness-surface-discipline/ratchets"
+          ],
+          "capabilities": [
+            "codemanifest",
+            "automationcheck",
+            "gate-selection"
           ]
         }
       ]
     },
     {
-      "id": "strategy-identity",
-      "title": "Stamp worker strategy identity into every attempt",
+      "id": "invocation-effects",
+      "title": "Derive exact effects for every concrete tool invocation",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Stamp worker strategy identity into every attempt -- The loop config declares a strategy identity (worker command digest + prompt profile); every attempt record carries it so history can compare strategies instead of anonymous runs.",
+          "title": "Extend agenttool's existing manual and executor path with one canonical invocation-effect value derived from the exact manual identity, strict arguments, transport, resolved targets, and observed result. Preserve the manual's static inspection/mutation ceiling, distinguish workspace, repository, host, external, network, executable, destructive, privileged, and irreversible effects, and classify any unresolved writer as opaque mutation. Feed the same value to admission, receipts, trajectories, and policy rather than recreating classifications at each consumer.",
           "status": "open",
-          "verify": "go test ./internal/loop -run TestStrategy -count=1",
+          "verify": "rg -q \"func TestInvocationEffectDerivation\" internal/agenttool -g \"*_test.go\" \u0026\u0026 go test ./internal/agenttool -run '^TestInvocationEffectDerivation$' -count=1",
+          "rationale": "Reasonix's concrete effect profile is a substantial improvement over static read/write labels. Keeping derivation inside agenttool avoids a second policy vocabulary and closes proxy, transport, and argument-dependent bypasses.",
           "depends_on": [
-            "attempt-records/do"
+            "harness-surface-discipline/boundary-tests"
+          ],
+          "capabilities": [
+            "agenttool",
+            "artifact-identity",
+            "operator-policy"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "agent-contracts",
+      "title": "Compile task acceptance and evidence obligations into existing authorities",
+      "status": "open",
+      "steps": [
+        {
+          "id": "schema",
+          "title": "Add an immutable task contract under recipe that binds the exact agent definition, objective, scope, non-goals, allowed effects, acceptance criteria, verification expectations, budget, and pause conditions. Keep reusable worker identity in AgentDefinition and per-invocation task facts in the task contract; model-provided IDs, authority, and completion claims are never trusted.",
+          "status": "open",
+          "verify": "rg -q \"func TestAgentTaskContractIdentity\" internal/recipe -g \"*_test.go\" \u0026\u0026 go test ./internal/recipe -run '^TestAgentTaskContractIdentity$' -count=1",
+          "rationale": "Reasonix's task contract is useful, but Overgo should represent it as immutable recipe intent rather than mutable session state or prompt prose.",
+          "depends_on": [
+            "harness-surface-discipline/boundary-tests"
+          ],
+          "capabilities": [
+            "recipe",
+            "agent-definition",
+            "budget"
+          ]
+        },
+        {
+          "id": "evidence",
+          "title": "Add obligation and resolution documents to runrecord using the common artifact codec. Requirements arise only from the compiled task contract, exact invocation effects, approved plan, and actual receipts. Each resolution binds its evidence, target scope, and mutation epoch; uncertain or absent evidence remains open rather than becoming an inferred pass.",
+          "status": "open",
+          "verify": "rg -q \"func TestAgentObligationEvidence\" internal/runrecord -g \"*_test.go\" \u0026\u0026 go test ./internal/runrecord -run '^TestAgentObligationEvidence$' -count=1",
+          "rationale": "This retains Reasonix's evidence-backed completion behavior while replacing its in-memory contract graph with Overgo's content-addressed evidence and lineage.",
+          "depends_on": [
+            "agent-contracts/schema",
+            "invocation-effects/do"
+          ],
+          "capabilities": [
+            "runrecord",
+            "artifact-lineage",
+            "evidence-obligations"
+          ]
+        },
+        {
+          "id": "enforcement",
+          "title": "Make agentloop enforce the compiled contract before mutation and completion. A relevant later mutation advances the affected scope's epoch and invalidates earlier verification, review, or sign-off evidence; project-wide evidence is invalidated only by project-wide effects. Reuse operatoraction decisions and stage receipts, and expose a deterministic outstanding-obligation view without adding another controller.",
+          "status": "open",
+          "verify": "rg -q \"func TestAgentContractEnforcement\" internal/agentloop -g \"*_test.go\" \u0026\u0026 go test ./internal/agentloop -run '^TestAgentContractEnforcement$' -count=1",
+          "rationale": "The useful Reasonix behavior is evidence invalidation after change, not its controller structure. The existing coordinator is the narrow Overgo assembly point.",
+          "depends_on": [
+            "agent-contracts/evidence"
+          ],
+          "capabilities": [
+            "agentloop",
+            "operatoraction",
+            "stage-receipts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stable-capability-proxy",
+      "title": "Expose a cache-stable tool surface over the governed catalog",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Implement one stable capability-proxy manual through agenttool's existing catalog snapshot, deterministic search, activation aliases, and Executor. Its fixed list, inspect, and call actions resolve an exact active manual identity; call rechecks current catalog membership, candidate activation, arguments, invocation effect, admission, and transport immediately before dispatch. Optional tool inventory must never mutate the provider-visible schema or create a second registry.",
+          "status": "open",
+          "verify": "rg -q \"func TestStableCapabilityProxy\" internal/agenttool -g \"*_test.go\" \u0026\u0026 go test ./internal/agenttool -run '^TestStableCapabilityProxy$' -count=1",
+          "rationale": "Reasonix's stable proxy directly benefits local Qwen prefix-cache reuse. Overgo already has the stronger catalog and authority foundation, so only the narrow proxy behavior is needed.",
+          "depends_on": [
+            "invocation-effects/do",
+            "agent-contracts/enforcement"
+          ],
+          "capabilities": [
+            "agenttool-catalog",
+            "agenttool-executor",
+            "cache-stable-schema"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "delegation-contract",
+      "title": "Compile delegated agent work without adding an agent scheduler",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Extend recipe with one immutable delegated invocation that keeps task objective, worker definition, capability grant, starting context, and scheduler policy as distinct typed fields. Intersect per-call grants with the worker's immutable ceilings, bind exact catalog and model identities, and compile the result into the existing workflow program and agentloop coordinator. Read-only children cannot acquire mutation effects, and child text can never stand in for operator approval.",
+          "status": "open",
+          "verify": "rg -q \"func TestDelegatedAgentInvocation\" internal/workflowruntime -g \"*_test.go\" \u0026\u0026 go test ./internal/recipe ./internal/workflowruntime ./internal/agentloop -run '^TestDelegatedAgentInvocation$' -count=1",
+          "rationale": "Reasonix correctly separates what a child does, who does it, what it may touch, what context it sees, and when it runs. Compiling those dimensions through recipe and workflowruntime avoids importing its separate fleet machinery.",
+          "depends_on": [
+            "stable-capability-proxy/do",
+            "agent-contracts/schema"
+          ],
+          "capabilities": [
+            "recipe",
+            "workflowruntime",
+            "agentloop"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "workspace-claim-lifecycle",
+      "title": "Coordinate parallel mutations through existing leases and operations",
+      "status": "open",
+      "steps": [
+        {
+          "id": "claims",
+          "title": "Extend plan.WorkLease with normalized read and write claims over canonical worktree and path identities. Derive overlap structurally, sort acquisition order deterministically, use existing CAS aliases for ownership, and treat missing or unresolvable scope as whole-worktree conflict. Preserve resource reservations and experiment recovery in the same lease document; do not add a filesystem-lock service.",
+          "status": "open",
+          "verify": "rg -q \"func TestWorkspaceClaims\" internal/plan -g \"*_test.go\" \u0026\u0026 go test ./internal/plan -run '^TestWorkspaceClaims$' -count=1",
+          "rationale": "Reasonix's workspace leasing solves a real parallel-agent hazard. Overgo already has content-addressed work leases and conflict assessment, making an extension smaller and more auditable than porting its interprocess lock owner.",
+          "depends_on": [
+            "harness-surface-discipline/ratchets"
+          ],
+          "capabilities": [
+            "plan-work-lease",
+            "pathidentity",
+            "artifact-cas"
+          ]
+        },
+        {
+          "id": "operations",
+          "title": "Make operation.Manager acquire, retain, and release exact workspace claims for mutating work, including background execution, cancellation, failure, and recovery. Admission uses the shared invocation effect and work lease; terminal state always records the release or expired-lease recovery evidence. Existing workflowruntime concurrency remains the only executor.",
+          "status": "open",
+          "verify": "rg -q \"func TestWorkspaceClaimLifecycle\" internal/operation -g \"*_test.go\" \u0026\u0026 go test ./internal/operation -run '^TestWorkspaceClaimLifecycle$' -count=1",
+          "rationale": "Lease enforcement belongs at the common operation lifecycle, not separately in shell, MCP, workflow, and subagent paths.",
+          "depends_on": [
+            "workspace-claim-lifecycle/claims",
+            "invocation-effects/do"
+          ],
+          "capabilities": [
+            "operation-manager",
+            "work-lease",
+            "recovery"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "agent-trajectories",
+      "title": "Turn live agent behavior into exact evaluation and training evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "record",
+          "title": "Extend runrecord.InteractionTrace instead of creating a trajectory store. Bind ordered model events to the task contract, exact model and recipe, tool manuals, invocation effects, obligations and resolutions, operator decisions, workspace claims, attempts, budget charges, final artifacts, and terminal outcome. Reference existing artifact IDs instead of duplicating payloads, preserve branch visibility, and bound every collection.",
+          "status": "open",
+          "verify": "rg -q \"func TestAgentTrajectoryIdentity\" internal/runrecord -g \"*_test.go\" \u0026\u0026 go test ./internal/runrecord -run '^TestAgentTrajectoryIdentity$' -count=1",
+          "rationale": "Reasonix's trajectory recorder is the most direct RSI contribution, but Overgo's InteractionTrace already owns protocol-neutral model/tool history and should become the single common record.",
+          "depends_on": [
+            "agent-contracts/enforcement",
+            "delegation-contract/do",
+            "workspace-claim-lifecycle/operations"
+          ],
+          "capabilities": [
+            "interaction-trace",
+            "runrecord",
+            "training-evidence"
+          ]
+        },
+        {
+          "id": "evaluation",
+          "title": "Extend the existing evaluation plan to score exact agent trajectories for task success, evidence completeness, gate accuracy, effect prediction, regressions, churn, repeated directions, budget, latency, and unsupported completion claims. Deterministic scorers decide hard facts; model judges may contribute versioned advisory metrics but never promotion authority.",
+          "status": "open",
+          "verify": "rg -q \"func TestAgentTrajectoryEvaluationPlan\" internal/evaluation -g \"*_test.go\" \u0026\u0026 go test ./internal/evaluation -run '^TestAgentTrajectoryEvaluationPlan$' -count=1",
+          "rationale": "This connects harness behavior to Overgo's existing exact evaluation system rather than adopting Reasonix's independent model-based goal evaluator.",
+          "depends_on": [
+            "agent-trajectories/record"
+          ],
+          "capabilities": [
+            "evaluation-plan",
+            "interaction-trace",
+            "promotion-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "agent-recovery",
+      "title": "Recover uncommitted agent work through common artifact and lifecycle code",
+      "status": "open",
+      "steps": [
+        {
+          "id": "checkpoint-document",
+          "title": "Add an agent mutation checkpoint document to runrecord using artifact.KindCheckpoint and the common object store. It records bounded content-addressed preimages, modes, encodings, resolved targets, capture coverage and gaps, owning operation, mutation epoch, and expected postimage identity. It must not introduce inline blob duplication, an independent checkpoint directory, or Git mutations.",
+          "status": "open",
+          "verify": "rg -q \"func TestAgentMutationCheckpointIdentity\" internal/runrecord -g \"*_test.go\" \u0026\u0026 go test ./internal/runrecord -run '^TestAgentMutationCheckpointIdentity$' -count=1",
+          "rationale": "Reasonix's edit rewind is useful before a commit, but Overgo can represent preimages with its existing content-addressed artifacts and checkpoint kind.",
+          "depends_on": [
+            "invocation-effects/do",
+            "agent-contracts/evidence"
+          ],
+          "capabilities": [
+            "runrecord",
+            "artifact-checkpoint",
+            "objectstore"
+          ]
+        },
+        {
+          "id": "checkpoint-runtime",
+          "title": "Capture checkpoints in agentloop immediately before admitted mutations and restore them transactionally under the same workspace claim. Refuse restore on postimage drift, active conflicting writers, incomplete capture, path escape, or identity mismatch; record restore and undo as normal decisions and effects rather than privileged side channels.",
+          "status": "open",
+          "verify": "rg -q \"func TestAgentMutationCheckpointLifecycle\" internal/agentloop -g \"*_test.go\" \u0026\u0026 go test ./internal/agentloop -run '^TestAgentMutationCheckpointLifecycle$' -count=1",
+          "rationale": "The coordinator already brackets inspection, approval, and mutation, making it the smallest common capture seam.",
+          "depends_on": [
+            "agent-recovery/checkpoint-document",
+            "workspace-claim-lifecycle/operations",
+            "agent-contracts/enforcement"
+          ],
+          "capabilities": [
+            "agentloop",
+            "workspace-claims",
+            "operator-decisions"
+          ]
+        },
+        {
+          "id": "session-recovery",
+          "title": "Recover interrupted agent sessions by reconciling existing interaction traces, stage receipts, operation state, obligations, leases, and checkpoints. Resume only the next uncommitted action under the exact task, recipe, model, catalog, policy, and mutation epoch; mismatches fail closed. Add no authoritative JSONL ledger: any optional write-ahead projection is bounded, disposable, and rebuilt from committed artifacts.",
+          "status": "open",
+          "verify": "rg -q \"func TestAgentSessionRecovery\" internal/agentloop -g \"*_test.go\" \u0026\u0026 go test ./internal/agentloop -run '^TestAgentSessionRecovery$' -count=1",
+          "rationale": "Reasonix's turn replay and torn-tail handling are valuable, but Overgo already persists exact stage and interaction facts. Reconciliation should join those common records instead of creating a competing session database.",
+          "depends_on": [
+            "agent-recovery/checkpoint-runtime",
+            "agent-trajectories/record"
+          ],
+          "capabilities": [
+            "agentloop-recovery",
+            "interaction-trace",
+            "stage-receipts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "attempt-intelligence",
+      "title": "Measure strategies, repeated directions, and improvement efficiency",
+      "status": "open",
+      "steps": [
+        {
+          "id": "history",
+          "title": "Extend runrecord's query surface over attempt and trajectory artifacts by plan item, strategy, code revision, task contract, and environment. Aggregate attempts per step, success rate, verification coverage, effect uncertainty, cost, wall time, churn, and recovery without scraping logs or introducing another index authority.",
+          "status": "open",
+          "verify": "rg -q \"func TestAttemptHistory\" internal/runrecord -g \"*_test.go\" \u0026\u0026 go test ./internal/runrecord -run '^TestAttemptHistory$' -count=1",
+          "rationale": "This preserves the merged future plan's cross-run steering requirement and joins it to the richer trajectory evidence.",
+          "depends_on": [
+            "agent-trajectories/record"
+          ],
+          "capabilities": [
+            "runrecord-query",
+            "attempt-records",
+            "trajectory-evidence"
+          ]
+        },
+        {
+          "id": "strategy",
+          "title": "Stamp every attempt and trajectory with an immutable strategy identity derived from the worker definition, prompt, model recipe, tool catalog, policy set, and loop configuration. Configuration aliases may select a strategy, but comparisons and resume authority bind the exact content identity.",
+          "status": "open",
+          "verify": "rg -q \"func TestStrategyIdentity\" internal/loop -g \"*_test.go\" \u0026\u0026 go test ./internal/loop -run '^TestStrategyIdentity$' -count=1",
+          "rationale": "Anonymous attempts cannot support policy improvement. This incorporates the existing strategy-identity plan row without creating a separate strategy registry.",
+          "depends_on": [
+            "attempt-intelligence/history"
+          ],
+          "capabilities": [
+            "loop",
+            "agent-definition",
+            "artifact-identity"
+          ]
+        },
+        {
+          "id": "directions",
+          "title": "Derive a direction fingerprint from the strategy identity, base and candidate manifests, changed symbol closure, selected checks, and declared objective. Record first and last observation, count, measured result, and pivot recommendation in runrecord; repetition and stagnation are advisory facts for the deterministic loop, never string similarity over model prose.",
+          "status": "open",
+          "verify": "rg -q \"func TestAttemptDirectionNovelty\" internal/runrecord -g \"*_test.go\" \u0026\u0026 go test ./internal/runrecord -run '^TestAttemptDirectionNovelty$' -count=1",
+          "rationale": "Reasonix's direction-tried and stale-count concepts are useful for avoiding repeated failed work. Overgo can derive a stronger fingerprint from manifests and exact strategy evidence.",
+          "depends_on": [
+            "attempt-intelligence/history",
+            "attempt-intelligence/strategy"
+          ],
+          "capabilities": [
+            "runrecord",
+            "codemanifest",
+            "improvement-measurement"
           ]
         }
       ]
     },
     {
       "id": "strategy-experiments",
-      "title": "Run competing strategies in isolated worktrees against one baseline",
+      "title": "Compare competing agent strategies under identical authority",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Run competing strategies in isolated worktrees against one baseline -- cmd/experiment: one plan step, N declared strategies, each run in an isolated worktree from the same baseline commit, each candidate gate-verified, all attempt records bound to one experiment identity; selection is by verify outcome then measured cost, and failures persist as durable counterexamples. Closes: controlled comparison of competing automation strategies.",
+          "title": "Extend the existing loop, plan leases, workflow runtime, and run records to execute one task contract under multiple declared strategies in isolated worktrees from the same baseline. Bind every candidate to one experiment identity, apply identical gates and trajectory evaluation, rank deterministic hard outcomes before cost, retain failures as counterexamples, and publish no winner without exact comparison evidence. Do not add a new experiment command or scheduler.",
           "status": "open",
-          "verify": "go test ./cmd/experiment -count=1",
+          "verify": "rg -q \"func TestStrategyExperiment\" internal/loop -g \"*_test.go\" \u0026\u0026 go test ./internal/loop -run '^TestStrategyExperiment$' -count=1",
+          "rationale": "This retains the merged controlled-strategy experiment goal while routing it through Overgo's existing experiment, worktree, workflow, and evaluation machinery.",
           "depends_on": [
-            "attempt-history/do",
-            "strategy-identity/do"
+            "attempt-intelligence/directions",
+            "agent-trajectories/evaluation",
+            "agent-recovery/session-recovery"
+          ],
+          "capabilities": [
+            "loop",
+            "work-lease",
+            "experiment-lifecycle",
+            "evaluation"
           ]
         }
       ]
     },
     {
-      "id": "policy-lifecycle",
-      "title": "Promote automation policies through an evidence-gated lifecycle",
+      "id": "recursive-policy-steering",
+      "title": "Close policy improvement through evidence rather than model authority",
       "status": "open",
       "steps": [
         {
-          "id": "do",
-          "title": "Promote automation policies through an evidence-gated lifecycle -- Automation policy documents move declared -\u003e experimental -\u003e verified -\u003e active exactly as recipes promote: promotion demands measured wins over the incumbent from attempt history and retains the rollback target. Closes: evidence-gated promotion of automation policies.",
+          "id": "policy-lifecycle",
+          "title": "Represent automation policy versions through existing recipe profile artifacts and runrecord activation evidence. Declared, experimental, verified, active, contained, and rolled-back transitions require exact trajectory evaluations against the incumbent, preserve the rollback target, and move the active alias atomically. No new automation-policy package or mutable policy registry.",
           "status": "open",
-          "verify": "go test ./internal/automationpolicy -count=1",
+          "verify": "rg -q \"func TestAutomationPolicyLifecycle\" internal/runrecord -g \"*_test.go\" \u0026\u0026 go test ./internal/runrecord -run '^TestAutomationPolicyLifecycle$' -count=1",
+          "rationale": "The merged plan's policy lifecycle belongs beside existing agent and experiment authority in runrecord, not behind another service boundary.",
           "depends_on": [
             "strategy-experiments/do"
+          ],
+          "capabilities": [
+            "recipe-policy",
+            "runrecord-authority",
+            "atomic-activation"
           ]
-        }
-      ]
-    },
-    {
-      "id": "steering-proposals",
-      "title": "Admit typed steering proposals through deterministic validation",
-      "status": "open",
-      "steps": [
+        },
         {
-          "id": "do",
-          "title": "Admit typed steering proposals through deterministic validation -- Typed proposal document: goal, predicted benefit, predicted cost, explicit uncertainty, falsifiable check, references into measurement history. Deterministic admission validates references and converts an admitted proposal into a plan row with the proposal as provenance; proposals never execute anything. Closes: model-proposed steering from accumulated evidence.",
+          "id": "steering-proposals",
+          "title": "Extend the existing plan and recipe contracts with a typed steering proposal that binds goal, predicted benefit and cost, uncertainty, falsifiable evaluation, affected authorities, and exact measurement references. Deterministic admission validates every reference and may compile an admitted proposal into future plan rows; proposal text never executes work or grants authority.",
           "status": "open",
-          "verify": "go test ./internal/steering -count=1",
+          "verify": "rg -q \"func TestSteeringProposalAdmission\" internal/plan -g \"*_test.go\" \u0026\u0026 go test ./internal/plan ./internal/recipe -run '^TestSteeringProposalAdmission$' -count=1",
+          "rationale": "This preserves model-proposed steering while keeping the plan as the sole dispatch surface and avoiding a new steering subsystem.",
           "depends_on": [
-            "attempt-history/do"
+            "attempt-intelligence/history",
+            "agent-trajectories/evaluation"
+          ],
+          "capabilities": [
+            "plan",
+            "recipe",
+            "measurement-lineage"
           ]
-        }
-      ]
-    },
-    {
-      "id": "loop-proposal-closure",
-      "title": "Close the loop: admitted proposals feed the driver under stop conditions",
-      "status": "open",
-      "steps": [
+        },
         {
-          "id": "do",
-          "title": "Close the loop: admitted proposals feed the driver under stop conditions -- cmd/loop consumes admitted proposals when the plan drains instead of stopping, under stop conditions: invocation budget, saturation (no measured improvement across K consecutive experiments), and the explicit operator stop. Closes: the recursive policy-improvement loop.",
+          "id": "loop-closure",
+          "title": "Let the existing loop consume deterministically admitted proposals when the current plan drains, under exact invocation, time, cost, mutation, and experiment budgets; saturation from repeated directions or absent measured gain; unresolved obligations; lease conflicts; and explicit operator stop. The loop may propose and compare policies, but only evidence-gated activation changes the active strategy.",
           "status": "open",
-          "verify": "go test ./internal/loop -run TestProposal -count=1",
+          "verify": "rg -q \"func TestProposalClosure\" internal/loop -g \"*_test.go\" \u0026\u0026 go test ./internal/loop -run '^TestProposalClosure$' -count=1",
+          "rationale": "This is the recursive improvement closure already anticipated on master, now grounded in exact trajectories, obligations, recovery, and policy activation.",
           "depends_on": [
-            "steering-proposals/do",
-            "policy-lifecycle/do"
+            "recursive-policy-steering/policy-lifecycle",
+            "recursive-policy-steering/steering-proposals",
+            "agent-recovery/session-recovery"
+          ],
+          "capabilities": [
+            "loop",
+            "budget",
+            "plan-dispatch",
+            "policy-activation"
           ]
         }
       ]
     },
     {
       "id": "automation-mutation-tests",
-      "title": "Mutation-test the gate selector against injected defects",
+      "title": "Falsify the agent harness and its gate selection",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Mutation-test the gate selector against injected defects -- Inject known defects into fixture packages and require the manifest selector to select the checks that catch them; extends the false-negative corpus into mutation coverage of the automation itself.",
+          "title": "Extend the existing gate false-negative corpus with injected defects covering invocation-effect underclassification, stale obligation evidence, capability-proxy bypass, grant widening, overlapping workspace claims, missing checkpoint coverage, session resume drift, trajectory omission, stale policy activation, and wrong gate exclusion. Each fixture names the check that must run and the invariant that must fail; false positives remain measurable but false negatives fail the suite.",
           "status": "open",
-          "verify": "go test ./cmd/gate -run TestMutation -count=1",
+          "verify": "rg -q \"func TestAgentHarnessMutations\" cmd/gate -g \"*_test.go\" \u0026\u0026 go test ./cmd/gate -run '^TestAgentHarnessMutations$' -count=1",
+          "rationale": "A deterministic harness is only trustworthy if its own selectors and guards are falsifiable. This expands the existing mutation-test plan rather than creating a second validation runner.",
           "depends_on": [
-            "rsi-plan-declared/do"
+            "recursive-policy-steering/loop-closure",
+            "harness-surface-discipline/boundary-tests"
+          ],
+          "capabilities": [
+            "gate",
+            "codemanifest",
+            "false-negative-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "harness-consolidation",
+      "title": "Prove the capability gain did not create a second framework",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run a final structural and behavioral audit over the completed harness: no duplicate stores, registries, schedulers, effect classifiers, checkpoint payload owners, policy lifecycles, or execution switches; no orphaned compatibility paths; all new mutable state bounded and lifecycle-owned; all identities, limits, and distributions derived from authority or measured evidence. Publish before and after surface, coverage, exclusion, recovery, trajectory, and strategy-comparison measurements through the existing census and evaluation records, then delete temporary adapters and superseded code.",
+          "status": "open",
+          "verify": "rg -q \"func TestAgentHarnessConsolidation\" internal/repoanalysis -g \"*_test.go\" \u0026\u0026 go test ./internal/repoanalysis -run '^TestAgentHarnessConsolidation$' -count=1 \u0026\u0026 go test ./... -count=1",
+          "rationale": "Least surface area is a measured acceptance condition, not a coding preference. The campaign ends only when common ownership and whole-repository behavior are proven together.",
+          "depends_on": [
+            "automation-mutation-tests/do",
+            "recursive-policy-steering/loop-closure"
+          ],
+          "capabilities": [
+            "repoanalysis",
+            "closure-census",
+            "full-verification"
           ]
         }
       ]

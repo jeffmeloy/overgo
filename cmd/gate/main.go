@@ -2388,15 +2388,16 @@ func observeDiff(repo string) runrecord.AttemptDiff {
 	}
 	var diff runrecord.AttemptDiff
 	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 3 {
+		insertionsText, remainder, hasDeletions := strings.Cut(line, "\t")
+		deletionsText, _, hasPath := strings.Cut(remainder, "\t")
+		if !hasDeletions || !hasPath {
 			continue
 		}
 		diff.Files++
-		if insertions, err := strconv.Atoi(fields[0]); err == nil {
+		if insertions, err := strconv.Atoi(insertionsText); err == nil {
 			diff.Insertions += insertions
 		}
-		if deletions, err := strconv.Atoi(fields[1]); err == nil {
+		if deletions, err := strconv.Atoi(deletionsText); err == nil {
 			diff.Deletions += deletions
 		}
 	}

@@ -398,6 +398,22 @@ func localShardPath(directory string, shard string) (string, string, error) {
 	return filepath.ToSlash(clean), path, nil
 }
 
+// OpenFile opens exactly one safetensors file as its own source; the
+// caller owns the choice, so sibling files with colliding tensor names
+// never enter the catalog.
+func OpenFile(path string) (*Source, error) {
+	limits := DefaultLimits()
+	if err := validateLimits(limits); err != nil {
+		return nil, err
+	}
+	source := &Source{Tensors: make(map[string]Tensor), Metadata: make(map[string]map[string]string)}
+	if err := source.openShard(filepath.Dir(path), path, limits); err != nil {
+		_ = source.Close()
+		return nil, err
+	}
+	return source, nil
+}
+
 func (s *Source) openShard(directory string, path string, limits Limits) error {
 	file, err := os.Open(path)
 	if err != nil {

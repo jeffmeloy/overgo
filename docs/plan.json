@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:3f47d2d429a02e37fc22691735ef8f9a3adf09b4a3768198dfc885713fc9dfc5",
   "items": [
     {
-      "id": "weight-catalog-program",
-      "title": "Make compiled tensor bindings the sole weight catalog authority",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compile model, layer, draft, recurrent, and optional tensor requirements from ArchitectureProfile, recipe facts, and inventory into one ordered indexed binding program. Execute that program once against weightCatalog. Migrate all catalog readers and specialized layer loaders, then delete loadLayerCatalogs orchestration, imperative requirement construction, repeated name lookup, and model-policy branches. Preserve optionality, shape validation, tied weights, and inventory-derived dimensions without fallback catalogs.",
-          "status": "open",
-          "verify": "go test ./internal/model ./internal/modelrecipe ./internal/modelartifact ./internal/inference -count=1",
-          "depends_on": [
-            "exact-clone-owners/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "layer-operator-program",
       "title": "Compile layer execution instead of interpreting operator policy",
       "status": "open",

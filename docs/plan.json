@@ -2,22 +2,5 @@
   "campaign": "Governed external tool interoperability",
   "doctrine": "External protocol breadth enters through narrow adapters behind the immutable agent-tool manual. Discovery compiles bounded untrusted descriptions into typed candidate manuals; it never mutates the active catalog. Catalog search is deterministic and bound to exact manual identities. Streaming is a bounded, cancellable, sequenced lifecycle with an explicit terminal record. Model-authored tool workflows compile as closed-world recipe programs and execute without source generation or an embedded interpreter. Every row reuses artifact, recipe, operation, policy, and evidence owners already in the tree and deletes displaced switches, wrappers, caches, and temporary shapes in the same commit.",
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
-  "items": [
-    {
-      "id": "automation-mutation-tests",
-      "title": "Mutation-test the gate selector against injected defects",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Mutation-test the gate selector against injected defects -- Inject known defects into fixture packages and require the manifest selector to select the checks that catch them; extends the false-negative corpus into mutation coverage of the automation itself.",
-          "status": "open",
-          "verify": "go test ./cmd/gate -run TestMutation -count=1",
-          "depends_on": [
-            "rsi-plan-declared/do"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

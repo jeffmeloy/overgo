@@ -957,7 +957,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				continue
 			}
 		}
-		if ffnErr := loadDenseFFNCatalog(catalog, prefix, spec, layer, block); ffnErr != nil {
+		if ffnErr := bindTensorProgram(
+			catalog, prefix, compileDenseFFNBindings(catalog, prefix, spec, layer, block),
+		); ffnErr != nil {
 			return Weights{}, ffnErr
 		}
 	}

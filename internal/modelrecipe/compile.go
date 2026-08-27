@@ -305,13 +305,13 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 		{node: "generate", module: ModuleThoughtBankGenerate, input: "request", output: "text", inputData: recipe.DataText, outData: recipe.DataText, session: recipe.SessionCapacity},
 	}},
 	recipe.TaskForecast: {placement: recipe.PlacementHost, stages: []scalarStage{
-		{node: "forecast", module: ModuleForecastSeries, input: "series", output: "forecast", inputData: recipe.DataTensor, outData: recipe.DataTensor},
+		{node: "forecast", module: ModuleForecastSeries, input: "series", output: "forecast", inputData: recipe.DataTensor, outData: recipe.DataTensor, session: recipe.SessionCapacity},
 	}},
 	recipe.TaskTabular: {placement: recipe.PlacementHost, stages: []scalarStage{
-		{node: "tabular", module: ModuleTabularPredict, input: "table", output: "predictions", inputData: recipe.DataTensor, outData: recipe.DataTensor},
+		{node: "tabular", module: ModuleTabularPredict, input: "table", output: "predictions", inputData: recipe.DataTensor, outData: recipe.DataTensor, session: recipe.SessionCapacity},
 	}},
 	recipe.TaskSeq2Seq: {placement: recipe.PlacementHost, stages: []scalarStage{
-		{node: "encode", module: ModuleSeq2SeqEncode, input: "source", output: "memory", inputData: recipe.DataText, outData: recipe.DataTensor},
+		{node: "encode", module: ModuleSeq2SeqEncode, input: "source", output: "memory", inputData: recipe.DataText, outData: recipe.DataTensor, session: recipe.SessionCapacity},
 		{node: "prepare", module: ModuleSeq2SeqPrepare, input: "memory", output: "session", inputData: recipe.DataTensor, outData: recipe.DataSessionPlan},
 		{node: "select", module: ModuleSeq2SeqSelect, input: "session", output: "text", inputData: recipe.DataSessionPlan, outData: recipe.DataText},
 	}},

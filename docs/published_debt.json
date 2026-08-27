@@ -5,10 +5,6 @@
    "failure": "model recipe: active recipe lacks verified evidence: run record: successful verifier gate/run evidence is absent"
   },
   {
-   "alias": "recipe.active.inference.model:sha256:471fc8c4e83f4bf524a14bb71be0b757639d9a1e60515152514afeda0e0c8091",
-   "failure": "model profile: decode document: json: unknown field \"PostRotaryRMSNon128\""
-  },
-  {
    "alias": "recipe.active.tabular.model:sha256:127ad48856519e932017fedeed3e9c09a6f12ea726f496ac1c97abeaa1bf30b5",
    "failure": "model recipe: active recipe lacks verified evidence: run record: successful verifier gate/run evidence is absent"
   },

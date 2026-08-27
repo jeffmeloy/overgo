@@ -121,21 +121,19 @@ type mtpCommonDestinations struct {
 	tokenEmbedding, outputNorm, output      **gguf.TensorInfo
 }
 
-func loadMTPCommonWeights(
-	catalog weightCatalog,
-	prefix string,
+func mtpCommonBindings(
 	spec Spec,
 	destination mtpCommonDestinations,
-) error {
+) []tensorBinding {
 	width := uint64(spec.EmbeddingLength)
-	return bindTensorProgram(catalog, prefix, []tensorBinding{
+	return []tensorBinding{
 		requiredTensor("nextn.eh_proj.weight", destination.ehProjection, tensor.PairedExtent*width, width),
 		requiredTensor("nextn.enorm.weight", destination.embeddingNorm, width),
 		requiredTensor("nextn.hnorm.weight", destination.hiddenNorm, width),
 		optionalTensorPointer("nextn.embed_tokens.weight", destination.tokenEmbedding, width, uint64(spec.VocabularySize)),
 		optionalTensorPointer("nextn.shared_head_norm.weight", destination.outputNorm, width),
 		optionalTensorPointer("nextn.shared_head_head.weight", destination.output, width, uint64(spec.VocabularySize)),
-	})
+	}
 }
 
 func loadSharedExpertWeights(
@@ -977,7 +975,7 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		queryLength := shapes.QueryProjectionWidth()
 		keyLength := shapes.KeyProjectionWidth()
 		valueLength := shapes.ValueProjectionWidth()
-		if loadErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+		bindings := []tensorBinding{
 			requiredTensorPointer(attentionNormWeightTensor, &mtp.Layer.AttentionNorm, uint64(spec.EmbeddingLength)),
 			requiredTensorPointer(postAttentionNormWeightTensor, &mtp.Layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
 			requiredTensorPointer(attentionQueryWeightTensor, &mtp.Layer.AttentionQ, uint64(spec.EmbeddingLength), uint64(draftPlan.QueryCopies)*queryLength),
@@ -989,13 +987,12 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 			requiredTensorPointer(feedForwardDownWeightTensor, &mtp.Layer.FeedForwardDown, uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)),
 			requiredTensorPointer(attentionQueryNormTensor, &mtp.Layer.AttentionQNorm, uint64(spec.KeyLength)),
 			requiredTensorPointer(attentionKeyNormTensor, &mtp.Layer.AttentionKNorm, uint64(spec.KeyLength)),
-		}); loadErr != nil {
-			return Weights{}, loadErr
 		}
-		if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
+		bindings = append(bindings, mtpCommonBindings(spec, mtpCommonDestinations{
 			ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 			tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
-		}); loadErr != nil {
+		})...)
+		if loadErr := bindTensorProgram(catalog, prefix, bindings); loadErr != nil {
 			return Weights{}, loadErr
 		}
 		result.SingleCatalogDraft = mtp
@@ -1008,10 +1005,10 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 			prefix := fmt.Sprintf("blk.%d.", block)
 			mtp := &heads[offset]
 			mtp.Layer = result.Layers[block]
-			if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
+			if loadErr := bindTensorProgram(catalog, prefix, mtpCommonBindings(spec, mtpCommonDestinations{
 				ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 				tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
-			}); loadErr != nil {
+			})); loadErr != nil {
 				return Weights{}, loadErr
 			}
 		}
@@ -1026,10 +1023,10 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		block := draftPlan.Block(spec.BlockCount, tensor.FirstOffset)
 		prefix := fmt.Sprintf("blk.%d.", block)
 		mtp := &SingleDraftWeights{MTPOnly: optionalDraftOnly, Layer: result.Layers[block]}
-		if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
+		if loadErr := bindTensorProgram(catalog, prefix, mtpCommonBindings(spec, mtpCommonDestinations{
 			ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 			tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
-		}); loadErr != nil {
+		})); loadErr != nil {
 			return Weights{}, loadErr
 		}
 		result.OptionalCatalogDraft = mtp
@@ -1046,19 +1043,18 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 			prefix := fmt.Sprintf("blk.%d.", block)
 			mtp := &result.AppendedSingleDraft[offset]
 			mtp.Layer = result.Layers[block]
-			if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
+			bindings := mtpCommonBindings(spec, mtpCommonDestinations{
 				ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 				tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
-			}); loadErr != nil {
-				return Weights{}, loadErr
-			}
+			})
 			if profile.ModelCatalog.DraftLayerOutputNorm {
-				if loadErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+				bindings = append(bindings,
 					requiredTensorPointer("layer_output_norm.weight", &mtp.LayerOutputNorm,
 						uint64(spec.EmbeddingLength)),
-				}); loadErr != nil {
-					return Weights{}, loadErr
-				}
+				)
+			}
+			if loadErr := bindTensorProgram(catalog, prefix, bindings); loadErr != nil {
+				return Weights{}, loadErr
 			}
 		}
 		result.Layers = result.Layers[:spec.BlockCount]

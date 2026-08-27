@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "delegation-contract",
-      "title": "Compile delegated agent work without adding an agent scheduler",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Extend recipe with one immutable delegated invocation that keeps task objective, worker definition, capability grant, starting context, and scheduler policy as distinct typed fields. Intersect per-call grants with the worker's immutable ceilings, bind exact catalog and model identities, and compile the result into the existing workflow program and agentloop coordinator. Read-only children cannot acquire mutation effects, and child text can never stand in for operator approval.",
-          "status": "open",
-          "verify": "rg -q \"func TestDelegatedAgentInvocation\" internal/workflowruntime -g \"*_test.go\" \u0026\u0026 go test ./internal/recipe ./internal/workflowruntime ./internal/agentloop -run '^TestDelegatedAgentInvocation$' -count=1",
-          "rationale": "Reasonix correctly separates what a child does, who does it, what it may touch, what context it sees, and when it runs. Compiling those dimensions through recipe and workflowruntime avoids importing its separate fleet machinery.",
-          "depends_on": [
-            "stable-capability-proxy/do",
-            "agent-contracts/schema"
-          ],
-          "capabilities": [
-            "recipe",
-            "workflowruntime",
-            "agentloop"
-          ]
-        }
-      ]
-    },
-    {
       "id": "workspace-claim-lifecycle",
       "title": "Coordinate parallel mutations through existing leases and operations",
       "status": "open",

@@ -113,6 +113,26 @@ func ReadWorkLease(ctx context.Context, reader artifact.Reader, id artifact.ID) 
 // ParseWorkLease decodes one canonical work lease.
 func ParseWorkLease(content []byte) (WorkLease, error) { return workLeaseCodec.Parse(content) }
 
+func (value WorkLease) ValidateIdentity() error { return workLeaseCodec.ValidateIdentity(value) }
+
+// WorkLeaseAlias names the existing CAS ownership binding for a worktree.
+func WorkLeaseAlias(worktree string) string { return workLeaseAlias(worktree) }
+
+// ResolveWorkLeaseOwner requires the exact lease to remain the current CAS owner.
+func ResolveWorkLeaseOwner(ctx context.Context, reader artifact.Reader, lease WorkLease) error {
+	if err := lease.ValidateIdentity(); err != nil {
+		return err
+	}
+	current, found, err := reader.ResolveAlias(ctx, workLeaseAlias(lease.Worktree))
+	if err != nil {
+		return err
+	}
+	if !found || current != lease.ID {
+		return errors.New("plan: work lease is not the current worktree owner")
+	}
+	return nil
+}
+
 func readTypedDocument[T any](ctx context.Context, reader artifact.Reader, id artifact.ID, contract artifact.DocumentContract, read func(context.Context, artifact.Reader, artifact.ID) (T, bool, error)) (T, bool, error) {
 	var zero T
 	descriptor, ok, err := reader.Artifact(ctx, id)

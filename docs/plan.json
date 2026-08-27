@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "workspace-claim-lifecycle",
-      "title": "Coordinate parallel mutations through existing leases and operations",
-      "status": "open",
-      "steps": [
-        {
-          "id": "operations",
-          "title": "Make operation.Manager acquire, retain, and release exact workspace claims for mutating work, including background execution, cancellation, failure, and recovery. Admission uses the shared invocation effect and work lease; terminal state always records the release or expired-lease recovery evidence. Existing workflowruntime concurrency remains the only executor.",
-          "status": "open",
-          "verify": "rg -q \"func TestWorkspaceClaimLifecycle\" internal/operation -g \"*_test.go\" \u0026\u0026 go test ./internal/operation -run '^TestWorkspaceClaimLifecycle$' -count=1",
-          "rationale": "Lease enforcement belongs at the common operation lifecycle, not separately in shell, MCP, workflow, and subagent paths.",
-          "depends_on": [
-            "workspace-claim-lifecycle/claims",
-            "invocation-effects/do"
-          ],
-          "capabilities": [
-            "operation-manager",
-            "work-lease",
-            "recovery"
-          ]
-        }
-      ]
-    },
-    {
       "id": "agent-trajectories",
       "title": "Turn live agent behavior into exact evaluation and training evidence",
       "status": "open",

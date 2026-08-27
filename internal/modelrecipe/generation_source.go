@@ -71,6 +71,19 @@ func ResolveGenerationSource(task recipe.Task, identity hfrepo.Identity) (Genera
 
 // GenerationDefinition compiles one declared linear generation topology.
 func GenerationDefinition(prepare recipe.ModuleID, modelID, profileID artifact.ID) (recipe.Definition, error) {
+	return GenerationDefinitionWithComponents(prepare, modelID, profileID, nil)
+}
+
+// GenerationDefinitionWithComponents compiles the declared topology
+// with stages slotted onto their backing component models: the recipe
+// keeps the composite model as its verification identity while each
+// bound stage resolves, plans residency for, and measures its own
+// component.
+func GenerationDefinitionWithComponents(
+	prepare recipe.ModuleID,
+	modelID, profileID artifact.ID,
+	bindings []ComponentBinding,
+) (recipe.Definition, error) {
 	capability, ok := generationCapabilities[prepare]
 	if !ok {
 		return recipe.Definition{}, fmt.Errorf("model recipe: unknown generation module %q", prepare)
@@ -79,12 +92,15 @@ func GenerationDefinition(prepare recipe.ModuleID, modelID, profileID artifact.I
 		if profileID.Valid() {
 			return recipe.Definition{}, errors.New("model recipe: profile-free source has a profile")
 		}
-		return capability.topology.definition(capability.task, modelID)
+		return capability.topology.componentDefinition(capability.task, modelID, bindings)
 	}
 	if !profileID.Valid() {
 		return recipe.Definition{}, errors.New("model recipe: source profile is absent")
 	}
-	return capability.topology.definition(capability.task, modelID, recipe.Dependency{Role: capability.profile, Artifact: profileID})
+	return capability.topology.componentDefinition(
+		capability.task, modelID, bindings,
+		recipe.Dependency{Role: capability.profile, Artifact: profileID},
+	)
 }
 
 func (s SourceSelector) matches(identity hfrepo.Identity) bool {

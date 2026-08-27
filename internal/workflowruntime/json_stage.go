@@ -152,9 +152,13 @@ func RegisterResolvedStage[Output any](
 		return fmt.Errorf("workflow runtime: module %q has no scalar output", moduleID)
 	}
 	outputPort := module.Outputs[0]
+	// A stage slotted onto a component model executes against that
+	// component; the composite the caller registered stays the identity
+	// for unslotted stages.
+	expected := runtime.ModuleModel(moduleID, modelID)
 	return runtime.Register(moduleID, AdapterFunc(
 		func(ctx context.Context, request StepRequest) (map[recipe.PortName]Value, error) {
-			if request.Model != modelID {
+			if request.Model != expected {
 				return nil, fmt.Errorf("workflow runtime: recipe model differs from resolved stage")
 			}
 			value, err := execute(ctx, request)

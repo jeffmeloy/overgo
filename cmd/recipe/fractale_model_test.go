@@ -49,7 +49,7 @@ func TestFractaleRecipeActivation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	generation, ok := output.(thoughtbank.Generation)
+	generation, ok := capabilityruntime.Unwrap(output).(thoughtbank.Generation)
 	if !ok {
 		t.Fatalf("generation type = %T", output)
 	}

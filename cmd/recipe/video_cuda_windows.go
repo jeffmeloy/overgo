@@ -71,7 +71,10 @@ func videoCapability() capability {
 func resolveVideoSource(path string) (capabilitySource, error) {
 	if latentvideo.IsLiveEdit(path) {
 		wan := filepath.Join(filepath.Dir(path), "Wan2.1-T2V-1.3B")
-		inventory, err := modelartifact.FromFiles(path, []modelartifact.FileSpec{
+		// The edit composite genuinely spans two sibling repositories --
+		// the LiveEdit weights and the Wan denoiser they condition on --
+		// so the inventory roots at their common parent.
+		inventory, err := modelartifact.FromFiles(filepath.Dir(path), []modelartifact.FileSpec{
 			{Path: filepath.Join(path, "ar-forcing_002000.pt"), Name: "liveedit/weights", Role: artifact.ComponentWeights},
 			{Path: filepath.Join(wan, "config.json"), Name: "wan/config", Role: artifact.ComponentConfig},
 			{Path: filepath.Join(wan, "diffusion_pytorch_model.safetensors"), Name: "wan/weights", Role: artifact.ComponentWeights},

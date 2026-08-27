@@ -18,6 +18,7 @@ import (
 	"overgo/internal/patchtower"
 	"overgo/internal/recipe"
 	"overgo/internal/routedlm"
+	"overgo/internal/workflowruntime"
 )
 
 // decodeChain: token ids -> text via the checkpoint tokenizer.
@@ -114,6 +115,7 @@ type vqaExecution struct {
 	chain  []int
 	text   string
 	result fullResult
+	walls  []workflowruntime.NodeWall
 }
 
 func executeVQAProgram(
@@ -132,7 +134,7 @@ func executeVQAProgram(
 	}
 	var execution vqaExecution
 	var pipelineErr error
-	answer, err := executeVQA(
+	answer, walls, err := executeVQA(
 		ctx, store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), rawImg, question,
 		func(image []byte, question string) (preparedVQA, error) {
 			prepared, prepareErr := prepareVQA(l.modelDir, image, question)
@@ -180,7 +182,7 @@ func executeVQAProgram(
 	if err != nil {
 		return vqaExecution{}, err
 	}
-	execution.text = answer
+	execution.text, execution.walls = answer, walls
 	l.Log(fmt.Sprintf("RECIPE serve %s chain=%v", tag, execution.chain))
 	l.Log(fmt.Sprintf("RECIPE serve %s TEXT %q", tag, execution.text))
 	l.Log(fmt.Sprintf("RECIPE serve %s MEASURE e2e=%s decode=%s (%d steps, %.3f ms/token)",

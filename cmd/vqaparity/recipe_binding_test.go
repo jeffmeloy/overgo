@@ -28,7 +28,7 @@ func TestExecuteVQABindsDescriptorInputsAndOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	image := []byte("image")
-	answer, err := executeVQA(
+	answer, _, err := executeVQA(
 		context.Background(), store, modelID, program,
 		"vqa/runtime", image, "where?",
 		func(gotImage []byte, question string) (string, error) {

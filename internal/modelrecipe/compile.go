@@ -267,10 +267,47 @@ func ProjectionDefinition(
 }
 
 func (c linearCapability) definition(task recipe.Task, modelID artifact.ID, dependencies ...recipe.Dependency) (recipe.Definition, error) {
+	return c.componentDefinition(task, modelID, nil, dependencies...)
+}
+
+// ComponentBinding slots one stage node onto the component model that
+// backs it, while the definition keeps the combination-exact composite
+// identity as its primary model.
+type ComponentBinding struct {
+	Node  recipe.NodeID
+	Model artifact.ID
+}
+
+// componentDefinition compiles the linear topology with each bound
+// stage executing against its component model through a slotted model
+// dependency; unbound stages stay on the primary composite slot.
+func (c linearCapability) componentDefinition(
+	task recipe.Task,
+	modelID artifact.ID,
+	bindings []ComponentBinding,
+	dependencies ...recipe.Dependency,
+) (recipe.Definition, error) {
+	slots := make(map[recipe.NodeID]uint32, len(bindings))
+	slotted := make([]recipe.Dependency, 0, len(bindings))
+	for index, binding := range bindings {
+		if _, duplicate := slots[binding.Node]; duplicate {
+			return recipe.Definition{}, fmt.Errorf("model recipe: node %q has two component bindings", binding.Node)
+		}
+		slot := uint32(index) + 1
+		slots[binding.Node] = slot
+		slotted = append(slotted, recipe.Dependency{Role: recipe.DependencyModel, Slot: slot, Artifact: binding.Model})
+	}
 	nodes := make([]recipe.Node, len(c.stages))
 	edges := make([]recipe.Edge, len(c.stages)-1)
+	bound := 0
 	for index, stage := range c.stages {
-		nodes[index] = recipe.Node{ID: stage.node, Module: stage.module, Placement: c.placement, Session: stage.session}
+		nodes[index] = recipe.Node{
+			ID: stage.node, Module: stage.module, Placement: c.placement,
+			Session: stage.session, ModelSlot: slots[stage.node],
+		}
+		if _, ok := slots[stage.node]; ok {
+			bound++
+		}
 		if index > 0 {
 			prior := c.stages[index-1]
 			edges[index-1] = recipe.Edge{
@@ -279,8 +316,12 @@ func (c linearCapability) definition(task recipe.Task, modelID artifact.ID, depe
 			}
 		}
 	}
+	if bound != len(bindings) {
+		return recipe.Definition{}, errors.New("model recipe: component binding names an unknown stage")
+	}
 	first, last := c.stages[0], c.stages[len(c.stages)-1]
 	dependencies = append([]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, dependencies...)
+	dependencies = append(dependencies, slotted...)
 	return recipe.NewDefinitionWithDependencies(
 		task, dependencies, nodes, edges,
 		[]recipe.Input{{Name: first.input, Data: first.inputData, Target: recipe.Endpoint{Node: first.node, Port: first.input}}},
@@ -305,19 +346,22 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 		{node: "generate", module: ModuleThoughtBankGenerate, input: "request", output: "text", inputData: recipe.DataText, outData: recipe.DataText, session: recipe.SessionCapacity},
 	}},
 	recipe.TaskForecast: {placement: recipe.PlacementHost, stages: []scalarStage{
-		{node: "forecast", module: ModuleForecastSeries, input: "series", output: "forecast", inputData: recipe.DataTensor, outData: recipe.DataTensor},
+		{node: "forecast", module: ModuleForecastSeries, input: "series", output: "forecast", inputData: recipe.DataTensor, outData: recipe.DataTensor, session: recipe.SessionCapacity},
 	}},
 	recipe.TaskTabular: {placement: recipe.PlacementHost, stages: []scalarStage{
-		{node: "tabular", module: ModuleTabularPredict, input: "table", output: "predictions", inputData: recipe.DataTensor, outData: recipe.DataTensor},
+		{node: "tabular", module: ModuleTabularPredict, input: "table", output: "predictions", inputData: recipe.DataTensor, outData: recipe.DataTensor, session: recipe.SessionCapacity},
 	}},
 	recipe.TaskSeq2Seq: {placement: recipe.PlacementHost, stages: []scalarStage{
-		{node: "encode", module: ModuleSeq2SeqEncode, input: "source", output: "memory", inputData: recipe.DataText, outData: recipe.DataTensor},
+		{node: "encode", module: ModuleSeq2SeqEncode, input: "source", output: "memory", inputData: recipe.DataText, outData: recipe.DataTensor, session: recipe.SessionCapacity},
 		{node: "prepare", module: ModuleSeq2SeqPrepare, input: "memory", output: "session", inputData: recipe.DataTensor, outData: recipe.DataSessionPlan},
 		{node: "select", module: ModuleSeq2SeqSelect, input: "session", output: "text", inputData: recipe.DataSessionPlan, outData: recipe.DataText},
 	}},
 	recipe.TaskSpeech: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "tokenize", module: ModuleSpeechTokenize, input: "text", output: "tokens", inputData: recipe.DataText, outData: recipe.DataTokens},
-		{node: "generate", module: ModuleSpeechGenerate, input: "tokens", output: "latents", inputData: recipe.DataTokens, outData: recipe.DataTensor},
+		// The synthesizer is the model-resident component: without a
+		// declared session lifetime the component session plan is empty
+		// and every speech verify refuses before execution.
+		{node: "generate", module: ModuleSpeechGenerate, input: "tokens", output: "latents", inputData: recipe.DataTokens, outData: recipe.DataTensor, session: recipe.SessionCapacity},
 		{node: "decode", module: ModuleSpeechDecode, input: "latents", output: "audio", inputData: recipe.DataTensor, outData: recipe.DataAudio},
 	}},
 }
@@ -341,7 +385,10 @@ var oscillatorImageCapability = imageCapability(recipe.PlacementHost, recipe.Dat
 var diffusionImageCapability = imageCapability(recipe.PlacementHost, recipe.DataImageTensor, ModuleDiffusionImagePrepare, ModuleDiffusionImageIntegrate, ModuleDiffusionImageDecode)
 
 var oscillatorVideoCapability = linearCapability{placement: recipe.PlacementHost, stages: []scalarStage{
-	{node: "prepare", module: ModuleOscillatorVideoPrepare, input: "condition", output: "session", inputData: recipe.DataClassConditioning, outData: recipe.DataSessionPlan},
+	// The oscillator model is the resident component; without a declared
+	// session lifetime the component session plan compiles empty and
+	// every verify refuses -- the same defect the scalar tasks carried.
+	{node: "prepare", module: ModuleOscillatorVideoPrepare, input: "condition", output: "session", inputData: recipe.DataClassConditioning, outData: recipe.DataSessionPlan, session: recipe.SessionCapacity},
 	{node: "integrate", module: ModuleOscillatorVideoIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataVideoTensor},
 	{node: "decode", module: ModuleOscillatorVideoDecode, input: "features", output: "video", inputData: recipe.DataVideoTensor, outData: recipe.DataVideo},
 }}

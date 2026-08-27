@@ -31,6 +31,10 @@ type capability struct {
 type capabilitySource struct {
 	inventory modelartifact.Inventory
 	related   []modelartifact.Inventory
+	// manifests are component-group model manifests the source derives
+	// from the composite inventory, published so slotted recipe stages
+	// resolve their component models by content identity.
+	manifests []artifact.Manifest
 	define    func(artifact.ID) (recipe.Definition, []artifact.Content, error)
 }
 

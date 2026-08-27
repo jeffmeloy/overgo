@@ -96,7 +96,7 @@ func TestModelSessionDirectorConcurrentKeys(t *testing.T) {
 		if got.err != nil {
 			t.Fatal(got.err)
 		}
-		values[got.value.(int)] = true
+		values[Unwrap(got.value).(int)] = true
 	}
 	if !values[4] || !values[6] {
 		t.Fatalf("outputs=%v", values)
@@ -193,7 +193,7 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != 11 {
+	if Unwrap(got) != 11 {
 		t.Fatalf("output = %v, want 11", got)
 	}
 	if _, err := execute(context.Background(), store, "abc", execution, `{"value":4,"extra":1}`); err == nil {
@@ -293,7 +293,7 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got != want {
+		if Unwrap(got) != want {
 			t.Fatalf("output=%v want=%d", got, want)
 		}
 	}
@@ -449,7 +449,7 @@ func TestVideoProductionActivation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if output != 5 {
+		if Unwrap(output) != 5 {
 			t.Fatalf("video output=%v", output)
 		}
 	}

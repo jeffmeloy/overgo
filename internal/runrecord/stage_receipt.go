@@ -176,9 +176,13 @@ func stageTransition(previous, next StageReceipt) bool {
 	// A new attempt may open from admitted too: a crash between the
 	// persisted admission and the persisted running state must leave a
 	// recoverable stage, not one wedged before its first heartbeat.
+	// Completed also admits a fresh attempt: replaying a receipt is an
+	// optimization, and a value-only output that leaves no durable
+	// artifacts must execute again rather than stand wedged.
 	return next.Attempt == previous.Attempt+1 &&
 		(previous.State == StageAdmitted || previous.State == StageRunning ||
-			previous.State == StageWaiting || previous.State == StageFailed) &&
+			previous.State == StageWaiting || previous.State == StageFailed ||
+			previous.State == StageCompleted) &&
 		next.State == StageAdmitted
 }
 

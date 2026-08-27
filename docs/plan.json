@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "stable-capability-proxy",
-      "title": "Expose a cache-stable tool surface over the governed catalog",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Implement one stable capability-proxy manual through agenttool's existing catalog snapshot, deterministic search, activation aliases, and Executor. Its fixed list, inspect, and call actions resolve an exact active manual identity; call rechecks current catalog membership, candidate activation, arguments, invocation effect, admission, and transport immediately before dispatch. Optional tool inventory must never mutate the provider-visible schema or create a second registry.",
-          "status": "open",
-          "verify": "rg -q \"func TestStableCapabilityProxy\" internal/agenttool -g \"*_test.go\" \u0026\u0026 go test ./internal/agenttool -run '^TestStableCapabilityProxy$' -count=1",
-          "rationale": "Reasonix's stable proxy directly benefits local Qwen prefix-cache reuse. Overgo already has the stronger catalog and authority foundation, so only the narrow proxy behavior is needed.",
-          "depends_on": [
-            "invocation-effects/do",
-            "agent-contracts/enforcement"
-          ],
-          "capabilities": [
-            "agenttool-catalog",
-            "agenttool-executor",
-            "cache-stable-schema"
-          ]
-        }
-      ]
-    },
-    {
       "id": "delegation-contract",
       "title": "Compile delegated agent work without adding an agent scheduler",
       "status": "open",

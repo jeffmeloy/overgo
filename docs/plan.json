@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "harness-surface-discipline",
-      "title": "Constrain agent-harness growth before adding capability",
-      "status": "open",
-      "steps": [
-        {
-          "id": "boundary-tests",
-          "title": "Extend the existing manifest ownership and gate selector so changes to shared agent contracts require an effect test at the assembled agentloop, workflowruntime, or operation boundary. Component tests remain necessary but cannot alone verify that a capability reaches the model, policy gate, durable evidence, and runtime.",
-          "status": "open",
-          "verify": "rg -q \"func TestAgentHarnessBoundaryOwnership\" internal/automationcheck -g \"*_test.go\" \u0026\u0026 go test ./internal/automationcheck -run '^TestAgentHarnessBoundaryOwnership$' -count=1",
-          "rationale": "The strongest Reasonix testing doctrine verifies final effects through real assembly. Overgo can derive that obligation from the code manifest instead of maintaining another handwritten test map.",
-          "depends_on": [
-            "harness-surface-discipline/ratchets"
-          ],
-          "capabilities": [
-            "codemanifest",
-            "automationcheck",
-            "gate-selection"
-          ]
-        }
-      ]
-    },
-    {
       "id": "invocation-effects",
       "title": "Derive exact effects for every concrete tool invocation",
       "status": "open",

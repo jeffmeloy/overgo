@@ -1542,6 +1542,21 @@ func (g *gateContext) stepTest() (bool, error) {
 			}
 		}
 	}
+	snapshot, err := g.sourceSnapshot()
+	if err != nil {
+		return false, err
+	}
+	boundaryCoverage, err := automationcheck.AgentHarnessBoundaryCoverage(snapshot, g.paths)
+	if err != nil {
+		return false, err
+	}
+	selectedTests := append(slices.Clone(direct), dependent...)
+	if err := automationcheck.RequireAgentHarnessBoundaries(boundaryCoverage, selectedTests); err != nil {
+		return false, err
+	}
+	if len(boundaryCoverage.Boundaries) != 0 {
+		g.honesty = append(g.honesty, "assembled agent boundaries: "+strings.Join(boundaryCoverage.Boundaries, ","))
+	}
 	if len(direct)+len(dependent) == 0 {
 		g.honesty = append(g.honesty, "tests skipped: changed packages have no importers and no tests resolved")
 		return true, nil

@@ -8,13 +8,12 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-const noStorageViewInput = -1
-
 type compiledNode struct {
 	node       *tensor.Tensor
 	operands   []int
 	viewInput  int
 	viewOffset uint64
+	hasView    bool
 	input      int
 	isInput    bool
 }
@@ -72,10 +71,11 @@ func CompileProgram(program tensor.Program) (*Program, error) {
 		if viewErr != nil {
 			return nil, viewErr
 		}
-		compiled.nodes[index] = compiledNode{node: node, viewInput: noStorageViewInput}
+		compiled.nodes[index] = compiledNode{node: node}
 		if aliases {
 			compiled.nodes[index].viewInput = view.Input
 			compiled.nodes[index].viewOffset = view.ElementOffset
+			compiled.nodes[index].hasView = true
 		}
 		if node.Op == tensor.OpInput {
 			compiled.nodes[index].input = compiled.inputs
@@ -181,7 +181,7 @@ func (p *Program) Execute(inputs *Inputs, workspace *Workspace) (map[*tensor.Ten
 		for operand, slot := range compiled.operands {
 			operands[operand] = workspace.values[slot]
 		}
-		if compiled.viewInput != noStorageViewInput {
+		if compiled.hasView {
 			value, viewErr := materializeStorageView(
 				node.Shape, operands[compiled.viewInput], compiled.viewOffset,
 			)

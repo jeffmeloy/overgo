@@ -37,8 +37,6 @@ const (
 // LayerOperator: semantic execution stage.
 type LayerOperator uint8
 
-const noLayerScale float32 = 0
-
 const (
 	LayerOperatorNone LayerOperator = iota
 	LayerOperatorAttentionInputNorm
@@ -961,7 +959,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 	}
 	if profile.Attention == AttentionShortConvolution && recurrent {
 		return residualMixerProgram(
-			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy, noLayerScale,
+			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy,
 		)
 	}
 	if profile.LayerTopology == LayerTopologyAffineWKV6 {
@@ -975,11 +973,11 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 		if recurrent {
 			mixer = attentionLayerStage(LayerOperatorRecurrentMix)
 		}
-		return residualMixerProgram(mixer, LayerOperatorFeedForwardRoutedSwiGLU, noLayerScale)
+		return residualMixerProgram(mixer, LayerOperatorFeedForwardRoutedSwiGLU)
 	}
 	if plan.Mixer == recurrentMixerAttentionGroupedSelectiveScan {
 		return residualMixerProgram(
-			hybridLayerStage(), LayerOperatorFeedForwardPolicy, noLayerScale,
+			hybridLayerStage(), LayerOperatorFeedForwardPolicy,
 		)
 	}
 	if plan.Mixer == recurrentMixerScaledGroupedSelectiveScan {
@@ -992,7 +990,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 	}
 	if plan.Mixer == recurrentMixerWeightedSelectiveScan {
 		return residualMixerProgram(
-			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy, noLayerScale,
+			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy,
 		)
 	}
 	if plan.Mixer == recurrentMixerNormalizedSelectiveScan {
@@ -1151,7 +1149,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 		}
 		return residualMixerProgram(
 			attentionLayerStage(LayerOperatorRecurrentMix),
-			LayerOperatorFeedForwardPolicy, noLayerScale,
+			LayerOperatorFeedForwardPolicy,
 		)
 	case plan.Attention == AttentionLatent:
 		return latentLayerProgram(
@@ -1183,13 +1181,13 @@ func (p LayerPlan) splitProjection() bool {
 		suffix.Operator == LayerOperatorActivatedOutput
 }
 
-func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOperator, scale float32) (LayerProgram, error) {
+func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOperator, scale ...float32) (LayerProgram, error) {
 	stages := []LayerOperatorInstruction{
 		layerStage(LayerOperatorAttentionNorm), mixer, layerStage(LayerOperatorResidual),
 		layerStage(LayerOperatorFeedForwardNorm), layerStage(feedForward), layerStage(LayerOperatorResidual),
 	}
-	if positiveFinite(scale) {
-		stages = append(stages, scaleLayerStage(scale))
+	if len(scale) != 0 {
+		stages = append(stages, scaleLayerStage(scale[tensor.FirstOffset]))
 	}
 	return newLayerProgram(stages...)
 }

@@ -549,8 +549,9 @@ func ExecuteCodecProgram[Bindings, Storage, State any](
 		if err != nil {
 			return current, fmt.Errorf("%s: operation %d (%s): %w", scope, index, operation.Name, err)
 		}
+		returned := VolumeGeometry{Frames: next.Frames, Height: next.Height, Width: next.Width}
 		if !checked.Equal(next.Channels, operation.OutputChannels) ||
-			next.Frames != geometry.Frames || next.Height != geometry.Height || next.Width != geometry.Width {
+			returned != geometry {
 			return current, fmt.Errorf("%s: operation %d (%s) returned invalid geometry", scope, index, operation.Name)
 		}
 		current = next

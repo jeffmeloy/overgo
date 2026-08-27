@@ -87,10 +87,7 @@ func loadLifecycle(
 ) (Completion, bool, error) {
 	record, found, err := lifecycleCodec.Resolve(ctx, repository, lifecycleAlias(operationID))
 	if err != nil || !found {
-		if err == nil {
-			err = errors.New("operation: lifecycle record is absent")
-		}
-		return Completion{}, true, err
+		return Completion{}, found, err
 	}
 	if record.Operation != operationID || record.Intent != intent || record.Task != request.Task || record.Recipe != request.Recipe {
 		return Completion{}, true, ErrLifecycleConflict

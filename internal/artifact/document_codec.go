@@ -131,7 +131,7 @@ func (c DocumentCodec[T]) Resolve(ctx context.Context, reader Reader, alias stri
 		return zero, found, err
 	}
 	value, err := c.Require(ctx, reader, id)
-	return value, err == nil, err
+	return value, true, err
 }
 
 // Normalize converts external bytes to a canonical value and identity bytes.

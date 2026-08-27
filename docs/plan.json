@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "history",
-          "title": "Extend runrecord's query surface over attempt and trajectory artifacts by plan item, strategy, code revision, task contract, and environment. Aggregate attempts per step, success rate, verification coverage, effect uncertainty, cost, wall time, churn, and recovery without scraping logs or introducing another index authority.",
-          "status": "open",
-          "verify": "rg -q \"func TestAttemptHistory\" internal/runrecord -g \"*_test.go\" \u0026\u0026 go test ./internal/runrecord -run '^TestAttemptHistory$' -count=1",
-          "rationale": "This preserves the merged future plan's cross-run steering requirement and joins it to the richer trajectory evidence.",
-          "depends_on": [
-            "agent-trajectories/record"
-          ],
-          "capabilities": [
-            "runrecord-query",
-            "attempt-records",
-            "trajectory-evidence"
-          ]
-        },
-        {
           "id": "strategy",
           "title": "Stamp every attempt and trajectory with an immutable strategy identity derived from the worker definition, prompt, model recipe, tool catalog, policy set, and loop configuration. Configuration aliases may select a strategy, but comparisons and resume authority bind the exact content identity.",
           "status": "open",

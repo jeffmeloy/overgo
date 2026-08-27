@@ -867,9 +867,35 @@ func (g *gateContext) stepProtection() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	if stray, err := strayRootExecutables(g.repo); err != nil {
+		return false, err
+	} else if len(stray) > 0 {
+		return false, fmt.Errorf(
+			"gate: executables outside bin at the repository root: %s -- a single-package `go build ./cmd/x` drops its binary at the working directory; build with -o bin/<name>.exe or delete the stray",
+			strings.Join(stray, ", "),
+		)
+	}
 	g.stepEvidence["protection"] = configured + ";activation=" + activated
 	g.honesty = append(g.honesty, "protection: "+g.stepEvidence["protection"])
 	return false, nil
+}
+
+// strayRootExecutables lists .exe files at the repository root: the
+// gitignore hides them from status and only bin/ holds executables, so
+// a root binary is always an accident this gate surfaces at commit
+// time instead of leaving it for the release check.
+func strayRootExecutables(repo string) ([]string, error) {
+	entries, err := os.ReadDir(repo)
+	if err != nil {
+		return nil, err
+	}
+	var stray []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.EqualFold(filepath.Ext(entry.Name()), ".exe") {
+			stray = append(stray, entry.Name())
+		}
+	}
+	return stray, nil
 }
 
 func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {

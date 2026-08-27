@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:3f47d2d429a02e37fc22691735ef8f9a3adf09b4a3768198dfc885713fc9dfc5",
   "items": [
     {
-      "id": "reference-execution-program",
-      "title": "Make the CPU oracle consume the same compiled operation contract",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compile reference executor nodes into indexed neutral operation stages using the tensor program contract shared with CUDA. Move invariant validation and attribute interpretation to compilation. Migrate all oracle and host consumers, then delete executeNode dispatch branches and single-consumer operation wrappers where a typed primitive already exists. Preserve accumulation order and CPU-CUDA parity; do not merge operators with different semantics.",
-          "status": "open",
-          "verify": "go test ./internal/tensor/reference ./internal/tensor ./internal/cuda/executor -count=1",
-          "depends_on": [
-            "cuda-launch-program/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "media-codec-executor",
       "title": "Move codec sequencing into the neutral media program",
       "status": "open",

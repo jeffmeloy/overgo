@@ -879,7 +879,7 @@ type compiledNode struct {
 	view          tensor.StorageView
 	aliases       bool
 	skipped       bool
-	launchProgram tensor.CUDAProgram
+	launcher      nodeLauncher
 }
 
 type compiledFusionKind uint8
@@ -1339,7 +1339,10 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			if !ok || descriptor.CUDA == tensor.CUDAProgramNone {
 				return nil, fmt.Errorf("CUDA operation %s has no compiled launch program", node.Op)
 			}
-			frame.launchProgram = descriptor.CUDA
+			if int(descriptor.CUDA) >= len(nodeLaunchers) || nodeLaunchers[descriptor.CUDA] == nil {
+				return nil, fmt.Errorf("CUDA operation %s has no compiled launcher", node.Op)
+			}
+			frame.launcher = nodeLaunchers[descriptor.CUDA]
 		}
 		compiled.nodes[index] = frame
 		_, elided := compiled.elided[node]
@@ -2044,10 +2047,7 @@ func execute(
 					return resolveErr
 				}
 			}
-			if err := launchNode(
-				state, functions, blas, q8Input, node, attributes, operands,
-				frame.launchProgram,
-			); err != nil {
+			if err := frame.launcher(state, functions, blas, q8Input, node, attributes, operands); err != nil {
 				return fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
 			}
 			submitted = true

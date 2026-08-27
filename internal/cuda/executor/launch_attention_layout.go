@@ -316,6 +316,7 @@ func launchAttentionLayout(
 	state *device.State,
 	functions functionSet,
 	blas *blasState,
+	_ *q8InputState,
 	node *tensor.Tensor,
 	runtimeAttributes tensor.Attributes,
 	pointers launchPointerFrame,

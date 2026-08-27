@@ -26,8 +26,8 @@ func TestIndexedGraphOwnsCompilation(t *testing.T) {
 	if compiled.memory.ArenaSize == 0 || compiled.needBlas {
 		t.Fatalf("compiled memory/BLAS = %d/%t", compiled.memory.ArenaSize, compiled.needBlas)
 	}
-	if compiled.nodes[2].launchProgram != tensor.CUDAProgramMathVision {
-		t.Fatalf("compiled add launch program = %d", compiled.nodes[2].launchProgram)
+	if compiled.nodes[2].launcher == nil {
+		t.Fatal("compiled add launcher is nil")
 	}
 	inputNodes := [...]*tensor.Tensor{left, right}
 	if len(indexed.Inputs.Pointers) != len(inputNodes) {

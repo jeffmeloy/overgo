@@ -19,23 +19,6 @@
           ]
         }
       ]
-    },
-    {
-      "id": "media-report-parity",
-      "title": "Reach content parity with the adaptive_new image generation report",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Reach content parity with the adaptive_new image generation report",
-          "status": "open",
-          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); for(const h of ['## Verdict','## Public media surface','## Function inventory','## Recipe inventory','## Measured results','## Samples']) if(!s.includes(h)) process.exit(1)\"",
-          "rationale": "Generator gains the reference sections, all derived: Verdict (generated per-model facts), Public media surface (server endpoints), Function inventory (capability executors/routes), Recipe inventory (recipes per task with status), per-model Measured results with phases, peak, output SHA-256, and embedded samples.",
-          "depends_on": [
-            "media-sample-export/do"
-          ]
-        }
-      ]
     }
   ]
 }

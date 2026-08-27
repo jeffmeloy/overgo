@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,7 +15,6 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
-	"overgo/internal/strictjson"
 )
 
 // mediaSamplesDir holds the exported verifier-run outputs the media
@@ -25,6 +25,10 @@ const mediaSamplesDir = "docs/media_samples"
 // speechAudioSchema recognizes the speech pipeline's typed audio
 // output so it can be exported as a playable WAV.
 const speechAudioSchema = "overgo.speech-audio.v1"
+
+// generatedVideoSchema recognizes the JSON-enveloped generated-video
+// output whose data field owns the encoded clip bytes.
+const generatedVideoSchema = "overgo.generated-video.v1"
 
 // exportMediaSamples writes each healthy media activation's succeeded
 // verifier-run outputs under docs/media_samples as decodable files --
@@ -75,11 +79,48 @@ func exportRecipeSamples(
 	definition artifact.ID,
 	directory string,
 ) (int, error) {
+	written := 0
+	err := visitRecipeSamples(ctx, store, definition, func(name string, data []byte) error {
+		path := filepath.Join(directory, name)
+		if _, statErr := os.Stat(path); statErr == nil {
+			return nil
+		}
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			return err
+		}
+		written++
+		return nil
+	})
+	return written, err
+}
+
+// recipeSampleNames lists the exportable sample file names one recipe
+// definition's succeeded runs produced, in lineage order.
+func recipeSampleNames(ctx context.Context, store *overgodb.Store, definition artifact.ID) ([]string, error) {
+	var names []string
+	seen := map[string]bool{}
+	err := visitRecipeSamples(ctx, store, definition, func(name string, _ []byte) error {
+		if !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+		return nil
+	})
+	return names, err
+}
+
+// visitRecipeSamples walks the runs recorded against one recipe
+// definition and visits every decodable succeeded-run output.
+func visitRecipeSamples(
+	ctx context.Context,
+	store *overgodb.Store,
+	definition artifact.ID,
+	visit func(name string, data []byte) error,
+) error {
 	edges, err := store.Children(ctx, definition)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	written := 0
 	for _, edge := range edges {
 		if edge.Relation != artifact.RelationDependsOn || edge.Child.Kind() != artifact.KindRun {
 			continue
@@ -97,17 +138,12 @@ func exportRecipeSamples(
 			if !ok {
 				continue
 			}
-			path := filepath.Join(directory, name)
-			if _, statErr := os.Stat(path); statErr == nil {
-				continue
+			if err := visit(name, data); err != nil {
+				return err
 			}
-			if err := os.WriteFile(path, data, 0o644); err != nil {
-				return written, err
-			}
-			written++
 		}
 	}
-	return written, nil
+	return nil
 }
 
 // sampleFile decodes one run-output content into an exportable file:
@@ -118,13 +154,23 @@ func sampleFile(content artifact.Content) (string, []byte, bool) {
 		return hashName(content.Data, "png"), content.Data, true
 	case content.Descriptor.MediaType == media.GIFMediaType:
 		return hashName(content.Data, "gif"), content.Data, true
+	case content.Descriptor.Schema == generatedVideoSchema:
+		var video struct {
+			Data      []byte `json:"data"`
+			MediaType string `json:"media_type"`
+		}
+		if err := json.Unmarshal(content.Data, &video); err != nil ||
+			video.MediaType != media.GIFMediaType || len(video.Data) == 0 {
+			return "", nil, false
+		}
+		return hashName(video.Data, "gif"), video.Data, true
 	case content.Descriptor.Schema == speechAudioSchema:
 		var audio struct {
 			PCM        []float32 `json:"pcm"`
 			SampleRate int       `json:"sample_rate"`
 			Channels   int       `json:"channels"`
 		}
-		if err := strictjson.DecodeBytes(content.Data, &audio); err != nil || len(audio.PCM) == 0 {
+		if err := json.Unmarshal(content.Data, &audio); err != nil || len(audio.PCM) == 0 {
 			return "", nil, false
 		}
 		encoded, err := media.EncodeWAVPCM16(audio.PCM, audio.SampleRate)

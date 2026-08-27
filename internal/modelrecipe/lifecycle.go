@@ -2,6 +2,7 @@ package modelrecipe
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -219,18 +220,40 @@ func RetireOrphanedActivation(
 	if !active {
 		return errors.New("model recipe: retirement requires an active recipe")
 	}
-	if _, _, trustErr := ActiveRecord(ctx, store, model, task); trustErr == nil {
+	_, _, trustErr := ActiveRecord(ctx, store, model, task)
+	if trustErr == nil {
 		return errors.New("model recipe: the activation is trusted; retire it through the evidence-backed path")
-	} else {
-		reason = reason + "; trust check: " + trustErr.Error()
 	}
 	definition, err := loadDefinition(ctx, store, activeID)
 	if err != nil {
 		return err
 	}
+	// The measured trust failure is the retirement evidence: it is
+	// committed verbatim so the refusal cites an observation, not an
+	// assertion.
+	failureContract := artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: artifact.JSONMediaType,
+		Schema: "overgo/orphan-trust-failure/v1",
+	}
+	failureBody, err := json.Marshal(struct {
+		Model    artifact.ID `json:"model"`
+		Task     recipe.Task `json:"task"`
+		Recipe   artifact.ID `json:"recipe"`
+		Failure  string      `json:"failure"`
+		Revision string      `json:"revision"`
+	}{Model: model, Task: task, Recipe: definition.ID, Failure: trustErr.Error(), Revision: revision})
+	if err != nil {
+		return err
+	}
+	failure, err := failureContract.ContentBytes(failureBody)
+	if err != nil {
+		return err
+	}
 	decision, err := recipe.NewDecision(
-		definition.ID, recipe.DecisionRefused, recipe.EvidenceExperimental, reason,
-		recipe.Decider{CodeCommit: revision, Derivation: definition.ID}, nil,
+		definition.ID, recipe.DecisionRefused, recipe.EvidenceExperimental,
+		reason+"; trust check: "+trustErr.Error(),
+		recipe.Decider{CodeCommit: revision, Derivation: definition.ID},
+		[]artifact.ID{failure.Descriptor.ID},
 	)
 	if err != nil {
 		return err
@@ -241,13 +264,15 @@ func RetireOrphanedActivation(
 	if err != nil {
 		return err
 	}
+	batch.Artifacts = append(batch.Artifacts, failure.Descriptor)
+	batch.Contents = append(batch.Contents, failure)
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		return err
 	}
 	_, _, err = Transition(
 		ctx, store, "recipe/retired/"+definition.ID.String()+"/"+decision.ID.String(),
 		definition, recipe.StatusSuperseded,
-		[]artifact.ID{decision.ID}, nil,
+		[]artifact.ID{decision.ID, failure.Descriptor.ID}, nil,
 	)
 	return err
 }

@@ -631,12 +631,7 @@ func retire(
 // committed.
 func ensurePolicy(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
-	file, err := gguf.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
+	inventory, err := policyModelInventory(path, task)
 	if err != nil {
 		return err
 	}
@@ -661,6 +656,30 @@ func ensurePolicy(repository, path string, task recipe.Task) error {
 	}
 	fmt.Printf("runtime policy %s bound to recipe %s\n", policy.ID, activation.Definition.ID)
 	return nil
+}
+
+// policyModelInventory resolves the model identity for a policy bind
+// through the same authority each task uses everywhere else: the GGUF
+// header for inference-family models, the task's registered capability
+// source for everything else -- a safetensors speech or media model is
+// never opened as a GGUF.
+func policyModelInventory(path string, task recipe.Task) (modelartifact.Inventory, error) {
+	if task == recipe.TaskVQA {
+		return modelartifact.FromHFPath(path)
+	}
+	if capability, known := capabilities[task]; known && capability.resolve != nil {
+		source, err := capability.resolve(path)
+		if err != nil {
+			return modelartifact.Inventory{}, err
+		}
+		return source.inventory, nil
+	}
+	file, err := gguf.Open(path)
+	if err != nil {
+		return modelartifact.Inventory{}, err
+	}
+	defer file.Close()
+	return modelartifact.FromGGUF(file, artifact.KindModel)
 }
 
 func status(repository, path string, task recipe.Task) error {

@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:3f47d2d429a02e37fc22691735ef8f9a3adf09b4a3768198dfc885713fc9dfc5",
   "items": [
     {
-      "id": "cuda-launch-program",
-      "title": "Compile CUDA operand and launch selection once",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Extend compiled CUDA nodes with exact launcher identity, indexed operand slots, validated extents, layout, and ABI metadata. Resolve launch family and shape contracts at compile time; runtime supplies pointers and dynamic extents only. Migrate recurrent, linear, attention, math-vision, MoE, and RoPE callers together. Delete launchNode family dispatch, repeated attribute decoding, repeated pointer lookup, and duplicated runtime shape validation. Retain bounded kernel selection and numerical parity.",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor ./internal/cuda/kernel ./internal/tensor -count=1",
-          "depends_on": [
-            "layer-operator-program/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "reference-execution-program",
       "title": "Make the CPU oracle consume the same compiled operation contract",
       "status": "open",

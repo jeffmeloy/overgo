@@ -66,14 +66,29 @@ func (state *ContractState) ObserveMutation(effect agenttool.InvocationEffect) {
 		state.epochs[projectAgentScope]++
 		return
 	}
-	for _, target := range effect.Targets {
-		state.epochs[target.Value]++
+	for _, obligation := range state.obligations {
+		if slices.ContainsFunc(effect.Targets, func(target agenttool.InvocationTarget) bool {
+			return scopesOverlap(target.Value, obligation.Scope)
+		}) {
+			state.epochs[obligation.Scope]++
+		}
 	}
 }
 
 func (state *ContractState) AddResolution(resolution runrecord.AgentObligationResolution) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
+	if !slices.ContainsFunc(state.obligations, func(obligation runrecord.AgentObligation) bool {
+		return resolution.Obligation == obligation.ID && resolution.Scope == obligation.Scope
+	}) {
+		return
+	}
+	for index, existing := range state.resolutions {
+		if existing.Obligation == resolution.Obligation {
+			state.resolutions[index] = resolution
+			return
+		}
+	}
 	state.resolutions = append(state.resolutions, resolution)
 }
 
@@ -89,11 +104,7 @@ func (state *ContractState) Outstanding() []runrecord.AgentObligation {
 	for _, obligation := range state.obligations {
 		current := obligation
 		current.MutationEpoch += state.epochs[projectAgentScope]
-		for scope, epoch := range state.epochs {
-			if scope != projectAgentScope && scopesOverlap(scope, obligation.Scope) {
-				current.MutationEpoch += epoch
-			}
-		}
+		current.MutationEpoch += state.epochs[obligation.Scope]
 		if !runrecord.AgentObligationSatisfied(current, state.resolutions) {
 			result = append(result, current)
 		}

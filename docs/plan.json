@@ -1,30 +1,6 @@
 {
   "campaign": "Evidence-governed agent harness convergence",
   "doctrine": "The agent harness grows by strengthening existing Overgo owners, not by grafting on a second framework. Recipe owns immutable intent and delegation contracts; agenttool owns manuals, invocation effects, catalog discovery, and dispatch; runrecord owns obligations, trajectories, checkpoints, attempts, and lifecycle evidence; plan owns campaign steering and work claims; operation and workflowruntime own bounded execution; agentloop composes those authorities. No row may add a parallel metadata store, mutable tool registry, scheduler, JSONL authority, checkpoint blob store, interpreter, model-authored execution authority, or transport-specific workflow path. Model cognition may propose actions, but deterministic code derives effects, admission, invalidation, recovery, evaluation, and promotion. Every step must reuse common codecs and lifecycle machinery, fail closed on uncertainty, test the assembled boundary, remove displaced code in the same commit, and justify any net increase in package or policy surface with measured coverage or capability gain.",
-  "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
-  "items": [
-    {
-      "id": "harness-consolidation",
-      "title": "Prove the capability gain did not create a second framework",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run a final structural and behavioral audit over the completed harness: no duplicate stores, registries, schedulers, effect classifiers, checkpoint payload owners, policy lifecycles, or execution switches; no orphaned compatibility paths; all new mutable state bounded and lifecycle-owned; all identities, limits, and distributions derived from authority or measured evidence. Publish before and after surface, coverage, exclusion, recovery, trajectory, and strategy-comparison measurements through the existing census and evaluation records, then delete temporary adapters and superseded code.",
-          "status": "open",
-          "verify": "rg -q \"func TestAgentHarnessConsolidation\" internal/repoanalysis -g \"*_test.go\" \u0026\u0026 go test ./internal/repoanalysis -run '^TestAgentHarnessConsolidation$' -count=1 \u0026\u0026 go test ./... -count=1",
-          "rationale": "Least surface area is a measured acceptance condition, not a coding preference. The campaign ends only when common ownership and whole-repository behavior are proven together.",
-          "depends_on": [
-            "automation-mutation-tests/do",
-            "recursive-policy-steering/loop-closure"
-          ],
-          "capabilities": [
-            "repoanalysis",
-            "closure-census",
-            "full-verification"
-          ]
-        }
-      ]
-    }
-  ]
+  "census_evidence": "evidence:sha256:3a38d403f72a219ff6dc02be74eb1d429808170a1129041a949b9e344c639473",
+  "items": []
 }

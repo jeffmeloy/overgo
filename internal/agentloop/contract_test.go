@@ -39,6 +39,18 @@ func TestAgentContractEnforcement(t *testing.T) {
 		t.Fatal(err)
 	}
 	state.AddResolution(resolution)
+	state.AddResolution(resolution)
+	foreign, err := runrecord.NewAgentObligationResolution(runrecord.AgentObligationResolution{
+		Obligation: testutil.ArtifactID(t, artifact.KindEvidence, "foreign obligation"), Scope: obligation.Scope,
+		Evidence: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "foreign pass")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.AddResolution(foreign)
+	if len(state.resolutions) != 1 || len(state.epochs) != 0 {
+		t.Fatalf("contract state is not obligation-bounded: resolutions=%d epochs=%d", len(state.resolutions), len(state.epochs))
+	}
 	if err := state.RequireComplete(); err != nil {
 		t.Fatal(err)
 	}

@@ -49,8 +49,7 @@ type httpJSONStreamAdapter struct{ client *http.Client }
 // honors the invocation deadline -- a wedged first call cannot make a
 // second call wait past its own bound.
 type Executor struct {
-	mu       sync.Mutex
-	entries  map[string]chan struct{}
+	entries  [sha256.Size]chan struct{}
 	adapters map[TransportKind]transportAdapter
 }
 
@@ -72,8 +71,7 @@ func NewOperatorExecutor() *Executor {
 
 func newExecutor(client *http.Client) *Executor {
 	builtins := &builtinAdapter{implementations: map[string]Builtin{}}
-	return &Executor{
-		entries: map[string]chan struct{}{},
+	executor := &Executor{
 		adapters: map[TransportKind]transportAdapter{
 			TransportBuiltin:        builtins,
 			TransportHTTP:           &httpAdapter{client: client},
@@ -82,6 +80,10 @@ func newExecutor(client *http.Client) *Executor {
 			TransportHTTPJSONStream: &httpJSONStreamAdapter{client: client},
 		},
 	}
+	for index := range executor.entries {
+		executor.entries[index] = make(chan struct{}, 1)
+	}
+	return executor
 }
 
 func (adapter *httpJSONStreamAdapter) invoke(context.Context, Manual, json.RawMessage) (json.RawMessage, error) {
@@ -89,14 +91,8 @@ func (adapter *httpJSONStreamAdapter) invoke(context.Context, Manual, json.RawMe
 }
 
 func (e *Executor) manualEntry(name string) chan struct{} {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	entry, found := e.entries[name]
-	if !found {
-		entry = make(chan struct{}, 1)
-		e.entries[name] = entry
-	}
-	return entry
+	digest := sha256.Sum256([]byte(name))
+	return e.entries[int(digest[0])%len(e.entries)]
 }
 
 // registerBuiltin binds one in-process implementation to a manual name.

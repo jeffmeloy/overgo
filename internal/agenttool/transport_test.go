@@ -190,3 +190,14 @@ func TestTransportArgvReturnsStdoutAsJSONString(t *testing.T) {
 		t.Fatal("failing program accepted")
 	}
 }
+
+func TestExecutorAdmissionStateIsFixed(t *testing.T) {
+	executor := NewExecutor()
+	seen := map[chan struct{}]bool{}
+	for index := 0; index < len(executor.entries)*len(executor.entries); index++ {
+		seen[executor.manualEntry(fmt.Sprintf("tool.%d", index))] = true
+	}
+	if len(seen) > len(executor.entries) {
+		t.Fatalf("admission entries grew to %d beyond fixed capacity %d", len(seen), len(executor.entries))
+	}
+}

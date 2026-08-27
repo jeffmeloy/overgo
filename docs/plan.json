@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "document-contract-census",
-      "title": "Compile artifact and wire contracts from typed source owners",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Extend the existing code-manifest analysis to extract artifact.DocumentContract and DocumentCodec contracts with Go type information and constant evaluation. Emit kind, media type, schema, version owner, build context, and source identity into the API compiler. Fail on dynamic or ambiguous public contracts instead of adding a central hand-maintained map. Consolidate repeated media-type/schema declarations into existing neutral contract constructors where semantics match, migrate all callers, and delete displaced constants and validation copies.",
-          "status": "open",
-          "verify": "go test ./internal/artifact ./internal/codemanifest ./internal/apimanifest -count=1",
-          "depends_on": [
-            "api-manifest-contract/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "http-route-authority",
       "title": "Make typed HTTP routes the sole server authority",
       "status": "open",
@@ -58,7 +42,7 @@
       "steps": [
         {
           "id": "do",
-          "title": "Compile kernel ABI version, target, PTX entry layouts, shared-memory contract, and manifest digest from kernels/manifest.json through the existing kernel verifier. Compile recipe module input/output roles from the active typed module catalog, governed agent-tool protocol contracts from agenttool, and GUI workspace manifest/schema identities from their current files. Store references and compatibility keys rather than copying complete subsystem documents. Remove duplicate ABI pins outside the existing generated kernel binding, duplicate recipe/tool capability lists, and release metadata now derivable from these owners.",
+          "title": "Compile kernel ABI version, target, PTX entry layouts, shared-memory contract, and manifest digest from kernels/manifest.json through the existing kernel verifier. Compile recipe module input/output roles from the active typed module catalog, governed agent-tool protocol contracts from agenttool, and GUI workspace manifest/schema identities from their current files. Project the same protocol-neutral tool and transport records into deterministic MCP tool/resource/prompt declarations and a UTCP manual; never maintain protocol-specific catalogs. Store references and compatibility keys rather than copying complete subsystem documents. Remove duplicate ABI pins outside the existing generated kernel binding, duplicate recipe/tool capability lists, and release metadata now derivable from these owners.",
           "status": "open",
           "verify": "go test ./cmd/kernel-manifest ./cmd/kernel-bindings ./internal/modelrecipe ./internal/agenttool ./internal/workflowruntime ./internal/server -count=1",
           "depends_on": [

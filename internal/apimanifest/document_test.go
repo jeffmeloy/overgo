@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/codemanifest"
 )
 
 const fixtureDigest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -14,13 +15,25 @@ var fixtureContract = ContractRef{
 	Kind: artifact.KindOutput, MediaType: artifact.JSONMediaType, Schema: "overgo/fixture/v1",
 }
 
+func TestCompileDocumentsPreservesSourceAuthority(t *testing.T) {
+	documents, err := CompileDocuments([]codemanifest.DocumentDeclaration{{
+		Name: "fixture", Owner: "overgo/internal/fixture.contract", VersionOwner: "overgo/internal/fixture.version",
+		Kind: fixtureContract.Kind, MediaType: fixtureContract.MediaType, Schema: fixtureContract.Schema,
+		BuildContexts: []string{"windows-amd64"}, Source: "internal/fixture/document.go", SourceIdentity: fixtureDigest,
+	}})
+	if err != nil || len(documents) != 1 || documents[0].SourceIdentity != fixtureDigest || documents[0].VersionOwner == "" {
+		t.Fatalf("compiled documents = %+v/%v", documents, err)
+	}
+}
+
 func fixtureManifest(t *testing.T) Manifest {
 	t.Helper()
 	value, err := New(Manifest{
 		Version: artifact.InitialDocumentVersion, Release: "fixture", SourceIdentity: fixtureDigest,
 		BuildContexts: []BuildContext{{ID: "windows-amd64", GOOS: "windows", GOARCH: "amd64"}},
 		Documents: []Document{{
-			Name: "fixture", Owner: "internal/fixture", Kind: fixtureContract.Kind,
+			Name: "fixture", Owner: "internal/fixture", VersionOwner: "internal/fixture.fixtureVersion",
+			Source: "internal/fixture/document.go", SourceIdentity: fixtureDigest, Kind: fixtureContract.Kind,
 			MediaType: fixtureContract.MediaType, Schema: fixtureContract.Schema,
 		}},
 		Binaries:    []Binary{{Name: "overgo", Package: "cmd/overgo", BuildContexts: []string{"windows-amd64"}, Output: []ContractRef{fixtureContract}}},

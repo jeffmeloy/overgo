@@ -62,12 +62,15 @@ type Route struct {
 }
 
 type Document struct {
-	Name          string        `json:"name"`
-	Owner         string        `json:"owner"`
-	Kind          artifact.Kind `json:"kind"`
-	MediaType     string        `json:"media_type"`
-	Schema        string        `json:"schema"`
-	BuildContexts []string      `json:"build_contexts,omitempty"`
+	Name           string        `json:"name"`
+	Owner          string        `json:"owner"`
+	VersionOwner   string        `json:"version_owner"`
+	Source         string        `json:"source"`
+	SourceIdentity string        `json:"source_identity"`
+	Kind           artifact.Kind `json:"kind"`
+	MediaType      string        `json:"media_type"`
+	Schema         string        `json:"schema"`
+	BuildContexts  []string      `json:"build_contexts,omitempty"`
 }
 
 type Module struct {
@@ -238,7 +241,7 @@ func validate(value Manifest) error {
 	documents := map[string]bool{}
 	for _, document := range value.Documents {
 		key := documentKey(document.Kind, document.MediaType, document.Schema)
-		if !validText(document.Name) || !validText(document.Owner) || !validContract(ContractRef{Kind: document.Kind, MediaType: document.MediaType, Schema: document.Schema}) || documents[key] || !knownContexts(document.BuildContexts, contexts) {
+		if !validText(document.Name) || !validText(document.Owner) || !validText(document.VersionOwner) || !validText(document.Source) || !validDigest(document.SourceIdentity) || !validContract(ContractRef{Kind: document.Kind, MediaType: document.MediaType, Schema: document.Schema}) || documents[key] || !knownContexts(document.BuildContexts, contexts) {
 			return errors.New("API manifest document contract is invalid")
 		}
 		documents[key] = true

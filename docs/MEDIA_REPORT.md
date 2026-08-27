@@ -10,6 +10,7 @@ Evidence rules: an activation states its recipe evidence tier; a measured claim 
 | --- | --- | --- | --- | --- |
 | `Hy-Embodied-RxBrain-1.0` | `vqa` | parity | - | - |
 | `Krea-2-Turbo` | `image-gen` | experimental | - | - |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | experimental | - | - |
 | `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | experimental | - | - |
 | `Un-0` | `image-gen` | experimental | - | - |
 | `Wan2.1-T2V-1.3B` | `video-gen` | experimental | - | - |
@@ -25,6 +26,7 @@ One row per healthy activation: the verifier run the activation cites, exactly a
 | --- | --- | --- | --- | --- |
 | `Hy-Embodied-RxBrain-1.0` | `vqa` | 9.941s | `deb633f55991` | `evidence:sha256:aad076217f89fb8e` |
 | `Krea-2-Turbo` | `image-gen` | 14.989s | `2ccea11d91bb` | `evidence:sha256:0d731b31f815c780` |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | 12.89s | `8594fc50a7a2` | `evidence:sha256:dc2fac5ea2ca34c1` |
 | `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | 1.826s | `58f98a458732` | `evidence:sha256:ef07513101096dce` |
 | `Un-0` | `image-gen` | 29ms | `58f98a458732` | `evidence:sha256:4c4f9951e019f8a2` |
 | `Wan2.1-T2V-1.3B` | `video-gen` | 5.737s | `58f98a458732` | `evidence:sha256:e409bdcf8e08fe54` |

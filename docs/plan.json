@@ -4,18 +4,18 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "sensenova-image-activation",
-      "title": "Verify and activate the SenseNova V3 routed image route",
+      "id": "media-component-slots",
+      "title": "Bind media recipe stages to manifest components through model slots",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Verify and activate the SenseNova V3 routed image route",
+          "title": "Bind media recipe stages to manifest components through model slots",
           "status": "open",
-          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(!/SenseNova|sensenova/.test(s)||/stale:/.test(s)) process.exit(1)\"",
-          "rationale": "SenseNova-U1-8B-MoT-Infographic-V3 through the routed causal-GQA image route: same verify-fix-activate contract.",
+          "verify": "go test ./internal/modelrecipe -run TestCapability -count=1",
+          "rationale": "Owner direction 2026-08-27: image-gen recipes stage prepare/integrate/decode onto the composite model; bind each stage to its manifest component (text encoder, transformer, VAE) through Node.ModelSlot + slotted dependencies, keeping the combination-exact composite identity for verification while gaining per-component residency, per-stage measured bytes, and content-identity reuse of shared components like a VAE. Owner note: the Krea VAE is Flux-lineage and likely shared byte-identical with Flux-family models -- component content identities would prove and dedup that sharing.",
           "depends_on": [
-            "krea-image-activation/do"
+            "media-report-parity/do"
           ]
         }
       ]
